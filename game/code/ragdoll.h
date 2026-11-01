@@ -54,4 +54,39 @@ void XB_STDCALL RagdollPhysPool_DestroyAll(uint8_t* pool);
 extern "C" PLATFORM_HIDDEN void XB_CDECL RagdollPhysPool_Clear(uint8_t* pool);
 extern "C" void RagdollPhysPool_Clear_entry(void);
 
+// Physics ragdoll methods (ragdoll in ECX).
+// 0x000b2ff0: sets the bone <-> body callbacks (two function pointers).
+void XB_CDECL Phys_SetBoneCallbacks(const uint32_t* callbacks);
+// 0x000b3050: resets the rest state and the launch frames.
+void XB_THISCALL PhysRagdoll_ResetRestState(uint8_t* phys);
+// 0x000b3090: launch target; two launch frames.
+void XB_THISCALL PhysRagdoll_SetLaunchTarget(uint8_t* phys, const float* target);
+// 0x000b3110: allocates body `index`; returns it.
+uint32_t XB_THISCALL PhysRagdoll_AllocBody(uint8_t* phys, int32_t index);
+// 0x000b3130: joint between bodies a and b at joint slot b; returns it.
+uint32_t XB_THISCALL PhysRagdoll_CreateJoint(uint8_t* phys, int32_t a, int32_t b);
+// 0x000b31c0: frees 0xd0 constraint `index`.
+void XB_THISCALL PhysRagdoll_FreeConstraintD0(uint8_t* phys, int32_t index);
+// 0x000b31f0: one launch step toward the target while frames are left.
+void XB_THISCALL PhysRagdoll_UpdateLaunchToTarget(uint8_t* phys);
+// 0x000b3240: centre of mass and its velocity (vec3s).
+void XB_THISCALL PhysRagdoll_GetCenterOfMass(uint8_t* phys, float* center, float* velocity, uint32_t arg3);
+// 0x000b3300: wakes the ragdoll and adds a force at a point to one body.
+void XB_THISCALL PhysRagdoll_AddBodyForceAtPoint(uint8_t* phys, int32_t index, const float* point, const float* force,
+                                                 uint32_t arg4);
+// 0x000b3360: appends count empty body/joint/constraint slots.
+void XB_THISCALL PhysRagdoll_AddEmptySlots(uint8_t* phys, int32_t count);
+// 0x000b33e0: iterates the joints until the bodies sit on their anchors.
+void XB_THISCALL PhysRagdoll_SolveJointPositions(uint8_t* phys);
+// 0x000b34a0: unlinks and destroys body `index` and its bones.
+void XB_THISCALL PhysRagdoll_RemoveBody(uint8_t* phys, int32_t index);
+// 0x000b35b0: attaches body `index` to the owner's object.
+void XB_THISCALL PhysRagdoll_AttachBodyToObject(uint8_t* phys, uint32_t owner, int32_t index, uint32_t arg3,
+                                                uint32_t arg4);
+// 0x000b3640: destroys the attached objects.
+void XB_THISCALL PhysRagdoll_DestroyObjects(uint8_t* phys);
+// 0x000b3690, 0x000b36e0: bodies -> bone poses, bone poses -> bodies (the bone callbacks).
+void XB_THISCALL PhysRagdoll_WriteBodiesToPose(uint8_t* phys);
+void XB_THISCALL PhysRagdoll_PoseToBodies(uint8_t* phys);
+
 }  // namespace game

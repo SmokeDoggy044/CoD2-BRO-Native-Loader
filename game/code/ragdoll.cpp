@@ -337,4 +337,208 @@ void XB_CDECL RagdollPhysPool_Clear(uint8_t* pool) {
     pool_reset(pool, kRagdollPhysPool);
 }
 
+// Physics ragdoll (0x1d50 bytes, PhysRagdoll pool): ten-slot lists of bodies (+0x28, count +0x2c),
+// joints (+0x58/+0x5c), 0xd0 constraints (+0x88/+0x8c), attached objects (+0xb8/+0xbc) and their
+// constraints (+0xe8/+0xec); the bone pool at +0xf0 with the used bones at +0x410 (count +0x464);
+// rest state +0x470..+0x484; launch target +0x490 and launch frames left +0x4a0.
+
+namespace {
+
+// A list slot (ten at most): the next free entry, counted, or null when full.
+uint32_t* ragdoll_list_append(uint8_t* phys, uint32_t list) {
+    const int32_t count = at<int32_t>(phys, list + 4);
+    if (count >= 10) return nullptr;
+    uint32_t* const slot = at<uint32_t*>(phys, list) + count;
+    at<int32_t>(phys, list + 4) = count + 1;
+    return slot;
+}
+
+// The rest state the bodies start over with (also inlined into AddBodyForceAtPoint).
+void ragdoll_reset_rest(uint8_t* phys) {
+    const float limit = title_global<float>(0x0083eb9c);  // 1000
+    at<uint8_t>(phys, 0x470) = 0;
+    at<uint8_t>(phys, 0x478) = 0;
+    at<float>(phys, 0x474) = 0.0f;
+    at<float>(phys, 0x480) = limit;
+    at<float>(phys, 0x484) = 0.0f;
+}
+
+// Clears every entry of a list that is a constraint on the body (its first or second body).
+void ragdoll_unlink_body(uint8_t* phys, uint32_t list, uint32_t body) {
+    uint32_t* it = at<uint32_t*>(phys, list);
+    uint32_t* const end = it + at<int32_t>(phys, list + 4);
+    for (; it != end; ++it) {
+        const uint32_t constraint = *it;
+        if (!constraint) continue;
+        if (at<uint32_t>(reinterpret_cast<void*>(constraint), 0) == body ||
+            at<uint32_t>(reinterpret_cast<void*>(constraint), 4) == body)
+            *it = 0;
+    }
+}
+
+using BoneCallback = void XB_CDECL(uint32_t pose, uint32_t body, uint8_t* bone);
+
+// Each used bone (+0x40 pose, +0x44 body index) with a body: the callback.
+void ragdoll_bones_call(uint8_t* phys, uint32_t callback) {
+    uint8_t** it = reinterpret_cast<uint8_t**>(phys + 0x410);
+    uint8_t** const end = it + at<int32_t>(phys, 0x464);
+    for (; it != end; ++it) {
+        uint8_t* const bone = *it;
+        const uint32_t body = at<uint32_t*>(phys, 0x28)[at<int32_t>(bone, 0x44)];
+        if (body) title_global<BoneCallback*>(callback)(at<uint32_t>(bone, 0x40), body, bone);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL Phys_SetBoneCallbacks(const uint32_t* callbacks) {
+    title_global<uint32_t>(0x0090a850) = callbacks[0];  // phys_bodyToPoseCallback
+    title_global<uint32_t>(0x0090a854) = callbacks[1];  // phys_poseToBodyCallback
+}
+
+void XB_THISCALL PhysRagdoll_ResetRestState(uint8_t* phys) {
+    ragdoll_reset_rest(phys);
+    at<uint32_t>(phys, 0x4a0) = 0;
+}
+
+void XB_THISCALL PhysRagdoll_SetLaunchTarget(uint8_t* phys, const float* target) {
+    alignas(16) float copy[4];
+    std::memcpy(copy, target, 16);
+    std::memcpy(phys + 0x490, copy, 16);
+    at<uint32_t>(phys, 0x4a0) = 2;
+}
+
+uint32_t XB_THISCALL PhysRagdoll_AllocBody(uint8_t* phys, int32_t index) {
+    const uint32_t body = title_function<uint32_t XB_CDECL()>(0x000b47b0)();  // PhysWorld_AllocBody
+    at<uint32_t*>(phys, 0x28)[index] = body;
+    return body;
+}
+
+// Joint between bodies a and b, stored at joint slot b.
+uint32_t XB_THISCALL PhysRagdoll_CreateJoint(uint8_t* phys, int32_t a, int32_t b) {
+    const uint32_t* const bodies = at<uint32_t*>(phys, 0x28);
+    uint32_t* const slot = at<uint32_t*>(phys, 0x58) + b;
+    using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t);
+    *slot = title_function<Alloc>(0x000b4b40)(bodies[a], bodies[b]);  // PhysWorld_AllocConstraint1B0
+    return at<uint32_t*>(phys, 0x58)[b];
+}
+
+void XB_THISCALL PhysRagdoll_FreeConstraintD0(uint8_t* phys, int32_t index) {
+    title_function<void XB_CDECL(uint32_t)>(0x000b49b0)(at<uint32_t*>(phys, 0x88)[index]);  // PhysWorld_FreeConstraintD0
+    at<uint32_t*>(phys, 0x88)[index] = 0;
+}
+
+// While launch frames are left: one more push of the bodies toward the target; done once the
+// remaining distance (the callee's result) is below 2.25.
+void XB_THISCALL PhysRagdoll_UpdateLaunchToTarget(uint8_t* phys) {
+    const int32_t frames = at<int32_t>(phys, 0x4a0);
+    if (!frames) return;
+    at<int32_t>(phys, 0x4a0) = frames - 1;
+    float remaining;  // the `push ecx` slot: starts as the object pointer's bits
+    const uint32_t bits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(phys));
+    std::memcpy(&remaining, &bits, 4);
+    using Launch = void XB_CDECL(uint32_t, int32_t, uint8_t*, float*);
+    title_function<Launch>(0x000bad60)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), phys + 0x490,
+                                       &remaining);  // PhysBodies_LaunchTowardTarget
+    if (title_global<float>(0x007cd0a4) > remaining) at<uint32_t>(phys, 0x4a0) = 0;  // 2.25
+}
+
+void XB_THISCALL PhysRagdoll_GetCenterOfMass(uint8_t* phys, float* center, float* velocity, uint32_t arg3) {
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    using Get = void XB_CDECL(uint32_t, int32_t, float*, float*, uint32_t);
+    title_function<Get>(0x000bab40)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), a, b, arg3);  // PhysBodies_GetCenterOfMass
+    std::memcpy(center, a, 12);
+    std::memcpy(velocity, b, 12);
+}
+
+// Wakes the ragdoll (rest state reset) and adds the force at the point to the body.
+void XB_THISCALL PhysRagdoll_AddBodyForceAtPoint(uint8_t* phys, int32_t index, const float* point, const float* force,
+                                                 uint32_t arg4) {
+    const uint32_t body = at<uint32_t*>(phys, 0x28)[index];
+    if (!body) return;
+    ragdoll_reset_rest(phys);
+    using Add = void XB_THISCALL(uint32_t, const float*, const float*, uint32_t);
+    title_function<Add>(0x000bbd30)(body, force, point, arg4);  // PhysBody_AddForceAtPoint
+}
+
+// count empty slots at the end of the body, joint and 0xd0 constraint lists.
+void XB_THISCALL PhysRagdoll_AddEmptySlots(uint8_t* phys, int32_t count) {
+    if (count <= 0) return;
+    for (int32_t i = count; i != 0; --i) {
+        *ragdoll_list_append(phys, 0x28) = 0;
+        *ragdoll_list_append(phys, 0x58) = 0;
+        *ragdoll_list_append(phys, 0x88) = 0;
+    }
+}
+
+// Snaps every joint's body to its anchor until the largest error is at most 1e-5, for fewer than
+// phys_ragdollSolveIterations passes.
+void XB_THISCALL PhysRagdoll_SolveJointPositions(uint8_t* phys) {
+    using Snap = float XB_THISCALL(uint32_t);
+    for (int32_t pass = 1; pass < title_global<int32_t>(0x008bd470); ++pass) {  // phys_ragdollSolveIterations
+        uint32_t* it = at<uint32_t*>(phys, 0x58);
+        uint32_t* const end = it + at<int32_t>(phys, 0x5c);
+        float worst = 0.0f;
+        if (end == it) return;
+        for (; it != end; ++it) {
+            if (!*it) continue;
+            const float error = title_function<Snap>(0x000b7770)(*it);  // PhysJoint_SnapBodyToAnchor
+            if (platform_x87_greater(error, worst)) worst = error;
+        }
+        if (!(worst > title_global<float>(0x0083effc))) return;  // 1e-5
+    }
+}
+
+// Unlinks the body from every joint and constraint, frees its bones and destroys it.
+void XB_THISCALL PhysRagdoll_RemoveBody(uint8_t* phys, int32_t index) {
+    const uint32_t body = at<uint32_t*>(phys, 0x28)[index];
+    if (!body) return;
+    ragdoll_unlink_body(phys, 0x58, body);
+    ragdoll_unlink_body(phys, 0x88, body);
+    ragdoll_unlink_body(phys, 0xe8, body);
+    int32_t i = 0;
+    uint8_t** bone = reinterpret_cast<uint8_t**>(phys + 0x410);
+    while (i < at<int32_t>(phys, 0x464)) {
+        if (at<int32_t>(*bone, 0x44) == index) {
+            // The pool moves the last bone into this slot.
+            title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x000b3ef0)(phys + 0xf0, *bone);  // PhysRagdoll_FreeBone
+        } else {
+            ++i;
+            ++bone;
+        }
+    }
+    title_function<void XB_CDECL(uint32_t)>(0x000b56e0)(at<uint32_t*>(phys, 0x28)[index]);  // PhysWorld_DestroyBody
+    at<uint32_t*>(phys, 0x28)[index] = 0;
+}
+
+// Attaches the body to the owner's 0x1c0 object (found or made), through a 0x50 constraint.
+void XB_THISCALL PhysRagdoll_AttachBodyToObject(uint8_t* phys, uint32_t owner, int32_t index, uint32_t arg3,
+                                                uint32_t arg4) {
+    if (!at<uint32_t*>(phys, 0x28)[index]) return;
+    uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x000b44a0)(owner);  // PhysWorld_FindObject1c0ByOwner
+    if (!object) {
+        object = title_function<uint32_t XB_CDECL()>(0x000b4b10)();  // PhysWorld_AllocObject1c0
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x000bbde0)(object, owner);  // PhysObject1c0_Init
+    }
+    using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t);
+    const uint32_t constraint = title_function<Alloc>(0x000b47e0)(at<uint32_t*>(phys, 0x28)[index], object);  // PhysWorld_AllocConstraint50
+    title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x000b92a0)(constraint, arg4, arg3);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b3f90)(phys, object);  // PhysRagdoll_AddAttachedObject
+    *ragdoll_list_append(phys, 0xe8) = constraint;
+}
+
+void XB_THISCALL PhysRagdoll_DestroyObjects(uint8_t* phys) {
+    uint32_t* it = at<uint32_t*>(phys, 0xb8);
+    uint32_t* const end = it + at<int32_t>(phys, 0xbc);
+    for (; it != end; ++it)
+        if (*it) title_function<void XB_CDECL(uint32_t)>(0x000b5710)(*it);  // PhysWorld_DestroyObject1c0
+    at<uint32_t>(phys, 0xbc) = 0;
+    at<uint32_t>(phys, 0xec) = 0;
+}
+
+void XB_THISCALL PhysRagdoll_WriteBodiesToPose(uint8_t* phys) { ragdoll_bones_call(phys, 0x0090a850); }
+
+void XB_THISCALL PhysRagdoll_PoseToBodies(uint8_t* phys) { ragdoll_bones_call(phys, 0x0090a854); }
+
 }  // namespace game
