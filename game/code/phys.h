@@ -425,10 +425,14 @@ void XB_THISCALL PhysJoint_SolveStep(uint8_t* joint, float* max_error);
 void XB_THISCALL PhysJoint_ApplyBlendedImpulses(uint8_t* joint, float scale);
 // 0x000c02c0: a joint's warm start.
 void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale);
-// 0x000bccc0: the island's solver iterations (thiscall: max passes, quiet passes, tolerance; entry asm).
-extern "C" PLATFORM_HIDDEN void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations,
-                                                                   int32_t quiet_passes, float tolerance);
-extern "C" void PhysIsland_SolveIterations_entry(void);
+// 0x000bccc0: the island's solver iterations (max passes, quiet passes, tolerance).
+void XB_THISCALL PhysIsland_SolveIterations(uint8_t* island, int32_t max_iterations, int32_t quiet_passes, float tolerance);
+// 0x000c1d60: one substep of an island's solver records (args: keys, pass counts, dt).
+int32_t XB_THISCALL PhysIsland_Step(uint8_t* world, const uint32_t* args);
+// 0x000c2220: an island solved in its substeps.
+void XB_THISCALL PhysIsland_Solve(uint8_t* world, uint8_t* node, uint32_t first_key, uint32_t last_key);
+// 0x000c2f80: a body pair's new contact points to contact (and friction) records.
+void XB_THISCALL PhysContactPair_UpdateContacts(uint8_t* pair, uint8_t* world, float dt);
 
 // 0x000bd380: the substep's islands (bodies joined through their constraints) to *out, constraints sorted in.
 void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out);
@@ -479,5 +483,33 @@ void XB_THISCALL PhysBodyPair_SetLastPointVector(uint8_t* pair, const float* v);
 uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, uint32_t, const float* point_a,
                                                   const float* point_b, const float* normal, uint32_t v0, uint32_t v1,
                                                   uint32_t v2);
+// 0x00225420: EDX body, ECX vector, XMM0, stack (out, ...): a physics object description.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysObjDesc_Init(uint32_t body, const uint32_t* v, const uint32_t* args, uint32_t xmm0);
+extern "C" void PhysObjDesc_Init_entry(void);
+// 0x00225480: EAX launch type -> class.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Phys_MapLaunchType(uint32_t type);
+extern "C" void Phys_MapLaunchType_entry(void);
+// 0x00225ae0: EDI entity: its physics objects removed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_RemoveEntity(uint8_t* entity);
+extern "C" void Phys_RemoveEntity_entry(void);
+// 0x00225db0: ESI point a, EDX entity a, stack (point b, entity b, value, target): a 0x60 joint (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_JointEntitiesAtPoints(const float* point_a, const void* entity_a, const float* point_b,
+                                                                   const void* entity_b, uint32_t value, uint32_t target);
+extern "C" void Phys_JointEntitiesAtPoints_entry(void);
+// 0x00225ec0: EAX entity, EDX/EDI points, stack (value, target): a 0x60 joint to the world (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_JointEntityToWorld(const void* entity, const float* point_a, const float* point_b,
+                                                                uint32_t value, uint32_t target);
+extern "C" void Phys_JointEntityToWorld_entry(void);
+// 0x00225fa0: EAX entity, EDX/EDI points: a 0x50 attachment to the world (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_AttachEntityToWorld(const void* entity, const float* point_a, const float* point_b);
+extern "C" void Phys_AttachEntityToWorld_entry(void);
+// 0x00226550: ESI owner, ECX part, EAX out: the part's frame.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysPart_BuildFrame(const uint8_t* owner, int32_t index, float* out);
+extern "C" void PhysPart_BuildFrame_entry(void);
+// 0x00226ea0: vehicle physics vtable slot: the wheels' suspension values.
+void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint32_t, uint32_t);
+// 0x00226890: EAX force, stack (entity, point, scale, value): force applied to the entity's bodies.
+void XB_REGS1 XB_CDECL Phys_AddForceToEntityBodies(const float* force, const void* entity, const float* point, float scale,
+                                                   uint32_t value);
 
 }  // namespace game

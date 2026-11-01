@@ -125,5 +125,10 @@ void XB_STDCALL VehiclePhys_CreateBody(uint8_t* vehicle);
 // indices are valid, fills them from g_vehNodes[EAX] and points the state at node_b. Writes its
 // own `state` argument slot (the node index).
 void XB_REGS1 XB_CDECL Vehicle_SetSwitchNodes(uint32_t node_a, uint8_t* state, uint32_t node_b);
+// 0x002257f0: EAX vehicle: its tag matrices to the model's bone matrices.
+void XB_REGS1 XB_CDECL Vehicle_RestoreTagMatrices(uint8_t* vehicle);
+// 0x00225520: ESI vehicle physics record destroyed and freed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePhys_Destroy(uint8_t* phys);
+extern "C" void VehiclePhys_Destroy_entry(void);
 
 }  // namespace game

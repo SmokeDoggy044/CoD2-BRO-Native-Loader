@@ -4779,24 +4779,6 @@ void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale) 
 
 namespace {
 
-// ECX after the original PhysConstraint_ApplyImpulse: B's record + 0x20 when there is a B.
-uint32_t apply_impulse_ecx(const uint8_t* c) {
-    const uint32_t b = at<uint32_t>(c, 0x98);
-    return b ? b + 0x20 : word_addr(c);
-}
-
-// ECX the original PhysJoint_ApplyBlendedImpulses returns with; `entry` is its entry ESP. When the pair
-// scaling declines (B's flag 4 clear afterwards), PhysConstraintPair_ScaleImpulses leaves its out_b pointer:
-// a local of PhysConstraintPair_ApplyScaledImpulses at entry - 0x18.
-uint32_t blended_impulses_ecx(const uint8_t* joint, uint32_t entry) {
-    const uint8_t* const a = at<uint8_t*>(joint, 0xb0);
-    if (!a) return apply_impulse_ecx(joint + 0x10);
-    const uint8_t* const b = at<uint8_t*>(joint, 0xb4);
-    if (!b) return apply_impulse_ecx(a);
-    if (!(at<uint32_t>(b, 0x8c) & 4)) return entry - 0x18;
-    return apply_impulse_ecx(b);
-}
-
 // Angular contact (0xa0) error inside its limits: flag 1 of +0x88 and the error terms, else flag 1 cleared.
 void angular_accumulate(uint8_t* c, float* squares, float* weighted) {
     const float margin = title_global<float>(0x0083eca0) / (at<float>(c, 0x84) - at<float>(c, 0x80));
@@ -4823,23 +4805,10 @@ float clamp_limits(const uint8_t* c, float impulse) {
 // within `tolerance` (at least one pass): contacts (+0x2cc), 0x140 contacts (+0x2d8), angular contacts
 // (+0x2e4) and joints (+0x2f0) each solved once; after `quiet_passes` passes the error terms of the
 // in-limit constraints also give an over-relaxation factor s = -weighted / squares - 1 (range kept in
-// 0x008bd5d0 / 0x008bd5d4); with s >= 1 (and 0x008bd610 set) the records restart from zero velocity and every
-// impulse is re-applied blended by s. Then the pass counter takes the original's ECX: the island, or what the
-// last joint's PhysJoint_ApplyBlendedImpulses left (entry asm: the entry ESP for its stack-address case).
-// Results: 0x0090a858 = the last pass's largest change, 0x0090a860 = the counter.
-PLATFORM_ASM_ENTRY(PhysIsland_SolveIterations_entry,
-                   "movl %esp, %eax\n"
-                   "pushl 12(%eax)\n"
-                   "pushl 8(%eax)\n"
-                   "pushl 4(%eax)\n"
-                   "pushl %eax\n"
-                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysIsland_SolveIterations) "addl $20, %esp\n"
-                   "ret $12")
-
-void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations, int32_t quiet_passes,
-                                         float tolerance) {
-    // The callees' entry ESP in the original: below its 16-aligned frame of 0x74 bytes + 3 pushes, the argument and the call.
-    const uint32_t callee_entry = (((entry_esp - 4) & ~15u) - 0x80) - 8;
+// 0x008bd5d0 / 0x008bd5d4); with s >= 1 (and 0x008bd610 set) the records restart from zero velocity, every
+// impulse is re-applied blended by s and the quiet-pass count starts over (the pass count does not).
+// Results: 0x0090a858 = the last pass's largest change, 0x0090a860 = the pass count.
+void XB_THISCALL PhysIsland_SolveIterations(uint8_t* island, int32_t max_iterations, int32_t quiet_passes, float tolerance) {
     float max_change = title_global<float>(0x0083eb90);  // 100
     float squares = 0.0f, weighted = 0.0f;
     int32_t pass = 0, run = 0;
@@ -4919,16 +4888,310 @@ void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, in
             at<float>(c, 0x68) = clamp_limits(c, at<float>(c, 0x68));
             PhysAngularContact_ApplyImpulse(c, fp(c, 0x68));
         }
-        uint32_t ecx = word_addr(island);
-        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
-            PhysJoint_ApplyBlendedImpulses(j, s);
-            ecx = blended_impulses_ecx(j, callee_entry);
-        }
-        pass = static_cast<int32_t>(ecx);  // the original reuses ECX as the counter here
+        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) PhysJoint_ApplyBlendedImpulses(j, s);
         run = 0;
     }
     title_global<float>(0x0090a858) = max_change;
     title_global<int32_t>(0x0090a860) = pass;
+}
+
+namespace {
+
+// Next impulse cache entry (key, impulse) of a contact: +0x9c (contacts) / +0x94 (angular contacts).
+void cache_impulse(uint32_t* entry, uint32_t key, float impulse) {
+    reinterpret_cast<float*>(entry)[1] = impulse;
+    entry[0] = key;
+}
+
+// A contact's cache entry from impulse * inv_dt; target +0x78 += +0x7c.
+void contact_cache_scaled(uint8_t* c, uint32_t key, float inv_dt) {
+    cache_impulse(at<uint32_t*>(c, 0x9c), key, at<float>(c, 0x68) * inv_dt);
+    at<float>(c, 0x78) = at<float>(c, 0x7c) + at<float>(c, 0x78);
+}
+
+}  // namespace
+
+// One substep of the island's solver records (world +0x2c0, 0x40 each: +0x10 v, +0x20 w, +0x34 body). `args`:
+// +0 warm-start key, +4 cache key, +8/+0xc and +0x10/+0x14 the two solves' max/quiet passes, +0x18 dt. The
+// bodies' velocities integrate, every constraint kind warm starts from its cached impulses (* dt), the first
+// solve (tolerance +0x1c) runs, impulses / dt are cached, then the second solve (tolerance +0x28) on the
+// impulses left; the record velocities go to the bodies, which integrate and update their sleep state
+// (threshold +0x2c); flag 8 of every body's +0x144 = all of them asleep (flag 4). Pass counts and largest
+// changes of each solve: 0x0090a864/0x0090a86c, 0x0090a868/0x0090a870.
+int32_t XB_THISCALL PhysIsland_Step(uint8_t* world, const uint32_t* args) {
+    const float& dt = reinterpret_cast<const float*>(args)[6];
+    for (uint8_t* r = at<uint8_t*>(world, 0x2c0); r; r = at<uint8_t*>(r, 0)) {
+        PhysBody_IntegrateVelocity(at<uint8_t*>(r, 0x34), dt);
+        for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x10 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+        for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x20 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+    }
+    for (uint8_t* c = at<uint8_t*>(world, 0x2cc); c; c = at<uint8_t*>(c, 0)) contact_warm_start(c, args[0], dt);
+    for (uint8_t* c = at<uint8_t*>(world, 0x2d8); c; c = at<uint8_t*>(c, 0)) PhysContact140_WarmStart(c, args[0], dt);
+    for (uint8_t* c = at<uint8_t*>(world, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+        const float v = PhysAngularContact_GetNormalVelocity(c);
+        at<float>(c, 0x78) = at<float>(c, 0x78) - v;
+        const float impulse = *cached_impulse(at<uint32_t*>(c, 0x94), args[0]) * dt;
+        at<float>(c, 0x68) = impulse;
+        at<float>(c, 0x68) = clamp_limits(c, impulse);
+        PhysAngularContact_ApplyImpulse(c, fp(c, 0x68));
+    }
+    for (uint8_t* j = at<uint8_t*>(world, 0x2f0); j; j = at<uint8_t*>(j, 0)) PhysJoint_WarmStart(j, args[0], dt);
+    PhysIsland_SolveIterations(world, static_cast<int32_t>(args[2]), static_cast<int32_t>(args[3]), at<float>(world, 0x1c));
+    for (uint8_t* c = at<uint8_t*>(world, 0x2cc); c; c = at<uint8_t*>(c, 0)) {
+        cache_impulse(at<uint32_t*>(c, 0x9c), args[1], at<float>(c, 0x68) / dt);
+        at<float>(c, 0x78) = at<float>(c, 0x7c) + at<float>(c, 0x78);
+    }
+    for (uint8_t* c = at<uint8_t*>(world, 0x2d8); c; c = at<uint8_t*>(c, 0)) PhysContact140_CacheImpulses(c, args[1], dt);
+    for (uint8_t* c = at<uint8_t*>(world, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+        cache_impulse(at<uint32_t*>(c, 0x94), args[1], at<float>(c, 0x68) / dt);
+        at<float>(c, 0x78) = at<float>(c, 0x7c) + at<float>(c, 0x78);
+    }
+    for (uint8_t* j = at<uint8_t*>(world, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
+        const float inv_dt = title_global<float>(0x0083eb20) / dt;
+        contact_cache_scaled(j + 0x10, args[1], inv_dt);
+        uint8_t* const a = at<uint8_t*>(j, 0xb0);
+        if (!a) continue;
+        contact_cache_scaled(a, args[1], inv_dt);
+        uint8_t* const b = at<uint8_t*>(j, 0xb4);
+        if (b) contact_cache_scaled(b, args[1], inv_dt);
+    }
+    title_global<uint32_t>(0x0090a864) = title_global<uint32_t>(0x0090a860);
+    title_global<uint32_t>(0x0090a86c) = title_global<uint32_t>(0x0090a858);
+    PhysIsland_SolveIterations(world, static_cast<int32_t>(args[4]), static_cast<int32_t>(args[5]), at<float>(world, 0x28));
+    bool asleep = true;
+    for (uint8_t* r = at<uint8_t*>(world, 0x2c0); r; r = at<uint8_t*>(r, 0)) {
+        PhysBody_AddVelocity(at<uint8_t*>(r, 0x34), fp(r, 0x10), fp(r, 0x20));
+        PhysBody_IntegrateKeepMomentum(at<uint8_t*>(r, 0x34), dt);
+        PhysBody_UpdateSleep(at<uint8_t*>(r, 0x34), at<float>(world, 0x2c), dt);
+        asleep = asleep && (at<uint8_t*>(r, 0x34)[0x144] & 4);
+    }
+    for (uint8_t* r = at<uint8_t*>(world, 0x2c0); r; r = at<uint8_t*>(r, 0)) {
+        uint8_t* const body = at<uint8_t*>(r, 0x34);
+        if (asleep)
+            at<uint32_t>(body, 0x144) |= 8;
+        else
+            at<uint32_t>(body, 0x144) &= ~8u;
+    }
+    title_global<uint32_t>(0x0090a868) = title_global<uint32_t>(0x0090a860);
+    title_global<uint32_t>(0x0090a870) = title_global<uint32_t>(0x0090a858);
+    return title_global<int32_t>(0x0090a860);
+}
+
+namespace {
+
+// phys_profileBegin (0x0090a888) / phys_profileEnd (0x0090a88c): called with `first`, then (re-read) `second`.
+void phys_profile(uint32_t pointer, int32_t first, int32_t second = -1) {
+    uint32_t fn = title_global<uint32_t>(pointer);
+    if (!fn) return;
+    title_function<void XB_CDECL(int32_t)>(fn)(first);
+    if (second < 0) return;
+    fn = title_global<uint32_t>(pointer);
+    if (fn) title_function<void XB_CDECL(int32_t)>(fn)(second);
+}
+
+// The constraint's moving body (flag 0x20 of +0x144: A's first, else B's) pushed on the list (+0x1b4) once.
+uint8_t* collect_moving_body(const uint8_t* constraint, uint8_t* bodies) {
+    uint8_t* body = at<uint8_t*>(constraint, 0);
+    if (!body || !(body[0x144] & 0x20)) {
+        body = at<uint8_t*>(constraint, 4);
+        if (!body || !(body[0x144] & 0x20)) return bodies;
+    }
+    for (uint8_t* b = bodies; b; b = at<uint8_t*>(b, 0x1b4))
+        if (b == body) return bodies;
+    at<uint8_t*>(body, 0x1b4) = bodies;
+    return body;
+}
+
+using ConstraintCallback = void XB_THISCALL(void* object, uint32_t a, uint32_t b, uint8_t* world, float dt);
+using ConstraintUpdate = void XB_THISCALL(void* object, uint32_t a, uint32_t b, float dt);
+
+// Callback constraints (island list +0x10): +0xc object, its vtable slot `slot`.
+uint32_t callback_slot(const uint8_t* c, uint32_t slot) { return at<uint32_t*>(at<uint8_t*>(c, 0xc), 0)[slot]; }
+
+}  // namespace
+
+// An island (`node`: its first node, constraint lists +0..+0x1c linked by +8, bodies through +0x20/+0x24,
+// substeps +0x30, dt +0x34) solved in +0x30 substeps of dt / n. Moving bodies (flag 0x20) of its constraints
+// are kept aside (+0x170 copy of their first 0x40 bytes, restored at the end) and integrated each substep.
+// Each substep: the world's frame buffer restarts, every body gets a solver record (0x40, world +0x2c0 list),
+// each constraint kind adds its contacts, PhysIsland_Step runs with keys first_key + i (the last substep's
+// cache key is last_key) and pass counts world +0x14/+0x18/+0x20/+0x24 divided by n (at least 1/2/1/2).
+void XB_THISCALL PhysIsland_Solve(uint8_t* world, uint8_t* node, uint32_t first_key, uint32_t last_key) {
+    const float total_dt = at<float>(node, 0x34);
+    phys_profile(0x0090a888, 2, 3);
+    at<uint32_t>(world, 0) |= 1;
+    uint8_t* bodies = nullptr;
+    for (uint8_t* c = at<uint8_t*>(node, 0); c; c = at<uint8_t*>(c, 8)) bodies = collect_moving_body(c, bodies);
+    for (uint8_t* c = at<uint8_t*>(node, 4); c; c = at<uint8_t*>(c, 8)) bodies = collect_moving_body(c, bodies);
+    for (uint8_t* c = at<uint8_t*>(node, 8); c; c = at<uint8_t*>(c, 8)) {
+        bodies = collect_moving_body(c, bodies);
+        PhysHinge_UpdateLimitFlags(c, at<uint32_t>(node, 0x34));
+    }
+    for (uint8_t* c = at<uint8_t*>(node, 0xc); c; c = at<uint8_t*>(c, 8)) bodies = collect_moving_body(c, bodies);
+    for (uint8_t* c = at<uint8_t*>(node, 0x10); c; c = at<uint8_t*>(c, 8)) bodies = collect_moving_body(c, bodies);
+    for (uint8_t* c = at<uint8_t*>(node, 0x14); c; c = at<uint8_t*>(c, 8)) {
+        bodies = collect_moving_body(c, bodies);
+        PhysJoint_UpdateLimitFlags(c, at<uint32_t>(node, 0x34));
+    }
+    for (uint8_t* c = at<uint8_t*>(node, 0x18); c; c = at<uint8_t*>(c, 8)) {
+        bodies = collect_moving_body(c, bodies);
+        PhysConstraint_UpdateLimitFlag(c, at<uint32_t>(node, 0x34));
+    }
+    for (uint8_t* c = at<uint8_t*>(node, 0x1c); c; c = at<uint8_t*>(c, 8)) bodies = collect_moving_body(c, bodies);
+    at<uint32_t>(world, 0) &= ~1u;
+    for (uint8_t* b = bodies; b; b = at<uint8_t*>(b, 0x1b4))
+        for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(b, 0x170 + i * 4) = at<uint32_t>(b, i * 4);
+    phys_profile(0x0090a88c, 3);
+
+    const int32_t n = at<int32_t>(node, 0x30);
+    uint32_t args[7];
+    const int32_t counts[4] = {at<int32_t>(world, 0x14) / n, at<int32_t>(world, 0x18) / n, at<int32_t>(world, 0x20) / n,
+                               at<int32_t>(world, 0x24) / n};
+    const int32_t floors[4] = {1, 2, 1, 2};
+    for (uint32_t i = 0; i < 4; ++i) args[2 + i] = static_cast<uint32_t>(counts[i] > floors[i] ? counts[i] : floors[i]);
+    const float dt = total_dt / static_cast<float>(n);
+    std::memcpy(&args[6], &dt, 4);
+    if (n > 0) {
+        uint32_t key = first_key;
+        for (int32_t step = 0;;) {
+            phys_profile(0x0090a888, 3);
+            at<uint32_t>(world, 0x2bc) = at<uint32_t>(world, 0x2b4);
+            for (uint32_t i = 0; i < 15; ++i) at<uint32_t>(world, 0x2c0 + i * 4) = 0;
+            for (uint8_t* nd = node; nd; nd = at<uint8_t*>(nd, 0x24)) {
+                uint8_t* const record = alloc_linked(world, 0x40, 0x2c0);
+                uint8_t* const body = at<uint8_t*>(nd, 0x20);
+                PhysFrame_RotateDiagonal(fp(body, 0xb0), reinterpret_cast<const float*>(body), fp(body, 0x80));
+                at<uint8_t*>(body, 0x150) = record;
+                at<uint8_t*>(record, 0x34) = body;
+                at<uint32_t>(record, 0x30) = at<uint32_t>(body, 0x130);
+            }
+            for (uint8_t* c = at<uint8_t*>(node, 0); c; c = at<uint8_t*>(c, 8)) PhysContactPair_UpdateContacts(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 4); c; c = at<uint8_t*>(c, 8)) PhysAttach_AddWorldContact(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 8); c; c = at<uint8_t*>(c, 8)) PhysHinge_AddContacts(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 0xc); c; c = at<uint8_t*>(c, 8)) PhysDistanceJoint_AddContacts(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 0x10); c; c = at<uint8_t*>(c, 8))
+                title_function<ConstraintCallback>(callback_slot(c, 0))(at<uint8_t*>(c, 0xc), at<uint32_t>(c, 0),
+                                                                        at<uint32_t>(c, 4), world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 0x14); c; c = at<uint8_t*>(c, 8)) PhysJoint_AddContacts(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 0x18); c; c = at<uint8_t*>(c, 8)) PhysConstraint_AddContacts(c, world, dt);
+            for (uint8_t* c = at<uint8_t*>(node, 0x1c); c; c = at<uint8_t*>(c, 8)) PhysAngularMotor_AddContacts(c, world, dt);
+            phys_profile(0x0090a88c, 3);
+            phys_profile(0x0090a888, 4);
+            args[0] = key;
+            args[1] = static_cast<int32_t>(step + 1) == at<int32_t>(node, 0x30) ? last_key : key + 1;
+            PhysIsland_Step(world, args);
+            phys_profile(0x0090a88c, 4);
+            for (uint8_t* b = bodies; b; b = at<uint8_t*>(b, 0x1b4)) PhysBody_Integrate(b, dt);
+            {
+                uint8_t** it = at<uint8_t**>(world, 0x254);
+                uint8_t** const end = it + at<int32_t>(world, 0x260);
+                for (; it != end; ++it) PhysConstraint60_AdvanceTarget(*it, dt);
+            }
+            {
+                uint8_t** it = at<uint8_t**>(world, 0x2a4);
+                uint8_t** const end = it + at<int32_t>(world, 0x2b0);
+                for (; it != end; ++it) PhysFrame_RotateByVelocity(*it, dt);
+            }
+            ++step;
+            ++key;
+            if (!(step < at<int32_t>(node, 0x30))) break;
+        }
+    }
+    phys_profile(0x0090a888, 5);
+    for (uint8_t* b = bodies; b; b = at<uint8_t*>(b, 0x1b4))
+        for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(b, i * 4) = at<uint32_t>(b, 0x170 + i * 4);
+    for (uint8_t* c = at<uint8_t*>(node, 4); c; c = at<uint8_t*>(c, 8))
+        PhysConstraint_UpdateSumSquares48(c, at<uint32_t>(node, 0x34));
+    for (uint8_t* c = at<uint8_t*>(node, 0x10); c; c = at<uint8_t*>(c, 8))
+        title_function<ConstraintUpdate>(callback_slot(c, 1))(at<uint8_t*>(c, 0xc), at<uint32_t>(c, 0), at<uint32_t>(c, 4),
+                                                              total_dt);
+    for (uint8_t* c = at<uint8_t*>(node, 0x18); c; c = at<uint8_t*>(c, 8)) PhysConstraint_UpdateDrive(c, total_dt);
+    phys_profile(0x0090a88c, 5, 2);
+}
+
+namespace {
+
+// |v| as the title's RSQRTSS + Newton step ((3 - x r r) x r * 0.5); 0 and NaN stay as they are.
+float tangent_length(const Lanes& v) {
+    const float x = dot3(v, v);
+    if (x == 0.0f || x != x) return x;
+    const float r = platform_rsqrt_estimate(x);
+    const float xr = x * r;
+    return ((title_global<float>(0x007ce350) - xr * r) * xr) * title_global<float>(0x007ce360);
+}
+
+// v minus its part along n.
+Lanes tangent_part(const Lanes& v, const Lanes& n) { return sub(v, mul(splat(dot3(v, n)), n)); }
+
+}  // namespace
+
+// The pair's new contact points (list +0x28; +0x10 normal, +0x20/+0x30 anchors in A/B, +0x40 velocity with
+// flag +0x5c, +0x50 friction, +0x54/+0x58 bounce terms, +0x60/+0x68 cached data) each become a contact
+// record; the nearest old point (list +0x24) hands its cached data on. With friction >= 1e-5 a friction
+// record follows along the tangential relative velocity (or the response vector's tangential part when
+// that is under 1e-4), limited by the friction times the normal contact's impulse (+0x90). A point with
+// less friction ends the update at once; otherwise the old list (head, tail, count) is cleared.
+void XB_THISCALL PhysContactPair_UpdateContacts(uint8_t* pair, uint8_t* world, float dt) {
+    for (uint8_t* p = *at<uint8_t**>(pair, 0x28); p; p = at<uint8_t*>(p, 0)) {
+        uint8_t* best = nullptr;
+        float best_distance = title_global<float>(0x0083eb70);  // 1e7
+        for (uint8_t* q = *at<uint8_t**>(pair, 0x24); q; q = at<uint8_t*>(q, 0)) {
+            const float d = PhysContactMatch_DistanceSq(q, p);
+            if (!best || best_distance > d) {
+                best = q;
+                best_distance = d;
+            }
+        }
+        if (best)
+            for (uint32_t i = 0; i < 6; ++i) at<uint32_t>(p, 0x60 + i * 4) = at<uint32_t>(best, 0x60 + i * 4);
+        alignas(16) float anchor_a[4];
+        alignas(16) float anchor_b[4];
+        PhysBody_RotateVector(anchor_a, at<uint8_t*>(pair, 0), fp(p, 0x20));
+        PhysBody_RotateVector(anchor_b, at<uint8_t*>(pair, 4), fp(p, 0x30));
+        uint8_t* const contact = PhysWorld_AllocContact(world);
+        alignas(16) float zero[4];
+        for (uint32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(zero)[i] = title_global<uint32_t>(0x007ce370 + i * 4);
+        PhysContact_Init(contact, at<uint8_t*>(pair, 0), anchor_a, at<uint8_t*>(pair, 4), anchor_b, fp(p, 0x10), p + 0x60, zero);
+        if (p[0x5c])
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(contact, 0x50 + i * 4) = at<uint32_t>(p, 0x40 + i * 4);
+        at<uint32_t>(contact, 0x60) = title_global<uint32_t>(0x0083eb74);  // -1e7
+        at<float>(contact, 0x64) = 0.0f;
+        PhysContact_ComputeBiasAndBounce(contact, at<float>(p, 0x54), at<float>(p, 0x58), dt);
+        if (title_global<float>(0x0083effc) > at<float>(p, 0x50)) return;
+        alignas(16) float t[4];
+        PhysContact_GetRelativeVelocity(contact, t);
+        const Lanes n = lanes(fp(p, 0x10));
+        Lanes dir = tangent_part(lanes(t), n);
+        float length = tangent_length(dir);
+        if (title_global<float>(0x0083ed50) > length) {
+            alignas(16) float response[4];
+            const float* const r = PhysContact_GetResponseVector(contact, response);
+            alignas(16) float copy[4];
+            copy_words(copy, r);
+            dir = tangent_part(lanes(copy), n);
+            length = tangent_length(dir);
+        }
+        if (!(length > title_global<float>(0x0083ed50))) continue;
+        store4(t, mul(dir, splat(title_global<float>(0x0083eb20) / length)));
+        uint8_t* const friction = PhysWorld_AllocContact(world);
+        alignas(16) float zero2[4];
+        for (uint32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(zero2)[i] = title_global<uint32_t>(0x007ce370 + i * 4);
+        PhysContact_Init(friction, at<uint8_t*>(pair, 0), anchor_a, at<uint8_t*>(pair, 4), anchor_b, t, p + 0x68, zero2);
+        if (p[0x5c])
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(friction, 0x50 + i * 4) = at<uint32_t>(p, 0x40 + i * 4);
+        at<float>(friction, 0x78) = 0.0f;
+        at<float>(friction, 0x7c) = 0.0f;
+        at<float>(friction, 0x80) = 0.0f;
+        at<uint32_t>(friction, 0x8c) |= 1;
+        at<uint32_t>(friction, 0x88) = at<uint32_t>(p, 0x50);
+        at<uint8_t*>(friction, 0x90) = contact;
+        at<float>(friction, 0x60) = 0.0f;
+        at<float>(friction, 0x64) = 0.0f;
+    }
+    uint32_t* const old = at<uint32_t*>(pair, 0x24);
+    old[0] = 0;
+    old[1] = 0;
+    old[2] = 0;
 }
 
 
@@ -5515,6 +5778,233 @@ uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, 
     at<uint32_t>(point, 0x54) = v1;
     at<uint32_t>(point, 0x58) = v2;
     return point;
+}
+
+// EDX world body, ECX vector, XMM0, five stack words (out first): a physics object description.
+PLATFORM_ASM_ENTRY(PhysObjDesc_Init_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(PhysObjDesc_Init) "addl $16, %esp\n"
+                   "ret $0x14")
+
+// out +0 body, +4/+8 the next two words, +0xc body + 0x160, +0x10 XMM0, +0x20 the vector, +0x40 the
+// fourth word, +0x70 a copy of the 0x40-byte frame the fifth points at, +0x48 = 0.
+uint8_t* XB_CDECL PhysObjDesc_Init(uint32_t body, const uint32_t* v, const uint32_t* args, uint32_t xmm0) {
+    uint8_t* const out = reinterpret_cast<uint8_t*>(uintptr_t{args[0]});
+    at<uint32_t>(out, 0) = body;
+    at<uint32_t>(out, 4) = args[1];
+    at<uint32_t>(out, 0xc) = body + 0x160;
+    at<uint32_t>(out, 8) = args[2];
+    at<uint32_t>(out, 0x10) = xmm0;
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(out, 0x20 + i * 4) = v[i];
+    at<uint32_t>(out, 0x40) = args[3];
+    const uint32_t* const frame = reinterpret_cast<const uint32_t*>(uintptr_t{args[4]});
+    for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(out, 0x70 + i * 4) = frame[i];
+    at<uint32_t>(out, 0x48) = 0;
+    return out;
+}
+
+// EAX type (0..18) -> class (table at 0x002254f4 / 0x002254cc); callers keep ECX.
+PLATFORM_ASM_ENTRY(Phys_MapLaunchType_entry,
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_MapLaunchType) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+int32_t XB_CDECL Phys_MapLaunchType(uint32_t type) {
+    static const uint8_t kClass[19] = {0, 1, 1, 1, 0, 0, 4, 2, 5, 3, 5, 3, 8, 6, 9, 7, 9, 7, 5};
+    return type > 18 ? 0 : kClass[type];
+}
+
+PLATFORM_ASM_ENTRY(Phys_RemoveEntity_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Phys_RemoveEntity) "addl $4, %esp\n"
+                   "ret")
+
+// Every physics object (0x008fccf0, count 0x008fcde4) of the entity (+4): flag 0x400000 of its +0x2a4
+// cleared, the world body (+8) destroyed and the object freed (the pool moves the last one into its slot).
+void XB_CDECL Phys_RemoveEntity(uint8_t* entity) {
+    for (int32_t i = 0; i < title_global<int32_t>(0x008fcde4);) {
+        uint8_t* const object = title_global<uint8_t*>(0x008fccf0 + static_cast<uint32_t>(i) * 4);
+        if (at<uint8_t*>(object, 4) != entity) {
+            ++i;
+            continue;
+        }
+        at<uint32_t>(entity, 0x2a4) &= ~0x400000u;
+        PhysWorld_DestroyBody(at<uint32_t>(object, 8));
+        PhysObjPool_Free(object, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008fb490}));
+    }
+}
+
+namespace {
+
+// The world body (+8) of the entity's first physics object (0x008fccf0, count 0x008fcde4), or 0.
+uint32_t entity_body(const void* entity) {
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        const uint8_t* const object = *reinterpret_cast<uint8_t* const*>(uintptr_t{it});
+        if (at<const void*>(object, 4) == entity) return at<uint32_t>(object, 8);
+    }
+    return 0;
+}
+
+float bits_float(uint32_t bits) {
+    float f;
+    std::memcpy(&f, &bits, 4);
+    return f;
+}
+
+// Point copies as the original passes them: `a` keeps its stack slot's never-written w (zero in tests).
+void copy_points(float* a, const float* from_a, float* b, const float* from_b) {
+    copy_words(a, from_a);
+    a[3] = 0.0f;
+    copy_words(b, from_b);
+}
+
+}  // namespace
+
+// ESI point a, EDX entity a, stack (point b, entity b, two values): a 0x60 joint between the entities'
+// bodies (both needed) at the points. No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_JointEntitiesAtPoints_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Phys_JointEntitiesAtPoints) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_JointEntitiesAtPoints(const float* point_a, const void* entity_a, const float* point_b,
+                                         const void* entity_b, uint32_t value, uint32_t target) {
+    const uint32_t body_a = entity_body(entity_a);
+    const uint32_t body_b = entity_body(entity_b);
+    if (!body_a || !body_b) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    uint8_t* const c = reinterpret_cast<uint8_t*>(PhysWorld_AllocConstraint(body_a, body_b));
+    PhysConstraint60_Init(c, b, a, bits_float(value), bits_float(target));
+}
+
+// EAX entity, EDX point a, EDI point b, stack (two values): a 0x60 joint between the entity's body and the
+// static world body. No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_JointEntityToWorld_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_JointEntityToWorld) "addl $20, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_JointEntityToWorld(const void* entity, const float* point_a, const float* point_b, uint32_t value,
+                                      uint32_t target) {
+    const uint32_t body = entity_body(entity);
+    if (!body) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    const uint32_t world = word_addr(PhysWorld_GetStaticBody());
+    uint8_t* const c = reinterpret_cast<uint8_t*>(PhysWorld_AllocConstraint(body, world));
+    PhysConstraint60_Init(c, b, a, bits_float(value), bits_float(target));
+}
+
+// EAX entity, EDX point a, EDI point b: a 0x50 attachment of the entity's body to the static world body.
+// No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_AttachEntityToWorld_entry,
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_AttachEntityToWorld) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_AttachEntityToWorld(const void* entity, const float* point_a, const float* point_b) {
+    const uint32_t body = entity_body(entity);
+    if (!body) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    const uint32_t world = word_addr(PhysWorld_GetStaticBody());
+    uint8_t* const c = reinterpret_cast<uint8_t*>(uintptr_t{PhysWorld_AllocConstraint50(body, world)});
+    PhysAttach_SetAnchors(c, b, a);
+}
+
+// EAX force; stack (entity, point, scale, value): force * scale applied at the point to every world body
+// of the entity's physics objects. The point and force copies keep never-written w lanes (zero in tests).
+void XB_REGS1 XB_CDECL Phys_AddForceToEntityBodies(const float* force, const void* entity, const float* point, float scale,
+                                                   uint32_t value) {
+    const Lanes scaled = mul(splat(scale), lanes(force));
+    platform_keep(scaled);
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        uint8_t* const object = *reinterpret_cast<uint8_t**>(uintptr_t{it});
+        if (at<const void*>(object, 4) != entity) continue;
+        alignas(16) float p[4];
+        alignas(16) float f[4];
+        copy_words(p, point);
+        p[3] = 0.0f;
+        store4(f, scaled);
+        f[3] = 0.0f;
+        PhysBody_AddForceAtPoint(at<uint8_t*>(object, 8), f, p, bits_float(value));
+    }
+}
+
+// ESI owner, ECX part index, EAX out: the part (owner +0x4a0) frame: x = its axis (+0x50; parts 4 and 5
+// the unit x), z = (-x.z, 0, x.x) per lane, y/z rotated by the angle +0x94 (x87 sin/cos) about x, origin
+// +0x30 - +0x98 * +0x40; w column 0, 0, 0, 1.
+PLATFORM_ASM_ENTRY(PhysPart_BuildFrame_entry,
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PhysPart_BuildFrame) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL PhysPart_BuildFrame(const uint8_t* owner, int32_t index, float* out) {
+    const uint8_t* const part = at<uint8_t*>(owner, 0x4a0 + static_cast<uint32_t>(index) * 4);
+    const float angle = at<float>(part, 0x94);
+    const float c = platform_x87_cos(angle);
+    const float s = platform_x87_sin(angle);
+    Lanes x = mul(lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e160})), splat(title_global<float>(0x0082e140)));
+    if (index != 5 && index != 4) x = lanes(fp(part, 0x50));
+    const Lanes swapped = {{x.v[2], x.v[1], x.v[0], x.v[3]}};
+    const Lanes z = mul(swapped, lanes(reinterpret_cast<const float*>(uintptr_t{0x008305c0})));
+    store4(out, x);
+    const Lanes y0 = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e170}));
+    store4(out + 4, add(mul(y0, splat(c)), mul(splat(s), z)));
+    store4(out + 8, sub(mul(splat(c), z), mul(y0, splat(s))));
+    const uint8_t* const p = at<uint8_t*>(owner, 0x4a0 + static_cast<uint32_t>(index) * 4);
+    store4(out + 12, sub(lanes(fp(p, 0x30)), mul(splat(at<float>(p, 0x98)), lanes(fp(p, 0x40)))));
+    out[3] = 0.0f;
+    out[7] = 0.0f;
+    out[11] = 0.0f;
+    out[15] = title_global<float>(0x0083eb20);
+}
+
+// Vehicle physics vtable slot (0x0083c5f4; three unused arguments): each wheel's (flag byte +0x130 + i)
+// suspension value +0x134 + 4i. With the contact normal (+0xe0) against the frame-rotated travel direction
+// (+0x90, frame +0x34; normal . dir < -0.001): rest (+0x120) - ((contact +0xa0 - wheel +0x50 in world) . normal)
+// / (normal . dir), clamped to [0, +0x124] (lanes 1-3 carry the rest value); else 0.
+void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint32_t, uint32_t) {
+    const Lanes dir = rotate_out(at<float*>(phys, 0x34), fp(phys, 0x90));
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (!phys[0x130 + i]) {
+            at<float>(phys, 0x134 + i * 4) = 0.0f;
+            continue;
+        }
+        const Lanes n = lanes(fp(phys, 0xe0 + i * 0x10));
+        const float dn = dot3(n, dir);
+        if (!(title_global<float>(0x0083ec6c) > dn)) {
+            at<float>(phys, 0x134 + i * 4) = 0.0f;
+            continue;
+        }
+        const Lanes wheel = transform_out(at<float*>(phys, 0x34), fp(phys, 0x50 + i * 0x10));
+        const float s = dot3(sub(lanes(fp(phys, 0xa0 + i * 0x10)), wheel), n);
+        const float rest = at<float>(phys, 0x120);
+        alignas(16) float v[4] = {rest - s / dn, rest, rest, rest};
+        alignas(16) float clamped[4];
+        const float lo = 0.0f;
+        const float* const r = Vec4_ClampToScalarRange(clamped, 0, v, &lo, fp(phys, 0x124));
+        at<uint32_t>(phys, 0x134 + i * 4) = *reinterpret_cast<const uint32_t*>(r);
+    }
 }
 
 }  // namespace game
