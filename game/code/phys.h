@@ -380,4 +380,23 @@ uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params);
 // 0x000bee40: destroys phys_world and frees its arena.
 uint32_t XB_CDECL Phys_DestroyWorld();
 
+// 0x000be2a0: bytes PhysWorld_Create takes from its arena for the counts in `params`.
+uint32_t XB_CDECL PhysWorld_GetMemorySize(const int32_t* params);
+// 0x000be8a0: empties a new world header and sets its step defaults.
+uint8_t* XB_THISCALL PhysWorld_Init(uint8_t* world);
+// 0x000beb00: the world and its pools from `arena` ({base, end, cursor}).
+uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena);
+// 0x000c0360: the 0x1c0-object pool (capacity `count`) from the arena, reset.
+void XB_THISCALL PhysPool1c0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+
+// 0x000be390: one substep (thiscall: dt, last; gap entry - the sorted pair's address stays in world +0x1c0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last, uint32_t entry_ebx,
+                                                          uint32_t entry_ebp, uint32_t entry_esi, uint32_t entry_edi,
+                                                          uint32_t entry_esp);
+extern "C" void PhysWorld_Substep_entry(void);
+// 0x000be640: one frame of dt in substeps (thiscall; gap entry, callees at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_ebx, uint32_t entry_esi,
+                                                       uint32_t entry_edi, uint32_t entry_ebp, uint32_t entry_esp);
+extern "C" void PhysWorld_Step_entry(void);
+
 }  // namespace game

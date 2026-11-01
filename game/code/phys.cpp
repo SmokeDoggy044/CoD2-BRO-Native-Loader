@@ -4086,12 +4086,14 @@ float* XB_CDECL PhysBody_AddVelocity(uint8_t* body, const float* linear, const f
 
 // The world for `params`: an arena of PhysWorld_GetMemorySize bytes (16-aligned) handed to PhysWorld_Create.
 uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params) {
-    const uint32_t size = title_function<uint32_t XB_CDECL(uint32_t)>(0x000be2a0)(params);  // PhysWorld_GetMemorySize
+    const int32_t* const counts = reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(params));
+    const uint32_t size = PhysWorld_GetMemorySize(counts);
     title_global<uint32_t>(0x0090a880) = size;
     title_global<uint32_t>(0x0090a884) = 0x10;
     uint8_t* const memory = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x10, 0));
-    uint8_t* arena[3] = {memory, memory + title_global<uint32_t>(0x0090a880), memory};
-    uint8_t* const world = title_function<uint8_t* XB_CDECL(uint32_t, uint8_t**)>(0x000beb00)(params, arena);  // PhysWorld_Create
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(memory));
+    uint32_t arena[3] = {base, base + title_global<uint32_t>(0x0090a880), base};
+    uint8_t* const world = PhysWorld_Create(counts, arena);
     title_global<uint8_t*>(0x0090a87c) = world;
     return world;
 }
@@ -4103,6 +4105,454 @@ uint32_t XB_CDECL Phys_DestroyWorld() {
     title_global<uint32_t>(0x0090a880) = 0;
     title_global<uint32_t>(0x0090a884) = 0;
     return 0;
+}
+
+namespace {
+
+uint32_t align_up(uint32_t value, uint32_t mask) { return (value + mask) & ~mask; }
+
+// The world arena: {base, end, cursor}. 0 (cursor kept) when the aligned block does not fit.
+uint32_t arena_alloc(uint32_t* arena, uint32_t bytes, uint32_t mask) {
+    const uint32_t block = align_up(arena[2], mask);
+    const uint32_t end = block + bytes;
+    if (end > arena[1]) return 0;
+    arena[2] = end;
+    return block;
+}
+
+// A world pool from the arena: capacity +0xc, then storage (+0), the pointer list (+4) and the
+// position list (+8) in one block of count * (size + 8) bytes. The caller resets it.
+void world_pool_create(uint8_t* pool, int32_t count, uint32_t* arena, uint32_t size, uint32_t mask) {
+    at<int32_t>(pool, 0xc) = count;
+    const uint32_t storage = arena_alloc(arena, static_cast<uint32_t>(count) * (size + 8), mask);
+    const uint32_t pointers = storage + static_cast<uint32_t>(count) * size;
+    at<uint32_t>(pool, 8) = pointers + static_cast<uint32_t>(count) * 4;
+    at<uint32_t>(pool, 0) = storage;
+    at<uint32_t>(pool, 4) = pointers;
+}
+
+// A plain array from the arena: capacity at +4, storage at +0, used count +8 = 0.
+void world_array_create(uint8_t* array, int32_t count, uint32_t* arena, uint32_t size, uint32_t mask) {
+    at<int32_t>(array, 4) = count;
+    at<uint32_t>(array, 0) = arena_alloc(arena, static_cast<uint32_t>(count) * size, mask);
+    at<uint32_t>(array, 8) = 0;
+}
+
+}  // namespace
+
+// Bytes PhysWorld_Create takes from its arena for `params` (counts: +0 bodies, +4 0x1c0 objects,
+// +8 0x80 records (two arrays), +0xc 0x30 constraints, +0x10..+0x2c the other pools), each block
+// aligned as Create aligns it, plus the final 16-byte round.
+uint32_t XB_CDECL PhysWorld_GetMemorySize(const int32_t* params) {
+    const uint32_t* const p = reinterpret_cast<const uint32_t*>(params);
+    uint32_t s = align_up(p[3] * 24 + 0x300, 3) + p[0] * 0x3c;
+    s = align_up(s, 0xf) + p[1] * 0x1c8;
+    s = align_up(s, 0xf) + p[0] * 0x178;
+    s = align_up(s, 3) + p[3] * 0x38;
+    s = align_up(s, 0xf) + (p[2] << 7);
+    s = align_up(s, 0xf) + (p[2] << 7);
+    s = align_up(s, 0xf) + p[4] * 0x58;
+    s = align_up(s, 0xf) + p[5] * 0xf8;
+    s = align_up(s, 0xf) + p[6] * 0x68;
+    s = align_up(s, 3) + p[7] * 24;
+    s = align_up(s, 0xf) + p[8] * 0x1b8;
+    s = align_up(s, 0xf) + p[9] * 0xe8;
+    s = align_up(s, 0xf) + p[10] * 0xd8;
+    s = align_up(s, 0xf) + (p[11] * 5 + 5) * 0x20 + (p[0] << 6);
+    return align_up(s, 0xf);
+}
+
+// The world header (0x300 bytes): pools and arrays at +0x1b0..+0x2f8 empty, the static body at
+// +0x40 fixed, step settings +0x8..+0x2c, the two 0x80-record arrays' heads at +0x30 / +0x34.
+uint8_t* XB_THISCALL PhysWorld_Init(uint8_t* world) {
+    at<uint32_t>(world, 0x1b0) = 0;
+    at<uint32_t>(world, 0x1b4) = 0;
+    at<uint32_t>(world, 0x1bc) = 0;
+    at<uint32_t>(world, 0x1b8) = 0;
+    for (uint32_t offset = 0x1c8; offset <= 0x2f8; offset += 4) at<uint32_t>(world, offset) = 0;
+    PhysBody_InitFixed(world + 0x40);
+    at<uint32_t>(world, 0x10) = title_global<uint32_t>(0x007ce304);  // 0.0512821
+    at<uint32_t>(world, 0x1c) = title_global<uint32_t>(0x0083edd0);  // 0.01
+    at<uint32_t>(world, 0x8) = 0;
+    at<uint32_t>(world, 0xc) = 0;
+    at<uint32_t>(world, 0x28) = title_global<uint32_t>(0x0083ec24);  // 0.25
+    at<uint32_t>(world, 0x14) = 4;
+    at<uint32_t>(world, 0x18) = 4;
+    at<uint32_t>(world, 0x20) = 4;
+    at<uint8_t*>(world, 0x30) = world + 0x210;
+    at<uint8_t*>(world, 0x34) = world + 0x21c;
+    at<uint32_t>(world, 0x24) = 8;
+    at<uint32_t>(world, 0x2c) = title_global<uint32_t>(0x007ce300);  // 0.1225
+    return world;
+}
+
+// The world and all its pools carved from `arena` ({base, end, cursor}) in PhysWorld_GetMemorySize's order.
+uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena) {
+    uint8_t* world = nullptr;
+    {
+        const uint32_t block = align_up(arena[2], 0xf);
+        if (block + 0x300 <= arena[1]) {
+            arena[2] = block + 0x300;
+            if (block) world = PhysWorld_Init(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(block)));
+        }
+    }
+    if (params[3] > 0) world_array_create(world + 0x1b0, params[3], arena, 24, 3);
+    if (params[0] > 0) world_array_create(world + 0x1c8, params[0], arena, 0x3c, 3);
+    PhysPool1c0_Init(world + 0x1d4, params[1], arena);
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c03c0)(world + 0x1e8, params[0], arena);  // PhysBodyPool_Init
+    if (params[3] > 0) {
+        world_pool_create(world + 0x1fc, params[3], arena, 0x30, 0xf);
+        PhysConstraintPool30_Reset(world + 0x1fc);
+    }
+    if (params[2] > 0) world_array_create(world + 0x210, params[2], arena, 0x80, 0xf);
+    if (params[2] > 0) world_array_create(world + 0x21c, params[2], arena, 0x80, 0xf);
+    if (params[4] > 0) {
+        world_pool_create(world + 0x228, params[4], arena, 0x50, 0xf);
+        PhysConstraintPool50_Reset(world + 0x228);
+    }
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0420)(world + 0x23c, params[5], arena);  // PhysConstraintPoolF0_Init
+    if (params[6] > 0) {
+        world_pool_create(world + 0x250, params[6], arena, 0x60, 0xf);
+        PhysConstraintPool60_Reset(world + 0x250);
+    }
+    if (params[7] > 0) {
+        world_pool_create(world + 0x264, params[7], arena, 0x10, 3);
+        PhysPool10_Reset(world + 0x264);
+    }
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c29e0)(world + 0x278, params[8], arena);  // PhysConstraintPool1B0_Init
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0480)(world + 0x28c, params[9], arena);  // PhysConstraintPoolE0_Init
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c04e0)(world + 0x2a0, params[10], arena);  // PhysConstraintPoolD0_Init
+    const uint32_t size = (static_cast<uint32_t>(params[11]) * 5 + 5) * 0x20 + (static_cast<uint32_t>(params[0]) << 6);
+    const uint32_t block = arena_alloc(arena, size, 0xf);
+    at<uint32_t>(world, 0x2b4) = block;
+    at<uint32_t>(world, 0x2bc) = block;
+    at<uint32_t>(world, 0x2b8) = block + size;
+    return world;
+}
+
+void XB_THISCALL PhysPool1c0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0x1c0, 0xf);
+    PhysPool1c0_Reset(pool);
+}
+
+
+namespace {
+
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+uint32_t word_addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+uint32_t float_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// Calls at the original's ESP (`top`) with its registers; the original's return address goes back
+// into the dead-stack word the call's return address took. EDX after the call is kept.
+struct OriginalCalls {
+    uint32_t top;
+    TitleRegs regs{};
+    uint32_t edx_out = 0;
+    uint32_t call(uint32_t function, uint32_t return_address, uint32_t count = 0, const uint32_t* args = nullptr) {
+        using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
+        const uint64_t r = reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(top, function, &regs,
+                                                                                                          count, args);
+        stack_word(top - 4 * count - 4) = return_address;
+        edx_out = static_cast<uint32_t>(r >> 32);
+        return static_cast<uint32_t>(r);
+    }
+};
+
+}  // namespace
+
+// One substep of dt: predicted transforms, the world callback (+0xc), islands (PhysWorld_BuildIslands)
+// each solved in as many iterations as its first body's +0x13c * dt / +0x140 needs (the most of any island
+// plus +8 for all), frames copied back (from +0x1b0's frame when `last`, else from +0x40), then each pair
+// record (0x30 pool) whose new contact list is empty is freed and the others swap lists and re-enter the pair
+// tree. The original's frame: an 8-byte local at entry - 8 (dt for the predictions, the island list, the
+// sorted pair whose address stays in world +0x1c0), EBX/EBP/ESI/EDI saved below it; every callee runs at its ESP.
+PLATFORM_ASM_ENTRY(PhysWorld_Substep_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysWorld_Substep) "addl $32, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last, uint32_t entry_ebx, uint32_t entry_ebp,
+                                uint32_t entry_esi, uint32_t entry_edi, uint32_t entry_esp) {
+    float dt;
+    std::memcpy(&dt, &dt_bits, 4);
+    const uint32_t local = entry_esp - 8;
+    const uint32_t w = word_addr(world);
+    at<uint32_t>(world, 4) = dt_bits;
+    stack_word(entry_esp - 0xc) = entry_ebx;
+    stack_word(entry_esp - 0x10) = entry_ebp;
+    stack_word(entry_esp - 0x14) = entry_esi;
+    stack_word(entry_esp - 0x18) = entry_edi;
+    OriginalCalls f{entry_esp - 0x18};
+    f.regs.ecx = w;
+    f.regs.esi = entry_esi;
+    f.regs.edi = entry_edi;
+    const uint32_t zero[1] = {0}, one[1] = {1};
+    const auto profile = [&](uint32_t address, const uint32_t* which, uint32_t return_address) {
+        const uint32_t function = title_global<uint32_t>(address);
+        if (!function) return;
+        f.regs.eax = function;
+        f.call(function, return_address, 1, which);
+    };
+    profile(0x0090a888, zero, 0x000be3b2);
+    at<uint32_t>(world, 0) |= 1;
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1ec);
+        const uint32_t end = list + at<uint32_t>(world, 0x1f8) * 4;
+        f.regs.ecx = list;
+        f.regs.edi = end;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.eax = args[0];
+                f.regs.edx = local;
+                f.regs.esi = it;
+                f.call(0x000bc170, 0x000be3ed, 2, args);  // PhysBody_PredictTransform
+            }
+        }
+    }
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1d8);
+        const uint32_t end = list + at<uint32_t>(world, 0x1e4) * 4;
+        f.regs.edx = list;
+        f.regs.ecx = at<uint32_t>(world, 0x1e4);
+        f.regs.esi = list;
+        f.regs.edi = end;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.ecx = args[0];
+                f.regs.eax = local;
+                f.regs.esi = it;
+                f.call(0x000c17a0, 0x000be425, 2, args);  // PhysObject1c0_PredictTransform
+            }
+        }
+    }
+    const uint32_t callback = at<uint32_t>(world, 0xc);
+    f.regs.eax = callback;
+    if (callback) f.call(callback, 0x000be438);
+    at<uint32_t>(world, 0) &= ~1u;
+    profile(0x0090a88c, zero, 0x000be448);
+    profile(0x0090a888, one, 0x000be458);
+    {
+        const uint32_t args[1] = {local};
+        f.regs.edx = local;
+        f.regs.ecx = w;
+        f.call(0x000bd380, 0x000be467, 1, args);  // PhysWorld_BuildIslands
+    }
+    profile(0x0090a88c, one, 0x000be474);
+    uint8_t* const head = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(local)});
+    title_global<uint8_t>(0x009098cc) = 1;
+    int32_t iterations = 0;
+    for (uint8_t* island = head; island; island = at<uint8_t*>(island, 0x38)) {
+        const uint8_t* const body = at<uint8_t*>(island, 0x20);
+        const float span = at<float>(body, 0x13c) * dt;
+        at<float>(island, 0x34) = span;
+        const float step = at<float>(body, 0x140);
+        at<int32_t>(island, 0x30) = static_cast<int32_t>(span / step);
+        if (at<int32_t>(island, 0x30) == 0) at<int32_t>(island, 0x30) = 1;
+        const int32_t n = at<int32_t>(island, 0x30);
+        if (at<float>(island, 0x34) / static_cast<float>(n) > step) at<int32_t>(island, 0x30) = n + 1;
+        if (iterations <= at<int32_t>(island, 0x30)) iterations = at<int32_t>(island, 0x30);
+    }
+    const int32_t total = iterations + at<int32_t>(world, 8);
+    f.regs.ebx = 0;
+    f.regs.ecx = w;
+    f.regs.edi = static_cast<uint32_t>(total);
+    for (uint8_t* island = head; island; island = at<uint8_t*>(island, 0x38)) {
+        const uint32_t args[3] = {word_addr(island), at<uint32_t>(world, 8), static_cast<uint32_t>(total)};
+        f.regs.eax = args[1];
+        f.regs.esi = args[0];
+        f.call(0x000c2220, 0x000be4fe, 3, args);  // PhysIsland_Solve
+    }
+    at<int32_t>(world, 8) = total;
+    title_global<uint8_t>(0x009098cc) = 0;
+    {
+        uint32_t* it = at<uint32_t*>(world, 0x1d8);
+        uint32_t* const end = it + at<int32_t>(world, 0x1e4);
+        for (; it != end; ++it) {
+            uint32_t* const object = reinterpret_cast<uint32_t*>(uintptr_t{*it});
+            const uint32_t* const from = static_cast<uint8_t>(last) ? at<const uint32_t*>(object, 0x1b0) : object + 0x10;
+            for (int32_t i = 0; i < 16; ++i) object[i] = from[i];
+        }
+    }
+    profile(0x0090a888, one, 0x000be570);
+    {
+        const uint32_t old_list = at<uint32_t>(world, 0x30);
+        at<uint32_t>(world, 0x30) = at<uint32_t>(world, 0x34);
+        at<uint32_t>(world, 0x34) = old_list;
+        stack_word(old_list + 8) = 0;
+    }
+    uint8_t* const tree = world + 0x1b0;
+    at<uint32_t>(tree, 0xc) = 0;
+    at<uint32_t>(tree, 8) = 0;
+    f.regs.edi = word_addr(tree);
+    int32_t i = 0;
+    while (i < at<int32_t>(world, 0x20c)) {
+        uint8_t* const record = at<uint8_t**>(world, 0x200)[i];
+        f.regs.esi = word_addr(record);
+        uint32_t* const next = at<uint32_t*>(record, 0x28);
+        if (next[2] == 0) {
+            at<uint32_t>(record, 0x2c) = 0;
+            const uint32_t args[1] = {word_addr(record)};
+            f.regs.eax = word_addr(next);
+            f.regs.ecx = w + 0x1fc;
+            f.regs.edx = at<uint32_t>(world, 0x200);
+            f.regs.ebx = static_cast<uint32_t>(i);
+            f.call(0x000b5c00, 0x000be5c0, 1, args);  // PhysConstraintPool30_Free
+            continue;
+        }
+        uint32_t* const current = at<uint32_t*>(record, 0x24);
+        at<uint32_t*>(record, 0x28) = current;
+        at<uint32_t*>(record, 0x24) = next;
+        current[0] = 0;
+        current[1] = 0;
+        current[2] = 0;
+        ++i;
+        const uint32_t a = at<uint32_t>(record, 0), b = at<uint32_t>(record, 4);
+        stack_word(local) = a < b ? a : b;
+        stack_word(local + 4) = a < b ? b : a;
+        at<uint32_t>(tree, 0x10) = local;
+        const uint32_t args[1] = {word_addr(tree) + 0xc};
+        f.regs.eax = local;
+        f.regs.ecx = word_addr(tree);
+        f.regs.edx = word_addr(next);
+        f.regs.ebx = static_cast<uint32_t>(i);
+        f.call(0x000b60b0, 0x000be604, 1, args);  // PhysPairTree_Insert
+        uint8_t* const slot = at<uint8_t*>(tree, 0x14) + 0x14;
+        *reinterpret_cast<uint8_t**>(slot) = record;
+        at<uint8_t*>(record, 0x2c) = slot;
+    }
+    profile(0x0090a88c, one, 0x000be62c);
+}
+
+// One frame of dt: limits at 0x008bd5d0 / 0x008bd5d4 (-10000 / 10000), n = dt / +0x10 substeps (at least
+// 1, one more when dt / n still exceeds +0x10), the bodies' pre-step, the 0x1c0 objects' velocities from
+// their two frames, the constraint targets, n PhysWorld_Substep calls (the last one copies frames from
+// +0x1b0), forces cleared, constraints snapped back. The original's frame: locals at entry - 8 (dt for the
+// callees) and entry - 4 (dt / n, later dt), EBX/ESI/EDI/EBP saved below; every callee runs at its ESP.
+PLATFORM_ASM_ENTRY(PhysWorld_Step_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysWorld_Step) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_ebx, uint32_t entry_esi, uint32_t entry_edi,
+                             uint32_t entry_ebp, uint32_t entry_esp) {
+    float dt;
+    std::memcpy(&dt, &dt_bits, 4);
+    const uint32_t w = word_addr(world);
+    const uint32_t local = entry_esp - 8, local_sub = entry_esp - 4;
+    title_global<uint32_t>(0x008bd5d0) = title_global<uint32_t>(0x007ce2fc);  // -10000
+    title_global<uint32_t>(0x008bd5d4) = title_global<uint32_t>(0x0083f010);  // 10000
+    int32_t n = static_cast<int32_t>(dt / at<float>(world, 0x10));
+    if (n < 1) n = 1;
+    if (dt / static_cast<float>(n) > at<float>(world, 0x10)) ++n;
+    const float sub = dt / static_cast<float>(n);
+    stack_word(entry_esp - 0xc) = entry_ebx;
+    stack_word(entry_esp - 0x10) = entry_esi;
+    stack_word(entry_esp - 0x14) = entry_edi;
+    stack_word(entry_esp - 0x18) = entry_ebp;
+    stack_word(local_sub) = float_bits(sub);
+    OriginalCalls f{entry_esp - 0x18};
+    f.regs.ebx = static_cast<uint32_t>(n);
+    f.regs.esi = w;
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1ec);
+        const uint32_t end = list + at<uint32_t>(world, 0x1f8) * 4;
+        f.regs.ecx = list;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.eax = args[0];
+                f.regs.edx = local;
+                f.regs.edi = it;
+                f.call(0x000c0a00, 0x000be6d0, 2, args);  // PhysBody_PreStep
+            }
+        }
+    }
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1d8);
+        const uint32_t end = list + at<uint32_t>(world, 0x1e4) * 4;
+        for (uint32_t it = list; it != end; it += 4) {
+            uint8_t* const object = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(it)});
+            const uint32_t o = word_addr(object);
+            const float h = at<float>(object, 0x13c) * dt;
+            const uint32_t args[5] = {o, at<uint32_t>(object, 0x1b0), float_bits(h), o + 0xd0, o + 0xe0};
+            f.regs.eax = o;
+            f.regs.ecx = args[1];
+            f.regs.edx = o + 0xd0;
+            f.regs.edi = it;
+            f.call(0x000bb4f0, 0x000be721, 5, args);  // Phys_AngularVelocityBetweenFrames
+        }
+    }
+    const auto each = [&](uint32_t list_offset, uint32_t count_offset, uint32_t function, uint32_t return_address,
+                          uint32_t slot) {
+        const uint32_t list = at<uint32_t>(world, list_offset);
+        const uint32_t end = list + at<uint32_t>(world, count_offset) * 4;
+        f.regs.eax = list;
+        f.regs.edx = at<uint32_t>(world, count_offset);
+        f.edx_out = f.regs.edx;
+        for (uint32_t it = list; it != end; it += 4) {
+            stack_word(slot) = dt_bits;
+            const uint32_t args[1] = {slot};
+            f.regs.ecx = stack_word(it);
+            f.regs.edi = it;
+            f.call(function, return_address, 1, args);
+            f.regs.edx = f.edx_out;
+        }
+    };
+    each(0x254, 0x260, 0x000b93d0, 0x000be758, local);  // PhysConstraint60_ComputeTargetRate
+    each(0x2a4, 0x2b0, 0x000b9500, 0x000be78c, local);  // PhysConstraintFrame_Update
+    uint32_t edx = f.edx_out;
+    for (int32_t i = 0; i < n; ++i) {
+        edx = (edx & ~0xffu) | (i + 1 == n ? 1u : 0u);
+        const uint32_t args[2] = {float_bits(sub), edx};
+        f.regs.eax = static_cast<uint32_t>(i);
+        f.regs.ecx = w;
+        f.regs.edx = edx;
+        f.regs.edi = static_cast<uint32_t>(i + 1);
+        f.call(0x000be390, 0x000be7b1, 2, args);  // PhysWorld_Substep
+        edx = f.edx_out;
+    }
+    {
+        uint32_t* it = at<uint32_t*>(world, 0x1ec);
+        uint32_t* const end = it + at<int32_t>(world, 0x1f8);
+        for (; it != end; ++it) {
+            uint8_t* const body = reinterpret_cast<uint8_t*>(uintptr_t{*it});
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(body, 0x110 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(body, 0x120 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+        }
+    }
+    f.top = entry_esp - 0x14;  // EBP popped
+    f.regs.ebx = 0;
+    each(0x254, 0x260, 0x000b9430, 0x000be858, local_sub);  // PhysConstraint60_SnapToTarget
+    each(0x2a4, 0x2b0, 0x000b9440, 0x000be88c, local_sub);  // PhysConstraintFrame_Restore
 }
 
 }  // namespace game
