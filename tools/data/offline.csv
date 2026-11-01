@@ -616,6 +616,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000c0080,PhysJoint_SolveStep,2454,1753,701,0,100.0
 000c01e0,PhysJoint_ApplyBlendedImpulses,2687,2484,203,0,100.0
 000c02c0,PhysJoint_WarmStart,2315,1688,627,0,100.0
+000c17a0,PhysObject1c0_PredictTransform,1861,1763,98,0,100.0
+000c1980,PhysBody_Integrate,1850,1746,104,0,100.0
+000c2a40,PhysWorld_Destroy,1607,1607,0,0,100.0
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1

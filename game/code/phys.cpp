@@ -5064,4 +5064,457 @@ void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out) {
     }
 }
 
+// Element pools PhysWorld_Create sets up from its arena (16-byte aligned storage, pointer and index
+// arrays after it), then resets.
+void XB_THISCALL PhysBodyPool_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0x170, 0xf);
+    PhysBodyPool_Reset(pool);
+}
+
+void XB_THISCALL PhysConstraintPoolF0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0xf0, 0xf);
+    PhysConstraintPoolF0_Reset(pool);
+}
+
+void XB_THISCALL PhysConstraintPoolE0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0xe0, 0xf);
+    PhysConstraintPoolE0_Reset(pool);
+}
+
+void XB_THISCALL PhysConstraintPoolD0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0xd0, 0xf);
+    PhysConstraintPoolD0_Reset(pool);
+}
+
+void XB_THISCALL PhysConstraintPool1B0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0x1b0, 0xf);
+    PhysConstraintPool1B0_Reset(pool);
+}
+
+namespace {
+
+// A body's inverse mass (+0xb0, lane 0) times v: the path for bodies with flag 2 in +0x144.
+Lanes scale_by_inv_mass(const uint8_t* body, const float* v) {
+    return mul(lanes(v), splat(at<float>(body, 0xb0)));
+}
+
+// 4-lane reciprocal with one Newton step as above, the 2 read from `two`.
+Lanes refined_reciprocal_from(const Lanes& v, uint32_t two) {
+    Lanes r;
+    for (int32_t i = 0; i < 4; ++i) r.v[i] = platform_rcp_estimate(v.v[i]);
+    return mul(sub(lanes(&title_global<float>(two)), mul(r, v)), r);
+}
+
+}  // namespace
+
+// out = the body's world inverse inertia (rows +0x80, +0x90, +0xa0) times v; inverse mass * v for flag 2.
+float* XB_CDECL PhysBody_MulInvInertia(float* out, const uint8_t* body, const float* v) {
+    if (at<uint8_t>(body, 0x144) & 2) {
+        store4(out, scale_by_inv_mass(body, v));
+        return out;
+    }
+    store4(out, mat_rotate(reinterpret_cast<const float*>(body + 0x80), lanes(v)));
+    return out;
+}
+
+// As PhysBody_MulInvInertia, times `scale` (flag 2: v * (scale * the +0xb0 lanes) lane 0).
+float* XB_CDECL PhysBody_MulInvInertiaScaled(float* out, const uint8_t* body, const float* v, float scale) {
+    if (at<uint8_t>(body, 0x144) & 2) {
+        const Lanes t = mul(splat(scale), lanes(reinterpret_cast<const float*>(body + 0xb0)));
+        platform_keep(t);
+        store4(out, mul(lanes(v), splat(t.v[0])));
+        return out;
+    }
+    const Lanes r = mat_rotate(reinterpret_cast<const float*>(body + 0x80), lanes(v));
+    store4(out, mul(splat(scale), r));
+    return out;
+}
+
+// out = R diag(+0xb0) R^T v with R the body's frame rotation (rows +0, +0x10, +0x20): the inverse
+// inertia built from the frame; inverse mass * v for flag 2.
+float* XB_CDECL PhysBody_MulInvInertiaFromFrame(float* out, const uint8_t* body, const float* v) {
+    if (at<uint8_t>(body, 0x144) & 2) {
+        store4(out, scale_by_inv_mass(body, v));
+        return out;
+    }
+    const Lanes inv = lanes(reinterpret_cast<const float*>(body + 0xb0));
+    float rows[12];
+    std::memcpy(rows, body, sizeof(rows));  // REP MOVSD copy
+    Lanes columns[3];
+    frame_columns(rows, columns);
+    const Lanes local = mul(rotate_into(columns, lanes(v)), inv);
+    store4(out, mat_rotate(rows, local));
+    return out;
+}
+
+// out = R diag(1 / +0xb0) R^T v (the inertia itself, reciprocal with one Newton step); v / inverse mass for flag 2.
+float* XB_CDECL PhysBody_MulInertiaFromFrame(float* out, const uint8_t* body, const float* v) {
+    const Lanes inv = lanes(reinterpret_cast<const float*>(body + 0xb0));
+    if (at<uint8_t>(body, 0x144) & 2) {
+        store4(out, div(lanes(v), splat(inv.v[0])));
+        return out;
+    }
+    const Lanes inertia = refined_reciprocal_from(inv, 0x007ce090);
+    float rows[12];
+    std::memcpy(rows, body, sizeof(rows));  // REP MOVSD copy
+    Lanes columns[3];
+    frame_columns(rows, columns);
+    const Lanes local = mul(rotate_into(columns, lanes(v)), inertia);
+    store4(out, mat_rotate(rows, local));
+    return out;
+}
+
+// Before a step: an angular velocity (+0xe0) above the limit +0x138 gets a torque (+0x120) taking it back
+// to the limit; force (+0x110) and torque are divided by +0x13c * dt and gravity (9.8 * +0x134 / +0x130
+// along +0xc0) is added to the force.
+void XB_CDECL PhysBody_PreStep(uint8_t* body, const float* dt) {
+    const Lanes w = lanes(reinterpret_cast<const float*>(body + 0xe0));
+    const float scale = at<float>(body, 0x13c) * *dt;
+    const float limit = at<float>(body, 0x138);
+    const float speed_sq = dot3(w, w);
+    if (speed_sq > limit * limit) {
+        const long double ratio = static_cast<long double>(limit) / platform_x87_sqrt_ext(speed_sq);
+        const float f = static_cast<float>(ratio - static_cast<long double>(title_global<float>(0x0083eb20)));
+        alignas(16) float dw[4];
+        store4(dw, mul(splat(f), w));
+        alignas(16) float torque[4];
+        const Lanes t = lanes(PhysBody_MulInertiaFromFrame(torque, body, dw));
+        store4(reinterpret_cast<float*>(body + 0x120), add(lanes(reinterpret_cast<const float*>(body + 0x120)), t));
+    }
+    store4(reinterpret_cast<float*>(body + 0x110), div(lanes(reinterpret_cast<const float*>(body + 0x110)), splat(scale)));
+    store4(reinterpret_cast<float*>(body + 0x120), div(lanes(reinterpret_cast<const float*>(body + 0x120)), splat(scale)));
+    const float g = (at<float>(body, 0x134) / at<float>(body, 0x130)) * title_global<float>(0x007ce2f8);
+    const Lanes gravity = mul(splat(g), lanes(reinterpret_cast<const float*>(body + 0xc0)));
+    store4(reinterpret_cast<float*>(body + 0x110), add(lanes(reinterpret_cast<const float*>(body + 0x110)), gravity));
+}
+
+// Velocities saved (+0xd0 -> +0xf0, +0xe0 -> +0x100), then +0xd0 += +0x130 * dt * force (+0x110) and
+// +0xe0 += dt * inverse inertia * torque (+0x120).
+void XB_CDECL PhysBody_IntegrateVelocity(uint8_t* body, float dt) {
+    const float k = at<float>(body, 0x130) * dt;
+    for (uint32_t i = 0; i < 16; i += 4) at<uint32_t>(body, 0xf0 + i) = at<uint32_t>(body, 0xd0 + i);
+    const Lanes force = lanes(reinterpret_cast<const float*>(body + 0x110));
+    for (uint32_t i = 0; i < 16; i += 4) at<uint32_t>(body, 0x100 + i) = at<uint32_t>(body, 0xe0 + i);
+    store4(reinterpret_cast<float*>(body + 0xd0), add(lanes(reinterpret_cast<const float*>(body + 0xd0)), mul(splat(k), force)));
+    alignas(16) float dw[4];
+    const Lanes t = lanes(PhysBody_MulInvInertiaScaled(dw, body, reinterpret_cast<const float*>(body + 0x120), dt));
+    store4(reinterpret_cast<float*>(body + 0xe0), add(lanes(reinterpret_cast<const float*>(body + 0xe0)), t));
+}
+
+// The contact's normal mass term +0x84: per body record (+0x94, +0x98 if any; record +0x30 inverse mass,
+// +0x34 body) inverse mass + n . ((I^-1 (r x n)) x r); A's lever r = +0x20 + offset for the inertia
+// product, +0x20 in the second cross. I^-1 (r x n) is kept at +0x40 / +0x50.
+void XB_THISCALL PhysContact_InitNormalMass(uint8_t* contact, const float* offset) {
+    const Lanes n = lanes(reinterpret_cast<const float*>(contact + 0x10));
+    const Lanes q = add(lanes(reinterpret_cast<const float*>(contact + 0x20)), lanes(offset));
+    alignas(16) float r[4];
+    store4(r, cross_lanes(q, n));
+    alignas(16) float t[4];
+    uint8_t* const a = at<uint8_t*>(contact, 0x94);
+    const float* p = PhysBody_MulInvInertia(t, at<uint8_t*>(a, 0x34), r);
+    for (uint32_t i = 0; i < 16; i += 4) at<uint32_t>(contact, 0x40 + i) = at<uint32_t>(p, i);
+    const Lanes ta = cross_lanes(lanes(reinterpret_cast<const float*>(contact + 0x40)),
+                                 lanes(reinterpret_cast<const float*>(contact + 0x20)));
+    const float da = dot3(ta, lanes(reinterpret_cast<const float*>(contact + 0x10)));
+    at<float>(contact, 0x84) = at<float>(a, 0x30) + da;
+    uint8_t* const b = at<uint8_t*>(contact, 0x98);
+    if (!b) return;
+    store4(r, cross_lanes(lanes(reinterpret_cast<const float*>(contact + 0x30)),
+                          lanes(reinterpret_cast<const float*>(contact + 0x10))));
+    p = PhysBody_MulInvInertia(t, at<uint8_t*>(b, 0x34), r);
+    for (uint32_t i = 0; i < 16; i += 4) at<uint32_t>(contact, 0x50 + i) = at<uint32_t>(p, i);
+    const float db = dot3(lanes(reinterpret_cast<const float*>(contact + 0x50)), lanes(r));
+    at<float>(contact, 0x84) = at<float>(contact, 0x84) + (at<float>(b, 0x30) + db);
+}
+
+// A 0x140 contact's 3x3 mass matrix: per body record (+0x130, +0x134 if any; +0x30 inverse mass, +0x34 body)
+// and anchor (+0x10 / +0x20) the inverse inertia times each skew column of the anchor (+0x30/+0x50/+0x70 for A,
+// +0x40/+0x60/+0x80 for B), rows K = m I + (I^-1 col) x anchor summed over the bodies; then the inverse's rows
+// (adjugate: K1 x K2, K2 x K0, K0 x K1, over det = (K0 x K1) . K2) at +0xf0 / +0x100 / +0x110 and K's diagonal
+// at +0x120.
+void XB_THISCALL PhysContact140_InitMassMatrix(uint8_t* contact) {
+    static const uint32_t kSkew[3] = {0x007ce250, 0x007ce260, 0x007ce270};  // (0,1,-1,0) (-1,0,1,0) (1,-1,0,0)
+    Lanes rows[3];
+    for (uint32_t side = 0; side < 2; ++side) {
+        uint8_t* const record = at<uint8_t*>(contact, 0x130 + side * 4);
+        if (side == 1 && !record) break;
+        const uint32_t anchor = 0x10 + side * 0x10;
+        for (uint32_t i = 0; i < 3; ++i) {
+            const Lanes r = lanes(reinterpret_cast<const float*>(contact + anchor));
+            const Lanes shuffled = i == 0 ? Lanes{{r.v[0], r.v[2], r.v[1], r.v[3]}}
+                                 : i == 1 ? Lanes{{r.v[2], r.v[1], r.v[0], r.v[3]}}
+                                          : Lanes{{r.v[1], r.v[0], r.v[2], r.v[3]}};
+            alignas(16) float column[4];
+            store4(column, mul(shuffled, lanes(&title_global<float>(kSkew[i]))));
+            alignas(16) float t[4];
+            const float* const p = PhysBody_MulInvInertia(t, at<uint8_t*>(record, 0x34), column);
+            const uint32_t slot = 0x30 + i * 0x20 + side * 0x10;
+            for (uint32_t w = 0; w < 16; w += 4) at<uint32_t>(contact, slot + w) = at<uint32_t>(p, w);
+            const Lanes x = cross_lanes(lanes(reinterpret_cast<const float*>(contact + slot)),
+                                        lanes(reinterpret_cast<const float*>(contact + anchor)));
+            const float m = at<float>(record, 0x30);
+            Lanes diagonal = {{0.0f, 0.0f, 0.0f, 0.0f}};
+            diagonal.v[i] = m;
+            if (i == 0) diagonal.v[3] = m;
+            const Lanes term = add(diagonal, x);
+            rows[i] = side == 0 ? term : add(rows[i], term);
+        }
+    }
+    store4(reinterpret_cast<float*>(contact + 0xf0), cross_lanes(rows[1], rows[2]));
+    store4(reinterpret_cast<float*>(contact + 0x100), cross_lanes(rows[2], rows[0]));
+    store4(reinterpret_cast<float*>(contact + 0x110), cross_lanes(rows[0], rows[1]));
+    const Lanes diagonal = {{rows[0].v[0], rows[1].v[1], rows[2].v[2], rows[2].v[2]}};
+    store4(reinterpret_cast<float*>(contact + 0x120), diagonal);
+    const float det = dot3(lanes(reinterpret_cast<const float*>(contact + 0x110)), rows[2]);
+    const float inv = title_global<float>(0x0083eb20) / det;
+    for (uint32_t row = 0xf0; row <= 0x110; row += 0x10)
+        store4(reinterpret_cast<float*>(contact + row), mul(lanes(reinterpret_cast<const float*>(contact + row)), splat(inv)));
+}
+
+// The 0x140 contact's three impulses (+0x90 lanes) / dt into its cache (+0x138: key, value pairs), then
+// +0xd0 += +0xe0.
+void XB_THISCALL PhysContact140_CacheImpulses(uint8_t* contact, uint32_t key, float dt) {
+    for (uint32_t i = 0; i < 3; ++i) {
+        const float impulse = at<float>(contact, 0x90 + i * 4);
+        uint8_t* const cache = at<uint8_t*>(contact, 0x138);
+        at<uint32_t>(cache, i * 8) = key;
+        at<float>(cache, i * 8 + 4) = impulse / dt;
+    }
+    store4(reinterpret_cast<float*>(contact + 0xd0),
+           add(lanes(reinterpret_cast<const float*>(contact + 0xd0)), lanes(reinterpret_cast<const float*>(contact + 0xe0))));
+}
+
+// An angular contact's mass term +0x84 = axis . I^-1 axis summed over its records (+0x8c, +0x90 if any);
+// I^-1 axis kept at +0x40 / +0x50.
+void XB_THISCALL PhysAngularContact_InitMass(uint8_t* contact) {
+    for (uint32_t side = 0; side < 2; ++side) {
+        uint8_t* const record = at<uint8_t*>(contact, 0x8c + side * 4);
+        if (side == 1 && !record) return;
+        alignas(16) float axis[4];
+        for (uint32_t w = 0; w < 16; w += 4) at<uint32_t>(axis, w) = at<uint32_t>(contact, 0x10 + w);
+        alignas(16) float t[4];
+        const float* const p = PhysBody_MulInvInertia(t, at<uint8_t*>(record, 0x34), axis);
+        const uint32_t slot = 0x40 + side * 0x10;
+        for (uint32_t w = 0; w < 16; w += 4) at<uint32_t>(contact, slot + w) = at<uint32_t>(p, w);
+        const float d = dot3(lanes(reinterpret_cast<const float*>(contact + slot)), lanes(reinterpret_cast<const float*>(contact + 0x10)));
+        at<float>(contact, 0x84) = side == 0 ? d : at<float>(contact, 0x84) + d;
+    }
+}
+
+// out (3 rows) = R diag(d) R^T, R the frame's rotation rows (+0, +0x10, +0x20).
+float* XB_CDECL PhysFrame_RotateDiagonal(const float* d, const float* frame, float* out) {
+    float rows[12];
+    std::memcpy(rows, frame, sizeof(rows));  // REP MOVSD copy
+    const Lanes diag = lanes(d);
+    Lanes columns[3];
+    frame_columns(rows, columns);
+    Lanes result[3];
+    for (int32_t i = 0; i < 3; ++i) result[i] = mat_rotate(rows, mul(columns[i], diag));
+    for (int32_t i = 0; i < 3; ++i) store4(out + i * 4, result[i]);
+    return out + 8;
+}
+
+namespace {
+
+// rows +0x40..+0x60 (or +0..+0x20) = rotation(+0xe0 angular velocity, h) * the frame rows +0..+0x20.
+void rotate_frame_rows(uint8_t* body, float h, uint32_t out) {
+    alignas(16) float m[16];
+    Mat34_FromRotationVector(m, reinterpret_cast<float*>(body + 0xe0), h);
+    alignas(16) float mc[12], rows[12];
+    std::memcpy(mc, m, sizeof(mc));
+    std::memcpy(rows, body, sizeof(rows));
+    Lanes r[3];
+    for (int32_t i = 0; i < 3; ++i) r[i] = mat_rotate(mc, lanes(rows + i * 4));
+    for (int32_t i = 0; i < 3; ++i) store4(reinterpret_cast<float*>(body + out + i * 0x10), r[i]);
+}
+
+// +0x30 position + h * +0xd0 velocity.
+Lanes advanced_position(const uint8_t* body, float h) {
+    const Lanes v = lanes(reinterpret_cast<const float*>(body + 0xd0));
+    alignas(16) float position[4];
+    copy_words(position, reinterpret_cast<const float*>(body + 0x30));
+    return add(lanes(position), mul(splat(h), v));
+}
+
+}  // namespace
+
+// A 0x1c0 object's transform after one step (h = +0x13c * dt): +0x70 = position + h velocity, rows
+// +0x40..+0x60 = rotation(+0xe0, h) * rows.
+void XB_CDECL PhysObject1c0_PredictTransform(uint8_t* object, const float* dt) {
+    const float h = at<float>(object, 0x13c) * *dt;
+    alignas(16) float p[4];
+    store4(p, advanced_position(object, h));
+    copy_words(reinterpret_cast<float*>(object + 0x70), p);
+    rotate_frame_rows(object, h, 0x40);
+}
+
+// The body moved over h: position += h velocity, frame rows = rotation(+0xe0, h) * rows.
+void XB_CDECL PhysBody_Integrate(uint8_t* body, float h) {
+    store4(reinterpret_cast<float*>(body + 0x30), advanced_position(body, h));
+    rotate_frame_rows(body, h, 0);
+}
+
+// As PhysBody_Integrate, keeping the angular momentum: L = I(old frame) w first, w = I^-1(new frame) L after;
+// every 6th call re-orthonormalizes the frame (+0x14c counter); the frame's w lanes are reset to (0, 0, 0, 1).
+void XB_CDECL PhysBody_IntegrateKeepMomentum(uint8_t* body, float h) {
+    alignas(16) float momentum[4];
+    PhysBody_MulInertiaFromFrame(momentum, body, reinterpret_cast<const float*>(body + 0xe0));
+    store4(reinterpret_cast<float*>(body + 0x30), advanced_position(body, h));
+    rotate_frame_rows(body, h, 0);
+    alignas(16) float w[4];
+    const float* const p = PhysBody_MulInvInertiaFromFrame(w, body, momentum);
+    for (uint32_t i = 0; i < 12; i += 4) at<uint32_t>(body, 0xe0 + i) = at<uint32_t>(p, i);
+    const uint32_t count = at<uint32_t>(body, 0x14c) + 1;
+    at<uint32_t>(body, 0xec) = at<uint32_t>(p, 0xc);
+    at<uint32_t>(body, 0x14c) = count;
+    if (count > 5) {
+        at<uint32_t>(body, 0x14c) = 0;
+        PhysFrame_Orthonormalize(reinterpret_cast<float*>(body));
+    }
+    at<float>(body, 0xc) = 0.0f;
+    at<float>(body, 0x1c) = 0.0f;
+    at<float>(body, 0x2c) = 0.0f;
+    at<uint32_t>(body, 0x3c) = title_global<uint32_t>(0x0083eb20);
+}
+
+// Clears the world's pool headers (the 0x30 constraint pool through PhysConstraintPool30_Destroy, which
+// clears its constraints' back-pointers).
+void XB_THISCALL PhysWorld_Destroy(uint8_t* world) {
+    static const uint16_t kBefore[] = {0x2a8, 0x2a0, 0x2ac, 0x2a4, 0x2b0, 0x294, 0x28c, 0x298, 0x290, 0x29c, 0x280, 0x278,
+                                       0x284, 0x27c, 0x288, 0x26c, 0x264, 0x270, 0x268, 0x274, 0x258, 0x250, 0x25c, 0x254,
+                                       0x260, 0x244, 0x23c, 0x248, 0x240, 0x24c, 0x230, 0x228, 0x234, 0x22c, 0x238, 0x21c,
+                                       0x220, 0x224, 0x210, 0x214, 0x218};
+    static const uint16_t kAfter[] = {0x1f0, 0x1e8, 0x1f4, 0x1ec, 0x1f8, 0x1dc, 0x1d4, 0x1e0,
+                                      0x1d8, 0x1e4, 0x1c8, 0x1cc, 0x1d0, 0x1b0, 0x1b4, 0x1b8};
+    for (const uint16_t offset : kBefore) at<uint32_t>(world, offset) = 0;
+    PhysConstraintPool30_Destroy(world + 0x1fc);
+    for (const uint16_t offset : kAfter) at<uint32_t>(world, offset) = 0;
+}
+
+// Restitution/penetration terms of a contact: +0x7c = bias pushing out of penetration (separation
+// - 0.02 over max(dt, 1/240), x0.3 when negative, at least -5); a positive one moves to +0x78. With
+// bounce factor and limit set (> 1e-5) and no penetration, the larger normal velocity (body or state, x87
+// compare) above the body's +0x134 threshold gives a bounce velocity (factor * v, at most the limit)
+// taken off +0x78, or clearing a small bias. +0x80 = 0.
+void XB_THISCALL PhysContact_ComputeBiasAndBounce(uint8_t* contact, float bounce, float limit, float dt) {
+    const float separation = PhysContact_GetSeparation(contact);
+    const float min_dt = title_global<float>(0x007ce5a0);
+    const float t = dt > min_dt ? dt : min_dt;
+    const float zero = 0.0f;
+    const float bias = zero - (separation - title_global<float>(0x007ce598)) / t;
+    at<float>(contact, 0x7c) = bias;
+    if (zero > bias) at<float>(contact, 0x7c) = bias * title_global<float>(0x007ce594);
+    const float floor = title_global<float>(0x0083f094);
+    if (floor > at<float>(contact, 0x7c)) at<float>(contact, 0x7c) = floor;
+    if (at<float>(contact, 0x7c) >= zero) {
+        at<uint32_t>(contact, 0x78) = at<uint32_t>(contact, 0x7c);
+        at<float>(contact, 0x7c) = zero;
+    } else {
+        at<float>(contact, 0x78) = zero;
+    }
+    const float tiny = title_global<float>(0x0083effc);
+    if (bounce > tiny && limit > tiny && separation >= zero) {
+        const float state = PhysContact_GetStateNormalVelocity(contact);
+        const float body = PhysContact_GetBodyNormalVelocity(contact);
+        float v = platform_x87_greater(body, state) ? body : state;
+        if (v > at<float>(at<uint8_t*>(at<uint8_t*>(contact, 0x94), 0x34), 0x134)) {
+            v = v * bounce;
+            if (v > limit) v = limit;
+            if (title_global<float>(0x007ce5a4) >= at<float>(contact, 0x7c)) {
+                const float back = zero - v;
+                if (at<float>(contact, 0x7c) > back) {
+                    at<float>(contact, 0x7c) = zero;
+                    at<float>(contact, 0x78) = back;
+                }
+            } else {
+                at<float>(contact, 0x78) = at<float>(contact, 0x78) - v;
+            }
+        }
+    }
+    at<float>(contact, 0x80) = zero;
+}
+
+namespace {
+
+// |a - b|^2 of two lanes vectors, (x + y) + z.
+float distance_sq(const uint8_t* a, const uint8_t* b, uint32_t offset) {
+    const Lanes d = sub(lanes(reinterpret_cast<const float*>(a + offset)), lanes(reinterpret_cast<const float*>(b + offset)));
+    return dot3(d, d);
+}
+
+}  // namespace
+
+// Squared distance of two contact matches over their three points (+0x10, +0x20, +0x30): (d20 + d30) + d10.
+float XB_THISCALL PhysContactMatch_DistanceSq(const uint8_t* match, const uint8_t* other) {
+    const float d10 = distance_sq(match, other, 0x10);
+    const float d30 = distance_sq(match, other, 0x30);
+    const float d20 = distance_sq(match, other, 0x20);
+    return (d20 + d30) + d10;
+}
+
+// The pair's last contact point (list +0x28, tail +4): +0x40 = v, flag +0x5c = 1. Unreferenced.
+void XB_THISCALL PhysBodyPair_SetLastPointVector(uint8_t* pair, const float* v) {
+    uint8_t* const point = at<uint8_t*>(at<uint8_t*>(pair, 0x28), 4);
+    uint32_t words[4];
+    std::memcpy(words, v, 16);
+    std::memcpy(point + 0x40, words, 16);
+    point[0x5c] = 1;
+}
+
+// A 0x80 contact point from the world's point array (+0x34: storage, capacity, count; null when full; its
+// +0x60 / +0x68 / +0x70 = -1) appended to the pair's list (+0x28: head, tail, count). Points and normal in
+// the pair's order: for the pair's first body the points as given, else swapped and the normal negated;
+// +0x50..+0x58 = the three values.
+uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, uint32_t, const float* point_a,
+                                                  const float* point_b, const float* normal, uint32_t v0, uint32_t v1,
+                                                  uint32_t v2) {
+    uint8_t* const array = at<uint8_t*>(title_global<uint8_t*>(0x0090a87c), 0x34);
+    uint8_t* point = nullptr;
+    const int32_t count = at<int32_t>(array, 8);
+    if (count < at<int32_t>(array, 4)) {
+        point = reinterpret_cast<uint8_t*>(at<uintptr_t>(array, 0) + static_cast<uint32_t>(count << 7));
+        at<int32_t>(array, 8) = count + 1;
+        if (point) {
+            at<uint32_t>(point, 0x60) = 0xffffffffu;
+            at<uint32_t>(point, 0x68) = 0xffffffffu;
+            at<uint32_t>(point, 0x70) = 0xffffffffu;
+        }
+    }
+    uint8_t* const list = at<uint8_t*>(pair, 0x28);
+    ++at<int32_t>(list, 8);
+    uint8_t* const tail = at<uint8_t*>(list, 4);
+    if (tail)
+        at<uint8_t*>(tail, 0) = point;
+    else
+        at<uint8_t*>(list, 0) = point;
+    at<uint8_t*>(list, 4) = point;
+    at<uint32_t>(point, 0) = 0;
+    point[0x5c] = 0;
+    uint32_t a[4], b[4], n[4];
+    if (at<uint32_t>(pair, 0) == body) {
+        std::memcpy(b, point_b, 16);
+        std::memcpy(a, point_a, 16);
+        std::memcpy(n, normal, 16);
+        std::memcpy(point + 0x20, a, 16);
+        std::memcpy(point + 0x30, b, 16);
+    } else {
+        std::memcpy(a, point_a, 16);
+        std::memcpy(b, point_b, 16);
+        std::memcpy(n, normal, 16);
+        std::memcpy(point + 0x20, b, 16);
+        std::memcpy(point + 0x30, a, 16);
+        for (int32_t i = 0; i < 4; ++i) n[i] ^= title_global<uint32_t>(0x007ce310 + i * 4);
+    }
+    std::memcpy(point + 0x10, n, 16);
+    at<uint32_t>(point, 0x50) = v0;
+    at<uint32_t>(point, 0x54) = v1;
+    at<uint32_t>(point, 0x58) = v2;
+    return point;
+}
+
 }  // namespace game

@@ -43,6 +43,7 @@
 #include "ngl_debug.h"
 #include "param_set.h"
 #include "phys.h"
+#include "pmove.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -2063,6 +2064,30 @@ const Function kFunctions[] = {
     {"PhysJoint_ApplyBlendedImpulses", 0x000c01e0, 0, code(&PhysJoint_ApplyBlendedImpulses), 4, Result::None, Status::Compare},
     {"PhysJoint_WarmStart", 0x000c02c0, 0, code(&PhysJoint_WarmStart), 8, Result::None, Status::Compare},
     {"PhysPool1c0_Init", 0x000c0360, 0, code(&PhysPool1c0_Init), 8, Result::None, Status::Compare},
+    {"PhysBodyPool_Init", 0x000c03c0, 0, code(&PhysBodyPool_Init), 8, Result::None, Status::Compare},
+    {"PhysConstraintPoolF0_Init", 0x000c0420, 0, code(&PhysConstraintPoolF0_Init), 8, Result::None, Status::Compare},
+    {"PhysConstraintPoolE0_Init", 0x000c0480, 0, code(&PhysConstraintPoolE0_Init), 8, Result::None, Status::Compare},
+    {"PhysConstraintPoolD0_Init", 0x000c04e0, 0, code(&PhysConstraintPoolD0_Init), 8, Result::None, Status::Compare},
+    {"PhysBody_MulInvInertia", 0x000c0540, 0, code(&PhysBody_MulInvInertia), 12, Result::Eax, Status::Compare},
+    {"PhysBody_MulInvInertiaScaled", 0x000c0640, 0, code(&PhysBody_MulInvInertiaScaled), 16, Result::Eax, Status::Compare},
+    {"PhysBody_MulInvInertiaFromFrame", 0x000c0750, 0, code(&PhysBody_MulInvInertiaFromFrame), 12, Result::Eax, Status::Compare},
+    {"PhysBody_MulInertiaFromFrame", 0x000c08b0, 0, code(&PhysBody_MulInertiaFromFrame), 12, Result::Eax, Status::Compare},
+    {"PhysBody_PreStep", 0x000c0a00, 0, code(&PhysBody_PreStep), 8, Result::None, Status::Compare},
+    {"PhysBody_IntegrateVelocity", 0x000c0b90, 0, code(&PhysBody_IntegrateVelocity), 8, Result::None, Status::Compare},
+    {"PhysContact_InitNormalMass", 0x000c0ca0, 0, code(&PhysContact_InitNormalMass), 4, Result::None, Status::Compare},
+    {"PhysContact140_InitMassMatrix", 0x000c0e80, 0, code(&PhysContact140_InitMassMatrix), 0, Result::None, Status::Compare},
+    {"PhysContact140_CacheImpulses", 0x000c13e0, 0, code(&PhysContact140_CacheImpulses), 8, Result::None, Status::Compare},
+    {"PhysAngularContact_InitMass", 0x000c14d0, 0, code(&PhysAngularContact_InitMass), 0, Result::None, Status::Compare},
+    {"PhysFrame_RotateDiagonal", 0x000c1610, 0, code(&PhysFrame_RotateDiagonal), 12, Result::None, Status::Compare},
+    {"PhysObject1c0_PredictTransform", 0x000c17a0, 0, code(&PhysObject1c0_PredictTransform), 8, Result::None, Status::Compare},
+    {"PhysBody_Integrate", 0x000c1980, 0, code(&PhysBody_Integrate), 8, Result::None, Status::Compare},
+    {"PhysBody_IntegrateKeepMomentum", 0x000c1b30, 0, code(&PhysBody_IntegrateKeepMomentum), 8, Result::None, Status::Compare},
+    {"PhysConstraintPool1B0_Init", 0x000c29e0, 0, code(&PhysConstraintPool1B0_Init), 8, Result::None, Status::Compare},
+    {"PhysWorld_Destroy", 0x000c2a40, 0, code(&PhysWorld_Destroy), 0, Result::None, Status::Compare},
+    {"PhysContact_ComputeBiasAndBounce", 0x000c2bb0, 0, code(&PhysContact_ComputeBiasAndBounce), 12, Result::None, Status::Compare},
+    {"PhysContactMatch_DistanceSq", 0x000c2d10, 0, code(&PhysContactMatch_DistanceSq), 4, Result::St0, Status::Compare},
+    {"PhysBodyPair_SetLastPointVector", 0x000c2da0, 0, code(&PhysBodyPair_SetLastPointVector), 4, Result::None, Status::Compare},
+    {"PhysBodyPair_AddContactPoint", 0x000c2de0, 0, code(&PhysBodyPair_AddContactPoint), 32, Result::None, Status::Compare},
     {"Snd_GetSpeakerMode", 0x000c34f0, 0, code(&Snd_GetSpeakerMode), 0, Result::Eax, Status::Replaced},
     {"S_SetMasterAttenuation", 0x000c3500, 0, code(&S_SetMasterAttenuation), 0, Result::Eax, Status::Replaced},
     {"SndArena_Alloc", 0x000c3550, 0, code(&SndArena_Alloc), 4, Result::Eax, Status::Replaced},
@@ -2660,6 +2685,7 @@ const Function kFunctions[] = {
     {"Actor_Grenade_Cower", 0x00204340, 0, code(&Actor_Grenade_Cower), 0, Result::None, Status::Compare},
     {"Actor_SendLineEvent", 0x00204390, 0, code(&Actor_SendLineEvent_entry), 24, Result::None, Status::Compare},
     {"Actor_UpdateCoverValidity", 0x00204610, 0, code(&Actor_UpdateCoverValidity_entry), 4, Result::Eax, Status::Compare},
+    {"Player_PackActorMarker", 0x00204640, 0, code(&Player_PackActorMarker), 4, Result::Eax, Status::Compare},
     {"Actor_SetOrientFromDir", 0x00204850, 0, code(&Actor_SetOrientFromDir_entry), 4, Result::None, Status::Compare},
     {"Sentient_TakeNodeClaim", 0x002048c0, 0, code(&Sentient_TakeNodeClaim_entry), 0, Result::None, Status::Compare},
     {"Actor_Pain", 0x00204930, 0, code(&Actor_Pain_entry), 28, Result::None, Status::Compare},
@@ -2701,6 +2727,7 @@ const Function kFunctions[] = {
     {"G_TouchTriggers", 0x00207780, 0, code(&G_TouchTriggers_entry), 4, Result::Eax, Status::Compare},
     {"Actor_Die", 0x00207900, 0, code(&Actor_Die), 36, Result::None, Status::Compare},
     {"Sentient_GetLaggedEyeOrigin", 0x00207c00, 0, code(&Sentient_GetLaggedEyeOrigin_entry), 0, Result::None, Status::Compare},
+    {"Player_RecordEyeHistory", 0x00207c60, 0, code(&Player_RecordEyeHistory), 4, Result::None, Status::Compare},
     {"Sentient_EyeOrigin_2", 0x00207d40, 0, code(&Sentient_EyeOrigin_2_entry), 0, Result::None, Status::Compare},
     {"Actor_Turret_UpdatePose", 0x00207d70, 0, code(&Actor_Turret_UpdatePose_entry), 4, Result::Eax, Status::Compare},
     {"Actor_Grenade_AttachToTag", 0x00209070, 0, code(&Actor_Grenade_AttachToTag_entry), 0, Result::None, Status::Compare},
@@ -2767,6 +2794,7 @@ const Function kFunctions[] = {
     {"XboxLiveMenu_Construct", 0x00223ed0, 0, code(&XboxLiveMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"InGameLiveOptionsMenu_ShowConfirmDialog", 0x00224060, 0, code(&InGameLiveOptionsMenu_ShowConfirmDialog_entry), 0, Result::None, Status::Compare},
     {"InGameLiveOptionsMenu_ShowDashboardDialog", 0x00224160, 0, code(&InGameLiveOptionsMenu_ShowDashboardDialog_entry), 0, Result::None, Status::Compare},
+    {"PhysRagdoll_FindCapsuleById", 0x00224fc0, 0, code(&PhysRagdoll_FindCapsuleById_entry), 0, Result::Eax, Status::Compare},
     {"Phys_FindBodyForEntity", 0x002253b0, 0, code(&Phys_FindBodyForEntity), 0, Result::Eax, Status::Compare},
     {"G_KillEntityOutright", 0x00225b30, 0, code(&G_KillEntityOutright), 0, Result::None, Status::Compare},
     {"Vehicle_InitWheelTags", 0x00226720, 0, code(&Vehicle_InitWheelTags), 4, Result::Eax, Status::Compare},

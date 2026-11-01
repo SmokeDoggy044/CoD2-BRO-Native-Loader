@@ -115,5 +115,8 @@ void XB_THISCALL PhysRagdoll_AddAttachedObject(uint8_t* phys, uint32_t object);
 // +0x4a4 = 0 (ESI = ragdoll; returns it).
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysRagdoll_InitLinks(uint8_t* ragdoll);
 extern "C" void PhysRagdoll_InitLinks_entry(void);
+// 0x00224fc0: ECX ragdoll, EDX id: the capsule with that id (+0x128), or null; EDX kept.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysRagdoll_FindCapsuleById(uint8_t* ragdoll, int32_t id);
+extern "C" void PhysRagdoll_FindCapsuleById_entry(void);
 
 }  // namespace game
