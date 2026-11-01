@@ -77,4 +77,65 @@ uint8_t XB_THISCALL PhysOrientedBox_IntersectSegment(uint8_t* shape, const float
 // 0x000b26c0: contact of a sphere shape in a frame with another shape (GJK refined). AL.
 uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* frame, uint8_t* shape, float* out);
 
+// 0x000b4000: zeroes the 0x30-byte world creation parameters (Phys_Init's stack record); returns them.
+uint8_t* XB_THISCALL PhysWorldParams_Init(uint8_t* params);
+// 0x000b4030: the world's static body (phys_world + 0x40).
+uint8_t* XB_CDECL PhysWorld_GetStaticBody();
+// 0x000b4070: world +0x14, +0x18 (ints) and +0x1c (float), set once by Phys_Init.
+void XB_CDECL PhysWorld_SetParams14(uint32_t a, uint32_t b, uint32_t c);
+// 0x000b40d0: world +0x20, +0x24 (ints) and +0x28 (float), set once by Phys_Init.
+void XB_CDECL PhysWorld_SetParams20(uint32_t a, uint32_t b, uint32_t c);
+// 0x000b4130: world +0x2c (float).
+void XB_CDECL PhysWorld_SetField2C(uint32_t value);
+// 0x000b4160: world +0xc (a callback, 0x00233c30 from Phys_Init).
+void XB_CDECL PhysWorld_SetCallbackC(uint32_t callback);
+// 0x000b4170: steps the physics world by dt.
+void XB_CDECL Phys_RunFrame(float dt);
+// 0x000b4450: next free 0x10 link (list +0x268, used +0x274, size +0x270) holding a, b.
+uint32_t* XB_CDECL PhysWorld_AllocLink10(uint32_t a, uint32_t b);
+// 0x000b44a0: the world's 0x1c0 object whose owner (+0x1b0) is owner, or null.
+uint8_t* XB_CDECL PhysWorld_FindObject1c0ByOwner(uint32_t owner);
+// 0x000b47b0: next free body (list +0x1ec, used +0x1f8, size +0x1f4), or null.
+uint8_t* XB_CDECL PhysWorld_AllocBody();
+// 0x000b47e0: a 0x50 constraint between a and b from the pool at world +0x228.
+uint32_t XB_CDECL PhysWorld_AllocConstraint50(uint32_t a, uint32_t b);
+// 0x000b4860: next free constraint (list +0x254, used +0x260, size +0x25c) between a and b.
+uint32_t* XB_CDECL PhysWorld_AllocConstraint(uint32_t a, uint32_t b);
+// 0x000b48c0: a 0x28c constraint between a and b from the pool at world +0x28c.
+uint32_t XB_CDECL PhysWorld_AllocConstraint28c(uint32_t a, uint32_t b);
+// 0x000b49b0: frees a 0xd0 constraint to the pool at world +0x2a0.
+void XB_CDECL PhysWorld_FreeConstraintD0(uint32_t constraint);
+
+// 0x000b4b10: next free 0x1c0 object (pool at world +0x1d4), or null.
+uint8_t* XB_CDECL PhysWorld_AllocObject1c0();
+// 0x000b4b40: next free 0x1b0 constraint (pool at world +0x278) between a and b, set up.
+uint32_t* XB_CDECL PhysWorld_AllocConstraint1B0(uint32_t a, uint32_t b);
+// 0x000b4bc0: PhysWorld_GetBodyPair on the pool at world +0x1fc.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysWorld_GetBodyPair_Wrapper(uint32_t a, uint32_t b, uint32_t entry_ebx, uint32_t entry_esi,
+                                                uint32_t entry_edi, uint32_t entry_esp);
+extern "C" void PhysWorld_GetBodyPair_Wrapper_entry(void);
+// 0x000b5010: frees every constraint of the world that links the body.
+void XB_CDECL PhysWorld_RemoveBodyConstraints(uint32_t body);
+// 0x000b56e0: frees the body's constraints, then the body.
+void XB_CDECL PhysWorld_DestroyBody(uint32_t body);
+// 0x000b5710: frees the object's constraints, then the 0x1c0 object.
+void XB_CDECL PhysWorld_DestroyObject1c0(uint32_t object);
+// 0x000b57a0..0x000b59c0: world pool resets (ECX = pool); EAX = the last index + 1 (0 when empty).
+int32_t XB_THISCALL PhysPool1c0_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysBodyPool_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPool30_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPool50_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPoolF0_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPool60_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysPool10_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPoolE0_Reset(uint8_t* pool);
+int32_t XB_THISCALL PhysConstraintPoolD0_Reset(uint8_t* pool);
+// 0x000b5a00 / 0x000b5a50: AVL rotations of the pair tree (node: left +0, right +4, balance +8);
+// *root becomes the old root's left / right child, which is returned.
+uint8_t* XB_STDCALL PhysPairTree_RotateRight(uint8_t** root);
+uint8_t* XB_STDCALL PhysPairTree_RotateLeft(uint8_t** root);
+// 0x000b5aa0: sets up a 0x1b0 constraint: twelve 8-byte slots from +0x34 with -1, an empty
+// self-linked list at +0x110 (+0x190/+0x194), +0x30 = 0.
+uint8_t* XB_THISCALL PhysConstraint1B0_Init(uint8_t* constraint);
+
 }  // namespace game

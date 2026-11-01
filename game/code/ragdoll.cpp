@@ -666,4 +666,42 @@ void XB_THISCALL PhysRagdoll_AddVelocityForce(uint8_t* phys, const float* veloci
     }
 }
 
+// The point relative to the owner's frame (rotation +0, origin +0x30) and to the body's frame,
+// handed on as vec3s: their w words are never written (zero dead stack in tests).
+void XB_THISCALL PhysRagdoll_AttachBodyAtPoint(uint8_t* phys, uint8_t* owner, int32_t index, const float* point) {
+    const uint32_t body = at<uint32_t*>(phys, 0x28)[index];
+    if (!body) return;
+    const Lanes p = lanes(point);
+    float rows[12];
+    std::memcpy(rows, owner, sizeof(rows));
+    const Lanes in_owner = rotate_into(rows, sub(p, lanes(reinterpret_cast<const float*>(owner + 0x30))));
+    std::memcpy(rows, reinterpret_cast<const void*>(body), sizeof(rows));
+    const Lanes in_body = rotate_into(rows, sub(p, lanes(reinterpret_cast<const float*>(body + 0x30))));
+    alignas(16) float owner_point[4] = {in_owner.v[0], in_owner.v[1], in_owner.v[2], 0.0f};
+    alignas(16) float body_point[4] = {in_body.v[0], in_body.v[1], in_body.v[2], 0.0f};
+    platform_keep(in_owner);
+    platform_keep(in_body);
+    PhysRagdoll_AttachBodyToObject(phys, addr(owner), index, addr(owner_point), addr(body_point));
+}
+
+// The bone pool's free: the last used bone moves into the freed slot.
+void XB_THISCALL PhysRagdoll_FreeBone(uint8_t* pool, uint8_t* bone) {
+    const int32_t index = pool_index(pool, kBonePool, bone);
+    const int32_t slot = at<int32_t>(pool, kBonePool.positions + static_cast<uint32_t>(index) * 4);
+    if (at<int32_t>(pool, kBonePool.count) == 1) {
+        RagdollBonePool_Reset(0, 0, pool);
+        return;
+    }
+    pool_swap_out(pool, kBonePool, index, slot);
+}
+
+// A full list (ten) writes the object through null (the title faults there).
+void XB_THISCALL PhysRagdoll_AddAttachedObject(uint8_t* phys, uint32_t object) {
+    const uint32_t* const list = at<uint32_t*>(phys, 0xb8);
+    const int32_t count = at<int32_t>(phys, 0xbc);
+    for (int32_t i = 0; i < count; ++i)
+        if (list[i] == object) return;
+    *ragdoll_list_append(phys, 0xb8) = object;
+}
+
 }  // namespace game

@@ -755,4 +755,281 @@ uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* fra
     return 1;
 }
 
+// The physics world (phys_world, 0x0090a87c): parameters +0xc..+0x2c, static body +0x40, pools of
+// 0x1c0 objects (+0x1d8, used +0x1e4), bodies (+0x1ec, size +0x1f4, used +0x1f8), 0x50 constraints
+// (pool +0x228), constraints (+0x254, size +0x25c, used +0x260), 0x10 links (+0x268, size +0x270,
+// used +0x274), 0x28c constraints (pool +0x28c) and 0xd0 constraints (pool +0x2a0).
+
+namespace {
+
+uint8_t* phys_world() { return title_global<uint8_t*>(0x0090a87c); }
+
+// Next free entry of a world list (pointer list, size, used count), or null when all are used.
+uint8_t* world_list_alloc(uint32_t list, uint32_t size, uint32_t used) {
+    uint8_t* const world = phys_world();
+    const int32_t count = at<int32_t>(world, used);
+    if (count >= at<int32_t>(world, size)) return nullptr;
+    uint8_t* const entry = at<uint8_t**>(world, list)[count];
+    at<int32_t>(world, used) = count + 1;
+    return entry;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL PhysWorldParams_Init(uint8_t* params) {
+    for (uint32_t i = 0; i < 0x30; i += 4) at<uint32_t>(params, i) = 0;
+    return params;
+}
+
+uint8_t* XB_CDECL PhysWorld_GetStaticBody() { return phys_world() + 0x40; }
+
+void XB_CDECL PhysWorld_SetParams14(uint32_t a, uint32_t b, uint32_t c) {
+    at<uint32_t>(phys_world(), 0x14) = a;
+    at<uint32_t>(phys_world(), 0x18) = b;
+    at<uint32_t>(phys_world(), 0x1c) = c;
+}
+
+void XB_CDECL PhysWorld_SetParams20(uint32_t a, uint32_t b, uint32_t c) {
+    at<uint32_t>(phys_world(), 0x20) = a;
+    at<uint32_t>(phys_world(), 0x24) = b;
+    at<uint32_t>(phys_world(), 0x28) = c;
+}
+
+void XB_CDECL PhysWorld_SetField2C(uint32_t value) { at<uint32_t>(phys_world(), 0x2c) = value; }
+
+void XB_CDECL PhysWorld_SetCallbackC(uint32_t callback) { at<uint32_t>(phys_world(), 0xc) = callback; }
+
+void XB_CDECL Phys_RunFrame(float dt) {
+    title_function<void XB_THISCALL(uint8_t*, float)>(0x000be640)(phys_world(), dt);  // PhysWorld_Step
+}
+
+// A full list writes a, b through null (the title faults there).
+uint32_t* XB_CDECL PhysWorld_AllocLink10(uint32_t a, uint32_t b) {
+    uint32_t* const link = reinterpret_cast<uint32_t*>(world_list_alloc(0x268, 0x270, 0x274));
+    link[0] = a;
+    link[1] = b;
+    return link;
+}
+
+uint8_t* XB_CDECL PhysWorld_FindObject1c0ByOwner(uint32_t owner) {
+    uint8_t* const world = phys_world();
+    uint8_t** it = at<uint8_t**>(world, 0x1d8);
+    uint8_t** const end = it + at<int32_t>(world, 0x1e4);
+    for (; it != end; ++it)
+        if (at<uint32_t>(*it, 0x1b0) == owner) return *it;
+    return nullptr;
+}
+
+uint8_t* XB_CDECL PhysWorld_AllocBody() { return world_list_alloc(0x1ec, 0x1f4, 0x1f8); }
+
+uint32_t XB_CDECL PhysWorld_AllocConstraint50(uint32_t a, uint32_t b) {
+    using Alloc = uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t);
+    return title_function<Alloc>(0x000b5fe0)(phys_world() + 0x228, 0, a, b);  // PhysConstraintPool_Alloc
+}
+
+// A new constraint gets -1 in +0x48, +0x50 and +0x58; a full list writes a, b through null.
+uint32_t* XB_CDECL PhysWorld_AllocConstraint(uint32_t a, uint32_t b) {
+    uint8_t* const constraint = world_list_alloc(0x254, 0x25c, 0x260);
+    if (constraint) {
+        at<int32_t>(constraint, 0x48) = -1;
+        at<int32_t>(constraint, 0x50) = -1;
+        at<int32_t>(constraint, 0x58) = -1;
+    }
+    uint32_t* const ends = reinterpret_cast<uint32_t*>(constraint);
+    ends[0] = a;
+    ends[1] = b;
+    return ends;
+}
+
+uint32_t XB_CDECL PhysWorld_AllocConstraint28c(uint32_t a, uint32_t b) {
+    using Alloc = uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t);
+    return title_function<Alloc>(0x000b6040)(phys_world() + 0x28c, 0, a, b);  // PhysConstraintPool28c_Alloc
+}
+
+void XB_CDECL PhysWorld_FreeConstraintD0(uint32_t constraint) {
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5f10)(phys_world() + 0x2a0, constraint);  // PhysConstraintPoolD0_Free
+}
+
+uint8_t* XB_CDECL PhysWorld_AllocObject1c0() { return world_list_alloc(0x1d8, 0x1e0, 0x1e4); }
+
+// A full pool writes a, b through null (the title faults there).
+uint32_t* XB_CDECL PhysWorld_AllocConstraint1B0(uint32_t a, uint32_t b) {
+    uint8_t* const constraint = world_list_alloc(0x27c, 0x284, 0x288);
+    if (constraint) PhysConstraint1B0_Init(constraint);
+    uint32_t* const ends = reinterpret_cast<uint32_t*>(constraint);
+    ends[0] = a;
+    ends[1] = b;
+    return ends;
+}
+
+// The callee leaves words in the dead stack below the call (its saved registers and locals), so
+// it runs at the original's ESP with the original's registers (gap entry).
+PLATFORM_ASM_ENTRY(PhysWorld_GetBodyPair_Wrapper_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(PhysWorld_GetBodyPair_Wrapper) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL PhysWorld_GetBodyPair_Wrapper(uint32_t a, uint32_t b, uint32_t entry_ebx, uint32_t entry_esi,
+                                                uint32_t entry_edi, uint32_t entry_esp) {
+    const uint32_t pool = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(phys_world() + 0x1fc));
+    TitleRegs regs{};
+    regs.eax = b;
+    regs.ecx = a;
+    regs.edx = pool;
+    regs.ebx = entry_ebx;
+    regs.esi = entry_esi;
+    regs.edi = entry_edi;
+    const uint32_t args[4] = {pool, 0, a, b};
+    return title_call_at_regs(entry_esp, 0x000b62d0, &regs, 4, args);  // PhysWorld_GetBodyPair
+}
+
+namespace {
+
+// A constraint (bodies at +0 and +4) links the body when either non-null end is it.
+bool constraint_links(const uint32_t* constraint, uint32_t body) {
+    if (constraint[0] && constraint[0] == body) return true;
+    return constraint[1] && constraint[1] == body;
+}
+
+// Frees (thiscall pool free) every constraint of a world pool that links the body; a freed entry's
+// slot is taken by the last one, so the same index is checked again.
+void world_pool_remove_body(uint32_t pool, uint32_t free_function, uint32_t body) {
+    int32_t i = 0;
+    while (i < at<int32_t>(phys_world(), pool + 0x10)) {
+        uint32_t* const constraint = at<uint32_t**>(phys_world(), pool + 4)[i];
+        if (constraint_links(constraint, body))
+            title_function<void XB_THISCALL(uint8_t*, uint32_t*)>(free_function)(phys_world() + pool, constraint);
+        else
+            ++i;
+    }
+}
+
+// World pools: storage +0, pointer list +4, list positions +8, size +0xc, used +0x10.
+int32_t world_pool_reset(uint8_t* pool, uint32_t size) {
+    int32_t i = 0;
+    uint32_t offset = 0;
+    for (; i < at<int32_t>(pool, 0xc); ++i, offset += size) {
+        at<int32_t*>(pool, 8)[i] = i;
+        at<uint32_t*>(pool, 4)[i] = at<uint32_t>(pool, 0) + offset;
+    }
+    at<uint32_t>(pool, 0x10) = 0;
+    return i;
+}
+
+}  // namespace
+
+void XB_CDECL PhysWorld_RemoveBodyConstraints(uint32_t body) {
+    world_pool_remove_body(0x1fc, 0x000b5c00, body);  // PhysConstraintPool30_Free
+    world_pool_remove_body(0x228, 0x000b5c90, body);  // PhysConstraintPool50_Free
+    world_pool_remove_body(0x23c, 0x000b5d10, body);  // PhysConstraintPoolF0_Free
+    world_pool_remove_body(0x250, 0x000b5da0, body);  // PhysConstraintPool60_Free
+    // The 0x10 link pool's free, inlined (element index by SAR 4).
+    int32_t i = 0;
+    while (i < at<int32_t>(phys_world(), 0x274)) {
+        uint8_t* const pool = phys_world() + 0x264;
+        const uint32_t link = at<uint32_t*>(pool, 4)[i];
+        if (!constraint_links(reinterpret_cast<const uint32_t*>(link), body)) {
+            ++i;
+            continue;
+        }
+        const uint32_t storage = at<uint32_t>(pool, 0);
+        const int32_t index = static_cast<int32_t>(link - storage) >> 4;
+        const int32_t slot = at<int32_t*>(pool, 8)[index];
+        int32_t count = at<int32_t>(pool, 0x10);
+        if (count == 1) {
+            world_pool_reset(pool, 0x10);
+            continue;
+        }
+        --count;
+        at<int32_t>(pool, 0x10) = count;
+        const uint32_t last = at<uint32_t*>(pool, 4)[count];
+        const int32_t last_index = static_cast<int32_t>(last - storage) >> 4;
+        const uint32_t freed = at<uint32_t*>(pool, 4)[slot];
+        at<uint32_t*>(pool, 4)[slot] = last;
+        at<uint32_t*>(pool, 4)[at<int32_t>(pool, 0x10)] = freed;
+        at<int32_t*>(pool, 8)[index] = at<int32_t>(pool, 0x10);
+        at<int32_t*>(pool, 8)[last_index] = slot;
+    }
+    world_pool_remove_body(0x278, 0x000b6250, body);  // PhysConstraintPool1B0_Free
+    world_pool_remove_body(0x28c, 0x000b5e80, body);  // PhysConstraintPoolE0_Free
+    world_pool_remove_body(0x2a0, 0x000b5f10, body);  // PhysConstraintPoolD0_Free
+}
+
+void XB_CDECL PhysWorld_DestroyBody(uint32_t body) {
+    PhysWorld_RemoveBodyConstraints(body);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5b70)(phys_world() + 0x1e8, body);  // PhysBodyPool_Free
+}
+
+void XB_CDECL PhysWorld_DestroyObject1c0(uint32_t object) {
+    PhysWorld_RemoveBodyConstraints(object);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5ae0)(phys_world() + 0x1d4, object);  // PhysPool1c0_Free
+}
+
+int32_t XB_THISCALL PhysPool1c0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x1c0); }
+int32_t XB_THISCALL PhysBodyPool_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x170); }
+
+// Clears each used constraint's back-pointer (+0x2c points at a word set to 0) first.
+int32_t XB_THISCALL PhysConstraintPool30_Reset(uint8_t* pool) {
+    for (int32_t i = 0; i < at<int32_t>(pool, 0x10); ++i) {
+        uint32_t* const back = at<uint32_t*>(at<uint8_t**>(pool, 4)[i], 0x2c);
+        if (back) *back = 0;
+    }
+    return world_pool_reset(pool, 0x30);
+}
+
+int32_t XB_THISCALL PhysConstraintPool50_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x50); }
+int32_t XB_THISCALL PhysConstraintPoolF0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0xf0); }
+int32_t XB_THISCALL PhysConstraintPool60_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x60); }
+int32_t XB_THISCALL PhysPool10_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x10); }
+int32_t XB_THISCALL PhysConstraintPoolE0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0xe0); }
+int32_t XB_THISCALL PhysConstraintPoolD0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0xd0); }
+
+namespace {
+
+int32_t negate(int32_t v) { return static_cast<int32_t>(0u - static_cast<uint32_t>(v)); }
+int32_t positive_part(int32_t v) { return v > 0 ? v : 0; }
+
+}  // namespace
+
+// The old root's balance gains max(-left.balance, 0) + 1, then the left child's gains
+// max(root.balance, 0) + 1 (sums wrap like the title's ADD).
+uint8_t* XB_STDCALL PhysPairTree_RotateRight(uint8_t** root) {
+    uint8_t* const left = at<uint8_t*>(*root, 0);
+    at<uint8_t*>(*root, 0) = at<uint8_t*>(left, 4);
+    at<uint8_t*>(left, 4) = *root;
+    at<uint32_t>(*root, 8) += static_cast<uint32_t>(positive_part(negate(at<int32_t>(left, 8)))) + 1u;
+    at<uint32_t>(left, 8) += static_cast<uint32_t>(positive_part(at<int32_t>(*root, 8))) + 1u;
+    *root = left;
+    return left;
+}
+
+// Mirror: the old root's balance loses max(right.balance, 0) + 1, then the right child's loses
+// max(-root.balance, 0) + 1.
+uint8_t* XB_STDCALL PhysPairTree_RotateLeft(uint8_t** root) {
+    uint8_t* const right = at<uint8_t*>(*root, 4);
+    at<uint8_t*>(*root, 4) = at<uint8_t*>(right, 0);
+    at<uint8_t*>(right, 0) = *root;
+    at<uint32_t>(*root, 8) += ~static_cast<uint32_t>(positive_part(at<int32_t>(right, 8)));
+    at<uint32_t>(right, 8) += ~static_cast<uint32_t>(positive_part(negate(at<int32_t>(*root, 8))));
+    *root = right;
+    return right;
+}
+
+uint8_t* XB_THISCALL PhysConstraint1B0_Init(uint8_t* constraint) {
+    for (uint32_t i = 0; i < 12; ++i) at<int32_t>(constraint, 0x34 + i * 8) = -1;
+    uint8_t* const list = constraint + 0x110;
+    at<uint8_t*>(list, 0x80) = list;
+    at<uint32_t>(list, 0x84) = 0;
+    at<uint32_t>(constraint, 0x30) = 0;
+    return constraint;
+}
+
 }  // namespace game

@@ -104,4 +104,11 @@ void XB_THISCALL PhysRagdoll_DampAngular(uint8_t* phys, const float* factors);
 // 0x000b3c00: pushes every body toward a velocity.
 void XB_THISCALL PhysRagdoll_AddVelocityForce(uint8_t* phys, const float* velocity);
 
+// 0x000b3dc0: attaches the body to the owner at a world point (the point in both frames).
+void XB_THISCALL PhysRagdoll_AttachBodyAtPoint(uint8_t* phys, uint8_t* owner, int32_t index, const float* point);
+// 0x000b3ef0: frees a bone to the bone pool (ECX = phys + 0xf0).
+void XB_THISCALL PhysRagdoll_FreeBone(uint8_t* pool, uint8_t* bone);
+// 0x000b3f90: adds the 0x1c0 object to the attached-object list unless it is there.
+void XB_THISCALL PhysRagdoll_AddAttachedObject(uint8_t* phys, uint32_t object);
+
 }  // namespace game
