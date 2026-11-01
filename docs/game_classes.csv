@@ -257,3 +257,4 @@
 0025e450,fire_grenadeCooked,not reached,"only Weapon_SpawnClusterGrenades; 0 calls in missions 0-9 (--only --every 1)"
 0025e6e0,fire_grenade,not reached,"callers weapon_grenadelauncher_fire, GScr_MagicGrenade/Manual, GScr_ActorThrowGrenade; 0 calls in missions 0-9 (--only --every 1)"
 00262040,Door_StartRotate,not reached,"only Think_SpawnNewDoorTriggerRotate (func_door_rotating); 0 calls in missions 0-9"
+0020ec50,Actor_CanSeePointIgnoringEnt,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept"
