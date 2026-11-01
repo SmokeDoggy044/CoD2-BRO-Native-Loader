@@ -674,6 +674,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
 0024acb0,G_EndGame,4000,4000,0,0,100.0
 0024ad30,HudElem_ClearAll,4000,4000,0,0,100.0
+0024b620,G_FreeStringTable,3455,3455,0,0,58.3
 0024b700,XAnim_HasNotetrack,1567,1567,0,0,100.0
 0024bb30,G_GetPlayerTurret,2666,2666,0,0,72.2
 0024bce0,G_VehicleCountRider,2732,2732,0,0,100.0
@@ -691,8 +692,11 @@ address,name,tested,matched,nan,mismatched,coverage
 0024e5b0,SP_info_notnull_big,3804,3804,0,0,100.0
 0024e620,SP_info_notnull,3818,3818,0,0,100.0
 0024e740,Pickup_ClipsForAllWeapons,1555,1555,0,0,100.0
+0024ef50,SelectNearestDeathmatchSpawnPoint,1538,1538,0,0,39.7
 0024f790,DebugDraw_AddTriangleIfEnabled,3834,3834,0,0,100.0
 0024f7d0,DebugDraw_AddLineIfEnabled,3857,3857,0,0,100.0
+0024fe10,G_FreeAnimTrees,3322,3322,0,0,100.0
+002532f0,G_FreeFarthestDroppedItem,1952,1952,0,0,78.0
 00275b60,HudElem_SubstituteLabel,3589,3589,0,0,87.1
 00275d00,HudElem_GetTimerValue,3851,3851,0,0,45.0
 00276060,CG_DrawTextScaled,4000,4000,0,0,100.0

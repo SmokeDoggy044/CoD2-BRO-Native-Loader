@@ -21,4 +21,9 @@ extern "C" void G_SpawnVector_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_CopySpawnerFields(uint8_t* spawner, uint8_t* actor);
 extern "C" void Actor_CopySpawnerFields_entry(void);
 
+// 0x0024f000: Q3's SP_info_player_start - renamed info_player_deathmatch, think 5 in 200 ms.
+void XB_CDECL SP_info_player_start(uint8_t* ent);
+// 0x0024f9a0: the sky portal configstring (10): origin, fov, fog colour/near/far.
+void XB_CDECL SP_skyportal(uint8_t* ent);
+
 }  // namespace game

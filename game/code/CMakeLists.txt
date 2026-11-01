@@ -25,6 +25,7 @@ set(game_code_sources
     fx.cpp
     fx_cmd.cpp
     fx_load.cpp
+    g_client.cpp
     g_combat.cpp
     g_main.cpp
     g_mover.cpp

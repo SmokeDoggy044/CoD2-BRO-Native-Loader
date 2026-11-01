@@ -5,12 +5,14 @@
 #include "actor.h"
 #include "g_script.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "ragdoll.h"
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "xanim.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -57,6 +59,18 @@ void copy_vector(uint8_t* base, uint32_t offset, uint32_t source) {
 }
 
 uint32_t address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* entity_from_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0097a968 + index * 8)));
+    return nullptr;
+}
 
 }  // namespace
 
@@ -573,6 +587,347 @@ void XB_CDECL G_SetupVehiclePool(uint32_t slots) {
         to += 0x340;
     }
     Z_Free(saved);
+}
+
+PLATFORM_ASM_ENTRY(G_EntityList_Add_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_EntityList_Add) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_EntityList_Add(uint8_t* ent, uint8_t* list) {
+    // An entity without a handle (+0x224) gets one from 0x0097a8c0 (the handle table's object
+    // slot set when its index is below 0x540); then it is appended to the list (count +0x2aac,
+    // at most 0x1000 entries from +0x2ab0) and remembers its index there (+0x228).
+    if (word_at(ent, 0x224)) return;
+    uint32_t handle = 0;
+    const uint32_t value = *EntHandleTable_Alloc(&title_global<uint32_t>(0x0097a8c0), &handle);
+    word_at(ent, 0x224) = value;
+    const uint32_t index = value & 0xfff;
+    if (index < 0x540) title_global<uint32_t>(0x0097a968 + index * 8) = address(ent);
+    const int32_t count = static_cast<int32_t>(word_at(list, 0x2aac));
+    if (count < 0x1000) {
+        word_at(list, 0x2ab0 + count * 4) = address(ent);
+        ++word_at(list, 0x2aac);
+    }
+    word_at(ent, 0x228) = word_at(list, 0x2aac) - 1;
+}
+
+uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text) {
+    // The 32 hint-string configstrings (0x273..): the first equal one, else the first empty
+    // one gets the text. *out = its index (-1 and 0 when all are taken by others).
+    char buffer[0x100];
+    for (int32_t i = 0; i < 0x20; ++i) {
+        if (i < -0x273 || i >= 0x18d)
+            title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                1, reinterpret_cast<const char*>(uintptr_t{0x00832d34}), i + 0x273);  // __break
+        const uint32_t cs = title_global<uint32_t>(0x009656ac + i * 4);
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+            buffer, cs ? reinterpret_cast<const char*>(static_cast<uintptr_t>(cs + 6)) : nullptr, 0xff);  // _strncpy
+        buffer[0xff] = 0;
+        if (!buffer[0]) {
+            SV_SetConfigstring(i + 0x273, text);
+            *out = i;
+            return 1;
+        }
+        if (!std::strcmp(text, buffer)) {
+            *out = i;
+            return 1;
+        }
+    }
+    *out = -1;
+    return 0;
+}
+
+void XB_CDECL G_FreeAnimTrees() {
+    // Each anim tree's notetracks (from 1), then the string table when the game loaded it.
+    for (int32_t i = 1; i < title_global<int32_t>(0x00927098); ++i)
+        title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002f6840)(static_cast<uint32_t>(i));  // AnimTree_FreeNotetracks
+    if (title_global<int32_t>(0x0095f5a0) == 1) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        title_global<uint32_t>(0x0095f59c) = 0;
+        title_global<uint32_t>(0x0095f5a0) = 0;
+    }
+}
+
+void XB_CDECL G_TrimCorpseQueue() {
+    // The corpse limit (0x00950c5c, clamped to 1..16) shrank below the count (0x00985418):
+    // the corpses past it (g_actorCorpses, 0x1c each, handle first) are freed.
+    int32_t limit = title_global<int32_t>(0x00950c5c);
+    if (limit < 1)
+        limit = 1;
+    else if (limit > 0x10)
+        limit = 0x10;
+    if (limit == title_global<int32_t>(0x00985418)) return;
+    for (int32_t i = limit; i < title_global<int32_t>(0x00985418); ++i) {
+        uint32_t& handle = title_global<uint32_t>(0x009881c8 + i * 0x1c);
+        if (!handle) continue;
+        const uint32_t index = handle & 0xfff;
+        uint32_t ent = 0;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            ent = title_global<uint32_t>(0x0097a968 + index * 8);
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+        handle = 0;
+    }
+    title_global<int32_t>(0x00985418) = limit;
+}
+
+void XB_CDECL G_FreeStringTable(uint32_t keep) {
+    // The string table (0x0095f59c) when the game loaded it (0x0095f5a0 == 1): freed unless
+    // `keep`; the owner is cleared either way.
+    if (title_global<int32_t>(0x0095f5a0) != 1) return;
+    if (!keep) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        title_global<uint32_t>(0x0095f59c) = 0;
+    }
+    title_global<uint32_t>(0x0095f5a0) = 0;
+}
+
+void XB_CDECL SaveRegisteredItems() {
+    // The 0x88 item-registered flags (0x00950230) as hex digits, four flags each (lowest
+    // first), into configstring 8; the dirty flag (0x00986004) cleared.
+    char text[0x104];
+    title_global<uint32_t>(0x00986004) = 0;
+    uint32_t length = 0;
+    uint32_t bits = 0;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < 0x88; ++i) {
+        if (title_global<uint32_t>(0x00950230 + i * 4)) bits += 1u << count;
+        if (++count == 4) {
+            text[length++] = static_cast<char>(bits >= 10 ? 'a' + bits - 10 : '0' + bits);
+            bits = 0;
+            count = 0;
+        }
+    }
+    if (count) text[length++] = static_cast<char>(bits >= 10 ? 'a' + bits - 10 : '0' + bits);
+    text[length] = 0;
+    SV_SetConfigstring(8, text);
+}
+
+uint32_t XB_CDECL G_GetAnimFlag0(uint32_t anim) {
+    // Anim handle = tree (high word) and anim (low word) of rm_animTrees (0x0095f524), each
+    // index past its count reading entry 0. Bit 0 of the anim's flags (+0x34) for parent nodes
+    // (+0x20 set), else of its loaded clip's (+0x34; 0 without a clip).
+    const uint32_t* const list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
+    uint32_t tree = anim >> 16;
+    if (tree >= list[0]) tree = 0;
+    const uint32_t* const record = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(list[1] + tree * 12 + 4));
+    uint32_t index = anim & 0xffff;
+    if (index >= record[0]) index = 0;
+    uint8_t* const node = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(record[1] + index * 0x38));
+    if (*reinterpret_cast<const uint16_t*>(node + 0x20)) return node[0x34] & 1;
+    if (!word_at(node, 0x24)) AnimData_EnsureLoaded(node);
+    const uint8_t* const clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(word_at(node, 0x24)));
+    if (!clip) return 0;
+    return clip[0x34] & 1;
+}
+
+void XB_CDECL G_FindSpawnFunc() {
+    // Fills the spawn map (0x00983e1c): each g_spawns entry's name hash (8-byte entries, until
+    // a zero hash) mapped to its index (node +0xc).
+    uint32_t index = 0;
+    for (uint32_t entry = 0x009885e0; title_global<uint32_t>(entry); entry += 8, ++index) {
+        uint8_t* const map = &title_global<uint8_t>(0x00983e1c);
+        uint32_t node = 0;
+        UintHashMap_Find(&node, &title_global<uint32_t>(entry), map);
+        if (node == title_global<uint32_t>(0x00983e24)) {
+            const uint32_t pair[2] = {title_global<uint32_t>(entry), 0};
+            uint32_t result[2] = {0, 0};
+            node = *HashMap_Insert_10(map, result, pair);
+        }
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(node + 0xc)) = index;
+    }
+}
+
+void XB_CDECL G_InitAnimTrees(uint32_t arg) {
+    // The interface's anim-tree load (slot 0x868 of 0x0095f49c), the tree count, the anim
+    // scripts, the tree setup (callback 0x0024a050) and the "generic_human" tree (0x00987a90).
+    title_function<void XB_CDECL()>(*reinterpret_cast<const uint32_t*>(
+        static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x868)))();
+    const uint32_t* const list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
+    title_global<uint32_t>(0x00927098) = list[0];  // g_numAnimTrees
+    title_function<void XB_CDECL()>(0x0024a070)();  // G_InitAnimScripts
+    title_function<void XB_CDECL()>(0x0024abb0)();  // G_InitTurretAnimScripts
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002fe200)(0x0024a050, arg);  // G_SetupAnimTrees
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0083a894});  // "generic_human"
+    uint8_t* const tree = G_FindAnimTreeByName(name);
+    if (!tree)
+        title_function<void XB_CDECL(const char*, ...)>(0x00248af0)(
+            reinterpret_cast<const char*>(uintptr_t{0x0083a8a4}), name);  // G_Error
+    title_global<uint32_t>(0x00987a90) = address(tree);
+}
+
+void XB_CDECL G_SyncRegisteredItems() {
+    // 0x00985414 = level.time; the registered items' configstring when they changed.
+    title_global<uint32_t>(0x00985414) = title_global<uint32_t>(0x0098540c);
+    if (title_global<uint32_t>(0x00986004)) SaveRegisteredItems();
+}
+
+void XB_CDECL G_StartMissionEndFade() {
+    // With the player alive (and 0x0095bf9c clear): screen and sound fade-out commands timed
+    // by 0x00985ec8, the end time in 0x00985e28, g_reloading 4 (16 more with 0x00985eb4).
+    using Va = char* XB_CDECL(const char*, ...);
+    const uint8_t* const player = G_FindEntityByIntField(&title_global<uint8_t>(0x0097a8c0), 0x260,
+                                                         title_global<uint32_t>(0x0097a75c));
+    if (*reinterpret_cast<const int32_t*>(player + 0x350) <= 0) return;
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    const char* text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083b37c}),
+                                                      title_global<int32_t>(0x0098540c) + 250,
+                                                      title_global<int32_t>(0x00985ec8) + 750);  // "scr_fade 1 %i %i"
+    SV_GameSendServerCommand(text, 0);
+    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}),
+                                          title_global<int32_t>(0x00985ec8) + 1000);  // "snd_fade 0 %d"
+    SV_GameSendServerCommand(text, 0);
+    title_global<int32_t>(0x00985e28) = title_global<int32_t>(0x0098540c) + title_global<int32_t>(0x00985ec8) + 1000;
+    using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0082c89c});  // "g_reloading"
+    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 4);  // "%d"
+    title_function<CvarSet>(0x0029c030)(name, text, 1);  // Cvar_Set2
+    if (title_global<uint32_t>(0x00985eb4)) {
+        text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 16);
+        title_function<CvarSet>(0x0029c030)(name, text, 1);
+    }
+}
+
+void XB_CDECL G_ShutdownGame(uint32_t restart) {
+    // Q3's G_ShutdownGame: every entity, the vehicle pool and the second vehicle block
+    // (0x0095f690), the vehicle defs; without a restart also the corpse queue and anim trees.
+    title_function<void XB_STDCALL(uint32_t)>(0x002c3870)(title_global<uint32_t>(0x0095f534));  // G_FreeAllEntities
+    if (title_global<uint32_t>(0x0095f694)) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f694));  // Z_Free
+        title_global<uint32_t>(0x0095f694) = 0;
+        title_global<uint16_t>(0x00986000) = 0;
+    }
+    if (title_global<uint32_t>(0x0095f690)) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f690));  // Z_Free
+        title_global<uint32_t>(0x0095f690) = 0;
+    }
+    Vehicle_FreeDefs();
+    if (restart) return;
+    for (uint32_t corpse = 0x009881c8; corpse < 0x00988388; corpse += 0x1c) title_global<uint32_t>(corpse) = 0;
+    G_FreeAnimTrees();
+}
+
+PLATFORM_ASM_ENTRY(G_SetFog_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_SetFog) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_SetFog(const char* fog) {
+    // "fog <text>" to every client; then the fog range (0x00985fcc, its square 0x00985fd0;
+    // FLT_MAX without) from seven floats: when the third is >= 1, start + (end - start) * 0.828.
+    using Va = char* XB_CDECL(const char*, ...);
+    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bd50}), fog), 0);
+    float v[7];  // as the original's frame: v[0] first, v[1] second, v[2] third
+    title_global<float>(0x00985fcc) = title_global<float>(0x0082eed0);
+    title_global<float>(0x00985fd0) = title_global<float>(0x0082eed0);
+    const int32_t n = title_function<int32_t XB_CDECL(const char*, const char*, ...)>(0x001f07e1)(
+        fog, reinterpret_cast<const char*>(uintptr_t{0x0083bd38}), &v[0], &v[1], &v[2], &v[3], &v[4], &v[5],
+        &v[6]);  // sscanf "%f %f %f %f %f %f %f"
+    if (n != 7) return;
+    if (!(v[2] >= title_global<float>(0x0083eb20))) return;
+    const float start = v[0];
+    const float range = (v[1] - start) * title_global<float>(0x0083ef80) + start;
+    title_global<float>(0x00985fcc) = range;
+    title_global<float>(0x00985fd0) = range * range;
+}
+
+void XB_CDECL G_ProcessCheckpointTriggers() {
+    // This frame's trigger pairs (0x0098606c, {self, other handle, self/other spawn ids +0xc4};
+    // count 0x0098706c), always the first, replaced by the last: still valid pairs notify
+    // "trigger" (other entity number), checkpoints (classname "checkpoint") save first
+    // (G_SaveCheckpoint with the target name, 0x0095f4e0). Count 0 after.
+    int32_t& count = title_global<int32_t>(0x0098706c);
+    uint32_t* const pair = &title_global<uint32_t>(0x0098606c);
+    for (int32_t i = 0; i < count;) {
+        uint8_t* const self = entity_from_handle(pair[0]);
+        if (self && field<uint32_t>(self, 0xc4) == pair[2]) {
+            uint8_t* const other = entity_from_handle(pair[1]);
+            if (other && field<uint32_t>(other, 0xc4) == pair[3]) {
+                if (ScriptString_Equals(reinterpret_cast<const ScriptString*>(self + 0x264),
+                                        reinterpret_cast<const char*>(uintptr_t{0x008353b8}))) {
+                    const uint32_t name = field<uint32_t>(self, 0x26c);
+                    const TitleRegs regs{name ? name + 6 : 0, title_global<uint32_t>(0x0095f4e0), 0, 0, 0, 0};
+                    const uint32_t args[1] = {0};
+                    g_ent_call(0x002cd750, &regs, 1, args);  // G_SaveCheckpoint (stdcall)
+                }
+                uint32_t number = field<uint32_t>(other, 0x224);
+                const TitleRegs regs{0, address(other), 0, static_cast<uint32_t>(i), address(pair), address(self)};
+                const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address(&number)};
+                g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "trigger"
+            }
+        }
+        --count;
+        const uint32_t* const last = pair + count * 4;
+        pair[0] = last[0];
+        pair[1] = last[1];
+        pair[2] = last[2];
+        pair[3] = last[3];
+    }
+    count = 0;
+}
+
+void XB_CDECL G_RegisterCvars() {
+    // Q3's G_RegisterCvars over gameCvarTable (0x008da8e8, 0x18 bytes: vmCvar, name, default,
+    // flags, modification count; count 0x008dae40), then the dead/victory screen cvars cleared.
+    for (int32_t i = 0; i < title_global<int32_t>(0x008dae40); ++i) {
+        const uint32_t entry = 0x008da8e8 + i * 0x18;
+        using CvarGet = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+        const uint32_t cvar = title_function<CvarGet>(0x0029c2d0)(title_global<uint32_t>(entry + 4),
+                                                                  title_global<uint32_t>(entry + 8),
+                                                                  title_global<uint32_t>(entry + 12));  // Cvar_Get
+        const uint32_t vm = title_global<uint32_t>(entry);
+        if (vm) {
+            uint32_t* const v = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(vm));
+            v[0] = static_cast<uint32_t>(static_cast<int32_t>(cvar - 0x00940a10) / 0x2c);
+            v[1] = 0xffffffffu;
+            const TitleRegs regs{0, vm, 0, 0, 0, 0};
+            g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update (EBX)
+        }
+        const uint32_t again = title_global<uint32_t>(entry);
+        if (again) title_global<uint32_t>(entry + 16) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(again + 4));
+    }
+    static const uint32_t kCleared[] = {0x00948898, 0x009482f8, 0x0094b780, 0x00948538};
+    for (uint32_t i = 0; i < 4; ++i) {
+        const uint32_t vm = kCleared[i];
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0029c030)(
+            title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(vm) * 0x2c), 0x0082dfeb, 1);  // Cvar_Set2 ""
+        const TitleRegs regs{0, vm, 0, 0, 0, 0};
+        g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update
+    }
+}
+
+uint32_t XB_REGS3 XB_CDECL G_FreeFarthestDroppedItem(int32_t index, uint32_t, uint32_t slot) {
+    // Dropped item handles of a player slot (0x00985e30, 32 per slot): `index` < 0 picks the one
+    // farthest (squared, packed) from the slot's player entity (0x0095f534 + 4 + slot * 4); any
+    // stale handle returns early. The chosen item frees itself next frame (think 0xc).
+    uint32_t chosen = 0;
+    if (index < 0) {
+        float best = title_global<float>(0x0083eb34);  // -1
+        for (uint32_t i = 0; i < 0x20; ++i) {
+            const uint8_t* const item = entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + i) * 4));
+            if (!item) return i;
+            const uint8_t* const player = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+                *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f534) + slot * 4 + 4))));
+            const float* const a = reinterpret_cast<const float*>(player + 0x140);
+            const float* const b = reinterpret_cast<const float*>(item + 0x140);
+            float d[4];
+            for (uint32_t k = 0; k < 4; ++k) d[k] = a[k] - b[k];
+            float m[4];
+            for (uint32_t k = 0; k < 4; ++k) m[k] = d[k] * d[k];
+            platform_keep(m[3]);
+            const float dist = m[0] + m[1] + m[2];
+            if (dist > best) {
+                best = dist;
+                chosen = i;
+            }
+        }
+    } else {
+        if (!entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + index) * 4))) return static_cast<uint32_t>(index);
+        chosen = static_cast<uint32_t>(index);
+    }
+    uint8_t* const item = entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + chosen) * 4));
+    field<uint32_t>(item, 0x32c) = 0xc;
+    field<int32_t>(item, 0x328) = title_global<int32_t>(0x0098540c) + 1;
+    return chosen;
 }
 
 }  // namespace game

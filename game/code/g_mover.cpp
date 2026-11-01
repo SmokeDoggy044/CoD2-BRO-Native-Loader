@@ -1,7 +1,11 @@
 #include "g_mover.h"
 
+#include <cstring>
+
 #include "g_spawn.h"
 #include "g_utils.h"
+#include "g_scr_runtime.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -10,6 +14,38 @@ namespace game {
 namespace {
 
 uint32_t& word_at(uint8_t* base, uint32_t offset) { return *reinterpret_cast<uint32_t*>(base + offset); }
+
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* pointer_at(uint8_t* base, uint32_t offset) {
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(base, offset)));
+}
+
+const uint8_t* weapon_def(uint32_t weapon) {
+    const uint32_t defs = title_global<uint32_t>(0x0095f4d8);  // bg_weaponDefs
+    return reinterpret_cast<const uint8_t*>(
+        static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(defs + weapon * 4))));
+}
+
+// |Q_fmod(a, b)| (the sign bit cleared, as FABS).
+float angle_delta_abs(float a, float b) {
+    float d = Q_fmod(a, b);
+    uint32_t bits;
+    std::memcpy(&bits, &d, sizeof bits);
+    bits &= 0x7fffffffu;
+    std::memcpy(&d, &bits, sizeof d);
+    return d;
+}
+
+// The turret info's state byte (+1) changes: "turretstatechange" when it goes from or to 0.
+void set_turret_state(uint8_t* ent, uint8_t state) {
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    if ((info[1] != 0) != (state != 0)) Scr_Notify(ent, title_global<uint32_t>(0x0097a860));
+    info[1] = state;
+}
 
 }  // namespace
 
@@ -98,6 +134,77 @@ void XB_CDECL Artillery_Drop(uint8_t* ent) {
     current[2] = z;
     word_at(ent, 0x14) = 2;  // gravity
     word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c) - 50;
+}
+
+void XB_REGS3 XB_CDECL Turret_UpdateAimState(uint32_t aiming, uint32_t, uint8_t* ent, const float* aim_point,
+                                             const float* angles) {
+    // Turret aim state (+1 of the info, +0x24c): 0 idle, 2 turning, 1 on target. Not aiming:
+    // idle. Idle: turning once 250 ms passed since +0x1c or both deltas are under 5 degrees.
+    // Turning: on target once pitch/yaw deltas are under 0.2 of the weapon's turn rates
+    // (+0x828/+0x82c). Then +2 bit 0x40 and the aim point (+0x10).
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    if (!aiming) {
+        set_turret_state(ent, 0);
+    } else {
+        bool turning = false;
+        if (info[1] == 0) {
+            bool start = true;
+            if (title_global<int32_t>(0x0098540c) < field<int32_t>(info, 0x1c) + 250) {
+                const float five = title_global<float>(0x0083ece8);
+                if (platform_x87_greater_equal(
+                        angle_delta_abs(field<float>(ent, 0x98) + field<float>(ent, 0x90), angles[0]), five) ||
+                    platform_x87_greater_equal(angle_delta_abs(field<float>(ent, 0x94), angles[1]), five))
+                    start = false;
+            }
+            if (start) {
+                set_turret_state(ent, 2);
+                turning = true;
+            }
+        } else if (info[1] == 2) {
+            turning = true;
+        }
+        if (turning) {
+            const uint8_t* const def = weapon_def(ent[3]);
+            const float fifth = title_global<float>(0x0083eca0);  // 0.2
+            const float pitch = angle_delta_abs(field<float>(ent, 0x98) + field<float>(ent, 0x90), angles[0]);
+            if (platform_x87_greater(platform_x87_mul(*reinterpret_cast<const float*>(def + 0x828), fifth), pitch)) {
+                const float yaw = angle_delta_abs(field<float>(ent, 0x94), angles[1]);
+                if (platform_x87_greater(platform_x87_mul(*reinterpret_cast<const float*>(def + 0x82c), fifth), yaw))
+                    set_turret_state(ent, 1);
+            }
+        }
+    }
+    info[2] |= 0x40;
+    const uint32_t* const p = reinterpret_cast<const uint32_t*>(aim_point);
+    field<uint32_t>(info, 0x10) = p[0];
+    field<uint32_t>(info, 0x14) = p[1];
+    field<uint32_t>(info, 0x18) = p[2];
+}
+
+PLATFORM_ASM_ENTRY(Turret_UpdateAimWithJitter_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Turret_UpdateAimWithJitter) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Turret_UpdateAimWithJitter(uint8_t* ent) {
+    // Every 4.5..7.5 s a new random aim offset (+0x68: pitch -6..5, yaw -20..19), then the
+    // turret turns toward it (AI turn rates).
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    if (title_global<int32_t>(0x0098540c) > field<int32_t>(info, 0x1c) + 0x1194) {
+        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        field<int32_t>(info, 0x1c) = title_global<int32_t>(0x0098540c) - r % 3000;
+        field<float>(info, 0x68) = static_cast<float>(r % 12) - title_global<float>(0x0083ecd0);  // 6
+        field<float>(info, 0x6c) = static_cast<float>(r % 40) - title_global<float>(0x0083eb5c);  // 20
+    }
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info + 0x68))};
+    Turret_UpdateTargetAngles(args, 1, ent, reinterpret_cast<const float*>(info + 0x68));
+}
+
+void XB_REGS1 XB_CDECL Turret_SetIdle(uint8_t* ent) {
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    info[2] &= 0xb7;
+    field<uint32_t>(info, 0xc) = 0;
+    set_turret_state(ent, 0);
 }
 
 }  // namespace game

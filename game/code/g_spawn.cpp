@@ -1,5 +1,10 @@
 #include "g_spawn.h"
 
+#include "g_script.h"
+#include "g_utils.h"
+#include "qcommon.h"
+#include "script_string.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -103,6 +108,54 @@ void XB_CDECL Actor_CopySpawnerFields(uint8_t* spawner, uint8_t* actor) {
     word_at(actor, 0x268) = word_at(spawner, 0x268);
     word_at(actor, 0x278) = word_at(spawner, 0x278);
     word_at(actor, 0x280) = word_at(spawner, 0x280);
+}
+
+void XB_CDECL SP_info_player_start(uint8_t* ent) {
+    // Becomes an info_player_deathmatch (classname 0x00984b70 and its hash), thinks in 200 ms
+    // (think 5).
+    ScriptString* const classname = reinterpret_cast<ScriptString*>(ent + 0x25c);
+    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(classname, 0x00984b70);  // ScriptString_Assign
+    const uint32_t rep = word_at(ent, 0x25c);
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, rep ? reinterpret_cast<const char*>(static_cast<uintptr_t>(rep + 6)) : nullptr);
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 200;
+    word_at(ent, 0x32c) = 5;
+    G_UpdateEntityStringHashes(ent);
+}
+
+void XB_CDECL SP_skyportal(uint8_t* ent) {
+    // The sky portal configstring (10): origin, fov (default 90), how many of fogcolor /
+    // fognear / fogfar were given, fog colour (default 0 0 0), fog near (0) and far (300).
+    // The key hashes are made once (bits of 0x0098bc94).
+    uint32_t& made = title_global<uint32_t>(0x0098bc94);
+    if (!(made & 1)) {
+        made |= 1;
+        title_global<uint32_t>(0x0098bc90) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083af3c}));
+    }
+    float fov;
+    G_SpawnFloat(title_global<uint32_t>(0x0098bc90), 90.0f, &fov);
+    static const char* const kKeys[] = {nullptr, reinterpret_cast<const char*>(uintptr_t{0x0083af30}),
+                                        reinterpret_cast<const char*>(uintptr_t{0x0083af28}),
+                                        reinterpret_cast<const char*>(uintptr_t{0x0083af20})};
+    const uint32_t zero_color[3] = {0, 0, 0};
+    uint32_t bits = made;
+    for (uint32_t i = 1; i < 4; ++i) {
+        if (bits & (1u << i)) continue;
+        bits |= 1u << i;
+        made = bits;
+        title_global<uint32_t>(0x0098bc90 - i * 4) = Com_HashKeyNoCase(0, kKeys[i]);  // fogcolor, fognear, fogfar
+    }
+    float color[3];
+    uint32_t given = G_SpawnVector(title_global<uint32_t>(0x0098bc8c), color, zero_color);
+    int32_t fog_near, fog_far;
+    given += G_SpawnInt(title_global<uint32_t>(0x0098bc88), &fog_near, 0);
+    given += G_SpawnInt(title_global<uint32_t>(0x0098bc84), &fog_far, 300);
+    const float* const origin = reinterpret_cast<const float*>(ent + 0x140);
+    const char* const text = title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(
+        reinterpret_cast<const char*>(uintptr_t{0x0083aef4}), static_cast<double>(origin[0]),
+        static_cast<double>(origin[1]), static_cast<double>(origin[2]), static_cast<double>(fov), given,
+        static_cast<double>(color[0]), static_cast<double>(color[1]), static_cast<double>(color[2]), fog_near,
+        fog_far);  // va "%.2f %.2f %.2f %.1f %i %.2f %.2f %.2f %i %i"
+    SV_SetConfigstring(10, text);
 }
 
 }  // namespace game

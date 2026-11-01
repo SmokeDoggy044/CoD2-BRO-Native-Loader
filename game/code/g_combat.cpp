@@ -3,6 +3,10 @@
 #include <cstring>
 
 #include "g_main.h"
+#include "g_script.h"
+#include "g_utils.h"
+#include "qcommon_fs.h"
+#include "script_string.h"
 #include "title_data.h"
 
 namespace game {
@@ -10,6 +14,23 @@ namespace game {
 namespace {
 
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* pointer_at_word(uint32_t value) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(value)); }
+
+uint8_t* pointer_at(uint8_t* base, uint32_t offset) { return pointer_at_word(field<uint32_t>(base, offset)); }
+
+// The entity of a handle (index & 0xfff below 0x540, generation >> 12), else null.
+uint8_t* entity_from_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return pointer_at_word(title_global<uint32_t>(0x0097a968 + index * 8));
+    return nullptr;
+}
 
 }  // namespace
 
@@ -61,6 +82,316 @@ void XB_CDECL Pain_Func4(uint32_t* args) {
         std::memcpy(ent + 0x140, ent + 0x2e0, sizeof saved);
         std::memcpy(ent + 0x140, saved, sizeof saved);
     }
+}
+
+// A tail jump to G_FreeEntity: its second argument is the caller's word above ours.
+PLATFORM_ASM_ENTRY(hurt_think_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(hurt_think) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL hurt_think(const uint32_t* args) {
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(args[0]));
+    const int32_t now = title_global<int32_t>(0x0098540c);  // level.time
+    *reinterpret_cast<int32_t*>(ent + 0x328) = now + 1;    // nextthink
+    if (static_cast<float>(title_global<int32_t>(0x0098540c)) > *reinterpret_cast<const float*>(ent + 0x384))
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(args[0], args[1]);  // G_FreeEntity
+}
+
+PLATFORM_ASM_ENTRY(G_ApplyDamage_entry,
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_ApplyDamage) "addl $36, %esp\n"
+                   "ret")
+
+void XB_CDECL G_ApplyDamage(const float* dir, uint8_t* targ, int32_t damage, uint8_t* inflictor, uint8_t* attacker,
+                            const float* point, int32_t mod, int32_t weapon, int32_t hitloc) {
+    // The second half of Q3's G_Damage: the client's damage record (+0x5d4 total, +0x5d8 dir,
+    // +0x5e4 = 0), health (+0x350) down, "damage" notify, then death (health clamped to -999,
+    // "death" notify for non-clients, die callback) or pain (pain callback with the dir in +0x390
+    // and the point in +0x2e0); the client's health copy (+0x100).
+    float d[3];
+    std::memcpy(d, dir, sizeof d);
+    int32_t value = damage;
+    uint8_t* const ps = pointer_at(targ, 0x23c);
+    if (ps) {
+        field<int32_t>(ps, 0x5d4) += damage;
+        std::memcpy(ps + 0x5d8, d, sizeof d);
+        field<uint32_t>(ps, 0x5e4) = 0;
+    }
+    if (!damage) return;
+    field<int32_t>(targ, 0x350) -= damage;
+    {
+        uint32_t other = field<uint32_t>(attacker, 0x224);
+        const TitleRegs regs{0, 0, 0, 0, 0, 0};
+        const uint32_t args[4] = {address_of(targ), title_global<uint32_t>(0x0097a67c), address_of(&value),
+                                  address_of(&other)};
+        g_ent_call(0x00026670, &regs, 4, args);  // G_NotifyWithIntEntity "damage"
+    }
+    const int32_t health = field<int32_t>(targ, 0x350);
+    if (health <= 0) {
+        if (ps) field<uint32_t>(targ, 0x2a4) |= 0x20;
+        if (health < -999) field<int32_t>(targ, 0x350) = -999;
+        if (!ps) {
+            uint32_t other = field<uint32_t>(attacker, 0x224);
+            const TitleRegs regs{0, static_cast<uint32_t>(damage), 0, 0, address_of(attacker), address_of(targ)};
+            const uint32_t args[2] = {title_global<uint32_t>(0x0097a684), address_of(&other)};
+            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "death"
+        }
+        field<uint32_t>(targ, 0x374) = address_of(attacker);
+        const uint32_t die = field<uint32_t>(targ, 0x344);
+        if (die) {
+            using Die = void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t, int32_t, int32_t, const float*, const float*,
+                                      int32_t);
+            title_function<Die>(title_global<uint32_t>(0x008da88c + die * 4))(targ, inflictor, attacker, damage, mod,
+                                                                               weapon, point, d, hitloc);
+        }
+    } else {
+        const uint32_t pain = field<uint32_t>(targ, 0x340);
+        if (pain) {
+            std::memcpy(targ + 0x390, d, sizeof d);
+            const uint32_t* const p = reinterpret_cast<const uint32_t*>(point);
+            field<uint32_t>(targ, 0x2e0) = p[0];
+            field<uint32_t>(targ, 0x2e4) = p[1];
+            field<uint32_t>(targ, 0x2e8) = p[2];
+            using Pain = void XB_CDECL(uint8_t*, uint8_t*, int32_t, const float*, int32_t, const float*, int32_t);
+            title_function<Pain>(title_global<uint32_t>(0x008da874 + field<uint32_t>(targ, 0x340) * 4))(
+                targ, attacker, damage, point, mod, d, hitloc);
+        }
+    }
+    uint8_t* const client = pointer_at(targ, 0x23c);
+    if (client) field<int32_t>(client, 0x100) = field<int32_t>(targ, 0x350);
+}
+
+// The original writes its argument slots (damage, inflictor, attacker, hit location): the
+// entry hands the C version the argument block.
+PLATFORM_ASM_ENTRY(G_Damage_entry,
+                   "leal 4(%esp), %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_Damage) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_Damage(const float* point, uint32_t* args) {
+    // Q3's G_Damage: args = targ, inflictor, attacker, dir, damage, dflags, mod, hit location,
+    // weapon (<= 0: the inflictor's byte +3).
+    uint8_t* targ = pointer_at_word(args[0]);
+    if (!field<uint32_t>(targ, 0x29c)) return;  // takedamage
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    if (field<uint32_t>(targ, 0x248)) {
+        // Vehicles: the player's tank under god mode (0x0095f678) and mods the vehicle ignores.
+        if (ScriptString_Equals(reinterpret_cast<const ScriptString*>(targ + 0x264),
+                                reinterpret_cast<const char*>(uintptr_t{0x0082dd9c})) &&  // "player_tank"
+            title_global<uint8_t>(0x0095f678))
+            return;
+        if (title_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*, int32_t)>(0x00248620)(
+                targ, static_cast<int32_t>(args[6])))  // Vehicle_TakesDamageFromMod
+            return;
+    }
+    // The point as {x, y, z, x} (zeros without one); the first copy's slots later hold the dir.
+    alignas(16) float pt[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) float dn[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (point) {
+        std::memcpy(&pt[0], &point[0], 4);
+        std::memcpy(&pt[1], &point[1], 4);
+        std::memcpy(&pt[2], &point[2], 4);
+        std::memcpy(&pt[3], &point[0], 4);
+    }
+    std::memcpy(dn, pt, sizeof dn);
+    if (pointer_at(targ, 0x23c)) {
+        using CvarGet = const uint8_t* XB_CDECL(const char*, const char*, uint32_t);
+        const uint8_t* const intro = title_function<CvarGet>(0x0029c2d0)(
+            reinterpret_cast<const char*>(uintptr_t{0x008344f4}), reinterpret_cast<const char*>(uintptr_t{0x0082e098}),
+            0);  // Cvar_Get "introScreen"
+        if (*reinterpret_cast<const uint32_t*>(intro + 0x20)) return;
+        const int32_t mod = static_cast<int32_t>(args[6]);
+        if (mod >= 3 && mod <= 6)
+            args[4] = static_cast<uint32_t>(static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(args[4])) *
+                                                                 title_global<float>(0x0083eb58)));  // 0.75
+        if (G_ClientInOpenVehicle(targ)) {
+            if (args[6] == 6 || args[6] == 10) return;
+            args[4] = static_cast<uint32_t>(static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(args[4])) *
+                                                                 title_global<float>(0x0083eb24)));  // 0.5
+        }
+        if (G_ClientInVehicle(targ)) return;
+    }
+    if (field<uint32_t>(targ, 0x240)) {
+        // Actors: damage scaled per hit location (0x0094cc38); location 1 counts as 2 with +0x10 bit 0x1000.
+        if ((field<uint32_t>(targ, 0x10) & 0x1000) && args[7] == 1) args[7] = 2;
+        args[4] = static_cast<uint32_t>(static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(args[4])) *
+                                                             title_global<float>(0x0094cc38 + args[7] * 4)));
+    }
+    const uint32_t world = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f534) + 8));
+    if (!args[1]) args[1] = world;
+    if (!args[2]) args[2] = world;
+    uint8_t* const attacker = pointer_at_word(args[2]);
+    if (targ[0] == 4) {
+        // Damage-triggered movers: "trigger" notify and their use callback.
+        if (!field<uint32_t>(targ, 0x33c) || targ[0x298]) return;
+        const TitleRegs regs{args[2], 0, 0, 0, 0, args[0]};
+        const uint32_t notify[1] = {title_global<uint32_t>(0x0097a818)};
+        g_ent_call(0x0024f570, &regs, 1, notify);  // G_NotifyWithOwnHandle "trigger"
+        using Use = void XB_CDECL(uint8_t*, uint32_t, uint32_t);
+        title_function<Use>(title_global<uint32_t>(0x008da840 + field<uint32_t>(targ, 0x33c) * 4))(targ, args[1], args[2]);
+        return;
+    }
+    if (targ[0] == 7) {
+        uint32_t other = field<uint32_t>(attacker, 0x224);
+        const TitleRegs regs{0, 0, 0, 0, 0, 0};
+        const uint32_t notify[4] = {args[0], title_global<uint32_t>(0x0097a67c), address_of(&args[4]), address_of(&other)};
+        g_ent_call(0x00026670, &regs, 4, notify);  // G_NotifyWithIntEntity "damage"
+        return;
+    }
+    if (pointer_at(targ, 0x23c) && field<uint32_t>(pointer_at(targ, 0x23c), 0x584)) return;
+    uint32_t dflags = args[5];
+    if (!args[3]) {
+        dflags |= 8;  // DAMAGE_NO_KNOCKBACK
+        dn[0] = 0.0f;
+        dn[1] = 0.0f;
+        std::memcpy(&dn[2], &title_global<float>(0x0083eb20), 4);  // 1
+    } else {
+        VectorNormalize2(reinterpret_cast<const float*>(static_cast<uintptr_t>(args[3])), dn);
+    }
+    const int32_t damage = static_cast<int32_t>(args[4]);
+    uint8_t* ps = pointer_at(targ, 0x23c);
+    float scale = title_global<float>(0x0083edc8);  // 0.05
+    if (ps) {
+        if (field<uint32_t>(ps, 0x2c) & 1)
+            scale = title_global<float>(0x0083eb94);  // 0.01
+        else if (field<uint32_t>(ps, 0x2c) & 2)
+            scale = title_global<float>(0x0083ef7c);  // 0.025
+    }
+    int32_t knockback = static_cast<int32_t>(static_cast<float>(damage) * scale);
+    if (knockback > 60) knockback = 60;
+    if (field<uint8_t>(targ, 0x2a4) & 0x20) knockback = 0;
+    const int32_t mod = static_cast<int32_t>(args[6]);
+    if (!(dflags & 8) && knockback && ps) {
+        // Knockback into the client's velocity (+0x10, times g_knockback 0x00950758 * 0.004),
+        // a quarter of the vertical push for own explosions, and a knockback timer.
+        const float f = static_cast<float>(knockback) * title_global<float>(0x00950758) * title_global<float>(0x0083ef78);
+        const float vx = f * dn[0];
+        field<float>(pointer_at(targ, 0x23c), 0x10) = field<float>(pointer_at(targ, 0x23c), 0x10) + vx;
+        const float vy = f * dn[1];
+        const float vz = f * dn[2];
+        field<float>(pointer_at(targ, 0x23c), 0x14) = field<float>(pointer_at(targ, 0x23c), 0x14) + vy;
+        field<float>(pointer_at(targ, 0x23c), 0x18) = field<float>(pointer_at(targ, 0x23c), 0x18) + vz;
+        if (args[0] == args[2] && (mod == 5 || mod == 6 || mod == 3 || mod == 4)) {
+            float& z = field<float>(pointer_at(targ, 0x23c), 0x18);
+            z = platform_x87_mul(z, 0.25f);  // FMUL by the double 0.25 (0x0083ee68)
+        }
+        if (!field<int32_t>(pointer_at(targ, 0x23c), 0x30)) {
+            int32_t t = knockback * 2;
+            if (t < 50)
+                t = 50;
+            else if (t > 200)
+                t = 200;
+            field<int32_t>(pointer_at(targ, 0x23c), 0x30) = t;
+            field<uint32_t>(pointer_at(targ, 0x23c), 0x2c) |= 0x200;
+        }
+    }
+    if (field<uint8_t>(targ, 0x2a4) & 1) return;  // FL_GODMODE
+    if (static_cast<int32_t>(args[4]) < 1) args[4] = 1;
+    const int32_t final_damage = static_cast<int32_t>(args[4]);
+    const int32_t taken = final_damage - static_cast<int32_t>(G_ActorClampLethalDamage(static_cast<uint32_t>(final_damage), 0, targ));
+    int32_t weapon = static_cast<int32_t>(args[8]);
+    if (weapon <= 0) weapon = pointer_at_word(args[1])[3];
+    G_ApplyDamage(dn, pointer_at_word(args[0]), taken, pointer_at_word(args[1]), pointer_at_word(args[2]), pt, mod, weapon,
+                  static_cast<int32_t>(args[7]));
+}
+
+void XB_CDECL Pain_ForwardToOwner(uint8_t* self, uint8_t* attacker, int32_t damage, const float* point, int32_t mod,
+                                  const float* dir, int32_t hitloc) {
+    // Health back to 99999, the damage passed on to the owner (handle +0x1a0) when it takes damage.
+    field<int32_t>(self, 0x350) = 99999;
+    uint8_t* const owner = entity_from_handle(field<uint32_t>(self, 0x1a0));
+    if (!field<uint32_t>(owner, 0x29c)) return;
+    uint32_t args[9] = {address_of(owner), address_of(attacker), address_of(attacker), address_of(dir),
+                        static_cast<uint32_t>(damage), 0, static_cast<uint32_t>(mod), static_cast<uint32_t>(hitloc),
+                        0xffffffffu};
+    G_Damage(point, args);
+}
+
+void XB_CDECL Die_ForwardToOwner(uint8_t* self, uint8_t*, uint8_t* attacker, int32_t damage, int32_t mod, int32_t,
+                                 const float*, const float* dir, int32_t hitloc) {
+    // As a pain at the entity's origin (+0x140).
+    Pain_ForwardToOwner(self, attacker, damage, reinterpret_cast<const float*>(self + 0x140), mod, dir, hitloc);
+}
+
+PLATFORM_ASM_ENTRY(Activate_trigger_damage_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Activate_trigger_damage) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL Activate_trigger_damage(uint8_t* self, int32_t damage, uint8_t* attacker, int32_t mod) {
+    // trigger_damage: unless waiting (think set and not 0x1c), under the threshold (+0x3b4) or
+    // filtered by means of death: health (+0x350) down; when the total (32000 - health) reaches
+    // +0x370 (or it is 0) it fires (activator +0x378, G_Trigger unless mod -1), then waits
+    // wait (+0x384) + random spread (+0x388) seconds (think 0x12) or turns off (think 0xc next
+    // frame, no touch) and resets the health.
+    if (field<uint32_t>(self, 0x328) && field<uint32_t>(self, 0x32c) != 0x1c) return;
+    const int32_t threshold = field<int32_t>(self, 0x3b4);
+    if (threshold > 0 && damage < threshold) return;
+    if (!TriggerDamage_AcceptsMeansOfDeath(mod, 0, self)) return;
+    const int32_t health = field<int32_t>(self, 0x350) - damage;
+    field<int32_t>(self, 0x350) = health;
+    const int32_t needed = field<int32_t>(self, 0x370);
+    if (needed && 32000 - health < needed) return;
+    field<uint32_t>(self, 0x378) = address_of(attacker);
+    if (mod != -1) G_Trigger(self, attacker);
+    if (field<uint32_t>(self, 0x32c) != 0x1c) {
+        if (field<float>(self, 0x384) > title_global<float>(0x0083eafc)) {
+            field<uint32_t>(self, 0x32c) = 0x12;
+            const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            const int32_t now = title_global<int32_t>(0x0098540c);
+            float t = static_cast<float>(r) * title_global<float>(0x0083ecf8) - title_global<float>(0x0083eb20);
+            t = t * field<float>(self, 0x388) + field<float>(self, 0x384);
+            t = t * title_global<float>(0x0083ec74);  // -1000
+            field<int32_t>(self, 0x328) = now - static_cast<int32_t>(t);
+            field<int32_t>(self, 0x350) = 32000;
+            return;
+        }
+        field<uint32_t>(self, 0x338) = 0;
+        field<int32_t>(self, 0x328) = title_global<int32_t>(0x0098540c) + 1;
+        field<uint32_t>(self, 0x32c) = 0xc;
+    }
+    field<int32_t>(self, 0x350) = 32000;
+}
+
+void XB_CDECL Touch_TriggerNotify(uint8_t* self, uint8_t* other) { G_Trigger(self, other); }
+
+void XB_CDECL hurt_touch(uint8_t* self, uint8_t* other) {
+    // trigger_hurt: damage (+0x358, mod 0x16; dflags 0x20 with spawn flag 8) to entities that
+    // take it (not actors with flag 2) every 100 ms (1 s with flag 0x10); flag 0x20 hurts once.
+    if (!field<uint32_t>(other, 0x29c)) return;
+    if ((field<uint8_t>(self, 0x2a0) & 2) && field<uint32_t>(other, 0x240)) return;
+    if (field<int32_t>(self, 0x2f0) > title_global<int32_t>(0x0098540c)) return;
+    G_Trigger(self, other);
+    const uint8_t flags = field<uint8_t>(self, 0x2a0);
+    field<int32_t>(self, 0x2f0) = title_global<int32_t>(0x0098540c) + ((flags & 0x10) ? 1000 : 100);
+    uint32_t args[9] = {address_of(other), address_of(self), address_of(self), 0, field<uint32_t>(self, 0x358),
+                        static_cast<uint32_t>((flags & 8) << 2), 0x16, 0, 0xffffffffu};
+    G_Damage(nullptr, args);
+    if (field<uint8_t>(self, 0x2a0) & 0x20) field<uint32_t>(self, 0x338) = 0;
+}
+
+void XB_CDECL Touch_FriendlyChain(uint8_t* self, uint8_t* other) {
+    // The toucher's sentient (+0x244) gets the friendly chain node named by the trigger's
+    // target (+0x26c), then G_Trigger.
+    title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x002c0480)(
+        field<uint32_t>(other, 0x244), title_global<uint32_t>(0x0095f4f4), address_of(self + 0x26c));  // G_FriendlyChainNode
+    G_Trigger(self, other);
+}
+
+void XB_CDECL Touch_Multi(uint8_t* self, uint8_t* other) {
+    G_Trigger(self, other);
+    multi_trigger(address_of(other), self);
 }
 
 }  // namespace game
