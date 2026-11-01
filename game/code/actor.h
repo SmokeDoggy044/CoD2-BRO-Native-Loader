@@ -1030,4 +1030,28 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t en
                                                                     uint32_t ebp);
 extern "C" void Actor_CheckGrenadeThrow_entry(void);
 
+// 0x0020fe20 (EAX weapon def, ECX out range fraction, EDX target sentient, ESI actor, XMM2 distance; XMM0): the
+// actor's chance to hit the target. Result bits in EAX for the entry.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ComputeHitChance(uint32_t entry, const uint8_t* weapon, float* out,
+                                                                   uint8_t* actor, uint32_t ebx, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_ComputeHitChance_entry(void);
+// 0x00211b00 (EAX actor, EBX out eye, EDI out target; stack scale, out spread, out distance, weapon def; cdecl).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ComputeShotSpread(uint32_t entry, uint8_t* actor, float* eye,
+                                                                    float* target, uint32_t esi, uint32_t ebp);
+extern "C" void Actor_ComputeShotSpread_entry(void);
+// 0x00211cb0 (EAX actor; stack shot info, out range fraction, scale; cdecl): 1 when the shot hits.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_RollHit(uint32_t entry, uint8_t* actor, uint32_t esi, uint32_t ebx,
+                                                          uint32_t edi, uint32_t ebp);
+extern "C" void Actor_RollHit_entry(void);
+
+// 0x00210150 (ESI origin; stack entity handle, content mask, yaw, out pitch, out roll, out height; cdecl): the ground
+// tilt under a point along and across the yaw.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_ComputeGroundTilt(uint32_t entry, const float* origin, uint32_t ebx,
+                                                            uint32_t edi, uint32_t ebp);
+extern "C" void G_ComputeGroundTilt_entry(void);
+// 0x00211db0 (EAX entity; stack smooth flag; cdecl): updates an actor's or corpse's ground tilt record.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_UpdateGroundTilt(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t edi,
+                                                           uint32_t ebx, uint32_t ebp);
+extern "C" void G_UpdateGroundTilt_entry(void);
+
 }  // namespace game

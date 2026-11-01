@@ -10576,4 +10576,607 @@ uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t entry, uint32_t ebx, uint32_t
     return result;
 }
 
+// title_call_at_regs for callees with an XMM0 result: the result's bits come back in EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function, const TitleRegs* regs,
+                                                                    uint32_t count, const uint32_t* args);
+PLATFORM_ASM_ENTRY(actor_call_at_xmm0_raw,
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n" PLATFORM_ASM_CALL(title_call_at_regs) "addl $20, %esp\n"
+                   "movd %xmm0, %eax\n"
+                   "ret")
+
+namespace {
+
+// actor_call_at_xmm0_raw, then the original's return address written back; the result's bits.
+float call_at_xmm0(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                   const uint32_t* args) {
+    const uint32_t bits = actor_call_at_xmm0_raw(top, function, &regs, count, args);
+    stack_word(top - count * 4 - 4) = ret;
+    float result;
+    std::memcpy(&result, &bits, 4);
+    return result;
+}
+
+uint32_t float_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// The fsqrt of an x87 value, stored as float.
+float x87_sqrt_ext(long double x) {
+    long double r;
+    __asm__("fsqrt" : "=t"(r) : "0"(x));
+    return static_cast<float>(r);
+}
+
+// Actor_ComputeHitChance's body at entry ESP `entry` (frameless, 0x2c locals + EBX/EDI saved:
+// body B = entry - 0x34; EDI +0, EBX +4, scale +8, value +0xc, target +0x10, eye +0x1c,
+// midpoint +0x28).
+float hit_chance(uint32_t entry, const uint8_t* weapon, float* out, const uint8_t* sentient, uint8_t* actor, float dist,
+                 uint32_t ebx, uint32_t edi, uint32_t ebp) {
+    const uint32_t B = entry - 0x34;
+    stack_word(B + 4) = ebx;
+    stack_word(B) = edi;
+    float& scale = *stack_vec(B + 8);
+    float& value = *stack_vec(B + 0xc);
+    const float one = title_global<float>(0x0083eb20);
+    scale = one;
+    float t;
+    if (field<float>(weapon, 0x800) > dist) {
+        *out = 0.0f;
+        t = one;
+    } else {
+        if (field<float>(weapon, 0x804) > dist)
+            t = (dist - field<float>(weapon, 0x800)) / (field<float>(weapon, 0x804) - field<float>(weapon, 0x800));
+        else
+            t = dist / field<float>(weapon, 0x804);
+        *out = t;
+        if (t > title_global<float>(0x0083eafc)) {
+            t = one - dist / (field<float>(weapon, 0x804) * title_global<float>(0x0083ec9c));  // 3
+            if (0.0f > t) t = 0.0f;
+        } else {
+            t = one;
+        }
+    }
+    const auto client = [sentient]() {
+        return field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x23c);
+    };
+    float near_value = field<float>(actor, 0xd8) * t;
+    value = near_value;
+    float crossing = 0.0f;
+    if (client()) {
+        stack_word(B - 4) = addr_of(actor);
+        const uint32_t args[1] = {addr_of(actor)};
+        const float speed =
+            call_at_xmm0(B, 0x0020fe76, 0x002092a0,
+                         TitleRegs{field<uint32_t>(sentient, 0), addr_of(out), addr_of(client()), addr_of(sentient),
+                                   addr_of(actor), addr_of(sentient)},
+                         1, args);  // Actor_TargetCrossingSpeed (EDI target)
+        crossing = one - speed;
+        near_value = value;
+    }
+    float accuracy = (one - *out) * field<float>(actor, 0xd4);
+    if (0.0f > accuracy) accuracy = 0.0f;
+    const float v = (one - crossing) * accuracy + crossing * near_value;
+    value = v;
+    const uint8_t* const c = client();
+    if (c) {
+        const uint32_t flags = field<uint32_t>(c, 0x2c);
+        if (flags & 1)
+            scale = title_global<float>(0x0095bcc0);
+        else if (flags & 2)
+            scale = title_global<float>(0x0095bde0);
+        if (!(v == 0.0f)) {
+            float* const target = stack_vec(B + 0x10);
+            float* const eye = stack_vec(B + 0x1c);
+            float* const mid = stack_vec(B + 0x28);
+            const uint8_t* const pos = client();
+            copy3(reinterpret_cast<uint8_t*>(target), pos);
+            call_at(B, 0x0020ffb1, 0x002066e0,
+                    TitleRegs{addr_of(sentient), 0, B + 0x1c, 0, addr_of(actor), addr_of(sentient)}, 0,
+                    nullptr);  // Sentient_EyeOrigin (EAX sentient, ECX out)
+            const float half = title_global<float>(0x0083eb24);
+            mid[0] = (target[0] - eye[0]) * half + eye[0];
+            mid[1] = (target[1] - eye[1]) * half + eye[1];
+            mid[2] = (target[2] - eye[2]) * half + eye[2];
+            // Actor_CanSeePoint(point, cone cos +0x828, range +0x82c, target entity), stdcall,
+            // at the original's ESP (B - 0x14 with its return address).
+            const auto can_see = [&](uint32_t point, uint32_t ret) {
+                const uint32_t pass = field<uint32_t>(field<const uint8_t*>(sentient, 0), 0x224);
+                stack_word(B - 4) = pass;
+                stack_word(B - 8) = field<uint32_t>(actor, 0x82c);
+                stack_word(B - 12) = field<uint32_t>(actor, 0x828);
+                stack_word(B - 16) = point;
+                stack_word(B - 20) = ret;
+                return Actor_CanSeePoint(B - 20, actor, stack_vec(point), field<float>(actor, 0x828),
+                                         field<float>(actor, 0x82c), pass, ebp);
+            };
+            const float zero = title_global<float>(0x0083eafc);
+            int32_t seen = 0;
+            if (!(can_see(B + 0x1c, 0x00210036) == zero)) seen = 1;
+            if (!(can_see(B + 0x28, 0x0021006b) == zero)) ++seen;
+            if (seen != 2) {
+                if (!(can_see(B + 0x10, 0x002100a1) == zero)) ++seen;
+                if (seen == 2)
+                    scale = scale * title_global<float>(0x0083ebc0);  // 0.8
+                else if (seen == 1)
+                    scale = scale * title_global<float>(0x0083eb24);  // 0.5
+                else if (seen == 0)
+                    scale = title_global<float>(0x0083ebf8);  // 0.1
+            }
+        }
+    }
+    const float chance = value * scale;
+    if (client()) {
+        switch (title_global<int32_t>(0x00950b3c)) {  // g_skillLevel
+            case 0: return title_global<float>(0x008db48c) * chance;
+            case 1: return title_global<float>(0x008db490) * chance;
+            case 2: return title_global<float>(0x008db494) * chance;
+            default: break;
+        }
+    }
+    return chance;
+}
+
+}  // namespace
+
+// The sight checks run where the original's calls put them: XMM2 and EDX are parked in the
+// original's scale and saved-EDI words (rewritten), EDX then keeps the entry ESP.
+PLATFORM_ASM_ENTRY(Actor_ComputeHitChance_entry,
+                   "subl $0x34, %esp\n"
+                   "movss %xmm2, 8(%esp)\n"
+                   "movl %edx, (%esp)\n"
+                   "leal 0x34(%esp), %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ComputeHitChance) "addl $28, %esp\n"
+                   "movd %eax, %xmm0\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "addl $0x34, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_ComputeHitChance(uint32_t entry, const uint8_t* weapon, float* out, uint8_t* actor, uint32_t ebx,
+                                         uint32_t edi, uint32_t ebp) {
+    // EAX weapon def, ECX out range fraction, EDX target sentient, ESI actor, XMM2 distance;
+    // XMM0 = the chance to hit. Over the weapon's ranges (+0x800 near, +0x804 far) the fraction
+    // (0 inside near) goes to *out; the actor's accuracy (+0xd8) fades out to 3 x far, and its
+    // long-range accuracy (+0xd4) by the fraction, blended by how fast a player target crosses
+    // the line of sight (Actor_TargetCrossingSpeed). Player targets: the stance scale (crouch
+    // 0x0095bcc0 / prone 0x0095bde0) shrinks by how much of eye, middle and origin the actor
+    // sees (2: x0.8, 1: x0.5, none: 0.1), then the skill level's factor applies.
+    const uint32_t B = entry - 0x34;
+    const uint8_t* const sentient = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(B)});
+    const float dist = *stack_vec(B + 8);
+    return float_bits(hit_chance(entry, weapon, out, sentient, actor, dist, ebx, edi, ebp));
+}
+
+// Gap entry: Sentient_EyeOrigin and Actor_ComputeHitChance run at the original's ESP (EDX = entry ESP).
+PLATFORM_ASM_ENTRY(Actor_ComputeShotSpread_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ComputeShotSpread) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_ComputeShotSpread(uint32_t entry, uint8_t* actor, float* eye, float* target, uint32_t esi,
+                                          uint32_t ebp) {
+    // EAX actor, EBX out eye, EDI out target; stack (scale, out spread, out distance, weapon
+    // def; cdecl): the eye goes to EBX and the enemy's origin (its eye height x 0.75 of the way
+    // up) to EDI. *distance = the eye-target distance x (1.2 - long-range accuracy +0xd4) x
+    // 0x008db498; *spread = that x (1 - c'^3 stepped by two draws of the shot LCG 0x008d5a70),
+    // c = scale x Actor_ComputeHitChance. EAX = the distance pointer.
+    // Frame B = entry - 0x18: ESI +0, distance +4, fraction +8, enemy eye / delta +0xc.
+    const uint32_t B = entry - 0x18;
+    const float scale = *stack_vec(entry + 4);
+    float* const spread = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 8)});
+    float* const distance = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 12)});
+    const uint8_t* const weapon = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry + 16)});
+    stack_word(B) = esi;
+    call_at(B, 0x00211b10, 0x002066e0,
+            TitleRegs{field<uint32_t>(actor, 4), addr_of(eye), addr_of(eye), 0, addr_of(actor), addr_of(target)}, 0,
+            nullptr);  // Sentient_EyeOrigin (EAX sentient, ECX out)
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    stack_word(addr_of(target)) = field<uint32_t>(field<const uint8_t*>(enemy, 0), 0x140);
+    stack_word(addr_of(target) + 4) = field<uint32_t>(field<const uint8_t*>(enemy, 0), 0x144);
+    stack_word(addr_of(target) + 8) = field<uint32_t>(field<const uint8_t*>(enemy, 0), 0x148);
+    const uint8_t* const enemy2 = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    call_at(B, 0x00211b45, 0x002066e0,
+            TitleRegs{addr_of(enemy2), addr_of(eye), B + 0xc, 0, addr_of(actor), addr_of(target)}, 0,
+            nullptr);  // Sentient_EyeOrigin of the enemy
+    using ext = long double;
+    const ext x0 = target[0];
+    const float z = (*stack_vec(B + 0x14) - target[2]) * title_global<float>(0x0083eb58) + target[2];  // 0.75
+    target[2] = z;
+    const float dx = static_cast<float>(x0 - eye[0]);
+    const float dz = z - eye[2];
+    *stack_vec(B + 0x14) = dz;
+    *stack_vec(B + 0xc) = dx;
+    const float dy = static_cast<float>(static_cast<ext>(target[1]) - eye[1]);
+    *stack_vec(B + 0x10) = dy;
+    ext sum = static_cast<ext>(dz) * dz;
+    sum = sum + static_cast<ext>(dy) * dy;
+    sum = sum + static_cast<ext>(dx) * dx;
+    const float len = title_ci_sqrt_ext(sum);
+    const float dist = (title_global<float>(0x00830f60) - field<float>(actor, 0xd4)) * len;  // 1.2
+    *stack_vec(B + 4) = dist;
+    stack_word(B - 4) = 0x00211bdb;
+    const float chance = hit_chance(B - 4, weapon, stack_vec(B + 8), enemy2, actor, dist, addr_of(eye),
+                                    addr_of(target), ebp) *
+                         scale;
+    uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
+    const float draw1 = platform_x87_int_to_float(int32_t(seed >> 17));
+    const float spread_dist = title_global<float>(0x008db498) * dist;
+    const float one = title_global<float>(0x0083eb20);
+    seed = seed * 0x343fd + 0x269ec3;
+    const float full = title_global<float>(0x0083ebc8);  // 32768
+    const float a = (one - chance) * draw1 / full + chance;
+    title_global<uint32_t>(0x008d5a70) = seed;
+    float cube = a * a;
+    cube = cube * a;
+    const float draw2 = platform_x87_int_to_float(int32_t(seed >> 17));
+    const float zero = 0.0f;
+    const float b = (cube - zero) * draw2 / full + zero;
+    *spread = (one - b) * spread_dist;
+    *distance = spread_dist;
+    return addr_of(distance);
+}
+
+// Gap entry: Sentient_EyeOrigin, Actor_ComputeHitChance and _rand run at the original's ESP.
+PLATFORM_ASM_ENTRY(Actor_RollHit_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_RollHit) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_RollHit(uint32_t entry, uint8_t* actor, uint32_t esi, uint32_t ebx, uint32_t edi, uint32_t ebp) {
+    // EAX actor; stack (shot info (+0x3c weapon def), out range fraction, scale; cdecl): the
+    // chance (Actor_ComputeHitChance over the entity distance to the enemy, at least 0.02,
+    // x scale) goes to +0xe4; 1 when a _rand draw / 32768 falls below it.
+    // Frame B = entry - 0x14: ESI +0, distance +4, delta (the enemy eye first) +8.
+    const uint32_t B = entry - 0x14;
+    const uint8_t* const shot = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    float* const fraction = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 8)});
+    const float scale = *stack_vec(entry + 12);
+    stack_word(B) = esi;
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    call_at(B, 0x00211cc5, 0x002066e0,
+            TitleRegs{field<uint32_t>(sentient, 0x3c), ebx, B + 8, 0, addr_of(actor), edi}, 0,
+            nullptr);  // Sentient_EyeOrigin of the enemy (result unused)
+    const uint8_t* const self = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0);
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint8_t* const other = field<const uint8_t*>(enemy, 0);
+    const float dz = field<float>(self, 0x148) - field<float>(other, 0x148);
+    *stack_vec(B + 0x10) = dz;
+    const float dy = field<float>(self, 0x144) - field<float>(other, 0x144);
+    *stack_vec(B + 0xc) = dy;
+    const float dx = field<float>(self, 0x140) - field<float>(other, 0x140);
+    *stack_vec(B + 8) = dx;
+    using ext = long double;
+    ext sum = static_cast<ext>(dz) * dz;
+    sum = sum + static_cast<ext>(dy) * dy;
+    sum = sum + static_cast<ext>(dx) * dx;
+    const float dist = x87_sqrt_ext(sum);
+    *stack_vec(B + 4) = dist;
+    stack_word(B - 4) = 0x00211d55;
+    float chance = hit_chance(B - 4, field<const uint8_t*>(shot, 0x3c), fraction, enemy, actor, dist, ebx, edi, ebp);
+    const float least = title_global<float>(0x00830670);  // 0.02
+    if (least > chance) chance = least;
+    chance = chance * scale;
+    *stack_vec(entry + 4) = chance;
+    field<float>(actor, 0xe4) = chance;
+    const int32_t r = static_cast<int32_t>(call_at(B, 0x00211d7e, 0x001efcc0, TitleRegs{}, 0, nullptr));  // _rand
+    const float draw = static_cast<float>(r) * title_global<float>(0x0083ebe0);
+    return chance > draw ? 1 : 0;
+}
+
+namespace {
+
+// G_ComputeGroundTilt's body at entry ESP `entry` (cdecl handle, mask, yaw, out pitch, out roll,
+// out height; ESI origin). Frame F = aligned base - 0x18e0: EDI +0, EBX +4, radius / cosine /
+// first height / result +0xc, box and fallback point +0x10, sine +0x2c, direction +0x30,
+// end +0x40, start +0x50, mins (then the direction) +0x60, maxs +0x70, result +0x80,
+// brush list +0xc0 (header +0x8c0), triangle list +0x8d0 (header +0x18d0).
+void ground_tilt(uint32_t entry, const float* origin, uint32_t ebx, uint32_t edi, uint32_t ebp) {
+    const uint32_t handle = stack_word(entry + 4);
+    const uint32_t mask = stack_word(entry + 8);
+    const float yaw = *stack_vec(entry + 12);
+    float* const out_pitch = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 16)});
+    float* const out_roll = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 20)});
+    float* const out_height = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 24)});
+    stack_word(entry - 4) = ebp;
+    const uint32_t F = aligned_base(entry) - 0x18e0;
+    stack_word(F + 4) = ebx;
+    stack_word(F) = edi;
+    float* const box = stack_vec(F + 0x10);
+    const float m4 = title_global<float>(0x0083f184);  // -4
+    const float p4 = title_global<float>(0x0083100c);  // 4
+    float mins[4] = {m4, m4, 0.0f, m4};
+    float maxs[4] = {p4, p4, title_global<float>(0x0083ed78), p4};  // z 8
+    for (int i = 0; i < 4; ++i) box[i] = maxs[i];
+    for (int i = 0; i < 4; ++i) stack_vec(F + 0x60)[i] = mins[i];
+    for (int i = 0; i < 4; ++i) stack_vec(F + 0x70)[i] = maxs[i];
+    uint8_t* ent = nullptr;
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (ent) {
+        const uint32_t args[1] = {addr_of(ent)};
+        const uint32_t valid =
+            call_at(F, 0x002101f3, 0x002ae8f0,
+                    TitleRegs{index, addr_of(ent), handle >> 12, title_global<uint32_t>(0x0097a96c + index * 8),
+                              addr_of(origin), edi},
+                    1, args);  // G_EntityInValidCell (stdcall)
+        if (!(valid & 0xff)) {
+            if (out_pitch) *out_pitch = 0.0f;
+            if (out_roll) *out_roll = 0.0f;
+            if (out_height) *out_height = 0.0f;
+            return;
+        }
+    }
+    *stack_vec(F + 0xc) = 0.0f;
+    if (ent && field<uint32_t>(ent, 0x450) && field<uint32_t>(ent, 0x454)) {
+        // The capsule radius: the smaller of the box's x and z half extents (packed, all lanes),
+        // then the swept box around the origin widened by 25.9; outside the cached box
+        // (+0x430/+0x440) the candidates are gathered again for it widened by 50.
+        const float half = title_global<float>(0x0083eb24);
+        float ext[4];
+        for (int i = 0; i < 4; ++i) ext[i] = maxs[i] - (mins[i] + maxs[i]) * half;
+        for (int i = 0; i < 4; ++i) stack_vec(F + 0x30)[i] = ext[i];
+        const float r = ext[0] > ext[2] ? ext[2] : ext[0];
+        const float k = title_global<float>(0x0083f220);  // 25.9
+        const float o4[4] = {origin[0], origin[1], origin[2], origin[0]};
+        const float down[4] = {r, r, 0.0f, r};
+        const float two_r = r * title_global<float>(0x0083eba8);  // 2
+        const float up[4] = {r, r, two_r, r};
+        box[0] = r;
+        box[1] = r;
+        box[2] = two_r;
+        box[3] = r;
+        *stack_vec(F + 0xc) = r;
+        float lo[4], hi[4];
+        for (int i = 0; i < 4; ++i) lo[i] = (o4[i] - down[i]) - k;
+        for (int i = 0; i < 4; ++i) hi[i] = (o4[i] + up[i]) + k;
+        bool inside[4];
+        for (int i = 0; i < 4; ++i) {
+            const float above = hi[i] - field<float>(ent, 0x440 + i * 4);
+            const float below = field<float>(ent, 0x430 + i * 4) - lo[i];
+            const float most = below > above ? below : above;
+            inside[i] = most < title_global<float>(0x0082e3c0 + i * 4);
+        }
+        if (!(inside[0] && inside[1] && inside[2])) {
+            if (!(title_global<uint8_t>(0x0098f200) & 1)) {
+                title_global<uint32_t>(0x0098f200) |= 1;
+                const float fifty = title_global<float>(0x0083ec30);
+                for (int i = 0; i < 4; ++i) title_global<float>(0x0098f1f0 + i * 4) = fifty;
+            }
+            const uint32_t w454 = field<uint32_t>(ent, 0x454);
+            const uint32_t w450 = field<uint32_t>(ent, 0x450);
+            for (int i = 0; i < 4; ++i) field<float>(ent, 0x430 + i * 4) = lo[i] - title_global<float>(0x0098f1f0 + i * 4);
+            for (int i = 0; i < 4; ++i) field<float>(ent, 0x440 + i * 4) = hi[i] + title_global<float>(0x0098f1f0 + i * 4);
+            const uint32_t args[3] = {addr_of(ent) + 0x430, w450, w454};
+            call_at(F, 0x002103b5, 0x002cb0f0,
+                    TitleRegs{addr_of(ent) + 0x430, addr_of(ent), w450, w454, addr_of(origin), addr_of(ent) + 0x440}, 3,
+                    args);  // CM_GatherBoxCandidates
+        }
+    }
+    // From 30 above the origin to 30 below: the ground point, else the low end.
+    float* const end = stack_vec(F + 0x40);
+    float* const start = stack_vec(F + 0x50);
+    const float up30 = title_global<float>(0x0083ee38);
+    start[0] = origin[0];
+    start[1] = origin[1];
+    stack_word(F + 0x18d0) = F + 0x8d0;
+    stack_word(F + 0x18d4) = 0;
+    stack_word(F + 0x8c4) = 0;
+    start[2] = origin[2] + up30;
+    stack_word(F + 0x8c0) = F + 0xc0;
+    end[0] = origin[0];
+    end[1] = origin[1];
+    end[2] = origin[2] - up30;
+    const float radius = *stack_vec(F + 0xc);
+    if (G_FilterCachedCandidates(ent, start, end, radius, mask, reinterpret_cast<uint8_t*>(uintptr_t{F + 0x8d0}),
+                                 reinterpret_cast<uint8_t*>(uintptr_t{F + 0xc0}))) {
+        const uint32_t args[9] = {F + 0x8d0, F + 0xc0, F + 0x80, F + 0x50, F + 0x60, F + 0x70, F + 0x40, handle, mask};
+        call_at(F, 0x0021049b, 0x002e95b0, TitleRegs{F + 0xc0, handle, F + 0x8d0, F + 0x80, addr_of(origin), mask}, 9,
+                args);  // SV_CapsuleTrace
+    } else {
+        const uint32_t args[11] = {F + 0x80, F + 0x60, F + 0x70, F + 0x40, handle, mask, 1, 0, 0, 0, 0};
+        call_at(F, 0x002104d5, 0x002e9af0, TitleRegs{F + 0x80, F + 0x50, F + 0x70, F + 0x60, addr_of(origin), mask}, 11,
+                args);  // SV_Trace (EBX start)
+    }
+    const float one = title_global<float>(0x0083eb20);
+    const uint32_t point = one > *stack_vec(F + 0xa0) ? F + 0x80 : F + 0x40;
+    stack_word(F + 0x10) = stack_word(point);
+    stack_word(F + 0x14) = stack_word(point + 4);
+    stack_word(F + 0x18) = stack_word(point + 8);
+    // Ground tilt along the yaw (cos, sin) and across it (sin, -cos): G_SampleGroundTilt from
+    // that point, each writing its pitch; the height is the mean of the two.
+    const float angle = static_cast<float>(static_cast<long double>(yaw) * title_global<float>(0x0083edd8));
+    *stack_vec(F + 0x2c) = angle;
+    const uint32_t sincos_args[1] = {float_bits(angle)};
+    call_at(F, 0x00210559, 0x000110f0, TitleRegs{F + 0x2c, handle, F + 0xc, 0, addr_of(origin), mask}, 1,
+            sincos_args);  // FastSinCos (EAX sine, ECX cosine)
+    const float cosine = *stack_vec(F + 0xc);
+    *stack_vec(F + 0x74) = 0.0f - cosine;
+    const float sine = *stack_vec(F + 0x2c);
+    float* const dir = stack_vec(F + 0x30);
+    dir[3] = cosine;
+    dir[2] = 0.0f;
+    dir[1] = sine;
+    dir[0] = cosine;
+    for (int i = 0; i < 4; ++i) stack_vec(F + 0x60)[i] = dir[i];
+    const TitleRegs sample_regs{F + 0x60, handle, addr_of(origin), mask, addr_of(origin), mask};
+    const uint32_t args1[4] = {handle, F + 0x10, F + 0x60, addr_of(out_pitch)};
+    const float h1 = call_at_xmm0(F - 4, 0x002105b2, 0x0020da90, sample_regs, 4, args1);  // G_SampleGroundTilt
+    stack_word(F - 0x1c) = entry - 4;  // its saved EBP: ours
+    *stack_vec(F + 0xc) = h1;
+    const float across_x = *stack_vec(F + 0x2c);
+    dir[2] = 0.0f;
+    const float across_y = *stack_vec(F + 0x74);
+    dir[3] = across_x;
+    dir[1] = across_y;
+    dir[0] = across_x;
+    for (int i = 0; i < 4; ++i) stack_vec(F + 0x60)[i] = dir[i];
+    const uint32_t args2[4] = {handle, F + 0x10, F + 0x60, addr_of(out_roll)};
+    const float h2 = call_at_xmm0(F - 0x14, 0x00210607, 0x0020da90, sample_regs, 4, args2);
+    stack_word(F - 0x2c) = entry - 4;
+    const float height = (h2 + *stack_vec(F + 0xc)) * title_global<float>(0x0083eb24);
+    if (!out_height) return;
+    const float rise = height - origin[2];
+    *stack_vec(F + 0xc) = rise;
+    if (0.0f > rise) {
+        // Below the origin: kept only when an actor box traced 1 down from the origin hits.
+        start[0] = origin[0];
+        start[1] = origin[1];
+        start[2] = origin[2];
+        end[0] = origin[0];
+        end[1] = origin[1];
+        end[2] = origin[2] - one;
+        const uint32_t args[11] = {F + 0x80, 0x0098a560, 0x0098a550, F + 0x40, handle, mask, 1, 0, 0, 0, 0};
+        call_at(F, 0x002106ae, 0x002e9af0, TitleRegs{F + 0x80, F + 0x50, 0, F + 0x40, addr_of(origin), mask}, 11,
+                args);  // SV_Trace (EBX start) with g_actorMins/g_actorMaxs
+        if (*stack_vec(F + 0xa0) == one) *stack_vec(F + 0xc) = 0.0f;
+    }
+    *out_height = *stack_vec(F + 0xc);
+}
+
+}  // namespace
+
+// The traces and samples run where the original's calls put them: gap entry, EAX the entry ESP.
+PLATFORM_ASM_ENTRY(G_ComputeGroundTilt_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_ComputeGroundTilt) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_ComputeGroundTilt(uint32_t entry, const float* origin, uint32_t ebx, uint32_t edi, uint32_t ebp) {
+    // ESI origin; stack (entity handle, content mask, yaw, out pitch, out roll, out height;
+    // cdecl): the ground under the origin (a -4..4 x 0..8 box traced from 30 above to 30
+    // below, through the entity's cached candidates when it has them) sampled along and
+    // across the yaw (G_SampleGroundTilt: pitch and roll); *height = the mean ground height
+    // minus the origin's (a drop is kept only when an actor box 1 below hits). An entity
+    // outside the valid cells gets 0 for all three.
+    ground_tilt(entry, origin, ebx, edi, ebp);
+}
+
+// G_ComputeGroundTilt and Q_fmod run at the original's ESP: gap entry, EDX the entry ESP.
+PLATFORM_ASM_ENTRY(G_UpdateGroundTilt_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(G_UpdateGroundTilt) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_UpdateGroundTilt(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t edi, uint32_t ebx, uint32_t ebp) {
+    // EAX entity; stack smooth flag (cdecl): the tilt record (a corpse's slot in
+    // g_actorCorpses by entity number (type 13; slot 0 when missing), else the actor's +0x198)
+    // gets G_ComputeGroundTilt with the entity's clip mask (+0x2a8 & 0xfdff3fff) and yaw
+    // (+0x154): directly into pitch +0x10, roll +0x14, height +0xc, or smoothed - each
+    // angle moves at most 6 degrees (Q_fmod difference) and the height 0.6 per call.
+    // Frame B = entry - 0x18: EDI +0, ESI +4, difference +8, pitch +0xc, roll +0x10, height +0x14.
+    const uint32_t B = entry - 0x18;
+    stack_word(B + 4) = esi;
+    stack_word(B) = edi;
+    const uint32_t smooth = stack_word(entry + 4);
+    uint8_t* rec;
+    if (ent[0] == 0xd) {
+        const uint32_t number = field<uint32_t>(ent, 0x224);
+        uint32_t i = 0;
+        while (i < 16 && title_global<uint32_t>(0x009881c8 + i * 0x1c) != number) ++i;
+        if (i == 16) i = 0;
+        rec = &title_global<uint8_t>(0x009881cc + i * 0x1c);
+    } else {
+        rec = field<uint8_t*>(ent, 0x240) + 0x198;
+    }
+    if (!field<uint32_t>(rec, 0)) return;
+    const uint32_t mask = field<uint32_t>(ent, 0x2a8) & 0xfdff3fffu;
+    const uint32_t number = field<uint32_t>(ent, 0x224);
+    const float* const origin = &field<float>(ent, 0x140);
+    // G_ComputeGroundTilt(number, mask, yaw, pitch, roll, height) called at B (return `ret`).
+    const auto compute = [&](uint32_t pitch, uint32_t roll, uint32_t height, uint32_t ret, uint32_t edi_now) {
+        const uint32_t args[6] = {number, mask, field<uint32_t>(ent, 0x154), pitch, roll, height};
+        for (uint32_t i = 0; i < 6; ++i) stack_word(B - 0x18 + i * 4) = args[i];
+        stack_word(B - 0x1c) = ret;
+        ground_tilt(B - 0x1c, origin, ebx, edi_now, ebp);
+    };
+    if (!smooth) {
+        compute(addr_of(rec) + 0x10, addr_of(rec) + 0x14, addr_of(rec) + 0xc, 0x00211f91, addr_of(rec) + 0x10);
+        return;
+    }
+    compute(B + 0xc, B + 0x10, B + 0x14, 0x00211e43, addr_of(rec));
+    const float step = title_global<float>(0x0083ecd0);  // 6
+    // Moves `current` towards `target` by at most `limit` (sign of the Q_fmod difference).
+    const auto approach = [&](uint32_t target_slot, uint32_t current, float limit, uint32_t top, uint32_t ret,
+                              uint32_t diff_slot) {
+        const uint32_t args[2] = {stack_word(target_slot), field<uint32_t>(rec, current)};
+        const float diff = call_at_xmm0(top, ret, 0x002974a0,
+                                        TitleRegs{field<uint32_t>(rec, current), ebx, stack_word(target_slot), number,
+                                                  addr_of(origin), addr_of(rec)},
+                                        2, args);  // Q_fmod
+        *stack_vec(diff_slot) = diff;
+        if (platform_x87_greater(abs_bits(diff), limit)) {
+            *stack_vec(target_slot) = diff;
+            const int32_t sign = int32_t(stack_word(target_slot)) < 0 ? -1 : 1;
+            return static_cast<float>(sign) * limit + field<float>(rec, current);
+        }
+        return *stack_vec(target_slot);
+    };
+    const float pitch = approach(B + 0xc, 0x10, step, B - 0x18, 0x00211e51, B + 8);
+    field<float>(rec, 0x10) = pitch;
+    const float roll = approach(B + 0x10, 0x14, step, B, 0x00211eb4, B + 8);
+    using ext = long double;
+    const ext diff = static_cast<ext>(*stack_vec(B + 0x14)) - field<float>(rec, 0xc);
+    field<float>(rec, 0x14) = roll;
+    const float rounded = static_cast<float>(diff);
+    *stack_vec(B + 8) = rounded;
+    const float limit = title_global<float>(0x0083eba4);  // 0.6
+    const ext magnitude = diff < 0 ? -diff : diff;
+    if (magnitude > static_cast<ext>(limit)) {
+        *stack_vec(B + 0x14) = rounded;
+        const int32_t sign = int32_t(stack_word(B + 0x14)) < 0 ? -1 : 1;
+        field<float>(rec, 0xc) = static_cast<float>(sign) * limit + field<float>(rec, 0xc);
+    } else {
+        field<float>(rec, 0xc) = *stack_vec(B + 0x14);
+    }
+}
+
 }  // namespace game
