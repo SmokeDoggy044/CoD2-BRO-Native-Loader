@@ -55,4 +55,17 @@ extern "C" void G_SpawnItem_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_CallSpawn(uint8_t* ent);
 extern "C" void G_CallSpawn_entry(void);
 
+// 0x0025fb20 (slot in EAX, origin in EBX): Q3's LaunchItem - a dropped item entity thrown with the velocity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_index,
+                                                     const uint8_t* item, const float* velocity, int32_t index);
+extern "C" void LaunchItem_entry(void);
+
+// 0x00264f60 (entity in ESI, "no throw" in EAX; item, yaw offset): Q3's Drop_Item.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Drop_Item(uint8_t* ent, uint32_t still, const uint8_t* item, float angle);
+extern "C" void Drop_Item_entry(void);
+// 0x00265500 (entity in EAX): Q3's TossClientItems (the held weapon).
+void XB_REGS1 XB_CDECL TossClientItems(uint8_t* ent);
+// 0x002655b0 (entity handle): Q3's ClientDisconnect.
+void XB_CDECL ClientDisconnect(uint32_t handle);
+
 }  // namespace game

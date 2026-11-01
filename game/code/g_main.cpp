@@ -3,11 +3,14 @@
 #include <cstring>
 
 #include "actor.h"
+#include "cgame.h"
+#include "dobj.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
+#include "qcommon_fs.h"
 #include "ragdoll.h"
 #include "script_string.h"
 #include "sv.h"
@@ -1138,4 +1141,83 @@ void XB_CDECL G_InitSkillCvars(uint32_t restore) {
     reset(0x0094a3b8, text(0x0082e058));
 }
 
+void XB_CDECL G_FreeLevelEntities() {
+    // The world's entity (+8 of 0x0095f534) and every listed entity (0x0097d36c count, 0x0097d370
+    // list) by G_FreeEntity; then for each listed entity with a model object (+0x22c): DObj_Free,
+    // its ragdoll (+0x238) released, the object freed to its memory context (+0x220, 0..0x62)
+    // or the zone, and the entity number queued for removal.
+    using FreeEntity = void XB_CDECL(uint32_t, uint32_t);
+    const uint32_t world = word_at(title_global<uint8_t*>(0x0095f534), 8);
+    if (world) title_function<FreeEntity>(0x002be420)(world, 0);  // G_FreeEntity
+    uint32_t* const first = &title_global<uint32_t>(0x0097d370);
+    const uint32_t* const last = first + title_global<uint32_t>(0x0097d36c);
+    for (uint32_t* it = first; it != last; ++it) {
+        if (*it) title_function<FreeEntity>(0x002be420)(*it, 0);  // G_FreeEntity
+    }
+    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    const uint32_t* const end = first + title_global<uint32_t>(0x0097d36c);
+    for (uint32_t* it = first; it != end; ++it) {
+        uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*it));
+        if (!ent) continue;
+        uint8_t* const model = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x22c)));
+        if (!model) continue;
+        DObj_Free(reinterpret_cast<DObj*>(model), 0);
+        uint8_t* const ragdoll = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x238)));
+        if (ragdoll) {
+            if (word_at(ragdoll, 0x568)) {
+                uint8_t* const owner = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0)));
+                PhysRagdoll_WriteBodiesToPose(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0x568))));
+                title_function<void XB_STDCALL(uint8_t*)>(0x0022c0f0)(owner);
+                RagdollPhysPool_Free(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0x568))), 0,
+                                     &title_global<uint8_t>(0x008f0470));
+                word_at(ragdoll, 0x568) = 0;
+                reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0)))[0x294] = 0;
+            }
+            RagdollPool_Free(ragdoll, 0, &title_global<uint8_t>(0x008dfde0));
+            word_at(ent, 0x238) = 0;
+        }
+        uint8_t* const object = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x22c)));
+        const int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
+        if (object) {
+            XModel_Free(object);
+            bool freed = false;
+            if (context != -1) {
+                uint8_t* pool = nullptr;
+                if (context >= 0 && context < 0x63)
+                    pool = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
+                        word_at(title_global<uint8_t*>(0x0095f638), 0x38 + static_cast<uint32_t>(context) * 4)));
+                freed = MemContext_Free_r(pool, object) != 0;
+            }
+            if (!freed) Z_Free(object);
+        }
+        word_at(ent, 0x22c) = 0;
+        G_EntityList_QueueRemove(word_at(ent, 0x224));
+    }
+    AnimTree_FlushClearLists();
+}
+
+PLATFORM_ASM_ENTRY(G_ReloadLevel_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_ReloadLevel) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full) {
+    // "g_reloading" 1 while the level restarts; a full reload frees the level's entities, hud
+    // elements, bad places, DObjs (G_FreeAllDObjs with BL = 1; the pushed EBX keeps the
+    // caller's upper bytes) and queued anim trees; then the sound and screen fade-in commands
+    // to every client and "g_reloading" 0 (its Cvar_Set2 result).
+    Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<char*>(uintptr_t{0x0082e058}), 1);
+    if (full) {
+        G_FreeLevelEntities();
+        HudElem_ClearAll();
+        BadPlace_ClearAll();
+        const TitleRegs regs{0, (ebx & ~0xffu) | 1, 0, 0, 0, 0};
+        g_ent_call(0x002e8bb0, &regs, 0, nullptr);  // G_FreeAllDObjs
+        AnimTree_FlushClearLists();
+    }
+    SV_GameSendServerCommand(reinterpret_cast<const char*>(uintptr_t{0x0083b2f0}), 0);  // "snd_fade 1 0"
+    SV_GameSendServerCommand(reinterpret_cast<const char*>(uintptr_t{0x0083b2e0}), 0);  // "scr_fade 0 0 0"
+    return Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<char*>(uintptr_t{0x0082e098}),
+                     1);
+}
 }  // namespace game

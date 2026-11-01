@@ -294,8 +294,9 @@ void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t unused_eax, uint32_t unused
 // 0x0025d520 (entity in EBX, origin in ECX, cache in EDX): the same for linked type-14 entities
 // with contents 0x800000 (G_NotifyWithOwnHandle); nothing with +0x3cc set (returned). Returns
 // the candidate count. Proposed name (was FUN_0025d520).
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint8_t* ent, const float* origin,
-                                                                       const uint32_t* cache);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent,
+                                                                       const float* origin, const uint32_t* cache,
+                                                                       uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void G_TouchType14EntitiesInBox_entry(void);
 // 0x0025df60 (anims in EAX, entity in EDI): a new anim tree (+0x254) for other anims (none:
 // cleared), the DObj updated, the old tree queued for freeing.
