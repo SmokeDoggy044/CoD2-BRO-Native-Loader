@@ -126,4 +126,21 @@ extern "C" void SP_script_model_entry(void);
 // 0x0025dfc0 (door in EAX): a door's path links by its state (+0x298: 7 locked-aware, 8 off).
 void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door);
 
+// 0x0025e000 (time in EAX, state in EDX, mover in ECX): Q3's SetMoverState (positions,
+// linear moves, rotations), then the current origin, link and door path links.
+void XB_REGS3 XB_CDECL SetMoverState(int32_t time, uint32_t state, uint8_t* ent);
+// 0x0025e450 (origin in EAX, owner in ECX; fuse on the stack): a cooked grenade dropped
+// straight down (cluster grenades); returns it.
+uint8_t* XB_REGS3 XB_CDECL fire_grenadeCooked(const float* origin, uint32_t unused_edx, uint8_t* owner, int32_t fuse);
+// 0x0025e6e0 (weapon in EAX, owner in EDX, velocity in ECX; origin, fuse on the stack): Q3's
+// fire_grenade; returns the grenade.
+uint8_t* XB_REGS3 XB_CDECL fire_grenade(uint32_t weapon, uint8_t* owner, const float* velocity, const float* origin,
+                                        int32_t fuse);
+// 0x0025f290 (turret in EAX, target in ECX; aiming on the stack): tracks a target entity's
+// origin when the arcs allow it; 1 when aiming at it.
+uint32_t XB_REGS3 XB_CDECL Turret_TrackTargetEnt(uint8_t* ent, uint32_t unused_edx, uint8_t* target, uint32_t aiming);
+// 0x00262040 (door in EBX): a rotating door turns to its open angles at once (think 0x15).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Door_StartRotate(uint8_t* ent);
+extern "C" void Door_StartRotate_entry(void);
+
 }  // namespace game

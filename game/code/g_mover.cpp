@@ -10,12 +10,14 @@
 #include "g_utils.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
+#include "cm.h"
 #include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 #include "xanim.h"
 
 // 0x002545e0 (phys list): a script mover trajectory's next phase - EAX, ECX, EDX = vectors,
@@ -1459,6 +1461,348 @@ void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door) {
     }
     const TitleRegs regs{address_of(door), 0, 0, 0, title_global<uint32_t>(0x0095f4f4), 0};
     g_ent_call(0x002c5ef0, &regs, 0, nullptr);  // Path_ConnectPathsForEntity
+}
+
+void XB_REGS3 XB_CDECL SetMoverState(int32_t time, uint32_t state, uint8_t* ent) {
+    // Q3's SetMoverState: the state byte (+0x298), trajectory times (+0x18 pos, +0x3c apos).
+    // 0/1/2: stationary at pos1/pos2/pos3 (+0x2c0/+0x2d0/+0x2e0; 0 also clears +0x297);
+    // 3/4: linear pos1 -> pos2 / back over +0x320 ms (4: +0x324 when +0x300 is set);
+    // 5/6: pos2 <-> pos3 over the current duration (+0x1c); 7/8: angles stationary; 9/10:
+    // rotation by +0x2f4 on the axis (+0x390) at 1000 / +0x320 per s (spawn flag 0x100
+    // without 0x800 (+0x2a4): half speed, twice the time) - 10 starting from the rotated
+    // angles back (10 also clears +0x297). Then the current origin, linked unless an
+    // unlinked DObj without contents, and the door's path links (Door_UpdatePaths).
+    const uint32_t flags = word_at(ent, 0x2a4);
+    const bool slow = !(flags & 0x800) && (flags & 0x100);
+    ent[0x298] = static_cast<uint8_t>(state);
+    field<int32_t>(ent, 0x18) = time;
+    field<int32_t>(ent, 0x3c) = time;
+    const float ms = title_global<float>(0x0083eb9c);
+    // Linear move from base to the other point over `duration` (cvtsi2ss), type 3.
+    auto linear = [&](uint32_t base, uint32_t other, int32_t duration, bool store_duration) {
+        word_at(ent, 0x20) = word_at(ent, base);
+        word_at(ent, 0x24) = word_at(ent, base + 4);
+        word_at(ent, 0x28) = word_at(ent, base + 8);
+        const float dx = field<float>(ent, other) - field<float>(ent, base);
+        const float dy = field<float>(ent, other + 4) - field<float>(ent, base + 4);
+        const float dz = field<float>(ent, other + 8) - field<float>(ent, base + 8);
+        const float span = static_cast<float>(duration);
+        if (store_duration) field<int32_t>(ent, 0x1c) = duration;
+        const float f = ms / span;
+        field<float>(ent, 0x2c) = f * dx;
+        field<float>(ent, 0x30) = f * dy;
+        field<float>(ent, 0x34) = f * dz;
+        word_at(ent, 0x14) = 3;
+    };
+    auto stationary = [&](uint32_t base) {
+        word_at(ent, 0x20) = word_at(ent, base);
+        word_at(ent, 0x24) = word_at(ent, base + 4);
+        word_at(ent, 0x28) = word_at(ent, base + 8);
+        word_at(ent, 0x14) = 0;
+    };
+    switch (state) {
+    case 0:
+        stationary(0x2c0);
+        ent[0x297] = 0;
+        break;
+    case 1:
+        stationary(0x2d0);
+        break;
+    case 2:
+        stationary(0x2e0);
+        break;
+    case 3:
+        linear(0x2c0, 0x2d0, field<int32_t>(ent, 0x320), true);
+        break;
+    case 4:
+        linear(0x2d0, 0x2c0,
+               field<float>(ent, 0x300) == title_global<float>(0x0083eafc) ? field<int32_t>(ent, 0x320)
+                                                                           : field<int32_t>(ent, 0x324),
+               true);
+        break;
+    case 5:
+        linear(0x2d0, 0x2e0, field<int32_t>(ent, 0x1c), false);
+        break;
+    case 6:
+        linear(0x2e0, 0x2d0, field<int32_t>(ent, 0x1c), false);
+        break;
+    case 7:
+    case 8:
+        word_at(ent, 0x44) = word_at(ent, 0x150);
+        word_at(ent, 0x48) = word_at(ent, 0x154);
+        word_at(ent, 0x4c) = word_at(ent, 0x158);
+        word_at(ent, 0x38) = 0;
+        break;
+    case 9: {
+        field<float>(ent, 0x4c) = 0.0f;
+        field<float>(ent, 0x48) = 0.0f;
+        field<float>(ent, 0x44) = 0.0f;
+        int32_t duration = field<int32_t>(ent, 0x320);
+        const float span = static_cast<float>(duration);
+        float rate;
+        if (slow) {
+            rate = title_global<float>(0x0083ebec);  // 500
+            duration += duration;
+        } else {
+            rate = ms;
+        }
+        rate = rate / span;
+        const float speed = field<float>(ent, 0x2f4) * rate;
+        field<int32_t>(ent, 0x40) = duration;
+        field<float>(ent, 0x50) = field<float>(ent, 0x390) * speed;
+        field<float>(ent, 0x54) = field<float>(ent, 0x394) * speed;
+        field<float>(ent, 0x58) = field<float>(ent, 0x398) * speed;
+        word_at(ent, 0x38) = 3;
+        break;
+    }
+    case 10: {
+        field<float>(ent, 0x44) = field<float>(ent, 0x390) * field<float>(ent, 0x2f4);
+        field<float>(ent, 0x48) = field<float>(ent, 0x394) * field<float>(ent, 0x2f4);
+        field<float>(ent, 0x4c) = field<float>(ent, 0x398) * field<float>(ent, 0x2f4);
+        int32_t duration = field<int32_t>(ent, 0x320);
+        float rate = ms / static_cast<float>(duration);
+        field<int32_t>(ent, 0x40) = duration;
+        if (slow) {
+            rate = rate * title_global<float>(0x0083eb24);
+            duration += duration;
+            field<int32_t>(ent, 0x40) = duration;
+        }
+        const float back = 0.0f - rate;
+        field<float>(ent, 0x50) = back * field<float>(ent, 0x44);
+        field<float>(ent, 0x54) = back * field<float>(ent, 0x48);
+        field<float>(ent, 0x58) = back * field<float>(ent, 0x4c);
+        word_at(ent, 0x38) = 3;
+        ent[0x297] = 0;
+        break;
+    }
+    default:
+        break;
+    }
+    {
+        const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
+        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    }
+    if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
+    Door_UpdatePaths(ent);
+}
+
+PLATFORM_ASM_ENTRY(Door_StartRotate_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Door_StartRotate) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Door_StartRotate(uint8_t* ent) {
+    // The door turns by its rotation (+0x2f4) at once: think 0x15, state 8, yaw += rotation,
+    // apos stationary at the new angles; current origin, link and path links as in
+    // SetMoverState; the team master (+0x380 self or none) opens its area portal (+0x200,
+    // +0x1fc; -1: none).
+    word_at(ent, 0x32c) = 0x15;
+    field<float>(ent, 0x154) = field<float>(ent, 0x2f4) + field<float>(ent, 0x154);
+    ent[0x298] = 8;
+    field<int32_t>(ent, 0x18) = title_global<int32_t>(0x0098540c);
+    field<int32_t>(ent, 0x3c) = title_global<int32_t>(0x0098540c);
+    word_at(ent, 0x44) = word_at(ent, 0x150);
+    word_at(ent, 0x48) = word_at(ent, 0x154);
+    word_at(ent, 0x4c) = word_at(ent, 0x158);
+    word_at(ent, 0x38) = 0;
+    {
+        const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
+        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    }
+    if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
+    Door_UpdatePaths(ent);
+    const uint32_t master = word_at(ent, 0x380);
+    if ((master == address_of(ent) || !master) && field<int32_t>(ent, 0x200) != -1)
+        CM_AdjustAreaPortalState(field<int32_t>(ent, 0x1fc), field<int32_t>(ent, 0x200), 1);
+}
+
+
+namespace {
+
+// The memory context an entity's allocations use (+0x220, -1: the level's 0x0095f638 +0x34).
+uint32_t entity_context(uint8_t* ent) {
+    const uint32_t context = word_at(ent, 0x220);
+    if (context != 0xffffffffu) return context;
+    return *reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f638) + 0x34});
+}
+
+uint8_t* spawn_in_context(uint32_t context) {
+    const TitleRegs regs{context, 0, 0, 0, 0, 0};
+    return reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &regs, 0, nullptr)});  // G_Spawn
+}
+
+// The classname script string from a global (ScriptString_Assign) and its name hash (+0x260).
+void set_classname(uint8_t* ent, uint32_t name) {
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011d600)(address_of(ent + 0x25c), name);  // ScriptString_Assign
+    const uint32_t text = word_at(ent, 0x25c);
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr);
+}
+
+// The weapon def's damage fields: +0x5b8 -> +0x358, +0x728/+0x72c/+0x724 -> +0x35c..+0x364.
+void set_grenade_damage(uint8_t* ent, uint8_t* def) {
+    word_at(ent, 0x358) = word_at(def, 0x5b8);
+    word_at(ent, 0x35c) = word_at(def, 0x728);
+    word_at(ent, 0x360) = word_at(def, 0x72c);
+    word_at(ent, 0x364) = word_at(def, 0x724);
+}
+
+void set_grenade_model(uint8_t* ent, uint8_t* def) {
+    uint32_t model = 0;
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{word_at(def, 0x738)});
+    word_at(ent, 0x258) =
+        *R_RegisterModel(name, title_global<uint32_t>(0x0095f6ac), &model, entity_context(ent));  // rm_models
+}
+
+uint8_t* weapon_def_of(uint32_t weapon) {
+    return reinterpret_cast<uint8_t*>(
+        uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f4d8) + weapon * 4})});
+}
+
+// The effects/script LCG (0x008d5a70) step: the next seed's bits 17..31.
+uint32_t lcg_next() {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    return seed >> 17;
+}
+
+}  // namespace
+
+uint8_t* XB_REGS3 XB_CDECL fire_grenadeCooked(const float* origin, uint32_t, uint8_t* owner, int32_t fuse) {
+    // A cooked grenade dropped at the origin (cluster grenades): owner's weapon (byte 3), class
+    // name from 0x00984be8, think 9 at time - def +0x754 + fuse + 250, falling straight down
+    // (trajectory type 0 with the def's speed +0x730 down), angles from {0, 0, -1}, no spin;
+    // the def's model; G_DObjUpdate. Returns the entity.
+    uint8_t* const def = weapon_def_of(owner[3]);
+    const float down[3] = {0.0f, 0.0f, title_global<float>(0x0083eb34)};
+    uint8_t* const ent = spawn_in_context(entity_context(owner));
+    set_classname(ent, 0x00984be8);
+    word_at(ent, 0x32c) = 9;
+    ent[0] = 3;
+    word_at(ent, 0xd4) = 0xa0;
+    field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) - field<int32_t>(def, 0x754) + fuse + 0xfa;
+    word_at(ent, 0x10) |= 0x8000;
+    ent[3] = owner[3];
+    word_at(ent, 0x1a0) = word_at(owner, 0x224);
+    word_at(ent, 0x2b0) = word_at(owner, 0x224);
+    set_grenade_damage(ent, def);
+    word_at(ent, 0x368) = 5;
+    word_at(ent, 0x36c) = 6;
+    word_at(ent, 0x2a8) = 0x280e091;
+    word_at(ent, 0x14) = 0;
+    const float x = origin[0];
+    const float y = origin[1];
+    const float z = origin[2];
+    field<float>(ent, 0x20) = x;
+    field<float>(ent, 0x24) = y;
+    field<float>(ent, 0x28) = z;
+    field<float>(ent, 0x2c) = static_cast<float>(field<int32_t>(def, 0x730)) * 0.0f;
+    field<float>(ent, 0x30) = static_cast<float>(field<int32_t>(def, 0x730)) * 0.0f;
+    field<float>(ent, 0x34) = static_cast<float>(field<int32_t>(def, 0x730)) * title_global<float>(0x0083eb34);
+    field<float>(ent, 0x140) = x;
+    field<float>(ent, 0x144) = y;
+    field<float>(ent, 0x148) = z;
+    float angles[3];
+    vectoangles_call(down, angles);
+    field<float>(ent, 0x150) = angles[0];
+    field<float>(ent, 0x154) = angles[1];
+    field<float>(ent, 0x158) = angles[2];
+    word_at(ent, 0x44) = word_at(ent, 0x150);
+    word_at(ent, 0x48) = word_at(ent, 0x154);
+    word_at(ent, 0x4c) = word_at(ent, 0x158);
+    field<float>(ent, 0x58) = 0.0f;
+    field<float>(ent, 0x54) = 0.0f;
+    field<float>(ent, 0x50) = 0.0f;
+    word_at(ent, 0x38) = 0;
+    word_at(ent, 0x3c) = 0;
+    word_at(ent, 0x40) = 0;
+    if (*reinterpret_cast<const char*>(uintptr_t{word_at(def, 0x738)})) set_grenade_model(ent, def);
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    return ent;
+}
+
+uint8_t* XB_REGS3 XB_CDECL fire_grenade(uint32_t weapon, uint8_t* owner, const float* velocity, const float* origin,
+                                        int32_t fuse) {
+    // Q3's fire_grenade: think 8 at the client's cooked time (ps +0x3c, then cleared) or now +
+    // fuse; class name from 0x00984b64; gravity trajectory (type 5) from the origin with the
+    // velocity; angles from the velocity, pitch - 120 snapped to 16 bits, a random tumble
+    // (pitch 675..765, roll 315..405 degrees/s from the shared LCG; x87 int-to-float); the def's
+    // model; G_DObjUpdate. Returns the entity.
+    uint8_t* const ent = spawn_in_context(entity_context(owner));
+    uint8_t* const ps = pointer_at(owner, 0x23c);
+    if (ps && word_at(ps, 0x3c)) {
+        field<int32_t>(ent, 0x328) = field<int32_t>(ps, 0x3c) + title_global<int32_t>(0x0098540c);
+        word_at(pointer_at(owner, 0x23c), 0x3c) = 0;
+    } else {
+        field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + fuse;
+    }
+    word_at(ent, 0x32c) = 8;
+    ent[0] = 3;
+    word_at(ent, 0xd4) = 0xa0;
+    ent[3] = static_cast<uint8_t>(weapon);
+    word_at(ent, 0x1a0) = word_at(owner, 0x224);
+    word_at(ent, 0x2b0) = word_at(owner, 0x224);
+    uint8_t* const def = weapon_def_of(weapon);
+    set_classname(ent, 0x00984b64);
+    set_grenade_damage(ent, def);
+    word_at(ent, 0x368) = 3;
+    word_at(ent, 0x36c) = 4;
+    word_at(ent, 0x10) = 0x3000000;
+    word_at(ent, 0x2a8) = 0x280e091;
+    word_at(ent, 0x14) = 5;
+    word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c);
+    const uint32_t* const from = reinterpret_cast<const uint32_t*>(origin);
+    const uint32_t* const speed = reinterpret_cast<const uint32_t*>(velocity);
+    word_at(ent, 0x20) = from[0];
+    word_at(ent, 0x24) = from[1];
+    word_at(ent, 0x28) = from[2];
+    word_at(ent, 0x2c) = speed[0];
+    word_at(ent, 0x30) = speed[1];
+    word_at(ent, 0x34) = speed[2];
+    word_at(ent, 0x38) = 2;
+    word_at(ent, 0x3c) = title_global<uint32_t>(0x0098540c);
+    float* const base = &field<float>(ent, 0x44);
+    vectoangles_call(velocity, base);
+    const float pitch = (base[0] - title_global<float>(0x0083eb68)) * title_global<float>(0x0083ebd8);
+    base[0] = static_cast<float>(static_cast<int32_t>(pitch) & 0xffff) * title_global<float>(0x0083ebd4);
+    const float tumble = title_global<float>(0x0083eb64);  // 90
+    const float range = title_global<float>(0x0083ebc8);   // 32768
+    const float half = title_global<float>(0x0083ef1c);    // 45
+    const float first = platform_x87_int_to_float(static_cast<int32_t>(lcg_next()));
+    field<float>(ent, 0x50) = ((first * tumble) / range - half) + title_global<float>(0x0083f178);
+    field<float>(ent, 0x54) = 0.0f;
+    const float second = platform_x87_int_to_float(static_cast<int32_t>(lcg_next()));
+    field<float>(ent, 0x58) = ((second * tumble) / range - half) + title_global<float>(0x0083ebcc);
+    word_at(ent, 0x140) = from[0];
+    word_at(ent, 0x144) = from[1];
+    word_at(ent, 0x148) = from[2];
+    word_at(ent, 0x150) = word_at(ent, 0x44);
+    word_at(ent, 0x154) = word_at(ent, 0x48);
+    word_at(ent, 0x158) = word_at(ent, 0x4c);
+    set_grenade_model(ent, def);
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    return ent;
+}
+
+uint32_t XB_REGS3 XB_CDECL Turret_TrackTargetEnt(uint8_t* ent, uint32_t, uint8_t* target, uint32_t aiming) {
+    // A new target (info +0xc) clears info +2 bit 3 and restarts the target time (+0x1c). Its
+    // origin within the arcs (Turret_CanTargetPoint): aim state and turning toward it
+    // (Turret_UpdateTargetAngles, AI rates), 1; else info +2 bit 0x40 cleared, 0.
+    uint8_t* info = pointer_at(ent, 0x24c);
+    if (word_at(info, 0xc) != address_of(target)) {
+        word_at(info, 0xc) = address_of(target);
+        info[2] &= 0xf7;
+        word_at(info, 0x1c) = title_global<uint32_t>(0x0098540c);
+    }
+    const float* const point = &field<float>(target, 0x140);
+    float angles[3];
+    float start[3];
+    if (!Turret_CanTargetPoint(ent, point, start, angles)) {
+        pointer_at(ent, 0x24c)[2] &= 0xbf;
+        return 0;
+    }
+    Turret_UpdateAimState(aiming, 0, ent, point, angles);
+    uint32_t args[2] = {address_of(ent), address_of(angles)};
+    Turret_UpdateTargetAngles(args, 1, ent, angles);
+    return 1;
 }
 
 }  // namespace game
