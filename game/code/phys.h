@@ -433,4 +433,39 @@ extern "C" void PhysIsland_SolveIterations_entry(void);
 // 0x000bd380: the substep's islands (bodies joined through their constraints) to *out, constraints sorted in.
 void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out);
 
+// 0x000c03c0 / 0x000c0420 / 0x000c0480 / 0x000c04e0 / 0x000c29e0: element pools from the arena, then reset.
+void XB_THISCALL PhysBodyPool_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+void XB_THISCALL PhysConstraintPoolF0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+void XB_THISCALL PhysConstraintPoolE0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+void XB_THISCALL PhysConstraintPoolD0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+void XB_THISCALL PhysConstraintPool1B0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+// 0x000c0540: out = world inverse inertia (+0x80 rows) * v (inverse mass * v for flag 2).
+float* XB_CDECL PhysBody_MulInvInertia(float* out, const uint8_t* body, const float* v);
+// 0x000c0640: as PhysBody_MulInvInertia, times scale.
+float* XB_CDECL PhysBody_MulInvInertiaScaled(float* out, const uint8_t* body, const float* v, float scale);
+// 0x000c0750: out = R diag(+0xb0) R^T v from the body's frame.
+float* XB_CDECL PhysBody_MulInvInertiaFromFrame(float* out, const uint8_t* body, const float* v);
+// 0x000c08b0: out = R diag(1 / +0xb0) R^T v (the inertia) from the body's frame.
+float* XB_CDECL PhysBody_MulInertiaFromFrame(float* out, const uint8_t* body, const float* v);
+// 0x000c0a00: angular velocity limit torque, force/torque scaling and gravity before a step.
+void XB_CDECL PhysBody_PreStep(uint8_t* body, const float* dt);
+// 0x000c0b90: velocities saved, then force and torque integrated over dt.
+void XB_CDECL PhysBody_IntegrateVelocity(uint8_t* body, float dt);
+// 0x000c0ca0: the contact's normal mass term +0x84 (and the inertia levers +0x40 / +0x50).
+void XB_THISCALL PhysContact_InitNormalMass(uint8_t* contact, const float* offset);
+// 0x000c0e80: a 0x140 contact's 3x3 mass matrix, its inverse rows +0xf0..+0x110 and diagonal +0x120.
+void XB_THISCALL PhysContact140_InitMassMatrix(uint8_t* contact);
+// 0x000c13e0: a 0x140 contact's impulses / dt into its cache (+0x138), then +0xd0 += +0xe0.
+void XB_THISCALL PhysContact140_CacheImpulses(uint8_t* contact, uint32_t key, float dt);
+// 0x000c14d0: an angular contact's mass term +0x84.
+void XB_THISCALL PhysAngularContact_InitMass(uint8_t* contact);
+// 0x000c1610: out (3 rows) = R diag(d) R^T; returns out + 8.
+float* XB_CDECL PhysFrame_RotateDiagonal(const float* d, const float* frame, float* out);
+// 0x000c17a0: a 0x1c0 object's predicted transform (+0x40..+0x70) after dt.
+void XB_CDECL PhysObject1c0_PredictTransform(uint8_t* object, const float* dt);
+// 0x000c1980: the body's frame and position moved over h.
+void XB_CDECL PhysBody_Integrate(uint8_t* body, float h);
+// 0x000c1b30: as PhysBody_Integrate keeping the angular momentum, re-orthonormalized every 6th call.
+void XB_CDECL PhysBody_IntegrateKeepMomentum(uint8_t* body, float h);
+
 }  // namespace game
