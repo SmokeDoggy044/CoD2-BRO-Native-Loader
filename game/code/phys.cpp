@@ -495,8 +495,15 @@ Lanes point_into(const float* frame, const float* p) {
     return rotate_into(columns, sub(lanes(p), lanes(frame + 12)));
 }
 
-// CMPLTPS mask of lanes 0-2 all set.
-bool all_less3(const Lanes& a, const Lanes& b) { return a.v[0] < b.v[0] && a.v[1] < b.v[1] && a.v[2] < b.v[2]; }
+// CMPLTPS mask of lanes 0-2 all set; lane 3 is compared too (a QNaN there raises MXCSR IE).
+bool all_less3(const Lanes& a, const Lanes& b) {
+    const bool x = a.v[0] < b.v[0];
+    const bool y = a.v[1] < b.v[1];
+    const bool z = a.v[2] < b.v[2];
+    const bool w = a.v[3] < b.v[3];
+    platform_keep(w);
+    return x && y && z;
+}
 
 }  // namespace
 
@@ -559,6 +566,192 @@ int32_t XB_CDECL Phys_GjkContact(uint32_t a, uint32_t b, uint32_t c, float* out)
     alignas(16) float point[4];
     std::memcpy(point, out + 4, 16);
     std::memcpy(out + 4, add(lanes(point), s).v, 16);
+    return 1;
+}
+
+namespace {
+
+// Penetration depth of a face hit: the distance to the nearer face along j, replaced by the k
+// distance squared when that one is smaller (the title squares only that one).
+void box_hit_depth(const uint8_t* box, const Lanes& lo, const Lanes& hi, const float* out, int32_t j, int32_t k,
+                   float* depth) {
+    const float* const c = reinterpret_cast<const float*>(box + 0x10);
+    float m;
+    if (out[j] > c[j])
+        m = hi.v[j] - out[j];
+    else
+        m = out[j] - lo.v[j];
+    *depth = m;
+    float n;
+    if (out[k] > c[k])
+        n = hi.v[k] - out[k];
+    else
+        n = out[k] - lo.v[k];
+    if (m > n) *depth = n * n;
+}
+
+}  // namespace
+
+// Box (centre +0x10, half extents +0x20) against the ray a-b: bounds overlap on all three axes,
+// then a slab test per axis (the low face entered from below, the high face from above). On a
+// hit out+0 = the point, out+0x10 = the face normal, and *depth (when given) = see box_hit_depth.
+uint8_t XB_THISCALL PhysBox_IntersectRay(uint8_t* box, const float* a, const float* b, float* out, uint32_t,
+                                         float* depth) {
+    const Lanes extent = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes center = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes lo = sub(center, extent);
+    const Lanes hi = add(center, extent);
+    const Lanes pa = lanes(a), pb = lanes(b);
+    Lanes low, high;
+    for (int32_t i = 0; i < 4; ++i) {
+        low.v[i] = pa.v[i] < pb.v[i] ? pa.v[i] : pb.v[i];   // MINPS
+        high.v[i] = pa.v[i] > pb.v[i] ? pa.v[i] : pb.v[i];  // MAXPS
+    }
+    const Lanes below = sub(lo, high), above = sub(low, hi);
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        const float gap = below.v[i] > above.v[i] ? below.v[i] : above.v[i];  // MAXPS
+        if (gap < 0.0f) mask |= 1 << i;                                         // CMPLTPS
+    }
+    if ((mask & 7) != 7) return 0;
+    const Lanes d = sub(pb, pa);
+    platform_keep(d);
+    for (int32_t i = 0; i < 3; ++i) {
+        const int32_t j = (i + 1) % 3, k = (i + 2) % 3;
+        if (lo.v[i] >= a[i] && b[i] >= lo.v[i]) {
+            const float t = (lo.v[i] - a[i]) / d.v[i];
+            const float y = d.v[j] * t + a[j];
+            out[j] = y;
+            if (!(y >= lo.v[j]) || !(hi.v[j] >= y)) continue;
+            const float z = d.v[k] * t + a[k];
+            out[k] = z;
+            if (!(z >= lo.v[k]) || !(hi.v[k] >= z)) continue;
+            out[i] = lo.v[i];
+            out[4 + i] = title_global<float>(0x0083eb34);  // -1
+            out[4 + k] = 0.0f;
+            out[4 + j] = 0.0f;
+            if (depth) box_hit_depth(box, lo, hi, out, j, k, depth);
+            return 1;
+        }
+        if (!(a[i] >= hi.v[i]) || !(hi.v[i] >= b[i])) continue;
+        const float t = (hi.v[i] - a[i]) / d.v[i];
+        const float y = d.v[j] * t + a[j];
+        out[j] = y;
+        if (!(y > lo.v[j]) || !(hi.v[j] > y)) continue;
+        const float z = d.v[k] * t + a[k];
+        out[k] = z;
+        if (!(z >= lo.v[k]) || !(hi.v[k] >= z)) continue;
+        out[i] = hi.v[i];
+        out[4 + i] = title_global<float>(0x0083eb20);  // 1
+        out[4 + k] = 0.0f;
+        out[4 + j] = 0.0f;
+        if (depth) box_hit_depth(box, lo, hi, out, j, k, depth);
+        return 1;
+    }
+    return 0;
+}
+
+// Oriented box (frame +0x30, half extents +0x70) against the ray a-b: the ray moved into the box
+// frame, tested against an axis-aligned box at the origin, the hit moved back out. The local hit
+// block starts as the copy of the frame's rows (as in the title), so a miss still writes
+// out+0x10 = the frame's second row rotated out.
+uint8_t XB_THISCALL PhysOrientedBox_IntersectRay(uint8_t* shape, const float* a, const float* b, float* out,
+                                                 uint32_t arg4, float* depth) {
+    const float* const frame = reinterpret_cast<const float*>(shape + 0x30);
+    alignas(16) float local_a[4];
+    alignas(16) float local_b[4];
+    std::memcpy(local_a, point_into(frame, a).v, 16);
+    std::memcpy(local_b, point_into(frame, b).v, 16);
+    alignas(16) float hit[12];
+    std::memcpy(hit, frame, sizeof(hit));
+    alignas(16) const float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) uint8_t box[0x30];
+    PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
+    const uint8_t result = PhysBox_IntersectRay(box, local_a, local_b, hit, arg4, depth);
+    if (result) std::memcpy(out, transform_out(frame, hit).v, 16);
+    std::memcpy(out + 4, rotate_out(frame, hit + 4).v, 16);
+    return result ? 1 : 0;
+}
+
+// Oriented box against the segment a-b (direction dir), in the box frame.
+uint8_t XB_THISCALL PhysOrientedBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir,
+                                                     uint32_t arg4) {
+    const float* const frame = reinterpret_cast<const float*>(shape + 0x30);
+    alignas(16) float local_a[4];
+    alignas(16) float local_b[4];
+    alignas(16) float local_dir[4];
+    std::memcpy(local_a, point_into(frame, a).v, 16);
+    std::memcpy(local_b, point_into(frame, b).v, 16);
+    Lanes columns[3];
+    frame_columns(frame, columns);
+    std::memcpy(local_dir, rotate_into(columns, lanes(dir)).v, 16);
+    alignas(16) const float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) uint8_t box[0x30];
+    PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
+    return PhysBox_IntersectSegment(box, local_a, local_b, local_dir, arg4);
+}
+
+// Contact of a sphere shape (centre +0x10, radius +0x1c) placed in a frame with another shape.
+// The other shape's sphere test (vtable +0x10) gives a first normal n (out+0x20); then the sphere
+// is moved out along n (frame origin += n, up to six steps) until GJK reports separation, the GJK
+// separation is normalized, and the search restarts from the new direction while it keeps turning
+// (dot > 0.998 or no better than the last by 0.005 ends it). The points are pulled 0.03 inward and
+// the first one moved back by the total offset.
+uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* frame, uint8_t* shape, float* out) {
+    alignas(16) float moved_frame[16];
+    std::memcpy(moved_frame, frame, sizeof(moved_frame));
+    const float radius = at<float>(sphere, 0x1c);
+    alignas(16) float center[4];
+    std::memcpy(center, sphere + 0x10, 16);
+    alignas(16) float p[4];
+    std::memcpy(p, transform_out(frame, center).v, 16);
+    alignas(16) float hit[8] = {};  // the normal half is never written on a miss (zero dead stack)
+    int32_t part = -1;
+    using SphereContact = uint8_t XB_THISCALL(void*, const float*, float, float*, int32_t*);
+    void* const* vtable = *reinterpret_cast<void* const* const*>(shape);
+    const uint8_t touching =
+        title_function<SphereContact>(reinterpret_cast<uintptr_t>(vtable[4]))(shape, p, radius, hit, &part);
+    std::memcpy(out + 8, hit + 4, 16);
+    if (!touching) return 0;
+    using Closest = int32_t XB_CDECL(const uint8_t*, const float*, uint8_t*, float*, uint32_t, uint32_t, uint32_t,
+                                     uint32_t, uint32_t, uint32_t);
+    float best = title_global<float>(0x007cce18);  // -1e10
+    alignas(16) float n[4];
+    std::memcpy(n, hit + 4, 16);
+    alignas(16) float moved[4];
+    for (;;) {
+        uint32_t steps = 0;
+        float length_squared;
+        for (;;) {
+            std::memcpy(moved, add(lanes(moved_frame + 12), lanes(n)).v, 16);
+            std::memcpy(moved_frame + 12, moved, 16);
+            const int32_t separated = title_function<Closest>(0x000b1b40)(sphere, moved_frame, shape, out,
+                                                                           title_global<uint32_t>(0x008bd430), 1, 0, 0,
+                                                                           0, 0);  // Gjk_ClosestPoints
+            const Lanes sq = mul(lanes(out + 8), lanes(out + 8));
+            length_squared = (sq.v[0] + sq.v[1]) + sq.v[2];
+            if (!separated) break;
+            if (++steps > 5) return 0;
+        }
+        long double limit = static_cast<long double>(steps) + title_global<float>(0x0083f278);  // 1.1
+        limit = limit * limit;
+        if (static_cast<long double>(length_squared) > limit) return 0;
+        const float length = static_cast<float>(platform_x87_sqrt_ext(length_squared));
+        std::memcpy(out + 8, div(lanes(out + 8), splat(length)).v, 16);
+        const Lanes turn = mul(lanes(out + 8), lanes(n));
+        const float d = (turn.v[0] + turn.v[1]) + turn.v[2];
+        if (d > title_global<float>(0x007cce14)) break;                // 0.998
+        if (best > d - title_global<float>(0x0083eb88)) break;         // 0.005
+        std::memcpy(n, out + 8, 16);
+        std::memcpy(moved_frame + 12, frame + 12, 16);
+        best = d;
+    }
+    const Lanes s = mul(lanes(out + 8), title_global<float>(0x007cce08));  // 0.03
+    const Lanes delta = sub(sub(lanes(frame + 12), lanes(moved)), s);
+    std::memcpy(out, add(lanes(out), delta).v, 16);
+    alignas(16) float second[4];
+    std::memcpy(second, out + 4, 16);
+    std::memcpy(out + 4, add(lanes(second), s).v, 16);
     return 1;
 }
 

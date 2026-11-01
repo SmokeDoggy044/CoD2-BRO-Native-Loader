@@ -66,4 +66,15 @@ float XB_CDECL PhysBox_PointDistanceSqInFrame(const float* p, const uint8_t* box
 // 0x000b25d0: GJK contact of two shapes with a 0.03 inset.
 int32_t XB_CDECL Phys_GjkContact(uint32_t a, uint32_t b, uint32_t c, float* out);
 
+// 0x000ad770: box against the ray a-b (vtable); hit = point, normal; *depth when given. AL.
+uint8_t XB_THISCALL PhysBox_IntersectRay(uint8_t* box, const float* a, const float* b, float* out, uint32_t unused,
+                                         float* depth);
+// 0x000af800, 0x000afbd0: oriented box against a ray / a segment (vtable), in the box frame. AL.
+uint8_t XB_THISCALL PhysOrientedBox_IntersectRay(uint8_t* shape, const float* a, const float* b, float* out,
+                                                 uint32_t arg4, float* depth);
+uint8_t XB_THISCALL PhysOrientedBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir,
+                                                     uint32_t arg4);
+// 0x000b26c0: contact of a sphere shape in a frame with another shape (GJK refined). AL.
+uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* frame, uint8_t* shape, float* out);
+
 }  // namespace game
