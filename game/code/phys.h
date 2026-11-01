@@ -321,4 +321,63 @@ void XB_CDECL PhysBody_PredictTransform(uint8_t* body, const float* dt);
 // 0x000bc620: a 0x140 contact's separation vector.
 float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, float* out);
 
+// 0x000bb4f0: linear and angular velocity that take frame `from` to `to` in dt.
+void XB_CDECL Phys_AngularVelocityBetweenFrames(const float* from, const float* to, float dt, float* linear,
+                                                float* angular);
+
+// 0x000bc710: an angular (0xa0) contact's (A's +0xe0 - B's +0xe0 or +0x50) . normal. Dead.
+float XB_THISCALL PhysAngularContact_GetNormalVelocity(const uint8_t* contact);
+// 0x000bc770: (A's point velocity - B's or +0x50) . normal, from the bodies' +0xd0 / +0xe0.
+float XB_THISCALL PhysContact_GetBodyNormalVelocity(const uint8_t* contact);
+// 0x000bc880: as PhysContact_GetBodyNormalVelocity from the bodies' +0xf0 / +0x100.
+float XB_THISCALL PhysContact_GetStateNormalVelocity(const uint8_t* contact);
+// 0x000bc990: +0x40 x +0x20 + A ref's +0x30 * normal (plus B's with +0x50 x +0x30).
+float* XB_THISCALL PhysContact_GetResponseVector(const uint8_t* contact, float* out);
+// 0x000bca50: A's point velocity - B's (or +0x50).
+float* XB_THISCALL PhysContact_GetRelativeVelocity(const uint8_t* contact, float* out);
+// 0x000bcb40: the impulse that brings the normal velocity to +0x78, clamped.
+float XB_THISCALL PhysContact_SolveNormalImpulse(uint8_t* contact);
+// 0x000bcb70: a 0x140 contact's A point velocity - B's (or +0x40).
+float* XB_THISCALL PhysContact140_GetRelativeVelocity(const uint8_t* contact, float* out);
+// 0x000bcc60: -(anchor A x anchor B) . normal.
+float XB_THISCALL PhysContact_GetAnchorCrossTerm(const uint8_t* contact);
+// 0x000bddd0: a contact between two bodies (a body without a solver ref goes on the B side).
+void XB_THISCALL PhysContact_Init(uint8_t* contact, uint8_t* body_a, const float* anchor_a, uint8_t* body_b,
+                                  const float* anchor_b, const float* normal, uint8_t* extra, const float* w);
+// 0x000bdfa0: a 0x140 contact between two bodies.
+void XB_THISCALL PhysContact140_Init(uint8_t* contact, uint8_t* body_a, const float* anchor_a, uint8_t* body_b,
+                                     const float* anchor_b, uint32_t value);
+// 0x000be080: an angular (0xa0) contact between two bodies.
+void XB_THISCALL PhysAngularContact_Init(uint8_t* contact, uint8_t* body_a, const float* axis_a, uint8_t* body_b,
+                                         const float* axis_b, const float* normal, uint32_t value);
+// 0x000bef00: the impulse clamped to [+0x60, +0x64] (flag 1: +-|ref +0x68| * +0x88); flag 2 = clamped.
+float XB_THISCALL PhysConstraint_ClampImpulse(uint8_t* constraint, float impulse);
+// 0x000bf7e0: body velocity at the relative point: +0xd0 + +0xe0 x r (zero for flag 0x10).
+float* XB_CDECL PhysBody_GetPointVelocity(float* out, const uint8_t* body, const float* r);
+
+// 0x000bee70: with impulse +0x68 inside its limits by 0.2 / (+0x84 - +0x80): flag 8 and
+// *weighted += +0x74 d, *squares += d^2 (d = +0x70 - +0x74); else flag 8 cleared.
+float* XB_THISCALL PhysConstraint_AccumulateUnclamped(uint8_t* constraint, float* squares, float* weighted);
+// 0x000bef70: both constraints of the pair (+0xb0, +0xb4) inside their limits and the shared test passes.
+bool XB_THISCALL PhysConstraintPair_CanShare(const uint8_t* pair);
+// 0x000bf0b0: the pair's impulses (+0x68) scaled by sqrt(den / num) (flag 4 on the second), or as they are.
+bool XB_THISCALL PhysConstraintPair_ScaleImpulses(const uint8_t* pair, float* out_a, float* out_b);
+// 0x000bf1b0: the joint's own limit term (+0x70..+0x9c) and those of its constraints +0xb0 / +0xb4.
+void XB_THISCALL PhysJoint_AccumulateErrors(uint8_t* joint, float* squares, float* weighted);
+// 0x000bf330: +0x168 = |v|^2 + |w|^2; above threshold the rest timer +0x164 restarts, else it runs
+// and sets flag 4 (asleep) after 0.5 s once +0x15c >= +0x160.
+uint8_t* XB_CDECL PhysBody_UpdateSleep(uint8_t* body, float threshold, float dt);
+// 0x000bf400: d = +0xb0 - +0xc0; *weighted += d . +0xc0, *squares += d . d.
+float* XB_THISCALL PhysJoint_AddOffsetTerms(const uint8_t* joint, float* squares, float* weighted);
+// 0x000bf4b0: clears each element's owner word (+0x2c) and the pool's five words.
+void XB_THISCALL PhysConstraintPool30_Destroy(uint8_t* pool);
+// 0x000bf4f0: rows 0 and 1 made orthonormal, row 2 = row 0 x row 1.
+void XB_CDECL PhysFrame_Orthonormalize(float* frame);
+// 0x000bf720: body +0xd0 += linear, +0xe0 += angular.
+float* XB_CDECL PhysBody_AddVelocity(uint8_t* body, const float* linear, const float* angular);
+// 0x000bedd0: allocates the arena and creates phys_world.
+uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params);
+// 0x000bee40: destroys phys_world and frees its arena.
+uint32_t XB_CDECL Phys_DestroyWorld();
+
 }  // namespace game
