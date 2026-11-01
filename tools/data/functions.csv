@@ -2690,9 +2690,9 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002095c0,Sentient_CachedNearestNode,compare,47486,19410,19410,0,0,0,""
 00209700,Actor_FindNearestNode,compare,0,0,0,0,0,0,""
 00209fc0,Actor_CanSeePointFromBounds,compare,54,12,12,0,0,0,""
-0020a140,Actor_IsShotClear,compare,3050,1514,1485,0,29,0,"804fff2c [host] [1] d0 vs 10; 81e23c5c [host] [1] d0 vs 10"
-0020a2e0,Actor_CanSeePointEx,compare,5483,2145,2137,0,8,0,"81e23c5c [host] [2] f09f vs a09e"
-0020a5d0,Actor_SightTrace,compare,1721,898,897,0,1,0,"81e23c5c [host] [2] 3082 vs 4081"
+0020a140,Actor_IsShotClear,compare,3050,1483,1483,0,0,0,
+0020a2e0,Actor_CanSeePointEx,compare,5483,2121,2121,0,0,0,
+0020a5d0,Actor_SightTrace,compare,1721,893,893,0,0,0,
 0020a730,ActorMove_FoliageSounds,compare,15340,11455,11455,0,0,0,""
 0020c6d0,Path_TrimToVisiblePoint,compare,0,0,0,0,0,0,""
 0020c9c0,Actor_IsSafeFromGrenade,compare,104,26,26,0,0,0,""
@@ -2700,8 +2700,8 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0020d110,Actor_TrimPathFromEye,compare,0,0,0,0,0,0,""
 0020e5a0,Actor_DropToFloor,compare,351,60,60,0,0,0,""
 0020e9a0,G_DropActorsToFloorAtInit,compare,4,3,3,0,0,0,""
-0020eaf0,Actor_CanShootPoint,compare,24,11,3,0,8,0,"81e23c5d [host] [1] 7f vs 7e"
-0020eb50,Actor_CanSeePoint,compare,72,44,33,0,11,0,"804fff2c [host] [2] 6060 vs f05e; 81e23c5c [host] [2] 6060 vs f05e"
+0020eaf0,Actor_CanShootPoint,compare,24,1,1,0,0,0,
+0020eb50,Actor_CanSeePoint,compare,72,33,33,0,0,0,
 002226e0,InGameLiveOptionsMenu_Draw,compare,0,0,0,0,0,0,""
 00222750,XboxLiveMenu_Draw,compare,0,0,0,0,0,0,""
 00222f20,Sys_GetEvent,replaced,35725,351,351,0,0,0,""
