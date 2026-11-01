@@ -3355,4 +3355,501 @@ void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint
     }
     stack_at(L + 0x14) = 31;
 }
+
+// --- Artillery, item pickups, turret targeting, player death/melee, spawn dispatch ---
+
+uint32_t XB_CDECL Artillery_Fire(uint8_t* ent) {
+    // The weapon's fire delay (def +0x754) to think 0xb, and the "MP_Artillery_Fire" sound on the
+    // entity (FXCmd_PlaySoundAlias); returns the sound call's EAX.
+    const uint32_t now = title_global<uint32_t>(0x0098540c);
+    const uint32_t next = *reinterpret_cast<const uint32_t*>(weapon_def(ent[3]) + 0x754) + now;
+    word_at(ent, 0x328) = next;
+    word_at(ent, 0x32c) = 0xb;
+    const TitleRegs regs{now, 0, address_of(ent), next, 0, 0};
+    const uint32_t args[4] = {0x0083b150, 0, 0xffffffffu, 0};
+    return g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
+}
+
+void XB_CDECL Think_DropNamedItem(uint8_t* ent) {
+    // The item named by the script string +0x3b8 (BG_FindItem, ESI name) dropped in place
+    // (Drop_Item, no throw); when that fails the origin goes through vtos (result unused).
+    const uint32_t rep = word_at(ent, 0x3b8);
+    const TitleRegs find{0, 0, 0, 0, rep ? rep + 6 : 0, address_of(ent)};
+    const uint32_t item = g_ent_call(0x002b6a70, &find, 0, nullptr);  // BG_FindItem
+    const TitleRegs drop{0, 0, 0, 0, address_of(ent), address_of(ent)};
+    const uint32_t args[2] = {item, 0};
+    if (!g_ent_call(0x00264f60, &drop, 2, args)) vtos(&field<float>(ent, 0x140));  // Drop_Item
+}
+
+PLATFORM_ASM_ENTRY(Actor_TurretCheckNearEnemy_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_TurretCheckNearEnemy) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_TurretCheckNearEnemy(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                             uint32_t ebp) {
+    // ECX actor, cdecl turret: 1 without an enemy (sentient +0x3c) or with one 256 units away or
+    // more (packed squares over all four lanes, x + y + z kept at the aligned frame), else
+    // Actor_TurretCanTargetEnemy at the original's ESP.
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x10;
+    uint8_t* const enemy = pointer_at(pointer_at(actor, 4), 0x3c);
+    if (!enemy) return 1;
+    uint8_t* const self_ent = pointer_at(actor, 0);
+    uint8_t* const enemy_ent = pointer_at(enemy, 0);
+    float sq[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        const float d = field<float>(enemy_ent, 0x140 + i * 4) - field<float>(self_ent, 0x140 + i * 4);
+        sq[i] = d * d;
+    }
+    const float sum = sq[0] + sq[1] + sq[2];
+    stack_float(L) = sum;
+    stack_float(L + 4) = sq[1];
+    stack_float(L + 8) = sq[2];
+    stack_float(L + 0xc) = sq[3];
+    if (sum >= title_global<float>(0x0083eb40)) return 1;  // 65536
+    const uint32_t turret = stack_at(entry + 4);
+    const uint32_t args[2] = {turret, address_of(actor)};
+    return call_at(L, 0x00267ab6, 0x00262e00, TitleRegs{address_of(enemy_ent), ebx, turret, address_of(self_ent), esi, edi},
+                   2, args);  // Actor_TurretCanTargetEnemy
+}
+
+PLATFORM_ASM_ENTRY(Turret_PickSentientTarget_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Turret_PickSentientTarget) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // An auto-targeting turret's sentient: the current target (info +0xc, flag 0x40 in +2) is kept
+    // for 4 s after +0x1c; else it stays a candidate while targetable. Then the next sentient of
+    // the enemy teams (team +0x64 -> mask 1 << {0, 2, 1, 0, 0}) after the last one checked (+0x52,
+    // 0xffff = from the first) replaces it when targetable (Turret_CanTargetSentient) and nearer.
+    // Frame: aligned base - 0x40 (candidate +0x18, distance +0x1c, team table +0x20).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x40;
+    stack_at(L + 8) = ebx;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    uint8_t* const turret = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(turret);
+    uint8_t* const info = pointer_at(turret, 0x24c);
+    const uint32_t info_at = address_of(info);
+    stack_at(L + 0x18) = 0;
+    if (info[2] & 0x40) {
+        uint8_t* const target = pointer_at(info, 0xc);
+        if (target) {
+            uint8_t* const current = pointer_at(target, 0x244);
+            if (current) {
+                const int32_t now = title_global<int32_t>(0x0098540c);
+                if (now <= field<int32_t>(info, 0x1c) + 4000) return address_of(current);
+                stack_at(L + 0x18) = address_of(current);
+                if (word_at(current, 0x30)) {
+                    stack_at(L + 0x18) = 0;
+                } else {
+                    const uint32_t args[3] = {self, word_at(current, 0), L + 0x1c};
+                    if (!call_at(L, 0x00267b21, 0x002635c0,
+                                 TitleRegs{word_at(current, 0), info_at, self, L + 0x1c, static_cast<uint32_t>(now), 0}, 3,
+                                 args))  // Turret_CanTargetSentient
+                        stack_at(L + 0x18) = 0;
+                }
+            }
+        }
+    }
+    const uint32_t team = word_at(info, 0x64);
+    const int16_t last = field<int16_t>(info, 0x52);
+    stack_at(L + 0x28) = 1;
+    stack_at(L + 0x20) = 0;
+    stack_at(L + 0x24) = 2;
+    stack_at(L + 0x2c) = 0;
+    stack_at(L + 0x30) = 0;
+    const uint32_t shift = stack_at(L + 0x20 + team * 4);
+    const uint32_t mask = 1u << (shift & 31);
+    const uint32_t sentients = title_global<uint32_t>(0x00985378);  // g_sentients
+    uint32_t next;
+    if (last > -1) {
+        const uint32_t previous = sentients + static_cast<uint32_t>(static_cast<int32_t>(last)) * 0x60;
+        next = call_at(L, 0x00267b74, 0x001fa510, TitleRegs{previous, info_at, sentients, 0, mask, mask}, 0,
+                       nullptr);  // Sentient_NextOfTeams
+    } else {
+        next = call_at(L, 0x00267b7d, 0x001fa570, TitleRegs{static_cast<uint32_t>(static_cast<int32_t>(last)), info_at, shift, 0,
+                                                            mask, 0},
+                       0, nullptr);  // Sentient_FirstOfTeams
+    }
+    if (!next) {
+        field<uint16_t>(info, 0x52) = 0xffff;
+        return stack_at(L + 0x18);
+    }
+    uint8_t* const candidate = reinterpret_cast<uint8_t*>(uintptr_t{next});
+    field<uint16_t>(info, 0x52) =
+        static_cast<uint16_t>(static_cast<int32_t>(next - title_global<uint32_t>(0x00985378)) / 0x60);
+    if (word_at(candidate, 0x30)) return stack_at(L + 0x18);
+    const uint32_t args[3] = {self, word_at(candidate, 0), L + 0x1c};
+    const uint32_t ok = call_at(L, 0x00267bbc, 0x002635c0, TitleRegs{next, self, L + 0x1c, word_at(candidate, 0), next, 0},
+                                3, args);  // Turret_CanTargetSentient
+    const uint32_t best = stack_at(L + 0x18);
+    if (!ok) return best;
+    if (!best) return next;
+    uint8_t* const best_ent = pointer_at(reinterpret_cast<uint8_t*>(uintptr_t{best}), 0);
+    float sq[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        const float d = field<float>(turret, 0x140 + i * 4) - field<float>(best_ent, 0x140 + i * 4);
+        sq[i] = d * d;
+    }
+    const float sum = sq[0] + sq[1] + sq[2];
+    stack_float(L + 0x20) = sum;
+    stack_float(L + 0x24) = sq[1];
+    stack_float(L + 0x28) = sq[2];
+    stack_float(L + 0x2c) = sq[3];
+    if (sum > stack_float(L + 0x1c)) return next;
+    return best;
+}
+
+PLATFORM_ASM_ENTRY(Turret_AimAtTarget_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Turret_AimAtTarget) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Turret_AimAtTarget(uint8_t* ent, uint32_t aiming, int32_t converge, uint8_t* sentient) {
+    // EDI turret, EDX aiming, ECX convergence ms, cdecl sentient: 0 when it cannot aim
+    // (Turret_ComputeAimPoint); else it turns toward the point (Turret_UpdateTargetAngles). With
+    // a pitch offset (+0x98) running: the pitches from "tag_flash" (hash cached under 0x0098f1b8)
+    // to the sentient's eye and to its origin 2 up bound the current pitch (+0x90); the offset
+    // moves toward the nearer bound (only toward it), 0 inside. 0 without the tag.
+    float point[4] = {};
+    if (!Turret_ComputeAimPoint(ent, sentient, aiming, converge, point)) return 0;
+    uint32_t args[2] = {address_of(ent), address_of(point)};
+    Turret_UpdateTargetAngles(args, 1, ent, point);
+    if (field<float>(ent, 0x98) == title_global<float>(0x0083eafc)) return 1;
+    Sentient_EyeOrigin(sentient, 0, reinterpret_cast<uint8_t*>(point));
+    const uint32_t hash = cached_key(0x0098f1b8, 1, 0x0098f1b4, 0x008389c0);
+    const uint32_t obj = word_at(ent, 0x22c);
+    if (!obj) return 0;
+    const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(uintptr_t{obj}), hash);
+    if (tag < 0) return 0;
+    alignas(16) float matrix[16];
+    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, matrix);  // G_DObjGetWorldTagMatrix
+    float dir[3] = {point[0] - matrix[12], point[1] - matrix[13], point[2] - matrix[14]};
+    float lo = vectopitch(dir);
+    uint8_t* const target = pointer_at(sentient, 0);
+    dir[0] = field<float>(target, 0x140) - matrix[12];
+    dir[1] = field<float>(target, 0x144) - matrix[13];
+    dir[2] = field<float>(target, 0x148) - matrix[14] + title_global<float>(0x0083eba8);  // 2
+    float hi = vectopitch(dir);
+    if (lo > hi) {
+        const float swap = hi;
+        hi = lo;
+        lo = swap;
+    }
+    const float current = field<float>(ent, 0x90);
+    if (!(current >= lo)) {
+        const float d = lo - field<float>(ent, 0x90);
+        if (field<float>(ent, 0x98) > d) field<float>(ent, 0x98) = d;
+        return 1;
+    }
+    if (!(hi >= current)) {
+        const float d = hi - field<float>(ent, 0x90);
+        if (d > field<float>(ent, 0x98)) field<float>(ent, 0x98) = d;
+        return 1;
+    }
+    field<float>(ent, 0x98) = 0.0f;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Pickup_Health_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Pickup_Health) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Pickup_Health(uint8_t* other, uint8_t* ent) {
+    // EDI player, cdecl item entity: health (+0x350) up by the item's amount (+0x20, or the
+    // entity's +0x370) as a percentage of the max (client +0x108; amounts 5 and 100 may reach
+    // twice the max), in whole percent steps (at least 1, at most 100); the client's +0x100
+    // follows. Then "gm \"%i\"" to the player, "trigger" on the item, the HEALTH_PICKUP sound,
+    // "pickup" on the player. Returns -1 (no respawn).
+    int32_t quantity = field<int32_t>(pointer_at(ent, 0x3b0), 0x20);
+    uint8_t* const client = pointer_at(other, 0x23c);
+    const int32_t max_health = field<int32_t>(client, 0x108);
+    const int32_t max = (quantity == 5 || quantity == 100) ? max_health * 2 : max_health;
+    if (field<int32_t>(ent, 0x370)) quantity = field<int32_t>(ent, 0x370);
+    const int32_t health = field<int32_t>(other, 0x350);
+    float amount = static_cast<float>(max_health) * static_cast<float>(quantity);
+    amount = amount * title_global<float>(0x0083f1ec);  // -0.01
+    const int32_t raised = health - static_cast<int32_t>(amount);
+    field<int32_t>(other, 0x350) = raised;
+    if (raised > max) {
+        field<int32_t>(other, 0x350) = max;
+    } else {
+        const int32_t full = field<int32_t>(client, 0x108);
+        const float full_f = static_cast<float>(full);
+        int32_t now = static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(static_cast<uint32_t>(raised) * 100u)) / full_f);
+        if (now < 1) now = 1;
+        else if (now > 100) now = 100;
+        int32_t was = static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(static_cast<uint32_t>(health) * 100u)) / full_f);
+        if (was < 1) was = 1;
+        was += quantity;
+        if (was > 100) was = 100;
+        if (now != was) field<int32_t>(other, 0x350) = static_cast<int32_t>(static_cast<uint32_t>(full) * static_cast<uint32_t>(was)) / 100;
+    }
+    field<int32_t>(client, 0x100) = field<int32_t>(other, 0x350);
+    const uint32_t handle = word_at(other, 0x224);
+    const char* const text = title_function<const char* XB_CDECL(uint32_t, int32_t)>(0x002a93d0)(0x0083b71c, quantity);  // va
+    SV_GameSendServerCommand(text, handle);
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a818));  // "trigger"
+    const TitleRegs regs{0, 0, address_of(ent), 0, address_of(ent), address_of(other)};
+    const uint32_t args[4] = {0x0083b70c, 0, 0xffffffffu, 0};
+    g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias "HEALTH_PICKUP"
+    if (word_at(other, 0x23c)) Scr_Notify(other, title_global<uint32_t>(0x0097a758));  // "pickup"
+    return 0xffffffffu;
+}
+
+void XB_CDECL player_die(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, int32_t damage, uint32_t mod,
+                         uint32_t weapon) {
+    // Q3's player_die (die callback): unless already dead (client +0x24 >= 4), "death" with the
+    // attacker's number (the original keeps it in its self slot), the attacker (+0x374),
+    // LookAtKiller, the HUD's +0x24/+0x28 to -1, dead type 5 from 1 else 4, G_PlayerDeathSetup
+    // (ECX self, EAX means of death, cdecl weapon).
+    (void)damage;
+    if (field<int32_t>(pointer_at(self, 0x23c), 0x24) >= 4) return;
+    uint32_t number = word_at(attacker, 0x224);
+    const uint32_t death = title_global<uint32_t>(0x0097a684);
+    const TitleRegs notify{death, address_of(attacker), number, address_of(&number), address_of(self), address_of(self)};
+    const uint32_t args[2] = {death, address_of(&number)};
+    g_ent_call(0x000265a0, &notify, 2, args);  // G_NotifyWithEntity (callee pops 8)
+    word_at(self, 0x374) = address_of(attacker);
+    LookAtKiller(attacker, inflictor, self);
+    uint8_t* const hud = pointer_at(title_global<uint8_t*>(0x0095f8f0), 0x34);  // g_hudManager
+    if (hud) {
+        word_at(hud, 0x24) = title_global<uint32_t>(0x0083eb34);
+        word_at(hud, 0x28) = title_global<uint32_t>(0x0083eb34);
+    }
+    uint8_t* const client = pointer_at(self, 0x23c);
+    word_at(client, 0x24) = word_at(client, 0x24) == 1 ? 5 : 4;
+    const TitleRegs setup{mod, address_of(attacker), address_of(self), address_of(client), address_of(self), 0};
+    const uint32_t setup_args[1] = {weapon};
+    g_ent_call(0x002691a0, &setup, 1, setup_args);  // G_PlayerDeathSetup
+}
+
+// The callees keep stack addresses in 0x00929b40 (PathNode_FindNearest under
+// Sentient_CachedNearestNode): every callee runs at the original's ESP (frame entry - 0xc).
+PLATFORM_ASM_ENTRY(G_UpdatePlayerNodeClaim_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_UpdatePlayerNodeClaim) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The player's sentient (+0x244) claims its cached nearest node (radius 32) when within 32
+    // units (squared 1024) on x/y; a changed claim drops the old one (Sentient_ClaimNodeTimed when
+    // the client's +0x5f4 actor has no valid node, else Sentient_ClearNodeClaim; handle +0x48 = 0),
+    // and the new node is taken (PathNode_SetClaim, handle +0x48) unless its claimer stands
+    // within 32 units of it.
+    (void)ebp;
+    const uint32_t L = entry - 0xc;
+    stack_at(entry - 4) = ebx;
+    stack_at(entry - 8) = esi;
+    stack_at(entry - 0xc) = edi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(ent);
+    const uint32_t first = word_at(ent, 0x244);
+    const uint32_t near_args[6] = {0, 0, 0, 1, 0x42000000, 0};
+    const uint32_t found = call_at(L, 0x00269591, 0x002095c0, TitleRegs{0, self, 0, 0, esi, first}, 6,
+                                   near_args);  // Sentient_CachedNearestNode (EDI sentient, callee pops)
+    uint8_t* node = reinterpret_cast<uint8_t*>(uintptr_t{found});
+    uint8_t* const s = pointer_at(ent, 0x244);
+    uint8_t* const s_ent = pointer_at(s, 0);
+    const float range = title_global<float>(0x0083eff8);  // 1024
+    if (node) {
+        const float dy = field<float>(s_ent, 0x144) - field<float>(node, 0x48);
+        const float dx = field<float>(s_ent, 0x140) - field<float>(node, 0x44);
+        if (dy * dy + dx * dx > range) node = nullptr;
+    }
+    const uint32_t handle_at = address_of(s) + 0x48;
+    const uint16_t handle = field<uint16_t>(s, 0x48);
+    uint8_t* claimed = nullptr;
+    uint32_t edi_now = first;
+    if (handle != 0 && handle != 0xffff) {
+        edi_now = title_global<uint32_t>(0x0095f4f4);
+        const uint32_t block =
+            title_global<uint32_t>(edi_now + 8 + static_cast<uint32_t>(static_cast<uint16_t>((handle >> 9) - 1)) * 4);
+        if (block) {
+            edi_now = title_global<uint32_t>(block + 0x10);
+            claimed = reinterpret_cast<uint8_t*>(uintptr_t{edi_now + (handle & 0x1ffu) * 0x80});
+        }
+    }
+    if (node == claimed) return;
+    const uint32_t node_at = address_of(node);
+    if (call_at(L, 0x00269626, 0x00014480, TitleRegs{handle_at, self, address_of(claimed), 0, node_at, edi_now}, 0, nullptr) &
+        0xff) {  // PathNode_HandleIsValid (EAX handle)
+        uint8_t* const actor = pointer_at(pointer_at(ent, 0x23c), 0x5f4);
+        bool timed = false;
+        if (actor && word_at(actor, 0x240)) {
+            const uint32_t other = word_at(actor, 0x244) + 0x48;
+            timed = !(call_at(L, 0x00269652, 0x00014480, TitleRegs{other, self, word_at(actor, 0x240), 0, node_at, edi_now}, 0,
+                              nullptr) &
+                      0xff);  // PathNode_HandleIsValid
+        }
+        const uint32_t mine = word_at(ent, 0x244) + 0x48;
+        const uint32_t old = call_at(L, timed ? 0x00269664 : 0x0026967b, 0x002ba010,
+                                     TitleRegs{mine, self, 0, 0, node_at, edi_now}, 0, nullptr);  // PathNode_FromHandle2
+        if (timed)
+            call_at(L, 0x0026966b, 0x002ba1c0, TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
+                    nullptr);  // Sentient_ClaimNodeTimed (EDX)
+        else
+            call_at(L, 0x00269682, 0x002ba2a0, TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
+                    nullptr);  // Sentient_ClearNodeClaim (EDX)
+        field<uint16_t>(pointer_at(ent, 0x244), 0x48) = 0;
+    }
+    if (!node) return;
+    uint8_t* const claimer = pointer_at(node, 4);
+    if (claimer) {
+        const uint8_t* const c_ent = pointer_at(claimer, 0);
+        const float dx = field<float>(node, 0x44) - *reinterpret_cast<const float*>(c_ent + 0x140);
+        const float dy = field<float>(node, 0x48) - *reinterpret_cast<const float*>(c_ent + 0x144);
+        if (range > dy * dy + dx * dx) return;
+    }
+    call_at(L, 0x002696e7, 0x002cabf0, TitleRegs{word_at(ent, 0x244), self, 0, 0, node_at, edi_now}, 0,
+            nullptr);  // PathNode_SetClaim (EAX sentient, ESI node)
+    field<uint16_t>(pointer_at(ent, 0x244), 0x48) = field<uint16_t>(node, 0);
+}
+
+PLATFORM_ASM_ENTRY(G_PlayerMelee_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_PlayerMelee) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_PlayerMelee(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EBX player: unless on a turret/vehicle (client +0xc0 & 0x106000 with +0x297 set), the view
+    // axis (AnglesToAxis of the client's view angles +0x9c) with the view origin
+    // (Player_GetViewOrigin) as its fourth row and the weapon def at +0x3c of that block go to
+    // Weapon_MeleeTrace (EAX block). Frame: aligned base - 0x60 (origin copy +0x10, block +0x20).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x60;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    const uint32_t self = address_of(ent);
+    uint8_t* const client = pointer_at(ent, 0x23c);
+    if ((word_at(client, 0xc0) & 0x106000) && ent[0x297]) return;
+    const uint32_t def = address_of(weapon_def(ent[3]));
+    stack_at(L + 0x5c) = def;
+    const uint32_t angles = address_of(client) + 0x9c;
+    const uint32_t axis_args[2] = {angles, L + 0x20};
+    call_at(L, 0x00269754, 0x002a2af0, TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x2c}, 2,
+            axis_args);  // AnglesToAxis
+    for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x10 + i * 4) = stack_at(L + 0x44 + i * 4);
+    const uint32_t ent_arg[1] = {self};
+    call_at(L - 8, 0x00269782, 0x00259090, TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x10}, 1,
+            ent_arg);  // Player_GetViewOrigin (EDI out)
+    for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x44 + i * 4) = stack_at(L + 0x10 + i * 4);
+    call_at(L - 0xc, 0x002697b0, 0x00265c10, TitleRegs{L + 0x20, self, 0, 0, L + 0x38, L + 0x10}, 1,
+            ent_arg);  // Weapon_MeleeTrace (EAX block)
+}
+
+// The spawn functions keep stack addresses in 0x00929b40: every callee runs at the original's
+// ESP (frame entry - 0xc: key +4, map iterator +8).
+PLATFORM_ASM_ENTRY(G_CallSpawnByClassname_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_CallSpawnByClassname) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's G_CallSpawn (EDI entity): the spawn function for the class hash (+0x260) from the
+    // spawn map (0x00983e1c, built on first use), else Actor_Spawn for "actor_*" classes, else
+    // G_SpawnItem for a matching bg_itemlist entry (0x34 bytes, hash +0, ends at a null +4);
+    // a spawned entity's string hashes are refreshed.
+    (void)ebp;
+    const uint32_t L = entry - 0xc;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    if (!title_global<uint32_t>(0x00983e28))
+        call_at(entry - 8, 0x00269cc1, 0x00251140, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_InitSpawnFuncMap
+    stack_at(L) = esi;
+    stack_at(L + 4) = word_at(ent, 0x260);
+    call_at(L, 0x00269cde, 0x000289c0, TitleRegs{L + 8, ebx, L + 4, 0, 0x00983e1c, edi}, 0, nullptr);  // UintHashMap_Find
+    const uint32_t found = stack_at(L + 8);
+    auto hashes = [&](uint32_t ret) {
+        call_at(L, ret, 0x002fb310, TitleRegs{0, ebx, 0, 0, edi, edi}, 0, nullptr);  // G_UpdateEntityStringHashes (ESI)
+    };
+    if (found != title_global<uint32_t>(0x00983e24)) {
+        const uint32_t index = title_global<uint32_t>(found + 0xc);
+        const uint32_t args[1] = {edi};
+        call_at(L, 0x00269cf5, title_global<uint32_t>(0x009885e4 + index * 8), TitleRegs{found, ebx, index, 0, 0x00983e1c, edi},
+                1, args);
+        hashes(0x00269cff);
+        return;
+    }
+    const uint32_t rep = word_at(ent, 0x25c);
+    const uint32_t name = rep ? rep + 6 : 0;
+    const uint32_t compare_args[3] = {name, 0x00839dc8, 6};
+    if (!call_at(L, 0x00269d22, 0x001eeaf0, TitleRegs{name, ebx, 0, 0, 0x00983e1c, edi}, 3, compare_args)) {  // _strncmp "actor_"
+        call_at(L, 0x00269d30, 0x002106f0, TitleRegs{edi, ebx, 0, 0, 0x00983e1c, edi}, 0, nullptr);  // Actor_Spawn (EAX)
+        hashes(0x00269d37);
+        return;
+    }
+    if (!title_global<uint32_t>(0x0096bd48)) return;
+    for (uint32_t item = 0x0096bd44;; item += 0x34) {  // bg_itemlist
+        if (title_global<uint32_t>(item) == word_at(ent, 0x260)) {
+            call_at(L, 0x00269d6a, 0x0025f7c0, TitleRegs{edi, ebx, 0, 0, item, edi}, 0, nullptr);  // G_SpawnItem (EAX, ESI item)
+            hashes(0x00269d71);
+            return;
+        }
+        if (!title_global<uint32_t>(item + 0x38)) return;
+    }
+}
+
+void XB_CDECL SP_script_vehicle(uint8_t* ent) {
+    // The "vehicletype" spawn key (hash cached under 0x0098f208) names the vehicle (Vehicle_Init,
+    // EAX entity); physics vehicles (def +0x20 == 2) load their physics state and, without
+    // spawnflag 0x400000 (+0x2a4), take their origin/angles (+0xc0/+0xe0 of the vehicle).
+    const uint32_t key = cached_key(0x0098f208, 1, 0x0098f204, 0x00839f30);
+    uint32_t value = 0;
+    const int32_t count = title_global<int32_t>(0x00985420);
+    for (int32_t i = 0; i < count; ++i) {
+        if (key != title_global<uint32_t>(0x00985424 + static_cast<uint32_t>(i) * 8)) continue;
+        value = title_global<uint32_t>(0x00985428 + static_cast<uint32_t>(i) * 8);
+        break;
+    }
+    const TitleRegs init_regs{address_of(ent), 0, 0, 0, address_of(ent), 0};
+    const uint32_t init_args[2] = {value, 1};
+    g_ent_call(0x00260330, &init_regs, 2, init_args);  // Vehicle_Init
+    uint8_t* const vehicle = pointer_at(ent, 0x248);
+    const uint8_t* const def = title_global<const uint8_t*>(0x00950a28 + field<int16_t>(vehicle, 0x178) * 4);
+    if (*reinterpret_cast<const int16_t*>(def + 0x20) != 2) return;
+    const TitleRegs load_regs{0, 0, address_of(ent), 0, address_of(ent), address_of(vehicle) + 0xc0};
+    g_ent_call(0x0024bec0, &load_regs, 0, nullptr);  // Vehicle_LoadPhysicsState (ECX)
+    if (word_at(ent, 0x2a4) & 0x400000) return;
+    const TitleRegs set_regs{address_of(ent), 0, 0, address_of(vehicle) + 0xe0, address_of(ent), address_of(vehicle) + 0xc0};
+    const uint32_t set_args[2] = {address_of(vehicle) + 0xc0, address_of(vehicle) + 0xe0};
+    g_ent_call(0x00255220, &set_regs, 2, set_args);  // Vehicle_SetOriginAndAngles (EAX)
+}
 }  // namespace game

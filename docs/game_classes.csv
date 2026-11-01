@@ -272,3 +272,7 @@
 00266d70,Think_SpawnNewDoorTrigger,not reached,"only the two door think wrappers below (func_door); 0 calls in missions 0-7 (--only --every 1, two runs), like Door_StartRotate"
 0026b920,Think_SpawnNewDoorTriggerRotate,not reached,"think of rotating doors; 0 calls in missions 0-7 (--only --every 1, two runs)"
 0026b950,Think_SpawnNewDoorTrigger_Entry,not reached,"think of sliding doors; 0 calls in missions 0-7 (--only --every 1, two runs)"
+002679c0,Artillery_Fire,not reached,"think (pointer at 0x008da7b0) of artillery entities; 0 calls in missions 0-7 (--only --every 1, two runs)"
+00267a10,Think_DropNamedItem,not reached,"think (pointer at 0x008da7cc) dropping a named item; 0 calls in missions 0-7 (--only --every 1, two runs)"
+00267a50,Actor_TurretCheckNearEnemy,not reached,"only caller Actor_CanUseTurret (turrets without info flag 2); 0 calls in missions 0-7 (--only --every 1, two runs)"
+00268770,Pickup_Health,not reached,"only caller Touch_Item (health items); unattended runs pick up no health; 0 calls in missions 0-7 (--only --every 1, two runs)"

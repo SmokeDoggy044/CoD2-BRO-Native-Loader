@@ -232,4 +232,43 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL turret_think_init(uint32_t entry, uint3
                                                            uint32_t ebp);
 extern "C" void turret_think_init_entry(void);
 
+// 0x002679c0: think 0xb after the weapon's fire delay (+0x754) and the "MP_Artillery_Fire" sound.
+uint32_t XB_CDECL Artillery_Fire(uint8_t* ent);
+// 0x00267a10: drops the item named by +0x3b8 in place (vtos of the origin when that fails).
+void XB_CDECL Think_DropNamedItem(uint8_t* ent);
+// 0x00267a50 (actor in ECX, cdecl turret): 1 without an enemy or one 256+ units away, else
+// Actor_TurretCanTargetEnemy. Proposed name (was FUN_00267a50).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TurretCheckNearEnemy(uint32_t entry, uint8_t* actor, uint32_t ebx,
+                                                                        uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_TurretCheckNearEnemy_entry(void);
+// 0x00267ac0 (cdecl turret): the auto-targeting turret's sentient (current one, else the nearest
+// targetable of the enemy teams, one candidate per call); 0 for none.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32_t esi,
+                                                                       uint32_t edi, uint32_t ebp);
+extern "C" void Turret_PickSentientTarget_entry(void);
+// 0x00267c30 (turret in EDI, aiming in EDX, convergence in ECX; cdecl sentient): aims; 1 when it can.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_AimAtTarget(uint8_t* ent, uint32_t aiming, int32_t converge,
+                                                                uint8_t* sentient);
+extern "C" void Turret_AimAtTarget_entry(void);
+// 0x00268770 (player in EDI, cdecl item): health pickup; returns -1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Pickup_Health(uint8_t* other, uint8_t* ent);
+extern "C" void Pickup_Health_entry(void);
+// 0x00269450: Q3's player_die (self, inflictor, attacker, damage, means of death, weapon).
+void XB_CDECL player_die(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, int32_t damage, uint32_t mod,
+                         uint32_t weapon);
+// 0x00269570: the player's sentient claims the nearest path node within 32 units.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                 uint32_t ebp);
+extern "C" void G_UpdatePlayerNodeClaim_entry(void);
+// 0x00269700 (player in EBX): Weapon_MeleeTrace from the view axis and origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_PlayerMelee(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void G_PlayerMelee_entry(void);
+// 0x00269cb0 (entity in EDI): Q3's G_CallSpawn (spawn map, actor_*, items).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                uint32_t ebp);
+extern "C" void G_CallSpawnByClassname_entry(void);
+// 0x00269d80: spawn function of script_vehicle ("vehicletype" key).
+void XB_CDECL SP_script_vehicle(uint8_t* ent);
+
 }  // namespace game
