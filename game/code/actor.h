@@ -602,4 +602,31 @@ extern "C" void Actor_ComputeShotDir_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SetQuantizedPitchYaw(uint8_t* angles, float pitch, float yaw);
 extern "C" void Actor_SetQuantizedPitchYaw_entry(void);
 
+// 0x001ffe10: EBX actor, EAX + 5 stack words (ret 0x14): cover candidates (+0x7f0, count +0x818) from
+// PathNode_ListInCylinder, filtered (stack 4), scored (stack 5) and sorted.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GatherCoverCandidates(uint32_t entry, uint8_t* actor, uint32_t esi,
+                                                                     uint32_t eax, uint32_t arg1, uint32_t arg2,
+                                                                     uint32_t arg3, uint32_t filter, uint32_t score);
+extern "C" void Actor_GatherCoverCandidates_entry(void);
+// 0x00200ad0: once per level time, the node nearest to the sentient's entity (+0x4a).
+void XB_THISCALL Sentient_UpdateNearestNode(uint8_t* sentient);
+// 0x00200b50: the sentient leaves: enemy, claims and every other sentient's references dropped.
+void XB_CDECL Sentient_Dissociate(uint8_t* sentient);
+// 0x00201af0: ESI actor: stop callback, anim thread ended without notify, tail jump to 0x0029aba0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_AbortAnimScript(uint8_t* actor);
+extern "C" void Actor_AbortAnimScript_entry(void);
+// 0x00201cf0: EDI actor: the path trimmed at the goal, or dropped. Returns the trim result or 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TrimPathAtGoal(uint8_t* actor);
+extern "C" void Actor_TrimPathAtGoal_entry(void);
+// 0x00201e00: drops every actor path that crosses a bad place for its team. Returns 0.
+uint32_t XB_CDECL BadPlace_ClearCrossingPaths();
+// 0x00201e90: EDI actor, stack exact (ret 4): the goal radius in XMM0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_GetGoalRadius(const uint8_t* actor, uint32_t exact);
+extern "C" void Actor_GetGoalRadius_entry(void);
+// 0x002027d0: EAX actor: NodeClaimRevoked callbacks for a claimed node, the goal node dropped.
+void XB_REGS1 XB_CDECL Actor_DropClaimedNode(uint8_t* actor);
+// 0x002029d0: EAX sentient: frees the sentient. No references (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_Free(uint8_t* sentient);
+extern "C" void Sentient_Free_entry(void);
+
 }  // namespace game
