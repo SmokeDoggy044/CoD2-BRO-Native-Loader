@@ -830,7 +830,10 @@ extern "C" void Actor_FindNearestNode_entry(void);
 
 // 0x00207d70: the actor's pose on its turret (aim row/yaw blends, position and angles from the tags);
 // 1 when it left the turret.
-uint32_t XB_STDCALL Actor_Turret_UpdatePose(uint8_t* actor);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx, uint32_t edx,
+                                                                   uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                   uint32_t ebp);
+extern "C" void Actor_Turret_UpdatePose_entry(void);
 
 // 0x00206550 (EAX actor, ESI out): the refreshed eye direction (+0x1c0) copied out.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CopyEyeDirection(uint8_t* actor, uint8_t* out);
@@ -864,6 +867,43 @@ extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint
                                                             float fov_cos, float max_dist2, uint32_t pass,
                                                             uint32_t ebp);
 extern "C" void Actor_CanSeePoint_entry(void);
+// 0x0020ec50 (EAX actor, ECX entity, stack point; XMM0): Actor_CanSeePoint with the actor's cone and range,
+// passing through the entity.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePointIgnoringEnt(uint32_t entry, uint8_t* actor,
+                                                                       const uint8_t* ent, uint32_t ebp);
+extern "C" void Actor_CanSeePointIgnoringEnt_entry(void);
+// 0x0020ec80 (EAX actor, stack point; XMM0): Actor_CanSeePoint with the actor's cone and range.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePointDefault(uint32_t entry, uint8_t* actor, uint32_t ebp);
+extern "C" void Actor_CanSeePointDefault_entry(void);
+// 0x0020c820 (EAX goal point, stack path, team, start node, two search arguments; ret 0x14): a route
+// from `start` to the node nearest the goal.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_Route(uint32_t entry, const float* goal, uint32_t ebx, uint32_t edx,
+                                                       uint32_t esi, uint32_t edi);
+extern "C" void Path_Route_entry(void);
+// 0x0020c8b0 (EBX from point, stack path, team, to point, search argument; ret 0x10): a route between
+// the nodes nearest the two points.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetween(uint32_t entry, const float* from, uint32_t edx,
+                                                              uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteBetween_entry(void);
+// 0x0020be80 (stack path, actor, out floats; ret 0xc): per path point, the summed range accuracy of the
+// enemy sentients whose nearest node sees it.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx, uint32_t esi,
+                                                                    uint32_t edi, uint32_t ebp);
+extern "C" void Path_ScoreEnemyExposure_entry(void);
+// 0x0020d160 (EAX goal point, stack actor; ret 4): 1 when no route is needed, else a route found (0: none).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_RouteToGoalNodeCached(uint32_t entry, const float* goal,
+                                                                           uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                           uint32_t ebp);
+extern "C" void Sentient_RouteToGoalNodeCached_entry(void);
+// 0x0020e770 (ESI sentient, stack min, max depth; ret 8): a goal node near the goal entity's nearest node.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_FindGoalNodeNearEntity(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                        uint32_t ecx, uint32_t edx, uint32_t edi,
+                                                                        uint32_t ebp);
+extern "C" void Sentient_FindGoalNodeNearEntity_entry(void);
+// 0x0020d430 (EAX refresh prone state, ECX actor): the aim up/straight/down anim blend from the aim difference.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_UpdateAimBlend(uint32_t entry, uint32_t check_prone, uint8_t* actor,
+                                                             uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateAimBlend_entry(void);
 
 // 0x0020c6d0 (EAX actor, ECX path, XMM4 range, stack state, pass entity, end; ret 0xc): path trim by sight.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TrimToVisiblePoint(uint32_t entry, uint8_t* actor, uint8_t* path,
