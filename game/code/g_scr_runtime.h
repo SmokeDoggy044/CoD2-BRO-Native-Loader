@@ -10,6 +10,8 @@
 
 namespace game {
 
+struct ScriptString;
+
 // 0x0011d890: *out = the name's key hash (interface HashKeyNoCase, 0x009229e4); returns out.
 uint32_t* XB_CDECL Scr_HashName(uint32_t* out, const char* name);
 // 0x0011d930: Scr_EndOn (interface 0x00922188) with the name's hash in place of the name (the
@@ -67,5 +69,28 @@ uint32_t* XB_STDCALL Scr_AllocPtrArray(uint32_t count, uint32_t unused);
 // 0x002f5e10: frees script memory to the heap that owns it.
 void XB_CDECL Scr_Free(void* block);
 uint32_t* XB_CDECL Scr_HashScriptString(uint32_t* out, const uint8_t* const* string);
+
+// 0x0001b5c0: frees the queued notify records of a singly linked range (iterators {node, next};
+// first, next, end, end's next, allocator tag): each record's value (+0x10) through its deleting
+// destructor, the record back to heap 0x0095f56c.
+void XB_CDECL NotifyList_FreeRange(uint32_t* first, uint32_t* next, uint32_t* end, uint32_t* end_next,
+                                   uint32_t tag);
+// 0x0001ec10: deleting destructor of a chained entity notify block (next block +0x38, freed
+// first; heap 0x0095f568).
+uint8_t* XB_THISCALL EntNotifyBlock_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00022df0 (entity in EBX, callee pops 8): Scr_Notify carrying a script string (value kind
+// 0x007f963c).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_NotifyWithString(uint8_t* ent, uint32_t notify,
+                                                              const ScriptString* text);
+extern "C" void Scr_NotifyWithString_entry(void);
+// 0x000264d0 (entity in EDI, callee pops 8): G_NotifyWithEntity with value kind 0x008317d8.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_NotifyWithEntity_2(uint32_t entry, uint8_t* ent, uint32_t notify,
+                                                              const uint32_t* other, uint32_t ebx, uint32_t esi);
+extern "C" void G_NotifyWithEntity_2_entry(void);
+// 0x00026670 (stdcall): a notify carrying an int and an entity handle (value kind 0x00839c20); the
+// handler gets {other, 0, (float)value, undefined}.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_NotifyWithIntEntity(uint32_t entry, uint8_t* ent, uint32_t notify,
+                                                               const int32_t* value, const uint32_t* other);
+extern "C" void G_NotifyWithIntEntity_entry(void);
 
 }  // namespace game

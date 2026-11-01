@@ -2,8 +2,12 @@
 
 #include <cstring>
 
+#include "actor.h"
+#include "dobj.h"
 #include "fx.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
 #include "title_data.h"
 
 namespace game {
@@ -712,6 +716,52 @@ char* XB_REGS1 XB_CDECL G_AddSpawnVarToken(const char* token) {
     std::memcpy(copy, token, length + 1);
     title_global<uint32_t>(0x00985624) += length + 1;
     return copy;
+}
+
+uint32_t XB_REGS1 XB_CDECL G_GetEntityZone(const uint8_t* ent) {
+    const uint32_t zone = *reinterpret_cast<const uint32_t*>(ent + 0x220);
+    if (zone != 0xffffffff) return zone;
+    return *reinterpret_cast<const uint32_t*>(title_global<const uint8_t*>(0x0095f638) + 0x34);
+}
+
+PLATFORM_ASM_ENTRY(EntBits_IterBegin_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(EntBits_IterBegin) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL EntBits_IterBegin(const uint32_t* bits, uint32_t* iterator) {
+    iterator[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(bits));
+    iterator[1] = bits[0];
+    iterator[2] = 0;
+    iterator[3] = 0xffffffff;
+    EntBits_IterNext(iterator);
+    return iterator;
+}
+
+uint32_t* XB_REGS2 XB_CDECL EntBits_Invert(uint32_t* out, const uint32_t* bits) {
+    // All 42 words are read (last first) into a stack copy before the copy out.
+    uint32_t inverted[42];
+    for (int32_t i = 41; i >= 0; --i) inverted[i] = ~bits[i];
+    platform_rep_movs(out, inverted, sizeof(inverted));
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(G_FreeXModel_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_FreeXModel) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_FreeXModel(int32_t context_index, uint8_t* model) {
+    if (!model) return;
+    XModel_Free(model);
+    if (context_index != -1) {
+        uint8_t* context = nullptr;
+        if (context_index >= 0 && context_index < 0x63)
+            context = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f638) + 0x38 +
+                                                          context_index * 4);
+        if (MemContext_Free_r(context, model)) return;
+    }
+    Z_Free(model);
 }
 
 }  // namespace game

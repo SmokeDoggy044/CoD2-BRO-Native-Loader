@@ -166,4 +166,20 @@ void XB_CDECL Use_trigger_use(uint8_t* self, const uint8_t* other);
 // 0x00985624, G_Error past 0x800) and returns the copy.
 char* XB_REGS1 XB_CDECL G_AddSpawnVarToken(const char* token);
 
+// 0x000142a0 (entity in EAX): the entity's zone (+0x220), or the level's default zone
+// (0x0095f638 -> +0x34) when it is -1.
+uint32_t XB_REGS1 XB_CDECL G_GetEntityZone(const uint8_t* ent);
+// 0x00014730 (bits in EAX, iterator in ESI): starts an iterator over a 42-word entity bit set
+// {bits, current word, word index, entity} and steps it to the first set bit (EntBits_IterNext);
+// returns the iterator.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL EntBits_IterBegin(const uint32_t* bits, uint32_t* iterator);
+extern "C" void EntBits_IterBegin_entry(void);
+// 0x00014ca0 (out in EAX, bits in EDX): out = the complement of a 42-word entity bit set.
+uint32_t* XB_REGS2 XB_CDECL EntBits_Invert(uint32_t* out, const uint32_t* bits);
+// 0x000231b0 (memory context index in ESI, model in EDI): XModel_Free, then the model's memory
+// back to its context (0x0095f638 -> +0x38[index], null outside 0..0x62) - Z_Free when the
+// index is -1 or the context does not own it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_FreeXModel(int32_t context_index, uint8_t* model);
+extern "C" void G_FreeXModel_entry(void);
+
 }  // namespace game

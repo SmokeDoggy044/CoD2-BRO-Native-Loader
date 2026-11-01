@@ -1,5 +1,9 @@
 #include "g_scr_runtime.h"
 
+#include <cstring>
+
+#include "qcommon_core.h"
+#include "script_string.h"
 #include "title_data.h"
 
 namespace game {
@@ -308,6 +312,164 @@ void XB_CDECL Scr_Free(void* block) {
 uint32_t* XB_CDECL Scr_HashScriptString(uint32_t* out, const uint8_t* const* string) {
     *out = hash_key(*string ? reinterpret_cast<const char*>(*string + 6) : nullptr);
     return out;
+}
+
+void XB_CDECL NotifyList_FreeRange(uint32_t* first, uint32_t* next, uint32_t*, uint32_t* end_next, uint32_t) {
+    // The original keeps the node it frees one step behind the walk (first is freed first) and
+    // keeps the current node in next's argument slot (callee scratch).
+    uint32_t* current = first;
+    uint32_t* walk = next;
+    if (walk == end_next) return;
+    do {
+        uint32_t* const node = current;
+        if (walk) {
+            current = walk;
+            walk = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(*walk));
+        }
+        if (node) {
+            if (const uint32_t argument = node[4]) {
+                const uint32_t vtable = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(argument));
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(
+                    *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(vtable)))(argument, 1);
+            }
+            node[4] = 0;
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f56c), reinterpret_cast<uint8_t*>(node));
+        }
+    } while (walk != end_next);
+}
+
+uint8_t* XB_THISCALL EntNotifyBlock_DeletingDtor(uint8_t* self, uint32_t flags) {
+    if (uint8_t* const next = *reinterpret_cast<uint8_t**>(self + 0x38)) EntNotifyBlock_DeletingDtor(next, 1);
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f568), self);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(Scr_NotifyWithString_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Scr_NotifyWithString) "addl $12, %esp\n"
+                   "ret $8")
+
+void XB_CDECL Scr_NotifyWithString(uint8_t* ent, uint32_t notify, const ScriptString* text) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x10);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x007f963c;
+            ScriptString_Copy(reinterpret_cast<ScriptString*>(argument + 3), text);
+        }
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = entity_number(ent);
+    }
+    queue_notify(node);
+    if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
+        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+}
+
+// G_NotifyWithEntity's twin with value kind 0x008317d8 (same frame: the parameter block at entry
+// ESP - 0x10, the handler run there).
+PLATFORM_ASM_ENTRY(G_NotifyWithEntity_2_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_NotifyWithEntity_2) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL G_NotifyWithEntity_2(uint32_t entry, uint8_t* ent, uint32_t notify, const uint32_t* other, uint32_t ebx,
+                                   uint32_t esi) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x10);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x008317d8;
+            argument[3] = *other;
+        }
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = entity_number(ent);
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+    }
+    queue_notify(node);
+    const uint32_t f = title_global<uint32_t>(0x00922eb8);  // the script's undefined float
+    const uint32_t block = entry - 0x10;
+    uint32_t* parameters = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(block));
+    parameters[1] = 0;
+    parameters[2] = f;
+    parameters[3] = f;
+    parameters[0] = *other;
+    const uint32_t handler = *reinterpret_cast<const uint32_t*>(ent + 0x234);
+    if (!handler) return;
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    const TitleRegs regs = {notify, ebx, handler, block, esi, self};
+    const uint32_t args[3] = {self, notify, block};
+    title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
+}
+
+// The parameter block {other's handle, 0, value as a float, undefined float} sits at entry ESP -
+// 0x10, where the handler keeps its address (0x008dd1e4); the handler runs at the original's ESP
+// with its registers (EBX = entity, ESI = the queued record, EDI = 0).
+PLATFORM_ASM_ENTRY(G_NotifyWithIntEntity_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_NotifyWithIntEntity) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $16")
+
+void XB_CDECL G_NotifyWithIntEntity(uint32_t entry, uint8_t* ent, uint32_t notify, const int32_t* value,
+                                    const uint32_t* other) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x14);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x00839c20;
+            argument[3] = static_cast<uint32_t>(*value);
+            argument[4] = *other;
+        }
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = entity_number(ent);
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+    }
+    queue_notify(node);
+    const uint32_t block = entry - 0x10;
+    uint32_t* parameters = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(block));
+    parameters[3] = title_global<uint32_t>(0x00922eb8);  // the script's undefined float
+    const float as_float = static_cast<float>(*value);
+    std::memcpy(&parameters[2], &as_float, 4);
+    parameters[1] = 0;
+    parameters[0] = *other;
+    const uint32_t handler = *reinterpret_cast<const uint32_t*>(ent + 0x234);
+    if (!handler) return;
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    const TitleRegs regs = {notify, self, handler, block, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)), 0};
+    const uint32_t args[3] = {self, notify, block};
+    title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
 }
 
 }  // namespace game
