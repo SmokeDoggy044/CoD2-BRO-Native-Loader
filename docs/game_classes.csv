@@ -257,3 +257,5 @@
 0025e450,fire_grenadeCooked,not reached,"only Weapon_SpawnClusterGrenades; 0 calls in missions 0-9 (--only --every 1)"
 0025e6e0,fire_grenade,not reached,"callers weapon_grenadelauncher_fire, GScr_MagicGrenade/Manual, GScr_ActorThrowGrenade; 0 calls in missions 0-9 (--only --every 1)"
 00262040,Door_StartRotate,not reached,"only Think_SpawnNewDoorTriggerRotate (func_door_rotating); 0 calls in missions 0-9"
+002655b0,ClientDisconnect,not reached,"only G_vmMain's client-disconnect command (the campaign never disconnects its player); 0 calls in missions 1/4/5/6; forced on entity 0 the original faults (no client at +0x23c)"
+00262740,Reached_BinaryMover,not reached,"reached callback (0x008da800) of binary movers; 0 calls in missions 1/4/5/6 (--only --every 1); a forced call on a non-mover ends in G_Error"

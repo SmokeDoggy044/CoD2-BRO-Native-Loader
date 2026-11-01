@@ -625,4 +625,84 @@ uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_i
     return ent;
 }
 
+namespace {
+
+uint8_t* item_pointer(uint8_t* base, uint32_t offset) {
+    return reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(base + offset)});
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Drop_Item_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Drop_Item) "addl $16, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Drop_Item(uint8_t* ent, uint32_t still, const uint8_t* item, float angle) {
+    // Q3's Drop_Item. ESI entity, EAX "no throw", cdecl (item, yaw offset): thrown at 150 along
+    // the yaw (+0x154 + angle) and 200 +- 50 (title rand) up, else at rest; from the box's middle
+    // height; LaunchItem in the level context. Returns the item entity.
+    float yaw = field<float>(ent, 0x154) + angle;
+    float velocity[3];
+    if (still) {
+        velocity[2] = 0.0f;
+        velocity[1] = 0.0f;
+        velocity[0] = 0.0f;
+    } else {
+        yaw = yaw * title_global<float>(0x0083edd8);
+        float sine, cosine, sine0, cosine0;
+        FastSinCos(&sine, 0, &cosine, yaw);
+        FastSinCos(&sine0, 0, &cosine0, 0.0f);
+        const float down = 0.0f - sine0;
+        const float speed = title_global<float>(0x0083ebf0);
+        velocity[0] = cosine0 * cosine * speed;
+        velocity[1] = cosine0 * sine * speed;
+        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const float up = down * speed;
+        velocity[2] = (static_cast<float>(r) * title_global<float>(0x0083ecf8) - title_global<float>(0x0083eb20)) *
+                          title_global<float>(0x0083ec30) +
+                      up + title_global<float>(0x0083ef08);
+    }
+    float origin[3];
+    origin[0] = field<float>(ent, 0x140);
+    origin[1] = field<float>(ent, 0x144);
+    origin[2] = (field<float>(ent, 0xf8) - field<float>(ent, 0xe8)) * title_global<float>(0x0083eb24) +
+                field<float>(ent, 0x148);
+    const int32_t context = *reinterpret_cast<const int32_t*>(uintptr_t{title_global<uint32_t>(0x0095f638) + 0x34});
+    return LaunchItem(0, origin, context, item, velocity, -1);
+}
+
+void XB_REGS1 XB_CDECL TossClientItems(uint8_t* ent) {
+    // Q3's TossClientItems: the held weapon (entity +3; the player state's +0x52a in state 2 (+0x84))
+    // when owned (bit in ps +0x3f0), valid, with ammo (+0x110) or clip (+0x280) and no
+    // weapon-change flags (ps +0xc0 & 0x6000), dropped at rest (Drop_Item) with no think time.
+    uint8_t* const ps = item_pointer(ent, 0x23c);
+    int32_t weapon = ent[3];
+    if (word_at(ps, 0x84) == 2) weapon = ps[0x52a];
+    if (!(word_at(ps, 0x3f0 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f)))) return;
+    if (weapon <= 0 || weapon > title_global<int32_t>(0x0095f4d4)) return;
+    uint8_t* const def = reinterpret_cast<uint8_t*>(uintptr_t{
+        *reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f4d8) + static_cast<uint32_t>(weapon) * 4})});
+    if (!word_at(ps, 0x110 + word_at(def, 0x598) * 4) && !word_at(ps, 0x280 + word_at(def, 0x5a0) * 4)) return;
+    if (word_at(ps, 0xc0) & 0x6000) return;
+    const TitleRegs regs{0, 0, 0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent)), 0};
+    const uint32_t args[2] = {0x0096bd10 + static_cast<uint32_t>(weapon) * 0x34, 0};
+    uint8_t* const dropped = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x00264f60, &regs, 2, args)});  // Drop_Item
+    if (dropped) word_at(dropped, 0x328) = 0;
+}
+
+void XB_CDECL ClientDisconnect(uint32_t handle) {
+    // Q3's ClientDisconnect: the client's items tossed while playing (+0x520 == 2), the entity
+    // freed, the connection state cleared.
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    uint8_t* const client = item_pointer(ent, 0x23c);
+    if (word_at(client, 0x520) == 2) TossClientItems(ent);
+    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+    word_at(client, 0x520) = 0;
+}
 }  // namespace game

@@ -184,4 +184,19 @@ void XB_CDECL ReturnToPos1(uint8_t* ent);
 // 0x00267980: the incoming-shell sound, think 9 in 1.1 s; returns the sound call's EAX.
 uint32_t XB_CDECL Artillery_Incoming(uint8_t* ent);
 
+// 0x00262e00 (turret, actor): 1 when the actor's enemy is no reason to leave the turret, else
+// whether the sight trace from beside the weapon tag to its eye is blocked.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, uint8_t* actor,
+                                                                    uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_TurretCanTargetEnemy_entry(void);
+// 0x002635c0 (turret, entity, squared distance out or null): 1 when the turret can shoot it.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint8_t* target,
+                                                                  float* out_dist2, uint32_t ebx, uint32_t esi,
+                                                                  uint32_t edi, uint32_t edx, uint32_t ebp);
+extern "C" void Turret_CanTargetSentient_entry(void);
+// 0x002638b0 (turret, sentient, aiming, convergence ms, angles out): the aim point, converging
+// from beside the target at first; 0 when it cannot aim.
+uint32_t XB_CDECL Turret_ComputeAimPoint(uint8_t* ent, uint8_t* sentient, uint32_t aiming, int32_t converge,
+                                         float* angles);
+
 }  // namespace game
