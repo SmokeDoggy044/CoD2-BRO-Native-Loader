@@ -537,3 +537,5 @@ address,name,kind,reason
 001e5480,Scr_CallThread_vt00825c50,thread switch,"as Scr_CallThread_ent_hash_i_str_i_ent (callers BroScr_HandleNoteTracksForTime, BroScr_DebugPrintTimesThrough); C kept, not registered (game ai push 2)"
 001fa400,Scr_ThreadEntry,thread switch,"Scr_ResumeThread runs it on the script thread's own stack: the functor body (vtable slot 1) suspends and resumes there; C kept, not registered (game ai push 2)"
 001fab10,Actor_Noncombat_Resume,unhookable,"xor eax,eax; ret (3 bytes; state table 0x00830ce8); matched offline 4000/4000 (game ai push 2)"
+00248a30,Ent_Callback348Stub2,unhookable,"bare ret (1 byte; callback table 0x008da8ac), too short to hook; has C (game ent push 1)"
+0024add0,G_ActorClampLethalDamage,unhookable,"RET at +4 inside the first 5 bytes (test eax,eax; jne; ret); has C (game ent push 1)"

@@ -25,10 +25,12 @@ set(game_code_sources
     fx.cpp
     fx_cmd.cpp
     fx_load.cpp
+    g_combat.cpp
     g_main.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp
     g_script.cpp
+    g_spawn.cpp
     g_utils.cpp
     g_vehicle.cpp
     movie.cpp
@@ -39,8 +41,8 @@ set(game_code_sources
     nal_math.cpp
     nal_pose.cpp
     ngl.cpp
-    ngl_gfx.cpp
     ngl_debug.cpp
+    ngl_gfx.cpp
     param_set.cpp
     phys.cpp
     qcommon.cpp

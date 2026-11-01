@@ -967,4 +967,92 @@ float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float
     return best;
 }
 
+uint32_t XB_THISCALL G_GetTouchTypeFlag(const uint8_t* ent) {
+    if (*reinterpret_cast<const uint32_t*>(ent + 0x248)) return 0x8;
+    const uint32_t ragdoll = *reinterpret_cast<const uint32_t*>(ent + 0x244);
+    if (!ragdoll) return 0x400000;
+    if (*reinterpret_cast<const uint32_t*>(ent + 0x23c)) return 0x40000000;
+    const uint32_t kind = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ragdoll + 4));
+    if (kind == 1) return 0x40000;
+    if (kind == 2) return 0x80000;
+    if (kind == 3) return 0x100000;
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(multi_trigger_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(multi_trigger) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL multi_trigger(uint32_t activator, uint8_t* ent) {
+    word_at(ent, 0x378) = activator;
+    if (word_at(ent, 0x32c) == 0x1c || word_at(ent, 0x328)) return;
+    const float wait = *reinterpret_cast<const float*>(ent + 0x384);
+    if (wait > title_global<float>(0x0083eafc)) {
+        // Wait again: next think in (wait + random * spread) seconds.
+        word_at(ent, 0x32c) = 0x12;
+        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t now = title_global<int32_t>(0x0098540c);                 // level.time
+        float f = static_cast<float>(r) * title_global<float>(0x0083ecf8);
+        f = f - title_global<float>(0x0083eb20);
+        f = f * *reinterpret_cast<const float*>(ent + 0x388);
+        f = f + *reinterpret_cast<const float*>(ent + 0x384);
+        f = f * title_global<float>(0x0083ec74);
+        word_at(ent, 0x328) = static_cast<uint32_t>(now - static_cast<int32_t>(f));
+        return;
+    }
+    word_at(ent, 0x338) = 0;
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 1;
+    word_at(ent, 0x32c) = 0xc;
+}
+
+void XB_CDECL Ent_Callback348Stub2() {}
+
+// Actor_GetProneBlend (0x002ad770): prone state in ESI, time in ECX; the XMM0 result's bits.
+PLATFORM_ASM_ENTRY(actor_get_prone_blend_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "movl 12(%esp), %ecx\n"
+                   "movl $0x002ad770, %eax\n"
+                   "call *%eax\n"
+                   "movd %xmm0, %eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(Actor_ExitProne_entry,
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ExitProne) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t duration) {
+    uint8_t* const prone = actor + 0x198;
+    const int32_t start = static_cast<int32_t>(word_at(prone, 4));
+    if (!start || word_at(prone, 0)) return;
+    const int32_t blend = static_cast<int32_t>(word_at(prone, 8));
+    if (blend) {
+        const int32_t now = title_global<int32_t>(0x0098540c);  // level.time
+        if (blend < 0) {
+            if (start - blend < now) {
+                word_at(prone, 4) = 0;
+                return;
+            }
+        } else if (blend + start < now) {
+            word_at(prone, 8) = 0;
+        }
+    }
+    const int32_t current = static_cast<int32_t>(word_at(actor, 0x1a0));
+    if (current && duration != current) {
+        const uint32_t bits = actor_get_prone_blend_call(prone, title_global<int32_t>(0x0098540c));
+        const int32_t now = title_global<int32_t>(0x0098540c);
+        float fraction;
+        std::memcpy(&fraction, &bits, sizeof fraction);
+        const float elapsed = static_cast<float>(duration) * fraction;
+        word_at(actor, 0x1a0) = static_cast<uint32_t>(-duration);
+        word_at(actor, 0x19c) = static_cast<uint32_t>(now - static_cast<int32_t>(elapsed));
+        return;
+    }
+    word_at(actor, 0x19c) = title_global<uint32_t>(0x0098540c);
+    word_at(actor, 0x1a0) = static_cast<uint32_t>(-duration);
+}
+
 }  // namespace game

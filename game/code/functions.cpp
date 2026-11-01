@@ -22,10 +22,12 @@
 #include "fx.h"
 #include "fx_cmd.h"
 #include "fx_load.h"
+#include "g_combat.h"
 #include "g_main.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
+#include "g_spawn.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
 #include "movie.h"
@@ -2452,6 +2454,9 @@ const Function kFunctions[] = {
     {"CM_RayHitsListedObjects", 0x00227160, 0, code(&CM_RayHitsListedObjects_entry), 8, Result::Al, Status::Compare},
     {"CM_PushSphereOutOfListedObjects", 0x002299a0, 0, code(&CM_PushSphereOutOfListedObjects_entry), 4, Result::Al, Status::Compare},
     {"Vehicle_PhysicsPreFrame", 0x002314c0, 0, code(&Vehicle_PhysicsPreFrame), 0, Result::None, Status::Compare},
+    {"G_FreeEntityPhysics", 0x00231670, 0, code(&G_FreeEntityPhysics), 0, Result::None, Status::Compare},
+    {"G_VehiclePhysicsFrame", 0x00233bd0, 0, code(&G_VehiclePhysicsFrame), 4, Result::None, Status::Compare},
+    {"G_PhysicsLaunch", 0x002345a0, 0, code(&G_PhysicsLaunch), 20, Result::None, Status::Compare},
     {"Mem_InitLargeBlockPools", 0x00234a00, 0, code(&Mem_InitLargeBlockPools), 0, Result::None, Status::Replaced},
     {"CG_R_DrawStretchPic", 0x00234b50, 0, code(&CG_R_DrawStretchPic), 32, Result::None, Status::Compare},
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Replaced},
@@ -2577,17 +2582,27 @@ const Function kFunctions[] = {
     {"R_SampleLightGridStatic", 0x00242730, 0, code(&R_SampleLightGridStatic), 16, Result::None, Status::Replaced},
     {"FX_GetEntityTagOrigin", 0x002462b0, 0, code(&FX_GetEntityTagOrigin), 8, Result::None, Status::Replaced},
     {"GetRefAPI", 0x00247980, 0, code(&GetRefAPI), 0, Result::Eax, Status::Replaced},
+    {"TriggerDamage_AcceptsMeansOfDeath", 0x002481d0, 0, code(&TriggerDamage_AcceptsMeansOfDeath), 0, Result::Eax, Status::Compare},
     {"hurt_use", 0x00248270, 0, code(&hurt_use), 0, Result::None, Status::Compare},
     {"multi_wait", 0x002482e0, 0, code(&multi_wait), 0, Result::Eax, Status::Compare},
+    {"Actor_CopySpawnerFields", 0x00248460, 0, code(&Actor_CopySpawnerFields_entry), 4, Result::None, Status::Compare},
     {"Use_trigger_use", 0x002488d0, 0, code(&Use_trigger_use), 0, Result::None, Status::Compare},
+    {"Ent_Callback348Stub2", 0x00248a30, 0, code(&Ent_Callback348Stub2), 0, Result::None, Status::Compare},
     {"G_Error", 0x00248af0, 0, code(&G_Error_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_NglStats_f", 0x00248db0, 0, code(&Cmd_NglStats_f), 0, Result::None, Status::Compare},
     {"Q_CleanStrLower", 0x00248dd0, 0, code(&Q_CleanStrLower), 0, Result::None, Status::Replaced},
+    {"G_GetTouchTypeFlag", 0x00248ee0, 0, code(&G_GetTouchTypeFlag), 0, Result::Eax, Status::Compare},
+    {"multi_trigger", 0x00249a40, 0, code(&multi_trigger_entry), 0, Result::None, Status::Compare},
     {"AnimTree_HasAnimEnded", 0x00249ae0, 0, code(&AnimTree_HasAnimEnded), 4, Result::Eax, Status::Compare},
+    {"G_SetSpawnVarsFromList", 0x00249b90, 0, code(&G_SetSpawnVarsFromList), 0, Result::None, Status::Compare},
     {"G_AddSpawnVarToken", 0x00249c00, 0, code(&G_AddSpawnVarToken), 0, Result::Eax, Status::Compare},
+    {"G_SpawnVector", 0x00249cd0, 0, code(&G_SpawnVector_entry), 0, Result::Eax, Status::Compare},
+    {"G_InitAnimScripts", 0x0024a070, 0, code(&G_InitAnimScripts), 0, Result::None, Status::Compare},
     {"G_RunThink", 0x0024ac50, 0, code(&G_RunThink_entry), 4, Result::None, Status::Compare},
     {"G_EndGame", 0x0024acb0, 0, code(&G_EndGame), 0, Result::None, Status::Compare},
     {"HudElem_ClearAll", 0x0024ad30, 0, code(&HudElem_ClearAll), 0, Result::None, Status::Compare},
+    {"G_ActorClampLethalDamage", 0x0024add0, 0, code(&G_ActorClampLethalDamage), 0, Result::Eax, Status::Compare},
+    {"Actor_ExitProne", 0x0024afe0, 0, code(&Actor_ExitProne_entry), 0, Result::None, Status::Compare},
     {"G_EntityList_Compact", 0x0024b140, 0, code(&G_EntityList_Compact), 0, Result::Eax, Status::Compare},
     {"XAnim_HasNotetrack", 0x0024b700, 0, code(&XAnim_HasNotetrack), 8, Result::Al, Status::Compare},
     {"AngleWrapNear", 0x0024c0e0, 0, code(&AngleWrapNear_entry), 8, Result::Xmm0, Status::Replaced},

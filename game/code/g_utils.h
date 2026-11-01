@@ -203,4 +203,22 @@ float XB_CDECL Water_GetHeight(int32_t index, float x, float y);
 // the triangle's edges ab, bc, ca, at least 0.0001. 16-byte aligned vectors (MOVAPS).
 float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float* c, const float* p);
 
+// 0x00248ee0 (entity in ECX): the content flag an entity touches triggers with: 0x8 vehicle
+// (+0x248), 0x400000 no ragdoll (+0x244), 0x40000000 with +0x23c, else by the ragdoll's kind
+// (1/2/3 -> 0x40000/0x80000/0x100000, other 0).
+uint32_t XB_THISCALL G_GetTouchTypeFlag(const uint8_t* ent);
+// 0x00249a40 (activator in EAX, trigger in ESI): fires a multiple trigger: stores the activator
+// (+0x378); unless waiting or blocked (+0x32c 0x1c, +0x328 set) schedules the next think: after
+// wait (+0x384) + random spread (+0x388) seconds, or next frame with think 0xc when wait <= 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL multi_trigger(uint32_t activator, uint8_t* ent);
+extern "C" void multi_trigger_entry(void);
+// 0x00248a30: empty entity callback (a bare RET; unhookable).
+void XB_CDECL Ent_Callback348Stub2();
+// 0x0024afe0 (actor in EDI, duration in EAX): starts leaving prone (+0x198 {state, start,
+// blend}): an expired blend is cleared; a new duration starts at level.time, or earlier by the
+// current blend fraction (Actor_GetProneBlend) when one with another duration runs.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t duration);
+extern "C" void Actor_ExitProne_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_get_prone_blend_call(uint8_t* prone, int32_t time);
+
 }  // namespace game

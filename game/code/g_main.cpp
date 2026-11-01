@@ -2,8 +2,44 @@
 
 #include <cstring>
 
+#include "g_script.h"
+#include "qcommon.h"
 #include "qcommon_core.h"
+#include "ragdoll.h"
+#include "g_utils.h"
 #include "title_data.h"
+
+// Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
+// pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
+PLATFORM_ASM_ENTRY(g_ent_call,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "movl 16(%ebp), %ecx\n"
+                   "movl 20(%ebp), %edx\n"
+                   "1:\n"
+                   "testl %ecx, %ecx\n"
+                   "jz 2f\n"
+                   "decl %ecx\n"
+                   "pushl (%edx,%ecx,4)\n"
+                   "jmp 1b\n"
+                   "2:\n"
+                   "movl 12(%ebp), %eax\n"
+                   "movl 4(%eax), %ebx\n"
+                   "movl 8(%eax), %ecx\n"
+                   "movl 12(%eax), %edx\n"
+                   "movl 16(%eax), %esi\n"
+                   "movl 20(%eax), %edi\n"
+                   "movl 0(%eax), %eax\n"
+                   "call *8(%ebp)\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
 
 namespace game {
 
@@ -94,6 +130,227 @@ void XB_CDECL G_ClearLevelLocals(uint8_t* level) {
     zero(level, 0xca8, 0xcb8);
     title_function<AssignCString>(0x0011dd20)(level + 0xcb8, empty);  // ScriptString_AssignCString
     zero(level, 0xcbc, 0x2708);
+}
+
+void XB_REGS1 XB_CDECL G_FreeEntityPhysics(uint8_t* ent) {
+    if (word_at(ent, 0x244)) {
+        const uint32_t ragdoll = word_at(ent, 0x238);
+        if (ragdoll) {
+            const TitleRegs regs{word_at(ent, 0x244), 0, 0, 0, ragdoll, address(ent)};
+            g_ent_call(0x0022fb30, &regs, 0, nullptr);  // Ragdoll_FreePhysics (ESI)
+        }
+        return;
+    }
+    uint8_t* const vehicle = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x248)));
+    if (vehicle) {
+        const int16_t def = *reinterpret_cast<int16_t*>(vehicle + 0x178);
+        const uint8_t* const vehicle_def = title_global<uint8_t*>(0x00950a28 + def * 4);  // g_vehicleDefs
+        if (*reinterpret_cast<const int16_t*>(vehicle_def + 0x20) == 1) {
+            const uint32_t physics = word_at(vehicle, 0x300);
+            if (physics) {
+                const TitleRegs regs{physics, 0, 0, 0, physics, address(ent)};
+                g_ent_call(0x00225520, &regs, 0, nullptr);  // VehiclePhys_Destroy (ESI)
+                word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x248))), 0x300) = 0;
+            }
+            return;
+        }
+    }
+    const TitleRegs regs{address(vehicle), 0, 0, 0, 0, address(ent)};
+    g_ent_call(0x00225ae0, &regs, 0, nullptr);  // Phys_RemoveEntity (EDI)
+}
+
+void XB_CDECL G_VehiclePhysicsFrame(float frame_time) {
+    // The scaled time goes back into the argument slot (x87 product), then to each step.
+    const float scaled = platform_x87_mul(title_global<float>(0x008ff028), frame_time);
+    uint32_t bits;
+    std::memcpy(&bits, &scaled, sizeof bits);
+    title_function<void XB_CDECL(uint32_t)>(0x00230390)(bits);  // Ragdoll_UpdateAllFromEntities
+    title_function<void XB_CDECL(uint32_t)>(0x000b4170)(bits);  // Phys_RunFrame
+    title_function<void XB_CDECL()>(0x00230930)();              // PhysObj_UpdateAll
+    title_function<void XB_CDECL(uint32_t)>(0x00230350)(bits);  // Ragdoll_UpdateAll
+    // The vehicles with physics: 0x008feb70, count at 0x008feb9c (read once).
+    const uint32_t end = 0x008feb70 + title_global<uint32_t>(0x008feb9c) * 4;
+    for (uint32_t at = 0x008feb70; at != end; at += 4)
+        title_function<void XB_STDCALL(uint32_t)>(0x0022d230)(title_global<uint32_t>(at));  // Vehicle_UpdateFromPhysics
+}
+
+namespace {
+
+// 0x0083ed50 (0.0001) > |v| on the x87 (FABS + FCOMIP: NaN fails).
+bool tiny(const float& v) {
+    uint32_t bits;
+    std::memcpy(&bits, &v, sizeof bits);
+    bits &= 0x7fffffff;
+    float magnitude;
+    std::memcpy(&magnitude, &bits, sizeof magnitude);
+    return platform_x87_greater(title_global<float>(0x0083ed50), magnitude);
+}
+
+bool tiny3(const float* v) { return tiny(v[0]) && tiny(v[1]) && tiny(v[2]); }
+
+void scale4(float* out, const float* v, float scale) {
+    for (uint32_t i = 0; i < 4; ++i) out[i] = v[i] * scale;  // MULPS: all four lanes
+}
+
+void add_force_to_bodies(const float* dir, uint8_t* ent, const float* point, float scale) {
+    using AddForce = void XB_REGS1 XB_CDECL(const float*, uint8_t*, const float*, float, uint32_t);
+    title_function<AddForce>(0x00226890)(dir, ent, point, scale, 0x3f800000);  // Phys_AddForceToEntityBodies
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const float* dir, float scale,
+                                       uint32_t local_point, uint32_t hit_location) {
+    if (!ent || ent == title_global<uint8_t*>(title_global<uint32_t>(0x0095f534) + 8)) return;
+    const uint32_t ragdoll = word_at(ent, 0x238);
+    if (ragdoll) {
+        // FUN_00225480: hit location (EAX) -> ragdoll body index.
+        const uint32_t body = title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(0x00225480)(hit_location);
+        uint8_t* const doll = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(ragdoll));
+        if (!word_at(doll, 0x568)) {
+            if (title_global<int32_t>(0x008fb484) >= 6) return;
+            const TitleRegs regs{0, 0, ragdoll, 0, address(ent), body};
+            const uint32_t args[1] = {ragdoll};
+            g_ent_call(0x00234380, &regs, 1, args);  // Ragdoll_StartPhysics (EBX = 0, stdcall)
+            if (word_at(ent, 0x240)) G_KillEntityOutright(word_at(ent, 0x240), 0, ent);
+        }
+        alignas(16) float force[4];
+        if (tiny3(point)) {
+            void* const physics = reinterpret_cast<void*>(static_cast<uintptr_t>(
+                word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x238))), 0x568)));
+            scale4(force, dir, scale);
+            Ragdoll_AddForce(force, physics, body);
+            return;
+        }
+        void* const physics = reinterpret_cast<void*>(static_cast<uintptr_t>(
+            word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x238))), 0x568)));
+        scale4(force, dir, scale);
+        Ragdoll_AddForceAtPoint(force, 0, point, physics, body, 0x3f800000);
+        return;
+    }
+    // FUN_00248850: the entity is a vehicle whose def has type 1.
+    if (title_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*)>(0x00248850)(ent) & 0xff) {
+        const uint32_t vehicle = word_at(ent, 0x248);
+        if (word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(vehicle)), 0x300)) return;
+        const TitleRegs regs{vehicle, 0, 0, 0, address(ent), 0};
+        g_ent_call(0x00234560, &regs, 0, nullptr);  // VehiclePhys_GetOrCreate (ESI)
+        return;
+    }
+    if (!(word_at(ent, 0x2a4) & 0x400000)) {
+        title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t)>(0x002303f0)(ent, 0, 0x3f800000,
+                                                                                        0xbf800000);  // PhysObj_Create
+        if (!(word_at(ent, 0x2a4) & 0x400000)) return;
+    }
+    if (tiny3(point)) {
+        // At the body's origin (matrix row 3).
+        const float* const body = reinterpret_cast<const float*>(Phys_FindBodyForEntity(0, ent));
+        alignas(16) float origin[4];
+        std::memcpy(origin, body + 12, sizeof origin);
+        add_force_to_bodies(dir, ent, origin, scale);
+        return;
+    }
+    if (local_point & 0xff) {
+        // A body-space point: origin + rows 0..2 times the point, all four lanes.
+        const float* const body = reinterpret_cast<const float*>(Phys_FindBodyForEntity(0, ent));
+        alignas(16) float m[16];
+        std::memcpy(m, body, sizeof m);
+        const float px = point[0];
+        const float py = point[1];
+        const float pz = point[2];
+        alignas(16) float world[4];
+        for (uint32_t i = 0; i < 4; ++i) {
+            const float x = m[i] * px;
+            const float a = m[12 + i] + x;
+            const float y = m[4 + i] * py;
+            const float b = a + y;
+            const float z = m[8 + i] * pz;
+            world[i] = b + z;
+        }
+        add_force_to_bodies(dir, ent, world, scale);
+        return;
+    }
+    add_force_to_bodies(dir, ent, point, scale);
+}
+
+namespace {
+
+struct BroFuncSlot {
+    uint32_t name;    // string address
+    uint32_t target;  // global the function pointer goes to
+    bool warn;        // the original formats "BroFunc: %s, NOT FOUND" (and drops it)
+};
+
+// From the original's 44 inlined lookups, in order.
+const BroFuncSlot kAnimScriptSlots[] = {
+    {0x0083a884, 0x00987b70, true},
+    {0x0083a870, 0x00987aa0, true},
+    {0x0083a850, 0x00987ab0, true},
+    {0x0083a834, 0x00987ac0, true},
+    {0x0083a818, 0x00987ad0, true},
+    {0x0083a800, 0x00987ae0, true},
+    {0x0083a7e8, 0x00987af0, true},
+    {0x0083a7d0, 0x00987b00, true},
+    {0x0083a7b8, 0x00987b10, true},
+    {0x0083a7a0, 0x00987b20, true},
+    {0x0083a784, 0x00987b30, true},
+    {0x0083a768, 0x00987b40, true},
+    {0x0083a758, 0x00987b50, true},
+    {0x0083a738, 0x00987b60, true},
+    {0x0083a728, 0x00987b80, true},
+    {0x0083a714, 0x00987b90, true},
+    {0x0083a704, 0x00987bc0, true},
+    {0x0083a6f4, 0x00987ba0, true},
+    {0x0083a6e0, 0x00987bb0, true},
+    {0x0083a6c8, 0x00987bd0, true},
+    {0x0083a6ac, 0x00987be0, true},
+    {0x0083a69c, 0x00987bf0, true},
+    {0x0083a68c, 0x00987b74, false},
+    {0x0083a678, 0x00987aa4, false},
+    {0x0083a658, 0x00987ab4, false},
+    {0x0083a63c, 0x00987ac4, false},
+    {0x0083a620, 0x00987ad4, false},
+    {0x0083a608, 0x00987ae4, false},
+    {0x0083a5f0, 0x00987af4, false},
+    {0x0083a5d8, 0x00987b04, false},
+    {0x0083a5c0, 0x00987b14, false},
+    {0x0083a5a8, 0x00987b24, false},
+    {0x0083a58c, 0x00987b34, false},
+    {0x0083a570, 0x00987b44, false},
+    {0x0083a560, 0x00987b54, false},
+    {0x0083a540, 0x00987b64, false},
+    {0x0083a530, 0x00987b84, false},
+    {0x0083a51c, 0x00987b94, false},
+    {0x0083a50c, 0x00987bc4, false},
+    {0x0083a4fc, 0x00987ba4, false},
+    {0x0083a4e8, 0x00987bb4, false},
+    {0x0083a4d0, 0x00987bd4, false},
+    {0x0083a4b4, 0x00987be4, false},
+    {0x0083a4a4, 0x00987bf4, false},
+};
+
+}  // namespace
+
+void XB_CDECL G_InitAnimScripts() {
+    // Each animation-script function is looked up by name hash in g_broFuncs (0x00927170, 52 pairs
+    // {hash, function}); a missing one leaves 0.
+    char message[0x80];
+    for (const BroFuncSlot& slot : kAnimScriptSlots) {
+        const char* const name = reinterpret_cast<const char*>(static_cast<uintptr_t>(slot.name));
+        const uint32_t hash = Com_HashKeyNoCase(0, name);
+        uint32_t function = 0;
+        bool found = false;
+        for (uint32_t i = 0; i < 0x34; ++i) {
+            if (hash == title_global<uint32_t>(0x00927170 + i * 8)) {
+                function = title_global<uint32_t>(0x00927174 + i * 8);
+                found = true;
+                break;
+            }
+        }
+        if (!found && slot.warn)
+            title_function<int XB_CDECL(char*, const char*, ...)>(0x001ee901)(
+                message, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00832320)), name);  // _sprintf
+        title_global<uint32_t>(slot.target) = function;
+    }
 }
 
 }  // namespace game

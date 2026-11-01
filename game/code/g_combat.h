@@ -1,0 +1,19 @@
+#pragma once
+
+// Game module: damage rules (triggers that take damage, actors' lethal-damage clamp).
+
+#include <cstddef>
+#include <cstdint>
+
+#include "compiler.h"
+
+namespace game {
+
+// 0x002481d0 (means of death in EAX, trigger in ECX): 0 when the trigger's spawn flags (+0x2a0)
+// exclude the means of death, else 1.
+uint32_t XB_REGS3 XB_CDECL TriggerDamage_AcceptsMeansOfDeath(int32_t mod, uint32_t unused_edx, const uint8_t* trigger);
+// 0x0024add0 (damage in EAX, entity in ECX): an actor's (+0x240) damage through
+// Actor_ClampLethalDamage; 0 for entities without one. Unhookable (RET in the first 5 bytes).
+uint32_t XB_REGS3 XB_CDECL G_ActorClampLethalDamage(uint32_t damage, uint32_t unused_edx, const uint8_t* ent);
+
+}  // namespace game
