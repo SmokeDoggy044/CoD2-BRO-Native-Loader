@@ -5779,4 +5779,63 @@ uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, 
     at<uint32_t>(point, 0x58) = v2;
     return point;
 }
+
+// EDX world body, ECX vector, XMM0, five stack words (out first): a physics object description.
+PLATFORM_ASM_ENTRY(PhysObjDesc_Init_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(PhysObjDesc_Init) "addl $16, %esp\n"
+                   "ret $0x14")
+
+// out +0 body, +4/+8 the next two words, +0xc body + 0x160, +0x10 XMM0, +0x20 the vector, +0x40 the
+// fourth word, +0x70 a copy of the 0x40-byte frame the fifth points at, +0x48 = 0.
+uint8_t* XB_CDECL PhysObjDesc_Init(uint32_t body, const uint32_t* v, const uint32_t* args, uint32_t xmm0) {
+    uint8_t* const out = reinterpret_cast<uint8_t*>(uintptr_t{args[0]});
+    at<uint32_t>(out, 0) = body;
+    at<uint32_t>(out, 4) = args[1];
+    at<uint32_t>(out, 0xc) = body + 0x160;
+    at<uint32_t>(out, 8) = args[2];
+    at<uint32_t>(out, 0x10) = xmm0;
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(out, 0x20 + i * 4) = v[i];
+    at<uint32_t>(out, 0x40) = args[3];
+    const uint32_t* const frame = reinterpret_cast<const uint32_t*>(uintptr_t{args[4]});
+    for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(out, 0x70 + i * 4) = frame[i];
+    at<uint32_t>(out, 0x48) = 0;
+    return out;
+}
+
+// EAX type (0..18) -> class (table at 0x002254f4 / 0x002254cc); callers keep ECX.
+PLATFORM_ASM_ENTRY(Phys_MapLaunchType_entry,
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_MapLaunchType) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+int32_t XB_CDECL Phys_MapLaunchType(uint32_t type) {
+    static const uint8_t kClass[19] = {0, 1, 1, 1, 0, 0, 4, 2, 5, 3, 5, 3, 8, 6, 9, 7, 9, 7, 5};
+    return type > 18 ? 0 : kClass[type];
+}
+
+PLATFORM_ASM_ENTRY(Phys_RemoveEntity_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Phys_RemoveEntity) "addl $4, %esp\n"
+                   "ret")
+
+// Every physics object (0x008fccf0, count 0x008fcde4) of the entity (+4): flag 0x400000 of its +0x2a4
+// cleared, the world body (+8) destroyed and the object freed (the pool moves the last one into its slot).
+void XB_CDECL Phys_RemoveEntity(uint8_t* entity) {
+    for (int32_t i = 0; i < title_global<int32_t>(0x008fcde4);) {
+        uint8_t* const object = title_global<uint8_t*>(0x008fccf0 + static_cast<uint32_t>(i) * 4);
+        if (at<uint8_t*>(object, 4) != entity) {
+            ++i;
+            continue;
+        }
+        at<uint32_t>(entity, 0x2a4) &= ~0x400000u;
+        PhysWorld_DestroyBody(at<uint32_t>(object, 8));
+        PhysObjPool_Free(object, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008fb490}));
+    }
+}
+
 }  // namespace game

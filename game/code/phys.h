@@ -483,5 +483,14 @@ void XB_THISCALL PhysBodyPair_SetLastPointVector(uint8_t* pair, const float* v);
 uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, uint32_t, const float* point_a,
                                                   const float* point_b, const float* normal, uint32_t v0, uint32_t v1,
                                                   uint32_t v2);
+// 0x00225420: EDX body, ECX vector, XMM0, stack (out, ...): a physics object description.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysObjDesc_Init(uint32_t body, const uint32_t* v, const uint32_t* args, uint32_t xmm0);
+extern "C" void PhysObjDesc_Init_entry(void);
+// 0x00225480: EAX launch type -> class.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Phys_MapLaunchType(uint32_t type);
+extern "C" void Phys_MapLaunchType_entry(void);
+// 0x00225ae0: EDI entity: its physics objects removed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_RemoveEntity(uint8_t* entity);
+extern "C" void Phys_RemoveEntity_entry(void);
 
 }  // namespace game

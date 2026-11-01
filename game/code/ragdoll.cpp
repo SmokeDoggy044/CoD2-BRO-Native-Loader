@@ -4,6 +4,7 @@
 
 #include "cm.h"
 #include "lanes.h"
+#include "phys.h"
 #include "phys_pool.h"
 #include "title_data.h"
 
@@ -746,6 +747,216 @@ uint8_t* XB_CDECL PhysRagdoll_FindCapsuleById(uint8_t* ragdoll, int32_t id) {
         if (at<int32_t>(capsule, 0x128) == id) return capsule;
     }
     return nullptr;
+}
+
+// EAX vector -> +0x100; +0x120 = the smallest +0x30 of +0xa0 and the 0x40-byte records at +0x80 (count +0x84).
+uint32_t XB_REGS3 XB_CDECL PhysRagdoll_SetPivotAndMinBound(const float* v, uint32_t, uint8_t* phys) {
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(phys, 0x100 + i * 4) = reinterpret_cast<const uint32_t*>(v)[i];
+    at<uint32_t>(phys, 0x120) = at<uint32_t>(phys, 0xa0);
+    const uint32_t first = at<uint32_t>(phys, 0x80);
+    const uint32_t end = first + (at<uint32_t>(phys, 0x84) << 6);
+    for (uint32_t r = first; r != end; r += 0x40)
+        if (at<float>(phys, 0x120) > at<float>(reinterpret_cast<void*>(uintptr_t{r}), 0x30))
+            at<uint32_t>(phys, 0x120) = at<uint32_t>(reinterpret_cast<void*>(uintptr_t{r}), 0x30);
+    return end;  // EAX left at the end pointer
+}
+
+// ECX a, EAX b, XMM0 radius, stack out: out = {a, b, radius}; EAX keeps b's last word.
+PLATFORM_ASM_ENTRY(Phys_SetSegment_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Phys_SetSegment) "addl $16, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Phys_SetSegment(const uint32_t* a, const uint32_t* b, uint8_t* out, uint32_t radius) {
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(out, i * 4) = a[i];
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(out, 0x10 + i * 4) = b[i];
+    at<uint32_t>(out, 0x20) = radius;
+    return b[3];
+}
+
+// EAX def, XMM0 -> +0x30, 18 stack words (stdcall); callers keep XMM1/XMM3/XMM5 across it.
+PLATFORM_ASM_ENTRY(RagdollBodyDef_Set_entry,
+                   "leal 4(%esp), %edx\n"
+                   "subl $52, %esp\n"
+                   "movups %xmm1, 4(%esp)\n"
+                   "movups %xmm3, 20(%esp)\n"
+                   "movups %xmm5, 36(%esp)\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(RagdollBodyDef_Set) "addl $8, %esp\n"
+                   "movups 4(%esp), %xmm1\n"
+                   "movups 20(%esp), %xmm3\n"
+                   "movups 36(%esp), %xmm5\n"
+                   "addl $52, %esp\n"
+                   "ret $0x48")
+
+// A body definition: ids +0/+4, +8, +0x30/+0x34, the vector at +0x10, +0x38, +0xb4, +0xd0/+0xd4,
+// +0xdc/+0xe0/+0xec, +0xf0/+0xf4 and four vectors at +0x120..+0x150. Returns def + 0x150.
+uint8_t* XB_CDECL RagdollBodyDef_Set(uint8_t* def, const uint32_t* args, uint32_t xmm0) {
+    auto vec = [&](uint32_t offset, uint32_t arg) {
+        for (uint32_t i = 0; i < 4; ++i)
+            at<uint32_t>(def, offset + i * 4) = reinterpret_cast<const uint32_t*>(uintptr_t{args[arg]})[i];
+    };
+    at<uint32_t>(def, 0x30) = xmm0;
+    at<uint32_t>(def, 0x34) = args[2];
+    at<uint32_t>(def, 8) = args[3];
+    at<uint32_t>(def, 0) = args[0];
+    at<uint32_t>(def, 4) = args[1];
+    vec(0x10, 4);
+    at<uint32_t>(def, 0x38) = args[5];
+    at<uint32_t>(def, 0xb4) = args[6];
+    at<uint32_t>(def, 0xdc) = args[9];
+    at<uint32_t>(def, 0xd0) = args[7];
+    at<uint32_t>(def, 0xe0) = args[10];
+    at<uint32_t>(def, 0xd4) = args[8];
+    at<uint32_t>(def, 0xec) = args[11];
+    at<uint32_t>(def, 0xf0) = args[12];
+    at<uint32_t>(def, 0xf4) = args[13];
+    vec(0x120, 14);
+    vec(0x130, 15);
+    vec(0x140, 16);
+    vec(0x150, 17);
+    return def + 0x150;
+}
+
+PLATFORM_ASM_ENTRY(RagdollDef_RemoveBody_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(RagdollDef_RemoveBody) "addl $4, %esp\n"
+                   "ret")
+
+// The body definitions (0x008dfdd0, 0x60 each, count 0x008dfdd4): the first with id +0x54 == id gets -1
+// and every definition whose parent (+0x58) was that id takes over the removed one's parent.
+int32_t XB_CDECL RagdollDef_RemoveBody(int32_t id) {
+    int32_t found = -1;
+    for (int32_t i = 0; i < title_global<int32_t>(0x008dfdd4) && found == -1; ++i)
+        if (at<int32_t>(title_global<uint8_t*>(0x008dfdd0), static_cast<uint32_t>(i) * 0x60 + 0x54) == id) found = i;
+    if (found == -1) return -1;
+    const uint32_t removed = static_cast<uint32_t>(found) * 0x60;
+    at<int32_t>(title_global<uint8_t*>(0x008dfdd0), removed + 0x54) = -1;
+    for (int32_t i = 0; i < title_global<int32_t>(0x008dfdd4); ++i) {
+        uint8_t* const defs = title_global<uint8_t*>(0x008dfdd0);
+        if (at<int32_t>(defs, static_cast<uint32_t>(i) * 0x60 + 0x58) == id)
+            at<uint32_t>(defs, static_cast<uint32_t>(i) * 0x60 + 0x58) = at<uint32_t>(defs, removed + 0x58);
+    }
+    return static_cast<int32_t>(removed);
+}
+
+PLATFORM_ASM_ENTRY(PhysRagdoll_DestroyBodies_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(PhysRagdoll_DestroyBodies) "addl $4, %esp\n"
+                   "ret")
+
+// The ragdoll's objects, then its ten bodies (+0x28 array).
+uint32_t XB_CDECL PhysRagdoll_DestroyBodies(uint8_t* phys) {
+    PhysRagdoll_DestroyObjects(phys);
+    uint32_t body = 0;
+    for (uint32_t i = 0; i < 10; ++i) {
+        body = at<uint32_t*>(phys, 0x28)[i];
+        if (body) PhysWorld_DestroyBody(body);
+    }
+    return body;
+}
+
+namespace {
+
+// The model's bone matrices (+0x22c: +0x20 matrices from +0x30, +0x2f count) to/from a 0x40-per-bone buffer.
+void copy_bone_matrices(uint8_t* entity, uint8_t* buffer, bool restore) {
+    const int32_t count = at<uint8_t*>(entity, 0x22c)[0x2f];
+    for (int32_t i = 0; i < count; ++i) {
+        uint32_t* const bone = reinterpret_cast<uint32_t*>(at<uint8_t*>(at<uint8_t*>(entity, 0x22c), 0x20) + i * 0x40 + 0x30);
+        uint32_t* const saved = reinterpret_cast<uint32_t*>(buffer + i * 0x40);
+        for (uint32_t w = 0; w < 16; ++w) {
+            if (restore)
+                bone[w] = saved[w];
+            else
+                saved[w] = bone[w];
+        }
+    }
+}
+
+}  // namespace
+
+uint32_t XB_CDECL PhysRagdoll_RestoreBoneMatrices(uint8_t* entity, uint8_t* buffer) {
+    copy_bone_matrices(entity, buffer, true);
+    const int32_t count = at<uint8_t*>(entity, 0x22c)[0x2f];
+    return count > 0 ? static_cast<uint32_t>(count) * 0x40 : addr(at<uint8_t*>(entity, 0x22c));
+}
+
+uint32_t XB_CDECL PhysRagdoll_SaveBoneMatrices(uint8_t* entity, uint8_t* buffer) {
+    copy_bone_matrices(entity, buffer, false);
+    const int32_t count = at<uint8_t*>(entity, 0x22c)[0x2f];
+    return count > 0 ? static_cast<uint32_t>(count) * 0x40 : addr(at<uint8_t*>(entity, 0x22c));
+}
+
+// ECX body record, EAX ragdoll; the result in XMM0. No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Ragdoll_GetBodyScale_entry,
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Ragdoll_GetBodyScale) "addl $8, %esp\n"
+                   "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+// (1 - clamp(|record +0x30| / ragdoll +0x500, 0, 1)) * 2 * (ragdoll +0x420)->+0x38 * 0x008db410.
+float XB_CDECL Ragdoll_GetBodyScale(const uint8_t* record, const uint8_t* ragdoll) {
+    const uint32_t bits = at<uint32_t>(record, 0x30) & 0x7fffffffu;
+    float a;
+    std::memcpy(&a, &bits, 4);
+    const long double q = static_cast<long double>(a) / at<float>(ragdoll, 0x500);
+    const float v = static_cast<float>(q);
+    const float one = title_global<float>(0x0083eb20);
+    float x;
+    if (title_global<float>(0x0083eafc) > q)
+        x = 0.0f;
+    else
+        x = v > one ? one : v;
+    return (((one - x) * title_global<float>(0x0083eba8)) * at<float>(at<uint8_t*>(ragdoll, 0x420), 0x38)) *
+           title_global<float>(0x008db410);
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_UpdateSettle_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Ragdoll_UpdateSettle) "addl $8, %esp\n"
+                   "ret $4")
+
+// Joints (+0x58, ten) stiffened (20, flag 0x800 of +0x30), the rest state updated; while settling
+// (+0x470) the time +0x1d38 grows by dt (+0x1d3c = reached 1) and s = clamp(1 - (1 - t), 0, 1) gives the
+// bodies' +0x134 = (1 - s) * 0x00989240 and the joints 20 + 50 s; else the time restarts. The original keeps
+// s in its dt argument slot.
+uint32_t XB_CDECL Ragdoll_UpdateSettle(uint8_t* phys, float* arg) {
+    for (uint32_t i = 0; i < 10; ++i) {
+        uint8_t* const joint = at<uint8_t**>(phys, 0x58)[i];
+        if (!joint) continue;
+        PhysJoint_SetValue1A0(joint, 20.0f);
+        at<uint32_t>(joint, 0x30) |= 0x800;
+    }
+    PhysRagdoll_UpdateRestState(phys, *arg);
+    phys[0x1d3c] = 0;
+    if (!phys[0x470]) {
+        at<float>(phys, 0x1d38) = 0.0f;
+        return 0;
+    }
+    const float t = at<float>(phys, 0x1d38) + *arg;
+    const float one = title_global<float>(0x0083eb20);
+    at<float>(phys, 0x1d38) = t;
+    if (t >= one) phys[0x1d3c] = 1;
+    const float s = one - (one - t);
+    if (0.0f > s)
+        *arg = 0.0f;
+    else
+        *arg = s > one ? one : s;
+    const float weight = (one - *arg) * title_global<float>(0x00989240);
+    uint32_t body = 0;
+    for (uint32_t i = 0; i < 10; ++i) {
+        body = at<uint32_t*>(phys, 0x28)[i];
+        uint8_t* const joint = at<uint8_t**>(phys, 0x58)[i];
+        if (body) at<float>(reinterpret_cast<void*>(uintptr_t{body}), 0x134) = weight;
+        if (joint) PhysJoint_SetValue1A0(joint, *arg * title_global<float>(0x0083ec30) + title_global<float>(0x0083eb5c));
+    }
+    return body;
 }
 
 }  // namespace game

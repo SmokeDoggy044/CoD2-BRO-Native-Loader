@@ -942,4 +942,31 @@ void XB_STDCALL VehiclePhys_CreateBody(uint8_t* vehicle) {
     title_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x0022a590)(vehicle, at<uint32_t>(vehicle, 0x420), 1);
 }
 
+// EAX vehicle: each of its eight tag matrices (+0x220, 0x40 each) whose bone index (+0 + 4 i) is set goes
+// to the model's bone matrices (entity +0x440 -> +0x22c -> +0x20, from +0x30).
+void XB_REGS1 XB_CDECL Vehicle_RestoreTagMatrices(uint8_t* vehicle) {
+    for (uint32_t i = 0; i < 8; ++i) {
+        if (at<int32_t>(vehicle, i * 4) < 0) continue;
+        uint8_t* const bones = at<uint8_t*>(at<uint8_t*>(at<uint8_t*>(vehicle, 0x440), 0x22c), 0x20);
+        for (uint32_t w = 0; w < 16; ++w) at<uint32_t>(bones, 0x30 + i * 0x40 + w * 4) = at<uint32_t>(vehicle, 0x220 + i * 0x40 + w * 4);
+    }
+}
+
+PLATFORM_ASM_ENTRY(VehiclePhys_Destroy_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VehiclePhys_Destroy) "addl $4, %esp\n"
+                   "ret")
+
+// ESI record (pool 0x008fe0d0): its world body (+0x34) and object (+0x30) destroyed, the record freed.
+void XB_CDECL VehiclePhys_Destroy(uint8_t* phys) {
+    if (at<uint32_t>(phys, 0x34)) {
+        PhysWorld_DestroyBody(at<uint32_t>(phys, 0x34));
+        at<uint32_t>(phys, 0x34) = 0;
+    }
+    if (at<uint32_t>(phys, 0x30)) {
+        PhysWorld_DestroyObject1c0(at<uint32_t>(phys, 0x30));
+        at<uint32_t>(phys, 0x30) = 0;
+    }
+    VehiclePhysPool_Free(phys, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008fe0d0}));
+}
+
 }  // namespace game

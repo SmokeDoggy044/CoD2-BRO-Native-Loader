@@ -695,7 +695,9 @@ address,name,tested,matched,nan,mismatched,coverage
 00204db0,Entity_YawToForward,3546,3546,0,0,100.0
 00204f80,Actor_Grenade_CoverAttack,3531,3531,0,0,100.0
 00205010,Actor_Grenade_Combat,3226,3226,0,0,70.8
+00225250,RagdollDef_RemoveBody,3844,3844,0,0,100.0
 002253b0,Phys_FindBodyForEntity,1900,1900,0,0,57.9
+00225a40,PhysRagdoll_RestoreBoneMatrices,2384,2384,0,0,100.0
 00226720,Vehicle_InitWheelTags,1965,1965,0,0,50.0
 00231710,VehiclePhys_RebuildPendingBody,2432,2432,0,0,65.5
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
