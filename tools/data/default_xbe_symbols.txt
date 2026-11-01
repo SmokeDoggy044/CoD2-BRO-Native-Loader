@@ -2473,7 +2473,7 @@
 000b26c0 Phys_SphereShapeContact
 000b2a90 Phys_ShapeContact
 000b2ff0 Phys_SetBoneCallbacks
-000b3050 FUN_000b3050
+000b3050 PhysRagdoll_ResetRestState
 000b3090 PhysRagdoll_SetLaunchTarget
 000b3110 PhysRagdoll_AllocBody
 000b3130 PhysRagdoll_CreateJoint
@@ -2489,13 +2489,14 @@
 000b3690 PhysRagdoll_WriteBodiesToPose
 000b36e0 PhysRagdoll_PoseToBodies
 000b3730 PhysRagdoll_UpdateRestState
-000b38a0 FUN_000b38a0
+000b38a0 PhysRagdoll_SetBodiesField134
 000b38d0 PhysRagdoll_AddBodyForce
 000b3960 PhysRagdoll_DampBodyLinear
 000b3a80 PhysRagdoll_DampBodyAngular
 000b3ba0 PhysRagdoll_DampLinear
 000b3bd0 PhysRagdoll_DampAngular
 000b3c00 PhysRagdoll_AddVelocityForce
+000b3d00 PhysRagdoll_SetBodiesFlag1
 000b3dc0 PhysRagdoll_AttachBodyAtPoint
 000b3ef0 PhysRagdoll_FreeBone
 000b3f90 PhysRagdoll_AddAttachedObject

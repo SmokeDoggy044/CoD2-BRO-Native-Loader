@@ -14403,3 +14403,6 @@ address,name,kind,confidence,evidence
 0002b990,Vec4_ClampToScalarRange,function,high,"clamps a vec4 to a scalar range (game push 1) (2026-11-01)"
 00151270,BroScr_PanzerIVSetDifficultyHealth,function,high,"was Scr_StartThread_ent: sets health by difficulty hash (default 5000), starts BroScr_VehicleHealthThink (2026-11-01)"
 00168220,BroScr_PanzerIVUseAnimTree,function,high,"was Scr_StartThread_ent_2: UseAnimTree panzerIV, starts thread 0x001679b0; dead (no refs) (2026-11-01)"
+000b3050,PhysRagdoll_ResetRestState,function,high,"clears the ragdoll's at-rest state (game push 2, 2026-11-01)"
+000b38a0,PhysRagdoll_SetBodiesField134,function,high,"writes +0x134 of every body (game push 2, 2026-11-01)"
+000b3d00,PhysRagdoll_SetBodiesFlag1,function,high,"ORs 1 into +0x144 of every body; created 2026-11-01 (PhysRagdoll_AddVelocityForce ends at 0x000b3cfd)"
