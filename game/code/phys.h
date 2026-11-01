@@ -138,4 +138,16 @@ uint8_t* XB_STDCALL PhysPairTree_RotateLeft(uint8_t** root);
 // self-linked list at +0x110 (+0x190/+0x194), +0x30 = 0.
 uint8_t* XB_THISCALL PhysConstraint1B0_Init(uint8_t* constraint);
 
+// 0x000af120: oriented box (frame +0x30, half extents +0x70) against a sphere: the centre moved
+// into the box frame, the box's sphere contact (0x000ae970), point and normal moved back out (the
+// normal also on a miss). Unreferenced (no vtable holds it). AL.
+uint8_t XB_THISCALL PhysOrientedBox_SphereContact(uint8_t* shape, const float* centre, uint32_t radius, float* out,
+                                                  uint32_t arg4);
+// 0x000af460: oriented box against a sphere swept from a to b (direction dir): the box's sweep
+// (0x000ad140) in the box frame; a hit writes point and normal over b. Unreferenced. AL.
+uint8_t XB_THISCALL PhysOrientedBox_SweepSphere(uint8_t* shape, const float* a, float* b, uint32_t radius,
+                                                const float* dir);
+// 0x000b16b0: GJK sub-determinants for the simplex with the new point (globals gjk_*).
+void XB_CDECL Gjk_ComputeDeterminants();
+
 }  // namespace game

@@ -496,6 +496,8 @@ address,name,tested,matched,nan,mismatched,coverage
 000ada90,PhysBox_IntersectSegment,3255,3255,0,0,67.6
 000adc90,PhysCapsule_SphereContact,3447,3445,2,0,100.0
 000aefa0,PhysOrientedBox_Support,3434,3380,54,0,100.0
+000af120,PhysOrientedBox_SphereContact,3379,3283,96,0,100.0
+000af460,PhysOrientedBox_SweepSphere,3273,3273,0,0,57.6
 000af800,PhysOrientedBox_IntersectRay,3270,3261,9,0,61.1
 000afbd0,PhysOrientedBox_IntersectSegment,3222,3222,0,0,100.0
 000afde0,PhysBox_Construct,3430,3430,0,0,100.0
@@ -504,6 +506,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000b07a0,PhysBox_ContainsPointInFrame,3435,3435,0,0,100.0
 000b08c0,PhysBox_OverlapsSphereInFrame,3306,3306,0,0,100.0
 000b1500,PhysBox_PointDistanceSqInFrame,3373,3245,128,0,100.0
+000b16b0,Gjk_ComputeDeterminants,2392,2392,0,0,79.8
 000b3050,PhysRagdoll_ResetRestState,3783,3783,0,0,100.0
 000b3090,PhysRagdoll_SetLaunchTarget,3596,3596,0,0,100.0
 000b3240,PhysRagdoll_GetCenterOfMass,3133,3133,0,0,100.0

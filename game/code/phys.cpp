@@ -1032,4 +1032,115 @@ uint8_t* XB_THISCALL PhysConstraint1B0_Init(uint8_t* constraint) {
     return constraint;
 }
 
+uint8_t XB_THISCALL PhysOrientedBox_SphereContact(uint8_t* shape, const float* centre, uint32_t radius, float* out,
+                                                  uint32_t arg4) {
+    const float* const frame = reinterpret_cast<const float*>(shape + 0x30);
+    alignas(16) float local[4];
+    std::memcpy(local, point_into(frame, centre).v, 16);
+    // The hit buffer is the frame copy the transpose read: a miss leaves rows 1-2 as the normal.
+    alignas(16) float hit[12];
+    std::memcpy(hit, frame, sizeof(hit));
+    alignas(16) const float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) uint8_t box[0x30];
+    PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
+    using Contact = uint8_t XB_THISCALL(uint8_t*, const float*, uint32_t, float*, uint32_t);
+    const uint8_t result = title_function<Contact>(0x000ae970)(box, local, radius, hit, arg4);  // PhysBox_SphereContact
+    if (result) std::memcpy(out, transform_out(frame, hit).v, 16);
+    std::memcpy(out + 4, rotate_out(frame, hit + 4).v, 16);
+    return result ? 1 : 0;
+}
+
+uint8_t XB_THISCALL PhysOrientedBox_SweepSphere(uint8_t* shape, const float* a, float* b, uint32_t radius,
+                                                const float* dir) {
+    const float* const frame = reinterpret_cast<const float*>(shape + 0x30);
+    Lanes columns[3];
+    frame_columns(frame, columns);
+    alignas(16) float local_dir[4];
+    std::memcpy(local_dir, rotate_into(columns, lanes(dir)).v, 16);
+    alignas(16) float local_a[4];
+    std::memcpy(local_a, point_into(frame, a).v, 16);
+    // b in the box frame, followed by the frame copy's rows 1-2 (the callee's normal slot).
+    alignas(16) float hit[12];
+    std::memcpy(hit, frame, sizeof(hit));
+    std::memcpy(hit, point_into(frame, b).v, 16);
+    alignas(16) const float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) uint8_t box[0x30];
+    PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
+    using Sweep = uint8_t XB_THISCALL(uint8_t*, const float*, float*, uint32_t, const float*);
+    if (!title_function<Sweep>(0x000ad140)(box, local_a, hit, radius, local_dir)) return 0;  // PhysBox_SweepSphere
+    std::memcpy(b, transform_out(frame, hit).v, 16);
+    std::memcpy(b + 4, rotate_out(frame, hit + 4).v, 16);
+    return 1;
+}
+
+// GJK simplex state (globals): support points gjk_y[4] (0x0090a790, vec4), dot products
+// gjk_dp[4][4] (0x0090a810), sub-determinants gjk_det[16][4] (0x0090a640), the simplex's point bits
+// (gjk_bits 0x0090a748), the new point's index and bit (gjk_last 0x0090a744, gjk_lastBit
+// 0x0090a630) and their union (gjk_allBits 0x0090a740).
+namespace {
+
+float* gjk_dp(int32_t row) { return &title_global<float>(0x0090a810 + static_cast<uint32_t>(row) * 16); }
+float* gjk_det(uint32_t set) { return &title_global<float>(0x0090a640 + set * 16); }
+
+float gjk_dot(int32_t a, int32_t b) {
+    const Lanes p = mul(lanes(&title_global<float>(0x0090a790 + static_cast<uint32_t>(a) * 16)),
+                        lanes(&title_global<float>(0x0090a790 + static_cast<uint32_t>(b) * 16)));
+    platform_keep(p);
+    return (p.v[0] + p.v[1]) + p.v[2];
+}
+
+}  // namespace
+
+// The new point's dot products with the simplex points, then the sub-determinants of every
+// subset holding the new point (Johnson's distance algorithm); with all four points also the
+// full set's.
+void XB_CDECL Gjk_ComputeDeterminants() {
+    const int32_t last = title_global<int32_t>(0x0090a744);
+    for (int32_t i = 0, bit = 1; i < 4; ++i, bit <<= 1) {
+        if (!(title_global<uint32_t>(0x0090a748) & static_cast<uint32_t>(bit))) continue;
+        const float d = gjk_dot(i, last);
+        gjk_dp(last)[i] = d;
+        gjk_dp(i)[last] = d;
+    }
+    const uint32_t last_bit = title_global<uint32_t>(0x0090a630);
+    const float last_last = gjk_dot(last, last);
+    gjk_dp(last)[last] = last_last;
+    gjk_det(last_bit)[last] = title_global<float>(0x0083eb20);  // 1
+    for (int32_t j = 0; j < 4; ++j) {
+        const uint32_t sj = 1u << j;
+        if (!(title_global<uint32_t>(0x0090a748) & sj)) continue;
+        const uint32_t s2 = title_global<uint32_t>(0x0090a630) | sj;
+        gjk_det(s2)[j] = last_last - gjk_dp(last)[j];
+        gjk_det(s2)[last] = gjk_dp(j)[j] - gjk_dp(j)[last];
+        for (int32_t k = 0; k < j; ++k) {
+            const uint32_t sk = 1u << k;
+            if (!(title_global<uint32_t>(0x0090a748) & sk)) continue;
+            const uint32_t s3 = sk | s2;
+            gjk_det(s3)[k] = (gjk_dp(last)[j] - gjk_dp(last)[k]) * gjk_det(s2)[last] +
+                             (gjk_dp(j)[j] - gjk_dp(j)[k]) * gjk_det(s2)[j];
+            const uint32_t sk_last = title_global<uint32_t>(0x0090a630) | sk;
+            gjk_det(s3)[j] = (gjk_dp(last)[k] - gjk_dp(last)[j]) * gjk_det(sk_last)[last] +
+                             (gjk_dp(k)[k] - gjk_dp(k)[j]) * gjk_det(sk_last)[k];
+            gjk_det(s3)[last] = (gjk_dp(k)[k] - gjk_dp(k)[last]) * gjk_det(sk | sj)[k] +
+                                (gjk_dp(j)[k] - gjk_dp(j)[last]) * gjk_det(sk | sj)[j];
+        }
+    }
+    if (title_global<int32_t>(0x0090a740) != 15) return;
+    const float* const dp0 = gjk_dp(0);
+    const float* const dp1 = gjk_dp(1);
+    const float* const dp2 = gjk_dp(2);
+    const float* const dp3 = gjk_dp(3);
+    gjk_det(15)[0] = ((dp3[1] - dp3[0]) * gjk_det(14)[3] + (dp2[1] - dp2[0]) * gjk_det(14)[2]) +
+                     (dp1[1] - dp1[0]) * gjk_det(14)[1];
+    const float d1 = ((dp0[0] - dp0[1]) * gjk_det(13)[0] + (dp3[0] - dp3[1]) * gjk_det(13)[3]) +
+                     (dp2[0] - dp2[1]) * gjk_det(13)[2];
+    const float d2 = ((dp3[0] - dp3[2]) * gjk_det(11)[3] + (dp0[0] - dp0[2]) * gjk_det(11)[0]) +
+                     (dp1[0] - dp1[2]) * gjk_det(11)[1];
+    const float d3 = ((dp2[0] - dp2[3]) * gjk_det(7)[2] + (dp1[0] - dp1[3]) * gjk_det(7)[1]) +
+                     (dp0[0] - dp0[3]) * gjk_det(7)[0];
+    gjk_det(15)[1] = d1;
+    gjk_det(15)[2] = d2;
+    gjk_det(15)[3] = d3;
+}
+
 }  // namespace game
