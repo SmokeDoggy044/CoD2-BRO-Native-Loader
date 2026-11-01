@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 71% of the functions have a name, and 3,868 have been
+It's early days: about 71% of the functions have a name, and 3,879 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,13 +29,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,260 | 8,856 | 3,868 | 7,392 |
+| Engine and game code (`.text`) | 11,260 | 8,856 | 3,879 | 7,381 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,584** | **11,844** | **3,868** | **12,716** |
+| **Total** | **16,584** | **11,844** | **3,879** | **12,705** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 188 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 184 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -50,10 +50,10 @@ We've also named 2,659 of the game's global variables.
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,628 | 280 | 16 | 0 | 1,123 | 205 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 293 | 0 | 6 | 0 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 1,014 | 869 | 70 | 71 | 0 | 0 |
-| Client and menus | 764 | 605 | 115 | 44 | 0 | 0 |
-| Server | 80 | 71 | 9 | 0 | 0 | 0 |
-| Collision | 109 | 93 | 1 | 15 | 0 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 1,014 | 873 | 67 | 70 | 0 | 0 |
+| Client and menus | 764 | 612 | 110 | 42 | 0 | 0 |
+| Server | 80 | 70 | 10 | 0 | 0 | 0 |
+| Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
