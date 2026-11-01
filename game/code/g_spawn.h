@@ -45,4 +45,14 @@ void XB_CDECL SP_trigger_friendlychain(uint8_t* ent);
 // 0x00259530: spawn for trigger_multiple.
 void XB_CDECL SP_trigger_multiple(uint8_t* ent);
 
+// 0x00257de0: spawn for trigger_use (hint string / cursor hint / arc).
+void XB_CDECL SP_trigger_use(uint8_t* ent);
+
+// 0x0025f7c0 (entity in EAX, item in ESI): Q3's G_SpawnItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item);
+extern "C" void G_SpawnItem_entry(void);
+// 0x00260220 (entity in EDI): Q3's G_CallSpawn (spawn map, else items); 1 when spawned.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_CallSpawn(uint8_t* ent);
+extern "C" void G_CallSpawn_entry(void);
+
 }  // namespace game

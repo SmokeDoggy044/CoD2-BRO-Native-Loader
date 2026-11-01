@@ -3,17 +3,21 @@
 #include <cstring>
 
 #include "bg_misc.h"
+#include "dobj.h"
 #include "g_client.h"
 #include "g_main.h"
 #include "g_spawn.h"
 #include "g_utils.h"
 #include "g_scr_runtime.h"
+#include "g_script.h"
+#include "cm.h"
 #include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 #include "xanim.h"
 
 // 0x002545e0 (phys list): a script mover trajectory's next phase - EAX, ECX, EDX = vectors,
@@ -51,6 +55,16 @@ uint8_t* pointer_at(uint8_t* base, uint32_t offset) {
 }
 
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// The title CRT's __CIfmod (0x0033acda): x in ST1, y in ST0, fmod(x, y) left in ST0.
+long double title_ci_fmod(long double x, long double y) {
+    long double result;
+    __asm__ volatile("call *%3"
+                     : "=t"(result)
+                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "st(1)", "eax", "ecx", "edx", "memory");
+    return result;
+}
 
 // A spawn key's hash, made once under `bit` of the guard word.
 uint32_t cached_key(uint32_t guard, uint32_t bit, uint32_t slot, uint32_t text) {
@@ -956,6 +970,839 @@ void XB_CDECL G_DObjAdvanceAnimsUntilDone(uint8_t* ent) {
         std::memcpy(&bits, &dt, sizeof bits);
         if (!AnimTree_AdvanceTimeForModel(0, pointer_at(ent, 0x22c), bits, 1)) break;
     }
+}
+
+PLATFORM_ASM_ENTRY(G_BounceMissileAngles_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_BounceMissileAngles) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* trace, int32_t keep_spin) {
+    // The angles (apos +0x38) at the hit time (previous time + frame * trace fraction +0x20).
+    // On a floor (normal z > 0.1): the pitch the plane gives the yaw (Plane_PitchAlongYaw), its
+    // difference to the current pitch wrapped into [-180, 180] (__CIfmod 360, x87 compares);
+    // without keep_spin the apos base/time restart there with the pitch speed (+0x50) damped to
+    // 0.85..1.15 (reversed below 80 degrees off). The pitch is snapped to 16-bit angle units,
+    // then eased a quarter of the way (45..80 degrees off), kept, or set from the plane pitch
+    // (flipped by 180 when the snapped pitch is over 90). Off floors: a random -63..64 added
+    // to the pitch speed (snapped) unless keep_spin.
+    uint8_t* const tr = const_cast<uint8_t*>(trace);
+    const int32_t previous = title_global<int32_t>(0x00985410);
+    const float elapsed = static_cast<float>(title_global<int32_t>(0x0098540c) - previous) * field<float>(tr, 0x20);
+    const int32_t hit_time = static_cast<int32_t>(elapsed) + previous;
+    {
+        const TitleRegs regs{static_cast<uint32_t>(hit_time), 0, address_of(angles), 0, 0, address_of(ent + 0x38)};
+        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    }
+    const float to_short = title_global<float>(0x0083ebd8);    // 65536 / 360
+    const float from_short = title_global<float>(0x0083ebd4);  // 360 / 65536
+    if (field<float>(tr, 0x18) > title_global<float>(0x0083ebf8)) {
+        const float pitch = Plane_PitchAlongYaw(reinterpret_cast<const float*>(tr + 0x10), angles[1]);
+        float delta = static_cast<float>(title_ci_fmod(static_cast<long double>(pitch) - static_cast<long double>(angles[0]),
+                                                       static_cast<long double>(title_global<double>(0x0083ed40))));
+        if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - title_global<float>(0x0083ebcc);
+        if (title_global<float>(0x0083ebd0) > delta) delta = delta + title_global<float>(0x0083ebcc);
+        uint32_t bits;
+        std::memcpy(&bits, &delta, sizeof bits);
+        bits &= 0x7fffffffu;  // FABS
+        float off;
+        std::memcpy(&off, &bits, sizeof off);
+        if (!keep_spin) {
+            word_at(ent, 0x44) = reinterpret_cast<const uint32_t*>(angles)[0];
+            word_at(ent, 0x48) = reinterpret_cast<const uint32_t*>(angles)[1];
+            word_at(ent, 0x4c) = reinterpret_cast<const uint32_t*>(angles)[2];
+            field<int32_t>(ent, 0x3c) = hit_time;
+            const bool reverse = title_global<float>(0x0083ee48) > off;
+            const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            float speed = ((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083066c) +
+                           title_global<float>(0x0083f008)) *
+                          field<float>(ent, 0x50);
+            if (reverse) speed = speed * title_global<float>(0x0083eb34);
+            field<float>(ent, 0x50) = speed;
+        }
+        float snapped = static_cast<float>(static_cast<int32_t>(angles[0] * to_short) & 0xffff) * from_short;
+        if (snapped > title_global<float>(0x0083eb60)) snapped = snapped - title_global<float>(0x0083ebcc);
+        angles[0] = snapped;
+        if (!keep_spin && !(title_global<float>(0x0083ef1c) > off)) {
+            const float value = title_global<float>(0x0083ee48) > off
+                                    ? (delta * title_global<float>(0x0083ec24) + snapped) * to_short
+                                    : snapped * to_short;
+            angles[0] = static_cast<float>(static_cast<int32_t>(value) & 0xffff) * from_short;
+            return;
+        }
+        std::memcpy(&bits, &snapped, sizeof bits);
+        bits &= 0x7fffffffu;  // FABS
+        float size;
+        std::memcpy(&size, &bits, sizeof size);
+        float value = pitch * to_short;
+        if (platform_x87_greater(size, title_global<float>(0x0083eb64))) value = value + title_global<float>(0x0083ebc8);
+        angles[0] = static_cast<float>(static_cast<int32_t>(value) & 0xffff) * from_short;
+        return;
+    }
+    if (keep_spin) return;
+    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const float value = (static_cast<float>((r & 0x7f) - 0x3f) + field<float>(ent, 0x50)) * to_short;
+    field<float>(ent, 0x50) = static_cast<float>(static_cast<int32_t>(value) & 0xffff) * from_short;
+}
+
+void XB_CDECL SP_func_door_rotating(uint8_t* ent) {
+    // Spawn flag 1 implies 2, flag 0x40 cleared; speed (+0x2fc) 0 -> 1000, rotation (+0x2f4)
+    // 0 -> 90 (negated with flag 0x10); flag 2 sets +0x2a4 bit 0x80; "key" present -> +0x3b4.
+    // The axis (+0x390 pitch / +0x394 yaw / +0x398 roll) from flags 4/8 (both or none: yaw);
+    // more than one (x87 length > 1) -> G_Error and yaw. wait (+0x384) 0 -> 2, in ms; brush
+    // model, InitMoverRotate; "health" -> takedamage unless a team slave; think 7 in 100 ms,
+    // +0x334 = 2, +0x2a4 bit 0x1000. Keys cached under 0x0098e910.
+    if (word_at(ent, 0x2a0) & 1) word_at(ent, 0x2a0) |= 2;
+    const uint32_t flags = word_at(ent, 0x2a0) & 0xffffffbfu;
+    word_at(ent, 0x2a0) = flags;
+    if (field<float>(ent, 0x2fc) == 0.0f) field<float>(ent, 0x2fc) = title_global<float>(0x0083eb9c);
+    if (field<float>(ent, 0x2f4) == 0.0f) field<float>(ent, 0x2f4) = title_global<float>(0x0083eb64);
+    if (flags & 0x10) field<float>(ent, 0x2f4) = field<float>(ent, 0x2f4) * title_global<float>(0x0083eb34);
+    if (flags & 2) word_at(ent, 0x2a4) |= 0x80;
+    int32_t value;
+    const uint32_t key = cached_key(0x0098e910, 1, 0x0098e90c, 0x0083b068);  // "key"
+    word_at(ent, 0x3b4) = G_SpawnInt(key, &value, 0) != 0 ? 1 : 0;
+    field<float>(ent, 0x398) = 0.0f;
+    field<float>(ent, 0x394) = 0.0f;
+    field<float>(ent, 0x390) = 0.0f;
+    const uint32_t axis = word_at(ent, 0x2a0);
+    const float one = title_global<float>(0x0083eb20);
+    if ((axis & 0xc) != 0xc && (axis & 4))
+        field<float>(ent, 0x398) = one;
+    else if ((axis & 0xc) != 0xc && (axis & 8))
+        field<float>(ent, 0x390) = one;
+    else
+        field<float>(ent, 0x394) = one;
+    const long double x = field<float>(ent, 0x390);
+    const long double y = field<float>(ent, 0x394);
+    const long double z = field<float>(ent, 0x398);
+    if (platform_x87_sqrt_ext((x * x + y * y) + z * z) > static_cast<long double>(one)) {
+        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x0083afd0));  // G_Error
+        field<float>(ent, 0x398) = 0.0f;
+        field<float>(ent, 0x390) = 0.0f;
+        field<float>(ent, 0x394) = title_global<float>(0x0083eb20);
+    }
+    if (field<float>(ent, 0x384) == 0.0f) field<float>(ent, 0x384) = title_global<float>(0x0083eba8);
+    field<float>(ent, 0x384) = field<float>(ent, 0x384) * title_global<float>(0x0083eb9c);
+    SV_SetBrushModel(ent);
+    InitMoverRotate(ent);
+    if (!(ent[0x2a4] & 0x10)) {
+        const uint32_t health_key = cached_key(0x0098e910, 2, 0x0098e908, 0x008367c8);  // "health"
+        G_SpawnInt(health_key, &value, 0);
+        if (value) word_at(ent, 0x29c) = 1;
+    }
+    word_at(ent, 0x2a4) |= 0x1000;
+    field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 100;
+    word_at(ent, 0x32c) = 7;
+    word_at(ent, 0x334) = 2;
+}
+
+void XB_CDECL SP_func_door(uint8_t* ent) {
+    // Q3's SP_func_door: +0x334 = 1; speed (+0x2fc) 0 -> 400, wait (+0x384) 0 -> 2 in ms; "key"
+    // present -> +0x3b4; "lip" (8), "dmg" (+0x358, 2); pos1 (+0x2c0) = origin, brush model,
+    // movedir (+0x310) from the angles; pos2 (+0x2d0) = pos1 + movedir * (|movedir| . size -
+    // lip). Spawn flag 1 swaps pos1/pos2 and (with +0x300 set) speed and +0x300; flag 2 sets
+    // +0x2a4 bit 0x80. InitMover; "health" -> takedamage unless a team slave; think 7 in 100 ms.
+    // Keys cached under 0x0098e950.
+    word_at(ent, 0x334) = 1;
+    if (field<float>(ent, 0x2fc) == 0.0f) field<float>(ent, 0x2fc) = title_global<float>(0x0083f11c);
+    if (field<float>(ent, 0x384) == 0.0f) field<float>(ent, 0x384) = title_global<float>(0x0083eba8);
+    field<float>(ent, 0x384) = field<float>(ent, 0x384) * title_global<float>(0x0083eb9c);
+    int32_t value;
+    const uint32_t key = cached_key(0x0098e950, 1, 0x0098e94c, 0x0083b068);  // "key"
+    word_at(ent, 0x3b4) = G_SpawnInt(key, &value, 0) != 0 ? 1 : 0;
+    float lip;
+    const uint32_t lip_key = cached_key(0x0098e950, 2, 0x0098e948, 0x0083b064);  // "lip"
+    G_SpawnFloat(lip_key, 8.0f, &lip);
+    const uint32_t dmg_key = cached_key(0x0098e950, 4, 0x0098e944, 0x0083b060);  // "dmg"
+    G_SpawnInt(dmg_key, &field<int32_t>(ent, 0x358), 2);
+    word_at(ent, 0x2c0) = word_at(ent, 0x140);
+    word_at(ent, 0x2c4) = word_at(ent, 0x144);
+    word_at(ent, 0x2c8) = word_at(ent, 0x148);
+    SV_SetBrushModel(ent);
+    G_SetMovedir(&field<float>(ent, 0x150), &field<float>(ent, 0x310));
+    float abs_dir[3];
+    for (uint32_t i = 0; i < 3; ++i) {
+        const uint32_t bits = word_at(ent, 0x310 + i * 4) & 0x7fffffffu;  // FABS
+        std::memcpy(&abs_dir[i], &bits, sizeof bits);
+    }
+    const float size_z = field<float>(ent, 0xf8) - field<float>(ent, 0xe8);
+    const float size_x = field<float>(ent, 0xf0) - field<float>(ent, 0xe0);
+    const float size_y = field<float>(ent, 0xf4) - field<float>(ent, 0xe4);
+    const float px = size_x * abs_dir[0];
+    const float py = size_y * abs_dir[1];
+    const float distance = ((size_z * abs_dir[2] + py) + px) - lip;
+    field<float>(ent, 0x2d0) = field<float>(ent, 0x310) * distance + field<float>(ent, 0x2c0);
+    field<float>(ent, 0x2d4) = distance * field<float>(ent, 0x314) + field<float>(ent, 0x2c4);
+    field<float>(ent, 0x2d8) = distance * field<float>(ent, 0x318) + field<float>(ent, 0x2c8);
+    if (ent[0x2a0] & 1) {
+        const uint32_t x2 = word_at(ent, 0x2d0);
+        const uint32_t y2 = word_at(ent, 0x2d4);
+        const uint32_t z2 = word_at(ent, 0x2d8);
+        word_at(ent, 0x2d0) = word_at(ent, 0x140);
+        word_at(ent, 0x2d4) = word_at(ent, 0x144);
+        word_at(ent, 0x2d8) = word_at(ent, 0x148);
+        word_at(ent, 0x2c0) = x2;
+        word_at(ent, 0x2c4) = y2;
+        word_at(ent, 0x2c8) = z2;
+        if (field<float>(ent, 0x300) != title_global<float>(0x0083eafc)) {
+            const uint32_t other = word_at(ent, 0x300);
+            word_at(ent, 0x300) = word_at(ent, 0x2fc);
+            word_at(ent, 0x2fc) = other;
+        }
+    }
+    if (ent[0x2a0] & 2) word_at(ent, 0x2a4) |= 0x80;
+    InitMover(ent);
+    if (!(ent[0x2a4] & 0x10)) {
+        const uint32_t health_key = cached_key(0x0098e950, 8, 0x0098e940, 0x008367c8);  // "health"
+        G_SpawnInt(health_key, &value, 0);
+        if (value) word_at(ent, 0x29c) = 1;
+    }
+    field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 100;
+    word_at(ent, 0x32c) = 7;
+}
+
+void XB_CDECL Use_Item(uint8_t* ent, uint8_t*, uint8_t*) { RespawnItem(ent); }
+
+void XB_CDECL G_VehiclePopOut(uint8_t* player) {
+    // __break 1 "Popout disabled" first. A player in a vehicle (ps +0xc0 bit 0x100000, vehicle
+    // handle +0x1a0, the vehicle not contents 0x200000) toggles ps bit 0x400000: off -> the
+    // vehicle's player tag (info +0x2b0, "tag_player"), on -> its popout tag (+0x2b8,
+    // "tag_popout"); unlinked, teleported to the tag and linked to it (__break 1 on failure).
+    uint8_t* const ps = pointer_at(player, 0x23c);
+    title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<const char>(0x00839fb0));  // __break
+    const uint32_t flags = word_at(ps, 0xc0);
+    if (!(flags & 0x100000)) return;
+    const uint32_t handle = word_at(player, 0x1a0);
+    if (!handle) return;
+    const uint32_t index = handle & 0xfff;
+    uint8_t* vehicle = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        vehicle = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!word_at(vehicle, 0x1a0) || (word_at(vehicle, 0x134) & 0x200000)) return;
+    int32_t tag;
+    uint32_t name;
+    if (flags & 0x400000) {
+        word_at(ps, 0xc0) = flags & 0xffbfffffu;
+        tag = field<int32_t>(pointer_at(vehicle, 0x248), 0x2b0);
+        name = 0x00838a54;  // "tag_player"
+    } else {
+        word_at(ps, 0xc0) = flags | 0x400000;
+        tag = field<int32_t>(pointer_at(vehicle, 0x248), 0x2b8);
+        name = 0x00839fd4;  // "tag_popout"
+    }
+    using Break = void XB_CDECL(int32_t, const char*, const char*);
+    const char* const text = reinterpret_cast<const char*>(uintptr_t{name});
+    if (tag < 0) title_function<Break>(0x002938f0)(1, &title_global<const char>(0x00839f70), text);  // __break
+    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002b7900)(player);  // G_EntUnlink
+    alignas(16) float matrix[16];
+    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(vehicle, tag, matrix);  // G_DObjGetWorldTagMatrix
+    TeleportPlayer(player, 0, matrix + 12);
+    const TitleRegs regs{0, 0, name, address_of(player), 0, 0};
+    const uint32_t args[3] = {address_of(vehicle), 0x0082eec0, 0x0082eec0};
+    if (!g_ent_call(0x002e44b0, &regs, 3, args))  // G_EntLinkToWithOffset
+        title_function<Break>(0x002938f0)(1, &title_global<const char>(0x00839f3c), text);  // __break
+}
+
+void XB_CDECL turret_use(uint8_t* ent, uint8_t* other, uint8_t*) {
+    // A player already on a turret (ps +0xc0 bits 0x6000) gets off (G_ClientStopUsingTurret).
+    // Else it mounts: both +0x297 = 1, the turret's user handle (+0x1a0) and ps +0x464/+0x468
+    // set, info bit 3 (+3), the player's spot (info +0x58) and stance (info +0x51: 2 crouch-
+    // ish ps +0x2c bit 0, else bit 1) kept; ps flags from the turret stance (info +0x50: 2 ->
+    // 0x2000, 1 -> 0x4000, else both). The turret's angles (+0x3a0) kept; the view's offset
+    // from them (__CIfmod 360, wrapped) clamped to the arcs (pitch: info +0x2c / +0x34 thirds,
+    // yaw: +0x30 / +0x38) into +0x90 / +0x94; the view set there; "turretownerchange".
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    if (other && pointer_at(other, 0x23c) && (word_at(pointer_at(other, 0x23c), 0xc0) & 0x6000)) {
+        G_ClientStopUsingTurret(ent);
+        return;
+    }
+    other[0x297] = 1;
+    ent[0x297] = 1;
+    word_at(ent, 0x1a0) = word_at(other, 0x224);
+    word_at(pointer_at(other, 0x23c), 0x464) = 1;
+    word_at(pointer_at(other, 0x23c), 0x468) = word_at(ent, 0x224);
+    info[3] |= 8;
+    word_at(info, 0x58) = word_at(other, 0x140);
+    word_at(info, 0x5c) = word_at(other, 0x144);
+    word_at(info, 0x60) = word_at(other, 0x148);
+    const uint8_t stance_flags = pointer_at(other, 0x23c)[0x2c];
+    info[0x51] = (stance_flags & 1) ? 2 : static_cast<uint8_t>((stance_flags >> 1) & 1);
+    uint8_t* ps = pointer_at(other, 0x23c);
+    if (info[0x50] == 2) {
+        word_at(ps, 0xc0) |= 0x2000;
+        ps = pointer_at(other, 0x23c);
+        word_at(ps, 0xc0) &= 0xffffbfffu;
+    } else if (info[0x50] == 1) {
+        word_at(ps, 0xc0) |= 0x4000;
+        ps = pointer_at(other, 0x23c);
+        word_at(ps, 0xc0) &= 0xffffdfffu;
+    } else {
+        word_at(ps, 0xc0) |= 0x6000;
+    }
+    word_at(ent, 0x3a0) = word_at(ent, 0x150);
+    word_at(ent, 0x3a4) = word_at(ent, 0x154);
+    word_at(ent, 0x3a8) = word_at(ent, 0x158);
+    const long double full = title_global<double>(0x0083ed40);  // 360
+    const float half_turn = title_global<float>(0x0083eb60);
+    const float turn = title_global<float>(0x0083ebcc);
+    const float minus_half = title_global<float>(0x0083ebd0);
+    float pitch = static_cast<float>(title_ci_fmod(
+        static_cast<long double>(field<float>(pointer_at(other, 0x23c), 0x9c)) - field<float>(ent, 0x150), full));
+    if (platform_x87_greater(pitch, half_turn)) pitch = pitch - turn;
+    if (minus_half > pitch) pitch = pitch + turn;
+    const float third = title_global<float>(0x0083ec9c);
+    field<float>(ent, 0x90) = pitch;
+    const float low = field<float>(info, 0x34) / third;
+    if (pitch > low) {
+        field<float>(ent, 0x90) = low;
+    } else {
+        const float high = field<float>(info, 0x2c) / third;
+        if (high > pitch) field<float>(ent, 0x90) = high;
+    }
+    float yaw = static_cast<float>(title_ci_fmod(
+        static_cast<long double>(field<float>(pointer_at(other, 0x23c), 0xa0)) - field<float>(ent, 0x154), full));
+    if (platform_x87_greater(yaw, half_turn)) yaw = yaw - turn;
+    if (minus_half > yaw) yaw = yaw + turn;
+    field<float>(ent, 0x94) = yaw;
+    if (yaw > field<float>(info, 0x38))
+        word_at(ent, 0x94) = word_at(info, 0x38);
+    else if (field<float>(info, 0x30) > yaw)
+        word_at(ent, 0x94) = word_at(info, 0x30);
+    float view[3];
+    view[0] = field<float>(ent, 0x150) + field<float>(ent, 0x90);
+    view[1] = field<float>(ent, 0x94) + field<float>(ent, 0x154);
+    view[2] = 0.0f;
+    SetClientViewAngle(view, other);
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a864));  // turretownerchange
+}
+
+void XB_CDECL turret_controller(uint8_t* ent) {
+    // The aim angles {+0x90, +0x94, 0} onto "tag_aim" and "tag_aim_animated", the yaw alone onto
+    // "tag_aim_animatedY", the pitch alone onto "tag_aim_animatedP" (G_DObjSetBoneRotation,
+    // controller vec3_origin). Tag hashes cached under 0x0098eba4.
+    using SetBoneRotation = void XB_CDECL(uint8_t*, uint32_t, const float*, int32_t, uint32_t);
+    float angles[3];
+    angles[1] = field<float>(ent, 0x94);
+    angles[0] = field<float>(ent, 0x90);
+    angles[2] = 0.0f;
+    const uint32_t aim = cached_key(0x0098eba4, 1, 0x0098eba0, 0x00839a18);           // "tag_aim"
+    const uint32_t animated = cached_key(0x0098eba4, 2, 0x0098eb9c, 0x00839a04);      // "tag_aim_animated"
+    const uint32_t animated_y = cached_key(0x0098eba4, 4, 0x0098eb98, 0x008399f0);    // "tag_aim_animatedY"
+    const uint32_t animated_p = cached_key(0x0098eba4, 8, 0x0098eb94, 0x008399dc);    // "tag_aim_animatedP"
+    const uint32_t hashes[2] = {aim, animated};
+    for (uint32_t i = 0; i < 2; ++i) {
+        const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c));
+        if (!obj) continue;
+        const int32_t bone = DObj_GetTagIndex(obj, hashes[i]);
+        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, angles, bone, 0);
+    }
+    float single[3];
+    single[1] = angles[1];
+    single[0] = 0.0f;
+    single[2] = 0.0f;
+    if (const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c))) {
+        const int32_t bone = DObj_GetTagIndex(obj, animated_y);
+        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, single, bone, 0);
+    }
+    single[0] = angles[0];
+    single[1] = 0.0f;
+    single[2] = 0.0f;
+    if (const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c))) {
+        const int32_t bone = DObj_GetTagIndex(obj, animated_p);
+        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, single, bone, 0);
+    }
+}
+
+uint32_t XB_CDECL Turret_CanTargetPoint(uint8_t* ent, const float* point, float* start, float* angles) {
+    // From the flash tag ("tag_flash", cached under 0x0098ebcc; none: 0) when the model is
+    // there without DObj flag 1 (+0x9c), else from the origin: start out, the direction's angles
+    // (vectoangles_2) minus the turret's (+0x150), wrapped (__CIfmod 360), into angles[0..1];
+    // 0 once one leaves its arc (info +0x2c..+0x38: pitch/yaw minimum, maximum).
+    uint8_t* const info = pointer_at(ent, 0x24c);
+    uint8_t* const obj = pointer_at(ent, 0x22c);
+    float dir[3];
+    if (obj && !(obj[0x9c] & 1)) {
+        const uint32_t hash = cached_key(0x0098ebcc, 1, 0x0098ebc8, 0x008389c0);  // "tag_flash"
+        const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(obj), hash);
+        if (tag < 0) return 0;
+        alignas(16) float m[16];
+        title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+        dir[0] = point[0] - m[12];
+        dir[1] = point[1] - m[13];
+        dir[2] = point[2] - m[14];
+        start[0] = m[12];
+        start[1] = m[13];
+        start[2] = m[14];
+    } else {
+        dir[0] = point[0] - field<float>(ent, 0x140);
+        dir[1] = point[1] - field<float>(ent, 0x144);
+        dir[2] = point[2] - field<float>(ent, 0x148);
+        uint32_t* const out = reinterpret_cast<uint32_t*>(start);
+        out[0] = word_at(ent, 0x140);
+        out[1] = word_at(ent, 0x144);
+        out[2] = word_at(ent, 0x148);
+    }
+    float view[3];
+    vectoangles_2(dir, view);
+    const long double full = title_global<double>(0x0083ed40);  // 360
+    for (uint32_t i = 0; i < 2; ++i) {
+        float delta = static_cast<float>(
+            title_ci_fmod(static_cast<long double>(view[i]) - field<float>(ent, 0x150 + i * 4), full));
+        if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - title_global<float>(0x0083ebcc);
+        if (title_global<float>(0x0083ebd0) > delta) delta = delta + title_global<float>(0x0083ebcc);
+        angles[i] = delta;
+        if (delta > field<float>(info, 0x34 + i * 4)) return 0;
+        if (field<float>(info, 0x2c + i * 4) > delta) return 0;
+    }
+    return 1;
+}
+
+uint32_t XB_REGS3 XB_CDECL G_GetFlashTagMatrix(int32_t index, uint32_t, uint8_t* ent, float* out) {
+    // Tag hashes cached together (guard 0x0098ebd0) in 0x0098ad5c / 0x0098ad60. out: the axis
+    // of the aim angles (+0x150 + +0x98 + +0x90, +0x154 + +0x94, +0x158; AnglesToAxis), the tag
+    // origin (+0x24) and the tag matrix's first row (+0x30).
+    if (index >= 2) return 0;
+    uint32_t guard = title_global<uint32_t>(0x0098ebd0);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098ebd0) = guard;
+        title_global<uint32_t>(0x0098ad5c) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x008389c0}));
+        title_global<uint32_t>(0x0098ad60) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x008389a4}));
+    }
+    const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c));
+    if (!obj) return 0;
+    const int32_t tag = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ad5c + static_cast<uint32_t>(index) * 4));
+    if (tag < 0) return 0;
+    alignas(16) float m[16];
+    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+    float aim[3];
+    aim[1] = field<float>(ent, 0x154) + field<float>(ent, 0x94);
+    aim[2] = field<float>(ent, 0x158);
+    aim[0] = (field<float>(ent, 0x150) + field<float>(ent, 0x98)) + field<float>(ent, 0x90);
+    uint32_t args[2] = {address_of(aim), address_of(out)};
+    AnglesToAxis(args, out + 3, out + 6);  // C version: (args, EDI buffer, ESI buffer)
+    out[12] = m[0];
+    out[13] = m[1];
+    out[14] = m[2];
+    out[9] = m[12];
+    out[10] = m[13];
+    out[11] = m[14];
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Turret_TryAimAtTarget_entry,
+                   "pushl %edi\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Turret_TryAimAtTarget) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Turret_TryAimAtTarget(uint8_t* ent, const float* point, uint32_t aiming, float* angles) {
+    float start[3];
+    if (!Turret_CanTargetPoint(ent, point, start, angles)) {
+        pointer_at(ent, 0x24c)[2] &= 0xbf;
+        return 0;
+    }
+    Turret_UpdateAimState(aiming, 0, ent, point, angles);
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(SP_script_model_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SP_script_model) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL SP_script_model(uint32_t entry, uint8_t* ent, uint32_t edi) {
+    // G_DObjUpdate, InitScriptMover; DObj bounds flag (+0xd4 bit 0x10), contents 0x2080; with a
+    // brush model (+6) solid (contents 1, spawn flag 1); linked; +0x2a4 bit 0x20000. Spawn flag
+    // 1 also sets 0x3000 and, outside the path editor flag 0x0095bf0c, cuts the paths it
+    // blocks. +0x348 = 2.
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    InitScriptMover(ent);
+    word_at(ent, 0xd4) |= 0x10;
+    word_at(ent, 0x134) = 0x2080;
+    if (*reinterpret_cast<const uint16_t*>(ent + 6)) {
+        SV_SetBrushModel(ent);
+        word_at(ent, 0x134) = 1;
+        word_at(ent, 0x2a0) |= 1;
+    }
+    SV_LinkEntity(ent);
+    word_at(ent, 0x2a4) |= 0x20000;
+    if (ent[0x2a0] & 1) {
+        word_at(ent, 0x2a4) |= 0x3000;
+        if (!title_global<uint32_t>(0x0095bf0c)) {
+            const TitleRegs regs{title_global<uint32_t>(0x0095f4f4), 0, 0, 0, address_of(ent), edi};
+            const uint32_t args[2] = {title_global<uint32_t>(0x0095f4f4), address_of(ent)};
+            title_call_at_regs(entry - 4, 0x002e8ef0, &regs, 2, args);  // Path_DisconnectPathsForEntity
+        }
+    }
+    word_at(ent, 0x348) = 2;
+}
+
+void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door) {
+    // Only doors with +0x2a4 bit 0x1000: state 8, or 7 while locked (+0x3b4), cut the paths
+    // through them (Path_DisconnectPathsForEntity); else they are connected again.
+    if (!(word_at(door, 0x2a4) & 0x1000)) return;
+    const uint8_t state = door[0x298];
+    if (state == 8 || (state == 7 && word_at(door, 0x3b4))) {
+        title_function<void XB_STDCALL(uint32_t, uint8_t*)>(0x002e8ef0)(title_global<uint32_t>(0x0095f4f4),
+                                                                       door);  // Path_DisconnectPathsForEntity
+        return;
+    }
+    const TitleRegs regs{address_of(door), 0, 0, 0, title_global<uint32_t>(0x0095f4f4), 0};
+    g_ent_call(0x002c5ef0, &regs, 0, nullptr);  // Path_ConnectPathsForEntity
+}
+
+void XB_REGS3 XB_CDECL SetMoverState(int32_t time, uint32_t state, uint8_t* ent) {
+    // Q3's SetMoverState: the state byte (+0x298), trajectory times (+0x18 pos, +0x3c apos).
+    // 0/1/2: stationary at pos1/pos2/pos3 (+0x2c0/+0x2d0/+0x2e0; 0 also clears +0x297);
+    // 3/4: linear pos1 -> pos2 / back over +0x320 ms (4: +0x324 when +0x300 is set);
+    // 5/6: pos2 <-> pos3 over the current duration (+0x1c); 7/8: angles stationary; 9/10:
+    // rotation by +0x2f4 on the axis (+0x390) at 1000 / +0x320 per s (spawn flag 0x100
+    // without 0x800 (+0x2a4): half speed, twice the time) - 10 starting from the rotated
+    // angles back (10 also clears +0x297). Then the current origin, linked unless an
+    // unlinked DObj without contents, and the door's path links (Door_UpdatePaths).
+    const uint32_t flags = word_at(ent, 0x2a4);
+    const bool slow = !(flags & 0x800) && (flags & 0x100);
+    ent[0x298] = static_cast<uint8_t>(state);
+    field<int32_t>(ent, 0x18) = time;
+    field<int32_t>(ent, 0x3c) = time;
+    const float ms = title_global<float>(0x0083eb9c);
+    // Linear move from base to the other point over `duration` (cvtsi2ss), type 3.
+    auto linear = [&](uint32_t base, uint32_t other, int32_t duration, bool store_duration) {
+        word_at(ent, 0x20) = word_at(ent, base);
+        word_at(ent, 0x24) = word_at(ent, base + 4);
+        word_at(ent, 0x28) = word_at(ent, base + 8);
+        const float dx = field<float>(ent, other) - field<float>(ent, base);
+        const float dy = field<float>(ent, other + 4) - field<float>(ent, base + 4);
+        const float dz = field<float>(ent, other + 8) - field<float>(ent, base + 8);
+        const float span = static_cast<float>(duration);
+        if (store_duration) field<int32_t>(ent, 0x1c) = duration;
+        const float f = ms / span;
+        field<float>(ent, 0x2c) = f * dx;
+        field<float>(ent, 0x30) = f * dy;
+        field<float>(ent, 0x34) = f * dz;
+        word_at(ent, 0x14) = 3;
+    };
+    auto stationary = [&](uint32_t base) {
+        word_at(ent, 0x20) = word_at(ent, base);
+        word_at(ent, 0x24) = word_at(ent, base + 4);
+        word_at(ent, 0x28) = word_at(ent, base + 8);
+        word_at(ent, 0x14) = 0;
+    };
+    switch (state) {
+    case 0:
+        stationary(0x2c0);
+        ent[0x297] = 0;
+        break;
+    case 1:
+        stationary(0x2d0);
+        break;
+    case 2:
+        stationary(0x2e0);
+        break;
+    case 3:
+        linear(0x2c0, 0x2d0, field<int32_t>(ent, 0x320), true);
+        break;
+    case 4:
+        linear(0x2d0, 0x2c0,
+               field<float>(ent, 0x300) == title_global<float>(0x0083eafc) ? field<int32_t>(ent, 0x320)
+                                                                           : field<int32_t>(ent, 0x324),
+               true);
+        break;
+    case 5:
+        linear(0x2d0, 0x2e0, field<int32_t>(ent, 0x1c), false);
+        break;
+    case 6:
+        linear(0x2e0, 0x2d0, field<int32_t>(ent, 0x1c), false);
+        break;
+    case 7:
+    case 8:
+        word_at(ent, 0x44) = word_at(ent, 0x150);
+        word_at(ent, 0x48) = word_at(ent, 0x154);
+        word_at(ent, 0x4c) = word_at(ent, 0x158);
+        word_at(ent, 0x38) = 0;
+        break;
+    case 9: {
+        field<float>(ent, 0x4c) = 0.0f;
+        field<float>(ent, 0x48) = 0.0f;
+        field<float>(ent, 0x44) = 0.0f;
+        int32_t duration = field<int32_t>(ent, 0x320);
+        const float span = static_cast<float>(duration);
+        float rate;
+        if (slow) {
+            rate = title_global<float>(0x0083ebec);  // 500
+            duration += duration;
+        } else {
+            rate = ms;
+        }
+        rate = rate / span;
+        const float speed = field<float>(ent, 0x2f4) * rate;
+        field<int32_t>(ent, 0x40) = duration;
+        field<float>(ent, 0x50) = field<float>(ent, 0x390) * speed;
+        field<float>(ent, 0x54) = field<float>(ent, 0x394) * speed;
+        field<float>(ent, 0x58) = field<float>(ent, 0x398) * speed;
+        word_at(ent, 0x38) = 3;
+        break;
+    }
+    case 10: {
+        field<float>(ent, 0x44) = field<float>(ent, 0x390) * field<float>(ent, 0x2f4);
+        field<float>(ent, 0x48) = field<float>(ent, 0x394) * field<float>(ent, 0x2f4);
+        field<float>(ent, 0x4c) = field<float>(ent, 0x398) * field<float>(ent, 0x2f4);
+        int32_t duration = field<int32_t>(ent, 0x320);
+        float rate = ms / static_cast<float>(duration);
+        field<int32_t>(ent, 0x40) = duration;
+        if (slow) {
+            rate = rate * title_global<float>(0x0083eb24);
+            duration += duration;
+            field<int32_t>(ent, 0x40) = duration;
+        }
+        const float back = 0.0f - rate;
+        field<float>(ent, 0x50) = back * field<float>(ent, 0x44);
+        field<float>(ent, 0x54) = back * field<float>(ent, 0x48);
+        field<float>(ent, 0x58) = back * field<float>(ent, 0x4c);
+        word_at(ent, 0x38) = 3;
+        ent[0x297] = 0;
+        break;
+    }
+    default:
+        break;
+    }
+    {
+        const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
+        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    }
+    if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
+    Door_UpdatePaths(ent);
+}
+
+PLATFORM_ASM_ENTRY(Door_StartRotate_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Door_StartRotate) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Door_StartRotate(uint8_t* ent) {
+    // The door turns by its rotation (+0x2f4) at once: think 0x15, state 8, yaw += rotation,
+    // apos stationary at the new angles; current origin, link and path links as in
+    // SetMoverState; the team master (+0x380 self or none) opens its area portal (+0x200,
+    // +0x1fc; -1: none).
+    word_at(ent, 0x32c) = 0x15;
+    field<float>(ent, 0x154) = field<float>(ent, 0x2f4) + field<float>(ent, 0x154);
+    ent[0x298] = 8;
+    field<int32_t>(ent, 0x18) = title_global<int32_t>(0x0098540c);
+    field<int32_t>(ent, 0x3c) = title_global<int32_t>(0x0098540c);
+    word_at(ent, 0x44) = word_at(ent, 0x150);
+    word_at(ent, 0x48) = word_at(ent, 0x154);
+    word_at(ent, 0x4c) = word_at(ent, 0x158);
+    word_at(ent, 0x38) = 0;
+    {
+        const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
+        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    }
+    if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
+    Door_UpdatePaths(ent);
+    const uint32_t master = word_at(ent, 0x380);
+    if ((master == address_of(ent) || !master) && field<int32_t>(ent, 0x200) != -1)
+        CM_AdjustAreaPortalState(field<int32_t>(ent, 0x1fc), field<int32_t>(ent, 0x200), 1);
+}
+
+
+namespace {
+
+// The memory context an entity's allocations use (+0x220, -1: the level's 0x0095f638 +0x34).
+uint32_t entity_context(uint8_t* ent) {
+    const uint32_t context = word_at(ent, 0x220);
+    if (context != 0xffffffffu) return context;
+    return *reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f638) + 0x34});
+}
+
+uint8_t* spawn_in_context(uint32_t context) {
+    const TitleRegs regs{context, 0, 0, 0, 0, 0};
+    return reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &regs, 0, nullptr)});  // G_Spawn
+}
+
+// The classname script string from a global (ScriptString_Assign) and its name hash (+0x260).
+void set_classname(uint8_t* ent, uint32_t name) {
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011d600)(address_of(ent + 0x25c), name);  // ScriptString_Assign
+    const uint32_t text = word_at(ent, 0x25c);
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr);
+}
+
+// The weapon def's damage fields: +0x5b8 -> +0x358, +0x728/+0x72c/+0x724 -> +0x35c..+0x364.
+void set_grenade_damage(uint8_t* ent, uint8_t* def) {
+    word_at(ent, 0x358) = word_at(def, 0x5b8);
+    word_at(ent, 0x35c) = word_at(def, 0x728);
+    word_at(ent, 0x360) = word_at(def, 0x72c);
+    word_at(ent, 0x364) = word_at(def, 0x724);
+}
+
+void set_grenade_model(uint8_t* ent, uint8_t* def) {
+    uint32_t model = 0;
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{word_at(def, 0x738)});
+    word_at(ent, 0x258) =
+        *R_RegisterModel(name, title_global<uint32_t>(0x0095f6ac), &model, entity_context(ent));  // rm_models
+}
+
+uint8_t* weapon_def_of(uint32_t weapon) {
+    return reinterpret_cast<uint8_t*>(
+        uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f4d8) + weapon * 4})});
+}
+
+// The effects/script LCG (0x008d5a70) step: the next seed's bits 17..31.
+uint32_t lcg_next() {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    return seed >> 17;
+}
+
+}  // namespace
+
+uint8_t* XB_REGS3 XB_CDECL fire_grenadeCooked(const float* origin, uint32_t, uint8_t* owner, int32_t fuse) {
+    // A cooked grenade dropped at the origin (cluster grenades): owner's weapon (byte 3), class
+    // name from 0x00984be8, think 9 at time - def +0x754 + fuse + 250, falling straight down
+    // (trajectory type 0 with the def's speed +0x730 down), angles from {0, 0, -1}, no spin;
+    // the def's model; G_DObjUpdate. Returns the entity.
+    uint8_t* const def = weapon_def_of(owner[3]);
+    const float down[3] = {0.0f, 0.0f, title_global<float>(0x0083eb34)};
+    uint8_t* const ent = spawn_in_context(entity_context(owner));
+    set_classname(ent, 0x00984be8);
+    word_at(ent, 0x32c) = 9;
+    ent[0] = 3;
+    word_at(ent, 0xd4) = 0xa0;
+    field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) - field<int32_t>(def, 0x754) + fuse + 0xfa;
+    word_at(ent, 0x10) |= 0x8000;
+    ent[3] = owner[3];
+    word_at(ent, 0x1a0) = word_at(owner, 0x224);
+    word_at(ent, 0x2b0) = word_at(owner, 0x224);
+    set_grenade_damage(ent, def);
+    word_at(ent, 0x368) = 5;
+    word_at(ent, 0x36c) = 6;
+    word_at(ent, 0x2a8) = 0x280e091;
+    word_at(ent, 0x14) = 0;
+    const float x = origin[0];
+    const float y = origin[1];
+    const float z = origin[2];
+    field<float>(ent, 0x20) = x;
+    field<float>(ent, 0x24) = y;
+    field<float>(ent, 0x28) = z;
+    field<float>(ent, 0x2c) = static_cast<float>(field<int32_t>(def, 0x730)) * 0.0f;
+    field<float>(ent, 0x30) = static_cast<float>(field<int32_t>(def, 0x730)) * 0.0f;
+    field<float>(ent, 0x34) = static_cast<float>(field<int32_t>(def, 0x730)) * title_global<float>(0x0083eb34);
+    field<float>(ent, 0x140) = x;
+    field<float>(ent, 0x144) = y;
+    field<float>(ent, 0x148) = z;
+    float angles[3];
+    vectoangles_call(down, angles);
+    field<float>(ent, 0x150) = angles[0];
+    field<float>(ent, 0x154) = angles[1];
+    field<float>(ent, 0x158) = angles[2];
+    word_at(ent, 0x44) = word_at(ent, 0x150);
+    word_at(ent, 0x48) = word_at(ent, 0x154);
+    word_at(ent, 0x4c) = word_at(ent, 0x158);
+    field<float>(ent, 0x58) = 0.0f;
+    field<float>(ent, 0x54) = 0.0f;
+    field<float>(ent, 0x50) = 0.0f;
+    word_at(ent, 0x38) = 0;
+    word_at(ent, 0x3c) = 0;
+    word_at(ent, 0x40) = 0;
+    if (*reinterpret_cast<const char*>(uintptr_t{word_at(def, 0x738)})) set_grenade_model(ent, def);
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    return ent;
+}
+
+uint8_t* XB_REGS3 XB_CDECL fire_grenade(uint32_t weapon, uint8_t* owner, const float* velocity, const float* origin,
+                                        int32_t fuse) {
+    // Q3's fire_grenade: think 8 at the client's cooked time (ps +0x3c, then cleared) or now +
+    // fuse; class name from 0x00984b64; gravity trajectory (type 5) from the origin with the
+    // velocity; angles from the velocity, pitch - 120 snapped to 16 bits, a random tumble
+    // (pitch 675..765, roll 315..405 degrees/s from the shared LCG; x87 int-to-float); the def's
+    // model; G_DObjUpdate. Returns the entity.
+    uint8_t* const ent = spawn_in_context(entity_context(owner));
+    uint8_t* const ps = pointer_at(owner, 0x23c);
+    if (ps && word_at(ps, 0x3c)) {
+        field<int32_t>(ent, 0x328) = field<int32_t>(ps, 0x3c) + title_global<int32_t>(0x0098540c);
+        word_at(pointer_at(owner, 0x23c), 0x3c) = 0;
+    } else {
+        field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + fuse;
+    }
+    word_at(ent, 0x32c) = 8;
+    ent[0] = 3;
+    word_at(ent, 0xd4) = 0xa0;
+    ent[3] = static_cast<uint8_t>(weapon);
+    word_at(ent, 0x1a0) = word_at(owner, 0x224);
+    word_at(ent, 0x2b0) = word_at(owner, 0x224);
+    uint8_t* const def = weapon_def_of(weapon);
+    set_classname(ent, 0x00984b64);
+    set_grenade_damage(ent, def);
+    word_at(ent, 0x368) = 3;
+    word_at(ent, 0x36c) = 4;
+    word_at(ent, 0x10) = 0x3000000;
+    word_at(ent, 0x2a8) = 0x280e091;
+    word_at(ent, 0x14) = 5;
+    word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c);
+    const uint32_t* const from = reinterpret_cast<const uint32_t*>(origin);
+    const uint32_t* const speed = reinterpret_cast<const uint32_t*>(velocity);
+    word_at(ent, 0x20) = from[0];
+    word_at(ent, 0x24) = from[1];
+    word_at(ent, 0x28) = from[2];
+    word_at(ent, 0x2c) = speed[0];
+    word_at(ent, 0x30) = speed[1];
+    word_at(ent, 0x34) = speed[2];
+    word_at(ent, 0x38) = 2;
+    word_at(ent, 0x3c) = title_global<uint32_t>(0x0098540c);
+    float* const base = &field<float>(ent, 0x44);
+    vectoangles_call(velocity, base);
+    const float pitch = (base[0] - title_global<float>(0x0083eb68)) * title_global<float>(0x0083ebd8);
+    base[0] = static_cast<float>(static_cast<int32_t>(pitch) & 0xffff) * title_global<float>(0x0083ebd4);
+    const float tumble = title_global<float>(0x0083eb64);  // 90
+    const float range = title_global<float>(0x0083ebc8);   // 32768
+    const float half = title_global<float>(0x0083ef1c);    // 45
+    const float first = platform_x87_int_to_float(static_cast<int32_t>(lcg_next()));
+    field<float>(ent, 0x50) = ((first * tumble) / range - half) + title_global<float>(0x0083f178);
+    field<float>(ent, 0x54) = 0.0f;
+    const float second = platform_x87_int_to_float(static_cast<int32_t>(lcg_next()));
+    field<float>(ent, 0x58) = ((second * tumble) / range - half) + title_global<float>(0x0083ebcc);
+    word_at(ent, 0x140) = from[0];
+    word_at(ent, 0x144) = from[1];
+    word_at(ent, 0x148) = from[2];
+    word_at(ent, 0x150) = word_at(ent, 0x44);
+    word_at(ent, 0x154) = word_at(ent, 0x48);
+    word_at(ent, 0x158) = word_at(ent, 0x4c);
+    set_grenade_model(ent, def);
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    return ent;
+}
+
+uint32_t XB_REGS3 XB_CDECL Turret_TrackTargetEnt(uint8_t* ent, uint32_t, uint8_t* target, uint32_t aiming) {
+    // A new target (info +0xc) clears info +2 bit 3 and restarts the target time (+0x1c). Its
+    // origin within the arcs (Turret_CanTargetPoint): aim state and turning toward it
+    // (Turret_UpdateTargetAngles, AI rates), 1; else info +2 bit 0x40 cleared, 0.
+    uint8_t* info = pointer_at(ent, 0x24c);
+    if (word_at(info, 0xc) != address_of(target)) {
+        word_at(info, 0xc) = address_of(target);
+        info[2] &= 0xf7;
+        word_at(info, 0x1c) = title_global<uint32_t>(0x0098540c);
+    }
+    const float* const point = &field<float>(target, 0x140);
+    float angles[3];
+    float start[3];
+    if (!Turret_CanTargetPoint(ent, point, start, angles)) {
+        pointer_at(ent, 0x24c)[2] &= 0xbf;
+        return 0;
+    }
+    Turret_UpdateAimState(aiming, 0, ent, point, angles);
+    uint32_t args[2] = {address_of(ent), address_of(angles)};
+    Turret_UpdateTargetAngles(args, 1, ent, angles);
+    return 1;
 }
 
 }  // namespace game

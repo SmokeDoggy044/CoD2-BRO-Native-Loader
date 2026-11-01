@@ -1,9 +1,12 @@
 #include "g_spawn.h"
 
+#include <cstring>
+
 #include "g_main.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
@@ -33,6 +36,25 @@ uint32_t cached_key(uint32_t guard, uint32_t bit, uint32_t slot, uint32_t text) 
         title_global<uint32_t>(slot) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
     }
     return title_global<uint32_t>(slot);
+}
+
+// The spawn var's value for a key hash, or null.
+const char* find_spawn_value(uint32_t key) {
+    const int32_t count = static_cast<int32_t>(num_spawn_vars());
+    for (int32_t i = 0; i < count; ++i)
+        if (key == spawn_var_key(static_cast<uint32_t>(i)))
+            return reinterpret_cast<const char*>(uintptr_t{spawn_var_value(static_cast<uint32_t>(i))});
+    return nullptr;
+}
+
+// The title CRT's __CIcos (0x0033adb0; x87 argument and result).
+float title_ci_cos(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033adb0})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
 }
 
 // Q3's trigger wait/random: "wait" (default 0.5) into +0x384, "random" into +0x388; a random
@@ -318,6 +340,216 @@ void XB_CDECL SP_trigger_multiple(uint8_t* ent) {
     word_at(ent, 0x33c) = 9;
     InitTrigger(ent);
     G_TriggerContentsFromSpawnflags(ent);
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_use(uint8_t* ent) {
+    // Brush model, linked; trajectory stationary at the origin, contents 0x200000, wait
+    // (+0x38c) in ms, use callback 0xc, cursor hint (+0xc0) 2 or "cursorhint" (HINT_INHERIT
+    // -> -1, else its index in the hint name table 0x008dae44, 1..11). "hintstring": its index
+    // among the 32 hint configstrings (0x273 + i; the first free one gets it) in byte 5 (0xff
+    // without; 32 -> __break). "harc" degrees -> cos(harc / 2) (+0x90, x87 + __CIcos),
+    // "angle" (atof) -> +0x94. Keys cached under 0x0098e434.
+    SV_SetBrushModel(ent);
+    SV_LinkEntity(ent);
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x20) = word_at(ent, 0x140);
+    word_at(ent, 0x24) = word_at(ent, 0x144);
+    word_at(ent, 0x28) = word_at(ent, 0x148);
+    word_at(ent, 0x134) = 0x200000;
+    word_at(ent, 0xd4) = 1;
+    field<float>(ent, 0x38c) = field<float>(ent, 0x38c) * title_global<float>(0x0083eb9c);
+    word_at(ent, 0x33c) = 0xc;
+    word_at(ent, 0xc0) = 2;
+    const char* hint = find_spawn_value(cached_key(0x0098e434, 1, 0x0098e430, 0x0083afc4));  // "cursorhint"
+    if (hint) {
+        if (Q_stricmpn2(0x1869f, hint, &title_global<const char>(0x00832040)) == 0) {  // "HINT_INHERIT"
+            word_at(ent, 0xc0) = 0xffffffffu;
+        } else {
+            for (uint32_t i = 1; i < 0xc; ++i) {
+                const char* name = reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x008dae44 + i * 4)});
+                if (Q_stricmpn2(0x1869f, hint, name) == 0) {
+                    word_at(ent, 0xc0) = i;
+                    break;
+                }
+            }
+        }
+    }
+    ent[5] = 0xff;
+    const char* text = find_spawn_value(cached_key(0x0098e434, 2, 0x0098e42c, 0x0083afb8));  // "hintstring"
+    if (text) {
+        int32_t index = 0;
+        for (; index < 0x20; ++index) {
+            if (index < -0x273 || index >= 0x18d)  // configstring index outside 0..0x3ff
+                title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                    1, &title_global<const char>(0x00832d34), index + 0x273);  // __break
+            const uint32_t stored = title_global<uint32_t>(0x009656ac + static_cast<uint32_t>(index) * 4);
+            char current[0x100];
+            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+                current, stored ? reinterpret_cast<const char*>(uintptr_t{stored + 6}) : nullptr, 0xff);
+            current[0xff] = 0;
+            if (!current[0]) {
+                SV_SetConfigstring(index + 0x273, text);
+                ent[5] = static_cast<uint8_t>(index);
+                break;
+            }
+            if (std::strcmp(text, current) == 0) {
+                ent[5] = static_cast<uint8_t>(index);
+                break;
+            }
+        }
+        if (index == 0x20)
+            title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                1, &title_global<const char>(0x0083af50), index);  // __break
+    }
+    const char* arc_text = find_spawn_value(cached_key(0x0098e434, 4, 0x0098e428, 0x0083af48));  // "harc"
+    const int32_t arc = arc_text ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(arc_text) : 0;  // _atol
+    const float degrees = platform_x87_int_to_float(arc);
+    const float half_arc = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083eb24) *
+                                              title_global<float>(0x0083ed00) / title_global<float>(0x0083eb60));
+    field<float>(ent, 0x90) = title_ci_cos(half_arc);
+    const char* angle_text = find_spawn_value(cached_key(0x0098e434, 8, 0x0098e424, 0x0083af40));  // "angle"
+    if (!angle_text) {
+        field<float>(ent, 0x94) = 0.0f;
+        return;
+    }
+    field<float>(ent, 0x94) = title_function<float XB_CDECL(const char*)>(0x001ef056)(angle_text);  // atof
+}
+
+PLATFORM_ASM_ENTRY(G_CallSpawn_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_CallSpawn) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_CallSpawn(uint8_t* ent) {
+    // Q3's G_CallSpawn: no classname (+0x25c script string, text at +6) -> 0. The spawn map
+    // (0x00983e1c, built on first use) by the name hash (+0x260) gives the spawn function
+    // (0x009885e4 + index * 8); else "weapon_*" classnames are an error and items (bg_itemlist
+    // 0x0096bd44, 0x34 each, name hash +0) spawn by G_SpawnItem. The string hashes are
+    // refreshed after a spawn.
+    const uint32_t name = word_at(ent, 0x25c);
+    if (!name || name + 6 == 0 || !*reinterpret_cast<const char*>(uintptr_t{name + 6})) return 0;
+    if (!title_global<uint32_t>(0x00983e28)) G_InitSpawnFuncMap();
+    uint32_t key = word_at(ent, 0x260);
+    uint32_t node = 0;
+    UintHashMap_Find(&node, &key, &title_global<uint8_t>(0x00983e1c));
+    if (node != title_global<uint32_t>(0x00983e24)) {
+        const uint32_t index = *reinterpret_cast<const uint32_t*>(uintptr_t{node + 0xc});
+        title_function<void XB_CDECL(uint8_t*)>(title_global<uint32_t>(0x009885e4 + index * 8))(ent);
+        G_UpdateEntityStringHashes(ent);
+        return 1;
+    }
+    const uint32_t text = word_at(ent, 0x25c);
+    const char* const classname = text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr;
+    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+            classname, &title_global<const char>(0x00839dc8), 6) == 0) {               // "weapon"
+        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x00839d98));  // G_Error
+        return 0;
+    }
+    if (!title_global<uint32_t>(0x0096bd48)) return 0;
+    uint32_t item = 0x0096bd44;
+    for (;;) {
+        if (title_global<uint32_t>(item) == word_at(ent, 0x260)) break;
+        const uint32_t next = title_global<uint32_t>(item + 0x38);
+        item += 0x34;
+        if (!next) return 0;
+    }
+    G_SpawnItem(ent, reinterpret_cast<const uint8_t*>(uintptr_t{item}));
+    G_UpdateEntityStringHashes(ent);
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(G_SpawnItem_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_SpawnItem) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item) {
+    // Q3's G_SpawnItem: "random" (+0x388) and "wait" (+0x384); the item's index (item -
+    // bg_itemlist 0x0096bd10, 0x34 each) registered as a weapon; the item (+0x3b0) and its
+    // model (+0xc); the 0x0083b640 key as a sound configstring (+0x295). Bounds -1..1 (z 0..2
+    // unless item type +0x24 is 1), flags, contents 0x407c0108, touch 7, type 2, model index
+    // (+6), use 8, +0x2a4 bit 0x8000. With 0x0098541c set: think 6 in 200 ms (FinishSpawningItem
+    // later); else stationary at the origin (type-1 items turned 90 in roll, ground entity
+    // cleared without spawn flag 1) and linked. Keys cached under 0x0098ee5c.
+    uint32_t guard = title_global<uint32_t>(0x0098ee5c);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098ee5c) = guard;
+        title_global<uint32_t>(0x0098ee58) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083b648}));
+    }
+    if (!(guard & 2)) {
+        guard |= 2;
+        title_global<uint32_t>(0x0098ee5c) = guard;
+        title_global<uint32_t>(0x0098ee54) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x00833c88}));
+    }
+    if (!(guard & 4)) {
+        guard |= 4;
+        title_global<uint32_t>(0x0098ee5c) = guard;
+        title_global<uint32_t>(0x0098ee50) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083b640}));
+    }
+    G_SpawnFloat(title_global<uint32_t>(0x0098ee58), 0.0f, &field<float>(ent, 0x388));
+    G_SpawnFloat(title_global<uint32_t>(0x0098ee54), 0.0f, &field<float>(ent, 0x384));
+    const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
+    G_RegisterWeapon(0, 0, static_cast<uint32_t>(static_cast<int32_t>(address - 0x0096bd10) / 0x34), 0);
+    word_at(ent, 0x3b0) = address;
+    title_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(0x002d7c60)(
+        -1, ent, *reinterpret_cast<const uint32_t*>(item + 0xc));  // G_SetModel
+    const int32_t count = static_cast<int32_t>(num_spawn_vars());
+    for (int32_t i = 0; i < count; ++i) {
+        if (title_global<uint32_t>(0x0098ee50) != spawn_var_key(static_cast<uint32_t>(i))) continue;
+        const TitleRegs regs{0, 0x40, 0, 0, 0, 0};
+        const uint32_t args[4] = {spawn_var_value(static_cast<uint32_t>(i)), 0xa0, 1, 0};
+        ent[0x295] = static_cast<uint8_t>(g_ent_call(0x002c39a0, &regs, 4, args));  // G_FindConfigstringIndex
+        break;
+    }
+    const float minus_one = title_global<float>(0x0083eb34);
+    const float one = title_global<float>(0x0083eb20);
+    const bool upright = *reinterpret_cast<const uint32_t*>(item + 0x24) == 1;
+    field<float>(ent, 0xe0) = minus_one;
+    field<float>(ent, 0xe4) = minus_one;
+    field<float>(ent, 0xe8) = upright ? minus_one : 0.0f;
+    field<float>(ent, 0xf0) = one;
+    field<float>(ent, 0xf4) = one;
+    field<float>(ent, 0xf8) = upright ? one : title_global<float>(0x0083eba8);
+    word_at(ent, 0x10) |= 0x10;
+    word_at(ent, 0xd4) |= 0x200;
+    const uint32_t index = static_cast<uint32_t>(static_cast<int32_t>(word_at(ent, 0x3b0) - 0x0096bd10) / 0x34);
+    word_at(ent, 0x134) = 0x407c0108;
+    word_at(ent, 0x338) = 7;
+    ent[0] = 2;
+    *reinterpret_cast<uint16_t*>(ent + 6) = static_cast<uint16_t>(index);
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    word_at(ent, 0x33c) = 8;
+    word_at(ent, 0x2a4) |= 0x8000;
+    const bool later = title_global<uint32_t>(0x0098541c) != 0;
+    if (!later && !(ent[0x2a0] & 1)) {
+        word_at(ent, 0xc) = 0;
+        if (*reinterpret_cast<const uint32_t*>(item + 0x24) == 1)
+            field<float>(ent, 0x158) = field<float>(ent, 0x158) + title_global<float>(0x0083eb64);
+    }
+    word_at(ent, 0x44) = word_at(ent, 0x150);
+    word_at(ent, 0x48) = word_at(ent, 0x154);
+    word_at(ent, 0x4c) = word_at(ent, 0x158);
+    word_at(ent, 0x38) = 0;
+    word_at(ent, 0x3c) = 0;
+    word_at(ent, 0x40) = 0;
+    field<float>(ent, 0x58) = 0.0f;
+    field<float>(ent, 0x54) = 0.0f;
+    field<float>(ent, 0x50) = 0.0f;
+    if (later) {
+        field<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 200;
+        word_at(ent, 0x32c) = 6;
+        return;
+    }
+    word_at(ent, 0x20) = word_at(ent, 0x140);
+    word_at(ent, 0x24) = word_at(ent, 0x144);
+    word_at(ent, 0x28) = word_at(ent, 0x148);
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
     SV_LinkEntity(ent);
 }
 

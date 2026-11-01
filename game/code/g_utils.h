@@ -285,4 +285,21 @@ extern "C" void G_FloatOnWater_entry(void);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Pickup_ClipsForAllWeapons(uint8_t* ent);
 extern "C" void Pickup_ClipsForAllWeapons_entry(void);
 
+// 0x0025d230 (origin in ECX; cdecl entity, cache): the entities touching the entity's box at
+// the origin (from the cache {count, mins +0x10, maxs +0x20, handles +0x30}, else
+// SV_AreaEntities 40/40/52 around it with its touch flag): "touch" both ways and both touch
+// callbacks.
+void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t unused_eax, uint32_t unused_edx, const float* origin, uint8_t* ent,
+                                           const uint32_t* cache);
+// 0x0025d520 (entity in EBX, origin in ECX, cache in EDX): the same for linked type-14 entities
+// with contents 0x800000 (G_NotifyWithOwnHandle); nothing with +0x3cc set (returned). Returns
+// the candidate count. Proposed name (was FUN_0025d520).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint8_t* ent, const float* origin,
+                                                                       const uint32_t* cache);
+extern "C" void G_TouchType14EntitiesInBox_entry(void);
+// 0x0025df60 (anims in EAX, entity in EDI): a new anim tree (+0x254) for other anims (none:
+// cleared), the DObj updated, the old tree queued for freeing.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetEntityAnimTree(uint8_t* anims, uint8_t* ent);
+extern "C" void G_SetEntityAnimTree_entry(void);
+
 }  // namespace game

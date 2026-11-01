@@ -67,4 +67,11 @@ void XB_CDECL Pain_trigger_damage(uint8_t* self, uint8_t* attacker, int32_t dama
 // 0x00253eb0: trigger_damage's use callback: activates with the full damage total.
 void XB_CDECL Use_trigger_damage(uint8_t* self, uint8_t* other, uint8_t* activator);
 
+// 0x0025d7d0: trigger_damage entities (with +0x2a4 bit 0x40000) in the box of the missile's
+// move that a sight trace from start to end reaches: "damage" notify and the activation.
+void XB_CDECL G_MissileActivateDamageTriggers(uint8_t* ent, const float* start, const float* end, int32_t damage,
+                                              int32_t mod);
+// 0x0025d960: the same for a hit trace (melee, bullets, missile impact), any trigger_damage.
+void XB_CDECL G_CheckHitTriggerDamage(uint8_t* ent, const float* start, const float* end, int32_t damage, int32_t mod);
+
 }  // namespace game

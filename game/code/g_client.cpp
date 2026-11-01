@@ -525,4 +525,78 @@ uint8_t* XB_CDECL SelectSpawnPoint(const float* avoid, float* angles, float* ori
     return e;
 }
 
+void XB_REGS1 XB_CDECL G_UpdatePlayerHeadEnt(uint8_t* ent) {
+    // The eye position (origin + view height ps +0xac) with the lean (ps +0x4c, yaw ps +0xa0,
+    // 16, 20). The head entity (ps +0x5f0) is spawned once: bounds -8 (0x003f48ac) .. 8,
+    // contents 0x2080, owner = the player's handle (+0x224), +0x340/+0x344 = 2, health 99999,
+    // takedamage. It is placed stationary there and linked.
+    uint8_t* const ps = pointer_at(ent, 0x23c);
+    float position[3];
+    position[0] = field<float>(ent, 0x140);
+    position[1] = field<float>(ent, 0x144);
+    position[2] = field<float>(ps, 0xac) + field<float>(ent, 0x148);
+    AddLeanToPosition(position, field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
+    uint8_t* head = pointer_at(pointer_at(ent, 0x23c), 0x5f0);
+    if (!head) {
+        head = title_function<uint8_t* XB_REGS1 XB_CDECL(int32_t)>(0x002d7030)(-1);  // G_Spawn
+        field<uint8_t*>(pointer_at(ent, 0x23c), 0x5f0) = head;
+        head = pointer_at(pointer_at(ent, 0x23c), 0x5f0);
+        const float low = title_global<float>(0x003f48ac);
+        field<float>(head, 0xe0) = low;
+        field<float>(head, 0xe4) = low;
+        field<float>(head, 0xe8) = low;
+        const float high = title_global<float>(0x0083ed78);
+        field<float>(head, 0xf0) = high;
+        field<float>(head, 0xf4) = high;
+        field<float>(head, 0xf8) = high;
+        field<uint32_t>(head, 0x134) = 0x2080;
+        field<uint32_t>(head, 0x1a0) = field<uint32_t>(ent, 0x224);
+        field<uint32_t>(head, 0x340) = 2;
+        field<uint32_t>(head, 0x344) = 2;
+        field<uint32_t>(head, 0x350) = 0x1869f;
+        field<uint32_t>(head, 0x29c) = 1;
+    }
+    field<float>(head, 0x20) = position[0];
+    field<float>(head, 0x24) = position[1];
+    field<float>(head, 0x28) = position[2];
+    field<uint32_t>(head, 0x14) = 0;
+    field<uint32_t>(head, 0x18) = 0;
+    field<uint32_t>(head, 0x1c) = 0;
+    field<float>(head, 0x34) = 0.0f;
+    field<float>(head, 0x30) = 0.0f;
+    field<float>(head, 0x2c) = 0.0f;
+    field<float>(head, 0x140) = position[0];
+    field<float>(head, 0x144) = position[1];
+    field<float>(head, 0x148) = position[2];
+    SV_LinkEntity(head);
+}
+
+uint8_t* XB_REGS1 XB_CDECL SelectInitialSpawnPoint(float* origin, float* angles) {
+    // The spawn point list (count 0x0097d36c, entities 0x0097d370): the first
+    // info_player_deathmatch (+0x260) with spawn flag 1, else the last one; when there is none
+    // or it would telefrag, SelectSpawnPoint (avoid point vec3_origin). Origin z + 9.
+    const uint32_t classname = title_global<uint32_t>(0x0097a700);
+    const uint32_t end = 0x0097d370 + title_global<uint32_t>(0x0097d36c) * 4;
+    uint8_t* spot = nullptr;
+    uint32_t cursor = 0x0097d370;
+    while (cursor != end) {
+        uint8_t* const e = title_global<uint8_t*>(cursor);
+        cursor += 4;
+        if (!e || !field<uint32_t>(e, 0x260) || field<uint32_t>(e, 0x260) != classname) continue;
+        spot = e;
+        if (e[0x2a0] & 1) break;
+    }
+    if (!spot || (SpotWouldTelefrag(&field<float>(spot, 0x140)) & 0xff))
+        return SelectSpawnPoint(reinterpret_cast<const float*>(uintptr_t{0x0082eec0}), angles, origin);
+    uint32_t* const out = reinterpret_cast<uint32_t*>(origin);
+    out[0] = field<uint32_t>(spot, 0x140);
+    out[1] = field<uint32_t>(spot, 0x144);
+    origin[2] = field<float>(spot, 0x148) + title_global<float>(0x0083eef8);
+    uint32_t* const ang = reinterpret_cast<uint32_t*>(angles);
+    ang[0] = field<uint32_t>(spot, 0x150);
+    ang[1] = field<uint32_t>(spot, 0x154);
+    ang[2] = field<uint32_t>(spot, 0x158);
+    return spot;
+}
+
 }  // namespace game
