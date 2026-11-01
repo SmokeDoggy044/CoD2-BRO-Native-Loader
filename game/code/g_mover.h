@@ -199,4 +199,37 @@ extern "C" void Turret_CanTargetSentient_entry(void);
 uint32_t XB_CDECL Turret_ComputeAimPoint(uint8_t* ent, uint8_t* sentient, uint32_t aiming, int32_t converge,
                                          float* angles);
 
+// 0x00265900 (actor in EDI, duration in EBX): starts entering prone (+0x198 {state, start, blend}):
+// an expired blend cleared; restarts now with BG_CheckProne into +0x194 unless a blend with another
+// duration runs (then started earlier by its fraction).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_EnterProne(uint8_t* actor, int32_t duration);
+extern "C" void Actor_EnterProne_entry(void);
+// 0x00266d70 (door in EBX): Q3's Think_SpawnNewDoorTrigger; returns the trigger entity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Think_SpawnNewDoorTrigger(uint8_t* ent);
+extern "C" void Think_SpawnNewDoorTrigger_entry(void);
+// 0x0026b920: the trigger with contents 0x1c0000; doors spawned open (+0x2a0 bit 1) turn.
+void XB_CDECL Think_SpawnNewDoorTriggerRotate(uint8_t* ent);
+// 0x0026b950: think wrapper (EBX = the entity) of Think_SpawnNewDoorTrigger.
+void XB_CDECL Think_SpawnNewDoorTrigger_Entry(uint8_t* ent);
+// 0x00265630 (cdecl entity): the cell, a reset when not in water, traces up/down to the floor.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void Think_DropToFloor_entry(void);
+// 0x002650b0 (origin in EDI, cdecl target): Q3's CanDamage over five points.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void CanDamage_entry(void);
+// 0x00267660 (direction in EAX, start in ECX; cdecl owner, fuse seconds): the missile entity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start,
+                                                             uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void fire_projectile_entry(void);
+// 0x00264b60 (cdecl item, caller's second word): Q3's FinishSpawningItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void FinishSpawningItem_entry(void);
+// 0x002631a0 (cdecl turret): the pitch from the aim tag at which a trace toward the butt offset hits.
+extern "C" PLATFORM_HIDDEN void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                           uint32_t ebp);
+extern "C" void turret_think_init_entry(void);
+
 }  // namespace game

@@ -268,3 +268,7 @@
 000bccc0,PhysIsland_SolveIterations,not reached,"only caller 0x000c1d60 (one of its branches); not reached in missions 1,4,5,6 (also with --only --every 1); offline the original faults on every random input (its contact lists, 29% coverage), so no offline result"
 002655b0,ClientDisconnect,not reached,"only G_vmMain's client-disconnect command (the campaign never disconnects its player); 0 calls in missions 1/4/5/6; forced on entity 0 the original faults (no client at +0x23c)"
 00262740,Reached_BinaryMover,not reached,"reached callback (0x008da800) of binary movers; 0 calls in missions 1/4/5/6 (--only --every 1); a forced call on a non-mover ends in G_Error"
+00264b60,FinishSpawningItem,not reached,"think (pointer at 0x008da7a0) of items placed by G_SpawnItem (first frames after load); 0 calls in missions 0-7 (--only --every 1, two runs)"
+00266d70,Think_SpawnNewDoorTrigger,not reached,"only the two door think wrappers below (func_door); 0 calls in missions 0-7 (--only --every 1, two runs), like Door_StartRotate"
+0026b920,Think_SpawnNewDoorTriggerRotate,not reached,"think of rotating doors; 0 calls in missions 0-7 (--only --every 1, two runs)"
+0026b950,Think_SpawnNewDoorTrigger_Entry,not reached,"think of sliding doors; 0 calls in missions 0-7 (--only --every 1, two runs)"

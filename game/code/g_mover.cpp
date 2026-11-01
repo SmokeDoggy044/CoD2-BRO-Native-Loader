@@ -2691,4 +2691,668 @@ uint32_t XB_CDECL Turret_ComputeAimPoint(uint8_t* ent, uint8_t* sentient, uint32
     Turret_UpdateAimState(aiming, 0, ent, point, angles);
     return 1;
 }
+
+// --- Prone entry, door triggers, item drops, damage reach, projectiles, turret init ---
+
+PLATFORM_ASM_ENTRY(Actor_EnterProne_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_EnterProne) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_EnterProne(uint8_t* actor, int32_t duration) {
+    // The twin of Actor_ExitProne. An expired blend of the prone state (+0x198 {state, start,
+    // blend}) is cleared; unless one with another duration runs (then started earlier by its
+    // blend fraction), the state restarts now with BG_CheckProne into +0x194.
+    uint8_t* const prone = actor + 0x198;
+    const int32_t start = static_cast<int32_t>(word_at(prone, 4));
+    bool restart = true;
+    if (start && !word_at(prone, 0)) {
+        restart = false;
+        const int32_t blend = static_cast<int32_t>(word_at(prone, 8));
+        if (blend > 0) {
+            if (blend + start < title_global<int32_t>(0x0098540c)) word_at(prone, 8) = 0;
+        } else if (blend < 0 && start - blend < title_global<int32_t>(0x0098540c)) {
+            word_at(prone, 4) = 0;
+            restart = true;
+        }
+    }
+    if (restart) {
+        word_at(prone, 0) = 0;
+        word_at(actor, 0x19c) = title_global<uint32_t>(0x0098540c);
+        word_at(actor, 0x1a0) = static_cast<uint32_t>(duration);
+        alignas(16) uint32_t bounds[4];
+        for (uint32_t i = 0; i < 4; ++i) bounds[i] = title_global<uint32_t>(0x0082e110 + i * 4);
+        uint8_t* const ent = pointer_at(actor, 0);
+        const uint32_t maxs = title_global<uint32_t>(0x0098a550);  // g_actorMaxs
+        const uint32_t args[14] = {word_at(ent, 0x224), address_of(ent + 0x140), maxs, 0x41c00000, word_at(ent, 0x154),
+                                   address_of(actor + 0x1a4), address_of(actor + 0x1a8), address_of(actor + 0x1ac), 1,
+                                   address_of(bounds), 0x002601a0, 0x002601e0, 1, 0x42340000};
+        const TitleRegs regs{address_of(ent + 0x140), static_cast<uint32_t>(duration), 0, maxs, address_of(prone),
+                             address_of(actor)};
+        word_at(actor, 0x194) = g_ent_call(0x002dcc60, &regs, 14, args);  // BG_CheckProne (G_TraceCapsule, G_Trace)
+        return;
+    }
+    const int32_t current = static_cast<int32_t>(word_at(actor, 0x1a0));
+    if (!current || duration == current) return;
+    const uint32_t bits = actor_get_prone_blend_call(prone, title_global<int32_t>(0x0098540c));
+    float fraction;
+    std::memcpy(&fraction, &bits, sizeof fraction);
+    if (title_global<float>(0x0083eb20) > fraction) {
+        const int32_t now = title_global<int32_t>(0x0098540c);
+        const float elapsed = static_cast<float>(duration) * fraction;
+        word_at(actor, 0x19c) = static_cast<uint32_t>(now - static_cast<int32_t>(elapsed));
+    }
+    word_at(actor, 0x1a0) = static_cast<uint32_t>(duration);
+}
+
+PLATFORM_ASM_ENTRY(Think_SpawnNewDoorTrigger_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Think_SpawnNewDoorTrigger) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Think_SpawnNewDoorTrigger(uint8_t* ent) {
+    // Q3's Think_SpawnNewDoorTrigger: the team (+0x37c chain) is marked (+0x29c = 1); the
+    // trigger covers the team's absolute bounds (packed MINPS/MAXPS over all four lanes), grown
+    // by 120 on its thinnest of x/y (z when that one is thicker); a level-context entity (the
+    // inlined G_Spawn) with contents 0x40000000 and touch 8, linked; then MatchTeam now.
+    for (uint8_t* e = ent; e; e = pointer_at(e, 0x37c)) word_at(e, 0x29c) = 1;
+    float mins[4] = {field<float>(ent, 0x100), field<float>(ent, 0x104), field<float>(ent, 0x108), 0.0f};
+    float maxs[4] = {field<float>(ent, 0x110), field<float>(ent, 0x114), field<float>(ent, 0x118), 0.0f};
+    for (uint8_t* e = pointer_at(ent, 0x37c); e; e = pointer_at(e, 0x37c)) {
+        const float* const lo = &field<float>(e, 0x100);
+        const float* const hi = &field<float>(e, 0x110);
+        for (int32_t i = 0; i < 4; ++i) {
+            mins[i] = mins[i] < lo[i] ? mins[i] : lo[i];  // MINPS: the second operand on NaN
+            maxs[i] = maxs[i] > lo[i] ? maxs[i] : lo[i];
+            mins[i] = mins[i] < hi[i] ? mins[i] : hi[i];
+            maxs[i] = maxs[i] > hi[i] ? maxs[i] : hi[i];
+        }
+    }
+    const float dy = maxs[1] - mins[1];
+    const float dx = maxs[0] - mins[0];
+    const float dz = maxs[2] - mins[2];
+    int32_t axis = dx > dy ? 1 : 0;
+    if (maxs[axis] - mins[axis] > dz) axis = 2;
+    const float pad = title_global<float>(0x0083eb68);  // 120
+    maxs[axis] = maxs[axis] + pad;
+    mins[axis] = mins[axis] - pad;
+    const TitleRegs spawn_regs{0xffffffffu, 0, 0, 0, 0, 0};
+    uint8_t* const trigger = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &spawn_regs, 0, nullptr)});  // G_Spawn
+    for (uint32_t i = 0; i < 3; ++i) {
+        field<float>(trigger, 0xe0 + i * 4) = mins[i];
+        field<float>(trigger, 0xf0 + i * 4) = maxs[i];
+    }
+    word_at(trigger, 0x2b0) = word_at(ent, 0x224);
+    word_at(trigger, 0x134) = 0x40000000;
+    word_at(trigger, 0x338) = 8;
+    SV_LinkEntity(trigger);
+    MatchTeam(ent, ent[0x298], title_global<int32_t>(0x0098540c));
+    return trigger;
+}
+
+void XB_CDECL Think_SpawnNewDoorTriggerRotate(uint8_t* ent) {
+    // The rotating door's trigger (contents 0x1c0000); a door spawned open (+0x2a0 bit 1) turns.
+    uint8_t* const trigger = Think_SpawnNewDoorTrigger(ent);
+    word_at(trigger, 0x134) = 0x1c0000;
+    if (ent[0x2a0] & 1) Door_StartRotate(ent);
+}
+
+void XB_CDECL Think_SpawnNewDoorTrigger_Entry(uint8_t* ent) { Think_SpawnNewDoorTrigger(ent); }
+
+// Frame entries for the functions below: every title callee runs where the original's call
+// puts it (title_call_at_regs), the C frame below a gap; the C body gets the entry ESP and
+// the entry's callee-saved registers to write the original's saves.
+PLATFORM_ASM_ENTRY(Think_DropToFloor_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Think_DropToFloor) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Without a cell yet (+0x458 < 0) the cell of the origin (20 higher when outside); in
+    // water-free cells (no 0x0095bf0c, cell +0x3c clear) the position resets (+0x20 = origin,
+    // velocity 0). Then a box trace (0x0097a8a0 / 0x00984d00, contents 0x381c011) 128 up, 256
+    // down from there, and a zero-length one at the floor: the ground entity (+0xc) and the
+    // origin (+0x140, +0x20) at the end, velocity 0. Frame: aligned base - 0x70 (start +0x10,
+    // end +0x20, trace +0x30).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x70;
+    stack_at(L + 4) = ebx;
+    stack_at(L) = esi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(ent);
+    stack_at(L + 0x60) = 0;
+    if (ent && field<int32_t>(ent, 0x458) < 0) {
+        for (uint32_t i = 0; i < 4; ++i) stack_at(L + 0x10 + i * 4) = word_at(ent, 0x140 + i * 4);
+        const TitleRegs regs{self + 0x140, 0, word_at(ent, 0x148), L + 0x10, self, edi};
+        const int32_t cell = static_cast<int32_t>(call_at(L, 0x0026567a, 0x0023cc80, regs, 0, nullptr));  // CM_CellForPoint
+        field<int32_t>(ent, 0x458) = cell;
+        if (cell < 0) {
+            stack_float(L + 0x18) = stack_float(L + 0x18) + title_global<float>(0x0083eb5c);  // 20
+            const TitleRegs again{static_cast<uint32_t>(cell), 0, word_at(ent, 0x148), L + 0x10, self, edi};
+            field<int32_t>(ent, 0x458) =
+                static_cast<int32_t>(call_at(L, 0x0026569d, 0x0023cc80, again, 0, nullptr));  // CM_CellForPoint
+        }
+    }
+    uint32_t ecx = 0;
+    if (!title_global<uint32_t>(0x0095bf0c)) {
+        int32_t cell = field<int32_t>(ent, 0x458);
+        bool reset = true;
+        if (cell >= 0) {
+            uint8_t* const cm = title_global<uint8_t*>(0x0095f6b8);
+            if (static_cast<uint32_t>(cell) >= word_at(cm, 0x18)) cell = 0;
+            reset = word_at(pointer_at(cm, 0x1c), static_cast<uint32_t>(cell) * 0x50 + 0x3c) == 0;
+        }
+        if (reset) {
+            for (uint32_t i = 0; i < 3; ++i) {
+                word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
+                word_at(ent, 0x14 + i * 4) = 0;
+                word_at(ent, 0x2c + i * 4) = 0;
+            }
+            ecx = word_at(ent, 0x148);
+        }
+    }
+    const uint32_t start = L + 0x10, end = L + 0x20, results = L + 0x30;
+    const uint32_t pass = word_at(ent, 0x224);
+    stack_float(start) = field<float>(ent, 0x140);
+    stack_float(start + 4) = field<float>(ent, 0x144);
+    stack_float(start + 8) = field<float>(ent, 0x148);
+    stack_float(end) = field<float>(ent, 0x140);
+    stack_float(end + 4) = field<float>(ent, 0x144);
+    stack_float(end + 8) = field<float>(ent, 0x148) + title_global<float>(0x0083ebe8);  // 128
+    const uint32_t up_args[11] = {results, 0x0097a8a0, 0x00984d00, end, pass, 0x0381c011, 1, 0, 0, 0, 0};
+    call_at(L, 0x002657c0, 0x002e9af0, TitleRegs{results, start, ecx, end, self, edi}, 11, up_args);  // SV_Trace
+    const float z = stack_float(results + 8);
+    const float x = stack_float(results);
+    const float y = stack_float(results + 4);
+    stack_float(start + 8) = z;
+    stack_float(start) = x;
+    stack_float(start + 4) = y;
+    stack_float(end) = x;
+    stack_float(end + 4) = y;
+    stack_float(end + 8) = z - title_global<float>(0x0083ecf4);  // 256
+    call_at(L - 0x2c, 0x00265833, 0x002e9af0, TitleRegs{pass, start, end, results, self, edi}, 11, up_args);  // SV_Trace
+    word_at(ent, 0xc) = stack_at(results + 0x30);
+    stack_float(start) = stack_float(results);
+    stack_float(start + 4) = stack_float(results + 4);
+    stack_float(start + 8) = stack_float(results + 8);
+    const uint32_t at_args[11] = {results, 0x0097a8a0, 0x00984d00, start, pass, 0x0381c011, 1, 0, 0, 0, 0};
+    call_at(L, 0x00265894, 0x002e9af0, TitleRegs{pass, start, start, results, self, edi}, 11, at_args);  // SV_Trace
+    for (uint32_t i = 0; i < 3; ++i) {
+        const uint32_t v = stack_at(results + i * 4);
+        word_at(ent, 0x20 + i * 4) = v;
+        word_at(ent, 0x14 + i * 4) = 0;
+        word_at(ent, 0x2c + i * 4) = 0;
+        word_at(ent, 0x140 + i * 4) = v;
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(CanDamage_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CanDamage) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's CanDamage (EDI origin, cdecl target): 1 when a point trace (contents 0x280e091) from
+    // one of five points reaches the origin whole (fraction 1). Sentients: the middle of the
+    // origin and eye, and that point moved sideways (radius 15, players 8) across the flat
+    // direction to the origin and up/down by half the eye height; others: the bounds center and
+    // its four corners at radius 15. Frame: aligned base - 0xf0 (radius/counter +0xc, points
+    // +0x30, boxes +0x70 / +0x80, start +0x90, end +0xa0, trace +0xb0).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0xf0;
+    stack_at(L + 4) = ebx;
+    stack_at(L) = esi;
+    uint8_t* const targ = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const float* const origin = reinterpret_cast<const float*>(uintptr_t{edi});
+    auto f = [](uint32_t address) -> float& { return stack_float(address); };
+    const float radius = title_global<float>(0x0083ef10);  // 15
+    f(L + 0xc) = radius;
+    uint8_t* const sentient = pointer_at(targ, 0x244);
+    if (sentient) {
+        if (word_at(targ, 0x23c)) stack_at(L + 0xc) = title_global<uint32_t>(0x0083ed78);  // 8
+        call_at(L, 0x002650fe, 0x002066e0, TitleRegs{address_of(sentient), address_of(targ), L + 0x20, 0, esi, edi}, 0,
+                nullptr);  // Sentient_EyeOrigin
+        const float half = title_global<float>(0x0083eb24);
+        f(L + 0x6c) = (f(L + 0x28) - field<float>(targ, 0x148)) * half;
+        const float dy = origin[1] - field<float>(targ, 0x144);
+        const float dx = origin[0] - field<float>(targ, 0x140);
+        const float zero = 0.0f;
+        f(L + 0x14) = dy;
+        f(L + 0x10) = dx;
+        f(L + 0x18) = zero;
+        f(L + 8) = dy * dy + dx * dx + zero * zero;
+        f(L + 8) = title_ci_float(0x0033acf4, f(L + 8));  // __CIsqrt
+        uint32_t length_bits;
+        std::memcpy(&length_bits, &f(L + 8), 4);
+        float side_y;
+        if (length_bits & 0x7fffffffu) {  // FUCOMIP: NaN normalizes too
+            const float inv = title_global<float>(0x0083eb20) / f(L + 8);
+            f(L + 0x10) = inv * f(L + 0x10);
+            side_y = inv * f(L + 0x14);
+            f(L + 0x18) = inv * zero;
+        } else {
+            side_y = f(L + 0x14);
+        }
+        const float cx = (field<float>(targ, 0x140) + f(L + 0x20)) * half;
+        const float cz = (f(L + 0x28) + field<float>(targ, 0x148)) * half;
+        const float neg_y = zero - side_y;
+        const float cy = (field<float>(targ, 0x144) + f(L + 0x24)) * half;
+        const float r = f(L + 0xc);
+        const float dir_x = f(L + 0x10), dir_z = f(L + 0x18), h = f(L + 0x6c);
+        const float p1y = dir_x * r + cy;
+        const float up = dir_z * r + cz;
+        const float neg_r = zero - r;
+        const float p1x = neg_y * r + cx;
+        const float down = neg_r * dir_z + cz;
+        const float p3y = neg_r * dir_x + cy;
+        const float p3x = neg_r * neg_y + cx;
+        f(L + 0x30) = cx;
+        f(L + 0x34) = cy;
+        f(L + 0x38) = cz;
+        f(L + 0x3c) = p1x;
+        f(L + 0x40) = p1y;
+        f(L + 0x44) = up + h;
+        f(L + 0x48) = p1x;
+        f(L + 0x4c) = p1y;
+        f(L + 0x50) = up - h;
+        f(L + 0x54) = p3x;
+        f(L + 0x58) = p3y;
+        f(L + 0x5c) = down + h;
+        f(L + 0x60) = p3x;
+        f(L + 0x64) = p3y;
+        f(L + 0x68) = down - h;
+    } else {
+        const float half = title_global<float>(0x0083eb24);
+        const float z = (field<float>(targ, 0x118) + field<float>(targ, 0x108)) * half;
+        const float y = (field<float>(targ, 0x114) + field<float>(targ, 0x104)) * half;
+        const float x = (field<float>(targ, 0x110) + field<float>(targ, 0x100)) * half;
+        f(L + 0x30) = x;
+        f(L + 0x34) = y;
+        f(L + 0x38) = z;
+        f(L + 0x3c) = x + radius;
+        f(L + 0x40) = y + radius;
+        f(L + 0x44) = z;
+        f(L + 0x48) = x + radius;
+        f(L + 0x4c) = y - radius;
+        f(L + 0x50) = z;
+        f(L + 0x54) = x - radius;
+        f(L + 0x58) = y + radius;
+        f(L + 0x5c) = z;
+        f(L + 0x60) = x - radius;
+        f(L + 0x64) = y - radius;
+        f(L + 0x68) = z;
+    }
+    for (int32_t i = 0; i < 5; ++i) {
+        stack_at(L + 0xc) = static_cast<uint32_t>(i);
+        const uint32_t point = L + 0x30 + static_cast<uint32_t>(i) * 0xc;
+        stack_at(L + 0x70) = title_global<uint32_t>(0x0082e290);
+        stack_at(L + 0x74) = title_global<uint32_t>(0x0082e294);
+        stack_at(L + 0x78) = title_global<uint32_t>(0x0082e298);
+        stack_at(L + 0x7c) = title_global<uint32_t>(0x0082e29c);
+        stack_at(L + 0x80) = title_global<uint32_t>(0x0082e290);
+        stack_at(L + 0x84) = title_global<uint32_t>(0x0082e294);
+        stack_at(L + 0x88) = title_global<uint32_t>(0x0082e298);
+        stack_at(L + 0x8c) = title_global<uint32_t>(0x0082e29c);
+        const uint32_t ox = *reinterpret_cast<const uint32_t*>(origin);
+        const uint32_t oy = *reinterpret_cast<const uint32_t*>(origin + 1);
+        const uint32_t oz = *reinterpret_cast<const uint32_t*>(origin + 2);
+        const uint32_t end_words[4] = {ox, oy, oz, ox};
+        const uint32_t px = stack_at(point), py = stack_at(point + 4), pz = stack_at(point + 8);
+        const uint32_t start_words[4] = {px, py, pz, px};
+        for (uint32_t k = 0; k < 4; ++k) {
+            stack_at(L + 0x20 + k * 4) = end_words[k];
+            stack_at(L + 0xa0 + k * 4) = end_words[k];
+            stack_at(L + 0x10 + k * 4) = start_words[k];
+            stack_at(L + 0x90 + k * 4) = start_words[k];
+        }
+        const uint32_t args[11] = {L + 0xb0, L + 0x80, L + 0x70, L + 0xa0, word_at(targ, 0x224), 0x0280e091, 0, 1,
+                                   0x008da6f0, 1, 0};
+        call_at(L, 0x002654b1, 0x002e9af0, TitleRegs{L + 0x70, L + 0x90, L + 0x80, L + 0xb0, point + 4, edi}, 11,
+                args);  // SV_Trace
+        if (stack_at(L + 0xd0) == 0x3f800000u) return 1;  // fraction == 1.0 (FUCOMIP against the double)
+    }
+    stack_at(L + 0xc) = 5;
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(fire_projectile_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(fire_projectile) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start, uint32_t ebx, uint32_t esi,
+                                  uint32_t edi, uint32_t ebp) {
+    // EAX direction (normalized in place), ECX start; cdecl (owner, fuse seconds). A missile
+    // entity in the owner's context ("rocket"-class script string 0x00984be8 and its hash): type
+    // 3, think 8 at level.time + fuse * 1000, the owner's weapon (+3), owner (+0x1a0, +0x2b0),
+    // the weapon def's damage words (+0x5b8, +0x728, +0x72c, +0x724 -> +0x358..+0x364), contents
+    // 0x280e091, a linear trajectory (+0x14 = 2, 50 ms back) from start at speed (+0x730),
+    // angles from the direction, the projectile model (+0x738); weapon class 6 plays its
+    // sound 0x2b. Every callee runs at the original's ESP (frame top = entry - 0x20).
+    stack_at(entry - 0x14) = ebx;
+    stack_at(entry - 0x18) = ebp;
+    stack_at(entry - 0x1c) = esi;
+    stack_at(entry - 0x20) = edi;
+    const uint32_t top = entry - 0x20;
+    const uint32_t dir_at = address_of(dir), start_at = address_of(start);
+    stack_float(entry - 0x10) = dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2];
+    stack_float(entry - 0x10) = title_ci_float(0x0033acf4, stack_float(entry - 0x10));  // __CIsqrt
+    if (stack_at(entry - 0x10) & 0x7fffffffu) {  // FUCOMIP: NaN normalizes too
+        const float inv = title_global<float>(0x0083eb20) / stack_float(entry - 0x10);
+        dir[0] = dir[0] * inv;
+        dir[1] = inv * dir[1];
+        dir[2] = inv * dir[2];
+    }
+    uint8_t* const owner = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const float fuse = stack_float(entry + 8);
+    const uint32_t weapon = owner[3];
+    uint32_t context = word_at(owner, 0x220);
+    if (context == 0xffffffffu) context = word_at(title_global<uint8_t*>(0x0095f638), 0x34);
+    const uint32_t defs = title_global<uint32_t>(0x0095f4d8);  // bg_weaponDefs
+    uint8_t* const def = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(defs + weapon * 4)});
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{
+        call_at(top, 0x0026771f, 0x002d7030, TitleRegs{context, ebx, weapon, defs, dir_at, start_at}, 0, nullptr)});  // G_Spawn
+    const uint32_t self = address_of(ent);
+    const uint32_t name_arg[1] = {0x00984be8};
+    call_at(top, 0x00267731, 0x0011d600, TitleRegs{self, self, self + 0x25c, defs, dir_at, start_at}, 1,
+            name_arg);  // ScriptString_Assign
+    const uint32_t rep = word_at(ent, 0x25c);
+    const uint32_t text = rep ? rep + 6 : 0;
+    word_at(ent, 0x260) =
+        call_at(top, 0x00267747, 0x00292fe0, TitleRegs{rep, self, 0, text, dir_at, start_at}, 0, nullptr);  // Com_HashKeyNoCase
+    const uint32_t flags = word_at(ent, 0x10);
+    const float delay = fuse * title_global<float>(0x0083eb9c);  // 1000
+    const float now = static_cast<float>(title_global<int32_t>(0x0098540c));
+    word_at(ent, 0x32c) = 8;
+    ent[0] = 3;
+    word_at(ent, 0xd4) = 0xa0;
+    word_at(ent, 0x328) = static_cast<uint32_t>(static_cast<int32_t>(delay + now));
+    word_at(ent, 0x10) = flags | 0x8000;
+    ent[3] = owner[3];
+    word_at(ent, 0x2f0) = title_global<uint32_t>(0x0098540c);
+    word_at(ent, 0x1a0) = word_at(owner, 0x224);
+    word_at(ent, 0x2b0) = word_at(owner, 0x224);
+    word_at(ent, 0x358) = word_at(def, 0x5b8);
+    word_at(ent, 0x35c) = word_at(def, 0x728);
+    word_at(ent, 0x360) = word_at(def, 0x72c);
+    word_at(ent, 0x364) = word_at(def, 0x724);
+    word_at(ent, 0x368) = 5;
+    word_at(ent, 0x36c) = 6;
+    word_at(ent, 0x2a8) = 0x0280e091;
+    word_at(ent, 0x14) = 2;
+    word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c) - 50;
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x20 + i * 4) = reinterpret_cast<const uint32_t*>(start)[i];
+    for (uint32_t i = 0; i < 3; ++i)
+        field<float>(ent, 0x2c + i * 4) = static_cast<float>(field<int32_t>(def, 0x730)) * dir[i];
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = reinterpret_cast<const uint32_t*>(start)[i];
+    const uint32_t angles = entry - 0xc;
+    call_at(top, 0x0026788b, 0x002a0850,
+            TitleRegs{word_at(ent, 0x148), self, word_at(ent, 0x140), word_at(ent, 0x144), dir_at, angles}, 0,
+            nullptr);  // vectoangles
+    for (uint32_t i = 0; i < 3; ++i) {
+        word_at(ent, 0x150 + i * 4) = stack_at(angles + i * 4);
+        word_at(ent, 0x44 + i * 4) = stack_at(angles + i * 4);
+        word_at(ent, 0x38 + i * 4) = 0;
+        word_at(ent, 0x50 + i * 4) = 0;
+    }
+    uint32_t model_context = word_at(ent, 0x220);
+    uint32_t ecx = word_at(ent, 0x150);
+    if (model_context == 0xffffffffu) {
+        ecx = title_global<uint32_t>(0x0095f638);
+        model_context = word_at(title_global<uint8_t*>(0x0095f638), 0x34);
+    }
+    const uint32_t model_args[3] = {title_global<uint32_t>(0x0095f6ac), entry + 4, model_context};  // rm_models
+    const uint32_t handle = call_at(top, 0x0026793c, 0x00241f40,
+                                    TitleRegs{word_at(def, 0x738), self, ecx, entry + 4, dir_at, angles}, 3,
+                                    model_args);  // R_RegisterModel (stdcall)
+    word_at(ent, 0x258) = stack_at(handle);
+    uint32_t eax = handle;
+    if (word_at(def, 0x98) == 6) {
+        const uint32_t sound_args[2] = {word_at(def, 8), 0x2b};
+        eax = call_at(top, 0x0026795a, 0x002a62d0, TitleRegs{self, self, word_at(ent, 0x258), word_at(def, 8), dir_at, angles},
+                      2, sound_args);  // FXCmd_PlayWeaponSound
+        word_at(ent, 0x3b4) = eax;
+    }
+    const bool sound = word_at(def, 0x98) == 6;
+    const uint32_t update_args[1] = {self};
+    call_at(top, 0x00267969, 0x002e8be0,
+            TitleRegs{eax, self, sound ? 0 : word_at(ent, 0x258), sound ? word_at(def, 8) : entry + 4, dir_at, angles}, 1,
+            update_args);  // G_DObjUpdate
+    return ent;
+}
+
+PLATFORM_ASM_ENTRY(FinishSpawningItem_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FinishSpawningItem) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's FinishSpawningItem. Suspended items (+0x2a0 bit 1) stay where they are (+0x20 =
+    // origin, velocity 0). Else (+0x10 |= 0x10, +0xd4 |= 0x200) a box trace (item type +0x24 1:
+    // a flat box at -1, else -1..2 high; contents 0x411) 4096 down, again from 15 lower when it
+    // starts solid; still solid: freed (G_FreeEntity with the caller's second word). Else the
+    // item lands at the end (ground entity +0xc) and, on a slope (fraction < 1), turns to the
+    // ground normal (axis {forward x normal, ...}, item class 1: roll + 90). Frame: aligned base
+    // - 0xc0 (angles/end +0x10, mins +0x20, maxs +0x30, axis +0x4c, start +0x70, trace +0x80).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0xc0;
+    stack_at(L + 8) = ebx;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(ent);
+    auto f = [](uint32_t address) -> float& { return stack_float(address); };
+    stack_at(L + 0xb0) = 0;
+    if (ent[0x2a0] & 1) {
+        for (uint32_t i = 0; i < 3; ++i) {
+            word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
+            word_at(ent, 0x14 + i * 4) = 0;
+            word_at(ent, 0x2c + i * 4) = 0;
+        }
+        call_at(L, 0x00264be9, 0x002d7fe0, TitleRegs{word_at(ent, 0x148), ebx, word_at(ent, 0x140), word_at(ent, 0x144), esi, self},
+                0, nullptr);  // SV_LinkEntity
+        return;
+    }
+    const uint32_t minus_one = title_global<uint32_t>(0x0083eb34), one = title_global<uint32_t>(0x0083eb20);
+    stack_at(L + 0x24) = minus_one;
+    stack_at(L + 0x20) = minus_one;
+    uint32_t top_z = minus_one;
+    if (word_at(pointer_at(ent, 0x3b0), 0x24) == 1) {
+        stack_at(L + 0x28) = minus_one;
+    } else {
+        stack_at(L + 0x28) = 0;
+        top_z = title_global<uint32_t>(0x0083eba8);  // 2
+    }
+    stack_at(L + 0x30) = one;
+    stack_at(L + 0x34) = one;
+    word_at(ent, 0x10) |= 0x10;
+    word_at(ent, 0xd4) |= 0x200;
+    stack_at(L + 0x38) = top_z;
+    const uint32_t origin = self + 0x140;
+    const float depth = title_global<float>(0x0083ed4c);  // 4096
+    f(L + 0x10) = field<float>(ent, 0x140);
+    f(L + 0x14) = field<float>(ent, 0x144);
+    f(L + 0x18) = field<float>(ent, 0x148) - depth;
+    const uint32_t args[11] = {L + 0x80, L + 0x20, L + 0x30, L + 0x10, word_at(ent, 0x224), 0x411, 1, 0, 0, 0, 0};
+    call_at(L, 0x00264cd8, 0x002e9af0, TitleRegs{L + 0x20, origin, L + 0x80, L + 0x30, origin, self}, 11, args);  // SV_Trace
+    if (stack_at(L + 0xbc) & 0xff00u) {
+        f(L + 0x70) = field<float>(ent, 0x140);
+        f(L + 0x74) = field<float>(ent, 0x144);
+        f(L + 0x78) = field<float>(ent, 0x148) - title_global<float>(0x0083ef10);  // 15
+        f(L + 0x10) = field<float>(ent, 0x140);
+        f(L + 0x14) = field<float>(ent, 0x144);
+        f(L + 0x18) = field<float>(ent, 0x148) - depth;
+        call_at(L, 0x00264d86, 0x002e9af0, TitleRegs{L + 0x30, L + 0x70, L + 0x20, L + 0x80, origin, self}, 11,
+                args);  // SV_Trace
+        if (stack_at(L + 0xbc) & 0xff00u) {
+            call_at(L, 0x00264d9b, 0x002b78b0, TitleRegs{origin, L + 0x70, 0, 0, origin, self}, 0, nullptr);  // vtos
+            const uint32_t free_args[2] = {self, stack_at(entry + 8)};
+            call_at(L, 0x00264da5, 0x002be420, TitleRegs{free_args[1], L + 0x70, 0, 0, origin, self}, 2,
+                    free_args);  // G_FreeEntity
+            return;
+        }
+    }
+    const uint32_t ground = stack_at(L + 0xb0);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x2c + i * 4) = 0;
+    word_at(ent, 0xc) = ground;
+    for (uint32_t i = 0; i < 3; ++i) {
+        word_at(ent, 0x20 + i * 4) = stack_at(L + 0x80 + i * 4);
+        word_at(ent, 0x14 + i * 4) = 0;
+    }
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = stack_at(L + 0x80 + i * 4);
+    if (title_global<float>(0x0083eb20) > f(L + 0xa0)) {
+        for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x64 + i * 4) = stack_at(L + 0x90 + i * 4);
+        call_at(L, 0x00264e66, 0x00013c60, TitleRegs{ground, ebx, 0, ground, L + 0x4c, self + 0x150}, 0,
+                nullptr);  // AnglesToForward
+        const float fz = f(L + 0x54), ny = f(L + 0x68), fy = f(L + 0x50), nz = f(L + 0x6c), fx = f(L + 0x4c),
+                    nx = f(L + 0x64);
+        const float a = fz * ny - fy * nz;
+        const float c = fy * nx - fx * ny;
+        const float b = fx * nz - fz * nx;
+        f(L + 0x4c) = b * nz - c * ny;
+        f(L + 0x58) = a;
+        f(L + 0x60) = c;
+        f(L + 0x5c) = b;
+        const float row_y = c * nx - a * nz;
+        const float row_z = a * ny - b * nx;
+        f(L + 0x50) = row_y;
+        f(L + 0x54) = row_z;
+        call_at(L, 0x00264f13, 0x002a27f0, TitleRegs{L + 0x10, ebx, L + 0x4c, ground, L + 0x4c, self + 0x150}, 0,
+                nullptr);  // AxisToAngles
+        const uint32_t item = *reinterpret_cast<const uint16_t*>(ent + 6);
+        if (title_global<uint32_t>(0x0096bd34 + item * 0x34) == 1)
+            f(L + 0x18) = f(L + 0x18) + title_global<float>(0x0083eb64);  // 90
+        call_at(L, 0x00264f43, 0x002b7690, TitleRegs{self, ebx, L + 0x10, ground, L + 0x4c, self + 0x150}, 0,
+                nullptr);  // G_SetAngle2
+        call_at(L, 0x00264f4b, 0x002d7fe0, TitleRegs{self, ebx, 0, ground, L + 0x4c, self}, 0, nullptr);  // SV_LinkEntity
+        return;
+    }
+    call_at(L, 0x00264f4b, 0x002d7fe0, TitleRegs{self, ebx, 0, ground, origin, self}, 0, nullptr);  // SV_LinkEntity
+}
+
+PLATFORM_ASM_ENTRY(turret_think_init_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(turret_think_init) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Think 0xf next frame. With both "tag_aim" and "tag_butt" (hashes cached under 0x0098f140
+    // bits 1 / 2): from the aim tag's point in the world (entity axis {forward, -right, up},
+    // origin), pitches 0, -3, .. -90 of the butt-to-aim offset turned by the pitch and placed
+    // back in the world: a point trace (contents 0x11) to each; the first that hits sets the
+    // turret info's +0x3c to that pitch. Frame: aligned base - 0x100 (counter +0x14, angles
+    // +0x18, axis + origin +0x24, offset +0x54, right +0x64, end +0x70, start +0x80, forward
+    // +0x9c, up +0xb4, trace +0xc0).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x100;
+    stack_at(L + 8) = ebx;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(ent);
+    auto f = [](uint32_t address) -> float& { return stack_float(address); };
+    stack_at(L + 0x60) = word_at(ent, 0x24c);
+    word_at(ent, 0x32c) = 0xf;
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 1;
+    auto tag = [&](uint32_t bit, uint32_t slot, uint32_t text, uint32_t ret_hash, uint32_t ret_tag, uint32_t ebx_now) {
+        if (!(title_global<uint8_t>(0x0098f140) & bit)) {
+            const uint32_t guard = title_global<uint32_t>(0x0098f140) | bit;
+            title_global<uint32_t>(0x0098f140) = guard;
+            title_global<uint32_t>(slot) =
+                call_at(L, ret_hash, 0x00292fe0, TitleRegs{bit, ebx_now, guard, text, self, edi}, 0, nullptr);  // Com_HashKeyNoCase
+        }
+        return call_at(L, ret_tag, 0x002e3720, TitleRegs{self, ebx_now, title_global<uint32_t>(slot), 0, self, edi}, 0,
+                       nullptr);  // G_DObjGetTagMatrixPtr
+    };
+    const uint32_t aim_at = tag(1, 0x0098f13c, 0x00839a18, 0x002631fa, 0x0026320c, ebx);
+    if (!aim_at) return;
+    const uint32_t butt_at = tag(2, 0x0098f138, 0x0083b294, 0x0026323d, 0x0026324f, aim_at);
+    stack_at(L + 0x14) = butt_at;
+    if (!butt_at) return;
+    const float* const aim = reinterpret_cast<const float*>(uintptr_t{aim_at});
+    const float* const butt = reinterpret_cast<const float*>(uintptr_t{butt_at});
+    const uint32_t axis_args[2] = {self + 0x150, L + 0x24};
+    call_at(L, 0x00263274, 0x002a2af0, TitleRegs{butt_at, aim_at, title_global<uint32_t>(0x0098f138), L + 0x24, L + 0x3c, L + 0x18},
+            2, axis_args);  // AnglesToAxis
+    const float ox = field<float>(ent, 0x140), oy = field<float>(ent, 0x144), oz = field<float>(ent, 0x148);
+    const float zero = 0.0f;
+    f(L + 0x50) = oz;
+    f(L + 0x54) = butt[12] - aim[12];
+    f(L + 0x58) = butt[13] - aim[13];
+    f(L + 0x5c) = butt[14] - aim[14];
+    const float nrx = zero - f(L + 0x18);
+    const float px = aim[12] * f(L + 0x24) + aim[14] * f(L + 0x3c) + aim[13] * nrx + ox;
+    f(L + 0x30) = nrx;
+    f(L + 0x80) = px;
+    const float nry = zero - f(L + 0x1c);
+    const float py = aim[14] * f(L + 0x40) + aim[13] * nry + aim[12] * f(L + 0x28) + oy;
+    f(L + 0x34) = nry;
+    f(L + 0x84) = py;
+    const float nrz = zero - f(L + 0x20);
+    const float pz = aim[14] * f(L + 0x44) + aim[13] * nrz + aim[12] * f(L + 0x2c) + f(L + 0x50);
+    f(L + 0x38) = nrz;
+    f(L + 0x48) = ox;
+    f(L + 0x4c) = oy;
+    f(L + 0x88) = pz;
+    stack_at(L + 0x14) = 0;
+    f(L + 0x1c) = zero;
+    f(L + 0x20) = zero;
+    for (int32_t i = 0; i <= 30; ++i) {
+        stack_at(L + 0x14) = static_cast<uint32_t>(i);
+        f(L + 0x18) = static_cast<float>(i) * title_global<float>(0x0083f1a0);  // -3
+        const uint32_t pitch_args[2] = {L + 0x18, L + 0x9c};
+        call_at(L, 0x002633f1, 0x002a2af0, TitleRegs{L + 0x9c, aim_at, L + 0x18, L + 0x24, L + 0xb4, L + 0x64}, 2,
+                pitch_args);  // AnglesToAxis
+        const float dx = f(L + 0x54), dy = f(L + 0x58), dz = f(L + 0x5c);
+        const float qx = f(L + 0xb4) * dz + (zero - f(L + 0x64)) * dy + f(L + 0x9c) * dx;
+        const float qy = f(L + 0xb8) * dz + f(L + 0xa0) * dx + (zero - f(L + 0x68)) * dy;
+        const float qz = f(L + 0xbc) * dz + f(L + 0xa4) * dx + (zero - f(L + 0x6c)) * dy;
+        const float wx = aim[12] + qx;
+        const float wz = qz + aim[14];
+        const float wy = aim[13] + qy;
+        f(L + 0x70) = f(L + 0x3c) * wz + f(L + 0x30) * wy + f(L + 0x24) * wx + f(L + 0x48);
+        f(L + 0x74) = f(L + 0x40) * wz + f(L + 0x28) * wx + f(L + 0x34) * wy + f(L + 0x4c);
+        f(L + 0x78) = f(L + 0x44) * wz + f(L + 0x2c) * wx + f(L + 0x38) * wy + f(L + 0x50);
+        const uint32_t trace_args[7] = {L + 0xc0, L + 0x80, L + 0x70, word_at(ent, 0x224), 0x11, 0x008da6f0, 0};
+        call_at(L - 8, 0x00263570, 0x002600c0, TitleRegs{L + 0x70, aim_at, L + 0x80, L + 0xc0, L + 0xb4, L + 0x64}, 7,
+                trace_args);  // G_LocationalTrace
+        if (title_global<float>(0x0083eb20) > f(L + 0xe0)) {
+            field<float>(reinterpret_cast<uint8_t*>(uintptr_t{stack_at(L + 0x60)}), 0x3c) = f(L + 0x18);
+            return;
+        }
+    }
+    stack_at(L + 0x14) = 31;
+}
 }  // namespace game
