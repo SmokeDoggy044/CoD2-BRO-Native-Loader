@@ -2,11 +2,14 @@
 
 #include <cstring>
 
+#include "actor.h"
 #include "g_script.h"
+#include "g_utils.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "ragdoll.h"
-#include "g_utils.h"
+#include "script_string.h"
+#include "sv.h"
 #include "title_data.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
@@ -350,6 +353,130 @@ void XB_CDECL G_InitAnimScripts() {
             title_function<int XB_CDECL(char*, const char*, ...)>(0x001ee901)(
                 message, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00832320)), name);  // _sprintf
         title_global<uint32_t>(slot.target) = function;
+    }
+}
+
+void XB_CDECL G_FlushEntityListChanges() {
+    // The entity list (0x00984cec, count 0x00984cf4) loses the queued removals (0x00987a78) by
+    // swapping in its last element, then gains the queued additions (0x0097a640); both queues end empty.
+    uint8_t* const list = reinterpret_cast<uint8_t*>(uintptr_t{0x00984cec});
+    for (int32_t r = 0; r < title_global<int32_t>(0x00987a80); ++r) {
+        uint32_t* items = title_global<uint32_t*>(0x00984cec);
+        int32_t count = title_global<int32_t>(0x00984cf4);
+        for (int32_t i = 0; i < count; ++i) {
+            if (items[i] != title_global<uint32_t*>(0x00987a78)[r]) continue;
+            if (i + 1 < count) {
+                items[i] = items[count - 1];
+                items = title_global<uint32_t*>(0x00984cec);
+                --i;
+            }
+            --count;
+            if (title_global<int32_t>(0x00984cf4)) --title_global<int32_t>(0x00984cf4);
+        }
+    }
+    for (int32_t i = 0; i < title_global<int32_t>(0x0097a648); ++i)
+        DynArray_PushBackAligned(list, title_global<uint32_t*>(0x0097a640) + i);
+    DynArray_ResizeAligned(reinterpret_cast<uint8_t*>(uintptr_t{0x0097a640}), 0);
+    DynArray_ResizeAligned(reinterpret_cast<uint8_t*>(uintptr_t{0x00987a78}), 0);
+}
+
+namespace {
+
+// The index of ent in the remove queue (0x00987a78, count 0x00987a80), or -1.
+int32_t find_queued_removal(uint32_t ent) {
+    const int32_t count = title_global<int32_t>(0x00987a80);
+    for (int32_t i = 0; i < count; ++i)
+        if (title_global<uint32_t*>(0x00987a78)[i] == ent) return i;
+    return -1;
+}
+
+}  // namespace
+
+void XB_CDECL G_EntityList_QueueRemove(uint32_t ent) {
+    const int32_t at = find_queued_removal(ent);
+    if (at < 0) {
+        DynArray_PushBackAligned(reinterpret_cast<uint8_t*>(uintptr_t{0x00987a78}), &ent);
+        return;
+    }
+    // Already queued: the original swaps the remove queue's last entry in but counts the
+    // addition queue (0x0097a648) down.
+    const int32_t count = title_global<int32_t>(0x00987a80);
+    uint32_t* const items = title_global<uint32_t*>(0x00987a78);
+    if (at + 1 < count) items[at] = items[count - 1];
+    if (title_global<int32_t>(0x0097a648)) --title_global<int32_t>(0x0097a648);
+}
+
+void XB_CDECL G_QueueEntityRemove(uint32_t ent) {
+    // Despite the name: a queued removal of ent is cancelled, else ent is queued for addition
+    // (0x0097a640).
+    const int32_t at = find_queued_removal(ent);
+    if (at < 0) {
+        DynArray_PushBackAligned(reinterpret_cast<uint8_t*>(uintptr_t{0x0097a640}), &ent);
+        return;
+    }
+    int32_t count = title_global<int32_t>(0x00987a80);
+    uint32_t* const items = title_global<uint32_t*>(0x00987a78);
+    if (at + 1 < count) {
+        items[at] = items[count - 1];
+        count = title_global<int32_t>(0x00987a80);
+    }
+    if (count) title_global<int32_t>(0x00987a80) = count - 1;
+}
+
+void XB_CDECL G_FindTeams() {
+    // Links the entities with the same team string (+0x2f8) into team chains (+0x37c) under
+    // the first one (master +0x380); the others get flag 0x10 (+0x2a4). Tram cars only lead
+    // with spawn flag 8 and are unlinked as members.
+    uint32_t bits[42];
+    EntBits_Invert(bits, reinterpret_cast<const uint32_t*>(uintptr_t{0x0097a8c0}));
+    uint32_t outer[4] = {address(bits), bits[0], 0, 0xffffffff};
+    EntBits_IterNext(outer);
+    const uint32_t tramcar = 0x0097a6e8;  // scr_const_func_tramcar
+    for (;;) {
+        if (outer[3] == 0xffffffff && outer[2] == 0xffffffff) return;
+        uint8_t* const master = title_global<uint8_t*>(0x0097a968 + outer[3] * 8);
+        const uint32_t team = word_at(master, 0x2f8);
+        if (team && team + 6 && *reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(team + 6)) &&
+            !(master[0x2a4] & 0x10) &&
+            (word_at(master, 0x260) != title_global<uint32_t>(tramcar) || (master[0x2a0] & 8))) {
+            uint32_t inner[4] = {outer[0], outer[1], outer[2], outer[3]};
+            word_at(master, 0x380) = address(master);
+            for (;;) {
+                EntBits_IterNext(inner);
+                if (inner[3] == 0xffffffff && inner[2] == 0xffffffff) break;
+                uint8_t* const member = title_global<uint8_t*>(0x0097a968 + inner[3] * 8);
+                const uint32_t other = word_at(member, 0x2f8);
+                if (!other || !(other + 6) || !*reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(other + 6)))
+                    continue;
+                if (member[0x2a4] & 0x10) continue;
+                if (!ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(master + 0x2f8),
+                                               reinterpret_cast<const ScriptString*>(member + 0x2f8)))
+                    continue;
+                word_at(member, 0x37c) = word_at(master, 0x37c);
+                word_at(master, 0x37c) = address(member);
+                const uint32_t flags = word_at(member, 0x2a4);
+                word_at(member, 0x380) = address(master);
+                word_at(member, 0x2a4) = flags | 0x10;
+                if (word_at(member, 0x260) == title_global<uint32_t>(tramcar)) {
+                    word_at(member, 0xd0) = 0;
+                    SV_UnlinkEntity(member + 0xd0);
+                }
+            }
+        }
+        EntBits_IterNext(outer);
+    }
+}
+
+void XB_CDECL G_FreeDroppedItems() {
+    // 32 entity handles from 0x00985e30: each live one thinks next frame with think 0xc.
+    for (uint32_t i = 0; i < 32; ++i) {
+        const uint32_t value = title_global<uint32_t>(0x00985e30 + i * 4);
+        const uint32_t index = value & 0xfff;
+        if (index >= 0x540 || (value >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) continue;
+        uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (!ent) continue;
+        word_at(ent, 0x32c) = 0xc;
+        word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 1;
     }
 }
 

@@ -46,6 +46,20 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
 // 0x00987bf4) by name hash in g_broFuncs; a missing one is 0.
 void XB_CDECL G_InitAnimScripts();
 
+// 0x0024c9f0: applies the queued entity-list changes (removals 0x00987a78, additions
+// 0x0097a640) to the entity list 0x00984cec and empties both queues.
+void XB_CDECL G_FlushEntityListChanges();
+// 0x0024cab0: queues an entity for removal from the entity list; when it is queued already,
+// takes it out again (the original counts the addition queue down for that).
+void XB_CDECL G_EntityList_QueueRemove(uint32_t ent);
+// 0x0024cb10: cancels a queued removal of the entity, else queues it for addition (0x0097a640).
+void XB_CDECL G_QueueEntityRemove(uint32_t ent);
+// 0x0024cbd0: links entities with equal team strings (+0x2f8) into team chains.
+void XB_CDECL G_FindTeams();
+// 0x0024cd70: the 32 entities of the handles at 0x00985e30 think next frame with think 0xc.
+// No references (dead).
+void XB_CDECL G_FreeDroppedItems();
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

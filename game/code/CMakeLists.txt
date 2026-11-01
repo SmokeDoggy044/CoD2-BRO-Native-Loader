@@ -27,6 +27,7 @@ set(game_code_sources
     fx_load.cpp
     g_combat.cpp
     g_main.cpp
+    g_mover.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp
     g_script.cpp

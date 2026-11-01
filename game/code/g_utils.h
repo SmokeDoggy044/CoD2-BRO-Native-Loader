@@ -221,4 +221,25 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t
 extern "C" void Actor_ExitProne_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_get_prone_blend_call(uint8_t* prone, int32_t time);
 
+// 0x0024b610: use callback of trigger_multiple: multi_trigger with the activator (third argument).
+void XB_CDECL Use_Multi(uint8_t* ent, uint32_t other, uint32_t activator);
+// 0x0024ba60 (entity in ECX): 1 when the entity's client rides a vehicle (client +0xc0 flag
+// 0x100000 without 0x400000; vehicle entity by the handle at +0x1a0) whose def has +0x3c set.
+uint32_t XB_THISCALL G_ClientInOpenVehicle(const uint8_t* ent);
+// 0x0024bad0 (entity in ECX): 1 when the entity's client rides a vehicle whose def is not
+// type 5 (+0x20) and has +0x3c clear.
+uint32_t XB_THISCALL G_ClientInVehicle(const uint8_t* ent);
+// 0x0024bb30 (entity in ECX): the turret the client uses (client +0xc0 flag 0x100000, handle
+// +0x1a0, the entity's +0x134 flag 0x200000), else 0.
+uint8_t* XB_THISCALL G_GetPlayerTurret(const uint8_t* ent);
+// 0x0024bce0 (entity in EAX, entering on the stack): unless the rider (handle +0x1a0) is the
+// player, counts the vehicle's (+0x248) riders (+0x2fc) up or down. Called from CG_EntityEvent.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_VehicleCountRider(uint8_t* ent, uint32_t entering);
+extern "C" void G_VehicleCountRider_entry(void);
+// 0x0024ce90 (weapon in EAX, clips in ECX, entity on the stack): gives clips of a weapon's
+// ammo (clip-only weapons: into the ammo, capped at the room and at 4 for type 4; else the clip
+// is filled and the rest goes to the reserve +0x110), BG_AmmoRoomForWeapon as the cap.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Add_AmmoClips(uint32_t weapon, int32_t clips, uint8_t* ent);
+extern "C" void Add_AmmoClips_entry(void);
+
 }  // namespace game

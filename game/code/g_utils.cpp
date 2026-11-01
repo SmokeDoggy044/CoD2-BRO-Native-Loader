@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "actor.h"
+#include "bg_misc.h"
 #include "dobj.h"
 #include "fx.h"
 #include "lanes.h"
@@ -1053,6 +1054,115 @@ void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t duration) {
     }
     word_at(actor, 0x19c) = title_global<uint32_t>(0x0098540c);
     word_at(actor, 0x1a0) = static_cast<uint32_t>(-duration);
+}
+
+void XB_CDECL Use_Multi(uint8_t* ent, uint32_t, uint32_t activator) { multi_trigger(activator, ent); }
+
+namespace {
+
+// The client's (+0x23c) vehicle: flags 0x100000 set and 0x400000 clear in the client's +0xc0,
+// the entity of the handle at +0x1a0.
+bool client_on_vehicle(const uint8_t* ent) {
+    const uint32_t client = *reinterpret_cast<const uint32_t*>(ent + 0x23c);
+    if (!client) return false;
+    const uint32_t flags = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(client + 0xc0));
+    return (flags & 0x100000) && !(flags & 0x400000);
+}
+
+const uint8_t* vehicle_def_of(const uint8_t* vehicle) {
+    const int16_t def = *reinterpret_cast<const int16_t*>(vehicle + 0x178);
+    return title_global<const uint8_t*>(0x00950a28 + def * 4);  // g_vehicleDefs
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL G_ClientInOpenVehicle(const uint8_t* ent) {
+    if (!client_on_vehicle(ent)) return 0;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!G_EntHandleToEnt(handle)) return 0;
+    const uint32_t vehicle = *reinterpret_cast<const uint32_t*>(G_EntHandleToEnt(handle) + 0x248);
+    if (!vehicle) return 0;
+    const uint8_t* const def = vehicle_def_of(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(vehicle)));
+    return *reinterpret_cast<const uint32_t*>(def + 0x3c) != 0;
+}
+
+uint32_t XB_THISCALL G_ClientInVehicle(const uint8_t* ent) {
+    if (!client_on_vehicle(ent)) return 0;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!*handle) return 0;
+    const uint32_t vehicle = *reinterpret_cast<const uint32_t*>(G_EntHandleToEnt(handle) + 0x248);
+    if (!vehicle) return 0;
+    const uint8_t* const def = vehicle_def_of(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(vehicle)));
+    if (*reinterpret_cast<const int16_t*>(def + 0x20) == 5) return 0;
+    if (*reinterpret_cast<const uint32_t*>(def + 0x3c)) return 0;
+    return 1;
+}
+
+uint8_t* XB_THISCALL G_GetPlayerTurret(const uint8_t* ent) {
+    const uint32_t client = *reinterpret_cast<const uint32_t*>(ent + 0x23c);
+    if (!client) return nullptr;
+    if (!(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(client + 0xc0)) & 0x100000)) return nullptr;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!*handle) return nullptr;
+    uint8_t* const turret = G_EntHandleToEnt(handle);
+    return (word_at(turret, 0x134) & 0x200000) ? turret : nullptr;
+}
+
+PLATFORM_ASM_ENTRY(G_VehicleCountRider_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_VehicleCountRider) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_VehicleCountRider(uint8_t* ent, uint32_t entering) {
+    // The rider (handle +0x1a0, inlined G_EntHandleToEnt) unless it is the player
+    // (0x0095f534 +4): the vehicle's (+0x248) count at +0x2fc goes up or down.
+    const uint32_t value = word_at(ent, 0x1a0);
+    uint8_t* const vehicle = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x248)));
+    const uint32_t index = value & 0xfff;
+    uint32_t rider = 0;
+    if (index < 0x540 && (value >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        rider = title_global<uint32_t>(0x0097a968 + index * 8);
+    const uint32_t level = title_global<uint32_t>(0x0095f534);
+    if (rider == title_global<uint32_t>(level + 4)) return level;
+    uint32_t count = word_at(vehicle, 0x2fc);
+    if (entering)
+        ++count;
+    else
+        --count;
+    word_at(vehicle, 0x2fc) = count;
+    return count;
+}
+
+PLATFORM_ASM_ENTRY(Add_AmmoClips_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Add_AmmoClips) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Add_AmmoClips(uint32_t weapon, int32_t clips, uint8_t* ent) {
+    if (!weapon || clips <= 0) return;
+    const uint8_t* const def = title_global<const uint8_t**>(0x0095f4d8)[weapon];  // bg_weaponDefs
+    if (!def) return;
+    uint8_t* const ps = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x23c)));
+    const int32_t clip_size = *reinterpret_cast<const int32_t*>(def + 0x5a8);
+    int32_t amount = clip_size * clips;
+    if (*reinterpret_cast<const int32_t*>(def + 0x9c) == 4) amount = clips;
+    const uint32_t clip_index = *reinterpret_cast<const uint32_t*>(def + 0x598);
+    const uint32_t ammo_index = *reinterpret_cast<const uint32_t*>(def + 0x5a0);
+    const int32_t room = BG_AmmoRoomForWeapon(weapon, ps);
+    int32_t& ammo = *reinterpret_cast<int32_t*>(ps + 0x280 + ammo_index * 4);
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6ec)) {
+        const int32_t total = ammo + amount;
+        ammo = total;
+        if (total > room) ammo = room;
+        if (*reinterpret_cast<const int32_t*>(def + 0x9c) == 4 && ammo > 4) ammo = 4;
+        return;
+    }
+    const int32_t size = *reinterpret_cast<const int32_t*>(def + 0x5a8);
+    int32_t added = amount + (ammo - size);
+    if (added >= room) added = room;
+    ammo = size;
+    *reinterpret_cast<int32_t*>(ps + 0x110 + clip_index * 4) += added;
 }
 
 }  // namespace game

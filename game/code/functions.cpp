@@ -24,6 +24,7 @@
 #include "fx_load.h"
 #include "g_combat.h"
 #include "g_main.h"
+#include "g_mover.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
@@ -2604,9 +2605,24 @@ const Function kFunctions[] = {
     {"G_ActorClampLethalDamage", 0x0024add0, 0, code(&G_ActorClampLethalDamage), 0, Result::Eax, Status::Compare},
     {"Actor_ExitProne", 0x0024afe0, 0, code(&Actor_ExitProne_entry), 0, Result::None, Status::Compare},
     {"G_EntityList_Compact", 0x0024b140, 0, code(&G_EntityList_Compact), 0, Result::Eax, Status::Compare},
+    {"Use_Multi", 0x0024b610, 0, code(&Use_Multi), 12, Result::None, Status::Compare},
     {"XAnim_HasNotetrack", 0x0024b700, 0, code(&XAnim_HasNotetrack), 8, Result::Al, Status::Compare},
+    {"G_ClientInOpenVehicle", 0x0024ba60, 0, code(&G_ClientInOpenVehicle), 0, Result::Eax, Status::Compare},
+    {"G_ClientInVehicle", 0x0024bad0, 0, code(&G_ClientInVehicle), 0, Result::Eax, Status::Compare},
+    {"G_GetPlayerTurret", 0x0024bb30, 0, code(&G_GetPlayerTurret), 0, Result::Eax, Status::Compare},
+    {"G_VehicleCountRider", 0x0024bce0, 0, code(&G_VehicleCountRider_entry), 4, Result::None, Status::Compare},
     {"AngleWrapNear", 0x0024c0e0, 0, code(&AngleWrapNear_entry), 8, Result::Xmm0, Status::Replaced},
     {"AngleWrapNear2", 0x0024c1d0, 0, code(&AngleWrapNear2_entry), 4, Result::Xmm0, Status::Replaced},
+    {"InitScriptMover", 0x0024c3b0, 0, code(&InitScriptMover_entry), 0, Result::None, Status::Compare},
+    {"Pain_Func4", 0x0024c5e0, 0, code(&Pain_Func4_entry), 0, Result::None, Status::Compare},
+    {"Think_InitDoor", 0x0024c6f0, 0, code(&Think_InitDoor), 4, Result::None, Status::Compare},
+    {"Artillery_Drop", 0x0024c800, 0, code(&Artillery_Drop), 4, Result::None, Status::Compare},
+    {"G_FlushEntityListChanges", 0x0024c9f0, 0, code(&G_FlushEntityListChanges), 0, Result::None, Status::Compare},
+    {"G_EntityList_QueueRemove", 0x0024cab0, 0, code(&G_EntityList_QueueRemove), 4, Result::None, Status::Compare},
+    {"G_QueueEntityRemove", 0x0024cb10, 0, code(&G_QueueEntityRemove), 4, Result::None, Status::Compare},
+    {"G_FindTeams", 0x0024cbd0, 0, code(&G_FindTeams), 0, Result::None, Status::Compare},
+    {"G_FreeDroppedItems", 0x0024cd70, 0, code(&G_FreeDroppedItems), 0, Result::None, Status::Compare},
+    {"Add_AmmoClips", 0x0024ce90, 0, code(&Add_AmmoClips_entry), 4, Result::None, Status::Compare},
     {"Cmd_SetSpawnPt_f", 0x0024d200, 0, code(&Cmd_SetSpawnPt_f), 0, Result::None, Status::Replaced},
     {"Cmd_Invinc_f", 0x0024d240, 0, code(&Cmd_Invinc_f), 0, Result::None, Status::Compare},
     {"Cmd_MenuResponse_f", 0x0024ea60, 0, code(&Cmd_MenuResponse_f), 4, Result::None, Status::Replaced},
