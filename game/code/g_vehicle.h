@@ -104,4 +104,11 @@ uint32_t XB_CDECL Vehicle_UpdateTurret(uint8_t* ent, int32_t elapsed);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Player_UpdateTurretUse(uint8_t* player);
 extern "C" void Player_UpdateTurretUse_entry(void);
 
+// 0x00027dc0: copies a vehicle path state (EAX = source, EBX = destination; returns the destination).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Vehicle_CopyPathState(const uint8_t* src, uint8_t* dst);
+extern "C" void Vehicle_CopyPathState_entry(void);
+// 0x00027e60: copies a vehicle path node (ESI = destination, EDI = source; returns the destination).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehiclePathNode_Copy(uint8_t* dst, const uint8_t* src);
+extern "C" void VehiclePathNode_Copy_entry(void);
+
 }  // namespace game

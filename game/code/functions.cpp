@@ -37,11 +37,13 @@
 #include "ngl.h"
 #include "ngl_debug.h"
 #include "param_set.h"
+#include "phys.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "r_init.h"
 #include "r_static_init.h"
+#include "ragdoll.h"
 #include "script_string.h"
 #include "shaders.h"
 #include "snd.h"
@@ -252,6 +254,8 @@ const Function kFunctions[] = {
     {"HashStr_Equals", 0x0001b8f0, 0, code(&HashStr_Equals), 4, Result::Al, Status::Replaced},
     {"nglAllocSceneMemory", 0x0001b930, 0, code(&nglAllocSceneMemory), 8, Result::Eax, Status::Replaced},
     {"MemContext_AllocOrHeap16", 0x0001b960, 0, code(&MemContext_AllocOrHeap16_entry), 0, Result::Eax, Status::Replaced},
+    {"PhysShape_SupportInFrame", 0x0001b9e0, 0, code(&PhysShape_SupportInFrame), 12, Result::Eax, Status::Compare},
+    {"PhysShape_IntersectInFrame", 0x0001bb60, 0, code(&PhysShape_IntersectInFrame), 20, Result::Al, Status::Compare},
     {"CM_TriMesh_Dtor", 0x0001bdc0, 0, code(&CM_TriMesh_Dtor), 0, Result::None, Status::Compare},
     {"CM_WorldMesh_Fixup", 0x0001be40, 0, code(&CM_WorldMesh_Fixup), 0, Result::None, Status::Compare},
     {"CM_TriMesh_DeletingDtor", 0x0001bec0, 0, code(&CM_TriMesh_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -495,6 +499,8 @@ const Function kFunctions[] = {
     {"Quat_FromAxis3", 0x000262a0, 0, code(&Quat_FromAxis3), 8, Result::Eax, Status::Replaced},
     {"G_NotifyWithEntity", 0x000265a0, 0, code(&G_NotifyWithEntity_entry), 8, Result::None, Status::Compare},
     {"DebugDraw_MakeTriangle", 0x00027d60, 0, code(&DebugDraw_MakeTriangle), 8, Result::Eax, Status::Replaced},
+    {"Vehicle_CopyPathState", 0x00027dc0, 0, code(&Vehicle_CopyPathState_entry), 0, Result::Eax, Status::Compare},
+    {"VehiclePathNode_Copy", 0x00027e60, 0, code(&VehiclePathNode_Copy_entry), 0, Result::Eax, Status::Compare},
     {"EntHandleTable_Alloc", 0x00027f30, 0, code(&EntHandleTable_Alloc_entry), 0, Result::Eax, Status::Replaced},
     {"DynArray_ReserveAligned", 0x000280a0, 0, code(&DynArray_ReserveAligned_entry), 0, Result::None, Status::Replaced},
     {"DynArray_PushBackAligned", 0x000280f0, 0, code(&DynArray_PushBackAligned_entry), 4, Result::None, Status::Replaced},
@@ -528,12 +534,25 @@ const Function kFunctions[] = {
     {"XmpbManager_DeletingDtor", 0x00029990, 0, code(&XmpbManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"FxArray16_New", 0x00029a40, 0, code(&FxArray16_New), 8, Result::Eax, Status::Replaced},
     {"Vec3A_Normalize", 0x00029aa0, 0, code(&Vec3A_Normalize), 8, Result::Eax, Status::Replaced},
+    {"RagdollSphere_TransformToWorld", 0x00029bd0, 0, code(&RagdollSphere_TransformToWorld), 0, Result::Eax, Status::Compare},
+    {"PhysRagdoll_InitState", 0x00029ce0, 0, code(&PhysRagdoll_InitState_entry), 4, Result::Eax, Status::Compare},
+    {"Ragdoll_AddForce", 0x00029d50, 0, code(&Ragdoll_AddForce), 8, Result::None, Status::Compare},
+    {"Ragdoll_AddForceAtPoint", 0x00029da0, 0, code(&Ragdoll_AddForceAtPoint), 12, Result::None, Status::Compare},
     {"Mat44_InverseRigid_2", 0x00029e30, 0, code(&Mat44_InverseRigid_2), 8, Result::None, Status::Replaced},
     {"Quat_RotationBetween", 0x00029ff0, 0, code(&Quat_RotationBetween), 4, Result::None, Status::Replaced},
     {"Sphere_Merge", 0x0002a230, 0, code(&Sphere_Merge), 4, Result::None, Status::Replaced},
     {"Phys_MoveAttachedPoint", 0x0002a340, 0, code(&Phys_MoveAttachedPoint), 0, Result::None, Status::Compare},
+    {"RagdollCapsule_UpdateWorldPoints", 0x0002a5d0, 0, code(&RagdollCapsule_UpdateWorldPoints), 4, Result::None, Status::Compare},
+    {"RagdollCapsule_CollideWorld", 0x0002a620, 0, code(&RagdollCapsule_CollideWorld), 4, Result::None, Status::Compare},
+    {"RagdollCapsule_GetBoundingSphere", 0x0002a910, 0, code(&RagdollCapsule_GetBoundingSphere), 8, Result::None, Status::Compare},
     {"Phys_UndoAttachedPushes", 0x0002ab10, 0, code(&Phys_UndoAttachedPushes), 0, Result::None, Status::Compare},
     {"PhysBody_RotateVector", 0x0002ac30, 0, code(&PhysBody_RotateVector), 12, Result::Eax, Status::Compare},
+    {"PhysContact_ComputeBias_2", 0x0002ad30, 0, code(&PhysContact_ComputeBias_2), 8, Result::None, Status::Compare},
+    {"PhysWorld_AllocContact", 0x0002ade0, 0, code(&PhysWorld_AllocContact), 0, Result::Eax, Status::Compare},
+    {"PhysContacts_Add", 0x0002ae40, 0, code(&PhysContacts_Add), 24, Result::Eax, Status::Compare},
+    {"RagdollCapsule_AddSphere", 0x0002aec0, 0, code(&RagdollCapsule_AddSphere), 4, Result::Eax, Status::Compare},
+    {"RagdollCapsulePool_Reset", 0x0002b4c0, 0, code(&RagdollCapsulePool_Reset_entry), 0, Result::None, Status::Compare},
+    {"RagdollCapsulePairPool_Reset", 0x0002b500, 0, code(&RagdollCapsulePairPool_Reset), 0, Result::Eax, Status::Compare},
     {"Vec3A_CopyXYZ", 0x0002b950, 0, code(&Vec3A_CopyXYZ), 4, Result::None, Status::Replaced},
     {"InGameLiveOptionsMenu_DeletingDtor", 0x0002bd30, 0, code(&InGameLiveOptionsMenu_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"PathNode_Construct", 0x0002bd50, 0, code(&PathNode_Construct_entry), 0, Result::Eax, Status::Compare},
