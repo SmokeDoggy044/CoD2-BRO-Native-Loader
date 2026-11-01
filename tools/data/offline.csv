@@ -534,6 +534,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0017cea0,std_list_Erase,2475,2475,0,0,100.0
 001ef700,std_exception_Ctor,3801,3801,0,0,100.0
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
+001fab10,Actor_Noncombat_Resume,4000,4000,0,0,100.0
 001fb460,Actor_CriticalSection_Start,3814,3814,0,0,100.0
 001fb4e0,BadPlace_FindByName,3666,3666,0,0,82.6
 001fc520,Actor_Negotiation_Start,3824,3824,0,0,100.0

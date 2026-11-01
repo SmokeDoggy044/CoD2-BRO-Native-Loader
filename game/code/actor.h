@@ -35,6 +35,8 @@ void XB_CDECL Sentient_ClearAll();
 // AI state callbacks (actor in ECX).
 // 0x001fb280: the grenade state resumes only while +0x1310 is 0.
 uint32_t XB_THISCALL Actor_Grenade_Resume(const uint8_t* actor);
+// 0x001fab10 (state table 0x00830ce8): xor eax,eax; ret - never resumes (3 bytes: unhookable).
+uint32_t XB_THISCALL Actor_Noncombat_Resume(const uint8_t* actor);
 // 0x001fb460: +0xc4 = level time; 0.
 uint32_t XB_THISCALL Actor_CriticalSection_Start(uint8_t* actor);
 // 0x001fc520: +0x12c = 1, +0x268 = 2; 0.

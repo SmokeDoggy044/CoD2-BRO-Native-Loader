@@ -103,6 +103,8 @@ void XB_CDECL Sentient_ClearAll() {
 
 uint32_t XB_THISCALL Actor_Grenade_Resume(const uint8_t* actor) { return field<uint32_t>(actor, 0x1310) == 0; }
 
+uint32_t XB_THISCALL Actor_Noncombat_Resume(const uint8_t*) { return 0; }
+
 uint32_t XB_THISCALL Actor_CriticalSection_Start(uint8_t* actor) {
     field<int32_t>(actor, 0xc4) = level_time();
     return 0;

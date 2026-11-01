@@ -243,6 +243,7 @@
 {"ScriptString_SetChar", 0x0011d7a0, 29, 10, {}, {}},
 {"Scr_ReturnFalse", 0x0011db10, 3, 2, {}, {}},
 {"Actor_ForgetEnemyLastKnownTime", 0x001fa680, 47, 13, {0x00985378}, {}},
+{"Actor_Noncombat_Resume", 0x001fab10, 3, 2, {}, {}},
 {"Actor_CriticalSection_Start", 0x001fb460, 14, 4, {0x0098540c}, {}},
 {"BadPlace_FindByName", 0x001fb4e0, 53, 23, {}, {0x98aa74}},
 {"Actor_Lmg_Start", 0x001fd1f0, 112, 37, {0x0095f4d4, 0x0095f4d8, 0x0098540c}, {0x3, 0x2be}},
