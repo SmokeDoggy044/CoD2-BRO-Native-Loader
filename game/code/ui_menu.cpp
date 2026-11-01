@@ -773,6 +773,7 @@ void XB_THISCALL UIScreenMgr_ReadStickDirections(uint8_t* mgr) {
 }
 
 void XB_THISCALL UIScreenMgr_HandleInput(uint8_t* mgr) {
+    if (const auto poll = client_pc_hooks().screen_poll) poll(uint32_t(reinterpret_cast<uintptr_t>(mgr)));  // the loader's menu pointer
     int32_t& active_pad = title_global<int32_t>(0x008d50d8);
     for (int32_t bit = 1; bit < 0x4000; bit <<= 1) {
         if (active_pad == -1) {
@@ -1051,7 +1052,7 @@ uint32_t string_copy(const ScriptString* s) {
 // The original keeps its two strings in stack slots (the message in the manager's argument slot, the heading in the
 // pushed-ECX slot) and the text setters it reaches keep a stack address: the entry moves the C frame below a gap and
 // every call runs at the original's body ESP (entry - 0x14) with its return address.
-PLATFORM_ASM_ENTRY(UI_ShowDialog_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"
+PLATFORM_ASM_ENTRY(UI_ShowDialog_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"
                                         "pushl %edi\n pushl %esi\n pushl %ebp\n pushl %ebx\n pushl %edx\n pushl %eax\n"
                                         PLATFORM_ASM_CALL(UI_ShowDialogAt) "addl $24, %esp\n popl %esp\n ret $0x14")
 
@@ -2038,6 +2039,15 @@ namespace {
 // A screen manager with an active screen (+0x0c >= 0); null-safe.
 bool has_active(uint8_t* mgr) { return mgr && field<int32_t>(mgr, 0xc) >= 0; }
 
+// A menu's render method (vtable +0x1c) between the loader's begin/end hooks (its patches at 0x00315414/33/76/91,
+// 0x00315515); screens use the screen begin.
+void render_menu(uint8_t* menu, bool screen) {
+    const ClientPcHooks& hooks = client_pc_hooks();
+    if (const auto begin = screen ? hooks.screen_render_begin : hooks.menu_render_begin) begin();
+    call(menu, 0x1c);
+    if (const auto end = hooks.menu_render_end) end();
+}
+
 // The scene the UI layers draw in: no clears, no depth test or writes.
 void push_ui_scene() {
     nglPushScene(0);
@@ -2056,13 +2066,13 @@ void XB_CDECL UIRoot_DrawInGameScreens(uint8_t* root) {
     if (!title_global<uint32_t>(0x0090259c) || !root[0x49] || !root[0x3c]) return;  // ngl_curScene
     if (!has_active(field<uint8_t*>(root, 0x30))) {
         push_ui_scene();
-        call(field<uint8_t*>(root, 0x2c), 0x1c);
+        render_menu(field<uint8_t*>(root, 0x2c), true);
         nglPopScene();
         root[0x4e] = 0;
     }
     uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
     if (!has_active(dialogs)) return;
-    call(dialogs, 0x1c);
+    render_menu(dialogs, false);
     root[0x4e] = 1;
 }
 
@@ -2073,11 +2083,11 @@ PLATFORM_ASM_ENTRY(UIRoot_DrawFrontEnd_entry,
 void XB_CDECL UIRoot_DrawFrontEnd(uint8_t* root) {
     if (!title_global<uint32_t>(0x0090259c) || !root[0x48] || !root[0x3c]) return;  // ngl_curScene
     push_ui_scene();
-    call(field<uint8_t*>(root, 0x28), 0x1c);
+    render_menu(field<uint8_t*>(root, 0x28), true);
     nglPopScene();
     uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
     if (has_active(dialogs)) {
-        call(dialogs, 0x1c);
+        render_menu(dialogs, false);
         root[0x4e] = 1;
         return;
     }
@@ -2099,7 +2109,7 @@ void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
     if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) call(field<uint8_t*>(root, 0x20), 0x14);
     nglPopScene();
     uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
-    if (has_active(dialogs)) call(dialogs, 0x1c);
+    if (has_active(dialogs)) render_menu(dialogs, false);
 }
 
 PLATFORM_ASM_ENTRY(UIRoot_UpdateInGameScreens_entry,

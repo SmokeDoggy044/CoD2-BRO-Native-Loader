@@ -6,9 +6,9 @@ can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
 It's early days: about 71% of the functions have a name, and 3,868 have been
-rewritten in C++. The renderer, animation, client game, collision and streaming code is
-done or nearly; the engine core (memory, files, settings, commands) is the part we're
-working on now.
+rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
+engine core (memory, files, settings, commands) and the client with its menus are done or
+nearly; the game logic (AI, entities, level scripts) is the big part still to come.
 <!-- intro:end -->
 
 **Just want to play?** Use the
@@ -35,7 +35,7 @@ function of the game.*
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 260 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 188 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being

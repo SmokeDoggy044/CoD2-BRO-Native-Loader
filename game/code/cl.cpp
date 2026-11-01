@@ -20,6 +20,11 @@
 
 namespace game {
 
+ClientPcHooks& client_pc_hooks() {
+    static ClientPcHooks hooks;
+    return hooks;
+}
+
 namespace {
 
 constexpr uint32_t kPads = 0x00902400;
@@ -917,6 +922,7 @@ uint8_t* XB_CDECL CL_CreateCmd(uint8_t* out) {
     if (!cvar_integer(0x00934a5c)) {
         CL_CmdButtons(cmd);
         CL_KeyMove(cmd);
+        if (const auto look = client_pc_hooks().mouse_look) look();  // the loader's patch at 0x002c7ad7
         CL_MouseMove(cmd);
         CL_JoystickMove(0, 0, cmd);
         const float zero = title_global<float>(0x0083eafc);

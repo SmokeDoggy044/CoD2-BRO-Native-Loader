@@ -47,7 +47,7 @@ PLATFORM_ASM_ENTRY(fe_menus_call,
 // heap record, so the functions that call them run each title call at the original's ESP: their entries move the C
 // frame below a gap and hand the C version the entry ESP (the original's call positions are counted from it).
 #define FE_GAP_ENTRY(name, pushes, c_name, c_arg_bytes, ret)                                                     \
-    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                          \
+    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"                          \
                              "pushl %edx\n" pushes PLATFORM_ASM_CALL(c_name) "addl $" c_arg_bytes ", %esp\n"     \
                              "popl %esp\n" ret)
 
@@ -80,7 +80,15 @@ struct AtTop {
 };
 
 uint32_t title_call(uint32_t function, TitleRegs regs, uint32_t count = 0, const uint32_t* args = nullptr) {
-    if (g_top) return title_call_at_regs(g_top, function, &regs, count, args);
+    if (g_top) {
+        // Cleared during the call: C entered from inside it (a Replaced callee) makes its title calls from its own
+        // frame, not at this top, above the title frames live below it.
+        const uint32_t top = g_top;
+        g_top = 0;
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        g_top = top;
+        return result;
+    }
     return fe_menus_call(function, &regs, count, args);
 }
 

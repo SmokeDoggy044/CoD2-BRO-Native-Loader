@@ -13,7 +13,7 @@
 // The gap entries (see fe_bonus.cpp): the C frame moves below a gap; the C version gets the menu, the entry
 // EBX / EDI / ESI and the entry ESP.
 #define SPECIAL_GAP_ENTRY(name, ret)                                                                           \
-    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"                \
                                      "pushl %edx\n pushl %esi\n pushl %edi\n pushl %ebx\n"                     \
                                      "pushl %ecx\n" PLATFORM_ASM_CALL(name) "addl $20, %esp\n"                 \
                                      "popl %esp\n" ret)

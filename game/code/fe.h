@@ -20,6 +20,7 @@ extern "C" void FE_BonusCESetText_entry(void);
 // 1-based picture set: per row 0 / 1 / other its own ranges) and its index within that group; rows 3-5: the item
 // itself / 0.
 int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t unused_eax, uint8_t* menu);
+extern "C" void FE_BonusCEItemGroup_entry(void);  // keeps EDX like the original
 int32_t XB_REGS2 XB_CDECL FE_BonusCEItemIndex(uint32_t unused_eax, uint8_t* menu);
 
 // 0x0030c010 / 0x0030daa0 / 0x0030db00 / 0x0030db60 / 0x0030dcc0 (menu in ESI): the image of the collector's edition art

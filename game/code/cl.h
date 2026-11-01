@@ -10,6 +10,23 @@
 
 namespace game {
 
+// The loader's PC additions to client code that runs as C (Status::Replaced), in place of its patches into the
+// original's code, which no longer runs (like RendererPcHooks). Null: nothing.
+struct ClientPcHooks {
+    // In CL_CreateCmd right before CL_MouseMove: mouse look (turns cl.viewangles).
+    void (XB_CDECL* mouse_look)() = nullptr;
+    // Around the menu render calls (vtable +0x1c) of UIRoot_DrawInGameScreens/DrawFrontEnd/DrawHud: a screen's
+    // begin also takes the scene its caller pushed for it (widescreen narrowing of the menus' scenes).
+    void (XB_CDECL* menu_render_begin)() = nullptr;
+    void (XB_CDECL* screen_render_begin)() = nullptr;
+    void (XB_CDECL* menu_render_end)() = nullptr;
+    // At UIScreenMgr_HandleInput's entry (the manager): the mouse pointer in the menus.
+    void (XB_CDECL* screen_poll)(uint32_t manager) = nullptr;
+    // At UITextBase_Draw's entry (the widget): which items were drawn, for the menu pointer.
+    void (XB_CDECL* text_drawn)(uint32_t widget) = nullptr;
+};
+ClientPcHooks& client_pc_hooks();
+
 // The pads: four 0x58-byte blocks at 0x00902400 (+2..+9 analog button bytes, +0xb/+0xd/+0xf/+0x11 stick high
 // bytes, +0x12 digital buttons, +0x1c/+0x26 pressed/released edge words with the analog edges in the bytes after,
 // +0x4c the XInput handle). Button numbers 0-15: A B X Y (bits 4 2 8 1, then analog), the analog bytes, then bits

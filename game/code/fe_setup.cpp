@@ -172,7 +172,7 @@ void XB_CDECL FE_SetupCreateProfileMenu(uint8_t* menu, uint8_t* panel, uint32_t 
 
 // FE_SetupLoginStatus: panel in EAX, menu on the stack (ret 4); its argument slot is reused as the colour local and
 // finally holds the tail call's text argument.
-PLATFORM_ASM_ENTRY(FE_SetupLoginStatus_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"
+PLATFORM_ASM_ENTRY(FE_SetupLoginStatus_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"
                                               "pushl %edx\n pushl %eax\n pushl 4(%edx)\n" PLATFORM_ASM_CALL(FE_SetupLoginStatus)
                                               "addl $12, %esp\n"
                                               "popl %esp\n ret $4")
@@ -621,7 +621,7 @@ void XB_CDECL FE_SetupAdvancedOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_
 // Every helper derives its frame from its entry ESP (their text setters keep stack addresses), so the dispatcher
 // calls each one where the original does: entry - 0x10 after its four pushes (the first branch: - 0xc), with the
 // original's return address; the tail jumps run at the entry ESP itself with the stack argument replaced.
-PLATFORM_ASM_ENTRY(FE_SetupPanel_entry, "movl %esp, %ecx\n" GAME_GAP_ESP("0x10000") "pushl %ecx\n"
+PLATFORM_ASM_ENTRY(FE_SetupPanel_entry, "movl %esp, %ecx\n" GAME_GAP_ESP("0x30000") "pushl %ecx\n"
                                         "pushl %ebp\n pushl %edi\n pushl %esi\n pushl %ebx\n pushl %ecx\n"
                                         "pushl %edx\n pushl %eax\n" PLATFORM_ASM_CALL(FE_SetupPanelAt)
                                         "addl $28, %esp\n popl %esp\n ret $4")

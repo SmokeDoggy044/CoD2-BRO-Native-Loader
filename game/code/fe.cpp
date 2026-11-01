@@ -3,6 +3,7 @@
 #include <cstring>
 #include <type_traits>
 
+#include "cl.h"
 #include "ngl.h"
 #include "qcommon.h"
 #include "script_string.h"
@@ -94,6 +95,16 @@ void free_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, uin
 }
 
 }  // namespace
+
+// The original keeps EDX: BonusCE menu code (0x0031a4ab) loads the menu into EDX once for this call and 0x0030bd30.
+extern "C" PLATFORM_HIDDEN int32_t XB_REGS2 XB_CDECL fe_bonus_ce_item_group(uint32_t unused, uint8_t* menu);
+PLATFORM_ASM_ENTRY(FE_BonusCEItemGroup_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(fe_bonus_ce_item_group) "popl %edx\n"
+                   "ret")
+
+int32_t XB_REGS2 XB_CDECL fe_bonus_ce_item_group(uint32_t unused, uint8_t* menu) {
+    return FE_BonusCEItemGroup(unused, menu);
+}
 
 int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t, uint8_t* menu) {
     const int16_t row = field<int16_t>(menu, 0x22);
@@ -250,7 +261,7 @@ const char* XB_CDECL FE_CommandDisplayName(int32_t key) {
 // passes the original's entry ESP, and each call leaves the original's return address.
 PLATFORM_ASM_ENTRY(FE_SaveSlotsUpdateText_entry,
                    "movl %esp, %eax\n"
-                   GAME_GAP_ESP("0x10000")  // nothing saved above the gap: the calls' arguments go there
+                   GAME_GAP_ESP("0x30000")  // nothing saved above the gap: the calls' arguments go there
                    "pushl %eax\n"
                    "pushl %ebp\n"
                    "pushl %edi\n"
@@ -302,7 +313,7 @@ void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi
 // ESP, the menu, ESI and EDI.
 #define MARK_SLOTS_EMPTY_ENTRY(name)                                                                                \
     PLATFORM_ASM_ENTRY(name##_entry, "movl %eax, %ecx\n"                                                           \
-                                     "movl %esp, %eax\n" GAME_GAP_ESP("0x10000") "pushl %eax\n"                     \
+                                     "movl %esp, %eax\n" GAME_GAP_ESP("0x30000") "pushl %eax\n"                     \
                                      "pushl %ebp\n"                                                                 \
                                      "pushl %edi\n"                                                                 \
                                      "pushl %esi\n"                                                                 \
@@ -342,7 +353,7 @@ void XB_CDECL ProfileMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t
 // The autosave menu's twin of FE_SaveSlotsUpdateText (the same entry): slots {name +0x54, empty +0x5c}, no help bar.
 PLATFORM_ASM_ENTRY(AutosaveMenu_UpdateSlotTexts_entry,
                    "movl %esp, %eax\n"
-                   GAME_GAP_ESP("0x10000")
+                   GAME_GAP_ESP("0x30000")
                    "pushl %eax\n"
                    "pushl %ebp\n"
                    "pushl %edi\n"
@@ -2467,6 +2478,7 @@ void XB_REGS1 XB_CDECL UI_RotationZ(float* out, float angle) {
 }
 
 void XB_THISCALL UITextBase_Draw(uint8_t* text) {
+    if (const auto drawn = client_pc_hooks().text_drawn) drawn(address_of(text));  // the loader's menu pointer
     if (!method<uint8_t XB_THISCALL(uint8_t*)>(text, 0x30)(text)) return;
     Str* const string = reinterpret_cast<Str*>(text + 0x1c);
     if (ScriptString_Equals(string, text_at(0x0082dfeb))) return;  // ""

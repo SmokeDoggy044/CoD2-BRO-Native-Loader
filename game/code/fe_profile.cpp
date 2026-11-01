@@ -68,7 +68,15 @@ struct AtTop {
 };
 
 uint32_t title_call(uint32_t function, TitleRegs regs, uint32_t count = 0, const uint32_t* args = nullptr) {
-    if (g_top) return title_call_at_regs(g_top, function, &regs, count, args);
+    if (g_top) {
+        // Cleared during the call: C entered from inside it (a Replaced callee) makes its title calls from its own
+        // frame, not at this top, above the title frames live below it.
+        const uint32_t top = g_top;
+        g_top = 0;
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        g_top = top;
+        return result;
+    }
     return ui_call_regs(function, &regs, count, args);
 }
 TitleRegs eax_regs(uint32_t eax) {

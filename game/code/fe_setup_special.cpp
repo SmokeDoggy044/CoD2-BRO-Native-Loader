@@ -174,7 +174,7 @@ void XB_CDECL FE_SetupSpecialMaterialsMenu(uint8_t* menu, uint8_t* panel, uint32
 // FE_SetupChapterMenu: panel in EAX, menu on the stack (ret 4). The original counts its loop in the argument slot
 // (14 after the loop), then uses it as the colour local of the help bar copy; the last text call runs with the
 // caller's EBX, which the entry hands over.
-PLATFORM_ASM_ENTRY(FE_SetupChapterMenu_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"
+PLATFORM_ASM_ENTRY(FE_SetupChapterMenu_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"
                                               "pushl %ebx\n pushl %edx\n pushl %eax\n pushl 4(%edx)\n"
                                               PLATFORM_ASM_CALL(FE_SetupChapterMenu)
                                               "addl $16, %esp\n"
@@ -241,7 +241,7 @@ void XB_CDECL FE_SetupChapterMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_
 // FE_SetupMissionSuccessFailMenu: panel in EAX, menu on the stack (ret 4); its argument slot is the colour local
 // (0xffb4b4b4 at the end).
 PLATFORM_ASM_ENTRY(FE_SetupMissionSuccessFailMenu_entry,
-                   "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"
+                   "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"
                    "pushl %edx\n pushl %eax\n pushl 4(%edx)\n" PLATFORM_ASM_CALL(FE_SetupMissionSuccessFailMenu)
                    "addl $12, %esp\n"
                    "popl %esp\n ret $4")
