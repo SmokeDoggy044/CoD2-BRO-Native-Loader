@@ -565,7 +565,7 @@ uint32_t XB_THISCALL Path_NeedsEndRefresh(const uint8_t* path);
 // 0x001fd2a0: bare ret (state slot 5 default); too short to hook.
 void XB_CDECL Actor_DefaultSlot5();
 // 0x001fd3d0: EDI sentient, stack distance: range factor in XMM0 (weapon near/far ranges for actors).
-extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_IsInWeaponRange(const uint8_t* sentient, float distance);
+extern "C" PLATFORM_HIDDEN float XB_CDECL Sentient_GetRangeAccuracyScale(const uint8_t* sentient, float distance);
 extern "C" void Actor_IsInWeaponRange_entry(void);
 // 0x001fd6f0: keeps or clears the avoid leader (+0x7c8/+0x7cc) found through the +0x7c8 links.
 void XB_THISCALL Actor_UpdateAvoidLeader(uint8_t* actor);

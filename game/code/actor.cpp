@@ -2790,14 +2790,14 @@ PLATFORM_ASM_ENTRY(Actor_IsInWeaponRange_entry,
                    "subl $16, %esp\n"
                    "movups %xmm3, (%esp)\n"
                    "pushl 20(%esp)\n"
-                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_IsInWeaponRange) "fstps (%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Sentient_GetRangeAccuracyScale) "fstps (%esp)\n"
                    "movss (%esp), %xmm0\n"
                    "addl $8, %esp\n"
                    "movups (%esp), %xmm3\n"
                    "addl $16, %esp\n"
                    "ret")
 
-float XB_CDECL Actor_IsInWeaponRange(const uint8_t* sentient, float distance) {
+float XB_CDECL Sentient_GetRangeAccuracyScale(const uint8_t* sentient, float distance) {
     // A range factor for `distance` (XMM0): actors use their weapon's near/far ranges
     // (+0x800/+0x804; full inside near, 0 beyond far, linear between) times the sentient's
     // +0x2c; others blend two global values (0x0094d6a8 at 0x0094cb10, 0x0095c108 at

@@ -2439,7 +2439,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001fd260,Actor_ForgetGrenade,compare,360,26,26,0,0,0,""
 001fd2b0,Actor_NodeDistanceSquared,compare,0,0,0,0,0,0,""
 001fd320,Actor_AnimScripted_Finish,compare,2468,141,141,0,0,0,""
-001fd3d0,Actor_IsInWeaponRange,compare,124432,201,201,0,0,0,""
+001fd3d0,Sentient_GetRangeAccuracyScale,compare,124432,201,201,0,0,0,""
 001fd500,ActorBlockList_Bump,compare,164,138,138,0,0,0,""
 001fd5a0,Actor_RecordMoveHistory,compare,2318,163,163,0,0,0,""
 001fd6f0,Actor_UpdateAvoidLeader,compare,5231,54,54,0,0,0,""
@@ -2470,7 +2470,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001ffba0,Actor_RecordMoveHistoryBlended,compare,16210,139,139,0,0,0,""
 001ffd50,Actor_SetQuantizedPitchYaw,compare,0,0,0,0,0,0,""
 001ffdb0,Actor_ClearPath,compare,305,116,116,0,0,0,""
-001ffe10,Actor_GatherCoverCandidates,compare,653,466,286,0,180,0,"00929b40 XAPILIB::OHCD_fQueueTransferRequest+0x176c44 [.data] [1] 70 vs 10"
+001ffe10,Actor_GatherCoverCandidates,compare,653,286,286,0,0,0,
 001fff80,Actor_InitPhysics,compare,321,108,108,0,0,0,""
 00200050,Actor_RecordSentientPosition,compare,11364,120,120,0,0,0,""
 002000e0,Actor_PopState,compare,307,100,100,0,0,0,""
