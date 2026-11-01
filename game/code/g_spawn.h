@@ -45,4 +45,7 @@ void XB_CDECL SP_trigger_friendlychain(uint8_t* ent);
 // 0x00259530: spawn for trigger_multiple.
 void XB_CDECL SP_trigger_multiple(uint8_t* ent);
 
+// 0x00257de0: spawn for trigger_use (hint string / cursor hint / arc).
+void XB_CDECL SP_trigger_use(uint8_t* ent);
+
 }  // namespace game

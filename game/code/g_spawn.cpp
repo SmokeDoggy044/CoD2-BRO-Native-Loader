@@ -1,5 +1,7 @@
 #include "g_spawn.h"
 
+#include <cstring>
+
 #include "g_main.h"
 #include "g_script.h"
 #include "g_utils.h"
@@ -33,6 +35,25 @@ uint32_t cached_key(uint32_t guard, uint32_t bit, uint32_t slot, uint32_t text) 
         title_global<uint32_t>(slot) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
     }
     return title_global<uint32_t>(slot);
+}
+
+// The spawn var's value for a key hash, or null.
+const char* find_spawn_value(uint32_t key) {
+    const int32_t count = static_cast<int32_t>(num_spawn_vars());
+    for (int32_t i = 0; i < count; ++i)
+        if (key == spawn_var_key(static_cast<uint32_t>(i)))
+            return reinterpret_cast<const char*>(uintptr_t{spawn_var_value(static_cast<uint32_t>(i))});
+    return nullptr;
+}
+
+// The title CRT's __CIcos (0x0033adb0; x87 argument and result).
+float title_ci_cos(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033adb0})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
 }
 
 // Q3's trigger wait/random: "wait" (default 0.5) into +0x384, "random" into +0x388; a random
@@ -319,6 +340,79 @@ void XB_CDECL SP_trigger_multiple(uint8_t* ent) {
     InitTrigger(ent);
     G_TriggerContentsFromSpawnflags(ent);
     SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_use(uint8_t* ent) {
+    // Brush model, linked; trajectory stationary at the origin, contents 0x200000, wait
+    // (+0x38c) in ms, use callback 0xc, cursor hint (+0xc0) 2 or "cursorhint" (HINT_INHERIT
+    // -> -1, else its index in the hint name table 0x008dae44, 1..11). "hintstring": its index
+    // among the 32 hint configstrings (0x273 + i; the first free one gets it) in byte 5 (0xff
+    // without; 32 -> __break). "harc" degrees -> cos(harc / 2) (+0x90, x87 + __CIcos),
+    // "angle" (atof) -> +0x94. Keys cached under 0x0098e434.
+    SV_SetBrushModel(ent);
+    SV_LinkEntity(ent);
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x20) = word_at(ent, 0x140);
+    word_at(ent, 0x24) = word_at(ent, 0x144);
+    word_at(ent, 0x28) = word_at(ent, 0x148);
+    word_at(ent, 0x134) = 0x200000;
+    word_at(ent, 0xd4) = 1;
+    field<float>(ent, 0x38c) = field<float>(ent, 0x38c) * title_global<float>(0x0083eb9c);
+    word_at(ent, 0x33c) = 0xc;
+    word_at(ent, 0xc0) = 2;
+    const char* hint = find_spawn_value(cached_key(0x0098e434, 1, 0x0098e430, 0x0083afc4));  // "cursorhint"
+    if (hint) {
+        if (Q_stricmpn2(0x1869f, hint, &title_global<const char>(0x00832040)) == 0) {  // "HINT_INHERIT"
+            word_at(ent, 0xc0) = 0xffffffffu;
+        } else {
+            for (uint32_t i = 1; i < 0xc; ++i) {
+                const char* name = reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x008dae44 + i * 4)});
+                if (Q_stricmpn2(0x1869f, hint, name) == 0) {
+                    word_at(ent, 0xc0) = i;
+                    break;
+                }
+            }
+        }
+    }
+    ent[5] = 0xff;
+    const char* text = find_spawn_value(cached_key(0x0098e434, 2, 0x0098e42c, 0x0083afb8));  // "hintstring"
+    if (text) {
+        int32_t index = 0;
+        for (; index < 0x20; ++index) {
+            if (index < -0x273 || index >= 0x18d)  // configstring index outside 0..0x3ff
+                title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                    1, &title_global<const char>(0x00832d34), index + 0x273);  // __break
+            const uint32_t stored = title_global<uint32_t>(0x009656ac + static_cast<uint32_t>(index) * 4);
+            char current[0x100];
+            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+                current, stored ? reinterpret_cast<const char*>(uintptr_t{stored + 6}) : nullptr, 0xff);
+            current[0xff] = 0;
+            if (!current[0]) {
+                SV_SetConfigstring(index + 0x273, text);
+                ent[5] = static_cast<uint8_t>(index);
+                break;
+            }
+            if (std::strcmp(text, current) == 0) {
+                ent[5] = static_cast<uint8_t>(index);
+                break;
+            }
+        }
+        if (index == 0x20)
+            title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                1, &title_global<const char>(0x0083af50), index);  // __break
+    }
+    const char* arc_text = find_spawn_value(cached_key(0x0098e434, 4, 0x0098e428, 0x0083af48));  // "harc"
+    const int32_t arc = arc_text ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(arc_text) : 0;  // _atol
+    const float degrees = platform_x87_int_to_float(arc);
+    const float half_arc = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083eb24) *
+                                              title_global<float>(0x0083ed00) / title_global<float>(0x0083eb60));
+    field<float>(ent, 0x90) = title_ci_cos(half_arc);
+    const char* angle_text = find_spawn_value(cached_key(0x0098e434, 8, 0x0098e424, 0x0083af40));  // "angle"
+    if (!angle_text) {
+        field<float>(ent, 0x94) = 0.0f;
+        return;
+    }
+    field<float>(ent, 0x94) = title_function<float XB_CDECL(const char*)>(0x001ef056)(angle_text);  // atof
 }
 
 }  // namespace game

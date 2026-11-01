@@ -56,4 +56,11 @@ uint32_t XB_CDECL SelectRandomDeathmatchSpawnPoint();
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL SelectSpawnPoint(const float* avoid, float* angles, float* origin);
 extern "C" void SelectSpawnPoint_entry(void);
 
+// 0x0025b530 (player in EAX; tail of ClientThink): the player's head hitbox entity
+// (client +0x5f0, spawned on first use) moved to the eye position with lean.
+void XB_REGS1 XB_CDECL G_UpdatePlayerHeadEnt(uint8_t* ent);
+// 0x0025b6b0 (origin out in EAX; cdecl angles out): Q3's SelectInitialSpawnPoint - the first
+// info_player_deathmatch with spawn flag 1 (else the last one), else SelectSpawnPoint.
+uint8_t* XB_REGS1 XB_CDECL SelectInitialSpawnPoint(float* origin, float* angles);
+
 }  // namespace game

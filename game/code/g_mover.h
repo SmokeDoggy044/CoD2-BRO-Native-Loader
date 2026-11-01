@@ -87,4 +87,43 @@ void XB_REGS1 XB_CDECL G_ClientStopUsingTurret(uint8_t* turret);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_DObjAdvanceAnimsUntilDone(uint8_t* ent);
 extern "C" void G_DObjAdvanceAnimsUntilDone_entry(void);
 
+// 0x002586f0 (angles in ESI; cdecl ent, trace, keep_spin): G_BounceMissile's angles at the
+// hit time; on a floor the pitch is laid along the plane and the spin damped. Proposed name
+// (was FUN_002586f0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* trace,
+                                                              int32_t keep_spin);
+extern "C" void G_BounceMissileAngles_entry(void);
+// 0x0025a960: spawn for func_door_rotating.
+void XB_CDECL SP_func_door_rotating(uint8_t* ent);
+// 0x0025b0a0: spawn for func_door.
+void XB_CDECL SP_func_door(uint8_t* ent);
+
+// 0x0025b520: use callback: RespawnItem.
+void XB_CDECL Use_Item(uint8_t* ent, uint8_t* other, uint8_t* activator);
+// 0x0025ba30: a player leaves its vehicle by the popout/player tag (dead code: no callers).
+void XB_CDECL G_VehiclePopOut(uint8_t* player);
+// 0x0025c3d0: use callback: the activator mounts the turret (or leaves it when on one).
+void XB_CDECL turret_use(uint8_t* ent, uint8_t* other, uint8_t* activator);
+// 0x0025c6a0: controller callback: the aim angles onto the turret's aim bones.
+void XB_CDECL turret_controller(uint8_t* ent);
+
+// 0x0025ccd0: 1 when the point is inside the turret's arcs as seen from its flash tag (or
+// its origin without a model / with DObj flag 1); the start and the angle offsets out.
+uint32_t XB_CDECL Turret_CanTargetPoint(uint8_t* ent, const float* point, float* start, float* angles);
+// 0x0025ced0 (index in EAX, entity in ECX): the flash tag (0 "tag_flash", 1 "tag_flash_2")
+// as an axis from the entity's aim angles, the tag origin and the tag's first row; 0 without.
+uint32_t XB_REGS3 XB_CDECL G_GetFlashTagMatrix(int32_t index, uint32_t unused_edx, uint8_t* ent, float* out);
+// 0x0025d1e0 (turret in EAX, angles out in EDI; point, aiming on the stack): aims at the
+// point when Turret_CanTargetPoint allows it (Turret_UpdateAimState), else clears info +2
+// bit 0x40.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_TryAimAtTarget(uint8_t* ent, const float* point, uint32_t aiming,
+                                                                  float* angles);
+extern "C" void Turret_TryAimAtTarget_entry(void);
+// 0x0025deb0: spawn for script_model. The entry runs Path_DisconnectPathsForEntity at the
+// original's ESP (its node query stores a stack address in 0x00929b40).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SP_script_model(uint32_t entry, uint8_t* ent, uint32_t edi);
+extern "C" void SP_script_model_entry(void);
+// 0x0025dfc0 (door in EAX): a door's path links by its state (+0x298: 7 locked-aware, 8 off).
+void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door);
+
 }  // namespace game

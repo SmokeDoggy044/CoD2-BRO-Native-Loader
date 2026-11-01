@@ -6,6 +6,8 @@
 #include "bg_misc.h"
 #include "dobj.h"
 #include "fx.h"
+#include "xanim.h"
+#include "g_main.h"
 #include "lanes.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
@@ -1461,5 +1463,167 @@ void XB_CDECL G_FloatOnWater(uint8_t* ent) {
     current[2] = z;
 }
 
+namespace {
+
+template <typename T>
+T& ent_field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint32_t address_word(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// The entity of a handle (index & 0xfff below 0x540, generation >> 12), else null.
+uint8_t* handle_entity(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return title_global<uint8_t*>(0x0097a968 + index * 8);
+    return nullptr;
+}
+
+// The touch candidates: from the cache ({count, mins +0x10, maxs +0x20, handles +0x30}), else
+// SV_AreaEntities in 40/40/52 around the origin with `mask`, then the entity's bounds at the
+// origin. Returns the count.
+int32_t touch_candidates(const uint8_t* ent, const float* origin, const uint32_t* cache, uint32_t mask, uint32_t* list,
+                         float* mins, float* maxs) {
+    if (cache) {
+        const float* const box = reinterpret_cast<const float*>(cache);
+        mins[0] = box[4];
+        mins[1] = box[5];
+        mins[2] = box[6];
+        maxs[0] = box[8];
+        maxs[1] = box[9];
+        maxs[2] = box[10];
+        const int32_t count = static_cast<int32_t>(cache[0]);
+        for (int32_t i = 0; i < count; ++i) list[i] = cache[12 + i];
+        return count;
+    }
+    const float side = title_global<float>(0x0083ec84);
+    const float up = title_global<float>(0x0083f158);
+    mins[0] = origin[0] - side;
+    mins[1] = origin[1] - side;
+    mins[2] = origin[2] - up;
+    maxs[0] = origin[0] + side;
+    maxs[1] = origin[1] + side;
+    maxs[2] = origin[2] + up;
+    const int32_t count = SV_AreaEntities(maxs, 0, mins, reinterpret_cast<int32_t*>(list), 0x540, mask);
+    uint8_t* const e = const_cast<uint8_t*>(ent);
+    for (uint32_t i = 0; i < 3; ++i) mins[i] = ent_field<float>(e, 0xe0 + i * 4) + origin[i];
+    for (uint32_t i = 0; i < 3; ++i) maxs[i] = ent_field<float>(e, 0xf0 + i * 4) + origin[i];
+    return count;
+}
+
+using TouchFunc = void XB_CDECL(uint8_t*, uint8_t*, uint32_t);
+
+void run_touch(uint8_t* self, uint8_t* other) {
+    title_function<TouchFunc>(title_global<uint32_t>(0x008da814 + ent_field<uint32_t>(self, 0x338) * 4))(self, other, 1);
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t, uint32_t, const float* origin, uint8_t* ent, const uint32_t* cache) {
+    // Candidates of the touch type flag (G_GetTouchTypeFlag; none: nothing) whose contents
+    // carry it, with a touch callback on either side; players (type 2, entity with a client)
+    // by 0x002d6710, others by SV_ClipToEntity of the box. "touch" notifies both ways (the
+    // other's handle), the candidate's touch callback, then the entity's when +0x240 is set.
+    uint32_t list[0x540];
+    for (uint32_t i = 0; i < 0x540; ++i) list[i] = 0;
+    const uint32_t flag = G_GetTouchTypeFlag(ent);
+    if (!flag) return;
+    alignas(16) float mins[3];
+    alignas(16) float maxs[3];
+    const int32_t count = touch_candidates(ent, origin, cache, flag, list, mins, maxs);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const other = handle_entity(list[i]);
+        if (!other || !(ent_field<uint32_t>(other, 0x134) & flag)) continue;
+        if (!ent_field<uint32_t>(other, 0x338) && !ent_field<uint32_t>(ent, 0x338)) continue;
+        if (other[0] == 2) {
+            const uint32_t client = ent_field<uint32_t>(ent, 0x23c);
+            if (!client) continue;
+            const TitleRegs regs{title_global<uint32_t>(0x0098540c), address_word(other), address_word(other), 0, client, 0};
+            if (!g_ent_call(0x002d6710, &regs, 0, nullptr)) continue;
+        } else if (!SV_ClipToEntity(other, mins, maxs, 1)) {
+            continue;
+        }
+        uint32_t number = ent_field<uint32_t>(ent, 0x224);
+        {
+            const TitleRegs regs{number, address_word(other), address_word(&number), title_global<uint32_t>(0x0097a814),
+                                 address_word(ent), address_word(other)};
+            const uint32_t args[2] = {title_global<uint32_t>(0x0097a814), address_word(&number)};
+            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "touch"
+        }
+        number = ent_field<uint32_t>(other, 0x224);
+        {
+            const TitleRegs regs{number, address_word(other), address_word(&number), title_global<uint32_t>(0x0097a814),
+                                 address_word(ent), address_word(ent)};
+            const uint32_t args[2] = {title_global<uint32_t>(0x0097a814), address_word(&number)};
+            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "touch"
+        }
+        if (ent_field<uint32_t>(other, 0x338)) run_touch(other, ent);
+        if (ent_field<uint32_t>(ent, 0x240) && ent_field<uint32_t>(ent, 0x338)) run_touch(ent, other);
+    }
+}
+
+PLATFORM_ASM_ENTRY(G_TouchType14EntitiesInBox_entry,
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_TouchType14EntitiesInBox) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint8_t* ent, const float* origin, const uint32_t* cache) {
+    // As G_TouchEntitiesInBox with mask 0x800000: linked (+0xdc) type-14 candidates by
+    // SV_ClipToEntity, "touch" both ways by G_NotifyWithOwnHandle, then the callbacks.
+    uint32_t list[0x540];
+    for (uint32_t i = 0; i < 0x540; ++i) list[i] = 0;
+    if (ent_field<uint32_t>(ent, 0x3cc)) return ent_field<uint32_t>(ent, 0x3cc);
+    alignas(16) float mins[3];
+    alignas(16) float maxs[3];
+    const int32_t count = touch_candidates(ent, origin, cache, 0x800000, list, mins, maxs);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const other = handle_entity(list[i]);
+        if (!other || !(ent_field<uint32_t>(other, 0x134) & 0x800000) || other[0] != 0xe) continue;
+        if (!ent_field<uint32_t>(other, 0xdc)) continue;
+        if (!ent_field<uint32_t>(other, 0x338) && !ent_field<uint32_t>(ent, 0x338)) continue;
+        if (!SV_ClipToEntity(other, mins, maxs, 1)) continue;
+        {
+            const TitleRegs regs{address_word(ent), address_word(ent), 0, 0, address_word(other), address_word(other)};
+            const uint32_t args[1] = {title_global<uint32_t>(0x0097a814)};
+            g_ent_call(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+        }
+        {
+            const TitleRegs regs{address_word(other), address_word(ent), title_global<uint32_t>(0x0097a814), 0,
+                                 address_word(other), address_word(ent)};
+            const uint32_t args[1] = {title_global<uint32_t>(0x0097a814)};
+            g_ent_call(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+        }
+        if (ent_field<uint32_t>(other, 0x338)) run_touch(other, ent);
+        if (ent_field<uint32_t>(ent, 0x240) && ent_field<uint32_t>(ent, 0x338)) run_touch(ent, other);
+    }
+    return static_cast<uint32_t>(count);
+}
+
+PLATFORM_ASM_ENTRY(G_SetEntityAnimTree_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_SetEntityAnimTree) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_SetEntityAnimTree(uint8_t* anims, uint8_t* ent) {
+    // The current tree (+0x254) is kept when it already runs these anims (+8); else a new one
+    // (AnimTree_Create) or none, G_DObjUpdate, and the old tree queued for freeing (0x00987070
+    // count, 0x00987074 list; AnimTree_FlushClearLists).
+    uint8_t* const old = ent_field<uint8_t*>(ent, 0x254);
+    if (anims) {
+        if (old && ent_field<uint8_t*>(old, 8) == anims) return;
+        ent_field<uint8_t*>(ent, 0x254) = AnimTree_Create(ent, anims);
+    } else {
+        if (!old) return;
+        ent_field<uint32_t>(ent, 0x254) = 0;
+    }
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    if (!old) return;
+    const uint32_t count = title_global<uint32_t>(0x00987070);
+    title_global<uint32_t>(0x00987074 + count * 4) = address_word(old);
+    ++title_global<uint32_t>(0x00987070);
+    AnimTree_FlushClearLists();
+}
 
 }  // namespace game

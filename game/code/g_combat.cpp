@@ -7,6 +7,7 @@
 #include "g_utils.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -410,6 +411,61 @@ void XB_CDECL Pain_trigger_damage(uint8_t* self, uint8_t* attacker, int32_t dama
 void XB_CDECL Use_trigger_damage(uint8_t* self, uint8_t* other, uint8_t*) {
     // Fires at once: the damage total plus one, means of death -1 (no G_Trigger).
     Activate_trigger_damage(self, field<int32_t>(self, 0x370) + 1, other, -1);
+}
+
+namespace {
+
+// G_MissileActivateDamageTriggers / G_CheckHitTriggerDamage: the box spanned by start and end
+// (MAXPS/MINPS over all four lanes, start first: NaN lanes take end's), the trigger_damage
+// entities (contents 0x400000) in it with takedamage, reached by a point sight trace from start
+// to end (vec4 {0, 0, 0, 1} bounds): "damage" (damage, attacker), Activate_trigger_damage, and
+// health 32000 again without a damage total (+0x370). `missile` also wants +0x2a4 bit 0x40000
+// and has no null check on the handle's entity.
+void activate_damage_triggers(uint8_t* ent, const float* start, const float* end, int32_t damage, int32_t mod,
+                              bool missile) {
+    uint32_t list[0x540];
+    for (uint32_t i = 0; i < 0x540; ++i) list[i] = 0;
+    alignas(16) float mins[4];
+    alignas(16) float maxs[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        const float a = start[i];
+        const float b = end[i];
+        maxs[i] = a > b ? a : b;
+        mins[i] = a < b ? a : b;
+    }
+    const int32_t count =
+        SV_AreaEntities(maxs, 0, mins, reinterpret_cast<int32_t*>(list), 0x540, 0x400000);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const target = entity_from_handle(list[i]);
+        if (!missile && !target) continue;
+        if (!field<uint32_t>(target, 0x29c)) continue;
+        if (field<uint32_t>(target, 0x260) != title_global<uint32_t>(0x0097a824)) continue;  // trigger_damage
+        if (missile && !(field<uint32_t>(target, 0x2a4) & 0x40000)) continue;
+        alignas(16) float box_min[4];
+        alignas(16) float box_max[4];
+        for (uint32_t k = 0; k < 4; ++k) box_min[k] = box_max[k] = title_global<float>(0x0082e290 + k * 4);
+        if (!SV_EntitySightTrace(end, box_max, start, box_min, field<uint32_t>(target, 0x224), 0xffffffffu, 1)) continue;
+        uint32_t attacker = field<uint32_t>(ent, 0x224);
+        {
+            const TitleRegs regs{0, 0, 0, 0, 0, 0};
+            const uint32_t args[4] = {address_of(target), title_global<uint32_t>(0x0097a67c), address_of(&damage),
+                                      address_of(&attacker)};
+            g_ent_call(0x00026670, &regs, 4, args);  // G_NotifyWithIntEntity "damage"
+        }
+        Activate_trigger_damage(target, damage, ent, mod);
+        if (!field<int32_t>(target, 0x370)) field<int32_t>(target, 0x350) = 32000;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL G_MissileActivateDamageTriggers(uint8_t* ent, const float* start, const float* end, int32_t damage,
+                                              int32_t mod) {
+    activate_damage_triggers(ent, start, end, damage, mod, true);
+}
+
+void XB_CDECL G_CheckHitTriggerDamage(uint8_t* ent, const float* start, const float* end, int32_t damage, int32_t mod) {
+    activate_damage_triggers(ent, start, end, damage, mod, false);
 }
 
 }  // namespace game
