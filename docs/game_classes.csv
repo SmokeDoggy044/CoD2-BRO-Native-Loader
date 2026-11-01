@@ -1,0 +1,1 @@
+000139e0,Scr_Acos,not reached,"script math builtin (no CALL/JMP callers, reached through the script function table like its twin Scr_Asin, which matched 100); 0 calls in missions 1,4,5,6 with --only --every 1 (g_phys push 1); offline leaf test not eligible (__CIacos error path raises an exception)"
