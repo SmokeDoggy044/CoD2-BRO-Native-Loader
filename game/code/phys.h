@@ -276,4 +276,49 @@ void XB_THISCALL PhysConstraint_AddContacts(uint8_t* constraint, uint8_t* world,
 
 uint8_t XB_CDECL PhysBox_IntersectSegmentInFrame(const uint8_t* box, const float* frame, const float* a, const float* b);
 
+
+// Push 6.
+// 0x000b2a90: contact points of two convex shapes via GJK, pushing touching shapes apart. Dead.
+uint8_t XB_CDECL Phys_ShapeContact(void* shape_a, const float* frame, void* shape_b, float* out, uint32_t a4, uint32_t a5,
+                                   uint32_t a6, uint32_t a7);
+// 0x000b9620 / 0x000b9750: hinge limit flags and contacts (island list +0x8).
+void XB_THISCALL PhysHinge_UpdateLimitFlags(uint8_t* hinge, uint32_t unused);
+void XB_THISCALL PhysHinge_AddContacts(uint8_t* hinge, uint8_t* world, float dt);
+// 0x000b9a40: distance joint contacts (island list +0xc).
+void XB_THISCALL PhysDistanceJoint_AddContacts(uint8_t* joint, uint8_t* world, float dt);
+float* XB_CDECL PhysBody_WorldToRelative(float* out, const uint8_t* body, const float* p);
+void XB_THISCALL PhysContact_ComputeBiasWithOffset(uint8_t* contact, float dt, float offset, float limit);
+float XB_THISCALL PhysContact_GetSeparation(const uint8_t* contact);
+
+// 0x000ba020: hinge setup (anchors, axes, limit axes, friction). Dead.
+void XB_THISCALL PhysHinge_Setup(uint8_t* hinge, const float* anchor_a, const float* anchor_b, const float* axis_a,
+                                 const float* axis_b, const float* reference, const float* v, float angle_lo,
+                                 float angle_hi, float friction);
+// 0x000ba2c0: angular motor contacts (island list +0x1c).
+void XB_THISCALL PhysAngularMotor_AddContacts(uint8_t* motor, uint8_t* world, float dt);
+// 0x000ba860: rows +0x10..+0x30 turned by the +0x90 rotation vector times dt (world list +0x2a4).
+void XB_THISCALL PhysFrame_RotateByVelocity(uint8_t* object, float dt);
+void XB_CDECL Phys_SphereMassProperties(float radius, float* inertia, float* mass);
+void XB_CDECL PhysBodies_GetCenterOfMass(uint8_t* const* bodies, int32_t count, float* com, float* momentum,
+                                         float* total);
+void XB_CDECL Phys_PointsBoundingSphere(const float* points, int32_t count, float* radius, float* centre);
+void XB_CDECL Phys_BoxMassProperties(const float* size, float* inertia, float* mass);
+void XB_CDECL Phys_PointsBoxCenterSize(const float* points, int32_t count, float* size, float* centre);
+
+void XB_CDECL PhysBodies_LaunchTowardTarget(uint8_t* const* bodies, int32_t count, const float* target,
+                                            float* dist_sq);
+float* XB_CDECL Phys_GetVelocityAtLocalPoint(uint32_t a0, const float* frame, const float* local, uint32_t a3,
+                                             float* out, float* angular);
+void XB_THISCALL PhysBody_SetMass(uint8_t* body, float mass);
+void XB_THISCALL PhysBody_SetInertia(uint8_t* body, const float* inertia);
+void XB_THISCALL PhysBody_AddForceAtPoint(uint8_t* body, const float* force, const float* point, float scale);
+uint8_t* XB_THISCALL PhysObject1c0_Init(uint8_t* object, const float* frame);
+uint8_t* XB_THISCALL PhysBody_Init(uint8_t* body, float mass, const float* inertia, const float* frame,
+                                   const float* velocity, const float* angular, float value148, uint32_t value160);
+// 0x000bc0e0: a fixed body (flag 0x10), identity frame.
+uint32_t XB_THISCALL PhysBody_InitFixed(uint8_t* body);
+void XB_CDECL PhysBody_PredictTransform(uint8_t* body, const float* dt);
+// 0x000bc620: a 0x140 contact's separation vector.
+float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, float* out);
+
 }  // namespace game
