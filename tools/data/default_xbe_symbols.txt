@@ -7659,7 +7659,7 @@
 002001f0 Actor_ApplyStateTransitions
 00200360 Actor_Alloc
 00200400 Actor_CopySentientInfo
-00200450 FUN_00200450
+00200450 AnimNotify_PlayNext
 00200960 Sentient_SetClaimedNode
 002009c0 Sentient_ClaimGoalNode
 00200a00 Sentient_SetGoalNode
@@ -7693,7 +7693,7 @@
 002026f0 Actor_ForceState
 00202770 Actor_PushState
 002027d0 Actor_DropClaimedNode
-002028a0 FUN_002028a0
+002028a0 AnimNotify_Init
 002029d0 Sentient_Free
 00202a10 Actor_Turret_Touch
 00202a30 Actor_Noncombat_Touch
@@ -7719,7 +7719,7 @@
 00203f60 G_FilterCachedCandidates
 00204060 Actor_GetAnimTree
 002040a0 Scr_ProcessAnimNotifies
-00204100 FUN_00204100
+00204100 Path_TraceGatherCandidates
 00204320 Actor_Grenade_Recover
 00204340 Actor_Grenade_Cower
 00204390 Actor_SendLineEvent
@@ -7739,7 +7739,7 @@
 002053b0 Actor_SetDesiredAngles
 00205450 Actor_HandlePathArrival
 00205760 BadPlace_FreeIndex
-002057b0 FUN_002057b0
+002057b0 Actor_TurnTowardAngles
 00205930 Actor_RotateOrient
 00205a70 G_ExpireBadPlaces
 00205ad0 BadPlace_Delete

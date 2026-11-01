@@ -14440,3 +14440,7 @@ address,name,kind,confidence,evidence
 000b7020,PhysConstraint_UpdateDrive,function,high,"phys push 4 (2026-11-01)"
 000b7260,PhysBody_OffsetByField70,function,high,"phys push 4 (2026-11-01)"
 000b73d0,PhysBody_RotateVector2,function,high,"was a duplicate of PhysBody_RotateVector (0x0002ac30) (2026-11-01)"
+002028a0,AnimNotify_Init,function,high,"ai push 4 (2026-11-01)"
+00200450,AnimNotify_PlayNext,function,high,"ai push 4 (2026-11-01): from its body; 0x710 frame"
+002057b0,Actor_TurnTowardAngles,function,high,"ai push 4 (2026-11-01)"
+00204100,Path_TraceGatherCandidates,function,high,"ai push 4 (2026-11-01)"
