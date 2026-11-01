@@ -321,4 +321,8 @@ void XB_CDECL PhysBody_PredictTransform(uint8_t* body, const float* dt);
 // 0x000bc620: a 0x140 contact's separation vector.
 float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, float* out);
 
+// 0x000bb4f0: linear and angular velocity that take frame `from` to `to` in dt.
+void XB_CDECL Phys_AngularVelocityBetweenFrames(const float* from, const float* to, float dt, float* linear,
+                                                float* angular);
+
 }  // namespace game

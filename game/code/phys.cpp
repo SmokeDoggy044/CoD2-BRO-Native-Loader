@@ -2304,15 +2304,15 @@ uint8_t* XB_THISCALL PhysConstraintFrame_Init(uint8_t* c, float value, const flo
     return c;
 }
 
-// Clears both frames' origins (+0x40, +0x80), then 0x000bb4f0(frame, saved frame, body +0x13c * dt,
+// Clears both frames' origins (+0x40, +0x80), then Phys_AngularVelocityBetweenFrames(frame, saved frame, body +0x13c * dt,
 // zero vector, +0x90).
 void XB_THISCALL PhysConstraintFrame_Update(uint8_t* c, const float* dt) {
     for (uint32_t i = 0; i < 4; ++i) at<float>(c, 0x40 + i * 4) = 0.0f;
     for (uint32_t i = 0; i < 4; ++i) at<float>(c, 0x80 + i * 4) = 0.0f;
     const float scale = at<float>(rate_body(c), 0x13c) * *dt;
     alignas(16) float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    using Solve = void XB_CDECL(uint8_t*, uint8_t*, float, float*, uint8_t*);
-    title_function<Solve>(0x000bb4f0)(c + 0x10, c + 0x50, scale, zero, c + 0x90);
+    Phys_AngularVelocityBetweenFrames(reinterpret_cast<float*>(c + 0x10), reinterpret_cast<float*>(c + 0x50), scale, zero,
+                                      reinterpret_cast<float*>(c + 0x90));
 }
 
 // A 0x140 contact between body A (+0) at its rotated anchor +0x10 and body B (+4) at +0x20, with +0x30.
@@ -3338,12 +3338,13 @@ Lanes refined_reciprocal(const Lanes& v) {
 
 }  // namespace
 
-// Velocity of a point given in a frame's rotation (rows +0, +0x10, +0x20): 0x000bb4f0 fills the
+// Velocity of a point given in a frame's rotation (rows +0, +0x10, +0x20): Phys_AngularVelocityBetweenFrames fills the
 // linear (out) and angular velocity, then out += angular x (rows * local).
 float* XB_CDECL Phys_GetVelocityAtLocalPoint(uint32_t a0, const float* frame, const float* local, uint32_t a3,
                                              float* out, float* angular) {
-    title_function<void XB_CDECL(uint32_t, const float*, uint32_t, float*, float*)>(0x000bb4f0)(a0, frame, a3, out,
-                                                                                               angular);
+    float dt;
+    std::memcpy(&dt, &a3, 4);
+    Phys_AngularVelocityBetweenFrames(reinterpret_cast<const float*>(static_cast<uintptr_t>(a0)), frame, dt, out, angular);
     alignas(16) float p[4], rows[12];
     copy_words(p, local);
     for (int32_t i = 0; i < 3; ++i) copy_words(rows + i * 4, frame + i * 4);
@@ -3582,6 +3583,111 @@ void XB_CDECL PhysBodies_LaunchTowardTarget(uint8_t* const* bodies, int32_t coun
         copy_words(acc, reinterpret_cast<float*>(body + 0x110));
         store4(reinterpret_cast<float*>(body + 0x110), add(lanes(acc), share));
     }
+}
+
+// Velocities that take frame `from` to frame `to` (rows +0/+0x10/+0x20, origin +0x30) in dt:
+// linear = (to origin - from origin) / dt; angular = the rotation to * from^T as a quaternion
+// (trace / largest-diagonal cases, half / sqrt on the x87), its angle 2 acos(w) from two
+// polynomials, along -xyz / |xyz| (zero below 1e-4).
+void XB_CDECL Phys_AngularVelocityBetweenFrames(const float* from, const float* to, float dt, float* linear,
+                                                float* angular) {
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float inv_dt = one / dt;
+    alignas(16) float a[12], b[12];
+    std::memcpy(a, from, sizeof(a));
+    const Lanes t0 = {{a[0], a[4], a[8], a[8]}};
+    const Lanes t1 = {{a[1], a[5], a[9], a[9]}};
+    const Lanes t2 = {{a[2], a[6], a[10], a[10]}};
+    std::memcpy(b, to, sizeof(b));
+    const Lanes r0 = mat_rotate(b, t0);
+    const Lanes r1 = mat_rotate(b, t1);
+    const Lanes r2 = mat_rotate(b, t2);
+    const float m00 = r0.v[0], m11 = r1.v[1], m22 = r2.v[2];
+    const float trace = (m22 + m11) + m00;
+    Lanes q;
+    float s;
+    if (trace >= title_global<float>(0x0083efb8)) {  // -1/3
+        s = trace + one;
+        const Lanes x = sub(r1, splat(r0.v[1]));
+        const Lanes y = sub(splat(r0.v[2]), r2);
+        const Lanes z = sub(r2, splat(r1.v[2]));
+        platform_keep(x);
+        platform_keep(y);
+        platform_keep(z);
+        q = {{z.v[1], y.v[0], x.v[0], s}};
+    } else if (m11 > m00 && m11 > m22) {
+        s = ((m11 - m00) - m22) + one;
+        const Lanes x = sub(splat(r0.v[2]), r2);
+        const Lanes y = add(r2, splat(r1.v[2]));
+        const Lanes z = add(r1, splat(r0.v[1]));
+        platform_keep(x);
+        platform_keep(y);
+        platform_keep(z);
+        q = {{z.v[0], s, y.v[1], x.v[0]}};
+    } else if (!(m11 > m00) && m00 > m22) {
+        s = ((m00 - m11) - m22) + one;
+        const Lanes x = sub(r2, splat(r1.v[2]));
+        const Lanes y = add(r2, splat(r0.v[2]));
+        const Lanes z = add(r1, splat(r0.v[1]));
+        platform_keep(x);
+        platform_keep(y);
+        platform_keep(z);
+        q = {{s, z.v[0], y.v[0], x.v[1]}};
+    } else {
+        s = ((m22 - m00) - m11) + one;
+        const Lanes x = sub(r1, splat(r0.v[1]));
+        const Lanes y = add(r2, splat(r1.v[2]));
+        const Lanes z = add(r2, splat(r0.v[2]));
+        platform_keep(x);
+        platform_keep(y);
+        platform_keep(z);
+        q = {{z.v[0], y.v[1], s, x.v[0]}};
+    }
+    q = mul(q, splat(platform_x87_half_over_sqrt(s, half)));
+    const float w = q.v[3];
+    const float aw = abs_bits(w);
+    float r;
+    if (platform_x87_greater(half, aw)) {  // asin(|w|) series
+        const float x2 = aw * aw;
+        const float x3 = x2 * aw;
+        const float x5 = x2 * x3;
+        const float t3 = x3 * title_global<float>(0x0083ee9c);
+        const float x7 = x2 * x5;
+        const float t7 = x7 * title_global<float>(0x0083ee94);
+        const float t5 = x5 * title_global<float>(0x0083ee98);
+        r = ((t7 + t5) + t3) + aw;
+    } else {  // pi/2 - 2 asin(sqrt((1 - |w|) / 2)) series
+        const float y = platform_x87_sqrt_abs_sub_mul(one, aw, half);
+        const float y2 = y * y;
+        const float y3 = y2 * y;
+        const float t3 = y3 * title_global<float>(0x0083ee90);
+        const float y5 = y3 * y2;
+        const float t5 = y5 * title_global<float>(0x0083ed2c);
+        const float y7 = y5 * y2;
+        const float t7 = y7 * title_global<float>(0x0083ee8c);
+        r = (((t7 - t5) - t3) - y * title_global<float>(0x0083eba8)) + title_global<float>(0x0083ee88);
+    }
+    if (0.0f > w) r = 0.0f - r;
+    const float angle = (title_global<float>(0x0083ed0c) - r) * title_global<float>(0x0083eba8);  // (pi/2 - asin) * 2
+    const Lanes squares = mul(q, q);
+    platform_keep(squares);
+    const float length2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float length = length2;  // 0 or NaN
+    if (!(length2 == 0.0f || length2 != length2)) {
+        const float e = platform_rsqrt_estimate(length2);
+        const float le = length2 * e;
+        length = ((title_global<float>(0x007cdb70) - le * e) * le) * title_global<float>(0x007cdb80);
+    }
+    if (length > title_global<float>(0x0083ed50)) {  // 1e-4
+        const float f = ((title_global<float>(0x0083eb34) / length) * angle) * inv_dt;
+        store4(angular, mul(splat(f), q));
+    } else {
+        for (uint32_t i = 0; i < 4; ++i)
+            reinterpret_cast<uint32_t*>(angular)[i] = title_global<uint32_t>(0x007cdb90 + i * 4);
+    }
+    const Lanes moved = sub(lanes(to + 12), lanes(from + 12));
+    store4(linear, mul(splat(inv_dt), moved));
 }
 
 }  // namespace game

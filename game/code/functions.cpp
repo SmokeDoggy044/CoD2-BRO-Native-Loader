@@ -2007,6 +2007,7 @@ const Function kFunctions[] = {
     {"PhysBodies_LaunchTowardTarget", 0x000bad60, 0, code(&PhysBodies_LaunchTowardTarget), 16, Result::None, Status::Compare},
     {"Phys_BoxMassProperties", 0x000bb280, 0, code(&Phys_BoxMassProperties), 12, Result::None, Status::Compare},
     {"Phys_PointsBoxCenterSize", 0x000bb360, 0, code(&Phys_PointsBoxCenterSize), 16, Result::None, Status::Compare},
+    {"Phys_AngularVelocityBetweenFrames", 0x000bb4f0, 0, code(&Phys_AngularVelocityBetweenFrames), 20, Result::None, Status::Compare},
     {"Phys_GetVelocityAtLocalPoint", 0x000bbb90, 0, code(&Phys_GetVelocityAtLocalPoint), 24, Result::None, Status::Compare},
     {"PhysBody_SetMass", 0x000bbcc0, 0, code(&PhysBody_SetMass), 4, Result::None, Status::Compare},
     {"PhysBody_SetInertia", 0x000bbce0, 0, code(&PhysBody_SetInertia), 4, Result::None, Status::Compare},
