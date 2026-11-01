@@ -806,5 +806,26 @@ extern "C" void Sentient_GetLaggedEyeOrigin_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_EyeOrigin_2(const uint8_t* sentient, uint8_t* out);
 extern "C" void Sentient_EyeOrigin_2_entry(void);
 
+// 0x00209070: EDI actor: the held grenade goes on the right-hand tag and is reset there.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor);
+extern "C" void Actor_Grenade_AttachToTag_entry(void);
+// 0x002091e0: ESI actor: grabs a grenade (attach / detach the model, the grenade stops, owner set).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Grab(uint8_t* actor);
+extern "C" void Actor_Grenade_Grab_entry(void);
+// 0x002092a0: EDI target sentient, stack actor; XMM0: the target's speed across the actor's line of sight.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* actor);
+extern "C" void Actor_TargetCrossingSpeed_entry(void);
+// 0x002094e0: EAX sentient, EDI callback context, three stack filters: claimed or nearest node (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_FindNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                     uint32_t esi, uint32_t context);
+extern "C" void Sentient_FindNearestNode_entry(void);
+// 0x002095c0: EDI sentient, six stack words: the cached nearest node, refreshed when stale (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_CachedNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                       uint32_t esi);
+extern "C" void Sentient_CachedNearestNode_entry(void);
+// 0x00209700: EBX context, EDX filter, five stack words: nearest node, optionally the first free one (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entry, uint32_t context, uint32_t c,
+                                                                  uint32_t edi, uint32_t esi, uint32_t ebp);
+extern "C" void Actor_FindNearestNode_entry(void);
 
 }  // namespace game

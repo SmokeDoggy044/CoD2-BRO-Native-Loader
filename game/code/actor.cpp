@@ -6175,4 +6175,271 @@ void XB_CDECL Actor_ShotDirToTarget(const uint8_t* target, uint8_t* shot) {
     shot_finish(shot, eye, distance);
 }
 
+PLATFORM_ASM_ENTRY(Actor_Grenade_AttachToTag_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_Grenade_AttachToTag) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor) {
+    // EDI actor: the held grenade's model goes on "tag_weapon_right" (G_EntAttach); the
+    // grenade entity (+0x1310) is placed at that tag's origin (zeros without a model or tag)
+    // and reset: trajectory base = origin, delta 0, time now, type 5, flag 1 of +0xd4 off,
+    // owner +0x378 and velocity +0x2c0 cleared.
+    const uint8_t* const weapon =
+        title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
+    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(  // G_EntAttach
+        field<uint8_t*>(actor, 0), field<uint32_t>(weapon, 0x57c), 0x00831e14);  // "tag_weapon_right"
+    const uint32_t hash = cached_hash(0x0098eee4, 1, 0x0098eee0, 0x00831e14);
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    alignas(16) uint8_t m[0x40] = {};
+    if (dobj_of(ent)) {
+        const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
+        if (tag >= 0)
+            title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+    }
+    auto grenade = [actor]() { return field<uint8_t*>(actor, 0x1310); };
+    const uint32_t x = field<uint32_t>(m, 0x30), y = field<uint32_t>(m, 0x34), z = field<uint32_t>(m, 0x38);
+    field<uint32_t>(grenade(), 0x140) = x;
+    field<uint32_t>(grenade(), 0x144) = y;
+    field<uint32_t>(grenade(), 0x148) = z;
+    field<uint32_t>(grenade(), 0x20) = x;
+    field<uint32_t>(grenade(), 0x24) = y;
+    field<uint32_t>(grenade(), 0x28) = z;
+    field<float>(grenade(), 0x34) = 0.0f;
+    field<float>(grenade(), 0x30) = 0.0f;
+    field<float>(grenade(), 0x2c) = 0.0f;
+    field<int32_t>(grenade(), 0x18) = level_time();
+    field<uint32_t>(grenade(), 0x14) = 5;
+    field<uint32_t>(grenade(), 0xd4) &= 0xfffffffe;
+    field<uint32_t>(grenade(), 0x378) = 0;
+    field<float>(grenade(), 0x2c8) = 0.0f;
+    field<float>(grenade(), 0x2c4) = 0.0f;
+    field<float>(grenade(), 0x2c0) = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(Actor_Grenade_Grab_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_Grenade_Grab) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Grenade_Grab(uint8_t* actor) {
+    // ESI actor: the grenade model is attached to "tag_weapon_right" and detached again
+    // (G_EntDetach, ECX -1), the actor's grenade state +0x12c = 3, the grenade entity stops
+    // (type 0, flag 1 of +0xd4) and is owned by the actor (+0x2b0 = its handle). EAX = handle.
+    const uint8_t* const weapon =
+        title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
+    const uint32_t model = field<uint32_t>(weapon, 0x57c);
+    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(field<uint8_t*>(actor, 0), model,
+                                                                           0x00831e14);  // G_EntAttach
+    const TitleRegs regs = {0, 0, 0xffffffff, 0, uint32_t(uintptr_t(actor)), field<uint32_t>(actor, 0)};
+    const uint32_t args[3] = {model, 0x00831e14, 0};
+    g_ent_call(0x002e9370, &regs, 3, args);  // G_EntDetach (EDI entity)
+    field<uint32_t>(actor, 0x12c) = 3;
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x14) = 0;
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0xd4) |= 1;
+    const uint32_t handle = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x2b0) = handle;
+    return handle;
+}
+
+PLATFORM_ASM_ENTRY(Actor_TargetCrossingSpeed_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_TargetCrossingSpeed) "addl $8, %esp\n"
+                   "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* actor) {
+    // EDI target sentient, stack actor; result in XMM0: how fast the target crosses the
+    // actor's line of sight - its eye movement since the lagged eye (0 under 0.01 units),
+    // over its client speed (+0x23c +0x50) per second, times 1 - |cos| between the movement
+    // and the line from the actor's entity to the eye.
+    float lagged[3];
+    int32_t then = 0;
+    Sentient_GetLaggedEyeOrigin(target, reinterpret_cast<uint8_t*>(lagged), &then);
+    const int32_t elapsed = level_time() - then;
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    float mz = lagged[2] - eye[2], my = lagged[1] - eye[1], mx = lagged[0] - eye[0];
+    const float moved = ci_sqrt(mz * mz + my * my + mx * mx);
+    const float one = title_global<float>(0x0083eb20);
+    if (moved != 0.0f) {
+        const float inv = one / moved;
+        mx = inv * mx;
+        my = inv * my;
+        mz = inv * mz;
+    }
+    if (static_cast<long double>(title_global<double>(0x0083f188)) > static_cast<long double>(moved)) return 0.0f;
+    const uint8_t* const ent = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0);
+    float tx = eye[0] - field<float>(ent, 0x140);
+    float ty = eye[1] - field<float>(ent, 0x144);
+    float tz = eye[2] - field<float>(ent, 0x148);
+    const float len = ci_sqrt(tz * tz + ty * ty + tx * tx);
+    if (len != 0.0f) {
+        const float inv = one / len;
+        tx = inv * tx;
+        ty = inv * ty;
+        tz = inv * tz;
+    }
+    using ext = long double;
+    ext dot = ext(tz) * ext(mz);
+    dot = dot + ext(ty) * ext(my);
+    dot = dot + ext(tx) * ext(mx);
+    const int32_t speed = field<int32_t>(field<const uint8_t*>(field<const uint8_t*>(target, 0), 0x23c), 0x50) * elapsed;
+    const float rate = moved / (float(speed) / title_global<float>(0x0083eb9c));  // 1000
+    const float across = float(x87_abs(ext(float(dot))));
+    const float factor = float(ext(one) - ext(across));
+    return rate * factor;
+}
+
+namespace {
+
+// PathNode_FindNearest stores the address of its stack work in 0x00929b40: it runs where the
+// original's call puts it, its inputs at the original's frame offsets (`frame` = the
+// original's ESP after its prologue: candidates +0x18, room 0x40) and the return address
+// written back. EAX type mask, ESI origin, stack (candidates, range, three filters, &count);
+// 0x008db4a0 = the callback context around the call.
+uint32_t find_nearest_at(uint32_t frame, uint32_t ret, const TitleRegs& regs, uint32_t range, uint32_t a, uint32_t b,
+                         uint32_t c, uint32_t count, uint32_t context) {
+    title_global<uint32_t>(0x008db4a0) = context;
+    const uint32_t args[6] = {frame + 0x18, range, a, b, c, count};
+    const uint32_t node = title_call_at_regs(frame, 0x002ea820, &regs, 6, args);
+    title_global<uint32_t>(frame - 0x1c) = ret;
+    title_global<uint32_t>(0x008db4a0) = context;
+    return node;
+}
+
+void entity_origin_at(const uint8_t* ent, uint32_t to) {
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(to + i * 4) = field<uint32_t>(ent, 0x140 + i * 4);
+}
+
+}  // namespace
+
+// Frame rebuilt (see find_nearest_at); the entry hands over the entry ESP and registers.
+PLATFORM_ASM_ENTRY(Sentient_FindNearestNode_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Sentient_FindNearestNode) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Sentient_FindNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx, uint32_t esi,
+                                           uint32_t context) {
+    // EAX sentient, EDI callback context, stack three filters (ret 12): the claimed node
+    // (+0x58, when valid and its +0x24 set), else the nearest node within 192 (any type but 1)
+    // or the first candidate.
+    const uint32_t frame = entry - 0x218;
+    title_global<uint32_t>(entry - 0x214) = ebx;
+    title_global<uint32_t>(frame) = esi;
+    uint16_t* const handle = reinterpret_cast<uint16_t*>(sentient + 0x58);
+    if (field<uint8_t>(sentient, 0x5a)) {
+        ebx = uint32_t(uintptr_t(handle));
+        if ((PathNode_HandleIsValid(handle) & 0xff) && field<uint16_t>(PathNode_FromHandle(handle), 0x24))
+            return uint32_t(uintptr_t(PathNode_FromHandle2(handle)));
+    }
+    entity_origin_at(field<const uint8_t*>(sentient, 0), frame + 0xc);
+    const uint32_t a = title_global<uint32_t>(entry + 4), b = title_global<uint32_t>(entry + 8),
+                   c = title_global<uint32_t>(entry + 0xc);
+    const TitleRegs regs = {0xfffffffe, ebx, 0x40, b, frame + 0xc, context};
+    const uint32_t node = find_nearest_at(frame, 0x0020958b, regs, 0x43400000, a, b, c, frame + 8, context);
+    if (node) return node;
+    return title_global<uint32_t>(frame + 8) ? title_global<uint32_t>(frame + 0x18) : 0;
+}
+
+PLATFORM_ASM_ENTRY(Sentient_CachedNearestNode_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Sentient_CachedNearestNode) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $24")
+
+uint32_t XB_CDECL Sentient_CachedNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx, uint32_t esi) {
+    // EDI sentient, stack (three filters, callback context, range, any type; ret 0x18): the
+    // cached nearest node (+0x58, cached flag +0x5a, from a candidate +0x5b) unless valid with
+    // +0x24 set: refreshed by PathNode_FindNearest (types but 1, also 16 unless any_type).
+    // The node, or 0.
+    const uint32_t frame = entry - 0x218;
+    const uint32_t context = title_global<uint32_t>(entry + 0x10);
+    title_global<uint32_t>(entry - 0x214) = ebx;
+    title_global<uint32_t>(frame) = esi;
+    uint16_t* const handle = reinterpret_cast<uint16_t*>(sentient + 0x58);
+    if (!(field<uint8_t>(sentient, 0x5a) && (PathNode_HandleIsValid(handle) & 0xff) &&
+          field<uint16_t>(PathNode_FromHandle(handle), 0x24))) {
+        entity_origin_at(field<const uint8_t*>(sentient, 0), frame + 0xc);
+        const uint32_t mask = title_global<uint32_t>(entry + 0x18) ? 0xfffefffe : 0xfffffffe;
+        const TitleRegs regs = {mask, context, 0x40, frame + 0x18, frame + 0xc, uint32_t(uintptr_t(sentient))};
+        const uint32_t node = find_nearest_at(frame, 0x00209675, regs, title_global<uint32_t>(entry + 0x14),
+                                              title_global<uint32_t>(entry + 4), title_global<uint32_t>(entry + 8),
+                                              title_global<uint32_t>(entry + 0xc), frame + 8, context);
+        if (node) {
+            *handle = title_global<uint16_t>(node);
+            field<uint8_t>(sentient, 0x5b) = 0;
+        } else {
+            if (title_global<uint32_t>(frame + 8)) *handle = title_global<uint16_t>(title_global<uint32_t>(frame + 0x18));
+            field<uint8_t>(sentient, 0x5b) = 1;
+        }
+        field<uint8_t>(sentient, 0x5a) = 1;
+    }
+    const uint16_t h = *handle;
+    if (h == 0 || h == 0xffff) return 0;
+    const uint32_t block =
+        field<uint32_t>(title_global<const uint8_t*>(0x0095f4f4), 8 + uint16_t((h >> 9) - 1) * 4);
+    if (!block) return 0;
+    return title_global<uint32_t>(block + 0x10) + (h & 0x1ff) * 0x80;
+}
+
+// EDX is an input: it is parked deep in the gap before the gap entry moves ESP.
+PLATFORM_ASM_ENTRY(Actor_FindNearestNode_entry,
+                   "movl %edx, -0x28000(%esp)\n"
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl -0x28000(%ebp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_FindNearestNode) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $20")
+
+uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entry, uint32_t context, uint32_t c, uint32_t edi, uint32_t esi,
+                                        uint32_t ebp) {
+    // EBX callback context, EDX a filter, stack (sentient, two filters, range, free only; ret
+    // 0x14): the nearest node of the types 0x1ffc around the entity; with free_only the first
+    // candidate whose +4 is clear (scan of 64, ending on its last read). EAX = that node.
+    // Frame: push ebp, ESP aligned to 8, 0x210 locals, ESI / EDI pushed.
+    const uint32_t frame = ((entry - 4) & ~7u) - 0x218;
+    title_global<uint32_t>(entry - 4) = ebp;
+    title_global<uint32_t>(frame + 4) = esi;
+    title_global<uint32_t>(frame) = edi;
+    for (uint32_t i = 0; i < 0x200; i += 4) title_global<uint32_t>(frame + 0x18 + i) = 0;
+    entity_origin_at(*reinterpret_cast<const uint8_t* const*>(uintptr_t(title_global<uint32_t>(entry + 4))), frame + 8);
+    const uint32_t range = title_global<uint32_t>(entry + 0x10);
+    const TitleRegs regs = {0x1ffc, context, 0x40, range, frame + 8, frame + 0x218};
+    uint32_t result = find_nearest_at(frame, 0x0020977a, regs, range, title_global<uint32_t>(entry + 8),
+                                      title_global<uint32_t>(entry + 0xc), c, frame + 0x14, context);
+    if (!title_global<uint8_t>(entry + 0x14)) return result;
+    for (uint32_t i = 0; i < 0x40; ++i) {
+        result = title_global<uint32_t>(frame + 0x18 + i * 8);
+        if (result && !title_global<uint32_t>(result + 4)) break;
+    }
+    return result;
+}
+
 }  // namespace game
