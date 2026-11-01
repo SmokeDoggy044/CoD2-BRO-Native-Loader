@@ -865,4 +865,30 @@ extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint
                                                             uint32_t ebp);
 extern "C" void Actor_CanSeePoint_entry(void);
 
+// 0x0020c6d0 (EAX actor, ECX path, XMM4 range, stack state, pass entity, end; ret 0xc): path trim by sight.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TrimToVisiblePoint(uint32_t entry, uint8_t* actor, uint8_t* path,
+                                                                     float max_dist2, int32_t* state, uint32_t pass,
+                                                                     const float* end, uint32_t ebp);
+extern "C" void Path_TrimToVisiblePoint_entry(void);
+// 0x0020d110 (ESI actor): Path_TrimToVisiblePoint from the enemy's eye.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TrimPathFromEye(uint32_t entry, uint8_t* actor, uint32_t ebp);
+extern "C" void Actor_TrimPathFromEye_entry(void);
+// 0x0020d030 (ECX actor, EDX node): cover node safe from the grenade.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_IsCoverNodeSafe(uint32_t entry, uint8_t* actor,
+                                                                           const uint8_t* node, uint32_t ebp);
+extern "C" void Actor_Grenade_IsCoverNodeSafe_entry(void);
+// 0x0020c9c0 (ECX point, EDX actor): out of the grenade's range or sight.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_IsSafeFromGrenade(uint32_t entry, const float* point, uint8_t* actor,
+                                                                     uint32_t ebp);
+extern "C" void Actor_IsSafeFromGrenade_entry(void);
+// 0x0020e5a0 (ESI entity): dropped to the floor; 1 in solid.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_DropToFloor(uint32_t entry, uint8_t* ent, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_DropToFloor_entry(void);
+// 0x0020e9a0: level-start floor drop of the actors.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_DropActorsToFloorAtInit(uint32_t entry);
+extern "C" void G_DropActorsToFloorAtInit_entry(void);
+// 0x0020a730: foliage sound event of the moving actor (g_actorMove).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void ActorMove_FoliageSounds_entry(void);
+
 }  // namespace game

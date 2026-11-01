@@ -16,6 +16,7 @@
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 #include "xanim.h"
 
 namespace game {
@@ -7059,6 +7060,346 @@ float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint8_t* actor, const float* po
     stack_word(frame + 0x18) = 0;
     return Actor_CanSeePointEx(frame - 0x18, point, actor, &stack_word(frame + 0x18), fov_cos, max_dist2, pass, eye,
                                entry - 4);
+}
+
+// XMM4 is parked in the word below the entry ESP (the original's point z slot, rewritten).
+PLATFORM_ASM_ENTRY(Path_TrimToVisiblePoint_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm4, (%esp)\n"
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl (%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "leal 4(%ebp), %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Path_TrimToVisiblePoint) "addl $32, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "addl $4, %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Path_TrimToVisiblePoint(uint32_t entry, uint8_t* actor, uint8_t* path, float max_dist2,
+                                          int32_t* state, uint32_t pass, const float* end, uint32_t ebp) {
+    // EAX actor, ECX path, XMM4 range, stack (search state {point, step}, pass entity, end):
+    // a sight trace from 64 above path point `point + step` (the path end +0x3cc for the
+    // last) to `end`. Seen: a first step (-2) moves on (state = {point, 1}, EAX 1); else the
+    // points before it are dropped. Not seen: after a step of 1 the passed points are
+    // dropped; at point 0 the path is cleared; else the search steps back (EAX 1).
+    // Frame: no EBP frame; the point at entry - 0xc, EBP = the state during the trace.
+    (void)ebp;
+    const int16_t count = field<int16_t>(path, 0x380);
+    if (count <= 0) return 0;
+    const int32_t point = state[0] + state[1];
+    const bool last = point == count - 1;
+    float* const from = stack_vec(entry - 0xc);
+    const uint8_t* const source = last ? path + 0x3cc : path + point * 0x1c;
+    from[0] = field<float>(source, 0);
+    from[1] = field<float>(source, 4);
+    from[2] = field<float>(source, 8) + title_global<float>(0x00830c1c);  // 64
+    if (Actor_SightTrace(entry - 0x24, actor, end, from, max_dist2, pass, addr_of(state)) != 0.0f) {
+        if (state[1] == -2 && !last) {
+            state[0] = point;
+            state[1] = 1;
+            return 1;
+        }
+        Path_DropPassedPoints(uint32_t(point), path);
+        return 0;
+    }
+    if (state[1] == 1) {
+        Path_DropPassedPoints(uint32_t(state[0]), path);
+        return 0;
+    }
+    if (point == 0) {
+        Actor_ClearPath(actor);
+        return 0;
+    }
+    state[0] = point;
+    if (point == 1) state[1] = -1;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Actor_TrimPathFromEye_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_TrimPathFromEye) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_TrimPathFromEye(uint32_t entry, uint8_t* actor, uint32_t ebp) {
+    // ESI actor: the path (+0x3c0, search state +0x7a8, range +0x82c) trimmed to the points
+    // visible from the eye of the sentient's enemy (+0x3c). Eye at entry - 0xc.
+    float* const eye = stack_vec(entry - 0xc);
+    Sentient_EyeOrigin(field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), 0, reinterpret_cast<uint8_t*>(eye));
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    return Path_TrimToVisiblePoint(entry - 0x1c, actor, actor + 0x3c0, field<float>(actor, 0x82c),
+                                   reinterpret_cast<int32_t*>(actor + 0x7a8),
+                                   field<uint32_t>(field<const uint8_t*>(enemy, 0), 0x224), eye, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_Grenade_IsCoverNodeSafe_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_Grenade_IsCoverNodeSafe) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Grenade_IsCoverNodeSafe(uint32_t entry, uint8_t* actor, const uint8_t* node, uint32_t ebp) {
+    // ECX actor, EDX node: safe beyond the grenade's radius (+0x135c around +0x1350) up to
+    // twice it; within it, safe unless closer than a quarter of it or in sight of the grenade
+    // from 36 above the node. Frame: entry - 0x10 (point +4).
+    const uint32_t frame = entry - 0x10;
+    const float dy = field<float>(actor, 0x1354) - field<float>(node, 0x48);
+    const float dx = field<float>(actor, 0x1350) - field<float>(node, 0x44);
+    const float dz = field<float>(actor, 0x1358) - field<float>(node, 0x4c);
+    const float twice = field<float>(actor, 0x135c) * title_global<float>(0x0083eba8);
+    const float d2 = dz * dz + dy * dy + dx * dx;
+    if (d2 > twice) return 0;
+    if (d2 > field<float>(actor, 0x135c)) return 1;
+    if (field<float>(actor, 0x135c) * title_global<float>(0x0083ec24) > d2) return 0;  // 0.25
+    float* const from = stack_vec(frame + 4);
+    from[0] = field<float>(node, 0x44);
+    from[1] = field<float>(node, 0x48);
+    from[2] = field<float>(node, 0x4c) + title_global<float>(0x0083f01c);  // 36
+    stack_word(frame - 4) = 0;
+    return Actor_SightTrace(frame - 8, actor, &field<float>(actor, 0x1350), from, 0.0f, 0, ebp) ==
+                   title_global<float>(0x0083eafc)
+               ? 1
+               : 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_IsSafeFromGrenade_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_IsSafeFromGrenade) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_IsSafeFromGrenade(uint32_t entry, const float* point, uint8_t* actor, uint32_t ebp) {
+    // ECX point, EDX actor: with a grenade (+0x1310), safe outside 1.2 x its radius (+0x364
+    // around +0x2c0) or when a sight trace (mask 0x11) from 36 above it to 36 above the point
+    // is blocked. Frame: aligned base - 0x50.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x50;
+    stack_word(frame + 0xc) = 0;
+    if (!field<uint32_t>(actor, 0x1310)) return 0;
+    const uint8_t* const grenade = field<const uint8_t*>(actor, 0x1310);
+    const float dz = point[2] - field<float>(grenade, 0x2c8);
+    const float dy = point[1] - field<float>(grenade, 0x2c4);
+    const float dx = point[0] - field<float>(grenade, 0x2c0);
+    const float radius = float(field<int32_t>(grenade, 0x364)) * title_global<float>(0x00830f60);
+    if (dz * dz + dy * dy + dx * dx > radius * radius) return 1;
+    const float k36 = title_global<float>(0x0083f01c);
+    float* const to = stack_vec(frame + 0x40);
+    point_vec4_at(frame + 0x40, point);
+    to[2] = point[2] + k36;
+    float* const from = stack_vec(frame + 0x10);
+    point_vec4_at(frame + 0x10, &field<float>(grenade, 0x2c0));
+    from[2] = field<float>(grenade, 0x2c8) + k36;
+    zero_vec4_at(frame + 0x20);
+    zero_vec4_at(frame + 0x30);
+    const uint32_t pass = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+    const TitleRegs regs = {frame + 0x40, frame + 0x30, pass, frame + 0x20, title_global<uint32_t>(0x0082e298),
+                            frame + 0x10};
+    const uint32_t args[6] = {frame + 0xc, frame + 0x20, pass, 0, 0x11, 0};
+    call_at(frame, 0x0020cb39, 0x002e9840, regs, 6, args);  // G_SightTrace
+    return stack_word(frame + 0xc) != 0 ? 1 : 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_DropToFloor_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_DropToFloor) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_DropToFloor(uint32_t entry, uint8_t* ent, uint32_t edi, uint32_t ebp) {
+    // ESI entity: its cell (+0x458; 20 higher when outside); unless 0x0095bf0c is set it
+    // must be a cell with an area (+0x3c of the 0x50-byte cell records). Raised by 1 and
+    // traced 128 down with the actor box (its top lowered to mins z + the box width): EAX 1 in
+    // solid, else moved to the hit point. Frame: aligned base - 0x80.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x80;
+    float* const point = stack_vec(frame + 0x10);
+    for (uint32_t i = 0; i < 16; i += 4) stack_word(frame + 0x10 + i) = field<uint32_t>(ent, 0x140 + i);
+    field<int32_t>(ent, 0x458) = CM_CellForPoint(0, point);
+    if (field<int32_t>(ent, 0x458) < 0) {
+        point[2] = point[2] + title_global<float>(0x0083eb5c);  // 20
+        field<int32_t>(ent, 0x458) = CM_CellForPoint(0, point);
+    }
+    if (!title_global<uint32_t>(0x0095bf0c)) {
+        const int32_t cell = field<int32_t>(ent, 0x458);
+        if (cell < 0) return 0;
+        const uint8_t* const cm = title_global<const uint8_t*>(0x0095f6b8);
+        const uint32_t index = uint32_t(cell) < field<uint32_t>(cm, 0x18) ? uint32_t(cell) : 0;
+        if (!field<uint32_t>(field<const uint8_t*>(cm, 0x1c) + index * 0x50, 0x3c)) return 0;
+    }
+    float* const end = stack_vec(frame + 0x30);
+    end[0] = field<float>(ent, 0x140);
+    end[1] = field<float>(ent, 0x144);
+    const float z = field<float>(ent, 0x148);
+    field<float>(ent, 0x148) = z + title_global<float>(0x0083eb20);
+    for (uint32_t i = 0; i < 16; i += 4) {
+        stack_word(frame + 0x20 + i) = title_global<uint32_t>(0x0098a560 + i);  // mins
+        stack_word(frame + 0x10 + i) = title_global<uint32_t>(0x0098a550 + i);  // maxs
+    }
+    end[2] = z - title_global<float>(0x0083ebe8);  // 128
+    stack_vec(frame + 0x10)[2] =
+        title_global<float>(0x0098a550) - title_global<float>(0x0098a560) + stack_vec(frame + 0x20)[2];
+    const uint32_t results = frame + 0x40;
+    const TitleRegs regs = {frame + 0x10, addr_of(ent + 0x140), frame + 0x20, results, addr_of(ent), edi};
+    const uint32_t args[11] = {results, frame + 0x20, frame + 0x10, frame + 0x30, 0, title_global<uint32_t>(0x008ff058),
+                               1, 0, 0, 0, 0};
+    call_at(frame, 0x0020e710, 0x002e9af0, regs, 11, args);  // SV_Trace
+    if (title_global<uint8_t>(results + 0x3d)) return 1;
+    if (title_global<float>(0x0083eb20) > *stack_vec(results + 0x20)) {
+        field<uint32_t>(ent, 0x140) = stack_word(results);
+        field<uint32_t>(ent, 0x144) = stack_word(results + 4);
+        field<uint32_t>(ent, 0x148) = stack_word(results + 8);
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(G_DropActorsToFloorAtInit_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_DropActorsToFloorAtInit) "addl $4, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_DropActorsToFloorAtInit(uint32_t entry) {
+    // At level start: every entity outside the set 0x0097a8c0 saves {its handle +0x224, the
+    // +0x134 of the entity that names} and loses +0x134 when flag 0x1000 of +0x2a4 is set;
+    // then each such actor (type 0xc) dropped to the floor clears bit 0 of +0xd4; the saved
+    // +0x134 values are restored. Frame: entry - 0x2ac8 (_chkstk 0x2abc, three pushes).
+    const uint32_t frame = entry - 0x2ac8;
+    // Locals at the original's offsets: iterator +0xc, bit set +0x1c, saved block +0xc4.
+    uint32_t* const bits = &stack_word(frame + 0x1c);
+    EntBits_Invert(bits, &title_global<uint32_t>(0x0097a8c0));
+    uint32_t* const saved = &stack_word(frame + 0xc4);
+    saved[0] = 0;
+    for (uint32_t i = 0; i < 0x540; ++i) {
+        saved[1 + i * 2] = 0;
+        saved[2 + i * 2] = 0;
+    }
+    uint32_t* const iterator = &stack_word(frame + 0xc);
+    iterator[0] = addr_of(bits);
+    iterator[1] = bits[0];
+    iterator[2] = 0;
+    iterator[3] = 0xffffffffu;
+    EntBits_IterNext(iterator);
+    uint32_t* out = &saved[1];
+    while (iterator[3] != 0xffffffffu || iterator[2] != 0xffffffffu) {
+        uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + iterator[3] * 8);
+        const uint32_t handle = field<uint32_t>(ent, 0x224);
+        out[0] = handle;
+        const uint8_t* const named = reinterpret_cast<const uint8_t*>(uintptr_t(entity_from_handle(handle)));
+        out[1] = field<uint32_t>(named, 0x134);
+        out += 2;
+        if (field<uint32_t>(ent, 0x2a4) & 0x1000) field<uint32_t>(ent, 0x134) = 0;
+        EntBits_IterNext(iterator);
+    }
+    iterator[0] = addr_of(bits);
+    iterator[1] = bits[0];
+    iterator[2] = 0;
+    iterator[3] = 0xffffffffu;
+    EntBits_IterNext(iterator);
+    while (iterator[3] != 0xffffffffu || iterator[2] != 0xffffffffu) {
+        uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + iterator[3] * 8);
+        if (ent[0] == 0xc && Actor_DropToFloor(frame - 4, ent, 0xfffffffeu, entry - 4))
+            field<uint32_t>(ent, 0xd4) &= 0xfffffffeu;
+        EntBits_IterNext(iterator);
+    }
+    G_RestoreSavedEntityField134(reinterpret_cast<const uint8_t*>(saved));
+}
+
+PLATFORM_ASM_ENTRY(ActorMove_FoliageSounds_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(ActorMove_FoliageSounds) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The moving actor (g_actorMove 0x0095f450): at a horizontal speed (+0x10/+0x14) of at
+    // least 0x00927ecc, once per interval (0x0092f0ac up to 0x00929c44 ms, shorter with speed
+    // towards 0x0093e6cc) since the last sound (+0x84), a box (mins +0x60 and maxs +0x70 x 0.75,
+    // top x 0.9) at its origin in contents 2 sends event 0x8b. Slower, the timer clears after
+    // 0x0092f00c ms. Frame: aligned base - 0x70.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x70;
+    uint8_t* const move = title_global<uint8_t*>(0x0095f450);
+    long double sum = static_cast<long double>(field<float>(move, 0x14)) * field<float>(move, 0x14) +
+                      static_cast<long double>(field<float>(move, 0x10)) * field<float>(move, 0x10);
+    __asm__("fsqrt" : "+t"(sum));
+    *stack_vec(frame + 0xc) = float(sum);
+    const float speed = *stack_vec(frame + 0xc);
+    const int32_t slow = title_global<int32_t>(0x00927ecc);
+    const float threshold = float(slow);
+    if (threshold > speed) {
+        if (field<int32_t>(move, 0x84) + title_global<int32_t>(0x0092f00c) < level_time()) field<int32_t>(move, 0x84) = 0;
+        return;
+    }
+    float f = (speed - threshold) / float(title_global<int32_t>(0x0093e6cc) - slow);
+    if (f > title_global<float>(0x0083eb20)) f = title_global<float>(0x0083eb20);
+    const int32_t shortest = title_global<int32_t>(0x0092f0ac);
+    const int32_t interval = int32_t(float(title_global<int32_t>(0x00929c44) - shortest) * f + float(shortest));
+    if (interval + field<int32_t>(move, 0x84) >= level_time()) return;
+    const float k075 = title_global<float>(0x0083eb58);
+    float* const mins = stack_vec(frame + 0x20);
+    float* const maxs = stack_vec(frame + 0x10);
+    mins[0] = field<float>(move, 0x60) * k075;
+    mins[1] = field<float>(move, 0x64) * k075;
+    mins[2] = field<float>(move, 0x68) * k075;
+    maxs[0] = field<float>(move, 0x70) * k075;
+    maxs[1] = field<float>(move, 0x74) * k075;
+    maxs[2] = field<float>(move, 0x78) * title_global<float>(0x0083ec18);  // 0.9
+    const uint32_t results = frame + 0x30;
+    const TitleRegs regs = {results, addr_of(move), frame + 0x10, frame + 0x20, esi, edi};
+    const uint32_t args[11] = {results, frame + 0x20, frame + 0x10, addr_of(move), field<uint32_t>(move, 0x44), 2, 1,
+                               0, 0, 0, 0};
+    call_at(frame, 0x0020a881, 0x002e9af0, regs, 11, args);  // SV_Trace
+    if (!title_global<uint8_t>(results + 0x3d)) return;
+    uint8_t* const mover = title_global<uint8_t*>(0x0095f450);
+    G_AddEvent(G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(mover + 0x44)), 0x8b, 0);
+    field<int32_t>(mover, 0x84) = level_time();
 }
 
 }  // namespace game
