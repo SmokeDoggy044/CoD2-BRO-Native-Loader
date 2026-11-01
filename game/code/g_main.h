@@ -53,7 +53,7 @@ void XB_CDECL G_FlushEntityListChanges();
 // takes it out again (the original counts the addition queue down for that).
 void XB_CDECL G_EntityList_QueueRemove(uint32_t ent);
 // 0x0024cb10: cancels a queued removal of the entity, else queues it for addition (0x0097a640).
-void XB_CDECL G_QueueEntityRemove(uint32_t ent);
+void XB_CDECL G_EntityList_QueueAdd(uint32_t ent);
 // 0x0024cbd0: links entities with equal team strings (+0x2f8) into team chains.
 void XB_CDECL G_FindTeams();
 // 0x0024cd70: the 32 entities of the handles at 0x00985e30 think next frame with think 0xc.

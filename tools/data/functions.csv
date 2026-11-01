@@ -2755,7 +2755,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0024c800,Artillery_Drop,compare,0,0,0,0,0,0,""
 0024c9f0,G_FlushEntityListChanges,compare,17595,17340,17340,0,0,0,""
 0024cab0,G_EntityList_QueueRemove,compare,310,141,141,0,0,0,""
-0024cb10,G_QueueEntityRemove,compare,841,132,132,0,0,0,""
+0024cb10,G_EntityList_QueueAdd,compare,841,132,132,0,0,0,""
 0024cbd0,G_FindTeams,compare,8,6,6,0,0,0,""
 0024cd70,G_FreeDroppedItems,compare,0,0,0,0,0,0,""
 0024ce90,Add_AmmoClips,compare,0,0,0,0,0,0,""

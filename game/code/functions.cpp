@@ -2692,7 +2692,7 @@ const Function kFunctions[] = {
     {"Artillery_Drop", 0x0024c800, 0, code(&Artillery_Drop), 4, Result::None, Status::Compare},
     {"G_FlushEntityListChanges", 0x0024c9f0, 0, code(&G_FlushEntityListChanges), 0, Result::None, Status::Compare},
     {"G_EntityList_QueueRemove", 0x0024cab0, 0, code(&G_EntityList_QueueRemove), 4, Result::None, Status::Compare},
-    {"G_QueueEntityRemove", 0x0024cb10, 0, code(&G_QueueEntityRemove), 4, Result::None, Status::Compare},
+    {"G_EntityList_QueueAdd", 0x0024cb10, 0, code(&G_EntityList_QueueAdd), 4, Result::None, Status::Compare},
     {"G_FindTeams", 0x0024cbd0, 0, code(&G_FindTeams), 0, Result::None, Status::Compare},
     {"G_FreeDroppedItems", 0x0024cd70, 0, code(&G_FreeDroppedItems), 0, Result::None, Status::Compare},
     {"Add_AmmoClips", 0x0024ce90, 0, code(&Add_AmmoClips_entry), 4, Result::None, Status::Compare},

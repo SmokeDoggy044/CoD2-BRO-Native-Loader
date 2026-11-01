@@ -406,7 +406,7 @@ void XB_CDECL G_EntityList_QueueRemove(uint32_t ent) {
     if (title_global<int32_t>(0x0097a648)) --title_global<int32_t>(0x0097a648);
 }
 
-void XB_CDECL G_QueueEntityRemove(uint32_t ent) {
+void XB_CDECL G_EntityList_QueueAdd(uint32_t ent) {
     // Despite the name: a queued removal of ent is cancelled, else ent is queued for addition
     // (0x0097a640).
     const int32_t at = find_queued_removal(ent);
