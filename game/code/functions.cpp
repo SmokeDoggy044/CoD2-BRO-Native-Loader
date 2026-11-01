@@ -2813,7 +2813,7 @@ const Function kFunctions[] = {
     {"G_Trigger", 0x00250cf0, 0, code(&G_Trigger_entry), 4, Result::None, Status::Compare},
     {"G_GetAnimFlag0", 0x00250e00, 0, code(&G_GetAnimFlag0), 4, Result::Eax, Status::Compare},
     {"AnimTree_EnsureAnimLoaded", 0x00250e70, 0, code(&AnimTree_EnsureAnimLoaded_entry), 4, Result::Xmm0, Status::Compare},
-    {"G_FindSpawnFunc", 0x00251140, 0, code(&G_FindSpawnFunc), 0, Result::None, Status::Compare},
+    {"G_InitSpawnFuncMap", 0x00251140, 0, code(&G_InitSpawnFuncMap), 0, Result::None, Status::Compare},
     {"G_InitAnimTrees", 0x00251240, 0, code(&G_InitAnimTrees), 4, Result::None, Status::Compare},
     {"G_SyncRegisteredItems", 0x002512b0, 0, code(&G_SyncRegisteredItems), 0, Result::None, Status::Compare},
     {"G_StartMissionEndFade", 0x002512d0, 0, code(&G_StartMissionEndFade), 0, Result::None, Status::Compare},

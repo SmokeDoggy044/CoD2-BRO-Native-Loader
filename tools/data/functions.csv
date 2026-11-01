@@ -2878,11 +2878,11 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00250a10,Cmd_Where_f,replaced,0,12,12,0,0,0,""
 00250a70,G_SetFog,compare,0,0,0,0,0,0,""
 00250b70,Pain_ForwardToOwner,compare,0,0,0,0,0,0,""
-00250bf0,ClientImpacts,compare,81086,44102,40388,0,3714,0,"008dd1f8 XAPILIB::OHCD_fQueueTransferRequest+0x12a2fc [.data] [1] 3b vs 39; 008dd204 XAPILIB::OHCD_fQueueTransferRequest+0x12a308 [.data] [2] 44fd vs 74f0; 00985330 XAPILIB::OHCD_fQueueTransferRequest+0x1d2434 [.data] [5] 4c9502004c vs 1a9502001a; 8042cde8 [host] [1] 2b vs 2f; 8042ce04 [host] [2] 44f2 vs 7cdd; 8043dd78 [host] [20] 44fd438074f043800858760701100000.. vs d47646808cf543805404c7c033310000.. (+4 more)"
+00250bf0,ClientImpacts,compare,81086,25329,25329,0,0,0,
 00250cf0,G_Trigger,compare,2374,182,182,0,0,0,""
 00250e00,G_GetAnimFlag0,compare,3536,2585,2585,0,0,0,""
 00250e70,AnimTree_EnsureAnimLoaded,compare,0,24,8,0,0,16,"original got Segmentation fault at 00250ea7 AnimTree_EnsureAnimLoaded+0x37 [.text], address 00000024"
-00251140,G_FindSpawnFunc,compare,4,4,4,0,0,0,""
+00251140,G_InitSpawnFuncMap,compare,4,4,4,0,0,0,""
 002511c0,Vehicle_StopEffects,compare,1322,1311,1311,0,0,0,""
 00251240,G_InitAnimTrees,compare,4,4,4,0,0,0,""
 002512b0,G_SyncRegisteredItems,compare,9812,5234,5234,0,0,0,""

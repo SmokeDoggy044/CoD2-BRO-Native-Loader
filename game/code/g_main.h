@@ -91,7 +91,7 @@ void XB_CDECL SaveRegisteredItems();
 uint32_t XB_CDECL G_GetAnimFlag0(uint32_t anim);
 // 0x00251140: fills the spawn map (0x00983e1c) from g_spawns: name hash -> index (the body
 // builds the map; the name is the caller's).
-void XB_CDECL G_FindSpawnFunc();
+void XB_CDECL G_InitSpawnFuncMap();
 // 0x00251240: loads the anim trees, the anim scripts and the "generic_human" tree.
 void XB_CDECL G_InitAnimTrees(uint32_t arg);
 // 0x002512b0: 0x00985414 = level.time; SaveRegisteredItems when they changed.

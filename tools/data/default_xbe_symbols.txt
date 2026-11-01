@@ -8285,7 +8285,7 @@
 0024b350 VehPath_GetNodeAngles
 0024b530 VehNode_FindByTargetname
 0024b610 Use_Multi
-0024b620 FUN_0024b620
+0024b620 G_FreeStringTable
 0024b700 XAnim_HasNotetrack
 0024b860 FUN_0024b860
 0024ba60 G_ClientInOpenVehicle
@@ -8370,12 +8370,12 @@
 00250b70 Pain_ForwardToOwner
 00250bf0 ClientImpacts
 00250cf0 G_Trigger
-00250e00 FUN_00250e00
+00250e00 G_GetAnimFlag0
 00250e70 AnimTree_EnsureAnimLoaded
-00251140 G_FindSpawnFunc
+00251140 G_InitSpawnFuncMap
 002511c0 Vehicle_StopEffects
 00251240 G_InitAnimTrees
-002512b0 FUN_002512b0
+002512b0 G_SyncRegisteredItems
 002512d0 G_StartMissionEndFade
 002513c0 G_ShutdownGame
 00251450 Cmd_UFO_f
@@ -8399,8 +8399,8 @@
 00252bd0 G_GetEntAnimTree
 00252c10 G_CheckMissionEnd
 002530a0 G_RegisterCvars
-002531b0 FUN_002531b0
-002532f0 FUN_002532f0
+002531b0 G_ClientActivateTargetActor
+002532f0 G_FreeFarthestDroppedItem
 00253440 LookAtKiller
 00253500 Cmd_Take_f
 002538f0 Player_Touch

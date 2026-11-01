@@ -721,7 +721,7 @@ uint32_t XB_CDECL G_GetAnimFlag0(uint32_t anim) {
     return clip[0x34] & 1;
 }
 
-void XB_CDECL G_FindSpawnFunc() {
+void XB_CDECL G_InitSpawnFuncMap() {
     // Fills the spawn map (0x00983e1c): each g_spawns entry's name hash (8-byte entries, until
     // a zero hash) mapped to its index (node +0xc).
     uint32_t index = 0;
