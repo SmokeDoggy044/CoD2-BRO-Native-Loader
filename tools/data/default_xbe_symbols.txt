@@ -8556,7 +8556,7 @@
 00267980 Artillery_Incoming
 002679c0 Artillery_Fire
 00267a10 Think_DropNamedItem
-00267a50 FUN_00267a50
+00267a50 Actor_TurretCheckNearEnemy
 00267ac0 Turret_PickSentientTarget
 00267c30 Turret_AimAtTarget
 00267e10 Player_UpdateCursorHints
