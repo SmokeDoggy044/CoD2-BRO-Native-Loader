@@ -1118,4 +1118,24 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Death_Start(uint32_t entry, u
                                                               uint32_t esi, uint32_t ebx, uint32_t ebp);
 extern "C" void Actor_Death_Start_entry(void);
 
+// 0x00212450 (ECX path, EAX origin; stack compute argument, shrink flag; ret 8): refreshes the lookahead.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_RefreshLookahead(uint32_t entry, uint8_t* path, const float* origin,
+                                                              uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void Path_RefreshLookahead_entry(void);
+// 0x00212780 (ESI path, EDI origin; stack shrink flag; ret 4): lookahead straight at the end, then refreshed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_LookaheadAtEnd(uint32_t entry, uint8_t* path, const float* origin,
+                                                            uint32_t ecx, uint32_t ebx);
+extern "C" void Path_LookaheadAtEnd_entry(void);
+// 0x00212670 (ESI path, EDI out; stack origin, speed, compute argument; ret 12): the move along the lookahead.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GetLookaheadMove(uint32_t entry, uint8_t* path, float* out, uint32_t ebx);
+extern "C" void Actor_GetLookaheadMove_entry(void);
+// 0x00213ef0 (EBX actor): exposed state, reacquire the last enemy position. Returns the ECX the original leaves.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireLast(uint32_t entry, uint8_t* actor, uint32_t ecx,
+                                                                        uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireLast_entry(void);
+// 0x002133a0 (EAX entity): a dead actor's entity becomes a corpse.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_BecomeCorpse(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                           uint32_t edi, uint32_t ebp);
+extern "C" void Actor_BecomeCorpse_entry(void);
+
 }  // namespace game

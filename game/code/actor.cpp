@@ -12145,4 +12145,387 @@ uint32_t XB_CDECL Actor_Death_Start(uint32_t entry, uint8_t* actor, uint32_t edi
     return 0;
 }
 
+namespace {
+
+// The lookahead direction straight at the path's end point (+0x3cc) from `origin`: +0x39c..
+// = end - origin, x/y normalized (by the __CIsqrt xy length, kept in `slot` and +0x3b0) and z
+// over that length (0 when 0). `inv_first`: the scale multiplies as inv * d (else d * inv).
+void lookahead_to_end(uint8_t* path, const float* origin, uint32_t slot, bool inv_first) {
+    field<float>(path, 0x39c) = field<float>(path, 0x3cc) - origin[0];
+    field<float>(path, 0x3a0) = field<float>(path, 0x3d0) - origin[1];
+    field<float>(path, 0x3a4) = field<float>(path, 0x3d4) - origin[2];
+    const float x = field<float>(path, 0x39c);
+    const float y = field<float>(path, 0x3a0);
+    *stack_vec(slot) = x * x + y * y;
+    *stack_vec(slot) = title_ci_sqrt_ext(static_cast<long double>(*stack_vec(slot)));
+    const float len = *stack_vec(slot);
+    if (!(static_cast<long double>(len) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+        const float inv = title_global<float>(0x0083eb20) / len;
+        if (inv_first) {
+            field<float>(path, 0x39c) = inv * field<float>(path, 0x39c);
+            field<float>(path, 0x3a0) = field<float>(path, 0x3a0) * inv;
+        } else {
+            field<float>(path, 0x39c) = field<float>(path, 0x39c) * inv;
+            field<float>(path, 0x3a0) = field<float>(path, 0x3a0) * inv;
+        }
+    }
+    const float zero = 0.0f;
+    field<float>(path, 0x3b0) = len;
+    const float z = len == zero ? zero : field<float>(path, 0x3a4) / len;
+    field<float>(path, 0x3a4) = z;
+    field<float>(path, 0x3b8) = zero;
+}
+
+// Path_RefreshLookahead's body at entry ESP `entry` (ECX path, EAX origin; stack compute
+// argument, shrink flag; ret 8). Frame B = entry - 0xc: EDI +0, ESI +4, EBX +8.
+void refresh_lookahead(uint32_t entry, uint8_t* path, const float* origin, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t B = entry - 0xc;
+    stack_word(B + 8) = ebx;
+    stack_word(B + 4) = esi;
+    stack_word(B) = edi;
+    const uint32_t p = addr_of(path);
+    const uint32_t o = addr_of(origin);
+    const int32_t count = field<int16_t>(path, 0x380);
+    const int32_t index = field<int16_t>(path, 0x386);
+    const float dx = field<float>(path, 0x3cc) - origin[0];
+    const uint32_t flags = field<uint32_t>(path, 0x3bc) & ~0x20u;
+    field<uint32_t>(path, 0x3bc) = flags;
+    const auto forward = [&](uint32_t ret) {
+        call_at(B, ret, 0x001fe820, TitleRegs{p, uint32_t(index), o, p, p, o}, 0,
+                nullptr);  // Path_RefreshForwardLookahead (ECX origin)
+    };
+    if (index == count - 1) {
+        // On the last segment: straight at the end.
+        field<float>(path, 0x39c) = dx;
+        lookahead_to_end(path, origin, entry + 8, true);
+        field<int16_t>(path, 0x388) = field<int16_t>(path, 0x386);
+        field<uint32_t>(path, 0x3bc) = field<uint32_t>(path, 0x3bc) | 0x41;
+        forward(0x0021266a);
+        return;
+    }
+    const float dy = field<float>(path, 0x3d0) - origin[1];
+    const float dot = field<float>(path, 0x3a0) * dy + field<float>(path, 0x39c) * dx;
+    const auto compute = [&](uint32_t ret_compute, uint32_t ret_forward) {
+        const uint32_t args[1] = {stack_word(entry + 4)};
+        call_at(B, ret_compute, 0x002115b0, TitleRegs{p, o, o, p, p, o}, 1, args);  // Path_ComputeLookahead (EAX, EBX)
+        forward(ret_forward);
+    };
+    if (0.0f >= dot) {
+        // Past the lookahead point: re-route when allowed and the path is short, else advance.
+        if ((flags & 4) && count * 4 <= field<int16_t>(path, 0x382)) {
+            const uint32_t args[4] = {p, field<uint32_t>(path, 0x3c4), o, (flags >> 4) & 1};
+            call_at(B, 0x002124e9, 0x0020c8b0, TitleRegs{(flags >> 4) & 1, p + 0x390, uint32_t(count) * 4,
+                                                          field<uint32_t>(path, 0x3c4), p, o},
+                    4, args);  // Path_RouteBetween (EBX +0x390; stdcall)
+            return;
+        }
+        call_at(B, 0x002124f8, 0x001fac60, TitleRegs{p, o, uint32_t(count) * 4, 0, p, o}, 0,
+                nullptr);  // Path_AdvanceAlong (EAX path, EBX origin)
+        if (stack_word(entry + 8)) {
+            call_at(B, 0x00212509, 0x001fcef0, TitleRegs{0, o, o, p, p, o}, 0,
+                    nullptr);  // Path_ShrinkLookahead (ECX origin, EDX path)
+            compute(0x00212515, 0x0021251c);
+            return;
+        }
+    } else if (field<float>(path, 0x3b4) >= title_global<float>(0x00830c1c)) {  // 64
+        call_at(B, 0x0021253a, 0x001fc750, TitleRegs{p, uint32_t(index), 0, 0, p, o}, 0, nullptr);  // Path_StepBack (EAX)
+    }
+    compute(0x00212548, 0x0021254f);
+}
+
+// The x87 cube-root-like power of GetLookaheadMove: 2^(log2(x) * k) through FYL2X / F2XM1 /
+// FSCALE; *rounded = the float, result = cap > the unrounded value.
+bool x87_pow_below(float x, float k, float cap, float* rounded) {
+    bool below;
+    __asm__("flds %2\n\t"
+            "fldln2\n\t"
+            "fxch %%st(1)\n\t"
+            "fyl2x\n\t"
+            "fmuls %3\n\t"
+            "fldl2e\n\t"
+            "fmulp %%st, %%st(1)\n\t"
+            "fld %%st(0)\n\t"
+            "frndint\n\t"
+            "fxch %%st(1)\n\t"
+            "fsub %%st(1), %%st\n\t"
+            "f2xm1\n\t"
+            "fld1\n\t"
+            "faddp %%st, %%st(1)\n\t"
+            "fscale\n\t"
+            "fstp %%st(1)\n\t"
+            "fsts %1\n\t"
+            "flds %4\n\t"
+            "fcomip %%st(1), %%st\n\t"
+            "fstp %%st(0)\n\t"
+            "seta %0"
+            : "=q"(below), "=m"(*rounded)
+            : "m"(x), "m"(k), "m"(cap)
+            : "st", "st(1)", "st(2)", "cc");
+    return below;
+}
+
+}  // namespace
+
+// The callees run where the original's calls put them: gap entries, EDX the entry ESP.
+PLATFORM_ASM_ENTRY(Path_RefreshLookahead_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Path_RefreshLookahead) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL Path_RefreshLookahead(uint32_t entry, uint8_t* path, const float* origin, uint32_t ebx, uint32_t esi,
+                                    uint32_t edi) {
+    // ECX path, EAX origin; stack (Path_ComputeLookahead's argument, shrink flag; ret 8): on
+    // the last segment the lookahead points straight at the end (+0x3bc | 0x41); past the
+    // lookahead point (dot <= 0) a short path (count x 4 <= +0x382) with +0x3bc & 4 is routed
+    // again (Path_RouteBetween), else it advances (shrinking first when asked); before it a
+    // long trim (+0x3b4 >= 64) steps back. Then Path_ComputeLookahead and
+    // Path_RefreshForwardLookahead. +0x3bc loses 0x20.
+    refresh_lookahead(entry, path, origin, ebx, esi, edi);
+}
+
+PLATFORM_ASM_ENTRY(Path_LookaheadAtEnd_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Path_LookaheadAtEnd) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL Path_LookaheadAtEnd(uint32_t entry, uint8_t* path, const float* origin, uint32_t ecx, uint32_t ebx) {
+    // ESI path, EDI origin; stack shrink flag (ret 4): the lookahead straight at the end point,
+    // the last segment index (count - 1) in +0x388, then Path_RefreshLookahead(0, flag).
+    stack_word(entry - 4) = ecx;
+    lookahead_to_end(path, origin, entry - 4, false);
+    field<int16_t>(path, 0x388) = static_cast<int16_t>(field<int16_t>(path, 0x380) - 1);
+    stack_word(entry - 8) = stack_word(entry + 4);
+    stack_word(entry - 12) = 0;
+    stack_word(entry - 16) = 0x00212898;
+    refresh_lookahead(entry - 16, path, origin, ebx, addr_of(path), addr_of(origin));
+}
+
+PLATFORM_ASM_ENTRY(Actor_GetLookaheadMove_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_GetLookaheadMove) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret $12")
+
+void XB_CDECL Actor_GetLookaheadMove(uint32_t entry, uint8_t* path, float* out, uint32_t ebx) {
+    // ESI path, EDI out; stack (origin, speed, compute argument; ret 12): zero for speed 0;
+    // else after Path_RefreshLookahead the lookahead direction (+0x39c) times speed x the
+    // facing factor - (max(dot of +0x3a8 with the direction, 1e-6))^0.333, at least 0.6 -
+    // capped at the lookahead length (+0x3b0).
+    const float speed = *stack_vec(entry + 8);
+    const float zero = 0.0f;
+    if (speed == zero) {
+        out[2] = zero;
+        out[1] = zero;
+        out[0] = zero;
+        return;
+    }
+    stack_word(entry - 4) = 0;
+    stack_word(entry - 8) = stack_word(entry + 12);
+    stack_word(entry - 12) = 0x00212698;
+    refresh_lookahead(entry - 12, path, reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 4)}), ebx,
+                      addr_of(path), addr_of(out));
+    const float dot = field<float>(path, 0x3a8) * field<float>(path, 0x39c) + field<float>(path, 0x3ac) * field<float>(path, 0x3a0);
+    const float least = title_global<float>(0x0083f02c);
+    *stack_vec(entry + 12) = dot;
+    if (least > dot) *stack_vec(entry + 12) = least;
+    float factor = title_global<float>(0x0083eba4);  // 0.6
+    float rounded;
+    const bool below = x87_pow_below(*stack_vec(entry + 12), title_global<float>(0x0083f248), factor, &rounded);
+    *stack_vec(entry + 12) = rounded;
+    if (!below) factor = rounded;
+    float scale = factor * speed;
+    if (scale > field<float>(path, 0x3b0)) scale = field<float>(path, 0x3b0);
+    out[0] = field<float>(path, 0x39c) * scale;
+    out[1] = field<float>(path, 0x3a0) * scale;
+    out[2] = field<float>(path, 0x3a4) * scale;
+}
+
+// The sight checks run where the original's calls put them: gap entry, EDX the entry ESP; the
+// C version returns the ECX the original pops last (its +0x82c slot).
+PLATFORM_ASM_ENTRY(Actor_Exposed_ReacquireLast_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_Exposed_ReacquireLast) "addl $24, %esp\n"
+                   "movl %eax, %ecx\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireLast(uint32_t entry, uint8_t* actor, uint32_t ecx, uint32_t esi, uint32_t edi,
+                                              uint32_t ebp) {
+    // EBX actor: drops the claimed node, stands (reacquire script for team 1, else stop); an
+    // enemy not seen at all (or none) gets its record's +0x1c = 0x7fffffff. A team-2 actor that
+    // does not see its enemy (record up to 1 s old) goes to state 5; else timers +0x28 = 200
+    // when the enemy is seen (no +0x1390), 202 otherwise, +0x2c = now + 1, +0x34 = now + 501.
+    // Frame: ECX slot (claim word, then +0x82c) entry - 4, ESI -8, EDI -0xc.
+    const uint32_t me = addr_of(actor);
+    stack_word(entry - 4) = ecx & 0xffff0000u;
+    stack_word(entry - 8) = esi;
+    const uint32_t sentient = field<uint32_t>(actor, 4);
+    const uint32_t claim[2] = {sentient, stack_word(entry - 4)};
+    call_at(entry - 8, 0x00213f07, 0x00200960, TitleRegs{claim[1], me, sentient, 0, esi, edi}, 2,
+            claim);  // Sentient_SetClaimedNode (stdcall)
+    const uint32_t script = field<uint32_t>(field<const uint8_t*>(actor, 4), 4) == 1 ? 0x00987b88 : 0x00987bb8;
+    call_at(entry - 8, 0x00213f21, 0x00203de0, TitleRegs{me, me, 0, 0, script, edi}, 0,
+            nullptr);  // Actor_AnimStationary (EAX actor, ESI script)
+    stack_word(entry - 12) = edi;
+    const float zero = title_global<float>(0x0083eafc);
+    stack_word(entry - 4) = field<uint32_t>(actor, 0x82c);
+    const uint8_t* enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    bool unseen = true;
+    if (enemy) {
+        stack_word(entry - 16) = 0;
+        stack_word(entry - 20) = stack_word(entry - 4);
+        stack_word(entry - 24) = 0;
+        stack_word(entry - 28) = 0x00213f4a;
+        uint32_t bits = Actor_UpdateVisibilityIfNeeded(entry - 28, actor, enemy, me, ebp);
+        float seen;
+        std::memcpy(&seen, &bits, 4);
+        unseen = seen == zero;
+    }
+    if (unseen) {
+        uint8_t* const rec = sentient_record(actor, field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c));
+        field<uint32_t>(rec, 0x1c) = 0x7fffffff;
+    }
+    enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    if (field<uint32_t>(field<const uint8_t*>(actor, 4), 4) == 2 && enemy) {
+        stack_word(entry - 12) = 1000;
+        stack_word(entry - 16) = 0x00213fa2;
+        if (visibility_if_stale(entry - 16, enemy, actor, edi, me, ebp) == zero) {
+            call_at(entry - 8, 0x00213fbb, 0x00200110, TitleRegs{me, me, 0, 0, 5, edi}, 0,
+                    nullptr);  // Actor_SetState (EAX actor, ESI state)
+            return stack_word(entry - 4);
+        }
+    }
+    bool seen_now = false;
+    if (!field<uint32_t>(actor, 0x1390)) {
+        stack_word(entry - 12) = 1000;
+        stack_word(entry - 16) = 0x00213fda;
+        seen_now = !(visibility_if_stale(entry - 16, field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), actor,
+                                         edi, me, ebp) == zero);
+    }
+    field<uint32_t>(actor, 0x28) = seen_now ? 200 : 202;
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 501;
+    return stack_word(entry - 4);
+}
+
+PLATFORM_ASM_ENTRY(Actor_BecomeCorpse_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_BecomeCorpse) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_BecomeCorpse(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX entity: the actor is freed and the entity becomes a corpse (type 13, contents
+    // 0x4000000, clip mask 0x820011, trajectory stopped at its origin) in the slot freed by
+    // Actor_FreeFarthestCorpse, which takes the actor's ground tilt record (+0x198; a finished
+    // timed tilt is cleared first); "death" is notified and the DObj updated. Unless the tilt
+    // was still running, the actor's state is 8 or the entity has +0x3cc, the slot's tilt
+    // starts (on, now, 500, flat) with an unsmoothed G_UpdateGroundTilt. Linked.
+    // Frame: tilt flag entry - 0x1c, record copy +0x19c.. at entry - 0x14, EBP -0x20, ESI
+    // -0x24, EDI -0x28, EBX -0x2c.
+    stack_word(entry - 0x20) = ebp;
+    stack_word(entry - 0x24) = esi;
+    stack_word(entry - 0x28) = edi;
+    const uint32_t e = addr_of(ent);
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    const uint32_t me = addr_of(actor);
+    // Whether a timed tilt (+0x1a0 ms, negative = until then) is still running.
+    bool running = false;
+    const int32_t time = field<int32_t>(actor, 0x19c);
+    if (time && !field<uint32_t>(actor, 0x198)) {
+        const int32_t length = field<int32_t>(actor, 0x1a0);
+        if (length == 0) {
+            running = true;
+        } else if (length >= 0) {
+            if (!(length + time >= level_time())) field<int32_t>(actor, 0x1a0) = 0;
+            running = true;
+        } else if (time - length >= level_time()) {
+            running = true;
+        } else {
+            field<int32_t>(actor, 0x19c) = 0;
+        }
+    }
+    for (uint32_t i = 0; i < 5; ++i) stack_word(entry - 0x14 + i * 4) = field<uint32_t>(actor, 0x19c + i * 4);
+    const uint32_t on = field<uint32_t>(actor, 0x198);
+    stack_word(entry - 0x2c) = ebx;
+    const uint32_t B = entry - 0x2c;
+    const bool start = !running && field<uint32_t>(actor, 0x278) != 8 && !field<uint32_t>(ent, 0x3cc);
+    stack_word(entry - 0x1c) = start ? 1 : 0;
+    call_at(B, 0x0021344f, 0x00206360, TitleRegs{me, on, uint32_t(running), 0, e, 8}, 0, nullptr);  // Actor_Free (EAX)
+    field<uint32_t>(ent, 0x32c) = 1;
+    for (uint32_t off = 0x330; off <= 0x344; off += 4) field<uint32_t>(ent, off) = 0;
+    field<uint32_t>(ent, 0x348) = 2;
+    field<uint32_t>(ent, 0x34c) = 0;
+    field<uint32_t>(ent, 0x134) = 0x4000000;
+    ent[0] = 0xd;
+    field<uint32_t>(ent, 0x2a8) = 0x820011;
+    ent[0x294] = 1;
+    field<uint32_t>(ent, 0x20) = field<uint32_t>(ent, 0x140);
+    field<uint32_t>(ent, 0x24) = field<uint32_t>(ent, 0x144);
+    field<uint32_t>(ent, 0x14) = 0;
+    field<uint32_t>(ent, 0x28) = field<uint32_t>(ent, 0x148);
+    field<uint32_t>(ent, 0x18) = 0;
+    field<uint32_t>(ent, 0x1c) = 0;
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    field<uint32_t>(ent, 0x14) = 8;
+    const uint32_t index = call_at(B, 0x0021350d, 0x00204c70, TitleRegs{0, on, 0, 0, e, 8}, 0,
+                                   nullptr);  // Actor_FreeFarthestCorpse
+    stack_word(B - 8) = 0;  // its saved EBP
+    uint8_t* const slot = &title_global<uint8_t>(0x009881c8 + index * 0x1c);
+    field<uint32_t>(slot, 0) = field<uint32_t>(ent, 0x224);
+    const uint32_t note[1] = {title_global<uint32_t>(0x0097a684)};  // scr_const_death
+    call_at(B, 0x0021352c, 0x002b75c0, TitleRegs{field<uint32_t>(ent, 0x224), on, note[0], 0, e, addr_of(slot)}, 1,
+            note);  // Scr_Notify (stdcall)
+    const uint32_t dobj_args[1] = {e};
+    call_at(B, 0x00213532, 0x002e8be0, TitleRegs{0, on, 0, 0, e, addr_of(slot)}, 1, dobj_args);  // G_DObjUpdate
+    uint8_t* const rec = slot + 4;
+    field<uint32_t>(rec, 0) = on;
+    for (uint32_t i = 0; i < 5; ++i) field<uint32_t>(rec, 4 + i * 4) = stack_word(entry - 0x14 + i * 4);
+    if (stack_word(entry - 0x1c)) {
+        if (!field<uint32_t>(rec, 0)) {
+            field<float>(slot, 0x14) = 0.0f;
+            field<float>(slot, 0x18) = 0.0f;
+            field<uint32_t>(rec, 0) = 1;
+            field<int32_t>(slot, 8) = level_time();
+            field<uint32_t>(slot, 0xc) = 500;
+        }
+        stack_word(B + 4 - 4) = 0;
+        stack_word(B + 4 - 8) = 0x00213597;
+        G_UpdateGroundTilt(B + 4 - 8, ent, e, addr_of(slot), ebx, 0);
+    }
+    call_at(B + 4, 0x002135a1, 0x002d7fe0, TitleRegs{e, ebx, 0, 0, e, e}, 0, nullptr);  // SV_LinkEntity (EDI)
+    stack_word(B + 4 - 8) = 0;  // its saved EBP
+}
+
 }  // namespace game
