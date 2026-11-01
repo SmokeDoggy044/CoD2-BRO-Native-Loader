@@ -35,6 +35,12 @@ using platform::vmem::Protection;
 
 constexpr uint32_t kPage = 0x1000;
 constexpr uint32_t kGranularity = 0x10000;  // reservation alignment
+// Where memory_init looks when the configured virtual range is taken: above the
+// title's image area (the Windows stub's image ends at 0x04000000), in 16 MB steps,
+// halving the size down to 256 MB (the Xbox itself has 64 MB).
+constexpr uint32_t kVirtualSearchStart = 0x04000000;
+constexpr uint32_t kVirtualSearchStep = 0x01000000;
+constexpr uint32_t kMinVirtualRange = 0x10000000;
 
 // AllocationType / FreeType / State / Type.
 constexpr uint32_t kMemCommit = 0x1000;
@@ -563,18 +569,42 @@ bool memory_init(const MemoryConfig& config) {
         LOG_ERROR("memory", "cannot reserve contiguous memory at %08x+%x", config.contiguous_base, config.physical_bytes);
         return false;
     }
-    if (!platform::vmem::reserve(config.virtual_base, config.virtual_end - config.virtual_base)) {
-        LOG_ERROR("memory", "cannot reserve virtual memory range %08x-%08x", config.virtual_base, config.virtual_end);
-        return false;
+    MemoryConfig layout = config;
+    if (!platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
+        // Something else already lives there (on Windows e.g. a DLL injected at its
+        // default base 0x10000000 before our stub ran). The range's place does not
+        // matter to the title, only that it is below the contiguous memory: take the
+        // first free range of the same size, or a smaller one.
+        LOG_WARN("memory", "virtual memory range %08x-%08x is in use; looking for another", layout.virtual_base,
+                 layout.virtual_end);
+        const uint32_t wanted = layout.virtual_end - layout.virtual_base;
+        const uint32_t ceiling = std::min<uint32_t>(config.contiguous_base, 0x80000000u);
+        bool found = false;
+        for (uint32_t size = wanted; !found && size >= kMinVirtualRange; size /= 2) {
+            if (size > ceiling - kVirtualSearchStart) continue;
+            for (uint32_t base = kVirtualSearchStart; base <= ceiling - size; base += kVirtualSearchStep) {
+                if (platform::vmem::reserve(base, size)) {
+                    layout.virtual_base = base;
+                    layout.virtual_end = base + size;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            LOG_ERROR("memory", "cannot reserve virtual memory range %08x-%08x (nor any other of %u MB or more)",
+                      config.virtual_base, config.virtual_end, kMinVirtualRange >> 20);
+            return false;
+        }
     }
-    g_memory.config = config;
+    g_memory.config = layout;
     g_memory.total_pages = config.physical_bytes / kPage;
-    g_memory.page_state.assign((config.virtual_end - config.virtual_base) / kPage, PageState::Free);
+    g_memory.page_state.assign((layout.virtual_end - layout.virtual_base) / kPage, PageState::Free);
     g_memory.page_protect.assign(g_memory.page_state.size(), 0);
     g_memory.contiguous_protect.assign(g_memory.total_pages, 0);
     g_memory.initialized = true;
     LOG_INFO("memory", "%u MB physical at %08x, virtual %08x-%08x", config.physical_bytes >> 20,
-             config.contiguous_base, config.virtual_base, config.virtual_end);
+             layout.contiguous_base, layout.virtual_base, layout.virtual_end);
     return true;
 }
 

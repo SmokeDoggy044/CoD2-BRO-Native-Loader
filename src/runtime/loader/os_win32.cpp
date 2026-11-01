@@ -5,6 +5,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <psapi.h>
 #include <shellapi.h>
 
 #include <cstddef>
@@ -85,6 +86,35 @@ void append_quoted(std::wstring& line, const std::wstring& arg) {
     line += L'"';
 }
 
+// What occupies a range the stub could not reserve (for bug reports): each
+// allocation reaching into it, with the DLL or file mapped there.
+void log_range_users(const Range& range) {
+    const uintptr_t end = uintptr_t{range.start} + range.size;
+    uintptr_t address = range.start;
+    const void* shown = nullptr;
+    int listed = 0;
+    MEMORY_BASIC_INFORMATION info{};
+    while (address < end && VirtualQuery(reinterpret_cast<void*>(address), &info, sizeof(info))) {
+        const uintptr_t next = reinterpret_cast<uintptr_t>(info.BaseAddress) + info.RegionSize;
+        if (info.State != MEM_FREE && info.AllocationBase != shown) {
+            shown = info.AllocationBase;
+            wchar_t name[MAX_PATH + 1] = L"";
+            if (info.Type != MEM_PRIVATE)
+                K32GetMappedFileNameW(GetCurrentProcess(), info.BaseAddress, name, MAX_PATH + 1);
+            const char* kind = info.Type == MEM_IMAGE ? "image" : info.Type == MEM_MAPPED ? "mapped" : "private";
+            LOG_WARN("loader", "  in use from %08lx: %s %s",
+                     static_cast<unsigned long>(reinterpret_cast<uintptr_t>(info.AllocationBase)), kind,
+                     narrow(name).c_str());
+            if (++listed == 16) {
+                LOG_WARN("loader", "  (more not listed)");
+                return;
+            }
+        }
+        if (next <= address) break;
+        address = next;
+    }
+}
+
 }  // namespace
 
 void* map_image(uint32_t base, uint32_t size) {
@@ -127,9 +157,11 @@ void release_reserved_ranges() {
         // Only what the stub reserved (a run without the stub has nothing there).
         if (VirtualQuery(start, &info, sizeof(info)) && info.State == MEM_RESERVE && info.AllocationBase == start)
             VirtualFree(start, 0, MEM_RELEASE);
-        else
+        else {
             LOG_WARN("loader", "%08lx-%08lx was not held by the stub executable", range.start,
                      range.start + range.size);
+            log_range_users(range);
+        }
     }
 }
 

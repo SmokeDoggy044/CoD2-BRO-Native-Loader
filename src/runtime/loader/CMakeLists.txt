@@ -49,7 +49,7 @@ if(WIN32)
     target_link_options(cod_bro_loader PRIVATE -nostdlib -nostartfiles -Wl,-e,_stub_entry
                         -Wl,--image-base=0x10000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section
                         -Wl,--large-address-aware -Wl,--disable-nxcompat -mwindows)
-    target_link_libraries(cod_bro_loader PRIVATE kernel32 user32)
+    target_link_libraries(cod_bro_loader PRIVATE kernel32)
     # Its .rsrc lands after .idata, above the Xbox ranges the XBE is mapped into: the manifest is
     # read at process creation and the version information from the file.
     cod_bro_windows_resources(cod_bro_loader "Call of Duty 2: Big Red One native loader" PROGRAM)
@@ -63,7 +63,7 @@ if(WIN32)
     target_link_options(cod_bro PRIVATE -nostdlib -nostartfiles -Wl,-e,_stub_entry
                         -Wl,--image-base=0x10000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section
                         -Wl,--large-address-aware -Wl,--disable-nxcompat -mwindows)
-    target_link_libraries(cod_bro PRIVATE kernel32 user32)
+    target_link_libraries(cod_bro PRIVATE kernel32)
     cod_bro_windows_resources(cod_bro "Call of Duty 2: Big Red One - own engine" PROGRAM)
     add_dependencies(cod_bro cod_bro_core)
 else()
