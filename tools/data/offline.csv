@@ -599,6 +599,10 @@ address,name,tested,matched,nan,mismatched,coverage
 000bbce0,PhysBody_SetInertia,1811,1811,0,0,100.0
 000bbd30,PhysBody_AddForceAtPoint,1569,1549,20,0,100.0
 000bbde0,PhysObject1c0_Init,1874,1874,0,0,100.0
+000bc710,PhysAngularContact_GetNormalVelocity,3087,3069,18,0,100.0
+000bc990,PhysContact_GetResponseVector,3381,3169,212,0,100.0
+000bcb40,PhysContact_SolveNormalImpulse,3278,3278,0,0,100.0
+000bef00,PhysConstraint_ClampImpulse,3754,3754,0,0,100.0
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1

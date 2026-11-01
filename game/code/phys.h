@@ -325,4 +325,34 @@ float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, fl
 void XB_CDECL Phys_AngularVelocityBetweenFrames(const float* from, const float* to, float dt, float* linear,
                                                 float* angular);
 
+// 0x000bc710: an angular (0xa0) contact's (A's +0xe0 - B's +0xe0 or +0x50) . normal. Dead.
+float XB_THISCALL PhysAngularContact_GetNormalVelocity(const uint8_t* contact);
+// 0x000bc770: (A's point velocity - B's or +0x50) . normal, from the bodies' +0xd0 / +0xe0.
+float XB_THISCALL PhysContact_GetBodyNormalVelocity(const uint8_t* contact);
+// 0x000bc880: as PhysContact_GetBodyNormalVelocity from the bodies' +0xf0 / +0x100.
+float XB_THISCALL PhysContact_GetStateNormalVelocity(const uint8_t* contact);
+// 0x000bc990: +0x40 x +0x20 + A ref's +0x30 * normal (plus B's with +0x50 x +0x30).
+float* XB_THISCALL PhysContact_GetResponseVector(const uint8_t* contact, float* out);
+// 0x000bca50: A's point velocity - B's (or +0x50).
+float* XB_THISCALL PhysContact_GetRelativeVelocity(const uint8_t* contact, float* out);
+// 0x000bcb40: the impulse that brings the normal velocity to +0x78, clamped.
+float XB_THISCALL PhysContact_SolveNormalImpulse(uint8_t* contact);
+// 0x000bcb70: a 0x140 contact's A point velocity - B's (or +0x40).
+float* XB_THISCALL PhysContact140_GetRelativeVelocity(const uint8_t* contact, float* out);
+// 0x000bcc60: -(anchor A x anchor B) . normal.
+float XB_THISCALL PhysContact_GetAnchorCrossTerm(const uint8_t* contact);
+// 0x000bddd0: a contact between two bodies (a body without a solver ref goes on the B side).
+void XB_THISCALL PhysContact_Init(uint8_t* contact, uint8_t* body_a, const float* anchor_a, uint8_t* body_b,
+                                  const float* anchor_b, const float* normal, uint8_t* extra, const float* w);
+// 0x000bdfa0: a 0x140 contact between two bodies.
+void XB_THISCALL PhysContact140_Init(uint8_t* contact, uint8_t* body_a, const float* anchor_a, uint8_t* body_b,
+                                     const float* anchor_b, uint32_t value);
+// 0x000be080: an angular (0xa0) contact between two bodies.
+void XB_THISCALL PhysAngularContact_Init(uint8_t* contact, uint8_t* body_a, const float* axis_a, uint8_t* body_b,
+                                         const float* axis_b, const float* normal, uint32_t value);
+// 0x000bef00: the impulse clamped to [+0x60, +0x64] (flag 1: +-|ref +0x68| * +0x88); flag 2 = clamped.
+float XB_THISCALL PhysConstraint_ClampImpulse(uint8_t* constraint, float impulse);
+// 0x000bf7e0: body velocity at the relative point: +0xd0 + +0xe0 x r (zero for flag 0x10).
+float* XB_CDECL PhysBody_GetPointVelocity(float* out, const uint8_t* body, const float* r);
+
 }  // namespace game
