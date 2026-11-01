@@ -781,5 +781,30 @@ extern "C" void Actor_ApplySpawnTemplate_entry(void);
 // 0x002066e0: EAX sentient, ECX out: eye origin (actor eye, client view height + lean, or +64).
 void XB_REGS3 XB_CDECL Sentient_EyeOrigin(const uint8_t* sentient, uint32_t, uint8_t* out);
 
+// 0x002067b0: EBX actor, stack frame time: turns the head towards the look-at target (yaw spring) and blends the look anims.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_UpdateLookAt(uint8_t* actor, float dt);
+extern "C" void Actor_UpdateLookAt_entry(void);
+// 0x00206dc0: EDI target sentient, ESI shot record: a direction that misses the target to one side.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ShotDirMissTarget(const uint8_t* target, uint8_t* shot);
+extern "C" void Actor_ShotDirMissTarget_entry(void);
+// 0x002072d0: EAX target sentient, ESI shot record: a direction at the target's eye with spread.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ShotDirToTarget(const uint8_t* target, uint8_t* shot);
+extern "C" void Actor_ShotDirToTarget_entry(void);
+// 0x002076e0: EAX actor, ESI shot record: aim record, muzzle origin and direction.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GetWeaponFireOrigin(uint8_t* actor, uint8_t* out);
+extern "C" void Actor_GetWeaponFireOrigin_entry(void);
+// 0x00207780: ESI origin, stack entity: touches the triggers around the origin.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_TouchTriggers(const float* origin, uint8_t* ent);
+extern "C" void G_TouchTriggers_entry(void);
+// 0x00207900: actor die callback: body launch for explosive damage, death state 7.
+void XB_CDECL Actor_Die(uint8_t* self, uint32_t, uint32_t attacker, int32_t damage, int32_t mod, uint32_t,
+                        const float* point, const float* dir, int32_t hit_location);
+// 0x00207c00: EAX sentient, ECX out, ESI out time: a player's eye one frame back, else the eye now.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_GetLaggedEyeOrigin(const uint8_t* sentient, uint8_t* out, int32_t* time);
+extern "C" void Sentient_GetLaggedEyeOrigin_entry(void);
+// 0x00207d40: EAX sentient, ESI out: Sentient_EyeOrigin through a stack copy.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_EyeOrigin_2(const uint8_t* sentient, uint8_t* out);
+extern "C" void Sentient_EyeOrigin_2_entry(void);
+
 
 }  // namespace game

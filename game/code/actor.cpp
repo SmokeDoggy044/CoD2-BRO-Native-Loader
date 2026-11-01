@@ -5,6 +5,7 @@
 #include "bg_misc.h"
 #include "cm.h"
 #include "dobj.h"
+#include "g_main.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
@@ -14,6 +15,7 @@
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -5660,6 +5662,517 @@ void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t 
         frame_word(g + 0x10) = frame_word(g + 0x10) + 1;
         frame_word(g + 0x14) = frame_word(g + 0x14) + 4;
     } while (int32_t(frame_word(g + 0x10)) < int32_t(frame_word(g + 0xa0)));
+}
+
+namespace {
+
+float x87_int_to_float(int32_t value) {
+    float result;
+    __asm__("fildl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
+double x87_float_mul_double(float a, double b) {
+    double result;
+    __asm__("flds %1\n\tfmull %2\n\tfstpl %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
+float x87_double_to_float(double value) {
+    float result;
+    __asm__("fldl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_GetWeaponFireOrigin_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_GetWeaponFireOrigin) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_GetWeaponFireOrigin(uint8_t* actor, uint8_t* out) {
+    // EAX actor, ESI out: the actor's 9-word aim record (+0x108) at +0, the muzzle origin /
+    // direction at +0x24 / +0x30; without a muzzle tag the eye origin and the record's first
+    // vector.
+    for (uint32_t i = 0; i < 0x24; i += 4) field<uint32_t>(out, i) = field<uint32_t>(actor, 0x108 + i);
+    if (Actor_GetMuzzleInfo(actor, out + 0x24, out + 0x30)) return;
+    Actor_RefreshEyeOrigin(actor);
+    copy3(out + 0x24, actor + 0x1b4);
+    const uint32_t x = field<uint32_t>(out, 0), y = field<uint32_t>(out, 4), z = field<uint32_t>(out, 8);
+    field<uint32_t>(out, 0x30) = x;
+    field<uint32_t>(out, 0x34) = y;
+    field<uint32_t>(out, 0x38) = z;
+}
+
+PLATFORM_ASM_ENTRY(G_TouchTriggers_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_TouchTriggers) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_TouchTriggers(const float* origin, uint8_t* ent) {
+    // ESI origin, stack entity: the box of half size 0x008ff04c around the origin collects
+    // the trigger entities (touch type flag | 0x800000) into 0x0098ec20 (count 0x0098ebf0, the
+    // list zeroed once); with any, the entity's bounds at the origin touch them
+    // (G_TouchEntitiesInBox, then 0x0025d520).
+    if (!(title_global<uint8_t>(0x0098ee20) & 1)) {
+        title_global<uint32_t>(0x0098ee20) |= 1;
+        for (uint32_t i = 0; i < 0x200; i += 4) title_global<uint32_t>(0x0098ec20 + i) = 0;
+    }
+    float* const mins = &title_global<float>(0x0098ec00);
+    float* const maxs = &title_global<float>(0x0098ec10);
+    const float* const half = &title_global<float>(0x008ff04c);
+    for (int i = 0; i < 3; ++i) mins[i] = origin[i] - half[i];
+    for (int i = 0; i < 3; ++i) maxs[i] = origin[i] + half[i];
+    const uint32_t mask = G_GetTouchTypeFlag(ent) | 0x800000;
+    const int32_t count =
+        SV_AreaEntities(maxs, 0, mins, &title_global<int32_t>(0x0098ec20), 0x80, mask);
+    title_global<int32_t>(0x0098ebf0) = count;
+    if (!count) return 0;
+    for (int i = 0; i < 3; ++i) mins[i] = field<float>(ent, 0xe0 + i * 4) + origin[i];
+    for (int i = 0; i < 3; ++i) maxs[i] = field<float>(ent, 0xf0 + i * 4) + origin[i];
+    const uint32_t from = uint32_t(uintptr_t(origin)), self = uint32_t(uintptr_t(ent));
+    const TitleRegs regs = {0x0098ec10, self, from, 0, from, 0};
+    const uint32_t args[2] = {self, 0x0098ebf0};
+    g_ent_call(0x0025d230, &regs, 2, args);  // G_TouchEntitiesInBox
+    const TitleRegs touch = {0, self, from, 0x0098ebf0, from, 0};
+    return g_ent_call(0x0025d520, &touch, 0, nullptr);  // 0x0025d520
+}
+
+void XB_CDECL Actor_Die(uint8_t* self, uint32_t, uint32_t attacker, int32_t damage, int32_t mod, uint32_t,
+                        const float* point, const float* dir, int32_t hit_location) {
+    // Die callback: explosive damage (mod 3..7) launches the body along the hit direction
+    // (z * 1.2 up / 0.8 down; speed damage * 2.2 clamped to 130..180 for mod 7, else * 1.4
+    // to 100..300; location 4); other kinds only with 0x0095f700 (from the hit point, z * 1.2,
+    // speed 40..100). Unless already dying (state 7): records damage / mod / direction, the
+    // hit yaw relative to the entity (+0x230), the hit location's anim (+0x240 from
+    // 0x0095c0b0), forces state 7, attacker -> entity +0x374, clears the entity's +0x264.
+    uint8_t* const actor = field<uint8_t*>(self, 0x240);
+    if (mod) {
+        alignas(16) float base[4];
+        alignas(16) float push[4];
+        if (mod > 2 && mod <= 7) {
+            const float z = dir[2];
+            const float up = z > title_global<float>(0x0083eafc) ? z * title_global<float>(0x00830f60)   // 1.2
+                                                                  : z * title_global<float>(0x0083ebc0);  // 0.8
+            push[0] = dir[0];
+            push[1] = dir[1];
+            push[2] = up;
+            push[3] = dir[0];
+            for (int i = 0; i < 4; ++i) base[i] = title_global<float>(0x0082e290 + i * 4);  // 0 0 0 1
+            float speed;
+            if (mod == 7) {
+                const double scaled = x87_float_mul_double(x87_int_to_float(damage), title_global<double>(0x0083eb08));
+                if (title_global<double>(0x0083f170) > scaled)  // 130
+                    speed = x87_double_to_float(title_global<double>(0x0083f170));
+                else if (scaled > title_global<double>(0x0083f168))  // 180
+                    speed = x87_double_to_float(title_global<double>(0x0083f168));
+                else
+                    speed = x87_double_to_float(scaled);
+            } else {
+                const float s = float(damage) * title_global<float>(0x0083ee1c);  // 1.4
+                const float low = title_global<float>(0x0083eb90), high = title_global<float>(0x0083ed04);  // 100, 300
+                speed = low > s ? low : (s > high ? high : s);
+            }
+            G_PhysicsLaunch(self, base, push, speed, 0, 4);
+        } else if (title_global<uint32_t>(0x0095f700)) {
+            push[0] = dir[0];
+            push[1] = dir[1];
+            push[2] = dir[2] * title_global<float>(0x00830f60);
+            push[3] = dir[0];
+            base[0] = point[0];
+            base[1] = point[1];
+            base[2] = point[2];
+            base[3] = point[0];
+            const float s = float(damage);
+            const float low = title_global<float>(0x0083ec84), high = title_global<float>(0x0083eb90);  // 40, 100
+            const float speed = low > s ? low : (s > high ? high : s);
+            G_PhysicsLaunch(self, base, push, speed, 0, uint32_t(hit_location));
+        }
+    }
+    if (field<int32_t>(actor, 8 + field<int32_t>(actor, 0x20) * 4) == 7) return;
+    field<int32_t>(actor, 0x22c) = damage;
+    field<int32_t>(actor, 0x228) = mod;
+    copy3(actor + 0x234, reinterpret_cast<const uint8_t*>(dir));
+    const float yaw = vectoyaw(dir);
+    const float delta = (yaw - field<float>(self, 0x154)) * title_global<float>(0x0083ebd8);  // 65536 / 360
+    float angle = float(int32_t(delta) & 0xffff) * title_global<float>(0x0083ebd4);  // 360 / 65536
+    if (angle > title_global<float>(0x0083eb60)) angle = angle - title_global<float>(0x0083ebcc);  // 180, 360
+    const int32_t relative = int32_t(angle);
+    field<int32_t>(actor, 0x230) = relative;
+    const uint32_t anim = title_global<uint32_t>(0x0095c0b0 + hit_location * 4);
+    field<uint32_t>(actor, 0x240) = anim;
+    const TitleRegs regs = {anim, uint32_t(uintptr_t(self)), uint32_t(relative), uint32_t(hit_location),
+                            uint32_t(uintptr_t(actor)), 7};
+    g_ent_call(0x002026f0, &regs, 0, nullptr);  // Actor_ForceState (ESI actor, EDI state)
+    field<uint32_t>(actor, 0x2d0) = 0;
+    field<uint32_t>(self, 0x374) = attacker;
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(self + 0x264);  // ScriptString_Clear
+}
+
+PLATFORM_ASM_ENTRY(Sentient_GetLaggedEyeOrigin_entry,
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_GetLaggedEyeOrigin) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Sentient_GetLaggedEyeOrigin(const uint8_t* sentient, uint8_t* out, int32_t* time) {
+    // EAX sentient, ECX out, ESI out time: a client's eye one frame back from the eye history
+    // (0x0095f428 index, origins 0x0095f42c, times 0x0095f444; slot 1 when the index is 0);
+    // else the current eye origin at the level time.
+    if (field<uint32_t>(field<const uint8_t*>(sentient, 0), 0x23c)) {
+        int32_t index = title_global<int32_t>(0x0095f428) - 1;
+        if (index < 0) index = 1;
+        copy3(out, &title_global<uint8_t>(0x0095f42c + index * 12));
+        *time = title_global<int32_t>(0x0095f444 + index * 4);
+        return;
+    }
+    Sentient_EyeOrigin(sentient, 0, out);
+    *time = level_time();
+}
+
+PLATFORM_ASM_ENTRY(Sentient_EyeOrigin_2_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_EyeOrigin_2) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Sentient_EyeOrigin_2(const uint8_t* sentient, uint8_t* out) {
+    // EAX sentient, ESI out: Sentient_EyeOrigin through a stack copy.
+    uint8_t eye[12];
+    Sentient_EyeOrigin(sentient, 0, eye);
+    copy3(out, eye);
+}
+
+namespace {
+
+long double x87_abs(long double v) {
+    __asm__("fabs" : "+t"(v));
+    return v;
+}
+
+// An anim's current goal weight (0x00965d14 records of 0x30 bytes) through the tree's index
+// map (+0x18), 0 for an unmapped one.
+float anim_weight(uint32_t tree, uint32_t index) {
+    const uint16_t anim = title_global<uint16_t>(tree + 0x18 + index * 2);
+    return anim ? title_global<float>(0x00965d14 + anim * 0x30) : 0.0f;
+}
+
+void set_goal_weight(uint32_t index, uint32_t tree, float goal, float blend) {
+    uint32_t goal_bits, blend_bits;
+    std::memcpy(&goal_bits, &goal, 4);
+    std::memcpy(&blend_bits, &blend, 4);
+    AnimTree_SetGoalWeight(index, reinterpret_cast<uint8_t*>(uintptr_t(tree)), goal_bits, blend_bits, 0x3f800000, 0,
+                           0, 0);
+}
+
+// Blends an anim towards `goal` over `time` scaled by the distance from its weight (x87).
+void blend_to(uint32_t index, uint32_t tree, float goal, float time) {
+    const float current = anim_weight(tree, index);
+    if (goal == current) return;
+    const float blend = float(static_cast<long double>(time) /
+                              x87_abs(static_cast<long double>(goal) - static_cast<long double>(current)));
+    set_goal_weight(index, tree, goal, blend);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_UpdateLookAt_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_UpdateLookAt) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_UpdateLookAt(uint8_t* actor, float dt) {
+    // EBX actor, stack frame time: with look-at on (+0x204) and active (+0x1e8 with yaw limits
+    // +0x208/+0x20c both set, or a yaw still turned +0x1f8): the yaw to the target (+0x1ec,
+    // from the eye, relative to the entity, clamped to the limit +0x20c shrunk by +0x224 per
+    // ms until +0x21c) is approached by the turn yaw +0x1f8 with speed +0x1fc (acceleration
+    // +0x200, capped at 0.22 * +0x200, braking near the goal; snaps within 1 degree). The
+    // turn yaw over the limit +0x208 (shrunk by +0x220) gives a weight in -1..1: the left /
+    // right look anims (+0x218 / +0x214) blend to it (the other to 0) and the straight one
+    // (+0x210) to 1 - |weight|, over 1.5 * dt.
+    if (!field<uint32_t>(actor, 0x204)) return;
+    const float zero = 0.0f;
+    const bool limited =
+        field<uint32_t>(actor, 0x1e8) && field<float>(actor, 0x208) != zero && field<float>(actor, 0x20c) != zero;
+    if (!limited && field<float>(actor, 0x1f8) == zero) return;
+    const float k180 = title_global<float>(0x0083eb60), minus_one = title_global<float>(0x0083eb34);
+    int32_t left = field<int32_t>(actor, 0x21c) - level_time();
+    if (left < 0) left = 0;
+    const float shrunk = field<float>(actor, 0x20c) - float(left) * field<float>(actor, 0x224);
+    float limit = shrunk;
+    if (zero > shrunk)
+        limit = zero;
+    else if (shrunk > k180)
+        limit = k180;
+    float eye[3];
+    Sentient_EyeOrigin(field<const uint8_t*>(actor, 4), 0, reinterpret_cast<uint8_t*>(eye));
+    float delta[3];
+    for (int i = 0; i < 3; ++i) delta[i] = field<float>(actor, 0x1ec + i * 4) - eye[i];
+    vectoangles_call(delta, eye);
+    float goal = zero;
+    if (limited) {
+        goal = Q_fmod(field<float>(field<const uint8_t*>(actor, 0), 0x154), eye[1]);
+        const float low = zero - limit;
+        if (low > goal)
+            goal = low;
+        else if (goal > limit)
+            goal = limit;
+    }
+    const long double offset = static_cast<long double>(goal) - static_cast<long double>(field<float>(actor, 0x1f8));
+    const float diff_stored = float(offset);
+    bool snap = static_cast<long double>(title_global<float>(0x0083eb20)) > x87_abs(offset);
+    if (!snap) {
+        float speed = field<float>(actor, 0x1fc), d = goal, diff = diff_stored;
+        bool flipped = false;
+        if (zero > d || (!(d != zero) && zero > diff)) {
+            speed = speed * minus_one;
+            d = d * minus_one;
+            diff = diff * minus_one;
+            flipped = true;
+        }
+        const float k10 = title_global<float>(0x0083eb98), k01 = title_global<float>(0x0083ebf8);
+        const float twice = dt * title_global<float>(0x0083eba8);  // 2
+        float next;
+        if (zero > diff) {
+            const float reach = twice * speed * minus_one;
+            if (!(diff >= reach)) {
+                next = speed - field<float>(actor, 0x200) * dt;
+            } else {
+                next = (dt * k10 + title_global<float>(0x0083eb20)) * speed;
+                if (next > title_global<float>(0x0083ed10)) {  // -10
+                    next = title_global<float>(0x0083ed10);
+                } else if (twice * next * minus_one > diff) {
+                    next = diff / twice * minus_one - k01;
+                }
+            }
+        } else {
+            if (!(twice * speed >= diff)) {
+                next = field<float>(actor, 0x200) * dt + speed;
+            } else {
+                next = speed - dt * k10 * speed;
+                if (k10 > next)
+                    next = k10;
+                else if (diff > twice * next)
+                    next = diff / twice + k01;
+            }
+        }
+        const float cap = field<float>(actor, 0x200) * title_global<float>(0x0083f15c);  // 0.22
+        if (next > cap) next = cap;
+        if (flipped) {
+            next = next * minus_one;
+            d = d * minus_one;
+        }
+        const float old = field<float>(actor, 0x1f8);
+        field<float>(actor, 0x1fc) = next;
+        const float turned = next * dt + field<float>(actor, 0x1f8);
+        field<float>(actor, 0x1f8) = turned;
+        snap = d > old ? turned >= d : d >= turned;
+        goal = d;
+    }
+    if (snap) {
+        field<float>(actor, 0x1f8) = goal;
+        field<float>(actor, 0x1fc) = zero;
+    }
+    const uint32_t tree = G_GetEntityAnimTree(field<const uint8_t*>(actor, 0));
+    left = field<int32_t>(actor, 0x21c) - level_time();
+    if (left < 0) left = 0;
+    float range = field<float>(actor, 0x208) - float(left) * field<float>(actor, 0x220);
+    if (zero > range)
+        range = zero;
+    else if (range > k180)
+        range = k180;
+    float weight = field<float>(actor, 0x1f8) / range * title_global<float>(0x0083eb24);  // 0.5
+    const float one = title_global<float>(0x0083eb20);
+    if (weight > one)
+        weight = one;
+    else if (minus_one > weight)
+        weight = minus_one;
+    const float time = dt * title_global<float>(0x0083eaf4);  // 1.5
+    float straight;
+    if (weight > zero) {
+        blend_to(field<uint16_t>(actor, 0x218), tree, weight, time);
+        const uint32_t other = field<uint16_t>(actor, 0x214);
+        const float current = anim_weight(tree, other);
+        if (title_global<uint16_t>(tree + 0x18 + other * 2) && current != zero)
+            set_goal_weight(other, tree, 0.0f, time / current);
+        straight = weight;
+    } else {
+        const float turned = weight * minus_one;
+        blend_to(field<uint16_t>(actor, 0x214), tree, turned, time);
+        const uint32_t other = field<uint16_t>(actor, 0x218);
+        const float current = anim_weight(tree, other);
+        if (title_global<uint16_t>(tree + 0x18 + other * 2) && current != zero)
+            set_goal_weight(other, tree, 0.0f, time / current);
+        straight = turned;
+    }
+    blend_to(field<uint16_t>(actor, 0x210), tree, one - straight, time);
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of a float, stored as float.
+float ci_sqrt(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+int32_t shot_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }  // _rand
+
+// The shot's sideways axis: the unit direction from the muzzle (+0x24) to `eye` crossed with
+// the aim (+0x18), normalized (vectors of length 0 kept as they are). `dir` gets the first.
+void shot_side_axis(const uint8_t* shot, const float* eye, float* dir, float* side) {
+    const float z = eye[2] - field<float>(shot, 0x2c);
+    const float y = eye[1] - field<float>(shot, 0x28);
+    const float x = eye[0] - field<float>(shot, 0x24);
+    const float len = ci_sqrt(z * z + y * y + x * x);
+    float nx = x, ny = y, nz = z;
+    if (len != 0.0f) {
+        const float inv = title_global<float>(0x0083eb20) / len;
+        nx = inv * x;
+        ny = inv * y;
+        nz = inv * z;
+    }
+    dir[0] = nx;
+    dir[1] = ny;
+    dir[2] = nz;
+    const float rx = field<float>(shot, 0x18), ry = field<float>(shot, 0x1c), rz = field<float>(shot, 0x20);
+    const float cx = ny * rz - nz * ry;
+    const float cy = rx * nz - nx * rz;
+    const float cz = nx * ry - rx * ny;
+    const float side_len = ci_sqrt(cz * cz + cy * cy + cx * cx);
+    side[0] = cx;
+    side[1] = cy;
+    side[2] = cz;
+    if (side_len != 0.0f) {
+        const float inv = title_global<float>(0x0083eb20) / side_len;
+        side[0] = inv * cx;
+        side[1] = inv * cy;
+        side[2] = inv * cz;
+    }
+}
+
+// The engagement distance: an actor's 0x0098a558 - 64, a player's 0x00984d08 - client +0x428.
+float shot_range(const uint8_t* ent) {
+    if (field<uint32_t>(ent, 0x240)) return title_global<float>(0x0098a558) - title_global<float>(0x00830c1c);
+    return title_global<float>(0x00984d08) - float(field<int32_t>(field<const uint8_t*>(ent, 0x23c), 0x428));
+}
+
+// The shot direction: from the muzzle to `point` + aim * distance, normalized.
+void shot_finish(uint8_t* shot, const float* point, float distance) {
+    const float z = field<float>(shot, 0x20) * distance + point[2] - field<float>(shot, 0x2c);
+    const float y = field<float>(shot, 0x1c) * distance + point[1] - field<float>(shot, 0x28);
+    const float x = field<float>(shot, 0x18) * distance + point[0] - field<float>(shot, 0x24);
+    field<float>(shot, 8) = z;
+    field<float>(shot, 4) = y;
+    field<float>(shot, 0) = x;
+    const float len = ci_sqrt(z * z + y * y + x * x);
+    if (len == 0.0f) return;
+    const float inv = title_global<float>(0x0083eb20) / len;
+    field<float>(shot, 0) = x * inv;
+    field<float>(shot, 4) = y * inv;
+    field<float>(shot, 8) = z * inv;
+}
+
+// A signed unit from the LCG 0x008db488 (x * 0x10dcd + 1, low 16 bits / 65536 > 0.5).
+int32_t lcg_sign(uint32_t value) {
+    return static_cast<long double>(x87_int_to_float(int32_t(value & 0xffff))) / 65536.0L >
+                   static_cast<long double>(title_global<double>(0x0083ecb0))
+               ? 1
+               : -1;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_ShotDirMissTarget_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ShotDirMissTarget) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ShotDirMissTarget(const uint8_t* target, uint8_t* shot) {
+    // EDI target sentient, ESI shot record (aim +0x18, muzzle +0x24; direction out at +0): a
+    // shot that misses - aimed past the target's eye (0x00984d00 + 1 back towards the muzzle)
+    // and to one side: a player by 8..16 units, others by the cached spread 0x008ff048
+    // (sqrt(6) * 0x0098a554), signs from the LCG 0x008db488; then along the aim by the
+    // engagement distance minus 0..44 (player) or by -12..12.
+    if (!(title_global<float>(0x008ff048) != title_global<float>(0x0083ee24))) {  // 6969 = not computed
+        long double spread = static_cast<long double>(title_global<float>(0x0098a554)) * title_global<float>(0x0098a554);
+        spread = spread + spread;
+        spread = spread * static_cast<long double>(title_global<float>(0x0083ec9c));  // 3
+        title_global<float>(0x008ff048) = ci_sqrt(float(spread));
+    }
+    const uint8_t* const ent = field<const uint8_t*>(target, 0);
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    float dir[3], side[3];
+    shot_side_axis(shot, eye, dir, side);
+    const float one = title_global<float>(0x0083eb20);
+    float point[3];
+    float distance;
+    uint32_t seed = title_global<uint32_t>(0x008db488);
+    if (field<uint32_t>(ent, 0x23c)) {
+        seed = seed * 0x10dcd + 1;
+        const float sign = float(lcg_sign(seed));
+        seed = seed * 0x10dcd + 1;
+        title_global<uint32_t>(0x008db488) = seed;
+        const float u = float(int32_t(seed & 0xffff)) / title_global<float>(0x0083eb40);
+        const float offset = (u + one) * title_global<float>(0x0083ed78) * sign;  // 8
+        const float back = 0.0f - (title_global<float>(0x00984d00) + one);
+        const float px = back * dir[0] + eye[0];
+        const float py = back * dir[1] + eye[1];
+        const float pz = back * dir[2] + eye[2];
+        point[0] = side[0] * offset + px;
+        point[1] = side[1] * offset + py;
+        point[2] = side[2] * offset + pz;
+        const float range = shot_range(field<const uint8_t*>(target, 0));
+        distance = range - float(shot_rand()) / title_global<float>(0x0083ebc8) * title_global<float>(0x0083f160);
+    } else {
+        seed = seed * 0x10dcd + 1;
+        title_global<uint32_t>(0x008db488) = seed;
+        const int32_t sign = lcg_sign(seed);
+        const float back = 0.0f - (title_global<float>(0x00984d00) + one);
+        const float px = back * dir[0] + eye[0];
+        const float py = back * dir[1] + eye[1];
+        const float pz = back * dir[2] + eye[2];
+        const float offset = float(sign) * title_global<float>(0x008ff048);
+        point[0] = offset * side[0] + px;
+        point[1] = offset * side[1] + py;
+        point[2] = offset * side[2] + pz;
+        distance = (float(shot_rand()) / title_global<float>(0x0083ebc8) * title_global<float>(0x0083eba8) - one) *
+                   title_global<float>(0x0083eccc);  // 12
+    }
+    shot_finish(shot, point, distance);
+}
+
+PLATFORM_ASM_ENTRY(Actor_ShotDirToTarget_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_ShotDirToTarget) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ShotDirToTarget(const uint8_t* target, uint8_t* shot) {
+    // EAX target sentient, ESI shot record: a shot at the target's eye scattered sideways (a
+    // player by -8..8 units, others per axis by -1..1 * 0x0098a554), then along the aim by
+    // the engagement distance minus 0..44.
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    const uint8_t* const ent = field<const uint8_t*>(target, 0);
+    const float range = shot_range(ent);
+    float dir[3], side[3];
+    shot_side_axis(shot, eye, dir, side);
+    const float scale = title_global<float>(0x0083ebc8), two = title_global<float>(0x0083eba8);
+    const float one = title_global<float>(0x0083eb20);
+    if (field<uint32_t>(ent, 0x23c)) {
+        const float f = (float(shot_rand()) / scale * two - one) * title_global<float>(0x0083ed78);  // 8
+        eye[0] = side[0] * f + eye[0];
+        eye[1] = side[1] * f + eye[1];
+        eye[2] = side[2] * f + eye[2];
+    } else {
+        for (int i = 0; i < 3; ++i)
+            eye[i] = (float(shot_rand()) / scale * two - one) * title_global<float>(0x0098a554) * side[i] + eye[i];
+    }
+    const float distance = range - float(shot_rand()) / scale * title_global<float>(0x0083f160);  // 44
+    shot_finish(shot, eye, distance);
 }
 
 }  // namespace game
