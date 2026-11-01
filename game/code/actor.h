@@ -828,4 +828,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entr
                                                                   uint32_t edi, uint32_t esi, uint32_t ebp);
 extern "C" void Actor_FindNearestNode_entry(void);
 
+// 0x00207d70: the actor's pose on its turret (aim row/yaw blends, position and angles from the tags);
+// 1 when it left the turret.
+uint32_t XB_STDCALL Actor_Turret_UpdatePose(uint8_t* actor);
+
 }  // namespace game

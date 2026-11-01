@@ -6442,4 +6442,261 @@ uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entry, uint32_t context, uint32
     return result;
 }
 
+namespace {
+
+// Node `index` of anim tree definition `tree` (rm_animTrees +4: {count, 0xc-byte trees {count, 0x38-byte nodes}};
+// out-of-range indices read entry 0).
+const uint8_t* tree_def_node(uint32_t tree, uint32_t index) {
+    const uint8_t* const defs = title_global<const uint8_t*>(title_global<uint32_t>(0x0095f524) + 4);
+    if (tree >= field<uint32_t>(defs, 0)) tree = 0;
+    const uint8_t* const entry = field<const uint8_t*>(defs, 4) + 4 + tree * 0xc;
+    if (index >= field<uint32_t>(entry, 0)) index = 0;
+    return field<const uint8_t*>(entry, 4) + index * 0x38;
+}
+
+// The blend factor towards a weight: 1 / (|current - goal| x 0x008ddaa4) on the x87, 0 for no distance.
+float turret_blend(float current, float goal, float rate) {
+    const float distance =
+        float(x87_abs(static_cast<long double>(current) - static_cast<long double>(goal)));
+    const float scaled = float(static_cast<long double>(distance) * static_cast<long double>(rate));
+    return scaled == 0.0f ? 0.0f : title_global<float>(0x0083eb20) / scaled;
+}
+
+// The inlined goal-weight setter on an anim info (0x30 bytes): node 0 goes to 1 at once; goal
+// (+0x20) reached over |goal - weight| x blend (+0x1c; at once under 0.001, a weight of 0
+// starts at goal x 0.001), rate 1 (+0x28), no notetrack (+2 = -1), +0 cleared.
+void turret_set_goal(uint8_t* info, uint32_t node, float goal, float blend) {
+    if (node == 0) {
+        goal = title_global<float>(0x0083eb20);
+        blend = 0.0f;
+    }
+    const float eps = title_global<float>(0x0083eb4c);
+    const float r = abs_bits(goal - field<float>(info, 0x24)) * blend;
+    field<float>(info, 0x20) = goal;
+    field<float>(info, 0x1c) = r;
+    if (eps > r) {
+        field<float>(info, 0x1c) = 0.0f;
+        field<float>(info, 0x24) = goal;
+    } else if (field<float>(info, 0x24) == 0.0f) {
+        field<float>(info, 0x24) = goal * eps;
+    }
+    field<float>(info, 0x28) = title_global<float>(0x0083eb20);
+    field<uint16_t>(info, 2) = 0xffff;
+    field<uint16_t>(info, 0) = 0;
+}
+
+// Anim `node` of `tree` towards `goal` (0 under 0.001; an info is allocated unless the goal is
+// 0, or never with `no_alloc`), then its parents, time and notetrack.
+void turret_blend_node(uint32_t tree, uint32_t node, float goal, float blend, bool no_alloc) {
+    if (title_global<float>(0x0083eb4c) > goal) goal = 0.0f;
+    title_global<uint32_t>(0x00928588) = tree;
+    const uint16_t index = title_global<uint16_t>(tree + 0x18 + node * 2);
+    uint8_t* info = nullptr;
+    if (index)
+        info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+    else if (!no_alloc && goal != 0.0f)
+        info = reinterpret_cast<uint8_t*>(uintptr_t(AnimTree_AllocInfo(node, reinterpret_cast<uint8_t*>(uintptr_t(tree)))));
+    if (info) turret_set_goal(info, node, goal, blend);
+    uint32_t bits;
+    std::memcpy(&bits, &blend, 4);
+    AnimTree_ActivateParents(node, bits);
+    AnimTree_ResetTime(node, 0);
+    AnimTree_UpdateNoteIndex(0, node);
+}
+
+// G_DObjGetWorldBoneMatrix (0x002d6800): EAX entity, ECX bone, the 4x4 out on the stack (ret 4).
+void world_bone_matrix(uint8_t* ent, int32_t bone, float* out) {
+    uint32_t eax = uint32_t(uintptr_t(ent)), ecx = uint32_t(bone);
+    __asm__ volatile("pushl %2\n\tcall *%3"
+                     : "+a"(eax), "+c"(ecx)
+                     : "r"(out), "r"(uintptr_t{0x002d6800})
+                     : "edx", "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+}
+
+// Leaves the turret: released when this actor is its user, the turret cleared and a state
+// change queued (2 with a script +0x3c of the sentient info, else 5). EAX = 1.
+uint32_t turret_pose_fail(uint8_t* actor, bool release) {
+    if (release) {
+        const uint8_t* const turret = field<const uint8_t*>(actor, 0x136c);
+        if (turret && entity_from_handle(field<uint32_t>(turret, 0x1a0)) == field<uint32_t>(actor, 0))
+            Actor_ReleaseTurret(actor);
+        field<uint32_t>(actor, 0x136c) = 0;
+    } else {
+        Actor_LeaveTurret(actor);
+    }
+    const uint32_t state = field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c) ? 2 : 5;
+    queue_transition(actor, 1, state);
+    field<uint32_t>(actor, 0xa4 + field<uint32_t>(actor, 0xbc) * 4) = state;
+    return 1;
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL Actor_Turret_UpdatePose(uint8_t* actor) {
+    // The actor on its turret (+0x136c): the turret's pitch (+0x90) picks two of three aim
+    // rows (thresholds at 0 and +-15 degrees) of the anim tree entry +0x1370 (tree << 16 |
+    // node), each row a yaw blend of its children placed by the yaw (+0x94) over the weapon's
+    // yaw step (+0x838); the root delta is evaluated, the turret model shown (+0x24c flags).
+    // The entity moves towards the turret's "tag_weapon" minus its axis-rotated
+    // "tag_weapon_right" offset (at most 300 units/s), takes the turret's angles (yaw at most
+    // 360 degrees/s up), relinks and touches triggers. EAX 0; 1 (state change queued) without
+    // an anim entry or tags.
+    uint8_t* const turret = field<uint8_t*>(actor, 0x136c);
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    Actor_UpdateAnimScript(actor);
+    const uint8_t* const weapon =
+        title_global<const uint8_t*>(title_global<uint32_t>(0x0095f4d8) + field<uint8_t>(turret, 3) * 4u);
+    if (!field<uint32_t>(field<uint8_t*>(actor, 0), 0x254))
+        field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254) =
+            AnimTree_Create(field<uint8_t*>(actor, 0), title_global<uint8_t*>(0x00987a90));
+    const uint32_t anim = field<uint32_t>(actor, 0x1370);
+    const uint32_t tree = field<uint32_t>(field<uint8_t*>(actor, 0), 0x254);
+    const uint32_t def = anim >> 16;
+    if (!def) return turret_pose_fail(actor, false);
+    const uint32_t root = anim & 0xffff;
+    AnimTree_ClearChildGoalWeights(root, reinterpret_cast<uint8_t*>(uintptr_t(tree)), 0);
+    const float yaw = field<float>(turret, 0x94);
+    const float pitch = field<float>(turret, 0x90);
+    const float k15 = title_global<float>(0x0083ef10);
+    const float zero = 0.0f;
+    float row_weight;
+    int32_t row;
+    if (pitch >= k15) {
+        row = 2;
+        row_weight = zero;
+    } else if (pitch > zero) {
+        row_weight = pitch / k15;
+        row = 1;
+    } else {
+        row = 0;
+        if (pitch > title_global<float>(0x0083ef14)) {  // -15
+            const float magnitude = abs_bits(pitch);
+            row_weight = float(static_cast<long double>(title_global<float>(0x0083eb20)) -
+                               static_cast<long double>(magnitude) / static_cast<long double>(k15));
+        } else {
+            row_weight = zero;
+        }
+    }
+    const float rate = title_global<float>(0x008ddaa4);
+    for (int32_t pass = 0; pass < 2; ++pass) {
+        if (pass == 1 && zero >= row_weight) break;
+        const uint16_t row_node = uint16_t(field<uint16_t>(tree_def_node(def, root), 0x36) + pass + row);
+        const uint16_t count = field<uint16_t>(tree_def_node(def, row_node), 0x20);
+        const float step = yaw * title_global<float>(0x0083eb34) / field<float>(weapon, 0x838);
+        float x = float(int32_t(count)) * title_global<float>(0x0083eb24) - step;
+        if (zero > x) {
+            x = zero;
+        } else {
+            const float last = float(int32_t(count) - 1);
+            if (x >= last) x = last;
+        }
+        const int32_t whole = int32_t(x);
+        const float frac = x - float(whole);
+        const uint16_t first = uint16_t(field<uint16_t>(tree_def_node(def, row_node), 0x36) + uint16_t(whole));
+        const float goal = float(static_cast<long double>(title_global<float>(0x0083eb20)) - static_cast<long double>(frac));
+        turret_blend_node(tree, first, goal, turret_blend(anim_weight(tree, first), goal, rate), false);
+        if (frac != zero) {
+            const uint16_t second =
+                uint16_t(field<uint16_t>(tree_def_node(def, row_node), 0x36) + uint16_t(whole) + 1);
+            turret_blend_node(tree, second, frac, turret_blend(anim_weight(tree, second), frac, rate), false);
+        }
+    }
+    for (int32_t i = 0; i < 3; ++i) {
+        const uint16_t node = uint16_t(field<uint16_t>(tree_def_node(def, root), 0x36) + i);
+        if (i == row) {
+            const float goal =
+                float(static_cast<long double>(title_global<float>(0x0083eb20)) - static_cast<long double>(row_weight));
+            turret_blend_node(tree, node, goal, turret_blend(anim_weight(tree, node), goal, rate), false);
+        } else if (i == row + 1 && row_weight != zero) {
+            turret_blend_node(tree, node, row_weight, turret_blend(anim_weight(tree, node), row_weight, rate), false);
+        } else {
+            // Faded out (only an existing info; the distance is taken from weight 1).
+            const float blend = turret_blend(anim_weight(tree, node), title_global<float>(0x0083eb20), rate);
+            turret_blend_node(tree, node, zero, blend, true);
+        }
+    }
+    alignas(16) float delta[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
+    title_global<uint8_t>(0x00929cc8) = 1;
+    title_global<uint32_t>(0x0092980c) = 1;
+    title_function<void XB_CDECL(uint32_t, uint32_t, float*, uint32_t, uint32_t)>(0x002e67d0)(tree, root, delta, 1,
+                                                                                            0);  // AnimTree_CalcRootDelta_r
+    uint8_t* const turret_obj = field<uint8_t*>(turret, 0x24c);
+    field<uint16_t>(turret_obj, 2) = uint16_t((field<uint16_t>(turret_obj, 2) & 0xfdff) | 0x20);
+    const uint32_t weapon_tag = cached_hash(0x0098eedc, 1, 0x0098eed8, 0x00838914);  // "tag_weapon"
+    const DObj* obj = reinterpret_cast<const DObj*>(dobj_of(turret));
+    int32_t bone = obj ? DObj_GetTagIndex(obj, weapon_tag) : -1;
+    if (bone < 0) return turret_pose_fail(actor, true);
+    SV_DObjCreateSkeleton(turret);
+    const uint8_t* const skeleton = dobj_of(turret);
+    const uint32_t matrices = field<uint32_t>(skeleton, 0x20);
+    const uint32_t base = matrices ? matrices + field<uint8_t>(skeleton, 0x60) * 0x40u + 0x30 : 0;
+    if (uint32_t(bone) * 0x40 + base == 0) return turret_pose_fail(actor, true);
+    obj = reinterpret_cast<const DObj*>(skeleton);
+    bone = obj ? DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098eed8)) : -1;
+    if (bone < 0) return turret_pose_fail(actor, true);
+    alignas(16) float mat[16];
+    G_GetEntityMatrix(turret, mat);
+    alignas(16) float tag[16];
+    world_bone_matrix(turret, bone, tag);
+    const uint32_t hand_tag = cached_hash(0x0098eedc, 2, 0x0098eed4, 0x00831e14);  // "tag_weapon_right"
+    const uint8_t* const hand_obj = dobj_of(ent);
+    const int32_t hand = hand_obj ? DObj_GetTagIndex(reinterpret_cast<const DObj*>(hand_obj), hand_tag) : -1;
+    if (hand < 0) return turret_pose_fail(actor, true);
+    alignas(16) float identity[16];
+    const float* source;
+    if (!hand_obj) {
+        Matrix_Identity(identity);
+        source = identity;
+    } else {
+        source = reinterpret_cast<const float*>(field<uint32_t>(hand_obj, 0x20) + uint32_t(hand) * 0x40 + 0x30);
+    }
+    std::memcpy(mat, source, sizeof(mat));
+    // The hand offset rotated by the turret's axis rows (+0x160, 4 lanes each).
+    const float* const axis = &field<float>(turret, 0x160);
+    float offset[4];
+    for (int32_t i = 0; i < 4; ++i) offset[i] = axis[i] * mat[12] + axis[4 + i] * mat[13] + axis[8 + i] * mat[14];
+    const float target_z = tag[14] - offset[2];
+    const float target_y = tag[13] - offset[1];
+    const float target_x = tag[12] - offset[0];
+    const float dz = target_z - field<float>(ent, 0x148);
+    const float dy = target_y - field<float>(ent, 0x144);
+    const float dx = target_x - field<float>(ent, 0x140);
+    const float pitch_angle = field<float>(turret, 0x150);
+    float yaw_angle = field<float>(turret, 0x154);
+    const float roll_angle = field<float>(turret, 0x158);
+    const float distance = title_ci_sqrt_ext((static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy) +
+                                             static_cast<long double>(dx) * dx);
+    const float frame = title_global<float>(0x008ddaa0);
+    const float k300 = title_global<float>(0x0083ed04);
+    if (static_cast<long double>(frame) * static_cast<long double>(k300) > static_cast<long double>(distance)) {
+        field<float>(ent, 0x140) = target_x;
+        field<float>(ent, 0x144) = target_y;
+        field<float>(ent, 0x148) = target_z;
+    } else {
+        const float scale = k300 / distance * frame;
+        field<float>(ent, 0x140) = dx * scale + field<float>(ent, 0x140);
+        field<float>(ent, 0x144) = dy * scale + field<float>(ent, 0x144);
+        field<float>(ent, 0x148) = dz * scale + field<float>(ent, 0x148);
+    }
+    const float k360 = title_global<float>(0x0083ebcc);
+    const float turn = yaw_angle - field<float>(ent, 0x154);
+    if (turn > frame * k360) {
+        const int32_t sign = turn > zero ? 1 : (zero > turn ? -1 : 0);
+        yaw_angle = float(sign) * frame * k360 + field<float>(ent, 0x154);
+    }
+    field<float>(ent, 0x150) = pitch_angle;
+    field<float>(ent, 0x154) = yaw_angle;
+    field<float>(ent, 0x158) = roll_angle;
+    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002e3f10)(ent, 0);  // G_CalcTagLinkOffset
+    field<float>(actor, 0x2a8) = zero;
+    field<float>(actor, 0x2a4) = zero;
+    field<float>(actor, 0x2a0) = zero;
+    field<float>(actor, 0x2cc) = zero;
+    field<float>(actor, 0x2c8) = zero;
+    field<float>(actor, 0x2c4) = zero;
+    uint8_t* const moved = field<uint8_t*>(actor, 0);
+    G_TouchTriggers(&field<float>(moved, 0x140), moved);
+    return 0;
+}
+
 }  // namespace game

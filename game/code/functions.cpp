@@ -2630,6 +2630,7 @@ const Function kFunctions[] = {
     {"Actor_Die", 0x00207900, 0, code(&Actor_Die), 36, Result::None, Status::Compare},
     {"Sentient_GetLaggedEyeOrigin", 0x00207c00, 0, code(&Sentient_GetLaggedEyeOrigin_entry), 0, Result::None, Status::Compare},
     {"Sentient_EyeOrigin_2", 0x00207d40, 0, code(&Sentient_EyeOrigin_2_entry), 0, Result::None, Status::Compare},
+    {"Actor_Turret_UpdatePose", 0x00207d70, 0, code(&Actor_Turret_UpdatePose), 4, Result::Eax, Status::Compare},
     {"Actor_Grenade_AttachToTag", 0x00209070, 0, code(&Actor_Grenade_AttachToTag_entry), 0, Result::None, Status::Compare},
     {"Actor_Grenade_Grab", 0x002091e0, 0, code(&Actor_Grenade_Grab_entry), 0, Result::None, Status::Compare},
     {"Actor_TargetCrossingSpeed", 0x002092a0, 0, code(&Actor_TargetCrossingSpeed_entry), 4, Result::Xmm0, Status::Compare},

@@ -2654,11 +2654,12 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00207900,Actor_Die,compare,14,4,4,0,0,0,""
 00207c00,Sentient_GetLaggedEyeOrigin,compare,149,91,91,0,0,0,""
 00207d40,Sentient_EyeOrigin_2,compare,0,0,0,0,0,0,""
+00207d70,Actor_Turret_UpdatePose,compare,3547,3531,0,0,3531,0,"8229ef7c [host] [1] f8 vs 28; 822ac7bc [host] [1] f8 vs 28; 822b073c [host] [1] f8 vs 28 [esp f626e81c, stack limit f6172000]"
 00209070,Actor_Grenade_AttachToTag,compare,0,0,0,0,0,0,""
 002091e0,Actor_Grenade_Grab,compare,0,0,0,0,0,0,""
 002092a0,Actor_TargetCrossingSpeed,compare,341,295,295,0,0,0,""
-002094e0,Sentient_FindNearestNode,compare,395,97,97,0,0,0,
-002095c0,Sentient_CachedNearestNode,compare,47486,19410,19410,0,0,0,
+002094e0,Sentient_FindNearestNode,compare,395,97,97,0,0,0,""
+002095c0,Sentient_CachedNearestNode,compare,47486,19410,19410,0,0,0,""
 00209700,Actor_FindNearestNode,compare,0,0,0,0,0,0,""
 002226e0,InGameLiveOptionsMenu_Draw,compare,0,0,0,0,0,0,""
 00222750,XboxLiveMenu_Draw,compare,0,0,0,0,0,0,""
