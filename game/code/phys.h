@@ -214,4 +214,23 @@ uint32_t* XB_CDECL PhysWorld_AllocConstraintD0(uint32_t a, uint32_t b);
 // 0x000b3d00: flag 1 of +0x144 on each body of the list at +0x28 (count +0x2c). Unreferenced.
 uint32_t XB_THISCALL PhysRagdoll_SetBodiesFlag1(uint8_t* ragdoll);
 
+// 0x000ad140: box (centre +0x10, half extents +0x20) against a sphere of the radius swept from a
+// along dir to b: the first face hit (b = the hit pushed out by radius + 0.002, normal +-axis at
+// b + 4), else the first touch of a clamped edge/corner point (b = a + t (a - b), normal -dir).
+// AL = hit.
+uint8_t XB_THISCALL PhysBox_SweepSphere(uint8_t* box, const float* a, float* b, float radius, const float* dir);
+// 0x000ae970: box against a sphere: out = the contact point, out + 4 the normal (-+axis when
+// separated, the face/edge/corner normal on contact, the nearest face's when the centre is inside).
+// AL = contact.
+uint8_t XB_THISCALL PhysBox_SphereContact(uint8_t* box, const float* p, float radius, float* out, uint32_t unused);
+// 0x000b1b40: GJK closest points of shape A (in `frame`, rows +0..+0x20, origin +0x30) and shape B:
+// out = point on A, out + 4 on B, out + 8 = separation (also the start direction). 0 = separated
+// beyond `limit` (squared), 1 = closest points found, 2 = touching/degenerate. Unreferenced chain.
+int32_t XB_CDECL Gjk_ClosestPoints(void* shape_a, const float* frame, void* shape_b, float* out, float limit,
+                                   uint8_t keep_going);
+// 0x000b0a00: do two shapes (bounding sphere centre +0x10, radius +0x1c) in their frames overlap
+// within limit: sphere test, then GJK in B's frame. Unreferenced.
+uint8_t XB_CDECL Phys_ShapesOverlapGjk(void* shape_a, const float* frame_a, void* shape_b, const float* frame_b,
+                                       float limit);
+
 }  // namespace game

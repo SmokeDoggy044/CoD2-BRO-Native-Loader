@@ -1536,4 +1536,492 @@ uint32_t XB_THISCALL PhysRagdoll_SetBodiesFlag1(uint8_t* ragdoll) {
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(it));
 }
 
+namespace {
+
+// MAXPS / MINPS lane rules: the second operand when unordered.
+Lanes max_lanes(const Lanes& a, const Lanes& b) {
+    Lanes out;
+    for (int32_t i = 0; i < 4; ++i) out.v[i] = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+    return out;
+}
+Lanes min_lanes(const Lanes& a, const Lanes& b) {
+    Lanes out;
+    for (int32_t i = 0; i < 4; ++i) out.v[i] = a.v[i] < b.v[i] ? a.v[i] : b.v[i];
+    return out;
+}
+
+void copy_words(float* dst, const float* src) {
+    for (int32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(dst)[i] = reinterpret_cast<const uint32_t*>(src)[i];
+}
+
+}  // namespace
+
+uint8_t XB_THISCALL PhysBox_SweepSphere(uint8_t* box, const float* a, float* b, float radius, const float* dir) {
+    const Lanes centre = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes extent = lanes(reinterpret_cast<const float*>(box + 0x20));
+    alignas(16) float lo[4], hi[4];
+    std::memcpy(lo, sub(centre, extent).v, 16);
+    std::memcpy(hi, add(centre, extent).v, 16);
+    const Lanes start = lanes(a);
+    const Lanes end = lanes(b);
+    const Lanes r = splat(radius);
+    // The swept sphere's bounds against the box, per axis: both gaps below 0 on x, y and z.
+    const Lanes below = sub(lanes(lo), add(max_lanes(start, end), r));
+    const Lanes above = sub(sub(min_lanes(start, end), r), lanes(hi));
+    const Lanes gap = max_lanes(above, below);
+    bool overlaps = true;
+    for (int32_t i = 0; i < 4; ++i) {  // CMPLTPS compares all four lanes
+        const bool negative = gap.v[i] < 0.0f;
+        if (i < 3 && !negative) overlaps = false;
+    }
+    if (!overlaps) return 0;
+    const float radius_sq = radius * radius;
+    // Face hits: the sphere's leading point moved along dir to each face it starts outside of; a
+    // point inside the face's rectangle is the hit, the others are candidates for the edge pass.
+    alignas(16) float candidates[3][4];
+    int32_t count = 0;
+    for (int32_t i = 0; i < 3; ++i) {
+        const int32_t k1 = (i + 1) % 3, k2 = (i + 2) % 3;
+        const float d = dir[i];
+        alignas(16) float p[4];
+        float face;
+        if (d > 0.0f) {
+            if (!(lo[i] > a[i])) continue;
+            copy_words(p, a);
+            p[i] = radius + p[i];
+            if (!(lo[i] > p[i])) {
+                std::memcpy(&p[i], &lo[i], 4);
+                copy_words(candidates[count++], p);
+                continue;
+            }
+            face = lo[i];
+        } else if (0.0f > d) {
+            if (!(a[i] > hi[i])) continue;
+            copy_words(p, a);
+            p[i] = p[i] - radius;
+            if (!(p[i] > hi[i])) {
+                std::memcpy(&p[i], &hi[i], 4);
+                copy_words(candidates[count++], p);
+                continue;
+            }
+            face = hi[i];
+        } else {
+            continue;
+        }
+        const float t = (face - p[i]) / d;
+        alignas(16) float q[4];
+        std::memcpy(q, add(lanes(p), mul(lanes(dir), splat(t))).v, 16);
+        if (q[k1] >= lo[k1] && hi[k1] >= q[k1] && q[k2] >= lo[k2] && hi[k2] >= q[k2]) {
+            const float skin = radius + title_global<float>(0x007cc6e8);  // 0.002
+            copy_words(b, q);
+            float normal;
+            if (d > 0.0f) {
+                b[i] = b[i] - skin;
+                normal = title_global<float>(0x0083eb34);  // -1
+            } else {
+                b[i] = skin + b[i];
+                normal = title_global<float>(0x0083eb20);  // 1
+            }
+            b[4 + i] = normal;
+            b[4 + k2] = 0.0f;
+            b[4 + k1] = 0.0f;
+            return 1;
+        }
+        copy_words(candidates[count++], q);
+    }
+    if (!count) return 0;
+    // Edge/corner pass: each candidate clamped into the box; the sphere's first contact with it
+    // along a -> b (fraction of |a - b|, x87), skipping points within 1e-5 of the previous one.
+    const Lanes delta = sub(start, end);
+    const Lanes dd = mul(delta, delta);
+    platform_keep(dd);
+    const float length_sq = (dd.v[0] + dd.v[1]) + dd.v[2];
+    const float length = platform_x87_sqrt(length_sq);
+    float best = length;
+    alignas(16) float previous[4] = {};
+    for (int32_t k = 0; k < count; ++k) {
+        const Lanes clamped = min_lanes(lanes(hi), max_lanes(lanes(lo), lanes(candidates[k])));
+        std::memcpy(candidates[k], clamped.v, 16);
+        if (k != 0) {
+            const Lanes diff = sub(lanes(previous), clamped);
+            const Lanes sq = mul(diff, diff);
+            platform_keep(sq);
+            if (title_global<float>(0x0083effc) > (sq.v[0] + sq.v[1]) + sq.v[2]) continue;  // 1e-5
+        }
+        const Lanes w = sub(start, clamped);
+        const Lanes ww = mul(w, w);
+        platform_keep(ww);
+        const float w_sq = (ww.v[0] + ww.v[1]) + ww.v[2];
+        if (w_sq > radius_sq) {
+            const Lanes dw = mul(delta, w);
+            platform_keep(dw);
+            const float projection = (dw.v[0] + dw.v[1]) + dw.v[2];
+            if (projection > 0.0f) {
+                const float disc = (radius_sq - w_sq) * length_sq + projection * projection;
+                if (disc >= 0.0f) {
+                    const long double t =
+                        (static_cast<long double>(projection) - platform_x87_sqrt_ext(disc)) / length;
+                    const float rounded = static_cast<float>(t);
+                    if (static_cast<long double>(best) > t) best = rounded;
+                }
+            }
+        }
+        copy_words(previous, candidates[k]);
+    }
+    if (!(length > best)) return 0;
+    if (0.0f > best)
+        std::memcpy(b, add(lanes(a), mul(splat(best), delta)).v, 16);
+    else
+        copy_words(b, a);
+    for (int32_t i = 0; i < 4; ++i)
+        reinterpret_cast<uint32_t*>(b)[4 + i] = reinterpret_cast<const uint32_t*>(dir)[i] ^ 0x80000000u;
+    return 1;
+}
+
+namespace {
+
+const float* box_axis(int32_t i) { return &title_global<float>(0x007cc520 + static_cast<uint32_t>(i) * 16); }
+
+// axis * splat(sign) into the normal slot (out + 4).
+void store_axis_normal(float* out, int32_t axis, float sign) {
+    std::memcpy(out + 4, mul(lanes(box_axis(axis)), splat(sign)).v, 16);
+}
+
+// CMPLTPS: all four lanes compared (signalling), bit i = a[i] < b[i].
+uint32_t less_mask(const Lanes& a, const Lanes& b) {
+    uint32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i)
+        if (a.v[i] < b.v[i]) mask |= 1u << i;
+    return mask;
+}
+
+}  // namespace
+
+uint8_t XB_THISCALL PhysBox_SphereContact(uint8_t* box, const float* p, float radius, float* out, uint32_t) {
+    copy_words(out, p);
+    const Lanes centre = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes extent = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes lo = sub(centre, extent);
+    const Lanes hi = add(centre, extent);
+    const Lanes r = splat(radius);
+    const float minus_one = title_global<float>(0x007cc510);
+    const float one = title_global<float>(0x007cc500);
+    // Separated along an axis: no contact, the normal points away from that side.
+    const Lanes below = sub(add(lanes(p), r), lo);
+    platform_keep(below);
+    for (int32_t i = 0; i < 3; ++i)
+        if (0.0f >= below.v[i]) {
+            store_axis_normal(out, i, minus_one);
+            return 0;
+        }
+    const Lanes above = sub(sub(lanes(p), r), hi);
+    platform_keep(above);
+    for (int32_t i = 0; i < 3; ++i)
+        if (above.v[i] >= 0.0f) {
+            store_axis_normal(out, i, one);
+            return 0;
+        }
+    // The centre clamped into the box; each clamped axis gets -1 / +1 in the normal.
+    const float low_side = title_global<float>(0x0083eb34);  // -1
+    const float high_side = title_global<float>(0x0083eb20);  // 1
+    float normal[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    Lanes q = lanes(p);
+    int32_t clamped = 0;
+    if (!(lo.v[0] <= q.v[0])) {
+        q.v[0] = lo.v[0];
+        normal[0] = low_side;
+        clamped = 1;
+    } else if (!(q.v[0] <= hi.v[0])) {
+        q.v[0] = hi.v[0];
+        normal[0] = high_side;
+        clamped = 1;
+    }
+    for (int32_t i = 1; i < 3; ++i) {
+        if (less_mask(q, lo) & (1u << i)) {
+            q.v[i] = lo.v[i];
+            normal[i] = low_side;
+            ++clamped;
+        } else if (less_mask(hi, q) & (1u << i)) {
+            q.v[i] = hi.v[i];
+            normal[i] = high_side;
+            ++clamped;
+        }
+    }
+    if (clamped) {
+        std::memcpy(out + 4, sub(lanes(p), q).v, 16);
+        const Lanes dd = mul(lanes(out + 4), lanes(out + 4));
+        platform_keep(dd);
+        const float length_sq = (dd.v[0] + dd.v[1]) + dd.v[2];
+        if (length_sq > radius * radius) {
+            if (clamped == 1) {
+                std::memcpy(out + 4, normal, 16);
+                return 0;
+            }
+            const float length = platform_x87_sqrt(length_sq);
+            std::memcpy(out + 4, div(lanes(out + 4), splat(length)).v, 16);
+            return 0;
+        }
+        std::memcpy(out, q.v, 16);
+        if (clamped != 1 && !(title_global<float>(0x0083ed50) > length_sq)) {  // 1e-4
+            const float length = platform_x87_sqrt(length_sq);
+            std::memcpy(out + 4, div(lanes(out + 4), splat(length)).v, 16);
+            return 1;
+        }
+        std::memcpy(out + 4, normal, 16);
+        if (clamped == 1) return 1;
+        // Edge (two axes) or corner (three): the summed axes normalized.
+        const float scale = clamped == 2 ? title_global<float>(0x007cc6f0) : title_global<float>(0x007cc6ec);
+        std::memcpy(out + 4, mul(lanes(out + 4), splat(scale)).v, 16);
+        return 1;
+    }
+    // Centre inside: pushed out through the nearest face.
+    float best = p[0] - lo.v[0];
+    store_axis_normal(out, 0, minus_one);
+    const float to_high = hi.v[0] - p[0];
+    if (best > to_high) {
+        best = to_high;
+        store_axis_normal(out, 0, one);
+    }
+    for (int32_t i = 1; i < 3; ++i) {
+        const Lanes from_low = sub(lanes(p), lo);
+        platform_keep(from_low);
+        if (best > from_low.v[i]) {
+            best = from_low.v[i];
+            store_axis_normal(out, i, minus_one);
+        }
+        const Lanes from_high = sub(hi, lanes(p));
+        platform_keep(from_high);
+        if (best > from_high.v[i]) {
+            best = from_high.v[i];
+            store_axis_normal(out, i, one);
+        }
+    }
+    const Lanes n = lanes(out + 4);
+    std::memcpy(out, add(lanes(p), mul(splat(best), n)).v, 16);
+    return 1;
+}
+
+namespace {
+
+float* gjk_vec(uint32_t base, int32_t i) { return &title_global<float>(base + static_cast<uint32_t>(i) * 16); }
+float* gjk_p(int32_t i) { return gjk_vec(0x0090a750, i); }
+float* gjk_y(int32_t i) { return gjk_vec(0x0090a790, i); }
+float* gjk_q(int32_t i) { return gjk_vec(0x0090a7d0, i); }
+uint32_t& gjk_bits() { return title_global<uint32_t>(0x0090a748); }
+uint32_t& gjk_all_bits() { return title_global<uint32_t>(0x0090a740); }
+int32_t& gjk_last() { return title_global<int32_t>(0x0090a744); }
+uint32_t& gjk_last_bit() { return title_global<uint32_t>(0x0090a630); }
+
+float sum3(const Lanes& v) { return (v.v[0] + v.v[1]) + v.v[2]; }
+
+float self_dot(const Lanes& v) {
+    const Lanes sq = mul(v, v);
+    platform_keep(sq);
+    return sum3(sq);
+}
+
+// Johnson's test for the subset `set` (with the new point): each point in it needs a
+// sub-determinant of at least 0.001 (the title's epsilon), each one outside it none above 0.
+bool gjk_subset_valid(uint32_t set) {
+    for (int32_t i = 0; i < 4; ++i) {
+        const uint32_t bit = 1u << i;
+        if (!(gjk_all_bits() & bit)) continue;
+        if (set & bit) {
+            if (title_global<float>(0x0083eb4c) > gjk_det(set)[i]) return false;  // 0.001
+        } else if (gjk_det(set | bit)[i] > title_global<float>(0x0083eafc)) {  // 0
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+int32_t XB_CDECL Gjk_ClosestPoints(void* shape_a, const float* frame, void* shape_b, float* out, float limit,
+                                   uint8_t keep_going) {
+    float* const out_v = out + 8;
+    alignas(16) float v[4];
+    copy_words(v, out_v);
+    float dist_sq = self_dot(lanes(v));
+    float lower = 0.0f;
+    uint32_t iterations = 0;
+    gjk_bits() = 0;
+    gjk_all_bits() = 0;
+    if (title_global<float>(0x008bd438) > dist_sq) return 2;
+    uint32_t bits = 0;
+    while (dist_sq > title_global<float>(0x008bd438)) {
+        // Free simplex slot.
+        uint32_t last_bit = 1;
+        int32_t last = 0;
+        gjk_last() = 0;
+        gjk_last_bit() = 1;
+        if (bits & 1) {
+            do {
+                last_bit <<= 1;
+                ++last;
+            } while (bits & last_bit);
+            gjk_last_bit() = last_bit;
+            gjk_last() = last;
+        }
+        // Support points: A's for -v (into A's frame and back out), B's for v.
+        alignas(16) float rows[12];
+        copy_words(rows, frame);
+        copy_words(rows + 4, frame + 4);
+        copy_words(rows + 8, frame + 8);
+        Lanes columns[3];
+        frame_columns(rows, columns);
+        Lanes neg_v;
+        for (int32_t i = 0; i < 4; ++i) {
+            uint32_t bits_v;
+            std::memcpy(&bits_v, &v[i], 4);
+            bits_v ^= 0x80000000u;
+            std::memcpy(&neg_v.v[i], &bits_v, 4);
+        }
+        alignas(16) float dir[4];
+        std::memcpy(dir, rotate_into(columns, neg_v).v, 16);
+        alignas(16) float support_a[4];
+        void* const* vtable_a = *static_cast<void* const* const*>(shape_a);
+        const float* sa = title_function<ShapeSupport>(reinterpret_cast<uintptr_t>(vtable_a[2]))(shape_a, support_a, dir);
+        alignas(16) float point[4];
+        std::memcpy(point, sa, 16);
+        std::memcpy(gjk_p(gjk_last()), transform_out(frame, point).v, 16);
+        alignas(16) float support_b[4];
+        void* const* vtable_b = *static_cast<void* const* const*>(shape_b);
+        const float* sb = title_function<ShapeSupport>(reinterpret_cast<uintptr_t>(vtable_b[2]))(shape_b, support_b, v);
+        last = gjk_last();
+        copy_words(gjk_q(last), sb);
+        alignas(16) float w[4];
+        std::memcpy(w, sub(lanes(gjk_p(last)), lanes(gjk_q(last))).v, 16);
+        const Lanes vw = mul(lanes(v), lanes(w));
+        platform_keep(vw);
+        const float dot = sum3(vw);
+        if (dot > title_global<float>(0x0083eafc)) {  // 0
+            const float dot_sq = dot * dot;
+            if (dot_sq > lower * dist_sq) lower = dot_sq / dist_sq;
+        }
+        if (lower > limit && !keep_going) {
+            copy_words(out, gjk_p(last));
+            copy_words(out + 4, gjk_q(last));
+            copy_words(out_v, v);
+            return 0;
+        }
+        bool done = iterations != 0 && lower > title_global<float>(0x008bd43c) * dist_sq;
+        // A support point already in the simplex (within 1e-4): no progress.
+        for (int32_t i = 0; i < 4 && !done; ++i) {
+            if (!(gjk_all_bits() & (1u << i))) continue;
+            if (title_global<float>(0x0083ed50) > self_dot(sub(lanes(w), lanes(gjk_y(i))))) done = true;
+        }
+        if (done) {
+            bits = gjk_bits();
+            break;
+        }
+        last_bit = gjk_last_bit();
+        bits = gjk_bits();
+        copy_words(gjk_y(last), w);
+        gjk_all_bits() = last_bit | bits;
+        ++iterations;
+        if (iterations > 20) break;
+        Gjk_ComputeDeterminants();
+        // The smallest valid subset: subsets of the old simplex from the largest mask down, each
+        // with the new point.
+        uint32_t set = bits;
+        bool found = false;
+        for (; set != 0; --set) {
+            if ((set & bits) != set) continue;
+            if (gjk_subset_valid(set | last_bit)) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            bits = set | last_bit;
+            gjk_bits() = bits;
+            const Lanes zero = lanes(&title_global<float>(0x007ccc10));
+            Lanes acc = zero;
+            float sum = 0.0f;
+            if (bits & 1) {
+                sum = gjk_det(bits)[0];
+                acc = add(zero, mul(lanes(gjk_y(0)), splat(sum)));
+            }
+            for (int32_t i = 1; i < 4; ++i) {
+                if (!(bits & (1u << i))) continue;
+                const float d = gjk_det(bits)[i];
+                sum = sum + d;
+                acc = add(acc, mul(lanes(gjk_y(i)), splat(d)));
+            }
+            const float inv = title_global<float>(0x0083eb20) / sum;  // 1
+            std::memcpy(v, mul(acc, splat(inv)).v, 16);
+        } else {
+            // Only the new point: valid unless its tests fail (then no progress: intersecting).
+            for (int32_t i = 0; i < 4; ++i) {
+                const uint32_t bit = 1u << i;
+                if (!(gjk_all_bits() & bit)) continue;
+                if (last_bit & bit) {
+                    if (title_global<float>(0x0083eb4c) > gjk_det(last_bit)[i]) return 2;
+                } else if (gjk_det(bit | last_bit)[i] > 0.0f) {
+                    return 2;
+                }
+            }
+            copy_words(v, w);
+            bits = last_bit;
+            gjk_bits() = bits;
+        }
+        const float previous = dist_sq;
+        dist_sq = self_dot(lanes(v));
+        if (dist_sq > previous && iterations > 1) return 2;
+        if (static_cast<int32_t>(bits) >= 15) break;
+    }
+    if (bits == 15) return 2;
+    // Closest points: the simplex's p and q weighted by the sub-determinants.
+    copy_words(out, &title_global<float>(0x007ccd90));  // (0, 0, 0, 1)
+    copy_words(out + 4, &title_global<float>(0x007ccd90));
+    float sum = 0.0f;
+    for (int32_t i = 0; i < 4; ++i) {
+        if (!(bits & (1u << i))) continue;
+        const float d = gjk_det(bits)[i];
+        sum = i == 0 ? d : sum + d;
+        std::memcpy(out, add(lanes(out), mul(lanes(gjk_p(i)), splat(d))).v, 16);
+        std::memcpy(out + 4, add(lanes(out + 4), mul(lanes(gjk_q(i)), splat(gjk_det(bits)[i]))).v, 16);
+    }
+    const float inv = title_global<float>(0x0083eb20) / sum;
+    std::memcpy(out, mul(lanes(out), splat(inv)).v, 16);
+    std::memcpy(out + 4, mul(lanes(out + 4), splat(inv)).v, 16);
+    copy_words(out_v, v);
+    return dist_sq > limit ? 0 : 1;
+}
+
+uint8_t XB_CDECL Phys_ShapesOverlapGjk(void* shape_a, const float* frame_a, void* shape_b, const float* frame_b,
+                                       float limit) {
+    const uint8_t* const a = static_cast<const uint8_t*>(shape_a);
+    const uint8_t* const b = static_cast<const uint8_t*>(shape_b);
+    // Bounding spheres (centre +0x10, radius +0x1c) first.
+    const float radii = at<float>(a, 0x1c) + at<float>(b, 0x1c);
+    const Lanes centre_b = transform_out(frame_b, reinterpret_cast<const float*>(b + 0x10));
+    const Lanes centre_a = transform_out(frame_a, reinterpret_cast<const float*>(a + 0x10));
+    if (self_dot(sub(centre_a, centre_b)) > radii * radii) return 0;
+    // A's frame relative to B's: rows and origin rotated into B.
+    alignas(16) float rows_b[12];
+    copy_words(rows_b, frame_b);
+    copy_words(rows_b + 4, frame_b + 4);
+    copy_words(rows_b + 8, frame_b + 8);
+    Lanes columns[3];
+    frame_columns(rows_b, columns);
+    alignas(16) float relative[16];
+    std::memcpy(relative + 12, rotate_into(columns, sub(lanes(frame_a + 12), lanes(frame_b + 12))).v, 16);
+    std::memcpy(relative + 8, rotate_into(columns, lanes(frame_a + 8)).v, 16);
+    std::memcpy(relative + 4, rotate_into(columns, lanes(frame_a + 4)).v, 16);
+    std::memcpy(relative, rotate_into(columns, lanes(frame_a)).v, 16);
+    // GJK (keep going past the limit) from A's centre minus B's, in B's frame; the title's result
+    // buffer is the relative frame's first copy.
+    alignas(16) float frame[16];
+    copy_words(frame, relative);
+    copy_words(frame + 4, relative + 4);
+    copy_words(frame + 8, relative + 8);
+    copy_words(frame + 12, relative + 12);
+    std::memcpy(relative + 8, sub(transform_out(frame, reinterpret_cast<const float*>(a + 0x10)),
+                                  lanes(reinterpret_cast<const float*>(b + 0x10))).v,
+                16);
+    return Gjk_ClosestPoints(shape_a, frame, shape_b, relative, limit * limit, 1) != 0 ? 1 : 0;
+}
+
 }  // namespace game

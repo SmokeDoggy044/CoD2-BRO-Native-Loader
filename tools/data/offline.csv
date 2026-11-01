@@ -492,9 +492,11 @@ address,name,tested,matched,nan,mismatched,coverage
 000acdf0,PhysCapsule_Support,3311,3305,6,0,100.0
 000acf70,PhysPoint_SphereContact,3257,3257,0,0,100.0
 000ad040,PhysSphere_SphereContact,3234,3234,0,0,100.0
+000ad140,PhysBox_SweepSphere,2125,2125,0,0,60.9
 000ad770,PhysBox_IntersectRay,3276,3276,0,0,98.0
 000ada90,PhysBox_IntersectSegment,3255,3255,0,0,67.6
 000adc90,PhysCapsule_SphereContact,3447,3445,2,0,100.0
+000ae970,PhysBox_SphereContact,2054,2054,0,0,59.3
 000aefa0,PhysOrientedBox_Support,3434,3380,54,0,100.0
 000af120,PhysOrientedBox_SphereContact,3379,3283,96,0,100.0
 000af460,PhysOrientedBox_SweepSphere,3273,3273,0,0,57.6
