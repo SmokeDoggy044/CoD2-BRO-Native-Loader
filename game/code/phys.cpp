@@ -1434,7 +1434,7 @@ float constraint_separation(uint8_t* c, uint32_t rotate, uint32_t offset) {
 // only for constraints with a second body (flag 1).
 void XB_THISCALL PhysConstraint_UpdateLimitFlag(uint8_t* c, uint32_t) {
     if (!(at<uint8_t>(c, 0xa4) & 1)) return;
-    const float separation = constraint_separation(c, 0x000b73d0, 0x000b7260);  // PhysBody_RotateVector, PhysBody_OffsetByField70
+    const float separation = constraint_separation(c, 0x000b73d0, 0x000b7260);  // PhysBody_RotateVector2, PhysBody_OffsetByField70
     const uint32_t flags = at<uint32_t>(c, 0xa4);
     at<uint32_t>(c, 0xa4) = separation >= at<float>(c, 0x74) ? flags | 2 : flags & ~2u;
 }
