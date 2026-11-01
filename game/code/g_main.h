@@ -120,6 +120,9 @@ extern "C" void G_CheckMissionEnd_entry(void);
 // 0x00254e70: G_RegisterCvars, the skill level and max health kept with `restore`, four vmCvars reset.
 void XB_CDECL G_InitSkillCvars(uint32_t restore);
 
+// 0x0025f650: at a level reload, every listed entity freed and its model object, ragdoll and entity number released.
+void XB_CDECL G_FreeLevelEntities();
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

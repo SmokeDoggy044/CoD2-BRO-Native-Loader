@@ -553,4 +553,76 @@ void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item) {
     SV_LinkEntity(ent);
 }
 
+PLATFORM_ASM_ENTRY(LaunchItem_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(LaunchItem) "addl $24, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_index, const uint8_t* item,
+                             const float* velocity, int32_t index) {
+    // Q3's LaunchItem. EAX dropped-item slot, EBX origin; stack (model index for G_SetModel,
+    // item, velocity, dropped-item index). A level-context entity (the inlined G_Spawn), its
+    // handle in the slot's dropped-item table (0x00985e30, 32 per slot; G_FreeFarthestDroppedItem
+    // frees the old one), item type 2 with its index (+6), the item's name as classname, item
+    // bounds and contents as G_SpawnItem, owner = the level's world entity, model, touch 7, a
+    // gravity trajectory (type 5) from the origin now; linked. Returns the entity.
+    const TitleRegs spawn_regs{0xffffffffu, 0, 0, 0, 0, 0};
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &spawn_regs, 0, nullptr)});  // G_Spawn
+    const uint32_t which = G_FreeFarthestDroppedItem(index, 0, slot);
+    title_global<uint32_t>(0x00985e30 + ((slot << 5) + which) * 4) = word_at(ent, 0x224);
+    const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
+    ent[0] = 2;
+    *reinterpret_cast<uint16_t*>(ent + 6) = static_cast<uint16_t>(static_cast<int32_t>(address - 0x0096bd10) / 0x34);
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011dd20)(
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent + 0x25c)),
+        *reinterpret_cast<const uint32_t*>(item + 4));  // ScriptString_AssignCString
+    const uint32_t text = word_at(ent, 0x25c);
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr);
+    word_at(ent, 0x3b0) = address;
+    const float minus_one = title_global<float>(0x0083eb34);
+    const float one = title_global<float>(0x0083eb20);
+    const bool upright = *reinterpret_cast<const uint32_t*>(item + 0x24) == 1;
+    field<float>(ent, 0xe0) = minus_one;
+    field<float>(ent, 0xe4) = minus_one;
+    field<float>(ent, 0xe8) = upright ? minus_one : 0.0f;
+    field<float>(ent, 0xf0) = one;
+    field<float>(ent, 0xf4) = one;
+    field<float>(ent, 0xf8) = upright ? one : title_global<float>(0x0083eba8);
+    word_at(ent, 0x10) |= 0x10;
+    word_at(ent, 0x134) = 0x407c0108;
+    word_at(ent, 0xd4) |= 0x200;
+    word_at(ent, 0x1a0) = *reinterpret_cast<const uint32_t*>(
+        uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f534) + 4}) + 0x224});
+    title_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(0x002d7c60)(
+        model_index, ent, *reinterpret_cast<const uint32_t*>(item + 0xc));  // G_SetModel
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    word_at(ent, 0x338) = 7;
+    const uint32_t* const from = reinterpret_cast<const uint32_t*>(origin);
+    word_at(ent, 0x20) = from[0];
+    word_at(ent, 0x24) = from[1];
+    word_at(ent, 0x28) = from[2];
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    word_at(ent, 0x140) = from[0];
+    word_at(ent, 0x144) = from[1];
+    word_at(ent, 0x148) = from[2];
+    word_at(ent, 0x14) = 5;
+    word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c);
+    const uint32_t* const speed = reinterpret_cast<const uint32_t*>(velocity);
+    word_at(ent, 0x2c) = speed[0];
+    word_at(ent, 0x30) = speed[1];
+    word_at(ent, 0x34) = speed[2];
+    word_at(ent, 0x2a4) = 0x40;
+    SV_LinkEntity(ent);
+    return ent;
+}
+
 }  // namespace game

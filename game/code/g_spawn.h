@@ -55,4 +55,9 @@ extern "C" void G_SpawnItem_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_CallSpawn(uint8_t* ent);
 extern "C" void G_CallSpawn_entry(void);
 
+// 0x0025fb20 (slot in EAX, origin in EBX): Q3's LaunchItem - a dropped item entity thrown with the velocity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_index,
+                                                     const uint8_t* item, const float* velocity, int32_t index);
+extern "C" void LaunchItem_entry(void);
+
 }  // namespace game

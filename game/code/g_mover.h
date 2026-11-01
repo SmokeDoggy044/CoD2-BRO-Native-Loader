@@ -143,4 +143,18 @@ uint32_t XB_REGS3 XB_CDECL Turret_TrackTargetEnt(uint8_t* ent, uint32_t unused_e
 extern "C" PLATFORM_HIDDEN void XB_CDECL Door_StartRotate(uint8_t* ent);
 extern "C" void Door_StartRotate_entry(void);
 
+// 0x0025e9b0 (entity in ESI, cdecl weapon name): the turret info from the weapon def and spawn keys.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon);
+extern "C" void Turret_ParseInfo_entry(void);
+// 0x0025f310: the aim at a sentient from the turret's tag_flash within its arcs; 1 when it can aim.
+uint32_t XB_CDECL Turret_GetTargetAimPoint(uint8_t* ent, uint8_t* sentient, float* eye, float* flash, float* angles);
+// 0x0025ff10 (fire parameters in EAX, owner in EDI): a launched grenade; returns it.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL weapon_grenadelauncher_fire(const float* params, uint8_t* owner,
+                                                                       uint32_t weapon);
+extern "C" void weapon_grenadelauncher_fire_entry(void);
+// 0x00261df0 (entity in ESI): a clear spot near a stuck entity, moved there; 1 when found.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindUnstuckPosition(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t edi,
+                                                                uint32_t ebp);
+extern "C" void G_FindUnstuckPosition_entry(void);
+
 }  // namespace game

@@ -1563,42 +1563,121 @@ void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t, uint32_t, const float* ori
     }
 }
 
+// Every title callee runs where the original's call puts it, with its registers (the C frame sits
+// below a gap): frame = aligned base - 0x1530 (count +8, index +0xc, maxs +0x10, mins +0x20,
+// handles +0x30, 0x540 words up to the aligned base), saved EDI/ESI at +0/+4.
 PLATFORM_ASM_ENTRY(G_TouchType14EntitiesInBox_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
                    "pushl %edx\n"
                    "pushl %ecx\n"
-                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_TouchType14EntitiesInBox) "addl $12, %esp\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_TouchType14EntitiesInBox) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
                    "ret")
 
-uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint8_t* ent, const float* origin, const uint32_t* cache) {
-    // As G_TouchEntitiesInBox with mask 0x800000: linked (+0xdc) type-14 candidates by
-    // SV_ClipToEntity, "touch" both ways by G_NotifyWithOwnHandle, then the callbacks.
-    uint32_t list[0x540];
-    for (uint32_t i = 0; i < 0x540; ++i) list[i] = 0;
+uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const float* origin, const uint32_t* cache,
+                                             uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EBX entity, ECX origin, EDX cache: as G_TouchEntitiesInBox with mask 0x800000: linked (+0xdc)
+    // type-14 candidates by SV_ClipToEntity, "touch" both ways by G_NotifyWithOwnHandle, then the
+    // callbacks. Returns the count (or +0x3cc when set).
+    auto word = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); };
+    word(entry - 4) = ebp;
+    const uint32_t base = (entry - 4) & ~15u;
+    const uint32_t frame = base - 0x1530;
+    const uint32_t maxs = frame + 0x10, mins = frame + 0x20, list = frame + 0x30;
+    word(frame) = edi;
+    word(frame + 4) = esi;
+    for (uint32_t i = 0; i < 0x540; ++i) word(list + i * 4) = 0;
     if (ent_field<uint32_t>(ent, 0x3cc)) return ent_field<uint32_t>(ent, 0x3cc);
-    alignas(16) float mins[3];
-    alignas(16) float maxs[3];
-    const int32_t count = touch_candidates(ent, origin, cache, 0x800000, list, mins, maxs);
-    for (int32_t i = 0; i < count; ++i) {
-        uint8_t* const other = handle_entity(list[i]);
+    const uint32_t ent_word = address_word(ent);
+    esi = address_word(origin);
+    edi = base;
+    int32_t count;
+    if (cache) {
+        for (uint32_t i = 0; i < 3; ++i) word(mins + i * 4) = cache[4 + i];
+        for (uint32_t i = 0; i < 3; ++i) word(maxs + i * 4) = cache[8 + i];
+        count = static_cast<int32_t>(cache[0]);
+        word(frame + 8) = static_cast<uint32_t>(count);
+        if (count > 0) {
+            for (int32_t i = 0; i < count; ++i) word(list + i * 4) = cache[12 + i];
+            esi = address_word(cache + 12 + count);
+            edi = list + static_cast<uint32_t>(count) * 4;
+        }
+    } else {
+        const float side = title_global<float>(0x0083ec84);
+        const float up = title_global<float>(0x0083f158);
+        float* const lo = reinterpret_cast<float*>(static_cast<uintptr_t>(mins));
+        float* const hi = reinterpret_cast<float*>(static_cast<uintptr_t>(maxs));
+        lo[0] = origin[0] - side;
+        lo[1] = origin[1] - side;
+        lo[2] = origin[2] - up;
+        hi[0] = origin[0] + side;
+        hi[1] = origin[1] + side;
+        hi[2] = origin[2] + up;
+        const TitleRegs regs{maxs, ent_word, mins, 0, esi, edi};
+        const uint32_t args[3] = {list, 0x540, 0x800000};
+        count = static_cast<int32_t>(title_call_at_regs(frame, 0x002cc400, &regs, 3, args));  // SV_AreaEntities
+        word(frame - 0x10) = 0x0025d639;
+        for (uint32_t i = 0; i < 3; ++i) lo[i] = ent_field<float>(ent, 0xe0 + i * 4) + origin[i];
+        for (uint32_t i = 0; i < 3; ++i) hi[i] = ent_field<float>(ent, 0xf0 + i * 4) + origin[i];
+        word(frame + 8) = static_cast<uint32_t>(count);
+    }
+    word(frame + 0xc) = 0;
+    const uint32_t touch = 0x0097a814;  // scr_const_touch
+    for (int32_t i = 0; i < count; i = static_cast<int32_t>(++word(frame + 0xc))) {
+        const uint32_t handle = word(list + static_cast<uint32_t>(i) * 4);
+        const uint32_t index = handle & 0xfff;
+        if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) continue;
+        esi = title_global<uint32_t>(0x0097a968 + index * 8);
+        uint8_t* const other = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(esi));
         if (!other || !(ent_field<uint32_t>(other, 0x134) & 0x800000) || other[0] != 0xe) continue;
         if (!ent_field<uint32_t>(other, 0xdc)) continue;
-        if (!ent_field<uint32_t>(other, 0x338) && !ent_field<uint32_t>(ent, 0x338)) continue;
-        if (!SV_ClipToEntity(other, mins, maxs, 1)) continue;
+        uint32_t eax = ent_field<uint32_t>(other, 0x338);
+        if (!eax) eax = ent_field<uint32_t>(ent, 0x338);
+        if (!eax) continue;
         {
-            const TitleRegs regs{address_word(ent), address_word(ent), 0, 0, address_word(other), address_word(other)};
-            const uint32_t args[1] = {title_global<uint32_t>(0x0097a814)};
-            g_ent_call(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            const TitleRegs regs{eax, ent_word, maxs, mins, esi, edi};
+            const uint32_t args[3] = {mins, maxs, 1};
+            const uint32_t hit = title_call_at_regs(frame, 0x002e8270, &regs, 3, args);  // SV_ClipToEntity
+            word(frame - 0x10) = 0x0025d743;
+            if (!hit) continue;
         }
         {
-            const TitleRegs regs{address_word(other), address_word(ent), title_global<uint32_t>(0x0097a814), 0,
-                                 address_word(other), address_word(ent)};
-            const uint32_t args[1] = {title_global<uint32_t>(0x0097a814)};
-            g_ent_call(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            const TitleRegs regs{ent_word, ent_word, 0, 0, esi, esi};
+            const uint32_t args[1] = {title_global<uint32_t>(touch)};
+            title_call_at_regs(frame, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            word(frame - 8) = 0x0025d759;
         }
-        if (ent_field<uint32_t>(other, 0x338)) run_touch(other, ent);
-        if (ent_field<uint32_t>(ent, 0x240) && ent_field<uint32_t>(ent, 0x338)) run_touch(ent, other);
+        {
+            const TitleRegs regs{esi, ent_word, title_global<uint32_t>(touch), 0, esi, ent_word};
+            const uint32_t args[1] = {title_global<uint32_t>(touch)};
+            title_call_at_regs(frame - 4, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            word(frame - 0xc) = 0x0025d769;
+        }
+        edi = ent_word;
+        const uint32_t own = ent_field<uint32_t>(other, 0x338);
+        if (own) {
+            const TitleRegs regs{own, ent_word, 0, 0, esi, edi};
+            const uint32_t args[3] = {esi, ent_word, 1};
+            title_call_at_regs(frame, title_global<uint32_t>(0x008da814 + own * 4), &regs, 3, args);
+            word(frame - 0x10) = 0x0025d781;
+        }
+        if (!ent_field<uint32_t>(ent, 0x240)) continue;
+        const uint32_t mine = ent_field<uint32_t>(ent, 0x338);
+        if (!mine) continue;
+        const TitleRegs regs{mine, ent_word, 0, 0, esi, edi};
+        const uint32_t args[3] = {ent_word, esi, 1};
+        title_call_at_regs(frame, title_global<uint32_t>(0x008da814 + mine * 4), &regs, 3, args);
+        word(frame - 0x10) = 0x0025d7a3;
     }
-    return static_cast<uint32_t>(count);
+    return word(frame + 8);
 }
 
 PLATFORM_ASM_ENTRY(G_SetEntityAnimTree_entry,
