@@ -231,3 +231,4 @@
 0020c6d0,Path_TrimToVisiblePoint,not reached,"only caller Actor_TrimPathFromEye; 0 calls in missions 1,4,5,6 (--only --every 1); not leaf-eligible (title traces)"
 0020d030,Actor_Grenade_IsCoverNodeSafe,not reached,"callback pushed by Actor_Grenade_FindCover (0x0021db50 push 0x20d030); 0 calls in missions 1,4,5,6 (--only --every 1)"
 0020d110,Actor_TrimPathFromEye,not reached,"caller Actor_Exposed_ReacquirePathTrim; 0 calls in missions 1,4,5,6 (--only --every 1)"
+0020ec50,Actor_CanSeePointIgnoringEnt,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept"
