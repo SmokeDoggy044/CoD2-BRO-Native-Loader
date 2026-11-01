@@ -3759,7 +3759,7 @@ float* XB_THISCALL PhysContact_GetRelativeVelocity(const uint8_t* contact, float
 
 // (+0x78 - normal velocity - +0x80 * +0x68) / +0x84 + +0x68 on the x87.
 float XB_THISCALL PhysContact_SolveNormalImpulse(uint8_t* contact) {
-    const long double v = title_function<long double XB_THISCALL(uint8_t*)>(0x000bf880)(contact);  // PhysContact_GetNormalVelocity
+    const long double v = PhysContact_GetNormalVelocity(contact);
     const long double t = static_cast<long double>(at<float>(contact, 0x78)) - v;
     const long double u = static_cast<long double>(at<float>(contact, 0x80)) * at<float>(contact, 0x68);
     const float impulse = static_cast<float>((t - u) / at<float>(contact, 0x84) + at<float>(contact, 0x68));
@@ -4553,6 +4553,382 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
     f.regs.ebx = 0;
     each(0x254, 0x260, 0x000b9430, 0x000be858, local_sub);  // PhysConstraint60_SnapToTarget
     each(0x2a4, 0x2b0, 0x000b9440, 0x000be88c, local_sub);  // PhysConstraintFrame_Restore
+}
+
+
+namespace {
+
+const float* fp(const uint8_t* p, uint32_t offset) { return reinterpret_cast<const float*>(p + offset); }
+float* fp(uint8_t* p, uint32_t offset) { return reinterpret_cast<float*>(p + offset); }
+
+// A solver record's (+0x10 v, +0x20 w) velocity at arm r: v + w x r.
+Lanes record_point_velocity(const uint8_t* record, const float* r) {
+    return add(lanes(fp(record, 0x10)), cross_lanes(lanes(fp(record, 0x20)), lanes(r)));
+}
+
+// The warm-start cache entry {key, impulse}: kept for the same key while 0x0090a85c is 0, else zeroed.
+float* cached_impulse(uint32_t* entry, uint32_t key) {
+    if (entry[0] != key || title_global<uint32_t>(0x0090a85c) != 0) reinterpret_cast<float*>(entry)[1] = 0.0f;
+    return reinterpret_cast<float*>(entry) + 1;
+}
+
+// One iteration on a contact (x87): error = normal velocity + +0x80 * impulse - target (+0x78) to +0x70,
+// impulse - error / +0x84 clamped to +0x68 (old impulse to +0x6c, old error to +0x74), the change applied.
+void contact_solve_step(uint8_t* c) {
+    at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+    const long double v = PhysContact_GetNormalVelocity(c);
+    const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+    at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
+    const long double e = (v + s) - at<float>(c, 0x78);
+    at<float>(c, 0x70) = static_cast<float>(e);
+    const float impulse = static_cast<float>(at<float>(c, 0x68) - e / at<float>(c, 0x84));
+    const float clamped = PhysConstraint_ClampImpulse(c, impulse);
+    at<float>(c, 0x68) = clamped;
+    float delta = static_cast<float>(static_cast<long double>(clamped) - at<float>(c, 0x6c));
+    PhysConstraint_ApplyImpulse(c, &delta);
+}
+
+// ((+0x68 - +0x6c) * +0x84)^2 into *max_error when larger.
+void track_error(const uint8_t* c, float* max_error) {
+    float x = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * at<float>(c, 0x84);
+    x = x * x;
+    if (x > *max_error) *max_error = x;
+}
+
+// Warm start: target +0x78 -= the bodies' normal velocity, the cached impulse (+0x9c entry) * scale
+// clamped into +0x68 and applied.
+void contact_warm_start(uint8_t* c, uint32_t key, float scale) {
+    const long double v = PhysContact_GetBodyNormalVelocity(c);
+    at<float>(c, 0x78) = static_cast<float>(at<float>(c, 0x78) - v);
+    const float impulse = *cached_impulse(at<uint32_t*>(c, 0x9c), key) * scale;
+    at<float>(c, 0x68) = impulse;
+    at<float>(c, 0x68) = PhysConstraint_ClampImpulse(c, impulse);
+    PhysConstraint_ApplyImpulse(c, fp(c, 0x68));
+}
+
+// With flag 8 the impulse moves from +0x6c toward +0x68 by `scale`; then clamped and applied.
+void contact_blend_apply(uint8_t* c, float scale) {
+    if (c[0x8c] & 8) at<float>(c, 0x68) = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * scale + at<float>(c, 0x6c);
+    at<float>(c, 0x68) = PhysConstraint_ClampImpulse(c, at<float>(c, 0x68));
+    PhysConstraint_ApplyImpulse(c, fp(c, 0x68));
+}
+
+}  // namespace
+
+// (A's v + w x +0x20 - B's v + w x +0x30) . normal (+0x10) from the solver records at +0x94 / +0x98.
+float XB_THISCALL PhysContact_GetNormalVelocity(const uint8_t* contact) {
+    Lanes rel = record_point_velocity(at<uint8_t*>(contact, 0x94), fp(contact, 0x20));
+    const uint8_t* const b = at<uint8_t*>(contact, 0x98);
+    if (b) rel = sub(rel, record_point_velocity(b, fp(contact, 0x30)));
+    return dot3(rel, lanes(fp(contact, 0x10)));
+}
+
+// A's record: v += +0x30 (inverse mass) * impulse * normal, w += impulse * +0x40; B's the opposite with +0x50.
+uint8_t* XB_THISCALL PhysConstraint_ApplyImpulse(uint8_t* c, const float* impulse) {
+    uint8_t* a = at<uint8_t*>(c, 0x94);
+    store4(fp(a, 0x10), add(lanes(fp(a, 0x10)), mul(splat(at<float>(a, 0x30) * *impulse), lanes(fp(c, 0x10)))));
+    a = at<uint8_t*>(c, 0x94);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x40)))));
+    uint8_t* const b = at<uint8_t*>(c, 0x98);
+    if (!b) return b;
+    store4(fp(b, 0x10), sub(lanes(fp(b, 0x10)), mul(splat(at<float>(b, 0x30) * *impulse), lanes(fp(c, 0x10)))));
+    const Lanes t = mul(splat(*impulse), lanes(fp(c, 0x50)));
+    uint8_t* const b2 = at<uint8_t*>(c, 0x98);
+    store4(fp(b2, 0x20), sub(lanes(fp(b2, 0x20)), t));
+    return b;
+}
+
+void XB_THISCALL PhysContact_SolveStep(uint8_t* contact, float* max_error, uint32_t track) {
+    contact_solve_step(contact);
+    if (static_cast<uint8_t>(track)) track_error(contact, max_error);
+}
+
+void XB_THISCALL PhysContact_WarmStart(uint8_t* contact, uint32_t key, float scale) { contact_warm_start(contact, key, scale); }
+
+// A's record v + w x +0x10 (minus B's v + w x +0x20 when there is a B) of a 0x140 contact (records +0x130 / +0x134).
+float* XB_THISCALL PhysContact140_GetSolverRelativeVelocity(const uint8_t* contact, float* out) {
+    Lanes rel = record_point_velocity(at<uint8_t*>(contact, 0x130), fp(contact, 0x10));
+    const uint8_t* const b = at<uint8_t*>(contact, 0x134);
+    if (b) rel = sub(rel, record_point_velocity(b, fp(contact, 0x20)));
+    std::memcpy(out, rel.v, 16);
+    return out;
+}
+
+namespace {
+
+// rows[0] x + rows[1] y + rows[2] z for the impulse vector's lanes (the rows 0x20 apart).
+Lanes impulse_rows(const uint8_t* c, uint32_t row0, const float* j) {
+    const Lanes v = lanes(j);
+    const Lanes z = mul(lanes(fp(c, row0 + 0x40)), splat(v.v[2]));
+    const Lanes y = mul(lanes(fp(c, row0 + 0x20)), splat(v.v[1]));
+    const Lanes x = mul(lanes(fp(c, row0)), splat(v.v[0]));
+    return add(add(x, y), z);
+}
+
+}  // namespace
+
+// A's record: v += inverse mass * J, w += +0x30 Jx + +0x50 Jy + +0x70 Jz; B's the opposite (+0x40/+0x60/+0x80).
+uint8_t* XB_THISCALL PhysContact140_ApplyImpulse(uint8_t* c, const float* j) {
+    uint8_t* a = at<uint8_t*>(c, 0x130);
+    store4(fp(a, 0x10), add(lanes(fp(a, 0x10)), mul(splat(at<float>(a, 0x30)), lanes(j))));
+    a = at<uint8_t*>(c, 0x130);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), impulse_rows(c, 0x30, j)));
+    uint8_t* const b = at<uint8_t*>(c, 0x134);
+    if (!b) return b;
+    store4(fp(b, 0x10), sub(lanes(fp(b, 0x10)), mul(splat(at<float>(b, 0x30)), lanes(j))));
+    const Lanes t = impulse_rows(c, 0x40, j);
+    uint8_t* const b2 = at<uint8_t*>(c, 0x134);
+    store4(fp(b2, 0x20), sub(lanes(fp(b2, 0x20)), t));
+    return b;
+}
+
+// +0xd0 -= the bodies' relative velocity; the three cached impulses (+0x138 entries) * scale into +0x90..+0x98, applied.
+void XB_THISCALL PhysContact140_WarmStart(uint8_t* c, uint32_t key, float scale) {
+    alignas(16) float rel[4];
+    PhysContact140_GetRelativeVelocity(c, rel);
+    store4(fp(c, 0xd0), sub(lanes(fp(c, 0xd0)), lanes(rel)));
+    for (uint32_t i = 0; i < 3; ++i)
+        at<float>(c, 0x90 + i * 4) = *cached_impulse(at<uint32_t*>(c, 0x138) + i * 2, key) * scale;
+    PhysContact140_ApplyImpulse(c, fp(c, 0x90));
+}
+
+// One iteration: +0xc0 = old error, +0xb0 = solver relative velocity - +0xd0, +0xa0 = old impulse,
+// +0x90 -= the 3x3 at +0xf0 * error, the change applied; each lane of (change * +0x120)^2 into *max_error.
+void XB_THISCALL PhysContact140_SolveStep(uint8_t* c, float* max_error) {
+    copy_words(fp(c, 0xc0), fp(c, 0xb0));
+    alignas(16) float t[4];
+    PhysContact140_GetSolverRelativeVelocity(c, t);
+    const Lanes error = sub(lanes(t), lanes(fp(c, 0xd0)));
+    std::memcpy(fp(c, 0xb0), error.v, 16);
+    copy_words(fp(c, 0xa0), fp(c, 0x90));
+    const Lanes e = lanes(fp(c, 0xb0));
+    const Lanes z = mul(lanes(fp(c, 0x110)), splat(e.v[2]));
+    const Lanes y = mul(lanes(fp(c, 0x100)), splat(e.v[1]));
+    const Lanes x = mul(lanes(fp(c, 0xf0)), splat(e.v[0]));
+    store4(fp(c, 0x90), sub(lanes(fp(c, 0x90)), add(add(x, y), z)));
+    store4(t, sub(lanes(fp(c, 0x90)), lanes(fp(c, 0xa0))));
+    PhysContact140_ApplyImpulse(c, t);
+    const Lanes scaled = mul(lanes(t), lanes(fp(c, 0x120)));
+    const Lanes squared = mul(scaled, scaled);
+    platform_keep(squared);
+    const float s = (t[0] * at<float>(c, 0x120)) * (t[0] * at<float>(c, 0x120));
+    const float error2[3] = {s, squared.v[1], squared.v[2]};
+    for (int32_t i = 0; i < 3; ++i)
+        if (error2[i] > *max_error) *max_error = error2[i];
+}
+
+// Angular contact: A's record w += impulse * +0x40, B's w -= impulse * +0x50 (records +0x8c / +0x90).
+uint8_t* XB_THISCALL PhysAngularContact_ApplyImpulse(uint8_t* c, const float* impulse) {
+    uint8_t* const a = at<uint8_t*>(c, 0x8c);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x40)))));
+    uint8_t* const b = at<uint8_t*>(c, 0x90);
+    if (!b) return b;
+    store4(fp(b, 0x20), sub(lanes(fp(b, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x50)))));
+    return b;
+}
+
+// When PhysConstraintPair_ScaleImpulses scales the pair (+0xb0 / +0xb4), each gets the change applied and the new impulse.
+void XB_THISCALL PhysConstraintPair_ApplyScaledImpulses(uint8_t* pair) {
+    uint8_t* const a = at<uint8_t*>(pair, 0xb0);
+    uint8_t* const b = at<uint8_t*>(pair, 0xb4);
+    float scaled_a, scaled_b;
+    if (!PhysConstraintPair_ScaleImpulses(pair, &scaled_a, &scaled_b)) return;
+    float delta = scaled_a - at<float>(a, 0x68);
+    PhysConstraint_ApplyImpulse(a, &delta);
+    at<float>(a, 0x68) = scaled_a;
+    delta = scaled_b - at<float>(b, 0x68);
+    PhysConstraint_ApplyImpulse(b, &delta);
+    at<float>(b, 0x68) = scaled_b;
+}
+
+// The joint's contact (+0x10), then its pair (+0xb0 tracked only without +0xb4, +0xb4, the shared scaling).
+void XB_THISCALL PhysJoint_SolveStep(uint8_t* joint, float* max_error) {
+    contact_solve_step(joint + 0x10);
+    track_error(joint + 0x10, max_error);
+    uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return;
+    const uint32_t b_word = at<uint32_t>(joint, 0xb4);
+    PhysContact_SolveStep(a, max_error, (b_word & ~0xffu) | (b_word == 0 ? 1u : 0u));  // sete al on the loaded word
+    uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return;
+    contact_solve_step(b);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+    track_error(at<uint8_t*>(joint, 0xb0), max_error);
+    track_error(at<uint8_t*>(joint, 0xb4), max_error);
+}
+
+void XB_THISCALL PhysJoint_ApplyBlendedImpulses(uint8_t* joint, float scale) {
+    contact_blend_apply(joint + 0x10, scale);
+    uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return;
+    contact_blend_apply(a, scale);
+    uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return;
+    contact_blend_apply(b, scale);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+}
+
+void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale) {
+    contact_warm_start(joint + 0x10, key, scale);
+    if (!at<uint8_t*>(joint, 0xb0)) return;
+    PhysContact_WarmStart(at<uint8_t*>(joint, 0xb0), key, scale);
+    if (!at<uint8_t*>(joint, 0xb4)) return;
+    PhysContact_WarmStart(at<uint8_t*>(joint, 0xb4), key, scale);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+}
+
+namespace {
+
+// ECX after the original PhysConstraint_ApplyImpulse: B's record + 0x20 when there is a B.
+uint32_t apply_impulse_ecx(const uint8_t* c) {
+    const uint32_t b = at<uint32_t>(c, 0x98);
+    return b ? b + 0x20 : word_addr(c);
+}
+
+// ECX the original PhysJoint_ApplyBlendedImpulses returns with; `entry` is its entry ESP. When the pair
+// scaling declines (B's flag 4 clear afterwards), PhysConstraintPair_ScaleImpulses leaves its out_b pointer:
+// a local of PhysConstraintPair_ApplyScaledImpulses at entry - 0x18.
+uint32_t blended_impulses_ecx(const uint8_t* joint, uint32_t entry) {
+    const uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return apply_impulse_ecx(joint + 0x10);
+    const uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return apply_impulse_ecx(a);
+    if (!(at<uint32_t>(b, 0x8c) & 4)) return entry - 0x18;
+    return apply_impulse_ecx(b);
+}
+
+// Angular contact (0xa0) error inside its limits: flag 1 of +0x88 and the error terms, else flag 1 cleared.
+void angular_accumulate(uint8_t* c, float* squares, float* weighted) {
+    const float margin = title_global<float>(0x0083eca0) / (at<float>(c, 0x84) - at<float>(c, 0x80));
+    const float impulse = at<float>(c, 0x68);
+    if (impulse > at<float>(c, 0x60) + margin && at<float>(c, 0x64) - margin > impulse) {
+        const float d = at<float>(c, 0x70) - at<float>(c, 0x74);
+        *weighted = at<float>(c, 0x74) * d + *weighted;
+        *squares = d * d + *squares;
+        at<uint32_t>(c, 0x88) |= 1;
+    } else {
+        at<uint32_t>(c, 0x88) &= ~1u;
+    }
+}
+
+float clamp_limits(const uint8_t* c, float impulse) {
+    if (at<float>(c, 0x60) > impulse) return at<float>(c, 0x60);
+    if (impulse > at<float>(c, 0x64)) return at<float>(c, 0x64);
+    return impulse;
+}
+
+}  // namespace
+
+// The island's iterations: until max_iterations passes are done or the largest squared impulse change is
+// within `tolerance` (at least one pass): contacts (+0x2cc), 0x140 contacts (+0x2d8), angular contacts
+// (+0x2e4) and joints (+0x2f0) each solved once; after `quiet_passes` passes the error terms of the
+// in-limit constraints also give an over-relaxation factor s = -weighted / squares - 1 (range kept in
+// 0x008bd5d0 / 0x008bd5d4); with s >= 1 (and 0x008bd610 set) the records restart from zero velocity and every
+// impulse is re-applied blended by s. Then the pass counter takes the original's ECX: the island, or what the
+// last joint's PhysJoint_ApplyBlendedImpulses left (entry asm: the entry ESP for its stack-address case).
+// Results: 0x0090a858 = the last pass's largest change, 0x0090a860 = the counter.
+PLATFORM_ASM_ENTRY(PhysIsland_SolveIterations_entry,
+                   "movl %esp, %eax\n"
+                   "pushl 12(%eax)\n"
+                   "pushl 8(%eax)\n"
+                   "pushl 4(%eax)\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysIsland_SolveIterations) "addl $20, %esp\n"
+                   "ret $12")
+
+void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations, int32_t quiet_passes,
+                                         float tolerance) {
+    // The callees' entry ESP in the original: below its 16-aligned frame of 0x74 bytes + 3 pushes, the argument and the call.
+    const uint32_t callee_entry = (((entry_esp - 4) & ~15u) - 0x80) - 8;
+    float max_change = title_global<float>(0x0083eb90);  // 100
+    float squares = 0.0f, weighted = 0.0f;
+    int32_t pass = 0, run = 0;
+    for (;;) {
+        if (!((pass <= max_iterations && max_change > tolerance) || run < 1)) break;
+        ++pass;
+        ++run;
+        const bool accumulate = run > quiet_passes;
+        if (accumulate) {
+            squares = 0.0f;
+            weighted = 0.0f;
+        }
+        max_change = 0.0f;
+        for (uint8_t* c = at<uint8_t*>(island, 0x2cc); c; c = at<uint8_t*>(c, 0)) {
+            at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+            const long double v = PhysContact_GetNormalVelocity(c);
+            const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+            at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
+            const long double e = (v + s) - at<float>(c, 0x78);
+            at<float>(c, 0x70) = static_cast<float>(e);
+            const float impulse = static_cast<float>(at<float>(c, 0x68) - e / at<float>(c, 0x84));
+            const float clamped = PhysConstraint_ClampImpulse(c, impulse);
+            at<float>(c, 0x68) = clamped;
+            float delta = clamped - at<float>(c, 0x6c);
+            PhysConstraint_ApplyImpulse(c, &delta);
+            track_error(c, &max_change);
+            if (accumulate) PhysConstraint_AccumulateUnclamped(c, &squares, &weighted);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2d8); c; c = at<uint8_t*>(c, 0)) {
+            PhysContact140_SolveStep(c, &max_change);
+            if (accumulate) PhysJoint_AddOffsetTerms(c, &squares, &weighted);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+            at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+            Lanes w = lanes(fp(at<uint8_t*>(c, 0x8c), 0x20));
+            const uint8_t* const b = at<uint8_t*>(c, 0x90);
+            if (b) w = sub(w, lanes(fp(b, 0x20)));
+            const float v = dot3(w, lanes(fp(c, 0x10)));
+            const float old = at<float>(c, 0x68);
+            const uint32_t old_bits = at<uint32_t>(c, 0x68);
+            const float e = (at<float>(c, 0x80) * at<float>(c, 0x68) + v) - at<float>(c, 0x78);
+            at<float>(c, 0x70) = e;
+            const float impulse = old - e / at<float>(c, 0x84);
+            at<uint32_t>(c, 0x6c) = old_bits;
+            const float clamped = clamp_limits(c, impulse);
+            at<float>(c, 0x68) = clamped;
+            float delta = clamped - at<float>(c, 0x6c);
+            PhysAngularContact_ApplyImpulse(c, &delta);
+            track_error(c, &max_change);
+            if (accumulate) angular_accumulate(c, &squares, &weighted);
+        }
+        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
+            PhysJoint_SolveStep(j, &max_change);
+            if (accumulate) PhysJoint_AccumulateErrors(j, &squares, &weighted);
+        }
+        if (!accumulate) continue;
+        if (!(squares >= title_global<float>(0x007ce2f4))) continue;  // 1e-7; JB: NaN loops too
+        const float one = title_global<float>(0x0083eb20);
+        const float s = (0.0f - weighted / squares) - one;
+        if (s > title_global<float>(0x008bd5d0)) title_global<float>(0x008bd5d0) = s;
+        if (title_global<float>(0x008bd5d4) > s) title_global<float>(0x008bd5d4) = s;
+        if (!(s >= one)) continue;
+        if (!title_global<uint32_t>(0x008bd610)) continue;
+        for (uint8_t* r = at<uint8_t*>(island, 0x2c0); r; r = at<uint8_t*>(r, 0)) {
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x10 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x20 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2cc); c; c = at<uint8_t*>(c, 0)) contact_blend_apply(c, s);
+        for (uint8_t* c = at<uint8_t*>(island, 0x2d8); c; c = at<uint8_t*>(c, 0)) {
+            const Lanes old = lanes(fp(c, 0xa0));
+            const Lanes blended = add(old, mul(splat(s), sub(lanes(fp(c, 0x90)), lanes(fp(c, 0xa0)))));
+            std::memcpy(fp(c, 0x90), blended.v, 16);
+            PhysContact140_ApplyImpulse(c, fp(c, 0x90));
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+            if (c[0x88] & 1) at<float>(c, 0x68) = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * s + at<float>(c, 0x6c);
+            at<float>(c, 0x68) = clamp_limits(c, at<float>(c, 0x68));
+            PhysAngularContact_ApplyImpulse(c, fp(c, 0x68));
+        }
+        uint32_t ecx = word_addr(island);
+        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
+            PhysJoint_ApplyBlendedImpulses(j, s);
+            ecx = blended_impulses_ecx(j, callee_entry);
+        }
+        pass = static_cast<int32_t>(ecx);  // the original reuses ECX as the counter here
+        run = 0;
+    }
+    title_global<float>(0x0090a858) = max_change;
+    title_global<int32_t>(0x0090a860) = pass;
 }
 
 }  // namespace game
