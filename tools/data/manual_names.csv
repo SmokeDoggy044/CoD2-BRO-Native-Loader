@@ -14506,3 +14506,6 @@ address,name,kind,confidence,evidence
 000bf400,PhysJoint_AddOffsetTerms,function,high,"phys push 7 (2026-11-01)"
 000bf4f0,PhysFrame_Orthonormalize,function,high,"phys push 7 (2026-11-01)"
 000bf720,PhysBody_AddVelocity,function,high,"phys push 7 (2026-11-01)"
+002586f0,G_BounceMissileAngles,function,high,"ent push 4 (2026-11-01)"
+0025d520,G_TouchType14EntitiesInBox,function,high,"ent push 4 (2026-11-01)"
+0025ba30,G_VehiclePopOut,function,high,"body fixed 2026-11-01: runs to 0x0025bb5b (Ghidra had ended it at the first __break(1, Popout disabled))"

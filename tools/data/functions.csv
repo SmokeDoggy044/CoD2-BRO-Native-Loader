@@ -3101,7 +3101,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0025d520,G_TouchType14EntitiesInBox,compare,48423,24169,24112,0,57,0,"804fff2c [host] [2] 6009 vs d008; 81e23c5c [host] [2] 6009 vs d008"
 0025d7d0,G_MissileActivateDamageTriggers,compare,0,0,0,0,0,0,""
 0025d960,G_CheckHitTriggerDamage,compare,1912,1224,1224,0,0,0,""
-0025deb0,SP_script_model,compare,1103,314,295,0,19,0,"00929b40 XAPILIB::OHCD_fQueueTransferRequest+0x176c44 [.data] [1] 50 vs 40"
+0025deb0,SP_script_model,compare,1103,295,295,0,0,0,
 0025df60,G_SetEntityAnimTree,compare,1239,365,365,0,0,0,""
 0025dfc0,Door_UpdatePaths,compare,0,0,0,0,0,0,""
 0025e000,SetMoverState,compare,0,0,0,0,0,0,""

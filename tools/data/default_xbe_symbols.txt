@@ -8433,7 +8433,7 @@
 002581f0 Use_Static
 00258220 InitMoverRotate
 002583f0 InitMover
-002586f0 FUN_002586f0
+002586f0 G_BounceMissileAngles
 002589e0 Use_DropNamedItem
 00258a10 Turret_IsUsableBy
 00258a70 Turret_PlacePlayerBehind
@@ -8485,7 +8485,7 @@
 0025d050 FUN_0025d050
 0025d1e0 Turret_TryAimAtTarget
 0025d230 G_TouchEntitiesInBox
-0025d520 FUN_0025d520
+0025d520 G_TouchType14EntitiesInBox
 0025d7d0 G_MissileActivateDamageTriggers
 0025d960 G_CheckHitTriggerDamage
 0025daf0 Vehicle_SetupEntity
