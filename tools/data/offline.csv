@@ -541,6 +541,15 @@ address,name,tested,matched,nan,mismatched,coverage
 000b5980,PhysConstraintPoolE0_Reset,3538,3538,0,0,100.0
 000b59c0,PhysConstraintPoolD0_Reset,3296,3296,0,0,100.0
 000b5aa0,PhysConstraint1B0_Init,3815,3815,0,0,100.0
+000b5ae0,PhysPool1c0_Free,1650,1650,0,0,100.0
+000b5b70,PhysBodyPool_Free,1568,1568,0,0,100.0
+000b5c90,PhysConstraintPool50_Free,1655,1655,0,0,100.0
+000b5d10,PhysConstraintPoolF0_Free,1664,1664,0,0,100.0
+000b5da0,PhysConstraintPool60_Free,1583,1583,0,0,100.0
+000b5e80,PhysConstraintPoolE0_Free,1635,1635,0,0,100.0
+000b5f10,PhysConstraintPoolD0_Free,1618,1618,0,0,100.0
+000b5fe0,PhysConstraintPool_Alloc,1750,1750,0,0,93.1
+000b6040,PhysConstraintPool28c_Alloc,1646,1646,0,0,93.1
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1

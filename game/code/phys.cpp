@@ -1143,4 +1143,239 @@ void XB_CDECL Gjk_ComputeDeterminants() {
     gjk_det(15)[3] = d3;
 }
 
+
+namespace {
+
+// Frees a world pool element (element index by the signed division the title does).
+void world_pool_free(uint8_t* pool, uint32_t element, int32_t size, int32_t XB_THISCALL (*reset)(uint8_t*),
+                     bool clear_back) {
+    const int32_t index = static_cast<int32_t>(element - at<uint32_t>(pool, 0)) / size;
+    const int32_t slot = at<int32_t*>(pool, 8)[index];
+    if (at<int32_t>(pool, 0x10) == 1) {
+        reset(pool);
+        return;
+    }
+    if (clear_back) {
+        uint32_t* const back = at<uint32_t*>(reinterpret_cast<uint8_t*>(element), 0x2c);
+        if (back) *back = 0;
+    }
+    const int32_t count = at<int32_t>(pool, 0x10) - 1;
+    at<int32_t>(pool, 0x10) = count;
+    const uint32_t last = at<uint32_t*>(pool, 4)[count];
+    const int32_t last_index = static_cast<int32_t>(last - at<uint32_t>(pool, 0)) / size;
+    const uint32_t freed = at<uint32_t*>(pool, 4)[slot];
+    at<uint32_t*>(pool, 4)[slot] = last;
+    at<uint32_t*>(pool, 4)[at<int32_t>(pool, 0x10)] = freed;
+    at<int32_t*>(pool, 8)[index] = at<int32_t>(pool, 0x10);
+    at<int32_t*>(pool, 8)[last_index] = slot;
+}
+
+}  // namespace
+
+void XB_THISCALL PhysPool1c0_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x1c0, PhysPool1c0_Reset, false);
+}
+void XB_THISCALL PhysBodyPool_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x170, PhysBodyPool_Reset, false);
+}
+void XB_THISCALL PhysConstraintPool30_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x30, PhysConstraintPool30_Reset, true);
+}
+void XB_THISCALL PhysConstraintPool50_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x50, PhysConstraintPool50_Reset, false);
+}
+void XB_THISCALL PhysConstraintPoolF0_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0xf0, PhysConstraintPoolF0_Reset, false);
+}
+void XB_THISCALL PhysConstraintPool60_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x60, PhysConstraintPool60_Reset, false);
+}
+void XB_THISCALL PhysConstraintPoolE0_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0xe0, PhysConstraintPoolE0_Reset, false);
+}
+void XB_THISCALL PhysConstraintPoolD0_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0xd0, PhysConstraintPoolD0_Reset, false);
+}
+void XB_THISCALL PhysConstraintPool1B0_Free(uint8_t* pool, uint32_t element) {
+    world_pool_free(pool, element, 0x1b0, PhysConstraintPool1B0_Reset, false);
+}
+
+int32_t XB_THISCALL PhysConstraintPool1B0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x1b0); }
+
+uint8_t* XB_THISCALL PhysPairTree_AllocNode(uint8_t* tree, const uint32_t* key) {
+    uint8_t* node = nullptr;
+    const int32_t count = at<int32_t>(tree, 8);
+    if (count < at<int32_t>(tree, 4)) {
+        node = at<uint8_t*>(tree, 0) + count * 0x18;
+        at<int32_t>(tree, 8) = count + 1;
+    }
+    at<uint32_t>(node, 0) = 0;
+    at<uint32_t>(node, 4) = 0;
+    at<uint32_t>(node, 8) = 0;
+    at<uint32_t>(node, 0xc) = key[0];
+    at<uint32_t>(node, 0x10) = key[1];
+    at<uint32_t>(node, 0x14) = 0;
+    return node;
+}
+
+namespace {
+
+uint32_t* pool_alloc(uint8_t* pool) {
+    const int32_t count = at<int32_t>(pool, 0x10);
+    if (count >= at<int32_t>(pool, 0xc)) return nullptr;
+    uint32_t* const entry = at<uint32_t**>(pool, 4)[count];
+    at<int32_t>(pool, 0x10) = count + 1;
+    return entry;
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL PhysConstraintPool_Alloc(uint8_t* pool, uint32_t, uint32_t a, uint32_t b) {
+    uint32_t* const entry = pool_alloc(pool);
+    if (entry) {
+        at<int32_t>(entry, 0x30) = -1;
+        at<int32_t>(entry, 0x38) = -1;
+        at<int32_t>(entry, 0x40) = -1;
+        at<uint32_t>(entry, 0x48) = 0;  // 0.0f
+    }
+    entry[0] = a;
+    entry[1] = b;
+    return entry;
+}
+
+uint32_t* XB_CDECL PhysConstraintPool28c_Alloc(uint8_t* pool, uint32_t, uint32_t a, uint32_t b) {
+    uint32_t* const entry = pool_alloc(pool);
+    if (entry)
+        for (uint32_t offset = 0xa8; offset <= 0xc0; offset += 8) at<int32_t>(entry, offset) = -1;
+    entry[0] = a;
+    entry[1] = b;
+    return entry;
+}
+
+namespace {
+
+// Key pairs compare on the first body, then the second (unsigned).
+bool pair_less(uint32_t a0, uint32_t a1, uint32_t b0, uint32_t b1) { return a0 != b0 ? a0 < b0 : a1 < b1; }
+
+int32_t& balance(uint8_t* node) { return at<int32_t>(node, 8); }
+
+}  // namespace
+
+int32_t XB_THISCALL PhysPairTree_Insert(uint8_t* tree, uint8_t** slot) {
+    uint8_t* node = *slot;
+    if (!node) {
+        node = PhysPairTree_AllocNode(tree, at<const uint32_t*>(tree, 0x10));
+        *slot = node;
+        at<uint8_t*>(tree, 0x14) = node;
+        return 1;
+    }
+    const uint32_t* const key = at<const uint32_t*>(tree, 0x10);
+    if (pair_less(key[0], key[1], at<uint32_t>(node, 0xc), at<uint32_t>(node, 0x10))) {
+        if (!PhysPairTree_Insert(tree, reinterpret_cast<uint8_t**>(node))) return 0;  // left child at +0
+        balance(*slot) = static_cast<int32_t>(static_cast<uint32_t>(balance(*slot)) - 1u);
+        node = *slot;
+        if (balance(node) < -1) {
+            if (balance(at<uint8_t*>(node, 0)) == 1) PhysPairTree_RotateLeft(reinterpret_cast<uint8_t**>(node));
+            PhysPairTree_RotateRight(slot);
+        }
+        return balance(*slot);
+    }
+    if (pair_less(at<uint32_t>(node, 0xc), at<uint32_t>(node, 0x10), key[0], key[1])) {
+        if (!PhysPairTree_Insert(tree, reinterpret_cast<uint8_t**>(node + 4))) return 0;
+        balance(*slot) = static_cast<int32_t>(static_cast<uint32_t>(balance(*slot)) + 1u);
+        node = *slot;
+        if (balance(node) > 1) {
+            if (balance(at<uint8_t*>(node, 4)) == -1) PhysPairTree_RotateRight(reinterpret_cast<uint8_t**>(node + 4));
+            PhysPairTree_RotateLeft(slot);
+        }
+        return balance(*slot);
+    }
+    at<uint8_t*>(tree, 0x14) = node;
+    return 0;
+}
+
+// The original's frame: the sorted pair at entry - 8, EBX/EBP/ESI/EDI saved below it; the
+// insert runs at its ESP with its registers (the tree keeps the pair's address).
+PLATFORM_ASM_ENTRY(PhysWorld_GetBodyPair_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl 16(%edx)\n"
+                   "pushl 12(%edx)\n" PLATFORM_ASM_CALL(PhysWorld_GetBodyPair) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL PhysWorld_GetBodyPair(uint32_t a, uint32_t b, uint32_t entry_ebx, uint32_t entry_ebp,
+                                        uint32_t entry_esi, uint32_t entry_edi, uint32_t entry_esp) {
+    const auto word = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };
+    const uint32_t pair = entry_esp - 8;
+    word(pair) = a < b ? a : b;
+    word(pair + 4) = a < b ? b : a;
+    word(entry_esp - 0xc) = entry_ebx;
+    word(entry_esp - 0x10) = entry_ebp;
+    word(entry_esp - 0x14) = entry_esi;
+    word(entry_esp - 0x18) = entry_edi;
+    uint8_t* const tree = phys_world() + 0x1b0;
+    const uint32_t tree_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    at<uint32_t>(tree, 0x10) = pair;
+    TitleRegs regs{};
+    regs.eax = pair;
+    regs.ecx = tree_address;
+    regs.ebx = a;
+    regs.esi = tree_address;
+    regs.edi = entry_edi;
+    const uint32_t args[1] = {tree_address + 0xc};
+    const uint32_t top = entry_esp - 0x18;
+    title_call_at_regs(top, 0x000b60b0, &regs, 1, args);  // PhysPairTree_Insert
+    word(top - 8) = 0x000b6313;
+    uint8_t** const slot = reinterpret_cast<uint8_t**>(at<uint8_t*>(tree, 0x14) + 0x14);
+    if (!*slot) {
+        uint8_t* const world = phys_world();
+        uint8_t* record = nullptr;
+        const int32_t count = at<int32_t>(world, 0x20c);
+        if (count < at<int32_t>(world, 0x208)) {
+            record = at<uint8_t**>(world, 0x200)[count];
+            at<int32_t>(world, 0x20c) = count + 1;
+            if (record) {
+                for (uint32_t i = 0xc; i < 0x24; i += 4) at<uint32_t>(record, i) = 0;
+                at<uint8_t*>(record, 0x24) = record + 0xc;
+                at<uint8_t*>(record, 0x28) = record + 0x18;
+                at<uint32_t>(record, 0x2c) = 0;
+            }
+        }
+        *slot = record;
+        at<uint32_t>(record, 0) = a;
+        at<uint32_t>(record, 4) = b;
+        at<uint8_t**>(*slot, 0x2c) = slot;
+    }
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*slot));
+}
+
+void XB_THISCALL PhysConstraint28c_Setup(uint8_t* constraint, const float* v0, const float* v1, const float* v2,
+                                         uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4,
+                                         uint32_t f5, uint32_t f6) {
+    uint32_t t[4];
+    std::memcpy(t, v0, 16);
+    std::memcpy(constraint + 0x30, t, 16);
+    std::memcpy(t, v1, 16);
+    std::memcpy(constraint + 0x40, t, 16);
+    std::memcpy(t, v2, 16);
+    const uint32_t floats[7] = {f0, f1, f2, f3, f4, f5, f6};
+    for (uint32_t i = 0; i < 7; ++i) at<uint32_t>(constraint, 0x60 + i * 4) = floats[i];
+    std::memcpy(constraint + 0x50, t, 16);
+    at<uint32_t>(constraint, 0x88) = 0;
+    at<uint32_t>(constraint, 0xa0) = 1;
+    at<uint32_t>(constraint, 0xa4) = 0;
+    at<float>(constraint, 0x7c) = title_global<float>(0x0083eb20);  // 1
+    at<uint32_t>(constraint, 0x8c) = 0;
+    at<uint32_t>(constraint, 0x94) = 0;
+    at<uint32_t>(constraint, 0x90) = 0;
+    at<uint32_t>(constraint, 0x98) = 0;
+}
+
 }  // namespace game

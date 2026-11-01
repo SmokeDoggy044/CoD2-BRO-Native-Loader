@@ -150,4 +150,41 @@ uint8_t XB_THISCALL PhysOrientedBox_SweepSphere(uint8_t* shape, const float* a, 
 // 0x000b16b0: GJK sub-determinants for the simplex with the new point (globals gjk_*).
 void XB_CDECL Gjk_ComputeDeterminants();
 
+// 0x000b5ae0..0x000b5f10, 0x000b6250: world pool frees (ECX = pool, element on the stack): the last
+// used element takes the freed one's list slot; freeing the only one resets the pool. The 0x30 pool
+// first clears the word the constraint's back-pointer (+0x2c) names.
+void XB_THISCALL PhysPool1c0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysBodyPool_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool30_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool50_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolF0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool60_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolE0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolD0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool1B0_Free(uint8_t* pool, uint32_t element);
+// 0x000b61b0: world pool reset for 0x1b0 constraints.
+int32_t XB_THISCALL PhysConstraintPool1B0_Reset(uint8_t* pool);
+// 0x000b5f90: next 0x18-byte node of the pair tree (storage +0, capacity +4, used +8): children
+// and balance 0, the key pair at +0xc, payload +0x14 = 0. A full tree writes through null.
+uint8_t* XB_THISCALL PhysPairTree_AllocNode(uint8_t* tree, const uint32_t* key);
+// 0x000b5fe0 / 0x000b6040: next entry of a world pool (cdecl, second argument unused) with the
+// two bodies at +0 and +4; the 0x50 constraint gets -1 at +0x30/+0x38/+0x40 and 0 at +0x48, the
+// 0x28c one -1 at +0xa8/+0xb0/+0xb8/+0xc0. A full pool writes through null.
+uint32_t* XB_CDECL PhysConstraintPool_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+uint32_t* XB_CDECL PhysConstraintPool28c_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+// 0x000b60b0: AVL insert of the tree's key (tree +0x10 points at the pair) below *slot; the
+// node found or made goes to tree +0x14. EAX: nonzero when the subtree grew.
+int32_t XB_THISCALL PhysPairTree_Insert(uint8_t* tree, uint8_t** slot);
+// 0x000b62d0: the pair record (0x30 pool) of two bodies, made on first use (cdecl; arguments 3
+// and 4 are read). The sorted key pair is a local whose address stays in world +0x1c0 (gap entry).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysWorld_GetBodyPair(uint32_t a, uint32_t b, uint32_t entry_ebx,
+                                                                  uint32_t entry_ebp, uint32_t entry_esi,
+                                                                  uint32_t entry_edi, uint32_t entry_esp);
+extern "C" void PhysWorld_GetBodyPair_entry(void);
+// 0x000b63f0: sets up a 0x28c constraint: three vectors to +0x30/+0x40/+0x50, seven floats to
+// +0x60..+0x78, +0x7c = 1, +0x88..+0x98 = 0, +0xa0 = 1, +0xa4 = 0.
+void XB_THISCALL PhysConstraint28c_Setup(uint8_t* constraint, const float* v0, const float* v1, const float* v2,
+                                         uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4,
+                                         uint32_t f5, uint32_t f6);
+
 }  // namespace game
