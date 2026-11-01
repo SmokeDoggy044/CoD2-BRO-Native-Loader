@@ -422,4 +422,107 @@ uint32_t XB_CDECL SpotWouldTelefrag(const float* origin) {
     return 0;
 }
 
+void XB_CDECL P_DamageFeedback(uint8_t* player) {
+    // Q3's P_DamageFeedback on the player state (+0x23c): below pm_type 4 with damage taken
+    // (+0x5d4) and a max health (+0x580): the blend count (damage * 100 / max, at most 127)
+    // adds to the red blend (+0x4f0, at most 255); the damage direction as pitch/yaw bytes
+    // (+0xf4 / +0xf0; both 255 for damage without a direction, +0x5e4); the pain event
+    // (0xc0, health percent 0..100) at most every 700 ms (+0x634) unless +0x2a4 bit 0; then
+    // the damage event count (+0xec), the count (+0xf8) and the damage reset.
+    uint8_t* const ps = pointer_at(player, 0x23c);
+    if (field<int32_t>(ps, 0x24) >= 4) return;
+    const int32_t damage = field<int32_t>(ps, 0x5d4);
+    if (damage <= 0) return;
+    const int32_t max_health = field<int32_t>(ps, 0x580);
+    if (max_health <= 0) return;
+    int32_t count = damage * 100 / max_health;
+    if (count > 0x7f) count = 0x7f;
+    const float limit = title_global<float>(0x0083eb8c);  // 255
+    const float blend = static_cast<float>(count) + field<float>(ps, 0x4f0);
+    field<float>(ps, 0x4f0) = blend;
+    if (blend > limit) field<float>(ps, 0x4f0) = limit;
+    int32_t pitch;
+    if (field<uint32_t>(ps, 0x5e4)) {
+        pitch = 0xff;
+        field<int32_t>(ps, 0xf0) = 0xff;
+        field<uint32_t>(ps, 0x5e4) = 0;
+    } else {
+        float angles[3];
+        vectoangles(reinterpret_cast<const float*>(ps + 0x5d8), angles);
+        const float scale = title_global<float>(0x0083eff0);  // 256/360
+        pitch = static_cast<int32_t>(angles[0] * scale);
+        field<int32_t>(ps, 0xf0) = static_cast<int32_t>(angles[1] * scale);
+    }
+    field<int32_t>(ps, 0xf4) = pitch;
+    if (title_global<int32_t>(0x0098540c) > field<int32_t>(pointer_at(player, 0x23c), 0x634) &&
+        !(player[0x2a4] & 1)) {
+        float health = static_cast<float>(field<int32_t>(ps, 0x100)) / static_cast<float>(field<int32_t>(ps, 0x108));
+        health = health * title_global<float>(0x0083eb90);  // 100
+        int32_t percent = static_cast<int32_t>(health);
+        if (percent < 0)
+            percent = 0;
+        else if (percent > 100)
+            percent = 100;
+        G_AddEvent(player, 0xc0, static_cast<uint32_t>(percent));
+        field<int32_t>(pointer_at(player, 0x23c), 0x634) = title_global<int32_t>(0x0098540c) + 700;
+    }
+    field<int32_t>(ps, 0xec) = field<int32_t>(ps, 0xec) + 1;
+    field<int32_t>(ps, 0xf8) = count;
+    field<int32_t>(ps, 0x5d4) = 0;
+}
+
+uint32_t XB_CDECL SelectRandomDeathmatchSpawnPoint() {
+    // Q3's SelectRandomDeathmatchSpawnPoint: up to 128 info_player_deathmatch spots that would
+    // not telefrag, one of them at random (_rand % count); with none free the first spot found
+    // (with no spots at all the original returns an unwritten stack word: zero in tests).
+    uint32_t found[0x1001];
+    found[0] = 0;
+    found[1] = 0;
+    G_GatherEntsByIntField(found, 0x260, title_global<uint32_t>(0x0097a700));  // classname
+    uint32_t spots[0x80];
+    int32_t count = 0;
+    const uint32_t total = found[0];
+    for (uint32_t i = 0; i < total; ++i) {
+        const uint32_t spot = found[1 + i];
+        if (static_cast<uint8_t>(SpotWouldTelefrag(reinterpret_cast<const float*>(static_cast<uintptr_t>(spot + 0x140)))))
+            continue;
+        if (count >= 0x80) continue;
+        spots[count] = spot;
+        ++count;
+    }
+    if (!count) return found[1];
+    const int32_t pick = title_function<int32_t XB_CDECL()>(0x001efcc0)() % count;  // _rand
+    return spots[pick];
+}
+
+PLATFORM_ASM_ENTRY(SelectSpawnPoint_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SelectSpawnPoint) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL SelectSpawnPoint(const float* avoid, float* angles, float* origin) {
+    // Q3's SelectSpawnPoint: a random deathmatch spot, up to three tries to avoid the one
+    // nearest `avoid`; origin raised 9 units, its angles.
+    const uint32_t nearest = SelectNearestDeathmatchSpawnPoint(avoid);
+    uint32_t spot = SelectRandomDeathmatchSpawnPoint();
+    if (spot == nearest) {
+        spot = SelectRandomDeathmatchSpawnPoint();
+        if (spot == nearest) spot = SelectRandomDeathmatchSpawnPoint();
+    }
+    if (!spot)
+        title_function<int32_t XB_CDECL(const char*)>(0x00248af0)(
+            reinterpret_cast<const char*>(uintptr_t{0x0083bdd8}));  // G_Error "Couldn't find a spawn point"
+    uint8_t* const e = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(spot));
+    uint32_t* const out = reinterpret_cast<uint32_t*>(origin);
+    out[0] = field<uint32_t>(e, 0x140);
+    out[1] = field<uint32_t>(e, 0x144);
+    origin[2] = field<float>(e, 0x148) + title_global<float>(0x0083eef8);
+    uint32_t* const ang = reinterpret_cast<uint32_t*>(angles);
+    ang[0] = field<uint32_t>(e, 0x150);
+    ang[1] = field<uint32_t>(e, 0x154);
+    ang[2] = field<uint32_t>(e, 0x158);
+    return e;
+}
+
 }  // namespace game

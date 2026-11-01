@@ -930,4 +930,212 @@ uint32_t XB_REGS3 XB_CDECL G_FreeFarthestDroppedItem(int32_t index, uint32_t, ui
     return chosen;
 }
 
+// The menu text setters keep a stack address in heap word 0x100006a8: every call outside the
+// success loop runs at the original's ESP (entry - 0x94), the C frame below a gap.
+PLATFORM_ASM_ENTRY(G_CheckMissionEnd_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(G_CheckMissionEnd) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
+    // Once the mission-end time (0x00985e28) has passed: the first frame stops sounds and rumble
+    // and arms 0x0095f67c; the next one shows the outcome. Success (0x00985eb8): the success
+    // menu (6) over a full-screen texture of the campaign (suc_afr / suc_sic / suc_eur in the
+    // language folder) in a frame loop of its own that never returns (pauses with the pad
+    // pulled, A resumes); failure (0x00985ebc): effects freed and the failed menu with its text;
+    // else by 0x0095bf9c: "reboot" (4), G_EndGame (16) or "opendeadscreen".
+    using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    const auto text = [](uint32_t address) { return reinterpret_cast<const char*>(static_cast<uintptr_t>(address)); };
+    const auto at = [](uint32_t value) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(value)); };
+    // The front end's menu stack (0x0095f8fc): +4 -> +0x18 = the success/fail menu; slot 3 opens a menu.
+    const auto menu = []() { return title_global<uint32_t>(word_at(title_global<uint8_t*>(0x0095f8fc), 4) + 0x18); };
+    const uint32_t top = entry_esp - 0x94;  // sub esp,0x84; four pushes
+    const auto call = [top](uint32_t function, const TitleRegs& regs, uint32_t count, const uint32_t* args) {
+        return title_call_at_regs(top, function, &regs, count, args);
+    };
+    const auto cvar_paused = [&call](uint32_t value) {
+        const uint32_t args[3] = {0x0082ca00, value, 1};
+        call(0x0029c030, TitleRegs{}, 3, args);  // Cvar_Set2("cl_paused", value, 1)
+    };
+    const auto open_menu = [&at, &call]() {
+        uint8_t* const root = title_global<uint8_t*>(0x0095f8fc);
+        const uint32_t six = 6;
+        call(word_at(at(word_at(root, 0)), 0xc), TitleRegs{0, 0, address(root), 0, 0, 0}, 1, &six);  // thiscall
+    };
+    const auto stop_sounds = [&call]() {
+        call(0x002c8d60, TitleRegs{0, title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0}, 0, nullptr);  // S_StopAllSounds (EBX)
+        call(0x00298b20, TitleRegs{title_global<uint32_t>(0x0095f5c4), 0, 0, 0, 0, 0}, 0, nullptr);  // rumble stop (EAX)
+    };
+    if (title_global<uint32_t>(0x00985eb0)) {
+        title_global<uint32_t>(0x00985eb0) = 0;
+        call(0x002512d0, TitleRegs{}, 0, nullptr);  // G_StartMissionEndFade
+    }
+    const uint32_t kind = title_global<uint32_t>(0x0095bf9c);
+    if (!kind) return;
+    const int32_t end_time = title_global<int32_t>(0x00985e28);
+    if (!end_time || end_time >= title_global<int32_t>(0x0098540c)) return;
+    if (!title_global<uint8_t>(0x0095f67c)) {
+        const uint32_t list = 0x008dd1d8;
+        call(0x002fc2a0, TitleRegs{}, 1, &list);  // stdcall
+        stop_sounds();
+        title_global<uint8_t>(0x0095f509) = 1;
+        title_global<uint8_t>(0x0095f67c) = 1;
+        return;
+    }
+    title_global<uint8_t>(0x0095f67c) = 0;
+    if (title_global<uint32_t>(0x00985eb8)) {
+        stop_sounds();
+        cvar_paused(0x0082e058);  // "1"
+        title_global<uint8_t>(0x0095f919) = 1;
+        word_at(at(menu()), 0x58) = 0;
+        call(0x0030cfb0, TitleRegs{0, 0, 0, 0, menu(), 0}, 0, nullptr);  // MissionSuccessFailMenu_ClearTexts (ESI)
+        open_menu();
+        uint32_t language = 0x0082d014;  // "en"
+        switch (title_global<int32_t>(0x0095f5dc)) {  // g_languageIndex, case table 0x0025308c
+        case 1: language = 0x0082d010; break;  // "de"
+        case 2: language = 0x0082d008; break;  // "fr"
+        case 3: language = 0x0082d004; break;  // "es"
+        case 4: language = 0x0082d00c; break;  // "it"
+        default: break;
+        }
+        using Va = char* XB_CDECL(const char*, ...);
+        const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+        uint32_t format = 0x0083b364;  // "textures\%s\suc_eur.dds"
+        if (chapter > 1 && chapter < 10) format = chapter <= 6 ? 0x0083b34c : 0x0083b334;  // suc_afr / suc_sic
+        const char* const path = title_function<Va>(0x002a93d0)(text(format), text(language));
+        const int32_t file = title_function<int32_t XB_CDECL(uint32_t, const char*)>(0x000c9d40)(
+            title_global<uint32_t>(0x0095f6f4), path);  // File_OpenRead
+        const uint32_t size = title_function<uint32_t XB_CDECL(int32_t)>(0x000c9d10)(file);  // File_GetSize
+        const uint32_t padded = (size + 0x7fff) & 0xffff8000u;
+        const uint32_t data =
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00093950)(padded, 0x80, 0x30000);  // Mem_AlignedAlloc
+        title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t)>(0x000caff0)(file, data, 0, padded);  // File_ReadAt
+        uint32_t name = 0;
+        title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(&name, text(0x0083b32c));  // HashStr_Init "texSuc"
+        const uint32_t texture = title_function<uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t)>(0x000635a0)(
+            &name, 0, data, size);  // nglLoadTexture
+        uint32_t quad[0x19] = {};
+        title_function<void XB_CDECL(uint32_t*)>(0x0005ddb0)(quad);  // nglInitQuad
+        title_function<void XB_CDECL(uint32_t*, float, float, float, float)>(0x0005ded0)(quad, 0.0f, 0.0f, 640.0f,
+                                                                                         480.0f);  // nglSetQuadRect
+        title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x0005de20)(quad, texture);  // nglSetQuadTexture
+        title_function<void XB_CDECL(uint32_t*, float)>(0x0005df20)(quad, 300.0f);    // nglSetQuadZ
+        using PadCreate = uint32_t XB_CDECL();
+        for (;;) {
+            title_function<uint32_t XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+            {
+                const TitleRegs pad{0, 0, title_function<PadCreate>(0x00055e40)(), 0, 0, 0};
+                g_ent_call(0x00055e70, &pad, 0, nullptr);  // IN_PadUpdate (ECX)
+            }
+            const uint32_t controller = title_global<uint32_t>(0x008d50d8);
+            const uint32_t pad = title_function<PadCreate>(0x00055e40)();
+            if (!(title_function<uint8_t XB_THISCALL(uint32_t, uint32_t)>(0x000560e0)(pad, controller))) {  // IN_PadIsConnected
+                title_global<uint8_t>(0x008d50dc) = 0;
+                if (!title_global<uint32_t>(0x0095f8f4) || title_global<uint8_t>(0x0095f538)) continue;
+                const TitleRegs pause{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
+                g_ent_call(0x002b6be0, &pause, 0, nullptr);  // S_PauseAllChannels (EAX)
+                title_function<void XB_STDCALL(uint32_t)>(0x002c8f60)(title_global<uint32_t>(0x0095f4c0));  // S_CheckWaveBankNotifies
+                const uint32_t paused = word_at(title_global<uint8_t*>(0x0093fcd8), 0x20);
+                title_global<uint8_t>(0x0095f539) = paused != 0;
+                title_function<CvarSet>(0x0029c030)(text(0x0082ca00), text(0x0082e058), 1);  // cl_paused "1"
+                const TitleRegs draw{0, 0, 0, 0, 0x0095f8d0, paused};
+                g_ent_call(0x0030f190, &draw, 0, nullptr);  // a paused frame (ESI = g_uiRoot)
+                title_global<uint8_t>(0x0095f538) = 1;
+                continue;
+            }
+            title_global<uint8_t>(0x008d50dc) = 1;
+            if (title_global<uint8_t>(0x0095f538)) {
+                const uint32_t pressed_controller = title_global<uint32_t>(0x008d50d8);
+                const uint32_t pressed_pad = title_function<PadCreate>(0x00055e40)();
+                if (!(title_function<uint8_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00056580)(
+                        pressed_pad, pressed_controller, 0xe)))  // IN_PadButtonPressed
+                    continue;
+                const TitleRegs resume{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
+                g_ent_call(0x002b6ba0, &resume, 0, nullptr);  // S_ResumeAllChannels (EAX)
+                title_function<CvarSet>(0x0029c030)(
+                    text(0x0082ca00), text(title_global<uint8_t>(0x0095f539) ? 0x0082e058 : 0x0082e098), 1);  // cl_paused
+                title_global<uint8_t>(0x0095f538) = 0;
+                const uint32_t consume_pad = title_function<PadCreate>(0x00055e40)();
+                const TitleRegs consume{0, consume_pad, 0, 0, 0, title_global<uint32_t>(0x008d50d8)};
+                g_ent_call(0x00011b80, &consume, 0, nullptr);  // IN_PadConsumeAllPressed (EDI)
+            }
+            using Set = void XB_CDECL(uint32_t);
+            title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+            title_function<Set>(0x00062fc0)(0);  // nglPushScene
+            title_function<Set>(0x0005e430)(0);  // nglSetClearFlags
+            title_function<Set>(0x0005e4b0)(0);  // nglSetSceneDepthTest
+            title_function<Set>(0x0005e490)(0);  // nglSetSceneDepthEnable
+            title_function<void XB_CDECL(const uint32_t*)>(0x0005e270)(quad);  // nglListAddQuad
+            title_function<void XB_CDECL()>(0x0005e730)();                     // nglPopScene
+            title_function<Set>(0x00062fc0)(0);
+            title_function<Set>(0x0005e430)(0);
+            title_function<Set>(0x0005e4b0)(0);
+            title_function<Set>(0x0005e490)(0);
+            const TitleRegs ui{0, 0, 0, 0, 0x0095f8d0, 0};
+            g_ent_call(0x003153d0, &ui, 0, nullptr);         // UIRoot_DrawInGameScreens (ESI)
+            title_function<void XB_CDECL()>(0x0005e730)();  // nglPopScene
+            title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+            const uint32_t dt = title_global<uint32_t>(0x008ddaa0);
+            g_ent_call(0x00315520, &ui, 1, &dt);  // UIRoot_UpdateInGameScreens (ESI, stdcall)
+        }
+    }
+    if (title_global<uint32_t>(0x00985ebc)) {
+        call(0x0029b860, TitleRegs{0, 0, 0, 0, title_global<uint32_t>(0x0095f5b4), 0}, 0, nullptr);  // FX_FreeAllEffects (ESI)
+        stop_sounds();
+        cvar_paused(0x0082e058);  // "1"
+        title_global<uint8_t>(0x0095f919) = 1;
+        word_at(at(menu()), 0x58) = 1;
+        const uint32_t reason = title_global<uint32_t>(0x00985ec0);
+        const uint32_t failed = reason ? reason + 6 : 0;
+        call(0x0030cfd0, TitleRegs{0, 0, 0, 0, menu(), 0}, 1, &failed);  // MissionSuccessFailMenu_SetFailedText (ESI, stdcall)
+        open_menu();
+        return;
+    }
+    if (kind == 4) {
+        call(0x002b1eb0, TitleRegs{0x0082c894, 0, 0, 0, 0, 0}, 0, nullptr);  // Cmd_ExecuteRegisteredCommand "reboot"
+    } else if (kind == 0x10) {
+        call(0x0024acb0, TitleRegs{}, 0, nullptr);  // G_EndGame
+    } else {
+        const uint32_t zero = 0;
+        call(0x002bffd0, TitleRegs{0x00838c14, 0, 0, 0, 0, 0}, 1, &zero);  // SV_GameSendServerCommand "opendeadscreen"
+    }
+    title_global<int32_t>(0x00985e28) = 0;
+}
+
+void XB_CDECL G_InitSkillCvars(uint32_t restore) {
+    // G_RegisterCvars; with `restore` the skill level and g_player_maxhealth from before come
+    // back (copies in 0x00950cec / 0x00950ce8). Then four vmCvars are reset: 0x00947f98 to "0"
+    // (through "%i"), 0x0094c230 and vm_cl_stance to "0", 0x0094a3b8 to "1".
+    using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    using Va = char* XB_CDECL(const char*, ...);
+    const auto text = [](uint32_t address) { return reinterpret_cast<const char*>(static_cast<uintptr_t>(address)); };
+    int32_t skill = 0;
+    int32_t health = 0;
+    if (restore) {
+        skill = title_global<int32_t>(0x00950b3c);  // g_skillLevel
+        health = static_cast<int32_t>(word_at(Cvar_Get(text(0x00832ff8), text(0x0082e058), 0), 0x20));  // g_player_maxhealth
+    }
+    G_RegisterCvars();
+    if (restore) {
+        Cvar_SetValue(text(0x00832fec), static_cast<float>(skill));  // g_gameskill
+        const float value = static_cast<float>(health);
+        title_global<int32_t>(0x00950b3c) = skill;
+        Cvar_SetValue(text(0x00832ff8), value);
+        title_global<int32_t>(0x00950cec) = health;
+        title_global<float>(0x00950ce8) = value;
+    }
+    const auto reset = [&text](uint32_t vm_cvar, const char* value) {
+        const uint32_t index = title_global<uint32_t>(vm_cvar);
+        title_function<CvarSet>(0x0029c030)(text(title_global<uint32_t>(0x00940a10 + index * 0x2c)), value, 1);  // cvar_indexes
+        Cvar_Update(&title_global<uint8_t>(vm_cvar));
+    };
+    reset(0x00947f98, title_function<Va>(0x002a93d0)(text(0x0082ded4), 0));  // "%i"
+    reset(0x0094c230, text(0x0082e098));
+    reset(0x00948778, text(0x0082e098));  // vm_cl_stance
+    reset(0x0094a3b8, text(0x0082e058));
+}
+
 }  // namespace game

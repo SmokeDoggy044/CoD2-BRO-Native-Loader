@@ -26,4 +26,23 @@ void XB_CDECL SP_info_player_start(uint8_t* ent);
 // 0x0024f9a0: the sky portal configstring (10): origin, fov, fog colour/near/far.
 void XB_CDECL SP_skyportal(uint8_t* ent);
 
+// 0x00255150 (entity in EBX): Q3's InitTrigger without the link.
+extern "C" PLATFORM_HIDDEN void XB_CDECL InitTrigger(uint8_t* ent);
+extern "C" void InitTrigger_entry(void);
+
+// 0x002591e0: spawn for trigger_mount.
+void XB_CDECL SP_trigger_mount(uint8_t* ent);
+// 0x00259230: spawn for trigger_lookat.
+void XB_CDECL SP_trigger_lookat(uint8_t* ent);
+// 0x00259260: spawn for trigger_damage.
+void XB_CDECL SP_trigger_damage(uint8_t* ent);
+// 0x002593b0: spawn for trigger_once.
+void XB_CDECL SP_trigger_once(uint8_t* ent);
+// 0x002593f0: spawn for trigger_hurt.
+void XB_CDECL SP_trigger_hurt(uint8_t* ent);
+// 0x002594e0: spawn for trigger_friendlychain.
+void XB_CDECL SP_trigger_friendlychain(uint8_t* ent);
+// 0x00259530: spawn for trigger_multiple.
+void XB_CDECL SP_trigger_multiple(uint8_t* ent);
+
 }  // namespace game

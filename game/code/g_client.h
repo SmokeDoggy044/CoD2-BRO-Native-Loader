@@ -47,4 +47,13 @@ extern "C" void LookAtKiller_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SpotWouldTelefrag(const float* origin);
 extern "C" void SpotWouldTelefrag_entry(void);
 
+// 0x00253b30: Q3's P_DamageFeedback (blend, damage angles, pain event).
+void XB_CDECL P_DamageFeedback(uint8_t* player);
+// 0x00254fa0: a random free info_player_deathmatch (else the first one).
+uint32_t XB_CDECL SelectRandomDeathmatchSpawnPoint();
+
+// 0x00259000 (avoid point in EAX, angles out in EBX; cdecl origin out): Q3's SelectSpawnPoint.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL SelectSpawnPoint(const float* avoid, float* angles, float* origin);
+extern "C" void SelectSpawnPoint_entry(void);
+
 }  // namespace game
