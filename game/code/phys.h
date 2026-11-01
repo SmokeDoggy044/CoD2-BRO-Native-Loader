@@ -53,4 +53,28 @@ uint8_t XB_THISCALL PhysCapsule_SphereContact(uint8_t* shape, const float* p, fl
 // 0x000ada90: does the segment a-b (direction dir) hit the box (vtable slot)? AL.
 uint8_t XB_THISCALL PhysBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir, uint32_t unused);
 
+// 0x000afde0: box shape constructor (centre, half extents); returns the box.
+uint8_t* XB_THISCALL PhysBox_Construct(uint8_t* box, const float* center, const float* extent);
+// 0x000affc0: squared distance from p to the box.
+float XB_CDECL PhysBox_PointDistanceSq(const float* p, const uint8_t* box);
+// 0x000b07a0: p in the frame strictly inside the box? AL.
+uint8_t XB_CDECL PhysBox_ContainsPointInFrame(const uint8_t* box, const float* frame, const float* p);
+// 0x000b08c0: sphere shape in the frame overlapping the box? AL.
+uint8_t XB_CDECL PhysBox_OverlapsSphereInFrame(const uint8_t* box, const float* frame, const uint8_t* sphere);
+// 0x000b1500: squared distance from p (moved into the frame) to the box.
+float XB_CDECL PhysBox_PointDistanceSqInFrame(const float* p, const uint8_t* box, const float* frame);
+// 0x000b25d0: GJK contact of two shapes with a 0.03 inset.
+int32_t XB_CDECL Phys_GjkContact(uint32_t a, uint32_t b, uint32_t c, float* out);
+
+// 0x000ad770: box against the ray a-b (vtable); hit = point, normal; *depth when given. AL.
+uint8_t XB_THISCALL PhysBox_IntersectRay(uint8_t* box, const float* a, const float* b, float* out, uint32_t unused,
+                                         float* depth);
+// 0x000af800, 0x000afbd0: oriented box against a ray / a segment (vtable), in the box frame. AL.
+uint8_t XB_THISCALL PhysOrientedBox_IntersectRay(uint8_t* shape, const float* a, const float* b, float* out,
+                                                 uint32_t arg4, float* depth);
+uint8_t XB_THISCALL PhysOrientedBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir,
+                                                     uint32_t arg4);
+// 0x000b26c0: contact of a sphere shape in a frame with another shape (GJK refined). AL.
+uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* frame, uint8_t* shape, float* out);
+
 }  // namespace game
