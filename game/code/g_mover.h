@@ -199,4 +199,96 @@ extern "C" void Turret_CanTargetSentient_entry(void);
 uint32_t XB_CDECL Turret_ComputeAimPoint(uint8_t* ent, uint8_t* sentient, uint32_t aiming, int32_t converge,
                                          float* angles);
 
+// 0x00265900 (actor in EDI, duration in EBX): starts entering prone (+0x198 {state, start, blend}):
+// an expired blend cleared; restarts now with BG_CheckProne into +0x194 unless a blend with another
+// duration runs (then started earlier by its fraction).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_EnterProne(uint8_t* actor, int32_t duration);
+extern "C" void Actor_EnterProne_entry(void);
+// 0x00266d70 (door in EBX): Q3's Think_SpawnNewDoorTrigger; returns the trigger entity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Think_SpawnNewDoorTrigger(uint8_t* ent);
+extern "C" void Think_SpawnNewDoorTrigger_entry(void);
+// 0x0026b920: the trigger with contents 0x1c0000; doors spawned open (+0x2a0 bit 1) turn.
+void XB_CDECL Think_SpawnNewDoorTriggerRotate(uint8_t* ent);
+// 0x0026b950: think wrapper (EBX = the entity) of Think_SpawnNewDoorTrigger.
+void XB_CDECL Think_SpawnNewDoorTrigger_Entry(uint8_t* ent);
+// 0x00265630 (cdecl entity): the cell, a reset when not in water, traces up/down to the floor.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void Think_DropToFloor_entry(void);
+// 0x002650b0 (origin in EDI, cdecl target): Q3's CanDamage over five points.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void CanDamage_entry(void);
+// 0x00267660 (direction in EAX, start in ECX; cdecl owner, fuse seconds): the missile entity.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start,
+                                                             uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void fire_projectile_entry(void);
+// 0x00264b60 (cdecl item, caller's second word): Q3's FinishSpawningItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void FinishSpawningItem_entry(void);
+// 0x002631a0 (cdecl turret): the pitch from the aim tag at which a trace toward the butt offset hits.
+extern "C" PLATFORM_HIDDEN void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                           uint32_t ebp);
+extern "C" void turret_think_init_entry(void);
+
+// 0x002679c0: think 0xb after the weapon's fire delay (+0x754) and the "MP_Artillery_Fire" sound.
+uint32_t XB_CDECL Artillery_Fire(uint8_t* ent);
+// 0x00267a10: drops the item named by +0x3b8 in place (vtos of the origin when that fails).
+void XB_CDECL Think_DropNamedItem(uint8_t* ent);
+// 0x00267a50 (actor in ECX, cdecl turret): 1 without an enemy or one 256+ units away, else
+// Actor_TurretCanTargetEnemy. Proposed name (was FUN_00267a50).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TurretCheckNearEnemy(uint32_t entry, uint8_t* actor, uint32_t ebx,
+                                                                        uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_TurretCheckNearEnemy_entry(void);
+// 0x00267ac0 (cdecl turret): the auto-targeting turret's sentient (current one, else the nearest
+// targetable of the enemy teams, one candidate per call); 0 for none.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32_t esi,
+                                                                       uint32_t edi, uint32_t ebp);
+extern "C" void Turret_PickSentientTarget_entry(void);
+// 0x00267c30 (turret in EDI, aiming in EDX, convergence in ECX; cdecl sentient): aims; 1 when it can.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_AimAtTarget(uint8_t* ent, uint32_t aiming, int32_t converge,
+                                                                uint8_t* sentient);
+extern "C" void Turret_AimAtTarget_entry(void);
+// 0x00268770 (player in EDI, cdecl item): health pickup; returns -1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Pickup_Health(uint8_t* other, uint8_t* ent);
+extern "C" void Pickup_Health_entry(void);
+// 0x00269450: Q3's player_die (self, inflictor, attacker, damage, means of death, weapon).
+void XB_CDECL player_die(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, int32_t damage, uint32_t mod,
+                         uint32_t weapon);
+// 0x00269570: the player's sentient claims the nearest path node within 32 units.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                 uint32_t ebp);
+extern "C" void G_UpdatePlayerNodeClaim_entry(void);
+// 0x00269700 (player in EBX): Weapon_MeleeTrace from the view axis and origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_PlayerMelee(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void G_PlayerMelee_entry(void);
+// 0x00269cb0 (entity in EDI): Q3's G_CallSpawn (spawn map, actor_*, items).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                uint32_t ebp);
+extern "C" void G_CallSpawnByClassname_entry(void);
+// 0x00269d80: spawn function of script_vehicle ("vehicletype" key).
+void XB_CDECL SP_script_vehicle(uint8_t* ent);
+
+// 0x00268e60: Q3's G_RadiusDamage (origin, inflictor, attacker, max, min, radius, ignore, means of
+// death); 1 when another client with health was hit.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_RadiusDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void G_RadiusDamage_entry(void);
+// 0x0026a130 (mover in EAX): the player stuck in the mover is pushed, moved free or killed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Mover_UnstickPlayer(uint32_t entry, uint8_t* mover, uint32_t ebx, uint32_t esi,
+                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Mover_UnstickPlayer_entry(void);
+// 0x0026c4d0 (actor in ECX, turret in EDI): whether the actor can use the turret.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanUseTurret(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi,
+                                                                uint32_t edi, uint32_t ebp);
+extern "C" void Actor_CanUseTurret_entry(void);
+// 0x0026cd70 (turret in EAX): the auto-targeting turret's think step.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi,
+                                                                uint32_t edi, uint32_t ebp, uint32_t edx);
+extern "C" void Turret_ThinkAutoTarget_entry(void);
+// 0x0026d0d0: Q3's Touch_Item (item, player, touched flag).
+void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched);
+
 }  // namespace game
