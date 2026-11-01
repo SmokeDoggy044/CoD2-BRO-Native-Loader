@@ -2811,7 +2811,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00211970,Actor_Grenade_FindThrowbackVelocity,compare,0,0,0,0,0,0,""
 00211b00,Actor_ComputeShotSpread,compare,0,0,0,0,0,0,""
 00211cb0,Actor_RollHit,compare,1058,66,66,0,0,0,""
-00211db0,G_UpdateGroundTilt,compare,1623,701,691,0,10,0,"new got Segmentation fault at 002ad810 FUN_002ad810 [.text], address 00000200"
+00211db0,G_UpdateGroundTilt,compare,1623,685,685,0,0,0,
 00212060,Actor_UpdateVisibilityIfNeeded,compare,83,11,11,0,0,0,""
 00212190,Actor_UpdateVisibilityIfStale,compare,4456,39,39,0,0,0,""
 00212450,Path_RefreshLookahead,compare,3462,2677,2677,0,0,0,""
