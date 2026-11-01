@@ -737,4 +737,49 @@ extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimNotify_Init(uint32_t entry, uin
                                                              uint32_t handle);
 extern "C" void AnimNotify_Init_entry(void);
 
+// 0x00200450: stack node (ret 4): plays the next variant of a pending anim notify (frame rebuilt).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimNotify_PlayNext(uint32_t entry, uint8_t* node, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp);
+extern "C" void AnimNotify_PlayNext_entry(void);
+// 0x00203280: EAX pending notify node: ends / replays it on "end"/"finish" notetracks, starts new ones.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t ebx,
+                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Scr_DispatchAnimNotetrack_entry(void);
+// 0x00205c00: the actor releases its turret (owner change notifies, relink / unlink).
+void XB_CDECL Actor_ReleaseTurret(uint8_t* actor);
+// 0x00205cb0: turret state start (ECX actor, EDX previous state).
+uint32_t XB_REGS3 XB_CDECL Actor_Turret_Start(uint32_t, uint32_t previous, uint8_t* actor);
+// 0x00205dd0: ESI actor: applies the requested move mode and anim script.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateAnimScript(uint8_t* actor);
+extern "C" void Actor_UpdateAnimScript_entry(void);
+// 0x00205ef0: ESI actor: releases the turret if it is the user; turret pointer cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_LeaveTurret(uint8_t* actor);
+extern "C" void Actor_LeaveTurret_entry(void);
+// 0x00205f40: turret state pain (ECX actor, EDX attacker, ret 0x14).
+void XB_REGS3 XB_STDCALL Actor_Turret_Pain(uint32_t, const uint8_t* attacker, uint8_t* actor, uint32_t, uint32_t,
+                                           uint32_t, uint32_t, uint32_t);
+// 0x00205fd0: turret state finish (ECX actor).
+void XB_THISCALL Actor_Turret_Finish(uint8_t* actor);
+// 0x00206020: EAX duration, EDX arc: creates an arc bad place for a team.
+void XB_REGS2 XB_CDECL BadPlace_Create(int32_t duration, const uint32_t* arc, const ScriptString* name, uint32_t team);
+// 0x00206080: EDI actor, stdcall (origin, direction): "tag_flash" muzzle, cached per frame.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GetMuzzleInfo(uint8_t* actor, uint8_t* origin, uint8_t* direction);
+extern "C" void Actor_GetMuzzleInfo_entry(void);
+// 0x002061b0: EDI actor: eye origin / look direction, cached per frame.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RefreshEyeOrigin(uint8_t* actor);
+extern "C" void Actor_RefreshEyeOrigin_entry(void);
+// 0x00206300: think of a linked actor entity.
+void XB_CDECL Actor_ThinkLinked(uint8_t* ent);
+// 0x00206360: EAX actor: frees the actor and its sentient.
+void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor);
+// 0x00206580: EAX actor, ESI out: eye origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GetEyePosition(uint8_t* actor, uint8_t* out);
+extern "C" void Actor_GetEyePosition_entry(void);
+// 0x002065b0: EBX spawn template, stack actor: team, names, weapon, random model.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor);
+extern "C" void Actor_ApplySpawnTemplate_entry(void);
+// 0x002066e0: EAX sentient, ECX out: eye origin (actor eye, client view height + lean, or +64).
+void XB_REGS3 XB_CDECL Sentient_EyeOrigin(const uint8_t* sentient, uint32_t, uint8_t* out);
+
+
 }  // namespace game
