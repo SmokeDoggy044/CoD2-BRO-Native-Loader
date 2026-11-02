@@ -2160,8 +2160,8 @@ void XB_CDECL Actor_FindNearbyActor(uint8_t* actor) {
     if (field<uint32_t>(actor, 0x1390)) return;
     const uint8_t* ent = field<const uint8_t*>(actor, 0);
     const float origin[3] = {field<float>(ent, 0x140), field<float>(ent, 0x144), field<float>(ent, 0x148)};
-    // Cowering from a grenade or standing on its node: only actors on the move (handle +0x39c to an
-    // entity without a sentient) count.
+    // Cowering from a grenade or standing on its node: only actors whose handle +0x39c leads to an
+    // entity with +0x244 set count (0x0020301f jne: select).
     const bool settled = field<uint32_t>(actor, 0x250) == 0x00987bc8 || Actor_IsAtClaimedNode(0, actor);
     for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
         uint8_t* other = title_global<uint8_t*>(slot);
@@ -2174,7 +2174,7 @@ void XB_CDECL Actor_FindNearbyActor(uint8_t* actor) {
         if (dy * dy + dx * dx >= title_global<float>(0x0083ee3c)) continue;
         if (settled) {
             if (!field<uint32_t>(other, 0x39c)) continue;
-            if (field<uint32_t>(G_EntHandleToEnt(&field<uint32_t>(other, 0x39c)), 0x244)) continue;
+            if (!field<uint32_t>(G_EntHandleToEnt(&field<uint32_t>(other, 0x39c)), 0x244)) continue;
         }
         field<uint32_t>(actor, 0x1390) = field<uint32_t>(other, 0);
         return;
