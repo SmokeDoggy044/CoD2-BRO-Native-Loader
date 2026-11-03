@@ -198,4 +198,13 @@ extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry
                                                                  int32_t plane_count, int32_t* count_out);
 extern "C" void PathNode_FindNearest_entry(void);
 
+// 0x002eabb0: TODO.
+// 0x002eabb0 (count out in EAX, list in EDX, origin in ESI; cdecl max nodes, type mask, radius): PathNode_FindNearest
+// with no planes. No code references. `entry` = the original's ESP at its entry.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_FindNearestNoPlanes(uint32_t entry, int32_t* count_out,
+                                                                       uint32_t* list, const float* origin,
+                                                                       uint32_t max_nodes, uint32_t type_mask,
+                                                                       uint32_t radius);
+extern "C" void PathNode_FindNearestNoPlanes_entry(void);
+
 }  // namespace game

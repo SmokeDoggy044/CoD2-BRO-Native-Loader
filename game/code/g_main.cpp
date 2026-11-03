@@ -5,7 +5,9 @@
 #include "actor.h"
 #include "cgame.h"
 #include "dobj.h"
+#include "fe.h"
 #include "g_pathnode.h"
+#include "g_scr_imports.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
@@ -1481,6 +1483,85 @@ void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t a
         word_at(spot(), 0xc) = word_at(actor, 0x158);
         title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(spot(), actor + 0x264);  // Assign
         ++word_at(checkpoint, 0x554);
+    }
+}
+
+// The module's entry, main and post-init run where the original's calls are (entry - 0xc / - 4, the post-init as a
+// tail call at the entry ESP): level script code leaves its stack below them. The C frame sits below a gap.
+PLATFORM_ASM_ENTRY(G_LoadLevelScriptModule_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_LoadLevelScriptModule) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_LoadLevelScriptModule(uint32_t entry) {
+    // The level script module of the current zone's context: its entry (G_FindLevelScriptModule by the context's
+    // name) gets the import block pointer and g_levelScriptImports and returns the level main (0x00927090); the
+    // imports are filled, main runs, then the module's post-init (0x00927144, tail jump).
+    uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+    const int32_t id = static_cast<int32_t>(*reinterpret_cast<uint32_t*>(memory + 0x34));
+    if (id < 0 || id >= 0x63) return;
+    if (!*reinterpret_cast<uint32_t*>(memory + 0x38 + id * 4)) return;
+    uint8_t* const context = MemContext_FindById(memory, id);
+    const uint32_t name = *reinterpret_cast<uint32_t*>(context + 4);
+    const uint32_t module = G_FindLevelScriptModule(reinterpret_cast<const char*>(uintptr_t{name}));
+    if (!module) {
+        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak (tail jump)
+        return;
+    }
+    auto stack = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };
+    title_global<uint32_t>(0x00927160) = 0x002f4ff0;  // BroFunc_Clear
+    title_global<uint32_t>(0x00927164) = 0x002f4f90;  // BroFunc_Register
+    title_global<uint32_t>(0x009270d0) = 0x002f5130;
+    const TitleRegs entry_regs{module, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(memory)), 0, name, 0};
+    const uint32_t args[2] = {0x0095f49c, 0x009270d0};
+    const uint32_t main = title_call_at_regs(entry - 4, module, &entry_regs, 2, args);
+    stack(entry - 0x10) = 0x0030b9c0;
+    title_global<uint32_t>(0x00927090) = main;  // g_levelScriptMain
+    const TitleRegs main_regs{main, 0, 0, 0, main, 0};
+    title_call_at_regs(entry - 4, 0x0030adb0, &main_regs, 0, nullptr);  // G_SetupLevelScriptImports
+    stack(entry - 8) = 0x0030b9d0;
+    title_call_at_regs(entry - 4, main, &main_regs, 0, nullptr);
+    stack(entry - 8) = 0x0030b9d2;
+    // The tail call returns through the caller's return address at the entry ESP: saved around it.
+    const uint32_t ret = stack(entry);
+    title_call_at_regs(entry + 4, title_global<uint32_t>(0x00927144), &main_regs, 0, nullptr);
+    stack(entry) = ret;
+}
+
+void XB_REGS1 XB_STDCALL Hud_LoadWeaponIcons(uint8_t* icons, uint8_t* pictures) {
+    // Once (slot +0x18 still empty): each weapon's icon (def +0x584, '$' -> '_', + ".tga") looked up in the
+    // panel's pictures into +0x18 + i * 4 (the default picture 0x0095f904 -> 0); then every one of the 0x84
+    // pictures from +8 gets colour 0xffffffff (vtable +0x70).
+    if (*reinterpret_cast<uint32_t*>(icons + 0x18)) return;
+    char name[0x84] = {};
+    for (int32_t i = 1; i <= title_global<int32_t>(0x0095f4d4); ++i) {  // bg_lastWeaponIndex
+        const uint8_t* const def = reinterpret_cast<const uint8_t*>(
+            uintptr_t{reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f4d8))[i]});  // bg_weaponDefs
+        const char* const icon = reinterpret_cast<const char*>(uintptr_t{*reinterpret_cast<const uint32_t*>(def + 0x584)});
+        if (!icon[0]) continue;
+        for (int32_t c = 0; c < 0x7c; ++c) {
+            if (!icon[c]) {
+                name[c] = 0;
+                break;
+            }
+            name[c] = icon[c] == '$' ? '_' : icon[c];
+        }
+        char* const tail = name + std::strlen(name);
+        std::memcpy(tail, reinterpret_cast<const void*>(uintptr_t{0x0082dc0c}), 4);  // ".tga"
+        tail[4] = title_global<char>(0x0082dc10);
+        uint8_t* picture = Panel_FindPicture(pictures, name);
+        reinterpret_cast<uint8_t**>(icons + 0x18)[i] = picture;
+        if (picture == title_global<uint8_t*>(0x0095f904)) reinterpret_cast<uint8_t**>(icons + 0x18)[i] = nullptr;
+    }
+    uint8_t** const slots = reinterpret_cast<uint8_t**>(icons + 8);
+    for (uint32_t i = 0; i < 0x84; ++i) {
+        uint8_t* const picture = slots[i];
+        if (!picture) continue;
+        const uint32_t vtable = *reinterpret_cast<uint32_t*>(picture);
+        title_function<void XB_THISCALL(uint8_t*, uint32_t)>(*reinterpret_cast<uint32_t*>(uintptr_t{vtable + 0x70}))(
+            picture, 0xffffffff);
     }
 }
 

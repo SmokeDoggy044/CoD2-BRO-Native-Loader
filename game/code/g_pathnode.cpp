@@ -1311,4 +1311,34 @@ uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint
     return nullptr;
 }
 
+// count out in EAX, list in EDX, origin in ESI; cdecl max nodes, type mask, radius. PathNode_FindNearest runs at the
+// original's ESP (entry - 0x18; its frame is rebuilt there), so the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(PathNode_FindNearestNoPlanes_entry,
+                   "pushl %edx\n"
+                   "leal 4(%esp), %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %esi\n"
+                   "pushl -4(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(PathNode_FindNearestNoPlanes) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "leal 4(%esp), %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL PathNode_FindNearestNoPlanes(uint32_t entry, int32_t* count_out, uint32_t* list, const float* origin,
+                                               uint32_t max_nodes, uint32_t type_mask, uint32_t radius) {
+    // PathNode_FindNearest without boundary planes.
+    const TitleRegs regs{type_mask, 0, max_nodes, address_of(list), address_of(origin), 0};
+    const uint32_t args[6] = {address_of(list), radius, 0, 0, 0, address_of(count_out)};
+    const uint32_t node = title_call_at_regs(entry, 0x002ea820, &regs, 6, args);  // PathNode_FindNearest
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 0x1c}) = 0x002eabca;  // its return address
+    return node;
+}
+
 }  // namespace game

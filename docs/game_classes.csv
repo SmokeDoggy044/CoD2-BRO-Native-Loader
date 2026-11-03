@@ -340,3 +340,6 @@
 002fde40,Scr_WaitRecord16,thread switch,"no C equivalent: as Scr_WaitRecord15 (jmp Scr_RestoreContext)"
 00300850,Scr_WaitRecord17,thread switch,"no C equivalent: wait record setup (Scr_InitWaitRecord4, ScrWaitTimeoutRecord_Init), then Scr_RestoreContext (0x002f5660) at three exits; never returns to its caller"
 002fe100,Scr_ResumeThread,thread switch,"no C equivalent: Scr_SaveContext, Scr_ThreadEntry / Scr_RestoreThreadStack on the script thread's stack, mov esp,[ebp-4], FS:0 SEH restore, POPA"
+00307610,G_FindEntsByTargetname,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (push 11)"
+002de3e0,G_DObjGetSkeletonBoneMatrixPtr,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"
+002eabb0,PathNode_FindNearestNoPlanes,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"

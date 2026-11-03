@@ -11,6 +11,7 @@
 #include "cg_ents.h"
 #include "g_client.h"
 #include "g_main.h"
+#include "g_pathnode.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
 #include "g_vehicle.h"
@@ -3263,6 +3264,292 @@ void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint
     if (static_cast<uint8_t>(send_update))
         G_SendObjectiveUpdate(reinterpret_cast<const ScriptString*>(&state), static_cast<uint32_t>(index));
     release();
+}
+
+namespace {
+
+// Frees a block from the entity's memory context (MemContext_Free_r when it has one and owns
+// the block), else from the zone.
+void free_in_context(int32_t context, uint8_t* mem) {
+    if (context != -1) {
+        uint8_t* const heap = context >= 0 && context < 0x63
+                                  ? reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4)})
+                                  : nullptr;
+        if (MemContext_Free_r(heap, mem)) return;
+    }
+    Z_Free(mem);
+}
+
+}  // namespace
+
+// ECX = entity. Vehicle_FreePhysics runs its callees at the original's ESP (E - 0x14), so the
+// C frame sits below a gap.
+PLATFORM_ASM_ENTRY(G_FreeEntityContents_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(G_FreeEntityContents) "addl $8, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_FreeEntityContents(uint8_t* ent, uint32_t entry_esp) {
+    const auto release = title_function<void XB_THISCALL(uint8_t*)>(0x0011d640);  // ScriptString_Release
+    if (word_at(ent, 0x2a4) & 0x1000) Path_ConnectPathsForEntity(ent, title_global<uint8_t*>(0x0095f4f4));
+    ActorBlockList_RemoveEntity(reinterpret_cast<uint8_t*>(uintptr_t{0x0098aa90}), address_of(ent));
+    if (uint8_t* const mem = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x3d4)})) {
+        Z_Free(mem);
+        word_at(ent, 0x3d4) = 0;
+    }
+    G_EntUnlink(ent);
+    // Every entity linked to this one (+0x3d0, the chain head) is unlinked the same way.
+    while (word_at(ent, 0x3d0)) {
+        uint8_t* const child = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x3d0)});
+        if (uint8_t* const mem = reinterpret_cast<uint8_t*>(uintptr_t{word_at(child, 0x3d4)})) {
+            Z_Free(mem);
+            word_at(child, 0x3d4) = 0;
+        }
+        G_EntUnlink(child);
+    }
+    G_FreeEntityPhysics(ent);
+    if (word_at(ent, 0x22c)) {
+        DObj_Free(reinterpret_cast<DObj*>(uintptr_t{word_at(ent, 0x22c)}), 0);
+        if (uint8_t* const ragdoll = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x238)})) {
+            Ragdoll_Free(ragdoll);
+            word_at(ent, 0x238) = 0;
+        }
+        G_FreeXModel(static_cast<int32_t>(word_at(ent, 0x220)), reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x22c)}));
+        const uint32_t handle = word_at(ent, 0x224);
+        word_at(ent, 0x22c) = 0;
+        G_EntityList_QueueRemove(handle);
+    }
+    word_at(ent, 0xd0) = 0;
+    SV_UnlinkEntity(ent + 0xd0);
+    if (const uint32_t tree = word_at(ent, 0x254)) {
+        // Queued for clearing (count 0x00987070, list 0x00987074), then the queues flushed.
+        const uint32_t count = title_global<uint32_t>(0x00987070);
+        reinterpret_cast<uint32_t*>(uintptr_t{0x00987074})[count] = tree;
+        ++title_global<uint32_t>(0x00987070);
+        AnimTree_FlushClearLists();
+        word_at(ent, 0x254) = 0;
+    }
+    if (word_at(ent, 0x240)) Actor_Free(reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x240)}));
+    if (uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x244)})) {
+        G_ClearEntityReferences(0, reinterpret_cast<uint8_t*>(uintptr_t{word_at(sentient, 0)}));
+        Sentient_Dissociate(sentient);
+        word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(sentient, 0)}), 0x244) = 0;
+        G_FreeFieldStrings(reinterpret_cast<const uint32_t*>(uintptr_t{0x0082fdc0}), sentient);
+        const uint32_t serial = --title_global<uint32_t>(0x0095f420);
+        word_at(sentient, 0x5c) = serial;
+    } else {
+        G_ClearEntityReferences(0, ent);
+        for (uint8_t* actor = Actor_FirstOfTeams(0xffffffff); actor; actor = Actor_NextOfTeams(actor, 0xffffffff)) {
+            if (word_at(actor, 0x136c) == address_of(ent)) Actor_LeaveTurret(actor);
+            if (word_at(actor, 0x1310) == address_of(ent)) word_at(actor, 0x1310) = 0;
+        }
+        // Sentient_FirstOfTeams(all) inlined: the first sentient in use (+0x5c >= 0).
+        uint8_t* const sentients = title_global<uint8_t*>(0x00985378);  // g_sentients
+        uint8_t* first = nullptr;
+        for (int32_t i = 0; i < 0x21; ++i) {
+            uint8_t* const s = sentients + i * 0x60;
+            if (static_cast<int32_t>(word_at(s, 0x5c)) >= 0 && (1u << (word_at(s, 4) & 31)) != 0) {
+                first = s;
+                break;
+            }
+        }
+        for (uint8_t* s = first; s; s = Sentient_NextOfTeams(s, 0xffffffff)) {
+            if (word_at(s, 8) == address_of(ent)) word_at(s, 8) = 0;
+        }
+    }
+    if (ent[0] == 0xd) {
+        // An actor corpse: its slot in g_actorCorpses (16 x 0x1c) cleared (slot 0 when not found).
+        uint32_t* const corpses = reinterpret_cast<uint32_t*>(uintptr_t{0x009881c8});
+        uint32_t slot = 0;
+        for (uint32_t i = 0; i < 16; ++i) {
+            if (corpses[i * 7] == word_at(ent, 0x224)) {
+                slot = i;
+                break;
+            }
+        }
+        corpses[slot * 7] = 0;
+    }
+    if (word_at(ent, 0x24c)) G_ReleaseTurretUser(ent);
+    if (word_at(ent, 0x248)) Vehicle_FreePhysics(ent, entry_esp - 0x14);
+    if (const uint32_t value = word_at(ent, 0x428)) {
+        if (const uint32_t callback = word_at(title_global<uint8_t*>(0x0095f49c), 0x808))
+            title_function<void XB_CDECL(uint32_t)>(callback)(value);
+    }
+    word_at(ent, 0x428) = 0;
+    if (word_at(ent, 0x2a4) & 0x200000) {
+        // Out of the list 0x00960074 (count 0x00960070): the last entry moves into its place.
+        uint32_t* const list = reinterpret_cast<uint32_t*>(uintptr_t{0x00960074});
+        int32_t count = title_global<int32_t>(0x00960070);
+        const uint32_t handle = word_at(ent, 0x224);
+        for (int32_t i = 0; i < count; ++i) {
+            if (list[i] != handle) continue;
+            if (count != 0) title_global<int32_t>(0x00960070) = --count;
+            const uint32_t last = list[count];
+            if (i != count) {
+                list[i] = last;
+                break;
+            }
+        }
+    }
+    const uint32_t handle = word_at(ent, 0x224);
+    const uint32_t serial = word_at(ent, 0xc4);
+    if (handle) {
+        const uint32_t index = handle & 0xfff;
+        uint32_t* const table = reinterpret_cast<uint32_t*>(uintptr_t{0x0097a968});  // g_entityHandleTable
+        if (index < 0x540 && table[index * 2 + 1] == handle >> 12) {
+            reinterpret_cast<uint32_t*>(uintptr_t{0x0097a8c0})[index >> 5] |= 1u << (index & 31);
+            ++table[index * 2 + 1];
+            table[index * 2] = 0;
+        }
+        reinterpret_cast<uint32_t*>(uintptr_t{0x0097d370})[word_at(ent, 0x228)] = 0;
+    }
+    word_at(ent, 0xc4) = serial + 1;
+    int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
+    if (context == -1) context = static_cast<int32_t>(word_at(title_global<uint8_t*>(0x0095f638), 0x34));
+    if (uint8_t* const model = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x22c)})) {
+        XModel_Free(model);
+        free_in_context(context, model);
+    }
+    if (uint8_t* const waits = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x230)})) {
+        Scr_UnlinkEntityWaitList(reinterpret_cast<uint32_t*>(waits));
+        SmallHeap_Free(title_global<uint8_t*>(0x0095f570), waits);
+    }
+    if (uint8_t* const notify = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x234)})) {
+        if (uint8_t* const block = reinterpret_cast<uint8_t*>(uintptr_t{word_at(notify, 0x38)}))
+            EntNotifyBlock_DeletingDtor(block, 1);
+        SmallHeap_Free(title_global<uint8_t*>(0x0095f568), notify);
+    }
+    uint8_t* const block_450 = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x450)});
+    word_at(ent, 0x22c) = 0;
+    word_at(ent, 0x230) = 0;
+    word_at(ent, 0x234) = 0;
+    if (block_450) free_in_context(context, block_450);
+    if (uint8_t* const mem = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x454)})) free_in_context(context, mem);
+    if (uint8_t* const mem = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x250)})) free_in_context(context, mem);
+    for (uint32_t offset = 0x40c; offset >= 0x3dc; offset -= 8) release(ent + offset);
+    release(ent + 0x3b8);
+    release(ent + 0x2f8);
+    release(ent + 0x284);
+    release(ent + 0x27c);
+    release(ent + 0x274);
+    release(ent + 0x26c);
+    release(ent + 0x264);
+    release(ent + 0x25c);  // classname (tail jump)
+}
+
+uint8_t* XB_CDECL G_GetCachedTagMatrix(uint32_t handle, const ScriptString* tag) {
+    // One world tag matrix cached per frame (0x0098602c; entity handle 0x00986024, tag name
+    // 0x00986028, level time 0x00986020).
+    ScriptString* const cached_tag = &title_global<ScriptString>(0x00986028);
+    float* const matrix = &title_global<float>(0x0098602c);
+    if (handle == title_global<uint32_t>(0x00986024) &&
+        title_global<int32_t>(0x0098540c) == title_global<int32_t>(0x00986020) &&
+        ScriptString_EqualsString(tag, cached_tag))
+        return reinterpret_cast<uint8_t*>(matrix);
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && handle >> 12 == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);  // g_entityHandleTable
+    const DObj* const obj = reinterpret_cast<const DObj*>(uintptr_t{word_at(ent, 0x22c)});
+    if (!obj) return nullptr;
+    const char* const text = tag->rep ? tag->rep->text : nullptr;
+    const int32_t bone = DObj_GetTagIndex(obj, Com_HashKeyNoCase(0, text));
+    if (bone < 0) return nullptr;
+    G_DObjGetWorldTagMatrix(ent, static_cast<uint32_t>(bone), matrix);
+    title_global<int32_t>(0x00986020) = title_global<int32_t>(0x0098540c);  // level_time
+    title_global<uint32_t>(0x00986024) = handle;
+    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(cached_tag, tag);  // ScriptString_Assign
+    return reinterpret_cast<uint8_t*>(matrix);
+}
+
+namespace {
+
+// G_FindEntsBy*: a scratch entity is set up and freed around G_FindEntsByField (out in EDI,
+// passed on) over one script-string field. Fields G_InitGentity leaves alone are zero, as the
+// original's never-written stack is in tests.
+uint32_t find_ents_by(uint32_t* out, uint32_t offset, uint32_t value) {
+    alignas(16) uint8_t scratch[0x460] = {};
+    G_InitGentity(scratch, -1);
+    const uint32_t count = G_FindEntsByField(out, offset, value);
+    title_function<void XB_THISCALL(uint8_t*)>(0x002eda30)(scratch);  // G_FreeEntityContents
+    return count;
+}
+
+}  // namespace
+
+#define G_FIND_ENTS_BY(name, offset)                                                             \
+    PLATFORM_ASM_ENTRY(name##_entry,                                                            \
+                       "pushl 4(%esp)\n"                                                        \
+                       "pushl %edi\n" PLATFORM_ASM_CALL(name) "addl $8, %esp\n"                 \
+                       "ret")                                                                   \
+    uint32_t XB_CDECL name(uint32_t* out, uint32_t value) { return find_ents_by(out, offset, value); }
+
+G_FIND_ENTS_BY(G_FindEntsByGroupname, 0x278)
+G_FIND_ENTS_BY(G_FindEntsByScriptNoteworthy, 0x280)
+G_FIND_ENTS_BY(G_FindEntsByClassname, 0x260)
+G_FIND_ENTS_BY(G_FindEntsByTargetname, 0x268)
+G_FIND_ENTS_BY(G_FindEntsByTarget, 0x270)
+
+#undef G_FIND_ENTS_BY
+
+PLATFORM_ASM_ENTRY(G_EntUpdateLinkTag_entry,
+                   "pushl %ecx\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_EntUpdateLinkTag) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_EntUpdateLinkTag(uint8_t* ent, uint32_t keep) {
+    // The link (+0x3cc) re-resolves its tag (name id +8 through the tag name map 0x0095fe00, end node
+    // 0x0095fe08) on the parent's DObj into +0xc; without a tag +0xc is -1. The entity unlinks when
+    // `keep` is 0 or the tag is gone.
+    uint8_t* const link = ptr_at(ent, 0x3cc);
+    if (!word_at(link, 8)) {
+        *reinterpret_cast<uint16_t*>(link + 0xc) = 0xffff;
+        return;
+    }
+    if (keep) {
+        int32_t key = static_cast<int32_t>(word_at(link, 8));
+        uint32_t node = 0;
+        IntHashMap_Find(&node, &key, reinterpret_cast<const uint8_t*>(uintptr_t{0x0095fe00}));
+        const char* const name =
+            node != title_global<uint32_t>(0x0095fe08) ? reinterpret_cast<const char*>(uintptr_t{node + 0xc}) : nullptr;
+        const uint32_t hash = Com_HashKeyNoCase(0, name);
+        const DObj* const obj = reinterpret_cast<const DObj*>(uintptr_t{word_at(ptr_at(link, 0), 0x22c)});
+        const int32_t tag = obj ? DObj_GetTagIndex(obj, hash) : -1;
+        *reinterpret_cast<uint16_t*>(link + 0xc) = static_cast<uint16_t>(tag);
+        if (static_cast<int16_t>(tag) >= 0) return;
+    }
+    G_EntUnlink(ent);
+}
+
+uint32_t XB_REGS1 XB_CDECL G_DObjGetSkeletonBoneMatrixPtr(uint8_t* ent, uint32_t bone) {
+    // The bone's 0x40-byte matrix in the skeleton (DObj +0x20; past the 0x30 header and +0x60 extra
+    // matrices when there is one), after SV_DObjCreateSkeleton. No skeleton: bone * 0x40.
+    SV_DObjCreateSkeleton(ent);
+    uint8_t* const obj = ptr_at(ent, 0x22c);
+    const uint32_t skeleton = word_at(obj, 0x20);
+    if (!skeleton) return (bone << 6) + skeleton;
+    return (bone << 6) + ((static_cast<uint32_t>(obj[0x60]) << 6) + skeleton + 0x30);
+}
+
+void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t, uint32_t solid) {
+    // A script-spawned box (GScr_SpawnBoxEntity): +0x338 = 10, linked bounds (+0xd4), svFlags |= 2; contents
+    // 0x405c0008 with +0x2a0 bit 0 when solid, else 0x411c0008 without it; then SV_LinkEntity.
+    const uint32_t flags = word_at(ent, 0x10) | 2;
+    word_at(ent, 0x338) = 10;
+    word_at(ent, 0x134) = 0x401c0008;
+    word_at(ent, 0xd4) = 1;
+    word_at(ent, 0x10) = flags;
+    if (solid) {
+        word_at(ent, 0x2a0) |= 1;
+        word_at(ent, 0x134) = 0x405c0008;
+    } else {
+        word_at(ent, 0x2a0) &= 0xfffffffe;
+        word_at(ent, 0x134) = 0x411c0008;
+    }
+    SV_LinkEntity(ent);
 }
 
 }  // namespace game

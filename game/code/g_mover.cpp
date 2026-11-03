@@ -4,6 +4,7 @@
 
 #include "actor.h"
 #include "bg_misc.h"
+#include "cg_ents.h"
 #include "dobj.h"
 #include "g_client.h"
 #include "g_main.h"
@@ -5670,4 +5671,184 @@ uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     default: return 0xffffffffu;
     }
 }
+
+namespace {
+
+// ScriptMover_SetupMove (0x00301240: EAX trajectory, ESI current value, EBX target, 9 stack words) for
+// one trajectory of the mover, then SV_LinkEntity.
+void script_mover_setup_move(uint8_t* ent, uint32_t trajectory, uint32_t current, const uint32_t (&fields)[6],
+                             uint32_t target, uint32_t time, uint32_t accel, uint32_t decel) {
+    TitleRegs regs{};
+    regs.eax = address_of(ent + trajectory);
+    regs.ebx = target;
+    regs.ecx = accel;
+    regs.edx = time;
+    regs.esi = address_of(ent + current);
+    regs.edi = address_of(ent);
+    const uint32_t args[9] = {time, accel, decel, address_of(ent + fields[0]), address_of(ent + fields[1]),
+                              address_of(ent + fields[2]), address_of(ent + fields[3]), address_of(ent + fields[4]),
+                              address_of(ent + fields[5])};
+    cg_call_regs(0x00301240, &regs, args, 9);  // ScriptMover_SetupMove
+    SV_LinkEntity(ent);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL ScriptMover_RotateVelocity(uint8_t* ent, uint32_t velocity, uint32_t time, uint32_t accel,
+                                                  uint32_t decel) {
+    // ScriptMover_SetupRotateVelocity (0x00300f20: ESI angles trajectory +0x38, EBX velocity, 10 stack words).
+    TitleRegs regs{};
+    regs.ebx = velocity;
+    regs.ecx = decel;
+    regs.edx = accel;
+    regs.esi = address_of(ent + 0x38);
+    regs.edi = address_of(ent);
+    const uint32_t args[10] = {time, accel, decel, address_of(ent + 0x150), address_of(ent + 0x300),
+                               address_of(ent + 0x2f4), address_of(ent + 0x388), address_of(ent + 0x310),
+                               address_of(ent + 0x390), address_of(ent + 0x3a0)};
+    regs.eax = time;  // EAX/ECX/EDX = the last three words loaded
+    cg_call_regs(0x00300f20, &regs, args, 10);  // ScriptMover_SetupRotateVelocity
+    SV_LinkEntity(ent);
+}
+
+void XB_REGS1 XB_CDECL ScriptMover_RotateTo(uint8_t* ent, uint32_t target, uint32_t time, uint32_t accel,
+                                            uint32_t decel) {
+    // The angles trajectory (+0x38) from the current angles (+0x150).
+    static const uint32_t fields[6] = {0x300, 0x2f4, 0x388, 0x310, 0x390, 0x3a0};
+    script_mover_setup_move(ent, 0x38, 0x150, fields, target, time, accel, decel);
+}
+
+PLATFORM_ASM_ENTRY(ScriptMover_MoveGravity_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ScriptMover_MoveGravity) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL ScriptMover_MoveGravity(const uint32_t* velocity, uint8_t* ent, float time) {
+    // A gravity trajectory (type 5) for the origin (+0x14) from the current origin (+0x140) at level_time, lasting
+    // time * 1000 ms; the origin evaluated at once (BG_EvaluateTrajectory), then SV_LinkEntity.
+    const float scaled = time * title_global<float>(0x0083eb9c);  // 1000
+    uint8_t* const tr = ent + 0x14;
+    word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c);  // level_time
+    word_at(tr, 0x8) = static_cast<uint32_t>(static_cast<int32_t>(scaled));
+    word_at(tr, 0xc) = word_at(ent, 0x140);
+    word_at(tr, 0x10) = word_at(ent, 0x144);
+    word_at(tr, 0x14) = word_at(ent, 0x148);
+    word_at(tr, 0x18) = velocity[0];
+    word_at(tr, 0x1c) = velocity[1];
+    word_at(tr, 0x20) = velocity[2];
+    word_at(tr, 0) = 5;
+    TitleRegs regs{};
+    regs.eax = title_global<uint32_t>(0x0098540c);
+    regs.ecx = address_of(ent + 0x140);
+    regs.esi = address_of(ent);
+    regs.edi = address_of(tr);
+    cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    SV_LinkEntity(ent);
+}
+
+void XB_REGS1 XB_CDECL ScriptMover_MoveTo(uint8_t* ent, uint32_t target, uint32_t time, uint32_t accel,
+                                          uint32_t decel) {
+    // The origin trajectory (+0x14) from the current origin (+0x140).
+    static const uint32_t fields[6] = {0x2fc, 0x384, 0x38c, 0x2c0, 0x2d0, 0x2e0};
+    script_mover_setup_move(ent, 0x14, 0x140, fields, target, time, accel, decel);
+}
+
+namespace {
+
+float& tr_float(uint8_t* tr, uint32_t offset) { return *reinterpret_cast<float*>(tr + offset); }
+
+}  // namespace
+
+// EAX goal, ECX start, EDX end, XMM1 time; cdecl trajectory, speed, second time.
+PLATFORM_ASM_ENTRY(ScriptMover_NextTrajectoryPhase_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ScriptMover_NextTrajectoryPhase) "addl $28, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL ScriptMover_NextTrajectoryPhase(const float* goal, const float* start, const float* end, float time,
+                                                  uint8_t* tr, float speed, float time2) {
+    const int32_t type = static_cast<int32_t>(word_at(tr, 0));
+    const float zero = 0.0f;
+    if (type == 9) {
+        if (time > zero) {
+            // Linear (3) from start to goal over time * 1000 ms.
+            const float thousand = title_global<float>(0x0083eb9c);
+            word_at(tr, 4) = title_global<uint32_t>(0x0098540c);  // level_time
+            const int32_t duration = static_cast<int32_t>(time * thousand);
+            word_at(tr, 8) = static_cast<uint32_t>(duration);
+            word_at(tr, 0xc) = reinterpret_cast<const uint32_t*>(start)[0];
+            word_at(tr, 0x10) = reinterpret_cast<const uint32_t*>(start)[1];
+            word_at(tr, 0x14) = reinterpret_cast<const uint32_t*>(start)[2];
+            const float dx = goal[0] - start[0];
+            const float dy = goal[1] - start[1];
+            const float dz = goal[2] - start[2];
+            const float scale = thousand / static_cast<float>(duration);
+            const float vx = scale * dx;
+            const float vy = scale * dy;
+            const float vz = scale * dz;
+            tr_float(tr, 0x18) = vx;
+            tr_float(tr, 0x20) = vz;
+            word_at(tr, 0) = 3;
+            tr_float(tr, 0x1c) = vy;
+            return 0;
+        }
+        if (!(zero >= time)) goto settle;  // NaN
+    } else if (type != 3) {
+        goto settle;
+    }
+    if (time2 > zero) {
+        // Toward end at speed (type 10) for time2 * 1000 ms from the goal.
+        const float scaled = time2 * title_global<float>(0x0083eb9c);
+        word_at(tr, 4) = title_global<uint32_t>(0x0098540c);
+        word_at(tr, 8) = static_cast<uint32_t>(static_cast<int32_t>(scaled));
+        word_at(tr, 0xc) = reinterpret_cast<const uint32_t*>(goal)[0];
+        word_at(tr, 0x10) = reinterpret_cast<const uint32_t*>(goal)[1];
+        word_at(tr, 0x14) = reinterpret_cast<const uint32_t*>(goal)[2];
+        alignas(16) float dir[4] = {};
+        dir[0] = end[0] - goal[0];
+        dir[1] = end[1] - goal[1];
+        dir[2] = end[2] - goal[2];
+        VectorNormalize(dir);
+        const float vx = dir[0] * speed;
+        const float vy = dir[1] * speed;
+        const float vz = dir[2] * speed;
+        tr_float(tr, 0x18) = vx;
+        tr_float(tr, 0x20) = vz;
+        word_at(tr, 0) = 10;
+        tr_float(tr, 0x1c) = vy;
+        return 0;
+    }
+settle:
+    // Stopped (type 0) at level_time: a gravity trajectory where it is now, else at end.
+    if (type == 5) {
+        alignas(16) uint32_t now[4] = {};
+        now[0] = word_at(tr, 0xc);
+        now[1] = word_at(tr, 0x10);
+        now[2] = word_at(tr, 0x14);
+        TitleRegs regs{};
+        regs.eax = title_global<uint32_t>(0x0098540c);
+        regs.ecx = address_of(now);
+        regs.edi = address_of(tr);
+        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+        word_at(tr, 0xc) = now[0];
+        word_at(tr, 0x10) = now[1];
+        word_at(tr, 0x14) = now[2];
+    } else {
+        word_at(tr, 0xc) = reinterpret_cast<const uint32_t*>(end)[0];
+        word_at(tr, 0x10) = reinterpret_cast<const uint32_t*>(end)[1];
+        word_at(tr, 0x14) = reinterpret_cast<const uint32_t*>(end)[2];
+    }
+    word_at(tr, 4) = title_global<uint32_t>(0x0098540c);
+    word_at(tr, 0) = 0;
+    return 1;
+}
+
 }  // namespace game

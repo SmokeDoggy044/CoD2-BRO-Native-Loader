@@ -369,4 +369,28 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* u
                                                       uint32_t edi, uint32_t ebp);
 extern "C" void G_vmMain_entry(void);
 
+// 0x00302740 (entity in EAX, cdecl velocity, time, accel, decel): ScriptMover_SetupRotateVelocity for the angles
+// trajectory (+0x38, current angles +0x150), then SV_LinkEntity.
+void XB_REGS1 XB_CDECL ScriptMover_RotateVelocity(uint8_t* ent, uint32_t velocity, uint32_t time, uint32_t accel,
+                                                  uint32_t decel);
+// 0x003027a0 / 0x00302870 (entity in EAX, cdecl target, time, accel, decel): ScriptMover_SetupMove for the
+// angles trajectory (+0x38 from +0x150) / the origin trajectory (+0x14 from +0x140), then SV_LinkEntity.
+void XB_REGS1 XB_CDECL ScriptMover_RotateTo(uint8_t* ent, uint32_t target, uint32_t time, uint32_t accel,
+                                            uint32_t decel);
+void XB_REGS1 XB_CDECL ScriptMover_MoveTo(uint8_t* ent, uint32_t target, uint32_t time, uint32_t accel,
+                                          uint32_t decel);
+// 0x00302800 (velocity in EAX, entity in ESI, time in XMM0): a gravity trajectory (type 5) for the origin from the
+// current origin at level_time for time * 1000 ms, evaluated at once, then SV_LinkEntity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScriptMover_MoveGravity(const uint32_t* velocity, uint8_t* ent, float time);
+extern "C" void ScriptMover_MoveGravity_entry(void);
+
+// 0x002545e0: TODO.
+// 0x002545e0 (goal EAX, start ECX, end EDX, time XMM1; cdecl trajectory, speed, time2): Reached_ScriptMover's next
+// phase - type 9 with time > 0: linear (3) from start to goal; type 3 (or 9 with time <= 0) and time2 > 0: toward
+// end at speed (10) from the goal; else stopped (0) where a gravity trajectory (5) is now or at end: EAX 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScriptMover_NextTrajectoryPhase(const float* goal, const float* start,
+                                                                         const float* end, float time, uint8_t* tr,
+                                                                         float speed, float time2);
+extern "C" void ScriptMover_NextTrajectoryPhase_entry(void);
+
 }  // namespace game

@@ -87,4 +87,14 @@ extern "C" void G_SpawnEntitiesFromString_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_SpawnZone(uint32_t entry, uint8_t* level, uint32_t zone);
 extern "C" void Scn_SpawnZone_entry(void);
 
+// 0x002edf30 (EDX level, ECX spawn index, stack zone; callee pops 4): Q3's G_SpawnGEntityFromSpawnVars - skipped
+// when the spawn's scene slot (+0xc8) is marked in the level table (+0x194); "transparent"/"noshadow" render flags,
+// "auto_thread", "on_<notify>" callbacks (notify block +0x234), the entity from the zone's context, spawn fields,
+// classname hash, checkpoint start, the spawn function, stationary trajectories, the game's key handler (import
+// +0x804 -> +0x428), the auto thread (import +0x880), the "spawned" callbacks, flag 0x800000 for "sbmo" models.
+// `entry` = the original's ESP at its entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32_t index,
+                                                                    uint32_t zone);
+extern "C" void G_SpawnGEntityFromSpawnVars_entry(void);
+
 }  // namespace game

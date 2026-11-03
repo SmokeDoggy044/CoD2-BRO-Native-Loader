@@ -2,7 +2,9 @@
 
 #include <cstring>
 
+#include "cg_ents.h"
 #include "g_main.h"
+#include "qcommon_fs.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "qcommon.h"
@@ -823,6 +825,209 @@ void XB_CDECL Scn_SpawnZone(uint32_t entry, uint8_t* level, uint32_t zone) {
             spawn_from_spawn_vars(top, level, i, zone);
     }
     Scn_InitUpdateGroups(0, spawns, level);
+}
+
+namespace {
+
+uint32_t& word(uint8_t* p) { return *reinterpret_cast<uint32_t*>(p); }
+uint32_t word(const uint8_t* p) { return *reinterpret_cast<const uint32_t*>(p); }
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); }
+
+// A callee where the original's call puts it (ESP = top - 4 * count), with the original's return
+// address written back into the dead stack.
+uint32_t spawn_call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                       const uint32_t* args) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    stack_word(top - count * 4 - 4) = ret;
+    return result;
+}
+
+const char* text_of(uint32_t p) { return reinterpret_cast<const char*>(uintptr_t{p}); }
+
+int32_t spawn_stricmp(uint32_t a, uint32_t b) {
+    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(text_of(a), text_of(b));  // __stricmp
+}
+
+}  // namespace
+
+// EDX level, ECX spawn index, the zone on the stack (callee pops). The spawn functions and other deep callees run where
+// the original's calls are (body ESP = entry - 0x28): the spawn code keeps stack addresses (0x00929b40).
+PLATFORM_ASM_ENTRY(G_SpawnGEntityFromSpawnVars_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_SpawnGEntityFromSpawnVars) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32_t index, uint32_t zone) {
+    const uint32_t top = entry - 0x28;
+    uint8_t* const spawns = reinterpret_cast<uint8_t*>(uintptr_t{word(level + 4 + zone * 4)});
+    if (index >= word(spawns + 0x10)) index = 0;
+    uint8_t* const spawn = reinterpret_cast<uint8_t*>(uintptr_t{word(reinterpret_cast<uint8_t*>(uintptr_t{word(spawns + 0x14)}) + index * 4)});
+    const uint32_t scene = word(spawn + 0xc8);
+    // Entities whose scene slot (+0xc8) is marked in the level's table (+0x194: count, bytes) are skipped: 2 = gone
+    // for a checkpoint start, >= 1 otherwise.
+    if (scene != 0xffffffff) {
+        const uint8_t* const checkpoint = title_global<uint8_t*>(0x0095f4e0);
+        if (checkpoint[0x390] && checkpoint[0]) {
+            if (uint8_t* const table = reinterpret_cast<uint8_t*>(uintptr_t{word(level + 0x194)})) {
+                const uint32_t slot = scene < word(table) ? scene : 0;
+                if (reinterpret_cast<const uint8_t*>(uintptr_t{word(table + 4)})[slot] == 2) return;
+            }
+        }
+        if (uint8_t* const table = reinterpret_cast<uint8_t*>(uintptr_t{word(level + 0x194)})) {
+            const uint32_t slot = scene < word(table) ? scene : 0;
+            if (reinterpret_cast<const uint8_t*>(uintptr_t{word(table + 4)})[slot] >= 1) return;
+        }
+    }
+    // "transparent" / "noshadow" = "1" among the second key list (+0xdc, hashed keys; bounded by +0xd8, run over +0xd0).
+    uint32_t transparent = 0;
+    uint32_t noshadow = 0;
+    for (uint32_t i = 0; i < word(spawn + 0xd0); ++i) {
+        const uint32_t slot = i < word(spawn + 0xd8) ? i : 0;
+        const uint8_t* const pair = reinterpret_cast<uint8_t*>(uintptr_t{word(spawn + 0xdc)}) + slot * 8;
+        uint32_t& guard = title_global<uint32_t>(0x0098f21c);
+        if (!(guard & 1)) {
+            guard |= 1;
+            title_global<uint32_t>(0x0098f218) = HashStr_Hash(text_of(0x00833540));  // "transparent"
+        }
+        if (!(guard & 2)) {
+            guard |= 2;
+            title_global<uint32_t>(0x0098f214) = HashStr_Hash(text_of(0x00833534));  // "noshadow"
+        }
+        if (word(pair) == title_global<uint32_t>(0x0098f218))
+            transparent = spawn_stricmp(word(pair + 4), 0x0082e058) == 0;  // "1"
+        else if (word(pair) == title_global<uint32_t>(0x0098f214))
+            noshadow = spawn_stricmp(word(pair + 4), 0x0082e058) == 0;
+    }
+    // "auto_thread" and the "on_<notify>" callbacks (block 0x3c bytes from the 0x0095f568 small heap).
+    uint32_t auto_thread = 0;
+    uint8_t* block = nullptr;
+    for (uint32_t i = 0; i < word(spawn + 0xd0); ++i) {
+        const uint32_t slot = i < word(spawn + 0xd0) ? i : 0;
+        const uint8_t* const pair = reinterpret_cast<uint8_t*>(uintptr_t{word(spawn + 0xd4)}) + slot * 8;
+        if (spawn_stricmp(word(pair), 0x00833528) == 0) {  // "auto_thread"
+            auto_thread = word(pair + 4);
+            continue;
+        }
+        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(text_of(word(pair)),
+                                                                                         text_of(0x00833524), 3))
+            continue;  // __strnicmp "on_"
+        if (!block) {
+            block = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
+            if (block) {
+                for (uint32_t f = 0; f <= 0x38; f += 4) word(block + f) = 0;
+                for (uint32_t f = 0xc; f < 0x3c; f += 8) word(block + f) = 0;
+            }
+        }
+        const uint32_t key = Com_HashKeyNoCase(0, text_of(word(pair) + 3));
+        const uint32_t callback = Com_HashKeyNoCase(0, text_of(word(pair + 4)));
+        const TitleRegs regs{address_of(block), 0, callback, 0, key, i};
+        const uint32_t args[2] = {key, callback};
+        spawn_call_at(top, 0x002ee1e7, 0x002b6ea0, regs, 2, args);  // G_EntityAddNotifyCallback
+    }
+    // The entity from the zone's memory context, else the aligned heap.
+    int32_t context = static_cast<int32_t>(zone);
+    uint8_t* mem = nullptr;
+    if (context == -1) context = static_cast<int32_t>(word(title_global<uint8_t*>(0x0095f638) + 0x34));
+    if (context != -1) {
+        uint8_t* const heap = context >= 0 && context < 0x63
+                                  ? reinterpret_cast<uint8_t*>(uintptr_t{word(title_global<uint8_t*>(0x0095f638) + 0x38 + context * 4)})
+                                  : nullptr;
+        mem = MemContext_Alloc_r(heap, 0x10, 0x460);
+    }
+    if (!mem) mem = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x460);  // Heap_AllocAligned
+    uint8_t* ent = nullptr;
+    if (mem) {
+        const TitleRegs regs{address_of(mem), 0, 0, 0, static_cast<uint32_t>(context), 0};
+        const uint32_t args[1] = {static_cast<uint32_t>(context)};
+        ent = reinterpret_cast<uint8_t*>(uintptr_t{spawn_call_at(top, 0x002ee24a, 0x002d6ba0, regs, 1, args)});  // G_InitGentity
+    }
+    ++title_global<int32_t>(0x00985374);
+    if (block) word(ent + 0x234) = address_of(block);
+    if (transparent) CG_GetEntityRefEntity(ent)[0xef] = 1;
+    if (noshadow) CG_GetEntityRefEntity(ent)[0xed] |= 2;
+    word(ent + 0x290) = scene;
+    {
+        const TitleRegs regs{scene, 0, address_of(spawn), 0, address_of(ent), 0};
+        const uint32_t args[2] = {address_of(spawn), address_of(ent)};
+        spawn_call_at(top, 0x002ee2a0, 0x002d8a90, regs, 2, args);  // G_ApplySpawnFields
+    }
+    const uint32_t classname = word(ent + 0x25c);
+    word(ent + 0x260) = Com_HashKeyNoCase(0, classname ? text_of(classname + 6) : nullptr);
+    G_SetSpawnVarsFromList(reinterpret_cast<const uint32_t*>(spawn + 0xd8));
+    uint8_t* const checkpoint = title_global<uint8_t*>(0x0095f4e0);
+    if (checkpoint[0x390] && checkpoint[0]) {
+        const TitleRegs regs{address_of(ent), 0, address_of(checkpoint), 0, address_of(ent), 0};
+        spawn_call_at(top, 0x002ee311, 0x002c7f00, regs, 0, nullptr);  // G_ApplyCheckpointStart
+    }
+    title_global<uint8_t>(0x0095f528) = 1;
+    {
+        const TitleRegs regs{address_of(ent), 0, address_of(checkpoint), 0, address_of(ent), address_of(ent)};
+        spawn_call_at(top, 0x002ee31f, 0x00269cb0, regs, 0, nullptr);  // G_CallSpawnByClassname
+    }
+    // The trajectories start stationary at the spawned origin (+0x140) and angles (+0x150).
+    word(ent + 0x20) = word(ent + 0x140);
+    word(ent + 0x24) = word(ent + 0x144);
+    word(ent + 0x28) = word(ent + 0x148);
+    word(ent + 0x14) = 0;
+    word(ent + 0x18) = 0;
+    word(ent + 0x1c) = 0;
+    word(ent + 0x34) = 0;  // 0.0f
+    word(ent + 0x30) = 0;
+    word(ent + 0x2c) = 0;
+    word(ent + 0x44) = word(ent + 0x150);
+    word(ent + 0x48) = word(ent + 0x154);
+    word(ent + 0x4c) = word(ent + 0x158);
+    word(ent + 0x38) = 0;
+    word(ent + 0x3c) = 0;
+    word(ent + 0x40) = 0;
+    word(ent + 0x58) = 0;
+    word(ent + 0x54) = 0;
+    word(ent + 0x50) = 0;
+    uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+    title_global<uint8_t>(0x0095f528) = 0;
+    const uint32_t keys_callback = import ? word(import + 0x804) : 0;
+    if (keys_callback) {
+        // The game's own key handler (import +0x804) gets the key list (+0xd4, count +0xd0).
+        const uint32_t count = word(spawn + 0xd0);
+        const uint32_t list = count ? word(spawn + 0xd4) : 0;
+        const TitleRegs regs{list, 0, count, keys_callback, address_of(ent), address_of(spawn)};
+        const uint32_t args[2] = {list, count};
+        word(ent + 0x428) = spawn_call_at(top, count ? 0x002ee401 : 0x002ee412, keys_callback, regs, 2, args);
+    } else {
+        word(ent + 0x428) = 0;
+    }
+    {
+        const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(spawn)};
+        spawn_call_at(top, 0x002ee42c, 0x002fb310, regs, 0, nullptr);  // G_UpdateEntityStringHashes
+    }
+    if (auto_thread) {
+        // The auto thread started through import +0x880 (name hash, entity handle, two empty words, the script's
+        // undefined float twice).
+        const uint32_t hash = Com_HashKeyNoCase(0, text_of(auto_thread));
+        const uint32_t undefined = title_global<uint32_t>(0x00922eb8);
+        const uint32_t handle = word(ent + 0x224);
+        const TitleRegs regs{hash, 0, handle, top - 0x14, address_of(ent), address_of(spawn)};
+        const uint32_t args[6] = {hash, handle, 0, 0, undefined, undefined};
+        spawn_call_at(top, 0x002ee490, word(title_global<uint8_t*>(0x0095f49c) + 0x880), regs, 6, args);
+    }
+    if (const uint32_t callbacks = word(ent + 0x234)) {
+        const uint32_t key = title_global<uint32_t>(0x0097a7e4);  // scr_const_spawned
+        const TitleRegs regs{key, 0, callbacks, 0, address_of(ent), address_of(spawn)};
+        const uint32_t args[3] = {address_of(ent), key, 0};
+        spawn_call_at(top, 0x002ee4aa, 0x002b6de0, regs, 3, args);  // G_EntityRunNotifyCallbacks
+    }
+    // A brush model ("sbmo..." at +0x14) gets flag 0x800000.
+    const uint32_t model = word(spawn + 0x14);
+    if (model && word(reinterpret_cast<uint8_t*>(uintptr_t{model})) == 0x6f6d6273) word(ent + 0x2a4) |= 0x800000;
 }
 
 }  // namespace game
