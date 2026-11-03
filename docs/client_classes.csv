@@ -211,4 +211,5 @@
 0030d530,CreateProfileMenu_BuildKeyboard,front end,"only caller CreateProfileMenu_Activate (front end); 0 calls in level runs; vtable calls, not leaf-eligible"
 002c78d0,Field_KeyDownEvent,dead,"only caller Console_KeyDownEvent (dead); no other CALL/JMP, pointer or immediate (xbefind imm+call, 2026-11-03); offline leaf test not eligible (_memmove holds an IN instruction); C kept"
 002f2930,Console_KeyDownEvent,dead,"only caller Console_SubmitLine (dead); no other CALL/JMP, pointer or immediate (xbefind imm+call, 2026-11-03); not eligible offline (Field_KeyDownEvent's _memmove); C kept"
+002f2ad0,CL_StartHunkUsersAndPause,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-11-03); gap function created 11-03; C kept"
 002f2b20,Console_SubmitLine,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-11-03); gap function created 11-03; C kept"

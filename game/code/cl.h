@@ -554,4 +554,11 @@ void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key);
 // holds anything, then Field_AdjustScroll. Dead (no CALL/JMP, pointer or immediate).
 void XB_REGS1 XB_CDECL Console_SubmitLine(const char* text);
 
+// 0x002f2ad0: CL_StartHunkUsers, r_uiFullScreen 0, SCR_UpdateScreen, cl_paused 1. Dead (no CALL/JMP, pointer
+// or immediate).
+void XB_CDECL CL_StartHunkUsersAndPause();
+// 0x002f2b00 (progress 0..1 on the stack): the pak load-progress callback (+0x35c of 0x0095f638) SV_SpawnServer
+// installs - S_UpdateChannels on the sound system 0x0095f4c4, then the loading screen's SetProgress (0x0033ac80).
+void XB_CDECL CL_UpdateLoadingProgress(float progress);
+
 }  // namespace game

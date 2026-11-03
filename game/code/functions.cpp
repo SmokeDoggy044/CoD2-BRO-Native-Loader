@@ -5043,6 +5043,8 @@ const Function kFunctions[] = {
     {"CL_Frame", 0x002f2630, 0, code(&CL_Frame_entry), 0, Result::None, Status::Replaced},
     {"CL_MapLoading", 0x002f2890, 0, code(&CL_MapLoading), 0, Result::None, Status::Replaced},
     {"Console_KeyDownEvent", 0x002f2930, 0, code(&Console_KeyDownEvent), 0, Result::None, Status::Compare},
+    {"CL_StartHunkUsersAndPause", 0x002f2ad0, 0, code(&CL_StartHunkUsersAndPause), 0, Result::None, Status::Compare},
+    {"CL_UpdateLoadingProgress", 0x002f2b00, 0, code(&CL_UpdateLoadingProgress), 4, Result::None, Status::Compare},
     {"Console_SubmitLine", 0x002f2b20, 0, code(&Console_SubmitLine), 0, Result::None, Status::Compare},
     {"SV_InitGameProgs", 0x002f2d30, 0, code(&SV_InitGameProgs_entry), 4, Result::None, Status::Compare},
     {"CL_InitCGame", 0x002f2db0, 0, code(&CL_InitCGame), 0, Result::None, Status::Compare},

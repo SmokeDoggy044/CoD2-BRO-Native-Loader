@@ -3599,4 +3599,21 @@ void XB_REGS1 XB_CDECL Console_SubmitLine(const char* text) {
     Field_AdjustScroll(reinterpret_cast<uint8_t*>(uintptr_t{0x0092e830}));
 }
 
+void XB_CDECL CL_StartHunkUsersAndPause() {
+    // CL_StartHunkUsers, then the full-screen UI drawn once and the client paused.
+    CL_StartHunkUsers();
+    Cvar_Set2(&title_global<const char>(0x00835238), const_cast<char*>(&title_global<const char>(0x0082e098)),
+              1);  // r_uiFullScreen 0
+    title_function<void XB_CDECL()>(0x002f1e60)();  // SCR_UpdateScreen
+    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
+              1);  // cl_paused 1
+}
+
+void XB_CDECL CL_UpdateLoadingProgress(float progress) {
+    // The pak load-progress callback SV_SpawnServer installs: the sound channels kept running, then the
+    // loading screen's progress (0x0033ac80, ret 4).
+    title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
+    title_function<void XB_STDCALL(float)>(0x0033ac80)(progress);
+}
+
 }  // namespace game

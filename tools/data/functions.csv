@@ -4931,6 +4931,8 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002f2630,CL_Frame,replaced,755002,8705,343,0,0,8362,"original called host code at f7c26000 from 002f27a9 CL_Frame+0x179 [.text]"
 002f2890,CL_MapLoading,replaced,413,299,76,0,0,223,"original called host code at 080ca902 from f7d59701 [host] libcod_bro_game.so: _ZN4game12SndHw_UpdateEv+0xb68"
 002f2930,Console_KeyDownEvent,compare,0,0,0,0,0,0,""
+002f2ad0,CL_StartHunkUsersAndPause,compare,0,0,0,0,0,0,""
+002f2b00,CL_UpdateLoadingProgress,compare,875,122,119,0,0,3,"original called host code at 080f950c from f7c3a622 [host] libcod_bro_game.so: _ZN4game3gfxEv+0x22"
 002f2b20,Console_SubmitLine,compare,0,0,0,0,0,0,""
 002f2d30,SV_InitGameProgs,compare,136,110,110,0,0,0,""
 002f2db0,CL_InitCGame,compare,532,29,0,0,0,29,"original called host code at 080f94e2 from f7d0da72 [host] libcod_bro_game.so: _ZN4game3gfxEv+0x22"
