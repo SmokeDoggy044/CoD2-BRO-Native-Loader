@@ -4939,6 +4939,7 @@ const Function kFunctions[] = {
     {"PM_UpdateWeaponReload", 0x002ee6a0, 0, code(&PM_UpdateWeaponReload), 4, Result::Eax, Status::Compare},
     {"PM_BeginWeaponReload", 0x002ee940, 0, code(&PM_BeginWeaponReload), 0, Result::None, Status::Compare},
     {"PM_LadderMove", 0x002eea00, 0, code(&PM_LadderMove), 0, Result::None, Status::Compare},
+    {"PM_CheckDuck", 0x002ef090, 0, code(&PM_CheckDuck), 0, Result::None, Status::Compare},
     {"PM_WalkMove", 0x002efbe0, 0, code(&PM_WalkMove), 0, Result::None, Status::Compare},
     {"PM_WeaponCheckAmmo", 0x002f0450, 0, code(&PM_WeaponCheckAmmo), 0, Result::Eax, Status::Compare},
     {"PM_CheckWeaponReload", 0x002f0530, 0, code(&PM_CheckWeaponReload), 0, Result::None, Status::Compare},

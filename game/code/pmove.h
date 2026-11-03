@@ -247,5 +247,7 @@ uint32_t XB_CDECL PM_SlideMove(uint32_t gravity);
 void XB_CDECL PM_StepSlideMove(uint32_t gravity);
 // 0x002efbe0: Q3's PM_WalkMove.
 void XB_CDECL PM_WalkMove();
+// 0x002ef090: Q3's PM_CheckDuck with prone (bounds, stance requests, view height, prone ground pitch).
+void XB_CDECL PM_CheckDuck();
 
 }  // namespace game

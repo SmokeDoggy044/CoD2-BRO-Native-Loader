@@ -958,6 +958,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002ba530,NET_OutOfBandPrint,1889,1889,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3979,3979,0,0,46.9
 002bb940,G_RestorePlayerHealth,1594,1580,0,14,100.0
+002bc570,PM_SetWeaponReady,3472,3472,0,0,100.0
 002bdc80,Quat_ToMat44,3528,3528,0,0,100.0
 002bfc10,Mat43_UntransformPoint,1831,1826,5,0,100.0
 002bffb0,SV_AdjustAreaPortalState,3057,3057,0,0,100.0

@@ -4945,4 +4945,325 @@ void XB_CDECL PM_WalkMove() {
     G_SeparateFromSolids();
 }
 
+namespace {
+
+// The player state's predictable event ring (+0xc4 sequence, events +0xc8, parms +0xd8; 4 slots).
+void duck_event(uint8_t* ps, uint32_t event) {
+    at<uint32_t>(ps, 0xc8 + (at<uint32_t>(ps, 0xc4) & 3) * 4) = event;
+    at<uint32_t>(ps, 0xd8 + (at<uint32_t>(ps, 0xc4) & 3) * 4) = 0;
+    ++at<uint32_t>(ps, 0xc4);
+}
+
+}  // namespace
+
+void XB_CDECL PM_CheckDuck() {
+    // Q3's PM_CheckDuck with prone: pm's bounds from the player state (+0x408..+0x418; top +0x41c, 50 crouched /
+    // prone, 0x0083ee38 prone when lying), dead (pm_type 4 up: dead view height +0x42c), mounted (eFlags 0x100000
+    // without 0x400000: standing, event 0x8e) and forced stances (eFlags 0x2000 prone / 0x4000 crouch). The stance
+    // requests (pm +9: 0x40 prone, 0x80 crouch) from the stance buttons (pm_flags 0x80000 / 0x100000 / 0x200000,
+    // events 0x8e stand / 0x8f crouch / 0x90 prone) are checked with pm's trace (+0x138, player/vehicle contents
+    // masked) and BG_CheckProneFeet; pm_flags 1 = prone, 2 = crouched. Then the view height target (+0xa8, with
+    // the stance lerp +0xb0), PM_ViewHeightAdjust, eFlags 0x20 / 0x40, the trace function (+0x130 = +0x134 prone,
+    // else +0x138) and, newly prone, the ground pitch under the player (+0x454, via Plane_PitchAlongYaw) and its
+    // limited copy (+0x458, within 0x0083ef18..0x0083ef1c of the pitch).
+    using Trace = void XB_CDECL(uint8_t*, const float*, const float*, const float*, const float*, uint32_t, uint32_t);
+    using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*, uint8_t*,
+                                                      uint8_t*, uint32_t, uint32_t);
+    using Break = void XB_CDECL(int32_t, const char*);
+    uint8_t* pm = pm_global();
+    alignas(16) uint8_t trace[0x40];
+    at<uint32_t>(trace, 0x30) = 0;
+    at<uint32_t>(trace, 0x34) = 0;
+    uint8_t* ps = pm_ps_ref(pm);
+    at<uint32_t>(pm, 0x100) = at<uint32_t>(ps, 0x408);
+    const uint32_t was_prone = at<uint32_t>(ps, 0x2c) & 1;
+    at<uint32_t>(pm, 0x104) = at<uint32_t>(pm_ps_ref(pm), 0x40c);
+    at<uint32_t>(pm, 0x110) = at<uint32_t>(pm_ps_ref(pm), 0x414);
+    at<uint32_t>(pm, 0x114) = at<uint32_t>(pm_ps_ref(pm), 0x418);
+    at<uint32_t>(pm, 0x108) = at<uint32_t>(pm_ps_ref(pm), 0x410);
+    ps = pm_ps_ref(pm);
+    const float fifty = title_global<float>(0x0083ec30);
+    const auto stance_trace = [&]() {
+        uint8_t* const p = pm_ps_ref(pm);
+        title_function<Trace>(at<uint32_t>(pm, 0x138))(trace, &at<float>(p, 0), &at<float>(pm, 0x100), &at<float>(pm, 0x110),
+                                                      &at<float>(p, 0), at<uint32_t>(p, 0x7c),
+                                                      at<uint32_t>(pm, 0x5c) & 0xfdff3fffu);
+        pm = pm_global();
+        return trace[0x3c] != 0;
+    };
+    const auto event = [&](uint32_t e) { duck_event(pm_ps_ref(pm), e); };
+    if (at<int32_t>(ps, 0x24) >= 4) {
+        at<uint32_t>(pm, 0x118) = at<uint32_t>(ps, 0x41c);
+        uint8_t* const p = pm_ps_ref(pm);
+        at<uint32_t>(p, 0xa8) = at<uint32_t>(p, 0x42c);
+        uint8_t* const q = pm_ps_ref(pm);
+        at<uint32_t>(pm, 0x130) = (at<uint8_t>(q, 0x2c) & 1) ? at<uint32_t>(pm, 0x134) : at<uint32_t>(pm, 0x138);
+        at<uint32_t>(q, 0xc0) |= 0x10;
+        PM_ViewHeightAdjust();
+        return;
+    }
+    const uint32_t eflags = at<uint32_t>(ps, 0xc0);
+    if ((eflags & 0x100000) && !(eflags & 0x400000)) {
+        at<uint32_t>(pm, 0x118) = at<uint32_t>(ps, 0x41c);
+        uint8_t* p = pm_ps_ref(pm);
+        at<uint32_t>(p, 0xa8) = at<uint32_t>(p, 0x428);
+        pm[9] &= 0xbf;
+        p = pm_ps_ref(pm);
+        at<uint32_t>(p, 0x2c) &= 0xfffffffcu;
+        event(0x8e);
+        at<uint32_t>(pm, 0x130) = at<uint32_t>(pm, 0x138);
+        at<uint32_t>(pm_ps_ref(pm), 0xc0) |= 0x10;
+        PM_ViewHeightAdjust();
+        return;
+    }
+    uint32_t ev = 0;
+    if (eflags & 0x106000) {
+        const uint32_t forced_prone = eflags & 0x2000;
+        if (forced_prone && !(eflags & 0x4000)) goto set_prone;
+        if (!forced_prone && (eflags & 0x4000)) {
+            uint8_t* const p = pm_ps_ref(pm);
+            at<uint32_t>(p, 0x2c) |= 2;
+            at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffffeu;
+            goto view_height;
+        }
+        goto clear_both;
+    }
+    {
+        const uint32_t pflags = at<uint32_t>(ps, 0x2c);
+        if (pflags & 0x4000) goto view_height;
+        if ((pflags & 0x20) &&
+            at<int32_t>(title_global<uint8_t**>(0x0095f4d8)[at<int32_t>(ps, 0x80)], 0x98) == 3)
+            goto view_height;
+        if (at<int32_t>(ps, 0x24) == 1 || (eflags & 0x400000)) {
+            // 0x2ef6f6: no new stance from a stance button; requests become events only.
+            const uint32_t buttons = pflags & 0x180000;
+            if (buttons || (pm[9] & 0x40)) {
+                if (buttons == 0x180000) title_function<Break>(0x002938f0)(1, pointer<const char>(0x008368c0));
+                const uint8_t req = pm[9];
+                uint8_t* const p = pm_ps_ref(pm);
+                const uint32_t f = at<uint32_t>(p, 0x2c);
+                bool fire = true;
+                if (req & 0x40) {
+                    ev = ((f & 3) || (f & 0x80000)) && !(f & 0x100000) ? 0x8f : 0x8e;
+                } else if (req & 0x80) {
+                    if (f & 0x100000) ev = 0x8e; else fire = false;
+                } else {
+                    if (f & 0x80000) ev = 0x8f; else fire = false;
+                }
+                if (fire) {
+                    pm[9] = req & 0x3f;
+                    if (ev == 0x8f) pm[9] = (req & 0x3f) | 0x80;
+                    BG_AddPredictableEventToPlayerstate(p, 0, ev, 0);
+                }
+            }
+            if (pm[9] & 0xc0) goto crouch_not_prone;
+            goto clear_both;
+        }
+        if ((pflags & 0x10) && (pm[9] & 0xc0)) {
+            pm[9] &= 0x3f;
+            duck_event(ps, 0x8e);
+        }
+        const uint32_t buttons = at<uint32_t>(pm_ps_ref(pm), 0x2c) & 0x380000;
+        if (buttons) {
+            if (buttons == 0x380000) title_function<Break>(0x002938f0)(1, pointer<const char>(0x00836898));
+            const uint8_t req = pm[9];
+            uint8_t* const p = pm_ps_ref(pm);
+            const uint32_t f = at<uint32_t>(p, 0x2c);
+            bool fire = true;
+            if (req & 0x40) {
+                if (!(f & 0x200000))
+                    fire = false;
+                else if ((f & 3) || (f & 0x80000))
+                    ev = (f & 0x100000) ? 0x8e : 0x8f;
+                else
+                    ev = 0x8e;
+            } else if (req & 0x80) {
+                if (!(f & 0x100000))
+                    fire = false;
+                else if ((f & 3) || (f & 0x200000))
+                    ev = (f & 0x80000) ? 0x90 : 0x8e;
+                else
+                    ev = 0x90;
+            } else {
+                if (!(f & 0x80000))
+                    fire = false;
+                else if ((f & 1) && !(f & 0x200000))
+                    ev = 0x90;
+                else
+                    ev = (f & 0x100000) ? 0x90 : 0x8f;
+            }
+            if (fire) {
+                const uint8_t base = req & 0x3f;
+                pm[9] = base;
+                if (ev == 0x90)
+                    pm[9] = base | 0x40;
+                else if (ev == 0x8f)
+                    pm[9] = base | 0x80;
+                BG_AddPredictableEventToPlayerstate(p, 0, ev, 0);
+            }
+        }
+        // 0x2ef378: act on the request.
+        const uint8_t req = pm[9];
+        if (req & 0x40) {
+            uint8_t* p = pm_ps_ref(pm);
+            if (at<uint8_t>(p, 0x2c) & 1) goto set_prone;
+            if (at<uint32_t>(p, 0x60) && !pm[0x121]) {
+                const uint32_t r = title_function<CheckProneFeet>(0x002dc6f0)(
+                    0, at<uint32_t>(p, 0x7c), p, 0x41f00000u, at<uint32_t>(p, 0xa0), p + 0x4d8, p + 0x4dc, p + 0x4e0,
+                    at<uint32_t>(pm, 0x138), 0x42700000u);
+                pm = pm_global();
+                if (r) goto set_prone;
+            }
+            p = pm_ps_ref(pm);
+            if (!at<uint32_t>(p, 0x60)) goto view_height;
+            at<uint32_t>(p, 0x2c) |= 0x8000;
+            if (pm[9] & 2) goto view_height;
+            p = pm_ps_ref(pm);
+            duck_event(p, (at<uint8_t>(p, 0x2c) & 2) ? 0x8f : 0x8e);
+            goto view_height;
+        }
+        if (req & 0x80) {
+            if (!(at<uint8_t>(pm_ps_ref(pm), 0x2c) & 1)) goto set_crouch;
+            at<float>(pm, 0x118) = fifty;
+            if (!stance_trace()) goto crouch_not_prone;
+            if (pm[9] & 2) goto view_height;
+            event(0x90);
+            goto view_height;
+        }
+        const uint32_t f = at<uint32_t>(pm_ps_ref(pm), 0x2c);
+        if (f & 1) {
+            at<uint32_t>(pm, 0x118) = at<uint32_t>(pm_ps_ref(pm), 0x41c);
+            if (!stance_trace()) goto clear_both;
+            at<float>(pm, 0x118) = fifty;
+            if (!stance_trace()) goto crouch_not_prone;
+            if (pm[9] & 2) goto view_height;
+            event(0x90);
+            goto view_height;
+        }
+        if (f & 2) {
+            at<uint32_t>(pm, 0x118) = at<uint32_t>(pm_ps_ref(pm), 0x41c);
+            if (!stance_trace()) {
+                at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffffdu;
+                goto view_height;
+            }
+            if (pm[9] & 2) goto view_height;
+            event(0x8f);
+        }
+        goto view_height;
+    }
+set_prone:
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) |= 1;
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffffdu;
+    goto view_height;
+clear_both:
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffffcu;
+    goto view_height;
+crouch_not_prone:
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffffeu;
+set_crouch:
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) |= 2;
+view_height:
+    ps = pm_ps_ref(pm);
+    if (!at<uint32_t>(ps, 0xb0)) {
+        if (at<uint8_t>(ps, 0x2c) & 1) {
+            if (at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x428)) {
+                at<uint32_t>(ps, 0xa8) = at<uint32_t>(ps, 0x424);
+            } else {
+                if (title_global<int32_t>(0x00950bcc) == 2) {
+                    title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
+                                                               at<uint32_t>(ps, 0xa0), nullptr, nullptr, nullptr,
+                                                               at<uint32_t>(pm, 0x138), 0x42700000u);
+                    pm = pm_global();
+                }
+                uint8_t* const p = pm_ps_ref(pm);
+                if (at<uint32_t>(p, 0xa8) != at<uint32_t>(p, 0x420)) {
+                    at<uint32_t>(p, 0xa8) = at<uint32_t>(p, 0x420);
+                    at<uint32_t>(pm_ps_ref(pm), 0x2c) |= 0x2000;
+                    at<uint32_t>(pm_ps_ref(pm), 0x30) = 0x708;
+                }
+            }
+        } else if (at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x420) || (at<uint8_t>(ps, 0x2c) & 2)) {
+            at<uint32_t>(ps, 0xa8) = at<uint32_t>(ps, 0x424);
+        } else {
+            at<uint32_t>(ps, 0xa8) = at<uint32_t>(ps, 0x428);
+        }
+    }
+    PM_ViewHeightAdjust();
+    pm = pm_global();
+    ps = pm_ps_ref(pm);
+    const uint32_t view = at<uint32_t>(ps, 0xa8);
+    uint32_t ef;
+    if (view == at<uint32_t>(ps, 0x424)) {
+        if (at<uint8_t>(ps, 0x2c) & 3)
+            at<float>(pm, 0x118) = fifty;
+        else
+            at<uint32_t>(pm, 0x118) = at<uint32_t>(ps, 0x41c);
+        at<uint32_t>(pm_ps_ref(pm), 0xc0) |= 0x20;
+        ef = at<uint32_t>(pm_ps_ref(pm), 0xc0) & 0xffffffbfu;
+    } else if (view == at<uint32_t>(ps, 0x420)) {
+        if (at<uint8_t>(ps, 0x2c) & 3)
+            at<float>(pm, 0x118) = title_global<float>(0x0083ee38);
+        else
+            at<uint32_t>(pm, 0x118) = at<uint32_t>(ps, 0x41c);
+        at<uint32_t>(pm_ps_ref(pm), 0xc0) |= 0x40;
+        ef = at<uint32_t>(pm_ps_ref(pm), 0xc0) & 0xffffffdfu;
+    } else {
+        at<uint32_t>(pm, 0x118) = at<uint32_t>(ps, 0x41c);
+        ef = at<uint32_t>(pm_ps_ref(pm), 0xc0) & 0xffffff9fu;
+    }
+    ps = pm_ps_ref(pm);
+    at<uint32_t>(ps, 0xc0) = ef;
+    ps = pm_ps_ref(pm);
+    if (!(at<uint8_t>(ps, 0x2c) & 1)) {
+        at<uint32_t>(pm, 0x130) = at<uint32_t>(pm, 0x138);
+        at<uint32_t>(ps, 0xc0) |= 0x10;
+        return;
+    }
+    at<uint32_t>(pm, 0x130) = at<uint32_t>(pm, 0x134);
+    at<uint32_t>(ps, 0xc0) |= 0x10;
+    if (was_prone) return;
+    if (pm[0x18] || pm[0x19]) {
+        at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xfffffbffu;
+        at<uint32_t>(pm_ps_ref(pm), 0x2c) &= 0xffffffdfu;
+    }
+    // Newly prone: the ground under the player, traced up 0x0083eb98, back down to the origin, then 0.25 below.
+    ps = pm_ps_ref(pm);
+    const auto prone_trace = [&](const float* start, const float* end) {
+        uint8_t* const p = pm_ps_ref(pm);
+        title_function<Trace>(at<uint32_t>(pm, 0x134))(trace, start, &at<float>(pm, 0x100), &at<float>(pm, 0x110), end,
+                                                      at<uint32_t>(p, 0x7c), at<uint32_t>(pm, 0x5c) & 0xfdff3fffu);
+        pm = pm_global();
+    };
+    alignas(16) float up[4] = {at<float>(ps, 0), at<float>(ps, 4), at<float>(ps, 8) + title_global<float>(0x0083eb98),
+                               at<float>(ps, 0)};
+    prone_trace(&at<float>(ps, 0), up);
+    alignas(16) float top[4] = {at<float>(trace, 0), at<float>(trace, 4), at<float>(trace, 8), at<float>(trace, 0)};
+    prone_trace(top, &at<float>(pm_ps_ref(pm), 0));
+    for (uint32_t i = 0; i < 3; ++i) at<float>(pm_ps_ref(pm), i * 4) = at<float>(trace, i * 4);
+    ps = pm_ps_ref(pm);
+    at<uint32_t>(ps, 0x450) = at<uint32_t>(ps, 0xa0);
+    ps = pm_ps_ref(pm);
+    alignas(16) float below[4] = {at<float>(ps, 0), at<float>(ps, 4), at<float>(ps, 8) - title_global<float>(0x0083ec24),
+                                  at<float>(ps, 0)};
+    prone_trace(&at<float>(ps, 0), below);
+    if (!trace[0x3d] && title_global<float>(0x0083eb20) > at<float>(trace, 0x20)) {
+        uint8_t* const p = pm_ps_ref(pm_global());
+        at<float>(p, 0x454) = Plane_PitchAlongYaw(reinterpret_cast<const float*>(trace + 0x10), at<float>(p, 0x450));
+    } else {
+        at<float>(pm_ps_ref(pm_global()), 0x454) = 0.0f;
+    }
+    uint8_t* const p = pm_ps_ref(pm_global());
+    float d = static_cast<float>(static_cast<int32_t>((at<float>(p, 0x454) - at<float>(p, 0x9c)) *
+                                                      title_global<float>(0x0083ebd8)) & 0xffff) *
+              title_global<float>(0x0083ebd4);
+    if (d > title_global<float>(0x0083eb60)) d = d - title_global<float>(0x0083ebcc);  // 180, 360
+    const float limit = title_global<float>(0x0083ef1c);
+    if (title_global<float>(0x0083ef18) > d)
+        at<float>(p, 0x458) = at<float>(p, 0x9c) - limit;
+    else if (d > limit)
+        at<float>(p, 0x458) = at<float>(p, 0x9c) + limit;
+    else
+        at<uint32_t>(p, 0x458) = at<uint32_t>(p, 0x454);
+}
+
 }  // namespace game
