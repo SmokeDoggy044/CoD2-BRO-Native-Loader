@@ -16925,4 +16925,1205 @@ uint32_t XB_CDECL Actor_ApplyMove(uint32_t entry, uint32_t, uint32_t ebx, uint32
     return now_ground;
 }
 
+AI_GAP_ENTRY(Actor_InitStateMachine, 0)
+
+uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                         uint32_t edi, uint32_t) {
+    // ESI actor: the spawn template named by the entity's +0x25c (+6, rm_aitb lookup) applied,
+    // a ragdoll, the sentient info reset, the two path buffers (0x1010 and 0x810 bytes, 16-byte
+    // aligned, from the entity's memory context (+0x220, -1: 0x0095f638 +0x34) or the heap;
+    // self pointer and 0 at their ends) when missing, the goal at the origin, the goal yaw from
+    // the entity's yaw in [0, 360), the goal string +0x26c (+6) when set, the anim script init
+    // hook and the current state's Start (EDX 0); next think now, +0x32c 2.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{esi});
+    const uint32_t a = esi;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t F = entry - 0xc;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const uint32_t e = addr_of(ent);
+    const uint32_t tmpl = field<uint32_t>(ent, 0x25c);
+    const uint32_t name = (tmpl ? tmpl + 6 : 0) + 6;
+    uint32_t index = field<uint32_t>(ent, 0x220);
+    if (index == 0xffffffffu) index = field<uint32_t>(title_global<const uint8_t*>(0x0095f638), 0x34);
+    stack_word(entry - 4) &= 0xffffff00u;  // the push-ecx slot's low byte cleared, read as a word
+    {
+        const uint32_t args[5] = {title_global<uint32_t>(0x0095f718), entry - 4, name, stack_word(entry - 4), 0};  // rm_aitb
+        call_at(F, 0x0021cceb, 0x0002bf80, TitleRegs{entry - 4, ebx, args[0], index, a, e}, 5, args);  // ZoneStringMap_Lookup
+    }
+    const uint32_t found = stack_word(entry - 4);
+    {
+        const uint32_t self[1] = {a};
+        call_at(F, 0x0021ccf5, 0x002065b0, TitleRegs{entry - 4, found, ecx, index, a, e}, 1, self);  // Actor_ApplySpawnTemplate
+    }
+    const uint32_t ragdoll = call_at(F, 0x0021ccfa, 0x00234930, TitleRegs{a, found, ecx, index, a, e}, 0, nullptr);  // Ragdoll_Alloc
+    field<uint32_t>(ent, 0x238) = ragdoll;
+    call_at(F, 0x0021cd02, 0x00203130, TitleRegs{a, found, ecx, index, a, e}, 0, nullptr);  // Actor_ResetSentientInfo
+    // A 16-byte aligned block of `size` bytes from the entity's memory context or the heap.
+    const auto alloc = [&](uint32_t size, uint32_t ctx_ret, uint32_t heap_ret) -> uint32_t {
+        int32_t idx = field<int32_t>(field<const uint8_t*>(actor, 0), 0x220);
+        const uint8_t* const g = title_global<const uint8_t*>(0x0095f638);
+        const uint32_t args[2] = {0x10, size};
+        uint32_t p = 0;
+        bool heap = false;
+        if (idx == -1) {
+            idx = field<int32_t>(g, 0x34);
+            heap = idx == -1;
+        }
+        if (!heap) {
+            const uint32_t ctx = idx >= 0 && idx < 0x63 ? field<uint32_t>(g, 0x38 + uint32_t(idx) * 4) : 0;
+            p = call_at(F, ctx_ret, 0x0028c0f0, TitleRegs{ctx, 0, ctx, edx, a, e}, 2, args);  // MemContext_Alloc_r
+        }
+        if (!p) {
+            p = call_at(F, heap_ret, 0x00042c50, TitleRegs{0, 0, addr_of(g), edx, a, e}, 2, args);  // Heap_AllocAligned
+            if (!p) return 0;
+        }
+        uint8_t* const block = reinterpret_cast<uint8_t*>(uintptr_t{p});
+        field<uint32_t>(block, size - 0x10) = p;
+        field<uint32_t>(block, size - 0xc) = 0;
+        return p;
+    };
+    if (!field<uint32_t>(ent, 0x450)) field<uint32_t>(ent, 0x450) = alloc(0x1010, 0x0021cd4d, 0x0021cd5d);
+    if (!field<uint32_t>(ent, 0x454)) field<uint32_t>(ent, 0x454) = alloc(0x810, 0x0021cdbc, 0x0021cdcc);
+    {
+        const uint32_t s[1] = {field<uint32_t>(actor, 4)};
+        call_at(F, 0x0021cdf8, 0x00203550, TitleRegs{0, 0, e + 0x140, s[0], a, e}, 1, s);  // Sentient_SetGoalPos
+    }
+    float yaw = field<float>(field<const uint8_t*>(actor, 0), 0x154);
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    const float zero = 0.0f;
+    if (zero > yaw) {
+        const float full = title_global<float>(0x0083ebcc);  // 360
+        do yaw = yaw + full;
+        while (zero > yaw);
+    } else {
+        const float full = title_global<float>(0x0083ebcc);
+        if (yaw >= full) {
+            do yaw = yaw - full;
+            while (yaw >= full);
+        }
+    }
+    field<float>(sentient, 0x20) = yaw;
+    uint32_t bx = 0;
+    const uint32_t goal = field<uint32_t>(ent, 0x26c);
+    if (goal && goal + 6 && field<uint8_t>(reinterpret_cast<const uint8_t*>(uintptr_t{goal}), 6)) {
+        bx = field<uint32_t>(actor, 4);
+        call_at(F, 0x0021ce65, 0x0021c5c0, TitleRegs{e + 0x26c, bx, goal + 6, edx, a, e}, 0, nullptr);  // Actor_SetGoalFromString
+    }
+    {
+        const uint32_t number[1] = {field<uint32_t>(ent, 0x224)};
+        call_at(F, 0x0021ce76, title_global<uint32_t>(0x00987b70), TitleRegs{F - 4, bx, number[0], edx, a, e}, 1,
+                number);  // g_animScriptInit
+    }
+    const uint32_t state = field<uint32_t>(actor, 8);
+    call_at(F, 0x0021ce8a, title_global<uint32_t>(0x00830c28 + state * 36), TitleRegs{state * 9, bx, a, 0, a, e}, 0,
+            nullptr);  // g_aiStateFuncs[state].Start
+    field<int32_t>(ent, 0x328) = level_time();
+    field<uint32_t>(ent, 0x32c) = 2;
+    return state * 9;
+}
+
+namespace {
+
+// One 0x50-byte sentient record of `from` copied over `to`'s when newer (+0x18 time): the
+// title's field order, +0x14 and +0x1c cleared.
+void merge_sentient_record(uint8_t* to, const uint8_t* from) {
+    if (field<int32_t>(to, 0x18) >= field<int32_t>(from, 0x18)) return;
+    field<uint32_t>(to, 0x14) = 0;
+    field<uint32_t>(to, 0x1c) = 0;
+    field<uint32_t>(to, 0x18) = field<uint32_t>(from, 0x18);
+    field<uint32_t>(to, 0x20) = field<uint32_t>(from, 0x20);
+    field<uint32_t>(to, 0x24) = field<uint32_t>(from, 0x24);
+    field<uint32_t>(to, 0x28) = field<uint32_t>(from, 0x28);
+    field<uint32_t>(to, 0x34) = field<uint32_t>(from, 0x34);
+    field<uint16_t>(to, 0x30) = field<uint16_t>(from, 0x30);
+    field<uint32_t>(to, 0x40) = field<uint32_t>(from, 0x40);
+    field<uint32_t>(to, 0x44) = field<uint32_t>(from, 0x44);
+    field<uint32_t>(to, 0x48) = field<uint32_t>(from, 0x48);
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_SpawnFromSpawner, 0)
+
+uint32_t XB_CDECL Actor_SpawnFromSpawner(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                         uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Stack (spawner, targetname, force, memory context; cdecl): 0 while 0x00955214 is set or
+    // the spawner's count (+0x370) is used up, and unless forced when the spot would telefrag or
+    // (outside level spawning) the player's eye sees the spawn point. The actor entity (G_Spawn
+    // in the context: -1 takes the spawner's +0x220, then 0x0095f638 +0x34) gets the spawner's
+    // fields (and +0x428 through the hook at 0x0095f49c +0x810), the targetname, +0x2a0 bit 0
+    // cleared, +0x290 -1 and Actor_Spawn (0 when it fails). Unless the spawner has +0x2a0 flag 8
+    // every sentient's position is recorded; the state machine starts (0x0095f704 = spawner
+    // meanwhile), the sentient records of team mates are merged in when newer, sight and enemy
+    // run, the spawner notifies "spawned" with the entity number and its count drops. Returns the
+    // entity.
+    const uint32_t B = aligned_base(entry);
+    const auto arg = [entry](uint32_t i) -> uint32_t& { return stack_word(entry + i * 4); };
+    stack_word(entry - 4) = ebp;
+    stack_word(B - 0x38) = ebx;
+    stack_word(B - 0x3c) = esi;
+    stack_word(B - 0x40) = edi;
+    const uint32_t F = B - 0x40;
+    if (title_global<uint32_t>(0x00955214)) return 0;
+    const uint32_t sp = arg(1);
+    uint8_t* const spawner = reinterpret_cast<uint8_t*>(uintptr_t{sp});
+    if (!field<uint32_t>(spawner, 0x370)) return 0;
+    if (!arg(3)) {
+        if (call_at(F, 0x0021cef2, 0x00253a10, TitleRegs{0, sp + 0x140, ecx, sp + 0x140, esi, sp}, 0, nullptr) &
+            0xff)  // SpotWouldTelefrag
+            return 0;
+        if (!title_global<uint32_t>(0x00985fe0)) {  // level_spawning
+            const uint32_t field_name[1] = {title_global<uint32_t>(0x0097a75c)};  // scr_const_player
+            const uint32_t player = call_at(F, 0x0021cf1c, 0x0024d700, TitleRegs{field_name[0], sp + 0x140, ecx, edx, 0x0097a8c0, 0x260},
+                                            1, field_name);  // G_FindEntityByIntField
+            const uint8_t* const pe = reinterpret_cast<const uint8_t*>(uintptr_t{player});
+            call_at(F, 0x0021cf2d, 0x002066e0, TitleRegs{field<uint32_t>(pe, 0x244), sp + 0x140, B - 0x1c, edx, player, 0x260}, 0,
+                    nullptr);  // Sentient_EyeOrigin
+            point_vec4_at(B - 0x10, stack_vec(B - 0x1c));
+            const uint32_t args[3] = {sp + 0x140, field<uint32_t>(pe, 0x224), field<uint32_t>(spawner, 0x224)};
+            if (call_at(F, 0x0021cf7c, 0x00209fc0, TitleRegs{B - 0x10, sp + 0x140, sp, edx, args[1], 0x260}, 3,
+                        args))  // Actor_CanSeePointFromBounds
+                return 0;
+        }
+    }
+    if (arg(4) == 0xffffffffu) {
+        uint32_t ctx = field<uint32_t>(spawner, 0x220);
+        if (ctx == 0xffffffffu) ctx = field<uint32_t>(title_global<const uint8_t*>(0x0095f638), 0x34);
+        arg(4) = ctx;
+    }
+    const uint32_t e = call_at(F, 0x0021cfb2, 0x002d7030, TitleRegs{arg(4), 0xffffffffu, ecx, edx, esi, sp}, 0, nullptr);  // G_Spawn
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{e});
+    stack_word(B - 0x28) = e;
+    {
+        const uint32_t self[1] = {e};
+        call_at(F, 0x0021cfb9, 0x00248460, TitleRegs{e, 0xffffffffu, ecx, edx, e, sp}, 1, self);  // Actor_CopySpawnerFields
+    }
+    const uint32_t hooks = title_global<uint32_t>(0x0095f49c);
+    if (hooks && field<uint32_t>(spawner, 0x428)) {
+        const uint32_t args[1] = {field<uint32_t>(spawner, 0x428)};
+        field<uint32_t>(ent, 0x428) =
+            call_at(F, 0x0021cfdc, field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{hooks}), 0x810),
+                    TitleRegs{args[0], 0xffffffffu, hooks, edx, e, sp}, 1, args);
+    }
+    {
+        const uint32_t name[1] = {arg(2)};
+        call_at(F, 0x0021cff4, 0x0011d600, TitleRegs{0, 0xffffffffu, e + 0x264, edx, e, sp}, 1, name);  // ScriptString_Assign
+    }
+    field<uint32_t>(ent, 0x2a0) &= 0xfffffffeu;
+    field<int32_t>(ent, 0x290) = -1;
+    if (!call_at(F, 0x0021d010, 0x002106f0, TitleRegs{e, 0xffffffffu, ecx, field<uint32_t>(ent, 0x2a0), e, sp}, 0,
+                 nullptr))  // Actor_Spawn
+        return 0;
+    uint32_t bx = 0xffffffffu;  // EBX: -1, or 0 after the sentient walk
+    if (!(field<uint8_t>(spawner, 0x2a0) & 8)) {
+        bx = 0;
+        uint32_t s = call_at(F, 0x0021d02d, 0x001fa570, TitleRegs{1, 0xffffffffu, ecx, edx, 0xffffffffu, sp}, 0,
+                             nullptr);  // Sentient_FirstOfTeams
+        while (s) {
+            const uint32_t actor = field<uint32_t>(ent, 0x240);
+            call_at(F, 0x0021d044, 0x00200050, TitleRegs{s, s, s, e, actor, sp}, 0, nullptr);  // Actor_RecordSentientPosition
+            s = call_at(F, 0x0021d04e, 0x001fa510, TitleRegs{s, s, s, e, actor, 0xffffffffu}, 0, nullptr);  // Sentient_NextOfTeams
+        }
+    }
+    const uint32_t a = field<uint32_t>(ent, 0x240);
+    title_global<uint32_t>(0x0095f704) = sp;
+    call_at(F, 0x0021d06c, 0x0021cca0, TitleRegs{0, bx, ecx, edx, a, sp}, 0, nullptr);  // Actor_InitStateMachine
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    const uint32_t mask = 1u << (field<uint32_t>(field<const uint8_t*>(ent, 0x244), 4) & 31);
+    title_global<uint32_t>(0x0095f704) = 0;
+    stack_word(B - 0x20) = addr_of(actor);
+    stack_word(B - 0x24) = mask;
+    uint32_t other = call_at(F, 0x0021d09b, 0x001fc0c0, TitleRegs{0, 0, ecx, edx, mask, addr_of(actor)}, 0,
+                             nullptr);  // Actor_FirstOfTeams
+    while (other) {
+        if (other != addr_of(actor)) {
+            const uint8_t* const from = reinterpret_cast<const uint8_t*>(uintptr_t{other});
+            for (uint32_t r = 0; r < 33; ++r) merge_sentient_record(actor + 0x850 + r * 0x50, from + 0x850 + r * 0x50);
+        }
+        other = call_at(F, 0x0021d1f2, 0x001fc060, TitleRegs{other, 0, ecx, edx, mask, addr_of(actor)}, 0,
+                        nullptr);  // Actor_NextOfTeams
+    }
+    {
+        const uint32_t one[1] = {addr_of(actor)};
+        call_at(F, 0x0021d200, 0x002135d0, TitleRegs{0, 0, ecx, edx, mask, addr_of(actor)}, 1, one);  // Actor_UpdateSight
+        const uint32_t two[2] = {addr_of(actor), 1};
+        call_at(F, 0x0021d208, 0x002185c0, TitleRegs{0, 0, ecx, edx, mask, addr_of(actor)}, 2, two);  // Actor_SelectEnemy
+    }
+    stack_word(B - 0x20) = field<uint32_t>(ent, 0x224);
+    {
+        const uint32_t args[2] = {title_global<uint32_t>(0x0097a7e4), B - 0x20};  // scr_const_spawned
+        call_at(F, 0x0021d22a, 0x000265a0, TitleRegs{B - 0x20, 0, args[0], stack_word(B - 0x20), mask, sp}, 2,
+                args);  // G_NotifyWithEntity
+    }
+    if (field<int32_t>(spawner, 0x370) > 0) --field<int32_t>(spawner, 0x370);
+    return e;
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of a float loaded on the x87, stored as float.
+float title_ci_sqrt_float(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_MoveByAnimMode, 8)
+
+uint32_t XB_CDECL Actor_MoveByAnimMode(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                       uint32_t edi, uint32_t ebp) {
+    // Stack (actor, angles; ret 8): the frame's move by the move mode (+0x278) into +0x2c4 with
+    // its kind in +0x2d8. 1: along the path at the root anim's xy speed (at least 30 x
+    // 0x008ddaa0 when following +0x1390) - a cached lookahead move (+0x13f0, until +0x13ec) is
+    // reused while the DObj is not live, else Actor_GetLookaheadMove and a new cache time (now
+    // + 100 + rand(0..199)); move history and path arrival. 2/4: the root delta's xy (kind 2);
+    // 3: none (kind 1); 5/6: the whole root delta (kinds 3/4); 3..6 then turn by the root
+    // rotation's yaw. 7: the lookahead refreshed and history recorded when on a path; no move
+    // (kind 1). Then orient, yaw and turn toward the angles.
+    const uint32_t a = stack_word(entry + 4);
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{a});
+    stack_word(entry - 0x18) = ebp;
+    stack_word(entry - 0x1c) = esi;
+    const uint32_t F0 = entry - 0x1c;
+    const uint32_t mode = field<uint32_t>(actor, 0x278) - 1;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const uint32_t e = addr_of(ent);
+    if (mode <= 6) {
+        stack_word(entry - 0x20) = ebx;
+        stack_word(entry - 0x24) = edi;
+        const uint32_t F = entry - 0x24;
+        const uint32_t dobj = field<uint32_t>(ent, 0x22c);
+        float* const rot = stack_vec(entry - 0x14);
+        float* const delta = stack_vec(entry - 0xc);
+        const auto root_delta = [&](uint32_t ret, uint32_t out) {
+            call_at(F, ret, 0x002d7e30, TitleRegs{dobj, entry - 0x14, ecx, edx, e, out}, 0, nullptr);  // DObj_GetRootAnimDelta
+        };
+        const auto clear_move = [&]() {
+            field<float>(actor, 0x2cc) = 0.0f;
+            field<float>(actor, 0x2c8) = 0.0f;
+            field<float>(actor, 0x2c4) = 0.0f;
+        };
+        bool rotate = false;
+        switch (mode) {
+            case 0: {
+                root_delta(0x0021dcb8, entry - 0xc);
+                field<uint32_t>(actor, 0x2d8) = 1;
+                const float sum = static_cast<float>(static_cast<long double>(delta[1]) * delta[1] +
+                                                     static_cast<long double>(delta[0]) * delta[0]);
+                float speed = title_ci_sqrt_float(sum);
+                if (field<uint32_t>(actor, 0x1390)) {
+                    const float least = title_global<float>(0x008ddaa0) * title_global<float>(0x0083ee38);  // x 30
+                    if (least > speed) speed = least;
+                }
+                *stack_vec(entry + 4) = speed;  // kept in the argument slot
+                const uint32_t live = call_at(F, 0x0021dd1c, 0x002a7ff0, TitleRegs{e, entry - 0x14, ecx, edx, e, entry - 0xc}, 0,
+                                              nullptr);  // G_EntHasLiveDObj
+                const uint32_t bits = stack_word(entry + 4);
+                const uint32_t ret_blend = !live && uint32_t(level_time()) <= field<uint32_t>(actor, 0x13ec) &&
+                                                   !(field<uint32_t>(actor, 0x77c) & 0x200)
+                                               ? 0x0021dd60
+                                               : 0x0021dde5;
+                if (ret_blend == 0x0021dd60) {
+                    field<uint32_t>(actor, 0x2c4) = field<uint32_t>(actor, 0x13f0);
+                    field<uint32_t>(actor, 0x2c8) = field<uint32_t>(actor, 0x13f4);
+                    field<uint32_t>(actor, 0x2cc) = field<uint32_t>(actor, 0x13f8);
+                } else {
+                    const uint32_t lane[1] = {field<uint32_t>(actor, 0x39c)};
+                    const uint32_t v = call_at(F, 0x0021dd7a, 0x0002bdc0, TitleRegs{live, bits, ecx, a, e, a + 0x2c4}, 1,
+                                               lane);  // FUN_0002bdc0
+                    const uint32_t args[3] = {e + 0x140, bits, v};
+                    call_at(F, 0x0021dd96, 0x00212670, TitleRegs{v, bits, ecx, a, a + 0x3c0, a + 0x2c4}, 3,
+                            args);  // Actor_GetLookaheadMove
+                    const uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
+                    title_global<uint32_t>(0x008d5a70) = seed;
+                    const int32_t delay = int32_t((seed >> 17) * 0xc8) >> 15;
+                    const uint32_t x = field<uint32_t>(actor, 0x2c4);
+                    field<uint32_t>(actor, 0x13f0) = x;
+                    const uint32_t z = field<uint32_t>(actor, 0x2cc);
+                    field<int32_t>(actor, 0x13ec) = delay + level_time() + 0x64;
+                    field<uint32_t>(actor, 0x13f4) = field<uint32_t>(actor, 0x2c8);
+                    field<uint32_t>(actor, 0x13f8) = z;
+                }
+                const uint32_t speed_arg[1] = {bits};
+                call_at(F, ret_blend, 0x001ffba0, TitleRegs{a, bits, ecx, a + 0x2c4, e, edi}, 1,
+                        speed_arg);  // Actor_RecordMoveHistoryBlended
+                const uint32_t self[1] = {a};
+                call_at(F, ret_blend + 6, 0x00205450, TitleRegs{a, bits, ecx, a + 0x2c4, e, edi}, 1,
+                        self);  // Actor_HandlePathArrival
+                break;
+            }
+            case 1:
+            case 3:
+                root_delta(mode == 1 ? 0x0021de03 : 0x0021dec5, entry - 0xc);
+                field<float>(actor, 0x2c4) = delta[0];
+                field<float>(actor, 0x2c8) = delta[1];
+                field<uint32_t>(actor, 0x2d8) = 2;
+                field<float>(actor, 0x2cc) = 0.0f;
+                rotate = mode == 3;
+                break;
+            case 2:
+                root_delta(0x0021de49, entry - 0xc);
+                field<uint32_t>(actor, 0x2d8) = 1;
+                clear_move();
+                rotate = true;
+                break;
+            case 4:
+            case 5:
+                root_delta(mode == 4 ? 0x0021df10 : 0x0021df34, a + 0x2c4);
+                field<uint32_t>(actor, 0x2d8) = mode == 4 ? 3 : 4;
+                rotate = true;
+                break;
+            default:  // 6: mode 7
+                if (field<int16_t>(actor, 0x740) > 0) {
+                    stack_word(F - 4) = 0;
+                    const uint32_t lane[1] = {field<uint32_t>(actor, 0x39c)};
+                    const uint32_t v = call_at(F - 4, 0x0021df5d, 0x0002bdc0, TitleRegs{6, ebx, ecx, a, e, edi}, 1,
+                                               lane);  // FUN_0002bdc0
+                    const uint32_t args[2] = {v, 0};
+                    call_at(F, 0x0021df72, 0x00212450, TitleRegs{e + 0x140, ebx, a + 0x3c0, a, e, edi}, 2,
+                            args);  // Path_RefreshLookahead
+                    call_at(F, 0x0021df79, 0x001fd5a0, TitleRegs{a, ebx, a + 0x3c0, a, e, edi}, 0,
+                            nullptr);  // Actor_RecordMoveHistory
+                }
+                field<uint32_t>(actor, 0x2d8) = 1;
+                clear_move();
+                break;
+        }
+        if (rotate) {
+            stack_word(F - 4) = 0x0021de77;
+            const float yaw = vectoyaw_2(rot);  // leaf (Replaced): return address only
+            if (!(yaw == 0.0f)) {
+                stack_word(F - 4) = 0x0021de8d;
+                Actor_RotateOrient(actor, yaw, 0.0f);  // leaf: XMM4 yaw, XMM5 0
+            }
+        }
+    }
+    call_at(F0, 0x0021de96, 0x0021dbd0, TitleRegs{a, ebx, a, edx, e, edi}, 0, nullptr);  // Actor_UpdateOrient
+    const uint32_t angles[1] = {stack_word(entry + 8)};
+    call_at(F0, 0x0021dea2, 0x00201b90, TitleRegs{a, ebx, a, edx, angles[0], edi}, 1, angles);  // Actor_UpdateYaw
+    return call_at(F0, 0x0021deaa, 0x002057b0, TitleRegs{a, ebx, a, edx, a, edi}, 1, angles);  // Actor_TurnTowardAngles
+}
+
+AI_GAP_ENTRY(Actor_Cover_Start, 0)
+
+uint32_t XB_CDECL Actor_Cover_Start(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                    uint32_t edi, uint32_t) {
+    // ECX actor, EDX previous state (state Start callback). Without an enemy after sight and
+    // enemy choice the claim is dropped (5). Without a valid claimed node a nearby cover node is
+    // looked for through the candidates (+0x818); none: 2 for team 1 or a stale enemy record,
+    // else the enemy's last known time is forgotten (5). From state 9 nothing more; on the
+    // claimed node the cover attack step (0x65, the node's yaw as 16-bit angles); else a path
+    // to the node unless the path already ends there (a failed path frees the node for the
+    // team and re-claims it) and step 0x64. +0x1364 1 (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    const uint32_t previous = edx;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t F1 = entry - 0xc;
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        const uint32_t one[1] = {a};
+        call_at(F1, 0x0021d8c7, 0x002135d0, TitleRegs{field<uint32_t>(actor, 4), ebx, 0, edx, a, edx}, 1, one);  // Actor_UpdateSight
+        const uint32_t two[2] = {a, 1};
+        call_at(F1, 0x0021d8cf, 0x002185c0, TitleRegs{0, ebx, 0, edx, a, edx}, 2, two);  // Actor_SelectEnemy
+        const uint32_t s = field<uint32_t>(actor, 4);
+        if (!field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{s}), 0x3c)) {
+            stack_word(entry - 4) &= 0xffff0000u;
+            const uint32_t args[2] = {s, stack_word(entry - 4)};
+            call_at(F1, 0x0021d8eb, 0x00200960, TitleRegs{s, ebx, args[1], edx, a, edx}, 2, args);  // Sentient_SetClaimedNode
+            return 5;
+        }
+    }
+    stack_word(entry - 0x10) = ebx;
+    const uint32_t F = entry - 0x10;
+    const uint32_t s = field<uint32_t>(actor, 4);
+    if (!(call_at(F, 0x0021d8fd, 0x00014480, TitleRegs{s + 0x48, ebx, ecx, edx, a, previous}, 0, nullptr) &
+          0xff)) {  // PathNode_HandleIsValid
+        uint32_t found = call_at(F, 0x0021d90a, 0x0021c9d0, TitleRegs{0, ebx, a, edx, a, previous}, 0,
+                                 nullptr);  // Actor_FindNearbyCoverNode
+        while (!found) {
+            if (!field<uint32_t>(actor, 0x818)) {
+                const uint8_t* const sn = field<const uint8_t*>(actor, 4);
+                if (field<uint32_t>(sn, 4) == 1) return 2;
+                const int32_t index = int32_t(field<uint32_t>(sn, 0x3c) - title_global<uint32_t>(0x00985378)) / 0x60;
+                const int32_t now = level_time();
+                const int32_t when = field<int32_t>(actor, 0x86c + uint32_t(index) * 0x50);
+                if (when <= now) return 2;
+                call_at(F, 0x0021da20, 0x001fa680, TitleRegs{uint32_t(when), ebx, uint32_t(now), uint32_t(index) * 0x50, a, previous},
+                        0, nullptr);  // Actor_ForgetEnemyLastKnownTime
+                return 5;
+            }
+            found = call_at(F, 0x0021d927, 0x0021c9d0, TitleRegs{0, ebx, a, edx, a, previous}, 0,
+                            nullptr);  // Actor_FindNearbyCoverNode
+        }
+    }
+    if (previous != 9) {
+        if (call_at(F, 0x0021d93b, 0x00201520, TitleRegs{a, ebx, ecx, edx, a, previous}, 0, nullptr)) {  // Actor_IsOnClaimedNode
+            const uint32_t h = field<uint32_t>(actor, 4) + 0x48;
+            exposed_schedule(actor, 0x65);
+            field<uint32_t>(actor, 0x12c) = 1;
+            const uint8_t* const node = reinterpret_cast<const uint8_t*>(uintptr_t{
+                call_at(F, 0x0021d978, 0x002b9f90, TitleRegs{h, ebx, ecx, uint32_t(level_time() + 0x1f5), a, previous}, 0,
+                        nullptr)});  // PathNode_FromHandle
+            const float k = title_global<float>(0x0083ebd8);
+            const float zero = 0.0f;
+            const int32_t yaw16 = int32_t(field<float>(node, 0x50) * k) & 0xffff;
+            const int32_t pitch16 = int32_t(zero * k) & 0xffff;
+            const float unit = title_global<float>(0x0083ebd4);
+            const float pitch = static_cast<float>(pitch16);
+            const float yaw = static_cast<float>(yaw16) * unit;
+            field<float>(actor, 0x130) = pitch * unit;
+            field<float>(actor, 0x134) = yaw;
+            field<float>(actor, 0x138) = yaw;
+            field<uint8_t>(actor, 0x1364) = 1;
+            return 0;
+        }
+        const uint32_t h = field<uint32_t>(actor, 4) + 0x48;
+        bool at_goal = false;
+        if (field<int16_t>(actor, 0x740) > 0) {
+            const float gx = field<float>(actor, 0x750), gy = field<float>(actor, 0x754), gz = field<float>(actor, 0x758);
+            const auto node_at = [&](uint32_t ret) {
+                return reinterpret_cast<const uint8_t*>(uintptr_t{
+                    call_at(F, ret, 0x002b9f90, TitleRegs{h, ebx, ecx, edx, a, h}, 0, nullptr)});  // PathNode_FromHandle
+            };
+            at_goal = gx == field<float>(node_at(0x0021da63), 0x44) && gy == field<float>(node_at(0x0021da74), 0x48) &&
+                      gz == field<float>(node_at(0x0021da85), 0x4c);
+        }
+        if (!at_goal) {
+            const uint32_t node = call_at(F, 0x0021da9a, 0x002ba010, TitleRegs{h, ebx, ecx, edx, a, h}, 0,
+                                          nullptr);  // PathNode_FromHandle2
+            const uint32_t args[4] = {node, 0, 0, 1};
+            if (!call_at(F, 0x0021daaa, 0x00219e60, TitleRegs{node, a, ecx, edx, a, node}, 4, args)) {  // Actor_FindPathToNode
+                uint8_t* const nd = reinterpret_cast<uint8_t*>(uintptr_t{node});
+                const uint8_t* const sn = field<const uint8_t*>(actor, 4);
+                field<uint32_t>(nd, 8 + field<uint32_t>(sn, 4) * 4) = 0;
+                const uint32_t claim[2] = {field<uint32_t>(actor, 4), field<uint16_t>(nd, 0)};
+                call_at(F, 0x0021dacb, 0x00200960, TitleRegs{field<uint32_t>(sn, 4), a, claim[1], claim[0], a, node}, 2,
+                        claim);  // Sentient_SetClaimedNode
+            }
+        }
+        exposed_schedule(actor, 0x64);
+    }
+    field<uint8_t>(actor, 0x1364) = 1;
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_ChooseReaction, 4)
+
+uint32_t XB_CDECL Actor_Grenade_ChooseReaction(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                               uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor, stack keep-path flag (ret 4): the grenade step. No grenade: cower (0x25a). A
+    // grenade the actor had claimed is released. Radius = its blast radius (+0x364) x 1.2. A
+    // current path (flag clear) that stays clear of the grenade: flee (0x258). A grenade behind
+    // the goal position, when the goal is safe and a path to it found: flee. Else a path away
+    // (planes first, then without when a sentient slot is pending); none: cower. A path toward
+    // the grenade (dot over 0.9): cleared, cower. An actor without an enemy takes the grenade's
+    // owner as one (its position recorded). With an enemy, cover from the grenade (0x259) is
+    // tried with the path saved and restored when none; else flee.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 0x3e4) = edi;
+    const auto schedule = [actor](uint32_t step) { exposed_schedule(actor, step); return uint32_t(level_time() + 0x1f5); };
+    uint8_t* const g0 = field<uint8_t*>(actor, 0x1310);
+    if (!g0) return schedule(0x25a);
+    if (field<uint32_t>(g0, 0x378) == field<uint32_t>(actor, 0)) field<uint32_t>(g0, 0x378) = 0;
+    stack_word(entry - 0x3e8) = ebx;
+    uint8_t* const g = field<uint8_t*>(actor, 0x1310);
+    const float radius = static_cast<float>(field<int32_t>(g, 0x364)) * title_global<float>(0x00830f60);  // 1.2
+    stack_word(entry - 0x3ec) = esi;
+    *stack_vec(entry - 0x3e0) = radius;
+    const uint32_t F1 = entry - 0x3ec;
+    if (!stack_word(entry + 4) && field<int16_t>(actor, 0x740) > 0) {
+        stack_word(F1 - 4) = 0x0021e1c2;
+        if (!Path_IsPointNearPath(actor + 0x3c0, &field<float>(field<uint8_t*>(actor, 0), 0x140), &field<float>(g, 0x2c0),
+                                  radius * radius))
+            return schedule(0x258);
+    }
+    {
+        const uint8_t* const e = field<const uint8_t*>(actor, 0);
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        const float gy = field<float>(g, 0x2c4) - field<float>(e, 0x144);
+        const float gz = field<float>(g, 0x2c8) - field<float>(e, 0x148);
+        const float dz = field<float>(s, 0x14) - field<float>(e, 0x148);
+        const float gx = field<float>(g, 0x2c0) - field<float>(e, 0x140);
+        const float dx = field<float>(s, 0xc) - field<float>(e, 0x140);
+        const float dy = field<float>(s, 0x10) - field<float>(e, 0x144);
+        const float dot = (dz * gz + dy * gy) + dx * gx;
+        if (0.0f > dot &&
+            call_at(F1, 0x0021e273, 0x0020c9c0, TitleRegs{addr_of(e), addr_of(g), addr_of(s) + 0xc, a, esi, a}, 0,
+                    nullptr)) {  // Actor_IsSafeFromGrenade
+            const uint32_t args[3] = {0, 1, 1};
+            call_at(F1, 0x0021e284, 0x0021a180, TitleRegs{a, addr_of(g), addr_of(s) + 0xc, a, esi, a}, 3,
+                    args);  // Actor_FindPathToGoal
+            if (field<int16_t>(actor, 0x740) > 0) return schedule(0x258);
+        }
+    }
+    stack_word(entry - 0x3f0) = ebp;
+    const uint32_t F = entry - 0x3f0;
+    const uint32_t r = stack_word(entry - 0x3e0);
+    {
+        const uint32_t args[4] = {field<uint32_t>(actor, 0x1310) + 0x2c0, r, 1, 1};
+        call_at(F, 0x0021e2d4, 0x002198f0, TitleRegs{a, addr_of(g), args[0], edx, esi, a}, 4,
+                args);  // Actor_FindPathAwayFromGrenade
+    }
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        if (call_at(F, 0x0021e2e5, 0x001fa7c0, TitleRegs{a, addr_of(g), ecx, edx, esi, a}, 0, nullptr)) {  // Actor_HasPendingSentientSlot
+            const uint32_t args[4] = {field<uint32_t>(actor, 0x1310) + 0x2c0, r, 0, 1};
+            call_at(F, 0x0021e300, 0x002198f0, TitleRegs{a, addr_of(g), ecx, args[0], esi, a}, 4,
+                    args);  // Actor_FindPathAwayFromGrenade
+        }
+        if (field<int16_t>(actor, 0x740) <= 0) {
+            exposed_schedule(actor, 0x25a);
+            return uint32_t(level_time() + 1);
+        }
+    }
+    {
+        const uint8_t* const e = field<const uint8_t*>(actor, 0);
+        const uint8_t* const gr = field<const uint8_t*>(actor, 0x1310);
+        const float dz = field<float>(actor, 0x758) - field<float>(e, 0x148);
+        const float gy = field<float>(gr, 0x2c4) - field<float>(e, 0x144);
+        const float gz = field<float>(gr, 0x2c8) - field<float>(e, 0x148);
+        const float dy = field<float>(actor, 0x754) - field<float>(e, 0x144);
+        const float gx = field<float>(gr, 0x2c0) - field<float>(e, 0x140);
+        const float dx = field<float>(actor, 0x750) - field<float>(e, 0x140);
+        const float dot = (dz * gz + dy * gy) + dx * gx;
+        if (dot > title_global<float>(0x0083ec18)) {  // 0.9
+            call_at(F, 0x0021e398, 0x001ffdb0, TitleRegs{addr_of(e), addr_of(g), addr_of(gr), edx, esi, a}, 0,
+                    nullptr);  // Actor_ClearPath
+            return schedule(0x25a);
+        }
+        uint8_t* const s = field<uint8_t*>(actor, 4);
+        if (!field<uint32_t>(s, 0x3c)) {
+            const uint8_t* const owner = reinterpret_cast<const uint8_t*>(uintptr_t{
+                call_at(F, 0x0021e3d9, 0x00013860, TitleRegs{addr_of(gr) + 0x2b0, addr_of(g), addr_of(gr), edx, addr_of(s), a}, 0,
+                        nullptr)});  // G_EntHandleToEnt
+            if (owner) {
+                const uint32_t os = field<uint32_t>(owner, 0x244);
+                if (os && os != addr_of(s)) {
+                    call_at(F, 0x0021e3f4, 0x00200050, TitleRegs{addr_of(owner), addr_of(owner), os, edx, a, a}, 0,
+                            nullptr);  // Actor_RecordSentientPosition
+                    const uint32_t one[1] = {1};
+                    call_at(F, 0x0021e404, 0x002184f0,
+                            TitleRegs{0, addr_of(owner), field<uint32_t>(actor, 4), field<uint32_t>(owner, 0x244), a, a}, 1,
+                            one);  // Sentient_SetEnemy
+                }
+            }
+        }
+    }
+    if (field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        const uint32_t saved = entry - 0x3dc;
+        call_at(F, 0x0021e417, 0x0002be40, TitleRegs{saved, ebx, ecx, edx, esi, a}, 0, nullptr);  // Path_Init
+        call_at(F, 0x0021e422, 0x001fbda0, TitleRegs{a, ebx, ecx, saved, esi, a}, 0, nullptr);    // Path_CopyFromActor
+        const uint32_t args[1] = {r};
+        if (call_at(F, 0x0021e435, 0x0021db00, TitleRegs{field<uint32_t>(actor, 0x1310) + 0x2c0, ebx, a, saved, esi, a}, 1,
+                    args))  // Actor_Grenade_FindCover
+            return schedule(0x259);
+        call_at(F, 0x0021e450, 0x001fbd60, TitleRegs{saved, ebx, ecx, a, esi, a}, 0, nullptr);  // Path_CopyToActor
+    }
+    return schedule(0x258);
+}
+
+AI_GAP_ENTRY(Actor_Exposed_MoveToGoalMove, 0)
+
+uint32_t XB_CDECL Actor_Exposed_MoveToGoalMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                               uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: the exposed move to the goal. A team-2 actor whose enemy is not visible (age
+    // 1000) skips the +0x7df check; a set +0x7df or +0x7c8 ends the move: reacquire (step 0xca)
+    // for that invisible enemy, else the claim dropped and combat (0xc8). With path points it
+    // moves (Actor_AvoidOthers(1), +0x12c 4; a vehicle-path actor drops its path). Without, the
+    // goal check: 2 changes to state 1 (1); 0 drops the claim and reacquires or fights as above.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t F = entry - 0xc;
+    // A team-2 actor's enemy seen (age 1000) is 0: no visibility.
+    const auto unseen = [&](uint32_t ret) {
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        if (field<uint32_t>(s, 4) != 2) return false;
+        const uint8_t* const enemy = field<const uint8_t*>(s, 0x3c);
+        if (!enemy) return false;
+        return float_bits_zero(visibility_if_stale_at(F, ret, enemy, actor, 0x3e8, a, ebx, ebp));
+    };
+    const auto reacquire = [&](uint32_t ret) {
+        exposed_schedule(actor, 0xca);
+        call_at(F, ret, 0x001fb5c0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);  // Actor_AnimReacquire
+        return 0u;
+    };
+    const auto drop_claim = [&](uint32_t ret) {
+        stack_word(entry - 4) &= 0xffff0000u;
+        const uint32_t args[2] = {field<uint32_t>(actor, 4), stack_word(entry - 4)};
+        call_at(F, ret, 0x00200960, TitleRegs{args[0], ebx, args[0], args[1], a, a}, 2, args);  // Sentient_SetClaimedNode
+    };
+    const auto combat = [&]() {
+        exposed_schedule(actor, 0xc8);
+        call_at(F, 0x0021e691, 0x0021d3c0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);  // Actor_Exposed_Combat
+        return 0u;
+    };
+    const bool skip = unseen(0x0021e4d1);
+    if ((!skip && field<uint8_t>(actor, 0x7df)) || field<uint32_t>(actor, 0x7c8)) {
+        if (unseen(0x0021e61e)) return reacquire(0x0021e651);
+        drop_claim(0x0021e66c);
+        return combat();
+    }
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        const uint32_t has = call_at(F, 0x0021e50f, 0x0021b360, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);  // Actor_HasPathToGoal
+        if (has == 2) {
+            field<uint32_t>(actor, 0x12c) = 1;
+            call_at(F, 0x0021e526, 0x00200110, TitleRegs{a, ebx, ecx, edx, 1, a}, 0, nullptr);  // Actor_SetState
+            return 1;
+        }
+        if (!has) {
+            drop_claim(0x0021e543);
+            if (unseen(0x0021e567)) return reacquire(0x0021e59d);
+            return combat();
+        }
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    const uint32_t ret[4] = {0x0021e5b6, 0x0021e600, 0x0021e5f2, 0x0021e5cd};
+    avoid_and_move(actor, F, ret, ebx, a, a, 1);
+    if (field<uint32_t>(actor, 0x1390))
+        call_at(F, 0x0021e5e0, 0x001ffdb0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);  // Actor_ClearPath
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Noncombat_Think, 0)
+
+uint32_t XB_CDECL Actor_Noncombat_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                        uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): an actor with a weapon of class 3 leaves for state 4, one
+    // with a grenade for 6 (transition (1, n); 1); one on a turret not yet given up (+0x297)
+    // changes to state 3 (1). Then sight and enemy: an enemy changes to state 2 (1) unless the
+    // actor is of team 2 without nearby cover and the enemy is not visible (age +0x830). Else
+    // the goal node is claimed and a path found (radius 25) unless already at the goal
+    // (+0x7de: the exact check). Moving: "noncombat_move", run when outside +0x7a4 of the goal,
+    // +0x12c 4 (+0x7df) or 2. Stopped: "noncombat_stop", the claim dropped (no +0x7df) or the
+    // node's yaw taken (cover nodes, flag 0x8000), and stationary (+0x12c 5 with a goal yaw)
+    // unless an anim custom (+0x1e8) runs off mode 1. Then the anim script (not in that case)
+    // and the movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 0xc) = esi;
+    stack_word(entry - 4) = edx;
+    const uint32_t F1 = entry - 0xc;
+    uint32_t leave = 0;
+    if (actor && field<uint32_t>(actor, 0)) {
+        const uint32_t index = call_at(F1, 0x0021ed1e, 0x002acb00, TitleRegs{eax, ebx, ecx, edx, field<uint32_t>(actor, 0xf0), edi},
+                                       0, nullptr) &
+                               0xff;  // BG_FindWeaponIndexForHash
+        const uint8_t* const def = title_global<const uint8_t* const*>(0x0095f4d8)[index];
+        if (def && field<uint32_t>(def, 0x98) == 3) leave = 4;
+    }
+    if (!leave && field<uint32_t>(actor, 0x1310)) leave = 6;
+    if (leave) {
+        push_transition(actor, 1, leave, F1, 0x0021ed72, ebx);
+        return 1;
+    }
+    if (uint8_t* const turret = field<uint8_t*>(actor, 0x136c)) {
+        if (!field<uint8_t>(turret, 0x297)) {
+            set_state_at(actor, 3, F1, 0x0021eda8, ebx);
+            return 1;
+        }
+        field<uint32_t>(actor, 0x136c) = 0;
+    }
+    const uint32_t ret[3] = {0x0021edcc, 0x0021edd2, 0x0021edda};
+    think_sight_and_enemy(actor, F1, ret, eax, ebx, edx, edi);
+    {
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        if (field<uint32_t>(s, 0x3c)) {
+            bool change = field<uint32_t>(s, 4) != 2 ||
+                          call_at(F1, 0x0021edf3, 0x0021c9d0, TitleRegs{0, ebx, a, edx, a, edi}, 0, nullptr);  // Actor_FindNearbyCoverNode
+            if (!change) {
+                const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+                change = !float_bits_zero(visibility_if_stale_at(F1, 0x0021ee0b, enemy, actor, field<uint32_t>(actor, 0x830), edi, ebx, a));
+            }
+            if (change) {
+                set_state_at(actor, 2, F1, 0x0021ee24, ebx);
+                return 1;
+            }
+        }
+    }
+    stack_word(entry - 0x10) = ebx;
+    stack_word(entry - 0x14) = edi;
+    const uint32_t F = entry - 0x14;
+    const uint32_t s = field<uint32_t>(actor, 4);
+    call_at(F, 0x0021ee37, 0x002009c0, TitleRegs{eax, ebx, ecx, edx, a, s}, 0, nullptr);  // Sentient_ClaimGoalNode
+    bool find = field<int16_t>(actor, 0x740) > 0;
+    if (!find) {
+        const uint8_t exact = field<uint8_t>(actor, 0x7de);
+        const uint32_t at = call_at(F, exact ? 0x0021ee68 : 0x0021ee54, 0x00203050, TitleRegs{exact ? 1u : 0u, exact, a, edx, a, s}, 0,
+                                    nullptr);  // Actor_IsAtGoal
+        find = !at;
+    }
+    if (find) {
+        const uint32_t args[3] = {0x41c80000, 1, 1};
+        call_at(F, 0x0021ee7c, 0x0021a180, TitleRegs{a, ebx, a, edx, a, s}, 3, args);  // Actor_FindPathToGoal
+    }
+    const uint32_t stop = 0x00987bb8;  // g_animScript_stop
+    bool script = true;
+    bool set_mode = true;
+    if (field<int16_t>(actor, 0x740) > 0) {
+        field<uint32_t>(actor, 0x13e8) = 0x0083cf44;  // "noncombat_move"
+        const uint8_t* const e = field<const uint8_t*>(actor, 0);
+        const float dx = field<float>(e, 0x140) - field<float>(actor, 0x750);
+        const float dy = field<float>(e, 0x144) - field<float>(actor, 0x754);
+        const float dz = field<float>(e, 0x148) - field<float>(actor, 0x758);
+        const float r = field<float>(actor, 0x7a4);
+        const float d = (dz * dz + dy * dy) + dx * dx;
+        const uint32_t run[1] = {d >= r * r ? 1u : 0u};
+        call_at(F, 0x0021ef1b, 0x002198a0, TitleRegs{1, ebx, a, edx, a, a}, 1, run);  // Actor_AnimMove
+    } else {
+        field<uint32_t>(actor, 0x13e8) = 0x0083cf34;  // "noncombat_stop"
+        uint32_t has_yaw = 0;
+        if (!field<uint8_t>(actor, 0x7df)) {
+            call_at(F, 0x0021ef67, 0x002027d0, TitleRegs{a, ebx, ecx, edx, a, 0}, 0, nullptr);  // Actor_DropClaimedNode
+        } else {
+            uint8_t* const sn = field<uint8_t*>(actor, 4);
+            const uint32_t h = addr_of(sn) + 0x48;
+            if (call_at(F, 0x0021ef76, 0x00014480, TitleRegs{h, ebx, ecx, edx, h, addr_of(sn)}, 0, nullptr) & 0xff) {  // PathNode_HandleIsValid
+                const auto node_at = [&](uint32_t r) {
+                    return reinterpret_cast<const uint8_t*>(uintptr_t{
+                        call_at(F, r, 0x002b9f90, TitleRegs{h, ebx, ecx, edx, h, addr_of(sn)}, 0, nullptr)});  // PathNode_FromHandle
+                };
+                if (field<uint8_t>(node_at(0x0021ef81), 0x2d) & 0x80) {
+                    const int32_t yaw16 = int32_t(field<float>(node_at(0x0021ef8e), 0x50) * title_global<float>(0x0083ebd8)) & 0xffff;
+                    field<float>(actor, 0x138) = static_cast<float>(yaw16) * title_global<float>(0x0083ebd4);
+                    const float yaw = field<float>(node_at(0x0021efbf), 0x50);
+                    stack_word(F - 4) = 0x0021efcb;
+                    Sentient_SetGoalYaw(sn, yaw);  // leaf: EAX sentient, XMM0 yaw
+                }
+            }
+            stack_word(F - 4) = 0x0021efd3;
+            has_yaw = Sentient_HasGoalYaw(field<const uint8_t*>(actor, 4));  // leaf
+        }
+        if (field<uint32_t>(actor, 0x1e8) && field<int32_t>(actor, 0x278) != 1) {
+            script = false;
+        } else {
+            call_at(F, 0x0021eff8, 0x00203de0, TitleRegs{a, ebx, ecx, edx, stop, has_yaw}, 0, nullptr);  // Actor_AnimStationary
+            if (has_yaw) {
+                field<uint32_t>(actor, 0x12c) = 5;
+                set_mode = false;
+            }
+        }
+    }
+    if (script) {
+        if (set_mode) field<uint32_t>(actor, 0x12c) = field<uint8_t>(actor, 0x7df) ? 4 : 2;
+        call_at(F, 0x0021ef39, 0x00205dd0, TitleRegs{a, ebx, ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateAnimScript
+    }
+    call_at(F, 0x0021ef44, 0x0021ea60, TitleRegs{a, stack_word(entry - 4), ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Lmg_Think, 0)
+
+uint32_t XB_CDECL Actor_Lmg_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                  uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): the machine-gunner state. A grenade leaves for state 6
+    // (transition (1, 6)); a turret not given up changes to state 3; a weapon not of class 3
+    // changes to 2 (enemy) or 5 (1). Then sight and enemy, the goal node claimed and - unless at
+    // the goal (+0x7de: the exact check) - a path found (radius 25) and step 0x2bd. Moving:
+    // "lmg_move" as the noncombat move. Stopped: "lmg_stop", the claim dropped (no +0x7df) or
+    // the cover node's yaw taken, step 0x2be when new, stationary (+0x12c 5 with a goal yaw).
+    // Anim script and movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 0xc) = esi;
+    stack_word(entry - 4) = edx;
+    const uint32_t F1 = entry - 0xc;
+    if (field<uint32_t>(actor, 0x1310)) {
+        push_transition(actor, 1, 6, F1, 0x0021f1fd, ebx);
+        return 1;
+    }
+    if (uint8_t* const turret = field<uint8_t*>(actor, 0x136c)) {
+        if (!field<uint8_t>(turret, 0x297)) {
+            set_state_at(actor, 3, F1, 0x0021f233, ebx);
+            return 1;
+        }
+        field<uint32_t>(actor, 0x136c) = 0;
+    }
+    bool lmg = false;
+    if (field<uint32_t>(actor, 0)) {
+        const uint32_t index = call_at(F1, 0x0021f257, 0x002acb00, TitleRegs{eax, ebx, ecx, edx, field<uint32_t>(actor, 0xf0), edi},
+                                       0, nullptr) &
+                               0xff;  // BG_FindWeaponIndexForHash
+        const uint8_t* const def = title_global<const uint8_t* const*>(0x0095f4d8)[index];
+        lmg = def && field<uint32_t>(def, 0x98) == 3;
+    }
+    if (!lmg) {
+        set_state_at(actor, field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c) ? 2 : 5, F1, 0x0021f287, ebx);
+        return 1;
+    }
+    if (field<uint32_t>(actor, 0x12a0))
+        call_at(F1, 0x0021f2a1, 0x00200050, TitleRegs{eax, ebx, field<uint32_t>(actor, 0x12a0), edx, a, edi}, 0,
+                nullptr);  // Actor_RecordSentientPosition
+    stack_word(entry - 0x10) = ebx;
+    stack_word(entry - 0x14) = edi;
+    const uint32_t F = entry - 0x14;
+    {
+        const uint32_t one[1] = {a};
+        call_at(F, 0x0021f2a9, 0x002135d0, TitleRegs{eax, ebx, 0, edx, a, edi}, 1, one);  // Actor_UpdateSight
+        const uint32_t two[2] = {a, 1};
+        call_at(F, 0x0021f2b1, 0x002185c0, TitleRegs{eax, ebx, 0, edx, a, edi}, 2, two);  // Actor_SelectEnemy
+    }
+    const uint32_t s = field<uint32_t>(actor, 4);
+    call_at(F, 0x0021f2b9, 0x002009c0, TitleRegs{eax, ebx, ecx, edx, a, s}, 0, nullptr);  // Sentient_ClaimGoalNode
+    bool find = field<int16_t>(actor, 0x740) > 0;
+    if (!find) {
+        const uint8_t exact = field<uint8_t>(actor, 0x7de);
+        find = !call_at(F, exact ? 0x0021f2ea : 0x0021f2d6, 0x00203050, TitleRegs{exact ? 1u : 0u, exact, a, edx, a, s}, 0,
+                        nullptr);  // Actor_IsAtGoal
+    }
+    if (find) {
+        const uint32_t args[3] = {0x41c80000, 1, 1};
+        call_at(F, 0x0021f2fe, 0x0021a180, TitleRegs{a, ebx, a, edx, a, s}, 3, args);  // Actor_FindPathToGoal
+        exposed_schedule(actor, 0x2bd);
+    }
+    bool set_mode = true;
+    if (field<int16_t>(actor, 0x740) > 0) {
+        field<uint32_t>(actor, 0x13e8) = 0x0083cf6c;  // "lmg_move"
+        const uint8_t* const e = field<const uint8_t*>(actor, 0);
+        const float dx = field<float>(e, 0x140) - field<float>(actor, 0x750);
+        const float dy = field<float>(e, 0x144) - field<float>(actor, 0x754);
+        const float dz = field<float>(e, 0x148) - field<float>(actor, 0x758);
+        const float r = field<float>(actor, 0x7a4);
+        const float d = (dz * dz + dy * dy) + dx * dx;
+        const uint32_t run[1] = {d >= r * r ? 1u : 0u};
+        call_at(F, 0x0021f3bc, 0x002198a0, TitleRegs{1, ebx, a, edx, a, a}, 1, run);  // Actor_AnimMove
+    } else {
+        field<uint32_t>(actor, 0x13e8) = 0x0083cf60;  // "lmg_stop"
+        uint32_t has_yaw = 0;
+        if (!field<uint8_t>(actor, 0x7df)) {
+            call_at(F, 0x0021f408, 0x002027d0, TitleRegs{a, ebx, ecx, edx, a, 0}, 0, nullptr);  // Actor_DropClaimedNode
+        } else {
+            uint8_t* const sn = field<uint8_t*>(actor, 4);
+            const uint32_t h = addr_of(sn) + 0x48;
+            if (call_at(F, 0x0021f41a, 0x00014480, TitleRegs{h, ebx, ecx, edx, h, addr_of(sn)}, 0, nullptr) & 0xff) {  // PathNode_HandleIsValid
+                const auto node_at = [&](uint32_t r) {
+                    return reinterpret_cast<const uint8_t*>(uintptr_t{
+                        call_at(F, r, 0x002b9f90, TitleRegs{h, ebx, ecx, edx, h, addr_of(sn)}, 0, nullptr)});  // PathNode_FromHandle
+                };
+                if (field<uint8_t>(node_at(0x0021f425), 0x2d) & 0x80) {
+                    const int32_t yaw16 = int32_t(field<float>(node_at(0x0021f432), 0x50) * title_global<float>(0x0083ebd8)) & 0xffff;
+                    field<float>(actor, 0x138) = static_cast<float>(yaw16) * title_global<float>(0x0083ebd4);
+                    const float yaw = field<float>(node_at(0x0021f464), 0x50);
+                    stack_word(F - 4) = 0x0021f470;
+                    Sentient_SetGoalYaw(sn, yaw);  // leaf: EAX sentient, XMM0 yaw
+                }
+            }
+            has_yaw = field<float>(field<const uint8_t*>(actor, 4), 0x20) != title_global<float>(0x0083eb34) ? 1 : 0;  // -1
+        }
+        if (field<uint32_t>(actor, 0x28) != 0x2be) exposed_schedule(actor, 0x2be);
+        call_at(F, 0x0021f4c2, 0x00203de0, TitleRegs{0x2be, ebx, ecx, edx, 0x00987bb8, has_yaw}, 0,
+                nullptr);  // Actor_AnimStationary (g_animScript_stop)
+        if (has_yaw) {
+            field<uint32_t>(actor, 0x12c) = 5;
+            set_mode = false;
+        }
+    }
+    if (set_mode) field<uint32_t>(actor, 0x12c) = field<uint8_t>(actor, 0x7df) ? 4 : 2;
+    call_at(F, 0x0021f3da, 0x00205dd0, TitleRegs{a, ebx, ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateAnimScript
+    call_at(F, 0x0021f3e5, 0x0021ea60, TitleRegs{a, stack_word(entry - 4), ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_Think, 0)
+
+uint32_t XB_CDECL Actor_Exposed_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                      uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): an actor with a class-3 weapon leaves for state 4, one
+    // with a grenade for 6 (1); one on a turret not given up changes to state 3 (1). Sight and
+    // enemy: none changes to state 5 (1); a move to the goal taken over by
+    // Actor_Exposed_CheckMoveToGoal returns 1. Then the step (0xc8..0xd7): combat, reacquire by
+    // sidestep (32/64/96 units at yaw + 90), node, direct path (+ trim), proximate path (+
+    // trim), last position, reacquire move, move-to-goal start (2 -> 1) and move (nonzero ->
+    // 1), each naming +0x13e8. Then anim script and movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ebp;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t F1 = entry - 0xc;
+    field<uint32_t>(actor, 0x13e8) = 0x0083d274;
+    uint32_t leave = 0;
+    if (field<uint32_t>(actor, 0)) {
+        const uint32_t index = call_at(F1, 0x00220891, 0x002acb00, TitleRegs{eax, ebx, ecx, edx, field<uint32_t>(actor, 0xf0), a},
+                                       0, nullptr) &
+                               0xff;  // BG_FindWeaponIndexForHash
+        const uint8_t* const def = title_global<const uint8_t* const*>(0x0095f4d8)[index];
+        if (def && field<uint32_t>(def, 0x98) == 3) leave = 4;
+    }
+    if (!leave && field<uint32_t>(actor, 0x1310)) leave = 6;
+    if (leave) {
+        push_transition(actor, 1, leave, F1, 0x002208e5, ebx);
+        return 1;
+    }
+    if (uint8_t* const turret = field<uint8_t*>(actor, 0x136c)) {
+        if (!field<uint8_t>(turret, 0x297)) {
+            set_state_at(actor, 3, F1, 0x0022091b, ebx);
+            return 1;
+        }
+        field<uint32_t>(actor, 0x136c) = 0;
+    }
+    const uint32_t ret[3] = {0x0022093f, 0x00220945, 0x0022094d};
+    think_sight_and_enemy(actor, F1, ret, eax, ebx, edx, a);
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        set_state_at(actor, 5, F1, 0x00220963, ebx);
+        return 1;
+    }
+    if (call_at(F1, 0x00220971, 0x0021c700, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr))  // Actor_Exposed_CheckMoveToGoal
+        return 1;
+    stack_word(entry - 0x10) = ebx;
+    const uint32_t F = entry - 0x10;
+    const TitleRegs regs = {a, a, ecx, edx, a, a};
+    const auto sidestep = [&](uint32_t name, uint32_t distance) {
+        field<uint32_t>(actor, 0x13e8) = name;
+        const float yaw = field<float>(actor, 0x154) + title_global<float>(0x0083eb64);  // 90
+        uint32_t bits;
+        std::memcpy(&bits, &yaw, 4);
+        const uint32_t args[2] = {bits, distance};
+        call_at(F, 0x00220a45, 0x0021fc10, regs, 2, args);  // Actor_Exposed_ReacquireSidestep
+    };
+    switch (field<uint32_t>(actor, 0x28)) {
+        case 0xc8:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d264;
+            call_at(F, 0x00220999, 0x0021d3c0, regs, 0, nullptr);  // Actor_Exposed_Combat
+            break;
+        case 0xca: sidestep(0x0083d184, 0x42000000); break;  // "exposed_reacquire_sidestep_small", 32
+        case 0xcb: sidestep(0x0083d160, 0x42800000); break;  // "..._large", 64
+        case 0xcc: sidestep(0x0083d13c, 0x42c00000); break;  // "..._larger", 96
+        case 0xcd:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d24c;
+            call_at(F, 0x002209ac, 0x0021fef0, regs, 0, nullptr);  // Actor_Exposed_ReacquireNode
+            break;
+        case 0xce:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d22c;
+            call_at(F, 0x002209bf, 0x0021fb00, regs, 0, nullptr);  // Actor_Exposed_ReacquireDirectPath
+            break;
+        case 0xcf:
+        case 0xd1:
+            field<uint32_t>(actor, 0x13e8) = field<uint32_t>(actor, 0x28) == 0xcf ? 0x0083d208 : 0x0083d1c0;  // .._trim
+            call_at(F, 0x002209d0, 0x0021f920, regs, 0, nullptr);  // Actor_Exposed_ReacquirePathTrim
+            break;
+        case 0xd0:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d1e8;
+            call_at(F, 0x002209f8, 0x0021f9d0, regs, 0, nullptr);  // Actor_Exposed_ReacquireProximatePath
+            break;
+        case 0xd2:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d1a8;
+            call_at(F, 0x00220a17, 0x00213ef0, regs, 0, nullptr);  // Actor_Exposed_ReacquireLast
+            break;
+        case 0xd3:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d124;
+            call_at(F, 0x00220a7a, 0x0021e6a0, regs, 0, nullptr);  // Actor_Exposed_ReacquireMove
+            break;
+        case 0xd6:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d108;
+            if (call_at(F, 0x00220a8e, 0x0021b220, regs, 0, nullptr) == 2) return 1;  // Actor_Exposed_MoveToGoalStart
+            break;
+        case 0xd7:
+            field<uint32_t>(actor, 0x13e8) = 0x0083d0f0;
+            if (call_at(F, 0x00220ab2, 0x0021e4b0, regs, 0, nullptr)) return 1;  // Actor_Exposed_MoveToGoalMove
+            break;
+        default:
+            break;
+    }
+    call_at(F, 0x002209d7, 0x00205dd0, regs, 0, nullptr);  // Actor_UpdateAnimScript
+    call_at(F, 0x002209e0, 0x0021ea60, TitleRegs{a, edx, ecx, edx, a, a}, 0, nullptr);  // Actor_UpdateMovement (EBX = EDX)
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquireSidestep, 8)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireSidestep(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                  uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor, stack (yaw in degrees, distance; ret 8): combat when possible. An enemy within
+    // 1 unit in xy moves the step on. Else both sides (random first) at the distance along the
+    // yaw from the actor's eye: when the enemy's eye is visible from there (Actor_SightTrace,
+    // +0x82c max) the move is traced from the origin (Path_TraceAhead, mask +0x310 | 4) and,
+    // ending inside the goal (dz^2 <= 6400, xy^2 <= +0x1c), a path to it makes the step 0xd3
+    // (+0x12c 3). Neither: the step moves on.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 0x58) = ebx;
+    stack_word(entry - 0x5c) = ebp;
+    stack_word(entry - 0x60) = esi;
+    stack_word(entry - 0x64) = edi;
+    const uint32_t F = entry - 0x64;
+    const auto next_step = [actor]() {
+        ++field<uint32_t>(actor, 0x28);
+        field<int32_t>(actor, 0x2c) = level_time() + 1;
+        field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+        return uint32_t(level_time() + 0x1f5);
+    };
+    if (call_at(F, 0x0021fc1e, 0x0021e7c0, TitleRegs{a, ebx, ecx, edx, a, edi}, 0, nullptr) & 0xff)  // Actor_Exposed_TryCombat
+        return 1;
+    const uint32_t enemy = field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c);
+    {
+        const uint8_t* const ee = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{enemy}), 0);
+        const uint8_t* const me = field<const uint8_t*>(actor, 0);
+        const float dy = field<float>(ee, 0x144) - field<float>(me, 0x144);
+        const float dx = field<float>(ee, 0x140) - field<float>(me, 0x140);
+        if (title_global<float>(0x0083eb20) >= dy * dy + dx * dx) return next_step();
+    }
+    *stack_vec(entry + 4) = static_cast<float>(static_cast<long double>(*stack_vec(entry + 4)) *
+                                               title_global<float>(0x0083edd8));  // x87 degrees to radians
+    {
+        const uint32_t args[1] = {stack_word(entry + 4)};
+        call_at(F, 0x0021fcb6, 0x000110f0, TitleRegs{entry - 0x54, ebx, entry + 4, edx, a, edi}, 1,
+                args);  // FastSinCos (EAX sine E - 0x54, ECX cosine over the yaw)
+    }
+    call_at(F, 0x0021fcc4, 0x002066e0, TitleRegs{enemy, ebx, entry - 0xc, edx, a, edi}, 0, nullptr);  // Sentient_EyeOrigin
+    call_at(F, 0x0021fccb, 0x002061b0, TitleRegs{enemy, ebx, entry - 0xc, edx, a, a}, 0, nullptr);    // Actor_RefreshEyeOrigin
+    float* const eye = stack_vec(entry - 0x3c);
+    eye[0] = field<float>(actor, 0x1b4);
+    eye[1] = field<float>(actor, 0x1b8);
+    eye[2] = field<float>(actor, 0x1bc);
+    float* const origin = stack_vec(entry - 0x48);
+    {
+        const uint8_t* const me = field<const uint8_t*>(actor, 0);
+        origin[0] = field<float>(me, 0x140);
+        origin[1] = field<float>(me, 0x144);
+        origin[2] = field<float>(me, 0x148);
+    }
+    const uint32_t first = call_at(F, 0x0021fd26, 0x001efcc0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr) & 1;  // _rand
+    float* const point = stack_vec(entry - 0x24);
+    point[2] = eye[2];
+    float* const step = stack_vec(entry - 0x50);
+    float* const target = stack_vec(entry - 0x18);
+    const float* const out = stack_vec(entry - 0x30);
+    for (uint32_t side = 0; side < 2; ++side) {
+        const float cosine = *stack_vec(entry + 4);
+        const uint32_t pass = field<uint32_t>(field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{enemy}), 0), 0x224);
+        const float max = field<float>(actor, 0x82c);
+        const float scale = title_global<float>(0x0083d27c + (side ^ first) * 4) * *stack_vec(entry + 8);
+        const float sx = cosine * scale;
+        step[0] = sx;
+        point[0] = sx + eye[0];
+        const float sy = *stack_vec(entry - 0x54) * scale;
+        step[1] = sy;
+        point[1] = sy + eye[1];
+        stack_word(F - 4) = pass;
+        stack_word(F - 8) = 0x0021fdaa;
+        if (Actor_SightTrace(F - 8, actor, stack_vec(entry - 0xc), point, max, pass, ebp) == 0.0f) continue;
+        const uint32_t mask = field<uint32_t>(actor, 0x310) | 4;
+        target[0] = step[0] + origin[0];
+        target[1] = step[1] + origin[1];
+        target[2] = origin[2];
+        const uint32_t args[5] = {entry - 0x18, 0, 0, mask, entry - 0x30};
+        if (!call_at(F, 0x0021fe1a, 0x0020c040, TitleRegs{F - 0x10, side, entry - 0x48, entry - 0x24, a, first}, 5,
+                     args))  // Path_TraceAhead
+            continue;
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        const float dz = out[2] - field<float>(s, 0x14);
+        const float dx = out[0] - field<float>(s, 0xc);
+        const float dy = out[1] - field<float>(s, 0x10);
+        if (dz * dz > title_global<float>(0x0083eb6c)) continue;  // 6400
+        if (dy * dy + dx * dx > field<float>(s, 0x1c)) continue;
+        const uint32_t fargs[5] = {a, entry - 0x30, 0, 1, 0};
+        call_at(F, 0x0021fe7d, 0x0021a030, TitleRegs{0, side, ecx, entry - 0x30, a, first}, 5, fargs);  // Actor_FindPath
+        if (field<int16_t>(actor, 0x740) > 0) {
+            exposed_schedule(actor, 0xd3);
+            field<uint32_t>(actor, 0x12c) = 3;
+            return uint32_t(level_time() + 1);
+        }
+    }
+    return next_step();
+}
+
+AI_GAP_ENTRY(Actor_Grenade_Acquire, 0)
+
+uint32_t XB_CDECL Actor_Grenade_Acquire(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                        uint32_t edi, uint32_t ebp) {
+    // EDI actor, stack (think EDX; cdecl): the run to a grenade to throw it back. No grenade:
+    // cower (1). Someone else picking it up (+0x7cc, its actor in grenade state 6 on the same
+    // grenade has its reaction updated) or a blocking entity (+0x39c): the reaction is chosen
+    // again (step 0x25d becomes cower; 1). Without path points: reaction update, then 1 (step
+    // 0x25d becomes cower) unless a path came up. At the goal (xy within 4 units, height
+    // within 32 - else the reaction again for step 0x25d, 1): face the grenade, +0x12c 1, step
+    // 0x25e and Actor_Grenade_ThrowBack's result. On the way: run (return-throw script, +0x12c
+    // 4), anim script and movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t a = edi;
+    const uint32_t think = stack_word(entry + 4);
+    stack_word(entry - 0x14) = ebp;
+    const auto cower_if_acquiring = [actor]() {
+        if (field<uint32_t>(actor, 0x28) == 0x25d) exposed_schedule(actor, 0x25a);
+        return 1u;
+    };
+    if (!field<uint32_t>(actor, 0x1310)) {
+        exposed_schedule(actor, 0x25a);
+        return 1;
+    }
+    stack_word(entry - 0x18) = esi;
+    const uint32_t F2 = entry - 0x18;
+    const uint32_t keep[1] = {1};
+    if (field<uint32_t>(actor, 0x7cc)) {
+        call_at(F2, 0x0022054f, 0x0021e120, TitleRegs{a, ebx, ecx, edx, esi, a}, 1, keep);  // Actor_Grenade_ChooseReaction
+        const uint8_t* const other = field<const uint8_t*>(field<const uint8_t*>(actor, 0x7cc), 0x240);
+        if (other && field<uint32_t>(other, 0x1310) == field<uint32_t>(actor, 0x1310) && field<uint32_t>(other, 0xa4) == 6)
+            call_at(F2, 0x0022057b, 0x0021f6d0, TitleRegs{field<uint32_t>(other, 0x1310), ebx, ecx, edx, addr_of(other), a}, 0,
+                    nullptr);  // Actor_Grenade_UpdateReaction
+        return cower_if_acquiring();
+    }
+    if (field<uint32_t>(actor, 0x39c)) {
+        call_at(F2, 0x002205c2, 0x0021e120, TitleRegs{a, ebx, ecx, edx, esi, a}, 1, keep);  // Actor_Grenade_ChooseReaction
+        return cower_if_acquiring();
+    }
+    stack_word(entry - 0x1c) = ebx;
+    const uint32_t F = entry - 0x1c;
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        call_at(F, 0x0022060b, 0x0021f6d0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);  // Actor_Grenade_UpdateReaction
+        if (field<int16_t>(actor, 0x740) <= 0) return cower_if_acquiring();
+        const uint8_t* const e = field<const uint8_t*>(actor, 0);
+        *stack_vec(entry - 4) = field<float>(actor, 0x758);
+        const float dy = field<float>(actor, 0x754) - field<float>(e, 0x144);
+        const float dx = field<float>(actor, 0x750) - field<float>(e, 0x140);
+        if (dy * dy + dx * dx > title_global<float>(0x0083ebb8)) return 1;  // 16
+        float height = x87_sub_to_float(field<float>(e, 0x148), *stack_vec(entry - 4));
+        uint32_t bits;
+        std::memcpy(&bits, &height, 4);
+        bits &= 0x7fffffffu;
+        stack_word(entry - 0x10) = bits;
+        std::memcpy(&height, &bits, 4);
+        if (height > title_global<float>(0x0083eeac)) {  // 32
+            if (field<uint32_t>(actor, 0x28) == 0x25d)
+                call_at(F, 0x002206cf, 0x0021e120, TitleRegs{a, ebx, addr_of(e), edx, esi, a}, 1, keep);  // Actor_Grenade_ChooseReaction
+            return 1;
+        }
+        const uint8_t* const g = field<const uint8_t*>(actor, 0x1310);
+        float* const dir = stack_vec(entry - 0xc);
+        dir[0] = field<float>(g, 0x2c0) - field<float>(e, 0x140);
+        dir[1] = field<float>(g, 0x2c4) - field<float>(e, 0x144);
+        dir[2] = field<float>(g, 0x2c8) - field<float>(e, 0x148);
+        const uint32_t zero[1] = {0};
+        call_at(F, 0x00220734, 0x00204850, TitleRegs{addr_of(g), a + 0x12c, addr_of(e), edx, entry - 0xc, a}, 1,
+                zero);  // Actor_SetOrientFromDir
+        field<uint32_t>(actor, 0x12c) = 1;
+        exposed_schedule(actor, 0x25e);
+        const uint32_t arg[1] = {think};
+        return call_at(F, 0x00220762, 0x0021f580, TitleRegs{a, a + 0x12c, ecx, uint32_t(level_time() + 0x1f5), entry - 0xc, a}, 1,
+                       arg);  // Actor_Grenade_ThrowBack
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    {
+        const uint32_t script[1] = {0x00987b58};  // g_animScript_grenade_return_throw
+        call_at(F, 0x00220782, 0x001fb640, TitleRegs{a, ebx, ecx, edx, esi, a}, 1, script);  // Actor_AnimRun
+    }
+    call_at(F, 0x00220789, 0x00205dd0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr);   // Actor_UpdateAnimScript
+    call_at(F, 0x00220792, 0x0021ea60, TitleRegs{a, think, ecx, edx, a, a}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
 }  // namespace game

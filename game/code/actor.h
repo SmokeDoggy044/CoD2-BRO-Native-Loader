@@ -1482,5 +1482,49 @@ extern "C" void Actor_AttemptCoverNode_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ApplyMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Actor_ApplyMove_entry(void);
+// 0x0021cca0 (ESI actor): spawn template, ragdoll, path buffers, goal and the state's Start.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_InitStateMachine_entry(void);
+// 0x0021ceb0 (stack spawner, targetname, force, memory context): spawn an actor.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_SpawnFromSpawner(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_SpawnFromSpawner_entry(void);
+// 0x0021dc80 (stack actor, angles; ret 8): the frame's move by the move mode.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveByAnimMode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_MoveByAnimMode_entry(void);
+// 0x0021d8b0 (ECX actor, EDX previous state): cover state Start.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Cover_Start(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Cover_Start_entry(void);
+// 0x0021e120 (EAX actor, stack keep-path flag; ret 4): the grenade step.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_ChooseReaction(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_ChooseReaction_entry(void);
+// 0x0021e4b0 (EAX actor): exposed move to the goal.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_MoveToGoalMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_MoveToGoalMove_entry(void);
+// 0x0021ed00 (ECX actor; think): noncombat state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Noncombat_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Noncombat_Think_entry(void);
+// 0x0021f1c0 (ECX actor; think): machine-gunner state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Lmg_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Lmg_Think_entry(void);
+// 0x0021fc10 (EAX actor, stack yaw, distance; ret 8): reacquire by a sidestep.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireSidestep(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireSidestep_entry(void);
+// 0x00220500 (EDI actor, stack think EDX): run to a grenade to throw it back.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Acquire(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_Acquire_entry(void);
+// 0x00220870 (ECX actor; think): exposed state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_Think_entry(void);
 
 }  // namespace game
