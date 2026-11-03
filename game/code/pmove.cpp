@@ -3872,4 +3872,476 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
     at<float>(pm_ps_ref(pm_global()), 0x18) = one / title_global<float>(0x0095ffa4) * dz;
 }
 
+namespace {
+
+// The title CRT's __CIfmod (0x0033acda): x in ST1, y in ST0, fmod(x, y) left in ST0.
+long double pm_ci_fmod(long double x, long double y) {
+    long double result;
+    __asm__ volatile("call *%3"
+                     : "=t"(result)
+                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "st(1)", "eax", "ecx", "edx", "memory");
+    return result;
+}
+
+// FILD + FSTP DWORD: an integer to float on the x87.
+float x87_int_to_float(int32_t i) { return static_cast<float>(static_cast<long double>(i)); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(PM_WalkCmdScale_entry,
+                   "pushl 4(%esp)\n" PLATFORM_ASM_CALL(PM_WalkCmdScale) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL PM_WalkCmdScale(const int8_t* cmd) {
+    // PM_CmdScale for walking: the larger of |forward| (backwards x ps +0x448) and |right| x ps +0x444 (x87),
+    // 0 when that is 0; speed (+0x50) x it / (sqrt(forward^2 + right^2) x 127), x the stance scale (+0x430 when
+    // flag 0x80, leaning (+0x4c) or an ADS weapon (state 0xd, type 3); else +0x438 with flag 0x10000, else +0x434).
+    // pm_type 2 x3, 3 x6; else blended with the prone (+0x43c) / crouch (+0x440) scales by the view-height lerp
+    // (PM_ViewHeightLerpFrac both ways) or picked by the stance, x (1 - pm +0x121 / 6); x0.4 with cmd +5 bit 4.
+    using ext = long double;
+    uint8_t* const ps = pm_ps();
+    ext f = static_cast<ext>(static_cast<int32_t>(cmd[0x14]));
+    if (cmd[0x14] < 0) f = f * static_cast<ext>(at<float>(ps, 0x448));
+    const float forward = static_cast<float>(__builtin_fabsl(f));
+    const ext right = __builtin_fabsl(static_cast<ext>(static_cast<int32_t>(cmd[0x15])) *
+                                      static_cast<ext>(at<float>(ps, 0x444)));
+    float max = static_cast<ext>(forward) > right ? forward : static_cast<float>(right);
+    if (max == 0.0f) return 0.0f;
+    const int32_t fwd = cmd[0x14], rt = cmd[0x15];
+    const ext speed = static_cast<ext>(at<int32_t>(ps, 0x50)) * static_cast<ext>(max);
+    const ext sum = static_cast<ext>(rt * rt) + static_cast<ext>(fwd) * static_cast<ext>(fwd);
+    const ext total = platform_x87_sqrt_ext(sum) * static_cast<ext>(title_global<float>(0x0083ed88));  // 127
+    const float scale = static_cast<float>(speed / total);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    float stance;
+    const bool ads = at<int32_t>(ps, 0x84) == 0xd &&
+                     at<int32_t>(title_global<uint8_t**>(0x0095f4d8)[at<int32_t>(ps, 0x80)], 0x98) == 3;
+    if ((flags & 0x80) || !(at<float>(ps, 0x4c) == 0.0f) || ads)
+        stance = at<float>(ps, 0x430);
+    else
+        stance = at<float>(ps, (flags & 0x10000) ? 0x438 : 0x434);
+    float result = stance * scale;
+    const int32_t type = at<int32_t>(ps, 0x24);
+    if (type == 2) {
+        result = result * title_global<float>(0x0083ec9c);  // 3
+    } else if (type == 3) {
+        result = result * title_global<float>(0x0083ecd0);  // 6
+    } else {
+        const uint32_t current = PM_ViewHeightStance(ps);
+        const uint32_t prone = at<uint32_t>(ps, 0x420), crouch = at<uint32_t>(ps, 0x424);
+        const float one = title_global<float>(0x0083eb20);
+        float frac;
+        PM_ViewHeightLerpFrac(crouch, prone, &frac);
+        if (!(frac == 0.0f)) {
+            result = ((one - frac) * at<float>(ps, 0x440) + at<float>(ps, 0x43c) * frac) * result;
+        } else {
+            PM_ViewHeightLerpFrac(prone, crouch, &frac);
+            if (!(frac == 0.0f))
+                result = ((one - frac) * at<float>(ps, 0x43c) + at<float>(ps, 0x440) * frac) * result;
+            else if (current == 1)
+                result = at<float>(ps, 0x43c) * result;
+            else if (current == 2)
+                result = at<float>(ps, 0x440) * result;
+        }
+        const uint8_t slow = pm_global()[0x121];
+        if (slow) {
+            const float k = static_cast<float>(static_cast<int32_t>(slow)) * title_global<float>(0x0083ed74) *
+                            title_global<float>(0x0083eb24);  // 1/3, 0.5
+            result = (one - k) * result;
+        }
+    }
+    if (cmd[5] & 4) result = result * title_global<float>(0x0083ec44);  // 0.4
+    return result;
+}
+
+void XB_CDECL PM_UpdateAimSpread() {
+    // The aim spread (ps +0x4f0, 0..255) from the weapon def (pml +0xa0 = 0x00960020): with a decay rate (+0x65c)
+    // it falls by frametime x rate (half in the air; x +0x670 / +0x66c with ps +0xc0 bits 0x40 / 0x20) and rises
+    // by the view-angle change (pm +0x38/+0x3c old vs +0xc/+0x10 new, short units, wrapped to +-180) x +0x664 / 100
+    // per second and by the larger move axis / 128 x +0x668 (x87), plus 2.56 in the air, x frametime; x255.
+    // Fully aimed down the sights (ps +0x88 = 1) it only decays; without a rate it falls to 0.
+    using ext = long double;
+    const uint8_t* const def = title_global<uint8_t*>(0x00960020);
+    const uint8_t* const pm = pm_global();
+    const float zero = 0.0f;
+    const float frametime = title_global<float>(0x0095ffa4);
+    float rise, decay;
+    float rate = at<float>(def, 0x65c);
+    if (rate == zero) {
+        decay = title_global<float>(0x0083eb20);  // 1
+        rise = zero;
+    } else {
+        const uint8_t* const ps = pm_ps_ref(const_cast<uint8_t*>(pm));
+        const uint32_t ground = at<uint32_t>(ps, 0x60);
+        const bool air = !ground && at<int32_t>(ps, 0x24) != 1;
+        if (air) {
+            rate = rate * title_global<float>(0x0083eb24);  // 0.5
+        } else {
+            const uint32_t flags = at<uint32_t>(ps, 0xc0);
+            if (flags & 0x40)
+                rate = at<float>(def, 0x670) * rate;
+            else if (flags & 0x20)
+                rate = at<float>(def, 0x66c) * rate;
+        }
+        decay = frametime * rate;
+        if (at<float>(ps, 0x88) == title_global<float>(0x0083eb20)) {
+            rise = zero;
+        } else {
+            float sum = zero;
+            if (!(at<float>(def, 0x664) == zero)) {
+                const float unit = title_global<float>(0x0083ebd4);  // 360 / 65536
+                for (uint32_t i = 0; i < 2; ++i) {
+                    const float old_angle = static_cast<float>(
+                        static_cast<ext>(x87_int_to_float(at<int32_t>(pm, 0x38 + i * 4))) * static_cast<ext>(unit));
+                    const float new_angle = static_cast<float>(
+                        static_cast<ext>(x87_int_to_float(at<int32_t>(pm, 0xc + i * 4))) * static_cast<ext>(unit));
+                    float d = static_cast<float>(pm_ci_fmod(static_cast<ext>(new_angle) - static_cast<ext>(old_angle),
+                                                            title_global<double>(0x0083ed40)));  // 360
+                    if (static_cast<ext>(d) > static_cast<ext>(title_global<float>(0x0083eb60)))  // 180
+                        d = d - title_global<float>(0x0083ebcc);                               // 360
+                    if (title_global<float>(0x0083ebd0) > d) d = d + title_global<float>(0x0083ebcc);  // -180
+                    const float a = static_cast<float>(__builtin_fabsl(static_cast<ext>(d)));
+                    sum = static_cast<float>(static_cast<ext>(a) * static_cast<ext>(at<float>(def, 0x664)) *
+                                                 static_cast<ext>(title_global<float>(0x0083eb94)) /  // 0.01
+                                                 static_cast<ext>(frametime) +
+                                             static_cast<ext>(sum));
+                }
+            }
+            if (!(at<float>(def, 0x668) == zero)) {
+                const int32_t forward = static_cast<int8_t>(pm[0x18]), right = static_cast<int8_t>(pm[0x19]);
+                const auto magnitude = [](int32_t v) { return v < 0 ? -v : v; };
+                int32_t axis = 0;
+                bool moving = true;
+                if (magnitude(right) > magnitude(forward))
+                    axis = right;
+                else if (forward)
+                    axis = forward;
+                else
+                    moving = false;
+                if (moving) {
+                    const float f = static_cast<float>(static_cast<ext>(x87_int_to_float(axis)) /
+                                                       static_cast<ext>(title_global<float>(0x0083ebe8)));  // 128
+                    const float a = static_cast<float>(__builtin_fabsl(static_cast<ext>(f)));
+                    sum = static_cast<float>(static_cast<ext>(a) * static_cast<ext>(at<float>(def, 0x668)) +
+                                             static_cast<ext>(sum));
+                }
+            }
+            if (air) {
+                const float k = title_global<float>(0x0083ee78);  // 1.28
+                rise = frametime * ((sum + k) + k);
+            } else {
+                rise = frametime * sum;
+            }
+        }
+    }
+    uint8_t* const ps = pm_ps();
+    const float top = title_global<float>(0x0083eb8c);  // 255
+    at<float>(ps, 0x4f0) = (rise - decay) * top + at<float>(ps, 0x4f0);
+    if (zero > at<float>(pm_ps(), 0x4f0))
+        at<float>(pm_ps(), 0x4f0) = zero;
+    else if (at<float>(pm_ps(), 0x4f0) > top)
+        at<float>(pm_ps(), 0x4f0) = top;
+}
+
+void XB_CDECL PM_ViewHeightAdjust() {
+    // The view height (+0xac) toward its target (+0xa8): straight to it when either is 0; other targets move at
+    // 180 units/s. Stance heights (prone +0x420, crouch +0x424, stand +0x428) follow a lerp started at +0xb0
+    // (target +0xb4, downward flag +0xb8) along the stance's curve (0x008d2270 prone, crouch 0x008d2190 down /
+    // 0x008d2318 up, 0x008d2200 stand) in percent of PM_ViewHeightLerpTime; the curve's height (+0xbc) moving
+    // more than 0x0083edc8 steps the player along the forward axis (PM_StepSlideMove, velocity restored). A
+    // target changed against the lerp's direction turns it around at the same point; a new target starts one.
+    uint8_t* const pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    const int32_t target = at<int32_t>(ps, 0xa8);
+    const float zero = 0.0f;
+    if (!target || at<float>(ps, 0xac) == zero) {
+        at<float>(ps, 0xac) = static_cast<float>(target);
+        return;
+    }
+    if (at<float>(ps, 0xac) == static_cast<float>(target) && !at<uint32_t>(ps, 0xb0)) return;
+    int32_t percent = 0;
+    const auto curve_for = [](const uint8_t* p, uint32_t height) -> uint32_t {
+        if (height == at<uint32_t>(p, 0x420)) return 0x008d2270;
+        if (height == at<uint32_t>(p, 0x424)) return at<uint32_t>(p, 0xb8) ? 0x008d2190 : 0x008d2318;
+        return 0x008d2200;
+    };
+    const uint32_t utarget = static_cast<uint32_t>(target);
+    if (utarget != at<uint32_t>(ps, 0x420) && utarget != at<uint32_t>(ps, 0x424) && utarget != at<uint32_t>(ps, 0x428)) {
+        at<uint32_t>(ps, 0xb0) = 0;
+        ps = pm_ps_ref(pm);
+        const float step = title_global<float>(0x0095ffa4) * title_global<float>(0x0083eb60);  // 180
+        if (static_cast<float>(at<int32_t>(ps, 0xa8)) > at<float>(ps, 0xac)) {
+            at<float>(ps, 0xac) = step + at<float>(ps, 0xac);
+            ps = pm_ps_ref(pm);
+            const float t = static_cast<float>(at<int32_t>(ps, 0xa8));
+            if (at<float>(ps, 0xac) >= t) at<float>(ps, 0xac) = t;
+        } else {
+            at<float>(ps, 0xac) = at<float>(ps, 0xac) - step;
+            ps = pm_ps_ref(pm);
+            const float t = static_cast<float>(at<int32_t>(ps, 0xa8));
+            if (t >= at<float>(ps, 0xac)) at<float>(ps, 0xac) = t;
+        }
+        return;
+    }
+    const int32_t start = at<int32_t>(ps, 0xb0);
+    if (start) {
+        const uint32_t down = at<uint32_t>(ps, 0xb8);
+        const uint32_t lerp_target = at<uint32_t>(ps, 0xb4);
+        const int32_t time = static_cast<int32_t>(PM_ViewHeightLerpTime(lerp_target, ps, down));
+        percent = (at<int32_t>(pm, 4) - start) * 100 / time;
+        bool finish = false;
+        if (percent < 0)
+            percent = 0;
+        else if (percent >= 100) {
+            percent = 100;
+            finish = true;
+        }
+        if (finish) {
+            at<float>(ps, 0xac) = static_cast<float>(static_cast<int32_t>(lerp_target));
+            at<uint32_t>(pm_ps_ref(pm), 0xb0) = 0;
+            at<float>(pm_ps_ref(pm), 0xbc) = zero;
+        } else {
+            float height;
+            const float value = PM_EvalLerpCurve(percent, pointer<const uint8_t>(curve_for(ps, lerp_target)), &height);
+            at<float>(pm_ps_ref(pm), 0xac) = value;
+            uint8_t* const p = pm_ps_ref(pm);
+            using ext = long double;
+            if (__builtin_fabsl(static_cast<ext>(at<float>(p, 0xbc)) - static_cast<ext>(height)) >
+                static_cast<ext>(title_global<float>(0x0083edc8))) {
+                float saved[3];
+                for (uint32_t i = 0; i < 3; ++i) saved[i] = at<float>(p, 0x10 + i * 4);
+                float speed = height - at<float>(p, 0xbc);
+                if (!at<uint32_t>(p, 0x60)) speed = speed * title_global<float>(0x0083eb24);  // 0.5
+                speed = speed / title_global<float>(0x0095ffa4);
+                float dir[3] = {title_global<float>(0x0095ff80), title_global<float>(0x0095ff84), zero};
+                VectorNormalize(dir);
+                at<float>(p, 0x10) = dir[0] * speed;
+                at<float>(pm_ps_ref(pm), 0x14) = dir[1] * speed;
+                at<float>(pm_ps_ref(pm), 0x18) = dir[2] * speed;
+                title_function<void XB_CDECL(uint32_t)>(0x002ec330)(1);  // PM_StepSlideMove
+                uint8_t* const q = pm_ps_ref(pm_global());
+                for (uint32_t i = 0; i < 3; ++i) at<float>(q, 0x10 + i * 4) = saved[i];
+                at<float>(q, 0xbc) = height;
+            }
+        }
+    }
+    uint8_t* const pm2 = pm_global();
+    ps = pm_ps_ref(pm2);
+    if (!at<uint32_t>(ps, 0xb0)) {
+        const int32_t height = at<int32_t>(ps, 0xa8);
+        if (at<float>(ps, 0xac) == static_cast<float>(height)) return;
+        at<int32_t>(ps, 0xb0) = at<int32_t>(pm2, 4);
+        ps = pm_ps_ref(pm2);
+        const uint32_t h = at<uint32_t>(ps, 0xa8);
+        if (h == at<uint32_t>(ps, 0x420)) {
+            at<uint32_t>(ps, 0xb8) = 1;
+            ps = pm_ps_ref(pm2);
+            const uint32_t crouch = at<uint32_t>(ps, 0x424);
+            at<uint32_t>(ps, 0xb4) =
+                at<float>(ps, 0xac) > static_cast<float>(static_cast<int32_t>(crouch)) ? crouch : at<uint32_t>(ps, 0x420);
+        } else if (h == at<uint32_t>(ps, 0x424)) {
+            at<uint32_t>(ps, 0xb8) = at<float>(ps, 0xac) > static_cast<float>(static_cast<int32_t>(h)) ? 1 : 0;
+            ps = pm_ps_ref(pm2);
+            at<uint32_t>(ps, 0xb4) = at<uint32_t>(ps, 0x424);
+        } else if (h == at<uint32_t>(ps, 0x428)) {
+            at<uint32_t>(ps, 0xb8) = 0;
+            ps = pm_ps_ref(pm2);
+            const uint32_t crouch = at<uint32_t>(ps, 0x424);
+            at<uint32_t>(ps, 0xb4) =
+                static_cast<float>(static_cast<int32_t>(crouch)) > at<float>(ps, 0xac) ? crouch : at<uint32_t>(ps, 0x428);
+        }
+        return;
+    }
+    const int32_t height = at<int32_t>(ps, 0xa8), lerp_target = at<int32_t>(ps, 0xb4);
+    if (height == lerp_target) return;
+    const bool flip = height < lerp_target ? !at<uint32_t>(ps, 0xb8) : at<uint32_t>(ps, 0xb8) != 0;
+    if (!flip) return;
+    at<uint32_t>(ps, 0xb8) ^= 1;
+    ps = pm_ps_ref(pm2);
+    const int32_t rest = 100 - percent;
+    const uint32_t t = at<uint32_t>(ps, 0xb4);
+    if (at<uint32_t>(ps, 0xb8)) {
+        if (t == at<uint32_t>(ps, 0x428))
+            at<uint32_t>(ps, 0xb4) = at<uint32_t>(ps, 0x424);
+        else if (t == at<uint32_t>(ps, 0x424))
+            at<uint32_t>(ps, 0xb4) = at<uint32_t>(ps, 0x420);
+    } else {
+        if (t == at<uint32_t>(ps, 0x420))
+            at<uint32_t>(ps, 0xb4) = at<uint32_t>(ps, 0x424);
+        else if (t == at<uint32_t>(ps, 0x424))
+            at<uint32_t>(ps, 0xb4) = at<uint32_t>(ps, 0x428);
+    }
+    if (rest == 100) {
+        at<float>(ps, 0xac) = static_cast<float>(at<int32_t>(ps, 0xb4));
+        at<uint32_t>(pm_ps_ref(pm2), 0xb0) = 0;
+        at<float>(pm_ps_ref(pm2), 0xbc) = zero;
+        return;
+    }
+    ps = pm_ps_ref(pm2);
+    const int32_t time = static_cast<int32_t>(PM_ViewHeightLerpTime(at<uint32_t>(ps, 0xb4), ps, at<uint32_t>(ps, 0xb8)));
+    const float elapsed = static_cast<float>(time) * static_cast<float>(rest) * title_global<float>(0x0083eb94);  // 0.01
+    at<int32_t>(ps, 0xb0) = at<int32_t>(pm2, 4) - static_cast<int32_t>(elapsed);
+    ps = pm_ps_ref(pm2);
+    float out;
+    PM_EvalLerpCurve(rest, pointer<const uint8_t>(curve_for(ps, at<uint32_t>(ps, 0xb4))), &out);
+    at<float>(pm_ps_ref(pm2), 0xbc) = out;
+}
+
+void XB_CDECL PM_LadderMove() {
+    // Q3's PM_LadderMove (ladder normal ps +0x64): a jump leaves the ladder (PM_AirMove, +0x70 = command time).
+    // Climb scale = (forward z + 0.25) x 0x0083eaf8 clamped to 0x0083eb34..1; forward and right flattened and
+    // normalized, right projected off the normal; wish = forward move x scale x climb / 2 up plus right move x
+    // scale x 0x0083eca0 along right; PM_Accelerate at 9. Without forward move gravity brings z velocity to 0;
+    // without right move the sideways velocity bleeds off (frametime x 0x0083ebb8, at least 1). Off the ground
+    // the velocity loses its normal part and gets 0x0083f240 (climbing) / 0x0083f23c of the normal; then
+    // PM_StepSlideMove(0) and the ladder yaw offset (+0x78, +-75) from the normal's yaw vs +0xa0.
+    using ext = long double;
+    if (PM_CheckJump()) {
+        PM_AirMove();
+        uint8_t* const pm = pm_global();
+        at<uint32_t>(pm_ps_ref(pm), 0x70) = at<uint32_t>(pm, 4);
+        return;
+    }
+    float* const forward = &title_global<float>(0x0095ff80);
+    float* const right = &title_global<float>(0x0095ff8c);
+    const float zero = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    float climb = (forward[2] + title_global<float>(0x0083ec24)) * title_global<float>(0x0083eaf8);  // 0.25
+    if (climb > one)
+        climb = one;
+    else if (title_global<float>(0x0083eb34) > climb)
+        climb = title_global<float>(0x0083eb34);
+    forward[2] = zero;
+    const float zero_sq = zero * zero;
+    {
+        const float f1 = forward[1], f0 = forward[0];
+        const float sum = (f1 * f1 + f0 * f0) + zero_sq;
+        const float length = pm_ci_sqrt(static_cast<ext>(sum));
+        if (!x87_equal(length, title_global<float>(0x0083eafc))) {
+            const float inv = one / length;
+            forward[0] = forward[0] * inv;
+            forward[1] = forward[1] * inv;
+            forward[2] = inv * title_global<float>(0x0083eafc);
+        }
+    }
+    float r0, r1, r2;
+    {
+        right[2] = zero;
+        const ext sum = static_cast<ext>(right[1]) * static_cast<ext>(right[1]) +
+                        static_cast<ext>(right[0]) * static_cast<ext>(right[0]) + static_cast<ext>(zero_sq);
+        const float length = pm_ci_sqrt(static_cast<ext>(static_cast<float>(sum)));
+        if (!x87_equal(length, title_global<float>(0x0083eafc))) {
+            const float inv = one / length;
+            r0 = right[0] * inv;
+            r1 = right[1] * inv;
+            r2 = inv * title_global<float>(0x0083eafc);
+        } else {
+            r0 = r1 = r2 = zero;
+        }
+    }
+    uint8_t* const pm = pm_global();
+    {
+        const uint8_t* const ps = pm_ps_ref(pm);
+        const float n0 = at<float>(ps, 0x64), n1 = at<float>(ps, 0x68), n2 = at<float>(ps, 0x6c);
+        const float inv = one / ((n0 * n0 + n1 * n1) + n2 * n2);
+        const float d = ((n0 * r0 + n2 * r2) + n1 * r1) * inv;
+        r0 = r0 - n0 * inv * d;
+        r1 = r1 - n1 * inv * d;
+        r2 = r2 - n2 * inv * d;
+        right[0] = r0;
+        right[1] = r1;
+        right[2] = r2;
+    }
+    const float scale = PM_CmdScale(reinterpret_cast<const int8_t*>(pm + 4));
+    float wish[3] = {zero, zero, zero};
+    const int8_t forward_move = static_cast<int8_t>(pm[0x18]);
+    if (forward_move)
+        wish[2] = static_cast<float>(static_cast<int32_t>(forward_move)) * scale * climb *
+                  title_global<float>(0x0083eb24);  // 0.5
+    const int8_t right_move = static_cast<int8_t>(pm[0x19]);
+    if (right_move) {
+        const float m = static_cast<float>(static_cast<int32_t>(right_move)) * scale * title_global<float>(0x0083eca0);
+        wish[0] = m * r0 + zero;
+        wish[1] = m * r1 + zero;
+        wish[2] = m * r2 + wish[2];
+    }
+    const ext wish_sq = static_cast<ext>(wish[0]) * static_cast<ext>(wish[0]) +
+                        static_cast<ext>(wish[1]) * static_cast<ext>(wish[1]) +
+                        static_cast<ext>(wish[2]) * static_cast<ext>(wish[2]);
+    const float wishspeed = pm_ci_sqrt(static_cast<ext>(static_cast<float>(wish_sq)));
+    float wishdir[3];
+    if (!x87_equal(wishspeed, title_global<float>(0x0083eafc))) {
+        const float inv = one / wishspeed;
+        for (uint32_t i = 0; i < 3; ++i) wishdir[i] = inv * wish[i];
+    } else {
+        wishdir[0] = wishdir[1] = wishdir[2] = zero;
+    }
+    PM_Accelerate(0, 0, wishdir, wishspeed, 9.0f);
+    if (!pm[0x18]) {
+        uint8_t* const ps = pm_ps_ref(pm);
+        const bool rising = at<float>(ps, 0x18) > zero;
+        const float g = static_cast<float>(at<int32_t>(ps, 0x48)) * title_global<float>(0x0095ffa4);
+        if (rising) {
+            at<float>(ps, 0x18) = at<float>(ps, 0x18) - g;
+            if (zero > at<float>(pm_ps_ref(pm), 0x18)) at<float>(pm_ps_ref(pm), 0x18) = zero;
+        } else {
+            at<float>(ps, 0x18) = g + at<float>(ps, 0x18);
+            if (at<float>(pm_ps_ref(pm), 0x18) > zero) at<float>(pm_ps_ref(pm), 0x18) = zero;
+        }
+    }
+    if (!pm[0x19]) {
+        const float s0 = right[0], s1 = right[1];
+        const float length = pm_ci_sqrt(static_cast<ext>(s1 * s1 + s0 * s0));
+        float d0 = s0, d1 = s1;
+        if (!x87_equal(length, title_global<float>(0x0083eafc))) {
+            const float inv = one / length;
+            d0 = inv * s0;
+            d1 = inv * s1;
+        }
+        uint8_t* const ps = pm_ps_ref(pm);
+        const float side = at<float>(ps, 0x14) * d1 + at<float>(ps, 0x10) * d0;
+        if (!(side == title_global<float>(0x0083eafc))) {
+            const float back = zero - side;
+            at<float>(ps, 0x10) = back * d0 + at<float>(ps, 0x10);
+            at<float>(pm_ps_ref(pm), 0x14) = back * d1 + at<float>(pm_ps_ref(pm), 0x14);
+            const float f = static_cast<float>(static_cast<ext>(title_global<float>(0x0095ffa4)) * static_cast<ext>(side) *
+                                               static_cast<ext>(title_global<float>(0x0083ebb8)));
+            const float af = static_cast<float>(__builtin_fabsl(static_cast<ext>(f)));
+            const float as = static_cast<float>(__builtin_fabsl(static_cast<ext>(side)));
+            if (static_cast<ext>(as) > static_cast<ext>(af)) {
+                float keep = f;
+                if (one > af) {
+                    uint32_t bits;
+                    std::memcpy(&bits, &f, 4);
+                    keep = static_cast<float>(1 - (static_cast<int32_t>(bits) < 0 ? 2 : 0));
+                }
+                const float rest = side - keep;
+                at<float>(pm_ps_ref(pm), 0x10) = rest * d0 + at<float>(pm_ps_ref(pm), 0x10);
+                at<float>(pm_ps_ref(pm), 0x14) = rest * d1 + at<float>(pm_ps_ref(pm), 0x14);
+            }
+        }
+    }
+    if (!title_global<uint32_t>(0x0095ffac)) {
+        uint8_t* const ps = pm_ps_ref(pm);
+        const float into = zero - (at<float>(ps, 0x68) * at<float>(ps, 0x14) + at<float>(ps, 0x10) * at<float>(ps, 0x64));
+        at<float>(ps, 0x10) = into * at<float>(ps, 0x64) + at<float>(ps, 0x10);
+        at<float>(pm_ps_ref(pm), 0x14) = at<float>(pm_ps_ref(pm), 0x68) * into + at<float>(pm_ps_ref(pm), 0x14);
+        const float push = wish[2] > zero ? title_global<float>(0x0083f240) : title_global<float>(0x0083f23c);
+        at<float>(pm_ps_ref(pm), 0x10) = at<float>(pm_ps_ref(pm), 0x64) * push + at<float>(pm_ps_ref(pm), 0x10);
+        at<float>(pm_ps_ref(pm), 0x14) = at<float>(pm_ps_ref(pm), 0x68) * push + at<float>(pm_ps_ref(pm), 0x14);
+    }
+    title_function<void XB_CDECL(uint32_t)>(0x002ec330)(0);  // PM_StepSlideMove
+    uint8_t* const ps = pm_ps_ref(pm_global());
+    const float half = title_global<float>(0x0083eb60);  // 180
+    const float yaw = ((vectoyaw(&at<float>(ps, 0x64)) + half) - at<float>(ps, 0xa0)) * title_global<float>(0x0083ebd8);
+    float delta = static_cast<float>(static_cast<int32_t>(yaw) & 0xffff) * title_global<float>(0x0083ebd4);
+    if (delta > half) delta = delta - title_global<float>(0x0083ebcc);  // 360
+    int32_t offset = static_cast<int32_t>(delta);
+    if ((offset < 0 ? -offset : offset) > 0x4b) offset = offset <= 0 ? -0x4b : 0x4b;
+    at<int32_t>(ps, 0x78) = static_cast<int8_t>(offset);
+}
+
 }  // namespace game

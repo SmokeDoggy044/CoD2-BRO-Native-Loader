@@ -232,4 +232,14 @@ extern "C" void Pmove_entry(void);
 // 0x002f1590 (cdecl pm, no-weapon flag; the pm slot is used as scratch): Q3's PmoveSingle.
 void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t no_weapon);
 
+// 0x002b60a0 (cmd on the stack; XMM0): PM_CmdScale for walking, with the stance and view-height lerp scales.
+extern "C" PLATFORM_HIDDEN float XB_CDECL PM_WalkCmdScale(const int8_t* cmd);
+extern "C" void PM_WalkCmdScale_entry(void);
+// 0x002bba50: the aim spread (ps +0x4f0, 0..255) from view turning and movement, decaying over time.
+void XB_CDECL PM_UpdateAimSpread();
+// 0x002ed090: the view height (ps +0xac) toward its target, along the stance lerp curves.
+void XB_CDECL PM_ViewHeightAdjust();
+// 0x002eea00: Q3's PM_LadderMove.
+void XB_CDECL PM_LadderMove();
+
 }  // namespace game
