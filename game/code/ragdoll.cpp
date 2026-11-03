@@ -15,6 +15,7 @@
 #include "g_scr_runtime.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -3138,6 +3139,148 @@ void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, 
         at<float>(tyre, 0x64) = 0.0f;
         PhysContact_ComputeBias_2(tyre, dt, title_global<float>(0x0083ece8));  // 5
     }
+}
+
+// The debug view of every vehicle physics in the list at 0x008feb70 (count 0x008feb9c). No caller,
+// pointer or immediate: dead.
+void XB_CDECL VehiclePhys_DebugDrawAll() {
+    uint8_t* const* cursor = &title_global<uint8_t*>(0x008feb70);
+    uint8_t* const* const end = cursor + title_global<uint32_t>(0x008feb9c);
+    for (; cursor != end; ++cursor) VehiclePhys_DebugDrawBody(*cursor);
+}
+
+// EAX joint index, EBX ragdoll (joints at +0x58): the joint's debug text, or for an index outside
+// 0..10 that of all ten joints (index 10 reads one past the ten - kept). No caller, pointer or
+// immediate: dead.
+PLATFORM_ASM_ENTRY(Ragdoll_DrawJointsDebug_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Ragdoll_DrawJointsDebug) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Ragdoll_DrawJointsDebug(int32_t index, uint8_t* ragdoll, uint32_t mode) {
+    if (index >= 0 && index <= 10) {
+        Ragdoll_DrawJointDebug(at<uint8_t**>(ragdoll, 0x58)[index], mode);
+        return;
+    }
+    for (uint32_t i = 0; i < 10; ++i) Ragdoll_DrawJointDebug(at<uint8_t**>(ragdoll, 0x58)[i], mode);
+}
+
+// EAX vehicle (one unused stack slot): after a pending body rebuild, the drive inputs throttle
+// (+0x424), brake (+0x428) and reverse (+0x42c) become the wheel mode bits +0x504 (1 reverse,
+// 2 brake, 4 forward, 8 backward, 0x10 coasting), the def (+0x420) scales the motor speed +0x4c4,
+// force +0x4c8 (doubled for drive type 2 in reverse) and the coast force +0x4d4; then the wheel
+// motors (0x002255d0, ESI) and unless the vehicle is pending (+0x450 bit 0) the wheel friction
+// (0x002256b0, EAX).
+void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t) {
+    VehiclePhys_RebuildPendingBody(vehicle);
+    uint32_t& bits = at<uint32_t>(vehicle, 0x504);
+    uint32_t flags = bits;
+    flags = at<float>(vehicle, 0x424) > 0.0f ? flags | 4u : flags & ~4u;
+    bits = flags;
+    flags = at<float>(vehicle, 0x42c) > 0.0f ? flags | 1u : flags & ~1u;
+    const float two = title_global<float>(0x0083eba8);
+    bits = flags;
+    const uint8_t* const def = at<uint8_t*>(vehicle, 0x420);
+    const float speed = at<float>(vehicle, 0x438) * at<float>(def, 0);
+    float force = at<float>(def, 4) * at<float>(vehicle, 0x43c) * title_global<float>(0x00830670);  // 0.02
+    at<float>(vehicle, 0x4c8) = force;
+    at<float>(vehicle, 0x4c4) = speed < 0.0f ? -speed : speed;
+    if (at<int32_t>(def, 0x68) == 2) {
+        if (at<float>(vehicle, 0x42c) > 0.0f) force = force * two;
+        at<float>(vehicle, 0x4c8) = force;
+    }
+    if (at<float>(vehicle, 0x42c) > 0.0f || at<float>(vehicle, 0x424) > 0.0f)
+        flags = bits & ~0x10u;
+    else
+        flags = bits | 0x10u;
+    bits = flags;
+    at<float>(vehicle, 0x4d4) = at<float>(def, 0x4c) * two;
+    flags = at<float>(vehicle, 0x428) > 0.0f ? flags | 2u : flags & ~2u;
+    bits = flags;
+    flags = 0.0f > at<float>(vehicle, 0x424) ? flags | 8u : flags & ~8u;
+    bits = flags;
+    call_with_esi(0x002255d0, vehicle);  // the wheel motors
+    if (!(at<uint8_t>(vehicle, 0x450) & 1))
+        title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002256b0)(vehicle);  // the wheel friction
+}
+
+namespace {
+
+// ftol(acos(x) * 180 * (1/pi)) on the x87 with the title CRT's __CIacos and _ftol.
+int32_t title_acos_degrees(float x) {
+    int32_t result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfmuls 0x0083eb60\n\tfmuls 0x0083f0ec\n\tcall *%3"
+                     : "=a"(result)
+                     : "m"(x), "r"(uintptr_t{0x001f0ff4}), "r"(uintptr_t{0x001f0bf4})
+                     : "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+// ECX joint (+0 / +4 the two bodies' matrices, +0x30 flags: 0x10 hinge, 0x20 swivel, 0x40 min
+// limit, 0x80 max limit, bits 0.. the active swivel limits; +0x190/+0x194 the swivel limit cones,
+// 0x20 each, cosine at +0x10), mode bit 0 = the type and limit labels, bit 1 = the swivel cone
+// angles. The debug text at y 0x1ba (white type label at x 0x1a4, red limit labels, cone angles in
+// red when active else blue). The joint's frame lines are computed into stack temporaries only
+// (their drawing is compiled out) and are left out here; the swivel's Quat_RotationBetween of the
+// two bodies' axes (+0xa0 / +0xb0) is kept. No caller, pointer or immediate: dead.
+void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode) {
+    if (!joint) return;
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    alignas(16) float red[4] = {one, 0.0f, 0.0f, half};
+    alignas(16) float white[4] = {one, one, one, half};
+    const uint32_t flags = at<uint32_t>(joint, 0x30);
+    const float* const a = at<const float*>(joint, 0);
+    const float* const b = at<const float*>(joint, 4);
+    if (flags & 0x10) {
+        if (!(mode & 1)) return;
+        R_DrawTextWithShadow(white, reinterpret_cast<const char*>(uintptr_t{0x0083c644}), 0x1a4, 0x1ba, 0.0f, one);  // Hinge
+        int32_t x = 0x1a4;
+        if (at<uint8_t>(joint, 0x30) & 0x40) {
+            x = 0x1fe;
+            R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c640}), x, 0x1ba, 0.0f, one);  // Min
+        }
+        if (at<int8_t>(joint, 0x30) < 0)
+            R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c63c}), x + 0x5a, 0x1ba, 0.0f,
+                                 one);  // MAX
+        return;
+    }
+    if (!(flags & 0x20)) return;
+    R_DrawTextWithShadow(white, reinterpret_cast<const char*>(uintptr_t{0x0083c634}), 0x1a4, 0x1ba, 0.0f, one);  // Swivel
+    alignas(16) float axis_a[4];
+    alignas(16) float axis_b[4];
+    const Lanes wa = rotate_out(a, reinterpret_cast<const float*>(joint + 0xa0));
+    const Lanes wb = rotate_out(b, reinterpret_cast<const float*>(joint + 0xb0));
+    std::memcpy(axis_a, wa.v, 16);
+    std::memcpy(axis_b, wb.v, 16);
+    int32_t x = 0x1fe;
+    if ((mode >> 1) & 1) {
+        alignas(16) float color[4] = {0.0f, 0.0f, one, half};
+        for (int32_t i = 0; i < at<int32_t>(joint, 0x194); ++i) {
+            const uint8_t* const cone = at<uint8_t*>(joint, 0x190) + i * 0x20;
+            const bool active = at<uint32_t>(joint, 0x30) & (1u << i);
+            color[0] = active ? one : 0.0f;
+            color[2] = active ? 0.0f : one;
+            char text[76];
+            title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(
+                text, reinterpret_cast<const char*>(uintptr_t{0x008325b8}), title_acos_degrees(at<float>(cone, 0x10)));
+            R_DrawTextWithShadow(color, text, x, 0x1ba, 0.0f, one);
+            x += 0x28;
+        }
+    }
+    if (!(mode & 1)) return;
+    alignas(16) float rotation[4];
+    Quat_RotationBetween(axis_a, 0, axis_b, rotation);
+    platform_keep(rotation);
+    if (at<uint8_t>(joint, 0x30) & 0x40) {
+        R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c630}), x, 0x1ba, 0.0f, one);  // MIN
+        x += 0x28;
+    }
+    if (at<int8_t>(joint, 0x30) < 0)
+        R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c63c}), x, 0x1ba, 0.0f, one);  // MAX
 }
 
 }  // namespace game

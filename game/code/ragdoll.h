@@ -269,4 +269,14 @@ extern "C" void VehiclePhys_Init_entry(void);
 // 0x00228ee0 (vtable 0x0083c5f0): the vehicle physics' constraint rows between bodies a and b.
 void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, uint8_t* world, float dt);
 
+// 0x00228bc0: the debug view of every vehicle physics (dead).
+void XB_CDECL VehiclePhys_DebugDrawAll();
+// 0x00231820 (EAX index, EBX ragdoll, 1 stack): one joint's debug text, or all ten (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Ragdoll_DrawJointsDebug(int32_t index, uint8_t* ragdoll, uint32_t mode);
+extern "C" void Ragdoll_DrawJointsDebug_entry(void);
+// 0x002341f0 (EAX vehicle, 1 unused stack slot): the drive inputs to wheel modes and motor forces.
+void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t);
+// 0x0022dd40: a ragdoll joint's debug text (dead).
+void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode);
+
 }  // namespace game
