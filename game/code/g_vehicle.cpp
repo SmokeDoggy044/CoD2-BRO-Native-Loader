@@ -4174,4 +4174,1251 @@ void XB_CDECL Vehicle_ResetOnVehicleOverlap(uint8_t* ent) {
     }
 }
 
+int32_t XB_REGS3 XB_STDCALL VehicleNode_FindByKey(uint32_t all, uint32_t, const ScriptString* key,
+                                                  const ScriptString* value, int32_t* out) {
+    // EAX = all: every node index into `out` (count returned). Without a value or key the same when there is
+    // an `out`. Else the field the key names (text at the rep + 6), compared to the value on every node.
+    int32_t found = 0;
+    const uint32_t* const key_rep = reinterpret_cast<const uint32_t*>(key);
+    if (!all) {
+        if (*reinterpret_cast<const uint32_t*>(value) && *key_rep) {
+        } else if (out) {
+            all = 1;
+        }
+    }
+    if (all) {
+        for (int32_t i = 0; i < title_global<int32_t>(0x0094d4d8); ++i) out[found++] = i;  // g_numVehNodes
+        return found;
+    }
+    static const uint32_t kKeys[7][2] = {
+        {0x0082dda8, 0x00},  // "targetname"
+        {0x00833ad0, 0x04},  // "target"
+        {0x00833aa8, 0x14},  // "origin"
+        {0x00833aa0, 0x2c},  // "angles"
+        {0x00833a44, 0x08},  // "speed"
+        {0x00833a38, 0x0c},  // "lookahead"
+        {0x00833ab0, 0x10},  // "script_noteworthy"
+    };
+    const auto stricmp = title_function<StrICmp>(0x001f1443);  // _stricmp
+    uint32_t field = 0;
+    bool known = false;
+    for (uint32_t k = 0; k < 7; ++k) {
+        const char* const text = *key_rep ? pointer<const char>(*key_rep + 6) : nullptr;
+        if (stricmp(pointer<const char>(kKeys[k][0]), text) == 0) {
+            field = kKeys[k][1];
+            known = true;
+            break;
+        }
+    }
+    if (!known) return -1;
+    for (int32_t i = 0; i < title_global<int32_t>(0x0094d4d8); ++i) {
+        uint8_t* const slot = title_global<uint8_t*>(0x0095c228 + static_cast<uint32_t>(i) * 4) + field;  // g_vehNodes
+        const uint32_t rep = at<uint32_t>(slot, 0);
+        if (!rep || rep + 6 == 0 || !*pointer<const char>(rep + 6)) continue;
+        if (!ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(slot), value)) continue;
+        if (!out) return i;
+        out[found++] = i;
+    }
+    if (out) return found;
+    return -1;
+}
+
+namespace {
+
+// Runs a title callee at the original's ESP (top) and writes back the original call's return address.
+uint32_t veh_call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                     const uint32_t* args = nullptr) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    *pointer<uint32_t>(top - count * 4 - 4) = ret;
+    return result;
+}
+
+// (heat - 0x0083ee68) * 0x0083f1d8 * 0x008fefec on the x87 (doubles, then the float), stored as float.
+float overheat_emission_rate(float heat) {
+    long double v = static_cast<long double>(heat);
+    v = v - static_cast<long double>(title_global<double>(0x0083ee68));
+    v = v * static_cast<long double>(title_global<double>(0x0083f1d8));
+    v = v * static_cast<long double>(title_global<float>(0x008fefec));
+    return static_cast<float>(v);
+}
+
+}  // namespace
+
+// FXCmd_PlayWeaponSound copies a partly filled stack block: every callee runs at the original's ESP (gap entry).
+PLATFORM_ASM_ENTRY(Vehicle_UpdateOverheat_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_UpdateOverheat) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_UpdateOverheat(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Heat (+0x198) reaching 1 overheats the turret (+0x19c, sound 0x2a, "overheated", the smoke +0x1a0 at
+    // rate 200); the overheat ends at 0.5 (smoke freed). It cools by elapsed * def +0x850 / 1000 (0 at or
+    // below 0). Above 0.25 the smoke runs (sound 0x29 starts it) at a rate from the heat; else it is freed.
+    // The turret weapon is +0x1a4, else the entity's weapon (+3). Frame: entry - 0x10.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebx;
+    *pointer<uint32_t>(E - 8) = ebp;
+    *pointer<uint32_t>(E - 0xc) = esi;
+    *pointer<uint32_t>(E - 0x10) = edi;
+    const uint32_t T = E - 0x10;
+    uint8_t* const ent = pointer<uint8_t>(*pointer<uint32_t>(E + 4));
+    const int32_t elapsed = *pointer<int32_t>(E + 8);
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint32_t weapon = at<uint32_t>(vehicle, 0x1a4);
+    const uint8_t* const def = weapon ? weapon_def(weapon) : weapon_def(at<uint8_t>(ent, 3));
+    const uint32_t ent_w = address_of(ent), def_w = address_of(def), veh_w = address_of(vehicle);
+    const uint32_t list = 0x0095f5b4;
+    const uint32_t name = at<uint32_t>(def, 8);
+    const auto free_smoke = [&](uint32_t ret) {
+        esi = title_global<uint32_t>(list);
+        const uint32_t args[1] = {at<uint32_t>(vehicle, 0x1a0)};
+        veh_call_at(T, ret, 0x0029b620, TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 1, args);  // FX_FreeEffectsById
+        at<uint32_t>(vehicle, 0x1a0) = 0;
+    };
+    if (at<float>(vehicle, 0x198) >= title_global<float>(0x0083eb20)) {
+        at<uint8_t>(vehicle, 0x19c) = 1;
+        {
+            const uint32_t args[2] = {name, 0x2a};
+            veh_call_at(T, 0x00266b84, 0x002a62d0, TitleRegs{ent_w, def_w, name, 0, esi, veh_w}, 2,
+                        args);  // FXCmd_PlayWeaponSound
+        }
+        esi = ent_w;
+        {
+            const uint32_t args[1] = {title_global<uint32_t>(0x0097a888)};  // "overheated"
+            veh_call_at(T, 0x00266b95, 0x002b75c0, TitleRegs{0, def_w, 0, args[0], esi, veh_w}, 1, args);  // Scr_Notify
+        }
+        if (const uint32_t id = at<uint32_t>(vehicle, 0x1a0)) {
+            const uint32_t args[4] = {title_global<uint32_t>(list), id, 0x0083b284, 0x43480000};  // EmissionRate, 200
+            veh_call_at(T, 0x00266bb5, 0x00296b80, TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 4,
+                        args);  // FXParam_Broadcast
+        }
+    } else if (at<uint8_t>(vehicle, 0x19c) && title_global<float>(0x0083eb24) >= at<float>(vehicle, 0x198)) {
+        at<uint8_t>(vehicle, 0x19c) = 0;
+        if (at<uint32_t>(vehicle, 0x1a0)) free_smoke(0x00266bef);
+    }
+    const float heat = at<float>(vehicle, 0x198);
+    const float zero = 0.0f;
+    if (heat > zero)
+        at<float>(vehicle, 0x198) =
+            heat - (static_cast<float>(elapsed) * at<float>(def, 0x850)) * title_global<float>(0x0083eb4c);
+    else
+        at<float>(vehicle, 0x198) = zero;
+    if (at<float>(vehicle, 0x198) > title_global<float>(0x0083ec24)) {
+        if (!at<uint32_t>(vehicle, 0x1a0)) {
+            const uint32_t args[2] = {name, 0x29};
+            at<uint32_t>(vehicle, 0x1a0) = veh_call_at(T, 0x00266c5d, 0x002a62d0,
+                                                       TitleRegs{ent_w, def_w, name, 0, esi, veh_w}, 2,
+                                                       args);  // FXCmd_PlayWeaponSound
+        }
+        const float rate = overheat_emission_rate(at<float>(vehicle, 0x198));
+        uint32_t rate_w;
+        std::memcpy(&rate_w, &rate, 4);
+        const uint32_t args[4] = {title_global<uint32_t>(list), at<uint32_t>(vehicle, 0x1a0), 0x0083b284, rate_w};
+        veh_call_at(T, 0x00266c99, 0x00296b80, TitleRegs{args[0], def_w, name, args[1], esi, veh_w}, 4,
+                    args);  // FXParam_Broadcast
+        return;
+    }
+    if (at<uint32_t>(vehicle, 0x1a0)) free_smoke(0x00266cb4);
+}
+
+// The trace reads its points' fourth words and the callees stack words: the frame sits at the original's
+// addresses (gap entry; B = aligned base - 0x80) and every callee runs at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_FireTurret_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_FireTurret) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Clears the fire state (+0x1c8/+0x1cc, recoil +0x1dc..+0x1e4). Needs a live driver (+0x1a0) and a
+    // weapon (+3), not with client flag 0x400000. The refire timer +0x180 counts down; the driver's attack
+    // button (client +0x528 bit 0, not with +0x2c bit 0x4000) fires when it ran out: "turret_fire", and for the
+    // entity's own weapon (no +0x1a4) the heat rises by def +0x5dc * +0x84c / 1000 (no fire while overheated).
+    // Then +0x1c8 = 1 and the aim point (+0x1d0) 10240 along the driver's view from the cgame view origin (the
+    // player) or the view tag (+0x2c4; +0x2cc first), pulled in to what a trace hits; outside a valid cell
+    // +0x1ac = 1.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0x80;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    wd(8) = ebx;
+    wd(4) = esi;
+    uint8_t* const ent = pointer<uint8_t>(*pointer<uint32_t>(E + 4));
+    const int32_t elapsed = *pointer<int32_t>(E + 8);
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint32_t ent_w = address_of(ent), veh_w = address_of(vehicle);
+    at<uint32_t>(vehicle, 0x1c8) = 0;
+    at<uint32_t>(vehicle, 0x1cc) = 0;
+    const float zero = 0.0f;
+    at<float>(vehicle, 0x1e4) = zero;
+    at<float>(vehicle, 0x1e0) = zero;
+    at<float>(vehicle, 0x1dc) = zero;
+    const uint32_t handle = at<uint32_t>(ent, 0x1a0);
+    const uint32_t index = handle & 0xfff;
+    wd(0) = edi;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8) ||
+        !title_global<uint32_t>(0x0097a968 + index * 8))
+        return;
+    if (!at<uint8_t>(ent, 3)) return;
+    wd(0x10) = title_global<uint32_t>(0x0097a968 + index * 8);
+    uint8_t* const driver = pointer<uint8_t>(wd(0x10));
+    uint8_t* const client = at<uint8_t*>(driver, 0x23c);
+    const uint32_t client_w = address_of(client);
+    if (at<uint32_t>(client, 0xc0) & 0x400000) return;
+    const int32_t refire = at<int32_t>(vehicle, 0x180) - elapsed;
+    at<int32_t>(vehicle, 0x180) = refire;
+    if ((at<uint8_t>(client, 0x528) & 1) && !(at<uint32_t>(at<uint8_t*>(driver, 0x23c), 0x2c) & 0x4000) && refire <= 0) {
+        bool notify = true;
+        if (!at<uint32_t>(vehicle, 0x1a4)) {
+            const uint8_t* const def = weapon_def(at<uint8_t>(ent, 3));
+            if (at<uint8_t>(vehicle, 0x19c)) {
+                notify = false;
+            } else {
+                at<float>(vehicle, 0x198) =
+                    (static_cast<float>(at<int32_t>(def, 0x5dc)) * at<float>(def, 0x84c)) * title_global<float>(0x0083eb4c) +
+                    at<float>(vehicle, 0x198);
+            }
+        }
+        if (notify) {
+            const uint32_t args[1] = {title_global<uint32_t>(0x0097a830)};  // "turret_fire"
+            veh_call_at(B, 0x0026095c, 0x002b75c0, TitleRegs{0, veh_w, 0, args[0], ent_w, client_w}, 1, args);  // Scr_Notify
+        }
+    }
+    at<uint32_t>(vehicle, 0x1c8) = 1;
+    if (at<int32_t>(vehicle, 0x2cc) < 0) {
+        const uint32_t args[3] = {1, 0x0083a0c4, title_global<uint32_t>(0x008daeb8)};
+        veh_call_at(B, 0x00260983, 0x002938f0, TitleRegs{at<uint32_t>(vehicle, 0x2cc), veh_w, args[2], 0, ent_w, client_w}, 3,
+                    args);  // __break
+    }
+    {
+        const uint32_t args[3] = {ent_w, at<uint32_t>(vehicle, 0x2cc), B + 0x40};
+        veh_call_at(B, 0x00260998, 0x002e3780, TitleRegs{args[1], veh_w, 0, B + 0x40, ent_w, client_w}, 3,
+                    args);  // G_DObjGetWorldTagMatrix
+    }
+    if (at<int32_t>(vehicle, 0x2c4) < 0) {
+        const uint32_t args[2] = {1, 0x0083a0a0};
+        veh_call_at(B, 0x002609b1, 0x002938f0, TitleRegs{at<uint32_t>(vehicle, 0x2c4), veh_w, 0, 0, ent_w, client_w}, 2,
+                    args);  // __break
+    }
+    {
+        const uint32_t args[3] = {ent_w, at<uint32_t>(vehicle, 0x2c4), B + 0x40};
+        veh_call_at(B, 0x002609c6, 0x002e3780, TitleRegs{args[1], veh_w, B + 0x40, args[1], ent_w, client_w}, 3,
+                    args);  // G_DObjGetWorldTagMatrix
+    }
+    veh_call_at(B, 0x002609d8, 0x00013c60, TitleRegs{0, veh_w, 0, 0, B + 0x20, client_w + 0x9c});  // AnglesToForward
+    if (wd(0x10) == at<uint32_t>(title_global<uint8_t*>(0x0095f534), 4)) {
+        const uint32_t args[2] = {0x13, B + 0x14};
+        veh_call_at(B, 0x002609f8, 0x002a84e0, TitleRegs{0, veh_w, wd(0x10), title_global<uint32_t>(0x0093f7f8), B + 0x20,
+                                                         client_w + 0x9c},
+                    2, args);  // VM_Call(cgvm, 0x13): the view origin
+    } else {
+        fl(0x14) = fl(0x70);
+        fl(0x18) = fl(0x74);
+        fl(0x1c) = fl(0x78);
+    }
+    const float range = title_global<float>(0x0083f190);  // 10240
+    const float ex = fl(0x20) * range + fl(0x14);
+    const float ey = fl(0x24) * range + fl(0x18);
+    const float ez = fl(0x28) * range + fl(0x1c);
+    at<float>(vehicle, 0x1d0) = ex;
+    at<float>(vehicle, 0x1d4) = ey;
+    at<float>(vehicle, 0x1d8) = ez;
+    bool valid;
+    {
+        const uint32_t args[1] = {ent_w};
+        valid = static_cast<uint8_t>(veh_call_at(B, 0x00260a7a, 0x002ae8f0, TitleRegs{0, veh_w, 0, 0, ent_w, client_w + 0x9c}, 1,
+                                                 args)) != 0;  // G_EntityInValidCell
+    }
+    if (!valid) {
+        at<uint32_t>(vehicle, 0x1ac) = 1;
+        return;
+    }
+    const float sx = fl(0x14), sy = fl(0x18), sz = fl(0x1c);
+    fl(0x30) = ex;
+    fl(0x34) = ey;
+    fl(0x38) = ez;
+    fl(0x3c) = ex;
+    fl(0x20) = sx;
+    fl(0x24) = sy;
+    fl(0x28) = sz;
+    fl(0x2c) = sx;
+    {
+        const uint32_t args[7] = {B + 0x40, B + 0x20, B + 0x30, at<uint32_t>(ent, 0x1a0), 0x0280e091, 0x008da6f0, 0};
+        veh_call_at(B, 0x00260aff, 0x002600c0, TitleRegs{B + 0x40, veh_w, B + 0x30, B + 0x20, ent_w, client_w + 0x9c}, 7,
+                    args);  // G_LocationalTrace
+    }
+    if (title_global<float>(0x0083eb20) > fl(0x60)) {
+        at<float>(vehicle, 0x1d0) = fl(0x40);
+        at<float>(vehicle, 0x1d4) = fl(0x44);
+        at<float>(vehicle, 0x1d8) = fl(0x48);
+    }
+}
+
+// The fire record (B + 0x30) and the angle temporaries sit at the original's frame addresses (gap entry;
+// B = aligned base - 0xe0); every callee runs at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_FireTurretWeapon_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_FireTurretWeapon) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The turret weapon (+0x1a4) sets the refire delay (+0x184 = def +0x5dc). The flash tag (+0x2c8, else
+    // +0x2cc) gives the muzzle and axes. With a driver, no lock (+0x1ac) and an aim point (+0x1d0, not all
+    // zero), the direction turns from the tag's forward toward the aim point by at most 10 degrees in pitch
+    // and yaw; else the tag's forward. With +0x1ac the muzzle moves back by +0x1a8 along it. Projectile
+    // weapons (def +0x94) fire one (speed 10); else a bullet, the fire event 0xa4 and heat (+0x198).
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0xe0;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    wd(8) = ebx;
+    wd(4) = esi;
+    wd(0) = edi;
+    uint8_t* const ent = pointer<uint8_t>(*pointer<uint32_t>(E + 4));
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = weapon_def(at<uint32_t>(vehicle, 0x1a4));
+    const uint32_t ent_w = address_of(ent), veh_w = address_of(vehicle), def_w = address_of(def);
+    at<uint32_t>(vehicle, 0x184) = at<uint32_t>(def, 0x5dc);
+    wd(0x6c) = def_w;
+    wd(0x70) = def_w;
+    int32_t tag = at<int32_t>(vehicle, 0x2c8);
+    if (tag < 0) tag = at<int32_t>(vehicle, 0x2cc);
+    {
+        const uint32_t args[3] = {ent_w, static_cast<uint32_t>(tag), B + 0x80};
+        veh_call_at(B, 0x002705ba, 0x002e3780, TitleRegs{args[1], veh_w, B + 0x80, at<uint32_t>(def, 0x5dc), def_w, ent_w}, 3,
+                    args);  // G_DObjGetWorldTagMatrix
+    }
+    const float ox = fl(0xb0), oy = fl(0xb4), oz = fl(0xb8);
+    fl(0x54) = ox;
+    fl(0x58) = oy;
+    fl(0x5c) = oz;
+    const float zero = 0.0f;
+    bool aimed = false;
+    if (at<uint32_t>(ent, 0x1a0) && !at<uint32_t>(vehicle, 0x1ac)) {
+        aimed = at<float>(vehicle, 0x1d0) != zero || at<float>(vehicle, 0x1d4) != zero || at<float>(vehicle, 0x1d8) != zero;
+    }
+    if (aimed) {
+        fl(0x60) = at<float>(vehicle, 0x1d0) - ox;
+        fl(0x64) = at<float>(vehicle, 0x1d4) - oy;
+        fl(0x68) = at<float>(vehicle, 0x1d8) - oz;
+        veh_call_at(B, 0x0027067f, 0x00297770, TitleRegs{0, veh_w, 0, 0, B + 0x60, ent_w});  // VectorNormalize
+        veh_call_at(B, 0x0027068f, 0x002a0850, TitleRegs{0, veh_w, 0, 0, B + 0x80, B + 0x74});  // vectoangles (tag forward)
+        veh_call_at(B, 0x0027069c, 0x002a0850, TitleRegs{0, veh_w, 0, 0, B + 0x60, B + 0x24});  // vectoangles (aim)
+        // Both angle sets as vec4 temporaries (fourth word = x); the difference, then the clamped turn.
+        const float ax = fl(0x24), ay = fl(0x28), az = fl(0x2c);
+        const float tx = fl(0x74), ty = fl(0x78), tz = fl(0x7c);
+        fl(0xc0) = ax;
+        fl(0xc4) = ay;
+        fl(0xc8) = az;
+        fl(0xcc) = ax;
+        fl(0x10) = tx;
+        fl(0x14) = ty;
+        fl(0x18) = tz;
+        fl(0x1c) = tx;
+        fl(0xd0) = tx;
+        fl(0xd4) = ty;
+        fl(0xd8) = tz;
+        fl(0xdc) = tx;
+        {
+            const uint32_t args[1] = {B + 0x24};
+            veh_call_at(B, 0x00270724, 0x0029a060, TitleRegs{0, veh_w, 0, B + 0x24, B + 0xc0, B + 0x10}, 1,
+                        args);  // AnglesNormalize180 (aim - forward)
+        }
+        const float low = title_global<float>(0x0083ed10), high = title_global<float>(0x0083eb98);  // -10, 10
+        float dx = fl(0x24);
+        if (low > dx)
+            dx = low;
+        else if (dx > high)
+            dx = high;
+        float dy = fl(0x28);
+        if (low > dy)
+            dy = low;
+        else if (dy > high)
+            dy = high;
+        fl(0x1c) = dx;
+        fl(0x10) = dx;
+        fl(0x18) = zero;
+        fl(0x14) = dy;
+        fl(0xc0) = dx;
+        fl(0xc4) = dy;
+        fl(0xc8) = zero;
+        fl(0xcc) = dx;
+        {
+            const uint32_t args[1] = {B + 0x74};
+            veh_call_at(B, 0x002707b7, 0x0029a060, TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0xc0, B + 0xd0}, 1,
+                        args);  // AnglesNormalize180 (forward + turn)
+        }
+        veh_call_at(B, 0x002707c7, 0x00013c60, TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0x60, B + 0x74});  // AnglesToForward
+    } else {
+        fl(0x60) = fl(0x80);
+        fl(0x64) = fl(0x84);
+        fl(0x68) = fl(0x88);
+    }
+    const float fx = fl(0x60), fy = fl(0x64), fz = fl(0x68);
+    fl(0x3c) = fl(0x90);
+    fl(0x40) = fl(0x94);
+    fl(0x44) = fl(0x98);
+    fl(0x48) = fl(0xa0);
+    fl(0x4c) = fl(0xa4);
+    fl(0x30) = fx;
+    fl(0x34) = fy;
+    fl(0x38) = fz;
+    fl(0x50) = fl(0xa8);
+    if (at<uint32_t>(vehicle, 0x1ac)) {
+        fl(0x54) = (zero - at<float>(vehicle, 0x1a8)) * fx + ox;
+        fl(0x58) = (zero - at<float>(vehicle, 0x1a8)) * fy + oy;
+        fl(0x5c) = (zero - at<float>(vehicle, 0x1a8)) * fz + oz;
+    } else {
+        fl(0x54) = ox;
+        fl(0x58) = oy;
+        fl(0x5c) = oz;
+    }
+    if (at<uint32_t>(pointer<uint8_t>(wd(0x6c)), 0x94)) {
+        const uint32_t args[3] = {0, 0x41200000, 1};  // speed 10
+        veh_call_at(B, 0x00270980, 0x00269a30, TitleRegs{ent_w, veh_w, wd(0x6c), 0, B + 0x30, ent_w}, 3,
+                    args);  // Weapon_FireProjectile
+        return;
+    }
+    {
+        const uint32_t spread = at<uint32_t>(def, 0x5b8);
+        const uint32_t args[5] = {ent_w, title_global<uint32_t>(0x008feff0), spread, ent_w, 0};
+        veh_call_at(B, 0x0027092a, 0x002704c0, TitleRegs{B + 0x30, veh_w, wd(0x6c), spread, def_w, ent_w}, 5,
+                    args);  // Weapon_FireBullet
+    }
+    {
+        const uint32_t args[2] = {0xa4, 0};
+        veh_call_at(B - 0x14, 0x0027093a, 0x002893b0, TitleRegs{ent_w, veh_w, ent_w, 0, def_w, ent_w}, 2,
+                    args);  // CG_FireWeapon
+    }
+    at<float>(vehicle, 0x198) =
+        (static_cast<float>(at<int32_t>(def, 0x5dc)) * at<float>(def, 0x84c)) * title_global<float>(0x0083eb4c) +
+        at<float>(vehicle, 0x198);
+}
+
+void XB_CDECL Player_UpdateCursorHints(uint8_t* ent) {
+    // The use hint (client +0x47c), its entity (+0x480), hint string (+0x484) and use entity (+0x4c0), cleared
+    // first. Nothing while dead, reloading a clip weapon (def +0x94 = 1, +0x6e4, ammo below +0x618 and not 0,
+    // weapon bit in +0x3f0), in a vehicle seat (+0x297), with 0x0095bf9c = 4, with client flag 0x100000, or
+    // prone (+0x2c bit 0x20) with a mountable weapon (def +0x98 = 3). Mountable weapons look for a mount
+    // trigger 25 units ahead (hint 7, string def +0x844 when +0x840 is set). Then the first usable entity of
+    // the use list decides: the player's own (9 with +0x4b4 bit 8, not +0x2c bit 0x10); sentients (11 for
+    // squad types 2/3; string = their +0x1380 when not negative); trigger_use (its +0xc0, string +5); turrets
+    // (6, usable by the player, else the next entry) and vehicles (2, likewise); items by type (weapon 0xb +
+    // index, or 0x8b + index when held; ammo 0x8b + index; 8; 0x8c; 8); doors closed or opening the right way
+    // (4, 5 when locked by +0x3b4). An entity hint (+0xc0 > 0) overrides a nonzero hint; +0x28c is a fixed
+    // string. Without a hint the use entity is cleared.
+    uint8_t* const ps = at<uint8_t*>(ent, 0x23c);
+    at<uint32_t>(ps, 0x47c) = 0;
+    at<uint32_t>(ps, 0x480) = 0;
+    at<uint32_t>(ps, 0x4c0) = 0;
+    if (at<int32_t>(ent, 0x350) <= 0) return;
+    {
+        const uint8_t* const def = weapon_def(at<uint32_t>(ps, 0x80));
+        if (at<int32_t>(def, 0x94) == 1 && at<uint32_t>(def, 0x6e4) && at<int32_t>(ps, 0x3c) < at<int32_t>(def, 0x618) &&
+            at<int32_t>(ps, 0x3c) != 0 && Com_BitCheck(0, at<int32_t>(ps, 0x80), &at<uint32_t>(ps, 0x3f0)))
+            return;
+    }
+    Player_UpdateLookAtActorInfo(ent);
+    if (at<uint8_t>(ent, 0x297)) return;
+    if (title_global<int32_t>(0x0095bf9c) == 4) return;
+    at<uint32_t>(ps, 0x47c) = 0;
+    at<uint32_t>(ps, 0x480) = 0;
+    at<int32_t>(ps, 0x484) = -1;
+    int32_t text = -1;
+    const uint8_t* const client = at<uint8_t*>(ent, 0x23c);
+    const int32_t weapon_class = at<int32_t>(weapon_def(at<uint32_t>(client, 0x80)), 0x98);
+    int32_t hint = 0;
+    uint32_t hint_ent = 0;
+    if ((at<uint8_t>(client, 0x2c) & 0x20) && weapon_class == 3) return;
+    if (at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0xc0) & 0x100000) return;
+    uint32_t list[0x540 * 2];
+    const int32_t count = title_function<int32_t XB_CDECL(uint8_t*, uint32_t*)>(0x00264060)(ent, list);  // Player_GetUseList
+    if (weapon_class == 3) {
+        float angles[3];
+        angles[1] = at<float>(at<uint8_t*>(ent, 0x23c), 0xa0);
+        int32_t mount = 0;
+        angles[0] = 0.0f;
+        angles[2] = 0.0f;
+        float forward[3];
+        AnglesToForward(angles, forward);
+        const float reach = title_global<float>(0x0083ebc4);  // 25
+        float point[3];
+        point[0] = forward[0] * reach + at<float>(ent, 0x140);
+        point[1] = forward[1] * reach + at<float>(ent, 0x144);
+        point[2] = (forward[2] * reach + at<float>(ent, 0x148)) + title_global<float>(0x0083eb20);
+        if (Player_FindMountTrigger(point, &mount)) {
+            hint_ent = static_cast<uint32_t>(mount);
+            const uint8_t* const def = weapon_def(at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0x80));
+            hint = 7;
+            if (*at<const char*>(def, 0x840)) text = at<int32_t>(def, 0x844);
+        }
+        at<int32_t>(ps, 0x47c) = hint;
+        at<uint32_t>(ps, 0x480) = hint_ent;
+        at<int32_t>(ps, 0x484) = text;
+    }
+    if (count == 0) return;
+    bool fixed_text = false;
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const e = pointer<uint8_t>(list[i * 2]);
+        at<uint32_t>(ps, 0x4c0) = at<uint32_t>(e, 0x224);
+        bool common = true;
+        if (e == at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8)) {
+            if ((at<uint8_t>(ps, 0x4b4) & 8) && !(at<uint8_t>(ps, 0x2c) & 0x10)) hint = 9;
+            common = false;
+        } else if (at<uint32_t>(e, 0x240)) {
+            const uint8_t* const squad = at<uint8_t*>(e, 0x244);
+            if (squad && (at<int32_t>(squad, 4) == 2 || at<int32_t>(squad, 4) == 3)) hint = 0xb;
+            const int16_t name = at<int16_t>(at<uint8_t*>(e, 0x240), 0x1380);
+            if (name >= 0) text = name;
+            common = false;
+        } else {
+            const uint8_t type = e[0];
+            if (type == 0) {
+                if (at<uint32_t>(e, 0x260) == title_global<uint32_t>(0x0097a81c)) {  // trigger_use
+                    hint = at<int32_t>(e, 0xc0);
+                    if (hint && e[5] != 0xff) text = e[5];
+                }
+            } else if (type == 0xa) {
+                if (!Turret_IsUsableBy(ent, 0, e)) continue;
+                const uint8_t* const def = weapon_def(e[3]);
+                hint = 6;
+                if (*at<const char*>(def, 0x840)) text = at<int32_t>(def, 0x844);
+            } else if (type == 0xe) {
+                if (!G_PlayerCanUseTurret(0, e, ent)) continue;
+                const uint8_t* const def = weapon_def(e[3]);
+                hint = 2;
+                if (*at<const char*>(def, 0x840)) text = at<int32_t>(def, 0x844);
+            } else if (type == 2) {
+                const int32_t index = static_cast<int32_t>(at<uint32_t>(e, 0x3b0) - 0x0096bd10u) / 0x34;
+                const uint8_t* const item = pointer<uint8_t>(static_cast<uint32_t>(index * 0x34) + 0x0096bd10u);
+                switch (at<int32_t>(item, 0x24)) {
+                case 1: {
+                    const int32_t w = at<int32_t>(item, 0x28);
+                    hint = Com_BitCheck(0, w, &at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0x3f0)) ? w + 0x8b : w + 0xb;
+                    break;
+                }
+                case 2:
+                    hint = at<int32_t>(item, 0x28) + 0x8b;
+                    break;
+                case 3:
+                case 5:
+                    hint = 8;
+                    break;
+                case 4:
+                    hint = 0x8c;
+                    break;
+                default:
+                    break;
+                }
+            } else if (type == 4) {
+                bool door = false;
+                const uint8_t state = e[0x298];
+                if (at<uint32_t>(e, 0x260) == title_global<uint32_t>(0x0097a6e0)) {  // func_door_rotating
+                    door = state == 7 || (state == 8 && static_cast<int8_t>(e[0x2a4]) < 0);
+                } else if (at<uint32_t>(e, 0x260) == title_global<uint32_t>(0x0097a6dc)) {  // func_door
+                    door = state == 0 || (state == 1 && static_cast<int8_t>(e[0x2a4]) < 0);
+                }
+                if (door) hint = at<uint32_t>(e, 0x3b4) ? 5 : 4;
+            }
+        }
+        if (common) {
+            if (at<int32_t>(e, 0xc0) > 0 && hint) hint = at<int32_t>(e, 0xc0);
+            if (const uint32_t fixed = at<uint32_t>(e, 0x28c)) {
+                at<uint32_t>(ps, 0x484) = fixed;
+                fixed_text = true;
+            }
+        }
+        at<uint32_t>(ps, 0x480) = hint_ent;
+        at<int32_t>(ps, 0x47c) = hint;
+        if (!fixed_text) at<int32_t>(ps, 0x484) = text;
+        if (!hint) at<uint32_t>(ps, 0x4c0) = 0;
+        return;
+    }
+}
+namespace {
+
+// x, y, z and x again: the original's vec4 copies of a point (fourth word = x).
+void put_point4(uint32_t address, const float* v) {
+    float* const d = pointer<float>(address);
+    d[0] = v[0];
+    d[1] = v[1];
+    d[2] = v[2];
+    d[3] = v[0];
+}
+
+// The impact direction reflected about the normal: dir - 2 * (dir . n) * n, the dot summed z, y, x.
+void reflect_about(float* dir, const float* normal) {
+    const float d = ((normal[2] * dir[2] + normal[1] * dir[1]) + normal[0] * dir[0]) * title_global<float>(0x0083ec5c);
+    const float x = normal[0] * d + dir[0];
+    const float y = normal[1] * d + dir[1];
+    const float z = normal[2] * d + dir[2];
+    dir[0] = x;
+    dir[1] = y;
+    dir[2] = z;
+}
+
+// The penetration step: start = hit point + (0.25 / -(n . v)) * v (0 when -(n . v) is below 0.125).
+void penetrate_start(float* start, const float* v, const float* normal, const float* hit) {
+    const float zero = 0.0f;
+    const float dot = (normal[2] * v[2] + normal[1] * v[1]) + normal[0] * v[0];
+    const float neg = zero - dot;
+    float s;
+    if (neg >= title_global<float>(0x0083ec68))
+        s = title_global<float>(0x0083ec24) / neg;
+    else
+        s = zero;
+    start[0] = s * v[0] + hit[0];
+    const float y = s * v[1] + hit[1];
+    const float z = s * v[2] + hit[2];
+    start[1] = y;
+    start[2] = z;
+}
+
+uint8_t* entity_of_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return title_global<uint8_t*>(0x0097a968 + index * 8);
+    return nullptr;
+}
+
+// |u . v| for u = the fire direction turned flat by 90 degrees (normalised) and v = hit - origin: how far
+// to the side of a client the hit is. u at B + 0x18, v at B + 0x24/0x28 (VectorNormalize at the original's ESP).
+float side_offset(uint32_t B, uint32_t v_off, const float* fire, const uint8_t* client, const float* hit, uint32_t ret,
+                  const TitleRegs& regs) {
+    float* const v = pointer<float>(B + v_off);
+    float* const u = pointer<float>(B + 0x18);
+    v[0] = hit[0] - at<float>(client, 0);
+    v[1] = hit[1] - at<float>(client, 4);
+    v[2] = hit[2] - at<float>(client, 8);
+    u[0] = fire[1];
+    const float zero = 0.0f;
+    u[1] = zero - fire[0];
+    u[2] = zero;
+    TitleRegs r = regs;
+    r.esi = B + 0x18;
+    veh_call_at(B, ret, 0x00297770, r);  // VectorNormalize
+    const float d = (u[2] * v[2] + u[1] * v[1]) + u[0] * v[0];
+    uint32_t bits;
+    std::memcpy(&bits, &d, 4);
+    bits &= 0x7fffffffu;
+    float a;
+    std::memcpy(&a, &bits, 4);
+    return a;
+}
+
+}  // namespace
+
+// Recursive; the trace and the effect callees read their points' fourth words: the frame sits at the
+// original's addresses (gap entry; B = aligned base - 0x110), every callee at the original's ESP.
+PLATFORM_ASM_ENTRY(Bullet_Trace_r_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Bullet_Trace_r) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // cdecl (pass, attacker, start, end, a4, depth, fire, a7, a8): Weapon_BulletTrace_r without damage or
+    // actor events (only caller Bullet_Fire: dead). Traces (contents 0x280e031, hit-location table by def
+    // +0x6d0) up to depth 12: impact effect (CG_Bullet; flesh 0x700000 for damageable +0x29c clients and
+    // squad members) unless the surface has flag 4 or the hit is a squad mate (tracer only); a miss draws a
+    // tracer. Penetrable hits (byte +0x28 bit 0x10) go on from just past the hit point (start written,
+    // depth + 1, a8 = 0). A damageable hit continues through the attacker's linked entity, squad mates and
+    // clients hit more than 8 units off the line.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0x110;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    wd(8) = ebx;
+    wd(4) = esi;
+    wd(0) = edi;
+    uint32_t* const arg = pointer<uint32_t>(E + 4);
+    const uint32_t pass = arg[0];
+    uint8_t* const attacker = pointer<uint8_t>(arg[1]);
+    float* const start = pointer<float>(arg[2]);
+    const float* const end = pointer<float>(arg[3]);
+    const float* const fire = pointer<float>(arg[6]);
+    const uint32_t att_w = arg[1], start_w = arg[2], end_w = arg[3], fire_w = arg[6];
+    for (;;) {
+        wd(0x60) = 0;
+        wd(0x64) = 0;
+        if (static_cast<int32_t>(arg[5]) > 12) return;
+        const uint8_t* const def = at<uint8_t*>(fire, 0x3c);
+        const uint32_t table = at<uint32_t>(def, 0x6d0) ? 0x008da704u : 0x008da6f0u;
+        put_point4(B + 0x80, end);
+        put_point4(B + 0x100, end);
+        put_point4(B + 0xa0, start);
+        put_point4(B + 0xc0, start);
+        {
+            const uint32_t args[7] = {B + 0x30, B + 0xc0, B + 0x100, pass, 0x0280e031, table, arg[8]};
+            veh_call_at(B, 0x0026f18f, 0x002600c0, TitleRegs{B + 0x30, start_w, B + 0x100, B + 0xc0, fire_w, end_w}, 7,
+                        args);  // G_LocationalTrace
+        }
+        wd(0x14) = address_of(entity_of_handle(wd(0x60)));
+        const uint32_t weapon = at<uint32_t>(def, 0);
+        if (title_global<float>(0x0083eb20) > fl(0x50)) {
+            fl(0x24) = end[0] - start[0];
+            fl(0x28) = end[1] - start[1];
+            fl(0x2c) = end[2] - start[2];
+            veh_call_at(B, 0x0026f20f, 0x00297770, TitleRegs{wd(0x14), start_w, wd(0x60), wd(0x60) >> 12, B + 0x24, end_w});  // VectorNormalize
+            reflect_about(&fl(0x24), &fl(0x40));
+            bool tracer = (wd(0x54) & 4) != 0;
+            if (!tracer) {
+                uint8_t* const hit = pointer<uint8_t>(wd(0x14));
+                if (hit) {
+                    const uint8_t* const squad = at<uint8_t*>(hit, 0x244);
+                    if (squad && at<uint32_t>(attacker, 0x240) &&
+                        at<int32_t>(squad, 4) == at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) {
+                        tracer = true;
+                    } else if ((at<uint32_t>(hit, 0x23c) || (squad && !wd(0x54))) && at<uint32_t>(hit, 0x29c)) {
+                        wd(0x54) = 0x700000;
+                    }
+                }
+            }
+            if (!tracer) {
+                const uint32_t args[2] = {B + 0x30, static_cast<uint32_t>((static_cast<int32_t>(wd(0x54)) >> 20) & 0x1f)};
+                veh_call_at(B, 0x0026f2ff, 0x0028a370, TitleRegs{B + 0x40, start_w, att_w, B + 0x30, fire_w, weapon}, 2,
+                            args);  // CG_Bullet
+            } else {
+                put_point4(B + 0xb0, start);
+                put_point4(B + 0xf0, start);
+                const uint32_t args[2] = {B + 0xf0, B + 0x30};
+                veh_call_at(B, 0x0026f3ea, 0x0027ab40, TitleRegs{B + 0xf0, start_w, address_of(def), B + 0x30, weapon, end_w}, 2,
+                            args);  // CG_MaybeSpawnTracer
+            }
+        } else {
+            put_point4(B + 0x70, end);
+            put_point4(B + 0xd0, end);
+            put_point4(B + 0x90, start);
+            put_point4(B + 0xe0, start);
+            const uint32_t args[2] = {B + 0xe0, B + 0xd0};
+            veh_call_at(B, 0x0026f3ea, 0x0027ab40, TitleRegs{B + 0xe0, start_w, address_of(def), B + 0xd0, weapon, end_w}, 2,
+                        args);  // CG_MaybeSpawnTracer
+        }
+        if (!(at<uint8_t>(pointer<uint8_t>(B), 0x58) & 0x10)) break;
+        fl(0x18) = end[0] - start[0];
+        fl(0x1c) = end[1] - start[1];
+        fl(0x20) = end[2] - start[2];
+        veh_call_at(B, 0x0026f430, 0x00297770, TitleRegs{0, start_w, 0, 0, B + 0x18, end_w});  // VectorNormalize
+        penetrate_start(start, &fl(0x18), &fl(0x40), &fl(0x30));
+        *pointer<float>(E + 0x24) = 0.0f;
+        arg[5] = arg[5] + 1;
+    }
+    uint8_t* const hit = pointer<uint8_t>(wd(0x14));
+    if (!hit || !at<uint32_t>(hit, 0x29c)) return;
+    bool go_on = false;
+    const uint32_t sentient = at<uint32_t>(attacker, 0x240);
+    const uint8_t* const linked = at<uint8_t*>(attacker, 0x3cc);
+    if (sentient && linked && at<uint8_t*>(linked, 0) == hit) {
+        go_on = true;
+    } else if (at<uint8_t*>(hit, 0x244) && sentient &&
+               at<int32_t>(at<uint8_t*>(hit, 0x244), 4) == at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) {
+        go_on = true;
+    } else {
+        const uint8_t* const client = at<uint8_t*>(hit, 0x23c);
+        if (!client) return;
+        const float off = side_offset(B, 0x24, fire, client, &fl(0x30), 0x0026f5bf,
+                                      TitleRegs{0, address_of(hit), 0, 0, 0, end_w});
+        fl(0x14) = off;
+        if (!(off > title_global<float>(0x0083ed78))) return;  // 8
+        go_on = true;
+    }
+    if (!go_on) return;
+    fl(0x18) = fl(0x30);
+    fl(0x1c) = fl(0x34);
+    fl(0x20) = fl(0x38);
+    const uint32_t args[9] = {at<uint32_t>(hit, 0x224), att_w, B + 0x18, end_w, arg[4], arg[5] + 1, fire_w, arg[7], 0};
+    veh_call_at(B, 0x0026f65a, 0x0026f0a0, TitleRegs{att_w, at<uint32_t>(hit, 0x224), arg[4], B + 0x18, 0, end_w}, 9,
+                args);  // Bullet_Trace_r
+}
+
+// Recursive; the trace and the effect callees read their points' fourth words: the frame sits at the
+// original's addresses (gap entry; B = aligned base - 0x180), every callee at the original's ESP.
+PLATFORM_ASM_ENTRY(Weapon_BulletTrace_r_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Weapon_BulletTrace_r) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // cdecl (pass, attacker, start, end, damage, depth, fire, a7, a8): one bullet segment, up to depth 12.
+    // Means of death 2 with damage flag 0x40 for weapons with hit locations (def +0x6d0, table 0x008da704),
+    // else 1. Traces contents 0x280e031; a squad attacker sends the point event 0xa at the start (to its team's
+    // enemy mask) and the line event 0x10 along the shot; trigger damage along it. A hit: impact effect
+    // (CG_Bullet from the pass entity, else the attacker; flesh 0x700000 for damageable +0x29c non-vehicle
+    // clients and squad members; none on clients) unless surface flag 4 or a squad mate (tracer only); a miss
+    // draws a tracer. Penetrable hits (byte +0x28 bit 0x10) go on from just past the hit point (start written,
+    // depth + 1, a8 = 0). A damageable hit (+0x29c) passes through the attacker's linked entity, squad mates
+    // and clients hit more than 8 units off the line; else the whiz-by (clients), G_Damage, and for flag 0x40
+    // on a squad target half the damage goes on through it.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0x180;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    wd(8) = ebx;
+    wd(4) = esi;
+    wd(0) = edi;
+    uint32_t* const arg = pointer<uint32_t>(E + 4);
+    const uint32_t pass = arg[0];
+    uint8_t* const attacker = pointer<uint8_t>(arg[1]);
+    float* const start = pointer<float>(arg[2]);
+    const float* const end = pointer<float>(arg[3]);
+    const float* const fire = pointer<float>(arg[6]);
+    const uint32_t att_w = arg[1], start_w = arg[2], end_w = arg[3], fire_w = arg[6];
+    uint32_t edi_now = edi;
+    for (;;) {
+        wd(0x70) = 0;
+        wd(0x74) = 0;
+        wd(0x38) = 0;
+        if (static_cast<int32_t>(arg[5]) > 12) return;
+        const uint8_t* const def = at<uint8_t*>(fire, 0x3c);
+        const uint32_t located = at<uint32_t>(def, 0x6d0);
+        if (located) {
+            wd(0x3c) = 2;
+            wd(0x38) = 0x40;
+        } else {
+            wd(0x3c) = 1;
+        }
+        const uint32_t table = located ? 0x008da704u : 0x008da6f0u;
+        put_point4(B + 0xc0, end);
+        put_point4(B + 0x150, end);
+        put_point4(B + 0xa0, start);
+        put_point4(B + 0x110, start);
+        {
+            const uint32_t args[7] = {B + 0x40, B + 0x110, B + 0x150, pass, 0x0280e031, table, arg[8]};
+            veh_call_at(B, 0x0026fdc3, 0x002600c0, TitleRegs{B + 0x150, start_w, B + 0x110, B + 0x40, end_w, edi_now}, 7,
+                        args);  // G_LocationalTrace
+        }
+        edi_now = att_w;
+        if (attacker && at<uint8_t*>(attacker, 0x244)) {
+            const int32_t team = at<int32_t>(at<uint8_t*>(attacker, 0x244), 4);
+            wd(0xfc) = 0;
+            wd(0x108) = 0;
+            wd(0x10c) = 0;
+            wd(0x104) = 1;
+            wd(0x100) = 2;
+            const uint32_t enemy = 1u << (wd(0xfc + static_cast<uint32_t>(team) * 4) & 31);
+            put_point4(B + 0xd0, start);
+            put_point4(B + 0x170, start);
+            {
+                const uint32_t args[4] = {att_w, 0xa, B + 0x170, 0};
+                veh_call_at(B, 0x0026fe6f, 0x00214a90, TitleRegs{enemy, start_w, B + 0x170, 0, enemy, att_w}, 4,
+                            args);  // Actor_SendPointEvent
+            }
+            uint32_t mask = enemy;
+            uint32_t eax_now = B + 0x40;
+            if (at<uint32_t>(attacker, 0x23c)) {
+                eax_now = at<uint32_t>(attacker, 0x244);
+                mask = (1u << (static_cast<uint32_t>(at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) & 31)) | enemy;
+            }
+            const uint32_t args[6] = {att_w, 0x10, mask, start_w, B + 0x40, 0};
+            veh_call_at(B, 0x0026fea5, 0x00204390, TitleRegs{eax_now, start_w, 0, mask, enemy, att_w}, 6,
+                        args);  // Actor_SendLineEvent
+        }
+        put_point4(B + 0xe0, start);
+        put_point4(B + 0x160, start);
+        {
+            const uint32_t args[5] = {att_w, B + 0x160, B + 0x40, arg[4], wd(0x3c)};
+            veh_call_at(B, 0x0026ff06, 0x0025d960, TitleRegs{B + 0x40, start_w, B + 0x160, arg[4], end_w, att_w}, 5,
+                        args);  // G_CheckHitTriggerDamage
+        }
+        wd(0x24) = address_of(entity_of_handle(wd(0x70)));
+        const uint32_t weapon = at<uint32_t>(def, 0);
+        if (title_global<float>(0x0083eb20) > fl(0x60)) {
+            fl(0x28) = end[0] - start[0];
+            fl(0x2c) = end[1] - start[1];
+            fl(0x30) = end[2] - start[2];
+            veh_call_at(B, 0x0026ff89, 0x00297770, TitleRegs{wd(0x24), start_w, wd(0x70), wd(0x70) >> 12, B + 0x28, att_w});  // VectorNormalize
+            reflect_about(&fl(0x28), &fl(0x50));
+            bool tracer = (at<uint8_t>(pointer<uint8_t>(B), 0x64) & 4) != 0;
+            bool impact = true;
+            if (!tracer) {
+                uint8_t* const hit = pointer<uint8_t>(wd(0x24));
+                if (hit) {
+                    const uint32_t squad = at<uint32_t>(hit, 0x244);
+                    if (squad && at<uint32_t>(attacker, 0x240) &&
+                        at<int32_t>(pointer<uint8_t>(squad), 4) == at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) {
+                        tracer = true;
+                    } else {
+                        bool flesh_check = at<uint32_t>(hit, 0x23c) != 0;
+                        if (!flesh_check && squad && !wd(0x64)) flesh_check = true;
+                        if (flesh_check) {
+                            const uint32_t in_vehicle = veh_call_at(
+                                B, 0x00270052, 0x0024bad0, TitleRegs{squad, start_w, address_of(hit), 0, address_of(hit), att_w});  // G_ClientInVehicle
+                            if (in_vehicle || !at<uint32_t>(hit, 0x29c)) {
+                                impact = false;
+                            } else {
+                                wd(0x64) = 0x700000;
+                            }
+                        }
+                        if (impact && at<uint32_t>(hit, 0x23c)) impact = false;
+                    }
+                }
+                if (!tracer && impact) {
+                    uint32_t shooter = veh_call_at(B, 0x00270086, 0x00013860,
+                                                   TitleRegs{E + 4, start_w, 0, 0, wd(0x24), att_w});  // G_EntHandleToEnt
+                    if (!shooter) shooter = att_w;
+                    const uint32_t args[2] = {B + 0x40, static_cast<uint32_t>((static_cast<int32_t>(wd(0x64)) >> 20) & 0x1f)};
+                    veh_call_at(B, 0x002700ae, 0x0028a370, TitleRegs{B + 0x50, start_w, shooter, 0, wd(0x24), weapon}, 2,
+                                args);  // CG_Bullet
+                }
+            }
+            if (tracer) {
+                put_point4(B + 0x80, start);
+                put_point4(B + 0x140, start);
+                const uint32_t args[2] = {B + 0x140, B + 0x40};
+                veh_call_at(B, 0x002701af, 0x0027ab40, TitleRegs{B + 0x40, start_w, B + 0x140, address_of(def), weapon, att_w}, 2,
+                            args);  // CG_MaybeSpawnTracer
+            }
+        } else {
+            put_point4(B + 0x90, end);
+            put_point4(B + 0x120, end);
+            put_point4(B + 0xb0, start);
+            put_point4(B + 0x130, start);
+            const uint32_t args[2] = {B + 0x130, B + 0x120};
+            veh_call_at(B, 0x002701af, 0x0027ab40, TitleRegs{at<uint32_t>(fire, 0x3c), start_w, B + 0x120, B + 0x130, weapon, att_w}, 2,
+                        args);  // CG_MaybeSpawnTracer
+        }
+        if (!(at<uint8_t>(pointer<uint8_t>(B), 0x68) & 0x10)) break;
+        fl(0x18) = end[0] - start[0];
+        fl(0x1c) = end[1] - start[1];
+        fl(0x20) = end[2] - start[2];
+        veh_call_at(B, 0x002701fb, 0x00297770, TitleRegs{end_w, start_w, 0, 0, B + 0x18, att_w});  // VectorNormalize
+        penetrate_start(start, &fl(0x18), &fl(0x50), &fl(0x40));
+        *pointer<float>(E + 0x24) = 0.0f;
+        arg[5] = arg[5] + 1;
+    }
+    uint8_t* const hit = pointer<uint8_t>(wd(0x24));
+    if (!hit || !at<uint32_t>(hit, 0x29c)) return;
+    const auto go_on = [&](uint32_t damage) {
+        fl(0x18) = fl(0x40);
+        fl(0x1c) = fl(0x44);
+        fl(0x20) = fl(0x48);
+        const uint32_t args[9] = {at<uint32_t>(hit, 0x224), att_w, B + 0x18, end_w, damage, arg[5] + 1, fire_w, arg[7], 0};
+        veh_call_at(B, 0x002704a8, 0x0026fcb0, TitleRegs{at<uint32_t>(hit, 0x224), start_w, fire_w, B + 0x18, at<uint32_t>(hit, 0x224), att_w},
+                    9, args);  // Weapon_BulletTrace_r
+    };
+    const uint32_t sentient = at<uint32_t>(attacker, 0x240);
+    const uint8_t* const linked = at<uint8_t*>(attacker, 0x3cc);
+    if (sentient && linked && at<uint8_t*>(linked, 0) == hit) {
+        go_on(arg[4]);
+        return;
+    }
+    if (at<uint8_t*>(hit, 0x244) && sentient &&
+        at<int32_t>(at<uint8_t*>(hit, 0x244), 4) == at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) {
+        go_on(arg[4]);
+        return;
+    }
+    const uint8_t* const client = at<uint8_t*>(hit, 0x23c);
+    if (client) {
+        const float off = side_offset(B, 0x28, fire, client, &fl(0x40), 0x00270374,
+                                      TitleRegs{fire_w, address_of(client), 0, 0, 0, att_w});
+        fl(0x34) = off;
+        if (off > title_global<float>(0x0083ed78)) {  // 8
+            go_on(arg[4]);
+            return;
+        }
+        const uint32_t args[3] = {pass, B + 0x40, at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0)};
+        veh_call_at(B, 0x00270413, 0x00289270, TitleRegs{title_global<uint32_t>(0x008da6e0), fire_w, B + 0x40, pass, address_of(hit), att_w}, 3,
+                    args);  // CG_BulletTracerAndWhizBy
+    }
+    {
+        const uint32_t weapon = at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0);
+        const uint32_t args[9] = {address_of(hit), att_w, att_w, fire_w, arg[4], wd(0x38), wd(0x3c), wd(0x78), weapon};
+        veh_call_at(B, 0x00270441, 0x00250340, TitleRegs{B + 0x40, fire_w, wd(0x38), arg[4], address_of(hit), att_w}, 9,
+                    args);  // G_Damage
+    }
+    if (!at<uint32_t>(hit, 0x244) || !(wd(0x38) & 0x40)) return;
+    const int32_t half = static_cast<int32_t>(arg[4]) / 2;
+    if (half > 0) go_on(static_cast<uint32_t>(half));
+}
+
+// The pmove block (B + 0x40, 0x140 bytes) and every local sit at the original's frame addresses (gap entry;
+// B = aligned base - 0x180); every callee runs at the original's ESP.
+PLATFORM_ASM_ENTRY(ClientThink_real_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ClientThink_real) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's ClientThink_real for a connected client (+0x520 = 2): the command time (+0x524) clamped to level
+    // time +200 / -1000 (none under 1 ms after the last; more than 100 behind pulls the state time up);
+    // pmove_msec kept in 8..33 and the time snapped to it (pmove_fixed or client +0x57c); pm_type from
+    // +0x584/+0x588/health/linked entity; gravity, speed, +0x5ec = +0x4f0 / 255. Pmove (command, old command
+    // +0x550, trace mask 0x1810011 when dead, else the entity's +0x2a8; capsule traces, point contents) in a
+    // valid cell (or noclip), frozen controls clearing the moves; a moving player that did not move is pushed
+    // out of solids. Standing on another player under speed 200 slides off randomly and up 200. Then the
+    // entity state, bounds, events, link, triggers, impacts, button history (+0x594..+0x5a8), the command's
+    // view words (+0x5c0), use (button 0x40), pending touches, and death reload or the node claim.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0x180;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    auto by = [B](uint32_t off) -> uint8_t& { return *pointer<uint8_t>(B + off); };
+    wd(8) = ebx;
+    wd(4) = esi;
+    wd(0) = edi;
+    uint8_t* const ent = pointer<uint8_t>(*pointer<uint32_t>(E + 4));
+    const uint32_t ent_w = address_of(ent);
+    veh_call_at(B, 0x00271c48, 0x000261d0, TitleRegs{B + 0x40, ebx, 0, 0, esi, edi});  // BlockTail80_Clear
+    uint8_t* const client = at<uint8_t*>(ent, 0x23c);
+    const uint32_t cl_w = address_of(client);
+    if (at<int32_t>(client, 0x520) != 2) return;
+    int32_t* const cmd_time = &at<int32_t>(client, 0x524);
+    const uint32_t cmd_w = cl_w + 0x524;
+    wd(0x1c) = cmd_w;
+    const int32_t level_time = title_global<int32_t>(0x0098540c);
+    if (*cmd_time > level_time + 200) *cmd_time = level_time + 200;
+    if (*cmd_time < title_global<int32_t>(0x0098540c) - 1000) *cmd_time = title_global<int32_t>(0x0098540c) - 1000;
+    {
+        const int32_t msec = *cmd_time - at<int32_t>(client, 0x20);
+        if (msec < 1) {
+            if (msec >= -100) return;
+            at<int32_t>(client, 0x20) = *cmd_time - 100;
+        }
+    }
+    int32_t step = title_global<int32_t>(0x00948ae4);  // pmove_msec
+    if (step < 8) {
+        const uint32_t args[3] = {0x008392f0, 0x00839454, 1};  // "pmove_msec", "8"
+        veh_call_at(B, 0x00271cd7, 0x0029c030, TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
+                    args);  // Cvar_Set2
+        step = title_global<int32_t>(0x00948ae4);
+    } else if (step > 0x21) {
+        const uint32_t args[3] = {0x008392f0, 0x00838ca4, 1};  // "pmove_msec", "33"
+        veh_call_at(B, 0x00271cd7, 0x0029c030, TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
+                    args);  // Cvar_Set2
+        step = title_global<int32_t>(0x00948ae4);
+    }
+    if (title_global<uint32_t>(0x0094be4c) || at<uint32_t>(client, 0x57c))  // pmove_fixed
+        *cmd_time = ((*cmd_time + step - 1) / step) * step;
+    if (at<uint32_t>(client, 0x58c))
+        at<uint32_t>(client, 0x2c) |= 0x4000;
+    else
+        at<uint32_t>(client, 0x2c) &= 0xffffbfffu;
+    if (at<uint32_t>(client, 0x584))
+        at<int32_t>(client, 0x24) = 2;
+    else if (at<uint32_t>(client, 0x588))
+        at<int32_t>(client, 0x24) = 3;
+    else if (at<int32_t>(client, 0x100) > 0)
+        at<int32_t>(client, 0x24) = at<uint32_t>(ent, 0x3cc) ? 1 : 0;
+    else
+        at<int32_t>(client, 0x24) = (at<uint32_t>(ent, 0x3cc) ? 1 : 0) + 4;
+    at<uint32_t>(client, 0x48) = title_global<uint32_t>(0x0094d454);  // g_gravity
+    at<uint32_t>(client, 0x50) = title_global<uint32_t>(0x0095bd54);  // g_speed
+    at<float>(client, 0x5ec) = at<float>(client, 0x4f0) / title_global<float>(0x0083eb8c);  // 255
+    const uint32_t old_sequence = at<uint32_t>(client, 0xc4);
+    for (uint32_t k = 0; k < 0x140; k += 4) wd(0x40 + k) = 0;
+    wd(0x40) = cl_w;
+    for (uint32_t k = 0; k < 0x2c; k += 4) wd(0x44 + k) = at<uint32_t>(client, 0x524 + k);
+    for (uint32_t k = 0; k < 0x2c; k += 4) wd(0x70 + k) = at<uint32_t>(client, 0x550 + k);
+    wd(0x18) = old_sequence;
+    wd(0x9c) = at<int32_t>(client, 0x24) >= 4 ? 0x01810011u : at<uint32_t>(ent, 0x2a8);
+    const uint32_t fixed = title_global<uint32_t>(0x0094be4c);
+    wd(0x17c) = 0x002e01a0;  // SV_PointContents
+    wd(0xa0) = 0;
+    wd(0x170) = 0x002601a0;  // G_TraceCapsule
+    wd(0x174) = 0x002601a0;
+    wd(0x178) = 0x002601a0;
+    wd(0x16c) = title_global<uint32_t>(0x00948ae4);
+    wd(0x168) = at<uint32_t>(client, 0x57c) | fixed;
+    at<uint32_t>(client, 0x5b0) = at<uint32_t>(client, 0);
+    at<uint32_t>(client, 0x5b4) = at<uint32_t>(client, 4);
+    at<uint32_t>(client, 0x5b8) = at<uint32_t>(client, 8);
+    bool valid;
+    {
+        const uint32_t args[1] = {ent_w};
+        valid = static_cast<uint8_t>(veh_call_at(B, 0x00271e67, 0x002ae8f0,
+                                                 TitleRegs{at<uint32_t>(client, 0), cl_w, 0, at<uint32_t>(client, 8), fixed, ent_w},
+                                                 1, args)) != 0;  // G_EntityInValidCell
+    }
+    const uint8_t* const ps = pointer<uint8_t>(wd(0x40));
+    if (valid || at<int32_t>(ps, 0x24) == 2) {
+        if (title_global<uint32_t>(0x00927314)) {  // g_freezeControls
+            by(0x5a) = 0;
+            by(0x59) = 0;
+            by(0x58) = 0;
+            by(0x86) = 0;
+            by(0x85) = 0;
+            by(0x84) = 0;
+            by(0x13) = 0;
+        } else {
+            by(0x13) = (by(0x58) || by(0x59)) ? 1 : 0;
+        }
+        for (uint32_t k = 0; k < 0x10; k += 4) wd(0x30 + k) = at<uint32_t>(ps, k);
+        {
+            const uint32_t args[1] = {0};
+            veh_call_at(B, 0x00271ef3, 0x002f1c80, TitleRegs{wd(0x40), cl_w, at<uint32_t>(ps, 8), at<uint32_t>(ps, 0xc), B + 0x40, ent_w}, 1,
+                        args);  // Pmove
+        }
+        const uint8_t* const after = pointer<uint8_t>(wd(0x40));
+        for (uint32_t k = 0; k < 0x10; k += 4) wd(0x20 + k) = at<uint32_t>(after, k);
+        if (by(0x13)) {
+            const bool same0 = fl(0x20) == fl(0x30);
+            const bool same1 = fl(0x24) == fl(0x34);
+            const bool same2 = fl(0x28) == fl(0x38);
+            const bool same3 = fl(0x2c) == fl(0x3c);
+            (void)same3;
+            if (same0 && same1 && same2) {
+                const uint32_t args[2] = {B + 0x40, 0x4171999a};
+                veh_call_at(B, 0x00271f42, 0x002e2f50, TitleRegs{0, cl_w, B + 0x40, wd(0x2c), B + 0x40, ent_w}, 2,
+                            args);  // G_PushCapsuleOutOfSolids
+            }
+        }
+    }
+    if (at<uint8_t>(client, 0xc0) & 0x10)
+        at<uint32_t>(ent, 0xd4) |= 0x200;
+    else
+        at<uint32_t>(ent, 0xd4) &= 0xfffffdffu;
+    {
+        uint8_t* const cl = at<uint8_t*>(ent, 0x23c);
+        const uint32_t handle = at<uint32_t>(cl, 0x60);
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+            title_global<uint32_t>(0x0097a968 + index * 8)) {
+            const uint8_t* const ground = entity_of_handle(handle);
+            if (at<uint32_t>(ground, 0x23c)) {
+                const float vx = at<float>(cl, 0x10), vy = at<float>(cl, 0x14), vz = at<float>(cl, 0x18);
+                const float speed = title_ci_sqrt((vx * vx + vy * vy) + vz * vz);
+                if (platform_x87_greater(title_global<float>(0x0083ef08), speed)) {  // 200
+                    const auto random = [&](uint32_t ret, uint32_t esi_now) {
+                        const int32_t r = static_cast<int32_t>(
+                            veh_call_at(B, ret, 0x001efcc0, TitleRegs{0, cl_w, 0, 0, esi_now, ent_w}));  // rand
+                        return ((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8) -
+                                title_global<float>(0x0083eb20)) *
+                               title_global<float>(0x0083eb90);
+                    };
+                    const float dx = random(0x0027202b, address_of(cl));
+                    at<float>(cl, 0x10) = dx + at<float>(cl, 0x10);
+                    uint8_t* const c2 = at<uint8_t*>(ent, 0x23c);
+                    const float dy = random(0x00272067, address_of(c2) + 0x14);
+                    at<float>(c2, 0x14) = dy + at<float>(c2, 0x14);
+                    uint8_t* const c3 = at<uint8_t*>(ent, 0x23c);
+                    at<float>(c3, 0x18) = at<float>(c3, 0x18) + title_global<float>(0x0083ef08);
+                }
+            }
+        }
+    }
+    uint8_t* const c4 = at<uint8_t*>(ent, 0x23c);
+    if (at<uint32_t>(c4, 0xc4) != old_sequence) at<int32_t>(ent, 0x1a8) = title_global<int32_t>(0x0098540c);
+    {
+        const uint32_t args[1] = {at<uint32_t>(c4, 0x20)};
+        veh_call_at(B, 0x002720d3, 0x002bcdf0, TitleRegs{ent_w, cl_w, address_of(c4), args[0], old_sequence, ent_w}, 1,
+                    args);  // BG_PlayerStateToEntityStateExtraPolate
+    }
+    at<uint32_t>(ent, 0x140) = at<uint32_t>(ent, 0x20);
+    at<uint32_t>(ent, 0x144) = at<uint32_t>(ent, 0x24);
+    at<uint32_t>(ent, 0x148) = at<uint32_t>(ent, 0x28);
+    at<float>(ent, 0xe0) = fl(0x140);
+    at<float>(ent, 0xe4) = fl(0x144);
+    at<float>(ent, 0xe8) = fl(0x148);
+    at<float>(ent, 0xf0) = fl(0x150);
+    at<float>(ent, 0xf4) = fl(0x154);
+    at<float>(ent, 0xf8) = fl(0x158);
+    uint32_t eax_now;
+    {
+        const uint32_t args[1] = {ent_w};
+        eax_now = veh_call_at(B - 4, 0x0027215c, 0x00271590, TitleRegs{old_sequence, cl_w, 0, at<uint32_t>(ent, 0x28), old_sequence, ent_w},
+                              1, args);  // ClientEvents
+    }
+    veh_call_at(B, 0x00272164, 0x002d7fe0, TitleRegs{eax_now, cl_w, 0, 0, old_sequence, ent_w});  // SV_LinkEntity
+    if (at<float>(client, 0) != at<float>(client, 0x5b0) || at<float>(client, 4) != at<float>(client, 0x5b4) ||
+        at<float>(client, 8) != at<float>(client, 0x5b8))
+        at<uint8_t>(at<uint8_t*>(ent, 0x244), 0x5a) = 0;
+    {
+        uint8_t* const c = at<uint8_t*>(ent, 0x23c);
+        if (!at<uint32_t>(c, 0x584) && !at<uint32_t>(c, 0x588) && at<int32_t>(c, 0x24) < 4 &&
+            title_global<int32_t>(0x0092bdf0) != 5) {  // cls_state
+            const uint32_t args[1] = {ent_w};
+            veh_call_at(B, 0x002721dc, 0x00207780, TitleRegs{address_of(c), cl_w, 0, 0, address_of(c), ent_w}, 1,
+                        args);  // G_TouchTriggers
+        }
+    }
+    at<uint32_t>(ent, 0x140) = at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0);
+    at<uint32_t>(ent, 0x144) = at<uint32_t>(at<uint8_t*>(ent, 0x23c), 4);
+    at<uint32_t>(ent, 0x148) = at<uint32_t>(at<uint8_t*>(ent, 0x23c), 8);
+    const float zero = 0.0f;
+    at<float>(ent, 0x158) = zero;
+    at<float>(ent, 0x154) = zero;
+    at<float>(ent, 0x150) = zero;
+    const uint32_t yaw = at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0xa0);
+    at<uint32_t>(ent, 0x154) = yaw;
+    {
+        const uint32_t args[3] = {ent_w, wd(0xbc), B + 0xc0};
+        veh_call_at(B, 0x00272252, 0x00250bf0, TitleRegs{B + 0xc0, cl_w, wd(0xbc), yaw, old_sequence, ent_w}, 3,
+                    args);  // ClientImpacts
+    }
+    if (title_global<int32_t>(0x0098540c) >= at<int32_t>(client, 0x624) + 500)
+        at<int32_t>(client, 0x620) = title_global<int32_t>(0x0098540c);
+    if (at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0xc4) != old_sequence) at<int32_t>(ent, 0x1a8) = title_global<int32_t>(0x0098540c);
+    const uint8_t* const cmd = pointer<uint8_t>(wd(0x1c));
+    {
+        const uint32_t old_buttons = at<uint32_t>(client, 0x594);
+        at<uint32_t>(client, 0x598) = old_buttons;
+        const uint32_t buttons = cmd[4];
+        at<uint32_t>(client, 0x594) = buttons;
+        at<uint32_t>(client, 0x59c) = ~old_buttons & buttons;
+        at<uint32_t>(client, 0x5a4) = at<uint32_t>(client, 0x5a0);
+        const uint32_t buttons2 = cmd[5];
+        const uint32_t old2 = at<uint32_t>(client, 0x5a4);
+        at<uint32_t>(client, 0x5a0) = buttons2;
+        at<uint32_t>(client, 0x5a8) = ~old2 & buttons2;
+        for (uint32_t k = 0; k < 0x14; k += 4) at<uint32_t>(client, 0x5c0 + k) = at<uint32_t>(cmd, 0x18 + k);
+    }
+    uint32_t esi_now = old_sequence;
+    if (at<uint8_t>(client, 0x59c) & 0x40) {
+        esi_now = ent_w;
+        veh_call_at(B, 0x00272310, 0x00271300, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, ent_w, ent_w});  // Cmd_Activate_f
+    }
+    if (at<uint8_t>(client, 0x594) & 0x40) {
+        const uint32_t args[1] = {ent_w};
+        veh_call_at(B, 0x0027231f, 0x00250960, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
+                    args);  // ClientThink_RunPendingTouch
+    }
+    if (at<int32_t>(client, 0x24) >= 4) {
+        if (title_global<int32_t>(0x0098540c) > at<int32_t>(client, 0x5e8))
+            veh_call_at(B, 0x0027233b, 0x002518a0, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, title_global<uint32_t>(0x0098540c), 0, esi_now, ent_w});  // ClientDeathReload
+        return;
+    }
+    const uint32_t args[1] = {ent_w};
+    veh_call_at(B, 0x00272348, 0x00269570, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
+                args);  // G_UpdatePlayerNodeClaim
+}
+
 }  // namespace game

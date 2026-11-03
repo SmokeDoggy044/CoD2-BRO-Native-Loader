@@ -250,4 +250,14 @@ void XB_CDECL PM_WalkMove();
 // 0x002ef090: Q3's PM_CheckDuck with prone (bounds, stance requests, view height, prone ground pitch).
 void XB_CDECL PM_CheckDuck();
 
+// 0x002b6430 (was FUN_002b6430; ESI = axis, EDI = point, EBX = out; dead): the direction from the point to
+// the origin, bent toward the axis until within 0.3 (0.7) of it by dot product.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vec3_BendTowardAxis(const float* axis, const float* point, float* out);
+extern "C" void Vec3_BendTowardAxis_entry(void);
+// 0x002dc6f0 (EAX = flag; cdecl pass, origin, height, yaw, out dz, out front pitch, out back pitch, trace,
+// back distance): traces both prone feet and returns 1 with their pitches.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t ebx,
+                                                              uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void BG_CheckProneFeet_entry(void);
+
 }  // namespace game
