@@ -6,6 +6,7 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "dobj.h"
+#include "fx.h"
 #include "g_client.h"
 #include "g_main.h"
 #include "g_spawn.h"
@@ -17,6 +18,7 @@
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "pmove.h"
 #include "sv.h"
 #include "title_data.h"
 #include "tr_main.h"
@@ -5849,6 +5851,772 @@ settle:
     word_at(tr, 4) = title_global<uint32_t>(0x0098540c);
     word_at(tr, 0) = 0;
     return 1;
+}
+
+namespace {
+
+// BG_EvaluateTrajectory (0x002d62c0: time in EAX, out in ECX, trajectory in EDI) by its title address.
+void evaluate_trajectory(const uint8_t* tr, int32_t time, float* out) {
+    const TitleRegs regs{static_cast<uint32_t>(time), 0, address_of(out), 0, 0, address_of(tr)};
+    g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+}
+
+// A trajectory's start (+4 level_time), duration (+8 = seconds * 1000 truncated), base (+0xc), delta (+0x18)
+// and type (+0).
+void set_phase(uint8_t* tr, float seconds, const float* base, const float* delta, uint32_t type) {
+    *reinterpret_cast<int32_t*>(tr + 4) = title_global<int32_t>(0x0098540c);
+    *reinterpret_cast<int32_t*>(tr + 8) = static_cast<int32_t>(seconds * title_global<float>(0x0083eb9c));
+    for (uint32_t i = 0; i < 3; ++i) {
+        reinterpret_cast<uint32_t*>(tr + 0xc)[i] = reinterpret_cast<const uint32_t*>(base)[i];
+    }
+    for (uint32_t i = 0; i < 3; ++i) {
+        reinterpret_cast<uint32_t*>(tr + 0x18)[i] = reinterpret_cast<const uint32_t*>(delta)[i];
+    }
+    *reinterpret_cast<uint32_t*>(tr) = type;
+}
+
+void copy3(float* dst, const float* src) {
+    for (uint32_t i = 0; i < 3; ++i) reinterpret_cast<uint32_t*>(dst)[i] = reinterpret_cast<const uint32_t*>(src)[i];
+}
+
+// The title CRT's __CIsqrt of a float, stored as float.
+float title_ci_sqrt(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(ScriptMover_SetupRotateVelocity_entry,
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(ScriptMover_SetupRotateVelocity) "addl $48, %esp\n"
+                   "ret")
+
+void XB_CDECL ScriptMover_SetupRotateVelocity(const float* velocity, uint8_t* tr, float time, float accel, float decel,
+                                              float* current, float* speed, float* mid_time, float* decel_time,
+                                              float* accel_end, float* mid_end, float* end) {
+    // The current value from the running trajectory first (type set). No accel/decel: one linear phase
+    // (type 3) for `time` s. Else the speed (x87 length of the velocity), the linear time (time - accel
+    // - decel) and three phases: accelerate (type 9) to accel_end, linear to mid_end, decelerate
+    // (type 10) to end; the trajectory holds the first phase that lasts, the current value re-evaluated.
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    if (*reinterpret_cast<const uint32_t*>(tr) != 0) evaluate_trajectory(tr, now, current);
+    if (accel == 0.0f && decel == 0.0f) {
+        *reinterpret_cast<int32_t*>(tr + 4) = title_global<int32_t>(0x0098540c);
+        *reinterpret_cast<int32_t*>(tr + 8) = static_cast<int32_t>(time * title_global<float>(0x0083eb9c));
+        *mid_time = time;
+        *decel_time = 0.0f;
+        for (uint32_t i = 0; i < 3; ++i) {
+            reinterpret_cast<uint32_t*>(tr + 0xc)[i] = reinterpret_cast<const uint32_t*>(current)[i];
+        }
+        for (uint32_t i = 0; i < 3; ++i) {
+            reinterpret_cast<uint32_t*>(tr + 0x18)[i] = reinterpret_cast<const uint32_t*>(velocity)[i];
+        }
+        *reinterpret_cast<uint32_t*>(tr) = 3;
+        evaluate_trajectory(tr, title_global<int32_t>(0x0098540c), current);
+        evaluate_trajectory(tr, *reinterpret_cast<const int32_t*>(tr + 8) + title_global<int32_t>(0x0098540c), end);
+        return;
+    }
+    *mid_time = (time - accel) - decel;
+    *decel_time = decel;
+    *speed = platform_x87_norm3(velocity[0], velocity[1], velocity[2]);
+    if (accel != 0.0f) {
+        set_phase(tr, accel, current, velocity, 9);
+        evaluate_trajectory(tr, *reinterpret_cast<const int32_t*>(tr + 8) + title_global<int32_t>(0x0098540c),
+                            accel_end);
+    } else {
+        copy3(accel_end, current);
+        if (*mid_time != 0.0f) {
+            set_phase(tr, *mid_time, current, velocity, 3);
+        } else {
+            set_phase(tr, *decel_time, current, velocity, 10);
+        }
+    }
+    mid_end[0] = *mid_time * velocity[0] + accel_end[0];
+    mid_end[1] = velocity[1] * *mid_time + accel_end[1];
+    mid_end[2] = *mid_time * velocity[2] + accel_end[2];
+    if (*decel_time != 0.0f) {
+        // The deceleration phase in a stack trajectory from mid_end.
+        uint8_t phase[0x24];
+        set_phase(phase, *decel_time, mid_end, velocity, 10);
+        evaluate_trajectory(phase, *reinterpret_cast<const int32_t*>(phase + 8) + *reinterpret_cast<const int32_t*>(phase + 4),
+                            end);
+    } else {
+        copy3(end, mid_end);
+    }
+    evaluate_trajectory(tr, title_global<int32_t>(0x0098540c), current);
+}
+
+PLATFORM_ASM_ENTRY(ScriptMover_SetupMove_entry,
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ScriptMover_SetupMove) "addl $48, %esp\n"
+                   "ret")
+
+void XB_CDECL ScriptMover_SetupMove(uint8_t* tr, const float* target, float* current, float time, float accel,
+                                    float decel, float* speed, float* mid_time, float* decel_time, float* accel_end,
+                                    float* mid_end, float* end) {
+    // The move from the current value (re-evaluated first when the trajectory runs) to target in `time`
+    // s. No accel/decel: one linear phase (type 3, delta = move / duration ms * 1000). Else the speed
+    // 2 * length / (2 * time - accel - decel) along the move's direction and three phases: accelerate
+    // (type 9) to accel_end, linear (delta scaled to the phase's whole ms) to mid_end, decelerate
+    // (type 10); end = target; the trajectory holds the first phase that lasts.
+    const float d0 = target[0] - current[0];
+    const float d1 = target[1] - current[1];
+    const float d2 = target[2] - current[2];
+    if (*reinterpret_cast<const uint32_t*>(tr) != 0) {
+        evaluate_trajectory(tr, title_global<int32_t>(0x0098540c), current);
+    }
+    const float thousand = title_global<float>(0x0083eb9c);
+    if (accel == 0.0f && decel == 0.0f) {
+        *reinterpret_cast<int32_t*>(tr + 4) = title_global<int32_t>(0x0098540c);
+        *reinterpret_cast<int32_t*>(tr + 8) = static_cast<int32_t>(time * thousand);
+        *mid_time = time;
+        *decel_time = 0.0f;
+        copy3(end, target);
+        for (uint32_t i = 0; i < 3; ++i) {
+            reinterpret_cast<uint32_t*>(tr + 0xc)[i] = reinterpret_cast<const uint32_t*>(current)[i];
+        }
+        const float scale = thousand / static_cast<float>(*reinterpret_cast<const int32_t*>(tr + 8));
+        float* const delta = reinterpret_cast<float*>(tr + 0x18);
+        delta[0] = scale * d0;
+        delta[1] = scale * d1;
+        delta[2] = scale * d2;
+        *reinterpret_cast<uint32_t*>(tr) = 3;
+        evaluate_trajectory(tr, title_global<int32_t>(0x0098540c), current);
+        return;
+    }
+    *mid_time = (time - accel) - decel;
+    *decel_time = decel;
+    const float length_sq = (d2 * d2 + d1 * d1) + d0 * d0;
+    const float two = title_global<float>(0x0083eba8);
+    const float rate = (title_ci_sqrt(length_sq) * two) / ((time * two - accel) - decel);
+    *speed = rate;
+    const float length = title_ci_sqrt(length_sq);
+    float dir0 = 0.0f, dir1 = 0.0f, dir2 = 0.0f;
+    if (length != title_global<float>(0x0083eafc)) {  // FUCOMIP: no MXCSR flags; length is never a signalling NaN
+        const float inv = title_global<float>(0x0083eb20) / length;
+        dir0 = inv * d0;
+        dir1 = inv * d1;
+        dir2 = inv * d2;
+    }
+    float velocity[3];
+    velocity[0] = rate * dir0;
+    velocity[1] = rate * dir1;
+    velocity[2] = rate * dir2;
+    if (accel != 0.0f) {
+        set_phase(tr, accel, current, velocity, 9);
+        evaluate_trajectory(tr, *reinterpret_cast<const int32_t*>(tr + 8) + title_global<int32_t>(0x0098540c),
+                            accel_end);
+    } else {
+        copy3(accel_end, current);
+        if (*mid_time != 0.0f) {
+            *reinterpret_cast<int32_t*>(tr + 4) = title_global<int32_t>(0x0098540c);
+            *reinterpret_cast<int32_t*>(tr + 8) = static_cast<int32_t>(*mid_time * thousand);
+            const float ms = static_cast<float>(*reinterpret_cast<const int32_t*>(tr + 8));
+            for (uint32_t i = 0; i < 3; ++i) {
+                reinterpret_cast<uint32_t*>(tr + 0xc)[i] = reinterpret_cast<const uint32_t*>(current)[i];
+            }
+            const float m0 = *mid_time, m1 = *mid_time, m2 = *mid_time;
+            const float scale = thousand / ms;
+            const float p0 = m0 * velocity[0];
+            float* const delta = reinterpret_cast<float*>(tr + 0x18);
+            const float r0 = scale * p0;
+            const float p1 = m1 * velocity[1];
+            const float p2 = m2 * velocity[2];
+            const float r1 = scale * p1;
+            const float r2 = scale * p2;
+            delta[0] = r0;
+            delta[1] = r1;
+            delta[2] = r2;
+            *reinterpret_cast<uint32_t*>(tr) = 3;
+        } else {
+            set_phase(tr, *decel_time, current, velocity, 10);
+        }
+    }
+    mid_end[0] = *mid_time * velocity[0] + accel_end[0];
+    mid_end[1] = *mid_time * velocity[1] + accel_end[1];
+    mid_end[2] = *mid_time * velocity[2] + accel_end[2];
+    copy3(end, target);
+    evaluate_trajectory(tr, title_global<int32_t>(0x0098540c), current);
+}
+
+void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* player) {
+    // The player's view (client +0x9c) relative to the turret's base angles (+0x150), wrapped to
+    // [-180, 180] (x87 fmod 360), clamped to the info's arc (min +0x2c, max +0x34 per axis) and to a
+    // turn of frame time * 300 from the turret's current angles (+0x90): the turret takes the result
+    // (roll 0) and the view follows when anything was clamped. Info flag 0x800 (+2) moves to the
+    // entity's +0x10 bit 8; then Turret_UpdateTurnFxAndBones.
+    uint8_t* const info = pointer_at(turret, 0x24c);
+    field<uint32_t>(pointer_at(player, 0x23c), 0x464) = 1;
+    field<uint32_t>(pointer_at(player, 0x23c), 0x468) = field<uint32_t>(turret, 0x224);
+    const float max_turn = title_global<float>(0x008ddaa0) * title_global<float>(0x0083ed04);  // * 300
+    const float* const view = reinterpret_cast<const float*>(pointer_at(player, 0x23c) + 0x9c);
+    float* const current = reinterpret_cast<float*>(turret + 0x90);
+    const float* const base = reinterpret_cast<const float*>(turret + 0x150);
+    const float* const arc = reinterpret_cast<const float*>(info + 0x2c);
+    const long double full_turn = static_cast<long double>(title_global<double>(0x0083ed40));  // 360.0
+    const float full = title_global<float>(0x0083ebcc);                                        // 360
+    const float half = title_global<float>(0x0083eb60);                                        // 180
+    const float minus_half = title_global<float>(0x0083ebd0);                                  // -180
+    bool changed = false;
+    float out[3];
+    for (uint32_t i = 0; i < 2; ++i) {
+        float delta = static_cast<float>(
+            title_ci_fmod(static_cast<long double>(view[i]) - static_cast<long double>(base[i]), full_turn));
+        if (platform_x87_greater(delta, half)) delta = delta - full;
+        if (minus_half > delta) delta = delta + full;
+        out[i] = delta;
+        if (delta > arc[i + 2]) {
+            out[i] = arc[i + 2];
+            changed = true;
+        } else if (arc[i] > delta) {
+            out[i] = arc[i];
+            changed = true;
+        }
+        float turn = static_cast<float>(
+            title_ci_fmod(static_cast<long double>(out[i]) - static_cast<long double>(current[i]), full_turn));
+        if (platform_x87_greater(turn, half)) turn = turn - full;
+        if (minus_half > turn) turn = turn + full;
+        uint32_t bits;
+        std::memcpy(&bits, &turn, sizeof bits);
+        bits &= 0x7fffffffu;  // FABS
+        float size;
+        std::memcpy(&size, &bits, sizeof size);
+        if (platform_x87_greater(size, max_turn)) {
+            changed = true;
+            if (turn > 0.0f) {
+                out[i] = max_turn + current[i];
+            } else {
+                out[i] = current[i] - max_turn;
+            }
+        }
+    }
+    const float yaw_pitch0 = out[0];
+    const float yaw_pitch1 = out[1];
+    current[0] = yaw_pitch0;
+    current[1] = yaw_pitch1;
+    current[2] = 0.0f;
+    uint16_t& flags = field<uint16_t>(info, 2);
+    if (flags & 0x800) {
+        flags = static_cast<uint16_t>(flags & 0xf7ff);
+        field<uint32_t>(turret, 0x10) ^= 8;
+    }
+    if (changed) {
+        out[0] = field<float>(turret, 0x150) + yaw_pitch0;
+        out[1] = field<float>(turret, 0x154) + yaw_pitch1;
+        out[2] = 0.0f;
+        SetClientViewAngle(out, player);
+    }
+    const TitleRegs regs{0, 0, 0, 1, 0, address_of(turret)};
+    g_ent_call(0x00288df0, &regs, 0, nullptr);  // Turret_UpdateTurnFxAndBones (DL = 1)
+}
+
+namespace {
+
+// sqrt((dz*dz + dy*dy) + dx*dx) > limit, d = a - b per axis, all on the x87 (FCOMIP; false when unordered).
+bool x87_dist3_greater(float limit, float ax, float bx, float ay, float by, float az, float bz) {
+    bool result;
+    __asm__("flds %1\n\tfsubs %2\n\tflds %3\n\tfsubs %4\n\tflds %5\n\tfsubs %6\n\t"
+            "fld %%st(0)\n\tfmul %%st(1), %%st\n\tfld %%st(2)\n\tfmul %%st(3), %%st\n\tfaddp\n\t"
+            "fld %%st(3)\n\tfmul %%st(4), %%st\n\tfaddp\n\tfsqrt\n\t"
+            "fstp %%st(3)\n\tfstp %%st(0)\n\tfstp %%st(0)\n\t"
+            "flds %7\n\tfxch %%st(1)\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(result)
+            : "m"(ax), "m"(bx), "m"(ay), "m"(by), "m"(az), "m"(bz), "m"(limit)
+            : "st", "st(1)", "st(2)", "st(3)", "st(4)", "cc");
+    return result;
+}
+
+// (float) a > (double) b on the x87 (FLD/FCOMIP; false when unordered).
+bool x87_greater_double(float a, const double& b) {
+    bool result;
+    __asm__("fldl %2\n\tflds %1\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(result)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(G_BounceMissile_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_BounceMissile) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_BounceMissile(const uint8_t* trace, uint8_t* ent) {
+    // Q3's G_BounceMissile: the velocity at the hit time (previous time + frame * fraction +0x20)
+    // reflected off the trace plane (normal +0x10) into the position delta (+0x2c); a floor
+    // (normal z > 0.7) sets the ground entity (+0xc = trace +0x30). Bouncing entities (+0x10 flag
+    // 0x2000000) keep half (an eighth in water - contents 0x20 - or on surface flags 0x200c000) and
+    // stop on a floor below 20 units/s (origin and angles set; returns 0). Else the base moves off
+    // the plane by a tenth of the normal (z not up), the angles bounce (G_BounceMissileAngles), the
+    // actors are told (G_GrenadeLandedNotifyActors); returns 1 when out of water and the velocity
+    // changed by more than 100.
+    float* const origin = reinterpret_cast<float*>(ent + 0x140);
+    const uint32_t contents = SV_PointContents(origin, 0, 0x20);
+    const int32_t previous = title_global<int32_t>(0x00985410);
+    const int32_t hit_time =
+        static_cast<int32_t>(static_cast<float>(title_global<int32_t>(0x0098540c) - previous) *
+                             *reinterpret_cast<const float*>(trace + 0x20)) +
+        previous;
+    alignas(16) float velocity[3] = {};
+    BG_EvaluateTrajectoryDelta(0, hit_time, velocity, ent + 0x14);
+    const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
+    const float v0 = velocity[0], v1 = velocity[1], v2 = velocity[2];
+    float dot = normal[2] * v2 + normal[1] * v1;
+    dot = dot + v0 * normal[0];
+    dot = dot * title_global<float>(0x0083ec5c);  // -2
+    field<float>(ent, 0x2c) = dot * normal[0] + v0;
+    field<float>(ent, 0x30) = normal[1] * dot + v1;
+    field<float>(ent, 0x34) = normal[2] * dot + v2;
+    const double& floor_z = title_global<double>(0x0083f288);  // 0.7
+    if (x87_greater_double(normal[2], floor_z)) word_at(ent, 0xc) = *reinterpret_cast<const uint32_t*>(trace + 0x30);
+    if (word_at(ent, 0x10) & 0x2000000) {
+        float scale;
+        if (contents != 0 || (*reinterpret_cast<const uint32_t*>(trace + 0x28) & 0x200c000) != 0) {
+            scale = title_global<float>(0x0083ec68);  // 0.125
+        } else {
+            scale = title_global<float>(0x0083eb24);  // 0.5
+        }
+        field<float>(ent, 0x2c) = field<float>(ent, 0x2c) * scale;
+        field<float>(ent, 0x30) = field<float>(ent, 0x30) * scale;
+        field<float>(ent, 0x34) = field<float>(ent, 0x34) * scale;
+        if (x87_greater_double(normal[2], floor_z) &&
+            platform_x87_greater_than_dist3(title_global<float>(0x0083eb5c), field<float>(ent, 0x2c), 0.0f,
+                                            field<float>(ent, 0x30), 0.0f, field<float>(ent, 0x34), 0.0f)) {
+            alignas(16) float angles[3] = {};
+            G_SetOrigin(ent, 0, origin);
+            {
+                const TitleRegs regs{0, 0, 0, 0, address_of(angles), address_of(ent)};
+                const uint32_t args[3] = {address_of(ent), address_of(trace), 1};
+                g_ent_call(0x002586f0, &regs, 3, args);  // G_BounceMissileAngles
+            }
+            G_SetAngle(ent, 0, angles);
+            return 0;
+        }
+    }
+    const float tenth = title_global<float>(0x0083ebf8);
+    float nz = normal[2] * tenth;
+    const float nx = normal[0] * tenth;
+    const float ny = normal[1] * tenth;
+    if (nz > 0.0f) nz = 0.0f;
+    origin[0] = origin[0] + nx;
+    origin[1] = origin[1] + ny;
+    origin[2] = origin[2] + nz;
+    word_at(ent, 0x20) = word_at(ent, 0x140);
+    word_at(ent, 0x24) = word_at(ent, 0x144);
+    word_at(ent, 0x28) = word_at(ent, 0x148);
+    field<int32_t>(ent, 0x18) = title_global<int32_t>(0x0098540c);
+    alignas(16) float angles[3] = {};
+    {
+        const TitleRegs regs{0, 0, 0, 0, address_of(angles), address_of(ent)};
+        const uint32_t args[3] = {address_of(ent), address_of(trace), 0};
+        g_ent_call(0x002586f0, &regs, 3, args);  // G_BounceMissileAngles
+    }
+    word_at(ent, 0x44) = reinterpret_cast<const uint32_t*>(angles)[0];
+    word_at(ent, 0x48) = reinterpret_cast<const uint32_t*>(angles)[1];
+    word_at(ent, 0x4c) = reinterpret_cast<const uint32_t*>(angles)[2];
+    field<int32_t>(ent, 0x3c) = title_global<int32_t>(0x0098540c);
+    {
+        const uint32_t handle = *reinterpret_cast<const uint32_t*>(trace + 0x30);
+        const uint32_t index = handle & 0xfff;
+        uint32_t hit = 0;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+            hit = title_global<uint32_t>(0x0097a968 + index * 8);
+        }
+        const TitleRegs regs{hit, 0, 0, 0, 0, address_of(ent)};
+        const uint32_t args[1] = {address_of(ent)};
+        g_ent_call(0x002207f0, &regs, 1, args);  // G_GrenadeLandedNotifyActors
+    }
+    if (contents != 0) return 0;
+    return x87_dist3_greater(title_global<float>(0x0083eb90), field<float>(ent, 0x2c), v0, field<float>(ent, 0x30), v1,
+                             field<float>(ent, 0x34), v2)
+               ? 1
+               : 0;
+}
+
+void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
+    // Q3's ClientEndFrame: turret use (client +0xc0 flags 0x6000: the entity of handle +0x468),
+    // "cl_bomberKeyboardMode" following those flags, the player vehicles' thinks (the argument as
+    // EBX), the dead type and linked origin (+0x3cc linked: G_ClientUpdateLinkTo), the nearest
+    // node, the look-at entity and cursor hints (after 500 ms), damage feedback, the
+    // recently-hurt flag (+0x10 0x800, under 1 s), health (+0x100 = +0x350), the entity state,
+    // a weapon-type-1 point event while +0x3c runs (< 3000), the compass actor marker from the
+    // leaned eye position; +0x4d4 cleared, so the vehicle slot (+0x604) is always 0.
+    uint8_t* client = pointer_at(ent, 0x23c);
+    if (field<uint32_t>(client, 0xc0) & 0x6000) {
+        const uint32_t handle = field<uint32_t>(client, 0x468);
+        const uint32_t index = handle & 0xfff;
+        uint32_t turret = 0;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+            turret = title_global<uint32_t>(0x0097a968 + index * 8);
+        }
+        const TitleRegs regs{turret, 0, index, handle >> 12, 0x6000, address_of(ent)};
+        g_ent_call(0x00272360, &regs, 0, nullptr);  // Player_UpdateTurretUse
+    }
+    const uint32_t keyboard = title_global<uint32_t>(0x00954e0c);
+    using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    if (field<uint32_t>(pointer_at(ent, 0x23c), 0xc0) & 0x6000) {
+        if (keyboard == 0) {
+            title_function<CvarSet>(0x0029c030)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
+                                                 reinterpret_cast<const char*>(uintptr_t{0x0082e058}), 1);  // "1"
+        }
+    } else if (keyboard != 0) {
+        title_function<CvarSet>(0x0029c030)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
+                                             reinterpret_cast<const char*>(uintptr_t{0x0082e098}), 1);  // "0"
+    }
+    {
+        const TitleRegs regs{0, arg, 0, 0, 0x6000, address_of(ent)};
+        g_ent_call(0x0024bb70, &regs, 0, nullptr);  // G_RunPlayerVehicleThinks
+    }
+    client = pointer_at(ent, 0x23c);
+    if (field<uint32_t>(client, 0x584) == 0 && field<uint32_t>(client, 0x588) == 0) {
+        if (field<uint32_t>(ent, 0x3cc) != 0) {
+            field<uint32_t>(client, 0x24) = field<int32_t>(client, 0x100) <= 0 ? 5 : 1;
+            G_ClientUpdateLinkTo(ent);
+            field<uint32_t>(pointer_at(ent, 0x23c), 0) = field<uint32_t>(ent, 0x140);
+            field<uint32_t>(pointer_at(ent, 0x23c), 4) = field<uint32_t>(ent, 0x144);
+            field<uint32_t>(pointer_at(ent, 0x23c), 8) = field<uint32_t>(ent, 0x148);
+        } else if (field<uint32_t>(client, 0x24) == 1 || field<uint32_t>(client, 0x24) == 5) {
+            field<uint32_t>(client, 0x24) -= 1;
+        } else {
+            field<float>(client, 0x610) = 0.0f;
+            field<float>(pointer_at(ent, 0x23c), 0x60c) = 0.0f;
+            field<float>(pointer_at(ent, 0x23c), 0x608) = 0.0f;
+        }
+    }
+    Sentient_UpdateNearestNode(pointer_at(ent, 0x244));
+    if (field<uint32_t>(pointer_at(ent, 0x23c), 0x20) != 0 && title_global<int32_t>(0x0098540c) > 500) {
+        {
+            const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
+            g_ent_call(0x00263c00, &regs, 0, nullptr);  // Player_UpdateLookAtEntity
+        }
+        {
+            const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
+            const uint32_t args[1] = {address_of(ent)};
+            g_ent_call(0x00267e10, &regs, 1, args);  // Player_UpdateCursorHints
+        }
+    }
+    P_DamageFeedback(ent);
+    client = pointer_at(ent, 0x23c);
+    if (title_global<int32_t>(0x0098540c) - field<int32_t>(client, 0x590) > 1000) {
+        field<uint32_t>(ent, 0x10) |= 0x800;
+    } else {
+        field<uint32_t>(ent, 0x10) &= ~0x800u;
+    }
+    field<uint32_t>(client, 0x100) = field<uint32_t>(ent, 0x350);
+    client = pointer_at(ent, 0x23c);
+    ent[1] = 0;
+    BG_PlayerStateToEntityStateExtraPolate(ent, 0, client, field<uint32_t>(client, 0x20));
+    client = pointer_at(ent, 0x23c);
+    const uint8_t* const def = weapon_def(field<uint32_t>(client, 0x80));
+    if (*reinterpret_cast<const uint32_t*>(def + 0x94) == 1) {
+        const int32_t timer = field<int32_t>(client, 0x3c);
+        if (timer != 0 && timer < 3000) {
+            const TitleRegs regs{0, 0, 0, 0, 0, address_of(ent)};
+            const uint32_t args[4] = {address_of(ent), 7, address_of(client), 0};
+            g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+        }
+    }
+    uint8_t* const ps = pointer_at(ent, 0x23c);
+    float eye[3];
+    eye[0] = field<float>(ps, 0);
+    eye[1] = field<float>(ps, 4);
+    eye[2] = field<float>(ps, 0xac) + field<float>(ps, 8);
+    AddLeanToPosition(eye, field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
+    field<uint32_t>(ps, 0x4d0) = Player_PackActorMarker(eye);
+    client = pointer_at(ent, 0x23c);
+    const uint32_t marker = field<uint32_t>(client, 0x4d0);
+    if (marker != 0) {
+        uint8_t* const actor_ent = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x00985384 + (marker & 0x3f) * 4));
+        field<uint32_t>(client, 0x600) = field<uint32_t>(actor_ent, 0x224);
+    } else {
+        field<uint32_t>(client, 0x600) = 0;
+    }
+    field<uint32_t>(pointer_at(ent, 0x23c), 0x4d4) = 0;
+    // The vehicle slot from +0x4d4 (Vehicle_GetTankEntityNum) is never reached: +0x4d4 was just cleared.
+    field<uint32_t>(pointer_at(ent, 0x23c), 0x604) = 0;
+}
+
+namespace {
+
+// |a - b| with the difference rounded to float on the x87 (FSUB, FSTP, FABS): no MXCSR flags.
+float x87_abs_diff(float a, float b) {
+    float diff;
+    __asm__("flds %1\n\tfsubs %2\n\tfstps %0" : "=m"(diff) : "m"(a), "m"(b) : "st");
+    uint32_t bits;
+    std::memcpy(&bits, &diff, sizeof bits);
+    bits &= 0x7fffffffu;  // FABS
+    std::memcpy(&diff, &bits, sizeof diff);
+    return diff;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Turret_UpdateTurnFxAndBones_entry,
+                   "pushl %edi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Turret_UpdateTurnFxAndBones) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret) {
+    // Not for an AI-held turret (DL 0 and the handle +0x1a0's entity an actor (+0x297 == 1) with health).
+    // A player's turn (DL set): moving more than 0.1 from the last angles (0x0095f64c/650) starts the
+    // def's (+8) turn loop effect 0x22 (state 0x0095f654 = 2; id 0x008d9d50), stopping frees it and
+    // plays the stop effect 0x23 once (id 0x008d9d54; state 1, then 0); the angles are remembered.
+    // Then the aim bones: "tag_aim" and "tag_aim_animated" get (pitch, yaw, 0), "tag_aim_animatedY"
+    // (0, yaw, 0), "tag_aim_animatedP" (pitch, 0, 0) (G_DObjSetBoneRotation).
+    const bool turning = static_cast<uint8_t>(player_turn) != 0;
+    if (!turning) {
+        const uint32_t handle = field<uint32_t>(turret, 0x1a0);
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+            uint8_t* const user = title_global<uint8_t*>(0x0097a968 + index * 8);
+            if (user != nullptr && user[0x297] == 1 && field<int32_t>(user, 0x350) > 0) return;
+        }
+    }
+    const uint8_t* const def = weapon_def(turret[3]);
+    if (turning) {
+        uint32_t& state = title_global<uint32_t>(0x0095f654);
+        int32_t& loop = title_global<int32_t>(0x008d9d50);
+        int32_t& stop = title_global<int32_t>(0x008d9d54);
+        const auto play = [&](uint32_t fx) {
+            const TitleRegs regs{address_of(turret), 0, 0, 0, 0, address_of(turret)};
+            const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), fx};
+            return static_cast<int32_t>(g_ent_call(0x002a5ee0, &regs, 2, args));  // FXCmd_Type8
+        };
+        const auto free_loop = [&]() {
+            if (loop != -1) {
+                FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), static_cast<uint32_t>(loop));
+                loop = -1;
+            }
+        };
+        const float pitch_change = x87_abs_diff(title_global<float>(0x0095f64c), field<float>(turret, 0x90));
+        const float yaw_change = x87_abs_diff(title_global<float>(0x0095f650), field<float>(turret, 0x94));
+        const float threshold = title_global<float>(0x0083ebf8);  // 0.1
+        if (platform_x87_greater(pitch_change, threshold) || yaw_change > threshold) {
+            if (state == 0 || state == 1) state = 2;
+            if (state == 2) {
+                if (loop == -1) loop = play(0x22);
+            } else {
+                free_loop();
+                if (stop != -1) stop = -1;
+            }
+        } else if (state == 2) {
+            state = 1;
+            free_loop();
+            if (stop == -1) stop = play(0x23);
+        } else {
+            if (state == 1) state = 0;
+            free_loop();
+            if (stop != -1) stop = -1;
+        }
+        title_global<uint32_t>(0x0095f64c) = field<uint32_t>(turret, 0x90);
+        title_global<uint32_t>(0x0095f650) = field<uint32_t>(turret, 0x94);
+    }
+    float angles[3];
+    angles[0] = field<float>(turret, 0x90);
+    angles[1] = field<float>(turret, 0x94);
+    angles[2] = 0.0f;
+    uint32_t& guard = title_global<uint32_t>(0x0098f1e4);
+    static const uint32_t kNames[4] = {0x00839a18, 0x00839a04, 0x008399f0, 0x008399dc};
+    static const uint32_t kHashes[4] = {0x0098f1e0, 0x0098f1dc, 0x0098f1d8, 0x0098f1d4};
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (!(guard & (1u << i))) {
+            guard |= 1u << i;
+            title_global<uint32_t>(kHashes[i]) =
+                Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{kNames[i]}));
+        }
+    }
+    using SetBoneRotation = void XB_CDECL(uint8_t*, const float*, const float*, int32_t, uint32_t);
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (i == 2) {
+            angles[0] = 0.0f;
+            angles[1] = field<float>(turret, 0x94);
+            angles[2] = 0.0f;
+        } else if (i == 3) {
+            angles[0] = field<float>(turret, 0x90);
+            angles[1] = 0.0f;
+            angles[2] = 0.0f;
+        }
+        const DObj* const obj = reinterpret_cast<const DObj*>(uintptr_t{field<uint32_t>(turret, 0x22c)});
+        if (obj == nullptr) continue;
+        const int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(kHashes[i]));
+        if (bone < 0) continue;
+        title_function<SetBoneRotation>(0x002de420)(turret, reinterpret_cast<const float*>(uintptr_t{0x0082eec0}), angles,
+                                                    bone, 0);  // G_DObjSetBoneRotation
+    }
+}
+
+namespace {
+
+// g_entityHandleTable lookup: the entity of a handle, or null.
+uint8_t* handle_entity(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x0097a968 + index * 8);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
+    // Q3's G_MissileImpact: the hit entity (trace +0x30), the attacker (owner +0x1a0; a turret's
+    // (type 10) own owner). Not for mod 3: an "attacked" line event to the actors. Bouncing missiles
+    // (+0x10 0x3000000) not hitting a damageable entity bounce (sound event 0xb6 with the surface,
+    // unless trace +0x3d) and stop there unless the def explodes on impact (+0x748). A damageable
+    // hit takes the impact damage (+0x358) along the velocity (G_Damage); defs without +0x748
+    // bounce off it. Else trigger_damage checks, the explosion event (0xba, 0xbb when a client
+    // was hit or trace +0x34) with the normal byte, the missile stopped at the snapped end point
+    // and the splash (+0x35c) from 4 units off the surface (SV_Trace, G_RadiusDamage).
+    uint32_t hit_client = 0;
+    uint8_t* const other = handle_entity(*reinterpret_cast<const uint32_t*>(trace + 0x30));
+    uint8_t* attacker = nullptr;
+    const uint32_t owner_handle = field<uint32_t>(ent, 0x1a0);
+    if (handle_entity(owner_handle) != nullptr) {
+        attacker = handle_entity(owner_handle);
+        if (attacker[0] == 0xa && handle_entity(field<uint32_t>(attacker, 0x1a0)) != nullptr) {
+            attacker = G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(attacker + 0x1a0));
+        }
+    }
+    const uint8_t* const def = weapon_def(ent[3]);
+    if (field<uint32_t>(ent, 0x368) != 3 && attacker != nullptr) {
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        const uint32_t args[6] = {address_of(handle_entity(owner_handle)), 0x11, 0, address_of(attacker + 0x20),
+                                  address_of(trace), 0};
+        g_ent_call(0x00204390, &regs, 6, args);  // Actor_SendLineEvent
+    }
+    const auto bounce = [&]() {
+        const TitleRegs regs{address_of(trace), address_of(trace), 0, 0, 0, address_of(ent)};
+        return g_ent_call(0x00272f20, &regs, 0, nullptr);  // G_BounceMissile
+    };
+    const bool damageable = other != nullptr && field<uint32_t>(other, 0x29c) != 0;
+    if (!damageable && (field<uint32_t>(ent, 0x10) & 0x3000000)) {
+        if (bounce() && trace[0x3d] == 0) {
+            G_AddEvent(ent, 0xb6, DirToByte(reinterpret_cast<const float*>(trace + 0x10)));
+            ent[5] = static_cast<uint8_t>((*reinterpret_cast<const int32_t*>(trace + 0x24) >> 20) & 0x1f);
+        }
+        if (*reinterpret_cast<const uint32_t*>(def + 0x748) == 0) return;
+    }
+    if (damageable) {
+        const int32_t damage = field<int32_t>(ent, 0x358);
+        if (damage != 0) {
+            const float amount = static_cast<float>(damage);
+            const uint8_t* const by = attacker ? attacker : G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(ent + 0x1a0));
+            if (G_CheckOtherClientField100(other, 0, by)) hit_client = 1;
+            alignas(16) float velocity[3] = {};
+            BG_EvaluateTrajectoryDelta(0, title_global<int32_t>(0x0098540c), velocity, ent + 0x14);
+            const long double sq = static_cast<long double>(velocity[2]) * velocity[2] +
+                                   static_cast<long double>(velocity[1]) * velocity[1] +
+                                   static_cast<long double>(velocity[0]) * velocity[0];
+            const float length = title_ci_sqrt(static_cast<float>(sq));
+            if (length == title_global<float>(0x0083eafc)) velocity[2] = title_global<float>(0x0083eb20);  // straight up
+            uint32_t args[9] = {address_of(other), address_of(ent), address_of(attacker), address_of(velocity),
+                                static_cast<uint32_t>(static_cast<int32_t>(amount)), 0, field<uint32_t>(ent, 0x368), 0,
+                                0xffffffffu};
+            const TitleRegs regs{address_of(ent + 0x140), address_of(trace), 0, 0, 0, address_of(ent)};
+            g_ent_call(0x00250340, &regs, 9, args);  // G_Damage
+        }
+        if (*reinterpret_cast<const uint32_t*>(def + 0x748) == 0) {
+            bounce();
+            return;
+        }
+    }
+    if (field<uint32_t>(ent, 0x358) != 0) {
+        const uint8_t* const by = attacker ? attacker : pointer_at(title_global<uint8_t*>(0x0095f534), 8);
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        const uint32_t args[5] = {address_of(by), address_of(ent + 0x140), address_of(trace), field<uint32_t>(ent, 0x358),
+                                  field<uint32_t>(ent, 0x368)};
+        g_ent_call(0x0025d960, &regs, 5, args);  // G_CheckHitTriggerDamage
+    }
+    hit_client = (hit_client != 0 || *reinterpret_cast<const uint32_t*>(trace + 0x34) != 0) ? 1 : 0;
+    // DirToByte inlined: the bytedirs entry (0x008d52d8) with the largest dot product above 0.
+    const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
+    float best = 0.0f;
+    uint8_t best_index = 0;
+    for (uint32_t i = 0; i < 0xa2; ++i) {
+        const float* const d = reinterpret_cast<const float*>(uintptr_t{0x008d52d8 + i * 12});
+        float dot = d[0] * normal[0] + d[2] * normal[2];
+        dot = dot + d[1] * normal[1];
+        if (dot > best) {
+            best = dot;
+            best_index = static_cast<uint8_t>(i);
+        }
+    }
+    G_AddEvent(ent, 0xba + hit_client, best_index);
+    ent[5] = def[0x73c];
+    ent[0] = 0;
+    ent[2] = static_cast<uint8_t>((*reinterpret_cast<const int32_t*>(trace + 0x24) >> 20) & 0x1f);
+    field<uint32_t>(ent, 0x1a4) |= 1;
+    float* const end = reinterpret_cast<float*>(trace);
+    for (uint32_t i = 0; i < 3; ++i) end[i] = static_cast<float>(static_cast<int32_t>(end[i]));  // SnapVector
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x20 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    field<uint32_t>(ent, 0x14) = 0;
+    field<uint32_t>(ent, 0x18) = 0;
+    field<uint32_t>(ent, 0x1c) = 0;
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x140 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    for (uint32_t i = 0; i < 4; ++i) field<uint32_t>(ent, 0x60 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    if (field<uint32_t>(ent, 0x35c) != 0) {
+        // The splash point: 4 units off the surface, traced from the end point (point box: zero
+        // vectors with w = 1; the trace lands in the impact trace).
+        const float four = title_global<float>(0x0083100c);
+        alignas(16) float start[4];
+        std::memcpy(start, trace, 16);
+        alignas(16) float point[4];
+        for (uint32_t i = 0; i < 4; ++i) point[i] = normal[i] * four + start[i];
+        alignas(16) float box[8];
+        for (uint32_t c = 0; c < 2; ++c) {
+            for (uint32_t i = 0; i < 4; ++i) box[c * 4 + i] = title_global<float>(0x0082e290 + i * 4);
+        }
+        {
+            const TitleRegs regs{0, address_of(start), 0, 0, 0, address_of(ent)};
+            const uint32_t args[11] = {address_of(trace), address_of(box), address_of(box + 4), address_of(point),
+                                       field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
+            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        }
+        const uint8_t* const owner = handle_entity(field<uint32_t>(ent, 0x2b0));
+        const float radius = static_cast<float>(field<int32_t>(ent, 0x364));
+        const float low = static_cast<float>(field<int32_t>(ent, 0x360));
+        const float high = static_cast<float>(field<int32_t>(ent, 0x35c));
+        uint32_t args[8];
+        args[0] = address_of(point);
+        args[1] = address_of(ent);
+        args[2] = address_of(owner);
+        std::memcpy(&args[3], &high, 4);
+        std::memcpy(&args[4], &low, 4);
+        std::memcpy(&args[5], &radius, 4);
+        args[6] = address_of(other);
+        args[7] = field<uint32_t>(ent, 0x36c);
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        g_ent_call(0x00268e60, &regs, 8, args);  // G_RadiusDamage
+    }
+    SV_LinkEntity(ent);
 }
 
 }  // namespace game

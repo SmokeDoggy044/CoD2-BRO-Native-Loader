@@ -531,5 +531,18 @@ uint32_t XB_REGS1 XB_CDECL G_DObjGetSkeletonBoneMatrixPtr(uint8_t* ent, uint32_t
 // flags and link.
 void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t unused_edx, uint32_t solid);
 
+// 0x002ae080 (table in EDX, out in EBX, stdcall key): a random variant of the first spg set whose map has the
+// key - three string pointers into out (zeros when none).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Spg_FindRandomVariant(const uint8_t* table, uint32_t* out, uint32_t key);
+extern "C" void Spg_FindRandomVariant_entry(void);
+
+// 0x002df3e0 (entity in EAX, cdecl out): the linked entity's parent frame (4x3), times the link tag's matrix
+// when the link has a tag.
+void XB_REGS1 XB_CDECL G_GetTagParentMatrix(uint8_t* ent, float* out);
+
+// 0x002d7850 (cdecl model, bone matrices, parent): the inverse of XModel_CalcBoneChildren - every child bone of
+// `parent` (recursed into first) taken into the parent's space (rigid inverse times its matrix). Proposed name (was
+// FUN_002d7850).
+void XB_CDECL XModel_CalcBoneChildrenLocal(const uint8_t* model, float* matrices, int32_t parent);
 
 }  // namespace game

@@ -9383,7 +9383,7 @@
 002af930 Loc_ReadLine
 002afa40 Loc_IsGb2312Char
 002afb10 CM_FindInlineModel
-002afc00 FUN_002afc00
+002afc00 Scn_ResetZoneFlags
 002afdb0 Info_SetValueForKey_Big
 002aff40 Info_SetValueForKey
 002b0050 Q_stricmpn2
@@ -9874,7 +9874,7 @@
 002d7210 SV_DObjCreateSkeleton
 002d7290 SV_DObjEnsureSkeleton
 002d7310 XModel_CalcBoneChildrenOrtho
-002d7850 FUN_002d7850
+002d7850 XModel_CalcBoneChildrenLocal
 002d7c60 G_SetModel
 002d7d40 AnimTree_SetGoalWeightClamped
 002d7db0 AnimTree_SetKnob

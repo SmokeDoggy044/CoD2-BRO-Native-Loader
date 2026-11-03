@@ -1385,9 +1385,9 @@ void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_tim
                                 sched_word(woken, 0x10) |= 0x80;
                             }
                         }
-                        const int32_t top = depth - 1;
-                        uint8_t* const resumed = stack[top <= 0 ? 0 : top];
-                        if (depth) depth = top;
+                        const int32_t last = depth - 1;
+                        uint8_t* const resumed = stack[last <= 0 ? 0 : last];
+                        if (depth) depth = last;
                         resume_thread(top, 0x0030bbaf, scheduler, resumed);
                         if (free_if_ended(scheduler, resumed, false)) {
                         } else if (sched_word(scheduler, 0x858)) {

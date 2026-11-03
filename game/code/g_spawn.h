@@ -97,4 +97,18 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t en
                                                                     uint32_t zone);
 extern "C" void G_SpawnGEntityFromSpawnVars_entry(void);
 
+// 0x002b89f0 (spawn lists in EAX, record in EDX, list slot in ECX): a vehicle node from a spawn record and its
+// key/value pairs (the interface's node setters).
+void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32_t slot);
+
+// 0x00268350 (entity in EDI; cdecl weapon, tag name or null): Q3's Drop_Weapon with ammo/clip counts and a
+// start at the tag; returns the item entity (0 for undroppable defs).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Drop_Weapon(uint8_t* ent, uint32_t weapon, const char* tag);
+extern "C" void Drop_Weapon_entry(void);
+
+// 0x002d9970 (zone in ECX, static model instance in EBX): registers and links a zone's static model (cells,
+// hit-box bounds, sector).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst);
+extern "C" void Scn_AddStaticModel_entry(void);
+
 }  // namespace game

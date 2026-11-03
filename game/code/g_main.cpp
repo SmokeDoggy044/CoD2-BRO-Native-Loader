@@ -1565,4 +1565,22 @@ void XB_REGS1 XB_STDCALL Hud_LoadWeaponIcons(uint8_t* icons, uint8_t* pictures) 
     }
 }
 
+PLATFORM_ASM_ENTRY(Scn_ResetZoneFlags_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Scn_ResetZoneFlags) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Scn_ResetZoneFlags(uint8_t* scene) {
+    // The flag array (+0x194: count, bytes; an index past the count reads byte 0) re-read every step.
+    uint32_t* flags = *reinterpret_cast<uint32_t**>(scene + 0x194);
+    if (flags == nullptr) return;
+    const uint8_t* const state = title_global<uint8_t*>(0x0095f4e0);
+    const bool restoring = state[0] != 0 && state[0x390] != 0;
+    for (uint32_t i = 0; i < flags[0]; ++i) {
+        const uint32_t index = i < flags[0] ? i : 0;
+        uint8_t* const bytes = reinterpret_cast<uint8_t*>(flags[1]);
+        if (!restoring || bytes[index] == 1) bytes[index] = 0;
+        flags = *reinterpret_cast<uint32_t**>(scene + 0x194);
+    }
+}
+
 }  // namespace game

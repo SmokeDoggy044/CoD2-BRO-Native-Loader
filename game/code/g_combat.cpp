@@ -2,7 +2,10 @@
 
 #include <cstring>
 
+#include "cg_view.h"
+#include "fx.h"
 #include "g_main.h"
+#include "g_spawn.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "qcommon_fs.h"
@@ -466,6 +469,82 @@ void XB_CDECL G_MissileActivateDamageTriggers(uint8_t* ent, const float* start, 
 
 void XB_CDECL G_CheckHitTriggerDamage(uint8_t* ent, const float* start, const float* end, int32_t damage, int32_t mod) {
     activate_damage_triggers(ent, start, end, damage, mod, false);
+}
+
+void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t, uint8_t* self, uint32_t weapon) {
+    // The client's dead type (+0x24: 5 from 1, else 4), items tossed unless in a contents-0x80000000
+    // volume, the view angles from the entity's angles (+0x150), the entity made a corpse (contents
+    // 0x4000000, no weapon, pitch/roll 0, height 16, respawn in 1700 ms). For the local player
+    // (0x0095f534 +4) killed by an explosive kind (mods 3-6, 13, 14, 23; 21 only with a weapon): the
+    // interface's +0x4e4 "default" at 3.0, a camera shake from the attacker (self +0x244) and a rumble.
+    // Then the link and the interface's +0x2f8 "INGAME_PLAYER_DIED".
+    using FromCString = void XB_THISCALL(uint32_t*, const char*);
+    using Release = void XB_THISCALL(uint32_t*);
+    uint8_t* client = pointer_at(self, 0x23c);
+    field<uint32_t>(client, 0x24) = field<uint32_t>(client, 0x24) == 1 ? 5 : 4;
+    field<uint32_t>(pointer_at(self, 0x23c), 0x100) = 0;
+    field<uint32_t>(self, 0x350) = 0;
+    if (SV_PointContents(reinterpret_cast<const float*>(self + 0x140), 0, 0x80000000u) == 0) TossClientItems(self);
+    field<uint32_t>(pointer_at(self, 0x23c), 0x9c) = field<uint32_t>(self, 0x150);
+    field<uint32_t>(pointer_at(self, 0x23c), 0xa0) = field<uint32_t>(self, 0x154);
+    field<uint32_t>(pointer_at(self, 0x23c), 0xa4) = field<uint32_t>(self, 0x158);
+    client = pointer_at(self, 0x23c);
+    field<uint32_t>(self, 0x29c) = 1;
+    field<uint32_t>(self, 0x134) = 0x4000000;
+    self[3] = 0;
+    field<uint32_t>(client, 0x80) = 0;
+    field<float>(self, 0x150) = 0.0f;
+    field<float>(self, 0x158) = 0.0f;
+    self[1] = 0;
+    field<float>(self, 0xf8) = title_global<float>(0x0083ebb8);  // 16
+    field<int32_t>(pointer_at(self, 0x23c), 0x5e8) = title_global<int32_t>(0x0098540c) + 0x6a4;
+    field<uint32_t>(self, 0x344) = 0;
+    uint32_t text = 0;  // ScriptString
+    if (self == pointer_at(title_global<uint8_t*>(0x0095f534), 4)) {
+        bool shake = false;
+        if (mod == 0x15) {
+            shake = weapon != 0;
+        } else {
+            shake = mod == 3 || mod == 4 || mod == 5 || mod == 6 || mod == 0xd || mod == 0xe || mod == 0x17;
+        }
+        if (shake) {
+            const uint8_t* const attacker = *reinterpret_cast<uint8_t* const*>(pointer_at(self, 0x244));
+            float origin[3];
+            for (uint32_t i = 0; i < 3; ++i) origin[i] = reinterpret_cast<const float*>(attacker + 0x140)[i];
+            title_function<FromCString>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{0x00831f70}));  // "default"
+            using Cue = void XB_CDECL(uint32_t, uint32_t*, float);
+            title_function<Cue>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x4e4))(
+                field<uint32_t>(self, 0x224), &text, 3.0f);
+            title_function<Release>(0x0011d640)(&text);  // ScriptString_Release
+            CG_StartShakeCamera(origin, title_global<float>(0x0083eb20), 800, 1000.0f);
+            title_global<int32_t>(0x00972f7c) = title_global<int32_t>(0x0097253c) + 500;  // cg_time + 500
+            uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
+            if (manager != nullptr) {
+                alignas(4) uint8_t desc[0x40] = {};
+                ShakeRumbleDesc_Init(desc);
+                const float one = title_global<float>(0x0083eb20);
+                field<float>(desc, 8) = one;
+                field<float>(desc, 0x10) = one;
+                field<float>(desc, 0x28) = one;
+                field<float>(desc, 0x24) = title_global<float>(0x0083ebf8);  // 0.1
+                const float half = title_global<float>(0x0083eb24);
+                field<float>(desc, 0x30) = half;
+                field<float>(desc, 0x2c) = half;
+                desc[0] = 1;
+                desc[0x20] = 1;
+                field<float>(desc, 4) = 0.0f;
+                field<float>(desc, 0x34) = title_global<float>(0x0083eca0);  // 0.2
+                ShakeRumble_Start(desc, manager, &text, 1.0f);
+                for (uint32_t i = 2; i-- > 0;) {
+                    title_function<Release>(0x0011d640)(reinterpret_cast<uint32_t*>(desc + 0x18 + i * 0x20));
+                }
+            }
+        }
+    }
+    SV_LinkEntity(self);
+    title_function<FromCString>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{0x008324a4}));  // "INGAME_PLAYER_DIED"
+    title_function<void XB_CDECL(uint32_t*)>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x2f8))(&text);
+    title_function<Release>(0x0011d640)(&text);
 }
 
 }  // namespace game

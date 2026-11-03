@@ -393,4 +393,39 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScriptMover_NextTrajectoryPhase(con
                                                                          float speed, float time2);
 extern "C" void ScriptMover_NextTrajectoryPhase_entry(void);
 
+// 0x00300f20 (velocity in EBX, trajectory in ESI; cdecl time, accel, decel, current, then the speed, linear
+// time, decel time, accel end, linear end and end outputs): a script mover's rotate-at-velocity phases.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScriptMover_SetupRotateVelocity(const float* velocity, uint8_t* tr, float time,
+                                                                         float accel, float decel, float* current,
+                                                                         float* speed, float* mid_time,
+                                                                         float* decel_time, float* accel_end,
+                                                                         float* mid_end, float* end);
+extern "C" void ScriptMover_SetupRotateVelocity_entry(void);
+// 0x00301240 (trajectory in EAX, target in EBX, current in ESI; cdecl time, accel, decel, then the speed, linear
+// time, decel time, accel end, linear end and end outputs): a script mover's move/rotate-to phases.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScriptMover_SetupMove(uint8_t* tr, const float* target, float* current,
+                                                               float time, float accel, float decel, float* speed,
+                                                               float* mid_time, float* decel_time, float* accel_end,
+                                                               float* mid_end, float* end);
+extern "C" void ScriptMover_SetupMove_entry(void);
+
+// 0x0026ce50 (turret in EAX, cdecl player): the player's turret view clamped to the arc and the turn rate.
+void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* player);
+
+// 0x00272f20 (trace in EAX, entity in EDI): Q3's G_BounceMissile; 1 when the impact should make a bounce sound
+// (out of water, velocity changed by more than 100).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_BounceMissile(const uint8_t* trace, uint8_t* ent);
+extern "C" void G_BounceMissile_entry(void);
+
+// 0x002723c0 (entity in EAX, cdecl word handed to the vehicle thinks as EBX): Q3's ClientEndFrame.
+void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg);
+
+// 0x00288df0 (player turn flag in DL, turret in EDI): the player's turret turn effects (loop/stop) and the aim
+// bones' rotations.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret);
+extern "C" void Turret_UpdateTurnFxAndBones_entry(void);
+
+// 0x00273200 (missile in EAX, cdecl trace): Q3's G_MissileImpact (bounce, impact damage, explosion, splash).
+void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace);
+
 }  // namespace game

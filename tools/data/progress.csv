@@ -8563,11 +8563,11 @@ address,name,section,module,state,tested,matched
 00267ac0,Turret_PickSentientTarget,.text,game,settled,5433,5433
 00267c30,Turret_AimAtTarget,.text,game,settled,976,976
 00267e10,Player_UpdateCursorHints,.text,game,named,0,0
-00268350,Drop_Weapon,.text,game,named,0,0
+00268350,Drop_Weapon,.text,game,matched,28,28
 00268770,Pickup_Health,.text,game,matched,15,15
 002688c0,Pickup_Weapon,.text,game,named,0,0
 00268e60,G_RadiusDamage,.text,game,settled,208,208
-002691a0,G_PlayerDeathSetup,.text,game,named,0,0
+002691a0,G_PlayerDeathSetup,.text,game,mismatched,1,0
 00269450,player_die,.text,game,matched,3,3
 002694e0,Cmd_DropWeapon_f,.text,qcommon,replaced,4,4
 00269520,Cmd_Kill_f,.text,qcommon,replaced,4,4
@@ -8588,7 +8588,7 @@ address,name,section,module,state,tested,matched
 0026c4d0,Actor_CanUseTurret,.text,game,settled,141,141
 0026c550,Turret_UpdateTarget,.text,game,named,0,0
 0026cd70,Turret_ThinkAutoTarget,.text,game,settled,12095,12095
-0026ce50,Turret_ClampPlayerViewAngles,.text,game,named,0,0
+0026ce50,Turret_ClampPlayerViewAngles,.text,game,matched,2,2
 0026d0d0,Touch_Item,.text,game,matched,41,41
 0026d440,Touch_Item_Auto,.text,game,untested,0,0
 0026d480,Cmd_Give_f,.text,qcommon,replaced,8,8
@@ -8620,13 +8620,13 @@ address,name,section,module,state,tested,matched
 00271b60,Turret_UpdatePlayerFire,.text,game,settled,115,115
 00271c30,ClientThink_real,.text,game,named,0,0
 00272360,Player_UpdateTurretUse,.text,game,settled,123,123
-002723c0,ClientEndFrame,.text,game,named,0,0
+002723c0,ClientEndFrame,.text,game,settled,2501,2501
 002726b0,ClientThink,.text,game,settled,213,213
 00272760,G_SpawnFinished,.text,game,matched,5,5
 00272800,ClientSpawn,.text,game,named,0,0
 00272e90,ClientBegin,.text,game,matched,43,43
-00272f20,G_BounceMissile,.text,game,named,0,0
-00273200,G_MissileImpact,.text,game,named,0,0
+00272f20,G_BounceMissile,.text,game,untested,0,0
+00273200,G_MissileImpact,.text,game,matched,24,24
 00273790,G_InitGame,.text,game,named,0,0
 00273d70,G_vmMain,.text,game,settled,398,398
 00273ef0,G_RunMissile,.text,game,named,0,0
@@ -8831,7 +8831,7 @@ address,name,section,module,state,tested,matched
 002887f0,CG_FireWeaponEmpty,.text,cgame,settled,147,147
 00288850,CG_AddPlayerWeapon,.text,cgame,settled,2956,2956
 00288dc0,CG_PlayWeaponFireSound,.text,cgame,settled,198,198
-00288df0,Turret_UpdateTurnFxAndBones,.text,game,named,0,0
+00288df0,Turret_UpdateTurnFxAndBones,.text,game,settled,5396,5396
 00289170,CG_Actor,.text,cgame,settled,387,387
 00289270,CG_BulletTracerAndWhizBy,.text,cgame,settled,146,146
 002893b0,CG_FireWeapon,.text,cgame,settled,101,101
@@ -9355,7 +9355,7 @@ address,name,section,module,state,tested,matched
 002adea0,SoundRef_SetVolumeScale,.text,sound,replaced,204,204
 002adfe0,FUN_002adfe0,.text,script,unnamed,0,0
 002ae040,SpgManager_Unload,.text,qcommon,replaced,104,104
-002ae080,Spg_FindRandomVariant,.text,game,named,0,0
+002ae080,Spg_FindRandomVariant,.text,game,matched,3,3
 002ae350,Mat44_ToQuatTranslation,.text,qcommon,replaced,2,2
 002ae740,CameraShake_SetAmplitude,.text,cgame,settled,103,103
 002ae780,CameraShake_InitSlot,.text,cgame,settled,115,115
@@ -9383,7 +9383,7 @@ address,name,section,module,state,tested,matched
 002af930,Loc_ReadLine,.text,qcommon,replaced,0,0
 002afa40,Loc_IsGb2312Char,.text,qcommon,replaced,0,0
 002afb10,CM_FindInlineModel,.text,collision,settled,103,103
-002afc00,FUN_002afc00,.text,game,unnamed,0,0
+002afc00,Scn_ResetZoneFlags,.text,game,offline,0,0
 002afdb0,Info_SetValueForKey_Big,.text,qcommon,replaced,117,117
 002aff40,Info_SetValueForKey,.text,qcommon,replaced,120,120
 002b0050,Q_stricmpn2,.text,qcommon,replaced,113,113
@@ -9538,7 +9538,7 @@ address,name,section,module,state,tested,matched
 002b8450,G_UpdateEntityLOD,.text,game,settled,492,492
 002b8560,SV_UserMove,.text,server,settled,5742,5035
 002b86b0,Loc_PopSemicolonToken,.text,qcommon,replaced,0,0
-002b89f0,G_SpawnVehicleNode,.text,game,named,0,0
+002b89f0,G_SpawnVehicleNode,.text,game,matched,16,16
 002b8d40,Scn_InitUpdateGroups,.text,game,settled,206,206
 002b8dc0,Info_ParseFieldsToStruct,.text,qcommon,replaced,20,20
 002b8f50,Info_ValueForKey,.text,qcommon,replaced,118,118
@@ -9874,7 +9874,7 @@ address,name,section,module,state,tested,matched
 002d7210,SV_DObjCreateSkeleton,.text,server,settled,410,410
 002d7290,SV_DObjEnsureSkeleton,.text,server,settled,417,417
 002d7310,XModel_CalcBoneChildrenOrtho,.text,renderer,replaced,489,489
-002d7850,FUN_002d7850,.text,game,unnamed,0,0
+002d7850,XModel_CalcBoneChildrenLocal,.text,renderer,settled,11286,11286
 002d7c60,G_SetModel,.text,game,matched,51,51
 002d7d40,AnimTree_SetGoalWeightClamped,.text,xanim,matched,13,13
 002d7db0,AnimTree_SetKnob,.text,xanim,matched,6,6
@@ -9888,7 +9888,7 @@ address,name,section,module,state,tested,matched
 002d8a10,CM_WorldTrees_Construct,.text,collision,matched,16,16
 002d8a90,G_ApplySpawnFields,.text,game,named,0,0
 002d90f0,Scn_AddModelInstances,.text,game,named,0,0
-002d9970,Scn_AddStaticModel,.text,game,named,0,0
+002d9970,Scn_AddStaticModel,.text,game,matched,51,51
 002d9cc0,AddLeanToPosition,.text,game,settled,391,391
 002d9db0,CM_SphereWorldMeshContacts,.text,collision,set-aside,0,0
 002da080,CM_SightTraceRay,.text,collision,set-aside,0,0
@@ -9914,7 +9914,7 @@ address,name,section,module,state,tested,matched
 002de2d0,G_TempEntity,.text,game,untested,0,0
 002de3e0,G_DObjGetSkeletonBoneMatrixPtr,.text,game,untested,0,0
 002de420,G_DObjSetBoneRotation,.text,game,named,0,0
-002df3e0,G_GetTagParentMatrix,.text,game,named,0,0
+002df3e0,G_GetTagParentMatrix,.text,game,settled,22808,22808
 002df740,G_EntLinkTo,.text,game,matched,57,57
 002df880,DObj_UpdateSkeletons,.text,renderer,replaced,2192003,1834951
 002e01a0,SV_PointContents,.text,server,settled,112,112
@@ -10482,8 +10482,8 @@ address,name,section,module,state,tested,matched
 00300ba0,GScr_ObjectiveStringByHash,.text,script,named,0,0
 00300bf0,GScr_ActorSetOrientMode,.text,script,named,0,0
 00300e20,GScr_ActorSetLookAnims,.text,script,named,0,0
-00300f20,ScriptMover_SetupRotateVelocity,.text,game,named,0,0
-00301240,ScriptMover_SetupMove,.text,game,named,0,0
+00300f20,ScriptMover_SetupRotateVelocity,.text,game,untested,0,0
+00301240,ScriptMover_SetupMove,.text,game,settled,3082,3082
 00301640,GScr_RestorePlayerLoadout,.text,script,named,0,0
 00301650,GScr_SetFlaggedAnim,.text,script,named,0,0
 003016f0,GScr_SetFlaggedAnimKnobAll,.text,script,named,0,0
@@ -10635,7 +10635,7 @@ address,name,section,module,state,tested,matched
 003094a0,G_SetupGameScriptImports,.text,game,matched,7,7
 0030adb0,G_SetupLevelScriptImports,.text,game,matched,8,8
 0030b960,G_LoadLevelScriptModule,.text,game,matched,8,8
-0030b9e0,Scr_RunThreads,.text,game,mismatched,175,153
+0030b9e0,Scr_RunThreads,.text,game,settled,7524,6142
 0030bd30,FE_BonusCEItemIndex,.text,client,untested,0,0
 0030be60,FE_BonusCEItemGroup,.text,client,replaced,0,0
 0030bf90,FE_BonusCESetText,.text,client,untested,0,0
