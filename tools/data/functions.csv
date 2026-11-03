@@ -2996,6 +2996,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00229d20,RagdollCapsule_CollidePair,compare,64218,201,201,0,0,0,""
 00229f00,PhysObj_GetInheritedVelocity,compare,0,0,0,0,0,0,""
 0022a0f0,PhysParts_WriteBoneMatrices,compare,0,0,0,0,0,0,""
+0022a590,VehiclePhys_SetupFromDef,compare,0,0,0,0,0,0,""
 0022b0d0,RagdollBodyDef_FitToBones,compare,2860,11,11,0,0,0,""
 0022b500,Ragdoll_BlendBonePoses,compare,105,105,105,0,0,0,""
 0022c0f0,Ragdoll_PropagateBoneMatrices,compare,1338,520,520,0,0,0,""

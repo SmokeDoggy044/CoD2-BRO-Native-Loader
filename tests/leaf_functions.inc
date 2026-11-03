@@ -392,6 +392,7 @@
 {"VehiclePhys_DebugDrawAll", 0x00228bc0, 41, 15, {0x008feb9c}, {0x2}},
 {"VehiclePhys_AddContacts", 0x00228ee0, 2606, 637, {0x008ff020, 0x0090a87c, 0x00989240}, {0x38d1b717, 0x4, 0x10, 0x2}},
 {"PhysParts_WriteBoneMatrices", 0x0022a0f0, 1179, 279, {}, {0x8, 0x5, 0x4}},
+{"VehiclePhys_SetupFromDef", 0x0022a590, 2872, 669, {0x008db410, 0x008fccf0, 0x008fcde4, 0x0090a87c}, {0x2, 0x3, 0x4, 0x5, 0x8, 0x1e}},
 {"Ragdoll_RefreshBoneMatrices", 0x0022c890, 128, 43, {}, {}},
 {"PhysBone_UpdateWorldFrame", 0x0022ca00, 1203, 341, {}, {}},
 {"Ragdoll_PoseToBody", 0x0022cec0, 866, 248, {}, {}},

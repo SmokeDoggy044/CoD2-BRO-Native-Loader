@@ -1,5 +1,6 @@
 #include "ragdoll.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "cm.h"
@@ -3281,6 +3282,202 @@ void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode) {
     }
     if (at<int8_t>(joint, 0x30) < 0)
         R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c63c}), x, 0x1ba, 0.0f, one);  // MAX
+}
+
+// The vehicle's physics from its def (stored in +0x420 when given): with the body pending (+0x450
+// bit 0) only bit 1 is set and the pending rebuild runs. Otherwise the model bounds (entity +0x440
+// -> +0x22c -> +0x38) give the box mass properties (size x + 0.1, all * 0.9) and the centre
+// ((maxs + mins) * 0.5 + def +0x20); the body record (+0x444) gets an identity frame moved by
+// -centre at +0x70. build set: the world body (+8) is initialised from the def mass (+0x10) at the
+// entity frame (+0x160) moved to the centre (+0x138 = 20); else only its mass and inertia are set
+// (+0x148 = 0.5). +0x134 = 0x008db410. Then for each of the eight wheel tags (bone ids +0, +0x20
+// tag matrices, +0x4a0 constraints): a negative bone clears its constraint; build allocates a 0x28c
+// constraint (appended at +0x4a0[+0x4c0]), resets the tag matrix and takes the bone's world origin
+// into the body frame, lowered by def +0x34; else the existing constraint's anchor (+0x30) minus
+// the record's +0xa0 + centre, lowered by the def +0x34 change since the last call (+0x448). Each
+// is set up along -z / x with the def's suspension and friction values, its stiffness scaled by
+// 2 (1 - |x| / axle length) (the distance between bones +4 and +0xc), and flagged: 8 rear pair
+// (tags 2-5), 0x20 steering (0, 1, 4, 5), 0x40, 0x10 driven per def +0x68 (0: tags 2, 3; 1: tags
+// 0, 1; 2: all). Last the drive values +0x4c4..+0x4e4 from the def, the front axle midpoint
+// (+0x4f0, constraints 2 and 3) and the wheelbase x (+0x500), and the inputs cleared. Only caller
+// VehiclePhys_CreateBody (build 1).
+void XB_STDCALL VehiclePhys_SetupFromDef(uint8_t* vehicle, uint8_t* def, uint32_t build_word) {
+    if (def) at<uint8_t*>(vehicle, 0x420) = def;
+    if (at<uint8_t>(vehicle, 0x450) & 1) {
+        at<uint32_t>(vehicle, 0x450) = at<uint32_t>(vehicle, 0x450) | 2;
+        VehiclePhys_RebuildPendingBody(vehicle);
+        return;
+    }
+    const bool build = static_cast<uint8_t>(build_word) != 0;
+    uint8_t* const ent = at<uint8_t*>(vehicle, 0x440);
+    const float* const bounds = at<float*>(at<uint8_t*>(ent, 0x22c), 0x38);
+    const Lanes mins = lanes(bounds);
+    const Lanes maxs = lanes(bounds + 4);
+    alignas(16) float size[4];
+    {
+        const Lanes extent = sub(maxs, mins);
+        const float half = title_global<float>(0x0083eb24);
+        Lanes centre = mul(add(maxs, mins), half);
+        Lanes padded = extent;
+        padded.v[0] = extent.v[0] + title_global<float>(0x0083ebf8);  // 0.1
+        const Lanes scaled = mul(padded, title_global<float>(0x0083ec18));  // 0.9
+        std::memcpy(size, scaled.v, 16);
+        size[3] = extent.v[3];  // the vector's w lane keeps the unscaled extent
+        alignas(16) float box_inertia[4] = {};
+        float box_mass;
+        Phys_BoxMassProperties(size, box_inertia, &box_mass);
+        uint8_t* const current = at<uint8_t*>(vehicle, 0x420);
+        centre = add(centre, lanes(reinterpret_cast<const float*>(current + 0x20)));
+        alignas(16) float frame[16];
+        Matrix_Identity(frame);
+        uint8_t* const rec = at<uint8_t*>(vehicle, 0x444);
+        const Lanes minus_centre = negate_bits(centre);
+        std::memcpy(frame + 12, minus_centre.v, 16);
+        const Lanes anchor_base = sub(lanes(reinterpret_cast<const float*>(rec + 0xa0)), minus_centre);
+        uint8_t* const world = at<uint8_t*>(rec, 8);
+        std::memcpy(rec + 0x70, frame, sizeof(frame));
+        const float mass = at<float>(at<uint8_t*>(vehicle, 0x420), 0x10);
+        alignas(16) float inertia[4];
+        if (build) {
+            const float scale = mass / box_mass;
+            std::memcpy(frame, ent + 0x160, sizeof(frame));
+            const Lanes origin = transform_out(frame, centre.v);
+            std::memcpy(frame + 12, origin.v, 16);
+            const Lanes scaled_inertia = mul(lanes(box_inertia), scale);
+            std::memcpy(inertia, scaled_inertia.v, 16);
+            inertia[3] = size[3];
+            alignas(16) float velocity[4] = {0.0f, 0.0f, 0.0f, at<float>(current, 0x2c)};
+            alignas(16) float angular[4] = {0.0f, 0.0f, 0.0f, bounds[7]};
+            PhysBody_Init(world, mass, inertia, frame, velocity, angular, half, 3);
+            at<float>(world, 0x138) = title_global<float>(0x0083eb5c);  // 20
+        } else {
+            PhysBody_SetMass(world, mass);
+            const float scale = mass / box_mass;
+            const Lanes scaled_inertia = mul(lanes(box_inertia), scale);
+            std::memcpy(inertia, scaled_inertia.v, 16);
+            inertia[3] = size[3];
+            PhysBody_SetInertia(world, inertia);
+            at<float>(world, 0x148) = title_global<float>(0x0083eb24);
+        }
+        at<float>(world, 0x134) = title_global<float>(0x008db410);
+        uint8_t* const d = at<uint8_t*>(vehicle, 0x420);
+        const float lowered = at<float>(d, 0x34) - at<float>(vehicle, 0x448);
+        at<uint32_t>(vehicle, 0x448) = at<uint32_t>(d, 0x34);
+        const DObj* const obj = at<const DObj*>(ent, 0x22c);
+        const Lanes p1 = lanes(reinterpret_cast<const float*>(DObj_GetBoneBasePose(obj, at<int32_t>(vehicle, 4)) + 0x24));
+        const Lanes p2 = lanes(reinterpret_cast<const float*>(DObj_GetBoneBasePose(obj, at<int32_t>(vehicle, 0xc)) + 0x24));
+        const Lanes axle = sub(p2, p1);
+        const Lanes squared = mul(axle, axle);
+        const float length_squared = (squared.v[0] + squared.v[1]) + squared.v[2];
+        float length = length_squared;
+        // v0's w lane (the stack word +0xac): the squared w with a length, else never written
+        // (stale in the original, 0 here).
+        float anchor_w = 0.0f;
+        if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE: NaN counts as equal
+            anchor_w = squared.v[3];
+            const float r = platform_rsqrt_estimate(length_squared);
+            const float scaled_length = length_squared * r;
+            length = ((title_global<float>(0x0082e660) - scaled_length * r) * scaled_length) *
+                     title_global<float>(0x0082e670);  // 3, 0.5
+        }
+        uint8_t* const body = at<uint8_t*>(rec, 8);
+        for (int32_t i = 0; i < 8; ++i) {
+            uint8_t*& slot = at<uint8_t*>(vehicle, 0x4a0 + i * 4);
+            const int32_t bone = at<int32_t>(vehicle, i * 4);
+            if (bone < 0) {
+                slot = nullptr;
+                continue;
+            }
+            uint8_t* constraint;
+            Lanes local;
+            float drop;
+            if (build) {
+                constraint = reinterpret_cast<uint8_t*>(uintptr_t{PhysWorld_AllocConstraint28c(addr(body), 0)});
+                alignas(16) float point[4];
+                std::memcpy(point, &title_global<uint8_t>(0x0082e290), 16);  // 0 0 0 1
+                alignas(16) float identity[16];
+                Matrix_Identity(identity);
+                std::memcpy(identity + 12, point, 16);
+                int32_t& count = at<int32_t>(vehicle, 0x4c0);
+                at<uint8_t*>(vehicle, 0x4a0 + count * 4) = constraint;
+                count = count + 1;
+                std::memcpy(vehicle + 0x20 + i * 0x40, identity, sizeof(identity));
+                alignas(16) float bone_buffer[16];
+                const float* const m = G_DObjGetWorldBoneMatrix(ent, 0, static_cast<uint32_t>(bone), bone_buffer);
+                const Lanes world_point = transform_out(m, point);
+                alignas(16) float rows[12];
+                std::memcpy(rows, body, sizeof(rows));
+                local = rotate_into(rows, sub(world_point, lanes(reinterpret_cast<const float*>(body + 0x30))));
+                drop = at<float>(at<uint8_t*>(vehicle, 0x420), 0x34);
+            } else {
+                constraint = slot;
+                local = sub(lanes(reinterpret_cast<const float*>(constraint + 0x30)), anchor_base);
+                drop = lowered;
+            }
+            alignas(16) float anchor[4] = {local.v[0], local.v[1], local.v[2] - drop, anchor_w};
+            const float ratio = std::fabs(local.v[0]) / length;  // FABS clears the sign of a NaN too
+            const float one = title_global<float>(0x0083eb20);
+            float clamped = ratio;
+            if (title_global<float>(0x0083eafc) > ratio)
+                clamped = 0.0f;
+            else if (ratio > one)
+                clamped = one;
+            const float stiffness = (one - clamped) * title_global<float>(0x0083eba8);  // 2
+            // The w lanes of the two axis vectors (+0xfc, +0x10c) are never written: stale in the
+            // original, 0 here.
+            alignas(16) float down[4] = {0.0f, 0.0f, title_global<float>(0x0083eb34), 0.0f};  // -1
+            alignas(16) float forward[4] = {one, 0.0f, 0.0f, 0.0f};
+            const uint8_t* const cur = at<uint8_t*>(vehicle, 0x420);
+            const float rate = title_global<float>(0x008db410);
+            const float inverse_rate = one / rate;
+            const float f4 = (at<float>(cur, 0x3c) * stiffness) * rate;
+            const float f3 = (at<float>(cur, 0x38) * stiffness) * rate;
+            const float f2 = at<float>(cur, 0x58) * inverse_rate;
+            const float f1 = at<float>(cur, 0x54) * inverse_rate;
+            uint32_t w1, w2, w3, w4;
+            std::memcpy(&w1, &f1, 4);
+            std::memcpy(&w2, &f2, 4);
+            std::memcpy(&w3, &f3, 4);
+            std::memcpy(&w4, &f4, 4);
+            PhysConstraint28c_Setup(constraint, anchor, down, forward, at<uint32_t>(cur, 0x30), w1, w2, w3, w4,
+                                    at<uint32_t>(cur, 0x40), at<uint32_t>(cur, 0x5c));
+            uint32_t& flags = at<uint32_t>(constraint, 0xa4);
+            flags = (i == 2 || i == 3 || i == 4 || i == 5) ? flags | 8u : flags & ~8u;
+            const uint32_t steer = (i == 0 || i == 1 || i == 4 || i == 5) ? flags | 0x20u : flags & ~0x20u;
+            flags = steer;
+            const uint32_t marked = steer | 0x40u;
+            flags = marked;
+            const int32_t drive = at<int32_t>(at<uint8_t*>(vehicle, 0x420), 0x68);
+            if (drive == 0)
+                flags = (i == 2 || i == 3) ? marked | 0x10u : marked & ~0x10u;
+            else if (drive == 1)
+                flags = (i == 0 || i == 1) ? marked | 0x10u : marked & ~0x10u;
+            else if (drive == 2)
+                flags = marked | 0x10u;
+        }
+    }
+    const float half = title_global<float>(0x0083eb24);
+    const Lanes front = mul(add(lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a8) + 0x30)),
+                                lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4ac) + 0x30))),
+                            half);
+    const Lanes rear = mul(add(lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a0) + 0x30)),
+                               lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a4) + 0x30))),
+                           half);
+    const uint8_t* const d = at<uint8_t*>(vehicle, 0x420);
+    std::memcpy(vehicle + 0x4f0, front.v, 16);
+    at<uint32_t>(vehicle, 0x4cc) = at<uint32_t>(d, 0x44);
+    at<float>(vehicle, 0x4c8) = at<float>(d, 4) * title_global<float>(0x00830670);  // 0.02
+    at<uint32_t>(vehicle, 0x4d0) = at<uint32_t>(d, 0x48);
+    at<uint32_t>(vehicle, 0x4c4) = at<uint32_t>(d, 0);
+    at<uint32_t>(vehicle, 0x4d4) = at<uint32_t>(d, 0x4c);
+    at<uint32_t>(vehicle, 0x4d8) = at<uint32_t>(d, 0x30);
+    at<uint32_t>(vehicle, 0x4e0) = at<uint32_t>(d, 8);
+    at<uint32_t>(vehicle, 0x4e4) = at<uint32_t>(d, 0xc);
+    at<float>(vehicle, 0x500) = front.v[0] - rear.v[0];
+    at<float>(vehicle, 0x430) = 0.0f;
+    at<float>(vehicle, 0x434) = 0.0f;
+    at<float>(vehicle, 0x4dc) = 0.0f;
+    at<uint32_t>(vehicle, 0x504) = 0;
 }
 
 }  // namespace game

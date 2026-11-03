@@ -2975,6 +2975,7 @@ const Function kFunctions[] = {
     {"RagdollCapsule_CollidePair", 0x00229d20, 0, code(&RagdollCapsule_CollidePair_entry), 4, Result::None, Status::Compare},
     {"PhysObj_GetInheritedVelocity", 0x00229f00, 0, code(&PhysObj_GetInheritedVelocity_entry), 4, Result::None, Status::Compare},
     {"PhysParts_WriteBoneMatrices", 0x0022a0f0, 0, code(&PhysParts_WriteBoneMatrices), 4, Result::None, Status::Compare},
+    {"VehiclePhys_SetupFromDef", 0x0022a590, 0, code(&VehiclePhys_SetupFromDef), 12, Result::None, Status::Compare},
     {"RagdollBodyDef_FitToBones", 0x0022b0d0, 0, code(&RagdollBodyDef_FitToBones), 4, Result::None, Status::Compare},
     {"Ragdoll_BlendBonePoses", 0x0022b500, 0, code(&Ragdoll_BlendBonePoses), 12, Result::None, Status::Compare},
     {"Ragdoll_PropagateBoneMatrices", 0x0022c0f0, 0, code(&Ragdoll_PropagateBoneMatrices), 4, Result::None, Status::Compare},

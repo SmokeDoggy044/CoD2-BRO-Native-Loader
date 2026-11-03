@@ -279,4 +279,7 @@ void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t
 // 0x0022dd40: a ragdoll joint's debug text (dead).
 void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode);
 
+// 0x0022a590: the vehicle physics body, wheel constraints and drive values from its def.
+void XB_STDCALL VehiclePhys_SetupFromDef(uint8_t* vehicle, uint8_t* def, uint32_t build);
+
 }  // namespace game
