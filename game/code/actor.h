@@ -1539,4 +1539,18 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_BuildFromNodes_entry(void);
 
+// 0x0002bdc0 (EDX actor, stack entity handle; cdecl): whether the path entity is still fresh.
+uint32_t XB_REGS2 XB_CDECL Actor_PathEntityIsFresh(uint32_t unused_eax, uint32_t edx, uint32_t handle);
+// 0x0021aa50 (EAX actor, stack arg; ret 4): sentient position, sight and enemy selection (dead).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateSightAndSelectEnemy(uint32_t entry, uint32_t eax, uint32_t ebx,
+                                                                             uint32_t ecx, uint32_t edx, uint32_t esi,
+                                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateSightAndSelectEnemy_entry(void);
+
+// 0x00214050 (EAX start, ECX path; stack goal, side point, index, entity handle, pass entity, content mask, may cut;
+// ret 0x1c): cuts the path over to a dodge point the actor box can walk to; 1 when cut.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                          uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_TryDodge_entry(void);
+
 }  // namespace game
