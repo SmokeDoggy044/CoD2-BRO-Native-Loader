@@ -2815,6 +2815,7 @@ const Function kFunctions[] = {
     {"Actor_SendPointEvent", 0x00214a90, 0, code(&Actor_SendPointEvent_entry), 16, Result::None, Status::Compare},
     {"Sentient_SendPointEventAtSelf", 0x00214ba0, 0, code(&Sentient_SendPointEventAtSelf_entry), 4, Result::None, Status::Compare},
     {"Actor_Death_Cleanup", 0x00214bd0, 0, code(&Actor_Death_Cleanup_entry), 4, Result::None, Status::Compare},
+    {"Actor_AvoidOthers", 0x00214c80, 0, code(&Actor_AvoidOthers_entry), 0, Result::Eax, Status::Compare},
     {"Path_FindVisibleNodeToward", 0x00216080, 0, code(&Path_FindVisibleNodeToward_entry), 0, Result::Eax, Status::Compare},
     {"Path_AStarSearchAwayInsidePlanes", 0x00216ae0, 0, code(&Path_AStarSearchAwayInsidePlanes_entry), 32, Result::Eax, Status::Compare},
     {"Path_AStarSearchAway", 0x00216f10, 0, code(&Path_AStarSearchAway_entry), 32, Result::Eax, Status::Compare},
