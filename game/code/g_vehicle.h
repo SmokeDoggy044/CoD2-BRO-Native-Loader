@@ -295,4 +295,39 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_EnterPlayer(uint8_t* ent, uint8
 extern "C" void Vehicle_EnterPlayer_entry(void);
 extern "C" void Vehicle_EnterPlayer_entry(void);
 
+// 0x0025c8d0 (entity in EDI): tag_body (pitch/roll +0x250/+0x258 plus the rock), tag_turret (yaw +0x264) and
+// tag_barrel (pitch +0x260) bone angles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdateTurretBones(uint8_t* ent);
+extern "C" void Vehicle_UpdateTurretBones_entry(void);
+// 0x0025daf0 (def index in AX, entity in ECX, vehicle record in EBX): entity fields of a vehicle (think and
+// callbacks, contents, weapons from the def's +0x78/+0x98 names), cached-candidate box and lists (+0x430..+0x454),
+// model bounds, link, weapon registration.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_SetupEntity(uint32_t def_index, uint8_t* ent, uint8_t* vehicle);
+extern "C" void Vehicle_SetupEntity_entry(void);
+// 0x00260330 (entity in EAX; def name, keep-model flag): a free vehicle record (g_vehicles), cleared, set up and
+// initialized; the collmap brush model unless kept; def type 3 entities listed in 0x00960074 (count 0x00960070).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_Init(uint8_t* ent, const char* name, uint32_t keep_model);
+extern "C" void Vehicle_Init_entry(void);
+// 0x0025ca60 (entity in EAX, EDI handed to Vehicle_SlideMove): velocity clipped against the ground normal
+// (0x00988580) keeping its speed, then two or three Vehicle_SlideMove passes; good moves saved (+0x308..+0x32c),
+// failed ones timed (+0x304).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_GroundMove(uint8_t* ent, uint32_t edi);
+extern "C" void Vehicle_GroundMove_entry(void);
+// 0x0025fd40: 15 cooked grenades scattered around origin (random yaw and distance, staggered fuses).
+uint8_t* XB_CDECL Weapon_SpawnClusterGrenades(uint8_t* owner, const uint8_t* source, const float* origin);
+// 0x00260480 (player in EDI): unlinks the player from their vehicle, clears the drive state, and teleports them to
+// tag_detach (or above the origin), stepping outward up to 15 times until a downward trace starts clear.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_ExitPlayer(uint8_t* player);
+extern "C" void Vehicle_ExitPlayer_entry(void);
+// 0x00266cd0 (entity in EAX; origin, scale, tag on the stack): FXCmd_Type8AtTag with the def's name, value 0x21
+// and the transform {origin, identity quaternion, scale}; the effect id or -1.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Vehicle_PlayFxAtTag(uint8_t* ent, const float* origin, uint32_t scale, uint32_t tag,
+                                                                uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void Vehicle_PlayFxAtTag_entry(void);
+// 0x00265a40 (fire record in EBX; owner, spread): a spread trace; a hit in range (not sky, surface flag 4)
+// spawns the cluster around the hit point, else the round goes back (Add_Ammo).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_FireClusterAtTrace(uint8_t* fire, uint8_t* owner, uint32_t spread_bits);
+extern "C" void Weapon_FireClusterAtTrace_entry(void);
+extern "C" void Weapon_FireClusterAtTrace_entry(void);
+
 }  // namespace game
