@@ -92,4 +92,14 @@ uint32_t XB_CDECL Player_PackActorMarker(const float* origin) {
     return r | (static_cast<uint32_t>(icon) & 0x3f);
 }
 
+void XB_CDECL PM_AddWeaponFireBlend() {
+    uint8_t* const* const pm = title_global<uint8_t**>(0x0092eff4);
+    uint8_t* const ps = *pm;
+    if (at<float>(ps, 0x88) == title_global<float>(0x0083eb20)) return;  // 1
+    const float limit = title_global<float>(0x0083eb8c);                // 255
+    at<float>(ps, 0x4f0) = at<float>(title_global<uint8_t*>(0x00960020), 0x660) * limit + at<float>(ps, 0x4f0);
+    uint8_t* const again = *pm;
+    if (at<float>(again, 0x4f0) > limit) at<float>(again, 0x4f0) = limit;
+}
+
 }  // namespace game

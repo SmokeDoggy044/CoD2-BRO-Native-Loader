@@ -769,7 +769,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0024f7d0,DebugDraw_AddLineIfEnabled,3857,3857,0,0,100.0
 0024fe10,G_FreeAnimTrees,3322,3322,0,0,100.0
 002532f0,G_FreeFarthestDroppedItem,1952,1952,0,0,78.0
-0025b8a0,Vehicle_UpdateWheelBones,1530,1457,0,73,100.0
+0025b8a0,Vehicle_UpdateWheelBones,2201,2201,0,0,100.0
 0025c6a0,turret_controller,1751,1751,0,0,75.9
 00275b60,HudElem_SubstituteLabel,3589,3589,0,0,87.1
 00275d00,HudElem_GetTimerValue,3851,3851,0,0,45.0
@@ -883,6 +883,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002abec0,IN_SprintDown,4000,4000,0,0,100.0
 002ac060,IN_MLookUp,3828,3828,0,0,100.0
 002ac0b0,IN_MLookDown,4000,4000,0,0,100.0
+002ac770,PM_AddWeaponFireBlend,3335,3335,0,0,100.0
 002acb40,CG_WeaponSlotFromName,3692,3692,0,0,100.0
 002ae350,Mat44_ToQuatTranslation,3500,3500,0,0,98.1
 002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0

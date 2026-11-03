@@ -284,7 +284,8 @@ extern "C" void Vehicle_GetTagOrigin_entry(void);
 void XB_CDECL Player_GetViewOriginAndAxis(const uint8_t* ent, float* out);
 // 0x0025b8a0 (def in ECX, entity on the stack): wheel bone angles (roll +0x1c4; steering +0x270 on the two
 // front wheels 0x0095f658 / 0x008d9d58), 4 or 6 wheels.
-void XB_REGS3 XB_CDECL Vehicle_UpdateWheelBones(uint32_t unused_eax, uint32_t unused_edx, const uint8_t* def, uint8_t* ent);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdateWheelBones(const uint8_t* def, uint8_t* ent, uint32_t entry_esp);
+extern "C" void Vehicle_UpdateWheelBones_entry(void);
 // 0x00254060 (entity in EAX; usercmd, elapsed ms): stick to steering (0x0095f680, yaw +0xe4) and speed (velocity
 // +0x100) for a driven vehicle; 0x0095bba4 set = direct steering/throttle.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t elapsed);
@@ -329,5 +330,19 @@ extern "C" void Vehicle_PlayFxAtTag_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_FireClusterAtTrace(uint8_t* fire, uint8_t* owner, uint32_t spread_bits);
 extern "C" void Weapon_FireClusterAtTrace_entry(void);
 extern "C" void Weapon_FireClusterAtTrace_entry(void);
+
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdateTurretAim(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp);
+extern "C" void Vehicle_UpdateTurretAim_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_TraceGround(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                     uint32_t edi, uint32_t ebp);
+extern "C" void Vehicle_TraceGround_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Player_UpdateLookAtEntity(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t edi,
+                                                           uint32_t ebp);
+extern "C" void Player_UpdateLookAtEntity_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_PlayerDriveThink(uint32_t entry_esp, uint32_t esi, uint32_t edi);
+extern "C" void Vehicle_PlayerDriveThink_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdateEngineSound(int32_t elapsed, uint8_t* ent, uint32_t entry_esp);
+extern "C" void Vehicle_UpdateEngineSound_entry(void);
 
 }  // namespace game

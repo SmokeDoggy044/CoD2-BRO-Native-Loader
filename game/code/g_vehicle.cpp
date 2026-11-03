@@ -2,11 +2,15 @@
 
 #include <cstring>
 
+#include "actor.h"
 #include "bg_misc.h"
 #include "cm.h"
 #include "dobj.h"
+#include "fx.h"
+#include "fx_cmd.h"
 #include "g_client.h"
 #include "g_main.h"
+#include "g_mover.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
@@ -2301,20 +2305,39 @@ void XB_CDECL Player_GetViewOriginAndAxis(const uint8_t* ent, float* out) {
     for (uint32_t k = 0; k < 3; ++k) out[9 + k] = angles[k];
 }
 
-void XB_REGS3 XB_CDECL Vehicle_UpdateWheelBones(uint32_t, uint32_t, const uint8_t* def, uint8_t* ent) {
-    using SetBoneAngles = uint32_t XB_CDECL(uint8_t*, const float*, const float*, uint32_t, uint32_t);
+// ECX = def, [esp+4] = ent. G_DObjSetBoneRotation reads stack words it never sets, and the angles' third word
+// (E-0x10) is never written: the locals sit at the original's frame addresses (gap entry) and each call runs
+// at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_UpdateWheelBones_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Vehicle_UpdateWheelBones) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_UpdateWheelBones(const uint8_t* def, uint8_t* ent, uint32_t entry_esp) {
     const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
     const int32_t wheels = at<int16_t>(def, 0x20) != 1 ? 6 : 4;
+    // sub esp,0x18: origin at E-0xc (zeros), angles at E-0x18 (third word never written); top after 4 pushes.
+    float* const origin = pointer<float>(entry_esp - 0xc);
+    float* const angles = pointer<float>(entry_esp - 0x18);
+    const uint32_t top = entry_esp - 0x28;
+    origin[2] = 0.0f;
+    origin[1] = 0.0f;
+    origin[0] = 0.0f;
     // Each wheel bone rolls by +0x1c4; the two steering wheels also turn by +0x270.
-    float angles[3] = {0.0f, 0.0f, 0.0f};  // the third word is never written (zero dead stack in tests)
-    const float origin[3] = {0.0f, 0.0f, 0.0f};
     for (int32_t i = 0; i < wheels; ++i) {
         const uint32_t bone = at<uint32_t>(vehicle, 0x2dc + static_cast<uint32_t>(i) * 4);
         if (static_cast<int32_t>(bone) <= 0) continue;
         angles[1] = at<float>(vehicle, 0x270);
         angles[0] = at<float>(vehicle, 0x1c4);
         if (i != title_global<int32_t>(0x0095f658) && i != title_global<int32_t>(0x008d9d58)) angles[1] = 0.0f;
-        title_function<SetBoneAngles>(0x002de420)(ent, origin, angles, bone, 0);  // G_DObjSetBoneRotation
+        const TitleRegs regs{address_of(origin), static_cast<uint32_t>(wheels), address_of(ent), address_of(angles),
+                             static_cast<uint32_t>(i), address_of(vehicle) + 0x2dc + static_cast<uint32_t>(i) * 4};
+        const uint32_t args[5] = {address_of(ent), address_of(origin), address_of(angles), bone, 0};
+        title_call_at_regs(top, 0x002de420, &regs, 5, args);  // G_DObjSetBoneRotation
     }
 }
 
@@ -2884,6 +2907,563 @@ void XB_CDECL Weapon_FireClusterAtTrace(uint8_t* fire, uint8_t* owner, uint32_t 
     point[1] = d * forward[1] + at<float>(trace, 4);
     point[2] = d * forward[2] + at<float>(trace, 8);
     Weapon_SpawnClusterGrenades(owner, fire, point);
+}
+
+// G_SightTrace reads the unset words of its vectors: the locals sit at the original's frame addresses (gap entry;
+// F = aligned base - 0x130) and the trace runs at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_UpdateTurretAim_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%eax)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_UpdateTurretAim) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_UpdateTurretAim(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                      uint32_t ebp) {
+    // The turret bone (vehicle +0x2c4) turns toward the target: the target entity (handle +0x1cc, plus offset
+    // +0x1dc) or point (+0x1d0); with a driver (+0x1a0) toward his view (client +0x9c/+0xa0) instead, the
+    // vehicle's yaw following the view unless the client's 0x200000 flag or the def's +0x3c. The aim angles
+    // relative to the vehicle's axis approach (AngleWrapNear2, def +0xc8) from +0x290/+0x294 (old ones kept
+    // at +0x260), clamped to the def's pitch (-+0xc0..+0xc4) and yaw (-+0xbc..+0xb8) limits. State +0x18c:
+    // 2 when a limit stops a move of 2 degrees or more, else decays 2 -> 1 -> 0. Within a degree:
+    // "turret_on_target", and (3 frames of 4) with a target entity a sight trace (+0x2f4) for "turret_on_vistarget".
+    *pointer<uint32_t>(entry_esp - 4) = ebp;
+    const uint32_t F = ((entry_esp - 4) & ~15u) - 0x130;
+    auto wd = [F](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(F + off); };
+    auto fl = [F](uint32_t off) -> float& { return *pointer<float>(F + off); };
+    wd(0) = edi;
+    wd(4) = esi;
+    wd(8) = ebx;
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    wd(0x7c) = address_of(def);
+    int32_t& state = at<int32_t>(vehicle, 0x18c);
+    if (!at<uint32_t>(vehicle, 0x1c8) || at<int32_t>(ent, 0x350) <= 0) {
+        if (state == 2) state = 1;
+        else if (state == 1) state = 0;
+        return;
+    }
+    if (!at<uint32_t>(vehicle, 0x1cc)) {
+        fl(0x60) = at<float>(vehicle, 0x1d0);
+        fl(0x64) = at<float>(vehicle, 0x1d4);
+        wd(0x5c) = 0;
+        fl(0x68) = at<float>(vehicle, 0x1d8);
+    } else {
+        const uint8_t* const target = G_EntHandleToEnt(&at<uint32_t>(vehicle, 0x1cc));
+        fl(0x60) = at<float>(vehicle, 0x1dc) + at<float>(target, 0x140);
+        fl(0x64) = at<float>(vehicle, 0x1e0) + at<float>(target, 0x144);
+        wd(0x5c) = address_of(target);
+        fl(0x68) = at<float>(vehicle, 0x1e4) + at<float>(target, 0x148);
+    }
+    const int32_t tag = at<int32_t>(vehicle, 0x2c4);
+    if (tag < 0) return;
+    {
+        const TitleRegs regs{static_cast<uint32_t>(tag), address_of(vehicle), address_of(def), F + 0xc8,
+                             address_of(ent), 0};
+        const uint32_t args[3] = {address_of(ent), static_cast<uint32_t>(tag), F + 0xc8};
+        title_call_at_regs(F, 0x002e3780, &regs, 3, args);  // G_DObjGetWorldTagMatrix (origin F+0xf8)
+    }
+    fl(0x10) = at<float>(vehicle, 0xe0);
+    fl(0x14) = at<float>(vehicle, 0xe4);
+    fl(0x18) = at<float>(vehicle, 0xe8);
+    if (at<uint32_t>(ent, 0x1a0)) {
+        const uint8_t* const driver = G_EntHandleToEnt(&at<uint32_t>(ent, 0x1a0));
+        wd(0x3c) = address_of(driver);
+        const uint8_t* const client = at<uint8_t*>(driver, 0x23c);
+        if (!(at<uint32_t>(client, 0xc0) & 0x200000) && !at<uint32_t>(def, 0x3c)) fl(0x14) = at<float>(client, 0xa0);
+        fl(0x20) = at<float>(vehicle, 0x1d0) - fl(0xf8);
+        fl(0x24) = at<float>(vehicle, 0x1d4) - fl(0xfc);
+        fl(0x28) = at<float>(vehicle, 0x1d8) - fl(0x100);
+        VectorNormalize(&fl(0x20));
+        vectoangles(&fl(0x20), &fl(0x40));
+        const uint8_t* const view = at<uint8_t*>(pointer<uint8_t>(wd(0x3c)), 0x23c);
+        fl(0x44) = at<float>(view, 0xa0);
+        fl(0x40) = at<float>(view, 0x9c);
+        fl(0x48) = 0.0f;
+    } else {
+        fl(0x20) = fl(0x60) - fl(0xf8);
+        fl(0x24) = fl(0x64) - fl(0xfc);
+        fl(0x28) = fl(0x68) - fl(0x100);
+        VectorNormalize(&fl(0x20));
+        vectoangles(&fl(0x20), &fl(0x40));
+    }
+    // The aim axis times the transposed vehicle axis: the aim relative to the vehicle.
+    AnglesToAxisLeft2(&fl(0x40), &fl(0x10c));
+    AnglesToAxisLeft2(&fl(0x10), &fl(0x80));
+    for (uint32_t r = 0; r < 3; ++r)
+        for (uint32_t c = 0; c < 3; ++c) fl(0xa4 + r * 12 + c * 4) = fl(0x80 + c * 12 + r * 4);
+    MatrixMultiply3x3(&fl(0x10c), &fl(0xa4), &fl(0x80));
+    AxisToAngles(&fl(0x40), 0, &fl(0x80));
+    float* const old = &at<float>(vehicle, 0x260);
+    float* const aim = &at<float>(vehicle, 0x290);
+    at<uint32_t>(vehicle, 0x260) = at<uint32_t>(vehicle, 0x290);
+    at<uint32_t>(vehicle, 0x264) = at<uint32_t>(vehicle, 0x294);
+    at<float>(vehicle, 0x268) = 0.0f;
+    fl(0x18) = fl(0x48);
+    fl(0x1c) = fl(0x40);
+    fl(0x14) = fl(0x44);
+    fl(0x10) = fl(0x40);
+    for (uint32_t k = 0; k < 16; k += 4) wd(0x20 + k) = wd(0x10 + k);
+    AnglesNormalize180(old, &fl(0x20), &fl(0x10));
+    fl(0x3c) = abs_bits(fl(0x10));
+    fl(0x10) = fl(0x3c);
+    fl(0x3c) = abs_bits(fl(0x14));
+    fl(0x14) = fl(0x3c);
+    aim[0] = AngleWrapNear2(fl(0x40), old[0], at<float>(def, 0xc8));
+    aim[1] = AngleWrapNear2(fl(0x44), at<float>(vehicle, 0x264), at<float>(def, 0xc8));
+    fl(0x20) = aim[0];
+    const float zero = 0.0f;
+    fl(0x24) = aim[1];
+    float v = zero - at<float>(def, 0xc0);
+    fl(0x28) = zero;
+    if (!(v > aim[0])) v = aim[0] > at<float>(def, 0xc4) ? at<float>(def, 0xc4) : aim[0];
+    aim[0] = v;
+    v = zero - at<float>(def, 0xbc);
+    if (!(v > aim[1])) v = aim[1] > at<float>(def, 0xb8) ? at<float>(def, 0xb8) : aim[1];
+    aim[1] = v;
+    AnglesNormalize180(aim, &fl(0x20), &fl(0x20));
+    const float two = title_global<float>(0x0083eba8);
+    const float d0 = fl(0x10), d1 = fl(0x14);
+    const bool stopped = (!(two > d0) && fl(0x20) == title_global<float>(0x0083eafc)) ||
+                         (!(two > d1) && fl(0x24) == title_global<float>(0x0083eafc));
+    if (stopped) state = 2;
+    else if (state == 2) state = 1;
+    else if (state == 1) state = 0;
+    const float one = title_global<float>(0x0083eb20);
+    if (!(one > d0) || !(one > d1)) return;
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a834));  // turret_on_target
+    const uint8_t* const target = pointer<uint8_t>(wd(0x5c));
+    if (!target) return;
+    if (!(((static_cast<int32_t>(address_of(ent)) >> 5) + title_global<int32_t>(0x00947b0c)) & 3)) return;
+    // Start: the tag origin; end: the target point (fourth words: x); box (0, 0, 0, 1) twice.
+    const uint32_t z0 = title_global<uint32_t>(0x0082e290), z1 = title_global<uint32_t>(0x0082e294);
+    const uint32_t z2 = title_global<uint32_t>(0x0082e298), z3 = title_global<uint32_t>(0x0082e29c);
+    wd(0x40) = z0;
+    wd(0x20) = z0;
+    fl(0x18) = fl(0x68);
+    fl(0x14) = fl(0x64);
+    wd(0x44) = z1;
+    wd(0x24) = z1;
+    fl(0x1c) = fl(0x60);
+    fl(0x10) = fl(0x60);
+    for (uint32_t k = 0; k < 16; k += 4) wd(0x60 + k) = wd(0x10 + k);
+    fl(0x18) = fl(0x100);
+    fl(0x1c) = fl(0xf8);
+    fl(0x14) = fl(0xfc);
+    fl(0x10) = fl(0xf8);
+    wd(0x4c) = z3;
+    wd(0x2c) = z3;
+    wd(0x48) = z2;
+    wd(0x28) = z2;
+    uint32_t* const hit = &at<uint32_t>(vehicle, 0x2f4);
+    const TitleRegs regs{F + 0x60, F + 0x40, F + 0x20, z2, address_of(hit), F + 0x10};
+    const uint32_t args[6] = {address_of(hit), F + 0x20, at<uint32_t>(ent, 0x224), at<uint32_t>(target, 0x224), 1, 0};
+    title_call_at_regs(F, 0x002e9840, &regs, 6, args);  // G_SightTrace
+    if (!*hit) Scr_Notify(ent, title_global<uint32_t>(0x0097a838));  // turret_on_vistarget
+}
+
+// ECX = entity. The candidate gather reads the unset fourth words of its corners and the capsule traces run on
+// the gathered lists: the frame sits at the original's addresses (gap entry; F = aligned base - 0x18c0) and both
+// callees run at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_TraceGround_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_TraceGround) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_TraceGround(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // World and entity candidates in the vehicle's origin +-50 (pad 0x008dae84, its contents +0x2a8) into the
+    // record 0x0098eef0 (cleared once), then a capsule trace (mins -40,-40,0, maxs 40,40,80; contents less
+    // 0x800000) from 50 above to 50 below; started solid: again with -20,-20,0 / 20,20,40. The result goes to
+    // 0x00988570 and its end to the origin; when it hit (fraction not 1): ground (0x009885b0) unless the vehicle
+    // rises (+0x108 > 0) away from the plane (velocity . normal > 10); walkable (0x009885b4) at normal z 0.7.
+    *pointer<uint32_t>(entry_esp - 4) = ebp;
+    const uint32_t F = ((entry_esp - 4) & ~15u) - 0x18c0;
+    auto wd = [F](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(F + off); };
+    auto fl = [F](uint32_t off) -> float& { return *pointer<float>(F + off); };
+    wd(0) = edi;
+    wd(4) = esi;
+    wd(8) = ebx;
+    float* const origin = &at<float>(at<uint8_t*>(ent, 0x248), 0xc0);
+    wd(0x18b0) = F + 0x8b0;
+    wd(0x18b4) = 0;
+    wd(0x8a0) = F + 0xa0;
+    wd(0x8a4) = 0;
+    if (!(title_global<uint8_t>(0x0098f120) & 1)) {
+        title_global<uint32_t>(0x0098f120) |= 1;
+        std::memset(pointer<void>(0x0098ef20), 0, 0x200);
+        edi = 0x0098f120;
+    }
+    const float half = title_global<float>(0x0083ec30);  // 50
+    const uint32_t contents = at<uint32_t>(ent, 0x2a8);
+    wd(0x90) = 0;
+    wd(0x94) = 0;
+    fl(0x20) = origin[0];
+    fl(0x30) = origin[0];
+    fl(0x24) = origin[1];
+    fl(0x34) = origin[1];
+    fl(0x28) = origin[2] + half;
+    fl(0x38) = origin[2] - half;
+    const uint32_t pad = title_global<uint32_t>(0x008dae84);
+    {
+        const TitleRegs regs{F + 0x30, address_of(origin), F + 0x20, pad, address_of(ent), edi};
+        const uint32_t args[6] = {address_of(ent), pad, contents, F + 0x8b0, F + 0xa0, 0x0098eef0};
+        title_call_at_regs(F, 0x002529c0, &regs, 6, args);  // Vehicle_GatherCollisionCandidates
+    }
+    const auto capsule = [&](uint32_t top, float low, float side, float height) {
+        const uint32_t mask = at<uint32_t>(ent, 0x2a8) & 0xff7fffffu;
+        const uint32_t pass = at<uint32_t>(ent, 0x224);
+        const float zero = 0.0f;
+        fl(0x1c) = low;
+        fl(0x18) = zero;
+        fl(0x14) = low;
+        fl(0x10) = low;
+        for (uint32_t k = 0; k < 16; k += 4) wd(0x50 + k) = wd(0x10 + k);
+        fl(0x1c) = side;
+        fl(0x18) = height;
+        fl(0x14) = side;
+        fl(0x10) = side;
+        for (uint32_t k = 0; k < 16; k += 4) wd(0x40 + k) = wd(0x10 + k);
+        const TitleRegs regs{F + 0x60, address_of(origin), F + 0xa0, F + 0x8b0, address_of(ent), edi};
+        const uint32_t args[9] = {F + 0x8b0, F + 0xa0, F + 0x60, F + 0x20, F + 0x50, F + 0x40, F + 0x30, pass, mask};
+        title_call_at_regs(top, 0x002e95b0, &regs, 9, args);  // SV_CapsuleTrace
+    };
+    capsule(F - 0x18, title_global<float>(0x0083f19c), title_global<float>(0x0083ec84),
+            title_global<float>(0x0083ee48));  // -40, 40, 80
+    if (pointer<uint8_t>(F + 0x9c)[0] || pointer<uint8_t>(F + 0x9c)[1])
+        capsule(F, title_global<float>(0x0083f198), title_global<float>(0x0083eb5c),
+                title_global<float>(0x0083ec84));  // -20, 20, 40
+    const float end_x = fl(0x60);
+    std::memcpy(pointer<void>(0x00988570), pointer<void>(F + 0x60), 0x40);
+    title_global<uint32_t>(0x009885b0) = 0;
+    title_global<uint32_t>(0x009885b4) = 0;
+    origin[0] = end_x;
+    origin[1] = fl(0x64);
+    origin[2] = fl(0x68);
+    if (fl(0x80) == title_global<float>(0x0083eb20)) return;  // fraction 1: nothing hit
+    const float normal_z = fl(0x78);
+    if (origin[0x48 / 4] > title_global<float>(0x0083eafc)) {
+        const float along = (origin[0x40 / 4] * fl(0x70) + origin[0x44 / 4] * fl(0x74)) + origin[0x48 / 4] * normal_z;
+        if (along > title_global<float>(0x0083eb98)) return;  // 10
+    }
+    title_global<uint32_t>(0x009885b0) = 1;
+    if (title_global<float>(0x0083ed28) > normal_z) return;  // 0.7
+    title_global<uint32_t>(0x009885b4) = 1;
+}
+
+// ESI = player entity. G_LocationalTrace reads the unset fourth words of its points: the frame sits at the
+// original's addresses (gap entry; F = aligned base - 0xd0) and the trace runs at the original's ESP.
+PLATFORM_ASM_ENTRY(Player_UpdateLookAtEntity_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Player_UpdateLookAtEntity) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Player_UpdateLookAtEntity(uint32_t entry_esp, uint8_t* ent, uint32_t ebx, uint32_t edi, uint32_t ebp) {
+    // A trace (contents 0x2280e001, hit-location table 0x008da704 for weapons with def +0x6d0, else 0x008da6f0)
+    // 8192 units (or 0x008d20e0 when not negative) along the view: from the flash tag of the turret (+0x468) when
+    // using one (+0x297), else the eye; in a vehicle (client flag 0x100000) from cgame's view origin (VM_Call
+    // 0x13) along the client's view angles. Its distance goes to client +0x5fc. The hit entity: a lookat trigger
+    // fires (G_Trigger; client +0x5f4); with flag 0x4000 (not through surface flag 0x10, and not a sentient of
+    // an allied team) it becomes the looked-at entity (+0x5f4; none while 0x0095f91f), and within 0x0094d860
+    // sets client flag 0x1000000, plus 0x2000000 for an actor with +0x7d8 or without +0x310 bit 0x2000000.
+    *pointer<uint32_t>(entry_esp - 4) = ebp;
+    const uint32_t F = ((entry_esp - 4) & ~15u) - 0xd0;
+    auto wd = [F](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(F + off); };
+    auto fl = [F](uint32_t off) -> float& { return *pointer<float>(F + off); };
+    wd(0) = edi;
+    wd(4) = ebx;
+    fl(0x20) = title_global<float>(0x00830bd8);  // 8192
+    const float range_override = title_global<float>(0x008d20e0);
+    wd(0xc0) = 0;
+    if (range_override >= title_global<float>(0x0083eafc)) fl(0x20) = range_override;
+    const uint8_t* const looked = at<uint8_t*>(at<uint8_t*>(ent, 0x23c), 0x5f4);
+    if (!looked || !at<uint32_t>(looked, 0x240)) at<int16_t>(at<uint8_t*>(ent, 0x244), 0x50) = 0;
+    uint8_t* const client = at<uint8_t*>(ent, 0x23c);
+    at<uint32_t>(client, 0x2c) &= 0xfcffffffu;
+    at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0x5f4) = 0;
+    if (at<uint8_t>(ent, 0x297)) {
+        const uint32_t handle = at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0x468);
+        const uint32_t index = handle & 0xfff;
+        uint8_t* turret = nullptr;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            turret = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (!G_GetFlashTagMatrix(0, 0, turret, &fl(0x50))) return;
+    } else {
+        Player_GetViewOriginAndAxis(ent, &fl(0x50));
+    }
+    const uint8_t* const ps = at<uint8_t*>(ent, 0x23c);
+    const uint32_t weapon = at<uint32_t>(ps, 0x80);
+    const uint32_t table = weapon && at<uint32_t>(weapon_def(weapon), 0x6d0) ? 0x008da704u : 0x008da6f0u;
+    const float range = fl(0x20);
+    uint32_t top, pass;
+    float sx, sy, sz, ex, ey, ez;
+    if (at<uint32_t>(ps, 0xc0) & 0x100000) {
+        {
+            const TitleRegs regs{0, address_of(client), F + 0x34, title_global<uint32_t>(0x0093f7f8), address_of(ent), table};
+            const uint32_t args[2] = {0x13, F + 0x34};
+            title_call_at_regs(F, 0x002a84e0, &regs, 2, args);  // VM_Call(cgvm, 0x13): the view origin
+        }
+        const float d2r = title_global<float>(0x0083edd8);
+        FastSinCos(&fl(0x2c), 0, &fl(0x28), at<float>(client, 0xa0) * d2r);
+        FastSinCos(&fl(0x24), 0, &fl(0x30), at<float>(client, 0x9c) * d2r);
+        const float cp = fl(0x30);
+        sx = fl(0x34);
+        sy = fl(0x38);
+        sz = fl(0x3c);
+        ex = (cp * fl(0x28)) * range + sx;
+        ey = (cp * fl(0x2c)) * range + sy;
+        ez = (0.0f - fl(0x24)) * range + sz;
+        pass = at<uint32_t>(ent, 0x1a0);
+        top = F - 4;
+    } else {
+        sx = fl(0x74);
+        sy = fl(0x78);
+        sz = fl(0x7c);
+        ex = fl(0x50) * range + sx;
+        ey = fl(0x54) * range + sy;
+        ez = fl(0x58) * range + sz;
+        pass = at<uint32_t>(ent, 0x224);
+        top = F;
+    }
+    fl(0x40) = ex;
+    fl(0x44) = ey;
+    fl(0x48) = ez;
+    fl(0x4c) = ex;
+    fl(0x10) = sx;
+    fl(0x14) = sy;
+    fl(0x18) = sz;
+    fl(0x1c) = sx;
+    {
+        const TitleRegs regs{F + 0x40, address_of(client), F + 0x10, F + 0x90, address_of(ent), table};
+        const uint32_t args[7] = {F + 0x90, F + 0x10, F + 0x40, pass, 0x2280e001, table, 0};
+        title_call_at_regs(top, 0x002600c0, &regs, 7, args);  // G_LocationalTrace
+    }
+    at<float>(at<uint8_t*>(ent, 0x23c), 0x5fc) = fl(0xb0) * fl(0x20);
+    const uint32_t hit = wd(0xc0);
+    if (hit == at<uint32_t>(at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224) || !hit) return;
+    const uint32_t index = hit & 0xfff;
+    uint8_t* other = nullptr;
+    if (index < 0x540 && (hit >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        other = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!(at<uint32_t>(other, 0x134) & 0x4000)) {
+        if (at<uint32_t>(other, 0x260) != title_global<uint32_t>(0x0097a828)) return;  // trigger_lookat
+        at<uint8_t*>(at<uint8_t*>(ent, 0x23c), 0x5f4) = other;
+        G_Trigger(other, ent);
+        return;
+    }
+    if (pointer<uint8_t>(F + 0xb4)[0] & 0x10) return;
+    if (at<uint32_t>(other, 0x244)) {
+        const int32_t enemy = Sentient_EnemyTeam(at<int32_t>(at<uint8_t*>(ent, 0x244), 4));
+        wd(0x24) = 1;
+        const uint32_t team = at<uint32_t>(at<uint8_t*>(other, 0x244), 4);
+        if (!((1u << (team & 31)) & ~(1u << (static_cast<uint32_t>(enemy) & 31)))) return;
+    }
+    if (title_global<uint8_t>(0x0095f91f)) {
+        at<uint32_t>(at<uint8_t*>(ent, 0x23c), 0x5f4) = 0;
+        return;
+    }
+    at<uint8_t*>(at<uint8_t*>(ent, 0x23c), 0x5f4) = other;
+    if (!(title_global<float>(0x0094d860) > at<float>(at<uint8_t*>(ent, 0x23c), 0x5fc))) return;
+    const uint32_t flags = at<uint32_t>(client, 0x2c) | 0x1000000;
+    at<uint32_t>(client, 0x2c) = flags;
+    const uint8_t* const actor = at<uint8_t*>(other, 0x240);
+    if (!actor) return;
+    if (!at<uint32_t>(actor, 0x7d8) && (at<uint32_t>(actor, 0x310) & 0x2000000)) return;
+    at<uint32_t>(client, 0x2c) = flags | 0x2000000;
+}
+
+// The three command bytes live in the entity argument's slot (E+4), and the ground trace reads stack words its
+// callees leave: every callee runs at the original's ESP (gap entry).
+PLATFORM_ASM_ENTRY(Vehicle_PlayerDriveThink_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_PlayerDriveThink) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_PlayerDriveThink(uint32_t entry_esp, uint32_t esi, uint32_t edi) {
+    // The driver's (+0x1a0) stick bytes (client +0x538..+0x53a; none with client flag 0x400000 or +0x2c bit
+    // 0x4000) steer the player's vehicle (owner +0x174 is 0x0095f534's +4; client flag 0x200000 set, cleared
+    // again for a positive third byte); then the ground trace and, for the player's vehicle, the ground move.
+    // Without a driver the velocity (+0x100) is cleared, else its length goes to +0x2fc.
+    uint8_t* const ent = *pointer<uint8_t*>(entry_esp + 4);
+    const uint32_t elapsed = *pointer<uint32_t>(entry_esp + 8);
+    int8_t* const cmd = pointer<int8_t>(entry_esp + 4);
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint32_t top = entry_esp - 0xc;
+    const auto resolve = [](uint32_t handle) -> uint8_t* {
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            return title_global<uint8_t*>(0x0097a968 + index * 8);
+        return nullptr;
+    };
+    cmd[0] = 0;
+    cmd[1] = 0;
+    cmd[2] = 0;
+    if (at<uint32_t>(ent, 0x1a0)) {
+        uint8_t* const driver = resolve(at<uint32_t>(ent, 0x1a0));
+        uint8_t* const owner = resolve(at<uint32_t>(vehicle, 0x174));
+        edi = address_of(owner);
+        if (owner == at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4)) {
+            at<uint32_t>(at<uint8_t*>(driver, 0x23c), 0xc0) |= 0x200000;
+            const uint8_t* const client = at<uint8_t*>(driver, 0x23c);
+            if (!(at<uint32_t>(client, 0xc0) & 0x400000) && !(at<uint32_t>(client, 0x2c) & 0x4000)) {
+                cmd[0] = at<int8_t>(client, 0x538);
+                cmd[1] = at<int8_t>(client, 0x539);
+                cmd[2] = at<int8_t>(client, 0x53a);
+                if (cmd[2] > 0) at<uint32_t>(at<uint8_t*>(driver, 0x23c), 0xc0) &= 0xffdfffffu;
+            }
+            const TitleRegs regs{address_of(ent), 0, 0, elapsed, address_of(vehicle), edi};
+            const uint32_t args[2] = {entry_esp + 4, elapsed};
+            title_call_at_regs(top, 0x00254060, &regs, 2, args);  // Vehicle_PlayerInputToMove
+        }
+    }
+    {
+        const TitleRegs regs{0, 0, address_of(ent), 0, address_of(vehicle), edi};
+        title_call_at_regs(top, 0x00261ac0, &regs, 0, nullptr);  // Vehicle_TraceGround
+    }
+    if (resolve(at<uint32_t>(vehicle, 0x174)) == at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4)) {
+        const TitleRegs regs{address_of(ent), 0, 0, 0, address_of(vehicle), elapsed};
+        title_call_at_regs(top, 0x0025ca60, &regs, 0, nullptr);  // Vehicle_GroundMove
+    }
+    if (!at<uint32_t>(ent, 0x1a0)) {
+        const float zero = 0.0f;
+        at<float>(vehicle, 0x108) = zero;
+        at<float>(vehicle, 0x104) = zero;
+        at<float>(vehicle, 0x100) = zero;
+        at<float>(ent, 0x2fc) = zero;
+        return;
+    }
+    float length;
+    __asm__("flds %1\n\tfmul %%st(0), %%st\n\tflds %2\n\tfmul %%st(0), %%st\n\tfaddp\n\tflds %3\n\t"
+            "fmul %%st(0), %%st\n\tfaddp\n\tfsqrt\n\tfstps %0"
+            : "=m"(length)
+            : "m"(at<float>(vehicle, 0x100)), "m"(at<float>(vehicle, 0x104)), "m"(at<float>(vehicle, 0x108))
+            : "st", "st(1)");
+    at<float>(ent, 0x2fc) = length;
+}
+
+// EAX = elapsed ms, EBX = entity. The sound commands are built on the stack: they run at the original's ESP
+// (E - 0x1c; gap entry).
+PLATFORM_ASM_ENTRY(Vehicle_UpdateEngineSound_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_UpdateEngineSound) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+namespace {
+
+// A level stepped toward target by elapsed * (target - level) * 4, snapped to it when within 0.005 or past it
+// (the distances compared as floats on the x87).
+float engine_level_step(float level, float target, float seconds) {
+    const float gap = target - level;
+    const float distance = abs_bits(gap);
+    const float step = (seconds * gap) * title_global<float>(0x0083100c);  // 4
+    if (!(distance > title_global<float>(0x0083eb88))) return target;  // 0.005
+    const float moved = step + level;
+    return abs_bits(step) > distance ? target : moved;
+}
+
+}  // namespace
+
+void XB_CDECL Vehicle_UpdateEngineSound(int32_t elapsed, uint8_t* ent, uint32_t entry_esp) {
+    // Idle (+0x23c) and moving (+0x240) volumes: without a driver both fade to 0; with one, idle 1 when nearly
+    // stopped (+0x2fc and the velocity +0x110 under 1; Vehicle_ApproachProportional), else moving 1. While
+    // sound is on (+0x200) each plays (fx 0x1b/0x1d, 0x1c/0x1e with +0x238; ids +0x20c/+0x210) with its
+    // volume ("SOUND_VOLUME"), freed at 0. Turret state +0x18c: 2 starts fx 0x22 (+0x214), 1 swaps it for
+    // 0x23 (+0x218). A pending one-shot (+0x330) plays fx 0x27 at volume +0x334.
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    const uint32_t top = entry_esp - 0x1c;
+    at<uint8_t>(ent, 1) = 0;
+    const float zero = 0.0f, one = title_global<float>(0x0083eb20);
+    float moving;
+    bool stepped = true;
+    if (at<uint32_t>(ent, 0x1a0) && one > at<float>(ent, 0x2fc)) {
+        const float vx = at<float>(vehicle, 0x110), vy = at<float>(vehicle, 0x114), vz = at<float>(vehicle, 0x118);
+        if (one > title_ci_sqrt((vx * vx + vy * vy) + vz * vz)) {
+            at<float>(vehicle, 0x23c) = Vehicle_ApproachProportional(one, at<float>(vehicle, 0x23c), 4.0f, elapsed);
+            moving = Vehicle_ApproachProportional(zero, at<float>(vehicle, 0x240), 4.0f, elapsed);
+            stepped = false;
+        }
+    }
+    if (stepped) {
+        const float target = at<uint32_t>(ent, 0x1a0) ? one : zero;
+        const float seconds = static_cast<float>(elapsed) * title_global<float>(0x0083eb4c);
+        at<float>(vehicle, 0x23c) = engine_level_step(at<float>(vehicle, 0x23c), zero, seconds);
+        moving = engine_level_step(at<float>(vehicle, 0x240), target, seconds);
+    }
+    at<float>(vehicle, 0x240) = moving;
+    const bool alt = at<uint8_t>(vehicle, 0x238) != 0;
+    const uint32_t idle_fx = alt ? 0x1c : 0x1b;
+    const uint32_t move_fx = alt ? 0x1e : 0x1d;
+    *pointer<uint32_t>(entry_esp - 0xc) = move_fx;
+    *pointer<uint32_t>(entry_esp - 0x10) = address_of(def);
+    const auto play = [&](uint32_t fx) {
+        const TitleRegs regs{address_of(ent), address_of(ent), fx, address_of(def), 0, address_of(vehicle)};
+        const uint32_t args[2] = {address_of(def), fx};
+        return title_call_at_regs(top, 0x002a5ee0, &regs, 2, args);  // FXCmd_Type8
+    };
+    const auto release = [&](uint32_t offset) {
+        if (at<int32_t>(vehicle, offset) != -1) FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), at<uint32_t>(vehicle, offset));
+        at<int32_t>(vehicle, offset) = -1;
+    };
+    if (at<uint32_t>(vehicle, 0x200)) {
+        if (!(at<float>(vehicle, 0x23c) == zero)) {
+            if (at<int32_t>(vehicle, 0x20c) == -1) at<uint32_t>(vehicle, 0x20c) = play(idle_fx);
+            FXParam_Broadcast(title_global<uint8_t*>(0x0095f5b4), at<uint32_t>(vehicle, 0x20c), 0x008379d8,
+                              at<uint32_t>(vehicle, 0x23c));  // SOUND_VOLUME
+        } else {
+            release(0x20c);
+        }
+        if (!(at<float>(vehicle, 0x240) == zero)) {
+            if (at<int32_t>(vehicle, 0x210) == -1) at<uint32_t>(vehicle, 0x210) = play(move_fx);
+            FXParam_Broadcast(title_global<uint8_t*>(0x0095f5b4), at<uint32_t>(vehicle, 0x210), 0x008379d8,
+                              at<uint32_t>(vehicle, 0x240));
+        } else {
+            release(0x210);
+        }
+    } else {
+        release(0x20c);
+        release(0x210);
+    }
+    const int32_t state = at<int32_t>(vehicle, 0x18c);
+    if (state == 2) {
+        if (at<int32_t>(vehicle, 0x214) == -1) at<uint32_t>(vehicle, 0x214) = play(0x22);
+    } else if (state == 1) {
+        if (at<int32_t>(vehicle, 0x214) != -1) release(0x214);
+        if (at<int32_t>(vehicle, 0x218) == -1) at<uint32_t>(vehicle, 0x218) = play(0x23);
+    } else {
+        if (at<int32_t>(vehicle, 0x214) != -1) release(0x214);
+        at<int32_t>(vehicle, 0x218) = -1;  // dropped without a free
+    }
+    if (at<uint32_t>(vehicle, 0x330)) {
+        const uint32_t id = play(0x27);
+        FXParam_Broadcast(title_global<uint8_t*>(0x0095f5b4), id, 0x008379d8, at<uint32_t>(vehicle, 0x334));
+        at<uint32_t>(vehicle, 0x330) = 0;
+    }
 }
 
 }  // namespace game
