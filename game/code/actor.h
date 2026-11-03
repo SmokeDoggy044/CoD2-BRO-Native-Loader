@@ -885,6 +885,62 @@ extern "C" void Path_Route_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetween(uint32_t entry, const float* from, uint32_t edx,
                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_RouteBetween_entry(void);
+// 0x00216ae0 (cdecl path, team, a3, start, point, a6, a7, block): A* until within block[0] of the point, inside a cylinder and planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchAwayInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchAwayInsidePlanes_entry(void);
+// 0x00216f10 (cdecl path, team, a3, start, point, a6, a7, block): A* until within block[0] of the point, inside a cylinder.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchAway(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchAway_entry(void);
+// 0x002172e0 (cdecl path, team, a3, start, point, a6, a7, block): A* until within block[0] of the point, inside planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchNearPointInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchNearPointInsidePlanes_entry(void);
+// 0x002176b0 (cdecl path, team, a3, start, point, a6, a7, block): A* until within block[0] of the point.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchNearPoint(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchNearPoint_entry(void);
+// 0x00217a30 (cdecl path, team, a3, start, point, a6, a7, block): A* until far enough from a grenade, inside planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchAwayFromGrenadeInsidePlanes_entry(void);
+// 0x00217e00 (cdecl path, team, a3, start, point, a6, a7, block): A* until far enough from a grenade.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchAwayFromGrenade_entry(void);
+// 0x00218170 (cdecl path, team, a3, start, point, a6, a7, block): A* to the goal node block[0] inside planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_AStarSearchInsidePlanes_entry(void);
+// 0x002198f0 (EDI actor; stack grenade point, radius, use planes, a4; ret 0x10): a path away from a grenade.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathAwayFromGrenade_entry(void);
+// 0x002199a0 (EAX a10; stack actor, a2, radius^2, use planes; ret 0x10): a path towards the sentient's goal volume.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathAway(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathAway_entry(void);
+// 0x00219b80 (stack actor, point, radius^2, use planes, a5; ret 0x14): a path to near a point.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathNearPoint(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathNearPoint_entry(void);
+// 0x0021a030 (EAX start node; stack actor, goal, radius, use planes, a5; ret 0x14): a path to the goal.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPath_entry(void);
+// 0x0021a180 (EAX actor; stack radius, use planes, a3; ret 0xc): a path to the sentient's goal when needed.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathToGoal(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathToGoal_entry(void);
+// 0x0021b360 (ESI actor): 1 when a path to the goal exists after Actor_FindPathToGoal.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_HasPathToGoal(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_HasPathToGoal_entry(void);
+// 0x002198a0 (EDI actor, EAX; stack run flag; ret 4): run, walk or stationary animation by Actor_AvoidOthers.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_AnimMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_AnimMove_entry(void);
 // 0x00218bf0 (EAX point, EDI away point; stack path, team, a3, a4, a5, a6, planes, dists, count, a10; ret 0x28): a route away inside planes.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteAwayInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
