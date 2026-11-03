@@ -14562,3 +14562,4 @@ address,name,kind,confidence,evidence
 002a7ff0,G_EntHasLiveDObj,function,high,"game/ent push 7"
 002ad810,ProneBlend_Update,function,high,"game/ent push 7"
 00298b20,RumbleQueue_ClearAll,function,high,"game/ent push 7 (client module)"
+002192c0,Path_RouteBetweenPointsInsidePlanes,function,high,"game/ai push 10 (gap function, created in Ghidra 11-03)"

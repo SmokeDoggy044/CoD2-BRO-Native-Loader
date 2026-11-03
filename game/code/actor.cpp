@@ -1347,10 +1347,13 @@ uint8_t* XB_CDECL Path_AdvanceAlong(uint8_t* path, const float* point) {
     return path;  // EAX stays the path
 }
 
+// ECX and EDX kept: the callers hand the normals buffer (EDX) on after the call.
 PLATFORM_ASM_ENTRY(Actor_GetBoundaryPlanes_entry,
                    "pushl %esi\n"
                    "pushl %edx\n"
-                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_GetBoundaryPlanes) "addl $12, %esp\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_GetBoundaryPlanes) "popl %ecx\n"
+                   "popl %edx\n"
+                   "addl $4, %esp\n"
                    "ret")
 
 uint32_t XB_CDECL Actor_GetBoundaryPlanes(const uint8_t* actor, float* normals, float* distances) {
@@ -7494,6 +7497,1335 @@ uint32_t XB_CDECL Path_RouteBetween(uint32_t entry, const float* from, uint32_t 
     const TitleRegs regs = {team, ebx, path, a, to, from_node};
     const uint32_t args[8] = {path, team, to, to_node, ebx, 1, a, frame + 0xc};
     return call_at(frame, 0x0020c955, 0x001fda90, regs, 8, args);  // Path_AStarSearch
+}
+
+// Gap entry handing the C body the entry ESP and all seven registers (EAX first); the body
+// rebuilds the original's frame and runs every callee at the original's ESP.
+#define AI_GAP_ENTRY(name, pop)                                                                         \
+    PLATFORM_ASM_ENTRY(name##_entry, GAME_GAP_ESP("0x20000") "pushl %ebp\n"                            \
+                                                             "pushl %edi\n"                            \
+                                                             "pushl %esi\n"                            \
+                                                             "pushl %edx\n"                            \
+                                                             "pushl %ecx\n"                            \
+                                                             "pushl %ebx\n"                            \
+                                                             "pushl %eax\n"                            \
+                                                             "pushl 28(%esp)\n" PLATFORM_ASM_CALL(name) \
+                                                             "addl $32, %esp\n"                        \
+                                                             "popl %esp\n"                             \
+                                                             "ret $" #pop)
+
+namespace {
+
+// PathNode_FindNearest(EAX -2, ECX 0x40, ESI origin, EDX as given; candidates, 192, a, b, c,
+// &word) at `frame` (its stack work address lands in 0x00929b40).
+uint32_t route_find_nearest_with(uint32_t frame, uint32_t ret, uint32_t buffer, uint32_t word, uint32_t origin,
+                                 uint32_t a, uint32_t b, uint32_t c, uint32_t ebx, uint32_t edx, uint32_t edi) {
+    const TitleRegs regs = {0xfffffffeu, ebx, 0x40, edx, origin, edi};
+    const uint32_t args[6] = {buffer, 0x43400000, a, b, c, word};
+    return call_at(frame, ret, 0x002ea820, regs, 6, args);
+}
+
+// True when `node`'s 2D origin (+0x44, +0x48) lies outside one of the `count` planes (2D
+// normals, 8 bytes each): normal . origin > dists[i] (y product first).
+bool node_outside_planes(const uint8_t* node, int32_t count, const float* normals, const float* dists) {
+    for (int32_t i = 0; i < count; ++i) {
+        const float d = normals[i * 2 + 1] * field<float>(node, 0x48) + normals[i * 2] * field<float>(node, 0x44);
+        if (d > dists[i]) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Path_RouteAwayInsidePlanes, 40)
+
+uint32_t XB_CDECL Path_RouteAwayInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                             uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX point, EDI away-from point, stack (path, team, a3, a4, a5, a6, planes, dists, count,
+    // a10): the node nearest the point inside the planes (PathNode_FindNearest, within 192),
+    // then Path_AStarSearchAwayInsidePlanes from it with the block (a6, away point, a4, a5,
+    // count, planes, dists) at frame +0xc; 0 without a node. Frame E - 0x234: node word +0x30,
+    // candidates +0x34.
+    (void)edx;
+    const uint32_t frame = entry - 0x234;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = esi;
+    stack_word(frame + 4) = ebp;
+    stack_word(frame + 8) = ebx;
+    const uint32_t node = route_find_nearest_with(frame, 0x00218c2e, frame + 0x34, frame + 0x30, eax, arg(7), arg(8),
+                                                  arg(9), arg(9), frame + 0x34, edi);
+    if (!node) return 0;
+    const float* const away = reinterpret_cast<const float*>(uintptr_t{edi});
+    stack_word(frame + 0x28) = arg(7);
+    stack_word(frame + 0xc) = arg(6);
+    std::memcpy(&stack_word(frame + 0x10), &away[0], 4);
+    std::memcpy(&stack_word(frame + 0x14), &away[1], 4);
+    std::memcpy(&stack_word(frame + 0x18), &away[2], 4);
+    stack_word(frame + 0x1c) = arg(4);
+    stack_word(frame + 0x20) = arg(5);
+    stack_word(frame + 0x24) = arg(9);
+    stack_word(frame + 0x2c) = arg(8);
+    const TitleRegs regs = {arg(2), arg(9), arg(1), arg(3), eax, edi};
+    const uint32_t args[8] = {arg(1), arg(2), eax, node, arg(3), 0, arg(10), frame + 0xc};
+    return call_at(frame, 0x00218ccf, 0x00216ae0, regs, 8, args);  // Path_AStarSearchAwayInsidePlanes
+}
+
+AI_GAP_ENTRY(Path_RouteAway, 28)
+
+uint32_t XB_CDECL Path_RouteAway(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx, uint32_t esi,
+                                 uint32_t edi, uint32_t) {
+    // EAX point, EDI away-from point, stack (path, team, a3, a4, a5, a6, a7): the nearest node
+    // (as Path_Route), then Path_AStarSearchAway from it with the block (a6, away point, a4, a5)
+    // at frame +4; 0 without a node. Frame E - 0x220: node word +0x1c, candidates +0x20.
+    const uint32_t frame = entry - 0x220;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = esi;
+    const uint32_t node =
+        route_find_nearest_with(frame, 0x00218d0d, frame + 0x20, frame + 0x1c, eax, 0, 0, 0, ebx, edx, edi);
+    if (!node) return 0;
+    const float* const away = reinterpret_cast<const float*>(uintptr_t{edi});
+    stack_word(frame + 4) = arg(6);
+    std::memcpy(&stack_word(frame + 8), &away[0], 4);
+    std::memcpy(&stack_word(frame + 0xc), &away[1], 4);
+    std::memcpy(&stack_word(frame + 0x10), &away[2], 4);
+    stack_word(frame + 0x14) = arg(4);
+    stack_word(frame + 0x18) = arg(5);
+    const TitleRegs regs = {arg(2), ebx, arg(1), arg(3), eax, edi};
+    const uint32_t args[8] = {arg(1), arg(2), eax, node, arg(3), 0, arg(7), frame + 4};
+    return call_at(frame, 0x00218d99, 0x00216f10, regs, 8, args);  // Path_AStarSearchAway
+}
+
+AI_GAP_ENTRY(Path_RouteNearPointInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_RouteNearPointInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                                  uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX point, EBX dists, EDI plane count, stack (path, team, a3, a4, planes, a6): the node
+    // nearest the point inside the planes, then Path_AStarSearchNearPointInsidePlanes from it
+    // with the block (a4, count, planes, dists) at frame +8; 0 without a node. Frame E - 0x21c:
+    // node word +0x18, candidates +0x1c.
+    const uint32_t frame = entry - 0x21c;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = esi;
+    stack_word(frame + 4) = ebp;
+    const uint32_t node = route_find_nearest_with(frame, 0x00218de2, frame + 0x1c, frame + 0x18, eax, arg(5), ebx,
+                                                  edi, ebx, edx, edi);
+    if (!node) return 0;
+    stack_word(frame + 8) = arg(4);
+    stack_word(frame + 0xc) = edi;
+    stack_word(frame + 0x10) = arg(5);
+    stack_word(frame + 0x14) = ebx;
+    const TitleRegs regs = {arg(2), ebx, arg(1), arg(3), eax, edi};
+    const uint32_t args[8] = {arg(1), arg(2), eax, node, arg(3), 0, arg(6), frame + 8};
+    return call_at(frame, 0x00218e3d, 0x002172e0, regs, 8, args);  // Path_AStarSearchNearPointInsidePlanes
+}
+
+AI_GAP_ENTRY(Path_RouteNearPoint, 20)
+
+uint32_t XB_CDECL Path_RouteNearPoint(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx, uint32_t esi,
+                                      uint32_t edi, uint32_t) {
+    // EAX point, stack (path, team, a3, a4, a5): the nearest node, then
+    // Path_AStarSearchNearPoint from it with the block (a4) at frame +4 (over the node word);
+    // 0 without a node. Frame E - 0x208: candidates +8.
+    const uint32_t frame = entry - 0x208;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = esi;
+    const uint32_t node = route_find_nearest_with(frame, 0x00218e7d, frame + 8, frame + 4, eax, 0, 0, 0, ebx, edx, edi);
+    if (!node) return 0;
+    stack_word(frame + 4) = arg(4);
+    const TitleRegs regs = {arg(2), ebx, arg(1), arg(3), eax, edi};
+    const uint32_t args[8] = {arg(1), arg(2), eax, node, arg(3), 0, arg(5), frame + 4};
+    return call_at(frame, 0x00218ecb, 0x002176b0, regs, 8, args);  // Path_AStarSearchNearPoint
+}
+
+AI_GAP_ENTRY(Path_StartAwayFromGrenadeInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_StartAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                        uint32_t edx, uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX grenade point, EDX plane count, ECX planes, EDI dists, stack (path, team, start node,
+    // goal, radius, a6): 0 when the start node lies outside a plane; else
+    // Path_AStarSearchAwayFromGrenadeInsidePlanes with the block (point xy, radius, radius^2,
+    // (never written), -1, 0, count, planes, dists) at E - 0x28.
+    const uint32_t block = entry - 0x28;
+    const uint32_t frame = block - 4;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    const float* const point = reinterpret_cast<const float*>(uintptr_t{eax});
+    stack_word(block + 0x14) = title_global<uint32_t>(0x0083eb34);  // -1
+    std::memcpy(&stack_word(block), &point[0], 4);
+    std::memcpy(&stack_word(block + 4), &point[1], 4);
+    float radius;
+    const uint32_t radius_bits = arg(5);
+    std::memcpy(&radius, &radius_bits, 4);
+    stack_word(frame) = esi;
+    const uint8_t* const start = reinterpret_cast<const uint8_t*>(uintptr_t{arg(3)});
+    const float squared = radius * radius;
+    stack_word(block + 0x18) = 0;
+    stack_word(block + 8) = radius_bits;
+    std::memcpy(&stack_word(block + 0xc), &squared, 4);
+    stack_word(block + 0x1c) = edx;
+    stack_word(block + 0x20) = ecx;
+    stack_word(block + 0x24) = edi;
+    if (node_outside_planes(start, int32_t(edx), reinterpret_cast<const float*>(uintptr_t{ecx}),
+                            reinterpret_cast<const float*>(uintptr_t{edi})))
+        return 0;
+    const TitleRegs regs = {arg(2), ebx, arg(1), arg(4), arg(3), edi};
+    const uint32_t args[8] = {arg(1), arg(2), arg(4), arg(3), 0, 0, arg(6), block};
+    return call_at(frame, 0x00218f87, 0x00217a30, regs, 8, args);  // Path_AStarSearchAwayFromGrenadeInsidePlanes
+}
+
+AI_GAP_ENTRY(Path_RouteAwayFromGrenadeInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_RouteAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                        uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX dists, EBX plane count, ECX point, stack (path, team, grenade point, radius, planes, a6):
+    // the node nearest the point inside the planes, then Path_StartAwayFromGrenadeInsidePlanes
+    // from it; 0 without a node. Frame E - 0x210: node word +0xc, candidates +0x10.
+    const uint32_t frame = entry - 0x210;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = edi;
+    stack_word(frame + 4) = esi;
+    stack_word(frame + 8) = ebp;
+    const uint32_t node = route_find_nearest_with(frame, 0x00218fd5, frame + 0x10, frame + 0xc, ecx, arg(5), eax,
+                                                  ebx, ebx, edx, eax);
+    if (!node) return 0;
+    const TitleRegs regs = {arg(3), ebx, arg(5), ebx, ecx, eax};
+    const uint32_t args[6] = {arg(1), arg(2), node, ecx, arg(4), arg(6)};
+    return call_at(frame, 0x0021901a, 0x00218ee0, regs, 6, args);  // Path_StartAwayFromGrenadeInsidePlanes
+}
+
+AI_GAP_ENTRY(Path_SearchAwayFromGrenade, 12)
+
+uint32_t XB_CDECL Path_SearchAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                             uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX grenade point, ESI start point, EDI start node, EBX path (0: no path wanted), stack
+    // (team, radius, a3): Path_AStarSearchAwayFromGrenade with the block (grenade xy, radius,
+    // radius^2, squared 2D distance start-grenade, -1, best node 0) at E - 0x1c. 1 when it
+    // succeeds; else 0 when the best node is the start node, 1 without a path, otherwise
+    // Path_BuildFromNodes (ECX path, EDX team) up to the best node.
+    const uint32_t block = entry - 0x1c;
+    const uint32_t frame = block - 4;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    const float* const grenade = reinterpret_cast<const float*>(uintptr_t{eax});
+    const float* const start = reinterpret_cast<const float*>(uintptr_t{esi});
+    stack_word(block + 0x14) = title_global<uint32_t>(0x0083eb34);  // -1
+    std::memcpy(&stack_word(block), &grenade[0], 4);
+    std::memcpy(&stack_word(block + 4), &grenade[1], 4);
+    const uint32_t radius_bits = arg(2);
+    float radius;
+    std::memcpy(&radius, &radius_bits, 4);
+    stack_word(frame) = ebp;
+    const float squared = radius * radius;
+    std::memcpy(&stack_word(block + 0xc), &squared, 4);
+    const float dy = grenade[1] - start[1];
+    stack_word(block + 8) = radius_bits;
+    const float dx = grenade[0] - start[0];
+    const float distance = dy * dy + dx * dx;
+    stack_word(block + 0x18) = 0;
+    std::memcpy(&stack_word(block + 0x10), &distance, 4);
+    {
+        const TitleRegs regs = {block, ebx, arg(1), edx, esi, edi};
+        const uint32_t args[8] = {ebx, arg(1), esi, edi, 0, 0, arg(3), block};
+        if (call_at(frame, 0x002190bc, 0x00217e00, regs, 8, args)) return 1;  // Path_AStarSearchAwayFromGrenade
+    }
+    const uint32_t best = stack_word(block + 0x18);
+    if (best == edi) return 0;
+    if (!ebx) return 1;
+    const TitleRegs regs = {best, ebx, ebx, arg(1), esi, edi};
+    const uint32_t args[6] = {esi, 0, edi, best, 0, arg(3)};
+    return call_at(frame, 0x002190f7, 0x002144f0, regs, 6, args);  // Path_BuildFromNodes (stdcall)
+}
+
+AI_GAP_ENTRY(Path_RouteAwayFromGrenade, 16)
+
+uint32_t XB_CDECL Path_RouteAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                            uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX start point, stack (team, grenade point, radius, a4): the node nearest the start
+    // point, then Path_SearchAwayFromGrenade from it (EBX path as given); 0 without a node.
+    // Frame E - 0x20c: node word +8, candidates +0xc.
+    const uint32_t frame = entry - 0x20c;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = edi;
+    stack_word(frame + 4) = esi;
+    const uint32_t node = route_find_nearest_with(frame, 0x0021912e, frame + 0xc, frame + 8, eax, 0, 0, 0, ebx, edx, edi);
+    if (!node) return 0;
+    const TitleRegs regs = {arg(2), ebx, arg(1), arg(4), eax, node};
+    const uint32_t args[3] = {arg(1), arg(3), arg(4)};
+    return call_at(frame, 0x00219166, 0x00219030, regs, 3, args);  // Path_SearchAwayFromGrenade
+}
+
+AI_GAP_ENTRY(Path_RouteBetweenInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_RouteBetweenInsidePlanes(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t) {
+    // EDI from node, EDX plane count, ECX planes, ESI dists, stack (path, team, to node, a4,
+    // a5, a6): 0 when either node lies outside a plane; else Path_AStarSearchInsidePlanes from
+    // the to node with the block (from node, count, planes, dists) at E - 0x10.
+    const uint32_t frame = entry - 0x14;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = ebx;
+    const uint8_t* const to = reinterpret_cast<const uint8_t*>(uintptr_t{arg(3)});
+    stack_word(frame + 4) = edi;
+    stack_word(frame + 8) = edx;
+    stack_word(frame + 0xc) = ecx;
+    stack_word(frame + 0x10) = esi;
+    const float* const normals = reinterpret_cast<const float*>(uintptr_t{ecx});
+    const float* const dists = reinterpret_cast<const float*>(uintptr_t{esi});
+    if (node_outside_planes(to, int32_t(edx), normals, dists)) return 0;
+    if (node_outside_planes(reinterpret_cast<const uint8_t*>(uintptr_t{edi}), int32_t(edx), normals, dists)) return 0;
+    const TitleRegs regs = {arg(4), arg(3), arg(2), arg(1), esi, edi};
+    const uint32_t args[8] = {arg(1), arg(2), arg(4), arg(3), arg(5), 1, arg(6), frame + 4};
+    return call_at(frame, 0x0021921a, 0x00218170, regs, 8, args);  // Path_AStarSearchInsidePlanes
+}
+
+AI_GAP_ENTRY(Path_RouteInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_RouteInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                         uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX plane count, EBX dists, ECX goal point, stack (path, team, start node, a4, planes,
+    // a6): the node nearest the goal inside the planes, then Path_RouteBetweenInsidePlanes from
+    // it to `start`; 0 without a node. Frame E - 0x210: node word +0xc, candidates +0x10.
+    const uint32_t frame = entry - 0x210;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame) = edi;
+    stack_word(frame + 4) = esi;
+    stack_word(frame + 8) = ebp;
+    const uint32_t node = route_find_nearest_with(frame, 0x00219265, frame + 0x10, frame + 0xc, ecx, arg(5), ebx,
+                                                  eax, ebx, edx, eax);
+    if (!node) return 0;
+    const TitleRegs regs = {node, ebx, arg(5), eax, ebx, node};
+    const uint32_t args[6] = {arg(1), arg(2), arg(3), arg(4), ecx, arg(6)};
+    return call_at(frame, 0x002192ae, 0x00219180, regs, 6, args);  // Path_RouteBetweenInsidePlanes
+}
+
+AI_GAP_ENTRY(Sentient_SetEnemy, 4)
+
+uint32_t XB_CDECL Sentient_SetEnemy(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                    uint32_t edi, uint32_t) {
+    // ECX sentient, EDX new enemy (a sentient or 0), stack notify flag (ret 4). With the flag
+    // and a pending notice time (+0x40) that has come, the sentient's team hears event 4 at its
+    // origin. A changed enemy (+0x3c): with the flag, a pending time and an old enemy the
+    // sentient's own team hears event 4 at its position (Sentient_SendPointEventAtSelf); the
+    // enemies' targeted counts (+0x44) move, the notice time becomes now + 1000 (0 without an
+    // enemy); for team 2 the entity's client record (+0x240) holds +0x34 at least now + 500.
+    uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    uint8_t* const enemy = reinterpret_cast<uint8_t*>(uintptr_t{edx});
+    const uint32_t flag = stack_word(entry + 4);
+    const uint32_t frame = entry - 12;
+    stack_word(frame + 8) = ebx;
+    stack_word(frame + 4) = esi;
+    stack_word(frame) = edi;
+    if (flag && field<int32_t>(sentient, 0x40) && level_time() >= field<int32_t>(sentient, 0x40)) {
+        const uint32_t ent = field<uint32_t>(sentient, 0);
+        const uint32_t team = field<uint32_t>(sentient, 4);
+        const TitleRegs regs = {1u << (team & 31), flag, team, ent, ecx, edx};
+        const uint32_t args[4] = {ent, 4, ent + 0x140, 0};
+        call_at(frame, 0x0021852b, 0x00214a90, regs, 4, args);  // Actor_SendPointEvent
+        field<uint32_t>(sentient, 0x40) = 0;
+    }
+    uint8_t* const old = field<uint8_t*>(sentient, 0x3c);
+    if (old == enemy) return addr_of(old);
+    if (flag && field<uint32_t>(sentient, 0x40) && old) {
+        const TitleRegs regs = {addr_of(old), flag, ecx, edx, ecx, edx};
+        const uint32_t args[1] = {4};
+        call_at(frame, 0x00218551, 0x00214ba0, regs, 1, args);  // Sentient_SendPointEventAtSelf
+        field<uint32_t>(sentient, 0x40) = 0;
+    }
+    uint8_t* const previous = field<uint8_t*>(sentient, 0x3c);
+    if (previous) --field<int16_t>(previous, 0x44);
+    if (enemy) {
+        ++field<int16_t>(enemy, 0x44);
+        field<int32_t>(sentient, 0x40) = level_time() + 1000;
+    } else {
+        field<uint32_t>(sentient, 0x40) = 0;
+    }
+    field<uint8_t*>(sentient, 0x3c) = enemy;
+    if (field<uint32_t>(sentient, 4) != 2) return addr_of(previous);
+    uint8_t* const client = field<uint8_t*>(field<uint8_t*>(sentient, 0), 0x240);
+    if (!client) return 0;
+    const int32_t until = level_time() + 500;
+    if (field<int32_t>(client, 0x34) < until) field<int32_t>(client, 0x34) = until;
+    return addr_of(client);
+}
+
+AI_GAP_ENTRY(ActorMove_FootstepEvents, 0)
+
+uint32_t XB_CDECL ActorMove_FootstepEvents(uint32_t entry, uint32_t, uint32_t ebx, uint32_t, uint32_t, uint32_t esi,
+                                           uint32_t edi, uint32_t) {
+    // g_actorMove: the step accumulator (+0x24) restarts; while moving (+0x20) on the ground
+    // (+0x48 = 1 or 2) it gains +0x50 plus its old value, and at 500 the enemies of the mover's
+    // team (entity handle +0x44 -> sentient +0x244) hear event 2 (footsteps) at the move
+    // origin; the accumulator keeps the rest mod 500. EAX: the move record or the quotient.
+    uint8_t* move = title_global<uint8_t*>(0x0095f450);
+    const uint32_t moving = field<uint32_t>(move, 0x20);
+    const int32_t before = field<int32_t>(move, 0x24);
+    stack_word(entry - 0x18) = edi;
+    field<uint32_t>(move, 0x24) = 0;
+    if (!moving) return addr_of(move);
+    const uint32_t ground = field<uint32_t>(move, 0x48);
+    if (ground != 1 && ground != 2) return addr_of(move);
+    const int32_t steps = field<int32_t>(move, 0x50) + before;
+    field<int32_t>(move, 0x24) = steps;
+    if (steps < 500) return addr_of(move);
+    stack_word(entry - 0x1c) = esi;
+    uint32_t handle = field<uint32_t>(move, 0x44);
+    const uint32_t index = handle & 0xfff;
+    uint32_t ent = 0;
+    if (int32_t(index) < 0x540) {
+        handle >>= 12;
+        if (handle == title_global<uint32_t>(0x0097a96c + index * 8)) ent = title_global<uint32_t>(0x0097a968 + index * 8);
+    }
+    const uint8_t* const sentient = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{ent}), 0x244);
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    const uint32_t enemy_team[5] = {0, 2, 1, 0, 0};
+    for (uint32_t i = 0; i < 5; ++i) stack_word(entry - 0x14 + i * 4) = enemy_team[i];
+    const uint32_t other = stack_word(entry - 0x14 + team * 4);
+    const TitleRegs regs = {1u << (other & 31), ebx, other, ent, handle, 0};
+    const uint32_t args[4] = {ent, 2, addr_of(move), 0};
+    call_at(entry - 0x1c, 0x00218834, 0x00214a90, regs, 4, args);  // Actor_SendPointEvent
+    move = title_global<uint8_t*>(0x0095f450);
+    const int32_t total = field<int32_t>(move, 0x24);
+    field<int32_t>(move, 0x24) = total % 500;
+    return uint32_t(total / 500);
+}
+
+AI_GAP_ENTRY(Actor_Pain_Finish, 0)
+
+uint32_t XB_CDECL Actor_Pain_Finish(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t, uint32_t esi,
+                                    uint32_t edi, uint32_t) {
+    // ECX actor (state Finish callback): a pending pain event (entity +0x374) is sent - the
+    // enemies' event 5 at the sentient's origin, mask = 1 << team - and cleared.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = esi;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    if (!field<uint32_t>(ent, 0x374)) return addr_of(ent);
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    const uint32_t source = field<uint32_t>(sentient, 0);
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    const TitleRegs regs = {1u << (team & 31), ebx, team, source, ecx, edi};
+    const uint32_t args[4] = {source, 5, source + 0x140, 0};
+    const uint32_t result = call_at(entry - 4, 0x0021887f, 0x00214a90, regs, 4, args);  // Actor_SendPointEvent
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x374) = 0;
+    return result;
+}
+
+// The Path_AStarSearch variants: the same search (open-list head at E - 0x80 in the original's
+// frame, kept in heap nodes; callees at the original's ESP, return addresses written back), each
+// with its own goal test on the node taken from the open list, neighbour filter and estimate.
+// Arguments (cdecl): path, team, a3, start node, point, a6, a7, block.
+namespace {
+
+struct AStarSite {
+    uint32_t frame_size;     // entry ESP - the body's ESP
+    uint32_t construct_ret;  // after PathNode_Construct
+    uint32_t fail_ret;       // first ScriptString_Release return of the failure exit (then +9 each)
+    uint32_t nopath_ret;     // ... of the success exit without a path
+    uint32_t build_ret;      // after Path_BuildFromNodes
+    uint32_t build_rel_ret;  // first ScriptString_Release return after it
+    uint8_t build_esi, build_edi;  // ESI/EDI at the build call: 0 start, 1 point, 2 a6, 3 the node
+};
+
+// FSQRT of an x87 value, stored as float.
+float astar_fsqrt(long double x) {
+    long double r;
+    __asm__("fsqrt" : "=t"(r) : "0"(x));
+    return static_cast<float>(r);
+}
+
+template <typename Done, typename Skip, typename Estimate>
+uint32_t astar_variant(uint32_t entry, const AStarSite& site, Done done, Skip skip, Estimate estimate) {
+    const uint32_t frame = entry - site.frame_size;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    uint8_t* const path = reinterpret_cast<uint8_t*>(uintptr_t{arg(1)});
+    const uint32_t team = arg(2);
+    uint8_t* const start = reinterpret_cast<uint8_t*>(uintptr_t{arg(4)});
+    uint8_t* const head = reinterpret_cast<uint8_t*>(uintptr_t{entry - 0x80});
+    field<uint16_t>(head, 0) = 0;
+    field<uint32_t>(head, 4) = 0;
+    field<uint32_t>(head, 8) = 0;
+    field<uint16_t>(head, 0x24) = 0;
+    field<uint16_t>(head, 0x26) = 0;
+    field<uint32_t>(head, 0x14) = 0;
+    field<uint32_t>(head, 0x10) = 0;
+    field<uint32_t>(head, 0xc) = 0;
+    field<uint32_t>(head, 0x20) = 0;
+    field<uint32_t>(head, 0x1c) = 0;
+    field<uint32_t>(head, 0x18) = 0;
+    {
+        const TitleRegs regs = {0, 0, 0, 0, addr_of(head + 0x28), 0};
+        call_at(frame, site.construct_ret, 0x0002bd50, regs, 0, nullptr);  // PathNode_Construct
+    }
+    const int32_t search = title_global<int32_t>(0x00985fdc) + 1;  // g_pathSearchFrame
+    title_global<int32_t>(0x00985fdc) = search;
+    field<int32_t>(start, 0x68) = search;
+    field<uint8_t*>(start, 0x74) = head;
+    field<uint32_t>(head, 0x68) = 0;
+    field<uint32_t>(head, 0x70) = 0;
+    field<uint32_t>(head, 0x74) = 0;
+    field<float>(head, 0x78) = 0.0f;
+    field<float>(head, 0x7c) = 0.0f;
+    field<uint32_t>(start, 0x6c) = 0;
+    field<uint8_t*>(start, 0x70) = head;
+    field<float>(start, 0x78) = 0.0f;
+    field<uint8_t*>(head, 0x6c) = start;
+    const auto release_all = [&](uint32_t first) {
+        for (uint32_t k = 0; k < 4; ++k) {
+            const TitleRegs regs = {0, 0, addr_of(head + 0x3c - k * 4), 0, 0, 0};
+            call_at(frame, first + k * 9, 0x0011d640, regs, 0, nullptr);  // ScriptString_Release
+        }
+    };
+    uint8_t* current = start;
+    for (;;) {
+        if (done(current)) break;
+        uint8_t* const next = field<uint8_t*>(current, 0x6c);
+        field<uint8_t*>(head, 0x6c) = next;
+        if (next) field<uint8_t*>(next, 0x70) = head;
+        for (int32_t i = 0; i < field<int16_t>(current, 0x24); ++i) {
+            const uint8_t* const link = field<const uint8_t*>(current, 0x64) + i * 0xc;
+            if (link[4 + team] != 0) continue;
+            const uint8_t* const blocks = title_global<const uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+            const uint16_t handle = field<uint16_t>(link, 0);
+            if (!field<const uint8_t*>(blocks, 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4)) continue;
+            uint8_t* neighbor = nullptr;
+            if (handle != 0 && handle != 0xffff) {
+                const uint8_t* const block = field<const uint8_t*>(blocks, 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+                if (block) neighbor = field<uint8_t*>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+            }
+            if (skip(neighbor)) continue;
+            const float cost = field<float>(link, 8) + field<float>(current, 0x78);
+            if (field<int32_t>(neighbor, 0x68) == title_global<int32_t>(0x00985fdc)) {
+                if (cost >= field<float>(neighbor, 0x78)) continue;
+                if (uint8_t* const prev = field<uint8_t*>(neighbor, 0x70)) {
+                    field<uint8_t*>(prev, 0x6c) = field<uint8_t*>(neighbor, 0x6c);
+                    if (uint8_t* const after = field<uint8_t*>(neighbor, 0x6c))
+                        field<uint8_t*>(after, 0x70) = field<uint8_t*>(neighbor, 0x70);
+                }
+            } else {
+                field<int32_t>(neighbor, 0x68) = title_global<int32_t>(0x00985fdc);
+                field<float>(neighbor, 0x7c) = estimate(neighbor);
+            }
+            const float total = field<float>(neighbor, 0x7c) + cost;
+            field<uint8_t*>(neighbor, 0x74) = current;
+            field<float>(neighbor, 0x78) = cost;
+            uint8_t* at = head;
+            if (field<uint8_t*>(head, 0x6c)) {
+                int32_t steps = 0;
+                for (;;) {
+                    uint8_t* const other = field<uint8_t*>(at, 0x6c);
+                    if (field<float>(other, 0x7c) + field<float>(other, 0x78) >= total) break;
+                    if (++steps >= 50000) {
+                        release_all(site.fail_ret);
+                        return 0;
+                    }
+                    at = other;
+                    if (!field<uint8_t*>(other, 0x6c)) break;
+                }
+            }
+            field<uint8_t*>(neighbor, 0x70) = at;
+            field<uint8_t*>(neighbor, 0x6c) = field<uint8_t*>(at, 0x6c);
+            field<uint8_t*>(at, 0x6c) = neighbor;
+            if (uint8_t* const after = field<uint8_t*>(neighbor, 0x6c)) field<uint8_t*>(after, 0x70) = neighbor;
+        }
+        field<uint32_t>(current, 0x70) = 0;
+        current = field<uint8_t*>(head, 0x6c);
+        if (!current) {
+            release_all(site.fail_ret);
+            return 0;
+        }
+    }
+    if (!path) {
+        release_all(site.nopath_ret);
+        return 1;
+    }
+    // Path_BuildFromNodes (ECX path, EDX team; stdcall a3, point, start, node, a6, a7).
+    const uint32_t args[6] = {arg(3), arg(5), addr_of(start), addr_of(current), arg(6), arg(7)};
+    const uint32_t kinds[4] = {addr_of(start), arg(5), arg(6), addr_of(current)};
+    const TitleRegs regs = {arg(3), 0, addr_of(path), team, kinds[site.build_esi], kinds[site.build_edi]};
+    const uint32_t result = call_at(frame, site.build_ret, 0x002144f0, regs, 6, args);
+    release_all(site.build_rel_ret);
+    return result;
+}
+
+const float* block_of(uint32_t entry) { return reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 0x20)}); }
+const float* point_of(uint32_t entry) { return reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 0x14)}); }
+
+// Goal test of the Away/NearPoint searches: the squared 3D distance from `point` under block[0].
+bool within_3d(const uint8_t* node, const float* point, const float* block) {
+    const float dz = point[2] - field<float>(node, 0x4c);
+    const float dy = point[1] - field<float>(node, 0x48);
+    const float dx = point[0] - field<float>(node, 0x44);
+    return block[0] > (dz * dz + dy * dy) + dx * dx;
+}
+
+// Neighbour filter of the Away searches: outside the cylinder at block[1..3] (squared height
+// block[5], squared radius block[4]).
+bool outside_cylinder(const uint8_t* node, const float* block) {
+    const float dz = field<float>(node, 0x4c) - block[3];
+    if (dz * dz > block[5]) return true;
+    const float dy = field<float>(node, 0x48) - block[2];
+    const float dx = field<float>(node, 0x44) - block[1];
+    return dy * dy + dx * dx > block[4];
+}
+
+// Goal test of the grenade searches: the squared 2D distance from the grenade (block[0..1])
+// reaches block[3]; the farthest node so far is kept (block[5] distance, block[6] node).
+bool grenade_far_enough(uint8_t* node, float* block) {
+    const float dx = field<float>(node, 0x44) - block[0];
+    const float dy = field<float>(node, 0x48) - block[1];
+    const float distance = dy * dy + dx * dx;
+    if (distance >= block[3]) return true;
+    if (distance > block[5]) {
+        block[5] = distance;
+        reinterpret_cast<uint32_t*>(block)[6] = addr_of(node);
+    }
+    return false;
+}
+
+// Estimate of the grenade searches: the radius (block[2]) minus the 2D distance from the grenade.
+float grenade_estimate(const uint8_t* node, const float* block) {
+    const float dx = field<float>(node, 0x44) - block[0];
+    const float dy = field<float>(node, 0x48) - block[1];
+    return float(static_cast<long double>(block[2]) - static_cast<long double>(distance_2d(dx, dy)));
+}
+
+float point_estimate(const uint8_t* node, const float* point) {
+    return distance_2d(field<float>(node, 0x44) - point[0], field<float>(node, 0x48) - point[1]);
+}
+
+bool block_planes_outside(const uint8_t* node, const float* block, uint32_t at) {
+    const uint32_t* const words = reinterpret_cast<const uint32_t*>(block);
+    return node_outside_planes(node, int32_t(words[at]), reinterpret_cast<const float*>(uintptr_t{words[at + 1]}),
+                               reinterpret_cast<const float*>(uintptr_t{words[at + 2]}));
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Path_AStarSearchAwayInsidePlanes, 0)
+
+uint32_t XB_CDECL Path_AStarSearchAwayInsidePlanes(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                   uint32_t, uint32_t) {
+    // Done within block[0] (squared, 3D) of the point; neighbours inside the cylinder (block
+    // [1..5]) and the planes (count block[6], normals [7], dists [8]); estimate the 2D distance.
+    const float* const block = block_of(entry);
+    const float* const point = point_of(entry);
+    return astar_variant(
+        entry, {0xac, 0x00216b24, 0x00216e4f, 0x00216e8b, 0x00216edd, 0x00216ee8, 1, 0},
+        [&](const uint8_t* node) { return within_3d(node, point, block); },
+        [&](const uint8_t* node) { return outside_cylinder(node, block) || block_planes_outside(node, block, 6); },
+        [&](const uint8_t* node) { return point_estimate(node, point); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchAway, 0)
+
+uint32_t XB_CDECL Path_AStarSearchAway(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                       uint32_t) {
+    // As Path_AStarSearchAwayInsidePlanes without the planes.
+    const float* const block = block_of(entry);
+    const float* const point = point_of(entry);
+    return astar_variant(
+        entry, {0xa4, 0x00216f54, 0x00217212, 0x0021724e, 0x002172a0, 0x002172ab, 0, 2},
+        [&](const uint8_t* node) { return within_3d(node, point, block); },
+        [&](const uint8_t* node) { return outside_cylinder(node, block); },
+        [&](const uint8_t* node) { return point_estimate(node, point); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchNearPointInsidePlanes, 0)
+
+uint32_t XB_CDECL Path_AStarSearchNearPointInsidePlanes(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                        uint32_t, uint32_t, uint32_t) {
+    // Done within block[0] (squared, 3D) of the point; neighbours inside the planes (count
+    // block[1], normals [2], dists [3]); estimate the 2D distance.
+    const float* const block = block_of(entry);
+    const float* const point = point_of(entry);
+    return astar_variant(
+        entry, {0xac, 0x00217324, 0x002175ee, 0x0021762a, 0x0021767c, 0x00217687, 0, 2},
+        [&](const uint8_t* node) { return within_3d(node, point, block); },
+        [&](const uint8_t* node) { return block_planes_outside(node, block, 1); },
+        [&](const uint8_t* node) { return point_estimate(node, point); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchNearPoint, 0)
+
+uint32_t XB_CDECL Path_AStarSearchNearPoint(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                            uint32_t, uint32_t) {
+    // Done within block[0] (squared, 3D) of the point; every neighbour; the 2D distance.
+    const float* const block = block_of(entry);
+    const float* const point = point_of(entry);
+    return astar_variant(
+        entry, {0xa4, 0x002176f4, 0x00217962, 0x0021799e, 0x002179f0, 0x002179fb, 0, 2},
+        [&](const uint8_t* node) { return within_3d(node, point, block); }, [](const uint8_t*) { return false; },
+        [&](const uint8_t* node) { return point_estimate(node, point); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchAwayFromGrenadeInsidePlanes, 0)
+
+uint32_t XB_CDECL Path_AStarSearchAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                              uint32_t, uint32_t, uint32_t) {
+    // Done once a node is block[3] (squared, 2D) from the grenade (farthest node so far kept in
+    // block[5]/[6]); neighbours inside the planes (count block[7], normals [8], dists [9]);
+    // estimate the radius minus the distance from the grenade.
+    float* const block = const_cast<float*>(block_of(entry));
+    return astar_variant(
+        entry, {0xac, 0x00217a7b, 0x00217d2e, 0x00217d6a, 0x00217dc3, 0x00217dce, 2, 0},
+        [&](uint8_t* node) { return grenade_far_enough(node, block); },
+        [&](const uint8_t* node) { return block_planes_outside(node, block, 7); },
+        [&](const uint8_t* node) { return grenade_estimate(node, block); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchAwayFromGrenade, 0)
+
+uint32_t XB_CDECL Path_AStarSearchAwayFromGrenade(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                  uint32_t, uint32_t) {
+    // As Path_AStarSearchAwayFromGrenadeInsidePlanes without the planes.
+    float* const block = const_cast<float*>(block_of(entry));
+    return astar_variant(
+        entry, {0xa4, 0x00217e44, 0x002180a2, 0x002180de, 0x00218137, 0x00218142, 2, 3},
+        [&](uint8_t* node) { return grenade_far_enough(node, block); }, [](const uint8_t*) { return false; },
+        [&](const uint8_t* node) { return grenade_estimate(node, block); });
+}
+
+AI_GAP_ENTRY(Path_AStarSearchInsidePlanes, 0)
+
+uint32_t XB_CDECL Path_AStarSearchInsidePlanes(uint32_t entry, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                               uint32_t, uint32_t) {
+    // Done at the goal node (block[0]); neighbours inside the planes (count block[1], normals
+    // [2], dists [3]); estimate the 2D distance to the point on the x87 (FSQRT, unrounded).
+    const float* const block = block_of(entry);
+    const float* const point = point_of(entry);
+    return astar_variant(
+        entry, {0x9c, 0x002181b4, 0x00218424, 0x00218460, 0x002184b9, 0x002184c4, 2, 0},
+        [&](const uint8_t* node) { return addr_of(node) == reinterpret_cast<const uint32_t*>(block)[0]; },
+        [&](const uint8_t* node) { return block_planes_outside(node, block, 1); },
+        [&](const uint8_t* node) {
+            const long double dx = static_cast<long double>(field<float>(node, 0x44)) - point[0];
+            const long double dy = static_cast<long double>(field<float>(node, 0x48)) - point[1];
+            return astar_fsqrt(dy * dy + dx * dx);
+        });
+}
+
+namespace {
+
+// The path trimmed at the entity's origin and emptied (counts +0x380/+0x382, +0x7c4 cleared).
+void drop_path_at_origin(uint8_t* actor) {
+    uint8_t* const path = actor + 0x3c0;
+    Path_AccumulateTrim(path, reinterpret_cast<const float*>(field<uint8_t*>(actor, 0) + 0x140));
+    field<uint16_t>(path, 0x380) = 0;
+    field<uint16_t>(path, 0x382) = 0;
+    field<uint32_t>(actor, 0x7c4) = 0;
+}
+
+// Actor_GetBoundaryPlanes into the original's buffers (normals E - 0x20, dists E - 0x30).
+uint32_t boundary_planes_at(const uint8_t* actor, uint32_t entry) {
+    return Actor_GetBoundaryPlanes(actor, stack_vec(entry - 0x20), stack_vec(entry - 0x30));
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_FindPathAwayFromGrenade, 16)
+
+uint32_t XB_CDECL Actor_FindPathAwayFromGrenade(uint32_t entry, uint32_t, uint32_t ebx, uint32_t, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EDI actor, stack (grenade point, radius, use boundary planes, a4): the path dropped, then
+    // a route away from the grenade from the entity's origin - inside the boundary planes when
+    // asked for and there are any (Path_RouteAwayFromGrenadeInsidePlanes), else
+    // Path_RouteAwayFromGrenade. Frame E - 0x3c; plane buffers E - 0x20 / E - 0x30.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t frame = entry - 0x3c;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame + 8) = ebx;
+    stack_word(frame + 4) = ebp;
+    stack_word(frame) = esi;
+    (void)edx;
+    const uint32_t path = addr_of(actor + 0x3c0);
+    drop_path_at_origin(actor);
+    const uint32_t origin = field<uint32_t>(actor, 0) + 0x140;
+    const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+    if (arg(3)) {
+        if (const uint32_t count = boundary_planes_at(actor, entry)) {
+            const TitleRegs regs = {entry - 0x30, count, origin, team, entry - 0x30, edi};
+            const uint32_t args[6] = {path, team, arg(1), arg(2), entry - 0x20, arg(4)};
+            return call_at(frame, 0x00219965, 0x00218fa0, regs, 6, args);  // Path_RouteAwayFromGrenadeInsidePlanes
+        }
+    }
+    const TitleRegs regs = {origin, path, field<uint32_t>(actor, 4), team, path, edi};
+    const uint32_t args[4] = {team, arg(1), arg(2), arg(4)};
+    return call_at(frame, 0x00219992, 0x00219100, regs, 4, args);  // Path_RouteAwayFromGrenade
+}
+
+AI_GAP_ENTRY(Actor_FindPathAway, 16)
+
+uint32_t XB_CDECL Actor_FindPathAway(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t, uint32_t esi,
+                                     uint32_t edi, uint32_t ebp) {
+    // EAX search argument, stack (actor, a2, done radius^2, use boundary planes): the path
+    // dropped (its address left in the actor's argument slot), then a route from the entity's
+    // origin away towards the sentient's goal (+0xc, radius^2 +0x1c, height^2 6400) - inside
+    // the boundary planes when asked for and there are any. Frame E - 0x40.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t frame = entry - 0x40;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame + 0xc) = ebx;
+    stack_word(frame + 8) = ebp;
+    stack_word(frame + 4) = esi;
+    stack_word(frame) = edi;
+    const uint32_t path = addr_of(actor + 0x3c0);
+    stack_word(entry + 4) = path;
+    drop_path_at_origin(actor);
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    const uint32_t origin = field<uint32_t>(actor, 0) + 0x140;
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    const uint32_t goal = addr_of(sentient + 0xc);
+    const uint32_t radius = field<uint32_t>(sentient, 0x1c);
+    if (arg(4)) {
+        if (const uint32_t count = boundary_planes_at(actor, entry)) {
+            const TitleRegs regs = {origin, 0, team, path, entry - 0x30, goal};
+            const uint32_t args[10] = {path, team, arg(2), radius, 0x45c80000, arg(3), entry - 0x20, entry - 0x30,
+                                       count, eax};
+            return call_at(frame, 0x00219a2b, 0x00218bf0, regs, 10, args);  // Path_RouteAwayInsidePlanes
+        }
+    }
+    const TitleRegs regs = {origin, 0, team, path, path, goal};
+    const uint32_t args[7] = {path, team, arg(2), radius, 0x45c80000, arg(3), eax};
+    return call_at(frame, 0x00219a65, 0x00218ce0, regs, 7, args);  // Path_RouteAway
+}
+
+AI_GAP_ENTRY(Actor_FindPathNearPoint, 20)
+
+uint32_t XB_CDECL Actor_FindPathNearPoint(uint32_t entry, uint32_t, uint32_t ebx, uint32_t, uint32_t, uint32_t esi,
+                                          uint32_t edi, uint32_t ebp) {
+    // Stack (actor, point, radius^2, use boundary planes, a5): the path dropped, then a route
+    // from the entity's origin to near the point - inside the boundary planes when asked for
+    // and there are any. Frame E - 0x40.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t frame = entry - 0x40;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame + 0xc) = ebx;
+    stack_word(frame + 8) = ebp;
+    stack_word(frame + 4) = esi;
+    stack_word(frame) = edi;
+    const uint32_t path = addr_of(actor + 0x3c0);
+    drop_path_at_origin(actor);
+    const uint32_t origin = field<uint32_t>(actor, 0) + 0x140;
+    const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+    if (arg(4)) {
+        if (const uint32_t count = boundary_planes_at(actor, entry)) {
+            const TitleRegs regs = {origin, entry - 0x30, count, team, entry - 0x30, count};
+            const uint32_t args[6] = {path, team, arg(2), arg(3), entry - 0x20, arg(5)};
+            return call_at(frame, 0x00219bfd, 0x00218db0, regs, 6, args);  // Path_RouteNearPointInsidePlanes
+        }
+    }
+    const TitleRegs regs = {origin, 0, field<uint32_t>(actor, 4), team, path, path};
+    const uint32_t args[5] = {path, team, arg(2), arg(3), arg(5)};
+    return call_at(frame, 0x00219c2b, 0x00218e50, regs, 5, args);  // Path_RouteNearPoint
+}
+
+AI_GAP_ENTRY(Actor_FindPath, 20)
+
+uint32_t XB_CDECL Actor_FindPath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t, uint32_t esi,
+                                 uint32_t edi, uint32_t ebp) {
+    // EAX start node (0: the sentient's cached nearest node), stack (actor, goal point, radius,
+    // use boundary planes, a5). A tag-linked entity (+0x3cc) only drops its path. Else the
+    // sentient's +0x46 clears; an existing path that is not stale for the goal stays (0), a
+    // stale one is cleared; then Path_RouteInsidePlanes (with boundary planes) or Path_Route
+    // from the start node to the goal. Frame E - 0x40; plane buffers E - 0x20 / E - 0x30.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t frame = entry - 0x40;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(frame + 0xc) = ebx;
+    stack_word(frame + 8) = ebp;
+    stack_word(frame + 4) = esi;
+    stack_word(frame) = edi;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    if (field<uint32_t>(ent, 0x3cc)) {
+        drop_path_at_origin(actor);
+        return 0;
+    }
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    field<uint16_t>(sentient, 0x46) = 0;
+    const float* const goal = reinterpret_cast<const float*>(uintptr_t{arg(2)});
+    if (field<int16_t>(actor, 0x740) > 0) {
+        float radius;
+        const uint32_t radius_bits = arg(3);
+        std::memcpy(&radius, &radius_bits, 4);
+        if (!Path_IsStale(actor + 0x3c0, 0, goal, radius)) return 0;
+        Actor_ClearPath(actor);
+    }
+    const uint32_t count = arg(4) ? boundary_planes_at(actor, entry) : 0;
+    uint32_t start = eax;
+    if (!start) {
+        const uint32_t flags = field<uint32_t>(actor, 0x77c);
+        const TitleRegs regs = {entry - 0x20, 0, flags, entry - 0x30, count, addr_of(sentient)};
+        const uint32_t args[6] = {entry - 0x20, entry - 0x30, count, 1, 0x43400000, (flags & 0x100) ? 1u : 0u};
+        start = call_at(frame, 0x0021a0fc, 0x002095c0, regs, 6, args);  // Sentient_CachedNearestNode
+        if (!start) return 0;
+    }
+    const uint32_t path = addr_of(actor + 0x3c0);
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    const uint32_t origin = addr_of(ent) + 0x140;
+    if (count) {
+        const TitleRegs regs = {count, entry - 0x30, arg(2), team, count, 0};
+        const uint32_t args[6] = {path, team, start, origin, entry - 0x20, arg(5)};
+        return call_at(frame, 0x0021a139, 0x00219230, regs, 6, args);  // Path_RouteInsidePlanes
+    }
+    const TitleRegs regs = {arg(2), start, origin, addr_of(sentient), 0, 0};
+    const uint32_t args[5] = {path, team, start, origin, arg(5)};
+    return call_at(frame, 0x0021a16a, 0x0020c820, regs, 5, args);  // Path_Route
+}
+
+AI_GAP_ENTRY(Actor_FindPathToGoal, 12)
+
+uint32_t XB_CDECL Actor_FindPathToGoal(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t, uint32_t esi,
+                                       uint32_t edi, uint32_t) {
+    // EAX actor, stack (radius, use boundary planes, a3): without a path, nothing while the
+    // entity at +0x39c has a sentient or before the retry time (+0x7c0). Then, when the goal
+    // (sentient +0xc) is outside the goal radius in 2D or more than 80 units off in height,
+    // Actor_FindPath from the cached nearest node to it. EAX as the original leaves it.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = edi;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        const uint32_t handle = field<uint32_t>(actor, 0x39c);
+        const uint32_t index = handle & 0xfff;
+        if (int32_t(index) < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+            const uint32_t other = title_global<uint32_t>(0x0097a968 + index * 8);
+            if (other && field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{other}), 0x244)) return other;
+        }
+        if (level_time() < field<int32_t>(actor, 0x7c0)) return uint32_t(level_time());
+    }
+    const float radius = Actor_GetGoalRadius(actor, 0);
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+    const float dy = field<float>(sentient, 0x10) - field<float>(ent, 0x144);
+    const float dx = field<float>(sentient, 0xc) - field<float>(ent, 0x140);
+    const float dz = field<float>(sentient, 0x14) - field<float>(ent, 0x148);
+    if (!(dy * dy + dx * dx > radius * radius) && !(dz * dz > title_global<float>(0x0083eb6c))) return addr_of(sentient);
+    const TitleRegs regs = {0, ebx, addr_of(sentient) + 0xc, arg(2), esi, eax};
+    const uint32_t args[5] = {eax, addr_of(sentient) + 0xc, arg(1), arg(2), arg(3)};
+    return call_at(entry - 4, 0x0021a254, 0x0021a030, regs, 5, args);  // Actor_FindPath
+}
+
+AI_GAP_ENTRY(Actor_HasPathToGoal, 0)
+
+uint32_t XB_CDECL Actor_HasPathToGoal(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                      uint32_t edi, uint32_t) {
+    // ESI actor: 0 when +0x7df is set; else Actor_FindPathToGoal(0, 1, 1) and 1 when the actor
+    // then has path points (+0x740 > 0).
+    const uint8_t* const actor = reinterpret_cast<const uint8_t*>(uintptr_t{esi});
+    if (actor[0x7df]) return 0;
+    const TitleRegs regs = {esi, ebx, ecx, edx, esi, edi};
+    const uint32_t args[3] = {0, 1, 1};
+    call_at(entry, 0x0021b377, 0x0021a180, regs, 3, args);  // Actor_FindPathToGoal
+    return field<int16_t>(actor, 0x740) > 0 ? 1 : 0;
+}
+
+AI_GAP_ENTRY(Actor_AnimMove, 4)
+
+uint32_t XB_CDECL Actor_AnimMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                 uint32_t edi, uint32_t) {
+    // EDI actor, EAX handed on to Actor_AvoidOthers, stack run flag (ret 4): by the result of
+    // Actor_AvoidOthers - 0: the run (flag set) or walk animation, 1: stationary, 2: walk -
+    // each with the stop script (0x00987bb8); others return result - 2.
+    const uint32_t stop = 0x00987bb8;
+    const uint32_t ret = stack_word(entry);
+    uint32_t result;
+    {
+        const TitleRegs regs = {edi, ebx, ecx, edx, esi, edi};
+        const uint32_t args[1] = {eax};
+        result = call_at(entry, 0x002198a8, 0x00214c80, regs, 1, args);  // Actor_AvoidOthers
+    }
+    const TitleRegs regs = {edi, ebx, ecx, edx, stop, edi};
+    if (result == 0 && stack_word(entry + 4)) {
+        const uint32_t args[1] = {stop};
+        return call_at(entry + 8, ret, 0x00201a10, regs, 1, args);  // Actor_AnimMoveRun (tail jump)
+    }
+    if (result == 0 || result == 2) {
+        const uint32_t args[1] = {stop};
+        return call_at(entry + 8, ret, 0x00201a80, regs, 1, args);  // Actor_AnimMoveWalk (tail jump)
+    }
+    if (result == 1) {
+        stack_word(entry - 4) = esi;
+        return call_at(entry - 4, 0x002198c3, 0x00203de0, regs, 0, nullptr);  // Actor_AnimStationary
+    }
+    return result - 2;
+}
+
+namespace {
+
+// Actor_UpdateVisibilityIfStale(EAX sentient, ESI actor; stack age) as the original's call at
+// `top` (return address `ret`): the value bits of XMM0.
+uint32_t visibility_if_stale_at(uint32_t top, uint32_t ret, const uint8_t* sentient, uint8_t* actor, uint32_t age,
+                                uint32_t edi, uint32_t ebx, uint32_t ebp) {
+    stack_word(top - 4) = age;
+    stack_word(top - 8) = ret;
+    return Actor_UpdateVisibilityIfStale(top - 8, sentient, actor, edi, ebx, ebp);
+}
+
+bool float_bits_zero(uint32_t bits) {
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value == 0.0f;
+}
+
+// The exposed state's next step: 0xca (no visibility) or 0xc8, due now + 1, with +0x34 now + 501.
+void exposed_schedule(uint8_t* actor, uint32_t step) {
+    field<uint32_t>(actor, 0x28) = step;
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_Exposed_Start, 0)
+
+uint32_t XB_CDECL Actor_Exposed_Start(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                      uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX previous state (state Start callback). Without an enemy the sight and
+    // enemy choice run first (5 when there still is none). Coming from state 1 the time is
+    // kept in +0x81c; else a nearby cover node ends it (1). Then the next step by the enemy's
+    // visibility (Actor_UpdateVisibilityIfStale, age +0x830): 0xca when 0, else 0xc8. EAX 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = edi;
+    const uint32_t frame = entry - 8;
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        const uint32_t sentient = field<uint32_t>(actor, 4);
+        {
+            const TitleRegs regs = {sentient, ebx, 0, edx, ecx, edx};
+            const uint32_t args[1] = {ecx};
+            call_at(frame, 0x0021d316, 0x002135d0, regs, 1, args);  // Actor_UpdateSight
+        }
+        {
+            const TitleRegs regs = {sentient, ebx, 0, edx, ecx, edx};
+            const uint32_t args[2] = {ecx, 1};
+            call_at(frame, 0x0021d31e, 0x002185c0, regs, 2, args);  // Actor_SelectEnemy
+        }
+        if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) return 5;
+    }
+    if (edx == 1) {
+        field<int32_t>(actor, 0x81c) = level_time();
+    } else {
+        const TitleRegs regs = {0, ebx, ecx, edx, ecx, edx};
+        if (call_at(frame, 0x0021d33e, 0x0021c9d0, regs, 0, nullptr)) return 1;  // Actor_FindNearbyCoverNode
+    }
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint32_t seen =
+        visibility_if_stale_at(frame, 0x0021d368, enemy, actor, field<uint32_t>(actor, 0x830), edx, ebx, ebp);
+    exposed_schedule(actor, float_bits_zero(seen) ? 0xca : 0xc8);
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_Resume, 0)
+
+uint32_t XB_CDECL Actor_Exposed_Resume(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                       uint32_t esi, uint32_t edi, uint32_t) {
+    // EDX the state resumed from: 0 from state 9; else Actor_Exposed_Start (tail jump).
+    if (edx == 9) return 0;
+    const TitleRegs regs = {eax, ebx, ecx, edx, esi, edi};
+    return call_at(entry + 4, stack_word(entry), 0x0021d300, regs, 0, nullptr);  // Actor_Exposed_Start
+}
+
+AI_GAP_ENTRY(Actor_Exposed_TryCombat, 0)
+
+uint32_t XB_CDECL Actor_Exposed_TryCombat(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                          uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: reacquire mode (+0x12c = 4) and its animation; with the enemy visible and
+    // shootable the path is dropped, the next step is 0xc8 and Actor_Exposed_Combat runs (AL 1);
+    // else AL 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = edi;
+    const uint32_t frame = entry - 8;
+    field<uint32_t>(actor, 0x12c) = 4;
+    {
+        const TitleRegs regs = {eax, ebx, ecx, edx, esi, eax};
+        call_at(frame, 0x0021e7d3, 0x001fb5c0, regs, 0, nullptr);  // Actor_AnimReacquire
+    }
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint32_t seen =
+        visibility_if_stale_at(frame, 0x0021e7e7, enemy, actor, field<uint32_t>(actor, 0x830), eax, ebx, ebp);
+    if (float_bits_zero(seen)) return 0;
+    {
+        const TitleRegs regs = {eax, ebx, ecx, edx, eax, eax};
+        if (!call_at(frame, 0x0021e7fb, 0x0020eaf0, regs, 0, nullptr)) return 0;  // Actor_CanShootEnemy
+    }
+    stack_word(entry - 12) = ebx;
+    drop_path_at_origin(actor);
+    exposed_schedule(actor, 0xc8);
+    const TitleRegs regs = {0, field<uint32_t>(actor, 0) + 0x140, ecx, edx, addr_of(actor + 0x3c0), eax};
+    call_at(entry - 12, 0x0021e84e, 0x0021d3c0, regs, 0, nullptr);  // Actor_Exposed_Combat
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_Start, 0)
+
+uint32_t XB_CDECL Actor_Grenade_Start(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t, uint32_t esi,
+                                      uint32_t edi, uint32_t) {
+    // ECX actor (state Start callback): 1 without a grenade (+0x1310); else the reaction time
+    // (+0x1318) = now + rand(0..999) (the LCG at 0x008d5a70) and Actor_Grenade_ReactToDistance.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    if (!field<uint32_t>(actor, 0x1310)) return 1;
+    const uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
+    const int32_t now = level_time();
+    title_global<uint32_t>(0x008d5a70) = seed;
+    field<int32_t>(actor, 0x1318) = (int32_t((seed >> 17) * 1000) >> 15) + now;
+    stack_word(entry - 4) = edi;
+    const TitleRegs regs = {uint32_t(field<int32_t>(actor, 0x1318)), ebx, ecx, uint32_t(now), esi, ecx};
+    call_at(entry - 4, 0x002207e7, 0x0021f790, regs, 0, nullptr);  // Actor_Grenade_ReactToDistance
+    return 0;
+}
+
+AI_GAP_ENTRY(G_GrenadeLandedNotifyActors, 4)
+
+uint32_t XB_CDECL G_GrenadeLandedNotifyActors(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX entity hit (0: none), stack grenade (ret 4): unless the hit entity is one a grenade
+    // rests on (+0x134 & 0x200c000 clear), the grenade's +0x2c0 velocity is zeroed, its land
+    // position updated, and every actor holding it (+0x1310) in the grenade state (6) updates
+    // its reaction. EAX 0 (or the hit entity).
+    uint8_t* const grenade = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    stack_word(entry - 4) = ebx;
+    if (eax && !(field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{eax}), 0x134) & 0x200c000)) return eax;
+    field<float>(grenade, 0x2c8) = 0.0f;
+    field<float>(grenade, 0x2c4) = 0.0f;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    field<float>(grenade, 0x2c0) = 0.0f;
+    const uint32_t frame = entry - 12;
+    {
+        const TitleRegs regs = {eax, addr_of(grenade), ecx, edx, addr_of(grenade), edi};
+        call_at(frame, 0x00220829, 0x002128a0, regs, 0, nullptr);  // G_UpdateGrenadeLandPos
+    }
+    for (uint8_t* actor = Actor_FirstOfTeams(0xffffffff); actor; actor = Actor_NextOfTeams(actor, 0xffffffff)) {
+        if (field<uint8_t*>(actor, 0x1310) != grenade || field<uint32_t>(actor, 0xa4) != 6) continue;
+        const TitleRegs regs = {addr_of(actor), addr_of(grenade), ecx, edx, addr_of(actor), addr_of(actor)};
+        call_at(frame, 0x0022084f, 0x0021f6d0, regs, 0, nullptr);  // Actor_Grenade_UpdateReaction
+    }
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_NodeClaimRevoked, 0)
+
+uint32_t XB_CDECL Actor_Grenade_NodeClaimRevoked(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                 uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor (NodeClaimRevoked callback): the claim is dropped (Sentient_SetClaimedNode with a
+    // handle of 0 - the local's upper word keeps the pushed ECX - and PathNode_RevokeClaim with
+    // the node in ESI for the team); in steps 0x259/0x25c a grenade still held picks a new
+    // reaction. EAX 1.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = ecx & 0xffff0000u;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    const uint32_t frame = entry - 12;
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    const uint16_t handle = field<uint16_t>(sentient, 0x48);
+    uint32_t node = 0;
+    if (handle != 0 && handle != 0xffff) {
+        const uint8_t* const block =
+            field<const uint8_t*>(title_global<const uint8_t*>(0x0095f4f4), 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+        if (block) node = field<uint32_t>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+    }
+    {
+        const TitleRegs regs = {stack_word(entry - 4), ebx, ecx, addr_of(sentient), node, ecx};
+        const uint32_t args[2] = {addr_of(sentient), stack_word(entry - 4)};
+        call_at(frame, 0x0021f53b, 0x00200960, regs, 2, args);  // Sentient_SetClaimedNode
+    }
+    {
+        const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+        const TitleRegs regs = {0, ebx, addr_of(field<const uint8_t*>(actor, 4)), team, node, ecx};
+        const uint32_t args[1] = {team};
+        call_at(frame, 0x0021f547, 0x002ba0d0, regs, 1, args);  // PathNode_RevokeClaim (cdecl)
+    }
+    const uint32_t step = field<uint32_t>(actor, 0x28);
+    if ((step == 0x259 || step == 0x25c) && field<uint32_t>(actor, 0x1310)) {
+        const TitleRegs regs = {ecx, ebx, ecx, edx, node, ecx};
+        const uint32_t args[1] = {1};
+        call_at(frame, 0x0021f56e, 0x0021e120, regs, 1, args);  // Actor_Grenade_ChooseReaction
+    }
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_UpdateReaction, 0)
+
+uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                               uint32_t esi, uint32_t edi, uint32_t) {
+    // ESI actor: a grenade owned by this actor's entity (or by nobody before the actor threw
+    // one, +0x1324) is first tried for a throw back (its result returned when it succeeds; the
+    // owner cleared otherwise). Then, unless the actor is safe from the grenade at its claimed
+    // node, its next path point (+0x750) or its origin, it picks a new reaction.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{esi});
+    const uint32_t frame = entry - 0xc;
+    const uint32_t owner = field<uint32_t>(field<const uint8_t*>(actor, 0x1310), 0x378);
+    const uint32_t ent = field<uint32_t>(actor, 0);
+    if (owner == ent || (!owner && !field<uint32_t>(actor, 0x1324))) {
+        const TitleRegs regs = {owner, ebx, ent, edx, esi, edi};
+        const uint32_t args[1] = {esi};
+        const uint32_t thrown = call_at(frame, 0x0021f6f9, 0x0021af20, regs, 1, args);  // Actor_Grenade_TryThrowBack
+        if (thrown) return thrown;
+        field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x378) = 0;
+    }
+    stack_word(entry - 0x10) = edi;
+    const uint16_t* const handle = reinterpret_cast<const uint16_t*>(field<uint8_t*>(actor, 4) + 0x48);
+    uint32_t point;
+    if (PathNode_HandleIsValid(handle) & 0xff) {
+        point = addr_of(PathNode_FromHandle(handle)) + 0x44;
+    } else if (field<int16_t>(actor, 0x740) > 0) {
+        stack_word(entry - 0xc) = field<uint32_t>(actor, 0x750);
+        stack_word(entry - 8) = field<uint32_t>(actor, 0x754);
+        stack_word(entry - 4) = field<uint32_t>(actor, 0x758);
+        point = entry - 0xc;
+    } else {
+        point = ent + 0x140;
+    }
+    const TitleRegs regs = {0, ebx, point, esi, esi, addr_of(handle)};
+    const uint32_t safe = call_at(entry - 0x10, 0x0021f776, 0x0020c9c0, regs, 0, nullptr);  // Actor_IsSafeFromGrenade
+    if (safe) return safe;
+    const TitleRegs again = {esi, ebx, point, esi, esi, addr_of(handle)};
+    const uint32_t args[1] = {1};
+    return call_at(entry - 0x10, 0x0021f783, 0x0021e120, again, 1, args);  // Actor_Grenade_ChooseReaction
+}
+
+AI_GAP_ENTRY(Actor_UpdateOrient, 0)
+
+uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                     uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor: the orientation record (+0x140 when its mode is set, else +0x12c) by mode -
+    // 2: Actor_OrientToMoveHistory (tail jump), 3: Actor_ChooseIdleOrient, 4:
+    // Actor_OrientToEnemyOrMotion, 5: the sentient's yaw (+0x20) as a short angle, pitch 0
+    // (record +4 = 0, +8 = +0xc = yaw); other modes nothing. EAX as the callee leaves it.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    uint8_t* const orient = field<uint32_t>(actor, 0x140) ? actor + 0x140 : actor + 0x12c;
+    const uint32_t mode = field<uint32_t>(orient, 0) - 2;
+    (void)eax;
+    switch (mode) {
+    case 0: {
+        const TitleRegs regs = {addr_of(orient), ebx, ecx, mode, esi, edi};
+        return call_at(entry + 4, stack_word(entry), 0x002052c0, regs, 0, nullptr);  // Actor_OrientToMoveHistory
+    }
+    case 1: {
+        const TitleRegs regs = {ecx, ebx, ecx, mode, esi, edi};
+        const uint32_t args[1] = {addr_of(orient)};
+        return call_at(entry, 0x0021dc04, 0x0021bc00, regs, 1, args);  // Actor_ChooseIdleOrient
+    }
+    case 2: {
+        stack_word(entry - 4) = ebx;
+        const TitleRegs regs = {addr_of(orient), ecx, ecx, mode, esi, edi};
+        const uint32_t args[1] = {addr_of(orient)};
+        return call_at(entry - 4, 0x0021dc0e, 0x0021cb30, regs, 1, args);  // Actor_OrientToEnemyOrMotion
+    }
+    case 3: {
+        const float scale = title_global<float>(0x0083ebd8);  // 65536 / 360
+        const float step = title_global<float>(0x0083ebd4);   // 360 / 65536
+        const float zero = 0.0f;
+        const float pitch = zero * scale;
+        const float yaw = field<float>(field<const uint8_t*>(actor, 4), 0x20) * scale;
+        const int32_t pitch_short = int32_t(pitch) & 0xffff;
+        const int32_t yaw_short = int32_t(yaw) & 0xffff;
+        const float out_yaw = float(yaw_short) * step;
+        const float out_pitch = float(pitch_short) * step;
+        field<float>(orient, 4) = out_pitch;
+        field<float>(orient, 8) = out_yaw;
+        field<float>(orient, 0xc) = out_yaw;
+        return addr_of(orient);
+    }
+    default:
+        return addr_of(orient);
+    }
+}
+
+AI_GAP_ENTRY(Actor_SetGoalNodeAndTakeCover, 4)
+
+uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX sentient, stack node (ret 4): the goal position becomes the node's origin (block
+    // (x, y, z, x) at A - 0x10, A = the 16-aligned frame base). For a cover node type (1 <<
+    // +0x28 in 0x1ffc) with an actor (entity +0x240) that has or finds an enemy, a cover node it
+    // can attempt sets state 1 and claims the node (its handle +0).
+    const uint8_t* const node = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t e4 = entry - 4;
+    stack_word(e4) = ebp;
+    const uint32_t base = e4 & ~15u;
+    const uint32_t frame = base - 0x20;
+    stack_word(base - 0x18) = ebx;
+    stack_word(base - 0x1c) = esi;
+    stack_word(base - 0x20) = edi;
+    stack_word(base - 0x10) = field<uint32_t>(node, 0x44);
+    stack_word(base - 0xc) = field<uint32_t>(node, 0x48);
+    stack_word(base - 8) = field<uint32_t>(node, 0x4c);
+    stack_word(base - 4) = field<uint32_t>(node, 0x44);
+    {
+        const TitleRegs regs = {eax, addr_of(node), base - 0x10, edx, eax, edi};
+        const uint32_t args[1] = {eax};
+        call_at(frame, 0x0021c54c, 0x00203550, regs, 1, args);  // Sentient_SetGoalPos
+    }
+    const uint32_t type = field<uint32_t>(node, 0x28);
+    if (!((1u << (type & 31)) & 0x1ffc)) return 1u << (type & 31);
+    uint8_t* const actor = field<uint8_t*>(field<uint8_t*>(sentient, 0), 0x240);
+    if (!actor) return 1u << (type & 31);
+    if (!field<uint32_t>(sentient, 0x3c)) {
+        {
+            const TitleRegs regs = {0, addr_of(node), type, edx, eax, addr_of(actor)};
+            const uint32_t args[1] = {addr_of(actor)};
+            call_at(frame, 0x0021c576, 0x002135d0, regs, 1, args);  // Actor_UpdateSight
+        }
+        {
+            const TitleRegs regs = {0, addr_of(node), type, edx, eax, addr_of(actor)};
+            const uint32_t args[2] = {addr_of(actor), 1};
+            call_at(frame, 0x0021c57e, 0x002185c0, regs, 2, args);  // Actor_SelectEnemy
+        }
+        if (!field<uint32_t>(sentient, 0x3c)) return 0;
+    }
+    {
+        const TitleRegs regs = {addr_of(node), addr_of(node), type, edx, eax, addr_of(actor)};
+        const uint32_t args[1] = {addr_of(actor)};
+        if (!call_at(frame, 0x0021c58d, 0x0021b390, regs, 1, args)) return 0;  // Actor_AttemptCoverNode
+    }
+    {
+        const TitleRegs regs = {addr_of(actor), addr_of(node), type, edx, 1, addr_of(actor)};
+        call_at(frame, 0x0021c59d, 0x00200110, regs, 0, nullptr);  // Actor_SetState (EAX actor, ESI state)
+    }
+    const uint32_t claimed = field<uint32_t>(actor, 4);
+    const TitleRegs regs = {claimed, addr_of(node), type, field<uint16_t>(node, 0), 1, addr_of(actor)};
+    const uint32_t args[2] = {claimed, field<uint16_t>(node, 0)};
+    return call_at(frame, 0x0021c5ac, 0x00200960, regs, 2, args);  // Sentient_SetClaimedNode
+}
+
+AI_GAP_ENTRY(G_DObjGetTagLocalOrigin, 0)
+
+uint32_t XB_CDECL G_DObjGetTagLocalOrigin(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t,
+                                          uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX entity, ECX tag (name in the table at 0x0098a490), EBX out (4 words): the tag's bone
+    // (DObj_GetTagIndex; -1 without a model) after SV_DObjCreateSkeleton, its local origin
+    // (matrix +0x30) copied to out[0..2]; out[3] is the frame word A - 4 the original never
+    // writes (A = the 16-aligned base). EAX out.
+    const uint8_t* const ent = reinterpret_cast<const uint8_t*>(uintptr_t{eax});
+    const uint32_t e4 = entry - 4;
+    stack_word(e4) = ebp;
+    const uint32_t base = e4 & ~15u;
+    const uint32_t frame = base - 0x20;
+    stack_word(base - 0x1c) = esi;
+    stack_word(base - 0x20) = edi;
+    int32_t bone = -1;
+    if (const uint32_t obj = field<uint32_t>(ent, 0x22c)) {
+        const TitleRegs regs = {obj, ebx, ecx, 0, title_global<uint32_t>(0x0098a490 + ecx * 4), eax};
+        bone = int32_t(call_at(frame, 0x0022d5a3, 0x0023aea0, regs, 0, nullptr));  // DObj_GetTagIndex
+    }
+    {
+        const TitleRegs regs = {uint32_t(bone), ebx, ecx, 0, uint32_t(bone), eax};
+        call_at(frame, 0x0022d5af, 0x002d7210, regs, 0, nullptr);  // SV_DObjCreateSkeleton (EDI)
+    }
+    const uint8_t* const obj = field<const uint8_t*>(ent, 0x22c);
+    const uint32_t matrices = field<uint32_t>(obj, 0x20);
+    const uint32_t first = matrices ? field<uint8_t>(obj, 0x60) * 0x40u + matrices + 0x30 : 0;
+    const uint8_t* const bone_matrix = reinterpret_cast<const uint8_t*>(uintptr_t{uint32_t(bone) * 0x40 + first});
+    stack_word(base - 0x10) = field<uint32_t>(bone_matrix, 0x30);
+    stack_word(base - 0xc) = field<uint32_t>(bone_matrix, 0x34);
+    const uint32_t z = field<uint32_t>(bone_matrix, 0x38);
+    uint32_t* const out = reinterpret_cast<uint32_t*>(uintptr_t{ebx});
+    out[0] = stack_word(base - 0x10);
+    out[1] = stack_word(base - 0xc);
+    const uint32_t w = stack_word(base - 4);
+    stack_word(base - 8) = z;
+    out[2] = stack_word(base - 8);
+    out[3] = w;
+    return ebx;
 }
 
 // The callees run where the original's calls put them (Sentient_CachedNearestNode keeps a

@@ -7872,6 +7872,7 @@
 00219100 Path_RouteAwayFromGrenade
 00219180 Path_RouteBetweenInsidePlanes
 00219230 Path_RouteInsidePlanes
+002192c0 Path_RouteBetweenPointsInsidePlanes
 00219390 Actor_ShootWeapon
 002196d0 Actor_FaceNearestEnemyRoute
 002198a0 Actor_AnimMove
