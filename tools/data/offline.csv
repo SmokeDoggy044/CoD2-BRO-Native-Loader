@@ -556,6 +556,8 @@ address,name,tested,matched,nan,mismatched,coverage
 000b5fe0,PhysConstraintPool_Alloc,1750,1750,0,0,93.1
 000b6040,PhysConstraintPool28c_Alloc,1646,1646,0,0,93.1
 000b61f0,PhysConstraintPoolD0_Alloc,1184,1184,0,0,92.6
+000b6390,PhysConstraint28c_SetMotor,3043,3043,0,0,100.0
+000b63c0,PhysConstraint28c_SetBrake,3119,3119,0,0,100.0
 000b6510,PhysConstraint_AttachSecondBody,2334,2334,0,0,100.0
 000b6590,PhysConstraint_GetSegmentEnds,2172,2149,23,0,100.0
 000b6780,PhysConstraint_UpdateLimitFlag,2554,2554,0,0,100.0
@@ -697,6 +699,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00205010,Actor_Grenade_Combat,3226,3226,0,0,70.8
 00225250,RagdollDef_RemoveBody,3844,3844,0,0,100.0
 002253b0,Phys_FindBodyForEntity,1941,1941,0,0,57.9
+002255d0,VehiclePhys_ApplyWheelMotors,3020,3020,0,0,100.0
+002256b0,VehiclePhys_ApplyWheelFriction,2322,2322,0,0,100.0
 00225a40,PhysRagdoll_RestoreBoneMatrices,2384,2384,0,0,100.0
 00225db0,Phys_JointEntitiesAtPoints,2005,2005,0,0,29.9
 00225ec0,Phys_JointEntityToWorld,1926,1926,0,0,26.0
@@ -712,6 +716,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0022cec0,Ragdoll_PoseToBody,1011,1011,0,0,100.0
 002302d0,Ragdoll_UpdateFromEntity,1020,1020,0,0,100.0
 00231710,VehiclePhys_RebuildPendingBody,2432,2432,0,0,65.5
+002348a0,VehiclePhys_ApplyDriveInputsAll,1958,1958,0,0,80.0
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
 00235910,R_CullLocalPointAndRadius,3712,3712,0,0,100.0
 00235c50,RE_WaterCubemapShotStub,4000,4000,0,0,100.0

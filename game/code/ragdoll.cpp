@@ -3868,4 +3868,94 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             {bits_of(title_global<float>(0x008ff024) * title_global<float>(0x00989240))});  // PhysRagdoll_SetBodiesField134
 }
 
+// The drive inputs of every vehicle physics in the list at 0x008fe0b0 (count 0x008fe0c4), the
+// stack argument passed through. No caller, pointer or immediate: dead.
+void XB_CDECL VehiclePhys_ApplyDriveInputsAll(uint32_t unused) {
+    uint8_t* const* cursor = &title_global<uint8_t*>(0x008fe0b0);
+    uint8_t* const* const end = cursor + title_global<uint32_t>(0x008fe0c4);
+    for (; cursor != end; ++cursor) VehiclePhys_ApplyDriveInputs(*cursor, unused);
+}
+
+// EAX value, ESI phys, ECX entity: stores the value at +0x1d34, builds the ragdoll, sets +0x1d40 0
+// and +0x1d44 0.5, resets the rest state and clears +0x1d3c/+0x1d38 (Ragdoll_StartPhysics' tail).
+// No caller, pointer or immediate: dead.
+PLATFORM_ASM_ENTRY(PhysRagdoll_BuildAndReset_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PhysRagdoll_BuildAndReset) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL PhysRagdoll_BuildAndReset(uint32_t value, uint8_t* phys, uint8_t* ent) {
+    at<uint32_t>(phys, 0x1d34) = value;
+    title_function<void XB_STDCALL(uint8_t*, uint8_t*)>(0x00231860)(phys, ent);  // PhysRagdoll_Build
+    at<float>(phys, 0x1d40) = 0.0f;
+    at<float>(phys, 0x1d44) = title_global<float>(0x0083eb24);  // 0.5
+    PhysRagdoll_ResetRestState(phys);
+    phys[0x1d3c] = 0;
+    at<float>(phys, 0x1d38) = 0.0f;
+}
+
+// ESI vehicle: for each of the eight wheel constraints (+0x4a0) by the wheel mode bits +0x504 and
+// the wheel's flags (+0xa4): reverse (1, wheel 0x20) brakes with +0x4cc, brake (2, wheel 0x40)
+// with +0x4d0, forward / backward (4 / 8, drive wheel 0x10) run the motor at +-speed +0x4c4 over
+// the wheel radius +0x4d8 with the force +0x4c8, else coasting (0x10) brakes with +0x4d4 or
+// releases (0). Only caller VehiclePhys_ApplyDriveInputs: dead.
+PLATFORM_ASM_ENTRY(VehiclePhys_ApplyWheelMotors_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VehiclePhys_ApplyWheelMotors) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL VehiclePhys_ApplyWheelMotors(uint8_t* vehicle) {
+    for (uint32_t i = 0; i < 8; ++i) {
+        uint8_t* const wheel = at<uint8_t*>(vehicle, 0x4a0 + i * 4);
+        if (!wheel) continue;
+        const uint32_t bits = at<uint32_t>(vehicle, 0x504);
+        const uint8_t flags = at<uint8_t>(wheel, 0xa4);
+        if ((bits & 1) && (flags & 0x20)) {
+            PhysConstraint28c_SetBrake(wheel, at<float>(vehicle, 0x4cc));
+        } else if ((bits & 2) && (flags & 0x40)) {
+            PhysConstraint28c_SetBrake(wheel, at<float>(vehicle, 0x4d0));
+        } else if ((bits & 4) && (flags & 0x10)) {
+            PhysConstraint28c_SetMotor(wheel, at<float>(vehicle, 0x4c4) / at<float>(vehicle, 0x4d8),
+                                       at<float>(vehicle, 0x4c8));
+        } else if ((bits & 8) && (flags & 0x10)) {
+            const float speed = at<float>(vehicle, 0x4c4) / at<float>(vehicle, 0x4d8);
+            PhysConstraint28c_SetMotor(wheel, 0.0f - speed, at<float>(vehicle, 0x4c8));
+        } else if (bits & 0x10) {
+            PhysConstraint28c_SetBrake(wheel, at<float>(vehicle, 0x4d4));
+        } else {
+            PhysConstraint28c_SetBrake(wheel, 0.0f);
+        }
+    }
+}
+
+// EAX vehicle: the friction +0x64/+0x68 of the four wheel constraints +0x4a0..+0x4ac: braking
+// (+0x428 > 0.1) both from the def's +0x50, else +0x64 from +0x54 and +0x68 from +0x58, each over
+// 0x008db410. Only caller VehiclePhys_ApplyDriveInputs: dead.
+void XB_REGS1 XB_CDECL VehiclePhys_ApplyWheelFriction(uint8_t* vehicle) {
+    const uint8_t* const def = at<uint8_t*>(vehicle, 0x420);
+    if (at<float>(vehicle, 0x428) > title_global<float>(0x0083ebf8)) {  // 0.1
+        const float f = at<float>(def, 0x50) / title_global<float>(0x008db410);
+        at<float>(at<uint8_t*>(vehicle, 0x4a4), 0x64) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4a0), 0x64) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4a4), 0x68) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4a0), 0x68) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4ac), 0x64) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4a8), 0x64) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4ac), 0x68) = f;
+        at<float>(at<uint8_t*>(vehicle, 0x4a8), 0x68) = f;
+        return;
+    }
+    const float scale = title_global<float>(0x0083eb20) / title_global<float>(0x008db410);  // 1 / x
+    const float side = at<float>(def, 0x54) * scale;
+    at<float>(at<uint8_t*>(vehicle, 0x4a4), 0x64) = side;
+    at<float>(at<uint8_t*>(vehicle, 0x4a0), 0x64) = side;
+    at<float>(at<uint8_t*>(vehicle, 0x4ac), 0x64) = side;
+    at<float>(at<uint8_t*>(vehicle, 0x4a8), 0x64) = side;
+    const float forward = at<float>(at<uint8_t*>(vehicle, 0x420), 0x58) * scale;
+    at<float>(at<uint8_t*>(vehicle, 0x4a4), 0x68) = forward;
+    at<float>(at<uint8_t*>(vehicle, 0x4a0), 0x68) = forward;
+    at<float>(at<uint8_t*>(vehicle, 0x4ac), 0x68) = forward;
+    at<float>(at<uint8_t*>(vehicle, 0x4a8), 0x68) = forward;
+}
+
 }  // namespace game

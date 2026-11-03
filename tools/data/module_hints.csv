@@ -486,5 +486,6 @@ address,module,source,evidence
 002255d0,game,manual,"vehicle wheel motors, called by VehiclePhys_ApplyDriveInputs (ai push 16)"
 002256b0,game,manual,"vehicle wheel friction, called by VehiclePhys_ApplyDriveInputs (ai push 16)"
 00234330,game,manual,"gap created 11-03: sets phys+0x1d34, calls PhysRagdoll_Build"
-002c78d0,game,manual,"missing from the symbol export until 11-03; pmove/bg range"
-002f2930,game,manual,"missing from the symbol export until 11-03; pmove/bg range"
+002c78d0,client,manual,"missing from the symbol export until 11-03; client key-event code (ai push 17)"
+002f2930,client,manual,"missing from the symbol export until 11-03; client key-event code (ai push 17)"
+002f2b20,client,manual,"gap created 11-03: copies a string into the console buffer 0x0092e84c, sends Enter to Console_KeyDownEvent"
