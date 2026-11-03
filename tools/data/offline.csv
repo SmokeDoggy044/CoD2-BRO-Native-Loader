@@ -741,6 +741,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002489f0,SP_sound_blend,3816,3816,0,0,100.0
 00248af0,G_Error,3827,3827,0,0,100.0
 00248dd0,Q_CleanStrLower,3636,3636,0,0,100.0
+002496c0,VehNode_FillUnsetAngles,1296,1296,0,0,10.0
 00249c00,G_AddSpawnVarToken,1929,1929,0,0,100.0
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
 0024acb0,G_EndGame,4000,4000,0,0,100.0
@@ -768,6 +769,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0024f7d0,DebugDraw_AddLineIfEnabled,3857,3857,0,0,100.0
 0024fe10,G_FreeAnimTrees,3322,3322,0,0,100.0
 002532f0,G_FreeFarthestDroppedItem,1952,1952,0,0,78.0
+0025b8a0,Vehicle_UpdateWheelBones,1530,1457,0,73,100.0
 0025c6a0,turret_controller,1751,1751,0,0,75.9
 00275b60,HudElem_SubstituteLabel,3589,3589,0,0,87.1
 00275d00,HudElem_GetTimerValue,3851,3851,0,0,45.0

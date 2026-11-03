@@ -1672,7 +1672,9 @@ uint32_t XB_CDECL VehPath_UpdateSegment(uint8_t* state, const float* dir, const 
     return reached;
 }
 
+// The original sign-extends BX in EBX itself (MOVSX EBX,BX) and leaves it so.
 PLATFORM_ASM_ENTRY(VehNode_FillUnsetAngles_entry,
+                   "movswl %bx, %ebx\n"
                    "pushl 4(%esp)\n"
                    "pushl %ebx\n" PLATFORM_ASM_CALL(VehNode_FillUnsetAngles) "addl $8, %esp\n"
                    "ret")
