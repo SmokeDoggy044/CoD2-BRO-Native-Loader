@@ -494,7 +494,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000ad040,PhysSphere_SphereContact,3234,3234,0,0,100.0
 000ad140,PhysBox_SweepSphere,2125,2125,0,0,60.9
 000ad770,PhysBox_IntersectRay,3276,3276,0,0,98.0
-000ada90,PhysBox_IntersectSegment,3255,3255,0,0,67.6
+000ada90,PhysBox_IntersectSegment,3270,3270,0,0,89.2
 000adc90,PhysCapsule_SphereContact,3447,3445,2,0,100.0
 000ae970,PhysBox_SphereContact,2054,2054,0,0,59.3
 000aefa0,PhysOrientedBox_Support,3434,3380,54,0,100.0
@@ -561,7 +561,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000b6510,PhysConstraint_AttachSecondBody,2334,2334,0,0,100.0
 000b6590,PhysConstraint_GetSegmentEnds,2172,2149,23,0,100.0
 000b6780,PhysConstraint_UpdateLimitFlag,2554,2554,0,0,100.0
-000b68a0,PhysConstraint_AddContacts,1508,1508,0,0,67.2
+000b68a0,PhysConstraint_AddContacts,3342,3341,1,0,60.8
 000b7020,PhysConstraint_UpdateDrive,2027,1973,54,0,96.6
 000b7260,PhysBody_OffsetByField70,2306,2306,0,0,100.0
 000b72f0,PhysContact_AllocBufferB0,1701,1701,0,0,100.0
@@ -712,10 +712,11 @@ address,name,tested,matched,nan,mismatched,coverage
 00228870,Phys_AttachEntitiesAtPoints,1978,1978,0,0,12.1
 00228ee0,VehiclePhys_AddContacts,1716,1644,71,1,100.0
 00229c90,PhysRagdoll_ComputeBounds,1104,1104,0,0,100.0
+0022a0f0,PhysParts_WriteBoneMatrices,2898,2528,370,0,100.0
 0022c890,Ragdoll_RefreshBoneMatrices,1000,1000,0,0,100.0
 0022cec0,Ragdoll_PoseToBody,1011,1011,0,0,100.0
 002302d0,Ragdoll_UpdateFromEntity,1020,1020,0,0,100.0
-00231710,VehiclePhys_RebuildPendingBody,2432,2432,0,0,65.5
+00231710,VehiclePhys_RebuildPendingBody,3637,3637,0,0,65.5
 002348a0,VehiclePhys_ApplyDriveInputsAll,1958,1958,0,0,80.0
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
 00235910,R_CullLocalPointAndRadius,3712,3712,0,0,100.0
@@ -744,10 +745,12 @@ address,name,tested,matched,nan,mismatched,coverage
 00241200,FX_PlayEffectAt,1723,1723,0,0,100.0
 00248080,VehNode_CopyToPathNode,1539,1539,0,0,100.0
 00248270,hurt_use,3806,3806,0,0,100.0
+00248850,Vehicle_HasDefType1,2036,2036,0,0,100.0
 002488d0,Use_trigger_use,3804,3804,0,0,100.0
 002489f0,SP_sound_blend,3816,3816,0,0,100.0
 00248af0,G_Error,3827,3827,0,0,100.0
 00248dd0,Q_CleanStrLower,3636,3636,0,0,100.0
+00249010,VehNodePool_Free,3685,3685,0,0,75.0
 002496c0,VehNode_FillUnsetAngles,1296,1296,0,0,10.0
 00249c00,G_AddSpawnVarToken,1929,1929,0,0,100.0
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
@@ -937,7 +940,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b4cb0,PM_ResetWeaponToIdle,3233,3233,0,0,100.0
 002b4d80,BG_GetWeaponSpread,1663,1663,0,0,60.7
 002b4fd0,BG_GetTotalReserveAmmo,1016,1016,0,0,74.0
-002b54c0,PM_SetSlotWeapon,1574,1574,0,0,33.3
+002b54c0,PM_SetSlotWeapon,3048,3048,0,0,33.3
 002b5920,BG_SetupClipIndices,1842,1842,0,0,73.7
 002b5a70,BG_SetupSharedAmmoCaps,2046,2046,0,0,56.0
 002b5c40,BG_SetupAmmoIndices,1749,1749,0,0,66.9
@@ -948,8 +951,8 @@ address,name,tested,matched,nan,mismatched,coverage
 002b6000,PM_WalkStepEventForSurface,2048,2048,0,0,100.0
 002b6020,PM_FootstepEventForSurface,2022,2022,0,0,100.0
 002b6070,PM_JumpEventForSurface,1731,1731,0,0,100.0
-002b68f0,BG_CanItemBeGrabbed,2184,2184,0,0,22.0
-002b6a70,BG_FindItem,3908,3908,0,0,66.2
+002b68f0,BG_CanItemBeGrabbed,2476,2476,0,0,22.0
+002b6a70,BG_FindItem,3891,3891,0,0,66.2
 002b6ba0,S_ResumeAllChannels,1005,1005,0,0,100.0
 002b6be0,S_PauseAllChannels,1022,1022,0,0,100.0
 002b6fc0,SpgManager_Construct,2067,2067,0,0,100.0

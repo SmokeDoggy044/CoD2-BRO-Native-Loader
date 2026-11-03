@@ -540,4 +540,18 @@ extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ClientActive_Ctor(uint8_t* cl);
 
 extern "C" void ClientActive_Ctor_entry(void);
 
+// 0x00298b20 (rumble object in EAX): frees both motors' queued-rumble lists, resets them to empty and stops both
+// motors of the active pad; returns the pad index (0x008dcf18) last read. Called at mission end/retry and FE fade-out.
+uint32_t XB_REGS1 XB_CDECL RumbleQueue_ClearAll(uint8_t* rumble);
+// 0x002c78d0 (field in EAX, key on the stack): Q3's Field_KeyDownEvent (delete, arrows with ctrl word jumps,
+// home/end, ctrl-a/e, insert toggles overstrike 0x0092858c; shift-insert pastes nothing). Dead: only caller
+// Console_KeyDownEvent.
+void XB_REGS1 XB_CDECL Field_KeyDownEvent(uint8_t* field, int32_t key);
+// 0x002f2930 (key in EAX): the console's key handler (ctrl-l "clear", enter runs the input line 0x0092e84c, the
+// rest edit the field 0x0092e830). Dead: only caller Console_SubmitLine.
+void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key);
+// 0x002f2b20 (text in EAX): copies a non-empty text into the console input line and presses enter when the line
+// holds anything, then Field_AdjustScroll. Dead (no CALL/JMP, pointer or immediate).
+void XB_REGS1 XB_CDECL Console_SubmitLine(const char* text);
+
 }  // namespace game
