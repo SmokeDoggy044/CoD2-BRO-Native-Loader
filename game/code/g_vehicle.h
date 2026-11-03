@@ -414,7 +414,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry
 extern "C" void Vehicle_FireTurretWeapon_entry(void);
 
 // 0x00267e10 (cdecl ent): the use hint, its entity and string for the client (+0x47c/+0x480/+0x484/+0x4c0).
-void XB_CDECL Player_UpdateCursorHints(uint8_t* ent);
+extern "C" PLATFORM_HIDDEN void XB_CDECL Player_UpdateCursorHints(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                 uint32_t ebp);
+extern "C" void Player_UpdateCursorHints_entry(void);
 // 0x0026f0a0 (cdecl pass, attacker, start, end, a4, depth, fire, a7, a8): a bullet segment with effects only
 // (dead: its one caller Bullet_Fire has none).
 extern "C" PLATFORM_HIDDEN void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
@@ -429,5 +431,13 @@ extern "C" void Weapon_BulletTrace_r_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
                                                          uint32_t ebp);
 extern "C" void ClientThink_real_entry(void);
+// 0x00264060 (cdecl ent, list of {entity, score}): the usable entities in front of the player, best first.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                              uint32_t ebp);
+extern "C" void Player_GetUseList_entry(void);
+// 0x00265c10 (EAX fire record; cdecl ent): the melee trace, damage, impact event and rumble.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx, uint32_t esi,
+                                                          uint32_t edi, uint32_t ebp);
+extern "C" void Weapon_MeleeTrace_entry(void);
 
 }  // namespace game
