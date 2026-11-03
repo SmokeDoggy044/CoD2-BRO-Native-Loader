@@ -13860,4 +13860,1320 @@ void XB_CDECL Actor_BecomeCorpse(uint32_t entry, uint8_t* ent, uint32_t ebx, uin
     stack_word(B + 4 - 8) = 0;  // its saved EBP
 }
 
+uint8_t* XB_REGS1 XB_CDECL Path_Init(uint8_t* path) {
+    // A local path made ready: the +0x18 word of all 32 points and +0x38c cleared. EAX kept.
+    for (uint32_t i = 0; i < 0x20; ++i) field<uint16_t>(path, 0x18 + i * 0x1c) = 0;
+    field<uint32_t>(path, 0x38c) = 0;
+    return path;
+}
+
+namespace {
+
+// The actor's next state transition queued as (3, 0) and merged (Actor_MergeStateTransitions
+// at `frame`), +0xbc counted down: the end of a think state.
+void finish_think_state(uint8_t* actor, uint32_t frame, uint32_t ret, uint32_t ebx, uint32_t edx) {
+    field<uint32_t>(actor, 0x38 + field<uint32_t>(actor, 0xa0) * 8) = 3;
+    field<uint32_t>(actor, 0x3c + field<uint32_t>(actor, 0xa0) * 8) = 0;
+    const uint32_t count = field<uint32_t>(actor, 0xa0) + 1;
+    field<uint32_t>(actor, 0xa0) = count;
+    call_at(frame, ret, 0x001fd860, TitleRegs{addr_of(actor), ebx, count, edx, addr_of(actor), 0}, 0, nullptr);
+    --field<int32_t>(actor, 0xbc);
+}
+
+// The sight and enemy choice of a think state (EBX/EDX as the original has them): the
+// sentient's position record (+0x12a0) when set, Actor_UpdateSight, Actor_SelectEnemy(actor, 1).
+// `ret` = the return addresses of the three calls; `keep` = Actor_SelectEnemy's second argument.
+uint32_t think_sight_and_enemy(uint8_t* actor, uint32_t frame, const uint32_t (&ret)[3], uint32_t eax, uint32_t ebx,
+                               uint32_t edx, uint32_t edi, uint32_t keep = 1) {
+    const uint32_t a = addr_of(actor);
+    if (field<uint32_t>(actor, 0x12a0))
+        call_at(frame, ret[0], 0x00200050, TitleRegs{eax, ebx, field<uint32_t>(actor, 0x12a0), edx, a, edi}, 0,
+                nullptr);  // Actor_RecordSentientPosition
+    const uint32_t one[1] = {a};
+    call_at(frame, ret[1], 0x002135d0, TitleRegs{eax, ebx, 0, edx, a, edi}, 1, one);  // Actor_UpdateSight
+    const uint32_t two[2] = {a, keep};
+    return call_at(frame, ret[2], 0x002185c0, TitleRegs{eax, ebx, 0, edx, a, edi}, 2, two);  // Actor_SelectEnemy
+}
+
+// Actor_AvoidOthers(EAX actor; stack 0) at `frame`, then the move it picks: 0 run, 1 stand,
+// 2 walk (g_animScript_stop), each at `frame` with return addresses `ret` (avoid, run, stand,
+// walk); `flag` = Actor_AvoidOthers' stack word. Returns the pick.
+uint32_t avoid_and_move(uint8_t* actor, uint32_t frame, const uint32_t (&ret)[4], uint32_t ebx, uint32_t esi,
+                        uint32_t edi, uint32_t flag = 0) {
+    const uint32_t a = addr_of(actor);
+    const uint32_t zero[1] = {flag};
+    const uint32_t pick = call_at(frame, ret[0], 0x00214c80, TitleRegs{a, ebx, 0, 0, esi, edi}, 1, zero);
+    const uint32_t stop[1] = {0x00987bb8};  // g_animScript_stop
+    if (pick == 0) {
+        call_at(frame, ret[1], 0x00201a10, TitleRegs{a, ebx, 0, 0, esi, edi}, 1, stop);  // Actor_AnimMoveRun
+    } else if (pick == 1) {
+        call_at(frame, ret[2], 0x00203de0, TitleRegs{a, ebx, 0, 0, 0x00987bb8, edi}, 0, nullptr);  // Actor_AnimStationary
+    } else if (pick == 2) {
+        call_at(frame, ret[3], 0x00201a80, TitleRegs{a, ebx, 0, 0, esi, edi}, 1, stop);  // Actor_AnimMoveWalk
+    }
+    return pick;
+}
+
+// Path +0x7ac = -2 and +0x7a8 = point count + 1 (the reacquire path's trim marks).
+void mark_reacquire_path(uint8_t* actor) {
+    field<int32_t>(actor, 0x7ac) = -2;
+    field<int32_t>(actor, 0x7a8) = field<int16_t>(actor, 0x740) + 1;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_Exposed_CheckNearbyCover, 0)
+
+uint32_t XB_CDECL Actor_Exposed_CheckNearbyCover(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t,
+                                                 uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // ECX actor: with an enemy and +0xbc 0 the path is saved to a local (Path_Init, then the
+    // points and the 0x5c-byte tail), and a nearby cover node changes the state to 1; else an
+    // actor left without path points gets the saved path back.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = ebp;
+    const uint32_t base = (entry - 4) & ~7u;
+    const uint32_t frame = base - 0x3f0;
+    stack_word(base - 0x3e8) = ebx;
+    stack_word(base - 0x3ec) = esi;
+    stack_word(base - 0x3f0) = edi;
+    const uint32_t sentient = field<uint32_t>(actor, 4);
+    if (!field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{sentient}), 0x3c)) return sentient;
+    if (field<uint32_t>(actor, 0xbc)) return field<uint32_t>(actor, 0xbc);
+    uint8_t* const path = reinterpret_cast<uint8_t*>(uintptr_t{frame + 0x10});
+    Path_Init(path);
+    copy_path(actor + 0x3c0, path, field<int16_t>(actor, 0x742));
+    const uint32_t bytes = uint32_t(field<int16_t>(actor, 0x742) * 0x1c);
+    const uint32_t a = addr_of(actor);
+    const TitleRegs regs = {0, a, a, bytes, a + 0x3c0 + 0x3dc, addr_of(path) + 0x3dc};
+    if (call_at(frame, 0x0021d2c3, 0x0021c9d0, regs, 0, nullptr)) {  // Actor_FindNearbyCoverNode
+        const TitleRegs state = {a, a, 0, bytes, 1, addr_of(path) + 0x3dc};
+        return call_at(frame, 0x0021d2d3, 0x00200110, state, 0, nullptr);  // Actor_SetState
+    }
+    if (field<int16_t>(actor, 0x740) > 0) return 0;
+    Path_CopyToActor(path, actor);
+    stack_word(frame - 4) = 0x0021d2ef;
+    return addr_of(path);
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquirePathTrim, 0)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquirePathTrim(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                  uint32_t esi, uint32_t edi, uint32_t) {
+    // EDI actor: combat when possible (Actor_Exposed_TryCombat); else the path trimmed from the
+    // enemy's eye (done when that trims), then with path points left move on (Actor_AvoidOthers,
+    // step 0xd3), without them the next step.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t combat = call_at(entry, 0x0021f927, 0x0021e7c0, TitleRegs{edi, ebx, ecx, edx, esi, edi}, 0, nullptr);
+    if (combat & 0xff) return combat;
+    stack_word(entry - 4) = esi;
+    const uint32_t frame = entry - 4;
+    const uint32_t trimmed =
+        call_at(frame, 0x0021f937, 0x0020d110, TitleRegs{combat, ebx, ecx, edx, edi, edi}, 0, nullptr);  // Actor_TrimPathFromEye
+    if (trimmed) return trimmed;
+    if (field<int16_t>(actor, 0x740) > 0) {
+        field<uint32_t>(actor, 0x12c) = 4;
+        const uint32_t ret[4] = {0x0021f95a, 0x0021f9ac, 0x0021f99e, 0x0021f971};
+        avoid_and_move(actor, frame, ret, ebx, edi, edi);
+        field<uint32_t>(actor, 0x28) = 0xd3;
+        field<int32_t>(actor, 0x2c) = level_time() + 1;
+        field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+        return uint32_t(level_time() + 1);
+    }
+    ++field<uint32_t>(actor, 0x28);
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+    return uint32_t(level_time() + 0x1f5);
+}
+
+AI_GAP_ENTRY(Actor_CriticalSection_Think, 0)
+
+uint32_t XB_CDECL Actor_CriticalSection_Think(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor (think callback): after 10 s in the state (+0xc4) it ends (1); else sight and
+    // enemy, the requested anim script (+0x250/+0x284 into +0x254/+0x285, mode +0x278; mode 1
+    // without path points becomes 7), anim script and movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = esi;
+    const uint32_t frame = entry - 8;
+    const int32_t waited = level_time() - field<int32_t>(actor, 0xc4);
+    if (waited > 0x2710) {
+        finish_think_state(actor, frame, 0x002201e8, edx, edx);
+        return 1;
+    }
+    field<uint32_t>(actor, 0x13e8) = 0x0083d31c;  // "critical section"
+    const uint32_t ret[3] = {0x0022020f, 0x00220215, 0x0022021d};
+    think_sight_and_enemy(actor, frame, ret, uint32_t(waited), edx, edx, edi);
+    const uint32_t mode = field<uint32_t>(actor, 0x278);
+    field<uint32_t>(actor, 0x254) = field<uint32_t>(actor, 0x250);
+    field<uint32_t>(actor, 0x27c) = mode;
+    field<uint8_t>(actor, 0x285) = field<uint8_t>(actor, 0x284);
+    if (mode == 1 && field<int16_t>(actor, 0x740) <= 0) field<uint32_t>(actor, 0x27c) = 7;
+    const uint32_t a = addr_of(actor);
+    call_at(frame, 0x0022025f, 0x00205dd0, TitleRegs{mode, edx, field<uint8_t>(actor, 0x284), field<uint32_t>(actor, 0x250), a, edi},
+            0, nullptr);  // Actor_UpdateAnimScript
+    call_at(frame, 0x00220266, 0x0021ea60, TitleRegs{a, edx, 0, 0, a, edi}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_FindCover, 4)
+
+uint32_t XB_CDECL Actor_Grenade_FindCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                          uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor, EAX grenade point, stack radius (ret 4): the danger spot (+0x1350, z + 36) and
+    // squared radius (+0x135c), cover candidates around the entity (Actor_GatherCoverCandidates
+    // with the grenade-safe filter 0x0020d030 and scorer 0x00201640; the entity origin is put
+    // back afterwards), then Actor_Grenade_ClaimBestCover.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const float* const point = reinterpret_cast<const float*>(uintptr_t{eax});
+    stack_word(entry - 0x10) = ebx;
+    field<uint32_t>(actor, 0x1350) = reinterpret_cast<const uint32_t*>(point)[0];
+    field<uint32_t>(actor, 0x1354) = reinterpret_cast<const uint32_t*>(point)[1];
+    field<float>(actor, 0x1358) = point[2] + title_global<float>(0x0083f01c);
+    const float radius = *stack_vec(entry + 4);
+    field<float>(actor, 0x135c) = radius * radius;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    stack_word(entry - 0xc) = field<uint32_t>(ent, 0x140);
+    stack_word(entry - 8) = field<uint32_t>(ent, 0x144);
+    stack_word(entry - 4) = field<uint32_t>(ent, 0x148);
+    const uint32_t args[5] = {entry - 0xc, 0x49100000, 0x42a00000, 0x0020d030, 0x00201640};
+    call_at(entry - 0x10, 0x0021db90, 0x001ffe10, TitleRegs{0x1ffc, ecx, field<uint32_t>(ent, 0x148), edx, esi, edi}, 5,
+            args);  // Actor_GatherCoverCandidates
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x140) = stack_word(entry - 0xc);
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x144) = stack_word(entry - 8);
+    const uint32_t e = field<uint32_t>(actor, 0);
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x148) = stack_word(entry - 4);
+    const uint32_t self[1] = {ecx};
+    return call_at(entry - 0x10, 0x0021dbc6, 0x0021c810, TitleRegs{e, ecx, e, e, esi, edi}, 1,
+                   self);  // Actor_Grenade_ClaimBestCover
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquireMove, 0)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: with the enemy visible (Actor_UpdateVisibilityIfStale, age +0x830) and
+    // shootable the claim is dropped, the path emptied and combat starts (step 0xc8); else with
+    // path points it moves on (Actor_AvoidOthers), without them Actor_Exposed_ReacquireLast.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = ebp;
+    stack_word(entry - 0x10) = esi;
+    stack_word(entry - 0x14) = edi;
+    const uint32_t frame = entry - 0x14;
+    const uint32_t moving = field<int16_t>(actor, 0x740) > 0 ? 1 : 0;
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint32_t seen =
+        visibility_if_stale_at(frame, 0x0021e6c9, enemy, actor, field<uint32_t>(actor, 0x830), eax, moving, 0);
+    const uint32_t a = addr_of(actor);
+    if (!float_bits_zero(seen) &&
+        call_at(frame, 0x0021e6dd, 0x0020eaf0, TitleRegs{a, moving, ecx, edx, a, a}, 0, nullptr)) {  // Actor_CanShootEnemy
+        stack_word(entry - 4) = ecx & 0xffff0000u;
+        const uint32_t args[2] = {field<uint32_t>(actor, 4), stack_word(entry - 4)};
+        call_at(frame, 0x0021e6f4, 0x00200960, TitleRegs{a, moving, args[1], args[0], a, a}, 2,
+                args);  // Sentient_SetClaimedNode
+        drop_path_at_origin(actor);
+        exposed_schedule(actor, 0xc8);
+        const TitleRegs regs = {uint32_t(level_time() + 1), field<uint32_t>(actor, 0) + 0x140, uint32_t(level_time() + 0x1f5),
+                                0, a + 0x3c0, a};
+        return call_at(frame, 0x0021e73f, 0x0021d3c0, regs, 0, nullptr);  // Actor_Exposed_Combat
+    }
+    if (!moving) {
+        return call_at(frame, 0x0021e7a2, 0x00213ef0, TitleRegs{a, a, ecx, edx, a, a}, 0,
+                       nullptr);  // Actor_Exposed_ReacquireLast
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    const uint32_t ret[4] = {0x0021e75b, 0x0021e795, 0x0021e783, 0x0021e771};
+    return avoid_and_move(actor, frame, ret, moving, a, a);
+}
+
+AI_GAP_ENTRY(Actor_Exposed_CheckMoveToGoal, 0)
+
+uint32_t XB_CDECL Actor_Exposed_CheckMoveToGoal(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: in steps 0xd6/0xd7 a goal node other than the claimed one (+0x50 vs +0x48)
+    // drops the claim and the path (step 0xc8). Then, at most every 3 s (50 ms when +0x1360 is
+    // now) and without path points, a path to the goal (Actor_FindPathToGoal(0, 1, 1) unless
+    // +0x7df) moves to step 0xd6. EAX 0 (the switch's state-1 case is unreachable).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t a = addr_of(actor);
+    const uint32_t step = field<uint32_t>(actor, 0x28);
+    if (step == 0xd7 || step == 0xd6) {
+        uint8_t* const sentient = field<uint8_t*>(actor, 4);
+        stack_word(entry - 0x10) = ebp;
+        const uint16_t* const goal = reinterpret_cast<const uint16_t*>(sentient + 0x50);
+        if ((PathNode_HandleIsValid(goal) & 0xff) && field<uint16_t>(sentient, 0x48) != *goal) {
+            stack_word(entry - 4) = ecx & 0xffff0000u;
+            const uint32_t args[2] = {addr_of(sentient), stack_word(entry - 4)};
+            call_at(entry - 0x10, 0x0021c744, 0x00200960, TitleRegs{field<uint16_t>(sentient, 0x48), ebx, args[1], edx,
+                                                                    args[0], a},
+                    2, args);  // Sentient_SetClaimedNode
+            exposed_schedule(actor, 0xc8);
+            field<uint32_t>(actor, 0x7d0) = 0;
+            call_at(entry - 0x10, 0x0021c771, 0x001ffdb0,
+                    TitleRegs{uint32_t(level_time() + 0x1f5), ebx, 0, uint32_t(level_time() + 1), addr_of(sentient), a}, 0,
+                    nullptr);  // Actor_ClearPath
+        }
+    }
+    const int32_t now = level_time();
+    if (now <= field<int32_t>(actor, 0x7d0) || field<int16_t>(actor, 0x740) > 0) return 0;
+    field<int32_t>(actor, 0x7d0) = now + (now == field<int32_t>(actor, 0x1360) ? 0x32 : 0xbb7);
+    if (field<uint8_t>(actor, 0x7df)) return 0;
+    const uint32_t args[3] = {0, 1, 1};
+    call_at(entry - 0xc, 0x0021c7bc, 0x0021a180, TitleRegs{a, ebx, ecx, edx, esi, a}, 3, args);  // Actor_FindPathToGoal
+    if (field<int16_t>(actor, 0x740) > 0) exposed_schedule(actor, 0xd6);
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquireDirectPath, 0)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireDirectPath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor: combat when possible; else a path to the enemy (Actor_FindPathToSentient(0,
+    // 1, 1)), trimmed at the goal when the enemy's origin is outside the goal (dz^2 > 6400 or
+    // xy distance^2 > +0x1c); step 0xcf with path points (trim marks set), else 0xd0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 0x10) = edi;
+    const uint32_t frame = entry - 0x10;
+    const uint32_t a = addr_of(actor);
+    const uint32_t combat = call_at(frame, 0x0021fb0b, 0x0021e7c0, TitleRegs{a, ebx, ecx, edx, esi, a}, 0, nullptr);
+    if (combat & 0xff) return combat;
+    const uint32_t enemy = field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint8_t* const ent = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{enemy}), 0);
+    stack_word(entry - 0xc) = field<uint32_t>(ent, 0x140);
+    stack_word(entry - 8) = field<uint32_t>(ent, 0x144);
+    stack_word(entry - 4) = field<uint32_t>(ent, 0x148);
+    const uint32_t args[5] = {a, enemy, 0, 1, 1};
+    call_at(frame, 0x0021fb52, 0x00219c40, TitleRegs{addr_of(ent), ebx, enemy, edx, esi, a}, 5,
+            args);  // Actor_FindPathToSentient
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    const float* const v = stack_vec(entry - 0xc);
+    const float dz = v[2] - field<float>(sentient, 0x14);
+    const float dx = v[0] - field<float>(sentient, 0xc);
+    const float dy = v[1] - field<float>(sentient, 0x10);
+    bool trim = dz * dz > title_global<float>(0x0083eb6c);
+    if (!trim) trim = dy * dy + dx * dx > field<float>(sentient, 0x1c);
+    if (trim) call_at(frame, 0x0021fba3, 0x00201cf0, TitleRegs{addr_of(sentient), ebx, enemy, edx, esi, a}, 0,
+                      nullptr);  // Actor_TrimPathAtGoal
+    exposed_schedule(actor, 0xcf);
+    if (field<int16_t>(actor, 0x740) != 0) {
+        mark_reacquire_path(actor);
+        return uint32_t(field<int16_t>(actor, 0x740) + 1);
+    }
+    exposed_schedule(actor, 0xd0);
+    return combat;
+}
+
+AI_GAP_ENTRY(Actor_AnimCustom_Think, 0)
+
+uint32_t XB_CDECL Actor_AnimCustom_Think(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                         uint32_t edi, uint32_t) {
+    // ECX actor (think callback): the custom anim script (+0x258 into +0x254, mode +0x280 or 4,
+    // +0x285 1) and Actor_UpdateAnimScript; while the anim handle (+0x24c: index byte, serial
+    // above) still names a live record of 0x008dd228 without flag 8 at +0x10: sight, enemy
+    // and movement (0); else the state ends (1).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = esi;
+    const uint32_t frame = entry - 8;
+    const uint32_t a = addr_of(actor);
+    field<uint32_t>(actor, 0x254) = a + 0x258;
+    const uint32_t mode = field<uint32_t>(actor, 0x280);
+    field<uint32_t>(actor, 0x13e8) = 0x0083d378;  // "animcustom"
+    field<uint32_t>(actor, 0x27c) = mode ? mode : 4;
+    field<uint8_t>(actor, 0x285) = 1;
+    call_at(frame, 0x00220424, 0x00205dd0, TitleRegs{mode, edx, ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateAnimScript
+    const uint32_t handle = field<uint32_t>(actor, 0x24c);
+    const uint32_t index = handle & 0xff;
+    stack_word(entry - 0xc) = edi;
+    bool live = false;
+    if ((handle >> 8) == title_global<uint32_t>(0x008dd22c + index * 8) && title_global<uint32_t>(0x008dd228 + index * 8)) {
+        const uint8_t* const record = title_global<const uint8_t*>(0x008dd228 + index * 8);
+        live = !((field<uint32_t>(record, 0x10) >> 3) & 1);
+    }
+    if (!live) {
+        finish_think_state(actor, frame, 0x002204e4, edx, edx);
+        return 1;
+    }
+    const uint32_t ret[3] = {0x0022049a, 0x002204a0, 0x002204a8};
+    think_sight_and_enemy(actor, frame, ret, 0, edx, handle >> 8, edi);
+    call_at(frame, 0x002204af, 0x0021ea60, TitleRegs{a, edx, 0, 0, a, edi}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_Flee, 0)
+
+uint32_t XB_CDECL Actor_Grenade_Flee(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                     uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor: at the end of the path (no points) grenade combat when safe (step 0x25b),
+    // else cower (step 0x25a); on the way, until the reaction time (+0x1318) stand, then move
+    // (Actor_AvoidOthers) and drop the path on a vehicle path (+0x1390) or with +0x7c8. EAX 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = edi;
+    const uint32_t frame = entry - 8;
+    const uint32_t a = addr_of(actor);
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        const uint32_t origin = field<uint32_t>(actor, 0) + 0x140;
+        if (call_at(frame, 0x0021ae1d, 0x0020c9c0, TitleRegs{a, ebx, origin, a, esi, a}, 0,
+                    nullptr)) {  // Actor_IsSafeFromGrenade
+            field<uint32_t>(actor, 0x28) = 0x25b;
+            field<int32_t>(actor, 0x2c) = level_time() + 1;
+            field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+            call_at(frame, 0x0021ae47, 0x00205010, TitleRegs{uint32_t(level_time() + 1), ebx, a, a, esi, a}, 0,
+                    nullptr);  // Actor_Grenade_Combat
+            return 0;
+        }
+        field<uint32_t>(actor, 0x28) = 0x25a;
+        field<int32_t>(actor, 0x2c) = level_time() + 1;
+        field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+        field<uint32_t>(actor, 0x12c) = 1;
+        call_at(frame, 0x0021ae80, 0x00203de0, TitleRegs{a, ebx, origin, uint32_t(level_time() + 1), 0x00987bc8, a}, 0,
+                nullptr);  // Actor_AnimStationary (g_animScript_grenade_cower)
+        return 0;
+    }
+    if (field<int32_t>(actor, 0x1318) >= level_time()) {
+        call_at(frame, 0x0021af13, 0x00203de0, TitleRegs{a, ebx, field<uint32_t>(actor, 0x1318), edx, 0x00987bb8, a}, 0,
+                nullptr);  // Actor_AnimStationary (g_animScript_stop)
+        return 0;
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    field<uint8_t>(actor, 0x7df) = 0;
+    field<uint32_t>(actor, 0x7c0) = 0;
+    const uint32_t ret[4] = {0x0021aeb8, 0x0021af07, 0x0021aef9, 0x0021aecf};
+    avoid_and_move(actor, frame, ret, ebx, esi, a);
+    if (field<uint32_t>(actor, 0x1390) || field<uint32_t>(actor, 0x7c8))
+        call_at(frame, 0x0021aee8, 0x001ffdb0, TitleRegs{field<uint32_t>(actor, 0x7c8), ebx, 0, 0, esi, a}, 0,
+                nullptr);  // Actor_ClearPath
+    return 0;
+}
+
+namespace {
+
+// The first used actor slot (0x00985384 table, 32) from `index` on with +0x1360 >= 0 (the
+// inlined team test with mask -1 always passes), or null.
+uint8_t* blocking_actor_from(int32_t index) {
+    for (uint32_t slot = 0x00985384 + uint32_t(index) * 4; slot < 0x00985404; slot += 4) {
+        uint8_t* const other = title_global<uint8_t*>(slot);
+        if (other && field<int32_t>(other, 0x1360) >= 0) return other;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_UpdateBlockingPairs, 4)
+
+uint32_t XB_CDECL Actor_UpdateBlockingPairs(uint32_t entry, uint32_t, uint32_t ebx, uint32_t, uint32_t,
+                                            uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Stack block list (ret 4): every pair of actors whose entities are within 8 units in xy
+    // (dy^2 + dx^2 < 64) is bumped in the list (ActorBlockList_Bump), then the list resolved
+    // (Actor_ResolveBlockingPairs).
+    const uint32_t list = stack_word(entry + 4);
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 0xc) = esi;
+    uint32_t actor = call_at(entry - 0xc, 0x0021baef, 0x001fc0c0, TitleRegs{0, ebx, 0, 0, 0xffffffffu, edi}, 0,
+                             nullptr);  // Actor_FirstOfTeams
+    if (actor) {
+        stack_word(entry - 0x10) = edi;
+        const float range = title_global<float>(0x00830c1c);
+        while (actor) {
+            const uint8_t* const ent = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{actor}), 0);
+            if (ent) {
+                const float x = field<float>(ent, 0x140);
+                const float y = field<float>(ent, 0x144);
+                for (uint8_t* other = blocking_actor_from(0); other;
+                     other = blocking_actor_from(field<int16_t>(other, 0x1382) + 1)) {
+                    const uint8_t* const oe = field<const uint8_t*>(other, 0);
+                    if (!oe || oe == ent) continue;
+                    const float dx = field<float>(oe, 0x140) - x;
+                    const float dy = field<float>(oe, 0x144) - y;
+                    if (range > dy * dy + dx * dx) {
+                        const uint32_t args[1] = {addr_of(other)};
+                        call_at(entry - 0x10, 0x0021bb98, 0x001fd500, TitleRegs{addr_of(oe), actor, list, 0, addr_of(other),
+                                                                                 addr_of(ent)},
+                                1, args);  // ActorBlockList_Bump
+                    }
+                }
+            }
+            actor = call_at(entry - 0x10, 0x0021bbe6, 0x001fc060, TitleRegs{actor, actor, 0, 0, 0xffffffffu, addr_of(ent)},
+                            0, nullptr);  // Actor_NextOfTeams
+        }
+    }
+    const uint32_t args[1] = {list};
+    call_at(entry - 0xc, 0x0021bbf7, 0x0021b8b0, TitleRegs{0, 0, 0, 0, 0xffffffffu, edi}, 1,
+            args);  // Actor_ResolveBlockingPairs
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquireProximatePath, 0)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireProximatePath(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx,
+                                                       uint32_t edx, uint32_t esi, uint32_t edi, uint32_t) {
+    // ESI actor: combat when possible; else a path away from the enemy's origin
+    // (Actor_FindPathAway(EAX 1; actor, origin, min(distance^2 / 4, +0x82c / 16), 1)); step 0xd1
+    // with path points (trim marks set), else 0xd2.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{esi});
+    const uint32_t frame = entry - 0x10;
+    const uint32_t a = addr_of(actor);
+    const uint32_t combat = call_at(frame, 0x0021f9da, 0x0021e7c0, TitleRegs{a, ebx, ecx, edx, a, edi}, 0, nullptr);
+    if (combat & 0xff) return combat;
+    const uint8_t* const ent =
+        field<const uint8_t*>(field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), 0);
+    const float* const me = reinterpret_cast<const float*>(field<const uint8_t*>(actor, 0) + 0x140);
+    const float x = field<float>(ent, 0x140);
+    const float y = field<float>(ent, 0x144);
+    const float z = field<float>(ent, 0x148);
+    stack_word(entry - 0xc) = field<uint32_t>(ent, 0x140);
+    const float dx = x - me[0];
+    stack_word(entry - 8) = field<uint32_t>(ent, 0x144);
+    const float dy = y - me[1];
+    stack_word(entry - 4) = field<uint32_t>(ent, 0x148);
+    const float dz = z - me[2];
+    const float near = (dz * dz + dy * dy + dx * dx) * title_global<float>(0x0083ec24);
+    const float limit = field<float>(actor, 0x82c) * title_global<float>(0x0083f028);
+    *stack_vec(frame) = near > limit ? limit : near;
+    const uint32_t args[4] = {a, entry - 0xc, stack_word(frame), 1};
+    call_at(frame, 0x0021fa8a, 0x002199a0, TitleRegs{1, ebx, stack_word(frame), entry - 0xc, a, edi}, 4,
+            args);  // Actor_FindPathAway
+    exposed_schedule(actor, 0xd1);
+    if (field<int16_t>(actor, 0x740) != 0) {
+        mark_reacquire_path(actor);
+        return uint32_t(field<int16_t>(actor, 0x740) + 1);
+    }
+    exposed_schedule(actor, 0xd2);
+    return uint32_t(level_time() + 1);
+}
+
+AI_GAP_ENTRY(Actor_SetGoalFromString, 0)
+
+uint32_t XB_CDECL Actor_SetGoalFromString(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                          uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX ScriptString (its text at +6), EBX sentient: "x y z" (starting with '-', '.' or a
+    // digit) sets the goal position (Sentient_SetGoalPos with (x, y, z, x)); else an entity
+    // with that targetname (+0x264) is the goal entity (an info_player_deathmatch stands for
+    // the player), else the path node with that name (+0x30) takes cover there.
+    const uint32_t key = eax;
+    stack_word(entry - 4) = ebp;
+    const uint32_t base = (entry - 4) & ~0xfu;
+    stack_word(base - 0x2c) = esi;
+    stack_word(base - 0x30) = edi;
+    const uint32_t frame = base - 0x30;
+    const uint32_t head = stack_word(key);
+    const uint32_t text = head ? head + 6 : 0;
+    const char c = *reinterpret_cast<const char*>(uintptr_t{text});
+    bool coords = c == '-' || c == '.';
+    if (!coords) {
+        const uint32_t arg[1] = {uint32_t(int32_t(c))};
+        coords = call_at(frame, 0x0021c5f5, 0x001eef77, TitleRegs{uint32_t(int32_t(c)), ebx, ecx, edx, text, key}, 1,
+                         arg) != 0;  // _isdigit
+    }
+    if (coords) {
+        const uint32_t args[5] = {text, 0x00838c70, frame + 0x14, frame + 0x18, frame + 0x1c};  // "%f %f %f"
+        if (call_at(frame, 0x0021c6ad, 0x001f07e1, TitleRegs{frame + 0x1c, ebx, frame + 0x18, frame + 0x14, text, key}, 5,
+                    args) != 3)  // sscanf
+            return 0;
+        stack_word(frame + 0x28) = stack_word(frame + 0x1c);
+        stack_word(frame + 0x2c) = stack_word(frame + 0x14);
+        stack_word(frame + 0x24) = stack_word(frame + 0x18);
+        stack_word(frame + 0x20) = stack_word(frame + 0x14);
+        const uint32_t self[1] = {ebx};
+        call_at(frame, 0x0021c6f3, 0x00203550, TitleRegs{3, ebx, frame + 0x20, frame + 0x14, text, key}, 1,
+                self);  // Sentient_SetGoalPos
+        return 0;
+    }
+    const uint32_t field_arg[1] = {0x264};
+    uint32_t ent = call_at(frame, 0x0021c611, 0x0024d6b0, TitleRegs{0, ebx, ecx, key, 0x0097a8c0, key}, 1,
+                           field_arg);  // G_FindEntityByStringField
+    if (ent) {
+        if (field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{ent}), 0x260) == title_global<uint32_t>(0x0097a700)) {
+            const uint32_t player[1] = {title_global<uint32_t>(0x0097a75c)};  // scr_const_player
+            ent = call_at(frame, 0x0021c634, 0x0024d700, TitleRegs{ent, ebx, 0, player[0], 0x0097a8c0, 0x260}, 1,
+                          player);  // G_FindEntityByIntField
+        }
+        const uint32_t args[2] = {ebx, ent};
+        call_at(frame, 0x0021c63b, 0x00210c00, TitleRegs{ent, ebx, 0, 0, 0x0097a8c0, key}, 2,
+                args);  // Sentient_SetGoalEntity
+        return 0;
+    }
+    const uint32_t first[2] = {title_global<uint32_t>(0x0095f4f4), 0xffffffffu};
+    uint32_t node = call_at(frame, 0x0021c64e, 0x002b0760, TitleRegs{0, ebx, ecx, edx, 0x0097a8c0, key}, 2,
+                            first);  // PathNode_First
+    while (node) {
+        const uint32_t names[2] = {node + 0x30, key};
+        const uint32_t same = call_at(frame, 0x0021c662, 0x0011d820, TitleRegs{node, ebx, node + 0x30, edx, node, key}, 2,
+                                      names);  // ScriptString_EqualsString
+        if (same & 0xff) {
+            const uint32_t at[1] = {node};
+            call_at(frame, 0x0021c68d, 0x0021c500, TitleRegs{ebx, ebx, node + 0x30, edx, node, key}, 1,
+                    at);  // Actor_SetGoalNodeAndTakeCover
+            return 0;
+        }
+        const uint32_t next[2] = {title_global<uint32_t>(0x0095f4f4), 0xffffffffu};
+        node = call_at(frame, 0x0021c679, 0x002b0670, TitleRegs{node, ebx, node + 0x30, next[0], node, key}, 2,
+                       next);  // PathNode_Next
+    }
+    return 0;
+}
+
+AI_GAP_ENTRY(Path_RouteBetweenPointsInsidePlanes, 24)
+
+uint32_t XB_CDECL Path_RouteBetweenPointsInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t, uint32_t edx,
+                                                      uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX planes, EBX plane count, stack (path, team, to point, from point, dists, a6): the
+    // nodes nearest both points inside the planes (PathNode_FindNearest), then
+    // Path_RouteBetweenInsidePlanes between them; 0 without either. No callers (dead).
+    // Frame E - 0x214: node +0xc, node word +0x10, candidates +0x14.
+    const uint32_t frame = entry - 0x214;
+    const auto arg = [entry](uint32_t i) { return stack_word(entry + i * 4); };
+    stack_word(entry - 0x20c) = ebp;
+    stack_word(entry - 0x210) = esi;
+    stack_word(entry - 0x214) = edi;
+    const uint32_t from = route_find_nearest_with(frame, 0x002192fa, frame + 0x14, frame + 0x10, arg(4), eax, arg(5), ebx,
+                                                  ebx, edx, eax);
+    stack_word(frame + 0xc) = from;
+    if (!from) return 0;
+    const uint32_t to = route_find_nearest_with(frame, 0x0021932d, frame + 0x14, frame + 0x10, arg(3), eax, arg(5), ebx,
+                                                ebx, edx, eax);
+    if (!to) return 0;
+    const TitleRegs regs = {arg(1), ebx, eax, ebx, arg(5), from};
+    const uint32_t args[6] = {arg(1), arg(2), to, arg(3), arg(4), arg(6)};
+    return call_at(frame, 0x0021937a, 0x00219180, regs, 6, args);  // Path_RouteBetweenInsidePlanes
+}
+
+namespace {
+
+// The anim handle (+0x24c: index byte, serial above) names a live record of the 0x008dd228
+// table (serial at +4) whose +0x10 has no flag 8.
+bool anim_handle_live(const uint8_t* actor) {
+    const uint32_t handle = field<uint32_t>(actor, 0x24c);
+    const uint32_t index = handle & 0xff;
+    if ((handle >> 8) != title_global<uint32_t>(0x008dd22c + index * 8)) return false;
+    const uint8_t* const record = title_global<const uint8_t*>(0x008dd228 + index * 8);
+    if (!record) return false;
+    return !((field<uint32_t>(record, 0x10) >> 3) & 1);
+}
+
+// The node a sentient's claim handle (+0x48) names in g_pathNodeBlocks, or 0.
+uint32_t claimed_node(const uint8_t* sentient) {
+    const uint16_t handle = field<uint16_t>(sentient, 0x48);
+    if (handle == 0 || handle == 0xffff) return 0;
+    const uint8_t* const block =
+        field<const uint8_t*>(title_global<const uint8_t*>(0x0095f4f4), 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+    if (!block) return 0;
+    return field<uint32_t>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+}
+
+// A queued (kind, param) transition merged at `frame`; the top state slot (+0xa4 + depth * 4)
+// set to `param`.
+void push_transition(uint8_t* actor, uint32_t kind, uint32_t param, uint32_t frame, uint32_t ret, uint32_t ebx) {
+    field<uint32_t>(actor, 0x38 + field<uint32_t>(actor, 0xa0) * 8) = kind;
+    field<uint32_t>(actor, 0x3c + field<uint32_t>(actor, 0xa0) * 8) = param;
+    const uint32_t count = field<uint32_t>(actor, 0xa0) + 1;
+    field<uint32_t>(actor, 0xa0) = count;
+    call_at(frame, ret, 0x001fd860, TitleRegs{addr_of(actor), ebx, count, 0, param, addr_of(actor)}, 0, nullptr);
+    field<uint32_t>(actor, 0xa4 + field<uint32_t>(actor, 0xbc) * 4) = param;
+}
+
+void set_state_at(uint8_t* actor, uint32_t state, uint32_t frame, uint32_t ret, uint32_t ebx) {
+    call_at(frame, ret, 0x00200110, TitleRegs{addr_of(actor), ebx, 0, 0, state, addr_of(actor)}, 0, nullptr);
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_Exposed_MoveToGoalStart, 0)
+
+uint32_t XB_CDECL Actor_Exposed_MoveToGoalStart(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EDI actor: without path points a path to the goal (Actor_FindPathToGoal(0, 1, 1) unless
+    // +0x7df; 1 when it gives points), else reacquire (Actor_AnimReacquire,
+    // Actor_Exposed_StartReacquire(1); 0). With points the goal node is claimed when it is free
+    // for the sentient, the actor moves on (Actor_AvoidOthers(1)), a vehicle-path actor drops its
+    // path, and the step becomes 0xd7 (1).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t a = edi;
+    stack_word(entry - 4) = esi;
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        field<uint32_t>(actor, 0x12c) = 1;
+        if (!field<uint8_t>(actor, 0x7df)) {
+            const uint32_t args[3] = {0, 1, 1};
+            call_at(entry - 4, 0x0021b24c, 0x0021a180, TitleRegs{a, ebx, ecx, edx, esi, a}, 3, args);  // Actor_FindPathToGoal
+            if (field<int16_t>(actor, 0x740) > 0) return 1;
+        }
+        call_at(entry - 4, 0x0021b261, 0x001fb5c0, TitleRegs{a, ebx, ecx, edx, esi, a}, 0, nullptr);  // Actor_AnimReacquire
+        call_at(entry - 4, 0x0021b26d, 0x00201380, TitleRegs{1, ebx, ecx, edx, a, a}, 0,
+                nullptr);  // Actor_Exposed_StartReacquire
+        return 0;
+    }
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = ebp;
+    const uint32_t frame = entry - 0xc;
+    const uint32_t goal = addr_of(sentient) + 0x50;
+    if (field<uint16_t>(sentient, 0x48) != field<uint16_t>(sentient, 0x50) &&
+        (PathNode_HandleIsValid(reinterpret_cast<const uint16_t*>(sentient + 0x50)) & 0xff)) {
+        stack_word(frame - 4) = addr_of(sentient);
+        const uint32_t node = call_at(frame - 4, 0x0021b296, 0x002ba010, TitleRegs{goal, ebx, ecx, edx, addr_of(sentient), a},
+                                      0, nullptr);  // PathNode_FromHandle2
+        const uint32_t who[1] = {addr_of(sentient)};
+        if (call_at(frame, 0x0021b29d, 0x002b1240, TitleRegs{node, node, ecx, edx, addr_of(sentient), a}, 1,
+                    who)) {  // PathNode_IsAvailableFor (cdecl)
+            const uint32_t args[2] = {addr_of(sentient), field<uint16_t>(sentient, 0x50)};
+            call_at(frame, 0x0021b2b1, 0x00200960, TitleRegs{0, node, args[1], edx, addr_of(sentient), a}, 2,
+                    args);  // Sentient_SetClaimedNode
+        }
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    field<uint32_t>(actor, 0x7c0) = 0;
+    const uint32_t ret[4] = {0x0021b2ce, 0x0021b359, 0x0021b34b, 0x0021b2e5};
+    avoid_and_move(actor, frame, ret, ebx, addr_of(sentient), a, 1);
+    if (field<uint32_t>(actor, 0x1390)) drop_path_at_origin(actor);
+    exposed_schedule(actor, 0xd7);
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_UpdateMovement, 0)
+
+uint32_t XB_CDECL Actor_UpdateMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                       uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor: nothing for a frozen entity (+0x2a4 flag 0x40000000). Unless the move mode
+    // (+0x278) is 8: a linked entity (+0x3cc) takes its origin and yaw from the tag (parent
+    // matrix x the link offset; mode 1 becomes 7 and drops the path), moves by its anim mode
+    // with the velocities cleared and recomputes the link offset; else it moves by its anim
+    // mode, applies the move and runs its impacts. Then +0x798 cleared (mode other than 1) and
+    // G_TouchTriggers. Frame E - 0x68: out matrix +8, parent matrix +0x38.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    const uint32_t frame = entry - 0x68;
+    stack_word(entry - 0x64) = esi;
+    stack_word(entry - 0x68) = edi;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const uint32_t e = addr_of(ent);
+    if (field<uint32_t>(ent, 0x2a4) & 0x40000000u) return a;
+    if (field<uint32_t>(actor, 0x278) != 8) {
+        const uint32_t move_args[2] = {a, ebx};
+        if (field<uint32_t>(ent, 0x3cc)) {
+            const uint32_t parent[1] = {frame + 0x38};
+            call_at(frame, 0x0021eaa0, 0x002df3e0, TitleRegs{e, ebx, ecx, edx, e, a}, 1, parent);  // G_GetTagParentMatrix
+            const uint32_t link[1] = {field<uint32_t>(ent, 0x3cc) + 0x10};
+            call_at(frame - 4, 0x0021eab7, 0x002954a0, TitleRegs{frame + 0x38, ebx, ecx, frame + 8, e, a}, 1,
+                    link);  // MatrixMultiply43
+            field<uint32_t>(ent, 0x140) = stack_word(frame + 0x2c);
+            field<uint32_t>(ent, 0x144) = stack_word(frame + 0x30);
+            field<uint32_t>(ent, 0x148) = stack_word(frame + 0x34);
+            stack_word(frame - 4) = 0x0021eaeb;
+            field<float>(ent, 0x154) = vectoyaw(stack_vec(frame + 8));
+            if (field<uint32_t>(actor, 0x278) == 1) {
+                field<uint32_t>(actor, 0x278) = 7;
+                call_at(frame, 0x0021eb0b, 0x001ffdb0, TitleRegs{a, ebx, frame + 8, frame + 8, e, a}, 0,
+                        nullptr);  // Actor_ClearPath
+            }
+            call_at(frame, 0x0021eb12, 0x0021dc80, TitleRegs{a, ebx, ecx, edx, e, a}, 2, move_args);  // Actor_MoveByAnimMode
+            static const uint32_t kVelocity[6] = {0x2a8, 0x2a4, 0x2a0, 0x2cc, 0x2c8, 0x2c4};
+            for (uint32_t i = 0; i < 6; ++i) field<float>(actor, kVelocity[i]) = 0.0f;
+            const uint32_t calc[2] = {e, 1};
+            call_at(frame, 0x0021eb4d, 0x002e3f10, TitleRegs{a, ebx, ecx, edx, e, a}, 2, calc);  // G_CalcTagLinkOffset
+        } else {
+            call_at(frame, 0x0021eb59, 0x0021dc80, TitleRegs{a, ebx, ecx, edx, e, a}, 2, move_args);  // Actor_MoveByAnimMode
+            const uint32_t self[1] = {a};
+            call_at(frame, 0x0021eb5f, 0x0021be30, TitleRegs{a, ebx, ecx, edx, e, a}, 1, self);  // Actor_ApplyMove
+            const uint32_t impacts[3] = {e, field<uint32_t>(actor, 0x318), a + 0x31c};
+            call_at(frame, 0x0021eb73, 0x00250bf0, TitleRegs{a, ebx, a + 0x31c, impacts[1], e, a}, 3,
+                    impacts);  // ClientImpacts
+        }
+    }
+    if (field<uint32_t>(actor, 0x278) != 1) field<uint32_t>(actor, 0x798) = 0;
+    const uint32_t touch = field<uint32_t>(actor, 0);
+    const uint32_t args[1] = {touch};
+    return call_at(frame, 0x0021eb97, 0x00207780, TitleRegs{a, ebx, ecx, edx, touch + 0x140, touch}, 1,
+                   args);  // G_TouchTriggers
+}
+
+AI_GAP_ENTRY(Actor_Cover_FindBetterCover, 0)
+
+uint32_t XB_CDECL Actor_Cover_FindBetterCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor: with a claimed node, the state at its top (+0xa4 == +8 == 1, cover) and an
+    // enemy, cover candidates around the sentient (radius 80, filter 0x00201f60, scorer
+    // 0x00201640) are tried (Actor_FindNearbyCoverNode) until one takes or none are left. A new
+    // claim is pathed to (Actor_FindPathToNode(0, 0, 1); step 0x64 on success); 1. The same
+    // claim updates the cover validity; invalid cover changes the state to 2 (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = esi;
+    const uint32_t frame = entry - 0xc;
+    uint8_t* sentient = field<uint8_t*>(actor, 4);
+    const uint32_t node = claimed_node(sentient);
+    if (!node) return 0;
+    stack_word(entry - 4) = node;
+    if (field<uint32_t>(actor, 0xa4) != field<uint32_t>(actor, 8) || field<uint32_t>(actor, 8) != 1) return 0;
+    if (!field<uint32_t>(sentient, 0x3c)) return 0;
+    stack_word(entry - 0x10) = edi;
+    const uint16_t held = field<uint16_t>(sentient, 0x48);
+    const uint32_t s = addr_of(sentient);
+    const uint32_t args[5] = {s + 0xc, field<uint32_t>(sentient, 0x18), 0x42a00000, 0x00201f60, 0x00201640};
+    call_at(entry - 0x10, 0x0021d62e, 0x001ffe10, TitleRegs{0x1ffc, a, s + 0xc, edx, esi, held}, 5,
+            args);  // Actor_GatherCoverCandidates
+    if (field<uint32_t>(actor, 0x818)) {
+        uint32_t taken = call_at(entry - 0x10, 0x0021d641, 0x0021c9d0, TitleRegs{0, a, a, edx, esi, held}, 0,
+                                 nullptr);  // Actor_FindNearbyCoverNode
+        while (!taken && field<uint32_t>(actor, 0x818))
+            taken = call_at(entry - 0x10, 0x0021d658, 0x0021c9d0, TitleRegs{0, a, a, edx, esi, held}, 0, nullptr);
+    }
+    sentient = field<uint8_t*>(actor, 4);
+    const uint32_t handle = addr_of(sentient) + 0x48;
+    if (field<uint16_t>(sentient, 0x48) != held) {
+        stack_word(frame - 4) = 1;
+        stack_word(frame - 8) = 0;
+        stack_word(frame - 0xc) = 0;
+        const uint32_t to = call_at(frame - 0xc, 0x0021d674, 0x002ba010, TitleRegs{handle, a, a, edx, addr_of(sentient), edi},
+                                    0, nullptr);  // PathNode_FromHandle2
+        const uint32_t path_args[4] = {to, 0, 0, 1};
+        if (call_at(frame, 0x0021d67a, 0x00219e60, TitleRegs{to, a, a, edx, addr_of(sentient), edi}, 4,
+                    path_args))  // Actor_FindPathToNode
+            exposed_schedule(actor, 0x64);
+        return 1;
+    }
+    const uint32_t to = call_at(frame, 0x0021d6ac, 0x002ba010, TitleRegs{handle, a, a, edx, addr_of(sentient), edi}, 0,
+                                nullptr);  // PathNode_FromHandle2
+    const uint32_t valid_args[1] = {to};
+    call_at(frame, 0x0021d6b7, 0x00204610, TitleRegs{to, a, field<uint32_t>(sentient, 0x3c), edx, a, edi}, 1,
+            valid_args);  // Actor_UpdateCoverValidity
+    if (field<uint32_t>(actor, 0x820)) return 1;
+    set_state_at(actor, 2, frame, 0x0021d6cd, a);
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Pain_Think, 0)
+
+uint32_t XB_CDECL Actor_Pain_Think(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                   uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): once the pain time (+0xc0) is past and the pain anim has
+    // ended the state ends (1). Else "pain" is notified; an entity with +0x374 set and 500 ms
+    // into the pain sends a point event 5 at the sentient (team bit) and clears it; sight,
+    // enemy, the pain anim script (mode 4) and movement (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t frame = entry - 0xc;
+    field<uint32_t>(actor, 0x13e8) = 0x00831f68;  // "pain"
+    if (level_time() > field<int32_t>(actor, 0xc0) && !anim_handle_live(actor)) {
+        finish_think_state(actor, frame, 0x0021ec3a, 0, edx);
+        return 1;
+    }
+    stack_word(entry - 0x10) = esi;
+    const uint32_t f2 = entry - 0x10;
+    const uint32_t ent = field<uint32_t>(actor, 0);
+    const uint32_t note[1] = {title_global<uint32_t>(0x0097a750)};  // scr_const_pain
+    call_at(f2, 0x0021ec57, 0x002b75c0, TitleRegs{note[0], 0, ecx, edx, ent, a}, 1, note);  // Scr_Notify
+    if (field<uint32_t>(field<const uint8_t*>(actor, 0), 0x374) && level_time() - field<int32_t>(actor, 0xc0) >= 0x1f4) {
+        const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+        const uint32_t sent = field<uint32_t>(sentient, 0);
+        const uint32_t team = field<uint32_t>(sentient, 4);
+        const uint32_t args[4] = {sent, 5, sent + 0x140, 0};
+        call_at(f2, 0x0021ec94, 0x00214a90, TitleRegs{1u << (team & 31), 0, team, sent, ent, a}, 4,
+                args);  // Actor_SendPointEvent
+        field<uint32_t>(field<uint8_t*>(actor, 0), 0x374) = 0;
+    }
+    const uint32_t ret[3] = {0x0021ecad, 0x0021ecb3, 0x0021ecbb};
+    think_sight_and_enemy(actor, f2, ret, 0, 0, edx, a);
+    field<uint32_t>(actor, 0x12c) = 1;
+    field<uint32_t>(actor, 0x254) = 0x00987b78;  // g_animScript_pain
+    field<uint32_t>(actor, 0x27c) = 4;
+    field<uint8_t>(actor, 0x285) = 0;
+    call_at(f2, 0x0021ece6, 0x00205dd0, TitleRegs{0, 0, 0, edx, a, a}, 0, nullptr);  // Actor_UpdateAnimScript
+    call_at(f2, 0x0021ecef, 0x0021ea60, TitleRegs{a, edx, 0, edx, a, a}, 0, nullptr);  // Actor_UpdateMovement
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Death_Think, 0)
+
+uint32_t XB_CDECL Actor_Death_Think(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                    uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): step 0x190 cleans up after 750 ms (step 0x191). Once the
+    // death anim has ended: cleanup still pending in 0x190, then 2. Else the death anim script
+    // (mode +0x280 or 4) and movement, the ground tilt (+0x198), and 500 ms after +0x24 the
+    // entity becomes a corpse (contents 0x4000000, linked): 2 when its client record +0x568 is
+    // set, else 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 0xc) = edi;
+    const uint32_t frame = entry - 0xc;
+    field<uint32_t>(actor, 0x13e8) = 0x00831f60;  // "death"
+    const uint32_t self[1] = {a};
+    if (field<uint32_t>(actor, 0x28) == 0x190 && level_time() - field<int32_t>(actor, 0x2c) >= 0x2ee) {
+        call_at(frame, 0x00220082, 0x00214bd0, TitleRegs{0, edx, ecx, edx, a, 0x190}, 1, self);  // Actor_Death_Cleanup
+        exposed_schedule(actor, 0x191);
+    }
+    if (field<uint32_t>(actor, 0x250) == 0x00987b48) {  // g_animScript_death
+        stack_word(entry - 0x10) = ebp;
+        if (!anim_handle_live(actor)) {
+            if (field<uint32_t>(actor, 0x28) == 0x190)
+                call_at(frame, 0x002200fa, 0x00214bd0, TitleRegs{0, edx, ecx, 0x00987b48, a, 0x190}, 1, self);
+            return 2;
+        }
+    }
+    const uint32_t mode = field<uint32_t>(actor, 0x280);
+    field<uint32_t>(actor, 0x12c) = 1;
+    field<uint32_t>(actor, 0x254) = 0x00987b48;
+    field<uint32_t>(actor, 0x27c) = mode ? mode : 4;
+    field<uint8_t>(actor, 0x285) = 0;
+    call_at(frame, 0x0022013b, 0x00205dd0, TitleRegs{mode, edx, ecx, 0x00987b48, a, 0x190}, 0,
+            nullptr);  // Actor_UpdateAnimScript
+    call_at(frame, 0x00220142, 0x0021ea60, TitleRegs{a, edx, ecx, 0x00987b48, a, 0x190}, 0, nullptr);  // Actor_UpdateMovement
+    if (field<uint32_t>(actor, 0x198)) {
+        const uint32_t one[1] = {1};
+        call_at(frame, 0x00220155, 0x00211db0, TitleRegs{field<uint32_t>(actor, 0), edx, ecx, 0, a, 0x190}, 1,
+                one);  // G_UpdateGroundTilt
+    }
+    if (level_time() < field<int32_t>(actor, 0x24) + 0x1f4) return 0;
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x134) = 0x4000000;
+    const uint32_t ent = field<uint32_t>(actor, 0);
+    call_at(frame, 0x0022017d, 0x002d7fe0, TitleRegs{0, edx, ent, 0, a, ent}, 0, nullptr);  // SV_LinkEntity
+    const uint8_t* const client = field<const uint8_t*>(field<const uint8_t*>(actor, 0), 0x238);
+    return field<uint32_t>(client, 0x568) ? 2 : 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_ThrowBack, 0)
+
+uint32_t XB_CDECL Actor_Grenade_ThrowBack(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                          uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor, stack word (cdecl; EBX of the movement): the return-throw anim script (mode
+    // +0x280 or 7, +0x285 1); while it plays, movement (0). When it has ended the state is
+    // pushed (1, 2), and a grenade still held by this actor's entity with flag 1 at +0xd4 gets
+    // a warning string built (va: classname and origin; unused). 1.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = esi;
+    const uint32_t frame = entry - 8;
+    const uint32_t mode = field<uint32_t>(actor, 0x280);
+    field<uint32_t>(actor, 0x254) = 0x00987b58;  // g_animScript_grenade_return_throw
+    field<uint32_t>(actor, 0x27c) = mode ? mode : 7;
+    field<uint8_t>(actor, 0x285) = 1;
+    call_at(frame, 0x0021f5ba, 0x00205dd0, TitleRegs{mode, 1, ecx, edx, a, edi}, 0, nullptr);  // Actor_UpdateAnimScript
+    stack_word(entry - 0xc) = edi;
+    if (anim_handle_live(actor)) {
+        call_at(frame, 0x0021f62b, 0x0021ea60, TitleRegs{a, stack_word(entry + 4), 0, 0, a, edi}, 0,
+                nullptr);  // Actor_UpdateMovement
+        return 0;
+    }
+    push_transition(actor, 1, 2, frame, 0x0021f65c, 1);
+    const uint8_t* const grenade = field<const uint8_t*>(actor, 0x1310);
+    if (grenade && field<uint32_t>(grenade, 0x378) == field<uint32_t>(actor, 0) && (field<uint8_t>(grenade, 0xd4) & 1)) {
+        const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+        const uint32_t name = field<uint32_t>(ent, 0x25c) ? field<uint32_t>(ent, 0x25c) + 6 : 0;
+        const double x = field<float>(ent, 0x140);
+        const double y = field<float>(ent, 0x144);
+        const double z = field<float>(ent, 0x148);
+        uint32_t args[8] = {0x0083d008, name};
+        std::memcpy(&args[2], &x, 8);
+        std::memcpy(&args[4], &y, 8);
+        std::memcpy(&args[6], &z, 8);
+        call_at(frame, 0x0021f6c5, 0x002a93d0, TitleRegs{name, 1, 0, 0, addr_of(ent), edi}, 8, args);  // va
+    }
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_Cover_Think, 0)
+
+uint32_t XB_CDECL Actor_Cover_Think(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                    uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX (think callback): an actor holding a weapon of class 3 pushes state 4, one
+    // with a grenade (+0x1310) state 6 (1). A pending turret (+0x136c) without +0x297 changes
+    // the state to 3 (1), else it is dropped. Then sight and enemy (state 5 without one, 1);
+    // steps 0x64 (run to cover) and 0x65 (attack) run their step functions - their 1 is
+    // returned; else anim script and movement.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 0xc) = esi;
+    stack_word(entry - 0x10) = edi;
+    const uint32_t frame = entry - 0x10;
+    field<uint32_t>(actor, 0x13e8) = 0x0083d34c;  // "cover"
+    uint32_t state = 0;
+    if (field<uint32_t>(actor, 0)) {
+        const uint32_t index = call_at(frame, 0x00220295, 0x002acb00,
+                                       TitleRegs{field<uint32_t>(actor, 0), edx, ecx, edx, field<uint32_t>(actor, 0xf0), a}, 0,
+                                       nullptr);  // BG_FindWeaponIndexForHash
+        const uint8_t* const def = field<const uint8_t*>(title_global<const uint8_t*>(0x0095f4d8), (index & 0xff) * 4);
+        if (def && field<uint32_t>(def, 0x98) == 3) state = 4;
+    }
+    if (!state && field<uint32_t>(actor, 0x1310)) state = 6;
+    if (state) {
+        push_transition(actor, 1, state, frame, 0x002202e7, edx);
+        return 1;
+    }
+    const uint8_t* const turret = field<const uint8_t*>(actor, 0x136c);
+    if (turret) {
+        if (!field<uint8_t>(turret, 0x297)) {
+            set_state_at(actor, 3, frame, 0x0022031e, edx);
+            return 1;
+        }
+        field<uint32_t>(actor, 0x136c) = 0;
+    }
+    const uint32_t ret[3] = {0x0022033f, 0x00220345, 0x0022034d};
+    const uint32_t picked = think_sight_and_enemy(actor, frame, ret, addr_of(turret), edx, edx, a);
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        set_state_at(actor, 5, frame, 0x00220361, edx);
+        return 1;
+    }
+    uint32_t result = 0;
+    const uint32_t step = field<uint32_t>(actor, 0x28);
+    if (step == 0x64) {
+        field<uint32_t>(actor, 0x13e8) = 0x0083d340;  // "cover_runto"
+        result = call_at(frame, 0x0022038e, 0x0021e860, TitleRegs{step - 0x64, edx, a, 0, a, a}, 0,
+                         nullptr);  // Actor_Cover_RunTo
+    } else if (step == 0x65) {
+        field<uint32_t>(actor, 0x13e8) = 0x0083d330;  // "cover_attack"
+        result = call_at(frame, 0x002203a1, 0x0021d6e0, TitleRegs{picked & 0xffffff00u, edx, a, 0, a, a}, 0,
+                         nullptr);  // Actor_Cover_Attack (AL 0)
+    }
+    if (result == 1) return 1;
+    call_at(frame, 0x002203af, 0x00205dd0, TitleRegs{result, edx, a, 0, a, a}, 0, nullptr);  // Actor_UpdateAnimScript
+    call_at(frame, 0x002203b6, 0x0021ea60, TitleRegs{a, edx, a, 0, a, a}, 0, nullptr);        // Actor_UpdateMovement
+    return result;
+}
+
+AI_GAP_ENTRY(Actor_FinishSpawnAll, 0)
+
+uint32_t XB_CDECL Actor_FinishSpawnAll(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                       uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The spawned entities (0x0097d370, count 0x0097d36c) of type 0xc get their AI type
+    // (+0x3b4 = 1..3 from ZoneStringMap_Lookup in rm_aitb by the classname + 6, the zone +0x220
+    // or the level's), then every actor starts its state machine (Actor_InitStateMachine).
+    // Frame E - 0x14: the lookup's flag word E - 8 (low byte 0), its result E - 4.
+    stack_word(entry - 0xc) = ebp;
+    stack_word(entry - 0x10) = esi;
+    stack_word(entry - 0x14) = edi;
+    const uint32_t frame = entry - 0x14;
+    const uint32_t end = 0x0097d370 + title_global<uint32_t>(0x0097d36c) * 4;
+    for (uint32_t slot = 0x0097d370; slot != end; slot += 4) {
+        const uint8_t* const e = title_global<const uint8_t*>(slot);
+        if (!e || e[0] != 0xc) continue;
+        const uint32_t name = field<uint32_t>(e, 0x25c) ? field<uint32_t>(e, 0x25c) + 6 : 0;
+        uint32_t zone = field<uint32_t>(e, 0x220);
+        if (zone == 0xffffffffu) zone = field<uint32_t>(title_global<const uint8_t*>(0x0095f638), 0x34);
+        stack_word(entry - 8) &= 0xffffff00u;
+        const uint32_t rm = title_global<uint32_t>(0x0095f718);  // rm_aitb
+        const uint32_t args[5] = {rm, entry - 4, name + 6, stack_word(entry - 8), 0};
+        call_at(frame, 0x0021e046, 0x0002bf80, TitleRegs{zone, ebx, rm, zone, addr_of(e), slot}, 5,
+                args);  // ZoneStringMap_Lookup
+        const uint32_t kind = field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry - 4)}), 4);
+        uint8_t* const w = const_cast<uint8_t*>(e);
+        if (kind == 0) field<uint32_t>(w, 0x3b4) = 1;
+        else if (kind == 1) field<uint32_t>(w, 0x3b4) = 2;
+        else if (kind == 2) field<uint32_t>(w, 0x3b4) = 3;
+    }
+    for (uint8_t* actor = blocking_actor_from(0); actor; actor = blocking_actor_from(field<int16_t>(actor, 0x1382) + 1))
+        call_at(frame, 0x0021e0ca, 0x0021cca0, TitleRegs{addr_of(actor), ebx, ecx, edx, addr_of(actor), edi}, 0,
+                nullptr);  // Actor_InitStateMachine
+    (void)eax;
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_ReacquireNode, 0)
+
+uint32_t XB_CDECL Actor_Exposed_ReacquireNode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: combat when possible; else on the step's first run (+0x2c set) cover candidates
+    // around the sentient by node distance (radius 80); then the next candidate (from the end)
+    // that is free for the team (or own) and from which the enemy's eye is visible 64 above the
+    // node gets a path (Actor_FindPathToNode(0, 1, 1)), is claimed and the step becomes 0xd3.
+    // Without candidates the next step. Frame E - 0x24: node point E - 0x18, eye E - 0xc.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t a = eax;
+    stack_word(entry - 0x1c) = ebx;
+    const uint32_t frame = entry - 0x1c;
+    const uint32_t combat = call_at(frame, 0x0021fefb, 0x0021e7c0, TitleRegs{a, a, ecx, edx, esi, edi}, 0, nullptr);
+    if (combat & 0xff) return combat;
+    if (field<uint32_t>(actor, 0x2c)) {
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        field<uint32_t>(actor, 0x2c) = 0;
+        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, 0x001fd2b0};
+        call_at(frame, 0x0021ff32, 0x001ffe10, TitleRegs{0x2000, a, field<uint32_t>(s, 0x18), edx, esi, edi}, 5,
+                args);  // Actor_GatherCoverCandidates
+    }
+    uint32_t count = field<uint32_t>(actor, 0x818);
+    if (!count) {
+        ++field<uint32_t>(actor, 0x28);
+        field<int32_t>(actor, 0x2c) = level_time() + 1;
+        field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+        return uint32_t(level_time() + 0x1f5);
+    }
+    --count;
+    field<uint32_t>(actor, 0x818) = count;
+    stack_word(entry - 0x20) = esi;
+    stack_word(entry - 0x24) = edi;
+    const uint32_t f2 = entry - 0x24;
+    const uint8_t* const node = field<const uint8_t*>(actor, 0x7f0 + count * 4);
+    const uint8_t* const s = field<const uint8_t*>(actor, 4);
+    if (field<const uint8_t*>(node, 4) != s) {
+        const int32_t now = level_time();
+        if (now <= field<int32_t>(node, 8 + field<uint32_t>(s, 4) * 4)) return 0;
+        if (now <= field<int32_t>(node, 8)) return 0;
+    }
+    const uint32_t enemy = field<uint32_t>(s, 0x3c);
+    stack_word(entry - 0x18) = field<uint32_t>(node, 0x44);
+    stack_word(entry - 0x14) = field<uint32_t>(node, 0x48);
+    *stack_vec(entry - 0x10) = field<float>(node, 0x4c) + title_global<float>(0x00830c1c);
+    call_at(f2, 0x0021ffa9, 0x002066e0, TitleRegs{enemy, a, entry - 0xc, edx, esi, addr_of(node)}, 0,
+            nullptr);  // Sentient_EyeOrigin
+    const uint32_t num =
+        field<uint32_t>(field<const uint8_t*>(field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), 0), 0x224);
+    stack_word(f2 - 4) = num;
+    stack_word(f2 - 8) = 0x0021ffca;
+    if (Actor_SightTrace(f2 - 8, actor, stack_vec(entry - 0xc), stack_vec(entry - 0x18), 0.0f, num, ebp) == 0.0f) return 0;
+    const uint32_t path_args[4] = {addr_of(node), 0, 1, 1};
+    if (!call_at(f2, 0x0021ffe3, 0x00219e60, TitleRegs{num, a, entry - 0xc, entry - 0x18, a, addr_of(node)}, 4,
+                 path_args))  // Actor_FindPathToNode
+        return 0;
+    const uint32_t claim[2] = {field<uint32_t>(actor, 4), field<uint16_t>(node, 0)};
+    call_at(f2, 0x0021fff6, 0x00200960, TitleRegs{claim[1], a, claim[0], edx, a, addr_of(node)}, 2,
+            claim);  // Sentient_SetClaimedNode
+    field<uint32_t>(actor, 0x818) = 0;
+    exposed_schedule(actor, 0xd3);
+    return uint32_t(level_time() + 0x1f5);
+}
+
+AI_GAP_ENTRY(Actor_FindNearbyCoverNode, 0)
+
+uint32_t XB_CDECL Actor_FindNearbyCoverNode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t,
+                                            uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // ECX actor, EAX minimum interval (-1: no new search): without path points, an actor on a
+    // live entity with +0x244 or before +0x7c0 gives up (candidates cleared, 0). With no
+    // candidates left and the interval since the last search (+0x81c) passed, new candidates
+    // around the sentient (danger spot = the entity origin; radius 80, scorer 0x00201640). The
+    // last candidate is tried (Actor_AttemptCoverNode): claimed on success (1); else a claim on
+    // it is dropped and a claim the node still holds for the sentient revoked (0).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t a = ecx;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = esi;
+    const uint32_t frame = entry - 0xc;
+    int32_t now = level_time();
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        const uint32_t handle = field<uint32_t>(actor, 0x39c);
+        const uint32_t index = handle & 0xfff;
+        bool give_up = false;
+        if (index < 0x540) {
+            stack_word(entry - 0x10) = ebp;
+            const uint8_t* const e = title_global<const uint8_t*>(0x0097a968 + index * 8);
+            if ((handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) && e && field<uint32_t>(e, 0x244))
+                give_up = true;
+        }
+        if (!give_up && now < field<int32_t>(actor, 0x7c0)) give_up = true;
+        if (give_up) {
+            field<uint32_t>(actor, 0x818) = 0;
+            return 0;
+        }
+    }
+    if (!field<uint32_t>(actor, 0x818)) {
+        if (eax == 0xffffffffu) return 0;
+        if (now - field<int32_t>(actor, 0x81c) < int32_t(eax)) return 0;
+        const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+        field<uint32_t>(actor, 0x1350) = field<uint32_t>(ent, 0x140);
+        field<uint32_t>(actor, 0x1354) = field<uint32_t>(ent, 0x144);
+        field<uint32_t>(actor, 0x1358) = field<uint32_t>(ent, 0x148);
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, 0x00201640};
+        call_at(frame, 0x0021caa0, 0x001ffe10, TitleRegs{0x1ffc, a, field<uint32_t>(s, 0x18), field<uint32_t>(ent, 0x144),
+                                                         eax, edi},
+                5, args);  // Actor_GatherCoverCandidates
+        now = level_time();
+    }
+    uint32_t count = field<uint32_t>(actor, 0x818);
+    field<int32_t>(actor, 0x81c) = now;
+    if (!count) return 0;
+    --count;
+    field<uint32_t>(actor, 0x818) = count;
+    const uint32_t node = field<uint32_t>(actor, 0x7f0 + count * 4);
+    const uint32_t self[1] = {a};
+    const uint32_t ok = call_at(frame, 0x0021cacc, 0x0021b390, TitleRegs{node, a, ecx, uint32_t(now), node, edi}, 1,
+                                self);  // Actor_AttemptCoverNode
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    const uint16_t id = field<uint16_t>(reinterpret_cast<const uint8_t*>(uintptr_t{node}), 0);
+    if (ok) {
+        const uint32_t args[2] = {addr_of(sentient), id};
+        call_at(frame, 0x0021cadf, 0x00200960, TitleRegs{addr_of(sentient), a, ecx, id, node, edi}, 2,
+                args);  // Sentient_SetClaimedNode
+        field<uint32_t>(actor, 0x818) = 0;
+        return 1;
+    }
+    if (id == field<uint16_t>(sentient, 0x48)) {
+        stack_word(entry - 4) = ecx & 0xffff0000u;
+        const uint32_t args[2] = {addr_of(sentient), stack_word(entry - 4)};
+        call_at(frame, 0x0021cb0d, 0x00200960, TitleRegs{addr_of(sentient), a, id, args[1], node, edi}, 2,
+                args);  // Sentient_SetClaimedNode
+    }
+    const uint32_t s2 = field<uint32_t>(actor, 4);
+    if (call_at(frame, 0x0021cb19, 0x002b1210, TitleRegs{node, s2, s2, 0, node, edi}, 0, nullptr)) {  // 0x002b1210
+        const uint32_t team[1] = {field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{s2}), 4)};
+        call_at(frame, 0x0021cb26, 0x002ba0d0, TitleRegs{1, s2, s2, 0, node, edi}, 1, team);  // PathNode_RevokeClaim
+    }
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_OrientToEnemyOrMotion, 4)
+
+uint32_t XB_CDECL Actor_OrientToEnemyOrMotion(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EBX actor, stack orient (ret 4): a team-2 sentient with an enemy not in step 0xd3 that
+    // does not see it orients by its move history. Moving actors (path points and +0x2a0 or
+    // +0x2a4 non-zero) with a visible enemy (or step 0xd3) whose path allows facing it
+    // (Actor_PathAllowsFacingEnemy with the normalized direction) choose the idle orientation;
+    // without an enemy, unseen or not allowed, the move history. Standing: idle orientation.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ebx});
+    const uint32_t a = ebx;
+    const uint32_t orient = stack_word(entry + 4);
+    stack_word(entry - 0x1c) = ebp;
+    stack_word(entry - 0x20) = esi;
+    stack_word(entry - 0x24) = edi;
+    const uint32_t frame = entry - 0x24;
+    const auto history = [&]() {
+        return call_at(frame, 0x0021cb7a, 0x002052c0, TitleRegs{orient, a, a, edx, esi, 0xd3}, 0,
+                       nullptr);  // Actor_OrientToMoveHistory
+    };
+    const auto idle = [&]() {
+        const uint32_t args[1] = {orient};
+        return call_at(frame, 0x0021cc88, 0x0021bc00, TitleRegs{a, a, ecx, edx, esi, 0xd3}, 1,
+                       args);  // Actor_ChooseIdleOrient
+    };
+    const uint8_t* const s = field<const uint8_t*>(actor, 4);
+    if (field<uint32_t>(s, 4) == 2 && field<uint32_t>(s, 0x3c) && field<uint32_t>(actor, 0x28) != 0xd3) {
+        const uint32_t seen = visibility_if_stale_at(frame, 0x0021cb62, field<const uint8_t*>(s, 0x3c), actor, 0x3e8, 0xd3,
+                                                     a, orient);
+        if (float_bits_zero(seen)) return history();
+    }
+    if (field<int16_t>(actor, 0x740) <= 0) return idle();
+    if (field<float>(actor, 0x2a0) == 0.0f && field<float>(actor, 0x2a4) == 0.0f) return idle();
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) return history();
+    if (field<uint32_t>(actor, 0x28) != 0xd3) {
+        const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+        const uint32_t seen = visibility_if_stale_at(frame, 0x0021cbd5, enemy, actor, 0x3e8, 0xd3, a, orient);
+        if (float_bits_zero(seen)) return history();
+    }
+    const uint8_t* const enemy_ent = field<const uint8_t*>(field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), 0);
+    const uint8_t* const me = field<const uint8_t*>(actor, 0);
+    float* const dir = stack_vec(entry - 0x18);
+    dir[0] = field<float>(enemy_ent, 0x140) - field<float>(me, 0x140);
+    dir[1] = field<float>(enemy_ent, 0x144) - field<float>(me, 0x144);
+    dir[2] = field<float>(enemy_ent, 0x148) - field<float>(me, 0x148);
+    call_at(frame, 0x0021cc37, 0x00297770, TitleRegs{addr_of(enemy_ent), a, ecx, edx, entry - 0x18, addr_of(me)}, 0,
+            nullptr);  // VectorNormalize
+    stack_word(entry - 0xc) = field<uint32_t>(me, 0x140);
+    stack_word(entry - 8) = field<uint32_t>(me, 0x144);
+    stack_word(entry - 4) = field<uint32_t>(me, 0x148);
+    const uint32_t args[1] = {entry - 0x18};
+    if (!call_at(frame, 0x0021cc73, 0x001fc540, TitleRegs{addr_of(me), a, ecx, entry - 0x18, a + 0x3c0, entry - 0xc}, 1,
+                 args))  // Actor_PathAllowsFacingEnemy
+        return history();
+    return idle();
+}
+
+AI_GAP_ENTRY(Actor_Grenade_TakeCover, 0)
+
+uint32_t XB_CDECL Actor_Grenade_TakeCover(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t,
+                                          uint32_t esi, uint32_t edi, uint32_t) {
+    // EDI actor: at the end of the path the claimed node's cover against the enemy is checked
+    // (+0x820 its result); valid cover safe from the grenade attacks from it (step 0x25c), else
+    // cower (step 0x25a). On the way it moves (Actor_AvoidOthers) and drops the path on a
+    // vehicle path or with +0x7c8. EAX 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t a = edi;
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = ebx;
+    stack_word(entry - 0xc) = esi;
+    const uint32_t frame = entry - 0xc;
+    if (field<int16_t>(actor, 0x740) <= 0) {
+        const uint8_t* const s = field<const uint8_t*>(actor, 4);
+        const uint32_t node = claimed_node(s);
+        const uint32_t args[2] = {field<uint32_t>(s, 0x3c), entry - 4};
+        const uint32_t valid = call_at(frame, 0x0021acd4, 0x002038b0, TitleRegs{node, 0, entry - 4, a, esi, a}, 2,
+                                       args);  // Actor_IsCoverValidAgainst
+        field<uint32_t>(actor, 0x820) = valid ? stack_word(entry - 4) : 0;
+        if (field<uint32_t>(actor, 0x820) &&
+            call_at(frame, 0x0021ad01, 0x0020c9c0, TitleRegs{valid, 0, field<uint32_t>(actor, 0) + 0x140, a, esi, a}, 0,
+                    nullptr)) {  // Actor_IsSafeFromGrenade
+            exposed_schedule(actor, 0x25c);
+            call_at(frame, 0x0021ad2c, 0x00204f80, TitleRegs{a, 0, uint32_t(level_time() + 1), 0, esi, a}, 0,
+                    nullptr);  // Actor_Grenade_CoverAttack
+            return 0;
+        }
+        exposed_schedule(actor, 0x25a);
+        field<uint32_t>(actor, 0x12c) = 1;
+        call_at(frame, 0x0021ad67, 0x00203de0, TitleRegs{a, 0, uint32_t(level_time() + 0x1f5), 0, 0x00987bc8, a}, 0,
+                nullptr);  // Actor_AnimStationary (g_animScript_grenade_cower)
+        return 0;
+    }
+    field<uint32_t>(actor, 0x12c) = 4;
+    field<uint8_t>(actor, 0x7df) = 0;
+    field<uint32_t>(actor, 0x7c0) = 0;
+    const uint32_t ret[4] = {0x0021ad8b, 0x0021adfa, 0x0021adec, 0x0021ada1};
+    avoid_and_move(actor, frame, ret, 0, esi, a);
+    if (field<uint32_t>(actor, 0x1390) || field<uint32_t>(actor, 0x7c8)) drop_path_at_origin(actor);
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_ReactToDistance, 0)
+
+uint32_t XB_CDECL Actor_Grenade_ReactToDistance(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t) {
+    // EDI actor: an unowned grenade (none thrown yet, +0x1324) is first tried for a throw back.
+    // Then, unless the reaction is forced (+0x1364) or due now (+0x1368), a new reaction. Else
+    // by the grenade's squared distance over the danger radius (0x008db49c): under 0.3 a new
+    // reaction; under 0.7 one with chance 1 - d (rand / 32768), otherwise cower (step 0x25a).
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{edi});
+    const uint32_t a = edi;
+    stack_word(entry - 4) = ecx;
+    const uint8_t* const grenade = field<const uint8_t*>(actor, 0x1310);
+    if (!field<uint32_t>(grenade, 0x378) && !field<uint32_t>(actor, 0x1324)) {
+        const uint32_t self[1] = {a};
+        const uint32_t thrown = call_at(entry - 4, 0x0021f7b1, 0x0021af20, TitleRegs{0, ebx, 0, edx, esi, a}, 1,
+                                        self);  // Actor_Grenade_TryThrowBack
+        if (thrown) return thrown;
+    }
+    const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+    const uint32_t zero[1] = {0};
+    if (!field<uint8_t>(actor, 0x1364) && field<int32_t>(actor, 0x1368) != level_time())
+        return call_at(entry - 4, 0x0021f7dc, 0x0021e120, TitleRegs{a, ebx, addr_of(ent), edx, esi, a}, 1,
+                       zero);  // Actor_Grenade_ChooseReaction
+    const uint8_t* const g = field<const uint8_t*>(actor, 0x1310);
+    const float dy = field<float>(g, 0x2c4) - field<float>(ent, 0x144);
+    const float dx = field<float>(g, 0x2c0) - field<float>(ent, 0x140);
+    const float dz = field<float>(g, 0x2c8) - field<float>(ent, 0x148);
+    const float d = (dz * dz + dy * dy + dx * dx) / static_cast<float>(title_global<int32_t>(0x008db49c));
+    if (title_global<float>(0x0083066c) > d)
+        return call_at(entry - 4, 0x0021f7dc, 0x0021e120, TitleRegs{a, ebx, addr_of(ent), edx, esi, a}, 1, zero);
+    stack_word(entry - 8) = esi;
+    if (title_global<float>(0x0083ed28) > d) {
+        const uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
+        title_global<uint32_t>(0x008d5a70) = seed;
+        const float roll = static_cast<float>(int32_t(seed >> 17));
+        *stack_vec(entry - 4) = roll;
+        const float one = title_global<float>(0x0083eb20);
+        const float zf = 0.0f;
+        const float chance = (one - zf) * roll / title_global<float>(0x0083ebc8) + zf;
+        if (one - d > chance)
+            return call_at(entry - 8, 0x0021f8c2, 0x0021e120, TitleRegs{a, ebx, addr_of(ent), edx, esi, a}, 1, zero);
+    }
+    exposed_schedule(actor, 0x25a);
+    field<uint32_t>(actor, 0x12c) = 1;
+    return call_at(entry - 8, 0x0021f91a, 0x00203de0, TitleRegs{a, ebx, uint32_t(level_time() + 0x1f5), edx, 0x00987bc8, a},
+                   0, nullptr);  // Actor_AnimStationary (g_animScript_grenade_cower)
+}
+
 }  // namespace game

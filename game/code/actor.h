@@ -1286,4 +1286,112 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_BecomeCorpse(uint32_t entry, uint
                                                            uint32_t edi, uint32_t ebp);
 extern "C" void Actor_BecomeCorpse_entry(void);
 
+// 0x0002be40 (path in EAX): a local path made ready (point +0x18 words, +0x38c cleared). EAX kept.
+uint8_t* XB_REGS1 XB_CDECL Path_Init(uint8_t* path);
+// 0x0021d250 (ECX actor; state callback): a nearby cover node changes the state to 1, else the path is kept.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_CheckNearbyCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_CheckNearbyCover_entry(void);
+// 0x0021f920 (EDI actor): exposed reacquire, path trimmed from the enemy's eye.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquirePathTrim(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquirePathTrim_entry(void);
+// 0x002201a0 (ECX actor; think): critical section state, ends after 10 s.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CriticalSection_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_CriticalSection_Think_entry(void);
+// 0x0021db00 (ECX actor, EAX grenade point, stack radius; ret 4): cover from the grenade.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_FindCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_FindCover_entry(void);
+// 0x0021e6a0 (EAX actor): exposed reacquire, moving to the enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireMove(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireMove_entry(void);
+// 0x0021c700 (EAX actor): exposed state, new goal node or path to the goal.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_CheckMoveToGoal(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_CheckMoveToGoal_entry(void);
+// 0x0021fb00 (EAX actor): exposed reacquire, path straight to the enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireDirectPath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireDirectPath_entry(void);
+// 0x002203e0 (ECX actor; think): custom anim script state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_AnimCustom_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_AnimCustom_Think_entry(void);
+// 0x0021ae00 (EAX actor): grenade flee state. EAX 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Flee(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_Flee_entry(void);
+// 0x0021bae0 (stack block list; ret 4): actor pairs within 8 units bumped, then resolved.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateBlockingPairs(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateBlockingPairs_entry(void);
+// 0x0021f9d0 (ESI actor): exposed reacquire, path away to a nearby spot.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireProximatePath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireProximatePath_entry(void);
+// 0x0021c5c0 (EAX ScriptString, EBX sentient): goal from "x y z", an entity or a node name.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_SetGoalFromString(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_SetGoalFromString_entry(void);
+// 0x002192c0 (EAX planes, EBX count; 6 stack words): route between the nodes nearest two points (dead).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetweenPointsInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteBetweenPointsInsidePlanes_entry(void);
+
+// 0x0021b220 (EDI actor): exposed state, start moving to the goal (1) or reacquire (0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_MoveToGoalStart(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_MoveToGoalStart_entry(void);
+// 0x0021ea60 (EAX actor): moves the actor by its anim mode (or its tag link), impacts and triggers.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateMovement_entry(void);
+// 0x0021d590 (EAX actor): a better cover node near the sentient, pathed to (1), or the cover kept.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Cover_FindBetterCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Cover_FindBetterCover_entry(void);
+// 0x0021ebb0 (ECX actor; think): pain state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Pain_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Pain_Think_entry(void);
+// 0x00220050 (ECX actor; think): death state, corpse after the anim.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Death_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Death_Think_entry(void);
+// 0x0021f580 (EAX actor, stack word; cdecl): grenade return-throw anim.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_ThrowBack(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_ThrowBack_entry(void);
+// 0x00220270 (ECX actor; think): cover state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Cover_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Cover_Think_entry(void);
+// 0x0021dfc0 (): AI types of spawned actors, then every actor's state machine started.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FinishSpawnAll(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FinishSpawnAll_entry(void);
+// 0x0021fef0 (EAX actor): exposed reacquire, a candidate node with sight of the enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_ReacquireNode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_ReacquireNode_entry(void);
+// 0x0021c9d0 (ECX actor, EAX minimum interval): tries the next cover candidate (1 claimed).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindNearbyCoverNode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindNearbyCoverNode_entry(void);
+// 0x0021cb30 (EBX actor, stack orient; ret 4): face the enemy, the motion or idle.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_OrientToEnemyOrMotion(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_OrientToEnemyOrMotion_entry(void);
+// 0x0021ac70 (EDI actor): grenade cover state. EAX 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_TakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_TakeCover_entry(void);
+// 0x0021f790 (EDI actor): grenade reaction by distance.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_ReactToDistance(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_ReactToDistance_entry(void);
+
 }  // namespace game
