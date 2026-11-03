@@ -14617,3 +14617,4 @@ address,name,kind,confidence,evidence
 002545e0,ScriptMover_NextTrajectoryPhase,function,high,"game/ent push 11"
 00259180,BoxEntity_SetSolidity,function,high,"game/ent push 11"
 00323870,Hud_LoadWeaponIcons,function,high,"game/ent push 11 (callers G_InitGame, HudManager_Layout3; maybe client module)"
+002bba50,PM_UpdateAimSpread,function,high,"game/phys push 16 (ps +0x4f0 aim spread 0..255)"

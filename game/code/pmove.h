@@ -232,4 +232,22 @@ extern "C" void Pmove_entry(void);
 // 0x002f1590 (cdecl pm, no-weapon flag; the pm slot is used as scratch): Q3's PmoveSingle.
 void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t no_weapon);
 
+// 0x002b60a0 (cmd on the stack; XMM0): PM_CmdScale for walking, with the stance and view-height lerp scales.
+extern "C" PLATFORM_HIDDEN float XB_CDECL PM_WalkCmdScale(const int8_t* cmd);
+extern "C" void PM_WalkCmdScale_entry(void);
+// 0x002bba50: the aim spread (ps +0x4f0, 0..255) from view turning and movement, decaying over time.
+void XB_CDECL PM_UpdateAimSpread();
+// 0x002ed090: the view height (ps +0xac) toward its target, along the stance lerp curves.
+void XB_CDECL PM_ViewHeightAdjust();
+// 0x002eea00: Q3's PM_LadderMove.
+void XB_CDECL PM_LadderMove();
+// 0x002eac90: Q3's PM_SlideMove (1 when it bumped).
+uint32_t XB_CDECL PM_SlideMove(uint32_t gravity);
+// 0x002ec330: Q3's PM_StepSlideMove.
+void XB_CDECL PM_StepSlideMove(uint32_t gravity);
+// 0x002efbe0: Q3's PM_WalkMove.
+void XB_CDECL PM_WalkMove();
+// 0x002ef090: Q3's PM_CheckDuck with prone (bounds, stance requests, view height, prone ground pitch).
+void XB_CDECL PM_CheckDuck();
+
 }  // namespace game

@@ -9575,7 +9575,7 @@
 002bb7c0 CL_RefGetFont
 002bb940 G_RestorePlayerHealth
 002bb9e0 PM_WeaponMeleeStrike
-002bba50 FUN_002bba50
+002bba50 PM_UpdateAimSpread
 002bbd30 PM_RemoveEmptyWeapon
 002bbdc0 PM_WeaponCanReload
 002bbe40 PM_FinishWeaponChange
