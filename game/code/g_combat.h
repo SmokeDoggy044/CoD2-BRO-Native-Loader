@@ -74,4 +74,8 @@ void XB_CDECL G_MissileActivateDamageTriggers(uint8_t* ent, const float* start, 
 // 0x0025d960: the same for a hit trace (melee, bullets, missile impact), any trigger_damage.
 void XB_CDECL G_CheckHitTriggerDamage(uint8_t* ent, const float* start, const float* end, int32_t damage, int32_t mod);
 
+// 0x002691a0 (means of death in EAX, entity in ECX, cdecl weapon): the dead player's state, the local player's
+// death shake and rumble, the "player died" interface notice.
+void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t unused_edx, uint8_t* self, uint32_t weapon);
+
 }  // namespace game

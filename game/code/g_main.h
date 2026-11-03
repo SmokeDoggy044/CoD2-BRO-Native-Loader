@@ -168,6 +168,11 @@ extern "C" void G_LoadLevelScriptModule_entry(void);
 // '_') looked up once into +0x18 + i * 4, then every picture from +8 (0x84) set to colour 0xffffffff.
 void XB_REGS1 XB_STDCALL Hud_LoadWeaponIcons(uint8_t* icons, uint8_t* pictures);
 
+// 0x002afc00 (scene in ESI): clears the scene's zone flag bytes (+0x194: count, bytes); when restoring a
+// checkpoint (0x0095f4e0 set, +0x390) only the ones set to 1.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_ResetZoneFlags(uint8_t* scene);
+extern "C" void Scn_ResetZoneFlags_entry(void);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

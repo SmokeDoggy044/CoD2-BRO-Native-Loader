@@ -3,15 +3,18 @@
 #include <cstring>
 
 #include "cg_ents.h"
+#include "dobj.h"
 #include "g_main.h"
 #include "qcommon_fs.h"
 #include "g_script.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -22,6 +25,10 @@ uint32_t& word_at(uint8_t* base, uint32_t offset) { return *reinterpret_cast<uin
 template <typename T>
 T& field(uint8_t* base, uint32_t offset) {
     return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* pointer_at(uint8_t* base, uint32_t offset) {
+    return reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(base + offset)});
 }
 
 // level.numSpawnVars (0x00985420) and level.spawnVars {key, value} (0x00985424).
@@ -1028,6 +1035,311 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
     // A brush model ("sbmo..." at +0x14) gets flag 0x800000.
     const uint32_t model = word(spawn + 0x14);
     if (model && word(reinterpret_cast<uint8_t*>(uintptr_t{model})) == 0x6f6d6273) word(ent + 0x2a4) |= 0x800000;
+}
+
+void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32_t slot) {
+    // A vehicle node from spawn record `item` (0x38 bytes; index past the count reads 0) of the
+    // level's list (+4 + slot * 4: count +0x28, records +0x2c): names (+0 / +4 / +8 into node +0 /
+    // +4 / +0x10), origin, angles, speed, +0xc and two flag bits (+0x2c into +0x3c bits 28-29); then
+    // every key/value pair (+0x30 count, +0x34 pairs) by the interface's node setters (+0x83c int,
+    // +0x844 "script_delay" float, +0x834 names as a script string); unknown keys only format a
+    // warning. An unnamed node reports itself (__break); a speed >= 0 is scaled by 17.6 (mph).
+    using AssignCString = void XB_THISCALL(uint8_t*, const char*);
+    const uint8_t* const list = *reinterpret_cast<uint8_t* const*>(spawns + slot * 4 + 4) + 0x28;
+    if (item >= *reinterpret_cast<const uint32_t*>(list)) item = 0;
+    const uint8_t* const spawn = *reinterpret_cast<uint8_t* const*>(list + 4) + item * 0x38;
+    uint8_t* const node = VehNode_Alloc();
+    for (uint32_t i = 0; i < 3; ++i) {
+        static const uint32_t kNames[3] = {0, 4, 0x10};
+        const char* const text = *reinterpret_cast<const char* const*>(spawn + i * 4);
+        if (text != nullptr) title_function<AssignCString>(0x0011dd20)(node + kNames[i], text);
+    }
+    const uint32_t flags = field<uint32_t>(node, 0x3c);
+    field<uint32_t>(node, 0x14) = *reinterpret_cast<const uint32_t*>(spawn + 0xc);
+    field<uint32_t>(node, 0x18) = *reinterpret_cast<const uint32_t*>(spawn + 0x10);
+    field<uint32_t>(node, 0x1c) = *reinterpret_cast<const uint32_t*>(spawn + 0x14);
+    field<uint32_t>(node, 0x2c) = *reinterpret_cast<const uint32_t*>(spawn + 0x18);
+    field<uint32_t>(node, 0x30) = *reinterpret_cast<const uint32_t*>(spawn + 0x1c);
+    field<uint32_t>(node, 0x34) = *reinterpret_cast<const uint32_t*>(spawn + 0x20);
+    field<uint32_t>(node, 0x8) = *reinterpret_cast<const uint32_t*>(spawn + 0x24);
+    field<uint32_t>(node, 0x3c) = flags ^ (((*reinterpret_cast<const uint32_t*>(spawn + 0x2c) << 28) ^ flags) & 0x30000000);
+    field<uint32_t>(node, 0xc) = *reinterpret_cast<const uint32_t*>(spawn + 0x28);
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    const auto is = [](const char* key, uint32_t name) {
+        return title_function<Stricmp>(0x001f1443)(key, reinterpret_cast<const char*>(uintptr_t{name})) == 0;
+    };
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(spawn + 0x30); ++i) {
+        const uint32_t count = *reinterpret_cast<const uint32_t*>(spawn + 0x30);
+        const uint32_t pair = i < count ? i : 0;
+        const char* const* const pairs = *reinterpret_cast<const char* const* const*>(spawn + 0x34);
+        const char* const key = pairs[pair * 2];
+        const char* const value = pairs[pair * 2 + 1];
+        const uint32_t hash = HashStr_Hash(key);
+        const int32_t number = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value);  // _atol
+        const float real = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);         // atof
+        int32_t index = -1;
+        for (int32_t n = 0; n < title_global<int32_t>(0x0094d4d8); ++n) {  // g_numVehNodes
+            if (title_global<uint8_t*>(0x0095c228 + n * 4) == node) {       // g_vehNodes
+                index = n;
+                break;
+            }
+        }
+        uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+        using SetInt = void XB_CDECL(int32_t, uint32_t, int32_t);
+        using SetFloat = void XB_CDECL(int32_t, uint32_t, float);
+        using SetName = void XB_CDECL(int32_t, uint32_t, uint32_t);
+        if (is(key, 0x0083364c) || is(key, 0x00833638) || is(key, 0x0083362c) || is(key, 0x00833620) ||
+            is(key, 0x00833614)) {
+            // "friendlywait", "playerhasbeenhere", "detoured", "detourstart", "detourpath"
+            title_function<SetInt>(field<uint32_t>(import, 0x83c))(index, hash, number);
+        } else if (is(key, 0x00833608) || is(key, 0x008335fc)) {  // "endswitch", "startswitch"
+            title_function<SetInt>(field<uint32_t>(import, 0x83c))(index, hash, number);
+        } else if (is(key, 0x00833a28)) {  // "script_delay"
+            title_function<SetFloat>(field<uint32_t>(import, 0x844))(index, hash, real);
+        } else if (is(key, 0x008335e8) || is(key, 0x008335dc)) {  // "crash_path_target", "derailed"
+            title_function<SetInt>(field<uint32_t>(import, 0x83c))(index, hash, number);
+        } else if (is(key, 0x008335c8) || is(key, 0x008335bc)) {  // "script_uniquename", "groupname"
+            uint32_t name = 0;  // the script string handed over by value (the callee releases it)
+            title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&name, value);  // ScriptString_FromCString
+            title_function<SetName>(field<uint32_t>(import, 0x834))(index, hash, name);
+        } else {
+            char warning[0x400];
+            title_function<int32_t XB_CDECL(char*, const char*, const char*, const char*)>(0x001ee901)(
+                warning, reinterpret_cast<const char*>(uintptr_t{0x00833584}), key, value);  // _sprintf
+        }
+    }
+    const uint8_t* const name = *reinterpret_cast<uint8_t* const*>(node);
+    if (name == nullptr || name[6] == 0) {  // the rep's text (+6)
+        const double x = field<float>(node, 0x14);
+        const double y = field<float>(node, 0x18);
+        const double z = field<float>(node, 0x1c);
+        title_function<void XB_CDECL(int32_t, const char*, double, double, double)>(0x002938f0)(
+            1, reinterpret_cast<const char*>(uintptr_t{0x0083354c}), x, y, z);  // __break: "... found with no name"
+    }
+    if (field<float>(node, 8) >= title_global<float>(0x0083eafc)) {
+        field<float>(node, 8) = field<float>(node, 8) * title_global<float>(0x0083ee64);  // 17.6
+    }
+}
+
+PLATFORM_ASM_ENTRY(Drop_Weapon_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Drop_Weapon) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Drop_Weapon(uint8_t* ent, uint32_t weapon, const char* tag) {
+    // Q3's Drop_Weapon: none for defs with +0x6f8 or type 4 (+0x94). The item (0x0096bd10 +
+    // weapon * 0x34, Drop_Item) carries the ammo (+0x370) and clip (+0x3bc; -1 for none): a
+    // player's (ammo slot +0x598, clip slot +0x5a0; both cleared, BG_RemoveWeaponFromSlot), else
+    // random counts from the def's range (+0x71c..+0x720) or a random share of the clip size
+    // (0x00935338). From a tag (hash cached once in 0x0098f1bc) the item starts at the tag,
+    // traced from the entity's centre (capsule, mask 0x411); then the entity's angles and a
+    // random spin (type 2, (50, 40, 60) * [-1, 1)).
+    using Rand = int32_t XB_CDECL();
+    const auto rand_ = [] { return title_function<Rand>(0x001efcc0)(); };
+    const auto def_of = [](uint32_t w) {
+        return reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t*>(0x0095f4d8)[w]});
+    };
+    const uint8_t* def = def_of(weapon);
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6f8) != 0 || *reinterpret_cast<const uint32_t*>(def + 0x94) == 4) {
+        return 0;
+    }
+    uint8_t* drop;
+    {
+        const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
+        const uint32_t args[2] = {0x0096bd10 + weapon * 0x34, 0};
+        drop = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x00264f60, &regs, 2, args)});  // Drop_Item
+    }
+    def = def_of(weapon);
+    const uint32_t clip_slot = *reinterpret_cast<const uint32_t*>(def + 0x5a0);
+    const uint32_t ammo_slot = *reinterpret_cast<const uint32_t*>(def + 0x598);
+    int32_t ammo;
+    int32_t clip;
+    if (field<uint32_t>(ent, 0x23c) != 0) {
+        uint8_t* client = pointer_at(ent, 0x23c);
+        ammo = field<int32_t>(client, 0x110 + ammo_slot * 4);
+        field<int32_t>(client, 0x110 + ammo_slot * 4) = 0;
+        client = pointer_at(ent, 0x23c);
+        clip = field<int32_t>(client, 0x280 + clip_slot * 4);
+        field<int32_t>(client, 0x280 + clip_slot * 4) = 0;
+        BG_RemoveWeaponFromSlot(weapon, pointer_at(ent, 0x23c));
+    } else {
+        int32_t high = *reinterpret_cast<const int32_t*>(def + 0x720);
+        int32_t low = *reinterpret_cast<const int32_t*>(def + 0x71c);
+        if (high < low) {
+            high = low;
+            low = *reinterpret_cast<const int32_t*>(def + 0x720);
+        }
+        const int32_t clip_size = title_global<int32_t>(0x00935338 + clip_slot * 4);
+        if (high == 0 && low == 0) {
+            // A random total of 1..clip size (rounded), a random quarter..more of it in the clip.
+            const float span = static_cast<float>(clip_size - 1);
+            float t = static_cast<float>(rand_()) * title_global<float>(0x0083ebe0) + title_global<float>(0x0083eb20);
+            t = t * span;
+            const float half = title_global<float>(0x0083eb24);
+            t = t * half;
+            t = t + half;
+            ammo = static_cast<int32_t>(t) + 1;
+            float c = static_cast<float>(rand_()) * title_global<float>(0x0083f1e8) + title_global<float>(0x0083ec24);
+            c = c * static_cast<float>(ammo);
+            c = c + title_global<float>(0x0083eb24);
+            clip = static_cast<int32_t>(c);
+            ammo -= clip;
+        } else if (high < 0) {
+            ammo = 0;
+            clip = 0;
+        } else {
+            int32_t total;
+            if (high == low) {
+                total = low;
+            } else {
+                total = rand_() % (high - low) + low;
+            }
+            if (total <= 0) {
+                ammo = 0;
+                clip = 0;
+            } else {
+                clip = clip_size != 0 ? rand_() % clip_size : 0;
+                if (clip < total) {
+                    ammo = total - clip;
+                } else {
+                    clip = total;
+                    ammo = 0;
+                }
+            }
+        }
+    }
+    field<int32_t>(drop, 0x370) = ammo;
+    field<int32_t>(drop, 0x3bc) = clip;
+    if (ammo == 0) field<int32_t>(drop, 0x370) = -1;
+    if (clip == 0) field<int32_t>(drop, 0x3bc) = -1;
+    if (tag == nullptr) return address_of(drop);
+    uint32_t& guard = title_global<uint32_t>(0x0098f1c0);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098f1bc) = Com_HashKeyNoCase(0, tag);
+    }
+    const DObj* const obj = reinterpret_cast<const DObj*>(uintptr_t{field<uint32_t>(ent, 0x22c)});
+    if (obj != nullptr) {
+        const int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098f1bc));
+        if (bone >= 0) {
+            alignas(16) float matrix[16];
+            G_DObjGetWorldTagMatrix(ent, static_cast<uint32_t>(bone), matrix);
+            const float half = title_global<float>(0x0083eb24);
+            alignas(16) float start[4] = {};
+            start[1] = field<float>(ent, 0x144) + (field<float>(ent, 0xf4) + field<float>(ent, 0xe4)) * half;
+            start[2] = field<float>(ent, 0x148) + (field<float>(ent, 0xf8) + field<float>(ent, 0xe8)) * half;
+            start[0] = field<float>(ent, 0x140) + (field<float>(ent, 0xf0) + field<float>(ent, 0xe0)) * half;
+            // The end point as the original's 4-lane copy: tag origin x, y, z and x again.
+            alignas(16) float end[4] = {matrix[12], matrix[13], matrix[14], matrix[12]};
+            alignas(16) float trace[0x20] = {};
+            using Trace = void XB_CDECL(float*, const float*, const float*, const float*, const float*, uint32_t, uint32_t);
+            title_function<Trace>(0x002601a0)(trace, start, reinterpret_cast<const float*>(drop + 0xe0),
+                                              reinterpret_cast<const float*>(drop + 0xf0), end,
+                                              field<uint32_t>(ent, 0x224), 0x411);  // G_TraceCapsule
+            for (uint32_t i = 0; i < 3; ++i) {
+                field<float>(drop, 0x20 + i * 4) = trace[i];
+            }
+            for (uint32_t i = 0; i < 3; ++i) {
+                field<float>(drop, 0x140 + i * 4) = trace[i];
+            }
+            field<int32_t>(drop, 0x18) = title_global<int32_t>(0x0098540c);
+        }
+    }
+    G_SetAngle(drop, 0, reinterpret_cast<const float*>(ent + 0x150));
+    const float spin_scale = title_global<float>(0x0083ecf8);  // 1 / 16384
+    const float one = title_global<float>(0x0083eb20);
+    const float spin_x = (static_cast<float>(rand_()) * spin_scale - one) * title_global<float>(0x0083ec30);  // 50
+    const float spin_y = (static_cast<float>(rand_()) * spin_scale - one) * title_global<float>(0x0083ec84);  // 40
+    const float spin_z = (static_cast<float>(rand_()) * spin_scale - one) * title_global<float>(0x0083eb3c);  // 60
+    field<uint32_t>(drop, 0x38) = 2;
+    field<float>(drop, 0x50) = spin_x;
+    field<int32_t>(drop, 0x3c) = title_global<int32_t>(0x0098540c);
+    field<float>(drop, 0x54) = spin_y;
+    field<float>(drop, 0x58) = spin_z;
+    return address_of(drop);
+}
+
+PLATFORM_ASM_ENTRY(Scn_AddStaticModel_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Scn_AddStaticModel) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst) {
+    // A static model instance (0xec bytes): the zone (+0xe0), the model registered by name once
+    // (+0x68 = {name, model}, then the model itself); unless +0xe8, its box (axis +0x6c, origin
+    // +0x90) linked into the world cells (0x0095e608 +0x100 = cm). With at most 64 bones (the first
+    // LOD with parts: +0x24.., part +8, count +0x10) the bone matrices (0x0098cbd0, built once) and
+    // the hit-box bounds scaled (+0x9c) around the origin into +0xa0 / +0xac; linked to its sector
+    // when the model has +0x40.
+    field<uint32_t>(inst, 0xe0) = zone;
+    uint8_t* entry = pointer_at(inst, 0x68);
+    if (entry == nullptr) return;
+    if (field<uint32_t>(entry, 4) == 0) {
+        uint32_t model = 0;
+        R_RegisterModel(reinterpret_cast<const char*>(uintptr_t{field<uint32_t>(entry, 0)}),
+                        title_global<uint32_t>(0x0095f6ac), &model, zone);  // rm_models
+        field<uint32_t>(pointer_at(inst, 0x68), 4) = model;
+    }
+    field<uint32_t>(inst, 0x68) = field<uint32_t>(pointer_at(inst, 0x68), 4);
+    const float* const origin = reinterpret_cast<const float*>(inst + 0x90);
+    alignas(16) float box[8];  // the original's stack block: origin copy / hit-box mins +0, maxs +0x10
+    if (field<uint32_t>(inst, 0xe8) == 0) {
+        alignas(16) float bounds[8];
+        for (uint32_t i = 0; i < 4; ++i) bounds[i] = title_global<float>(0x0082eed0);      // FLT_MAX
+        for (uint32_t i = 0; i < 4; ++i) bounds[4 + i] = title_global<float>(0x0083ef2c);  // -FLT_MAX
+        Bounds_AddPoints8(reinterpret_cast<const float*>(inst + 0x6c), reinterpret_cast<const float*>(pointer_at(inst, 0x68)),
+                          bounds);
+        // Both corners move by the origin as 4 lanes (x, y, z, x).
+        for (uint32_t c = 0; c < 2; ++c) {
+            const float lanes[4] = {origin[0], origin[1], origin[2], origin[0]};
+            for (uint32_t i = 0; i < 4; ++i) bounds[c * 4 + i] = bounds[c * 4 + i] + lanes[i];
+        }
+        uint8_t* const world = title_global<uint8_t*>(0x0095e608);
+        field<uint32_t>(world, 0x100) = title_global<uint32_t>(0x0095f6b8);  // cm
+        uint8_t* const cells = title_global<uint8_t*>(0x0095e608);
+        const uint8_t* const node = reinterpret_cast<const uint8_t*>(uintptr_t{field<uint32_t>(pointer_at(cells, 0x100), 0xc)});
+        R_LinkEntityToCells_r(cells, node, inst, bounds, bounds + 4);
+    }
+    uint8_t* const model = pointer_at(inst, 0x68);
+    const auto first_lod = [&]() {
+        uint32_t k = 0;
+        if (field<uint32_t>(model, 0x24) == 0) {
+            do ++k;
+            while (field<uint32_t>(model, 0x24 + k * 4) == 0);
+        }
+        return pointer_at(model, 0x24 + k * 4);
+    };
+    int32_t bones = 0;
+    if (field<uint32_t>(first_lod(), 8) != 0) bones = field<int32_t>(pointer_at(first_lod(), 8), 0x10);
+    uint32_t& guard = title_global<uint32_t>(0x0098dbd0);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00011240)(0x0098cbd0, 0x40, 0x40,
+                                                                                         0x0001b920);  // eh_vector_constructor_iterator
+    }
+    if (bones > 0x40) return;
+    float* const matrices = reinterpret_cast<float*>(uintptr_t{0x0098cbd0});
+    R_ModelBoneMatrices(model, matrices);
+    {
+        const TitleRegs regs{0, 0, address_of(inst + 0x6c), 0, 0, 0};
+        const uint32_t args[4] = {address_of(model), address_of(box), address_of(box + 4), 0x0098cbd0};
+        if (g_ent_call(0x00240f70, &regs, 4, args) == 0) return;  // R_ModelBoxBounds
+    }
+    const float scale = field<float>(inst, 0x9c);
+    field<float>(inst, 0xa0) = scale * box[0];
+    field<float>(inst, 0xa4) = field<float>(inst, 0x9c) * box[1];
+    field<float>(inst, 0xa8) = field<float>(inst, 0x9c) * box[2];
+    field<float>(inst, 0xac) = field<float>(inst, 0x9c) * box[4];
+    field<float>(inst, 0xb0) = field<float>(inst, 0x9c) * box[5];
+    field<float>(inst, 0xb4) = field<float>(inst, 0x9c) * box[6];
+    field<float>(inst, 0xa0) = field<float>(inst, 0x90) + field<float>(inst, 0xa0);
+    field<float>(inst, 0xa4) = field<float>(inst, 0x94) + field<float>(inst, 0xa4);
+    field<float>(inst, 0xa8) = field<float>(inst, 0xa8) + field<float>(inst, 0x98);
+    field<float>(inst, 0xac) = field<float>(inst, 0x90) + field<float>(inst, 0xac);
+    field<float>(inst, 0xb0) = field<float>(inst, 0x94) + field<float>(inst, 0xb0);
+    field<float>(inst, 0xb4) = field<float>(inst, 0xb4) + field<float>(inst, 0x98);
+    if (field<uint32_t>(pointer_at(inst, 0x68), 0x40) != 0) SV_LinkStaticModelToSector(inst);
 }
 
 }  // namespace game

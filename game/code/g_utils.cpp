@@ -17,6 +17,7 @@
 #include "g_vehicle.h"
 #include "lanes.h"
 #include "nal_anim.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -3550,6 +3551,150 @@ void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t, uint32_t so
         word_at(ent, 0x134) = 0x411c0008;
     }
     SV_LinkEntity(ent);
+}
+
+PLATFORM_ASM_ENTRY(Spg_FindRandomVariant_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Spg_FindRandomVariant) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Spg_FindRandomVariant(const uint8_t* table, uint32_t* out, uint32_t key) {
+    // 32 slots of 12 bytes from table + 4 (id, -1 = empty; set +8): the first set whose map (+8,
+    // UintMap_Find) has `key` and whose list (+0x14, count +0x10, index >= count reads 0) holds an
+    // item. The item's data (+4): version 1, count, last pick, then count records of three offsets
+    // into what follows them. A random record (rand() % count; the next one when it repeats the last
+    // pick) becomes the last pick and its offsets pointers in out. Zeros when none is found.
+    uint32_t a = 0, b = 0, c = 0;
+    if (key != 0) {
+        for (uint32_t i = 0; i < 32; ++i) {
+            const uint8_t* const slot = table + i * 12;
+            if (*reinterpret_cast<const int32_t*>(slot + 4) == -1) continue;
+            const uint8_t* const set = *reinterpret_cast<uint8_t* const*>(slot + 12);
+            const uint32_t* const found = UintMap_Find(reinterpret_cast<const uint32_t*>(set + 8), &key);
+            if (found == nullptr) continue;
+            uint32_t index = *found;
+            if (index >= *reinterpret_cast<const uint32_t*>(set + 0x10)) index = 0;
+            const uint8_t* const item = (*reinterpret_cast<uint8_t** const*>(set + 0x14))[index];
+            if (item == nullptr) continue;
+            int32_t* const data = *reinterpret_cast<int32_t* const*>(item + 4);
+            if (data[0] == 1) {
+                const int32_t count = data[1];
+                if (count != 0) {
+                    const int32_t pick = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+                    int32_t r = pick % count;
+                    if (data[2] != -1 && r == data[2]) r = (r + 1) % count;
+                    data[2] = r;
+                    const uint32_t* const record = reinterpret_cast<const uint32_t*>(data + 3) + r * 3;
+                    const uint32_t strings = address_of(data + 3) + static_cast<uint32_t>(count) * 12;
+                    a = record[0] + strings;
+                    b = record[1] + strings;
+                    c = record[2] + strings;
+                }
+            }
+            break;
+        }
+    }
+    out[0] = a;
+    out[1] = b;
+    out[2] = c;
+}
+
+void XB_REGS1 XB_CDECL G_GetTagParentMatrix(uint8_t* ent, float* out) {
+    // The link (+0x3cc: parent entity +0, tag +0xc) parent's 4x3 frame (forward, 0 - right, up,
+    // origin); with a tag (>= 0) times the tag's skeleton matrix (rows of 0x10 bytes, SV_DObjCreateSkeleton
+    // first) in the original's operation order.
+    const uint8_t* const link = reinterpret_cast<const uint8_t*>(uintptr_t{word_at(ent, 0x3cc)});
+    uint8_t* const parent = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(link)});
+    alignas(16) float right[4];
+    if (*reinterpret_cast<const int16_t*>(link + 0xc) < 0) {
+        uint32_t args[2] = {address_of(parent + 0x150), address_of(out)};
+        AnglesToAxis(args, right, out + 6);
+        out[3] = 0.0f - right[0];
+        out[4] = 0.0f - right[1];
+        out[5] = 0.0f - right[2];
+        std::memcpy(out + 9, parent + 0x140, 12);
+        return;
+    }
+    float f[12];
+    uint32_t args[2] = {address_of(parent + 0x150), address_of(f)};
+    AnglesToAxis(args, right, f + 6);
+    f[3] = 0.0f - right[0];
+    f[5] = 0.0f - right[2];
+    f[4] = 0.0f - right[1];
+    std::memcpy(f + 9, parent + 0x140, 12);
+    SV_DObjCreateSkeleton(parent);
+    const uint8_t* const dobj = reinterpret_cast<const uint8_t*>(uintptr_t{word_at(parent, 0x22c)});
+    const uint32_t matrices = *reinterpret_cast<const uint32_t*>(dobj + 0x20);
+    const uint32_t base = matrices ? dobj[0x60] * 0x40 + matrices + 0x30 : 0;
+    const float* const b = reinterpret_cast<const float*>(
+        uintptr_t{base + static_cast<uint32_t>(static_cast<int32_t>(*reinterpret_cast<const int16_t*>(link + 0xc)) << 6)});
+    const float f0 = f[0], f1 = f[1], f2 = f[2];
+    const float l0 = f[3], l1 = f[4], l2 = f[5];
+    const float u0 = f[6], u1 = f[7], u2 = f[8];
+    out[0] = ((b[2] * u0) + (b[1] * l0)) + (b[0] * f0);
+    out[3] = ((b[4] * f0) + (b[6] * u0)) + (b[5] * l0);
+    out[6] = ((b[8] * f0) + (b[10] * u0)) + (b[9] * l0);
+    out[1] = ((b[1] * l1) + (f1 * b[0])) + (b[2] * u1);
+    out[4] = ((b[4] * f1) + (b[6] * u1)) + (b[5] * l1);
+    out[7] = ((b[8] * f1) + (b[10] * u1)) + (b[9] * l1);
+    out[2] = ((b[1] * l2) + (f2 * b[0])) + (b[2] * u2);
+    out[5] = ((b[4] * f2) + (b[6] * u2)) + (b[5] * l2);
+    out[8] = ((b[8] * f2) + (b[10] * u2)) + (b[9] * l2);
+    out[9] = (((b[14] * u0) + (b[13] * l0)) + (f0 * b[12])) + f[9];
+    out[10] = (((b[13] * l1) + (f1 * b[12])) + (b[14] * u1)) + f[10];
+    out[11] = (((b[13] * l2) + (f2 * b[12])) + (b[14] * u2)) + f[11];
+}
+
+void XB_CDECL XModel_CalcBoneChildrenLocal(const uint8_t* model, float* matrices, int32_t parent) {
+    // The inverse of XModel_CalcBoneChildren (from G_DObjSetBoneRotation): every child of bone
+    // `parent` (index order after it; parents in the first LOD's parts +8: count +0x10, 12-byte
+    // records +0x14 with the parent at +8) is first recursed into, then taken into the parent's
+    // space - the parent's rigid inverse (transposed rotation, lanes 3 copied from the third row;
+    // translation = rows * -origin) times its 4x4 matrix, all four lanes as the original's packed code.
+    const auto first_lod = [model]() {
+        uint32_t k = 0;
+        if (*reinterpret_cast<const uint32_t*>(model + 0x24) == 0) {
+            do ++k;
+            while (*reinterpret_cast<const uint32_t*>(model + 0x24 + k * 4) == 0);
+        }
+        return reinterpret_cast<const uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(model + 0x24 + k * 4)});
+    };
+    const uint8_t* const parents = reinterpret_cast<const uint8_t*>(
+        uintptr_t{*reinterpret_cast<const uint32_t*>(first_lod() + 8) + 0x10});
+    const float* const m = matrices + parent * 16;
+    alignas(16) float inv[16];
+    inv[0] = m[0], inv[1] = m[4], inv[2] = m[8], inv[3] = m[8];
+    inv[4] = m[1], inv[5] = m[5], inv[6] = m[9], inv[7] = m[9];
+    inv[8] = m[2], inv[9] = m[6], inv[10] = m[10], inv[11] = m[10];
+    const Lanes back = neg(lanes(m + 12));  // XORPS with the sign mask
+    {
+        const Lanes t = add(add(mul(lanes(inv), back.v[0]), mul(lanes(inv + 4), back.v[1])), mul(lanes(inv + 8), back.v[2]));
+        std::memcpy(inv + 12, t.v, 16);
+    }
+    for (int32_t bone = parent + 1;; ++bone) {
+        const uint8_t* const lod = first_lod();
+        const uint32_t part = *reinterpret_cast<const uint32_t*>(lod + 8);
+        const int32_t count = part ? *reinterpret_cast<const int32_t*>(uintptr_t{part + 0x10}) : 0;
+        if (bone >= count) break;
+        const uint32_t records = *reinterpret_cast<const uint32_t*>(parents);
+        const uint32_t index = static_cast<uint32_t>(bone) < records ? static_cast<uint32_t>(bone) : 0;
+        const uint8_t* const table = reinterpret_cast<const uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(parents + 4)});
+        if (*reinterpret_cast<const int32_t*>(table + index * 12 + 8) != parent) continue;
+        XModel_CalcBoneChildrenLocal(model, matrices, bone);
+        float* const b = matrices + bone * 16;
+        alignas(16) float rows[12];
+        for (int row = 0; row < 3; ++row) {
+            const Lanes r = lanes(b + row * 4);
+            const Lanes v = add(add(mul(lanes(inv), r.v[0]), mul(lanes(inv + 4), r.v[1])), mul(lanes(inv + 8), r.v[2]));
+            std::memcpy(rows + row * 4, v.v, 16);
+        }
+        std::memcpy(b, rows, sizeof rows);
+        const Lanes t = lanes(b + 12);
+        const Lanes v3 =
+            add(add(add(lanes(inv + 12), mul(lanes(inv), t.v[0])), mul(lanes(inv + 4), t.v[1])), mul(lanes(inv + 8), t.v[2]));
+        std::memcpy(b + 12, v3.v, 16);
+    }
 }
 
 }  // namespace game
