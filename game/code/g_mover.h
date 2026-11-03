@@ -425,4 +425,7 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret);
 extern "C" void Turret_UpdateTurnFxAndBones_entry(void);
 
+// 0x00273200 (missile in EAX, cdecl trace): Q3's G_MissileImpact (bounce, impact damage, explosion, splash).
+void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace);
+
 }  // namespace game

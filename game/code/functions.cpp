@@ -3463,6 +3463,7 @@ const Function kFunctions[] = {
     {"G_SpawnFinished", 0x00272760, 0, code(&G_SpawnFinished_entry), 0, Result::None, Status::Compare},
     {"ClientBegin", 0x00272e90, 0, code(&ClientBegin_entry), 4, Result::None, Status::Compare},
     {"G_BounceMissile", 0x00272f20, 0, code(&G_BounceMissile_entry), 0, Result::Eax, Status::Compare},
+    {"G_MissileImpact", 0x00273200, 0, code(&G_MissileImpact), 4, Result::None, Status::Compare},
     {"G_vmMain", 0x00273d70, 0, code(&G_vmMain_entry), 16, Result::Eax, Status::Compare},
     {"G_RunEntity", 0x002744e0, 0, code(&G_RunEntity_entry), 0, Result::None, Status::Compare},
     {"HudElem_SubstituteLabel", 0x00275b60, 0, code(&HudElem_SubstituteLabel_entry), 4, Result::None, Status::Compare},

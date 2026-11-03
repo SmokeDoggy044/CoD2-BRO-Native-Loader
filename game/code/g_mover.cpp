@@ -6472,4 +6472,151 @@ void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret)
     }
 }
 
+namespace {
+
+// g_entityHandleTable lookup: the entity of a handle, or null.
+uint8_t* handle_entity(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x0097a968 + index * 8);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
+    // Q3's G_MissileImpact: the hit entity (trace +0x30), the attacker (owner +0x1a0; a turret's
+    // (type 10) own owner). Not for mod 3: an "attacked" line event to the actors. Bouncing missiles
+    // (+0x10 0x3000000) not hitting a damageable entity bounce (sound event 0xb6 with the surface,
+    // unless trace +0x3d) and stop there unless the def explodes on impact (+0x748). A damageable
+    // hit takes the impact damage (+0x358) along the velocity (G_Damage); defs without +0x748
+    // bounce off it. Else trigger_damage checks, the explosion event (0xba, 0xbb when a client
+    // was hit or trace +0x34) with the normal byte, the missile stopped at the snapped end point
+    // and the splash (+0x35c) from 4 units off the surface (SV_Trace, G_RadiusDamage).
+    uint32_t hit_client = 0;
+    uint8_t* const other = handle_entity(*reinterpret_cast<const uint32_t*>(trace + 0x30));
+    uint8_t* attacker = nullptr;
+    const uint32_t owner_handle = field<uint32_t>(ent, 0x1a0);
+    if (handle_entity(owner_handle) != nullptr) {
+        attacker = handle_entity(owner_handle);
+        if (attacker[0] == 0xa && handle_entity(field<uint32_t>(attacker, 0x1a0)) != nullptr) {
+            attacker = G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(attacker + 0x1a0));
+        }
+    }
+    const uint8_t* const def = weapon_def(ent[3]);
+    if (field<uint32_t>(ent, 0x368) != 3 && attacker != nullptr) {
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        const uint32_t args[6] = {address_of(handle_entity(owner_handle)), 0x11, 0, address_of(attacker + 0x20),
+                                  address_of(trace), 0};
+        g_ent_call(0x00204390, &regs, 6, args);  // Actor_SendLineEvent
+    }
+    const auto bounce = [&]() {
+        const TitleRegs regs{address_of(trace), address_of(trace), 0, 0, 0, address_of(ent)};
+        return g_ent_call(0x00272f20, &regs, 0, nullptr);  // G_BounceMissile
+    };
+    const bool damageable = other != nullptr && field<uint32_t>(other, 0x29c) != 0;
+    if (!damageable && (field<uint32_t>(ent, 0x10) & 0x3000000)) {
+        if (bounce() && trace[0x3d] == 0) {
+            G_AddEvent(ent, 0xb6, DirToByte(reinterpret_cast<const float*>(trace + 0x10)));
+            ent[5] = static_cast<uint8_t>((*reinterpret_cast<const int32_t*>(trace + 0x24) >> 20) & 0x1f);
+        }
+        if (*reinterpret_cast<const uint32_t*>(def + 0x748) == 0) return;
+    }
+    if (damageable) {
+        const int32_t damage = field<int32_t>(ent, 0x358);
+        if (damage != 0) {
+            const float amount = static_cast<float>(damage);
+            const uint8_t* const by = attacker ? attacker : G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(ent + 0x1a0));
+            if (G_CheckOtherClientField100(other, 0, by)) hit_client = 1;
+            alignas(16) float velocity[3] = {};
+            BG_EvaluateTrajectoryDelta(0, title_global<int32_t>(0x0098540c), velocity, ent + 0x14);
+            const long double sq = static_cast<long double>(velocity[2]) * velocity[2] +
+                                   static_cast<long double>(velocity[1]) * velocity[1] +
+                                   static_cast<long double>(velocity[0]) * velocity[0];
+            const float length = title_ci_sqrt(static_cast<float>(sq));
+            if (length == title_global<float>(0x0083eafc)) velocity[2] = title_global<float>(0x0083eb20);  // straight up
+            uint32_t args[9] = {address_of(other), address_of(ent), address_of(attacker), address_of(velocity),
+                                static_cast<uint32_t>(static_cast<int32_t>(amount)), 0, field<uint32_t>(ent, 0x368), 0,
+                                0xffffffffu};
+            const TitleRegs regs{address_of(ent + 0x140), address_of(trace), 0, 0, 0, address_of(ent)};
+            g_ent_call(0x00250340, &regs, 9, args);  // G_Damage
+        }
+        if (*reinterpret_cast<const uint32_t*>(def + 0x748) == 0) {
+            bounce();
+            return;
+        }
+    }
+    if (field<uint32_t>(ent, 0x358) != 0) {
+        const uint8_t* const by = attacker ? attacker : pointer_at(title_global<uint8_t*>(0x0095f534), 8);
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        const uint32_t args[5] = {address_of(by), address_of(ent + 0x140), address_of(trace), field<uint32_t>(ent, 0x358),
+                                  field<uint32_t>(ent, 0x368)};
+        g_ent_call(0x0025d960, &regs, 5, args);  // G_CheckHitTriggerDamage
+    }
+    hit_client = (hit_client != 0 || *reinterpret_cast<const uint32_t*>(trace + 0x34) != 0) ? 1 : 0;
+    // DirToByte inlined: the bytedirs entry (0x008d52d8) with the largest dot product above 0.
+    const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
+    float best = 0.0f;
+    uint8_t best_index = 0;
+    for (uint32_t i = 0; i < 0xa2; ++i) {
+        const float* const d = reinterpret_cast<const float*>(uintptr_t{0x008d52d8 + i * 12});
+        float dot = d[0] * normal[0] + d[2] * normal[2];
+        dot = dot + d[1] * normal[1];
+        if (dot > best) {
+            best = dot;
+            best_index = static_cast<uint8_t>(i);
+        }
+    }
+    G_AddEvent(ent, 0xba + hit_client, best_index);
+    ent[5] = def[0x73c];
+    ent[0] = 0;
+    ent[2] = static_cast<uint8_t>((*reinterpret_cast<const int32_t*>(trace + 0x24) >> 20) & 0x1f);
+    field<uint32_t>(ent, 0x1a4) |= 1;
+    float* const end = reinterpret_cast<float*>(trace);
+    for (uint32_t i = 0; i < 3; ++i) end[i] = static_cast<float>(static_cast<int32_t>(end[i]));  // SnapVector
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x20 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    field<uint32_t>(ent, 0x14) = 0;
+    field<uint32_t>(ent, 0x18) = 0;
+    field<uint32_t>(ent, 0x1c) = 0;
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x140 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    for (uint32_t i = 0; i < 4; ++i) field<uint32_t>(ent, 0x60 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    if (field<uint32_t>(ent, 0x35c) != 0) {
+        // The splash point: 4 units off the surface, traced from the end point (point box: zero
+        // vectors with w = 1; the trace lands in the impact trace).
+        const float four = title_global<float>(0x0083100c);
+        alignas(16) float start[4];
+        std::memcpy(start, trace, 16);
+        alignas(16) float point[4];
+        for (uint32_t i = 0; i < 4; ++i) point[i] = normal[i] * four + start[i];
+        alignas(16) float box[8];
+        for (uint32_t c = 0; c < 2; ++c) {
+            for (uint32_t i = 0; i < 4; ++i) box[c * 4 + i] = title_global<float>(0x0082e290 + i * 4);
+        }
+        {
+            const TitleRegs regs{0, address_of(start), 0, 0, 0, address_of(ent)};
+            const uint32_t args[11] = {address_of(trace), address_of(box), address_of(box + 4), address_of(point),
+                                       field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
+            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        }
+        const uint8_t* const owner = handle_entity(field<uint32_t>(ent, 0x2b0));
+        const float radius = static_cast<float>(field<int32_t>(ent, 0x364));
+        const float low = static_cast<float>(field<int32_t>(ent, 0x360));
+        const float high = static_cast<float>(field<int32_t>(ent, 0x35c));
+        uint32_t args[8];
+        args[0] = address_of(point);
+        args[1] = address_of(ent);
+        args[2] = address_of(owner);
+        std::memcpy(&args[3], &high, 4);
+        std::memcpy(&args[4], &low, 4);
+        std::memcpy(&args[5], &radius, 4);
+        args[6] = address_of(other);
+        args[7] = field<uint32_t>(ent, 0x36c);
+        const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
+        g_ent_call(0x00268e60, &regs, 8, args);  // G_RadiusDamage
+    }
+    SV_LinkEntity(ent);
+}
+
 }  // namespace game
