@@ -453,4 +453,23 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL ClientSpawn(uint32_t entry, uint32_t an
 extern "C" void ClientSpawn_entry(void);
 
 
+// 0x00273790 (cdecl seed, restart, savegame; G_vmMain 0): Q3's G_InitGame (level reset or script module load,
+// level locals, weapons, vehicle files, clients, entities spawned). Returns 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                        uint32_t edi, uint32_t ebp);
+extern "C" void G_InitGame_entry(void);
+
+// 0x0026c550 (cdecl turret, actor; turret_think, Turret_ThinkActorUser): an actor's turret picks and aims at its
+// target (enemy, held target, suppression spot, entity target) or goes idle and jitters. 0 when it turned toward
+// a far target it has not reached, else 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* actor,
+                                                                 uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Turret_UpdateTarget_entry(void);
+
+// 0x00274660 (cdecl msec; SV_RunGameFrame, SV_SpawnServer, SV_RestartClient): Q3's G_RunFrame. Returns the entity
+// list count.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                        uint32_t edi, uint32_t ebp);
+extern "C" void G_RunFrame_entry(void);
+
 }  // namespace game
