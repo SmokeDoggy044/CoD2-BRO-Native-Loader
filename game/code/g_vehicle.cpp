@@ -1,5 +1,6 @@
 #include "g_vehicle.h"
 
+#include <array>
 #include <cstring>
 
 #include "actor.h"
@@ -3464,6 +3465,645 @@ void XB_CDECL Vehicle_UpdateEngineSound(int32_t elapsed, uint8_t* ent, uint32_t 
         FXParam_Broadcast(title_global<uint8_t*>(0x0095f5b4), id, 0x008379d8, at<uint32_t>(vehicle, 0x334));
         at<uint32_t>(vehicle, 0x330) = 0;
     }
+}
+
+// Turret_FireForUser runs at the original's ESP (E - 4; gap entry).
+PLATFORM_ASM_ENTRY(Turret_FireForUserOrDriver_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Turret_FireForUserOrDriver) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Turret_FireForUserOrDriver(uint8_t* turret, uint8_t* user, uint32_t entry_esp, uint32_t edi) {
+    // EAX = turret, ECX = user: without a user the turret's driver (+0x1a0 handle) fires it (Turret_FireForUser).
+    if (!user) {
+        const uint32_t handle = at<uint32_t>(turret, 0x1a0);
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            user = title_global<uint8_t*>(0x0097a968 + index * 8);
+    }
+    const TitleRegs regs{address_of(turret), 0, address_of(user), 0, address_of(user), edi};
+    title_call_at_regs(entry_esp - 4, 0x002712a0, &regs, 0, nullptr);  // Turret_FireForUser (EAX turret, ESI user)
+}
+
+// Bullet_Trace_r runs at the original's ESP with the spread end at the original's frame address (E - 0xc).
+PLATFORM_ASM_ENTRY(Bullet_Fire_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Bullet_Fire) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Bullet_Fire(uint8_t* fire, uint8_t* attacker, uint32_t entry_esp) {
+    // A spread end (Bullet_RandomSpread, spread = the second argument) and the bullet trace from the fire's
+    // start (+0x24); the pass entity is the attacker's, else the player's. (No caller: dead.)
+    const uint32_t* const arg = pointer<uint32_t>(entry_esp + 4);
+    float* const end = pointer<float>(entry_esp - 0xc);
+    float spread;
+    std::memcpy(&spread, &arg[1], 4);
+    Bullet_RandomSpread(fire, end, spread);
+    const uint32_t pass = attacker ? at<uint32_t>(attacker, 0x224)
+                                   : at<uint32_t>(at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224);
+    const TitleRegs regs{pass, address_of(attacker), address_of(end), arg[0], 0, address_of(fire) + 0x24};
+    const uint32_t args[9] = {pass, arg[0], address_of(fire) + 0x24, address_of(end), arg[2], 0, address_of(fire), pass, arg[3]};
+    return title_call_at_regs(entry_esp - 0x14, 0x0026f0a0, &regs, 9, args);  // Bullet_Trace_r
+}
+
+// EAX = fire record. Weapon_BulletTrace_r runs at the original's ESP with the spread end at the original's frame
+// address (E - 0xc).
+PLATFORM_ASM_ENTRY(Weapon_FireBullet_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Weapon_FireBullet) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Weapon_FireBullet(uint8_t* fire, uint32_t entry_esp, uint32_t esi, uint32_t edi) {
+    // Arguments: shooter, spread, damage, attacker, flags. A spread end, the damage scaled by the weapon's
+    // actor scale (def +0x808, when positive) for actors, then the bullet trace from the fire's start (+0x24);
+    // the pass entity is the attacker's, else the player's.
+    static_cast<void>(esi);
+    static_cast<void>(edi);
+    const uint32_t* const arg = pointer<uint32_t>(entry_esp + 4);
+    uint8_t* const shooter = pointer<uint8_t>(arg[0]);
+    float* const end = pointer<float>(entry_esp - 0xc);
+    float spread;
+    std::memcpy(&spread, &arg[1], 4);
+    Bullet_RandomSpread(fire, end, spread);
+    int32_t damage = static_cast<int32_t>(arg[2]);
+    if (at<uint32_t>(shooter, 0x240)) {
+        const uint8_t* const def = at<uint8_t*>(fire, 0x3c);
+        if (at<float>(def, 0x808) > title_global<float>(0x0083eafc))
+            damage = static_cast<int32_t>(static_cast<float>(damage) * at<float>(def, 0x808));
+    }
+    const uint8_t* const attacker = pointer<uint8_t>(arg[3]);
+    const uint32_t pass = attacker ? at<uint32_t>(attacker, 0x224)
+                                   : at<uint32_t>(at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224);
+    const TitleRegs regs{pass, static_cast<uint32_t>(damage), arg[4], address_of(end), address_of(end), address_of(fire) + 0x24};
+    const uint32_t args[9] = {pass, arg[0], address_of(fire) + 0x24, address_of(end), static_cast<uint32_t>(damage), 0,
+                              address_of(fire), pass, arg[4]};
+    return title_call_at_regs(entry_esp - 0x1c, 0x0026fcb0, &regs, 9, args);  // Weapon_BulletTrace_r
+}
+
+// ClientThink_real runs at the original's ESP (E - 0xc; gap entry).
+PLATFORM_ASM_ENTRY(ClientThink_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ClientThink) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL ClientThink(uint32_t entry_esp) {
+    // Q3's ClientThink for the client's entity handle: the previous command (+0x550) keeps the current one, the
+    // new one comes from 0x00927e8c +0x30 (11 words), the command time (+0x590) is the level time; then
+    // ClientThink_real, and the head entity follows (a client with +0x4c) or the held entity is freed.
+    const uint32_t handle = *pointer<uint32_t>(entry_esp + 4);
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    uint8_t* const ps = at<uint8_t*>(ent, 0x23c);
+    std::memmove(ps + 0x550, ps + 0x524, 0x2c);
+    std::memmove(at<uint8_t*>(ent, 0x23c) + 0x524, title_global<uint8_t*>(0x00927e8c) + 0x30, 0x2c);
+    at<int32_t>(at<uint8_t*>(ent, 0x23c), 0x590) = title_global<int32_t>(0x0098540c);
+    {
+        const TitleRegs regs{address_of(at<uint8_t*>(ent, 0x23c)), address_of(ent), 0, 0, 0, 0};
+        const uint32_t args[1] = {address_of(ent)};
+        title_call_at_regs(entry_esp - 0xc, 0x00271c30, &regs, 1, args);  // ClientThink_real
+    }
+    if (!(at<float>(at<uint8_t*>(ent, 0x23c), 0x4c) == title_global<float>(0x0083eafc)))
+        G_UpdatePlayerHeadEnt(ent);
+    else
+        G_ClientFreeHeldEntity(ent);
+}
+
+// ESI = entity. Vehicle_UpdateEngineSound runs at the original's ESP (E - 8; gap entry).
+PLATFORM_ASM_ENTRY(Vehicle_FreePhysics_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vehicle_FreePhysics) "addl $8, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_FreePhysics(uint8_t* ent, uint32_t entry_esp) {
+    // The vehicle's physics (+0x300: body +0x34, object +0x30) back to the pool (0x008fe0d0), health (+0x350)
+    // 0, the engine sounds stopped (elapsed 0), the two linked entities (+0x204/+0x208) freed, the entity's
+    // vehicle fields reset (+0x348 = 2), the four script strings (+0x38/+0x78/+0x3c/+0x7c) cleared, +0x170 and
+    // the vehicle pointer (+0x248) zeroed.
+    using Clear = void XB_THISCALL(uint8_t*);
+    uint8_t* const phys = at<uint8_t*>(at<uint8_t*>(ent, 0x248), 0x300);
+    if (phys) {
+        if (at<uint32_t>(phys, 0x34)) {
+            PhysWorld_DestroyBody(at<uint32_t>(phys, 0x34));
+            at<uint32_t>(phys, 0x34) = 0;
+        }
+        if (at<uint32_t>(phys, 0x30)) {
+            PhysWorld_DestroyObject1c0(at<uint32_t>(phys, 0x30));
+            at<uint32_t>(phys, 0x30) = 0;
+        }
+        VehiclePhysPool_Free(phys, 0, pointer<uint8_t>(0x008fe0d0));
+        at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x300) = 0;
+    }
+    at<uint32_t>(ent, 0x350) = 0;
+    {
+        const TitleRegs regs{0, address_of(ent), 0, 0, address_of(ent), address_of(phys)};
+        title_call_at_regs(entry_esp - 8, 0x00266650, &regs, 0, nullptr);  // Vehicle_UpdateEngineSound
+    }
+    for (const uint32_t offset : std::array<uint32_t, 2>{0x204u, 0x208u}) {
+        const uint32_t handle = at<uint32_t>(at<uint8_t*>(ent, 0x248), offset);
+        if (!handle) continue;
+        const uint32_t index = handle & 0xfff;
+        uint8_t* linked = nullptr;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            linked = title_global<uint8_t*>(0x0097a968 + index * 8);
+        const TitleRegs regs{index, 0, handle >> 12, address_of(linked), address_of(ent), address_of(phys)};
+        const uint32_t args[2] = {address_of(linked), 0};
+        title_call_at_regs(entry_esp - 8, 0x002be420, &regs, 2, args);  // G_FreeEntity
+    }
+    at<uint32_t>(ent, 0x32c) = 0;
+    at<uint32_t>(ent, 0x340) = 0;
+    at<uint32_t>(ent, 0x344) = 0;
+    at<uint32_t>(ent, 0x338) = 0;
+    at<uint32_t>(ent, 0x33c) = 0;
+    at<uint32_t>(ent, 0x34c) = 0;
+    at<uint32_t>(ent, 0x348) = 2;
+    at<uint32_t>(ent, 0x328) = 0;
+    at<uint32_t>(ent, 0x29c) = 0;
+    at<float>(ent, 0x2fc) = 0.0f;
+    at<uint8_t>(ent, 0x297) = 0;
+    at<uint32_t>(ent, 0x10) = 0;
+    at<uint32_t>(ent, 0x14) = 0;
+    at<uint32_t>(ent, 0x38) = 0;
+    for (const uint32_t offset : std::array<uint32_t, 4>{0x38u, 0x78u, 0x3cu, 0x7cu})
+        title_function<Clear>(0x0011d660)(at<uint8_t*>(ent, 0x248) + offset);  // ScriptString_Clear
+    at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x170) = 0;
+    at<uint32_t>(ent, 0x248) = 0;
+}
+
+// The def replaces the entity in its argument slot (E+4), and the per-frame steps read stack words their
+// neighbours leave: every callee runs at the original's ESP (gap entry).
+PLATFORM_ASM_ENTRY(Vehicle_Think_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_Think) "addl $8, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi) {
+    // The vehicle entity's think (arguments entity, elapsed ms): parked player vehicles (+0x297 = 2 with
+    // 0x0095f684 clear) only renew the think time. Else the physics state, the ground result 0x00988570
+    // cleared, the driver (+0x1a0, kept as owner +0x174; out when dead), path (+0x297 = 1) or player (2)
+    // motion unless def type 5; for types 1 and 2 the physics step in a valid cell (wheel bones when it has a
+    // body, effects stopped otherwise); the clip-entity update for path vehicles; origin/angles (unless flag
+    // 0x400000), touches, turret bones, fire, aim, turret and overheat; the recoil timer +0x1f0 drives +0x1f4
+    // (450/s, 2.5 times within 0..90 above 0.6); turn rate, treads, engine sound; +0xa4 = def +0x64 * 1000.
+    uint32_t* const arg = pointer<uint32_t>(entry_esp + 4);
+    uint8_t* const ent = pointer<uint8_t>(arg[0]);
+    const int32_t elapsed = static_cast<int32_t>(arg[1]);
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    arg[0] = address_of(def);
+    if (at<uint8_t>(ent, 0x297) == 2 && !title_global<uint32_t>(0x0095f684)) {
+        at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c);
+        return;
+    }
+    const uint32_t E = entry_esp;
+    const uint32_t caller_edi = edi;
+    const uint32_t ent_w = address_of(ent), def_w = address_of(def), elapsed_w = static_cast<uint32_t>(elapsed);
+    const auto call = [](uint32_t top, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                         const uint32_t* args = nullptr) {
+        return title_call_at_regs(top, function, &regs, count, args);
+    };
+    call(E - 0x10, 0x0024bec0, TitleRegs{0, ent_w, ent_w, 0, def_w, edi});  // Vehicle_LoadPhysicsState (ECX)
+    std::memset(pointer<void>(0x00988570), 0, 0x50);
+    edi = 0x009885c0;
+    const auto resolve = [](uint32_t handle) -> uint8_t* {
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            return title_global<uint8_t*>(0x0097a968 + index * 8);
+        return nullptr;
+    };
+    if (const uint32_t handle = at<uint32_t>(ent, 0x1a0)) {
+        at<uint32_t>(vehicle, 0x174) = handle;
+        if (at<int32_t>(resolve(handle), 0x350) <= 0) {
+            edi = address_of(resolve(at<uint32_t>(ent, 0x1a0)));
+            call(E - 0x10, 0x00260480, TitleRegs{0, ent_w, 0, 0, def_w, edi});  // Vehicle_ExitPlayer (EDI driver)
+        }
+    } else if (at<int32_t>(ent, 0x350) > 0) {
+        at<uint32_t>(vehicle, 0x174) = 0;
+    }
+    if (at<int16_t>(def, 0x20) != 5) {
+        const uint8_t mode = at<uint8_t>(ent, 0x297);
+        if (mode == 1) {
+            const uint32_t args[1] = {ent_w};
+            call(E - 0x10, 0x00252530, TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, edi}, 1, args);  // Vehicle_MoveAlongPath
+        } else if (mode == 2) {
+            const uint32_t args[2] = {ent_w, elapsed_w};
+            call(E - 0x10, 0x002664a0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 2, args);  // Vehicle_PlayerDriveThink
+        }
+    }
+    edi = def_w;
+    const int16_t type = at<int16_t>(def, 0x20);
+    if (type == 1 || type == 2) {
+        const uint32_t args[1] = {ent_w};
+        const bool valid = uint8_t(call(E - 0x10, 0x002ae8f0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 1, args));  // G_EntityInValidCell
+        bool stop = !valid;
+        if (valid) {
+            if (!at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x300)) {
+                const uint32_t pargs[3] = {ent_w, 1, elapsed_w};
+                call(E - 0x10, 0x0026a3c0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 3, pargs);  // Vehicle_UpdatePhysics
+            } else {
+                call(E - 0x10, 0x0025b8a0, TitleRegs{0, ent_w, def_w, 0, elapsed_w, edi}, 1, args);  // Vehicle_UpdateWheelBones
+                stop = true;
+            }
+        }
+        if (stop) call(E - 0x10, 0x002511c0, TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, edi});  // Vehicle_StopEffects
+    }
+    if (at<int16_t>(def, 0x20) != 5 && at<uint8_t>(ent, 0x297) == 1)
+        call(E - 0x10, 0x0025d050, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi});  // the clip-entity update (EBX)
+    if (!(at<uint32_t>(ent, 0x2a4) & 0x400000)) {
+        const uint32_t args[2] = {address_of(vehicle) + 0xc0, address_of(vehicle) + 0xe0};
+        call(E - 0x10, 0x00255220, TitleRegs{ent_w, ent_w, address_of(vehicle) + 0xe0, 0, elapsed_w, edi}, 2,
+             args);  // Vehicle_SetOriginAndAngles
+    }
+    {
+        const uint32_t args[2] = {ent_w, 0};
+        call(E - 0x10, 0x0025d230, TitleRegs{0, ent_w, ent_w + 0x140, 0, elapsed_w, edi}, 2, args);  // G_TouchEntitiesInBox
+    }
+    at<uint32_t>(vehicle, 0x1ac) = 0;
+    call(E - 0x10, 0x0025c8d0, TitleRegs{0, ent_w, 0, 0, elapsed_w, ent_w});  // Vehicle_UpdateTurretBones (EDI)
+    const uint32_t pair[2] = {ent_w, elapsed_w};
+    if (at<uint8_t>(ent, 0x297) == 2 || at<uint32_t>(pointer<uint8_t>(arg[0]), 0x3c))
+        call(E - 0xc, 0x00260810, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_FireTurret
+    {
+        const uint32_t args[1] = {ent_w};
+        call(E - 0xc, 0x00260b60, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurretAim
+    }
+    call(E - 0x10, 0x00270f90, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTurret
+    call(E - 0x18, 0x00266b30, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateOverheat
+    uint8_t* const v = at<uint8_t*>(ent, 0x248);
+    const float zero = 0.0f;
+    if (at<float>(v, 0x1f0) > zero) {
+        const float recoil = at<float>(v, 0x1f0);
+        const float spin = at<float>(v, 0x1f4);
+        const float seconds = static_cast<float>(elapsed) * title_global<float>(0x0083eb4c);
+        const float left = recoil - seconds;
+        at<float>(v, 0x1f0) = left;
+        float add;
+        if (!(spin < zero) && !(title_global<float>(0x0083eb64) < spin) && spin == spin &&
+            left > title_global<float>(0x0083eba4))
+            add = (seconds * title_global<float>(0x0083eba0)) * title_global<float>(0x0083eaf8);
+        else
+            add = seconds * title_global<float>(0x0083eba0);
+        at<float>(v, 0x1f4) = add + at<float>(v, 0x1f4);
+    }
+    {
+        const uint32_t args[1] = {elapsed_w};
+        call(E - 0xc, 0x0024bd40, TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurnRateAndWheelAngle
+    }
+    call(E - 0x10, 0x00253ed0, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTreadScroll
+    call(E - 0xc, 0x00266650, TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, caller_edi});  // Vehicle_UpdateEngineSound
+    at<int32_t>(ent, 0xa4) = static_cast<int32_t>(at<float>(pointer<uint8_t>(arg[0]), 0x64) * title_global<float>(0x0083eb9c));
+    at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 1;
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_FireSpreadProjectile_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_FireSpreadProjectile) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+namespace {
+
+// tan(degrees * pi / 180) on the x87 through the title CRT's __CItan, stored as float.
+float title_ci_tan_degrees(float degrees) {
+    float result;
+    __asm__ volatile("flds %1\n\tfmuls %2\n\tfdivs %3\n\tcall *%4\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(degrees), "m"(title_global<float>(0x0083ed00)), "m"(title_global<float>(0x0083eb60)),
+                       "r"(uintptr_t{0x0033af10})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// The shared body of Weapon_FireProjectile / Vehicle_FireSpreadProjectile (E = entry ESP; arguments spread
+// degrees, fuse): a direction inside the spread cone around the fire record's forward axis (+0: forward,
+// +0xc right, +0x18 up; 16 units ahead, radius tan(spread) * 16 at a random angle and fraction), normalized,
+// and fire_projectile from the start (+0x24) at the original's ESP (E - 0x28). The temporaries reuse the
+// spread argument's slot: the length is what stays there.
+uint8_t* fire_spread_projectile(uint8_t* owner, const float* fire, uint32_t E) {
+    float* const slot = pointer<float>(E + 4);
+    float* const dir = pointer<float>(E - 0x18);
+    float* const start = pointer<float>(E - 0xc);
+    using Rand = int32_t XB_CDECL();
+    *slot = title_ci_tan_degrees(*slot);
+    const float radius = *slot * title_global<float>(0x0083ebb8);  // 16
+    *pointer<float>(E - 0x1c) = radius;
+    *slot = (static_cast<float>(title_function<Rand>(0x001efcc0)()) / title_global<float>(0x0083ebc8)) *
+            title_global<float>(0x0083ebcc);  // 0..360
+    const float fraction = static_cast<float>(title_function<Rand>(0x001efcc0)()) / title_global<float>(0x0083ebc8);
+    *pointer<float>(E - 0x24) = fraction;
+    FastSinCos(pointer<float>(E - 0x20), 0, slot, (*slot * title_global<float>(0x0083ed00)) / title_global<float>(0x0083eb60));
+    const float c = (*slot * fraction) * radius;
+    const float u = (*pointer<float>(E - 0x20) * fraction) * radius;
+    const float ahead = title_global<float>(0x0083ebb8);
+    const float f0 = fire[0] * ahead, f1 = fire[1] * ahead, f2 = fire[2] * ahead;
+    const float d0 = fire[6] * u + (fire[3] * c + f0);
+    const float d1 = fire[7] * u + (fire[4] * c + f1);
+    const float d2 = fire[8] * u + (fire[5] * c + f2);
+    dir[2] = d2;
+    dir[1] = d1;
+    *slot = (d2 * d2 + d1 * d1) + d0 * d0;
+    dir[0] = d0;
+    *slot = title_ci_sqrt(*slot);
+    if (!(*slot == title_global<float>(0x0083eafc))) {
+        const float inv = title_global<float>(0x0083eb20) / *slot;
+        dir[0] = inv * dir[0];
+        dir[1] = inv * dir[1];
+        dir[2] = inv * dir[2];
+    }
+    start[0] = fire[9];
+    start[1] = fire[10];
+    start[2] = fire[11];
+    const uint32_t fuse = *pointer<uint32_t>(E + 8);
+    const TitleRegs regs{address_of(dir), 0, address_of(start), 0, address_of(fire), address_of(owner)};
+    const uint32_t args[2] = {address_of(owner), fuse};
+    return pointer<uint8_t>(title_call_at_regs(E - 0x28, 0x00267660, &regs, 2, args));  // fire_projectile
+}
+
+// The owner's client velocity (+0x10) pushed back 64 units along the forward axis.
+void projectile_kickback(uint8_t* owner, const float* fire) {
+    if (!at<uint8_t*>(owner, 0x23c)) return;
+    const float kick = title_global<float>(0x00830c1c);  // 64
+    for (uint32_t k = 0; k < 3; ++k) {
+        float& v = at<float>(at<uint8_t*>(owner, 0x23c), 0x10 + k * 4);
+        v = v - fire[k] * kick;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL Vehicle_FireSpreadProjectile(uint8_t* owner, const float* fire, uint32_t entry_esp) {
+    // EAX = owner, ESI = fire record; cdecl spread degrees, fuse: the projectile gets kind 5 (+0x14).
+    uint8_t* const missile = fire_spread_projectile(owner, fire, entry_esp);
+    at<uint32_t>(missile, 0x14) = 5;
+    projectile_kickback(owner, fire);
+}
+
+PLATFORM_ASM_ENTRY(Weapon_FireProjectile_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Weapon_FireProjectile) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Weapon_FireProjectile(uint8_t* owner, const float* fire, uint32_t entry_esp) {
+    // EAX = owner, ESI = fire record; cdecl spread degrees, fuse, keep-think flag: without the flag the
+    // projectile's think (+0x32c) becomes 0xc.
+    uint8_t* const missile = fire_spread_projectile(owner, fire, entry_esp);
+    if (!*pointer<uint8_t>(entry_esp + 0xc) && missile) at<uint32_t>(missile, 0x32c) = 0xc;
+    projectile_kickback(owner, fire);
+}
+
+// The push and damage take the original's 16-byte blocks (unset fourth words copied): the frame sits at the
+// original's addresses (gap entry; F = aligned base - 0x50) and both run at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_Touch_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_Touch) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // A moving vehicle (cdecl self, other) against an actor or player (type 1 / 0xb, not linked +0x3cc) when its
+    // def crushes (+0x5c > 0): below speed 1 only one stuck in it (G_TestEntityPosition). The move since the
+    // last frame (+0xc0 - +0xd0, angles +0xe0 vs +0xf0) under 0.005 does nothing; else the other is pushed
+    // (G_TryPushingEntity). Unpushable (health under 99999): killed (999999, dflags 0x20, mod 0x10). Pushed and
+    // ahead (direction . move at least 0.8): prone players killed, others take (dot - 0.8) * min(speed / def
+    // +0x60, 1) * 5 * def +0x5c. The driver (+0x1a0) is the attacker.
+    *pointer<uint32_t>(entry_esp - 4) = ebp;
+    const uint32_t F = ((entry_esp - 4) & ~15u) - 0x50;
+    auto wd = [F](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(F + off); };
+    auto fl = [F](uint32_t off) -> float& { return *pointer<float>(F + off); };
+    wd(0) = edi;
+    wd(4) = esi;
+    wd(8) = ebx;
+    uint8_t* const self = *pointer<uint8_t*>(entry_esp + 4);
+    uint8_t* const other = *pointer<uint8_t*>(entry_esp + 8);
+    const uint8_t* const vehicle = at<uint8_t*>(self, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    wd(0xc) = address_of(def);
+    if (other[0] != 1 && other[0] != 0xb) return;
+    if (at<uint32_t>(other, 0x3cc)) return;
+    if (!(title_global<float>(0x0083eafc) < at<float>(def, 0x5c)) && !(at<float>(def, 0x5c) != at<float>(def, 0x5c))) return;
+    long double speed;
+    __asm__("flds %1\n\tfmul %%st(0), %%st\n\tflds %2\n\tfmul %%st(0), %%st\n\tfaddp\n\tflds %3\n\t"
+            "fmul %%st(0), %%st\n\tfaddp\n\tfsqrt"
+            : "=t"(speed)
+            : "m"(at<float>(vehicle, 0x100)), "m"(at<float>(vehicle, 0x104)), "m"(at<float>(vehicle, 0x108)));
+    if (static_cast<long double>(title_global<float>(0x0083eb20)) > speed && !G_TestEntityPosition(other, &at<float>(other, 0x140)))
+        return;
+    fl(0x10) = at<float>(vehicle, 0xc0) - at<float>(vehicle, 0xd0);
+    fl(0x14) = at<float>(vehicle, 0xc4) - at<float>(vehicle, 0xd4);
+    fl(0x18) = at<float>(vehicle, 0xc8) - at<float>(vehicle, 0xd8);
+    AnglesNormalize180(&at<float>(vehicle, 0xf0), &at<float>(vehicle, 0xe0), &fl(0x30));
+    fl(0x28) = fl(0x18);
+    fl(0x2c) = fl(0x10);
+    fl(0x24) = fl(0x14);
+    fl(0x20) = fl(0x10);
+    for (uint32_t k = 0; k < 16; k += 4) {
+        wd(0x40 + k) = wd(0x20 + k);
+        wd(0x10 + k) = wd(0x20 + k);
+    }
+    const long double length = Vec4Normalize(&fl(0x10), &fl(0x20));
+    if (static_cast<long double>(title_global<float>(0x0083eb88)) > length) return;  // 0.005
+    fl(0x18) = fl(0x38);
+    fl(0x1c) = fl(0x30);
+    fl(0x10) = fl(0x30);
+    fl(0x14) = fl(0x34);
+    for (uint32_t k = 0; k < 16; k += 4) wd(0x30 + k) = wd(0x10 + k);
+    uint32_t pushed;
+    {
+        const TitleRegs regs{F + 0x40, address_of(other), F + 0x30, 0, address_of(self), address_of(vehicle) + 0xe0};
+        const uint32_t args[3] = {address_of(other), address_of(self), F + 0x30};
+        pushed = title_call_at_regs(F, 0x00267020, &regs, 3, args);  // G_TryPushingEntity
+    }
+    uint32_t damage = 999999, dflags = 0x20;
+    if (pushed) {
+        fl(0x10) = at<float>(other, 0x140) - at<float>(self, 0x140);
+        fl(0x14) = at<float>(other, 0x144) - at<float>(self, 0x144);
+        fl(0x18) = 0.0f;
+        Vec3NormalizeSimd(&fl(0x10));
+        const float dot = (fl(0x28) * fl(0x18) + fl(0x24) * fl(0x14)) + fl(0x20) * fl(0x10);
+        const float ahead = title_global<float>(0x0083ebc0);  // 0.8
+        if (ahead > dot) return;
+        const uint8_t* const client = at<uint8_t*>(other, 0x23c);
+        if (!client || !(at<uint8_t>(client, 0x2c) & 1)) {
+            const uint8_t* const d = pointer<uint8_t>(wd(0xc));
+            float scale = at<float>(self, 0x2fc) / at<float>(d, 0x60);
+            const float one = title_global<float>(0x0083eb20);
+            if (scale > one) scale = one;
+            const int32_t amount = static_cast<int32_t>((((dot - ahead) * scale) * title_global<float>(0x0083f234)) *
+                                                        at<float>(d, 0x5c));
+            if (amount <= 0) return;
+            damage = static_cast<uint32_t>(amount);
+            dflags = 0;
+        } else if (at<int32_t>(other, 0x350) >= 99999) {
+            return;
+        }
+    } else if (at<int32_t>(other, 0x350) >= 99999) {
+        return;
+    }
+    const uint32_t attacker = address_of(G_EntHandleToEnt(&at<uint32_t>(self, 0x1a0)));
+    const uint32_t point = address_of(other) + 0x140;
+    const TitleRegs regs{point, address_of(other), 0, 0, address_of(self), point};
+    const uint32_t args[9] = {address_of(other), address_of(self), attacker, F + 0x20, damage, dflags, 0x10, 0, 0xffffffffu};
+    title_call_at_regs(F, 0x00250340, &regs, 9, args);  // G_Damage
+}
+
+// The tag matrices go to the original's frame (gap entry; F = aligned base - 0x80) and every title callee runs
+// at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_ThinkInit_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_ThinkInit) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The vehicle entity's first think (cdecl entity; parked player vehicles only renew the think time): the six
+    // wheel tags (names 0x009886f8; "tag_origin" counts as bone 0) give their heights to +0x138.. and their
+    // indices (+0x21c..) are reset to -1; the distance between the turret tags (+0x2cc and +0x2c4) goes to
+    // +0x1a8; types 1 and 2 take a physics step (0x008dda9c ms) when forced (0x0095bf0c) or in a cell with
+    // collision; then origin/angles set and kept as the previous ones, touches, and Vehicle_Think next (0x18).
+    *pointer<uint32_t>(entry_esp - 4) = ebp;
+    const uint32_t F = ((entry_esp - 4) & ~15u) - 0x80;
+    auto wd = [F](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(F + off); };
+    auto fl = [F](uint32_t off) -> float& { return *pointer<float>(F + off); };
+    wd(0) = edi;
+    wd(4) = esi;
+    wd(8) = ebx;
+    uint8_t* const ent = *pointer<uint8_t*>(entry_esp + 4);
+    const uint32_t ent_w = address_of(ent);
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    wd(0x20) = address_of(vehicle);
+    float* const origin = &at<float>(vehicle, 0xc0);
+    wd(0x24) = address_of(def);
+    if (at<uint8_t>(ent, 0x297) == 2 && !title_global<uint32_t>(0x0095f684)) {
+        at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c);
+        return;
+    }
+    const auto tag_matrix = [&](int32_t bone, uint32_t ebx_now) {
+        const TitleRegs regs{static_cast<uint32_t>(bone), ebx_now, 0, F + 0x40, ent_w, address_of(origin)};
+        const uint32_t args[3] = {ent_w, static_cast<uint32_t>(bone), F + 0x40};
+        title_call_at_regs(F, 0x002e3780, &regs, 3, args);  // G_DObjGetWorldTagMatrix
+    };
+    for (uint32_t i = 0; i < 6; ++i) {
+        wd(0x1c) = address_of(vehicle) + 0x21c + i * 4;
+        wd(0x18) = 0x009886f8 + i * 4;
+        wd(0x10) = address_of(origin) + 0x78 + i * 4;
+        const uint32_t name = title_global<uint32_t>(0x009886f8 + i * 4);
+        int32_t bone = -1;
+        if (const DObj* const obj = at<const DObj*>(ent, 0x22c)) {
+            wd(0x14) = name ? static_cast<uint32_t>(DObj_GetBoneIndex(obj, name)) : 0xffffffffu;
+            if (!(title_global<uint8_t>(0x0098b840) & 1)) {
+                title_global<uint32_t>(0x0098b840) |= 1;
+                title_global<uint32_t>(0x0098b83c) = Com_HashKeyNoCase(0, pointer<const char>(0x00832b04));  // "tag_origin"
+            }
+            bone = static_cast<int32_t>(wd(0x14));
+            if (bone < 0 && name == title_global<uint32_t>(0x0098b83c)) bone = 0;
+        }
+        if (bone >= 0) {
+            tag_matrix(bone, name);
+            *pointer<float>(wd(0x10)) = fl(0x78);
+        }
+        *pointer<int32_t>(wd(0x1c)) = -1;
+    }
+    const int32_t first = at<int32_t>(pointer<uint8_t>(wd(0x20)), 0x2cc);
+    if (first >= 0) {
+        tag_matrix(first, title_global<uint32_t>(0x00988710 - 4));
+        fl(0x34) = fl(0x70);
+        uint8_t* const v = pointer<uint8_t>(wd(0x20));
+        const int32_t second = at<int32_t>(v, 0x2c4);
+        fl(0x38) = fl(0x74);
+        fl(0x3c) = fl(0x78);
+        if (second >= 0) {
+            tag_matrix(second, address_of(v));
+            float d[3];
+            __asm__("flds %3\n\tfsubs %4\n\tfstps %0\n\tflds %5\n\tfsubs %6\n\tfstps %1\n\tflds %7\n\tfsubs %8\n\tfstps %2"
+                    : "=m"(d[0]), "=m"(d[1]), "=m"(d[2])
+                    : "m"(fl(0x34)), "m"(fl(0x70)), "m"(fl(0x38)), "m"(fl(0x74)), "m"(fl(0x3c)), "m"(fl(0x78)));
+            fl(0x28) = d[0];
+            fl(0x2c) = d[1];
+            fl(0x30) = d[2];
+            float length;
+            __asm__ volatile("flds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\t"
+                             "call *%4\n\tfstps %0"
+                             : "=m"(length)
+                             : "m"(d[2]), "m"(d[1]), "m"(d[0]), "r"(uintptr_t{0x0033acf4})
+                             : "eax", "ecx", "edx", "st", "st(1)", "memory");  // __CIsqrt
+            fl(0x20) = length;
+            at<float>(v, 0x1a8) = length;
+        }
+    }
+    const int16_t type = at<int16_t>(pointer<uint8_t>(wd(0x24)), 0x20);
+    if (type == 1 || type == 2) {
+        bool step = title_global<uint32_t>(0x0095bf0c) != 0;
+        if (!step) {
+            const int32_t cell = at<int32_t>(ent, 0x458);
+            if (cell >= 0) {
+                const uint8_t* const cm = title_global<uint8_t*>(0x0095f6b8);
+                const uint32_t index = static_cast<uint32_t>(cell) < at<uint32_t>(cm, 0x18) ? static_cast<uint32_t>(cell) : 0;
+                step = at<uint32_t>(at<uint8_t*>(cm, 0x1c) + index * 0x50, 0x3c) != 0;
+            }
+        }
+        if (step) {
+            const uint32_t args[3] = {ent_w, 0, title_global<uint32_t>(0x008dda9c)};
+            const TitleRegs regs{0, 0, 0, args[2], ent_w, address_of(origin)};
+            title_call_at_regs(F, 0x0026a3c0, &regs, 3, args);  // Vehicle_UpdatePhysics
+        }
+    }
+    {
+        const uint32_t args[2] = {address_of(origin), address_of(origin) + 0x20};
+        const TitleRegs regs{ent_w, address_of(origin) + 0x20, 0, 0, ent_w, address_of(origin)};
+        title_call_at_regs(F, 0x00255220, &regs, 2, args);  // Vehicle_SetOriginAndAngles
+    }
+    for (uint32_t k = 0; k < 3; ++k) {
+        at<uint32_t>(origin, 0x10 + k * 4) = at<uint32_t>(origin, k * 4);
+        at<uint32_t>(origin, 0x30 + k * 4) = at<uint32_t>(origin, 0x20 + k * 4);
+    }
+    {
+        const uint32_t args[2] = {ent_w, 0};
+        const TitleRegs regs{0, address_of(origin) + 0x20, ent_w + 0x140, 0, ent_w, address_of(origin)};
+        title_call_at_regs(F - 8, 0x0025d230, &regs, 2, args);  // G_TouchEntitiesInBox
+    }
+    at<uint32_t>(ent, 0x32c) = 0x18;
+    at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 1;
 }
 
 }  // namespace game
