@@ -3552,4 +3552,17 @@ void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t, uint32_t so
     SV_LinkEntity(ent);
 }
 
+uint32_t XB_REGS2 XB_CDECL Actor_IgnoresBlockingEntity(uint32_t, const uint8_t* actor, uint32_t handle) {
+    // The blocking entity (handle) can be ignored: a sentient while level_time is before the actor's +0x7c4, another
+    // entity (not flagged +0x2a4 & 0x4000) when the actor's +0x780 is above the entity's +0x414. Not found: 0.
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || handle >> 12 != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+    uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + index * 8);  // g_entityHandleTable
+    if (!ent) return 0;
+    if (word_at(ent, 0x244))
+        return title_global<int32_t>(0x0098540c) < *reinterpret_cast<const int32_t*>(actor + 0x7c4) ? 1 : 0;
+    if (word_at(ent, 0x2a4) & 0x4000) return 0;
+    return *reinterpret_cast<const int32_t*>(actor + 0x780) > static_cast<int32_t>(word_at(ent, 0x414)) ? 1 : 0;
+}
+
 }  // namespace game

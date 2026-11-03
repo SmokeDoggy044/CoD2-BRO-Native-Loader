@@ -531,4 +531,7 @@ uint32_t XB_REGS1 XB_CDECL G_DObjGetSkeletonBoneMatrixPtr(uint8_t* ent, uint32_t
 // flags and link.
 void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t unused_edx, uint32_t solid);
 
+// 0x0002bdc0 (actor in EDX, cdecl entity handle): whether Actor_MoveAlongPath/ByAnimMode may ignore that blocker.
+uint32_t XB_REGS2 XB_CDECL Actor_IgnoresBlockingEntity(uint32_t unused_eax, const uint8_t* actor, uint32_t handle);
+
 }  // namespace game
