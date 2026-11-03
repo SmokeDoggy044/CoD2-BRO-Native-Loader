@@ -10037,7 +10037,9 @@
 002f2630 CL_Frame
 002f2890 CL_MapLoading
 002f2930 Console_KeyDownEvent
-002f2b20 FUN_002f2b20
+002f2ad0 CL_StartHunkUsersAndPause
+002f2b00 FUN_002f2b00
+002f2b20 Console_SubmitLine
 002f2b80 VM_Create
 002f2d30 SV_InitGameProgs
 002f2db0 CL_InitCGame

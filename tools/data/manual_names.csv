@@ -14649,3 +14649,6 @@ address,name,kind,confidence,evidence
 002c78d0,Field_KeyDownEvent,function,high,"client module (named by game/ai push 17; no C)"
 002f2930,Console_KeyDownEvent,function,high,"client module (named by game/ai push 17; no C)"
 002f2b20,FUN_002f2b20,function,high,"client module gap created 11-03 (console: copies a string into 0x0092e84c, Enter to Console_KeyDownEvent)"
+002f2b20,Console_SubmitLine,function,high,"client (ai push 18; dead)"
+002f2ad0,CL_StartHunkUsersAndPause,function,high,"client gap created 11-03 (dead: CL_StartHunkUsers, r_uiFullScreen 0, SCR_UpdateScreen, cl_paused 1)"
+002f2b00,FUN_002f2b00,function,high,"client gap created 11-03 (callback stored by SV_SpawnServer at 0x002f34d7: S_UpdateChannels, 0x0033ac80)"

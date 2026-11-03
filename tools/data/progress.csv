@@ -8045,7 +8045,7 @@ address,name,section,module,state,tested,matched
 00229c90,PhysRagdoll_ComputeBounds,.text,game,matched,1,1
 00229d20,RagdollCapsule_CollidePair,.text,game,settled,201,201
 00229f00,PhysObj_GetInheritedVelocity,.text,game,untested,0,0
-0022a0f0,PhysParts_WriteBoneMatrices,.text,game,untested,0,0
+0022a0f0,PhysParts_WriteBoneMatrices,.text,game,offline,0,0
 0022a590,VehiclePhys_SetupFromDef,.text,game,untested,0,0
 0022b0d0,RagdollBodyDef_FitToBones,.text,game,matched,11,11
 0022b500,Ragdoll_BlendBonePoses,.text,game,settled,105,105
@@ -8260,7 +8260,7 @@ address,name,section,module,state,tested,matched
 002485f0,SP_script_vehicle_collmap,.text,game,matched,40,40
 00248620,Vehicle_TakesDamageFromMod,.text,game,settled,252,252
 002487d0,Vehicle_FindDefIndex,.text,game,settled,134,134
-00248850,Vehicle_HasDefType1,.text,game,untested,0,0
+00248850,Vehicle_HasDefType1,.text,game,offline,0,0
 002488d0,Use_trigger_use,.text,game,matched,12,12
 002489f0,SP_sound_blend,.text,game,offline,0,0
 00248a30,Ent_Callback348Stub2,.text,game,set-aside,0,0
@@ -8410,7 +8410,7 @@ address,name,section,module,state,tested,matched
 00252490,Touch_FriendlyChain,.text,game,untested,0,0
 002524d0,Touch_Multi,.text,game,settled,210,210
 00252530,Vehicle_MoveAlongPath,.text,game,settled,155,155
-002529c0,Vehicle_GatherCollisionCandidates,.text,game,untested,0,0
+002529c0,Vehicle_GatherCollisionCandidates,.text,game,settled,7034,7034
 00252bd0,G_GetEntAnimTree,.text,game,settled,120,120
 00252c10,G_CheckMissionEnd,.text,game,settled,35719,35718
 002530a0,G_RegisterCvars,.text,game,settled,121,121
@@ -8426,7 +8426,7 @@ address,name,section,module,state,tested,matched
 00253e70,Pain_trigger_damage,.text,game,untested,0,0
 00253eb0,Use_trigger_damage,.text,game,untested,0,0
 00253ed0,Vehicle_UpdateTreadScroll,.text,game,settled,213,213
-00254060,Vehicle_PlayerInputToMove,.text,game,untested,0,0
+00254060,Vehicle_PlayerInputToMove,.text,game,settled,7694,7694
 002545e0,ScriptMover_NextTrajectoryPhase,.text,game,settled,2400,2400
 00254800,Door_ChooseRotateDirection,.text,game,untested,0,0
 00254a10,G_SimulateGrenadeBounce,.text,game,matched,1,1
@@ -8490,7 +8490,7 @@ address,name,section,module,state,tested,matched
 0025c3d0,turret_use,.text,game,matched,41,41
 0025c6a0,turret_controller,.text,game,untested,0,0
 0025c8d0,Vehicle_UpdateTurretBones,.text,game,settled,225,225
-0025ca60,Vehicle_GroundMove,.text,game,untested,0,0
+0025ca60,Vehicle_GroundMove,.text,game,settled,6421,6421
 0025cc60,G_ReleaseTurretUser,.text,game,settled,132,132
 0025ccd0,Turret_CanTargetPoint,.text,game,settled,214,214
 0025ced0,G_GetFlashTagMatrix,.text,game,settled,2583,2583
@@ -8524,7 +8524,7 @@ address,name,section,module,state,tested,matched
 00260810,Vehicle_FireTurret,.text,game,settled,6288,6288
 00260b60,Vehicle_UpdateTurretAim,.text,game,settled,223,223
 002611e0,Vehicle_PlaneSlideMove,.text,game,untested,0,0
-00261ac0,Vehicle_TraceGround,.text,game,untested,0,0
+00261ac0,Vehicle_TraceGround,.text,game,settled,7344,7344
 00261df0,G_FindUnstuckPosition,.text,game,matched,10,10
 00262040,Door_StartRotate,.text,game,untested,0,0
 00262130,Blocked_DoorRotate,.text,game,matched,4,4
@@ -8582,7 +8582,7 @@ address,name,section,module,state,tested,matched
 00269520,Cmd_Kill_f,.text,qcommon,replaced,4,4
 00269570,G_UpdatePlayerNodeClaim,.text,game,settled,16282,16282
 00269700,G_PlayerMelee,.text,game,settled,106,106
-002697c0,Vehicle_FireSpreadProjectile,.text,game,untested,0,0
+002697c0,Vehicle_FireSpreadProjectile,.text,game,matched,65,65
 00269a30,Weapon_FireProjectile,.text,game,settled,135,135
 00269cb0,G_CallSpawnByClassname,.text,game,settled,104,104
 00269d80,SP_script_vehicle,.text,game,matched,7,7
@@ -8614,7 +8614,7 @@ address,name,section,module,state,tested,matched
 0026fb00,G_RunItem,.text,game,settled,262,262
 0026fcb0,Weapon_BulletTrace_r,.text,game,settled,1296,1296
 002704c0,Weapon_FireBullet,.text,game,settled,118,118
-00270560,Vehicle_FireTurretWeapon,.text,game,untested,0,0
+00270560,Vehicle_FireTurretWeapon,.text,game,matched,4,4
 00270990,Use_BinaryMover,.text,game,untested,0,0
 00270c10,Turret_FireFromFlashTags,.text,game,settled,134,134
 00270df0,FireWeapon,.text,game,matched,44,44
@@ -9080,7 +9080,7 @@ address,name,section,module,state,tested,matched
 002984f0,Zone_FindByHash,.text,streaming,settled,425,425
 00298570,Stream_LoadCfgstr,.text,streaming,settled,112,112
 00298810,CL_UpdateRumble,.text,client,replaced,15923,15821
-00298b20,RumbleQueue_ClearAll,.text,game,named,0,0
+00298b20,RumbleQueue_ClearAll,.text,client,matched,6,6
 00298ba0,Rumble_SetScale,.text,game,settled,100,100
 00298c50,Rumble_IsActive,.text,cgame,settled,108,108
 00298ca0,Rumble_Stop,.text,cgame,settled,108,108
@@ -9735,7 +9735,7 @@ address,name,section,module,state,tested,matched
 002c73a0,CM_BoxLeafnums_r,.text,collision,settled,353,353
 002c75f0,CM_LoadMapFile,.text,collision,set-aside,0,0
 002c77d0,CL_CharEvent,.text,client,inconclusive,18,0
-002c78d0,Field_KeyDownEvent,.text,client,named,0,0
+002c78d0,Field_KeyDownEvent,.text,client,untested,0,0
 002c7a90,CL_CreateCmd,.text,client,replaced,354,354
 002c7de0,IN_UpDown,.text,client,replaced,18,18
 002c7f00,G_ApplyCheckpointStart,.text,game,untested,0,0
@@ -10036,8 +10036,10 @@ address,name,section,module,state,tested,matched
 002f20a0,CL_Init,.text,client,replaced,4,4
 002f2630,CL_Frame,.text,client,replaced,8705,343
 002f2890,CL_MapLoading,.text,client,replaced,299,76
-002f2930,Console_KeyDownEvent,.text,client,named,0,0
-002f2b20,FUN_002f2b20,.text,client,unnamed,0,0
+002f2930,Console_KeyDownEvent,.text,client,untested,0,0
+002f2ad0,CL_StartHunkUsersAndPause,.text,client,named,0,0
+002f2b00,FUN_002f2b00,.text,client,unnamed,0,0
+002f2b20,Console_SubmitLine,.text,client,untested,0,0
 002f2b80,VM_Create,.text,script,named,0,0
 002f2d30,SV_InitGameProgs,.text,server,settled,110,110
 002f2db0,CL_InitCGame,.text,client,set-aside,29,0
@@ -10983,7 +10985,7 @@ address,name,section,module,state,tested,matched
 00322c70,UIQuad_GetVertexMax,.text,client,replaced,0,0
 00322d10,UIQuad_SetVertexAlphaScaled,.text,client,replaced,0,0
 00323160,FE_SetupLiberatorMenu,.text,client,replaced,2,2
-00323870,Hud_LoadWeaponIcons,.text,cgame,untested,0,0
+00323870,Hud_LoadWeaponIcons,.text,cgame,matched,6,6
 00323fa0,HudCompTankIcon_Setup,.text,cgame,settled,116,116
 00324330,HudCompGrenadeCook_Setup,.text,cgame,settled,104,104
 00324480,HudCompGrenades_Setup,.text,cgame,settled,104,104

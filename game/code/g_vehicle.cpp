@@ -1419,7 +1419,7 @@ uint32_t XB_STDCALL VehNodePool_Free(uint8_t* pool) {
     at<uint16_t>(pool, 2) = 0;
     at<uint16_t>(pool, 4) = 0;
     std::memset(pool + 8, 0, 0x40);
-    return 0;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pool + 8));  // EAX = the cleared block list
 }
 
 uint8_t* XB_CDECL VehNode_Alloc() {

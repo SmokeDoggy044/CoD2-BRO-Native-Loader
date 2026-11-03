@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 4,897 have been
+It's early days: about 73% of the functions have a name, and 4,907 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,13 +29,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,286 | 9,089 | 4,897 | 6,389 |
+| Engine and game code (`.text`) | 11,288 | 9,091 | 4,907 | 6,381 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,610** | **12,077** | **4,897** | **11,713** |
+| **Total** | **16,612** | **12,079** | **4,907** | **11,705** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 336 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 338 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -47,11 +47,11 @@ We've also named 2,659 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,097 | 1,088 | 7 | 1 | 0 | 0 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,648 | 1,290 | 291 | 42 | 22 | 0 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,647 | 1,298 | 283 | 42 | 21 | 0 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
-| Client game (HUD, view, effects on screen) | 300 | 293 | 1 | 6 | 0 | 0 |
+| Client game (HUD, view, effects on screen) | 300 | 294 | 0 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 875 | 66 | 70 | 0 | 0 |
-| Client and menus | 767 | 616 | 106 | 42 | 2 | 1 |
+| Client and menus | 770 | 617 | 109 | 42 | 1 | 1 |
 | Server | 80 | 71 | 9 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |

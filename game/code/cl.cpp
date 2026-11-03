@@ -3464,5 +3464,139 @@ uint8_t* XB_CDECL ClientActive_Ctor(uint8_t* cl) {
     return cl;
 }
 
+uint32_t XB_REGS1 XB_CDECL RumbleQueue_ClearAll(uint8_t* rumble) {
+    // Both motors' queued-rumble lists (head at +8 + 16 * motor, end sentinel 4 bytes on) freed and reset to
+    // empty, then both motors of the active pad (0x008dcf18, -1 = none) stopped.
+    for (int32_t motor = 0; motor < 2; ++motor) {
+        uint8_t* const list = rumble + 8 + motor * 0x10;
+        const uint32_t end = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 4));
+        uint32_t first = field<uint32_t>(list, 0);
+        uint32_t next = first ? *reinterpret_cast<uint32_t*>(uintptr_t{first}) : 0;
+        if (first == end) {
+            next = 0;
+            first = 0;
+        }
+        RumbleQueue_FreeRange(first, next, end, 0);
+        field<uint32_t>(list, 0) = end;
+        field<uint32_t>(list, 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+        field<uint32_t>(list, -4) = 0;
+    }
+    uint32_t pad = title_global<uint32_t>(0x008dcf18);
+    for (int32_t motor = 0; motor < 2; ++motor) {
+        if (pad == 0xffffffffu) continue;
+        IN_PadCreate();
+        IN_SetRumbleMotor(static_cast<int32_t>(pad), motor, 0.0f);
+        pad = title_global<uint32_t>(0x008dcf18);
+    }
+    return pad;
+}
+
+void XB_REGS1 XB_CDECL Field_KeyDownEvent(uint8_t* f, int32_t key) {
+    // Q3's Field_KeyDownEvent on the console field (cursor +0, scroll +4, text +0x1c); every path ends in
+    // Field_AdjustScroll. 0x00934750 / 0x00934758 = the ctrl / shift key states, 0x0092858c = overstrike mode.
+    using CharFn = int32_t XB_CDECL(int32_t);
+    int32_t& cursor = field<int32_t>(f, 0);
+    char* const text = reinterpret_cast<char*>(f + 0x1c);
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    const bool ctrl = (title_global<uint8_t>(0x00934750) & 3) != 0;
+    auto alnum = [&](int32_t at) {
+        return title_function<CharFn>(0x001eefc9)(static_cast<int8_t>(text[at])) != 0;  // _isalnum
+    };
+    if ((key == 0xa1 || key == 0xc0) && (title_global<uint8_t>(0x00934758) & 3)) {  // shift-insert: no paste
+        Field_AdjustScroll(f);
+        return;
+    }
+    if (key == 0xa2) {  // delete
+        if (cursor < length) {
+            std::memmove(text + cursor, text + cursor + 1, static_cast<size_t>(length - cursor));
+            Field_AdjustScroll(f);
+            return;
+        }
+    } else if (key == 0x9d) {  // right arrow; ctrl: to the next word
+        if (cursor < length) cursor = cursor + 1;
+        if (ctrl && cursor < length) {
+            while (alnum(cursor)) {
+                cursor = cursor + 1;
+                if (cursor >= length) break;
+            }
+            if (cursor < length) {
+                while (!alnum(cursor)) {
+                    cursor = cursor + 1;
+                    if (cursor >= length) break;
+                }
+            }
+        }
+    } else if (key == 0x9c) {  // left arrow; ctrl: to the previous word
+        if (cursor > 0) cursor = cursor - 1;
+        if (ctrl) {
+            while (cursor > 0 && alnum(cursor - 1)) cursor = cursor - 1;
+        }
+        if (cursor < field<int32_t>(f, 4)) field<int32_t>(f, 4) = cursor;
+    } else if (key == 0xa5 || (title_function<CharFn>(0x001eed48)(key) == 'a' && ctrl)) {  // home, ctrl-a
+        cursor = 0;
+    } else if (key == 0xa6 || (title_function<CharFn>(0x001eed48)(key) == 'e' && ctrl)) {  // end, ctrl-e
+        cursor = length;
+    } else if (key == 0xa1) {  // insert
+        title_global<int32_t>(0x0092858c) = title_global<int32_t>(0x0092858c) == 0;
+    }
+    Field_AdjustScroll(f);
+}
+
+void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key) {
+    // The console's key handler (Q3 Console_Key without history/paging): ctrl-l clears, enter (0x0d / 0xbf) runs
+    // the input line, tab/page/wheel keys do nothing, the rest edit the field 0x0092e830 (text 0x0092e84c).
+    char* const line = &title_global<char>(0x0092e84c);
+    if (key == 'l') {
+        if (title_global<uint8_t>(0x00934750) & 3) {
+            Cbuf_AddText(&title_global<char>(0x0083457c));  // "clear\n"
+            return;
+        }
+    } else if (key == 0x0d || key == 0xbf) {
+        if (title_global<int32_t>(0x0092bdf0) != 2 && line[0] != '\\' && line[0] != '/') {
+            // Not in a level: run it as a command (a backslash put in front).
+            char copy[0x100];
+            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(copy, line, 0xff);  // _strncpy
+            copy[0xff] = 0;
+            const uint32_t args[2] = {0x00834578, uint32_t(reinterpret_cast<uintptr_t>(copy))};  // "\\%s"
+            Com_sprintf(line, 0x100, args);
+            title_global<int32_t>(0x0092e830) = title_global<int32_t>(0x0092e830) + 1;
+        }
+        using Strnicmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
+        if (line[0] == '\\' || line[0] == '/') {
+            Cbuf_AddText(line + 1);
+        } else if (title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x0082ac38), 4) &&  // "quit"
+                   title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x00834570), 4)) {  // "kill"
+            Cbuf_AddText(line);
+        } else {
+            if (!line[0]) return;
+            Cbuf_AddText(line);
+        }
+        Cbuf_AddText(&title_global<char>(0x0082d288));  // "\n"
+        std::memset(line, 0, 0x100);
+        title_global<int32_t>(0x0092e830) = 0;  // cursor
+        title_global<int32_t>(0x0092e834) = 0;  // scroll
+        title_global<int32_t>(0x0092e838) = 0x100;
+        title_global<int32_t>(0x0092e848) = 1;
+        if (title_global<int32_t>(0x0092bdf0) == 0) title_function<void XB_CDECL()>(0x002f1e60)();  // SCR_UpdateScreen
+        return;
+    } else if (key == 0x09 || key == 0xa4 || key == 0xa3 || key == 0xce || key == 0xcd) {
+        return;
+    } else if (key == 0xa5 || key == 0xa6) {
+        if (title_global<uint8_t>(0x00934750) & 3) return;
+    }
+    Field_KeyDownEvent(reinterpret_cast<uint8_t*>(uintptr_t{0x0092e830}), key);
+}
+
+void XB_REGS1 XB_CDECL Console_SubmitLine(const char* text) {
+    // Puts `text` into the console input line (when not empty) and presses enter if the line holds anything.
+    char* const line = &title_global<char>(0x0092e84c);
+    if (std::strlen(text)) {
+        std::strcpy(line, text);
+        Console_KeyDownEvent(0xbf);
+    } else if (std::strlen(line)) {
+        Console_KeyDownEvent(0xbf);
+    }
+    Field_AdjustScroll(reinterpret_cast<uint8_t*>(uintptr_t{0x0092e830}));
+}
 
 }  // namespace game
