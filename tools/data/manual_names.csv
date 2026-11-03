@@ -14570,3 +14570,5 @@ address,name,kind,confidence,evidence
 002529c0,Vehicle_GatherCollisionCandidates,function,high,"game/phys push 12"
 0025a810,Vehicle_GetTagOrigin,function,high,"game/phys push 12"
 00266cd0,Vehicle_PlayFxAtTag,function,high,"game/phys push 12"
+0002be40,Path_Init,function,high,"game/ai push 11"
+0021eba0,Actor_UpdateAnimScriptThenMovement,function,high,"game/ai push 11 (gap function, created in Ghidra 11-03; no refs or pointers: dead)"

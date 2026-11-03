@@ -782,7 +782,7 @@
 0002bd30 InGameLiveOptionsMenu_DeletingDtor
 0002bd50 PathNode_Construct
 0002bdc0 FUN_0002bdc0
-0002be40 FUN_0002be40
+0002be40 Path_Init
 0002bf00 G_RestoreSavedEntityField134
 0002bf50 AitbManager_DeletingDtor
 0002bf80 ZoneStringMap_Lookup
@@ -7922,6 +7922,7 @@
 0021e7c0 Actor_Exposed_TryCombat
 0021e860 Actor_Cover_RunTo
 0021ea60 Actor_UpdateMovement
+0021eba0 Actor_UpdateAnimScriptThenMovement
 0021ebb0 Actor_Pain_Think
 0021ed00 Actor_Noncombat_Think
 0021f010 Actor_Negotiation_Think
