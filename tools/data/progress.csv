@@ -8565,9 +8565,9 @@ address,name,section,module,state,tested,matched
 00267e10,Player_UpdateCursorHints,.text,game,named,0,0
 00268350,Drop_Weapon,.text,game,matched,28,28
 00268770,Pickup_Health,.text,game,matched,15,15
-002688c0,Pickup_Weapon,.text,game,named,0,0
+002688c0,Pickup_Weapon,.text,game,untested,0,0
 00268e60,G_RadiusDamage,.text,game,settled,208,208
-002691a0,G_PlayerDeathSetup,.text,game,mismatched,1,0
+002691a0,G_PlayerDeathSetup,.text,game,matched,2,2
 00269450,player_die,.text,game,matched,3,3
 002694e0,Cmd_DropWeapon_f,.text,qcommon,replaced,4,4
 00269520,Cmd_Kill_f,.text,qcommon,replaced,4,4
@@ -8583,8 +8583,8 @@ address,name,section,module,state,tested,matched
 0026a3c0,Vehicle_UpdatePhysics,.text,game,named,0,0
 0026b920,Think_SpawnNewDoorTriggerRotate,.text,game,untested,0,0
 0026b950,Think_SpawnNewDoorTrigger_Entry,.text,game,untested,0,0
-0026b960,G_MoverPush,.text,game,named,0,0
-0026c010,G_ExplodeMissile,.text,game,named,0,0
+0026b960,G_MoverPush,.text,game,settled,15682,15682
+0026c010,G_ExplodeMissile,.text,game,matched,7,7
 0026c4d0,Actor_CanUseTurret,.text,game,settled,141,141
 0026c550,Turret_UpdateTarget,.text,game,named,0,0
 0026cd70,Turret_ThinkAutoTarget,.text,game,settled,12095,12095
@@ -8623,13 +8623,13 @@ address,name,section,module,state,tested,matched
 002723c0,ClientEndFrame,.text,game,settled,2501,2501
 002726b0,ClientThink,.text,game,settled,213,213
 00272760,G_SpawnFinished,.text,game,matched,5,5
-00272800,ClientSpawn,.text,game,named,0,0
+00272800,ClientSpawn,.text,game,matched,4,4
 00272e90,ClientBegin,.text,game,matched,43,43
 00272f20,G_BounceMissile,.text,game,untested,0,0
 00273200,G_MissileImpact,.text,game,matched,24,24
 00273790,G_InitGame,.text,game,named,0,0
 00273d70,G_vmMain,.text,game,settled,398,398
-00273ef0,G_RunMissile,.text,game,named,0,0
+00273ef0,G_RunMissile,.text,game,settled,108,108
 002744e0,G_RunEntity,.text,game,settled,401,401
 00274660,G_RunFrame,.text,game,named,0,0
 00275040,CG_CalcGunRotOffset,.text,cgame,settled,113,113
@@ -9886,7 +9886,7 @@ address,name,section,module,state,tested,matched
 002d8850,Loc_LoadStringFile,.text,qcommon,replaced,0,0
 002d8960,Loc_ParseStringBuffer,.text,qcommon,replaced,0,0
 002d8a10,CM_WorldTrees_Construct,.text,collision,matched,16,16
-002d8a90,G_ApplySpawnFields,.text,game,named,0,0
+002d8a90,G_ApplySpawnFields,.text,game,matched,21,21
 002d90f0,Scn_AddModelInstances,.text,game,named,0,0
 002d9970,Scn_AddStaticModel,.text,game,matched,51,51
 002d9cc0,AddLeanToPosition,.text,game,settled,391,391
