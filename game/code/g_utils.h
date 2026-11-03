@@ -394,4 +394,36 @@ void XB_REGS3 XB_CDECL G_SetModel(int32_t context, uint8_t* ent, const char* nam
 // (+0x160, 4 rows), or the identity without a DObj. Returns out.
 float* XB_REGS3 XB_STDCALL G_DObjGetWorldBoneMatrix(const uint8_t* ent, uint32_t unused_edx, uint32_t bone, float* out);
 
+// 0x002ddd70 (dead: no callers, no stored pointer): the sound listener at the player's origin (+0x140) with axes
+// {0 - right, up} of its angles (+0x150).
+void XB_CDECL G_UpdateSoundListenerFromPlayer();
+// 0x002ddea0 (was FUN_002ddea0; EDI level): a new entity in the current memory context (G_Spawn's allocation, counted
+// in 0x00985374) stored as the level's world entity (+8). Returns it.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL G_AllocWorldEntity(uint8_t* level);
+extern "C" void G_AllocWorldEntity_entry(void);
+// 0x002ddf10 (EDI level): the same for the player entity (+4), unless one exists.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL G_AllocPlayerEntity(uint8_t* level);
+extern "C" void G_AllocPlayerEntity_entry(void);
+// 0x002ddf80 (EAX entity): stops the trajectories and takes angles (MatrixToAngles of +0x160) and origin (+0x190)
+// from the physics matrix into the entity, its state and a client's origin (old one to +0x5b0); SV_LinkEntity.
+void XB_REGS1 XB_CDECL G_SetPoseFromPhysics(uint8_t* ent);
+// 0x002de2d0 (cdecl origin, event): a "tempEntity" of type event + 0x11 at the origin, freed after the event time
+// (+0x1a4 = 1, +0x1a8 = level_time); linked.
+uint8_t* XB_CDECL G_TempEntity(const uint32_t* origin, uint32_t event);
+// 0x002df740 (EAX parent; cdecl entity, tag name or null, flags byte): unlinks the entity, then links it to the
+// parent's tag (0 for a missing tag/DObj or a link cycle): a 0x70-byte link {parent, next child, tag hash, tag index,
+// flags, offset +0x40 = inverse of the entity's tag-parent matrix (zero without flags and +0x3d4)}; a client linked to
+// a vehicle sets the vehicle's +0x238. 1 when linked.
+uint32_t XB_REGS1 XB_CDECL G_EntLinkTo(uint8_t* parent, uint8_t* ent, const char* tag, uint32_t flags);
+// 0x002e3670 (EDI entity; stack 4 DObj_Create words; callee pops): the entity's DObj (+0x22c; 0xa0 bytes in its memory
+// context, DObj_Ctor, queued for the entity list), then DObj_Create(EAX = 3rd, EDX = 1st, ECX = 4th; 2nd, DObj) and
+// the DObj's owner (+0x88).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_DObjCreateForEnt(uint8_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+extern "C" void G_DObjCreateForEnt_entry(void);
+// 0x002e3720 (EAX entity, ECX tag name hash): the tag's bone matrix in the skeleton (SV_DObjCreateSkeleton first), null
+// for no DObj or tag.
+const uint8_t* XB_REGS3 XB_CDECL G_DObjGetTagMatrixPtr(uint8_t* ent, uint32_t unused_edx, uint32_t name);
+// 0x002e3780 (cdecl entity, bone, out 4x4): the bone matrix times the entity's frame (angles +0x150, origin +0x140).
+void XB_CDECL G_DObjGetWorldTagMatrix(uint8_t* ent, uint32_t bone, float* out);
+
 }  // namespace game

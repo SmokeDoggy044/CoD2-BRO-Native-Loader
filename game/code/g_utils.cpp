@@ -19,6 +19,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "snd.h"
 #include "stream.h"
 #include "sv.h"
 #include "tr_main.h"
@@ -2420,6 +2421,244 @@ float* XB_REGS3 XB_STDCALL G_DObjGetWorldBoneMatrix(const uint8_t* ent, uint32_t
     const Lanes r3 = add(add(add(lanes(w + 12), x), y), z);
     std::memcpy(out + 12, r3.v, 16);
     return out;
+}
+
+void XB_CDECL G_UpdateSoundListenerFromPlayer() {
+    uint8_t* const player = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4);
+    uint32_t origin[4];
+    std::memcpy(origin, player + 0x140, sizeof origin);
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(player + 0x150)), 0};
+    alignas(16) float forward[4], right[4], up[4];
+    args[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward));
+    AnglesToAxis(args, right, up);
+    // The listener axes: 0 - right, then up.
+    float left[3];
+    left[0] = 0.0f - right[0];
+    left[2] = 0.0f - right[2];
+    left[1] = 0.0f - right[1];
+    uint32_t a[3], b[3];
+    std::memcpy(a, left, sizeof a);
+    std::memcpy(b, up, sizeof b);
+    Snd_SetListenerOrigin(origin);
+    Snd_SetListenerOrientation(a, b);
+}
+
+namespace {
+
+// A 0x460-byte entity in the current memory context (else Heap_AllocAligned), G_InitGentity; counts the attempt.
+uint8_t* alloc_entity_in_current_context() {
+    uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+    const int32_t context = static_cast<int32_t>(word_at(memory, 0x34));
+    uint8_t* ent = nullptr;
+    if (context != -1) {
+        uint8_t* const heap = context >= 0 && context < 0x63
+                                  ? reinterpret_cast<uint8_t*>(uintptr_t{word_at(memory, 0x38 + context * 4)})
+                                  : nullptr;
+        ent = MemContext_Alloc_r(heap, 0x10, 0x460);
+    }
+    if (!ent) ent = Heap_AllocAligned(0x10, 0x460);
+    if (!ent) {
+        ++title_global<int32_t>(0x00985374);
+        return nullptr;
+    }
+    uint8_t* const result = G_InitGentity(ent, context);
+    ++title_global<int32_t>(0x00985374);
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(G_AllocWorldEntity_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_AllocWorldEntity) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL G_AllocWorldEntity(uint8_t* level) {
+    uint8_t* const ent = alloc_entity_in_current_context();
+    word_at(level, 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    return ent;
+}
+
+PLATFORM_ASM_ENTRY(G_AllocPlayerEntity_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_AllocPlayerEntity) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL G_AllocPlayerEntity(uint8_t* level) {
+    if (word_at(level, 4)) return reinterpret_cast<uint8_t*>(uintptr_t{word_at(level, 4)});
+    uint8_t* const ent = alloc_entity_in_current_context();
+    word_at(level, 4) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    return ent;
+}
+
+void XB_REGS1 XB_CDECL G_SetPoseFromPhysics(uint8_t* ent) {
+    // Trajectories stopped: deltas 0, types/times 0.
+    static const uint32_t kStopped[] = {0x34, 0x30, 0x2c, 0x58, 0x54, 0x50};
+    for (const uint32_t f : kStopped) word_at(ent, f) = 0;  // 0.0f
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    word_at(ent, 0x3c) = 0;
+    word_at(ent, 0x40) = 0;
+    if (word_at(ent, 0x23c)) {
+        word_at(ent, 0x44) = word_at(ent, 0x150);
+        word_at(ent, 0x48) = word_at(ent, 0x154);
+        word_at(ent, 0x4c) = word_at(ent, 0x158);
+    }
+    // Angles (+0x150) from the physics matrix (+0x160), origin (+0x140) from its translation row (+0x190).
+    alignas(16) uint32_t angles[3] = {word_at(ent, 0x150), word_at(ent, 0x154), word_at(ent, 0x158)};
+    MatrixToAngles(reinterpret_cast<float*>(angles), 0, reinterpret_cast<const float*>(ent + 0x160));
+    word_at(ent, 0x150) = angles[0];
+    word_at(ent, 0x154) = angles[1];
+    word_at(ent, 0x158) = angles[2];
+    for (uint32_t f = 0; f < 0x10; f += 4) word_at(ent, 0x140 + f) = word_at(ent, 0x190 + f);
+    word_at(ent, 0x20) = word_at(ent, 0x140);
+    word_at(ent, 0x24) = word_at(ent, 0x144);
+    word_at(ent, 0x28) = word_at(ent, 0x148);
+    uint8_t* const client = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x23c)});
+    const uint32_t base = client ? 0x50 : 0x44;
+    word_at(ent, base) = word_at(ent, 0x150);
+    word_at(ent, base + 4) = word_at(ent, 0x154);
+    word_at(ent, base + 8) = word_at(ent, 0x158);
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x38) = 0;
+    if (client) {
+        // The client's old origin (+0x5b0) and origin.
+        for (uint32_t f = 0; f < 0xc; f += 4) {
+            uint8_t* const ps = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x23c)});
+            word_at(ps, 0x5b0 + f) = word_at(ps, f);
+        }
+        for (uint32_t f = 0; f < 0xc; f += 4)
+            word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x23c)}), f) = word_at(ent, 0x140 + f);
+    }
+    SV_LinkEntity(ent);
+}
+
+uint8_t* XB_CDECL G_TempEntity(const uint32_t* origin, uint32_t event) {
+    uint8_t* const ent = alloc_entity_in_current_context();
+    uint32_t* const classname = &word_at(ent, 0x25c);
+    ent[0] = static_cast<uint8_t>(static_cast<uint8_t>(event) + 0x11);  // eType = event + 0x11
+    title_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(0x0011d600)(  // ScriptString_Assign
+        classname, &title_global<uint32_t>(0x00984c50));
+    const uint32_t name = *classname;
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr);
+    word_at(ent, 0x1a4) = 1;
+    word_at(ent, 0x1a8) = title_global<uint32_t>(0x0098540c);  // level_time
+    const uint32_t x = origin[0], y = origin[1], z = origin[2];
+    word_at(ent, 0x20) = x;
+    word_at(ent, 0x24) = y;
+    word_at(ent, 0x28) = z;
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    word_at(ent, 0x34) = 0;  // 0.0f
+    word_at(ent, 0x30) = 0;
+    word_at(ent, 0x2c) = 0;
+    word_at(ent, 0x140) = x;
+    word_at(ent, 0x144) = y;
+    word_at(ent, 0x148) = z;
+    SV_LinkEntity(ent);
+    G_UpdateEntityStringHashes(ent);
+    return ent;
+}
+
+uint32_t XB_REGS1 XB_CDECL G_EntLinkTo(uint8_t* parent, uint8_t* ent, const char* tag, uint32_t flags) {
+    G_EntUnlink(ent);
+    int16_t tag_index = -1;
+    if (tag && *tag) {
+        const DObj* const obj = *reinterpret_cast<const DObj* const*>(parent + 0x22c);
+        if (!obj) return 0;
+        const int32_t index = DObj_GetTagIndex(obj, Com_HashKeyNoCase(0, tag));
+        if (index < 0) return 0;
+        tag_index = static_cast<int16_t>(index);
+    }
+    // No link cycles: the parent and its own parents (+0x3cc link, +0 parent) must not be the entity.
+    for (uint8_t* p = parent;;) {
+        if (p == ent) return 0;
+        uint8_t* const link = reinterpret_cast<uint8_t*>(uintptr_t{word_at(p, 0x3cc)});
+        if (!link) break;
+        p = reinterpret_cast<uint8_t*>(uintptr_t{word_at(link, 0)});
+    }
+    uint8_t* link = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f598), 0x70, 0);
+    if (link) word_at(link, 8) = 0;
+    word_at(link, 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(parent));
+    word_at(link, 8) = tag ? Com_HashKeyNoCase(0, tag) : 0;
+    word_at(link, 4) = word_at(parent, 0x3d0);  // the parent's child list
+    *reinterpret_cast<int16_t*>(link + 0xc) = tag_index;
+    *reinterpret_cast<uint16_t*>(link + 0xe) = static_cast<uint8_t>(flags);
+    std::memset(link + 0x10, 0, 0x30);
+    word_at(parent, 0x3d0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    word_at(ent, 0x3cc) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(link));
+    if (!word_at(ent, 0x3d4) && !*reinterpret_cast<uint16_t*>(link + 0xe)) {
+        std::memset(link + 0x40, 0, 0x30);
+    } else {
+        // The offset: the inverse of the entity's matrix in the tag's parent frame.
+        float parent_matrix[12];
+        title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*)>(0x002df3e0)(ent, parent_matrix);  // G_GetTagParentMatrix
+        MatrixInverse43(reinterpret_cast<float*>(link + 0x40), 0, parent_matrix);
+    }
+    if (word_at(ent, 0x23c)) {
+        uint8_t* const vehicle = reinterpret_cast<uint8_t*>(uintptr_t{word_at(parent, 0x248)});
+        if (vehicle) vehicle[0x238] = 1;
+    }
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(G_DObjCreateForEnt_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_DObjCreateForEnt) "addl $20, %esp\n"
+                   "ret $16")
+
+void XB_CDECL G_DObjCreateForEnt(uint8_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    if (!word_at(ent, 0x22c)) {
+        const int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
+        uint8_t* block = nullptr;
+        if (context != -1) {
+            uint8_t* const heap = context >= 0 && context < 0x63
+                                      ? reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4)})
+                                      : nullptr;
+            block = MemContext_Alloc_r(heap, 0x10, 0xa0);
+        }
+        if (!block) block = Heap_AllocAligned(0x10, 0xa0);
+        DObj* const obj = block ? DObj_Ctor(static_cast<int32_t>(word_at(ent, 0x220)), reinterpret_cast<DObj*>(block)) : nullptr;
+        word_at(ent, 0x22c) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(obj));
+        G_EntityList_QueueAdd(word_at(ent, 0x224));
+    }
+    // DObj_Create (EAX = c, EDX = a, ECX = d; stack b, the DObj).
+    TitleRegs regs{c, 0, d, a, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent))};
+    const uint32_t args[2] = {b, word_at(ent, 0x22c)};
+    g_ent_call(0x00245ff0, &regs, 2, args);
+    word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x22c)}), 0x88) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+}
+
+const uint8_t* XB_REGS3 XB_CDECL G_DObjGetTagMatrixPtr(uint8_t* ent, uint32_t, uint32_t name) {
+    const DObj* const obj = *reinterpret_cast<const DObj* const*>(ent + 0x22c);
+    if (!obj) return nullptr;
+    const int32_t index = DObj_GetTagIndex(obj, name);
+    if (index < 0) return nullptr;
+    SV_DObjCreateSkeleton(ent);
+    const uint8_t* const dobj = reinterpret_cast<const uint8_t*>(uintptr_t{word_at(ent, 0x22c)});
+    const uint32_t matrices = *reinterpret_cast<const uint32_t*>(dobj + 0x20);
+    const uint32_t base = matrices ? dobj[0x60] * 0x40 + matrices + 0x30 : 0;
+    return reinterpret_cast<const uint8_t*>(uintptr_t{base + static_cast<uint32_t>(index) * 0x40});
+}
+
+void XB_CDECL G_DObjGetWorldTagMatrix(uint8_t* ent, uint32_t bone, float* out) {
+    SV_DObjCreateSkeleton(ent);
+    const uint8_t* const dobj = reinterpret_cast<const uint8_t*>(uintptr_t{word_at(ent, 0x22c)});
+    const uint32_t matrices = *reinterpret_cast<const uint32_t*>(dobj + 0x20);
+    const uint32_t base = matrices ? dobj[0x60] * 0x40 + matrices + 0x30 : 0;
+    // The entity's 4x3 frame: forward, 0 - right, up, origin.
+    float frame[12];
+    alignas(16) float right[4];
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent + 0x150)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(frame))};
+    AnglesToAxis(args, right, frame + 6);
+    frame[3] = 0.0f - right[0];
+    frame[5] = 0.0f - right[2];
+    frame[4] = 0.0f - right[1];
+    std::memcpy(frame + 9, ent + 0x140, 12);
+    MatrixMultiply43To44(frame, out, reinterpret_cast<const float*>(uintptr_t{base + bone * 0x40}));
 }
 
 }  // namespace game
