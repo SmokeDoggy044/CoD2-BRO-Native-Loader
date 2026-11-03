@@ -859,6 +859,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002a9b30,SkipWhitespace,3826,3826,0,0,100.0
 002a9c10,Com_ParseError,3629,3629,0,0,100.0
 002a9cf0,Com_BeginParseSession,1947,1947,0,0,100.0
+002a9db0,PathNodeTree_Link_r,2108,2108,0,0,100.0
 002aa2f0,NET_AdrToString,4000,4000,0,0,100.0
 002aa480,MSG_ReadStringLine,1983,1983,0,0,100.0
 002aaa10,Cmd_ArgsFrom,2886,2886,0,0,96.2
