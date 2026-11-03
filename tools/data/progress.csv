@@ -8005,6 +8005,8 @@ address,name,section,module,state,tested,matched
 00225420,PhysObjDesc_Init,.text,game,untested,0,0
 00225480,Phys_MapLaunchType,.text,game,matched,67,67
 00225520,VehiclePhys_Destroy,.text,game,untested,0,0
+002255d0,FUN_002255d0,.text,unassigned,unnamed,0,0
+002256b0,FUN_002256b0,.text,unassigned,unnamed,0,0
 002257f0,Vehicle_RestoreTagMatrices,.text,game,untested,0,0
 00225a00,PhysRagdoll_DestroyBodies,.text,game,matched,49,49
 00225a40,PhysRagdoll_RestoreBoneMatrices,.text,game,offline,0,0
@@ -8033,7 +8035,7 @@ address,name,section,module,state,tested,matched
 00227bd0,PhysRagdoll_StoreLocalBasePose,.text,game,matched,19,19
 00228460,Ragdoll_CacheBaseBoneFrames,.text,game,matched,25,25
 00228870,Phys_AttachEntitiesAtPoints,.text,game,untested,0,0
-00228bc0,FUN_00228bc0,.text,unassigned,unnamed,0,0
+00228bc0,VehiclePhys_DebugDrawAll,.text,game,untested,0,0
 00228bf0,VehiclePhys_TraceWheels,.text,game,untested,0,0
 00228ee0,VehiclePhys_AddContacts,.text,game,untested,0,0
 00229930,PhysRagdoll_GetBoundingSphere,.text,game,settled,103,103
@@ -8042,7 +8044,7 @@ address,name,section,module,state,tested,matched
 00229d20,RagdollCapsule_CollidePair,.text,game,settled,201,201
 00229f00,PhysObj_GetInheritedVelocity,.text,game,untested,0,0
 0022a0f0,PhysParts_WriteBoneMatrices,.text,game,untested,0,0
-0022a590,FUN_0022a590,.text,game,unnamed,0,0
+0022a590,VehiclePhys_SetupFromDef,.text,game,untested,0,0
 0022b0d0,RagdollBodyDef_FitToBones,.text,game,matched,11,11
 0022b500,Ragdoll_BlendBonePoses,.text,game,settled,105,105
 0022c0f0,Ragdoll_PropagateBoneMatrices,.text,game,settled,520,520
@@ -8056,7 +8058,7 @@ address,name,section,module,state,tested,matched
 0022d580,G_DObjGetTagLocalOrigin,.text,game,untested,0,0
 0022d650,VehiclePhys_CreateBody,.text,game,untested,0,0
 0022d7d0,Ragdoll_GatherCollisionGeometry,.text,game,settled,422,422
-0022dd40,Ragdoll_DrawJointDebug,.text,game,named,0,0
+0022dd40,Ragdoll_DrawJointDebug,.text,game,untested,0,0
 0022ebe0,Ragdoll_BuildBodyDefs,.text,game,mismatched,6,0
 0022fb30,Ragdoll_FreePhysics,.text,game,matched,77,77
 0022fb70,Ragdoll_BuildWorldBoneFrames,.text,game,matched,18,18
@@ -8072,16 +8074,18 @@ address,name,section,module,state,tested,matched
 00231670,G_FreeEntityPhysics,.text,game,settled,278,278
 00231710,VehiclePhys_RebuildPendingBody,.text,game,untested,0,0
 00231770,PhysRagdoll_Collide,.text,game,settled,110,110
-00231820,FUN_00231820,.text,unassigned,unnamed,0,0
-00231860,PhysRagdoll_Build,.text,game,named,0,0
+00231820,Ragdoll_DrawJointsDebug,.text,game,untested,0,0
+00231860,PhysRagdoll_Build,.text,game,matched,8,8
 00233b80,Ragdoll_CollideAll,.text,game,settled,195,195
 00233bd0,G_VehiclePhysicsFrame,.text,game,settled,409,409
 00233c40,VehiclePhys_Init,.text,game,untested,0,0
-002341f0,FUN_002341f0,.text,unassigned,unnamed,0,0
+002341f0,VehiclePhys_ApplyDriveInputs,.text,game,untested,0,0
+00234330,FUN_00234330,.text,unassigned,unnamed,0,0
 00234380,Ragdoll_StartPhysics,.text,game,matched,26,26
 00234450,Phys_Init,.text,game,settled,108,108
 00234560,VehiclePhys_GetOrCreate,.text,game,untested,0,0
 002345a0,G_PhysicsLaunch,.text,game,settled,105,105
+002348a0,VehiclePhys_ApplyDriveInputsAll,.text,game,named,0,0
 002348e0,Ragdoll_Free,.text,game,settled,128,128
 00234930,Ragdoll_Alloc,.text,game,settled,240,240
 00234a00,Mem_InitLargeBlockPools,.text,qcommon,replaced,0,0

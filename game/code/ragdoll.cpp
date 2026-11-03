@@ -1,5 +1,6 @@
 #include "ragdoll.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "cm.h"
@@ -15,6 +16,7 @@
 #include "g_scr_runtime.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -3138,6 +3140,732 @@ void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, 
         at<float>(tyre, 0x64) = 0.0f;
         PhysContact_ComputeBias_2(tyre, dt, title_global<float>(0x0083ece8));  // 5
     }
+}
+
+// The debug view of every vehicle physics in the list at 0x008feb70 (count 0x008feb9c). No caller,
+// pointer or immediate: dead.
+void XB_CDECL VehiclePhys_DebugDrawAll() {
+    uint8_t* const* cursor = &title_global<uint8_t*>(0x008feb70);
+    uint8_t* const* const end = cursor + title_global<uint32_t>(0x008feb9c);
+    for (; cursor != end; ++cursor) VehiclePhys_DebugDrawBody(*cursor);
+}
+
+// EAX joint index, EBX ragdoll (joints at +0x58): the joint's debug text, or for an index outside
+// 0..10 that of all ten joints (index 10 reads one past the ten - kept). No caller, pointer or
+// immediate: dead.
+PLATFORM_ASM_ENTRY(Ragdoll_DrawJointsDebug_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Ragdoll_DrawJointsDebug) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Ragdoll_DrawJointsDebug(int32_t index, uint8_t* ragdoll, uint32_t mode) {
+    if (index >= 0 && index <= 10) {
+        Ragdoll_DrawJointDebug(at<uint8_t**>(ragdoll, 0x58)[index], mode);
+        return;
+    }
+    for (uint32_t i = 0; i < 10; ++i) Ragdoll_DrawJointDebug(at<uint8_t**>(ragdoll, 0x58)[i], mode);
+}
+
+// EAX vehicle (one unused stack slot): after a pending body rebuild, the drive inputs throttle
+// (+0x424), brake (+0x428) and reverse (+0x42c) become the wheel mode bits +0x504 (1 reverse,
+// 2 brake, 4 forward, 8 backward, 0x10 coasting), the def (+0x420) scales the motor speed +0x4c4,
+// force +0x4c8 (doubled for drive type 2 in reverse) and the coast force +0x4d4; then the wheel
+// motors (0x002255d0, ESI) and unless the vehicle is pending (+0x450 bit 0) the wheel friction
+// (0x002256b0, EAX).
+void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t) {
+    VehiclePhys_RebuildPendingBody(vehicle);
+    uint32_t& bits = at<uint32_t>(vehicle, 0x504);
+    uint32_t flags = bits;
+    flags = at<float>(vehicle, 0x424) > 0.0f ? flags | 4u : flags & ~4u;
+    bits = flags;
+    flags = at<float>(vehicle, 0x42c) > 0.0f ? flags | 1u : flags & ~1u;
+    const float two = title_global<float>(0x0083eba8);
+    bits = flags;
+    const uint8_t* const def = at<uint8_t*>(vehicle, 0x420);
+    const float speed = at<float>(vehicle, 0x438) * at<float>(def, 0);
+    float force = at<float>(def, 4) * at<float>(vehicle, 0x43c) * title_global<float>(0x00830670);  // 0.02
+    at<float>(vehicle, 0x4c8) = force;
+    at<float>(vehicle, 0x4c4) = speed < 0.0f ? -speed : speed;
+    if (at<int32_t>(def, 0x68) == 2) {
+        if (at<float>(vehicle, 0x42c) > 0.0f) force = force * two;
+        at<float>(vehicle, 0x4c8) = force;
+    }
+    if (at<float>(vehicle, 0x42c) > 0.0f || at<float>(vehicle, 0x424) > 0.0f)
+        flags = bits & ~0x10u;
+    else
+        flags = bits | 0x10u;
+    bits = flags;
+    at<float>(vehicle, 0x4d4) = at<float>(def, 0x4c) * two;
+    flags = at<float>(vehicle, 0x428) > 0.0f ? flags | 2u : flags & ~2u;
+    bits = flags;
+    flags = 0.0f > at<float>(vehicle, 0x424) ? flags | 8u : flags & ~8u;
+    bits = flags;
+    call_with_esi(0x002255d0, vehicle);  // the wheel motors
+    if (!(at<uint8_t>(vehicle, 0x450) & 1))
+        title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002256b0)(vehicle);  // the wheel friction
+}
+
+namespace {
+
+// ftol(acos(x) * 180 * (1/pi)) on the x87 with the title CRT's __CIacos and _ftol.
+int32_t title_acos_degrees(float x) {
+    int32_t result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfmuls 0x0083eb60\n\tfmuls 0x0083f0ec\n\tcall *%3"
+                     : "=a"(result)
+                     : "m"(x), "r"(uintptr_t{0x001f0ff4}), "r"(uintptr_t{0x001f0bf4})
+                     : "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+// ECX joint (+0 / +4 the two bodies' matrices, +0x30 flags: 0x10 hinge, 0x20 swivel, 0x40 min
+// limit, 0x80 max limit, bits 0.. the active swivel limits; +0x190/+0x194 the swivel limit cones,
+// 0x20 each, cosine at +0x10), mode bit 0 = the type and limit labels, bit 1 = the swivel cone
+// angles. The debug text at y 0x1ba (white type label at x 0x1a4, red limit labels, cone angles in
+// red when active else blue). The joint's frame lines are computed into stack temporaries only
+// (their drawing is compiled out) and are left out here; the swivel's Quat_RotationBetween of the
+// two bodies' axes (+0xa0 / +0xb0) is kept. No caller, pointer or immediate: dead.
+void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode) {
+    if (!joint) return;
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    alignas(16) float red[4] = {one, 0.0f, 0.0f, half};
+    alignas(16) float white[4] = {one, one, one, half};
+    const uint32_t flags = at<uint32_t>(joint, 0x30);
+    const float* const a = at<const float*>(joint, 0);
+    const float* const b = at<const float*>(joint, 4);
+    if (flags & 0x10) {
+        if (!(mode & 1)) return;
+        R_DrawTextWithShadow(white, reinterpret_cast<const char*>(uintptr_t{0x0083c644}), 0x1a4, 0x1ba, 0.0f, one);  // Hinge
+        int32_t x = 0x1a4;
+        if (at<uint8_t>(joint, 0x30) & 0x40) {
+            x = 0x1fe;
+            R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c640}), x, 0x1ba, 0.0f, one);  // Min
+        }
+        if (at<int8_t>(joint, 0x30) < 0)
+            R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c63c}), x + 0x5a, 0x1ba, 0.0f,
+                                 one);  // MAX
+        return;
+    }
+    if (!(flags & 0x20)) return;
+    R_DrawTextWithShadow(white, reinterpret_cast<const char*>(uintptr_t{0x0083c634}), 0x1a4, 0x1ba, 0.0f, one);  // Swivel
+    alignas(16) float axis_a[4];
+    alignas(16) float axis_b[4];
+    const Lanes wa = rotate_out(a, reinterpret_cast<const float*>(joint + 0xa0));
+    const Lanes wb = rotate_out(b, reinterpret_cast<const float*>(joint + 0xb0));
+    std::memcpy(axis_a, wa.v, 16);
+    std::memcpy(axis_b, wb.v, 16);
+    int32_t x = 0x1fe;
+    if ((mode >> 1) & 1) {
+        alignas(16) float color[4] = {0.0f, 0.0f, one, half};
+        for (int32_t i = 0; i < at<int32_t>(joint, 0x194); ++i) {
+            const uint8_t* const cone = at<uint8_t*>(joint, 0x190) + i * 0x20;
+            const bool active = at<uint32_t>(joint, 0x30) & (1u << i);
+            color[0] = active ? one : 0.0f;
+            color[2] = active ? 0.0f : one;
+            char text[76];
+            title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(
+                text, reinterpret_cast<const char*>(uintptr_t{0x008325b8}), title_acos_degrees(at<float>(cone, 0x10)));
+            R_DrawTextWithShadow(color, text, x, 0x1ba, 0.0f, one);
+            x += 0x28;
+        }
+    }
+    if (!(mode & 1)) return;
+    alignas(16) float rotation[4];
+    Quat_RotationBetween(axis_a, 0, axis_b, rotation);
+    platform_keep(rotation);
+    if (at<uint8_t>(joint, 0x30) & 0x40) {
+        R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c630}), x, 0x1ba, 0.0f, one);  // MIN
+        x += 0x28;
+    }
+    if (at<int8_t>(joint, 0x30) < 0)
+        R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083c63c}), x, 0x1ba, 0.0f, one);  // MAX
+}
+
+// The vehicle's physics from its def (stored in +0x420 when given): with the body pending (+0x450
+// bit 0) only bit 1 is set and the pending rebuild runs. Otherwise the model bounds (entity +0x440
+// -> +0x22c -> +0x38) give the box mass properties (size x + 0.1, all * 0.9) and the centre
+// ((maxs + mins) * 0.5 + def +0x20); the body record (+0x444) gets an identity frame moved by
+// -centre at +0x70. build set: the world body (+8) is initialised from the def mass (+0x10) at the
+// entity frame (+0x160) moved to the centre (+0x138 = 20); else only its mass and inertia are set
+// (+0x148 = 0.5). +0x134 = 0x008db410. Then for each of the eight wheel tags (bone ids +0, +0x20
+// tag matrices, +0x4a0 constraints): a negative bone clears its constraint; build allocates a 0x28c
+// constraint (appended at +0x4a0[+0x4c0]), resets the tag matrix and takes the bone's world origin
+// into the body frame, lowered by def +0x34; else the existing constraint's anchor (+0x30) minus
+// the record's +0xa0 + centre, lowered by the def +0x34 change since the last call (+0x448). Each
+// is set up along -z / x with the def's suspension and friction values, its stiffness scaled by
+// 2 (1 - |x| / axle length) (the distance between bones +4 and +0xc), and flagged: 8 rear pair
+// (tags 2-5), 0x20 steering (0, 1, 4, 5), 0x40, 0x10 driven per def +0x68 (0: tags 2, 3; 1: tags
+// 0, 1; 2: all). Last the drive values +0x4c4..+0x4e4 from the def, the front axle midpoint
+// (+0x4f0, constraints 2 and 3) and the wheelbase x (+0x500), and the inputs cleared. Only caller
+// VehiclePhys_CreateBody (build 1).
+void XB_STDCALL VehiclePhys_SetupFromDef(uint8_t* vehicle, uint8_t* def, uint32_t build_word) {
+    if (def) at<uint8_t*>(vehicle, 0x420) = def;
+    if (at<uint8_t>(vehicle, 0x450) & 1) {
+        at<uint32_t>(vehicle, 0x450) = at<uint32_t>(vehicle, 0x450) | 2;
+        VehiclePhys_RebuildPendingBody(vehicle);
+        return;
+    }
+    const bool build = static_cast<uint8_t>(build_word) != 0;
+    uint8_t* const ent = at<uint8_t*>(vehicle, 0x440);
+    const float* const bounds = at<float*>(at<uint8_t*>(ent, 0x22c), 0x38);
+    const Lanes mins = lanes(bounds);
+    const Lanes maxs = lanes(bounds + 4);
+    alignas(16) float size[4];
+    {
+        const Lanes extent = sub(maxs, mins);
+        const float half = title_global<float>(0x0083eb24);
+        Lanes centre = mul(add(maxs, mins), half);
+        Lanes padded = extent;
+        padded.v[0] = extent.v[0] + title_global<float>(0x0083ebf8);  // 0.1
+        const Lanes scaled = mul(padded, title_global<float>(0x0083ec18));  // 0.9
+        std::memcpy(size, scaled.v, 16);
+        size[3] = extent.v[3];  // the vector's w lane keeps the unscaled extent
+        alignas(16) float box_inertia[4] = {};
+        float box_mass;
+        Phys_BoxMassProperties(size, box_inertia, &box_mass);
+        uint8_t* const current = at<uint8_t*>(vehicle, 0x420);
+        centre = add(centre, lanes(reinterpret_cast<const float*>(current + 0x20)));
+        alignas(16) float frame[16];
+        Matrix_Identity(frame);
+        uint8_t* const rec = at<uint8_t*>(vehicle, 0x444);
+        const Lanes minus_centre = negate_bits(centre);
+        std::memcpy(frame + 12, minus_centre.v, 16);
+        const Lanes anchor_base = sub(lanes(reinterpret_cast<const float*>(rec + 0xa0)), minus_centre);
+        uint8_t* const world = at<uint8_t*>(rec, 8);
+        std::memcpy(rec + 0x70, frame, sizeof(frame));
+        const float mass = at<float>(at<uint8_t*>(vehicle, 0x420), 0x10);
+        alignas(16) float inertia[4];
+        if (build) {
+            const float scale = mass / box_mass;
+            std::memcpy(frame, ent + 0x160, sizeof(frame));
+            const Lanes origin = transform_out(frame, centre.v);
+            std::memcpy(frame + 12, origin.v, 16);
+            const Lanes scaled_inertia = mul(lanes(box_inertia), scale);
+            std::memcpy(inertia, scaled_inertia.v, 16);
+            inertia[3] = size[3];
+            alignas(16) float velocity[4] = {0.0f, 0.0f, 0.0f, at<float>(current, 0x2c)};
+            alignas(16) float angular[4] = {0.0f, 0.0f, 0.0f, bounds[7]};
+            PhysBody_Init(world, mass, inertia, frame, velocity, angular, half, 3);
+            at<float>(world, 0x138) = title_global<float>(0x0083eb5c);  // 20
+        } else {
+            PhysBody_SetMass(world, mass);
+            const float scale = mass / box_mass;
+            const Lanes scaled_inertia = mul(lanes(box_inertia), scale);
+            std::memcpy(inertia, scaled_inertia.v, 16);
+            inertia[3] = size[3];
+            PhysBody_SetInertia(world, inertia);
+            at<float>(world, 0x148) = title_global<float>(0x0083eb24);
+        }
+        at<float>(world, 0x134) = title_global<float>(0x008db410);
+        uint8_t* const d = at<uint8_t*>(vehicle, 0x420);
+        const float lowered = at<float>(d, 0x34) - at<float>(vehicle, 0x448);
+        at<uint32_t>(vehicle, 0x448) = at<uint32_t>(d, 0x34);
+        const DObj* const obj = at<const DObj*>(ent, 0x22c);
+        const Lanes p1 = lanes(reinterpret_cast<const float*>(DObj_GetBoneBasePose(obj, at<int32_t>(vehicle, 4)) + 0x24));
+        const Lanes p2 = lanes(reinterpret_cast<const float*>(DObj_GetBoneBasePose(obj, at<int32_t>(vehicle, 0xc)) + 0x24));
+        const Lanes axle = sub(p2, p1);
+        const Lanes squared = mul(axle, axle);
+        const float length_squared = (squared.v[0] + squared.v[1]) + squared.v[2];
+        float length = length_squared;
+        // v0's w lane (the stack word +0xac): the squared w with a length, else never written
+        // (stale in the original, 0 here).
+        float anchor_w = 0.0f;
+        if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE: NaN counts as equal
+            anchor_w = squared.v[3];
+            const float r = platform_rsqrt_estimate(length_squared);
+            const float scaled_length = length_squared * r;
+            length = ((title_global<float>(0x0082e660) - scaled_length * r) * scaled_length) *
+                     title_global<float>(0x0082e670);  // 3, 0.5
+        }
+        uint8_t* const body = at<uint8_t*>(rec, 8);
+        for (int32_t i = 0; i < 8; ++i) {
+            uint8_t*& slot = at<uint8_t*>(vehicle, 0x4a0 + i * 4);
+            const int32_t bone = at<int32_t>(vehicle, i * 4);
+            if (bone < 0) {
+                slot = nullptr;
+                continue;
+            }
+            uint8_t* constraint;
+            Lanes local;
+            float drop;
+            if (build) {
+                constraint = reinterpret_cast<uint8_t*>(uintptr_t{PhysWorld_AllocConstraint28c(addr(body), 0)});
+                alignas(16) float point[4];
+                std::memcpy(point, &title_global<uint8_t>(0x0082e290), 16);  // 0 0 0 1
+                alignas(16) float identity[16];
+                Matrix_Identity(identity);
+                std::memcpy(identity + 12, point, 16);
+                int32_t& count = at<int32_t>(vehicle, 0x4c0);
+                at<uint8_t*>(vehicle, 0x4a0 + count * 4) = constraint;
+                count = count + 1;
+                std::memcpy(vehicle + 0x20 + i * 0x40, identity, sizeof(identity));
+                alignas(16) float bone_buffer[16];
+                const float* const m = G_DObjGetWorldBoneMatrix(ent, 0, static_cast<uint32_t>(bone), bone_buffer);
+                const Lanes world_point = transform_out(m, point);
+                alignas(16) float rows[12];
+                std::memcpy(rows, body, sizeof(rows));
+                local = rotate_into(rows, sub(world_point, lanes(reinterpret_cast<const float*>(body + 0x30))));
+                drop = at<float>(at<uint8_t*>(vehicle, 0x420), 0x34);
+            } else {
+                constraint = slot;
+                local = sub(lanes(reinterpret_cast<const float*>(constraint + 0x30)), anchor_base);
+                drop = lowered;
+            }
+            alignas(16) float anchor[4] = {local.v[0], local.v[1], local.v[2] - drop, anchor_w};
+            const float ratio = std::fabs(local.v[0]) / length;  // FABS clears the sign of a NaN too
+            const float one = title_global<float>(0x0083eb20);
+            float clamped = ratio;
+            if (title_global<float>(0x0083eafc) > ratio)
+                clamped = 0.0f;
+            else if (ratio > one)
+                clamped = one;
+            const float stiffness = (one - clamped) * title_global<float>(0x0083eba8);  // 2
+            // The w lanes of the two axis vectors (+0xfc, +0x10c) are never written: stale in the
+            // original, 0 here.
+            alignas(16) float down[4] = {0.0f, 0.0f, title_global<float>(0x0083eb34), 0.0f};  // -1
+            alignas(16) float forward[4] = {one, 0.0f, 0.0f, 0.0f};
+            const uint8_t* const cur = at<uint8_t*>(vehicle, 0x420);
+            const float rate = title_global<float>(0x008db410);
+            const float inverse_rate = one / rate;
+            const float f4 = (at<float>(cur, 0x3c) * stiffness) * rate;
+            const float f3 = (at<float>(cur, 0x38) * stiffness) * rate;
+            const float f2 = at<float>(cur, 0x58) * inverse_rate;
+            const float f1 = at<float>(cur, 0x54) * inverse_rate;
+            uint32_t w1, w2, w3, w4;
+            std::memcpy(&w1, &f1, 4);
+            std::memcpy(&w2, &f2, 4);
+            std::memcpy(&w3, &f3, 4);
+            std::memcpy(&w4, &f4, 4);
+            PhysConstraint28c_Setup(constraint, anchor, down, forward, at<uint32_t>(cur, 0x30), w1, w2, w3, w4,
+                                    at<uint32_t>(cur, 0x40), at<uint32_t>(cur, 0x5c));
+            uint32_t& flags = at<uint32_t>(constraint, 0xa4);
+            flags = (i == 2 || i == 3 || i == 4 || i == 5) ? flags | 8u : flags & ~8u;
+            const uint32_t steer = (i == 0 || i == 1 || i == 4 || i == 5) ? flags | 0x20u : flags & ~0x20u;
+            flags = steer;
+            const uint32_t marked = steer | 0x40u;
+            flags = marked;
+            const int32_t drive = at<int32_t>(at<uint8_t*>(vehicle, 0x420), 0x68);
+            if (drive == 0)
+                flags = (i == 2 || i == 3) ? marked | 0x10u : marked & ~0x10u;
+            else if (drive == 1)
+                flags = (i == 0 || i == 1) ? marked | 0x10u : marked & ~0x10u;
+            else if (drive == 2)
+                flags = marked | 0x10u;
+        }
+    }
+    const float half = title_global<float>(0x0083eb24);
+    const Lanes front = mul(add(lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a8) + 0x30)),
+                                lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4ac) + 0x30))),
+                            half);
+    const Lanes rear = mul(add(lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a0) + 0x30)),
+                               lanes(reinterpret_cast<const float*>(at<uint8_t*>(vehicle, 0x4a4) + 0x30))),
+                           half);
+    const uint8_t* const d = at<uint8_t*>(vehicle, 0x420);
+    std::memcpy(vehicle + 0x4f0, front.v, 16);
+    at<uint32_t>(vehicle, 0x4cc) = at<uint32_t>(d, 0x44);
+    at<float>(vehicle, 0x4c8) = at<float>(d, 4) * title_global<float>(0x00830670);  // 0.02
+    at<uint32_t>(vehicle, 0x4d0) = at<uint32_t>(d, 0x48);
+    at<uint32_t>(vehicle, 0x4c4) = at<uint32_t>(d, 0);
+    at<uint32_t>(vehicle, 0x4d4) = at<uint32_t>(d, 0x4c);
+    at<uint32_t>(vehicle, 0x4d8) = at<uint32_t>(d, 0x30);
+    at<uint32_t>(vehicle, 0x4e0) = at<uint32_t>(d, 8);
+    at<uint32_t>(vehicle, 0x4e4) = at<uint32_t>(d, 0xc);
+    at<float>(vehicle, 0x500) = front.v[0] - rear.v[0];
+    at<float>(vehicle, 0x430) = 0.0f;
+    at<float>(vehicle, 0x434) = 0.0f;
+    at<float>(vehicle, 0x4dc) = 0.0f;
+    at<uint32_t>(vehicle, 0x504) = 0;
+}
+
+namespace {
+
+// PhysRagdoll_Build's frame, kept where the original has it (ESP after the prologue, 0x1e40 below
+// the aligned EBP): every local lives at its original offset, so the vectors whose fourth word the
+// original never writes (MOVUPS with the old w put back, packed 3-word copies) carry the same
+// stack words, and each callee runs at the original's ESP (title_call_at_regs).
+struct BuildFrame {
+    uint8_t* f;
+    uint32_t top;
+
+    float* p(uint32_t o) const { return reinterpret_cast<float*>(f + o); }
+    uint32_t a(uint32_t o) const { return top + o; }
+    uint32_t& w(uint32_t o) const { return *reinterpret_cast<uint32_t*>(f + o); }
+    Lanes ld(uint32_t o) const { return lanes(p(o)); }
+    void st(uint32_t o, const Lanes& v) const { std::memcpy(f + o, v.v, 16); }
+    void st3(uint32_t o, const Lanes& v) const { std::memcpy(f + o, v.v, 12); }  // MOVUPS, old w put back
+    void cp(uint32_t o, const void* src, uint32_t n) const { std::memcpy(f + o, src, n); }
+    void cpf(uint32_t o, uint32_t from, uint32_t n) const { std::memmove(f + o, f + from, n); }
+    // The rows at `rows` transposed (SHUFPS: lane 3 repeats lane 2) into c0 / c1 / c2.
+    void cols(uint32_t rows, uint32_t c0, uint32_t c1, uint32_t c2) const {
+        const float* const m = p(rows);
+        const Lanes c[3] = {{{m[0], m[4], m[8], m[8]}}, {{m[1], m[5], m[9], m[9]}}, {{m[2], m[6], m[10], m[10]}}};
+        st(c0, c[0]);
+        st(c1, c[1]);
+        st(c2, c[2]);
+    }
+    // c0 x + c1 y, then + c2 z.
+    Lanes rot(uint32_t c0, uint32_t c1, uint32_t c2, const Lanes& v) const {
+        return add(add(mul(ld(c0), v.v[0]), mul(ld(c1), v.v[1])), mul(ld(c2), v.v[2]));
+    }
+    template <uint32_t N>
+    uint32_t call(uint32_t function, TitleRegs regs, const uint32_t (&args)[N]) const {
+        return title_call_at_regs(top, function, &regs, N, args);
+    }
+    uint32_t call(uint32_t function, TitleRegs regs) const { return title_call_at_regs(top, function, &regs, 0, nullptr); }
+};
+
+uint32_t bits_of(float v) {
+    uint32_t b;
+    std::memcpy(&b, &v, 4);
+    return b;
+}
+
+// The capsule pairs of PhysRagdoll_Build: {found(b), found(a)} per (a, b).
+constexpr int32_t kBuildPairs[7][2] = {{9, 7}, {8, 7}, {6, 9}, {0, 3}, {0, 5}, {6, 3}, {8, 5}};
+
+}  // namespace
+
+// The callees run at the original's ESP over its frame (title callees below read stale words).
+PLATFORM_ASM_ENTRY(PhysRagdoll_Build_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(PhysRagdoll_Build) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+// The ragdoll physics (phys) of an entity from the ten body definitions (g_ragdollBodyDefs
+// 0x00989250, 0x1d0 apart; Ragdoll_BuildBodyDefs): per def a body (+0x7c slot) at its bone's
+// world point with the bone's velocity, mass +0xb4 and inertia +0xc0, and a slot matrix (+0x410
+// list) of the bone in the body frame; per def with a joint type (+0xec: 1 hinge, 2 swivel) a
+// joint between bodies +0xe0 / +0xdc, anchored at +0x100 / +0x110 of bones +0xe8 / +0xe4, with
+// the axes +0x120..+0x150 and the angle limits +0x170 (+0x1b0 angles, count +0x160); per def a
+// collision capsule of one or two spheres (+0x38 > 1: +0x40 / +0x50, radii +0x30 / +0x34) and
+// the segment +0x70..+0x80 (radius +0x90); the seven capsule pairs; then the bone matrices back,
+// the bodies posed, the joints solved, each capsule's pivot at the entity origin + 30 z and the
+// bodies' +0x134 = 0x008ff024 * 0x00989240.
+void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp,
+                                uint32_t entry_esp) {
+    const uint32_t top = ((entry_esp - 4) & ~15u) - 0x1e40;
+    const BuildFrame fr{reinterpret_cast<uint8_t*>(uintptr_t{top}), top};
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry_esp - 4}) = ebp;
+    fr.w(8) = ebx;
+    fr.w(4) = esi;
+    fr.w(0) = edi;
+    const uint32_t P = addr(phys), E = addr(ent);
+    fr.call(0x002de120, {0, E, 0, 0, esi, edi}, {E, fr.a(0x290)});  // G_GetEntityMatrix
+    at<uint8_t*>(phys, 0x1010) = ent;
+    fr.w(0x1c) = 0;  // the constructor loop's counter (the 0x5a vector constructors do nothing)
+    const TitleRegs early{0, E, 0, 0, fr.a(0x1e40), P};
+    fr.call(0x00225a90, early, {E, fr.a(0x7c0)});  // PhysRagdoll_SaveBoneMatrices
+    fr.call(0x00227bd0, early, {P + 0x4b0, E});  // PhysRagdoll_StoreLocalBasePose
+    fr.call(0x00240f00, early, {at<uint32_t>(ent, 0x22c)});  // DObj_CalcBasePose
+    fr.call(0x00228460, early, {E});  // Ragdoll_CacheBaseBoneFrames
+    fr.call(0x0022ebe0, early, {E});  // Ragdoll_BuildBodyDefs
+    fr.call(0x0022fb70, early, {at<uint32_t>(phys, 0x1d30)});  // Ragdoll_BuildWorldBoneFrames
+    fr.call(0x000b3360, {0, E, P, 0, fr.a(0x1e40), P}, {10u});  // PhysRagdoll_AddEmptySlots
+
+    // Bodies: d = def + 0x60 (the bone-local point).
+    for (uint32_t d = 0x009892b0; d < 0x0098a4d0; d += 0x1d0) {
+        const uint8_t* const def = reinterpret_cast<const uint8_t*>(uintptr_t{d});
+        const uint32_t slot_index = at<uint32_t>(def, 0x7c);
+        const uint32_t body = fr.call(0x000b3110, {0, d, P, 0, 0, P}, {slot_index});  // PhysRagdoll_AllocBody
+        fr.call(0x00226420, {d, d, slot_index, 0, body, P},
+                {at<uint32_t>(phys, 0x1d30), fr.a(0x320), fr.a(0x260)});  // Ragdoll_GetBoneVelocity
+        fr.call(0x002d6800, {E, d, at<uint32_t>(def, 0x84), 0, body, P}, {fr.a(0x290)});  // G_DObjGetWorldBoneMatrix
+        const Lanes one = splat(title_global<float>(0x0082e140));
+        fr.st(0x390, mul(lanes(&title_global<float>(0x0082e160)), one));
+        fr.st(0x3a0, mul(lanes(&title_global<float>(0x0082e170)), one));
+        fr.st(0x3b0, mul(lanes(&title_global<float>(0x0082e180)), one));
+        fr.cp(0x70, def, 16);
+        fr.st(0x3c0, transform_out(fr.p(0x290), fr.p(0x70)));
+        fr.st3(0x20, fr.ld(0x260));
+        fr.st3(0xc0, fr.ld(0x320));
+        fr.cp(0x50, def + 0x60, 16);
+        fr.st3(0xa0, fr.ld(0x50));
+        fr.call(0x000bbea0, {0, d, body, 0, body, P},
+                {at<uint32_t>(def, 0x54), fr.a(0xa0), fr.a(0x390), fr.a(0xc0), fr.a(0x20), at<uint32_t>(def, 0x74),
+                 0u});  // PhysBody_Init
+        uint8_t* const b = reinterpret_cast<uint8_t*>(uintptr_t{body});
+        at<uint32_t>(b, 0x144) |= 2;
+        fr.st3(0xb0, lanes(&title_global<float>(0x00989230)));
+        fr.cpf(0x80, 0xb0, 16);
+        std::memcpy(b + 0xc0, fr.p(0x80), 16);
+        fr.cpf(0x180, 0x390, 0x30);
+        const float* const r = fr.p(0x180);
+        const Lanes c0{{r[0], r[4], r[8], r[8]}}, c1{{r[1], r[5], r[9], r[9]}}, c2{{r[2], r[6], r[10], r[10]}};
+        const auto local = [&](const Lanes& v) {
+            return add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2]));
+        };
+        fr.st(0x90, local(sub(fr.ld(0x2c0), fr.ld(0x3c0))));
+        fr.st(0x40, local(fr.ld(0x2b0)));
+        fr.st(0x60, local(fr.ld(0x2a0)));
+        fr.st(0x350, local(fr.ld(0x290)));
+        fr.cpf(0x360, 0x60, 16);
+        fr.cpf(0x370, 0x40, 16);
+        fr.cpf(0x380, 0x90, 16);
+        fr.cpf(0x4e0, 0x350, 0x40);
+        fr.w(0x4ec) = 0;
+        fr.w(0x4fc) = 0;
+        fr.w(0x50c) = 0;
+        *fr.p(0x51c) = title_global<float>(0x0083eb20);
+        int32_t& used = at<int32_t>(phys, 0x464);
+        uint8_t* slot = nullptr;
+        if (used < 10) {
+            slot = at<uint8_t*>(phys, 0x410 + static_cast<uint32_t>(used) * 4);
+            used = used + 1;
+        }
+        uint8_t* const entry = phys + 0x1ce0 + at<uint32_t>(def, 0x7c) * 8;
+        at<uint32_t>(entry, 0) = E;
+        at<uint32_t>(entry, 4) = at<uint32_t>(def, 0x84);
+        const uint32_t index = at<uint32_t>(def, 0x7c);
+        at<uint32_t>(slot, 0x40) = addr(phys + 0x1ce0 + index * 8);
+        at<uint32_t>(slot, 0x44) = index;
+        std::memcpy(slot, fr.p(0x4e0), 0x40);
+    }
+
+    // Joints: j = def + 0xdc.
+    for (uint32_t jd = 0x0098932c; jd < 0x0098a54c; jd += 0x1d0) {
+        const uint8_t* const j = reinterpret_cast<const uint8_t*>(uintptr_t{jd});
+        if (at<int32_t>(j, 0x10) == 0) continue;
+        const uint32_t joint =
+            fr.call(0x000b3130, {0, jd, P, 0, P, 0}, {at<uint32_t>(j, 4), at<uint32_t>(j, 0)});  // PhysRagdoll_CreateJoint
+        fr.w(0x3c) = joint;
+        const uint8_t* const bodies = at<uint8_t*>(phys, 0x28);
+        const uint32_t ba = at<uint32_t>(bodies, at<uint32_t>(j, 4) * 4);
+        const uint32_t bb = at<uint32_t>(bodies, at<uint32_t>(j, 0) * 4);
+        fr.w(0x18) = ba;
+        fr.w(0x14) = bb;
+        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 0xc), ba, bb, E}, {fr.a(0x390)});  // G_DObjGetWorldBoneMatrix
+        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 8), 0, bb, E}, {fr.a(0x290)});
+        const float* const body_a = reinterpret_cast<const float*>(uintptr_t{ba});
+        const float* const body_b = reinterpret_cast<const float*>(uintptr_t{bb});
+        fr.cp(0x3d0, j + 0x24, 16);
+        const Lanes wa = transform_out(fr.p(0x390), fr.p(0x3d0));
+        fr.cp(0x3f0, j + 0x34, 16);
+        const Lanes wb = transform_out(fr.p(0x290), fr.p(0x3f0));
+        fr.cp(0x6d0, body_b, 0x30);
+        {
+            const float* const m = fr.p(0x6d0);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            const Lanes v = sub(wb, lanes(body_b + 12));
+            fr.st3(0x4a0, add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2])));
+        }
+        fr.cp(0x670, body_a, 0x30);
+        {
+            const float* const m = fr.p(0x670);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            const Lanes v = sub(wa, lanes(body_a + 12));
+            fr.st3(0x4d0, add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2])));
+        }
+        fr.call(0x000b74f0, {0, jd, joint, 0, joint, 0}, {fr.a(0x4d0), fr.a(0x4a0)});  // PhysJoint_SetAnchors
+        if (at<float>(j, -4) > title_global<float>(0x0083f02c))  // 1e-6
+            fr.call(0x000b7550, {0, jd, joint, 0, joint, 0}, {at<uint32_t>(j, -4)});  // PhysJoint_SetValue1A0
+        const int32_t type = at<int32_t>(j, 0x10);
+        const auto cols_rot = [&](uint32_t rows, const Lanes& v) {
+            const float* const m = fr.p(rows);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            return add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2]));
+        };
+        if (type == 1) {
+            fr.cp(0x3e0, j + 0x44, 16);
+            fr.st(0x660, rotate_out(fr.p(0x390), fr.p(0x3e0)));
+            fr.cp(0x140, j + 0x64, 16);
+            const Lanes wa2 = rotate_out(fr.p(0x390), fr.p(0x140));
+            fr.cp(0x170, j + 0x54, 16);
+            fr.st(0x640, rotate_out(fr.p(0x290), fr.p(0x170)));
+            fr.cp(0x150, j + 0x74, 16);
+            const Lanes wb2 = rotate_out(fr.p(0x290), fr.p(0x150));
+            fr.cp(0x790, body_b, 0x30);
+            fr.st3(0x4c0, cols_rot(0x790, wb2));
+            fr.cp(0x730, body_a, 0x30);
+            fr.st3(0x490, cols_rot(0x730, wa2));
+            fr.cp(0x6a0, body_b, 0x30);
+            fr.cols(0x6a0, 0x2e0, 0x330, 0x300);
+            fr.cpf(0x400, 0x2e0, 16);
+            fr.cpf(0x410, 0x330, 16);
+            fr.cpf(0x420, 0x300, 16);
+            fr.st3(0x320, fr.rot(0x2e0, 0x330, 0x300, fr.ld(0x640)));
+            fr.cp(0x700, body_a, 0x30);
+            fr.cols(0x700, 0x310, 0x340, 0x250);
+            fr.cpf(0x430, 0x310, 16);
+            fr.cpf(0x440, 0x340, 16);
+            fr.cpf(0x450, 0x250, 16);
+            fr.st3(0x260, fr.rot(0x310, 0x340, 0x250, fr.ld(0x660)));
+            fr.call(0x000b7ae0, {0, jd, joint, 0, bb, 0},
+                    {fr.a(0x260), fr.a(0x320), fr.a(0x490), fr.a(0x4c0), at<uint32_t>(j, 0x14),
+                     at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes10
+        } else if (type == 2) {
+            fr.cp(0x160, j + 0x44, 16);
+            fr.st(0x620, rotate_out(fr.p(0x390), fr.p(0x160)));
+            fr.cp(0xb0, j + 0x64, 16);
+            fr.st(0x630, rotate_out(fr.p(0x390), fr.p(0xb0)));
+            fr.cp(0xa0, j + 0x54, 16);
+            fr.st(0x5e0, rotate_out(fr.p(0x290), fr.p(0xa0)));
+            fr.cp(0xc0, j + 0x74, 16);
+            fr.st(0x5f0, rotate_out(fr.p(0x290), fr.p(0xc0)));
+            fr.cp(0x760, body_b, 0x30);
+            fr.cols(0x760, 0x2f0, 0x2d0, 0x280);
+            fr.cpf(0x460, 0x2f0, 16);
+            fr.cpf(0x470, 0x2d0, 16);
+            fr.cpf(0x480, 0x280, 16);
+            fr.st(0x5d0, fr.rot(0x2f0, 0x2d0, 0x280, fr.ld(0x5f0)));
+            fr.cpf(0x594, 0x5d0, 12);  // Vec3A_CopyXYZ
+            fr.cp(0x5a0, body_a, 0x30);
+            fr.cols(0x5a0, 0x120, 0x130, 0x100);
+            fr.cpf(0x1e0, 0x120, 16);
+            fr.cpf(0x1f0, 0x130, 16);
+            fr.cpf(0x200, 0x100, 16);
+            fr.st(0x610, fr.rot(0x120, 0x130, 0x100, fr.ld(0x630)));
+            fr.cpf(0x544, 0x610, 12);
+            fr.cp(0x550, body_b, 0x30);
+            fr.cols(0x550, 0xf0, 0xe0, 0xd0);
+            fr.cpf(0x210, 0xf0, 16);
+            fr.cpf(0x220, 0xe0, 16);
+            fr.cpf(0x230, 0xd0, 16);
+            fr.st(0x600, fr.rot(0xf0, 0xe0, 0xd0, fr.ld(0x5e0)));
+            fr.cpf(0x538, 0x600, 12);
+            fr.cp(0x4e0, body_a, 0x30);
+            fr.cols(0x4e0, 0x60, 0x40, 0x90);
+            fr.cpf(0x1b0, 0x60, 16);
+            fr.cpf(0x1c0, 0x40, 16);
+            fr.cpf(0x1d0, 0x90, 16);
+            fr.st(0x650, fr.rot(0x60, 0x40, 0x90, fr.ld(0x620)));
+            fr.cpf(0x52c, 0x650, 12);
+            // The packed 3-word vectors: each one's fourth word is the next one's x.
+            fr.call(0x000b7d30, {0, jd, joint, 0, ba, 0},
+                    {fr.a(0x52c), fr.a(0x538), fr.a(0x544), fr.a(0x594), at<uint32_t>(j, 0x14),
+                     at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes20
+        }
+        fr.w(0x11c) = 0;
+        if (at<int32_t>(j, 0x84) <= 0) continue;
+        fr.w(0x1c) = jd + 0xd4;
+        fr.w(0x14) = jd + 0x94;
+        do {
+            fr.cp(0x20, reinterpret_cast<const void*>(uintptr_t{fr.w(0x14)}), 16);
+            const uint32_t angle = *reinterpret_cast<const uint32_t*>(uintptr_t{fr.w(0x1c)});
+            fr.st(0x4b0, rotate_out(fr.p(0x390), fr.p(0x20)));
+            fr.cp(0x350, reinterpret_cast<const void*>(uintptr_t{fr.w(0x18)}), 0x30);
+            fr.cols(0x350, 0x70, 0x50, 0x80);
+            fr.w(0x24c) = angle;
+            fr.cpf(0x180, 0x70, 16);
+            fr.cpf(0x190, 0x50, 16);
+            fr.cpf(0x1a0, 0x80, 16);
+            fr.st(0x270, fr.rot(0x70, 0x50, 0x80, fr.ld(0x4b0)));
+            fr.cpf(0x588, 0x270, 12);  // Vec3A_CopyXYZ
+            fr.call(0x000b7700, {0, jd, fr.w(0x3c), 0, fr.w(0x18), 0}, {fr.a(0x588), fr.w(0x24c)});  // PhysJoint_AddAngleLimit
+            fr.w(0x11c) = fr.w(0x11c) + 1;
+            fr.w(0x14) = fr.w(0x14) + 0x10;
+            fr.w(0x1c) = fr.w(0x1c) + 4;
+        } while (static_cast<int32_t>(fr.w(0x11c)) < at<int32_t>(j, 0x84));
+    }
+
+    // Collision capsules: the same def + 0xdc cursor.
+    uint8_t* const ragdoll = phys + 0x1010;
+    const uint32_t R = addr(ragdoll);
+    fr.w(0x14) = 0x0098932c;
+    do {
+        const uint32_t jd = fr.w(0x14);
+        const uint8_t* const j = reinterpret_cast<const uint8_t*>(uintptr_t{jd});
+        const uint32_t id = at<uint32_t>(j, 0);
+        const uint32_t bv = at<uint32_t>(at<uint8_t*>(phys, 0x28), id * 4);
+        fr.w(0x18) = bv;
+        const float* const body = reinterpret_cast<const float*>(uintptr_t{bv});
+        const uint32_t cv = fr.call(0x002263c0, {0, 0, bv, R, jd, id});  // PhysRagdoll_TakeBody
+        uint8_t* const capsule = reinterpret_cast<uint8_t*>(uintptr_t{cv});
+        const auto last_sphere = [&]() {
+            return at<uint8_t*>(capsule, 0x80) + (at<uint32_t>(capsule, 0x84) << 6);
+        };
+        uint32_t radius;
+        if (at<int32_t>(j, -0xa4) > 1) {
+            fr.call(0x0002aec0, {0, cv, 0, cv, jd, 0}, {fr.a(0x290)});  // RagdollCapsule_AddSphere
+            fr.cp(0x20, j - 0x9c, 16);
+            fr.cp(0x350, body, 0x30);
+            fr.cols(0x350, 0x80, 0x50, 0x70);
+            fr.cpf(0x180, 0x80, 16);
+            fr.cpf(0x190, 0x50, 16);
+            fr.cpf(0x1a0, 0x70, 16);
+            fr.st(0xc0, fr.rot(0x80, 0x50, 0x70, sub(fr.ld(0x20), lanes(body + 12))));
+            std::memcpy(last_sphere() - 0x20, fr.p(0xc0), 16);
+            at<uint32_t>(last_sphere(), -0x10) = at<uint32_t>(j, -0xac);
+            fr.call(0x0002aec0, {0, cv, 0, cv, bv, jd}, {fr.a(0x290)});
+            fr.cp(0xa0, j - 0x8c, 16);
+            fr.cp(0x4e0, body, 0x30);
+            fr.cols(0x4e0, 0x90, 0x40, 0x60);
+            fr.cpf(0x1b0, 0x90, 16);
+            fr.cpf(0x1c0, 0x40, 16);
+            fr.cpf(0x1d0, 0x60, 16);
+            fr.st(0xb0, fr.rot(0x90, 0x40, 0x60, sub(fr.ld(0xa0), lanes(body + 12))));
+            std::memcpy(last_sphere() - 0x20, fr.p(0xb0), 16);
+            radius = at<uint32_t>(j, -0xa8);
+        } else {
+            fr.call(0x0002aec0, {0, cv, 0, cv, jd, id}, {fr.a(0x290)});
+            fr.st(0x160, Lanes{{0.0f, 0.0f, 0.0f, 0.0f}});
+            fr.cpf(0x150, 0x160, 16);
+            std::memcpy(last_sphere() - 0x20, fr.p(0x150), 16);
+            radius = at<uint32_t>(j, -0xac);
+        }
+        at<uint32_t>(last_sphere(), -0x10) = radius;
+        at<uint32_t>(capsule, 0x124) = bv;
+        fr.call(0x00229c90, {0, cv, bv, 0, jd, cv});  // PhysRagdoll_ComputeBounds
+        fr.cp(0x170, j - 0x5c, 16);
+        fr.cp(0x140, j - 0x6c, 16);
+        fr.cp(0x550, body, 0x30);
+        fr.cols(0x550, 0xd0, 0xe0, 0xf0);
+        fr.cpf(0x210, 0xd0, 16);
+        fr.cpf(0x220, 0xe0, 16);
+        fr.cpf(0x230, 0xf0, 16);
+        fr.st(0x270, fr.rot(0xd0, 0xe0, 0xf0, sub(fr.ld(0x170), lanes(body + 12))));
+        fr.cp(0x5a0, body, 0x30);
+        fr.cols(0x5a0, 0x100, 0x130, 0x120);
+        fr.cpf(0x1e0, 0x100, 16);
+        fr.cpf(0x1f0, 0x130, 16);
+        fr.cpf(0x200, 0x120, 16);
+        fr.st(0x4b0, fr.rot(0x100, 0x130, 0x120, sub(fr.ld(0x140), lanes(body + 12))));
+        Phys_SetSegment(reinterpret_cast<const uint32_t*>(fr.p(0x4b0)), reinterpret_cast<const uint32_t*>(fr.p(0x270)),
+                        capsule + 0xb0, at<uint32_t>(j, -0x4c));
+        fr.w(0x14) = jd + 0x1d0;
+    } while (fr.w(0x14) < 0x0098a54c);
+
+    // The seven capsule pairs.
+    for (const auto& ids : kBuildPairs) {
+        int32_t& count = at<int32_t>(ragdoll, 0xcc4);
+        uint8_t* pair = nullptr;
+        if (count < 7) {
+            pair = at<uint8_t*>(ragdoll, 0xc88 + static_cast<uint32_t>(count) * 4);
+            count = count + 1;
+        }
+        const uint32_t first =
+            fr.call(0x00224fc0, {0, 0, R, static_cast<uint32_t>(ids[0]), R, addr(pair)});  // PhysRagdoll_FindCapsuleById
+        const uint32_t second = fr.call(0x00224fc0, {0, first, R, static_cast<uint32_t>(ids[1]), R, addr(pair)});
+        at<uint32_t>(pair, 0) = second;
+        at<uint32_t>(pair, 4) = first;
+    }
+    fr.call(0x00225a40, {0, E, 0, 0, R, 0}, {E, fr.a(0x7c0)});  // PhysRagdoll_RestoreBoneMatrices
+    fr.call(0x000b36e0, {0, E, P, 0, R, P});  // PhysRagdoll_PoseToBodies
+    fr.call(0x000b33e0, {0, E, P, 0, R, P});  // PhysRagdoll_SolveJointPositions
+    *fr.p(0x2c) = 0.0f;
+    *fr.p(0x28) = title_global<float>(0x0083ee38);  // 30
+    *fr.p(0x24) = 0.0f;
+    *fr.p(0x20) = 0.0f;
+    const Lanes lift = fr.ld(0x20);
+    fr.cp(0x20, ent + 0x140, 16);
+    fr.st(0x270, add(fr.ld(0x20), lift));
+    for (uint32_t id = 0; id < 10; ++id) {
+        const uint32_t c = fr.call(0x00224fc0, {0, E + 0x140, R, id, R, id});
+        if (c) fr.call(0x00225010, {fr.a(0x270), E + 0x140, c, id, R, id});  // PhysRagdoll_SetPivotAndMinBound
+    }
+    fr.call(0x000b38a0, {0, E + 0x140, P, 0, R, 10},
+            {bits_of(title_global<float>(0x008ff024) * title_global<float>(0x00989240))});  // PhysRagdoll_SetBodiesField134
 }
 
 }  // namespace game

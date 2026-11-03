@@ -8005,6 +8005,8 @@
 00225420 PhysObjDesc_Init
 00225480 Phys_MapLaunchType
 00225520 VehiclePhys_Destroy
+002255d0 FUN_002255d0
+002256b0 FUN_002256b0
 002257f0 Vehicle_RestoreTagMatrices
 00225a00 PhysRagdoll_DestroyBodies
 00225a40 PhysRagdoll_RestoreBoneMatrices
@@ -8033,7 +8035,7 @@
 00227bd0 PhysRagdoll_StoreLocalBasePose
 00228460 Ragdoll_CacheBaseBoneFrames
 00228870 Phys_AttachEntitiesAtPoints
-00228bc0 FUN_00228bc0
+00228bc0 VehiclePhys_DebugDrawAll
 00228bf0 VehiclePhys_TraceWheels
 00228ee0 VehiclePhys_AddContacts
 00229930 PhysRagdoll_GetBoundingSphere
@@ -8042,7 +8044,7 @@
 00229d20 RagdollCapsule_CollidePair
 00229f00 PhysObj_GetInheritedVelocity
 0022a0f0 PhysParts_WriteBoneMatrices
-0022a590 FUN_0022a590
+0022a590 VehiclePhys_SetupFromDef
 0022b0d0 RagdollBodyDef_FitToBones
 0022b500 Ragdoll_BlendBonePoses
 0022c0f0 Ragdoll_PropagateBoneMatrices
@@ -8072,16 +8074,18 @@
 00231670 G_FreeEntityPhysics
 00231710 VehiclePhys_RebuildPendingBody
 00231770 PhysRagdoll_Collide
-00231820 FUN_00231820
+00231820 Ragdoll_DrawJointsDebug
 00231860 PhysRagdoll_Build
 00233b80 Ragdoll_CollideAll
 00233bd0 G_VehiclePhysicsFrame
 00233c40 VehiclePhys_Init
-002341f0 FUN_002341f0
+002341f0 VehiclePhys_ApplyDriveInputs
+00234330 FUN_00234330
 00234380 Ragdoll_StartPhysics
 00234450 Phys_Init
 00234560 VehiclePhys_GetOrCreate
 002345a0 G_PhysicsLaunch
+002348a0 VehiclePhys_ApplyDriveInputsAll
 002348e0 Ragdoll_Free
 00234930 Ragdoll_Alloc
 00234a00 Mem_InitLargeBlockPools
