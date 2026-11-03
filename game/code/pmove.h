@@ -241,5 +241,11 @@ void XB_CDECL PM_UpdateAimSpread();
 void XB_CDECL PM_ViewHeightAdjust();
 // 0x002eea00: Q3's PM_LadderMove.
 void XB_CDECL PM_LadderMove();
+// 0x002eac90: Q3's PM_SlideMove (1 when it bumped).
+uint32_t XB_CDECL PM_SlideMove(uint32_t gravity);
+// 0x002ec330: Q3's PM_StepSlideMove.
+void XB_CDECL PM_StepSlideMove(uint32_t gravity);
+// 0x002efbe0: Q3's PM_WalkMove.
+void XB_CDECL PM_WalkMove();
 
 }  // namespace game
