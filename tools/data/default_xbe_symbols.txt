@@ -8264,7 +8264,7 @@
 00249160 VehPath_InitAtNode
 002492f0 PhysBody_Clear
 00249450 VehPath_UpdateSegment
-002496c0 FUN_002496c0
+002496c0 VehNode_FillUnsetAngles
 00249a40 multi_trigger
 00249ae0 AnimTree_HasAnimEnded
 00249b90 G_SetSpawnVarsFromList
@@ -8399,7 +8399,7 @@
 00252490 Touch_FriendlyChain
 002524d0 Touch_Multi
 00252530 Vehicle_MoveAlongPath
-002529c0 FUN_002529c0
+002529c0 Vehicle_GatherCollisionCandidates
 00252bd0 G_GetEntAnimTree
 00252c10 G_CheckMissionEnd
 002530a0 G_RegisterCvars
@@ -8457,7 +8457,7 @@
 00259df0 Vehicle_ClipAgainstEntities
 0025a400 Vehicle_ApplyPush
 0025a600 Vehicle_InitRecord
-0025a810 FUN_0025a810
+0025a810 Vehicle_GetTagOrigin
 0025a960 SP_func_door_rotating
 0025abe0 SP_func_pendulum
 0025ad50 SP_func_bobbing
@@ -8545,7 +8545,7 @@
 002664a0 Vehicle_PlayerDriveThink
 00266650 Vehicle_UpdateEngineSound
 00266b30 Vehicle_UpdateOverheat
-00266cd0 FUN_00266cd0
+00266cd0 Vehicle_PlayFxAtTag
 00266d50 Think_MatchTeam
 00266d70 Think_SpawnNewDoorTrigger
 00266fa0 ReturnToPos1Rotate
