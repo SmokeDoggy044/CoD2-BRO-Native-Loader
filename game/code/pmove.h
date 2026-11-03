@@ -229,4 +229,7 @@ void XB_CDECL PM_AirMove();
 extern "C" PLATFORM_HIDDEN void XB_CDECL Pmove(uint8_t* pm, uint32_t arg);
 extern "C" void Pmove_entry(void);
 
+// 0x002f1590 (cdecl pm, no-weapon flag; the pm slot is used as scratch): Q3's PmoveSingle.
+void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t no_weapon);
+
 }  // namespace game

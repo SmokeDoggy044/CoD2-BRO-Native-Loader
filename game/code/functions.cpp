@@ -4920,6 +4920,7 @@ const Function kFunctions[] = {
     {"PM_CheckFireButtonRelease", 0x002f0ef0, 0, code(&PM_CheckFireButtonRelease), 4, Result::Eax, Status::Compare},
     {"CL_InitRef", 0x002f10d0, 0, code(&CL_InitRef), 0, Result::None, Status::Replaced},
     {"PM_Weapon", 0x002f1220, 0, code(&PM_Weapon), 0, Result::None, Status::Compare},
+    {"PmoveSingle", 0x002f1590, 0, code(&PmoveSingle), 8, Result::None, Status::Compare},
     {"Pmove", 0x002f1c80, 0, code(&Pmove_entry), 4, Result::None, Status::Compare},
     {"SCR_DrawScreenField", 0x002f1d90, 0, code(&SCR_DrawScreenField_entry), 0, Result::None, Status::Compare},
     {"SCR_UpdateScreen", 0x002f1e60, 0, code(&SCR_UpdateScreen_entry), 0, Result::None, Status::Replaced},

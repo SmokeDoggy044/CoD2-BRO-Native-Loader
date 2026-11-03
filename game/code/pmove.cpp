@@ -3638,4 +3638,238 @@ void XB_CDECL Pmove(uint8_t* pm, uint32_t arg) {
     title_global<uint8_t*>(0x0092eff4) = nullptr;
 }
 
+
+namespace {
+
+// pm_time (+0x30) counts down by msec; at the end the time-knockback flags (0x40000, 0x2000, 0x200, 0x100) go.
+void pm_drop_time(uint8_t* pm) {
+    uint8_t* const ps = pm_ps_ref(pm);
+    const int32_t time = at<int32_t>(ps, 0x30);
+    if (!time) return;
+    const int32_t msec = title_global<int32_t>(0x0095ffa8);
+    if (msec >= time) {
+        at<uint32_t>(ps, 0x2c) &= 0xfffbdcffu;
+        at<uint32_t>(pm_ps_ref(pm), 0x30) = 0;
+    } else {
+        at<int32_t>(ps, 0x30) = time - msec;
+    }
+}
+
+void pm_leave_ground(uint8_t* pm) {
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) &= ~0x10u;
+    at<uint32_t>(pm_ps_ref(pm), 0x60) = 0;
+    title_global<uint32_t>(0x0095ffb0) = 0;
+    title_global<uint32_t>(0x0095ffac) = 0;
+}
+
+}  // namespace
+
+void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
+    // Q3's PmoveSingle: the lean move from the right stick (0x00929c2c +0x20: right move beyond +-0.5 becomes lean
+    // button 0x20 / 0x10), frozen or menu (0x0093fcd8 +0x20 = 1) commands cleared, prone weapon reset on a stronger
+    // move, the ADS / attack flags (+0xc0 0x200, pm_flags 0x400 / 0x800), pml cleared and filled (msec 1-200,
+    // previous origin / velocity, frametime), the view angles and axes, then by pm_type: 1 / 5 dead-ish (duck,
+    // timers, stamina, weapon, footsteps), 2 noclip, 3 flat noclip, else frozen (+0xc0 0x106000) or the full move
+    // (ground trace, prone tilt, ladder check, ladder / walk / air move, footsteps, weapon, contents event, flag
+    // events) with the velocity recomputed from the move when it is more than twice the moved distance per second.
+    const bool no_weapon = static_cast<uint8_t>(arg) != 0;
+    const uint32_t count = title_global<uint32_t>(0x0095f4d0);
+    const uint8_t* const lean_cvar = title_global<uint8_t*>(0x00929c2c);
+    pm[0x120] = 0;
+    pm[0x121] = 0;
+    title_global<uint8_t*>(0x0092eff4) = pm;
+    title_global<uint32_t>(0x0095f4d0) = count + 1;
+    if (at<uint32_t>(lean_cvar, 0x20)) {
+        const float right = static_cast<float>(static_cast<int8_t>(pm[0x19]));
+        if (right > title_global<float>(0x0083eb24))
+            pm[9] |= 0x20;
+        else if (title_global<float>(0x0083eb28) > right)
+            pm[9] |= 0x10;
+        pm[0x19] = 0;
+    }
+    uint8_t* ps = pm_ps_ref(pm);
+    if ((at<uint32_t>(ps, 0x2c) & 0x4000) || at<int32_t>(title_global<uint8_t*>(0x0093fcd8), 0x20) == 1) {
+        const uint8_t buttons = pm[9] & 0xc2;
+        pm[8] = 0;
+        pm[9] = buttons;
+        pm[0x18] = 0;
+        pm[0x19] = 0;
+        pm[0x1a] = 0;
+    }
+    at<uint32_t>(ps, 0x2c) &= ~0x8000u;
+    ps = pm_ps_ref(pm);
+    if (at<int32_t>(ps, 0x24) >= 4) at<uint32_t>(pm, 0x5c) &= 0xfdff3fffu;
+    uint8_t* const* const defs = title_global<uint8_t* const*>(0x0095f4d8);
+    title_global<uint8_t*>(0x00960020) = defs[at<int32_t>(ps, 0x80)];
+    ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    bool clear_400 = true;
+    if ((flags & 1) && at<int32_t>(cur_weapon_def(), 0x94) != 1) {
+        const auto stronger = [](uint8_t now, uint8_t old) {
+            const int32_t a = static_cast<int8_t>(now), b = static_cast<int8_t>(old);
+            return now != old && (a < 0 ? -a : a) > (b < 0 ? -b : b);
+        };
+        if (stronger(pm[0x18], pm[0x44]) || stronger(pm[0x19], pm[0x45])) {
+            clear_400 = false;
+            if (PM_ResetWeaponToIdle()) {
+                at<uint32_t>(pm_ps_ref(pm), 0x2c) &= ~0x400u;
+                at<uint32_t>(pm_ps_ref(pm), 0x2c) &= ~0x20u;
+            }
+        } else if (flags & 0x20) {
+            clear_400 = false;
+        } else {
+            const int32_t state = at<int32_t>(ps, 0x84);
+            clear_400 = state == 0 || state == 1 || state == 2 || state == 5;
+        }
+    }
+    if (clear_400) at<uint32_t>(ps, 0x2c) &= ~0x400u;
+    if (at<uint32_t>(pm_ps_ref(pm), 0x2c) & 0x10000) PM_ResetWeaponToAnimA();
+    ps = pm_ps_ref(pm);
+    int32_t mount;
+    if (at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x424))
+        mount = 2;
+    else
+        mount = at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x420) ? 1 : 0;
+    if ((at<uint8_t>(ps, 0x2c) & 0x20) && mount == 1) {
+        pm[0x18] = 0;
+        pm[0x19] = 0;
+    }
+    ps = pm_ps_ref(pm);
+    if ((at<uint8_t>(ps, 0x2c) & 0x20) && at<int32_t>(defs[at<int32_t>(ps, 0x80)], 0x98) == 3) {
+        pm[0x18] = 0;
+        pm[0x19] = 0;
+    }
+    at<uint32_t>(pm_ps_ref(pm), 0xc0) &= ~0x200u;
+    ps = pm_ps_ref(pm);
+    const uint32_t f2 = at<uint32_t>(ps, 0x2c);
+    if (!(f2 & 0x800)) {
+        const int32_t state = at<int32_t>(ps, 0x84);
+        if (state == 0 || state == 3) {
+            const uint32_t clip = at<uint32_t>(ps, 0x280 + at<uint32_t>(defs[at<int32_t>(ps, 0x80)], 0x5a0) * 4);
+            if ((clip || (at<uint32_t>(ps, 0xc0) & 0x6000)) && !(f2 & 0x10000) && (pm[8] & 1))
+                at<uint32_t>(ps, 0xc0) |= 0x200;
+        }
+    }
+    ps = pm_ps_ref(pm);
+    if (at<int32_t>(ps, 0x24) < 4 && !(pm[8] & 1)) at<uint32_t>(ps, 0x2c) &= ~0x800u;
+    for (uint32_t i = 0; i < 0x2c; ++i) title_global<uint32_t>(0x0095ff80 + i * 4) = 0;
+    const int32_t msec = at<int32_t>(pm, 4) - at<int32_t>(pm_ps_ref(pm), 0x20);
+    title_global<int32_t>(0x0095ffa8) = msec;
+    if (msec < 1)
+        title_global<int32_t>(0x0095ffa8) = 1;
+    else if (msec > 0xc8)
+        title_global<int32_t>(0x0095ffa8) = 0xc8;
+    at<uint32_t>(pm_ps_ref(pm), 0x20) = at<uint32_t>(pm, 4);
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(0x00960004 + i * 4) = at<uint32_t>(pm_ps_ref(pm), i * 4);
+    for (uint32_t i = 0; i < 3; ++i)
+        title_global<uint32_t>(0x00960010 + i * 4) = at<uint32_t>(pm_ps_ref(pm), 0x10 + i * 4);
+    title_global<float>(0x0095ffa4) =
+        static_cast<float>(title_global<int32_t>(0x0095ffa8)) * title_global<float>(0x0083eb4c);  // 0.001
+    ps = pm_ps_ref(pm);
+    title_global<uint8_t*>(0x00960020) = defs[at<int32_t>(ps, 0x80)];
+    title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002bba50)(at<uint32_t>(ps, 0x80));
+    using ViewAngles = void XB_REGS1 XB_CDECL(uint8_t*, uint8_t*, uint8_t*, uint32_t);
+    title_function<ViewAngles>(0x002e5530)(pm_ps_ref(pm), pm + 4, pm + 0x30, at<uint32_t>(pm, 0x138));  // PM_UpdateViewAngles
+    uint8_t* const p = pm_global();
+    uint32_t axis_args[2] = {address_of(pm_ps_ref(p) + 0x9c), 0x0095ff80};
+    AnglesToAxis(axis_args, &title_global<float>(0x0095ff8c), &title_global<float>(0x0095ff98));
+    if (static_cast<int8_t>(p[0x1a]) < 10) at<uint32_t>(pm_ps_ref(p), 0x2c) &= ~8u;
+    const int8_t forward = static_cast<int8_t>(p[0x18]);
+    if (forward < 0)
+        at<uint32_t>(pm_ps_ref(p), 0x2c) |= 0x40;
+    else if (forward > 0 || p[0x19])
+        at<uint32_t>(pm_ps_ref(p), 0x2c) &= ~0x40u;
+    ps = pm_ps_ref(p);
+    if (at<int32_t>(ps, 0x24) >= 4) {
+        p[0x18] = 0;
+        p[0x19] = 0;
+        p[0x1a] = 0;
+    }
+    if (mount == 1 && (at<uint32_t>(ps, 0x2c) & 0x400)) {
+        p[0x18] = 0;
+        p[0x19] = 0;
+    }
+    using Void = void XB_CDECL();
+    switch (at<int32_t>(ps, 0x24)) {
+    case 1:
+    case 5:
+        pm_leave_ground(p);
+        PM_UpdateAdsState();
+        PM_UpdateButtonFlag80();
+        PM_UpdateSprintFlag();
+        title_function<Void>(0x002ef090)();  // PM_CheckDuck
+        PM_DropTimers();
+        PM_UpdateStaminaMeter();
+        if (!no_weapon) PM_Weapon();
+        PM_Footsteps();
+        return;
+    case 2:
+    case 3:
+        at<uint32_t>(ps, 0x2c) &= ~0x10u;
+        PM_UpdateAdsState();
+        PM_UpdateButtonFlag80();
+        PM_UpdateSprintFlag();
+        if (at<int32_t>(ps, 0x24) == 2)
+            PM_NoclipMove();
+        else
+            PM_NoclipFlatMove();
+        if (!no_weapon) PM_Weapon();
+        PM_DropTimers();
+        PM_UpdateStaminaMeter();
+        return;
+    default:
+        break;
+    }
+    if (at<uint32_t>(ps, 0xc0) & 0x106000) {
+        pm_leave_ground(p);
+        PM_UpdateAdsState();
+        PM_UpdateButtonFlag80();
+        PM_UpdateSprintFlag();
+        title_function<Void>(0x002ef090)();  // PM_CheckDuck
+        pm_drop_time(pm_global());
+        PM_UpdateStaminaMeter();
+        PM_UpdateAimDownSightFrac();
+        PM_Footsteps();
+        return;
+    }
+    title_global<uint32_t>(0x0096001c) = pm[0x121];
+    title_function<Void>(0x002ef090)();  // PM_CheckDuck
+    PM_GroundTrace();
+    PM_UpdateAdsState();
+    PM_UpdateButtonFlag80();
+    PM_UpdateSprintFlag();
+    PM_UpdateProneTilt();
+    if (at<int32_t>(pm_ps_ref(pm_global()), 0x24) == 4) PM_ReduceGroundSpeed();  // ESI = 4 here
+    PM_DetectLadder();
+    uint8_t* const q = pm_global();
+    pm_drop_time(q);
+    PM_UpdateStaminaMeter();
+    if (at<uint8_t>(pm_ps_ref(q), 0x2c) & 0x10)
+        title_function<Void>(0x002eea00)();  // PM_LadderMove
+    else if (title_global<uint32_t>(0x0095ffac))
+        title_function<Void>(0x002efbe0)();  // PM_WalkMove
+    else if (title_global<uint8_t>(0x008fef48))
+        PM_AirMove();
+    PM_GroundTrace();
+    PM_Footsteps();
+    if (!no_weapon) {
+        PM_Weapon();
+        PM_PeriodicContentsEvent();
+    }
+    PM_AddFlagChangeEvents();
+    uint8_t* const r = pm_ps_ref(pm_global());
+    const float vx = at<float>(r, 0x10), vy = at<float>(r, 0x14), vz = at<float>(r, 0x18);
+    const float dy = at<float>(r, 4) - title_global<float>(0x00960008);
+    const float dz = at<float>(r, 8) - title_global<float>(0x0096000c);
+    const float dx = at<float>(r, 0) - title_global<float>(0x00960004);
+    const float ft = title_global<float>(0x0095ffa4);
+    const float moved = ((dz * dz + dy * dy) + dx * dx) / (ft * ft);
+    const float speed = ((vx * vx + vy * vy) + vz * vz) * title_global<float>(0x0083ec24);  // 0.25
+    if (!(speed > moved)) return;
+    const float one = title_global<float>(0x0083eb20);
+    at<float>(r, 0x10) = one / title_global<float>(0x0095ffa4) * dx;
+    at<float>(pm_ps_ref(pm_global()), 0x14) = one / title_global<float>(0x0095ffa4) * dy;
+    at<float>(pm_ps_ref(pm_global()), 0x18) = one / title_global<float>(0x0095ffa4) * dz;
+}
+
 }  // namespace game
