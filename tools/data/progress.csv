@@ -10037,8 +10037,8 @@ address,name,section,module,state,tested,matched
 002f2630,CL_Frame,.text,client,replaced,8705,343
 002f2890,CL_MapLoading,.text,client,replaced,299,76
 002f2930,Console_KeyDownEvent,.text,client,untested,0,0
-002f2ad0,CL_StartHunkUsersAndPause,.text,client,named,0,0
-002f2b00,FUN_002f2b00,.text,client,unnamed,0,0
+002f2ad0,CL_StartHunkUsersAndPause,.text,client,untested,0,0
+002f2b00,CL_UpdateLoadingProgress,.text,client,settled,122,119
 002f2b20,Console_SubmitLine,.text,client,untested,0,0
 002f2b80,VM_Create,.text,script,named,0,0
 002f2d30,SV_InitGameProgs,.text,server,settled,110,110
@@ -11196,7 +11196,7 @@ address,name,section,module,state,tested,matched
 0033a750,UI_ShowDiscErrorScreen,.text,client,set-aside,0,0
 0033aa20,UI_ShowDamagedDiscScreen,.text,client,set-aside,0,0
 0033ac10,SCR_UpdateLoadingDots,.text,client,replaced,255,255
-0033ac80,FUN_0033ac80,.text,mslib,unnamed,0,0
+0033ac80,LoadScreen_SetProgress,.text,mslib,named,0,0
 0033acda,LIBCMT::__CIfmod,.text,mslib,library,0,0
 0033acf4,LIBCMT::__CIsqrt,.text,mslib,library,0,0
 0033ad11,FUN_0033ad11,.text,mslib,unnamed,0,0

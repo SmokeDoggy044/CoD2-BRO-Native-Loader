@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 4,907 have been
+It's early days: about 73% of the functions have a name, and 4,908 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,288 | 9,091 | 4,907 | 6,381 |
+| Engine and game code (`.text`) | 11,288 | 9,093 | 4,908 | 6,380 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,612** | **12,079** | **4,907** | **11,705** |
+| **Total** | **16,612** | **12,081** | **4,908** | **11,704** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -51,7 +51,7 @@ We've also named 2,659 of the game's global variables.
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 300 | 294 | 0 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 875 | 66 | 70 | 0 | 0 |
-| Client and menus | 770 | 617 | 109 | 42 | 1 | 1 |
+| Client and menus | 770 | 618 | 110 | 42 | 0 | 0 |
 | Server | 80 | 71 | 9 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
@@ -60,7 +60,7 @@ We've also named 2,659 of the game's global variables.
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
-| Microsoft library code built into the game (replaced, not rewritten) | 2,082 | 0 | 0 | 0 | 11 | 464 |
+| Microsoft library code built into the game (replaced, not rewritten) | 2,082 | 0 | 0 | 0 | 12 | 463 |
 | Not sorted into a part yet | 62 | 3 | 0 | 7 | 3 | 49 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C

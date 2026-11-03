@@ -14652,3 +14652,5 @@ address,name,kind,confidence,evidence
 002f2b20,Console_SubmitLine,function,high,"client (ai push 18; dead)"
 002f2ad0,CL_StartHunkUsersAndPause,function,high,"client gap created 11-03 (dead: CL_StartHunkUsers, r_uiFullScreen 0, SCR_UpdateScreen, cl_paused 1)"
 002f2b00,FUN_002f2b00,function,high,"client gap created 11-03 (callback stored by SV_SpawnServer at 0x002f34d7: S_UpdateChannels, 0x0033ac80)"
+002f2b00,CL_UpdateLoadingProgress,function,high,"client (ai push 19): pak load-progress callback"
+0033ac80,LoadScreen_SetProgress,function,high,"ui/front end (named by ai push 19): set-progress dispatcher by g_currentChapter"

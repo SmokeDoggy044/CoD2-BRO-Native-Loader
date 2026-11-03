@@ -10038,7 +10038,7 @@
 002f2890 CL_MapLoading
 002f2930 Console_KeyDownEvent
 002f2ad0 CL_StartHunkUsersAndPause
-002f2b00 FUN_002f2b00
+002f2b00 CL_UpdateLoadingProgress
 002f2b20 Console_SubmitLine
 002f2b80 VM_Create
 002f2d30 SV_InitGameProgs
@@ -11196,7 +11196,7 @@
 0033a750 UI_ShowDiscErrorScreen
 0033aa20 UI_ShowDamagedDiscScreen
 0033ac10 SCR_UpdateLoadingDots
-0033ac80 FUN_0033ac80
+0033ac80 LoadScreen_SetProgress
 0033acda LIBCMT::__CIfmod
 0033acf4 LIBCMT::__CIsqrt
 0033ad11 FUN_0033ad11
