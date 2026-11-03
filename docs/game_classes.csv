@@ -401,3 +401,6 @@
 002256b0,VehiclePhys_ApplyWheelFriction,dead,"only caller 0x00234321 in VehiclePhys_ApplyDriveInputs (dead); no immediate or pointer (xbefind 2026-11-03); offline leaf test 2322/2322 matched, 100% coverage"
 000b6390,PhysConstraint28c_SetMotor,dead,"only callers 0x00225648/0x0022567f in VehiclePhys_ApplyWheelMotors (dead); no immediate or pointer (xbefind 2026-11-03); offline leaf test 3043/3043 matched, 100% coverage"
 000b63c0,PhysConstraint28c_SetBrake,dead,"only caller 0x00225695 in VehiclePhys_ApplyWheelMotors (dead); no immediate or pointer (xbefind 2026-11-03); offline leaf test 3119/3119 matched, 100% coverage"
+002611e0,Vehicle_PlaneSlideMove,dead,"no CALL/JMP and no immediate or pointer to 0x002611e0 (xbefind imm + call 2026-11-03); C kept"
+0025bd10,Vehicle_SlideMove,not reached,"only Vehicle_GroundMove (tank driving, itself never reached); 0 calls in missions 1,4,5,6 (--only --every 1, press list); leaf test not eligible (indirect call in CM_GatherQuadTreeCandidates_r)"
+00259df0,Vehicle_ClipAgainstEntities,matched offline,"only Vehicle_SlideMove; 0 calls in missions 1,4,5,6 (--only --every 1); offline leaf test 2716/2716 matched, 51% coverage"

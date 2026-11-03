@@ -440,4 +440,15 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, u
                                                           uint32_t edi, uint32_t ebp);
 extern "C" void Weapon_MeleeTrace_entry(void);
 
+// 0x00259df0 (cdecl ent, triangle list, brush list, entity record, point, radius, out; AL): pushes a sphere out of
+// the candidates Vehicle_GatherCollisionCandidates found (entity models in their frame, brushes, triangles).
+uint8_t XB_CDECL Vehicle_ClipAgainstEntities(uint8_t* ent, uint8_t* triangles, uint8_t* brushes, const uint8_t* record,
+                                             const float* point, float radius, float* out);
+// 0x0025bd10 (entity in EBX; msec, move, force): three spheres along the vehicle pushed out of the world and
+// entities; with `move` the end point becomes the origin, a hard enough push an impulse. Returns the push count.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, uint32_t force);
+extern "C" void Vehicle_SlideMove_entry(void);
+// 0x002611e0 (dead): Q3's PM_SlideMove for a vehicle's motion (ent, gravity flag, msec).
+uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t msec);
+
 }  // namespace game

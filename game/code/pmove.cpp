@@ -4,12 +4,14 @@
 
 #include "actor.h"
 #include "bg_misc.h"
+#include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "cgame.h"
 #include "g_vehicle.h"
 #include "g_main.h"
 #include "g_utils.h"
 #include "lanes.h"
+#include "ngl_debug.h"
 #include "cm.h"
 #include "fx.h"
 #include "qcommon.h"
@@ -5497,6 +5499,451 @@ uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t e
     if (out_front) *out_front = fl(0x1c);
     if (out_back) *out_back = fl(0x20);
     return 1;
+}
+
+namespace {
+
+// b > |a| and b >= |a| on the x87 (FABS, FCOMIP with b on top; false when unordered).
+bool x87_greater_abs(float b, float a) {
+    bool r;
+    __asm__("flds %1\n\tfabs\n\tflds %2\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(r)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return r;
+}
+bool x87_greater_equal_abs(float b, float a) {
+    bool r;
+    __asm__("flds %1\n\tfabs\n\tflds %2\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tsetae %0"
+            : "=q"(r)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return r;
+}
+
+float bits_abs(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    bits &= 0x7fffffffu;
+    std::memcpy(&f, &bits, 4);
+    return f;
+}
+
+// x wrapped into [0, 360) by whole turns (the title's add/subtract loops).
+float wrap360(float x) {
+    const float full = title_global<float>(0x0083ebcc);
+    if (0.0f > x) {
+        do x = x + full;
+        while (0.0f > x);
+    } else if (x >= full) {
+        do x = x - full;
+        while (x >= full);
+    }
+    return x;
+}
+
+// The title's 16-bit angle step: (int)(a * 182.044) & 0xffff.
+int32_t angle_short(float a) { return static_cast<int32_t>(a * title_global<float>(0x0083ebd8)) & 0xffff; }
+
+// PM_CheckProneYaw (0x002e2e40: player state in EAX, yaw in XMM0, one cdecl word).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL pmva_check_prone_yaw(uint8_t* ps, float yaw, uint32_t trace);
+PLATFORM_ASM_ENTRY(pmva_check_prone_yaw,
+                   "movl 4(%esp), %eax\n"
+                   "movss 8(%esp), %xmm0\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x002e2e40, %ecx\n"
+                   "call *%ecx\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+// BG_CheckProneFeet (0x002dc6f0) for the player at `yaw`: height 30, back distance 45, no outputs.
+uint32_t pmva_feet_fit(uint8_t* ps, uint32_t yaw_bits, uint32_t trace) {
+    using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                      uint32_t, uint32_t, uint32_t);
+    return title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, yaw_bits, 0, 0, 0, trace,
+                                                      0x42340000u);
+}
+
+uint32_t float_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, const uint8_t* old, uint32_t trace) {
+    // Q3's PM_UpdateViewAngles with BRO's limits: pm_type 4+ only leans. The pitch delta (+0x54) keeps cmd pitch +
+    // delta within +-16000 short units (+-12000 on a turret, +0xc0 0x100000; +-6000 when +0x4e8 = 2), then the view
+    // angles (+0x9c) from cmd +8 + the deltas. On a turret the pm's arcs (pm +0x70, about its +0x64) clamp all
+    // three; else, flag 0x10 without a ground entity +0x60, the yaw stays within 0x009352a4 degrees of the turned-
+    // away direction +0x64. Prone (flag 1, or 0x20 aiming a mode-3 weapon; not +0xc0 0x106000) keeps the yaw within
+    // 0x0092e95c (mode 3: 0x00927dfc) of the prone yaw +0x450, turning the body after it when the feet fit
+    // (PM_CheckProneYaw, BG_CheckProneFeet; 55 degrees a second x 0x0095ffa4), the pitch within 45 of +0x458;
+    // a stopped turn (flag 0x8000) eases a reversed turn back by 0.98. Then sticky aim and the lean (not pm_type
+    // 2 / 3). 0x00950bcc draws the prone direction.
+    if (at<int32_t>(ps, 0x24) >= 4) {
+        const TitleRegs regs{address_of(cmd), 0, 0, 0, 0, address_of(ps)};
+        g_ent_call(0x002dc3b0, &regs, 1, &trace);  // PM_UpdateLean
+        return;
+    }
+    const float scale = title_global<float>(0x0083ebd4);  // 360 / 65536
+    const float half = title_global<float>(0x0083eb60);   // 180
+    const float full = title_global<float>(0x0083ebcc);   // 360
+    const float old_yaw = at<float>(ps, 0xa0);
+    int16_t pitch = static_cast<int16_t>(at<uint16_t>(cmd, 8) + at<uint16_t>(ps, 0x54));
+    int32_t limit = 0x3e80;
+    if (at<uint32_t>(ps, 0xc0) & 0x100000) limit = at<int32_t>(ps, 0x4e8) == 2 ? 0x1770 : 0x2ee0;
+    if (pitch > limit) {
+        at<int32_t>(ps, 0x54) = limit - at<int32_t>(cmd, 8);
+        pitch = static_cast<int16_t>(limit);
+    } else if (pitch < -limit) {
+        at<int32_t>(ps, 0x54) = -(at<int32_t>(cmd, 8) + limit);
+        pitch = static_cast<int16_t>(-limit);
+    }
+    float* const view = &at<float>(ps, 0x9c);
+    view[0] = static_cast<float>(pitch) * scale;
+    view[1] = static_cast<float>(static_cast<int16_t>(at<uint16_t>(cmd, 0xc) + at<uint16_t>(ps, 0x58))) * scale;
+    view[2] = static_cast<float>(static_cast<int16_t>(at<uint16_t>(ps, 0x5c) + at<uint16_t>(cmd, 0x10))) * scale;
+    const float new_yaw = view[1];
+    if (at<uint32_t>(ps, 0xc0) & 0x100000) {
+        const uint8_t* const pmv = title_global<uint8_t*>(0x0092eff4);
+        if (pmv) {
+            const float* const arc = &at<float>(pmv, 0x70);
+            if (!(arc[0] == 0.0f && arc[1] == 0.0f && arc[2] == 0.0f)) {
+                for (uint32_t k = 0; k < 3; ++k) {
+                    if (x87_greater_abs(title_global<float>(0x0083eb20), arc[k])) continue;  // under 1 degree: free
+                    const float* const centre = &at<float>(pmv, 0x64 + k * 4);
+                    const float d = short_angle_delta(*centre, view[k]);
+                    if (!x87_abs_greater(d, bits_abs(arc[k]))) continue;
+                    const float excess = d > arc[k] ? d - arc[k] : arc[k] + d;
+                    at<int32_t>(ps, 0x54 + k * 4) += angle_short(excess);
+                    view[k] = excess > 0.0f ? wrap360(*centre - arc[k]) : wrap360(arc[k] + *centre);
+                }
+            }
+        }
+    } else if ((at<uint8_t>(ps, 0x2c) & 0x10) && !at<uint32_t>(ps, 0x60) && title_global<int32_t>(0x009352a4)) {
+        const int32_t arc = title_global<int32_t>(0x009352a4);
+        const float away = vectoyaw(&at<float>(ps, 0x64)) + half;
+        const float d = short_angle_delta(away, at<float>(ps, 0xa0));
+        const float arc_f = static_cast<float>(arc);
+        if (d > arc_f || static_cast<float>(-arc) > d) {
+            const float excess = d > arc_f ? d - arc_f : arc_f + d;
+            at<int32_t>(ps, 0x58) += angle_short(excess);
+            const float arc_now = static_cast<float>(title_global<int32_t>(0x009352a4));
+            at<float>(ps, 0xa0) = excess > 0.0f ? wrap360(away - arc_now) : wrap360(arc_now + away);
+        }
+    }
+    if (!(at<uint32_t>(ps, 0xc0) & 0x106000)) {
+        const uint32_t flags = at<uint32_t>(ps, 0x2c);
+        const uint8_t* const wdef = title_global<uint8_t*>(title_global<uint32_t>(0x0095f4d8) + at<uint32_t>(ps, 0x80) * 4);
+        if ((flags & 1) || ((flags & 0x20) && at<int32_t>(wdef, 0x98) == 3)) {
+            if (title_global<uint32_t>(0x00950bcc)) {
+                const float start[3] = {at<float>(ps, 0), at<float>(ps, 4),
+                                        static_cast<float>(at<int32_t>(ps, 0x420)) + at<float>(ps, 8)};
+                const float deg = title_global<float>(0x0083edd8);
+                float ys, yc, pps, pc;
+                FastSinCos(&ys, 0, &yc, at<float>(ps, 0xa0) * deg);
+                FastSinCos(&pps, 0, &pc, at<float>(ps, 0x9c) * deg);
+                const float len = title_global<float>(0x0083eb00);  // 18
+                const float up = 0.0f - pps;
+                float end[3];
+                end[0] = (pc * yc) * len + start[0];
+                end[1] = (pc * ys) * len + start[1];
+                end[2] = up * len + start[2];
+                DebugDraw_AddLine(end, start, &title_global<float>(0x0082eb9c), 1, 1, 1, 0);
+            }
+            float d = short_angle_delta(at<float>(ps, 0x450), at<float>(ps, 0xa0));
+            uint32_t turned = 0;
+            const int32_t mode = at<int32_t>(title_global<uint8_t*>(title_global<uint32_t>(0x0095f4d8) + at<uint32_t>(ps, 0x80) * 4), 0x98);
+            float lim = static_cast<float>(title_global<int32_t>(0x0092e95c));
+            if (mode == 3) lim = static_cast<float>(title_global<int32_t>(0x00927dfc));
+            const uint32_t flags2 = at<uint32_t>(ps, 0x2c);
+            if ((flags2 & 1) && !(mode == 3 && (flags2 & 0x20))) {
+                const float lim5 = lim - title_global<float>(0x0083ece8);  // 5
+                bool turn = d > lim5 || 0.0f - lim5 > d;
+                if (!turn && (at<uint8_t>(cmd, 0x14) || at<uint8_t>(cmd, 0x15)) && !(d == 0.0f)) turn = true;
+                if (turn) {
+                    // Turn the body (prone yaw) toward the view by up to 55 degrees a second, then degree by degree.
+                    const float step = platform_x87_mul(title_global<float>(0x0095ffa4), title_global<float>(0x0083f14c));
+                    float target;
+                    if (x87_greater_abs(step, d))
+                        target = at<float>(ps, 0xa0);
+                    else if (d > 0.0f)
+                        target = at<float>(ps, 0x450) - step;
+                    else
+                        target = step + at<float>(ps, 0x450);
+                    bool fit = pmva_check_prone_yaw(ps, target, trace) != 0;
+                    uint32_t going = 1;
+                    while (!fit && going) {
+                        const float t = short_angle_delta(at<float>(ps, 0x450), target);
+                        float s;
+                        if (x87_abs_greater(t, title_global<float>(0x0083eb20))) {
+                            going = 1;
+                            s = t > 0.0f ? title_global<float>(0x0083eb20) : title_global<float>(0x0083eb34);  // 1 / -1
+                        } else {
+                            going = 0;
+                            turned = 1;
+                            s = t;
+                        }
+                        target = wrap360(target + s);
+                        fit = pmva_check_prone_yaw(ps, target, trace) != 0;
+                    }
+                    if (fit) {
+                        if (!pmva_feet_fit(ps, at<uint32_t>(ps, 0xa0), trace) || !pmva_feet_fit(ps, float_bits(target), trace))
+                            turned = 1;
+                        else
+                            at<float>(ps, 0x450) = target;
+                    }
+                }
+            }
+            float d2 = short_angle_delta(at<float>(ps, 0x450), at<float>(ps, 0xa0));
+            if (!(d2 == 0.0f) && (at<uint8_t>(ps, 0x2c) & 1) &&
+                at<int32_t>(title_global<uint8_t*>(title_global<uint32_t>(0x0095f4d8) + at<uint32_t>(ps, 0x80) * 4), 0x98) != 3) {
+                // The feet don't fit the prone yaw: bring the view toward it degree by degree.
+                float target = at<float>(ps, 0x450);
+                uint32_t going = 1;
+                for (;;) {
+                    const uint32_t fit = pmva_feet_fit(ps, float_bits(target), trace);
+                    if (fit && pmva_check_prone_yaw(ps, target, trace)) {
+                        at<float>(ps, 0x450) = target;
+                        break;
+                    }
+                    if (!going) break;
+                    float s;
+                    if (x87_abs_greater(d2, title_global<float>(0x0083eb20))) {
+                        going = 1;
+                        s = d2 > 0.0f ? title_global<float>(0x0083eb20) : title_global<float>(0x0083eb34);
+                    } else {
+                        going = 0;
+                        s = d2;
+                    }
+                    at<int32_t>(ps, 0x58) += angle_short(s);
+                    turned = 1;
+                    const float yaw = wrap360(s + at<float>(ps, 0xa0));
+                    at<float>(ps, 0xa0) = yaw;
+                    d2 = short_angle_delta(at<float>(ps, 0x450), yaw);
+                    if (!fit) target = wrap360(d2 + target);
+                }
+            }
+            if (d2 > lim || 0.0f - lim > d2) {
+                const float excess = d2 > lim ? d2 - lim : lim + d2;
+                at<int32_t>(ps, 0x58) += angle_short(excess);
+                at<float>(ps, 0xa0) = excess > 0.0f ? wrap360(at<float>(ps, 0x450) - lim) : wrap360(at<float>(ps, 0x450) + lim);
+            }
+            if (turned) {
+                at<uint32_t>(ps, 0x2c) |= 0x8000;
+                const float back = short_angle_delta(old_yaw, at<float>(ps, 0xa0));
+                if (x87_greater_equal_abs(title_global<float>(0x0083eb20), back)) {
+                    const float ahead = short_angle_delta(new_yaw, at<float>(ps, 0xa0));
+                    if (ahead * back > 0.0f) {
+                        const float s = back * title_global<float>(0x0083f148);  // 0.98
+                        const float yaw = wrap360(s + at<float>(ps, 0xa0));
+                        at<int32_t>(ps, 0x58) += angle_short(s);
+                        at<float>(ps, 0xa0) = yaw;
+                    }
+                }
+            }
+            const float dp = short_angle_delta(at<float>(ps, 0x458), at<float>(ps, 0x9c));
+            const float pitch_arc = title_global<float>(0x0083ef1c);  // 45
+            if (dp > pitch_arc || title_global<float>(0x0083ef18) > dp) {
+                const float excess = dp > pitch_arc ? dp - pitch_arc : dp + pitch_arc;
+                at<int32_t>(ps, 0x54) += angle_short(excess);
+                float x = excess > 0.0f ? at<float>(ps, 0x458) - pitch_arc : at<float>(ps, 0x458) + pitch_arc;
+                const float low = title_global<float>(0x0083ebd0);  // -180
+                if (low >= x) {
+                    do x = x + full;
+                    while (low >= x);
+                } else if (x > half) {
+                    do x = x - full;
+                    while (x > half);
+                }
+                at<float>(ps, 0x9c) = x;
+            }
+        }
+    }
+    using StickyAim = void XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint8_t*, const uint8_t*, const uint8_t*);
+    title_function<StickyAim>(0x002db7d0)(0, 0, ps, cmd, old);  // PM_UpdateStickyAim
+    const int32_t type = at<int32_t>(ps, 0x24);
+    if (type != 3 && type != 2) {
+        const TitleRegs regs{address_of(cmd), 0, 0, 0, address_of(cmd), address_of(ps)};
+        g_ent_call(0x002dc3b0, &regs, 1, &trace);  // PM_UpdateLean
+    }
+}
+
+namespace {
+
+// The title's packed length: lane 0 = sqrt of (x*x + y*y) + z*z by RSQRTSS and one Newton step
+// (((3 - a * r) * a) * 0.5, a = len2 * r); a 0 or NaN square keeps the square.
+float sticky_length(const Lanes& v) {
+    const Lanes sq = mul(v, v);
+    const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+    if (len2 == title_global<float>(0x0082e680) || len2 != len2) return len2;  // UCOMISS + JNE
+    const float r = platform_rsqrt_estimate(len2);
+    const float a = len2 * r;
+    return ((title_global<float>(0x0082e660) - a * r) * a) * title_global<float>(0x0082e670);  // 3, 0.5
+}
+
+const uint8_t* entity_of_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return title_global<const uint8_t*>(0x0097a968 + index * 8);
+    return nullptr;
+}
+
+Lanes const_lanes(uint32_t address) { return lanes(&title_global<float>(address)); }
+
+void sticky_line(const Lanes& end, const Lanes& start, uint32_t color, int32_t frames) {
+    DebugDraw_AddLine(end.v, start.v, &title_global<float>(color), 1, frames, 1, 0);
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const uint8_t* cmd, const uint8_t* old) {
+    // Player state in ECX. Aim assist: the eye ray (view angles) against each active squad-1 actor's vertical
+    // plane facing the eye (RayPlaneIntersectFrac); a hit nearer than the best so far (first the client's +0x5fc +
+    // 35) inside a box growing with distance (radius (s + 1) * 25, height 70 / 60 crouched / 30 prone times s * 0.1
+    // + 1, down to -5 x that; s = distance / 410 in 0..2) is the target. While locked (+0x500, entity +0x504, offset
+    // +0x508) on a target (not mode-8 weapons), the aim moves 0.35..0.65 (by distance 200..750) of the way from the
+    // ray's hit toward the locked point and the view angles (and deltas) follow when the command turned or moved
+    // or +0x88 is in (0, 1). A target beyond 130 locks (again), else the lock ends. 0x00929b50 +0x20 = 1 draws it.
+    const float* const view = &at<float>(ps, 0x9c);
+    const Lanes eye{{at<float>(ps, 0), at<float>(ps, 4), at<float>(ps, 0xac) + at<float>(ps, 8), at<float>(ps, 0)}};
+    const float deg = title_global<float>(0x0083edd8);
+    float ys, yc, pps, pc;
+    FastSinCos(&ys, 0, &yc, view[1] * deg);
+    FastSinCos(&pps, 0, &pc, view[0] * deg);
+    const float fx = pc * yc;
+    const Lanes fwd{{fx, pc * ys, 0.0f - pps, fx}};
+    uint8_t found = 0;
+    const uint8_t* best = nullptr;
+    Lanes best_hit{};
+    const uint8_t* const self = entity_of_handle(at<uint32_t>(ps, 0x7c));
+    float range = at<float>(at<uint8_t*>(self, 0x23c), 0x5fc) + title_global<float>(0x0083f09c);  // 35
+    const bool draw = at<int32_t>(title_global<uint8_t*>(0x00929b50), 0x20) == 1;
+    for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
+        const uint8_t* const actor = title_global<uint8_t*>(slot);
+        if (!actor || at<int32_t>(actor, 0x1360) < 0 || at<int32_t>(at<uint8_t*>(actor, 4), 4) != 1) continue;
+        const uint8_t* const e = at<uint8_t*>(actor, 0);
+        const Lanes pos{{at<float>(e, 0x140), at<float>(e, 0x144), at<float>(e, 0x148), at<float>(e, 0x140)}};
+        alignas(16) Lanes d = sub(eye, pos);
+        const float dist = sticky_length(d);
+        d.v[2] = 0.0f;
+        alignas(16) const Lanes pos_a = pos, eye_a = eye, fwd_a = fwd;
+        const float t = RayPlaneIntersectFrac(pos_a.v, d.v, eye_a.v, fwd_a.v);
+        if (!platform_x87_greater(t, title_global<float>(0x0083eafc)) || !(range > t)) continue;
+        const Lanes hit = add(eye, mul(fwd, t));
+        Lanes off = sub(hit, pos);
+        const float off_z = off.v[2];
+        off.v[2] = 0.0f;
+        const float flat = sticky_length(off);
+        float s = dist * title_global<float>(0x0083f098);  // 1 / 410
+        if (0.0f > s)
+            s = 0.0f;
+        else if (s > title_global<float>(0x0083eba8))  // 2
+            s = title_global<float>(0x0083eba8);
+        const float one = title_global<float>(0x0083eb20);
+        const float grow = s * title_global<float>(0x0083ebf8) + one;  // 0.1
+        const float radius = (s + one) * title_global<float>(0x0083ebc4);  // 25
+        float top = grow * title_global<float>(0x0083eda0);  // 70
+        const float bottom = grow * title_global<float>(0x0083f094);  // -5
+        const uint32_t stance = at<uint32_t>(at<uint8_t*>(e, 0x240), 0x184);
+        if (stance == title_global<uint32_t>(0x0097a764))  // prone
+            top = grow * title_global<float>(0x0083ee38);  // 30
+        else if (stance == title_global<uint32_t>(0x0097a674))  // crouch
+            top = grow * title_global<float>(0x0083eb3c);  // 60
+        if (top > off_z && off_z > bottom && radius > flat) {
+            found = 1;
+            best_hit = hit;
+            best = e;
+            range = t;
+        }
+        if (!draw) continue;
+        // The target box: up / down edges and the side vector (d turned 90 degrees, scaled to the radius).
+        const Lanes up = mul(const_lanes(0x0082e180), top);
+        const Lanes down{{0.0f, 0.0f, bottom, 0.0f}};
+        const Lanes turn = mul(Lanes{{d.v[1], d.v[0], d.v[2], d.v[3]}}, const_lanes(0x0082e830));
+        const float side_len = sticky_length(turn);
+        const Lanes side = mul(turn, radius / side_len);
+        const Lanes top_c = add(pos, up);
+        sticky_line(add(top_c, side), sub(top_c, side), 0x0082eaec, 0);
+        sticky_line(add(add(pos, side), down), add(add(pos, up), side), 0x0082eaec, 0);
+        sticky_line(add(sub(pos, side), down), add(add(pos, side), down), 0x0082eaec, 0);
+        const Lanes left = sub(pos, side);
+        sticky_line(add(left, up), add(left, down), 0x0082eaec, 0);
+    }
+    const uint8_t* const wdef = title_global<uint8_t*>(title_global<uint32_t>(0x0095f4d8) + at<uint32_t>(ps, 0x80) * 4);
+    const bool allow = !(wdef && at<int32_t>(wdef, 0x98) == 8);
+    Lanes aim_at = best_hit;
+    const uint8_t* const locked = at<uint32_t>(ps, 0x500) ? entity_of_handle(at<uint32_t>(ps, 0x504)) : nullptr;
+    if (locked) {
+        if (!found) {
+            at<uint32_t>(ps, 0x500) = 0;
+            return;
+        }
+        if (allow) {
+            const Lanes target{{at<float>(locked, 0x140), at<float>(locked, 0x144), at<float>(locked, 0x148),
+                                at<float>(locked, 0x140)}};
+            const Lanes aim = add(target, lanes(&at<float>(ps, 0x508)));
+            const Lanes v = sub(aim, best_hit);
+            float frac = title_global<float>(0x0083f064);  // 0.35
+            if (range > title_global<float>(0x0083ef08)) {  // 200
+                if (range > title_global<float>(0x0083f090))  // 750
+                    frac = title_global<float>(0x0083f08c);  // 0.65
+                else
+                    frac = (range - title_global<float>(0x0083ef08)) * title_global<float>(0x0083f088) + title_global<float>(0x0083f064);
+            }
+            if (draw) {
+                using Va = const char* XB_CDECL(const char*, double);
+                const char* const text = title_function<Va>(0x002a93d0)(&title_global<char>(0x00836890), frac);  // "%.2f"
+                DebugDraw_AddString(&title_global<float>(0x0082eb9c), &at<float>(best, 0x140), from_bits(0x3f333333u),  // 0.7
+                                    text, 1);
+            }
+            const Lanes next = add(best_hit, mul(v, frac));
+            const Lanes to = sub(next, eye);
+            const Lanes sq = mul(to, to);
+            const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+            float inv;
+            if (len2 == title_global<float>(0x0083eafc)) {  // UCOMISS + JNP: only an exact 0
+                inv = title_global<float>(0x0082e6a0);
+            } else {
+                const float a = abs_bits(len2);
+                const float r = platform_rsqrt_estimate(a);
+                inv = ((title_global<float>(0x0082e660) - (r * r) * a) * r) * title_global<float>(0x0082e670);
+            }
+            alignas(16) const Lanes dir = mul(to, inv);
+            aim_at = next;
+            if (draw) sticky_line(next, aim, 0x0082eb1c, 0);
+            const bool steered = at<int32_t>(cmd, 0xc) != at<int32_t>(old, 0xc) || at<int32_t>(cmd, 8) != at<int32_t>(old, 8) ||
+                                 !(static_cast<float>(at<int8_t>(cmd, 0x14)) == 0.0f) ||
+                                 !(static_cast<float>(at<int8_t>(cmd, 0x15)) == 0.0f) ||
+                                 (at<float>(ps, 0x88) > 0.0f && title_global<float>(0x0083eb20) > at<float>(ps, 0x88));
+            if (steered) {
+                float angles[3];
+                vectoangles_2(dir.v, angles);
+                const float scale = title_global<float>(0x0083ebd8);
+                at<int32_t>(ps, 0x54) += static_cast<int32_t>((angles[0] - at<float>(ps, 0x9c)) * scale) & 0xffff;
+                const int32_t yaw_step = static_cast<int32_t>((angles[1] - at<float>(ps, 0xa0)) * scale) & 0xffff;
+                const int32_t roll_step = static_cast<int32_t>((angles[2] - at<float>(ps, 0xa4)) * scale) & 0xffff;
+                at<int32_t>(ps, 0x58) += yaw_step;
+                at<int32_t>(ps, 0x5c) += roll_step;
+                at<float>(ps, 0x9c) = angles[0];
+                at<float>(ps, 0xa0) = angles[1];
+                at<float>(ps, 0xa4) = angles[2];
+            }
+        }
+    }
+    if (found && range > title_global<float>(0x0083ef3c)) {  // 130
+        at<uint32_t>(ps, 0x500) = 1;
+        at<uint32_t>(ps, 0x504) = at<uint32_t>(best, 0x224);
+        const Lanes target{{at<float>(best, 0x140), at<float>(best, 0x144), at<float>(best, 0x148), at<float>(best, 0x140)}};
+        const Lanes off = sub(aim_at, target);
+        at<float>(ps, 0x508) = off.v[0];
+        at<float>(ps, 0x50c) = off.v[1];
+        at<float>(ps, 0x510) = off.v[2];
+        return;
+    }
+    at<uint32_t>(ps, 0x500) = 0;
 }
 
 }  // namespace game

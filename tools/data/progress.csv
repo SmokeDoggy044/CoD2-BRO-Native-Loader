@@ -8465,7 +8465,7 @@ address,name,section,module,state,tested,matched
 00259530,SP_trigger_multiple,.text,game,matched,36,36
 00259990,CM_PushCapsuleOutOfListedObjects,.text,collision,set-aside,0,0
 00259d60,Vehicle_InitBrushModels,.text,game,settled,100,100
-00259df0,Vehicle_ClipAgainstEntities,.text,game,named,0,0
+00259df0,Vehicle_ClipAgainstEntities,.text,game,untested,0,0
 0025a400,Vehicle_ApplyPush,.text,game,settled,116,116
 0025a600,Vehicle_InitRecord,.text,game,matched,62,62
 0025a810,Vehicle_GetTagOrigin,.text,game,settled,201,201
@@ -8486,7 +8486,7 @@ address,name,section,module,state,tested,matched
 0025b950,Vehicle_Controller,.text,game,untested,0,0
 0025ba30,G_VehiclePopOut,.text,game,untested,0,0
 0025bb60,Vehicle_EnterPlayer,.text,game,matched,33,33
-0025bd10,Vehicle_SlideMove,.text,game,named,0,0
+0025bd10,Vehicle_SlideMove,.text,game,untested,0,0
 0025c3d0,turret_use,.text,game,matched,41,41
 0025c6a0,turret_controller,.text,game,untested,0,0
 0025c8d0,Vehicle_UpdateTurretBones,.text,game,settled,225,225
@@ -8523,7 +8523,7 @@ address,name,section,module,state,tested,matched
 00260480,Vehicle_ExitPlayer,.text,game,matched,22,22
 00260810,Vehicle_FireTurret,.text,game,settled,6288,6288
 00260b60,Vehicle_UpdateTurretAim,.text,game,settled,223,223
-002611e0,Vehicle_PlaneSlideMove,.text,game,named,0,0
+002611e0,Vehicle_PlaneSlideMove,.text,game,untested,0,0
 00261ac0,Vehicle_TraceGround,.text,game,untested,0,0
 00261df0,G_FindUnstuckPosition,.text,game,matched,10,10
 00262040,Door_StartRotate,.text,game,untested,0,0
@@ -8612,7 +8612,7 @@ address,name,section,module,state,tested,matched
 0026f6d0,G_RunMover,.text,game,settled,403,403
 0026f890,turret_think,.text,game,settled,400,400
 0026fb00,G_RunItem,.text,game,settled,262,262
-0026fcb0,Weapon_BulletTrace_r,.text,game,mismatched,2527,414
+0026fcb0,Weapon_BulletTrace_r,.text,game,settled,1296,1296
 002704c0,Weapon_FireBullet,.text,game,settled,118,118
 00270560,Vehicle_FireTurretWeapon,.text,game,untested,0,0
 00270990,Use_BinaryMover,.text,game,untested,0,0
@@ -9912,7 +9912,7 @@ address,name,section,module,state,tested,matched
 002db3e0,SV_TraceStaticModels,.text,server,settled,115,115
 002db500,CM_TransformedPointContents,.text,collision,settled,419,419
 002db680,PM_CheckWeaponMelee,.text,game,settled,147,147
-002db7d0,PM_UpdateStickyAim,.text,game,named,0,0
+002db7d0,PM_UpdateStickyAim,.text,game,settled,21867,21867
 002dc3b0,PM_UpdateLean,.text,game,settled,175,175
 002dc6f0,BG_CheckProneFeet,.text,game,matched,10,10
 002dcc60,BG_CheckProne,.text,game,named,0,0
@@ -9956,7 +9956,7 @@ address,name,section,module,state,tested,matched
 002e4980,CM_TraceThroughWorld,.text,collision,settled,8148,8148
 002e4c00,CM_SightTrace,.text,collision,settled,3471,3471
 002e5030,CM_BoxTrace,.text,collision,settled,12528,12528
-002e5530,PM_UpdateViewAngles,.text,game,named,0,0
+002e5530,PM_UpdateViewAngles,.text,game,settled,21666,21666
 002e6260,G_SeparateFromSolids,.text,game,settled,4184,4184
 002e6420,G_DObjTryGetTagMatrix,.text,game,matched,92,92
 002e6490,G_GeneralLink,.text,game,settled,385,385
