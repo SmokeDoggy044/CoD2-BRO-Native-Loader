@@ -1553,4 +1553,15 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint3
                                                           uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_TryDodge_entry(void);
 
+// 0x00213850 (EAX path, EBX origin): picks the lookahead distance (+0x3b4) where the path lines up best with
+// the lookahead direction and refreshes the lookahead (Path_RefreshLookahead / Path_LookaheadAtEnd).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_StartLookahead(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                                uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_StartLookahead_entry(void);
+// 0x00212a20 (stack actor; ret 4): steps the actor out of the way of the entity at +0x1390 (sidesteps across
+// its path when that fails); 0 when a movement run fails.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                                  uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_MoveOutOfTheWay_entry(void);
+
 }  // namespace game
