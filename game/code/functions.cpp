@@ -3006,6 +3006,7 @@ const Function kFunctions[] = {
     {"VehiclePhys_RebuildPendingBody", 0x00231710, 0, code(&VehiclePhys_RebuildPendingBody), 0, Result::None, Status::Compare},
     {"PhysRagdoll_Collide", 0x00231770, 0, code(&PhysRagdoll_Collide_entry), 0, Result::None, Status::Compare},
     {"Ragdoll_DrawJointsDebug", 0x00231820, 0, code(&Ragdoll_DrawJointsDebug_entry), 4, Result::None, Status::Compare},
+    {"PhysRagdoll_Build", 0x00231860, 0, code(&PhysRagdoll_Build_entry), 8, Result::None, Status::Compare},
     {"Ragdoll_CollideAll", 0x00233b80, 0, code(&Ragdoll_CollideAll_entry), 0, Result::None, Status::Compare},
     {"G_VehiclePhysicsFrame", 0x00233bd0, 0, code(&G_VehiclePhysicsFrame), 4, Result::None, Status::Compare},
     {"VehiclePhys_Init", 0x00233c40, 0, code(&VehiclePhys_Init_entry), 0, Result::Eax, Status::Compare},

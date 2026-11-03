@@ -3480,4 +3480,392 @@ void XB_STDCALL VehiclePhys_SetupFromDef(uint8_t* vehicle, uint8_t* def, uint32_
     at<uint32_t>(vehicle, 0x504) = 0;
 }
 
+namespace {
+
+// PhysRagdoll_Build's frame, kept where the original has it (ESP after the prologue, 0x1e40 below
+// the aligned EBP): every local lives at its original offset, so the vectors whose fourth word the
+// original never writes (MOVUPS with the old w put back, packed 3-word copies) carry the same
+// stack words, and each callee runs at the original's ESP (title_call_at_regs).
+struct BuildFrame {
+    uint8_t* f;
+    uint32_t top;
+
+    float* p(uint32_t o) const { return reinterpret_cast<float*>(f + o); }
+    uint32_t a(uint32_t o) const { return top + o; }
+    uint32_t& w(uint32_t o) const { return *reinterpret_cast<uint32_t*>(f + o); }
+    Lanes ld(uint32_t o) const { return lanes(p(o)); }
+    void st(uint32_t o, const Lanes& v) const { std::memcpy(f + o, v.v, 16); }
+    void st3(uint32_t o, const Lanes& v) const { std::memcpy(f + o, v.v, 12); }  // MOVUPS, old w put back
+    void cp(uint32_t o, const void* src, uint32_t n) const { std::memcpy(f + o, src, n); }
+    void cpf(uint32_t o, uint32_t from, uint32_t n) const { std::memmove(f + o, f + from, n); }
+    // The rows at `rows` transposed (SHUFPS: lane 3 repeats lane 2) into c0 / c1 / c2.
+    void cols(uint32_t rows, uint32_t c0, uint32_t c1, uint32_t c2) const {
+        const float* const m = p(rows);
+        const Lanes c[3] = {{{m[0], m[4], m[8], m[8]}}, {{m[1], m[5], m[9], m[9]}}, {{m[2], m[6], m[10], m[10]}}};
+        st(c0, c[0]);
+        st(c1, c[1]);
+        st(c2, c[2]);
+    }
+    // c0 x + c1 y, then + c2 z.
+    Lanes rot(uint32_t c0, uint32_t c1, uint32_t c2, const Lanes& v) const {
+        return add(add(mul(ld(c0), v.v[0]), mul(ld(c1), v.v[1])), mul(ld(c2), v.v[2]));
+    }
+    template <uint32_t N>
+    uint32_t call(uint32_t function, TitleRegs regs, const uint32_t (&args)[N]) const {
+        return title_call_at_regs(top, function, &regs, N, args);
+    }
+    uint32_t call(uint32_t function, TitleRegs regs) const { return title_call_at_regs(top, function, &regs, 0, nullptr); }
+};
+
+uint32_t bits_of(float v) {
+    uint32_t b;
+    std::memcpy(&b, &v, 4);
+    return b;
+}
+
+// The capsule pairs of PhysRagdoll_Build: {found(b), found(a)} per (a, b).
+constexpr int32_t kBuildPairs[7][2] = {{9, 7}, {8, 7}, {6, 9}, {0, 3}, {0, 5}, {6, 3}, {8, 5}};
+
+}  // namespace
+
+// The callees run at the original's ESP over its frame (title callees below read stale words).
+PLATFORM_ASM_ENTRY(PhysRagdoll_Build_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(PhysRagdoll_Build) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+// The ragdoll physics (phys) of an entity from the ten body definitions (g_ragdollBodyDefs
+// 0x00989250, 0x1d0 apart; Ragdoll_BuildBodyDefs): per def a body (+0x7c slot) at its bone's
+// world point with the bone's velocity, mass +0xb4 and inertia +0xc0, and a slot matrix (+0x410
+// list) of the bone in the body frame; per def with a joint type (+0xec: 1 hinge, 2 swivel) a
+// joint between bodies +0xe0 / +0xdc, anchored at +0x100 / +0x110 of bones +0xe8 / +0xe4, with
+// the axes +0x120..+0x150 and the angle limits +0x170 (+0x1b0 angles, count +0x160); per def a
+// collision capsule of one or two spheres (+0x38 > 1: +0x40 / +0x50, radii +0x30 / +0x34) and
+// the segment +0x70..+0x80 (radius +0x90); the seven capsule pairs; then the bone matrices back,
+// the bodies posed, the joints solved, each capsule's pivot at the entity origin + 30 z and the
+// bodies' +0x134 = 0x008ff024 * 0x00989240.
+void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp,
+                                uint32_t entry_esp) {
+    const uint32_t top = ((entry_esp - 4) & ~15u) - 0x1e40;
+    const BuildFrame fr{reinterpret_cast<uint8_t*>(uintptr_t{top}), top};
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry_esp - 4}) = ebp;
+    fr.w(8) = ebx;
+    fr.w(4) = esi;
+    fr.w(0) = edi;
+    const uint32_t P = addr(phys), E = addr(ent);
+    fr.call(0x002de120, {0, E, 0, 0, esi, edi}, {E, fr.a(0x290)});  // G_GetEntityMatrix
+    at<uint8_t*>(phys, 0x1010) = ent;
+    fr.w(0x1c) = 0;  // the constructor loop's counter (the 0x5a vector constructors do nothing)
+    const TitleRegs early{0, E, 0, 0, fr.a(0x1e40), P};
+    fr.call(0x00225a90, early, {E, fr.a(0x7c0)});  // PhysRagdoll_SaveBoneMatrices
+    fr.call(0x00227bd0, early, {P + 0x4b0, E});  // PhysRagdoll_StoreLocalBasePose
+    fr.call(0x00240f00, early, {at<uint32_t>(ent, 0x22c)});  // DObj_CalcBasePose
+    fr.call(0x00228460, early, {E});  // Ragdoll_CacheBaseBoneFrames
+    fr.call(0x0022ebe0, early, {E});  // Ragdoll_BuildBodyDefs
+    fr.call(0x0022fb70, early, {at<uint32_t>(phys, 0x1d30)});  // Ragdoll_BuildWorldBoneFrames
+    fr.call(0x000b3360, {0, E, P, 0, fr.a(0x1e40), P}, {10u});  // PhysRagdoll_AddEmptySlots
+
+    // Bodies: d = def + 0x60 (the bone-local point).
+    for (uint32_t d = 0x009892b0; d < 0x0098a4d0; d += 0x1d0) {
+        const uint8_t* const def = reinterpret_cast<const uint8_t*>(uintptr_t{d});
+        const uint32_t slot_index = at<uint32_t>(def, 0x7c);
+        const uint32_t body = fr.call(0x000b3110, {0, d, P, 0, 0, P}, {slot_index});  // PhysRagdoll_AllocBody
+        fr.call(0x00226420, {d, d, slot_index, 0, body, P},
+                {at<uint32_t>(phys, 0x1d30), fr.a(0x320), fr.a(0x260)});  // Ragdoll_GetBoneVelocity
+        fr.call(0x002d6800, {E, d, at<uint32_t>(def, 0x84), 0, body, P}, {fr.a(0x290)});  // G_DObjGetWorldBoneMatrix
+        const Lanes one = splat(title_global<float>(0x0082e140));
+        fr.st(0x390, mul(lanes(&title_global<float>(0x0082e160)), one));
+        fr.st(0x3a0, mul(lanes(&title_global<float>(0x0082e170)), one));
+        fr.st(0x3b0, mul(lanes(&title_global<float>(0x0082e180)), one));
+        fr.cp(0x70, def, 16);
+        fr.st(0x3c0, transform_out(fr.p(0x290), fr.p(0x70)));
+        fr.st3(0x20, fr.ld(0x260));
+        fr.st3(0xc0, fr.ld(0x320));
+        fr.cp(0x50, def + 0x60, 16);
+        fr.st3(0xa0, fr.ld(0x50));
+        fr.call(0x000bbea0, {0, d, body, 0, body, P},
+                {at<uint32_t>(def, 0x54), fr.a(0xa0), fr.a(0x390), fr.a(0xc0), fr.a(0x20), at<uint32_t>(def, 0x74),
+                 0u});  // PhysBody_Init
+        uint8_t* const b = reinterpret_cast<uint8_t*>(uintptr_t{body});
+        at<uint32_t>(b, 0x144) |= 2;
+        fr.st3(0xb0, lanes(&title_global<float>(0x00989230)));
+        fr.cpf(0x80, 0xb0, 16);
+        std::memcpy(b + 0xc0, fr.p(0x80), 16);
+        fr.cpf(0x180, 0x390, 0x30);
+        const float* const r = fr.p(0x180);
+        const Lanes c0{{r[0], r[4], r[8], r[8]}}, c1{{r[1], r[5], r[9], r[9]}}, c2{{r[2], r[6], r[10], r[10]}};
+        const auto local = [&](const Lanes& v) {
+            return add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2]));
+        };
+        fr.st(0x90, local(sub(fr.ld(0x2c0), fr.ld(0x3c0))));
+        fr.st(0x40, local(fr.ld(0x2b0)));
+        fr.st(0x60, local(fr.ld(0x2a0)));
+        fr.st(0x350, local(fr.ld(0x290)));
+        fr.cpf(0x360, 0x60, 16);
+        fr.cpf(0x370, 0x40, 16);
+        fr.cpf(0x380, 0x90, 16);
+        fr.cpf(0x4e0, 0x350, 0x40);
+        fr.w(0x4ec) = 0;
+        fr.w(0x4fc) = 0;
+        fr.w(0x50c) = 0;
+        *fr.p(0x51c) = title_global<float>(0x0083eb20);
+        int32_t& used = at<int32_t>(phys, 0x464);
+        uint8_t* slot = nullptr;
+        if (used < 10) {
+            slot = at<uint8_t*>(phys, 0x410 + static_cast<uint32_t>(used) * 4);
+            used = used + 1;
+        }
+        uint8_t* const entry = phys + 0x1ce0 + at<uint32_t>(def, 0x7c) * 8;
+        at<uint32_t>(entry, 0) = E;
+        at<uint32_t>(entry, 4) = at<uint32_t>(def, 0x84);
+        const uint32_t index = at<uint32_t>(def, 0x7c);
+        at<uint32_t>(slot, 0x40) = addr(phys + 0x1ce0 + index * 8);
+        at<uint32_t>(slot, 0x44) = index;
+        std::memcpy(slot, fr.p(0x4e0), 0x40);
+    }
+
+    // Joints: j = def + 0xdc.
+    for (uint32_t jd = 0x0098932c; jd < 0x0098a54c; jd += 0x1d0) {
+        const uint8_t* const j = reinterpret_cast<const uint8_t*>(uintptr_t{jd});
+        if (at<int32_t>(j, 0x10) == 0) continue;
+        const uint32_t joint =
+            fr.call(0x000b3130, {0, jd, P, 0, P, 0}, {at<uint32_t>(j, 4), at<uint32_t>(j, 0)});  // PhysRagdoll_CreateJoint
+        fr.w(0x3c) = joint;
+        const uint8_t* const bodies = at<uint8_t*>(phys, 0x28);
+        const uint32_t ba = at<uint32_t>(bodies, at<uint32_t>(j, 4) * 4);
+        const uint32_t bb = at<uint32_t>(bodies, at<uint32_t>(j, 0) * 4);
+        fr.w(0x18) = ba;
+        fr.w(0x14) = bb;
+        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 0xc), ba, bb, E}, {fr.a(0x390)});  // G_DObjGetWorldBoneMatrix
+        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 8), 0, bb, E}, {fr.a(0x290)});
+        const float* const body_a = reinterpret_cast<const float*>(uintptr_t{ba});
+        const float* const body_b = reinterpret_cast<const float*>(uintptr_t{bb});
+        fr.cp(0x3d0, j + 0x24, 16);
+        const Lanes wa = transform_out(fr.p(0x390), fr.p(0x3d0));
+        fr.cp(0x3f0, j + 0x34, 16);
+        const Lanes wb = transform_out(fr.p(0x290), fr.p(0x3f0));
+        fr.cp(0x6d0, body_b, 0x30);
+        {
+            const float* const m = fr.p(0x6d0);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            const Lanes v = sub(wb, lanes(body_b + 12));
+            fr.st3(0x4a0, add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2])));
+        }
+        fr.cp(0x670, body_a, 0x30);
+        {
+            const float* const m = fr.p(0x670);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            const Lanes v = sub(wa, lanes(body_a + 12));
+            fr.st3(0x4d0, add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2])));
+        }
+        fr.call(0x000b74f0, {0, jd, joint, 0, joint, 0}, {fr.a(0x4d0), fr.a(0x4a0)});  // PhysJoint_SetAnchors
+        if (at<float>(j, -4) > title_global<float>(0x0083f02c))  // 1e-6
+            fr.call(0x000b7550, {0, jd, joint, 0, joint, 0}, {at<uint32_t>(j, -4)});  // PhysJoint_SetValue1A0
+        const int32_t type = at<int32_t>(j, 0x10);
+        const auto cols_rot = [&](uint32_t rows, const Lanes& v) {
+            const float* const m = fr.p(rows);
+            const Lanes c0{{m[0], m[4], m[8], m[8]}}, c1{{m[1], m[5], m[9], m[9]}}, c2{{m[2], m[6], m[10], m[10]}};
+            return add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2]));
+        };
+        if (type == 1) {
+            fr.cp(0x3e0, j + 0x44, 16);
+            fr.st(0x660, rotate_out(fr.p(0x390), fr.p(0x3e0)));
+            fr.cp(0x140, j + 0x64, 16);
+            const Lanes wa2 = rotate_out(fr.p(0x390), fr.p(0x140));
+            fr.cp(0x170, j + 0x54, 16);
+            fr.st(0x640, rotate_out(fr.p(0x290), fr.p(0x170)));
+            fr.cp(0x150, j + 0x74, 16);
+            const Lanes wb2 = rotate_out(fr.p(0x290), fr.p(0x150));
+            fr.cp(0x790, body_b, 0x30);
+            fr.st3(0x4c0, cols_rot(0x790, wb2));
+            fr.cp(0x730, body_a, 0x30);
+            fr.st3(0x490, cols_rot(0x730, wa2));
+            fr.cp(0x6a0, body_b, 0x30);
+            fr.cols(0x6a0, 0x2e0, 0x330, 0x300);
+            fr.cpf(0x400, 0x2e0, 16);
+            fr.cpf(0x410, 0x330, 16);
+            fr.cpf(0x420, 0x300, 16);
+            fr.st3(0x320, fr.rot(0x2e0, 0x330, 0x300, fr.ld(0x640)));
+            fr.cp(0x700, body_a, 0x30);
+            fr.cols(0x700, 0x310, 0x340, 0x250);
+            fr.cpf(0x430, 0x310, 16);
+            fr.cpf(0x440, 0x340, 16);
+            fr.cpf(0x450, 0x250, 16);
+            fr.st3(0x260, fr.rot(0x310, 0x340, 0x250, fr.ld(0x660)));
+            fr.call(0x000b7ae0, {0, jd, joint, 0, bb, 0},
+                    {fr.a(0x260), fr.a(0x320), fr.a(0x490), fr.a(0x4c0), at<uint32_t>(j, 0x14),
+                     at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes10
+        } else if (type == 2) {
+            fr.cp(0x160, j + 0x44, 16);
+            fr.st(0x620, rotate_out(fr.p(0x390), fr.p(0x160)));
+            fr.cp(0xb0, j + 0x64, 16);
+            fr.st(0x630, rotate_out(fr.p(0x390), fr.p(0xb0)));
+            fr.cp(0xa0, j + 0x54, 16);
+            fr.st(0x5e0, rotate_out(fr.p(0x290), fr.p(0xa0)));
+            fr.cp(0xc0, j + 0x74, 16);
+            fr.st(0x5f0, rotate_out(fr.p(0x290), fr.p(0xc0)));
+            fr.cp(0x760, body_b, 0x30);
+            fr.cols(0x760, 0x2f0, 0x2d0, 0x280);
+            fr.cpf(0x460, 0x2f0, 16);
+            fr.cpf(0x470, 0x2d0, 16);
+            fr.cpf(0x480, 0x280, 16);
+            fr.st(0x5d0, fr.rot(0x2f0, 0x2d0, 0x280, fr.ld(0x5f0)));
+            fr.cpf(0x594, 0x5d0, 12);  // Vec3A_CopyXYZ
+            fr.cp(0x5a0, body_a, 0x30);
+            fr.cols(0x5a0, 0x120, 0x130, 0x100);
+            fr.cpf(0x1e0, 0x120, 16);
+            fr.cpf(0x1f0, 0x130, 16);
+            fr.cpf(0x200, 0x100, 16);
+            fr.st(0x610, fr.rot(0x120, 0x130, 0x100, fr.ld(0x630)));
+            fr.cpf(0x544, 0x610, 12);
+            fr.cp(0x550, body_b, 0x30);
+            fr.cols(0x550, 0xf0, 0xe0, 0xd0);
+            fr.cpf(0x210, 0xf0, 16);
+            fr.cpf(0x220, 0xe0, 16);
+            fr.cpf(0x230, 0xd0, 16);
+            fr.st(0x600, fr.rot(0xf0, 0xe0, 0xd0, fr.ld(0x5e0)));
+            fr.cpf(0x538, 0x600, 12);
+            fr.cp(0x4e0, body_a, 0x30);
+            fr.cols(0x4e0, 0x60, 0x40, 0x90);
+            fr.cpf(0x1b0, 0x60, 16);
+            fr.cpf(0x1c0, 0x40, 16);
+            fr.cpf(0x1d0, 0x90, 16);
+            fr.st(0x650, fr.rot(0x60, 0x40, 0x90, fr.ld(0x620)));
+            fr.cpf(0x52c, 0x650, 12);
+            // The packed 3-word vectors: each one's fourth word is the next one's x.
+            fr.call(0x000b7d30, {0, jd, joint, 0, ba, 0},
+                    {fr.a(0x52c), fr.a(0x538), fr.a(0x544), fr.a(0x594), at<uint32_t>(j, 0x14),
+                     at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes20
+        }
+        fr.w(0x11c) = 0;
+        if (at<int32_t>(j, 0x84) <= 0) continue;
+        fr.w(0x1c) = jd + 0xd4;
+        fr.w(0x14) = jd + 0x94;
+        do {
+            fr.cp(0x20, reinterpret_cast<const void*>(uintptr_t{fr.w(0x14)}), 16);
+            const uint32_t angle = *reinterpret_cast<const uint32_t*>(uintptr_t{fr.w(0x1c)});
+            fr.st(0x4b0, rotate_out(fr.p(0x390), fr.p(0x20)));
+            fr.cp(0x350, reinterpret_cast<const void*>(uintptr_t{fr.w(0x18)}), 0x30);
+            fr.cols(0x350, 0x70, 0x50, 0x80);
+            fr.w(0x24c) = angle;
+            fr.cpf(0x180, 0x70, 16);
+            fr.cpf(0x190, 0x50, 16);
+            fr.cpf(0x1a0, 0x80, 16);
+            fr.st(0x270, fr.rot(0x70, 0x50, 0x80, fr.ld(0x4b0)));
+            fr.cpf(0x588, 0x270, 12);  // Vec3A_CopyXYZ
+            fr.call(0x000b7700, {0, jd, fr.w(0x3c), 0, fr.w(0x18), 0}, {fr.a(0x588), fr.w(0x24c)});  // PhysJoint_AddAngleLimit
+            fr.w(0x11c) = fr.w(0x11c) + 1;
+            fr.w(0x14) = fr.w(0x14) + 0x10;
+            fr.w(0x1c) = fr.w(0x1c) + 4;
+        } while (static_cast<int32_t>(fr.w(0x11c)) < at<int32_t>(j, 0x84));
+    }
+
+    // Collision capsules: the same def + 0xdc cursor.
+    uint8_t* const ragdoll = phys + 0x1010;
+    const uint32_t R = addr(ragdoll);
+    fr.w(0x14) = 0x0098932c;
+    do {
+        const uint32_t jd = fr.w(0x14);
+        const uint8_t* const j = reinterpret_cast<const uint8_t*>(uintptr_t{jd});
+        const uint32_t id = at<uint32_t>(j, 0);
+        const uint32_t bv = at<uint32_t>(at<uint8_t*>(phys, 0x28), id * 4);
+        fr.w(0x18) = bv;
+        const float* const body = reinterpret_cast<const float*>(uintptr_t{bv});
+        const uint32_t cv = fr.call(0x002263c0, {0, 0, bv, R, jd, id});  // PhysRagdoll_TakeBody
+        uint8_t* const capsule = reinterpret_cast<uint8_t*>(uintptr_t{cv});
+        const auto last_sphere = [&]() {
+            return at<uint8_t*>(capsule, 0x80) + (at<uint32_t>(capsule, 0x84) << 6);
+        };
+        uint32_t radius;
+        if (at<int32_t>(j, -0xa4) > 1) {
+            fr.call(0x0002aec0, {0, cv, 0, cv, jd, 0}, {fr.a(0x290)});  // RagdollCapsule_AddSphere
+            fr.cp(0x20, j - 0x9c, 16);
+            fr.cp(0x350, body, 0x30);
+            fr.cols(0x350, 0x80, 0x50, 0x70);
+            fr.cpf(0x180, 0x80, 16);
+            fr.cpf(0x190, 0x50, 16);
+            fr.cpf(0x1a0, 0x70, 16);
+            fr.st(0xc0, fr.rot(0x80, 0x50, 0x70, sub(fr.ld(0x20), lanes(body + 12))));
+            std::memcpy(last_sphere() - 0x20, fr.p(0xc0), 16);
+            at<uint32_t>(last_sphere(), -0x10) = at<uint32_t>(j, -0xac);
+            fr.call(0x0002aec0, {0, cv, 0, cv, bv, jd}, {fr.a(0x290)});
+            fr.cp(0xa0, j - 0x8c, 16);
+            fr.cp(0x4e0, body, 0x30);
+            fr.cols(0x4e0, 0x90, 0x40, 0x60);
+            fr.cpf(0x1b0, 0x90, 16);
+            fr.cpf(0x1c0, 0x40, 16);
+            fr.cpf(0x1d0, 0x60, 16);
+            fr.st(0xb0, fr.rot(0x90, 0x40, 0x60, sub(fr.ld(0xa0), lanes(body + 12))));
+            std::memcpy(last_sphere() - 0x20, fr.p(0xb0), 16);
+            radius = at<uint32_t>(j, -0xa8);
+        } else {
+            fr.call(0x0002aec0, {0, cv, 0, cv, jd, id}, {fr.a(0x290)});
+            fr.st(0x160, Lanes{{0.0f, 0.0f, 0.0f, 0.0f}});
+            fr.cpf(0x150, 0x160, 16);
+            std::memcpy(last_sphere() - 0x20, fr.p(0x150), 16);
+            radius = at<uint32_t>(j, -0xac);
+        }
+        at<uint32_t>(last_sphere(), -0x10) = radius;
+        at<uint32_t>(capsule, 0x124) = bv;
+        fr.call(0x00229c90, {0, cv, bv, 0, jd, cv});  // PhysRagdoll_ComputeBounds
+        fr.cp(0x170, j - 0x5c, 16);
+        fr.cp(0x140, j - 0x6c, 16);
+        fr.cp(0x550, body, 0x30);
+        fr.cols(0x550, 0xd0, 0xe0, 0xf0);
+        fr.cpf(0x210, 0xd0, 16);
+        fr.cpf(0x220, 0xe0, 16);
+        fr.cpf(0x230, 0xf0, 16);
+        fr.st(0x270, fr.rot(0xd0, 0xe0, 0xf0, sub(fr.ld(0x170), lanes(body + 12))));
+        fr.cp(0x5a0, body, 0x30);
+        fr.cols(0x5a0, 0x100, 0x130, 0x120);
+        fr.cpf(0x1e0, 0x100, 16);
+        fr.cpf(0x1f0, 0x130, 16);
+        fr.cpf(0x200, 0x120, 16);
+        fr.st(0x4b0, fr.rot(0x100, 0x130, 0x120, sub(fr.ld(0x140), lanes(body + 12))));
+        Phys_SetSegment(reinterpret_cast<const uint32_t*>(fr.p(0x4b0)), reinterpret_cast<const uint32_t*>(fr.p(0x270)),
+                        capsule + 0xb0, at<uint32_t>(j, -0x4c));
+        fr.w(0x14) = jd + 0x1d0;
+    } while (fr.w(0x14) < 0x0098a54c);
+
+    // The seven capsule pairs.
+    for (const auto& ids : kBuildPairs) {
+        int32_t& count = at<int32_t>(ragdoll, 0xcc4);
+        uint8_t* pair = nullptr;
+        if (count < 7) {
+            pair = at<uint8_t*>(ragdoll, 0xc88 + static_cast<uint32_t>(count) * 4);
+            count = count + 1;
+        }
+        const uint32_t first =
+            fr.call(0x00224fc0, {0, 0, R, static_cast<uint32_t>(ids[0]), R, addr(pair)});  // PhysRagdoll_FindCapsuleById
+        const uint32_t second = fr.call(0x00224fc0, {0, first, R, static_cast<uint32_t>(ids[1]), R, addr(pair)});
+        at<uint32_t>(pair, 0) = second;
+        at<uint32_t>(pair, 4) = first;
+    }
+    fr.call(0x00225a40, {0, E, 0, 0, R, 0}, {E, fr.a(0x7c0)});  // PhysRagdoll_RestoreBoneMatrices
+    fr.call(0x000b36e0, {0, E, P, 0, R, P});  // PhysRagdoll_PoseToBodies
+    fr.call(0x000b33e0, {0, E, P, 0, R, P});  // PhysRagdoll_SolveJointPositions
+    *fr.p(0x2c) = 0.0f;
+    *fr.p(0x28) = title_global<float>(0x0083ee38);  // 30
+    *fr.p(0x24) = 0.0f;
+    *fr.p(0x20) = 0.0f;
+    const Lanes lift = fr.ld(0x20);
+    fr.cp(0x20, ent + 0x140, 16);
+    fr.st(0x270, add(fr.ld(0x20), lift));
+    for (uint32_t id = 0; id < 10; ++id) {
+        const uint32_t c = fr.call(0x00224fc0, {0, E + 0x140, R, id, R, id});
+        if (c) fr.call(0x00225010, {fr.a(0x270), E + 0x140, c, id, R, id});  // PhysRagdoll_SetPivotAndMinBound
+    }
+    fr.call(0x000b38a0, {0, E + 0x140, P, 0, R, 10},
+            {bits_of(title_global<float>(0x008ff024) * title_global<float>(0x00989240))});  // PhysRagdoll_SetBodiesField134
+}
+
 }  // namespace game

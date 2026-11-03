@@ -3027,6 +3027,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00231710,VehiclePhys_RebuildPendingBody,compare,0,0,0,0,0,0,""
 00231770,PhysRagdoll_Collide,compare,17702,110,110,0,0,0,""
 00231820,Ragdoll_DrawJointsDebug,compare,0,0,0,0,0,0,""
+00231860,PhysRagdoll_Build,compare,15,15,8,0,7,0,"new got Segmentation fault at 0022aec6 FUN_0022a590+0x936 [.text], address 00000073"
 00233b80,Ragdoll_CollideAll,compare,15957,195,195,0,0,0,""
 00233bd0,G_VehiclePhysicsFrame,compare,8978,409,409,0,0,0,""
 00233c40,VehiclePhys_Init,compare,0,0,0,0,0,0,""

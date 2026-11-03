@@ -282,4 +282,10 @@ void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode);
 // 0x0022a590: the vehicle physics body, wheel constraints and drive values from its def.
 void XB_STDCALL VehiclePhys_SetupFromDef(uint8_t* vehicle, uint8_t* def, uint32_t build);
 
+// 0x00231860 (stdcall phys, entity): the ragdoll physics from the body definitions (gap entry: the
+// frame stays at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                       uint32_t edi, uint32_t ebp, uint32_t entry_esp);
+extern "C" void PhysRagdoll_Build_entry(void);
+
 }  // namespace game
