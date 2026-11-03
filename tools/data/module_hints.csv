@@ -491,3 +491,4 @@ address,module,source,evidence
 002f2b20,client,manual,"gap created 11-03: copies a string into the console buffer 0x0092e84c, sends Enter to Console_KeyDownEvent"
 002f2ad0,client,manual,"gap created 11-03 (ai push 18): CL_StartHunkUsers, r_uiFullScreen, SCR_UpdateScreen, cl_paused; no refs"
 002f2b00,client,manual,"gap created 11-03 (ai push 18): SV_SpawnServer stores it as a callback; S_UpdateChannels"
+002f3de0,server,manual,"CheckReloadStatus is server load-save code, not game (ent push 17): in the SV_ range between SV_SpawnServer and SV_Map_f, 5 of 6 callers SV_ (SV_Frame, SV_LoadLastSave_f/SV_LoadGame_f/SV_AddOperatorCommands tail jumps), reads the save file and calls SV_MapRestart or queues spmap/spdevmap; removed from the game name list in modules.csv"

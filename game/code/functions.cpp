@@ -5054,6 +5054,7 @@ const Function kFunctions[] = {
     {"SV_RestartClient", 0x002f2e70, 0, code(&SV_RestartClient_entry), 8, Result::None, Status::Compare},
     {"SV_MapRestart", 0x002f2f50, 0, code(&SV_MapRestart_entry), 4, Result::Eax, Status::Compare},
     {"SV_SpawnServer", 0x002f3140, 0, code(&SV_SpawnServer_entry), 8, Result::None, Status::Compare},
+    {"CheckReloadStatus", 0x002f3de0, 0, code(&CheckReloadStatus_entry), 0, Result::Eax, Status::Compare},
     {"SV_Map_f", 0x002f3f40, 0, code(&SV_Map_f), 0, Result::None, Status::Compare},
     {"SV_Frame", 0x002f4400, 0, code(&SV_Frame_entry), 0, Result::None, Status::Compare},
     {"SV_LoadLastSave_f", 0x002f4510, 0, code(&SV_LoadLastSave_f), 0, Result::None, Status::Compare},

@@ -9,6 +9,7 @@
 #include "fx.h"
 #include "lanes.h"
 #include "qcommon.h"
+#include "qcommon_fs.h"
 #include "r_init.h"
 #include "snd.h"
 #include "title_data.h"
@@ -2744,6 +2745,69 @@ uint32_t XB_CDECL SV_LoadGame_f() {
     while (strstr_(name, title_text(0x00832f60))) *strstr_(name, title_text(0x00832f60)) = '/';  // "\\"
     if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)) return check_reload_status();
     return 0;
+}
+
+// SV_MapRestart runs at the original's ESP: its game callees store a stack address (0x00929b40).
+PLATFORM_ASM_ENTRY(CheckReloadStatus_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(CheckReloadStatus) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CheckReloadStatus(uint32_t entry_esp, uint32_t esi, uint32_t edi) {
+    // The original's frame: ebp at entry - 4, ESP aligned to 8, 0x108 of locals, four saved registers.
+    const uint32_t top = ((entry_esp - 4) & ~7u) - 0x118;
+    const uint8_t* const local = title_global<uint8_t*>(0x00927e8c);
+    char* const pending = &title_global<char>(0x0093ef68);  // the save to load
+    uint32_t eax = 0;
+    if (local) {
+        eax = field<uint32_t>(const_cast<uint8_t*>(local), 0x28);
+        if (eax != title_global<uint32_t>(0x00964cd8)) {
+            pending[0] = 0;
+            title_global<uint32_t>(0x00929c00) = 0;
+            return 0;
+        }
+    }
+    if (title_global<uint32_t>(0x00929c00)) {  // a restart is pending
+        const uint32_t zero = 0;
+        const TitleRegs regs = {eax, 0, 0, 0, esi, edi};
+        title_call_at_regs(top, 0x002f2f50, &regs, 1, &zero);  // SV_MapRestart
+        return 1;
+    }
+    if (!pending[0]) return 0;
+    char name[0x80];
+    uint32_t i = 0;
+    do name[i] = pending[i]; while (pending[i++]);
+    pending[0] = 0;
+    if (FS_ReadFile(name, nullptr) < 0) return 0;
+    void* buffer;
+    FS_ReadFile(name, &buffer);
+    // The save's header: the map name's length at +4, the name from +5.
+    const uint8_t* const save = static_cast<const uint8_t*>(buffer);
+    char map[0x100];
+    const uint32_t length = save[4];
+    std::memcpy(map, save + 5, length);
+    map[length] = 0;
+    S_StopAllSounds(title_global<uint8_t*>(0x0095f4c4));
+    z_free(buffer);
+    if (field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)  // com_sv_running
+        && !Q_stricmp(field<const char*>(title_global<uint8_t*>(0x00929c08), 4), 0, map)) {  // sv_mapname
+        const uint32_t one = 1;
+        const TitleRegs regs = {0, title_global<uint32_t>(0x0095f4c4), 0, 0, word(save) + 5 + length,
+                                top + 0x98 + length};
+        if (title_call_at_regs(top, 0x002f2f50, &regs, 1, &one)) return 1;  // SV_MapRestart
+    }
+    const uint8_t* const cheats = Cvar_FindVar(title_text(0x008340d0));  // "sv_cheats"
+    const uint32_t args[2] = {cheats && field<uint32_t>(const_cast<uint8_t*>(cheats), 0x20) ? 0x00832f98u : 0x00832f8cu,
+                              word(name)};  // "spdevmap %s\n" / "spmap %s\n"
+    Cbuf_AddText(va(args));
+    return 1;
 }
 
 void XB_CDECL StaticInit_Vec4_960110() {

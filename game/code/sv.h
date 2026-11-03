@@ -394,6 +394,13 @@ uint32_t XB_CDECL SV_LoadLastSave_f();
 // unless it starts so (or "save\"), ".svg" appended unless its first '.' is followed by "svg", '\' turned into
 // '/'; then CheckReloadStatus (tail jump) unless the server runs.
 uint32_t XB_CDECL SV_LoadGame_f();
+// 0x002f3de0 (SV_Frame, Scr_RunThreads, the load commands): 0 (the pending save 0x0093ef68 and restart flag
+// 0x00929c00 cleared) while the local client's +0x28 is not the server id time 0x00964cd8; a pending restart runs
+// SV_MapRestart(0); else the pending save (cleared) is read: its map name (length byte +4, name from +5), sounds
+// stopped, the same map running restarts it (SV_MapRestart(1)), else "spmap %s"/"spdevmap %s" (sv_cheats) with
+// the save name. 1 unless nothing was pending or the file is missing.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CheckReloadStatus(uint32_t entry_esp, uint32_t esi, uint32_t edi);
+extern "C" void CheckReloadStatus_entry(void);
 // 0x003767b0, 0x003767f0: CRT static initializers of two vec4 constants (x, x, z, x) at 0x00960110 (from 0x0083f1f4,
 // 0x0083f180) and 0x0095ff70 (0x00830c1c, 0x0083ecdc).
 void XB_CDECL StaticInit_Vec4_960110();
