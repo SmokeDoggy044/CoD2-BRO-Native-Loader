@@ -8446,6 +8446,388 @@ uint32_t XB_CDECL Actor_AnimMove(uint32_t entry, uint32_t eax, uint32_t ebx, uin
     return result - 2;
 }
 
+namespace {
+
+// Actor_UpdateVisibilityIfStale(EAX sentient, ESI actor; stack age) as the original's call at
+// `top` (return address `ret`): the value bits of XMM0.
+uint32_t visibility_if_stale_at(uint32_t top, uint32_t ret, const uint8_t* sentient, uint8_t* actor, uint32_t age,
+                                uint32_t edi, uint32_t ebx, uint32_t ebp) {
+    stack_word(top - 4) = age;
+    stack_word(top - 8) = ret;
+    return Actor_UpdateVisibilityIfStale(top - 8, sentient, actor, edi, ebx, ebp);
+}
+
+bool float_bits_zero(uint32_t bits) {
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value == 0.0f;
+}
+
+// The exposed state's next step: 0xca (no visibility) or 0xc8, due now + 1, with +0x34 now + 501.
+void exposed_schedule(uint8_t* actor, uint32_t step) {
+    field<uint32_t>(actor, 0x28) = step;
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+}
+
+}  // namespace
+
+AI_GAP_ENTRY(Actor_Exposed_Start, 0)
+
+uint32_t XB_CDECL Actor_Exposed_Start(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                      uint32_t edi, uint32_t ebp) {
+    // ECX actor, EDX previous state (state Start callback). Without an enemy the sight and
+    // enemy choice run first (5 when there still is none). Coming from state 1 the time is
+    // kept in +0x81c; else a nearby cover node ends it (1). Then the next step by the enemy's
+    // visibility (Actor_UpdateVisibilityIfStale, age +0x830): 0xca when 0, else 0xc8. EAX 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = edi;
+    const uint32_t frame = entry - 8;
+    if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) {
+        const uint32_t sentient = field<uint32_t>(actor, 4);
+        {
+            const TitleRegs regs = {sentient, ebx, 0, edx, ecx, edx};
+            const uint32_t args[1] = {ecx};
+            call_at(frame, 0x0021d316, 0x002135d0, regs, 1, args);  // Actor_UpdateSight
+        }
+        {
+            const TitleRegs regs = {sentient, ebx, 0, edx, ecx, edx};
+            const uint32_t args[2] = {ecx, 1};
+            call_at(frame, 0x0021d31e, 0x002185c0, regs, 2, args);  // Actor_SelectEnemy
+        }
+        if (!field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c)) return 5;
+    }
+    if (edx == 1) {
+        field<int32_t>(actor, 0x81c) = level_time();
+    } else {
+        const TitleRegs regs = {0, ebx, ecx, edx, ecx, edx};
+        if (call_at(frame, 0x0021d33e, 0x0021c9d0, regs, 0, nullptr)) return 1;  // Actor_FindNearbyCoverNode
+    }
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint32_t seen =
+        visibility_if_stale_at(frame, 0x0021d368, enemy, actor, field<uint32_t>(actor, 0x830), edx, ebx, ebp);
+    exposed_schedule(actor, float_bits_zero(seen) ? 0xca : 0xc8);
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Exposed_Resume, 0)
+
+uint32_t XB_CDECL Actor_Exposed_Resume(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                       uint32_t esi, uint32_t edi, uint32_t) {
+    // EDX the state resumed from: 0 from state 9; else Actor_Exposed_Start (tail jump).
+    if (edx == 9) return 0;
+    const TitleRegs regs = {eax, ebx, ecx, edx, esi, edi};
+    return call_at(entry + 4, stack_word(entry), 0x0021d300, regs, 0, nullptr);  // Actor_Exposed_Start
+}
+
+AI_GAP_ENTRY(Actor_Exposed_TryCombat, 0)
+
+uint32_t XB_CDECL Actor_Exposed_TryCombat(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                          uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: reacquire mode (+0x12c = 4) and its animation; with the enemy visible and
+    // shootable the path is dropped, the next step is 0xc8 and Actor_Exposed_Combat runs (AL 1);
+    // else AL 0.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = edi;
+    const uint32_t frame = entry - 8;
+    field<uint32_t>(actor, 0x12c) = 4;
+    {
+        const TitleRegs regs = {eax, ebx, ecx, edx, esi, eax};
+        call_at(frame, 0x0021e7d3, 0x001fb5c0, regs, 0, nullptr);  // Actor_AnimReacquire
+    }
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    const uint32_t seen =
+        visibility_if_stale_at(frame, 0x0021e7e7, enemy, actor, field<uint32_t>(actor, 0x830), eax, ebx, ebp);
+    if (float_bits_zero(seen)) return 0;
+    {
+        const TitleRegs regs = {eax, ebx, ecx, edx, eax, eax};
+        if (!call_at(frame, 0x0021e7fb, 0x0020eaf0, regs, 0, nullptr)) return 0;  // Actor_CanShootEnemy
+    }
+    stack_word(entry - 12) = ebx;
+    drop_path_at_origin(actor);
+    exposed_schedule(actor, 0xc8);
+    const TitleRegs regs = {0, field<uint32_t>(actor, 0) + 0x140, ecx, edx, addr_of(actor + 0x3c0), eax};
+    call_at(entry - 12, 0x0021e84e, 0x0021d3c0, regs, 0, nullptr);  // Actor_Exposed_Combat
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_Start, 0)
+
+uint32_t XB_CDECL Actor_Grenade_Start(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t, uint32_t esi,
+                                      uint32_t edi, uint32_t) {
+    // ECX actor (state Start callback): 1 without a grenade (+0x1310); else the reaction time
+    // (+0x1318) = now + rand(0..999) (the LCG at 0x008d5a70) and Actor_Grenade_ReactToDistance.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    if (!field<uint32_t>(actor, 0x1310)) return 1;
+    const uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
+    const int32_t now = level_time();
+    title_global<uint32_t>(0x008d5a70) = seed;
+    field<int32_t>(actor, 0x1318) = (int32_t((seed >> 17) * 1000) >> 15) + now;
+    stack_word(entry - 4) = edi;
+    const TitleRegs regs = {uint32_t(field<int32_t>(actor, 0x1318)), ebx, ecx, uint32_t(now), esi, ecx};
+    call_at(entry - 4, 0x002207e7, 0x0021f790, regs, 0, nullptr);  // Actor_Grenade_ReactToDistance
+    return 0;
+}
+
+AI_GAP_ENTRY(G_GrenadeLandedNotifyActors, 4)
+
+uint32_t XB_CDECL G_GrenadeLandedNotifyActors(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                              uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX entity hit (0: none), stack grenade (ret 4): unless the hit entity is one a grenade
+    // rests on (+0x134 & 0x200c000 clear), the grenade's +0x2c0 velocity is zeroed, its land
+    // position updated, and every actor holding it (+0x1310) in the grenade state (6) updates
+    // its reaction. EAX 0 (or the hit entity).
+    uint8_t* const grenade = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    stack_word(entry - 4) = ebx;
+    if (eax && !(field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{eax}), 0x134) & 0x200c000)) return eax;
+    field<float>(grenade, 0x2c8) = 0.0f;
+    field<float>(grenade, 0x2c4) = 0.0f;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    field<float>(grenade, 0x2c0) = 0.0f;
+    const uint32_t frame = entry - 12;
+    {
+        const TitleRegs regs = {eax, addr_of(grenade), ecx, edx, addr_of(grenade), edi};
+        call_at(frame, 0x00220829, 0x002128a0, regs, 0, nullptr);  // G_UpdateGrenadeLandPos
+    }
+    for (uint8_t* actor = Actor_FirstOfTeams(0xffffffff); actor; actor = Actor_NextOfTeams(actor, 0xffffffff)) {
+        if (field<uint8_t*>(actor, 0x1310) != grenade || field<uint32_t>(actor, 0xa4) != 6) continue;
+        const TitleRegs regs = {addr_of(actor), addr_of(grenade), ecx, edx, addr_of(actor), addr_of(actor)};
+        call_at(frame, 0x0022084f, 0x0021f6d0, regs, 0, nullptr);  // Actor_Grenade_UpdateReaction
+    }
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_NodeClaimRevoked, 0)
+
+uint32_t XB_CDECL Actor_Grenade_NodeClaimRevoked(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                 uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor (NodeClaimRevoked callback): the claim is dropped (Sentient_SetClaimedNode with a
+    // handle of 0 - the local's upper word keeps the pushed ECX - and PathNode_RevokeClaim with
+    // the node in ESI for the team); in steps 0x259/0x25c a grenade still held picks a new
+    // reaction. EAX 1.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    stack_word(entry - 4) = ecx & 0xffff0000u;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    const uint32_t frame = entry - 12;
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    const uint16_t handle = field<uint16_t>(sentient, 0x48);
+    uint32_t node = 0;
+    if (handle != 0 && handle != 0xffff) {
+        const uint8_t* const block =
+            field<const uint8_t*>(title_global<const uint8_t*>(0x0095f4f4), 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+        if (block) node = field<uint32_t>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+    }
+    {
+        const TitleRegs regs = {stack_word(entry - 4), ebx, ecx, addr_of(sentient), node, ecx};
+        const uint32_t args[2] = {addr_of(sentient), stack_word(entry - 4)};
+        call_at(frame, 0x0021f53b, 0x00200960, regs, 2, args);  // Sentient_SetClaimedNode
+    }
+    {
+        const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+        const TitleRegs regs = {0, ebx, addr_of(field<const uint8_t*>(actor, 4)), team, node, ecx};
+        const uint32_t args[1] = {team};
+        call_at(frame, 0x0021f547, 0x002ba0d0, regs, 1, args);  // PathNode_RevokeClaim (cdecl)
+    }
+    const uint32_t step = field<uint32_t>(actor, 0x28);
+    if ((step == 0x259 || step == 0x25c) && field<uint32_t>(actor, 0x1310)) {
+        const TitleRegs regs = {ecx, ebx, ecx, edx, node, ecx};
+        const uint32_t args[1] = {1};
+        call_at(frame, 0x0021f56e, 0x0021e120, regs, 1, args);  // Actor_Grenade_ChooseReaction
+    }
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_Grenade_UpdateReaction, 0)
+
+uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                               uint32_t esi, uint32_t edi, uint32_t) {
+    // ESI actor: a grenade owned by this actor's entity (or by nobody before the actor threw
+    // one, +0x1324) is first tried for a throw back (its result returned when it succeeds; the
+    // owner cleared otherwise). Then, unless the actor is safe from the grenade at its claimed
+    // node, its next path point (+0x750) or its origin, it picks a new reaction.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{esi});
+    const uint32_t frame = entry - 0xc;
+    const uint32_t owner = field<uint32_t>(field<const uint8_t*>(actor, 0x1310), 0x378);
+    const uint32_t ent = field<uint32_t>(actor, 0);
+    if (owner == ent || (!owner && !field<uint32_t>(actor, 0x1324))) {
+        const TitleRegs regs = {owner, ebx, ent, edx, esi, edi};
+        const uint32_t args[1] = {esi};
+        const uint32_t thrown = call_at(frame, 0x0021f6f9, 0x0021af20, regs, 1, args);  // Actor_Grenade_TryThrowBack
+        if (thrown) return thrown;
+        field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x378) = 0;
+    }
+    stack_word(entry - 0x10) = edi;
+    const uint16_t* const handle = reinterpret_cast<const uint16_t*>(field<uint8_t*>(actor, 4) + 0x48);
+    uint32_t point;
+    if (PathNode_HandleIsValid(handle) & 0xff) {
+        point = addr_of(PathNode_FromHandle(handle)) + 0x44;
+    } else if (field<int16_t>(actor, 0x740) > 0) {
+        stack_word(entry - 0xc) = field<uint32_t>(actor, 0x750);
+        stack_word(entry - 8) = field<uint32_t>(actor, 0x754);
+        stack_word(entry - 4) = field<uint32_t>(actor, 0x758);
+        point = entry - 0xc;
+    } else {
+        point = ent + 0x140;
+    }
+    const TitleRegs regs = {0, ebx, point, esi, esi, addr_of(handle)};
+    const uint32_t safe = call_at(entry - 0x10, 0x0021f776, 0x0020c9c0, regs, 0, nullptr);  // Actor_IsSafeFromGrenade
+    if (safe) return safe;
+    const TitleRegs again = {esi, ebx, point, esi, esi, addr_of(handle)};
+    const uint32_t args[1] = {1};
+    return call_at(entry - 0x10, 0x0021f783, 0x0021e120, again, 1, args);  // Actor_Grenade_ChooseReaction
+}
+
+AI_GAP_ENTRY(Actor_UpdateOrient, 0)
+
+uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                     uint32_t esi, uint32_t edi, uint32_t) {
+    // ECX actor: the orientation record (+0x140 when its mode is set, else +0x12c) by mode -
+    // 2: Actor_OrientToMoveHistory (tail jump), 3: Actor_ChooseIdleOrient, 4:
+    // Actor_OrientToEnemyOrMotion, 5: the sentient's yaw (+0x20) as a short angle, pitch 0
+    // (record +4 = 0, +8 = +0xc = yaw); other modes nothing. EAX as the callee leaves it.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    uint8_t* const orient = field<uint32_t>(actor, 0x140) ? actor + 0x140 : actor + 0x12c;
+    const uint32_t mode = field<uint32_t>(orient, 0) - 2;
+    (void)eax;
+    switch (mode) {
+    case 0: {
+        const TitleRegs regs = {addr_of(orient), ebx, ecx, mode, esi, edi};
+        return call_at(entry + 4, stack_word(entry), 0x002052c0, regs, 0, nullptr);  // Actor_OrientToMoveHistory
+    }
+    case 1: {
+        const TitleRegs regs = {ecx, ebx, ecx, mode, esi, edi};
+        const uint32_t args[1] = {addr_of(orient)};
+        return call_at(entry, 0x0021dc04, 0x0021bc00, regs, 1, args);  // Actor_ChooseIdleOrient
+    }
+    case 2: {
+        stack_word(entry - 4) = ebx;
+        const TitleRegs regs = {addr_of(orient), ecx, ecx, mode, esi, edi};
+        const uint32_t args[1] = {addr_of(orient)};
+        return call_at(entry - 4, 0x0021dc0e, 0x0021cb30, regs, 1, args);  // Actor_OrientToEnemyOrMotion
+    }
+    case 3: {
+        const float scale = title_global<float>(0x0083ebd8);  // 65536 / 360
+        const float step = title_global<float>(0x0083ebd4);   // 360 / 65536
+        const float zero = 0.0f;
+        const float pitch = zero * scale;
+        const float yaw = field<float>(field<const uint8_t*>(actor, 4), 0x20) * scale;
+        const int32_t pitch_short = int32_t(pitch) & 0xffff;
+        const int32_t yaw_short = int32_t(yaw) & 0xffff;
+        const float out_yaw = float(yaw_short) * step;
+        const float out_pitch = float(pitch_short) * step;
+        field<float>(orient, 4) = out_pitch;
+        field<float>(orient, 8) = out_yaw;
+        field<float>(orient, 0xc) = out_yaw;
+        return addr_of(orient);
+    }
+    default:
+        return addr_of(orient);
+    }
+}
+
+AI_GAP_ENTRY(Actor_SetGoalNodeAndTakeCover, 4)
+
+uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX sentient, stack node (ret 4): the goal position becomes the node's origin (block
+    // (x, y, z, x) at A - 0x10, A = the 16-aligned frame base). For a cover node type (1 <<
+    // +0x28 in 0x1ffc) with an actor (entity +0x240) that has or finds an enemy, a cover node it
+    // can attempt sets state 1 and claims the node (its handle +0).
+    const uint8_t* const node = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t e4 = entry - 4;
+    stack_word(e4) = ebp;
+    const uint32_t base = e4 & ~15u;
+    const uint32_t frame = base - 0x20;
+    stack_word(base - 0x18) = ebx;
+    stack_word(base - 0x1c) = esi;
+    stack_word(base - 0x20) = edi;
+    stack_word(base - 0x10) = field<uint32_t>(node, 0x44);
+    stack_word(base - 0xc) = field<uint32_t>(node, 0x48);
+    stack_word(base - 8) = field<uint32_t>(node, 0x4c);
+    stack_word(base - 4) = field<uint32_t>(node, 0x44);
+    {
+        const TitleRegs regs = {eax, addr_of(node), base - 0x10, edx, eax, edi};
+        const uint32_t args[1] = {eax};
+        call_at(frame, 0x0021c54c, 0x00203550, regs, 1, args);  // Sentient_SetGoalPos
+    }
+    const uint32_t type = field<uint32_t>(node, 0x28);
+    if (!((1u << (type & 31)) & 0x1ffc)) return 1u << (type & 31);
+    uint8_t* const actor = field<uint8_t*>(field<uint8_t*>(sentient, 0), 0x240);
+    if (!actor) return 1u << (type & 31);
+    if (!field<uint32_t>(sentient, 0x3c)) {
+        {
+            const TitleRegs regs = {0, addr_of(node), type, edx, eax, addr_of(actor)};
+            const uint32_t args[1] = {addr_of(actor)};
+            call_at(frame, 0x0021c576, 0x002135d0, regs, 1, args);  // Actor_UpdateSight
+        }
+        {
+            const TitleRegs regs = {0, addr_of(node), type, edx, eax, addr_of(actor)};
+            const uint32_t args[2] = {addr_of(actor), 1};
+            call_at(frame, 0x0021c57e, 0x002185c0, regs, 2, args);  // Actor_SelectEnemy
+        }
+        if (!field<uint32_t>(sentient, 0x3c)) return 0;
+    }
+    {
+        const TitleRegs regs = {addr_of(node), addr_of(node), type, edx, eax, addr_of(actor)};
+        const uint32_t args[1] = {addr_of(actor)};
+        if (!call_at(frame, 0x0021c58d, 0x0021b390, regs, 1, args)) return 0;  // Actor_AttemptCoverNode
+    }
+    {
+        const TitleRegs regs = {addr_of(actor), addr_of(node), type, edx, 1, addr_of(actor)};
+        call_at(frame, 0x0021c59d, 0x00200110, regs, 0, nullptr);  // Actor_SetState (EAX actor, ESI state)
+    }
+    const uint32_t claimed = field<uint32_t>(actor, 4);
+    const TitleRegs regs = {claimed, addr_of(node), type, field<uint16_t>(node, 0), 1, addr_of(actor)};
+    const uint32_t args[2] = {claimed, field<uint16_t>(node, 0)};
+    return call_at(frame, 0x0021c5ac, 0x00200960, regs, 2, args);  // Sentient_SetClaimedNode
+}
+
+AI_GAP_ENTRY(G_DObjGetTagLocalOrigin, 0)
+
+uint32_t XB_CDECL G_DObjGetTagLocalOrigin(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t,
+                                          uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX entity, ECX tag (name in the table at 0x0098a490), EBX out (4 words): the tag's bone
+    // (DObj_GetTagIndex; -1 without a model) after SV_DObjCreateSkeleton, its local origin
+    // (matrix +0x30) copied to out[0..2]; out[3] is the frame word A - 4 the original never
+    // writes (A = the 16-aligned base). EAX out.
+    const uint8_t* const ent = reinterpret_cast<const uint8_t*>(uintptr_t{eax});
+    const uint32_t e4 = entry - 4;
+    stack_word(e4) = ebp;
+    const uint32_t base = e4 & ~15u;
+    const uint32_t frame = base - 0x20;
+    stack_word(base - 0x1c) = esi;
+    stack_word(base - 0x20) = edi;
+    int32_t bone = -1;
+    if (const uint32_t obj = field<uint32_t>(ent, 0x22c)) {
+        const TitleRegs regs = {obj, ebx, ecx, 0, title_global<uint32_t>(0x0098a490 + ecx * 4), eax};
+        bone = int32_t(call_at(frame, 0x0022d5a3, 0x0023aea0, regs, 0, nullptr));  // DObj_GetTagIndex
+    }
+    {
+        const TitleRegs regs = {uint32_t(bone), ebx, ecx, 0, uint32_t(bone), eax};
+        call_at(frame, 0x0022d5af, 0x002d7210, regs, 0, nullptr);  // SV_DObjCreateSkeleton (EDI)
+    }
+    const uint8_t* const obj = field<const uint8_t*>(ent, 0x22c);
+    const uint32_t matrices = field<uint32_t>(obj, 0x20);
+    const uint32_t first = matrices ? field<uint8_t>(obj, 0x60) * 0x40u + matrices + 0x30 : 0;
+    const uint8_t* const bone_matrix = reinterpret_cast<const uint8_t*>(uintptr_t{uint32_t(bone) * 0x40 + first});
+    stack_word(base - 0x10) = field<uint32_t>(bone_matrix, 0x30);
+    stack_word(base - 0xc) = field<uint32_t>(bone_matrix, 0x34);
+    const uint32_t z = field<uint32_t>(bone_matrix, 0x38);
+    uint32_t* const out = reinterpret_cast<uint32_t*>(uintptr_t{ebx});
+    out[0] = stack_word(base - 0x10);
+    out[1] = stack_word(base - 0xc);
+    const uint32_t w = stack_word(base - 4);
+    stack_word(base - 8) = z;
+    out[2] = stack_word(base - 8);
+    out[3] = w;
+    return ebx;
+}
+
 // The callees run where the original's calls put them (Sentient_CachedNearestNode keeps a
 // stack address in 0x00929b40 through PathNode_FindNearest); entry ESP in EDX.
 PLATFORM_ASM_ENTRY(Path_ScoreEnemyExposure_entry,

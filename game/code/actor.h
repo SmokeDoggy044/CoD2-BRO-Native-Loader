@@ -885,6 +885,46 @@ extern "C" void Path_Route_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetween(uint32_t entry, const float* from, uint32_t edx,
                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_RouteBetween_entry(void);
+// 0x0021d300 (ECX actor, EDX previous state; state Start): exposed state entry.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_Start(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_Start_entry(void);
+// 0x0021e7b0 (EDX previous state; state Resume): 0 from state 9, else Actor_Exposed_Start.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_Resume(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_Resume_entry(void);
+// 0x0021e7c0 (EAX actor): AL 1 when the enemy is visible and shootable (then combat).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_TryCombat(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_TryCombat_entry(void);
+// 0x002207a0 (ECX actor; state Start): grenade reaction time and distance reaction.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Start(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_Start_entry(void);
+// 0x002207f0 (EAX hit entity; stack grenade; ret 4): actors holding the grenade update their reaction.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_GrenadeLandedNotifyActors(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void G_GrenadeLandedNotifyActors_entry(void);
+// 0x0021f4e0 (ECX actor; NodeClaimRevoked): drops the claim, may pick a new grenade reaction.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_NodeClaimRevoked(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_NodeClaimRevoked_entry(void);
+// 0x0021f6d0 (ESI actor): throw back or a new reaction unless safe.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_UpdateReaction_entry(void);
+// 0x0021dbd0 (ECX actor): orientation by the record's mode.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateOrient_entry(void);
+// 0x0021c500 (EAX sentient; stack node; ret 4): goal at the node, cover state when possible.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_SetGoalNodeAndTakeCover_entry(void);
+// 0x0022d580 (EAX entity, ECX tag, EBX out): the tag's local origin.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_DObjGetTagLocalOrigin(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void G_DObjGetTagLocalOrigin_entry(void);
 // 0x00216ae0 (cdecl path, team, a3, start, point, a6, a7, block): A* until within block[0] of the point, inside a cylinder and planes.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearchAwayInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
