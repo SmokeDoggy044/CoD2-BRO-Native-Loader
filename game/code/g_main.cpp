@@ -1221,4 +1221,31 @@ uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full) {
                      1);
 }
 
+PLATFORM_ASM_ENTRY(G_RestorePlayerHealth_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_RestorePlayerHealth) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved) {
+    uint8_t* const player = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f534) + 4)});
+    if (!player) return;
+    uint8_t* const client = *reinterpret_cast<uint8_t**>(player + 0x23c);
+    if (!client) return;
+    int32_t health;
+    if (saved[0x390] && saved[0]) {
+        // The minimum health per skill level: max health (+0x108) times three factors, truncated (_ftol).
+        const long double max_health = static_cast<long double>(*reinterpret_cast<const int32_t*>(client + 0x108));
+        int32_t minimum[3];
+        minimum[0] = static_cast<int32_t>(static_cast<int64_t>(title_global<double>(0x0083ee70) * max_health));
+        minimum[1] = static_cast<int32_t>(static_cast<int64_t>(title_global<double>(0x0083ecb0) * max_health));
+        minimum[2] = static_cast<int32_t>(static_cast<int64_t>(max_health * title_global<double>(0x0083ee68)));
+        const int32_t limit = minimum[title_global<int32_t>(0x00950b3c)];  // g_skillLevel
+        health = *reinterpret_cast<const int32_t*>(saved + 4);
+        if (health < limit) health = limit;
+    } else {
+        health = *reinterpret_cast<const int32_t*>(client + 0x108);
+    }
+    *reinterpret_cast<int32_t*>(client + 0x100) = health;
+    *reinterpret_cast<int32_t*>(player + 0x350) = health;
+}
+
 }  // namespace game

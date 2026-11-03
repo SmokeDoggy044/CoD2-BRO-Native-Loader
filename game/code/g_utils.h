@@ -335,4 +335,20 @@ void XB_REGS1 XB_CDECL G_EntUnlink(uint8_t* ent);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL G_EntGetTagIndex(const uint8_t* ent, uint32_t name);
 extern "C" void G_EntGetTagIndex_entry(void);
 
+// 0x002bde90 (stdcall; dead: no callers): a shake/rumble descriptor with both channels' +4/+0xc from the arguments,
+// started on shakeRumbleMgr at strength 1 (the id goes to the first argument's slot); its script strings released.
+void XB_STDCALL ShakeRumble_StartByName(uint32_t id_slot, float second);
+// 0x002be2e0 (EAX state; returns it): zeroes an entity state (0xcc bytes except +0x5c).
+uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state);
+// 0x002be420 (cdecl entity): marks its scene slot (+0x290) changed, G_FreeEntityContents, clears +0x224 and frees
+// it in its memory context (+0x220, -1 = the default +0x34) or with Z_Free. The world entity (0x0095f52c) breaks.
+void XB_CDECL G_FreeEntity(uint8_t* ent);
+// 0x002be860 (cdecl note): deletes the note's anim object (+0xc), closes its file (+8) and frees it (small heap
+// 0x0095f520), inside its memory context (+0x24) when it has one.
+void XB_CDECL CodNote_Free(uint8_t* note);
+// 0x002be8f0 (cdecl time): advances every cod note on the list at 0x008dda50: its object's +0xc(time); notifies the
+// owner (game import +0x8ac) with +0x10 once started (+0x18), frees a finished one (notify +0x10 again) and sends
+// +0x14 within +0x20 of the end.
+void XB_CDECL G_ProcessCodNotes(uint32_t time);
+
 }  // namespace game

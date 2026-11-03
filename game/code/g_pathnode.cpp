@@ -645,4 +645,165 @@ void XB_REGS3 XB_STDCALL Path_RecordDisconnectedLink(uint8_t* world, uint32_t, u
     PathNode_DisableLink(node, 0, link);
 }
 
+void XB_THISCALL Path_ResetLinkList2048(uint8_t* world) {
+    if (!path_info(world)) return;
+    for (uint32_t i = 0; i < 0x800; ++i) {
+        auto record = [&] { return ptr(word_at(path_info(world), 0x10)) + i * 8; };
+        half_at(record(), 2) = 0;
+        half_at(record(), 0) = 0;
+        half_at(record(), 4) = static_cast<uint16_t>(i == 0 ? 0x7ff : i - 1);
+        half_at(record(), 6) = static_cast<uint16_t>(i == 0x7ff ? 0 : i + 1);
+    }
+}
+
+PLATFORM_ASM_ENTRY(PathNode_ParseAllScriptKeys_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(PathNode_ParseAllScriptKeys) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL PathNode_ParseAllScriptKeys(uint8_t* world) {
+    if (!path_info(world)) return;
+    for (int32_t b = 0; b < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++b)
+        if (path_block(world, b)) PathNode_ParseScriptKeys(world, 0, b);
+}
+
+int32_t XB_REGS1 XB_STDCALL PathNode_FindByKey(const ScriptString* key, uint8_t* world, const ScriptString* value,
+                                               uint32_t* out) {
+    int32_t found = 0;
+    const uint32_t* const key_rep = reinterpret_cast<const uint32_t*>(key);
+    if (!*reinterpret_cast<const uint32_t*>(value) || !*key_rep) {
+        if (out) {
+            for (int32_t b = 0; b < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++b) {
+                for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(word_at(path_block(world, b), 4)); ++i)
+                    out[found++] = half_at(ptr(word_at(path_block(world, b), 0x10)), i * 0x80);
+            }
+            return found;
+        }
+    }
+    // The node field the key names (text at the script string's rep + 6).
+    static const uint32_t kKeys[9][2] = {
+        {0x0082dda8, 0x30},  // "targetname"
+        {0x00833ad0, 0x38},  // "target"
+        {0x00833ac4, 0x3c},  // "animscript"
+        {0x00833ab0, 0x34},  // "script_noteworthy"
+        {0x00833aa8, 0x44},  // "origin"
+        {0x00833aa0, 0x50},  // "angles"
+        {0x00833a98, 0x54},  // "radius"
+        {0x00833a8c, 0x2c},  // "spawnflags"
+        {0x00833a84, 0x28},  // "type"
+    };
+    const auto stricmp = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443);  // _stricmp
+    uint32_t field = 0;
+    bool known = false;
+    for (uint32_t k = 0; k < 9; ++k) {
+        const char* const text = *key_rep ? reinterpret_cast<const char*>(ptr(*key_rep + 6)) : nullptr;
+        if (stricmp(reinterpret_cast<const char*>(ptr(kKeys[k][0])), text) == 0) {
+            field = kKeys[k][1];
+            known = true;
+            break;
+        }
+    }
+    if (!known) return -1;
+    for (int32_t b = 0; b < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++b) {
+        uint8_t* const block = path_block(world, b);
+        if (!block) continue;
+        for (uint8_t* node = ptr(word_at(block, 0x10));
+             node < ptr(word_at(block, 0x10)) + word_at(block, 4) * 0x80; node += 0x80) {
+            if (!word_at(node, field)) continue;
+            if (!ScriptString_EqualsString(value, reinterpret_cast<const ScriptString*>(node + field))) continue;
+            if (!out) return half_at(node, 0);
+            out[found++] = half_at(node, 0);
+        }
+    }
+    if (out) return found;
+    return -1;
+}
+
+void XB_REGS2 XB_CDECL Actor_SetStanceLimitsFromNode(const uint8_t* actor, uint8_t* limits) {
+    const uint16_t h = *reinterpret_cast<const uint16_t*>(actor + 0x18);
+    if (h == 0 || h == 0xffff) return;
+    uint8_t* const node = node_of(title_global<uint8_t*>(0x0095f4f4), h);  // g_pathNodeBlocks
+    if (!node) return;
+    uint8_t& flags = limits[0x46];
+    if (node[0x2c] & 0x10)
+        flags |= 1;
+    else
+        flags &= 0xfe;
+    if (node[0x2c] & 0x8)
+        flags |= 2;
+    else
+        flags &= 0xfd;
+    if (node[0x2c] & 0x4)
+        flags |= 4;
+    else
+        flags &= 0xfb;
+}
+
+namespace {
+
+// Clears a node's claim time (+8) and the claimer (+4) when it is of the team, for a node not disabled (+0x26)
+// whose claim is not permanent.
+void revoke_linked_claim(uint8_t* node, uint32_t team) {
+    if (half_at(node, 0x26) || static_cast<int32_t>(word_at(node, 8)) >= 0x7fffffff) return;
+    uint8_t* const claimer = ptr(word_at(node, 4));
+    if (claimer && word_at(claimer, 4) == team) word_at(node, 4) = 0;
+    word_at(node, 8) = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(PathNode_RevokeClaim_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PathNode_RevokeClaim) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL PathNode_RevokeClaim(uint8_t* node, uint32_t team) {
+    uint8_t* const claimer = ptr(word_at(node, 4));
+    if (claimer && word_at(claimer, 4) == team) word_at(node, 4) = 0;
+    word_at(node, 8 + team * 4) = title_global<uint32_t>(0x0098540c) + 5000;  // level_time
+    if (half_at(node, 0x26)) return;
+    word_at(node, 8) = 0;
+    const uint16_t first = half_at(node, 0x58);
+    if (first == 0 || first == 0xffff) return;
+    uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+    revoke_linked_claim(node_of(blocks, first), team);
+    const uint16_t second = half_at(node, 0x5a);
+    if (second == 0 || second == 0xffff) return;
+    revoke_linked_claim(PathNode_FromHandleInTable(reinterpret_cast<const uint16_t*>(node + 0x5a), blocks), team);
+}
+
+void XB_THISCALL G_FriendlyChainNode(uint8_t* ent, uint8_t* world, const ScriptString* name) {
+    if (!title_global<uint32_t>(0x009550f4)) return;
+    uint16_t* const current = reinterpret_cast<uint16_t*>(ent + 0x4a);
+    if ((PathNode_HandleIsValid(current) & 0xff) &&
+        ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(PathNode_FromHandle(current) + 0x30), name))
+        return;
+    if (word_at(path_info(world), 8)) {
+        int32_t i = 0;
+        do {
+            uint8_t* const node = node_of(world, sorted_handles(world)[i]);
+            if (node && ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(node + 0x30), name)) {
+                *current = half_at(node, 0);
+                return;
+            }
+            ++i;
+        } while (i != static_cast<int32_t>(word_at(path_info(world), 8)));
+    }
+    auto text = [&] { return *reinterpret_cast<const uint32_t*>(name) ? reinterpret_cast<const char*>(ptr(*reinterpret_cast<const uint32_t*>(name) + 6)) : nullptr; };
+    using Error = void XB_CDECL(const char*, const char*);
+    for (int32_t b = 0; b < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++b) {
+        uint8_t* const block = path_block(world, b);
+        if (!block) continue;
+        int32_t left = static_cast<int32_t>(word_at(block, 4));
+        if (left <= 0) continue;
+        uint32_t offset = 0;
+        do {
+            uint8_t* const nodes = ptr(word_at(path_block(world, b), 0x10));
+            if (ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(nodes + offset + 0x30), name))
+                title_function<Error>(0x00248af0)(reinterpret_cast<const char*>(ptr(0x00833980)), text());  // G_Error
+            offset += 0x80;
+        } while (--left);
+    }
+    title_function<Error>(0x00248af0)(reinterpret_cast<const char*>(ptr(0x00833954)), text());  // G_Error
+}
+
 }  // namespace game

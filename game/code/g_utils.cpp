@@ -1883,4 +1883,163 @@ int32_t XB_CDECL G_EntGetTagIndex(const uint8_t* ent, uint32_t name) {
     return DObj_GetTagIndex(obj, name);
 }
 
+void XB_STDCALL ShakeRumble_StartByName(uint32_t id_slot, float second) {
+    // Dead code (no callers): a descriptor (0x40 bytes, two channels of 0x20) with both channels'
+    // +8 / +0x10 set from the two arguments, started at strength 1; the id lands in the first argument's slot.
+    alignas(4) uint8_t desc[0x48];
+    ShakeRumbleDesc_Init(desc);
+    uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
+    const uint32_t first = id_slot;
+    *reinterpret_cast<uint32_t*>(desc + 8) = first;
+    *reinterpret_cast<float*>(desc + 0x10) = second;
+    *reinterpret_cast<uint32_t*>(desc + 0x28) = first;
+    *reinterpret_cast<float*>(desc + 0x30) = second;
+    if (manager) ShakeRumble_Start(desc, manager, &id_slot, 1.0f);
+    for (uint32_t i = 2; i-- > 0;)
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(desc + 0x18 + i * 0x20);  // ScriptString_Release
+}
+
+uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state) {
+    for (uint32_t i = 0; i < 6; ++i) state[i] = 0;
+    for (uint32_t offset = 0x8; offset < 0x5c; offset += 4) word_at(state, offset) = 0;
+    for (uint32_t offset = 0x60; offset < 0xb4; offset += 4) word_at(state, offset) = 0;
+    word_at(state, 0xbc) = 0;  // 0.0f
+    for (uint32_t offset = 0xc0; offset < 0xcc; offset += 4) word_at(state, offset) = 0;
+    *reinterpret_cast<uint16_t*>(state + 6) = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+        state[0xb4 + i] = 0;
+        state[0xb8 + i] = 0;
+    }
+    return state;
+}
+
+void XB_CDECL G_FreeEntity(uint8_t* ent) {
+    if (ent == title_global<uint8_t*>(0x0095f52c)) {
+        title_function<void XB_CDECL(uint8_t*)>(0x00042460)(ent);  // Sys_DebugBreak (tail jump)
+        return;
+    }
+    if (title_global<uint8_t>(0x008d50d4)) {
+        uint8_t* const info = reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f4f8), 0x194)});
+        if (info) {
+            uint32_t index = word_at(ent, 0x290);
+            if (static_cast<int32_t>(index) > -1) {
+                if (index >= word_at(info, 0)) index = 0;
+                reinterpret_cast<uint8_t*>(uintptr_t{word_at(info, 4)})[index] = 1;
+            }
+        }
+    }
+    int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
+    title_global<uint8_t>(0x008d50d4) = 1;
+    if (context == -1) context = static_cast<int32_t>(word_at(title_global<uint8_t*>(0x0095f638), 0x34));
+    title_function<void XB_THISCALL(uint8_t*)>(0x002eda30)(ent);  // G_FreeEntityContents
+    word_at(ent, 0x224) = 0;
+    if (context != -1) {
+        uint8_t* const heap = context >= 0 && context < 0x63
+                                  ? reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4)})
+                                  : nullptr;
+        if (MemContext_Free_r(heap, ent)) return;
+    }
+    Z_Free(ent);
+}
+
+void XB_CDECL CodNote_Free(uint8_t* note) {
+    const uint32_t context = word_at(note, 0x24);
+    uint8_t saved = 0;
+    if (context != 0xffffffff) {
+        saved = title_global<uint8_t>(0x0095f5d0);
+        uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = 1;
+        MemContext_Push(memory, context);
+    }
+    const uint32_t object = word_at(note, 0xc);
+    if (object) {
+        const uint32_t vtable = word_at(reinterpret_cast<uint8_t*>(uintptr_t{object}), 0);
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), 0))(object, 1);
+    }
+    File_Close(static_cast<int32_t>(word_at(note, 8)));
+    SmallHeap_Free(title_global<uint8_t*>(0x0095f520), note);
+    if (context == 0xffffffff) return;
+    uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+    title_global<uint8_t>(0x0095f5d0) = saved;
+    title_global<uint8_t>(0x0095f5d1) = 0;
+    MemContext_Pop(memory);
+}
+
+namespace {
+
+// The entity behind the handle game import +0x8ac returns (the note's owner), or null.
+uint8_t* cod_note_entity() {
+    const uint32_t handle =
+        title_function<uint32_t XB_CDECL()>(word_at(title_global<uint8_t*>(0x0095f49c), 0x8ac))();
+    const uint32_t index = handle & 0xfff;
+    if (static_cast<int32_t>(index) >= 0x540) return nullptr;
+    if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x0097a968 + index * 8);  // g_entityHandleTable
+}
+
+}  // namespace
+
+void XB_CDECL G_ProcessCodNotes(uint32_t time) {
+    using Method = uint32_t XB_THISCALL(uint8_t*);
+    using Method1 = void XB_THISCALL(uint8_t*, uint32_t);
+    auto method = [](uint8_t* object, uint32_t slot) {
+        return word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 0)}), slot);
+    };
+    uint32_t first = title_global<uint32_t>(0x008dda50);
+    uint8_t* note = reinterpret_cast<uint8_t*>(uintptr_t{first});
+    uint32_t following = first ? word_at(note, 0) : 0;
+    uint32_t pending = first;
+    if (first == 0x008dda54 || !following) return;  // the list ends at the sentinel 0x008dda54
+    for (;;) {
+        if (following) {
+            pending = following;
+            following = word_at(reinterpret_cast<uint8_t*>(uintptr_t{following}), 0);
+        }
+        const uint32_t context = word_at(note, 0x24);
+        uint8_t* const object = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 0xc)});
+        uint8_t saved = 0;
+        if (context != 0xffffffff) {
+            saved = title_global<uint8_t>(0x0095f5d0);
+            title_global<uint8_t>(0x0095f5d1) = 0;
+            title_global<uint8_t>(0x0095f5d0) = 1;
+            MemContext_Push(title_global<uint8_t*>(0x0095f638), context);
+        }
+        title_function<Method1>(method(object, 0xc))(object, time);
+        if (!note[0x18] && (title_function<Method>(method(object, 4))(object) & 0xff)) {
+            Scr_Notify(cod_note_entity(), word_at(note, 0x10));
+            note[0x18] = 1;
+        }
+        const uint8_t started = note[0x18];
+        if (started) {
+            uint8_t* const anim = reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 4)});
+            if (!((word_at(anim, 4) >> 1) & 1) &&
+                *reinterpret_cast<const float*>(object + 0x10) >= *reinterpret_cast<const float*>(anim + 0x3c)) {
+                uint8_t* const next = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 0)});
+                word_at(next, 4) = word_at(note, 4);
+                uint8_t* const previous = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 4)});
+                word_at(previous, 0) = word_at(note, 0);
+                --title_global<int32_t>(0x008dda4c);
+                Scr_Notify(cod_note_entity(), word_at(note, 0x10));
+                title_function<Method1>(method(object, 0))(object, 1);
+                File_Close(static_cast<int32_t>(word_at(note, 8)));
+                SmallHeap_Free(title_global<uint8_t*>(0x0095f520), note);
+            } else {
+                uint8_t* const current = reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 4)});
+                const float end = *reinterpret_cast<const float*>(current + 0x3c) - *reinterpret_cast<const float*>(note + 0x20);
+                if (*reinterpret_cast<const float*>(object + 0x10) > end && word_at(note, 0x14))
+                    Scr_Notify(cod_note_entity(), word_at(note, 0x14));
+            }
+        }
+        uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+        if (context != 0xffffffff) {
+            title_global<uint8_t>(0x0095f5d1) = 0;
+            title_global<uint8_t>(0x0095f5d0) = saved;
+            MemContext_Pop(memory);
+        }
+        if (!following) return;
+        note = reinterpret_cast<uint8_t*>(uintptr_t{pending});
+    }
+}
+
 }  // namespace game

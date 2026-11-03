@@ -113,4 +113,27 @@ uint8_t* XB_THISCALL PathNodeTree_PickAvailableDescendant_r(uint8_t* world, int3
 void XB_REGS3 XB_STDCALL Path_RecordDisconnectedLink(uint8_t* world, uint32_t unused_edx, uint8_t* link, uint8_t* ent,
                                                      uint8_t* node);
 
+// 0x002b9870 (thiscall path data): resets the 2048 disconnected-link records to one free ring (+4 prev, +6 next).
+void XB_THISCALL Path_ResetLinkList2048(uint8_t* world);
+// 0x002b99f0 (EDI path data): PathNode_ParseScriptKeys for every present block.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PathNode_ParseAllScriptKeys(uint8_t* world);
+extern "C" void PathNode_ParseAllScriptKeys_entry(void);
+// 0x002b9c00 (EAX key, stack path data, value, out list or null; callee pops): the nodes whose field named by the key
+// (targetname +0x30, target +0x38, animscript +0x3c, script_noteworthy +0x34, origin +0x44, angles +0x50,
+// radius +0x54, spawnflags +0x2c, type +0x28) equals the value: the count listed (out), else the first handle;
+// -1 for an unknown key or none found. An empty key or value with an out list lists every node.
+int32_t XB_REGS1 XB_STDCALL PathNode_FindByKey(const ScriptString* key, uint8_t* world, const ScriptString* value,
+                                               uint32_t* out);
+// 0x002ba050 (EAX actor, EDX stance limits): copies the node's (actor +0x18) no-stand/no-crouch/no-prone
+// flags (+0x2c bits 0x10/8/4) into the limits' +0x46 bits 1/2/4.
+void XB_REGS2 XB_CDECL Actor_SetStanceLimitsFromNode(const uint8_t* actor, uint8_t* limits);
+// 0x002ba0d0 (ESI node, cdecl team): drops the team's claim (+4 claimer of that team), blocks the team for
+// 5 s (+8 + team * 4); an enabled node (+0x26 = 0) also clears +8 and the claims of its two linked nodes (+0x58, +0x5a).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PathNode_RevokeClaim(uint8_t* node, uint32_t team);
+extern "C" void PathNode_RevokeClaim_entry(void);
+// 0x002c0480 (thiscall entity; stack path data, chain name; callee pops): with friendly chains on (0x009550f4),
+// sets the entity's chain node (+0x4a) to the sorted node of that targetname; G_Error when the name is only on an
+// unsorted node or on none.
+void XB_THISCALL G_FriendlyChainNode(uint8_t* ent, uint8_t* world, const ScriptString* name);
+
 }  // namespace game
