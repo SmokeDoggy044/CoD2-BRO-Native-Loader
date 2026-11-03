@@ -443,4 +443,14 @@ extern "C" void Pickup_Weapon_entry(void);
 
 
 
+// 0x0026b960 (pusher in EAX; cdecl move, amove, &obstacle, entity list, pushed list): Q3's G_MoverPush; 0 when blocked.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp);
+extern "C" void G_MoverPush_entry(void);
+// 0x00272800 (angles in EAX, entity in EBX, origin in ECX): Q3's ClientSpawn.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_t esi,
+                                                     uint32_t edi, uint32_t ebp, uint32_t origin);
+extern "C" void ClientSpawn_entry(void);
+
+
 }  // namespace game

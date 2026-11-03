@@ -7149,4 +7149,404 @@ int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, ui
     return title_global<int32_t>(0x00950914);
 }
 
+ENT_EAX_FRAME_ENTRY(G_MoverPush)
+
+uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's G_MoverPush (EAX pusher; cdecl move, amove, &obstacle, entity list, pushed list). The
+    // box to search: absmin/absmax + move, or (rotating: angles or amove not all 0) the origin
+    // +- RadiusFromBounds (x87 sums); the swept box spans both. The pusher moves and turns
+    // (relinked); entities of type 1, 2, 3, 0xb, 0xd or items (+0x294) standing on it (+0xc =
+    // its number) or inside the moved box and blocked by it (G_TestEntityPosition) are pushed
+    // (unlinked, then G_TryPushingEntity with vec4 move/amove, pushed_p record {entity, origin,
+    // yaw delta}); a blocked one that is not an item/0xd is crushed (G_Damage 99999, mod 0x10)
+    // by type-4 movers, else it is the obstacle and the push fails (0). 1 after relinking them.
+    // Frame: S = ((entry - 4) & ~15) - 0xb0: radius +0xc, swept max +0x10, count index +0x3c,
+    // swept min +0x20, move min +0x40, move max +0x50, area parms +0x60.
+    const uint32_t A = (entry - 4) & ~15u;
+    stack_at(entry - 4) = ebp;
+    stack_at(A - 0xa8) = ebx;
+    stack_at(A - 0xac) = esi;
+    stack_at(A - 0xb0) = edi;
+    const uint32_t S = A - 0xb0;
+    const uint32_t self = address_of(pusher);
+    const float* const move = reinterpret_cast<const float*>(uintptr_t{stack_at(entry + 4)});
+    const float* const amove = reinterpret_cast<const float*>(uintptr_t{stack_at(entry + 8)});
+    uint32_t* const obstacle = reinterpret_cast<uint32_t*>(uintptr_t{stack_at(entry + 0xc)});
+    const uint32_t list = stack_at(entry + 0x10);
+    uint32_t* const pushed = reinterpret_cast<uint32_t*>(uintptr_t{stack_at(entry + 0x14)});
+    const uint32_t move_w = address_of(move), amove_w = address_of(amove);
+    *obstacle = 0;
+    const float zero = 0.0f;
+    const auto nonzero = [&](float v) { return !(v == zero); };
+    float min_x, min_y, min_z, max_z;
+    if (nonzero(field<float>(pusher, 0x150)) || nonzero(field<float>(pusher, 0x154)) ||
+        nonzero(field<float>(pusher, 0x158)) || nonzero(amove[0]) || nonzero(amove[1]) || nonzero(amove[2])) {
+        const long double r_x87 = RadiusFromBounds(reinterpret_cast<const float*>(pusher + 0xf0), 0,
+                                                   reinterpret_cast<const float*>(pusher + 0xe0));
+        stack_at(S - 4) = 0x0026babc;
+        const float r = static_cast<float>(r_x87);
+        stack_float(S + 0xc) = r;
+        const long double rl = r;
+        const float ox = field<float>(pusher, 0x140), oy = field<float>(pusher, 0x144), oz = field<float>(pusher, 0x148);
+        stack_float(S + 0x50) = static_cast<float>((static_cast<long double>(move[0]) + ox) + rl);
+        min_x = ox - r;
+        stack_float(S + 0x40) = move[0] + min_x;
+        stack_float(S + 0x10) = static_cast<float>(rl + ox);
+        min_y = oy - r;
+        stack_float(S + 0x44) = move[1] + min_y;
+        min_z = oz - r;
+        stack_float(S + 0x48) = min_z + move[2];
+        stack_float(S + 0x54) = static_cast<float>((rl + move[1]) + oy);
+        stack_float(S + 0x58) = (oz + move[2]) + r;
+        max_z = oz + r;
+        stack_float(S + 0x14) = static_cast<float>(rl + oy);
+    } else {
+        stack_float(S + 0x40) = move[0] + field<float>(pusher, 0x100);
+        stack_float(S + 0x50) = field<float>(pusher, 0x110) + move[0];
+        stack_float(S + 0x44) = move[1] + field<float>(pusher, 0x104);
+        stack_float(S + 0x54) = move[1] + field<float>(pusher, 0x114);
+        stack_float(S + 0x48) = field<float>(pusher, 0x108) + move[2];
+        stack_float(S + 0x58) = move[2] + field<float>(pusher, 0x118);
+        min_x = field<float>(pusher, 0x100);
+        min_y = field<float>(pusher, 0x104);
+        min_z = field<float>(pusher, 0x108);
+        max_z = field<float>(pusher, 0x118);
+        stack_float(S + 0x10) = field<float>(pusher, 0x110);
+        stack_float(S + 0x14) = field<float>(pusher, 0x114);
+    }
+    stack_float(S + 0x20) = min_x;
+    stack_float(S + 0x24) = min_y;
+    stack_float(S + 0x28) = min_z;
+    stack_float(S + 0x18) = max_z;
+    if (move[0] > zero)
+        stack_float(S + 0x10) = move[0] + stack_float(S + 0x10);
+    else
+        stack_float(S + 0x20) = move[0] + min_x;
+    if (move[1] > zero)
+        stack_float(S + 0x14) = move[1] + stack_float(S + 0x14);
+    else
+        stack_float(S + 0x24) = move[1] + min_y;
+    if (move[2] > zero)
+        stack_float(S + 0x18) = max_z + move[2];
+    else
+        stack_float(S + 0x28) = min_z + move[2];
+    word_at(pusher, 0xd0) = 0;
+    call_at(S, 0x0026bc05, 0x002aacb0, TitleRegs{self + 0xd0, move_w, 0, 0, self, amove_w}, 0,
+            nullptr);  // SV_UnlinkEntity
+    // The area parms (+0x10 mins, +0x20 maxs with the w words the frame holds, list, count, max, mask).
+    for (uint32_t i = 0; i < 4; ++i) stack_at(S + 0x70 + i * 4) = stack_at(S + 0x20 + i * 4);
+    for (uint32_t i = 0; i < 4; ++i) stack_at(S + 0x80 + i * 4) = stack_at(S + 0x10 + i * 4);
+    stack_at(S + 0x90) = list;
+    stack_at(S + 0x94) = 0;
+    stack_at(S + 0x98) = 0x540;
+    stack_at(S + 0x9c) = 0x600c180;
+    {
+        const uint32_t args[2] = {0x00935664, S + 0x60};
+        call_at(S, 0x0026bc8b, 0x002c72e0, TitleRegs{list, move_w, S + 0x60, stack_at(S + 0x1c), self, amove_w}, 2,
+                args);  // SV_AreaEntities_r
+    }
+    field<float>(pusher, 0x140) = move[0] + field<float>(pusher, 0x140);
+    field<float>(pusher, 0x144) = move[1] + field<float>(pusher, 0x144);
+    field<float>(pusher, 0x148) = field<float>(pusher, 0x148) + move[2];
+    field<float>(pusher, 0x150) = amove[0] + field<float>(pusher, 0x150);
+    field<float>(pusher, 0x154) = field<float>(pusher, 0x154) + amove[1];
+    field<float>(pusher, 0x158) = field<float>(pusher, 0x158) + amove[2];
+    call_at(S, 0x0026bd11, 0x002d7fe0, TitleRegs{0, move_w, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
+    const auto entity_of = [](uint32_t handle) -> uint32_t {
+        const uint32_t index = handle & 0xfff;
+        if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+        return title_global<uint32_t>(0x0097a968 + index * 8);
+    };
+    stack_at(S + 0xc) = 0;
+    for (int32_t i = 0; i < static_cast<int32_t>(stack_at(S + 0x94)); ++i) {
+        const uint32_t handle = reinterpret_cast<const uint32_t*>(uintptr_t{list})[i];
+        const uint32_t e_word = entity_of(handle);
+        uint8_t* const e = reinterpret_cast<uint8_t*>(uintptr_t{e_word});
+        const uint8_t type = e[0];
+        if (!(type == 3 || type == 2 || type == 1 || type == 0xb || type == 0xd || e[0x294] != 0)) continue;
+        bool take = word_at(e, 0xc) == word_at(pusher, 0x224);
+        if (!take) {
+            if (field<float>(e, 0x100) >= stack_float(S + 0x50)) continue;
+            if (field<float>(e, 0x104) >= stack_float(S + 0x54)) continue;
+            if (field<float>(e, 0x108) >= stack_float(S + 0x58)) continue;
+            if (stack_float(S + 0x40) >= field<float>(e, 0x110)) continue;
+            if (stack_float(S + 0x44) >= field<float>(e, 0x114)) continue;
+            if (stack_float(S + 0x48) >= field<float>(e, 0x118)) continue;
+            const uint32_t args[1] = {e_word + 0x140};
+            take = call_at(S, 0x0026bdeb, 0x00262be0, TitleRegs{e_word, move_w, word_at(e, 0xc), e_word + 0x140,
+                                                                 self, static_cast<uint32_t>(i)},
+                           1, args) == self;  // G_TestEntityPosition
+        }
+        if (take) {
+            const uint32_t n = stack_at(S + 0xc);
+            pushed[n] = reinterpret_cast<const uint32_t*>(uintptr_t{list})[i];
+            stack_at(S + 0xc) = n + 1;
+        }
+    }
+    const int32_t count = static_cast<int32_t>(stack_at(S + 0xc));
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t e_word = entity_of(pushed[i]);
+        word_at(reinterpret_cast<uint8_t*>(uintptr_t{e_word}), 0xd0) = 0;
+        call_at(S, 0x0026be5b, 0x002aacb0, TitleRegs{e_word + 0xd0, move_w, 0, e_word, self, static_cast<uint32_t>(i)}, 0,
+                nullptr);  // SV_UnlinkEntity
+    }
+    stack_at(S + 0x3c) = 0;
+    for (int32_t i = 0; i < count; ++i) {
+        stack_at(S + 0x3c) = static_cast<uint32_t>(i);
+        const uint32_t e_word = entity_of(pushed[i]);
+        uint8_t* const e = reinterpret_cast<uint8_t*>(uintptr_t{e_word});
+        uint32_t* const record = reinterpret_cast<uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095bef8)});  // pushed_p
+        record[0] = e_word;
+        record[1] = word_at(e, 0x140);
+        record[2] = word_at(e, 0x144);
+        record[3] = word_at(e, 0x148);
+        record[4] = reinterpret_cast<const uint32_t*>(amove)[1];
+        const uint32_t* const am = reinterpret_cast<const uint32_t*>(amove);
+        const uint32_t* const mv = reinterpret_cast<const uint32_t*>(move);
+        stack_at(S + 0x28) = am[2];
+        stack_at(S + 0x2c) = am[0];
+        stack_at(S + 0x24) = am[1];
+        stack_at(S + 0x20) = am[0];
+        for (uint32_t k = 0; k < 4; ++k) stack_at(S + 0x40 + k * 4) = stack_at(S + 0x20 + k * 4);
+        stack_at(S + 0x18) = mv[2];
+        stack_at(S + 0x1c) = mv[0];
+        stack_at(S + 0x14) = mv[1];
+        stack_at(S + 0x10) = mv[0];
+        for (uint32_t k = 0; k < 4; ++k) stack_at(S + 0x50 + k * 4) = stack_at(S + 0x10 + k * 4);
+        const uint32_t args[3] = {e_word, self, S + 0x40};
+        const uint32_t moved = call_at(S, 0x0026bf4a, 0x00267020, TitleRegs{S + 0x50, move_w, amove_w, am[1], self, e_word}, 3,
+                                       args);  // G_TryPushingEntity
+        if (moved == 0 && e[0] != 2 && e[0] != 0xd) {
+            if (word_at(pusher, 0x14) != 4 && word_at(pusher, 0x38) != 4) {
+                *obstacle = e_word;
+                return 0;
+            }
+            const uint32_t dargs[9] = {e_word, self, self, 0, 0x1869f, 0, 0x10, 0, 0xffffffffu};
+            call_at(S, 0x0026bf89, 0x00250340, TitleRegs{0, move_w, word_at(pusher, 0x14), 0, self, e_word}, 9,
+                    dargs);  // G_Damage
+        } else {
+            call_at(S, 0x0026bf93, 0x002d7fe0, TitleRegs{moved, move_w, 0, 0, self, e_word}, 0, nullptr);  // SV_LinkEntity
+        }
+    }
+    if (count > 0) stack_at(S + 0x3c) = static_cast<uint32_t>(count);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t e_word = entity_of(pushed[i]);
+        call_at(S, 0x0026bfe2, 0x002d7fe0, TitleRegs{pushed[i] & 0xfff, move_w, pushed[i] >> 12, 0, static_cast<uint32_t>(i),
+                                                     e_word},
+                0, nullptr);  // SV_LinkEntity
+    }
+    return 1;
+}
+
+ENT_FULL_FRAME_ENTRY(ClientSpawn)
+
+void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp,
+                          uint32_t origin) {
+    // Q3's ClientSpawn (EAX angles, EBX entity, ECX origin): the client state cleared except the
+    // persistant block (+0x520, 100 bytes) and +0x98; client number, run cvar for the local
+    // player (else +0xd4 bit 8), the "player" classname (+0x25c, hash +0x260), contents, clip
+    // mask, bounds (0x0097a8a0 / 0x00984d00) and the movement tunables, health (+0x100 =
+    // +0x108), the origin, the per-client settings block (0x00927e8c + 0x30, 44 bytes; __break
+    // for a bad client), view angles, the +0x430/+0x440 +-FLT_MAX bounds, two lazily allocated
+    // buffers (+0x450 0x1000, +0x454 0x800: zone context or heap, self pointer at the end), a
+    // first ClientThink, the local player's streaming loaded around the spawn, ClientEndFrame.
+    // Frame: S = ((entry - 4) & ~15) - 0xa0: angles / FLT_MAX vec +0x10, flags +0x20, client
+    // +0x28, origin +0x2c, persistant copy +0x38.
+    const uint32_t A = (entry - 4) & ~15u;
+    stack_at(entry - 4) = ebp;
+    stack_at(A - 0x9c) = esi;
+    stack_at(A - 0xa0) = edi;
+    const uint32_t S = A - 0xa0;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{ebx});
+    const uint32_t self = ebx;
+    uint8_t* client = pointer_at(ent, 0x23c);
+    const uint32_t client_w = address_of(client);
+    stack_at(S + 0x28) = client_w;
+    stack_at(S + 0x24) = client_w + 0x520;
+    word_at(client, 0x520) = 2;
+    call_at(S, 0x00272832, 0x00231670, TitleRegs{self, self, origin, 0, origin, angles}, 0,
+            nullptr);  // G_FreeEntityPhysics
+    for (uint32_t i = 0; i < 3; ++i) stack_at(S + 0x2c + i * 4) = stack_at(origin + i * 4);
+    const uint32_t flags = ~word_at(pointer_at(ent, 0x23c), 0xc0) & 8;
+    stack_at(S + 0x10) = stack_at(angles);
+    stack_at(S + 0x14) = stack_at(angles + 4);
+    stack_at(S + 0x20) = flags;
+    for (uint32_t i = 0; i < 0x19; ++i) stack_at(S + 0x38 + i * 4) = word_at(client, 0x520 + i * 4);
+    const uint32_t saved = word_at(client, 0x98);
+    stack_at(S + 0x24) = saved;
+    for (uint32_t i = 0; i < 0x190; ++i) word_at(client, i * 4) = 0;
+    word_at(client, 0x98) = saved;
+    for (uint32_t i = 0; i < 0x19; ++i) word_at(client, 0x520 + i * 4) = stack_at(S + 0x38 + i * 4);
+    word_at(client, 0x7c) = word_at(ent, 0x224);
+    word_at(client, 0x108) = word_at(client, 0x580);
+    word_at(client, 0xc0) = flags | 0x10;
+    word_at(ent, 0xd4) |= 0x200;
+    stack_at(S + 0x18) = stack_at(angles + 8);
+    if (ent == pointer_at(title_global<uint8_t*>(0x0095f534), 4)) {
+        const uint32_t args[3] = {0x0082c538, 0x0082e058, 1};
+        call_at(S, 0x00272927, 0x0029c030, TitleRegs{word_at(ent, 0xd4), self, word_at(client, 0x580),
+                                                     title_global<uint32_t>(0x0095f534), S + 0x9c, client_w + 0x584},
+                3, args);  // Cvar_Set2 "cl_run" "1"
+    } else {
+        word_at(ent, 0xd4) |= 8;
+    }
+    word_at(ent, 0xc) = 0;
+    word_at(ent, 0x29c) = 1;
+    {
+        const uint32_t args[1] = {0x00984bcc};
+        call_at(S, 0x0027294b, 0x0011d600, TitleRegs{0, self, self + 0x25c, 0, self + 0x25c, 0}, 1,
+                args);  // ScriptString_Assign "player"
+    }
+    const uint32_t rep = word_at(ent, 0x25c);
+    word_at(ent, 0x260) = Com_HashKeyNoCase(0, rep ? reinterpret_cast<const char*>(uintptr_t{rep + 6}) : nullptr);
+    stack_at(S - 4) = 0x0027295d;
+    word_at(ent, 0x134) = 0x2000000;
+    word_at(ent, 0x2a8) = 0x381c011;
+    word_at(ent, 0x344) = 3;
+    word_at(ent, 0x2a4) = 0xc000;
+    call_at(S, 0x00272992, 0x002fb310, TitleRegs{word_at(ent, 0x260), self, 0, 0, self, 0}, 0,
+            nullptr);  // G_UpdateEntityStringHashes
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0xe0 + i * 4) = title_global<uint32_t>(0x0097a8a0 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0xf0 + i * 4) = title_global<uint32_t>(0x00984d00 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(client, 0x408 + i * 4) = word_at(ent, 0xe0 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(client, 0x414 + i * 4) = word_at(ent, 0xf0 + i * 4);
+    word_at(client, 0x420) = title_global<uint32_t>(0x00929b6c);
+    word_at(client, 0x424) = title_global<uint32_t>(0x009354b4);
+    word_at(client, 0x428) = title_global<uint32_t>(0x009341c4);
+    word_at(client, 0x42c) = 8;
+    word_at(client, 0xa8) = title_global<uint32_t>(0x009341c4);
+    field<float>(client, 0x438) = title_global<float>(0x0083f124);
+    field<float>(client, 0xac) = static_cast<float>(title_global<int32_t>(0x009341c4));
+    const float one = title_global<float>(0x0083eb20);
+    const float point4 = title_global<float>(0x0083ec44);
+    field<float>(client, 0x43c) = title_global<float>(0x0083ed2c);
+    field<float>(client, 0x430) = point4;
+    field<float>(client, 0x434) = one;
+    field<float>(client, 0x440) = title_global<float>(0x0083f08c);
+    field<float>(client, 0x444) = one;
+    field<float>(client, 0x448) = one;
+    field<float>(client, 0x44c) = point4;
+    field<float>(client, 0x478) = one;
+    field<float>(client, 0x45c) = one;
+    word_at(client, 0xb0) = 0;
+    field<float>(client, 0xbc) = 0.0f;
+    const uint32_t health = word_at(client, 0x108);
+    word_at(client, 0x100) = health;
+    word_at(ent, 0x350) = health;
+    const uint32_t ox = stack_at(S + 0x2c), oy = stack_at(S + 0x30), oz = stack_at(S + 0x34);
+    word_at(ent, 0x20) = ox;
+    word_at(ent, 0x24) = oy;
+    word_at(ent, 0x28) = oz;
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    word_at(ent, 0x140) = ox;
+    word_at(ent, 0x144) = oy;
+    word_at(ent, 0x148) = oz;
+    word_at(client, 0) = ox;
+    word_at(client, 4) = oy;
+    word_at(client, 8) = oz;
+    word_at(client, 0x2c) = (word_at(client, 0x2c) & 0xffffffdfu) | 0x800;
+    const int32_t number = static_cast<int32_t>(client_w - title_global<uint32_t>(0x00985370)) / 0x640;  // level_clients
+    if (number < 0 || number >= 1) {
+        const uint32_t args[3] = {1, 0x00832e34, static_cast<uint32_t>(number)};
+        call_at(S, 0x00272bcc, 0x002938f0, TitleRegs{static_cast<uint32_t>(number), self, 0, 0, 0, 0}, 3,
+                args);  // __break
+    }
+    {
+        uint8_t* const to = pointer_at(ent, 0x23c) + 0x524;
+        const uint8_t* const from =
+            reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t>(0x00927e8c) + number * 0xec0 + 0x30});
+        for (uint32_t i = 0; i < 0xb; ++i) reinterpret_cast<uint32_t*>(to)[i] = reinterpret_cast<const uint32_t*>(from)[i];
+    }
+    call_at(S, 0x00272bf1, 0x0024ebf0,
+            TitleRegs{S + 0x10, self, 0, self, title_global<uint32_t>(0x00927e8c) + number * 0xec0 + 0x30 + 0x2c,
+                      address_of(pointer_at(ent, 0x23c)) + 0x524 + 0x2c},
+            0,
+            nullptr);  // SetClientViewAngle
+    for (uint32_t i = 0; i < 4; ++i) stack_at(S + 0x10 + i * 4) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
+    for (uint32_t i = 0; i < 4; ++i) word_at(ent, 0x430 + i * 4) = stack_at(S + 0x10 + i * 4);
+    for (uint32_t i = 0; i < 4; ++i) stack_at(S + 0x10 + i * 4) = word_at(ent, 0x430 + i * 4) ^ title_global<uint32_t>(0x0082e0b0 + i * 4);
+    for (uint32_t i = 0; i < 4; ++i) word_at(ent, 0x440 + i * 4) = stack_at(S + 0x10 + i * 4);
+    const auto allocate = [&](uint32_t slot, uint32_t size, uint32_t ret_context, uint32_t ret_heap) {
+        if (word_at(ent, slot) != 0) return;
+        int32_t zone = field<int32_t>(ent, 0x220);
+        uint8_t* const ctx = title_global<uint8_t*>(0x0095f638);
+        uint32_t p = 0;
+        bool heap = false;
+        if (zone == -1) {
+            zone = field<int32_t>(ctx, 0x34);
+            heap = zone == -1;
+        }
+        if (!heap) {
+            const uint32_t context = (zone >= 0 && zone < 0x63) ? word_at(ctx, 0x38 + static_cast<uint32_t>(zone) * 4) : 0;
+            const uint32_t args[2] = {0x10, size};
+            p = call_at(S, ret_context, 0x0028c0f0, TitleRegs{context, self, context, 0, 0, 0}, 2,
+                        args);  // MemContext_Alloc_r
+        }
+        if (p == 0) {
+            const uint32_t args[2] = {0x10, size};
+            p = call_at(S, ret_heap, 0x00042c50, TitleRegs{0, self, 0, 0, 0, 0}, 2, args);  // Heap_AllocAligned
+        }
+        if (p != 0) {
+            uint8_t* const block = reinterpret_cast<uint8_t*>(uintptr_t{p});
+            word_at(block, size - 0x10) = p;
+            word_at(block, size - 0xc) = 0;
+        }
+        word_at(ent, slot) = p;
+    };
+    allocate(0x450, 0x1010, 0x00272cb5, 0x00272cc5);
+    allocate(0x454, 0x810, 0x00272d22, 0x00272d32);
+    call_at(S, 0x00272d56, 0x002d7fe0, TitleRegs{word_at(ent, 0x454), self, 0, 0, 0, self}, 0, nullptr);  // SV_LinkEntity
+    client = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(S + 0x28)});
+    word_at(client, 0x30) = 100;
+    word_at(client, 0x2c) |= 0x200;
+    word_at(client, 0x5e8) = title_global<uint32_t>(0x0098540c);
+    word_at(client, 0x59c) = 0;
+    word_at(client, 0x5a8) = 0;
+    field<float>(client, 0x610) = 0.0f;
+    field<float>(client, 0x60c) = 0.0f;
+    field<float>(client, 0x608) = 0.0f;
+    field<float>(client, 0x61c) = 0.0f;
+    field<float>(client, 0x618) = 0.0f;
+    field<float>(client, 0x614) = 0.0f;
+    word_at(client, 0x20) = title_global<uint32_t>(0x0098540c) - 100;
+    word_at(pointer_at(ent, 0x23c), 0x524) = title_global<uint32_t>(0x0098540c);
+    const uint32_t cw = stack_at(S + 0x28);
+    const uint32_t edi_now = word_at(client, 0x2c);
+    {
+        const uint32_t args[1] = {word_at(ent, 0x224)};
+        call_at(S, 0x00272de2, 0x002726b0, TitleRegs{args[0], self, 0, 0, cw, edi_now}, 1, args);  // ClientThink
+    }
+    call_at(S, 0x00272dee, 0x002bcf90, TitleRegs{self, self, cw, 0, cw, edi_now}, 0,
+            nullptr);  // BG_PlayerStateToEntityState
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = word_at(pointer_at(ent, 0x23c), i * 4);
+    call_at(S, 0x00272e21, 0x002d7fe0, TitleRegs{word_at(ent, 0x148), self, 0, 0, cw, self}, 0, nullptr);  // SV_LinkEntity
+    uint32_t edi_end = self;
+    if (ent == pointer_at(title_global<uint8_t*>(0x0095f534), 4)) {
+        const uint32_t args[4] = {title_global<uint32_t>(0x0095f640), word_at(ent, 0x458), self + 0x140, 1};
+        call_at(S, 0x00272e47, 0x002914f0, TitleRegs{args[0], self, title_global<uint32_t>(0x0095f534), args[1], cw, self},
+                4, args);  // Stream_SetViewPosition
+        uint8_t* const system = title_global<uint8_t*>(0x0095f638);
+        const uint32_t sys = address_of(system);
+        stack_at(S + 0x20) = sys;
+        system[0x14] = 0;
+        system[0x360] = 0;
+        do {
+            call_at(S, 0x00272e69, 0x00292c20, TitleRegs{stack_at(S + 0x20), self, 0, 0, cw, sys + 0x14}, 0,
+                    nullptr);  // Stream_Update
+        } while (system[0x14] == 0);
+        edi_end = sys + 0x14;
+    }
+    {
+        const uint32_t args[1] = {title_global<uint32_t>(0x008dda9c)};
+        call_at(S, 0x00272e7c, 0x002723c0, TitleRegs{self, self, args[0], 0, cw, edi_end}, 1, args);  // ClientEndFrame
+    }
+    call_at(S, 0x00272e88, 0x002bcf90, TitleRegs{self, self, cw, 0, cw, edi_end}, 0,
+            nullptr);  // BG_PlayerStateToEntityState
+}
+
 }  // namespace game
