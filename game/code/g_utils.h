@@ -303,4 +303,9 @@ extern "C" void G_TouchType14EntitiesInBox_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetEntityAnimTree(uint8_t* anims, uint8_t* ent);
 extern "C" void G_SetEntityAnimTree_entry(void);
 
+// 0x002a7ff0 (entity in EAX): whether its DObj (+0x22c) is live (+0x9c bit 0 clear).
+uint32_t XB_REGS1 XB_CDECL G_EntHasLiveDObj(const uint8_t* ent);
+// 0x002a8260: starts a cod note (two words, started flag, its object's slot 2).
+void XB_CDECL G_StartCodNote(uint8_t* note, uint32_t a, uint32_t b);
+
 }  // namespace game

@@ -1718,4 +1718,23 @@ void XB_CDECL G_SetEntityAnimTree(uint8_t* anims, uint8_t* ent) {
     AnimTree_FlushClearLists();
 }
 
+uint32_t XB_REGS1 XB_CDECL G_EntHasLiveDObj(const uint8_t* ent) {
+    // 1 when the entity has a DObj (+0x22c) without its +0x9c bit 0.
+    const uint8_t* const obj =
+        reinterpret_cast<const uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(ent + 0x22c)});
+    if (!obj || (obj[0x9c] & 1)) return 0;
+    return 1;
+}
+
+void XB_CDECL G_StartCodNote(uint8_t* note, uint32_t a, uint32_t b) {
+    // The note's two words (+0x10, +0x14) set and it is marked started (+0x19); then its object
+    // (+0xc) runs vtable slot 2.
+    *reinterpret_cast<uint32_t*>(note + 0x10) = a;
+    note[0x19] = 1;
+    *reinterpret_cast<uint32_t*>(note + 0x14) = b;
+    const uint32_t object = *reinterpret_cast<const uint32_t*>(note + 0xc);
+    const uint32_t vtable = *reinterpret_cast<const uint32_t*>(uintptr_t{object});
+    title_function<void XB_THISCALL(uint32_t)>(*reinterpret_cast<const uint32_t*>(uintptr_t{vtable + 8}))(object);
+}
+
 }  // namespace game

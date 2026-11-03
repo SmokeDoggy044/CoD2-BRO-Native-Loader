@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "g_main.h"
 #include "lanes.h"
 #include "qcommon_core.h"
 #include "script_string.h"
@@ -668,6 +669,113 @@ void XB_CDECL Scr_GetVehicleNodeArray(uint32_t key, uint32_t value, uint32_t* ar
         uint32_t node = nodes[i];
         title_function<ArrayCall>(0x0045c550)(array, &node);  // vehicle node array append
     }
+}
+
+// The entity wait lists: records {next, prev, entity handle, wait count +0xc, waits (head +0x10,
+// end node +0x14/+0x18), pending (head +0x20, end node +0x24/+0x28)} on the list 0x008dda8c (end
+// node 0x008dda90, last 0x008dda94, count 0x008dda88).
+uint32_t* XB_REGS3 XB_CDECL Scr_LinkEntityWaitList(uint32_t* list, uint32_t unused_edx, const uint8_t* ent) {
+    (void)unused_edx;
+    list[0] = 0;
+    list[1] = 0;
+    list[2] = *reinterpret_cast<const uint32_t*>(ent + 0x224);
+    list[5] = 0;
+    list[3] = 0;
+    list[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 5));
+    list[6] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 4));
+    list[9] = 0;
+    list[7] = 0;
+    list[8] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 9));
+    list[10] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 8));
+    list[0] = 0x008dda90;
+    list[1] = title_global<uint32_t>(0x008dda94);
+    *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x008dda94))) =
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+    const uint32_t count = title_global<uint32_t>(0x008dda88) + 1;
+    title_global<uint32_t>(0x008dda94) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+    title_global<uint32_t>(0x008dda88) = count;
+    return list;
+}
+
+PLATFORM_ASM_ENTRY(Scr_EntityWaitList_FreeWaits_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Scr_EntityWaitList_FreeWaits) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Scr_EntityWaitList_FreeWaits(uint32_t* list) {
+    // EBX list: every wait record (+0x10 list up to its end node +0x14) unlinked, the wait count
+    // (+0xc) lowered, its value (+0x10) through its deleting destructor (vtable slot 0, flag 1) and
+    // the record back to heap 0x0095f56c. 1 when both the wait and pending lists are empty.
+    auto ptr = [](uint32_t value) { return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(value)); };
+    const uint32_t end = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 5));
+    uint32_t node = list[4];
+    uint32_t next = node ? *ptr(node) : 0;
+    if (node != end && next) {
+        do {
+            const uint32_t current = node;
+            if (next) {
+                node = next;
+                next = *ptr(next);
+            }
+            uint32_t* const c = ptr(current);
+            ptr(c[0])[1] = c[1];
+            ptr(c[1])[0] = c[0];
+            --list[3];
+            if (const uint32_t value = c[4]) {
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(*ptr(*ptr(value)))(value, 1);
+            }
+            c[4] = 0;
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f56c), reinterpret_cast<uint8_t*>(c));
+        } while (next);
+    }
+    if (list[4] != end) return 0;
+    return list[8] == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 9)) ? 1 : 0;
+}
+
+void XB_REGS1 XB_CDECL Scr_UnlinkEntityWaitList(uint32_t* list) {
+    // EAX list: off the global list (count 0x008dda88 lowered), its waits freed (NotifyList_FreeRange
+    // over +0x10 up to the end node), the wait list emptied and the count cleared; the entity
+    // (handle +8) forgets it (+0x230).
+    auto ptr = [](uint32_t value) { return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(value)); };
+    ptr(list[0])[1] = list[1];
+    ptr(list[1])[0] = list[0];
+    title_global<uint32_t>(0x008dda88) = title_global<uint32_t>(0x008dda88) - 1;
+    uint32_t* const end = list + 5;
+    uint32_t* first = ptr(list[4]);
+    uint32_t* second = first ? ptr(*first) : nullptr;
+    if (first == end) {
+        second = nullptr;
+        first = nullptr;
+    }
+    NotifyList_FreeRange(first, second, end, nullptr, 0);
+    list[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end));
+    list[6] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 4));
+    list[3] = 0;
+    const uint32_t handle = list[2];
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
+    if (!title_global<uint32_t>(0x0097a968 + index * 8)) return;
+    *ptr(title_global<uint32_t>(0x0097a968 + index * 8) + 0x230) = 0;
+}
+
+void XB_CDECL Scr_PruneEntityWaitLists() {
+    // Each entity wait list (0x008dda8c up to the end node 0x008dda90) gets its waits freed; empty
+    // ones are unlinked and go back to heap 0x0095f570.
+    auto ptr = [](uint32_t value) { return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(value)); };
+    uint32_t list = title_global<uint32_t>(0x008dda8c);
+    uint32_t next = list ? *ptr(list) : 0;
+    if (list == 0x008dda90 || !next) return;
+    do {
+        const uint32_t current = list;
+        if (next) {
+            list = next;
+            next = *ptr(next);
+        }
+        const TitleRegs regs{0, current, 0, 0, next, list};
+        if ((g_ent_call(0x0029ac20, &regs, 0, nullptr) & 0xff) && current) {  // Scr_EntityWaitList_FreeWaits
+            Scr_UnlinkEntityWaitList(ptr(current));
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f570), reinterpret_cast<uint8_t*>(ptr(current)));
+        }
+    } while (next);
 }
 
 }  // namespace game

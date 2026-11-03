@@ -137,4 +137,15 @@ void XB_CDECL Scr_GetNodeArrayNoKey(uint32_t* array);
 // PtrArray_Reserve2, append 0x0045c550).
 void XB_CDECL Scr_GetVehicleNodeArray(uint32_t key, uint32_t value, uint32_t* array);
 
+// 0x002980f0 (list in EAX, entity in ECX): a new entity wait list for the entity, appended to
+// the global list; returns it.
+uint32_t* XB_REGS3 XB_CDECL Scr_LinkEntityWaitList(uint32_t* list, uint32_t unused_edx, const uint8_t* ent);
+// 0x0029ac20 (list in EBX): frees the list's waits; 1 when it is empty.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_EntityWaitList_FreeWaits(uint32_t* list);
+extern "C" void Scr_EntityWaitList_FreeWaits_entry(void);
+// 0x0029d500 (list in EAX): unlinks and empties an entity wait list.
+void XB_REGS1 XB_CDECL Scr_UnlinkEntityWaitList(uint32_t* list);
+// 0x0029ed00: frees the waits of every entity wait list, the empty lists too.
+void XB_CDECL Scr_PruneEntityWaitLists();
+
 }  // namespace game

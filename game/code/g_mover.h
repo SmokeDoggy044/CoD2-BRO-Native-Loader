@@ -327,4 +327,46 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* un
                                                      uint32_t edi, uint32_t ebp);
 extern "C" void G_MoverTeam_entry(void);
 
+// 0x0026eab0 (turret in EAX; cdecl actor user or 0): the turret think for an AI user; 1 or Turret_UpdateTarget's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void Turret_ThinkActorUser_entry(void);
+// 0x0026e810 (grenade in EAX; cdecl duration, out position, bounce, out time): the predicted grenade path.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_SimulateGrenadePath(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_SimulateGrenadePath_entry(void);
+// 0x0026ecf0 (trace in EAX; cdecl item): Q3's G_BounceItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_BounceItem_entry(void);
+// 0x0026f890 (cdecl turret, msec): the turret's think.
+extern "C" PLATFORM_HIDDEN void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void turret_think_entry(void);
+// 0x002744e0 (entity in EAX, the runners' word in EDI): Q3's G_RunEntity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunEntity(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_RunEntity_entry(void);
+// 0x00271b60 (turret in EBX; cdecl player): the player's turret fire.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_UpdatePlayerFire(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void Turret_UpdatePlayerFire_entry(void);
+// 0x00272760: Q3's G_SpawnFinished-like end of level spawning.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnFinished(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp, uint32_t ecx);
+extern "C" void G_SpawnFinished_entry(void);
+// 0x00272e90 (cdecl handle): Q3's ClientBegin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientBegin(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void ClientBegin_entry(void);
+
+// 0x00271590 (old event sequence in EAX; cdecl player): Q3's ClientEvents.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, uint32_t esi,
+                                                      uint32_t edi, uint32_t ebp);
+extern "C" void ClientEvents_entry(void);
+// 0x00273d70 (cdecl command, arguments): Q3's vmMain for the game.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                      uint32_t edi, uint32_t ebp);
+extern "C" void G_vmMain_entry(void);
+
 }  // namespace game
