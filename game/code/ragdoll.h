@@ -225,4 +225,48 @@ extern "C" void Ragdoll_Free_entry(void);
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Ragdoll_Alloc(uint8_t* entity);
 extern "C" void Ragdoll_Alloc_entry(void);
 
+// 0x00228460: per bone of the entity's model a 0x60-byte record (pool 0x008dfdd0, count 0x008dfdd4)
+// of its base frame, quaternion, bone, ragdoll slot; built once per model.
+void XB_STDCALL Ragdoll_CacheBaseBoneFrames(uint8_t* entity);
+// 0x00227bd0: per bone the base pose local to its parent as a quaternion (+0x5a0) and origin (+0xb50).
+void XB_STDCALL PhysRagdoll_StoreLocalBasePose(uint8_t* phys, uint8_t* entity);
+// 0x00228bf0: ESI vehicle physics: the four wheels traced down against the world meshes.
+extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePhys_TraceWheels(uint8_t* phys);
+extern "C" void VehiclePhys_TraceWheels_entry(void);
+// 0x00228870: EAX point on a, stack (a, b, point on b): an attach constraint between the bodies (dead).
+void XB_REGS1 XB_CDECL Phys_AttachEntitiesAtPoints(const float* point_a, uint8_t* a, uint8_t* b, const float* point_b);
+// 0x00226950: EAX vehicle physics: its debug view with the drawing compiled out (dead).
+void XB_REGS1 XB_CDECL VehiclePhys_DebugDrawBody(const uint8_t* phys);
+// 0x00230930: every physics object's entity matrix and pose from its body; "physicsdone" at rest.
+void XB_CDECL PhysObj_UpdateAll();
+// 0x002303f0: a physics object with a box body for the entity, or 0.
+uint8_t* XB_CDECL PhysObj_Create(uint8_t* ent, uint32_t arg, float mass, float bounce);
+
+// 0x0022c0f0: the model's bone matrices after a ragdoll step (bones without a ragdoll body follow
+// their parent with the base frame).
+void XB_STDCALL Ragdoll_PropagateBoneMatrices(uint8_t* entity);
+// 0x00230e40: bone callback: the physics frame into the model's bone matrix.
+void XB_CDECL Ragdoll_BodyToPose(const uint32_t* bone, const float* frame, const float* local);
+// 0x0022fb70: the ragdoll's two sets of ten bone frames in world space (0x00988fb0, 0x00988d30).
+void XB_STDCALL Ragdoll_BuildWorldBoneFrames(uint8_t* ragdoll);
+// 0x00227290: ECX b1, ESI out point on a, 7 stack words: closest points of two capsules; AL 1 on contact.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Phys_CapsuleCapsuleClosest(const float* b1, float* out_a, const uint32_t* args);
+extern "C" void Phys_CapsuleCapsuleClosest_entry(void);
+
+// 0x0022d7d0: the world geometry and entities around a sphere for the ragdoll's collision step;
+// EAX the area entity count.
+uint32_t XB_CDECL Ragdoll_GatherCollisionGeometry(const float* center, float radius);
+// 0x0022b500: the model's bone matrices blended from the ragdoll toward the base pose by t.
+void XB_STDCALL Ragdoll_BlendBonePoses(uint8_t* phys, uint8_t* entity, float t);
+
+// 0x0022ebe0: the ten ragdoll body definitions (0x00989250) for the entity's Bip01 bones.
+void XB_CDECL Ragdoll_BuildBodyDefs(uint8_t* entity);
+
+// 0x00233c40: EAX entity, EBX vehicle physics: its box body, physics object and wheels; EAX +0x90.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehiclePhys_Init(uint8_t* ent, uint8_t* phys);
+extern "C" void VehiclePhys_Init_entry(void);
+
+// 0x00228ee0 (vtable 0x0083c5f0): the vehicle physics' constraint rows between bodies a and b.
+void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, uint8_t* world, float dt);
+
 }  // namespace game
