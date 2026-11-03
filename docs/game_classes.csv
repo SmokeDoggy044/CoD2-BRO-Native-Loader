@@ -365,3 +365,4 @@
 0022dd40,Ragdoll_DrawJointDebug,dead,"only callers 0x00231820 (jmp) / 0x00231834 (loop over the 10 joints), a wrapper with no CALL/JMP, pointer or immediate (xbefind 2026-11-03); debug text (Hinge/Swivel/MIN/MAX, R_DrawTextWithShadow); no C written yet"
 002b6430,Vec3_BendTowardAxis,dead,"was FUN_002b6430; no CALL/JMP and no immediate or pointer to 0x002b6430 (xbefind imm + call 2026-11-03); C kept"
 0026f0a0,Bullet_Trace_r,dead,"callers only itself and Bullet_Fire (0x0026f670), which has no CALL/JMP, immediate or pointer (xbefind 2026-11-03); C kept"
+002611e0,Vehicle_PlaneSlideMove,dead,"no CALL/JMP and no immediate or pointer to 0x002611e0 (xbefind imm + call 2026-11-03); C kept"

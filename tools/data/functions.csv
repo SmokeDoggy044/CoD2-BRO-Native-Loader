@@ -3535,7 +3535,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0026f6d0,G_RunMover,compare,2832020,403,403,0,0,0,""
 0026f890,turret_think,compare,117240,400,400,0,0,0,""
 0026fb00,G_RunItem,compare,159355,262,262,0,0,0,""
-0026fcb0,Weapon_BulletTrace_r,compare,2780,2527,414,0,2113,0,"81df1674 [host] [3] 285611 vs d0520d; 81df167c [host] [3] 285611 vs d0520d"
+0026fcb0,Weapon_BulletTrace_r,compare,4080,3823,1710,0,2113,0,"81df1674 [host] [3] 285611 vs d0520d; 81df167c [host] [3] 285611 vs d0520d"
 002704c0,Weapon_FireBullet,compare,4851,118,118,0,0,0,""
 00270560,Vehicle_FireTurretWeapon,compare,0,0,0,0,0,0,""
 00270990,Use_BinaryMover,compare,0,0,0,0,0,0,""

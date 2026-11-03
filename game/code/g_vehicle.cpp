@@ -4224,12 +4224,82 @@ int32_t XB_REGS3 XB_STDCALL VehicleNode_FindByKey(uint32_t all, uint32_t, const 
     return -1;
 }
 
+// title_call_at_regs that also hands the callee the original's EBP (regs->ebp, a word of the rebuilt original
+// frame: the saved caller EBP). That word holds this helper's frame pointer across the call (restored after), so
+// the return gets back without writing below the callee's final ESP: actor.cpp's ai_call_at_ebp pushes there and
+// a later callee's never-set locals copied those words (CG_Bullet's effect transform under Weapon_BulletTrace_r).
+struct VehRegsBp {
+    uint32_t eax, ebx, ecx, edx, esi, edi, ebp;
+};
+extern "C" PLATFORM_HIDDEN uint64_t XB_CDECL veh_call_at_ebp(uint32_t top, uint32_t function, const VehRegsBp* regs,
+                                                           uint32_t count, const uint32_t* args);
+PLATFORM_ASM_ENTRY(veh_call_at_ebp,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(game_floor_enter) "movl %eax, (%esp)\n"
+                   "movl 16(%ebp), %eax\n"
+                   "movl 24(%eax), %eax\n"
+                   "pushl (%eax)\n"
+                   "movl %ebp, (%eax)\n"
+                   "movl 8(%ebp), %edx\n"
+                   "movl 20(%ebp), %ecx\n"
+                   "movl 24(%ebp), %edi\n"
+                   "1:\n"
+                   "testl %ecx, %ecx\n"
+                   "jz 2f\n"
+                   "decl %ecx\n"
+                   "subl $4, %edx\n"
+                   "movl (%edi,%ecx,4), %eax\n"
+                   "movl %eax, (%edx)\n"
+                   "jmp 1b\n"
+                   "2:\n"
+                   "movl 12(%ebp), %ecx\n"
+                   "movl %ecx, -4(%edx)\n"  // the call reads its target before it pushes over it
+                   "movl 16(%ebp), %eax\n"
+                   "movl %edx, %esp\n"
+                   "movl 4(%eax), %ebx\n"
+                   "movl 8(%eax), %ecx\n"
+                   "movl 12(%eax), %edx\n"
+                   "movl 16(%eax), %esi\n"
+                   "movl 20(%eax), %edi\n"
+                   "movl 24(%eax), %ebp\n"
+                   "movl 0(%eax), %eax\n"
+                   "call *-4(%esp)\n"
+                   "xchgl %ebp, (%ebp)\n"
+                   "leal -20(%ebp), %esp\n"
+                   "movl 16(%ebp), %ecx\n"
+                   "movl 24(%ecx), %ecx\n"
+                   "popl (%ecx)\n"
+                   "movl %eax, %esi\n"
+                   "movl %edx, %edi\n" PLATFORM_ASM_CALL(game_floor_leave) "movl %esi, %eax\n"
+                   "movl %edi, %edx\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
+
 namespace {
 
 // Runs a title callee at the original's ESP (top) and writes back the original call's return address.
 uint32_t veh_call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
                      const uint32_t* args = nullptr) {
     const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    *pointer<uint32_t>(top - count * 4 - 4) = ret;
+    return result;
+}
+
+// veh_call_at with the original's EBP in the callee: title code that pushes it leaves it in words it copies
+// later without setting them (CG_Bullet's effect transform, words 9 and 11, under Weapon_BulletTrace_r).
+// `ebp` must be the rebuilt frame's saved-EBP word (veh_call_at_ebp borrows it).
+uint32_t veh_call_bp(uint32_t ebp, uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs,
+                     uint32_t count = 0, const uint32_t* args = nullptr) {
+    const VehRegsBp r{regs.eax, regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi, ebp};
+    const uint32_t result = static_cast<uint32_t>(veh_call_at_ebp(top, function, &r, count, args));
     *pointer<uint32_t>(top - count * 4 - 4) = ret;
     return result;
 }
@@ -5046,7 +5116,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
         put_point4(B + 0x110, start);
         {
             const uint32_t args[7] = {B + 0x40, B + 0x110, B + 0x150, pass, 0x0280e031, table, arg[8]};
-            veh_call_at(B, 0x0026fdc3, 0x002600c0, TitleRegs{B + 0x150, start_w, B + 0x110, B + 0x40, end_w, edi_now}, 7,
+            veh_call_bp(E - 4, B, 0x0026fdc3, 0x002600c0, TitleRegs{B + 0x150, start_w, B + 0x110, B + 0x40, end_w, edi_now}, 7,
                         args);  // G_LocationalTrace
         }
         edi_now = att_w;
@@ -5062,7 +5132,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             put_point4(B + 0x170, start);
             {
                 const uint32_t args[4] = {att_w, 0xa, B + 0x170, 0};
-                veh_call_at(B, 0x0026fe6f, 0x00214a90, TitleRegs{enemy, start_w, B + 0x170, 0, enemy, att_w}, 4,
+                veh_call_bp(E - 4, B, 0x0026fe6f, 0x00214a90, TitleRegs{enemy, start_w, B + 0x170, 0, enemy, att_w}, 4,
                             args);  // Actor_SendPointEvent
             }
             uint32_t mask = enemy;
@@ -5072,14 +5142,14 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                 mask = (1u << (static_cast<uint32_t>(at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) & 31)) | enemy;
             }
             const uint32_t args[6] = {att_w, 0x10, mask, start_w, B + 0x40, 0};
-            veh_call_at(B, 0x0026fea5, 0x00204390, TitleRegs{eax_now, start_w, 0, mask, enemy, att_w}, 6,
+            veh_call_bp(E - 4, B, 0x0026fea5, 0x00204390, TitleRegs{eax_now, start_w, 0, mask, enemy, att_w}, 6,
                         args);  // Actor_SendLineEvent
         }
         put_point4(B + 0xe0, start);
         put_point4(B + 0x160, start);
         {
             const uint32_t args[5] = {att_w, B + 0x160, B + 0x40, arg[4], wd(0x3c)};
-            veh_call_at(B, 0x0026ff06, 0x0025d960, TitleRegs{B + 0x40, start_w, B + 0x160, arg[4], end_w, att_w}, 5,
+            veh_call_bp(E - 4, B, 0x0026ff06, 0x0025d960, TitleRegs{B + 0x40, start_w, B + 0x160, arg[4], end_w, att_w}, 5,
                         args);  // G_CheckHitTriggerDamage
         }
         wd(0x24) = address_of(entity_of_handle(wd(0x70)));
@@ -5088,7 +5158,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             fl(0x28) = end[0] - start[0];
             fl(0x2c) = end[1] - start[1];
             fl(0x30) = end[2] - start[2];
-            veh_call_at(B, 0x0026ff89, 0x00297770, TitleRegs{wd(0x24), start_w, wd(0x70), wd(0x70) >> 12, B + 0x28, att_w});  // VectorNormalize
+            veh_call_bp(E - 4, B, 0x0026ff89, 0x00297770, TitleRegs{wd(0x24), start_w, wd(0x70), wd(0x70) >> 12, B + 0x28, att_w});  // VectorNormalize
             reflect_about(&fl(0x28), &fl(0x50));
             bool tracer = (at<uint8_t>(pointer<uint8_t>(B), 0x64) & 4) != 0;
             bool impact = true;
@@ -5115,11 +5185,11 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                     }
                 }
                 if (!tracer && impact) {
-                    uint32_t shooter = veh_call_at(B, 0x00270086, 0x00013860,
+                    uint32_t shooter = veh_call_bp(E - 4, B, 0x00270086, 0x00013860,
                                                    TitleRegs{E + 4, start_w, 0, 0, wd(0x24), att_w});  // G_EntHandleToEnt
                     if (!shooter) shooter = att_w;
                     const uint32_t args[2] = {B + 0x40, static_cast<uint32_t>((static_cast<int32_t>(wd(0x64)) >> 20) & 0x1f)};
-                    veh_call_at(B, 0x002700ae, 0x0028a370, TitleRegs{B + 0x50, start_w, shooter, 0, wd(0x24), weapon}, 2,
+                    veh_call_bp(E - 4, B, 0x002700ae, 0x0028a370, TitleRegs{B + 0x50, start_w, shooter, 0, wd(0x24), weapon}, 2,
                                 args);  // CG_Bullet
                 }
             }
@@ -5127,7 +5197,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                 put_point4(B + 0x80, start);
                 put_point4(B + 0x140, start);
                 const uint32_t args[2] = {B + 0x140, B + 0x40};
-                veh_call_at(B, 0x002701af, 0x0027ab40, TitleRegs{B + 0x40, start_w, B + 0x140, address_of(def), weapon, att_w}, 2,
+                veh_call_bp(E - 4, B, 0x002701af, 0x0027ab40, TitleRegs{B + 0x40, start_w, B + 0x140, address_of(def), weapon, att_w}, 2,
                             args);  // CG_MaybeSpawnTracer
             }
         } else {
@@ -5136,14 +5206,14 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             put_point4(B + 0xb0, start);
             put_point4(B + 0x130, start);
             const uint32_t args[2] = {B + 0x130, B + 0x120};
-            veh_call_at(B, 0x002701af, 0x0027ab40, TitleRegs{at<uint32_t>(fire, 0x3c), start_w, B + 0x120, B + 0x130, weapon, att_w}, 2,
+            veh_call_bp(E - 4, B, 0x002701af, 0x0027ab40, TitleRegs{at<uint32_t>(fire, 0x3c), start_w, B + 0x120, B + 0x130, weapon, att_w}, 2,
                         args);  // CG_MaybeSpawnTracer
         }
         if (!(at<uint8_t>(pointer<uint8_t>(B), 0x68) & 0x10)) break;
         fl(0x18) = end[0] - start[0];
         fl(0x1c) = end[1] - start[1];
         fl(0x20) = end[2] - start[2];
-        veh_call_at(B, 0x002701fb, 0x00297770, TitleRegs{end_w, start_w, 0, 0, B + 0x18, att_w});  // VectorNormalize
+        veh_call_bp(E - 4, B, 0x002701fb, 0x00297770, TitleRegs{end_w, start_w, 0, 0, B + 0x18, att_w});  // VectorNormalize
         penetrate_start(start, &fl(0x18), &fl(0x50), &fl(0x40));
         *pointer<float>(E + 0x24) = 0.0f;
         arg[5] = arg[5] + 1;
@@ -5182,13 +5252,13 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             return;
         }
         const uint32_t args[3] = {pass, B + 0x40, at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0)};
-        veh_call_at(B, 0x00270413, 0x00289270, TitleRegs{title_global<uint32_t>(0x008da6e0), fire_w, B + 0x40, pass, address_of(hit), att_w}, 3,
+        veh_call_bp(E - 4, B, 0x00270413, 0x00289270, TitleRegs{title_global<uint32_t>(0x008da6e0), fire_w, B + 0x40, pass, address_of(hit), att_w}, 3,
                     args);  // CG_BulletTracerAndWhizBy
     }
     {
         const uint32_t weapon = at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0);
         const uint32_t args[9] = {address_of(hit), att_w, att_w, fire_w, arg[4], wd(0x38), wd(0x3c), wd(0x78), weapon};
-        veh_call_at(B, 0x00270441, 0x00250340, TitleRegs{B + 0x40, fire_w, wd(0x38), arg[4], address_of(hit), att_w}, 9,
+        veh_call_bp(E - 4, B, 0x00270441, 0x00250340, TitleRegs{B + 0x40, fire_w, wd(0x38), arg[4], address_of(hit), att_w}, 9,
                     args);  // G_Damage
     }
     if (!at<uint32_t>(hit, 0x244) || !(wd(0x38) & 0x40)) return;
@@ -6025,6 +6095,431 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
                     args);  // ShakeRumble_Start
     }
     veh_call_at(B, 0x00266385, 0x00014710, TitleRegs{B + 0x50, ent_w, 0, 0, B + 0x50, at<uint32_t>(hit, 0x244)});  // ShakeRumbleDesc_Destroy
+}
+
+namespace {
+
+// sqrt(d2) on the x87, stored as float in `dist`; depth = (radius - the unrounded root) + skin, stored as float.
+void veh_x87_sqrt_depth(float d2, float radius, float skin, float* dist, float* depth) {
+    __asm__("flds %2\n\tfsqrt\n\tfsts %0\n\tflds %3\n\tfsub %%st(1), %%st\n\tfadds %4\n\tfstps %1\n\tfstp %%st(0)"
+            : "=m"(*dist), "=m"(*depth)
+            : "m"(d2), "m"(radius), "m"(skin)
+            : "st");
+}
+
+// ((origin + r0 * l.x) + r1 * l.y) + r2 * l.z over four lanes (a local point back to the world).
+void veh_to_world(const float* m, const float* l, float* out) {
+    for (uint32_t k = 0; k < 4; ++k) out[k] = ((m[12 + k] + m[k] * l[0]) + m[4 + k] * l[1]) + m[8 + k] * l[2];
+}
+
+}  // namespace
+
+uint8_t XB_CDECL Vehicle_ClipAgainstEntities(uint8_t* ent, uint8_t* triangles, uint8_t* brushes, const uint8_t* record,
+                                             const float* point, float radius, float* out) {
+    // Never reached (under Vehicle_SlideMove). A sphere (point, radius) pushed out of what
+    // Vehicle_GatherCollisionCandidates found; out starts as the point and carries each push. Entities of the
+    // record (count +0, handles +0x30; not `ent`, with a model +0xdc), in their frame (G_GetEntityMatrix): with
+    // flag 0x800000 (+0x134) a box (model +0x10 / +0x20; 0.01 out past the radius), else the model's brushes
+    // (count +0, 0x40-byte entries from +4) whose centre lies within 9 along row 2; brushes (list +0x800, count
+    // +0x804) within 9 in height (CM_PushPointOutOfBrush); triangles (8-byte entries mesh, index from +0x1000,
+    // count +0x1004) with |normal z| <= 0.7 the sphere is in front of (CM_PushSphereOutOfTriangle). 1 = pushed.
+    for (uint32_t k = 0; k < 4; ++k) out[k] = point[k];
+    uint8_t pushed = 0;
+    const float nine = title_global<float>(0x0083eef8);  // 9
+    for (int32_t n = 0; n < at<int32_t>(record, 0); ++n) {
+        uint8_t* const e = entity_of_handle(at<uint32_t>(record, 0x30 + n * 4));
+        if (!e || e == ent || !at<uint32_t>(e, 0xdc)) continue;
+        alignas(16) float m[16];
+        G_GetEntityMatrix(e, m);
+        alignas(16) float p[4] = {out[0], out[1], out[2], out[3]};
+        const uint8_t* const model = at<uint8_t*>(e, 0xdc);
+        // Into the entity's frame: the transposed rows (lane 3 repeats row 2's lane) times p - origin.
+        alignas(16) float local[4];
+        {
+            const float d[4] = {p[0] - m[12], p[1] - m[13], p[2] - m[14], p[3] - m[15]};
+            const float t0[4] = {m[0], m[4], m[8], m[8]}, t1[4] = {m[1], m[5], m[9], m[9]},
+                        t2[4] = {m[2], m[6], m[10], m[10]};
+            for (uint32_t k = 0; k < 4; ++k) local[k] = (t0[k] * d[0] + t1[k] * d[1]) + t2[k] * d[2];
+        }
+        if (at<uint32_t>(e, 0x134) & 0x800000) {
+            const float* const lo = &at<float>(model, 0x10);
+            const float* const hi = &at<float>(model, 0x20);
+            float v[4];
+            for (uint32_t k = 0; k < 4; ++k) v[k] = (local[k] - hi[k]) * m[8 + k];
+            if (!(nine > (v[0] + v[1]) + v[2])) continue;
+            float diff[4], sq[4];
+            for (uint32_t k = 0; k < 4; ++k) {
+                float c = local[k] > lo[k] ? local[k] : lo[k];  // MAXPS / MINPS: the second operand on NaN
+                c = c < hi[k] ? c : hi[k];
+                diff[k] = local[k] - c;
+                sq[k] = diff[k] * diff[k];
+            }
+            const float d2 = (sq[0] + sq[1]) + sq[2];
+            if (!(radius * radius > d2) || !(d2 > title_global<float>(0x0083eb4c))) continue;  // 0.001
+            float dist, depth;
+            veh_x87_sqrt_depth(d2, radius, title_global<float>(0x0083eb94), &dist, &depth);  // 0.01
+            pushed = 1;
+            for (uint32_t k = 0; k < 4; ++k) local[k] = local[k] + depth * (diff[k] / dist);
+            veh_to_world(m, local, out);
+            continue;
+        }
+        const uint8_t* brush = at<uint8_t*>(model, 4);
+        for (uint32_t k = 0; k < at<uint32_t>(model, 0); ++k, brush += 0x40) {
+            float v[4];
+            for (uint32_t j = 0; j < 4; ++j)
+                v[j] = (local[j] - (at<float>(brush, 0x10 + j * 4) + at<float>(brush, 0x20 + j * 4))) * m[8 + j];
+            if (!(nine > (v[0] + v[1]) + v[2])) continue;
+            pushed |= CM_PushPointOutOfBrush(brush, local, radius, local);
+        }
+        veh_to_world(m, local, out);
+    }
+    const uint8_t* const* const brush_list = at<const uint8_t* const*>(brushes, 0x800);
+    for (int32_t k = 0, count = at<int32_t>(brushes, 0x804); k < count; ++k) {
+        const uint8_t* const b = brush_list[k];
+        const float centre_z = at<float>(b, 0x18) + at<float>(b, 0x28);
+        if (!(nine > out[2] - centre_z)) continue;
+        if (CM_PushPointOutOfBrush(b, out, radius, out)) pushed = 1;
+    }
+    const uint8_t* const tri_list = at<const uint8_t*>(triangles, 0x1000);
+    for (int32_t k = 0, count = at<int32_t>(triangles, 0x1004); k < count; ++k) {
+        const uint8_t* const mesh = at<const uint8_t*>(tri_list, k * 8);
+        const uint32_t index = at<uint32_t>(tri_list, k * 8 + 4);
+        alignas(16) float plane[4];
+        std::memcpy(plane, at<uint8_t*>(mesh, 0x44) + index * 16, 16);
+        uint32_t bits;
+        std::memcpy(&bits, &plane[2], 4);
+        bits &= 0x7fffffffu;
+        float nz;
+        std::memcpy(&nz, &bits, 4);
+        if (nz > title_global<float>(0x0083ed28)) continue;  // 0.7: FCOMIP + JA, NaN goes on
+        if (0.0f > ((plane[0] * out[0] + plane[1] * out[1]) + plane[2] * out[2]) + plane[3]) continue;
+        const uint32_t tri = at<uint32_t>(at<uint8_t*>(mesh, 0x3c), index * 4);
+        const uint8_t* const verts = at<uint8_t*>(mesh, 0x34);
+        alignas(16) float a[4], b[4], c[4];
+        std::memcpy(a, verts + (tri & 0x3f) * 16, 16);
+        std::memcpy(b, verts + ((tri >> 6) & 0x3f) * 16, 16);
+        std::memcpy(c, verts + ((tri >> 12) & 0x3f) * 16, 16);
+        pushed |= CM_PushSphereOutOfTriangle(out, 0, out, radius, a, b, c, plane);
+    }
+    return pushed;
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_SlideMove_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Vehicle_SlideMove) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, uint32_t force) {
+    // Entity in EBX. Never reached (only under Vehicle_GroundMove, tank driving). Three spheres along the
+    // vehicle's tag frame (vehicle +0x2bc; rows 0 and 2 times 0x008ff000 / 0x008feffc: front, back, top; radii
+    // def +0x68, +0x68, 0.85 * +0x68) go from the move's end point (origin + velocity * msec / 1000, or the
+    // origin) half the def's height (+0x70 / 2 - +0x68; 0.7 of it for the third) out along their direction and are
+    // pushed out of the gathered world triangles, brushes and entities (Vehicle_ClipAgainstEntities); each push
+    // restarts the round at the second sphere, at most three. With `move`, the end point becomes the origin unless
+    // it was pushed three times (unless `force`) or moved 36 or more in height; faster than 40 and over a second
+    // since +0x304, the last push direction against the velocity gives a hit impulse (+0x334, Vehicle_ApplyPush,
+    // +0x330 = 1). Returns the push count. Lane 3 of the frame rows, the end point and the push results are
+    // stack words the original never sets (0 here).
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    float* const motion = reinterpret_cast<float*>(vehicle + 0xc0);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    const float dt = static_cast<float>(msec) * title_global<float>(0x0083eb4c);  // 0.001
+    alignas(16) float target[4] = {};
+    if (move) {
+        target[0] = motion[0x10] * dt + motion[0];
+        target[1] = motion[0x11] * dt + motion[1];
+        target[2] = motion[0x12] * dt + motion[2];
+    } else {
+        target[0] = motion[0];
+        target[1] = motion[1];
+        target[2] = motion[2];
+    }
+    // Candidate lists: 0x1000 / 0x800 bytes of entries, then the write pointer and the count.
+    alignas(16) uint8_t triangles[0x1008];
+    alignas(16) uint8_t brushes[0x808];
+    at<uint32_t>(triangles, 0x1004) = 0;
+    at<uint32_t>(brushes, 0x804) = 0;
+    at<uint32_t>(triangles, 0x1000) = address_of(triangles);
+    at<uint32_t>(brushes, 0x800) = address_of(brushes);
+    if (!(title_global<uint32_t>(0x0098eb90) & 1)) {  // the entity record's list, cleared once
+        title_global<uint32_t>(0x0098eb90) |= 1;
+        std::memset(pointer<uint8_t>(0x0098e990), 0, 0x200);
+    }
+    {
+        const TitleRegs regs{address_of(motion), address_of(ent), address_of(motion), address_of(motion), address_of(def), 0};
+        const uint32_t args[6] = {address_of(ent), 0x43480000u, at<uint32_t>(ent, 0x2a8), address_of(triangles),
+                                  address_of(brushes), 0x0098e960};  // pad 200
+        g_ent_call(0x002529c0, &regs, 6, args);  // Vehicle_GatherCollisionCandidates
+    }
+    alignas(16) float m[16];
+    G_DObjGetWorldTagMatrix(ent, at<uint32_t>(vehicle, 0x2bc), m);
+    const float half = at<float>(def, 0x70) * title_global<float>(0x0083eb24) - at<float>(def, 0x68);  // 0.5
+    const float c0 = title_global<float>(0x008feffc), c1 = title_global<float>(0x008ff000);
+    const float row0[4] = {m[0], m[1], m[2], 0.0f}, row2[4] = {m[8], m[9], m[10], 0.0f};
+    alignas(16) float probes[3][4];
+    for (uint32_t k = 0; k < 4; ++k) {
+        const float up = c0 * row2[k];
+        probes[2][k] = up;
+        probes[0][k] = c1 * row0[k] + up;
+        probes[1][k] = (0.0f - c1) * row0[k] + up;
+    }
+    const float radius = at<float>(def, 0x68);
+    const float radii[3] = {radius, radius, radius * title_global<float>(0x0083f008)};  // 0.85
+    uint32_t hits = 0;
+    alignas(16) float out[4] = {};
+    float push[3] = {0.0f, 0.0f, 0.0f};
+    for (int32_t i = 0; i < 3; ++i) {
+        if (hits >= 3) break;
+        const float* const probe = probes[i];
+        const float len2 = (probe[0] * probe[0] + probe[1] * probe[1]) + probe[2] * probe[2];
+        float len = len2;  // UCOMISS + JNE: 0 or NaN divides by itself
+        if (!(len2 == 0.0f || len2 != len2)) {
+            const float rs = platform_rsqrt_estimate(len2);
+            const float a = len2 * rs;
+            len = ((title_global<float>(0x0082e660) - a * rs) * a) * title_global<float>(0x0082e670);  // 3, 0.5
+        }
+        alignas(16) float dir[4];
+        for (uint32_t k = 0; k < 4; ++k) dir[k] = probe[k] / len;
+        const float scale = (i == 2 ? title_global<float>(0x0083ed28) : title_global<float>(0x0083eb20)) * half;  // 0.7 / 1
+        alignas(16) float point[4];
+        for (uint32_t k = 0; k < 4; ++k) point[k] = target[k] + dir[k] * scale;
+        uint32_t hit;
+        {
+            float r = radii[i];
+            uint32_t r_bits;
+            std::memcpy(&r_bits, &r, 4);
+            const TitleRegs regs{address_of(brushes), address_of(ent), address_of(triangles), address_of(point), hits,
+                                 static_cast<uint32_t>(i)};
+            const uint32_t args[7] = {address_of(ent), address_of(triangles), address_of(brushes), 0x0098e960,
+                                      address_of(point), r_bits, address_of(out)};
+            hit = g_ent_call(0x00259df0, &regs, 7, args) & 0xff;  // Vehicle_ClipAgainstEntities
+        }
+        float add = 0.0f;
+        if (hit) {
+            push[2] = out[2] - point[2];
+            push[1] = out[1] - point[1];
+            push[0] = out[0] - point[0];
+            const float length = title_ci_sqrt((push[2] * push[2] + push[1] * push[1]) + push[0] * push[0]);
+            if (!(length == title_global<float>(0x0083eafc))) {  // FUCOMIP + JNP: NaN normalizes too
+                const float inv = title_global<float>(0x0083eb20) / length;
+                push[0] = inv * push[0];
+                push[1] = inv * push[1];
+                push[2] = inv * push[2];
+            }
+            ++hits;
+            add = title_global<float>(0x0083eb20);
+            i = 0;
+        }
+        const float back = 0.0f - (add + scale);
+        for (uint32_t k = 0; k < 4; ++k) target[k] = out[k] + dir[k] * back;
+    }
+    if (!move) return hits;
+    if (hits < 3 || force) {
+        uint32_t bits;
+        const float dz = motion[2] - target[2];
+        std::memcpy(&bits, &dz, 4);
+        bits &= 0x7fffffffu;
+        float height;
+        std::memcpy(&height, &bits, 4);
+        if (title_global<float>(0x0083f01c) > height)  // 36
+            for (uint32_t k = 0; k < 4; ++k) motion[k] = target[k];
+    }
+    if (!hits) return 0;
+    float* const vel = motion + 0x10;
+    const float speed2 = (vel[2] * vel[2] + vel[1] * vel[1]) + vel[0] * vel[0];
+    if (!(title_ci_sqrt(speed2) > title_global<float>(0x0083ec84))) return hits;  // 40
+    if (!(at<int32_t>(vehicle, 0x304) < title_global<int32_t>(0x0098540c) - 1000)) return hits;  // level.time
+    long double v = static_cast<long double>(title_ci_sqrt(speed2));
+    v = v - static_cast<long double>(title_global<float>(0x0083eb5c));  // 20
+    v = v / static_cast<long double>(title_global<float>(0x0083ed04));  // 300
+    const float impulse = static_cast<float>(v);
+    alignas(16) float n[4];
+    {
+        const TitleRegs regs{0, address_of(ent), 0, 0, address_of(vel), address_of(n)};
+        g_ent_call(0x002975c0, &regs, 0, nullptr);  // VectorNormalize2 (ESI in, EDI out)
+    }
+    float f = title_global<float>(0x0083eb20) - ((n[2] * push[2] + n[1] * push[1]) + n[0] * push[0]);
+    if (0.0f > f)
+        f = 0.0f;
+    else if (f > title_global<float>(0x0083eb20))
+        f = title_global<float>(0x0083eb20);
+    f = f * impulse;
+    at<float>(vehicle, 0x334) = f;
+    alignas(16) const float direction[4] = {push[0], push[1], push[2], push[0]};
+    {
+        uint32_t f_bits;
+        std::memcpy(&f_bits, &f, 4);
+        const TitleRegs regs{0, address_of(ent), 0, 0, address_of(vehicle), 0};
+        const uint32_t args[5] = {address_of(ent), address_of(direction), f_bits, 0, 0};
+        g_ent_call(0x0025a400, &regs, 5, args);  // Vehicle_ApplyPush
+    }
+    at<uint32_t>(vehicle, 0x330) = 1;
+    return hits;
+}
+
+namespace {
+
+// Q3's PM_ClipVelocity backoff: the dot product scaled by the overbounce 1.01 (into the plane) or 1/1.01.
+float veh_overclip(float d) {
+    return 0.0f > d ? d * title_global<float>(0x0083ee34) : d * title_global<float>(0x0083ee30);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t msec) {
+    // Dead (no caller, no pointer): Q3's PM_SlideMove for a vehicle's motion (+0xc0 origin, +0x100 velocity), up to
+    // four bumps against at most five planes (g_vehicleGroundNormal when 0x009885b0 is set, the velocity's direction,
+    // then the hit normals) with the box of the vehicle definition (+0x1a0 / +0x1b0). Gravity 800 averages the fall
+    // into the move and restores the end velocity. 1 = clipped by something that is not an entity of type 1 or 0xe.
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    float* const origin = reinterpret_cast<float*>(vehicle + 0xc0);
+    float* const vel = origin + 0x10;
+    const float* const ground = pointer<const float>(0x00988580);
+    float time_left = static_cast<float>(msec) * title_global<float>(0x0083eb4c);  // 0.001
+    alignas(16) uint8_t trace[0x40];
+    at<uint32_t>(trace, 0x30) = 0;
+    uint32_t hit_other = 0;
+    float primal[3];  // set only with gravity (the original reads it either way)
+    if (gravity) {
+        const float fall = time_left * title_global<float>(0x0083f194);  // 800
+        primal[0] = vel[0];
+        primal[1] = vel[1];
+        primal[2] = vel[2] - fall;
+        vel[2] = (primal[2] + vel[2]) * title_global<float>(0x0083eb24);  // 0.5
+        if (title_global<uint32_t>(0x009885b0)) {
+            const float d = veh_overclip((vel[1] * ground[1] + vel[2] * ground[2]) + vel[0] * ground[0]);
+            vel[0] = vel[0] - d * ground[0];
+            vel[1] = vel[1] - d * ground[1];
+            vel[2] = vel[2] - d * ground[2];
+        }
+    }
+    alignas(16) float planes[5][4];
+    int32_t numplanes = 0;
+    if (title_global<uint32_t>(0x009885b0)) {
+        planes[0][0] = ground[0];
+        planes[0][1] = ground[1];
+        planes[0][2] = ground[2];
+        numplanes = 1;
+    }
+    Vec4Normalize(vel, planes[numplanes]);
+    ++numplanes;
+    int32_t bump = 0;
+    for (; bump < 4; ++bump) {
+        alignas(16) float end[4];
+        end[0] = vel[0] * time_left + origin[0];
+        end[1] = vel[1] * time_left + origin[1];
+        end[2] = vel[2] * time_left + origin[2];
+        {
+            const TitleRegs regs{0, address_of(origin), 0, 0, 0, 0};
+            const uint32_t args[11] = {address_of(trace), address_of(def + 0x1a0), address_of(def + 0x1b0), address_of(end),
+                                       at<uint32_t>(ent, 0x224), at<uint32_t>(ent, 0x2a8), 1, 0, 0, 0, 0};
+            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        }
+        if (at<uint8_t>(trace, 0x3c)) {  // all solid
+            vel[2] = 0.0f;
+            return 1;
+        }
+        const float fraction = at<float>(trace, 0x20);
+        if (fraction > 0.0f) {
+            origin[0] = at<float>(trace, 0);
+            origin[1] = at<float>(trace, 4);
+            origin[2] = at<float>(trace, 8);
+        }
+        if (fraction == title_global<float>(0x0083eb20)) break;  // UCOMISS + JNP: only an exact 1
+        const uint32_t handle = at<uint32_t>(trace, 0x30);
+        if (handle && (at<uint8_t>(entity_of_handle(handle), 0) == 0xe || at<uint8_t>(entity_of_handle(handle), 0) == 1))
+            hit_other = 1;
+        time_left = time_left - fraction * time_left;
+        if (numplanes >= 5) {
+            vel[2] = 0.0f;
+            vel[1] = 0.0f;
+            vel[0] = 0.0f;
+            return hit_other == 0;
+        }
+        const float* const normal = &at<float>(trace, 0x10);
+        int32_t i = 0;
+        for (; i < numplanes; ++i)
+            if ((planes[i][0] * normal[0] + planes[i][2] * normal[2]) + normal[1] * planes[i][1] >
+                title_global<float>(0x0083ed08))  // 0.99: the same plane again, nudge off it
+                break;
+        if (i < numplanes) {
+            vel[0] = vel[0] + normal[0];
+            vel[1] = normal[1] + vel[1];
+            vel[2] = normal[2] + vel[2];
+            continue;
+        }
+        planes[numplanes][0] = normal[0];
+        planes[numplanes][1] = normal[1];
+        planes[numplanes][2] = normal[2];
+        ++numplanes;
+        for (i = 0; i < numplanes; ++i) {
+            const float* const p = planes[i];
+            if ((p[0] * vel[0] + p[2] * vel[2]) + p[1] * vel[1] >= title_global<float>(0x0083ebf8)) continue;  // 0.1
+            // Slide along the plane; the end velocity too.
+            float b = veh_overclip((p[1] * vel[1] + vel[2] * p[2]) + p[0] * vel[0]);
+            alignas(16) float clip[4];
+            clip[0] = vel[0] - p[0] * b;
+            clip[1] = vel[1] - p[1] * b;
+            clip[2] = vel[2] - b * p[2];
+            b = veh_overclip((p[2] * primal[2] + p[1] * primal[1]) + p[0] * primal[0]);
+            float end_clip[3] = {primal[0] - p[0] * b, primal[1] - p[1] * b, primal[2] - p[2] * b};
+            for (int32_t j = 0; j < numplanes; ++j) {
+                if (j == i) continue;
+                const float* const q = planes[j];
+                if ((clip[0] * q[0] + clip[1] * q[1]) + clip[2] * q[2] >= title_global<float>(0x0083ebf8)) continue;
+                b = veh_overclip((clip[0] * q[0] + clip[1] * q[1]) + clip[2] * q[2]);
+                clip[0] = clip[0] - q[0] * b;
+                clip[1] = clip[1] - q[1] * b;
+                clip[2] = clip[2] - q[2] * b;
+                b = veh_overclip((end_clip[0] * q[0] + end_clip[1] * q[1]) + end_clip[2] * q[2]);
+                end_clip[0] = end_clip[0] - b * q[0];
+                end_clip[1] = end_clip[1] - b * q[1];
+                end_clip[2] = end_clip[2] - b * q[2];
+                if ((clip[0] * p[0] + clip[1] * p[1]) + clip[2] * p[2] >= title_global<float>(0x0083eafc)) continue;
+                // Along the crease of the two planes (packed cross product, all four lanes).
+                alignas(16) float dir[4];
+                dir[0] = p[1] * q[2] - p[2] * q[1];
+                dir[1] = p[2] * q[0] - p[0] * q[2];
+                dir[2] = p[0] * q[1] - p[1] * q[0];
+                dir[3] = p[3] * q[3] - p[3] * q[3];
+                Vec3NormalizeSimd(dir);
+                b = (dir[1] * vel[1] + dir[2] * vel[2]) + vel[0] * dir[0];
+                clip[2] = dir[2] * b;
+                clip[0] = dir[0] * b;
+                clip[1] = dir[1] * b;
+                b = (dir[0] * primal[0] + dir[1] * primal[1]) + dir[2] * primal[2];
+                end_clip[2] = dir[2] * b;
+                end_clip[0] = dir[0] * b;
+                end_clip[1] = dir[1] * b;
+                for (int32_t k = 0; k < numplanes; ++k) {
+                    if (k == i || k == j) continue;
+                    if (!((planes[k][0] * clip[0] + planes[k][2] * clip[2]) + clip[1] * planes[k][1] >=
+                          title_global<float>(0x0083ebf8))) {  // a third plane: stop dead
+                        vel[2] = 0.0f;
+                        vel[1] = 0.0f;
+                        vel[0] = 0.0f;
+                        return hit_other == 0;
+                    }
+                }
+            }
+            vel[0] = clip[0];
+            vel[1] = clip[1];
+            vel[2] = clip[2];
+            primal[0] = end_clip[0];
+            primal[1] = end_clip[1];
+            primal[2] = end_clip[2];
+            break;
+        }
+    }
+    if (gravity) {
+        vel[0] = primal[0];
+        vel[1] = primal[1];
+        vel[2] = primal[2];
+    }
+    return !hit_other && bump != 0;
 }
 
 }  // namespace game
