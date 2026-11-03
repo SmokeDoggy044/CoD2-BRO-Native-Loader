@@ -3465,6 +3465,7 @@ const Function kFunctions[] = {
     {"Vehicle_Touch", 0x00269e30, 0, code(&Vehicle_Touch_entry), 8, Result::None, Status::Compare},
     {"Mover_UnstickPlayer", 0x0026a130, 0, code(&Mover_UnstickPlayer_entry), 0, Result::None, Status::Compare},
     {"Vehicle_FreePhysics", 0x0026a230, 0, code(&Vehicle_FreePhysics_entry), 0, Result::None, Status::Compare},
+    {"Vehicle_UpdatePhysics", 0x0026a3c0, 0, code(&Vehicle_UpdatePhysics_entry), 12, Result::None, Status::Compare},
     {"Think_SpawnNewDoorTriggerRotate", 0x0026b920, 0, code(&Think_SpawnNewDoorTriggerRotate), 4, Result::None, Status::Compare},
     {"Think_SpawnNewDoorTrigger_Entry", 0x0026b950, 0, code(&Think_SpawnNewDoorTrigger_Entry), 4, Result::None, Status::Compare},
     {"G_MoverPush", 0x0026b960, 0, code(&G_MoverPush_entry), 20, Result::Eax, Status::Compare},

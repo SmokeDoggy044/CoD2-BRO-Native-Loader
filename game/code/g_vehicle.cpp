@@ -3982,6 +3982,614 @@ void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint
     title_call_at_regs(F, 0x00250340, &regs, 9, args);  // G_Damage
 }
 
+// The candidate lists (B+0x210, B+0xa20) and the trace blocks are the original's frame: their addresses reach the
+// clip code's globals, so the frame sits at the original's addresses (gap entry; B = aligned base - 0x1a30) and
+// every title callee runs at the original's ESP.
+PLATFORM_ASM_ENTRY(Vehicle_UpdatePhysics_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_UpdatePhysics) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // cdecl (entity, fall, elapsed ms). The body axis from the angles (+0xe0; forward, left = -right, up, origin
+    // +0xc0/+0xc4/+0xd8) is matched against the entity's slot in the wheel cache (0x0095f690, 0xe0 bytes, next
+    // slot 0x0095f68c wrapping at g_vehicleSlotCount): unchanged (each term within 0.005) keeps the cached wheel
+    // results, else the slot takes the axis and its triangle ids are reset. Each wheel tag (4, 6 unless type 1)
+    // at the wheel height (+0x1c0) gives a segment 64 up to 256 down; their box (with margin 0x008feff8 when
+    // outside the entity's cached box +0x430/+0x440) refreshes the clip candidates. Per wheel: the cached
+    // triangle retested (then entries filtered and the segment traced from its crossing), else the candidates
+    // filtered and traced; above 0.4 an SV_Trace (mask 0x211, 0x10211 for player drive). A hit sets the wheel's
+    // surface (+0x150, bits 20-24 of the surface flags); with `fall` the wheel drops (velocity -800/s, +0x120)
+    // to the ground, else snaps; the wheel bone moves by the suspension (clamped +-15) and turns (+0x1c4,
+    // steering +0x270 for the two steer wheels); dust effects (+0x21c, EmissionRate = speed +0x2fc / def +0x44)
+    // above speed 0.1. Then the wheel points give a new forward and left, up = forward x left and the ground
+    // plane distance (the highest wheel less def +0x64), pitch and roll eased (AngleWrapNear 6) and clamped to
+    // +-60, the height from the plane unless player-driven, and the angular velocity +0x110 per second.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0x1a30;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    auto by = [B](uint32_t off) -> uint8_t& { return *pointer<uint8_t>(B + off); };
+    const auto call = [](uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                         const uint32_t* args = nullptr) {
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        *pointer<uint32_t>(top - count * 4 - 4) = ret;
+        return result;
+    };
+    const auto store4 = [&](uint32_t off, const float (&v)[4]) {
+        for (uint32_t k = 0; k < 4; ++k) fl(off + k * 4) = v[k];
+    };
+    const auto load4 = [&](uint32_t address, float (&v)[4]) {
+        for (uint32_t k = 0; k < 4; ++k) v[k] = *pointer<float>(address + k * 4);
+    };
+    // MINPS / MAXPS lanes: the second operand when the compare is false (NaN included).
+    const auto minps = [](float (&a)[4], const float (&b)[4]) {
+        for (uint32_t k = 0; k < 4; ++k) a[k] = a[k] < b[k] ? a[k] : b[k];
+    };
+    const auto maxps = [](float (&a)[4], const float (&b)[4]) {
+        for (uint32_t k = 0; k < 4; ++k) a[k] = a[k] > b[k] ? a[k] : b[k];
+    };
+    const uint32_t* const arg = pointer<uint32_t>(E + 4);
+    const uint32_t ent_w = arg[0];
+    uint8_t* const ent = pointer<uint8_t>(ent_w);
+    const uint32_t fall = arg[1];
+    const int32_t elapsed = static_cast<int32_t>(arg[2]);
+    const uint32_t v_w = at<uint32_t>(ent, 0x248);
+    uint8_t* const v = pointer<uint8_t>(v_w);
+    const uint32_t origin_w = v_w + 0xc0;
+    const uint32_t def_w = title_global<uint32_t>(0x00950a28 + static_cast<int32_t>(at<int16_t>(v, 0x178)) * 4);
+    uint8_t* const def = pointer<uint8_t>(def_w);
+    wd(0x28) = v_w;
+    wd(8) = ebx;
+    const uint32_t count = (at<int16_t>(def, 0x20) != 1 ? 2u : 0u) + 4u;
+    wd(4) = esi;
+    wd(0) = edi;
+    wd(0x150) = 0;
+    wd(0x154) = 0;
+    fl(0x74) = at<float>(v, 0xc0);
+    wd(0x9c) = def_w;
+    fl(0x78) = at<float>(v, 0xc4);
+    wd(0xec) = origin_w;
+    wd(0x30) = count;
+    fl(0x7c) = at<float>(v, 0xd8);
+    wd(0xf0) = v_w + 0xe0;
+    {
+        const uint32_t args[2] = {v_w + 0xe0, B + 0x50};
+        call(B, 0x0026a468, 0x002a2af0, TitleRegs{v_w + 0xe0, origin_w, B + 0x50, count, B + 0x68, B + 0x18}, 2,
+             args);  // AnglesToAxis (forward B+0x50, right B+0x18, up B+0x68)
+    }
+    const float zero = 0.0f;
+    const float left[3] = {zero - fl(0x18), zero - fl(0x1c), zero - fl(0x20)};
+    fl(0x5c) = left[0];
+    fl(0x60) = left[1];
+    fl(0x64) = left[2];
+    by(0x12) = 1;
+    // The wheel cache slot of this entity.
+    uint32_t used = title_global<uint32_t>(0x0095f68c);
+    const uint32_t slots = title_global<uint32_t>(0x0095f690);
+    uint32_t slot = 0;
+    for (int32_t i = 0; i < static_cast<int32_t>(used); ++i) {
+        if (*pointer<uint32_t>(slots + 0xa8 + i * 0xe0) == ent_w) {
+            slot = slots + i * 0xe0;
+            break;
+        }
+    }
+    bool store = true;
+    if (slot) {
+        const float limit = title_global<float>(0x0083ebdc);  // 2.5e-5
+        wd(0xc) = B + 0x50;
+        wd(0x24) = 0;
+        bool same = true;
+        for (uint32_t row = 0; row < 4 && same; ++row) {
+            for (uint32_t k = 0; k < 3; ++k) {
+                const float d = fl(0x50 + row * 12 + k * 4) - *pointer<float>(slot + 0xac + row * 12 + k * 4);
+                if (d * d > limit) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) {
+                wd(0x24) = row + 1;
+                wd(0xc) = B + 0x50 + (row + 1) * 12;
+            }
+        }
+        if (!same) by(0x12) = 0;
+        store = !same;
+    } else {
+        if (used == title_global<uint16_t>(0x00986000)) used = 0;  // g_vehicleSlotCount
+        slot = slots + used * 0xe0;
+        title_global<uint32_t>(0x0095f68c) = used + 1;
+        for (uint32_t k = 0; k < 6; ++k) *pointer<uint32_t>(slot + 0x90 + k * 4) = 0xffffffffu;
+        by(0x12) = 0;
+    }
+    if (store) {
+        *pointer<uint32_t>(slot + 0xa8) = ent_w;
+        *pointer<float>(slot + 0xac) = fl(0x50);
+        *pointer<float>(slot + 0xb0) = fl(0x54);
+        *pointer<float>(slot + 0xb4) = fl(0x58);
+        *pointer<float>(slot + 0xc4) = fl(0x68);
+        *pointer<float>(slot + 0xc8) = fl(0x6c);
+        *pointer<float>(slot + 0xcc) = fl(0x70);
+        *pointer<float>(slot + 0xd0) = fl(0x74);
+        *pointer<float>(slot + 0xd4) = fl(0x78);
+        *pointer<float>(slot + 0xb8) = left[0];
+        *pointer<float>(slot + 0xbc) = left[1];
+        *pointer<float>(slot + 0xc0) = left[2];
+        *pointer<float>(slot + 0xd8) = fl(0x7c);
+    }
+    // A wheel tag's point on the body axis (wheel height +0x1c0 as its z).
+    const auto wheel_point = [&](float tx, float ty, float tz, float& x, float& y, float& z) {
+        x = tx * fl(0x50) + tz * fl(0x68) + ty * fl(0x5c) + fl(0x74);
+        y = fl(0x54) * tx + fl(0x6c) * tz + ty * fl(0x60) + fl(0x78);
+        z = fl(0x58) * tx + fl(0x70) * tz + ty * fl(0x64) + fl(0x7c);
+    };
+    const uint32_t mask = (((at<uint8_t>(ent, 0x297) != 2 ? 1u : 0u) - 1u) & 0x10000u) + 0x211u;
+    const float big = title_global<float>(0x0082eed0);  // FLT_MAX
+    float mins[4] = {big, big, big, big};
+    store4(0x80, mins);
+    float maxs[4];
+    for (uint32_t k = 0; k < 4; ++k) {
+        uint32_t bits;
+        std::memcpy(&bits, &mins[k], 4);
+        bits ^= title_global<uint32_t>(0x0082e0b0 + k * 4);
+        std::memcpy(&maxs[k], &bits, 4);
+    }
+    wd(0xbc) = mask;
+    store4(0x100, mins);
+    store4(0xa0, maxs);
+    const float up64 = title_global<float>(0x00830c1c), down256 = title_global<float>(0x0083ecf4);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t args[2] = {i, B + 0x110};
+        call(B, 0x0026a6f1, 0x0025a810, TitleRegs{0, ent_w, B + 0x110, 0, slot, i}, 2,
+             args);  // Vehicle_GetTagOrigin (EBX entity)
+        const float wz = at<float>(v, 0x1c0);
+        float x, y, z;
+        wheel_point(fl(0x110), fl(0x114), wz, x, y, z);
+        const float top = z + up64, bottom = z - down256;
+        fl(0x8c) = x;
+        fl(0x80) = x;
+        fl(0x84) = y;
+        fl(0x88) = top;
+        float a[4] = {x, y, top, x};
+        fl(0xdc) = x;
+        fl(0xd8) = bottom;
+        fl(0xd4) = y;
+        fl(0xd0) = x;
+        const float b[4] = {x, y, bottom, x};
+        float lo[4] = {a[0], a[1], a[2], a[3]};
+        minps(lo, b);
+        maxps(a, b);
+        minps(mins, lo);
+        maxps(maxs, a);
+        fl(0x118) = wz;
+        store4(0x100, mins);
+        store4(0xa0, maxs);
+    }
+    // The clip candidates for the wheels' box, refreshed when it leaves the cached box.
+    {
+        float cmax[4], cmin[4];
+        load4(ent_w + 0x440, cmax);
+        load4(ent_w + 0x430, cmin);
+        uint32_t inside = 0;
+        for (uint32_t k = 0; k < 3; ++k) {
+            const float d1 = maxs[k] - cmax[k];
+            const float d0 = cmin[k] - mins[k];
+            const float m = d0 > d1 ? d0 : d1;
+            if (m < title_global<float>(0x0082e3c0 + k * 4)) inside |= 1u << k;
+        }
+        {  // the w lane runs too (MXCSR)
+            volatile float d1 = maxs[3] - cmax[3];
+            volatile float d0 = cmin[3] - mins[3];
+            (void)d1;
+            (void)d0;
+        }
+        if (inside != 7) {
+            const float margin = title_global<float>(0x008feff8);
+            fl(0x8c) = margin;
+            fl(0x88) = margin;
+            fl(0x84) = margin;
+            fl(0x80) = margin;
+            float lo[4], hi[4];
+            for (uint32_t k = 0; k < 4; ++k) {
+                lo[k] = mins[k] - margin;
+                hi[k] = maxs[k] + margin;
+            }
+            for (uint32_t k = 0; k < 4; ++k) {
+                *pointer<float>(ent_w + 0x430 + k * 4) = lo[k];
+                *pointer<float>(ent_w + 0x440 + k * 4) = hi[k];
+            }
+            const uint32_t args[3] = {ent_w + 0x430, at<uint32_t>(ent, 0x450), at<uint32_t>(ent, 0x454)};
+            call(B, 0x0026a8f0, 0x002cb0f0, TitleRegs{ent_w + 0x430, origin_w, args[1], args[2], slot, ent_w + 0x440}, 3,
+                 args);  // CM_GatherBoxCandidates (EDI maxs)
+        }
+    }
+    wd(0xa10) = B + 0x210;
+    wd(0x1a20) = B + 0xa20;
+    wd(0x1a24) = 0;
+    wd(0xa14) = 0;
+    wd(0x2c) = 0;
+    wd(0x98) = slot;
+    fl(0x4c) = zero;
+    wd(0xc) = B + 0x168;
+    wd(0x94) = v_w + 0x21c;
+    wd(0x90) = v_w + 0x138;
+    wd(0xe8) = slot + 0x90;
+    wd(0x24) = origin_w - slot;
+    const float one = title_global<float>(0x0083eb20);
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t ids = slot + 0x90 + i * 4;  // the cached triangle id
+        const uint32_t result = slot + i * 0x10;   // the cached hit point, fraction in w
+        uint32_t ebx_now = ent_w;
+        {
+            const uint32_t args[2] = {i, B + 0x1b0};
+            wd(0x14) = call(B, 0x0026a991, 0x0025a810, TitleRegs{0, ent_w, B + 0x1b0, 0, i, ids}, 2,
+                            args);  // Vehicle_GetTagOrigin: the bone
+        }
+        const float wz = at<float>(v, 0x1c0);
+        fl(0x1b8) = wz;
+        float x, y, z;
+        wheel_point(fl(0x1b0), fl(0x1b4), wz, x, y, z);
+        const float top = z + up64, bottom = z - down256;
+        fl(0x18) = x;
+        fl(0x1c) = y;
+        fl(0x3c) = z;
+        fl(0xa0) = x;
+        fl(0xa4) = y;
+        fl(0xc0) = x;
+        fl(0xc4) = y;
+        fl(0xa8) = top;
+        fl(0xc8) = bottom;
+        by(0x13) = 0;
+        float frac;
+        if (!by(0x12)) {
+            for (uint32_t k = 0; k < 16; k += 4) {
+                wd(0x80 + k) = wd(0xa0 + k);
+                wd(0xd0 + k) = wd(0xc0 + k);
+            }
+            float s[4], e[4];
+            load4(B + 0xa0, s);
+            load4(B + 0xc0, e);
+            float lo[4] = {s[0], s[1], s[2], s[3]}, hi[4] = {s[0], s[1], s[2], s[3]};
+            minps(lo, e);
+            maxps(hi, e);
+            store4(0x1d0, lo);
+            store4(0x1c0, hi);
+            bool retested = false;
+            if (*pointer<uint32_t>(ids) != 0xffffffffu) {
+                const uint32_t args[3] = {B + 0x80, B + 0xd0, ids};
+                ebx_now = B + 0x1f0;
+                retested = static_cast<uint8_t>(call(B, 0x0026ab6a, 0x002d1ce0,
+                                                     TitleRegs{ids - 0x18, B + 0x1f0, B + 0x80, wd(0xcc), ids - 0x18, ids},
+                                                     3, args)) != 0;  // CM_RetestCachedMeshTriangle
+                if (!retested) *pointer<uint32_t>(ids) = 0xffffffffu;
+            }
+            if (retested) {
+                // The segment from the cached triangle's crossing: (start - point) . plane - 0.125 over
+                // (start - end) . plane.
+                float p[4], n[4];
+                load4(B + 0x1f0, p);
+                load4(B + 0x200, n);
+                float d0[4], d1[4];
+                for (uint32_t k = 0; k < 4; ++k) {
+                    d0[k] = (s[k] - e[k]) * n[k];
+                    d1[k] = (s[k] - p[k]) * n[k];
+                }
+                const float den = d0[0] + d0[1] + d0[2];
+                d1[0] = (d1[0] + d1[1] + d1[2] - title_global<float>(0x0083ec68)) / den;  // 0.125
+                const uint32_t surface = *pointer<uint32_t>(*pointer<uint32_t>(ids - 0x18) + 4);
+                wd(0x144) = surface;
+                store4(0x1e0, d1);
+                fl(0x140) = fl(0x1e0);
+                const uint32_t fargs[3] = {B + 0x1d0, B + 0x1c0, mask};
+                const uint32_t list = at<uint32_t>(ent, 0x454);
+                call(B, 0x0026ac37, 0x002c0ec0, TitleRegs{B + 0x1d0, B + 0x1f0, ent_w, B + 0x1c0, B + 0x210, list}, 3,
+                     fargs);  // Phys_FilterEntriesInBox (ESI out, EDI list)
+                const uint32_t targs[7] = {B + 0xa20, B + 0x210, B + 0x80, B + 0xd0, B + 0x140, B + 0x144, B + 0x148};
+                wd(0x1a24) = 0;
+                call(B - 0xc, 0x0026ac7a, 0x002d2b50, TitleRegs{B + 0x80, B + 0x1f0, B + 0x210, B + 0xa20, B + 0x210, list},
+                     7, targs);  // CM_TraceSegmentThroughCandidates
+                frac = fl(0x140);
+                float hit[4];
+                for (uint32_t k = 0; k < 4; ++k) hit[k] = s[k] + (e[k] - s[k]) * frac;
+                store4(0x120, hit);
+                by(0x13) = 1;
+            } else {
+                const uint32_t in_brushes = at<uint32_t>(ent, 0x454);
+                const uint32_t fargs[5] = {B + 0x1d0, B + 0x1c0, mask, at<uint32_t>(ent, 0x450), B + 0xa20};
+                call(B, 0x0026ad0a, 0x002c6630, TitleRegs{B + 0x210, ebx_now, in_brushes, B + 0x1c0, i, ids}, 5,
+                     fargs);  // CM_FilterBoxCandidates (EAX out brushes, ECX in brushes)
+                const uint32_t targs[7] = {B + 0xa20, B + 0x210, B + 0x80, B + 0xd0, B + 0x140, B + 0x144, B + 0x148};
+                title_global<uint32_t>(0x009507e0) = 0xffffffffu;
+                fl(0x140) = one;
+                call(B - 0x14, 0x0026ad62, 0x002d2b50, TitleRegs{B + 0x210, ebx_now, B + 0xa20, B + 0x80, i, ids}, 7,
+                     targs);  // CM_TraceSegmentThroughCandidates
+                frac = fl(0x140);
+                if (one > frac) {
+                    float hit[4];
+                    for (uint32_t k = 0; k < 4; ++k) hit[k] = s[k] + (e[k] - s[k]) * frac;
+                    store4(0x120, hit);
+                    const uint32_t id = title_global<uint32_t>(0x009507e0);
+                    if (id != 0xffffffffu) {
+                        *pointer<uint32_t>(ids) = id;
+                        *pointer<uint32_t>(ids - 0x18) = title_global<uint32_t>(0x0094cb9c);
+                    }
+                }
+            }
+            if (frac > title_global<float>(0x0083ec44)) {  // 0.4: the entities too
+                const uint32_t w0 = title_global<uint32_t>(0x0082e290), w1 = title_global<uint32_t>(0x0082e294);
+                const uint32_t w2 = title_global<uint32_t>(0x0082e298), w3 = title_global<uint32_t>(0x0082e29c);
+                wd(0x100) = w0;
+                wd(0x110) = w0;
+                wd(0x104) = w1;
+                wd(0x114) = w1;
+                wd(0x108) = w2;
+                wd(0x118) = w2;
+                wd(0x10c) = w3;
+                wd(0x11c) = w3;
+                const uint32_t args[11] = {B + 0x120, B + 0x110, B + 0x100, B + 0xc0, at<uint32_t>(ent, 0x224), mask,
+                                           0, 0, 0, 0, 0};
+                call(B, 0x0026ae5d, 0x002e9af0, TitleRegs{B + 0x100, B + 0xa0, B + 0x110, B + 0x120, i, ids}, 11,
+                     args);  // SV_Trace (EBX start)
+                frac = fl(0x140);
+            }
+            for (uint32_t k = 0; k < 16; k += 4) *pointer<uint32_t>(result + k) = wd(0x120 + k);
+            *pointer<float>(result + 0xc) = frac;
+            *pointer<uint32_t>(ids - 0x30) = wd(0x144);
+        } else {
+            frac = *pointer<float>(result + 0xc);
+            for (uint32_t k = 0; k < 16; k += 4) wd(0x120 + k) = *pointer<uint32_t>(result + k);
+            wd(0x144) = *pointer<uint32_t>(ids - 0x30);
+        }
+        float ground;
+        uint32_t* const surface_type = pointer<uint32_t>(wd(0x24) + ids);  // +0x150
+        if (one > frac || by(0x13)) {
+            ground = fl(0x128);
+            fl(0x18) = fl(0x120);
+            fl(0x1c) = fl(0x124);
+            x = fl(0x18);
+            y = fl(0x1c);
+            *surface_type = static_cast<uint32_t>(static_cast<int32_t>(wd(0x144)) >> 20) & 0x1f;
+        } else {
+            ground = fl(0xc8);
+            *surface_type = 0;
+        }
+        // The wheel height: falling toward the ground with `fall`, else on it.
+        float* const wheel = pointer<float>(wd(0x90));  // +0x138; its velocity at -0x18
+        if (fall) {
+            const float dt = static_cast<float>(elapsed) * title_global<float>(0x0083eb4c);  // 0.001
+            const float vel = wheel[-6] - dt * title_global<float>(0x0083f194);                 // 800
+            wheel[-6] = vel;
+            const float h = vel * dt + wheel[0];
+            wheel[0] = h;
+            if (ground > h) {
+                wheel[-6] = zero;
+                wheel[0] = ground;
+            }
+        } else {
+            wheel[-6] = zero;
+            wheel[0] = ground;
+        }
+        {
+            float* const point = pointer<float>(wd(0xc));
+            float lift = z - ground - at<float>(v, 0x1c0);
+            point[0] = x;
+            point[1] = y;
+            point[2] = wheel[0];
+            fl(0xf8) = zero;
+            fl(0xf4) = zero;
+            const float high = title_global<float>(0x0083ef10);  // 15
+            if (lift > high) {
+                lift = high;
+            } else {
+                const float low = title_global<float>(0x0083ef14);  // -15
+                if (low > lift) lift = low;
+            }
+            fl(0xfc) = zero - lift;
+            fl(0x48) = at<float>(v, 0x270);
+            fl(0x44) = at<float>(v, 0x1c4);
+            if (static_cast<int32_t>(i) != title_global<int32_t>(0x0095f658) &&
+                static_cast<int32_t>(i) != title_global<int32_t>(0x008d9d58))
+                fl(0x48) = zero;
+            const uint32_t args[5] = {ent_w, B + 0xf4, B + 0x44, wd(0x14), 0};
+            call(B, 0x0026b074, 0x002de420, TitleRegs{ent_w, v_w, B + 0x44, B + 0xf4, i, ids}, 5,
+                 args);  // G_DObjSetBoneRotation
+        }
+        uint32_t* const fx = pointer<uint32_t>(wd(0x94));  // +0x21c
+        const uint32_t list = title_global<uint32_t>(0x0095f5b4);
+        if (at<float>(v, 0x240) > title_global<float>(0x0083ebf8) && *surface_type) {  // 0.1
+            if (*fx == 0xffffffffu) {
+                const uint32_t args[3] = {wd(0xc), *surface_type, title_global<uint32_t>(0x009886f8 + i * 4)};
+                *fx = call(B, 0x0026b0b5, 0x00266cd0, TitleRegs{ent_w, address_of(fx), wd(0x24), args[2], i, ids}, 3,
+                           args);  // Vehicle_PlayFxAtTag (EAX entity)
+            }
+            float rate;
+            __asm__("flds %1\n\tfdivs %2\n\tfstps %0"
+                    : "=m"(rate)
+                    : "m"(at<float>(ent, 0x2fc)), "m"(at<float>(def, 0x44))
+                    : "st");
+            fl(0x14) = rate;
+            const uint32_t args[4] = {list, *fx, 0x0083b284, wd(0x14)};
+            call(B, 0x0026b0ea, 0x00296b80, TitleRegs{wd(0x14), address_of(fx), *fx, list, i, ids}, 4,
+                 args);  // FXParam_Broadcast "EmissionRate" (stdcall)
+        } else {
+            if (*fx != 0xffffffffu) {
+                const uint32_t args[1] = {*fx};
+                call(B, 0x0026b106, 0x0029b620, TitleRegs{*fx, address_of(fx), 0, 0, list, ids}, 1,
+                     args);  // FX_FreeEffectsById (ESI list; stdcall)
+            }
+            *fx = 0xffffffffu;
+        }
+        wd(0x90) += 4;
+        wd(0x2c) = i + 1;
+        wd(0x98) = result + 0x10;
+        wd(0xe8) = ids + 4;
+        wd(0x94) = address_of(fx) + 4;
+        wd(0xc) += 12;
+    }
+    if (!(at<float>(v, 0x240) > title_global<float>(0x0083ebf8)) && at<uint32_t>(v, 0x234) != 0xffffffffu) {
+        const uint32_t args[1] = {at<uint32_t>(v, 0x234)};
+        call(B, 0x0026b195, 0x0029b620, TitleRegs{args[0], origin_w, 0, 0, title_global<uint32_t>(0x0095f5b4), v_w}, 1,
+             args);  // FX_FreeEffectsById (ESI list; stdcall)
+        at<uint32_t>(v, 0x234) = 0xffffffffu;
+    }
+    // The ground axis from the wheel points P0..P3 (B+0x168, 12 bytes each).
+    const auto P = [&](uint32_t k, uint32_t c) -> float& { return fl(0x168 + k * 12 + c * 4); };
+    const float half = title_global<float>(0x0083eb24);
+    const auto length_of = [&](float sum) {
+        fl(0xc) = sum;
+        const float r = platform_x87_sqrt(sum);  // __CIsqrt
+        fl(0x14) = r;
+        fl(0xc) = r;
+        return r;
+    };
+    {
+        const float fx_ = (P(3, 0) + P(1, 0)) * half - (P(2, 0) + P(0, 0)) * half;
+        const float fz = (P(3, 2) + P(1, 2)) * half - (P(2, 2) + P(0, 2)) * half;
+        const float fy = (P(3, 1) + P(1, 1)) * half - (P(2, 1) + P(0, 1)) * half;
+        fl(0x4c) = fz;
+        fl(0x48) = fy;
+        fl(0x44) = fx_;
+        const float len = length_of(fz * fz + fy * fy + fx_ * fx_);
+        if (!(len == title_global<float>(0x0083eafc))) {
+            const float inv = one / len;
+            fl(0x44) = inv * fl(0x44);
+            fl(0x48) = inv * fl(0x48);
+            fl(0x4c) = inv * fl(0x4c);
+        }
+    }
+    float lx, ly, lz;
+    {
+        const float h = title_global<float>(0x0083eb24);
+        lz = (P(0, 2) + P(1, 2)) * h - (P(2, 2) + P(3, 2)) * h;
+        ly = (P(0, 1) + P(1, 1)) * h - (P(2, 1) + P(3, 1)) * h;
+        lx = (P(0, 0) + P(1, 0)) * h - (P(2, 0) + P(3, 0)) * h;
+        fl(0x20) = lz;
+        fl(0x1c) = ly;
+        fl(0x18) = lx;
+        const float len = length_of(lz * lz + ly * ly + lx * lx);
+        if (!(len == title_global<float>(0x0083eafc))) {
+            const float inv = one / len;
+            ly = inv * fl(0x1c);
+            lx = inv * fl(0x18);
+            lz = inv * fl(0x20);
+        } else {
+            lz = fl(0x20);
+            ly = fl(0x1c);
+            lx = fl(0x18);
+        }
+    }
+    // up = forward x left; the plane distance: the highest wheel above the first less def +0x64.
+    const float Fx = fl(0x44), Fy = fl(0x48), Fz = fl(0x4c);
+    const float ux = lz * Fy - ly * Fz;
+    const float uy = lx * Fz - lz * Fx;
+    const float uz = ly * Fx - lx * Fy;
+    float dist = uz * P(0, 2) + uy * P(0, 1) + ux * P(0, 0);
+    fl(0x34) = ux;
+    fl(0x38) = uy;
+    fl(0x3c) = uz;
+    fl(0x40) = dist;
+    {
+        const float slack = at<float>(def, 0x64);
+        const auto check = [&](float d) {
+            if (d - dist > slack) {
+                dist = d - slack;
+                fl(0x40) = dist;
+            }
+        };
+        int32_t k = 1;
+        if (static_cast<int32_t>(count) - 1 >= 4) {
+            const uint32_t groups = ((count - 5) >> 2) + 1;
+            for (uint32_t g = 0; g < groups; ++g) {
+                const uint32_t b = 1 + g * 4;
+                check(P(b, 2) * uz + P(b, 0) * ux + P(b, 1) * uy);
+                check(P(b + 1, 2) * uz + P(b + 1, 1) * uy + P(b + 1, 0) * ux);
+                check(P(b + 2, 2) * uz + P(b + 2, 1) * uy + P(b + 2, 0) * ux);
+                check(P(b + 3, 2) * uz + P(b + 3, 1) * uy + P(b + 3, 0) * ux);
+            }
+            k = static_cast<int32_t>(groups * 4 + 1);
+        }
+        for (; k < static_cast<int32_t>(count); ++k) check(P(k, 2) * uz + P(k, 0) * ux + P(k, 1) * uy);
+    }
+    // left = body forward x up, forward = up x left (each normalized), then the angles.
+    {
+        const float fx0 = fl(0x50), fy0 = fl(0x54), fz0 = fl(0x58);
+        float a = fz0 * uy - fy0 * uz;
+        float c = fy0 * ux - fx0 * uy;
+        float b = fx0 * uz - fz0 * ux;
+        fl(0x5c) = a;
+        fl(0x60) = b;
+        fl(0x64) = c;
+        const float len = length_of(c * c + b * b + a * a);
+        if (!(len == title_global<float>(0x0083eafc))) {
+            const float inv = one / len;
+            a = a * inv;
+            b = b * inv;
+            c = c * inv;
+            fl(0x5c) = a;
+            fl(0x60) = b;
+            fl(0x64) = c;
+        }
+        const float nx = b * uz - c * uy;
+        const float nz = a * uy - b * ux;
+        fl(0x58) = nz;
+        const float ny = c * ux - a * uz;
+        fl(0x50) = nx;
+        fl(0x54) = ny;
+        const float len2 = length_of(nz * nz + ny * ny + nx * nx);
+        if (!(len2 == title_global<float>(0x0083eafc))) {
+            const float inv = one / len2;
+            fl(0x50) = inv * fl(0x50);
+            fl(0x54) = fl(0x54) * inv;
+            fl(0x58) = fl(0x58) * inv;
+        }
+    }
+    *pointer<uint32_t>(B - 4) = 0x0026b7e8;
+    AxisToAngles(&fl(0xf4), 0, &fl(0x50));
+    float* const angles = pointer<float>(wd(0xf0));  // +0xe0
+    const uint32_t old = origin_w + 0x30;           // +0xf0: last frame's angles
+    *pointer<uint32_t>(B - 4) = static_cast<uint32_t>(elapsed);
+    *pointer<uint32_t>(B - 8) = 0x40c00000;
+    *pointer<uint32_t>(B - 0xc) = 0x0026b807;
+    angles[0] = AngleWrapNear(fl(0xf4), *pointer<float>(old), 6.0f, elapsed);
+    *pointer<uint32_t>(B - 0xc) = static_cast<uint32_t>(elapsed);
+    *pointer<uint32_t>(B - 0x10) = 0x40c00000;
+    *pointer<uint32_t>(B - 0x14) = 0x0026b82b;
+    at<float>(v, 0xe8) = AngleWrapNear(fl(0xfc), *pointer<float>(old + 8), 6.0f, elapsed);
+    {
+        const float low = title_global<float>(0x0083ee2c), high = title_global<float>(0x0083eb3c);  // -60, 60
+        const auto clamp = [&](float& a) {
+            float r;
+            if (low > a)
+                r = low;
+            else
+                r = a > high ? high : a;
+            a = r;
+        };
+        clamp(angles[0]);
+        clamp(at<float>(v, 0xe8));
+    }
+    if (at<uint8_t>(ent, 0x297) != 2) {
+        const float h = (at<float>(v, 0xc0) * fl(0x34) + at<float>(v, 0xc4) * fl(0x38) - fl(0x40)) / fl(0x3c);
+        at<float>(v, 0xc8) = zero - h;
+    }
+    *pointer<uint32_t>(B - 4) = v_w + 0x110;
+    *pointer<uint32_t>(B - 8) = 0x0026b8d0;
+    AnglesNormalize180(pointer<float>(old), angles, pointer<float>(v_w + 0x110));
+    {
+        const float rate = one / (static_cast<float>(elapsed) * title_global<float>(0x0083eb4c));
+        at<float>(v, 0x110) = at<float>(v, 0x110) * rate;
+        at<float>(v, 0x114) = rate * at<float>(v, 0x114);
+        at<float>(v, 0x118) = rate * at<float>(v, 0x118);
+    }
+}
+
 // The tag matrices go to the original's frame (gap entry; F = aligned base - 0x80) and every title callee runs
 // at the original's ESP.
 PLATFORM_ASM_ENTRY(Vehicle_ThinkInit_entry,

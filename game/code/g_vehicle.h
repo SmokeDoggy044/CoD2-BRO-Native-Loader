@@ -364,6 +364,11 @@ extern "C" void ClientThink_entry(void);
 // 0x0026a230 (entity in ESI): frees the vehicle's physics, sounds and linked entities.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FreePhysics(uint8_t* ent, uint32_t entry_esp);
 extern "C" void Vehicle_FreePhysics_entry(void);
+// 0x0026a3c0 (cdecl entity, fall, elapsed ms): the wheels against the ground (cached per entity), the suspension
+// bones and dust, then the body pitch, roll and height from the wheel points and the angular velocity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void Vehicle_UpdatePhysics_entry(void);
 
 // 0x00271870 (cdecl entity, elapsed ms): the vehicle entity's think.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi);
