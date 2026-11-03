@@ -204,4 +204,58 @@ extern "C" void VehPath_InitAtNode_entry(void);
 // 0xb8 bytes to 0x009883b0 and +0xc0.. (0xb0) to 0x00988470.
 uint8_t* XB_THISCALL Vehicle_LoadPhysicsState(uint8_t* ent);
 
+// 0x0024b350: ECX = out angles, state on the stack: blends the path node's angles (+0x2c) toward the next
+// node's (or from/to the current out angles when only one of them has angles, flag bits 0x30000000) by the
+// state's fraction (+4), each wrapped to the short angle and back.
+void XB_REGS3 XB_CDECL VehPath_GetNodeAngles(uint32_t unused_eax, uint32_t unused_edx, float* out, const uint8_t* state);
+// 0x0024b530: EAX = script string of a targetname, optional origin on the stack: AX = the first vehicle node with
+// that name (and that origin, +0x14), else -1.
+uint32_t XB_REGS1 XB_CDECL VehNode_FindByTargetname(const uint32_t* name, const float* origin);
+// 0x0024bd40: EAX = vehicle entity, elapsed ms: turn rate (+0x2a0, previous in +0x270) from the yaw change,
+// clamped to +-60, and the wheel roll angle (+0x1c4) from the ground speed.
+void XB_REGS1 XB_CDECL Vehicle_UpdateTurnRateAndWheelAngle(uint8_t* ent, int32_t elapsed);
+// 0x0024bfd0: ECX = entity: the vehicle's motion record (+0xc0) from the entity origin/angles, rates zeroed.
+uint8_t* XB_THISCALL Vehicle_ResetMotionState(uint8_t* ent);
+// 0x0024f5f0: every live vehicle entity's cached bounds (+0x430/+0x440) back to +-FLT_MAX.
+uint32_t XB_CDECL Vehicle_ResetCachedBounds();
+// 0x0024fef0: EAX = player: configstrings 13-15 = the looked-at actor's name, health fraction and weapon name.
+void XB_REGS1 XB_CDECL Player_UpdateLookAtActorInfo(uint8_t* ent);
+// 0x00250960: runs the client's pending touch (+0x628 handle) once its delay has passed; 1 when a touch ran.
+uint32_t XB_CDECL ClientThink_RunPendingTouch(uint8_t* ent);
+
+// 0x00249450 (state in EAX, direction in EBX; entity, keep-values byte, stop node on the stack): moves the path
+// state's node on while the position (+0x14) is behind it or past the next node along the direction (far jumps
+// only for def type 3), sets the segment fraction (+4), end flag (+2), interpolated values (+8 unless kept, +0xc)
+// and flag blend (+0x10). EAX = 1 when the stop node was reached.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VehPath_UpdateSegment(uint8_t* state, const float* dir, const uint8_t* ent,
+                                                                   uint8_t keep_values, int32_t stop);
+extern "C" void VehPath_UpdateSegment_entry(void);
+// 0x002496c0 (node index in BX, out on the stack): the node's angles (+0x2c), or for unset ones (sentinel
+// 0x008db094) the nearest set angles before and after it on the path, blended by distance (0 when neither).
+extern "C" PLATFORM_HIDDEN void XB_CDECL VehNode_FillUnsetAngles(uint32_t ebx, float* out);
+extern "C" void VehNode_FillUnsetAngles_entry(void);
+// 0x00251940: one path step of `elapsed` ms: pending node copies (+0x38/+0x78), lookahead (+0x2c), heading
+// (+0x20, short-rounded), position advanced by speed (+8), then VehPath_UpdateSegment and the node angles.
+uint32_t XB_CDECL Vehicle_PathStep(const uint8_t* ent, uint8_t* state, uint8_t keep_values, int32_t elapsed, int32_t stop);
+// 0x00251c10 (G_InitGame): links the vehicle nodes (next = target, prev = whoever targets us), segment directions
+// and lengths, filled-in speeds/values/angles; nodes without speed end the path.
+uint32_t XB_CDECL VehNode_LinkAll();
+// 0x002520f0 (point in ECX, optional out in EBX): 1 when the point is in mount contents (0x400000, out = 1 /
+// 0x1000000) or in a trigger_mount (out = its +0x2a0 bit 0) or a non-actor entity with those contents.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Player_FindMountTrigger(const float* point, int32_t* out);
+extern "C" void Player_FindMountTrigger_entry(void);
+// 0x00252530 (elapsed in EAX, entity on the stack): path-driven vehicle motion: speed toward the target, path steps
+// of 50 ms, smoothed angles, velocities (+0x100/+0x110), reached_wait_node / reached_end_node /
+// reached_wait_speed notifies, throttle (+0x240/+0x23c).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_MoveAlongPath(int32_t elapsed, uint8_t* ent);
+extern "C" void Vehicle_MoveAlongPath_entry(void);
+// 0x002529c0 (box corners in ECX / EAX; entity, pad, contents, out triangle and brush lists, out record on the
+// stack): world candidates from the entity's cached lists (regathered 50 wider when the padded box leaves the
+// cache), and entities in the padded box into the record (count +0, mins +0x10, maxs +0x20, list +0x30, max 0x80).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Vehicle_GatherCollisionCandidates(const float* a, const float* b, uint8_t* ent,
+                                                                             float pad, uint32_t contents,
+                                                                             uint8_t* out_triangles, uint8_t* out_brushes,
+                                                                             uint8_t* out);
+extern "C" void Vehicle_GatherCollisionCandidates_entry(void);
+
 }  // namespace game
