@@ -1,6 +1,10 @@
 #include "g_pathnode.h"
 
+#include <cstring>
+
 #include "actor.h"
+#include "qcommon.h"
+#include "qcommon_fs.h"
 #include "title_data.h"
 
 namespace game {
@@ -804,6 +808,308 @@ void XB_THISCALL G_FriendlyChainNode(uint8_t* ent, uint8_t* world, const ScriptS
         } while (--left);
     }
     title_function<Error>(0x00248af0)(reinterpret_cast<const char*>(ptr(0x00833954)), text());  // G_Error
+}
+
+namespace {
+
+// Script-string fields stored as offsets in a loaded block: targetname, target, script_noteworthy, animscript.
+constexpr uint32_t kStringFields[] = {0x30, 0x38, 0x34, 0x3c};
+
+// The sorted index of the node's handle, or -1 (a linear scan of the info record's sorted handles).
+int32_t sorted_index_of(uint8_t* world, uint8_t* node) {
+    uint8_t* const info = path_info(world);
+    const int32_t count = static_cast<int32_t>(word_at(info, 8));
+    const uint16_t* const handles = reinterpret_cast<const uint16_t*>(ptr(word_at(info, 0x14)));
+    const uint16_t handle = half_at(node, 0);
+    for (int32_t i = 0; i < count; ++i)
+        if (handle == handles[i]) return i;
+    return -1;
+}
+
+}  // namespace
+
+uint8_t* XB_STDCALL PathNodeTree_FindNodeInDepthRange(uint8_t* world, uint8_t* ref, int32_t min_offset,
+                                                      int32_t max_offset, uint8_t* node, const uint8_t* sentient,
+                                                      uint32_t allow_ancestor) {
+    const uint16_t zone = half_at(ref, 0x5c);
+    const int32_t min_depth = depth_of(ref) + min_offset;
+    const int32_t max_depth = depth_of(ref) + max_offset;
+    const bool available = node && PathNode_IsAvailableFor(node, sentient);
+    if (node && half_at(node, 0x5c) == zone) {
+        if (available && depth_of(node) == max_depth) return node;
+        if (depth_of(node) < max_depth) {
+            const int32_t index = sorted_index_of(world, node);
+            if (uint8_t* found = PathNodeTree_PickAvailableDescendant_r(world, min_depth, max_depth, index, sentient))
+                return found;
+            if (uint8_t* found = PathNodeTree_PickAvailableInSubtree(node, min_depth, max_depth, sentient)) return found;
+            if (available && depth_of(node) >= min_depth) return node;
+        }
+        if (!allow_ancestor) return node;
+        if (depth_of(node) >= min_depth) {
+            if (uint8_t* found = PathNodeTree_FindAvailableAncestor(node, max_depth, min_depth, world, sentient))
+                return found;
+        }
+    }
+    int32_t index = sorted_index_of(world, ref);
+    if (max_offset > 0) {
+        if (uint8_t* found = PathNodeTree_PickAvailableDescendant_r(world, min_depth, max_depth, index, sentient))
+            return found;
+    }
+    if (min_offset <= 0) {
+        if (uint8_t* found = PathNodeTree_FindAvailableAncestor(ref, max_depth, min_depth, world, sentient))
+            return found;
+    }
+    // Climb to the tree's root (through g_pathNodeBlocks).
+    uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);
+    for (;;) {
+        const uint16_t parent = half_at(ref, 0x60);
+        if (parent == 0 || parent == 0xffff) break;
+        ref = node_of(blocks, parent);
+        if (!ref) return nullptr;
+    }
+    const uint16_t* const handles = sorted_handles(world);
+    if (half_at(ref, 0) != handles[index]) index = PathNode_FindSortedIndex(world, reinterpret_cast<const uint16_t*>(ref));
+    if (depth_of(ref) < max_depth) {
+        if (uint8_t* found = PathNodeTree_PickAvailableDescendant_r(world, min_depth, max_depth, index, sentient))
+            return found;
+    }
+    if (available && half_at(node, 0x5c) == zone) return node;
+    if (uint8_t* found = PathNodeTree_ScanAvailableInDepthRange(index, world, min_depth, max_depth, ref, sentient))
+        return found;
+    if (PathNode_HandleIsValid(reinterpret_cast<const uint16_t*>(sentient + 0x50)) & 0xff) return nullptr;
+    return PathNodeTree_ScanUnclaimedInDepthRange(index, world, min_depth, max_depth, ref);
+}
+
+void XB_REGS1 XB_STDCALL PathNode_EnableLink(uint8_t* node, const uint16_t* target) {
+    int32_t i = static_cast<int16_t>(half_at(node, 0x24));
+    if (i >= static_cast<int16_t>(half_at(node, 0x62))) return;
+    const uint16_t handle = *target;
+    uint8_t* link = ptr(word_at(node, 0x64)) + i * 12;
+    while (handle != half_at(link, 0)) {
+        ++i;
+        link += 12;
+        if (i >= static_cast<int16_t>(half_at(node, 0x62))) return;
+    }
+    if (--link[2]) return;
+    // The last disable is gone: swap the link with the first disabled one and count it enabled.
+    const uint32_t a = word_at(link, 0), b = word_at(link, 4), c = word_at(link, 8);
+    uint8_t* const first = ptr(word_at(node, 0x64)) + static_cast<int16_t>(half_at(node, 0x24)) * 12;
+    word_at(link, 0) = word_at(first, 0);
+    word_at(link, 4) = word_at(first, 4);
+    word_at(link, 8) = word_at(first, 8);
+    uint8_t* const slot = ptr(word_at(node, 0x64)) + static_cast<int16_t>(half_at(node, 0x24)) * 12;
+    word_at(slot, 0) = a;
+    word_at(slot, 4) = b;
+    word_at(slot, 8) = c;
+    ++half_at(node, 0x24);
+}
+
+void XB_REGS3 XB_CDECL PathNode_ResolveAnimScripts(uint8_t* world, uint32_t, uint32_t index) {
+    char text[0x80];
+    uint8_t* const block = path_block(world, index);
+    if (static_cast<int32_t>(word_at(block, 4)) <= 0) return;
+    uint8_t* node = ptr(word_at(block, 0x10));
+    int32_t i = 0;
+    do {
+        const uint32_t name = word_at(node, 0x3c);  // animscript
+        if (name) {
+            const char* const string = reinterpret_cast<const char*>(ptr(name + 6));
+            const uint32_t hash = Com_HashKeyNoCase(0, string);
+            uint32_t function = 0;
+            int32_t f = 0;
+            for (; f < 0x34; ++f)
+                if (hash == title_global<uint32_t>(0x00927170 + f * 8)) break;  // g_broFuncs {hash, function}
+            if (f < 0x34)
+                function = title_global<uint32_t>(0x00927174 + f * 8);
+            else
+                title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(  // _sprintf
+                    text, reinterpret_cast<const char*>(ptr(0x00832320)), string);   // "BroFunc: %s, NOT FOUND"
+            word_at(node, 0x40) = function;
+        }
+        ++i;
+        node += 0x80;
+    } while (i < static_cast<int32_t>(word_at(block, 4)));
+}
+
+uint8_t XB_STDCALL Path_RelocateNodeBlock(uint8_t* world, uint32_t index) {
+    uint8_t* const block = path_block(world, index);
+    if (word_at(block, 0) != 2) return 0;
+    // Links (+0x64) from indices to pointers into the block's link array (+0x14, 12 bytes each).
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(block, 4)); ++i) {
+        uint8_t* const links = ptr(word_at(block, 0x10)) + i * 0x80 + 0x64;
+        word_at(links, 0) = word_at(block, 0x14) + word_at(links, 0) * 12;
+    }
+    // The node list (+0x1c) from indices to node pointers.
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(block, 4)); ++i) {
+        uint32_t* const entry = reinterpret_cast<uint32_t*>(ptr(word_at(block, 0x1c))) + i;
+        *entry = (*entry << 7) + word_at(block, 0x10);
+    }
+    if (word_at(block, 4) == 0) {
+        word_at(block, 0x18) = 0;
+        word_at(block, 0x1c) = 0;
+    } else {
+        // The node tree (+0x18, 16-byte cells) linked over the node list (PathNodeTree_Link_r from its root).
+        uint32_t* const root = reinterpret_cast<uint32_t*>(ptr(word_at(block, 0x18)));
+        const uint32_t base = word_at(block, 0x1c);
+        uint32_t** const cursor = reinterpret_cast<uint32_t**>(block + 0x18);
+        *cursor = root + 4;
+        const uint32_t world_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(world));
+        if (static_cast<int32_t>(root[0]) >= 0) {
+            root[2] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(PathNodeTree_Link_r(world_word, base, cursor)));
+            root[3] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(PathNodeTree_Link_r(world_word, base, cursor)));
+        } else {
+            root[2] = base + root[2] * 4;
+        }
+        *cursor = root;
+    }
+    // Script strings from offsets into the block's string data (+0x24): targetname, target, script_noteworthy,
+    // animscript.
+    using FromCString = void XB_THISCALL(uint32_t*, const char*);
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(block, 4)); ++i) {
+        uint8_t* const node = ptr(word_at(block, 0x10)) + i * 0x80;
+        for (const uint32_t field : kStringFields) {
+            const uint32_t offset = word_at(node, field);
+            if (offset)
+                title_function<FromCString>(0x0011eb50)(  // ScriptString_FromCString
+                    &word_at(node, field), reinterpret_cast<const char*>(ptr(word_at(block, 0x24) + offset - 1)));
+        }
+    }
+    if (title_global<uint8_t>(0x00986015)) {
+        PathNode_ParseScriptKeys(world, 0, index);
+        PathNode_ResolveAnimScripts(world, 0, index);
+    }
+    PathNodeBlock_ResetLinkState(world, index);
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Path_InitAfterLoad_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Path_InitAfterLoad) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Path_InitAfterLoad(uint8_t* world) {
+    Path_ResetLinkList2048(world);
+    title_global<uint8_t>(0x00986015) = 0;
+    title_global<uint8_t>(0x00986014) = 1;
+    title_global<uint8_t>(0x00986016) = 0;
+    uint8_t* const cvar = Cvar_Get("g_connectpaths", reinterpret_cast<const char*>(ptr(0x0082e098)), 0);  // "0"
+    // UCOMISS + LAHF/TEST 0x44/JP: on only for an exact 0 (unordered and unequal both leave).
+    if (!(float_at(cvar, 0x1c) == title_global<float>(0x0083eafc))) return 0;  // 0.0
+    uint8_t* const info = path_info(world);
+    if (!info || word_at(info, 0) != 9) return 0;
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++i) {
+        uint8_t* const record = path_info(world);
+        uint32_t* const names = reinterpret_cast<uint32_t*>(ptr(word_at(record, 0x18)));
+        names[i] += word_at(record, 0x1c);
+    }
+    title_global<uint8_t>(0x00986014) = 0;
+    return 1;
+}
+
+int32_t XB_STDCALL Path_FindZoneBlockIndex(uint8_t* world, const char* name) {
+    const uint32_t zone = Pak_FindZoneByName(name, title_global<uint8_t*>(0x0095f640));
+    if (!zone) return -1;
+    uint8_t* const info = path_info(world);
+    const int32_t count = static_cast<int32_t>(word_at(info, 0xc));
+    const uint32_t* const names = reinterpret_cast<const uint32_t*>(ptr(word_at(info, 0x18)));
+    const char* const zone_name = reinterpret_cast<const char*>(ptr(word_at(ptr(zone), 0x20)));
+    for (int32_t i = 0; i < count; ++i)
+        if (!std::strcmp(reinterpret_cast<const char*>(ptr(names[i])), zone_name)) return i;
+    return -1;
+}
+
+PLATFORM_ASM_ENTRY(Path_ConnectPathsForEntity_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Path_ConnectPathsForEntity) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Path_ConnectPathsForEntity(uint8_t* ent, uint8_t* world) {
+    const uint16_t first = half_at(ent, 0x410);
+    word_at(ent, 0x2a4) |= 0x4000;
+    if (!first) return;
+    half_at(ent, 0x410) = 0;
+    // Disconnected-link records (info +0x10, 8 bytes: node handle, link target, prev, next): the entity's ring is
+    // opened and spliced into the free ring of record 0.
+    auto record = [&](uint32_t i) { return ptr(word_at(path_info(world), 0x10)) + i * 8; };
+    half_at(record(half_at(record(first), 4)), 6) = 0;
+    half_at(record(half_at(record(0), 4)), 6) = first;
+    const uint16_t free_prev = half_at(record(0), 4);
+    half_at(record(0), 4) = half_at(record(first), 4);
+    half_at(record(first), 4) = free_prev;
+    uint32_t i = first;
+    do {
+        uint8_t* const entry = record(i);
+        const uint16_t handle = half_at(entry, 0);
+        if (path_block(world, handle_block(handle))) {
+            uint8_t* const node = handle == 0 || handle == 0xffff ? nullptr : node_of(world, handle);
+            PathNode_EnableLink(node, reinterpret_cast<const uint16_t*>(entry + 2));
+        }
+        i = half_at(record(i), 6);
+    } while (i);
+}
+
+PLATFORM_ASM_ENTRY(PathNode_ResolveAllAnimScripts_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(PathNode_ResolveAllAnimScripts) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL PathNode_ResolveAllAnimScripts(uint8_t* world) {
+    if (!path_info(world)) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(word_at(path_info(world), 0xc)); ++i)
+        if (path_block(world, i)) PathNode_ResolveAnimScripts(world, 0, i);
+}
+
+namespace {
+
+// A node's claimer (+4) other than `claimer`, holding a permanent claim (+8 = 0x7fffffff): its actor drops the node.
+void drop_other_claim(uint8_t* node, uint8_t* claimer) {
+    uint8_t* const holder = ptr(word_at(node, 4));
+    if (!holder || holder == claimer || word_at(node, 8) != 0x7fffffff) return;
+    Actor_DropClaimedNode(ptr(word_at(ptr(word_at(holder, 0)), 0x240)));
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(PathNode_SetClaim_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PathNode_SetClaim) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL PathNode_SetClaim(uint8_t* claimer, uint8_t* node) {
+    drop_other_claim(node, claimer);
+    // The two linked nodes (+0x58, +0x5a): the second only when the first exists.
+    const uint16_t first = half_at(node, 0x58);
+    if (first != 0 && first != 0xffff) {
+        uint8_t* const linked = node_of(title_global<uint8_t*>(0x0095f4f4), first);  // g_pathNodeBlocks
+        if (linked) {
+            drop_other_claim(linked, claimer);
+            const uint16_t second = half_at(node, 0x5a);
+            if (second != 0 && second != 0xffff) {
+                uint8_t* const other = node_of(title_global<uint8_t*>(0x0095f4f4), second);
+                if (other) drop_other_claim(other, claimer);
+            }
+        }
+    }
+    word_at(node, 4) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(claimer));
+    word_at(node, 8) = 0x7fffffff;
+    // Linked nodes count the claim (+0x26) and lose their own claimer (a missing block writes at address 0, as the
+    // original does).
+    const uint16_t a = half_at(node, 0x58);
+    if (a == 0 || a == 0xffff) return;
+    uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);
+    uint8_t* const na = node_of(blocks, a);
+    ++half_at(na, 0x26);
+    word_at(na, 4) = 0;
+    word_at(na, 8) = 0x7fffffff;
+    const uint16_t b = half_at(node, 0x5a);
+    if (b == 0 || b == 0xffff) return;
+    uint8_t* const nb = node_of(blocks, b);
+    ++half_at(nb, 0x26);
+    if (!nb) {
+        word_at(nb, 8) = 0x7fffffff;
+        word_at(nb, 4) = 0;
+        return;
+    }
+    word_at(nb, 4) = 0;
+    word_at(nb, 8) = 0x7fffffff;
 }
 
 }  // namespace game

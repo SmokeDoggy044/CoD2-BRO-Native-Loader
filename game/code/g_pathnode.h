@@ -136,4 +136,46 @@ extern "C" void PathNode_RevokeClaim_entry(void);
 // unsorted node or on none.
 void XB_THISCALL G_FriendlyChainNode(uint8_t* ent, uint8_t* world, const ScriptString* name);
 
+// 0x002c05e0 (stdcall: path data, reference node, min/max depth offsets from the reference's depth, current node or
+// null, sentient, allow ancestors): a node for the sentient in the depth range of the reference's tree. The current
+// node when it lies in the reference's zone, is available and at the max depth (or after the descendant/subtree picks
+// fail, inside the range); without allow, the current zone node itself. Else descendants / ancestors of the
+// reference, then from the tree root a descendant pick and the sorted scans (the unclaimed scan only when the
+// sentient has no goal node, +0x50).
+uint8_t* XB_STDCALL PathNodeTree_FindNodeInDepthRange(uint8_t* world, uint8_t* ref, int32_t min_offset,
+                                                      int32_t max_offset, uint8_t* node, const uint8_t* sentient,
+                                                      uint32_t allow_ancestor);
+// 0x002c08c0 (was FUN_002c08c0; EAX node, stack link target handle; callee pops): finds the target among the node's
+// disabled links (+0x24 enabled count .. +0x62 total; +0x64 links of 12 bytes, +2 disable count); when its count
+// drops to 0 it is swapped to the first disabled slot and counted enabled. Counterpart of PathNode_DisableLink.
+void XB_REGS1 XB_STDCALL PathNode_EnableLink(uint8_t* node, const uint16_t* target);
+// 0x002c0950 (EAX path data, ECX block): resolves each node's animscript (+0x3c) to its g_broFuncs entry (+0x40,
+// 0 and a dropped "BroFunc: %s, NOT FOUND" text when missing).
+void XB_REGS3 XB_CDECL PathNode_ResolveAnimScripts(uint8_t* world, uint32_t unused_edx, uint32_t index);
+// 0x002c09e0 (stdcall path data, block): for a loaded block (+0 = 2) turns the stored indices into pointers (links
+// +0x64, node list +0x1c, the node tree +0x18 via PathNodeTree_Link_r) and the string offsets into script strings;
+// with 0x00986015 parses script keys and anim scripts; PathNodeBlock_ResetLinkState. 0 for other blocks, else 1.
+uint8_t XB_STDCALL Path_RelocateNodeBlock(uint8_t* world, uint32_t index);
+// 0x002c0b80 (path data in ESI): resets the disconnected-link ring, clears 0x00986015/0x00986016; with
+// g_connectpaths 0 and an info record of version 9, rebases the zone names (+0x18 += +0x1c), clears 0x00986014
+// and returns 1; else leaves 0x00986014 set and returns 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_InitAfterLoad(uint8_t* world);
+extern "C" void Path_InitAfterLoad_entry(void);
+// 0x002c0c50 (stdcall path data, zone name): the block index whose zone name (info +0x18) equals the loaded zone's
+// (+0x20), or -1.
+int32_t XB_STDCALL Path_FindZoneBlockIndex(uint8_t* world, const char* name);
+// 0x002c5ef0 (EAX entity, ESI path data): sets entity flag 0x4000 (+0x2a4), hands its disconnected-link ring
+// (+0x410) back to the free ring and re-enables each recorded link (PathNode_EnableLink).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_ConnectPathsForEntity(uint8_t* ent, uint8_t* world);
+extern "C" void Path_ConnectPathsForEntity_entry(void);
+// 0x002c5ff0 (EDI path data): PathNode_ResolveAnimScripts for every present block.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PathNode_ResolveAllAnimScripts(uint8_t* world);
+extern "C" void PathNode_ResolveAllAnimScripts_entry(void);
+
+// 0x002cabf0 (EAX claimer, ESI node): takes a permanent claim (+4 claimer, +8 = 0x7fffffff); other permanent
+// claimers of the node and of its linked nodes (+0x58, +0x5a) drop it first (Actor_DropClaimedNode); the linked
+// nodes count it (+0x26) and lose their claimer.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PathNode_SetClaim(uint8_t* claimer, uint8_t* node);
+extern "C" void PathNode_SetClaim_entry(void);
+
 }  // namespace game

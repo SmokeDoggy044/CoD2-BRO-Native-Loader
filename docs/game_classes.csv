@@ -309,3 +309,5 @@
 002bde90,ShakeRumble_StartByName,dead,"no CALL/JMP, pointer or immediate (xbefind imm + call 2026-11-03); C kept"
 002bb940,G_RestorePlayerHealth,matched offline,"only caller G_RestorePlayerLoadout (checkpoint restore); not reached in game; offline leaf test 1580/1594: all 14 differing inputs have g_skillLevel 0x7fffffff, which indexes past the original's 3-int stack table into words our frame lacks; every in-range skill level (0-3) matches"
 002192c0,Path_RouteBetweenPointsInsidePlanes,dead,"no callers, no stored pointer, no immediate (gap function created 11-03; fnpack: no CALL/JMP or data references)"
+002d67a0,G_DObjGetBoneMatrix,dead,"no CALL, jump or immediate (xbefind, ent push 9)"
+002ddd70,G_UpdateSoundListenerFromPlayer,dead,"no CALL, jump or immediate (xbefind, ent push 9)"

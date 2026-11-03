@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 72% of the functions have a name, and 4,619 have been
+It's early days: about 72% of the functions have a name, and 4,645 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,270 | 9,027 | 4,619 | 6,651 |
+| Engine and game code (`.text`) | 11,271 | 9,033 | 4,645 | 6,626 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,594** | **12,015** | **4,619** | **11,975** |
+| **Total** | **16,595** | **12,021** | **4,645** | **11,950** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -47,7 +47,7 @@ We've also named 2,659 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,096 | 1,087 | 7 | 1 | 0 | 0 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,637 | 1,013 | 214 | 42 | 319 | 46 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,639 | 1,039 | 224 | 42 | 289 | 42 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 293 | 0 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,014 | 875 | 65 | 70 | 0 | 0 |
@@ -61,7 +61,7 @@ We've also named 2,659 of the game's global variables.
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,082 | 0 | 0 | 0 | 11 | 464 |
-| Not sorted into a part yet | 63 | 3 | 0 | 7 | 3 | 50 |
+| Not sorted into a part yet | 62 | 3 | 0 | 7 | 3 | 49 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType

@@ -9610,7 +9610,7 @@
 002be2e0 EntityState_Clear
 002be3e0 G_SetSoundDoneNotify
 002be420 G_FreeEntity
-002be510 FUN_002be510
+002be510 G_EntUpdateLinkTag
 002be5a0 AnimTree_ResetTime
 002be720 AnimTree_ClearGoalWeight
 002be7c0 XModel_FreeAnimStates
@@ -9633,7 +9633,7 @@
 002c03e0 SceneFX_Init
 002c0480 G_FriendlyChainNode
 002c05e0 PathNodeTree_FindNodeInDepthRange
-002c08c0 FUN_002c08c0
+002c08c0 PathNode_EnableLink
 002c0950 PathNode_ResolveAnimScripts
 002c09e0 Path_RelocateNodeBlock
 002c0b80 Path_InitAfterLoad
@@ -9672,7 +9672,7 @@
 002c3500 SoundBank_AddPart
 002c3710 CameraShake_ComputeOffset
 002c3870 G_FreeAllEntities
-002c3960 FUN_002c3960
+002c3960 G_EntUpdateLinkedTags
 002c39a0 G_FindConfigstringIndex
 002c3ae0 AnimTree_ClearNode_r
 002c3bd0 AnimTree_ClearSiblingGoalWeights
@@ -9858,7 +9858,7 @@
 002d57c0 Key_ClearStates
 002d59f0 CL_GetServerCommand
 002d5ad0 G_RestorePlayerLoadout
-002d5ba0 FUN_002d5ba0
+002d5ba0 PM_ActivateTargetActor
 002d5bf0 Bullet_RandomSpreadFixed
 002d5d50 G_PushAwayFromEntities
 002d60d0 G_RayTraceCachedCandidates
@@ -9905,11 +9905,12 @@
 002dc6f0 BG_CheckProneFeet
 002dcc60 BG_CheckProne
 002ddd70 G_UpdateSoundListenerFromPlayer
-002ddea0 FUN_002ddea0
+002ddea0 G_AllocWorldEntity
 002ddf10 G_AllocPlayerEntity
 002ddf80 G_SetPoseFromPhysics
 002de120 G_GetEntityMatrix
 002de2d0 G_TempEntity
+002de3e0 G_DObjGetSkeletonBoneMatrixPtr
 002de420 G_DObjSetBoneRotation
 002df3e0 G_GetTagParentMatrix
 002df740 G_EntLinkTo
