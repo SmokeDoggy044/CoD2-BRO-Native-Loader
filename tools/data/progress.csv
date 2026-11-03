@@ -8546,7 +8546,7 @@ address,name,section,module,state,tested,matched
 00264f60,Drop_Item,.text,game,matched,28,28
 002650b0,CanDamage,.text,game,settled,113,113
 00265500,TossClientItems,.text,game,matched,2,2
-002655b0,ClientDisconnect,.text,game,inconclusive,4,0
+002655b0,ClientDisconnect,.text,game,matched,12,12
 00265630,Think_DropToFloor,.text,game,matched,18,18
 00265900,Actor_EnterProne,.text,game,settled,160,160
 00265a40,Weapon_FireClusterAtTrace,.text,game,untested,0,0
@@ -8635,7 +8635,7 @@ address,name,section,module,state,tested,matched
 00272800,ClientSpawn,.text,game,matched,24,24
 00272e90,ClientBegin,.text,game,matched,64,64
 00272f20,G_BounceMissile,.text,game,untested,0,0
-00273200,G_MissileImpact,.text,game,mismatched,36,35
+00273200,G_MissileImpact,.text,game,mismatched,52,49
 00273790,G_InitGame,.text,game,matched,16,16
 00273d70,G_vmMain,.text,game,settled,398,398
 00273ef0,G_RunMissile,.text,game,settled,108,108
@@ -10047,7 +10047,7 @@ address,name,section,module,state,tested,matched
 002f2e70,SV_RestartClient,.text,server,matched,20,10
 002f2f50,SV_MapRestart,.text,server,inconclusive,5,0
 002f3140,SV_SpawnServer,.text,server,inconclusive,403,0
-002f3de0,CheckReloadStatus,.text,game,named,0,0
+002f3de0,CheckReloadStatus,.text,server,settled,364,364
 002f3f40,SV_Map_f,.text,server,inconclusive,393,0
 002f4400,SV_Frame,.text,server,settled,314,313
 002f4510,SV_LoadLastSave_f,.text,server,inconclusive,4,0
@@ -10414,7 +10414,7 @@ address,name,section,module,state,tested,matched
 002fd7b0,GScr_HudSetTimer,.text,script,named,0,0
 002fd820,GScr_HudSetTimer4,.text,script,named,0,0
 002fd840,GScr_FindZone,.text,script,named,0,0
-002fd890,G_SetupVehiclePool_Thunk,.text,game,named,0,0
+002fd890,G_SetupVehiclePool_Thunk,.text,game,set-aside,0,0
 002fd8a0,GScr_SetConfigstring9Float,.text,script,named,0,0
 002fd8c0,GScr_GetKeyBinding,.text,script,named,0,0
 002fd9b0,GScr_GetAI,.text,script,named,0,0
@@ -10649,7 +10649,7 @@ address,name,section,module,state,tested,matched
 003094a0,G_SetupGameScriptImports,.text,game,matched,20,20
 0030adb0,G_SetupLevelScriptImports,.text,game,matched,26,26
 0030b960,G_LoadLevelScriptModule,.text,game,matched,28,28
-0030b9e0,Scr_RunThreads,.text,game,mismatched,8221,6725
+0030b9e0,Scr_RunThreads,.text,game,settled,7938,6516
 0030bd30,FE_BonusCEItemIndex,.text,client,untested,0,0
 0030be60,FE_BonusCEItemGroup,.text,client,replaced,0,0
 0030bf90,FE_BonusCESetText,.text,client,untested,0,0
