@@ -4921,6 +4921,7 @@ const Function kFunctions[] = {
     {"PM_UpdateStickyAim", 0x002db7d0, 0, code(&PM_UpdateStickyAim), 8, Result::None, Status::Compare},
     {"PM_UpdateLean", 0x002dc3b0, 0, code(&PM_UpdateLean_entry), 4, Result::None, Status::Compare},
     {"BG_CheckProneFeet", 0x002dc6f0, 0, code(&BG_CheckProneFeet_entry), 36, Result::Eax, Status::Compare},
+    {"BG_CheckProne", 0x002dcc60, 0, code(&BG_CheckProne_entry), 60, Result::Eax, Status::Compare},
     {"G_UpdateSoundListenerFromPlayer", 0x002ddd70, 0, code(&G_UpdateSoundListenerFromPlayer), 0, Result::None, Status::Compare},
     {"G_AllocWorldEntity", 0x002ddea0, 0, code(&G_AllocWorldEntity_entry), 0, Result::Eax, Status::Compare},
     {"G_AllocPlayerEntity", 0x002ddf10, 0, code(&G_AllocPlayerEntity_entry), 0, Result::Eax, Status::Compare},
