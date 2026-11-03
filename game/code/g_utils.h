@@ -426,4 +426,70 @@ const uint8_t* XB_REGS3 XB_CDECL G_DObjGetTagMatrixPtr(uint8_t* ent, uint32_t un
 // 0x002e3780 (cdecl entity, bone, out 4x4): the bone matrix times the entity's frame (angles +0x150, origin +0x140).
 void XB_CDECL G_DObjGetWorldTagMatrix(uint8_t* ent, uint32_t bone, float* out);
 
+// 0x002e38a0 (entity in EBX; ClientEndFrame): a player linked to a tag - the link offset times the parent's tag
+// frame (inlined product), the view angles moved by the change (AnglesNormalize180, scaled by client +0x614.. into
+// +0x46c..), the origin from the frame's up row at the view height (client +0xac); SV_LinkEntity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_ClientUpdateLinkTo(uint8_t* ent);
+extern "C" void G_ClientUpdateLinkTo_entry(void);
+// 0x002e3f10: the link's offset (+0x3cc record, +0x10) from the entity's pose in the parent tag's frame
+// (G_GetTagParentMatrix): rotation only (rows dotted with the parent's) when angles_only, else frame * inverse.
+void XB_CDECL G_CalcTagLinkOffset(uint8_t* ent, uint32_t angles_only);
+// 0x002e4280 (entity in EAX, out in EDI; no callers): the link's stored offset (+0x40) times the parent tag frame.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_CalcLinkedEntityMatrix(uint8_t* ent, float* out);
+extern "C" void G_CalcLinkedEntityMatrix_entry(void);
+// 0x002e44b0 (flags in EAX, entity in EDX, tag in ECX; parent, origin, angles on the stack): G_EntLinkTo, then the
+// link offset set from the angles' axis and the origin. 1 when linked.
+uint32_t XB_REGS3 XB_CDECL G_EntLinkToWithOffset(uint32_t flags, uint8_t* ent, const char* tag, uint8_t* parent,
+                                                 const float* origin, const float* angles);
+// 0x002e6420 (entity in EDI, tag name hash in ESI; out on the stack): the tag's world matrix when the DObj has it.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_DObjTryGetTagMatrix(uint8_t* ent, uint32_t name, float* out);
+extern "C" void G_DObjTryGetTagMatrix_entry(void);
+// 0x002e6490: a linked entity's origin and angles from its link offset and the parent's tag frame (stationary
+// trajectories); SV_LinkEntity.
+void XB_REGS1 XB_CDECL G_GeneralLink(uint8_t* ent);
+// 0x002e74f0: think for script-linked entities: next think level_time + 1, G_GeneralLink while linked.
+void XB_CDECL Think_ScriptLinked(uint8_t* ent);
+// 0x002e8b40: DObj_Free of the entity's DObj; with free_model (low byte) also the ragdoll, the model memory
+// (G_FreeXModel) and the entity-list slot.
+void XB_STDCALL G_FreeEntityDObj(uint8_t* ent, uint32_t free_model);
+// 0x002e8bb0 (G_ReloadLevel): G_FreeEntityDObj for every entity; the flag is the caller's EBX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_FreeAllDObjs(uint32_t ebx);
+extern "C" void G_FreeAllDObjs_entry(void);
+// 0x002e8be0: rebuilds the entity's DObj from its model (+0x258) and attached models (+0x3d8/+0x3dc, bits +0x299):
+// the anim tree (actors: the shared info's, created on demand; dropped for another skeleton), G_DObjCreateForEnt,
+// vehicle tags, then the children's link tag indices (unlinking those whose tag is gone).
+void XB_CDECL G_DObjUpdate(uint8_t* ent);
+// 0x002e91f0: clears all seven attached models and their bits; G_DObjUpdate.
+void XB_CDECL G_EntDetachAll(uint8_t* ent);
+// 0x002e9230 (was G_EntAttach): removes the attached model by name ("xmodel/" stripped) and tag, the later slots
+// moving down; G_DObjUpdate. 0 when not attached or no tag.
+uint32_t XB_CDECL G_EntDetach(uint8_t* ent, const char* model, const char* tag);
+// 0x002e9370 (was G_EntDetach; entity in EDI, model context in ECX, -1 = the entity's/default): attaches a model on
+// a tag in the first free slot (R_RegisterModel, lowercased tag name, ignore-collision bit); G_DObjUpdate.
+// 0 when all seven slots are used.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_EntAttach(uint8_t* ent, int32_t context, const char* model,
+                                                        const char* tag, uint32_t ignore_collision);
+extern "C" void G_EntAttach_entry(void);
+
+// 0x002e9840 (end in EAX, start in EDI, maxs in EBX; result, mins, two pass entity handles, content mask, capsule
+// flag on the stack): CM_SightTrace, then the entities of the server's sector tree (point or box clip, the pass
+// entities and their owners skipped). *result != 0 when blocked.
+// Entry: the original's frame rebuilt at its position (entry = its ESP at entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SightTrace(uint32_t entry, const float* end, const float* start,
+                                                     const float* maxs, int32_t* result, const float* mins, uint32_t pass1,
+                                                     uint32_t pass2, uint32_t content_mask, uint32_t capsule);
+extern "C" void G_SightTrace_entry(void);
+
+// 0x002fc920 (state in ESI; objective index on the stack): at most every 100 ms (0x00985e2c) the objective
+// "completed" / "failed" / "updated" server command for the state (none while the HUD shows the objective). 1 when
+// sent or due.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_SendObjectiveUpdate(const ScriptString* state, uint32_t index);
+extern "C" void G_SendObjectiveUpdate_entry(void);
+// 0x002fe3b0 (index in EBX; text, send flag on the stack): the objective's configstring (index + 0x10) "str" key
+// set to the text (no ", ; or \, under 256 characters), its "state" key (0-5) to one of the six state names;
+// G_SendObjectiveUpdate with the flag.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text,
+                                                             uint32_t send_update);
+extern "C" void G_SetObjectiveString_entry(void);
+
 }  // namespace game

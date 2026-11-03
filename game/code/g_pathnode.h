@@ -178,4 +178,24 @@ extern "C" void PathNode_ResolveAllAnimScripts_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL PathNode_SetClaim(uint8_t* claimer, uint8_t* node);
 extern "C" void PathNode_SetClaim_entry(void);
 
+// 0x002e8ef0: the entity's paths connected again (Path_ConnectPathsForEntity), then every link of the nodes within
+// 306 units of its bounds' centre whose sight trace (contents 0x2820011) the entity blocks is recorded and cut.
+// Entry: the original's frame rebuilt at its position (entry = its ESP at entry; callee pops 8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_DisconnectPathsForEntity(uint32_t entry, uint8_t* world, uint8_t* ent);
+extern "C" void Path_DisconnectPathsForEntity_entry(void);
+// 0x002e9120 (G_SpawnFinished): Path_DisconnectPathsForEntity for every entity with +0x2a4 bits 0x1000 and 0x2000.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_DisconnectAllEntities(uint32_t entry);
+extern "C" void Path_DisconnectAllEntities_entry(void);
+
+// 0x002ea820 (origin in ESI, type mask in EAX, list size in ECX; list, radius, planes {x, y}, plane distances, plane
+// count, count out on the stack): the nodes in the cylinder sorted by distance; the first whose actor box holds the
+// origin, else the first visible (G_SightTrace with the actor box) inside all planes, else the first visible of the
+// rest. 0 when none.
+// Entry: the original's frame rebuilt at its position (entry = its ESP at entry).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint32_t type_mask,
+                                                                 uint32_t max_nodes, uint32_t* list, float radius,
+                                                                 const float* planes, const float* plane_dists,
+                                                                 int32_t plane_count, int32_t* count_out);
+extern "C" void PathNode_FindNearest_entry(void);
+
 }  // namespace game

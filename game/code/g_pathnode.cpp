@@ -3,8 +3,10 @@
 #include <cstring>
 
 #include "actor.h"
+#include "g_utils.h"
 #include "qcommon.h"
 #include "qcommon_fs.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -1110,6 +1112,203 @@ void XB_CDECL PathNode_SetClaim(uint8_t* claimer, uint8_t* node) {
     }
     word_at(nb, 4) = 0;
     word_at(nb, 8) = 0x7fffffff;
+}
+
+// The original's frame (ESP aligned to 16, 0x470 bytes) is rebuilt at its position: PathNode_ListInCylinder keeps
+// the list's address in the query (0x00929b40), so the list and the trace vectors sit at the original offsets.
+PLATFORM_ASM_ENTRY(Path_DisconnectPathsForEntity_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Path_DisconnectPathsForEntity) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL Path_DisconnectPathsForEntity(uint32_t entry, uint8_t* world, uint8_t* ent) {
+    uint8_t* const frame = ptr(((entry - 4) & ~0xfu) - 0x470);
+    if (!word_at(world, 0x194)) return;
+    Path_ConnectPathsForEntity(ent, world);
+    word_at(ent, 0x2a4) &= ~0x4000u;
+    word_at(ent, 0x414) = title_global<uint32_t>(0x0098540c);  // level_time
+    // The nodes within 306 units (256 high) of the bounds' centre (four lanes: the fourth is kept for its flags).
+    float* const centre = reinterpret_cast<float*>(frame + 0x10);
+    const float* const mins = reinterpret_cast<const float*>(ent + 0x100);
+    const float* const maxs = reinterpret_cast<const float*>(ent + 0x110);
+    for (uint32_t i = 0; i < 4; ++i) centre[i] = (mins[i] + maxs[i]) * title_global<float>(0x0083eb24);  // 0.5f
+    platform_keep(centre[3]);
+    uint32_t* const list = reinterpret_cast<uint32_t*>(frame + 0x70);
+    const int32_t count = static_cast<int32_t>(PathNode_ListInCylinder(
+        reinterpret_cast<const uint32_t*>(centre), title_global<uint8_t*>(0x0095f4f4), 306.0f, 256.0f,
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list)), 0x80, 0xffffffffu));
+    float* const start = reinterpret_cast<float*>(frame + 0x50);
+    float* const end = reinterpret_cast<float*>(frame + 0x60);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const node = ptr(list[i * 2]);
+        // Each link whose target node is seen through the entity (a blocked sight trace) is recorded and cut.
+        for (int32_t j = *reinterpret_cast<const int16_t*>(node + 0x62) - 1; j >= 0; --j) {
+            uint8_t* const link = ptr(word_at(node, 0x64)) + j * 12;
+            const uint16_t target = half_at(link, 0);
+            if (!target || target == 0xffff) continue;
+            uint8_t* const block = path_block(world, handle_block(target));
+            if (!block) continue;
+            uint8_t* const other = ptr(word_at(block, 0x10)) + (target & 0x1ff) * 0x80;
+            if (!other) continue;
+            // Both points as four lanes, the first repeated.
+            end[0] = float_at(other, 0x44);
+            end[1] = float_at(other, 0x48);
+            end[2] = float_at(other, 0x4c);
+            end[3] = float_at(other, 0x44);
+            start[0] = float_at(node, 0x44);
+            start[1] = float_at(node, 0x48);
+            start[2] = float_at(node, 0x4c);
+            start[3] = float_at(node, 0x44);
+            if (SV_EntitySightTrace(end, &title_global<float>(0x0095fe60), start, &title_global<float>(0x00960060),
+                                    word_at(ent, 0x224), 0x2820011, 1))
+                Path_RecordDisconnectedLink(world, 0, link, ent, node);
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(Path_DisconnectAllEntities_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Path_DisconnectAllEntities) "addl $4, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Path_DisconnectAllEntities(uint32_t entry) {
+    // Every entity with path-blocking flags (+0x2a4 bits 0x1000 and 0x2000); each call where the original's
+    // puts it (below its two saved registers), for the rebuilt frame above.
+    uint32_t* const first = &title_global<uint32_t>(0x0097d370);
+    const uint32_t* const last = first + title_global<uint32_t>(0x0097d36c);
+    for (uint32_t* it = first; it != last; ++it) {
+        uint8_t* const ent = ptr(*it);
+        if (!ent) continue;
+        const uint32_t flags = word_at(ent, 0x2a4);
+        if (!(flags & 0x1000) || !(flags & 0x2000)) continue;
+        const uint32_t world = title_global<uint32_t>(0x0095f4f4);
+        const TitleRegs regs{world, 0, 0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(it)),
+                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(last))};
+        const uint32_t args[2] = {world, *it};
+        title_call_at_regs(entry - 8, 0x002e8ef0, &regs, 2, args);  // Path_DisconnectPathsForEntity
+    }
+}
+
+// The original's frame (ESP aligned to 16, 0x890 bytes) is rebuilt at its position and its callees run at the
+// original's ESP (G_SightTrace's subtree copies stack words into the trace work).
+PLATFORM_ASM_ENTRY(PathNode_FindNearest_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl 24(%ebp)\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(PathNode_FindNearest) "addl $40, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+namespace {
+
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// G_SightTrace (0x002e9840; end in EAX, start in EDI, maxs in EBX) from the origin to a node with the actor box,
+// contents 0x820011, capsule, at the original's ESP; both points as four lanes (the first repeated) at its
+// offsets. True when nothing blocks it.
+bool node_visible(uint8_t* frame, const float* origin, const uint8_t* node, uint32_t end_offset,
+                  uint32_t start_offset) {
+    float* const end = reinterpret_cast<float*>(frame + end_offset);
+    float* const start = reinterpret_cast<float*>(frame + start_offset);
+    int32_t* const result = reinterpret_cast<int32_t*>(frame + 0x18);
+    end[0] = *reinterpret_cast<const float*>(node + 0x44);
+    end[1] = *reinterpret_cast<const float*>(node + 0x48);
+    end[2] = *reinterpret_cast<const float*>(node + 0x4c);
+    end[3] = *reinterpret_cast<const float*>(node + 0x44);
+    start[0] = origin[0];
+    start[1] = origin[1];
+    start[2] = origin[2];
+    start[3] = origin[0];
+    *result = 0;
+    const TitleRegs regs{address_of(end), address_of(frame + 0x50), 0, 0, address_of(origin), address_of(start)};
+    const uint32_t args[6] = {address_of(result), address_of(frame + 0x60), 0, 0, 0x820011, 1};
+    title_call_at_regs(address_of(frame), 0x002e9840, &regs, 6, args);  // G_SightTrace
+    return !*result;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint32_t type_mask, uint32_t max_nodes,
+                                       uint32_t* list, float radius, const float* planes, const float* plane_dists,
+                                       int32_t plane_count, int32_t* count_out) {
+    uint8_t* const frame = ptr(((entry - 4) & ~0xfu) - 0x890);
+    uint32_t radius_bits;
+    std::memcpy(&radius_bits, &radius, 4);
+    TitleRegs regs{type_mask, address_of(list), address_of(origin), radius_bits, address_of(origin),
+                   title_global<uint32_t>(0x0095f4f4)};
+    const uint32_t list_args[5] = {radius_bits, 0x42800000, address_of(list), max_nodes, type_mask};  // 64.0f high
+    const int32_t count = static_cast<int32_t>(
+        title_call_at_regs(address_of(frame), 0x002b1060, &regs, 5, list_args));  // PathNode_ListInCylinder
+    word_at(frame, 0x4c) = static_cast<uint32_t>(count);
+    regs.eax = static_cast<uint32_t>(count);
+    regs.edi = static_cast<uint32_t>(count);
+    const uint32_t sort_args[4] = {address_of(list), static_cast<uint32_t>(count), 8, 0x002aa110};
+    title_call_at_regs(address_of(frame), 0x001ef880, &regs, 4, sort_args);  // qsort by distance
+    // The actor box (g_actorMins/Maxs; mins z raised by 0x0083eed0); the fourth lanes are never set (zero in tests).
+    const float* const actor_mins = &title_global<float>(0x0098a560);
+    const float* const actor_maxs = &title_global<float>(0x0098a550);
+    float* const mins = reinterpret_cast<float*>(frame + 0x60);
+    float* const maxs = reinterpret_cast<float*>(frame + 0x50);
+    mins[0] = actor_mins[0];
+    maxs[0] = actor_maxs[0];
+    mins[1] = actor_mins[1];
+    mins[2] = actor_mins[2] + title_global<float>(0x0083eed0);
+    maxs[1] = actor_maxs[1];
+    maxs[2] = actor_maxs[2];
+    *count_out = count;
+    uint8_t** const outside = reinterpret_cast<uint8_t**>(frame + 0x90);
+    int32_t outside_count = 0;
+    const float one = title_global<float>(0x0083eb20);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const node = ptr(list[i * 2]);
+        const float* const pos = reinterpret_cast<const float*>(node + 0x44);
+        // A node whose actor box (1 unit larger) holds the origin is taken at once.
+        if (origin[0] > (actor_mins[0] + pos[0]) - one && (actor_maxs[0] + pos[0]) + one > origin[0] &&
+            origin[1] > (pos[1] + actor_mins[1]) - one && (pos[1] + actor_maxs[1]) + one > origin[1] &&
+            origin[2] > (pos[2] + actor_mins[2]) - one && (pos[2] + actor_maxs[2]) + one > origin[2])
+            return ptr(list[i * 2]);
+        // Nodes outside one of the planes (x, y . node > dist) are kept for the second pass.
+        bool out = false;
+        for (int32_t k = 0; k < plane_count; ++k) {
+            const float d = planes[k * 2] * pos[0] + planes[k * 2 + 1] * pos[1];
+            if (d > plane_dists[k]) {
+                out = true;
+                break;
+            }
+        }
+        if (out) {
+            outside[outside_count++] = node;
+            continue;
+        }
+        if (node_visible(frame, origin, node, 0x70, 0x80)) return ptr(list[i * 2]);
+    }
+    for (int32_t j = 0; j < outside_count; ++j) {
+        if (node_visible(frame, origin, outside[j], 0x80, 0x70)) return outside[j];
+    }
+    return nullptr;
 }
 
 }  // namespace game

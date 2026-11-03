@@ -4,6 +4,8 @@
 
 #include "g_main.h"
 #include "lanes.h"
+#include "qcommon.h"
+#include "xanim.h"
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "title_data.h"
@@ -776,6 +778,499 @@ void XB_CDECL Scr_PruneEntityWaitLists() {
             SmallHeap_Free(title_global<uint8_t*>(0x0095f570), reinterpret_cast<uint8_t*>(ptr(current)));
         }
     } while (next);
+}
+
+namespace {
+
+uint32_t& word_at(uint8_t* base, uint32_t offset) { return *reinterpret_cast<uint32_t*>(base + offset); }
+uint8_t* ptr_at(uint8_t* base, uint32_t offset) { return reinterpret_cast<uint8_t*>(uintptr_t{word_at(base, offset)}); }
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+}  // namespace
+
+void XB_CDECL Scr_NopRefSetter() {}
+
+void XB_CDECL Scr_NopFieldSetter() {}
+
+uint8_t* XB_REGS3 XB_STDCALL Scr_InitWaitRecord4(uint8_t* record, uint32_t, uint32_t thread, uint32_t owner,
+                                                 uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t flag) {
+    // A wait record (vtable 0x008317f8) on four values; +0x28 bit n set for each value n that is 0.
+    word_at(record, 4) = 0;
+    word_at(record, 8) = 0;
+    word_at(record, 0x10) = thread;
+    word_at(record, 0x14) = owner;
+    record[0xc] = 0;
+    word_at(record, 0) = 0x008317f8;
+    word_at(record, 0x18) = 0;
+    word_at(record, 0x1c) = 0;
+    word_at(record, 0x20) = 0;
+    word_at(record, 0x24) = 0;
+    record[0x2c] = static_cast<uint8_t>(flag);
+    word_at(record, 0x28) = 0;
+    word_at(record, 0x18) = a;
+    word_at(record, 0x1c) = b;
+    word_at(record, 0x20) = c;
+    word_at(record, 0x24) = d;
+    if (!word_at(record, 0x18)) word_at(record, 0x28) |= 1;
+    if (!word_at(record, 0x1c)) word_at(record, 0x28) |= 2;
+    if (!word_at(record, 0x20)) word_at(record, 0x28) |= 4;
+    if (!word_at(record, 0x24)) word_at(record, 0x28) |= 8;
+    return record;
+}
+
+void XB_REGS3 XB_CDECL Scr_RestoreThreadStack(const uint32_t* saved, uint32_t, uint8_t* dst) {
+    // The saved stack: a chain of 0xfc-byte chunks (next chunk at +0xfc), copied in words.
+    const uint8_t* chunk = reinterpret_cast<const uint8_t*>(uintptr_t{saved[0]});
+    int32_t remaining = static_cast<int32_t>(saved[1]);
+    ++title_global<uint32_t>(0x0098ad18);
+    while (remaining) {
+        const int32_t size = remaining < 0xfc ? remaining : 0xfc;
+        if (size > 0) {
+            for (uint32_t i = 0, words = ((static_cast<uint32_t>(size) - 1) >> 2) + 1; i < words; ++i)
+                reinterpret_cast<uint32_t*>(dst)[i] = reinterpret_cast<const uint32_t*>(chunk)[i];
+        }
+        remaining -= size;
+        dst += size;
+        if (!remaining) break;
+        chunk = reinterpret_cast<const uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(chunk + 0xfc)});
+    }
+}
+
+namespace {
+
+// Scr_Notify on the level entity (0x0095f534 +8) with "<prefix><name>".
+void notify_level_prefixed(uint32_t prefix, const char* name) {
+    using StringFrom = void XB_THISCALL(uint32_t*, const char*);
+    uint32_t text;
+    title_function<StringFrom>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{prefix}));  // ScriptString_FromCString
+    title_function<StringFrom>(0x0011ebc0)(&text, name);  // ScriptString_AppendCString
+    uint8_t* const level = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(
+        title_global<uint8_t*>(0x0095f534) + 8)});
+    if (level) Scr_Notify(level, Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr));
+    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&text);  // ScriptString_Release
+}
+
+}  // namespace
+
+void XB_CDECL Scr_NotifyUnloaded(const char* name) { notify_level_prefixed(0x00832338, name); }  // "unloaded_"
+
+void XB_CDECL Scr_NotifyLoaded(const char* name) { notify_level_prefixed(0x00832344, name); }  // "loaded_"
+
+void XB_CDECL Scr_QueueNotifyWith2Args(uint32_t handle, uint32_t notify, uint32_t value, uint32_t value2) {
+    // A value record of kind 0x00831810 {kind, 0, 0, value (float), value2}.
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x14);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x00831810;
+            argument[3] = value;
+            argument[4] = value2;
+        }
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = handle;
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+    }
+    queue_notify(node);
+}
+
+void XB_CDECL Scr_QueueNotifyWithString(uint32_t handle, uint32_t notify, const ScriptString* text) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x10);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x007f963c;
+            ScriptString_Copy(reinterpret_cast<ScriptString*>(argument + 3), text);
+        }
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = handle;
+    }
+    queue_notify(node);
+}
+
+uint32_t XB_CDECL Scr_SaveThreadLocals(uint32_t data) {
+    // ScrThread_AppendData (0x002f6670; EAX data, ECX the current thread's +0x28, its +0x2c on the stack, ret 4).
+    uint8_t* const thread = title_global<uint8_t*>(0x008dda2c);
+    const TitleRegs regs{data, 0, word_at(thread, 0x28), 0, 0, 0};
+    const uint32_t arg = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thread + 0x2c));
+    return g_ent_call(0x002f6670, &regs, 1, &arg);
+}
+
+void XB_STDCALL Scr_AbortAllThreads(uint8_t* scheduler) {
+    // Every thread record in the list at +4 (sentinel +8) gets flags 0x40 | 8 (+0x10), then the pending
+    // notify range at +0x24 (sentinel +0x28) is freed and the list emptied.
+    uint32_t* node = reinterpret_cast<uint32_t*>(uintptr_t{word_at(scheduler, 4)});
+    uint32_t* next = node ? reinterpret_cast<uint32_t*>(uintptr_t{*node}) : nullptr;
+    if (node != reinterpret_cast<uint32_t*>(scheduler + 8) && next) {
+        do {
+            uint32_t* const record = node;
+            if (next) {
+                node = next;
+                next = reinterpret_cast<uint32_t*>(uintptr_t{*next});
+            }
+            record[4] |= 0x40;
+            record[4] |= 8;
+        } while (next);
+    }
+    uint32_t* first = reinterpret_cast<uint32_t*>(uintptr_t{word_at(scheduler, 0x24)});
+    uint32_t* const end = reinterpret_cast<uint32_t*>(scheduler + 0x28);
+    uint32_t* first_next = first ? reinterpret_cast<uint32_t*>(uintptr_t{*first}) : nullptr;
+    if (first == end) {
+        first_next = nullptr;
+        first = nullptr;
+    }
+    // The tag word is the argument slot with its low byte cleared (the original builds it there).
+    NotifyList_FreeRange(first, first_next, end, nullptr,
+                         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler)) & 0xffffff00u);
+    word_at(scheduler, 0x24) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end));
+    word_at(scheduler, 0x2c) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler + 0x24));
+    word_at(scheduler, 0x20) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Scr_HasEndOnRecord_entry,
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Scr_HasEndOnRecord) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Scr_HasEndOnRecord(uint8_t* thread, uint32_t value) {
+    // A record of kind 3 (+0xc) on this value (+0x14) in the thread's list (+0x1c, sentinel +0x20).
+    const uint32_t* node = reinterpret_cast<const uint32_t*>(uintptr_t{word_at(thread, 0x1c)});
+    const uint32_t* next = node ? reinterpret_cast<const uint32_t*>(uintptr_t{*node}) : nullptr;
+    if (node == reinterpret_cast<const uint32_t*>(thread + 0x20) || !next) return 0;
+    do {
+        if (node[3] == 3 && node[5] == value) return 1;
+        node = next;
+        next = reinterpret_cast<const uint32_t*>(uintptr_t{*next});
+    } while (next);
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(Scr_UpdateThreadWaits_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Scr_UpdateThreadWaits) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Scr_UpdateThreadWaits(uint8_t* thread) {
+    uint32_t& flags = word_at(thread, 0x10);
+    const uint32_t handle = word_at(thread, 8);
+    const uint32_t index = handle & 0xfff;
+    const bool owner_alive = index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+                             title_global<uint32_t>(0x0097a968 + index * 8);
+    if (!owner_alive || ((flags >> 6) & 1)) {
+        // The owner entity is gone (or the thread ended): ended (0x40 | 8), and runnable (4) unless bit 0.
+        const uint32_t ended = flags | 0x40;
+        const uint32_t marked = ended | 8;
+        flags = ended;
+        flags = marked;
+        if (!(marked & 1)) flags = marked | 4;
+        return;
+    }
+    // Each wait record (list +0x1c, sentinel +0x20; the link at record +4) is polled through its vtable +4:
+    // 2 = done (runnable, wait bit 0x10 cleared), 3 = ended too; records with +0xc set are unlinked and deleted.
+    uint32_t* node = reinterpret_cast<uint32_t*>(uintptr_t{word_at(thread, 0x1c)});
+    uint32_t* next = node ? reinterpret_cast<uint32_t*>(uintptr_t{*node}) : nullptr;
+    if (node == reinterpret_cast<uint32_t*>(thread + 0x20) || !next) return;
+    do {
+        uint32_t* const link = node;
+        if (next) {
+            node = next;
+            next = reinterpret_cast<uint32_t*>(uintptr_t{*next});
+        }
+        uint8_t* const record = reinterpret_cast<uint8_t*>(link) - 4;
+        const uint32_t result =
+            title_function<uint32_t XB_THISCALL(uint8_t*, uint8_t*)>(word_at(ptr_at(record, 0), 4))(record, thread);
+        if (result == 2 || result == 3) {
+            if (result == 3) {
+                const uint32_t ended = flags | 8;
+                flags = ended;
+                flags = ended | 0x40;
+            }
+            const uint32_t runnable = flags | 4;
+            flags = runnable;
+            flags = runnable & ~0x10u;
+        }
+        if (record[0xc]) {
+            uint8_t* const after = ptr_at(record, 4);
+            uint8_t* const before = ptr_at(record, 8);
+            word_at(after, 4) = address_of(before);
+            word_at(ptr_at(record, 8), 0) = word_at(record, 4);
+            --word_at(thread, 0x18);
+            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(word_at(ptr_at(record, 0), 0))(record, 1);
+        }
+    } while (next);
+}
+
+void XB_CDECL Scr_DestroyThreadContents(uint8_t* thread, uint32_t ecx) {
+    // The wait records (+0x1c, sentinel +0x20); the tag word is the entry's ECX with its low byte cleared (the
+    // original builds it in its ECX slot).
+    uint32_t* first = reinterpret_cast<uint32_t*>(uintptr_t{word_at(thread, 0x1c)});
+    uint32_t* first_next = first ? reinterpret_cast<uint32_t*>(uintptr_t{*first}) : nullptr;
+    uint32_t* const end = reinterpret_cast<uint32_t*>(thread + 0x20);
+    if (first == end) {
+        first_next = nullptr;
+        first = nullptr;
+    }
+    title_function<void XB_CDECL(uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t)>(0x0001b580)(
+        first, first_next, end, nullptr, ecx & 0xffffff00u);  // ScrWaitList_DeleteRange
+    word_at(thread, 0x1c) = address_of(end);
+    word_at(thread, 0x24) = address_of(thread + 0x1c);
+    word_at(thread, 0x18) = 0;
+    // The thread's context object (+0xc, deleted without freeing, then back to the small heap), its handle, and
+    // the saved-stack chunks (+0x2c, next at +0xfc).
+    uint8_t* const context = ptr_at(thread, 0xc);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(word_at(ptr_at(context, 0), 0))(context, 0);
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x00947700),
+                                                                    word_at(thread, 0xc));  // SmallHeap_Free
+    if (const uint32_t handle = word_at(thread, 0x14)) HandleTable256_Free(&title_global<uint8_t>(0x008dd208), handle);
+    while (const uint32_t chunk = word_at(thread, 0x2c)) {
+        word_at(thread, 0x2c) = *reinterpret_cast<const uint32_t*>(uintptr_t{chunk + 0xfc});
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f490),
+                                                                        chunk);  // SmallHeap_Free
+    }
+}
+
+PLATFORM_ASM_ENTRY(Scr_DestroyThreadContents_entry,
+                   "pushl %ecx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Scr_DestroyThreadContents) "addl $8, %esp\n"
+                   "ret")
+
+void XB_REGS3 XB_CDECL Scr_FreeThread(uint8_t* scheduler, uint32_t, uint8_t* thread) {
+    if (!thread) return;
+    if (word_at(scheduler, 0x854) == address_of(thread)) word_at(scheduler, 0x854) = 0;
+    const bool notified = (word_at(thread, 0x10) >> 11) & 1;
+    word_at(ptr_at(thread, 0), 4) = word_at(thread, 4);
+    word_at(ptr_at(thread, 4), 0) = word_at(thread, 0);
+    // Threads started by a notify (flag 0x800) are counted at +0x10, the others at +0.
+    if (notified)
+        --word_at(scheduler, 0x10);
+    else
+        --word_at(scheduler, 0);
+    Scr_DestroyThreadContents(thread, word_at(thread, 0));
+    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f488),
+                                                                    thread);  // SmallHeap_Free
+}
+
+namespace {
+
+// A new thread record (0x34 bytes, heap 0x0095f488): {0, 0, a, b, flags 1, handle 0, wait list (+0x1c, sentinel
+// +0x20), count 0, ...}, appended to the list at `list` (tail list + 4, count at `count`); with `with_handle` it
+// gets a script thread handle (table 0x008dd208, slots 0x008dd228). Returns the handle.
+uint8_t* new_thread_record(uint32_t a, uint32_t b) {
+    uint32_t* const block = small_heap_alloc(0x0095f488, 0x34);
+    if (!block) return nullptr;
+    uint8_t* const thread = reinterpret_cast<uint8_t*>(block);
+    word_at(thread, 0) = 0;
+    word_at(thread, 4) = 0;
+    word_at(thread, 8) = a;
+    word_at(thread, 0xc) = b;
+    word_at(thread, 0x10) = 0;
+    word_at(thread, 0x14) = 0;
+    word_at(thread, 0x1c) = address_of(thread + 0x20);
+    word_at(thread, 0x20) = 0;
+    word_at(thread, 0x18) = 0;
+    word_at(thread, 0x24) = address_of(thread + 0x1c);
+    word_at(thread, 0x2c) = 0;
+    word_at(thread, 0x30) = 0;
+    word_at(thread, 0x10) |= 1;
+    return thread;
+}
+
+uint32_t give_thread_handle(uint8_t* thread, uint32_t with_handle) {
+    if (static_cast<uint8_t>(with_handle)) {
+        uint32_t handle = with_handle;
+        thread_handle_alloc_call(&handle);
+        if ((handle & 0xff) < 0x100) title_global<uint32_t>(0x008dd228 + (handle & 0xff) * 8) = address_of(thread);
+        word_at(thread, 0x14) = handle;
+    }
+    return word_at(thread, 0x14);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Scr_BeginThread(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t b, uint32_t with_handle) {
+    // A thread started by a notify: list 0x008dd1f0 (count 0x008dd1e8), flag 0x800, the current new thread
+    // (0x008dda30).
+    uint8_t* const thread = new_thread_record(a, b);
+    word_at(thread, 0) = 0x008dd1f0;
+    uint8_t* const tail = title_global<uint8_t*>(0x008dd1f4);
+    word_at(thread, 4) = address_of(tail);
+    word_at(tail, 0) = address_of(thread);
+    const uint32_t count = title_global<uint32_t>(0x008dd1e8) + 1;
+    title_global<uint8_t*>(0x008dd1f4) = thread;
+    title_global<uint32_t>(0x008dd1e8) = count;
+    title_global<uint8_t*>(0x008dda30) = thread;
+    word_at(thread, 0x10) |= 0x800;
+    return give_thread_handle(thread, with_handle);
+}
+
+uint32_t XB_CDECL Scr_CreateThread(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t b, uint32_t with_handle) {
+    // A thread on the run list 0x008dd1e0 (count 0x008dd1d8).
+    uint8_t* const thread = new_thread_record(a, b);
+    word_at(thread, 0) = 0x008dd1e0;
+    uint8_t* const tail = title_global<uint8_t*>(0x008dd1e4);
+    word_at(thread, 4) = address_of(tail);
+    word_at(tail, 0) = address_of(thread);
+    const uint32_t count = title_global<uint32_t>(0x008dd1d8) + 1;
+    title_global<uint8_t*>(0x008dd1e4) = thread;
+    title_global<uint32_t>(0x008dd1d8) = count;
+    return give_thread_handle(thread, with_handle);
+}
+
+void XB_STDCALL Scr_MovePendingEntityWaits(uint8_t* scheduler) {
+    // Every pending entity wait (list +0x24, sentinel +0x28, count +0x20) moves to its entity's wait list
+    // (+0x230, created on first use: Scr_LinkEntityWaitList); waits on gone entities are deleted.
+    uint32_t* node = reinterpret_cast<uint32_t*>(uintptr_t{word_at(scheduler, 0x24)});
+    uint32_t* next = node ? reinterpret_cast<uint32_t*>(uintptr_t{*node}) : nullptr;
+    if (node == reinterpret_cast<uint32_t*>(scheduler + 0x28) || !next) return;
+    uint32_t* saved = nullptr;
+    bool first = true;
+    do {
+        if (!first) node = saved;
+        first = false;
+        if (next) {
+            saved = next;
+            next = reinterpret_cast<uint32_t*>(uintptr_t{*next});
+        }
+        uint8_t* const wait = reinterpret_cast<uint8_t*>(node);
+        word_at(ptr_at(wait, 0), 4) = word_at(wait, 4);
+        word_at(ptr_at(wait, 4), 0) = word_at(wait, 0);
+        --word_at(scheduler, 0x20);
+        const uint32_t handle = word_at(wait, 0xc);
+        const uint32_t index = handle & 0xfff;
+        uint8_t* ent = nullptr;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (ent) {
+            if (!word_at(ent, 0x230)) {
+                uint32_t* const block = small_heap_alloc(0x0095f570, 0x2c);
+                word_at(ent, 0x230) = block ? address_of(Scr_LinkEntityWaitList(block, 0, ent)) : 0;
+            }
+            uint8_t* const list = ptr_at(ent, 0x230) + 0xc;
+            word_at(wait, 0) = address_of(list + 8);
+            uint8_t* const tail = ptr_at(list, 0xc);
+            word_at(wait, 4) = address_of(tail);
+            word_at(tail, 0) = address_of(wait);
+            const uint32_t count = word_at(list, 0) + 1;
+            word_at(list, 0xc) = address_of(wait);
+            word_at(list, 0) = count;
+        } else {
+            if (uint8_t* const value = ptr_at(wait, 0x10))
+                title_function<void XB_THISCALL(uint8_t*, uint32_t)>(word_at(ptr_at(value, 0), 0))(value, 1);
+            word_at(wait, 0x10) = 0;
+            title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f56c),
+                                                                            wait);  // SmallHeap_Free
+        }
+    } while (next);
+}
+
+void XB_CDECL G_SetupAnimTrees(uint32_t callback, uint32_t arg) {
+    // AnimTree_Setup for trees 1..g_numAnimTrees-1, the count kept in 0x0092716c, then the game import's +0x85c
+    // and (tail call with these arguments) +0x864.
+    int32_t i = 1;
+    for (; i < static_cast<int32_t>(title_global<uint32_t>(0x00927098)); ++i)
+        AnimTree_Setup(static_cast<uint32_t>(i), arg);  // the entry index in EBX
+    title_global<uint32_t>(0x0092716c) = title_global<uint32_t>(0x00927098);
+    uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+    TitleRegs regs{address_of(import), static_cast<uint32_t>(i), 0, 0, 0, 0};
+    regs.eax = g_ent_call(word_at(import, 0x85c), &regs, 0, nullptr);
+    regs.ecx = title_global<uint32_t>(0x0095f49c);
+    const uint32_t args[2] = {callback, arg};
+    g_ent_call(word_at(reinterpret_cast<uint8_t*>(uintptr_t{regs.ecx}), 0x864), &regs, 2, args);
+}
+
+uint8_t* XB_REGS2 XB_STDCALL Scr_InitWaitRecord(uint32_t kind, uint32_t value, uint8_t* record, uint32_t handle) {
+    // {vtable 0x00831800, 0, 0, done 0, kind, entity handle, value, death link}; an end-on (kind 3) on the death
+    // notify (0x0095fdfc) of a live entity also links a thread reference (heap 0x0095f498, ScrObject_GetThreadHandle)
+    // into the entity's wait list (+0x230, created on first use).
+    word_at(record, 4) = 0;
+    word_at(record, 8) = 0;
+    record[0xc] = 0;
+    word_at(record, 0x10) = kind;
+    word_at(record, 0) = 0x00831800;
+    word_at(record, 0x14) = handle;
+    word_at(record, 0x18) = value;
+    word_at(record, 0x1c) = 0;
+    if (kind != 3 || value != title_global<uint32_t>(0x0095fdfc)) return record;
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return record;
+    uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!ent) return record;
+    uint8_t* list = ptr_at(ent, 0x230);
+    if (!list) {
+        uint32_t* const block = small_heap_alloc(0x0095f570, 0x2c);
+        list = block ? reinterpret_cast<uint8_t*>(Scr_LinkEntityWaitList(block, 0, ent)) : nullptr;
+        word_at(ent, 0x230) = address_of(list);
+    }
+    uint32_t* const block = small_heap_alloc(0x0095f498, 0xc);
+    uint8_t* reference = nullptr;
+    if (block) {
+        const TitleRegs regs{0, 0, 0, 0, address_of(block), title_global<uint32_t>(0x008dda2c)};
+        reference = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002fdf40, &regs, 0, nullptr)});  // ScrObject_GetThreadHandle
+    }
+    word_at(record, 0x1c) = address_of(reference);
+    word_at(reference, 0) = address_of(list + 0x24);
+    uint8_t* const tail = ptr_at(list, 0x28);
+    word_at(reference, 4) = address_of(tail);
+    word_at(tail, 0) = address_of(reference);
+    word_at(list, 0x28) = address_of(reference);
+    ++word_at(list, 0x1c);
+    return record;
+}
+
+namespace {
+
+// Appends a wait record's link (+4) to a thread's wait list (+0x20 sentinel, tail +0x24, count +0x18).
+void link_wait(uint8_t* thread, uint8_t* link) {
+    word_at(link, 0) = address_of(thread + 0x20);
+    uint8_t* const tail = ptr_at(thread, 0x24);
+    word_at(link, 4) = address_of(tail);
+    word_at(tail, 0) = address_of(link);
+    word_at(thread, 0x24) = address_of(link);
+    ++word_at(thread, 0x18);
+}
+
+}  // namespace
+
+void XB_CDECL Scr_EndOn(uint32_t handle, uint32_t notify) {
+    // The current thread (0x008dda2c) ends when the live entity gets the notify (one record per notify).
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
+    if (!title_global<uint32_t>(0x0097a968 + index * 8)) return;
+    const uint32_t main_thread = word_at(title_global<uint8_t*>(0x0095f49c), 0x898);
+    uint8_t* const thread = title_global<uint8_t*>(0x008dda2c);
+    if (word_at(thread, 0x14) == main_thread) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (Scr_HasEndOnRecord(thread, notify)) return;
+    uint32_t* const block = small_heap_alloc(0x0095f494, 0x20);
+    uint8_t* const record = block ? Scr_InitWaitRecord(3, notify, reinterpret_cast<uint8_t*>(block), handle) : nullptr;
+    link_wait(thread, record + 4);
+}
+
+uint32_t XB_CDECL Scr_BeginThreadEndOn(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t handle, uint32_t notify,
+                                       uint32_t b) {
+    // A new thread waiting (flags 2 | 0x10 | 0x200) on an entity notify (wait record kind 2), on the run list.
+    uint8_t* const thread = new_thread_record(a, b);
+    uint32_t* const block = small_heap_alloc(0x0095f494, 0x20);
+    uint8_t* const record = block ? Scr_InitWaitRecord(2, notify, reinterpret_cast<uint8_t*>(block), handle) : nullptr;
+    const uint32_t waiting = word_at(thread, 0x10) | 2;
+    word_at(thread, 0x10) = waiting;
+    word_at(thread, 0x10) = waiting | 0x10;
+    word_at(thread, 0x10) = waiting | 0x10 | 0x200;
+    link_wait(thread, record + 4);
+    word_at(thread, 0) = 0x008dd1e0;
+    uint8_t* const tail = title_global<uint8_t*>(0x008dd1e4);
+    word_at(thread, 4) = address_of(tail);
+    word_at(tail, 0) = address_of(thread);
+    const uint32_t count = title_global<uint32_t>(0x008dd1d8) + 1;
+    title_global<uint8_t*>(0x008dd1e4) = thread;
+    title_global<uint32_t>(0x008dd1d8) = count;
+    return 0;
 }
 
 }  // namespace game

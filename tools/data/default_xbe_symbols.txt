@@ -9973,8 +9973,8 @@
 002e8ef0 Path_DisconnectPathsForEntity
 002e9120 Path_DisconnectAllEntities
 002e91f0 G_EntDetachAll
-002e9230 G_EntAttach
-002e9370 G_EntDetach
+002e9230 G_EntDetach
+002e9370 G_EntAttach
 002e9440 SV_LocationalTrace
 002e95b0 SV_CapsuleTrace
 002e9840 G_SightTrace
@@ -9983,6 +9983,7 @@
 002ea190 PM_PlayerTrace
 002ea4f0 S_UpdateAmbientEmitters
 002ea820 PathNode_FindNearest
+002eabb0 PathNode_FindNearestNoPlanes
 002eabd0 PM_EnterReloadState
 002eac90 PM_SlideMove
 002eb610 FUN_002eb610
@@ -10108,7 +10109,7 @@
 002f5440 ScrIface_Free
 002f5470 ScrIface_HashStringNoCase
 002f54c0 G_FindLevelScriptModule
-002f5660 FUN_002f5660
+002f5660 Scr_RestoreContext
 002f5690 Scr_SaveContext
 002f5790 G_FindAnimTreeByName
 002f5830 GScr_GetPersistentVector
@@ -10152,7 +10153,7 @@
 002f62c0 Scr_Sqrt
 002f62d0 ScrIface_Malloc
 002f6320 IntHashMap_FindValue
-002f6350 FUN_002f6350
+002f6350 Scr_InitWaitRecord4
 002f64f0 ScrWaitTimeoutRecord_Init
 002f6600 Scr_RestoreThreadStack
 002f6670 ScrThread_AppendData
@@ -10357,8 +10358,8 @@
 002fc110 ScrWaitTimeoutRecord_Check
 002fc1b0 ScrWaitRecord_Check
 002fc230 ScrWaitRecord_Dtor
-002fc2a0 FUN_002fc2a0
-002fc3c0 FUN_002fc3c0
+002fc2a0 Scr_AbortAllThreads
+002fc3c0 Scr_HasEndOnRecord
 002fc440 Scr_UpdateThreadWaits
 002fc540 Scr_DestroyThreadContents
 002fc670 AnimTree_Setup
@@ -10560,8 +10561,8 @@
 00305050 GScr_DoorLock
 003050b0 GScr_GetEye
 00305110 GScr_DetachAll
-00305150 GScr_Attach
-003051c0 GScr_Detach
+00305150 GScr_Detach
+003051c0 GScr_Attach
 00305280 GScr_SpawnTurretWithAngles
 00305330 GScr_SpawnTurret
 003053c0 GScr_Vehicle_EjectDriver
