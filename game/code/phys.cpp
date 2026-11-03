@@ -6079,4 +6079,49 @@ void XB_REGS1 XB_CDECL Phys_InitBodyState(uint8_t* body) {
     at<float>(body, 0x140) = 0.0f;
 }
 
+uint8_t XB_REGS3 XB_CDECL Phys_SphereTouchesTriangle(const float* center, const float* normal, const float* va,
+                                                     float radius, const float* vb, const float* vc) {
+    // The sphere (center, radius) against triangle a b c with plane normal: outside the plane's +-radius slab 0;
+    // else the squared distance to the closest point (a vertex region, an edge region, or 1 at once inside the
+    // face) compared with radius squared. Vertices relative to the center, all lanes computed (MXCSR flags).
+    const Lanes p = lanes(center);
+    const Lanes a = sub(lanes(va), p);
+    const float d = dot3(a, lanes(normal));
+    if (d > radius) return 0;
+    if (0.0f - radius > d) return 0;
+    const Lanes b = sub(lanes(vb), p);
+    const Lanes c = sub(lanes(vc), p);
+    const float aa = dot3(a, a), ab = dot3(a, b), ac = dot3(a, c);
+    float dist;
+    const float one = title_global<float>(0x0083eb20);
+    const auto edge = [one](const Lanes& x, const Lanes& y, float ux, float uy) {
+        // ux = weight of y's opposite term; the title: (1 / (ux + uy)) * uy along x plus (1 / (ux + uy)) * ux along y
+        const float inv = one / (ux + uy);
+        const Lanes v = add(mul(x, inv * uy), mul(y, inv * ux));
+        return dot3(v, v);
+    };
+    if (ab >= aa && ac >= aa) {
+        dist = aa;
+    } else {
+        const float bb = dot3(b, b), bc = dot3(b, c);
+        if (ab >= bb && bc >= bb) {
+            dist = bb;
+        } else {
+            const float cc = dot3(c, c);
+            if (ac >= cc && bc >= cc) {
+                dist = cc;
+            } else if (bb >= ab && aa >= ab && bc * (aa - ab) + ac * (bb - ab) >= bb * aa - ab * ab) {
+                dist = edge(a, b, aa - ab, bb - ab);
+            } else if (cc >= ac && aa >= ac && bc * (aa - ac) + ab * (cc - ac) >= cc * aa - ac * ac) {
+                dist = edge(a, c, aa - ac, cc - ac);
+            } else if (cc >= bc && bb >= bc && ac * (bb - bc) + ab * (cc - bc) >= bb * cc - bc * bc) {
+                dist = edge(b, c, bb - bc, cc - bc);
+            } else {
+                return 1;
+            }
+        }
+    }
+    return radius * radius >= dist ? 1 : 0;
+}
+
 }  // namespace game

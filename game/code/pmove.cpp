@@ -8,6 +8,8 @@
 #include "cgame.h"
 #include "g_vehicle.h"
 #include "g_main.h"
+#include "g_utils.h"
+#include "lanes.h"
 #include "fx.h"
 #include "qcommon.h"
 #include "sv.h"
@@ -2029,6 +2031,664 @@ uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityStateExtraPolate(uint8_t* es, u
     at<uint32_t>(es, 0xc) = at<uint32_t>(ps, 0x60);
     es[0] = 1;
     return es;
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float pm_ci_sqrt(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// a == b on the x87 (FLD/FUCOMIP, LAHF + TEST AH,0x44 + JNP): only an ordered equal.
+bool x87_equal(float a, float b) {
+    bool equal, ordered;
+    __asm__("flds %3\n\tflds %2\n\tfucomip %%st(1), %%st\n\tfstp %%st(0)\n\tsete %0\n\tsetnp %1"
+            : "=q"(equal), "=q"(ordered)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return equal && ordered;
+}
+
+// (z*z + y*y) + x*x on the x87, stored as float.
+float x87_sum_squares_zyx(float x, float y, float z) {
+    float r;
+    __asm__("flds %3\n\tfmuls %3\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %1\n\tfmuls %1\n\tfaddp\n\tfstps %0"
+            : "=m"(r)
+            : "m"(x), "m"(y), "m"(z)
+            : "st", "st(1)");
+    return r;
+}
+
+// The angle a - b as the title rounds it to 16 bits (x 182.044, truncated, & 0xffff, x 0.00549316) and wraps it
+// above 180.
+float short_angle_delta(float a, float b) {
+    const int32_t quantized = static_cast<int32_t>((a - b) * title_global<float>(0x0083ebd8)) & 0xffff;
+    float r = static_cast<float>(quantized) * title_global<float>(0x0083ebd4);
+    if (r > title_global<float>(0x0083eb60)) r -= title_global<float>(0x0083ebcc);  // 180, 360
+    return r;
+}
+
+// The movement direction byte: beyond +-90 it becomes 90 (positive) or -90, then the low byte sign-extended.
+int32_t clamp_move_dir(int32_t dir) {
+    const uint32_t sign = static_cast<uint32_t>(dir >> 31);
+    const int32_t magnitude = static_cast<int32_t>((static_cast<uint32_t>(dir) ^ sign) - sign);
+    if (magnitude > 0x5a) dir = dir > 0 ? 0x5a : -0x5a;
+    return static_cast<int8_t>(static_cast<uint8_t>(dir));
+}
+
+// Q3's PM_Friction for the noclip moves: frametime * control * 8.25 (+ 0) off the speed, at least 0.
+void noclip_friction(uint8_t* pm, float speed, float control) {
+    const float drop = title_global<float>(0x0095ffa4) * control * title_global<float>(0x0083ef90) + 0.0f;
+    float newspeed = speed - drop;
+    if (0.0f > newspeed) newspeed = 0.0f;
+    newspeed /= speed;
+    at<float>(pm_ps_ref(pm), 0x10) = at<float>(pm_ps_ref(pm), 0x10) * newspeed;
+    at<float>(pm_ps_ref(pm), 0x14) = at<float>(pm_ps_ref(pm), 0x14) * newspeed;
+    at<float>(pm_ps_ref(pm), 0x18) = at<float>(pm_ps_ref(pm), 0x18) * newspeed;
+}
+
+// The noclip moves' tail: wishvel normalized (left as is for length 0, x87 compare), wishspeed scaled, an inlined
+// PM_Accelerate (pm_accelerate 9), then origin += velocity * frametime. `control_first`: control * frametime
+// instead of frametime * control.
+void noclip_accelerate(uint8_t* pm, float wx, float wy, float wz, float scale, bool control_first) {
+    float wishspeed = pm_ci_sqrt(static_cast<long double>((wy * wy + wx * wx) + wz * wz));
+    float dx = wx, dy = wy, dz = wz;
+    if (!x87_equal(wishspeed, 0.0f)) {
+        const float inv = title_global<float>(0x0083eb20) / wishspeed;
+        dx = inv * wx;
+        dy = inv * wy;
+        dz = inv * wz;
+    }
+    wishspeed = wishspeed * scale;
+    uint8_t* ps = pm_ps_ref(pm);
+    const float frametime = title_global<float>(0x0095ffa4);
+    const float current = (at<float>(ps, 0x18) * dz + at<float>(ps, 0x14) * dy) + at<float>(ps, 0x10) * dx;
+    const float add = wishspeed - current;
+    if (!(0.0f >= add)) {
+        float control = title_global<float>(0x0083eb90);  // 100
+        if (!(control > wishspeed)) control = wishspeed;
+        float accel = control_first ? control * frametime * title_global<float>(0x0083eef8)
+                                    : frametime * control * title_global<float>(0x0083eef8);  // 9
+        if (accel > add) accel = add;
+        if (at<uint32_t>(ps, 0x60)) accel = title_global<float>(0x0083eb20) / at<float>(ps, 0x478) * accel;
+        if (accel > add) accel = add;
+        at<float>(ps, 0x10) = accel * dx + at<float>(ps, 0x10);
+        ps = pm_ps_ref(pm);
+        at<float>(ps, 0x14) = accel * dy + at<float>(ps, 0x14);
+        ps = pm_ps_ref(pm);
+        at<float>(ps, 0x18) = accel * dz + at<float>(ps, 0x18);
+    }
+    for (uint32_t i = 0; i < 3; ++i) {
+        ps = pm_ps_ref(pm);
+        at<float>(ps, i * 4) = at<float>(ps, 0x10 + i * 4) * title_global<float>(0x0095ffa4) + at<float>(ps, i * 4);
+    }
+}
+
+// The fall height: v = -(vel + t * -gravity) for t = (-vel - sqrt(den)) / (a + a), v * v / (gravity + gravity);
+// all on the x87 (FSUBP/FDIVP as the title has them), stored as float.
+float x87_fall_height(float vel, float den, float a, float neg_gravity, float gravity, float minus_one) {
+    float r;
+    __asm__("flds %1\n\tfchs\n\tflds %2\n\tfsqrt\n\t.byte 0xde, 0xe9\n\t"  // fsubp st(1),st
+            "flds %3\n\tfadd %%st(0), %%st\n\t.byte 0xde, 0xf9\n\t"          // fdivp st(1),st
+            "fmuls %4\n\tfadds %1\n\tfmuls %6\n\tfld %%st(0)\n\tfmul %%st(1), %%st\n\t"
+            "flds %5\n\tfadd %%st(0), %%st\n\t.byte 0xde, 0xf9\n\tfstps %0\n\tfstp %%st(0)"
+            : "=m"(r)
+            : "m"(vel), "m"(den), "m"(a), "m"(neg_gravity), "m"(gravity), "m"(minus_one)
+            : "st", "st(1)", "st(2)");
+    return r;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL PM_FinishWeaponChange() {
+    // The end of a weapon change (state 2): the commanded weapon (pm +0xa) if owned, allowed (not pm_flags 0x10,
+    // not +0xc0 0x100000 without 0x400000) and valid, else 0, becomes the weapon. The same weapon: state 0 with the
+    // idle anim (0 for mode 5). From none: state 1, raise time +0x60c, blend 255, anim 0xa. Else the old one is
+    // remembered (+0x94, not for mode 5), state 1; mode-3 weapons drop ADS; the old weapon's alternate raises with
+    // +0x614 (blend at least 128, anim 0x10), others with event 0x9d, +0x60c, blend 255 and anim 0xa. 0 when not
+    // changing, else 1.
+    uint8_t* const pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    if (at<int32_t>(ps, 0x84) != 2) return 0;
+    int32_t weapon = pm[0xa];
+    if (at<uint8_t>(ps, 0x2c) & 0x10) {
+        weapon = 0;
+    } else if (!ps_weapon_bit(ps, 0x3f0, weapon)) {
+        weapon = 0;
+    } else {
+        const uint32_t f = at<uint32_t>(ps, 0xc0);
+        if (((f & 0x100000) && !(f & 0x400000)) || weapon < 0 || weapon > title_global<int32_t>(0x0095f4d4)) weapon = 0;
+    }
+    if (!ps_weapon_bit(ps, 0x3f0, weapon)) weapon = 0;
+    const int32_t old = at<int32_t>(ps, 0x80);
+    at<uint32_t>(ps, 0x80) = static_cast<uint8_t>(weapon);
+    uint8_t* const* const defs = title_global<uint8_t* const*>(0x0095f4d8);  // bg_weaponDefs
+    title_global<uint8_t*>(0x00960020) = defs[at<int32_t>(pm_ps_ref(pm), 0x80)];
+    const auto set_anim_a = [pm]() {
+        uint8_t* const p = pm_ps_ref(pm);
+        if (at<int32_t>(p, 0x24) >= 4 || !pm[0xa]) return;
+        if (at<int32_t>(cur_weapon_def(), 0x94) == 5)
+            at<uint32_t>(p, 0x4ec) = 0xa;
+        else
+            at<uint32_t>(p, 0x4ec) = (~at<uint32_t>(p, 0x4ec) & 0x200) | 0xa;
+    };
+    if (old == weapon) {
+        ps = pm_ps_ref(pm);
+        at<uint32_t>(ps, 0x84) = 0;
+        ps = pm_ps_ref(pm);
+        if (at<int32_t>(ps, 0x24) >= 4 || !pm[0xa]) return 1;
+        if (at<int32_t>(cur_weapon_def(), 0x94) == 5) {
+            at<uint32_t>(ps, 0x4ec) = 0;
+            return 1;
+        }
+        uint32_t anim = 0;
+        if (at<float>(ps, 0x88) > title_global<float>(0x0083ec18)) anim = 0x17;  // 0.9
+        at<uint32_t>(ps, 0x4ec) = (~at<uint32_t>(ps, 0x4ec) & 0x200) | anim;
+        return 1;
+    }
+    if (!old) {
+        at<uint32_t>(pm_ps_ref(pm), 0x84) = 1;
+        at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(defs[weapon], 0x60c);
+        at<float>(pm_ps_ref(pm), 0x4f0) = title_global<float>(0x0083eb8c);  // 255
+        set_anim_a();
+        ps = pm_ps_ref(pm);
+        if (at<uint8_t>(ps, 0x2c) & 1) at<uint32_t>(ps, 0x2c) |= 0x400;
+        return 1;
+    }
+    if (at<int32_t>(defs[old], 0x98) != 5) at<int32_t>(pm_ps_ref(pm), 0x94) = old;
+    at<uint32_t>(pm_ps_ref(pm), 0x84) = 1;
+    ps = pm_ps_ref(pm);
+    if (at<uint8_t>(ps, 0x2c) & 1) at<uint32_t>(ps, 0x2c) |= 0x400;
+    if (at<int32_t>(defs[weapon], 0x98) == 3) at<float>(pm_ps_ref(pm), 0x88) = 0.0f;
+    uint32_t time;
+    if (weapon && weapon == at<int32_t>(defs[old], 0x718)) {
+        time = at<uint32_t>(defs[weapon], 0x614);
+    } else {
+        add_ps_event(pm_ps_ref(pm), 0x9d, 0);
+        time = at<uint32_t>(defs[weapon], 0x60c);
+    }
+    at<uint32_t>(pm_ps_ref(pm), 0x34) = time;
+    if (weapon && weapon == at<int32_t>(defs[old], 0x718)) {
+        ps = pm_ps_ref(pm);
+        const float half = title_global<float>(0x0083ebe8);  // 128
+        if (half > at<float>(ps, 0x4f0)) at<float>(ps, 0x4f0) = half;
+        PM_StartLegsAnim(0, 0, 0x10);
+        return 1;
+    }
+    at<float>(pm_ps_ref(pm), 0x4f0) = title_global<float>(0x0083eb8c);  // 255
+    set_anim_a();
+    return 1;
+}
+
+void XB_CDECL PM_CrashLand() {
+    // Q3's PM_CrashLand: the impact speed from the fall (x87 quadratic) gives a damage 0-100 between the fall
+    // thresholds (0x00934be0, 0x0092bd68; halved at waterlevel 2; none with surface flag 1 or dead) and a land
+    // parameter (above 12: (h - 12) / 26 + 1, x4, at most 24). Damage below 100 without flag 2 slows the player
+    // (pm_time 500 + 35 per point up to 2000, factor 0.5..0.2, time-knockback flag 0x100), else x0.67; then the
+    // fall event (0x74 + surface type, 0x74 with surface flag 0x2000) with the damage. Without damage: steps above
+    // 4 (walk below 8, run below 12) or the land event (x0.67) with the parameter.
+    uint8_t* const pm = pm_global();
+    const uint8_t water = pm[0x121];
+    if (water == 3) return;
+    uint8_t* const ps = pm_ps_ref(pm);
+    const float vel = title_global<float>(0x00960018);  // pml.previous_velocity[2]
+    const float half = title_global<float>(0x0083eb24), four = title_global<float>(0x0083100c);
+    const float gravity = static_cast<float>(at<int32_t>(ps, 0x48));
+    const float neg_gravity = 0.0f - gravity;
+    const float a = neg_gravity * half;
+    const float dist = title_global<float>(0x0096000c) - at<float>(ps, 0x8);  // pml.previous_origin[2]
+    const float den = vel * vel - dist * a * four;
+    if (0.0f > den) return;
+    const float lo = title_global<float>(0x00934be0), hi = title_global<float>(0x0092bd68);
+    const float h = x87_fall_height(vel, den, a, neg_gravity, gravity, title_global<float>(0x0083eb34));
+    const uint8_t surface = title_global<uint8_t>(0x0095ffe4);
+    int32_t damage = 0;
+    if (!(lo >= hi) && !(0.0f > lo) && !(lo >= h) && !(surface & 1) && at<int32_t>(ps, 0x24) < 4) {
+        if (!(h >= hi)) {
+            damage = static_cast<int32_t>((h - lo) / (hi - lo) * title_global<float>(0x0083eb90));
+            if (damage < 0)
+                damage = 0;
+            else if (damage > 100)
+                damage = 100;
+        } else {
+            damage = 100;
+        }
+    }
+    if (water == 2) damage = static_cast<int32_t>(static_cast<float>(damage) * half);
+    const float twelve = title_global<float>(0x0083eccc);
+    int32_t parm = 0;
+    if (!(twelve >= h)) {
+        parm = static_cast<int32_t>(((h - twelve) * title_global<float>(0x0083ee7c) + title_global<float>(0x0083eb20)) *
+                                    four);
+        if (parm > 0x18) parm = 0x18;
+    }
+    const float slow = title_global<float>(0x0083ec3c);  // 0.67
+    if (damage) {
+        if (damage < 100 && !(surface & 2)) {
+            float factor = half;
+            int32_t time = damage * 0x23 + 0x1f4;
+            if (time > 0x7d0) {
+                factor = title_global<float>(0x0083eca0);
+                time = 0x7d0;
+            } else if (time > 0x1f4) {
+                if (time >= 0x5dc)
+                    factor = title_global<float>(0x0083eca0);  // 0.2
+                else
+                    factor = half - (static_cast<float>(time) - title_global<float>(0x0083ebec)) *
+                                        title_global<float>(0x0083eb4c) * title_global<float>(0x0083066c);
+            }
+            at<int32_t>(ps, 0x30) = time;
+            at<uint32_t>(pm_ps_ref(pm), 0x2c) |= 0x100;
+            for (uint32_t i = 0; i < 3; ++i) at<float>(pm_ps_ref(pm), 0x10 + i * 4) = at<float>(pm_ps_ref(pm), 0x10 + i * 4) * factor;
+        } else {
+            at<float>(ps, 0x10) = at<float>(ps, 0x10) * slow;
+            for (uint32_t i = 1; i < 3; ++i) at<float>(pm_ps_ref(pm), 0x10 + i * 4) = at<float>(pm_ps_ref(pm), 0x10 + i * 4) * slow;
+        }
+        const uint32_t flags = title_global<uint32_t>(0x0095ffe4);
+        const uint32_t type = (flags & 0x2000) ? 0 : (static_cast<uint32_t>(static_cast<int32_t>(flags) >> 0x14) & 0x1f);
+        BG_AddPredictableEventToPlayerstate(pm_ps_ref(pm), 0, 0x74 + type, static_cast<uint32_t>(damage));
+        return;
+    }
+    if (!(h > four)) return;
+    if (title_global<float>(0x0083ed78) > h) {  // 8
+        PM_AddEvent(0, 0, PM_WalkStepEventForSurface());
+        return;
+    }
+    if (twelve > h) {
+        PM_AddEvent(0, 0, PM_RunStepEventForSurface());
+        return;
+    }
+    at<float>(ps, 0x10) = at<float>(ps, 0x10) * slow;
+    for (uint32_t i = 1; i < 3; ++i) at<float>(pm_ps_ref(pm), 0x10 + i * 4) = at<float>(pm_ps_ref(pm), 0x10 + i * 4) * slow;
+    const uint32_t event = PM_LandEventForSurface();
+    BG_AddPredictableEventToPlayerstate(pm_ps_ref(pm), 0, event, static_cast<uint32_t>(parm));
+}
+
+void XB_CDECL PM_NoclipMove() {
+    // Q3's PM_NoclipMove: +0xa8 / +0x428 from 0x009341c4; friction (stop below speed 1, x87 compare), the wish
+    // velocity from forward/right (pml axes) plus up as is, then the inlined accelerate and the origin move.
+    uint8_t* const pm = pm_global();
+    at<uint32_t>(pm_ps_ref(pm), 0xa8) = title_global<uint32_t>(0x009341c4);
+    at<uint32_t>(pm_ps_ref(pm), 0x428) = title_global<uint32_t>(0x009341c4);
+    uint8_t* const ps = pm_ps_ref(pm);
+    const float vx = at<float>(ps, 0x10), vy = at<float>(ps, 0x14), vz = at<float>(ps, 0x18);
+    const float speed = pm_ci_sqrt(static_cast<long double>((vx * vx + vy * vy) + vz * vz));
+    if (platform_x87_greater(title_global<float>(0x0083eb20), speed)) {
+        at<float>(ps, 0x10) = 0.0f;
+        at<float>(pm_ps_ref(pm), 0x14) = 0.0f;
+        at<float>(pm_ps_ref(pm), 0x18) = 0.0f;
+    } else {
+        float control = title_global<float>(0x0083eb90);  // 100
+        if (!(control > speed)) control = speed;
+        const float drop = title_global<float>(0x0095ffa4) * control * title_global<float>(0x0083ef90) + 0.0f;
+        float newspeed = speed - drop;
+        if (0.0f > newspeed) newspeed = 0.0f;
+        newspeed /= speed;
+        at<float>(ps, 0x10) = at<float>(ps, 0x10) * newspeed;
+        at<float>(pm_ps_ref(pm), 0x14) = at<float>(pm_ps_ref(pm), 0x14) * newspeed;
+        at<float>(pm_ps_ref(pm), 0x18) = at<float>(pm_ps_ref(pm), 0x18) * newspeed;
+    }
+    const float scale = PM_CmdScale(reinterpret_cast<const int8_t*>(pm + 4));
+    const float f = static_cast<float>(static_cast<int8_t>(pm[0x18]));
+    const float s = static_cast<float>(static_cast<int8_t>(pm[0x19]));
+    const int32_t u = static_cast<int8_t>(pm[0x1a]);
+    const float wx = title_global<float>(0x0095ff8c) * s + title_global<float>(0x0095ff80) * f;
+    const float wy = title_global<float>(0x0095ff90) * s + title_global<float>(0x0095ff84) * f;
+    const float wz = static_cast<float>(u) + (title_global<float>(0x0095ff94) * s + title_global<float>(0x0095ff88) * f);
+    noclip_accelerate(pm, wx, wy, wz, scale, false);
+}
+
+void XB_CDECL PM_NoclipFlatMove() {
+    // A noclip move along the horizontal: up/down from buttons 0x10 / 0x20 (x127 into the up move byte); with only
+    // an up move the velocity becomes (0, 0, up) and the friction runs with speed and control 127. The wish
+    // direction uses forward = up x right (the title multiplies by the zero left in XMM6) and twice the up move.
+    uint8_t* const pm = pm_global();
+    at<uint32_t>(pm_ps_ref(pm), 0xa8) = title_global<uint32_t>(0x009341c4);
+    at<uint32_t>(pm_ps_ref(pm), 0x428) = title_global<uint32_t>(0x009341c4);
+    const uint8_t buttons = pm[9];
+    const uint8_t up = static_cast<uint8_t>((buttons & 0x10) - (buttons & 0x20));
+    pm[0x1a] = static_cast<uint8_t>(pm[0x1a] + static_cast<uint8_t>(up * 0x7f));
+    const float zero = 0.0f;
+    if (!pm[0x18] && !pm[0x19]) {
+        if (static_cast<float>(static_cast<int8_t>(pm[0x1a])) == zero) {
+            at<float>(pm_ps_ref(pm), 0x10) = zero;
+            at<float>(pm_ps_ref(pm), 0x14) = zero;
+            at<float>(pm_ps_ref(pm), 0x18) = zero;
+        } else {
+            const float full = title_global<float>(0x0083ed88);  // 127
+            at<float>(pm_ps_ref(pm), 0x14) = zero;
+            at<float>(pm_ps_ref(pm), 0x10) = zero;
+            at<float>(pm_ps_ref(pm), 0x18) = static_cast<float>(static_cast<int8_t>(pm[0x1a]));
+            noclip_friction(pm, full, full);
+        }
+    } else {
+        uint8_t* const ps = pm_ps_ref(pm);
+        const float vx = at<float>(ps, 0x10), vy = at<float>(ps, 0x14), vz = at<float>(ps, 0x18);
+        const float speed = pm_ci_sqrt(static_cast<long double>((vx * vx + vy * vy) + vz * vz));
+        if (platform_x87_greater(title_global<float>(0x0083eb20), speed)) {
+            at<float>(pm_ps_ref(pm), 0x10) = zero;
+            at<float>(pm_ps_ref(pm), 0x14) = zero;
+            at<float>(pm_ps_ref(pm), 0x18) = zero;
+        } else {
+            float control = title_global<float>(0x0083eb90);  // 100
+            if (!(control > speed)) control = speed;
+            noclip_friction(pm, speed, control);
+        }
+    }
+    const float scale = PM_CmdScale(reinterpret_cast<const int8_t*>(pm + 4));
+    const float s = static_cast<float>(static_cast<int8_t>(pm[0x19]));
+    const float f = static_cast<float>(static_cast<int8_t>(pm[0x18]));
+    const int32_t u = static_cast<int8_t>(pm[0x1a]);
+    const float r0 = title_global<float>(0x0095ff8c), r1 = title_global<float>(0x0095ff90);
+    const float r2 = title_global<float>(0x0095ff94);
+    const float r2z = r2 * zero;
+    const float ax = r2z - r1;
+    const float ay = r0 - r2z;
+    const float az = (r1 * zero - r0 * zero) * f;
+    const float wx = r0 * s + ax * f;
+    const float wz = static_cast<float>(u) * title_global<float>(0x0083eba8) + (az + r2 * s);  // 2
+    const float wy = ay * f + r1 * s;
+    noclip_accelerate(pm, wx, wy, wz, scale, true);
+}
+
+void XB_CDECL PM_SetMovementDir() {
+    // The movement direction (+0x78, -90..90 as a byte): prone (not +0xc0 0x106000) the body yaw (+0x450) less the
+    // view yaw; on a ladder (pm_flags 0x10) the ladder normal's yaw + 180 less the view yaw; else, moving on the
+    // ground faster than 5 / s, the yaw of the frame's move less the view yaw (+180 when backing up), else 0.
+    uint8_t* const pm = pm_global();
+    uint8_t* const ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    if ((flags & 1) && !(at<uint32_t>(ps, 0xc0) & 0x106000)) {
+        const float d = short_angle_delta(at<float>(ps, 0x450), at<float>(ps, 0xa0));
+        at<int32_t>(ps, 0x78) = clamp_move_dir(static_cast<int32_t>(d));
+        return;
+    }
+    if (flags & 0x10) {
+        const float yaw = vectoyaw(&at<float>(ps, 0x64));
+        const float d = short_angle_delta(yaw + title_global<float>(0x0083eb60), at<float>(ps, 0xa0));
+        at<int32_t>(ps, 0x78) = clamp_move_dir(static_cast<int32_t>(d));
+        return;
+    }
+    float move[3];
+    move[0] = at<float>(ps, 0) - title_global<float>(0x00960004);  // pml.previous_origin
+    move[1] = at<float>(ps, 4) - title_global<float>(0x00960008);
+    move[2] = at<float>(ps, 8) - title_global<float>(0x0096000c);
+    const int8_t forward = static_cast<int8_t>(pm[0x18]);
+    if ((!forward && !pm[0x19]) || !at<uint32_t>(ps, 0x60)) {
+        at<int32_t>(ps, 0x78) = 0;
+        return;
+    }
+    const float length = pm_ci_sqrt(static_cast<long double>(x87_sum_squares_zyx(move[0], move[1], move[2])));
+    if (x87_equal(length, title_global<float>(0x0083eafc)) ||
+        !(length > title_global<float>(0x0095ffa4) * title_global<float>(0x0083ece8))) {  // 5
+        at<int32_t>(ps, 0x78) = 0;
+        return;
+    }
+    float angles[3];
+    VectorNormalize2(move, angles);
+    vectoangles(angles, angles);
+    int32_t dir = static_cast<int32_t>(AngleDeltaQuantized(angles[1], at<float>(ps, 0xa0)));
+    if (forward < 0)
+        dir = static_cast<int32_t>(AngleNormalize180Quantized(static_cast<float>(dir) + title_global<float>(0x0083eb60)));
+    at<int32_t>(ps, 0x78) = clamp_move_dir(dir);
+}
+
+namespace {
+
+// Moves a prone tilt angle toward target: the 16-bit delta (above 180 wrapped), at most frametime * 70 per frame
+// (sign from the delta's bits), then wrapped into (-180, 180]. `step_first`: step + angle instead of angle + delta
+// for small deltas (the two angles add in different orders).
+void approach_prone_angle(uint8_t* pm, uint32_t offset, float target, bool delta_first) {
+    uint8_t* ps = pm_ps_ref(pm);
+    float d = short_angle_delta(target, at<float>(ps, offset));
+    if (d == 0.0f) return;
+    const float step = title_global<float>(0x0095ffa4) * title_global<float>(0x0083eda0);  // 70
+    uint32_t bits;
+    std::memcpy(&bits, &d, 4);
+    const uint32_t abs_bits = bits & 0x7fffffffu;
+    float magnitude;
+    std::memcpy(&magnitude, &abs_bits, 4);
+    if (magnitude > step) {
+        const int32_t sign = 1 - (static_cast<int32_t>(bits) < 0 ? 1 : 0) * 2;
+        at<float>(ps, offset) = static_cast<float>(sign) * step + at<float>(ps, offset);
+    } else if (delta_first) {
+        at<float>(ps, offset) = d + at<float>(ps, offset);
+    } else {
+        at<float>(ps, offset) = at<float>(ps, offset) + d;
+    }
+    ps = pm_ps_ref(pm);
+    float v = at<float>(ps, offset);
+    const float lo = title_global<float>(0x0083ebd0), hi = title_global<float>(0x0083eb60);  // -180, 180
+    const float turn = title_global<float>(0x0083ebcc);
+    if (lo >= v) {
+        do v += turn;
+        while (lo >= v);
+    } else if (v > hi) {
+        do v -= turn;
+        while (v > hi);
+    }
+    at<float>(ps, offset) = v;
+}
+
+}  // namespace
+
+void XB_CDECL PM_UpdateProneTilt() {
+    // Prone players: in the air, feet that no longer fit (BG_CheckProneFeet 30 / 60) or water add event 0x8f and
+    // pm_flags 0x8000; on steep ground (normal z below 0.7) only the event. Then the body pitch (+0x454) and roll
+    // (+0x458) approach the ground plane's pitch along the body yaw (+0x450) and the view yaw (+0xa0), 0 without
+    // a ground plane.
+    uint8_t* const pm = pm_global();
+    uint8_t* const ps = pm_ps_ref(pm);
+    if (!(at<uint8_t>(ps, 0x2c) & 1)) return;
+    const bool plane = title_global<uint32_t>(0x0095ffb0) != 0;  // pml.groundPlane
+    const float* const normal = &title_global<float>(0x0095ffd0);
+    if (!at<uint32_t>(ps, 0x60)) {
+        using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*,
+                                                          uint8_t*, uint8_t*, uint32_t, uint32_t);
+        const uint32_t r = title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
+                                                                      at<uint32_t>(ps, 0x450), ps + 0x4d8, ps + 0x4dc,
+                                                                      ps + 0x4e0, at<uint32_t>(pm, 0x138), 0x42700000u);
+        uint8_t* const p = pm_global();
+        if (!r || p[0x121]) {
+            add_ps_event(pm_ps_ref(p), 0x8f, 0);
+            at<uint32_t>(pm_ps_ref(p), 0x2c) |= 0x8000;
+        }
+    } else if (plane) {
+        if (title_global<float>(0x0083ed28) > title_global<float>(0x0095ffd8)) add_ps_event(ps, 0x8f, 0);  // 0.7
+    }
+    uint8_t* const p = pm_global();
+    float target = 0.0f;
+    if (title_global<uint32_t>(0x0095ffb0)) target = Plane_PitchAlongYaw(normal, at<float>(pm_ps_ref(p), 0x450));
+    approach_prone_angle(p, 0x454, target, false);
+    target = 0.0f;
+    if (title_global<uint32_t>(0x0095ffb0)) target = Plane_PitchAlongYaw(normal, at<float>(pm_ps_ref(p), 0xa0));
+    approach_prone_angle(p, 0x458, target, true);
+}
+
+namespace {
+
+using PlayerTrace = void XB_CDECL(uint8_t* trace, const float* start, const float* mins, const float* maxs,
+                                  const float* end, uint32_t pass, uint32_t mask);
+
+// The trace's fraction (+0x20) below 1 with surface flag 8 (ladder).
+bool trace_hit_ladder(const uint8_t* trace) {
+    return title_global<float>(0x0083eb20) > at<float>(trace, 0x20) && (at<uint8_t>(trace, 0x24) & 8);
+}
+
+// All three lanes of max(a - b, c - d) below e (CMPLTPS + MOVMSKPS & 7).
+bool box_inside(const float* a, const float* b, const float* c, const float* d, const float* e) {
+    bool inside = true;
+    for (uint32_t i = 0; i < 4; ++i) {
+        const float x = a[i] - b[i], y = c[i] - d[i];
+        const float m = x > y ? x : y;  // MAXPS: the second operand unless the first is greater
+        const bool lt = m < e[i];
+        if (i < 3 && !lt) inside = false;
+    }
+    return inside;
+}
+
+}  // namespace
+
+void XB_CDECL PM_DetectLadder() {
+    // The ladder check: not during a time knockback (pm_time with pm_flags 0x300), not dead (that clears the
+    // ground), not right after a mount (+0xa8 = +0x420 unless = +0x424; 300 ms after +0x70). A box (bounds +6 / -6,
+    // z from 8) traced 8 (walking) or 30 ahead (or into the ladder normal while on one in the air) must hit a
+    // ladder surface; on an entity with brush lists (+0x450, +0x454) the swept box must lie inside the entity's
+    // bounds and touch a ladder brush (flag 8). Walking needs a forward move. A hit stores the normal (+0x64) and
+    // sets pm_flags 0x10 - at once when already on a ladder, else after a second trace into the normal.
+    uint8_t* const pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    alignas(16) uint8_t trace[0x40] = {};
+    if (at<uint32_t>(ps, 0x30) && (at<uint32_t>(ps, 0x2c) & 0x300)) return;
+    const float eight = title_global<float>(0x0083ed78);
+    const float dist = title_global<uint32_t>(0x0095ffac) ? eight : title_global<float>(0x0083ee38);  // 30
+    const uint32_t on_ladder = (at<uint32_t>(ps, 0x2c) >> 4) & 1;
+    alignas(16) float dir[4] = {};
+    if (on_ladder && !at<uint32_t>(ps, 0x60)) {
+        dir[0] = 0.0f - at<float>(ps, 0x64);
+        dir[1] = 0.0f - at<float>(ps, 0x68);
+        dir[2] = 0.0f - at<float>(ps, 0x6c);
+    } else {
+        dir[0] = title_global<float>(0x0095ff80);
+        dir[1] = title_global<float>(0x0095ff84);
+        dir[2] = 0.0f;
+        VectorNormalize(dir);
+    }
+    at<uint32_t>(pm_ps_ref(pm), 0x2c) &= ~0x10u;
+    ps = pm_ps_ref(pm);
+    if (at<int32_t>(ps, 0x24) >= 4) {
+        at<uint32_t>(ps, 0x60) = 0;
+        title_global<uint32_t>(0x0095ffb0) = 0;
+        title_global<uint32_t>(0x0095ffac) = 0;
+        return;
+    }
+    if (at<uint32_t>(ps, 0xa8) != at<uint32_t>(ps, 0x424) && at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x420)) return;
+    if (static_cast<int32_t>(at<uint32_t>(pm, 4) - at<uint32_t>(ps, 0x70)) < 0x12c) return;
+    const float six = title_global<float>(0x0083ecd0);
+    alignas(16) float mins[4] = {};
+    alignas(16) float maxs[4] = {};
+    mins[0] = at<float>(pm, 0x100) + six;
+    mins[1] = at<float>(pm, 0x104) + six;
+    mins[2] = eight;
+    maxs[0] = at<float>(pm, 0x110) - six;
+    maxs[1] = at<float>(pm, 0x114) - six;
+    maxs[2] = at<float>(pm, 0x118);
+    if (eight > maxs[2]) maxs[2] = eight;
+    alignas(16) float end[4] = {};
+    end[0] = dir[0] * dist + at<float>(pm_ps_ref(pm), 0);
+    end[1] = dir[1] * dist + at<float>(pm_ps_ref(pm), 4);
+    end[2] = dir[2] * dist + at<float>(pm_ps_ref(pm), 8);
+    ps = pm_ps_ref(pm);
+    const uint8_t* const ent = G_EntHandleToEnt(&at<uint32_t>(ps, 0x7c));
+    if (!ent) return;
+    const uint8_t* const lists_b = at<uint8_t*>(ent, 0x450);
+    if (!lists_b) return;
+    const uint8_t* const lists_a = at<uint8_t*>(ent, 0x454);
+    if (!lists_a) return;
+    const Lanes origin = lanes(&at<float>(ps, 0));
+    const Lanes e = lanes(end);
+    alignas(16) float hi[4], lo[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        hi[i] = origin.v[i] > e.v[i] ? origin.v[i] : e.v[i];  // MAXPS(origin, end)
+        lo[i] = origin.v[i] < e.v[i] ? origin.v[i] : e.v[i];  // MINPS(origin, end)
+    }
+    const float half = title_global<float>(0x0083eb24);
+    float extent[4];
+    for (uint32_t i = 0; i < 4; ++i) extent[i] = maxs[i] - (mins[i] + maxs[i]) * half;
+    float r = extent[0];
+    if (r > extent[2]) r = extent[2];
+    const float shrink[4] = {r, r, 0.0f, r};
+    for (uint32_t i = 0; i < 4; ++i) lo[i] = lo[i] - shrink[i];
+    const float grow[4] = {r, r, r * title_global<float>(0x0083ece8), r};  // 5
+    for (uint32_t i = 0; i < 4; ++i) hi[i] = hi[i] + grow[i];
+    const float* const zero = &title_global<float>(0x0082e3c0);
+    if (box_inside(&at<float>(ent, 0x430), lo, hi, &at<float>(ent, 0x440), zero)) {
+        bool found = false;
+        const int32_t count_a = at<int32_t>(lists_a, 0x804);
+        const uint8_t* const* list_a = at<const uint8_t* const*>(lists_a, 0x800);
+        for (int32_t i = 0; i < count_a; ++i) {
+            const uint8_t* const brush = list_a[i];
+            if (!(brush[4] & 8)) continue;
+            if (box_inside(&at<float>(brush, 0x10), hi, lo, &at<float>(brush, 0x10), &at<float>(brush, 0x20))) {
+                found = true;
+                break;
+            }
+        }
+        bool hit = false;
+        const int32_t count_b = at<int32_t>(lists_b, 0x1004);
+        const uint8_t* const list_b = at<const uint8_t*>(lists_b, 0x1000);
+        for (int32_t i = 0; i < count_b; ++i) {
+            const uint8_t* const brush = at<const uint8_t*>(list_b, i * 8);
+            if (!(brush[4] & 8)) continue;
+            if (box_inside(&at<float>(brush, 0x10), hi, lo, &at<float>(brush, 0x10), &at<float>(brush, 0x20))) {
+                hit = true;
+                break;
+            }
+        }
+        if (!hit && !found) return;
+    }
+    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
+                                           at<uint32_t>(pm, 0x5c));
+    if (!trace_hit_ladder(trace)) return;
+    uint8_t* const p = pm_global();
+    if (title_global<uint32_t>(0x0095ffac) && static_cast<int8_t>(p[0x18]) <= 0) return;
+    for (uint32_t i = 0; i < 3; ++i) at<float>(pm_ps_ref(p), 0x64 + i * 4) = at<float>(trace, 0x10 + i * 4);
+    if (on_ladder) {
+        at<uint32_t>(pm_ps_ref(p), 0x2c) |= 0x10;
+        return;
+    }
+    uint8_t* q = pm_ps_ref(p);
+    const float n0 = 0.0f - at<float>(q, 0x64), n1 = 0.0f - at<float>(q, 0x68), n2 = 0.0f - at<float>(q, 0x6c);
+    end[0] = n0 * dist + at<float>(q, 0);
+    end[1] = n1 * dist + at<float>(pm_ps_ref(p), 4);
+    end[2] = n2 * dist + at<float>(pm_ps_ref(p), 8);
+    q = pm_ps_ref(p);
+    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(q, 0), mins, maxs, end, at<uint32_t>(q, 0x7c),
+                                           at<uint32_t>(p, 0x5c));
+    if (trace_hit_ladder(trace)) at<uint32_t>(pm_ps_ref(pm_global()), 0x2c) |= 0x10;
+}
+
+void XB_CDECL PM_PeriodicContentsEvent() {
+    // The xy speed (pm +0x124) below the start speed (int 0x00927ecc): a stamp (+0x40) older than 0x0092f00c ms is
+    // cleared. At or above it, the interval goes from 0x0092f0ac to 0x00929c44 ms over the speeds up to 0x0093e6cc;
+    // once it has passed, a box of the player's bounds (x0.75, top x0.9) at the origin that starts in contents 2 adds event 0x8b
+    // and restamps.
+    uint8_t* const pm = pm_global();
+    alignas(16) uint8_t trace[0x40] = {};
+    const int32_t start = title_global<int32_t>(0x00927ecc);
+    const float level = static_cast<float>(start);
+    uint8_t* const ps = pm_ps_ref(pm);
+    if (level > at<float>(pm, 0x124)) {
+        if (at<int32_t>(ps, 0x40) + title_global<int32_t>(0x0092f00c) < at<int32_t>(pm, 4)) at<uint32_t>(ps, 0x40) = 0;
+        return;
+    }
+    float frac = (at<float>(pm, 0x124) - level) / static_cast<float>(title_global<int32_t>(0x0093e6cc) - start);
+    const float one = title_global<float>(0x0083eb20);
+    if (frac > one) frac = one;
+    const int32_t lo = title_global<int32_t>(0x0092f0ac);
+    const int32_t interval =
+        static_cast<int32_t>(static_cast<float>(title_global<int32_t>(0x00929c44) - lo) * frac + static_cast<float>(lo));
+    if (interval + at<int32_t>(ps, 0x40) >= at<int32_t>(pm, 4)) return;
+    const float k = title_global<float>(0x0083eb58);  // 0.75
+    float mins[3], maxs[3];
+    mins[0] = at<float>(pm, 0x100) * k;
+    mins[1] = at<float>(pm, 0x104) * k;
+    mins[2] = at<float>(pm, 0x108) * k;
+    maxs[0] = at<float>(pm, 0x110) * k;
+    maxs[1] = at<float>(pm, 0x114) * k;
+    maxs[2] = at<float>(pm, 0x118) * title_global<float>(0x0083ec18);  // 0.9
+    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, &at<float>(ps, 0), at<uint32_t>(ps, 0x7c),
+                                           2);
+    if (!trace[0x3d]) return;
+    uint8_t* const p = pm_global();
+    add_ps_event(pm_ps_ref(p), 0x8b, 0);
+    at<uint32_t>(pm_ps_ref(p), 0x40) = at<uint32_t>(p, 4);
 }
 
 }  // namespace game

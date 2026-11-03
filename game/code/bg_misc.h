@@ -77,4 +77,12 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL BG_GetWeaponSpread(float* out, uint32_t
                                                          int32_t ads);
 extern "C" void BG_GetWeaponSpread_entry(void);
 
+// 0x002d62c0 (time in EAX, out in ECX, trajectory in EDI): Q3's BG_EvaluateTrajectory (types 0-10).
+extern "C" PLATFORM_HIDDEN void XB_CDECL BG_EvaluateTrajectory(int32_t time, float* out, const uint8_t* tr);
+extern "C" void BG_EvaluateTrajectory_entry(void);
+// 0x002d5bf0 (end in ESI, fire block in EDI; cdecl spread): Bullet_RandomSpread at a fixed range of 10000. Dead
+// code: no calls, jumps or stored pointers.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Bullet_RandomSpreadFixed(float* end, const uint8_t* fire, float spread);
+extern "C" void Bullet_RandomSpreadFixed_entry(void);
+
 }  // namespace game

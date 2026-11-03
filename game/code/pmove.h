@@ -175,4 +175,24 @@ void XB_CDECL PM_ReduceGroundSpeed();
 // trajectory.
 uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityStateExtraPolate(uint8_t* es, uint32_t, uint8_t* ps, uint32_t time);
 
+// 0x002bbe40: the end of a weapon change to the commanded weapon (raise state 1, events, anims); 0 when not
+// changing.
+uint32_t XB_CDECL PM_FinishWeaponChange();
+// 0x002bc990: Q3's PM_CrashLand - fall damage, slowdown and the land / step events.
+void XB_CDECL PM_CrashLand();
+// 0x002c84e0: Q3's PM_NoclipMove.
+void XB_CDECL PM_NoclipMove();
+// 0x002ce160: the movement direction (+0x78) from the body yaw, the ladder normal or the frame's move.
+void XB_CDECL PM_SetMovementDir();
+// 0x002c8110 (was FUN_002c8110): a noclip move with forward kept horizontal and up/down from buttons.
+void XB_CDECL PM_NoclipFlatMove();
+// 0x002e2ac0 (was FUN_002e2ac0): prone feet / steep ground events and the prone pitch (+0x454) and roll (+0x458)
+// toward the ground plane.
+void XB_CDECL PM_UpdateProneTilt();
+// 0x002eb610 (was FUN_002eb610): the ladder check (pm_flags 0x10, ladder normal +0x64).
+void XB_CDECL PM_DetectLadder();
+// 0x002ebaf0 (was FUN_002ebaf0): event 0x8b at an interval set by the xy speed (pm +0x124) while the player moves
+// through contents 2.
+void XB_CDECL PM_PeriodicContentsEvent();
+
 }  // namespace game

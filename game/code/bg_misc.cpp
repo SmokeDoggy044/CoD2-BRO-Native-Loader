@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "cm.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -404,6 +406,165 @@ void XB_CDECL BG_GetWeaponSpread(float* out, uint32_t weapon, const uint8_t* ps,
         from = prone, to = crouch;
     }
     *out = (f(to) - f(from)) * frac + f(from);
+}
+
+namespace {
+
+const float& tr_float(const uint8_t* tr, uint32_t offset) { return *reinterpret_cast<const float*>(tr + offset); }
+
+// TR_SINE on the x87: s = fsin((time / duration) * 2 pi) (FILD/FIDIV/FMUL), out = s * delta + base, each stored.
+void x87_trajectory_sine(int32_t elapsed, const int32_t* duration, const float* two_pi, const uint8_t* tr, float* out) {
+    __asm__ volatile("fildl %0\n\tfidivl (%1)\n\tfmuls (%2)\n\tfsin\n\t"
+                     "fld %%st(0)\n\tfmuls 0x18(%3)\n\tfadds 0xc(%3)\n\tfstps (%4)\n\t"
+                     "fld %%st(0)\n\tfmuls 0x1c(%3)\n\tfadds 0x10(%3)\n\tfstps 4(%4)\n\t"
+                     "fmuls 0x20(%3)\n\tfadds 0x14(%3)\n\tfstps 8(%4)"
+                     :
+                     : "m"(elapsed), "r"(duration), "r"(two_pi), "r"(tr), "r"(out)
+                     : "st", "st(1)", "memory");
+}
+
+// |delta| / (duration * 0.001) on the x87 (the title's FLD/FMUL/FADDP order, FDIVP), stored as float.
+float x87_trajectory_accel(const uint8_t* tr, int32_t duration, const float* milli) {
+    float r;
+    __asm__("flds %3\n\tflds %2\n\tflds %1\n\tfld %%st(0)\n\tfmul %%st(1), %%st\n\tfld %%st(2)\n\tfmul %%st(3), %%st\n\t"
+            "faddp\n\tfld %%st(3)\n\tfmul %%st(4), %%st\n\tfaddp\n\tfsqrt\n\tfstp %%st(3)\n\tfstp %%st(0)\n\t"
+            "fstp %%st(0)\n\tfildl %4\n\tfmuls %5\n\t.byte 0xde, 0xf9\n\tfstps %0"  // fdivp st(1),st
+            : "=m"(r)
+            : "m"(tr_float(tr, 0x18)), "m"(tr_float(tr, 0x1c)), "m"(tr_float(tr, 0x20)), "m"(duration), "m"(*milli)
+            : "st", "st(1)", "st(2)", "st(3)", "st(4)");
+    return r;
+}
+
+// out = delta * t + base.
+void trajectory_linear(const uint8_t* tr, float t, float* out) {
+    for (uint32_t i = 0; i < 3; ++i) out[i] = tr_float(tr, 0x18 + i * 4) * t + tr_float(tr, 0xc + i * 4);
+}
+
+// tan(degrees * pi / 180) through the title's __CItan, stored as float.
+float bg_tan_degrees(float degrees, float pi, float half_turn) {
+    float result;
+    __asm__ volatile("flds %1\n\tfmuls %2\n\tfdivs %3\n\tcall *%4\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(degrees), "m"(pi), "m"(half_turn), "r"(uintptr_t{0x0033af10})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(BG_EvaluateTrajectory_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(BG_EvaluateTrajectory) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL BG_EvaluateTrajectory(int32_t time, float* out, const uint8_t* tr) {
+    // Q3's BG_EvaluateTrajectory over trajectory_t {type, time +4, duration +8, base +0xc, delta +0x18}: types 0, 1
+    // and 8 copy the base, 2 linear, 3 linear stopping at time + duration (t at least 0), 4 sine (x87), 5-7 gravity
+    // (g = 0x0094d450; z -= g t t / 2, g * 0.3 t t / 2, g * 0.2 t / 2), 9 / 10 accelerate / decelerate along the
+    // normalized delta (|delta| / duration; the normalized vector goes into out, 16 bytes), others 0.
+    const int32_t start = *reinterpret_cast<const int32_t*>(tr + 4);
+    const int32_t duration = *reinterpret_cast<const int32_t*>(tr + 8);
+    const float milli = title_global<float>(0x0083eb4c);  // 0.001
+    const float half = title_global<float>(0x0083eb24);
+    float t;
+    switch (*reinterpret_cast<const uint32_t*>(tr)) {
+    case 0:
+    case 1:
+    case 8:
+        for (uint32_t i = 0; i < 3; ++i)
+            reinterpret_cast<uint32_t*>(out)[i] = *reinterpret_cast<const uint32_t*>(tr + 0xc + i * 4);
+        return;
+    case 2:
+        trajectory_linear(tr, static_cast<float>(time - start) * milli, out);
+        return;
+    case 3: {
+        const int32_t end = duration + start;
+        if (time > end) time = end;
+        t = static_cast<float>(time - start) * milli;
+        if (0.0f > t) t = 0.0f;
+        trajectory_linear(tr, t, out);
+        return;
+    }
+    case 4:
+        x87_trajectory_sine(time - start, reinterpret_cast<const int32_t*>(tr + 8), &title_global<float>(0x0083edac), tr,
+                            out);
+        return;
+    case 5: {
+        t = static_cast<float>(time - start) * milli;
+        trajectory_linear(tr, t, out);
+        const float g = title_global<float>(0x0094d450) * t * t;
+        out[2] = out[2] - g * half;
+        return;
+    }
+    case 6: {
+        t = static_cast<float>(time - start) * milli;
+        trajectory_linear(tr, t, out);
+        const float g = title_global<float>(0x0094d450) * title_global<float>(0x0083066c) * t * t;  // 0.3
+        out[2] = out[2] - g * half;
+        return;
+    }
+    case 7: {
+        t = static_cast<float>(time - start) * milli;
+        trajectory_linear(tr, t, out);
+        const float g = title_global<float>(0x0094d450) * title_global<float>(0x0083eca0) * t;  // 0.2
+        out[2] = out[2] - g * half;
+        return;
+    }
+    case 9:
+    case 10: {
+        const float accel = x87_trajectory_accel(tr, duration, &title_global<float>(0x0083eb4c));
+        const int32_t end = duration + start;
+        if (time > end) time = end;
+        t = static_cast<float>(time - start) * milli;
+        alignas(16) float dir[4] = {tr_float(tr, 0x18), tr_float(tr, 0x1c), tr_float(tr, 0x20), tr_float(tr, 0x18)};
+        Vec4Normalize(dir, out);
+        if (*reinterpret_cast<const uint32_t*>(tr) == 9) {
+            const float k = accel * t * t * half;
+            for (uint32_t i = 0; i < 3; ++i) out[i] = k * out[i] + tr_float(tr, 0xc + i * 4);
+            return;
+        }
+        const float k = accel * t * t * title_global<float>(0x0083eb28);  // -0.5
+        const float b0 = tr_float(tr, 0x18) * t + tr_float(tr, 0xc);
+        const float b1 = t * tr_float(tr, 0x1c) + tr_float(tr, 0x10);
+        const float b2 = tr_float(tr, 0x20) * t + tr_float(tr, 0x14);
+        out[0] = k * out[0] + b0;
+        out[1] = k * out[1] + b1;
+        out[2] = k * out[2] + b2;
+        return;
+    }
+    default:
+        out[2] = 0.0f;
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+        return;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Bullet_RandomSpreadFixed_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Bullet_RandomSpreadFixed) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Bullet_RandomSpreadFixed(float* end, const uint8_t* fire, float spread) {
+    // Bullet_RandomSpread with the range fixed at 10000: end = start (+0x24) + forward (+0) * 10000 + a random
+    // point of the spread cone's disc (radius tan(spread) * 10000) along right (+0xc) and up (+0x18).
+    const float pi = title_global<float>(0x0083ed00), half_turn = title_global<float>(0x0083eb60);
+    const float range = title_global<float>(0x0083f010);  // 10000
+    const float radius = platform_x87_mul(bg_tan_degrees(spread, pi, half_turn), range);
+    const float scale = title_global<float>(0x0083ebc8);  // 32768
+    using Rand = int32_t XB_CDECL();
+    const float angle = static_cast<float>(title_function<Rand>(0x001efcc0)()) / scale * title_global<float>(0x0083ebcc);
+    const float distance = static_cast<float>(title_function<Rand>(0x001efcc0)()) / scale;
+    float sine, cosine;
+    FastSinCos(&sine, 0, &cosine, angle * pi / half_turn);
+    const float u = cosine * distance * radius;
+    const float v = sine * distance * radius;
+    const auto f = [fire](uint32_t offset) { return *reinterpret_cast<const float*>(fire + offset); };
+    for (uint32_t i = 0; i < 3; ++i) end[i] = f(4 * i) * range + f(0x24 + 4 * i);
+    for (uint32_t i = 0; i < 3; ++i) end[i] = f(0xc + 4 * i) * u + end[i];
+    for (uint32_t i = 0; i < 3; ++i) end[i] = f(0x18 + 4 * i) * v + end[i];
 }
 
 }  // namespace game

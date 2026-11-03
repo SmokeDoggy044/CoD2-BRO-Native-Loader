@@ -388,4 +388,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_FilterEntriesInBox_body(uint8_t* o
                                                                      const float* maxs, uint32_t mask);
 extern "C" void Phys_FilterEntriesInBox_entry(void);
 
+// 0x0025d050 (entity in EBX; was FUN_0025d050): a vehicle overlapping another slot's type-2 vehicle gets its
+// state (+0x248) reset from the defaults.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_ResetOnVehicleOverlap(uint8_t* ent);
+extern "C" void Vehicle_ResetOnVehicleOverlap_entry(void);
+
 }  // namespace game
