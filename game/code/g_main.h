@@ -134,6 +134,29 @@ extern "C" void G_ReloadLevel_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved);
 extern "C" void G_RestorePlayerHealth_entry(void);
 
+// 0x002c7f00 (EAX entity, ECX checkpoint record): for the level the checkpoint was saved in (+0x55c = mapname) with a
+// checkpoint name (+0x558): sets cvar checkpoint, moves an info_player_start to the saved player spot (+0x384 origin,
+// +0x378 angles) and an entity whose targetname matches a saved spot (+0x394, 0x1c each) there; a sentient drops its
+// goal node claim (+0x48) and every node claim it holds.
+void XB_REGS3 XB_CDECL G_ApplyCheckpointStart(uint8_t* ent, uint32_t unused_edx, uint8_t* checkpoint);
+// 0x002cdbc0 (EDI checkpoint record): resets it (flags, counts, name, checkpoint cvar "0", both hash maps).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_ClearCheckpoint(uint8_t* checkpoint);
+extern "C" void G_ClearCheckpoint_entry(void);
+// 0x002cdca0 (ESI checkpoint record): constructs it (script strings, 16 spots, two hash maps of 9 buckets), then the
+// reset of G_ClearCheckpoint without the name clear. Returns the record.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Checkpoint_Init(uint8_t* checkpoint);
+extern "C" void Checkpoint_Init_entry(void);
+// 0x002d5ad0 (EAX saved loadout): with +0x390 and +0 set, copies weapons (+0x50) and ammo (+0x1c0) into the player's
+// state (+0x110, +0x280) and +0x330..+0x344 to +0x3f0, selects the saved weapon (+0x348), G_RestorePlayerHealth.
+void XB_REGS1 XB_CDECL G_RestorePlayerLoadout(const uint8_t* saved);
+
+// 0x002cd750 (EAX checkpoint name, EBX checkpoint record; stack at-player flag; callee pops): with no letterbox
+// (else Sys_DebugBreak) and a new name, saves the level, the spot (the player's, or the entity named by targetname
+// whose +0x27c names the checkpoint, yaw only), the player's health/weapons/ammo/selected weapon, marks scene zones
+// 1 -> 2, copies the persistent map (+0x350 -> +0x56c) and up to 16 squad actors' spots.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t at_player);
+extern "C" void G_SaveCheckpoint_entry(void);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

@@ -5,6 +5,7 @@
 #include "actor.h"
 #include "cgame.h"
 #include "dobj.h"
+#include "g_pathnode.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
@@ -1246,6 +1247,241 @@ void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved) {
     }
     *reinterpret_cast<int32_t*>(client + 0x100) = health;
     *reinterpret_cast<int32_t*>(player + 0x350) = health;
+}
+
+void XB_REGS3 XB_CDECL G_ApplyCheckpointStart(uint8_t* ent, uint32_t, uint8_t* checkpoint) {
+    const auto stricmp = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443);  // __stricmp
+    auto text_of = [](uint32_t string) { return string ? reinterpret_cast<const char*>(uintptr_t{string + 6}) : nullptr; };
+    // Only for the level the checkpoint was saved in (+0x55c against the map name 0x00988c58).
+    if (stricmp(text_of(word_at(checkpoint, 0x55c)), reinterpret_cast<const char*>(uintptr_t{0x00988c58}))) return;
+    const uint32_t name = word_at(checkpoint, 0x558);
+    if (!name || !*text_of(name)) return;
+    Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x008353b8}), const_cast<char*>(text_of(word_at(checkpoint, 0x558))),
+              1);  // "checkpoint"
+    if (ScriptString_Equals(reinterpret_cast<const ScriptString*>(ent + 0x25c),
+                            reinterpret_cast<const char*>(uintptr_t{0x008353a4}))) {  // "info_player_start"
+        word_at(ent, 0x140) = word_at(checkpoint, 0x384);
+        word_at(ent, 0x144) = word_at(checkpoint, 0x388);
+        word_at(ent, 0x148) = word_at(checkpoint, 0x38c);
+        word_at(ent, 0x150) = word_at(checkpoint, 0x378);
+        word_at(ent, 0x154) = word_at(checkpoint, 0x37c);
+        word_at(ent, 0x158) = word_at(checkpoint, 0x380);
+    }
+    // The saved entity spots (+0x394, 0x1c bytes: targetname, angles, origin) by targetname (+0x264).
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(checkpoint, 0x554)); ++i) {
+        uint8_t* const spot = checkpoint + 0x394 + i * 0x1c;
+        if (!ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(ent + 0x264),
+                                       reinterpret_cast<const ScriptString*>(spot)))
+            continue;
+        word_at(ent, 0x140) = word_at(spot, 0x10);
+        word_at(ent, 0x144) = word_at(spot, 0x14);
+        word_at(ent, 0x148) = word_at(spot, 0x18);
+        word_at(ent, 0x150) = word_at(spot, 4);
+        word_at(ent, 0x154) = word_at(spot, 8);
+        word_at(ent, 0x158) = word_at(spot, 0xc);
+        break;
+    }
+    uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x244)});
+    if (!sentient) return;
+    const uint16_t* const goal = reinterpret_cast<const uint16_t*>(sentient + 0x48);
+    if (PathNode_HandleIsValid(goal) & 0xff) {
+        Sentient_ClearNodeClaim(0, PathNode_FromHandle2(goal));
+        *reinterpret_cast<uint16_t*>(sentient + 0x48) = 0;
+    }
+    PathNode_ReleaseClaimsBy(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sentient)),
+                             title_global<uint8_t*>(0x0095f4f4));  // g_pathNodeBlocks
+}
+
+namespace {
+
+// The checkpoint record's state reset (G_ClearCheckpoint, Checkpoint_Init): flags, counts, the checkpoint cvar to
+// "0", +4 and the two 6-word blocks at +0x20 and +0x38.
+void checkpoint_reset(uint8_t* checkpoint, bool clear_name) {
+    checkpoint[0x390] = 0;
+    checkpoint[0] = 0;
+    word_at(checkpoint, 0x554) = 0;
+    *reinterpret_cast<float*>(checkpoint + 0x34c) = 0.0f;
+    word_at(checkpoint, 0x594) = 0;
+    if (clear_name) title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(checkpoint + 0x558);  // ScriptString_Clear
+    Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x008353b8}), reinterpret_cast<char*>(uintptr_t{0x0082e098}),
+              1);  // checkpoint "0"
+    word_at(checkpoint, 4) = 0;
+    zero(checkpoint, 0x20, 0x38);
+    zero(checkpoint, 0x38, 0x50);
+}
+
+// A hash map of the checkpoint (list at +list, its head +4; bucket vector at +list+0xc; +0x1c/+0x20 = 1) emptied.
+void checkpoint_map_clear(uint8_t* checkpoint, uint32_t list) {
+    std_list_Clear(checkpoint + list);
+    uint32_t head = word_at(checkpoint, list + 4);
+    std_vector_Assign4(&head, reinterpret_cast<Vector4*>(checkpoint + list + 0xc), 9);
+    word_at(checkpoint, list + 0x1c) = 1;
+    word_at(checkpoint, list + 0x20) = 1;
+}
+
+// The same map constructed: allocator byte (an uninitialised local in the original; 0 under tests), a new head and
+// 9 buckets pointing at it.
+void checkpoint_map_init(uint8_t* checkpoint, uint32_t list) {
+    checkpoint[list - 4] = 0;
+    const uint32_t head = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(std_list_BuyHeadZ()));
+    word_at(checkpoint, list + 4) = head;
+    word_at(checkpoint, list + 8) = 0;
+    std_vector_ConstructN4Z(9, checkpoint + list + 0xc, &head);
+    word_at(checkpoint, list + 0x1c) = 1;
+    word_at(checkpoint, list + 0x20) = 1;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(G_ClearCheckpoint_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_ClearCheckpoint) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_ClearCheckpoint(uint8_t* checkpoint) {
+    checkpoint_reset(checkpoint, true);
+    checkpoint_map_clear(checkpoint, 0x570);
+    checkpoint_map_clear(checkpoint, 0x354);
+}
+
+PLATFORM_ASM_ENTRY(Checkpoint_Init_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Checkpoint_Init) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Checkpoint_Init(uint8_t* checkpoint) {
+    using FromRep = void XB_THISCALL(uint8_t*, uint32_t);
+    const auto from_rep = title_function<FromRep>(0x0011d5d0);  // ScriptString_FromRep
+    for (uint32_t i = 0; i < 6; ++i) from_rep(checkpoint + 8 + i * 4, 0);
+    checkpoint_map_init(checkpoint, 0x354);
+    for (uint32_t i = 0; i < 16; ++i) {
+        uint8_t* const spot = checkpoint + 0x394 + i * 0x1c;
+        from_rep(spot, 0);
+        for (uint32_t f = 4; f < 0x1c; f += 4) *reinterpret_cast<float*>(spot + f) = 0.0f;
+    }
+    from_rep(checkpoint + 0x558, 0);
+    from_rep(checkpoint + 0x55c, 0);
+    word_at(checkpoint, 0x560) = 0;
+    word_at(checkpoint, 0x564) = 0;
+    word_at(checkpoint, 0x568) = 0;
+    checkpoint_map_init(checkpoint, 0x570);
+    checkpoint_reset(checkpoint, false);
+    return checkpoint;
+}
+
+void XB_REGS1 XB_CDECL G_RestorePlayerLoadout(const uint8_t* saved) {
+    if (!saved[0x390] || !saved[0]) return;
+    uint8_t* const player = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4);
+    auto ps = [&] { return reinterpret_cast<uint8_t*>(uintptr_t{word_at(player, 0x23c)}); };
+    std::memcpy(ps() + 0x110, saved + 0x50, 0x170);   // weapons
+    std::memcpy(ps() + 0x280, saved + 0x1c0, 0x170);  // ammo
+    for (uint32_t f = 0; f < 0x18; f += 4)
+        word_at(ps(), 0x3f0 + f) = *reinterpret_cast<const uint32_t*>(saved + 0x330 + f);
+    CG_SelectWeapon(*reinterpret_cast<const int32_t*>(saved + 0x348));
+    G_RestorePlayerHealth(saved);
+}
+
+PLATFORM_ASM_ENTRY(G_SaveCheckpoint_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_SaveCheckpoint) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t at_player) {
+    auto text = [](uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); };
+    auto ent_at = [](uint32_t word) { return reinterpret_cast<uint8_t*>(uintptr_t{word}); };
+    uint8_t* const letterbox = Cvar_Get(text(0x00835390), text(0x0082e098), 0);  // letterbox_enabled "0"
+    if (word_at(letterbox, 0x20)) {
+        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        return;
+    }
+    if (!name || !*name) return;
+    ScriptString* const current = reinterpret_cast<ScriptString*>(checkpoint + 0x558);
+    const uint32_t current_word = word_at(checkpoint, 0x558);
+    if (current_word && *text(current_word + 6) && ScriptString_Equals(current, name)) return;
+    using AssignCString = void XB_THISCALL(uint8_t*, const char*);
+    const auto assign_cstring = title_function<AssignCString>(0x0011dd20);  // ScriptString_AssignCString
+    uint8_t* source;
+    if (!static_cast<uint8_t>(at_player)) {
+        // The entity whose targetname is the name: its +0x27c string names the checkpoint.
+        uint32_t local = 0;
+        title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&local, name);  // ScriptString_FromCString
+        const uint32_t key = Com_HashKeyNoCase(0, text(0x0082dda8));  // "targetname"
+        using Find = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+        const uint32_t handle =
+            title_function<Find>(word_at(title_global<uint8_t*>(0x0095f49c), 0x84))(&local, key, 0, 0, 0);
+        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&local);  // ScriptString_Release
+        local = handle;
+        source = G_EntHandleToEnt(&local);
+        if (!source) return;
+        const uint32_t label = word_at(source, 0x27c);
+        if (!label) return;
+        if (title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(source + 0x27c)) return;  // ScriptString_IsEmpty
+        if (ScriptString_EqualsString(current, reinterpret_cast<const ScriptString*>(source + 0x27c))) return;
+        title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(checkpoint + 0x558,
+                                                                             source + 0x27c);  // ScriptString_Assign
+        assign_cstring(checkpoint + 0x55c, text(0x00988c58));  // the map name
+        word_at(checkpoint, 0x378) = 0;  // 0.0f
+        word_at(checkpoint, 0x37c) = word_at(source, 0x154);
+        word_at(checkpoint, 0x380) = 0;
+    } else {
+        source = ent_at(word_at(title_global<uint8_t*>(0x0095f534), 4));  // the player
+        if (!source) return;
+        assign_cstring(checkpoint + 0x55c, text(0x00988c58));
+        assign_cstring(checkpoint + 0x558, name);
+        word_at(checkpoint, 0x378) = word_at(source, 0x150);
+        word_at(checkpoint, 0x37c) = word_at(source, 0x154);
+        word_at(checkpoint, 0x380) = word_at(source, 0x158);
+    }
+    word_at(checkpoint, 0x384) = word_at(source, 0x140);
+    word_at(checkpoint, 0x388) = word_at(source, 0x144);
+    word_at(checkpoint, 0x38c) = word_at(source, 0x148);
+    // The player's health (capped at the max, 0 -> max), weapons, ammo and selected weapon.
+    uint8_t* const level = title_global<uint8_t*>(0x0095f534);
+    auto ps = [&] { return ent_at(word_at(ent_at(word_at(level, 4)), 0x23c)); };
+    int32_t health = static_cast<int32_t>(word_at(ps(), 0x100));
+    if (health > static_cast<int32_t>(word_at(ps(), 0x108)) || !word_at(ps(), 0x100))
+        health = static_cast<int32_t>(word_at(ps(), 0x108));
+    word_at(checkpoint, 4) = static_cast<uint32_t>(health);
+    word_at(checkpoint, 0x34c) = title_global<uint32_t>(0x0083ece8);  // 5.0f
+    if (!health) word_at(checkpoint, 4) = word_at(ps(), 0x108);
+    std::memcpy(checkpoint + 0x50, ps() + 0x110, 0x170);
+    std::memcpy(checkpoint + 0x1c0, ps() + 0x280, 0x170);
+    for (uint32_t f = 0; f < 0x18; f += 4) word_at(checkpoint, 0x330 + f) = word_at(ps(), 0x3f0 + f);
+    uint8_t* const defs = title_global<uint8_t*>(0x0095f4d8);  // bg_weaponDefs
+    uint32_t weapon = word_at(ps(), 0x80);
+    if (word_at(ent_at(word_at(defs, weapon * 4)), 0x98) == 5) {
+        // A weapon of class 5 is saved as the alternate (+0x94) unless that is class 5 too.
+        const uint32_t alternate = word_at(ps(), 0x94);
+        weapon = word_at(ent_at(word_at(defs, alternate * 4)), 0x98) == 5 ? 0 : alternate;
+    }
+    word_at(checkpoint, 0x348) = weapon;
+    checkpoint[0x390] = 1;
+    ++word_at(checkpoint, 0x594);
+    // Scene zones in state 1 become 2.
+    uint8_t* const scenes = ent_at(word_at(title_global<uint8_t*>(0x0095f4f8), 0x194));  // scn_zoneScenes
+    for (uint32_t i = 0; i < word_at(scenes, 0); ++i) {
+        uint8_t* const states = ent_at(word_at(scenes, 4));
+        const uint32_t count = word_at(scenes, 0);
+        if (states[i < count ? i : 0] == 1) states[i < count ? i : 0] = 2;
+    }
+    if (checkpoint + 0x56c != checkpoint + 0x350)
+        HashMap_CopyFrom_7(reinterpret_cast<const HashMap*>(checkpoint + 0x350), reinterpret_cast<HashMap*>(checkpoint + 0x56c));
+    // Squad actors' spots (up to 16).
+    word_at(checkpoint, 0x554) = 0;
+    uint32_t* const end = &title_global<uint32_t>(0x0097d370 + title_global<uint32_t>(0x0097d36c) * 4);
+    for (uint32_t* slot = &title_global<uint32_t>(0x0097d370); slot != end; ++slot) {
+        uint8_t* const actor = ent_at(*slot);
+        if (!actor || actor[0] != 0xb || Actor_GetSquadSlot(actor) < 0) continue;
+        if (static_cast<int32_t>(word_at(checkpoint, 0x554)) >= 0x10) return;
+        auto spot = [&] { return checkpoint + 0x394 + word_at(checkpoint, 0x554) * 0x1c; };
+        word_at(spot(), 0x10) = word_at(actor, 0x140);
+        word_at(spot(), 0x14) = word_at(actor, 0x144);
+        word_at(spot(), 0x18) = word_at(actor, 0x148);
+        word_at(spot(), 4) = word_at(actor, 0x150);
+        word_at(spot(), 8) = word_at(actor, 0x154);
+        word_at(spot(), 0xc) = word_at(actor, 0x158);
+        title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(spot(), actor + 0x264);  // Assign
+        ++word_at(checkpoint, 0x554);
+    }
 }
 
 }  // namespace game

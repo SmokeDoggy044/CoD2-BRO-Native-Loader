@@ -351,4 +351,47 @@ void XB_CDECL CodNote_Free(uint8_t* note);
 // +0x14 within +0x20 of the end.
 void XB_CDECL G_ProcessCodNotes(uint32_t time);
 
+// 0x002c3870 (stdcall state): G_FreeEntity of every entity in the list 0x0097d370 (0x008d50d4 cleared before each),
+// then clears the state's +4 and +8.
+void XB_STDCALL G_FreeAllEntities(uint8_t* state);
+// 0x002c3960 (was FUN_002c3960; EAX entity, EDI check flag): a vehicle's tags (Vehicle_CacheTags), then each linked
+// child's link tag index refreshed (0x002be510: ECX check, EBX child; unlinks a child whose tag is gone).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_EntUpdateLinkedTags(uint8_t* ent, uint32_t check);
+extern "C" void G_EntUpdateLinkedTags_entry(void);
+// 0x002c39a0 (EBX slot count; cdecl name, base index, create, error label): the configstring slot (1..count-1)
+// after base whose text equals the name (stricmp); the first empty slot gets it with create (SV_SetConfigstring;
+// bases 0x20 and 0xe0 also set 0x0098601c). 0 for no name, no free slot, or not found without create.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL G_FindConfigstringIndex(int32_t max, const char* name, int32_t base,
+                                                                   uint32_t create, const char* error);
+extern "C" void G_FindConfigstringIndex_entry(void);
+// 0x002c4070: unlinks and frees (CodNote_Free) every cod note from the list's tail.
+void XB_CDECL G_FreeAllCodNotes();
+// 0x002c40c0: unlinks the note (Sys_DebugBreak when it is not in the list) and CodNote_Free.
+void XB_CDECL G_FreeCodNote(uint8_t* note);
+// 0x002c4110 (cdecl name, notify, start/end times as float bits, use the zone's memory context): a cod note (0x28
+// bytes) playing the zone raw file `name` as a streamed anim (NAL_StreamedAnim_Create), appended to the list.
+uint8_t* XB_CDECL G_CreateCodNote(const char* name, uint32_t notify, uint32_t start_bits, uint32_t end_bits,
+                                  uint32_t use_zone_context);
+
+// 0x002d5ba0 (was FUN_002d5ba0): with the use flag (ps +0x2c bit 0x1000000) and no blocking weapon (+0x3c set and
+// the weapon's +0x94 = 1 blocks), clears +0x3c and G_ClientActivateTargetActor; 1 when activated.
+uint32_t XB_CDECL PM_ActivateTargetActor();
+// 0x002d67a0 (EAX entity, ECX bone; stack out; callee pops): copies the bone's matrix (DObj +0x20 + 0x30, 0x40 each)
+// or the identity without a DObj (+0x22c). Returns out.
+float* XB_REGS3 XB_STDCALL G_DObjGetBoneMatrix(const uint8_t* ent, uint32_t unused_edx, uint32_t bone, float* out);
+// 0x002d6ba0 (EAX entity; stack memory context; callee pops): clears the entity (state, physics +0xd0, fields,
+// script strings; bounds +0x430/+0x440 = +-FLT_MAX; +0x2fc = -1), classname 0x00984ba4, adds it to the entity list
+// 0x0097a8c0. Returns it.
+uint8_t* XB_REGS1 XB_STDCALL G_InitGentity(uint8_t* ent, int32_t context);
+// 0x002d7030 (EAX memory context, -1 = the current one): a 0x460-byte entity from the context's heap (else
+// Heap_AllocAligned), G_InitGentity; counts the attempt (0x00985374). Null when out of memory.
+uint8_t* XB_REGS1 XB_CDECL G_Spawn(int32_t context);
+// 0x002d7c60 (EAX memory context, EDX entity, ECX model name): registers the model (+0x258); a "cdChar" model with
+// 15 skins gets a random skin variant in the entity's render record (+0xee).
+void XB_REGS3 XB_CDECL G_SetModel(int32_t context, uint8_t* ent, const char* name);
+
+// 0x002d6800 (EAX entity, ECX bone; stack out; callee pops): the bone's matrix times the entity's world matrix
+// (+0x160, 4 rows), or the identity without a DObj. Returns out.
+float* XB_REGS3 XB_STDCALL G_DObjGetWorldBoneMatrix(const uint8_t* ent, uint32_t unused_edx, uint32_t bone, float* out);
+
 }  // namespace game

@@ -724,4 +724,24 @@ void XB_REGS3 XB_CDECL Scn_InitUpdateGroups(uint32_t, uint8_t* zone, uint8_t* sc
     }
 }
 
+void XB_REGS1 XB_CDECL SP_worldspawn(uint8_t* spawn) {
+    auto text = [](uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); };
+    auto field = [&](uint32_t offset) { return *reinterpret_cast<const char* const*>(spawn + offset); };
+    SV_SetConfigstring(2, text(0x0083366c));  // "cod-sp"
+    SV_SetConfigstring(3, field(0xe0));
+    SV_SetConfigstring(4, field(0xe4));
+    const char* const gravity = field(0xe8);
+    Cvar_Set2(text(0x0083365c), const_cast<char*>(gravity ? gravity : text(0x00833668)), 1);  // g_gravity, "800"
+    const char* const fog = field(0xec);
+    SV_SetConfigstring(0xb, fog ? fog : text(0x0082e098));
+    uint8_t* const world = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 8);
+    using Assign = void XB_THISCALL(uint32_t*, const uint32_t*);
+    uint32_t* const classname = reinterpret_cast<uint32_t*>(world + 0x25c);
+    title_function<Assign>(0x0011d600)(classname, &title_global<uint32_t>(0x00984c88));  // ScriptString_Assign
+    const uint32_t name = *classname;
+    *reinterpret_cast<uint32_t*>(world + 0x260) =
+        Com_HashKeyNoCase(0, name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr);
+    G_UpdateEntityStringHashes(world);
+}
+
 }  // namespace game

@@ -72,4 +72,8 @@ void XB_CDECL ClientDisconnect(uint32_t handle);
 // update groups (0x60 bytes at +0x34, count +0x30) over frames: +0x58 = frame (+0x19c), 22 groups per frame (+0x198).
 void XB_REGS3 XB_CDECL Scn_InitUpdateGroups(uint32_t unused_eax, uint8_t* zone, uint8_t* scene);
 
+// 0x002c5e30 (spawn vars in EAX): configstrings 2 "cod-sp", 3/4 from +0xe0/+0xe4, 0xb from +0xec (or ""), g_gravity
+// from +0xe8 (or "800"); the world entity's classname set to 0x00984c88 and its hashes updated.
+void XB_REGS1 XB_CDECL SP_worldspawn(uint8_t* spawn);
+
 }  // namespace game
