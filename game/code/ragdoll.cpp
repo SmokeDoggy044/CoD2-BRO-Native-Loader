@@ -7,10 +7,13 @@
 #include "lanes.h"
 #include "phys.h"
 #include "phys_pool.h"
+#include "qcommon.h"
 #include "qcommon_core.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -1637,6 +1640,934 @@ uint8_t* XB_CDECL Ragdoll_Alloc(uint8_t* entity) {
     if (Ragdoll_BindBones(entity, ragdoll)) return ragdoll;
     RagdollPool_Free(ragdoll, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008dfde0}));
     return nullptr;
+}
+
+namespace {
+// Quaternion of a rotation given as three rows (w lanes 0), as the title's packed code does it:
+// the trace path, else the largest diagonal; every lane of each packed step is computed (MXCSR).
+// 0.5 / sqrt(s) on the x87.
+Lanes rows_to_quat(const Lanes& a, const Lanes& b, const Lanes& c) {
+    const float m0 = a.v[0], m4 = b.v[1], m8 = c.v[2];
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float trace = (m8 + m4) + m0;
+    Lanes q;
+    if (trace >= title_global<float>(0x0083efb8)) {  // -1/3
+        const float s = trace + one;
+        const float f = platform_x87_half_over_sqrt(s, half);
+        const Lanes t7 = sub(b, splat(a.v[1]));
+        const Lanes t6 = sub(splat(a.v[2]), c);
+        const Lanes t1 = sub(c, splat(b.v[2]));
+        platform_keep(t7);
+        platform_keep(t6);
+        platform_keep(t1);
+        q = mul(Lanes{{t1.v[1], t6.v[0], t7.v[0], s}}, splat(f));
+    } else if (m4 > m0 && m4 > m8) {
+        const float s = ((m4 - m0) - m8) + one;
+        const float f = platform_x87_half_over_sqrt(s, half);
+        const Lanes t6 = sub(splat(a.v[2]), c);
+        const Lanes t3 = add(c, splat(b.v[2]));
+        const Lanes t0 = add(b, splat(a.v[1]));
+        platform_keep(t6);
+        platform_keep(t3);
+        platform_keep(t0);
+        q = mul(Lanes{{t0.v[0], s, t3.v[1], t6.v[0]}}, splat(f));
+    } else if (!(m4 > m0) && m0 > m8) {
+        const float s = ((m0 - m4) - m8) + one;
+        const float f = platform_x87_half_over_sqrt(s, half);
+        const Lanes t2 = sub(c, splat(b.v[2]));
+        const Lanes t5 = add(c, splat(a.v[2]));
+        const Lanes t1 = add(b, splat(a.v[1]));
+        platform_keep(t2);
+        platform_keep(t5);
+        platform_keep(t1);
+        q = mul(Lanes{{s, t1.v[0], t5.v[0], t2.v[1]}}, splat(f));
+    } else {
+        const float s = ((m8 - m0) - m4) + one;
+        const float f = platform_x87_half_over_sqrt(s, half);
+        const Lanes t7 = sub(b, splat(a.v[1]));
+        const Lanes t7b = add(c, splat(b.v[2]));
+        const Lanes t0 = add(c, splat(a.v[2]));
+        platform_keep(t7);
+        platform_keep(t7b);
+        platform_keep(t0);
+        q = mul(Lanes{{t0.v[0], t7b.v[1], s, t7.v[0]}}, splat(f));
+    }
+    return q;
+}
+
+}  // namespace
+
+// Records of 0x60 bytes from the pool at 0x008dfdd0 (count 0x008dfdd4, 90): rows 0-2 of the base
+// rotation (w 0), the base origin (w 1), the rotation's quaternion (+0x40), the bone (+0x50), its
+// slot in the ragdoll bone table 0x008db38c (+0x54, -1) and that slot again at +0x58 when the bone
+// has a parent (else -1). Built once per model: kept while the pool holds at least numBones.
+void XB_STDCALL Ragdoll_CacheBaseBoneFrames(uint8_t* entity) {
+    int32_t& count = title_global<int32_t>(0x008dfdd4);
+    if (count > 0 && at<uint8_t>(at<uint8_t*>(entity, 0x22c), 0x2f) <= static_cast<uint32_t>(count)) return;
+    count = 0;
+    const int32_t bones = at<uint8_t>(at<uint8_t*>(entity, 0x22c), 0x2f);
+    for (int32_t bone = 0; bone < bones; ++bone) {
+        uint8_t* rec = nullptr;
+        if (count < 0x5a) {
+            rec = title_global<uint8_t*>(0x008dfdd0) + count * 0x60;
+            ++count;
+        }
+        at<int32_t>(rec, 0x54) = -1;
+        at<int32_t>(rec, 0x58) = -1;
+        at<int32_t>(rec, 0x50) = bone;
+        for (int32_t i = 0; i < 10; ++i) {
+            if (bone == title_global<int32_t>(0x008db38c + i * 8)) {
+                at<int32_t>(rec, 0x54) = i;
+                break;
+            }
+        }
+        if (DObj_GetBoneParent(at<const DObj*>(entity, 0x22c), bone) >= 0) at<int32_t>(rec, 0x58) = at<int32_t>(rec, 0x54);
+        const uint8_t* const pose = DObj_GetBoneBasePose(at<const DObj*>(entity, 0x22c), bone);
+        uint32_t m[9];
+        std::memcpy(m, pose, 0x24);
+        const uint32_t rows[12] = {m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0};
+        std::memcpy(rec, rows, 0x30);
+        uint8_t origin[16];
+        std::memcpy(origin, pose + 0x24, 16);
+        std::memcpy(rec + 0x30, origin, 16);
+        at<float>(rec, 0x3c) = title_global<float>(0x0083eb20);
+        const float* const r = reinterpret_cast<const float*>(rec);
+        const Lanes q = rows_to_quat(lanes(r), lanes(r + 4), lanes(r + 8));
+        std::memcpy(rec + 0x40, q.v, 16);
+    }
+}
+
+// Per bone of the entity's model, a quaternion (pool +0x5a0, count +0x5a4) and an origin (pool
+// +0xb50, count +0xb54; 16-byte records, 90 each) of its base pose local to its parent: the bone's
+// model matrix (obj +0x20, 0x40 apart, from +0x30) taken into the parent's transposed rotation;
+// root bones take DObj_GetBoneBasePose's rotation and origin.
+void XB_STDCALL PhysRagdoll_StoreLocalBasePose(uint8_t* phys, uint8_t* entity) {
+    const int32_t bones = at<uint8_t>(at<uint8_t*>(entity, 0x22c), 0x2f);
+    uint32_t stale = 0;  // the stack word after the root path's 9-word copy: the parent path's first word
+    for (int32_t bone = 0; bone < bones; ++bone) {
+        uint8_t* quat = nullptr;
+        int32_t& quats = at<int32_t>(phys, 0x5a4);
+        if (quats < 0x5a) {
+            quat = at<uint8_t*>(phys, 0x5a0) + quats * 16;
+            ++quats;
+        }
+        uint8_t* origin = nullptr;
+        int32_t& origins = at<int32_t>(phys, 0xb54);
+        if (origins < 0x5a) {
+            origin = at<uint8_t*>(phys, 0xb50) + origins * 16;
+            ++origins;
+        }
+        const DObj* const obj = at<const DObj*>(entity, 0x22c);
+        const int32_t parent = DObj_GetBoneParent(obj, bone);
+        Lanes q;
+        if (parent >= 0) {
+            const uint8_t* const base = at<uint8_t*>(obj, 0x20);
+            const float* const p = reinterpret_cast<const float*>(base + parent * 0x40 + 0x30);
+            const float* const b = reinterpret_cast<const float*>(base + bone * 0x40 + 0x30);
+            Lanes brow[4];
+            for (int32_t k = 0; k < 4; ++k) brow[k] = lanes(b + k * 4);
+            float prot[12];
+            std::memcpy(prot, p, 0x30);
+            const Lanes d = sub(brow[3], lanes(p + 12));
+            const Lanes t3 = rotate_into(prot, d);
+            const Lanes t2 = rotate_into(prot, brow[2]);
+            const Lanes t1 = rotate_into(prot, brow[1]);
+            const Lanes t0 = rotate_into(prot, brow[0]);
+            std::memcpy(&stale, &t0.v[0], 4);
+            q = rows_to_quat(t0, t1, t2);
+            std::memcpy(quat, q.v, 16);
+            std::memcpy(origin, t3.v, 16);
+        } else {
+            const uint8_t* const pose = DObj_GetBoneBasePose(obj, bone);
+            float m[10];
+            std::memcpy(m, pose, 0x24);
+            std::memcpy(&m[9], &stale, 4);
+            q = rows_to_quat(lanes(m), lanes(m + 3), lanes(m + 6));
+            std::memcpy(quat, q.v, 16);
+            const uint8_t* const again = DObj_GetBoneBasePose(at<const DObj*>(entity, 0x22c), bone);
+            uint8_t o[16];
+            std::memcpy(o, again + 0x24, 16);
+            std::memcpy(origin, o, 16);
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(VehiclePhys_TraceWheels_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VehiclePhys_TraceWheels) "addl $4, %esp\n"
+                   "ret")
+
+// ESI vehicle physics: with a body (+0x34), each of the four wheel points (+0x50, local) in the
+// body frame (+0x40) is traced down the frame's version of +0x90 against the world meshes, from
+// 2 * radius (+0x120) above over 4 * radius; a hit sets the wheel's flag (+0x130), the contact
+// point (+0xa0) and the plane (+0xe0). +0x134 (per wheel) is cleared.
+void XB_CDECL VehiclePhys_TraceWheels(uint8_t* phys) {
+    const uint8_t* const body = at<uint8_t*>(phys, 0x34);
+    if (!body) return;
+    const float* const m = reinterpret_cast<const float*>(body + 0x40);
+    float up[4];
+    std::memcpy(up, phys + 0x90, 16);
+    const Lanes dir = add(add(mul(lanes(m), up[0]), mul(lanes(m + 4), up[1])), mul(lanes(m + 8), up[2]));
+    for (int32_t i = 0; i < 4; ++i) {
+        phys[0x130 + i] = 0;
+        at<float>(phys, 0x134 + i * 4) = 0.0f;
+        float p[4];
+        std::memcpy(p, phys + 0x50 + i * 16, 16);
+        const Lanes world = transform_out(m, p);
+        const float radius = at<float>(phys, 0x120);
+        alignas(16) float start[4];
+        const Lanes s = sub(world, mul(splat(radius * title_global<float>(0x0083eba8)), dir));  // 2
+        std::memcpy(start, s.v, 16);
+        alignas(16) float delta[4];
+        const Lanes d = mul(splat(at<float>(phys, 0x120) * title_global<float>(0x0083100c)), dir);  // 4
+        std::memcpy(delta, d.v, 16);
+        alignas(16) float plane[4];
+        float fraction;
+        if (!CM_RayHitsWorldMeshes(start, delta, plane, &fraction)) continue;
+        phys[0x130 + i] = 1;
+        std::memcpy(phys + 0xe0 + i * 16, plane, 16);
+        const Lanes hit = add(lanes(start), mul(splat(fraction), lanes(delta)));
+        std::memcpy(phys + 0xa0 + i * 16, hit.v, 16);
+    }
+}
+
+namespace {
+
+// The world body (+8) of the entity's first physics object (0x008fccf0, count 0x008fcde4), or 0.
+uint8_t* entity_world_body(const void* entity) {
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        const uint8_t* const object = *reinterpret_cast<uint8_t* const*>(uintptr_t{it});
+        if (at<const void*>(object, 4) == entity) return at<uint8_t*>(object, 8);
+    }
+    return nullptr;
+}
+
+// A world point in a body's frame: the transposed rotation (+0) times point - origin (+0x30).
+Lanes body_local_point(const uint8_t* body, const Lanes& world) {
+    float rot[12];
+    std::memcpy(rot, body, 0x30);
+    return rotate_into(rot, sub(world, lanes(reinterpret_cast<const float*>(body + 0x30))));
+}
+
+}  // namespace
+
+// EAX point on a, stack (a, b, point on b): both entities' world bodies joined by a new attach
+// constraint (PhysWorld_AllocConstraint50) anchored at the points (entity matrices +0x160) in each
+// body's frame. The anchors are vec3 stores: a's w is the stack word left from b's matrix row 2
+// (+0x18c), b's the w of its point. No caller (no CALL, pointer or immediate): dead.
+void XB_REGS1 XB_CDECL Phys_AttachEntitiesAtPoints(const float* point_a, uint8_t* a, uint8_t* b, const float* point_b) {
+    uint8_t* const body_a = entity_world_body(a);
+    uint8_t* const body_b = entity_world_body(b);
+    if (!body_a || !body_b) return;
+    float pa[4];
+    std::memcpy(pa, point_a, 16);
+    const Lanes local_a = body_local_point(body_a, transform_out(reinterpret_cast<const float*>(a + 0x160), pa));
+    float pb[4];
+    std::memcpy(pb, point_b, 16);
+    const Lanes local_b = body_local_point(body_b, transform_out(reinterpret_cast<const float*>(b + 0x160), pb));
+    float anchor_a[4] = {local_a.v[0], local_a.v[1], local_a.v[2], 0.0f};
+    std::memcpy(&anchor_a[3], b + 0x18c, 4);
+    float anchor_b[4] = {local_b.v[0], local_b.v[1], local_b.v[2], pb[3]};
+    const uint32_t c = PhysWorld_AllocConstraint50(addr(body_a), addr(body_b));
+    PhysAttach_SetAnchors(reinterpret_cast<uint8_t*>(uintptr_t{c}), anchor_a, anchor_b);
+}
+
+// EAX vehicle physics: the debug view of its body (+0x34) with the drawing compiled out - the eight
+// box corners (half extents +0x40 in the body frame +0) and per wheel (+0x50) the suspension line
+// +-radius (+0x120) minus the wheel's compression (+0x134) along the frame's +0x90 are computed into
+// one dummy stack slot. Only the float math (MXCSR) is left. Called only from 0x00228bc0 (no
+// caller, pointer or immediate): dead.
+void XB_REGS1 XB_CDECL VehiclePhys_DebugDrawBody(const uint8_t* phys) {
+    const uint8_t* const body = at<uint8_t*>(phys, 0x34);
+    if (!body) return;
+    const float* const m = reinterpret_cast<const float*>(body);
+    const float half = title_global<float>(0x0083eb24);
+    for (int32_t i = 0; i < 2; ++i) {
+        for (int32_t j = 0; j < 2; ++j) {
+            for (int32_t k = 0; k < 2; ++k) {
+                const float x = i ? 0.0f - at<float>(phys, 0x40) : at<float>(phys, 0x40);
+                const float y = j ? 0.0f - at<float>(phys, 0x44) : at<float>(phys, 0x44);
+                const float z = k ? 0.0f - at<float>(phys, 0x48) : at<float>(phys, 0x48);
+                const Lanes h = mul(splat(half), Lanes{{x, y, z, m[7]}});  // w: row 1's w left in the slot
+                const Lanes corner = add(add(add(lanes(m + 12), mul(lanes(m), h.v[0])), mul(lanes(m + 4), h.v[1])),
+                                         mul(lanes(m + 8), h.v[2]));
+                platform_keep(corner);
+            }
+        }
+    }
+    float up[4];
+    std::memcpy(up, phys + 0x90, 16);
+    const Lanes dir = add(add(mul(lanes(m), up[0]), mul(lanes(m + 4), up[1])), mul(lanes(m + 8), up[2]));
+    const float radius = at<float>(phys, 0x120);
+    const float below = 0.0f - radius;
+    for (int32_t w = 0; w < 4; ++w) {
+        float p[4];
+        std::memcpy(p, phys + 0x50 + w * 16, 16);
+        const Lanes world = transform_out(m, p);
+        const float compression = at<float>(phys, 0x134 + w * 4);
+        const Lanes top = add(world, mul(splat(radius - compression), dir));
+        const Lanes bottom = add(world, mul(splat(below - compression), dir));
+        platform_keep(top);
+        platform_keep(bottom);
+    }
+}
+
+// Every physics object (0x008fccf0; the end taken once, before removals): the entity's matrix
+// (+0x160) = the body frame times the object's local frame (+0x70 rows, +0xa0 origin), the pose
+// from physics; "physicsdone" and the object removed once its body is at rest (+0x144 flag 4) or
+// below z -60000.
+void XB_CDECL PhysObj_UpdateAll() {
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        uint8_t* const object = *reinterpret_cast<uint8_t* const*>(uintptr_t{it});
+        const float* const body = at<float*>(object, 8);
+        uint8_t* const entity = at<uint8_t*>(object, 0);
+        const float* const local = reinterpret_cast<const float*>(object + 0x70);
+        Lanes rows[3];
+        for (int32_t k = 0; k < 3; ++k) {
+            const float* const l = local + k * 4;
+            const float x = l[0], y = l[1], z = l[2];
+            rows[k] = add(add(mul(lanes(body), x), mul(lanes(body + 4), y)), mul(lanes(body + 8), z));
+        }
+        std::memcpy(entity + 0x160, rows, 0x30);
+        const Lanes origin = transform_out(body, local + 12);
+        std::memcpy(entity + 0x190, origin.v, 16);
+        G_SetPoseFromPhysics(at<uint8_t*>(object, 0));
+        const uint8_t* const b = at<uint8_t*>(object, 8);
+        if ((b[0x144] & 4) || title_global<float>(0x0083f10c) > at<float>(b, 0x38)) {  // -60000
+            Scr_Notify(at<uint8_t*>(object, 0), title_global<uint32_t>(0x0097a754));  // "physicsdone"
+            Phys_RemoveEntity(at<uint8_t*>(object, 0));
+        }
+    }
+}
+
+// A physics object (pool 0x008fccf0, 30, count 0x008fcde4) for the entity: a box body over its
+// model's bounds (+0x22c -> +0x38) at the entity matrix, mass `mass`, the description (identity
+// frame offset by -centre), inertia scaled to the mass (the smallest lane at least 0.01), the
+// inherited velocities, bounce 0.5 (0.2 and +0x138 = 12 for boxes up to 5 across, else 16; `bounce`
+// within [0, 1] wins); the entity unlinked and flagged 0x400000. 0 when the pool or world is full.
+// The velocity copies are vec3 stores: their w words are what the frame slots held (the inertia
+// minimum's lane 3 for the angular one, also stored at body +0xcc; the length's lane 3 for the
+// linear one). The inertia's w is a stack word Phys_BoxMassProperties never writes (zero in tests).
+uint8_t* XB_CDECL PhysObj_Create(uint8_t* ent, uint32_t arg, float mass, float bounce) {
+    int32_t& count = title_global<int32_t>(0x008fcde4);
+    if (count >= 0x1e) return nullptr;
+    uint8_t* const object = title_global<uint8_t*>(0x008fccf0 + static_cast<uint32_t>(count) * 4);
+    ++count;
+    if (!object) return nullptr;
+    const uint8_t* const model = at<uint8_t*>(ent, 0x22c);
+    if (!model) {
+        PhysObjPool_Free(object, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008fb490}));
+        return nullptr;
+    }
+    const float* const bounds = at<float*>(model, 0x38);
+    const Lanes size = sub(lanes(bounds + 4), lanes(bounds));
+    const Lanes centre = mul(add(lanes(bounds + 4), lanes(bounds)), splat(title_global<float>(0x0083eb24)));
+    alignas(16) float inertia[4] = {};
+    float box_mass;
+    Phys_BoxMassProperties(size.v, inertia, &box_mass);
+    const Lanes sq = mul(size, size);
+    const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+    Lanes length;
+    if (len2 == len2 && len2 != title_global<float>(0x0082e680)) {  // UCOMISS + JNE: NaN counts as equal
+        const float r = platform_rsqrt_estimate(len2);
+        const float scaled = len2 * r;
+        const float three = title_global<float>(0x0082e660);
+        length = Lanes{{((three - scaled * r) * scaled) * title_global<float>(0x0082e670), three, three, three}};
+    } else {
+        length = Lanes{{len2, sq.v[1], sq.v[2], sq.v[3]}};
+    }
+    alignas(16) uint32_t frame[16];
+    Matrix_Identity(reinterpret_cast<float*>(frame));
+    uint32_t centre_bits[4];
+    std::memcpy(centre_bits, centre.v, 16);
+    for (int32_t i = 0; i < 4; ++i) frame[12 + i] = centre_bits[i] ^ title_global<uint32_t>(0x0082e0b0 + i * 4);
+    uint8_t* const body = PhysWorld_AllocBody();
+    if (!body) {
+        PhysObjPool_Free(object, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008fb490}));
+        return nullptr;
+    }
+    uint32_t length_bits;
+    std::memcpy(&length_bits, &length.v[0], 4);
+    const uint32_t desc_args[5] = {addr(object), addr(ent), addr(body), arg, addr(frame)};
+    PhysObjDesc_Init(addr(ent), centre_bits, desc_args, length_bits);
+    alignas(16) float m[16];
+    {
+        alignas(16) float buffer[16];
+        std::memcpy(m, G_GetEntityMatrix(ent, buffer), 64);
+    }
+    const Lanes origin = transform_out(m, centre.v);
+    std::memcpy(m + 12, origin.v, 16);
+    const float ratio = mass / box_mass;
+    Lanes scaled_inertia = mul(splat(ratio), lanes(inertia));
+    const float x = scaled_inertia.v[0], y = scaled_inertia.v[1], z = scaled_inertia.v[2];
+    float smallest;
+    float lane3;  // what the frame slot's fourth word holds afterwards
+    if (z <= ((y <= x) ? y : x)) {
+        smallest = z;
+        lane3 = z;
+    } else if (y <= x) {
+        smallest = y;
+        lane3 = y;
+    } else {
+        smallest = x;
+        lane3 = scaled_inertia.v[3];
+    }
+    const float floor = title_global<float>(0x0083eb94);  // 0.01
+    if (floor > smallest) scaled_inertia = mul(scaled_inertia, splat(floor / smallest));
+    alignas(16) float inertia_out[4];
+    std::memcpy(inertia_out, scaled_inertia.v, 16);
+    float friction = title_global<float>(0x0083eb24);  // 0.5
+    if (title_global<float>(0x0083ece8) >= length.v[0]) {  // 5
+        friction = title_global<float>(0x0083eca0);  // 0.2
+        at<float>(body, 0x138) = title_global<float>(0x0083eccc);  // 12
+    } else {
+        at<float>(body, 0x138) = title_global<float>(0x0083ebb8);  // 16
+    }
+    if (bounce >= title_global<float>(0x0083eafc) && title_global<float>(0x0083eb20) >= bounce) friction = bounce;
+    alignas(16) float angular[4];
+    alignas(16) float linear[4];
+    std::memcpy(angular, &title_global<uint8_t>(0x0082e110), 16);
+    std::memcpy(linear, &title_global<uint8_t>(0x0082e110), 16);
+    PhysObj_GetInheritedVelocity(ent, angular, linear);
+    G_EntUnlink(ent);
+    if (uint8_t* const vehicle = at<uint8_t*>(ent, 0x248)) PhysBody_Clear(vehicle);
+    alignas(16) float angular_copy[4] = {angular[0], angular[1], angular[2], lane3};
+    alignas(16) float linear_copy[4] = {linear[0], linear[1], linear[2], length.v[3]};
+    PhysBody_Init(body, mass, inertia_out, m, linear_copy, angular_copy, friction, 3);
+    float c0[4];
+    std::memcpy(c0, &title_global<uint8_t>(0x00989230), 16);
+    c0[3] = lane3;
+    std::memcpy(body + 0xc0, c0, 16);
+    at<float>(body, 0x134) = title_global<float>(0x00989240);
+    at<uint32_t>(ent, 0x2a4) |= 0x400000;
+    return body;
+}
+
+// The model's bone matrices (obj +0x20, 0x40 apart from +0x30) after a ragdoll step, for the first
+// min(numBones, cached) bones of Ragdoll_CacheBaseBoneFrames' records: a bone with no ragdoll slot
+// (-1) takes its parent's matrix times its base frame; slot 0 is left alone; other ragdoll bones
+// keep their rotation and get their origin from the parent's matrix and their base origin.
+void XB_STDCALL Ragdoll_PropagateBoneMatrices(uint8_t* entity) {
+    int32_t count = at<uint8_t>(at<uint8_t*>(entity, 0x22c), 0x2f);
+    if (count > title_global<int32_t>(0x008dfdd4)) count = title_global<int32_t>(0x008dfdd4);
+    for (int32_t bone = 0; bone < count; ++bone) {
+        const uint8_t* const obj = at<uint8_t*>(entity, 0x22c);
+        const int32_t parent = DObj_GetBoneParent(reinterpret_cast<const DObj*>(obj), bone);
+        const uint8_t* const rec = title_global<uint8_t*>(0x008dfdd0) + bone * 0x60;
+        const int32_t slot = at<int32_t>(rec, 0x54);
+        uint8_t* const base = at<uint8_t*>(at<uint8_t*>(entity, 0x22c), 0x20);
+        const float* const p = reinterpret_cast<const float*>(base + parent * 0x40 + 0x30);
+        float* const out = reinterpret_cast<float*>(base + bone * 0x40 + 0x30);
+        const float* const frame = reinterpret_cast<const float*>(rec);
+        if (slot == -1) {
+            Lanes rows[3];
+            for (int32_t k = 0; k < 3; ++k) {
+                const float x = frame[k * 4], y = frame[k * 4 + 1], z = frame[k * 4 + 2];
+                rows[k] = add(add(mul(lanes(p), x), mul(lanes(p + 4), y)), mul(lanes(p + 8), z));
+            }
+            std::memcpy(out, rows, 0x30);
+        } else if (slot == 0) {
+            continue;
+        }
+        const Lanes origin = transform_out(p, frame + 12);
+        std::memcpy(out + 12, origin.v, 16);
+    }
+}
+
+// Bone callback (Phys_SetBoneCallbacks; bone = {entity, index}): the physics frame times the bone's
+// local frame, taken into the entity's frame (+0x160, transposed rotation) as the model's bone
+// matrix (obj +0x20, 0x40 apart from +0x30). The root bone (index 0) first sets the entity
+// matrix to identity rotation (row 0's w 1) at the bone's world origin and its pose from physics.
+void XB_CDECL Ragdoll_BodyToPose(const uint32_t* bone, const float* frame, const float* local) {
+    uint8_t* const entity = reinterpret_cast<uint8_t*>(uintptr_t{bone[0]});
+    const int32_t index = static_cast<int32_t>(bone[1]);
+    Lanes r[3];
+    for (int32_t k = 0; k < 3; ++k) {
+        const float* const l = local + k * 4;
+        const float x = l[0], y = l[1], z = l[2];
+        r[k] = add(add(mul(lanes(frame), x), mul(lanes(frame + 4), y)), mul(lanes(frame + 8), z));
+    }
+    const Lanes origin = transform_out(frame, local + 12);
+    if (index == 0) {
+        const float one = title_global<float>(0x0083eb20);
+        const float rows[16] = {one,  0.0f, 0.0f, one,  0.0f,        one,         0.0f,        0.0f,
+                                0.0f, 0.0f, one,  0.0f, origin.v[0], origin.v[1], origin.v[2], origin.v[3]};
+        std::memcpy(entity + 0x160, rows, 64);
+        G_SetPoseFromPhysics(entity);
+    }
+    float e[12];
+    std::memcpy(e, entity + 0x160, 0x30);
+    const Lanes d = sub(origin, lanes(reinterpret_cast<const float*>(entity + 0x190)));
+    const Lanes t3 = rotate_into(e, d);
+    const Lanes t2 = rotate_into(e, r[2]);
+    const Lanes t1 = rotate_into(e, r[1]);
+    const Lanes t0 = rotate_into(e, r[0]);
+    const Lanes out[4] = {t0, t1, t2, t3};
+    uint8_t* const base = at<uint8_t*>(at<uint8_t*>(entity, 0x22c), 0x20);
+    std::memcpy(base + index * 0x40 + 0x30, out, 64);
+}
+
+namespace {
+
+// A frame from angles and an origin as G_GetEntityMatrix builds it: rows forward, -left (0 - x),
+// up, origin; each row's w repeats its x.
+void angles_frame(const float* angles, const float* origin, Lanes* rows) {
+    float forward[3];
+    float left[3];
+    float up[3];
+    uint32_t args[2] = {addr(angles), addr(forward)};
+    AnglesToAxis(args, left, up);
+    const float l0 = 0.0f - left[0], l1 = 0.0f - left[1], l2 = 0.0f - left[2];
+    rows[0] = Lanes{{forward[0], forward[1], forward[2], forward[0]}};
+    rows[1] = Lanes{{l0, l1, l2, l0}};
+    rows[2] = Lanes{{up[0], up[1], up[2], up[0]}};
+    rows[3] = Lanes{{origin[0], origin[1], origin[2], origin[0]}};
+}
+
+// frame (rows f) times a 4x4 matrix m (rows 0-2 rotate, row 3 also offset by f[3]).
+void frame_times(const Lanes* f, const float* m, float* out) {
+    Lanes rows[4];
+    for (int32_t k = 0; k < 3; ++k) {
+        const float* const r = m + k * 4;
+        const float x = r[0], y = r[1], z = r[2];
+        rows[k] = add(add(mul(f[0], x), mul(f[1], y)), mul(f[2], z));
+    }
+    const float x = m[12], y = m[13], z = m[14];
+    rows[3] = add(add(add(f[3], mul(f[0], x)), mul(f[1], y)), mul(f[2], z));
+    std::memcpy(out, rows, 64);
+}
+
+}  // namespace
+
+// The ragdoll's ten bone frames in world space for both of its sets: frames +0x290 (0x40 apart)
+// in the frame of angles +0x530 / origin +0x540 into 0x00988fb0, frames +0x10 in the frame of
+// angles +0x510 / origin +0x520 into 0x00988d30.
+void XB_STDCALL Ragdoll_BuildWorldBoneFrames(uint8_t* ragdoll) {
+    Lanes first[4];
+    angles_frame(reinterpret_cast<const float*>(ragdoll + 0x510), reinterpret_cast<const float*>(ragdoll + 0x520), first);
+    Lanes second[4];
+    angles_frame(reinterpret_cast<const float*>(ragdoll + 0x530), reinterpret_cast<const float*>(ragdoll + 0x540), second);
+    for (int32_t i = 0; i < 10; ++i) {
+        frame_times(second, reinterpret_cast<const float*>(ragdoll + 0x290 + i * 0x40),
+                    &title_global<float>(0x00988fb0 + i * 0x40));
+        frame_times(first, reinterpret_cast<const float*>(ragdoll + 0x10 + i * 0x40),
+                    &title_global<float>(0x00988d30 + i * 0x40));
+    }
+}
+
+namespace {
+
+float dot3_lanes(const Lanes& a, const Lanes& b) {
+    const Lanes p = mul(a, b);
+    platform_keep(p);
+    return (p.v[0] + p.v[1]) + p.v[2];
+}
+
+// The clamp parameter as the title packs it: lane 0 = dot / divisor, lanes 1-3 the products.
+float clamp_param(const Lanes& u, const Lanes& v, float divisor) {
+    const Lanes p = mul(u, v);
+    alignas(16) float value[4] = {((p.v[0] + p.v[1]) + p.v[2]) / divisor, p.v[1], p.v[2], p.v[3]};
+    const float lo = 0.0f;
+    const float hi = title_global<float>(0x0083eb20);
+    alignas(16) float out[4];
+    return *Vec4_ClampToScalarRange(out, 0, value, &lo, &hi);
+}
+
+float clamp01(float x, float zero, float one) {
+    if (zero > x) return zero;
+    if (x > one) return one;
+    return x;
+}
+
+// (c * a) - (b * b) on the x87 (FLD/FMUL/FSUBP, the caller's precision control), stored as float.
+float x87_cross_term(float c, float a, float b) {
+    const long double t = static_cast<long double>(c) * a - static_cast<long double>(b) * b;
+    return static_cast<float>(t);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Phys_CapsuleCapsuleClosest_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Phys_CapsuleCapsuleClosest) "addl $12, %esp\n"
+                   "ret")
+
+// ECX b1, ESI out point on a; stack (a0, a1, radius a, b0, radius b, out point on b, out normal):
+// the closest points of segments a0-a1 and b0-b1 (the interior solution, else the best of four
+// clamped endpoint tests); 1 when they are closer than the radii (and not touching), the points
+// then moved to the capsule surfaces along the normal (b - a, normalised).
+uint32_t XB_CDECL Phys_CapsuleCapsuleClosest(const float* b1, float* out_a, const uint32_t* args) {
+    const float* const a0 = reinterpret_cast<const float*>(uintptr_t{args[0]});
+    const float* const a1 = reinterpret_cast<const float*>(uintptr_t{args[1]});
+    float ra, rb;
+    std::memcpy(&ra, &args[2], 4);
+    const float* const b0 = reinterpret_cast<const float*>(uintptr_t{args[3]});
+    std::memcpy(&rb, &args[4], 4);
+    float* const out_b = reinterpret_cast<float*>(uintptr_t{args[5]});
+    float* const out_n = reinterpret_cast<float*>(uintptr_t{args[6]});
+    const Lanes d1 = sub(lanes(a1), lanes(a0));
+    const Lanes r = sub(lanes(a0), lanes(b0));
+    const Lanes e = sub(lanes(b0), lanes(b1));
+    const float a = dot3_lanes(d1, d1);
+    const float b = dot3_lanes(d1, e);
+    const float c = dot3_lanes(e, e);
+    const float den = x87_cross_term(c, a, b);
+    const float d = dot3_lanes(d1, r);
+    const float f = dot3_lanes(e, r);
+    const float zero = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    float best;
+    bool done = false;
+    if (platform_x87_greater(abs_bits(den), title_global<float>(0x0083effc))) {  // 1e-5
+        const float inv = one / den;
+        const float s = 0.0f - ((c * d - b * f) * inv);
+        if (s >= zero && one >= s) {
+            const float t = 0.0f - ((a * f - b * d) * inv);
+            if (t >= zero && one >= t) {
+                const Lanes pa = add(lanes(a0), mul(splat(s), d1));
+                std::memcpy(out_a, pa.v, 16);
+                const Lanes pb = sub(lanes(b0), mul(splat(t), e));
+                std::memcpy(out_b, pb.v, 16);
+                const Lanes n = sub(pb, lanes(out_a));
+                std::memcpy(out_n, n.v, 16);
+                best = dot3_lanes(n, n);
+                done = true;
+            }
+        }
+    }
+    if (!done) {
+        const float s1 = clamp01(0.0f - d / a, zero, one);
+        const Lanes pa1 = add(lanes(a0), mul(splat(s1), d1));
+        std::memcpy(out_a, pa1.v, 16);
+        std::memcpy(out_b, b0, 16);
+        const Lanes n1 = sub(lanes(out_b), lanes(out_a));
+        std::memcpy(out_n, n1.v, 16);
+        best = dot3_lanes(n1, n1);
+        // a0 against segment b
+        const float t1 = clamp01(0.0f - f / c, zero, one);
+        const Lanes pb1 = sub(lanes(b0), mul(splat(t1), e));
+        const Lanes start_a = lanes(a0);
+        const Lanes n2 = sub(pb1, start_a);
+        const float dist2 = dot3_lanes(n2, n2);
+        if (best > dist2) {
+            std::memcpy(out_a, start_a.v, 16);
+            std::memcpy(out_b, pb1.v, 16);
+            std::memcpy(out_n, n2.v, 16);
+            best = dist2;
+        }
+        // a1 against segment b
+        const Lanes v = sub(lanes(a1), lanes(b1));
+        const float t3 = clamp_param(v, e, c);
+        const Lanes pb3 = add(lanes(b1), mul(splat(t3), e));
+        const Lanes end_a = lanes(a1);
+        const Lanes n3 = sub(pb3, end_a);
+        const float dist3 = dot3_lanes(n3, n3);
+        if (best > dist3) {
+            std::memcpy(out_a, end_a.v, 16);
+            std::memcpy(out_b, pb3.v, 16);
+            std::memcpy(out_n, n3.v, 16);
+            best = dist3;
+        }
+        // b1 against segment a
+        const float s4 = clamp_param(v, d1, a);
+        const Lanes pa4 = sub(lanes(a1), mul(splat(s4), d1));
+        const Lanes end_b = lanes(b1);
+        const Lanes n4 = sub(end_b, pa4);
+        const float dist4 = dot3_lanes(n4, n4);
+        if (best > dist4) {
+            std::memcpy(out_a, pa4.v, 16);
+            std::memcpy(out_b, end_b.v, 16);
+            std::memcpy(out_n, n4.v, 16);
+            best = dist4;
+        }
+    }
+    if (!(best > title_global<float>(0x0083effc))) return 0;
+    const float sum = ra + rb;
+    if (!(sum * sum >= best)) return 0;
+    const float length = platform_x87_sqrt(best);
+    const Lanes n = div(lanes(out_n), splat(length));
+    std::memcpy(out_n, n.v, 16);
+    const Lanes pa = add(lanes(out_a), mul(splat(ra), n));
+    std::memcpy(out_a, pa.v, 16);
+    const Lanes pb = sub(lanes(out_b), mul(splat(rb), lanes(out_n)));
+    std::memcpy(out_b, pb.v, 16);
+    return 1;
+}
+
+namespace {
+
+// CMPLTPS a < b over four lanes (every lane compared: MXCSR), as a lane mask.
+uint32_t lt_mask(const Lanes& a, const Lanes& b) {
+    uint32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i)
+        if (a.v[i] < b.v[i]) mask |= 1u << i;
+    return mask;
+}
+
+void sys_debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }
+
+}  // namespace
+
+// The world geometry within `radius` of `center` for the ragdoll's collision this step: per world
+// tree whose box overlaps, the objects of the leaf at the center (stamped with cm +0x60 so each
+// is taken once; contents 0x22091, box +0x10 centre / +0x20 half size overlapping): type 9 objects
+// into 0x008fcee0 (60), else their triangles (+0x3c packed 6-bit vertex indices into +0x34, plane
+// +0x44, normal length^2 at least 0.5) that touch the sphere into 0x008fd3f0 (80 records of
+// {a, b, c, plane}); then up to 8 entities in the box (SV_AreaEntities_r over 0x00935664; not the
+// ragdoll's own, with +0xdc) as {matrix, entity} into 0x008fd680. EAX: the area entity count.
+uint32_t XB_CDECL Ragdoll_GatherCollisionGeometry(const float* center, float radius) {
+    uint8_t* const cm = title_global<uint8_t*>(0x0095f6b8);
+    ++at<int32_t>(cm, 0x60);
+    const Lanes r = splat(radius);
+    const Lanes lo = sub(lanes(center), r);
+    const Lanes hi = add(lanes(center), r);
+    title_global<int32_t>(0x008fcee4) = 0;
+    title_global<int32_t>(0x008fd3f4) = 0;
+    title_global<int32_t>(0x008fd684) = 0;
+    for (int32_t i = 0; i < at<int32_t>(title_global<uint8_t*>(0x0095f4fc), 0xc); ++i) {
+        const uint8_t* const tree = at<uint8_t*>(title_global<uint8_t*>(0x0095f4fc), 0x10 + i * 4);
+        const uint32_t above = lt_mask(lanes(reinterpret_cast<const float*>(tree + 0x40)), hi) & 7;
+        if (above != 7) continue;
+        if ((lt_mask(lo, lanes(reinterpret_cast<const float*>(tree + 0x50))) & 7) != above) continue;
+        alignas(16) float leaf_center[4];
+        alignas(16) float leaf_half[4];
+        const uint8_t* const leaf = CM_QuadTreeFindLeaf(tree, center, leaf_center, leaf_half);
+        const int32_t count = at<int32_t>(leaf, 0);
+        for (int32_t j = 0; j < count; ++j) {
+            const uint32_t index = at<uint16_t*>(leaf, 4)[j];
+            uint8_t* object;
+            const uint32_t split = at<uint32_t>(tree, 0x30);
+            if (static_cast<int32_t>(index) < static_cast<int32_t>(split))
+                object = at<uint8_t*>(tree, 0x34) + index * 0x50;
+            else
+                object = at<uint8_t*>(tree, 0x3c) + (index - split) * 0x40;
+            const int32_t stamp = at<int32_t>(cm, 0x60);
+            if (at<int32_t>(object, 0xc) == stamp) continue;
+            if (!(at<uint32_t>(object, 8) & 0x22091)) continue;
+            at<int32_t>(object, 0xc) = stamp;
+            const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+            const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+            const uint32_t in = lt_mask(sub(c, h), hi) & 7;
+            if (in != 7) continue;
+            if ((lt_mask(lo, add(c, h)) & 7) != in) continue;
+            const uint32_t type = title_function<uint32_t XB_THISCALL(uint8_t*)>(at<uint32_t>(at<uint8_t*>(object, 0), 0x20))(object);
+            if (type == 9) {
+                int32_t& n = title_global<int32_t>(0x008fcee4);
+                if (n == 0x3c) continue;
+                uint32_t* slot = nullptr;
+                if (n >= 0x3c) {
+                    sys_debug_break();
+                } else {
+                    slot = title_global<uint32_t*>(0x008fcee0) + n;
+                    ++n;
+                    if (!slot) sys_debug_break();
+                }
+                *static_cast<uint32_t volatile*>(slot) = addr(object);
+                continue;
+            }
+            const int32_t triangles = at<int32_t>(object, 0x40);
+            for (int32_t k = 0; k < triangles; ++k) {
+                const uint32_t packed = at<uint32_t*>(object, 0x3c)[k];
+                const uint8_t* const verts = at<uint8_t*>(object, 0x34);
+                const float* const plane = reinterpret_cast<const float*>(at<uint8_t*>(object, 0x44) + k * 16);
+                const float* const va = reinterpret_cast<const float*>(verts + (packed & 0x3f) * 16);
+                const float* const vb = reinterpret_cast<const float*>(verts + ((packed >> 6) & 0x3f) * 16);
+                const float* const vc = reinterpret_cast<const float*>(verts + ((packed >> 12) & 0x3f) * 16);
+                const Lanes nn = mul(lanes(plane), lanes(plane));
+                platform_keep(nn);
+                if (title_global<float>(0x0083eb24) > (nn.v[0] + nn.v[1]) + nn.v[2]) continue;  // 0.5
+                if (!Phys_SphereTouchesTriangle(center, plane, va, radius, vb, vc)) continue;
+                int32_t& m = title_global<int32_t>(0x008fd3f4);
+                if (m == 0x50) continue;
+                uint32_t* rec = nullptr;
+                if (m >= 0x50) {
+                    sys_debug_break();
+                } else {
+                    rec = reinterpret_cast<uint32_t*>(title_global<uint8_t*>(0x008fd3f0) + m * 16);
+                    ++m;
+                    if (!rec) sys_debug_break();
+                }
+                uint32_t volatile* const out = rec;
+                out[0] = addr(va);
+                out[1] = addr(vb);
+                out[2] = addr(vc);
+                out[3] = addr(plane);
+            }
+        }
+    }
+    uint8_t& guard = title_global<uint8_t>(0x0098e8d0);
+    if (!(guard & 1)) {
+        title_global<uint32_t>(0x0098e8d0) |= 1;
+        std::memset(&title_global<uint8_t>(0x0098e6d0), 0, 0x200);
+    }
+    std::memcpy(&title_global<uint8_t>(0x0098e6b0), lo.v, 16);
+    std::memcpy(&title_global<uint8_t>(0x0098e6c0), hi.v, 16);
+    alignas(16) uint8_t parms[0x40] = {};  // +0 never written (SV_AreaEntities_r reads from +0x10)
+    std::memcpy(parms + 0x10, lo.v, 16);
+    std::memcpy(parms + 0x20, hi.v, 16);
+    at<uint32_t>(parms, 0x30) = 0x0098e6d0;
+    at<uint32_t>(parms, 0x34) = 0;
+    at<uint32_t>(parms, 0x38) = 0x80;
+    at<uint32_t>(parms, 0x3c) = 0x22091;
+    SV_AreaEntities_r(reinterpret_cast<const uint8_t*>(uintptr_t{0x00935664}), parms);
+    const int32_t found = at<int32_t>(parms, 0x34);
+    title_global<int32_t>(0x0098e6a0) = found;
+    for (int32_t e = 0; e < title_global<int32_t>(0x0098e6a0); ++e) {
+        const uint32_t handle = title_global<uint32_t>(0x0098e6d0 + e * 4);
+        const uint32_t index = handle & 0xfff;
+        if (index >= 0x540) continue;
+        if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) continue;
+        uint8_t* const ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (!ent || addr(ent) == title_global<uint32_t>(0x0095f6f0) || !at<uint32_t>(ent, 0xdc)) continue;
+        int32_t& n = title_global<int32_t>(0x008fd684);
+        if (n >= 8) continue;
+        uint8_t* const rec = title_global<uint8_t*>(0x008fd680) + n * 0x50;
+        ++n;
+        if (!rec) sys_debug_break();
+        alignas(16) float matrix[16];
+        std::memcpy(rec, G_GetEntityMatrix(ent, matrix), 64);
+        at<uint32_t>(rec, 0x40) = addr(ent);
+    }
+    return static_cast<uint32_t>(title_global<int32_t>(0x0098e6a0));
+}
+
+namespace {
+
+// sign ^ v over four lanes (XORPS with 0x0082e0b0).
+Lanes negate_bits(const Lanes& v) {
+    Lanes out;
+    for (int32_t i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &v.v[i], 4);
+        bits ^= title_global<uint32_t>(0x0082e0b0 + i * 4);
+        std::memcpy(&out.v[i], &bits, 4);
+    }
+    return out;
+}
+
+// The blended local rotation of one bone: q0 (physics) and q1 (base) mixed by t (the shorter way;
+// slerp weights from the title's acos and sine polynomials unless nearly equal), the vector part
+// normalised (unit x when it vanishes) and turned into rows with w and the vector's length.
+void blend_rotation(const Lanes& q0, const Lanes& q1, float t, float one_minus_t, Lanes* rows) {
+    const float zero = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    const Lanes p = mul(q0, q1);
+    const Lanes h = add(p, Lanes{{p.v[2], p.v[3], p.v[0], p.v[0]}});
+    platform_keep(h);
+    float dot = h.v[0] + h.v[1];
+    Lanes w;
+    if (zero > dot) {
+        w = Lanes{{one_minus_t, zero - t, one, zero}};
+        dot = zero - dot;
+    } else {
+        w = Lanes{{one_minus_t, t, one, zero}};
+    }
+    if (title_global<float>(0x0083efd8) > dot) {  // 0.999999
+        float angle;
+        if (title_global<float>(0x0083eb24) > dot) {  // acos(d) = pi/2 - d - d^3/6 - 0.075 d^5 + c d^7
+            const float d2 = dot * dot;
+            const float d3 = dot * d2;
+            const float d5 = d2 * d3;
+            const float a3 = d3 * title_global<float>(0x0083ee9c);
+            const float a5 = d5 * title_global<float>(0x0083ee98);
+            const float a7 = (d5 * d2) * title_global<float>(0x0083efd4);
+            angle = (((a7 - a5) - a3) - dot) + title_global<float>(0x0083ee88);
+        } else {  // acos(d) = 2 asin(sqrt((1 - d) / 2)) by its series
+            const float s = platform_x87_sqrt_sub_mul(one, dot, title_global<float>(0x0083eb24));
+            const float s2 = s * s;
+            const float s3 = s2 * s;
+            const float s1 = s * title_global<float>(0x0083eba8);
+            const float b3 = s3 * title_global<float>(0x0083ee90);
+            const float s5 = s3 * s2;
+            const float b5 = s5 * title_global<float>(0x0083ed2c);
+            const float b7 = (s5 * s2) * title_global<float>(0x0083efd0);
+            angle = s1 + (b3 + (b5 + b7));
+        }
+        const float* const c = &title_global<float>(0x0082e850);
+        const Lanes a = mul(w, splat(angle));
+        const Lanes a2 = mul(a, a);
+        const Lanes a3 = mul(a2, a);
+        const Lanes a5 = mul(a2, a3);
+        const Lanes t3 = mul(a3, splat(c[0]));
+        const Lanes t5 = mul(a5, splat(c[1]));
+        const Lanes t7 = mul(mul(a2, a5), splat(c[2]));
+        const Lanes sine = add(add(add(a, t7), t5), t3);
+        w = div(sine, splat(sine.v[2]));
+    }
+    const Lanes q = add(mul(q0, splat(w.v[0])), mul(q1, splat(w.v[1])));
+    const Lanes sq = mul(q, q);
+    const float n2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+    Lanes length;
+    if (n2 == n2 && n2 != title_global<float>(0x0082e680)) {  // UCOMISS + JNE: NaN counts as equal
+        const float r = platform_rsqrt_estimate(n2);
+        const float scaled = n2 * r;
+        const float three = title_global<float>(0x0082e660);
+        length = Lanes{{((three - scaled * r) * scaled) * title_global<float>(0x0082e670), three, three, three}};
+    } else {
+        length = Lanes{{n2, sq.v[1], sq.v[2], sq.v[3]}};
+    }
+    Lanes v;
+    if (length.v[0] == zero) {  // UCOMISS + LAHF/TEST 0x44/JNP: equal and ordered
+        v = lanes(&title_global<float>(0x00830640));
+    } else {
+        v = div(q, splat(length.v[0]));
+    }
+    const float qw = q.v[3];
+    const Lanes twice = mul(splat(qw * title_global<float>(0x0083eba8)), length);
+    platform_keep(twice);
+    const float a = qw * qw - length.v[0] * length.v[0];
+    const float b = twice.v[0];
+    const Lanes nv = negate_bits(v);
+    const Lanes nva = mul(nv, splat(a));
+    const Lanes outer = sub(nv, nva);
+    const Lanes nvb = mul(nv, splat(b));
+    const Lanes vb = negate_bits(nvb);
+    rows[0] = add(Lanes{{a, nvb.v[2], vb.v[1], vb.v[1]}}, mul(outer, splat(nv.v[0])));
+    rows[1] = add(Lanes{{vb.v[2], a, nvb.v[0], nvb.v[0]}}, mul(outer, splat(nv.v[1])));
+    rows[2] = add(Lanes{{nvb.v[1], vb.v[0], a, a}}, mul(outer, splat(nv.v[2])));
+}
+
+}  // namespace
+
+// The model's bone matrices blended from the ragdoll (local quaternions +0x5a0, origins +0xb50 of
+// `phys`) toward the base pose (Ragdoll_CacheBaseBoneFrames' records) by t, for the first
+// min(numBones, +0x5a4) bones: bones without a ragdoll slot get the blended rotation and origin
+// under their parent's matrix, other ragdoll bones (not slot 0) only the blended origin.
+void XB_STDCALL Ragdoll_BlendBonePoses(uint8_t* phys, uint8_t* entity, float t) {
+    int32_t count = at<uint8_t>(at<uint8_t*>(entity, 0x22c), 0x2f);
+    if (count > at<int32_t>(phys, 0x5a4)) count = at<int32_t>(phys, 0x5a4);
+    const float one_minus_t = title_global<float>(0x0083eb20) - t;
+    for (int32_t bone = 0; bone < count; ++bone) {
+        const uint8_t* const obj = at<uint8_t*>(entity, 0x22c);
+        const int32_t parent = DObj_GetBoneParent(reinterpret_cast<const DObj*>(obj), bone);
+        const Lanes phys_origin = lanes(reinterpret_cast<const float*>(at<uint8_t*>(phys, 0xb50) + bone * 16));
+        const uint8_t* const rec = title_global<uint8_t*>(0x008dfdd0) + bone * 0x60;
+        const Lanes origin = add(mul(splat(one_minus_t), phys_origin),
+                                 mul(splat(t), lanes(reinterpret_cast<const float*>(rec + 0x30))));
+        const int32_t slot = at<int32_t>(rec, 0x54);
+        if (slot == 0) continue;
+        uint8_t* const base = at<uint8_t*>(at<uint8_t*>(entity, 0x22c), 0x20);
+        const float* const p = reinterpret_cast<const float*>(base + parent * 0x40 + 0x30);
+        float* const out = reinterpret_cast<float*>(base + bone * 0x40 + 0x30);
+        if (slot == -1) {
+            Lanes local[3];
+            blend_rotation(lanes(reinterpret_cast<const float*>(at<uint8_t*>(phys, 0x5a0) + bone * 16)),
+                           lanes(reinterpret_cast<const float*>(rec + 0x40)), t, one_minus_t, local);
+            Lanes rows[3];
+            for (int32_t k = 0; k < 3; ++k) {
+                const float x = local[k].v[0], y = local[k].v[1], z = local[k].v[2];
+                rows[k] = add(add(mul(lanes(p), x), mul(lanes(p + 4), y)), mul(lanes(p + 8), z));
+            }
+            std::memcpy(out, rows, 0x30);
+        }
+        const float o[4] = {origin.v[0], origin.v[1], origin.v[2], origin.v[3]};
+        const Lanes moved = transform_out(p, o);
+        std::memcpy(out + 12, moved.v, 16);
+    }
 }
 
 }  // namespace game

@@ -345,3 +345,5 @@
 00307610,G_FindEntsByTargetname,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (push 11)"
 002de3e0,G_DObjGetSkeletonBoneMatrixPtr,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"
 002eabb0,PathNode_FindNearestNoPlanes,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"
+00228870,Phys_AttachEntitiesAtPoints,dead,"no CALL/JMP and no immediate or pointer to 0x00228870 (xbefind imm + call 2026-11-03); C kept; offline leaf test 1978/1978 matched, 12% coverage"
+00226950,VehiclePhys_DebugDrawBody,dead,"only caller 0x00228bc0 (loops the vehicle physics list 0x008feb70) has no CALL/JMP, pointer or immediate (xbefind 2026-11-03); drawing compiled out, only float math left; C kept"
