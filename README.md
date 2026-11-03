@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,281 | 9,082 | 4,884 | 6,397 |
+| Engine and game code (`.text`) | 11,285 | 9,082 | 4,884 | 6,401 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,605** | **12,070** | **4,884** | **11,721** |
+| **Total** | **16,609** | **12,070** | **4,884** | **11,725** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -47,7 +47,7 @@ We've also named 2,659 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,097 | 1,088 | 7 | 1 | 0 | 0 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,643 | 1,277 | 291 | 42 | 30 | 0 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,650 | 1,277 | 291 | 42 | 30 | 7 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 300 | 293 | 1 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 875 | 66 | 70 | 0 | 0 |
@@ -61,7 +61,7 @@ We've also named 2,659 of the game's global variables.
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,082 | 0 | 0 | 0 | 11 | 464 |
-| Not sorted into a part yet | 65 | 3 | 0 | 7 | 3 | 52 |
+| Not sorted into a part yet | 62 | 3 | 0 | 7 | 3 | 49 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType

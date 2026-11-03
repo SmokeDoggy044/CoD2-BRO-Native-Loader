@@ -14637,3 +14637,7 @@ address,name,kind,confidence,evidence
 00234330,FUN_00234330,function,high,"gap created in Ghidra 11-03 (dead: sets phys+0x1d34, calls PhysRagdoll_Build then 0x000b3050)"
 002255d0,FUN_002255d0,function,high,"in Ghidra but missing from the symbol export (vehicle wheel motors, ESI vehicle)"
 002256b0,FUN_002256b0,function,high,"in Ghidra but missing from the symbol export (vehicle wheel friction, EAX vehicle)"
+000b6390,FUN_000b6390,function,high,"in Ghidra but missing from the symbol export (11-03)"
+000b63c0,FUN_000b63c0,function,high,"in Ghidra but missing from the symbol export (11-03)"
+002c78d0,FUN_002c78d0,function,high,"in Ghidra but missing from the symbol export (11-03)"
+002f2930,FUN_002f2930,function,high,"in Ghidra but missing from the symbol export (11-03)"

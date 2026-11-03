@@ -2551,6 +2551,8 @@
 000b61f0 PhysConstraintPoolD0_Alloc
 000b6250 PhysConstraintPool1B0_Free
 000b62d0 PhysWorld_GetBodyPair
+000b6390 FUN_000b6390
+000b63c0 FUN_000b63c0
 000b63f0 PhysConstraint28c_Setup
 000b6510 PhysConstraint_AttachSecondBody
 000b6590 PhysConstraint_GetSegmentEnds
@@ -9733,6 +9735,7 @@
 002c73a0 CM_BoxLeafnums_r
 002c75f0 CM_LoadMapFile
 002c77d0 CL_CharEvent
+002c78d0 FUN_002c78d0
 002c7a90 CL_CreateCmd
 002c7de0 IN_UpDown
 002c7f00 G_ApplyCheckpointStart
@@ -10033,6 +10036,7 @@
 002f20a0 CL_Init
 002f2630 CL_Frame
 002f2890 CL_MapLoading
+002f2930 FUN_002f2930
 002f2b80 VM_Create
 002f2d30 SV_InitGameProgs
 002f2db0 CL_InitCGame
