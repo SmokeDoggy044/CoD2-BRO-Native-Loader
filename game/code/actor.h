@@ -885,6 +885,58 @@ extern "C" void Path_Route_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetween(uint32_t entry, const float* from, uint32_t edx,
                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_RouteBetween_entry(void);
+// 0x00218bf0 (EAX point, EDI away point; stack path, team, a3, a4, a5, a6, planes, dists, count, a10; ret 0x28): a route away inside planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteAwayInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteAwayInsidePlanes_entry(void);
+// 0x00218ce0 (EAX point, EDI away point; stack path, team, a3, a4, a5, a6, a7; ret 0x1c): a route away from a point.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteAway(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteAway_entry(void);
+// 0x00218db0 (EAX point, EBX dists, EDI count; stack path, team, a3, a4, planes, a6; ret 0x18): a route near a point inside planes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteNearPointInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteNearPointInsidePlanes_entry(void);
+// 0x00218e50 (EAX point; stack path, team, a3, a4, a5; ret 0x14): a route near a point.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteNearPoint(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteNearPoint_entry(void);
+// 0x00218ee0 (EAX grenade point, EDX count, ECX planes, EDI dists; stack path, team, start, goal, radius, a6; ret 0x18).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_StartAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_StartAwayFromGrenadeInsidePlanes_entry(void);
+// 0x00218fa0 (EAX dists, EBX count, ECX point; stack path, team, grenade point, radius, planes, a6; ret 0x18).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteAwayFromGrenadeInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteAwayFromGrenadeInsidePlanes_entry(void);
+// 0x00219030 (EAX grenade point, ESI start point, EDI start node, EBX path; stack team, radius, a3; ret 0xc).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_SearchAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_SearchAwayFromGrenade_entry(void);
+// 0x00219100 (EAX start point, EBX path; stack team, grenade point, radius, a4; ret 0x10).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteAwayFromGrenade(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteAwayFromGrenade_entry(void);
+// 0x00219180 (EDI from node, EDX count, ECX planes, ESI dists; stack path, team, to node, a4, a5, a6; ret 0x18).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteBetweenInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteBetweenInsidePlanes_entry(void);
+// 0x00219230 (EAX count, EBX dists, ECX goal point; stack path, team, start node, a4, planes, a6; ret 0x18).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_RouteInsidePlanes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_RouteInsidePlanes_entry(void);
+// 0x002184f0 (ECX sentient, EDX enemy; stack notify flag; ret 4): sets the sentient's enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_SetEnemy(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Sentient_SetEnemy_entry(void);
+// 0x00218790 (g_actorMove): footstep point events every 500 step units.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_FootstepEvents(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void ActorMove_FootstepEvents_entry(void);
+// 0x00218850 (ECX actor; state Finish): sends the pending pain event.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Pain_Finish(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Pain_Finish_entry(void);
 // 0x0020be80 (stack path, actor, out floats; ret 0xc): per path point, the summed range accuracy of the
 // enemy sentients whose nearest node sees it.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx, uint32_t esi,
