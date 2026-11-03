@@ -4800,6 +4800,7 @@ const Function kFunctions[] = {
     {"SEH_LocalizeTextMessage", 0x002d03c0, 0, code(&SEH_LocalizeTextMessage), 12, Result::Eax, Status::Replaced},
     {"CM_DrawWorldTreeDebug", 0x002d0680, 0, code(&CM_DrawWorldTreeDebug), 0, Result::None, Status::Compare},
     {"CM_LoadWorldTree", 0x002d0c60, 0, code(&CM_LoadWorldTree_entry), 4, Result::None, Status::Compare},
+    {"PathNode_AdjustBadPlaceArc", 0x002d0db0, 0, code(&PathNode_AdjustBadPlaceArc), 16, Result::None, Status::Compare},
     {"Stream_LoadCg", 0x002d0d40, 0, code(&Stream_LoadCg), 16, Result::None, Status::Compare},
     {"CM_WorldTreeManager_Construct", 0x002d0d60, 0, code(&CM_WorldTreeManager_Construct_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Replaced},

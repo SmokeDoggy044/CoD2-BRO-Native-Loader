@@ -4699,6 +4699,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002d0c60,CM_LoadWorldTree,compare,182,130,130,0,0,0,""
 002d0d40,Stream_LoadCg,compare,161,106,106,0,0,0,""
 002d0d60,CM_WorldTreeManager_Construct,compare,511,39,39,0,0,0,""
+002d0db0,PathNode_AdjustBadPlaceArc,compare,0,0,0,0,0,0,""
 002d1460,Cmd_Init,replaced,549,33,33,0,0,0,""
 002d1980,CM_SegmentCrossesMesh,compare,39353,5713,5713,0,0,0,""
 002d1ce0,CM_RetestCachedMeshTriangle,compare,70116,12462,12462,0,0,0,""
