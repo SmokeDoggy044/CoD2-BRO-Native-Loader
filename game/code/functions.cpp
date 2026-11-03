@@ -4941,6 +4941,7 @@ const Function kFunctions[] = {
     {"CM_TraceThroughWorld", 0x002e4980, 0, code(&CM_TraceThroughWorld_entry), 0, Result::None, Status::Compare},
     {"CM_SightTrace", 0x002e4c00, 0, code(&CM_SightTrace), 24, Result::Eax, Status::Compare},
     {"CM_BoxTrace", 0x002e5030, 0, code(&CM_BoxTrace), 28, Result::Eax, Status::Compare},
+    {"PM_UpdateViewAngles", 0x002e5530, 0, code(&PM_UpdateViewAngles), 12, Result::None, Status::Compare},
     {"G_SeparateFromSolids", 0x002e6260, 0, code(&G_SeparateFromSolids), 0, Result::None, Status::Compare},
     {"G_DObjTryGetTagMatrix", 0x002e6420, 0, code(&G_DObjTryGetTagMatrix_entry), 4, Result::Eax, Status::Compare},
     {"G_GeneralLink", 0x002e6490, 0, code(&G_GeneralLink), 0, Result::None, Status::Compare},

@@ -6176,8 +6176,10 @@ uint8_t XB_CDECL Vehicle_ClipAgainstEntities(uint8_t* ent, uint8_t* triangles, u
     const uint8_t* const* const brush_list = at<const uint8_t* const*>(brushes, 0x800);
     for (int32_t k = 0, count = at<int32_t>(brushes, 0x804); k < count; ++k) {
         const uint8_t* const b = brush_list[k];
-        const float centre_z = at<float>(b, 0x18) + at<float>(b, 0x28);
-        if (!(nine > out[2] - centre_z)) continue;
+        float centre[4];  // ADDPS: all four lanes (MXCSR flags)
+        for (uint32_t j = 0; j < 4; ++j) centre[j] = at<float>(b, 0x10 + j * 4) + at<float>(b, 0x20 + j * 4);
+        platform_keep(centre);
+        if (!(nine > out[2] - centre[2])) continue;
         if (CM_PushPointOutOfBrush(b, out, radius, out)) pushed = 1;
     }
     const uint8_t* const tri_list = at<const uint8_t*>(triangles, 0x1000);
@@ -6192,7 +6194,12 @@ uint8_t XB_CDECL Vehicle_ClipAgainstEntities(uint8_t* ent, uint8_t* triangles, u
         float nz;
         std::memcpy(&nz, &bits, 4);
         if (nz > title_global<float>(0x0083ed28)) continue;  // 0.7: FCOMIP + JA, NaN goes on
-        if (0.0f > ((plane[0] * out[0] + plane[1] * out[1]) + plane[2] * out[2]) + plane[3]) continue;
+        float prod[4], side[4];  // MULPS / ADDPS over all four lanes (MXCSR flags); lane 0 is the plane side
+        for (uint32_t j = 0; j < 4; ++j) prod[j] = plane[j] * out[j];
+        side[0] = ((prod[0] + prod[1]) + prod[2]) + plane[3];
+        for (uint32_t j = 1; j < 4; ++j) side[j] = prod[j] + plane[3];
+        platform_keep(side);
+        if (0.0f > side[0]) continue;
         const uint32_t tri = at<uint32_t>(at<uint8_t*>(mesh, 0x3c), index * 4);
         const uint8_t* const verts = at<uint8_t*>(mesh, 0x34);
         alignas(16) float a[4], b[4], c[4];

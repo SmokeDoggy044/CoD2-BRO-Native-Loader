@@ -366,3 +366,5 @@
 002b6430,Vec3_BendTowardAxis,dead,"was FUN_002b6430; no CALL/JMP and no immediate or pointer to 0x002b6430 (xbefind imm + call 2026-11-03); C kept"
 0026f0a0,Bullet_Trace_r,dead,"callers only itself and Bullet_Fire (0x0026f670), which has no CALL/JMP, immediate or pointer (xbefind 2026-11-03); C kept"
 002611e0,Vehicle_PlaneSlideMove,dead,"no CALL/JMP and no immediate or pointer to 0x002611e0 (xbefind imm + call 2026-11-03); C kept"
+0025bd10,Vehicle_SlideMove,not reached,"only Vehicle_GroundMove (tank driving, itself never reached); 0 calls in missions 1,4,5,6 (--only --every 1, press list); leaf test not eligible (indirect call in CM_GatherQuadTreeCandidates_r)"
+00259df0,Vehicle_ClipAgainstEntities,matched offline,"only Vehicle_SlideMove; 0 calls in missions 1,4,5,6 (--only --every 1); offline leaf test 2716/2716 matched, 51% coverage"

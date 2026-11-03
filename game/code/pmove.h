@@ -260,4 +260,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_es
                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void BG_CheckProneFeet_entry(void);
 
+// 0x002e5530 (player state in EAX; cdecl cmd, old cmd, trace function): the view angles from the command and the
+// deltas, clamped for turrets, turned-away arcs and prone (the body yaw follows when the feet fit); sticky aim, lean.
+void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, const uint8_t* old, uint32_t trace);
+
 }  // namespace game
