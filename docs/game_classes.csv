@@ -289,3 +289,7 @@
 00226720,Vehicle_InitWheelTags,matched offline,"only caller VehiclePhys_CreateBody's part setup (no physics vehicles in missions 1-8); not reached with --only --every 1 in missions 1-8; offline leaf test 1965/1965 matched, 50% coverage"
 00226890,Phys_AddForceToEntityBodies,matched offline,"only caller G_PhysicsLaunch (entity-with-physics branch, not taken in missions 1-8); not reached with --only --every 1 in missions 1-8; offline leaf test 1901/1901 matched, 50% coverage"
 00226ea0,VehiclePhys_ComputeWheelDistances,matched offline,"vehicle physics vtable slot (pointer at 0x0083c5f4); no physics vehicles in missions 1-8 (not reached with --only --every 1); offline leaf test 3630/3630 matched, 100% coverage"
+0022c890,Ragdoll_RefreshBoneMatrices,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none); leaf test 1000/1000 matched"
+0022ca00,PhysBone_UpdateWorldFrame,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
+0022d410,VehiclePhys_HasWheelBones,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
+00249f60,Vehicle_ApproachAtRate,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
