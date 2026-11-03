@@ -311,3 +311,4 @@
 002192c0,Path_RouteBetweenPointsInsidePlanes,dead,"no callers, no stored pointer, no immediate (gap function created 11-03; fnpack: no CALL/JMP or data references)"
 002d67a0,G_DObjGetBoneMatrix,dead,"no CALL, jump or immediate (xbefind, ent push 9)"
 002ddd70,G_UpdateSoundListenerFromPlayer,dead,"no CALL, jump or immediate (xbefind, ent push 9)"
+0026f670,Bullet_Fire,dead,"no CALL/JMP, pointer or immediate to 0x0026f670 (xbefind imm + call 2026-11-03); C kept (Bullet_Trace_r at the original's ESP); leaf test not eligible (_rand path via fs:)"

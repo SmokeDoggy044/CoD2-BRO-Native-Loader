@@ -8615,7 +8615,7 @@
 00271300 Cmd_Activate_f
 00271590 ClientEvents
 00271870 Vehicle_Think
-00271b20 FUN_00271b20
+00271b20 Turret_FireForUserOrDriver
 00271b60 Turret_UpdatePlayerFire
 00271c30 ClientThink_real
 00272360 Player_UpdateTurretUse
@@ -9331,7 +9331,7 @@
 002ac450 CL_ClearConfigstrings
 002ac510 CL_GetSnapshot
 002ac630 CL_GetUserCmd
-002ac770 FUN_002ac770
+002ac770 PM_AddWeaponFireBlend
 002ac7e0 PM_StartLegsAnim
 002ac840 PM_UpdateAimDownSightFrac
 002acb00 BG_FindWeaponIndexForHash
@@ -9339,9 +9339,9 @@
 002acc10 BG_SetupAltWeaponIndices
 002acdb0 BG_SetupWeaponItems
 002acf50 BG_SetupWeaponTransitionRates
-002ad430 FUN_002ad430
-002ad520 FUN_002ad520
-002ad580 FUN_002ad580
+002ad430 PM_UpdateSprintFlag
+002ad520 PM_UpdateButtonFlag80
+002ad580 PM_SetProneFlag400
 002ad5a0 PM_DropTimers
 002ad5e0 PM_EvalLerpCurve
 002ad680 PM_ViewHeightLerpTime
@@ -9472,8 +9472,8 @@
 002b4a30 PM_FinishAdsDrop
 002b4ab0 PM_FinishAdsRaise
 002b4b30 PM_FinishWeaponRaise
-002b4c20 FUN_002b4c20
-002b4cb0 FUN_002b4cb0
+002b4c20 PM_ResetWeaponToAnimA
+002b4cb0 PM_ResetWeaponToIdle
 002b4d80 BG_GetWeaponSpread
 002b4fd0 BG_GetTotalReserveAmmo
 002b5120 BG_AmmoRoomForWeapon
@@ -9487,8 +9487,8 @@
 002b5a70 BG_SetupSharedAmmoCaps
 002b5c40 BG_SetupAmmoIndices
 002b5df0 BG_AllocWeaponDef
-002b5ea0 FUN_002b5ea0
-002b5ed0 FUN_002b5ed0
+002b5ea0 PM_CheckViewHeightStance
+002b5ed0 PM_ViewHeightLerpFrac
 002b5fc0 PM_LandEventForSurface
 002b5fe0 PM_RunStepEventForSurface
 002b6000 PM_WalkStepEventForSurface
