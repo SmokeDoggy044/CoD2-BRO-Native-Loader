@@ -5,6 +5,7 @@
 #include "actor.h"
 #include "bg_misc.h"
 #include "cg_ents.h"
+#include "cgame.h"
 #include "dobj.h"
 #include "fx.h"
 #include "g_client.h"
@@ -6958,6 +6959,194 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     title_global<uint32_t>(0x0095f704) = 0;
     if (ent[0] != 3) return;
     call_at(S, 0x002743f9, 0x0024ac50, TitleRegs{3, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+}
+
+PLATFORM_ASM_ENTRY(Pickup_Weapon_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Pickup_Weapon) "addl $16, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, uint32_t touched) {
+    // Q3's Pickup_Weapon (EBX item; cdecl player, &event, touched flag). The item's ammo (+0x370)
+    // and clip (+0x3bc): 0 = rolled once (ammo in the def's range +0x71c..+0x720, or around half a
+    // clip when the range is 0), negative = none; capped by the max ammo (0x00929818) and clip size
+    // (0x00935338). A held weapon only takes the ammo (event 0x96, "gm" message when some was
+    // added; what is left stays on the item, 0 back while some is left and 0x00950d7c is set).
+    // Else the weapon needs a slot: a free one, else the one its class takes, else the current
+    // weapon (same class, or grenade/pistol slot byte 3/4; else slot 1 when the new weapon has no
+    // ammo) is dropped where the item lies ("can't get primary" otherwise), then given (selected
+    // for the local player unless touched or kind 5) with its clip and ammo. Then the "trigger" /
+    // "pickup" notifies; -1, or 0x00950914 with the counts cleared for +0x2a0 bit 3.
+    const int32_t weapon = field<int32_t>(pointer_at(ent, 0x3b0), 0x28);
+    const uint8_t* const def = weapon_def(static_cast<uint32_t>(weapon));
+    const auto clip_size = [&]() {
+        return title_global<int32_t>(0x00935338 + *reinterpret_cast<const uint32_t*>(weapon_def(weapon) + 0x5a0) * 4);
+    };
+    int32_t ammo;
+    int32_t count = field<int32_t>(ent, 0x370);
+    if (count < 0) {
+        ammo = 0;
+    } else {
+        if (count == 0) {
+            const int32_t hi = *reinterpret_cast<const int32_t*>(def + 0x720);
+            const int32_t lo = *reinterpret_cast<const int32_t*>(def + 0x71c);
+            const int32_t high = hi < lo ? lo : hi;
+            const int32_t low = hi < lo ? hi : lo;
+            if (high == 0 && low == 0) {
+                const int32_t clip = title_global<int32_t>(0x00935338 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4);
+                const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+                float f = static_cast<float>(r) * title_global<float>(0x0083ebe0) + title_global<float>(0x0083eb20);
+                f = f * static_cast<float>(clip - 1);
+                const float half = title_global<float>(0x0083eb24);
+                f = f * half + half;
+                field<int32_t>(ent, 0x370) = static_cast<int32_t>(f) + 1;
+            } else if (high < 0) {
+                field<int32_t>(ent, 0x370) = 0;
+            } else {
+                int32_t value;
+                if (high != 0 && high == low) {
+                    value = low;
+                } else {
+                    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+                    value = r % (high - low) + low;
+                }
+                field<int32_t>(ent, 0x370) = value;
+                if (value <= 0) field<int32_t>(ent, 0x370) = 0;
+            }
+        }
+        const int32_t max_ammo =
+            title_global<int32_t>(0x00929818 + *reinterpret_cast<const uint32_t*>(weapon_def(weapon) + 0x598) * 4);
+        if (field<int32_t>(ent, 0x370) > max_ammo) field<int32_t>(ent, 0x370) = max_ammo;
+        ammo = field<int32_t>(ent, 0x370);
+        count = ammo;
+    }
+    int32_t clip;
+    const int32_t item_clip = field<int32_t>(ent, 0x3bc);
+    if (item_clip < 0) {
+        clip = 0;
+    } else {
+        if (item_clip == 0) {
+            if (count < 0) {
+                field<int32_t>(ent, 0x3bc) = 0;
+            } else {
+                const int32_t size = clip_size();
+                field<int32_t>(ent, 0x3bc) = size;
+                if (size > field<int32_t>(ent, 0x370)) field<int32_t>(ent, 0x3bc) = field<int32_t>(ent, 0x370);
+                field<int32_t>(ent, 0x370) = field<int32_t>(ent, 0x370) - field<int32_t>(ent, 0x3bc);
+                ammo = field<int32_t>(ent, 0x370);
+            }
+        }
+        const int32_t size = clip_size();
+        if (field<int32_t>(ent, 0x3bc) > size) field<int32_t>(ent, 0x3bc) = size;
+        clip = field<int32_t>(ent, 0x3bc);
+    }
+    uint8_t* const client = pointer_at(other, 0x23c);
+    const auto holds = [&](uint32_t w) {
+        return (word_at(client, 0x3f0 + (static_cast<int32_t>(w) >> 5) * 4) & (1u << (w & 0x1f))) != 0;
+    };
+    const auto send = [&](const char* text) { SV_GameSendServerCommand(text, word_at(other, 0x224)); };
+    const auto va1 = [](uint32_t format) { return title_function<const char* XB_CDECL(uint32_t)>(0x002a93d0)(format); };
+    const auto va2 = [](uint32_t format, uint32_t a) {
+        return title_function<const char* XB_CDECL(uint32_t, uint32_t)>(0x002a93d0)(format, a);
+    };
+    if (holds(static_cast<uint32_t>(weapon))) {
+        ammo = ammo + clip;
+        *event = 0x96;
+        const int32_t added = static_cast<int32_t>(Add_Ammo(other, static_cast<uint32_t>(weapon), ammo, 0));
+        if (added != 0) {
+            const uint32_t name = *reinterpret_cast<const uint32_t*>(def + 0xc);
+            const char* const text = *reinterpret_cast<const uint32_t*>(weapon_def(weapon) + 0x6ec) != 0
+                                         ? va2(0x0083b77c, name)
+                                         : va2(0x0083b760, name);
+            send(text);
+        }
+        if (added != ammo) {
+            int32_t left = field<int32_t>(ent, 0x370) - added;
+            field<int32_t>(ent, 0x370) = left;
+            if (left <= 0) {
+                const int32_t clip_left = field<int32_t>(ent, 0x3bc) + left;
+                field<int32_t>(ent, 0x3bc) = clip_left;
+                field<int32_t>(ent, 0x370) = -1;
+                if (clip_left <= 0) field<int32_t>(ent, 0x3bc) = -1;
+            }
+            if ((field<int32_t>(ent, 0x370) > 0 || field<int32_t>(ent, 0x3bc) > 0) && title_global<uint32_t>(0x00950d7c))
+                return 0;
+        }
+    } else {
+        bool give = false;
+        const uint32_t current = word_at(client, 0x80);
+        if (current != 0) {
+            if (!holds(current)) return 0;
+            if (BG_GetWeaponSlot(client, static_cast<int32_t>(word_at(client, 0x80)), 1) == 0) {
+                uint8_t* const ps = pointer_at(other, 0x23c);
+                const uint32_t cls = *reinterpret_cast<const uint32_t*>(weapon_def(word_at(ps, 0x80)) + 0x9c);
+                if (BG_ChooseWeaponSlot(cls, word_at(ps, 0x80), ps) == 0 &&
+                    BG_GetFreeWeaponSlot(static_cast<uint32_t>(weapon), client) == 0)
+                    return 0;
+            }
+        }
+        if (BG_GetFreeWeaponSlot(static_cast<uint32_t>(weapon), client) != 0) {
+            give = true;
+        } else {
+            uint8_t* const ps = pointer_at(other, 0x23c);
+            const uint32_t cls = *reinterpret_cast<const uint32_t*>(weapon_def(word_at(ps, 0x80)) + 0x9c);
+            if (BG_ChooseWeaponSlot(cls, static_cast<uint32_t>(weapon), ps) != 0) give = true;
+        }
+        if (!give) {
+            const uint32_t cls = *reinterpret_cast<const uint32_t*>(def + 0x9c);
+            const uint32_t cur = word_at(client, 0x80);
+            uint32_t dropped;
+            if (cls == *reinterpret_cast<const uint32_t*>(weapon_def(cur) + 0x9c)) {
+                dropped = Drop_Weapon(other, cur, nullptr);
+            } else if (cls == 3 || cls == 4) {
+                dropped = Drop_Weapon(other, static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(client[0x3f8 + cls]))),
+                                      nullptr);
+            } else {
+                const uint8_t* const new_def = weapon_def(weapon);
+                const uint32_t stock = word_at(client, 0x110 + *reinterpret_cast<const uint32_t*>(new_def + 0x598) * 4);
+                if (stock != 0 || word_at(client, 0x280 + *reinterpret_cast<const uint32_t*>(new_def + 0x5a0) * 4) != 0) {
+                    send(va1(0x0083b738));  // "can't get primary"
+                    return 0;
+                }
+                dropped = Drop_Weapon(other, static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(client[0x3f9]))),
+                                      nullptr);
+            }
+            if (dropped == 0) return 0;
+            uint8_t* const drop = reinterpret_cast<uint8_t*>(uintptr_t{dropped});
+            alignas(4) float origin[3];
+            origin[0] = field<float>(ent, 0x140);
+            origin[1] = field<float>(ent, 0x144);
+            origin[2] = field<float>(ent, 0x148);
+            uint8_t* const placed = G_SetOrigin2(drop, 0, origin);
+            SV_LinkEntity(G_SetAngle(placed, 0, reinterpret_cast<const float*>(ent + 0x150)));
+        }
+        BG_GivePlayerWeapon(static_cast<uint32_t>(weapon), pointer_at(other, 0x23c));
+        if (touched == 0 && other == pointer_at(title_global<uint8_t*>(0x0095f534), 4) &&
+            *reinterpret_cast<const uint32_t*>(def + 0x98) != 5)
+            CG_SelectWeapon(weapon);
+        if (*reinterpret_cast<const uint32_t*>(def + 0x98) == 5) {
+            ammo = ammo + clip;
+        } else if (clip >= 0) {
+            const uint32_t index = *reinterpret_cast<const uint32_t*>(weapon_def(weapon) + 0x5a0);
+            int32_t value = clip;
+            const int32_t size = title_global<int32_t>(0x00935338 + index * 4);
+            if (clip > size) {
+                ammo = ammo + (clip - size);
+                clip = size;
+                value = size;
+            }
+            word_at(pointer_at(other, 0x23c), 0x280 + index * 4) = static_cast<uint32_t>(value);
+        }
+        Add_Ammo(other, static_cast<uint32_t>(weapon), ammo, clip == -1 ? 1 : 0);
+    }
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a818));  // trigger
+    if (word_at(other, 0x23c) != 0) Scr_Notify(other, title_global<uint32_t>(0x0097a758));  // pickup
+    if (!(ent[0x2a0] & 8)) return -1;
+    word_at(ent, 0x370) = 0;
+    word_at(ent, 0x3bc) = 0;
+    return title_global<int32_t>(0x00950914);
 }
 
 }  // namespace game

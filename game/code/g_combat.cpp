@@ -516,7 +516,7 @@ void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t, uint8_t* self,
             title_function<Cue>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x4e4))(
                 field<uint32_t>(self, 0x224), &text, 3.0f);
             title_function<Release>(0x0011d640)(&text);  // ScriptString_Release
-            CG_StartShakeCamera(origin, title_global<float>(0x0083eb20), 800, 1000.0f);
+            CG_StartShakeCamera(origin, title_global<float>(0x0083eb20), 800, 2000.0f);  // 0x44fa0000
             title_global<int32_t>(0x00972f7c) = title_global<int32_t>(0x0097253c) + 500;  // cg_time + 500
             uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
             if (manager != nullptr) {

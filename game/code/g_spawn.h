@@ -111,4 +111,9 @@ extern "C" void Drop_Weapon_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst);
 extern "C" void Scn_AddStaticModel_entry(void);
 
+// 0x002d8a90 (stdcall spawn record, entity): the present spawn fields (+0xcc bits) copied to the entity by kind
+// (copies, script strings, the model).
+void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent);
+
+
 }  // namespace game

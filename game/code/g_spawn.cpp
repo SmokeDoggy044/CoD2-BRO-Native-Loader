@@ -1342,4 +1342,83 @@ void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst) {
     if (field<uint32_t>(pointer_at(inst, 0x68), 0x40) != 0) SV_LinkStaticModelToSector(inst);
 }
 
+namespace {
+
+// G_ApplySpawnFields' field table (built on its stack): spawn offset, entity offset, size, kind,
+// present bit (spawn +0xcc bit set).
+struct SpawnField {
+    uint32_t from, to, size, kind, bit;
+};
+const SpawnField kSpawnFields[28] = {
+    {0x04, 0x25c, 4, 0xe, 0x00}, {0x08, 0x140, 0xc, 5, 0x01}, {0x14, 0x258, 4, 0xc, 0x02},
+    {0x18, 0x2a0, 4, 0x0, 0x03}, {0x1c, 0x2fc, 4, 3, 0x04},   {0x20, 0x300, 4, 3, 0x05},
+    {0x24, 0x26c, 4, 0xe, 0x06}, {0x28, 0x264, 4, 0xe, 0x07}, {0x38, 0x2f8, 2, 4, 0x08},
+    {0x3c, 0x384, 4, 3, 0x09},   {0x40, 0x388, 4, 3, 0x0a},   {0x44, 0x370, 4, 0, 0x0b},
+    {0x48, 0x350, 4, 0, 0x0c},   {0x4c, 0x358, 4, 0, 0x0d},   {0x50, 0x150, 0xc, 5, 0x0e},
+    {0x60, 0x390, 0xc, 5, 0x0f}, {0x6c, 0x2f4, 4, 3, 0x10},   {0x70, 0x2fc, 4, 3, 0x11},
+    {0x8c, 0x3b4, 4, 0, 0x12},   {0x90, 0x38c, 4, 3, 0x13},   {0xa0, 0x370, 4, 0, 0x14},
+    {0xa4, 0x3b8, 4, 0xe, 0x15}, {0xac, 0x274, 4, 0xe, 0x16}, {0xb4, 0x27c, 4, 0xe, 0x17},
+    {0xb8, 0x354, 4, 0, 0x18},   {0xc0, 0x284, 4, 0xe, 0x19}, {0xc8, 0x290, 4, 0, 0x1a},
+    {0xc4, 0x29c, 4, 0, 0x1b},
+};
+
+}  // namespace
+
+void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent) {
+    // The parsed spawn fields present in the spawn record (+0xcc bits) copied to the entity, by
+    // kind: plain copies (0, 1, 2, 3, 5, 15), a zeroed short (4), script strings (14: the text
+    // assigned as a script string), models (12: "*N" = brush model N in +6; else R_RegisterModel
+    // in the entity's zone into +0x258, and "sbmodel"-style "sbmo..." names also take the number
+    // after 7 characters; "sbco..." names set +0x2a4 bit 0x400 and only take the number).
+    for (const SpawnField& f : kSpawnFields) {
+        if (!(*reinterpret_cast<const uint32_t*>(spawn + 0xcc + (static_cast<int32_t>(f.bit) >> 5) * 4) &
+              (1u << (f.bit & 0x1f))))
+            continue;
+        switch (f.kind) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+        case 15:
+            for (uint32_t i = 0; i < f.size; ++i) ent[f.to + i] = spawn[f.from + i];
+            break;
+        case 4: *reinterpret_cast<uint16_t*>(ent + f.to) = 0; break;
+        case 14: {
+            uint32_t handle;
+            const uint32_t text = *reinterpret_cast<const uint32_t*>(spawn + f.from);
+            const uint32_t made = title_function<uint32_t XB_THISCALL(uint32_t*, uint32_t)>(0x0011eb50)(
+                &handle, text);  // ScriptString_FromCString
+            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011d600)(ent + f.to, made);  // ScriptString_Assign
+            title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&handle);  // ScriptString_Release
+            break;
+        }
+        case 12: {
+            const char* const name = text_of(*reinterpret_cast<const uint32_t*>(spawn + f.from));
+            if (name == nullptr) break;
+            if (name[0] == '*') {
+                *reinterpret_cast<uint16_t*>(ent + 6) =
+                    static_cast<uint16_t>(title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(name + 1));  // atol
+                break;
+            }
+            uint32_t tag;
+            std::memcpy(&tag, name, 4);
+            if (tag == 0x6f636273) {  // "sbco"
+                word(ent + 0x2a4) |= 0x400;
+            } else {
+                uint32_t model;
+                const uint32_t zone = G_GetEntityZone(ent);
+                word(ent + 0x258) = *R_RegisterModel(name, title_global<uint32_t>(0x0095f6ac), &model, zone);
+                std::memcpy(&tag, name, 4);
+                if (tag != 0x6f6d6273) break;  // "sbmo"
+            }
+            *reinterpret_cast<uint16_t*>(ent + 6) =
+                static_cast<uint16_t>(title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(name + 7));  // atol
+            break;
+        }
+        default: break;
+        }
+    }
+}
+
 }  // namespace game

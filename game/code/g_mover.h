@@ -437,4 +437,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* u
                                                       uint32_t edi, uint32_t ebp);
 extern "C" void G_RunMissile_entry(void);
 
+// 0x002688c0 (item in EBX; cdecl player, &event, touched): Q3's Pickup_Weapon; the respawn time (-1 none).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, uint32_t touched);
+extern "C" void Pickup_Weapon_entry(void);
+
+
+
 }  // namespace game
