@@ -14587,3 +14587,4 @@ address,name,kind,confidence,evidence
 002b4cb0,PM_ResetWeaponToIdle,function,high,"game/phys push 13"
 002b5ea0,PM_CheckViewHeightStance,function,high,"game/phys push 13"
 002b5ed0,PM_ViewHeightLerpFrac,function,high,"game/phys push 13"
+0021aa50,Actor_UpdateSightAndSelectEnemy,function,high,"game/ai push 12 (gap after Actor_MoveAlongPath, created in Ghidra 11-03)"

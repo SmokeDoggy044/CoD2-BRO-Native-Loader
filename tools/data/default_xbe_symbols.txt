@@ -7884,6 +7884,7 @@
 0021a030 Actor_FindPath
 0021a180 Actor_FindPathToGoal
 0021a260 Actor_MoveAlongPath
+0021aa50 Actor_UpdateSightAndSelectEnemy
 0021aa80 Actor_Turret_Think
 0021ac70 Actor_Grenade_TakeCover
 0021ae00 Actor_Grenade_Flee
