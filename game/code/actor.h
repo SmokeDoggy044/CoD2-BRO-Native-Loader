@@ -1394,4 +1394,53 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_ReactToDistance(uint3
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Actor_Grenade_ReactToDistance_entry(void);
 
+// 0x00219c40 (stack actor, sentient, radius, use planes, a5; ret 0x14): path to the sentient.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathToSentient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathToSentient_entry(void);
+// 0x00219e60 (EBX actor; stack node, stale age, use planes, a4; ret 0x10): path to the node (1).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindPathToNode(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FindPathToNode_entry(void);
+// 0x002185c0 (stack actor, keep stale; ret 8): best-scoring enemy sentient, Sentient_SetEnemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_SelectEnemy(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_SelectEnemy_entry(void);
+// 0x002196d0 (stack actor, out; ret 8): angles toward the visible node toward the nearest enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FaceNearestEnemyRoute(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_FaceNearestEnemyRoute_entry(void);
+// 0x00218890 (EBX hint; stack sentient, target; ret 8): a node visible on the way to the target.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_FindVisibleNodeToward(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Sentient_FindVisibleNodeToward_entry(void);
+// 0x0021f010 (ECX actor; think): negotiation (traversal) anim state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Negotiation_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Negotiation_Think_entry(void);
+// 0x0021c810 (stack actor; ret 4): claims the first cover candidate that takes (1).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_ClaimBestCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_ClaimBestCover_entry(void);
+// 0x00220b10 (ECX actor; think): grenade reaction state by step.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Grenade_Think_entry(void);
+// 0x0021d3c0 (EDI actor): exposed combat step.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_Combat(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Exposed_Combat_entry(void);
+// 0x0021d6e0 (EDI actor, AL force): cover attack step.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Cover_Attack(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Cover_Attack_entry(void);
+// 0x0021e860 (ECX actor): run to cover step.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Cover_RunTo(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Cover_RunTo_entry(void);
+// 0x0021aa80 (ECX actor; think): turret state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Turret_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_Turret_Think_entry(void);
+
 }  // namespace game
