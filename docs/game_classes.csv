@@ -293,3 +293,4 @@
 0022ca00,PhysBone_UpdateWorldFrame,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
 0022d410,VehiclePhys_HasWheelBones,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
 00249f60,Vehicle_ApproachAtRate,dead,"no callers, no stored pointer, no immediate (Ghidra xrefs none)"
+002192c0,Path_RouteBetweenPointsInsidePlanes,dead,"no callers, no stored pointer, no immediate (gap function created 11-03; fnpack: no CALL/JMP or data references)"
