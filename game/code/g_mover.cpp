@@ -6619,4 +6619,345 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
     SV_LinkEntity(ent);
 }
 
+void XB_CDECL G_ExplodeMissile(uint8_t* ent) {
+    // Q3's G_ExplodeMissile (the fuse think): the attacker (owner +0x2b0; a turret's own owner).
+    // A grenade still held (+0x378 = the holder with +0x240, +0xd4 bit 0) drops from the holder's
+    // "tag_weapon_right" (origin of the tag matrix, zero when the tag is missing) and is detached;
+    // else it stops where its trajectory is now. Then the actors forget it, it explodes (event 0xba
+    // with the normal byte of a 16-unit trace down), the surface type (0x14 in water), the snapped
+    // origin, and the splash damage from 10 units above it (SV_Trace, G_RadiusDamage).
+    alignas(16) uint8_t trace[0x40] = {};
+    uint8_t* attacker = nullptr;
+    uint8_t* const owner = handle_entity(field<uint32_t>(ent, 0x2b0));
+    if (owner != nullptr) {
+        attacker = owner;
+        if (owner[0] == 0xa && field<uint32_t>(owner, 0x1a0) != 0) {
+            attacker = G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(owner + 0x1a0));
+        }
+    }
+    const uint8_t* const def = weapon_def(ent[3]);
+    alignas(16) float end[4] = {};
+    uint8_t* const holder = pointer_at(ent, 0x378);
+    if (holder != nullptr && field<uint32_t>(holder, 0x240) != 0 && (ent[0xd4] & 1)) {
+        const uint32_t hash = cached_key(0x0098f210, 1, 0x0098f20c, 0x00831e14);  // "tag_weapon_right"
+        alignas(16) float matrix[16] = {};
+        const DObj* const obj = reinterpret_cast<const DObj*>(uintptr_t{field<uint32_t>(holder, 0x22c)});
+        if (obj != nullptr) {
+            const int32_t bone = DObj_GetTagIndex(obj, hash);
+            if (bone >= 0) G_DObjGetWorldTagMatrix(holder, static_cast<uint32_t>(bone), matrix);
+        }
+        G_SetOrigin2(ent, 0, matrix + 12);
+        field<uint32_t>(ent, 0xd4) &= ~1u;
+        G_EntDetach(pointer_at(ent, 0x378),
+                    reinterpret_cast<const char*>(uintptr_t{*reinterpret_cast<const uint32_t*>(def + 0x57c)}),
+                    reinterpret_cast<const char*>(uintptr_t{0x00831e14}));
+    } else {
+        BG_EvaluateTrajectory(title_global<int32_t>(0x0098540c), end, ent + 0x14);
+        const uint32_t* const position = reinterpret_cast<const uint32_t*>(end);
+        for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x20 + i * 4) = position[i];
+        field<uint32_t>(ent, 0x14) = 0;
+        field<uint32_t>(ent, 0x18) = 0;
+        field<uint32_t>(ent, 0x1c) = 0;
+        field<float>(ent, 0x34) = 0.0f;
+        field<float>(ent, 0x30) = 0.0f;
+        field<float>(ent, 0x2c) = 0.0f;
+        for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x140 + i * 4) = position[i];
+    }
+    Actor_ForgetGrenade(ent);
+    ent[0] = 0;
+    field<uint32_t>(ent, 0xd4) |= 0x20;
+    field<uint32_t>(ent, 0x10) |= 0x80;
+    field<uint32_t>(ent, 0x2a4) |= 0x400;
+    // A point trace 16 units down from the origin (point box: zero vectors with w = 1).
+    alignas(16) float box[8];
+    for (uint32_t c = 0; c < 2; ++c) {
+        for (uint32_t i = 0; i < 4; ++i) box[c * 4 + i] = title_global<float>(0x0082e290 + i * 4);
+    }
+    end[0] = field<float>(ent, 0x140);
+    end[1] = field<float>(ent, 0x144);
+    end[2] = field<float>(ent, 0x148) - title_global<float>(0x0083ebb8);
+    {
+        const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
+        const uint32_t args[11] = {address_of(trace), address_of(box + 4), address_of(box), address_of(end),
+                                   field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
+        g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+    }
+    // DirToByte inlined: the bytedirs entry (0x008d52d8) with the largest dot product above 0.
+    const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
+    float best = 0.0f;
+    uint8_t best_index = 0;
+    for (uint32_t i = 0; i < 0xa2; ++i) {
+        const float* const d = reinterpret_cast<const float*>(uintptr_t{0x008d52d8 + i * 12});
+        float dot = d[1] * normal[1] + d[0] * normal[0];
+        dot = dot + normal[2] * d[2];
+        if (dot > best) {
+            best = dot;
+            best_index = static_cast<uint8_t>(i);
+        }
+    }
+    G_AddEvent(ent, 0xba, best_index);
+    ent[5] = def[0x73c];
+    if (SV_PointContents(reinterpret_cast<const float*>(ent + 0x140), 0, 0x20) != 0) {
+        ent[2] = 0x14;
+    } else {
+        ent[2] = static_cast<uint8_t>((*reinterpret_cast<const int32_t*>(trace + 0x24) >> 20) & 0x1f);
+    }
+    field<uint32_t>(ent, 0x1a4) |= 1;
+    float* const endpos = reinterpret_cast<float*>(trace);
+    for (uint32_t i = 0; i < 3; ++i) endpos[i] = static_cast<float>(static_cast<int32_t>(endpos[i]));  // SnapVector
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x20 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    field<uint32_t>(ent, 0x14) = 0;
+    field<uint32_t>(ent, 0x18) = 0;
+    field<uint32_t>(ent, 0x1c) = 0;
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(ent, 0x140 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    for (uint32_t i = 0; i < 4; ++i) field<uint32_t>(ent, 0x60 + i * 4) = reinterpret_cast<const uint32_t*>(trace)[i];
+    if (field<uint32_t>(ent, 0x35c) != 0) {
+        // The splash point: traced from the origin to 10 units above it.
+        alignas(16) float up[4];
+        std::memcpy(up, ent + 0x140, 16);
+        up[2] = up[2] + title_global<float>(0x0083eb98);
+        {
+            const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
+            const uint32_t args[11] = {address_of(trace), address_of(box), address_of(box + 4), address_of(up),
+                                       field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
+            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        }
+        const float radius = static_cast<float>(field<int32_t>(ent, 0x364));
+        const float low = static_cast<float>(field<int32_t>(ent, 0x360));
+        const float high = static_cast<float>(field<int32_t>(ent, 0x35c));
+        uint32_t args[8];
+        args[0] = address_of(trace);
+        args[1] = address_of(ent);
+        args[2] = address_of(attacker);
+        std::memcpy(&args[3], &high, 4);
+        std::memcpy(&args[4], &low, 4);
+        std::memcpy(&args[5], &radius, 4);
+        args[6] = address_of(ent);
+        args[7] = field<uint32_t>(ent, 0x36c);
+        const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
+        g_ent_call(0x00268e60, &regs, 8, args);  // G_RadiusDamage
+    }
+    SV_LinkEntity(ent);
+}
+
+ENT_EAX_FRAME_ENTRY(G_RunMissile)
+
+void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's G_RunMissile, EBX missile; the cdecl word goes on to the think / free. A point event to
+    // the actors (8 every 500 ms for mod 3, else 9), the new position (BG_EvaluateTrajectory); under
+    // 0.005 units of movement, or past g_missileMaxLifetime, only the think. Fast vertical missiles
+    // (|delta z| > 30) out of water trace with mask + 0x20 (G_MissileTrace), else a locational
+    // trace; a water hit (surface 20) makes a splash temp entity (0xb3) and traces again without
+    // the water bit. Mod 3 missiles retrace with a hit 0x80000 entity's contents cleared. Bouncing
+    // missiles resting on the ground (fraction 1, or a floor above 0.7) are traced 1.5 units down
+    // and put on it. Then link, damage triggers (mod 3) and, on a hit: sky (surface bit 4) adds the
+    // DObj entity to the list at 0x00960070 (32 max), nodraw (0x10) frees it, else G_MissileImpact.
+    // Frame: S = ((entry - 4) & ~15) - 0x80: scratch +0x10, dir +0x14, end +0x20, old origin +0x30,
+    // trace +0x40.
+    (void)unused_eax;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{ebx});
+    const uint32_t self = ebx;
+    const uint32_t arg = stack_at(entry + 4);
+    const uint32_t args1[1] = {arg};
+    stack_at(entry - 4) = ebp;
+    const uint32_t A = (entry - 4) & ~15u;
+    stack_at(A - 0x7c) = esi;
+    stack_at(A - 0x80) = edi;
+    const uint32_t S = A - 0x80;
+    const uint32_t origin = self + 0x140;
+    const uint32_t end = S + 0x20;
+    const uint32_t old = S + 0x30;
+    const uint32_t tr = S + 0x40;
+    uint8_t* const trace = reinterpret_cast<uint8_t*>(uintptr_t{tr});
+    const uint32_t owner = word_at(ent, 0x1a0);
+    stack_at(S + 0x70) = 0;
+    stack_at(S + 0x74) = 0;
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    if (word_at(ent, 0x368) == 3) {
+        const int32_t since = now - field<int32_t>(ent, 0x2f0);
+        if (since >= 0x1f4) {
+            const uint32_t args[4] = {self, 8, origin, 0};
+            call_at(S, 0x00273f37, 0x00214a90, TitleRegs{0xffffffffu, self, static_cast<uint32_t>(since), origin, esi, edi}, 4,
+                    args);  // Actor_SendPointEvent
+            word_at(ent, 0x2f0) = title_global<uint32_t>(0x0098540c);
+        }
+    } else {
+        const uint32_t args[4] = {self, 9, origin, 0};
+        call_at(S, 0x00273f57, 0x00214a90, TitleRegs{0xffffffffu, self, origin, 0, esi, edi}, 4,
+                args);  // Actor_SendPointEvent
+    }
+    for (uint32_t i = 0; i < 3; ++i) stack_at(old + i * 4) = word_at(ent, 0x140 + i * 4);
+    call_at(S, 0x00273f98, 0x002d62c0,
+            TitleRegs{title_global<uint32_t>(0x0098540c), self, end, 0, origin, self + 0x14}, 0,
+            nullptr);  // BG_EvaluateTrajectory
+    {
+        const float dz = stack_float(end + 8) - field<float>(ent, 0x148);
+        const float dy = stack_float(end + 4) - field<float>(ent, 0x144);
+        const float dx = stack_float(end) - field<float>(ent, 0x140);
+        const float sq = (dz * dz + dy * dy) + dx * dx;
+        stack_float(S + 0x10) = sq;
+        const float length = title_ci_sqrt(sq);
+        stack_float(S + 0x10) = length;
+        if (platform_x87_greater(title_global<float>(0x0083eb88), length)) {
+            call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self + 0x14}, 1, args1);  // G_RunThink
+            return;
+        }
+    }
+    const float lifetime = title_global<float>(0x00985ffc);  // g_missileMaxLifetime
+    if (lifetime != title_global<float>(0x0083eafc)) {
+        const int32_t elapsed = title_global<int32_t>(0x0098540c) - field<int32_t>(ent, 0x2f0);
+        if (static_cast<float>(elapsed) >= lifetime) {
+            call_at(S, 0x0027403e, 0x0024ac50, TitleRegs{static_cast<uint32_t>(elapsed), self, arg, 0, self, self + 0x14},
+                    1, args1);  // G_RunThink
+            return;
+        }
+    }
+    {
+        const uint32_t bits = word_at(ent, 0x34) & 0x7fffffffu;  // fabs on the x87
+        float speed;
+        std::memcpy(&speed, &bits, 4);
+        stack_at(S + 0x10) = bits;
+        bool in_air = false;
+        if (platform_x87_greater(speed, title_global<float>(0x0083ee38))) {
+            const uint32_t args[3] = {origin, 0, 0x20};
+            in_air = call_at(S, 0x0027407b, 0x002e01a0, TitleRegs{S - 8, self, 0, 0, origin, self + 0x14}, 3, args) ==
+                     0;  // SV_PointContents
+        }
+        if (in_air) {
+            const uint32_t args[3] = {tr, origin, owner};
+            call_at(S, 0x002740a6, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8) | 0x20, tr, origin, end}, 3,
+                    args);  // G_MissileTrace
+        } else {
+            const uint32_t args[7] = {tr, origin, end, owner, word_at(ent, 0x2a8), 0x008da6f0, 0};
+            call_at(S, 0x002740d0, 0x002600c0, TitleRegs{tr, self, owner, end, origin, self + 0x14}, 7,
+                    args);  // G_LocationalTrace
+        }
+    }
+    if ((stack_at(tr + 0x24) & 0x1f00000) == 0x1400000) {
+        const uint32_t dir = S + 0x14;
+        call_at(S, 0x002740f5, 0x002975c0, TitleRegs{0, self, 0x1400000, 0, self + 0x2c, dir}, 0,
+                nullptr);  // VectorNormalize2
+        const float z = stack_float(dir + 8);
+        if (0.0f > z) stack_float(dir + 8) = z * title_global<float>(0x0083eb34);
+        const uint32_t targs[2] = {origin, 0xb3};
+        const uint32_t tent_word =
+            call_at(S, 0x00274122, 0x002de2d0, TitleRegs{origin, self, 0x1400000, 0, self + 0x2c, dir}, 2,
+                    targs);  // G_TempEntity
+        uint8_t* const tent = reinterpret_cast<uint8_t*>(uintptr_t{tent_word});
+        const uint32_t byte1 = call_at(S - 8, 0x0027412d, 0x00295b80, TitleRegs{tent_word, self, 0, 0, tr + 0x10, tent_word},
+                                       0, nullptr);  // DirToByte
+        tent[4] = static_cast<uint8_t>(byte1);
+        const uint32_t byte2 =
+            call_at(S - 8, 0x00274139, 0x00295b80, TitleRegs{byte1, self, 0, 0, dir, tent_word}, 0, nullptr);  // DirToByte
+        tent[5] = static_cast<uint8_t>(byte2);
+        tent[2] = static_cast<uint8_t>((static_cast<int32_t>(stack_at(tr + 0x24)) >> 20) & 0x1f);
+        tent[3] = ent[3];
+        word_at(tent, 8) = word_at(ent, 0x224);
+        tent[3] = ent[3];
+        const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
+        call_at(S - 8, 0x00274185, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], dir, end}, 3,
+                args);  // G_MissileTrace
+    }
+    if (word_at(ent, 0x368) == 3) {
+        const uint32_t handle = stack_at(tr + 0x30);
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+            title_global<uint32_t>(0x0097a968 + index * 8) != 0) {
+            const uint32_t hit = call_at(S, 0x002741cd, 0x00013860, TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
+                                         nullptr);  // G_EntHandleToEnt
+            if (word_at(reinterpret_cast<uint8_t*>(uintptr_t{hit}), 0x2a4) & 0x80000) {
+                const uint32_t e_word = call_at(S, 0x002741e2, 0x00013860, TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
+                                                nullptr);  // G_EntHandleToEnt
+                uint8_t* const e = reinterpret_cast<uint8_t*>(uintptr_t{e_word});
+                const uint32_t contents = word_at(e, 0x134);
+                word_at(e, 0x134) = 0;
+                stack_at(S + 0xc) = contents;
+                const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
+                call_at(S, 0x0027421f, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], e_word, end}, 3,
+                        args);  // G_MissileTrace
+                word_at(e, 0x134) = stack_at(S + 0xc);
+            }
+        }
+    }
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = stack_at(tr + i * 4);
+    float fraction;
+    if (trace[0x3d] != 0) {
+        fraction = 0.0f;
+        stack_float(tr + 0x20) = fraction;
+    } else {
+        fraction = stack_float(tr + 0x20);
+    }
+    if (word_at(ent, 0x10) & 0x3000000) {
+        const float one = title_global<float>(0x0083eb20);
+        bool ground = fraction == one;
+        if (!ground) ground = one > fraction && stack_float(tr + 0x18) > title_global<float>(0x0083ed28);
+        if (ground) {
+            stack_float(end) = field<float>(ent, 0x140);
+            stack_float(end + 4) = field<float>(ent, 0x144);
+            stack_float(end + 8) = field<float>(ent, 0x148) - title_global<float>(0x0083eaf4);
+            const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
+            call_at(S, 0x002742fe, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], origin, end}, 3,
+                    args);  // G_MissileTrace
+            if (stack_float(tr + 0x20) != title_global<float>(0x0083eb20)) {
+                const float z = stack_float(tr + 8);
+                const float half = title_global<float>(0x0083eaf4);
+                field<float>(ent, 0x28) = ((z + half) - field<float>(ent, 0x148)) + field<float>(ent, 0x28);
+                word_at(ent, 0x140) = stack_at(tr);
+                word_at(ent, 0x144) = stack_at(tr + 4);
+                field<float>(ent, 0x148) = z;
+                field<float>(ent, 0x148) = z + half;
+            }
+        }
+    }
+    call_at(S, 0x0027436e, 0x002d7fe0, TitleRegs{0, self, 0, 0, origin, self}, 0, nullptr);  // SV_LinkEntity
+    if (word_at(ent, 0x368) == 3) {
+        const uint32_t args[5] = {self, old, origin, word_at(ent, 0x35c), 3};
+        call_at(S, 0x0027438c, 0x0025d7d0, TitleRegs{0, self, args[3], old, origin, self}, 5,
+                args);  // G_MissileActivateDamageTriggers
+    }
+    if (stack_float(tr + 0x20) == title_global<float>(0x0083eb20)) {
+        const float x = field<float>(ent, 0x2c);
+        const float y = field<float>(ent, 0x30);
+        const float z = field<float>(ent, 0x34);
+        const float sq = (x * x + y * y) + z * z;
+        stack_float(S + 0x10) = sq;
+        const float length = title_ci_sqrt(sq);
+        stack_float(S + 0x10) = length;
+        if (!(length == title_global<float>(0x0083eafc))) word_at(ent, 0xc) = 0;
+        call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+        return;
+    }
+    const uint8_t surface = trace[0x24];
+    if (surface & 4) {
+        if (word_at(ent, 0x22c) != 0 && !(word_at(ent, 0x2a4) & 0x200000)) {
+            word_at(ent, 0x2a4) |= 0x200000;
+            const int32_t count = title_global<int32_t>(0x00960070);
+            if (count < 0x20) {
+                title_global<uint32_t>(0x00960074 + count * 4) = word_at(ent, 0x224);
+                const uint32_t next = static_cast<uint32_t>(title_global<int32_t>(0x00960070) + 1);
+                title_global<uint32_t>(0x00960070) = next;
+                call_at(S, 0x0027445e, 0x0024ac50, TitleRegs{next, self, static_cast<uint32_t>(count), arg, self, self}, 1,
+                        args1);  // G_RunThink
+                return;
+            }
+        }
+        call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+        return;
+    }
+    if (surface & 0x10) {
+        const uint32_t args[2] = {self, arg};
+        call_at(S, 0x002743bc, 0x002be420, TitleRegs{arg, self, 0, 0, origin, self}, 2, args);  // G_FreeEntity
+        return;
+    }
+    title_global<uint32_t>(0x0095f704) = self;
+    const uint32_t args[1] = {tr};
+    call_at(S, 0x002743d7, 0x00273200, TitleRegs{self, self, tr, 0, origin, self}, 1, args);  // G_MissileImpact
+    title_global<uint32_t>(0x0095f704) = 0;
+    if (ent[0] != 3) return;
+    call_at(S, 0x002743f9, 0x0024ac50, TitleRegs{3, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+}
+
 }  // namespace game

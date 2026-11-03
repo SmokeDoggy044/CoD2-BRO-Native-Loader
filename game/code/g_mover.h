@@ -428,4 +428,13 @@ extern "C" void Turret_UpdateTurnFxAndBones_entry(void);
 // 0x00273200 (missile in EAX, cdecl trace): Q3's G_MissileImpact (bounce, impact damage, explosion, splash).
 void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace);
 
+// 0x0026c010 (think callback): Q3's G_ExplodeMissile - dropped from the holder's hand tag or stopped, the
+// explosion event, surface, snapped origin and splash damage.
+void XB_CDECL G_ExplodeMissile(uint8_t* ent);
+
+// 0x00273ef0 (missile in EBX, cdecl word for the think): Q3's G_RunMissile.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                      uint32_t edi, uint32_t ebp);
+extern "C" void G_RunMissile_entry(void);
+
 }  // namespace game
