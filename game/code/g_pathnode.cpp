@@ -1341,4 +1341,171 @@ uint32_t XB_CDECL PathNode_FindNearestNoPlanes(uint32_t entry, int32_t* count_ou
     return node;
 }
 
+namespace {
+
+// The title CRT's __CIsin / __CIsqrt of an x87 value, stored as float.
+float title_ci_sin_ext(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033ae60})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+float title_ci_sqrt_float(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+void XB_STDCALL PathNode_AdjustBadPlaceArc(uint8_t* tree, const float* arc, uint32_t mask, int32_t delta) {
+    // arc = {origin x, y, z, radius +0xc, half height +0x10, start yaw +0x14, end yaw +0x18} (degrees). Every
+    // link (node +0x64, 0xc each, count +0x62; target word: block (>> 9) - 1 of tree +8, node & 0x1ff, 0x80 each)
+    // of every node near the arc (squared xy distance under (radius + 256)^2, z under (half height + 128)^2)
+    // whose segment is not farther from the arc's centroid than the node, not wholly above or below it, and
+    // (both ends outside the circle) crosses the cylinder within its height, and lies on the arc's side of
+    // the start/end lines (both for arcs under 180 degrees, either otherwise; not checked for 0..360) gets
+    // `delta` added to each of its four team bytes (+4) selected by `mask`, stopping at the first that would
+    // leave 0..255.
+    const float deg = title_global<float>(0x0083edd8);
+    const float zero = title_global<float>(0x0083eafc);
+    float s1, c1, s2, c2, sm, cm;
+    FastSinCos(&s1, 0, &c1, arc[5] * deg);
+    const float c1n = 0.0f - c1;
+    FastSinCos(&s2, 0, &c2, arc[6] * deg);
+    const float s1n = 0.0f - s1;
+    const float c1pp = 0.0f - c1n;
+    const float c2n = 0.0f - c2;
+    float d2 = arc[0] * s2;
+    d2 = d2 + c2n * arc[1];
+    float span = arc[6] - arc[5];
+    float d1 = arc[0] * s1n;
+    d1 = d1 + c1pp * arc[1];
+    if (0.0f > span) span = span + title_global<float>(0x0083ebcc);  // 360
+    const bool narrow = title_global<float>(0x0083eb60) > span;   // 180
+    FastSinCos(&sm, 0, &cm, (span * title_global<float>(0x0083eb24) + arc[5]) * deg);
+    const float half_sine =
+        title_ci_sin_ext(static_cast<long double>(span) * static_cast<long double>(title_global<float>(0x0083ecf0)));
+    const float r2 = arc[3] * arc[3];
+    const float h2 = arc[4] * arc[4];
+    float far2 = arc[3] + title_global<float>(0x0083ecf4);  // 256
+    far2 = far2 * far2;
+    float hfar2 = arc[4] + title_global<float>(0x0083ebe8);  // 128
+    hfar2 = hfar2 * hfar2;
+    // The centroid of the sector: 2 r sin(span / 2) / span (degrees) along the middle direction.
+    const float k = static_cast<float>(static_cast<long double>(half_sine) / span *
+                                       static_cast<long double>(title_global<float>(0x0083f00c)) * arc[3]);
+    const float cx = static_cast<float>(static_cast<long double>(cm) * k + arc[0]);
+    const float cy = static_cast<float>(static_cast<long double>(sm) * k + arc[1]);
+    auto W = [](uint32_t a) -> uint32_t& { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(a)); };
+    auto Fl = [](uint32_t a) -> float { return *reinterpret_cast<const float*>(static_cast<uintptr_t>(a)); };
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    if (static_cast<int32_t>(W(W(base + 0x194) + 0xc)) <= 0) return;
+    for (int32_t b = 0; b < static_cast<int32_t>(W(W(base + 0x194) + 0xc)); ++b) {
+        const uint32_t slot = base + 8 + static_cast<uint32_t>(b) * 4;
+        const uint32_t block = W(slot);
+        if (!block || static_cast<int32_t>(W(block + 4)) <= 0) continue;
+        for (uint32_t n = W(block + 4), off = 0; n; --n, off += 0x80) {
+            const uint32_t node = W(W(slot) + 0x10) + off;
+            const float dx = Fl(node + 0x44) - arc[0];
+            float dy = Fl(node + 0x48) - arc[1];
+            const float dz = Fl(node + 0x4c) - arc[2];
+            const float dy_saved = dy;
+            float near2 = dy * dy;
+            near2 = near2 + dx * dx;
+            if (near2 >= far2) continue;
+            if (dz * dz >= hfar2) continue;
+            const int16_t links = *reinterpret_cast<const int16_t*>(static_cast<uintptr_t>(node + 0x62));
+            const float qy = cy - Fl(node + 0x48), qx = cx - Fl(node + 0x44);
+            float q = qy * qy;
+            q = q + qx * qx;
+            if (links <= 0) continue;
+            for (int32_t l = 0; l < *reinterpret_cast<const int16_t*>(static_cast<uintptr_t>(node + 0x62)); ++l) {
+                const uint32_t link = W(node + 0x64) + static_cast<uint32_t>(l) * 0xc;
+                const uint16_t target = *reinterpret_cast<const uint16_t*>(static_cast<uintptr_t>(link));
+                uint32_t other = 0;
+                if (target && target != 0xffff) {
+                    const uint32_t list = W(base + 8 + static_cast<uint16_t>((target >> 9) - 1) * 4u);
+                    if (list) other = W(list + 0x10) + (target & 0x1ffu) * 0x80;
+                }
+                const float oy = Fl(other + 0x48) - arc[1];
+                const float ox = Fl(other + 0x44) - arc[0];
+                const float oz = Fl(other + 0x4c) - arc[2];
+                float o2 = oy * oy;
+                o2 = o2 + ox * ox;
+                const float px = cx - Fl(other + 0x44);
+                const float py = cy - Fl(other + 0x48);
+                float p = py * py;
+                p = p + px * px;
+                if (p > q) continue;
+                if (!(dz < arc[4]) && dz == dz && arc[4] == arc[4]) {
+                    if (oz >= arc[4]) continue;
+                } else {
+                    const float bottom = 0.0f - arc[4];
+                    if (!(bottom < dz) && bottom == bottom && dz == dz && bottom >= oz) continue;
+                }
+                if (near2 > r2 && o2 > r2) {
+                    // Both ends outside the circle: where the segment meets it, within the height.
+                    const float ez = Fl(other + 0x4c) - Fl(node + 0x4c);
+                    const float ex = Fl(other + 0x44) - Fl(node + 0x44);
+                    const float ey = Fl(other + 0x48) - Fl(node + 0x48);
+                    float dot = ey * dy_saved;
+                    dot = dot + ex * dx;
+                    const float nb = zero - dot;
+                    if (zero >= nb) continue;
+                    float a = ey * ey;
+                    a = a + ex * ex;
+                    const float disc = nb * nb - (near2 - r2) * a;
+                    if (zero >= disc) continue;
+                    const float root = title_ci_sqrt_float(disc);
+                    const float one = title_global<float>(0x0083eb20);
+                    const float t0 = (nb - root) / a;
+                    if (t0 >= one) continue;
+                    const float z0 = t0 * ez + dz;
+                    if (z0 * z0 > h2) {
+                        const float t1 = (root + nb) / a;
+                        if (t1 >= one) continue;
+                        const float z1 = t1 * ez + dz;
+                        if (z1 * z1 > h2 && z1 * z0 >= title_global<float>(0x0083eafc)) continue;
+                    }
+                }
+                if (arc[5] != 0.0f || arc[6] != title_global<float>(0x0083ebcc)) {
+                    // Sides of the start (c1, -s1) and end (s2, -c2) lines.
+                    float p1 = c1pp * Fl(node + 0x48);
+                    p1 = p1 + s1n * Fl(node + 0x44);
+                    float q1 = s2 * Fl(node + 0x44);
+                    q1 = q1 + c2n * Fl(node + 0x48);
+                    q1 = q1 - d2;
+                    float p2 = Fl(other + 0x48) * c1pp;
+                    float q2 = Fl(other + 0x48) * c2n;
+                    p2 = p2 + Fl(other + 0x44) * s1n;
+                    q2 = q2 + Fl(other + 0x44) * s2;
+                    q2 = q2 - d2;
+                    p1 = p1 - d1;
+                    p2 = p2 - d1;
+                    if (narrow) {
+                        if (zero > p1 && zero > p2) continue;
+                        if (zero > q1 && zero > q2) continue;
+                    } else if (zero > p1 && zero > p2 && zero > q1 && zero > q2) {
+                        continue;
+                    }
+                }
+                for (uint32_t bit = 0; bit < 4; ++bit) {
+                    if (!(mask & (1u << bit))) continue;
+                    uint8_t& team = *reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(link + 4 + bit));
+                    const int32_t value = static_cast<int32_t>(team) + delta;
+                    if (value < 0 || value > 0xff) break;
+                    team = static_cast<uint8_t>(value);
+                }
+            }
+        }
+    }
+}
+
 }  // namespace game

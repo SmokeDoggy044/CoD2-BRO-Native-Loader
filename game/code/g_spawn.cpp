@@ -1421,4 +1421,173 @@ void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent) {
     }
 }
 
+// The calls run where the original's are (the light sample and the instance records read the frame's buffers).
+PLATFORM_ASM_ENTRY(Scn_AddModelInstances_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Scn_AddModelInstances) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* group, uint32_t ebx, uint32_t esi,
+                                    uint32_t edi, uint32_t ebp) {
+    // A group of static model instances (stdcall zone, group {name, list head +4, count +8, instances +0xc,
+    // 0x28 bytes each: 3x3 axis, origin, lighting word +0x24}): the model registered in the zone's memory
+    // context (pushed unless zone -1; 0x0095f5d0 set meanwhile), at most 32 bones: its bone matrices
+    // (0x0098c3c0, 0x40 each), and for every bone with a mesh a cdSimpleInstance list (linked into +4)
+    // holding each instance at axis x bone matrix, lit by the light grid at its origin (zero without a cell).
+    // Frame: base - 0x2e0 (EDI, ESI, EBX); mesh word +0x14 / instance index +0x14, bone +0x18, list +0x1c,
+    // model +0x20, cell +0x24, saved byte +0x2c, register out +0x1cc, matrix +0x210, origin +0x250,
+    // light buffers +0x260/+0x2a0.
+    auto W = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); };
+    auto Fl = [](uint32_t address) -> float& { return *reinterpret_cast<float*>(static_cast<uintptr_t>(address)); };
+    auto B = [](uint32_t address) -> uint8_t& { return *reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address)); };
+    W(entry - 4) = ebp;
+    const uint32_t F = ((entry - 4) & ~15u) - 0x2e0;
+    W(F + 8) = ebx;
+    W(F + 4) = esi;
+    W(F) = edi;
+    const uint32_t grp = addr(group);
+    auto call = [&](uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                    const uint32_t* args) {
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        W(top - count * 4 - 4) = ret;
+        return result;
+    };
+    edi = zone;
+    ebx = 1;
+    if (zone != 0xffffffffu) {
+        const uint8_t saved = title_global<uint8_t>(0x0095f5d0);
+        esi = title_global<uint32_t>(0x0095f638);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = 1;
+        B(F + 0x2c) = saved;
+        call(F, 0x002d912d, 0x0028f6c0, TitleRegs{saved, ebx, 0, 0, esi, edi}, 0, nullptr);  // MemContext_Push
+    }
+    {
+        const uint32_t args[3] = {title_global<uint32_t>(0x0095f6ac), F + 0x1cc, zone};  // rm_models
+        const uint32_t out = call(F, 0x002d9147, 0x00241f40, TitleRegs{W(grp), ebx, F + 0x1cc, args[0], esi, edi}, 3,
+                                  args);  // R_RegisterModel
+        esi = W(out);
+    }
+    const uint32_t model = esi;
+    W(F + 0x20) = model;
+    if (!(title_global<uint32_t>(0x0098cbc0) & 1)) {
+        title_global<uint32_t>(0x0098cbc0) |= 1;
+        uint32_t matrix = 0x0098c3c0;
+        for (uint32_t n = 0x20; n; --n, matrix += 0x40) {
+            const uint32_t args[4] = {matrix, 0x10, 3, 0x0001b920};
+            call(F, 0x002d9174, 0x00011240, TitleRegs{0, matrix, 0, 0, esi, n}, 4,
+                 args);  // eh_vector_constructor_iterator
+        }
+        edi = zone;
+    }
+    // The model's first LOD (first non-null slot from +0x24) and its bone count (+8 -> +0x10).
+    auto lod = [&]() {
+        uint32_t i = 0;
+        while (!W(model + 0x24 + i * 4)) ++i;
+        return W(model + 0x24 + i * 4);
+    };
+    const uint32_t first = lod();
+    if (W(first + 8) && static_cast<int32_t>(W(W(lod() + 8) + 0x10)) > 0x20) goto done;
+    {
+        const uint32_t args[2] = {model, 0x0098c3c0};
+        call(F, 0x002d91db, 0x00241ff0, TitleRegs{0, ebx, 0, 0, esi, edi}, 2, args);  // R_ModelBoneMatrices
+    }
+    W(F + 0x18) = 0;
+    ebx = 0x0098c3c0;
+    for (;;) {
+        const uint32_t bone = W(F + 0x18);
+        const uint32_t skeleton = W(lod() + 8);
+        const int32_t bones = skeleton ? static_cast<int32_t>(W(W(lod() + 8) + 0x10)) : 0;
+        if (static_cast<int32_t>(bone) >= bones) break;
+        const uint32_t meshes = W(lod() + 8);
+        const uint32_t slot = bone < W(meshes + 0x28) ? bone : 0;
+        const uint32_t mesh = W(W(meshes + 0x2c) + slot * 4);
+        if (mesh) {
+            W(F + 0x14) = W(W(mesh + 0xc) + 4);
+            const uint32_t alloc[3] = {0x18, 0x10, 0};
+            const uint32_t list = call(F, 0x002d9289, 0x00093950, TitleRegs{W(F + 0x14), ebx, 0, W(mesh + 0xc), esi, mesh},
+                                       3, alloc);  // Mem_AlignedAlloc
+            esi = list;
+            W(F + 0x1c) = list;
+            const uint32_t init[2] = {mesh, W(F + 0x14)};
+            call(F, 0x002d929f, 0x00046320, TitleRegs{list, ebx, list, 0, esi, mesh}, 2, init);  // cdSimpleInstance_InitList
+            W(list + 0x14) = W(grp + 4);
+            W(grp + 4) = list;
+            W(F + 0x14) = 0;
+            for (uint32_t i = 0; i < W(grp + 8); W(F + 0x14) = ++i) {
+                const uint32_t index = i < W(grp + 8) ? i : 0;
+                const uint32_t inst = W(grp + 0xc) + index * 0x28;
+                esi = inst;
+                // Origin {x, y, z, x}; the cell's light grid, sampled at it.
+                W(F + 0x250) = W(inst + 0x18);
+                W(F + 0x254) = W(inst + 0x1c);
+                W(F + 0x258) = W(inst + 0x20);
+                W(F + 0x25c) = W(inst + 0x18);
+                const uint32_t light = call(F, 0x002d932b, 0x0023e510, TitleRegs{F + 0x250, ebx, F + 0x24, 0, esi, mesh},
+                                            0, nullptr);  // R_GetCellLighting
+                if (light && static_cast<int32_t>(W(F + 0x24)) >= 0) {
+                    const uint32_t cell = W(F + 0x24);
+                    const uint32_t args[4] = {light, F + 0x250, F + 0x2a0, F + 0x260};
+                    call(F, 0x002d9357, 0x00242730, TitleRegs{cell, ebx, cell, F + 0x250, esi, mesh}, 4,
+                         args);  // R_SampleLightGridStatic
+                } else {
+                    for (uint32_t k = 0; k < 0x40; k += 4) W(F + 0x2a0 + k) = 0;
+                    for (uint32_t k = 0; k < 0x40; k += 4) W(F + 0x260 + k) = 0;
+                }
+                // Rows: axis rows times the bone's rows 0-2, row 2 from a zero vector, row 3 = origin through
+                // the bone matrix plus its translation (lane by lane, the original's MULPS/ADDPS order).
+                float a[3], b[3], c[3];
+                for (uint32_t k = 0; k < 3; ++k) {
+                    a[k] = Fl(inst + k * 4);
+                    b[k] = Fl(inst + 0xc + k * 4);
+                    c[k] = Fl(inst + 0x18 + k * 4);
+                }
+                const float zero = 0.0f;
+                for (uint32_t k = 0; k < 4; ++k) {
+                    const float r0 = Fl(ebx + k * 4), r1 = Fl(ebx + 0x10 + k * 4), r2 = Fl(ebx + 0x20 + k * 4);
+                    const float r3 = Fl(ebx + 0x30 + k * 4);
+                    float v = r0 * a[0];
+                    v = v + r1 * a[1];
+                    Fl(F + 0x210 + k * 4) = v + r2 * a[2];
+                    v = r0 * b[0];
+                    v = v + r1 * b[1];
+                    Fl(F + 0x220 + k * 4) = v + r2 * b[2];
+                    v = r0 * zero;
+                    v = v + r1 * zero;
+                    Fl(F + 0x230 + k * 4) = v + r2 * zero;
+                    v = r3 + r0 * c[0];
+                    v = v + r1 * c[1];
+                    Fl(F + 0x240 + k * 4) = v + r2 * c[2];
+                }
+                const uint32_t args[4] = {F + 0x210, W(inst + 0x24), F + 0x2a0, F + 0x260};
+                call(F, 0x002d990b, 0x000463c0, TitleRegs{args[1], ebx, list, F + 0x2a0, esi, mesh}, 4,
+                     args);  // cdSimpleInstance_AddInstance
+            }
+            esi = W(F + 0x1c);
+            call(F, 0x002d992d, 0x00046370, TitleRegs{0, ebx, esi, 0, esi, mesh}, 0, nullptr);  // cdSimpleInstance_ShrinkList
+            esi = model;
+        }
+        W(F + 0x18) = bone + 1;
+        ebx += 0x40;
+    }
+done:
+    if (zone != 0xffffffffu) {
+        title_global<uint8_t>(0x0095f5d0) = B(F + 0x2c);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        call(F, 0x002d9965, 0x0028c690, TitleRegs{B(F + 0x2c), ebx, 0, title_global<uint32_t>(0x0095f638), esi, edi}, 0,
+             nullptr);  // MemContext_Pop
+    }
+}
+
 }  // namespace game

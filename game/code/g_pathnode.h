@@ -207,4 +207,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_FindNearestNoPlanes(uint32
                                                                        uint32_t radius);
 extern "C" void PathNode_FindNearestNoPlanes_entry(void);
 
+// 0x002d0db0 (stdcall tree, arc, team mask, delta; bad places): adds `delta` to the selected team bytes of every
+// path link crossing the arc cylinder {origin, radius, half height, start/end yaw}.
+void XB_STDCALL PathNode_AdjustBadPlaceArc(uint8_t* tree, const float* arc, uint32_t mask, int32_t delta);
+
 }  // namespace game

@@ -116,4 +116,10 @@ extern "C" void Scn_AddStaticModel_entry(void);
 void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent);
 
 
+// 0x002d90f0 (stdcall zone, group; Scn_SpawnZone): a static model instance group: per bone of the model with a
+// mesh, a cdSimpleInstance list of the group's instances (axis x bone matrix, light grid colours).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* group,
+                                                               uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Scn_AddModelInstances_entry(void);
+
 }  // namespace game
