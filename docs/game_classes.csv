@@ -308,3 +308,4 @@
 002b99f0,PathNode_ParseAllScriptKeys,not reached,"callers Stream_LoadDcg, SV_MapRestart (load/restart paths); not reached in missions 1,4,5,6; its callee PathNode_ParseScriptKeys matched 12; leaf test not eligible (indirect game-import calls)"
 002bde90,ShakeRumble_StartByName,dead,"no CALL/JMP, pointer or immediate (xbefind imm + call 2026-11-03); C kept"
 002bb940,G_RestorePlayerHealth,matched offline,"only caller G_RestorePlayerLoadout (checkpoint restore); not reached in game; offline leaf test 1580/1594: all 14 differing inputs have g_skillLevel 0x7fffffff, which indexes past the original's 3-int stack table into words our frame lacks; every in-range skill level (0-3) matches"
+0026f670,Bullet_Fire,dead,"no CALL/JMP, pointer or immediate to 0x0026f670 (xbefind imm + call 2026-11-03); C kept (Bullet_Trace_r at the original's ESP); leaf test not eligible (_rand path via fs:)"
