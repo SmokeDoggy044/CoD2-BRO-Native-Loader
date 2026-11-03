@@ -7857,7 +7857,7 @@ address,name,section,module,state,tested,matched
 002172e0,Path_AStarSearchNearPointInsidePlanes,.text,game,untested,0,0
 002176b0,Path_AStarSearchNearPoint,.text,game,untested,0,0
 00217a30,Path_AStarSearchAwayFromGrenadeInsidePlanes,.text,game,untested,0,0
-00217e00,Path_AStarSearchAwayFromGrenade,.text,game,untested,0,0
+00217e00,Path_AStarSearchAwayFromGrenade,.text,game,matched,1,1
 00218170,Path_AStarSearchInsidePlanes,.text,game,matched,34,34
 002184f0,Sentient_SetEnemy,.text,game,settled,400,400
 002185c0,Actor_SelectEnemy,.text,game,settled,379,379
@@ -7870,8 +7870,8 @@ address,name,section,module,state,tested,matched
 00218e50,Path_RouteNearPoint,.text,game,untested,0,0
 00218ee0,Path_StartAwayFromGrenadeInsidePlanes,.text,game,untested,0,0
 00218fa0,Path_RouteAwayFromGrenadeInsidePlanes,.text,game,untested,0,0
-00219030,Path_SearchAwayFromGrenade,.text,game,untested,0,0
-00219100,Path_RouteAwayFromGrenade,.text,game,untested,0,0
+00219030,Path_SearchAwayFromGrenade,.text,game,matched,1,1
+00219100,Path_RouteAwayFromGrenade,.text,game,matched,1,1
 00219180,Path_RouteBetweenInsidePlanes,.text,game,matched,78,78
 00219230,Path_RouteInsidePlanes,.text,game,matched,74,74
 002192c0,Path_RouteBetweenPointsInsidePlanes,.text,game,untested,0,0
@@ -10632,7 +10632,7 @@ address,name,section,module,state,tested,matched
 003080e0,GScr_ActorCanSeeDefaultAge,.text,script,named,0,0
 00308150,GScr_Vehicle_FireWeapon,.text,script,named,0,0
 00308720,GScr_MagicBullet,.text,script,named,0,0
-003088b0,G_SetupVehicleScriptImports,.text,game,untested,0,0
+003088b0,G_SetupVehicleScriptImports,.text,game,matched,4,4
 00308a30,GScr_ActorShoot,.text,script,named,0,0
 00308a90,GScr_ActorShootAt,.text,script,named,0,0
 00308af0,GScr_SetAIFlags,.text,script,named,0,0
