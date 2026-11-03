@@ -781,7 +781,7 @@
 0002bce0 LiveMgr_DeletingDtor
 0002bd30 InGameLiveOptionsMenu_DeletingDtor
 0002bd50 PathNode_Construct
-0002bdc0 FUN_0002bdc0
+0002bdc0 Actor_PathEntityIsFresh
 0002be40 Path_Init
 0002bf00 G_RestoreSavedEntityField134
 0002bf50 AitbManager_DeletingDtor

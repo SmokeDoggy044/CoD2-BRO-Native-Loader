@@ -1539,4 +1539,29 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_BuildFromNodes_entry(void);
 
+// 0x0002bdc0 (EDX actor, stack entity handle; cdecl): whether the path entity is still fresh.
+uint32_t XB_REGS2 XB_CDECL Actor_PathEntityIsFresh(uint32_t unused_eax, uint32_t edx, uint32_t handle);
+// 0x0021aa50 (EAX actor, stack arg; ret 4): sentient position, sight and enemy selection (dead).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateSightAndSelectEnemy(uint32_t entry, uint32_t eax, uint32_t ebx,
+                                                                             uint32_t ecx, uint32_t edx, uint32_t esi,
+                                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateSightAndSelectEnemy_entry(void);
+
+// 0x00214050 (EAX start, ECX path; stack goal, side point, index, entity handle, pass entity, content mask, may cut;
+// ret 0x1c): cuts the path over to a dodge point the actor box can walk to; 1 when cut.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                          uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_TryDodge_entry(void);
+
+// 0x00213850 (EAX path, EBX origin): picks the lookahead distance (+0x3b4) where the path lines up best with
+// the lookahead direction and refreshes the lookahead (Path_RefreshLookahead / Path_LookaheadAtEnd).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_StartLookahead(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                                uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_StartLookahead_entry(void);
+// 0x00212a20 (stack actor; ret 4): steps the actor out of the way of the entity at +0x1390 (sidesteps across
+// its path when that fails); 0 when a movement run fails.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                                  uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_MoveOutOfTheWay_entry(void);
+
 }  // namespace game

@@ -14607,3 +14607,4 @@ address,name,kind,confidence,evidence
 00305150,GScr_Detach,function,high,"swapped 11-03: calls G_EntDetach only"
 003051c0,GScr_Attach,function,high,"swapped 11-03: detaches a same model/tag, then G_EntAttach(model, tag, ignoreCollision)"
 002eabb0,PathNode_FindNearestNoPlanes,function,high,"game/ent push 10 (30 B wrapper, created in Ghidra 11-03)"
+0002bdc0,Actor_PathEntityIsFresh,function,high,"game/ai push 13"

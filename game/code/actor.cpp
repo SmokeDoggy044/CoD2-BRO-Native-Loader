@@ -7035,6 +7035,46 @@ uint32_t call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs&
     return result;
 }
 
+// call_at that also hands back the callee's EDX (`edx_out`).
+uint32_t call_at_edx(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                     const uint32_t* args, uint32_t& edx_out) {
+    using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
+    const uint64_t r =
+        reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(top, function, &regs, count, args);
+    stack_word(top - count * 4 - 4) = ret;
+    edx_out = static_cast<uint32_t>(r >> 32);
+    return static_cast<uint32_t>(r);
+}
+
+}  // namespace
+
+// The title CRT's __CIsqrt of *in run with ESP at `top` (the original's position), *out the
+// result rounded to float.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ai_ci_sqrt_at(uint32_t top, const float* in, float* out);
+PLATFORM_ASM_ENTRY(ai_ci_sqrt_at, "pushl %ebp\n"
+                                  "movl %esp, %ebp\n"
+                                  "movl 12(%ebp), %ecx\n"
+                                  "flds (%ecx)\n"
+                                  "movl 8(%ebp), %esp\n"
+                                  "movl $0x0033acf4, %eax\n"
+                                  "call *%eax\n"
+                                  "movl %ebp, %esp\n"
+                                  "movl 16(%ebp), %ecx\n"
+                                  "fstps (%ecx)\n"
+                                  "popl %ebp\n"
+                                  "ret")
+
+namespace {
+
+// __CIsqrt of a float at the original's ESP `top`, its return address `ret` written back: the
+// CRT's own stack words land where the original leaves them for the next callee.
+float ci_sqrt_at(uint32_t top, uint32_t ret, float x) {
+    float r;
+    ai_ci_sqrt_at(top, &x, &r);
+    stack_word(top - 4) = ret;
+    return r;
+}
+
 // The (0, 0, 0, 1) vector at 0x0082e290 written to a stack block.
 void zero_vec4_at(uint32_t to) {
     for (uint32_t i = 0; i < 16; i += 4) stack_word(to + i) = title_global<uint32_t>(0x0082e290 + i);
@@ -16986,9 +17026,11 @@ uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx,
     };
     if (!field<uint32_t>(ent, 0x450)) field<uint32_t>(ent, 0x450) = alloc(0x1010, 0x0021cd4d, 0x0021cd5d);
     if (!field<uint32_t>(ent, 0x454)) field<uint32_t>(ent, 0x454) = alloc(0x810, 0x0021cdbc, 0x0021cdcc);
+    // EDX as the callees leave it (the anim script init hook gets it).
+    uint32_t dx = edx;
     {
         const uint32_t s[1] = {field<uint32_t>(actor, 4)};
-        call_at(F, 0x0021cdf8, 0x00203550, TitleRegs{0, 0, e + 0x140, s[0], a, e}, 1, s);  // Sentient_SetGoalPos
+        call_at_edx(F, 0x0021cdf8, 0x00203550, TitleRegs{0, 0, e + 0x140, s[0], a, e}, 1, s, dx);  // Sentient_SetGoalPos
     }
     float yaw = field<float>(field<const uint8_t*>(actor, 0), 0x154);
     uint8_t* const sentient = field<uint8_t*>(actor, 4);
@@ -17009,11 +17051,12 @@ uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx,
     const uint32_t goal = field<uint32_t>(ent, 0x26c);
     if (goal && goal + 6 && field<uint8_t>(reinterpret_cast<const uint8_t*>(uintptr_t{goal}), 6)) {
         bx = field<uint32_t>(actor, 4);
-        call_at(F, 0x0021ce65, 0x0021c5c0, TitleRegs{e + 0x26c, bx, goal + 6, edx, a, e}, 0, nullptr);  // Actor_SetGoalFromString
+        call_at_edx(F, 0x0021ce65, 0x0021c5c0, TitleRegs{e + 0x26c, bx, goal + 6, dx, a, e}, 0, nullptr,
+                    dx);  // Actor_SetGoalFromString
     }
     {
         const uint32_t number[1] = {field<uint32_t>(ent, 0x224)};
-        call_at(F, 0x0021ce76, title_global<uint32_t>(0x00987b70), TitleRegs{F - 4, bx, number[0], edx, a, e}, 1,
+        call_at(F, 0x0021ce76, title_global<uint32_t>(0x00987b70), TitleRegs{F - 4, bx, number[0], dx, a, e}, 1,
                 number);  // g_animScriptInit
     }
     const uint32_t state = field<uint32_t>(actor, 8);
@@ -17113,23 +17156,25 @@ uint32_t XB_CDECL Actor_SpawnFromSpawner(uint32_t entry, uint32_t, uint32_t ebx,
     }
     field<uint32_t>(ent, 0x2a0) &= 0xfffffffeu;
     field<int32_t>(ent, 0x290) = -1;
-    if (!call_at(F, 0x0021d010, 0x002106f0, TitleRegs{e, 0xffffffffu, ecx, field<uint32_t>(ent, 0x2a0), e, sp}, 0,
-                 nullptr))  // Actor_Spawn
+    uint32_t dx = 0;  // EDX as the callees leave it (Actor_InitStateMachine gets it)
+    if (!call_at_edx(F, 0x0021d010, 0x002106f0, TitleRegs{e, 0xffffffffu, ecx, field<uint32_t>(ent, 0x2a0), e, sp}, 0,
+                     nullptr, dx))  // Actor_Spawn
         return 0;
     uint32_t bx = 0xffffffffu;  // EBX: -1, or 0 after the sentient walk
     if (!(field<uint8_t>(spawner, 0x2a0) & 8)) {
         bx = 0;
-        uint32_t s = call_at(F, 0x0021d02d, 0x001fa570, TitleRegs{1, 0xffffffffu, ecx, edx, 0xffffffffu, sp}, 0,
-                             nullptr);  // Sentient_FirstOfTeams
+        uint32_t s = call_at_edx(F, 0x0021d02d, 0x001fa570, TitleRegs{1, 0xffffffffu, ecx, dx, 0xffffffffu, sp}, 0,
+                                 nullptr, dx);  // Sentient_FirstOfTeams
         while (s) {
             const uint32_t actor = field<uint32_t>(ent, 0x240);
             call_at(F, 0x0021d044, 0x00200050, TitleRegs{s, s, s, e, actor, sp}, 0, nullptr);  // Actor_RecordSentientPosition
-            s = call_at(F, 0x0021d04e, 0x001fa510, TitleRegs{s, s, s, e, actor, 0xffffffffu}, 0, nullptr);  // Sentient_NextOfTeams
+            s = call_at_edx(F, 0x0021d04e, 0x001fa510, TitleRegs{s, s, s, e, actor, 0xffffffffu}, 0, nullptr,
+                            dx);  // Sentient_NextOfTeams
         }
     }
     const uint32_t a = field<uint32_t>(ent, 0x240);
     title_global<uint32_t>(0x0095f704) = sp;
-    call_at(F, 0x0021d06c, 0x0021cca0, TitleRegs{0, bx, ecx, edx, a, sp}, 0, nullptr);  // Actor_InitStateMachine
+    call_at(F, 0x0021d06c, 0x0021cca0, TitleRegs{0, bx, ecx, dx, a, sp}, 0, nullptr);  // Actor_InitStateMachine
     uint8_t* const actor = field<uint8_t*>(ent, 0x240);
     const uint32_t mask = 1u << (field<uint32_t>(field<const uint8_t*>(ent, 0x244), 4) & 31);
     title_global<uint32_t>(0x0095f704) = 0;
@@ -17237,7 +17282,7 @@ uint32_t XB_CDECL Actor_MoveByAnimMode(uint32_t entry, uint32_t, uint32_t ebx, u
                 } else {
                     const uint32_t lane[1] = {field<uint32_t>(actor, 0x39c)};
                     const uint32_t v = call_at(F, 0x0021dd7a, 0x0002bdc0, TitleRegs{live, bits, ecx, a, e, a + 0x2c4}, 1,
-                                               lane);  // FUN_0002bdc0
+                                               lane);  // Actor_PathEntityIsFresh
                     const uint32_t args[3] = {e + 0x140, bits, v};
                     call_at(F, 0x0021dd96, 0x00212670, TitleRegs{v, bits, ecx, a, a + 0x3c0, a + 0x2c4}, 3,
                             args);  // Actor_GetLookaheadMove
@@ -17285,7 +17330,7 @@ uint32_t XB_CDECL Actor_MoveByAnimMode(uint32_t entry, uint32_t, uint32_t ebx, u
                     stack_word(F - 4) = 0;
                     const uint32_t lane[1] = {field<uint32_t>(actor, 0x39c)};
                     const uint32_t v = call_at(F - 4, 0x0021df5d, 0x0002bdc0, TitleRegs{6, ebx, ecx, a, e, edi}, 1,
-                                               lane);  // FUN_0002bdc0
+                                               lane);  // Actor_PathEntityIsFresh
                     const uint32_t args[2] = {v, 0};
                     call_at(F, 0x0021df72, 0x00212450, TitleRegs{e + 0x140, ebx, a + 0x3c0, a, e, edi}, 2,
                             args);  // Path_RefreshLookahead
@@ -18224,7 +18269,7 @@ uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx
     };
     if (!field<uint8_t>(actor, 0x3b0)) {
         const uint32_t h[1] = {field<uint32_t>(actor, 0x39c)};
-        if (call_at(F, 0x0021a356, 0x0002bdc0, TitleRegs{h[0], a + 0x39c, ecx, a, a + 0x290, a}, 1, h) &&  // FUN_0002bdc0
+        if (call_at(F, 0x0021a356, 0x0002bdc0, TitleRegs{h[0], a + 0x39c, ecx, a, a + 0x290, a}, 1, h) &&  // Actor_PathEntityIsFresh
             call_at(F, 0x0021a36c, 0x001fcb40, TitleRegs{h[0], a + 0x39c, a + 0x3c0, a, a + 0x290, a}, 0, nullptr)) {  // Path_NeedsEndRefresh
             const int32_t count = field<int16_t>(actor, 0x740);
             const uint8_t* const point = actor + 0x394 + count * 0x1c;
@@ -18245,7 +18290,7 @@ uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx
             }
             if (!field<uint8_t>(actor, 0x3b0)) {
                 const uint32_t h2[1] = {field<uint32_t>(actor, 0x39c)};
-                if (call_at(F, 0x0021a5fa, 0x0002bdc0, TitleRegs{1, a + 0x3a8, ecx, a, a + 0x290, a}, 1, h2)) {  // FUN_0002bdc0
+                if (call_at(F, 0x0021a5fa, 0x0002bdc0, TitleRegs{1, a + 0x3a8, ecx, a, a + 0x290, a}, 1, h2)) {  // Actor_PathEntityIsFresh
                     blocker_dir(0x0021a638);
                     const uint8_t* const pt = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry - 0x1c)});
                     const float lhs = field<float>(pt, 4) * d[0];
@@ -18609,6 +18654,621 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
     call_at(F, 0x002148e9, 0x00213850, TitleRegs{p, origin, uint32_t(count), edx, esi, addr_of(recs)}, 0,
             nullptr);  // Path_StartLookahead
     if (arg(3)) field<float>(path, 0x3b4) = title_global<float>(0x0083ebc8);
+    return 1;
+}
+
+uint32_t XB_REGS2 XB_CDECL Actor_PathEntityIsFresh(uint32_t, uint32_t edx, uint32_t handle) {
+    // EDX actor, stack entity handle (index in the low 12 bits, spawn count above; the
+    // 0x540-entry table at 0x0097a968): 0 for a stale handle or an empty slot. A client entity
+    // (+0x244) is fresh until the actor's +0x7c4 time; any other entity unless its +0x2a4 flag
+    // 0x4000 is set, while the actor's +0x780 is past the entity's +0x414.
+    const uint8_t* const actor = reinterpret_cast<const uint8_t*>(uintptr_t{edx});
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540) return 0;
+    if (handle >> 12 != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+    const uint8_t* const ent = title_global<const uint8_t*>(0x0097a968 + index * 8);
+    if (!ent) return 0;
+    if (field<uint32_t>(ent, 0x244)) return level_time() < field<int32_t>(actor, 0x7c4) ? 1 : 0;
+    if (field<uint32_t>(ent, 0x2a4) & 0x4000) return 0;
+    return field<int32_t>(actor, 0x780) > field<int32_t>(ent, 0x414) ? 1 : 0;
+}
+
+AI_GAP_ENTRY(Actor_UpdateSightAndSelectEnemy, 4)
+
+uint32_t XB_CDECL Actor_UpdateSightAndSelectEnemy(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                                  uint32_t esi, uint32_t edi, uint32_t) {
+    // EAX actor, stack (arg; ret 4): the actor's own sentient position recorded when it has
+    // one (+0x12a0), then Actor_UpdateSight and Actor_SelectEnemy(actor, arg). No caller, no
+    // stored pointer (dead).
+    const uint32_t a = eax;
+    stack_word(entry - 4) = esi;
+    const uint32_t F = entry - 4;
+    const uint32_t sentient = field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{a}), 0x12a0);
+    if (sentient)
+        call_at(F, 0x0021aa62, 0x00200050, TitleRegs{a, ebx, sentient, edx, a, edi}, 0,
+                nullptr);  // Actor_RecordSentientPosition
+    {
+        const uint32_t one[1] = {a};
+        call_at(F, 0x0021aa68, 0x002135d0, TitleRegs{a, ebx, ecx, edx, a, edi}, 1, one);  // Actor_UpdateSight
+    }
+    const uint32_t two[2] = {a, stack_word(entry + 4)};
+    return call_at(F, 0x0021aa73, 0x002185c0, TitleRegs{two[1], ebx, ecx, edx, a, edi}, 2, two);  // Actor_SelectEnemy
+}
+
+AI_GAP_ENTRY(Path_TryDodge, 28)
+
+uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t, uint32_t esi,
+                                uint32_t edi, uint32_t ebp) {
+    // EAX start, ECX path; stack (goal, side point, index, entity handle, pass entity, content
+    // mask, may cut; ret 0x1c): a dodge point (out, entry-0x18) the actor box reaches walking from
+    // the goal back to the start - straight, else from the side point pulled 15 back toward the
+    // start (0 when the side point is within 15). From the path point at the index (when it is
+    // past +0x386) or, when allowed, from the lookahead point (+0x39c/+0x3a0 x +0x3b0 off the
+    // goal) the path is cut over to the dodge point: points up to 29 (28) before it dropped, a
+    // split point at +0x3b8 along the cut segment, the dodge point and the start appended as the
+    // path's new end (+0x3cc, +0x3c8 the last segment's length), +0x3bc bits 0/1/6 cleared,
+    // +0x384 2, and the lookahead restarted. 1 when cut. The title keeps the side distance in
+    // the index slot and the dropped count / segment lengths in the pass-entity slot.
+    stack_word(entry - 0x28) = ebx;
+    stack_word(entry - 0x2c) = ebp;
+    stack_word(entry - 0x30) = esi;
+    stack_word(entry - 0x34) = edi;
+    const uint32_t F = entry - 0x34;
+    const auto arg = [entry](uint32_t i) -> uint32_t& { return stack_word(entry + i * 4); };
+    const auto slot_f = [](uint32_t address) -> float& { return *reinterpret_cast<float*>(uintptr_t(address)); };
+    const uint32_t start = eax;
+    const float* const st = stack_vec(start);
+    uint8_t* const path = reinterpret_cast<uint8_t*>(uintptr_t{ecx});
+    const uint32_t P = ecx;
+    const uint32_t out1 = entry - 0x18;
+    const uint32_t out2 = entry - 0xc;
+    const uint32_t handle = arg(4), mask = arg(6);
+    {
+        const uint32_t args[5] = {start, handle, arg(5), mask, out1};
+        if (!call_at(F, 0x0021407d, 0x0020c040, TitleRegs{out1, start, arg(1), handle, P, mask}, 5, args))  // Path_TraceAhead
+            return 0;
+    }
+    bool clear;
+    {
+        const uint32_t args[5] = {arg(2), handle, arg(5), mask, out1};
+        clear = call_at(F, 0x002140a1, 0x0020c040, TitleRegs{out1, start, start, handle, P, arg(2)}, 5, args) !=
+                0;  // Path_TraceAhead
+    }
+    if (!clear) {
+        const float* const side = stack_vec(arg(2));
+        const float dy = side[1] - st[1];
+        const float dx = side[0] - st[0];
+        slot_f(entry - 0x20) = dy;
+        const float sum = dy * dy + dx * dx;
+        slot_f(entry + 0xc) = sum;
+        slot_f(entry - 0x24) = dx;
+        const float dist = ci_sqrt_at(F, 0x002140e8, sum);
+        slot_f(entry + 0xc) = dist;
+        float nx = dx, ny = dy;
+        if (dist != title_global<float>(0x0083eafc)) {
+            const float inv = title_global<float>(0x0083eb20) / dist;
+            nx = inv * dx;
+            ny = inv * dy;
+        }
+        const float back = title_global<float>(0x0083ef10);  // 15
+        if (back >= dist) return 0;
+        slot_f(out1) = slot_f(out1) - nx * back;
+        slot_f(out1 + 4) = slot_f(out1 + 4) - ny * back;
+    }
+    int32_t idx = int32_t(arg(3));
+    uint8_t* point = path + idx * 0x1c;
+    bool cut = false;
+    if (idx >= field<int16_t>(path, 0x386)) {
+        const uint32_t args[5] = {addr_of(point), handle, arg(5), mask, out2};
+        if (call_at(F, 0x002141a0, 0x0020c040, TitleRegs{arg(5), start, out1, mask, P, addr_of(point)}, 5,
+                    args)) {  // Path_TraceAhead
+            const int32_t n = idx - 0x1d;
+            arg(5) = uint32_t(n);
+            if (n > 0) {
+                call_at(F, 0x002141b8, 0x001fed20, TitleRegs{uint32_t(n), start, out1, mask, P, addr_of(point)}, 0,
+                        nullptr);  // Path_DropPassedPoints
+                point -= n * 0x1c;
+                idx -= n;
+            }
+            cut = true;
+        }
+    }
+    if (!cut) {
+        if (!arg(7)) return 0;
+        slot_f(entry + 0xc) = field<float>(path, 0x3b8);
+        idx = field<int16_t>(path, 0x388);
+        const float* const goal = stack_vec(arg(1));
+        slot_f(entry - 0x24) = field<float>(path, 0x39c) * field<float>(path, 0x3b0) + goal[0];
+        const float y = field<float>(path, 0x3a0) * field<float>(path, 0x3b0) + goal[1];
+        point = path + idx * 0x1c;
+        slot_f(entry - 0x20) = y;
+        slot_f(entry - 0x1c) = field<float>(point, 8);
+        {
+            const uint32_t args[5] = {entry - 0x24, handle, arg(5), mask, out2};
+            if (!call_at(F, 0x00214258, 0x0020c040, TitleRegs{handle, start, out1, arg(5), P, addr_of(point)}, 5,
+                         args))  // Path_TraceAhead
+                return 0;
+        }
+        const int32_t n = idx - 0x1c;
+        arg(5) = uint32_t(n);
+        if (n > 0) {
+            call_at(F, 0x00214278, 0x001fed20, TitleRegs{uint32_t(n), start, out1, uint32_t(n), P, addr_of(point)}, 0,
+                    nullptr);  // Path_DropPassedPoints
+            point -= n * 0x1c;
+            idx -= n;
+        }
+        const float sc = slot_f(entry + 0xc);
+        uint8_t* const next = point + 0x1c;
+        field<float>(next, 0) = field<float>(point, 0) - field<float>(point, 0xc) * sc;
+        field<float>(next, 4) = field<float>(point, 4) - field<float>(point, 0x10) * sc;
+        const float t = ((field<float>(point, 8) - field<float>(point, 0x24)) * sc) / field<float>(point, 0x14);
+        field<float>(point, 0x14) = sc;
+        field<float>(next, 8) = field<float>(point, 8) - t;
+        ++idx;
+        point = next;
+        field<int16_t>(path, 0x388) = int16_t(idx);
+        field<float>(path, 0x3b8) = 0.0f;
+        field<int16_t>(point, 0x18) = 0;
+    }
+    const float ox = slot_f(out1);
+    const float oy = slot_f(out1 + 4);
+    if (!(field<float>(point, 0) == ox && field<float>(point, 4) == oy)) {
+        const float dx = field<float>(point, 0) - ox;
+        field<float>(point, 0xc) = dx;
+        const float dy = field<float>(point, 4) - oy;
+        const float sum = dx * dx + dy * dy;
+        slot_f(entry + 0x14) = sum;
+        field<float>(point, 0x10) = dy;
+        const float len = ci_sqrt_at(F, 0x00214363, sum);
+        slot_f(entry + 0x14) = len;
+        const float inv = title_global<float>(0x0083eb20) / len;
+        field<float>(point, 0xc) = field<float>(point, 0xc) * inv;
+        field<float>(point, 0x10) = field<float>(point, 0x10) * inv;
+        field<float>(point, 0x14) = len;
+        ++idx;
+        uint8_t* const q = path + idx * 0x1c;
+        field<float>(q, 0) = ox;
+        field<float>(q, 4) = slot_f(out1 + 4);
+        field<float>(q, 8) = slot_f(out1 + 8);
+        field<int16_t>(q, 0x18) = 0;
+    }
+    uint8_t* const r = path + idx * 0x1c;
+    field<float>(r, 0xc) = ox - st[0];
+    const float ry = oy - st[1];
+    const float rx = field<float>(r, 0xc);
+    const float sum = rx * rx + ry * ry;
+    slot_f(entry + 0x14) = sum;
+    field<float>(r, 0x10) = ry;
+    const float len = ci_sqrt_at(F, 0x0021441f, sum);
+    slot_f(entry + 0x14) = len;
+    const float inv = title_global<float>(0x0083eb20) / len;
+    field<float>(r, 0x10) = inv * field<float>(r, 0x10);
+    field<float>(r, 0xc) = inv * field<float>(r, 0xc);
+    field<float>(r, 0x14) = len;
+    field<float>(path, 0x3c8) = len;
+    ++idx;
+    uint8_t* const e = path + idx * 0x1c;
+    field<uint32_t>(e, 0) = stack_word(start);
+    field<uint32_t>(e, 4) = stack_word(start + 4);
+    field<uint32_t>(e, 8) = stack_word(start + 8);
+    field<uint32_t>(path, 0x3cc) = stack_word(start);
+    field<uint32_t>(path, 0x3d0) = stack_word(start + 4);
+    field<uint32_t>(path, 0x3d4) = stack_word(start + 8);
+    field<int16_t>(e, 0x18) = 0;
+    field<float>(e, 0x14) = 0.0f;
+    field<float>(e, 0xc) = 0.0f;
+    field<float>(e, 0x10) = 0.0f;
+    field<uint32_t>(path, 0x3bc) &= 0xffffffbcu;
+    field<int16_t>(path, 0x380) = int16_t(idx + 1);
+    field<int16_t>(path, 0x382) = int16_t(idx + 1);
+    field<int16_t>(path, 0x384) = 2;
+    call_at(F, 0x002144d4, 0x00213850, TitleRegs{P, arg(1), stack_word(start + 4), stack_word(start + 8), P, addr_of(e)},
+            0, nullptr);  // Path_StartLookahead
+    return 1;
+}
+
+AI_GAP_ENTRY(Path_StartLookahead, 0)
+
+uint32_t XB_CDECL Path_StartLookahead(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                      uint32_t edi, uint32_t ebp) {
+    // EAX path, EBX origin: with no lookahead scale (+0x3b0 0) straight Path_LookaheadAtEnd(0).
+    // Else the path is walked back from point +0x380 - 2 to +0x386 accumulating segment
+    // lengths (the first one +0x3c8) weighted by how far each point lies off the lookahead
+    // direction (+0x39c/+0x3a0, the cross products' magnitude); the distance at which the
+    // direction toward a point (or the crossing found between two points) lines up best with
+    // the lookahead direction picks the new lookahead distance +0x3b4 (at least 64), and
+    // Path_RefreshLookahead(0, 1) or Path_LookaheadAtEnd runs.
+    stack_word(entry - 0x38) = esi;
+    stack_word(entry - 0x3c) = edi;
+    uint8_t* const path = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t P = eax;
+    const float* const o = stack_vec(ebx);
+    const auto f = [entry](int32_t off) -> float& { return *reinterpret_cast<float*>(uintptr_t(entry + uint32_t(off))); };
+    const auto w = [entry](int32_t off) -> uint32_t& { return stack_word(entry + uint32_t(off)); };
+    const auto at_end = [&](uint32_t top, uint32_t ret, uint32_t shrink, uint32_t bx, uint32_t cx, uint32_t dx) {
+        const uint32_t args[1] = {shrink};
+        call_at(top, ret, 0x00212780, TitleRegs{P, bx, cx, dx, P, ebx}, 1, args);  // Path_LookaheadAtEnd
+    };
+    if (field<float>(path, 0x3b0) == 0.0f) {
+        at_end(entry - 0x3c, 0x00213874, 0, ebx, ecx, edx);
+        return 0;
+    }
+    const float zero = 0.0f;
+    const float dy0 = field<float>(path, 0x3d0) - o[1];
+    f(-0x34) = zero;                         // acc
+    f(-0x20) = field<float>(path, 0x3b4);  // the distance limit
+    f(-0x8) = field<float>(path, 0x39c);
+    f(-0x4) = field<float>(path, 0x3a0);
+    const float dx0 = field<float>(path, 0x3cc) - o[0];
+    const float sum0 = dy0 * dy0 + dx0 * dx0;
+    f(-0xc) = dy0;
+    f(-0x2c) = sum0;
+    f(-0x10) = dx0;
+    f(-0x1c) = ci_sqrt_at(entry - 0x3c, 0x002138f0, sum0);
+    f(-0x2c) = f(-0x1c);
+    const float dist = f(-0x2c);
+    float ny, nx;
+    if (dist != title_global<float>(0x0083eafc)) {
+        const float inv = title_global<float>(0x0083eb20) / dist;
+        nx = inv * f(-0x10);
+        ny = inv * f(-0xc);
+    } else {
+        ny = f(-0xc);
+        nx = f(-0x10);
+    }
+    float dirx = f(-0x8);
+    float diry = f(-0x4);
+    stack_word(entry - 0x40) = ebp;
+    const uint32_t F = entry - 0x40;
+    int32_t count = field<int16_t>(path, 0x386);
+    int32_t i = field<int16_t>(path, 0x380) - 2;
+    f(-0x1c) = ny * diry + nx * dirx;  // best alignment
+    float prev = (ny * dirx - nx * diry) * dist;
+    f(-0x30) = zero;  // the distance at the best alignment
+    if (i < count) {
+        at_end(F, 0x00213df3, 0, ebx, uint32_t(count), edx);
+        return 0;
+    }
+    uint8_t* d = path + i * 0x1c + 0xc;  // the point's direction
+    bool first = true;
+    float c3 = 0.0f, xmm0 = 0.0f;
+    for (;;) {
+        const float rx = field<float>(d, -0xc) - o[0];
+        const float ry = field<float>(d, -0x8) - o[1];
+        f(-0x10) = rx;
+        f(-0xc) = ry;
+        f(-0x2c) = first ? field<float>(path, 0x3c8) : field<float>(d, 8);
+        const float c1 = ry * field<float>(d, 0) - field<float>(d, 4) * rx;
+        const float c2 = (diry * field<float>(d, 0) - field<float>(d, 4) * dirx) * c1;
+        const bool same = c2 > 0.0f;
+        f(-0x18) = c1;
+        w(-0x24) = w(-0x18) & 0x7fffffffu;
+        c3 = ry * dirx - rx * diry;
+        if (same && 0.0f > c3 * prev) {
+            // The lookahead direction crosses between this point and the last.
+            float a = f(-0x24);
+            xmm0 = ((a * prev) * f(-0x2c)) / (prev - c3) + f(-0x34);
+            if (xmm0 >= f(-0x20)) goto refresh;
+            if (i > field<int16_t>(path, 0x386)) {
+                uint8_t* q = path + i * 0x1c + 0xc;
+                for (;;) {
+                    a = a * f(-0x2c) + f(-0x34);
+                    f(-0x34) = a;
+                    if (a >= f(-0x20)) break;
+                    const float seg = field<float>(q, -0x14);
+                    const float qx = field<float>(q, -0x28) - o[0];
+                    const float t7 = field<float>(q, -0x18) * qx;
+                    q -= 0x1c;
+                    const float old = c3;
+                    const float qy = field<float>(q, -0x8) - o[1];
+                    f(-0x2c) = seg;
+                    const float k1 = field<float>(q, 0) * qy - t7;
+                    const float k2 = (field<float>(q, 0) * diry - field<float>(q, 4) * dirx) * k1;
+                    f(-0x14) = k2;
+                    --i;
+                    const bool s2 = f(-0x14) > 0.0f;
+                    diry = f(-0x4);
+                    f(-0x18) = k1;
+                    w(-0x24) = w(-0x18) & 0x7fffffffu;
+                    a = f(-0x24);
+                    c3 = qy * dirx - qx * diry;
+                    if (s2 && 0.0f > c3 * old) {
+                        xmm0 = ((a * old) * f(-0x2c)) / (old - c3) + f(-0x34);
+                        if (xmm0 >= f(-0x20)) goto refresh;
+                    }
+                    if (!(i > field<int16_t>(path, 0x386))) break;
+                }
+            }
+            {
+                const float floor = title_global<float>(0x00830c1c);  // 64
+                if (floor > xmm0) xmm0 = floor;
+                field<float>(path, 0x3b4) = xmm0;
+            }
+        refresh:
+            const uint32_t args[2] = {0, 1};
+            call_at(F, 0x00213ccf, 0x00212450, TitleRegs{ebx, ebx, P, w(-0x24), P, addr_of(d)}, 2,
+                    args);  // Path_RefreshLookahead
+            return 0;
+        }
+        {
+            const float a = f(-0x24);
+            const float limit = f(-0x20);
+            const float acc = a * f(-0x2c) + f(-0x34);
+            f(-0x34) = acc;
+            if (acc >= limit && a != 0.0f) {
+                // The limit falls on this segment: the point there.
+                const float t = (acc - limit) / a;
+                const float px = (field<float>(d, -0xc) - field<float>(d, 0) * t) - o[0];
+                const float py = (field<float>(d, -0x8) - field<float>(d, 4) * t) - o[1];
+                f(-0xc) = py;
+                const float sum = py * py + px * px;
+                f(-0x20) = sum;
+                f(-0x10) = px;
+                f(-0x14) = ci_sqrt_at(F, 0x00213d3a, sum);
+                f(-0x20) = f(-0x14);
+                float ux = f(-0x10), uy = f(-0xc);
+                if (f(-0x20) != title_global<float>(0x0083eafc)) {
+                    const float inv = title_global<float>(0x0083eb20) / f(-0x20);
+                    ux = inv * f(-0x10);
+                    uy = inv * f(-0xc);
+                }
+                const float dot = uy * f(-0x4) + ux * f(-0x8);
+                if (f(-0x1c) > dot) goto shrink;
+                at_end(F, 0x00213df3, 0, ebx, ecx, edx);
+                return 0;
+            }
+            f(-0x14) = c3;
+            const long double lsq =
+                static_cast<long double>(f(-0xc)) * f(-0xc) + static_cast<long double>(f(-0x10)) * f(-0x10);
+            f(-0x28) = static_cast<float>(lsq);
+            f(-0x28) = ci_sqrt_at(F, 0x00213ac1, f(-0x28));
+            float ux = f(-0x10), uy = f(-0xc);
+            if (f(-0x28) != title_global<float>(0x0083eafc)) {
+                const float inv = title_global<float>(0x0083eb20) / f(-0x28);
+                ux = inv * f(-0x10);
+                uy = inv * f(-0xc);
+            }
+            const float dot = uy * f(-0x4) + ux * f(-0x8);
+            if (dot >= f(-0x1c)) {
+                f(-0x1c) = dot;
+                f(-0x30) = f(-0x34);
+            }
+        }
+        --i;
+        d -= 0x1c;
+        first = false;
+        if (i < field<int16_t>(path, 0x386)) break;
+        prev = f(-0x14);
+        diry = f(-0x4);
+        dirx = f(-0x8);
+    }
+    if (f(-0x30) == f(-0x34)) {
+        at_end(F, 0x00213df3, 0, ebx, ecx, edx);
+        return 0;
+    }
+shrink:
+    at_end(F, 0x00213da9, 1, ebx, ecx, edx);
+    if (!(field<uint8_t>(path, 0x3bc) & 2)) {
+        float v = f(-0x30);
+        if (field<float>(path, 0x3b4) > v) {
+            const float floor = title_global<float>(0x00830c1c);  // 64
+            if (floor > v) {
+                f(-0x30) = floor;
+                v = floor;
+            }
+            field<float>(path, 0x3b4) = v;
+        }
+    }
+    return 0;
+}
+
+AI_GAP_ENTRY(Actor_MoveOutOfTheWay, 4)
+
+uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                        uint32_t edi, uint32_t ebp) {
+    // Stack (actor; ret 4): the actor steps away from the entity it is asked to make room for
+    // (+0x1390): the direction away from it (a random one when on top of it) at the root anim's
+    // xy speed (at least 30 x frame time) as the move delta (+0x2c4/+0x2c8), one movement run
+    // from the entity origin (+0x290). When that ends farther from the blocker and moved over
+    // a quarter of the speed, Actor_AskActorsToMoveAside decides (1 when nobody else is in
+    // the way). Else, while a path entity is set (+0x39c), a sidestep across the path direction
+    // (+0x3a8, normalized) at 0.75 and then 0.56 of the speed (the side kept by the entity's
+    // +0x2a4 bits 4/8, a third blended in) is tried with the move state restored before each
+    // run; the side taken goes to +0x2a4 bits 4/8. Failing that the blocker's number goes to
+    // +0x39c, the blocker's actor asks back (+0x1390 = us when unset), the move state is
+    // restored with +0x2a0..+0x2a8 zero and 1 returned; 0 when a movement run fails. The title
+    // keeps the distance, speed and sidestep speed in the argument slot.
+    stack_word(entry - 0x48) = ebx;
+    stack_word(entry - 0x4c) = ebp;
+    const uint32_t a = stack_word(entry + 4);
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{a});
+    const auto f = [entry](int32_t off) -> float& { return *reinterpret_cast<float*>(uintptr_t(entry + uint32_t(off))); };
+    const auto w = [entry](int32_t off) -> uint32_t& { return stack_word(entry + uint32_t(off)); };
+    const auto ent = [actor]() { return field<uint8_t*>(actor, 0); };
+    w(-0x18) = field<uint32_t>(actor, 0x2a0);
+    w(-0x38) = field<uint32_t>(actor, 0x2b0);
+    w(-0x14) = field<uint32_t>(actor, 0x2a4);
+    w(-0x34) = field<uint32_t>(actor, 0x2b8);
+    w(-0x2c) = field<uint32_t>(actor, 0x2b4);
+    w(-0x10) = field<uint32_t>(actor, 0x2a8);
+    const uint32_t keep_2bc = field<uint32_t>(actor, 0x2bc);
+    const uint8_t* const blocker = field<const uint8_t*>(actor, 0x1390);
+    field<uint32_t>(actor, 0x290) = field<uint32_t>(ent(), 0x140);
+    stack_word(entry - 0x50) = esi;
+    field<uint32_t>(actor, 0x294) = field<uint32_t>(ent(), 0x144);
+    field<uint32_t>(actor, 0x298) = field<uint32_t>(ent(), 0x148);
+    const float dy = field<float>(actor, 0x294) - field<float>(blocker, 0x144);
+    w(-0x30) = keep_2bc;
+    const float dx = field<float>(actor, 0x290) - field<float>(blocker, 0x140);
+    const float sum = dy * dy + dx * dx;
+    f(-0x1c) = dy;
+    f(4) = sum;
+    stack_word(entry - 0x54) = edi;
+    const uint32_t F = entry - 0x54;
+    w(-0x40) = addr_of(blocker);
+    f(-0x20) = dx;
+    f(4) = ci_sqrt_at(F, 0x00212b07, sum);
+    const float zero = title_global<float>(0x0083eafc);
+    const float one = title_global<float>(0x0083eb20);
+    bool normalize = true;
+    float inv = 0.0f;
+    if (f(4) != zero) {
+        inv = one / f(4);
+    } else {
+        const auto random = [&](uint32_t ret) {
+            const int32_t r = int32_t(call_at(F, ret, 0x001efcc0, TitleRegs{0, ebx, ecx, edx, a + 0x290, edi}, 0,
+                                              nullptr));  // _rand
+            return (float(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8) - one;
+        };
+        f(-0x20) = random(0x00212b3f);
+        const float ry = random(0x00212b66);
+        f(-0x1c) = ry;
+        const float rx = f(-0x20);
+        const float len2 = ry * ry + rx * rx;
+        f(-0x44) = len2;
+        f(-0x28) = ci_sqrt_at(F, 0x00212baf, len2);
+        f(-0x44) = f(-0x28);
+        if (f(-0x44) != zero)
+            inv = one / f(-0x44);
+        else
+            normalize = false;
+    }
+    if (normalize) {
+        const float nx = inv * f(-0x20);
+        const float ny = inv * f(-0x1c);
+        f(-0x20) = nx;
+        f(-0x1c) = ny;
+    }
+    f(-0x3c) = f(4) * f(4);  // the starting distance squared
+    call_at(F, 0x00212c1e, 0x002d7e30, TitleRegs{field<uint32_t>(ent(), 0x22c), entry - 0x28, ecx, edx, a + 0x290, entry - 0xc},
+            0, nullptr);  // DObj_GetRootAnimDelta
+    {
+        const float mx = f(-0xc);
+        const float my = f(-0x8);
+        const float x2 = mx * mx;
+        float least = title_global<float>(0x008ddaa0) * title_global<float>(0x0083ee38);  // 30 x frame time
+        const float moved = my * my + x2;
+        least = least * least;
+        f(-0x44) = moved;
+        if (least > moved) f(-0x44) = least;
+    }
+    f(4) = ci_sqrt_at(F, 0x00212c67, f(-0x44));
+    field<float>(actor, 0x2c4) = f(4) * f(-0x20);
+    field<float>(actor, 0x2c8) = f(4) * f(-0x1c);
+    const uint32_t pos = a + 0x290;
+    const auto run = [&](uint32_t ret, uint32_t bx) {
+        return call_at(F, ret, 0x00212200, TitleRegs{0, bx, ecx, edx, pos, pos}, 0, nullptr) != 0;  // Actor_RunMovement
+    };
+    const auto fail = [&]() {
+        field<uint32_t>(ent(), 0x2a4) &= 0xfffffff3u;
+        return 0u;
+    };
+    // Farther from the blocker than at the start and moved over `part` of the speed squared,
+    // and nobody else in the way.
+    const auto moved_clear = [&](float part, uint32_t ret, uint32_t bx) {
+        const float by = field<float>(blocker, 0x144) - field<float>(actor, 0x294);
+        const float bx2 = field<float>(blocker, 0x140) - field<float>(actor, 0x290);
+        if (!(by * by + bx2 * bx2 > f(-0x3c))) return false;
+        const uint8_t* const e = ent();
+        const float ey = field<float>(e, 0x144) - field<float>(actor, 0x294);
+        const float ex = field<float>(e, 0x140) - field<float>(actor, 0x290);
+        const float d2 = ey * ey + ex * ex;
+        if (!(d2 > f(-0x44) * part)) return false;
+        return call_at(F, ret, 0x00202010, TitleRegs{addr_of(e) + 0x140, bx, a, edx, addr_of(blocker), pos}, 0,
+                       nullptr) != 0;  // Actor_AskActorsToMoveAside
+    };
+    const auto restore = [&]() {
+        field<uint32_t>(actor, 0x2a0) = w(-0x18);
+        field<uint32_t>(actor, 0x2a4) = w(-0x14);
+        field<uint32_t>(actor, 0x2a8) = w(-0x10);
+        field<uint32_t>(actor, 0x2b0) = w(-0x38);
+        field<uint32_t>(actor, 0x2b8) = w(-0x34);
+        field<uint32_t>(actor, 0x2b4) = w(-0x2c);
+        field<uint32_t>(actor, 0x2bc) = w(-0x30);
+        field<uint32_t>(actor, 0x290) = field<uint32_t>(ent(), 0x140);
+        field<uint32_t>(actor, 0x294) = field<uint32_t>(ent(), 0x144);
+        field<uint32_t>(actor, 0x298) = field<uint32_t>(ent(), 0x148);
+    };
+    // The sidestep across the path direction at speed s; returns the side bit.
+    const auto sidestep = [&](float s) -> uint32_t {
+        const float* const v = reinterpret_cast<const float*>(actor + 0x3a8);
+        const float lhs = v[0] * f(-0x1c);
+        const float rhs = field<float>(actor, 0x3ac) * f(-0x20);
+        const float third = title_global<float>(0x0083eca4);  // 0.33
+        const uint32_t flags = field<uint32_t>(ent(), 0x2a4);
+        if (lhs >= rhs) {
+            if (!(flags & 4)) {
+                field<float>(actor, 0x2c4) = 0.0f - field<float>(actor, 0x3ac) * s;
+                field<float>(actor, 0x2c8) = v[0] * s;
+            } else {
+                const float nx = field<float>(actor, 0x2c4) - (field<float>(actor, 0x3ac) * s) * third;
+                const float ny = (v[0] * s) * third + field<float>(actor, 0x2c8);
+                field<float>(actor, 0x2c4) = nx;
+                field<float>(actor, 0x2c8) = ny;
+            }
+            return 8;
+        }
+        if (!(flags & 8)) {
+            field<float>(actor, 0x2c4) = field<float>(actor, 0x3ac) * s;
+            field<float>(actor, 0x2c8) = 0.0f - v[0] * s;
+        } else {
+            field<float>(actor, 0x2c4) = (field<float>(actor, 0x3ac) * s) * third + field<float>(actor, 0x2c4);
+            field<float>(actor, 0x2c8) = field<float>(actor, 0x2c8) - (v[0] * s) * third;
+        }
+        return 4;
+    };
+    if (!run(0x00212c94, entry - 0x28)) return fail();
+    if (moved_clear(title_global<float>(0x0083ec24), 0x00212d2c, entry - 0x28)) {  // 0.25
+        field<uint32_t>(ent(), 0x2a4) &= 0xfffffff3u;
+        return 1;
+    }
+    if (!field<uint32_t>(actor, 0x2b0)) return 1;
+    bool give_way = true;
+    if (field<uint32_t>(actor, 0x39c)) {
+        const uint32_t h = a + 0x39c;
+        if (call_at(F, 0x00212d78, 0x00013860, TitleRegs{h, ebx, field<uint32_t>(actor, 0x39c), edx, addr_of(blocker), pos},
+                    0, nullptr))  // G_EntHandleToEnt
+            give_way = false;
+    }
+    if (!give_way) {
+        const uint32_t v = a + 0x3a8;
+        call_at(F, 0x00212d8d, 0x00297700, TitleRegs{0, v, ecx, edx, v, pos}, 0, nullptr);  // Vec2Normalize
+        f(4) = f(4) * title_global<float>(0x0083eb58);  // 0.75
+        w(-0x28) = sidestep(f(4));
+        restore();
+        if (!run(0x00212f62, v)) return fail();
+        if (moved_clear(title_global<float>(0x0083f250), 0x00212ff1, v)) {  // 0.140625
+            field<uint32_t>(ent(), 0x2a4) &= 0xfffffff3u;
+            field<uint32_t>(ent(), 0x2a4) |= w(-0x28);
+            return 1;
+        }
+        if (field<uint32_t>(actor, 0x39c)) {
+            call_at(F, 0x00213040, 0x00297700, TitleRegs{0, v, ecx, edx, v, pos}, 0, nullptr);  // Vec2Normalize
+            const uint32_t side = sidestep(f(4) * title_global<float>(0x0083eb58));
+            restore();
+            if (!run(0x00213203, side)) return fail();
+            if (moved_clear(title_global<float>(0x0083f24c), 0x002132a8, side)) {  // 0.0791016
+                field<uint32_t>(ent(), 0x2a4) &= 0xfffffff3u;
+                field<uint32_t>(ent(), 0x2a4) |= side;
+                return 1;
+            }
+        }
+    }
+    // Give way: the blocker's actor is asked to move for us instead.
+    field<uint32_t>(actor, 0x39c) = field<uint32_t>(blocker, 0x224);
+    uint8_t* const other = field<uint8_t*>(blocker, 0x240);
+    if (other && !field<uint32_t>(other, 0x1390)) field<uint32_t>(other, 0x1390) = field<uint32_t>(actor, 0);
+    field<uint32_t>(ent(), 0x2a4) &= 0xfffffff3u;
+    field<float>(actor, 0x2a8) = 0.0f;
+    field<float>(actor, 0x2a4) = 0.0f;
+    field<float>(actor, 0x2a0) = 0.0f;
+    field<uint32_t>(actor, 0x2b0) = w(-0x38);
+    field<uint32_t>(actor, 0x2b8) = w(-0x34);
+    field<uint32_t>(actor, 0x2b4) = w(-0x2c);
+    field<uint32_t>(actor, 0x2bc) = w(-0x30);
+    field<uint32_t>(actor, 0x290) = field<uint32_t>(ent(), 0x140);
+    field<uint32_t>(actor, 0x294) = field<uint32_t>(ent(), 0x144);
+    field<uint32_t>(actor, 0x298) = field<uint32_t>(ent(), 0x148);
     return 1;
 }
 
