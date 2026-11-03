@@ -44,11 +44,6 @@ PLATFORM_ASM_ENTRY(ent_mover_step,
                    "popl %ebx\n"
                    "ret")
 
-// actor.cpp's title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function,
-                                                                    const game::TitleRegs* regs, uint32_t count,
-                                                                    const uint32_t* args);
-
 namespace game {
 
 namespace {
@@ -8191,10 +8186,6 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     stack_float(title_global<uint32_t>(0x0095f4e0) + 0x34c) = 0.0f;
     return 0;
 }
-
-// actor.cpp: title_call_at_regs for an XMM0 result (its bits in EAX).
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function, const TitleRegs* regs,
-                                                                    uint32_t count, const uint32_t* args);
 
 // Every title callee runs where the original's call puts it (the sight traces read the unset fourth words of the
 // eye vectors: the squared-distance vectors stored there before).

@@ -12022,9 +12022,7 @@ uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t entry, uint32_t ebx, uint32_t
     return result;
 }
 
-// title_call_at_regs for callees with an XMM0 result: the result's bits come back in EAX.
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function, const TitleRegs* regs,
-                                                                    uint32_t count, const uint32_t* args);
+// title_call_at_regs for callees with an XMM0 result (declared in actor.h): the result's bits come back in EAX.
 PLATFORM_ASM_ENTRY(actor_call_at_xmm0_raw,
                    "pushl 20(%esp)\n"
                    "pushl 20(%esp)\n"

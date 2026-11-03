@@ -4912,6 +4912,7 @@ const Function kFunctions[] = {
     {"G_GetEntityMatrix", 0x002de120, 0, code(&G_GetEntityMatrix), 8, Result::Eax, Status::Compare},
     {"G_TempEntity", 0x002de2d0, 0, code(&G_TempEntity), 8, Result::Eax, Status::Compare},
     {"G_DObjGetSkeletonBoneMatrixPtr", 0x002de3e0, 0, code(&G_DObjGetSkeletonBoneMatrixPtr), 4, Result::Eax, Status::Compare},
+    {"G_DObjSetBoneRotation", 0x002de420, 0, code(&G_DObjSetBoneRotation_entry), 20, Result::None, Status::Compare},
     {"G_GetTagParentMatrix", 0x002df3e0, 0, code(&G_GetTagParentMatrix), 4, Result::None, Status::Compare},
     {"G_EntLinkTo", 0x002df740, 0, code(&G_EntLinkTo), 12, Result::Eax, Status::Compare},
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Replaced},

@@ -526,6 +526,11 @@ extern "C" void G_EntUpdateLinkTag_entry(void);
 // 0x002de3e0 (entity in EAX, cdecl bone): the bone's matrix address in the DObj skeleton (SV_DObjCreateSkeleton
 // first). No code references.
 uint32_t XB_REGS1 XB_CDECL G_DObjGetSkeletonBoneMatrixPtr(uint8_t* ent, uint32_t bone);
+// 0x002de420 (cdecl ent, offset, angles, bone, local; vehicle/turret bone controllers): turns and moves one bone of
+// the entity's skeleton (its own frame when local, else from the base pose into the parent's), then its children.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void G_DObjSetBoneRotation_entry(void);
 // 0x00259180: TODO.
 // 0x00259180 (entity in EAX, solid in ECX): a script box entity's contents (solid 0x405c0008, else 0x411c0008),
 // flags and link.

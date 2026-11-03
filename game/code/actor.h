@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "title_data.h"
 
 namespace game {
 
@@ -1571,3 +1572,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entr
 extern "C" void Actor_MoveOutOfTheWay_entry(void);
 
 }  // namespace game
+
+// actor.cpp: title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function,
+                                                                    const game::TitleRegs* regs, uint32_t count,
+                                                                    const uint32_t* args);

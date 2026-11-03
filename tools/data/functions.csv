@@ -4808,6 +4808,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002de120,G_GetEntityMatrix,compare,73726,376,376,0,0,0,""
 002de2d0,G_TempEntity,compare,2,0,0,0,0,0,""
 002de3e0,G_DObjGetSkeletonBoneMatrixPtr,compare,0,0,0,0,0,0,""
+002de420,G_DObjSetBoneRotation,compare,215412,24851,24851,0,0,0,""
 002df3e0,G_GetTagParentMatrix,compare,614981,22808,22808,0,0,0,""
 002df740,G_EntLinkTo,compare,4331,70,70,0,0,0,""
 002df880,DObj_UpdateSkeletons,replaced,162978300,2192003,1834951,0,357052,0,"815c673c [host] [1] 10 vs 01"
