@@ -308,4 +308,47 @@ uint32_t XB_REGS1 XB_CDECL G_EntHasLiveDObj(const uint8_t* ent);
 // 0x002a8260: starts a cod note (two words, started flag, its object's slot 2).
 void XB_CDECL G_StartCodNote(uint8_t* note, uint32_t a, uint32_t b);
 
+// 0x002b49a0 (ECX owner, EDX key, EBX count; stack values; callee pops): replaces the owner's persistent value
+// (12-byte records at +0x560: {key, value, count} then count - 1 records {0, value, 0}) with the new values.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Persistent_SetValue(uint8_t* owner, uint32_t key, uint32_t count,
+                                                            const uint32_t* values);
+extern "C" void Persistent_SetValue_entry(void);
+// 0x002b6de0 (thiscall callback list; stack entity, key, args; callee pops): calls every callback (6 {key,
+// callback} pairs at +8, next list +0x38) registered for the key; the chained lists get no args. AL = any called.
+uint32_t XB_THISCALL G_EntityRunNotifyCallbacks(uint8_t* list, uint8_t* ent, uint32_t key, const uint32_t* args);
+// 0x002b6e50 (EDX list; stack key, callback; callee pops): clears the first matching pair; AL = found.
+uint32_t XB_REGS2 XB_STDCALL G_EntityRemoveNotifyCallback(uint32_t unused_eax, uint8_t* list, uint32_t key,
+                                                          uint32_t callback);
+// 0x002b6ea0 (EAX list; stack key, callback; callee pops): stores the pair in the first free slot, chaining a
+// zeroed 0x3c-byte list from the small heap at 0x0095f568 when all are full; AL = stored.
+uint32_t XB_REGS1 XB_STDCALL G_EntityAddNotifyCallback(uint8_t* list, uint32_t key, uint32_t callback);
+// 0x002f5d60 (EAX args or null, ESI callback, ECX entity): runs the callback through game import +0x880 with the
+// entity number (+0x224) and the args {+0, +0, +8, +0xc} (none: 0, 0 and the value at 0x00922eb8 twice).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_EntityCallNotifyCallback(const uint32_t* args, uint32_t callback,
+                                                                   uint8_t* ent);
+extern "C" void G_EntityCallNotifyCallback_entry(void);
+// 0x002b7900 (EAX entity): detaches a linked entity (+0x3cc link {parent, next}): stops its trajectories at the
+// current origin/angles, unchains it from the parent's child list (+0x3d0), clears the parent client's +0x238
+// for a player (+0x23c) and frees the link (small heap at 0x0095f598).
+void XB_REGS1 XB_CDECL G_EntUnlink(uint8_t* ent);
+// 0x002b8420 (EAX entity, ESI tag name): DObj_GetTagIndex on the entity's DObj (+0x22c), -1 without one.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL G_EntGetTagIndex(const uint8_t* ent, uint32_t name);
+extern "C" void G_EntGetTagIndex_entry(void);
+
+// 0x002bde90 (stdcall; dead: no callers): a shake/rumble descriptor with both channels' +4/+0xc from the arguments,
+// started on shakeRumbleMgr at strength 1 (the id goes to the first argument's slot); its script strings released.
+void XB_STDCALL ShakeRumble_StartByName(uint32_t id_slot, float second);
+// 0x002be2e0 (EAX state; returns it): zeroes an entity state (0xcc bytes except +0x5c).
+uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state);
+// 0x002be420 (cdecl entity): marks its scene slot (+0x290) changed, G_FreeEntityContents, clears +0x224 and frees
+// it in its memory context (+0x220, -1 = the default +0x34) or with Z_Free. The world entity (0x0095f52c) breaks.
+void XB_CDECL G_FreeEntity(uint8_t* ent);
+// 0x002be860 (cdecl note): deletes the note's anim object (+0xc), closes its file (+8) and frees it (small heap
+// 0x0095f520), inside its memory context (+0x24) when it has one.
+void XB_CDECL CodNote_Free(uint8_t* note);
+// 0x002be8f0 (cdecl time): advances every cod note on the list at 0x008dda50: its object's +0xc(time); notifies the
+// owner (game import +0x8ac) with +0x10 once started (+0x18), frees a finished one (notify +0x10 again) and sends
+// +0x14 within +0x20 of the end.
+void XB_CDECL G_ProcessCodNotes(uint32_t time);
+
 }  // namespace game

@@ -128,6 +128,12 @@ void XB_CDECL G_FreeLevelEntities();
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full);
 extern "C" void G_ReloadLevel_entry(void);
 
+// 0x002bb940 (EBX saved loadout): the player's health (client +0x100, entity +0x350) from the save (+4) at least
+// the skill level's share of max health (+0x108; factors 0x0083ee70/0x0083ecb0/0x0083ee68), or max health when the
+// save has no health (+0x390, +0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved);
+extern "C" void G_RestorePlayerHealth_entry(void);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

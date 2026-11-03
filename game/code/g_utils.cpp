@@ -8,11 +8,13 @@
 #include "fx.h"
 #include "xanim.h"
 #include "g_main.h"
+#include "g_scr_runtime.h"
 #include "lanes.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "stream.h"
 #include "sv.h"
 #include "title_data.h"
 
@@ -1735,6 +1737,309 @@ void XB_CDECL G_StartCodNote(uint8_t* note, uint32_t a, uint32_t b) {
     const uint32_t object = *reinterpret_cast<const uint32_t*>(note + 0xc);
     const uint32_t vtable = *reinterpret_cast<const uint32_t*>(uintptr_t{object});
     title_function<void XB_THISCALL(uint32_t)>(*reinterpret_cast<const uint32_t*>(uintptr_t{vtable + 8}))(object);
+}
+
+PLATFORM_ASM_ENTRY(Persistent_SetValue_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Persistent_SetValue) "addl $16, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Persistent_SetValue(uint8_t* owner, uint32_t key, uint32_t count, const uint32_t* values) {
+    uint32_t item[3];
+    item[1] = values[0];
+    uint8_t* const array = owner + 0x560;
+    uint32_t* const begin = reinterpret_cast<uint32_t*>(uintptr_t{word_at(array, 0)});
+    uint32_t* const end = begin + word_at(owner, 0x568) * 3;
+    item[0] = key;
+    item[2] = count;
+    for (uint32_t* entry = begin; entry != end; entry += 3) {
+        if (entry[0] != key) continue;
+        DynArray_Erase12(entry, reinterpret_cast<uint32_t*>(array), entry + entry[2] * 3);
+        break;
+    }
+    DynArray_PushBack12(array, item);
+    if (count > 1) {
+        item[0] = 0;
+        item[2] = 0;
+        for (uint32_t i = 1; i < count; ++i) {
+            item[1] = values[i];
+            DynArray_PushBack12(array, item);
+        }
+    }
+}
+
+uint32_t XB_THISCALL G_EntityRunNotifyCallbacks(uint8_t* list, uint8_t* ent, uint32_t key, const uint32_t* args) {
+    uint8_t called = 0;
+    for (uint32_t i = 0; i < 6; ++i) {
+        if (word_at(list, 8 + i * 8) != key) continue;
+        G_EntityCallNotifyCallback(args, word_at(list, 0xc + i * 8), ent);
+        called = 1;
+    }
+    uint8_t* const next = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+    if (next) called |= static_cast<uint8_t>(G_EntityRunNotifyCallbacks(next, ent, key, nullptr));
+    return called;
+}
+
+uint32_t XB_REGS2 XB_STDCALL G_EntityRemoveNotifyCallback(uint32_t, uint8_t* list, uint32_t key, uint32_t callback) {
+    for (;;) {
+        for (uint32_t i = 0; i < 6; ++i) {
+            if (word_at(list, 8 + i * 8) != key || word_at(list, 0xc + i * 8) != callback) continue;
+            word_at(list, 0xc + i * 8) = 0;
+            word_at(list, 8 + i * 8) = 0;
+            return 1;
+        }
+        list = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+        if (!list) return 0;
+    }
+}
+
+uint32_t XB_REGS1 XB_STDCALL G_EntityAddNotifyCallback(uint8_t* list, uint32_t key, uint32_t callback) {
+    for (;;) {
+        for (uint32_t i = 0; i < 6; ++i) {
+            if (word_at(list, 0xc + i * 8)) continue;
+            word_at(list, 8 + i * 8) = key;
+            word_at(list, 0xc + i * 8) = callback;
+            return 1;
+        }
+        if (!word_at(list, 0x38)) {
+            uint8_t* const added = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
+            if (added)
+                for (uint32_t offset = 0; offset <= 0x38; offset += 4) word_at(added, offset) = 0;
+            word_at(list, 0x38) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(added));
+            if (!added) return 0;
+        }
+        list = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+    }
+}
+
+PLATFORM_ASM_ENTRY(G_EntityCallNotifyCallback_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_EntityCallNotifyCallback) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL G_EntityCallNotifyCallback(const uint32_t* args, uint32_t callback, uint8_t* ent) {
+    using Call = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t id = word_at(ent, 0x224);
+    const uint32_t fn = word_at(title_global<uint8_t*>(0x0095f49c), 0x880);
+    if (args) {
+        title_function<Call>(fn)(callback, id, args[0], args[0], args[2], args[3]);
+        return;
+    }
+    const uint32_t none = title_global<uint32_t>(0x00922eb8);
+    title_function<Call>(fn)(callback, id, 0, 0, none, none);
+}
+
+void XB_REGS1 XB_CDECL G_EntUnlink(uint8_t* ent) {
+    uint8_t* const link = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x3cc)});
+    if (!link) return;
+    // Position and angle trajectories stop at the current values (+0x140 origin, +0x150 angles).
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x14 + i * 4) = 0;
+    for (uint32_t i = 3; i-- > 0;) word_at(ent, 0x2c + i * 4) = 0;  // 0.0f
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x44 + i * 4) = word_at(ent, 0x150 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x38 + i * 4) = 0;
+    for (uint32_t i = 3; i-- > 0;) word_at(ent, 0x50 + i * 4) = 0;
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x150 + i * 4) = word_at(ent, 0x150 + i * 4);
+    // Unchain from the parent's child list (+0x3d0, linked through each child's link +4).
+    uint8_t* const parent = reinterpret_cast<uint8_t*>(uintptr_t{word_at(link, 0)});
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    uint32_t child = word_at(parent, 0x3d0);
+    if (child == self) {
+        word_at(parent, 0x3d0) = word_at(link, 4);
+    } else {
+        uint32_t previous;
+        do {
+            previous = child;
+            child = word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(reinterpret_cast<uint8_t*>(uintptr_t{child}), 0x3cc)}), 4);
+        } while (child != self);
+        if (!previous) {
+            word_at(parent, 0x3d0) = word_at(link, 4);
+        } else {
+            uint8_t* const previous_link =
+                reinterpret_cast<uint8_t*>(uintptr_t{word_at(reinterpret_cast<uint8_t*>(uintptr_t{previous}), 0x3cc)});
+            word_at(previous_link, 4) = word_at(link, 4);
+        }
+    }
+    if (word_at(ent, 0x23c)) {
+        uint8_t* const client = reinterpret_cast<uint8_t*>(uintptr_t{word_at(parent, 0x248)});
+        if (client) client[0x238] = 0;
+    }
+    word_at(ent, 0x3cc) = 0;
+    SmallHeap_Free(title_global<uint8_t*>(0x0095f598), link);
+}
+
+PLATFORM_ASM_ENTRY(G_EntGetTagIndex_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_EntGetTagIndex) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL G_EntGetTagIndex(const uint8_t* ent, uint32_t name) {
+    const DObj* const obj = *reinterpret_cast<const DObj* const*>(ent + 0x22c);
+    if (!obj) return -1;
+    return DObj_GetTagIndex(obj, name);
+}
+
+void XB_STDCALL ShakeRumble_StartByName(uint32_t id_slot, float second) {
+    // Dead code (no callers): a descriptor (0x40 bytes, two channels of 0x20) with both channels'
+    // +8 / +0x10 set from the two arguments, started at strength 1; the id lands in the first argument's slot.
+    alignas(4) uint8_t desc[0x48];
+    ShakeRumbleDesc_Init(desc);
+    uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
+    const uint32_t first = id_slot;
+    *reinterpret_cast<uint32_t*>(desc + 8) = first;
+    *reinterpret_cast<float*>(desc + 0x10) = second;
+    *reinterpret_cast<uint32_t*>(desc + 0x28) = first;
+    *reinterpret_cast<float*>(desc + 0x30) = second;
+    if (manager) ShakeRumble_Start(desc, manager, &id_slot, 1.0f);
+    for (uint32_t i = 2; i-- > 0;)
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(desc + 0x18 + i * 0x20);  // ScriptString_Release
+}
+
+uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state) {
+    for (uint32_t i = 0; i < 6; ++i) state[i] = 0;
+    for (uint32_t offset = 0x8; offset < 0x5c; offset += 4) word_at(state, offset) = 0;
+    for (uint32_t offset = 0x60; offset < 0xb4; offset += 4) word_at(state, offset) = 0;
+    word_at(state, 0xbc) = 0;  // 0.0f
+    for (uint32_t offset = 0xc0; offset < 0xcc; offset += 4) word_at(state, offset) = 0;
+    *reinterpret_cast<uint16_t*>(state + 6) = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+        state[0xb4 + i] = 0;
+        state[0xb8 + i] = 0;
+    }
+    return state;
+}
+
+void XB_CDECL G_FreeEntity(uint8_t* ent) {
+    if (ent == title_global<uint8_t*>(0x0095f52c)) {
+        title_function<void XB_CDECL(uint8_t*)>(0x00042460)(ent);  // Sys_DebugBreak (tail jump)
+        return;
+    }
+    if (title_global<uint8_t>(0x008d50d4)) {
+        uint8_t* const info = reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f4f8), 0x194)});
+        if (info) {
+            uint32_t index = word_at(ent, 0x290);
+            if (static_cast<int32_t>(index) > -1) {
+                if (index >= word_at(info, 0)) index = 0;
+                reinterpret_cast<uint8_t*>(uintptr_t{word_at(info, 4)})[index] = 1;
+            }
+        }
+    }
+    int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
+    title_global<uint8_t>(0x008d50d4) = 1;
+    if (context == -1) context = static_cast<int32_t>(word_at(title_global<uint8_t*>(0x0095f638), 0x34));
+    title_function<void XB_THISCALL(uint8_t*)>(0x002eda30)(ent);  // G_FreeEntityContents
+    word_at(ent, 0x224) = 0;
+    if (context != -1) {
+        uint8_t* const heap = context >= 0 && context < 0x63
+                                  ? reinterpret_cast<uint8_t*>(uintptr_t{word_at(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4)})
+                                  : nullptr;
+        if (MemContext_Free_r(heap, ent)) return;
+    }
+    Z_Free(ent);
+}
+
+void XB_CDECL CodNote_Free(uint8_t* note) {
+    const uint32_t context = word_at(note, 0x24);
+    uint8_t saved = 0;
+    if (context != 0xffffffff) {
+        saved = title_global<uint8_t>(0x0095f5d0);
+        uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = 1;
+        MemContext_Push(memory, context);
+    }
+    const uint32_t object = word_at(note, 0xc);
+    if (object) {
+        const uint32_t vtable = word_at(reinterpret_cast<uint8_t*>(uintptr_t{object}), 0);
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), 0))(object, 1);
+    }
+    File_Close(static_cast<int32_t>(word_at(note, 8)));
+    SmallHeap_Free(title_global<uint8_t*>(0x0095f520), note);
+    if (context == 0xffffffff) return;
+    uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+    title_global<uint8_t>(0x0095f5d0) = saved;
+    title_global<uint8_t>(0x0095f5d1) = 0;
+    MemContext_Pop(memory);
+}
+
+namespace {
+
+// The entity behind the handle game import +0x8ac returns (the note's owner), or null.
+uint8_t* cod_note_entity() {
+    const uint32_t handle =
+        title_function<uint32_t XB_CDECL()>(word_at(title_global<uint8_t*>(0x0095f49c), 0x8ac))();
+    const uint32_t index = handle & 0xfff;
+    if (static_cast<int32_t>(index) >= 0x540) return nullptr;
+    if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x0097a968 + index * 8);  // g_entityHandleTable
+}
+
+}  // namespace
+
+void XB_CDECL G_ProcessCodNotes(uint32_t time) {
+    using Method = uint32_t XB_THISCALL(uint8_t*);
+    using Method1 = void XB_THISCALL(uint8_t*, uint32_t);
+    auto method = [](uint8_t* object, uint32_t slot) {
+        return word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 0)}), slot);
+    };
+    uint32_t first = title_global<uint32_t>(0x008dda50);
+    uint8_t* note = reinterpret_cast<uint8_t*>(uintptr_t{first});
+    uint32_t following = first ? word_at(note, 0) : 0;
+    uint32_t pending = first;
+    if (first == 0x008dda54 || !following) return;  // the list ends at the sentinel 0x008dda54
+    for (;;) {
+        if (following) {
+            pending = following;
+            following = word_at(reinterpret_cast<uint8_t*>(uintptr_t{following}), 0);
+        }
+        const uint32_t context = word_at(note, 0x24);
+        uint8_t* const object = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 0xc)});
+        uint8_t saved = 0;
+        if (context != 0xffffffff) {
+            saved = title_global<uint8_t>(0x0095f5d0);
+            title_global<uint8_t>(0x0095f5d1) = 0;
+            title_global<uint8_t>(0x0095f5d0) = 1;
+            MemContext_Push(title_global<uint8_t*>(0x0095f638), context);
+        }
+        title_function<Method1>(method(object, 0xc))(object, time);
+        if (!note[0x18] && (title_function<Method>(method(object, 4))(object) & 0xff)) {
+            Scr_Notify(cod_note_entity(), word_at(note, 0x10));
+            note[0x18] = 1;
+        }
+        const uint8_t started = note[0x18];
+        if (started) {
+            uint8_t* const anim = reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 4)});
+            if (!((word_at(anim, 4) >> 1) & 1) &&
+                *reinterpret_cast<const float*>(object + 0x10) >= *reinterpret_cast<const float*>(anim + 0x3c)) {
+                uint8_t* const next = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 0)});
+                word_at(next, 4) = word_at(note, 4);
+                uint8_t* const previous = reinterpret_cast<uint8_t*>(uintptr_t{word_at(note, 4)});
+                word_at(previous, 0) = word_at(note, 0);
+                --title_global<int32_t>(0x008dda4c);
+                Scr_Notify(cod_note_entity(), word_at(note, 0x10));
+                title_function<Method1>(method(object, 0))(object, 1);
+                File_Close(static_cast<int32_t>(word_at(note, 8)));
+                SmallHeap_Free(title_global<uint8_t*>(0x0095f520), note);
+            } else {
+                uint8_t* const current = reinterpret_cast<uint8_t*>(uintptr_t{word_at(object, 4)});
+                const float end = *reinterpret_cast<const float*>(current + 0x3c) - *reinterpret_cast<const float*>(note + 0x20);
+                if (*reinterpret_cast<const float*>(object + 0x10) > end && word_at(note, 0x14))
+                    Scr_Notify(cod_note_entity(), word_at(note, 0x14));
+            }
+        }
+        uint8_t* const memory = title_global<uint8_t*>(0x0095f638);
+        if (context != 0xffffffff) {
+            title_global<uint8_t>(0x0095f5d1) = 0;
+            title_global<uint8_t>(0x0095f5d0) = saved;
+            MemContext_Pop(memory);
+        }
+        if (!following) return;
+        note = reinterpret_cast<uint8_t*>(uintptr_t{pending});
+    }
 }
 
 }  // namespace game

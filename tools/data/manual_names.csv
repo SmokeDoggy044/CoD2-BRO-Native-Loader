@@ -14563,3 +14563,6 @@ address,name,kind,confidence,evidence
 002ad810,ProneBlend_Update,function,high,"game/ent push 7"
 00298b20,RumbleQueue_ClearAll,function,high,"game/ent push 7 (client module)"
 002192c0,Path_RouteBetweenPointsInsidePlanes,function,high,"game/ai push 10 (gap function, created in Ghidra 11-03)"
+002b1190,PathData_Construct,function,high,"game/ent push 8"
+002b1210,PathNode_IsUnclaimedFor,function,high,"game/ent push 8"
+002be2e0,EntityState_Clear,function,high,"game/ent push 8"

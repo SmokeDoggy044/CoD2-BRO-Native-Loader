@@ -9401,8 +9401,8 @@
 002b0dd0 PathNodeBlock_ResetLinkState
 002b0e80 PathNode_ParseScriptKeys
 002b1060 PathNode_ListInCylinder
-002b1190 FUN_002b1190
-002b1210 FUN_002b1210
+002b1190 PathData_Construct
+002b1210 PathNode_IsUnclaimedFor
 002b1240 PathNode_IsAvailableFor
 002b12a0 PathNode_IsSentientClaimed
 002b13b0 Netchan_Process
@@ -9606,7 +9606,7 @@
 002bdf10 IN_Frame
 002be180 IN_InitCvars
 002be200 CG_GetEntityRefEntity
-002be2e0 FUN_002be2e0
+002be2e0 EntityState_Clear
 002be3e0 G_SetSoundDoneNotify
 002be420 G_FreeEntity
 002be510 FUN_002be510

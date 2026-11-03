@@ -68,4 +68,8 @@ void XB_REGS1 XB_CDECL TossClientItems(uint8_t* ent);
 // 0x002655b0 (entity handle): Q3's ClientDisconnect.
 void XB_CDECL ClientDisconnect(uint32_t handle);
 
+// 0x002b8d40 (EDX zone, ECX scene): points the scene at the zone's +0x38 list when set and spreads the zone's
+// update groups (0x60 bytes at +0x34, count +0x30) over frames: +0x58 = frame (+0x19c), 22 groups per frame (+0x198).
+void XB_REGS3 XB_CDECL Scn_InitUpdateGroups(uint32_t unused_eax, uint8_t* zone, uint8_t* scene);
+
 }  // namespace game

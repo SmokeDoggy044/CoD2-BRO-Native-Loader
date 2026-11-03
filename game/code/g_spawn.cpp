@@ -705,4 +705,23 @@ void XB_CDECL ClientDisconnect(uint32_t handle) {
     title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
     word_at(client, 0x520) = 0;
 }
+
+void XB_REGS3 XB_CDECL Scn_InitUpdateGroups(uint32_t, uint8_t* zone, uint8_t* scene) {
+    auto word = [](uint8_t* base, uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(base + offset); };
+    if (word(zone, 0x38)) word(scene, 0x190) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(zone + 0x38));
+    for (uint32_t i = 0; i < word(zone, 0x30); ++i) {
+        const uint32_t index = i < word(zone, 0x30) ? i : 0;
+        uint8_t* const group = reinterpret_cast<uint8_t*>(uintptr_t{word(zone, 0x34)}) + index * 0x60;
+        word(group, 0x54) = 0;
+        *reinterpret_cast<float*>(group + 0x58) = static_cast<float>(static_cast<int32_t>(word(scene, 0x19c)));
+        const int32_t slot = static_cast<int32_t>(word(scene, 0x198));
+        word(scene, 0x198) = static_cast<uint32_t>(slot + 1);
+        if (slot > 0x14) {
+            const uint32_t frame = word(scene, 0x19c) + 1;
+            word(scene, 0x198) = 0;
+            word(scene, 0x19c) = frame;
+        }
+    }
+}
+
 }  // namespace game
