@@ -4106,4 +4106,42 @@ void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, 
     at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 1;
 }
 
+void XB_CDECL Phys_FilterEntriesInBox_body(uint8_t* out, const uint8_t* list, const float* mins, const float* maxs,
+                                           uint32_t mask) {
+    // The entries of list (+0x800 pointers, +0x804 count) with a contents bit of mask (+8) whose box (centre +0x10,
+    // half size +0x20) overlaps mins..maxs on x, y, z (packed: max(centre - maxs, mins - centre) < half) go into
+    // out (same layout, at most 0x200).
+    at<int32_t>(out, 0x804) = 0;
+    const int32_t count = at<int32_t>(list, 0x804);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* entry = at<uint8_t* const*>(list, 0x800)[i];
+        if (!(at<uint32_t>(entry, 8) & mask)) continue;
+        const float* const centre = &at<float>(entry, 0x10);
+        const float* const half = &at<float>(entry, 0x20);
+        float below[4], above[4];
+        for (uint32_t k = 0; k < 4; ++k) below[k] = mins[k] - centre[k];
+        for (uint32_t k = 0; k < 4; ++k) above[k] = centre[k] - maxs[k];
+        uint32_t bits = 0;
+        for (uint32_t k = 0; k < 4; ++k) {
+            const float m = above[k] > below[k] ? above[k] : below[k];  // MAXPS (second operand on NaN)
+            if (m < half[k]) bits |= 1u << k;
+        }
+        if ((bits & 7) != 7) continue;
+        const int32_t n = at<int32_t>(out, 0x804);
+        if (n >= 0x200) continue;
+        uint8_t** const slot = at<uint8_t**>(out, 0x800) + n;
+        at<int32_t>(out, 0x804) = n + 1;
+        if (slot) *slot = at<uint8_t* const*>(list, 0x800)[i];
+    }
+}
+
+// ESI = out list, EDI = list; cdecl mins, maxs, mask.
+PLATFORM_ASM_ENTRY(Phys_FilterEntriesInBox_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Phys_FilterEntriesInBox_body) "addl $20, %esp\n"
+                   "ret")
+
 }  // namespace game

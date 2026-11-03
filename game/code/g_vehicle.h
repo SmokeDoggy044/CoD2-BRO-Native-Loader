@@ -383,4 +383,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, u
                                                    uint32_t ebp);
 extern "C" void Vehicle_ThinkInit_entry(void);
 
+// 0x002c0ec0 (out list in ESI, list in EDI; cdecl mins, maxs, mask): the list's entries whose box overlaps mins..maxs.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_FilterEntriesInBox_body(uint8_t* out, const uint8_t* list, const float* mins,
+                                                                     const float* maxs, uint32_t mask);
+extern "C" void Phys_FilterEntriesInBox_entry(void);
+
 }  // namespace game

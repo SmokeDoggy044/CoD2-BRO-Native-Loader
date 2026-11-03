@@ -83,4 +83,96 @@ void XB_CDECL BG_SetupClipIndices();
 void XB_CDECL BG_SetupSharedAmmoCaps();
 void XB_CDECL BG_SetupAmmoIndices();
 
+// 0x002b6a70 (name in ESI): the bg_itemlist entry by weapon, pickup or class name (0 none).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_FindItem_body(const char* name);
+extern "C" void BG_FindItem_entry(void);
+// 0x002bb9e0: the melee hit (event 0xaa, weapon state 0xb).
+void XB_CDECL PM_WeaponMeleeStrike();
+// 0x002bbd30: an empty weapon flagged to go when empty leaves its slot (event 0x97).
+void XB_CDECL PM_RemoveEmptyWeapon();
+// 0x002bbdc0: 1 when the weapon can reload.
+uint32_t XB_CDECL PM_WeaponCanReload();
+// 0x002bc310 / 0x002bc3d0: the start of an ADS drop / raise (weapon states 0xd / 0xc).
+void XB_CDECL PM_Weapon_BeginAdsDrop();
+void XB_CDECL PM_Weapon_BeginAdsRaise();
+// 0x002bc570: weapon state 0 with the idle anim.
+void XB_CDECL PM_SetWeaponReady();
+// 0x002bc860: the stamina breath event (0x8c) every 1700 ms while pm_flags 0x20000.
+void XB_CDECL PM_UpdateStaminaBreathEvent();
+// 0x002bc8e0: events 0x92 / 0x93 when pm +0x121 got set / cleared.
+void XB_CDECL PM_AddFlagChangeEvents();
+// 0x002bccc0: leaves the ground with the jump speed for a height.
+void XB_CDECL PM_StartJump(float height);
+// 0x002c20e0: the melee states' end (1 when handled).
+uint32_t XB_CDECL PM_FinishWeaponMelee();
+// 0x002c2170: the fire anim by ADS fraction and clip.
+void XB_CDECL PM_StartFireAnim();
+// 0x002c25e0: starts an ADS raise or drop for scoped weapons.
+void XB_CDECL PM_Weapon_CheckAdsTransition();
+// 0x002c80b0: the weapons' hint string indices.
+void XB_CDECL BG_SetupWeaponHintStrings();
+// 0x002d6710 (time in EAX, entity in ECX, origin in ESI): 1 when the origin is in the box at the entity's
+// trajectory position.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_PlayerInTrajectoryBox_body(int32_t time, const uint8_t* ent,
+                                                                          const float* origin);
+extern "C" void BG_PlayerInTrajectoryBox_entry(void);
+// 0x002e2a30 (saved origin in EAX, saved velocity in ESI): a prone move whose feet no longer fit is undone (0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PM_ProneUndoBlockedMove_body(const float* origin, const float* velocity);
+extern "C" void PM_ProneUndoBlockedMove_entry(void);
+// 0x002eabd0 (start state in ECX): the reload state with its looped sound.
+void XB_REGS3 XB_CDECL PM_EnterReloadState(uint32_t, uint32_t, uint32_t start);
+// 0x002ec2e0: PM_EnterReloadState from the clip.
+void XB_CDECL PM_StartReload();
+
+// 0x002bc660: reserve ammo into the clip (returns the amount).
+int32_t XB_CDECL PM_ReloadClip();
+// 0x002bc490: the reload's second timer (+0x38; returns it).
+int32_t XB_CDECL PM_SetReloadDelay();
+// 0x002ee940: a staged reload start or PM_StartReload.
+void XB_CDECL PM_BeginWeaponReload();
+// 0x002f0450: 1 with ammo in the clip, else a reload or the empty-weapon handling (0).
+uint32_t XB_CDECL PM_WeaponCheckAmmo();
+// 0x002c2690: a staged reload's next stage or PM_ReloadClip.
+void XB_CDECL PM_ReloadAmmoAtTime();
+// 0x002c24d0: the weapon timers (1 when the second ran out).
+uint32_t XB_CDECL PM_UpdateWeaponTimers();
+// 0x002c2380: starts a weapon change for the command's weapon or a forced drop.
+void XB_CDECL PM_CheckWeaponChange();
+// 0x002c2e80 (wishdir in ECX; cdecl wishspeed, accel): Q3's PM_Accelerate.
+void XB_REGS3 XB_CDECL PM_Accelerate(uint32_t, uint32_t, const float* wishdir, float wishspeed, float accel);
+// 0x002c2f60: Q3's PM_Friction.
+void XB_CDECL PM_Friction();
+// 0x002c2b40: sprint stamina drain/refill.
+void XB_CDECL PM_UpdateStaminaMeter();
+// 0x002e2e40 (yaw in XMM0, player state in EAX; one cdecl word): BG_CheckProneFeet for a prone turn.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PM_CheckProneYaw_body(uint8_t* ps, float yaw, uint32_t arg);
+extern "C" void PM_CheckProneYaw_entry(void);
+// 0x002b68f0 (touch flag in EDX, entity state in ECX; cdecl player state): 1 when the item can be picked up.
+uint32_t XB_REGS3 XB_CDECL BG_CanItemBeGrabbed(uint32_t, uint32_t touch, const uint8_t* es, const uint8_t* ps);
+// 0x002cdf00: the weapon def table and the per-weapon setup (once).
+void XB_CDECL BG_InitWeapons();
+
+// 0x002e27d0: pm_flags 0x20 (ADS) and the type-3 weapons' prone entry from the ADS button.
+void XB_CDECL PM_UpdateAdsState();
+// 0x002c21f0 (EAX: skip when set): the fire timers after a shot, weapon state 3.
+uint32_t XB_REGS1 XB_CDECL PM_SetWeaponFireTimers(uint32_t skip);
+// 0x002bc120: puts the old weapon away toward the new one (weapon state 2).
+void XB_CDECL PM_BeginWeaponChange(int32_t old_weapon, int32_t new_weapon);
+
+// 0x002c28f0: the bolt weapons' rechamber after a shot (1 while it waits).
+uint32_t XB_CDECL PM_UpdateWeaponRechamber(uint32_t fired);
+// 0x002f0d40: a shot of the current weapon.
+void XB_CDECL PM_WeaponFire(uint32_t skip_timers);
+// 0x002f0ef0: 1 when the fire button's release ends the shot (grenades: the throw).
+uint32_t XB_CDECL PM_CheckFireButtonRelease(uint32_t held);
+// 0x002c2c80: Q3's PM_CheckJump (1 when jumping).
+uint32_t XB_CDECL PM_CheckJump();
+
+// 0x002cdff0: while walking the velocity loses 20 units of speed (stops at 0).
+void XB_CDECL PM_ReduceGroundSpeed();
+
+// 0x002bcdf0 (entity state in EAX, player state in ECX; cdecl time): the entity state with an extrapolated
+// trajectory.
+uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityStateExtraPolate(uint8_t* es, uint32_t, uint8_t* ps, uint32_t time);
+
 }  // namespace game
