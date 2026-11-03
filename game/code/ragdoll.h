@@ -259,4 +259,14 @@ uint32_t XB_CDECL Ragdoll_GatherCollisionGeometry(const float* center, float rad
 // 0x0022b500: the model's bone matrices blended from the ragdoll toward the base pose by t.
 void XB_STDCALL Ragdoll_BlendBonePoses(uint8_t* phys, uint8_t* entity, float t);
 
+// 0x0022ebe0: the ten ragdoll body definitions (0x00989250) for the entity's Bip01 bones.
+void XB_CDECL Ragdoll_BuildBodyDefs(uint8_t* entity);
+
+// 0x00233c40: EAX entity, EBX vehicle physics: its box body, physics object and wheels; EAX +0x90.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehiclePhys_Init(uint8_t* ent, uint8_t* phys);
+extern "C" void VehiclePhys_Init_entry(void);
+
+// 0x00228ee0 (vtable 0x0083c5f0): the vehicle physics' constraint rows between bodies a and b.
+void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, uint8_t* world, float dt);
+
 }  // namespace game

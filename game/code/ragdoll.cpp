@@ -2437,6 +2437,16 @@ uint32_t XB_CDECL Ragdoll_GatherCollisionGeometry(const float* center, float rad
 
 namespace {
 
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float title_ci_sqrt(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
 // sign ^ v over four lanes (XORPS with 0x0082e0b0).
 Lanes negate_bits(const Lanes& v) {
     Lanes out;
@@ -2477,7 +2487,8 @@ void blend_rotation(const Lanes& q0, const Lanes& q1, float t, float one_minus_t
             const float a7 = (d5 * d2) * title_global<float>(0x0083efd4);
             angle = (((a7 - a5) - a3) - dot) + title_global<float>(0x0083ee88);
         } else {  // acos(d) = 2 asin(sqrt((1 - d) / 2)) by its series
-            const float s = platform_x87_sqrt_sub_mul(one, dot, title_global<float>(0x0083eb24));
+            const long double half_gap = (static_cast<long double>(one) - dot) * title_global<float>(0x0083eb24);
+            const float s = title_ci_sqrt(half_gap);  // the title CRT's __CIsqrt
             const float s2 = s * s;
             const float s3 = s2 * s;
             const float s1 = s * title_global<float>(0x0083eba8);
@@ -2567,6 +2578,565 @@ void XB_STDCALL Ragdoll_BlendBonePoses(uint8_t* phys, uint8_t* entity, float t) 
         const float o[4] = {origin.v[0], origin.v[1], origin.v[2], origin.v[3]};
         const Lanes moved = transform_out(p, o);
         std::memcpy(out + 12, moved.v, 16);
+    }
+}
+
+// The ten ragdoll body definitions (g_ragdollBodyDefs 0x00989250, 0x1d0 apart) for the entity's
+// Bip01 bones (Ragdoll_CacheBip01Bones, bone ids 0x008db3d8..): cleared, set from the title's
+// constant table (RagdollBodyDef_Set and the joint words between; the straight-line block below
+// was generated from the disassembly's move sequence - no float math in it), then per body the
+// sizes scaled by 34 (+0x30/+0x34/+0x90/+0xd0; +0xb4 by 0.001), the vectors (+0x10, +0xa0 scaled;
+// +0x120..+0x150 and the +0x160 list at +0x170) rotated into the model frame, +0xf0/+0xf4 swapped
+// and negated, and each fitted to the bones.
+void XB_CDECL Ragdoll_BuildBodyDefs(uint8_t* entity) {
+    Ragdoll_CacheBip01Bones(entity);
+    std::memset(&title_global<uint8_t>(0x00989250), 0, 0x488 * 4);
+    const uint32_t t1 = title_global<uint32_t>(0x008db3dc);
+    const uint32_t t2 = title_global<uint32_t>(0x008db3d8);
+    const uint32_t t3 = title_global<uint32_t>(0x0083eca0);
+    {
+        const uint32_t v1_4[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v1_14[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v1_15[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v1_16[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v1_17[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t args[18] = {t2, t1, 0x3e666666u, 0x3f000000u, addr(v1_4), 0x00000002u, 0x43960000u, 0x3e99999au, 0x3f800000u, 0x00000000u, 0xffffffffu, 0x00000000u, 0x00000000u, 0x00000000u, addr(v1_14), addr(v1_15), addr(v1_16), addr(v1_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989250), args, t3);  // xmm0 
+    }
+    const uint32_t t4 = title_global<uint32_t>(0x0083f108);
+    const uint32_t t5 = title_global<uint32_t>(0x0083eb20);
+    const uint32_t t6 = title_global<uint32_t>(0x0083eb34);
+    const uint32_t t7 = title_global<uint32_t>(0x0083f104);
+    title_global<uint32_t>(0x009892f0) = t4;  // 
+    title_global<uint32_t>(0x009892e0) = t7;  // 
+    title_global<uint32_t>(0x009892f4) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x009892f8) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x009892fc) = t4;  // 
+    const uint32_t t8 = title_global<uint32_t>(0x0083f100);
+    const uint32_t t9 = title_global<uint32_t>(0x0083ed2c);
+    {
+        const uint32_t v2_4[4] = {t8, 0x00000000u, 0x00000000u, t8};  //  0 0 
+        const uint32_t v2_14[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v2_15[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v2_16[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v2_17[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t args[18] = {t1, t1, 0x3e19999au, 0x3f000000u, addr(v2_4), 0x00000001u, 0x42480000u, 0x3e99999au, 0x3e800000u, 0x00000001u, 0x00000000u, 0x00000002u, 0xbf400000u, 0x3f400000u, addr(v2_14), addr(v2_15), addr(v2_16), addr(v2_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989420), args, t9);  // xmm0 
+    }
+    const uint32_t t10 = title_global<uint32_t>(0x00989580);
+    const uint32_t t11 = title_global<uint32_t>(0x0083eb24);
+    const uint32_t t12 = t10 << 0x00000004u;
+    const uint32_t t13 = t12 + 0x00989590u;
+    title_global<uint32_t>(0x009894f8) = t11;  // 
+    const uint32_t t14 = title_global<uint32_t>(0x0083f0fc);
+    *reinterpret_cast<uint32_t*>(uintptr_t{t13} + 0x0) = t6;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t13} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t13} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t13} + 0xc) = t6;  // 
+    const uint32_t t15 = title_global<uint32_t>(0x00989580);
+    title_global<uint32_t>(0x009895d0 + t15 * 4) = t14;  // 
+    const uint32_t t16 = title_global<uint32_t>(0x00989580);
+    title_global<uint32_t>(0x009894c4) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x009894c0) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x009894c8) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x009894cc) = 0x00000000u;  // 0
+    const uint32_t t17 = t16 + 1;
+    title_global<uint32_t>(0x00989580) = t17;  // 
+    title_global<uint32_t>(0x009894b0) = 0x00000000u;  // 0
+    const uint32_t t18 = title_global<uint32_t>(0x008db3e4);
+    const uint32_t t19 = title_global<uint32_t>(0x008db3e0);
+    const uint32_t t20 = title_global<uint32_t>(0x0083ebf8);
+    {
+        const uint32_t v3_4[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v3_14[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v3_15[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v3_16[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v3_17[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t args[18] = {t19, t18, 0x3dcccccdu, 0x3f000000u, addr(v3_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f800000u, 0x00000002u, 0x00000000u, 0x00000002u, 0xbfcccccdu, 0xbe4ccccdu, addr(v3_14), addr(v3_15), addr(v3_16), addr(v3_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x009895f0), args, t20);  // xmm0 
+    }
+    const uint32_t t21 = title_global<uint32_t>(0x00989750);
+    const uint32_t t22 = title_global<uint32_t>(0x0083ed0c);
+    const uint32_t t23 = t21 << 0x00000004u;
+    const uint32_t t24 = t23 + 0x00989760u;
+    *reinterpret_cast<uint32_t*>(uintptr_t{t24} + 0x0) = t6;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t24} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t24} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t24} + 0xc) = t6;  // 
+    const uint32_t t25 = title_global<uint32_t>(0x00989750);
+    title_global<uint32_t>(0x009897a0 + t25 * 4) = t22;  // 
+    const uint32_t t26 = title_global<uint32_t>(0x00989750);
+    const uint32_t t27 = t26 + 1;
+    title_global<uint32_t>(0x00989750) = t27;  // 
+    const uint32_t t28 = t27 << 0x00000004u;
+    const uint32_t t29 = t28 + 0x00989760u;
+    const uint32_t t30 = title_global<uint32_t>(0x0083f0f8);
+    *reinterpret_cast<uint32_t*>(uintptr_t{t29} + 0x0) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t29} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t29} + 0x8) = t6;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t29} + 0xc) = 0x00000000u;  // 0
+    const uint32_t t31 = title_global<uint32_t>(0x00989750);
+    title_global<uint32_t>(0x009897a0 + t31 * 4) = t30;  // 
+    const uint32_t t32 = title_global<uint32_t>(0x00989750);
+    const uint32_t t33 = t32 + 1;
+    title_global<uint32_t>(0x00989750) = t33;  // 
+    title_global<uint32_t>(0x00989690) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989694) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989698) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x0098969c) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989680) = 0x00000000u;  // 0
+    const uint32_t t34 = title_global<uint32_t>(0x008db3e8);
+    const uint32_t t35 = title_global<uint32_t>(0x0083ebf8);
+    {
+        const uint32_t v4_4[4] = {t4, 0x00000000u, 0x00000000u, t4};  //  0 0 
+        const uint32_t v4_14[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v4_15[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v4_16[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v4_17[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t args[18] = {t18, t34, 0x3dcccccdu, 0x3f000000u, addr(v4_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f000000u, 0x00000003u, 0x00000002u, 0x00000001u, 0xc0060a92u, 0xbdb2b8c3u, addr(v4_14), addr(v4_15), addr(v4_16), addr(v4_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x009897c0), args, t35);  // xmm0 
+    }
+    const uint32_t t36 = title_global<uint32_t>(0x0083f0f4);
+    title_global<uint32_t>(0x00989864) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989860) = t36;  // 
+    title_global<uint32_t>(0x00989868) = 0x00000000u;  // 0
+    const uint32_t t37 = title_global<uint32_t>(0x008db3f0);
+    const uint32_t t38 = title_global<uint32_t>(0x0083ee98);
+    title_global<uint32_t>(0x0098986c) = t36;  // 
+    const uint32_t t39 = title_global<uint32_t>(0x008db3ec);
+    title_global<uint32_t>(0x00989850) = t38;  // 
+    const uint32_t t40 = title_global<uint32_t>(0x0083ebf8);
+    {
+        const uint32_t v5_4[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v5_14[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v5_15[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v5_16[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v5_17[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t args[18] = {t39, t37, 0x3dcccccdu, 0x3f000000u, addr(v5_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f800000u, 0x00000004u, 0x00000000u, 0x00000002u, 0x3e4ccccdu, 0x3fcccccdu, addr(v5_14), addr(v5_15), addr(v5_16), addr(v5_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989990), args, t40);  // xmm0 
+    }
+    const uint32_t t41 = title_global<uint32_t>(0x00989af0);
+    const uint32_t t42 = t41 << 0x00000004u;
+    const uint32_t t43 = t42 + 0x00989b00u;
+    *reinterpret_cast<uint32_t*>(uintptr_t{t43} + 0x0) = t6;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t43} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t43} + 0x8) = 0x00000000u;  // 0
+    const uint32_t t44 = title_global<uint32_t>(0x0083ed0c);
+    *reinterpret_cast<uint32_t*>(uintptr_t{t43} + 0xc) = t6;  // 
+    const uint32_t t45 = title_global<uint32_t>(0x00989af0);
+    title_global<uint32_t>(0x00989b40 + t45 * 4) = t44;  // 
+    const uint32_t t46 = title_global<uint32_t>(0x00989af0);
+    const uint32_t t47 = t46 + 1;
+    title_global<uint32_t>(0x00989af0) = t47;  // 
+    const uint32_t t48 = t47 << 0x00000004u;
+    const uint32_t t49 = t48 + 0x00989b00u;
+    const uint32_t t50 = title_global<uint32_t>(0x0083f0f8);
+    *reinterpret_cast<uint32_t*>(uintptr_t{t49} + 0x0) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t49} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t49} + 0x8) = t6;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t49} + 0xc) = 0x00000000u;  // 0
+    const uint32_t t51 = title_global<uint32_t>(0x00989af0);
+    title_global<uint32_t>(0x00989b40 + t51 * 4) = t50;  // 
+    const uint32_t t52 = title_global<uint32_t>(0x00989af0);
+    const uint32_t t53 = t52 + 1;
+    title_global<uint32_t>(0x00989af0) = t53;  // 
+    title_global<uint32_t>(0x00989a30) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989a34) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989a38) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989a3c) = 0x00000000u;  // 0
+    const uint32_t t54 = title_global<uint32_t>(0x008db3f4);
+    const uint32_t t55 = title_global<uint32_t>(0x0083ebf8);
+    title_global<uint32_t>(0x00989a20) = 0x00000000u;  // 0
+    {
+        const uint32_t v6_4[4] = {t4, 0x00000000u, 0x00000000u, t4};  //  0 0 
+        const uint32_t v6_14[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v6_15[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v6_16[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v6_17[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t args[18] = {t37, t54, 0x3dcccccdu, 0x3f000000u, addr(v6_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f000000u, 0x00000005u, 0x00000004u, 0x00000001u, 0xc0060a92u, 0xbdb2b8c3u, addr(v6_14), addr(v6_15), addr(v6_16), addr(v6_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989b60), args, t55);  // xmm0 
+    }
+    const uint32_t t56 = title_global<uint32_t>(0x0083ee98);
+    title_global<uint32_t>(0x00989c00) = t36;  // 
+    title_global<uint32_t>(0x00989bf0) = t56;  // 
+    title_global<uint32_t>(0x00989c04) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989c08) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989c0c) = t36;  // 
+    const uint32_t t57 = title_global<uint32_t>(0x008db3fc);
+    const uint32_t t58 = title_global<uint32_t>(0x008db3f8);
+    const uint32_t t59 = title_global<uint32_t>(0x0083ed2c);
+    {
+        const uint32_t v7_4[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v7_14[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v7_15[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v7_16[4] = {0x00000000u, 0x00000000u, t5, 0x00000000u};  // 0 0  0
+        const uint32_t v7_17[4] = {0x00000000u, 0x00000000u, t5, 0x00000000u};  // 0 0  0
+        const uint32_t args[18] = {t58, t57, 0x3e19999au, 0x3f000000u, addr(v7_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f800000u, 0x00000006u, 0x00000000u, 0x00000002u, 0xbf19999au, 0x3f19999au, addr(v7_14), addr(v7_15), addr(v7_16), addr(v7_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989d30), args, t59);  // xmm0 
+    }
+    const uint32_t t60 = title_global<uint32_t>(0x00989e90);
+    const uint32_t t61 = title_global<uint32_t>(0x0083f0fc);
+    const uint32_t t62 = t60 << 0x00000004u;
+    const uint32_t t63 = t62 + 0x00989ea0u;
+    *reinterpret_cast<uint32_t*>(uintptr_t{t63} + 0x0) = t5;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t63} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t63} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t63} + 0xc) = t5;  // 
+    const uint32_t t64 = title_global<uint32_t>(0x00989e90);
+    title_global<uint32_t>(0x00989ee0 + t64 * 4) = t61;  // 
+    const uint32_t t65 = title_global<uint32_t>(0x00989e90);
+    const uint32_t t66 = title_global<uint32_t>(0x0083ed0c);
+    const uint32_t t67 = t65 + 1;
+    title_global<uint32_t>(0x00989e90) = t67;  // 
+    const uint32_t t68 = t67 << 0x00000004u;
+    const uint32_t t69 = t68 + 0x00989ea0u;
+    *reinterpret_cast<uint32_t*>(uintptr_t{t69} + 0x0) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t69} + 0x4) = t5;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t69} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t69} + 0xc) = 0x00000000u;  // 0
+    const uint32_t t70 = title_global<uint32_t>(0x00989e90);
+    title_global<uint32_t>(0x00989ee0 + t70 * 4) = t66;  // 
+    const uint32_t t71 = title_global<uint32_t>(0x00989e90);
+    const uint32_t t72 = title_global<uint32_t>(0x0083f0f0);
+    const uint32_t t73 = t71 + 1;
+    title_global<uint32_t>(0x00989e90) = t73;  // 
+    title_global<uint32_t>(0x00989dc0) = t72;  // 
+    title_global<uint32_t>(0x00989dd0) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989dd4) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989dd8) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989ddc) = 0x00000000u;  // 0
+    const uint32_t t74 = title_global<uint32_t>(0x008db400);
+    const uint32_t t75 = title_global<uint32_t>(0x0083ed2c);
+    {
+        const uint32_t v8_4[4] = {t4, 0x00000000u, 0x00000000u, t4};  //  0 0 
+        const uint32_t v8_14[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v8_15[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v8_16[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v8_17[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t args[18] = {t57, t74, 0x3e19999au, 0x3f000000u, addr(v8_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3e800000u, 0x00000007u, 0x00000006u, 0x00000001u, 0xc0060a92u, 0xbdb2b8c3u, addr(v8_14), addr(v8_15), addr(v8_16), addr(v8_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x00989f00), args, t75);  // xmm0 
+    }
+    title_global<uint32_t>(0x00989fa4) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x00989fa0) = t36;  // 
+    title_global<uint32_t>(0x00989fa8) = 0x00000000u;  // 0
+    const uint32_t t76 = title_global<uint32_t>(0x008db408);
+    const uint32_t t77 = title_global<uint32_t>(0x0083ebf8);
+    title_global<uint32_t>(0x00989fac) = t36;  // 
+    const uint32_t t78 = title_global<uint32_t>(0x008db404);
+    title_global<uint32_t>(0x00989f90) = t77;  // 
+    const uint32_t t79 = title_global<uint32_t>(0x0083ed2c);
+    {
+        const uint32_t v9_4[4] = {0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u};  // 0 0 0 0
+        const uint32_t v9_14[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v9_15[4] = {t6, 0x00000000u, 0x00000000u, t6};  //  0 0 
+        const uint32_t v9_16[4] = {0x00000000u, 0x00000000u, t5, 0x00000000u};  // 0 0  0
+        const uint32_t v9_17[4] = {0x00000000u, 0x00000000u, t5, 0x00000000u};  // 0 0  0
+        const uint32_t args[18] = {t78, t76, 0x3e19999au, 0x3f000000u, addr(v9_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3f800000u, 0x00000008u, 0x00000000u, 0x00000002u, 0xbf19999au, 0x3f19999au, addr(v9_14), addr(v9_15), addr(v9_16), addr(v9_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x0098a0d0), args, t79);  // xmm0 
+    }
+    const uint32_t t80 = title_global<uint32_t>(0x0098a230);
+    const uint32_t t81 = title_global<uint32_t>(0x0083f0fc);
+    const uint32_t t82 = t80 << 0x00000004u;
+    const uint32_t t83 = t82 + 0x0098a240u;
+    *reinterpret_cast<uint32_t*>(uintptr_t{t83} + 0x0) = t5;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t83} + 0x4) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t83} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t83} + 0xc) = t5;  // 
+    const uint32_t t84 = title_global<uint32_t>(0x0098a230);
+    title_global<uint32_t>(0x0098a280 + t84 * 4) = t81;  // 
+    const uint32_t t85 = title_global<uint32_t>(0x0098a230);
+    const uint32_t t86 = title_global<uint32_t>(0x0083eb34);
+    const uint32_t t87 = t85 + 1;
+    title_global<uint32_t>(0x0098a230) = t87;  // 
+    const uint32_t t88 = t87 << 0x00000004u;
+    const uint32_t t89 = t88 + 0x0098a240u;
+    const uint32_t t90 = title_global<uint32_t>(0x0083ed0c);
+    *reinterpret_cast<uint32_t*>(uintptr_t{t89} + 0x0) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t89} + 0x4) = t86;  // 
+    *reinterpret_cast<uint32_t*>(uintptr_t{t89} + 0x8) = 0x00000000u;  // 0
+    *reinterpret_cast<uint32_t*>(uintptr_t{t89} + 0xc) = 0x00000000u;  // 0
+    const uint32_t t91 = title_global<uint32_t>(0x0098a230);
+    title_global<uint32_t>(0x0098a280 + t91 * 4) = t90;  // 
+    const uint32_t t92 = title_global<uint32_t>(0x0098a230);
+    const uint32_t t93 = t92 + 1;
+    title_global<uint32_t>(0x0098a230) = t93;  // 
+    title_global<uint32_t>(0x0098a170) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x0098a174) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x0098a178) = 0x00000000u;  // 0
+    const uint32_t t94 = title_global<uint32_t>(0x0083f0f0);
+    title_global<uint32_t>(0x0098a17c) = 0x00000000u;  // 0
+    const uint32_t t95 = title_global<uint32_t>(0x008db40c);
+    title_global<uint32_t>(0x0098a160) = t94;  // 
+    const uint32_t t96 = title_global<uint32_t>(0x0083ed2c);
+    {
+        const uint32_t v10_4[4] = {t4, 0x00000000u, 0x00000000u, t4};  //  0 0 
+        const uint32_t v10_14[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v10_15[4] = {0x00000000u, t5, 0x00000000u, 0x00000000u};  // 0  0 0
+        const uint32_t v10_16[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t v10_17[4] = {t5, 0x00000000u, 0x00000000u, t5};  //  0 0 
+        const uint32_t args[18] = {t76, t95, 0x3e19999au, 0x3f000000u, addr(v10_4), 0x00000002u, 0x42480000u, 0x3e99999au, 0x3e800000u, 0x00000009u, 0x00000008u, 0x00000001u, 0xc0060a92u, 0xbdb2b8c3u, addr(v10_14), addr(v10_15), addr(v10_16), addr(v10_17)};
+        RagdollBodyDef_Set(&title_global<uint8_t>(0x0098a2a0), args, t96);  // xmm0 
+    }
+    const uint32_t t97 = title_global<uint32_t>(0x0083ebf8);
+    title_global<uint32_t>(0x0098a330) = t97;  // 
+    const uint32_t t98 = title_global<uint32_t>(0x00830660);
+    title_global<uint32_t>(0x0098a340) = t36;  // 
+    title_global<uint32_t>(0x0098a344) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x0098a348) = 0x00000000u;  // 0
+    title_global<uint32_t>(0x0098a34c) = t36;  // 
+    auto f = [](uint32_t bits) { return from_bits(bits); };
+    const Lanes rx = {{f(t6), 0.0f, 0.0f, f(t6)}};  // (-1, 0, 0, -1)
+    const Lanes ry = {{0.0f, 0.0f, f(t5), 0.0f}};
+    const Lanes rz = {{0.0f, f(t5), 0.0f, 0.0f}};
+    auto rotate = [&](uint8_t* p) {
+        const float* const v = reinterpret_cast<const float*>(p);
+        const float x = v[0], y = v[1], z = v[2];
+        return add(add(mul(rx, x), mul(ry, y)), mul(rz, z));
+    };
+    const Lanes scale = splat(f(t98));  // 34
+    for (uint32_t def_addr = 0x00989250; def_addr < 0x0098a470; def_addr += 0x1d0) {
+        uint8_t* const def = reinterpret_cast<uint8_t*>(uintptr_t{def_addr});
+        const float k = title_global<float>(0x00830660);
+        at<float>(def, 0xb4) = at<float>(def, 0xb4) * title_global<float>(0x0083eb4c);  // 0.001
+        at<float>(def, 0xd0) = at<float>(def, 0xd0) * k;
+        at<float>(def, 0x30) = at<float>(def, 0x30) * k;
+        at<float>(def, 0x34) = at<float>(def, 0x34) * k;
+        const Lanes a = mul(scale, rotate(def + 0x10));
+        std::memcpy(def + 0x10, a.v, 16);
+        const Lanes b = mul(scale, rotate(def + 0xa0));
+        const float c = at<float>(def, 0x90) * title_global<float>(0x00830660);
+        std::memcpy(def + 0xa0, b.v, 16);
+        at<float>(def, 0x90) = c;
+        for (uint32_t offset = 0x120; offset <= 0x150; offset += 0x10) {
+            const Lanes r = rotate(def + offset);
+            std::memcpy(def + offset, r.v, 16);
+        }
+        const float f0 = at<float>(def, 0xf0);
+        const int32_t count = at<int32_t>(def, 0x160);
+        at<float>(def, 0xf0) = 0.0f - at<float>(def, 0xf4);
+        at<float>(def, 0xf4) = 0.0f - f0;
+        for (int32_t j = 0; j < count; ++j) {
+            const Lanes r = rotate(def + 0x170 + j * 16);
+            std::memcpy(def + 0x170 + j * 16, r.v, 16);
+        }
+    }
+    for (uint32_t def_addr = 0x00989250; def_addr < 0x0098a470; def_addr += 0x1d0)
+        RagdollBodyDef_FitToBones(reinterpret_cast<uint8_t*>(uintptr_t{def_addr}), entity);
+}
+
+PLATFORM_ASM_ENTRY(VehiclePhys_Init_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(VehiclePhys_Init) "addl $8, %esp\n"
+                   "ret")
+
+// EAX entity, EBX vehicle physics: a box body at the wheel bounds (VehiclePhys_GetWheelBounds: size
+// +0x40, centre +0x20 and +0x160, height +0x120, 0.6 of it +0x124), mass 1, linked to a new physics
+// object (+0x30) at the entity matrix (copied to +0x170); the four wheels (+0x50) in the body frame
+// lifted or lowered by 5 toward their side, +0x90 = (0, 0, -1, 0) and the suspension constants.
+// The inertia and velocity are vec3 stores: their w words are the entity matrix rows 2 and 1's
+// (+0x18c, +0x17c) left in the frame slots; the inertia's own w a word Phys_BoxMassProperties never
+// writes (zero in tests). EAX: +0x90.
+uint8_t* XB_CDECL VehiclePhys_Init(uint8_t* ent, uint8_t* phys) {
+    alignas(16) float wheels[16];
+    G_GetEntityMatrix(ent, wheels);
+    alignas(16) float size[4];
+    alignas(16) float center[4];
+    uint32_t height;
+    VehiclePhys_GetWheelBounds(ent, wheels, size, center, &height);
+    std::memcpy(phys + 0x160, center, 16);
+    at<uint8_t*>(phys, 0x154) = ent;
+    std::memcpy(phys + 0x170, ent + 0x160, 64);
+    uint8_t* const object = PhysWorld_AllocObject1c0();
+    at<uint8_t*>(phys, 0x30) = object;
+    PhysObject1c0_Init(object, reinterpret_cast<const float*>(ent + 0x160));
+    uint8_t* const body = PhysWorld_AllocBody();
+    at<uint8_t*>(phys, 0x34) = body;
+    std::memcpy(phys + 0x40, size, 16);
+    alignas(16) float frame[16];
+    std::memcpy(frame, ent + 0x160, 64);
+    const float* const m = reinterpret_cast<const float*>(ent + 0x160);
+    const Lanes offset = add(add(mul(lanes(m), center[0]), mul(lanes(m + 4), center[1])), mul(lanes(m + 8), center[2]));
+    const Lanes world = add(lanes(frame + 12), offset);
+    std::memcpy(frame + 12, world.v, 16);
+    alignas(16) float box[4] = {size[0], size[1], size[2], 0.0f};
+    alignas(16) float inertia[4] = {};
+    float mass;
+    Phys_BoxMassProperties(box, inertia, &mass);
+    const Lanes scaled = mul(splat(title_global<float>(0x0083eb20) / mass), lanes(inertia));
+    alignas(16) float inertia_arg[4] = {scaled.v[0], scaled.v[1], scaled.v[2], at<float>(ent, 0x18c)};
+    alignas(16) float velocity[4] = {0.0f, 0.0f, 0.0f, at<float>(ent, 0x17c)};
+    alignas(16) float angular[4] = {};
+    PhysBody_Init(body, title_global<float>(0x0083eb20), inertia_arg, frame, velocity, angular, 0.0f, 0);
+    float c0[4];
+    std::memcpy(c0, &title_global<uint8_t>(0x00989230), 16);
+    c0[3] = 0.0f;
+    std::memcpy(at<uint8_t*>(phys, 0x34) + 0xc0, c0, 16);
+    at<float>(at<uint8_t*>(phys, 0x34), 0x134) = title_global<float>(0x00989240);
+    at<float>(at<uint8_t*>(phys, 0x34), 0x138) = title_global<float>(0x0083eb5c);  // 20
+    uint32_t* const link = PhysWorld_AllocLink10(addr(at<uint8_t*>(phys, 0x34)), addr(at<uint8_t*>(phys, 0x30)));
+    link[3] = addr(phys);
+    std::memset(phys + 0x10, 0, 16);
+    std::memcpy(phys + 0x20, center, 16);
+    float r;
+    std::memcpy(&r, &height, 4);
+    at<float>(phys, 0x120) = r;
+    at<float>(phys, 0x124) = r * title_global<float>(0x0083eba4);  // 0.6
+    for (int32_t i = 0; i < 4; ++i) {
+        const Lanes point = transform_out(reinterpret_cast<const float*>(ent + 0x160), wheels + i * 4);
+        const Lanes local = rotate_into(frame, sub(point, world));
+        std::memcpy(phys + 0x50 + i * 16, local.v, 16);
+        const float y = at<float>(phys, 0x54 + i * 16);
+        const float k = y > 0.0f ? title_global<float>(0x0083eb98) : title_global<float>(0x0083ed10);  // 10, -10
+        at<float>(phys, 0x54 + i * 16) = k * title_global<float>(0x0083eb24) + y;
+    }
+    const float down[4] = {0.0f, 0.0f, title_global<float>(0x0083eb34), 0.0f};
+    std::memcpy(phys + 0x90, down, 16);
+    at<float>(phys, 0x128) = title_global<float>(0x0083ee38);  // 30
+    at<float>(phys, 0x12c) = title_global<float>(0x0083ec9c);  // 3
+    at<float>(phys, 0x144) = title_global<float>(0x0083f154);  // 3500
+    for (uint32_t o = 0x134; o <= 0x140; o += 4) at<float>(phys, o) = 0.0f;
+    at<float>(phys, 0x148) = title_global<float>(0x0083eba8);  // 2
+    at<float>(phys, 0x14c) = title_global<float>(0x0083eb98);  // 10
+    at<float>(phys, 0x150) = title_global<float>(0x0083eba8);
+    return phys + 0x90;
+}
+
+namespace {
+
+// The contact limits the vehicle's axis constraints share: +0x78/+0x80 = 0, impulse range
+// (-1e7, 1e7) and +0x7c = value / max(dt, 1/240) * -0.5 (x87).
+void axis_contact_limits(uint8_t* c, long double value, float dt) {
+    const float floor = title_global<float>(0x00830678);  // 1/240
+    const float step = dt > floor ? dt : floor;
+    const long double scaled = value / step;
+    at<float>(c, 0x78) = 0.0f;
+    at<float>(c, 0x80) = 0.0f;
+    at<float>(c, 0x60) = title_global<float>(0x0083eb74);  // -1e7
+    at<float>(c, 0x64) = title_global<float>(0x0083eb70);  // 1e7
+    at<float>(c, 0x7c) = static_cast<float>(scaled * title_global<float>(0x0083eb28));  // -0.5
+}
+
+// A spring-damper row: k1 = spring * dt, k2 = 1 / (damping * dt + k1 * dt); +0x80 = k2, +0x84 += k2,
+// +0x7c = 0 and +0x78 = term * (k1 * k2 * dt) * (-1 / dt) (x87).
+void spring_contact(uint8_t* c, long double term, float k1, float k2, float dt, float inv_dt, bool k2_first) {
+    const long double product = (static_cast<long double>(k1) * k2) * dt;
+    at<float>(c, 0x7c) = 0.0f;
+    at<float>(c, 0x80) = k2;
+    at<float>(c, 0x84) = k2_first ? k2 + at<float>(c, 0x84) : at<float>(c, 0x84) + k2;
+    at<float>(c, 0x60) = title_global<float>(0x0083eb74);  // -1e7
+    at<float>(c, 0x78) = static_cast<float>((term * product) * inv_dt);
+}
+
+}  // namespace
+
+// vtable slot (0x0083c5f0): the vehicle physics `phys` adds its constraint rows between bodies a
+// and b to the world for this step: two point contacts at the anchors +0x10/+0x20 (normals
+// 0x0082e160 / 0x0082e170, rows +0x1b0/+0x1b8), an axis row keeping a's x axis on b's y plane
+// (+0x1c0) when it leaves it, two spring rows on a's z against b's z (constants +0x144/+0x148 and
+// +0x14c/+0x150 with a's x and y), and per wheel on the ground (+0x130) a suspension contact and a
+// tyre contact against the static body (radius +0x120, rest +0x124, springs +0x128/+0x12c).
+void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, uint8_t* world, float dt) {
+    alignas(16) float anchor_a[4];
+    PhysBody_RotateVector(anchor_a, a, reinterpret_cast<const float*>(phys + 0x10));
+    alignas(16) float anchor_b[4];
+    PhysBody_RotateVector(anchor_b, b, reinterpret_cast<const float*>(phys + 0x20));
+    at<float>(at<uint8_t*>(phys, 0x34), 0x134) = title_global<float>(0x00989240) * title_global<float>(0x008ff020);
+    for (int32_t k = 0; k < 2; ++k) {
+        uint8_t* const c = PhysWorld_AllocContact(world);
+        alignas(16) float zero[4];
+        std::memcpy(zero, &title_global<uint8_t>(0x0082e110), 16);
+        const Lanes n = mul(lanes(&title_global<float>(k ? 0x0082e170 : 0x0082e160)), splat(title_global<float>(0x0082e140)));
+        alignas(16) float normal[4];
+        std::memcpy(normal, n.v, 16);
+        PhysContact_Init(c, a, anchor_a, b, anchor_b, normal, phys + (k ? 0x1b8 : 0x1b0), zero);
+        axis_contact_limits(c, PhysContact_GetSeparation(c), dt);
+    }
+    // a's x axis against b's y axis
+    alignas(16) float ax[4];
+    std::memcpy(ax, a, 16);
+    const Lanes by = lanes(reinterpret_cast<const float*>(b + 0x10));
+    const float along = dot3_lanes(lanes(ax), by);
+    const Lanes off = sub(lanes(ax), mul(by, splat(along)));
+    const Lanes sq = mul(off, off);
+    const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+    float length;
+    if (len2 == len2 && len2 != title_global<float>(0x0082e680)) {  // UCOMISS + JNE: NaN counts as equal
+        const float r = platform_rsqrt_estimate(len2);
+        const float scaled = len2 * r;
+        length = ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);
+    } else {
+        length = len2;
+    }
+    if (length > title_global<float>(0x0083ed50)) {  // 0.0001
+        const Lanes dir = div(off, splat(length));
+        const Lanes by_r = Lanes{{by.v[1], by.v[2], by.v[0], by.v[3]}};
+        const Lanes dir_r = Lanes{{dir.v[1], dir.v[2], dir.v[0], dir.v[3]}};
+        const Lanes t = sub(mul(by, dir_r), mul(by_r, dir));
+        alignas(16) float cross[4] = {t.v[1], t.v[2], t.v[0], t.v[3]};
+        alignas(16) float dir_out[4];
+        std::memcpy(dir_out, dir.v, 16);
+        uint8_t* const c = PhysContacts_Add(world, addr(a), addr(ax), addr(b), addr(dir_out), addr(cross), addr(phys + 0x1c0));
+        axis_contact_limits(c, PhysContact_GetAnchorCrossTerm(c), dt);
+    }
+    // two spring rows on a's z axis
+    const float inv_dt = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb34)) / dt);  // -1 / dt
+    for (int32_t k = 0; k < 2; ++k) {
+        alignas(16) float az[4];
+        std::memcpy(az, a + 0x20, 16);
+        alignas(16) float bz[4];
+        std::memcpy(bz, b + 0x20, 16);
+        alignas(16) float axis[4];
+        std::memcpy(axis, a + (k ? 0x10 : 0), 16);
+        const float k1 = at<float>(phys, k ? 0x14c : 0x144) * dt;
+        const float k2 = title_global<float>(0x0083eb20) / (at<float>(phys, k ? 0x150 : 0x148) * dt + k1 * dt);
+        uint8_t* const c = PhysContacts_Add(world, addr(a), addr(az), addr(b), addr(bz), addr(axis), addr(phys + (k ? 0x1d0 : 0x1c8)));
+        const float term = PhysContact_GetAnchorCrossTerm(c);
+        spring_contact(c, term, k1, k2, dt, inv_dt, false);
+        at<float>(c, 0x64) = title_global<float>(0x0083eb70);  // 1e7
+    }
+    // the wheels on the ground
+    uint8_t* const ground = PhysWorld_GetStaticBody();
+    const float* const m = at<float*>(phys, 0x34);
+    float down[4];
+    std::memcpy(down, phys + 0x90, 16);
+    const Lanes dir = add(add(mul(lanes(m), down[0]), mul(lanes(m + 4), down[1])), mul(lanes(m + 8), down[2]));
+    for (int32_t i = 0; i < 4; ++i) {
+        if (!phys[0x130 + i]) continue;
+        const float* const body = at<float*>(phys, 0x34);
+        float p[4];
+        std::memcpy(p, phys + 0x50 + i * 16, 16);
+        const Lanes wp = add(add(mul(lanes(body), p[0]), mul(lanes(body + 4), p[1])), mul(lanes(body + 8), p[2]));
+        const Lanes plane = negate_bits(lanes(reinterpret_cast<const float*>(phys + 0xe0 + i * 16)));
+        alignas(16) float minus_plane[4];
+        std::memcpy(minus_plane, plane.v, 16);
+        float* const hit = reinterpret_cast<float*>(phys + 0xa0 + i * 16);
+        uint8_t* const c = PhysWorld_AllocContact(world);
+        alignas(16) float zero[4];
+        std::memcpy(zero, &title_global<uint8_t>(0x0082e110), 16);
+        const Lanes top = add(wp, mul(splat(at<float>(phys, 0x120)), dir));
+        alignas(16) float anchor[4];
+        std::memcpy(anchor, top.v, 16);
+        PhysContact_Init(c, at<uint8_t*>(phys, 0x34), anchor, ground, hit, minus_plane, phys + 0x1d8 + i * 8, zero);
+        at<float>(c, 0x60) = title_global<float>(0x0083eb74);  // -1e7
+        at<float>(c, 0x64) = 0.0f;
+        const float k1 = at<float>(phys, 0x128) * dt;
+        const float k2 = title_global<float>(0x0083eb20) / (at<float>(phys, 0x12c) * dt + k1 * dt);
+        const float sep = PhysContact_GetSeparation(c);
+        spring_contact(c, sep, k1, k2, dt, inv_dt, true);
+        at<float>(c, 0x60) = title_global<float>(0x0083eb74);
+        uint8_t* const tyre = PhysWorld_AllocContact(world);
+        alignas(16) float zero2[4];
+        std::memcpy(zero2, &title_global<uint8_t>(0x0082e110), 16);
+        const Lanes plane2 = negate_bits(lanes(reinterpret_cast<const float*>(phys + 0xe0 + i * 16)));
+        const Lanes rest = add(wp, mul(splat(at<float>(phys, 0x120) - at<float>(phys, 0x124)), dir));
+        alignas(16) float minus_plane2[4];
+        std::memcpy(minus_plane2, plane2.v, 16);
+        alignas(16) float anchor2[4];
+        std::memcpy(anchor2, rest.v, 16);
+        PhysContact_Init(tyre, at<uint8_t*>(phys, 0x34), anchor2, ground, hit, minus_plane2, phys + 0x1f8 + i * 8, zero2);
+        at<float>(tyre, 0x60) = title_global<float>(0x0083eb74);
+        at<float>(tyre, 0x64) = 0.0f;
+        PhysContact_ComputeBias_2(tyre, dt, title_global<float>(0x0083ece8));  // 5
     }
 }
 
