@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -82,5 +83,34 @@ uint8_t* XB_REGS2 XB_CDECL PathData_Construct(uint32_t unused_eax, uint8_t* data
 uint32_t XB_REGS3 XB_CDECL PathNode_IsUnclaimedFor(uint8_t* node, uint32_t unused_edx, uint8_t* sentient);
 // 0x002b12a0 (cdecl handle): 1 when a sentient of team mask 4 has the node as its goal (+0x50), else 0.
 uint32_t XB_CDECL PathNode_IsSentientClaimed(const uint16_t* handle);
+
+// 0x002b9190 (EAX start index; stack path data, min depth, max depth, reference node; callee pops): from the
+// sorted list, the node in the reference's zone nearest the depth range whose claim time (+8) has not passed
+// and that no sentient has as its goal; stops at the zone's end or past the range.
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_ScanUnclaimedInDepthRange(int32_t start, uint8_t* world, int32_t min_depth,
+                                                                    int32_t max_depth, uint8_t* ref);
+// 0x002b9290 (as above, + sentient): the nearest node outside the range available for the sentient.
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_ScanAvailableInDepthRange(int32_t start, uint8_t* world, int32_t min_depth,
+                                                                    int32_t max_depth, uint8_t* ref,
+                                                                    const uint8_t* sentient);
+// 0x002b9380 (EAX node, EDX max depth, EDI min depth, ESI path data; stack sentient; callee pops): climbs the
+// parents (+0x60) to the max depth (through g_pathNodeBlocks), then on to the first one available for the
+// sentient (through ESI) not above the min depth; null when none.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNodeTree_FindAvailableAncestor(uint8_t* node, int32_t max_depth,
+                                                                              int32_t min_depth, uint8_t* world,
+                                                                              const uint8_t* sentient);
+extern "C" void PathNodeTree_FindAvailableAncestor_entry(void);
+// 0x002b9470 (EAX root; stack min depth, max depth, sentient; callee pops): among the nodes stored after the root
+// in its zone, the deepest available one in the range (ties picked at random); null when a direct child is met.
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_PickAvailableInSubtree(uint8_t* root, int32_t min_depth, int32_t max_depth,
+                                                                 const uint8_t* sentient);
+// 0x002b9530 (thiscall path data; stack min depth, max depth, sorted index, sentient; callee pops): reservoir pick
+// of the deepest available descendant of the sorted node, recursing into children above the max depth.
+uint8_t* XB_THISCALL PathNodeTree_PickAvailableDescendant_r(uint8_t* world, int32_t min_depth, int32_t max_depth,
+                                                            int32_t start, const uint8_t* sentient);
+// 0x002b9740 (EAX path data, ECX link; stack entity, node; callee pops): takes a record from the free list, fills it
+// {node handle, link target} and rings it into the entity's list (+0x410), then PathNode_DisableLink.
+void XB_REGS3 XB_STDCALL Path_RecordDisconnectedLink(uint8_t* world, uint32_t unused_edx, uint8_t* link, uint8_t* ent,
+                                                     uint8_t* node);
 
 }  // namespace game

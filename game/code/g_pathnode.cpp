@@ -455,4 +455,194 @@ uint32_t XB_CDECL PathNode_IsSentientClaimed(const uint16_t* handle) {
     return 0;
 }
 
+namespace {
+
+uint8_t* node_of(uint8_t* world, uint32_t handle) {
+    uint8_t* const block = path_block(world, handle_block(handle));
+    if (!block) return nullptr;
+    return ptr(word_at(block, 0x10)) + (handle & 0x1ff) * 0x80;
+}
+int32_t depth_of(const uint8_t* node) { return *reinterpret_cast<const int16_t*>(node + 0x5e); }
+const uint16_t* sorted_handles(uint8_t* world) {
+    return reinterpret_cast<const uint16_t*>(ptr(word_at(path_info(world), 0x14)));
+}
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_ScanUnclaimedInDepthRange(int32_t start, uint8_t* world, int32_t min_depth,
+                                                                    int32_t max_depth, uint8_t* ref) {
+    uint8_t* best = nullptr;
+    int32_t best_score = 0x7fffffff;
+    uint8_t* const info = path_info(world);
+    const int32_t count = static_cast<int32_t>(word_at(info, 8));
+    if (start >= count) return nullptr;
+    const uint16_t* handle = reinterpret_cast<const uint16_t*>(ptr(word_at(info, 0x14))) + start;
+    for (int32_t i = start; i < count; ++i, ++handle) {
+        uint8_t* const node = node_of(world, *handle);
+        if (!node) continue;
+        if (half_at(node, 0x5c) != half_at(ref, 0x5c)) break;
+        if (title_global<int32_t>(0x0098540c) > static_cast<int32_t>(word_at(node, 8))) continue;  // level_time
+        const int32_t depth = depth_of(node);
+        int32_t score;
+        if (depth < min_depth)
+            score = min_depth - depth;
+        else if (depth > max_depth)
+            score = depth - max_depth;
+        else
+            score = 0;
+        if (score > best_score) continue;
+        if (PathNode_IsSentientClaimed(reinterpret_cast<const uint16_t*>(node))) continue;
+        best_score = score;
+        best = node;
+        if (max_depth < depth) break;
+    }
+    return best;
+}
+
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_ScanAvailableInDepthRange(int32_t start, uint8_t* world, int32_t min_depth,
+                                                                    int32_t max_depth, uint8_t* ref,
+                                                                    const uint8_t* sentient) {
+    uint8_t* best = nullptr;
+    int32_t best_score = 0x7fffffff;
+    uint8_t* const info = path_info(world);
+    const int32_t count = static_cast<int32_t>(word_at(info, 8));
+    if (start >= count) return nullptr;
+    const uint16_t* handle = reinterpret_cast<const uint16_t*>(ptr(word_at(info, 0x14))) + start;
+    for (int32_t i = start; i < count; ++i, ++handle) {
+        uint8_t* const node = node_of(world, *handle);
+        if (!node) continue;
+        if (half_at(node, 0x5c) != half_at(ref, 0x5c)) break;
+        const int32_t depth = depth_of(node);
+        int32_t score;
+        if (depth < min_depth)
+            score = min_depth - depth;
+        else if (depth <= max_depth)
+            continue;  // nodes inside the range are skipped
+        else
+            score = depth - max_depth;
+        if (score > best_score) continue;
+        if (!PathNode_IsAvailableFor(node, sentient)) continue;
+        best_score = score;
+        best = node;
+        if (max_depth < depth) break;
+    }
+    return best;
+}
+
+PLATFORM_ASM_ENTRY(PathNodeTree_FindAvailableAncestor_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PathNodeTree_FindAvailableAncestor) "addl $20, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL PathNodeTree_FindAvailableAncestor(uint8_t* node, int32_t max_depth, int32_t min_depth,
+                                                     uint8_t* world, const uint8_t* sentient) {
+    if (!node) return nullptr;
+    if (depth_of(node) > max_depth) {
+        uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+        do {
+            const uint16_t parent = half_at(node, 0x60);
+            if (parent == 0 || parent == 0xffff) return nullptr;
+            node = node_of(blocks, parent);
+        } while (depth_of(node) > max_depth);
+    }
+    if (depth_of(node) < min_depth) return nullptr;
+    for (;;) {
+        if (PathNode_IsAvailableFor(node, sentient)) return node;
+        const uint16_t parent = half_at(node, 0x60);
+        if (parent == 0 || parent == 0xffff) return nullptr;
+        node = node_of(world, parent);
+        if (depth_of(node) < min_depth) return nullptr;
+    }
+}
+
+uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_PickAvailableInSubtree(uint8_t* root, int32_t min_depth, int32_t max_depth,
+                                                                 const uint8_t* sentient) {
+    const uint16_t handle = half_at(root, 0);
+    const uint16_t zone = half_at(root, 0x5c);
+    uint8_t* best = nullptr;
+    uint32_t picks = 0;
+    for (uint8_t* node = root + 0x80; half_at(node, 0x5c) == zone; node += 0x80) {
+        const int16_t depth = static_cast<int16_t>(depth_of(node));
+        if (depth > max_depth) break;
+        if (handle == half_at(node, 0x60)) return nullptr;
+        if (depth < min_depth) continue;
+        if (!PathNode_IsAvailableFor(node, sentient)) continue;
+        if (best) {
+            const int16_t best_depth = static_cast<int16_t>(depth_of(best));
+            if (depth == best_depth) {
+                ++picks;
+                const uint32_t r = static_cast<uint32_t>(title_function<int32_t XB_CDECL()>(0x001efcc0)());  // _rand
+                if (static_cast<int32_t>(r * picks) > 0x7fff) continue;
+            } else if (depth < best_depth) {
+                continue;
+            } else {
+                picks = 1;
+            }
+        } else {
+            picks = 1;
+        }
+        best = node;
+    }
+    return best;
+}
+
+uint8_t* XB_THISCALL PathNodeTree_PickAvailableDescendant_r(uint8_t* world, int32_t min_depth, int32_t max_depth,
+                                                            int32_t start, const uint8_t* sentient) {
+    uint8_t* const info = path_info(world);
+    const uint32_t root_handle = reinterpret_cast<const uint16_t*>(ptr(word_at(info, 0x14)))[start];
+    uint8_t* const root = node_of(world, root_handle);
+    if (!root) return nullptr;
+    const uint16_t zone = half_at(root, 0x5c);
+    const int32_t child_depth = depth_of(root) + 1;
+    const int32_t limit = max_depth >= child_depth ? child_depth : max_depth;
+    const int32_t count = static_cast<int32_t>(word_at(info, 8));
+    uint32_t picks = 0;
+    uint32_t best = 0;
+    for (int32_t i = start + 1; i < count; ++i) {
+        uint8_t* const node = node_of(world, sorted_handles(world)[i]);
+        if (!node) continue;
+        if (half_at(node, 0x5c) != zone) break;
+        if (depth_of(node) > limit) break;
+        if (static_cast<uint16_t>(root_handle) != half_at(node, 0x60)) continue;
+        if (depth_of(node) < max_depth) {
+            uint8_t* const picked = PathNodeTree_PickAvailableDescendant_r(world, min_depth, max_depth, i, sentient);
+            if (picked) PathNodeTree_ReservoirPickDeepest(&picks, picked, &best);
+        }
+        const int32_t depth = depth_of(node);
+        if (depth != max_depth && (best || depth < min_depth)) continue;
+        if (PathNode_IsAvailableFor(node, sentient)) PathNodeTree_ReservoirPickDeepest(&picks, node, &best);
+    }
+    return ptr(best);
+}
+
+void XB_REGS3 XB_STDCALL Path_RecordDisconnectedLink(uint8_t* world, uint32_t, uint8_t* link, uint8_t* ent, uint8_t* node) {
+    // Disconnected-link records: 8 bytes {+0 node handle, +2 link target, +4 prev, +6 next} in the pool at info
+    // +0x10; record 0 heads the free list, the entity's ring starts at +0x410.
+    auto pool = [&] { return ptr(word_at(path_info(world), 0x10)); };
+    const uint16_t index = half_at(pool(), 6);
+    if (!index) title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, reinterpret_cast<const char*>(ptr(0x008339ac)));  // __break
+    uint8_t* const first = pool();
+    uint8_t* const record = first + index * 8;
+    half_at(first, 6) = half_at(record, 6);
+    half_at(pool() + half_at(record, 6) * 8, 4) = 0;
+    half_at(record, 0) = half_at(node, 0);
+    half_at(record, 2) = half_at(link, 0);
+    const uint16_t head = half_at(ent, 0x410);
+    if (!head) {
+        half_at(ent, 0x410) = index;
+        half_at(record, 6) = index;
+        half_at(record, 4) = index;
+    } else {
+        half_at(record, 4) = head;
+        const uint16_t next = half_at(pool() + half_at(ent, 0x410) * 8, 6);
+        half_at(record, 6) = next;
+        half_at(pool() + next * 8, 4) = index;
+        half_at(pool() + half_at(record, 4) * 8, 6) = index;
+    }
+    PathNode_DisableLink(node, 0, link);
+}
+
 }  // namespace game

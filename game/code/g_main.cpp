@@ -1220,4 +1220,5 @@ uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full) {
     return Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<char*>(uintptr_t{0x0082e098}),
                      1);
 }
+
 }  // namespace game

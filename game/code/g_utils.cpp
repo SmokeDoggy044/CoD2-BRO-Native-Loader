@@ -8,11 +8,13 @@
 #include "fx.h"
 #include "xanim.h"
 #include "g_main.h"
+#include "g_scr_runtime.h"
 #include "lanes.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "stream.h"
 #include "sv.h"
 #include "title_data.h"
 
@@ -1735,6 +1737,150 @@ void XB_CDECL G_StartCodNote(uint8_t* note, uint32_t a, uint32_t b) {
     const uint32_t object = *reinterpret_cast<const uint32_t*>(note + 0xc);
     const uint32_t vtable = *reinterpret_cast<const uint32_t*>(uintptr_t{object});
     title_function<void XB_THISCALL(uint32_t)>(*reinterpret_cast<const uint32_t*>(uintptr_t{vtable + 8}))(object);
+}
+
+PLATFORM_ASM_ENTRY(Persistent_SetValue_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Persistent_SetValue) "addl $16, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Persistent_SetValue(uint8_t* owner, uint32_t key, uint32_t count, const uint32_t* values) {
+    uint32_t item[3];
+    item[1] = values[0];
+    uint8_t* const array = owner + 0x560;
+    uint32_t* const begin = reinterpret_cast<uint32_t*>(uintptr_t{word_at(array, 0)});
+    uint32_t* const end = begin + word_at(owner, 0x568) * 3;
+    item[0] = key;
+    item[2] = count;
+    for (uint32_t* entry = begin; entry != end; entry += 3) {
+        if (entry[0] != key) continue;
+        DynArray_Erase12(entry, reinterpret_cast<uint32_t*>(array), entry + entry[2] * 3);
+        break;
+    }
+    DynArray_PushBack12(array, item);
+    if (count > 1) {
+        item[0] = 0;
+        item[2] = 0;
+        for (uint32_t i = 1; i < count; ++i) {
+            item[1] = values[i];
+            DynArray_PushBack12(array, item);
+        }
+    }
+}
+
+uint32_t XB_THISCALL G_EntityRunNotifyCallbacks(uint8_t* list, uint8_t* ent, uint32_t key, const uint32_t* args) {
+    uint8_t called = 0;
+    for (uint32_t i = 0; i < 6; ++i) {
+        if (word_at(list, 8 + i * 8) != key) continue;
+        G_EntityCallNotifyCallback(args, word_at(list, 0xc + i * 8), ent);
+        called = 1;
+    }
+    uint8_t* const next = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+    if (next) called |= static_cast<uint8_t>(G_EntityRunNotifyCallbacks(next, ent, key, nullptr));
+    return called;
+}
+
+uint32_t XB_REGS2 XB_STDCALL G_EntityRemoveNotifyCallback(uint32_t, uint8_t* list, uint32_t key, uint32_t callback) {
+    for (;;) {
+        for (uint32_t i = 0; i < 6; ++i) {
+            if (word_at(list, 8 + i * 8) != key || word_at(list, 0xc + i * 8) != callback) continue;
+            word_at(list, 0xc + i * 8) = 0;
+            word_at(list, 8 + i * 8) = 0;
+            return 1;
+        }
+        list = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+        if (!list) return 0;
+    }
+}
+
+uint32_t XB_REGS1 XB_STDCALL G_EntityAddNotifyCallback(uint8_t* list, uint32_t key, uint32_t callback) {
+    for (;;) {
+        for (uint32_t i = 0; i < 6; ++i) {
+            if (word_at(list, 0xc + i * 8)) continue;
+            word_at(list, 8 + i * 8) = key;
+            word_at(list, 0xc + i * 8) = callback;
+            return 1;
+        }
+        if (!word_at(list, 0x38)) {
+            uint8_t* const added = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
+            if (added)
+                for (uint32_t offset = 0; offset <= 0x38; offset += 4) word_at(added, offset) = 0;
+            word_at(list, 0x38) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(added));
+            if (!added) return 0;
+        }
+        list = reinterpret_cast<uint8_t*>(uintptr_t{word_at(list, 0x38)});
+    }
+}
+
+PLATFORM_ASM_ENTRY(G_EntityCallNotifyCallback_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_EntityCallNotifyCallback) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL G_EntityCallNotifyCallback(const uint32_t* args, uint32_t callback, uint8_t* ent) {
+    using Call = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t id = word_at(ent, 0x224);
+    const uint32_t fn = word_at(title_global<uint8_t*>(0x0095f49c), 0x880);
+    if (args) {
+        title_function<Call>(fn)(callback, id, args[0], args[0], args[2], args[3]);
+        return;
+    }
+    const uint32_t none = title_global<uint32_t>(0x00922eb8);
+    title_function<Call>(fn)(callback, id, 0, 0, none, none);
+}
+
+void XB_REGS1 XB_CDECL G_EntUnlink(uint8_t* ent) {
+    uint8_t* const link = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x3cc)});
+    if (!link) return;
+    // Position and angle trajectories stop at the current values (+0x140 origin, +0x150 angles).
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x14 + i * 4) = 0;
+    for (uint32_t i = 3; i-- > 0;) word_at(ent, 0x2c + i * 4) = 0;  // 0.0f
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x44 + i * 4) = word_at(ent, 0x150 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x38 + i * 4) = 0;
+    for (uint32_t i = 3; i-- > 0;) word_at(ent, 0x50 + i * 4) = 0;
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x150 + i * 4) = word_at(ent, 0x150 + i * 4);
+    // Unchain from the parent's child list (+0x3d0, linked through each child's link +4).
+    uint8_t* const parent = reinterpret_cast<uint8_t*>(uintptr_t{word_at(link, 0)});
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    uint32_t child = word_at(parent, 0x3d0);
+    if (child == self) {
+        word_at(parent, 0x3d0) = word_at(link, 4);
+    } else {
+        uint32_t previous;
+        do {
+            previous = child;
+            child = word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(reinterpret_cast<uint8_t*>(uintptr_t{child}), 0x3cc)}), 4);
+        } while (child != self);
+        if (!previous) {
+            word_at(parent, 0x3d0) = word_at(link, 4);
+        } else {
+            uint8_t* const previous_link =
+                reinterpret_cast<uint8_t*>(uintptr_t{word_at(reinterpret_cast<uint8_t*>(uintptr_t{previous}), 0x3cc)});
+            word_at(previous_link, 4) = word_at(link, 4);
+        }
+    }
+    if (word_at(ent, 0x23c)) {
+        uint8_t* const client = reinterpret_cast<uint8_t*>(uintptr_t{word_at(parent, 0x248)});
+        if (client) client[0x238] = 0;
+    }
+    word_at(ent, 0x3cc) = 0;
+    SmallHeap_Free(title_global<uint8_t*>(0x0095f598), link);
+}
+
+PLATFORM_ASM_ENTRY(G_EntGetTagIndex_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_EntGetTagIndex) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL G_EntGetTagIndex(const uint8_t* ent, uint32_t name) {
+    const DObj* const obj = *reinterpret_cast<const DObj* const*>(ent + 0x22c);
+    if (!obj) return -1;
+    return DObj_GetTagIndex(obj, name);
 }
 
 }  // namespace game
