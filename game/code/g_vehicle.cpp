@@ -5,6 +5,8 @@
 #include "bg_misc.h"
 #include "cm.h"
 #include "dobj.h"
+#include "g_client.h"
+#include "g_main.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
@@ -2086,6 +2088,402 @@ int32_t XB_CDECL Vehicle_GatherCollisionCandidates(const float* a, const float* 
                                           reinterpret_cast<int32_t*>(out + 0x30), 0x80, contents);
     at<int32_t>(out, 0) = count;
     return count;
+}
+
+void XB_CDECL Player_Touch(uint8_t* self, uint8_t* other) {
+    if (!Player_PushAwayFromEntity(other, self)) at<int32_t>(at<uint8_t*>(self, 0x23c), 0x620) = title_global<int32_t>(0x0098540c);
+    at<int32_t>(at<uint8_t*>(self, 0x23c), 0x624) = title_global<int32_t>(0x0098540c);  // level.time
+    uint8_t* const actor = at<uint8_t*>(other, 0x240);
+    if (!actor || at<uint32_t>(actor, 0x1390) || at<uint32_t>(actor, 0x7d8) || !(at<uint32_t>(actor, 0x310) & 0x2000000)) return;
+    // An actor standing on its claimed node gives it up to the player standing there.
+    if (vehicle_call(0x00201d40, 0, 0, address_of(actor), 0, 0, 0)) {  // Actor_IsAtClaimedNode
+        const uint8_t* const client = at<uint8_t*>(self, 0x23c);
+        const float dy = at<float>(client, 0x5b4) - at<float>(self, 0x144);
+        const float dx = at<float>(client, 0x5b0) - at<float>(self, 0x140);
+        if (dy * dy + dx * dx >= title_global<float>(0x0083eb94)) return;
+        vehicle_call_ebx(0x002048c0, at<uint32_t>(other, 0x244), at<uint32_t>(self, 0x244), 0);  // Sentient_TakeNodeClaim
+    }
+    const int32_t enemy = title_function<int32_t XB_CDECL(int32_t)>(0x000123d0)(at<int32_t>(at<uint8_t*>(self, 0x244), 4));  // Sentient_EnemyTeam
+    const int32_t team = at<int32_t>(at<uint8_t*>(other, 0x244), 4);
+    if ((1u << (team & 31)) & ~(1u << (enemy & 31))) at<uint8_t*>(actor, 0x1390) = self;
+}
+
+void XB_CDECL Vehicle_UpdateTreadScroll(uint8_t* ent, int32_t elapsed) {
+    const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    if (!at<uint32_t>(def, 0x28)) {
+        at<int32_t>(ent, 0xa0) = 0;
+        return;
+    }
+    const float speed = at<float>(ent, 0x2fc);
+    if (speed > title_global<float>(0x0083eafc)) {
+        // Speed along the heading, per 176 units of tread, scaled by 0x00954fd0 (or the def's +0x40) in ms.
+        float forward[3];
+        AnglesToForward(reinterpret_cast<const float*>(vehicle + 0xe0), forward);
+        const float vx = at<float>(vehicle, 0x100), vy = at<float>(vehicle, 0x104);
+        const float n = (forward[2] * forward[2] + vy * vy) + vx * vx;
+        uint32_t bits;
+        std::memcpy(&bits, &n, 4);
+        const uint32_t guess_bits = 0x5f3759dfu - static_cast<uint32_t>(static_cast<int32_t>(bits) >> 1);
+        float y;
+        std::memcpy(&y, &guess_bits, 4);
+        const float r = (title_global<float>(0x0083eaf4) - (y * y) * (n * title_global<float>(0x0083eb24))) * y;
+        const float rx = r * vx, ry = r * vy;
+        float scroll = ((forward[1] * ry + forward[0] * rx) * speed) / title_global<float>(0x0083f044);
+        scroll = (static_cast<float>(elapsed) * title_global<float>(0x0083eb4c)) * scroll;
+        const float scale = title_global<float>(0x00954fd0);
+        scroll = scale > title_global<float>(0x0083eafc) ? scroll * scale : scroll * at<float>(def, 0x40);
+        at<int32_t>(ent, 0xa0) = at<int32_t>(ent, 0xa0) + static_cast<int32_t>(scroll * title_global<float>(0x0083eb9c));
+    }
+    if (!(at<float>(vehicle, 0x114) == title_global<float>(0x0083eafc)))
+        at<int32_t>(ent, 0xa0) = static_cast<int32_t>(static_cast<float>(at<int32_t>(ent, 0xa0)) + at<float>(vehicle, 0x114));
+}
+
+PLATFORM_ASM_ENTRY(Player_GetViewOrigin_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Player_GetViewOrigin) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Player_GetViewOrigin(float* out, const uint8_t* ent) {
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(out, k * 4) = at<uint32_t>(ent, 0x140 + k * 4);
+    out[2] = at<float>(at<uint8_t*>(ent, 0x23c), 0xac) + out[2];  // view height
+    const uint8_t* const client = at<uint8_t*>(ent, 0x23c);
+    float position[3] = {out[0], out[1], out[2]};
+    AddLeanToPosition(position, at<float>(client, 0x4c), at<float>(client, 0xa0), 16.0f, 20.0f);
+    for (uint32_t k = 0; k < 3; ++k) out[k] = position[k];
+    for (uint32_t k = 0; k < 3; ++k) out[k] = at<float>(at<uint8_t*>(ent, 0x23c), 0x5c8 + k * 4) + out[k];
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_SetOriginAndAngles_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_SetOriginAndAngles) "addl $12, %esp\n"
+                   "ret")
+
+namespace {
+
+// Places a linked entity: trajectory bases and current origin/angles, both trajectories stationary.
+void place_linked(uint8_t* e, const float* origin, const float* angles) {
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x20 + k * 4) = at<uint32_t>(origin, k * 4);
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x14 + k * 4) = 0;
+    for (uint32_t k = 0; k < 3; ++k) at<float>(e, 0x2c + k * 4) = 0.0f;
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x140 + k * 4) = at<uint32_t>(origin, k * 4);
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x44 + k * 4) = at<uint32_t>(angles, k * 4);
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x38 + k * 4) = 0;
+    for (uint32_t k = 0; k < 3; ++k) at<float>(e, 0x50 + k * 4) = 0.0f;
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(e, 0x150 + k * 4) = at<uint32_t>(angles, k * 4);
+    at<uint32_t>(e, 0x14) = 1;
+    at<uint32_t>(e, 0x38) = 1;
+    SV_LinkEntity(e);
+}
+
+bool same3(const uint8_t* e, uint32_t offset, const float* v) {
+    return at<float>(e, offset) == v[0] && at<float>(e, offset + 4) == v[1] && at<float>(e, offset + 8) == v[2];
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Vehicle_SetOriginAndAngles(uint8_t* ent, const float* origin, const float* angles) {
+    const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    if (!at<uint32_t>(ent, 0xd0) || !same3(ent, 0x140, origin) || !same3(ent, 0x20, origin) || !same3(ent, 0x150, angles) ||
+        !same3(ent, 0x44, angles)) {
+        // Interpolating trajectories from the old origin/angles to the new ones.
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x20 + k * 4) = at<uint32_t>(ent, 0x140 + k * 4);
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x2c + k * 4) = at<uint32_t>(origin, k * 4);
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x140 + k * 4) = at<uint32_t>(origin, k * 4);
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x44 + k * 4) = at<uint32_t>(ent, 0x150 + k * 4);
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x50 + k * 4) = at<uint32_t>(angles, k * 4);
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0x150 + k * 4) = at<uint32_t>(angles, k * 4);
+        at<uint32_t>(ent, 0x14) = 1;
+        at<uint32_t>(ent, 0x38) = 1;
+        SV_LinkEntity(ent);
+        // The two attached entities (+0x204 / +0x208 handles) placed the same way.
+        for (uint32_t offset = 0x204; offset <= 0x208; offset += 4) {
+            const uint32_t handle = at<uint32_t>(vehicle, offset);
+            if (handle) place_linked(entity_from_handle(handle), origin, angles);
+        }
+    }
+    if (at<uint32_t>(ent, 0x2a4) & 0x20000000) G_FloatOnWater(ent);
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_InitRecord_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_InitRecord) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_InitRecord(uint8_t* vehicle, uint8_t* ent, uint32_t def_index) {
+    PhysBody_Clear(vehicle);
+    Vehicle_ResetMotionState(ent);
+    at<uint32_t>(vehicle, 0x170) = at<uint32_t>(ent, 0x224);
+    at<uint16_t>(vehicle, 0x178) = static_cast<uint16_t>(def_index);
+    at<float>(vehicle, 0x17c) = title_global<float>(0x0083eb34);  // -1
+    at<uint16_t>(vehicle, 0x17a) = 0xffff;
+    static const uint32_t kZeroWords[] = {0x180, 0x188, 0x18c, 0x190, 0x194, 0x1ac, 0x1b0, 0x1c8, 0x1cc, 0x204, 0x208, 0x2f4, 0x2fc, 0x300};
+    static const uint32_t kZeroFloats[] = {0x1a8, 0x1b4, 0x1b8, 0x1bc, 0x1c4, 0x23c, 0x240};
+    for (uint32_t i = 0; i < sizeof(kZeroWords) / 4; ++i) at<uint32_t>(vehicle, kZeroWords[i]) = 0;
+    for (uint32_t i = 0; i < sizeof(kZeroFloats) / 4; ++i) at<float>(vehicle, kZeroFloats[i]) = 0.0f;
+    for (uint32_t offset = 0x1d0; offset <= 0x1fc; offset += 4) at<float>(vehicle, offset) = 0.0f;
+    at<float>(vehicle, 0x1c0) = title_global<float>(0x0083ef10);  // wheel radius 15
+    for (uint32_t offset = 0x20c; offset <= 0x228; offset += 4) at<uint32_t>(vehicle, offset) = 0xffffffffu;
+    at<uint32_t>(vehicle, 0x234) = 0xffffffffu;
+    at<uint8_t>(vehicle, 0x238) = 0;
+    Vehicle_SetOriginAndAngles(ent, reinterpret_cast<const float*>(ent + 0x140), reinterpret_cast<const float*>(ent + 0x150));
+    // The wheel radius from the model's tag_wheel_front_left (+0x68 of its bone record).
+    const DObj* const obj = at<const DObj*>(ent, 0x22c);
+    if (!obj || !at<uint32_t>(obj, 0x20)) return;
+    if (!(title_global<uint8_t>(0x0098e904) & 1)) {
+        title_global<uint32_t>(0x0098e904) |= 1;
+        title_global<uint32_t>(0x0098e900) = Com_HashKeyNoCase(0, pointer<const char>(0x0083a444));  // tag_wheel_front_left
+    }
+    const int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098e900));
+    if (bone < 0) return;
+    at<uint32_t>(vehicle, 0x1c0) = at<uint32_t>(at<uint8_t*>(obj, 0x20), static_cast<uint32_t>(bone) * 64 + 0x68);
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_GetTagOrigin_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Vehicle_GetTagOrigin) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Vehicle_GetTagOrigin(uint8_t* ent, int32_t slot, float* out) {
+    const uint8_t* const def = vehicle_def(at<int16_t>(at<uint8_t*>(ent, 0x248), 0x178));
+    int32_t bone = -1;
+    const uint8_t* matrix = nullptr;
+    if (at<const DObj*>(ent, 0x22c)) {
+        bone = DObj_GetTagIndex(at<const DObj*>(ent, 0x22c), title_global<uint32_t>(0x009886f8 + static_cast<uint32_t>(slot) * 4));
+        if (bone >= 0) {
+            SV_DObjCreateSkeleton(ent);
+            const uint8_t* const obj = at<uint8_t*>(ent, 0x22c);
+            const uint32_t bones = at<uint32_t>(obj, 0x20);
+            const uint32_t base = bones ? static_cast<uint32_t>(at<uint8_t>(obj, 0x60)) * 64 + bones + 0x30 : 0;
+            matrix = pointer<const uint8_t>(static_cast<uint32_t>(bone) * 64 + base);
+        }
+    }
+    if (!matrix) {
+        const uint32_t rep = at<uint32_t>(ent, 0x264);
+        using Break = void XB_CDECL(int32_t, const char*, const char*, uint32_t);
+        title_function<Break>(0x002938f0)(1, pointer<const char>(0x0083a0ec), rep ? pointer<const char>(rep + 6) : nullptr,
+                                          title_global<uint32_t>(0x008daea0 + static_cast<uint32_t>(slot) * 4));  // __break
+    }
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(out, k * 4) = at<uint32_t>(matrix, 0x30 + k * 4);
+    if (at<uint8_t>(ent, 0x297) == 2) {
+        // Clamped to the def's radius (+0x1b0) less 2: the packed lanes all computed (MXCSR flags).
+        float sq[4];
+        for (uint32_t k = 0; k < 4; ++k) sq[k] = out[k] * out[k];
+        const float length_sq = (sq[0] + sq[1]) + sq[2];
+        const float radius = at<float>(def, 0x1b0);
+        if (length_sq > radius * radius) {
+            const float length = platform_x87_sqrt(length_sq);
+            float v[4];
+            for (uint32_t k = 0; k < 4; ++k) v[k] = out[k] / length;
+            for (uint32_t k = 0; k < 4; ++k) out[k] = v[k];
+            const float scale = at<float>(def, 0x1b0) - title_global<float>(0x0083eba8);
+            for (uint32_t k = 0; k < 4; ++k) out[k] = v[k] * scale;
+        }
+    }
+    return bone;
+}
+
+void XB_CDECL Player_GetViewOriginAndAxis(const uint8_t* ent, float* out) {
+    const uint8_t* const client = at<uint8_t*>(ent, 0x23c);
+    float angles[3];
+    at<uint32_t>(angles, 8) = at<uint32_t>(client, 0xa4);
+    at<uint32_t>(angles, 0) = at<uint32_t>(client, 0x5c0);
+    at<uint32_t>(angles, 4) = at<uint32_t>(client, 0x5c4);
+    uint32_t args[2] = {address_of(angles), address_of(out)};
+    AnglesToAxis(args, out + 3, out + 6);
+    Player_GetViewOrigin(angles, ent);
+    for (uint32_t k = 0; k < 3; ++k) out[9 + k] = angles[k];
+}
+
+void XB_REGS3 XB_CDECL Vehicle_UpdateWheelBones(uint32_t, uint32_t, const uint8_t* def, uint8_t* ent) {
+    using SetBoneAngles = uint32_t XB_CDECL(uint8_t*, const float*, const float*, uint32_t, uint32_t);
+    const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const int32_t wheels = at<int16_t>(def, 0x20) != 1 ? 6 : 4;
+    // Each wheel bone rolls by +0x1c4; the two steering wheels also turn by +0x270.
+    float angles[3] = {0.0f, 0.0f, 0.0f};  // the third word is never written (zero dead stack in tests)
+    const float origin[3] = {0.0f, 0.0f, 0.0f};
+    for (int32_t i = 0; i < wheels; ++i) {
+        const uint32_t bone = at<uint32_t>(vehicle, 0x2dc + static_cast<uint32_t>(i) * 4);
+        if (static_cast<int32_t>(bone) <= 0) continue;
+        angles[1] = at<float>(vehicle, 0x270);
+        angles[0] = at<float>(vehicle, 0x1c4);
+        if (i != title_global<int32_t>(0x0095f658) && i != title_global<int32_t>(0x008d9d58)) angles[1] = 0.0f;
+        title_function<SetBoneAngles>(0x002de420)(ent, origin, angles, bone, 0);  // G_DObjSetBoneRotation
+    }
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_PlayerInputToMove_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_PlayerInputToMove) "addl $12, %esp\n"
+                   "ret")
+
+namespace {
+
+// A stick axis (-128..127) past the dead zone (0x008ff004), rescaled to 0..1 with its sign (x87, as the title).
+float stick_axis(int8_t value) {
+    const float f = static_cast<float>(value);
+    const float dead = title_global<float>(0x008ff004);
+    if (platform_x87_greater(dead, abs_bits(f))) return 0.0f;
+    const int32_t sign = value > 0 ? 1 : (value >= 0 ? 0 : -1);
+    const long double scaled = (static_cast<long double>(abs_bits(f)) - static_cast<long double>(dead)) /
+                               (static_cast<long double>(title_global<float>(0x0083ebe8)) - static_cast<long double>(dead));  // 128
+    return static_cast<float>(scaled * static_cast<long double>(static_cast<float>(sign)));
+}
+
+// Through the 16-bit short angle and back, no wrap.
+float short_angle(float x) {
+    const int32_t s = static_cast<int32_t>(x * title_global<float>(0x0083ebd8)) & 0xffff;
+    return static_cast<float>(s) * title_global<float>(0x0083ebd4);
+}
+
+}  // namespace
+
+void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t elapsed) {
+    uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    float view_yaw = 0.0f;  // the driver's view yaw offset (client +0xa0)
+    if (const uint8_t* const driver = entity_from_handle(at<uint32_t>(ent, 0x1a0)))
+        view_yaw = at<float>(at<uint8_t*>(driver, 0x23c), 0xa0);
+    float stick[2];
+    stick[0] = stick_axis(cmd[1]);  // right
+    stick[1] = stick_axis(cmd[0]);  // forward
+    const float magnitude = title_ci_sqrt(static_cast<float>(static_cast<long double>(stick[1]) * stick[1] +
+                                                             static_cast<long double>(stick[0]) * stick[0]));
+    const float zero = 0.0f;
+    const float half = title_global<float>(0x0083eb60);  // 180
+    float delta = zero;
+    const float wanted = (vectoyaw(stick) + view_yaw) - title_global<float>(0x0083eb64);  // 90
+    bool reverse = false;
+    if (title_global<uint32_t>(0x0095bba4)) {
+        delta = zero - at<float>(def, 0x4c) * stick[0];  // direct steering
+    } else if (!(magnitude == zero)) {
+        delta = wanted - at<float>(vehicle, 0xe4);
+        if (title_global<float>(0x0083ebd0) >= delta) {
+            do delta = delta + title_global<float>(0x0083ebcc);
+            while (title_global<float>(0x0083ebd0) >= delta);
+        } else if (delta > half) {
+            do delta = delta - title_global<float>(0x0083ebcc);
+            while (delta > half);
+        }
+    }
+    // Stick pointing further back than 105 + 50 * forward degrees: reverse toward the opposite heading.
+    const float limit = static_cast<float>(static_cast<long double>(stick[1]) * title_global<float>(0x0083ec30) +
+                                           static_cast<long double>(title_global<float>(0x0083f04c)));
+    float off = abs_bits(delta);
+    if (platform_x87_greater(off, limit)) {
+        const int32_t sign = delta > zero ? 1 : (zero > delta ? -1 : 0);
+        delta = delta - static_cast<float>(sign) * half;
+        reverse = true;
+    }
+    // Steering rate (+0x50 per second) toward the wanted angle, clamped to +-0x4c.
+    const float seconds = static_cast<float>(elapsed) * title_global<float>(0x0083eb4c);
+    const float step = at<float>(def, 0x50) * seconds;
+    const float steer_old = title_global<float>(0x0095f680);
+    float steer = delta - steer_old;
+    if (zero - step > steer) steer = zero - step;
+    else if (steer > step) steer = step;
+    steer = steer + steer_old;
+    title_global<float>(0x0095f680) = steer;
+    if (zero - at<float>(def, 0x4c) > steer) {
+        steer = zero - at<float>(def, 0x4c);
+        title_global<float>(0x0095f680) = steer;
+    } else if (steer > at<float>(def, 0x4c)) {
+        steer = at<float>(def, 0x4c);
+        title_global<float>(0x0095f680) = steer;
+    }
+    const float turn = seconds * steer;
+    at<float>(vehicle, 0xe4) = short_angle(at<float>(vehicle, 0xe4) + turn);
+    at<float>(vehicle, 0xe0) = zero;
+    at<float>(vehicle, 0xe8) = zero;
+    at<float>(vehicle, 0x294) = short_angle(at<float>(vehicle, 0x294) - turn);
+    float cosine, sine;
+    FastSinCos(&sine, 0, &cosine, at<float>(vehicle, 0xe4) * title_global<float>(0x0083edd8));  // degrees to radians
+    const float vx = at<float>(vehicle, 0x100), vy = at<float>(vehicle, 0x104);
+    float speed = title_ci_sqrt(vx * vx + vy * vy);
+    const float along = (at<float>(vehicle, 0x104) * sine + at<float>(vehicle, 0x100) * cosine) + at<float>(vehicle, 0x108) * zero;
+    if (zero > along) speed = speed * title_global<float>(0x0083eb34);  // -1
+    // Throttle: forward stick (or magnitude) times the top speed (+0x44), less when turning hard at speed.
+    float target;
+    if (title_global<uint32_t>(0x0095bba4)) {
+        target = at<float>(def, 0x44) * stick[1];
+    } else {
+        const float top = at<float>(def, 0x44);
+        target = reverse ? zero - top : top;
+        target = target * magnitude;
+        if (static_cast<long double>(top) * static_cast<long double>(title_global<float>(0x0083ed28)) >
+            static_cast<long double>(abs_bits(speed))) {  // 0.7, FCOMIP
+            const float angle = abs_bits(delta);
+            const float wide = title_global<float>(0x0083f048);  // 85
+            if (platform_x87_greater(wide, angle)) {
+                const float k = (wide - angle) / wide;
+                target = ((k * k) * title_global<float>(0x0083ebc0) + title_global<float>(0x0083ebf8)) * target;
+            } else {
+                target = target * title_global<float>(0x0083ebf8);
+            }
+        }
+    }
+    const float accel = seconds * at<float>(def, 0x48);
+    float change = target - speed;
+    if (zero - accel > change) change = zero - accel;
+    else if (change > accel) change = accel;
+    const float v = change + speed;
+    at<float>(vehicle, 0x100) = cosine * v;
+    at<float>(vehicle, 0x104) = sine * v;
+}
+
+PLATFORM_ASM_ENTRY(Vehicle_EnterPlayer_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_EnterPlayer) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_EnterPlayer(uint8_t* ent, uint8_t* player) {
+    uint8_t* const client = at<uint8_t*>(player, 0x23c);
+    uint8_t* vehicle = at<uint8_t*>(ent, 0x248);
+    const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
+    using TagMatrix = void XB_CDECL(uint8_t*, int32_t, float*);
+    alignas(16) float seat[16], gun[16];
+    title_function<TagMatrix>(0x002e3780)(ent, at<int32_t>(vehicle, 0x2b0), seat);  // G_DObjGetWorldTagMatrix
+    title_function<TagMatrix>(0x002e3780)(ent, at<int32_t>(vehicle, 0x2c4), gun);
+    float angles[3];
+    MatrixToAngles(angles, 0, gun);
+    angles[2] = 0.0f;
+    TeleportPlayer(player, 0, seat + 12);
+    SetClientViewAngle(angles, player);
+    const TitleRegs regs{0, 0, 0x00838a54, address_of(player), 0, address_of(player)};  // ECX "tag_player", EDX player
+    const uint32_t args[3] = {address_of(ent), 0x0082eec0, 0x0082eec0};
+    if (!g_ent_call(0x002e44b0, &regs, 3, args))  // G_EntLinkToWithOffset
+        title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, pointer<const char>(0x0083a064));  // __break
+    if (at<uint32_t>(vehicle, 0x1cc) == at<uint32_t>(player, 0x224)) {
+        at<uint32_t>(vehicle, 0x1c8) = 0;
+        at<uint32_t>(vehicle, 0x1cc) = 0;
+    }
+    uint32_t mode;
+    if (!at<uint32_t>(def, 0x3c)) {
+        at<uint8_t>(ent, 0x297) = 2;
+        mode = 1;
+    } else {
+        at<uint32_t>(ent, 0x10) |= 0x400;
+        mode = 2;
+    }
+    at<uint32_t>(ent, 0x10) |= 0x100000;
+    at<uint32_t>(player, 0x1a0) = at<uint32_t>(ent, 0x224);
+    at<uint32_t>(ent, 0x1a0) = at<uint32_t>(player, 0x224);
+    at<uint32_t>(client, 0x4e4) = mode;
+    at<int32_t>(client, 0x4e8) = at<int16_t>(def, 0x20);
+    at<uint32_t>(client, 0xc0) = (at<uint32_t>(client, 0xc0) & 0xffbfffffu) | 0x300000u;
+    if (player == at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4)) {
+        title_global<uint8_t>(0x0095f91f) = 0;
+        Cvar_Set2(pointer<const char>(0x0082c538), pointer<char>(0x0082e058), 1);  // cl_run "1"
+    }
+    at<uint32_t>(client, 0x468) = at<int16_t>(def, 0x20) == 5 ? 0 : at<uint32_t>(ent, 0x224);
+    vehicle = at<uint8_t*>(ent, 0x248);
+    at<uint8_t>(vehicle, 0x238) = 1;
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a83c));  // player_on_vehicle
 }
 
 }  // namespace game

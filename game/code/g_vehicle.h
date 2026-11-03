@@ -258,4 +258,41 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Vehicle_GatherCollisionCandidates(co
                                                                              uint8_t* out);
 extern "C" void Vehicle_GatherCollisionCandidates_entry(void);
 
+// 0x002538f0 (player touch callback; self, other): pushes the player off (touch times +0x620/+0x624); an actor
+// standing on its claimed node near the player hands it over, and a non-enemy actor remembers the player (+0x1390).
+void XB_CDECL Player_Touch(uint8_t* self, uint8_t* other);
+// 0x00253ed0: tank tread texture scroll (+0xa0, ms) from the speed along the heading; plus the angular rate +0x114.
+void XB_CDECL Vehicle_UpdateTreadScroll(uint8_t* ent, int32_t elapsed);
+// 0x00259090 (out in EDI, player on the stack): origin + view height, the lean offset, then the view offset
+// (client +0x5c8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Player_GetViewOrigin(float* out, const uint8_t* ent);
+extern "C" void Player_GetViewOrigin_entry(void);
+// 0x00255220 (entity in EAX; origin, angles): unless already there (and +0xd0 set), trajectories from the old
+// origin/angles to the new, relinked, and the two attached entities (vehicle +0x204/+0x208) placed there too;
+// floats on water for +0x2a4 bit 0x20000000. Returns 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Vehicle_SetOriginAndAngles(uint8_t* ent, const float* origin, const float* angles);
+extern "C" void Vehicle_SetOriginAndAngles_entry(void);
+// 0x0025a600 (vehicle record in EAX, entity in ECX, def index on the stack): clears the record, placement, and the
+// wheel radius (+0x1c0, 15 or the model's tag_wheel_front_left +0x68).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_InitRecord(uint8_t* vehicle, uint8_t* ent, uint32_t def_index);
+extern "C" void Vehicle_InitRecord_entry(void);
+// 0x0025a810 (entity in EBX; tag slot, out on the stack): the tag's skeleton origin (tags 0x009886f8, names
+// 0x008daea0; __break 1 when missing); with +0x297 == 2 clamped to the def's radius (+0x1b0) less 2. EAX = bone.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Vehicle_GetTagOrigin(uint8_t* ent, int32_t slot, float* out);
+extern "C" void Vehicle_GetTagOrigin_entry(void);
+// 0x0025b780: the player's view axis (client +0x5c0/+0x5c4, roll +0xa4) at out, view origin at out + 0x24.
+void XB_CDECL Player_GetViewOriginAndAxis(const uint8_t* ent, float* out);
+// 0x0025b8a0 (def in ECX, entity on the stack): wheel bone angles (roll +0x1c4; steering +0x270 on the two
+// front wheels 0x0095f658 / 0x008d9d58), 4 or 6 wheels.
+void XB_REGS3 XB_CDECL Vehicle_UpdateWheelBones(uint32_t unused_eax, uint32_t unused_edx, const uint8_t* def, uint8_t* ent);
+// 0x00254060 (entity in EAX; usercmd, elapsed ms): stick to steering (0x0095f680, yaw +0xe4) and speed (velocity
+// +0x100) for a driven vehicle; 0x0095bba4 set = direct steering/throttle.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t elapsed);
+extern "C" void Vehicle_PlayerInputToMove_entry(void);
+// 0x0025bb60 (vehicle in EAX, player in EDI): seats the player at tag_player facing the gun tag, links them, sets
+// the drive mode (client +0x4e4/+0x4e8/+0xc0), notifies player_on_vehicle.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_EnterPlayer(uint8_t* ent, uint8_t* player);
+extern "C" void Vehicle_EnterPlayer_entry(void);
+extern "C" void Vehicle_EnterPlayer_entry(void);
+
 }  // namespace game
