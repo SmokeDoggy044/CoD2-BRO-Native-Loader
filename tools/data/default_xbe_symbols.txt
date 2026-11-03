@@ -8593,7 +8593,7 @@
 0026e1b0 Vehicle_ThinkInit
 0026e450 G_MoverTeam
 0026e810 G_SimulateGrenadePath
-0026eab0 FUN_0026eab0
+0026eab0 Turret_ThinkActorUser
 0026ecf0 G_BounceItem
 0026f0a0 Bullet_Trace_r
 0026f670 Bullet_Fire
@@ -9068,7 +9068,7 @@
 002984f0 Zone_FindByHash
 00298570 Stream_LoadCfgstr
 00298810 CL_UpdateRumble
-00298b20 FUN_00298b20
+00298b20 RumbleQueue_ClearAll
 00298ba0 Rumble_SetScale
 00298c50 Rumble_IsActive
 00298ca0 Rumble_Stop
@@ -9229,7 +9229,7 @@
 002a7490 Com_Init
 002a7da0 Noise_Init
 002a7f70 CameraShake_AllocSlot
-002a7ff0 FUN_002a7ff0
+002a7ff0 G_EntHasLiveDObj
 002a80b0 G_AddEvent
 002a8260 G_StartCodNote
 002a8330 AnimData_FindNotetrack
@@ -9346,7 +9346,7 @@
 002ad6d0 PM_ViewHeightStance
 002ad700 BG_AddPredictableEventToPlayerstate
 002ad770 Actor_GetProneBlend
-002ad810 FUN_002ad810
+002ad810 ProneBlend_Update
 002ad9d0 FUN_002ad9d0
 002add40 SoundRef_IsState3
 002adea0 SoundRef_SetVolumeScale

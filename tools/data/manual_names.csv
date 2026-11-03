@@ -14558,3 +14558,7 @@ address,name,kind,confidence,evidence
 00249160,VehPath_InitAtNode,function,high,"game/phys push 11"
 00249f00,Vehicle_ApproachProportional,function,high,"game/phys push 11"
 00249f60,Vehicle_ApproachAtRate,function,high,"game/phys push 11"
+0026eab0,Turret_ThinkActorUser,function,high,"game/ent push 7"
+002a7ff0,G_EntHasLiveDObj,function,high,"game/ent push 7"
+002ad810,ProneBlend_Update,function,high,"game/ent push 7"
+00298b20,RumbleQueue_ClearAll,function,high,"game/ent push 7 (client module)"

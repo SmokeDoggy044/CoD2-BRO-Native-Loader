@@ -291,4 +291,82 @@ extern "C" void Turret_ThinkAutoTarget_entry(void);
 // 0x0026d0d0: Q3's Touch_Item (item, player, touched flag).
 void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched);
 
+// 0x0026d440: Touch_Item re-armed on every touch (not for clients with +0x630).
+void XB_CDECL Touch_Item_Auto(uint8_t* ent, uint8_t* other, uint32_t touched);
+// 0x002ae8f0 (stdcall entity): whether the entity's cell is valid (always without cell data).
+uint8_t XB_STDCALL G_EntityInValidCell(uint8_t* ent);
+// 0x00270990: Q3's Use_BinaryMover (doors: open, close, reverse; team master).
+void XB_CDECL Use_BinaryMover(uint8_t* ent, uint8_t* other, uint8_t* activator);
+// 0x002710e0 (door in EAX; cdecl activator): the activate key on a door.
+void XB_REGS1 XB_CDECL TryDoor(uint8_t* door, uint8_t* activator);
+// 0x00271210: a door trigger's touch - uses its door.
+void XB_CDECL Touch_DoorTrigger(uint8_t* ent, uint8_t* other, uint32_t touched);
+// 0x00270c10 (user in EAX; cdecl turret, target, aim): one shot from each of the turret's flash tags.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t ebx,
+                                                                  uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Turret_FireFromFlashTags_entry(void);
+// 0x002712a0 (turret in EAX, user in ESI): the turret fires for its user.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_FireForUser(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi,
+                                                            uint32_t edi, uint32_t ebp);
+extern "C" void Turret_FireForUser_entry(void);
+// 0x0026f6d0 (mover in EAX; cdecl think word): Q3's G_RunMover.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunMover(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                    uint32_t edi, uint32_t ebp);
+extern "C" void G_RunMover_entry(void);
+// 0x0026fb00 (item in EAX; cdecl think word): Q3's G_RunItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunItem(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                   uint32_t edi, uint32_t ebp);
+extern "C" void G_RunItem_entry(void);
+// 0x00270df0 (player in EAX): Q3's FireWeapon.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                                    uint32_t edi, uint32_t ebp);
+extern "C" void FireWeapon_entry(void);
+
+// 0x0026e450 (cdecl mover): Q3's G_MoverTeam.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                     uint32_t edi, uint32_t ebp);
+extern "C" void G_MoverTeam_entry(void);
+
+// 0x0026eab0 (turret in EAX; cdecl actor user or 0): the turret think for an AI user; 1 or Turret_UpdateTarget's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void Turret_ThinkActorUser_entry(void);
+// 0x0026e810 (grenade in EAX; cdecl duration, out position, bounce, out time): the predicted grenade path.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_SimulateGrenadePath(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_SimulateGrenadePath_entry(void);
+// 0x0026ecf0 (trace in EAX; cdecl item): Q3's G_BounceItem.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_BounceItem_entry(void);
+// 0x0026f890 (cdecl turret, msec): the turret's think.
+extern "C" PLATFORM_HIDDEN void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void turret_think_entry(void);
+// 0x002744e0 (entity in EAX, the runners' word in EDI): Q3's G_RunEntity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunEntity(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void G_RunEntity_entry(void);
+// 0x00271b60 (turret in EBX; cdecl player): the player's turret fire.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_UpdatePlayerFire(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void Turret_UpdatePlayerFire_entry(void);
+// 0x00272760: Q3's G_SpawnFinished-like end of level spawning.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnFinished(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp, uint32_t ecx);
+extern "C" void G_SpawnFinished_entry(void);
+// 0x00272e90 (cdecl handle): Q3's ClientBegin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientBegin(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                              uint32_t edi, uint32_t ebp);
+extern "C" void ClientBegin_entry(void);
+
+// 0x00271590 (old event sequence in EAX; cdecl player): Q3's ClientEvents.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, uint32_t esi,
+                                                      uint32_t edi, uint32_t ebp);
+extern "C" void ClientEvents_entry(void);
+// 0x00273d70 (cdecl command, arguments): Q3's vmMain for the game.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi,
+                                                      uint32_t edi, uint32_t ebp);
+extern "C" void G_vmMain_entry(void);
+
 }  // namespace game
