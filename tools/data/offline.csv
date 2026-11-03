@@ -678,7 +678,7 @@ address,name,tested,matched,nan,mismatched,coverage
 001fab10,Actor_Noncombat_Resume,4000,4000,0,0,100.0
 001fb460,Actor_CriticalSection_Start,3814,3814,0,0,100.0
 001fb470,BadPlace_ClearAll,4000,4000,0,0,100.0
-001fb4e0,BadPlace_FindByName,3666,3666,0,0,82.6
+001fb4e0,BadPlace_FindByName,3687,3687,0,0,82.6
 001fc520,Actor_Negotiation_Start,3824,3824,0,0,100.0
 001fd1f0,Actor_Lmg_Start,3305,3305,0,0,100.0
 001fd2b0,Actor_NodeDistanceSquared,3494,3494,0,0,100.0
@@ -688,7 +688,7 @@ address,name,tested,matched,nan,mismatched,coverage
 001ff030,Actor_GrenadeTargetClear,1,1,0,0,28.6
 001ff250,AI_EventTypeFromName,2172,2172,0,0,100.0
 001ffac0,Actor_MainCharacterPriority,3311,3311,0,0,100.0
-00200e20,Path_CrossesBadPlace,2708,2708,0,0,87.0
+00200e20,Path_CrossesBadPlace,2653,2653,0,0,87.0
 00201430,Actor_Cover_NodeClaimRevoked,1850,1850,0,0,69.0
 00202a10,Actor_Turret_Touch,2690,2690,0,0,100.0
 00202a50,Actor_Lmg_Touch,2696,2696,0,0,100.0
@@ -992,6 +992,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
+003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
 0030be60,FE_BonusCEItemGroup,2929,2929,0,0,97.9
 0030c1a0,Profile_StoreToSaveSlot,2018,2018,0,0,100.0
