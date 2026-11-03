@@ -6055,4 +6055,28 @@ void XB_CDECL Phys_Init() {
     }
 }
 
+void XB_REGS1 XB_CDECL Phys_InitBodyState(uint8_t* body) {
+    // From G_InitGentity: a body state cleared (+0..+0x4f, +0x64, +0x70..+0x8f, +0xd0..+0x144) with an identity
+    // matrix at +0x90 (rows (1,0,0,0) (0,1,0,0) (0,0,1,0) (0,0,0,1), the first three as 1 * the unit rows).
+    for (uint32_t i = 0; i < 0x10; i += 4) at<uint32_t>(body, i) = 0;
+    for (uint32_t i = 0x10; i < 0x50; i += 4) at<float>(body, i) = 0.0f;
+    at<uint32_t>(body, 0x64) = 0;
+    for (uint32_t i = 0x70; i < 0x90; i += 4) at<float>(body, i) = 0.0f;
+    const float one = title_global<float>(0x0082e140);
+    const Lanes s = splat(one);
+    const uint32_t rows[3] = {0x0082e160, 0x0082e170, 0x0082e180};
+    for (uint32_t r = 0; r < 3; ++r) {
+        const Lanes row = mul(lanes(&title_global<float>(rows[r])), s);
+        for (uint32_t k = 0; k < 4; ++k) at<float>(body, 0x90 + r * 0x10 + k * 4) = row.v[k];
+    }
+    for (uint32_t k = 0; k < 4; ++k) at<uint32_t>(body, 0xc0 + k * 4) = title_global<uint32_t>(0x0082e290 + k * 4);
+    for (uint32_t i = 0xd0; i < 0xe8; i += 4) at<uint32_t>(body, i) = 0;
+    for (uint32_t i = 0x128; i < 0x138; i += 4) at<uint32_t>(body, i) = 0;
+    for (uint32_t i = 0xe8; i < 0x128; i += 4) at<uint32_t>(body, i) = 0;
+    at<float>(body, 0x13c) = 0.0f;
+    at<float>(body, 0x138) = 0.0f;
+    at<float>(body, 0x144) = 0.0f;
+    at<float>(body, 0x140) = 0.0f;
+}
+
 }  // namespace game

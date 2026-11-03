@@ -940,6 +940,8 @@ address,name,tested,matched,nan,mismatched,coverage
 002b6000,PM_WalkStepEventForSurface,2048,2048,0,0,100.0
 002b6020,PM_FootstepEventForSurface,2022,2022,0,0,100.0
 002b6070,PM_JumpEventForSurface,1731,1731,0,0,100.0
+002b68f0,BG_CanItemBeGrabbed,2184,2184,0,0,22.0
+002b6a70,BG_FindItem,3908,3908,0,0,66.2
 002b6ba0,S_ResumeAllChannels,1005,1005,0,0,100.0
 002b6be0,S_PauseAllChannels,1022,1022,0,0,100.0
 002b6fc0,SpgManager_Construct,2067,2067,0,0,100.0
@@ -965,6 +967,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002c1d60,Key_Unbindall_f,3192,3192,0,0,100.0
 002c1db0,Key_Unbind_f,3996,3996,0,0,50.0
 002c1e00,Field_AdjustScroll,2205,2205,0,0,56.1
+002c2e80,PM_Accelerate,3481,3476,5,0,100.0
 002c5140,SV_SetSkillEasy,1,1,0,0,100.0
 002c5200,SV_SetSkillHard,1,1,0,0,100.0
 002c5bb0,Loc_InitCvars,1157,1157,0,0,92.3

@@ -521,4 +521,7 @@ void XB_STDCALL PhysParts_WriteBoneMatrices(uint8_t* owner);
 // callbacks (Ragdoll_BodyToPose / Ragdoll_PoseToBody) and 0x00225370 into the list at 0x00988784.
 void XB_CDECL Phys_Init();
 
+// 0x002ceb50 (body state in EAX): cleared with an identity matrix at +0x90.
+void XB_REGS1 XB_CDECL Phys_InitBodyState(uint8_t* body);
+
 }  // namespace game

@@ -9582,15 +9582,15 @@
 002bc120 PM_BeginWeaponChange
 002bc310 PM_Weapon_BeginAdsDrop
 002bc3d0 PM_Weapon_BeginAdsRaise
-002bc490 FUN_002bc490
-002bc570 FUN_002bc570
+002bc490 PM_SetReloadDelay
+002bc570 PM_SetWeaponReady
 002bc5e0 PM_ClipIsEmpty
 002bc610 PM_GetClipAmmo
 002bc630 PM_WeaponUseAmmo
 002bc660 PM_ReloadClip
 002bc750 CG_GetCurrentWeaponDef
 002bc860 PM_UpdateStaminaBreathEvent
-002bc8e0 FUN_002bc8e0
+002bc8e0 PM_AddFlagChangeEvents
 002bc990 PM_CrashLand
 002bccc0 PM_StartJump
 002bcda0 PM_AddTouchEnt
@@ -9642,7 +9642,7 @@
 002c0ce0 Netchan_Init
 002c0d30 Cmd_Vstr_f
 002c0d80 CM_SegmentOverlapsBox
-002c0ec0 FUN_002c0ec0
+002c0ec0 Phys_FilterEntriesInBox
 002c0f60 SegmentMissesBounds
 002c1060 CM_PointLeafnum_r
 002c10e0 AddWindingToConvexHull
@@ -9654,7 +9654,7 @@
 002c1e00 Field_AdjustScroll
 002c1ff0 LevelPersist_Free
 002c20e0 PM_FinishWeaponMelee
-002c2170 FUN_002c2170
+002c2170 PM_StartFireAnim
 002c21f0 PM_SetWeaponFireTimers
 002c2380 PM_CheckWeaponChange
 002c24d0 PM_UpdateWeaponTimers
@@ -9797,7 +9797,7 @@
 002cdca0 Checkpoint_Init
 002cde20 CG_SelectWeapon
 002cdf00 BG_InitWeapons
-002cdff0 FUN_002cdff0
+002cdff0 PM_ReduceGroundSpeed
 002ce160 PM_SetMovementDir
 002ce370 S_AmbientPlay
 002ce520 Music_Play
@@ -9807,7 +9807,7 @@
 002ce8f0 S_LoadSoundBank
 002ce9c0 S_WaitForWaveBanks
 002cead0 GScr_SetEntFlag4000000
-002ceb50 FUN_002ceb50
+002ceb50 Phys_InitBodyState
 002ced30 AnimTree_FlushClearLists
 002cede0 Matrix_Orthonormalize
 002cf090 AnimTree_SetGoalWeight
@@ -9864,7 +9864,7 @@
 002d5d50 G_PushAwayFromEntities
 002d60d0 G_RayTraceCachedCandidates
 002d62c0 BG_EvaluateTrajectory
-002d6710 FUN_002d6710
+002d6710 BG_PlayerInTrajectoryBox
 002d67a0 G_DObjGetBoneMatrix
 002d6800 G_DObjGetWorldBoneMatrix
 002d6ba0 G_InitGentity
@@ -9925,10 +9925,10 @@
 002e1740 CM_SightTraceThroughWorldTrees
 002e20e0 CM_CandidateCapsuleTrace
 002e23b0 CL_InitInput
-002e27d0 FUN_002e27d0
+002e27d0 PM_UpdateAdsState
 002e2a30 PM_ProneUndoBlockedMove
 002e2ac0 FUN_002e2ac0
-002e2e40 FUN_002e2e40
+002e2e40 PM_CheckProneYaw
 002e2f50 G_PushCapsuleOutOfSolids
 002e3670 G_DObjCreateForEnt
 002e3720 G_DObjGetTagMatrixPtr
