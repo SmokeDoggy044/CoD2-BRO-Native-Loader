@@ -4858,7 +4858,7 @@ float side_offset(uint32_t B, uint32_t v_off, const float* fire, const uint8_t* 
 // original's addresses (gap entry; B = aligned base - 0x110), every callee at the original's ESP.
 PLATFORM_ASM_ENTRY(Bullet_Trace_r_entry,
                    "movl %esp, %eax\n"
-                   GAME_GAP_ESP("0x10000")
+                   GAME_GAP_ESP("0x40000")
                    "pushl %ebp\n"
                    "pushl %edi\n"
                    "pushl %esi\n"
@@ -4990,7 +4990,7 @@ void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uin
 // original's addresses (gap entry; B = aligned base - 0x180), every callee at the original's ESP.
 PLATFORM_ASM_ENTRY(Weapon_BulletTrace_r_entry,
                    "movl %esp, %eax\n"
-                   GAME_GAP_ESP("0x10000")
+                   GAME_GAP_ESP("0x40000")
                    "pushl %ebp\n"
                    "pushl %edi\n"
                    "pushl %esi\n"
