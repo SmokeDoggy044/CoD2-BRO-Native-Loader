@@ -1526,5 +1526,17 @@ extern "C" void Actor_Grenade_Acquire_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Exposed_Think(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
     uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Actor_Exposed_Think_entry(void);
+// 0x0021a260 (EAX actor): move, sidestepping a blocker near the path's end.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_MoveAlongPath_entry(void);
+// 0x00212200 (ESI move record): run the frame's movement.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_RunMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_RunMovement_entry(void);
+// 0x002144f0 (ECX path, EDX team; stack origin, point, start, end, use point, allow negotiation; ret 0x18): path points from the search nodes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+    uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_BuildFromNodes_entry(void);
 
 }  // namespace game

@@ -309,3 +309,8 @@
 002bde90,ShakeRumble_StartByName,dead,"no CALL/JMP, pointer or immediate (xbefind imm + call 2026-11-03); C kept"
 002bb940,G_RestorePlayerHealth,matched offline,"only caller G_RestorePlayerLoadout (checkpoint restore); not reached in game; offline leaf test 1580/1594: all 14 differing inputs have g_skillLevel 0x7fffffff, which indexes past the original's 3-int stack table into words our frame lacks; every in-range skill level (0-3) matches"
 002192c0,Path_RouteBetweenPointsInsidePlanes,dead,"no callers, no stored pointer, no immediate (gap function created 11-03; fnpack: no CALL/JMP or data references)"
+0021eba0,Actor_UpdateAnimScriptThenMovement,dead,"no CALL/JMP and no stored pointer (fnpack 2026-11-03; gap function created 11-03); C kept"
+0021af20,Actor_Grenade_TryThrowBack,not reached,"callers Actor_Grenade_UpdateReaction, Actor_Grenade_ReactToDistance (grenade landing near an AI); 0 calls in missions 1,4,5,6; needs a played run; leaf test not eligible (gap entry, title callees)"
+0021e120,Actor_Grenade_ChooseReaction,not reached,"7 callers, all grenade-state code (UpdateReaction, ReactToDistance, Acquire, NodeClaimRevoked); 0 calls in missions 1,4,5,6; needs a played run; leaf test not eligible (gap entry)"
+00220500,Actor_Grenade_Acquire,not reached,"caller Actor_Grenade_Think step 0x25d (throw-back run); 0 calls in missions 1,4,5,6; needs a played run; leaf test not eligible (gap entry)"
+0021f1c0,Actor_Lmg_Think,not reached,"think callback (state table 0x00830cc8) of the machine-gunner state (weapon class 3); 0 calls in missions 1,4,5,6; leaf test not eligible (gap entry)"
