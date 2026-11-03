@@ -6124,4 +6124,18 @@ uint8_t XB_REGS3 XB_CDECL Phys_SphereTouchesTriangle(const float* center, const 
     return radius * radius >= dist ? 1 : 0;
 }
 
+// ECX constraint (a 0x28c PhysConstraint28c_Setup one): drive at velocity +0x80 with at most the
+// force +0x84 (mode +0xa0 = 0, the motor).
+void XB_THISCALL PhysConstraint28c_SetMotor(uint8_t* constraint, float velocity, float max_force) {
+    at<float>(constraint, 0x80) = velocity;
+    at<float>(constraint, 0x84) = max_force;
+    at<uint32_t>(constraint, 0xa0) = 0;
+}
+
+// ECX constraint: hold still with at most the force +0x88 (mode +0xa0 = 1, the brake).
+void XB_THISCALL PhysConstraint28c_SetBrake(uint8_t* constraint, float max_force) {
+    at<float>(constraint, 0x88) = max_force;
+    at<uint32_t>(constraint, 0xa0) = 1;
+}
+
 }  // namespace game

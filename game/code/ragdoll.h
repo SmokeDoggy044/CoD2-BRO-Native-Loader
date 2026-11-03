@@ -288,4 +288,15 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_
                                                        uint32_t edi, uint32_t ebp, uint32_t entry_esp);
 extern "C" void PhysRagdoll_Build_entry(void);
 
+// 0x002348a0: the drive inputs of every vehicle physics in the list 0x008fe0b0 (dead).
+void XB_CDECL VehiclePhys_ApplyDriveInputsAll(uint32_t unused);
+// 0x00234330: EAX value, ESI phys, ECX entity: builds the ragdoll and resets its rest state (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysRagdoll_BuildAndReset(uint32_t value, uint8_t* phys, uint8_t* ent);
+extern "C" void PhysRagdoll_BuildAndReset_entry(void);
+// 0x002255d0: ESI vehicle: motor or brake per wheel constraint from the wheel mode bits +0x504.
+extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePhys_ApplyWheelMotors(uint8_t* vehicle);
+extern "C" void VehiclePhys_ApplyWheelMotors_entry(void);
+// 0x002256b0: EAX vehicle: the four wheel constraints' friction +0x64/+0x68 from the def.
+void XB_REGS1 XB_CDECL VehiclePhys_ApplyWheelFriction(uint8_t* vehicle);
+
 }  // namespace game

@@ -529,4 +529,9 @@ void XB_REGS1 XB_CDECL Phys_InitBodyState(uint8_t* body);
 uint8_t XB_REGS3 XB_CDECL Phys_SphereTouchesTriangle(const float* center, const float* normal, const float* va,
                                                      float radius, const float* vb, const float* vc);
 
+// 0x000b6390: the constraint's motor (velocity, max force; mode 0).
+void XB_THISCALL PhysConstraint28c_SetMotor(uint8_t* constraint, float velocity, float max_force);
+// 0x000b63c0: the constraint's brake (max force; mode 1).
+void XB_THISCALL PhysConstraint28c_SetBrake(uint8_t* constraint, float max_force);
+
 }  // namespace game
