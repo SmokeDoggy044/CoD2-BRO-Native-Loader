@@ -7,6 +7,10 @@
 #include "lanes.h"
 #include "phys.h"
 #include "phys_pool.h"
+#include "qcommon_core.h"
+#include "g_utils.h"
+#include "g_script.h"
+#include "g_scr_runtime.h"
 #include "title_data.h"
 
 namespace game {
@@ -1099,6 +1103,530 @@ uint8_t* XB_REGS1 XB_STDCALL RagdollCapsule_TransformSegment(const float* m, uin
     store_vec4(reinterpret_cast<float*>(capsule + 0x30), transform_out(m, reinterpret_cast<const float*>(capsule)));
     store_vec4(reinterpret_cast<float*>(capsule + 0x40), transform_out(m, reinterpret_cast<const float*>(capsule + 0x10)));
     return capsule + 0x40;
+}
+
+void XB_REGS1 XB_STDCALL PhysRagdoll_GetBoundingSphere(const uint8_t* ragdoll, float* center, float* radius) {
+    RagdollCapsule_GetBoundingSphere(0, 0, at<uint8_t*>(ragdoll, 0xbf0), center, radius);
+    const int32_t count = at<int32_t>(ragdoll, 0xc44);
+    for (int32_t i = 1; i < count; ++i) {
+        alignas(16) float other[4];
+        float other_radius;
+        RagdollCapsule_GetBoundingSphere(0, 0, at<uint8_t*>(ragdoll, 0xbf0 + static_cast<uint32_t>(i) * 4), other, &other_radius);
+        Sphere_Merge(other, radius, center, other_radius);
+    }
+}
+
+PLATFORM_ASM_ENTRY(PhysRagdoll_ComputeBounds_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(PhysRagdoll_ComputeBounds) "addl $4, %esp\n"
+                   "ret")
+
+// The first sphere (centre +0x20, radius +0x30), then each further one merged in. EAX = the count
+// when there is one sphere at most, else 0.
+uint32_t XB_CDECL PhysRagdoll_ComputeBounds(uint8_t* capsule) {
+    const uint8_t* const first = at<uint8_t*>(capsule, 0x80);
+    std::memcpy(capsule + 0x90, first + 0x20, 16);
+    at<uint32_t>(capsule, 0xa0) = at<uint32_t>(first, 0x30);
+    const int32_t count = at<int32_t>(capsule, 0x84);
+    if (count <= 1) return static_cast<uint32_t>(count);
+    for (int32_t i = 1; i < count; ++i) {
+        const uint8_t* const sphere = at<uint8_t*>(capsule, 0x80) + i * 0x40;
+        Sphere_Merge(reinterpret_cast<const float*>(sphere + 0x20), &at<float>(capsule, 0xa0),
+                     reinterpret_cast<float*>(capsule + 0x90), at<float>(sphere, 0x30));
+    }
+    return 0;
+}
+
+// The callees run at the original's ESP with its registers, the points at the original's frame
+// addresses: the normal's copy (+0x10) keeps a w word the original never writes.
+PLATFORM_ASM_ENTRY(RagdollCapsule_CollidePair_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(RagdollCapsule_CollidePair) "addl $8, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+// Capsules a (+0) and b (+4): segments +0xe0/+0xf0, radius +0xd0, body +0x124 (transform +0x40).
+// Phys_CapsuleCapsuleClosest gives the point on b (+0x20), the normal (+0x30) and the point on a
+// (+0x40); both points go into their body's frame and the contact (0, 0, 100) joins the bodies' pair.
+void XB_CDECL RagdollCapsule_CollidePair(const uint8_t* pair, uint32_t entry_esp) {
+    const uint32_t frame = ((entry_esp - 4) & ~15u) - 0x80;  // ESP after the prologue's pushes
+    uint8_t* const f = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(frame));
+    const uint8_t* const a = at<uint8_t*>(pair, 0);
+    const uint8_t* const b = at<uint8_t*>(pair, 4);
+    TitleRegs regs{};
+    regs.eax = addr(b) + 0xe0;
+    regs.ebx = addr(pair);
+    regs.ecx = addr(b) + 0xf0;
+    regs.edx = addr(a) + 0xe0;
+    regs.esi = frame + 0x40;
+    regs.edi = addr(a);
+    const uint32_t closest_args[7] = {addr(a) + 0xe0, addr(a) + 0xf0, at<uint32_t>(a, 0xd0), addr(b) + 0xe0,
+                                      at<uint32_t>(b, 0xd0), frame + 0x20, frame + 0x30};
+    if (!static_cast<uint8_t>(title_call_at_regs(frame, 0x00227290, &regs, 7, closest_args)))  // Phys_CapsuleCapsuleClosest
+        return;
+    uint8_t* const body_a = at<uint8_t*>(a, 0x124);
+    uint8_t* const body_b = at<uint8_t*>(b, 0x124);
+    regs.eax = addr(body_b);
+    regs.ecx = addr(body_a);
+    regs.edx = 0;
+    const uint32_t pair_args[2] = {addr(body_a), addr(body_b)};
+    const uint32_t body_pair = title_call_at_regs(frame, 0x000b4bc0, &regs, 2, pair_args);  // PhysWorld_GetBodyPair_Wrapper
+    std::memcpy(f + 0x10, f + 0x30, 12);
+    at<uint32_t>(f, 0xc) = body_pair;
+    std::memcpy(f + 0x50, at<uint8_t*>(b, 0x124) + 0x40, 0x30);
+    const Lanes local_b = rotate_into(reinterpret_cast<const float*>(f + 0x50),
+                                      sub(lanes(reinterpret_cast<const float*>(f + 0x20)),
+                                          lanes(reinterpret_cast<const float*>(at<uint8_t*>(b, 0x124) + 0x70))));
+    std::memcpy(f + 0x20, local_b.v, 12);
+    std::memcpy(f + 0x50, at<uint8_t*>(a, 0x124) + 0x40, 0x30);
+    const Lanes local_a = rotate_into(reinterpret_cast<const float*>(f + 0x50),
+                                      sub(lanes(reinterpret_cast<const float*>(f + 0x40)),
+                                          lanes(reinterpret_cast<const float*>(at<uint8_t*>(a, 0x124) + 0x70))));
+    std::memcpy(f + 0x30, local_a.v, 12);
+    regs.eax = at<uint32_t>(a, 0x124);
+    regs.ebx = addr(a);
+    regs.ecx = body_pair;
+    regs.edx = at<uint32_t>(b, 0x124);
+    regs.esi = at<uint32_t>(a, 0x124) + 0x70;
+    regs.edi = frame + 0x80;
+    const uint32_t contact_args[8] = {regs.eax, regs.edx, frame + 0x30, frame + 0x20, frame + 0x10, 0, 0, 0x42c80000u};
+    title_call_at_regs(frame, 0x000c2de0, &regs, 8, contact_args);  // PhysBodyPair_AddContactPoint
+}
+
+PLATFORM_ASM_ENTRY(PhysObj_GetInheritedVelocity_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PhysObj_GetInheritedVelocity) "addl $12, %esp\n"
+                   "ret")
+
+// Up the chain of riders (+0x3cc -> entity): an entity with a physics body (+0x2a4 flag 0x400000)
+// hands over the body's velocities (+0xd0 linear, +0xe0 angular; 1 even without a body); a vehicle
+// (+0x248) is first stepped along its path and gives +0x100 (w = x) and its turn rates (+0x110,
+// degrees) as radians * 0.3.
+uint32_t XB_CDECL PhysObj_GetInheritedVelocity(uint8_t* ent, float* angular, float* linear) {
+    for (;;) {
+        if (at<uint32_t>(ent, 0x2a4) & 0x400000) {
+            const uint8_t* const body = Phys_FindBodyForEntity(0, ent);
+            if (body) {
+                std::memcpy(linear, body + 0xd0, 16);
+                std::memcpy(angular, body + 0xe0, 16);
+            }
+            return 1;
+        }
+        if (at<uint32_t>(ent, 0x248)) {
+            title_function<void XB_THISCALL(uint8_t*)>(0x0024bec0)(ent);                // Vehicle_LoadPhysicsState
+            title_function<void XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(0x00252530)(0x32, ent);  // Vehicle_MoveAlongPath
+            const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
+            const float x = at<float>(vehicle, 0x100);
+            const float v[4] = {x, at<float>(vehicle, 0x104), at<float>(vehicle, 0x108), x};
+            std::memcpy(linear, v, 16);
+            const float pi = title_global<float>(0x0083ed00);
+            const float k = title_global<float>(0x0083ecfc);  // 1/180
+            const float z = (at<float>(vehicle, 0x118) * pi) * k;
+            const float ax = (at<float>(vehicle, 0x110) * pi) * k;
+            const float ay = (at<float>(vehicle, 0x114) * pi) * k;
+            const Lanes w = mul(Lanes{{ax, ay, z, ax}}, title_global<float>(0x0083066c));  // 0.3
+            std::memcpy(angular, w.v, 16);
+            return 1;
+        }
+        uint8_t* const* const link = at<uint8_t**>(ent, 0x3cc);
+        if (!link || !*link) break;
+        ent = *link;
+    }
+    std::memcpy(linear, &title_global<uint8_t>(0x0082e110), 16);
+    std::memcpy(angular, &title_global<uint8_t>(0x0082e110), 16);
+    return 0;
+}
+
+namespace {
+
+using WorldBoneMatrix = const uint8_t* XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, int32_t, float*);
+
+// G_DObjGetWorldBoneMatrix: EAX entity, ECX bone, stack buffer (EDX = the buffer as well).
+const uint8_t* world_bone_matrix(uint8_t* entity, int32_t bone, float* buffer) {
+    return title_function<WorldBoneMatrix>(0x002d6800)(entity, addr(buffer), bone, buffer);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Ragdoll_StoreModelBoneFrames_entry,
+                   "pushl 4(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n" PLATFORM_ASM_CALL(Ragdoll_StoreModelBoneFrames) "addl $8, %esp\n"
+                   "ret $4")
+
+// The ragdoll (entity +0): time +0x564; per bone (indices +0x550, int16) the current frame
+// (+0x10 + 0x40 i) goes to the previous one (+0x290 + 0x40 i), the new one is the model's (+0x22c)
+// base matrix (+0x20, +0x30 + 0x40 bone) or identity without a model. Then +0x540 = +0x520,
+// +0x530 = +0x510 and the entity's +0x140 / +0x150 into +0x520 / +0x510.
+uint32_t XB_CDECL Ragdoll_StoreModelBoneFrames(float time, uint8_t* ragdoll) {
+    at<float>(ragdoll, 0x564) = time;
+    for (uint32_t i = 0; i < 10; ++i) {
+        const int32_t bone = at<int16_t>(ragdoll, 0x550 + i * 2);
+        uint8_t* const current = ragdoll + 0x10 + i * 0x40;
+        std::memcpy(current + 0x280, current, 0x40);
+        const uint8_t* const obj = at<uint8_t*>(at<uint8_t*>(ragdoll, 0), 0x22c);
+        float m[16];
+        alignas(16) float identity[16];
+        const uint8_t* source;
+        if (!obj) {
+            Matrix_Identity(identity);
+            source = reinterpret_cast<const uint8_t*>(identity);
+        } else {
+            source = at<uint8_t*>(obj, 0x20) + static_cast<uint32_t>(bone << 6) + 0x30;
+        }
+        std::memcpy(m, source, 0x40);
+        std::memcpy(current, m, 0x40);
+    }
+    std::memcpy(ragdoll + 0x540, ragdoll + 0x520, 16);
+    std::memcpy(ragdoll + 0x530, ragdoll + 0x510, 16);
+    const uint8_t* const entity = at<uint8_t*>(ragdoll, 0);
+    std::memcpy(ragdoll + 0x520, entity + 0x140, 16);
+    std::memcpy(ragdoll + 0x510, entity + 0x150, 16);
+    return at<uint32_t>(entity, 0x15c);
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_RefreshBoneMatrices_entry,
+                   "pushl 4(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n" PLATFORM_ASM_CALL(Ragdoll_RefreshBoneMatrices) "addl $8, %esp\n"
+                   "ret $4")
+
+// Time +0x564; each bone's world matrix into both its previous and current frame.
+uint32_t XB_CDECL Ragdoll_RefreshBoneMatrices(float time, uint8_t* ragdoll) {
+    at<float>(ragdoll, 0x564) = time;
+    for (uint32_t i = 0; i < 10; ++i) {
+        alignas(16) float buffer[16];
+        const uint8_t* const m = world_bone_matrix(at<uint8_t*>(ragdoll, 0), at<int16_t>(ragdoll, 0x550 + i * 2), buffer);
+        uint8_t* const current = ragdoll + 0x10 + i * 0x40;
+        std::memcpy(current + 0x280, m, 0x40);
+        std::memcpy(current, m, 0x40);
+    }
+    return 0;
+}
+
+// The bone names (0x008db388, name +0 and index +4 per 8 bytes) looked up in the model; a missing
+// bone gets identity frames and the result 0, a found one its world matrix in both frames.
+uint8_t XB_REGS1 XB_STDCALL Ragdoll_BindBones(uint8_t* entity, uint8_t* ragdoll) {
+    at<uint8_t*>(ragdoll, 0) = entity;
+    at<float>(ragdoll, 0x564) = title_global<float>(0x0083f0cc);  // 1/30
+    uint8_t ok = 1;
+    for (uint32_t i = 0; i < 10; ++i) {
+        const uint32_t entry = 0x008db388 + i * 8;
+        const DObj* const obj = at<const DObj*>(at<uint8_t*>(ragdoll, 0), 0x22c);
+        const int16_t bone = static_cast<int16_t>(
+            DObj_FindBoneIndex2(obj, reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(entry)})));
+        at<int16_t>(ragdoll, 0x550 + i * 2) = bone;
+        float* const current = reinterpret_cast<float*>(ragdoll + 0x10 + i * 0x40);
+        if (bone < 0) {
+            ok = 0;
+            Matrix_Identity(current + 0xa0);
+            Matrix_Identity(current);
+            continue;
+        }
+        title_global<int32_t>(entry + 4) = bone;
+        alignas(16) float buffer[16];
+        const uint8_t* const m = world_bone_matrix(at<uint8_t*>(ragdoll, 0), at<int16_t>(ragdoll, 0x550 + i * 2), buffer);
+        std::memcpy(current + 0xa0, m, 0x40);
+        std::memcpy(current, m, 0x40);
+    }
+    return ok;
+}
+
+namespace {
+
+// Rotation only: row0 x + row1 y + row2 z.
+Lanes rotate_out(const float* m, const float* v) {
+    const float x = v[0], y = v[1], z = v[2];
+    return add(add(mul(lanes(m), x), mul(lanes(m + 4), y)), mul(lanes(m + 8), z));
+}
+
+}  // namespace
+
+void XB_THISCALL RagdollBodyDef_FitToBones(uint8_t* def, uint8_t* entity) {
+    alignas(16) float a[16];
+    alignas(16) float b[16];
+    world_bone_matrix(entity, at<int32_t>(def, 0), a);
+    world_bone_matrix(entity, at<int32_t>(def, 4), b);
+    std::memcpy(def + 0x40, a + 12, 16);
+    const Lanes end = add(lanes(b + 12), rotate_out(a, reinterpret_cast<const float*>(def + 0x10)));
+    std::memcpy(def + 0x50, end.v, 16);
+    const float t = at<float>(def, 8);
+    const Lanes far_end = lanes(reinterpret_cast<const float*>(def + 0x50));
+    const Lanes scaled_end = mul(far_end, t);
+    const Lanes blend = add(mul(lanes(reinterpret_cast<const float*>(def + 0x40)), title_global<float>(0x0083eb20) - at<float>(def, 8)),
+                            scaled_end);
+    float rows[12];
+    std::memcpy(rows, a, sizeof(rows));
+    const Lanes local = rotate_into(rows, sub(blend, lanes(a + 12)));
+    std::memcpy(def + 0x60, local.v, 16);
+    std::memcpy(def + 0x70, a + 12, 16);
+    const Lanes v = add(lanes(b + 12), rotate_out(a, reinterpret_cast<const float*>(def + 0xa0)));
+    std::memcpy(def + 0x80, v.v, 16);
+    // Direction between the ends (from the values read before the +0x80 store), normalised.
+    const Lanes d = sub(far_end, lanes(reinterpret_cast<const float*>(def + 0x40)));
+    const Lanes squared = mul(d, d);
+    platform_keep(squared);
+    const float length_squared = (squared.v[0] + squared.v[1]) + squared.v[2];
+    float length = length_squared;
+    if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE: NaN counts as equal
+        const float r = platform_rsqrt_estimate(length_squared);
+        const float scaled = length_squared * r;
+        length = ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);  // 3, 0.5
+    }
+    const Lanes n = mul(d, title_global<float>(0x0083eb20) / length);
+    const Lanes start = add(lanes(reinterpret_cast<const float*>(def + 0x40)), mul(n, at<float>(def, 0x30)));
+    std::memcpy(def + 0x40, start.v, 16);
+    const Lanes pulled = sub(lanes(reinterpret_cast<const float*>(def + 0x50)), mul(n, at<float>(def, 0x34)));
+    std::memcpy(def + 0x50, pulled.v, 16);
+    alignas(16) float inertia[4] = {};  // w: a stack word the callee never writes (zero in tests)
+    float mass;
+    Phys_SphereMassProperties(at<float>(def, 0xd0), inertia, &mass);
+    const Lanes scaled_inertia = mul(lanes(inertia), at<float>(def, 0xb4) / mass);
+    std::memcpy(def + 0xc0, scaled_inertia.v, 16);
+    const int32_t bone = at<int32_t>(def, 0);
+    at<int32_t>(def, 0xe4) = bone;
+    const int32_t parent = DObj_GetBoneParent(at<const DObj*>(entity, 0x22c), bone);
+    at<int32_t>(def, 0xe8) = parent;
+    if (parent < 0) return;
+    const uint8_t* const pose = DObj_GetBoneBasePose(at<const DObj*>(entity, 0x22c), bone);
+    uint8_t rotation[16];
+    std::memcpy(rotation, pose + 0x24, 16);
+    std::memcpy(def + 0x100, rotation, 16);
+    std::memset(def + 0x110, 0, 16);
+}
+
+float* XB_CDECL Ragdoll_PoseToBody(const uint32_t* bone, float* out, const float* frame) {
+    alignas(16) float inverse[16];
+    Mat44_InverseRigid_2(inverse, frame);
+    alignas(16) float buffer[16];
+    const float* const m = reinterpret_cast<const float*>(
+        world_bone_matrix(reinterpret_cast<uint8_t*>(uintptr_t{bone[0]}), static_cast<int32_t>(bone[1]), buffer));
+    Lanes rows[3];
+    for (int k = 0; k < 3; ++k) rows[k] = rotate_out(m, inverse + k * 4);
+    std::memcpy(out, rows, 0x30);
+    const Lanes origin = transform_out(m, inverse + 12);  // the matrix re-read after the rows' stores
+    std::memcpy(out + 12, origin.v, 16);
+    return out + 12;
+}
+
+uint32_t XB_STDCALL PhysBone_UpdateWorldFrame(uint8_t* bone) {
+    const float* const m = at<float*>(bone, 8);
+    float* const out = at<float*>(bone, 0xc);
+    const float* const frame = reinterpret_cast<const float*>(bone + 0x70);
+    Lanes rows[3];
+    for (int k = 0; k < 3; ++k) rows[k] = rotate_out(m, frame + k * 4);
+    std::memcpy(out, rows, 0x30);
+    const Lanes origin = transform_out(m, frame + 12);  // the matrix re-read after the rows' stores
+    std::memcpy(out + 12, origin.v, 16);
+    const Lanes point = transform_out(at<float*>(bone, 0xc), reinterpret_cast<const float*>(bone + 0x20));
+    std::memcpy(bone + 0x30, point.v, 16);
+    return at<uint32_t>(at<uint8_t*>(bone, 0xc), 0x3c);
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_FreePhysics_entry,
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Ragdoll_FreePhysics) "addl $8, %esp\n"
+                   "ret")
+
+// EAX: the entity after a release, else as it came.
+uint32_t XB_CDECL Ragdoll_FreePhysics(uint8_t* ragdoll, uint32_t eax) {
+    if (!at<uint32_t>(ragdoll, 0x568)) return eax;
+    ragdoll_release_physics(ragdoll);
+    return at<uint32_t>(ragdoll, 0);
+}
+
+void XB_STDCALL Ragdoll_Update(uint8_t* ragdoll, float dt) {
+    uint8_t* const phys = at<uint8_t*>(ragdoll, 0x568);
+    if (!phys) return;
+    uint8_t* const entity = at<uint8_t*>(ragdoll, 0);
+    float slot = dt;  // the callee keeps a value in its argument slot
+    Ragdoll_UpdateSettle(phys, &slot);
+    PhysRagdoll_WriteBodiesToPose(phys);
+    const float t = at<float>(phys, 0x1d40) + dt;
+    const float duration = at<float>(phys, 0x1d44);
+    if (duration > t) {
+        at<float>(phys, 0x1d40) = t;
+        title_function<void XB_STDCALL(uint8_t*, uint8_t*, float)>(0x0022b500)(phys + 0x4b0, entity, t / duration);  // Ragdoll_BlendBonePoses
+    } else {
+        title_function<void XB_STDCALL(uint8_t*)>(0x0022c0f0)(entity);
+    }
+    if (!at<uint8_t*>(ragdoll, 0x568)[0x1d3c] &&
+        !(title_global<float>(0x0083f10c) > at<float>(at<uint8_t*>(ragdoll, 0), 0x148)))  // -60000
+        return;
+    Scr_Notify(at<uint8_t*>(ragdoll, 0), title_global<uint32_t>(0x0097a754));  // "physicsdone"
+    if (at<uint32_t>(ragdoll, 0x568)) ragdoll_release_physics(ragdoll);
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_UpdateFromEntity_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Ragdoll_UpdateFromEntity) "addl $8, %esp\n"
+                   "ret $4")
+
+// The entity's matrix is fetched and not used.
+void XB_CDECL Ragdoll_UpdateFromEntity(uint8_t* ragdoll, float time) {
+    alignas(16) float m[16];
+    G_GetEntityMatrix(at<uint8_t*>(ragdoll, 0), m);
+    Ragdoll_StoreModelBoneFrames(time, ragdoll);
+    if (at<uint8_t*>(ragdoll, 0x568)) PhysRagdoll_UpdateLaunchToTarget(at<uint8_t*>(ragdoll, 0x568));
+}
+
+void XB_CDECL Ragdoll_UpdateAll(float dt) {
+    uint8_t* const* const end = reinterpret_cast<uint8_t* const*>(uintptr_t{0x008f02e0 + title_global<uint32_t>(0x008f0464) * 4});
+    for (uint8_t* const* item = reinterpret_cast<uint8_t* const*>(uintptr_t{0x008f02e0}); item != end; ++item)
+        Ragdoll_Update(*item, dt);
+}
+
+void XB_CDECL Ragdoll_UpdateAllFromEntities(float time) {
+    uint8_t* const* const end = reinterpret_cast<uint8_t* const*>(uintptr_t{0x008f02e0 + title_global<uint32_t>(0x008f0464) * 4});
+    for (uint8_t* const* item = reinterpret_cast<uint8_t* const*>(uintptr_t{0x008f02e0}); item != end; ++item) {
+        uint8_t* const ragdoll = *item;
+        alignas(16) float m[16];
+        G_GetEntityMatrix(at<uint8_t*>(ragdoll, 0), m);
+        Ragdoll_StoreModelBoneFrames(time, ragdoll);
+        if (at<uint8_t*>(ragdoll, 0x568)) PhysRagdoll_UpdateLaunchToTarget(at<uint8_t*>(ragdoll, 0x568));
+    }
+}
+
+// The callees run at the original's ESP with its registers (title callees below read stale words).
+PLATFORM_ASM_ENTRY(PhysRagdoll_Collide_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(PhysRagdoll_Collide) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+// The set's owner (+0) is the current one (0x0095f6f0) meanwhile. The world geometry within the
+// bounding sphere is gathered, each capsule (+0xbf0, count +0xc44) moves its attached point, goes to
+// world space and collides with the world, then each capsule pair (+0xc88, count +0xcc4); the
+// attached pushes are undone.
+uint32_t XB_CDECL PhysRagdoll_Collide(uint8_t* set, uint32_t esi, uint32_t edi, uint32_t entry_esp) {
+    const uint32_t frame = ((entry_esp - 4) & ~15u) - 0x20;  // ESP after the prologue's pushes
+    uint8_t* const f = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(frame));
+    title_global<uint32_t>(0x0095f6f0) = at<uint32_t>(set, 0);
+    TitleRegs regs{addr(set), addr(set), frame + 0xc, frame + 0x10, esi, edi};
+    const uint32_t sphere_args[2] = {frame + 0x10, frame + 0xc};
+    title_call_at_regs(frame, 0x00229930, &regs, 2, sphere_args);  // PhysRagdoll_GetBoundingSphere
+    regs.eax = at<uint32_t>(f, 0xc);
+    regs.ecx = frame + 0x10;
+    const uint32_t gather_args[2] = {frame + 0x10, at<uint32_t>(f, 0xc)};
+    title_call_at_regs(frame, 0x0022d7d0, &regs, 2, gather_args);  // Ragdoll_GatherCollisionGeometry
+    const uint32_t end = addr(set) + 0xbf0 + at<uint32_t>(set, 0xc44) * 4;
+    at<uint32_t>(f, 0xc) = end;
+    regs.edx = addr(set);
+    for (uint32_t cursor = addr(set) + 0xbf0; cursor != end; cursor += 4) {
+        const uint32_t capsule = *reinterpret_cast<const uint32_t*>(uintptr_t{cursor});
+        regs.eax = capsule;
+        regs.esi = capsule;
+        regs.edi = cursor;
+        regs.eax = title_call_at_regs(frame, 0x0002a340, &regs, 0, nullptr);  // Phys_MoveAttachedPoint
+        const uint32_t capsule_arg[1] = {capsule};
+        regs.eax = title_call_at_regs(frame, 0x0002a5d0, &regs, 1, capsule_arg);  // RagdollCapsule_UpdateWorldPoints
+        regs.eax = title_call_at_regs(frame, 0x0002a620, &regs, 1, capsule_arg);  // RagdollCapsule_CollideWorld
+    }
+    const uint32_t pairs_end = addr(set) + 0xc88 + at<uint32_t>(set, 0xcc4) * 4;
+    regs.edi = pairs_end;
+    for (uint32_t cursor = addr(set) + 0xc88; cursor != pairs_end; cursor += 4) {
+        const uint32_t pair_arg[1] = {*reinterpret_cast<const uint32_t*>(uintptr_t{cursor})};
+        regs.ecx = pair_arg[0];
+        regs.esi = cursor;
+        regs.eax = title_call_at_regs(frame, 0x00229d20, &regs, 1, pair_arg);  // RagdollCapsule_CollidePair
+    }
+    regs.eax = addr(set);
+    const uint32_t result = title_call_at_regs(frame, 0x0002ab10, &regs, 0, nullptr);  // Phys_UndoAttachedPushes
+    title_global<uint32_t>(0x0095f6f0) = 0;
+    return result;
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_CollideAll_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Ragdoll_CollideAll) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Ragdoll_CollideAll(uint32_t entry_esp) {
+    const uint32_t top = entry_esp - 12;  // ESP after the pushes of ESI, EDI and EBX
+    const uint32_t end = 0x008f02e0 + title_global<uint32_t>(0x008f0464) * 4;
+    uint32_t eax = 0;
+    for (uint32_t cursor = 0x008f02e0; cursor != end; cursor += 4) {
+        eax = at<uint32_t>(*reinterpret_cast<uint8_t* const*>(uintptr_t{cursor}), 0x568);
+        if (!eax) continue;
+        const TitleRegs regs{eax, eax + 0x1010, 0, 0, cursor, end};
+        eax = title_call_at_regs(top, 0x00231770, &regs, 0, nullptr);  // PhysRagdoll_Collide
+    }
+    return eax;
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_StartPhysics_entry,
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Ragdoll_StartPhysics) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Ragdoll_StartPhysics(uint32_t value, uint8_t* ragdoll, uint32_t entry_eax) {
+    uint8_t* phys = at<uint8_t*>(ragdoll, 0x568);
+    if (phys) {
+        at<uint32_t>(phys, 0x1d34) = value;
+        PhysRagdoll_DestroyObjects(phys);
+        PhysRagdoll_ResetRestState(phys);
+        phys[0x1d3c] = 0;
+        at<float>(phys, 0x1d38) = 0.0f;
+        return entry_eax;
+    }
+    const int32_t used = title_global<int32_t>(0x008fb484);
+    if (used < 6) {
+        uint8_t* const block = title_global<uint8_t*>(0x008fb450 + static_cast<uint32_t>(used) * 4);
+        title_global<int32_t>(0x008fb484) = used + 1;
+        if (block) phys = PhysRagdoll_InitState(block, addr(ragdoll));
+    }
+    at<uint8_t*>(ragdoll, 0x568) = phys;
+    at<uint32_t>(phys, 0x1d34) = value;
+    title_function<void XB_STDCALL(uint8_t*, uint8_t*)>(0x00231860)(phys, at<uint8_t*>(ragdoll, 0));  // PhysRagdoll_Build
+    at<float>(phys, 0x1d40) = 0.0f;
+    at<float>(phys, 0x1d44) = title_global<float>(0x0083eb24);  // 0.5
+    PhysRagdoll_ResetRestState(phys);
+    phys[0x1d3c] = 0;
+    at<float>(phys, 0x1d38) = 0.0f;
+    uint8_t* const entity = at<uint8_t*>(ragdoll, 0);
+    const uint32_t flags = at<uint32_t>(entity, 0x2a4) | 0x410000;
+    at<uint32_t>(entity, 0x2a4) = flags;
+    return flags;
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_Free_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Ragdoll_Free) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Ragdoll_Free(uint8_t* ragdoll) {
+    if (at<uint32_t>(ragdoll, 0x568)) ragdoll_release_physics(ragdoll);
+    RagdollPool_Free(ragdoll, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008dfde0}));
+}
+
+PLATFORM_ASM_ENTRY(Ragdoll_Alloc_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Ragdoll_Alloc) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Ragdoll_Alloc(uint8_t* entity) {
+    uint8_t* ragdoll = at<uint8_t*>(entity, 0x238);
+    if (!ragdoll) {
+        const int32_t used = title_global<int32_t>(0x008f0464);
+        if (used < 0x30) {
+            ragdoll = title_global<uint8_t*>(0x008f02e0 + static_cast<uint32_t>(used) * 4);
+            title_global<int32_t>(0x008f0464) = used + 1;
+            if (ragdoll) RagdollFrames_Construct(ragdoll);
+        }
+    }
+    if (Ragdoll_BindBones(entity, ragdoll)) return ragdoll;
+    RagdollPool_Free(ragdoll, 0, reinterpret_cast<uint8_t*>(uintptr_t{0x008dfde0}));
+    return nullptr;
 }
 
 }  // namespace game

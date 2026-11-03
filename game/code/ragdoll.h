@@ -162,4 +162,67 @@ extern "C" void RagdollFrames_Construct_entry(void);
 // 0x002279c0: EAX frame, stack capsule: its segment into the frame.
 uint8_t* XB_REGS1 XB_STDCALL RagdollCapsule_TransformSegment(const float* m, uint8_t* capsule);
 
+// 0x00229930: EAX physics ragdoll: the bounding sphere of its capsules (+0xbf0, count +0xc44).
+void XB_REGS1 XB_STDCALL PhysRagdoll_GetBoundingSphere(const uint8_t* ragdoll, float* center, float* radius);
+// 0x00229c90: EDI capsule: its bounding sphere (+0x90, radius +0xa0) from its spheres (+0x80, count +0x84).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysRagdoll_ComputeBounds(uint8_t* capsule);
+extern "C" void PhysRagdoll_ComputeBounds_entry(void);
+// 0x00229d20: a capsule pair (two capsules): a contact between their bodies at the closest points.
+extern "C" PLATFORM_HIDDEN void XB_CDECL RagdollCapsule_CollidePair(const uint8_t* pair, uint32_t entry_esp);
+extern "C" void RagdollCapsule_CollidePair_entry(void);
+// 0x00229f00: EAX entity, EDI angular out, stack linear out: the velocity of the physics body or
+// vehicle it rides; 0 (zero vectors) when there is none.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysObj_GetInheritedVelocity(uint8_t* ent, float* angular, float* linear);
+extern "C" void PhysObj_GetInheritedVelocity_entry(void);
+// 0x0022c760: XMM0 time, stack ragdoll: the bone frames from the model's base pose (previous = current).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_StoreModelBoneFrames(float time, uint8_t* ragdoll);
+extern "C" void Ragdoll_StoreModelBoneFrames_entry(void);
+// 0x0022c890: XMM0 time, stack ragdoll: the bone frames from the world bone matrices.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_RefreshBoneMatrices(float time, uint8_t* ragdoll);
+extern "C" void Ragdoll_RefreshBoneMatrices_entry(void);
+// 0x0022c910: EAX entity, stack ragdoll: the ten ragdoll bones looked up and their frames set; 0 when one is missing.
+uint8_t XB_REGS1 XB_STDCALL Ragdoll_BindBones(uint8_t* entity, uint8_t* ragdoll);
+
+// 0x0022b0d0: a body definition (ECX; bones +0, +4) fitted between the entity's two bone matrices:
+// ends +0x40/+0x50 pulled in by +0x30/+0x34, +0x60 the blend point (+8) in the first bone's frame,
+// inertia +0xc0 (sphere of radius +0xd0, mass +0xb4), parent bone +0xe8 and its base pose +0x100.
+void XB_THISCALL RagdollBodyDef_FitToBones(uint8_t* def, uint8_t* entity);
+// 0x0022cec0 (bone callback): out = inverse(frame) * the bone's ({entity, bone}) world matrix.
+float* XB_CDECL Ragdoll_PoseToBody(const uint32_t* bone, float* out, const float* frame);
+// 0x0022ca00 (bone callback): out (+0xc) = the frame +0x70 * the matrix +8, then +0x30 = the point
+// +0x20 out of it.
+uint32_t XB_STDCALL PhysBone_UpdateWorldFrame(uint8_t* bone);
+
+// 0x0022fb30: ESI ragdoll: its physics released (bodies to pose, physics freed, entity +0x294 = 0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_FreePhysics(uint8_t* ragdoll, uint32_t eax);
+extern "C" void Ragdoll_FreePhysics_entry(void);
+// 0x002301f0: one physics step of a ragdoll: settle, bodies to pose, the bone blend in (+0x1d40 /
+// +0x1d44), "physicsdone" and the physics released once settled or fallen below -60000.
+void XB_STDCALL Ragdoll_Update(uint8_t* ragdoll, float dt);
+// 0x002302d0: ESI ragdoll, stack time: the bone frames from the model, the launch step.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Ragdoll_UpdateFromEntity(uint8_t* ragdoll, float time);
+extern "C" void Ragdoll_UpdateFromEntity_entry(void);
+// 0x00230350: Ragdoll_Update for every used ragdoll (0x008f02e0, count 0x008f0464).
+void XB_CDECL Ragdoll_UpdateAll(float dt);
+// 0x00230390: the bone frames from the model and the launch step for every used ragdoll.
+void XB_CDECL Ragdoll_UpdateAllFromEntities(float time);
+// 0x00231770: EBX capsule set (physics ragdoll +0x1010): the capsules collide with the world
+// geometry around the ragdoll and with each other.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysRagdoll_Collide(uint8_t* set, uint32_t esi, uint32_t edi, uint32_t entry_esp);
+extern "C" void PhysRagdoll_Collide_entry(void);
+// 0x00233b80: PhysRagdoll_Collide for every used ragdoll with physics.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_CollideAll(uint32_t entry_esp);
+extern "C" void Ragdoll_CollideAll_entry(void);
+// 0x00234380: EBX launch value, stack ragdoll: its physics (re)started; a new one from the pool
+// (0x008fb450, six) is built (PhysRagdoll_Build) and the entity gets flags 0x410000.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_StartPhysics(uint32_t value, uint8_t* ragdoll, uint32_t entry_eax);
+extern "C" void Ragdoll_StartPhysics_entry(void);
+// 0x002348e0: ESI ragdoll: its physics released, then the ragdoll back to its pool (0x008dfde0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Ragdoll_Free(uint8_t* ragdoll);
+extern "C" void Ragdoll_Free_entry(void);
+// 0x00234930: EDI entity: its ragdoll (+0x238) or a new one from the pool, bound to the bones; 0
+// (the ragdoll freed) when a bone is missing.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Ragdoll_Alloc(uint8_t* entity);
+extern "C" void Ragdoll_Alloc_entry(void);
+
 }  // namespace game

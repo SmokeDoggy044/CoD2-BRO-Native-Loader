@@ -131,4 +131,77 @@ void XB_REGS1 XB_CDECL Vehicle_RestoreTagMatrices(uint8_t* vehicle);
 extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePhys_Destroy(uint8_t* phys);
 extern "C" void VehiclePhys_Destroy_entry(void);
 
+// 0x0022d230: a physics vehicle record: its entity's (+0x154) matrix saved (+0x170), the body's matrix
+// (+0x34) with the centre of mass (+0x160) taken off the origin into the entity, the pose set and the
+// four wheel bones (0x0098a490) raised to +0x134 + 15.
+void XB_STDCALL Vehicle_UpdateFromPhysics(uint8_t* record);
+// 0x0022d410: the entity has all four wheel bones and |+0x160| >= 0.5. No callers or stored pointers (dead).
+uint8_t XB_CDECL VehiclePhys_HasWheelBones(uint8_t* ent);
+
+// 0x00231550: the four wheel tags (local origins, z = 15), their extent (z 35, x widened by
+// 3.5 * the def height +0x1c0) and centre (z raised by the height), the height into *height.
+float* XB_CDECL VehiclePhys_GetWheelBounds(uint8_t* ent, float* wheels, float* size, float* center, uint32_t* height);
+// 0x00234560: ESI entity: its vehicle's physics record (+0x248 -> +0x300), made and set up when missing.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehiclePhys_GetOrCreate(uint8_t* ent);
+extern "C" void VehiclePhys_GetOrCreate_entry(void);
+// 0x00247ad0: EAX entity, ECX other: both clients (+0x23c), different, the first with +0x29c set:
+// its client's +0x100 > 0.
+uint32_t XB_REGS3 XB_CDECL G_CheckOtherClientField100(const uint8_t* ent, uint32_t unused_edx, const uint8_t* other);
+
+// 0x00247c80: EDX path state (node +0 int16, t +4, scale +0xc), EBX out: the point a distance
+// ahead along the vehicle nodes (next node in the low 14 bits of +0x3c, length +0x38; 10 past the end).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VehPath_GetLookaheadPos(const uint8_t* state, float* out);
+extern "C" void VehPath_GetLookaheadPos_entry(void);
+// 0x00247d50: EDI path state: the blend (XMM0: 0, 1, t or 1 - t) between the flags 0x30000000 of
+// the node and the next one.
+extern "C" PLATFORM_HIDDEN float XB_CDECL VehPath_GetFlagBlend(const uint8_t* state);
+extern "C" void VehPath_GetFlagBlend_entry(void);
+// 0x00248620: EAX entity, stack means of death: whether the vehicle def takes that damage.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Vehicle_TakesDamageFromMod(const uint8_t* ent, uint32_t mod);
+extern "C" void Vehicle_TakesDamageFromMod_entry(void);
+// 0x00248850: EAX entity: a vehicle whose def type (+0x20) is 1.
+uint32_t XB_REGS1 XB_CDECL Vehicle_HasDefType1(const uint8_t* ent);
+// 0x00248080: ESI path node, EDI vehicle node: names, positions and the low 30 bits of +0x3c copied.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VehNode_CopyToPathNode(uint8_t* dst, const uint8_t* src);
+extern "C" void VehNode_CopyToPathNode_entry(void);
+// 0x00249eb0: EAX entity, ECX vector: the body rock (sin(+0x1f4 degrees) * +0x1f0^2) added to x/z
+// with the weights +0x1e8 / +0x1ec, all on the x87.
+void XB_REGS3 XB_CDECL Vehicle_GetBodyRock(const uint8_t* ent, uint32_t unused_edx, float* v);
+// 0x00249f00: XMM0 target, XMM3 current, stack (scale, count): current moved by
+// count * 0x0083eb4c * scale of the gap unless that overshoots or the gap is tiny (XMM0 result).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vehicle_ApproachProportional(float target, float current, float scale, int32_t count);
+extern "C" void Vehicle_ApproachProportional_entry(void);
+// 0x00249f60: XMM0 target, XMM3 current, stack rate: current moved by rate * 0x008ddaa0 toward the
+// target unless that overshoots. No callers or stored pointers (dead).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vehicle_ApproachAtRate(float target, float current, float rate);
+extern "C" void Vehicle_ApproachAtRate_entry(void);
+
+// 0x00247e60 / 0x00247f70: DI node index: its +0xc / +8 value, or when unset (< 0) one interpolated
+// by distance between the nearest set values back (+0x3c bits 14-27) and forward (bits 0-13); XMM0.
+// The +8 one counts 0 as set. The entries keep XMM6/7 (VehNode_LinkAll reads XMM6 after the call).
+extern "C" PLATFORM_HIDDEN float XB_CDECL VehNode_FillUnsetValue0c(int32_t index);
+extern "C" void VehNode_FillUnsetValue0c_entry(void);
+extern "C" PLATFORM_HIDDEN float XB_CDECL VehNode_FillUnsetValue08(int32_t index);
+extern "C" void VehNode_FillUnsetValue08_entry(void);
+// 0x002492f0: EDI vehicle path state: cleared (node -1), its two path nodes (+0x38, +0x78) reset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysBody_Clear(uint8_t* state);
+extern "C" void PhysBody_Clear_entry(void);
+
+// 0x00248f70: ESI vehicle node pool (count +0, blocks +2, used in the last block +4, blocks +8): the
+// next node slot (a new 0x80-node block when full), entered in g_vehNodes.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehNode_AllocSlot(uint8_t* pool);
+extern "C" void VehNode_AllocSlot_entry(void);
+// 0x00249010 (SV_MapRestart): the pool's blocks freed (each node's three names released), pool cleared.
+uint32_t XB_STDCALL VehNodePool_Free(uint8_t* pool);
+// 0x002490c0: a new reset vehicle node from the pool at 0x00988520; g_numVehNodes counts it.
+uint8_t* XB_CDECL VehNode_Alloc();
+
+// 0x00249160: CX node index, EDI vehicle path state: the state set at that node (its values, flag
+// blend, positions) and its two path nodes reset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VehPath_InitAtNode(uint32_t index, uint8_t* state);
+extern "C" void VehPath_InitAtNode_entry(void);
+// 0x0024bec0: ECX entity: its origin/angles into the vehicle (+0xd0, +0xf0), then the vehicle's first
+// 0xb8 bytes to 0x009883b0 and +0xc0.. (0xb0) to 0x00988470.
+uint8_t* XB_THISCALL Vehicle_LoadPhysicsState(uint8_t* ent);
+
 }  // namespace game

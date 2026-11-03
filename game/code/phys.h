@@ -512,4 +512,13 @@ void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint
 void XB_REGS1 XB_CDECL Phys_AddForceToEntityBodies(const float* force, const void* entity, const float* point, float scale,
                                                    uint32_t value);
 
+// 0x0022a0f0: unless +0x450 bit 0: each of the owner's eight parts (index >= 0 at +4 i) puts its
+// local frame (+0x20 + 0x40 i) through the part frame and the inverse of the entity's (+0x444)
+// frame (+0x70) into the bone matrix of the model (+0x440 -> +0x22c, +0x20 + 0x30 + 0x40 i).
+void XB_STDCALL PhysParts_WriteBoneMatrices(uint8_t* owner);
+
+// 0x00234450 (Com_Init): FPU modes, the physics world (Phys_CreateWorld), its parameters, the bone
+// callbacks (Ragdoll_BodyToPose / Ragdoll_PoseToBody) and 0x00225370 into the list at 0x00988784.
+void XB_CDECL Phys_Init();
+
 }  // namespace game

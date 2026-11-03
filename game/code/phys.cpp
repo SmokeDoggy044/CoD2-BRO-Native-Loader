@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "phys_pool.h"
+#include "ragdoll.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "title_data.h"
@@ -6004,6 +6005,53 @@ void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint
         const float lo = 0.0f;
         const float* const r = Vec4_ClampToScalarRange(clamped, 0, v, &lo, fp(phys, 0x124));
         at<uint32_t>(phys, 0x134 + i * 4) = *reinterpret_cast<const uint32_t*>(r);
+    }
+}
+
+void XB_STDCALL PhysParts_WriteBoneMatrices(uint8_t* owner) {
+    if (owner[0x450] & 1) return;
+    for (uint32_t i = 0; i < 8; ++i) {
+        if (at<int32_t>(owner, i * 4) < 0) continue;
+        alignas(16) float frame[16];
+        PhysPart_BuildFrame(owner, static_cast<int32_t>(i), frame);
+        const float* const local = reinterpret_cast<const float*>(owner + 0x20 + i * 0x40);
+        const Lanes r0 = rotate_out(frame, local);
+        const Lanes r1 = rotate_out(frame, local + 4);
+        const Lanes r2 = rotate_out(frame, local + 8);
+        std::memcpy(frame, r0.v, 16);
+        std::memcpy(frame + 4, r1.v, 16);
+        std::memcpy(frame + 8, r2.v, 16);
+        const Lanes origin = transform_out(frame, local + 12);
+        const float* const entity = reinterpret_cast<const float*>(at<uint8_t*>(owner, 0x444) + 0x70);
+        Lanes columns[3];
+        frame_columns(entity, columns);
+        const Lanes out[4] = {rotate_into(columns, r0), rotate_into(columns, r1), rotate_into(columns, r2),
+                              rotate_into(columns, sub(origin, lanes(entity + 12)))};
+        const uint8_t* const obj = at<uint8_t*>(at<uint8_t*>(owner, 0x440), 0x22c);
+        std::memcpy(at<uint8_t*>(obj, 0x20) + 0x30 + i * 0x40, out, 0x40);
+    }
+}
+
+void XB_CDECL Phys_Init() {
+    using ControlFp = uint32_t XB_CDECL(uint32_t, uint32_t);
+    title_function<ControlFp>(0x001f0a40)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
+    title_function<ControlFp>(0x001f0a40)(0x20000, 0x30000);  // 24-bit precision
+    platform_mxcsr_or(0x6000);                                // SSE: round toward zero
+    uint32_t params[12];
+    PhysWorldParams_Init(reinterpret_cast<uint8_t*>(params));
+    const uint32_t values[12] = {0x5a, 5, 0x96, 0x60, 1, 0, 1, 5, 0x36, 0, 0, 0x12c};
+    for (uint32_t i = 0; i < 12; ++i) params[i] = values[i];
+    title_function<void XB_CDECL(uint32_t*)>(0x000b4190)(params);  // Phys_CreateWorld
+    PhysWorld_SetParams14(4, 4, 0x4138f5c3u);
+    PhysWorld_SetParams20(4, 8, 0x43908000u);
+    PhysWorld_SetField2C(0x430d9c29u);
+    PhysWorld_SetCallbackC(0x00233c30);
+    const uint32_t callbacks[2] = {0x00230e40, 0x0022cec0};  // Ragdoll_BodyToPose, Ragdoll_PoseToBody
+    Phys_SetBoneCallbacks(callbacks);
+    const int32_t count = title_global<int32_t>(0x00988780);
+    if (count < 0x20) {
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(count) * 4) = 0x00225370;
+        ++title_global<int32_t>(0x00988780);
     }
 }
 
