@@ -8601,7 +8601,7 @@ address,name,section,module,state,tested,matched
 0026d0d0,Touch_Item,.text,game,matched,41,41
 0026d440,Touch_Item_Auto,.text,game,untested,0,0
 0026d480,Cmd_Give_f,.text,qcommon,replaced,8,8
-0026d680,G_AnimScriptedStart,.text,game,named,0,0
+0026d680,G_AnimScriptedStart,.text,game,settled,3878,3878
 0026e1b0,Vehicle_ThinkInit,.text,game,matched,18,18
 0026e450,G_MoverTeam,.text,game,settled,218,218
 0026e810,G_SimulateGrenadePath,.text,game,matched,61,61
@@ -9923,7 +9923,7 @@ address,name,section,module,state,tested,matched
 002de120,G_GetEntityMatrix,.text,game,settled,376,376
 002de2d0,G_TempEntity,.text,game,untested,0,0
 002de3e0,G_DObjGetSkeletonBoneMatrixPtr,.text,game,untested,0,0
-002de420,G_DObjSetBoneRotation,.text,game,named,0,0
+002de420,G_DObjSetBoneRotation,.text,game,settled,24851,24851
 002df3e0,G_GetTagParentMatrix,.text,game,settled,22808,22808
 002df740,G_EntLinkTo,.text,game,matched,70,70
 002df880,DObj_UpdateSkeletons,.text,renderer,replaced,2192003,1834951
