@@ -524,4 +524,9 @@ void XB_CDECL Phys_Init();
 // 0x002ceb50 (body state in EAX): cleared with an identity matrix at +0x90.
 void XB_REGS1 XB_CDECL Phys_InitBodyState(uint8_t* body);
 
+// 0x002d2410 (center in EAX, plane normal in EDX, vertex a in ECX; cdecl radius, b, c; 16-byte vectors): 1 when the
+// sphere touches the triangle.
+uint8_t XB_REGS3 XB_CDECL Phys_SphereTouchesTriangle(const float* center, const float* normal, const float* va,
+                                                     float radius, const float* vb, const float* vc);
+
 }  // namespace game

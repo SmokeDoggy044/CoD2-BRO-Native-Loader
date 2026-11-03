@@ -8485,7 +8485,7 @@
 0025cc60 G_ReleaseTurretUser
 0025ccd0 Turret_CanTargetPoint
 0025ced0 G_GetFlashTagMatrix
-0025d050 FUN_0025d050
+0025d050 Vehicle_ResetOnVehicleOverlap
 0025d1e0 Turret_TryAimAtTarget
 0025d230 G_TouchEntitiesInBox
 0025d520 G_TouchType14EntitiesInBox
@@ -9660,6 +9660,7 @@
 002c24d0 PM_UpdateWeaponTimers
 002c25e0 PM_Weapon_CheckAdsTransition
 002c2690 PM_ReloadAmmoAtTime
+002c27e0 PM_FinishReloadEffect
 002c28f0 PM_UpdateWeaponRechamber
 002c2aa0 BG_InitDefaultWeapon
 002c2b40 PM_UpdateStaminaMeter
@@ -9729,7 +9730,7 @@
 002c7de0 IN_UpDown
 002c7f00 G_ApplyCheckpointStart
 002c80b0 BG_SetupWeaponHintStrings
-002c8110 FUN_002c8110
+002c8110 PM_NoclipFlatMove
 002c84e0 PM_NoclipMove
 002c8830 S_UpdateCrossfade
 002c8bc0 S_StopSoundHandle
@@ -9927,7 +9928,7 @@
 002e23b0 CL_InitInput
 002e27d0 PM_UpdateAdsState
 002e2a30 PM_ProneUndoBlockedMove
-002e2ac0 FUN_002e2ac0
+002e2ac0 PM_UpdateProneTilt
 002e2e40 PM_CheckProneYaw
 002e2f50 G_PushCapsuleOutOfSolids
 002e3670 G_DObjCreateForEnt
@@ -9986,8 +9987,8 @@
 002eabb0 PathNode_FindNearestNoPlanes
 002eabd0 PM_EnterReloadState
 002eac90 PM_SlideMove
-002eb610 FUN_002eb610
-002ebaf0 FUN_002ebaf0
+002eb610 PM_DetectLadder
+002ebaf0 PM_PeriodicContentsEvent
 002ebc80 PM_FootstepEvent
 002ebef0 PM_GroundTrace
 002ec280 FXCmd_Type2AtOrigin

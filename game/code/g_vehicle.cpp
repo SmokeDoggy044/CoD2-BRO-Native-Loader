@@ -4144,4 +4144,34 @@ PLATFORM_ASM_ENTRY(Phys_FilterEntriesInBox_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(Phys_FilterEntriesInBox_body) "addl $20, %esp\n"
                    "ret")
 
+PLATFORM_ASM_ENTRY(Vehicle_ResetOnVehicleOverlap_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Vehicle_ResetOnVehicleOverlap) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Vehicle_ResetOnVehicleOverlap(uint8_t* ent) {
+    // A vehicle (+0xdc set) whose clip model overlaps another vehicle slot's entity (g_vehicles +0x170 handle, not
+    // its own +0x224, +0x297 = 2; box = its origin + 0x00988390 / + 0x00985360) gets its state (+0x248) reset from
+    // the defaults at 0x009883b0 (0xb8 bytes) and 0x00988470 (0xb0 bytes at +0xc0), and +0x2fc = 0.
+    uint8_t* const state = at<uint8_t*>(ent, 0x248);
+    if (!at<uint32_t>(ent, 0xdc)) return;
+    if (!title_global<uint16_t>(0x00986000)) return;  // g_vehicleSlotCount
+    for (int32_t i = 0; i < title_global<uint16_t>(0x00986000); ++i) {
+        const uint32_t handle = at<uint32_t>(title_global<uint8_t*>(0x0095f694), static_cast<uint32_t>(i) * 0x340 + 0x170);
+        if (!handle || handle == at<uint32_t>(ent, 0x224)) continue;
+        const uint32_t index = handle & 0xfff;
+        const uint8_t* other = nullptr;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            other = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (at<uint8_t>(other, 0x297) != 2) continue;
+        float mins[3], maxs[3];
+        for (uint32_t k = 0; k < 3; ++k) mins[k] = at<float>(other, 0x140 + k * 4) + title_global<float>(0x00988390 + k * 4);
+        for (uint32_t k = 0; k < 3; ++k) maxs[k] = at<float>(other, 0x140 + k * 4) + title_global<float>(0x00985360 + k * 4);
+        if (!SV_ClipToEntity(ent, mins, maxs, 1)) continue;
+        for (uint32_t k = 0; k < 0x2e; ++k) at<uint32_t>(state, k * 4) = title_global<uint32_t>(0x009883b0 + k * 4);
+        for (uint32_t k = 0; k < 0x2c; ++k) at<uint32_t>(state, 0xc0 + k * 4) = title_global<uint32_t>(0x00988470 + k * 4);
+        at<float>(ent, 0x2fc) = 0.0f;
+        return;
+    }
+}
+
 }  // namespace game

@@ -175,4 +175,61 @@ void XB_CDECL PM_ReduceGroundSpeed();
 // trajectory.
 uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityStateExtraPolate(uint8_t* es, uint32_t, uint8_t* ps, uint32_t time);
 
+// 0x002bbe40: the end of a weapon change to the commanded weapon (raise state 1, events, anims); 0 when not
+// changing.
+uint32_t XB_CDECL PM_FinishWeaponChange();
+// 0x002bc990: Q3's PM_CrashLand - fall damage, slowdown and the land / step events.
+void XB_CDECL PM_CrashLand();
+// 0x002c84e0: Q3's PM_NoclipMove.
+void XB_CDECL PM_NoclipMove();
+// 0x002ce160: the movement direction (+0x78) from the body yaw, the ladder normal or the frame's move.
+void XB_CDECL PM_SetMovementDir();
+// 0x002c8110 (was FUN_002c8110): a noclip move with forward kept horizontal and up/down from buttons.
+void XB_CDECL PM_NoclipFlatMove();
+// 0x002e2ac0 (was FUN_002e2ac0): prone feet / steep ground events and the prone pitch (+0x454) and roll (+0x458)
+// toward the ground plane.
+void XB_CDECL PM_UpdateProneTilt();
+// 0x002eb610 (was FUN_002eb610): the ladder check (pm_flags 0x10, ladder normal +0x64).
+void XB_CDECL PM_DetectLadder();
+// 0x002ebaf0 (was FUN_002ebaf0): event 0x8b at an interval set by the xy speed (pm +0x124) while the player moves
+// through contents 2.
+void XB_CDECL PM_PeriodicContentsEvent();
+
+// 0x002ea190 (cdecl): pm's player trace (results, start, mins, maxs, end, pass entity, content mask) through the
+// pass entity's cached candidate lists or pm's trace callback (+0x130); a start-solid hit on a player/vehicle
+// content is touched and traced again without those contents.
+void XB_CDECL PM_PlayerTrace(uint8_t* results, const float* start, const float* mins, const float* maxs,
+                             const float* end, uint32_t pass, uint32_t mask);
+// 0x002ebef0: Q3's PM_GroundTrace (pml.groundTrace, ground plane / walking, all-solid push-out).
+void XB_CDECL PM_GroundTrace();
+// 0x002ebc80 (old bob cycle in EAX, allowed in EDX; cdecl new cycle): the footstep / ladder / wade event when the
+// cycle crosses a half.
+void XB_REGS2 XB_CDECL PM_FootstepEvent(int32_t old_cycle, uint32_t allowed, int32_t new_cycle);
+// 0x002ecc80: Q3's PM_Footsteps (xy speed pm +0x124, bob cycle +0x28).
+void XB_CDECL PM_Footsteps();
+// 0x002dc3b0 (cmd in EAX, player state in EDI; cdecl trace function): the lean (+0x4c) toward the lean buttons,
+// limited by a trace to the leaned eye.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PM_UpdateLean(const uint8_t* cmd, uint8_t* ps, uint32_t trace_fn);
+extern "C" void PM_UpdateLean_entry(void);
+// 0x002ee6a0: the reload states' progress (1 while busy).
+uint32_t XB_CDECL PM_UpdateWeaponReload(uint32_t fired);
+// 0x002c27e0 (no Ghidra function yet): weapon state 14 - waits for the reload effect, then reload state 5 / 6.
+void XB_CDECL PM_FinishReloadEffect();
+// 0x002f0530: reload interrupts and starts (button or empty clip).
+void XB_CDECL PM_CheckWeaponReload();
+// 0x002db680: the melee button.
+void XB_CDECL PM_CheckWeaponMelee(uint32_t busy);
+// 0x002f0ae0: the grenade cook / throw states (1 while handled).
+uint32_t XB_CDECL PM_UpdateGrenadeThrow();
+// 0x002f1220: Q3's PM_Weapon.
+void XB_CDECL PM_Weapon();
+// 0x002ed650: Q3's PM_AirMove.
+void XB_CDECL PM_AirMove();
+// 0x002f1c80 (pm in ESI; cdecl argument handed to PmoveSingle): Q3's Pmove.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pmove(uint8_t* pm, uint32_t arg);
+extern "C" void Pmove_entry(void);
+
+// 0x002f1590 (cdecl pm, no-weapon flag; the pm slot is used as scratch): Q3's PmoveSingle.
+void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t no_weapon);
+
 }  // namespace game
