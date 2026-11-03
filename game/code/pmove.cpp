@@ -4,6 +4,7 @@
 
 #include "actor.h"
 #include "bg_misc.h"
+#include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "cgame.h"
 #include "g_vehicle.h"
@@ -5768,6 +5769,181 @@ void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, cons
         const TitleRegs regs{address_of(cmd), 0, 0, 0, address_of(cmd), address_of(ps)};
         g_ent_call(0x002dc3b0, &regs, 1, &trace);  // PM_UpdateLean
     }
+}
+
+namespace {
+
+// The title's packed length: lane 0 = sqrt of (x*x + y*y) + z*z by RSQRTSS and one Newton step
+// (((3 - a * r) * a) * 0.5, a = len2 * r); a 0 or NaN square keeps the square.
+float sticky_length(const Lanes& v) {
+    const Lanes sq = mul(v, v);
+    const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+    if (len2 == title_global<float>(0x0082e680) || len2 != len2) return len2;  // UCOMISS + JNE
+    const float r = platform_rsqrt_estimate(len2);
+    const float a = len2 * r;
+    return ((title_global<float>(0x0082e660) - a * r) * a) * title_global<float>(0x0082e670);  // 3, 0.5
+}
+
+const uint8_t* entity_of_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return title_global<const uint8_t*>(0x0097a968 + index * 8);
+    return nullptr;
+}
+
+Lanes const_lanes(uint32_t address) { return lanes(&title_global<float>(address)); }
+
+void sticky_line(const Lanes& end, const Lanes& start, uint32_t color, int32_t frames) {
+    DebugDraw_AddLine(end.v, start.v, &title_global<float>(color), 1, frames, 1, 0);
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const uint8_t* cmd, const uint8_t* old) {
+    // Player state in ECX. Aim assist: the eye ray (view angles) against each active squad-1 actor's vertical
+    // plane facing the eye (RayPlaneIntersectFrac); a hit nearer than the best so far (first the client's +0x5fc +
+    // 35) inside a box growing with distance (radius (s + 1) * 25, height 70 / 60 crouched / 30 prone times s * 0.1
+    // + 1, down to -5 x that; s = distance / 410 in 0..2) is the target. While locked (+0x500, entity +0x504, offset
+    // +0x508) on a target (not mode-8 weapons), the aim moves 0.35..0.65 (by distance 200..750) of the way from the
+    // ray's hit toward the locked point and the view angles (and deltas) follow when the command turned or moved
+    // or +0x88 is in (0, 1). A target beyond 130 locks (again), else the lock ends. 0x00929b50 +0x20 = 1 draws it.
+    const float* const view = &at<float>(ps, 0x9c);
+    const Lanes eye{{at<float>(ps, 0), at<float>(ps, 4), at<float>(ps, 0xac) + at<float>(ps, 8), at<float>(ps, 0)}};
+    const float deg = title_global<float>(0x0083edd8);
+    float ys, yc, pps, pc;
+    FastSinCos(&ys, 0, &yc, view[1] * deg);
+    FastSinCos(&pps, 0, &pc, view[0] * deg);
+    const float fx = pc * yc;
+    const Lanes fwd{{fx, pc * ys, 0.0f - pps, fx}};
+    uint8_t found = 0;
+    const uint8_t* best = nullptr;
+    Lanes best_hit{};
+    const uint8_t* const self = entity_of_handle(at<uint32_t>(ps, 0x7c));
+    float range = at<float>(at<uint8_t*>(self, 0x23c), 0x5fc) + title_global<float>(0x0083f09c);  // 35
+    const bool draw = at<int32_t>(title_global<uint8_t*>(0x00929b50), 0x20) == 1;
+    for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
+        const uint8_t* const actor = title_global<uint8_t*>(slot);
+        if (!actor || at<int32_t>(actor, 0x1360) < 0 || at<int32_t>(at<uint8_t*>(actor, 4), 4) != 1) continue;
+        const uint8_t* const e = at<uint8_t*>(actor, 0);
+        const Lanes pos{{at<float>(e, 0x140), at<float>(e, 0x144), at<float>(e, 0x148), at<float>(e, 0x140)}};
+        alignas(16) Lanes d = sub(eye, pos);
+        const float dist = sticky_length(d);
+        d.v[2] = 0.0f;
+        alignas(16) const Lanes pos_a = pos, eye_a = eye, fwd_a = fwd;
+        const float t = RayPlaneIntersectFrac(pos_a.v, d.v, eye_a.v, fwd_a.v);
+        if (!platform_x87_greater(t, title_global<float>(0x0083eafc)) || !(range > t)) continue;
+        const Lanes hit = add(eye, mul(fwd, t));
+        Lanes off = sub(hit, pos);
+        const float off_z = off.v[2];
+        off.v[2] = 0.0f;
+        const float flat = sticky_length(off);
+        float s = dist * title_global<float>(0x0083f098);  // 1 / 410
+        if (0.0f > s)
+            s = 0.0f;
+        else if (s > title_global<float>(0x0083eba8))  // 2
+            s = title_global<float>(0x0083eba8);
+        const float one = title_global<float>(0x0083eb20);
+        const float grow = s * title_global<float>(0x0083ebf8) + one;  // 0.1
+        const float radius = (s + one) * title_global<float>(0x0083ebc4);  // 25
+        float top = grow * title_global<float>(0x0083eda0);  // 70
+        const float bottom = grow * title_global<float>(0x0083f094);  // -5
+        const uint32_t stance = at<uint32_t>(at<uint8_t*>(e, 0x240), 0x184);
+        if (stance == title_global<uint32_t>(0x0097a764))  // prone
+            top = grow * title_global<float>(0x0083ee38);  // 30
+        else if (stance == title_global<uint32_t>(0x0097a674))  // crouch
+            top = grow * title_global<float>(0x0083eb3c);  // 60
+        if (top > off_z && off_z > bottom && radius > flat) {
+            found = 1;
+            best_hit = hit;
+            best = e;
+            range = t;
+        }
+        if (!draw) continue;
+        // The target box: up / down edges and the side vector (d turned 90 degrees, scaled to the radius).
+        const Lanes up = mul(const_lanes(0x0082e180), top);
+        const Lanes down{{0.0f, 0.0f, bottom, 0.0f}};
+        const Lanes turn = mul(Lanes{{d.v[1], d.v[0], d.v[2], d.v[3]}}, const_lanes(0x0082e830));
+        const float side_len = sticky_length(turn);
+        const Lanes side = mul(turn, radius / side_len);
+        const Lanes top_c = add(pos, up);
+        sticky_line(add(top_c, side), sub(top_c, side), 0x0082eaec, 0);
+        sticky_line(add(add(pos, side), down), add(add(pos, up), side), 0x0082eaec, 0);
+        sticky_line(add(sub(pos, side), down), add(add(pos, side), down), 0x0082eaec, 0);
+        const Lanes left = sub(pos, side);
+        sticky_line(add(left, up), add(left, down), 0x0082eaec, 0);
+    }
+    const uint8_t* const wdef = title_global<uint8_t*>(title_global<uint32_t>(0x0095f4d8) + at<uint32_t>(ps, 0x80) * 4);
+    const bool allow = !(wdef && at<int32_t>(wdef, 0x98) == 8);
+    Lanes aim_at = best_hit;
+    const uint8_t* const locked = at<uint32_t>(ps, 0x500) ? entity_of_handle(at<uint32_t>(ps, 0x504)) : nullptr;
+    if (locked) {
+        if (!found) {
+            at<uint32_t>(ps, 0x500) = 0;
+            return;
+        }
+        if (allow) {
+            const Lanes target{{at<float>(locked, 0x140), at<float>(locked, 0x144), at<float>(locked, 0x148),
+                                at<float>(locked, 0x140)}};
+            const Lanes aim = add(target, lanes(&at<float>(ps, 0x508)));
+            const Lanes v = sub(aim, best_hit);
+            float frac = title_global<float>(0x0083f064);  // 0.35
+            if (range > title_global<float>(0x0083ef08)) {  // 200
+                if (range > title_global<float>(0x0083f090))  // 750
+                    frac = title_global<float>(0x0083f08c);  // 0.65
+                else
+                    frac = (range - title_global<float>(0x0083ef08)) * title_global<float>(0x0083f088) + title_global<float>(0x0083f064);
+            }
+            if (draw) {
+                using Va = const char* XB_CDECL(const char*, double);
+                const char* const text = title_function<Va>(0x002a93d0)(&title_global<char>(0x00836890), frac);  // "%.2f"
+                DebugDraw_AddString(&title_global<float>(0x0082eb9c), &at<float>(best, 0x140), from_bits(0x3f333333u),  // 0.7
+                                    text, 1);
+            }
+            const Lanes next = add(best_hit, mul(v, frac));
+            const Lanes to = sub(next, eye);
+            const Lanes sq = mul(to, to);
+            const float len2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+            float inv;
+            if (len2 == title_global<float>(0x0083eafc)) {  // UCOMISS + JNP: only an exact 0
+                inv = title_global<float>(0x0082e6a0);
+            } else {
+                const float a = abs_bits(len2);
+                const float r = platform_rsqrt_estimate(a);
+                inv = ((title_global<float>(0x0082e660) - (r * r) * a) * r) * title_global<float>(0x0082e670);
+            }
+            alignas(16) const Lanes dir = mul(to, inv);
+            aim_at = next;
+            if (draw) sticky_line(next, aim, 0x0082eb1c, 0);
+            const bool steered = at<int32_t>(cmd, 0xc) != at<int32_t>(old, 0xc) || at<int32_t>(cmd, 8) != at<int32_t>(old, 8) ||
+                                 !(static_cast<float>(at<int8_t>(cmd, 0x14)) == 0.0f) ||
+                                 !(static_cast<float>(at<int8_t>(cmd, 0x15)) == 0.0f) ||
+                                 (at<float>(ps, 0x88) > 0.0f && title_global<float>(0x0083eb20) > at<float>(ps, 0x88));
+            if (steered) {
+                float angles[3];
+                vectoangles_2(dir.v, angles);
+                const float scale = title_global<float>(0x0083ebd8);
+                at<int32_t>(ps, 0x54) += static_cast<int32_t>((angles[0] - at<float>(ps, 0x9c)) * scale) & 0xffff;
+                const int32_t yaw_step = static_cast<int32_t>((angles[1] - at<float>(ps, 0xa0)) * scale) & 0xffff;
+                const int32_t roll_step = static_cast<int32_t>((angles[2] - at<float>(ps, 0xa4)) * scale) & 0xffff;
+                at<int32_t>(ps, 0x58) += yaw_step;
+                at<int32_t>(ps, 0x5c) += roll_step;
+                at<float>(ps, 0x9c) = angles[0];
+                at<float>(ps, 0xa0) = angles[1];
+                at<float>(ps, 0xa4) = angles[2];
+            }
+        }
+    }
+    if (found && range > title_global<float>(0x0083ef3c)) {  // 130
+        at<uint32_t>(ps, 0x500) = 1;
+        at<uint32_t>(ps, 0x504) = at<uint32_t>(best, 0x224);
+        const Lanes target{{at<float>(best, 0x140), at<float>(best, 0x144), at<float>(best, 0x148), at<float>(best, 0x140)}};
+        const Lanes off = sub(aim_at, target);
+        at<float>(ps, 0x508) = off.v[0];
+        at<float>(ps, 0x50c) = off.v[1];
+        at<float>(ps, 0x510) = off.v[2];
+        return;
+    }
+    at<uint32_t>(ps, 0x500) = 0;
 }
 
 }  // namespace game

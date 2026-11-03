@@ -4900,6 +4900,7 @@ const Function kFunctions[] = {
     {"SV_TraceStaticModels", 0x002db3e0, 0, code(&SV_TraceStaticModels), 12, Result::None, Status::Compare},
     {"CM_TransformedPointContents", 0x002db500, 0, code(&CM_TransformedPointContents_entry), 4, Result::Eax, Status::Compare},
     {"PM_CheckWeaponMelee", 0x002db680, 0, code(&PM_CheckWeaponMelee), 4, Result::None, Status::Compare},
+    {"PM_UpdateStickyAim", 0x002db7d0, 0, code(&PM_UpdateStickyAim), 8, Result::None, Status::Compare},
     {"PM_UpdateLean", 0x002dc3b0, 0, code(&PM_UpdateLean_entry), 4, Result::None, Status::Compare},
     {"BG_CheckProneFeet", 0x002dc6f0, 0, code(&BG_CheckProneFeet_entry), 36, Result::Eax, Status::Compare},
     {"G_UpdateSoundListenerFromPlayer", 0x002ddd70, 0, code(&G_UpdateSoundListenerFromPlayer), 0, Result::None, Status::Compare},

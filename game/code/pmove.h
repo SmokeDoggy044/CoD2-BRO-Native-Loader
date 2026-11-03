@@ -264,4 +264,8 @@ extern "C" void BG_CheckProneFeet_entry(void);
 // deltas, clamped for turrets, turned-away arcs and prone (the body yaw follows when the feet fit); sticky aim, lean.
 void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, const uint8_t* old, uint32_t trace);
 
+// 0x002db7d0 (player state in ECX; cdecl cmd, old cmd): aim assist - picks the nearest squad-1 actor the eye ray
+// passes close to, eases the view toward a locked target (+0x500 / +0x504 / +0x508) and locks beyond 130.
+void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const uint8_t* cmd, const uint8_t* old);
+
 }  // namespace game

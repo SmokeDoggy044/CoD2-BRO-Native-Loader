@@ -4795,6 +4795,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002db3e0,SV_TraceStaticModels,compare,19043,115,115,0,0,0,""
 002db500,CM_TransformedPointContents,compare,824458,419,419,0,0,0,""
 002db680,PM_CheckWeaponMelee,compare,34250,147,147,0,0,0,""
+002db7d0,PM_UpdateStickyAim,compare,24358,21867,21867,0,0,0,""
 002dc3b0,PM_UpdateLean,compare,23008,175,175,0,0,0,""
 002dc6f0,BG_CheckProneFeet,compare,13,10,10,0,0,0,""
 002ddd70,G_UpdateSoundListenerFromPlayer,compare,0,0,0,0,0,0,""
