@@ -195,7 +195,7 @@ void XB_REGS3 XB_CDECL Scr_FreeThread(uint8_t* scheduler, uint32_t unused_edx, u
 // 0x002fdff0: moves the scheduler's pending entity waits (+0x24) to their entities' wait lists (+0x230); waits on
 // gone entities are deleted.
 void XB_STDCALL Scr_MovePendingEntityWaits(uint8_t* scheduler);
-// 0x002fe200 (G_InitAnimTrees): AnimTree_Setup per anim tree after the first, the count to 0x0092716c, then the
+// 0x002fe200 (G_InitAnimTrees): AnimTree_Setup (entry index, arg) per anim tree after the first, the count to 0x0092716c, then the
 // game import's +0x85c and +0x864 (tail call with the same arguments).
 void XB_CDECL G_SetupAnimTrees(uint32_t callback, uint32_t arg);
 // 0x002ffa60 (kind in EAX, value in EDX; record, entity handle on the stack, callee pops): a wait record (vtable

@@ -5,6 +5,7 @@
 #include "g_main.h"
 #include "lanes.h"
 #include "qcommon.h"
+#include "xanim.h"
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "title_data.h"
@@ -1172,11 +1173,12 @@ void XB_STDCALL Scr_MovePendingEntityWaits(uint8_t* scheduler) {
 void XB_CDECL G_SetupAnimTrees(uint32_t callback, uint32_t arg) {
     // AnimTree_Setup for trees 1..g_numAnimTrees-1, the count kept in 0x0092716c, then the game import's +0x85c
     // and (tail call with these arguments) +0x864.
-    for (int32_t i = 1; i < static_cast<int32_t>(title_global<uint32_t>(0x00927098)); ++i)
-        title_function<void XB_CDECL(uint32_t)>(0x002fc670)(arg);  // AnimTree_Setup
+    int32_t i = 1;
+    for (; i < static_cast<int32_t>(title_global<uint32_t>(0x00927098)); ++i)
+        AnimTree_Setup(static_cast<uint32_t>(i), arg);  // the entry index in EBX
     title_global<uint32_t>(0x0092716c) = title_global<uint32_t>(0x00927098);
     uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
-    TitleRegs regs{address_of(import), 0, 0, 0, 0, 0};
+    TitleRegs regs{address_of(import), static_cast<uint32_t>(i), 0, 0, 0, 0};
     regs.eax = g_ent_call(word_at(import, 0x85c), &regs, 0, nullptr);
     regs.ecx = title_global<uint32_t>(0x0095f49c);
     const uint32_t args[2] = {callback, arg};
