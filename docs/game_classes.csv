@@ -317,3 +317,4 @@
 0021e120,Actor_Grenade_ChooseReaction,not reached,"7 callers, all grenade-state code (UpdateReaction, ReactToDistance, Acquire, NodeClaimRevoked); 0 calls in missions 1,4,5,6; needs a played run; leaf test not eligible (gap entry)"
 00220500,Actor_Grenade_Acquire,not reached,"caller Actor_Grenade_Think step 0x25d (throw-back run); 0 calls in missions 1,4,5,6; needs a played run; leaf test not eligible (gap entry)"
 0021f1c0,Actor_Lmg_Think,not reached,"think callback (state table 0x00830cc8) of the machine-gunner state (weapon class 3); 0 calls in missions 1,4,5,6; leaf test not eligible (gap entry)"
+002d5bf0,Bullet_RandomSpreadFixed,dead,"no CALL/JMP and no immediate or pointer to 0x002d5bf0 (xbefind imm + call, 2026-11-03); C kept (bg_misc.cpp)"

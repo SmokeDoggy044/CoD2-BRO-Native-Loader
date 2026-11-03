@@ -10,6 +10,7 @@
 #include "g_main.h"
 #include "g_utils.h"
 #include "lanes.h"
+#include "cm.h"
 #include "fx.h"
 #include "qcommon.h"
 #include "sv.h"
@@ -2689,6 +2690,952 @@ void XB_CDECL PM_PeriodicContentsEvent() {
     uint8_t* const p = pm_global();
     add_ps_event(pm_ps_ref(p), 0x8b, 0);
     at<uint32_t>(pm_ps_ref(p), 0x40) = at<uint32_t>(p, 4);
+}
+
+
+namespace {
+
+// The candidate lists PM_PlayerTrace builds on its stack: brushes {entries, pointer +0x800, count +0x804}, triangles
+// {entries, pointer +0x1000, count +0x1004} (layout as cm.h).
+struct PlayerTraceLists {
+    alignas(16) uint8_t brushes[0x810];
+    alignas(16) uint8_t triangles[0x1010];
+};
+
+using PmTraceCallback = void XB_CDECL(uint8_t* results, const float* start, const float* mins, const float* maxs,
+                                      const float* end, uint32_t pass, uint32_t mask);
+
+void player_trace_cached(uint8_t* results, const float* start, const float* mins, const float* maxs, const float* end,
+                         uint32_t pass, uint32_t mask, const uint8_t* ent, PlayerTraceLists* lists, const float* lo,
+                         const float* hi) {
+    CM_FilterBoxCandidates(lists->brushes, 0, at<uint8_t*>(ent, 0x454), lo, hi, mask, at<uint8_t*>(ent, 0x450),
+                           lists->triangles);
+    // By title address: the C SV_CapsuleTrace leaves other dead-stack words (0x804fff2c / 0x81e23c5c) in tests.
+    using CapsuleTrace = void XB_CDECL(uint32_t, uint32_t, uint8_t*, const float*, const float*, const float*,
+                                       const float*, uint32_t, uint32_t);
+    title_function<CapsuleTrace>(0x002e95b0)(address_of(lists->triangles), address_of(lists->brushes), results, start,
+                                             mins, maxs, end, pass, mask);
+}
+
+}  // namespace
+
+void XB_CDECL PM_PlayerTrace(uint8_t* results, const float* start, const float* mins, const float* maxs,
+                             const float* end, uint32_t pass, uint32_t mask) {
+    // pm's trace with the pass entity's cached candidate lists (+0x450 triangles, +0x454 brushes, box +0x430/+0x440;
+    // the swept box grown by min(extent x, z) (z top x4) and regathered 50 wider when it leaves the cached box):
+    // filtered into stack lists and traced with SV_CapsuleTrace; else pm's trace callback (+0x130). A start-solid
+    // result in a player/vehicle content (+0x28 & 0x200c000) adds the hit entity (+0x30) to the touch list, drops
+    // those contents from pm's mask and from this trace, and traces again.
+    PlayerTraceLists lists;
+    at<uint8_t*>(lists.triangles, 0x1000) = lists.triangles;
+    at<uint32_t>(lists.triangles, 0x1004) = 0;
+    at<uint8_t*>(lists.brushes, 0x800) = lists.brushes;
+    at<uint32_t>(lists.brushes, 0x804) = 0;
+    const uint32_t index = pass & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && (pass >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    alignas(16) float lo[4], hi[4];
+    const bool cached = ent && at<uint32_t>(ent, 0x450) && at<uint32_t>(ent, 0x454);
+    if (cached) {
+        const float half = title_global<float>(0x0083eb24);
+        float extent[4];
+        for (uint32_t i = 0; i < 4; ++i) {
+            hi[i] = start[i] > end[i] ? start[i] : end[i];  // MAXPS(start, end)
+            lo[i] = start[i] < end[i] ? start[i] : end[i];  // MINPS(start, end)
+            extent[i] = maxs[i] - (mins[i] + maxs[i]) * half;
+        }
+        float r = extent[0];
+        if (r > extent[2]) r = extent[2];
+        const float shrink[4] = {r, r, 0.0f, r};
+        for (uint32_t i = 0; i < 4; ++i) lo[i] = lo[i] - shrink[i];
+        const float grow[4] = {r, r, r * title_global<float>(0x0083100c), r};  // 4
+        for (uint32_t i = 0; i < 4; ++i) hi[i] = hi[i] + grow[i];
+        float* const box_lo = &at<float>(ent, 0x430);
+        float* const box_hi = &at<float>(ent, 0x440);
+        if (!box_inside(box_lo, lo, hi, box_hi, &title_global<float>(0x0082e3c0))) {
+            uint32_t& guard = title_global<uint32_t>(0x0098eed0);
+            if (!(guard & 1)) {
+                guard |= 1;
+                const float wide = title_global<float>(0x0083ec30);  // 50
+                for (uint32_t i = 0; i < 4; ++i) title_global<float>(0x0098eec0 + i * 4) = wide;
+            }
+            float new_lo[4], new_hi[4];
+            for (uint32_t i = 0; i < 4; ++i) new_lo[i] = lo[i] - title_global<float>(0x0098eec0 + i * 4);
+            std::memcpy(box_lo, new_lo, 16);
+            for (uint32_t i = 0; i < 4; ++i) new_hi[i] = hi[i] + title_global<float>(0x0098eec0 + i * 4);
+            std::memcpy(box_hi, new_hi, 16);
+            CM_GatherBoxCandidates(box_lo, at<uint8_t*>(ent, 0x450), at<uint8_t*>(ent, 0x454), box_hi);
+        }
+        player_trace_cached(results, start, mins, maxs, end, pass, mask, ent, &lists, lo, hi);
+    } else {
+        title_function<PmTraceCallback>(at<uint32_t>(pm_global(), 0x130))(results, start, mins, maxs, end, pass, mask);
+    }
+    if (!results[0x3d] || !(at<uint32_t>(results, 0x28) & 0x200c000)) return;
+    PM_AddTouchEnt(at<int32_t>(results, 0x30));
+    at<uint32_t>(pm_global(), 0x5c) &= 0xfdff3fffu;
+    const uint32_t masked = mask & 0xfdff3fffu;
+    if (cached) {
+        player_trace_cached(results, start, mins, maxs, end, pass, masked, ent, &lists, lo, hi);
+        return;
+    }
+    title_function<PmTraceCallback>(at<uint32_t>(pm_global(), 0x130))(results, start, mins, maxs, end, pass, masked);
+}
+
+void XB_CDECL PM_GroundTrace() {
+    // Q3's PM_GroundTrace: a trace 1 down from 15 up (pm's bounds) into pml.groundTrace (0x0095ffc0, 0x40 bytes).
+    // All solid: G_PushCapsuleOutOfSolids at heights 15, 17 ... retraced until free, above 25 the player is in the
+    // air (pm_flags 0x2000 and +0x74 cleared). Start solid: a retrace from 2 up still solid leaves the ground. Then
+    // a fraction of 1, a jump off (no ladder flag 0x10, rising, velocity . normal > 10) or a steep plane (normal z
+    // below 0.7: ground plane only) leave the ground; else walking, PM_CrashLand on landing, the ground entity
+    // (+0x60) and touch.
+    uint8_t* const pm = pm_global();
+    alignas(16) uint8_t trace[0x40] = {};
+    const uint32_t mask = at<uint32_t>(pm, 0x5c);
+    alignas(16) float start[4], end[4];
+    const auto set_points = [&start, &end](const uint8_t* ps) {
+        std::memcpy(start, ps, 16);
+        start[2] = start[2] + title_global<float>(0x0083ef10);  // 15
+        std::memcpy(end, ps, 16);
+        end[2] = end[2] - title_global<float>(0x0083eb20);
+    };
+    const auto trace_down = [&](uint32_t m) {
+        uint8_t* const p = pm_global();
+        title_function<PlayerTrace>(0x002ea190)(trace, start, &at<float>(p, 0x100), &at<float>(p, 0x110), end,
+                                               at<uint32_t>(pm_ps_ref(p), 0x7c), m);  // PM_PlayerTrace
+    };
+    const auto leave_ground = [](uint8_t* ps, uint32_t plane) {
+        at<uint32_t>(ps, 0x60) = 0;
+        title_global<uint32_t>(0x0095ffb0) = plane;
+        title_global<uint32_t>(0x0095ffac) = 0;
+    };
+    set_points(pm_ps_ref(pm));
+    trace_down(mask);
+    std::memcpy(&title_global<uint8_t>(0x0095ffc0), trace, 0x40);
+    bool solid_check = true;
+    if (trace[0x3c]) {
+        float height = title_global<float>(0x0083ec78);  // 13
+        for (;;) {
+            height = height + title_global<float>(0x0083eba8);  // 2
+            G_PushCapsuleOutOfSolids(pm_global(), height);
+            set_points(pm_ps_ref(pm_global()));
+            trace_down(mask);
+            std::memcpy(&title_global<uint8_t>(0x0095ffc0), trace, 0x40);
+            if (height > title_global<float>(0x0083ebc4)) {  // 25
+                uint8_t* const p = pm_global();
+                leave_ground(pm_ps_ref(p), 0);
+                at<uint32_t>(pm_ps_ref(p), 0x2c) &= ~0x2000u;
+                at<float>(pm_ps_ref(p), 0x74) = 0.0f;
+                break;
+            }
+            if (!trace[0x3c]) break;
+        }
+    }
+    uint8_t* const p = pm_global();
+    if (solid_check && trace[0x3d]) {
+        start[2] = at<float>(pm_ps_ref(p), 8) + title_global<float>(0x0083eba8);  // 2
+        trace_down(at<uint32_t>(p, 0x5c));
+        if (trace[0x3d]) {
+            leave_ground(pm_ps_ref(pm_global()), 0);
+            return;
+        }
+        std::memcpy(&title_global<uint8_t>(0x0095ffc0), trace, 0x40);
+    }
+    if (at<float>(trace, 0x20) == title_global<float>(0x0083eb20)) {
+        leave_ground(pm_ps_ref(p), 0);
+        return;
+    }
+    uint8_t* const ps = pm_ps_ref(p);
+    const float nz = at<float>(trace, 0x18);
+    if (!(at<uint8_t>(ps, 0x2c) & 0x10) && at<float>(ps, 0x18) > title_global<float>(0x0083eafc)) {
+        const float d = (at<float>(ps, 0x10) * at<float>(trace, 0x10) + at<float>(ps, 0x14) * at<float>(trace, 0x14)) +
+                        at<float>(ps, 0x18) * nz;
+        if (d > title_global<float>(0x0083eb98)) {  // 10
+            leave_ground(ps, 0);
+            return;
+        }
+    }
+    if (title_global<float>(0x0083ed28) > nz) {  // 0.7
+        leave_ground(ps, 1);
+        at<uint32_t>(pm_ps_ref(p), 0x2c) &= ~0x2000u;
+        at<float>(pm_ps_ref(p), 0x74) = 0.0f;
+        return;
+    }
+    title_global<uint32_t>(0x0095ffb0) = 1;
+    title_global<uint32_t>(0x0095ffac) = 1;
+    if (!at<uint32_t>(pm_ps_ref(p), 0x60)) PM_CrashLand();
+    at<uint32_t>(pm_ps_ref(p), 0x60) = at<uint32_t>(trace, 0x30);
+    PM_AddTouchEnt(at<int32_t>(trace, 0x30));
+}
+
+void XB_REGS2 XB_CDECL PM_FootstepEvent(int32_t old_cycle, uint32_t allowed, int32_t new_cycle) {
+    // When the bob cycle crosses a half (bit 7 of cycle + 0x40 changes): on the ground the surface's footstep event,
+    // on a ladder (in the air, pm_flags 0x10) a short trace (bounds +6 / -6, z from 8) into the ladder normal (x
+    // 0x0083f1c0) gives the ladder surface's event (type + 1; 14 for no hit or type 0); only with `allowed`. In
+    // water levels 1-2 a wade event goes straight into the ring: 0x43 prone, 0x2c crouched or moving vertically,
+    // else 0x5a sprinting or 0x15.
+    if (!((static_cast<uint8_t>(old_cycle + 0x40) ^ static_cast<uint8_t>(new_cycle + 0x40)) & 0x80)) return;
+    uint8_t* const pm = pm_global();
+    const uint8_t water = pm[0x121];
+    if (water) {
+        if (water != 1 && water != 2) return;
+        uint8_t* const ps = pm_ps_ref(pm);
+        const uint32_t flags = at<uint32_t>(ps, 0x2c);
+        uint32_t event;
+        if (flags & 1)
+            event = 0x43;
+        else if ((flags & 0x80) || !(at<float>(ps, 0x4c) == 0.0f))
+            event = 0x2c;
+        else
+            event = (flags & 0x10000) ? 0x5a : 0x15;
+        add_ps_event(ps, event, 0);
+        return;
+    }
+    uint8_t* const ps = pm_ps_ref(pm);
+    if (at<uint32_t>(ps, 0x60)) {
+        if (!allowed) return;
+        PM_AddEvent(0, 0, PM_FootstepEventForSurface(0, at<uint32_t>(ps, 0x2c)));
+        return;
+    }
+    if (!allowed || !(at<uint8_t>(ps, 0x2c) & 0x10)) return;
+    alignas(16) uint8_t trace[0x40] = {};
+    const float six = title_global<float>(0x0083ecd0);
+    const float eight = title_global<float>(0x0083ed78);
+    alignas(16) float mins[4], maxs[4], end[4] = {};
+    std::memcpy(mins, pm + 0x100, 16);
+    std::memcpy(maxs, pm + 0x110, 16);
+    mins[0] = mins[0] + six;
+    mins[1] = mins[1] + six;
+    maxs[0] = maxs[0] - six;
+    maxs[1] = maxs[1] - six;
+    mins[2] = eight;
+    if (eight > maxs[2]) maxs[2] = eight;
+    const float reach = title_global<float>(0x0083f1c0);  // 31
+    for (uint32_t i = 0; i < 3; ++i) end[i] = at<float>(ps, i * 4) - at<float>(ps, 0x64 + i * 4) * reach;
+    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
+                                           at<uint32_t>(pm, 0x5c) & 0xfdfeffffu);  // PM_PlayerTrace
+    uint32_t type = static_cast<uint32_t>(at<int32_t>(trace, 0x24) >> 0x14) & 0x1f;
+    if (at<float>(trace, 0x20) == title_global<float>(0x0083eb20) || !type) type = 0xd;
+    PM_AddEvent(0, 0, type + 1);
+}
+
+namespace {
+
+// sqrt(x * x + y * y) on the x87 (FLD/FMUL/FADDP/FSQRT), stored as float.
+float x87_length2(float x, float y) {
+    float r;
+    __asm__("flds %2\n\tflds %1\n\tfld %%st(0)\n\tfmul %%st(1), %%st\n\tfld %%st(2)\n\tfmul %%st(3), %%st\n\t"
+            "faddp\n\tfsqrt\n\tfstp %%st(2)\n\tfstp %%st(0)\n\tfstps %0"
+            : "=m"(r)
+            : "m"(x), "m"(y)
+            : "st", "st(1)", "st(2)");
+    return r;
+}
+
+}  // namespace
+
+void XB_CDECL PM_Footsteps() {
+    // Q3's PM_Footsteps: pm +0x124 = the xy speed (x87). On a ladder the bob cycle (+0x28) runs with the vertical
+    // speed (300 ms after a mount). Not on the ground (and not pm_type 1), a stance change since the frame's start
+    // is still needed. Below speed 10 (or pm_type 1) nothing (below 1 the cycle resets); else the bob rate is the
+    // xy speed over the scaled stance speed (move scales +0x444 / +0x448, stance lerps +0x43c / +0x440 through
+    // PM_ViewHeightLerpFrac both ways) times a per-stance factor, and moving gives PM_FootstepEvent.
+    uint8_t* pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    if (at<int32_t>(ps, 0x24) >= 4) return;
+    at<float>(pm, 0x124) = x87_length2(at<float>(ps, 0x10), at<float>(ps, 0x14));
+    if (at<uint32_t>(ps, 0xc0) & 0x106000) return;
+    int32_t mount;
+    if (at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x424))
+        mount = 2;
+    else
+        mount = at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x420) ? 1 : 0;
+    if (!at<uint32_t>(ps, 0x60) && at<int32_t>(ps, 0x24) != 1) {
+        const uint32_t flags = at<uint32_t>(ps, 0x2c);
+        if (flags & 0x10) {
+            if (static_cast<int32_t>(at<uint32_t>(pm, 4) - at<uint32_t>(ps, 0x70)) < 0x12c) return;
+            const float vz = at<float>(ps, 0x18);
+            const float k = title_global<float>(0x0083f21c);
+            float rate;
+            if (!(flags & 0x80) && at<float>(ps, 0x4c) == 0.0f)
+                rate = vz / (at<float>(ps, 0x434) * k) * title_global<float>(0x0083f034);
+            else
+                rate = vz / (at<float>(ps, 0x430) * k) * title_global<float>(0x0083f064);
+            const int32_t old = at<int32_t>(ps, 0x28);
+            at<int32_t>(ps, 0x28) =
+                static_cast<int32_t>(static_cast<float>(title_global<int32_t>(0x0095ffa8)) * rate + static_cast<float>(old)) &
+                0xff;
+            PM_FootstepEvent(old, 1, at<int32_t>(pm_ps_ref(pm), 0x28));
+            pm = pm_global();
+        }
+        if (static_cast<uint32_t>(mount) == (at<uint32_t>(pm_ps_ref(pm), 0x2c) & 3)) return;
+    }
+    ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    const uint32_t crouched = flags & 0x80;
+    const uint32_t sprint = flags & 0x10000;
+    if (title_global<float>(0x0083eb98) > at<float>(pm, 0x124) || at<int32_t>(ps, 0x24) == 1) {  // 10
+        if (title_global<float>(0x0083eb20) > at<float>(pm, 0x124)) at<uint32_t>(ps, 0x28) = 0;
+        return;
+    }
+    const float speed = static_cast<float>(at<int32_t>(ps, 0x50));
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const int8_t forward = static_cast<int8_t>(pm[0x18]);
+    float scale = speed;
+    if (forward) {
+        if (pm[0x19]) {
+            scale = ((at<float>(ps, 0x444) - one) * title_global<float>(0x0083eb58) + one + one) * speed * half;
+            if (forward < 0) scale = (at<float>(ps, 0x448) + one) * scale * half;
+        } else if (forward < 0) {
+            scale = at<float>(ps, 0x448) * speed;
+        }
+    } else if (pm[0x19]) {
+        scale = ((at<float>(ps, 0x444) - one) * title_global<float>(0x0083eb58) + one) * speed;  // 0.75
+    }
+    float stance = crouched ? at<float>(ps, 0x430) : (sprint ? at<float>(ps, 0x438) : at<float>(ps, 0x434));
+    const uint32_t prone_height = at<uint32_t>(ps, 0x420), crouch_height = at<uint32_t>(ps, 0x424);
+    stance = stance * scale;
+    float frac;
+    PM_ViewHeightLerpFrac(crouch_height, prone_height, &frac);
+    if (frac != 0.0f) {
+        stance = ((one - frac) * at<float>(ps, 0x440) + at<float>(ps, 0x43c) * frac) * stance;
+    } else {
+        PM_ViewHeightLerpFrac(prone_height, crouch_height, &frac);
+        if (frac != 0.0f)
+            stance = ((one - frac) * at<float>(ps, 0x43c) + at<float>(ps, 0x440) * frac) * stance;
+        else if (mount == 1)
+            stance = at<float>(ps, 0x43c) * stance;
+        else if (mount == 2)
+            stance = at<float>(ps, 0x440) * stance;
+    }
+    float rate = at<float>(pm, 0x124) / stance;
+    if (mount == 1)
+        rate = rate * title_global<float>(crouched ? 0x0083f218 : 0x0083ec24);
+    else if (mount == 2)
+        rate = rate * title_global<float>(crouched ? 0x0083f214 : 0x0083f0c8);
+    else if (at<uint8_t>(ps, 0x2c) & 0x40)
+        rate = rate * title_global<float>(crouched ? 0x0083f210 : 0x0083f20c);
+    else
+        rate = rate * title_global<float>(crouched ? 0x0083f208 : 0x0083f204);
+    uint32_t heights[2] = {0, 0};
+    const uint32_t allowed = PM_CheckViewHeightStance(heights);
+    const int32_t old = at<int32_t>(ps, 0x28);
+    at<int32_t>(ps, 0x28) =
+        static_cast<int32_t>(static_cast<float>(title_global<int32_t>(0x0095ffa8)) * rate + static_cast<float>(old)) & 0xff;
+    if (!pm[0x18] && !pm[0x19]) return;
+    PM_FootstepEvent(old, allowed, at<int32_t>(pm_ps_ref(pm), 0x28));
+}
+
+namespace {
+
+// 1 - sqrt(1 - fraction) on the x87 (FLD/FSUB/FSQRT/FSUBR), stored as float.
+float x87_lean_room(float one, float fraction) {
+    float r;
+    __asm__("flds %1\n\tfsubs %2\n\tfsqrt\n\tfsubrs %1\n\tfstps %0" : "=m"(r) : "m"(one), "m"(fraction) : "st");
+    return r;
+}
+
+// |a| > b on the x87 (FABS, FCOMIP; false when unordered).
+bool x87_abs_greater(float a, float b) {
+    bool r;
+    __asm__("flds %2\n\tflds %1\n\tfabs\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(r)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return r;
+}
+
+int32_t sign_of_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return 1 - (static_cast<int32_t>(bits) < 0 ? 1 : 0) * 2;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(PM_UpdateLean_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PM_UpdateLean) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL PM_UpdateLean(const uint8_t* cmd, uint8_t* ps, uint32_t trace_fn) {
+    // The lean (+0x4c, -rate..rate; rate 0.5, prone 0x0083ec24) moves toward the held lean buttons (cmd +5: 0x10
+    // left unless +0x2c 0x400000, 0x20 right unless 0x800000; on the ground or pm_type 1, not +0x2c 0x4000 or dead;
+    // none on +0xc0 0x106000 or aiming a mode-3 weapon) by msec * 0.0029 * rate, back toward 0 by msec * 0.0036 *
+    // rate. A lean is then limited by a trace (box +-8, mask 0x381c011, the given trace function) from the eye to
+    // the leaned eye (AddLeanToPosition 16 / 20): |lean| at most 1 - sqrt(1 - fraction).
+    int32_t dir = 0;
+    const uint8_t buttons = cmd[5];
+    if (buttons & 0x30) {
+        const uint32_t flags = at<uint32_t>(ps, 0x2c);
+        const int32_t type = at<int32_t>(ps, 0x24);
+        if (!(flags & 0x4000) && type < 4 && (at<uint32_t>(ps, 0x60) || type == 1)) {
+            if ((buttons & 0x10) && !(flags & 0x400000)) dir = -1;
+            if ((buttons & 0x20) && !(flags & 0x800000)) ++dir;
+        }
+    }
+    if ((at<uint32_t>(ps, 0xc0) & 0x106000) ||
+        ((at<uint8_t>(ps, 0x2c) & 0x20) &&
+         at<int32_t>(title_global<uint8_t* const*>(0x0095f4d8)[at<int32_t>(ps, 0x80)], 0x98) == 3))
+        dir = 0;
+    float rate = title_global<float>(0x0083eb24);  // 0.5
+    if (at<uint32_t>(ps, 0xa8) != at<uint32_t>(ps, 0x424) && at<uint32_t>(ps, 0xa8) == at<uint32_t>(ps, 0x420))
+        rate = title_global<float>(0x0083ec24);
+    float lean = at<float>(ps, 0x4c);
+    const float zero = 0.0f;
+    const float msec = static_cast<float>(title_global<int32_t>(0x0095ffa8));
+    if (!dir) {
+        if (lean > zero) {
+            lean = lean - msec * title_global<float>(0x0083f0a4) * rate;
+            if (zero > lean) lean = zero;
+        } else if (zero > lean) {
+            lean = msec * title_global<float>(0x0083f0a4) * rate + lean;
+            if (lean > zero) lean = zero;
+        }
+    } else if (dir > 0) {
+        if (rate > lean) lean = msec * title_global<float>(0x0083f0a0) * rate + lean;
+        if (lean > rate) lean = rate;
+    } else {
+        const float low = zero - rate;
+        if (lean > low) lean = lean - msec * title_global<float>(0x0083f0a0) * rate;
+        if (low > lean) lean = low;
+    }
+    at<float>(ps, 0x4c) = lean;
+    if (lean == zero || at<int32_t>(ps, 0x24) == 1) return;
+    alignas(16) float start[4], end[4], mins[4], maxs[4];
+    alignas(16) uint8_t trace[0x40] = {};
+    start[0] = at<float>(ps, 0);
+    start[1] = at<float>(ps, 4);
+    start[2] = at<float>(ps, 0xac) + at<float>(ps, 8);
+    float pos[3] = {start[0], start[1], start[2]};
+    AddLeanToPosition(pos, static_cast<float>(sign_of_bits(lean)), at<float>(ps, 0xa0), 16.0f, 20.0f);
+    end[0] = pos[0];
+    end[1] = pos[1];
+    end[2] = pos[2];
+    end[3] = pos[0];
+    start[3] = start[0];
+    const float eight = title_global<float>(0x0083ed78), minus_eight = title_global<float>(0x003f48ac);
+    for (uint32_t i = 0; i < 4; ++i) {
+        maxs[i] = eight;
+        mins[i] = minus_eight;
+    }
+    using TraceFn = void XB_CDECL(uint8_t*, const float*, const float*, const float*, const float*, uint32_t, uint32_t);
+    title_function<TraceFn>(trace_fn)(trace, start, mins, maxs, end, at<uint32_t>(ps, 0x7c), 0x381c011);
+    const float room = x87_lean_room(title_global<float>(0x0083eb20), at<float>(trace, 0x20));
+    if (x87_abs_greater(at<float>(ps, 0x4c), room))
+        at<float>(ps, 0x4c) = static_cast<float>(sign_of_bits(at<float>(ps, 0x4c))) * room;
+}
+
+namespace {
+
+void clear_weapon_bit(uint8_t* ps, uint32_t offset) {
+    const int32_t weapon = at<int32_t>(ps, 0x80);
+    at<uint32_t>(ps, offset + static_cast<uint32_t>(weapon >> 5) * 4) &= ~(1u << (weapon & 0x1f));
+}
+
+}  // namespace
+
+uint32_t XB_CDECL PM_UpdateWeaponReload(uint32_t fired) {
+    // The reload states: 7 / 8 (reloading; ammo at the reload time when `fired`) wait for the weapon time, then
+    // reload again while possible (state 8 only with an empty clip), else end with the reload-end time (+0x604:
+    // state 9, anim 0xe, event 0x9c) or state 0; state 9 ends in state 0. States 0xe / 5 / 6 the same, with a
+    // non-reloading weapon (+0x708 clear) back to state 0 and state 6 never restarting. Clears the weapon's +0x400
+    // bit when done. 1 while busy.
+    uint8_t* const pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    const int32_t state = at<int32_t>(ps, 0x84);
+    if (state == 7 || state == 8) {
+        if (fired) PM_ReloadAmmoAtTime();
+        ps = pm_ps_ref(pm);
+        if (at<uint32_t>(ps, 0x34)) return 1;
+        const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[at<int32_t>(ps, 0x80)];
+        if (at<int32_t>(ps, 0x84) != 8 || !at<uint32_t>(ps, 0x280 + at<uint32_t>(def, 0x5a0) * 4)) {
+            if (PM_WeaponCanReload()) {
+                PM_StartReload();
+                return 1;
+            }
+        }
+        clear_weapon_bit(ps, 0x400);
+        if (!at<uint32_t>(cur_weapon_def(), 0x604)) {
+            at<uint32_t>(pm_ps_ref(pm), 0x84) = 0;
+            PM_StartLegsAnim(0, 0, 0);
+            return 0;
+        }
+        at<uint32_t>(pm_ps_ref(pm), 0x84) = 9;
+        uint8_t* const p = pm_ps_ref(pm);
+        if (at<int32_t>(p, 0x24) < 4 && pm[0xa]) {
+            if (at<int32_t>(cur_weapon_def(), 0x94) == 5)
+                at<uint32_t>(p, 0x4ec) = 0xe;
+            else
+                at<uint32_t>(p, 0x4ec) = (~at<uint32_t>(p, 0x4ec) & 0x200) | 0xe;
+        }
+        at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(cur_weapon_def(), 0x604);
+        add_ps_event(pm_ps_ref(pm), 0x9c, 0);
+        return 1;
+    }
+    if (state == 9) {
+        at<uint32_t>(ps, 0x84) = 0;
+        PM_StartLegsAnim(0, 0, 0);
+        return 0;
+    }
+    if (state != 0xe && state != 5 && state != 6) return 0;
+    if (fired) {
+        PM_ReloadAmmoAtTime();
+        ps = pm_ps_ref(pm);
+        if (at<uint32_t>(ps, 0x34)) return 1;
+    } else if (at<uint32_t>(ps, 0x34)) {
+        return 0;
+    }
+    clear_weapon_bit(ps, 0x400);
+    const uint8_t* const def = cur_weapon_def();
+    if (!at<uint32_t>(def, 0x708)) {
+        at<uint32_t>(pm_ps_ref(pm), 0x84) = 0;
+        PM_StartLegsAnim(0, 0, 0);
+        return fired ? 1 : 0;
+    }
+    uint8_t* const p = pm_ps_ref(pm);
+    if (at<int32_t>(p, 0x84) != 6 && PM_WeaponCanReload()) {
+        PM_StartReload();
+        return 1;
+    }
+    if (!at<uint32_t>(def, 0x604)) {
+        at<uint32_t>(p, 0x84) = 0;
+        PM_StartLegsAnim(0, 0, 0);
+        return fired ? 1 : 0;
+    }
+    at<uint32_t>(p, 0x84) = 9;
+    PM_StartLegsAnim(0, 0, 0xe);
+    at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(cur_weapon_def(), 0x604);
+    add_ps_event(pm_ps_ref(pm), 0x9c, 0);
+    return 1;
+}
+
+void XB_CDECL PM_FinishReloadEffect() {
+    // Weapon state 14: while the reload effect (id +0x90 in the list at 0x0095f5b4) still has live components the
+    // weapon time is the start-reload time (+0x5f4 with +0x8c, else +0x5f0); then the effect stops (+0x90 cleared
+    // for reloading weapons), anim 0xb / 0xc, that time, state 5 (6 from state 8) and PM_SetReloadDelay.
+    uint8_t* const pm = pm_global();
+    FxIdList* const list = title_global<FxIdList*>(0x0095f5b4);
+    const uint32_t* const words = reinterpret_cast<const uint32_t*>(list);
+    const uint32_t count = words[0];
+    const uint32_t id = at<uint32_t>(pm_ps_ref(pm), 0x90);
+    for (uint32_t i = 0; i < count; ++i) {
+        if (at<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{words[1 + i]}), 0x4c) != id) continue;
+        const uint8_t* const effect = reinterpret_cast<const uint8_t*>(uintptr_t{words[1 + i]});
+        if (!effect || FX_EffectComponentsFinished(effect)) break;
+        uint8_t* const ps = pm_ps_ref(pm_global());
+        at<uint32_t>(ps, 0x34) = at<uint32_t>(cur_weapon_def(), at<uint8_t>(ps, 0x8c) ? 0x5f4 : 0x5f0);
+        return;
+    }
+    FX_StopEffectById(at<uint32_t>(pm_ps_ref(pm_global()), 0x90), 0, list);
+    uint8_t* const p = pm_global();
+    if (at<uint32_t>(cur_weapon_def(), 0x708)) at<uint32_t>(pm_ps_ref(p), 0x90) = 0;
+    const uint8_t started = at<uint8_t>(pm_ps_ref(p), 0x8c);
+    const uint32_t time = at<uint32_t>(cur_weapon_def(), started ? 0x5f4 : 0x5f0);
+    PM_StartLegsAnim(0, 0, (started ? 1u : 0u) + 0xb);
+    at<uint32_t>(pm_ps_ref(p), 0x34) = time;
+    uint8_t* const ps = pm_ps_ref(p);
+    at<uint32_t>(ps, 0x84) = (at<int32_t>(ps, 0x84) == 8 ? 1u : 0u) + 5;
+    PM_SetReloadDelay();
+}
+
+void XB_CDECL PM_CheckWeaponReload() {
+    // Fire during a reload (states 7 / 5, newly pressed attack) asks to stop it (8 / 6). Not with a mode-3 weapon
+    // while 0x0095f4dc is set unless aiming fully (ADS above 0.99), not sprinting; state 14 goes on with
+    // PM_FinishReloadEffect, states 1, 2 and 5-13 wait; else the reload button (cmd +5 0x8) when it can reload,
+    // or an empty clip with reserve ammo (not state 3; prone only standing still) start PM_BeginWeaponReload.
+    uint8_t* const pm = pm_global();
+    const uint32_t reload_button = pm[9] & 8;
+    uint32_t start = 0;
+    if (at<uint32_t>(cur_weapon_def(), 0x708)) {
+        uint8_t* const ps = pm_ps_ref(pm);
+        const int32_t state = at<int32_t>(ps, 0x84);
+        if ((state == 7 || state == 5) && (pm[8] & 1) && !(pm[0x34] & 1)) {
+            if (state == 7)
+                at<uint32_t>(ps, 0x84) = 8;
+            else if (state == 5)
+                at<uint32_t>(ps, 0x84) = 6;
+        }
+    }
+    if (title_global<uint8_t>(0x0095f4dc) && at<int32_t>(cur_weapon_def(), 0x98) == 3) {
+        const uint8_t* const ps = pm_ps_ref(pm);
+        if (!(at<uint8_t>(ps, 0x2c) & 0x20) || title_global<float>(0x0083ed08) > at<float>(ps, 0x88)) return;  // 0.99
+    }
+    uint8_t* const ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    if (flags & 0x10000) return;
+    const int32_t state = at<int32_t>(ps, 0x84);
+    if (state == 14) {
+        PM_FinishReloadEffect();
+        return;
+    }
+    if (state == 1 || state == 2 || (state >= 5 && state <= 13)) return;
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[at<int32_t>(ps, 0x80)];
+    const uint32_t ammo_slot = at<uint32_t>(def, 0x598);
+    const uint32_t clip_slot = at<uint32_t>(def, 0x5a0);
+    if (reload_button && PM_WeaponCanReload()) start = 1;
+    if (!at<uint32_t>(ps, 0x280 + clip_slot * 4) && at<uint32_t>(ps, 0x110 + ammo_slot * 4) && state != 3 &&
+        (!(flags & 1) || (!pm[0x18] && !pm[0x19]))) {
+        PM_BeginWeaponReload();
+        return;
+    }
+    if (start) PM_BeginWeaponReload();
+}
+
+void XB_CDECL PM_CheckWeaponMelee(uint32_t busy) {
+    // The melee button (cmd +4 0x20; a target actor to activate takes it first): weapons with melee (+0x5cc), not
+    // aiming, type-1 weapons not while firing or in state 3, not when `busy`, not mid-shot (+0x38) outside the reload
+    // states 5-9. Released: pm_flags 0x1000 cleared; newly pressed (no 0x1000 / 0x10000): 0x1000 and, outside states
+    // 1, 2, 10 and 11, anim 8, event 0xa9 and a melee with a charge time (+0x5d8: weapon time +0x5ec, state 10,
+    // PM_SetProneFlag400) or PM_WeaponMeleeStrike at once.
+    uint8_t* pm = pm_global();
+    if ((pm[8] & 0x20) && PM_ActivateTargetActor()) return;
+    pm = pm_global();
+    const uint8_t* const def = cur_weapon_def();
+    if (!at<uint32_t>(def, 0x5cc)) return;
+    uint8_t* const ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    if (flags & 0x20) return;
+    if (at<int32_t>(def, 0x94) == 1 && ((pm[8] & 3) || at<int32_t>(ps, 0x84) == 3)) return;
+    if (busy) return;
+    if (at<uint32_t>(ps, 0x38)) {
+        const int32_t s = at<int32_t>(ps, 0x84);
+        if (s != 5 && s != 7 && s != 9 && s != 8 && s != 6) return;
+    }
+    if (!(pm[8] & 0x20)) {
+        at<uint32_t>(ps, 0x2c) &= ~0x1000u;
+        return;
+    }
+    if (flags & 0x11000) return;
+    at<uint32_t>(ps, 0x2c) |= 0x1000;
+    const int32_t state = at<int32_t>(pm_ps_ref(pm), 0x84);
+    if (state == 1 || state == 2 || state == 10 || state == 11) return;
+    PM_StartLegsAnim(0, 0, 8);
+    add_ps_event(pm_ps_ref(pm), 0xa9, 0);
+    if (!at<uint32_t>(cur_weapon_def(), 0x5d8)) {
+        PM_WeaponMeleeStrike();
+        return;
+    }
+    at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(cur_weapon_def(), 0x5ec);
+    at<uint32_t>(pm_ps_ref(pm), 0x38) = at<uint32_t>(cur_weapon_def(), 0x5d8);
+    at<uint32_t>(pm_ps_ref(pm), 0x84) = 10;
+    PM_SetProneFlag400();
+}
+
+uint32_t XB_CDECL PM_UpdateGrenadeThrow() {
+    // Grenades (+0x9c 4): the throw button (cmd +4 0x2) only works for type-1 grenades (else 1). State 1 (raised):
+    // released throws (state 3, times +0x5d4 / +0x5dc, fire anim); held with a loaded clip starts the cook (fuse
+    // +0x3c = +0x618, event 0xa2, time +0x5e8, state 0xf). State 0xf released throws; state 3 releases the grenade
+    // when its time is up (ammo, event 0xa3, blend, state 0xb); state 0xb when done re-selects (the empty weapon
+    // leaves its slot), state 0, the HUD fuse (-1) and fuse cleared. 1 while handled.
+    const uint8_t* def = cur_weapon_def();
+    if (at<int32_t>(def, 0x9c) != 4) return 0;
+    uint8_t* const pm = pm_global();
+    const uint8_t throw_held = pm[8] & 2;
+    if (throw_held && at<int32_t>(def, 0x94) != 1) return 1;
+    uint8_t* ps = pm_ps_ref(pm);
+    const int32_t state = at<int32_t>(ps, 0x84);
+    if (state == 1) {
+        if (!throw_held) {
+            at<uint32_t>(ps, 0x3c) = 0;
+            at<uint32_t>(pm_ps_ref(pm), 0x38) = at<uint32_t>(cur_weapon_def(), 0x5d4);
+            at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(cur_weapon_def(), 0x5dc);
+            at<uint32_t>(pm_ps_ref(pm), 0x84) = 3;
+            PM_StartFireAnim();
+            return 1;
+        }
+        const uint8_t* const wdef = title_global<uint8_t* const*>(0x0095f4d8)[at<int32_t>(ps, 0x80)];
+        if (at<uint32_t>(ps, 0x280 + at<uint32_t>(wdef, 0x5a0) * 4) && !at<uint32_t>(ps, 0x3c)) {
+            at<uint32_t>(ps, 0x3c) = at<uint32_t>(def, 0x618);
+            add_ps_event(pm_ps_ref(pm), 0xa2, 0);
+            at<uint32_t>(pm_ps_ref(pm), 0x38) = at<uint32_t>(cur_weapon_def(), 0x5e8);
+            at<uint32_t>(pm_ps_ref(pm), 0x34) = 0;
+            at<uint32_t>(pm_ps_ref(pm), 0x84) = 0xf;
+        }
+        return 1;
+    }
+    if (state == 0xf && at<int32_t>(def, 0x94) == 1) {
+        if (!throw_held) {
+            at<uint32_t>(ps, 0x38) = at<uint32_t>(def, 0x5d4);
+            at<uint32_t>(pm_ps_ref(pm), 0x34) = at<uint32_t>(cur_weapon_def(), 0x5dc);
+            at<uint32_t>(pm_ps_ref(pm), 0x84) = 3;
+            PM_StartFireAnim();
+        }
+        return 1;
+    }
+    if (state == 3 && at<int32_t>(def, 0x94) == 1) {
+        if (at<int32_t>(ps, 0x38) <= 0) {
+            PM_WeaponUseAmmo(0, 0, at<uint32_t>(ps, 0x80), 1);
+            add_ps_event(pm_ps_ref(pm), 0xa3, 0);
+            PM_AddWeaponFireBlend();
+            at<uint32_t>(pm_ps_ref(pm), 0x84) = 0xb;
+        }
+        return 1;
+    }
+    if (state == 0xb && at<int32_t>(ps, 0x34) <= 0) {
+        at<uint32_t>(ps, 0x38) = at<uint32_t>(def, 0x5dc);
+        at<uint32_t>(pm_ps_ref(pm), 0x34) = 0;
+        const uint32_t ammo = PM_WeaponCheckAmmo();
+        uint8_t* p = pm_global();
+        if (!ammo) BG_RemoveWeaponFromSlot(at<uint32_t>(pm_ps_ref(p), 0x80), pm_ps_ref(p));
+        CG_SelectWeapon(at<int32_t>(pm_ps_ref(p), 0x94));
+        p = pm_global();
+        at<uint32_t>(pm_ps_ref(p), 0x84) = 0;
+        uint8_t* const hud = at<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), 0x34);
+        if (hud) {
+            at<float>(hud, 0x24) = title_global<float>(0x0083eb34);
+            at<float>(hud, 0x28) = title_global<float>(0x0083eb34);
+        }
+        at<uint32_t>(pm_ps_ref(p), 0x3c) = 0;
+        return 1;
+    }
+    if (static_cast<int8_t>(at<uint8_t>(ps, 0x3fc)) == at<int32_t>(def, 0) && at<int32_t>(def, 0x94) == 1 && state == 3)
+        return 1;
+    return 0;
+}
+
+void XB_CDECL PM_Weapon() {
+    // Q3's PM_Weapon. Not with pm_flags 0x800; dead clears the weapon; +0xc0 0x6000 nothing, 0x100000 only the ADS
+    // update and the weapon back to idle. Else the ADS update, the HUD fuse reset, a cooking grenade's fuse (+0x3c:
+    // cook start at +0x618 - 10 with event 0xb7, then down by msec; at 0 it explodes in hand: ammo, event 0xc6, time
+    // 1600, PM_RemoveEmptyWeapon), then the timers, ADS, weapon change, reload and melee checks, the rechamber, the
+    // full blend for moving prone / sprinting / melee, and the first of reload, melee end, weapon change end,
+    // grenade, raise / ADS ends, fire release and fire (not while 0x0095bf9c or a target actor takes the use).
+    uint8_t* pm = pm_global();
+    uint8_t* ps = pm_ps_ref(pm);
+    if (at<uint32_t>(ps, 0x2c) & 0x800) return;
+    const uint32_t blocked = title_global<uint32_t>(0x0095bf9c) ? 1 : 0;
+    if (at<int32_t>(ps, 0x24) >= 4) {
+        at<uint32_t>(ps, 0x80) = 0;
+        return;
+    }
+    const uint32_t c0 = at<uint32_t>(ps, 0xc0);
+    if (c0 & 0x6000) return;
+    if (c0 & 0x106000) {
+        PM_UpdateAimDownSightFrac();
+        if (at<uint32_t>(pm_ps_ref(pm), 0x84)) PM_StartLegsAnim(0, 0, 0);
+        at<uint32_t>(pm_ps_ref(pm), 0x34) = 0;
+        at<uint32_t>(pm_ps_ref(pm), 0x38) = 0;
+        at<uint32_t>(pm_ps_ref(pm), 0x84) = 0;
+        if (!pm[0xa]) return;
+        const uint8_t* const p = pm_ps_ref(pm);
+        uint32_t anim = 0;
+        if (at<float>(p, 0x88) > title_global<float>(0x0083ec18)) anim = 0x17;  // 0.9
+        if ((at<uint32_t>(p, 0x4ec) & 0xfffffdffu) != anim) PM_StartLegsAnim(0, 0, anim);
+        return;
+    }
+    PM_UpdateAimDownSightFrac();
+    uint8_t* hud = at<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), 0x34);
+    if (hud) {
+        at<float>(hud, 0x24) = title_global<float>(0x0083eb34);  // -1
+        at<float>(hud, 0x28) = title_global<float>(0x0083eb34);
+    }
+    const uint8_t* def = cur_weapon_def();
+    if (at<int32_t>(def, 0x94) == 1) {
+        const int32_t base = title_global<int32_t>(0x008fef44);
+        ps = pm_ps_ref(pm);
+        if (at<uint32_t>(def, 0x6e4) && at<int32_t>(ps, 0x3c) >= at<int32_t>(def, 0x618)) {
+            at<int32_t>(ps, 0x3c) = at<int32_t>(ps, 0x3c) - 10;
+            const float total = static_cast<float>(at<int32_t>(cur_weapon_def(), 0x618) - base);
+            hud = at<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), 0x34);
+            if (hud) {
+                at<float>(hud, 0x24) = static_cast<float>(at<int32_t>(pm_ps_ref(pm), 0x3c) - base);
+                at<float>(hud, 0x28) = total;
+            }
+            add_ps_event(pm_ps_ref(pm), 0xb7, 0);
+            def = cur_weapon_def();
+        }
+        ps = pm_ps_ref(pm);
+        if (at<int32_t>(ps, 0x3c) > 0) {
+            if (at<uint32_t>(def, 0x6e4) && at<int32_t>(ps, 0x3c) < at<int32_t>(def, 0x618)) {
+                at<int32_t>(ps, 0x3c) = at<int32_t>(ps, 0x3c) - title_global<int32_t>(0x0095ffa8);
+                const float total = static_cast<float>(at<int32_t>(cur_weapon_def(), 0x618) - base);
+                hud = at<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), 0x34);
+                if (hud) {
+                    at<float>(hud, 0x24) = static_cast<float>(at<int32_t>(pm_ps_ref(pm), 0x3c) - base);
+                    at<float>(hud, 0x28) = total;
+                }
+                def = cur_weapon_def();
+            }
+            ps = pm_ps_ref(pm);
+            if (at<int32_t>(ps, 0x3c) <= 0) {
+                PM_WeaponUseAmmo(0, 0, at<uint32_t>(ps, 0x80), 1);
+                add_ps_event(pm_ps_ref(pm), 0xc6, 0);
+                at<uint32_t>(pm_ps_ref(pm), 0x38) = 0;
+                at<uint32_t>(pm_ps_ref(pm), 0x34) = 0x640;
+                PM_RemoveEmptyWeapon();
+                return;
+            }
+            if ((pm[8] & 1) && at<int32_t>(def, 0x9c) != 4) {
+                const int32_t msec = title_global<int32_t>(0x0095ffa8);
+                if (at<int32_t>(ps, 0x38) - msec <= 0) at<int32_t>(ps, 0x38) = msec + 1;
+            }
+        }
+    }
+    const uint32_t timers = PM_UpdateWeaponTimers();
+    PM_Weapon_CheckAdsTransition();
+    PM_CheckWeaponChange();
+    PM_CheckWeaponReload();
+    PM_CheckWeaponMelee(timers);
+    if (PM_UpdateWeaponRechamber(timers)) return;
+    pm = pm_global();
+    ps = pm_ps_ref(pm);
+    const uint32_t flags = at<uint32_t>(ps, 0x2c);
+    const bool moving = pm[0x18] || pm[0x19];
+    const int32_t state = at<int32_t>(ps, 0x84);
+    if (((flags & 1) && moving) || ((flags & 0x10000) && moving) || state == 10 || state == 11)
+        at<float>(ps, 0x4f0) = title_global<float>(0x0083eb8c);  // 255
+    if (!timers && (at<uint32_t>(pm_ps_ref(pm), 0x34) || at<uint32_t>(pm_ps_ref(pm), 0x38))) return;
+    if (PM_UpdateWeaponReload(timers)) return;
+    if (PM_FinishWeaponMelee()) return;
+    if (PM_FinishWeaponChange()) return;
+    if (PM_UpdateGrenadeThrow()) return;
+    if (PM_FinishWeaponRaise()) return;
+    if (PM_FinishAdsRaise()) return;
+    if (PM_FinishAdsDrop()) return;
+    if (!at<uint32_t>(pm_ps_ref(pm_global()), 0x80)) return;
+    if (PM_CheckFireButtonRelease(timers)) return;
+    if (blocked) return;
+    if (PM_ActivateTargetActor()) return;
+    PM_WeaponFire(timers);
+}
+
+namespace {
+
+// (y*y + x*x) + extra on the x87 (FLD/FMUL x2, FADDP, FADD), stored as float.
+float x87_sum_squares_yx_plus(float x, float y, float extra) {
+    float r;
+    __asm__("flds %2\n\tfmuls %2\n\tflds %1\n\tfmuls %1\n\tfaddp\n\tfadds %3\n\tfstps %0"
+            : "=m"(r)
+            : "m"(x), "m"(y), "m"(extra)
+            : "st", "st(1)");
+    return r;
+}
+
+}  // namespace
+
+void XB_CDECL PM_AirMove() {
+    // Q3's PM_AirMove: friction, the move scale of a copy of the command, the pml forward / right flattened and
+    // normalized (forward's length on SSE, right's on the x87; the z products with the zero are kept), the wish
+    // velocity, an inlined accelerate (air accelerate 1), the velocity clipped against a ground plane (overclip
+    // 1.001), then PM_StepSlideMove(1), PM_SetMovementDir and G_SeparateFromSolids.
+    PM_Friction();
+    uint8_t* const pm = pm_global();
+    const float fmove = static_cast<float>(static_cast<int8_t>(pm[0x18]));
+    const float smove = static_cast<float>(static_cast<int8_t>(pm[0x19]));
+    alignas(4) uint8_t cmd[0x2c];
+    std::memcpy(cmd, pm + 4, sizeof(cmd));
+    const float scale = PM_CmdScale(reinterpret_cast<const int8_t*>(cmd));
+    const float zero = 0.0f;
+    float* const forward = &title_global<float>(0x0095ff80);
+    float* const right = &title_global<float>(0x0095ff8c);
+    forward[2] = zero;
+    right[2] = zero;
+    const float zero_sq = zero * zero;
+    const float f0 = forward[0], f1 = forward[1];
+    float length = pm_ci_sqrt(static_cast<long double>((f1 * f1 + f0 * f0) + zero_sq));
+    const float one = title_global<float>(0x0083eb20);
+    if (!x87_equal(length, title_global<float>(0x0083eafc))) {
+        const float inv = one / length;
+        forward[0] = forward[0] * inv;
+        forward[1] = forward[1] * inv;
+        forward[2] = inv * title_global<float>(0x0083eafc);
+    }
+    length = pm_ci_sqrt(static_cast<long double>(x87_sum_squares_yx_plus(right[0], right[1], zero_sq)));
+    float r0 = right[0], r1 = right[1];
+    if (!x87_equal(length, title_global<float>(0x0083eafc))) {
+        const float inv = one / length;
+        r0 = r0 * inv;
+        r1 = r1 * inv;
+        right[0] = r0;
+        right[1] = r1;
+        right[2] = inv * title_global<float>(0x0083eafc);
+    }
+    const float w0 = r0 * smove + forward[0] * fmove;
+    const float w1 = r1 * smove + forward[1] * fmove;
+    float wishspeed = pm_ci_sqrt(static_cast<long double>((w1 * w1 + w0 * w0) + zero_sq));
+    float dx = w0, dy = w1, dz = zero;
+    if (!x87_equal(wishspeed, title_global<float>(0x0083eafc))) {
+        const float inv = one / wishspeed;
+        dx = inv * w0;
+        dy = inv * w1;
+        dz = inv * zero;
+    }
+    wishspeed = wishspeed * scale;
+    uint8_t* ps = pm_ps_ref(pm);
+    const float current = (at<float>(ps, 0x18) * dz + at<float>(ps, 0x14) * dy) + at<float>(ps, 0x10) * dx;
+    const float add = wishspeed - current;
+    if (!(zero >= add)) {
+        float control = title_global<float>(0x0083eb90);  // 100
+        if (!(control > wishspeed)) control = wishspeed;
+        float accel = title_global<float>(0x0095ffa4) * control;
+        if (accel > add) accel = add;
+        if (at<uint32_t>(ps, 0x60)) accel = one / at<float>(ps, 0x478) * accel;
+        if (accel > add) accel = add;
+        at<float>(ps, 0x10) = accel * dx + at<float>(ps, 0x10);
+        ps = pm_ps_ref(pm);
+        at<float>(ps, 0x14) = accel * dy + at<float>(ps, 0x14);
+        ps = pm_ps_ref(pm);
+        at<float>(ps, 0x18) = accel * dz + at<float>(ps, 0x18);
+    }
+    if (title_global<uint32_t>(0x0095ffb0)) {
+        uint8_t* const p = pm_ps_ref(pm);
+        const float* const n = &title_global<float>(0x0095ffd0);
+        float backoff = (n[0] * at<float>(p, 0x10) + n[1] * at<float>(p, 0x14)) + n[2] * at<float>(p, 0x18);
+        if (zero > backoff)
+            backoff = backoff * title_global<float>(0x0083f1bc);  // 1.001
+        else
+            backoff = backoff / title_global<float>(0x0083f1bc);
+        for (uint32_t i = 0; i < 3; ++i) at<float>(p, 0x10 + i * 4) = at<float>(p, 0x10 + i * 4) - n[i] * backoff;
+    }
+    title_function<void XB_CDECL(uint32_t)>(0x002ec330)(1);  // PM_StepSlideMove
+    PM_SetMovementDir();
+    G_SeparateFromSolids();
+}
+
+PLATFORM_ASM_ENTRY(Pmove_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Pmove) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Pmove(uint8_t* pm, uint32_t arg) {
+    // Q3's Pmove: frozen players (pm_flags 0x4000) lose their moves and buttons (but 0xc0 of cmd +5); the command
+    // time catches up with the server time (cmd +0) in PmoveSingle steps of at most 666 ms (+0x12c with +0x128),
+    // at most 1000 ms behind (50 with pm_flags 0x40000); a step leaving pm_flags 8 sets the up move to 20. The touch
+    // count is cleared; pm (0x0092eff4) is set for the steps, the eye history recorded, pm cleared.
+    uint8_t* ps = pm_ps_ref(pm);
+    if (at<uint32_t>(ps, 0x2c) & 0x4000) {
+        const uint8_t buttons = pm[9] & 0xc0;
+        pm[0x18] = 0;
+        pm[0x19] = 0;
+        pm[0x1a] = 0;
+        pm[8] = 0;
+        pm[9] = buttons;
+    }
+    const int32_t final_time = at<int32_t>(pm, 4);
+    if (final_time < at<int32_t>(ps, 0x20)) return;
+    if (final_time > at<int32_t>(ps, 0x20) + 0x3e8) at<int32_t>(ps, 0x20) = final_time - 0x3e8;
+    ps = pm_ps_ref(pm);
+    if ((at<uint32_t>(ps, 0x2c) & 0x40000) && final_time - at<int32_t>(ps, 0x20) > 0x32)
+        at<int32_t>(ps, 0x20) = final_time - 0x32;
+    at<uint32_t>(pm, 0x7c) = 0;
+    title_global<uint8_t*>(0x0092eff4) = pm;
+    while (at<int32_t>(pm_ps_ref(pm), 0x20) != final_time) {
+        const int32_t time = at<int32_t>(pm_ps_ref(pm), 0x20);
+        int32_t msec = final_time - time;
+        if (at<uint32_t>(pm, 0x128)) {
+            if (msec > at<int32_t>(pm, 0x12c)) msec = at<int32_t>(pm, 0x12c);
+        } else if (msec > 0x29a) {
+            msec = 0x29a;
+        }
+        at<int32_t>(pm, 4) = time + msec;
+        title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002f1590)(pm, arg);  // PmoveSingle
+        if (at<uint8_t>(pm_ps_ref(pm), 0x2c) & 8) pm[0x1a] = 0x14;
+    }
+    Player_RecordEyeHistory(pm_ps_ref(pm));
+    title_global<uint8_t*>(0x0092eff4) = nullptr;
 }
 
 }  // namespace game
