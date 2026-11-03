@@ -259,6 +259,12 @@ extern "C" void Vec3_BendTowardAxis_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t ebx,
                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void BG_CheckProneFeet_entry(void);
+// 0x002dcc60 (ECX = skip the start check; cdecl pass, origin, radius, height, yaw, out delta z, out front pitch,
+// out back pitch, ground check, ground normal, trace, start trace, flag, length): whether a body fits prone
+// along yaw (box traces through the callbacks); 1 with the pitches, else 0 (or 1 with zeros without the check).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_CheckProne(uint32_t entry_esp, uint32_t ecx, uint32_t ebx, uint32_t esi,
+                                                          uint32_t edi, uint32_t ebp);
+extern "C" void BG_CheckProne_entry(void);
 
 // 0x002e5530 (player state in EAX; cdecl cmd, old cmd, trace function): the view angles from the command and the
 // deltas, clamped for turrets, turned-away arcs and prone (the body yaw follows when the feet fit); sticky aim, lean.

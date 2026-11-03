@@ -5501,6 +5501,408 @@ uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t e
     return 1;
 }
 
+// The traces go through the caller's callbacks at the original's ESP with every vector in the original's frame
+// (gap entry; B = aligned base - 0xf0). EDX keeps the entry ESP.
+PLATFORM_ASM_ENTRY(BG_CheckProne_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(BG_CheckProne) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL BG_CheckProne(uint32_t entry_esp, uint32_t ecx, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                uint32_t ebp) {
+    // ECX = skip the start check; cdecl (pass entity, origin, radius, height, yaw, out delta z, out front pitch,
+    // out back pitch, ground check, ground normal, trace, start trace, flag, length). Box traces (mask 0x00820011
+    // with the flag, else 0x01810031): without ECX a radius/height box straight up 10 from the origin
+    // (start-solid fails); with the ground check a normal z below 0.7 fails. Then 6-unit boxes along yaw - 180:
+    // from the origin at height - 6 out to length - 6 (a short hit fails without the ground check, or below
+    // radius + 2; below (height - 6) * 0.7 + 24 it retries 22 higher, failing again below that), a step down
+    // from 24 ahead (2.5 radius) onto ground of normal z >= 0.7 (the front point), from a short body hit a
+    // midpoint retrace (18 higher on a hit) when the drop from front to body is within -0.75 x, then down
+    // twice the front's height over the back (+ radius) for the back point and down 1.5 radius at the origin
+    // (the mid point); the body pitch difference (Q_fmod of the two pitches) must be within -50..70 and both
+    // 5-up lines clear. Success: out dz = front z - origin z - 6, the pitches (front to mid, mid to back, each
+    // AngleNormalize180Quantized), 1. A failure after the first step returns 0 with the ground check, else 1 with
+    // zero outputs. Debug lines while 0x00950bcc.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0xf0;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    const uint32_t* const arg = pointer<uint32_t>(E + 4);
+    const uint32_t pass = arg[0];
+    const float* const origin = pointer<float>(arg[1]);
+    const uint32_t org = arg[1];
+    float radius, height, yaw, length;
+    std::memcpy(&radius, &arg[2], 4);
+    std::memcpy(&height, &arg[3], 4);
+    std::memcpy(&yaw, &arg[4], 4);
+    float* const out_dz = pointer<float>(arg[5]);
+    float* const out_front = pointer<float>(arg[6]);
+    float* const out_back = pointer<float>(arg[7]);
+    const uint32_t ground_check = arg[8];
+    const float* const normal = pointer<float>(arg[9]);
+    const uint32_t trace = arg[10];
+    const uint32_t start_trace = arg[11];
+    std::memcpy(&length, &arg[13], 4);
+    const uint32_t mask = (arg[12] ? 0xff00ffe0u : 0u) + 0x01810031u;
+    wd(8) = ebx;
+    wd(4) = esi;
+    wd(0) = edi;
+    const float zero = 0.0f;
+    const float six = title_global<float>(0x0083ecd0), one = title_global<float>(0x0083eb20);
+    const float seven_tenths = title_global<float>(0x0083ed28);
+    {
+        const float neg = zero - radius;
+        fl(0x74) = neg + origin[1];
+        fl(0x78) = origin[2] + zero;
+        fl(0x80) = origin[0] + radius;
+        fl(0x70) = origin[0] + neg;
+        fl(0x84) = origin[1] + radius;
+        wd(0xd0) = 0;
+        wd(0xd4) = 0;
+        wd(0x90) = 0;
+        fl(0x88) = origin[2] + height;
+        wd(0x5c) = mask;
+        if (!ecx) {
+            fl(0x70) = neg;
+            fl(0x74) = neg;
+            fl(0x10) = origin[0];
+            fl(0x14) = origin[1];
+            fl(0x18) = origin[2];
+            fl(0x20) = origin[0];
+            fl(0x24) = origin[1];
+            const float up = origin[2] + title_global<float>(0x0083eb98);  // 10
+            fl(0x78) = zero;
+            fl(0x80) = radius;
+            fl(0x84) = radius;
+            fl(0x88) = height;
+            fl(0x28) = up;
+            const uint32_t args[7] = {B + 0xa0, B + 0x10, B + 0x70, B + 0x80, B + 0x20, pass, mask};
+            pm_call_at(B, 0x002dcdb9, start_trace, TitleRegs{B + 0x70, org, B + 0x10, B + 0xa0, 0, edi}, 7,
+                       args);  // the start trace callback
+            if (*pointer<uint8_t>(B + 0xdc)) return 0;
+        }
+    }
+    if (ground_check && seven_tenths > normal[2]) return 0;
+    const auto debug = [&]() { return title_global<uint32_t>(0x00950bcc) != 0; };
+    // DebugDraw_AddLine (EAX = the first point; second point, colour, the 0x009509a4 time, 1, 1, 0).
+    const auto line = [&](uint32_t ret, uint32_t first, uint32_t second, uint32_t color) {
+        const uint32_t args[6] = {second, color, title_global<uint32_t>(0x009509a4), 1, 1, 0};
+        pm_call_at(B, ret, 0x002b2f20, TitleRegs{first, org, 0, args[2], B + 0x44, B + 0x60}, 6, args);
+    };
+    const auto do_trace = [&](uint32_t ret, const TitleRegs& regs, uint32_t top = 0) {
+        const uint32_t args[7] = {B + 0xa0, B + 0x10, B + 0x70, B + 0x80, B + 0x20, pass, mask};
+        pm_call_at(top ? top : B, ret, trace, regs, 7, args);  // the trace callback
+        return fl(0xc0);                                       // its fraction
+    };
+    const uint32_t red = 0x0082eadc, green = 0x0082eaec;
+    const float six_neg = title_global<float>(0x0083f0ac);
+    fl(0x70) = six_neg;
+    fl(0x74) = six_neg;
+    fl(0x78) = six_neg;
+    fl(0x80) = six;
+    fl(0x84) = six;
+    fl(0x88) = six;
+    {
+        const float back_yaw = yaw - title_global<float>(0x0083eb60);  // 180
+        const uint32_t args[2] = {B + 0x20, B + 0x60};
+        fl(0x20) = zero;
+        fl(0x24) = back_yaw;
+        fl(0x28) = zero;
+        pm_call_at(B, 0x002dce5b, 0x002a2af0, TitleRegs{ground_check ? arg[9] : 0, org, B + 0x60, B + 0x20,
+                                                        B + 0x50, B + 0x44},
+                   2, args);  // AnglesToAxis (forward B+0x60, right B+0x44, up B+0x50)
+    }
+    {
+        const float body = height - six;
+        const float sz = origin[2] + body;
+        fl(0x98) = body;
+        const float d = length - six;
+        const float ex = d * fl(0x60) + origin[0];
+        fl(0x10) = origin[0];
+        float ey = d * fl(0x64);
+        fl(0xec) = d;
+        float ez = d * fl(0x68);
+        ey = ey + origin[1];
+        ez = ez + sz;
+        fl(0x14) = origin[1];
+        fl(0x18) = sz;
+        fl(0x20) = ex;
+        fl(0x24) = ey;
+        fl(0x28) = ez;
+        const float frac = do_trace(0x002dcf18, TitleRegs{B + 0xa0, org, B + 0x70, B + 0x10, B + 0x50, B + 0x44},
+                                    B - 8);
+        if (one > frac) {
+            if (!ground_check) {
+                if (debug()) line(0x002dcf68, B + 0xa0, B + 0x10, red);
+                return 0;
+            }
+            float reach = fl(0xec) * frac + six;
+            const float low = radius + title_global<float>(0x0083eba8);  // 2
+            wd(0x90) = 1;
+            fl(0x94) = reach;
+            if (low > reach) {
+                if (debug()) line(0x002dcfd5, B + 0xa0, B + 0x10, red);
+                return 0;
+            }
+            const float enough = fl(0x98) * seven_tenths + title_global<float>(0x0083ef04);  // 24
+            fl(0x6c) = enough;
+            if (enough > reach) {
+                if (debug()) line(0x002dd030, B + 0xa0, B + 0x10, red);
+                const float dx = fl(0x20) - fl(0x10);
+                const float z = fl(0x28) + title_global<float>(0x0083edd4);  // 22
+                fl(0x44) = dx;
+                const float dy = fl(0x24) - fl(0x14);
+                fl(0x28) = z;
+                const float dz = z - fl(0x18);
+                wd(0x90) = 0;
+                fl(0x48) = dy;
+                fl(0x4c) = dz;
+                const float len = VectorNormalize2(&fl(0x44), &fl(0x60));
+                fl(0x9c) = len;
+                const float frac2 = do_trace(0x002dd0c6, TitleRegs{B + 0x10, org, B + 0xa0, B + 0x70, B + 0x44,
+                                                                   B + 0x60});
+                if (one > frac2) {
+                    reach = fl(0x9c) * frac2 + six;
+                    wd(0x90) = 1;
+                    fl(0x94) = reach;
+                    if (fl(0x6c) > reach) {
+                        if (debug()) line(0x002dd147, B + 0xa0, B + 0x10, red);
+                        return 0;
+                    }
+                    if (debug()) line(0x002dd17e, B + 0xa0, B + 0x10, 0x0082eb1c);
+                } else {
+                    if (debug()) line(0x002dd1fa, B + 0xa0, B + 0x10, green);
+                    fl(0x94) = length;
+                }
+            } else if (debug()) {
+                line(0x002dd1c9, B + 0xa0, B + 0x10, 0x0082eb1c);
+            }
+        } else {
+            if (debug()) line(0x002dd1fa, B + 0xa0, B + 0x10, green);
+            fl(0x94) = length;
+        }
+    }
+    // The front point: down from 24 ahead along the (possibly re-aimed) direction B+0x60.
+    {
+        const float reach = title_global<float>(0x0083ef04);  // 24
+        fl(0x50) = fl(0xa0);
+        fl(0x54) = fl(0xa4);
+        fl(0x58) = fl(0xa8);
+        const float x = fl(0x60) * reach + origin[0];
+        fl(0x10) = x;
+        fl(0x20) = x;
+        float drop = radius * title_global<float>(0x0083eaf8);  // 2.5
+        float z = fl(0x68) * reach + origin[2];
+        const float y = fl(0x64) * reach + origin[1];
+        const float body = fl(0x98);
+        z = z + body;
+        drop = drop + body;
+        drop = drop - six;
+        fl(0x18) = z;
+        fl(0x14) = y;
+        fl(0x24) = y;
+        fl(0x6c) = drop;
+        fl(0x28) = z - drop;
+    }
+    
+    float frac = do_trace(0x002dd2f3, TitleRegs{B + 0x70, org, B + 0x10, B + 0xa0, mask, trace});
+    if (frac == one) {
+        if (debug()) line(0x002ddd2a, B + 0xa0, B + 0x10, red);
+    } else {
+        if (seven_tenths > fl(0xb8)) return 0;
+        if (debug()) line(0x002dd352, B + 0xa0, B + 0x10, green);
+        float a = fl(0x6c) * fl(0xc0);
+        fl(0x38) = fl(0xa0);
+        fl(0x3c) = fl(0xa4);
+        a = a + six;
+        fl(0x40) = fl(0xa8);
+        float px, py, pz;
+        bool done = false;
+        if (wd(0x90)) {
+            const float gap = fl(0x94) - a;
+            if (a * title_global<float>(0x0083f0b0) > gap) {  // -0.75
+                if (debug()) line(0x002ddd2a, B + 0x38, B + 0x50, red);
+                done = true;
+            } else {
+                if (debug()) line(0x002dd415, B + 0x38, B + 0x50, 0x0082eb7c);
+                const float dx = fl(0x50) - fl(0x38);
+                const float dy = fl(0x54) - fl(0x3c);
+                const float dz = fl(0x58) - fl(0x40);
+                const float vx = fl(0x60) * six + dx;
+                fl(0x48) = fl(0x64) * six + dy;
+                const float vz = fl(0x68) * six + dz + six;
+                fl(0x44) = vx;
+                fl(0x4c) = vz;
+                VectorNormalize(&fl(0x44));
+                const float full = fl(0xec);
+                const float d = full - title_global<float>(0x0083ef04);  // 24
+                const float bx = d * fl(0x44) + fl(0x10);
+                const float bz = d * fl(0x4c) + fl(0x18);
+                const float by = d * fl(0x48) + fl(0x14);
+                float fx = full * fl(0x60);
+                float fy = full * fl(0x64);
+                fx = fx + origin[0];
+                fy = fy + origin[1];
+                fl(0x28) = bz;
+                const float half = title_global<float>(0x0083eb24);  // 0.5
+                fx = fx + bx;
+                fy = fy + by;
+                fl(0x20) = fx * half;
+                fl(0x24) = fy * half;
+                bool hit = false;
+                if (one > do_trace(0x002dd53a, TitleRegs{B + 0x70, org, B + 0x10, B + 0xa0, B + 0x44, trace})) {
+                    if (debug()) line(0x002dd57e, B + 0xa0, B + 0x10, red);
+                    const float lift = title_global<float>(0x0083eb00);  // 18
+                    fl(0x10) = fl(0xa0);
+                    fl(0x14) = fl(0xa4);
+                    fl(0x18) = fl(0xa8) + lift;
+                    fl(0x28) = fl(0x28) + lift;
+                    hit = one > do_trace(0x002dd5f7, TitleRegs{B + 0x70, org, B + 0x10, B + 0xa0, B + 0x44, trace});
+                }
+                if (hit) {
+                    if (debug()) line(0x002ddd2a, B + 0xa0, B + 0x10, red);
+                    done = true;
+                } else {
+                    if (debug()) line(0x002dd667, B + 0xa0, B + 0x10, green);
+                    px = fl(0xa0);
+                    py = fl(0xa4);
+                    pz = fl(0xa8);
+                }
+            }
+        } else {
+            px = fl(0x50);
+            py = fl(0x54);
+            pz = fl(0x58);
+        }
+        if (!done) {
+            // The back point: down from the body point by twice the front's height over it, plus the radius.
+            fl(0x10) = px;
+            fl(0x20) = px;
+            float drop = pz - fl(0x40);
+            drop = drop * title_global<float>(0x0083eba8);  // 2
+            drop = drop + radius;
+            fl(0x18) = pz;
+            fl(0x14) = py;
+            fl(0x24) = py;
+            fl(0x28) = pz - drop;
+            frac = do_trace(0x002dd704, TitleRegs{B + 0xa0, org, B + 0x70, B + 0x10, mask, trace});
+            if (frac == one) {
+                if (debug()) line(0x002ddd2a, B + 0xa0, B + 0x10, red);
+            } else {
+                if (seven_tenths > fl(0xb8)) return 0;
+                if (debug()) line(0x002dd78d, B + 0xa0, B + 0x10, green);
+                // The mid point: down 1.5 radius at the origin.
+                const float down = radius * title_global<float>(0x0083eaf4);  // 1.5
+                fl(0x50) = fl(0xa0);
+                fl(0x54) = fl(0xa4);
+                fl(0x58) = fl(0xa8);
+                fl(0x10) = origin[0];
+                fl(0x14) = origin[1];
+                fl(0x18) = origin[2] + fl(0x98);
+                fl(0x20) = origin[0];
+                fl(0x24) = origin[1];
+                fl(0x28) = origin[2] - down;
+                frac = do_trace(0x002dd840, TitleRegs{B + 0x10, org, B + 0xa0, B + 0x70, mask, trace});
+                if (frac == one) {
+                    if (debug()) line(0x002ddd2a, B + 0xa0, B + 0x10, red);
+                } else {
+                    if (seven_tenths > fl(0xb8)) return 0;
+                    if (debug()) line(0x002dd8cb, B + 0xa0, B + 0x10, green);
+                    const float mx = fl(0xa0), my = fl(0xa4), mz = fl(0xa8);
+                    const float vx = fl(0x38) - mx;
+                    fl(0x60) = mx;
+                    fl(0x48) = fl(0x3c) - my;
+                    const float vz = fl(0x40) - mz;
+                    fl(0x64) = my;
+                    fl(0x68) = mz;
+                    fl(0x44) = vx;
+                    fl(0x4c) = vz;
+                    const float p1 = Vec3_PitchDegrees(&fl(0x44));
+                    fl(0x6c) = p1;
+                    fl(0x44) = fl(0x50) - fl(0x38);
+                    fl(0x48) = fl(0x54) - fl(0x3c);
+                    fl(0x4c) = fl(0x58) - fl(0x40);
+                    const float p2 = Vec3_PitchDegrees(&fl(0x44));
+                    fl(0x9c) = p2;
+                    const float d = Q_fmod(p2, fl(0x6c));
+                    if (title_global<float>(0x0083f0a8) > d || d > title_global<float>(0x0083eda0)) {  // -50, 70
+                        if (debug()) {
+                            line(0x002ddcfe, B + 0x38, B + 0x60, 0x0082eb4c);
+                            if (debug()) line(0x002ddd2a, B + 0x50, B + 0x38, 0x0082eb4c);
+                        }
+                    } else {
+                        // Both body lines 5 up must be clear.
+                        const float five = title_global<float>(0x0083ece8);
+                        fl(0x70) = zero;
+                        fl(0x74) = zero;
+                        fl(0x78) = zero;
+                        fl(0x80) = zero;
+                        fl(0x84) = zero;
+                        fl(0x88) = zero;
+                        fl(0x10) = fl(0xa0);
+                        fl(0x14) = fl(0xa4);
+                        fl(0x18) = fl(0xa8) + five;
+                        fl(0x20) = fl(0x38);
+                        fl(0x24) = fl(0x3c);
+                        fl(0x28) = fl(0x40) + five;
+                        if (one > do_trace(0x002dda6f, TitleRegs{B + 0x10, org, B + 0xa0, B + 0x70, mask, trace})) {
+                            if (debug()) line(0x002ddd2a, B + 0x20, B + 0x10, red);
+                        } else {
+                            if (debug()) line(0x002ddad5, B + 0x20, B + 0x10, green);
+                            fl(0x10) = fl(0x20);
+                            fl(0x14) = fl(0x24);
+                            fl(0x18) = fl(0x28);
+                            fl(0x20) = fl(0x50);
+                            fl(0x24) = fl(0x54);
+                            fl(0x28) = fl(0x58) + five;
+                            if (one > do_trace(0x002ddb51, TitleRegs{B + 0x70, org, B + 0x10, B + 0xa0, mask, trace})) {
+                                if (debug()) line(0x002ddd2a, B + 0x20, B + 0x10, red);
+                            } else {
+                                if (debug()) {
+                                    line(0x002ddbb6, B + 0x20, B + 0x10, green);
+                                    if (debug()) {
+                                        line(0x002ddbe2, B + 0x38, B + 0x60, 0x0082eb5c);
+                                        if (debug()) line(0x002ddc0d, B + 0x50, B + 0x38, 0x0082eb5c);
+                                    }
+                                }
+                                const float front_z = fl(0x68);
+                                if (out_dz) *out_dz = front_z - origin[2] - six;
+                                if (out_front) {
+                                    fl(0x44) = fl(0x60) - fl(0x38);
+                                    const float z = front_z - fl(0x40);
+                                    fl(0x48) = fl(0x64) - fl(0x3c);
+                                    fl(0x4c) = z;
+                                    *out_front = AngleNormalize180Quantized(Vec3_PitchDegrees(&fl(0x44)));
+                                }
+                                if (out_back) {
+                                    fl(0x44) = fl(0x38) - fl(0x50);
+                                    fl(0x48) = fl(0x3c) - fl(0x54);
+                                    fl(0x4c) = fl(0x40) - fl(0x58);
+                                    *out_back = AngleNormalize180Quantized(Vec3_PitchDegrees(&fl(0x44)));
+                                }
+                                return 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (ground_check) return 0;
+    if (out_dz) *out_dz = zero;
+    if (out_front) *out_front = zero;
+    if (out_back) *out_back = zero;
+    return 1;
+}
+
 namespace {
 
 // b > |a| and b >= |a| on the x87 (FABS, FCOMIP with b on top; false when unordered).
