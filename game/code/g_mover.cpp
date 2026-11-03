@@ -40,6 +40,11 @@ PLATFORM_ASM_ENTRY(ent_mover_step,
                    "popl %ebx\n"
                    "ret")
 
+// actor.cpp's title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function,
+                                                                    const game::TitleRegs* regs, uint32_t count,
+                                                                    const uint32_t* args);
+
 namespace game {
 
 namespace {
@@ -4244,5 +4249,617 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
         return;
     }
     SV_LinkEntity(ent);
+}
+
+// Frame entries with an EAX argument: the C body gets (entry ESP, EAX, EBX, ESI, EDI, EBP) and runs
+// every title callee where the original's call puts it (call_at), the C frame below a gap.
+#define ENT_EAX_FRAME_ENTRY(name)                                                                  \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %ebp\n"     \
+                                     "pushl %edi\n pushl %esi\n pushl %ebx\n pushl %eax\n"          \
+                                     "pushl %edx\n" PLATFORM_ASM_CALL(name) "addl $24, %esp\n"      \
+                                     "popl %esp\n ret")
+
+void XB_CDECL Touch_Item_Auto(uint8_t* ent, uint8_t* other, uint32_t touched) {
+    // Touch_Item re-armed (+0x297) every touch, except a touch by a player whose client has +0x630 set.
+    if (touched) {
+        uint8_t* const client = pointer_at(other, 0x23c);
+        if (client && word_at(client, 0x630)) return;
+    }
+    ent[0x297] = 1;
+    Touch_Item(ent, other, touched);
+}
+
+uint8_t XB_STDCALL G_EntityInValidCell(uint8_t* ent) {
+    // Always with no cell data loaded (0x0095bf0c); else the entity's cell (+0x458, out of range ->
+    // cell 0) must have its +0x3c set. A negative cell is invalid.
+    if (title_global<uint32_t>(0x0095bf0c)) return 1;
+    const int32_t cell = field<int32_t>(ent, 0x458);
+    if (cell < 0) return 0;
+    uint8_t* const cm = title_global<uint8_t*>(0x0095f6b8);
+    uint32_t index = static_cast<uint32_t>(cell);
+    if (index >= word_at(cm, 0x18)) index = 0;
+    return word_at(pointer_at(cm, 0x1c), index * 0x50 + 0x3c) != 0;
+}
+
+void XB_CDECL Use_BinaryMover(uint8_t* ent, uint8_t* other, uint8_t* activator) {
+    // Q3's Use_BinaryMover on the team master (team slaves +0x2a4 & 0x10 pass it up through +0x380,
+    // a locked one (0x100, not 0x800) locking the next). State +0x298: closed (0) or rotating closed
+    // (7) doors that open away from the activator reverse the team (9); else the activator is kept
+    // (+0x378) and the team opens (3, or 9 for 7) 50 ms on, an actor activator after the first 4 s
+    // of an unlocked door sends point event 0xc; the master opens its area portal. Open (1) / open
+    // rotating (8): the close time (+0x328) restarts (wait +0x384, 50 ms with +0x2a4 bit 7; -1000 =
+    // stays open for state 1). Opening / closing ones (3, 4 / 9, 10) reverse as when blocked.
+    (void)other;
+    uint8_t* e = ent;
+    uint32_t locked;
+    uint32_t early;
+    int32_t time;
+    for (;;) {
+        const uint32_t flags = word_at(e, 0x2a4);
+        locked = 0;
+        early = 0;
+        if (flags & 0x100) locked = 1;
+        if (flags & 0x800) locked = 0;
+        time = title_global<int32_t>(0x0098540c);  // level_time
+        if (time <= 4000) early = 1;
+        if (!(flags & 0x10)) break;
+        if (locked) word_at(pointer_at(e, 0x380), 0x2a4) |= 0x100;
+        e = pointer_at(e, 0x380);
+    }
+    const uint32_t self = address_of(e);
+    auto point_event = [&](uint32_t ebx) {
+        if (early || locked || !activator || !word_at(activator, 0x244)) return;
+        const TitleRegs regs{0, ebx, 0, 0, self, self};
+        const uint32_t args[4] = {address_of(activator), 0xc, self + 0x140, 0};
+        g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+    };
+    auto open_portal = [&]() {
+        uint8_t* const master = pointer_at(e, 0x380);
+        if (master != e && master) return;
+        const int32_t area2 = field<int32_t>(e, 0x200);
+        if (area2 == -1) return;
+        CM_AdjustAreaPortalState(field<int32_t>(e, 0x1fc), area2, 1);
+    };
+    const uint8_t state = e[0x298];
+    if ((state == 0 || state == 7) && Door_ChooseRotateDirection(e, activator)) {
+        Mover_ReverseTeam(e, time + 0x32, 9);
+        point_event(static_cast<uint32_t>(time + 0x32));
+        open_portal();
+        return;
+    }
+    word_at(e, 0x378) = address_of(activator);
+    if (state == 0) {
+        MatchTeam(e, 3, title_global<int32_t>(0x0098540c) + 0x32);
+        open_portal();
+        return;
+    }
+    if (state == 7) {
+        MatchTeam(e, 9, title_global<int32_t>(0x0098540c) + 0x32);
+        point_event(0);
+        uint8_t* const master = pointer_at(e, 0x380);
+        if (master != e && master) return;
+        SV_AdjustAreaPortalState(e, 0, 1);
+        return;
+    }
+    if (state == 1 || state == 8) {
+        if (static_cast<int8_t>(e[0x2a4]) < 0) {
+            word_at(e, 0x328) = static_cast<uint32_t>(title_global<int32_t>(0x0098540c) + 0x32);
+            return;
+        }
+        const float wait = field<float>(e, 0x384);
+        if (state == 1 && wait == title_global<float>(0x0083ec74)) return;  // -1000: stays open
+        const int32_t now = title_global<int32_t>(0x0098540c);
+        word_at(e, 0x328) = static_cast<uint32_t>(static_cast<int32_t>(wait) + now);
+        return;
+    }
+    if (state == 4 || state == 3) {
+        Blocked_Door(e, nullptr);
+        return;
+    }
+    if (state == 10 || state == 9) Blocked_DoorRotate(e, nullptr);
+}
+
+void XB_REGS1 XB_CDECL TryDoor(uint8_t* door, uint8_t* activator) {
+    // The activator uses a door that is idle (+0x38, +0x14 clear), not already used (+0x297) and
+    // not script-controlled (+0x3b4): "trigger" notify with the activator's number, then
+    // Use_BinaryMover on the door's named target (+0x380 with a +0x2f8 name, not itself) or on the
+    // door; a locked door (+0x2a4 & 0x100) locks the one moved. Unlocked or 0x800 doors send point
+    // event 0xc from the door's origin.
+    uint32_t send_event = 0;
+    const uint32_t locked = word_at(door, 0x2a4) & 0x100;
+    if (word_at(door, 0x38) || word_at(door, 0x14) || door[0x297] || word_at(door, 0x3b4)) return;
+    uint32_t number = word_at(activator, 0x224);
+    const uint32_t trigger = title_global<uint32_t>(0x0097a818);  // scr_const_trigger
+    {
+        const TitleRegs regs{number, 0, address_of(&number), trigger, locked, address_of(door)};
+        const uint32_t args[2] = {trigger, address_of(&number)};
+        g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity
+    }
+    uint8_t* const target = pointer_at(door, 0x380);
+    uint8_t* mover = door;
+    if (target && !title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(door + 0x2f8) &&
+        door != target) {  // ScriptString_IsEmpty
+        target[0x297] = 1;
+        if (locked)
+            word_at(pointer_at(door, 0x380), 0x2a4) |= 0x100;
+        else
+            send_event = 1;
+        mover = pointer_at(door, 0x380);
+    } else {
+        door[0x297] = 1;
+        if (locked)
+            word_at(door, 0x2a4) |= 0x100;
+        else
+            send_event = 1;
+    }
+    Use_BinaryMover(mover, activator, activator);
+    if (!(word_at(door, 0x2a4) & 0x800) && !send_event) return;
+    const TitleRegs regs{0, 0, 0, 0, locked, address_of(door) + 0x140};
+    const uint32_t args[4] = {address_of(activator), 0xc, address_of(door) + 0x140, 0};
+    g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+}
+
+void XB_CDECL Touch_DoorTrigger(uint8_t* ent, uint8_t* other, uint32_t touched) {
+    // The trigger's door (handle +0x2b0): gone -> the trigger stops touching (+0x338) and frees
+    // itself in 100 ms (think 0xc); else an unscripted (+0x3b4) closed / closed-rotating / closing
+    // door (state 0, 7, 10) is used with the trigger as other and the toucher as activator.
+    (void)touched;
+    uint8_t* const door = reinterpret_cast<uint8_t*>(uintptr_t{entity_of_handle(word_at(ent, 0x2b0))});
+    if (!door) {
+        word_at(ent, 0x338) = 0;
+        word_at(ent, 0x328) = static_cast<uint32_t>(title_global<int32_t>(0x0098540c) + 100);
+        word_at(ent, 0x32c) = 0xc;
+        return;
+    }
+    if (word_at(door, 0x3b4)) return;
+    const uint8_t state = door[0x298];
+    if (state != 0 && state != 7 && state != 10) return;
+    Use_BinaryMover(door, ent, other);
+}
+
+ENT_EAX_FRAME_ENTRY(Turret_FireFromFlashTags)
+
+void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                       uint32_t ebp) {
+    // EAX user; cdecl (turret, target, aim): one shot from each flash tag (G_GetFlashTagMatrix 0, 1)
+    // of the turret's weapon (+3) - bullets (spread 0 when aiming, else 1) or a projectile for
+    // weapons with a projectile type (+0x94). Aiming: the info's bit 7 (+2) says the target point
+    // (info +0x10) is behind the tag, and a hit-chance roll (info +0x54) picks a hit or miss
+    // direction, used when within acos 0.995 of the tag's. The attacker is the user with a
+    // nonzero number, else the world entity. Fire event 0xad after any shot. Frame: entry - 0x68
+    // (spread +0x10, attacker +0x14, tag +0x18, aim dir +0x1c, tag matrix +0x28, weapon def +0x64).
+    const uint32_t L = entry - 0x68;
+    stack_at(L + 0xc) = ebx;
+    stack_at(L + 8) = ebp;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    const uint32_t turret = stack_at(entry + 4), target = stack_at(entry + 8), aim = stack_at(entry + 0xc);
+    uint8_t* const t = reinterpret_cast<uint8_t*>(uintptr_t{turret});
+    stack_float(L + 0x10) = aim ? 0.0f : title_global<float>(0x0083eb20);
+    stack_at(L + 0x14) = user && word_at(user, 0x224) ? address_of(user) : word_at(title_global<uint8_t*>(0x0095f534), 8);
+    uint32_t b = ebx & ~0xffu;
+    stack_at(L + 0x18) = 0;
+    const uint32_t m = L + 0x28;
+    float* const matrix = &stack_float(m);
+    for (;;) {
+        const uint32_t tag = stack_at(L + 0x18);
+        {
+            const uint32_t args[1] = {m};
+            if (!call_at(L, 0x00270c6c, 0x0025ced0, TitleRegs{tag, b, turret, m, esi, edi}, 1, args)) {  // G_GetFlashTagMatrix
+                if (!(b & 0xff)) return;
+                break;
+            }
+        }
+        stack_at(L + 0x64) = address_of(weapon_def(t[3]));
+        if (aim) {
+            uint8_t* const info = pointer_at(t, 0x24c);
+            const uint32_t info_word = address_of(info);
+            const float d2 = field<float>(info, 0x18) - matrix[9 + 2];
+            const float d1 = field<float>(info, 0x14) - matrix[9 + 1];
+            const float d0 = field<float>(info, 0x10) - matrix[9];
+            const float dot = ((matrix[2] * d2) + (matrix[1] * d1)) + (matrix[0] * d0);
+            if (0.0f >= dot)
+                info[2] |= 0x80;
+            else
+                info[2] &= 0x7f;
+            const int32_t r = static_cast<int32_t>(
+                call_at(L, 0x00270cfd, 0x001efcc0, TitleRegs{info_word, info_word + 0x10, 0, 0, esi, edi}, 0, nullptr));  // _rand
+            const float roll = static_cast<float>(r) * title_global<float>(0x0083ebe0);
+            esi = m;
+            edi = L + 0x1c;
+            b = info_word + 0x10;
+            const TitleRegs regs{info_word, b, 0, 0, esi, edi};
+            if (roll >= field<float>(info, 0x54))
+                call_at(L, 0x00270d1c, 0x001ff3a0, regs, 0, nullptr);  // Turret_AimDirMiss
+            else
+                call_at(L, 0x00270d23, 0x001ff730, regs, 0, nullptr);  // Turret_AimDirHit
+            const float* const dir = &stack_float(L + 0x1c);
+            const float z = dir[2], y = dir[1], x = dir[0];
+            const float along = ((z * matrix[2]) + (y * matrix[1])) + (x * matrix[0]);
+            if (along > title_global<float>(0x0083eef0)) {
+                matrix[0] = x;
+                matrix[1] = y;
+                matrix[2] = z;
+            }
+        }
+        const uint8_t* const def = reinterpret_cast<const uint8_t*>(uintptr_t{stack_at(L + 0x64)});
+        const uint32_t kind = *reinterpret_cast<const uint32_t*>(def + 0x94);
+        if (!kind) {
+            const uint32_t args[5] = {stack_at(L + 0x14), stack_at(L + 0x10), target, turret, 0};
+            call_at(L, 0x00270d9c, 0x002704c0, TitleRegs{m, b, target, stack_at(L + 0x10), esi, edi}, 5,
+                    args);  // Weapon_FireBullet
+        } else {
+            esi = m;
+            const uint32_t args[3] = {0, 0x40a00000, 0};  // 5.0f
+            call_at(L, 0x00270db3, 0x00269a30, TitleRegs{turret, b, kind, 0, esi, edi}, 3, args);  // Weapon_FireProjectile
+        }
+        const uint32_t next = stack_at(L + 0x18) + 1;
+        b = (b & ~0xffu) | 1;
+        stack_at(L + 0x18) = next;
+        if (static_cast<int32_t>(next) >= 2) break;
+    }
+    const uint32_t args[2] = {0xad, 0};
+    call_at(L, 0x00270dde, 0x002a80b0, TitleRegs{turret, b, 0, 0, esi, edi}, 2, args);  // G_AddEvent
+}
+
+ENT_EAX_FRAME_ENTRY(Turret_FireForUser)
+
+void XB_CDECL Turret_FireForUser(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                 uint32_t ebp) {
+    // EAX turret, ESI user: a player user fires unaimed (and its client's +0x464 becomes 2), anyone
+    // else with the info's aim bit (+2 bit 6); target +0x358.
+    (void)ebp;
+    uint8_t* const user = reinterpret_cast<uint8_t*>(uintptr_t{esi});
+    const uint32_t target = word_at(turret, 0x358);
+    if (user && word_at(user, 0x23c)) {
+        const uint32_t args[3] = {address_of(turret), target, 0};
+        call_at(entry, 0x002712bf, 0x00270c10, TitleRegs{esi, ebx, target, 0, esi, edi}, 3,
+                args);  // Turret_FireFromFlashTags
+        word_at(pointer_at(user, 0x23c), 0x464) = 2;
+        return;
+    }
+    const uint32_t aim = (pointer_at(turret, 0x24c)[2] >> 6) & 1;
+    const uint32_t args[3] = {address_of(turret), target, aim};
+    call_at(entry, 0x002712f4, 0x00270c10, TitleRegs{esi, ebx, target, aim, esi, edi}, 3,
+            args);  // Turret_FireFromFlashTags
+}
+
+ENT_EAX_FRAME_ENTRY(G_RunMover)
+
+void XB_CDECL G_RunMover(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX mover; cdecl word for the think. A scripted anim (+0x3d4) ends or holds the mover at its
+    // origin / angles (stationary trajectories, linked; still playing: type 1 at the current spot)
+    // before the think. Linked movers (+0x3cc) follow their parent (G_GeneralLink); team slaves
+    // only unlink when they are a tramcar or rotating mover (+0x260); others move the team
+    // (G_MoverTeam) while a trajectory runs. Then water floating (0x20000000) and the think.
+    // Frame: entry - 0x10 (EBX, EBP, ESI, EDI saved).
+    const uint32_t L = entry - 0x10;
+    stack_at(entry - 4) = ebx;
+    stack_at(entry - 8) = ebp;
+    stack_at(entry - 0xc) = esi;
+    stack_at(entry - 0x10) = edi;
+    const uint32_t self = address_of(ent);
+    const uint32_t arg = stack_at(entry + 4);
+    const uint32_t think_args[1] = {arg};
+    uint32_t edi_now = edi;
+    auto rest = [&]() {
+        const TitleRegs regs{self, 0, 0, 0, self, edi_now};
+        if (word_at(ent, 0x3cc)) {
+            call_at(L, 0x0026f80d, 0x002e6490, regs, 0, nullptr);  // G_GeneralLink
+        } else if (word_at(ent, 0x2a4) & 0x10) {
+            if (!word_at(ent, 0xd0)) return;
+            const uint32_t name = word_at(ent, 0x260);
+            if (name != title_global<uint32_t>(0x0097a6e8) && name != title_global<uint32_t>(0x0097a6e4)) return;
+            word_at(ent, 0xd0) = 0;  // func_tramcar / func_rotating
+            SV_UnlinkEntity(ent + 0xd0);
+            return;
+        } else if (word_at(ent, 0x14) || word_at(ent, 0x38)) {
+            const uint32_t args[1] = {self};
+            call_at(L, 0x0026f85f, 0x0026e450, regs, 1, args);  // G_MoverTeam
+        }
+        if (word_at(ent, 0x2a4) & 0x20000000) call_at(L, 0x0026f873, 0x0024e690, regs, 0, nullptr);  // G_FloatOnWater
+        call_at(L, 0x0026f879, 0x0024ac50, regs, 1, think_args);  // G_RunThink
+    };
+    if (!word_at(ent, 0x3d4)) return rest();
+    edi_now = self;
+    call_at(L, 0x0026f6f1, 0x00255050, TitleRegs{word_at(ent, 0x3d4), 0, 0, 0, self, self}, 0,
+            nullptr);  // G_UpdateScriptedAnimEnd
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x14 + i * 4) = 0;
+    field<float>(ent, 0x34) = 0.0f;
+    field<float>(ent, 0x30) = 0.0f;
+    field<float>(ent, 0x2c) = 0.0f;
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x44 + i * 4) = word_at(ent, 0x150 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x38 + i * 4) = 0;
+    field<float>(ent, 0x58) = 0.0f;
+    field<float>(ent, 0x54) = 0.0f;
+    field<float>(ent, 0x50) = 0.0f;
+    const TitleRegs link{word_at(ent, 0x150), 0, word_at(ent, 0x154), word_at(ent, 0x158), self, self};
+    call_at(L, 0x0026f7a7, 0x002d7fe0, link, 0, nullptr);  // SV_LinkEntity
+    if (!word_at(ent, 0x3d4)) return rest();
+    word_at(ent, 0x14) = 1;
+    word_at(ent, 0x38) = 1;
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x2c + i * 4) = word_at(ent, 0x140 + i * 4);
+    for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x50 + i * 4) = word_at(ent, 0x150 + i * 4);
+    call_at(L, 0x0026f7f6, 0x0024ac50, TitleRegs{1, 0, word_at(ent, 0x154), word_at(ent, 0x158), self, self}, 1,
+            think_args);  // G_RunThink
+}
+
+ENT_EAX_FRAME_ENTRY(G_RunItem)
+
+void XB_CDECL G_RunItem(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX item; cdecl word for the think. Q3's G_RunItem: an item without a ground entity that
+    // may fall (+0x2a0 bit 0 clear) gets gravity (type 5 from now); stationary (0) / type 8 items
+    // or ones outside a valid cell only think. Else the move to the trajectory's spot is traced
+    // (capsule for +0x10 & 0x10; mask +0x2a8 or 0x491), the item placed at the end (start solid:
+    // fraction 0), linked and thinks; when it still exists (its own handle) and the trace hit,
+    // it is freed in a nodrop volume (0x80000000), else it bounces. Frame: aligned base - 0x60
+    // (origin +0x10, trace +0x20, handle +0xc).
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x60;
+    stack_at(L + 8) = ebx;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    const uint32_t self = address_of(ent);
+    const uint32_t arg = stack_at(entry + 4);
+    const uint32_t think_args[1] = {arg};
+    stack_at(L + 0x50) = 0;
+    stack_at(L + 0x54) = 0;
+    if (!word_at(ent, 0xc) && !(ent[0x2a0] & 1) && word_at(ent, 0x14) != 5) {
+        word_at(ent, 0x14) = 5;
+        word_at(ent, 0x18) = title_global<uint32_t>(0x0098540c);
+    }
+    const uint32_t type = word_at(ent, 0x14);
+    if (type == 0 || type == 8) {
+        call_at(L, 0x0026fc9a, 0x0024ac50, TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
+        return;
+    }
+    {
+        const uint32_t args[1] = {self};
+        const uint32_t valid = call_at(L, 0x0026fb5c, 0x002ae8f0, TitleRegs{type, 0, 0, 0, self, self + 0x14}, 1, args);
+        if (!(valid & 0xff)) {  // G_EntityInValidCell
+            call_at(L, 0x0026fc9a, 0x0024ac50, TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
+            return;
+        }
+    }
+    const uint32_t origin = L + 0x10, trace = L + 0x20;
+    call_at(L, 0x0026fb72, 0x002d62c0, TitleRegs{title_global<uint32_t>(0x0098540c), 0, origin, 0, self, self + 0x14}, 0,
+            nullptr);  // BG_EvaluateTrajectory
+    uint32_t mask = word_at(ent, 0x2a8);
+    if (!mask) mask = 0x491;
+    const uint32_t start = self + 0x140;
+    {
+        const uint32_t args[7] = {trace, start, self + 0xe0, self + 0xf0, origin, word_at(ent, 0x1a0), mask};
+        if (ent[0x10] & 0x10)
+            call_at(L, 0x0026fbb3, 0x002601a0, TitleRegs{self + 0xf0, start, self + 0xe0, trace, self, self + 0x14}, 7,
+                    args);  // G_TraceCapsule
+        else
+            call_at(L, 0x0026fbda, 0x002601e0, TitleRegs{self + 0xe0, start, trace, self + 0xf0, self, self + 0x14}, 7,
+                    args);  // G_Trace
+    }
+    field<float>(ent, 0x140) = stack_float(trace);
+    const uint8_t start_solid = *reinterpret_cast<const uint8_t*>(uintptr_t{trace + 0x3d});
+    field<float>(ent, 0x144) = stack_float(trace + 4);
+    field<float>(ent, 0x148) = stack_float(trace + 8);
+    if (start_solid) stack_float(trace + 0x20) = 0.0f;
+    call_at(L, 0x0026fc1b, 0x002d7fe0, TitleRegs{start_solid, start, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(L, 0x0026fc24, 0x0024ac50, TitleRegs{start_solid, start, 0, 0, self, arg}, 1, think_args);  // G_RunThink
+    const uint32_t number = word_at(ent, 0x224);
+    stack_at(L + 0xc) = number;
+    if (!call_at(L, 0x0026fc3a, 0x00013860, TitleRegs{L + 0xc, start, 0, number, self, arg}, 0, nullptr))
+        return;  // G_EntHandleToEnt
+    if (stack_float(trace + 0x20) == title_global<float>(0x0083eb20)) return;
+    const uint32_t args[3] = {start, 0, 0x80000000};
+    const uint32_t contents =
+        call_at(L, 0x0026fc65, 0x002e01a0, TitleRegs{L - 8, start, 0, 0, self, arg}, 3, args);  // SV_PointContents
+    if (contents) {
+        const uint32_t free_args[2] = {self, arg};
+        call_at(L, 0x0026fc73, 0x002be420, TitleRegs{contents, start, 0, 0, self, arg}, 2, free_args);  // G_FreeEntity
+        return;
+    }
+    const uint32_t bounce_args[1] = {self};
+    call_at(L, 0x0026fc87, 0x0026ecf0, TitleRegs{trace, start, 0, 0, self, arg}, 1, bounce_args);  // G_BounceItem
+}
+
+ENT_EAX_FRAME_ENTRY(FireWeapon)
+
+void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX player: unless on a turret / vehicle (client +0xc0 & 0x106000 with +0x297), the level's
+    // player fires its weapon (+3) from the view (Player_GetViewOriginAndAxis): the spread blends
+    // from BG_GetWeaponSpread toward the def's +0x658 by the client's +0x5ec, ADS when +0x88 is 1.
+    // By the def's type (+0x94): 0 bullets (range +0x5b8, cone +0x860 ADS / +0x85c hip, degrees),
+    // 1 a launched grenade, 2 a projectile (speed 10, 1), 3 a cluster at the trace; 4, 5 nothing;
+    // else G_Error. Frame: entry - 0x54 (spread +0x10, view +0x14, weapon def at entry - 4).
+    stack_at(entry - 0x48) = edi;
+    const uint32_t self = address_of(ent);
+    if ((word_at(pointer_at(ent, 0x23c), 0xc0) & 0x106000) && ent[0x297]) return;
+    if (ent != pointer_at(title_global<uint8_t*>(0x0095f534), 4)) return;
+    const uint32_t weapon = ent[3];
+    stack_at(entry - 0x4c) = ebx;
+    stack_at(entry - 0x50) = ebp;
+    const uint32_t def = address_of(weapon_def(weapon));
+    stack_at(entry - 4) = def;
+    const uint32_t view = entry - 0x40;
+    {
+        const uint32_t args[2] = {self, view};
+        call_at(entry - 0x50, 0x00270e44, 0x0025b780, TitleRegs{def, ebx, view, weapon, esi, self}, 2,
+                args);  // Player_GetViewOriginAndAxis
+    }
+    uint8_t* const client = pointer_at(ent, 0x23c);
+    const float ads_frac = field<float>(client, 0x88);
+    const float blend = field<float>(client, 0x5ec);
+    const uint32_t ads = ads_frac == title_global<float>(0x0083eb20) ? 1 : 0;
+    const uint32_t b = (ebx & ~0xffu) | ads;
+    stack_at(entry - 0x54) = esi;
+    const uint32_t L = entry - 0x54;
+    float base;
+    {
+        const uint32_t time = title_global<uint32_t>(0x0098540c);
+        const uint32_t args[2] = {time, ads};
+        const TitleRegs regs{time, b, address_of(client), weapon, weapon, self};
+        const uint32_t bits = actor_call_at_xmm0_raw(L, 0x002b4d80, &regs, 2, args);  // BG_GetWeaponSpread
+        stack_at(L - 0xc) = 0x00270e8c;
+        std::memcpy(&base, &bits, 4);
+    }
+    const uint8_t* const d = reinterpret_cast<const uint8_t*>(uintptr_t{stack_at(entry - 4)});
+    const float spread = (*reinterpret_cast<const float*>(d + 0x658) - base) * blend + base;
+    stack_float(L + 0x10) = spread;
+    const uint32_t spread_bits = stack_at(L + 0x10);
+    const uint32_t kind = *reinterpret_cast<const uint32_t*>(d + 0x94);
+    switch (kind) {
+    case 0: {
+        const uint8_t* const wd = weapon_def(weapon);
+        float cone = ads ? *reinterpret_cast<const float*>(wd + 0x860) : *reinterpret_cast<const float*>(wd + 0x85c);
+        cone = cone * title_global<float>(0x0083eda8);
+        uint32_t cone_bits;
+        std::memcpy(&cone_bits, &cone, 4);
+        const uint32_t range = *reinterpret_cast<const uint32_t*>(d + 0x5b8);
+        const uint32_t args[5] = {self, spread_bits, range, self, cone_bits};
+        call_at(L, 0x00270ef6, 0x002704c0, TitleRegs{view, b, range, spread_bits, address_of(wd), self}, 5,
+                args);  // Weapon_FireBullet
+        return;
+    }
+    case 1: {
+        const uint32_t args[1] = {weapon};
+        call_at(L, 0x00270f10, 0x0025ff10, TitleRegs{view, b, address_of(d), spread_bits, weapon, self}, 1,
+                args);  // weapon_grenadelauncher_fire
+        return;
+    }
+    case 2: {
+        const uint32_t args[3] = {spread_bits, 0x41200000, 1};  // 10.0f
+        call_at(L, 0x00270f37, 0x00269a30, TitleRegs{self, b, address_of(d), spread_bits, view, self}, 3,
+                args);  // Weapon_FireProjectile
+        return;
+    }
+    case 3: {
+        const uint32_t args[2] = {self, spread_bits};
+        call_at(L, 0x00270f56, 0x00265a40, TitleRegs{kind, view, spread_bits, spread_bits, weapon, self}, 2,
+                args);  // Weapon_FireClusterAtTrace
+        return;
+    }
+    case 4:
+    case 5: return;
+    default: {
+        const uint32_t name = *reinterpret_cast<const uint32_t*>(d + 8);
+        const uint32_t args[3] = {0x00839c38, kind, name};  // "Unknown weapon type %i for %s\n"
+        call_at(L, 0x00270f7a, 0x00248af0, TitleRegs{kind, b, address_of(d), name, weapon, self}, 3, args);  // G_Error
+        return;
+    }
+    }
+}
+ENT_EAX_FRAME_ENTRY(G_MoverTeam)
+
+void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // cdecl mover: Q3's G_MoverTeam - each team part (chain +0x37c) moves (G_MoverPush) by its
+    // trajectories' step (+0x14 pos, +0x38 apos) to now. All moved: actors that were pushed
+    // (pushed list 0x00955298 .. pushed_p 0x0095bef8, 0x14 each) trim their paths (Path_AccumulateTrim
+    // and their path state cleared), then each part's reached callback (+0x330) once a trajectory
+    // has run its time. Blocked: the pushed entities go back (origin; client delta yaw / actor
+    // yaws by the turn, as shorts), linked; the team's trajectories are delayed by the frame, put
+    // back and linked; the blocked callback (+0x334) gets the obstacle. Frame: aligned base -
+    // 0x2a50 (obstacle +0x10, move +0x18, amove +0x24, angles +0x30, origin +0x40, lists +0x50 and
+    // +0x1550).
+    (void)unused_eax;
+    stack_at(entry - 4) = ebp;
+    const uint32_t L = ((entry - 4) & ~15u) - 0x2a50;
+    stack_at(L + 8) = ebx;
+    stack_at(L + 4) = esi;
+    stack_at(L) = edi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(entry + 4)});
+    const uint32_t self = address_of(ent);
+    for (uint32_t i = 0; i < 0x540; ++i) stack_at(L + 0x1550 + i * 4) = 0;
+    for (uint32_t i = 0; i < 0x540; ++i) stack_at(L + 0x50 + i * 4) = 0;
+    stack_at(L + 0x10) = 0;
+    title_global<uint32_t>(0x0095bef8) = 0x00955298;  // pushed_p = pushed
+    const uint32_t origin = L + 0x40, angles = L + 0x30, move = L + 0x18, amove = L + 0x24;
+    auto evaluate = [&](uint32_t ret, uint32_t part, uint32_t out, uint32_t tr) {
+        call_at(L, ret, 0x002d62c0, TitleRegs{title_global<uint32_t>(0x0098540c), self, out, 0, part, tr}, 0,
+                nullptr);  // BG_EvaluateTrajectory
+    };
+    bool blocked = false;
+    for (uint8_t* part = ent; part; part = pointer_at(part, 0x37c)) {
+        const uint32_t p = address_of(part);
+        evaluate(0x0026e4b1, p, origin, p + 0x14);
+        evaluate(0x0026e4c2, p, angles, p + 0x38);
+        for (uint32_t i = 0; i < 3; ++i) stack_float(move + i * 4) = stack_float(origin + i * 4) - field<float>(part, 0x140 + i * 4);
+        for (uint32_t i = 0; i < 3; ++i) stack_float(amove + i * 4) = stack_float(angles + i * 4) - field<float>(part, 0x150 + i * 4);
+        const uint32_t args[5] = {move, amove, L + 0x10, L + 0x1550, L + 0x50};
+        if (!call_at(L, 0x0026e55d, 0x0026b960, TitleRegs{p, self, move, L + 0x10, p, p + 0x38}, 5, args)) {  // G_MoverPush
+            blocked = true;
+            break;
+        }
+    }
+    if (!blocked) {
+        uint32_t p = title_global<uint32_t>(0x0095bef8) - 0x14;
+        stack_at(L + 0x10) = p;
+        while (p >= 0x00955298) {
+            uint8_t* const pushed = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(p)});
+            uint8_t* const actor = pointer_at(pushed, 0x240);
+            stack_at(L + 0x14) = address_of(pushed);
+            if (actor) {
+                const uint32_t a = address_of(actor);
+                call_at(L, 0x0026e5b3, 0x001fee70, TitleRegs{p, word_at(actor, 0) + 0x140, address_of(pushed), 0, a + 0x3c0, a},
+                        0, nullptr);  // Path_AccumulateTrim
+                *reinterpret_cast<uint16_t*>(actor + 0x740) = 0;
+                *reinterpret_cast<uint16_t*>(actor + 0x742) = 0;
+                word_at(actor, 0x7c4) = 0;
+                pointer_at(pointer_at(pushed, 0x240), 4)[0x5a] = 0;
+                p = stack_at(L + 0x10);
+            }
+            p -= 0x14;
+            stack_at(L + 0x10) = p;
+        }
+        for (uint8_t* part = ent; part; part = pointer_at(part, 0x37c)) {
+            const uint32_t p = address_of(part);
+            if (word_at(part, 0x14) &&
+                title_global<int32_t>(0x0098540c) >= field<int32_t>(part, 0x1c) + field<int32_t>(part, 0x18) &&
+                word_at(part, 0x330)) {
+                const uint32_t args[1] = {p};
+                call_at(L, 0x0026e61e, title_global<uint32_t>(0x008da7fc + word_at(part, 0x330) * 4),
+                        TitleRegs{word_at(part, 0x330), self, 0, 0, p, 0}, 1, args);  // entityReachedFuncs
+            }
+            if (word_at(part, 0x38) &&
+                title_global<int32_t>(0x0098540c) >= field<int32_t>(part, 0x40) + field<int32_t>(part, 0x3c) &&
+                word_at(part, 0x330)) {
+                const uint32_t args[1] = {p};
+                call_at(L, 0x0026e64c, title_global<uint32_t>(0x008da7fc + word_at(part, 0x330) * 4),
+                        TitleRegs{word_at(part, 0x330), self, 0, 0, p, 0}, 1, args);  // entityReachedFuncs
+            }
+        }
+        return;
+    }
+    for (uint32_t p = title_global<uint32_t>(0x0095bef8) - 0x14; p >= 0x00955298; p -= 0x14) {
+        uint8_t* const pushed = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(p)});
+        for (uint32_t i = 0; i < 3; ++i) word_at(pushed, 0x140 + i * 4) = stack_at(p + 4 + i * 4);
+        for (uint32_t i = 0; i < 3; ++i) word_at(pushed, 0x20 + i * 4) = stack_at(p + 4 + i * 4);
+        const float yaw = stack_float(p + 0x10);
+        if (uint8_t* const client = pointer_at(pushed, 0x23c)) {
+            const int32_t turn = static_cast<int32_t>(yaw * title_global<float>(0x0083ebd8)) & 0xffff;
+            field<int32_t>(client, 0x58) = field<int32_t>(client, 0x58) - turn;
+            for (uint32_t i = 0; i < 3; ++i) word_at(pointer_at(pushed, 0x23c), i * 4) = stack_at(p + 4 + i * 4);
+        } else if (uint8_t* const actor = pointer_at(pushed, 0x240)) {
+            const float to_short = title_global<float>(0x0083ebd8), to_degrees = title_global<float>(0x0083ebd4);
+            int32_t s = static_cast<int32_t>((field<float>(actor, 0x138) - yaw) * to_short) & 0xffff;
+            field<float>(actor, 0x138) = static_cast<float>(s) * to_degrees;
+            uint8_t* const again = pointer_at(pushed, 0x240);
+            s = static_cast<int32_t>((field<float>(again, 0x14c) - stack_float(p + 0x10)) * to_short) & 0xffff;
+            field<float>(again, 0x14c) = static_cast<float>(s) * to_degrees;
+        }
+        call_at(L, 0x0026e76d, 0x002d7fe0, TitleRegs{0, self, 0, 0, p, address_of(pushed)}, 0, nullptr);  // SV_LinkEntity
+    }
+    for (uint8_t* part = ent; part; part = pointer_at(part, 0x37c)) {
+        const uint32_t p = address_of(part);
+        int32_t step = title_global<int32_t>(0x0098540c) - title_global<int32_t>(0x00985410);
+        field<int32_t>(part, 0x18) = field<int32_t>(part, 0x18) + step;
+        step = title_global<int32_t>(0x0098540c) - title_global<int32_t>(0x00985410);
+        field<int32_t>(part, 0x3c) = field<int32_t>(part, 0x3c) + step;
+        evaluate(0x0026e7be, p, p + 0x140, p + 0x14);
+        evaluate(0x0026e7d1, p, p + 0x150, p + 0x38);
+        call_at(L, 0x0026e7d8, 0x002d7fe0, TitleRegs{0, self, p + 0x150, 0, p, p}, 0, nullptr);  // SV_LinkEntity
+    }
+    if (!word_at(ent, 0x334)) return;
+    const uint32_t args[2] = {self, stack_at(L + 0x10)};
+    call_at(L, 0x0026e7fd, title_global<uint32_t>(0x008da808 + word_at(ent, 0x334) * 4),
+            TitleRegs{word_at(ent, 0x334), self, 0, stack_at(L + 0x10), 0, 0}, 2, args);  // entityBlockedFuncs
 }
 }  // namespace game

@@ -1591,6 +1591,13 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
     word(entry - 4) = ebp;
     const uint32_t base = (entry - 4) & ~15u;
     const uint32_t frame = base - 0x1530;
+    // The callees' pushed EBP is the original's frame pointer (entry - 4), not our helper's: write it back
+    // where each call's `push ebp` put it (SV_ClipToEntity/SV_AreaEntities/touch callbacks first thing,
+    // G_NotifyWithEntity under G_NotifyWithOwnHandle after its locals).
+    const uint32_t frame_ebp = entry - 4;
+    auto pushed_ebp = [&](uint32_t function, uint32_t slot) {
+        if (*reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(function)) == 0x55) word(slot) = frame_ebp;
+    };
     const uint32_t maxs = frame + 0x10, mins = frame + 0x20, list = frame + 0x30;
     word(frame) = edi;
     word(frame + 4) = esi;
@@ -1625,6 +1632,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
         const uint32_t args[3] = {list, 0x540, 0x800000};
         count = static_cast<int32_t>(title_call_at_regs(frame, 0x002cc400, &regs, 3, args));  // SV_AreaEntities
         word(frame - 0x10) = 0x0025d639;
+        word(frame - 0x14) = frame_ebp;
         for (uint32_t i = 0; i < 3; ++i) lo[i] = ent_field<float>(ent, 0xe0 + i * 4) + origin[i];
         for (uint32_t i = 0; i < 3; ++i) hi[i] = ent_field<float>(ent, 0xf0 + i * 4) + origin[i];
         word(frame + 8) = static_cast<uint32_t>(count);
@@ -1647,6 +1655,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
             const uint32_t args[3] = {mins, maxs, 1};
             const uint32_t hit = title_call_at_regs(frame, 0x002e8270, &regs, 3, args);  // SV_ClipToEntity
             word(frame - 0x10) = 0x0025d743;
+            word(frame - 0x14) = frame_ebp;
             if (!hit) continue;
         }
         {
@@ -1654,12 +1663,14 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
             const uint32_t args[1] = {title_global<uint32_t>(touch)};
             title_call_at_regs(frame, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
             word(frame - 8) = 0x0025d759;
+            word(frame - 0x30) = frame_ebp;
         }
         {
             const TitleRegs regs{esi, ent_word, title_global<uint32_t>(touch), 0, esi, ent_word};
             const uint32_t args[1] = {title_global<uint32_t>(touch)};
             title_call_at_regs(frame - 4, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
             word(frame - 0xc) = 0x0025d769;
+            word(frame - 0x34) = frame_ebp;
         }
         edi = ent_word;
         const uint32_t own = ent_field<uint32_t>(other, 0x338);
@@ -1668,6 +1679,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
             const uint32_t args[3] = {esi, ent_word, 1};
             title_call_at_regs(frame, title_global<uint32_t>(0x008da814 + own * 4), &regs, 3, args);
             word(frame - 0x10) = 0x0025d781;
+            pushed_ebp(title_global<uint32_t>(0x008da814 + own * 4), frame - 0x14);
         }
         if (!ent_field<uint32_t>(ent, 0x240)) continue;
         const uint32_t mine = ent_field<uint32_t>(ent, 0x338);
@@ -1676,6 +1688,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
         const uint32_t args[3] = {ent_word, esi, 1};
         title_call_at_regs(frame, title_global<uint32_t>(0x008da814 + mine * 4), &regs, 3, args);
         word(frame - 0x10) = 0x0025d7a3;
+        pushed_ebp(title_global<uint32_t>(0x008da814 + mine * 4), frame - 0x14);
     }
     return word(frame + 8);
 }
