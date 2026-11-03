@@ -148,4 +148,66 @@ void XB_REGS1 XB_CDECL Scr_UnlinkEntityWaitList(uint32_t* list);
 // 0x0029ed00: frees the waits of every entity wait list, the empty lists too.
 void XB_CDECL Scr_PruneEntityWaitLists();
 
+// 0x002f4d40 / 0x002f4e50: empty setters (bare ret) of the script field tables 0x008d2144 / 0x008d211c.
+void XB_CDECL Scr_NopRefSetter();
+void XB_CDECL Scr_NopFieldSetter();
+// 0x002f6350 (was FUN_002f6350; record in EAX, thread in ECX, callee pops 0x18): a wait record (vtable 0x008317f8)
+// {owner, four values, flag byte +0x2c}; +0x28 bit n for each value that is 0. Returns the record.
+uint8_t* XB_REGS3 XB_STDCALL Scr_InitWaitRecord4(uint8_t* record, uint32_t unused_edx, uint32_t thread, uint32_t owner,
+                                                 uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t flag);
+// 0x002f6600 (saved {chunk, size} in EAX, destination in ECX): copies a saved thread stack back from its chain of
+// 0xfc-byte chunks; counts restores in 0x0098ad18.
+void XB_REGS3 XB_CDECL Scr_RestoreThreadStack(const uint32_t* saved, uint32_t unused_edx, uint8_t* dst);
+// 0x002fb420 / 0x002fb480: Scr_Notify on the level entity with "unloaded_<name>" / "loaded_<name>".
+void XB_CDECL Scr_NotifyUnloaded(const char* name);
+void XB_CDECL Scr_NotifyLoaded(const char* name);
+// 0x002fbba0: queues a notify by handle with a two-value record (kind 0x00831810: a float and a word).
+void XB_CDECL Scr_QueueNotifyWith2Args(uint32_t handle, uint32_t notify, uint32_t value, uint32_t value2);
+// 0x002fbcd0: queues a notify by handle with a script string (kind 0x007f963c).
+void XB_CDECL Scr_QueueNotifyWithString(uint32_t handle, uint32_t notify, const ScriptString* text);
+// 0x002fbea0 (no callers): ScrThread_AppendData into the current thread (0x008dda2c).
+uint32_t XB_CDECL Scr_SaveThreadLocals(uint32_t data);
+// 0x002fc2a0 (was FUN_002fc2a0): marks every thread record (list +4) ended (flags 0x48) and frees the pending
+// notify list (+0x24).
+void XB_STDCALL Scr_AbortAllThreads(uint8_t* scheduler);
+// 0x002fc3c0 (was FUN_002fc3c0; thread in EDX, value in ESI; Scr_EndOn): whether the thread's record list (+0x1c)
+// has a kind-3 record on the value.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_HasEndOnRecord(uint8_t* thread, uint32_t value);
+extern "C" void Scr_HasEndOnRecord_entry(void);
+
+// 0x002fc440 (thread in ESI; Scr_ResumeThread): a thread whose owner entity (+8) is gone or that has ended (bit 0x40)
+// is marked ended (0x48) and runnable (4) unless bit 0; else each wait record is polled (vtable +4: 2 done, 3 ended)
+// and the finished ones (+0xc) unlinked and deleted.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_UpdateThreadWaits(uint8_t* thread);
+extern "C" void Scr_UpdateThreadWaits_entry(void);
+// 0x002fc540 (thread in EDI): deletes its wait records (ScrWaitList_DeleteRange; the tag word from the entry's ECX
+// slot), its context object (+0xc), its handle (+0x14) and its saved-stack chunks (+0x2c).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_DestroyThreadContents(uint8_t* thread, uint32_t ecx);
+extern "C" void Scr_DestroyThreadContents_entry(void);
+// 0x002fdc40 / 0x002fdd00 (no callers found): a new thread record {a, b} (heap 0x0095f488) on the notify list
+// (0x008dd1f0, flag 0x800, current new thread 0x008dda30) / run list (0x008dd1e0); a script handle when the flag
+// byte is set. Returns the handle (+0x14). The first three arguments are not read.
+uint32_t XB_CDECL Scr_BeginThread(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t b, uint32_t with_handle);
+uint32_t XB_CDECL Scr_CreateThread(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t b, uint32_t with_handle);
+// 0x002fdf90 (scheduler in EAX, thread in ECX): unlinks the thread (counted at scheduler +0x10 for notify threads,
+// +0 else; +0x854 cleared when it is the thread), Scr_DestroyThreadContents, the record back to heap 0x0095f488.
+void XB_REGS3 XB_CDECL Scr_FreeThread(uint8_t* scheduler, uint32_t unused_edx, uint8_t* thread);
+// 0x002fdff0: moves the scheduler's pending entity waits (+0x24) to their entities' wait lists (+0x230); waits on
+// gone entities are deleted.
+void XB_STDCALL Scr_MovePendingEntityWaits(uint8_t* scheduler);
+// 0x002fe200 (G_InitAnimTrees): AnimTree_Setup per anim tree after the first, the count to 0x0092716c, then the
+// game import's +0x85c and +0x864 (tail call with the same arguments).
+void XB_CDECL G_SetupAnimTrees(uint32_t callback, uint32_t arg);
+// 0x002ffa60 (kind in EAX, value in EDX; record, entity handle on the stack, callee pops): a wait record (vtable
+// 0x00831800); an end-on on a live entity's death notify (0x0095fdfc) also links a thread reference into the
+// entity's wait list. Returns the record.
+uint8_t* XB_REGS2 XB_STDCALL Scr_InitWaitRecord(uint32_t kind, uint32_t value, uint8_t* record, uint32_t handle);
+// 0x003007b0 (no callers found): the current thread ends on the live entity's notify (Scr_HasEndOnRecord first;
+// Sys_DebugBreak for the main thread).
+void XB_CDECL Scr_EndOn(uint32_t handle, uint32_t notify);
+// 0x00300a40 (no callers found): a new thread {a, b} waiting on the entity's notify (kind 2), on the run list.
+// Returns 0.
+uint32_t XB_CDECL Scr_BeginThreadEndOn(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t handle, uint32_t notify,
+                                       uint32_t b);
+
 }  // namespace game

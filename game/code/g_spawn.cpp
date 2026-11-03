@@ -744,4 +744,85 @@ void XB_REGS1 XB_CDECL SP_worldspawn(uint8_t* spawn) {
     G_UpdateEntityStringHashes(world);
 }
 
+namespace {
+
+uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// G_SpawnGEntityFromSpawnVars (0x002edf30): EDX level, ECX spawn index, the zone on the stack (callee pops); run at
+// the original's ESP (`top`): spawn functions below keep stack addresses (the path query's list, 0x00929b40).
+void spawn_from_spawn_vars(uint32_t top, uint8_t* level, uint32_t index, uint32_t zone) {
+    const TitleRegs regs{0, 0, index, addr(level), 0, 0};
+    title_call_at_regs(top, 0x002edf30, &regs, 1, &zone);
+}
+
+}  // namespace
+
+// Both spawn loops run their calls where the original's are (below its saved registers).
+PLATFORM_ASM_ENTRY(G_SpawnEntitiesFromString_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_SpawnEntitiesFromString) "addl $8, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL G_SpawnEntitiesFromString(uint32_t entry, uint8_t* level) {
+    // Every zone (99) with spawn data: worldspawn, the entities, then the vehicle nodes.
+    const uint32_t top = entry - 0x10;
+    for (uint32_t zone = 0; zone < 0x63; ++zone) {
+        uint8_t* const spawns = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(level + 4 + zone * 4)});
+        if (!spawns) continue;
+        if (const uint32_t world = *reinterpret_cast<uint32_t*>(spawns + 0xc)) {
+            const TitleRegs regs{world, zone, 0, 0, addr(spawns), 0};
+            title_call_at_regs(top, 0x002c5e30, &regs, 0, nullptr);  // SP_worldspawn
+        }
+        for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x10); ++i)
+            spawn_from_spawn_vars(top, level, i, zone);
+        for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x28); ++i) {
+            const TitleRegs regs{addr(level), zone, zone, i, addr(spawns), i};
+            title_call_at_regs(top, 0x002b89f0, &regs, 0, nullptr);  // G_SpawnVehicleNode
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(Scn_SpawnZone_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Scn_SpawnZone) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL Scn_SpawnZone(uint32_t entry, uint8_t* level, uint32_t zone) {
+    uint8_t* const spawns = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(level + 4 + zone * 4)});
+    const uint32_t top = entry - 0xc;
+    // Static models (0xec bytes each), model instance groups (0x10 bytes), the entities while the client loads
+    // (cls_state 2 or 5), then the zone's update groups.
+    for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x18); ++i) {
+        const uint32_t index = i < *reinterpret_cast<uint32_t*>(spawns + 0x18) ? i : 0;
+        const uint32_t models = *reinterpret_cast<uint32_t*>(spawns + 0x1c);
+        const TitleRegs regs{0, models + index * 0xec, zone, models, addr(spawns), i};
+        title_call_at_regs(top - 4, 0x002d9970, &regs, 0, nullptr);  // Scn_AddStaticModel
+    }
+    for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x20); ++i) {
+        const uint32_t index = i < *reinterpret_cast<uint32_t*>(spawns + 0x20) ? i : 0;
+        const TitleRegs regs{index * 0x10, 0, *reinterpret_cast<uint32_t*>(spawns + 0x24), 0, addr(spawns), i};
+        const uint32_t args[2] = {zone, *reinterpret_cast<uint32_t*>(spawns + 0x24) + index * 0x10};
+        title_call_at_regs(top, 0x002d90f0, &regs, 2, args);  // Scn_AddModelInstances
+    }
+    const uint32_t state = title_global<uint32_t>(0x0092bdf0);  // cls_state
+    if (state == 2 || state == 5) {
+        for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x10); ++i)
+            spawn_from_spawn_vars(top, level, i, zone);
+    }
+    Scn_InitUpdateGroups(0, spawns, level);
+}
+
 }  // namespace game

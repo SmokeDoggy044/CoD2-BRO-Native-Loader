@@ -76,4 +76,15 @@ void XB_REGS3 XB_CDECL Scn_InitUpdateGroups(uint32_t unused_eax, uint8_t* zone, 
 // from +0xe8 (or "800"); the world entity's classname set to 0x00984c88 and its hashes updated.
 void XB_REGS1 XB_CDECL SP_worldspawn(uint8_t* spawn);
 
+// 0x002ee4d0: for each of the 99 zones with spawn data (level +4): SP_worldspawn (+0xc), its entities
+// (G_SpawnGEntityFromSpawnVars, count +0x10) and vehicle nodes (G_SpawnVehicleNode, count +0x28).
+// Entry: the calls run at the original's ESP (entry = its ESP at entry; callee pops 4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SpawnEntitiesFromString(uint32_t entry, uint8_t* level);
+extern "C" void G_SpawnEntitiesFromString_entry(void);
+// 0x002ee550 (Stream_ParseScn): a streamed zone's static models (Scn_AddStaticModel), model instance groups
+// (Scn_AddModelInstances), its entities while cls_state is 2 or 5, then Scn_InitUpdateGroups.
+// Entry: as G_SpawnEntitiesFromString (callee pops 8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scn_SpawnZone(uint32_t entry, uint8_t* level, uint32_t zone);
+extern "C" void Scn_SpawnZone_entry(void);
+
 }  // namespace game
