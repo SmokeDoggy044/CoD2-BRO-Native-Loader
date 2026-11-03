@@ -3526,6 +3526,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0026d0d0,Touch_Item,compare,1973,41,41,0,0,0,""
 0026d440,Touch_Item_Auto,compare,0,0,0,0,0,0,""
 0026d480,Cmd_Give_f,replaced,8,8,8,0,0,0,""
+0026d680,G_AnimScriptedStart,compare,4019,3878,3878,0,0,0,""
 0026e1b0,Vehicle_ThinkInit,compare,277,18,18,0,0,0,""
 0026e450,G_MoverTeam,compare,68428,218,218,0,0,0,""
 0026e810,G_SimulateGrenadePath,compare,920,61,61,0,0,0,""

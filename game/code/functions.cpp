@@ -3461,6 +3461,7 @@ const Function kFunctions[] = {
     {"Touch_Item", 0x0026d0d0, 0, code(&Touch_Item), 12, Result::None, Status::Compare},
     {"Touch_Item_Auto", 0x0026d440, 0, code(&Touch_Item_Auto), 12, Result::None, Status::Compare},
     {"Cmd_Give_f", 0x0026d480, 0, code(&Cmd_Give_f), 4, Result::None, Status::Replaced},
+    {"G_AnimScriptedStart", 0x0026d680, 0, code(&G_AnimScriptedStart_entry), 28, Result::None, Status::Compare},
     {"Vehicle_ThinkInit", 0x0026e1b0, 0, code(&Vehicle_ThinkInit_entry), 4, Result::None, Status::Compare},
     {"G_MoverTeam", 0x0026e450, 0, code(&G_MoverTeam_entry), 4, Result::None, Status::Compare},
     {"G_SimulateGrenadePath", 0x0026e810, 0, code(&G_SimulateGrenadePath_entry), 16, Result::Eax, Status::Compare},

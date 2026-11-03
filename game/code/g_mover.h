@@ -293,6 +293,11 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched);
 
 // 0x0026d440: Touch_Item re-armed on every touch (not for clients with +0x630).
 void XB_CDECL Touch_Item_Auto(uint8_t* ent, uint8_t* other, uint32_t touched);
+// 0x0026d680 (cdecl ent, origin, angles, anim handle, root anim, rate, mode; GScr_AnimScripted): the entity starts a
+// scripted anim; mode 1 also places it on the floor and records where the anim ends (anim state +0x3d4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, uint32_t ebx,
+                                                             uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void G_AnimScriptedStart_entry(void);
 // 0x002ae8f0 (stdcall entity): whether the entity's cell is valid (always without cell data).
 uint8_t XB_STDCALL G_EntityInValidCell(uint8_t* ent);
 // 0x00270990: Q3's Use_BinaryMover (doors: open, close, reverse; team master).
