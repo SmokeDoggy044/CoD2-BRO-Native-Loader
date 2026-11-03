@@ -390,6 +390,7 @@
 {"VehiclePhys_DebugDrawBody", 0x00226950, 1359, 376, {}, {0x2}},
 {"VehiclePhys_ComputeWheelDistances", 0x00226ea0, 703, 193, {}, {0x4}},
 {"Phys_AttachEntitiesAtPoints", 0x00228870, 845, 248, {0x008fcde4, 0x0090a87c}, {}},
+{"VehiclePhys_AddContacts", 0x00228ee0, 2606, 637, {0x008ff020, 0x0090a87c, 0x00989240}, {0x38d1b717, 0x4, 0x10, 0x2}},
 {"PhysRagdoll_ComputeBounds", 0x00229c90, 127, 45, {}, {}},
 {"PhysParts_WriteBoneMatrices", 0x0022a0f0, 1179, 279, {}, {0x8, 0x5, 0x4}},
 {"Ragdoll_RefreshBoneMatrices", 0x0022c890, 128, 43, {}, {}},

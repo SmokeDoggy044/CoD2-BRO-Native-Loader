@@ -2967,6 +2967,7 @@ const Function kFunctions[] = {
     {"Ragdoll_CacheBaseBoneFrames", 0x00228460, 0, code(&Ragdoll_CacheBaseBoneFrames), 4, Result::None, Status::Compare},
     {"Phys_AttachEntitiesAtPoints", 0x00228870, 0, code(&Phys_AttachEntitiesAtPoints), 12, Result::None, Status::Compare},
     {"VehiclePhys_TraceWheels", 0x00228bf0, 0, code(&VehiclePhys_TraceWheels_entry), 0, Result::None, Status::Compare},
+    {"VehiclePhys_AddContacts", 0x00228ee0, 0, code(&VehiclePhys_AddContacts), 16, Result::None, Status::Compare},
     {"PhysRagdoll_GetBoundingSphere", 0x00229930, 0, code(&PhysRagdoll_GetBoundingSphere), 8, Result::None, Status::Compare},
     {"CM_PushSphereOutOfListedObjects", 0x002299a0, 0, code(&CM_PushSphereOutOfListedObjects_entry), 4, Result::Al, Status::Compare},
     {"PhysRagdoll_ComputeBounds", 0x00229c90, 0, code(&PhysRagdoll_ComputeBounds_entry), 0, Result::None, Status::Compare},

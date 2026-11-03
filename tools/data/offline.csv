@@ -706,6 +706,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00226890,Phys_AddForceToEntityBodies,1901,1901,0,0,50.0
 00226ea0,VehiclePhys_ComputeWheelDistances,3630,3630,0,0,100.0
 00228870,Phys_AttachEntitiesAtPoints,1978,1978,0,0,12.1
+00228ee0,VehiclePhys_AddContacts,1716,1644,71,1,100.0
 00229c90,PhysRagdoll_ComputeBounds,1104,1104,0,0,100.0
 0022c890,Ragdoll_RefreshBoneMatrices,1000,1000,0,0,100.0
 0022cec0,Ragdoll_PoseToBody,1011,1011,0,0,100.0
