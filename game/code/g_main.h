@@ -157,6 +157,17 @@ void XB_REGS1 XB_CDECL G_RestorePlayerLoadout(const uint8_t* saved);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t at_player);
 extern "C" void G_SaveCheckpoint_entry(void);
 
+// 0x0030b960: TODO.
+// 0x0030b960 (G_InitGame): loads the current zone's level script module: its entry gets the import block,
+// the imports are set up (G_SetupLevelScriptImports), the level main and the module's post-init run. `entry` = the
+// original's ESP at its entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_LoadLevelScriptModule(uint32_t entry);
+extern "C" void G_LoadLevelScriptModule_entry(void);
+// 0x00323870: TODO.
+// 0x00323870 (icon table in EAX, panel pictures on the stack, ret 4): the weapon icons ("<icon>.tga", '$' as
+// '_') looked up once into +0x18 + i * 4, then every picture from +8 (0x84) set to colour 0xffffffff.
+void XB_REGS1 XB_STDCALL Hud_LoadWeaponIcons(uint8_t* icons, uint8_t* pictures);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

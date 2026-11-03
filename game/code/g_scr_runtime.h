@@ -210,4 +210,11 @@ void XB_CDECL Scr_EndOn(uint32_t handle, uint32_t notify);
 uint32_t XB_CDECL Scr_BeginThreadEndOn(uint32_t, uint32_t, uint32_t, uint32_t a, uint32_t handle, uint32_t notify,
                                        uint32_t b);
 
+// 0x0030b9e0 (scheduler in ESI, frame time on the stack, ret 4): the script scheduler's frame - aborts on level
+// end/restart, then (frame time not 0) pending entity waits, anim notifies, every run-list thread resumed (woken
+// threads at once, a 64-deep stack of wakers), the waiting list moved back, level-end cleanup (cod notes, debug draw,
+// CheckReloadStatus). `entry` = the original's ESP at its entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_time);
+extern "C" void Scr_RunThreads_entry(void);
+
 }  // namespace game

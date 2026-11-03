@@ -2,7 +2,14 @@
 
 #include <cstring>
 
+#include "actor.h"
+#include "dobj.h"
 #include "g_main.h"
+#include "ngl_debug.h"
+#include "g_script.h"
+#include "g_utils.h"
+#include "qcommon_fs.h"
+#include "sv.h"
 #include "lanes.h"
 #include "qcommon.h"
 #include "xanim.h"
@@ -1271,6 +1278,167 @@ uint32_t XB_CDECL Scr_BeginThreadEndOn(uint32_t, uint32_t, uint32_t, uint32_t a,
     title_global<uint8_t*>(0x008dd1e4) = thread;
     title_global<uint32_t>(0x008dd1d8) = count;
     return 0;
+}
+
+namespace {
+
+uint32_t& sched_word(uint8_t* base, uint32_t offset) { return *reinterpret_cast<uint32_t*>(base + offset); }
+uint8_t* sched_ptr(uint32_t value) { return reinterpret_cast<uint8_t*>(uintptr_t{value}); }
+
+// Scr_ResumeThread (0x002fe100: thread in EAX, scheduler in ESI) where the original calls it (top = entry - 0x11c):
+// it copies the thread's saved stack back to where it was saved (below the scheduler's frame) and runs the thread
+// until it waits. The original's return address is written back into the dead stack.
+void resume_thread(uint32_t top, uint32_t ret, uint8_t* scheduler, uint8_t* thread) {
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thread));
+    regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler));
+    regs.edi = regs.eax;
+    title_call_at_regs(top, 0x002fe100, &regs, 0, nullptr);
+    *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = ret;
+}
+
+// The title clock (RDTSC at a patched site) through XAPI QueryPerformanceCounter.
+void read_clock(uint32_t low, uint32_t high) {
+    uint32_t counter[2] = {0, 0};
+    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    title_global<uint32_t>(low) = counter[0];
+    title_global<uint32_t>(high) = counter[1];
+}
+
+// A thread that ended while resumed (+0x10 bit 3) leaves its list (bit 11: the waiting list, count +0x10; else the
+// run list, count +0) and is freed. Returns 1 when it was freed. `ecx` = what the original's unlink leaves in ECX
+// (Scr_DestroyThreadContents passes it on): its +0 word (`first_link`) or +4 word.
+uint32_t free_if_ended(uint8_t* scheduler, uint8_t* t, bool first_copy) {
+    if (!((sched_word(t, 0x10) >> 3) & 1)) return 0;
+    if (sched_word(scheduler, 0x854) == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t))) sched_word(scheduler, 0x854) = 0;
+    uint32_t ecx;
+    const bool waiting = (sched_word(t, 0x10) >> 11) & 1;
+    if (waiting) {
+        sched_word(sched_ptr(sched_word(t, 0)), 4) = sched_word(t, 4);
+        sched_word(sched_ptr(sched_word(t, 4)), 0) = sched_word(t, 0);
+        --sched_word(scheduler, 0x10);
+        ecx = first_copy ? sched_word(t, 0) : sched_word(t, 4);
+    } else {
+        sched_word(sched_ptr(sched_word(t, 0)), 4) = sched_word(t, 4);
+        sched_word(sched_ptr(sched_word(t, 4)), 0) = sched_word(t, 0);
+        --sched_word(scheduler, 0);
+        ecx = sched_word(t, 4);
+    }
+    Scr_DestroyThreadContents(t, ecx);
+    SmallHeap_Free(title_global<uint8_t*>(0x0095f488), t);
+    return 1;
+}
+
+}  // namespace
+
+// ESI = scheduler, the frame time on the stack (callee pops). The threads' stacks go back where they were saved, below
+// the original's frame: the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(Scr_RunThreads_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Scr_RunThreads) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_time) {
+    const uint32_t top = entry - 0x11c;
+    // Aborts everything first when the level ends or restarts (0x0095f508 / 0x0095f509).
+    if (title_global<uint8_t>(0x0095f508) || title_global<uint8_t>(0x0095f509))
+        Scr_AbortAllThreads(reinterpret_cast<uint8_t*>(uintptr_t{0x008dd1d8}));
+    if (!(frame_time == title_global<float>(0x0083eafc))) {  // 0: paused
+        read_clock(0x00927318, 0x0092731c);
+        sched_word(scheduler, 0x858) = 0;
+        Scr_MovePendingEntityWaits(scheduler);
+        Scr_ProcessAnimNotifies(reinterpret_cast<uint8_t*>(uintptr_t{0x008feba0}));
+        // Every thread of the run list (+4, end node +8) is resumed; threads it wakes (+0x858) run at once, the ones
+        // still waking others kept on a 64-deep stack and resumed again last-in first.
+        uint8_t* node = sched_ptr(sched_word(scheduler, 4));
+        uint8_t* next = node ? sched_ptr(sched_word(node, 0)) : nullptr;
+        if (node != scheduler + 8 && next) {
+            for (;;) {
+                uint8_t* const thread = node;
+                resume_thread(top, 0x0030ba9e, scheduler, thread);
+                if (next) {
+                    node = next;
+                    next = sched_ptr(sched_word(next, 0));
+                }
+                if (((sched_word(thread, 0x10) >> 3) & 1)) {
+                    Scr_FreeThread(scheduler, 0, thread);
+                } else if (sched_word(scheduler, 0x858)) {
+                    uint8_t* stack[0x40];
+                    stack[0] = thread;
+                    int32_t depth = 1;
+                    do {
+                        while (sched_word(scheduler, 0x858)) {
+                            uint8_t* const woken = sched_ptr(sched_word(scheduler, 0x858));
+                            sched_word(scheduler, 0x858) = 0;
+                            resume_thread(top, 0x0030bb03, scheduler, woken);
+                            if (free_if_ended(scheduler, woken, true)) continue;
+                            if (sched_word(scheduler, 0x858)) {
+                                if (depth < 0x40) stack[depth++] = woken;
+                            } else {
+                                sched_word(woken, 0x10) |= 0x80;
+                            }
+                        }
+                        const int32_t top = depth - 1;
+                        uint8_t* const resumed = stack[top <= 0 ? 0 : top];
+                        if (depth) depth = top;
+                        resume_thread(top, 0x0030bbaf, scheduler, resumed);
+                        if (free_if_ended(scheduler, resumed, false)) {
+                        } else if (sched_word(scheduler, 0x858)) {
+                            if (depth < 0x40) stack[depth++] = resumed;
+                        } else {
+                            sched_word(resumed, 0x10) |= 0x80;
+                        }
+                    } while (depth);
+                }
+                sched_word(thread, 0x10) |= 0x80;
+                if (!next) break;
+            }
+        }
+        read_clock(0x009270c8, 0x009270cc);
+        // The waiting list (+0x14, end +0x18) moves back to the run list's tail (+0xc), bit 11 cleared.
+        while (sched_word(scheduler, 0x14) != static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler + 0x18))) {
+            uint8_t* moved = sched_ptr(sched_word(scheduler, 0x1c));
+            if (moved == scheduler + 0x14) {
+                moved = nullptr;
+            } else {
+                const uint32_t prev = sched_word(moved, 4);
+                sched_word(scheduler, 0x1c) = prev;
+                sched_word(sched_ptr(prev), 0) = sched_word(moved, 0);
+                --sched_word(scheduler, 0x10);
+            }
+            sched_word(moved, 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler + 8));
+            const uint32_t tail = sched_word(scheduler, 0xc);
+            sched_word(moved, 4) = tail;
+            sched_word(sched_ptr(tail), 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(moved));
+            const uint32_t count = sched_word(scheduler, 0);
+            sched_word(scheduler, 0xc) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(moved));
+            sched_word(scheduler, 0) = count + 1;
+            sched_word(moved, 0x10) &= 0xfffff7ff;
+        }
+        if (title_global<uint8_t>(0x0095f508) || title_global<uint8_t>(0x0095f509)) {
+            title_global<uint8_t>(0x0095f509) = 0;
+            const TitleRegs none{};
+            if (uint8_t* const import = title_global<uint8_t*>(0x0095f49c))
+                title_call_at_regs(entry - 0x114, sched_word(import, 0x88c), &none, 0, nullptr);
+            G_FreeAllCodNotes();
+            if (title_global<uint8_t>(0x0095f508)) {
+                title_global<uint8_t>(0x0095f508) = 0;
+                DebugDraw_Flush(1);
+                DebugDraw_Shutdown();
+                const uint8_t* const running = title_global<uint8_t*>(0x0093fcf0);  // com_sv_running
+                title_global<uint32_t>(0x00929c00) = 1;
+                if (!*reinterpret_cast<const uint32_t*>(running + 0x20))
+                    title_call_at_regs(entry - 0x114, 0x002f3de0, &none, 0, nullptr);  // CheckReloadStatus (stack-sensitive)
+            }
+        }
+    }
 }
 
 }  // namespace game

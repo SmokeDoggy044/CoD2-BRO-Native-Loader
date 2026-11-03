@@ -492,4 +492,44 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetObjectiveString(int32_t index, con
                                                              uint32_t send_update);
 extern "C" void G_SetObjectiveString_entry(void);
 
+// 0x002eda30 (thiscall entity): everything an entity holds released - path links reconnected (+0x2a4 & 0x1000),
+// actor block list, links (+0x3d0 chain, +0x3d4 blocks), physics, DObj/ragdoll/model, server link, anim tree
+// (queued for clearing), actor, sentient (or every actor/sentient reference to it), corpse slot, turret user,
+// vehicle physics, the +0x428 callback (game import +0x808), the 0x00960074 list (+0x2a4 & 0x200000), its
+// handle, wait list and notify block, the context blocks +0x450/+0x454/+0x250 and its script strings.
+// `entry_esp` = the original's ESP at its entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_FreeEntityContents(uint8_t* ent, uint32_t entry_esp);
+extern "C" void G_FreeEntityContents_entry(void);
+// 0x00303aa0: the world matrix of the entity's (handle) tag, cached for one level frame (0x0098602c); null
+// when the entity has no DObj or the tag is not found.
+uint8_t* XB_CDECL G_GetCachedTagMatrix(uint32_t handle, const ScriptString* tag);
+// 0x00307550 / 0x00307590 / 0x003075d0 / 0x00307610 / 0x00307650 (out in EDI, cdecl value): G_FindEntsByField
+// over +0x278 (groupname) / +0x280 (script_noteworthy) / +0x260 (classname) / +0x268 (targetname) / +0x270
+// (target) around a scratch entity (G_InitGentity, G_FreeEntityContents).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByGroupname(uint32_t* out, uint32_t value);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByScriptNoteworthy(uint32_t* out, uint32_t value);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByClassname(uint32_t* out, uint32_t value);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByTargetname(uint32_t* out, uint32_t value);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByTarget(uint32_t* out, uint32_t value);
+extern "C" void G_FindEntsByGroupname_entry(void);
+extern "C" void G_FindEntsByScriptNoteworthy_entry(void);
+extern "C" void G_FindEntsByClassname_entry(void);
+extern "C" void G_FindEntsByTargetname_entry(void);
+extern "C" void G_FindEntsByTarget_entry(void);
+
+// 0x002be510: TODO.
+// 0x002be510 (entity in EBX, keep in ECX): re-resolves the link's tag (+0x3cc: name id +8, tag +0xc) on the
+// parent's DObj; unlinks the entity when keep is 0 or the tag is gone (no name id: tag -1, kept).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_EntUpdateLinkTag(uint8_t* ent, uint32_t keep);
+extern "C" void G_EntUpdateLinkTag_entry(void);
+// 0x002de3e0: TODO.
+// 0x002de3e0 (entity in EAX, cdecl bone): the bone's matrix address in the DObj skeleton (SV_DObjCreateSkeleton
+// first). No code references.
+uint32_t XB_REGS1 XB_CDECL G_DObjGetSkeletonBoneMatrixPtr(uint8_t* ent, uint32_t bone);
+// 0x00259180: TODO.
+// 0x00259180 (entity in EAX, solid in ECX): a script box entity's contents (solid 0x405c0008, else 0x411c0008),
+// flags and link.
+void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t unused_edx, uint32_t solid);
+
+
 }  // namespace game

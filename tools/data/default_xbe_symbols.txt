@@ -8418,7 +8418,7 @@
 00253eb0 Use_trigger_damage
 00253ed0 Vehicle_UpdateTreadScroll
 00254060 Vehicle_PlayerInputToMove
-002545e0 FUN_002545e0
+002545e0 ScriptMover_NextTrajectoryPhase
 00254800 Door_ChooseRotateDirection
 00254a10 G_SimulateGrenadeBounce
 00254bd0 Turret_IsPlayerWithinArc
@@ -8446,7 +8446,7 @@
 00258eb0 Cmd_SetViewpos_f
 00259000 SelectSpawnPoint
 00259090 Player_GetViewOrigin
-00259180 FUN_00259180
+00259180 BoxEntity_SetSolidity
 002591e0 SP_trigger_mount
 00259230 SP_trigger_lookat
 00259260 SP_trigger_damage
@@ -10971,7 +10971,7 @@
 00322c70 UIQuad_GetVertexMax
 00322d10 UIQuad_SetVertexAlphaScaled
 00323160 FE_SetupLiberatorMenu
-00323870 FUN_00323870
+00323870 Hud_LoadWeaponIcons
 00323fa0 HudCompTankIcon_Setup
 00324330 HudCompGrenadeCook_Setup
 00324480 HudCompGrenades_Setup

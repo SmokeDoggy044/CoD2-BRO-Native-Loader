@@ -14614,3 +14614,6 @@ address,name,kind,confidence,evidence
 002ebaf0,PM_PeriodicContentsEvent,function,high,"game/phys push 15 (pm +0x124 = xy speed)"
 0025d050,Vehicle_ResetOnVehicleOverlap,function,high,"game/phys push 15"
 002c27e0,PM_FinishReloadEffect,function,high,"game/phys push 15 (gap, tail-jump target of PM_CheckWeaponReload state 14; created in Ghidra 11-03)"
+002545e0,ScriptMover_NextTrajectoryPhase,function,high,"game/ent push 11"
+00259180,BoxEntity_SetSolidity,function,high,"game/ent push 11"
+00323870,Hud_LoadWeaponIcons,function,high,"game/ent push 11 (callers G_InitGame, HudManager_Layout3; maybe client module)"

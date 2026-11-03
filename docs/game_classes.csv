@@ -342,3 +342,6 @@
 002fe100,Scr_ResumeThread,thread switch,"no C equivalent: Scr_SaveContext, Scr_ThreadEntry / Scr_RestoreThreadStack on the script thread's stack, mov esp,[ebp-4], FS:0 SEH restore, POPA"
 0021aa50,Actor_UpdateSightAndSelectEnemy,dead,"no CALL/JMP (fnpack 2026-11-03), no 50 aa 21 00 pointer/immediate in the XBE (Ghidra byte search); gap function created 11-03; C kept"
 002d5bf0,Bullet_RandomSpreadFixed,dead,"no CALL/JMP and no immediate or pointer to 0x002d5bf0 (xbefind imm + call, 2026-11-03); C kept (bg_misc.cpp)"
+00307610,G_FindEntsByTargetname,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (push 11)"
+002de3e0,G_DObjGetSkeletonBoneMatrixPtr,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"
+002eabb0,PathNode_FindNearestNoPlanes,dead,"no callers by CALL/JMP, no stored pointer found (fnpack); 0 calls in missions 1/4/5/6 (--only --every 1, push 11)"

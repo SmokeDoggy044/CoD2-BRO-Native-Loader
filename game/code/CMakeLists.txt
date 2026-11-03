@@ -30,10 +30,12 @@ set(game_code_sources
     g_main.cpp
     g_mover.cpp
     g_pathnode.cpp
+    g_scr_imports.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp
     g_script.cpp
     g_spawn.cpp
+    g_static.cpp
     g_utils.cpp
     g_vehicle.cpp
     movie.cpp
