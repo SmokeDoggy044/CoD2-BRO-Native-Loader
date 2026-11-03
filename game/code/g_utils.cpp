@@ -3553,6 +3553,224 @@ void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t, uint32_t so
     SV_LinkEntity(ent);
 }
 
+namespace {
+
+uint32_t& bone_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); }
+float& bone_float(uint32_t address) { return *reinterpret_cast<float*>(static_cast<uintptr_t>(address)); }
+
+// A title callee where the original's call puts it, with its return address written back.
+uint32_t bone_call(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                   const uint32_t* args) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    bone_word(top - count * 4 - 4) = ret;
+    return result;
+}
+
+}  // namespace
+
+// The callees run where the original's calls put them, on the original's frame: the root-bone path reads two
+// words of it that the angles path never writes (+0x2c, +0x3c: the fourth lanes of the base rows).
+PLATFORM_ASM_ENTRY(G_DObjSetBoneRotation_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_DObjSetBoneRotation) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // cdecl (ent, offset, angles, bone, local): turns one bone of the entity's skeleton (DObj +0x22c: model
+    // +0x38, skeleton +0x20 past the 0x30 header and +0x60 extra matrices) by the angles (AnglesToAxisLeft2;
+    // none = identity) and moves it by the offset (4 floats; none = {0, 0, 0, 1}), after
+    // XModel_CalcBoneChildrenLocal. Local: the bone's own matrix is turned (rows = axis x rows) and moved
+    // along its rows. Else the bone is rebuilt from its base pose (the model part's 0x30-byte record: 3x3 +
+    // origin): turned and moved in the base frame, then into the parent bone's matrix (none: as it is). Then
+    // XModel_CalcBoneChildrenOrtho. Packed 4-lane rows: the fourth lanes are computed too (from the matrices'
+    // fourth words; the root path from the base rows' stack copies).
+    // Frame F: +0x10 offset / scratch rows, +0x5c skeleton, +0x7c model, +0x80 axis / new rows, +0xbc bone
+    // matrix, +0xc0 axis pointer, +0xc4 base record, +0xd0 axis rows (4 lanes), +0x100 offset, +0x110 axis.
+    bone_word(entry - 4) = ebp;
+    const uint32_t F = ((entry - 4) & ~15u) - 0x140;
+    bone_word(F + 8) = ebx;
+    bone_word(F + 4) = esi;
+    bone_word(F) = edi;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(bone_word(entry + 4)));
+    const uint32_t offset = bone_word(entry + 8), angles = bone_word(entry + 0xc), bone = bone_word(entry + 0x10);
+    const uint8_t local = static_cast<uint8_t>(bone_word(entry + 0x14));
+    const uint32_t obj = word_at(ent, 0x22c);
+    if (!obj) return;
+    const uint32_t model = bone_word(obj + 0x38);
+    bone_word(F + 0x7c) = model;
+    if (!model) return;
+    // The model's first part (+0x24 list, first nonzero) gives the bone's parent (+0x14 records of 12, +8;
+    // index out of range: bone 0).
+    auto first_part = [&]() {
+        uint32_t i = 0;
+        while (!bone_word(model + 0x24 + i * 4)) ++i;
+        return bone_word(bone_word(model + 0x24 + i * 4) + 8);
+    };
+    uint32_t part = first_part();
+    uint32_t ecx = bone < bone_word(part + 0x10) ? bone : 0;
+    const int32_t parent = static_cast<int32_t>(bone_word(bone_word(part + 0x14) + ecx * 12 + 8));
+    ecx *= 3;
+    ebx = static_cast<uint32_t>(parent);
+    if (!bone_word(obj + 0x20)) return;
+    const uint32_t skeleton = static_cast<uint32_t>(*reinterpret_cast<const uint8_t*>(uintptr_t{obj + 0x60})) * 0x40 +
+                              bone_word(obj + 0x20) + 0x30;
+    bone_word(F + 0x5c) = skeleton;
+    if (!skeleton) return;
+    auto copy = [](uint32_t to, uint32_t from, uint32_t words) {
+        for (uint32_t i = 0; i < words; ++i) bone_word(to + i * 4) = bone_word(from + i * 4);
+    };
+    if (angles) {
+        const uint32_t args[1] = {F + 0x80};
+        bone_call(F, 0x002de4c5, 0x002a45b0, TitleRegs{angles, ebx, ecx, F + 0x80, skeleton, model}, 1,
+                  args);  // AnglesToAxisLeft2
+        // Rows of three into 4-lane rows: the fourth lanes are the words after them (+0xcc, +0x4c, +0x2c).
+        copy(F + 0xc0, F + 0x80, 3);
+        copy(F + 0x40, F + 0x8c, 3);
+        copy(F + 0x20, F + 0x98, 3);
+        copy(F + 0x110, F + 0xc0, 4);
+        copy(F + 0x120, F + 0x40, 4);
+        copy(F + 0x130, F + 0x20, 4);
+    } else {
+        const float zero = 0.0f, one = title_global<float>(0x0083eb20);
+        const float rows[12] = {zero, zero, one, zero, zero, one, zero, zero, one, zero, zero, one};
+        for (uint32_t i = 0; i < 4; ++i) {
+            bone_float(F + 0x20 + i * 4) = rows[i];
+            bone_float(F + 0x30 + i * 4) = rows[4 + i];
+            bone_float(F + 0x10 + i * 4) = rows[8 + i];
+        }
+        const float identity[12] = {one, zero, zero, one, zero, one, zero, zero, zero, zero, one, zero};
+        for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = identity[i];
+        copy(F + 0x110, F + 0x80, 12);
+    }
+    if (offset) copy(F + 0x10, offset, 4);
+    else copy(F + 0x10, 0x0082e290, 4);  // {0, 0, 0, 1}
+    float T[4];
+    for (uint32_t i = 0; i < 4; ++i) T[i] = bone_float(F + 0x10 + i * 4);
+    {
+        const uint32_t args[3] = {model, skeleton, bone};
+        bone_call(F, 0x002de6cd, 0x002d7850,
+                  TitleRegs{offset ? offset : bone_word(0x0082e29c), ebx, bone, bone_word(F + 0x18), skeleton, model},
+                  3, args);  // XModel_CalcBoneChildrenLocal
+    }
+    copy(F + 0xd0, F + 0x110, 12);
+    copy(F + 0x100, F + 0x10, 4);
+    // Axis rows A[i] (lanes 0-2 used) and the offset (lanes 0-2).
+    float A[3][3];
+    for (uint32_t i = 0; i < 3; ++i)
+        for (uint32_t j = 0; j < 3; ++j) A[i][j] = bone_float(F + 0xd0 + i * 0x10 + j * 4);
+    const float tx = bone_float(F + 0x100), ty = bone_float(F + 0x104), tz = bone_float(F + 0x108);
+    // ((r0 * a.x + r1 * a.y) + r2 * a.z) per lane.
+    auto combine = [](const float* r0, const float* r1, const float* r2, float ax, float ay, float az, float* out,
+                      uint32_t lanes) {
+        for (uint32_t l = 0; l < lanes; ++l) {
+            float v = r0[l] * ax;
+            v = v + r1[l] * ay;
+            out[l] = v + r2[l] * az;
+        }
+    };
+    // ((base + r0 * x) + r1 * y) + r2 * z per lane.
+    auto move = [](const float* base, const float* r0, const float* r1, const float* r2, float x, float y, float z,
+                   float* out, uint32_t lanes) {
+        for (uint32_t l = 0; l < lanes; ++l) {
+            float v = base[l] + r0[l] * x;
+            v = v + r1[l] * y;
+            out[l] = v + r2[l] * z;
+        }
+    };
+    if (local) {
+        const uint32_t M = skeleton + bone * 0x40;
+        float* const m = &bone_float(M);
+        float rows[12];
+        for (uint32_t i = 0; i < 3; ++i) combine(m, m + 4, m + 8, A[i][0], A[i][1], A[i][2], rows + i * 4, 4);
+        for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = rows[i];
+        for (uint32_t i = 0; i < 4; ++i) bone_float(F + 0xc0 + i * 4) = rows[4 + i];
+        copy(M, F + 0x80, 12);
+        float moved[4];
+        move(m + 12, m, m + 4, m + 8, T[0], T[1], T[2], moved, 4);
+        copy(F + 0x20, M, 8);
+        copy(F + 0x40, M + 0x30, 4);
+        for (uint32_t i = 0; i < 4; ++i) bone_float(F + 0x10 + i * 4) = moved[i];
+        copy(M + 0x30, F + 0x10, 4);
+    } else if (parent >= 0) {
+        part = first_part();
+        const uint32_t index = bone < bone_word(part) ? bone : 0;
+        const uint32_t record = bone_word(part + 4) + index * 0x30;
+        const uint32_t P = skeleton + static_cast<uint32_t>(parent) * 0x40, M = skeleton + bone * 0x40;
+        bone_word(F + 0xc0) = F + 0xd0;
+        bone_word(F + 0xc4) = record;
+        bone_word(F + 0xbc) = M;
+        const float* const b = &bone_float(record);
+        const float* const p = &bone_float(P);
+        // Each axis row turned into the base frame (lanes 0-2), then into the parent's frame (4 lanes).
+        float rows[12];
+        for (uint32_t i = 0; i < 3; ++i) {
+            float v[3];
+            combine(b, b + 3, b + 6, A[i][0], A[i][1], A[i][2], v, 3);
+            combine(p, p + 4, p + 8, v[0], v[1], v[2], rows + i * 4, 4);
+        }
+        {
+            const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
+            bone_call(F, 0x002dee29, 0x00011240, TitleRegs{record, P, F + 0x80, record, skeleton, skeleton}, 4,
+                      args);  // eh_vector_constructor_iterator (no-op constructor)
+        }
+        for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = rows[i];
+        copy(M, F + 0x80, 12);
+        float u[3], moved[4];
+        move(b + 9, b, b + 3, b + 6, tx, ty, tz, u, 3);
+        move(p + 12, p, p + 4, p + 8, u[0], u[1], u[2], moved, 4);
+        copy(F + 0x10, P + 0x10, 4);
+        copy(F + 0x20, P + 0x30, 4);
+        copy(F + 0x30, P, 4);
+        copy(F + 0x40, record + 0xc, 3);
+        bone_float(F + 0x4c) = rows[3];
+        for (uint32_t i = 0; i < 4; ++i) bone_float(F + 0x60 + i * 4) = moved[i];
+        copy(M + 0x30, F + 0x60, 4);
+    } else {
+        // Root bone: the base pose's rows read as 4 lanes through stack copies whose fourth words are
+        // +0x2c, +0x3c and the offset's fourth word (+0x1c).
+        const uint32_t parts = bone_call(F, 0x002df05e, 0x00014260, TitleRegs{0xffffffffu, ebx, ecx, model, skeleton, model},
+                                         0, nullptr);  // XModel_GetLodParts (EAX -1, EDX model)
+        const uint32_t record = bone_call(F, 0x002df068, 0x0001edb0, TitleRegs{bone, ebx, parts, model, skeleton, model},
+                                          0, nullptr);  // Array48_GetOrFirst (EAX index, ECX array)
+        const uint32_t M = skeleton + bone * 0x40;
+        const float* const b = &bone_float(record);
+        const float w0 = bone_float(F + 0x2c), w1 = bone_float(F + 0x3c), w2 = bone_float(F + 0x1c);
+        const float r0[4] = {b[0], b[1], b[2], w0}, r1[4] = {b[3], b[4], b[5], w1}, r2[4] = {b[6], b[7], b[8], w2};
+        float rows[12];
+        for (uint32_t i = 0; i < 3; ++i) combine(r0, r1, r2, A[i][0], A[i][1], A[i][2], rows + i * 4, 4);
+        bone_word(F + 0xbc) = M;
+        {
+            const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
+            bone_call(F, 0x002df22d, 0x00011240, TitleRegs{record, record, F + 0x80, record, skeleton, M}, 4,
+                      args);  // eh_vector_constructor_iterator (no-op constructor)
+        }
+        for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = rows[i];
+        copy(M, F + 0x80, 12);
+        // The fourth lane of the moved origin: rows' fourth lanes, then the copies' +0x2c/+0x3c.
+        const float base[4] = {b[9], b[10], b[11], rows[11]};
+        const float s0[4] = {b[0], b[1], b[2], rows[7]}, s1[4] = {b[3], b[4], b[5], w0}, s2[4] = {b[6], b[7], b[8], w1};
+        float moved[4];
+        move(base, s0, s1, s2, tx, ty, tz, moved, 4);
+        copy(F + 0x10, record + 0x24, 3);
+        bone_float(F + 0x1c) = rows[11];
+        copy(F + 0x20, record + 0xc, 3);
+        copy(F + 0x30, record + 0x18, 3);
+        copy(F + 0x40, record, 3);
+        bone_float(F + 0x4c) = rows[7];
+        for (uint32_t i = 0; i < 4; ++i) bone_float(F + 0x60 + i * 4) = moved[i];
+        copy(M + 0x30, F + 0x60, 4);
+    }
+    const uint32_t args[3] = {model, skeleton, bone};
+    bone_call(F, 0x002df39e, 0x002d7310, TitleRegs{skeleton, ebx, model, bone, skeleton, model}, 3,
+              args);  // XModel_CalcBoneChildrenOrtho
+}
+
 PLATFORM_ASM_ENTRY(Spg_FindRandomVariant_entry,
                    "pushl 4(%esp)\n"
                    "pushl %ebx\n"

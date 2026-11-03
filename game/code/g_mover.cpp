@@ -44,11 +44,6 @@ PLATFORM_ASM_ENTRY(ent_mover_step,
                    "popl %ebx\n"
                    "ret")
 
-// actor.cpp's title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function,
-                                                                    const game::TitleRegs* regs, uint32_t count,
-                                                                    const uint32_t* args);
-
 namespace game {
 
 namespace {
@@ -4273,6 +4268,399 @@ void XB_CDECL Touch_Item_Auto(uint8_t* ent, uint8_t* other, uint32_t touched) {
     Touch_Item(ent, other, touched);
 }
 
+// title_call_at_regs with an XMM5 input (AnimTree_SetKnob's goal): title_call_at_regs and its floor
+// helpers leave XMM5 alone.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ent_call_at_xmm5_raw(uint32_t top, uint32_t function, const TitleRegs* regs,
+                                                                  uint32_t count, const uint32_t* args, uint32_t xmm5);
+PLATFORM_ASM_ENTRY(ent_call_at_xmm5_raw,
+                   "movss 24(%esp), %xmm5\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n" PLATFORM_ASM_CALL(title_call_at_regs) "addl $20, %esp\n"
+                   "ret")
+
+// Every title callee runs where the original's call puts it, with its registers: the anim state's two
+// 8-word records copy a frame word the original never writes (+0x8c), and the traces and callees read
+// partly written vectors.
+PLATFORM_ASM_ENTRY(G_AnimScriptedStart_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_AnimScriptedStart) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, uint32_t ebx, uint32_t esi,
+                                  uint32_t edi, uint32_t ebp) {
+    // cdecl (ent, origin, angles, anim handle, root anim, rate, mode): the entity starts a scripted anim.
+    // The tree is the actor's (type 11; AnimTree_Create on first use) or the entity's own (+0x254); the
+    // anim state (+0x3d4, 0x60 bytes, allocated once) keeps +0x40 the handle, +0x44 the root anim, +0x48 0,
+    // +0x4c the mode. Mode 1 places the entity: the origin dropped to the floor (a trace 36 up to 18 down
+    // with the actor box, only while the entity's cell is valid), the angles with pitch 0, position,
+    // angles and both trajectories set, stopped; then the anim's root delta (AnimTree_GetRootDelta) moved
+    // into that frame gives the end point and the end yaw, a second floor trace (128 + the delta's length
+    // up and down) the ground tilt (+0x54/+0x58, else 0) and +0x5c = -1 for anims shorter than 1 s.
+    // Both modes store the start pose (+0x00 quaternion of the axis, origin) and an identity (+0x20). With
+    // an actor that still blends (+0x1f8 nonzero, +0x204 set) the actor's three anims keep their weights
+    // (+0x210 goal weight, +0x214/+0x218 knob), else the root anim's children are cleared; the anim then
+    // gets weight 1 (no restart for flag-0 anims). +0x2a4 bit 0x1000000 set.
+    // Frame F: +0x1b cell valid, +0x1c state, +0x20 right / position, +0x34 length / yaw, +0x38 tree,
+    // +0x3c blending / weight, +0x40 axis (forward, left, up), +0x64 origin, +0x70 angles / quaternion
+    // record, +0x90 direction / trace end, +0xa8 actor, +0xac length, +0xb0 matrices, +0xfc yaw axis,
+    // +0x120 trace.
+    stack_at(entry - 4) = ebp;
+    const uint32_t F = ((entry - 4) & ~15u) - 0x160;
+    stack_at(F + 8) = ebx;
+    stack_at(F + 4) = esi;
+    stack_at(F) = edi;
+    const uint32_t ent = stack_at(entry + 4), origin = stack_at(entry + 8), angles = stack_at(entry + 0xc);
+    const uint32_t handle = stack_at(entry + 0x10), root = stack_at(entry + 0x14), rate = stack_at(entry + 0x18);
+    const uint32_t mode = stack_at(entry + 0x1c);
+    auto byte_at = [](uint32_t address) -> uint8_t& { return *reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address)); };
+    auto half_at = [](uint32_t address) -> uint16_t& { return *reinterpret_cast<uint16_t*>(static_cast<uintptr_t>(address)); };
+    auto bits_of = [](float f) {
+        uint32_t b;
+        std::memcpy(&b, &f, 4);
+        return b;
+    };
+    auto xmm0_call = [&](uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                         const uint32_t* args) {
+        const uint32_t bits = actor_call_at_xmm0_raw(top, function, &regs, count, args);
+        stack_at(top - count * 4 - 4) = ret;
+        float result;
+        std::memcpy(&result, &bits, 4);
+        return result;
+    };
+    const float one = title_global<float>(0x0083eb20);
+    ebx = ent;
+    const uint32_t actor = stack_at(ent + 0x240);
+    esi = actor;
+    edi = 0;
+    stack_at(F + 0x150) = 0;
+    stack_at(F + 0x154) = 0;
+    stack_at(F + 0xa8) = actor;
+    stack_at(F + 0x3c) = actor && !(stack_float(actor + 0x1f8) == title_global<float>(0x0083eafc)) &&
+                                 stack_at(actor + 0x204)
+                             ? 1
+                             : 0;
+    uint32_t eax;
+    const uint32_t type = byte_at(ent);
+    if (type == 0xb) {
+        eax = stack_at(actor);
+        if (!stack_at(eax + 0x254)) {
+            edx = title_global<uint32_t>(0x00987a90);
+            const uint32_t args[2] = {eax, edx};
+            eax = call_at(F, 0x0026d714, 0x002c4a00, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // AnimTree_Create
+            ecx = stack_at(actor);
+            stack_at(ecx + 0x254) = eax;
+        }
+        edx = stack_at(actor);
+        eax = stack_at(edx + 0x254);
+        stack_at(F + 0x38) = eax;
+    } else if (type == 0xd) {
+        ecx = stack_at(ent + 0x254);
+        stack_at(F + 0x38) = ecx;
+        eax = 0;
+    } else {
+        eax = stack_at(ent + 0x254);
+        stack_at(F + 0x38) = eax;
+    }
+    eax = stack_at(ent + 0x3d4);
+    if (!eax) {
+        const uint32_t args[2] = {0x10, 0x60};
+        eax = call_at(F, 0x0026d73e, 0x00042c50, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // Heap_AllocAligned
+        stack_at(ent + 0x3d4) = eax;
+    }
+    const uint32_t state = eax;
+    stack_at(F + 0x1c) = state;
+    ecx = handle;
+    edx = root;
+    esi = mode;
+    stack_at(state + 0x48) = 0;
+    stack_at(state + 0x40) = handle;
+    stack_at(state + 0x44) = root;
+    stack_at(state + 0x4c) = mode;
+    if (title_global<uint32_t>(0x0095bf0c)) {
+        byte_at(F + 0x1b) = 1;
+    } else {
+        ecx = stack_at(ent + 0x458);
+        if (static_cast<int32_t>(ecx) < 0) {
+            byte_at(F + 0x1b) = 0;
+        } else {
+            const uint32_t cm = title_global<uint32_t>(0x0095f6b8);
+            if (ecx >= stack_at(cm + 0x18)) ecx = 0;
+            edx = stack_at(cm + 0x1c);
+            ecx *= 0x50;
+            byte_at(F + 0x1b) = stack_at(ecx + edx + 0x3c) != 0;
+        }
+    }
+    const bool cell = byte_at(F + 0x1b) != 0;
+    // The actor box trace from start (+0x70 in the first trace, +0x20 in the second) to end; ESI/EDI as the
+    // original has them.
+    auto floor_trace = [&](uint32_t ret, uint32_t start, uint32_t end, uint32_t eax_in, uint32_t ecx_in,
+                           uint32_t edx_in, uint32_t esi_in, uint32_t edi_in) {
+        const uint32_t pass = stack_at(ent + 0x224);
+        const uint32_t args[11] = {F + 0x120, 0x0098a560, 0x0098a550, end, pass, 0x00820011, 1, 0, 0, 0, 0};
+        call_at(F, ret, 0x002e9af0, TitleRegs{eax_in, start, ecx_in, edx_in, esi_in, edi_in}, 11, args);  // SV_Trace
+    };
+    float left0, left1, left2;
+    if (mode == 1) {
+        esi = origin;
+        const float x = stack_float(origin), y = stack_float(origin + 4);
+        const float up = stack_float(origin + 8) + title_global<float>(0x0083f01c);
+        const float down = stack_float(origin + 8) - title_global<float>(0x0083eb00);
+        if (cell) {
+            const float end[4] = {x, y, down, x}, start[4] = {x, y, up, x};
+            for (uint32_t i = 0; i < 4; ++i) {
+                stack_float(F + 0x20 + i * 4) = end[i];
+                stack_float(F + 0x70 + i * 4) = start[i];
+            }
+            floor_trace(0x0026d87f, F + 0x70, F + 0x20, F + 0x20, F + 0x120, edx, esi, edi);
+            ebx = ent;
+        }
+        if (one > stack_float(F + 0x140) && cell) {
+            for (uint32_t i = 0; i < 3; ++i) stack_at(F + 0x64 + i * 4) = stack_at(F + 0x120 + i * 4);
+        } else {
+            for (uint32_t i = 0; i < 3; ++i) stack_at(F + 0x64 + i * 4) = stack_at(origin + i * 4);
+        }
+        const float zero = 0.0f;
+        stack_float(state + 0x50) = zero;
+        stack_float(F + 0x74) = stack_float(angles + 4);
+        stack_float(F + 0x78) = stack_float(angles + 8);
+        stack_float(F + 0x70) = zero;
+        {
+            const uint32_t args[2] = {F + 0x70, F + 0x40};
+            call_at(F, 0x0026d92d, 0x002a2af0, TitleRegs{F + 0x70, ebx, ecx, F + 0x40, F + 0x58, F + 0x20}, 2,
+                    args);  // AnglesToAxis (ESI up, EDI right)
+        }
+        uint8_t* const e = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(ent));
+        const float ox = stack_float(F + 0x64), oy = stack_float(F + 0x68), oz = stack_float(F + 0x6c);
+        stack_float(F + 0x4c) = zero - stack_float(F + 0x20);
+        field<float>(e, 0x24) = oy;
+        word_at(e, 0x14) = 0;
+        word_at(e, 0x18) = 0;
+        word_at(e, 0x1c) = 0;
+        field<float>(e, 0x28) = oz;
+        field<float>(e, 0x34) = zero;
+        field<float>(e, 0x30) = zero;
+        field<float>(e, 0x2c) = zero;
+        stack_float(F + 0x50) = zero - stack_float(F + 0x24);
+        stack_float(F + 0x54) = zero - stack_float(F + 0x28);
+        field<float>(e, 0x20) = ox;
+        field<float>(e, 0x140) = ox;
+        const float yaw = stack_float(F + 0x74), roll = stack_float(F + 0x78);
+        field<float>(e, 0x144) = oy;
+        field<float>(e, 0x148) = oz;
+        word_at(e, 0x38) = 0;
+        word_at(e, 0x3c) = 0;
+        word_at(e, 0x40) = 0;
+        field<float>(e, 0x44) = zero;
+        field<float>(e, 0x48) = yaw;
+        field<float>(e, 0x4c) = roll;
+        field<float>(e, 0x58) = zero;
+        field<float>(e, 0x54) = zero;
+        field<float>(e, 0x50) = zero;
+        field<float>(e, 0x150) = zero;
+        field<float>(e, 0x154) = yaw;
+        field<float>(e, 0x158) = roll;
+        // The root delta of the anim (tree entry handle >> 16, 0 when out of range).
+        const uint32_t trees = stack_at(title_global<uint32_t>(0x0095f524) + 4);
+        esi = stack_at(trees);
+        ecx = handle >> 16;
+        if (ecx >= esi) ecx = 0;
+        eax = handle & 0xffff;
+        ecx = stack_at(trees + 4) + ecx * 12;
+        {
+            const uint32_t args[1] = {0x3f800000};
+            call_at(F, 0x0026da37, 0x002e6650, TitleRegs{eax, ebx, ecx, stack_at(trees + 4), F + 0x20, F + 0x90}, 1,
+                    args);  // AnimTree_GetRootDelta (EDI direction, ESI position)
+        }
+        const float px = stack_float(F + 0x20), py = stack_float(F + 0x24), pz = stack_float(F + 0x28);
+        stack_float(F + 0x34) = static_cast<float>(static_cast<long double>(pz) * pz +
+                                                   static_cast<long double>(py) * py +
+                                                   static_cast<long double>(px) * px);
+        stack_float(F + 0x34) = platform_x87_sqrt(stack_float(F + 0x34));
+        const float length = stack_float(F + 0x34);
+        for (uint32_t i = 0; i < 3; ++i) {
+            float v = stack_float(F + 0x58 + i * 4) * pz;
+            v = v + stack_float(F + 0x4c + i * 4) * py;
+            v = v + stack_float(F + 0x40 + i * 4) * px;
+            stack_float(F + 0x20 + i * 4) = v + stack_float(F + 0x64 + i * 4);
+        }
+        stack_float(F + 0xac) = length;
+        const float delta_yaw = xmm0_call(F - 4, 0x0026db1e, 0x002a1540,
+                                          TitleRegs{eax, ebx, F + 0x90, edx, F + 0x20, F + 0x90}, 0, nullptr);  // vectoyaw_2
+        stack_float(F + 0x34) = delta_yaw;
+        {
+            const uint32_t args[1] = {stack_at(F + 0x34)};
+            call_at(F - 4, 0x0026db35, 0x002a4520, TitleRegs{args[0], ebx, F + 0x90, edx, F + 0xfc, F + 0x90}, 1,
+                    args);  // YawToAxis (ESI axis)
+        }
+        // End axis = yaw axis x start axis, (z * up + y * left) + x * forward per row.
+        for (uint32_t i = 0; i < 3; ++i) {
+            const float yx = stack_float(F + 0xfc + i * 12), yy = stack_float(F + 0x100 + i * 12),
+                        yz = stack_float(F + 0x104 + i * 12);
+            for (uint32_t j = 0; j < 3; ++j) {
+                float v = yz * stack_float(F + 0x58 + j * 4);
+                v = v + yy * stack_float(F + 0x4c + j * 4);
+                stack_float(F + 0xb0 + i * 12 + j * 4) = v + yx * stack_float(F + 0x40 + j * 4);
+            }
+        }
+        call_at(F, 0x0026dd0e, 0x002a27f0, TitleRegs{F + 0x70, ebx, F + 0xb0, edx, F + 0xfc, F + 0x90}, 0,
+                nullptr);  // AxisToAngles (EAX angles, ECX axis)
+        const float reach = stack_float(F + 0xac) + title_global<float>(0x0083ebe8);
+        const float z = stack_float(F + 0x28);
+        const float high = reach + z, low = z - reach;
+        if (cell) {
+            const float ex = stack_float(F + 0x20), ey = stack_float(F + 0x24);
+            const float end[4] = {ex, ey, low, ex}, start[4] = {ex, ey, high, ex};
+            for (uint32_t i = 0; i < 4; ++i) {
+                stack_float(F + 0x90 + i * 4) = end[i];
+                stack_float(F + 0x20 + i * 4) = start[i];
+            }
+            floor_trace(0x0026ddd7, F + 0x20, F + 0x90, cell, F + 0x90, F + 0x120, F + 0xfc, F + 0x90);
+            ebx = ent;
+        }
+        if (one > stack_float(F + 0x140) && cell) {
+            edi = state;
+            const uint32_t pass = stack_at(ent + 0x224);
+            const uint32_t args[6] = {pass, 0x00820011, stack_at(F + 0x74), state + 0x54, state + 0x58, 0};
+            call_at(F, 0x0026de22, 0x00210150, TitleRegs{pass, ebx, args[2], state + 0x54, F + 0x120, edi}, 6,
+                    args);  // G_ComputeGroundTilt (ESI point)
+            esi = F + 0x120;
+        } else {
+            stack_float(state + 0x54) = zero;
+            stack_float(state + 0x58) = zero;
+            edi = state;
+            esi = F + 0xfc;
+        }
+        float length_s;
+        {
+            const uint32_t args[1] = {handle};
+            length_s = xmm0_call(F, 0x0026de43, 0x00250e70, TitleRegs{eax, ebx, ecx, handle, esi, edi}, 1,
+                                 args);  // AnimTree_EnsureAnimLoaded
+        }
+        stack_at(state + 0x5c) = one > length_s ? title_global<uint32_t>(0x0083eb34) : bits_of(zero);
+        left0 = stack_float(F + 0x4c);
+        left1 = stack_float(F + 0x50);
+        left2 = stack_float(F + 0x54);
+    } else {
+        {
+            const uint32_t args[2] = {angles, F + 0x40};
+            call_at(F, 0x0026de9a, 0x002a2af0, TitleRegs{F + 0x40, ebx, angles, edx, F + 0x58, F + 0x70}, 2,
+                    args);  // AnglesToAxis (ESI up, EDI right)
+        }
+        esi = F + 0x58;
+        edi = state;
+        const float zero = 0.0f;
+        for (uint32_t i = 0; i < 3; ++i) stack_at(F + 0x64 + i * 4) = stack_at(origin + i * 4);
+        left0 = zero - stack_float(F + 0x70);
+        left1 = zero - stack_float(F + 0x74);
+        left2 = zero - stack_float(F + 0x78);
+    }
+    // The start pose as a 4x4 (forward, left, up, origin) -> quaternion + origin record, then an identity.
+    const float zero = 0.0f;
+    stack_float(F + 0xc0) = left0;
+    stack_float(F + 0xd0) = stack_float(F + 0x58);
+    stack_float(F + 0xdc) = zero;
+    stack_float(F + 0xcc) = zero;
+    stack_float(F + 0xbc) = zero;
+    stack_float(F + 0xd4) = stack_float(F + 0x5c);
+    stack_float(F + 0xec) = one;
+    stack_float(F + 0xd8) = stack_float(F + 0x60);
+    stack_float(F + 0xb0) = stack_float(F + 0x40);
+    stack_float(F + 0xe0) = stack_float(F + 0x64);
+    stack_float(F + 0xb4) = stack_float(F + 0x44);
+    stack_float(F + 0xe4) = stack_float(F + 0x68);
+    stack_float(F + 0xb8) = stack_float(F + 0x48);
+    stack_float(F + 0xc4) = left1;
+    stack_float(F + 0xc8) = left2;
+    stack_float(F + 0xe8) = stack_float(F + 0x6c);
+    {
+        const uint32_t args[2] = {F + 0x70, F + 0xb0};
+        call_at(F, 0x0026dfc5, 0x000262a0, TitleRegs{F + 0x70, ebx, ecx, F + 0xb0, esi, edi}, 2,
+                args);  // Quat_FromAxis3
+    }
+    const uint32_t blending = stack_at(F + 0x3c);
+    for (uint32_t i = 0; i < 3; ++i) stack_at(F + 0x80 + i * 4) = stack_at(F + 0xe0 + i * 4);
+    std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(state)),
+                reinterpret_cast<const void*>(static_cast<uintptr_t>(F + 0x70)), 0x20);
+    stack_float(F + 0x7c) = one;
+    stack_float(F + 0x78) = zero;
+    stack_float(F + 0x74) = zero;
+    stack_float(F + 0x70) = zero;
+    stack_float(F + 0x80) = zero;
+    stack_float(F + 0x84) = zero;
+    stack_float(F + 0x88) = zero;
+    std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(state + 0x20)),
+                reinterpret_cast<const void*>(static_cast<uintptr_t>(F + 0x70)), 0x20);
+    const uint32_t tree = stack_at(F + 0x38);
+    edi = state + 0x40;
+    esi = F + 0x90;
+    ecx = 0;
+    if (blending) {
+        edi = actor;
+        esi = tree;
+        // The weight of the actor's anim of +0x210 (0 when the tree has no info for it); a knob for +0x214
+        // or else +0x218 when its weight is above 0.
+        auto weight_of = [&](uint32_t slot, float* weight) {
+            const uint32_t info = half_at(tree + half_at(actor + slot) * 2 + 0x18);
+            if (!info) return false;
+            *weight = title_global<float>(0x00965d14 + info * 0x30);
+            return true;
+        };
+        float weight;
+        stack_float(F + 0x3c) = weight_of(0x210, &weight) ? weight : zero;
+        float knob;
+        uint32_t knob_slot = 0;
+        if (weight_of(0x214, &knob) && knob > zero) knob_slot = 0x214;
+        else if (weight_of(0x218, &knob) && knob > zero) knob_slot = 0x218;
+        if (knob_slot) {
+            const uint32_t index = half_at(actor + knob_slot);
+            const uint32_t info = half_at(tree + index * 2 + 0x18);
+            const uint32_t args[6] = {tree, 0x3e4ccccd, 0x3f800000, 0, 0, 0};
+            const TitleRegs regs{index, ebx, info * 0x30, edx, esi, edi};
+            ent_call_at_xmm5_raw(F, 0x002d7db0, &regs, 6, args, bits_of(knob));  // AnimTree_SetKnob (XMM5 goal)
+            stack_at(F - 0x1c) = 0x0026e114;
+        }
+        {
+            const uint32_t w = stack_at(F + 0x3c);
+            const uint32_t args[7] = {tree, w, 0x3e4ccccd, 0x3f800000, 0, 0, 0};
+            call_at(F, 0x0026e139, 0x002cf090, TitleRegs{half_at(actor + 0x210), ebx, ecx, w, esi, edi}, 7,
+                    args);  // AnimTree_SetGoalWeight
+        }
+        if (root & 0xffff) {
+            const uint32_t args[2] = {tree, 0};
+            call_at(F, 0x0026e14f, 0x002c9a90, TitleRegs{root & 0xffff, ebx, ecx, edx, esi, edi}, 2,
+                    args);  // AnimTree_ClearChildGoalWeights
+        }
+    } else {
+        const uint32_t args[2] = {tree, 0};
+        call_at(F, 0x0026e161, 0x002c9a90, TitleRegs{root & 0xffff, ebx, tree, edx, esi, edi}, 2,
+                args);  // AnimTree_ClearChildGoalWeights
+        esi = tree;
+    }
+    edi = handle;
+    uint32_t restart;
+    {
+        const uint32_t args[1] = {handle};
+        restart = call_at(F, 0x0026e171, 0x00250e00, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 1, args);  // G_GetAnimFlag0
+    }
+    {
+        const uint32_t args[7] = {tree, 0x3f800000, 0, 0x3f800000, rate, 0, restart ? 0u : 1u};
+        call_at(F - 4, 0x0026e192, 0x002cf090, TitleRegs{handle & 0xffff, ebx, ecx, rate, esi, edi}, 7,
+                args);  // AnimTree_SetGoalWeight
+    }
+    stack_at(ent + 0x2a4) |= 0x1000000;
+}
+
 uint8_t XB_STDCALL G_EntityInValidCell(uint8_t* ent) {
     // Always with no cell data loaded (0x0095bf0c); else the entity's cell (+0x458, out of range ->
     // cell 0) must have its +0x3c set. A negative cell is invalid.
@@ -7798,10 +8186,6 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     stack_float(title_global<uint32_t>(0x0095f4e0) + 0x34c) = 0.0f;
     return 0;
 }
-
-// actor.cpp: title_call_at_regs for an XMM0 result (its bits in EAX).
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_call_at_xmm0_raw(uint32_t top, uint32_t function, const TitleRegs* regs,
-                                                                    uint32_t count, const uint32_t* args);
 
 // Every title callee runs where the original's call puts it (the sight traces read the unset fourth words of the
 // eye vectors: the squared-distance vectors stored there before).
