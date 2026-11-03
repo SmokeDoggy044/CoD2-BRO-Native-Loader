@@ -9501,7 +9501,7 @@
 002b60a0 PM_WalkCmdScale
 002b62f0 PM_CmdScale
 002b63f0 PM_AddEvent
-002b6430 FUN_002b6430
+002b6430 Vec3_BendTowardAxis
 002b6710 BG_EvaluateTrajectoryDelta
 002b68f0 BG_CanItemBeGrabbed
 002b6a70 BG_FindItem

@@ -14628,3 +14628,4 @@ address,name,kind,confidence,evidence
 002341f0,FUN_002341f0,function,high,"gap after VehiclePhys_Init (called from 0x002348c3), created in Ghidra 11-03"
 00228bc0,FUN_00228bc0,function,high,"gap: only caller of VehiclePhys_DebugDrawBody, no refs; created 11-03"
 00231820,FUN_00231820,function,high,"gap: wrapper calling Ragdoll_DrawJointDebug, no refs; created 11-03"
+002b6430,Vec3_BendTowardAxis,function,high,"game/phys push 17 (dead)"

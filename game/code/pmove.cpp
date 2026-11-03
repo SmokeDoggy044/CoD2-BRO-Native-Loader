@@ -5266,4 +5266,237 @@ view_height:
         at<uint32_t>(p, 0x458) = at<uint32_t>(p, 0x454);
 }
 
+PLATFORM_ASM_ENTRY(Vec3_BendTowardAxis_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vec3_BendTowardAxis) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Vec3_BendTowardAxis(const float* axis, const float* point, float* out) {
+    // ESI = axis, EDI = point, EBX = out (no caller: dead). The unit direction from the point to the
+    // origin, bent toward the axis (half the axis added and renormalised per step) until its dot with the
+    // axis reaches 0.3 (0.7 for an axis z above 0.8). A zero length leaves a vector unnormalised; the
+    // axis is used as given (up only for a negative length, which never happens).
+    float limit = title_global<float>(0x0083066c);  // 0.3
+    const float zero = 0.0f;
+    const float len = pm_ci_sqrt(static_cast<long double>((axis[0] * axis[0] + axis[1] * axis[1]) + axis[2] * axis[2]));
+    float nx, ny, nz;
+    if (platform_x87_greater(zero, len)) {
+        nx = zero;
+        ny = zero;
+        nz = title_global<float>(0x0083eb20);
+    } else {
+        nx = axis[0];
+        ny = axis[1];
+        nz = axis[2];
+    }
+    float dy = zero - point[1];
+    float dz = zero - point[2];
+    float dx = zero - point[0];
+    float l = pm_ci_sqrt(static_cast<long double>((dz * dz + dy * dy) + dx * dx));
+    float vx, vy, vz;
+    if (!x87_equal(l, title_global<float>(0x0083eafc))) {
+        const float inv = title_global<float>(0x0083eb20) / l;
+        vx = inv * dx;
+        vy = inv * dy;
+        vz = inv * dz;
+    } else {
+        vx = dx;
+        vy = dy;
+        vz = dz;
+    }
+    if (axis[2] > title_global<float>(0x0083ebc0)) limit = title_global<float>(0x0083ed28);  // 0.8 -> 0.7
+    const float dot = (vz * nz + vy * ny) + vx * nx;
+    if (limit > dot) {
+        const float half = title_global<float>(0x0083eb24);
+        const float hx = nx * half, hy = ny * half, hz = nz * half;
+        float d;
+        do {
+            const float wx = hx + vx;
+            const float wz = hz + vz;
+            const float wy = hy + vy;
+            float sx = wx, sy = wy, sz = wz;
+            l = pm_ci_sqrt(static_cast<long double>((wz * wz + wy * wy) + wx * wx));
+            if (!x87_equal(l, title_global<float>(0x0083eafc))) {
+                const float inv = title_global<float>(0x0083eb20) / l;
+                sx = inv * sx;
+                sy = inv * sy;
+                sz = inv * sz;
+            }
+            d = (sz * nz + sy * ny) + sx * nx;
+            vx = sx;
+            vy = sy;
+            vz = sz;
+        } while (limit > d);
+    }
+    out[0] = vx;
+    out[1] = vy;
+    out[2] = vz;
+}
+
+namespace {
+
+// Runs a title callee at the original's ESP (top) and writes back the original call's return address.
+uint32_t pm_call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                    const uint32_t* args = nullptr) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    *pointer<uint32_t>(top - count * 4 - 4) = ret;
+    return result;
+}
+
+// An angle through the 16-bit short form (x * 65536/360, truncated, low 16 bits, back), in (-180, 180].
+float pm_short_angle(float degrees) {
+    const int32_t s = static_cast<int32_t>(degrees * title_global<float>(0x0083ebd8)) & 0xffff;
+    float v = static_cast<float>(s) * title_global<float>(0x0083ebd4);
+    if (v > title_global<float>(0x0083eb60)) v = v - title_global<float>(0x0083ebcc);
+    return v;
+}
+
+}  // namespace
+
+// The trace reads its vectors' fourth words, and the original reads one never-set local (B + 0xdc): the frame
+// sits at the original's addresses (gap entry; B = aligned base - 0xe0), callees at the original's ESP.
+PLATFORM_ASM_ENTRY(BG_CheckProneFeet_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(BG_CheckProneFeet) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                    uint32_t ebp) {
+    // EAX = flag (contents 0x00820011 when set, else 0x01810011); cdecl (pass entity, origin, height, yaw,
+    // out delta z, out front pitch, out back pitch, trace, back distance). A 12-unit box (+-6) is traced
+    // from 24 units ahead along yaw - 180 (z +- height) and from back distance - 6 units along it (start
+    // z + height, end the front foot's z - height); each foot is the hit point (else the trace end), 6
+    // below unless the never-set local word's low bytes are set (then the origin z). Pitches from origin
+    // to front foot and front to back foot (short-angle rounded); the back pitch is pulled to within
+    // -50..70 of the front by the wrapped difference. Debug lines while 0x00950bcc. Returns 1.
+    const uint32_t E = entry_esp;
+    *pointer<uint32_t>(E - 4) = ebp;
+    const uint32_t B = ((E - 4) & ~15u) - 0xe0;
+    auto wd = [B](uint32_t off) -> uint32_t& { return *pointer<uint32_t>(B + off); };
+    auto fl = [B](uint32_t off) -> float& { return *pointer<float>(B + off); };
+    const uint32_t* const arg = pointer<uint32_t>(E + 4);
+    const uint32_t pass = arg[0];
+    const float* const origin = pointer<float>(arg[1]);
+    float height, yaw, back_distance;
+    std::memcpy(&height, &arg[2], 4);
+    std::memcpy(&yaw, &arg[3], 4);
+    float* const out_dz = pointer<float>(arg[4]);
+    float* const out_front = pointer<float>(arg[5]);
+    float* const out_back = pointer<float>(arg[6]);
+    const uint32_t trace = arg[7];
+    std::memcpy(&back_distance, &arg[8], 4);
+    const uint32_t mask = (eax ? 0xff010000u : 0u) + 0x01810011u;
+    wd(8) = ebx;
+    wd(0x20) = mask;
+    wd(4) = esi;
+    wd(0) = edi;
+    const float zero = 0.0f;
+    wd(0xd0) = 0;
+    wd(0xd4) = 0;
+    if (out_dz) *out_dz = zero;
+    if (out_front) *out_front = zero;
+    if (out_back) *out_back = zero;
+    const float six_neg = title_global<float>(0x0083f0ac), six = title_global<float>(0x0083ecd0);
+    fl(0x80) = six_neg;
+    fl(0x84) = six_neg;
+    fl(0x88) = six_neg;
+    fl(0x70) = six;
+    fl(0x74) = six;
+    fl(0x78) = six;
+    fl(0x30) = zero;
+    fl(0x34) = yaw - title_global<float>(0x0083eb60);
+    fl(0x38) = zero;
+    {
+        const uint32_t args[2] = {B + 0x30, B + 0x24};
+        pm_call_at(B, 0x002dc7be, 0x002a2af0, TitleRegs{B + 0x24, ebx, B + 0x30, 0, B + 0x94, B + 0x54}, 2,
+                   args);  // AnglesToAxis (forward B+0x24, right B+0x54, up B+0x94)
+    }
+    const uint32_t org = address_of(origin);
+    const auto foot = [&](uint32_t to, uint32_t ret, uint32_t line_ret, uint32_t top, const TitleRegs& regs) {
+        const uint32_t args[7] = {B + 0xa0, B + 0x60, B + 0x80, B + 0x70, B + 0x30, pass, mask};
+        pm_call_at(top, ret, trace, regs, 7, args);  // the trace callback
+        float z;
+        if (title_global<float>(0x0083eb20) > fl(0xc0)) {
+            fl(to) = fl(0xa0);
+            fl(to + 4) = fl(0xa4);
+            z = fl(0xa8);
+        } else {
+            fl(to) = fl(0x30);
+            fl(to + 4) = fl(0x34);
+            z = fl(0x38);
+        }
+        const uint16_t flags = *pointer<uint16_t>(B + 0xdc);
+        fl(to + 8) = z - six;
+        if ((flags >> 8) || (flags & 0xff)) fl(to + 8) = origin[2];
+        if (title_global<uint32_t>(0x00950bcc)) {
+            const uint32_t line[6] = {B + 0x60, 0x0082eadc, title_global<uint32_t>(0x009509a4), 1, 1, 0};
+            pm_call_at(B, line_ret, 0x002b2f20, TitleRegs{B + 0x30, org, 0, line[2], trace, mask}, 6,
+                       line);  // DebugDraw_AddLine
+        }
+    };
+    {
+        const float reach = title_global<float>(0x0083ef04);  // 24
+        const float px = fl(0x24) * reach + origin[0];
+        const float py = fl(0x28) * reach + origin[1];
+        const float pz = fl(0x2c) * reach + origin[2];
+        fl(0x60) = px;
+        fl(0x30) = px;
+        fl(0x64) = py;
+        fl(0x34) = py;
+        fl(0x68) = pz + height;
+        fl(0x38) = pz - height;
+        foot(0x48, 0x002dc85c, 0x002dc909, B - 8, TitleRegs{B + 0x60, org, B + 0xa0, B + 0x80, trace, mask});
+    }
+    {
+        const float d = back_distance - six;
+        const float qx = d * fl(0x24) + origin[0];
+        const float qz = d * fl(0x2c) + origin[2];
+        const float qy = d * fl(0x28) + origin[1];
+        fl(0x60) = qx;
+        fl(0x30) = qx;
+        fl(0x68) = qz + height;
+        const float end_z = fl(0x50) - height;
+        fl(0x64) = qy;
+        fl(0x34) = qy;
+        fl(0x38) = end_z;
+        foot(0x54, 0x002dc99f, 0x002dca4c, B, TitleRegs{B + 0xa0, org, B + 0x80, B + 0x60, trace, mask});
+    }
+    fl(0x9c) = origin[2];
+    fl(0x24) = origin[0] - fl(0x48);
+    fl(0x28) = origin[1] - fl(0x4c);
+    fl(0x2c) = fl(0x9c) - fl(0x50);
+    const float front = pm_short_angle(Vec3_PitchDegrees(&fl(0x24)));
+    fl(0x1c) = front;
+    fl(0x24) = fl(0x48) - fl(0x54);
+    fl(0x28) = fl(0x4c) - fl(0x58);
+    fl(0x2c) = fl(0x50) - fl(0x5c);
+    const float back = pm_short_angle(Vec3_PitchDegrees(&fl(0x24)));
+    fl(0x18) = back;
+    fl(0x20) = back;
+    const float full = title_global<float>(0x0083ebcc);  // 360
+    float r = static_cast<float>(pm_ci_fmod(static_cast<long double>(front) - static_cast<long double>(back),
+                                            static_cast<long double>(title_global<double>(0x0083ed40))));
+    fl(0x18) = r;
+    *pointer<uint32_t>(B - 4) = 0x002dcb60;  // __CIfmod's return address (the last call)
+    if (platform_x87_greater(r, title_global<float>(0x0083eb60))) r = r - full;
+    if (title_global<float>(0x0083ebd0) > r) r = r + full;  // -180
+    const float low = title_global<float>(0x0083f0a8), high = title_global<float>(0x0083eda0);  // -50, 70
+    if (low > r)
+        fl(0x20) = pm_short_angle(fl(0x1c) - low);
+    else if (r > high)
+        fl(0x20) = pm_short_angle(fl(0x1c) - high);
+    if (out_dz) *out_dz = fl(0x9c) - origin[2];
+    if (out_front) *out_front = fl(0x1c);
+    if (out_back) *out_back = fl(0x20);
+    return 1;
+}
+
 }  // namespace game

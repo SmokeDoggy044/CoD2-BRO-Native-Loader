@@ -9,6 +9,8 @@
 
 namespace game {
 
+struct ScriptString;
+
 // 0x002fd650: how many of the g_vehicleSlotCount (0x00986000) vehicle slots (0x0095f694,
 // 0x340 bytes each) are in use (+0x170).
 int32_t XB_CDECL Vehicle_CountActive();
@@ -392,5 +394,50 @@ extern "C" void Phys_FilterEntriesInBox_entry(void);
 // state (+0x248) reset from the defaults.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_ResetOnVehicleOverlap(uint8_t* ent);
 extern "C" void Vehicle_ResetOnVehicleOverlap_entry(void);
+
+// 0x002b9a30 (EAX = all, ECX = key; value, out): the vehicle nodes whose field named by the key
+// ("targetname", "target", "origin", "angles", "speed", "lookahead", "script_noteworthy") equals
+// the value; with `out` their indices and the count, else the first index (-1: none or unknown key).
+int32_t XB_REGS3 XB_STDCALL VehicleNode_FindByKey(uint32_t all, uint32_t unused_edx, const ScriptString* key,
+                                                  const ScriptString* value, int32_t* out);
+// 0x00266b30 (cdecl ent, elapsed): turret heat (+0x198), overheat sound/notify and smoke effect.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_UpdateOverheat(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
+                                                               uint32_t edi, uint32_t ebp);
+extern "C" void Vehicle_UpdateOverheat_entry(void);
+// 0x00260810 (cdecl ent, elapsed): the driver's fire button, heat, and the aim point traced from the view.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
+                                                           uint32_t edi, uint32_t ebp);
+extern "C" void Vehicle_FireTurret_entry(void);
+// 0x00270560 (cdecl ent): one shot (bullet or projectile) from the turret's flash tag toward the aim point.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
+                                                                 uint32_t edi, uint32_t ebp);
+extern "C" void Vehicle_FireTurretWeapon_entry(void);
+
+// 0x00267e10 (cdecl ent): the use hint, its entity and string for the client (+0x47c/+0x480/+0x484/+0x4c0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Player_UpdateCursorHints(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                 uint32_t ebp);
+extern "C" void Player_UpdateCursorHints_entry(void);
+// 0x0026f0a0 (cdecl pass, attacker, start, end, a4, depth, fire, a7, a8): a bullet segment with effects only
+// (dead: its one caller Bullet_Fire has none).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                       uint32_t ebp);
+extern "C" void Bullet_Trace_r_entry(void);
+// 0x0026fcb0 (cdecl pass, attacker, start, end, damage, depth, fire, a7, a8): one bullet segment: trace,
+// events, effects, damage, penetration and pass-through (recursive).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
+                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Weapon_BulletTrace_r_entry(void);
+// 0x00271c30 (cdecl ent): Q3's ClientThink_real (command time, pmove, entity state, triggers, buttons).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                         uint32_t ebp);
+extern "C" void ClientThink_real_entry(void);
+// 0x00264060 (cdecl ent, list of {entity, score}): the usable entities in front of the player, best first.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                              uint32_t ebp);
+extern "C" void Player_GetUseList_entry(void);
+// 0x00265c10 (EAX fire record; cdecl ent): the melee trace, damage, impact event and rumble.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx, uint32_t esi,
+                                                          uint32_t edi, uint32_t ebp);
+extern "C" void Weapon_MeleeTrace_entry(void);
 
 }  // namespace game

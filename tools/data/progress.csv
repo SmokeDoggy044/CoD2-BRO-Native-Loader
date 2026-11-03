@@ -8515,7 +8515,7 @@ address,name,section,module,state,tested,matched
 00260220,G_CallSpawn,.text,game,settled,195,195
 00260330,Vehicle_Init,.text,game,matched,91,91
 00260480,Vehicle_ExitPlayer,.text,game,matched,21,21
-00260810,Vehicle_FireTurret,.text,game,named,0,0
+00260810,Vehicle_FireTurret,.text,game,settled,6288,6288
 00260b60,Vehicle_UpdateTurretAim,.text,game,settled,223,223
 002611e0,Vehicle_PlaneSlideMove,.text,game,named,0,0
 00261ac0,Vehicle_TraceGround,.text,game,untested,0,0
@@ -8535,7 +8535,7 @@ address,name,section,module,state,tested,matched
 002638b0,Turret_ComputeAimPoint,.text,game,settled,1574,1574
 00263b80,G_ReloadLevel,.text,game,settled,123,123
 00263c00,Player_UpdateLookAtEntity,.text,game,settled,176,176
-00264060,Player_GetUseList,.text,game,named,0,0
+00264060,Player_GetUseList,.text,game,settled,6573,6573
 00264b60,FinishSpawningItem,.text,game,untested,0,0
 00264f60,Drop_Item,.text,game,matched,28,28
 002650b0,CanDamage,.text,game,settled,113,113
@@ -8544,12 +8544,12 @@ address,name,section,module,state,tested,matched
 00265630,Think_DropToFloor,.text,game,matched,14,14
 00265900,Actor_EnterProne,.text,game,settled,160,160
 00265a40,Weapon_FireClusterAtTrace,.text,game,untested,0,0
-00265c10,Weapon_MeleeTrace,.text,game,named,0,0
+00265c10,Weapon_MeleeTrace,.text,game,matched,8,8
 00266390,Vehicle_Die,.text,game,settled,101,101
 00266470,Vehicle_Use,.text,game,settled,105,105
 002664a0,Vehicle_PlayerDriveThink,.text,game,untested,0,0
 00266650,Vehicle_UpdateEngineSound,.text,game,settled,215,215
-00266b30,Vehicle_UpdateOverheat,.text,game,named,0,0
+00266b30,Vehicle_UpdateOverheat,.text,game,settled,13345,13345
 00266cd0,Vehicle_PlayFxAtTag,.text,game,matched,77,77
 00266d50,Think_MatchTeam,.text,game,matched,4,4
 00266d70,Think_SpawnNewDoorTrigger,.text,game,untested,0,0
@@ -8565,7 +8565,7 @@ address,name,section,module,state,tested,matched
 00267a50,Actor_TurretCheckNearEnemy,.text,game,untested,0,0
 00267ac0,Turret_PickSentientTarget,.text,game,settled,5433,5433
 00267c30,Turret_AimAtTarget,.text,game,settled,976,976
-00267e10,Player_UpdateCursorHints,.text,game,named,0,0
+00267e10,Player_UpdateCursorHints,.text,game,settled,12728,12728
 00268350,Drop_Weapon,.text,game,matched,28,28
 00268770,Pickup_Health,.text,game,matched,15,15
 002688c0,Pickup_Weapon,.text,game,untested,0,0
@@ -8601,14 +8601,14 @@ address,name,section,module,state,tested,matched
 0026e810,G_SimulateGrenadePath,.text,game,matched,59,59
 0026eab0,Turret_ThinkActorUser,.text,game,settled,6290,6290
 0026ecf0,G_BounceItem,.text,game,matched,40,40
-0026f0a0,Bullet_Trace_r,.text,game,named,0,0
+0026f0a0,Bullet_Trace_r,.text,game,untested,0,0
 0026f670,Bullet_Fire,.text,game,untested,0,0
 0026f6d0,G_RunMover,.text,game,settled,403,403
 0026f890,turret_think,.text,game,settled,400,400
 0026fb00,G_RunItem,.text,game,settled,262,262
-0026fcb0,Weapon_BulletTrace_r,.text,game,named,0,0
+0026fcb0,Weapon_BulletTrace_r,.text,game,mismatched,2527,414
 002704c0,Weapon_FireBullet,.text,game,settled,118,118
-00270560,Vehicle_FireTurretWeapon,.text,game,named,0,0
+00270560,Vehicle_FireTurretWeapon,.text,game,untested,0,0
 00270990,Use_BinaryMover,.text,game,untested,0,0
 00270c10,Turret_FireFromFlashTags,.text,game,settled,134,134
 00270df0,FireWeapon,.text,game,matched,44,44
@@ -8621,7 +8621,7 @@ address,name,section,module,state,tested,matched
 00271870,Vehicle_Think,.text,game,settled,209,209
 00271b20,Turret_FireForUserOrDriver,.text,game,settled,168,168
 00271b60,Turret_UpdatePlayerFire,.text,game,settled,115,115
-00271c30,ClientThink_real,.text,game,named,0,0
+00271c30,ClientThink_real,.text,game,settled,10162,10162
 00272360,Player_UpdateTurretUse,.text,game,settled,123,123
 002723c0,ClientEndFrame,.text,game,settled,2501,2501
 002726b0,ClientThink,.text,game,settled,213,213
@@ -9501,7 +9501,7 @@ address,name,section,module,state,tested,matched
 002b60a0,PM_WalkCmdScale,.text,game,settled,103,103
 002b62f0,PM_CmdScale,.text,game,settled,105,105
 002b63f0,PM_AddEvent,.text,game,settled,102,102
-002b6430,FUN_002b6430,.text,game,unnamed,0,0
+002b6430,Vec3_BendTowardAxis,.text,qcommon,untested,0,0
 002b6710,BG_EvaluateTrajectoryDelta,.text,game,settled,106,106
 002b68f0,BG_CanItemBeGrabbed,.text,game,untested,0,0
 002b6a70,BG_FindItem,.text,game,untested,0,0
@@ -9555,7 +9555,7 @@ address,name,section,module,state,tested,matched
 002b9740,Path_RecordDisconnectedLink,.text,game,settled,442,442
 002b9870,Path_ResetLinkList2048,.text,game,matched,72,72
 002b99f0,PathNode_ParseAllScriptKeys,.text,game,untested,0,0
-002b9a30,VehicleNode_FindByKey,.text,game,named,0,0
+002b9a30,VehicleNode_FindByKey,.text,game,settled,102,102
 002b9c00,PathNode_FindByKey,.text,game,settled,256,256
 002b9f90,PathNode_FromHandle,.text,game,settled,240,240
 002ba010,PathNode_FromHandle2,.text,game,settled,18919,18919
@@ -9907,7 +9907,7 @@ address,name,section,module,state,tested,matched
 002db680,PM_CheckWeaponMelee,.text,game,settled,147,147
 002db7d0,PM_UpdateStickyAim,.text,game,named,0,0
 002dc3b0,PM_UpdateLean,.text,game,settled,175,175
-002dc6f0,BG_CheckProneFeet,.text,game,named,0,0
+002dc6f0,BG_CheckProneFeet,.text,game,matched,10,10
 002dcc60,BG_CheckProne,.text,game,named,0,0
 002ddd70,G_UpdateSoundListenerFromPlayer,.text,game,untested,0,0
 002ddea0,G_AllocWorldEntity,.text,game,matched,4,4
