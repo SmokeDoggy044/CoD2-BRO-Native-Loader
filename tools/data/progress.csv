@@ -7842,13 +7842,13 @@ address,name,section,module,state,tested,matched
 00213e00,Actor_NoticeGrenade,.text,game,matched,72,72
 00213ef0,Actor_Exposed_ReacquireLast,.text,game,settled,100,100
 00214030,Actor_EventGrenade,.text,game,settled,118,118
-00214050,Path_TryDodge,.text,game,mismatched,306,289
+00214050,Path_TryDodge,.text,game,matched,53,53
 002144f0,Path_BuildFromNodes,.text,game,matched,56,56
 00214910,Actor_HandlePointEvent,.text,game,settled,100,100
 00214a90,Actor_SendPointEvent,.text,game,settled,100,100
 00214ba0,Sentient_SendPointEventAtSelf,.text,game,settled,190,190
 00214bd0,Actor_Death_Cleanup,.text,game,settled,126,126
-00214c80,Actor_AvoidOthers,.text,game,named,0,0
+00214c80,Actor_AvoidOthers,.text,game,settled,11108,11108
 00216080,Path_FindVisibleNodeToward,.text,game,matched,48,48
 00216ae0,Path_AStarSearchAwayInsidePlanes,.text,game,untested,0,0
 00216f10,Path_AStarSearchAway,.text,game,matched,38,38
@@ -7904,8 +7904,8 @@ address,name,section,module,state,tested,matched
 0021c810,Actor_Grenade_ClaimBestCover,.text,game,untested,0,0
 0021c9d0,Actor_FindNearbyCoverNode,.text,game,settled,157,157
 0021cb30,Actor_OrientToEnemyOrMotion,.text,game,settled,193,193
-0021cca0,Actor_InitStateMachine,.text,game,mismatched,144,14
-0021ceb0,Actor_SpawnFromSpawner,.text,game,mismatched,145,0
+0021cca0,Actor_InitStateMachine,.text,game,mismatched,46,7
+0021ceb0,Actor_SpawnFromSpawner,.text,game,mismatched,39,0
 0021d250,Actor_Exposed_CheckNearbyCover,.text,game,settled,157,157
 0021d300,Actor_Exposed_Start,.text,game,settled,106,106
 0021d3c0,Actor_Exposed_Combat,.text,game,settled,186,186

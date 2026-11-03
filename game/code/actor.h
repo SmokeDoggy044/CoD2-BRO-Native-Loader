@@ -1553,6 +1553,12 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint3
                                                           uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Path_TryDodge_entry(void);
 
+// 0x00214c80 (EAX actor; stack flag; ret 4): waits for or dodges the sentients ahead of the move (leader
+// +0x7c8/+0x7cc, next check +0x7c0, wait +0x7c4); 0 move on, 1 stand, 2 walk.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_AvoidOthers(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                              uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_AvoidOthers_entry(void);
+
 // 0x00213850 (EAX path, EBX origin): picks the lookahead distance (+0x3b4) where the path lines up best with
 // the lookahead direction and refreshes the lookahead (Path_RefreshLookahead / Path_LookaheadAtEnd).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_StartLookahead(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx,

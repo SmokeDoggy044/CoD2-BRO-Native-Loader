@@ -7064,6 +7064,70 @@ PLATFORM_ASM_ENTRY(ai_ci_sqrt_at, "pushl %ebp\n"
                                   "popl %ebp\n"
                                   "ret")
 
+// title_call_at_regs that also hands the callee the original's EBP (regs->ebp): title code
+// that pushes it leaves it on the stack it copies or reads back. The helper's own frame
+// pointer waits in ai_frame_slot across the call (a nested use keeps the previous one); after
+// the return a few words below the callee's final ESP are used for that lookup.
+struct TitleRegsBp {
+    uint32_t eax, ebx, ecx, edx, esi, edi, ebp;
+};
+namespace {
+uint32_t ai_frame_slot;
+}
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ai_frame_get() { return ai_frame_slot; }
+extern "C" PLATFORM_HIDDEN void XB_CDECL ai_frame_set(uint32_t frame) { ai_frame_slot = frame; }
+extern "C" PLATFORM_HIDDEN uint64_t XB_CDECL ai_call_at_ebp(uint32_t top, uint32_t function, const TitleRegsBp* regs,
+                                                          uint32_t count, const uint32_t* args);
+PLATFORM_ASM_ENTRY(ai_call_at_ebp,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(game_floor_enter) "movl %eax, (%esp)\n"
+                   PLATFORM_ASM_CALL(ai_frame_get) "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(ai_frame_set) "addl $4, %esp\n"
+                   "movl 8(%ebp), %edx\n"
+                   "movl 20(%ebp), %ecx\n"
+                   "movl 24(%ebp), %edi\n"
+                   "1:\n"
+                   "testl %ecx, %ecx\n"
+                   "jz 2f\n"
+                   "decl %ecx\n"
+                   "subl $4, %edx\n"
+                   "movl (%edi,%ecx,4), %eax\n"
+                   "movl %eax, (%edx)\n"
+                   "jmp 1b\n"
+                   "2:\n"
+                   "movl 12(%ebp), %ecx\n"
+                   "movl %ecx, -4(%edx)\n"  // the call reads its target before it pushes over it
+                   "movl 16(%ebp), %eax\n"
+                   "movl %edx, %esp\n"
+                   "movl 4(%eax), %ebx\n"
+                   "movl 8(%eax), %ecx\n"
+                   "movl 12(%eax), %edx\n"
+                   "movl 16(%eax), %esi\n"
+                   "movl 20(%eax), %edi\n"
+                   "movl 24(%eax), %ebp\n"
+                   "movl 0(%eax), %eax\n"
+                   "call *-4(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(ai_frame_get) "movl %eax, %ecx\n"
+                   "popl %edx\n"
+                   "popl %eax\n"
+                   "movl %ecx, %ebp\n"
+                   "leal -20(%ebp), %esp\n"
+                   "movl %eax, %esi\n"
+                   "movl %edx, %edi\n" PLATFORM_ASM_CALL(ai_frame_set) "addl $4, %esp\n"
+                   PLATFORM_ASM_CALL(game_floor_leave) "movl %esi, %eax\n"
+                   "movl %edi, %edx\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
+
 namespace {
 
 // __CIsqrt of a float at the original's ESP `top`, its return address `ret` written back: the
@@ -7073,6 +7137,16 @@ float ci_sqrt_at(uint32_t top, uint32_t ret, float x) {
     ai_ci_sqrt_at(top, &x, &r);
     stack_word(top - 4) = ret;
     return r;
+}
+
+// call_at with the original's EBP for the callee (ai_call_at_ebp); EDX back in `edx_out`.
+uint32_t call_at_bp(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& r, uint32_t ebp, uint32_t count,
+                    const uint32_t* args, uint32_t* edx_out = nullptr) {
+    const TitleRegsBp regs{r.eax, r.ebx, r.ecx, r.edx, r.esi, r.edi, ebp};
+    const uint64_t result = ai_call_at_ebp(top, function, &regs, count, args);
+    stack_word(top - count * 4 - 4) = ret;
+    if (edx_out) *edx_out = static_cast<uint32_t>(result >> 32);
+    return static_cast<uint32_t>(result);
 }
 
 // The (0, 0, 0, 1) vector at 0x0082e290 written to a stack block.
@@ -16968,7 +17042,7 @@ uint32_t XB_CDECL Actor_ApplyMove(uint32_t entry, uint32_t, uint32_t ebx, uint32
 AI_GAP_ENTRY(Actor_InitStateMachine, 0)
 
 uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
-                                         uint32_t edi, uint32_t) {
+                                         uint32_t edi, uint32_t ebp) {
     // ESI actor: the spawn template named by the entity's +0x25c (+6, rm_aitb lookup) applied,
     // a ragdoll, the sentient info reset, the two path buffers (0x1010 and 0x810 bytes, 16-byte
     // aligned, from the entity's memory context (+0x220, -1: 0x0095f638 +0x34) or the heap;
@@ -17056,12 +17130,14 @@ uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx,
     }
     {
         const uint32_t number[1] = {field<uint32_t>(ent, 0x224)};
-        call_at(F, 0x0021ce76, title_global<uint32_t>(0x00987b70), TitleRegs{F - 4, bx, number[0], dx, a, e}, 1,
-                number);  // g_animScriptInit
+        // EBP is the caller's: the script thread a wait detaches copies this stack (with the
+        // pushed EBP) into its record (ScrThread_AppendData).
+        call_at_bp(F, 0x0021ce76, title_global<uint32_t>(0x00987b70), TitleRegs{F - 4, bx, number[0], dx, a, e}, ebp, 1,
+                   number);  // g_animScriptInit
     }
     const uint32_t state = field<uint32_t>(actor, 8);
-    call_at(F, 0x0021ce8a, title_global<uint32_t>(0x00830c28 + state * 36), TitleRegs{state * 9, bx, a, 0, a, e}, 0,
-            nullptr);  // g_aiStateFuncs[state].Start
+    call_at_bp(F, 0x0021ce8a, title_global<uint32_t>(0x00830c28 + state * 36), TitleRegs{state * 9, bx, a, 0, a, e}, ebp,
+               0, nullptr);  // g_aiStateFuncs[state].Start
     field<int32_t>(ent, 0x328) = level_time();
     field<uint32_t>(ent, 0x32c) = 2;
     return state * 9;
@@ -17174,7 +17250,8 @@ uint32_t XB_CDECL Actor_SpawnFromSpawner(uint32_t entry, uint32_t, uint32_t ebx,
     }
     const uint32_t a = field<uint32_t>(ent, 0x240);
     title_global<uint32_t>(0x0095f704) = sp;
-    call_at(F, 0x0021d06c, 0x0021cca0, TitleRegs{0, bx, ecx, dx, a, sp}, 0, nullptr);  // Actor_InitStateMachine
+    call_at_bp(F, 0x0021d06c, 0x0021cca0, TitleRegs{0, bx, ecx, dx, a, sp}, entry - 4, 0,
+               nullptr);  // Actor_InitStateMachine (EBP the frame: its script init copies the stack)
     uint8_t* const actor = field<uint8_t*>(ent, 0x240);
     const uint32_t mask = 1u << (field<uint32_t>(field<const uint8_t*>(ent, 0x244), 4) & 31);
     title_global<uint32_t>(0x0095f704) = 0;
@@ -18723,15 +18800,16 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
     const uint32_t out1 = entry - 0x18;
     const uint32_t out2 = entry - 0xc;
     const uint32_t handle = arg(4), mask = arg(6);
+    const uint32_t index0 = arg(3);  // kept in EBP: the side distance goes to its slot below
     {
         const uint32_t args[5] = {start, handle, arg(5), mask, out1};
-        if (!call_at(F, 0x0021407d, 0x0020c040, TitleRegs{out1, start, arg(1), handle, P, mask}, 5, args))  // Path_TraceAhead
+        if (!call_at_bp(F, 0x0021407d, 0x0020c040, TitleRegs{out1, start, arg(1), handle, P, mask}, index0, 5, args))  // Path_TraceAhead
             return 0;
     }
     bool clear;
     {
         const uint32_t args[5] = {arg(2), handle, arg(5), mask, out1};
-        clear = call_at(F, 0x002140a1, 0x0020c040, TitleRegs{out1, start, start, handle, P, arg(2)}, 5, args) !=
+        clear = call_at_bp(F, 0x002140a1, 0x0020c040, TitleRegs{out1, start, start, handle, P, arg(2)}, index0, 5, args) !=
                 0;  // Path_TraceAhead
     }
     if (!clear) {
@@ -18755,17 +18833,17 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         slot_f(out1) = slot_f(out1) - nx * back;
         slot_f(out1 + 4) = slot_f(out1 + 4) - ny * back;
     }
-    int32_t idx = int32_t(arg(3));
+    int32_t idx = int32_t(index0);
     uint8_t* point = path + idx * 0x1c;
     bool cut = false;
     if (idx >= field<int16_t>(path, 0x386)) {
         const uint32_t args[5] = {addr_of(point), handle, arg(5), mask, out2};
-        if (call_at(F, 0x002141a0, 0x0020c040, TitleRegs{arg(5), start, out1, mask, P, addr_of(point)}, 5,
+        if (call_at_bp(F, 0x002141a0, 0x0020c040, TitleRegs{arg(5), start, out1, mask, P, addr_of(point)}, uint32_t(idx), 5,
                     args)) {  // Path_TraceAhead
             const int32_t n = idx - 0x1d;
             arg(5) = uint32_t(n);
             if (n > 0) {
-                call_at(F, 0x002141b8, 0x001fed20, TitleRegs{uint32_t(n), start, out1, mask, P, addr_of(point)}, 0,
+                call_at_bp(F, 0x002141b8, 0x001fed20, TitleRegs{uint32_t(n), start, out1, mask, P, addr_of(point)}, uint32_t(idx), 0,
                         nullptr);  // Path_DropPassedPoints
                 point -= n * 0x1c;
                 idx -= n;
@@ -18785,14 +18863,14 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         slot_f(entry - 0x1c) = field<float>(point, 8);
         {
             const uint32_t args[5] = {entry - 0x24, handle, arg(5), mask, out2};
-            if (!call_at(F, 0x00214258, 0x0020c040, TitleRegs{handle, start, out1, arg(5), P, addr_of(point)}, 5,
+            if (!call_at_bp(F, 0x00214258, 0x0020c040, TitleRegs{handle, start, out1, arg(5), P, addr_of(point)}, uint32_t(idx), 5,
                          args))  // Path_TraceAhead
                 return 0;
         }
         const int32_t n = idx - 0x1c;
         arg(5) = uint32_t(n);
         if (n > 0) {
-            call_at(F, 0x00214278, 0x001fed20, TitleRegs{uint32_t(n), start, out1, uint32_t(n), P, addr_of(point)}, 0,
+            call_at_bp(F, 0x00214278, 0x001fed20, TitleRegs{uint32_t(n), start, out1, uint32_t(n), P, addr_of(point)}, uint32_t(idx), 0,
                     nullptr);  // Path_DropPassedPoints
             point -= n * 0x1c;
             idx -= n;
@@ -18862,8 +18940,651 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
     field<int16_t>(path, 0x380) = int16_t(idx + 1);
     field<int16_t>(path, 0x382) = int16_t(idx + 1);
     field<int16_t>(path, 0x384) = 2;
-    call_at(F, 0x002144d4, 0x00213850, TitleRegs{P, arg(1), stack_word(start + 4), stack_word(start + 8), P, addr_of(e)},
-            0, nullptr);  // Path_StartLookahead
+    call_at_bp(F, 0x002144d4, 0x00213850, TitleRegs{P, arg(1), stack_word(start + 4), stack_word(start + 8), P, addr_of(r)},
+               uint32_t(idx), 0, nullptr);  // Path_StartLookahead
+    return 1;
+}
+
+AI_GAP_ENTRY(Actor_AvoidOthers, 4)
+
+uint32_t XB_CDECL Actor_AvoidOthers(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                    uint32_t edi, uint32_t ebp) {
+    // EAX actor, stack flag (ret 4): who the actor waits for or steps around while it moves.
+    // Not before +0x7c0; a vehicle-path actor (+0x1390) only sets the next check. The move
+    // direction is the velocity per second (+0x2c4/+0x2c8), else (under 1) the lookahead
+    // direction x 190, else nothing to avoid (0 with path points left, else the path cleared,
+    // 1). Every live sentient of another team bit (or any non-actor) within 80 in height and
+    // inside the radius (flag: +0x7b8 based, else 30) ahead of the move is checked: actors
+    // moving along get the leader slot (+0x7c8/+0x7cc chain), the nearest blocker the best
+    // slot. A blocker on another team: the path cleared (1) when it is the sentient's target
+    // and within 37.5. Else the actor waits (+0x7c4, 1 s) or dodges: Path_TryDodge to both
+    // sides of the blocker (75 off, 37.5 back); the leader chain or a path cut follows.
+    // Results: 0 move on, 1 stand, 2 walk. Frame F = entry - 0xc0 (the original's after its
+    // four pushes): locals at their offsets (origin +0x50, side point +0x6c, start +0x38,
+    // trace start +0xac), all traces at the original's ESP.
+    const uint32_t E = entry;
+    const uint32_t F = E - 0xc0;
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{eax});
+    const uint32_t A = eax;
+    const auto sf = [F](uint32_t off) -> float& { return *reinterpret_cast<float*>(uintptr_t(F + off)); };
+    const auto sw = [F](uint32_t off) -> uint32_t& { return stack_word(F + off); };
+    const auto sb = [F](uint32_t off) -> uint8_t& { return *reinterpret_cast<uint8_t*>(uintptr_t(F + off)); };
+    const auto i16 = [](const uint8_t* p, uint32_t off) { return int32_t(field<int16_t>(p, off)); };
+    const auto num_of = [](uint32_t ent) { return field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{ent}), 0x224); };
+    const auto ent_of = [](uint32_t p) { return field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{p}), 0); };
+    const float zero = 0.0f;
+
+    stack_word(E - 0xb4) = edi;
+    call_at_bp(E - 0xb4, 0x00214c90, 0x001fd6f0, TitleRegs{A, ebx, A, edx, esi, A}, ebp, 0,
+               nullptr);  // Actor_UpdateAvoidLeader (ECX actor)
+    if (level_time() < field<int32_t>(actor, 0x7c0)) return 1;
+    stack_word(E - 0xb8) = esi;
+    if (field<uint32_t>(actor, 0x1390)) {
+        field<int32_t>(actor, 0x7c0) = title_global<int32_t>(0x008dda9c) + level_time();
+        return 1;
+    }
+    const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+    sf(0x50) = field<float>(ent, 0x140);
+    sf(0x54) = field<float>(ent, 0x144);
+    sf(0x58) = field<float>(ent, 0x148);
+    {
+        const float rate = title_global<float>(0x0083eb9c) / static_cast<float>(title_global<int32_t>(0x008dda9c));  // 1000
+        const float vy = field<float>(actor, 0x2c8) * rate;
+        const float vx = field<float>(actor, 0x2c4) * rate;
+        const float sp2 = vy * vy + vx * vx;
+        stack_word(E - 0xbc) = ebx;
+        uint8_t* const path0 = actor + 0x3c0;
+        sf(0x24) = vx;
+        sf(0x28) = vy;
+        sf(0x8c) = sp2;
+        sw(0x34) = A + 0x3c0;
+        if (1.0f > sp2) {
+            const float lx = field<float>(path0, 0x39c);
+            const float ly = field<float>(path0, 0x3a0);
+            if (lx == 0.0f && ly == 0.0f) {
+                if (field<int16_t>(actor, 0x746) > 0) return 0;
+                call_at_bp(F + 4, 0x00214da1, 0x001ffdb0, TitleRegs{A, A + 0x3c0, ecx, edx, 0, A}, ebp, 0,
+                           nullptr);  // Actor_ClearPath (EDI actor)
+                return 1;
+            }
+            const float k = title_global<float>(0x00830c14);  // 190
+            sf(0x24) = lx * k;
+            sf(0x28) = ly * k;
+            sf(0x8c) = title_global<float>(0x0083f270);  // 36100
+        }
+    }
+    uint8_t* const path = actor + 0x3c0;
+    const uint32_t P = A + 0x3c0;
+    const float sp2 = sf(0x8c);
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    stack_word(F) = ebp;
+    sw(0xac) = 0;
+    sw(0xb0) = 2;
+    sw(0xb4) = 1;
+    sw(0xb8) = 0;
+    sw(0xbc) = 0;
+    const uint32_t self_bit = 1u << (sw(0xac + field<uint32_t>(sentient, 4) * 4) & 31);
+    sf(0x94) = 1.0f / sp2;
+    sw(0x78) = ~self_bit;
+    sw(0x20) = 0;
+    float r2;
+    if (stack_word(E + 4)) {
+        float r = field<float>(actor, 0x7b8);
+        float half = r * title_global<float>(0x0083eb24);  // 0.5
+        const float min_half = title_global<float>(0x0083f26c);  // 37.5
+        if (min_half > half) {
+            half = min_half;
+            if (title_global<float>(0x0083ee38) > r) r = title_global<float>(0x0083ee38);  // 30
+        }
+        sf(0xa4) = half * half;
+        r2 = r * r;
+    } else {
+        sf(0xa4) = title_global<float>(0x0083eefc);  // 1406.25
+        r2 = title_global<float>(0x0083ee3c);       // 900
+    }
+    const float best0 = r2 > sp2 ? r2 : sp2;
+    {
+        float v = field<float>(actor, 0x7bc);
+        if (v == title_global<float>(0x0083ec84)) {  // 40
+            v = field<float>(sentient, 0x18) > field<float>(actor, 0x7bc) ? field<float>(actor, 0x7bc)
+                                                                         : field<float>(sentient, 0x18);
+            if (title_global<float>(0x0083ee38) > v) v = title_global<float>(0x0083ee38);
+        }
+        sf(0xa8) = v * v;
+    }
+    {
+        const float a = field<float>(actor, 0x2a0), b = field<float>(actor, 0x2a4);
+        sb(0x1f) = (a * a + b * b >= 1.0f) ? 1 : 0;
+    }
+    const uint32_t leader0 = field<uint32_t>(actor, 0x7c8);
+    sb(0x4f) = leader0 == A ? 1 : 0;
+    sb(0x13) = (field<uint8_t>(actor, 0x7df) || leader0) ? 1 : 0;
+    sf(0x18) = best0;
+    sw(0x30) = 0;
+    sf(0x90) = r2;
+    sw(0x48) = 0;
+    sw(0x68) = title_global<float>(0x0083eb4c) >= field<float>(path, 0x3b4) ? 1 : 0;  // 0.001
+    if (field<uint32_t>(actor, 0x278) == 1) {
+        const float s = title_global<float>(0x008ddaa0) * title_global<float>(0x0083eba8);  // x 2
+        sf(0x98) = s * s * sp2;
+    } else {
+        sf(0x98) = zero;
+    }
+    // The sentient walk (EBP the record, ESI its actor).
+    uint32_t it = title_global<uint32_t>(0x00985378);  // g_sentients
+    const auto end_of = [] { return title_global<uint32_t>(0x00985378) + 0xc60; };
+    uint32_t bx = P;
+    if (it < end_of()) {
+        do {
+            const uint8_t* const rec = reinterpret_cast<const uint8_t*>(uintptr_t{it});
+            if (field<int32_t>(rec, 0x5c) < 0) goto next;
+            {
+                const uint32_t masked = (1u << (field<uint32_t>(rec, 4) & 31)) & sw(0x78);
+                const bool same = masked == 0;  // the al flag
+                const uint32_t ax = masked ? (0u - masked) & 0xffffff00u : 1u;
+                const uint32_t e = field<uint32_t>(rec, 0);
+                const uint8_t* const oe = reinterpret_cast<const uint8_t*>(uintptr_t{e});
+                const uint32_t other = field<uint32_t>(oe, 0x240);
+                uint8_t* const oa = reinterpret_cast<uint8_t*>(uintptr_t{other});
+                if (other && (same || it == field<uint32_t>(actor, 4))) goto next;
+                float x4 = field<float>(oe, 0x20), x5 = field<float>(oe, 0x24);
+                const float dz = sf(0x58) - field<float>(oe, 0x28);
+                sf(0x5c) = x4;
+                sf(0x60) = x5;
+                if (dz * dz >= title_global<float>(0x0083eb6c)) goto next;  // 6400
+                float x2 = x4 - sf(0x50), x3 = x5 - sf(0x54);
+                const float d2 = x3 * x3 + x2 * x2;
+                sf(0x7c) = x2;
+                sf(0x80) = x3;
+                sf(0x14) = d2;
+                if (d2 >= sf(0x18)) goto next;
+                float x0 = (x3 * sf(0x28) + x2 * sf(0x24)) - sf(0x98);
+                sf(0x2c) = x0;
+                float x1, x6;
+                if (!(zero < x0) && !(x0 != x0)) {
+                    const float side = field<float>(path, 0x3ac) * x3 + field<float>(path, 0x3a8) * x2;
+                    if (!(zero < side) && !(side != side) && !sw(0x68)) goto next;
+                }
+                {
+                    const uint8_t bl = title_global<float>(0x0083ee3c) > d2 ? 1 : 0;
+                    sb(0x1e) = bl;
+                    if (!other) {
+                        if (!(field<uint32_t>(actor, 0x310) & 0x2000000)) goto next;
+                        if (same) goto l27c;
+                        const uint8_t* const v = field<const uint8_t*>(oe, 0x23c);
+                        sf(0x38) = field<float>(v, 0x10);
+                        sf(0x3c) = field<float>(v, 0x14);
+                        x6 = sf(0x38);
+                        goto l1e2;
+                    }
+                    call_at_bp(F, 0x00215120, 0x001fd6f0, TitleRegs{ax, (bx & 0xffffff00u) | bl, other, P, other, A}, it,
+                               0, nullptr);  // Actor_UpdateAvoidLeader (ECX actor)
+                    if (field<uint32_t>(oa, 0x7c8) || field<uint32_t>(oa, 0x1390)) {
+                        sf(0x3c) = zero;
+                        sf(0x38) = zero;
+                        x6 = zero;
+                    } else {
+                        const float rate =
+                            title_global<float>(0x0083eb9c) / static_cast<float>(title_global<int32_t>(0x008dda9c));
+                        sf(0x3c) = field<float>(oa, 0x2c8) * rate;
+                        x6 = field<float>(oa, 0x2c4) * rate;
+                        sf(0x38) = x6;
+                    }
+                    bx = (bx & 0xffffff00u) | bl;
+                    if (bl && !field<uint32_t>(actor, 0x1390)) {
+                        bx = other + 0x39c;
+                        const uint32_t h = call_at_bp(F, 0x0021519b, 0x00013860, TitleRegs{bx, bx, other, P, other, A}, it, 0,
+                                                      nullptr);  // G_EntHandleToEnt (EAX handle)
+                        if (h) {
+                            const uint32_t h2 = call_at_bp(F, 0x002151a6, 0x00013860, TitleRegs{bx, bx, other, P, other, A}, it,
+                                                           0, nullptr);  // G_EntHandleToEnt
+                            if (field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{h2}), 0x244))
+                                field<uint32_t>(actor, 0x1390) = ent_of(other);
+                        }
+                        x0 = sf(0x2c);
+                        x3 = sf(0x80);
+                        x2 = sf(0x7c);
+                        x5 = sf(0x60);
+                        x4 = sf(0x5c);
+                        x6 = sf(0x38);
+                    }
+                }
+            l1e2:
+                if (!sb(0x4f)) {
+                    const float ly = sf(0x3c);
+                    const float lv2 = ly * ly + x6 * x6;
+                    if (lv2 >= 1.0f) {
+                        if (sf(0x14) >= sf(0x90)) goto next;
+                        const float dotl = sf(0x3c) * sf(0x28) + x6 * sf(0x24);
+                        if (!(zero > dotl)) {
+                            // 0x2153a1
+                            const float bias = sf(0x98);
+                            if (zero >= x0 + bias) goto next;
+                            if (other && num_of(ent_of(A)) > num_of(field<uint32_t>(rec, 0))) {
+                                const float d = sf(0x3c) * x3 + sf(0x38) * x2;
+                                if (bias > d) goto next;
+                            }
+                            goto l3ef;
+                        }
+                        if (sb(0x13)) goto l3ef;
+                        if (!sb(0x1f) && sb(0x1e)) goto l3ef;
+                        if (num_of(ent_of(A)) <= num_of(field<uint32_t>(rec, 0))) goto next;
+                    }
+                }
+            l27c:
+                if (sw(0x68)) goto l510;
+                {
+                    x6 = x0 * sf(0x94);
+                    bx = P;
+                    const float m = zero - x6;
+                    x1 = m * sf(0x24) + x2;
+                    x0 = m * sf(0x28) + x3;
+                    sf(0x2c) = x6;
+                    sf(0x9c) = x1;
+                    sf(0xa0) = x0;
+                    if (num_of(field<uint32_t>(rec, 0)) != field<uint32_t>(path, 0x38c)) goto l5b9;
+                    if (!sb(0x13)) {
+                        // 0x215425
+                        if (field<uint32_t>(actor, 0x278) != 1 || level_time() >= field<int32_t>(actor, 0x7c4)) goto l5b9;
+                        if (zero >= x6) goto next;
+                        if (x0 * x0 + x1 * x1 >= title_global<float>(0x0083ee3c)) goto next;
+                        goto l46e;
+                    }
+                    if (!field<int16_t>(path, 0x384) && !(field<uint8_t>(path, 0x3bc) & 2)) goto l5b9;
+                    if (field<uint8_t>(path, 0x3bc) & 1) goto l5b9;
+                    const float s = ci_sqrt_at(F, 0x0021531c, sf(0x14));
+                    sf(0x44) = s;
+                    if (static_cast<long double>(s) + static_cast<long double>(title_global<float>(0x0083f26c)) >
+                        static_cast<long double>(field<float>(path, 0x3b0)))
+                        goto l510;
+                    x1 = sf(0x9c);
+                    x6 = sf(0x2c);
+                    x5 = sf(0x60);
+                    x4 = sf(0x5c);
+                    x0 = sf(0xa0);
+                    goto l5b9;
+                }
+            l5b9:
+                if (x0 * x0 + x1 * x1 < title_global<float>(0x0083eefc) || x0 * x0 + x1 * x1 != x0 * x0 + x1 * x1) {
+                    // 0x215615 (jb: below or unordered)
+                    if (zero < x6 || x6 != x6) goto l46e;
+                    if (sf(0x14) >= title_global<float>(0x0083f268)) goto next;  // 3600
+                    if (!call_at_bp(F, 0x00215640, 0x001fabd0, TitleRegs{ax, bx, P, F + 0x6c, F + 0x50, A}, it, 0,
+                                    nullptr))  // Path_GetLookaheadPoint (ECX path, EDX out, ESI origin)
+                        goto l510;
+                } else {
+                    if (sf(0x14) >= title_global<float>(0x0083f268)) goto next;
+                    if (!call_at_bp(F, 0x002155f6, 0x001fabd0, TitleRegs{ax, bx, P, F + 0x6c, F + 0x50, A}, it, 0,
+                                    nullptr))  // Path_GetLookaheadPoint
+                        goto next;
+                }
+                x2 = x4 - sf(0x6c);
+                x3 = x5 - sf(0x70);
+                goto l4b2;
+            l46e:
+                if (!call_at_bp(F, 0x0021547d, 0x001fabd0, TitleRegs{ax, bx, P, F + 0x6c, F + 0x50, A}, it, 0,
+                                nullptr))  // Path_GetLookaheadPoint
+                    goto l510;
+                x2 = x4 - sf(0x6c);
+                x3 = x5 - sf(0x70);
+                if (zero >= x3 * sf(0x28) + x2 * sf(0x24)) goto l510;
+            l4b2: {
+                const float c = field<float>(path, 0x3ac) * x3 + field<float>(path, 0x3a8) * x2;
+                if (zero >= c) goto next;
+                const float m = zero - c;
+                const float px = m * field<float>(path, 0x3a8) + x2;
+                const float py = m * field<float>(path, 0x3ac) + x3;
+                if (py * py + px * px >= title_global<float>(0x0083ee3c)) goto next;
+            }
+            l510:
+                sf(0x18) = sf(0x14);
+                sw(0x30) = it;
+                goto next;
+            l3ef:
+                sf(0x90) = sf(0x14);
+                sf(0x84) = sf(0x38);
+                sw(0x48) = it;
+                sf(0x88) = sf(0x3c);
+            }
+        next:
+            it += 0x60;
+        } while (it < end_of());
+        // 0x215537
+        const uint32_t lead = sw(0x48);
+        if (lead && sf(0x18) > sf(0x90)) {
+            const uint8_t* const la = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{ent_of(lead)}), 0x240);
+            if (!la || zero > sf(0x88) * sf(0x28) + sf(0x84) * sf(0x24)) goto l_efe;
+            const uint32_t script = field<uint32_t>(la, 0x250);
+            if (script == 0x00987b98) {  // g_animScript_run
+                sw(0x20) = 2;
+            } else if (script == 0x00987be8 && sf(0x90) >= sf(0xa4)) {  // g_animScript_walk
+                sw(0x20) = 2;
+            } else {
+                sf(0x18) = sf(0x90);
+                sw(0x30) = lead;
+            }
+        }
+    }
+    {
+        // 0x215682
+        const uint32_t lead = sw(0x48);
+        float best = sf(0x18);
+        uint32_t bs = sw(0x30);
+        field<uint32_t>(actor, 0x7c8) = 0;
+        field<uint32_t>(actor, 0x7cc) = 0;
+        if (!bs || title_global<uint32_t>(0x0094d744)) {
+            // 0x215f53
+            if (!sw(0x68) && lead && sf(0x8c) > sf(0x88) * sf(0x88) + sf(0x84) * sf(0x84)) {
+                if (!field<int16_t>(path, 0x384)) field<uint16_t>(path, 0x384) = 0xffff;
+                field<uint32_t>(path, 0x38c) = num_of(ent_of(lead));
+                return 0;
+            }
+            const int16_t bp = field<int16_t>(path, 0x384);
+            if (bp) {
+                if (field<uint32_t>(path, 0x38c)) {
+                    const uint32_t h = call_at_bp(F, 0x00215fe9, 0x00013860, TitleRegs{P + 0x38c, P, field<uint32_t>(path, 0x38c),
+                                                                                  lead, 0, A},
+                                                  uint16_t(bp), 0, nullptr);  // G_EntHandleToEnt
+                    const uint8_t* const he = reinterpret_cast<const uint8_t*>(uintptr_t{h});
+                    const float dy = sf(0x54) - field<float>(he, 0x144);
+                    const float dx = sf(0x50) - field<float>(he, 0x140);
+                    if (title_global<float>(0x0083f268) > dy * dy + dx * dx) return sw(0x20);
+                }
+                if (bp < 0) field<uint16_t>(path, 0x384) = 0;
+            }
+            if (field<uint32_t>(path, 0x38c)) {
+                field<uint32_t>(path, 0x38c) = 0;
+                if (field<uint32_t>(actor, 0x278) != 1 && level_time() >= field<int32_t>(actor, 0x7c4)) return 1;
+            }
+            field<uint32_t>(actor, 0x7c4) = 0;
+            return sw(0x20);
+        }
+        const uint8_t* const brec = reinterpret_cast<const uint8_t*>(uintptr_t{bs});
+        if (field<uint32_t>(path, 0x38c) != num_of(ent_of(bs))) {
+            field<uint32_t>(actor, 0x7c4) = 0;
+            if (field<int16_t>(path, 0x384) < 0) field<uint16_t>(path, 0x384) = 0;
+            field<uint32_t>(path, 0x38c) = num_of(ent_of(bs));
+        }
+        if (!(sw(0x78) & (1u << (field<uint32_t>(brec, 4) & 31)))) {
+            if (best >= title_global<float>(0x0083eefc)) return sw(0x20);
+            if (field<uint32_t>(sentient, 0x3c) == bs)
+                call_at_bp(F, 0x0021570a, 0x001ffdb0, TitleRegs{sw(0x78), P, addr_of(sentient), 1u << (field<uint32_t>(brec, 4) & 31), bs, A},
+                           0, 0, nullptr);  // Actor_ClearPath (EDI actor)
+            field<int32_t>(actor, 0x7c0) = level_time() + 500;
+            return 1;
+        }
+        // 0x21572e: the blocker's origin and actor.
+        const uint8_t* const be = reinterpret_cast<const uint8_t*>(uintptr_t{ent_of(bs)});
+        sf(0x5c) = field<float>(be, 0x140);
+        uint32_t la = field<uint32_t>(be, 0x240);  // EBP
+        const uint8_t* lap = reinterpret_cast<const uint8_t*>(uintptr_t{la});
+        const uint32_t bits = field<uint32_t>(path, 0x3bc);
+        sf(0x60) = field<float>(be, 0x144);
+        sw(0x78) = la;
+        sf(0x64) = field<float>(be, 0x148);
+        sb(0x13) = 0;
+        float sx, sy;
+        int32_t index;
+        bool wait_first;
+        if (field<uint32_t>(actor, 0x278) == 1)
+            wait_first = !(bits & 2) && title_global<float>(0x0083eb3c) > field<float>(path, 0x3b0) && !(bits & 1);
+        else
+            wait_first = !(bits & 2) || (title_global<float>(0x0083eb3c) > field<float>(path, 0x3b0) && !(bits & 1));
+        if (wait_first) {
+            sb(0x13) = 1;
+            goto l_d4f;
+        }
+    l_7a6:
+        sx = sf(0x50);
+        sy = sf(0x54);
+    l_7b2:
+        if (level_time() < field<int32_t>(actor, 0x7c4)) return sw(0x20);
+        {
+            const int32_t n = i16(path, 0x380);
+            index = n - i16(path, 0x384) - 1;
+            if (index > i16(path, 0x388)) index = i16(path, 0x388);
+            bool scan = true;
+            if (index == n - 1) {
+                const float dy = sy - field<float>(path, 0x3d0);
+                const float dx = sx - field<float>(path, 0x3cc);
+                if (dy * dy + dx * dx >= best)
+                    scan = false;
+                else
+                    --index;
+            }
+            if (scan && index >= i16(path, 0x386)) {
+                const uint8_t* pt = path + index * 0x1c;
+                do {
+                    const float dy = sy - field<float>(pt, 4);
+                    const float dx = sx - field<float>(pt, 0);
+                    if (dy * dy + dx * dx >= best) break;
+                    --index;
+                    pt -= 0x1c;
+                } while (index >= i16(path, 0x386));
+            }
+        }
+        {
+            bool dodge;
+            if (field<float>(path, 0x3b8) == zero) {
+                sw(0x48) = 0;
+                dodge = index >= i16(path, 0x386);
+            } else {
+                const float s = ci_sqrt_at(F, 0x0021587f, sf(0x18));
+                sf(0x44) = s;
+                const long double sum =
+                    static_cast<long double>(s) + static_cast<long double>(title_global<float>(0x0083f26c));
+                const long double p3b0 = field<float>(path, 0x3b0);
+                if (p3b0 < sum || p3b0 != p3b0 || sum != sum) {
+                    sw(0x48) = 0;
+                    dodge = index >= i16(path, 0x386);
+                } else {
+                    sw(0x48) = 1;
+                    dodge = true;
+                }
+            }
+            if (dodge) {
+                // 0x2158bd: the move direction normalized, the start 37.5 off the blocker's
+                // side, the side point 75 ahead of it.
+                const float vx = sf(0x24), vy = sf(0x28);
+                const long double q = static_cast<long double>(vy) * vy + static_cast<long double>(vx) * vx;
+                sf(0x84) = vx;
+                sf(0x88) = vy;
+                sf(0x2c) = static_cast<float>(q);
+                const float len = ci_sqrt_at(F, 0x002158fa, sf(0x2c));
+                sf(0x44) = len;
+                sf(0x2c) = len;
+                float nx, ny;
+                if (len != title_global<float>(0x0083eafc)) {
+                    const float inv = title_global<float>(0x0083eb20) / len;
+                    nx = inv * vx;
+                    ny = inv * vy;
+                } else {
+                    nx = sf(0x84);
+                    ny = sf(0x88);
+                }
+                const float h = title_global<float>(0x0083f26c);  // 37.5
+                const float tz = sf(0x64);
+                const float ax = sf(0x5c) - nx * h;
+                const float ay = sf(0x60) - ny * h;
+                const float startx = ny * h + ax;
+                const float far = title_global<float>(0x0083ef00);  // 75
+                const float mnx = zero - nx;
+                sf(0xa0) = mnx;
+                sf(0x38) = startx;
+                const float sidex = nx * far + startx;
+                const float ny75 = ny * far;
+                const float starty = mnx * h + ay;
+                const float sidey = ny75 + starty;
+                uint32_t mask = field<uint32_t>(actor, 0x310);
+                sf(0x40) = tz;
+                sf(0x3c) = starty;
+                sf(0x6c) = sidex;
+                sf(0x94) = ny75;
+                sf(0x70) = sidey;
+                sf(0x74) = tz;
+                uint32_t handle;
+                if (la) {
+                    handle = num_of(ent_of(sw(0x78)));
+                    mask |= 4;
+                } else {
+                    handle = 0;
+                    mask |= 0x4004;
+                }
+                const uint32_t self_num = num_of(ent_of(A));
+                if (title_global<float>(0x0083eefc) > sf(0x18)) {
+                    const float dy = sf(0x60) - sf(0x54);
+                    const float dx = sf(0x5c) - sf(0x50);
+                    sf(0x80) = dy;
+                    sf(0x14) = dy * dy + dx * dx;
+                    sf(0x7c) = dx;
+                    const float dist = ci_sqrt_at(F, 0x00215a5d, sf(0x14));
+                    sf(0x44) = dist;
+                    sf(0x14) = dist;
+                    float ux, uy;
+                    if (dist != title_global<float>(0x0083eafc)) {
+                        const float inv = title_global<float>(0x0083eb20) / dist;
+                        ux = inv * sf(0x7c);
+                        uy = inv * sf(0x80);
+                    } else {
+                        uy = sf(0x80);
+                        ux = sf(0x7c);
+                    }
+                    if (h > dist) {
+                        sf(0xac) = sf(0x5c) - ux * h;
+                        sf(0xb0) = sf(0x60) - uy * h;
+                        sf(0xb4) = sf(0x64);
+                        const uint32_t args[5] = {F + 0xac, handle, self_num, mask, F + 0x50};
+                        call_at_bp(F, 0x00215b1c, 0x0020c040, TitleRegs{self_num, handle, F + 0x50, F + 0xac, uint32_t(index), A},
+                                   mask, 5, args);  // Path_TraceAhead (ECX goal)
+                    }
+                }
+                {
+                    const uint32_t args[7] = {F + 0x50, F + 0x6c, uint32_t(index), handle, self_num, mask, sw(0x48)};
+                    if (call_at_bp(F, 0x00215b47, 0x00214050, TitleRegs{F + 0x38, handle, P, F + 0x6c, uint32_t(index), A}, mask,
+                                   7, args))  // Path_TryDodge (EAX start, ECX path)
+                        goto l_f22;
+                }
+                {
+                    const float n75 = sf(0x94);
+                    sf(0x38) = sf(0x38) - n75;
+                    const float m75 = sf(0xa0) * far;
+                    sf(0x3c) = sf(0x3c) - m75;
+                    sf(0x6c) = sf(0x6c) - n75;
+                    sf(0x70) = sf(0x70) - m75;
+                    const uint32_t args[7] = {F + 0x50, F + 0x6c, uint32_t(index), handle, self_num, mask, sw(0x48)};
+                    if (call_at_bp(F, 0x00215bdd, 0x00214050, TitleRegs{F + 0x38, handle, P, sw(0x48), uint32_t(index), A},
+                                   mask, 7, args))  // Path_TryDodge
+                        goto l_f22;
+                }
+                la = sw(0x78);
+                lap = reinterpret_cast<const uint8_t*>(uintptr_t{la});
+            }
+        }
+        // 0x215bf0
+        {
+            const uint32_t own = field<uint32_t>(actor, 0x28);
+            if (la && (own == 0xd6 || own == 0xd7) && field<uint32_t>(lap, 0x28) != 0xd6 &&
+                field<uint32_t>(lap, 0x28) != 0xd7)
+                goto l_d10;
+        }
+        {
+            const float b = sf(0x18);
+            if (b >= title_global<float>(0x0083eefc)) {
+                if (field<uint32_t>(actor, 0x278) == 1) return sw(0x20);
+                if (b >= title_global<float>(0x0083f268)) {
+                    if (field<float>(path, 0x3b0) >= title_global<float>(0x0083eb3c)) goto l_d10;
+                    if (field<uint8_t>(path, 0x3bc) & 1) goto l_d10;
+                }
+            }
+        }
+        {
+            const int16_t cx = field<int16_t>(path, 0x384);
+            const auto leader_waits = [&](bool check_flag) {
+                if (check_flag && field<uint8_t>(lap, 0x7df) && field<uint32_t>(lap, 0x278) == 7) return true;
+                const uint32_t st = field<uint32_t>(lap, 8 + field<uint32_t>(lap, 0x20) * 4);
+                return st == 10 || st == 11;
+            };
+            if (cx < 0) {
+                if (title_global<float>(0x0083eb3c) > field<float>(path, 0x3b0) && !(field<uint8_t>(path, 0x3bc) & 1))
+                    goto l_ce3;
+            } else if (cx == 0 && la && leader_waits(true)) {
+                goto l_d10;
+            }
+            // 0x215cb3
+            {
+                const int32_t q = level_time() / 500;
+                if (q % 4) goto l_ede;
+            }
+            if (cx >= 0) {
+                if (!field<int16_t>(path, 0x384) && !sw(0x68))
+                    field<uint16_t>(path, 0x384) = 0xffff;
+                else
+                    call_at_bp(F, 0x00215ede, 0x001ffdb0, TitleRegs{0, P, uint32_t(int32_t(cx)), 0, 0, A}, la, 0,
+                               nullptr);  // Actor_ClearPath
+                goto l_ede;
+            }
+        l_ce3:
+            if (la) {
+                const uint32_t kind = field<uint32_t>(lap, 0x278);
+                if (kind == 1 || kind == 7 || leader_waits(false)) goto l_d10;
+            }
+            field<uint16_t>(path, 0x384) = 0;
+        }
+    l_ede:
+        if (!la || field<uint32_t>(lap, 0x7cc) != ent_of(A)) {
+            field<uint32_t>(actor, 0x7c8) = A;
+            field<uint32_t>(actor, 0x7cc) = ent_of(sw(0x30));
+        }
+        goto l_efe;
+    l_d10:
+        field<int32_t>(actor, 0x7c4) = level_time() + 1000;
+        if (field<uint32_t>(actor, 0x278) == 1) return sw(0x20);
+        if (sb(0x13)) return 1;
+        best = sf(0x18);
+        bs = sw(0x30);
+        sw(0x20) = 1;
+    l_d4f:
+        if (la) {
+            const uint32_t c = field<uint32_t>(lap, 0x7c8);
+            if (c && c != A && field<uint32_t>(lap, 0x7cc) != ent_of(A) &&
+                field<uint32_t>(actor, 8 + field<uint32_t>(actor, 0x20) * 4) != 6) {
+                if (field<int16_t>(path, 0x384) < 0) field<uint16_t>(path, 0x384) = 0;
+                field<uint32_t>(actor, 0x7c8) = field<uint32_t>(lap, 0x7c8);
+                field<uint32_t>(actor, 0x7cc) = field<uint32_t>(lap, 0x7cc);
+                field<int32_t>(actor, 0x7c0) = level_time() + 500;
+                field<uint32_t>(actor, 0x7c4) = 0;
+                return 1;
+            }
+            if (!field<uint8_t>(lap, 0x7df) || field<uint32_t>(lap, 0x7cc) == ent_of(A)) goto l_7a6;
+        }
+        if (field<uint32_t>(actor, 0x278) == 1 && !(title_global<float>(0x0083eefc) > best)) goto l_7a6;
+        {
+            const float dz = sf(0x64) - field<float>(sentient, 0x14);
+            if (!(title_global<float>(0x0083eb6c) > dz * dz)) goto l_7a6;
+            const float dx = field<float>(sentient, 0xc) - sf(0x5c);
+            const float dy = field<float>(sentient, 0x10) - sf(0x60);
+            const float d = dy * dy + dx * dx;
+            if (!(sf(0xa8) > d)) goto l_7a6;
+            if (la) {
+                sy = sf(0x54);
+                sx = sf(0x50);
+                const float ey = field<float>(sentient, 0x10) - sy;
+                const float ex = field<float>(sentient, 0xc) - sx;
+                if (!(ey * ey + ex * ex > d)) goto l_7b2;
+            }
+        }
+        if (field<int16_t>(path, 0x384) < 0) field<uint16_t>(path, 0x384) = 0;
+        field<uint32_t>(actor, 0x7c8) = A;
+        field<uint32_t>(actor, 0x7cc) = ent_of(bs);
+        field<int32_t>(actor, 0x7c0) = level_time() + 500;
+        field<uint32_t>(actor, 0x7c4) = 0;
+        return 1;
+    l_f22:
+        field<int32_t>(actor, 0x7c4) = level_time() + 1000;
+        return field<uint32_t>(actor, 0x278) == 1 ? sw(0x20) : 1;
+    }
+l_efe:
+    field<int32_t>(actor, 0x7c0) = level_time() + 500;
     return 1;
 }
 
