@@ -244,6 +244,183 @@ float get_ent_float(uint32_t handle) {
     return *reinterpret_cast<const float*>(ent + Offset);
 }
 
+// Actors (entity +0x240) and sentients (entity +0x244) by entity handle: the entity lookup
+// above, then the pointer, both must be set; no handle-0 check in the setters. The hook gets the
+// actor or sentient.
+template <uint32_t Sub>
+uint8_t* sub_object(uint32_t handle) {
+    uint8_t* ent = entity(handle);
+    return ent ? *reinterpret_cast<uint8_t**>(ent + Sub) : nullptr;
+}
+
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook, uint32_t Count>
+void set_sub_word(uint32_t handle, uint32_t* value) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) return;
+    if (FieldHook* hook = hook_at(Hook)) {
+        hook(object, Offset, value);
+        return;
+    }
+    for (uint32_t i = 0; i < Count; ++i) reinterpret_cast<uint32_t*>(object + Offset)[i] = value[i];
+}
+
+template <typename T, uint32_t Sub, uint32_t Offset, uint32_t Hook>
+void set_sub_narrow(uint32_t handle, uint32_t* value) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) return;
+    if (FieldHook* hook = hook_at(Hook)) {
+        hook(object, Offset, value);
+        return;
+    }
+    *reinterpret_cast<T*>(object + Offset) = static_cast<T>(*value);
+}
+
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+void set_sub_string(uint32_t handle, ScriptString* value) {
+    if (uint8_t* object = sub_object<Sub>(handle)) {
+        if (FieldHook* hook = hook_at(Hook))
+            hook(object, Offset, value);
+        else
+            string_assign(object + Offset, value);
+    }
+    string_release(value);
+}
+
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+ScriptString* get_sub_string(ScriptString* out, uint32_t* handle) {
+    uint8_t* object = sub_object<Sub>(*handle);
+    if (!object) return ScriptString_FromRep(out, nullptr);
+    if (FieldHook* hook = hook_at(Hook)) {
+        ScriptString* value = reinterpret_cast<ScriptString*>(handle);  // the handle's argument slot
+        ScriptString_FromRep(value, nullptr);
+        hook(object, Offset, value);
+        ScriptString_Copy(out, value);
+        string_release(value);
+        return out;
+    }
+    return ScriptString_Copy(out, reinterpret_cast<ScriptString*>(object + Offset));
+}
+
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+uint32_t* get_sub_vector(uint32_t* out, uint32_t handle) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) {
+        default_vector(out);
+        return out;
+    }
+    if (FieldHook* hook = hook_at(Hook)) {
+        uint32_t value[3];
+        default_vector(value);
+        hook(object, Offset, value);
+        copy_vector(out, value);
+        return out;
+    }
+    copy_vector(out, reinterpret_cast<const uint32_t*>(object + Offset));
+    return out;
+}
+
+// With the hook the handle's argument slot holds the value it fills in.
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+uint32_t get_sub_int(uint32_t handle) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) return 0;
+    if (FieldHook* hook = hook_at(Hook)) {
+        hook(object, Offset, &handle);
+        return handle;
+    }
+    return *reinterpret_cast<const uint32_t*>(object + Offset);
+}
+
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+float get_sub_float(uint32_t handle) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) return title_global<float>(0x0083eafc);  // 0
+    if (FieldHook* hook = hook_at(Hook)) {
+        hook(object, Offset, &handle);
+        return *reinterpret_cast<const float*>(&handle);
+    }
+    return *reinterpret_cast<const float*>(object + Offset);
+}
+
+// A reference (entity/node handle) through the result pointer; the hook fills the handle's slot,
+// cleared first. 0 for an invalid handle.
+template <uint32_t Sub, uint32_t Offset, uint32_t Hook>
+uint32_t* get_sub_ref(uint32_t* out, uint32_t handle) {
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) {
+        *out = 0;
+        return out;
+    }
+    if (FieldHook* hook = hook_at(Hook)) {
+        handle = 0;
+        hook(object, Offset, &handle);
+        *out = handle;
+        return out;
+    }
+    *out = *reinterpret_cast<const uint32_t*>(object + Offset);
+    return out;
+}
+
+// A 16- or 8-bit field returned in AX / AL. The rest of EAX is what the original leaves there:
+// the slot index when the index or generation check fails (only bits above AL survive), 0 for a
+// missing entity or object, the object's address when read, the hook's result with the hook.
+template <typename T, uint32_t Sub, uint32_t Offset, uint32_t Hook>
+uint32_t get_sub_narrow(uint32_t handle) {
+    constexpr uint32_t keep = sizeof(T) == 2 ? 0xffff0000u : 0xffffff00u;
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return index & keep;
+    uint8_t* object = sub_object<Sub>(handle);
+    if (!object) return 0;
+    if (FieldHook* hook = hook_at(Hook)) {
+        const uint32_t result = hook(object, Offset, &handle);
+        return (result & keep) | (handle & ~keep);
+    }
+    return (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object)) & keep) |
+           *reinterpret_cast<const T*>(object + Offset);
+}
+
+// The ScrCall_* wrappers: thiscall on a handle object (its handle at +0), calling the accessor
+// through its pointer in the builtin table (0x009229xx-0x00922bxx). Their C++ exception frames
+// around the temporaries have no effect.
+template <uint32_t Slot>
+ScriptString* call_get_string(const uint32_t* self, ScriptString* out) {
+    using Get = ScriptString* XB_CDECL(ScriptString*, uint32_t);
+    ScriptString value;
+    const ScriptString* result = title_global<Get*>(Slot)(&value, *self);
+    ScriptString_Copy(out, result);
+    string_release(&value);
+    return out;
+}
+
+template <uint32_t Slot>
+uint32_t* call_get_vector(const uint32_t* self, uint32_t* out) {
+    using Get = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    uint32_t value[3];
+    copy_vector(out, title_global<Get*>(Slot)(value, *self));
+    return out;
+}
+
+template <uint32_t Slot>
+const ScrVec3* call_set_vector(const uint32_t* self, const ScrVec3* value) {
+    title_global<void XB_CDECL (*)(uint32_t, ScrVec3)>(Slot)(*self, *value);
+    return value;
+}
+
+// The callee takes over the new reference.
+template <uint32_t Slot>
+const ScriptString* call_set_string(const uint32_t* self, const ScriptString* value) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, value);
+    title_global<void XB_CDECL (*)(uint32_t, ScriptString)>(Slot)(*self, copy);
+    return value;
+}
+
+template <uint32_t Slot>
+const uint32_t* call_set_word(const uint32_t* self, const uint32_t* value) {
+    title_global<void XB_CDECL (*)(uint32_t, uint32_t)>(Slot)(*self, *value);
+    return value;
+}
+
 }  // namespace
 
 void XB_CDECL ScrPathNode_SetTargetname(uint32_t handle, ScriptString value) { set_node_string<0x30>(handle, &value); }
@@ -389,5 +566,160 @@ void XB_CDECL ScrEnt_SetPersistentIndex(uint32_t handle, uint32_t value) { set_e
 uint32_t XB_CDECL ScrEnt_GetPersistentIndex(uint32_t handle) { return get_ent_int<0x290, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetTakedamage(uint32_t handle, uint32_t value) { set_ent_word<0x29c, 0x008d2100, 1>(handle, &value); }
 uint32_t XB_CDECL ScrEnt_GetTakedamage(uint32_t handle) { return get_ent_int<0x29c, 0x008d2104>(handle); }
+
+void XB_CDECL ScrActor_SetFloat_d4(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0xd4, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_d4(uint32_t handle) { return get_sub_float<0x240, 0xd4, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_d8(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0xd8, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_d8(uint32_t handle) { return get_sub_float<0x240, 0xd8, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetVec_108(uint32_t handle, ScrVec3 value) { set_sub_word<0x240, 0x108, 0x008d211c, 3>(handle, value.v); }
+uint32_t* XB_CDECL ScrActor_GetVec_108(uint32_t* out, uint32_t handle) { return get_sub_vector<0x240, 0x108, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrActor_SetVec_114(uint32_t handle, ScrVec3 value) { set_sub_word<0x240, 0x114, 0x008d211c, 3>(handle, value.v); }
+uint32_t* XB_CDECL ScrActor_GetVec_114(uint32_t* out, uint32_t handle) { return get_sub_vector<0x240, 0x114, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrActor_SetVec_120(uint32_t handle, ScrVec3 value) { set_sub_word<0x240, 0x120, 0x008d211c, 3>(handle, value.v); }
+uint32_t* XB_CDECL ScrActor_GetVec_120(uint32_t* out, uint32_t handle) { return get_sub_vector<0x240, 0x120, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrActor_SetFloat_828(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x828, 0x008d2120, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_828(uint32_t handle) { return get_sub_float<0x240, 0x828, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_82c(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x82c, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_82c(uint32_t handle) { return get_sub_float<0x240, 0x82c, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_824(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x824, 0x008d2120, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_824(uint32_t handle) { return get_sub_float<0x240, 0x824, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_830(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x830, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_830(uint32_t handle) { return get_sub_int<0x240, 0x830, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_7b0(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x7b0, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_7b0(uint32_t handle) { return get_sub_int<0x240, 0x7b0, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_7b4(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x7b4, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_7b4(uint32_t handle) { return get_sub_int<0x240, 0x7b4, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetShort_7dc(uint32_t handle, uint32_t value) { set_sub_narrow<uint16_t, 0x240, 0x7dc, 0x008d20e8>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetShort_7dc(uint32_t handle) { return get_sub_narrow<uint16_t, 0x240, 0x7dc, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_7b8(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x7b8, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_7b8(uint32_t handle) { return get_sub_float<0x240, 0x7b8, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_7bc(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x7bc, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_7bc(uint32_t handle) { return get_sub_float<0x240, 0x7bc, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_228(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x228, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_228(uint32_t handle) { return get_sub_int<0x240, 0x228, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_22c(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x22c, 0x008d211c, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_22c(uint32_t handle) { return get_sub_int<0x240, 0x22c, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetVec_234(uint32_t handle, ScrVec3 value) { set_sub_word<0x240, 0x234, 0x008d211c, 3>(handle, value.v); }
+uint32_t* XB_CDECL ScrActor_GetVec_234(uint32_t* out, uint32_t handle) { return get_sub_vector<0x240, 0x234, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrActor_SetInt_230(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x230, 0x008d211c, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_230(uint32_t handle) { return get_sub_int<0x240, 0x230, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_240(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x240, 0x008d211c, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_240(uint32_t handle) { return get_sub_int<0x240, 0x240, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_194(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x194, 0x008d211c, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_194(uint32_t handle) { return get_sub_int<0x240, 0x194, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_7a4(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x7a4, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_7a4(uint32_t handle) { return get_sub_float<0x240, 0x7a4, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_154(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x154, 0x008d211c, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_154(uint32_t handle) { return get_sub_float<0x240, 0x154, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_7e4(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x7e4, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_7e4(uint32_t handle) { return get_sub_float<0x240, 0x7e4, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_7e8(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x7e8, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_7e8(uint32_t handle) { return get_sub_int<0x240, 0x7e8, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_7ec(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x7ec, 0x008d2124, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_7ec(uint32_t handle) { return get_sub_int<0x240, 0x7ec, 0x008d2128>(handle); }
+void XB_CDECL ScrActor_SetInt_1308(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x1308, 0x008d2124, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_1308(uint32_t handle) { return get_sub_int<0x240, 0x1308, 0x008d2128>(handle); }
+void XB_CDECL ScrActor_SetString_ec(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0xec, 0x008d20e8>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_ec(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0xec, 0x008d20e8>(out, &handle); }
+void XB_CDECL ScrActor_SetInt_f0(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0xf0, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_f0(uint32_t handle) { return get_sub_int<0x240, 0xf0, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_f4(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0xf4, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_f4(uint32_t handle) { return get_sub_int<0x240, 0xf4, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetString_f8(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0xf8, 0x008d20e8>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_f8(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0xf8, 0x008d20e8>(out, &handle); }
+void XB_CDECL ScrActor_SetInt_7d8(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x7d8, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_7d8(uint32_t handle) { return get_sub_int<0x240, 0x7d8, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetFloat_130c(uint32_t handle, uint32_t bits) { set_sub_word<0x240, 0x130c, 0x008d2120, 1>(handle, &bits); }
+float XB_CDECL ScrActor_GetFloat_130c(uint32_t handle) { return get_sub_float<0x240, 0x130c, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetRef_1310(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x1310, 0x008d211c, 1>(handle, &value); }
+uint32_t* XB_CDECL ScrActor_GetRef_1310(uint32_t* out, uint32_t handle) { return get_sub_ref<0x240, 0x1310, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrActor_SetInt_131c(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x131c, 0x008d212c, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_131c(uint32_t handle) { return get_sub_int<0x240, 0x131c, 0x008d2130>(handle); }
+void XB_CDECL ScrActor_SetInt_1328(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x1328, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_1328(uint32_t handle) { return get_sub_int<0x240, 0x1328, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetRef_12a0(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x12a0, 0x008d213c, 1>(handle, &value); }
+uint32_t* XB_CDECL ScrActor_GetRef_12a0(uint32_t* out, uint32_t handle) { return get_sub_ref<0x240, 0x12a0, 0x008d2140>(out, handle); }
+void XB_CDECL ScrActor_SetInt_cc(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0xcc, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_cc(uint32_t handle) { return get_sub_int<0x240, 0xcc, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetByte_1374(uint32_t handle, uint32_t value) { set_sub_narrow<uint8_t, 0x240, 0x1374, 0x008d20e8>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetByte_1374(uint32_t handle) { return get_sub_narrow<uint8_t, 0x240, 0x1374, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetByte_7de(uint32_t handle, uint32_t value) { set_sub_narrow<uint8_t, 0x240, 0x7de, 0x008d20e8>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetByte_7de(uint32_t handle) { return get_sub_narrow<uint8_t, 0x240, 0x7de, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_1378(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x1378, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_1378(uint32_t handle) { return get_sub_int<0x240, 0x1378, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetInt_137c(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x137c, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_137c(uint32_t handle) { return get_sub_int<0x240, 0x137c, 0x008d20e8>(handle); }
+void XB_CDECL ScrActor_SetString_1384(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0x1384, 0x008d211c>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_1384(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0x1384, 0x008d20e8>(out, &handle); }
+void XB_CDECL ScrActor_SetString_1388(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0x1388, 0x008d211c>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_1388(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0x1388, 0x008d20e8>(out, &handle); }
+void XB_CDECL ScrActor_SetString_138c(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0x138c, 0x008d211c>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_138c(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0x138c, 0x008d20e8>(out, &handle); }
+void XB_CDECL ScrActor_SetString_2c0(uint32_t handle, ScriptString value) { set_sub_string<0x240, 0x2c0, 0x008d211c>(handle, &value); }
+ScriptString* XB_CDECL ScrActor_GetString_2c0(ScriptString* out, uint32_t handle) { return get_sub_string<0x240, 0x2c0, 0x008d2134>(out, &handle); }
+void XB_CDECL ScrActor_SetInt_184(uint32_t handle, uint32_t value) { set_sub_word<0x240, 0x184, 0x008d2138, 1>(handle, &value); }
+uint32_t XB_CDECL ScrActor_GetInt_184(uint32_t handle) { return get_sub_int<0x240, 0x184, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetTeam(uint32_t handle, ScriptString value) { set_sub_string<0x244, 0x4, 0x008d2148>(handle, &value); }
+ScriptString* XB_CDECL ScrSentient_GetTeam(ScriptString* out, uint32_t handle) { return get_sub_string<0x244, 0x4, 0x008d214c>(out, &handle); }
+void XB_CDECL ScrSentient_SetInt_28(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x28, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrSentient_GetInt_28(uint32_t handle) { return get_sub_int<0x244, 0x28, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetFloat_2c(uint32_t handle, uint32_t bits) { set_sub_word<0x244, 0x2c, 0x008d20e8, 1>(handle, &bits); }
+float XB_CDECL ScrSentient_GetFloat_2c(uint32_t handle) { return get_sub_float<0x244, 0x2c, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetRef_48(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x48, 0x008d2144, 1>(handle, &value); }
+uint32_t* XB_CDECL ScrSentient_GetRef_48(uint32_t* out, uint32_t handle) { return get_sub_ref<0x244, 0x48, 0x008d2158>(out, handle); }
+void XB_CDECL ScrSentient_SetGoalNode(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x50, 0x008d2144, 1>(handle, &value); }
+uint32_t* XB_CDECL ScrSentient_GetGoalNode(uint32_t* out, uint32_t handle) { return get_sub_ref<0x244, 0x50, 0x008d20e8>(out, handle); }
+void XB_CDECL ScrSentient_SetFloat_18(uint32_t handle, uint32_t bits) { set_sub_word<0x244, 0x18, 0x008d2150, 1>(handle, &bits); }
+float XB_CDECL ScrSentient_GetFloat_18(uint32_t handle) { return get_sub_float<0x244, 0x18, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetGoalArc(uint32_t handle, uint32_t bits) { set_sub_word<0x244, 0x24, 0x008d2154, 1>(handle, &bits); }
+float XB_CDECL ScrSentient_GetGoalArc(uint32_t handle) { return get_sub_float<0x244, 0x24, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetRef_3c(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x3c, 0x008d2144, 1>(handle, &value); }
+uint32_t* XB_CDECL ScrSentient_GetRef_3c(uint32_t* out, uint32_t handle) { return get_sub_ref<0x244, 0x3c, 0x008d2160>(out, handle); }
+void XB_CDECL ScrSentient_SetInt_30(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x30, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrSentient_GetInt_30(uint32_t handle) { return get_sub_int<0x244, 0x30, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetInt_34(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x34, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrSentient_GetInt_34(uint32_t handle) { return get_sub_int<0x244, 0x34, 0x008d20e8>(handle); }
+void XB_CDECL ScrSentient_SetInt_38(uint32_t handle, uint32_t value) { set_sub_word<0x244, 0x38, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrSentient_GetInt_38(uint32_t handle) { return get_sub_int<0x244, 0x38, 0x008d20e8>(handle); }
+
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetTarget(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922aa0>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetTargetname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922ae0>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetTarget(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922ae8>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetScriptNoteworthy(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b10>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetClassname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b18>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetModel(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b28>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTarget(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b48>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTargetname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b50>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetGroupname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c18>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetScriptNoteworthy(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c28>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetAnimname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c40>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrSentient_GetTeam(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922dc8>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetScriptNoteworthy(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922ab0>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_ec(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922d28>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetTargetname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922a98>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_1384(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922da0>(self, out); }
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_2c0(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922db8>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrPathNode_GetOrigin(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922ab8>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrPathNode_GetAngles(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922ac0>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrVehNode_GetOrigin(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922af0>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrEnt_GetOrigin(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922b20>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrEnt_GetAngles(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922ba0>(self, out); }
+uint32_t* XB_THISCALL ScrCall_ScrVehNode_GetAngles(const uint32_t* self, uint32_t* out) { return call_get_vector<0x00922af8>(self, out); }
+const ScrVec3* XB_THISCALL ScrCall_ScrEnt_SetOrigin(const uint32_t* self, const ScrVec3* value) { return call_set_vector<0x00922b24>(self, value); }
+const ScrVec3* XB_THISCALL ScrCall_ScrEnt_SetAngles(const uint32_t* self, const ScrVec3* value) { return call_set_vector<0x00922ba4>(self, value); }
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetTargetname(const uint32_t* self, const ScriptString* value) { return call_set_string<0x00922b54>(self, value); }
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetScriptNoteworthy(const uint32_t* self, const ScriptString* value) { return call_set_string<0x00922c2c>(self, value); }
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetAnimname(const uint32_t* self, const ScriptString* value) { return call_set_string<0x00922c44>(self, value); }
+const ScriptString* XB_THISCALL ScrCall_ScrActor_SetString_ec(const uint32_t* self, const ScriptString* value) { return call_set_string<0x00922d2c>(self, value); }
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetGroupname(const uint32_t* self, const ScriptString* value) { return call_set_string<0x00922c1c>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrEnt_SetInt_370(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922b8c>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrEnt_SetHealth(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922b94>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetFloat_7e4(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d0c>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_7e8(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d14>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1308(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d24>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1328(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d6c>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrSentient_SetFloat_18(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922df4>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1378(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d94>(self, value); }
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_184(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922dc4>(self, value); }
 
 }  // namespace game

@@ -122,4 +122,166 @@ uint32_t XB_CDECL ScrEnt_GetPersistentIndex(uint32_t handle);  // 0x00018310
 void XB_CDECL ScrEnt_SetTakedamage(uint32_t handle, uint32_t value);  // 0x00018370
 uint32_t XB_CDECL ScrEnt_GetTakedamage(uint32_t handle);  // 0x000183d0
 
+// Actor (entity +0x240) and sentient (entity +0x244) fields by entity handle, same scheme; the
+// name gives the field offset (or its use). References come back through the result pointer
+// (0 when invalid), 16/8-bit fields in AX/AL. 0x00018430..0x0001b520.
+void XB_CDECL ScrActor_SetFloat_d4(uint32_t handle, uint32_t bits);  // 0x00018430
+float XB_CDECL ScrActor_GetFloat_d4(uint32_t handle);  // 0x00018490
+void XB_CDECL ScrActor_SetFloat_d8(uint32_t handle, uint32_t bits);  // 0x00018500
+float XB_CDECL ScrActor_GetFloat_d8(uint32_t handle);  // 0x00018560
+void XB_CDECL ScrActor_SetVec_108(uint32_t handle, ScrVec3 value);  // 0x000185d0
+uint32_t* XB_CDECL ScrActor_GetVec_108(uint32_t* out, uint32_t handle);  // 0x00018640
+void XB_CDECL ScrActor_SetVec_114(uint32_t handle, ScrVec3 value);  // 0x00018720
+uint32_t* XB_CDECL ScrActor_GetVec_114(uint32_t* out, uint32_t handle);  // 0x00018790
+void XB_CDECL ScrActor_SetVec_120(uint32_t handle, ScrVec3 value);  // 0x00018870
+uint32_t* XB_CDECL ScrActor_GetVec_120(uint32_t* out, uint32_t handle);  // 0x000188e0
+void XB_CDECL ScrActor_SetFloat_828(uint32_t handle, uint32_t bits);  // 0x000189c0
+float XB_CDECL ScrActor_GetFloat_828(uint32_t handle);  // 0x00018a20
+void XB_CDECL ScrActor_SetFloat_82c(uint32_t handle, uint32_t bits);  // 0x00018a90
+float XB_CDECL ScrActor_GetFloat_82c(uint32_t handle);  // 0x00018af0
+void XB_CDECL ScrActor_SetFloat_824(uint32_t handle, uint32_t bits);  // 0x00018b60
+float XB_CDECL ScrActor_GetFloat_824(uint32_t handle);  // 0x00018bc0
+void XB_CDECL ScrActor_SetInt_830(uint32_t handle, uint32_t value);  // 0x00018c30
+uint32_t XB_CDECL ScrActor_GetInt_830(uint32_t handle);  // 0x00018c90
+void XB_CDECL ScrActor_SetInt_7b0(uint32_t handle, uint32_t value);  // 0x00018cf0
+uint32_t XB_CDECL ScrActor_GetInt_7b0(uint32_t handle);  // 0x00018d50
+void XB_CDECL ScrActor_SetInt_7b4(uint32_t handle, uint32_t value);  // 0x00018db0
+uint32_t XB_CDECL ScrActor_GetInt_7b4(uint32_t handle);  // 0x00018e10
+void XB_CDECL ScrActor_SetShort_7dc(uint32_t handle, uint32_t value);  // 0x00018e70
+uint32_t XB_CDECL ScrActor_GetShort_7dc(uint32_t handle);  // 0x00018ed0
+void XB_CDECL ScrActor_SetFloat_7b8(uint32_t handle, uint32_t bits);  // 0x00018f40
+float XB_CDECL ScrActor_GetFloat_7b8(uint32_t handle);  // 0x00018fa0
+void XB_CDECL ScrActor_SetFloat_7bc(uint32_t handle, uint32_t bits);  // 0x00019010
+float XB_CDECL ScrActor_GetFloat_7bc(uint32_t handle);  // 0x00019070
+void XB_CDECL ScrActor_SetInt_228(uint32_t handle, uint32_t value);  // 0x000190e0
+uint32_t XB_CDECL ScrActor_GetInt_228(uint32_t handle);  // 0x00019140
+void XB_CDECL ScrActor_SetInt_22c(uint32_t handle, uint32_t value);  // 0x000191a0
+uint32_t XB_CDECL ScrActor_GetInt_22c(uint32_t handle);  // 0x00019200
+void XB_CDECL ScrActor_SetVec_234(uint32_t handle, ScrVec3 value);  // 0x00019260
+uint32_t* XB_CDECL ScrActor_GetVec_234(uint32_t* out, uint32_t handle);  // 0x000192d0
+void XB_CDECL ScrActor_SetInt_230(uint32_t handle, uint32_t value);  // 0x000193b0
+uint32_t XB_CDECL ScrActor_GetInt_230(uint32_t handle);  // 0x00019410
+void XB_CDECL ScrActor_SetInt_240(uint32_t handle, uint32_t value);  // 0x00019470
+uint32_t XB_CDECL ScrActor_GetInt_240(uint32_t handle);  // 0x000194d0
+void XB_CDECL ScrActor_SetInt_194(uint32_t handle, uint32_t value);  // 0x00019530
+uint32_t XB_CDECL ScrActor_GetInt_194(uint32_t handle);  // 0x00019590
+void XB_CDECL ScrActor_SetFloat_7a4(uint32_t handle, uint32_t bits);  // 0x000195f0
+float XB_CDECL ScrActor_GetFloat_7a4(uint32_t handle);  // 0x00019650
+void XB_CDECL ScrActor_SetFloat_154(uint32_t handle, uint32_t bits);  // 0x000196c0
+float XB_CDECL ScrActor_GetFloat_154(uint32_t handle);  // 0x00019720
+void XB_CDECL ScrActor_SetFloat_7e4(uint32_t handle, uint32_t bits);  // 0x00019790
+float XB_CDECL ScrActor_GetFloat_7e4(uint32_t handle);  // 0x000197f0
+void XB_CDECL ScrActor_SetInt_7e8(uint32_t handle, uint32_t value);  // 0x00019860
+uint32_t XB_CDECL ScrActor_GetInt_7e8(uint32_t handle);  // 0x000198c0
+void XB_CDECL ScrActor_SetInt_7ec(uint32_t handle, uint32_t value);  // 0x00019920
+uint32_t XB_CDECL ScrActor_GetInt_7ec(uint32_t handle);  // 0x00019980
+void XB_CDECL ScrActor_SetInt_1308(uint32_t handle, uint32_t value);  // 0x000199e0
+uint32_t XB_CDECL ScrActor_GetInt_1308(uint32_t handle);  // 0x00019a40
+void XB_CDECL ScrActor_SetString_ec(uint32_t handle, ScriptString value);  // 0x00019aa0
+ScriptString* XB_CDECL ScrActor_GetString_ec(ScriptString* out, uint32_t handle);  // 0x00019b20
+void XB_CDECL ScrActor_SetInt_f0(uint32_t handle, uint32_t value);  // 0x00019bd0
+uint32_t XB_CDECL ScrActor_GetInt_f0(uint32_t handle);  // 0x00019c30
+void XB_CDECL ScrActor_SetInt_f4(uint32_t handle, uint32_t value);  // 0x00019c90
+uint32_t XB_CDECL ScrActor_GetInt_f4(uint32_t handle);  // 0x00019cf0
+void XB_CDECL ScrActor_SetString_f8(uint32_t handle, ScriptString value);  // 0x00019d50
+ScriptString* XB_CDECL ScrActor_GetString_f8(ScriptString* out, uint32_t handle);  // 0x00019dd0
+void XB_CDECL ScrActor_SetInt_7d8(uint32_t handle, uint32_t value);  // 0x00019e80
+uint32_t XB_CDECL ScrActor_GetInt_7d8(uint32_t handle);  // 0x00019ee0
+void XB_CDECL ScrActor_SetFloat_130c(uint32_t handle, uint32_t bits);  // 0x00019f40
+float XB_CDECL ScrActor_GetFloat_130c(uint32_t handle);  // 0x00019fa0
+void XB_CDECL ScrActor_SetRef_1310(uint32_t handle, uint32_t value);  // 0x0001a010
+uint32_t* XB_CDECL ScrActor_GetRef_1310(uint32_t* out, uint32_t handle);  // 0x0001a070
+void XB_CDECL ScrActor_SetInt_131c(uint32_t handle, uint32_t value);  // 0x0001a0f0
+uint32_t XB_CDECL ScrActor_GetInt_131c(uint32_t handle);  // 0x0001a150
+void XB_CDECL ScrActor_SetInt_1328(uint32_t handle, uint32_t value);  // 0x0001a1b0
+uint32_t XB_CDECL ScrActor_GetInt_1328(uint32_t handle);  // 0x0001a210
+void XB_CDECL ScrActor_SetRef_12a0(uint32_t handle, uint32_t value);  // 0x0001a270
+uint32_t* XB_CDECL ScrActor_GetRef_12a0(uint32_t* out, uint32_t handle);  // 0x0001a2d0
+void XB_CDECL ScrActor_SetInt_cc(uint32_t handle, uint32_t value);  // 0x0001a350
+uint32_t XB_CDECL ScrActor_GetInt_cc(uint32_t handle);  // 0x0001a3b0
+void XB_CDECL ScrActor_SetByte_1374(uint32_t handle, uint32_t value);  // 0x0001a410
+uint32_t XB_CDECL ScrActor_GetByte_1374(uint32_t handle);  // 0x0001a470
+void XB_CDECL ScrActor_SetByte_7de(uint32_t handle, uint32_t value);  // 0x0001a4d0
+uint32_t XB_CDECL ScrActor_GetByte_7de(uint32_t handle);  // 0x0001a530
+void XB_CDECL ScrActor_SetInt_1378(uint32_t handle, uint32_t value);  // 0x0001a590
+uint32_t XB_CDECL ScrActor_GetInt_1378(uint32_t handle);  // 0x0001a5f0
+void XB_CDECL ScrActor_SetInt_137c(uint32_t handle, uint32_t value);  // 0x0001a650
+uint32_t XB_CDECL ScrActor_GetInt_137c(uint32_t handle);  // 0x0001a6b0
+void XB_CDECL ScrActor_SetString_1384(uint32_t handle, ScriptString value);  // 0x0001a710
+ScriptString* XB_CDECL ScrActor_GetString_1384(ScriptString* out, uint32_t handle);  // 0x0001a790
+void XB_CDECL ScrActor_SetString_1388(uint32_t handle, ScriptString value);  // 0x0001a840
+ScriptString* XB_CDECL ScrActor_GetString_1388(ScriptString* out, uint32_t handle);  // 0x0001a8c0
+void XB_CDECL ScrActor_SetString_138c(uint32_t handle, ScriptString value);  // 0x0001a970
+ScriptString* XB_CDECL ScrActor_GetString_138c(ScriptString* out, uint32_t handle);  // 0x0001a9f0
+void XB_CDECL ScrActor_SetString_2c0(uint32_t handle, ScriptString value);  // 0x0001aaa0
+ScriptString* XB_CDECL ScrActor_GetString_2c0(ScriptString* out, uint32_t handle);  // 0x0001ab20
+void XB_CDECL ScrActor_SetInt_184(uint32_t handle, uint32_t value);  // 0x0001abd0
+uint32_t XB_CDECL ScrActor_GetInt_184(uint32_t handle);  // 0x0001ac30
+void XB_CDECL ScrSentient_SetTeam(uint32_t handle, ScriptString value);  // 0x0001ac90
+ScriptString* XB_CDECL ScrSentient_GetTeam(ScriptString* out, uint32_t handle);  // 0x0001ad00
+void XB_CDECL ScrSentient_SetInt_28(uint32_t handle, uint32_t value);  // 0x0001ada0
+uint32_t XB_CDECL ScrSentient_GetInt_28(uint32_t handle);  // 0x0001ae00
+void XB_CDECL ScrSentient_SetFloat_2c(uint32_t handle, uint32_t bits);  // 0x0001ae60
+float XB_CDECL ScrSentient_GetFloat_2c(uint32_t handle);  // 0x0001aec0
+void XB_CDECL ScrSentient_SetRef_48(uint32_t handle, uint32_t value);  // 0x0001af20
+uint32_t* XB_CDECL ScrSentient_GetRef_48(uint32_t* out, uint32_t handle);  // 0x0001af80
+void XB_CDECL ScrSentient_SetGoalNode(uint32_t handle, uint32_t value);  // 0x0001b000
+uint32_t* XB_CDECL ScrSentient_GetGoalNode(uint32_t* out, uint32_t handle);  // 0x0001b060
+void XB_CDECL ScrSentient_SetFloat_18(uint32_t handle, uint32_t bits);  // 0x0001b0e0
+float XB_CDECL ScrSentient_GetFloat_18(uint32_t handle);  // 0x0001b140
+void XB_CDECL ScrSentient_SetGoalArc(uint32_t handle, uint32_t bits);  // 0x0001b1a0
+float XB_CDECL ScrSentient_GetGoalArc(uint32_t handle);  // 0x0001b200
+void XB_CDECL ScrSentient_SetRef_3c(uint32_t handle, uint32_t value);  // 0x0001b260
+uint32_t* XB_CDECL ScrSentient_GetRef_3c(uint32_t* out, uint32_t handle);  // 0x0001b2c0
+void XB_CDECL ScrSentient_SetInt_30(uint32_t handle, uint32_t value);  // 0x0001b340
+uint32_t XB_CDECL ScrSentient_GetInt_30(uint32_t handle);  // 0x0001b3a0
+void XB_CDECL ScrSentient_SetInt_34(uint32_t handle, uint32_t value);  // 0x0001b400
+uint32_t XB_CDECL ScrSentient_GetInt_34(uint32_t handle);  // 0x0001b460
+void XB_CDECL ScrSentient_SetInt_38(uint32_t handle, uint32_t value);  // 0x0001b4c0
+uint32_t XB_CDECL ScrSentient_GetInt_38(uint32_t handle);  // 0x0001b520
+
+// ScrCall_* (thiscall on an object holding the handle at +0, callee pops the pointer): call the
+// accessor through its builtin-table pointer. Getters fill `out` and return it; setters pass
+// the value (a new reference for strings) and return the value pointer. ScrCall_ScrEnt_SetInt_370
+// is FUN_00119f60 (slot 0x00922b8c = import +0xa4c, the setter at 0x000176b0).
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetTarget(const uint32_t* self, ScriptString* out);  // 0x00119a80, through 0x00922aa0
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetTargetname(const uint32_t* self, ScriptString* out);  // 0x00119b70, through 0x00922ae0
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetTarget(const uint32_t* self, ScriptString* out);  // 0x00119be0, through 0x00922ae8
+ScriptString* XB_THISCALL ScrCall_ScrVehNode_GetScriptNoteworthy(const uint32_t* self, ScriptString* out);  // 0x00119c90, through 0x00922b10
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetClassname(const uint32_t* self, ScriptString* out);  // 0x00119d00, through 0x00922b18
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetModel(const uint32_t* self, ScriptString* out);  // 0x00119de0, through 0x00922b28
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTarget(const uint32_t* self, ScriptString* out);  // 0x00119e50, through 0x00922b48
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTargetname(const uint32_t* self, ScriptString* out);  // 0x00119ef0, through 0x00922b50
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetGroupname(const uint32_t* self, ScriptString* out);  // 0x0011a030, through 0x00922c18
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetScriptNoteworthy(const uint32_t* self, ScriptString* out);  // 0x0011a0d0, through 0x00922c28
+ScriptString* XB_THISCALL ScrCall_ScrEnt_GetAnimname(const uint32_t* self, ScriptString* out);  // 0x0011a170, through 0x00922c40
+ScriptString* XB_THISCALL ScrCall_ScrSentient_GetTeam(const uint32_t* self, ScriptString* out);  // 0x0011b2d0, through 0x00922dc8
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetScriptNoteworthy(const uint32_t* self, ScriptString* out);  // 0x0011b9a0, through 0x00922ab0
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_ec(const uint32_t* self, ScriptString* out);  // 0x0011cae0, through 0x00922d28
+ScriptString* XB_THISCALL ScrCall_ScrPathNode_GetTargetname(const uint32_t* self, ScriptString* out);  // 0x0011cd30, through 0x00922a98
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_1384(const uint32_t* self, ScriptString* out);  // 0x0011f740, through 0x00922da0
+ScriptString* XB_THISCALL ScrCall_ScrActor_GetString_2c0(const uint32_t* self, ScriptString* out);  // 0x0011f7b0, through 0x00922db8
+uint32_t* XB_THISCALL ScrCall_ScrPathNode_GetOrigin(const uint32_t* self, uint32_t* out);  // 0x00119af0, through 0x00922ab8
+uint32_t* XB_THISCALL ScrCall_ScrPathNode_GetAngles(const uint32_t* self, uint32_t* out);  // 0x00119b30, through 0x00922ac0
+uint32_t* XB_THISCALL ScrCall_ScrVehNode_GetOrigin(const uint32_t* self, uint32_t* out);  // 0x00119c50, through 0x00922af0
+uint32_t* XB_THISCALL ScrCall_ScrEnt_GetOrigin(const uint32_t* self, uint32_t* out);  // 0x00119da0, through 0x00922b20
+uint32_t* XB_THISCALL ScrCall_ScrEnt_GetAngles(const uint32_t* self, uint32_t* out);  // 0x00119ff0, through 0x00922ba0
+uint32_t* XB_THISCALL ScrCall_ScrVehNode_GetAngles(const uint32_t* self, uint32_t* out);  // 0x0011b240, through 0x00922af8
+const ScrVec3* XB_THISCALL ScrCall_ScrEnt_SetOrigin(const uint32_t* self, const ScrVec3* value);  // 0x00119d70, through 0x00922b24
+const ScrVec3* XB_THISCALL ScrCall_ScrEnt_SetAngles(const uint32_t* self, const ScrVec3* value);  // 0x00119fc0, through 0x00922ba4
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetTargetname(const uint32_t* self, const ScriptString* value);  // 0x00119ec0, through 0x00922b54
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetScriptNoteworthy(const uint32_t* self, const ScriptString* value);  // 0x0011a0a0, through 0x00922c2c
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetAnimname(const uint32_t* self, const ScriptString* value);  // 0x0011a140, through 0x00922c44
+const ScriptString* XB_THISCALL ScrCall_ScrActor_SetString_ec(const uint32_t* self, const ScriptString* value);  // 0x0011a240, through 0x00922d2c
+const ScriptString* XB_THISCALL ScrCall_ScrEnt_SetGroupname(const uint32_t* self, const ScriptString* value);  // 0x0011b2a0, through 0x00922c1c
+const uint32_t* XB_THISCALL ScrCall_ScrEnt_SetInt_370(const uint32_t* self, const uint32_t* value);  // 0x00119f60, through 0x00922b8c
+const uint32_t* XB_THISCALL ScrCall_ScrEnt_SetHealth(const uint32_t* self, const uint32_t* value);  // 0x00119f80, through 0x00922b94
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetFloat_7e4(const uint32_t* self, const uint32_t* value);  // 0x0011a1e0, through 0x00922d0c
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_7e8(const uint32_t* self, const uint32_t* value);  // 0x0011a200, through 0x00922d14
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1308(const uint32_t* self, const uint32_t* value);  // 0x0011a220, through 0x00922d24
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1328(const uint32_t* self, const uint32_t* value);  // 0x0011a270, through 0x00922d6c
+const uint32_t* XB_THISCALL ScrCall_ScrSentient_SetFloat_18(const uint32_t* self, const uint32_t* value);  // 0x0011a290, through 0x00922df4
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1378(const uint32_t* self, const uint32_t* value);  // 0x0011b810, through 0x00922d94
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_184(const uint32_t* self, const uint32_t* value);  // 0x0011f820, through 0x00922dc4
+
 }  // namespace game
