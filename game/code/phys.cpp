@@ -3184,13 +3184,17 @@ void XB_THISCALL PhysAngularMotor_AddContacts(uint8_t* motor, uint8_t* world, fl
     store4(spin, mat_rotate(reinterpret_cast<const float*>(body_a), lanes(v)));
     const float low = 0.0f - range;
     const float inv_dt = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / dt);
+    // Body 1 is read once for the rows; the first contact also passes the bodies read on entry,
+    // the later two re-read +0 / +4 (after the earlier contacts' stores).
+    const uint8_t* const body_b = at<uint8_t*>(motor, 4);
     for (int32_t i = 0; i < 3; ++i) {
-        const uint8_t* const body_b = at<uint8_t*>(motor, 4);
         alignas(16) float pa[4], pb[4];
         copy_words(pa, axes + i * 4);
         copy_words(pb, reinterpret_cast<const float*>(body_b) + i * 4);
         const float* const n = axes + ((i + 1) % 3) * 4;
-        uint8_t* const contact = PhysContacts_Add(world, at<uint32_t>(motor, 0), word_of(pa), word_of(body_b), word_of(pb),
+        const uint32_t arg_b = i == 0 ? word_of(body_b) : at<uint32_t>(motor, 4);
+        const uint32_t arg_a = i == 0 ? word_of(body_a) : at<uint32_t>(motor, 0);
+        uint8_t* const contact = PhysContacts_Add(world, arg_a, word_of(pa), arg_b, word_of(pb),
                                                   word_of(n), word_of(motor + 0xac + static_cast<uint32_t>(i) * 8));
         at<float>(contact, 0x60) = low;
         at<float>(contact, 0x64) = range;

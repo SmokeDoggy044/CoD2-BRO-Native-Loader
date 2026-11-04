@@ -157,8 +157,8 @@ address,name,tested,matched,nan,mismatched,coverage
 0005bbd0,compress_block,1731,1731,0,0,90.9
 0005bff0,set_data_type,3758,3758,0,0,100.0
 0005c0a0,bi_flush,2385,2385,0,0,54.1
-0005c120,bi_windup,2371,2371,0,0,100.0
-0005c190,copy_block,1232,1232,0,0,100.0
+0005c120,bi_windup,2354,2354,0,0,100.0
+0005c190,copy_block,1702,1702,0,0,100.0
 0005c220,_tr_init,3514,3514,0,0,100.0
 0005c290,gen_codes,3683,3683,0,0,65.2
 0005c310,build_tree,1534,1534,0,0,99.3
@@ -588,7 +588,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000b9750,PhysHinge_AddContacts,1836,1756,80,0,100.0
 000b9a40,PhysDistanceJoint_AddContacts,3372,3350,22,0,30.7
 000ba020,PhysHinge_Setup,2946,2887,59,0,100.0
-000ba2c0,PhysAngularMotor_AddContacts,1143,1143,0,0,100.0
+000ba2c0,PhysAngularMotor_AddContacts,2781,2778,3,0,100.0
 000ba860,PhysFrame_RotateByVelocity,2105,2004,101,0,100.0
 000ba9d0,PhysBody_WorldToRelative,1794,1794,0,0,100.0
 000baa30,PhysContact_ComputeBiasWithOffset,1457,1446,11,0,100.0

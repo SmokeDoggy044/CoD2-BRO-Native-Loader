@@ -1268,7 +1268,12 @@ const char* err_msg(int32_t err) { return title_global<const char*>(0x008a0c14u 
 
 uint32_t max_dist(const DeflateState* s) { return s->w_size - MIN_LOOKAHEAD; }
 
-void put_byte(DeflateState* s, uint8_t c) { s->pending_buf[s->pending++] = c; }
+// The original stores the byte first and re-reads pending for the increment: a pending_buf
+// that points at pending itself (offline random input) then counts from the stored byte.
+void put_byte(DeflateState* s, uint8_t c) {
+    s->pending_buf[s->pending] = c;
+    s->pending++;
+}
 
 void update_hash(DeflateState* s, uint32_t& h, uint32_t c) { h = ((h << s->hash_shift) ^ c) & s->hash_mask; }
 
@@ -2222,7 +2227,10 @@ DeflateState* XB_REGS1 XB_CDECL bi_flush(DeflateState* s) {
 
 DeflateState* XB_REGS1 XB_CDECL bi_windup(DeflateState* s) {
     if (s->bi_valid > 8) {
-        put_short(s, s->bi_buf);
+        // Each byte of bi_buf is read just before its store (the first store can hit bi_buf).
+        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&s->bi_buf);
+        put_byte(s, bytes[0]);
+        put_byte(s, bytes[1]);
     } else if (s->bi_valid > 0) {
         put_byte(s, static_cast<uint8_t>(s->bi_buf));
     }
