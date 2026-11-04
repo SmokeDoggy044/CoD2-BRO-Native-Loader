@@ -57,6 +57,7 @@ set(game_code_sources
     r_init.cpp
     r_static_init.cpp
     ragdoll.cpp
+    scr_access.cpp
     script_string.cpp
     shaders.cpp
     snd.cpp

@@ -79,4 +79,23 @@ bool XB_CDECL ScriptString_EqualsString(const ScriptString* a, const ScriptStrin
 // 0x0011db70: the value stored under `key`, or null.
 uint32_t* XB_THISCALL ScriptKeyTable_Find(ScriptKeyTable* self, uint32_t key);
 
+// 0x00011200: whether the string has no text (null rep, or an empty text).
+uint8_t XB_THISCALL ScriptString_IsEmpty(const ScriptString* self);
+
+// A growable array of script strings.
+struct ScrStringArray {
+    ScriptString* data;
+    uint32_t capacity;
+    uint32_t count;
+};
+
+// 0x00015be0: appends a new reference to `value`; a full array first grows by 4 (new block,
+// strings assigned over, old ones released and freed).
+void XB_THISCALL ScrStringArray_PushBack(ScrStringArray* self, const ScriptString* value);
+// 0x0001b740 (callee pops 8; neither `self` nor the second count is read): `capacity` empty
+// strings from Scr_Alloc.
+ScriptString* XB_THISCALL ScrStringArray_AllocData(ScrStringArray* self, uint32_t capacity, uint32_t unused);
+// 0x0001b7b0: releases the strings and frees the block (Scr_Free), if any. Leaves the fields.
+void XB_THISCALL ScrStringArray_FreeData(ScrStringArray* self);
+
 }  // namespace game

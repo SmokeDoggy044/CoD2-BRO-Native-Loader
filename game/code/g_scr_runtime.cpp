@@ -17,6 +17,10 @@
 #include "script_string.h"
 #include "title_data.h"
 
+// Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
+                                                            uint32_t edi);
+
 namespace game {
 
 namespace {
@@ -1439,6 +1443,97 @@ void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_tim
             }
         }
     }
+}
+
+uint8_t* XB_THISCALL ScrWaitRecord_DeletingDtor(uint8_t* self, uint32_t flags) {
+    title_call_regs(0x002fc230, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // ScrWaitRecord_Dtor (ESI)
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f494), self);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(ScrThread_AllocHandle_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ScrThread_AllocHandle) "addl $8, %esp\n"
+                   "ret")
+
+namespace {
+
+uint32_t& table_word(uint32_t* table, uint32_t byte_offset) {
+    return *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(table) + byte_offset);
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL ScrThread_AllocHandle(uint32_t* table, uint32_t* out) {
+    uint32_t iterator[4] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(table)), table[0], 0, 0xffffffffu};
+    BitSet256_NextSet(0, iterator);
+    const uint32_t index = iterator[3];
+    // No free handle (-1) clears bit 31 of the word before the set, as the original does.
+    table_word(table, static_cast<uint32_t>(static_cast<int32_t>(index) >> 5) * 4) &= ~(1u << (index & 0x1f));
+    if (index == 0xffffffffu) ScrThread_HandlesExhausted(table);
+    *out = (table_word(table, index * 8 + 0x24) << 8) | index;
+    return out;
+}
+
+uint32_t XB_THISCALL WaitTilOutputInst1_ent_VFunc1(const uint8_t* self, uint8_t* other) {
+    const uint32_t value = *reinterpret_cast<const uint32_t*>(self + 0xc);
+    *reinterpret_cast<uint32_t*>(other + 0xc) = value;
+    return value;
+}
+
+uint32_t XB_THISCALL WaitTilOutputInst1_str_VFunc1(uint8_t* self, uint8_t* other) {
+    return title_function<uint32_t XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(other + 0xc, self + 0xc);  // ScriptString_Assign
+}
+
+namespace {
+
+// Slot 2 of an output record's vtable: how many values it takes.
+uint32_t output_value_count(uint8_t* output) {
+    const uint32_t* vtable = *reinterpret_cast<uint32_t* const*>(output);
+    return title_function<uint32_t XB_THISCALL(uint8_t*)>(vtable[2])(output);
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL WaitTilOutputInst2_CopyArgs(const uint8_t* self, uint8_t* other) {
+    if (const uint32_t n = output_value_count(other); n == 1) {
+        *reinterpret_cast<uint32_t*>(other + 0xc) = *reinterpret_cast<const uint32_t*>(self + 0xc);
+        return n;
+    }
+    const uint32_t n = output_value_count(other);
+    if (n != 2) return n;
+    const uint32_t first = *reinterpret_cast<const uint32_t*>(self + 0xc);
+    *reinterpret_cast<uint32_t*>(other + 0xc) = first;
+    *reinterpret_cast<uint32_t*>(other + 0x10) = *reinterpret_cast<const uint32_t*>(self + 0x10);
+    return first;
+}
+
+uint8_t* XB_THISCALL WaitTilOutputInst1_str_DeletingDtor(uint8_t* self, uint32_t flags) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0xc);  // ScriptString_Release
+    *reinterpret_cast<uint32_t*>(self) = 0x007f48c4;  // base vtable
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f574), self);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(ScrThread_HandlesExhausted_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ScrThread_HandlesExhausted) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL ScrThread_HandlesExhausted(uint32_t* table) {
+    // With a report callback (+0x820): called (index, thread) for every handle in use.
+    if (table_word(table, 0x820)) {
+        uint32_t used[8];
+        BitSet256_Complement(used, 0, table);
+        uint32_t iterator[4] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(used)), used[0], 0, 0xffffffffu};
+        for (;;) {
+            BitSet256_NextSet(0, iterator);
+            const uint32_t index = iterator[3];
+            if (index == 0xffffffffu && iterator[2] == index) break;
+            title_function<void XB_CDECL(uint32_t, uint32_t)>(table_word(table, 0x820))(
+                index, table_word(table, index * 8 + 0x20));
+        }
+    }
+    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
 }
 
 }  // namespace game
