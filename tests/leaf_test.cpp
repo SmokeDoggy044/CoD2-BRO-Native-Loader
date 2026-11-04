@@ -112,6 +112,16 @@ PLATFORM_ASM_ENTRY(leaf_resume_trace,
                    "sub $4, %esp\n push %eax\n mov leaf_resume_eip, %eax\n mov %eax, 4(%esp)\n pop %eax\n"
                    "pushf\n orl $0x100, (%esp)\n popf\n ret")
 
+// The host's main stack (the worker's frames, the Outcome the results go to): read-only
+// while the function runs on its own stack, so an address it computes there faults instead
+// of overwriting a frame (NAL_Quat_BeginBlock's store loop walked into Runner::run's frame:
+// the worker then crashed after the call). leaf_call protects it from the page of its own
+// saved registers to the top with a raw mprotect (no libc call between loading the inputs
+// and the call) and lifts it again before it writes the results; a crash or timeout lifts
+// it in on_segv before the jump back. Zero: not found in /proc/self/maps, left alone.
+extern "C" uint32_t leaf_host_stack_hi, leaf_host_stack_lo, leaf_saved[4];
+uint32_t leaf_host_stack_hi, leaf_host_stack_lo, leaf_saved[4];
+
 // The stack arguments are pushed below a zeroed 16 KB (like xbcmp_resume's dead stack), the
 // 64 bytes above the top zeroed too (the slack call_stack_top leaves): a function with more
 // than 8 stack arguments reads its last ones there, and the previous call's RET n + PUSHF left
@@ -127,11 +137,19 @@ PLATFORM_ASM_ENTRY(leaf_call,
                    "mov 1080(%ebp), %ecx\n"
                    "1: test %ecx, %ecx\n jz 2f\n pushl 1080(%ebp,%ecx,4)\n dec %ecx\n jmp 1b\n"
                    "2: mov %esp, 1152(%ebp)\n"
-                   "fxrstor 0(%ebp)\n"
+                   "mov leaf_host_stack_hi, %ecx\n test %ecx, %ecx\n jz 4f\n"
+                   "mov 1148(%ebp), %ebx\n and $-4096, %ebx\n mov %ebx, leaf_host_stack_lo\n sub %ebx, %ecx\n"
+                   "mov $125, %eax\n mov $1, %edx\n int $0x80\n"
+                   "4: fxrstor 0(%ebp)\n"
                    "mov 1024(%ebp), %eax\n mov 1032(%ebp), %edx\n mov 1036(%ebp), %ebx\n"
                    "mov 1040(%ebp), %esi\n mov 1044(%ebp), %edi\n mov 1028(%ebp), %ecx\n"
                    "testl $1, 1160(%ebp)\n jz 3f\n pushf\n orl $0x100, (%esp)\n popf\n"
                    "3: call *1076(%ebp)\n"
+                   "mov %eax, leaf_saved\n mov %ebx, leaf_saved+4\n mov %ecx, leaf_saved+8\n mov %edx, leaf_saved+12\n"
+                   "mov leaf_host_stack_lo, %ebx\n test %ebx, %ebx\n jz 5f\n"
+                   "mov leaf_host_stack_hi, %ecx\n sub %ebx, %ecx\n mov $125, %eax\n mov $3, %edx\n int $0x80\n"
+                   "movl $0, leaf_host_stack_lo\n"
+                   "5: mov leaf_saved, %eax\n mov leaf_saved+4, %ebx\n mov leaf_saved+8, %ecx\n mov leaf_saved+12, %edx\n"
                    "mov %eax, 1048(%ebp)\n mov %ecx, 1052(%ebp)\n mov %edx, 1056(%ebp)\n mov %ebx, 1060(%ebp)\n"
                    "mov %esi, 1064(%ebp)\n mov %edi, 1068(%ebp)\n mov %esp, 1072(%ebp)\n"
                    "pushf\n popl 1156(%ebp)\n"
@@ -509,6 +527,11 @@ void on_segv(int sig, siginfo_t* info, void* context) {
         return;
     }
     if (g_in_call) {
+        if (leaf_host_stack_lo) {  // leaf_call's protection of the host stack (above)
+            mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(leaf_host_stack_lo)), leaf_host_stack_hi - leaf_host_stack_lo,
+                     PROT_READ | PROT_WRITE);
+            leaf_host_stack_lo = 0;
+        }
         g_crash_eip = static_cast<uint32_t>(static_cast<ucontext_t*>(context)->uc_mcontext.gregs[REG_EIP]);
         g_crash_address = address;
         g_in_call = 0;
@@ -1207,6 +1230,7 @@ int main() {
             if (std::sscanf(line, "%lx-%lx", &lo, &hi) != 2) continue;
             if (lo >= kImageBase && hi <= g_image_hi) continue;
             if (lo == reinterpret_cast<uintptr_t>(arena)) continue;
+            if (std::strstr(line, "[stack]")) leaf_host_stack_hi = static_cast<uint32_t>(hi);
             if (std::strstr(line, "[stack]")) lo = lo > (64ul << 20) ? lo - (64ul << 20) : 0;
             if (std::strstr(line, "[heap]")) {
                 g_brk_lo = lo;
