@@ -35,6 +35,15 @@ public:
         --count_;
     }
 
+    // The same with the store before the refill (the long codes of modes 0F, 16, 18, 19, 1A,
+    // mode 14's 3- and 4-bit codes): a dst that
+    // overlaps the stream makes the refill read the stored value.
+    void value_stored_first(uint32_t length, int32_t v) {
+        put(static_cast<uint32_t>(v));
+        --count_;
+        consume(length);
+    }
+
     // A run of `run` zeros with a code of `length` bits; what does not fit is left over.
     void zeros(uint32_t length, uint32_t run) {
         consume(length);
@@ -352,7 +361,7 @@ uint32_t XB_CDECL NAL_EntropyMode0F(EntropyReader* reader, uint32_t* dst, int32_
                 d.value(4, static_cast<int32_t>((c & 0xf) >> 1) - 4);  // -3..+3
             }
         } else {
-            d.value(5, fold(c >> 2, 3) << ((c >> 1) & 1));  // +-4..7, or twice that
+            d.value_stored_first(5, fold(c >> 2, 3) << ((c >> 1) & 1));  // +-4..7, or twice that
         }
     }
     return d.finish();
@@ -434,9 +443,9 @@ uint32_t XB_CDECL NAL_EntropyMode14(EntropyReader* reader, uint32_t* dst, int32_
         const uint32_t c = d.peek(7);
         const int32_t low = static_cast<int32_t>(c & 7);
         if (low >= 3) {
-            d.value(3, low - 5);  // -2..+2
+            d.value_stored_first(3, low - 5);  // -2..+2
         } else if (low == 0) {
-            d.value(4, (c & 8) ? 3 : -3);
+            d.value_stored_first(4, (c & 8) ? 3 : -3);
         } else if (low == 1) {
             d.value(6, fold((c >> 3) & 7, 3));  // -7..-4, +4..+7
         } else {
@@ -478,7 +487,7 @@ uint32_t XB_CDECL NAL_EntropyMode16(EntropyReader* reader, uint32_t* dst, int32_
                 d.value(4, static_cast<int32_t>((c & 0xf) >> 1) - 4);  // -3..+3
             }
         } else {
-            d.value(6, fold(c >> 3, 3) << ((c >> 1) & 3));  // +-4..7 times 1, 2, 4 or 8
+            d.value_stored_first(6, fold(c >> 3, 3) << ((c >> 1) & 3));  // +-4..7 times 1, 2, 4 or 8
         }
     }
     return d.finish();
@@ -514,7 +523,7 @@ uint32_t XB_CDECL NAL_EntropyMode18(EntropyReader* reader, uint32_t* dst, int32_
                 d.value(5, static_cast<int32_t>((c & 0x1f) >> 1) - 8);  // -7..+7
             }
         } else {
-            d.value(6, fold(c >> 3, 3) << (((c >> 1) & 3) + 1));  // +-4..7 times 2..16
+            d.value_stored_first(6, fold(c >> 3, 3) << (((c >> 1) & 3) + 1));  // +-4..7 times 2..16
         }
     }
     return d.finish();
@@ -535,7 +544,7 @@ uint32_t XB_CDECL NAL_EntropyMode19(EntropyReader* reader, uint32_t* dst, int32_
                 d.value(5, -v);  // -1..-3
             }
         } else {
-            d.value(6, fold(c >> 3, 3) << (low - 2));  // +-4..7 times 1..32
+            d.value_stored_first(6, fold(c >> 3, 3) << (low - 2));  // +-4..7 times 1..32
         }
     }
     return d.finish();
@@ -552,7 +561,7 @@ uint32_t XB_CDECL NAL_EntropyMode1A(EntropyReader* reader, uint32_t* dst, int32_
                 d.value(5, static_cast<int32_t>((c & 0x1f) >> 1) - 8);  // -7..+7
             }
         } else {
-            d.value(7, fold(c >> 4, 3) << (((c >> 1) & 7) + 1));  // +-4..7 times 2..256
+            d.value_stored_first(7, fold(c >> 4, 3) << (((c >> 1) & 7) + 1));  // +-4..7 times 2..256
         }
     }
     return d.finish();
