@@ -31,6 +31,7 @@ set(game_code_sources
     g_mover.cpp
     g_pathnode.cpp
     g_scr_builtins.cpp
+    g_scr_builtins2.cpp
     g_scr_imports.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp

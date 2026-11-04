@@ -354,3 +354,4 @@ address,name,class,evidence
 002fd8a0,GScr_SetConfigstring9Float,not reached,"script builtin (import table only); 0 calls in missions 1,4,5,6 (--only --every 1); leaf test not eligible (SV_SetConfigstring's ScriptString_AssignCString reaches XAPILIB GlobalMemoryStatus)"
 002fd8c0,GScr_GetKeyBinding,not reached,"script builtin (import table only); 0 calls in missions 1,4,5,6 (--only --every 1); leaf test not eligible (ScriptString_FromCString reaches XAPILIB GlobalMemoryStatus; VM_Call into cgame)"
 002f4e20,ScrField_SetFloatMin4AndSquare,dead,"no CALL/JMP, no pointer in data, no immediate (Ghidra xrefs none; fnpack); C kept, leaf test 2888/2888 inputs matched (100% coverage)"
+00306b60,GScr_DropWeapon,not reached,"script builtin (import table only); 0 calls in missions 1,4,5,6 (--only --every 1); not forced (needs a weapon-name script string); leaf test not eligible (fs: / indirect call in _getptd)"
