@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cgame.h"
 #include "cl.h"
 #include "dobj.h"
 #include "fx.h"
@@ -2126,5 +2127,205 @@ int32_t XB_CDECL GScr_GetEntByNum(uint32_t number) {
 }
 
 void XB_CDECL GScr_EmptyStub38() {}
+
+namespace {
+
+// The weapon (1..last, as a byte) whose name id (+4) is `id`; 0 when none matches (also weapon 0).
+uint32_t weapon_by_id(uint32_t id) {
+    const int32_t last = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+    for (int32_t i = 0; i <= last; ++i)
+        if (field<uint32_t>(weapon_def(i), 4) == id) return static_cast<uint32_t>(i) & 0xff;
+    return 0;
+}
+
+// "unknown weapon" messages skip the unset id (0xfefefefe) and "none".
+void unknown_weapon_message(uint32_t id, uint32_t format) {
+    if (id != 0xfefefefe && id != title_global<uint32_t>(0x0097a86c))  // scr_const_none
+        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(&title_global<char>(format), id);  // va
+}
+
+ScriptString* script_from_text(ScriptString* out, const char* text) {
+    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // ScriptString_FromCString
+    return out;
+}
+
+// GScr_GetWeaponClassname / GetWeaponClassname2: the weapon's Radiant name (+0x578), following the alternate
+// weapon chain (+0x718) while it is empty; messages and "" otherwise.
+ScriptString* weapon_classname(ScriptString* out, uint32_t id) {
+    const uint32_t weapon = weapon_by_id(id);
+    if (!weapon) {
+        unknown_weapon_message(id, 0x00832524);  // "unknown weapon '%s' in getWeaponClassname\n"
+        return script_from_text(out, title_text(0x0082dfeb));  // ""
+    }
+    uint32_t current = weapon;
+    for (;;) {
+        const char* const name = field<const char*>(weapon_def(static_cast<int32_t>(current)), 0x578);
+        if (*name) return script_from_text(out, field<const char*>(weapon_def(static_cast<int32_t>(current)), 0x578));
+        current = field<uint32_t>(weapon_def(static_cast<int32_t>(current)), 0x718);
+        if (!current || current == weapon) break;
+    }
+    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x008324d8), id);  // "^3WARNING^7: no Radiant name found for weapon '%d' ..."
+    return script_from_text(out, title_text(0x0082dfeb));
+}
+
+// The level change request: 0x00985eb0 = 1, the map name into 0x00985ecc (255 bytes, terminated), 0x00985eb8 = 1.
+void request_level_change(const ScriptString* name) {
+    title_global<uint32_t>(0x00985eb0) = 1;
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        &title_global<char>(0x00985ecc), script_text(name), 0xff);
+    title_global<uint8_t>(0x00985fcb) = 0;
+    title_global<uint32_t>(0x00985eb8) = 1;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL GScr_GetEntScriptObject(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    if (!field<uint32_t>(ent, 0x428)) {
+        const uint32_t create = field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x804);
+        if (create) field<uint32_t>(ent, 0x428) = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(create)(0, 0);
+    }
+    return field<uint32_t>(ent, 0x428);
+}
+
+int32_t XB_CDECL GScr_GetPlayerHandle() {
+    return field<int32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4), 0x224);
+}
+
+int32_t XB_CDECL GScr_GetLevelEnt8Handle() {
+    return field<int32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224);
+}
+
+void XB_REGS3 XB_CDECL GScr_ReturnObstacleKind(uint32_t, uint32_t, ScriptString* out, uint32_t handle) {
+    using Assign = void XB_THISCALL(ScriptString*, uint32_t);
+    if (!handle) {
+        title_function<Assign>(0x0011d600)(out, 0x00984cb0);  // ScriptString_Assign(scr_string_none)
+        return;
+    }
+    // A stale handle reads entity 0 (null) as the original does.
+    uint8_t* const ent = handle_entity(handle);
+    title_function<Assign>(0x0011d600)(
+        out, (field<uint32_t>(ent, 0x2a4) & 0x4000) ? 0x00984cb4 : 0x00984cb8);  // scr_string_obstacle / _world
+}
+
+void XB_CDECL GScr_HudClear(const int32_t* index) { HudElem_SetDefaults(hud_elem(*index)); }
+
+uint8_t* XB_CDECL GScr_GetEntZone(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    int32_t id;
+    if (!ent) {
+        id = field<int32_t>(title_global<uint8_t*>(0x0095f638), 0x34);
+    } else {
+        id = field<int32_t>(ent, 0x220);
+        if (id == -1) id = field<int32_t>(title_global<uint8_t*>(0x0095f638), 0x34);
+    }
+    return MemContext_FindById(title_global<uint8_t*>(0x0095f638), id);
+}
+
+int32_t* XB_CDECL GScr_GetCurrentZoneId(int32_t* out) {
+    int32_t value = HudElem_Alloc();
+    if (value == -1) value = title_global<int32_t>(0x008dda38);
+    *out = value;
+    return out;
+}
+
+void XB_CDECL GScr_WeaponType(ScriptString* out, const ScriptString* weapon_name) {
+    using AssignCString = void XB_THISCALL(ScriptString*, const char*);
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!weapon) {
+        title_function<AssignCString>(0x0011dd20)(out, title_text(0x00832430));  // "none"
+        return;
+    }
+    const uint32_t type = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x94);
+    title_function<AssignCString>(0x0011dd20)(out, title_text(title_global<uint32_t>(0x008d237c + type * 4)));
+}
+
+int32_t XB_CDECL GScr_WeaponGet_6d8(const ScriptString* weapon_name) {
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    return weapon ? field<int32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x6d8) : 0;
+}
+
+int32_t XB_CDECL GScr_WeaponGet_6d4(const ScriptString* weapon_name) {
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    return weapon ? field<int32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x6d4) : 0;
+}
+
+int32_t XB_CDECL GScr_WeaponGetTableValue_5a0(const ScriptString* weapon_name) {
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!weapon) return 0;
+    return title_global<int32_t>(0x00935338 + field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x5a0) * 4);
+}
+
+long double XB_CDECL GScr_WeaponGetFloat_5dc(const ScriptString* weapon_name) {
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!weapon) return title_global<float>(0x0083eafc);  // 0
+    // FILD, FMUL DWORD 0.001 (msec to seconds), left in ST0.
+    return static_cast<long double>(field<int32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x5dc)) *
+           static_cast<long double>(title_global<float>(0x0083eb4c));
+}
+
+void XB_CDECL GScr_ChangeLevel(const ScriptString* name) {
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    request_level_change(name);
+}
+
+void XB_CDECL GScr_ChangeLevelWithDelay(const ScriptString* name, float delay) {
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    const float thousand = title_global<float>(0x0083eb9c), half = title_global<float>(0x0083eb24);
+    title_global<int32_t>(0x00985ec8) = static_cast<int32_t>(delay * thousand + half);
+    const float forced = title_global<float>(0x0095c028);
+    if (forced >= title_global<float>(0x0083eafc))  // comiss; jb: NaN keeps the script's delay
+        title_global<int32_t>(0x00985ec8) = static_cast<int32_t>(forced * thousand + half);
+    request_level_change(name);
+}
+
+void XB_CDECL GScr_MissionSuccess(const ScriptString* name) {
+    const uint8_t* const player = G_FindEntityByIntField(&title_global<uint8_t>(0x0097a8c0), 0x260,
+                                                         title_global<int32_t>(0x0097a75c));  // scr_const_player
+    if (field<int32_t>(const_cast<uint8_t*>(player), 0x350) <= 0 || title_global<uint32_t>(0x0095bf9c)) return;
+    const float forced = title_global<float>(0x0095c028);
+    title_global<int32_t>(0x00985ec8) = 0;
+    title_global<int32_t>(0x00985ec4) = 0;
+    if (forced >= title_global<float>(0x0083eafc))
+        title_global<int32_t>(0x00985ec8) =
+            static_cast<int32_t>(forced * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24));
+    const char* const text = script_text(name);
+    if (text && Q_stricmpn(text, title_text(0x008324c4), 99999) == 0)  // "gamefinished"
+        title_global<uint32_t>(0x00985eb4) = 1;
+    title_global<uint32_t>(0x00985eb8) = 1;
+    title_global<uint32_t>(0x00985ebc) = 0;
+    title_global<uint32_t>(0x00985eb0) = 1;
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        &title_global<char>(0x00985ecc), script_text(name), 0xff);
+    title_global<uint8_t>(0x00985fcb) = 0;
+}
+
+ScriptString* XB_CDECL GScr_GetWeaponClassname2(ScriptString* out, uint32_t id) { return weapon_classname(out, id); }
+ScriptString* XB_CDECL GScr_GetWeaponClassname(ScriptString* out, uint32_t id) { return weapon_classname(out, id); }
+
+ScriptString* XB_CDECL GScr_GetWeaponDisplayName(ScriptString* out, uint32_t id) {
+    const uint32_t weapon = weapon_by_id(id);
+    if (!weapon) return script_from_text(out, title_text(0x0082dfeb));  // ""
+    return script_from_text(out, field<const char*>(weapon_def(static_cast<int32_t>(weapon)), 0x57c));
+}
+
+uint32_t XB_CDECL GScr_GetWeaponModel(uint32_t id) {
+    const uint32_t weapon = weapon_by_id(id);
+    if (!weapon) {
+        unknown_weapon_message(id, 0x00832550);  // "unknown weapon '%s' in getWeaponModel\n"
+        return 0;
+    }
+    return Com_HashKeyNoCase(0, field<const char*>(weapon_def(static_cast<int32_t>(weapon)), 0x57c));
+}
+
+uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint32_t arg) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x230)) return 0;
+    // 0x0029acb0 (EDX list, callee pops 8): the listener whose key (+8) is *name; calls its object's slot 1.
+    using CallListener = uint8_t XB_REGS2 XB_STDCALL(uint32_t, uint8_t*, const uint32_t*, uint32_t);
+    return title_function<CallListener>(0x0029acb0)(0, field<uint8_t*>(ent, 0x230), &name, arg);
+}
 
 }  // namespace game

@@ -1134,6 +1134,15 @@ address,name,tested,matched,nan,mismatched,coverage
 002fadf0,GScr_IsPlayer,3998,3998,0,0,100.0
 002faf00,GScr_EmptyStub38,4000,4000,0,0,100.0
 002fafb0,GScr_GetEntByNum,3998,3998,0,0,100.0
+002fb2b0,GScr_ReturnObstacleKind,1624,1624,0,0,71.4
+002fb4e0,GScr_HudClear,2076,2076,0,0,100.0
+002fb5a0,GScr_GetEntZone,2205,2205,0,0,68.0
+002fb680,GScr_WeaponGet_6d8,3590,3590,0,0,83.3
+002fb6c0,GScr_WeaponGet_6d4,3572,3572,0,0,83.3
+002fb700,GScr_WeaponGetTableValue_5a0,3574,3574,0,0,80.0
+002fb750,GScr_WeaponGetFloat_5dc,3571,3571,0,0,80.8
+002fb7a0,GScr_ChangeLevel,3622,3622,0,0,100.0
+002fb7f0,GScr_ChangeLevelWithDelay,3624,3624,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8

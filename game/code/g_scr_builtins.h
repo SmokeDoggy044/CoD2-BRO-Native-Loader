@@ -489,4 +489,51 @@ int32_t XB_CDECL GScr_GetEntByNum(uint32_t number);
 // 0x002faf00: an empty builtin (a bare ret).
 void XB_CDECL GScr_EmptyStub38();
 
+// 0x002fb230: the entity's script object +0x428, created on first use by the callback at +0x804 of the object
+// at 0x0095f49c (called with 0, 0) when there is one; 0 when stale.
+uint32_t XB_CDECL GScr_GetEntScriptObject(uint32_t handle);
+// 0x002fb290, 0x002fb2a0: the number (+0x224) of level entity +4 (the player) / +8 of the record at 0x0095f534.
+int32_t XB_CDECL GScr_GetPlayerHandle();
+int32_t XB_CDECL GScr_GetLevelEnt8Handle();
+// 0x002fb2b0 (ECX = out, cdecl handle): "none" for handle 0, else "obstacle" when flag 0x4000 of the entity's
+// +0x2a4 is set, "world" otherwise (a stale handle reads entity null).
+void XB_REGS3 XB_CDECL GScr_ReturnObstacleKind(uint32_t unused_eax, uint32_t unused_edx, ScriptString* out,
+                                               uint32_t handle);
+// 0x002fb4e0: HudElem_SetDefaults on HUD element *index (tail jump).
+void XB_CDECL GScr_HudClear(const int32_t* index);
+// 0x002fb5a0: MemContext_FindById on the context at 0x0095f638 with the entity's zone (+0x220), or the
+// context's own id (+0x34) for stale entities and zone -1.
+uint8_t* XB_CDECL GScr_GetEntZone(uint32_t handle);
+// 0x002fb600: *out = HudElem_Alloc(), or 0x008dda38 when none is free. Returns out.
+int32_t* XB_CDECL GScr_GetCurrentZoneId(int32_t* out);
+// 0x002fb620: the weapon's type name (0x008d237c[def +0x94]) into out, "none" for unknown weapons.
+void XB_CDECL GScr_WeaponType(ScriptString* out, const ScriptString* weapon_name);
+// 0x002fb680, 0x002fb6c0: the weapon def's +0x6d8 / +0x6d4, 0 for unknown weapons.
+int32_t XB_CDECL GScr_WeaponGet_6d8(const ScriptString* weapon_name);
+int32_t XB_CDECL GScr_WeaponGet_6d4(const ScriptString* weapon_name);
+// 0x002fb700: the table value 0x00935338[def +0x5a0], 0 for unknown weapons.
+int32_t XB_CDECL GScr_WeaponGetTableValue_5a0(const ScriptString* weapon_name);
+// 0x002fb750: def +0x5dc (msec) * 0.001 on the x87 (ST0), 0 for unknown weapons.
+long double XB_CDECL GScr_WeaponGetFloat_5dc(const ScriptString* weapon_name);
+// 0x002fb7a0: unless a change is pending (0x0095bf9c): requests the level change (0x00985eb0 = 1, map name into
+// 0x00985ecc, 0x00985eb8 = 1).
+void XB_CDECL GScr_ChangeLevel(const ScriptString* name);
+// 0x002fb7f0: as ChangeLevel, with the delay 0x00985ec8 = delay * 1000 + 0.5 (msec), overridden by the float at
+// 0x0095c028 when that is >= 0.
+void XB_CDECL GScr_ChangeLevelWithDelay(const ScriptString* name, float delay);
+// 0x002fb890: while the player lives and no change is pending: the mission-success level change (delay 0 or
+// 0x0095c028, 0x00985eb4 = 1 for "gamefinished", 0x00985ebc = 0).
+void XB_CDECL GScr_MissionSuccess(const ScriptString* name);
+// 0x002fb970, 0x002fba20 (identical): the weapon's Radiant name (+0x578), following the alternate weapons
+// (+0x718) while it is empty; "" and a message otherwise. The weapon is found by its name id (+4). Returns out.
+ScriptString* XB_CDECL GScr_GetWeaponClassname2(ScriptString* out, uint32_t id);
+ScriptString* XB_CDECL GScr_GetWeaponClassname(ScriptString* out, uint32_t id);
+// 0x002fbad0: the weapon's display name (+0x57c) into out, "" for unknown ids. Returns out.
+ScriptString* XB_CDECL GScr_GetWeaponDisplayName(ScriptString* out, uint32_t id);
+// 0x002fbb30: Com_HashKeyNoCase of the weapon's +0x57c (tail jump), 0 and a message for unknown ids.
+uint32_t XB_CDECL GScr_GetWeaponModel(uint32_t id);
+// 0x002fbec0: whether the entity's notify list (+0x230) has a listener for `name` (0x0029acb0, which also
+// calls it with arg); false without a list.
+uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint32_t arg);
+
 }  // namespace game
