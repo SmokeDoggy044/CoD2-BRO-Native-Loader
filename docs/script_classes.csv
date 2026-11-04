@@ -354,3 +354,8 @@ address,name,class,evidence
 002fd8a0,GScr_SetConfigstring9Float,not reached,"script builtin (import table only); 0 calls in missions 1,4,5,6 (--only --every 1); leaf test not eligible (SV_SetConfigstring's ScriptString_AssignCString reaches XAPILIB GlobalMemoryStatus)"
 002fd8c0,GScr_GetKeyBinding,not reached,"script builtin (import table only); 0 calls in missions 1,4,5,6 (--only --every 1); leaf test not eligible (ScriptString_FromCString reaches XAPILIB GlobalMemoryStatus; VM_Call into cgame)"
 002f4e20,ScrField_SetFloatMin4AndSquare,dead,"no CALL/JMP, no pointer in data, no immediate (Ghidra xrefs none; fnpack); C kept, leaf test 2888/2888 inputs matched (100% coverage)"
+0011f870,ScrCall_GScr_SetAnim,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f8d0,ScrCall_GScr_Vehicle_GetWheelSurface,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f960,ScrCall_GScr_GetWeaponClassname,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f9d0,ScrCall_GScr_GetWeaponClassname2,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011fa40,ScrCall_ScrEnt_SetTargetname_2,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"

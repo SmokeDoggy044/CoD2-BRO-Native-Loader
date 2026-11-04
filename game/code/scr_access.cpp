@@ -867,12 +867,22 @@ uint32_t* XB_CDECL ScrCall_GScr_GetTagAngles(uint32_t* out, const uint32_t* ent,
     return tag_vector<0x00922620>(out, ent, tag);
 }
 
-ScriptString* XB_CDECL ScrCall_GScr_GetLocalizedString(ScriptString* out, uint32_t key) {
+namespace {
+
+// builtin(&string, argument) into an empty local; the returned string is copied out.
+template <uint32_t Slot>
+ScriptString* string_of(ScriptString* out, uint32_t arg) {
     ScriptString value{nullptr};
-    const ScriptString* result = builtin<ScriptString* XB_CDECL(ScriptString*, uint32_t)>(0x0092267c)(&value, key);
+    const ScriptString* result = builtin<ScriptString* XB_CDECL(ScriptString*, uint32_t)>(Slot)(&value, arg);
     ScriptString_Copy(out, result);
     string_release(&value);
     return out;
+}
+
+}  // namespace
+
+ScriptString* XB_CDECL ScrCall_GScr_GetLocalizedString(ScriptString* out, uint32_t key) {
+    return string_of<0x0092267c>(out, key);
 }
 
 uint32_t* XB_CDECL ScrCall_Scr_VectorToAngles(uint32_t* out, uint32_t vec) { return vector_of<0x00922284>(out, vec); }
@@ -932,6 +942,55 @@ uint32_t XB_CDECL ScrCall_GScr_SetAnimKnobAll(const uint32_t* ent, uint32_t a, u
                                               uint32_t e) {
     return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225c8)(
         *ent, a, b, c, d, e, 1);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetAnimKnob(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(*ent, a, b,
+                                                                                                         c, d, 0);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetAnim(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225dc)(*ent, a, b,
+                                                                                                         c, d, 0);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnob(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                  uint32_t c, uint32_t d) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e0)(
+        *ent, *anim, a, b, c, d, 1);
+}
+
+// The builtin fills the local string (its result is not used).
+ScriptString* XB_CDECL ScrCall_GScr_Vehicle_GetWheelSurface(ScriptString* out, const uint32_t* vehicle, uint32_t wheel) {
+    ScriptString value;
+    ScriptString_FromRep(&value, nullptr);
+    builtin<ScriptString* XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x009228a0)(*vehicle, wheel, &value);
+    ScriptString_Copy(out, &value);
+    string_release(&value);
+    return out;
+}
+
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponClassname(ScriptString* out, uint32_t weapon) {
+    return string_of<0x009223e8>(out, weapon);
+}
+
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponClassname2(ScriptString* out, uint32_t weapon) {
+    return string_of<0x009223ec>(out, weapon);
+}
+
+// Fills {handle, false} and sets the entity's targetname to "gunner" (the name string is made in
+// the handle's argument slot; ScrEnt_SetTargetname gets a copy by value).
+uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t handle) {
+    self[0] = handle;
+    reinterpret_cast<uint8_t*>(self)[4] = 0;
+    ScriptString* const name = reinterpret_cast<ScriptString*>(&handle);
+    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(
+        name, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x007fc050)));  // FromCString("gunner")
+    ScriptString copy;
+    ScriptString_Copy(&copy, name);
+    builtin<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(self[0], copy);
+    string_release(name);
+    return self;
 }
 
 }  // namespace game

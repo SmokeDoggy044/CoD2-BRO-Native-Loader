@@ -553,3 +553,4 @@ address,name,kind,reason
 0011daf0,ScriptValue_DefaultCopy,unhookable,"3 bytes, too short to hook (2026-11-04)"
 0011db00,ScriptValue_DefaultRelease,unhookable,"bare ret (1 byte), too short to hook (2026-11-04)"
 0011db20,ScrCall_GScr_GetEntScriptObject,unhookable,"bare jmp [0x009229e8] (import-slot tail jump), cannot be hooked (2026-11-04)"
+0011eb30,ScrCall_GScr_GetEntScriptObject_2,unhookable,"call [mem] at byte 3, cannot be hooked (2026-11-04)"
