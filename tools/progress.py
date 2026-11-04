@@ -21,7 +21,7 @@ code; its C stays, it is not counted as rewritten; Xbox Live code is set aside b
 inconclusive (tests ran, none conclusive); mismatched (mismatch or drift on
 record); accepted (mismatches on record, all of a kind tools/data/accepted.csv accepts: values
 the title never sets, such as stale stack - its latest issue must still match the listed
-pattern); matched (matched, under functions.csv's 100 for settled); settled (100+
+pattern; below 100 matches only when tools/data/accepted_approved.csv lists it); matched (matched, under functions.csv's 100 for settled); settled (100+
 matched, none mismatched); offline (no conclusive in-game test, but tests/leaf_test.cpp
 matched it: tools/data/offline.csv, 100+ inputs matched, none mismatched, 90%+ of its
 instructions reached); replaced (runs instead of the original).
@@ -106,6 +106,9 @@ def main():
     if (DATA / "accepted.csv").exists():
         for r in csv.DictReader(open(DATA / "accepted.csv")):
             accepted[int(r["address"], 16)] = re.compile(r["issue"])
+    approved = set()  # accepted rows the user approved below 100 matches (tools/data/accepted_approved.csv)
+    if (DATA / "accepted_approved.csv").exists():
+        approved = {int(r["address"], 16) for r in csv.DictReader(open(DATA / "accepted_approved.csv"))}
     prefixes, ranges, hints = load_modules()
     secs = sections()
 
@@ -130,7 +133,8 @@ def main():
             bad = r and (int(r["mismatched"]) or int(r["drift"]))
             if decompiled[a] == "Replaced":
                 state = "replaced"
-            elif bad and matched >= 100 and a in accepted and accepted[a].search(r["last_issue"]):
+            elif (bad and (matched >= 100 or a in approved) and a in accepted
+                  and accepted[a].search(r["last_issue"])):
                 state = "accepted"
             elif bad:
                 state = "mismatched"

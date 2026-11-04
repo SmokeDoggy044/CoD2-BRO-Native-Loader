@@ -7823,7 +7823,7 @@ address,name,section,module,state,tested,matched
 002111a0,ActorMove_Walk,.text,game,settled,100,100
 00211460,ActorMove_Air,.text,game,settled,160,160
 002115b0,Path_ComputeLookahead,.text,game,settled,100,100
-002117c0,Actor_CheckGrenadeThrow,.text,game,mismatched,15,13
+002117c0,Actor_CheckGrenadeThrow,.text,game,accepted,15,13
 00211970,Actor_Grenade_FindThrowbackVelocity,.text,game,untested,0,0
 00211b00,Actor_ComputeShotSpread,.text,game,untested,0,0
 00211cb0,Actor_RollHit,.text,game,settled,100,100
@@ -7906,8 +7906,8 @@ address,name,section,module,state,tested,matched
 0021c810,Actor_Grenade_ClaimBestCover,.text,game,matched,1,1
 0021c9d0,Actor_FindNearbyCoverNode,.text,game,settled,157,157
 0021cb30,Actor_OrientToEnemyOrMotion,.text,game,settled,193,193
-0021cca0,Actor_InitStateMachine,.text,game,mismatched,212,8
-0021ceb0,Actor_SpawnFromSpawner,.text,game,mismatched,248,0
+0021cca0,Actor_InitStateMachine,.text,game,accepted,212,8
+0021ceb0,Actor_SpawnFromSpawner,.text,game,accepted,248,0
 0021d250,Actor_Exposed_CheckNearbyCover,.text,game,settled,157,157
 0021d300,Actor_Exposed_Start,.text,game,settled,108,108
 0021d3c0,Actor_Exposed_Combat,.text,game,settled,186,186
@@ -8061,7 +8061,7 @@ address,name,section,module,state,tested,matched
 0022d650,VehiclePhys_CreateBody,.text,game,untested,0,0
 0022d7d0,Ragdoll_GatherCollisionGeometry,.text,game,settled,422,422
 0022dd40,Ragdoll_DrawJointDebug,.text,game,untested,0,0
-0022ebe0,Ragdoll_BuildBodyDefs,.text,game,mismatched,6,0
+0022ebe0,Ragdoll_BuildBodyDefs,.text,game,accepted,6,0
 0022fb30,Ragdoll_FreePhysics,.text,game,matched,91,91
 0022fb70,Ragdoll_BuildWorldBoneFrames,.text,game,matched,18,18
 002301f0,Ragdoll_Update,.text,game,settled,400,400
@@ -8635,7 +8635,7 @@ address,name,section,module,state,tested,matched
 00272800,ClientSpawn,.text,game,matched,28,28
 00272e90,ClientBegin,.text,game,matched,68,68
 00272f20,G_BounceMissile,.text,game,untested,0,0
-00273200,G_MissileImpact,.text,game,mismatched,54,51
+00273200,G_MissileImpact,.text,game,accepted,54,51
 00273790,G_InitGame,.text,game,matched,20,20
 00273d70,G_vmMain,.text,game,settled,398,398
 00273ef0,G_RunMissile,.text,game,settled,108,108

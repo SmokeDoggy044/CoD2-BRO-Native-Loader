@@ -1,0 +1,6 @@
+address,name,approved
+002117c0,Actor_CheckGrenadeThrow,user 2026-11-03: accepted below 100 matches (CM_TempBoxModel w lanes)
+00273200,G_MissileImpact,user 2026-11-03: accepted below 100 matches (CM_TempBoxModel w lanes)
+0021cca0,Actor_InitStateMachine,user 2026-11-03: accepted below 100 matches (script-thread stack copy of the running call's return address)
+0021ceb0,Actor_SpawnFromSpawner,user 2026-11-03: accepted below 100 matches (script-thread stack copy of the running call's return address)
+0022ebe0,Ragdoll_BuildBodyDefs,user 2026-11-03: accepted below 100 matches (inertia w lane Phys_SphereMassProperties never writes)
