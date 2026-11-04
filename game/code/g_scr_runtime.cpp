@@ -1581,4 +1581,236 @@ uint8_t* XB_THISCALL WaitTilOutputInst2_str_str_DeletingDtor(uint8_t* self, uint
     return self;
 }
 
+
+// --- Anim-tree handle, entity notify callbacks, the VM layer, wait-timeout records, thread data.
+
+// The handle of the tree at obj+8 in rm_animTrees' list (12-byte entries): index in the high
+// word, anim 0.
+uint32_t XB_REGS1 XB_CDECL AnimTree_RootHandle(uint8_t* obj) {
+    uint8_t* const list = title_global<uint8_t*>(title_global<uint32_t>(0x0095f524) + 4);
+    const int32_t delta = static_cast<int32_t>(word_at(obj, 8) - word_at(list, 4));
+    return static_cast<uint32_t>(static_cast<uint16_t>(delta / 12)) << 16;
+}
+
+// The callback list at EDX (first node +0x10, sentinel +0x14; node {next, ?, key +8, object +0x10}):
+// the first node with *key whose next is set (the last node is never checked) gets its object's
+// slot 1 called with `argument` (thiscall); true when one was found. AL only: the rest of EAX is
+// what the original leaves (not compared).
+uint32_t XB_REGS2 XB_STDCALL EntNotifyCallbacks_CallByKey(uint32_t, uint8_t* list, const uint32_t* key,
+                                                         uint32_t argument) {
+    const uint32_t* node = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(word_at(list, 0x10)));
+    const uint32_t* next = node ? reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(node[0])) : nullptr;
+    if (node == reinterpret_cast<const uint32_t*>(list + 0x14) || !next) return 0;
+    const uint32_t wanted = *key;
+    while (node[2] != wanted) {
+        node = next;
+        next = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(next[0]));
+        if (!next) return 0;
+    }
+    uint8_t* const object = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node[4]));
+    if (!object) return 0;
+    const uint32_t* const vtable = *reinterpret_cast<uint32_t* const*>(object);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(vtable[1])(object, argument);
+    return 1;
+}
+
+// The entity's notify-callback table (0x3c bytes, entity +0x234): all zero. Returns it (EAX).
+uint8_t* XB_REGS1 XB_CDECL EntNotifyCallbacks_Init(uint8_t* self) {
+    for (uint32_t offset = 0; offset < 0x3c; offset += 4) *reinterpret_cast<uint32_t*>(self + offset) = 0;
+    return self;
+}
+
+// VM_Call (EDX = vm): the call number and the next 16 stack words go to the vm's entry point
+// (+0x88) with currentVM (0x0095f514) set to it for the call. The entry point runs at the
+// original's ESP (game code stores stack addresses in .data; see sv.cpp ClientThink).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VM_Call_c(uint32_t entry_esp, uint8_t* vm, uint32_t ebx) {
+    const uint32_t previous = title_global<uint32_t>(0x0095f514);
+    title_global<uint32_t>(0x0095f514) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vm));
+    uint32_t args[17];
+    for (uint32_t i = 0; i < 17; ++i) args[i] = title_global<uint32_t>(entry_esp + 4 + i * 4);
+    TitleRegs regs{};
+    regs.eax = args[0];
+    regs.ebx = ebx;
+    regs.ecx = args[1];
+    regs.edx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vm));
+    regs.esi = previous;
+    regs.edi = args[16];
+    const uint32_t result = title_call_at_regs(entry_esp - 0x48, word_at(vm, 0x88), &regs, 17, args);
+    title_global<uint32_t>(0x0095f514) = previous;
+    return result;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(VM_Call_entry, "movl %esp, %eax\n" GAME_GAP_ESP("0x30000")
+                                  "pushl %ebx\n pushl %edx\n pushl %eax\n" PLATFORM_ASM_CALL(VM_Call_c)
+                                  "addl $12, %esp\n popl %esp\n ret")
+
+namespace game {
+
+// The system call of the current vm (+0) with the address of the arguments.
+int32_t XB_CDECL VM_DllSyscall(uint32_t arg) {
+    const uint32_t vm = title_global<uint32_t>(0x0095f514);
+    return title_function<int32_t XB_CDECL(uint32_t*)>(title_global<uint32_t>(vm))(&arg);
+}
+
+// The three vmTable entries (0x00927c38, 0x8c bytes) cleared, currentVM 0.
+void XB_CDECL VM_Clear() {
+    for (uint32_t vm = 0x00927c38; vm < 0x00927ddc; vm += 0x8c)
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00293be0)(vm, 0, 0x23);  // Com_Memset32
+    title_global<uint32_t>(0x0095f514) = 0;
+}
+
+// The vm named `module` (name at +4): an existing one, else the first free entry ("game" and
+// "cgame" get their vmMain at +0x88 and VM_DllSyscall as the syscall hook; "ui" and other
+// names give null after the name and system call were stored). __break(0, ..) on a missing
+// argument or a full table.
+uint8_t* XB_CDECL VM_Create(const char* module, uint32_t system_calls) {
+    using Break = void XB_CDECL(uint32_t, const char*);
+    if (!module || !*module || !system_calls)
+        title_function<Break>(0x002938f0)(0, reinterpret_cast<const char*>(uintptr_t{0x00832b4c}));
+    uint32_t index = 0;
+    for (uint32_t name = 0x00927c3c; name < 0x00927de0; name += 0x8c, ++index) {
+        if (module && !title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x000441c0)(
+                          reinterpret_cast<const char*>(static_cast<uintptr_t>(name)), module, 99999))  // Q_stricmpn
+            return &title_global<uint8_t>(0x00927c38 + index * 0x8c);
+    }
+    uint32_t free = 0;
+    for (uint32_t name = 0x00927c3c; name < 0x00927de0; name += 0x8c) {
+        if (!title_global<char>(name)) break;
+        ++free;
+    }
+    if (free == 3) title_function<Break>(0x002938f0)(0, reinterpret_cast<const char*>(uintptr_t{0x00832b30}));
+    uint8_t* const vm = &title_global<uint8_t>(0x00927c38 + free * 0x8c);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(reinterpret_cast<char*>(vm + 4), module,
+                                                                             0x7f);  // _strncpy
+    vm[4 + 0x7f] = 0;
+    *reinterpret_cast<uint32_t*>(vm) = system_calls;
+    if (!std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x00832b2c}))) return nullptr;  // "ui"
+    if (!std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x00832df0}))) {                 // "game"
+        *reinterpret_cast<uint32_t*>(vm + 0x84) = 0xffffffffu;
+        *reinterpret_cast<uint32_t*>(vm + 0x88) = 0x00273d70;  // G_vmMain
+        title_global<uint32_t>(0x008db08c) = 0x002a8580;       // g_syscall = VM_DllSyscall
+        return vm;
+    }
+    if (std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x0083521c}))) return nullptr;  // "cgame"
+    *reinterpret_cast<uint32_t*>(vm) = system_calls;
+    *reinterpret_cast<uint32_t*>(vm + 0x84) = 0xffffffffu;
+    *reinterpret_cast<uint32_t*>(vm + 0x88) = 0x0028b960;  // CG_vmMain
+    title_global<uint32_t>(0x008da6d0) = 0x002a8580;       // cg_syscall = VM_DllSyscall
+    return vm;
+}
+
+// EAX = record, XMM0 = the timeout; vtable 0x0083182c.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ScrWaitTimeoutRecord_Init(uint8_t* self, uint32_t a, uint32_t b,
+                                                                       uint32_t c, uint32_t timeout_bits) {
+    *reinterpret_cast<uint32_t*>(self + 4) = 0;
+    *reinterpret_cast<uint32_t*>(self + 8) = 0;
+    self[0xc] = 0;
+    *reinterpret_cast<uint32_t*>(self + 0x10) = c;
+    *reinterpret_cast<uint32_t*>(self) = 0x0083182c;
+    *reinterpret_cast<uint32_t*>(self + 0x14) = a;
+    *reinterpret_cast<uint32_t*>(self + 0x18) = b;
+    *reinterpret_cast<uint32_t*>(self + 0x1c) = timeout_bits;
+    return self;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(ScrWaitTimeoutRecord_Init_entry, "subl $4, %esp\n"
+                                                    "movss %xmm0, (%esp)\n"
+                                                    "pushl 16(%esp)\n"
+                                                    "pushl 16(%esp)\n"
+                                                    "pushl 16(%esp)\n"
+                                                    "pushl %eax\n" PLATFORM_ASM_CALL(ScrWaitTimeoutRecord_Init)
+                                                    "addl $20, %esp\n"
+                                                    "ret $12")
+
+namespace game {
+
+namespace {
+
+// A 0x100-byte thread-data block (next pointer +0xfc cleared), or 0.
+uint32_t thread_data_block() {
+    using Alloc = uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t);
+    uint8_t* block = title_function<Alloc>(0x00044850)(title_global<uint32_t>(0x0095f490), 0x100, 0);  // SmallHeap_Alloc
+    if (!block) return 0;
+    *reinterpret_cast<uint32_t*>(block + 0xfc) = 0;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block));
+}
+
+}  // namespace
+
+// Saves [data, end) into the chain of 0x100-byte blocks of `holder` ({first block, size}; next
+// block at +0xfc) from scrThread_dataHeap (0x0095f490): 0xfc bytes per block, copied as whole
+// words (up to three bytes past the end); blocks are added as needed, the unused rest of the
+// chain is freed. EAX = the size, or `holder` when nothing was left to free.
+uint32_t XB_REGS3 XB_STDCALL ScrThread_AppendData(const uint8_t* data, uint32_t, const uint8_t* end,
+                                                  uint32_t* holder) {
+    const int32_t size = static_cast<int32_t>(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end)) -
+                                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data)));
+    if (!holder[0]) holder[0] = thread_data_block();
+    uint32_t block = holder[0];
+    int32_t left = size;
+    const uint8_t* source = data;
+    if (left) {
+        uint32_t previous;
+        do {
+            const int32_t n = left < 0xfc ? left : 0xfc;
+            if (n > 0) {
+                uint32_t* dst = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(block));
+                const uint8_t* src = source;
+                for (uint32_t words = (static_cast<uint32_t>(n - 1) >> 2) + 1; words; --words, src += 4)
+                    *dst++ = *reinterpret_cast<const uint32_t*>(src);
+            }
+            source += n;
+            left -= n;
+            uint32_t& next = *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(block + 0xfc));
+            if (left && !next) next = thread_data_block();
+            previous = block;
+            block = next;
+        } while (left);
+        if (previous) *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(previous + 0xfc)) = 0;
+    }
+    if (!block) {
+        holder[1] = static_cast<uint32_t>(size);
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(holder));
+    }
+    do {
+        const uint32_t freed = block;
+        block = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(block + 0xfc));
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f490),
+                                                                         freed);  // SmallHeap_Free
+    } while (block);
+    holder[1] = static_cast<uint32_t>(size);
+    return static_cast<uint32_t>(size);
+}
+
+// scrThread_dataHeap (0x0095f490): a small heap (Z_Malloc 0x3c) with one pool of 0x40 blocks of
+// 0x100 bytes, tag 0x4b0 (16 config slots {0, 4, 0}, the first one set); null when Z_Malloc fails.
+void XB_CDECL ScrThread_InitDataHeap() {
+    struct Config {
+        uint32_t count;
+        uint32_t pools[16][3];
+    } config;
+    config.count = 0;
+    for (uint32_t i = 0; i < 16; ++i) {
+        config.pools[i][0] = 0;
+        config.pools[i][1] = 4;
+        config.pools[i][2] = 0;
+    }
+    if (static_cast<int32_t>(config.count) < 0x10) {
+        config.pools[config.count][0] = 0x100;
+        config.pools[config.count][1] = 0x40;
+        config.pools[config.count][2] = 0x4b0;
+        ++config.count;
+    }
+    uint8_t* heap = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x3c);  // Z_Malloc
+    if (!heap) {
+        title_global<uint32_t>(0x0095f490) = 0;
+        return;
+    }
+    title_global<uint8_t*>(0x0095f490) = SmallHeap_Init(heap, &config.count, 1, 0);
+}
+
 }  // namespace game

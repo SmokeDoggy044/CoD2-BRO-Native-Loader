@@ -91,4 +91,39 @@ uint8_t* XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor(uint8_t* s
 uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9);  // 0x001e4150
 uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10);  // 0x0017c770
 
+
+// Functor Invoke (vtable slot 1; thread switch: kept original)
+void XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_Invoke(uint8_t* self);  // 0x0017aa00
+void XB_THISCALL AeThreadFunctor3_ent_hash_hash_Invoke(uint8_t* self);  // 0x0017a600
+void XB_THISCALL AeThreadFunctor3_ent_str_vec_Invoke(uint8_t* self);  // 0x0017a6d0
+void XB_THISCALL AeThreadFunctor3_ent_vec_b_Invoke(uint8_t* self);  // 0x0017ab40
+void XB_THISCALL AeThreadFunctor4_ent_ent_arrf_i_Invoke(uint8_t* self);  // 0x0017c1b0
+void XB_THISCALL AeThreadFunctor4_ent_ent_b_hash_Invoke(uint8_t* self);  // 0x001e3dc0
+void XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Invoke(uint8_t* self);  // 0x0017caf0
+void XB_THISCALL AeThreadFunctor4_ent_ent_i_vec_Invoke(uint8_t* self);  // 0x001e3f70
+void XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Invoke(uint8_t* self);  // 0x0017a440
+void XB_THISCALL AeThreadFunctor4_ent_f_f_b_Invoke(uint8_t* self);  // 0x0017a3a0
+void XB_THISCALL AeThreadFunctor4_ent_hash_i_f_Invoke(uint8_t* self);  // 0x001e4130
+void XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Invoke(uint8_t* self);  // 0x001e3f30
+void XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Invoke(uint8_t* self);  // 0x001e42f0
+void XB_THISCALL AeThreadFunctor4_ent_str_i_str_Invoke(uint8_t* self);  // 0x0017aac0
+void XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke(uint8_t* self);  // 0x0017a900
+void XB_THISCALL AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke(uint8_t* self);  // 0x0017a370
+void XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Invoke(uint8_t* self);  // 0x0017a510
+void XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Invoke(uint8_t* self);  // 0x001e3e70
+void XB_THISCALL AeThreadFunctor5_ent_f_f_hash_hash_Invoke(uint8_t* self);  // 0x0017a720
+void XB_THISCALL AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke(uint8_t* self);  // 0x001e40e0
+void XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Invoke(uint8_t* self);  // 0x0017a7e0
+void XB_THISCALL AeThreadFunctor5_ent_vec_vec_vec_i_Invoke(uint8_t* self);  // 0x001e43a0
+void XB_THISCALL AeThreadFunctor5_vt00825c50_Invoke(uint8_t* self);  // 0x001e44b0
+void XB_THISCALL AeThreadFunctor6_ent_hash_f_i_f_f_Invoke(uint8_t* self);  // 0x001e44f0
+void XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke(uint8_t* self);  // 0x001e4030
+void XB_THISCALL AeThreadFunctor6_vt008245b4_Invoke(uint8_t* self);  // 0x0017bbe0
+void XB_THISCALL AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke(uint8_t* self);  // 0x001e4400
+void XB_THISCALL AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke(uint8_t* self);  // 0x0017a840
+void XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke(uint8_t* self);  // 0x0017a5c0
+void XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke(uint8_t* self);  // 0x001e41f0
+void XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke(uint8_t* self);  // 0x0017ca40
+void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self);  // 0x0017a620
+
 }  // namespace game

@@ -752,4 +752,524 @@ uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(ui
     return self;
 }
 
+
+// --- Functor Invoke (vtable slot 1): Scr_ResumeThread -> Scr_ThreadEntry (0x001fa400) calls it at the
+// start of the new script thread. It copies the bound arguments into a by-value argument block -
+// words as they are, members through their copy constructors in place (ScriptString_Copy,
+// DynArray_Assign4, the RespawnerAttributes copy 0x0052ba50, 0x0017ad50 for the 0x54-byte record) -
+// and calls the thread function (+4, cdecl; it destroys its by-value arguments), which runs the
+// level script up to its waits: script thread switches. Kept original (Compare) for that reason.
+// The blocks were generated from the disassembly by a symbolic pass (every word of each block is
+// a copied word or part of a constructed member); EAX/ECX/EDX at the call are what the original
+// leaves there.
+
+namespace {
+
+struct BodyRegs {
+    uint32_t eax, ecx, edx;
+};
+
+using BodyBuilder = void (*)(uint8_t* args, uint8_t* self, BodyRegs* regs);
+
+uint32_t address(const uint8_t* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+uint32_t byte_of(const uint8_t* self, uint32_t offset) { return self[offset]; }
+
+void construct_arg(uint32_t function, uint8_t* member, uint32_t source) {
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(function)(member, source);
+}
+
+}  // namespace
+
+// Reserves `bytes` below its frame, lets `build` fill them and the registers, then calls `body`
+// with ESP at the block; pops the block after the call (the body is cdecl).
+extern "C" PLATFORM_HIDDEN void XB_CDECL scr_functor_call_body(uint32_t body, uint32_t bytes, BodyBuilder build,
+                                                               uint8_t* self);
+PLATFORM_ASM_ENTRY(scr_functor_call_body,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %ebx\n"
+                   "subl $12, %esp\n"
+                   "movl %esp, %ebx\n"
+                   "subl 12(%ebp), %esp\n"
+                   "movl %esp, %eax\n"
+                   "pushl %ebx\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl %eax\n"
+                   "call *16(%ebp)\n"
+                   "addl $12, %esp\n"
+                   "movl (%ebx), %eax\n"
+                   "movl 4(%ebx), %ecx\n"
+                   "movl 8(%ebx), %edx\n"
+                   "call *8(%ebp)\n"
+                   "movl -4(%ebp), %ebx\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+namespace {
+
+void call_body(uint8_t* self, uint32_t bytes, BodyBuilder build) {
+    scr_functor_call_body(word_at(self, 4), bytes, build, self);
+}
+
+}  // namespace
+
+static void build_AeThreadFunctor2_ent_RespawnerAttributes(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0052ba50, args + 0x4, address(self + 0xc));  // FUN_0052ba50 (RespawnerAttributes copy)
+    put(args, 0x0, word_at(self, 0x8));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_Invoke(uint8_t* self) { call_body(self, 0xe4, &build_AeThreadFunctor2_ent_RespawnerAttributes); }
+
+static void build_AeThreadFunctor3_ent_hash_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor3_ent_hash_hash_Invoke(uint8_t* self) { call_body(self, 0xc, &build_AeThreadFunctor3_ent_hash_hash); }
+
+static void build_AeThreadFunctor3_ent_str_vec(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor3_ent_str_vec_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor3_ent_str_vec); }
+
+static void build_AeThreadFunctor3_ent_vec_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, byte_of(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor3_ent_vec_b_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor3_ent_vec_b); }
+
+static void build_AeThreadFunctor4_ent_ent_arrf_i(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x8, 0x0u);
+    put(args, 0xc, 0x0u);
+    put(args, 0x10, 0x0u);
+    construct_arg(0x0052d600, args + 0x8, address(self + 0x10));  // DynArray_Assign4_KASSPASS
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x14, word_at(self, 0x1c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_arrf_i_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor4_ent_ent_arrf_i); }
+
+static void build_AeThreadFunctor4_ent_ent_b_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, byte_of(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_b_hash_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_ent_b_hash); }
+
+static void build_AeThreadFunctor4_ent_ent_ent_arrent(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0xc, 0x0u);
+    put(args, 0x10, 0x0u);
+    put(args, 0x14, 0x0u);
+    construct_arg(0x0045c270, args + 0xc, address(self + 0x14));  // DynArray_Assign4_PROLOGUE
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = word_at(self, 0xc);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor4_ent_ent_ent_arrent); }
+
+static void build_AeThreadFunctor4_ent_ent_i_vec(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_i_vec_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor4_ent_ent_i_vec); }
+
+static void build_AeThreadFunctor4_ent_ent_str_vec(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor4_ent_ent_str_vec); }
+
+static void build_AeThreadFunctor4_ent_f_f_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, byte_of(self, 0x14));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_f_f_b_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_f_f_b); }
+
+static void build_AeThreadFunctor4_ent_hash_i_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_hash_i_f_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_hash_i_f); }
+
+static void build_AeThreadFunctor4_ent_i_pathnode_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = word_at(self, 0xc);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_i_pathnode_str); }
+
+static void build_AeThreadFunctor4_ent_str_hash_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_str_hash_hash); }
+
+static void build_AeThreadFunctor4_ent_str_i_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x8, word_at(self, 0x10));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_str_i_str_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_str_i_str); }
+
+static void build_AeThreadFunctor5_ent_ent_hash_ent_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_ent_hash_ent_hash); }
+
+static void build_AeThreadFunctor5_ent_ent_i_str_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0x10, byte_of(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_ent_i_str_b); }
+
+static void build_AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0xec, address(self + 0xf4));  // ScriptString_Copy
+    construct_arg(0x0052ba50, args + 0x8, address(self + 0x10));  // FUN_0052ba50 (RespawnerAttributes copy)
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0xe8, word_at(self, 0xf0));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke(uint8_t* self) { call_body(self, 0xf0, &build_AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str); }
+
+static void build_AeThreadFunctor5_ent_ent_str_ent_ent(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_ent_str_ent_ent); }
+
+static void build_AeThreadFunctor5_ent_f_f_hash_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_f_f_hash_hash_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_f_f_hash_hash); }
+
+static void build_AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f); }
+
+static void build_AeThreadFunctor5_ent_vec_str_vec_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = word_at(self, 0x10);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor5_ent_vec_str_vec_f); }
+
+static void build_AeThreadFunctor5_ent_vec_vec_vec_i(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    put(args, 0x24, word_at(self, 0x2c));
+    put(args, 0x28, word_at(self, 0x30));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_vec_vec_vec_i_Invoke(uint8_t* self) { call_body(self, 0x2c, &build_AeThreadFunctor5_ent_vec_vec_vec_i); }
+
+static void build_AeThreadFunctor5_vt00825c50(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = word_at(self, 0x10);
+}
+
+void XB_THISCALL AeThreadFunctor5_vt00825c50_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_vt00825c50); }
+
+static void build_AeThreadFunctor6_ent_hash_f_i_f_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor6_ent_hash_f_i_f_f_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor6_ent_hash_f_i_f_f); }
+
+static void build_AeThreadFunctor6_ent_hash_i_str_i_ent(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = word_at(self, 0xc);
+}
+
+void XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor6_ent_hash_i_str_i_ent); }
+
+static void build_AeThreadFunctor6_vt008245b4(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0017ad50, args + 0x4, address(self + 0xc));  // FUN_0017ad50
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x58, word_at(self, 0x60));
+    put(args, 0x5c, word_at(self, 0x64));
+    put(args, 0x60, word_at(self, 0x68));
+    put(args, 0x64, word_at(self, 0x6c));
+    put(args, 0x68, word_at(self, 0x70));
+    put(args, 0x6c, word_at(self, 0x74));
+    put(args, 0x70, word_at(self, 0x78));
+    put(args, 0x74, word_at(self, 0x7c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor6_vt008245b4_Invoke(uint8_t* self) { call_body(self, 0x78, &build_AeThreadFunctor6_vt008245b4); }
+
+static void build_AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke(uint8_t* self) { call_body(self, 0x1c, &build_AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim); }
+
+static void build_AeThreadFunctor7_ent_ent_f_i_i_i_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke(uint8_t* self) { call_body(self, 0x1c, &build_AeThreadFunctor7_ent_ent_f_i_i_i_f); }
+
+static void build_AeThreadFunctor7_ent_hash_vec_hash_f_hash_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor7_ent_hash_vec_hash_f_hash_f); }
+
+static void build_AeThreadFunctor8_ent_anim_str_f_hash_str_f_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    construct_arg(0x0011d5e0, args + 0x14, address(self + 0x1c));  // ScriptString_Copy
+    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, byte_of(self, 0x24));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0x8);
+    regs->edx = 0;  // whatever the copy constructor left
+}
+
+void XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke(uint8_t* self) { call_body(self, 0x20, &build_AeThreadFunctor8_ent_anim_str_f_hash_str_f_b); }
+
+static void build_AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x28, 0x0u);
+    put(args, 0x2c, 0x0u);
+    put(args, 0x30, 0x0u);
+    construct_arg(0x0045c270, args + 0x28, address(self + 0x30));  // DynArray_Assign4_PROLOGUE
+    put(args, 0x8, 0x0u);
+    put(args, 0xc, 0x0u);
+    put(args, 0x10, 0x0u);
+    construct_arg(0x0045c270, args + 0x8, address(self + 0x10));  // DynArray_Assign4_PROLOGUE
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    put(args, 0x24, word_at(self, 0x2c));
+    regs->eax = address(args + 0x0);
+    regs->ecx = word_at(self, 0xc);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke(uint8_t* self) { call_body(self, 0x34, &build_AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr); }
+
+static void build_AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
+    put(args, 0x0, word_at(self, 0x8));
+    put(args, 0x4, word_at(self, 0xc));
+    put(args, 0x8, word_at(self, 0x10));
+    put(args, 0xc, word_at(self, 0x14));
+    put(args, 0x10, word_at(self, 0x18));
+    put(args, 0x14, word_at(self, 0x1c));
+    put(args, 0x18, word_at(self, 0x20));
+    put(args, 0x1c, word_at(self, 0x24));
+    put(args, 0x20, word_at(self, 0x28));
+    regs->eax = address(args + 0x0);
+    regs->ecx = address(self + 0x0);
+    regs->edx = word_at(self, 0x8);
+}
+
+void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash); }
+
 }  // namespace game

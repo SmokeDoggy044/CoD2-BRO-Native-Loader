@@ -3103,14 +3103,29 @@ const Function kFunctions[] = {
     {"ScrField_h4ced49f6_PopFront", 0x0014ebc0, 0, code(&ScrField_h4ced49f6_PopFront), 4, Result::Eax, Status::Compare},
     {"BroScr_PanzerIVSetDifficultyHealth", 0x00151270, 0, code(&BroScr_PanzerIVSetDifficultyHealth), 4, Result::None, Status::Compare},
     {"ScrField_follow_ent", 0x00156a60, 0, code(&ScrField_follow_ent), 12, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke", 0x0017a370, 0, code(&AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_f_f_b_Invoke", 0x0017a3a0, 0, code(&AeThreadFunctor4_ent_f_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_ent_str_vec_Ctor", 0x0017a3c0, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_ent_str_vec_Invoke", 0x0017a440, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_i_str_b_Ctor", 0x0017a490, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_i_str_b_Invoke", 0x0017a510, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor", 0x0017a550, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor), 32, Result::Eax, Status::Compare},
+    {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke", 0x0017a5c0, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor3_ent_hash_hash_Invoke", 0x0017a600, 0, code(&AeThreadFunctor3_ent_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke", 0x0017a620, 0, code(&AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor3_ent_str_vec_Ctor", 0x0017a650, 0, code(&AeThreadFunctor3_ent_str_vec_Ctor), 16, Result::Eax, Status::Compare},
+    {"AeThreadFunctor3_ent_str_vec_Invoke", 0x0017a6d0, 0, code(&AeThreadFunctor3_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_f_f_hash_hash_Invoke", 0x0017a720, 0, code(&AeThreadFunctor5_ent_f_f_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_vec_str_vec_f_Ctor", 0x0017a740, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_vec_str_vec_f_Invoke", 0x0017a7e0, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke", 0x0017a840, 0, code(&AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor", 0x0017a870, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke", 0x0017a900, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor2_ent_RespawnerAttributes_Ctor", 0x0017a9a0, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Ctor), 12, Result::Eax, Status::Compare},
+    {"AeThreadFunctor2_ent_RespawnerAttributes_Invoke", 0x0017aa00, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_str_i_str_Ctor", 0x0017aa40, 0, code(&AeThreadFunctor4_ent_str_i_str_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_str_i_str_Invoke", 0x0017aac0, 0, code(&AeThreadFunctor4_ent_str_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor3_ent_vec_b_Invoke", 0x0017ab40, 0, code(&AeThreadFunctor3_ent_vec_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"DynArray_Alloc24_FillUndefined", 0x0017ab70, 0, code(&DynArray_Alloc24_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_AllocInt_FillUndefined", 0x0017ac00, 0, code(&DynArray_AllocInt_FillUndefined), 4, Result::Eax, Status::Replaced},
     {"DynArray_AllocBool_FillUndefined", 0x0017ac40, 0, code(&DynArray_AllocBool_FillUndefined), 4, Result::Eax, Status::Replaced},
@@ -3143,6 +3158,7 @@ const Function kFunctions[] = {
     {"DynArray_ResizeBytes", 0x0017baa0, 0, code(&DynArray_ResizeBytes), 8, Result::None, Status::Compare},
     {"DynArray_AssignBytes", 0x0017bb40, 0, code(&DynArray_AssignBytes), 4, Result::None, Status::Replaced},
     {"std_UninitializedCopy4", 0x0017bbb0, 0, code(&std_UninitializedCopy4), 12, Result::Eax, Status::Replaced},
+    {"AeThreadFunctor6_vt008245b4_Invoke", 0x0017bbe0, 0, code(&AeThreadFunctor6_vt008245b4_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"std_list_BuyNode16", 0x0017bc40, 0, code(&std_list_BuyNode16), 12, Result::Eax, Status::Replaced},
     {"std_list_BuyHead", 0x0017bc80, 0, code(&std_list_BuyHead), 0, Result::Eax, Status::Replaced},
     {"DynArray_Resize4", 0x0017bca0, 0, code(&DynArray_Resize4), 8, Result::None, Status::Replaced},
@@ -3152,7 +3168,24 @@ const Function kFunctions[] = {
     {"DynArray_ResizeBytesNoFill", 0x0017bf40, 0, code(&DynArray_ResizeBytesNoFill), 8, Result::None, Status::Replaced},
     {"DynArray_Resize8", 0x0017bfb0, 0, code(&DynArray_Resize8), 8, Result::None, Status::Compare},
     {"DynArray_At", 0x0017c050, 0, code(&DynArray_At), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetStruct1c", 0x0017c080, 0, code(&ScriptKeyTable_GetStruct1c), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetArrayBytes", 0x0017c100, 0, code(&ScriptKeyTable_SetArrayBytes), 8, Result::Eax, Status::Compare},
     {"std_UninitializedFillN4", 0x0017c180, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Replaced},
+    {"AeThreadFunctor4_ent_ent_arrf_i_Invoke", 0x0017c1b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"ScriptKeyTable_SetArray_2", 0x0017c200, 0, code(&ScriptKeyTable_SetArray_2), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray_2", 0x0017c280, 0, code(&ScriptKeyTable_GetOrAddArray_2), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopy_2", 0x0017c2e0, 0, code(&ScriptKeyTable_GetArrayCopy_2), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetArray_3", 0x0017c330, 0, code(&ScriptKeyTable_SetArray_3), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_2", 0x0017c3b0, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_2), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray_3", 0x0017c400, 0, code(&ScriptKeyTable_GetOrAddArray_3), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetArray_4", 0x0017c460, 0, code(&ScriptKeyTable_SetArray_4), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty", 0x0017c4e0, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray_4", 0x0017c530, 0, code(&ScriptKeyTable_GetOrAddArray_4), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetNewArray", 0x0017c590, 0, code(&ScriptKeyTable_SetNewArray), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_3", 0x0017c610, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_3), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray", 0x0017c660, 0, code(&ScriptKeyTable_GetOrAddArray), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArrayBytes", 0x0017c6c0, 0, code(&ScriptKeyTable_GetOrAddArrayBytes), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmptyBytes", 0x0017c720, 0, code(&ScriptKeyTable_GetArrayCopyOrEmptyBytes), 8, Result::Eax, Status::Compare},
     {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor", 0x0017c770, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor), 40, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_ent_arrent_Ctor", 0x0017c830, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Ctor), 20, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor", 0x0017c8b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -3162,6 +3195,8 @@ const Function kFunctions[] = {
     {"AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor", 0x0017c9a0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_ent_arrent_Dtor", 0x0017c9c0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Dtor), 0, Result::None, Status::Compare},
     {"ScrField_he337f297_GetArrayCopy", 0x0017ca10, 0, code(ScrField_he337f297_GetArrayCopy), 4, Result::Eax, Status::Compare},
+    {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke", 0x0017ca40, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_ent_arrent_Invoke", 0x0017caf0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"HashMap_Find", 0x0017cb40, 0, code(&HashMap_Find), 8, Result::Eax, Status::Replaced},
     {"std_vector_UfillN4", 0x0017cbe0, 0, code(&std_vector_UfillN4), 12, Result::Eax, Status::Replaced},
     {"Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr", 0x0017cc10, 0, code(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry), 56, Result::Eax, Status::Compare},
@@ -3244,7 +3279,13 @@ const Function kFunctions[] = {
     {"ScrPathNodeField_script_chain_Copy", 0x001812d0, 0, code(ScrPathNodeField_script_chain_Copy), 4, Result::Eax, Status::Compare},
     {"ScrPathNodeField_script_door_Copy", 0x00181350, 0, code(ScrPathNodeField_script_door_Copy), 4, Result::Eax, Status::Compare},
     {"ScrVehNodeField_script_uniquename_Copy", 0x001813d0, 0, code(ScrVehNodeField_script_uniquename_Copy), 4, Result::Eax, Status::Compare},
+    {"ScrActor_GetString_f8_Copy", 0x00181450, 0, code(&ScrActor_GetString_f8_Copy), 4, Result::Eax, Status::Compare},
+    {"ScrCall_SetFlaggedAnimKnobByRef", 0x00181530, 0, code(&ScrCall_SetFlaggedAnimKnobByRef), 24, Result::Eax, Status::Compare},
+    {"ScrCall_GScr_SetFlaggedAnimKnobAll_2", 0x00181560, 0, code(&ScrCall_GScr_SetFlaggedAnimKnobAll_2), 28, Result::Eax, Status::Compare},
+    {"ScrCall_GScr_GetWeaponDisplayName", 0x001815a0, 0, code(&ScrCall_GScr_GetWeaponDisplayName), 8, Result::Eax, Status::Compare},
+    {"ScrLocal_ReleaseString_2", 0x00182060, 0, code(&ScrLocal_ReleaseString_2), 4, Result::None, Status::Compare},
     {"Vec3_SetScaled", 0x00182090, 0, code(&Vec3_SetScaled), 20, Result::Eax, Status::Replaced},
+    {"ScrLocal_ReleaseString", 0x001837e0, 0, code(&ScrLocal_ReleaseString), 12, Result::None, Status::Compare},
     {"ScrPathNodeField_script_door", 0x0018b130, 0, code(&ScrPathNodeField_script_door_entry), 8, Result::Eax, Status::Compare},
     {"ScrPathNodeField_script_delay", 0x0018b150, 0, code(ScrPathNodeField_script_delay), 8, Result::Eax, Status::Compare},
     {"ScrPathNodeField_script_noteworthy", 0x0018b180, 0, code(&ScrPathNodeField_script_noteworthy_entry), 8, Result::Eax, Status::Compare},
@@ -3865,16 +3906,30 @@ const Function kFunctions[] = {
     {"ScrField_h1791f035_IsDefined", 0x001bc0e0, 0, code(ScrField_h1791f035_IsDefined), 8, Result::Eax, Status::Compare},
     {"ScrField_h1791f035_Clear", 0x001c2a40, 0, code(ScrField_h1791f035_Clear), 4, Result::None, Status::Compare},
     {"ScrField_h1791f035_Clear_2", 0x001c2a70, 0, code(ScrField_h1791f035_Clear_2), 4, Result::None, Status::Compare},
+    {"AeThreadFunctor4_ent_ent_b_hash_Invoke", 0x001e3dc0, 0, code(&AeThreadFunctor4_ent_ent_b_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_str_ent_ent_Ctor", 0x001e3df0, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_str_ent_ent_Invoke", 0x001e3e70, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_i_pathnode_str_Ctor", 0x001e3ec0, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_i_pathnode_str_Invoke", 0x001e3f30, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_i_vec_Invoke", 0x001e3f70, 0, code(&AeThreadFunctor4_ent_ent_i_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor", 0x001e3fb0, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor), 28, Result::Eax, Status::Compare},
+    {"AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke", 0x001e4030, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor", 0x001e4080, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke", 0x001e40e0, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_hash_i_f_Invoke", 0x001e4130, 0, code(&AeThreadFunctor4_ent_hash_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor", 0x001e4150, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor), 36, Result::Eax, Status::Compare},
+    {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke", 0x001e41f0, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_str_hash_hash_Ctor", 0x001e4280, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_str_hash_hash_Invoke", 0x001e42f0, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_vec_vec_vec_i_Ctor", 0x001e4330, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_vec_vec_vec_i_Invoke", 0x001e43a0, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke", 0x001e4400, 0, code(&AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_vt00825c50_Ctor", 0x001e4430, 0, code(&AeThreadFunctor5_vt00825c50_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_vt00825c50_Invoke", 0x001e44b0, 0, code(&AeThreadFunctor5_vt00825c50_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor6_ent_hash_f_i_f_f_Invoke", 0x001e44f0, 0, code(&AeThreadFunctor6_ent_hash_f_i_f_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"DynArray_Alloc12_FillUndefined", 0x001e4520, 0, code(&DynArray_Alloc12_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_Alloc24_FillUndefined_2", 0x001e4570, 0, code(&DynArray_Alloc24_FillUndefined_2), 8, Result::Eax, Status::Replaced},
+    {"ScrPathNode_CopyType", 0x001e45f0, 0, code(&ScrPathNode_CopyType_entry), 4, Result::Eax, Status::Compare},
     {"ScrPathNodeField_script_waittill_NonEmpty", 0x001e4610, 0, code(&ScrPathNodeField_script_waittill_NonEmpty_entry), 0, Result::Al, Status::Compare},
     {"ScrPathNodeField_script_door_IsSet", 0x001e4670, 0, code(&ScrPathNodeField_script_door_IsSet_entry), 0, Result::Al, Status::Compare},
     {"ScrVehNodeField_script_uniquename_IsNonEmpty", 0x001e46a0, 0, code(&ScrVehNodeField_script_uniquename_IsNonEmpty_entry), 0, Result::Al, Status::Compare},
@@ -3882,6 +3937,8 @@ const Function kFunctions[] = {
     {"DynArray_PushBack12_2", 0x001e47e0, 0, code(&DynArray_PushBack12_2), 4, Result::None, Status::Compare},
     {"DynArray_Erase28", 0x001e4880, 0, code(&DynArray_Erase28), 4, Result::None, Status::Compare},
     {"DynArray_PushBack24_2", 0x001e48f0, 0, code(&DynArray_PushBack24_2), 4, Result::None, Status::Replaced},
+    {"ScriptKeyTable_AddStruct28", 0x001e49b0, 0, code(&ScriptKeyTable_AddStruct28), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetStruct28", 0x001e4a20, 0, code(&ScriptKeyTable_GetStruct28), 4, Result::Eax, Status::Compare},
     {"Scr_StartThread_ent_ent_str_ent_ent_4", 0x001e4ae0, 0, code(&Scr_StartThread_ent_ent_str_ent_ent_4_entry), 40, Result::Eax, Status::Compare},
     {"Scr_StartThread_ent_i_pathnode_str_3", 0x001e4b70, 0, code(&Scr_StartThread_ent_i_pathnode_str_3_entry), 36, Result::Eax, Status::Compare},
     {"AeThreadFunctor_DeletingDtor", 0x001e5640, 0, code(&AeThreadFunctor_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -3902,6 +3959,17 @@ const Function kFunctions[] = {
     {"DynArray_PushBack28", 0x001e5bc0, 0, code(&DynArray_PushBack28), 4, Result::None, Status::Compare},
     {"DynArray_Resize52", 0x001e5ce0, 0, code(&DynArray_Resize52), 8, Result::None, Status::Replaced},
     {"DynArray_Push52", 0x001e5e30, 0, code(&DynArray_Push52), 4, Result::None, Status::Compare},
+    {"ScrPtrArray_Append", 0x001e5ec0, 0, code(&ScrPtrArray_Append), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetArray_5", 0x001e5f20, 0, code(&ScriptKeyTable_SetArray_5), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetNewArray_2", 0x001e5fa0, 0, code(&ScriptKeyTable_SetNewArray_2), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_7", 0x001e6020, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_7), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray_6", 0x001e6070, 0, code(&ScriptKeyTable_GetOrAddArray_6), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_4", 0x001e60d0, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_4), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_SetNewArray_3", 0x001e6120, 0, code(&ScriptKeyTable_SetNewArray_3), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_5", 0x001e61a0, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_5), 8, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_FindOrAdd", 0x001e61f0, 0, code(&ScriptKeyTable_FindOrAdd), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetOrAddArray_7", 0x001e6250, 0, code(&ScriptKeyTable_GetOrAddArray_7), 4, Result::Eax, Status::Compare},
+    {"ScriptKeyTable_GetArrayCopyOrEmpty_6", 0x001e62b0, 0, code(&ScriptKeyTable_GetArrayCopyOrEmpty_6), 8, Result::Eax, Status::Compare},
     {"HashMap_Find_2", 0x001e6330, 0, code(&HashMap_Find_2), 8, Result::Eax, Status::Replaced},
     {"std_list_BuyNodeKeyArray_4", 0x001e63d0, 0, code(&std_list_BuyNodeKeyArray_4), 12, Result::Eax, Status::Replaced},
     {"std_list_IncSize_3", 0x001e6470, 0, code(&std_list_IncSize_3), 4, Result::Eax, Status::Replaced},
@@ -4593,6 +4661,7 @@ const Function kFunctions[] = {
     {"Use_Multi", 0x0024b610, 0, code(&Use_Multi), 12, Result::None, Status::Compare},
     {"G_FreeStringTable", 0x0024b620, 0, code(&G_FreeStringTable), 4, Result::None, Status::Compare},
     {"XAnim_HasNotetrack", 0x0024b700, 0, code(&XAnim_HasNotetrack), 8, Result::Al, Status::Compare},
+    {"AnimTree_RootHandle", 0x0024b860, 0, code(&AnimTree_RootHandle), 0, Result::Eax, Status::Compare},
     {"G_ClientInOpenVehicle", 0x0024ba60, 0, code(&G_ClientInOpenVehicle), 0, Result::Eax, Status::Replaced},
     {"G_ClientInVehicle", 0x0024bad0, 0, code(&G_ClientInVehicle), 0, Result::Eax, Status::Replaced},
     {"G_GetPlayerTurret", 0x0024bb30, 0, code(&G_GetPlayerTurret), 0, Result::Eax, Status::Replaced},
@@ -5544,6 +5613,7 @@ const Function kFunctions[] = {
     {"FS_Printf", 0x0029aac0, 0, code(&FS_Printf), 8, Result::None, Status::Replaced},
     {"FS_IsCfgMenuOrDatFile", 0x0029ab20, 0, code(&FS_IsCfgMenuOrDatFile), 0, Result::Eax, Status::Replaced},
     {"Scr_EntityWaitList_FreeWaits", 0x0029ac20, 0, code(&Scr_EntityWaitList_FreeWaits_entry), 0, Result::Eax, Status::Replaced},
+    {"EntNotifyCallbacks_CallByKey", 0x0029acb0, 0, code(&EntNotifyCallbacks_CallByKey), 8, Result::Al, Status::Compare},
     {"FxShakeRumbleComponent_Stop", 0x0029ae90, 0, code(&FxShakeRumbleComponent_Stop), 0, Result::None, Status::Replaced},
     {"FxComponent_GetEntityOrigin", 0x0029af30, 0, code(&FxComponent_GetEntityOrigin), 0, Result::Eax, Status::Replaced},
     {"FxSoundComponent_SetParent", 0x0029b010, 0, code(&FxSoundComponent_SetParent), 4, Result::None, Status::Replaced},
@@ -5671,6 +5741,8 @@ const Function kFunctions[] = {
     {"G_StartCodNote", 0x002a8260, 0, code(&G_StartCodNote), 12, Result::None, Status::Replaced},
     {"AnimData_FindNotetrack", 0x002a8330, 0, code(&AnimData_FindNotetrack_entry), 0, Result::Eax, Status::Compare},
     {"Com_InitNodeRing", 0x002a8410, 0, code(&Com_InitNodeRing), 0, Result::None, Status::Replaced},
+    {"VM_Call", 0x002a84e0, 0, code(&VM_Call_entry), 4, Result::Eax, Status::Compare},
+    {"VM_DllSyscall", 0x002a8580, 0, code(&VM_DllSyscall), 4, Result::Eax, Status::Compare},
     {"SV_ClearAcknowledgedCommands", 0x002a8610, 0, code(&SV_ClearAcknowledgedCommands_entry), 0, Result::None, Status::Compare},
     {"SV_GameRestartFrame", 0x002a86e0, 0, code(&SV_GameRestartFrame_entry), 0, Result::None, Status::Compare},
     {"SV_GameSystemCalls", 0x002a8750, 0, code(&SV_GameSystemCalls), 4, Result::Eax, Status::Compare},
@@ -5784,6 +5856,7 @@ const Function kFunctions[] = {
     {"ProneBlend_Update", 0x002ad810, 0, code(&ProneBlend_Update_entry), 0, Result::Eax, Status::Replaced},
     {"SoundRef_IsState3", 0x002add40, 0, code(&SoundRef_IsState3), 0, Result::Al, Status::Replaced},
     {"SoundRef_SetVolumeScale", 0x002adea0, 0, code(&SoundRef_SetVolumeScale_entry), 4, Result::None, Status::Replaced},
+    {"EntNotifyCallbacks_Init", 0x002adfe0, 0, code(&EntNotifyCallbacks_Init), 0, Result::Eax, Status::Compare},
     {"SpgManager_Unload", 0x002ae040, 0, code(&SpgManager_Unload), 4, Result::None, Status::Replaced},
     {"Spg_FindRandomVariant", 0x002ae080, 0, code(&Spg_FindRandomVariant_entry), 4, Result::None, Status::Replaced},
     {"Mat44_ToQuatTranslation", 0x002ae350, 0, code(&Mat44_ToQuatTranslation), 4, Result::Eax, Status::Replaced},
@@ -5802,6 +5875,7 @@ const Function kFunctions[] = {
     {"AnimTree_CheckLeafNotes", 0x002af080, 0, code(&AnimTree_CheckLeafNotes_entry), 4, Result::Xmm0, Status::Compare},
     {"AnimTree_GetAvgFrequency_r", 0x002af0a0, 0, code(&AnimTree_GetAvgFrequency_r_entry), 4, Result::Xmm0, Status::Compare},
     {"AnimTree_Free", 0x002af200, 0, code(&AnimTree_Free_entry), 0, Result::None, Status::Compare},
+    {"VM_Clear", 0x002af280, 0, code(&VM_Clear), 0, Result::None, Status::Compare},
     {"SV_WriteSnapshotToClient", 0x002af350, 0, code(&SV_WriteSnapshotToClient_entry), 0, Result::None, Status::Compare},
     {"SV_AddServerCommand", 0x002af3d0, 0, code(&SV_AddServerCommand), 8, Result::None, Status::Compare},
     {"SV_FreeClientFrames", 0x002af4f0, 0, code(&SV_FreeClientFrames_entry), 0, Result::None, Status::Compare},
@@ -6450,6 +6524,7 @@ const Function kFunctions[] = {
     {"CL_StartHunkUsersAndPause", 0x002f2ad0, 0, code(&CL_StartHunkUsersAndPause), 0, Result::None, Status::Compare},
     {"CL_UpdateLoadingProgress", 0x002f2b00, 0, code(&CL_UpdateLoadingProgress), 4, Result::None, Status::Replaced},
     {"Console_SubmitLine", 0x002f2b20, 0, code(&Console_SubmitLine), 0, Result::None, Status::Compare},
+    {"VM_Create", 0x002f2b80, 0, code(&VM_Create), 8, Result::Eax, Status::Compare},
     {"SV_InitGameProgs", 0x002f2d30, 0, code(&SV_InitGameProgs_entry), 4, Result::None, Status::Compare},
     {"CL_InitCGame", 0x002f2db0, 0, code(&CL_InitCGame), 0, Result::None, Status::Compare},
     {"SV_RunGameFrame", 0x002f2e40, 0, code(&SV_RunGameFrame_entry), 4, Result::None, Status::Compare},
@@ -6477,7 +6552,12 @@ const Function kFunctions[] = {
     {"GScr_Set8db198", 0x002f4bf0, 0, code(&GScr_Set8db198), 4, Result::None, Status::Compare},
     {"GScr_Set8d20e0", 0x002f4c00, 0, code(&GScr_Set8d20e0), 4, Result::None, Status::Compare},
     {"GScr_GetPadStick", 0x002f4c20, 0, code(&GScr_GetPadStick), 12, Result::None, Status::Compare},
+    {"ScrSentient_SetFloat18Field", 0x002f4ca0, 0, code(&ScrSentient_SetFloat18Field), 12, Result::None, Status::Compare},
+    {"ScrSentient_GetTeamField", 0x002f4ce0, 0, code(&ScrSentient_GetTeamField), 12, Result::None, Status::Compare},
     {"Scr_NopRefSetter", 0x002f4d40, 0, code(&Scr_NopRefSetter), 0, Result::None, Status::Replaced},
+    {"ScrPathNode_GetTypeField", 0x002f4d50, 0, code(&ScrPathNode_GetTypeField), 12, Result::None, Status::Compare},
+    {"ScrPathNode_SetAnglesField", 0x002f4d80, 0, code(&ScrPathNode_SetAnglesField), 12, Result::None, Status::Compare},
+    {"ScrActor_GetString2c0Field", 0x002f4d90, 0, code(&ScrActor_GetString2c0Field), 12, Result::None, Status::Compare},
     {"ScrField_GetWeaponName", 0x002f4dd0, 0, code(&ScrField_GetWeaponName), 12, Result::Eax, Status::Compare},
     {"ScrField_GetMsAsSeconds", 0x002f4e00, 0, code(&ScrField_GetMsAsSeconds), 12, Result::Eax, Status::Compare},
     {"ScrField_SetFloatMin4AndSquare", 0x002f4e20, 0, code(&ScrField_SetFloatMin4AndSquare), 0, Result::Eax, Status::Compare},
@@ -6532,6 +6612,11 @@ const Function kFunctions[] = {
     {"GScr_SuppressObjectiveUpdateMessage", 0x002f5a10, 0, code(&GScr_SuppressObjectiveUpdateMessage), 8, Result::None, Status::Compare},
     {"GScr_HudObjectives_Set13d0", 0x002f5a30, 0, code(&GScr_HudObjectives_Set13d0), 8, Result::None, Status::Compare},
     {"GScr_GetSpgVariant", 0x002f5a60, 0, code(&GScr_GetSpgVariant), 16, Result::None, Status::Compare},
+    {"ScrSentient_SetGoalArcField", 0x002f5ad0, 0, code(&ScrSentient_SetGoalArcField), 12, Result::None, Status::Compare},
+    {"ScrSentient_GetRef3cField", 0x002f5b10, 0, code(&ScrSentient_GetRef3cField), 12, Result::None, Status::Compare},
+    {"ScrPathNode_GetAnglesField", 0x002f5b60, 0, code(&ScrPathNode_GetAnglesField), 12, Result::None, Status::Compare},
+    {"ScrActor_GetRef12a0Field", 0x002f5b80, 0, code(&ScrActor_GetRef12a0Field), 12, Result::None, Status::Compare},
+    {"ScrActor_SetInt184Field", 0x002f5bb0, 0, code(&ScrActor_SetInt184Field), 12, Result::None, Status::Compare},
     {"ScrField_SetSecondsAsMs", 0x002f5c10, 0, code(&ScrField_SetSecondsAsMs), 12, Result::Eax, Status::Compare},
     {"GScr_IsNotMinusOne", 0x002f5c40, 0, code(&GScr_IsNotMinusOne), 4, Result::Eax, Status::Compare},
     {"GScr_IsValidHandle", 0x002f5c50, 0, code(&GScr_IsValidHandle), 4, Result::Eax, Status::Compare},
@@ -6559,7 +6644,10 @@ const Function kFunctions[] = {
     {"ScrIface_Malloc", 0x002f62d0, 0, code(&ScrIface_Malloc), 8, Result::Eax, Status::Compare},
     {"IntHashMap_FindValue", 0x002f6320, 0, code(&IntHashMap_FindValue), 4, Result::Eax, Status::Replaced},
     {"Scr_InitWaitRecord4", 0x002f6350, 0, code(&Scr_InitWaitRecord4), 24, Result::None, Status::Replaced},
+    {"ScrWaitTimeoutRecord_Init", 0x002f64f0, 0, code(&ScrWaitTimeoutRecord_Init_entry), 12, Result::Eax, Status::Compare},
     {"Scr_RestoreThreadStack", 0x002f6600, 0, code(&Scr_RestoreThreadStack), 0, Result::None, Status::Replaced},
+    {"ScrThread_AppendData", 0x002f6670, 0, code(&ScrThread_AppendData), 4, Result::Eax, Status::Compare},
+    {"ScrThread_InitDataHeap", 0x002f67a0, 0, code(&ScrThread_InitDataHeap), 0, Result::None, Status::Compare},
     {"AnimTree_FreeNotetracks", 0x002f6840, 0, code(&AnimTree_FreeNotetracks), 0, Result::None, Status::Compare},
     {"GScr_Vehicle_Is180Clear", 0x002f68f0, 0, code(&GScr_Vehicle_Is180Clear), 4, Result::Al, Status::Compare},
     {"GScr_Vehicle_ClearTurretTarget", 0x002f6950, 0, code(&GScr_Vehicle_ClearTurretTarget), 4, Result::None, Status::Compare},
@@ -6615,8 +6703,10 @@ const Function kFunctions[] = {
     {"GScr_ActorStopLookAt", 0x002f86b0, 0, code(&GScr_ActorStopLookAt), 8, Result::None, Status::Compare},
     {"GScr_ActorLookAt", 0x002f8710, 0, code(&GScr_ActorLookAt), 12, Result::None, Status::Compare},
     {"GScr_EmptyStub398", 0x002f87a0, 0, code(&GScr_EmptyStub398), 0, Result::None, Status::Compare},
+    {"ScrActor_GetByte_3b1", 0x002f87b0, 0, code(&ScrActor_GetByte_3b1), 4, Result::Eax, Status::Compare},
     {"GScr_ActorTeleport", 0x002f87f0, 0, code(&GScr_ActorTeleport), 12, Result::None, Status::Compare},
     {"GScr_ActorGetTurret", 0x002f89a0, 0, code(&GScr_ActorGetTurret), 4, Result::Eax, Status::Compare},
+    {"ScrActor_SetInt_1370", 0x002f8a00, 0, code(&ScrActor_SetInt_1370), 8, Result::None, Status::Compare},
     {"GScr_ActorSetAnimMode", 0x002f8a40, 0, code(&GScr_ActorSetAnimMode), 8, Result::None, Status::Compare},
     {"GScr_ActorSetTraverseMode", 0x002f8b20, 0, code(&GScr_ActorSetTraverseMode), 8, Result::None, Status::Compare},
     {"GScr_ActorHasPendingSentientSlot", 0x002f8bc0, 0, code(&GScr_ActorHasPendingSentientSlot), 4, Result::Eax, Status::Compare},
@@ -6648,6 +6738,8 @@ const Function kFunctions[] = {
     {"GScr_HasVisibleModel", 0x002f94c0, 0, code(&GScr_HasVisibleModel), 4, Result::Eax, Status::Compare},
     {"GScr_SetEntFlag2000000", 0x002f9510, 0, code(&GScr_SetEntFlag2000000), 4, Result::None, Status::Compare},
     {"GScr_SetForcedLod", 0x002f9550, 0, code(&GScr_SetForcedLod), 8, Result::None, Status::Compare},
+    {"ScrSentient_SetTeamFromString", 0x002f9590, 0, code(&ScrSentient_SetTeamFromString), 12, Result::None, Status::Compare},
+    {"ScrActor_SetRef12a0Field", 0x002f9660, 0, code(&ScrActor_SetRef12a0Field), 12, Result::None, Status::Compare},
     {"ScrField_SetWeaponIndex", 0x002f96c0, 0, code(&ScrField_SetWeaponIndex), 12, Result::Eax, Status::Compare},
     {"GScr_Turret_Set40", 0x002f9710, 0, code(&GScr_Turret_Set40), 8, Result::None, Status::Compare},
     {"GScr_Turret_Set3c", 0x002f9760, 0, code(&GScr_Turret_Set3c), 8, Result::None, Status::Compare},
@@ -6711,6 +6803,7 @@ const Function kFunctions[] = {
     {"GScr_GetVehicleNode", 0x002faf10, 0, code(&GScr_GetVehicleNode), 12, Result::Eax, Status::Compare},
     {"GScr_GetNode", 0x002faf40, 0, code(&GScr_GetNode), 12, Result::Eax, Status::Compare},
     {"GScr_GetEntByNum", 0x002fafb0, 0, code(&GScr_GetEntByNum), 4, Result::Eax, Status::Compare},
+    {"ScrEnt_GetModelField", 0x002faff0, 0, code(&ScrEnt_GetModelField), 12, Result::None, Status::Compare},
     {"GScr_GetEntScriptObject", 0x002fb230, 0, code(&GScr_GetEntScriptObject), 4, Result::Eax, Status::Compare},
     {"GScr_GetPlayerHandle", 0x002fb290, 0, code(&GScr_GetPlayerHandle), 0, Result::Eax, Status::Compare},
     {"GScr_GetLevelEnt8Handle", 0x002fb2a0, 0, code(&GScr_GetLevelEnt8Handle), 0, Result::Eax, Status::Compare},

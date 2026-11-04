@@ -179,4 +179,35 @@ ScriptString* XB_CDECL ScriptString_ConcatCString(ScriptString* out, const Scrip
 // 0x0011efc0: a new rep holding `text`.
 ScriptStringRep* XB_CDECL ScriptString_NewRepFromCString(const char* text);
 
+// Key tables of structs and arrays (script_string.cpp; thiscall, the callee pops its stack arguments).
+uint32_t XB_THISCALL ScriptKeyTable_GetStruct1c(ScriptKeyTable* self, uint32_t key);  // 0x0017c080
+uint32_t* XB_THISCALL ScriptKeyTable_SetArrayBytes(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x0017c100
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_2(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x0017c200
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_3(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x0017c330
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_4(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x0017c460
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x0017c590
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_5(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x001e5f20
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray_2(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x001e5fa0
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray_3(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x001e6120
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_2(ScriptKeyTable* self, uint32_t key);  // 0x0017c280
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_3(ScriptKeyTable* self, uint32_t key);  // 0x0017c400
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_4(ScriptKeyTable* self, uint32_t key);  // 0x0017c530
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray(ScriptKeyTable* self, uint32_t key);  // 0x0017c660
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArrayBytes(ScriptKeyTable* self, uint32_t key);  // 0x0017c6c0
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_6(ScriptKeyTable* self, uint32_t key);  // 0x001e6070
+uint32_t XB_THISCALL ScriptKeyTable_FindOrAdd(ScriptKeyTable* self, uint32_t key);  // 0x001e61f0
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_7(ScriptKeyTable* self, uint32_t key);  // 0x001e6250
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopy_2(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x0017c2e0
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_2(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x0017c3b0
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x0017c4e0
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_3(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x0017c610
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmptyBytes(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x0017c720
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_7(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x001e6020
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_4(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x001e60d0
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_5(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x001e61a0
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_6(ScriptKeyTable* self, uint32_t* out, uint32_t key);  // 0x001e62b0
+uint32_t* XB_THISCALL ScriptKeyTable_AddStruct28(ScriptKeyTable* self, uint32_t key, const uint32_t* source);  // 0x001e49b0
+uint32_t XB_THISCALL ScriptKeyTable_GetStruct28(ScriptKeyTable* self, uint32_t key);  // 0x001e4a20
+uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value);  // 0x001e5ec0
+
 }  // namespace game

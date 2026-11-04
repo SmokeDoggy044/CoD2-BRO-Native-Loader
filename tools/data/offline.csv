@@ -920,6 +920,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002ae350,Mat44_ToQuatTranslation,3500,3500,0,0,98.1
 002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0
 002aed00,AnimTree_SetSyncFlag_r,1434,1434,0,0,98.6
+002af280,VM_Clear,4000,4000,0,0,66.7
 002af930,Loc_ReadLine,3576,3576,0,0,66.0
 002afa40,Loc_IsGb2312Char,4000,4000,0,0,100.0
 002afc00,Scn_ResetZoneFlags,1016,1016,0,0,94.2
@@ -1027,8 +1028,11 @@ address,name,tested,matched,nan,mismatched,coverage
 002f4bf0,GScr_Set8db198,4000,4000,0,0,100.0
 002f4c00,GScr_Set8d20e0,4000,4000,0,0,100.0
 002f4d40,Scr_NopRefSetter,4000,4000,0,0,100.0
+002f4e00,ScrField_GetMsAsSeconds,1640,1640,0,0,100.0
+002f4e20,ScrField_SetFloatMin4AndSquare,2888,2888,0,0,100.0
 002f4e50,Scr_NopFieldSetter,4000,4000,0,0,100.0
 002f4ea0,GScr_Set95f4b4,4000,4000,0,0,100.0
+002f4ed0,ScrField_SetByte,1614,1614,0,0,100.0
 002f5190,GScr_EmptyStub221,4000,4000,0,0,100.0
 002f51a0,GScr_EmptyStub220,4000,4000,0,0,100.0
 002f51b0,GScr_EmptyStub223,4000,4000,0,0,100.0
@@ -1056,6 +1060,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f59d0,GScr_SetPersistentInt,1740,1740,0,0,100.0
 002f5a10,GScr_SuppressObjectiveUpdateMessage,2823,2823,0,0,100.0
 002f5a30,GScr_HudObjectives_Set13d0,2762,2762,0,0,100.0
+002f5b80,ScrActor_GetRef12a0Field,3404,3404,0,0,100.0
 002f5c40,GScr_IsNotMinusOne,2559,2559,0,0,100.0
 002f5c70,GScr_EntList190_Disable,1699,1699,0,0,100.0
 002f5c90,GScr_EntList190_Enable,1733,1733,0,0,100.0
@@ -1065,6 +1070,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f6080,HudElem_SetDefaults,3800,3800,0,0,100.0
 002f6130,GScr_IsZoneLoaded,1465,1465,0,0,100.0
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
+002f64f0,ScrWaitTimeoutRecord_Init,3833,3833,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002f68f0,GScr_Vehicle_Is180Clear,2806,2806,0,0,90.3
 002f6ac0,GScr_Vehicle_SetTurretTargetVec,2748,2748,0,0,68.4
@@ -1089,6 +1095,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f8420,GScr_ActorSetFlag2000000,3998,3998,0,0,76.0
 002f8480,GScr_ActorGetPathNodeOrOrigin,3998,3998,0,0,31.5
 002f87a0,GScr_EmptyStub398,4000,4000,0,0,100.0
+002f87b0,ScrActor_GetByte_3b1,3999,3999,0,0,78.9
 002f87f0,GScr_ActorTeleport,3994,3994,0,0,27.8
 002f8b20,GScr_ActorSetTraverseMode,3996,3996,0,0,45.8
 002f8c20,GScr_ActorAllowedStances,3996,3996,0,0,66.7
@@ -1104,6 +1111,8 @@ address,name,tested,matched,nan,mismatched,coverage
 002f9410,GScr_HudComp24_Push,2944,2944,0,0,100.0
 002f9460,GScr_HudComp24_SetEcTwo,3639,3639,0,0,100.0
 002f9550,GScr_SetForcedLod,3991,3991,0,0,100.0
+002f9660,ScrActor_SetRef12a0Field,3405,3405,0,0,95.8
+002f96c0,ScrField_SetWeaponIndex,1496,1496,0,0,100.0
 002f9710,GScr_Turret_Set40,3995,3995,0,0,100.0
 002f9760,GScr_Turret_Set3c,3996,3996,0,0,100.0
 002f9800,GScr_Turret_SetArc_2c,3993,3993,0,0,100.0
@@ -1230,7 +1239,3 @@ address,name,tested,matched,nan,mismatched,coverage
 00379dc0,AtExit_NalClassMap_903fe0,4000,4000,0,0,100.0
 00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0
 00379df0,StaticInit_Vtable_8bb768,4000,4000,0,0,100.0
-002f4e00,ScrField_GetMsAsSeconds,1640,1640,0,0,100.0
-002f4e20,ScrField_SetFloatMin4AndSquare,2888,2888,0,0,100.0
-002f4ed0,ScrField_SetByte,1614,1614,0,0,100.0
-002f96c0,ScrField_SetWeaponIndex,1496,1496,0,0,100.0

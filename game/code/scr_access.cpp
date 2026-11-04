@@ -1,5 +1,7 @@
 #include "scr_access.h"
 
+#include <cstring>
+
 #include "g_scr_runtime.h"
 #include "title_data.h"
 
@@ -991,6 +993,211 @@ uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t ha
     builtin<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(self[0], copy);
     string_release(name);
     return self;
+}
+
+
+// Copies of the wrappers above, with other builtin slots or fixed arguments.
+ScriptString* XB_THISCALL ScrActor_GetString_f8_Copy(const uint32_t* self, ScriptString* out) {
+    return call_get_string<0x00922d40>(self, out);
+}
+
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponDisplayName(ScriptString* out, uint32_t weapon) {
+    return string_of<0x009223e4>(out, weapon);
+}
+
+uint32_t XB_CDECL ScrCall_SetFlaggedAnimKnobByRef(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                  uint32_t c, uint32_t d) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e0)(
+        *ent, *anim, a, b, c, d, 0);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnobAll_2(const uint32_t* ent, const uint32_t* anim, uint32_t a,
+                                                       uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        0x009225e4)(*ent, *anim, a, b, c, d, e, 0);
+}
+
+// Releases a script string passed by value (the first / third argument).
+void XB_CDECL ScrLocal_ReleaseString_2(ScriptString value) { string_release(&value); }
+
+void XB_CDECL ScrLocal_ReleaseString(uint32_t, uint32_t, ScriptString value) { string_release(&value); }
+
+// The node's type string through ScrPathNodeField_type_Copy (0x001811e0), run where the original
+// calls it: the getter behind it keeps a stack address in script memory (see scr_field.cpp
+// ScrNode_String). Frame: push ecx (zeroed), push esi, `out` pushed; ECX = the node object.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrPathNode_CopyType_c(uint32_t entry_esp, uint32_t ecx) {
+    const uint32_t out = title_global<uint32_t>(entry_esp + 4);
+    title_global<uint32_t>(entry_esp - 4) = 0;
+    TitleRegs regs{};
+    regs.ecx = ecx;
+    const uint32_t args[1] = {out};
+    title_call_at_regs(entry_esp - 8, 0x001811e0, &regs, 1, args);
+    return out;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(ScrPathNode_CopyType_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000")
+                                               "pushl %ecx\n pushl %edx\n" PLATFORM_ASM_CALL(ScrPathNode_CopyType_c)
+                                               "addl $8, %esp\n popl %esp\n ret $4")
+
+namespace game {
+
+
+// --- Field hooks (cdecl (object, field offset, value address), through the hook words at
+// 0x008d20e8..0x008d2170; the accessors above call them) and two plain actor accessors.
+namespace {
+
+uint32_t word_at(const uint8_t* p, uint32_t offset) { return *reinterpret_cast<const uint32_t*>(p + offset); }
+
+void assign_cstring(void* out, const char* text) {
+    title_function<void XB_THISCALL(void*, const char*)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+}
+
+const char* string_text(const ScriptString* string) { return string->rep ? string->rep->text : nullptr; }
+
+}  // namespace
+
+// +0x18 = max(4, max(0, value)) as COMISS picks (a NaN passes), +0x1c its square.
+void XB_CDECL ScrSentient_SetFloat18Field(uint8_t* object, uint32_t, const float* value) {
+    float x = 0.0f;
+    if (!(0.0f > *value)) x = *value;
+    const float low = title_global<float>(0x0083100c);  // 4
+    if (low > x) x = low;
+    const float square = x * x;
+    *reinterpret_cast<float*>(object + 0x18) = x;
+    *reinterpret_cast<float*>(object + 0x1c) = square;
+}
+
+// Team 1-4 as its script string (0x00984cd0 + 4 * (team - 1)); other teams leave `out`.
+void XB_CDECL ScrSentient_GetTeamField(const uint8_t* object, uint32_t, ScriptString* out) {
+    const uint32_t team = word_at(object, 4) - 1;
+    if (team > 3) return;
+    string_assign(out, reinterpret_cast<const void*>(static_cast<uintptr_t>(0x00984cd0 + team * 4)));
+}
+
+// The node type's name (0x008d3948 table by +0x28).
+void XB_CDECL ScrPathNode_GetTypeField(const uint8_t* node, uint32_t, ScriptString* out) {
+    assign_cstring(out, title_global<const char*>(0x008d3948 + word_at(node, 0x28) * 4));
+}
+
+// Only the yaw (value[1]) goes to +0x50.
+void XB_CDECL ScrPathNode_SetAnglesField(uint8_t* node, uint32_t, const uint32_t* value) {
+    *reinterpret_cast<uint32_t*>(node + 0x50) = value[1];
+}
+
+// +0x2c0 = 1..0x16: its name (0x008d4d08, 16-byte entries); 0 leaves `out`; others "default".
+void XB_CDECL ScrActor_GetString2c0Field(const uint8_t* actor, uint32_t, ScriptString* out) {
+    const int32_t index = static_cast<int32_t>(word_at(actor, 0x2c0));
+    if (!index) return;
+    if (index > 0 && index < 0x17)
+        assign_cstring(out, title_global<const char*>(0x008d4d08 + static_cast<uint32_t>(index) * 16));
+    else
+        assign_cstring(out, reinterpret_cast<const char*>(uintptr_t{0x00831f70}));  // "default"
+}
+
+// +0x24 = |value| on the x87 (the original stores it in its value argument slot first), at most
+// 180 (0x0083eb60).
+void XB_CDECL ScrSentient_SetGoalArcField(uint8_t* object, uint32_t, const float* value) {
+    const float magnitude = static_cast<float>(platform_x87_abs_ext(platform_x87_ld(*value)));
+    const float& limit = title_global<float>(0x0083eb60);
+    if (platform_x87_greater(magnitude, limit))
+        *reinterpret_cast<uint32_t*>(object + 0x24) = *reinterpret_cast<const uint32_t*>(&limit);
+    else
+        std::memcpy(object + 0x24, &magnitude, 4);
+}
+
+// When +0 is set: the handle (+0x224) of the entity behind +0x3c (entity**), if any.
+void XB_CDECL ScrSentient_GetRef3cField(const uint8_t* object, uint32_t, uint32_t* out) {
+    const uint32_t link = word_at(object, 0x3c);
+    if (!word_at(object, 0) || !link) return;
+    const uint32_t ent = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(link));
+    if (!ent) return;
+    *out = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x224));
+}
+
+// The yaw (+0x50) as (0, yaw, 0).
+void XB_CDECL ScrPathNode_GetAnglesField(const uint8_t* node, uint32_t, uint32_t* out) {
+    const uint32_t yaw = word_at(node, 0x50);
+    out[0] = 0;
+    out[1] = yaw;
+    out[2] = 0;
+}
+
+// The handle (+0x224) of the entity behind +4 (entity**), else 0; nothing for a null object.
+void XB_CDECL ScrActor_GetRef12a0Field(const uint8_t* object, uint32_t, uint32_t* out) {
+    if (!object) return;
+    const uint32_t link = word_at(object, 4);
+    if (!link) {
+        *out = 0;
+        return;
+    }
+    const uint32_t ent = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(link));
+    *out = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x224));
+}
+
+// +0x184 (a stance): null clears it; prone only when the actor may go prone (+0x19c set,
+// +0x198 clear, +0x1a0 >= 0), any other stance only when it may not.
+void XB_CDECL ScrActor_SetInt184Field(uint8_t* actor, uint32_t, const uint32_t* value) {
+    const bool may_prone =
+        word_at(actor, 0x19c) && !word_at(actor, 0x198) && static_cast<int32_t>(word_at(actor, 0x1a0)) >= 0;
+    if (!value) {
+        *reinterpret_cast<uint32_t*>(actor + 0x184) = 0;
+        return;
+    }
+    const uint32_t stance = *value;
+    if (stance == title_global<uint32_t>(0x0097a764)) {  // scr_const_prone
+        if (may_prone) *reinterpret_cast<uint32_t*>(actor + 0x184) = stance;
+    } else if (!may_prone) {
+        *reinterpret_cast<uint32_t*>(actor + 0x184) = stance;
+    }
+}
+
+// The actor's byte +0x3b1 (zero-extended), 0 without an actor.
+uint32_t XB_CDECL ScrActor_GetByte_3b1(uint32_t handle) {
+    const uint8_t* const actor = sub_object<0x240>(handle);
+    return actor ? actor[0x3b1] : 0;
+}
+
+void XB_CDECL ScrActor_SetInt_1370(uint32_t handle, uint32_t value) {
+    if (uint8_t* actor = sub_object<0x240>(handle)) *reinterpret_cast<uint32_t*>(actor + 0x1370) = value;
+}
+
+// "axis" / "allies" / "neutral" (any case) -> team 1 / 2 / 3 (+4, written when it changes);
+// anything else only formats the warning (va, the result unused).
+void XB_CDECL ScrSentient_SetTeamFromString(uint8_t* object, uint32_t, const ScriptString* value) {
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    static const uint32_t kNames[3] = {0x0083208c, 0x00832084, 0x00831f14};  // axis, allies, neutral
+    for (uint32_t team = 1; team <= 3; ++team) {
+        if (title_function<Stricmp>(0x001f1443)(string_text(value),
+                                                 reinterpret_cast<const char*>(uintptr_t{kNames[team - 1]})))
+            continue;
+        if (word_at(object, 4) != team) *reinterpret_cast<uint32_t*>(object + 4) = team;
+        return;
+    }
+    title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x00831ea4}),
+                                                                 string_text(value));  // va
+}
+
+// The sentient (+0x244) of the entity *value (looked up even for handle 0), 0 if none.
+void XB_CDECL ScrActor_SetRef12a0Field(uint8_t* actor, uint32_t, const uint32_t* value) {
+    const uint32_t handle = *value;
+    const uint32_t index = handle & 0xfff;
+    uint32_t ent = 0;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint32_t>(0x0097a968 + index * 8);
+    if (!actor) return;
+    *reinterpret_cast<uint32_t*>(actor + 0x12a0) =
+        ent ? *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x244)) : 0;
+}
+
+// The model name (+0x48 of the model +0x38 of +0x22c), when there is one.
+void XB_CDECL ScrEnt_GetModelField(const uint8_t* ent, uint32_t, ScriptString* out) {
+    const uint32_t info = word_at(ent, 0x22c);
+    if (!info) return;
+    const uint32_t model = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(info + 0x38));
+    if (!model) return;
+    assign_cstring(out, *reinterpret_cast<const char* const*>(static_cast<uintptr_t>(model + 0x48)));
 }
 
 }  // namespace game
