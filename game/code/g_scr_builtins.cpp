@@ -6,6 +6,7 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
+#include "cg_view.h"
 #include "cgame.h"
 #include "cl.h"
 #include "dobj.h"
@@ -18,6 +19,7 @@
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "movie.h"
 #include "ngl_debug.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
@@ -28,6 +30,7 @@
 #include "stream.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 #include "xanim.h"
 
 namespace game {
@@ -2793,5 +2796,432 @@ int32_t XB_CDECL GScr_GetCvarInt(const char* name) {
     const uint8_t* const cvar = Cvar_FindVar(name);
     return cvar ? *reinterpret_cast<const int32_t*>(cvar + 0x20) : 0;
 }
+
+namespace {
+
+uint32_t word_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// The title CRT's __CIsqrt of a float (FLD DWORD, result stored as float).
+float title_ci_sqrt(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// va with any arguments (the shipped build's script messages: formatted, then dropped).
+template <typename... A>
+const char* title_va(uint32_t format, A... args) {
+    return title_function<const char* XB_CDECL(const char*, A...)>(0x002a93d0)(title_text(format), args...);
+}
+
+using StringRelease = void XB_THISCALL(ScriptString*);
+using StringAssign = void XB_THISCALL(ScriptString*, const ScriptString*);
+using StringFromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+
+void string_release(ScriptString* s) { title_function<StringRelease>(0x0011d640)(s); }
+ScriptString* string_from_rep(ScriptString* s) {
+    return title_function<ScriptString* XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(s, 0);  // ScriptString_FromRep
+}
+void string_copy(ScriptString* s, const ScriptString* other) {
+    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d5e0)(s, other);  // ScriptString_Copy
+}
+uint32_t rep_word(const ScriptString* s) { return *reinterpret_cast<const uint32_t*>(s); }
+uint32_t string_length(const ScriptString* s) {
+    return s->rep ? *reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(s->rep) + 2) : 0;
+}
+char* text_of(const ScriptString* s) { return const_cast<char*>(script_text(s)); }
+
+// The objective configstring slot's __break check (it can never fire for 0x10..0x1f) and its info copy.
+void objective_slot_info(int32_t slot, char* info) {
+    if (slot < 0 || slot >= 0x400)
+        title_function<void XB_CDECL(uint32_t, uint32_t, int32_t)>(0x002938f0)(1, 0x00832d34, slot);  // __break
+    objective_info(slot, info);
+}
+
+void set_objective_state_key(char* info, uint32_t state) {
+    Info_SetValueForKey(title_va(0x0082ded4, state), 0, title_text(0x00831b30), info);  // "%i", "state"
+}
+
+const char* localized_text(uint32_t hash) {
+    const char* text = nullptr;
+    if (const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), hash)) {  // rm_locStrings
+        text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+        if (!text) text = field<const char*>(const_cast<uint8_t*>(entry), 0xc);
+    }
+    return text;
+}
+
+// The *IntText objective builtins: "%d" of the number, checked (alphanumeric or '_' when longer than one
+// character; a message per bad character).
+void int_text(char* buf, int32_t number) {
+    title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(buf, title_text(0x008325b8), number);
+    const int32_t length = static_cast<int32_t>(std::strlen(buf));
+    if (length <= 1) return;
+    for (int32_t i = 0; i < length; ++i) {
+        if (!title_function<int32_t XB_CDECL(int32_t)>(0x001eefc9)(buf[i]) && buf[i] != '_')  // _isalnum
+            title_va(0x00831b80, static_cast<const char*>(buf));  // "Illegal localized string reference: %s ..."
+    }
+}
+
+bool has_strchr(const char* text, int32_t c) {
+    return title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(text, c) != nullptr;  // _strchr
+}
+
+// The 31 high characters objective strings may hold (built on the stack per character by the original).
+const uint8_t kObjectiveChars[31] = {0xe0, 0xe1, 0xe2, 0xe4, 0xe9, 0xe8, 0xea, 0xeb, 0xc7, 0xee, 0xef,
+                                     0xf4, 0xf2, 0xd6, 0xfc, 0xed, 0xf3, 0xfa, 0xf1, 0xa1, 0xba, 0xec,
+                                     0xf9, 0xdf, 0xf6, 0xc4, 0xdc, 0xc9, 0xd1, 0xbf, 0xc8};
+
+}  // namespace
+
+uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name) {
+    char buf[0x80];
+    const uint8_t* const cvar = Cvar_FindVar(name);
+    if (!cvar) {
+        buf[0] = 0;
+    } else {
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+            buf, field<const char*>(const_cast<uint8_t*>(cvar), 4), 0x7f);
+        buf[0x7f] = 0;
+    }
+    return title_function<uint32_t XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(out, buf);  // ScriptString_AssignCString
+}
+
+uint32_t XB_CDECL GScr_GetEntVar(uint32_t handle, uint32_t key, uint32_t callback) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const list = field<uint8_t*>(ent, 0x234);
+    if (!list) return 0;
+    return G_EntityRemoveNotifyCallback(0, list, key, callback);
+}
+
+uint32_t XB_CDECL GScr_SetEntVar(uint32_t handle, uint32_t key, uint32_t callback) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    if (!field<uint8_t*>(ent, 0x234)) {
+        uint8_t* list = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
+        if (list) list = title_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(0x002adfe0)(list);  // NotifyCallbackList_Init
+        field<uint8_t*>(ent, 0x234) = list;
+    }
+    return G_EntityAddNotifyCallback(field<uint8_t*>(ent, 0x234), key, callback);
+}
+
+void XB_CDECL GScr_ObjectiveCurrent(int32_t index) {
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);  // "index %i is an illegal objective index. ..."
+        return;
+    }
+    // Every objective's "state" key: 4 (current) for this one, 1 for the others that were current.
+    for (int32_t slot = 0x10; slot - 0x10 < 0x10; ++slot) {
+        char info[0x100];
+        objective_slot_info(slot, info);
+        const char* const state = Info_ValueForKey(info, title_text(0x00831b30));  // "state"
+        const int32_t value = *state ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(state) : 0;  // _atol
+        if (slot - 0x10 == index) {
+            if (value == 4) continue;
+            set_objective_state_key(info, 4);
+            SV_SetConfigstring(index + 0x10, info);
+        } else if (value == 4) {
+            set_objective_state_key(info, 1);
+            SV_SetConfigstring(slot, info);
+        }
+    }
+    ScriptString state;
+    string_from_rep(&state);
+    title_function<StringAssign>(0x0011d600)(&state, &title_global<ScriptString>(0x00984ae0));  // ScriptString_Assign
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveState(int32_t index, const ScriptString* name) {
+    ScriptString state;
+    string_from_rep(&state);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    const int32_t slot = index + 0x10;
+    char info[0x100];
+    objective_slot_info(slot, info);
+    title_function<StringAssign>(0x0011d600)(&state, name);
+    uint32_t number;
+    if (GScr_ObjectiveStateFromString(&state, &number)) {
+        set_objective_state_key(info, number);
+        SV_SetConfigstring(slot, info);
+        G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    }
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddWithPosition(int32_t index, const ScriptString* state_name, const ScriptString* text,
+                                            const float* origin) {
+    ScriptString state;
+    string_copy(&state, state_name);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    char info[0x100];
+    objective_slot_info(index + 0x10, info);
+    uint32_t number;
+    if (!GScr_ObjectiveStateFromString(&state, &number)) {
+        string_release(&state);
+        return;
+    }
+    set_objective_state_key(info, number);
+    const int32_t length = static_cast<int32_t>(string_length(text));
+    for (int32_t i = 0; i < length; ++i) {
+        if (text_of(text)[i] == 0x14 || text_of(text)[i] == 0x15)
+            title_va(0x00831b04, static_cast<int32_t>(text_of(text)[i]));  // "bad escape character (%i) ..."
+    }
+    if (length >= 0x100) {
+        title_va(0x00831ad8, 0xff, rep_word(text));  // "Objective strings is too long (> %i): %s" (the rep pointer)
+        string_release(&state);
+        return;
+    }
+    if (has_strchr(text_of(text), '"') || has_strchr(text_of(text), ';') || has_strchr(text_of(text), '\\')) {
+        title_va(0x00831a80, static_cast<const char*>(text_of(text)));  // "Objective strings can not have ..."
+        string_release(&state);
+        return;
+    }
+    // Control and high characters outside the allowed set become spaces (in the string itself).
+    for (int32_t i = 0; i < length; ++i) {
+        const uint8_t c = static_cast<uint8_t>(text_of(text)[i]);
+        if ((c >= 1 && c <= 0x1f) || c >= 0x7f) {
+            char* const chars = text_of(text);
+            bool allowed = false;
+            for (int32_t k = 0; k < 31; ++k) {
+                if (c == kObjectiveChars[k]) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (!allowed) {
+                title_va(0x00831a3c, static_cast<int32_t>(static_cast<int8_t>(c)), static_cast<int32_t>(c),
+                         static_cast<const char*>(text_of(text)));  // "Illegal character '%c'(ascii %i) ..."
+                chars[i] = ' ';
+            }
+        }
+    }
+    Info_SetValueForKey(text_of(text), 0, title_text(0x00831a78), info);  // "str"
+    const int32_t z = static_cast<int32_t>(origin[2]);
+    const int32_t y = static_cast<int32_t>(origin[1]);
+    const int32_t x = static_cast<int32_t>(origin[0]);
+    Info_SetValueForKey(title_va(0x00831a30, x, y, z), 0, title_text(0x00831a2c), info);  // "%i %i %i", "org"
+    SV_SetConfigstring(index + 0x10, info);
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddLocalizedWithPosition(int32_t index, const ScriptString* state, uint32_t hash,
+                                                     const float* origin) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));  // ScriptString_FromCString
+    GScr_ObjectiveAddWithPosition(index, state, &text, origin);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddIntTextWithPosition(int32_t index, const ScriptString* state, int32_t number,
+                                                   const float* origin) {
+    char buf[0x400];
+    int_text(buf, number);
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    GScr_ObjectiveAddWithPosition(index, state, &text, origin);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, const ScriptString* text) {
+    ScriptString state;
+    string_copy(&state, state_name);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    const int32_t slot = index + 0x10;
+    char info[0x100];
+    objective_slot_info(slot, info);
+    uint32_t number;
+    if (!GScr_ObjectiveStateFromString(&state, &number)) {
+        string_release(&state);
+        return;
+    }
+    set_objective_state_key(info, number);
+    if (text->rep) {
+        const int32_t length = static_cast<int32_t>(string_length(text));
+        // Escape characters are reported up to the first letter.
+        for (int32_t i = 0; i < length; ++i) {
+            if (title_function<int32_t XB_CDECL(int32_t)>(0x001eef49)(text_of(text)[i])) break;  // _isalpha
+            if (text_of(text)[i] == 0x14 || text_of(text)[i] == 0x15)
+                title_va(0x00831b04, static_cast<int32_t>(text_of(text)[i]));
+        }
+        if (length >= 0x100) {
+            title_va(0x00831ad8, 0xff, rep_word(text));
+            string_release(&state);
+            return;
+        }
+        if (has_strchr(text_of(text), '"') || has_strchr(text_of(text), ';') || has_strchr(text_of(text), '\\')) {
+            title_va(0x00831a80, rep_word(text));  // the rep pointer, not the text
+            string_release(&state);
+            return;
+        }
+        Info_SetValueForKey(text_of(text), 0, title_text(0x00831a78), info);  // "str"
+    }
+    SV_SetConfigstring(slot, info);
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddLocalized(int32_t index, const ScriptString* state, uint32_t hash) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    GScr_ObjectiveAdd(index, state, &text);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddIntText(int32_t index, const ScriptString* state, int32_t number) {
+    char buf[0x400];
+    int_text(buf, number);
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    GScr_ObjectiveAdd(index, state, &text);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddNoText(int32_t index, const ScriptString* state) {
+    ScriptString text;
+    GScr_ObjectiveAdd(index, state, string_from_rep(&text));
+    string_release(&text);
+}
+
+// HudText_SetStringByHash runs where the original's call puts it (entry ESP - 8, its callees store and read stack
+// words there): the C frame sits below a gap; the original's saved ESI and return address are written too.
+PLATFORM_ASM_ENTRY(GScr_HudSetTextByHash_entry,
+                   "movl %esi, -4(%esp)\n"
+                   "movl $0x002fef90, -8(%esp)\n"
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(GScr_HudSetTextByHash) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL GScr_HudSetTextByHash(uint32_t entry_esp, uint32_t ebx, uint32_t edi) {
+    // HudText_SetStringByHash with the HUD manager itself as the element (ESI) and the caller's EBX/EDI.
+    const uint32_t hash = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(entry_esp + 4));
+    HudText_SetStringByHash(title_global<uint8_t*>(0x0095f8f0), hash, entry_esp - 8, ebx, edi);
+}
+
+void XB_CDECL GScr_SetHudMode(uint32_t mode) {
+    uint8_t* const manager = title_global<uint8_t*>(0x0095f8f0);  // g_hudManager
+    if (mode == field<uint32_t>(manager, 0x5c)) return;
+    field<uint32_t>(manager, 0x5c) = mode;
+    switch (mode) {
+        case 0: HudManager_LayoutDefault(manager); break;
+        case 1: HudManager_HideAll(manager); break;
+        case 2: HudManager_Layout2(manager); break;
+        case 3: HudManager_Layout3(manager); break;
+        default: break;
+    }
+}
+
+float XB_CDECL GScr_GetAnimLength(uint32_t, uint32_t anim) {
+    // The anim's node: tree anim >> 16 (0 when out of range) of rm_animTrees +4 {count, entries of 12 bytes
+    // {?, count, nodes}}, node anim & 0xffff (0 when out of range), 0x38 bytes each.
+    const uint8_t* const trees = field<uint8_t*>(title_global<uint8_t*>(0x0095f524), 4);
+    uint32_t tree = anim >> 16;
+    if (tree >= field<uint32_t>(const_cast<uint8_t*>(trees), 0)) tree = 0;
+    const uint8_t* const entry = field<uint8_t*>(const_cast<uint8_t*>(trees), 4) + tree * 12 + 4;
+    uint32_t index = anim & 0xffff;
+    if (index >= field<uint32_t>(const_cast<uint8_t*>(entry), 0)) index = 0;
+    uint8_t* const node = field<uint8_t*>(const_cast<uint8_t*>(entry), 4) + index * 0x38;
+    if (!field<uint8_t*>(node, 0x24)) AnimData_EnsureLoaded(node);
+    if (uint8_t* const clip = field<uint8_t*>(node, 0x24)) return field<float>(clip, 0x38);
+    return title_global<float>(0x0083eb20);  // 1
+}
+
+void XB_CDECL GScr_SetHintString(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (field<uint32_t>(ent, 0x260) != title_global<uint32_t>(0x0097a81c) && !field<uint8_t*>(ent, 0x240))
+        return;  // neither a trigger_use nor an actor
+    // The text buffer is never filled in the shipped build (stack garbage; tests zero it).
+    char text[0x100] = {};
+    int32_t index;
+    if (!G_FindHintStringIndex(&index, text)) {
+        title_va(0x00831fa8, 0x20);  // "Too many different hintstring values. ..."
+        return;
+    }
+    if (field<uint32_t>(ent, 0x260) == title_global<uint32_t>(0x0097a81c))  // scr_const_trigger_use
+        field<uint8_t>(ent, 5) = static_cast<uint8_t>(index);
+    else
+        field<uint16_t>(field<uint8_t*>(ent, 0x240), 0x1380) = static_cast<uint16_t>(index);
+}
+
+void XB_CDECL GScr_ConnectPaths(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (!(field<uint32_t>(ent, 0x2a4) & 0x1000)) {
+        title_va(0x008320b8, script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));  // "entity of type ..."
+        return;
+    }
+    Path_ConnectPathsForEntity(ent, title_global<uint8_t*>(0x0095f4f4));  // g_pathNodeBlocks
+}
+
+void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    float at[3] = {point[0], point[1], point[2]};
+    // Direction from the point to the client's origin (+0 of the client) or the entity's (+0x140), normalized
+    // (none for a zero length).
+    const uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const float* const to = client ? reinterpret_cast<const float*>(client) : &field<float>(ent, 0x140);
+    float dir[3];
+    dir[0] = to[0] - at[0];
+    dir[1] = to[1] - at[1];
+    dir[2] = to[2] - at[2];
+    const float squared =
+        static_cast<float>((platform_x87_ld(dir[2]) * dir[2] + platform_x87_ld(dir[1]) * dir[1]) +
+                           platform_x87_ld(dir[0]) * dir[0]);
+    const float length = title_ci_sqrt(squared);
+    const float* direction = nullptr;
+    if (!(length == title_global<float>(0x0083eafc))) {
+        const float inv = title_global<float>(0x0083eb20) / length;
+        dir[0] = platform_mulss(inv, dir[0]);
+        dir[1] = platform_mulss(inv, dir[1]);
+        dir[2] = platform_mulss(inv, dir[2]);
+        direction = dir;
+    }
+    // G_Damage(point EAX; targ, no inflictor/attacker, dir, damage, 0, mod 0x1b, hit location 2, no weapon).
+    title_function<void XB_REGS1 XB_CDECL(const float*, uint8_t*, uint32_t, uint32_t, const float*, int32_t,
+                                          uint32_t, uint32_t, uint32_t, int32_t)>(0x00250340)(
+        at, ent, 0, 0, direction, static_cast<int32_t>(damage), 0, 0x1b, 2, -1);
+}
+
+uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const other = handle_entity(other_handle);
+    if (!other) return 0;
+    // Notify "trigger" with the other entity (G_NotifyWithEntity, entity in EDI; the number goes in the
+    // original's first argument slot), then the use callback.
+    uint32_t number = field<uint32_t>(other, 0x224);
+    const TitleRegs regs{number, 0, word_of(&number), title_global<uint32_t>(0x0097a818), word_of(other), word_of(ent)};
+    const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), word_of(&number)};  // scr_const_trigger
+    g_ent_call(0x000265a0, &regs, 2, args);
+    if (const uint32_t use = field<uint32_t>(ent, 0x33c))
+        title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*)>(title_global<uint32_t>(0x008da840 + use * 4))(
+            ent, other, other);  // entityUseFuncs
+    return field<uint32_t>(other, 0x224);
+}
+
+void XB_CDECL GScr_FreeSound(uint32_t id) { FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), id); }
 
 }  // namespace game

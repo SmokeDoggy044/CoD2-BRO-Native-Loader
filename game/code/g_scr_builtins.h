@@ -627,4 +627,54 @@ void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team);
 float XB_CDECL GScr_GetCvarFloat(const char* name);
 int32_t XB_CDECL GScr_GetCvarInt(const char* name);
 
+// 0x002fdab0: out = the cvar's string (first 0x7f characters), "" for unknown cvars. Returns
+// ScriptString_AssignCString's result.
+uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name);
+// 0x002fdb20, 0x002fdb70: removes / adds the (key, callback) pair of the entity's notify callback list (+0x234;
+// SetEntVar creates it from the small heap 0x0095f568 first). AL = done.
+uint32_t XB_CDECL GScr_GetEntVar(uint32_t handle, uint32_t key, uint32_t callback);
+uint32_t XB_CDECL GScr_SetEntVar(uint32_t handle, uint32_t key, uint32_t callback);
+// 0x002fe250: objective index becomes the current one ("state" 4; a previous current one gets 1); the "active"
+// update (G_SendObjectiveUpdate with 0x00984ae0).
+void XB_CDECL GScr_ObjectiveCurrent(int32_t index);
+// 0x002fe5e0: the objective's "state" key from the state name; G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveState(int32_t index, const ScriptString* name);
+// 0x002fe6f0: objective configstring (index + 0x10): "state" from the name, "str" = text (checked; disallowed
+// control/high characters become spaces in the string itself), "org" = "%i %i %i" of origin; G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveAddWithPosition(int32_t index, const ScriptString* state_name, const ScriptString* text,
+                                            const float* origin);
+// 0x002feaf0, 0x002feb50: the same with the localized string of a hash / the "%d" of a number as the text.
+void XB_CDECL GScr_ObjectiveAddLocalizedWithPosition(int32_t index, const ScriptString* state, uint32_t hash,
+                                                     const float* origin);
+void XB_CDECL GScr_ObjectiveAddIntTextWithPosition(int32_t index, const ScriptString* state, int32_t number,
+                                                   const float* origin);
+// 0x002fec10: objective configstring: "state" from the name, "str" = text (checked; none for the empty string);
+// G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, const ScriptString* text);
+// 0x002fee50, 0x002feea0, 0x002fef50: GScr_ObjectiveAdd with a localized string / "%d" / no text.
+void XB_CDECL GScr_ObjectiveAddLocalized(int32_t index, const ScriptString* state, uint32_t hash);
+void XB_CDECL GScr_ObjectiveAddIntText(int32_t index, const ScriptString* state, int32_t number);
+void XB_CDECL GScr_ObjectiveAddNoText(int32_t index, const ScriptString* state);
+// 0x002fef80 (hash on the stack; EBX/EDI handed on): HudText_SetStringByHash on the HUD manager (ESI) with the hash.
+// The C version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_HudSetTextByHash(uint32_t entry_esp, uint32_t ebx, uint32_t edi);
+extern "C" void GScr_HudSetTextByHash_entry(void);
+// 0x002fefa0: HUD manager mode +0x5c; a change runs layout default / hide all / 2 / 3 for modes 0-3.
+void XB_CDECL GScr_SetHudMode(uint32_t mode);
+// 0x002feff0: the anim's clip length (+0x38; AnimData_EnsureLoaded first), 1 without a clip (ST0).
+float XB_CDECL GScr_GetAnimLength(uint32_t unused, uint32_t anim);
+// 0x002ff060: a hint-string index (G_FindHintStringIndex of a never-filled buffer) into a trigger_use's +5 or an
+// actor's +0x1380.
+void XB_CDECL GScr_SetHintString(uint32_t handle);
+// 0x002ff120: Path_ConnectPathsForEntity for entities with flag 0x1000 (+0x2a4), else a message.
+void XB_CDECL GScr_ConnectPaths(uint32_t handle);
+// 0x002ff1a0: G_Damage(entity, damage, mod 0x1b, hit location 2) from the point, direction towards the client /
+// entity origin.
+void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point);
+// 0x002ff320: notifies "trigger" with the other entity, runs the use callback (entityUseFuncs[+0x33c]); returns
+// the other's entity number (0 for bad handles).
+uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle);
+// 0x002ff3c0: FX_FreeEffectsById on the list at 0x0095f5b4.
+void XB_CDECL GScr_FreeSound(uint32_t id);
+
 }  // namespace game
