@@ -1,5 +1,6 @@
 #include "scr_access.h"
 
+#include "g_scr_runtime.h"
 #include "title_data.h"
 
 namespace game {
@@ -721,5 +722,107 @@ const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1328(const uint32_t* self, c
 const uint32_t* XB_THISCALL ScrCall_ScrSentient_SetFloat_18(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922df4>(self, value); }
 const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1378(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922d94>(self, value); }
 const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_184(const uint32_t* self, const uint32_t* value) { return call_set_word<0x00922dc4>(self, value); }
+
+// ScrCall_* wrappers of builtins (cdecl): unwrap handle objects, add the builtin's fixed
+// arguments and return its result (through `out` where the builtin returns a handle).
+namespace {
+
+template <typename F>
+F* builtin(uint32_t slot) {
+    return title_global<F*>(slot);
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL ScrCall_GScr_GetEntArray(uint32_t* out, uint32_t key, uint32_t value, uint32_t array) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221c4)(key, value, 0, 0, array);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_GetNode(uint32_t* out, uint32_t key, uint32_t value) {
+    const uint32_t node = builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221cc)(key, value, 0, 0);
+    *out = node;
+    if (node == 0xffffffffu) *out = 0;
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_GetVehicleNode(uint32_t* out, uint32_t key, uint32_t value) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221d0)(key, value, 0, 0);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_SpawnVehicle(uint32_t* out, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                             uint32_t f) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009222fc)(a, b, c, d,
+                                                                                                         e, f);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_Spawn(uint32_t* out, uint32_t a, uint32_t b, uint32_t c) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009222f0)(a, b, c);
+    return out;
+}
+
+uint32_t XB_CDECL ScrCall_GScr_PlaySound(const uint32_t* ent, uint32_t sound) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221dc)(*ent, sound, 0, 0, 0);
+}
+
+// Tail jumps: the handles go into the wrapper's own argument slots, which the builtin then gets.
+uint32_t XB_CDECL ScrCall_GScr_LinkTo(const uint32_t* ent, const uint32_t* parent) {
+    const uint32_t parent_handle = *parent;
+    const uint32_t ent_handle = *ent;
+    *reinterpret_cast<uint32_t*>(&parent) = parent_handle;
+    *reinterpret_cast<uint32_t*>(&ent) = ent_handle;
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(ent_handle, parent_handle);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_IsTouching(const uint32_t* ent, const uint32_t* other) {
+    const uint32_t other_handle = *other;
+    const uint32_t ent_handle = *ent;
+    *reinterpret_cast<uint32_t*>(&other) = other_handle;
+    *reinterpret_cast<uint32_t*>(&ent) = ent_handle;
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922530)(ent_handle, other_handle);
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_ForceSpawn(uint32_t* out, const uint32_t* spawner, uint32_t flag) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922520)(*spawner, flag);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_UseBy(uint32_t* out, const uint32_t* ent, const uint32_t* user) {
+    const uint32_t user_handle = *user;
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x0092252c)(*ent, user_handle);
+    return out;
+}
+
+// x87 results passed on as they are.
+long double XB_CDECL ScrCall_Scr_RandomFloatRange(uint32_t low, uint32_t high) {
+    return builtin<long double XB_CDECL(uint32_t, uint32_t)>(0x00922238)(low, high);
+}
+
+long double XB_CDECL ScrCall_Scr_DistanceSquared(uint32_t a, uint32_t b) {
+    return builtin<long double XB_CDECL(uint32_t, uint32_t)>(0x0092226c)(a, b);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_ObjectiveAddLocalizedWithPosition(uint32_t index, uint32_t state, uint32_t text,
+                                                                 uint32_t position) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t*)>(0x009222b4)(index, state, text, &position);
+}
+
+uint32_t XB_CDECL ScrCall_Scr_QueueNotify(const uint32_t* ent, const char* name) {
+    uint32_t hash;
+    const uint32_t* const key = Scr_HashName(&hash, name);
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(*ent, *key);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify(const uint32_t* ent, uint32_t sound, uint32_t notify) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x0092220c)(*ent, sound, notify, 0);
+}
+
+// SETNE AL over the builtin's EAX: the upper bytes stay the builtin's.
+uint32_t XB_CDECL ScrCall_Scr_EntityHandleIsValid(const uint32_t* ent) {
+    const uint32_t valid = builtin<uint32_t XB_CDECL(uint32_t)>(0x00922214)(*ent);
+    return (valid & 0xffffff00u) | (valid != 0 ? 1u : 0u);
+}
 
 }  // namespace game

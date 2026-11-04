@@ -19,6 +19,7 @@
 {"ZoneMapA8_Lookup", 0x000250b0, 78, 30, {0x008d1658, 0x00901aec, 0x0090228c}, {0x20, 0x100}},
 {"G_GatherEntsByIntField", 0x00028f60, 71, 27, {0x0097d36c}, {0x1000}},
 {"G_GatherEntsByShortField", 0x00028fb0, 70, 25, {0x0097d36c}, {0x1000}},
+{"WaitTilOutputInst2_str_str_DeletingDtor", 0x00029130, 50, 15, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec, 0x0095f4a0, 0x0095f4a4, 0x0095f574}, {0x901f4c, 0x2, 0x10000}},
 {"unztell", 0x00057810, 25, 10, {}, {}},
 {"crc32", 0x000585c0, 298, 102, {}, {0x8}},
 {"putShortMSB", 0x000587e0, 39, 18, {}, {}},

@@ -98,4 +98,15 @@ ScriptString* XB_THISCALL ScrStringArray_AllocData(ScrStringArray* self, uint32_
 // 0x0001b7b0: releases the strings and frees the block (Scr_Free), if any. Leaves the fields.
 void XB_THISCALL ScrStringArray_FreeData(ScrStringArray* self);
 
+// 0x0011d600 (thiscall, asm entry: EDX kept): shares other's text (one more reference) and drops
+// its own (Scr_Free at 0 references). Returns self.
+extern "C" PLATFORM_HIDDEN ScriptString* XB_CDECL ScriptString_Assign(ScriptString* self, const ScriptString* other);
+extern "C" void ScriptString_Assign_entry(void);
+// 0x0011d640 (thiscall, asm entry: ECX and EDX kept): drops a reference (Scr_Free at 0). The
+// string keeps its rep pointer. EAX = the rep (Scr_Free's result after a free; no caller reads it).
+extern "C" PLATFORM_HIDDEN ScriptStringRep* XB_CDECL ScriptString_Release(ScriptString* self);
+extern "C" void ScriptString_Release_entry(void);
+// 0x00119a20: whether the string equals the decimal text of `value` (ScriptString_FromInt).
+uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value);
+
 }  // namespace game

@@ -284,4 +284,28 @@ const uint32_t* XB_THISCALL ScrCall_ScrSentient_SetFloat_18(const uint32_t* self
 const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_1378(const uint32_t* self, const uint32_t* value);  // 0x0011b810, through 0x00922d94
 const uint32_t* XB_THISCALL ScrCall_ScrActor_SetInt_184(const uint32_t* self, const uint32_t* value);  // 0x0011f820, through 0x00922dc4
 
+// Builtin wrappers (cdecl), 0x0011a2e0..0x0011a860: unwrap handle objects (pointers to the
+// handle), add the builtin's fixed arguments (zeros) and return its result - through `out` for
+// returned handles (GetNode: -1 becomes 0). LinkTo/IsTouching are tail jumps (the handles go into
+// the wrapper's argument slots). RandomFloatRange/DistanceSquared pass the x87 result on;
+// EntityHandleIsValid is SETNE AL over the builtin's EAX.
+uint32_t* XB_CDECL ScrCall_GScr_GetEntArray(uint32_t* out, uint32_t key, uint32_t value, uint32_t array);
+uint32_t* XB_CDECL ScrCall_GScr_GetNode(uint32_t* out, uint32_t key, uint32_t value);
+uint32_t* XB_CDECL ScrCall_GScr_GetVehicleNode(uint32_t* out, uint32_t key, uint32_t value);
+uint32_t* XB_CDECL ScrCall_GScr_SpawnVehicle(uint32_t* out, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                             uint32_t f);
+uint32_t* XB_CDECL ScrCall_GScr_Spawn(uint32_t* out, uint32_t a, uint32_t b, uint32_t c);
+uint32_t XB_CDECL ScrCall_GScr_PlaySound(const uint32_t* ent, uint32_t sound);
+uint32_t XB_CDECL ScrCall_GScr_LinkTo(const uint32_t* ent, const uint32_t* parent);
+uint32_t XB_CDECL ScrCall_GScr_IsTouching(const uint32_t* ent, const uint32_t* other);
+uint32_t* XB_CDECL ScrCall_GScr_ForceSpawn(uint32_t* out, const uint32_t* spawner, uint32_t flag);
+uint32_t* XB_CDECL ScrCall_GScr_UseBy(uint32_t* out, const uint32_t* ent, const uint32_t* user);
+long double XB_CDECL ScrCall_Scr_RandomFloatRange(uint32_t low, uint32_t high);
+long double XB_CDECL ScrCall_Scr_DistanceSquared(uint32_t a, uint32_t b);
+uint32_t XB_CDECL ScrCall_GScr_ObjectiveAddLocalizedWithPosition(uint32_t index, uint32_t state, uint32_t text,
+                                                                 uint32_t position);
+uint32_t XB_CDECL ScrCall_Scr_QueueNotify(const uint32_t* ent, const char* name);
+uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify(const uint32_t* ent, uint32_t sound, uint32_t notify);
+uint32_t XB_CDECL ScrCall_Scr_EntityHandleIsValid(const uint32_t* ent);
+
 }  // namespace game

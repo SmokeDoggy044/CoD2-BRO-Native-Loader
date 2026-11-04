@@ -238,4 +238,15 @@ uint8_t* XB_THISCALL WaitTilOutputInst1_str_DeletingDtor(uint8_t* self, uint32_t
 extern "C" PLATFORM_HIDDEN void XB_CDECL ScrThread_HandlesExhausted(uint32_t* table);
 extern "C" void ScrThread_HandlesExhausted_entry(void);
 
+// 0x0001b580: deletes the wait records of a list range (vtable slot 0, flag 1): `node` first,
+// then each link from `first` up to (not including) `last`, one step behind the walk.
+void XB_CDECL ScrWaitList_DeleteRange(uint8_t* node, uint32_t* first, uint32_t unused, uint32_t* last);
+// 0x00028440: base wait-output destructor (vtable 0x007f48c4), SmallHeap_Free on 0x0095f574
+// when flags & 1.
+uint8_t* XB_THISCALL WaitTilOutputInst1_ent_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x000290d0 (two-string output): assigns +0xc (and +0x10 when `other` takes two values).
+uint32_t XB_THISCALL WaitTilOutputInst2_str_str_CopyArgs(uint8_t* self, uint8_t* other);
+// 0x00029130: releases both strings (+0x10, +0xc), base vtable, SmallHeap_Free when flags & 1.
+uint8_t* XB_THISCALL WaitTilOutputInst2_str_str_DeletingDtor(uint8_t* self, uint32_t flags);
+
 }  // namespace game

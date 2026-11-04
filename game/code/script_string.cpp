@@ -152,4 +152,43 @@ void XB_THISCALL ScrStringArray_FreeData(ScrStringArray* self) {
     Scr_Free(self->data);
 }
 
+PLATFORM_ASM_ENTRY(ScriptString_Assign_entry,
+                   "pushl %edx\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(ScriptString_Assign) "addl $8, %esp\n"
+                   "popl %edx\n"
+                   "ret $4")
+
+ScriptString* XB_CDECL ScriptString_Assign(ScriptString* self, const ScriptString* other) {
+    ScriptStringRep* const rep = other->rep;
+    ScriptStringRep* const old = self->rep;
+    self->rep = rep;
+    if (rep) ++rep->refs;
+    if (old && static_cast<int16_t>(--old->refs) <= 0) Scr_Free(old);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(ScriptString_Release_entry,
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(ScriptString_Release) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "popl %edx\n"
+                   "ret")
+
+ScriptStringRep* XB_CDECL ScriptString_Release(ScriptString* self) {
+    ScriptStringRep* const rep = self->rep;
+    if (rep && static_cast<int16_t>(--rep->refs) <= 0) Scr_Free(rep);
+    return rep;
+}
+
+uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value) {
+    // The original's C++ exception frame around the temporary has no effect.
+    ScriptString text;
+    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ded0)(&text, value);  // ScriptString_FromInt
+    const uint8_t equal = ScriptString_EqualsString(self, &text);
+    string_release(&text);
+    return equal;
+}
+
 }  // namespace game
