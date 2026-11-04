@@ -217,4 +217,25 @@ uint32_t XB_CDECL Scr_BeginThreadEndOn(uint32_t, uint32_t, uint32_t, uint32_t a,
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_time);
 extern "C" void Scr_RunThreads_entry(void);
 
+// 0x000142c0: ScrWaitRecord_Dtor (ESI = self), then SmallHeap_Free on 0x0095f494 when flags & 1.
+uint8_t* XB_THISCALL ScrWaitRecord_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x000147e0 (EAX = handle table, EBX = out): takes the first free bit of the 256-bit set at
+// the table's start and writes the handle (generation at +0x24 + index * 8, << 8 | index).
+// None free: ScrThread_HandlesExhausted, index -1.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL ScrThread_AllocHandle(uint32_t* table, uint32_t* out);
+extern "C" void ScrThread_AllocHandle_entry(void);
+// 0x000148a0 (vtable slot 1, entity output): copies the value (+0xc) into `other`; returns it.
+uint32_t XB_THISCALL WaitTilOutputInst1_ent_VFunc1(const uint8_t* self, uint8_t* other);
+// 0x00014b70 (vtable slot 1, string output): assigns the string (+0xc) to `other`'s.
+uint32_t XB_THISCALL WaitTilOutputInst1_str_VFunc1(uint8_t* self, uint8_t* other);
+// 0x00014b90 (two-value output): copies +0xc (and +0x10 when `other` takes two values,
+// its vtable slot 2) into `other`.
+uint32_t XB_THISCALL WaitTilOutputInst2_CopyArgs(const uint8_t* self, uint8_t* other);
+// 0x00014c50: releases the string (+0xc), base vtable, SmallHeap_Free on 0x0095f574 when flags & 1.
+uint8_t* XB_THISCALL WaitTilOutputInst1_str_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00014dd0 (ESI = handle table): out of thread handles - reports each one in use to the
+// callback at +0x820 (if set), then Sys_DebugBreak.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScrThread_HandlesExhausted(uint32_t* table);
+extern "C" void ScrThread_HandlesExhausted_entry(void);
+
 }  // namespace game

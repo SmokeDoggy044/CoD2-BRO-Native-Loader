@@ -1,6 +1,7 @@
 address,name,tested,matched,nan,mismatched,coverage
 00011020,Scr_Sin,4000,4000,0,0,100.0
 00011030,Scr_Tan,2988,2988,0,0,100.0
+00011200,ScriptString_IsEmpty,2489,2489,0,0,100.0
 00011300,UIElement_GetDepth,3828,3828,0,0,100.0
 00011430,UITextBase_SetScale,3810,3810,0,0,100.0
 000115f0,UITextBase_GetText,3513,3513,0,0,100.0
@@ -16,7 +17,18 @@ address,name,tested,matched,nan,mismatched,coverage
 00014af0,IntHashMap_Erase,1657,1657,0,0,100.0
 00015190,BitSet256_Complement,3654,3654,0,0,100.0
 00015790,std_vector_Erase4_2,1271,1271,0,0,100.0
+00016990,ScrVehNode_SetTargetname,1302,1302,0,0,100.0
+000169c0,ScrVehNode_GetTargetname,1349,1349,0,0,100.0
+00016a00,ScrVehNode_SetTarget,1327,1327,0,0,100.0
+00016a70,ScrVehNode_SetOrigin,1560,1560,0,0,100.0
+00016af0,ScrVehNode_SetAngles,1491,1491,0,0,100.0
+00016b70,ScrVehNode_SetSpeed,1580,1580,0,0,100.0
+00016b90,ScrVehNode_GetSpeed,1377,1377,0,0,100.0
+00016bb0,ScrVehNode_SetLookahead,1429,1429,0,0,100.0
+00016bd0,ScrVehNode_GetLookahead,1457,1457,0,0,100.0
+00016bf0,ScrVehNode_SetScriptNoteworthy,1321,1321,0,0,100.0
 0001b640,std_CopyBackward4_2,1405,1405,0,0,100.0
+0001b7b0,ScrStringArray_FreeData,1232,1232,0,0,94.1
 0001d1b0,ClientActive_Ctor,2101,2101,0,0,100.0
 0001d880,SceneFX_DeletingDtor,1009,1009,0,0,100.0
 0001daf0,LocEntry_Dtor,3347,3347,0,0,100.0

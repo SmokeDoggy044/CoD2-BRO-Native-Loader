@@ -2,6 +2,9 @@
 
 #include <cstring>
 
+#include "g_scr_runtime.h"
+#include "title_data.h"
+
 namespace game {
 
 ScriptStringRep* XB_THISCALL ScriptStringRep_Init(ScriptStringRep* self, uint16_t unknown0,
@@ -40,6 +43,14 @@ ScriptString* XB_THISCALL ScriptString_Copy(ScriptString* self, const ScriptStri
         ++rep->refs;
     }
     return self;
+}
+
+static void string_assign(ScriptString* dst, const ScriptString* src) {
+    title_function<ScriptString* XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(dst, src);  // ScriptString_Assign
+}
+
+static void string_release(ScriptString* string) {
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(string);  // ScriptString_Release
 }
 
 // The text's address as the original computes it: 0 for the empty string (kept as
@@ -104,6 +115,41 @@ uint32_t* XB_THISCALL ScriptKeyTable_Find(ScriptKeyTable* self, uint32_t key) {
     for (uint32_t i = 0; i < self->count; ++i)
         if (self->entries[i].key == key) return &self->entries[i].value;
     return nullptr;
+}
+
+uint8_t XB_THISCALL ScriptString_IsEmpty(const ScriptString* self) {
+    // The text address (rep + 6) is tested for null as well.
+    const uintptr_t text = text_address(self->rep);
+    if (!text) return 1;
+    return *reinterpret_cast<const char*>(text) == '\0';
+}
+
+void XB_THISCALL ScrStringArray_PushBack(ScrStringArray* self, const ScriptString* value) {
+    if (self->count >= self->capacity) {
+        const uint32_t capacity = self->count + 4;
+        ScriptString* data = ScrStringArray_AllocData(self, capacity, self->count + 1);
+        for (uint32_t i = 0; i < self->count; ++i) string_assign(&data[i], &self->data[i]);
+        ScrStringArray_FreeData(self);
+        self->capacity = capacity;
+        self->data = data;
+    }
+    ScriptString* slot = &self->data[self->count];
+    ++self->count;
+    string_assign(slot, value);
+}
+
+ScriptString* XB_THISCALL ScrStringArray_AllocData(ScrStringArray*, uint32_t capacity, uint32_t) {
+    ScriptString* data = reinterpret_cast<ScriptString*>(Scr_Alloc(capacity * 4, 4));
+    for (ScriptString* slot = data; slot != data + capacity; ++slot)
+        if (slot) ScriptString_FromRep(slot, nullptr);
+    return data;
+}
+
+void XB_THISCALL ScrStringArray_FreeData(ScrStringArray* self) {
+    ScriptString* data = self->data;
+    if (!data) return;
+    for (ScriptString* slot = data, *end = data + self->count; slot != end; ++slot) string_release(slot);
+    Scr_Free(self->data);
 }
 
 }  // namespace game
