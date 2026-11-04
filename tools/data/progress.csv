@@ -2553,7 +2553,7 @@ address,name,section,module,state,tested,matched
 000b62d0,PhysWorld_GetBodyPair,.text,game,settled,375,375
 000b6390,PhysConstraint28c_SetMotor,.text,game,offline,0,0
 000b63c0,PhysConstraint28c_SetBrake,.text,game,offline,0,0
-000b63f0,PhysConstraint28c_Setup,.text,game,untested,0,0
+000b63f0,PhysConstraint28c_Setup,.text,game,offline,0,0
 000b6510,PhysConstraint_AttachSecondBody,.text,game,offline,0,0
 000b6590,PhysConstraint_GetSegmentEnds,.text,game,offline,0,0
 000b6780,PhysConstraint_UpdateLimitFlag,.text,game,offline,0,0
@@ -2601,7 +2601,7 @@ address,name,section,module,state,tested,matched
 000b9620,PhysHinge_UpdateLimitFlags,.text,game,offline,0,0
 000b9750,PhysHinge_AddContacts,.text,game,offline,0,0
 000b9a40,PhysDistanceJoint_AddContacts,.text,game,untested,0,0
-000ba020,PhysHinge_Setup,.text,game,untested,0,0
+000ba020,PhysHinge_Setup,.text,game,offline,0,0
 000ba2c0,PhysAngularMotor_AddContacts,.text,game,offline,0,0
 000ba860,PhysFrame_RotateByVelocity,.text,game,offline,0,0
 000ba9d0,PhysBody_WorldToRelative,.text,game,offline,0,0
@@ -8081,7 +8081,7 @@ address,name,section,module,state,tested,matched
 00233b80,Ragdoll_CollideAll,.text,game,settled,195,195
 00233bd0,G_VehiclePhysicsFrame,.text,game,settled,409,409
 00233c40,VehiclePhys_Init,.text,game,untested,0,0
-002341f0,VehiclePhys_ApplyDriveInputs,.text,game,untested,0,0
+002341f0,VehiclePhys_ApplyDriveInputs,.text,game,offline,0,0
 00234330,PhysRagdoll_BuildAndReset,.text,game,untested,0,0
 00234380,Ragdoll_StartPhysics,.text,game,matched,35,35
 00234450,Phys_Init,.text,game,settled,108,108
