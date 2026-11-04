@@ -120,5 +120,40 @@ uint32_t XB_THISCALL ScriptString_GetChar(const ScriptString* self, uint32_t ind
 // 0x0011a850: releases the string member at +0x20 (tail jump to ScriptString_Release). Its only
 // users are C++ exception-unwind actions.
 ScriptStringRep* XB_THISCALL ScriptString_ReleaseAt20(uint8_t* self);
+// Push 3: the rest of the string runtime. Reps are allocated rounded: (needed + 0x26) & ~0x1f
+// bytes with capacity (unknown0) = size - 6, `needed` = reserve + 1 or length + 1. A rep with
+// one reference is changed in place when the new text fits, else replaced (old one released).
+// 0x0011d5b0: drops a reference; Scr_Free at zero or below.
+void XB_THISCALL ScriptStringRep_Release(ScriptStringRep* self);
+// 0x0011d660: empties the text in place (one reference or fewer) or lets go of the rep.
+void XB_THISCALL ScriptString_Clear(ScriptString* self);
+// 0x0011da40: the builtin table's atof (0x009229dc) as float bits in EAX.
+uint32_t XB_CDECL ScrCall_ScrIface_atof(const char* text);
+// 0x0011dcd0: a new rep holding `length` characters of `text`, room for `reserve` (0: length).
+ScriptStringRep* XB_CDECL ScriptString_AllocRep(const char* text, uint32_t length, uint32_t reserve);
+// 0x0011dd20 / 0x0011de00: assignment of a C string / one character (built in the argument slot).
+ScriptString* XB_THISCALL ScriptString_AssignCString(ScriptString* self, const char* text);
+ScriptString* XB_THISCALL ScriptString_AssignChar(ScriptString* self, uint32_t c);
+// 0x0011ded0 / 0x0011df90 / 0x0011dff0: constructors from "%d" / "%d" / "%f" (the builtin
+// table's sprintf, 0x00922158; the float goes through the x87 as a double).
+ScriptString* XB_THISCALL ScriptString_FromInt(ScriptString* self, int32_t value);
+ScriptString* XB_THISCALL ScriptString_FromInt2(ScriptString* self, int32_t value);
+ScriptString* XB_THISCALL ScriptString_FromFloat(ScriptString* self, float value);
+// 0x0011e0f0: assigns the decimal text of `value`.
+ScriptString* XB_THISCALL ScrCall_sprintf(ScriptString* self, int32_t value);
+// 0x0011e1c0: appends `length` characters (nothing for a null text or zero length).
+void XB_THISCALL ScriptString_Append(ScriptString* self, const char* text, uint32_t length);
+// 0x0011e290: `count` characters from `start` (clipped) into `out`; empty when start is past
+// the end. The source is NUL-cut while copying and restored.
+ScriptString* XB_THISCALL ScriptString_Substring(ScriptString* self, ScriptString* out, uint32_t start, uint32_t count);
+// 0x0011e340: a + b; shares the other one's rep when either is empty.
+ScriptString* XB_CDECL ScriptString_Concat(ScriptString* out, const ScriptString* a, const ScriptString* b);
+// 0x0011eb50: constructor from a C string.
+ScriptString* XB_THISCALL ScriptString_FromCString(ScriptString* self, const char* text);
+// 0x0011eb90 / 0x0011ebc0 / 0x0011ebf0 / 0x0011ec30: append a character, C string, string, "%d".
+ScriptString* XB_THISCALL ScriptString_AppendChar(ScriptString* self, uint32_t c);
+ScriptString* XB_THISCALL ScriptString_AppendCString(ScriptString* self, const char* text);
+ScriptString* XB_THISCALL ScriptString_AppendString(ScriptString* self, const ScriptString* other);
+ScriptString* XB_THISCALL ScriptString_AppendInt(ScriptString* self, int32_t value);
 
 }  // namespace game
