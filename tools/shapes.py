@@ -10,20 +10,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack
 
-ap = argparse.ArgumentParser()
-ap.add_argument("list"); ap.add_argument("--prefix", default=""); ap.add_argument("--show", type=int, default=0)
-ap.add_argument("--members", action="store_true")
-a = ap.parse_args()
-image = fnpack.Image()
-groups = collections.defaultdict(list)
 HEX = re.compile(r"0x[0-9a-f]{5,8}\b")
-for line in open(a.list):
-    p = line.split()
-    if len(p) < 4 or not p[3].startswith(a.prefix): continue
-    va, size, name = int(p[0], 16), int(p[2]), p[3]
-    rows = fnpack.disassemble(image, va, size)
+
+
+def shape(image, va, size):
+    """(key, immediates): the disassembly with branch targets dropped and 32-bit
+    immediates outside the title's globals (0x00800000-0x009fffff) masked as IMM."""
     keys, imms = [], []
-    for addr, n, text in rows:
+    for addr, n, text in fnpack.disassemble(image, va, size):
         t = re.sub(r"<[^>]*>", "", text)
         if t.startswith(("call", "j")) and not t.startswith(("call DWORD", "jmp DWORD")):
             # keep the absolute call target, drop branch targets (relative layout)
@@ -34,13 +28,32 @@ for line in open(a.list):
         imm = [h for h in found if not (0x00800000 <= int(h, 16) < 0x00a00000)]  # keep globals
         for h in imm: t = t.replace(h, "IMM")
         imms += imm; keys.append(t)
-    groups[tuple(keys)].append((name, va, imms))
-order = sorted(groups.items(), key=lambda kv: -len(kv[1]))
-total = 0
-for i, (k, members) in enumerate(order):
-    total += len(members)
-    print(f"group {i}: {len(members)} functions, {len(k)} insns, e.g. {members[0][0]} {members[0][1]:08x} imms={members[0][2]}")
-    if a.members: print("   " + " ".join(m[0] for m in members))
-    if i < a.show:
-        for t in k: print("     ", t)
-print(f"{len(order)} groups, {total} functions")
+    return tuple(keys), imms
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("list"); ap.add_argument("--prefix", default=""); ap.add_argument("--show", type=int, default=0)
+    ap.add_argument("--members", action="store_true")
+    a = ap.parse_args()
+    image = fnpack.Image()
+    groups = collections.defaultdict(list)
+    for line in open(a.list):
+        p = line.split()
+        if len(p) < 4 or not p[3].startswith(a.prefix): continue
+        va, size, name = int(p[0], 16), int(p[2]), p[3]
+        key, imms = shape(image, va, size)
+        groups[key].append((name, va, imms))
+    order = sorted(groups.items(), key=lambda kv: -len(kv[1]))
+    total = 0
+    for i, (k, members) in enumerate(order):
+        total += len(members)
+        print(f"group {i}: {len(members)} functions, {len(k)} insns, e.g. {members[0][0]} {members[0][1]:08x} imms={members[0][2]}")
+        if a.members: print("   " + " ".join(m[0] for m in members))
+        if i < a.show:
+            for t in k: print("     ", t)
+    print(f"{len(order)} groups, {total} functions")
+
+
+if __name__ == "__main__":
+    main()
