@@ -90,6 +90,17 @@ void XB_CDECL PM_AddTouchEnt(int32_t entity) {
     ++field<int32_t>(pm, 0x7c);
 }
 
+// The original keeps XMM1-7; 0x002aca26 compares XMM1 after the call (0x002aca61).
+PLATFORM_ASM_ENTRY(PM_StartLegsAnim_entry,
+                   "subl $112, %esp\n"
+                   "movups %xmm1, 0(%esp)\n movups %xmm2, 16(%esp)\n movups %xmm3, 32(%esp)\n movups %xmm4, 48(%esp)\n"
+                   "movups %xmm5, 64(%esp)\n movups %xmm6, 80(%esp)\n movups %xmm7, 96(%esp)\n"
+                   PLATFORM_ASM_CALL(PM_StartLegsAnim)
+                   "movups 0(%esp), %xmm1\n movups 16(%esp), %xmm2\n movups 32(%esp), %xmm3\n movups 48(%esp), %xmm4\n"
+                   "movups 64(%esp), %xmm5\n movups 80(%esp), %xmm6\n movups 96(%esp), %xmm7\n"
+                   "addl $112, %esp\n"
+                   "ret")
+
 void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim) {
     uint8_t* pm = title_global<uint8_t*>(0x0092eff4);
     uint8_t* ps = *reinterpret_cast<uint8_t**>(pm);

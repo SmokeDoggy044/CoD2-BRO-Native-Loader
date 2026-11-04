@@ -73,7 +73,8 @@ void XB_CDECL SP_info_notnull(uint8_t* ent);
 void XB_CDECL SP_info_notnull_big(uint8_t* ent);
 // 0x0024bc00 (entity in EDX): clears every live vehicle's references to the entity (+0x204,
 // +0x208, +0x1cc; vehicles 0x340 bytes from g_vehicles, live with +0x170 set).
-void XB_REGS2 XB_CDECL Vehicle_ClearEntityRefs(uint32_t, const uint8_t* ent);
+extern "C" PLATFORM_HIDDEN void XB_REGS2 XB_CDECL Vehicle_ClearEntityRefs(uint32_t, const uint8_t* ent);
+extern "C" void Vehicle_ClearEntityRefs_entry(void);  // keeps the registers the original keeps
 // 0x002489f0: sound_blend spawn - type 8, no contents, static trajectories, +0xd4 flag 0x20.
 void XB_CDECL SP_sound_blend(uint8_t* ent);
 // 0x002485f0: script_vehicle_collmap spawn - type 0x10, no contents.

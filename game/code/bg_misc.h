@@ -34,7 +34,8 @@ void XB_CDECL PM_AddTouchEnt(int32_t entity);
 // 0x002ac7e0 (anim in ECX): sets the legs anim (+0x4ec, toggle bit 0x200 flipped) unless the
 // player is dead (+0x24 >= 4) or pm +0xa is clear; anim 0 above 0.9 of +0x88 becomes 0x17; in
 // mode 5 (0x00960020 -> +0x94) the anim is stored as is.
-void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim);
+extern "C" PLATFORM_HIDDEN void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim);
+extern "C" void PM_StartLegsAnim_entry(void);  // keeps the registers the original keeps
 // 0x002bcf90 (entity state in EAX, player state in ECX): copies the player into its entity
 // state - origin, angles, the lean (+0x78, signed byte as float), the newest predictable
 // event's parameter, and the external events since the last call that are not in the

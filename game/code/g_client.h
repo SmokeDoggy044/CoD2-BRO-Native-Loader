@@ -16,7 +16,8 @@ namespace game {
 uint32_t XB_REGS1 XB_CDECL Add_Ammo(uint8_t* ent, uint32_t weapon, int32_t count, uint32_t fill_clip);
 // 0x0024ebf0 (angles in EAX, entity in EDX): Q3's SetClientViewAngle (delta angles, entity
 // and player view angles), with the clamp around +0x450/+0x458 for players with +0x2c bit 0.
-void XB_REGS2 XB_CDECL SetClientViewAngle(const float* angle, uint8_t* ent);
+extern "C" PLATFORM_HIDDEN void XB_REGS2 XB_CDECL SetClientViewAngle(const float* angle, uint8_t* ent);
+extern "C" void SetClientViewAngle_entry(void);  // keeps the registers the original keeps
 // 0x0024eec0 (entity in EAX, origin in ECX): Q3's TeleportPlayer - origin (+1 z), toggles
 // EF_TELEPORT_BIT, entity state from the player state, current origin.
 void XB_REGS3 XB_CDECL TeleportPlayer(uint8_t* ent, uint32_t unused_edx, const float* origin);

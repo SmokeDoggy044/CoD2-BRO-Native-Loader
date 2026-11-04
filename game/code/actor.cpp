@@ -2282,6 +2282,17 @@ uint8_t* path_node_from_handle(const uint16_t* handle) {
 
 }  // namespace
 
+// The original writes no XMM register; 0x00200d4b/0x0021da5e/0x0021efba/0x002fd087 keep XMM0-2 across the call.
+PLATFORM_ASM_ENTRY(PathNode_FromHandle_entry,
+                   "subl $128, %esp\n"
+                   "movups %xmm0, 0(%esp)\n movups %xmm1, 16(%esp)\n movups %xmm2, 32(%esp)\n movups %xmm3, 48(%esp)\n"
+                   "movups %xmm4, 64(%esp)\n movups %xmm5, 80(%esp)\n movups %xmm6, 96(%esp)\n movups %xmm7, 112(%esp)\n"
+                   PLATFORM_ASM_CALL(PathNode_FromHandle)
+                   "movups 0(%esp), %xmm0\n movups 16(%esp), %xmm1\n movups 32(%esp), %xmm2\n movups 48(%esp), %xmm3\n"
+                   "movups 64(%esp), %xmm4\n movups 80(%esp), %xmm5\n movups 96(%esp), %xmm6\n movups 112(%esp), %xmm7\n"
+                   "addl $128, %esp\n"
+                   "ret")
+
 uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle) { return path_node_from_handle(handle); }
 
 uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle) { return path_node_from_handle(handle); }
@@ -2948,6 +2959,17 @@ void XB_CDECL Scr_QueueAnimEndNotify(uint8_t* record) {
     title_global<int32_t>(0x008dd1f8) = count;
     record[0x10] = 1;
 }
+
+// The original writes no XMM register; 0x00211821/0x00307a74 keep the position in XMM0-2 across the call.
+PLATFORM_ASM_ENTRY(Sentient_GetVelocity_entry,
+                   "subl $128, %esp\n"
+                   "movups %xmm0, 0(%esp)\n movups %xmm1, 16(%esp)\n movups %xmm2, 32(%esp)\n movups %xmm3, 48(%esp)\n"
+                   "movups %xmm4, 64(%esp)\n movups %xmm5, 80(%esp)\n movups %xmm6, 96(%esp)\n movups %xmm7, 112(%esp)\n"
+                   PLATFORM_ASM_CALL(Sentient_GetVelocity)
+                   "movups 0(%esp), %xmm0\n movups 16(%esp), %xmm1\n movups 32(%esp), %xmm2\n movups 48(%esp), %xmm3\n"
+                   "movups 64(%esp), %xmm4\n movups 80(%esp), %xmm5\n movups 96(%esp), %xmm6\n movups 112(%esp), %xmm7\n"
+                   "addl $128, %esp\n"
+                   "ret")
 
 float* XB_REGS3 XB_CDECL Sentient_GetVelocity(float* out, uint32_t, const uint8_t* sentient) {
     // Actors: the actor's +0x2a0 vector; others: the entity's client (+0x23c) +0x10 vector.

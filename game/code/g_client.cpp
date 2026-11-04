@@ -109,6 +109,11 @@ uint32_t XB_REGS1 XB_CDECL Add_Ammo(uint8_t* ent, uint32_t weapon, int32_t count
     return static_cast<uint32_t>(clip + ammo - old_clip - old_ammo);
 }
 
+// The original keeps EDX; 0x0025bbd7 passes it on to G_EntLinkToWithOffset.
+PLATFORM_ASM_ENTRY(SetClientViewAngle_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(SetClientViewAngle) "popl %edx\n"
+                   "ret")
+
 void XB_REGS2 XB_CDECL SetClientViewAngle(const float* angle, uint8_t* ent) {
     // Q3's SetClientViewAngle with a view clamp: a player with +0x2c bit 0 set (and +0xc0 bits
     // 0x6000 clear) keeps yaw within 45 degrees of +0x450 and pitch within -15..45 of +0x458,

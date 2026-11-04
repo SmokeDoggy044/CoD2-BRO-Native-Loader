@@ -453,7 +453,8 @@ void XB_CDECL ActorMove_AddTouchEnt(uint32_t ent);
 // 0x002b9f90 / 0x002ba010 (handle pointer in EAX; identical bodies): the path node of a 16-bit handle - block
 // (handle >> 9) - 1 of g_pathNodeBlocks (+8), node handle & 0x1ff (0x80 bytes at the block's +0x10); null for
 // 0, 0xffff or a missing block.
-uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle);
+extern "C" PLATFORM_HIDDEN uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle);
+extern "C" void PathNode_FromHandle_entry(void);  // keeps the registers the original keeps
 uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle);
 // 0x002b1240 (node in EBX; sentient on the stack): 0 when another sentient's claim (+4) has not expired (+8 vs
 // level_time) or a team-4 sentient other than this one stands on it (node number vs +0x50), else 1.
@@ -581,7 +582,8 @@ extern "C" void Actor_ForgetSentient_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_QueueAnimEndNotify(uint8_t* record);
 extern "C" void Scr_QueueAnimEndNotify_entry(void);
 // 0x001fdfd0: EAX out, ECX sentient: the actor's (+0x2a0) or client's (+0x10) velocity.
-float* XB_REGS3 XB_CDECL Sentient_GetVelocity(float* out, uint32_t, const uint8_t* sentient);
+extern "C" PLATFORM_HIDDEN float* XB_REGS3 XB_CDECL Sentient_GetVelocity(float* out, uint32_t, const uint8_t* sentient);
+extern "C" void Sentient_GetVelocity_entry(void);  // keeps the registers the original keeps
 // 0x001fe1a0: EAX delay, ECX actor: forgets the current enemy until level time + delay. No references (dead).
 void XB_REGS3 XB_CDECL Actor_ForgetEnemyFor(uint32_t delay, uint32_t, uint8_t* actor);
 // 0x001fe4f0: ESI cache, EDI goal, stack start (ret 4): records a failed route (oldest entry reused when full).

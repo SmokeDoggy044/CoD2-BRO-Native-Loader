@@ -327,6 +327,11 @@ void XB_CDECL SP_info_notnull_big(uint8_t* ent) {
     set_trajectory(ent, reinterpret_cast<const float*>(ent + 0x140), 0x20, 0x14, 0x2c, 0x140);
 }
 
+// The original keeps EDX; 0x002b7888 reads the entity from it after the call.
+PLATFORM_ASM_ENTRY(Vehicle_ClearEntityRefs_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Vehicle_ClearEntityRefs) "popl %edx\n"
+                   "ret")
+
 void XB_REGS2 XB_CDECL Vehicle_ClearEntityRefs(uint32_t, const uint8_t* ent) {
     for (uint32_t i = 0; i < title_global<uint16_t>(0x00986000); ++i) {  // g_vehicleSlotCount
         uint8_t* vehicle = title_global<uint8_t*>(0x0095f694) + i * 0x340;  // g_vehicles
