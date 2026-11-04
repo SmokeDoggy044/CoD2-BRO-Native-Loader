@@ -1060,6 +1060,9 @@ address,name,tested,matched,nan,mismatched,coverage
 002f6d70,GScr_Vehicle_GetOwnerHandle,3071,3071,0,0,48.3
 002f6de0,GScr_Vehicle_GetSpeedMPH,3006,3006,0,0,100.0
 002f7040,GScr_Vehicle_SetMaxSpeed,3003,3003,0,0,88.5
+002f7210,GScr_PlayerGetWeaponSlotClipSize,3992,3992,0,0,50.0
+002f7980,GScr_PlayerSetNotFlag_630,3998,3998,0,0,100.0
+002f79d0,GScr_PlayerIsLookingAt,3999,3999,0,0,35.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
