@@ -582,4 +582,49 @@ uint8_t XB_CDECL GScr_ActorIsStanceAllowed(uint32_t handle, uint32_t stance);
 // names it (+0xc8) after name, or the int hash map text of the actor record's (+0x250) +4 for none.
 void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString* name);
 
+struct ScrStringArray;
+// 0x002fd1e0: a shake/rumble descriptor (ShakeRumbleDesc_Init): the shake channel (+0) from shake_a and its
+// strength when > 0, the rumble channel (+0x20) unless its time is below 0.01 (strength clamped to 0..1);
+// started on shakeRumbleMgr, names released.
+void XB_CDECL GScr_ShakeRumble(uint32_t rumble_a, float rumble_strength, float rumble_time, uint32_t rumble_b,
+                               uint32_t rumble_c, uint32_t shake_a, float shake_strength);
+// 0x002fd2d0: both channels by name when strength > 0 (shake: name, time, strength 1; rumble: name, strength).
+void XB_CDECL GScr_ShakeRumbleNamed(const ScriptString* rumble, float strength, const ScriptString* shake,
+                                    uint32_t shake_time);
+// 0x002fd3a0: HudManager_SetComponentColor on the HUD manager's component +0x1c.
+void XB_CDECL GScr_HudSetComponentColor(int32_t component, int32_t color);
+// 0x002fd420: the sentient's (+0x244) goal node +0x4a; for non-players also Sentient_SetGoalNode.
+void XB_CDECL GScr_SetGoalNode(uint32_t handle, const uint16_t* node);
+// 0x002fd490, 0x002fd4d0: the render record's (CG_GetEntityRefEntity) byte +0xee = value / +0xef = value != 0.
+void XB_CDECL GScr_SetRefEntByte_ee(uint32_t handle, uint32_t value);
+void XB_CDECL GScr_SetRefEntFlag_ef(uint32_t handle, uint32_t value);
+// 0x002fd520: notifies "death" (Scr_Notify), then G_FreeEntity.
+void XB_CDECL GScr_Delete(uint32_t handle);
+// 0x002fd570: the callback at +0x86c of the object at 0x0095f49c on the script_animtree and script_name cvars
+// (copied to script strings), 0 when either is empty.
+uint32_t XB_CDECL GScr_CheckScriptAnimTreeCvars();
+// 0x002fd630: FX_IsEffectActive on the list at 0x0095f5b4.
+uint8_t XB_CDECL GScr_IsSoundPlaying(uint32_t id);
+// 0x002fd740: the localized string (rm_locStrings entry +8, else +0xc) for the hash into out. Returns out.
+ScriptString* XB_CDECL GScr_GetLocalizedString(ScriptString* out, uint32_t hash);
+// 0x002fd770, 0x002fd790, 0x002fd7b0, 0x002fd820: HUD element *index becomes a timer of kind 7 / 6 / 5 / 4
+// (HudElem_SetTimerKind; inlined for 5).
+void XB_CDECL GScr_HudSetTimer7(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer6(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer4(const int32_t* index, float seconds);
+// 0x002fd840: the zone of that name in the zone set (+0x18 of 0x0095f638: StringMap_Find over +8, index
+// checked against +0x10, values +0x14), 0 if none.
+uint32_t XB_CDECL GScr_FindZone(const ScriptString* name);
+// 0x002fd8a0: config string 9 = "%g" of value.
+void XB_CDECL GScr_SetConfigstring9Float(float value);
+// 0x002fd8c0: the two keys bound to the command (VM_Call(cgvm, 0xc); "KEY_UNBOUND" / "" without cgame)
+// appended to out; returns the VM_Call result (0 without cgame).
+int32_t XB_CDECL GScr_GetKeyBinding(ScrStringArray* out, const ScriptString* command);
+// 0x002fd9b0: out (DynArray) = the entity numbers of the actors of the team (all teams 0xe for an empty name).
+void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team);
+// 0x002fda60, 0x002fda90: the cvar's float (+0x1c, ST0) / int (+0x20), 0 for unknown cvars.
+float XB_CDECL GScr_GetCvarFloat(const char* name);
+int32_t XB_CDECL GScr_GetCvarInt(const char* name);
+
 }  // namespace game

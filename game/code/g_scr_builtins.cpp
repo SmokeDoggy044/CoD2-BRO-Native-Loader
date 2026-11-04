@@ -2,24 +2,31 @@
 
 #include <cstring>
 
+#include "actor.h"
+#include "bg_misc.h"
+#include "cg_ents.h"
+#include "cg_hud.h"
 #include "cgame.h"
 #include "cl.h"
 #include "dobj.h"
-#include "g_client.h"
-#include "ngl_debug.h"
-#include "sv.h"
 #include "fx.h"
-#include "g_pathnode.h"
+#include "g_client.h"
+#include "g_combat.h"
 #include "g_main.h"
+#include "g_pathnode.h"
+#include "g_scr_runtime.h"
+#include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
-#include "actor.h"
-#include "bg_misc.h"
-#include "cg_hud.h"
+#include "ngl_debug.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "scr_access.h"
 #include "script_string.h"
+#include "snd.h"
+#include "stream.h"
+#include "sv.h"
 #include "title_data.h"
 #include "xanim.h"
 
@@ -2573,6 +2580,218 @@ void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString
         title_function<void XB_THISCALL(ScriptString*, const uint8_t*)>(0x0011dd20)(  // ScriptString_AssignCString
             section, IntHashMap_FindValue(field<uint16_t>(field<uint8_t*>(actor, 0x250), 4)));
     }
+}
+
+namespace {
+
+using ReleaseFn = void XB_THISCALL(ScriptString*);
+using AssignFn = void XB_THISCALL(ScriptString*, const ScriptString*);
+
+// Starts a shake/rumble descriptor on shakeRumbleMgr (0x0095f5c4, if any; strength 1), then releases its two
+// channel names (+0x38, +0x18).
+void start_shake_rumble(uint8_t* desc) {
+    if (uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4)) {
+        uint32_t id;  // the original lets ShakeRumble_Start write it into one of its argument slots
+        ShakeRumble_Start(desc, manager, &id, 1.0f);
+    }
+    title_function<ReleaseFn>(0x0011d640)(reinterpret_cast<ScriptString*>(desc + 0x38));  // ScriptString_Release
+    title_function<ReleaseFn>(0x0011d640)(reinterpret_cast<ScriptString*>(desc + 0x18));
+}
+
+const char* cvar_string_or_empty(uint32_t name) {
+    const uint8_t* const cvar = Cvar_FindVar(title_text(name));
+    return cvar ? field<const char*>(const_cast<uint8_t*>(cvar), 4) : title_text(0x0082dfeb);  // ""
+}
+
+}  // namespace
+
+void XB_CDECL GScr_ShakeRumble(uint32_t rumble_a, float rumble_strength, float rumble_time, uint32_t rumble_b,
+                               uint32_t rumble_c, uint32_t shake_a, float shake_strength) {
+    alignas(16) uint8_t desc[0x40];
+    ShakeRumbleDesc_Init(desc);
+    const float one = title_global<float>(0x0083eb20);
+    if (shake_strength > 0.0f) {
+        field<float>(desc, 0x10) = shake_strength;
+        field<float>(desc, 8) = one;
+        field<uint32_t>(desc, 4) = shake_a;
+    } else {
+        field<uint8_t>(desc, 0) = 0;
+    }
+    if (title_global<float>(0x0083eb94) > rumble_time) {  // 0.01
+        field<uint8_t>(desc, 0x20) = 0;
+    } else {
+        float strength = 0.0f;  // clamped to 0..1; NaN stays
+        if (!(0.0f > rumble_strength)) strength = rumble_strength > one ? one : rumble_strength;
+        field<float>(desc, 0x28) = strength;
+        field<uint32_t>(desc, 0x24) = rumble_a;
+        field<uint32_t>(desc, 0x2c) = rumble_b;
+        field<float>(desc, 0x30) = rumble_time;
+        field<uint32_t>(desc, 0x34) = rumble_c;
+    }
+    start_shake_rumble(desc);
+}
+
+void XB_CDECL GScr_ShakeRumbleNamed(const ScriptString* rumble, float strength, const ScriptString* shake,
+                                    uint32_t shake_time) {
+    alignas(16) uint8_t desc[0x40];
+    ShakeRumbleDesc_Init(desc);
+    const float zero = title_global<float>(0x0083eafc);
+    if (strength > zero) {
+        title_function<AssignFn>(0x0011d600)(reinterpret_cast<ScriptString*>(desc + 0x18), shake);  // ScriptString_Assign
+        field<uint32_t>(desc, 0x10) = shake_time;
+        field<float>(desc, 8) = title_global<float>(0x0083eb20);
+    } else {
+        field<uint8_t>(desc, 0) = 0;
+    }
+    if (strength > zero) {
+        title_function<AssignFn>(0x0011d600)(reinterpret_cast<ScriptString*>(desc + 0x38), rumble);
+        field<float>(desc, 0x30) = strength;
+        field<float>(desc, 0x28) = title_global<float>(0x0083eb20);
+    } else {
+        field<uint8_t>(desc, 0x20) = 0;
+    }
+    start_shake_rumble(desc);
+}
+
+void XB_CDECL GScr_HudSetComponentColor(int32_t component, int32_t color) {
+    HudManager_SetComponentColor(hud_component(0x1c), component, color);
+}
+
+void XB_CDECL GScr_SetGoalNode(uint32_t handle, const uint16_t* node) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const sentient = field<uint8_t*>(ent, 0x244);
+    if (!sentient) return;
+    const uint16_t node_handle = *node;
+    field<uint16_t>(sentient, 0x4a) = node_handle;
+    // The node handle goes in the low half of the first argument slot, the handle's upper half stays.
+    if (!field<uint8_t*>(ent, 0x23c))
+        Sentient_SetGoalNode(field<uint8_t*>(ent, 0x244), (handle & 0xffff0000u) | node_handle);
+}
+
+void XB_CDECL GScr_SetRefEntByte_ee(uint32_t handle, uint32_t value) {
+    if (uint8_t* const ent = handle_entity(handle))
+        field<uint8_t>(CG_GetEntityRefEntity(ent), 0xee) = static_cast<uint8_t>(value);
+}
+
+void XB_CDECL GScr_SetRefEntFlag_ef(uint32_t handle, uint32_t value) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const uint8_t flag = static_cast<uint8_t>(value) != 0;
+    field<uint8_t>(CG_GetEntityRefEntity(ent), 0xef) = flag;
+}
+
+void XB_CDECL GScr_Delete(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    Scr_Notify(ent, title_global<uint32_t>(0x0097a684));  // scr_const_death
+    G_FreeEntity(ent);
+}
+
+uint32_t XB_CDECL GScr_CheckScriptAnimTreeCvars() {
+    using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+    ScriptString tree, name;
+    title_function<FromCString>(0x0011eb50)(&tree, cvar_string_or_empty(0x008322b4));  // "script_animtree"
+    title_function<FromCString>(0x0011eb50)(&name, cvar_string_or_empty(0x008322a8));  // "script_name"
+    const char* const tree_text = script_text(&tree);
+    const char* const name_text = script_text(&name);
+    if (tree_text && *tree_text && name_text && *name_text) {
+        // The callback at +0x86c of the object at 0x0095f49c.
+        const uint32_t check = field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x86c);
+        const uint32_t result = title_function<uint32_t XB_CDECL(const char*, const char*)>(check)(tree_text, name_text);
+        title_function<ReleaseFn>(0x0011d640)(&name);  // ScriptString_Release
+        title_function<ReleaseFn>(0x0011d640)(&tree);
+        return result;
+    }
+    title_function<ReleaseFn>(0x0011d640)(&name);
+    title_function<ReleaseFn>(0x0011d640)(&tree);
+    return 0;
+}
+
+uint8_t XB_CDECL GScr_IsSoundPlaying(uint32_t id) { return FX_IsEffectActive(title_global<FxIdList*>(0x0095f5b4), id); }
+
+ScriptString* XB_CDECL GScr_GetLocalizedString(ScriptString* out, uint32_t hash) {
+    const char* text = nullptr;
+    if (const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), hash)) {  // rm_locStrings
+        text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+        if (!text) text = field<const char*>(const_cast<uint8_t*>(entry), 0xc);
+    }
+    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // ScriptString_FromCString
+    return out;
+}
+
+void XB_CDECL GScr_HudSetTimer7(const int32_t* index, float seconds) { HudElem_SetTimerKind(*index, 7, seconds); }
+void XB_CDECL GScr_HudSetTimer6(const int32_t* index, float seconds) { HudElem_SetTimerKind(*index, 6, seconds); }
+// Inlined HudElem_SetTimerKind with kind 5 (which formats no message).
+void XB_CDECL GScr_HudSetTimer(const int32_t* index, float seconds) { HudElem_SetTimerKind(*index, 5, seconds); }
+void XB_CDECL GScr_HudSetTimer4(const int32_t* index, float seconds) { HudElem_SetTimerKind(*index, 4, seconds); }
+
+uint32_t XB_CDECL GScr_FindZone(const ScriptString* name) {
+    const char* text = script_text(name);
+    uint8_t* const zones = field<uint8_t*>(title_global<uint8_t*>(0x0095f638), 0x18);
+    if (!zones) return 0;
+    const uint32_t* const found = StringMap_Find(reinterpret_cast<const uint32_t*>(zones + 8), &text);
+    if (!found) return 0;
+    uint32_t index = *found;
+    if (index >= field<uint32_t>(zones, 0x10)) index = 0;
+    return field<uint32_t*>(zones, 0x14)[index];
+}
+
+void XB_CDECL GScr_SetConfigstring9Float(float value) {
+    SV_SetConfigstring(9, title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+                              title_text(0x008324d4), x87_widen(value)));  // "%g"
+}
+
+int32_t XB_CDECL GScr_GetKeyBinding(ScrStringArray* out, const ScriptString* command) {
+    using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+    const char* key1 = nullptr;
+    const char* key2 = nullptr;
+    int32_t result = 0;
+    const char* const text = script_text(command);
+    if (const uint32_t vm = title_global<uint32_t>(0x0093f7f8)) {  // cgvm
+        result = title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint32_t, int32_t, const char*, const char**,
+                                                          const char**)>(0x002a84e0)(0, vm, 0xc, text, &key1, &key2);  // VM_Call
+    } else {
+        key1 = title_text(0x008344d0);  // "KEY_UNBOUND"
+        key2 = title_text(0x0082dfeb);  // ""
+    }
+    ScriptString temp;  // the original builds it in its second argument slot
+    title_function<FromCString>(0x0011eb50)(&temp, key1);
+    ScrStringArray_PushBack(out, &temp);
+    title_function<ReleaseFn>(0x0011d640)(&temp);
+    title_function<FromCString>(0x0011eb50)(&temp, key2);
+    ScrStringArray_PushBack(out, &temp);
+    title_function<ReleaseFn>(0x0011d640)(&temp);
+    return result;
+}
+
+void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team) {
+    DynArray_Resize(out, 0, 0);
+    uint32_t mask = 0xe;
+    const char* const text = script_text(team);
+    if (text && *text) {
+        ScriptString context;  // "getai", built in the original's second argument slot
+        title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&context, title_text(0x0083258c));
+        mask = Scr_TeamFromString(team);
+        title_function<ReleaseFn>(0x0011d640)(&context);
+    }
+    for (uint8_t* actor = Actor_FirstOfTeams(mask); actor && field<uint8_t*>(actor, 0);
+         actor = Actor_NextOfTeams(actor, mask)) {
+        const uint32_t number = field<uint32_t>(field<uint8_t*>(actor, 0), 0x224);
+        DynArray_PushBack(out, &number);
+    }
+}
+
+float XB_CDECL GScr_GetCvarFloat(const char* name) {
+    const uint8_t* const cvar = Cvar_FindVar(name);
+    float value = 0.0f;
+    if (cvar) std::memcpy(&value, cvar + 0x1c, 4);
+    return value;
+}
+
+int32_t XB_CDECL GScr_GetCvarInt(const char* name) {
+    const uint8_t* const cvar = Cvar_FindVar(name);
+    return cvar ? *reinterpret_cast<const int32_t*>(cvar + 0x20) : 0;
 }
 
 }  // namespace game
