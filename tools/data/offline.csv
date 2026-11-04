@@ -1084,6 +1084,13 @@ address,name,tested,matched,nan,mismatched,coverage
 002f8000,GScr_GetWeaponAmmoFraction,3995,3995,0,0,45.5
 002f80d0,GScr_PlayerHasWeapon,3999,3999,0,0,34.8
 002f8360,GScr_PlayerTakeWeapon,3998,3998,0,0,42.6
+002f8420,GScr_ActorSetFlag2000000,3998,3998,0,0,76.0
+002f8480,GScr_ActorGetPathNodeOrOrigin,3998,3998,0,0,31.5
+002f87a0,GScr_EmptyStub398,4000,4000,0,0,100.0
+002f87f0,GScr_ActorTeleport,3994,3994,0,0,27.8
+002f8b20,GScr_ActorSetTraverseMode,3996,3996,0,0,45.8
+002f8c20,GScr_ActorAllowedStances,3996,3996,0,0,66.7
+002f8d50,GScr_ActorPathHasFlag1,3999,3999,0,0,63.6
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
