@@ -81,11 +81,124 @@ SHAPES = [
     for ref, copier in [("ScrField_followers_IsDefined", 0x0045cd00), ("ScrField_h4f7c0a56_IsDefined", 0x0017c2e0),
                         ("ScrField_h677e856b_IsDefined", 0x001e60d0), ("ScrField_path_pos_IsDefined", 0x0017c3b0),
                         ("ScrField_he337f297_IsDefined", 0x0017c720), ("ScrField_gunners_IsDefined", 0x0017c610)]
+] + [
+    # push 2: fixed immediates beside the hash ("imms": H = the hash)
+    dict(template="ScrField_SlotIsNot", ref="ScrField_thread_killer_IsDefined", extra=[0, 0xfefefefe],
+         imms=["H", "0xfefefefe", "0xfefefefe"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrField_SlotIsNot", ref="ScrField_path_IsDefined", extra=[0xffffffff, 0xffffffff],
+         imms=["H", "0xffffffff", "0xffffffff", "0xffffffff"], ret="bool*", params="bool*, uint32_t", stack=8,
+         result="Eax"),
+    dict(template="ScrField_SlotIsSet", ref="ScrField_h05374cc6_IsDefined",
+         imms=["H", "0xffffffff"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrField_SlotLiteral", ref="ScrField_path", extra=[0xffffffff],
+         imms=["H", "0xffffffff", "H"], ret="uint32_t*", params="uint32_t", stack=4, result="Eax"),
+    dict(template="ScrField_BoolSlotSet", ref="ScrField_can_shoot_low_2",
+         ret="uint32_t*", params="uint32_t, uint32_t", stack=8, result="Eax", hashes=2),
+    dict(template="ScrField_CopyOf", ref="ScrField_ambient_GetCopy", extra=[0xc, 0x0052bd10], conv="XB_THISCALL",
+         imms=["H", "0xfffffff4"], ret="void*", params="uint8_t*, void*", stack=4, result="Eax"),
+    dict(template="ScrField_CopyOf", ref="ScrField_he337f297_GetArrayCopy", extra=[0x10, 0x0017c4e0],
+         conv="XB_THISCALL", imms=["H", "0xfffffff0"], ret="void*", params="uint8_t*, void*", stack=4,
+         result="Eax"),
+    dict(template="ScrField_Clear52", ref="ScrField_h1791f035_Clear", extra=[0x001e61f0],
+         ret="void", params="uint32_t", stack=4, result="None", hashes=1),
+    dict(template="ScrField_ArrayIsDefinedReleased", ref="ScrField_h053fe992_IsDefined",
+         extra=[0x001e6020, 0x0045db80], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1),
+] + [
+    dict(template="ScrField_Get", ref=ref, extra=[getter],
+         ret="void*", params="uint32_t", stack=4, result="Eax", hashes=1)
+    # ScrField_h12993a44 (getter 0x001e4a20) is plain C: its getter copies a never-set word of its frame
+    for ref, getter in [("ScrField_h053fe992", 0x001e6070),
+                        ("ScrField_fallback", 0x001e6250), ("ScrField_h1791f035", 0x001e61f0)]
+] + [
+    dict(template="ScrField_ArrayIsDefined", ref=ref, extra=[copier],
+         ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1)
+    for ref, copier in [("ScrField_fallback_IsDefined", 0x001e62b0), ("ScrField_h1791f035_IsDefined", 0x001e61a0)]
+] + [
+    # push 2: path / vehicle node fields
+    dict(template="ScrNode_GetKey", ref="ScrVehNodeField_detourstart", extra=[0x00922980],
+         ret="uint32_t*", params="uint32_t*, uint32_t", stack=8, result="Eax", hashes=1),
+    dict(template="ScrNode_GetKey", ref="ScrPathNodeField_script_fallback", extra=[0x00922960],
+         ret="uint32_t*", params="uint32_t*, uint32_t", stack=8, result="Eax", hashes=1),
+    dict(template="ScrNode_KeyIsDefined", ref="ScrVehNodeField_detourstart_IsDefined", extra=[0x00922980],
+         imms=["0xffffffff", "H"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrNode_HandleIsDefined", ref="ScrPathNodeField_script_noteworthy_IsDefined",
+         extra=[0x00922224, 1], imms=["0xffffffff"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrNode_HandleIsDefined", ref="ScrVehNodeField_script_noteworthy_IsDefined",
+         extra=[0x00922228, 0], imms=["0xffffffff"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrNode_StringKeyCopy", ref="ScrPathNodeField_script_waittill_Copy", extra=[0x00922958],
+         conv="XB_THISCALL", imms=["0xffffffff", "0x0036f9c1", "H"], ret="ScriptString*",
+         params="const uint32_t*, ScriptString*", stack=4, result="Eax"),
+    dict(template="ScrNode_StringKeyCopy", ref="ScrVehNodeField_script_uniquename_Copy", extra=[0x00922978],
+         conv="XB_THISCALL", imms=["0xffffffff", "0x0036f9c1", "H"], ret="ScriptString*",
+         params="const uint32_t*, ScriptString*", stack=4, result="Eax"),
+    dict(template="ScrNode_StringCopy", ref="ScrPathNodeField_animscript_Copy", extra=[0x00922aa8],
+         conv="XB_THISCALL", imms=["0xffffffff", "0x0036f9c1"], ret="ScriptString*",
+         params="const uint32_t*, ScriptString*", stack=4, result="Eax"),
+    dict(template="ScrNode_StringCopy", ref="ScrPathNodeField_type_Copy", extra=[0x00922ad8],
+         conv="XB_THISCALL", imms=["0xffffffff", "0x0036f9c1"], ret="ScriptString*",
+         params="const uint32_t*, ScriptString*", stack=4, result="Eax"),
+    dict(template="ScrNode_GetNodeKey", ref="ScrVehNodeField_endswitch", extra=[0x00922990],
+         ret="uint32_t*", params="uint32_t*, uint32_t", stack=8, result="Eax", hashes=1),
+    dict(template="ScrNode_NodeKeyIsDefined", ref="ScrVehNodeField_endswitch_IsDefined", extra=[0x00922990],
+         imms=["0xffffffff", "H", "0xffffffff"], ret="bool*", params="bool*, uint32_t", stack=8, result="Eax"),
+    dict(template="ScrNode_GetKeyOf", ref="ScrVehNodeField_detoured_2", extra=[0x00922980], conv="XB_THISCALL",
+         ret="uint32_t*", params="const uint32_t*, uint32_t*", stack=4, result="Eax", hashes=1),
+    dict(template="ScrNode_SetKeyOf", ref="ScrVehNodeField_hfefdb41b_Set", extra=[0x0092297c], conv="XB_THISCALL",
+         ret="const uint32_t*", params="const uint32_t*, const uint32_t*", stack=4, result="Eax", hashes=1),
+] + [
+    dict(template="ScrNode_String", ref=ref, extra=[getter], imms=[],
+         ret="ScriptString*", params="ScriptString*, uint32_t", stack=8, result="Eax")
+    for ref, getter in [("ScrPathNodeField_animscript", 0x00181170), ("ScrPathNodeField_script_chain", 0x001812d0),
+                        ("ScrPathNodeField_script_door", 0x00181350),
+                        ("ScrPathNodeField_script_noteworthy", 0x0011b9a0),
+                        ("ScrPathNodeField_script_waittill", 0x00181250), ("ScrPathNodeField_target", 0x00119a80),
+                        ("ScrPathNodeField_targetname", 0x0011cd30), ("ScrPathNodeField_type", 0x001811e0),
+                        ("ScrVehNodeField_script_noteworthy", 0x00119c90),
+                        ("ScrVehNodeField_script_uniquename", 0x001813d0), ("ScrVehNodeField_target", 0x00119be0),
+                        ("ScrVehNodeField_targetname", 0x00119b70)]
+] + [
+    dict(template="ScrNode_Vector", ref=ref, extra=[slot], imms=[],
+         ret="float*", params="float*, uint32_t", stack=8, result="Eax")
+    for ref, slot in [("ScrPathNodeField_angles", 0x00922ac0), ("ScrPathNodeField_origin", 0x00922ab8),
+                      ("ScrVehNodeField_angles", 0x00922af8), ("ScrVehNodeField_origin", 0x00922af0)]
+] + [
+    dict(template="ScrNode_FloatKey", ref=ref, extra=[slot], hashes=1,
+         ret="float*", params="float*, uint32_t", stack=8, result="Eax")
+    for ref, slot in [("ScrPathNodeField_script_delay", 0x00922968), ("ScrVehNodeField_script_delay", 0x00922988)]
+] + [
+    dict(template="ScrNode_Float", ref=ref, extra=[slot], imms=[],
+         ret="float*", params="float*, uint32_t", stack=8, result="Eax")
+    for ref, slot in [("ScrVehNodeField_speed", 0x00922b00), ("ScrVehNodeField_lookahead", 0x00922b08)]
+] + [
+    dict(template="ScrNode_StringNonEmpty", ref=ref, extra=[copier], imms=[], conv="XB_THISCALL",
+         ret="bool", params="const uint32_t*", stack=0, result="Al")
+    for ref, copier in [("ScrPathNodeField_script_waittill_NonEmpty", 0x00181250),
+                        ("ScrPathNodeField_script_door_IsSet", 0x00181350),
+                        ("ScrVehNodeField_script_uniquename_IsNonEmpty", 0x001813d0)]
+] + [
+    dict(template=template, ref=ref, extra=[offset], imms=[], ret=ret, params=params, stack=stack, result=result)
+    for ref, template, offset, ret, params, stack, result in [
+        (f"ScrHudElem_{kind}_{offset:02x}", f"ScrHudElem_{kind}Word", offset, "uint32_t",
+         "uint32_t, uint32_t" if kind == "Set" else "uint32_t", 8 if kind == "Set" else 4, "Eax")
+        for offset in (0x04, 0x08, 0x14, 0x18) for kind in ("Set", "Get")
+    ] + [
+        ("ScrHudElem_SetFloat_6c", "ScrHudElem_SetWord", 0x6c, "uint32_t", "uint32_t, uint32_t", 8, "Eax"),
+        ("ScrHudElem_SetFloat_0c", "ScrHudElem_SetWord", 0x0c, "uint32_t", "uint32_t, uint32_t", 8, "Eax"),
+        ("ScrHudElem_GetFloat_6c", "ScrHudElem_GetFloat", 0x6c, "float", "uint32_t", 4, "St0"),
+        ("ScrHudElem_GetFloat_0c", "ScrHudElem_GetFloat", 0x0c, "float", "uint32_t", 4, "St0"),
+    ] + [
+        (f"ScrHudElem_{kind}{name}", f"ScrHudElem_{kind}Byte", offset,
+         "uint32_t" if kind == "Set" else "uint8_t", "uint32_t, uint32_t" if kind == "Set" else "uint32_t",
+         8 if kind == "Set" else 4, "Eax" if kind == "Set" else "Al")
+        for name, offset in (("Alpha", 0x1f), ("ColorByte0", 0x1c), ("ColorByte1", 0x1d), ("ColorByte2", 0x1e))
+        for kind in ("Set", "Get")
+    ]
 ]
 
 
 def instance(shape, value):
-    args = ", ".join(f"{v:#010x}u" for v in [value] + shape.get("extra", []))
+    head = [] if value is None else [value]  # None: a shape without a hash (built-in fields)
+    args = ", ".join(f"{v:#010x}u" for v in head + shape.get("extra", []))
     return f"{shape['template']}<{args}>"
 
 
@@ -98,12 +211,16 @@ namespace game {
 """
 
 
+# Sizes the list (the Ghidra function bodies) has short: the bodies run to the ret.
+SIZES = {"ScrField_h17138232": 35, "ScrField_ha3d681e3_IsDefined": 87}
+
+
 def load_list(path):
     rows = []
     for line in open(path):
         p = line.split()
         if len(p) >= 4:
-            rows.append((int(p[0], 16), int(p[2]), p[3]))
+            rows.append((int(p[0], 16), SIZES.get(p[3], int(p[2])), p[3]))
     return rows
 
 
@@ -123,11 +240,15 @@ def members(image, rows):
         i = refs.get(key)
         if i is None:
             continue
-        values = {int(h, 16) for h in imms}
-        if len(imms) != SHAPES[i]["hashes"] or len(values) != 1:
+        pattern = SHAPES[i].get("imms", ["H"] * SHAPES[i].get("hashes", 0))
+        fixed_ok = len(imms) == len(pattern) and all(
+            p == "H" or int(p, 16) == int(h, 16) for p, h in zip(pattern, imms))
+        values = {int(h, 16) for p, h in zip(pattern, imms) if p == "H"}
+        hashless = "H" not in pattern
+        if not fixed_ok or len(values) != (0 if hashless else 1):
             sys.exit(f"{name} {va:08x}: shape {SHAPES[i]['ref']} but immediates {imms}")
-        value = values.pop()
-        m = re.fullmatch(r"ScrField_h([0-9a-f]{8})(_IsDefined)?", name)
+        value = None if hashless else values.pop()
+        m = re.fullmatch(r"ScrField_h([0-9a-f]{8})(_\w+)?", name)
         if m and int(m.group(1), 16) != value:
             sys.exit(f"{name} {va:08x}: name and hash {value:#010x} differ")
         found[i][1].append((va, name, value))
@@ -142,7 +263,7 @@ def write_sources(found, dry_run):
     decls, defs, names, entries, seen = [], [], [], [], set()
     for shape, items in found:
         for value in sorted({v for _, _, v in items}):
-            spec = f"{shape['ret']} XB_CDECL {instance(shape, value)}({shape['params']});"
+            spec = f"{shape['ret']} {shape.get('conv', 'XB_CDECL')} {instance(shape, value)}({shape['params']});"
             if spec in seen:
                 continue
             seen.add(spec)
@@ -205,7 +326,7 @@ def main():
     image = fnpack.Image()
     found = members(image, load_list(args.list))
     for shape, items in found:
-        print(f"{shape['ref']} -> {instance(shape, 0).replace('0x00000000u', 'H')}: {len(items)} members, "
+        print(f"{shape['ref']} -> {instance(shape, 0).replace('0x00000000u', 'H', 1)}: {len(items)} members, "
               f"{len({v for _, _, v in items})} hashes")
     write_sources(found, args.dry_run)
     print(f"kFunctions: {register(found, args.dry_run)} added; "

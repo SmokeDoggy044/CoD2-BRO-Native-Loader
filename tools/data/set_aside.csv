@@ -546,3 +546,6 @@ address,name,kind,reason
 00248a30,Ent_Callback348Stub2,unhookable,"bare ret (1 byte; callback table 0x008da8ac), too short to hook; has C (game ent push 1)"
 0024add0,G_ActorClampLethalDamage,unhookable,"RET at +4 inside the first 5 bytes (test eax,eax; jne; ret); has C (game ent push 1)"
 002fd890,G_SetupVehiclePool_Thunk,thunk,"5-byte jmp thunk to G_SetupVehiclePool (0x0024d940, C, 92/92 matched); no CALL/JMP, its only reference is the level-script import table slot 0x30c stored by G_SetupLevelScriptImports (0x0030b36a); covered by its target (2026-11-03)"
+002f4d70,ScrField_SetNone,unhookable,"bare ret (1 byte), too short to hook (2026-11-04)"
+0018b170,ScrPathNodeField_spawnflags,unhookable,"jmp [0x00922ad0] in the first 5 bytes (import-slot tail jump), cannot be hooked (2026-11-04)"
+002f5120,ScrIface_HashKeyNoCase,unhookable,"mov edx + jmp inside the first 5 bytes, cannot be hooked (2026-11-04)"

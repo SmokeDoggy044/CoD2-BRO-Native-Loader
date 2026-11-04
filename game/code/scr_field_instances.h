@@ -333,6 +333,7 @@ extern template ScriptString* XB_CDECL ScrField_String<0x0aedcb08u>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x0c4d3fa0u>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x142a3d9eu>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x16e6cf7eu>(uint32_t);
+extern template ScriptString* XB_CDECL ScrField_String<0x17138232u>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x1a7e7545u>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x1cc418a4u>(uint32_t);
 extern template ScriptString* XB_CDECL ScrField_String<0x1cc76848u>(uint32_t);
@@ -454,6 +455,7 @@ extern template bool* XB_CDECL ScrField_StringIsDefined<0x9f19950cu>(bool*, uint
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xa066a2f6u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xa1763cc1u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xa264fbf5u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_StringIsDefined<0xa3d681e3u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xaee61f94u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xaff32d79u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_StringIsDefined<0xb13f0c5eu>(bool*, uint32_t);
@@ -864,6 +866,112 @@ extern template bool* XB_CDECL ScrField_ArrayIsDefined<0x677e856bu, 0x001e60d0u>
 extern template bool* XB_CDECL ScrField_ArrayIsDefined<0xaeae4e0bu, 0x0017c3b0u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_ArrayIsDefined<0xe337f297u, 0x0017c720u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_ArrayIsDefined<0x2cd69a2au, 0x0017c610u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0x65637ee2u, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xa78b2c24u, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xaee44119u, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xc3f4bdfcu, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xd850f89eu, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xf8b8e073u, 0x00000000u, 0xfefefefeu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0x00398ae8u, 0xffffffffu, 0xffffffffu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsNot<0xedc6ddd3u, 0xffffffffu, 0xffffffffu>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsSet<0x05374cc6u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsSet<0x474f5086u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsSet<0x6dcb7c56u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_SlotIsSet<0xa33a251du>(bool*, uint32_t);
+extern template uint32_t* XB_CDECL ScrField_SlotLiteral<0x00398ae8u, 0xffffffffu>(uint32_t);
+extern template uint32_t* XB_CDECL ScrField_SlotLiteral<0xedc6ddd3u, 0xffffffffu>(uint32_t);
+extern template uint32_t* XB_CDECL ScrField_BoolSlotSet<0x185dadcau>(uint32_t, uint32_t);
+extern template uint32_t* XB_CDECL ScrField_BoolSlotSet<0x217d7784u>(uint32_t, uint32_t);
+extern template void* XB_THISCALL ScrField_CopyOf<0x9c1519acu, 0x0000000cu, 0x0052bd10u>(uint8_t*, void*);
+extern template void* XB_THISCALL ScrField_CopyOf<0xa1763cc1u, 0x0000000cu, 0x0052bd10u>(uint8_t*, void*);
+extern template void* XB_THISCALL ScrField_CopyOf<0xe337f297u, 0x00000010u, 0x0017c4e0u>(uint8_t*, void*);
+extern template void XB_CDECL ScrField_Clear52<0x1791f035u, 0x001e61f0u>(uint32_t);
+extern template bool* XB_CDECL ScrField_ArrayIsDefinedReleased<0x053fe992u, 0x001e6020u, 0x0045db80u>(bool*, uint32_t);
+extern template void* XB_CDECL ScrField_Get<0x053fe992u, 0x001e6070u>(uint32_t);
+extern template void* XB_CDECL ScrField_Get<0x9ef08b23u, 0x001e6250u>(uint32_t);
+extern template void* XB_CDECL ScrField_Get<0x1791f035u, 0x001e61f0u>(uint32_t);
+extern template bool* XB_CDECL ScrField_ArrayIsDefined<0x9ef08b23u, 0x001e62b0u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrField_ArrayIsDefined<0x1791f035u, 0x001e61a0u>(bool*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0x2d156c53u, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0x37ff641au, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0x93dff1d7u, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xa2253ffdu, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xa2975d51u, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xaecb47fdu, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xe40ab298u, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xed6f4f3du, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xfefdb41bu, 0x00922980u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0x8bbe4822u, 0x00922960u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetKey<0xec070be6u, 0x00922960u>(uint32_t*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0x2d156c53u, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0x37ff641au, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0x93dff1d7u, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xa2253ffdu, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xa2975d51u, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xaecb47fdu, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xe40ab298u, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xed6f4f3du, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_KeyIsDefined<0xfefdb41bu, 0x00922980u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>(bool*, uint32_t);
+extern template ScriptString* XB_THISCALL ScrNode_StringKeyCopy<0x8007a3d3u, 0x00922958u>(const uint32_t*, ScriptString*);
+extern template ScriptString* XB_THISCALL ScrNode_StringKeyCopy<0x8035694du, 0x00922958u>(const uint32_t*, ScriptString*);
+extern template ScriptString* XB_THISCALL ScrNode_StringKeyCopy<0xec03a0c6u, 0x00922958u>(const uint32_t*, ScriptString*);
+extern template ScriptString* XB_THISCALL ScrNode_StringKeyCopy<0x976440c4u, 0x00922978u>(const uint32_t*, ScriptString*);
+extern template ScriptString* XB_THISCALL ScrNode_StringCopy<0x00922aa8u>(const uint32_t*, ScriptString*);
+extern template ScriptString* XB_THISCALL ScrNode_StringCopy<0x00922ad8u>(const uint32_t*, ScriptString*);
+extern template uint32_t* XB_CDECL ScrNode_GetNodeKey<0x80044f23u, 0x00922990u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetNodeKey<0xe087be85u, 0x00922990u>(uint32_t*, uint32_t);
+extern template uint32_t* XB_CDECL ScrNode_GetNodeKey<0xe1453a61u, 0x00922990u>(uint32_t*, uint32_t);
+extern template bool* XB_CDECL ScrNode_NodeKeyIsDefined<0x80044f23u, 0x00922990u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_NodeKeyIsDefined<0xe087be85u, 0x00922990u>(bool*, uint32_t);
+extern template bool* XB_CDECL ScrNode_NodeKeyIsDefined<0xe1453a61u, 0x00922990u>(bool*, uint32_t);
+extern template uint32_t* XB_THISCALL ScrNode_GetKeyOf<0xaecb47fdu, 0x00922980u>(const uint32_t*, uint32_t*);
+extern template uint32_t* XB_THISCALL ScrNode_GetKeyOf<0xfefdb41bu, 0x00922980u>(const uint32_t*, uint32_t*);
+extern template const uint32_t* XB_THISCALL ScrNode_SetKeyOf<0xfefdb41bu, 0x0092297cu>(const uint32_t*, const uint32_t*);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00181170u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x001812d0u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00181350u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x0011b9a0u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00181250u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00119a80u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x0011cd30u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x001811e0u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00119c90u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x001813d0u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00119be0u>(ScriptString*, uint32_t);
+extern template ScriptString* XB_CDECL ScrNode_String<0x00119b70u>(ScriptString*, uint32_t);
+extern template float* XB_CDECL ScrNode_Vector<0x00922ac0u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_Vector<0x00922ab8u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_Vector<0x00922af8u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_Vector<0x00922af0u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_FloatKey<0x807116c4u, 0x00922968u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_FloatKey<0x807116c4u, 0x00922988u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_Float<0x00922b00u>(float*, uint32_t);
+extern template float* XB_CDECL ScrNode_Float<0x00922b08u>(float*, uint32_t);
+extern template bool XB_THISCALL ScrNode_StringNonEmpty<0x00181250u>(const uint32_t*);
+extern template bool XB_THISCALL ScrNode_StringNonEmpty<0x00181350u>(const uint32_t*);
+extern template bool XB_THISCALL ScrNode_StringNonEmpty<0x001813d0u>(const uint32_t*);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000004u>(uint32_t, uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_GetWord<0x00000004u>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000008u>(uint32_t, uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_GetWord<0x00000008u>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000014u>(uint32_t, uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_GetWord<0x00000014u>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000018u>(uint32_t, uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_GetWord<0x00000018u>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x0000006cu>(uint32_t, uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetWord<0x0000000cu>(uint32_t, uint32_t);
+extern template float XB_CDECL ScrHudElem_GetFloat<0x0000006cu>(uint32_t);
+extern template float XB_CDECL ScrHudElem_GetFloat<0x0000000cu>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetByte<0x0000001fu>(uint32_t, uint32_t);
+extern template uint8_t XB_CDECL ScrHudElem_GetByte<0x0000001fu>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetByte<0x0000001cu>(uint32_t, uint32_t);
+extern template uint8_t XB_CDECL ScrHudElem_GetByte<0x0000001cu>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetByte<0x0000001du>(uint32_t, uint32_t);
+extern template uint8_t XB_CDECL ScrHudElem_GetByte<0x0000001du>(uint32_t);
+extern template uint32_t XB_CDECL ScrHudElem_SetByte<0x0000001eu>(uint32_t, uint32_t);
+extern template uint8_t XB_CDECL ScrHudElem_GetByte<0x0000001eu>(uint32_t);
 extern "C" void ScrField_h19738af8_entry(void);
 extern "C" void ScrField_clip_entry(void);
 extern "C" void ScrField_hdedbf624_entry(void);
@@ -909,6 +1017,30 @@ extern "C" void ScrField_hbe944753_entry(void);
 extern "C" void ScrField_h83ccaf2a_entry(void);
 extern "C" void ScrField_using_respawner_entry(void);
 
+inline constexpr auto* ScrHudElem_Set_04 = &ScrHudElem_SetWord<0x00000004u>;  // 0x00015c50
+inline constexpr auto* ScrHudElem_Get_04 = &ScrHudElem_GetWord<0x00000004u>;  // 0x00015c70
+inline constexpr auto* ScrHudElem_Set_08 = &ScrHudElem_SetWord<0x00000008u>;  // 0x00015c90
+inline constexpr auto* ScrHudElem_Get_08 = &ScrHudElem_GetWord<0x00000008u>;  // 0x00015cb0
+inline constexpr auto* ScrHudElem_Set_14 = &ScrHudElem_SetWord<0x00000014u>;  // 0x00015cd0
+inline constexpr auto* ScrHudElem_Get_14 = &ScrHudElem_GetWord<0x00000014u>;  // 0x00015cf0
+inline constexpr auto* ScrHudElem_Set_18 = &ScrHudElem_SetWord<0x00000018u>;  // 0x00015d10
+inline constexpr auto* ScrHudElem_Get_18 = &ScrHudElem_GetWord<0x00000018u>;  // 0x00015d30
+inline constexpr auto* ScrHudElem_SetFloat_6c = &ScrHudElem_SetWord<0x0000006cu>;  // 0x00015d50
+inline constexpr auto* ScrHudElem_GetFloat_6c = &ScrHudElem_GetFloat<0x0000006cu>;  // 0x00015d70
+inline constexpr auto* ScrHudElem_SetFloat_0c = &ScrHudElem_SetWord<0x0000000cu>;  // 0x00015d90
+inline constexpr auto* ScrHudElem_GetFloat_0c = &ScrHudElem_GetFloat<0x0000000cu>;  // 0x00015db0
+inline constexpr auto* ScrHudElem_SetAlpha = &ScrHudElem_SetByte<0x0000001fu>;  // 0x00015dd0
+inline constexpr auto* ScrHudElem_GetAlpha = &ScrHudElem_GetByte<0x0000001fu>;  // 0x00015df0
+inline constexpr auto* ScrHudElem_SetColorByte0 = &ScrHudElem_SetByte<0x0000001cu>;  // 0x00015e10
+inline constexpr auto* ScrHudElem_GetColorByte0 = &ScrHudElem_GetByte<0x0000001cu>;  // 0x00015e30
+inline constexpr auto* ScrHudElem_SetColorByte1 = &ScrHudElem_SetByte<0x0000001du>;  // 0x00015e50
+inline constexpr auto* ScrHudElem_GetColorByte1 = &ScrHudElem_GetByte<0x0000001du>;  // 0x00015e70
+inline constexpr auto* ScrHudElem_SetColorByte2 = &ScrHudElem_SetByte<0x0000001eu>;  // 0x00015e90
+inline constexpr auto* ScrHudElem_GetColorByte2 = &ScrHudElem_GetByte<0x0000001eu>;  // 0x00015eb0
+inline constexpr auto* ScrVehNodeField_detoured_2 = &ScrNode_GetKeyOf<0xaecb47fdu, 0x00922980u>;  // 0x0011b280
+inline constexpr auto* ScrVehNodeField_hfefdb41b_Set = &ScrNode_SetKeyOf<0xfefdb41bu, 0x0092297cu>;  // 0x0011b7d0
+inline constexpr auto* ScrVehNodeField_hfefdb41b_2 = &ScrNode_GetKeyOf<0xfefdb41bu, 0x00922980u>;  // 0x0011b7f0
+inline constexpr auto* ScrField_ambient_GetCopy = &ScrField_CopyOf<0x9c1519acu, 0x0000000cu, 0x0052bd10u>;  // 0x0011cda0
 inline constexpr auto* ScrField_explode2 = &ScrField_String<0xe6f61fa4u>;  // 0x00129180
 inline constexpr auto* ScrField_explode2_IsDefined = &ScrField_StringIsDefined<0xe6f61fa4u>;  // 0x001291b0
 inline constexpr auto* ScrField_dropped = &ScrField_Slot<0xe2c9ccddu, 0x00922ec0u>;  // 0x00129210
@@ -992,6 +1124,7 @@ inline constexpr auto* ScrField_exittag_IsDefined = &ScrField_StringIsDefined<0x
 inline constexpr auto* ScrField_hb42c3b83 = &ScrField_Slot<0xb42c3b83u, 0x00922ec0u>;  // 0x0012add0
 inline constexpr auto* ScrField_hb42c3b83_IsDefined = &ScrField_SlotIsDefined<0xb42c3b83u, 0x00922ec0u>;  // 0x0012ae10
 inline constexpr auto* ScrField_thread_killer = &ScrField_Slot<0x65637ee2u, 0x00000000u>;  // 0x0012ae70
+inline constexpr auto* ScrField_thread_killer_IsDefined = &ScrField_SlotIsNot<0x65637ee2u, 0x00000000u, 0xfefefefeu>;  // 0x0012aeb0
 inline constexpr auto* ScrField_h22282ca0 = &ScrField_String<0x22282ca0u>;  // 0x0012af10
 inline constexpr auto* ScrField_h22282ca0_IsDefined = &ScrField_StringIsDefined<0x22282ca0u>;  // 0x0012af40
 inline constexpr auto* ScrField_size_InitUndefined = &ScrField_Slot<0x00382b25u, 0x00922ec0u>;  // 0x0012afa0
@@ -999,6 +1132,7 @@ inline constexpr auto* ScrField_size_IsDefined = &ScrField_SlotIsDefined<0x00382
 inline constexpr auto* ScrField_on_monitor = &ScrField_BoolSlot<0x98d8d171u>;  // 0x0012b040
 inline constexpr auto* ScrField_on_monitor_IsDefined = &ScrField_BoolSlotIsDefined<0x98d8d171u>;  // 0x0012b090
 inline constexpr auto* ScrField_notetrack_wait = &ScrField_Slot<0xd850f89eu, 0x00000000u>;  // 0x0012b0f0
+inline constexpr auto* ScrField_notetrack_wait_IsDefined = &ScrField_SlotIsNot<0xd850f89eu, 0x00000000u, 0xfefefefeu>;  // 0x0012b130
 inline constexpr auto* ScrField_burst_notify = &ScrField_String<0x2a11980eu>;  // 0x0012b190
 inline constexpr auto* ScrField_burst_notify_IsDefined = &ScrField_StringIsDefined<0x2a11980eu>;  // 0x0012b1c0
 inline constexpr auto* ScrField_dead_model = &ScrField_String<0xb8eafaddu>;  // 0x0012b220
@@ -1009,6 +1143,8 @@ inline constexpr auto* ScrField_rollingdeath = &ScrField_Slot<0x70c2e5bbu, 0x009
 inline constexpr auto* ScrField_rollingdeath_IsDefined = &ScrField_SlotIsDefined<0x70c2e5bbu, 0x00922ec0u>;  // 0x0012b3a0
 inline constexpr auto* ScrField_hdf09fd77 = &ScrField_Slot<0xdf09fd77u, 0x00922eacu>;  // 0x0012b400
 inline constexpr auto* ScrField_hdf09fd77_IsDefined = &ScrField_FloatSlotIsDefined<0xdf09fd77u>;  // 0x0012b450
+inline constexpr auto* ScrField_path = &ScrField_SlotLiteral<0x00398ae8u, 0xffffffffu>;  // 0x0012b4e0
+inline constexpr auto* ScrField_path_IsDefined = &ScrField_SlotIsNot<0x00398ae8u, 0xffffffffu, 0xffffffffu>;  // 0x0012b520
 inline constexpr auto* ScrField_min_delay = &ScrField_Slot<0x3873520au, 0x00922eacu>;  // 0x0012b580
 inline constexpr auto* ScrField_min_delay_IsDefined = &ScrField_FloatSlotIsDefined<0x3873520au>;  // 0x0012b5d0
 inline constexpr auto* ScrField_drone_gun = &ScrField_String<0x1a7e7545u>;  // 0x0012b660
@@ -1016,6 +1152,7 @@ inline constexpr auto* ScrField_drone_gun_IsDefined = &ScrField_StringIsDefined<
 inline constexpr auto* ScrField_h5f01d656 = &ScrField_Slot<0x5f01d656u, 0x00922ec0u>;  // 0x0012b6f0
 inline constexpr auto* ScrField_h5f01d656_IsDefined = &ScrField_SlotIsDefined<0x5f01d656u, 0x00922ec0u>;  // 0x0012b730
 inline constexpr auto* ScrField_hc3f4bdfc = &ScrField_Slot<0xc3f4bdfcu, 0x00000000u>;  // 0x0012b790
+inline constexpr auto* ScrField_hc3f4bdfc_IsDefined = &ScrField_SlotIsNot<0xc3f4bdfcu, 0x00000000u, 0xfefefefeu>;  // 0x0012b7d0
 inline constexpr auto* ScrField_h8473dd9d = &ScrField_Slot<0x8473dd9du, 0x00922ec0u>;  // 0x0012b830
 inline constexpr auto* ScrField_h8473dd9d_IsDefined = &ScrField_SlotIsDefined<0x8473dd9du, 0x00922ec0u>;  // 0x0012b870
 inline constexpr auto* ScrField_alert_state = &ScrField_Slot<0xb8826c68u, 0x00922ec0u>;  // 0x0012b8d0
@@ -1045,6 +1182,8 @@ inline constexpr auto* ScrField_current_pos = &ScrField_Slot<0x9aec9c1au, 0x0092
 inline constexpr auto* ScrField_current_pos_IsDefined = &ScrField_SlotIsDefined<0x9aec9c1au, 0x00922ec0u>;  // 0x0012c130
 inline constexpr auto* ScrField_hbe149b8c = &ScrField_Slot<0xbe149b8cu, 0x00922eacu>;  // 0x0012c190
 inline constexpr auto* ScrField_hbe149b8c_IsDefined = &ScrField_FloatSlotIsDefined<0xbe149b8cu>;  // 0x0012c1e0
+inline constexpr auto* ScrField_next_node = &ScrField_SlotLiteral<0xedc6ddd3u, 0xffffffffu>;  // 0x0012c270
+inline constexpr auto* ScrField_next_node_IsDefined = &ScrField_SlotIsNot<0xedc6ddd3u, 0xffffffffu, 0xffffffffu>;  // 0x0012c2b0
 inline constexpr auto* ScrField_haa3cddde = &ScrField_BoolSlot<0xaa3cdddeu>;  // 0x0012c310
 inline constexpr auto* ScrField_haa3cddde_IsDefined = &ScrField_BoolSlotIsDefined<0xaa3cdddeu>;  // 0x0012c360
 inline constexpr auto* ScrField_tree_num = &ScrField_Slot<0x4c7e3571u, 0x00922ec0u>;  // 0x0012c3c0
@@ -1094,11 +1233,13 @@ inline constexpr auto* ScrField_follow_ent_IsDefined = &ScrField_HandleSlotIsDef
 inline constexpr auto* ScrField_hdbcf23c0 = &ScrField_BoolSlot<0xdbcf23c0u>;  // 0x0012d210
 inline constexpr auto* ScrField_hdbcf23c0_IsDefined = &ScrField_BoolSlotIsDefined<0xdbcf23c0u>;  // 0x0012d260
 inline constexpr auto* ScrField_h05374cc6 = &ScrField_Slot<0x05374cc6u, 0x00000000u>;  // 0x0012d2c0
+inline constexpr auto* ScrField_h05374cc6_IsDefined = &ScrField_SlotIsSet<0x05374cc6u>;  // 0x0012d300
 inline constexpr auto* ScrField_h7212d513 = &ScrField_Slot<0x7212d513u, 0x00922ec0u>;  // 0x0012d370
 inline constexpr auto* ScrField_h7212d513_IsDefined = &ScrField_SlotIsDefined<0x7212d513u, 0x00922ec0u>;  // 0x0012d3b0
 inline constexpr auto* ScrField_hea4a313a = &ScrField_Slot<0xea4a313au, 0x00922ec0u>;  // 0x0012d410
 inline constexpr auto* ScrField_hea4a313a_IsDefined = &ScrField_SlotIsDefined<0xea4a313au, 0x00922ec0u>;  // 0x0012d450
 inline constexpr auto* ScrField_haee44119 = &ScrField_Slot<0xaee44119u, 0x00000000u>;  // 0x0012d4b0
+inline constexpr auto* ScrField_haee44119_IsDefined = &ScrField_SlotIsNot<0xaee44119u, 0x00000000u, 0xfefefefeu>;  // 0x0012d4f0
 inline constexpr auto* ScrField_target_ent = &ScrField_HandleSlot<0x0d60fb3du>;  // 0x0012d550
 inline constexpr auto* ScrField_target_ent_IsDefined = &ScrField_HandleSlotIsDefined<0x0d60fb3du>;  // 0x0012d5a0
 inline constexpr auto* ScrField_h8903ef3c = &ScrField_BoolSlot<0x8903ef3cu>;  // 0x0012d600
@@ -1154,6 +1295,7 @@ inline constexpr auto* ScrField_pos_offset_IsDefined = &ScrField_SlotIsDefined<0
 inline constexpr auto* ScrField_can_shoot_low = &ScrField_BoolSlot<0x185dadcau>;  // 0x0012e6a0
 inline constexpr auto* ScrField_can_shoot_low_IsDefined = &ScrField_BoolSlotIsDefined<0x185dadcau>;  // 0x0012e6f0
 inline constexpr auto* ScrField_mount_node = &ScrField_Slot<0x6dcb7c56u, 0x00000000u>;  // 0x0012e750
+inline constexpr auto* ScrField_mount_node_IsDefined = &ScrField_SlotIsSet<0x6dcb7c56u>;  // 0x0012e790
 inline constexpr auto* ScrField_anim_thread = &ScrField_Slot<0x2f31323bu, 0x00000000u>;  // 0x0012e800
 inline constexpr auto* ScrField_hb330b301 = &ScrField_Slot<0xb330b301u, 0x00922ec0u>;  // 0x0012e840
 inline constexpr auto* ScrField_hb330b301_IsDefined = &ScrField_SlotIsDefined<0xb330b301u, 0x00922ec0u>;  // 0x0012e880
@@ -1184,6 +1326,8 @@ inline constexpr auto* ScrField_hc54b0523 = &ScrField_BoolSlot<0xc54b0523u>;  //
 inline constexpr auto* ScrField_hc54b0523_IsDefined = &ScrField_BoolSlotIsDefined<0xc54b0523u>;  // 0x0012f0c0
 inline constexpr auto* ScrField_spawn_num = &ScrField_Slot<0xa8ce4655u, 0x00922ec0u>;  // 0x0012f120
 inline constexpr auto* ScrField_spawn_num_IsDefined = &ScrField_SlotIsDefined<0xa8ce4655u, 0x00922ec0u>;  // 0x0012f160
+inline constexpr auto* ScrField_can_shoot_low_2 = &ScrField_BoolSlotSet<0x185dadcau>;  // 0x0012fd50
+inline constexpr auto* ScrField_h217d7784_2 = &ScrField_BoolSlotSet<0x217d7784u>;  // 0x00132a50
 inline constexpr auto* ScrField_he0b632e1 = &ScrField_Slot<0xe0b632e1u, 0x00000000u>;  // 0x00135150
 inline constexpr auto* ScrField_he0b632e1_IsDefined = &ScrField_SlotIsDefined<0xe0b632e1u, 0x00000000u>;  // 0x00135190
 inline constexpr auto* ScrField_he0b632e2 = &ScrField_Slot<0xe0b632e2u, 0x00000000u>;  // 0x001351f0
@@ -1233,6 +1377,61 @@ inline constexpr auto* ScrField_gunners = &ScrField_Get<0x2cd69a2au, 0x0017c660u
 inline constexpr auto* ScrField_gunners_IsDefined = &ScrField_ArrayIsDefined<0x2cd69a2au, 0x0017c610u>;  // 0x00146ef0
 inline constexpr auto* ScrField_hb0996bdc = &ScrField_Get<0xb0996bdcu, 0x0045cd50u>;  // 0x00146f60
 inline constexpr auto* ScrField_hb0996bdc_IsDefined = &ScrField_ArrayIsDefined<0xb0996bdcu, 0x0045cd00u>;  // 0x00146f90
+inline constexpr auto* ScrField_he337f297_GetArrayCopy = &ScrField_CopyOf<0xe337f297u, 0x00000010u, 0x0017c4e0u>;  // 0x0017ca10
+inline constexpr auto* ScrPathNodeField_animscript_Copy = &ScrNode_StringCopy<0x00922aa8u>;  // 0x00181170
+inline constexpr auto* ScrPathNodeField_type_Copy = &ScrNode_StringCopy<0x00922ad8u>;  // 0x001811e0
+inline constexpr auto* ScrPathNodeField_script_waittill_Copy = &ScrNode_StringKeyCopy<0x8035694du, 0x00922958u>;  // 0x00181250
+inline constexpr auto* ScrPathNodeField_script_chain_Copy = &ScrNode_StringKeyCopy<0x8007a3d3u, 0x00922958u>;  // 0x001812d0
+inline constexpr auto* ScrPathNodeField_script_door_Copy = &ScrNode_StringKeyCopy<0xec03a0c6u, 0x00922958u>;  // 0x00181350
+inline constexpr auto* ScrVehNodeField_script_uniquename_Copy = &ScrNode_StringKeyCopy<0x976440c4u, 0x00922978u>;  // 0x001813d0
+inline constexpr auto* ScrPathNodeField_script_door = &ScrNode_String<0x00181350u>;  // 0x0018b130
+inline constexpr auto* ScrPathNodeField_script_delay = &ScrNode_FloatKey<0x807116c4u, 0x00922968u>;  // 0x0018b150
+inline constexpr auto* ScrPathNodeField_script_noteworthy = &ScrNode_String<0x0011b9a0u>;  // 0x0018b180
+inline constexpr auto* ScrPathNodeField_script_noteworthy_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b1a0
+inline constexpr auto* ScrPathNodeField_origin = &ScrNode_Vector<0x00922ab8u>;  // 0x0018b240
+inline constexpr auto* ScrPathNodeField_origin_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b280
+inline constexpr auto* ScrPathNodeField_script_chain = &ScrNode_String<0x001812d0u>;  // 0x0018b2c0
+inline constexpr auto* ScrPathNodeField_script_fallback = &ScrNode_GetKey<0x8bbe4822u, 0x00922960u>;  // 0x0018b2e0
+inline constexpr auto* ScrPathNodeField_targetname = &ScrNode_String<0x0011cd30u>;  // 0x0018b300
+inline constexpr auto* ScrPathNodeField_targetname_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b320
+inline constexpr auto* ScrPathNodeField_script_waittill = &ScrNode_String<0x00181250u>;  // 0x0018b360
+inline constexpr auto* ScrPathNodeField_target = &ScrNode_String<0x00119a80u>;  // 0x0018b380
+inline constexpr auto* ScrPathNodeField_target_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b3a0
+inline constexpr auto* ScrPathNodeField_animscript = &ScrNode_String<0x00181170u>;  // 0x0018b3e0
+inline constexpr auto* ScrPathNodeField_animscript_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b400
+inline constexpr auto* ScrPathNodeField_script_mg42 = &ScrNode_GetKey<0xec070be6u, 0x00922960u>;  // 0x0018b440
+inline constexpr auto* ScrPathNodeField_type = &ScrNode_String<0x001811e0u>;  // 0x0018b460
+inline constexpr auto* ScrPathNodeField_type_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b480
+inline constexpr auto* ScrPathNodeField_angles = &ScrNode_Vector<0x00922ac0u>;  // 0x0018b4c0
+inline constexpr auto* ScrPathNodeField_angles_IsDefined = &ScrNode_HandleIsDefined<0x00922224u, 0x00000001u>;  // 0x0018b500
+inline constexpr auto* ScrVehNodeField_script_delay = &ScrNode_FloatKey<0x807116c4u, 0x00922988u>;  // 0x0018b540
+inline constexpr auto* ScrVehNodeField_endswitch = &ScrNode_GetNodeKey<0xe1453a61u, 0x00922990u>;  // 0x0018b560
+inline constexpr auto* ScrVehNodeField_script_noteworthy = &ScrNode_String<0x00119c90u>;  // 0x0018b590
+inline constexpr auto* ScrVehNodeField_script_noteworthy_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b5b0
+inline constexpr auto* ScrVehNodeField_detourstart = &ScrNode_GetKey<0xa2975d51u, 0x00922980u>;  // 0x0018b5f0
+inline constexpr auto* ScrVehNodeField_hfefdb41b = &ScrNode_GetKey<0xfefdb41bu, 0x00922980u>;  // 0x0018b610
+inline constexpr auto* ScrVehNodeField_detoured = &ScrNode_GetKey<0xaecb47fdu, 0x00922980u>;  // 0x0018b630
+inline constexpr auto* ScrVehNodeField_script_uniquename = &ScrNode_String<0x001813d0u>;  // 0x0018b650
+inline constexpr auto* ScrVehNodeField_target = &ScrNode_String<0x00119be0u>;  // 0x0018b670
+inline constexpr auto* ScrVehNodeField_target_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b690
+inline constexpr auto* ScrVehNodeField_speed = &ScrNode_Float<0x00922b00u>;  // 0x0018b6d0
+inline constexpr auto* ScrVehNodeField_speed_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b6f0
+inline constexpr auto* ScrVehNodeField_playerhasbeenhere = &ScrNode_GetKey<0xe40ab298u, 0x00922980u>;  // 0x0018b730
+inline constexpr auto* ScrVehNodeField_lookahead = &ScrNode_Float<0x00922b08u>;  // 0x0018b750
+inline constexpr auto* ScrVehNodeField_lookahead_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b770
+inline constexpr auto* ScrVehNodeField_friendlywait = &ScrNode_GetKey<0xed6f4f3du, 0x00922980u>;  // 0x0018b7b0
+inline constexpr auto* ScrVehNodeField_h93dff1d7 = &ScrNode_GetKey<0x93dff1d7u, 0x00922980u>;  // 0x0018b7d0
+inline constexpr auto* ScrVehNodeField_origin = &ScrNode_Vector<0x00922af0u>;  // 0x0018b7f0
+inline constexpr auto* ScrVehNodeField_origin_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b830
+inline constexpr auto* ScrVehNodeField_startswitch = &ScrNode_GetNodeKey<0xe087be85u, 0x00922990u>;  // 0x0018b870
+inline constexpr auto* ScrVehNodeField_crash_path_target = &ScrNode_GetNodeKey<0x80044f23u, 0x00922990u>;  // 0x0018b8a0
+inline constexpr auto* ScrVehNodeField_detourpath = &ScrNode_GetKey<0x2d156c53u, 0x00922980u>;  // 0x0018b8d0
+inline constexpr auto* ScrVehNodeField_h37ff641a = &ScrNode_GetKey<0x37ff641au, 0x00922980u>;  // 0x0018b8f0
+inline constexpr auto* ScrVehNodeField_derailed = &ScrNode_GetKey<0xa2253ffdu, 0x00922980u>;  // 0x0018b910
+inline constexpr auto* ScrVehNodeField_targetname = &ScrNode_String<0x00119b70u>;  // 0x0018b930
+inline constexpr auto* ScrVehNodeField_targetname_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b950
+inline constexpr auto* ScrVehNodeField_angles = &ScrNode_Vector<0x00922af8u>;  // 0x0018b990
+inline constexpr auto* ScrVehNodeField_angles_IsDefined = &ScrNode_HandleIsDefined<0x00922228u, 0x00000000u>;  // 0x0018b9d0
 inline constexpr auto* ScrField_script_increment = &ScrField_Slot<0x8bbf13feu, 0x00922ec0u>;  // 0x0018e320
 inline constexpr auto* ScrField_script_increment_IsDefined = &ScrField_SlotIsDefined<0x8bbf13feu, 0x00922ec0u>;  // 0x0018e360
 inline constexpr auto* ScrField_h2ebdbc24 = &ScrField_Slot<0x2ebdbc24u, 0x00922ec0u>;  // 0x0018e3c0
@@ -1323,6 +1522,7 @@ inline constexpr auto* ScrField_haff9c3b8 = &ScrField_Slot<0xaff9c3b8u, 0x00922e
 inline constexpr auto* ScrField_haff9c3b8_IsDefined = &ScrField_FloatSlotIsDefined<0xaff9c3b8u>;  // 0x0018feb0
 inline constexpr auto* ScrField_h0bfd0e20 = &ScrField_Slot<0x0bfd0e20u, 0x00922ec0u>;  // 0x0018ff40
 inline constexpr auto* ScrField_h0bfd0e20_IsDefined = &ScrField_SlotIsDefined<0x0bfd0e20u, 0x00922ec0u>;  // 0x0018ff80
+inline constexpr auto* ScrField_h17138232 = &ScrField_String<0x17138232u>;  // 0x0018ffe0
 inline constexpr auto* ScrField_h17138232_IsDefined = &ScrField_StringIsDefined<0x17138232u>;  // 0x00190010
 inline constexpr auto* ScrField_anim_alertness = &ScrField_Slot<0x764918aeu, 0x00922eb4u>;  // 0x00190070
 inline constexpr auto* ScrField_anim_alertness_IsDefined = &ScrField_SlotIsDefined<0x764918aeu, 0x00922eb4u>;  // 0x001900b0
@@ -1424,6 +1624,7 @@ inline constexpr auto* ScrField_h7fa1fc35_IsDefined = &ScrField_SlotIsDefined<0x
 inline constexpr auto* ScrField_h7c52ac8e = &ScrField_String<0x7c52ac8eu>;  // 0x00191f80
 inline constexpr auto* ScrField_h7c52ac8e_IsDefined = &ScrField_StringIsDefined<0x7c52ac8eu>;  // 0x00191fb0
 inline constexpr auto* ScrField_ha3d681e3 = &ScrField_String<0xa3d681e3u>;  // 0x00192010
+inline constexpr auto* ScrField_ha3d681e3_IsDefined = &ScrField_StringIsDefined<0xa3d681e3u>;  // 0x00192040
 inline constexpr auto* ScrField_h77123d19 = &ScrField_Slot<0x77123d19u, 0x00922ec0u>;  // 0x001920a0
 inline constexpr auto* ScrField_h77123d19_IsDefined = &ScrField_SlotIsDefined<0x77123d19u, 0x00922ec0u>;  // 0x001920e0
 inline constexpr auto* ScrField_org = &ScrField_VectorSlot<0x0001b227u>;  // 0x00192140
@@ -1471,6 +1672,7 @@ inline constexpr auto* ScrField_h60046515_IsDefined = &ScrField_SlotIsDefined<0x
 inline constexpr auto* ScrField_h32222d6e = &ScrField_Slot<0x32222d6eu, 0x00922ec0u>;  // 0x00192f60
 inline constexpr auto* ScrField_h32222d6e_IsDefined = &ScrField_SlotIsDefined<0x32222d6eu, 0x00922ec0u>;  // 0x00192fa0
 inline constexpr auto* ScrField_hf8b8e073 = &ScrField_Slot<0xf8b8e073u, 0x00000000u>;  // 0x00193000
+inline constexpr auto* ScrField_hf8b8e073_IsDefined = &ScrField_SlotIsNot<0xf8b8e073u, 0x00000000u, 0xfefefefeu>;  // 0x00193040
 inline constexpr auto* ScrField_script_suppression = &ScrField_Slot<0x2d4a70b5u, 0x00922eacu>;  // 0x001930a0
 inline constexpr auto* ScrField_script_suppression_IsDefined = &ScrField_FloatSlotIsDefined<0x2d4a70b5u>;  // 0x001930f0
 inline constexpr auto* ScrField_is_firing = &ScrField_BoolSlot<0x0aa8c328u>;  // 0x00193180
@@ -1548,6 +1750,7 @@ inline constexpr auto* ScrField_h2df5ba35_IsDefined = &ScrField_SlotIsDefined<0x
 inline constexpr auto* ScrField_script_delete = &ScrField_Slot<0x0e22c955u, 0x00922ec0u>;  // 0x001948f0
 inline constexpr auto* ScrField_script_delete_IsDefined = &ScrField_SlotIsDefined<0x0e22c955u, 0x00922ec0u>;  // 0x00194930
 inline constexpr auto* ScrField_ha78b2c24 = &ScrField_Slot<0xa78b2c24u, 0x00000000u>;  // 0x00194990
+inline constexpr auto* ScrField_ha78b2c24_IsDefined = &ScrField_SlotIsNot<0xa78b2c24u, 0x00000000u, 0xfefefefeu>;  // 0x001949d0
 inline constexpr auto* ScrField_h99ccf0cc = &ScrField_Slot<0x99ccf0ccu, 0x00922ec0u>;  // 0x00194a30
 inline constexpr auto* ScrField_h99ccf0cc_IsDefined = &ScrField_SlotIsDefined<0x99ccf0ccu, 0x00922ec0u>;  // 0x00194a70
 inline constexpr auto* ScrField_h257acba4 = &ScrField_Slot<0x257acba4u, 0x00922ec0u>;  // 0x00194ad0
@@ -1711,6 +1914,7 @@ inline constexpr auto* ScrField_h7a6bf1dd_IsDefined = &ScrField_StringIsDefined<
 inline constexpr auto* ScrField_anim_woundedtime = &ScrField_Slot<0x32292cf8u, 0x00922ec0u>;  // 0x00197f50
 inline constexpr auto* ScrField_anim_woundedtime_IsDefined = &ScrField_SlotIsDefined<0x32292cf8u, 0x00922ec0u>;  // 0x00197f90
 inline constexpr auto* ScrField_balcony_node = &ScrField_Slot<0x474f5086u, 0x00000000u>;  // 0x00197ff0
+inline constexpr auto* ScrField_balcony_node_IsDefined = &ScrField_SlotIsSet<0x474f5086u>;  // 0x00198030
 inline constexpr auto* ScrField_hb13f0c5e = &ScrField_String<0xb13f0c5eu>;  // 0x001980a0
 inline constexpr auto* ScrField_hb13f0c5e_IsDefined = &ScrField_StringIsDefined<0xb13f0c5eu>;  // 0x001980d0
 inline constexpr auto* ScrField_h900ed884 = &ScrField_Slot<0x900ed884u, 0x00922ec0u>;  // 0x00198130
@@ -1740,6 +1944,19 @@ inline constexpr auto* ScrField_h88c31fb5_IsDefined = &ScrField_SlotIsDefined<0x
 inline constexpr auto* ScrField_h72e59ffd = &ScrField_Slot<0x72e59ffdu, 0x00922eb4u>;  // 0x001988f0
 inline constexpr auto* ScrField_h72e59ffd_IsDefined = &ScrField_SlotIsDefined<0x72e59ffdu, 0x00922eb4u>;  // 0x00198930
 inline constexpr auto* ScrField_ha33a251d = &ScrField_Slot<0xa33a251du, 0x00000000u>;  // 0x00198990
+inline constexpr auto* ScrField_ha33a251d_IsDefined = &ScrField_SlotIsSet<0xa33a251du>;  // 0x001989d0
+inline constexpr auto* ScrVehNodeField_endswitch_IsDefined = &ScrNode_NodeKeyIsDefined<0xe1453a61u, 0x00922990u>;  // 0x00198c40
+inline constexpr auto* ScrVehNodeField_detourstart_IsDefined = &ScrNode_KeyIsDefined<0xa2975d51u, 0x00922980u>;  // 0x00198c90
+inline constexpr auto* ScrVehNodeField_hfefdb41b_IsDefined = &ScrNode_KeyIsDefined<0xfefdb41bu, 0x00922980u>;  // 0x00198ce0
+inline constexpr auto* ScrVehNodeField_detoured_IsDefined = &ScrNode_KeyIsDefined<0xaecb47fdu, 0x00922980u>;  // 0x00198d30
+inline constexpr auto* ScrVehNodeField_playerhasbeenhere_IsDefined = &ScrNode_KeyIsDefined<0xe40ab298u, 0x00922980u>;  // 0x00198dc0
+inline constexpr auto* ScrVehNodeField_friendlywait_IsDefined = &ScrNode_KeyIsDefined<0xed6f4f3du, 0x00922980u>;  // 0x00198e10
+inline constexpr auto* ScrVehNodeField_h93dff1d7_IsDefined = &ScrNode_KeyIsDefined<0x93dff1d7u, 0x00922980u>;  // 0x00198e60
+inline constexpr auto* ScrVehNodeField_startswitch_IsDefined = &ScrNode_NodeKeyIsDefined<0xe087be85u, 0x00922990u>;  // 0x00198eb0
+inline constexpr auto* ScrVehNodeField_crash_path_target_IsDefined = &ScrNode_NodeKeyIsDefined<0x80044f23u, 0x00922990u>;  // 0x00198f00
+inline constexpr auto* ScrVehNodeField_detourpath_IsDefined = &ScrNode_KeyIsDefined<0x2d156c53u, 0x00922980u>;  // 0x00198f50
+inline constexpr auto* ScrVehNodeField_h37ff641a_IsDefined = &ScrNode_KeyIsDefined<0x37ff641au, 0x00922980u>;  // 0x00198fa0
+inline constexpr auto* ScrVehNodeField_derailed_IsDefined = &ScrNode_KeyIsDefined<0xa2253ffdu, 0x00922980u>;  // 0x00198ff0
 inline constexpr auto* ScrField_hb8e86881 = &ScrField_Slot<0xb8e86881u, 0x00000000u>;  // 0x001a3d90
 inline constexpr auto* ScrField_hb8e86881_IsDefined = &ScrField_SlotIsDefined<0xb8e86881u, 0x00000000u>;  // 0x001a3dd0
 inline constexpr auto* ScrField_anim_combatrunanim = &ScrField_Slot<0x66a44409u, 0x00000000u>;  // 0x001a3e30
@@ -1768,5 +1985,17 @@ inline constexpr auto* ScrField_h8969d6d6 = &ScrField_Get<0x8969d6d6u, 0x0045cd5
 inline constexpr auto* ScrField_h8969d6d6_IsDefined = &ScrField_ArrayIsDefined<0x8969d6d6u, 0x0045cd00u>;  // 0x001b3090
 inline constexpr auto* ScrField_chain = &ScrField_Get<0x0605894eu, 0x0045cd50u>;  // 0x001b3100
 inline constexpr auto* ScrField_chain_IsDefined = &ScrField_ArrayIsDefined<0x0605894eu, 0x0045cd00u>;  // 0x001b3130
+inline constexpr auto* ScrField_h053fe992 = &ScrField_Get<0x053fe992u, 0x001e6070u>;  // 0x001bbf70
+inline constexpr auto* ScrField_h053fe992_IsDefined = &ScrField_ArrayIsDefinedReleased<0x053fe992u, 0x001e6020u, 0x0045db80u>;  // 0x001bbfa0
+inline constexpr auto* ScrField_fallback = &ScrField_Get<0x9ef08b23u, 0x001e6250u>;  // 0x001bc010
+inline constexpr auto* ScrField_fallback_IsDefined = &ScrField_ArrayIsDefined<0x9ef08b23u, 0x001e62b0u>;  // 0x001bc040
+inline constexpr auto* ScrField_h1791f035 = &ScrField_Get<0x1791f035u, 0x001e61f0u>;  // 0x001bc0b0
+inline constexpr auto* ScrField_h1791f035_IsDefined = &ScrField_ArrayIsDefined<0x1791f035u, 0x001e61a0u>;  // 0x001bc0e0
+inline constexpr auto* ScrField_h1791f035_Clear = &ScrField_Clear52<0x1791f035u, 0x001e61f0u>;  // 0x001c2a40
+inline constexpr auto* ScrField_h1791f035_Clear_2 = &ScrField_Clear52<0x1791f035u, 0x001e61f0u>;  // 0x001c2a70
+inline constexpr auto* ScrPathNodeField_script_waittill_NonEmpty = &ScrNode_StringNonEmpty<0x00181250u>;  // 0x001e4610
+inline constexpr auto* ScrPathNodeField_script_door_IsSet = &ScrNode_StringNonEmpty<0x00181350u>;  // 0x001e4670
+inline constexpr auto* ScrVehNodeField_script_uniquename_IsNonEmpty = &ScrNode_StringNonEmpty<0x001813d0u>;  // 0x001e46a0
+inline constexpr auto* ScrField_ha1763cc1_Copy = &ScrField_CopyOf<0xa1763cc1u, 0x0000000cu, 0x0052bd10u>;  // 0x001e46d0
 
 }  // namespace game
