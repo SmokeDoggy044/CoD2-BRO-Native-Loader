@@ -3,6 +3,8 @@
 #include <cstring>
 
 #include "g_scr_runtime.h"
+#include "qcommon.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -1198,6 +1200,112 @@ void XB_CDECL ScrEnt_GetModelField(const uint8_t* ent, uint32_t, ScriptString* o
     const uint32_t model = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(info + 0x38));
     if (!model) return;
     assign_cstring(out, *reinterpret_cast<const char* const*>(static_cast<uintptr_t>(model + 0x48)));
+}
+
+
+// Name fields: the string assigned, then its key hash (Com_HashKeyNoCase of the text; a null text
+// for the empty string) in the word after it.
+namespace {
+
+template <uint32_t Offset>
+void set_ent_name_field(uint8_t* ent, const ScriptString* value) {
+    string_assign(ent + Offset, value);
+    const ScriptStringRep* const rep = value->rep;
+    *reinterpret_cast<uint32_t*>(ent + Offset + 4) = Com_HashKeyNoCase(0, rep ? rep->text : nullptr);
+}
+
+}  // namespace
+
+void XB_CDECL ScrEnt_SetAnimnameField(uint8_t* ent, uint32_t, const ScriptString* value) {
+    set_ent_name_field<0x284>(ent, value);
+}
+void XB_CDECL ScrEnt_SetScriptNoteworthyField(uint8_t* ent, uint32_t, const ScriptString* value) {
+    set_ent_name_field<0x27c>(ent, value);
+}
+void XB_CDECL ScrEnt_SetTargetField(uint8_t* ent, uint32_t, const ScriptString* value) {
+    set_ent_name_field<0x26c>(ent, value);
+}
+void XB_CDECL ScrEnt_SetTargetnameField(uint8_t* ent, uint32_t, const ScriptString* value) {
+    set_ent_name_field<0x264>(ent, value);
+}
+void XB_CDECL ScrEnt_SetGroupnameField(uint8_t* ent, uint32_t, const ScriptString* value) {
+    set_ent_name_field<0x274>(ent, value);
+}
+
+// Angles: +0x44 = value, +0x38 and +0x50 (floats 0.0) cleared, +0x150 = value (read again).
+void XB_CDECL ScrEnt_SetAnglesField(uint8_t* ent, uint32_t, const uint32_t* value) {
+    uint32_t* const w = reinterpret_cast<uint32_t*>(ent);
+    w[0x44 / 4] = value[0];
+    w[0x48 / 4] = value[1];
+    w[0x4c / 4] = value[2];
+    w[0x38 / 4] = 0;
+    w[0x3c / 4] = 0;
+    w[0x40 / 4] = 0;
+    w[0x58 / 4] = 0;
+    w[0x54 / 4] = 0;
+    w[0x50 / 4] = 0;
+    w[0x150 / 4] = value[0];
+    w[0x154 / 4] = value[1];
+    w[0x158 / 4] = value[2];
+}
+
+// Health (+0x354 and +0x350, when +0x350 > 0 or +0x354 is 0); a value <= 0 only formats the warning
+// (va; the targetname or "<not set>").
+void XB_CDECL ScrEnt_SetHealthField(uint8_t* ent, uint32_t, const int32_t* value) {
+    const int32_t health = *value;
+    if (health <= 0) {
+        const uint32_t rep = word_at(ent, 0x264);
+        const char* name = reinterpret_cast<const char*>(uintptr_t{0x00832314});  // "<not set>"
+        if (rep && rep + 6) name = reinterpret_cast<const char*>(static_cast<uintptr_t>(rep + 6));
+        title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(
+            reinterpret_cast<const char*>(uintptr_t{0x008322c8}), health, word_at(ent, 0x224), name);  // va
+    }
+    if (static_cast<int32_t>(word_at(ent, 0x350)) > 0 || !word_at(ent, 0x354)) {
+        *reinterpret_cast<int32_t*>(ent + 0x354) = health;
+        *reinterpret_cast<int32_t*>(ent + 0x350) = health;
+    }
+}
+
+// The path node handle (16 bits, +0x48) when it names a node (not 0 / 0xffff, block (h >> 9) - 1
+// of g_pathNodeBlocks set), else 0. The original keeps the node address in its offset slot.
+void XB_CDECL ScrSentient_GetPathNode48Field(const uint8_t* object, uint32_t, uint32_t* out) {
+    const uint16_t handle = *reinterpret_cast<const uint16_t*>(object + 0x48);
+    if (handle && handle != 0xffff) {
+        const uint8_t* const blocks = title_global<const uint8_t*>(0x0095f4f4);
+        const uint16_t index = static_cast<uint16_t>((handle >> 9) - 1);
+        const uint32_t block = word_at(blocks, 8 + index * 4u);
+        if (block) {
+            const uint32_t node =
+                *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(block + 0x10)) + (handle & 0x1ffu) * 0x80;
+            if (node) {
+                *out = *reinterpret_cast<const uint16_t*>(object + 0x48);
+                return;
+            }
+        }
+    }
+    *out = 0;
+}
+
+
+// Origin: +0x20 = value, +0x14 and +0x2c (floats 0.0) cleared, +0x140 = value; the sentient's
+// byte +0x5a cleared; relinked when linked (+0xd0).
+void XB_CDECL ScrEnt_SetOriginField(uint8_t* ent, uint32_t, const uint32_t* value) {
+    const uint32_t x = value[0], y = value[1], z = value[2];
+    uint32_t* const w = reinterpret_cast<uint32_t*>(ent);
+    w[0x20 / 4] = x;
+    w[0x24 / 4] = y;
+    w[0x28 / 4] = z;
+    w[0x14 / 4] = 0;
+    w[0x18 / 4] = 0;
+    w[0x1c / 4] = 0;
+    w[0x34 / 4] = 0;
+    w[0x30 / 4] = 0;
+    w[0x2c / 4] = 0;
+    w[0x140 / 4] = x;
+    w[0x144 / 4] = y;
+    w[0x148 / 4] = z;
+    if (const uint32_t sentient = word_at(ent, 0x244)) *reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(sentient + 0x5a)) = 0;
+    if (word_at(ent, 0xd0)) SV_LinkEntity(ent);
 }
 
 }  // namespace game

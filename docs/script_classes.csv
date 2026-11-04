@@ -437,3 +437,6 @@ address,name,class,evidence
 002f64f0,ScrWaitTimeoutRecord_Init,matched offline,"caller Scr_WaitRecord17 (waittill with timeout); 0 calls in missions 1,4,5,6 (--only --every 1); XMM0 input not settable by --force; offline leaf test 3833/3833 matched (100% coverage)"
 002f87b0,ScrActor_GetByte_3b1,matched offline,"builtin table slot 0x630 (g_scr_imports); 0 calls in missions 1,4,5,6 (--only --every 1, --force found no actor on entities 1-3); offline leaf test 3999/3999 matched (79% coverage)"
 002f9660,ScrActor_SetRef12a0Field,matched offline,"field hook (0x008d213c); 0 calls in missions 1,4,5,6 (--only --every 1, --force found no actor on entities 1-3); offline leaf test 3405/3405 matched (96% coverage)"
+003798a0,AtExit_FreeList_95fdf0,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"
+00379e50,AtExit_ScrFree_922e90,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"
+00379e70,AtExit_ScriptKeyTable,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"

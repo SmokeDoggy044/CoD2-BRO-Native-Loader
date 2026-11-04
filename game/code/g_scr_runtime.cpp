@@ -1813,4 +1813,179 @@ void XB_CDECL ScrThread_InitDataHeap() {
     title_global<uint8_t*>(0x0095f490) = SmallHeap_Init(heap, &config.count, 1, 0);
 }
 
+
+// --- Wait records: their entity check, destructor; thread handles of script objects.
+namespace {
+
+// The entity of a handle (slot & 0xfff < 0x540, generation handle >> 12), or 0.
+uint32_t wait_entity(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+    return title_global<uint32_t>(0x0097a968 + index * 8);
+}
+
+// Whether the running thread (flags +0x10 bit 7) waits on a key the entity's key list (+0x230) has;
+// the key goes through the caller's argument slot.
+bool wait_key_listed(uint32_t ent, uint32_t* thread_slot, uint32_t key) {
+    const uint32_t thread = *thread_slot;
+    if (!((*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(thread + 0x10)) >> 7) & 1)) return false;
+    const uint32_t list = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x230));
+    if (!list) return false;
+    *thread_slot = key;
+    return KeyList_Contains(0, reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(list)), thread_slot) != 0;
+}
+
+}  // namespace
+
+// 3 (and done, +0xc) when the entity (+0x14) is gone; +0x10 (done) when the timeout (+0x1c, less the
+// frame time 0x008ddaa0) has run out or the entity's key list has the awaited key (+0x18); else 0.
+uint32_t XB_THISCALL ScrWaitTimeoutRecord_Check(uint8_t* self, uint32_t thread) {
+    const uint32_t ent = wait_entity(word_at(self, 0x14));
+    if (!ent) {
+        self[0xc] = 1;
+        return 3;
+    }
+    float& left = *reinterpret_cast<float*>(self + 0x1c);
+    const float rest = left - title_global<float>(0x008ddaa0);
+    left = rest;
+    if (!(0.0f >= rest) && !wait_key_listed(ent, &thread, word_at(self, 0x18))) return 0;
+    self[0xc] = 1;
+    return word_at(self, 0x10);
+}
+
+uint32_t XB_THISCALL ScrWaitRecord_Check(uint8_t* self, uint32_t thread) {
+    const uint32_t ent = wait_entity(word_at(self, 0x14));
+    if (!ent) {
+        self[0xc] = 1;
+        return 3;
+    }
+    if (!wait_key_listed(ent, &thread, word_at(self, 0x18))) return 0;
+    self[0xc] = 1;
+    return word_at(self, 0x10);
+}
+
+// ESI = record: its key node (+0x1c) unlinked from the entity's key list (count +0x1c) when the
+// entity and list still exist, then freed (heap 0x0095f498); base vtable 0x008317e4 last.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScrWaitRecord_Dtor(uint8_t* self) {
+    const uint32_t node = word_at(self, 0x1c);
+    *reinterpret_cast<uint32_t*>(self) = 0x00831800;
+    if (node) {
+        const uint32_t ent = wait_entity(word_at(self, 0x14));
+        if (ent) {
+            const uint32_t list = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x230));
+            if (list) {
+                uint32_t* const n = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(node));
+                reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(n[0]))[1] = n[1];
+                reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(n[1]))[0] = n[0];
+                --*reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(list + 0x1c));
+            }
+        }
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f498),
+                                                                         word_at(self, 0x1c));  // SmallHeap_Free
+    }
+    *reinterpret_cast<uint32_t*>(self) = 0x008317e4;
+}
+
+// ESI = out {0, 0, handle}, EDI = object: the object's thread handle (+0x14), allocated from
+// scr_threadHandles (0x008dd208) on first use, the slot (0x008dd228, 8 bytes) pointing back to it.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL ScrObject_GetThreadHandle(uint32_t* out, uint8_t* object) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+    if (!word_at(object, 0x14)) {
+        uint32_t slot;
+        const uint32_t handle = *ScrThread_AllocHandle(&title_global<uint32_t>(0x008dd208), &slot);
+        const uint32_t index = handle & 0xff;
+        if (index < 0x100)
+            title_global<uint32_t>(0x008dd228 + index * 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+        word_at(object, 0x14) = handle;
+    }
+    out[2] = word_at(object, 0x14);
+    return out;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(ScrWaitRecord_Dtor_entry, "pushl %esi\n" PLATFORM_ASM_CALL(ScrWaitRecord_Dtor) "addl $4, %esp\n ret")
+PLATFORM_ASM_ENTRY(ScrObject_GetThreadHandle_entry,
+                   "pushl %edi\n pushl %esi\n" PLATFORM_ASM_CALL(ScrObject_GetThreadHandle) "addl $8, %esp\n ret")
+
+namespace game {
+
+
+// --- An anim notify started by entity handle (builtin slot 0x538), boot/exit handlers.
+
+// (handle, name): for a live entity a 0x20-byte notify (Z_Malloc) set up by AnimNotify_Init
+// (EDI node, ECX name, the handle on the stack; run at the original's ESP) and appended to the
+// list 0x008feba0 (count) / 0x008feba8 (sentinel) / 0x008febac (tail). The original writes the
+// links through a null node when Z_Malloc fails.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_StartAnimNotify_c(uint32_t entry_esp, uint32_t edi) {
+    const uint32_t handle = title_global<uint32_t>(entry_esp + 4);
+    const uint32_t name = title_global<uint32_t>(entry_esp + 8);
+    if (!wait_entity(handle)) return;
+    uint32_t node = static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0x20)));  // Z_Malloc
+    if (node) {
+        TitleRegs regs{};
+        regs.ecx = name;
+        regs.esi = handle;
+        regs.edi = node;
+        const uint32_t args[1] = {handle};
+        node = title_call_at_regs(entry_esp - 8, 0x002028a0, &regs, 1, args);  // AnimNotify_Init
+    }
+    title_global<uint32_t>(node) = 0x008feba8;
+    const uint32_t tail = title_global<uint32_t>(0x008febac);
+    title_global<uint32_t>(node + 4) = tail;
+    title_global<uint32_t>(tail) = node;
+    title_global<uint32_t>(0x008febac) = node;
+    ++title_global<uint32_t>(0x008feba0);
+    (void)edi;
+}
+
+// Static initializer of the hash map at 0x0095fe00: its allocator byte (an unset local in the
+// original: 0 here), head node (std_list_BuyHeadNameMap), size 0, nine buckets at the head, two
+// words 1, and its atexit destructor 0x003798b0.
+void XB_CDECL StaticInit_List_95fe00() {
+    title_global<uint8_t>(0x0095fe00) = 0;
+    const uint32_t head = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(std_list_BuyHeadNameMap()));
+    title_global<uint32_t>(0x0095fe08) = head;
+    title_global<uint32_t>(0x0095fe0c) = 0;
+    const uint32_t bucket = head;
+    std_vector_ConstructN4Z(9, &title_global<uint8_t>(0x0095fe10), &bucket);
+    title_global<uint32_t>(0x0095fe20) = 1;
+    title_global<uint32_t>(0x0095fe24) = 1;
+    title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x003798b0);  // _atexit
+}
+
+// (0, 0, -1, 0) at 0x0095fde0.
+void XB_CDECL StaticInit_DownVec4_95fde0() {
+    title_global<uint32_t>(0x0095fde0) = 0;
+    title_global<uint32_t>(0x0095fde4) = 0;
+    title_global<uint32_t>(0x0095fde8) = title_global<uint32_t>(0x0083eb34);  // -1.0f
+    title_global<uint32_t>(0x0095fdec) = 0;
+}
+
+void XB_CDECL AtExit_FreeList_95fdf0() {
+    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095fdf0));  // Z_Free
+}
+
+// The script string rep at 0x00922e90: one reference dropped, freed at 0.
+void XB_CDECL AtExit_ScrFree_922e90() {
+    const uint32_t rep = title_global<uint32_t>(0x00922e90);
+    if (!rep) return;
+    int16_t& refs = title_global<int16_t>(rep + 4);
+    --refs;
+    if (refs <= 0) Scr_Free(reinterpret_cast<void*>(static_cast<uintptr_t>(rep)));
+}
+
+void XB_CDECL AtExit_ScriptKeyTable() { ScriptKeyTable_Clear(&title_global<ScriptKeyTable>(0x00922e94)); }
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(Scr_StartAnimNotify_entry, "movl %esp, %eax\n" GAME_GAP_ESP("0x30000")
+                                              "pushl %edi\n pushl %eax\n" PLATFORM_ASM_CALL(Scr_StartAnimNotify_c)
+                                              "addl $8, %esp\n popl %esp\n ret")
+
+namespace game {
+
 }  // namespace game

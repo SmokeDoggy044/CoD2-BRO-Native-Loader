@@ -272,4 +272,24 @@ uint32_t XB_REGS3 XB_STDCALL ScrThread_AppendData(const uint8_t* data, uint32_t,
                                                   uint32_t* holder);
 void XB_CDECL ScrThread_InitDataHeap();
 
+// 0x002fc110 / 0x002fc1b0 (thiscall, pops 4): wait-record checks against the running thread.
+uint32_t XB_THISCALL ScrWaitTimeoutRecord_Check(uint8_t* self, uint32_t thread);
+uint32_t XB_THISCALL ScrWaitRecord_Check(uint8_t* self, uint32_t thread);
+// 0x002fc230 (ESI = record; asm entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ScrWaitRecord_Dtor(uint8_t* self);
+extern "C" void ScrWaitRecord_Dtor_entry(void);
+// 0x002fdf40 (ESI = out, EDI = object; asm entry).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL ScrObject_GetThreadHandle(uint32_t* out, uint8_t* object);
+extern "C" void ScrObject_GetThreadHandle_entry(void);
+
+// 0x00300530 (was FUN_00300530; builtin slot 0x538; asm entry, AnimNotify_Init at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_StartAnimNotify_c(uint32_t entry_esp, uint32_t edi);
+extern "C" void Scr_StartAnimNotify_entry(void);
+// 0x00373230 / 0x003732b0 (static initializers), 0x003798a0 / 0x00379e50 / 0x00379e70 (atexit).
+void XB_CDECL StaticInit_List_95fe00();
+void XB_CDECL StaticInit_DownVec4_95fde0();
+void XB_CDECL AtExit_FreeList_95fdf0();
+void XB_CDECL AtExit_ScrFree_922e90();
+void XB_CDECL AtExit_ScriptKeyTable();
+
 }  // namespace game

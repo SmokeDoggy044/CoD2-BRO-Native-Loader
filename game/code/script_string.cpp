@@ -936,4 +936,27 @@ uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
     return count;
 }
 
+
+// EDI = out, the string by value (asm entry: its argument slot): each "\n" escape (0x0082d278)
+// after index 0 becomes ' ' + newline, then the result is copied to out and the argument released.
+extern "C" PLATFORM_HIDDEN ScriptString* XB_CDECL ScriptString_ExpandNewlines(ScriptString* out, ScriptString* value) {
+    const char* const escape = reinterpret_cast<const char*>(uintptr_t{0x0082d278});
+    for (int32_t at = ScriptString_Find(value, escape, 0); at > 0;
+         at = ScriptString_Find(value, escape, static_cast<uint32_t>(at + 2))) {
+        ScriptString_SetChar(value, static_cast<uint32_t>(at), ' ');
+        ScriptString_SetChar(value, static_cast<uint32_t>(at + 1), '\n');
+    }
+    ScriptString_Copy(out, value);
+    string_release(value);
+    return out;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(ScriptString_ExpandNewlines_entry,
+                   "leal 4(%esp), %eax\n pushl %eax\n pushl %edi\n" PLATFORM_ASM_CALL(ScriptString_ExpandNewlines)
+                   "addl $8, %esp\n ret")
+
+namespace game {
+
 }  // namespace game

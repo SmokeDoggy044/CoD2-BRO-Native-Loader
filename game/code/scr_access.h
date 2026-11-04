@@ -378,4 +378,17 @@ void XB_CDECL ScrSentient_SetTeamFromString(uint8_t* object, uint32_t, const Scr
 void XB_CDECL ScrActor_SetRef12a0Field(uint8_t* actor, uint32_t, const uint32_t* value);
 void XB_CDECL ScrEnt_GetModelField(const uint8_t* ent, uint32_t, ScriptString* out);
 
+// 0x002fb020..0x002fb1c0, 0x002fd3c0: entity name/angles/health field hooks, the sentient's path node.
+void XB_CDECL ScrEnt_SetAnimnameField(uint8_t* ent, uint32_t, const ScriptString* value);
+void XB_CDECL ScrEnt_SetScriptNoteworthyField(uint8_t* ent, uint32_t, const ScriptString* value);
+void XB_CDECL ScrEnt_SetTargetField(uint8_t* ent, uint32_t, const ScriptString* value);
+void XB_CDECL ScrEnt_SetTargetnameField(uint8_t* ent, uint32_t, const ScriptString* value);
+void XB_CDECL ScrEnt_SetGroupnameField(uint8_t* ent, uint32_t, const ScriptString* value);
+void XB_CDECL ScrEnt_SetAnglesField(uint8_t* ent, uint32_t, const uint32_t* value);
+void XB_CDECL ScrEnt_SetHealthField(uint8_t* ent, uint32_t, const int32_t* value);
+void XB_CDECL ScrSentient_GetPathNode48Field(const uint8_t* object, uint32_t, uint32_t* out);
+
+// 0x00302a00: the entity origin field hook.
+void XB_CDECL ScrEnt_SetOriginField(uint8_t* ent, uint32_t, const uint32_t* value);
+
 }  // namespace game

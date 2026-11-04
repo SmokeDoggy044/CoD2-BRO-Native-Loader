@@ -210,4 +210,8 @@ uint32_t* XB_THISCALL ScriptKeyTable_AddStruct28(ScriptKeyTable* self, uint32_t 
 uint32_t XB_THISCALL ScriptKeyTable_GetStruct28(ScriptKeyTable* self, uint32_t key);  // 0x001e4a20
 uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value);  // 0x001e5ec0
 
+// 0x0030f4d0 (EDI = out, the string by value; asm entry).
+extern "C" PLATFORM_HIDDEN ScriptString* XB_CDECL ScriptString_ExpandNewlines(ScriptString* out, ScriptString* value);
+extern "C" void ScriptString_ExpandNewlines_entry(void);
+
 }  // namespace game
