@@ -489,4 +489,142 @@ int32_t XB_CDECL GScr_GetEntByNum(uint32_t number);
 // 0x002faf00: an empty builtin (a bare ret).
 void XB_CDECL GScr_EmptyStub38();
 
+// 0x002fb230: the entity's script object +0x428, created on first use by the callback at +0x804 of the object
+// at 0x0095f49c (called with 0, 0) when there is one; 0 when stale.
+uint32_t XB_CDECL GScr_GetEntScriptObject(uint32_t handle);
+// 0x002fb290, 0x002fb2a0: the number (+0x224) of level entity +4 (the player) / +8 of the record at 0x0095f534.
+int32_t XB_CDECL GScr_GetPlayerHandle();
+int32_t XB_CDECL GScr_GetLevelEnt8Handle();
+// 0x002fb2b0 (ECX = out, cdecl handle): "none" for handle 0, else "obstacle" when flag 0x4000 of the entity's
+// +0x2a4 is set, "world" otherwise (a stale handle reads entity null).
+void XB_REGS3 XB_CDECL GScr_ReturnObstacleKind(uint32_t unused_eax, uint32_t unused_edx, ScriptString* out,
+                                               uint32_t handle);
+// 0x002fb4e0: HudElem_SetDefaults on HUD element *index (tail jump).
+void XB_CDECL GScr_HudClear(const int32_t* index);
+// 0x002fb5a0: MemContext_FindById on the context at 0x0095f638 with the entity's zone (+0x220), or the
+// context's own id (+0x34) for stale entities and zone -1.
+uint8_t* XB_CDECL GScr_GetEntZone(uint32_t handle);
+// 0x002fb600: *out = HudElem_Alloc(), or 0x008dda38 when none is free. Returns out.
+int32_t* XB_CDECL GScr_GetCurrentZoneId(int32_t* out);
+// 0x002fb620: the weapon's type name (0x008d237c[def +0x94]) into out, "none" for unknown weapons.
+void XB_CDECL GScr_WeaponType(ScriptString* out, const ScriptString* weapon_name);
+// 0x002fb680, 0x002fb6c0: the weapon def's +0x6d8 / +0x6d4, 0 for unknown weapons.
+int32_t XB_CDECL GScr_WeaponGet_6d8(const ScriptString* weapon_name);
+int32_t XB_CDECL GScr_WeaponGet_6d4(const ScriptString* weapon_name);
+// 0x002fb700: the table value 0x00935338[def +0x5a0], 0 for unknown weapons.
+int32_t XB_CDECL GScr_WeaponGetTableValue_5a0(const ScriptString* weapon_name);
+// 0x002fb750: def +0x5dc (msec) * 0.001 on the x87 (ST0), 0 for unknown weapons.
+long double XB_CDECL GScr_WeaponGetFloat_5dc(const ScriptString* weapon_name);
+// 0x002fb7a0: unless a change is pending (0x0095bf9c): requests the level change (0x00985eb0 = 1, map name into
+// 0x00985ecc, 0x00985eb8 = 1).
+void XB_CDECL GScr_ChangeLevel(const ScriptString* name);
+// 0x002fb7f0: as ChangeLevel, with the delay 0x00985ec8 = delay * 1000 + 0.5 (msec), overridden by the float at
+// 0x0095c028 when that is >= 0.
+void XB_CDECL GScr_ChangeLevelWithDelay(const ScriptString* name, float delay);
+// 0x002fb890: while the player lives and no change is pending: the mission-success level change (delay 0 or
+// 0x0095c028, 0x00985eb4 = 1 for "gamefinished", 0x00985ebc = 0).
+void XB_CDECL GScr_MissionSuccess(const ScriptString* name);
+// 0x002fb970, 0x002fba20 (identical): the weapon's Radiant name (+0x578), following the alternate weapons
+// (+0x718) while it is empty; "" and a message otherwise. The weapon is found by its name id (+4). Returns out.
+ScriptString* XB_CDECL GScr_GetWeaponClassname2(ScriptString* out, uint32_t id);
+ScriptString* XB_CDECL GScr_GetWeaponClassname(ScriptString* out, uint32_t id);
+// 0x002fbad0: the weapon's display name (+0x57c) into out, "" for unknown ids. Returns out.
+ScriptString* XB_CDECL GScr_GetWeaponDisplayName(ScriptString* out, uint32_t id);
+// 0x002fbb30: Com_HashKeyNoCase of the weapon's +0x57c (tail jump), 0 and a message for unknown ids.
+uint32_t XB_CDECL GScr_GetWeaponModel(uint32_t id);
+// 0x002fbec0: whether the entity's notify list (+0x230) has a listener for `name` (0x0029acb0, which also
+// calls it with arg); false without a list.
+uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint32_t arg);
+
+// 0x002fbf20: DebugDraw_AddLine(end, start, {color, alpha}, width, 0 frames, grouped, no fade).
+void XB_CDECL GScr_DebugLine(const float* start, const float* end, const uint32_t* color, uint32_t alpha,
+                             uint32_t width);
+// 0x002fbf80: DebugDraw_AddString({color, alpha}, origin, scale, text, grouped).
+void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const uint32_t* color, uint32_t alpha,
+                           float scale);
+// Objective builtins: objective `index` (0-15) is config string index + 16, an info string.
+// 0x002fc710: toggles the objective's "ring" key ("1" when absent or 0, else "0"); message for bad indexes.
+// (Proposed name: GScr_ObjectiveToggleRing.)
+void XB_CDECL GScr_ValidateObjectiveIndex(int32_t index);
+// 0x002fc7f0: the objective's "org" key = "%i %i %i" of the truncated origin; nothing for bad indexes.
+void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin);
+// 0x002fc8a0: empties the objective's config string; message for bad indexes.
+void XB_CDECL GScr_ObjectiveDelete(int32_t index);
+// 0x002fc9d0: sends `reverb "%s" %g %g` to the handle's client (the name goes in as its rep pointer).
+void XB_CDECL GScr_SetReverb(uint32_t handle, const ScriptString* name, float a, float b);
+// 0x002fca10: toggles the player's noclip (client +0x584; byte 0x0095f679 = on) and prints GAME_NOCLIPON/OFF.
+void XB_CDECL GScr_ToggleNoclip();
+// 0x002fca80: SV_GameSendServerCommand("popupclose", handle) (tail jump). (Proposed name: GScr_ClosePopup.)
+void XB_CDECL GScr_SendServerCommand(uint32_t handle);
+// 0x002fca90: whether the client's +0x60 is set (0 without a client).
+int32_t XB_CDECL GScr_PlayerGetBool_60(uint32_t handle);
+// 0x002fcae0, 0x002fcb20: SetClientViewAngle / TeleportPlayer on players (tail jumps).
+void XB_CDECL GScr_PlayerSetAngles(uint32_t handle, const float* angles);
+void XB_CDECL GScr_PlayerSetOrigin(uint32_t handle, const float* origin);
+// 0x002fcb60, 0x002fcc20: an owned weapon's ammo type (+0x598) filled up (Add_Ammo, no clip) to the ammo type's
+// maximum (0x00929818) / the weapon's max ammo (+0x590).
+void XB_CDECL GScr_PlayerGiveMaxAmmoByAmmoType(uint32_t handle, const ScriptString* weapon_name);
+void XB_CDECL GScr_PlayerGiveMaxAmmo(uint32_t handle, const ScriptString* weapon_name);
+// 0x002fcce0: BG_GivePlayerWeapon, then Add_Ammo(count), filling the clip for a weapon not owned before.
+void XB_CDECL GScr_PlayerGiveWeaponWithAmmo(uint32_t handle, const ScriptString* weapon_name, int32_t count);
+// 0x002fcda0: BG_GivePlayerWeapon, then the ammo up to max ammo (+0x590), clip filled when new.
+void XB_CDECL GScr_PlayerGiveWeapon(uint32_t handle, const ScriptString* weapon_name);
+// 0x002fce80, 0x002fced0: GScr_ReturnObstacleKind of the actor's +0x2b0 / +0x39c entity handle.
+void XB_CDECL GScr_ActorGetObstacleKind_2b0(uint32_t handle, ScriptString* out);
+void XB_CDECL GScr_ActorGetObstacleKind_39c(uint32_t handle, ScriptString* out);
+// 0x002fcf20: Actor_Exposed_StartReacquire(1) for an actor in state 2 with +0x28 == 0xc8.
+void XB_CDECL GScr_ActorStartReacquire(uint32_t handle);
+// 0x002fcf80: whether the stance (stand/crouch/prone; others: message, false) is allowed: not barred by the
+// actor's limits (+4 record +0x46) and in the actor's stances (+0x244) narrowed by the path's last node or the
+// claimed node (+4 record +0x48) when within 2 units horizontally and 80 vertically.
+uint8_t XB_CDECL GScr_ActorIsStanceAllowed(uint32_t handle, uint32_t stance);
+// 0x002fd100: unless 0x0094cbb4 > 0: pushes the critical section state (9; message when already in one) and
+// names it (+0xc8) after name, or the int hash map text of the actor record's (+0x250) +4 for none.
+void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString* name);
+
+struct ScrStringArray;
+// 0x002fd1e0: a shake/rumble descriptor (ShakeRumbleDesc_Init): the shake channel (+0) from shake_a and its
+// strength when > 0, the rumble channel (+0x20) unless its time is below 0.01 (strength clamped to 0..1);
+// started on shakeRumbleMgr, names released.
+void XB_CDECL GScr_ShakeRumble(uint32_t rumble_a, float rumble_strength, float rumble_time, uint32_t rumble_b,
+                               uint32_t rumble_c, uint32_t shake_a, float shake_strength);
+// 0x002fd2d0: both channels by name when strength > 0 (shake: name, time, strength 1; rumble: name, strength).
+void XB_CDECL GScr_ShakeRumbleNamed(const ScriptString* rumble, float strength, const ScriptString* shake,
+                                    uint32_t shake_time);
+// 0x002fd3a0: HudManager_SetComponentColor on the HUD manager's component +0x1c.
+void XB_CDECL GScr_HudSetComponentColor(int32_t component, int32_t color);
+// 0x002fd420: the sentient's (+0x244) goal node +0x4a; for non-players also Sentient_SetGoalNode.
+void XB_CDECL GScr_SetGoalNode(uint32_t handle, const uint16_t* node);
+// 0x002fd490, 0x002fd4d0: the render record's (CG_GetEntityRefEntity) byte +0xee = value / +0xef = value != 0.
+void XB_CDECL GScr_SetRefEntByte_ee(uint32_t handle, uint32_t value);
+void XB_CDECL GScr_SetRefEntFlag_ef(uint32_t handle, uint32_t value);
+// 0x002fd520: notifies "death" (Scr_Notify), then G_FreeEntity.
+void XB_CDECL GScr_Delete(uint32_t handle);
+// 0x002fd570: the callback at +0x86c of the object at 0x0095f49c on the script_animtree and script_name cvars
+// (copied to script strings), 0 when either is empty.
+uint32_t XB_CDECL GScr_CheckScriptAnimTreeCvars();
+// 0x002fd630: FX_IsEffectActive on the list at 0x0095f5b4.
+uint8_t XB_CDECL GScr_IsSoundPlaying(uint32_t id);
+// 0x002fd740: the localized string (rm_locStrings entry +8, else +0xc) for the hash into out. Returns out.
+ScriptString* XB_CDECL GScr_GetLocalizedString(ScriptString* out, uint32_t hash);
+// 0x002fd770, 0x002fd790, 0x002fd7b0, 0x002fd820: HUD element *index becomes a timer of kind 7 / 6 / 5 / 4
+// (HudElem_SetTimerKind; inlined for 5).
+void XB_CDECL GScr_HudSetTimer7(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer6(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer(const int32_t* index, float seconds);
+void XB_CDECL GScr_HudSetTimer4(const int32_t* index, float seconds);
+// 0x002fd840: the zone of that name in the zone set (+0x18 of 0x0095f638: StringMap_Find over +8, index
+// checked against +0x10, values +0x14), 0 if none.
+uint32_t XB_CDECL GScr_FindZone(const ScriptString* name);
+// 0x002fd8a0: config string 9 = "%g" of value.
+void XB_CDECL GScr_SetConfigstring9Float(float value);
+// 0x002fd8c0: the two keys bound to the command (VM_Call(cgvm, 0xc); "KEY_UNBOUND" / "" without cgame)
+// appended to out; returns the VM_Call result (0 without cgame).
+int32_t XB_CDECL GScr_GetKeyBinding(ScrStringArray* out, const ScriptString* command);
+// 0x002fd9b0: out (DynArray) = the entity numbers of the actors of the team (all teams 0xe for an empty name).
+void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team);
+// 0x002fda60, 0x002fda90: the cvar's float (+0x1c, ST0) / int (+0x20), 0 for unknown cvars.
+float XB_CDECL GScr_GetCvarFloat(const char* name);
+int32_t XB_CDECL GScr_GetCvarInt(const char* name);
+
 }  // namespace game
