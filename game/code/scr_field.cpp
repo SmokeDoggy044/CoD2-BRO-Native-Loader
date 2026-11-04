@@ -266,6 +266,162 @@ void XB_CDECL ScrField_Clear52(uint32_t entity) {
     DynArray_Resize52(title_function<Find>(Finder)(script_object_or_empty(entity), Hash), 0, 0);
 }
 
+// ---- path / vehicle node fields (through the runtime's builtin table) ----
+
+namespace {
+
+template <typename F>
+F* builtin(uint32_t slot) {
+    return title_function<F>(title_global<uint32_t>(slot));
+}
+
+}  // namespace
+
+template <uint32_t Hash, uint32_t Slot>
+uint32_t* XB_CDECL ScrNode_GetKey(uint32_t* out, uint32_t node) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(Slot)(node, Hash);
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+uint32_t* XB_THISCALL ScrNode_GetKeyOf(const uint32_t* self, uint32_t* out) {
+    *out = builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(Slot)(*self, Hash);
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+const uint32_t* XB_THISCALL ScrNode_SetKeyOf(const uint32_t* self, const uint32_t* value) {
+    builtin<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(Slot)(*self, Hash, *value);
+    return value;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+bool* XB_CDECL ScrNode_KeyIsDefined(bool* out, uint32_t node) {
+    *out = node != 0xffffffffu &&
+           builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(Slot)(node, Hash) != title_global<uint32_t>(0x00922ec0);
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+uint32_t* XB_CDECL ScrNode_GetNodeKey(uint32_t* out, uint32_t node) {
+    uint32_t got;
+    *out = *builtin<const uint32_t* XB_CDECL(uint32_t*, uint32_t, uint32_t)>(Slot)(&got, node, Hash);
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+bool* XB_CDECL ScrNode_NodeKeyIsDefined(bool* out, uint32_t node) {
+    bool defined = false;
+    if (node != 0xffffffffu) {
+        uint32_t got;
+        defined = *builtin<const uint32_t* XB_CDECL(uint32_t*, uint32_t, uint32_t)>(Slot)(&got, node, Hash) != 0xffffffffu;
+    }
+    *out = defined;
+    return out;
+}
+
+template <uint32_t Check, uint32_t ZeroIsInvalid>
+bool* XB_CDECL ScrNode_HandleIsDefined(bool* out, uint32_t node) {
+    *out = (!ZeroIsInvalid || node != 0) && node != 0xffffffffu &&
+           builtin<uint32_t XB_CDECL(uint32_t)>(Check)(node) != 0;
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+ScriptString* XB_THISCALL ScrNode_StringKeyCopy(const uint32_t* self, ScriptString* out) {
+    ScriptString got;
+    using Get = const ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t);
+    ScriptString_Copy(out, builtin<Get>(Slot)(&got, *self, Hash));
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+    return out;
+}
+
+template <uint32_t Slot>
+ScriptString* XB_THISCALL ScrNode_StringCopy(const uint32_t* self, ScriptString* out) {
+    ScriptString got;
+    using Get = const ScriptString* XB_CDECL(ScriptString*, uint32_t);
+    ScriptString_Copy(out, builtin<Get>(Slot)(&got, *self));
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+    return out;
+}
+
+template <uint32_t Getter>
+ScriptString* XB_CDECL ScrNode_String(ScriptString* out, uint32_t node) {
+    title_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(Getter)(&node, out);
+    return out;
+}
+
+template <uint32_t Slot>
+float* XB_CDECL ScrNode_Vector(float* out, uint32_t node) {
+    float got[3];
+    const float* v = builtin<const float* XB_CDECL(float*, uint32_t)>(Slot)(got, node);
+    std::memcpy(out, v, 3 * sizeof(float));  // three word copies in the original
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Slot>
+float* XB_CDECL ScrNode_FloatKey(float* out, uint32_t node) {
+    *out = builtin<float XB_CDECL(uint32_t, uint32_t)>(Slot)(node, Hash);
+    return out;
+}
+
+template <uint32_t Slot>
+float* XB_CDECL ScrNode_Float(float* out, uint32_t node) {
+    *out = builtin<float XB_CDECL(uint32_t)>(Slot)(node);
+    return out;
+}
+
+template <uint32_t Copier>
+bool XB_THISCALL ScrNode_StringNonEmpty(const uint32_t* self) {
+    ScriptString got;
+    title_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(Copier)(self, &got);
+    const bool non_empty = got.rep != nullptr;
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+    return non_empty;
+}
+
+// ---- hud elements: 0x7c-byte records at 0x0094cc88, used while +0 is non-zero ----
+
+namespace {
+
+uint32_t hud_elem(uint32_t index) { return index * 0x7c + 0x0094cc88; }
+
+bool hud_elem_live(uint32_t elem) { return elem && title_global<uint32_t>(elem); }
+
+}  // namespace
+
+template <uint32_t Offset>
+uint32_t XB_CDECL ScrHudElem_SetWord(uint32_t index, uint32_t value) {
+    const uint32_t elem = hud_elem(index);
+    if (hud_elem_live(elem)) title_global<uint32_t>(elem + Offset) = value;
+    return elem;
+}
+
+template <uint32_t Offset>
+uint32_t XB_CDECL ScrHudElem_GetWord(uint32_t index) {
+    const uint32_t elem = hud_elem(index);
+    return hud_elem_live(elem) ? title_global<uint32_t>(elem + Offset) : 0;
+}
+
+template <uint32_t Offset>
+uint32_t XB_CDECL ScrHudElem_SetByte(uint32_t index, uint32_t value) {
+    const uint32_t elem = hud_elem(index);
+    if (hud_elem_live(elem)) title_global<uint8_t>(elem + Offset) = static_cast<uint8_t>(value);
+    return elem;
+}
+
+template <uint32_t Offset>
+uint8_t XB_CDECL ScrHudElem_GetByte(uint32_t index) {
+    const uint32_t elem = hud_elem(index);
+    return hud_elem_live(elem) ? title_global<uint8_t>(elem + Offset) : 0;
+}
+
+template <uint32_t Offset>
+float XB_CDECL ScrHudElem_GetFloat(uint32_t index) {
+    const uint32_t elem = hud_elem(index);
+    return hud_elem_live(elem) ? title_global<float>(elem + Offset) : title_global<float>(0x0083eafc);
+}
+
 // ---- one-off accessors ----
 
 namespace {
@@ -452,6 +608,50 @@ uint8_t* XB_CDECL ScrField_SetWeaponIndex(uint8_t* base, uint32_t offset, const 
     }
     std::memcpy(field_at(base, offset), &index, sizeof index);
     return base;
+}
+
+bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined(bool* out, uint32_t node) {
+    *out = node != 0xffffffffu && ScrVehNodeField_script_uniquename_IsNonEmpty(&node);
+    return out;
+}
+
+long double XB_CDECL ScrIface_atof(const char* text) {
+    return title_function<long double XB_CDECL(const char*)>(0x001ef056)(text);
+}
+
+void XB_CDECL ScrIface_SmallFree(uint8_t* mem) { SmallHeap_Free(title_global<uint8_t*>(0x00947700), mem); }
+
+uint8_t* XB_CDECL ScrIface_Alloc(uint32_t size) { return SmallHeap_Alloc(title_global<uint8_t*>(0x00947700), size, 0); }
+
+void XB_CDECL ScrIface_Free(uint8_t* mem) {
+    if (SmallHeap_Owns(title_global<const uint32_t*>(0x0095f4a4), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem))))
+        SmallHeap_Free(title_global<uint8_t*>(0x0095f4a4), mem);
+    else
+        Heap_FreeIn2(title_global<uint32_t>(0x0095f4a0), mem);
+}
+
+uint32_t XB_CDECL ScrIface_HashStringNoCase(const char* text) {
+    using CharFn = int32_t XB_CDECL(int32_t);
+    uint32_t hash = 0;
+    for (; *text; ++text) {
+        int8_t c = static_cast<int8_t>(*text);
+        if (title_function<CharFn>(0x001eef49)(c))  // _isalpha
+            c = static_cast<int8_t>(title_function<CharFn>(0x001eed48)(c));  // tolower
+        hash = ((hash << 5) | (hash >> 27)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
+    }
+    return hash;
+}
+
+uint8_t* XB_CDECL ScrIface_Malloc(uint32_t size, uint32_t align) {
+    uint8_t* heap = title_global<uint8_t*>(0x0095f4a4);
+    const int32_t last = *reinterpret_cast<const int32_t*>(heap + 0x24) - 1;
+    const int32_t pool = last > 0 ? last : 0;
+    const int32_t limit = *reinterpret_cast<const int16_t*>(heap + 0x28 + pool * 2);
+    if (size <= static_cast<uint32_t>(limit))
+        if (uint8_t* mem = SmallHeap_Alloc(heap, size, 0)) return mem;
+    if (uint8_t* mem = Heap_AllocFromHeap(title_global<uint8_t*>(0x0095f4a0), size, align)) return mem;
+    title_function<void XB_CDECL()>(0x002f6313)();  // the original's int3
+    return nullptr;
 }
 
 }  // namespace game
