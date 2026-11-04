@@ -536,4 +536,50 @@ uint32_t XB_CDECL GScr_GetWeaponModel(uint32_t id);
 // calls it with arg); false without a list.
 uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint32_t arg);
 
+// 0x002fbf20: DebugDraw_AddLine(end, start, {color, alpha}, width, 0 frames, grouped, no fade).
+void XB_CDECL GScr_DebugLine(const float* start, const float* end, const uint32_t* color, uint32_t alpha,
+                             uint32_t width);
+// 0x002fbf80: DebugDraw_AddString({color, alpha}, origin, scale, text, grouped).
+void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const uint32_t* color, uint32_t alpha,
+                           float scale);
+// Objective builtins: objective `index` (0-15) is config string index + 16, an info string.
+// 0x002fc710: toggles the objective's "ring" key ("1" when absent or 0, else "0"); message for bad indexes.
+// (Proposed name: GScr_ObjectiveToggleRing.)
+void XB_CDECL GScr_ValidateObjectiveIndex(int32_t index);
+// 0x002fc7f0: the objective's "org" key = "%i %i %i" of the truncated origin; nothing for bad indexes.
+void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin);
+// 0x002fc8a0: empties the objective's config string; message for bad indexes.
+void XB_CDECL GScr_ObjectiveDelete(int32_t index);
+// 0x002fc9d0: sends `reverb "%s" %g %g` to the handle's client (the name goes in as its rep pointer).
+void XB_CDECL GScr_SetReverb(uint32_t handle, const ScriptString* name, float a, float b);
+// 0x002fca10: toggles the player's noclip (client +0x584; byte 0x0095f679 = on) and prints GAME_NOCLIPON/OFF.
+void XB_CDECL GScr_ToggleNoclip();
+// 0x002fca80: SV_GameSendServerCommand("popupclose", handle) (tail jump). (Proposed name: GScr_ClosePopup.)
+void XB_CDECL GScr_SendServerCommand(uint32_t handle);
+// 0x002fca90: whether the client's +0x60 is set (0 without a client).
+int32_t XB_CDECL GScr_PlayerGetBool_60(uint32_t handle);
+// 0x002fcae0, 0x002fcb20: SetClientViewAngle / TeleportPlayer on players (tail jumps).
+void XB_CDECL GScr_PlayerSetAngles(uint32_t handle, const float* angles);
+void XB_CDECL GScr_PlayerSetOrigin(uint32_t handle, const float* origin);
+// 0x002fcb60, 0x002fcc20: an owned weapon's ammo type (+0x598) filled up (Add_Ammo, no clip) to the ammo type's
+// maximum (0x00929818) / the weapon's max ammo (+0x590).
+void XB_CDECL GScr_PlayerGiveMaxAmmoByAmmoType(uint32_t handle, const ScriptString* weapon_name);
+void XB_CDECL GScr_PlayerGiveMaxAmmo(uint32_t handle, const ScriptString* weapon_name);
+// 0x002fcce0: BG_GivePlayerWeapon, then Add_Ammo(count), filling the clip for a weapon not owned before.
+void XB_CDECL GScr_PlayerGiveWeaponWithAmmo(uint32_t handle, const ScriptString* weapon_name, int32_t count);
+// 0x002fcda0: BG_GivePlayerWeapon, then the ammo up to max ammo (+0x590), clip filled when new.
+void XB_CDECL GScr_PlayerGiveWeapon(uint32_t handle, const ScriptString* weapon_name);
+// 0x002fce80, 0x002fced0: GScr_ReturnObstacleKind of the actor's +0x2b0 / +0x39c entity handle.
+void XB_CDECL GScr_ActorGetObstacleKind_2b0(uint32_t handle, ScriptString* out);
+void XB_CDECL GScr_ActorGetObstacleKind_39c(uint32_t handle, ScriptString* out);
+// 0x002fcf20: Actor_Exposed_StartReacquire(1) for an actor in state 2 with +0x28 == 0xc8.
+void XB_CDECL GScr_ActorStartReacquire(uint32_t handle);
+// 0x002fcf80: whether the stance (stand/crouch/prone; others: message, false) is allowed: not barred by the
+// actor's limits (+4 record +0x46) and in the actor's stances (+0x244) narrowed by the path's last node or the
+// claimed node (+4 record +0x48) when within 2 units horizontally and 80 vertically.
+uint8_t XB_CDECL GScr_ActorIsStanceAllowed(uint32_t handle, uint32_t stance);
+// 0x002fd100: unless 0x0094cbb4 > 0: pushes the critical section state (9; message when already in one) and
+// names it (+0xc8) after name, or the int hash map text of the actor record's (+0x250) +4 for none.
+void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString* name);
+
 }  // namespace game

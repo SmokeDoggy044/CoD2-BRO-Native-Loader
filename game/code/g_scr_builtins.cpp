@@ -5,6 +5,9 @@
 #include "cgame.h"
 #include "cl.h"
 #include "dobj.h"
+#include "g_client.h"
+#include "ngl_debug.h"
+#include "sv.h"
 #include "fx.h"
 #include "g_pathnode.h"
 #include "g_main.h"
@@ -2326,6 +2329,250 @@ uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint3
     // 0x0029acb0 (EDX list, callee pops 8): the listener whose key (+8) is *name; calls its object's slot 1.
     using CallListener = uint8_t XB_REGS2 XB_STDCALL(uint32_t, uint8_t*, const uint32_t*, uint32_t);
     return title_function<CallListener>(0x0029acb0)(0, field<uint8_t*>(ent, 0x230), &name, arg);
+}
+
+namespace {
+
+// The objective's config string (index + 16; 0x00964ce0, text +6) copied into a 256-byte buffer.
+void objective_info(int32_t configstring, char* info) {
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        info, script_text(&title_global<ScriptString>(0x00964ce0 + configstring * 4)), 0xff);
+    info[0xff] = 0;
+}
+
+// Add_Ammo for the client's missing ammo of the weapon's ammo type (+0x598): room = limit - client +0x110[type].
+void give_missing_ammo(uint8_t* ent, uint8_t* client, uint32_t weapon, int32_t limit, uint32_t fill_clip) {
+    const uint32_t ammo_type = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x598);
+    const int32_t room = limit - field<int32_t>(client, 0x110 + ammo_type * 4);
+    if (room > 0) Add_Ammo(ent, weapon, room, fill_clip);
+}
+
+}  // namespace
+
+void XB_CDECL GScr_DebugLine(const float* start, const float* end, const uint32_t* color, uint32_t alpha,
+                             uint32_t width) {
+    const uint32_t rgba[4] = {color[0], color[1], color[2], alpha};
+    DebugDraw_AddLine(end, start, reinterpret_cast<const float*>(rgba), width, 0, 1, 0);
+}
+
+void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const uint32_t* color, uint32_t alpha,
+                           float scale) {
+    const uint32_t rgba[4] = {color[0], color[1], color[2], alpha};
+    DebugDraw_AddString(reinterpret_cast<const float*>(rgba), origin, scale, script_text(text), 1);
+}
+
+void XB_CDECL GScr_ValidateObjectiveIndex(int32_t index) {
+    if (index < 0 || index >= 0x10) {
+        title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00831b38), index, 0xf);  // "index %i is an illegal objective index. ..."
+        return;
+    }
+    // Toggles the objective's "ring" key: "1" when it was absent or 0, else "0".
+    const int32_t configstring = index + 0x10;
+    char info[0x100];
+    objective_info(configstring, info);
+    const char* const ring = Info_ValueForKey(info, title_text(0x00831a24));  // "ring"
+    const int32_t value = *ring ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(ring) : 0;  // _atol
+    const char* const text = title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(  // va
+        title_text(0x0082ded4), value == 0 ? 1 : 0);  // "%i"
+    Info_SetValueForKey(text, 0, title_text(0x00831a24), info);
+    SV_SetConfigstring(configstring, info);
+}
+
+void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin) {
+    if (index < 0 || index >= 0x10) return;
+    const int32_t configstring = index + 0x10;
+    char info[0x100];
+    objective_info(configstring, info);
+    const int32_t z = static_cast<int32_t>(origin[2]);
+    const int32_t y = static_cast<int32_t>(origin[1]);
+    const int32_t x = static_cast<int32_t>(origin[0]);
+    const char* const text = title_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t)>(0x002a93d0)(
+        title_text(0x00831a30), x, y, z);  // va("%i %i %i")
+    Info_SetValueForKey(text, 0, title_text(0x00831a2c), info);  // "org"
+    SV_SetConfigstring(configstring, info);
+}
+
+void XB_CDECL GScr_ObjectiveDelete(int32_t index) {
+    if (index < 0 || index >= 0x10) {
+        title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00831b38), index, 0xf);
+        return;
+    }
+    // The original copies 3 characters into its argument slot and then empties it.
+    const int32_t configstring = index + 0x10;
+    char info[4];
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        info, script_text(&title_global<ScriptString>(0x00964ce0 + configstring * 4)), 3);
+    info[3] = 0;
+    info[0] = 0;
+    SV_SetConfigstring(configstring, info);
+}
+
+void XB_CDECL GScr_SetReverb(uint32_t handle, const ScriptString* name, float a, float b) {
+    // The name goes in as the string's rep pointer, not its text.
+    const char* const text = title_function<const char* XB_CDECL(const char*, uint32_t, double, double)>(0x002a93d0)(
+        title_text(0x00831d48), *reinterpret_cast<const uint32_t*>(name), x87_widen(a),
+        x87_widen(b));  // va("reverb \"%s\" %g %g")
+    SV_GameSendServerCommand(text, handle);
+}
+
+void XB_CDECL GScr_ToggleNoclip() {
+    uint8_t* const player = field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4);
+    if (!player) return;
+    uint8_t* const client = field<uint8_t*>(player, 0x23c);
+    const uint32_t noclip = field<uint32_t>(client, 0x584);
+    uint32_t message;
+    if (noclip) {
+        message = 0x00831d78;  // "GAME_NOCLIPOFF"
+        title_global<uint8_t>(0x0095f679) = 0;
+    } else {
+        message = 0x00831d68;  // "GAME_NOCLIPON"
+        title_global<uint8_t>(0x0095f679) = 1;
+    }
+    field<uint32_t>(client, 0x584) = noclip == 0;
+    const uint32_t handle = field<uint32_t>(player, 0x224);
+    SV_GameSendServerCommand(title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+                                 title_text(0x00831d5c), title_text(message)),  // "print \"%s\""
+                             handle);
+}
+
+void XB_CDECL GScr_SendServerCommand(uint32_t handle) {
+    SV_GameSendServerCommand(title_text(0x00831d88), handle);  // "popupclose"
+}
+
+int32_t XB_CDECL GScr_PlayerGetBool_60(uint32_t handle) {
+    uint8_t* const client = handle_client(handle);
+    return client && field<uint32_t>(client, 0x60) ? 1 : 0;
+}
+
+void XB_CDECL GScr_PlayerSetAngles(uint32_t handle, const float* angles) {
+    uint8_t* const ent = handle_entity(handle);
+    if (ent && field<uint8_t*>(ent, 0x23c)) SetClientViewAngle(angles, ent);
+}
+
+void XB_CDECL GScr_PlayerSetOrigin(uint32_t handle, const float* origin) {
+    uint8_t* const ent = handle_entity(handle);
+    if (ent && field<uint8_t*>(ent, 0x23c)) TeleportPlayer(ent, 0, origin);
+}
+
+void XB_CDECL GScr_PlayerGiveMaxAmmoByAmmoType(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (!client) return;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!owns_weapon(client, weapon)) return;
+    const uint32_t ammo_type = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x598);
+    give_missing_ammo(ent, client, weapon, title_global<int32_t>(0x00929818 + ammo_type * 4), 0);  // max per ammo type
+}
+
+void XB_CDECL GScr_PlayerGiveMaxAmmo(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (!client) return;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!owns_weapon(client, weapon)) return;
+    give_missing_ammo(ent, client, weapon, field<int32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x590), 0);
+}
+
+void XB_CDECL GScr_PlayerGiveWeaponWithAmmo(uint32_t handle, const ScriptString* weapon_name, int32_t count) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (!client) return;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    const bool owned = owns_weapon(client, weapon);
+    BG_GivePlayerWeapon(weapon, client);
+    Add_Ammo(ent, weapon, count, !owned);
+}
+
+void XB_CDECL GScr_PlayerGiveWeapon(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (!client) return;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    const bool owned = owns_weapon(client, weapon);
+    BG_GivePlayerWeapon(weapon, client);
+    give_missing_ammo(ent, field<uint8_t*>(ent, 0x23c), weapon,
+                      field<int32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x590), !owned);
+}
+
+void XB_CDECL GScr_ActorGetObstacleKind_2b0(uint32_t handle, ScriptString* out) {
+    if (uint8_t* const actor = handle_actor(handle)) GScr_ReturnObstacleKind(0, 0, out, field<uint32_t>(actor, 0x2b0));
+}
+
+void XB_CDECL GScr_ActorGetObstacleKind_39c(uint32_t handle, ScriptString* out) {
+    if (uint8_t* const actor = handle_actor(handle)) GScr_ReturnObstacleKind(0, 0, out, field<uint32_t>(actor, 0x39c));
+}
+
+void XB_CDECL GScr_ActorStartReacquire(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (actor && field<uint32_t>(actor, 8) == 2 && field<uint32_t>(actor, 0x28) == 0xc8)
+        Actor_Exposed_StartReacquire(1, actor);
+}
+
+uint8_t XB_CDECL GScr_ActorIsStanceAllowed(uint32_t handle, uint32_t stance) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return 0;
+    const uint8_t limits = field<uint8_t>(field<uint8_t*>(actor, 4), 0x46);
+    uint32_t wanted = 0;
+    if (stance == title_global<uint32_t>(0x0097a7e8)) {  // scr_const_stand
+        if (limits & 4) return 0;
+        wanted = 1;
+    } else if (stance == title_global<uint32_t>(0x0097a674)) {  // scr_const_crouch
+        if (limits & 2) return 0;
+        wanted = 2;
+    } else if (stance == title_global<uint32_t>(0x0097a764)) {  // scr_const_prone
+        if (limits & 1) return 0;
+        wanted = 4;
+    } else {
+        va_message(0x00831da8);  // "invalid stance in isStanceAllowed()\n"
+    }
+    uint32_t allowed = 7;
+    if (field<int16_t>(actor, 0x740) > 0) {
+        allowed = Path_GetAllowedStances(0, actor + 0x3c0);
+    } else {
+        const uint16_t* const node_handle = reinterpret_cast<const uint16_t*>(field<uint8_t*>(actor, 4) + 0x48);
+        if (PathNode_HandleIsValid(node_handle)) {
+            uint8_t* const self = field<uint8_t*>(actor, 0);
+            const float dx = field<float>(PathNode_FromHandle(node_handle), 0x44) - field<float>(self, 0x140);
+            const float dy = field<float>(PathNode_FromHandle(node_handle), 0x48) - field<float>(self, 0x144);
+            const float dz = field<float>(PathNode_FromHandle(node_handle), 0x4c) - field<float>(self, 0x148);
+            const float xy = platform_addss(dy * dy, dx * dx);
+            if (title_global<float>(0x0083100c) > xy && title_global<float>(0x0083eb6c) > dz * dz)  // 4, 6400
+                allowed = Actor_GetAllowedStanceMask(field<uint8_t*>(actor, 4));
+        }
+    }
+    const uint32_t actor_stances = field<uint32_t>(actor, 0x244);
+    uint32_t stances = actor_stances & allowed;
+    if (!stances) stances = actor_stances;
+    return (wanted & stances) != 0;
+}
+
+void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString* name) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor || title_global<int32_t>(0x0094cbb4) > 0) return;
+    const int32_t top = field<int32_t>(actor, 0xbc);
+    for (int32_t i = 0; i <= top; ++i) {
+        if (field<int32_t>(actor, 0xa4 + i * 4) == 9) {
+            title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+                &title_global<char>(0x00831dd0),
+                script_text(reinterpret_cast<const ScriptString*>(actor + 0xc8)));  // "enterCriticalSection: ..."
+            break;
+        }
+    }
+    Actor_PushState(actor, 9);
+    ScriptString* const section = reinterpret_cast<ScriptString*>(actor + 0xc8);
+    if (name) {
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(section, name);  // ScriptString_Assign
+    } else {
+        // Unnamed: the text the int hash map holds for the actor record's (+0x250) 16-bit +4.
+        title_function<void XB_THISCALL(ScriptString*, const uint8_t*)>(0x0011dd20)(  // ScriptString_AssignCString
+            section, IntHashMap_FindValue(field<uint16_t>(field<uint8_t*>(actor, 0x250), 4)));
+    }
 }
 
 }  // namespace game
