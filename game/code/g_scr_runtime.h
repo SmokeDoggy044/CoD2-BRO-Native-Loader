@@ -249,4 +249,27 @@ uint32_t XB_THISCALL WaitTilOutputInst2_str_str_CopyArgs(uint8_t* self, uint8_t*
 // 0x00029130: releases both strings (+0x10, +0xc), base vtable, SmallHeap_Free when flags & 1.
 uint8_t* XB_THISCALL WaitTilOutputInst2_str_str_DeletingDtor(uint8_t* self, uint32_t flags);
 
+// 0x0024b860 (EAX = object): the rm_animTrees handle (index << 16) of the tree at object+8.
+uint32_t XB_REGS1 XB_CDECL AnimTree_RootHandle(uint8_t* obj);
+// 0x0029acb0 (EDX = callback list, pops 8): calls the object of the node with *key (slot 1, argument); AL = found.
+uint32_t XB_REGS2 XB_STDCALL EntNotifyCallbacks_CallByKey(uint32_t, uint8_t* list, const uint32_t* key,
+                                                         uint32_t argument);
+// 0x002adfe0 (EAX = table): zeroes the 0x3c-byte entity notify-callback table; returns it.
+uint8_t* XB_REGS1 XB_CDECL EntNotifyCallbacks_Init(uint8_t* self);
+// 0x002a84e0 (EDX = vm; asm entry, the entry point at the original's ESP).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL VM_Call_c(uint32_t entry_esp, uint8_t* vm, uint32_t ebx);
+extern "C" void VM_Call_entry(void);
+// 0x002a8580 / 0x002af280 / 0x002f2b80.
+int32_t XB_CDECL VM_DllSyscall(uint32_t arg);
+void XB_CDECL VM_Clear();
+uint8_t* XB_CDECL VM_Create(const char* module, uint32_t system_calls);
+// 0x002f64f0 (EAX = record, XMM0 = timeout, pops 12; asm entry).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ScrWaitTimeoutRecord_Init(uint8_t* self, uint32_t a, uint32_t b,
+                                                                       uint32_t c, uint32_t timeout_bits);
+extern "C" void ScrWaitTimeoutRecord_Init_entry(void);
+// 0x002f6670 (EAX = data, ECX = end, pops 4) / 0x002f67a0.
+uint32_t XB_REGS3 XB_STDCALL ScrThread_AppendData(const uint8_t* data, uint32_t, const uint8_t* end,
+                                                  uint32_t* holder);
+void XB_CDECL ScrThread_InitDataHeap();
+
 }  // namespace game

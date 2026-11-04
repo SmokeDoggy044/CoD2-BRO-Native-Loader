@@ -360,4 +360,22 @@ void XB_CDECL ScrLocal_ReleaseString(uint32_t, uint32_t, ScriptString value);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrPathNode_CopyType_c(uint32_t entry_esp, uint32_t ecx);
 extern "C" void ScrPathNode_CopyType_entry(void);
 
+// Field hooks (0x002f4ca0..0x002fb012; cdecl (object, field offset, value address)) and plain
+// actor accessors (0x002f87b0, 0x002f8a00).
+void XB_CDECL ScrSentient_SetFloat18Field(uint8_t* object, uint32_t, const float* value);
+void XB_CDECL ScrSentient_GetTeamField(const uint8_t* object, uint32_t, ScriptString* out);
+void XB_CDECL ScrPathNode_GetTypeField(const uint8_t* node, uint32_t, ScriptString* out);
+void XB_CDECL ScrPathNode_SetAnglesField(uint8_t* node, uint32_t, const uint32_t* value);
+void XB_CDECL ScrActor_GetString2c0Field(const uint8_t* actor, uint32_t, ScriptString* out);
+void XB_CDECL ScrSentient_SetGoalArcField(uint8_t* object, uint32_t, const float* value);
+void XB_CDECL ScrSentient_GetRef3cField(const uint8_t* object, uint32_t, uint32_t* out);
+void XB_CDECL ScrPathNode_GetAnglesField(const uint8_t* node, uint32_t, uint32_t* out);
+void XB_CDECL ScrActor_GetRef12a0Field(const uint8_t* object, uint32_t, uint32_t* out);
+void XB_CDECL ScrActor_SetInt184Field(uint8_t* actor, uint32_t, const uint32_t* value);
+uint32_t XB_CDECL ScrActor_GetByte_3b1(uint32_t handle);
+void XB_CDECL ScrActor_SetInt_1370(uint32_t handle, uint32_t value);
+void XB_CDECL ScrSentient_SetTeamFromString(uint8_t* object, uint32_t, const ScriptString* value);
+void XB_CDECL ScrActor_SetRef12a0Field(uint8_t* actor, uint32_t, const uint32_t* value);
+void XB_CDECL ScrEnt_GetModelField(const uint8_t* ent, uint32_t, ScriptString* out);
+
 }  // namespace game
