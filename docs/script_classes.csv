@@ -271,3 +271,4 @@ address,name,class,evidence
 002f93d0,GScr_HudComp20_Enable,matched offline,"script builtin; 0 calls in missions 1,4,5,6 (--only --every 1); offline leaf test matched every input (3650, 100%)"
 002f9410,GScr_HudComp24_Push,matched offline,"script builtin; 0 calls in missions 1,4,5,6 (--only --every 1); offline leaf test matched every input (2944, 100%)"
 002f9460,GScr_HudComp24_SetEcTwo,matched offline,"script builtin; 0 calls in missions 1,4,5,6 (--only --every 1); offline leaf test matched every input (3639, 100%)"
+002f4e20,ScrField_SetFloatMin4AndSquare,dead,"no CALL/JMP, no pointer in data, no immediate (Ghidra xrefs none; fnpack); C kept, leaf test 2888/2888 inputs matched (100% coverage)"
