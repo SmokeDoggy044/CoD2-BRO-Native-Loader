@@ -762,4 +762,43 @@ void XB_CDECL GScr_SetFlaggedAnimKnobAll(uint32_t handle, uint32_t notify, uint3
 void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t anim, float goal, uint32_t blend,
                                       uint32_t rate, uint32_t restart);
 
+// 0x00301860: the time (+0) of the anim node's info (0x00965d00, 0x30 bytes each), 0 without one (ST0).
+float XB_CDECL GScr_GetAnimTime(uint32_t handle, uint32_t anim);
+// 0x00301910, 0x003019b0, 0x00301a50: AnimTree_SetGoalWeight / SetKnobAll / siblings cleared + SetGoalWeight
+// (goal below 0.001 = 0; nothing for anim -1) on the entity's anim tree, without a notify.
+void XB_CDECL GScr_SetAnim(uint32_t handle, uint32_t anim, uint32_t goal, uint32_t blend, uint32_t rate,
+                           uint32_t restart);
+void XB_CDECL GScr_SetAnimKnobAll(uint32_t handle, uint32_t anim, uint32_t stop, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart);
+void XB_CDECL GScr_SetAnimKnob(uint32_t handle, uint32_t anim, float goal, uint32_t blend, uint32_t rate,
+                               uint32_t restart);
+// 0x00301af0: AnimTree_ClearGoalWeight_r on the anim (blend below 0.001 = 0).
+void XB_CDECL GScr_ClearAnim(uint32_t handle, uint32_t anim, float blend);
+// 0x00301ba0: ends the scripted anim (+0x3d4: its anim to goal 1 then 0, freed; an actor leaves state 10).
+void XB_CDECL GScr_StopAnimScripted(uint32_t handle);
+// 0x00301c80: HUD element *hud (0-15) becomes a shader element (kind 3) of width x height.
+void XB_CDECL GScr_HudSetShader(const int32_t* hud, const ScriptString* shader, int32_t width, int32_t height);
+// 0x00301ee0: the client's view model (+0x98) from the model name in the entity's memory context.
+void XB_CDECL GScr_PlayerSetViewModel(uint32_t handle, const ScriptString* model);
+// 0x00301f60: swaps the brush models (+0xdc) of two entities of one memory context (bounds from each, relinked).
+void XB_CDECL GScr_SwapEntField_dc(uint32_t handle_a, uint32_t handle_b);
+// 0x00302060: out = the entity's origin + its axis applied to local (forward x, -right y, up z).
+void XB_CDECL GScr_LocalToWorldCoords(uint32_t handle, const float* local, float* out);
+// 0x00302190, 0x003021d0: HudElem_SetShaderTimer of kind 9 / 8.
+void XB_CDECL GScr_HudSetShaderTimer9(const int32_t* hud, float seconds, float period, const ScriptString* shader,
+                                      int32_t width, int32_t height);
+void XB_CDECL GScr_HudSetShaderTimer8(const int32_t* hud, float seconds, float period, const ScriptString* shader,
+                                      int32_t width, int32_t height);
+// 0x00302210: out = the name of bone `index` of the model (first LOD; name map 0x0095fe00). Returns
+// ScriptString_AssignCString's result.
+uint32_t XB_CDECL GScr_GetModelBoneName(ScriptString* out, const ScriptString* model_name, uint32_t index);
+// 0x003022e0: XModel_GetBoneCount of the named model.
+uint32_t XB_CDECL GScr_GetModelBoneCount(const ScriptString* model_name);
+// 0x00302320: CG_StartShakeCamera(origin, scale, duration in ms, radius).
+void XB_CDECL GScr_Earthquake(float scale, float duration, const float* origin, float radius);
+// 0x00302640, 0x003026c0: a script_brushmodel/script_model loses / gets its solidity (+0x10 bit 2, +0x134) and
+// is relinked.
+void XB_CDECL GScr_MoverNotSolid(uint32_t handle);
+void XB_CDECL GScr_MoverSolid(uint32_t handle);
+
 }  // namespace game

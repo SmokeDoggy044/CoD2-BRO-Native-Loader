@@ -14,6 +14,7 @@
 #include "g_client.h"
 #include "g_combat.h"
 #include "g_main.h"
+#include "g_mover.h"
 #include "g_pathnode.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
@@ -3722,6 +3723,223 @@ void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t
     uint32_t goal_bits;
     std::memcpy(&goal_bits, &goal, 4);
     AnimTree_SetGoalWeight(anim & 0xffff, tree, goal_bits, blend, rate, notify, 0, restart & 0xff);
+}
+
+namespace {
+
+uint8_t* ent_anim_tree(uint8_t* ent) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(G_GetEntAnimTree(ent))); }
+
+uint32_t float_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// The model of that name in the zone's maps (rm_models, memory context `zone`).
+uint8_t* register_model(const char* name, uint32_t zone) {
+    uint32_t model = 0;
+    R_RegisterModel(name, title_global<uint32_t>(0x0095f6ac), &model, zone);
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(model));
+}
+
+uint32_t level_zone() { return field<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34); }
+
+// An entity's memory context (+0x220), the level's for -1.
+uint32_t entity_zone(uint8_t* ent) {
+    const uint32_t zone = field<uint32_t>(ent, 0x220);
+    return zone == 0xffffffffu ? level_zone() : zone;
+}
+
+// The script_brushmodel / script_model / script_origin check of the mover builtins: a message for other
+// classes; script_origin does nothing.
+bool is_solid_mover(uint8_t* ent) {
+    const uint32_t name = field<uint32_t>(ent, 0x260);
+    const uint32_t origin = title_global<uint32_t>(0x0097a78c);
+    if (name == title_global<uint32_t>(0x0097a784) || name == title_global<uint32_t>(0x0097a788)) return name != origin;
+    if (name != origin) va_message(0x00831e60);  // "entity is not a script_brushmodel, script_model, or script_origin"
+    return false;
+}
+
+}  // namespace
+
+float XB_CDECL GScr_GetAnimTime(uint32_t handle, uint32_t anim) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return title_global<float>(0x0083eafc);
+    // The anim node's info (+0x18 per node, 0x30-byte infos at 0x00965d00): its time +0.
+    const uint16_t info = field<uint16_t>(anim_tree_of(ent), 0x18 + (anim & 0xffff) * 2);
+    if (!info) return 0.0f;
+    return title_global<float>(0x00965d00 + info * 0x30u);
+}
+
+void XB_CDECL GScr_SetAnim(uint32_t handle, uint32_t anim, uint32_t goal, uint32_t blend, uint32_t rate,
+                           uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    AnimTree_SetGoalWeight(anim & 0xffff, anim_tree_of(ent), goal, blend, rate, 0, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetAnimKnobAll(uint32_t handle, uint32_t anim, uint32_t stop, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    AnimTree_SetKnobAll(anim & 0xffff, anim_tree_of(ent), stop & 0xffff, goal, blend, rate, 0, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetAnimKnob(uint32_t handle, uint32_t anim, float goal, uint32_t blend, uint32_t rate,
+                               uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || anim == 0xffffffffu) return;
+    uint8_t* const tree = ent_anim_tree(ent);
+    if (title_global<float>(0x0083eb4c) > goal) goal = 0.0f;  // under 0.001 (NaN stays)
+    AnimTree_ClearSiblingGoalWeights(goal, tree, anim & 0xffff, blend);
+    AnimTree_SetGoalWeight(anim & 0xffff, tree, float_bits(goal), blend, rate, 0, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_ClearAnim(uint32_t handle, uint32_t anim, float blend) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const tree = anim_tree_of(ent);
+    if (title_global<float>(0x0083eb4c) > blend) blend = 0.0f;
+    AnimTree_ClearGoalWeight_r(tree, anim & 0xffff, float_bits(blend));
+}
+
+void XB_CDECL GScr_StopAnimScripted(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    // An actor in the scripted-anim state (10) leaves it.
+    if (uint8_t* const actor = field<uint8_t*>(ent, 0x240))
+        if (field<int32_t>(actor, 0xa4 + field<int32_t>(actor, 0xbc) * 4) == 10) Actor_PopState(actor);
+    uint8_t* const scripted = field<uint8_t*>(ent, 0x3d4);
+    if (!scripted) return;
+    if (field<uint16_t>(scripted, 0x40)) {
+        // The scripted anim (+0x40) to goal 1, then 0; entity flag 0x1000000 cleared.
+        uint8_t* const tree = ent_anim_tree(ent);
+        field<uint32_t>(ent, 0x2a4) &= 0xfeffffffu;
+        AnimTree_SetGoalWeight(field<uint16_t>(scripted, 0x40), tree, 0x3f800000u, 0, 0x3f800000u, 0, 0, 0);
+        AnimTree_SetGoalWeight(field<uint16_t>(scripted, 0x40), tree, 0, 0, 0x3f800000u, 0, 0, 0);
+    }
+    Z_Free(scripted);
+    field<uint8_t*>(ent, 0x3d4) = nullptr;
+}
+
+void XB_CDECL GScr_HudSetShader(const int32_t* hud, const ScriptString* shader, int32_t width, int32_t height) {
+    const int32_t index = *hud;
+    if (index < 0 || static_cast<uint32_t>(index) >= 0x10) return;
+    uint8_t* const elem = hud_elem(index);
+    uint8_t* const material = RE_RegisterShader(0, script_text(shader));
+    if (width < 0) title_va(0x008323e4, width);    // "width %i < 0"
+    if (height < 0) title_va(0x008323d4, height);  // "height %i < 0"
+    field<int32_t>(elem, 0x34) = height;
+    field<int32_t>(elem, 0x30) = width;
+    for (uint32_t offset = 0x3c; offset <= 0x48; offset += 4) field<uint32_t>(elem, offset) = 0;
+    field<uint32_t>(elem, 0x5c) = 0;
+    field<uint32_t>(elem, 0x60) = 0;
+    field<float>(elem, 0x64) = 0.0f;
+    field<uint32_t>(elem, 0x68) = 0;
+    field<uint32_t>(elem, 0) = 3;  // shader element
+    field<uint8_t*>(elem, 0x38) = material;
+}
+
+void XB_CDECL GScr_PlayerSetViewModel(uint32_t handle, const ScriptString* model) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    uint8_t* const found = register_model(script_text(model), entity_zone(ent));
+    field<uint8_t*>(field<uint8_t*>(ent, 0x23c), 0x98) = found;
+}
+
+void XB_CDECL GScr_SwapEntField_dc(uint32_t handle_a, uint32_t handle_b) {
+    uint8_t* const a = handle_entity(handle_a);
+    uint8_t* const b = handle_entity(handle_b);
+    if (!a || !b) return;
+    if (entity_zone(a) != entity_zone(b)) return;
+    // Swaps the brush models (+0xdc) of two entities of the same memory context, bounds (+0xe0/+0xf0) from
+    // each model, radius +0x12c cleared, both relinked.
+    const uint32_t model = field<uint32_t>(b, 0xdc);
+    field<uint32_t>(b, 0xdc) = field<uint32_t>(a, 0xdc);
+    field<uint32_t>(a, 0xdc) = model;
+    using CopyBounds = void XB_REGS3 XB_CDECL(uint8_t* maxs, uint32_t model, uint8_t* mins);
+    title_function<CopyBounds>(0x002b2790)(a + 0xf0, field<uint32_t>(a, 0xdc), a + 0xe0);  // BrushModel_CopyBounds
+    title_function<CopyBounds>(0x002b2790)(b + 0xf0, field<uint32_t>(b, 0xdc), b + 0xe0);
+    field<float>(a, 0x12c) = 0.0f;
+    field<float>(b, 0x12c) = 0.0f;
+    SV_LinkEntity(a);
+    SV_LinkEntity(b);
+}
+
+void XB_CDECL GScr_LocalToWorldCoords(uint32_t handle, const float* local, float* out) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    float right[3], forward[3], up[3];
+    uint32_t args[2] = {word_of(ent + 0x150), word_of(forward)};
+    AnglesToAxis(args, right, up);
+    // out = origin + forward * x - right * y + up * z (each row re-reads local: out may be local).
+    const float zero = 0.0f;
+    const auto row = [&](int i) {
+        return platform_addss(platform_addss(platform_mulss(local[0], forward[i]), platform_mulss(up[i], local[2])),
+                              platform_mulss(zero - right[i], local[1]));
+    };
+    out[0] = row(0);
+    out[1] = row(1);
+    out[2] = row(2);
+    out[0] = platform_addss(field<float>(ent, 0x140), out[0]);
+    out[1] = platform_addss(field<float>(ent, 0x144), out[1]);
+    out[2] = platform_addss(field<float>(ent, 0x148), out[2]);
+}
+
+void XB_CDECL GScr_HudSetShaderTimer9(const int32_t* hud, float seconds, float period, const ScriptString* shader,
+                                      int32_t width, int32_t height) {
+    HudElem_SetShaderTimer(*hud, 9, script_text(shader), seconds, period, width, height);
+}
+
+void XB_CDECL GScr_HudSetShaderTimer8(const int32_t* hud, float seconds, float period, const ScriptString* shader,
+                                      int32_t width, int32_t height) {
+    HudElem_SetShaderTimer(*hud, 8, script_text(shader), seconds, period, width, height);
+}
+
+uint32_t XB_CDECL GScr_GetModelBoneName(ScriptString* out, const ScriptString* model_name, uint32_t index) {
+    using AssignCString = uint32_t XB_THISCALL(ScriptString*, const char*);
+    const uint8_t* const model = register_model(script_text(model_name), level_zone());
+    const uint32_t count = XModel_GetBoneCount(reinterpret_cast<const XModel*>(model));
+    if (index >= count) title_va(0x00832438, count - 1);  // "index out of range (0 - %d)"
+    // The bone's name hash in the first LOD (+0x24.. first non-null) -> parts +8 -> {.., count +0x10, bones +0x14
+    // of 12 bytes, hash +4}; index 0 when out of range. Its text from the name map 0x0095fe00.
+    uint32_t lod = 0;
+    while (!field<uint32_t>(const_cast<uint8_t*>(model), 0x24 + lod * 4)) ++lod;
+    uint8_t* const parts = field<uint8_t*>(field<uint8_t*>(const_cast<uint8_t*>(model), 0x24 + lod * 4), 8);
+    const uint32_t bone = index < field<uint32_t>(parts, 0x10) ? index : 0;
+    const int32_t hash = field<int32_t*>(parts, 0x14)[bone * 3 + 1];
+    uint32_t node;
+    IntHashMap_Find(&node, &hash, &title_global<uint8_t>(0x0095fe00));
+    const char* const text = node != title_global<uint32_t>(0x0095fe08)
+                                 ? reinterpret_cast<const char*>(static_cast<uintptr_t>(node + 0xc))
+                                 : nullptr;
+    return title_function<AssignCString>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+}
+
+uint32_t XB_CDECL GScr_GetModelBoneCount(const ScriptString* model_name) {
+    const uint8_t* const model = register_model(script_text(model_name), level_zone());
+    return XModel_GetBoneCount(reinterpret_cast<const XModel*>(model));
+}
+
+void XB_CDECL GScr_Earthquake(float scale, float duration, const float* origin, float radius) {
+    const int32_t ms = static_cast<int32_t>(duration * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24));
+    CG_StartShakeCamera(origin, scale, ms, radius);
+}
+
+void XB_CDECL GScr_MoverNotSolid(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_solid_mover(ent)) return;
+    field<uint32_t>(ent, 0x134) = 0;
+    field<uint32_t>(ent, 0x10) |= 2;
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL GScr_MoverSolid(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_solid_mover(ent)) return;
+    field<uint32_t>(ent, 0x134) = 1;
+    field<uint32_t>(ent, 0x10) &= ~2u;
+    SV_LinkEntity(ent);
 }
 
 }  // namespace game
