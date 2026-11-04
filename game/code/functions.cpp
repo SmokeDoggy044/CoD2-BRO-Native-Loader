@@ -55,6 +55,7 @@
 #include "r_static_init.h"
 #include "ragdoll.h"
 #include "scr_access.h"
+#include "scr_class.h"
 #include "scr_field.h"
 #include "script_string.h"
 #include "shaders.h"
@@ -2625,6 +2626,10 @@ const Function kFunctions[] = {
     {"ScriptString_FromCStringPlusInt", 0x0011a7d0, 0, code(&ScriptString_FromCStringPlusInt), 12, Result::Eax, Status::Compare},
     {"ScriptString_ReleaseAt20", 0x0011a850, 0, code(&ScriptString_ReleaseAt20), 0, Result::None, Status::Compare},
     {"ScrCall_Scr_EntityHandleIsValid", 0x0011a860, 0, code(&ScrCall_Scr_EntityHandleIsValid), 4, Result::Al, Status::Compare},
+    {"ScrClass_007f5f4c_Dtor", 0x0011a9b0, 0, code(&ScrClass_007f5f4c_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_007f8af8_Dtor", 0x0011ab50, 0, code(&ScrClass_007f8af8_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_007f8b00_Dtor", 0x0011ad40, 0, code(&ScrClass_007f8b00_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_007f8b08_Dtor", 0x0011b130, 0, code(&ScrClass_007f8b08_Dtor), 0, Result::None, Status::Compare},
     {"ScriptString_PlusInt", 0x0011b1c0, 0, code(&ScriptString_PlusInt), 12, Result::Eax, Status::Compare},
     {"ScrCall_ScrVehNode_GetAngles", 0x0011b240, 0, code(&ScrCall_ScrVehNode_GetAngles), 4, Result::Eax, Status::Compare},
     {"ScrCall_ScrEnt_SetGroupname", 0x0011b2a0, 0, code(&ScrCall_ScrEnt_SetGroupname), 4, Result::Eax, Status::Compare},
@@ -2635,17 +2640,32 @@ const Function kFunctions[] = {
     {"ScrCall_GScr_GetZoneAtPoint", 0x0011b430, 0, code(&ScrCall_GScr_GetZoneAtPoint), 4, Result::Eax, Status::Compare},
     {"Scr_IntToFloat", 0x0011b470, 0, code(&Scr_IntToFloat), 4, Result::St0, Status::Replaced},
     {"ScrCall_GScr_PlaySoundWithNotify_2", 0x0011b4b0, 0, code(&ScrCall_GScr_PlaySoundWithNotify_2), 8, Result::Eax, Status::Compare},
+    {"ScrClass_007fceb4_Dtor", 0x0011b570, 0, code(&ScrClass_007fceb4_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_ScrActor_SetInt_1378", 0x0011b810, 0, code(&ScrCall_ScrActor_SetInt_1378), 4, Result::Eax, Status::Compare},
+    {"ScrClass_007ff7d4_Dtor", 0x0011b890, 0, code(&ScrClass_007ff7d4_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_ScrPathNode_GetScriptNoteworthy", 0x0011b9a0, 0, code(&ScrCall_ScrPathNode_GetScriptNoteworthy), 4, Result::Eax, Status::Compare},
     {"ScrCall_ScrActor_SetRef_12a0", 0x0011ba10, 0, code(&ScrCall_ScrActor_SetRef_12a0), 4, Result::Eax, Status::Compare},
     {"ScrCall_GScr_GetOrigin", 0x0011ba30, 0, code(&ScrCall_GScr_GetOrigin), 8, Result::Eax, Status::Compare},
     {"ScriptString_ToInt", 0x0011ba80, 0, code(&ScriptString_ToInt), 8, Result::Eax, Status::Compare},
+    {"ScrClass_00802298_Dtor", 0x0011be10, 0, code(&ScrClass_00802298_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_GScr_AmbientPlay", 0x0011bff0, 0, code(&ScrCall_GScr_AmbientPlay), 4, Result::Eax, Status::Compare},
+    {"ScrClass_00804cfc_Dtor", 0x0011c030, 0, code(&ScrClass_00804cfc_Dtor), 0, Result::None, Status::Compare},
     {"ScriptString_GetChar", 0x0011c0c0, 0, code(&ScriptString_GetChar), 4, Result::Al, Status::Compare},
     {"Scr_GetEntObjectOrEmpty", 0x0011c170, 0, code(&Scr_GetEntObjectOrEmpty), 0, Result::Eax, Status::Compare},
+    {"ScrClass_0080873c_Dtor", 0x0011c1d0, 0, code(&ScrClass_0080873c_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_0080ddf8_Dtor", 0x0011ca20, 0, code(&ScrClass_0080ddf8_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_ScrActor_GetString_ec", 0x0011cae0, 0, code(&ScrCall_ScrActor_GetString_ec), 4, Result::Eax, Status::Compare},
+    {"ScrClass_008134a4_Dtor", 0x0011cb70, 0, code(&ScrClass_008134a4_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_007f5f9c_Dtor", 0x0011cca0, 0, code(&ScrClass_007f5f9c_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_00815830_Dtor", 0x0011ccd0, 0, code(&ScrClass_00815830_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_ScrPathNode_GetTargetname", 0x0011cd30, 0, code(&ScrCall_ScrPathNode_GetTargetname), 4, Result::Eax, Status::Compare},
+    {"ScrWad_Anim_DeletingDtor", 0x0011cdd0, 0, code(&ScrWad_Anim_DeletingDtor), 4, Result::Eax, Status::Compare},
+    {"ScrClass_00819a34_Dtor", 0x0011ce10, 0, code(&ScrClass_00819a34_Dtor), 0, Result::None, Status::Compare},
     {"ScrCall_GScr_SetAnimKnobAll", 0x0011d010, 0, code(&ScrCall_GScr_SetAnimKnobAll), 24, Result::Eax, Status::Compare},
+    {"ScrClass_0081d404_Dtor", 0x0011d150, 0, code(&ScrClass_0081d404_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_00820538_Dtor", 0x0011d220, 0, code(&ScrClass_00820538_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_00821f34_Dtor", 0x0011d390, 0, code(&ScrClass_00821f34_Dtor), 0, Result::None, Status::Compare},
+    {"ScrClass_00823508_Dtor", 0x0011d470, 0, code(&ScrClass_00823508_Dtor), 0, Result::None, Status::Compare},
     {"ScriptStringRep_Init", 0x0011d540, 0, code(&ScriptStringRep_Init), 12, Result::Eax, Status::Compare},
     {"ScriptStringRep_Append", 0x0011d580, 0, code(&ScriptStringRep_Append), 8, Result::None, Status::Compare},
     {"ScriptString_FromRep", 0x0011d5d0, 0, code(&ScriptString_FromRep), 4, Result::Eax, Status::Compare},
