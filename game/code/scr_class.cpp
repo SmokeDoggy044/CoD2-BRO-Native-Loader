@@ -386,4 +386,120 @@ uint8_t* XB_THISCALL ScrWad_Anim_DeletingDtor(uint8_t* self, uint32_t flags) {
     return self;
 }
 
+// --- Script-thread functors (AeThreadFunctor*: the bound arguments of a thread started from
+// C, vtable per argument list, base vtable 0x007f48d4). The destructors release the bound
+// strings / owned blocks / RespawnerAttributes (0x0052b970) and then store the base vtable;
+// the deleting destructors free through the builtin table's SmallFree (0x0092292c).
+
+namespace {
+
+template <uint32_t Dtor>
+uint8_t* deleting(uint8_t* self, uint32_t flags) {
+    title_function<void XB_THISCALL(uint8_t*)>(Dtor)(self);
+    if (flags & 1) title_global<void XB_CDECL (*)(void*)>(0x0092292c)(self);  // ScrIface_SmallFree
+    return self;
+}
+
+}  // namespace
+
+void XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_Dtor(uint8_t* self) {
+    member(0x0052b970, self, 0xc);  // FUN_0052b970
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor3_ent_str_vec_Dtor(uint8_t* self) {
+    release(self, 0xc);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_arrf_i_Dtor(uint8_t* self) {
+    free_member(self, 0x10);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Dtor(uint8_t* self) {
+    free_member(self, 0x14);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Dtor(uint8_t* self) {
+    release(self, 0x10);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Dtor(uint8_t* self) {
+    release(self, 0xc);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor4_ent_str_i_str_Dtor(uint8_t* self) {
+    release(self, 0x14);
+    release(self, 0xc);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Dtor(uint8_t* self) {
+    release(self, 0x14);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Dtor(uint8_t* self) {
+    release(self, 0xf4);
+    member(0x0052b970, self, 0x10);  // FUN_0052b970
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Dtor(uint8_t* self) {
+    release(self, 0x10);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Dtor(uint8_t* self) {
+    release(self, 0x18);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor5_vt00825c50_Dtor(uint8_t* self) {
+    release(self, 0x18);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Dtor(uint8_t* self) {
+    release(self, 0x1c);
+    release(self, 0x10);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Dtor(uint8_t* self) {
+    free_member(self, 0x30);
+    free_member(self, 0x10);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor_Dtor_2(uint8_t* self) {
+    release(self, 0x14);
+    set_vtable(self, 0x007f48d4);
+}
+
+void XB_THISCALL AeThreadFunctor_Dtor(uint8_t* self) {
+    set_vtable(self, 0x007f48d4);
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b6a0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b710>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_vec_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b780>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b7f0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b860>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b8e0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_i_str_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017b950>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017c8d0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017c940>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x0017c9c0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e5740>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e5680>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor_DeletingDtor_2(uint8_t* self, uint32_t flags) { return deleting<0x001e56f0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e5770>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e57e0>(self, flags); }
+uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e5850>(self, flags); }
+
 }  // namespace game
