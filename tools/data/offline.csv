@@ -1042,7 +1042,14 @@ address,name,tested,matched,nan,mismatched,coverage
 002f59d0,GScr_SetPersistentInt,1740,1740,0,0,100.0
 002f5a10,GScr_SuppressObjectiveUpdateMessage,2823,2823,0,0,100.0
 002f5a30,GScr_HudObjectives_Set13d0,2762,2762,0,0,100.0
+002f5c40,GScr_IsNotMinusOne,2559,2559,0,0,100.0
+002f5c70,GScr_EntList190_Disable,1699,1699,0,0,100.0
+002f5c90,GScr_EntList190_Enable,1733,1733,0,0,100.0
+002f5e60,GScr_HudMoveOverTime,1189,1189,0,0,100.0
+002f5ef0,GScr_HudScaleOverTime,1327,1327,0,0,89.7
+002f6010,GScr_HudSetValue,1357,1357,0,0,100.0
 002f6080,HudElem_SetDefaults,3800,3800,0,0,100.0
+002f6130,GScr_IsZoneLoaded,1465,1465,0,0,100.0
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
