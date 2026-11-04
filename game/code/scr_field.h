@@ -143,9 +143,10 @@ ScriptString* XB_THISCALL ScrNode_StringKeyCopy(const uint32_t* self, ScriptStri
 template <uint32_t Slot>
 ScriptString* XB_THISCALL ScrNode_StringCopy(const uint32_t* self, ScriptString* out);
 
-// The string field through `Getter` (thiscall(&node, out)); returns `out`.
+// The string field through `Getter` (thiscall(&node, out)); returns `out`. Asm entry (SCR_FIELD_ESP_ENTRY):
+// (out, node) read from the entry ESP's frame, the getter run at the original's ESP.
 template <uint32_t Getter>
-ScriptString* XB_CDECL ScrNode_String(ScriptString* out, uint32_t node);
+ScriptString* XB_CDECL ScrNode_String(uint32_t entry_esp, uint32_t ecx);
 // out[0..2] = the vector Slot(&tmp, node) returns.
 template <uint32_t Slot>
 float* XB_CDECL ScrNode_Vector(float* out, uint32_t node);
@@ -155,9 +156,10 @@ float* XB_CDECL ScrNode_FloatKey(float* out, uint32_t node);
 // *out = Slot(node) (x87 float result).
 template <uint32_t Slot>
 float* XB_CDECL ScrNode_Float(float* out, uint32_t node);
-// Whether the string Copier(self, &tmp) gives is non-empty.
+// Whether the string Copier(self, &tmp) gives is non-empty (thiscall, self in ECX; asm entry
+// SCR_FIELD_ESP_ENTRY: the temporary at the original's frame word, the copier at the original's ESP).
 template <uint32_t Copier>
-bool XB_THISCALL ScrNode_StringNonEmpty(const uint32_t* self);
+bool XB_CDECL ScrNode_StringNonEmpty(uint32_t entry_esp, uint32_t self);
 
 // Hud element `index` (0x7c-byte records at 0x0094cc88, live while +0 is non-zero):
 // setters write the field at `Offset` of a live record and return the record's
@@ -209,6 +211,9 @@ uint32_t* XB_CDECL ScrField_h8969d6d6_Size(uint32_t* out, uint32_t entity);
 uint32_t XB_CDECL ScrField_GetWeaponName(uint8_t* base, uint32_t offset, ScriptString* out);
 // 0x002f4e00: *out = (int)(field * 0x0083eb4c's float).
 int32_t* XB_CDECL ScrField_GetMsAsSeconds(uint8_t* base, uint32_t offset, int32_t* out);
+// 0x002f4e20 (value pointer in EAX, object in ECX; nothing calls it or points to it): v = *value, at least
+// 0x0083100c's float (4); the record at object +4 gets v at +0x18 and v * v at +0x1c; returns that record.
+uint8_t* XB_REGS3 XB_CDECL ScrField_SetFloatMin4AndSquare(const float* value, uint32_t unused, const uint8_t* object);
 // 0x002f4e60: field = *value clamped to [0, 0x0083eb20's float].
 uint8_t* XB_CDECL ScrField_SetFloat01(uint8_t* base, uint32_t offset, const float* value);
 // 0x002f4eb0: *out = the byte field.
@@ -220,8 +225,10 @@ uint8_t* XB_CDECL ScrField_SetSecondsAsMs(uint8_t* base, uint32_t offset, const 
 // 0x002f96c0: field = the weapon index for the name's hash (0 for an empty name).
 uint8_t* XB_CDECL ScrField_SetWeaponIndex(uint8_t* base, uint32_t offset, const ScriptString* name);
 
-// 0x00198d80: node != -1 and its script_uniquename is non-empty.
-bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined(bool* out, uint32_t node);
+// 0x00198d80 (out, node): node != -1 and its script_uniquename is non-empty (the title's
+// ScrVehNodeField_script_uniquename_IsNonEmpty run at the original's ESP: asm entry).
+extern "C" void ScrVehNodeField_script_uniquename_IsDefined_entry(void);
+extern "C" PLATFORM_HIDDEN bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp);
 
 // 0x001a4290: the struct field 0x12993a44 (ScriptKeyTable_GetStruct28, 0x001e4a20). That getter adds a
 // missing field from a 0x28-byte frame block one word of which (+0x1c) it never sets: the asm entry runs

@@ -1026,8 +1026,11 @@ address,name,tested,matched,nan,mismatched,coverage
 002f4bf0,GScr_Set8db198,4000,4000,0,0,100.0
 002f4c00,GScr_Set8d20e0,4000,4000,0,0,100.0
 002f4d40,Scr_NopRefSetter,4000,4000,0,0,100.0
+002f4e00,ScrField_GetMsAsSeconds,1640,1640,0,0,100.0
+002f4e20,ScrField_SetFloatMin4AndSquare,2888,2888,0,0,100.0
 002f4e50,Scr_NopFieldSetter,4000,4000,0,0,100.0
 002f4ea0,GScr_Set95f4b4,4000,4000,0,0,100.0
+002f4ed0,ScrField_SetByte,1614,1614,0,0,100.0
 002f5190,GScr_EmptyStub221,4000,4000,0,0,100.0
 002f51a0,GScr_EmptyStub220,4000,4000,0,0,100.0
 002f51b0,GScr_EmptyStub223,4000,4000,0,0,100.0
@@ -1102,6 +1105,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f93d0,GScr_HudComp20_Enable,3650,3650,0,0,100.0
 002f9410,GScr_HudComp24_Push,2944,2944,0,0,100.0
 002f9460,GScr_HudComp24_SetEcTwo,3639,3639,0,0,100.0
+002f96c0,ScrField_SetWeaponIndex,1496,1496,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
