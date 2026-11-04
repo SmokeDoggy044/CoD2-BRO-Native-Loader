@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "cl.h"
+#include "dobj.h"
 #include "g_main.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
@@ -1605,5 +1606,163 @@ uint32_t XB_CDECL GScr_HasVisibleModel(uint32_t handle) {
 }
 
 void XB_CDECL GScr_SetEntFlag2000000(uint32_t handle) { set_ent_flag<0x2000000>(handle); }
+
+namespace {
+
+// The turret record (+0x24c) of the handle's entity, or null.
+uint8_t* handle_turret(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<uint8_t*>(ent, 0x24c) : nullptr;
+}
+
+}  // namespace
+
+void XB_CDECL GScr_SetForcedLod(uint32_t handle, int32_t lod) {
+    uint8_t* const ent = handle_entity(handle);
+    if (ent && field<DObj*>(ent, 0x22c)) DObj_SetForcedLod(lod, field<DObj*>(ent, 0x22c));
+}
+
+void XB_CDECL GScr_Turret_Set40(uint32_t handle, float value) {
+    if (uint8_t* const turret = handle_turret(handle)) field<float>(turret, 0x40) = value;
+}
+
+void XB_CDECL GScr_Turret_Set3c(uint32_t handle, float value) {
+    if (uint8_t* const turret = handle_turret(handle)) field<float>(turret, 0x3c) = value;
+}
+
+void XB_CDECL GScr_Turret_SetArc_34(uint32_t handle, float value) {
+    uint8_t* const turret = handle_turret(handle);
+    if (!turret) return;
+    field<float>(turret, 0x34) = value;
+    if (0.0f > value) field<float>(turret, 0x34) = 0.0f;
+}
+
+void XB_CDECL GScr_Turret_SetArc_2c(uint32_t handle, float value) {
+    if (uint8_t* const turret = handle_turret(handle)) field<float>(turret, 0x2c) = 0.0f - value;
+}
+
+void XB_CDECL GScr_Turret_SetArc_38(uint32_t handle, float value) {
+    uint8_t* const turret = handle_turret(handle);
+    if (!turret) return;
+    field<float>(turret, 0x38) = value;
+    if (0.0f > value) field<float>(turret, 0x38) = 0.0f;
+}
+
+void XB_CDECL GScr_Turret_SetArc_30(uint32_t handle, float value) {
+    uint8_t* const turret = handle_turret(handle);
+    if (!turret) return;
+    const float negated = 0.0f - value;
+    field<float>(turret, 0x30) = negated;
+    if (negated > 0.0f) field<float>(turret, 0x30) = 0.0f;
+}
+
+void XB_CDECL GScr_SetSpawnerTeam(uint32_t handle, const ScriptString* team) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || field<uint8_t>(ent, 0) != 0xc) return;
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    const uint32_t names[] = {0x0083208c, 0x00832084, 0x00831f14};  // "axis", "allies", "neutral"
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(names[i])) == 0) {
+            field<uint32_t>(ent, 0x3b4) = i + 1;
+            return;
+        }
+    }
+    // The message gets the string's rep pointer, not its text (+6).
+    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x00831edc), *reinterpret_cast<const uint32_t*>(team));  // "unknown team '%s', ..."
+}
+
+void XB_CDECL GScr_SetEntFlag80000(uint32_t handle) { set_ent_flag<0x80000>(handle); }
+void XB_CDECL GScr_ClearEntFlag80000(uint32_t handle) { clear_ent_flag<0x80000>(handle); }
+void XB_CDECL GScr_ClearEntFlag40000(uint32_t handle) { clear_ent_flag<0x40000>(handle); }
+void XB_CDECL GScr_SetEntFlag40000(uint32_t handle) { set_ent_flag<0x40000>(handle); }
+
+int32_t XB_CDECL GScr_GetEntityNumber(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<int32_t>(ent, 0x224) : 0;
+}
+
+void XB_CDECL GScr_MoveGravity(uint32_t handle, const uint32_t* velocity) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    field<uint32_t>(ent, 0x14) = 5;  // gravity trajectory
+    field<uint32_t>(ent, 0x18) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<uint32_t>(ent, 0x2c) = velocity[0];
+    field<uint32_t>(ent, 0x30) = velocity[1];
+    field<uint32_t>(ent, 0x34) = velocity[2];
+    field<uint8_t>(ent, 0x294) = 1;
+}
+
+void XB_CDECL GScr_ClearEFlag8000(uint32_t handle) {
+    if (uint8_t* const ent = handle_entity(handle)) field<uint32_t>(ent, 0x10) &= ~0x8000u;
+}
+
+void XB_CDECL GScr_SetEFlag8000(uint32_t handle) {
+    if (uint8_t* const ent = handle_entity(handle)) field<uint32_t>(ent, 0x10) |= 0x8000;
+}
+
+void XB_CDECL GScr_ViewKick(uint32_t handle, int32_t damage, const float* point) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const int32_t scaled =
+        static_cast<int32_t>(field<uint32_t>(ent, 0x354) * static_cast<uint32_t>(damage) + 50u);
+    field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x5d4) = scaled / 100;
+    if (field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x5d4) < 0)
+        title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+            &title_global<char>(0x00831f1c), static_cast<double>(damage));  // "viewkick: damage %g < 0\n"
+    for (uint32_t i = 0; i < 3; ++i) {
+        uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+        field<float>(client, 0x5d8 + i * 4) = field<float>(client, i * 4) - point[i];
+    }
+}
+
+void XB_CDECL GScr_ClearClientVec4f4(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f4) = 0;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f8) = 0;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4fc) = 0;
+}
+
+uint8_t XB_CDECL GScr_Turret_GetFlag1(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const turret = field<uint8_t*>(ent, 0x24c);
+    if (!turret) {
+        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+            &title_global<char>(0x00832094), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
+        return 0;  // "entity type '%s' is not a turret"
+    }
+    return field<uint8_t>(turret, 1) != 0;
+}
+
+void XB_CDECL GScr_GetStance(uint32_t handle, ScriptString* out) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (!client) return;
+    const uint32_t flags = field<uint32_t>(client, 0x2c);
+    uint32_t stance = 0x00984c2c;                 // "stand"
+    if (flags & 1)
+        stance = 0x00984bd4;                      // "prone"
+    else if (flags & 2)
+        stance = 0x00984ae4;                      // "crouch"
+    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(out, stance);  // ScriptString_Assign
+}
+
+uint8_t XB_CDECL GScr_AnimHasNotetrack(uint32_t, uint32_t anim, const uint32_t* name) {
+    return XAnim_HasNotetrack(anim, name);
+}
+
+void XB_CDECL GScr_SetHintString28c(uint32_t handle, uint32_t hint) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const uint32_t classname = field<uint32_t>(ent, 0x260);
+    field<uint32_t>(ent, 0x28c) = hint;
+    if (classname == title_global<uint32_t>(0x0097a81c))  // scr_const_trigger_use
+        field<uint8_t>(ent, 5) = 0xff;
+    else
+        field<uint16_t>(field<uint8_t*>(ent, 0x240), 0x1380) = 0xffff;
+}
 
 }  // namespace game
