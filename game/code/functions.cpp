@@ -3102,14 +3102,29 @@ const Function kFunctions[] = {
     {"ScrField_h4ced49f6_PopFront", 0x0014ebc0, 0, code(&ScrField_h4ced49f6_PopFront), 4, Result::Eax, Status::Compare},
     {"BroScr_PanzerIVSetDifficultyHealth", 0x00151270, 0, code(&BroScr_PanzerIVSetDifficultyHealth), 4, Result::None, Status::Compare},
     {"ScrField_follow_ent", 0x00156a60, 0, code(&ScrField_follow_ent), 12, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke", 0x0017a370, 0, code(&AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_f_f_b_Invoke", 0x0017a3a0, 0, code(&AeThreadFunctor4_ent_f_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_ent_str_vec_Ctor", 0x0017a3c0, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_ent_str_vec_Invoke", 0x0017a440, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_i_str_b_Ctor", 0x0017a490, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_i_str_b_Invoke", 0x0017a510, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor", 0x0017a550, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor), 32, Result::Eax, Status::Compare},
+    {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke", 0x0017a5c0, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor3_ent_hash_hash_Invoke", 0x0017a600, 0, code(&AeThreadFunctor3_ent_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke", 0x0017a620, 0, code(&AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor3_ent_str_vec_Ctor", 0x0017a650, 0, code(&AeThreadFunctor3_ent_str_vec_Ctor), 16, Result::Eax, Status::Compare},
+    {"AeThreadFunctor3_ent_str_vec_Invoke", 0x0017a6d0, 0, code(&AeThreadFunctor3_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_f_f_hash_hash_Invoke", 0x0017a720, 0, code(&AeThreadFunctor5_ent_f_f_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_vec_str_vec_f_Ctor", 0x0017a740, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_vec_str_vec_f_Invoke", 0x0017a7e0, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke", 0x0017a840, 0, code(&AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor", 0x0017a870, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke", 0x0017a900, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor2_ent_RespawnerAttributes_Ctor", 0x0017a9a0, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Ctor), 12, Result::Eax, Status::Compare},
+    {"AeThreadFunctor2_ent_RespawnerAttributes_Invoke", 0x0017aa00, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_str_i_str_Ctor", 0x0017aa40, 0, code(&AeThreadFunctor4_ent_str_i_str_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_str_i_str_Invoke", 0x0017aac0, 0, code(&AeThreadFunctor4_ent_str_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor3_ent_vec_b_Invoke", 0x0017ab40, 0, code(&AeThreadFunctor3_ent_vec_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"DynArray_Alloc24_FillUndefined", 0x0017ab70, 0, code(&DynArray_Alloc24_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_AllocInt_FillUndefined", 0x0017ac00, 0, code(&DynArray_AllocInt_FillUndefined), 4, Result::Eax, Status::Replaced},
     {"DynArray_AllocBool_FillUndefined", 0x0017ac40, 0, code(&DynArray_AllocBool_FillUndefined), 4, Result::Eax, Status::Replaced},
@@ -3142,6 +3157,7 @@ const Function kFunctions[] = {
     {"DynArray_ResizeBytes", 0x0017baa0, 0, code(&DynArray_ResizeBytes), 8, Result::None, Status::Compare},
     {"DynArray_AssignBytes", 0x0017bb40, 0, code(&DynArray_AssignBytes), 4, Result::None, Status::Replaced},
     {"std_UninitializedCopy4", 0x0017bbb0, 0, code(&std_UninitializedCopy4), 12, Result::Eax, Status::Replaced},
+    {"AeThreadFunctor6_vt008245b4_Invoke", 0x0017bbe0, 0, code(&AeThreadFunctor6_vt008245b4_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"std_list_BuyNode16", 0x0017bc40, 0, code(&std_list_BuyNode16), 12, Result::Eax, Status::Replaced},
     {"std_list_BuyHead", 0x0017bc80, 0, code(&std_list_BuyHead), 0, Result::Eax, Status::Replaced},
     {"DynArray_Resize4", 0x0017bca0, 0, code(&DynArray_Resize4), 8, Result::None, Status::Replaced},
@@ -3152,6 +3168,7 @@ const Function kFunctions[] = {
     {"DynArray_Resize8", 0x0017bfb0, 0, code(&DynArray_Resize8), 8, Result::None, Status::Compare},
     {"DynArray_At", 0x0017c050, 0, code(&DynArray_At), 4, Result::Eax, Status::Compare},
     {"std_UninitializedFillN4", 0x0017c180, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Replaced},
+    {"AeThreadFunctor4_ent_ent_arrf_i_Invoke", 0x0017c1b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor", 0x0017c770, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor), 40, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_ent_arrent_Ctor", 0x0017c830, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Ctor), 20, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor", 0x0017c8b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -3161,6 +3178,8 @@ const Function kFunctions[] = {
     {"AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor", 0x0017c9a0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"AeThreadFunctor4_ent_ent_ent_arrent_Dtor", 0x0017c9c0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Dtor), 0, Result::None, Status::Compare},
     {"ScrField_he337f297_GetArrayCopy", 0x0017ca10, 0, code(ScrField_he337f297_GetArrayCopy), 4, Result::Eax, Status::Compare},
+    {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke", 0x0017ca40, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_ent_arrent_Invoke", 0x0017caf0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"HashMap_Find", 0x0017cb40, 0, code(&HashMap_Find), 8, Result::Eax, Status::Replaced},
     {"std_vector_UfillN4", 0x0017cbe0, 0, code(&std_vector_UfillN4), 12, Result::Eax, Status::Replaced},
     {"Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr", 0x0017cc10, 0, code(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry), 56, Result::Eax, Status::Compare},
@@ -3864,14 +3883,27 @@ const Function kFunctions[] = {
     {"ScrField_h1791f035_IsDefined", 0x001bc0e0, 0, code(ScrField_h1791f035_IsDefined), 8, Result::Eax, Status::Compare},
     {"ScrField_h1791f035_Clear", 0x001c2a40, 0, code(ScrField_h1791f035_Clear), 4, Result::None, Status::Compare},
     {"ScrField_h1791f035_Clear_2", 0x001c2a70, 0, code(ScrField_h1791f035_Clear_2), 4, Result::None, Status::Compare},
+    {"AeThreadFunctor4_ent_ent_b_hash_Invoke", 0x001e3dc0, 0, code(&AeThreadFunctor4_ent_ent_b_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_ent_str_ent_ent_Ctor", 0x001e3df0, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_ent_str_ent_ent_Invoke", 0x001e3e70, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_i_pathnode_str_Ctor", 0x001e3ec0, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_i_pathnode_str_Invoke", 0x001e3f30, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_i_vec_Invoke", 0x001e3f70, 0, code(&AeThreadFunctor4_ent_ent_i_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor", 0x001e3fb0, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor), 28, Result::Eax, Status::Compare},
+    {"AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke", 0x001e4030, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor", 0x001e4080, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke", 0x001e40e0, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_hash_i_f_Invoke", 0x001e4130, 0, code(&AeThreadFunctor4_ent_hash_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor", 0x001e4150, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor), 36, Result::Eax, Status::Compare},
+    {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke", 0x001e41f0, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_str_hash_hash_Ctor", 0x001e4280, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Ctor), 20, Result::Eax, Status::Compare},
+    {"AeThreadFunctor4_ent_str_hash_hash_Invoke", 0x001e42f0, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_ent_vec_vec_vec_i_Ctor", 0x001e4330, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_ent_vec_vec_vec_i_Invoke", 0x001e43a0, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke", 0x001e4400, 0, code(&AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor5_vt00825c50_Ctor", 0x001e4430, 0, code(&AeThreadFunctor5_vt00825c50_Ctor), 24, Result::Eax, Status::Compare},
+    {"AeThreadFunctor5_vt00825c50_Invoke", 0x001e44b0, 0, code(&AeThreadFunctor5_vt00825c50_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor6_ent_hash_f_i_f_f_Invoke", 0x001e44f0, 0, code(&AeThreadFunctor6_ent_hash_f_i_f_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"DynArray_Alloc12_FillUndefined", 0x001e4520, 0, code(&DynArray_Alloc12_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_Alloc24_FillUndefined_2", 0x001e4570, 0, code(&DynArray_Alloc24_FillUndefined_2), 8, Result::Eax, Status::Replaced},
     {"ScrPathNodeField_script_waittill_NonEmpty", 0x001e4610, 0, code(&ScrPathNodeField_script_waittill_NonEmpty_entry), 0, Result::Al, Status::Compare},
