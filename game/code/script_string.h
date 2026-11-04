@@ -108,5 +108,17 @@ extern "C" PLATFORM_HIDDEN ScriptStringRep* XB_CDECL ScriptString_Release(Script
 extern "C" void ScriptString_Release_entry(void);
 // 0x00119a20: whether the string equals the decimal text of `value` (ScriptString_FromInt).
 uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value);
+// 0x0011a7d0: `text` followed by the decimal `value` (ScriptString_FromCString, AppendInt).
+ScriptString* XB_CDECL ScriptString_FromCStringPlusInt(ScriptString* out, const char* text, int32_t value);
+// 0x0011b1c0: a copy of `string` followed by the decimal `value`.
+ScriptString* XB_CDECL ScriptString_PlusInt(ScriptString* out, const ScriptString* string, int32_t value);
+// 0x0011ba80: atol of the text (the builtin table's atol, 0x009229e0; null for the empty string).
+int32_t* XB_CDECL ScriptString_ToInt(int32_t* out, const ScriptString* string);
+// 0x0011c0c0: the character at `index`, 0 outside the text; AL only (the upper EAX bytes are
+// the rep pointer's).
+uint32_t XB_THISCALL ScriptString_GetChar(const ScriptString* self, uint32_t index);
+// 0x0011a850: releases the string member at +0x20 (tail jump to ScriptString_Release). Its only
+// users are C++ exception-unwind actions.
+ScriptStringRep* XB_THISCALL ScriptString_ReleaseAt20(uint8_t* self);
 
 }  // namespace game

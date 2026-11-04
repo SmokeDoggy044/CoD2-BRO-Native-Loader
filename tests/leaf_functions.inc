@@ -239,6 +239,7 @@
 {"SndSys_EmptyStub", 0x000c72f0, 1, 1, {}, {}},
 {"Snd_Printf", 0x000cb0f0, 1, 1, {}, {}},
 {"MovieVid_PredictDualPrime", 0x000ccef0, 1522, 493, {}, {0xc000000}},
+{"ScriptString_GetChar", 0x0011c0c0, 30, 11, {}, {}},
 {"ScriptString_FindLast", 0x0011d730, 108, 55, {}, {}},
 {"ScriptString_SetChar", 0x0011d7a0, 29, 10, {}, {}},
 {"BadPlace_FindByName", 0x001fb4e0, 53, 23, {}, {0x98aa74}},

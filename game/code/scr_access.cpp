@@ -825,4 +825,113 @@ uint32_t XB_CDECL ScrCall_Scr_EntityHandleIsValid(const uint32_t* ent) {
     return (valid & 0xffffff00u) | (valid != 0 ? 1u : 0u);
 }
 
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetRef_12a0(const uint32_t* self, const uint32_t* value) {
+    return call_set_word<0x00922d74>(self, value);
+}
+
+namespace {
+
+// builtin(handle, &vector, tag) into a default-filled local, copied out.
+template <uint32_t Slot>
+uint32_t* tag_vector(uint32_t* out, const uint32_t* ent, uint32_t tag) {
+    uint32_t vec[3];
+    default_vector(vec);
+    builtin<uint32_t XB_CDECL(uint32_t, uint32_t*, uint32_t)>(Slot)(*ent, vec, tag);
+    copy_vector(out, vec);
+    return out;
+}
+
+// builtin(&vector, argument) into a default-filled local, copied out (not the returned pointer).
+template <uint32_t Slot>
+uint32_t* vector_of(uint32_t* out, uint32_t arg) {
+    uint32_t vec[3];
+    default_vector(vec);
+    builtin<uint32_t XB_CDECL(uint32_t*, uint32_t)>(Slot)(vec, arg);
+    copy_vector(out, vec);
+    return out;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnobAll(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                     uint32_t c, uint32_t d, uint32_t e) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        0x009225e4)(*ent, *anim, a, b, c, d, e, 1);
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_GetTagOrigin(uint32_t* out, const uint32_t* ent, uint32_t tag) {
+    return tag_vector<0x0092261c>(out, ent, tag);
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_GetTagAngles(uint32_t* out, const uint32_t* ent, uint32_t tag) {
+    return tag_vector<0x00922620>(out, ent, tag);
+}
+
+ScriptString* XB_CDECL ScrCall_GScr_GetLocalizedString(ScriptString* out, uint32_t key) {
+    ScriptString value{nullptr};
+    const ScriptString* result = builtin<ScriptString* XB_CDECL(ScriptString*, uint32_t)>(0x0092267c)(&value, key);
+    ScriptString_Copy(out, result);
+    string_release(&value);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_Scr_VectorToAngles(uint32_t* out, uint32_t vec) { return vector_of<0x00922284>(out, vec); }
+
+uint32_t* XB_CDECL ScrCall_Scr_AnglesToForward(uint32_t* out, uint32_t angles) {
+    return vector_of<0x00922290>(out, angles);
+}
+
+// Copies the local the builtin filled, not the pointer it returns.
+ScriptString* XB_CDECL ScrCall_GScr_GetCvar(ScriptString* out, uint32_t name) {
+    ScriptString value;
+    ScriptString_FromRep(&value, nullptr);
+    builtin<ScriptString* XB_CDECL(ScriptString*, uint32_t)>(0x009222d8)(&value, name);
+    ScriptString_Copy(out, &value);
+    string_release(&value);
+    return out;
+}
+
+uint32_t* XB_CDECL ScrCall_Scr_VectorNormalize(uint32_t* out, uint32_t vec) { return vector_of<0x00922280>(out, vec); }
+
+uint32_t* XB_CDECL ScrCall_GScr_GetPersistentVector(uint32_t* out, uint32_t key) {
+    uint32_t vec[3] = {};
+    const uint32_t* result = builtin<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922328)(vec, key);
+    out[0] = result[0];
+    out[1] = result[1];
+    out[2] = result[2];
+    return out;
+}
+
+// The builtin gets the address of the wrapper's own string argument.
+ScriptStringRep* XB_CDECL ScrCall_GScr_ShakeRumbleNamed(uint32_t a, uint32_t b, ScriptString name, uint32_t c) {
+    builtin<uint32_t XB_CDECL(uint32_t, uint32_t, ScriptString*, uint32_t)>(0x009223b8)(a, b, &name, c);
+    return title_function<ScriptStringRep* XB_THISCALL(ScriptString*)>(0x0011d640)(&name);  // ScriptString_Release
+}
+
+uint32_t XB_CDECL ScrCall_GScr_GetZoneAtPoint(const uint32_t* point) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0092249c)(point[0], point[1], point[2]);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify_2(const uint32_t* ent, uint32_t sound) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x0092220c)(*ent, sound, 0, 0);
+}
+
+uint32_t* XB_CDECL ScrCall_GScr_GetOrigin(uint32_t* out, const uint32_t* ent) {
+    uint32_t vec[3];
+    default_vector(vec);
+    builtin<uint32_t XB_CDECL(uint32_t, uint32_t*)>(0x00922524)(*ent, vec);
+    copy_vector(out, vec);
+    return out;
+}
+
+uint32_t XB_CDECL ScrCall_GScr_AmbientPlay(uint32_t sound) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922310)(sound, 0x3f800000u);  // 1.0f
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetAnimKnobAll(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d,
+                                              uint32_t e) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225c8)(
+        *ent, a, b, c, d, e, 1);
+}
+
 }  // namespace game

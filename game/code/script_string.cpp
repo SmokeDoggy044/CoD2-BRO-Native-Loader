@@ -191,4 +191,41 @@ uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value)
     return equal;
 }
 
+// The original's C++ exception frames around the temporaries have no effect.
+ScriptString* XB_CDECL ScriptString_FromCStringPlusInt(ScriptString* out, const char* text, int32_t value) {
+    ScriptString result{nullptr};
+    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&result, text);  // FromCString
+    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ec30)(&result, value);  // AppendInt
+    ScriptString_Copy(out, &result);
+    string_release(&result);
+    return out;
+}
+
+ScriptString* XB_CDECL ScriptString_PlusInt(ScriptString* out, const ScriptString* string, int32_t value) {
+    ScriptString result{nullptr};
+    ScriptString_Copy(&result, string);
+    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ec30)(&result, value);  // AppendInt
+    ScriptString_Copy(out, &result);
+    string_release(&result);
+    return out;
+}
+
+int32_t* XB_CDECL ScriptString_ToInt(int32_t* out, const ScriptString* string) {
+    using Atol = int32_t XB_CDECL(const char*);
+    const uintptr_t text = text_address(string->rep);
+    *out = title_global<Atol*>(0x009229e0)(reinterpret_cast<const char*>(text));
+    return out;
+}
+
+uint32_t XB_THISCALL ScriptString_GetChar(const ScriptString* self, uint32_t index) {
+    const ScriptStringRep* rep = self->rep;
+    const uint32_t upper = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rep)) & 0xffffff00u;
+    if (!rep || index >= rep->length) return upper;
+    return upper | static_cast<uint8_t>(rep->text[index]);
+}
+
+ScriptStringRep* XB_THISCALL ScriptString_ReleaseAt20(uint8_t* self) {
+    return title_function<ScriptStringRep* XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0x20);  // ScriptString_Release
+}
+
 }  // namespace game

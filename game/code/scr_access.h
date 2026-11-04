@@ -308,4 +308,29 @@ uint32_t XB_CDECL ScrCall_Scr_QueueNotify(const uint32_t* ent, const char* name)
 uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify(const uint32_t* ent, uint32_t sound, uint32_t notify);
 uint32_t XB_CDECL ScrCall_Scr_EntityHandleIsValid(const uint32_t* ent);
 
+// More builtin wrappers (0x0011a460..0x0011d010). Vector results go through a local the wrapper
+// fills with the default vector (0x00922eb8) first and copies out whole (GetPersistentVector
+// copies from the returned pointer instead). ShakeRumbleNamed takes its string by value and
+// releases it after the builtin; the anim-knob wrappers add the builtin's trailing 1.
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnobAll(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                     uint32_t c, uint32_t d, uint32_t e);  // 0x0011a460
+uint32_t* XB_CDECL ScrCall_GScr_GetTagOrigin(uint32_t* out, const uint32_t* ent, uint32_t tag);  // 0x0011a4a0
+uint32_t* XB_CDECL ScrCall_GScr_GetTagAngles(uint32_t* out, const uint32_t* ent, uint32_t tag);  // 0x0011a500
+ScriptString* XB_CDECL ScrCall_GScr_GetLocalizedString(ScriptString* out, uint32_t key);  // 0x0011a560
+uint32_t* XB_CDECL ScrCall_Scr_VectorToAngles(uint32_t* out, uint32_t vec);  // 0x0011a610
+uint32_t* XB_CDECL ScrCall_Scr_AnglesToForward(uint32_t* out, uint32_t angles);  // 0x0011a660
+ScriptString* XB_CDECL ScrCall_GScr_GetCvar(ScriptString* out, uint32_t name);  // 0x0011a6b0
+uint32_t* XB_CDECL ScrCall_Scr_VectorNormalize(uint32_t* out, uint32_t vec);  // 0x0011b340
+uint32_t* XB_CDECL ScrCall_GScr_GetPersistentVector(uint32_t* out, uint32_t key);  // 0x0011b390
+ScriptStringRep* XB_CDECL ScrCall_GScr_ShakeRumbleNamed(uint32_t a, uint32_t b, ScriptString name,
+                                                        uint32_t c);  // 0x0011b3d0
+uint32_t XB_CDECL ScrCall_GScr_GetZoneAtPoint(const uint32_t* point);  // 0x0011b430
+uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify_2(const uint32_t* ent, uint32_t sound);  // 0x0011b4b0
+uint32_t* XB_CDECL ScrCall_GScr_GetOrigin(uint32_t* out, const uint32_t* ent);  // 0x0011ba30
+uint32_t XB_CDECL ScrCall_GScr_AmbientPlay(uint32_t sound);  // 0x0011bff0
+uint32_t XB_CDECL ScrCall_GScr_SetAnimKnobAll(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d,
+                                              uint32_t e);  // 0x0011d010
+// 0x0011ba10: through 0x00922d74 (ScrCall_* setter, as above).
+const uint32_t* XB_THISCALL ScrCall_ScrActor_SetRef_12a0(const uint32_t* self, const uint32_t* value);
+
 }  // namespace game
