@@ -71,4 +71,24 @@ uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_DeletingDtor(u
 uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_DeletingDtor(uint8_t* self, uint32_t flags);  // 0x001e57c0
 uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_DeletingDtor(uint8_t* self, uint32_t flags);  // 0x001e5830
 
+// Script-thread functor constructors (thiscall, callee pops the arguments; see scr_class.cpp).
+uint8_t* XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);  // 0x0017a9a0
+uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_vec_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4);  // 0x0017a650
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);  // 0x0017c830
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);  // 0x0017a3c0
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);  // 0x001e3ec0
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);  // 0x001e4280
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_i_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);  // 0x0017aa40
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x0017a490
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x0017a870
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x001e3df0
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x001e4080
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x0017a740
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_vec_vec_i_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x001e4330
+uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);  // 0x001e4430
+uint8_t* XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7);  // 0x001e3fb0
+uint8_t* XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8);  // 0x0017a550
+uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9);  // 0x001e4150
+uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10);  // 0x0017c770
+
 }  // namespace game

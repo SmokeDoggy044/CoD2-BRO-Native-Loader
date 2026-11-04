@@ -502,4 +502,254 @@ uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_DeletingDtor(u
 uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e57e0>(self, flags); }
 uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_DeletingDtor(uint8_t* self, uint32_t flags) { return deleting<0x001e5850>(self, flags); }
 
+// Functor constructors: argument 1 (the thread function) at +4, the vtable, then each bound
+// argument - handles and words read through their pointers, vectors as three words, strings
+// by ScriptString_Copy, RespawnerAttributes by its copy constructor (0x0052ba50), arrays by
+// DynArray_Assign4 (0x0045c270) into a zeroed {data, ?, count}; bools as one byte. Generated
+// from the disassembly by a symbolic pass over the stores and calls, in the original's order.
+
+namespace {
+
+void put(uint8_t* self, uint32_t offset, uint32_t value) { *reinterpret_cast<uint32_t*>(self + offset) = value; }
+
+uint32_t word(uint32_t address, uint32_t offset) {
+    return *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(address + offset));
+}
+
+uint8_t byte_at(uint32_t address) { return *reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(address)); }
+
+// A member's constructor (thiscall, one argument) by title address.
+void construct(uint32_t function, uint8_t* member, uint32_t arg) {
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(function)(member, arg);
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL AeThreadFunctor2_ent_RespawnerAttributes_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x8244c4);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0052ba50, self + 0xc, a3);  // FUN_0052ba50
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_vec_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x82447c);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a4, 0x4));
+    put(self, 0x18, word(a4, 0x8));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x824958);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, 0);
+    put(self, 0x18, 0);
+    put(self, 0x1c, 0);
+    construct(0x0045c270, self + 0x14, a5);  // DynArray_Assign4_PROLOGUE
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x824440);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    put(self, 0x14, word(a5, 0));
+    put(self, 0x18, word(a5, 0x4));
+    put(self, 0x1c, word(a5, 0x8));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825bcc);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825c20);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a5, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_i_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x8244d0);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    put(self, 0x10, word(a4, 0));
+    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x82444c);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    self[0x18] = byte_at(a6);
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x8244b8);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    construct(0x0052ba50, self + 0x10, a4);  // FUN_0052ba50
+    put(self, 0xf0, word(a5, 0));
+    construct(0x0011d5e0, self + 0xf4, a6);  // ScriptString_Copy
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825bc0);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    put(self, 0x14, word(a5, 0));
+    put(self, 0x18, word(a6, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825bfc);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a4, 0x4));
+    put(self, 0x18, word(a4, 0x8));
+    put(self, 0x1c, word(a5, 0));
+    put(self, 0x20, word(a5, 0x4));
+    put(self, 0x24, word(a5, 0x8));
+    put(self, 0x28, word(a6, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x824494);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a3, 0x4));
+    put(self, 0x14, word(a3, 0x8));
+    construct(0x0011d5e0, self + 0x18, a4);  // ScriptString_Copy
+    put(self, 0x1c, word(a5, 0));
+    put(self, 0x20, word(a5, 0x4));
+    put(self, 0x24, word(a5, 0x8));
+    put(self, 0x28, word(a6, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_vec_vec_i_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825c38);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a3, 0x4));
+    put(self, 0x14, word(a3, 0x8));
+    put(self, 0x18, word(a4, 0));
+    put(self, 0x1c, word(a4, 0x4));
+    put(self, 0x20, word(a4, 0x8));
+    put(self, 0x24, word(a5, 0));
+    put(self, 0x28, word(a5, 0x4));
+    put(self, 0x2c, word(a5, 0x8));
+    put(self, 0x30, word(a6, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825c50);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a5, 0));
+    construct(0x0011d5e0, self + 0x18, a6);  // ScriptString_Copy
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825bf0);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    put(self, 0x18, word(a6, 0));
+    put(self, 0x1c, word(a7, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x824458);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a4, 0x4));
+    put(self, 0x18, word(a4, 0x8));
+    put(self, 0x1c, word(a5, 0));
+    put(self, 0x20, word(a6, 0));
+    put(self, 0x24, word(a7, 0));
+    put(self, 0x28, word(a8, 0));
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x825c14);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    put(self, 0x14, word(a5, 0));
+    put(self, 0x18, word(a6, 0));
+    construct(0x0011d5e0, self + 0x1c, a7);  // ScriptString_Copy
+    put(self, 0x20, word(a8, 0));
+    self[0x24] = byte_at(a9);
+    return self;
+}
+
+uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x82494c);
+    put(self, 0x8, word(a2, 0));
+    put(self, 0xc, word(a3, 0));
+    put(self, 0x10, 0);
+    put(self, 0x14, 0);
+    put(self, 0x18, 0);
+    construct(0x0045c270, self + 0x10, a4);  // DynArray_Assign4_PROLOGUE
+    put(self, 0x1c, word(a5, 0));
+    put(self, 0x20, word(a6, 0));
+    put(self, 0x24, word(a7, 0));
+    put(self, 0x28, word(a8, 0));
+    put(self, 0x2c, word(a9, 0));
+    put(self, 0x30, 0);
+    put(self, 0x34, 0);
+    put(self, 0x38, 0);
+    construct(0x0045c270, self + 0x30, a10);  // DynArray_Assign4_PROLOGUE
+    return self;
+}
+
 }  // namespace game
