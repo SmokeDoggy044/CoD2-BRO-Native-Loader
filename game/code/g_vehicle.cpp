@@ -4444,7 +4444,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
     const float half = title_global<float>(0x0083eb24);
     const auto length_of = [&](float sum) {
         fl(0xc) = sum;
-        const float r = platform_x87_sqrt(sum);  // __CIsqrt
+        const float r = title_ci_sqrt(sum);  // __CIsqrt: x87 round to nearest, the title chops
         fl(0x14) = r;
         fl(0xc) = r;
         return r;
