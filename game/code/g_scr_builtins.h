@@ -801,4 +801,38 @@ void XB_CDECL GScr_Earthquake(float scale, float duration, const float* origin, 
 void XB_CDECL GScr_MoverNotSolid(uint32_t handle);
 void XB_CDECL GScr_MoverSolid(uint32_t handle);
 
+// 0x003028d0: a script mover (type 7, flag 0x20000) gets the actor bounds and contents bit 0x8000; relinked.
+void XB_CDECL GScr_ScriptMover_SetActorBox(uint32_t handle);
+// 0x003029b0: the entity's contents (+0x134) set, relinked; returns the old contents (0 for a bad handle).
+uint32_t XB_CDECL GScr_SetContents(uint32_t handle, uint32_t contents);
+// 0x00302a80: Vehicle_ApplyPush with the direction from the point to the entity (normalized unless zero) and the
+// speed * 17.6.
+void XB_CDECL GScr_Vehicle_PushFromPoint(uint32_t handle, const float* point, float scale, float spin, float speed);
+// 0x00302be0: advances the actor's anim trees by a frame twice (the second stopping at notetracks for a non-zero
+// handle); AL = the second's result, 0 without a model.
+uint8_t XB_CDECL GScr_ActorAdvanceAnimTime(uint32_t handle);
+// 0x00302c90, 0x00302d60, 0x00302e60, 0x00302ee0: ScriptMover_RotateVelocity / RotateTo (targets wrapped by Q_fmod
+// near the current angles) / MoveGravity / MoveTo on a script mover.
+void XB_CDECL GScr_RotateVelocity(uint32_t handle, const float* velocity, uint32_t time, uint32_t accel,
+                                  uint32_t decel);
+void XB_CDECL GScr_RotateTo(uint32_t handle, const float* angles, uint32_t time, uint32_t accel, uint32_t decel);
+void XB_CDECL GScr_MoverMoveGravity(uint32_t handle, const uint32_t* velocity, float time);
+void XB_CDECL GScr_MoveTo(uint32_t handle, const float* point, uint32_t time, uint32_t accel, uint32_t decel);
+// 0x00302fb0, 0x00303080 (handle in ECX): RotateTo / MoveTo with delta added to one axis of the current angles /
+// origin (GScr_Rotate{Pitch,Yaw,Roll} / GScr_Move{X,Y,Z}).
+void XB_REGS3 XB_CDECL GScr_RotateAxis(uint32_t unused_eax, uint32_t unused_edx, uint32_t handle, int32_t axis,
+                                       float delta, uint32_t time, uint32_t accel, uint32_t decel);
+void XB_REGS3 XB_CDECL GScr_MoveAxis(uint32_t unused_eax, uint32_t unused_edx, uint32_t handle, int32_t axis,
+                                     float delta, uint32_t time, uint32_t accel, uint32_t decel);
+// 0x00303150..0x003034e0: G_EntLinkTo to the parent (no tag / a tag; the player version sets the client's view
+// offset +0x614 first), then G_CalcTagLinkOffset; the checked ones format "does not support linkTo" (unused) for
+// entities without flag 0x8000. WithOffset: G_EntLinkToWithOffset.
+void XB_CDECL GScr_LinkToUnchecked(uint32_t handle, uint32_t parent_handle);
+void XB_CDECL GScr_LinkToTagUnchecked(uint32_t handle, uint32_t parent_handle, const ScriptString* tag);
+void XB_CDECL GScr_PlayerLinkTo(uint32_t handle, uint32_t parent_handle, const ScriptString* tag, const uint32_t* offset);
+void XB_CDECL GScr_LinkTo(uint32_t handle, uint32_t parent_handle);
+void XB_CDECL GScr_LinkToTag(uint32_t handle, uint32_t parent_handle, const ScriptString* tag);
+void XB_CDECL GScr_LinkToTagWithOffset(uint32_t handle, uint32_t parent_handle, const ScriptString* tag,
+                                       const float* origin, const float* angles, uint32_t flags);
+
 }  // namespace game

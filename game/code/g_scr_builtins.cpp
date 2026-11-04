@@ -3942,4 +3942,207 @@ void XB_CDECL GScr_MoverSolid(uint32_t handle) {
     SV_LinkEntity(ent);
 }
 
+namespace {
+
+// The ScriptMover_* builtins' check: a message for classes other than script_brushmodel / script_model /
+// script_origin; entities with flag 0x10 (+0x2a4) are left alone too.
+bool is_script_mover(uint8_t* ent) {
+    const uint32_t name = field<uint32_t>(ent, 0x260);
+    if (name != title_global<uint32_t>(0x0097a784) && name != title_global<uint32_t>(0x0097a788) &&
+        name != title_global<uint32_t>(0x0097a78c)) {
+        va_message(0x00831e60);  // "entity is not a script_brushmodel, script_model, or script_origin"
+        return false;
+    }
+    return !(field<uint8_t>(ent, 0x2a4) & 0x10);
+}
+
+// The linkTo builtins' message for entities without flag 0x8000 (+0x2a4), formatted into a local buffer only.
+void link_message(uint8_t* ent) {
+    if (field<uint32_t>(ent, 0x2a4) & 0x8000) return;
+    char buf[0x100];
+    const uint8_t type = ent[0];
+    const uint32_t name = type < 0x11 ? title_global<uint32_t>(0x008d5090 + type * 4u) : 0x00832838;  // entityTypeNames
+    title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(buf, title_text(0x00832284),
+                                                                                 title_text(name));
+}
+
+void link_to(uint8_t* ent, uint8_t* parent, const char* tag) {
+    if (G_EntLinkTo(parent, ent, tag, 0)) G_CalcTagLinkOffset(ent, 0);
+}
+
+}  // namespace
+
+void XB_CDECL GScr_ScriptMover_SetActorBox(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || ent[0] != 7 || !(field<uint32_t>(ent, 0x2a4) & 0x20000)) return;
+    // The actor bounds (g_actorMins 0x0098a560 / g_actorMaxs 0x0098a550) on a script mover, contents bit 0x8000.
+    field<uint32_t>(ent, 0xd4) &= 0xffffffe7u;
+    field<uint32_t>(ent, 0x10) |= 0x10;
+    std::memcpy(ent + 0xe0, &title_global<uint8_t>(0x0098a560), 12);
+    std::memcpy(ent + 0xf0, &title_global<uint8_t>(0x0098a550), 12);
+    field<uint32_t>(ent, 0x134) |= 0x8000;
+    SV_LinkEntity(ent);
+}
+
+uint32_t XB_CDECL GScr_SetContents(uint32_t handle, uint32_t contents) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    const uint32_t old = field<uint32_t>(ent, 0x134);
+    field<uint32_t>(ent, 0x134) = contents;
+    SV_LinkEntity(ent);
+    return old;
+}
+
+void XB_CDECL GScr_Vehicle_PushFromPoint(uint32_t handle, const float* point, float scale, float spin, float speed) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const float speed_scaled = speed * title_global<float>(0x0083ee64);  // 17.6
+    const float d2 = field<float>(ent, 0x148) - point[2];
+    const float d1 = field<float>(ent, 0x144) - point[1];
+    const float d0 = field<float>(ent, 0x140) - point[0];
+    const float squared = platform_addss(platform_addss(d2 * d2, d1 * d1), d0 * d0);
+    const float length = title_ci_sqrt(squared);
+    alignas(16) float dir[4];
+    if (!(length == title_global<float>(0x0083eafc))) {
+        const float inv = title_global<float>(0x0083eb20) / length;
+        dir[0] = platform_mulss(inv, d0);
+        dir[1] = platform_mulss(inv, d1);
+        dir[2] = platform_mulss(inv, d2);
+    } else {
+        dir[0] = d0;
+        dir[1] = d1;
+        dir[2] = d2;
+    }
+    dir[3] = dir[0];
+    Vehicle_ApplyPush(ent, dir, scale, spin, float_bits(speed_scaled));
+}
+
+uint8_t XB_CDECL GScr_ActorAdvanceAnimTime(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (!actor) return 0;
+    // Both passes by one frame (0x008dda9c ms * 0.001); the second up to the next notetrack (for a non-zero handle).
+    if (const uint8_t* const model = field<uint8_t*>(field<uint8_t*>(actor, 0), 0x22c)) {
+        const float dt = static_cast<float>(title_global<int32_t>(0x008dda9c)) * title_global<float>(0x0083eb4c);
+        AnimTree_AdvanceTimeForModel(0, model, float_bits(dt), 0);
+    }
+    const uint8_t* const model = field<uint8_t*>(field<uint8_t*>(actor, 0), 0x22c);
+    if (!model) return 0;
+    const float dt = static_cast<float>(title_global<int32_t>(0x008dda9c)) * title_global<float>(0x0083eb4c);
+    return AnimTree_AdvanceTimeForModel(0, model, float_bits(dt), handle != 0);
+}
+
+void XB_CDECL GScr_RotateVelocity(uint32_t handle, const float* velocity, uint32_t time, uint32_t accel,
+                                  uint32_t decel) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    alignas(16) float v[4] = {velocity[0], velocity[1], velocity[2], velocity[0]};
+    ScriptMover_RotateVelocity(ent, word_of(v), time, accel, decel);
+}
+
+void XB_CDECL GScr_RotateTo(uint32_t handle, const float* angles, uint32_t time, uint32_t accel, uint32_t decel) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    // Each target angle as Q_fmod(target, current) + current.
+    alignas(16) float target[4] = {};
+    target[0] = platform_addss(Q_fmod(angles[0], field<float>(ent, 0x150)), field<float>(ent, 0x150));
+    target[1] = platform_addss(Q_fmod(angles[1], field<float>(ent, 0x154)), field<float>(ent, 0x154));
+    target[2] = platform_addss(Q_fmod(angles[2], field<float>(ent, 0x158)), field<float>(ent, 0x158));
+    ScriptMover_RotateTo(ent, word_of(target), time, accel, decel);
+}
+
+void XB_CDECL GScr_MoverMoveGravity(uint32_t handle, const uint32_t* velocity, float time) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    ScriptMover_MoveGravity(velocity, ent, time);
+}
+
+void XB_CDECL GScr_MoveTo(uint32_t handle, const float* point, uint32_t time, uint32_t accel, uint32_t decel) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    alignas(16) float v[4] = {point[0], point[1], point[2], point[0]};
+    ScriptMover_MoveTo(ent, word_of(v), time, accel, decel);
+}
+
+void XB_REGS3 XB_CDECL GScr_RotateAxis(uint32_t, uint32_t, uint32_t handle, int32_t axis, float delta, uint32_t time,
+                                       uint32_t accel, uint32_t decel) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    alignas(16) float target[4] = {field<float>(ent, 0x150), field<float>(ent, 0x154), field<float>(ent, 0x158), 0.0f};
+    target[axis] = platform_addss(target[axis], delta);
+    ScriptMover_RotateTo(ent, word_of(target), time, accel, decel);
+}
+
+void XB_REGS3 XB_CDECL GScr_MoveAxis(uint32_t, uint32_t, uint32_t handle, int32_t axis, float delta, uint32_t time,
+                                     uint32_t accel, uint32_t decel) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !is_script_mover(ent)) return;
+    alignas(16) float target[4] = {field<float>(ent, 0x140), field<float>(ent, 0x144), field<float>(ent, 0x148), 0.0f};
+    target[axis] = platform_addss(target[axis], delta);
+    ScriptMover_MoveTo(ent, word_of(target), time, accel, decel);
+}
+
+void XB_CDECL GScr_LinkToUnchecked(uint32_t handle, uint32_t parent_handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    link_to(ent, parent, title_text(0x0082dfeb));  // ""
+}
+
+void XB_CDECL GScr_LinkToTagUnchecked(uint32_t handle, uint32_t parent_handle, const ScriptString* tag) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    link_to(ent, parent, script_text(tag));
+}
+
+void XB_CDECL GScr_PlayerLinkTo(uint32_t handle, uint32_t parent_handle, const ScriptString* tag, const uint32_t* offset) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    // The client's link view offset (+0x614).
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x614) = offset[0];
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x618) = offset[1];
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x61c) = offset[2];
+    link_to(ent, parent, script_text(tag));
+}
+
+void XB_CDECL GScr_LinkTo(uint32_t handle, uint32_t parent_handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    link_message(ent);
+    link_to(ent, parent, title_text(0x0082dfeb));
+}
+
+void XB_CDECL GScr_LinkToTag(uint32_t handle, uint32_t parent_handle, const ScriptString* tag) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    link_message(ent);
+    link_to(ent, parent, script_text(tag));
+}
+
+void XB_CDECL GScr_LinkToTagWithOffset(uint32_t handle, uint32_t parent_handle, const ScriptString* tag,
+                                       const float* origin, const float* angles, uint32_t flags) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const parent = handle_entity(parent_handle);
+    if (!parent) return;
+    link_message(ent);
+    // The flag byte goes in AL over the origin pointer the original loaded into EAX before.
+    const uint32_t eax = (word_of(origin) & 0xffffff00u) | (flags & 0xff);
+    if (G_EntLinkToWithOffset(eax, ent, script_text(tag), parent, origin, angles)) return;
+    // Not linked: the tag's index is looked up (result unused).
+    if (!field<uint8_t*>(parent, 0x22c)) return;
+    const uint32_t hash = Com_HashKeyNoCase(0, script_text(tag));
+    if (tag->rep) G_EntGetTagIndex(parent, hash);
+}
+
 }  // namespace game
