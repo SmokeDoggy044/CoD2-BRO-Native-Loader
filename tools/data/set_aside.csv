@@ -549,3 +549,7 @@ address,name,kind,reason
 002f4d70,ScrField_SetNone,unhookable,"bare ret (1 byte), too short to hook (2026-11-04)"
 0018b170,ScrPathNodeField_spawnflags,unhookable,"jmp [0x00922ad0] in the first 5 bytes (import-slot tail jump), cannot be hooked (2026-11-04)"
 002f5120,ScrIface_HashKeyNoCase,unhookable,"mov edx + jmp inside the first 5 bytes, cannot be hooked (2026-11-04)"
+00119fa0,ScrCall_ScrEnt_GetHealth,unhookable,"call [0x00922b90] starts at byte 3, cannot be hooked (2026-11-04)"
+0011daf0,ScriptValue_DefaultCopy,unhookable,"3 bytes, too short to hook (2026-11-04)"
+0011db00,ScriptValue_DefaultRelease,unhookable,"bare ret (1 byte), too short to hook (2026-11-04)"
+0011db20,ScrCall_GScr_GetEntScriptObject,unhookable,"bare jmp [0x009229e8] (import-slot tail jump), cannot be hooked (2026-11-04)"

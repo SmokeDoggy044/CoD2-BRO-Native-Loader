@@ -680,6 +680,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000d1610,BytesToBlocks,4000,4000,0,0,100.0
 000d1630,Save_PortToDevice,3972,3964,0,8,91.4
 0011b470,Scr_IntToFloat,3839,3839,0,0,100.0
+0011c0c0,ScriptString_GetChar,3683,3683,0,0,100.0
 0011d730,ScriptString_FindLast,3118,3118,0,0,98.2
 0011d7a0,ScriptString_SetChar,3686,3686,0,0,100.0
 0011db10,Scr_ReturnFalse,4000,4000,0,0,100.0
