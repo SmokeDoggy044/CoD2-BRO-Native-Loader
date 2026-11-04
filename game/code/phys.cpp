@@ -44,7 +44,9 @@ Lanes rotate_out(const float* frame, const float* v) {
 }
 
 Lanes div(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] / b.v[0], a.v[1] / b.v[1], a.v[2] / b.v[2], a.v[3] / b.v[3]}};
+    Lanes out;
+    platform_divps(out.v, a.v, b.v);  // all four lanes, as DIVPS (-O2 drops an unused lane and its flags)
+    return out;
 }
 
 // dot(a, b) as the title sums a MULPS product: (x + y) + z.
@@ -60,7 +62,7 @@ Lanes select_extent(const Lanes& d, const Lanes& extent) {
     for (int32_t i = 0; i < 4; ++i) {
         uint32_t bits;
         std::memcpy(&bits, &extent.v[i], 4);
-        if (!(0.0f <= d.v[i])) bits ^= 0x80000000u;
+        if (!platform_greater_equal(d.v[i], 0.0f)) bits ^= 0x80000000u;
         std::memcpy(&out.v[i], &bits, 4);
     }
     return out;
@@ -250,7 +252,7 @@ float* XB_THISCALL PhysSegment_Support(uint8_t* shape, float* out, const float* 
     const float* b = reinterpret_cast<const float*>(shape + 0x40);
     const float da = dot3(d, lanes(a));
     const float db = dot3(d, lanes(b));
-    const float* end = db > da ? b : a;
+    const float* end = platform_greater(db, da) ? b : a;
     std::memcpy(out, end, 16);
     return out;
 }
@@ -282,7 +284,7 @@ float* XB_THISCALL PhysCapsule_Support(uint8_t* shape, float* out, const float* 
     const float* a = reinterpret_cast<const float*>(shape + 0x30);
     const float* b = reinterpret_cast<const float*>(shape + 0x40);
     const float along = dot3(sub(lanes(b), lanes(a)), d);
-    const float* end = along > title_global<float>(0x0083eafc) ? b : a;  // 0
+    const float* end = platform_greater(along, title_global<float>(0x0083eafc)) ? b : a;  // 0
     alignas(16) float point[4];
     std::memcpy(point, end, 16);
     const float scale = static_cast<float>(at<float>(shape, 0x50) / length);
@@ -503,12 +505,7 @@ Lanes point_into(const float* frame, const float* p) {
 
 // CMPLTPS mask of lanes 0-2 all set; lane 3 is compared too (a QNaN there raises MXCSR IE).
 bool all_less3(const Lanes& a, const Lanes& b) {
-    const bool x = a.v[0] < b.v[0];
-    const bool y = a.v[1] < b.v[1];
-    const bool z = a.v[2] < b.v[2];
-    const bool w = a.v[3] < b.v[3];
-    platform_keep(w);
-    return x && y && z;
+    return (platform_cmpltps_mask(a.v, b.v) & 7) == 7;
 }
 
 }  // namespace
@@ -739,9 +736,9 @@ uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* fra
             if (!separated) break;
             if (++steps > 5) return 0;
         }
-        long double limit = static_cast<long double>(steps) + title_global<float>(0x0083f278);  // 1.1
+        long double limit = platform_x87_ld(steps) + title_global<float>(0x0083f278);  // 1.1
         limit = limit * limit;
-        if (static_cast<long double>(length_squared) > limit) return 0;
+        if (platform_x87_ld(length_squared) > limit) return 0;
         const float length = static_cast<float>(platform_x87_sqrt_ext(length_squared));
         std::memcpy(out + 8, div(lanes(out + 8), splat(length)).v, 16);
         const Lanes turn = mul(lanes(out + 8), lanes(n));
@@ -1468,7 +1465,7 @@ void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* c, float dt) {
             if (at<uint8_t>(contact, 0x8c) & 4) at<uint32_t>(c, 0xa4) = flags | 4;
             const long double impulse =
                 PhysContact_SolveNormalImpulse(contact);
-            const long double ratio = static_cast<long double>(at<float>(c, 0x90)) / at<float>(c, 0x60);
+            const long double ratio = platform_x87_ld(at<float>(c, 0x90)) / at<float>(c, 0x60);
             at<float>(c, 0x8c) = static_cast<float>(impulse * ratio + at<float>(c, 0x8c));
         } else if (at<uint8_t>(other, 0x8c) & 2) {
             at<uint32_t>(c, 0xa4) = flags | 4;
@@ -1551,12 +1548,12 @@ namespace {
 // MAXPS / MINPS lane rules: the second operand when unordered.
 Lanes max_lanes(const Lanes& a, const Lanes& b) {
     Lanes out;
-    for (int32_t i = 0; i < 4; ++i) out.v[i] = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+    platform_maxps(out.v, a.v, b.v);  // MAXPS: every lane's flags, NaN gives b
     return out;
 }
 Lanes min_lanes(const Lanes& a, const Lanes& b) {
     Lanes out;
-    for (int32_t i = 0; i < 4; ++i) out.v[i] = a.v[i] < b.v[i] ? a.v[i] : b.v[i];
+    platform_minps(out.v, a.v, b.v);  // MINPS: every lane's flags, NaN gives b
     return out;
 }
 
@@ -1579,13 +1576,9 @@ uint8_t XB_THISCALL PhysBox_SweepSphere(uint8_t* box, const float* a, float* b, 
     const Lanes below = sub(lanes(lo), add(max_lanes(start, end), r));
     const Lanes above = sub(sub(min_lanes(start, end), r), lanes(hi));
     const Lanes gap = max_lanes(above, below);
-    bool overlaps = true;
-    for (int32_t i = 0; i < 4; ++i) {  // CMPLTPS compares all four lanes
-        const bool negative = gap.v[i] < 0.0f;
-        if (i < 3 && !negative) overlaps = false;
-    }
-    if (!overlaps) return 0;
-    const float radius_sq = radius * radius;
+    static const float kZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if ((platform_cmpltps_mask(gap.v, kZero) & 7) != 7) return 0;  // CMPLTPS compares all four lanes
+    const float radius_sq = platform_mulss(radius, radius);  // here, as the title (-O2 sinks it past early returns)
     // Face hits: the sphere's leading point moved along dir to each face it starts outside of; a
     // point inside the face's rectangle is the hit, the others are candidates for the edge pass.
     alignas(16) float candidates[3][4];
@@ -1670,9 +1663,9 @@ uint8_t XB_THISCALL PhysBox_SweepSphere(uint8_t* box, const float* a, float* b, 
                 const float disc = (radius_sq - w_sq) * length_sq + projection * projection;
                 if (disc >= 0.0f) {
                     const long double t =
-                        (static_cast<long double>(projection) - platform_x87_sqrt_ext(disc)) / length;
+                        (platform_x87_ld(projection) - platform_x87_sqrt_ext(disc)) / length;
                     const float rounded = static_cast<float>(t);
-                    if (static_cast<long double>(best) > t) best = rounded;
+                    if (platform_x87_ld(best) > t) best = rounded;
                 }
             }
         }
@@ -1699,10 +1692,7 @@ void store_axis_normal(float* out, int32_t axis, float sign) {
 
 // CMPLTPS: all four lanes compared (signalling), bit i = a[i] < b[i].
 uint32_t less_mask(const Lanes& a, const Lanes& b) {
-    uint32_t mask = 0;
-    for (int32_t i = 0; i < 4; ++i)
-        if (a.v[i] < b.v[i]) mask |= 1u << i;
-    return mask;
+    return platform_cmpltps_mask(a.v, b.v);  // CMPLTPS + MOVMSKPS: lane 3 compared even when masked off
 }
 
 }  // namespace
@@ -2457,7 +2447,7 @@ void XB_THISCALL PhysContacts_AddPair(uint8_t* world, uint32_t a0, const float* 
         at<float>(contact, 0x64) = title_global<float>(0x0083eb70);  // 1e7
         const float min_dt = title_global<float>(0x007cd880);
         const float d = dt > min_dt ? dt : min_dt;
-        const long double ratio = static_cast<long double>(PhysContact_GetAnchorCrossTerm(contact)) / d;  // x87 divide
+        const long double ratio = platform_x87_ld(PhysContact_GetAnchorCrossTerm(contact)) / d;  // x87 divide
         at<float>(contact, 0x78) = 0.0f;
         at<float>(contact, 0x80) = 0.0f;
         at<float>(contact, 0x7c) = static_cast<float>(ratio * title_global<float>(0x0083eb28));  // -0.5
@@ -2676,8 +2666,8 @@ void XB_THISCALL PhysConstraint_AddContacts(uint8_t* c, uint8_t* world, float dt
     const float inv = title_global<float>(0x0083eb20) / (at<float>(c, 0x70) * dt + k * dt);
     uint8_t* const p = at<uint8_t*>(c, 0xc8);
     const long double separation = title_function<long double XB_THISCALL(uint8_t*)>(0x000bc510)(p);  // PhysContact_GetSeparation
-    const long double scaled = separation * ((static_cast<long double>(k) * inv) * dt);
-    const long double rate = static_cast<long double>(title_global<float>(0x0083eb34)) / dt;  // -1
+    const long double scaled = separation * ((platform_x87_ld(k) * inv) * dt);
+    const long double rate = platform_x87_ld(title_global<float>(0x0083eb34)) / dt;  // -1
     at<float>(p, 0x7c) = 0.0f;
     const float sum = at<float>(p, 0x84) + inv;
     at<float>(p, 0x80) = inv;
@@ -3183,7 +3173,7 @@ void XB_THISCALL PhysAngularMotor_AddContacts(uint8_t* motor, uint8_t* world, fl
     copy_words(v, reinterpret_cast<const float*>(motor + 0x90));
     store4(spin, mat_rotate(reinterpret_cast<const float*>(body_a), lanes(v)));
     const float low = 0.0f - range;
-    const float inv_dt = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / dt);
+    const float inv_dt = static_cast<float>(platform_x87_ld(title_global<float>(0x0083eb20)) / dt);
     // Body 1 is read once for the rows; the first contact also passes the bodies read on entry,
     // the later two re-read +0 / +4 (after the earlier contacts' stores).
     const uint8_t* const body_b = at<uint8_t*>(motor, 4);
@@ -3551,11 +3541,11 @@ void XB_CDECL PhysBodies_LaunchTowardTarget(uint8_t* const* bodies, int32_t coun
         const Lanes ddv = {{0.0f, 0.0f, g2 / s3, 0.0f}};
         const float num = dot3(dv, delta);
         const float denom = dot3(ddv, delta) + dot3(dv, dv);
-        const long double next = static_cast<long double>(s) - static_cast<long double>(num) / denom;
+        const long double next = platform_x87_ld(s) - platform_x87_ld(num) / denom;
         const float next_s = static_cast<float>(next);
         long double change = next - s;
         if (change < 0) change = -change;
-        if (static_cast<long double>(title_global<float>(0x0083eb94)) > change) converged = true;
+        if (platform_x87_ld(title_global<float>(0x0083eb94)) > change) converged = true;
         s = next_s;
         ++steps;
     } while (!(steps > 100) && !converged);
@@ -3765,8 +3755,8 @@ float* XB_THISCALL PhysContact_GetRelativeVelocity(const uint8_t* contact, float
 // (+0x78 - normal velocity - +0x80 * +0x68) / +0x84 + +0x68 on the x87.
 float XB_THISCALL PhysContact_SolveNormalImpulse(uint8_t* contact) {
     const long double v = PhysContact_GetNormalVelocity(contact);
-    const long double t = static_cast<long double>(at<float>(contact, 0x78)) - v;
-    const long double u = static_cast<long double>(at<float>(contact, 0x80)) * at<float>(contact, 0x68);
+    const long double t = platform_x87_ld(at<float>(contact, 0x78)) - v;
+    const long double u = platform_x87_ld(at<float>(contact, 0x80)) * at<float>(contact, 0x68);
     const float impulse = static_cast<float>((t - u) / at<float>(contact, 0x84) + at<float>(contact, 0x68));
     return PhysConstraint_ClampImpulse(contact, impulse);
 }
@@ -3879,7 +3869,7 @@ float XB_THISCALL PhysConstraint_ClampImpulse(uint8_t* constraint, float impulse
     const uint32_t flags = at<uint32_t>(constraint, 0x8c);
     if (flags & 1) {
         const float x = abs_bits(at<float>(at<uint8_t*>(constraint, 0x90), 0x68));
-        const long double limit = static_cast<long double>(x) * at<float>(constraint, 0x88);
+        const long double limit = platform_x87_ld(x) * at<float>(constraint, 0x88);
         at<float>(constraint, 0x64) = static_cast<float>(limit);
         at<float>(constraint, 0x60) = static_cast<float>(-limit);
     }
@@ -3975,7 +3965,7 @@ bool XB_THISCALL PhysConstraintPair_ScaleImpulses(const uint8_t* pair, float* ou
     }
     at<uint32_t>(b, 0x8c) |= 4;
     float f = 0.0f;
-    if (num > eps) f = static_cast<float>(platform_x87_sqrt_ext(static_cast<long double>(den) / num));
+    if (num > eps) f = static_cast<float>(platform_x87_sqrt_ext(platform_x87_ld(den) / num));
     *out_a = f * ia;
     *out_b = f * ib;
     return true;
@@ -4582,14 +4572,14 @@ float* cached_impulse(uint32_t* entry, uint32_t key) {
 void contact_solve_step(uint8_t* c) {
     at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
     const long double v = PhysContact_GetNormalVelocity(c);
-    const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+    const long double s = platform_x87_ld(at<float>(c, 0x80)) * at<float>(c, 0x68);
     at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
     const long double e = (v + s) - at<float>(c, 0x78);
     at<float>(c, 0x70) = static_cast<float>(e);
     const float impulse = static_cast<float>(at<float>(c, 0x68) - e / at<float>(c, 0x84));
     const float clamped = PhysConstraint_ClampImpulse(c, impulse);
     at<float>(c, 0x68) = clamped;
-    float delta = static_cast<float>(static_cast<long double>(clamped) - at<float>(c, 0x6c));
+    float delta = static_cast<float>(platform_x87_ld(clamped) - at<float>(c, 0x6c));
     PhysConstraint_ApplyImpulse(c, &delta);
 }
 
@@ -4603,7 +4593,7 @@ void track_error(const uint8_t* c, float* max_error) {
 // Warm start: target +0x78 -= the bodies' normal velocity, the cached impulse (+0x9c entry) * scale
 // clamped into +0x68 and applied.
 void contact_warm_start(uint8_t* c, uint32_t key, float scale) {
-    const long double v = PhysContact_GetBodyNormalVelocity(c);
+    const long double v = platform_x87_ld(PhysContact_GetBodyNormalVelocity(c));
     at<float>(c, 0x78) = static_cast<float>(at<float>(c, 0x78) - v);
     const float impulse = *cached_impulse(at<uint32_t*>(c, 0x9c), key) * scale;
     at<float>(c, 0x68) = impulse;
@@ -4830,7 +4820,7 @@ void XB_THISCALL PhysIsland_SolveIterations(uint8_t* island, int32_t max_iterati
         for (uint8_t* c = at<uint8_t*>(island, 0x2cc); c; c = at<uint8_t*>(c, 0)) {
             at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
             const long double v = PhysContact_GetNormalVelocity(c);
-            const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+            const long double s = platform_x87_ld(at<float>(c, 0x80)) * at<float>(c, 0x68);
             at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
             const long double e = (v + s) - at<float>(c, 0x78);
             at<float>(c, 0x70) = static_cast<float>(e);
@@ -5446,8 +5436,8 @@ void XB_CDECL PhysBody_PreStep(uint8_t* body, const float* dt) {
     const float limit = at<float>(body, 0x138);
     const float speed_sq = dot3(w, w);
     if (speed_sq > limit * limit) {
-        const long double ratio = static_cast<long double>(limit) / platform_x87_sqrt_ext(speed_sq);
-        const float f = static_cast<float>(ratio - static_cast<long double>(title_global<float>(0x0083eb20)));
+        const long double ratio = platform_x87_ld(limit) / platform_x87_sqrt_ext(speed_sq);
+        const float f = static_cast<float>(ratio - platform_x87_ld(title_global<float>(0x0083eb20)));
         alignas(16) float dw[4];
         store4(dw, mul(splat(f), w));
         alignas(16) float torque[4];

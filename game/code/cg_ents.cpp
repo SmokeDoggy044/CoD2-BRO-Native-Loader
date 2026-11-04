@@ -181,7 +181,7 @@ void XB_REGS3 XB_CDECL CG_SpawnTracer(const float* start, uint32_t, const float*
     const float e0 = end[0], e1 = end[1], e2 = end[2];
     float d0 = s0 - e0, d1 = s1 - e1, d2 = s2 - e2;
     const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];  // bg_weaponDefs
-    const float length = title_ci_sqrt_ext(static_cast<long double>((d2 * d2 + d1 * d1) + d0 * d0));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((d2 * d2 + d1 * d1) + d0 * d0));
     if (!(length == g(0x0083eafc))) {
         const float inverse = g(0x0083eb20) / length;
         d0 = inverse * d0;
@@ -195,13 +195,13 @@ void XB_REGS3 XB_CDECL CG_SpawnTracer(const float* start, uint32_t, const float*
     const float p1 = (back * d1 + s1) - e1;
     using ext = long double;
     const float distance =
-        title_ci_sqrt_ext(static_cast<ext>(p2) * static_cast<ext>(p2) + static_cast<ext>(p1) * static_cast<ext>(p1) +
-                          static_cast<ext>(p0) * static_cast<ext>(p0));
+        title_ci_sqrt_ext(platform_x87_ld(p2) * platform_x87_ld(p2) + platform_x87_ld(p1) * platform_x87_ld(p1) +
+                          platform_x87_ld(p0) * platform_x87_ld(p0));
     uint8_t* le = reinterpret_cast<uint8_t*>(CG_AllocLocalEntity());
     at<int16_t>(le, 8) = 2;
     const int32_t delay = title_rand() % 0x21;
     const float speed = g(0x0094a330);
-    const ext travel = static_cast<ext>(distance) * static_cast<ext>(g(0x0083ec74)) / static_cast<ext>(speed);
+    const ext travel = platform_x87_ld(distance) * platform_x87_ld(g(0x0083ec74)) / platform_x87_ld(speed);
     const int32_t start_time = delay + cg_time();
     at<int32_t>(le, 0xc) = start_time - static_cast<int32_t>(static_cast<int64_t>(travel));
     if (def) {
@@ -1173,7 +1173,7 @@ void XB_CDECL CG_BulletWhizBy(const float* end, const float* start, uint32_t han
     // A whiz-by sound ("WhizBySound" on the shooter) when the bullet from start to end passes
     // the view origin within 140 units, at least 64 units down the path and before its end.
     const float d2 = end[2] - start[2], d1 = end[1] - start[1], d0 = end[0] - start[0];
-    const float length = title_ci_sqrt_ext(static_cast<long double>((d2 * d2 + d1 * d1) + d0 * d0));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((d2 * d2 + d1 * d1) + d0 * d0));
     float n0, n1, n2;
     if (!(length == g(0x0083eafc))) {
         const float inverse = g(0x0083eb20) / length;
@@ -1191,7 +1191,7 @@ void XB_CDECL CG_BulletWhizBy(const float* end, const float* start, uint32_t han
     const float q2 = (along * n2 + start[2]) - v2;
     const float q1 = (along * n1 + start[1]) - v1;
     const float q0 = (along * n0 + start[0]) - v0;
-    const float distance = title_ci_sqrt_ext(static_cast<long double>((q2 * q2 + q1 * q1) + q0 * q0));
+    const float distance = title_ci_sqrt_ext(platform_x87_ld((q2 * q2 + q1 * q1) + q0 * q0));
     if (distance > g(0x0083edcc)) return;
     const uint32_t handle_copy = handle;
     TitleRegs regs{};

@@ -103,15 +103,15 @@ void picture_frame(uint8_t* menu, uint32_t fields, uint32_t quad, bool materials
     if (materials) {
         const int32_t width = ftol(get(picture, 0xb0) + 100.0f);
         field<int32_t>(menu, fields) = width;
-        field<int32_t>(menu, fields + 4) = ftol(static_cast<long double>(width) * 0.5L);
+        field<int32_t>(menu, fields + 4) = ftol(platform_x87_ld(width) * 0.5L);
     } else {
         field<int32_t>(menu, fields) = ftol(get(picture, 0xb0));
         field<int32_t>(menu, fields + 4) = ftol(get(picture, 0xb4));
     }
     field<int32_t>(menu, fields + 8) =
-        ftol(get(picture, 0x9c) - static_cast<long double>(field<int32_t>(menu, fields)) * 0.5L);
+        ftol(get(picture, 0x9c) - platform_x87_ld(field<int32_t>(menu, fields)) * 0.5L);
     field<int32_t>(menu, fields + 12) =
-        ftol(get(picture, 0xa0) - static_cast<long double>(field<int32_t>(menu, fields + 4)) * 0.5L);
+        ftol(get(picture, 0xa0) - platform_x87_ld(field<int32_t>(menu, fields + 4)) * 0.5L);
     call(picture, 0x7c, 0);
     NglQuad* const q = reinterpret_cast<NglQuad*>(menu + quad);
     nglInitQuad(q);

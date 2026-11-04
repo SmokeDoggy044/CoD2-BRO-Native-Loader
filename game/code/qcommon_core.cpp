@@ -834,9 +834,9 @@ void XB_REGS3 XB_CDECL Sphere_Merge(const float* center_b, float* radius_a, floa
         return;
     }
     // On the x87: the new radius (distance + ra + rb) / 2 and the offset fraction diff / distance.
-    const long double distance = platform_x87_sqrt_ext(static_cast<long double>(distance2));
+    const long double distance = platform_x87_sqrt_ext(platform_x87_ld(distance2));
     *radius_a = static_cast<float>(((distance + *radius_a) + radius_b) * title_global<float>(0x0083eb24));
-    const float t = static_cast<float>(static_cast<long double>(diff) / distance);
+    const float t = static_cast<float>(platform_x87_ld(diff) / distance);
     const Lanes a = lanes(center_a);  // re-read after the radius store
     const Lanes b = lanes(center_b);
     const Lanes sum = add(add(b, a), mul(splat(t), d));
@@ -882,7 +882,7 @@ long double XB_CDECL FastAcos(float x) {
     }
     const float half_pi = title_global<float>(0x0083ed0c);
     const float v = 0.0f > x ? 0.0f - r : r;
-    return static_cast<long double>(half_pi) - static_cast<long double>(v);
+    return platform_x87_ld(half_pi) - platform_x87_ld(v);
 }
 
 float XB_CDECL RayPlaneIntersectFrac(const float* a, const float* n, const float* b, const float* d) {
@@ -969,7 +969,7 @@ void XB_CDECL Mat34_FromRotationVector(float* out, const float* v, float scale) 
         Matrix_Identity(out);
         return;
     }
-    const long double angle = static_cast<long double>(length) * scale;
+    const long double angle = platform_x87_ld(length) * scale;
     const float inverse = title_global<float>(0x0083eb20) / length;
     alignas(16) float axis[4];
     store4(axis, mul(splat(inverse), in));
@@ -998,14 +998,14 @@ void XB_CDECL Mat34_RotationBetweenVectors(float* out, const float* a, const flo
         return;
     }
     const Lanes products = mul(va, vb);
-    const float sine = static_cast<float>(platform_x87_sqrt_ext(static_cast<long double>(length2)));
-    const float inverse = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / sine);
+    const float sine = static_cast<float>(platform_x87_sqrt_ext(platform_x87_ld(length2)));
+    const float inverse = static_cast<float>(platform_x87_ld(title_global<float>(0x0083eb20)) / sine);
     alignas(16) float axis[4];
     store4(axis, mul(c, splat(inverse)));
     platform_keep(products);
     const float dot = (products.v[0] + products.v[1]) + products.v[2];
-    const long double dd = static_cast<long double>(dot) * dot;
-    const long double ss = static_cast<long double>(sine) * sine;
+    const long double dd = platform_x87_ld(dot) * dot;
+    const long double ss = platform_x87_ld(sine) * sine;
     const float h = static_cast<float>(platform_x87_sqrt_ext(dd + ss));
     const float r = title_global<float>(0x0083eb20) / h;
     const float cosine = r * dot;
@@ -5398,7 +5398,7 @@ long double XB_CDECL Save_GetProgressFraction() {
     // FILD + 2^32 corrections); 0 when idle or no port.
     if (!Save_GetOpState() || title_global<int32_t>(0x008c02d0) == -1) return title_global<float>(0x0083eafc);
     const auto unsigned_value = [](uint32_t value) {
-        long double v = static_cast<long double>(static_cast<int32_t>(value));
+        long double v = platform_x87_ld(static_cast<int32_t>(value));
         if (static_cast<int32_t>(value) < 0) v += title_global<float>(0x0083eb2c);  // 2^32
         return v;
     };

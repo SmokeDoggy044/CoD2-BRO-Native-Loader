@@ -24,6 +24,7 @@
 // <name>.<arena>.original/ours.bin (the arena after each version); LEAF_REPLAY=DIR/<name>.case
 // runs that input once more (LEAF_ONLY=<name>; LEAF_REPLAY_STACK=k=value changes stack word k:
 // shorten a particle loop's end to find the first iteration that differs),
+// LEAF_NO_MXCSR_FLAGS=1 compares only MXCSR's control bits (sorts flag-only differences from value ones),
 // LEAF_CSV=tools/data/offline.csv to record the results there (rows of other functions kept;
 // tools/progress.py reads it).
 
@@ -958,6 +959,10 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     uint32_t mx_a, mx_b;
     std::memcpy(&mx_a, x.fx_out + 24, 4);
     std::memcpy(&mx_b, y.fx_out + 24, 4);
+    if (static const bool no_flags = std::getenv("LEAF_NO_MXCSR_FLAGS") != nullptr; no_flags) {
+        mx_a &= ~0x3fu;  // diagnostic: control bits only, not the six sticky status flags
+        mx_b &= ~0x3fu;
+    }
     if (!registers_only) reg("mxcsr", mx_a, mx_b);
     const int depth_a = x87_depth(x), depth_b = x87_depth(y);
     reg("x87 depth", depth_a, depth_b);

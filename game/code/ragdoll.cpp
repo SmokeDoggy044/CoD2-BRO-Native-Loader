@@ -914,7 +914,7 @@ float XB_CDECL Ragdoll_GetBodyScale(const uint8_t* record, const uint8_t* ragdol
     const uint32_t bits = at<uint32_t>(record, 0x30) & 0x7fffffffu;
     float a;
     std::memcpy(&a, &bits, 4);
-    const long double q = static_cast<long double>(a) / at<float>(ragdoll, 0x500);
+    const long double q = platform_x87_ld(a) / at<float>(ragdoll, 0x500);
     const float v = static_cast<float>(q);
     const float one = title_global<float>(0x0083eb20);
     float x;
@@ -2175,7 +2175,7 @@ float clamp01(float x, float zero, float one) {
 
 // (c * a) - (b * b) on the x87 (FLD/FMUL/FSUBP, the caller's precision control), stored as float.
 float x87_cross_term(float c, float a, float b) {
-    const long double t = static_cast<long double>(c) * a - static_cast<long double>(b) * b;
+    const long double t = platform_x87_ld(c) * a - platform_x87_ld(b) * b;
     return static_cast<float>(t);
 }
 
@@ -2479,7 +2479,7 @@ void blend_rotation(const Lanes& q0, const Lanes& q1, float t, float one_minus_t
             const float a7 = (d5 * d2) * title_global<float>(0x0083efd4);
             angle = (((a7 - a5) - a3) - dot) + title_global<float>(0x0083ee88);
         } else {  // acos(d) = 2 asin(sqrt((1 - d) / 2)) by its series
-            const long double half_gap = (static_cast<long double>(one) - dot) * title_global<float>(0x0083eb24);
+            const long double half_gap = (platform_x87_ld(one) - dot) * title_global<float>(0x0083eb24);
             const float s = title_ci_sqrt(half_gap);  // the title CRT's __CIsqrt
             const float s2 = s * s;
             const float s3 = s2 * s;
@@ -3011,7 +3011,7 @@ void axis_contact_limits(uint8_t* c, long double value, float dt) {
 // A spring-damper row: k1 = spring * dt, k2 = 1 / (damping * dt + k1 * dt); +0x80 = k2, +0x84 += k2,
 // +0x7c = 0 and +0x78 = term * (k1 * k2 * dt) * (-1 / dt) (x87).
 void spring_contact(uint8_t* c, long double term, float k1, float k2, float dt, float inv_dt, bool k2_first) {
-    const long double product = (static_cast<long double>(k1) * k2) * dt;
+    const long double product = (platform_x87_ld(k1) * k2) * dt;
     at<float>(c, 0x7c) = 0.0f;
     at<float>(c, 0x80) = k2;
     at<float>(c, 0x84) = k2_first ? k2 + at<float>(c, 0x84) : at<float>(c, 0x84) + k2;
@@ -3071,7 +3071,7 @@ void XB_THISCALL VehiclePhys_AddContacts(uint8_t* phys, uint8_t* a, uint8_t* b, 
         axis_contact_limits(c, PhysContact_GetAnchorCrossTerm(c), dt);
     }
     // two spring rows on a's z axis
-    const float inv_dt = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb34)) / dt);  // -1 / dt
+    const float inv_dt = static_cast<float>(platform_x87_ld(title_global<float>(0x0083eb34)) / dt);  // -1 / dt
     for (int32_t k = 0; k < 2; ++k) {
         alignas(16) float az[4];
         std::memcpy(az, a + 0x20, 16);
@@ -3174,7 +3174,7 @@ void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t
     bits = flags;
     const uint8_t* const def = at<uint8_t*>(vehicle, 0x420);
     // |+0x438 * def+0| on the x87 (FMUL, FABS, FSTP: no MXCSR flags, rounded by the control word).
-    const long double speed = platform_x87_abs_ext(static_cast<long double>(at<float>(vehicle, 0x438)) * at<float>(def, 0));
+    const long double speed = platform_x87_abs_ext(platform_x87_ld(at<float>(vehicle, 0x438)) * at<float>(def, 0));
     float force = at<float>(def, 4) * at<float>(vehicle, 0x43c) * title_global<float>(0x00830670);  // 0.02
     at<float>(vehicle, 0x4c8) = force;
     at<float>(vehicle, 0x4c4) = static_cast<float>(speed);

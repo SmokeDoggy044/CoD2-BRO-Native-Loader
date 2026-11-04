@@ -757,7 +757,7 @@ float ci_sqrt(long double x) {
 }
 
 // FUCOMIP against 0 (no MXCSR flags): true for nonzero and NaN.
-bool x87_nonzero(float value) { return static_cast<long double>(value) != title_global<float>(kZero); }
+bool x87_nonzero(float value) { return platform_x87_ld(value) != title_global<float>(kZero); }
 
 void copy_word(void* dst, const void* src) { std::memcpy(dst, src, 4); }
 
@@ -840,18 +840,18 @@ uint8_t XB_CDECL DirToByte(const float* dir) {
 }
 
 float XB_REGS3 XB_CDECL Vec2Distance(const float* a, uint32_t, const float* b) {
-    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
-    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
-    const long double sum = static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx;
+    const float dx = static_cast<float>(platform_x87_ld(a[0]) - b[0]);
+    const float dy = static_cast<float>(platform_x87_ld(a[1]) - b[1]);
+    const long double sum = platform_x87_ld(dy) * dy + platform_x87_ld(dx) * dx;
     return ci_sqrt(sum);
 }
 
 float XB_REGS3 XB_CDECL Vec3Distance(const float* a, uint32_t, const float* b) {
-    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
-    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
-    const float dz = static_cast<float>(static_cast<long double>(a[2]) - b[2]);
-    long double sum = static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy;
-    sum = sum + static_cast<long double>(dx) * dx;
+    const float dx = static_cast<float>(platform_x87_ld(a[0]) - b[0]);
+    const float dy = static_cast<float>(platform_x87_ld(a[1]) - b[1]);
+    const float dz = static_cast<float>(platform_x87_ld(a[2]) - b[2]);
+    long double sum = platform_x87_ld(dz) * dz + platform_x87_ld(dy) * dy;
+    sum = sum + platform_x87_ld(dx) * dx;
     return ci_sqrt(sum);
 }
 
@@ -1520,7 +1520,7 @@ float asin_series_near(float t) {
 // t >= 0.5: s = __CIsqrt(|(1 - t) * 0.5|) (x87), then (((s^7 c - 0.15 s^5) - s^3 / 3) - 2 s) + pi / 2.
 float asin_series_far(float t) {
     const float u = static_cast<float>(
-        (static_cast<long double>(title_global<float>(0x0083eb20)) - t) * title_global<float>(0x0083eb24));
+        (platform_x87_ld(title_global<float>(0x0083eb20)) - t) * title_global<float>(0x0083eb24));
     const float s = vec_ci_sqrt(x87_abs(u));
     const float s2 = s * s;
     const float s3 = s2 * s;
@@ -1542,9 +1542,9 @@ float asin_series(float t) {
 float atan2_series(float a, float b) {
     const float abs_a = x87_abs(a);
     const float abs_b = x87_abs(b);
-    if (static_cast<long double>(abs_b) + abs_a == 0.0L) return 0.0f;  // FUCOMIP (a NaN goes on)
-    const float length = vec_ci_sqrt(static_cast<long double>(b) * b + static_cast<long double>(a) * a);
-    const float inv = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / length);
+    if (platform_x87_ld(abs_b) + abs_a == 0.0L) return 0.0f;  // FUCOMIP (a NaN goes on)
+    const float length = vec_ci_sqrt(platform_x87_ld(b) * b + platform_x87_ld(a) * a);
+    const float inv = static_cast<float>(platform_x87_ld(title_global<float>(0x0083eb20)) / length);
     float r;
     if (abs_b > abs_a)
         r = title_global<float>(0x0083ed0c) - asin_series(inv * abs_a);  // pi / 2 -
@@ -1566,7 +1566,7 @@ float yaw_degrees(const float* v) {
 // The pitch before the wrap: (-180, 180] (r * -180 / pi); x = y = 0 gives `vertical` (z > 0) or 90.
 float pitch_degrees(const float* v, uint32_t vertical) {
     if (v[1] == 0.0f && v[0] == 0.0f) return v[2] > 0.0f ? title_global<float>(vertical) : title_global<float>(0x0083eb64);
-    const float a = vec_ci_sqrt(static_cast<long double>(v[1] * v[1] + v[0] * v[0]));
+    const float a = vec_ci_sqrt(platform_x87_ld(v[1] * v[1] + v[0] * v[0]));
     const float r = atan2_series(a, v[2]);
     return (r * title_global<float>(0x0083ebd0)) / title_global<float>(0x0083ed00);
 }
@@ -2624,10 +2624,10 @@ void axis_to_angles(float* angles, const float* row0, const float* row1) {
     vectoangles(row0, angles);
     const float rx = row1[0], ry = row1[1], rz = row1[2];
     float s1, c1, s2, c2;
-    FastSinCos(&s1, 0, &c1, static_cast<float>(-static_cast<long double>(angles[1]) * pi / k180));
+    FastSinCos(&s1, 0, &c1, static_cast<float>(-platform_x87_ld(angles[1]) * pi / k180));
     const float tx = c1 * rx - s1 * ry;
     const float ty = c1 * ry + s1 * rx;
-    FastSinCos(&s2, 0, &c2, static_cast<float>(-static_cast<long double>(angles[0]) * pi / k180));
+    FastSinCos(&s2, 0, &c2, static_cast<float>(-platform_x87_ld(angles[0]) * pi / k180));
     float right[3];
     right[0] = tx * c2 + s2 * rz;
     right[1] = ty;
@@ -3052,17 +3052,17 @@ uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* tran
         int32_t i = m[5] > m[0] ? 1 : 0;
         if (m[10] > m[i * 5]) i = 2;
         if (i == 2) {
-            const float s = root(static_cast<long double>(m[10]) - (static_cast<long double>(m[5]) + m[0]), &q[2]);
+            const float s = root(platform_x87_ld(m[10]) - (platform_x87_ld(m[5]) + m[0]), &q[2]);
             q[0] = (m[8] + m[2]) * s;
             q[1] = (m[9] + m[6]) * s;
             q[3] = (m[1] - m[4]) * s;
         } else if (i == 1) {
-            const float s = root(static_cast<long double>(m[5]) - (static_cast<long double>(m[0]) + m[10]), &q[1]);
+            const float s = root(platform_x87_ld(m[5]) - (platform_x87_ld(m[0]) + m[10]), &q[1]);
             q[2] = (m[9] + m[6]) * s;
             q[0] = (m[4] + m[1]) * s;
             q[3] = (m[8] - m[2]) * s;
         } else {
-            const float s = root(static_cast<long double>(m[0]) - yz, &q[0]);
+            const float s = root(platform_x87_ld(m[0]) - yz, &q[0]);
             q[1] = (m[4] + m[1]) * s;
             q[2] = (m[8] + m[2]) * s;
             q[3] = (m[6] - m[9]) * s;
@@ -3071,7 +3071,7 @@ uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* tran
     const long double a = q[0], b = q[1], c = q[2], d = q[3];
     const long double length = platform_x87_sqrt_ext(((a * a + b * b) + c * c) + d * d);
     const long double error = platform_x87_abs_ext(one - length);
-    return static_cast<long double>(title_global<float>(0x0083ed50)) > error ? 1 : 0;  // 0.0001
+    return platform_x87_ld(title_global<float>(0x0083ed50)) > error ? 1 : 0;  // 0.0001
 }
 
 void XB_CDECL Com_InitNodeRing() {
@@ -3238,8 +3238,8 @@ void XB_CDECL Com_Freeze_f() {
     const int32_t start = Com_Milliseconds();
     for (;;) {
         const int32_t elapsed = Com_Milliseconds() - start;
-        const long double s = static_cast<long double>(static_cast<double>(elapsed)) * title_global<double>(0x0083ef88);
-        if (s > static_cast<long double>(seconds)) return;
+        const long double s = platform_x87_ld(static_cast<double>(elapsed)) * title_global<double>(0x0083ef88);
+        if (s > platform_x87_ld(seconds)) return;
     }
 }
 
@@ -3265,7 +3265,7 @@ void XB_REGS3 XB_CDECL Quat_FromRotationVector(uint32_t, const float* v, float* 
         return;
     }
     const float one = title_global<float>(0x0083eb20);
-    const long double half_angle = static_cast<long double>(length) * title_global<float>(0x0083eb24);
+    const long double half_angle = platform_x87_ld(length) * title_global<float>(0x0083eb24);
     const float inv = one / length;
     const float s = static_cast<float>(platform_x87_sin_ext(half_angle));
     float a[4];
@@ -6946,7 +6946,7 @@ void XB_CDECL RotatePointAroundVector(const float* dir, const float* point, floa
     const float r0 = vr[0];
     const float r1 = vr[1];
     const float r2 = vr[2];
-    const float rad = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083ed00) /
+    const float rad = static_cast<float>(platform_x87_ld(degrees) * title_global<float>(0x0083ed00) /
                                          title_global<float>(0x0083eb60));  // * pi / 180 on the x87
     const float u0 = (r1 * f2) - (r2 * f1);
     const float u1 = (r2 * f0) - (r0 * f2);

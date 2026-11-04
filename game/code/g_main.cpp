@@ -1236,7 +1236,7 @@ void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved) {
     int32_t health;
     if (saved[0x390] && saved[0]) {
         // The minimum health per skill level: max health (+0x108) times three factors, truncated (_ftol).
-        const long double max_health = static_cast<long double>(*reinterpret_cast<const int32_t*>(client + 0x108));
+        const long double max_health = platform_x87_ld(*reinterpret_cast<const int32_t*>(client + 0x108));
         int32_t minimum[3];
         minimum[0] = static_cast<int32_t>(static_cast<int64_t>(title_global<double>(0x0083ee70) * max_health));
         minimum[1] = static_cast<int32_t>(static_cast<int64_t>(title_global<double>(0x0083ecb0) * max_health));

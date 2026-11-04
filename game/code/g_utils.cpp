@@ -1265,9 +1265,9 @@ uint32_t XB_CDECL Player_PushAwayFromEntity(const uint8_t* other, uint8_t* playe
     const float dist2 = dy2 + dx2;
     if (dist2 >= title_global<float>(0x0083ee3c)) return 0;
     // (30 - sqrt(dist2)) * 0x008ddaa0 on the x87.
-    long double push = platform_x87_sqrt_ext(static_cast<long double>(dist2));
-    push = static_cast<long double>(title_global<float>(0x0083ee38)) - push;
-    push = push * static_cast<long double>(title_global<float>(0x008ddaa0));
+    long double push = platform_x87_sqrt_ext(platform_x87_ld(dist2));
+    push = platform_x87_ld(title_global<float>(0x0083ee38)) - push;
+    push = push * platform_x87_ld(title_global<float>(0x008ddaa0));
     const float speed = static_cast<float>(push);
     Vec2Normalize(dir);
     *reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(player, 0x23c))) + 0x10) =
@@ -1427,14 +1427,14 @@ void XB_CDECL Think_BoostNearbyPlayer(uint8_t* ent) {
     // The distance on the x87, compared unrounded.
     const float* const a = reinterpret_cast<const float*>(player + 0x140);
     const float* const b = reinterpret_cast<const float*>(ent + 0x140);
-    const long double dx = static_cast<long double>(a[0]) - static_cast<long double>(b[0]);
-    const long double dy = static_cast<long double>(a[1]) - static_cast<long double>(b[1]);
-    const long double dz = static_cast<long double>(a[2]) - static_cast<long double>(b[2]);
+    const long double dx = platform_x87_ld(a[0]) - platform_x87_ld(b[0]);
+    const long double dy = platform_x87_ld(a[1]) - platform_x87_ld(b[1]);
+    const long double dz = platform_x87_ld(a[2]) - platform_x87_ld(b[2]);
     long double sum = dz * dz;
     sum = sum + dy * dy;
     sum = sum + dx * dx;
     const long double distance = platform_x87_sqrt_ext(sum);
-    if (distance > static_cast<long double>(title_global<float>(0x0083ebf4))) return;
+    if (distance > platform_x87_ld(title_global<float>(0x0083ebf4))) return;
     uint8_t* client = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_of(player, 0x23c)));
     word_at(client, 0x10) = word_at(client, 0x10);
     word_at(client, 0x14) = word_at(client, 0x14);
@@ -1457,7 +1457,7 @@ void XB_CDECL G_FloatOnWater(uint8_t* ent) {
     float offset = 0.0f;
     const uint32_t model = word_at(ent, 0x250);
     if (model) offset = static_cast<float>(*reinterpret_cast<const int16_t*>(static_cast<uintptr_t>(model + 0xf8)));
-    const long double height = static_cast<long double>(Water_GetHeight(0, x, y)) + static_cast<long double>(offset);
+    const long double height = platform_x87_ld(Water_GetHeight(0, x, y)) + platform_x87_ld(offset);
     const float z = static_cast<float>(height);
     float* const base = reinterpret_cast<float*>(ent + 0x20);
     base[2] = z;

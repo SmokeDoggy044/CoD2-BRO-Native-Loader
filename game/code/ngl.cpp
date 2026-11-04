@@ -1908,7 +1908,7 @@ long double XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node) {
                            mul(lanes(v + 8), world.v[2]));
     platform_keep(view);
     // FLD/FADD: the sum stays in ST0 (the caller's FSTP rounds it, overflowing there).
-    return static_cast<long double>(view.v[2]) + node->section->radius;
+    return platform_x87_ld(view.v[2]) + node->section->radius;
 }
 
 float* XB_THISCALL nglNode_CalcWorldMatrix(const uint8_t* self, float* out) {

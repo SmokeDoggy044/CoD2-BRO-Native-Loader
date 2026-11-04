@@ -1223,8 +1223,8 @@ bool profiles_read_due(uint32_t now_word, uint32_t stamp_word) {
     float now, stamp;
     __builtin_memcpy(&now, &now_word, 4);
     __builtin_memcpy(&stamp, &stamp_word, 4);
-    const long double due = static_cast<long double>(stamp) + static_cast<long double>(title_global<double>(0x0083ecb0));
-    return static_cast<long double>(now) > due;
+    const long double due = platform_x87_ld(stamp) + platform_x87_ld(title_global<double>(0x0083ecb0));
+    return platform_x87_ld(now) > due;
 }
 }  // namespace
 

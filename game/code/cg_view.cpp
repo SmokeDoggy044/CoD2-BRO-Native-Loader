@@ -964,20 +964,20 @@ void XB_CDECL CG_ShakeCamera() {
     float offset[3];
     for (int i = 0; i < 3; ++i) offset[i] = random() * amplitude;
     using ext = long double;
-    const ext phase = static_cast<ext>(g(0x0097309c));
-    const ext pitch = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f078)) + phase);
+    const ext phase = platform_x87_ld(g(0x0097309c));
+    const ext pitch = platform_x87_sin_ext(platform_x87_ld(time) * platform_x87_ld(g(0x0083f078)) + phase);
     title_global<float>(0x00972bb0) = g(0x00972bb0) + offset[0];
     title_global<float>(0x00972bb4) = g(0x00972bb4) + offset[1];
     title_global<float>(0x00972bb8) = g(0x00972bb8) + offset[2];
-    const ext s = static_cast<ext>(scale);
+    const ext s = platform_x87_ld(scale);
     title_global<float>(0x00972bf0) =
-        static_cast<float>(pitch * s * s * static_cast<ext>(g(0x0083eb00)) + static_cast<ext>(g(0x00972bf0)));
-    const ext yaw = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f074)) + phase);
+        static_cast<float>(pitch * s * s * platform_x87_ld(g(0x0083eb00)) + platform_x87_ld(g(0x00972bf0)));
+    const ext yaw = platform_x87_sin_ext(platform_x87_ld(time) * platform_x87_ld(g(0x0083f074)) + phase);
     title_global<float>(0x00972bf4) =
-        static_cast<float>(yaw * s * s * static_cast<ext>(g(0x0083ebb8)) + static_cast<ext>(g(0x00972bf4)));
-    const ext roll = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f070)) + phase);
+        static_cast<float>(yaw * s * s * platform_x87_ld(g(0x0083ebb8)) + platform_x87_ld(g(0x00972bf4)));
+    const ext roll = platform_x87_sin_ext(platform_x87_ld(time) * platform_x87_ld(g(0x0083f070)) + phase);
     title_global<float>(0x00972bf8) =
-        static_cast<float>(roll * s * s * static_cast<ext>(g(0x0083eb98)) + static_cast<ext>(g(0x00972bf8)));
+        static_cast<float>(roll * s * s * platform_x87_ld(g(0x0083eb98)) + platform_x87_ld(g(0x00972bf8)));
 }
 
 void XB_CDECL CG_CalcWeaponSway() {
@@ -1096,7 +1096,7 @@ void XB_CDECL PerpendicularVector(const float* src, float* dst) {
         pos = 1;
         min_elem = a1;
     }
-    if (min_elem > abs_bits(src[2])) pos = 2;
+    if (platform_greater(min_elem, abs_bits(src[2]))) pos = 2;
     float t[3] = {0.0f, 0.0f, 0.0f};
     t[pos] = g(0x0083eb20);
     const float inverse = g(0x0083eb20) / ((src[0] * src[0] + src[1] * src[1]) + src[2] * src[2]);
@@ -1194,7 +1194,7 @@ void XB_CDECL CG_OffsetViewForward(float* distance_slot) {
     org[0] = o0;
     org[1] = o1;
     org[2] = o2;
-    float h = title_ci_sqrt_ext(static_cast<ext>(d1) * static_cast<ext>(d1) + static_cast<ext>(d0) * static_cast<ext>(d0));
+    float h = title_ci_sqrt_ext(platform_x87_ld(d1) * platform_x87_ld(d1) + platform_x87_ld(d0) * platform_x87_ld(d0));
     *distance_slot = h;
     const float one = g(0x0083eb20);
     if (platform_x87_greater(one, h)) {
@@ -1203,12 +1203,12 @@ void XB_CDECL CG_OffsetViewForward(float* distance_slot) {
     }
     const float abs_h = abs_bits(h);
     const float abs_z = abs_bits(d2);
-    if (static_cast<ext>(abs_h) + static_cast<ext>(abs_z) == 0.0L) {
+    if (platform_x87_ld(abs_h) + platform_x87_ld(abs_z) == 0.0L) {
         title_global<float>(0x00972bf0) = 0.0f * g(0x0083f0e0);
         return;
     }
-    const float length = title_ci_sqrt_ext(static_cast<ext>(h) * static_cast<ext>(h) + static_cast<ext>(d2) * static_cast<ext>(d2));
-    const float inverse = static_cast<float>(static_cast<ext>(one) / static_cast<ext>(length));
+    const float length = title_ci_sqrt_ext(platform_x87_ld(h) * platform_x87_ld(h) + platform_x87_ld(d2) * platform_x87_ld(d2));
+    const float inverse = static_cast<float>(platform_x87_ld(one) / platform_x87_ld(length));
     title_global<float>(0x00972bf0) = title_atan2(h, d2, inverse) * g(0x0083f0e0);
 }
 
@@ -1235,14 +1235,14 @@ uint32_t XB_CDECL CG_CalcFov() {
     }
     const float to_half_radians = g(0x0083ecf0);
     // fov_y = atan2(x, 3) * 360 / pi with x = 4 / tan(fov_x / 2).
-    const float x = static_cast<float>(static_cast<ext>(g(0x0083100c)) /
-                                       platform_x87_tan_ext(static_cast<ext>(fov_x) * static_cast<ext>(to_half_radians)));
+    const float x = static_cast<float>(platform_x87_ld(g(0x0083100c)) /
+                                       platform_x87_tan_ext(platform_x87_ld(fov_x) * platform_x87_ld(to_half_radians)));
     float angle = 0.0f;
     const float three = static_cast<float>(title_global<double>(0x0083f130));
     if (!(abs_bits(three) + abs_bits(x) == 0.0f)) {
         const float inverse = static_cast<float>(
-            static_cast<ext>(g(0x0083eb20)) /
-            platform_x87_sqrt_ext(static_cast<ext>(x) * static_cast<ext>(x) + static_cast<ext>(g(0x0083eef8))));
+            platform_x87_ld(g(0x0083eb20)) /
+            platform_x87_sqrt_ext(platform_x87_ld(x) * platform_x87_ld(x) + platform_x87_ld(g(0x0083eef8))));
         angle = title_atan2(x, three, inverse);
     }
     float fov_y = angle * g(0x0083efbc);
@@ -1251,8 +1251,8 @@ uint32_t XB_CDECL CG_CalcFov() {
         a = g(0x0083eef8);
         b = g(0x0083ebb8);
     } else {
-        a = static_cast<float>(static_cast<ext>(g(0x0083ec9c)) /
-                               platform_x87_tan_ext(static_cast<ext>(fov_y) * static_cast<ext>(to_half_radians)));
+        a = static_cast<float>(platform_x87_ld(g(0x0083ec9c)) /
+                               platform_x87_tan_ext(platform_x87_ld(fov_y) * platform_x87_ld(to_half_radians)));
         b = g(0x0083100c);
     }
     angle = 0.0f;
@@ -1263,9 +1263,9 @@ uint32_t XB_CDECL CG_CalcFov() {
     uint32_t under_water;
     if (CG_PointContents(view, 0, 0x20)) {
         const ext phase =
-            platform_x87_sin_ext(static_cast<ext>(gi(0x0097253c)) * static_cast<ext>(g(0x0083f128)));
-        fov_x = static_cast<float>(static_cast<ext>(fov_x) + phase);
-        fov_y = static_cast<float>(static_cast<ext>(fov_y) - phase);
+            platform_x87_sin_ext(platform_x87_ld(gi(0x0097253c)) * platform_x87_ld(g(0x0083f128)));
+        fov_x = static_cast<float>(platform_x87_ld(fov_x) + phase);
+        fov_y = static_cast<float>(platform_x87_ld(fov_y) - phase);
         rdflags |= 0x20;
         under_water = 1;
     } else {
@@ -1596,8 +1596,8 @@ void XB_CDECL CG_DrawSkyBoxPortal() {
         title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(token());  // _atol (unused)
         const float fov_x = CG_GetViewFov();
         using ext = long double;
-        const float x = static_cast<float>(static_cast<ext>(gi(0x00972b98)) /
-                                           platform_x87_tan_ext(static_cast<ext>(fov_x) * static_cast<ext>(g(0x0083ecf0))));
+        const float x = static_cast<float>(platform_x87_ld(gi(0x00972b98)) /
+                                           platform_x87_tan_ext(platform_x87_ld(fov_x) * platform_x87_ld(g(0x0083ecf0))));
         const float y = static_cast<float>(gi(0x00972b9c));
         float angle = 0.0f;
         if (!(abs_bits(y) + abs_bits(x) == 0.0f)) angle = title_atan2(x, y, platform_x87_rcp_hypot(y, x, g(0x0083eb20)));
@@ -1652,7 +1652,7 @@ void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
     FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
     FastSinCos(&sp, 0, &cp, focus_pitch * to_radians);
     using ext = long double;
-    angles[0] = static_cast<float>(static_cast<ext>(angles[0]) * static_cast<ext>(title_global<double>(0x0083ecb0)));
+    angles[0] = static_cast<float>(platform_x87_ld(angles[0]) * platform_x87_ld(title_global<double>(0x0083ecb0)));
     const float reach = g(0x0083ebf4);
     alignas(16) float forward[4];
     forward[0] = cp * cy;
@@ -1692,18 +1692,18 @@ void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
         view[1] = end[1];
         view[2] = end[2];
     }
-    const float dx = static_cast<float>(static_cast<ext>(focus[0]) - static_cast<ext>(view[0]));
+    const float dx = static_cast<float>(platform_x87_ld(focus[0]) - platform_x87_ld(view[0]));
     org[0] = view[0];
     org[1] = view[1];
     const float dz = focus[2] - view[2];
-    const float dy = static_cast<float>(static_cast<ext>(focus[1]) - static_cast<ext>(view[1]));
+    const float dy = static_cast<float>(platform_x87_ld(focus[1]) - platform_x87_ld(view[1]));
     org[2] = view[2];
-    float distance = title_ci_sqrt(static_cast<float>(static_cast<ext>(dy) * dy + static_cast<ext>(dx) * dx));
+    float distance = title_ci_sqrt(static_cast<float>(platform_x87_ld(dy) * dy + platform_x87_ld(dx) * dx));
     if (g(0x0083eb20) > distance) distance = g(0x0083eb20);
     float angle = 0.0f;
     if (!(abs_bits(dz) + abs_bits(distance) == 0.0f)) {
-        const float length = title_ci_sqrt(static_cast<float>(static_cast<ext>(distance) * distance + static_cast<ext>(dz) * dz));
-        const float inverse = static_cast<float>(static_cast<ext>(g(0x0083eb20)) / static_cast<ext>(length));
+        const float length = title_ci_sqrt(static_cast<float>(platform_x87_ld(distance) * distance + platform_x87_ld(dz) * dz));
+        const float inverse = static_cast<float>(platform_x87_ld(g(0x0083eb20)) / platform_x87_ld(length));
         angle = title_atan2(distance, dz, inverse);
     }
     angles[0] = angle * g(0x0083f0e0);
@@ -1945,23 +1945,23 @@ void XB_CDECL CG_OffsetFirstPersonView() {
         const float cap = g(0x0083ef1c);
         const ext w = *reinterpret_cast<const float*>(weapon + 0x648);
         const ext lateral = CG_BobCycleLateral(cycle, speed, cap);
-        angles[0] = static_cast<float>(static_cast<ext>(angles[0]) - lateral * static_cast<ext>(g(0x009725d8)) * w);
+        angles[0] = static_cast<float>(platform_x87_ld(angles[0]) - lateral * platform_x87_ld(g(0x009725d8)) * w);
         const ext vertical = CG_BobCycleVertical(cycle, speed, cap);
-        angles[1] = static_cast<float>(static_cast<ext>(angles[1]) - vertical * static_cast<ext>(g(0x009725d8)) * w);
+        angles[1] = static_cast<float>(platform_x87_ld(angles[1]) - vertical * platform_x87_ld(g(0x009725d8)) * w);
     }
     const float cap = g(0x009492c0);
-    org[2] = static_cast<float>(static_cast<ext>(CG_BobCycleLateral(cycle, speed, cap)) + static_cast<ext>(org[2]));
+    org[2] = static_cast<float>(platform_x87_ld(CG_BobCycleLateral(cycle, speed, cap)) + platform_x87_ld(org[2]));
     const int32_t stance = gi(0x009725f8);
     const float stance_scale = stance == gi(0x00972970) ? g(0x0094aa90) : stance == gi(0x00972974) ? g(0x00947e80) : g(0x0094a6a0);
     float amplitude = stance_scale * g(0x00973a84);
     if (amplitude > cap) amplitude = cap;
-    const float sway = static_cast<float>(platform_x87_sin_ext(static_cast<ext>(g(0x00973a80))) * static_cast<ext>(amplitude));
+    const float sway = static_cast<float>(platform_x87_sin_ext(platform_x87_ld(g(0x00973a80))) * platform_x87_ld(amplitude));
     float right[3];
     AnglesToRightNoPitch(angles, right);
-    org[0] = static_cast<float>(static_cast<ext>(right[0]) * sway + static_cast<ext>(org[0]));
+    org[0] = static_cast<float>(platform_x87_ld(right[0]) * sway + platform_x87_ld(org[0]));
     const float landed = static_cast<float>(now - gi(0x00972af4));
-    org[1] = static_cast<float>(static_cast<ext>(right[1]) * sway + static_cast<ext>(org[1]));
-    org[2] = static_cast<float>(static_cast<ext>(right[2]) * sway + static_cast<ext>(org[2]));
+    org[1] = static_cast<float>(platform_x87_ld(right[1]) * sway + platform_x87_ld(org[1]));
+    org[2] = static_cast<float>(platform_x87_ld(right[2]) * sway + platform_x87_ld(org[2]));
     if (0.0f > landed) title_global<int32_t>(0x00972af4) = now - 450;
     if (g(0x0083ebf0) > landed) {
         org[2] = landed * g(0x0083ef9c) * g(0x00972af0) + org[2];
@@ -2329,7 +2329,7 @@ void XB_REGS2 XB_CDECL CG_AddWeaponIdleSway(uint32_t, float* angles) {
             if (target > next) factor = target;
         }
     }
-    const long double a = static_cast<long double>(factor) * sway;
+    const long double a = platform_x87_ld(factor) * sway;
     const int32_t* const time = &title_global<int32_t>(0x0097253c);
     x87_add_sine_sway(time, &g(0x0083ee44), a, &g(0x0083ed7c), &angles[2]);
     x87_add_sine_sway(time, &g(0x0083ee40), a, &g(0x0083eb94), &angles[1]);

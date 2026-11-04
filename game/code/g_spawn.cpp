@@ -414,7 +414,7 @@ void XB_CDECL SP_trigger_use(uint8_t* ent) {
     const char* arc_text = find_spawn_value(cached_key(0x0098e434, 4, 0x0098e428, 0x0083af48));  // "harc"
     const int32_t arc = arc_text ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(arc_text) : 0;  // _atol
     const float degrees = platform_x87_int_to_float(arc);
-    const float half_arc = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083eb24) *
+    const float half_arc = static_cast<float>(platform_x87_ld(degrees) * title_global<float>(0x0083eb24) *
                                               title_global<float>(0x0083ed00) / title_global<float>(0x0083eb60));
     field<float>(ent, 0x90) = title_ci_cos(half_arc);
     const char* angle_text = find_spawn_value(cached_key(0x0098e434, 8, 0x0098e424, 0x0083af40));  // "angle"

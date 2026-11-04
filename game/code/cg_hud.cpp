@@ -461,8 +461,8 @@ bool offset_is_edge(const float* v) {
 // An edge offset is a direction: normalized (__CIsqrt length, none when 0) into position +0x18 / +0x1c, and
 // +0x20 gets the never-set stack word the original keeps there.
 void store_direction(uint8_t* marker, const float* v, uint32_t stale) {
-    const float length = title_ci_sqrt(static_cast<float>(static_cast<long double>(v[1]) * v[1] +
-                                                          static_cast<long double>(v[0]) * v[0]));
+    const float length = title_ci_sqrt(static_cast<float>(platform_x87_ld(v[1]) * v[1] +
+                                                          platform_x87_ld(v[0]) * v[0]));
     float x = v[0];
     float y = v[1];
     if (length != 0.0f) {
@@ -706,12 +706,12 @@ void XB_CDECL HudCompCompass_PlaceMarker(uint8_t* compass, uint8_t* marker, floa
     const float scale = title_global<int32_t>(0x00948f64) ? gf(0x0083eb58) : one;
     uint8_t* const centre = object_at(compass, 0x10);
     const long double cx = method<GetMethod>(centre, 0x9c)(centre);
-    field<float>(marker, 0) = static_cast<float>(cx - static_cast<long double>(scale) * sine * radius);
+    field<float>(marker, 0) = static_cast<float>(cx - platform_x87_ld(scale) * sine * radius);
     uint8_t* const centre2 = object_at(compass, 0x10);
     const long double cy = method<GetMethod>(centre2, 0xa0)(centre2);
     field<float>(marker, 8) = alpha;
     field<uint8_t>(marker, 0xc) = 1;
-    field<float>(marker, 4) = static_cast<float>(cy - static_cast<long double>(cosine) * radius);
+    field<float>(marker, 4) = static_cast<float>(cy - platform_x87_ld(cosine) * radius);
     if (uint8_t(pulse)) HudCompCompass_UpdateMarkerPulse(marker, pulse_start);
 }
 
@@ -753,9 +753,9 @@ void XB_REGS1 XB_CDECL HudCompCompass_UpdateObjectives(uint8_t* compass) {
         const int32_t n = static_cast<int32_t>((yaw - reference) * gf(0x0083ebd8)) & 0xffff;
         const float angle = platform_x87_mul(static_cast<float>(n), gf(0x0083ebd4));
         const float zero = gf(0x0083eafc);
-        const float sum = static_cast<float>(static_cast<long double>(delta[1]) * delta[1] +
-                                             static_cast<long double>(delta[0]) * delta[0] +
-                                             static_cast<long double>(zero) * zero);
+        const float sum = static_cast<float>(platform_x87_ld(delta[1]) * delta[1] +
+                                             platform_x87_ld(delta[0]) * delta[0] +
+                                             platform_x87_ld(zero) * zero);
         const float distance = title_ci_sqrt(sum);
         HudCompCompass_PlaceMarker(compass, marker, distance, angle,
                                    static_cast<float>(field<int32_t>(objective, 0x10)), 1);
@@ -1338,9 +1338,9 @@ void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel) {
                                        0x0082de28, 0x0082de18, 0x0082de08};
     for (uint32_t i = 0; i < 7; ++i) field<uint8_t*>(self, 8 + i * 4) = Panel_FindPicture(panel, hud_text(kNames[i]));
     uint8_t* const ring = object_at(self, 0x20);
-    const float dx = static_cast<float>(static_cast<long double>(gf(0x0083ec64)) - method<GetMethod>(ring, 0x9c)(ring));
+    const float dx = static_cast<float>(platform_x87_ld(gf(0x0083ec64)) - method<GetMethod>(ring, 0x9c)(ring));
     uint8_t* const ring2 = object_at(self, 0x20);
-    const float dy = static_cast<float>(static_cast<long double>(gf(0x0083eed4)) - method<GetMethod>(ring2, 0xa0)(ring2));
+    const float dy = static_cast<float>(platform_x87_ld(gf(0x0083eed4)) - method<GetMethod>(ring2, 0xa0)(ring2));
     for (uint32_t i = 0; i < 7; ++i) {
         uint8_t* const picture = object_at(self, 8 + i * 4);
         const float y = static_cast<float>(method<GetMethod>(picture, 0xa0)(picture) + dy);
@@ -1586,7 +1586,7 @@ void fill_bar(uint8_t* bar, float value) {
 
 // A colour's channel from 0..1: x87 product with 255, truncated (_ftol).
 uint32_t channel_byte(float f) {
-    return static_cast<uint32_t>(static_cast<int64_t>(static_cast<long double>(f) * static_cast<long double>(gf(0x0083eb8c)))) & 0xff;
+    return static_cast<uint32_t>(static_cast<int64_t>(platform_x87_ld(f) * platform_x87_ld(gf(0x0083eb8c)))) & 0xff;
 }
 
 }  // namespace
@@ -1719,7 +1719,7 @@ void XB_THISCALL HudCompBomberMap_Update(uint8_t* self, uint32_t dt_bits) {
         method<WordMethod>(cursor, 0x7c)(cursor, 0);
         return;
     }
-    const float alpha = static_cast<float>(static_cast<long double>(title_global<double>(0x0083eb10)) - static_cast<long double>(fade));
+    const float alpha = static_cast<float>(platform_x87_ld(title_global<double>(0x0083eb10)) - platform_x87_ld(fade));
     method<FloatMethod>(cursor, 0x64)(cursor, alpha);
     method<WordMethod>(object_at(self, 0x40), 0x7c)(object_at(self, 0x40), 0x3f800000u);
 }

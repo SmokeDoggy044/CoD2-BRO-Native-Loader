@@ -372,7 +372,7 @@ void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt) {
     const float step = dt / field<float>(menu, 0x19c);
     float progress = moved / span + step;
     float shift = span * step;
-    const float next = float(get(chapter_element(0x74, 0x190), 0x9c) + (long double)shift);
+    const float next = float(get(chapter_element(0x74, 0x190), 0x9c) + platform_x87_ld(shift));
     bool arrived = false;
     if (platform_x87_greater(next, title_global<float>(0x0083ec64)) && next > field<float>(menu, 0x198))
         arrived = true;
@@ -381,7 +381,7 @@ void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt) {
     if (arrived) {  // past 320: the rest of the way, progress 1
         const long double now = get(chapter_element(0x74, 0x190), 0x9c);
         progress = title_global<float>(0x0083eb20);
-        shift = float((long double)title_global<float>(0x0083ec64) - now);
+        shift = float(platform_x87_ld(title_global<float>(0x0083ec64)) - now);
         menu[0x1a8] = 0;
     }
     for (uint32_t i = 0; i < 0xe; ++i) {
@@ -389,7 +389,7 @@ void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt) {
         for (uint32_t offset : kPlaced) {
             uint8_t* const element = field<uint8_t*>(menu, offset + i * 4);
             const float y = float(get(element, 0xa0));
-            const float new_x = float(get(element, 0x9c) + (long double)shift);
+            const float new_x = float(get(element, 0x9c) + platform_x87_ld(shift));
             method<PositionMethod>(element, 0x8c)(element, new_x, y);
         }
         static const uint32_t kMoved[3] = {0xe4, 0x11c, 0x154};  // vtable +0x70 (shift, 0)
@@ -399,13 +399,13 @@ void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt) {
     // 1.0 as a double).
     const double one = title_global<double>(0x0083eb10);
     call(chapter_element(0xac, 0x190), 0x7c, bits(progress));
-    call(chapter_element(0xac, 0x190), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * progress + one)));
-    call(chapter_element(0x74, 0x190), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * progress + one)));
-    const long double rest = (long double)one - progress;
+    call(chapter_element(0xac, 0x190), 0x64, bits(float((platform_x87_ld(field<float>(menu, 0x1a4)) - one) * progress + one)));
+    call(chapter_element(0x74, 0x190), 0x64, bits(float((platform_x87_ld(field<float>(menu, 0x1a4)) - one) * progress + one)));
+    const long double rest = platform_x87_ld(one) - progress;
     const double rest_stored = double(rest);
     call(chapter_element(0xac, 0x194), 0x7c, bits(float(rest)));
-    call(chapter_element(0xac, 0x194), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * rest_stored + one)));
-    call(chapter_element(0x74, 0x194), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * rest_stored + one)));
+    call(chapter_element(0xac, 0x194), 0x64, bits(float((platform_x87_ld(field<float>(menu, 0x1a4)) - one) * rest_stored + one)));
+    call(chapter_element(0x74, 0x194), 0x64, bits(float((platform_x87_ld(field<float>(menu, 0x1a4)) - one) * rest_stored + one)));
 }
 
 PLATFORM_ASM_ENTRY(ChapterMenu_UpdateList_entry,
@@ -438,21 +438,21 @@ void XB_CDECL ChapterMenu_UpdateList(uint8_t* menu) {
     field<int32_t>(menu, 0x194) = chosen;
     const long double x = get(field<uint8_t*>(menu, 0x74 + uint32_t(chosen) * 4), 0x9c);
     field<float>(menu, 0x198) = float(x);
-    const float offset = float((long double)title_global<float>(0x0083ec64) - x);  // 320 - x (x87)
+    const float offset = float(platform_x87_ld(title_global<float>(0x0083ec64)) - x);  // 320 - x (x87)
     for (uint32_t i = 0; i < 0xe; ++i) {
         // Placed by x, y (+0xa0 y first, +0x9c x, +0x8c set).
         static const uint32_t kPlaced[3] = {0x3c, 0x74, 0xac};
         for (uint32_t offset_xy : kPlaced) {
             uint8_t* const element = field<uint8_t*>(menu, offset_xy + i * 4);
             const float y = float(get(element, 0xa0));
-            const float new_x = float(get(element, 0x9c) + (long double)offset);
+            const float new_x = float(get(element, 0x9c) + platform_x87_ld(offset));
             method<PositionMethod>(element, 0x8c)(element, new_x, y);
         }
         // Placed by one coordinate (+0xc8 get, +0x80 set).
         static const uint32_t kShifted[3] = {0xe4, 0x11c, 0x154};
         for (uint32_t offset_one : kShifted) {
             uint8_t* const element = field<uint8_t*>(menu, offset_one + i * 4);
-            method<FloatMethod>(element, 0x80)(element, float(get(element, 0xc8) + (long double)offset));
+            method<FloatMethod>(element, 0x80)(element, float(get(element, 0xc8) + platform_x87_ld(offset)));
         }
         call(field<uint8_t*>(menu, 0xac + i * 4), 0x64, kOne);
         call(field<uint8_t*>(menu, 0x74 + i * 4), 0x64, kOne);

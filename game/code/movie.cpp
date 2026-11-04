@@ -126,7 +126,7 @@ void XB_THISCALL Movie_StartAudio(Movie* movie) {
     const long double master = title_function<long double XB_CDECL()>(0x000c64d0)();  // Snd_GetMasterGroupVolume
     float volume = static_cast<float>(master);
     const float least = title_global<float>(0x0083ed50);  // 0.0001
-    if (static_cast<long double>(least) > master) {
+    if (platform_x87_ld(least) > master) {
         volume = least;
     } else {
         const float one = title_global<float>(0x0083eb20);

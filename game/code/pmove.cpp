@@ -2100,7 +2100,7 @@ void noclip_friction(uint8_t* pm, float speed, float control) {
 // PM_Accelerate (pm_accelerate 9), then origin += velocity * frametime. `control_first`: control * frametime
 // instead of frametime * control.
 void noclip_accelerate(uint8_t* pm, float wx, float wy, float wz, float scale, bool control_first) {
-    float wishspeed = pm_ci_sqrt(static_cast<long double>((wy * wy + wx * wx) + wz * wz));
+    float wishspeed = pm_ci_sqrt(platform_x87_ld((wy * wy + wx * wx) + wz * wz));
     float dx = wx, dy = wy, dz = wz;
     if (!x87_equal(wishspeed, 0.0f)) {
         const float inv = title_global<float>(0x0083eb20) / wishspeed;
@@ -2321,7 +2321,7 @@ void XB_CDECL PM_NoclipMove() {
     at<uint32_t>(pm_ps_ref(pm), 0x428) = title_global<uint32_t>(0x009341c4);
     uint8_t* const ps = pm_ps_ref(pm);
     const float vx = at<float>(ps, 0x10), vy = at<float>(ps, 0x14), vz = at<float>(ps, 0x18);
-    const float speed = pm_ci_sqrt(static_cast<long double>((vx * vx + vy * vy) + vz * vz));
+    const float speed = pm_ci_sqrt(platform_x87_ld((vx * vx + vy * vy) + vz * vz));
     if (platform_x87_greater(title_global<float>(0x0083eb20), speed)) {
         at<float>(ps, 0x10) = 0.0f;
         at<float>(pm_ps_ref(pm), 0x14) = 0.0f;
@@ -2373,7 +2373,7 @@ void XB_CDECL PM_NoclipFlatMove() {
     } else {
         uint8_t* const ps = pm_ps_ref(pm);
         const float vx = at<float>(ps, 0x10), vy = at<float>(ps, 0x14), vz = at<float>(ps, 0x18);
-        const float speed = pm_ci_sqrt(static_cast<long double>((vx * vx + vy * vy) + vz * vz));
+        const float speed = pm_ci_sqrt(platform_x87_ld((vx * vx + vy * vy) + vz * vz));
         if (platform_x87_greater(title_global<float>(0x0083eb20), speed)) {
             at<float>(pm_ps_ref(pm), 0x10) = zero;
             at<float>(pm_ps_ref(pm), 0x14) = zero;
@@ -2427,7 +2427,7 @@ void XB_CDECL PM_SetMovementDir() {
         at<int32_t>(ps, 0x78) = 0;
         return;
     }
-    const float length = pm_ci_sqrt(static_cast<long double>(x87_sum_squares_zyx(move[0], move[1], move[2])));
+    const float length = pm_ci_sqrt(platform_x87_ld(x87_sum_squares_zyx(move[0], move[1], move[2])));
     if (x87_equal(length, title_global<float>(0x0083eafc)) ||
         !(length > title_global<float>(0x0095ffa4) * title_global<float>(0x0083ece8))) {  // 5
         at<int32_t>(ps, 0x78) = 0;
@@ -3424,7 +3424,7 @@ void XB_CDECL PM_Weapon() {
         if (!pm[0xa]) return;
         const uint8_t* const p = pm_ps_ref(pm);
         uint32_t anim = 0;
-        if (at<float>(p, 0x88) > title_global<float>(0x0083ec18)) anim = 0x17;  // 0.9
+        if (platform_greater(at<float>(p, 0x88), title_global<float>(0x0083ec18))) anim = 0x17;  // 0.9
         if ((at<uint32_t>(p, 0x4ec) & 0xfffffdffu) != anim) PM_StartLegsAnim(0, 0, anim);
         return;
     }
@@ -3537,7 +3537,7 @@ void XB_CDECL PM_AirMove() {
     right[2] = zero;
     const float zero_sq = zero * zero;
     const float f0 = forward[0], f1 = forward[1];
-    float length = pm_ci_sqrt(static_cast<long double>((f1 * f1 + f0 * f0) + zero_sq));
+    float length = pm_ci_sqrt(platform_x87_ld((f1 * f1 + f0 * f0) + zero_sq));
     const float one = title_global<float>(0x0083eb20);
     if (!x87_equal(length, title_global<float>(0x0083eafc))) {
         const float inv = one / length;
@@ -3545,7 +3545,7 @@ void XB_CDECL PM_AirMove() {
         forward[1] = forward[1] * inv;
         forward[2] = inv * title_global<float>(0x0083eafc);
     }
-    length = pm_ci_sqrt(static_cast<long double>(x87_sum_squares_yx_plus(right[0], right[1], zero_sq)));
+    length = pm_ci_sqrt(platform_x87_ld(x87_sum_squares_yx_plus(right[0], right[1], zero_sq)));
     float r0 = right[0], r1 = right[1];
     if (!x87_equal(length, title_global<float>(0x0083eafc))) {
         const float inv = one / length;
@@ -3557,7 +3557,7 @@ void XB_CDECL PM_AirMove() {
     }
     const float w0 = r0 * smove + forward[0] * fmove;
     const float w1 = r1 * smove + forward[1] * fmove;
-    float wishspeed = pm_ci_sqrt(static_cast<long double>((w1 * w1 + w0 * w0) + zero_sq));
+    float wishspeed = pm_ci_sqrt(platform_x87_ld((w1 * w1 + w0 * w0) + zero_sq));
     float dx = w0, dy = w1, dz = zero;
     if (!x87_equal(wishspeed, title_global<float>(0x0083eafc))) {
         const float inv = one / wishspeed;
@@ -3887,7 +3887,7 @@ long double pm_ci_fmod(long double x, long double y) {
 }
 
 // FILD + FSTP DWORD: an integer to float on the x87.
-float x87_int_to_float(int32_t i) { return static_cast<float>(static_cast<long double>(i)); }
+float x87_int_to_float(int32_t i) { return static_cast<float>(platform_x87_ld(i)); }
 
 }  // namespace
 
@@ -3905,17 +3905,17 @@ float XB_CDECL PM_WalkCmdScale(const int8_t* cmd) {
     // (PM_ViewHeightLerpFrac both ways) or picked by the stance, x (1 - pm +0x121 / 6); x0.4 with cmd +5 bit 4.
     using ext = long double;
     uint8_t* const ps = pm_ps();
-    ext f = static_cast<ext>(static_cast<int32_t>(cmd[0x14]));
-    if (cmd[0x14] < 0) f = f * static_cast<ext>(at<float>(ps, 0x448));
+    ext f = platform_x87_ld(static_cast<int32_t>(cmd[0x14]));
+    if (cmd[0x14] < 0) f = f * platform_x87_ld(at<float>(ps, 0x448));
     const float forward = static_cast<float>(__builtin_fabsl(f));
-    const ext right = __builtin_fabsl(static_cast<ext>(static_cast<int32_t>(cmd[0x15])) *
-                                      static_cast<ext>(at<float>(ps, 0x444)));
-    float max = static_cast<ext>(forward) > right ? forward : static_cast<float>(right);
+    const ext right = __builtin_fabsl(platform_x87_ld(static_cast<int32_t>(cmd[0x15])) *
+                                      platform_x87_ld(at<float>(ps, 0x444)));
+    float max = platform_x87_ld(forward) > right ? forward : static_cast<float>(right);
     if (max == 0.0f) return 0.0f;
     const int32_t fwd = cmd[0x14], rt = cmd[0x15];
-    const ext speed = static_cast<ext>(at<int32_t>(ps, 0x50)) * static_cast<ext>(max);
-    const ext sum = static_cast<ext>(rt * rt) + static_cast<ext>(fwd) * static_cast<ext>(fwd);
-    const ext total = platform_x87_sqrt_ext(sum) * static_cast<ext>(title_global<float>(0x0083ed88));  // 127
+    const ext speed = platform_x87_ld(at<int32_t>(ps, 0x50)) * platform_x87_ld(max);
+    const ext sum = platform_x87_ld(rt * rt) + platform_x87_ld(fwd) * platform_x87_ld(fwd);
+    const ext total = platform_x87_sqrt_ext(sum) * platform_x87_ld(title_global<float>(0x0083ed88));  // 127
     const float scale = static_cast<float>(speed / total);
     const uint32_t flags = at<uint32_t>(ps, 0x2c);
     float stance;
@@ -3997,19 +3997,19 @@ void XB_CDECL PM_UpdateAimSpread() {
                 const float unit = title_global<float>(0x0083ebd4);  // 360 / 65536
                 for (uint32_t i = 0; i < 2; ++i) {
                     const float old_angle = static_cast<float>(
-                        static_cast<ext>(x87_int_to_float(at<int32_t>(pm, 0x38 + i * 4))) * static_cast<ext>(unit));
+                        platform_x87_ld(x87_int_to_float(at<int32_t>(pm, 0x38 + i * 4))) * platform_x87_ld(unit));
                     const float new_angle = static_cast<float>(
-                        static_cast<ext>(x87_int_to_float(at<int32_t>(pm, 0xc + i * 4))) * static_cast<ext>(unit));
-                    float d = static_cast<float>(pm_ci_fmod(static_cast<ext>(new_angle) - static_cast<ext>(old_angle),
+                        platform_x87_ld(x87_int_to_float(at<int32_t>(pm, 0xc + i * 4))) * platform_x87_ld(unit));
+                    float d = static_cast<float>(pm_ci_fmod(platform_x87_ld(new_angle) - platform_x87_ld(old_angle),
                                                             title_global<double>(0x0083ed40)));  // 360
-                    if (static_cast<ext>(d) > static_cast<ext>(title_global<float>(0x0083eb60)))  // 180
+                    if (platform_x87_ld(d) > platform_x87_ld(title_global<float>(0x0083eb60)))  // 180
                         d = d - title_global<float>(0x0083ebcc);                               // 360
                     if (title_global<float>(0x0083ebd0) > d) d = d + title_global<float>(0x0083ebcc);  // -180
-                    const float a = static_cast<float>(__builtin_fabsl(static_cast<ext>(d)));
-                    sum = static_cast<float>(static_cast<ext>(a) * static_cast<ext>(at<float>(def, 0x664)) *
-                                                 static_cast<ext>(title_global<float>(0x0083eb94)) /  // 0.01
-                                                 static_cast<ext>(frametime) +
-                                             static_cast<ext>(sum));
+                    const float a = static_cast<float>(__builtin_fabsl(platform_x87_ld(d)));
+                    sum = static_cast<float>(platform_x87_ld(a) * platform_x87_ld(at<float>(def, 0x664)) *
+                                                 platform_x87_ld(title_global<float>(0x0083eb94)) /  // 0.01
+                                                 platform_x87_ld(frametime) +
+                                             platform_x87_ld(sum));
                 }
             }
             if (!(at<float>(def, 0x668) == zero)) {
@@ -4024,11 +4024,11 @@ void XB_CDECL PM_UpdateAimSpread() {
                 else
                     moving = false;
                 if (moving) {
-                    const float f = static_cast<float>(static_cast<ext>(x87_int_to_float(axis)) /
-                                                       static_cast<ext>(title_global<float>(0x0083ebe8)));  // 128
-                    const float a = static_cast<float>(__builtin_fabsl(static_cast<ext>(f)));
-                    sum = static_cast<float>(static_cast<ext>(a) * static_cast<ext>(at<float>(def, 0x668)) +
-                                             static_cast<ext>(sum));
+                    const float f = static_cast<float>(platform_x87_ld(x87_int_to_float(axis)) /
+                                                       platform_x87_ld(title_global<float>(0x0083ebe8)));  // 128
+                    const float a = static_cast<float>(__builtin_fabsl(platform_x87_ld(f)));
+                    sum = static_cast<float>(platform_x87_ld(a) * platform_x87_ld(at<float>(def, 0x668)) +
+                                             platform_x87_ld(sum));
                 }
             }
             if (air) {
@@ -4111,8 +4111,8 @@ void XB_CDECL PM_ViewHeightAdjust() {
             at<float>(pm_ps_ref(pm), 0xac) = value;
             uint8_t* const p = pm_ps_ref(pm);
             using ext = long double;
-            if (__builtin_fabsl(static_cast<ext>(at<float>(p, 0xbc)) - static_cast<ext>(height)) >
-                static_cast<ext>(title_global<float>(0x0083edc8))) {
+            if (__builtin_fabsl(platform_x87_ld(at<float>(p, 0xbc)) - platform_x87_ld(height)) >
+                platform_x87_ld(title_global<float>(0x0083edc8))) {
                 float saved[3];
                 for (uint32_t i = 0; i < 3; ++i) saved[i] = at<float>(p, 0x10 + i * 4);
                 float speed = height - at<float>(p, 0xbc);
@@ -4221,7 +4221,7 @@ void XB_CDECL PM_LadderMove() {
     {
         const float f1 = forward[1], f0 = forward[0];
         const float sum = (f1 * f1 + f0 * f0) + zero_sq;
-        const float length = pm_ci_sqrt(static_cast<ext>(sum));
+        const float length = pm_ci_sqrt(platform_x87_ld(sum));
         if (!x87_equal(length, title_global<float>(0x0083eafc))) {
             const float inv = one / length;
             forward[0] = forward[0] * inv;
@@ -4232,9 +4232,9 @@ void XB_CDECL PM_LadderMove() {
     float r0, r1, r2;
     {
         right[2] = zero;
-        const ext sum = static_cast<ext>(right[1]) * static_cast<ext>(right[1]) +
-                        static_cast<ext>(right[0]) * static_cast<ext>(right[0]) + static_cast<ext>(zero_sq);
-        const float length = pm_ci_sqrt(static_cast<ext>(static_cast<float>(sum)));
+        const ext sum = platform_x87_ld(right[1]) * platform_x87_ld(right[1]) +
+                        platform_x87_ld(right[0]) * platform_x87_ld(right[0]) + platform_x87_ld(zero_sq);
+        const float length = pm_ci_sqrt(platform_x87_ld(static_cast<float>(sum)));
         if (!x87_equal(length, title_global<float>(0x0083eafc))) {
             const float inv = one / length;
             r0 = right[0] * inv;
@@ -4270,10 +4270,10 @@ void XB_CDECL PM_LadderMove() {
         wish[1] = m * r1 + zero;
         wish[2] = m * r2 + wish[2];
     }
-    const ext wish_sq = static_cast<ext>(wish[0]) * static_cast<ext>(wish[0]) +
-                        static_cast<ext>(wish[1]) * static_cast<ext>(wish[1]) +
-                        static_cast<ext>(wish[2]) * static_cast<ext>(wish[2]);
-    const float wishspeed = pm_ci_sqrt(static_cast<ext>(static_cast<float>(wish_sq)));
+    const ext wish_sq = platform_x87_ld(wish[0]) * platform_x87_ld(wish[0]) +
+                        platform_x87_ld(wish[1]) * platform_x87_ld(wish[1]) +
+                        platform_x87_ld(wish[2]) * platform_x87_ld(wish[2]);
+    const float wishspeed = pm_ci_sqrt(platform_x87_ld(static_cast<float>(wish_sq)));
     float wishdir[3];
     if (!x87_equal(wishspeed, title_global<float>(0x0083eafc))) {
         const float inv = one / wishspeed;
@@ -4296,7 +4296,7 @@ void XB_CDECL PM_LadderMove() {
     }
     if (!pm[0x19]) {
         const float s0 = right[0], s1 = right[1];
-        const float length = pm_ci_sqrt(static_cast<ext>(s1 * s1 + s0 * s0));
+        const float length = pm_ci_sqrt(platform_x87_ld(s1 * s1 + s0 * s0));
         float d0 = s0, d1 = s1;
         if (!x87_equal(length, title_global<float>(0x0083eafc))) {
             const float inv = one / length;
@@ -4309,11 +4309,11 @@ void XB_CDECL PM_LadderMove() {
             const float back = zero - side;
             at<float>(ps, 0x10) = back * d0 + at<float>(ps, 0x10);
             at<float>(pm_ps_ref(pm), 0x14) = back * d1 + at<float>(pm_ps_ref(pm), 0x14);
-            const float f = static_cast<float>(static_cast<ext>(title_global<float>(0x0095ffa4)) * static_cast<ext>(side) *
-                                               static_cast<ext>(title_global<float>(0x0083ebb8)));
-            const float af = static_cast<float>(__builtin_fabsl(static_cast<ext>(f)));
-            const float as = static_cast<float>(__builtin_fabsl(static_cast<ext>(side)));
-            if (static_cast<ext>(as) > static_cast<ext>(af)) {
+            const float f = static_cast<float>(platform_x87_ld(title_global<float>(0x0095ffa4)) * platform_x87_ld(side) *
+                                               platform_x87_ld(title_global<float>(0x0083ebb8)));
+            const float af = static_cast<float>(__builtin_fabsl(platform_x87_ld(f)));
+            const float as = static_cast<float>(__builtin_fabsl(platform_x87_ld(side)));
+            if (platform_x87_ld(as) > platform_x87_ld(af)) {
                 float keep = f;
                 if (one > af) {
                     uint32_t bits;
@@ -4357,10 +4357,10 @@ float overclip(float d) {
 // The x87 dot product (a0*b0 + a1*b1) + a2*b2 against the double 0.1 (0x0083f1b0): true when below (or unordered).
 bool x87_dot_below_tenth(const float* a, const float* b, uint32_t i0, uint32_t i1, uint32_t i2, float* stored) {
     using ext = long double;
-    const ext d = static_cast<ext>(a[i0]) * static_cast<ext>(b[i0]) + static_cast<ext>(a[i1]) * static_cast<ext>(b[i1]) +
-                  static_cast<ext>(a[i2]) * static_cast<ext>(b[i2]);
+    const ext d = platform_x87_ld(a[i0]) * platform_x87_ld(b[i0]) + platform_x87_ld(a[i1]) * platform_x87_ld(b[i1]) +
+                  platform_x87_ld(a[i2]) * platform_x87_ld(b[i2]);
     if (stored) *stored = static_cast<float>(d);
-    return !(d >= static_cast<ext>(title_global<double>(0x0083f1b0)));
+    return !(d >= platform_x87_ld(title_global<double>(0x0083f1b0)));
 }
 
 }  // namespace
@@ -4710,8 +4710,8 @@ void XB_CDECL PM_StepSlideMove(uint32_t gravity) {
                 at<float>(p, 0x18) = zero;
             } else {
                 const ext root =
-                    platform_x87_sqrt_ext(static_cast<ext>(at<int32_t>(p, 0x48)) * (static_cast<ext>(h) + static_cast<ext>(h)));
-                if (static_cast<ext>(at<float>(p, 0x18)) > root) at<float>(p, 0x18) = static_cast<float>(root);
+                    platform_x87_sqrt_ext(platform_x87_ld(at<int32_t>(p, 0x48)) * (platform_x87_ld(h) + platform_x87_ld(h)));
+                if (platform_x87_ld(at<float>(p, 0x18)) > root) at<float>(p, 0x18) = static_cast<float>(root);
             }
         }
     }
@@ -4724,9 +4724,9 @@ step_event:
     if (!PM_ProneUndoBlockedMove_body(start_o, start_v)) return;
     pm = pm_global();
     uint8_t* const p = pm_ps_ref(pm);
-    const float rise = static_cast<float>(static_cast<ext>(at<float>(p, 8)) - static_cast<ext>(down_o[2]));
-    if (!(__builtin_fabsl(static_cast<ext>(at<float>(p, 8)) - static_cast<ext>(down_o[2])) >
-          static_cast<ext>(title_global<float>(0x0083eb24))))  // 0.5
+    const float rise = static_cast<float>(platform_x87_ld(at<float>(p, 8)) - platform_x87_ld(down_o[2]));
+    if (!(__builtin_fabsl(platform_x87_ld(at<float>(p, 8)) - platform_x87_ld(down_o[2])) >
+          platform_x87_ld(title_global<float>(0x0083eb24))))  // 0.5
         return;
     int32_t height = static_cast<int32_t>(rise + title_global<float>(0x0083eb24));
     if (!height) return;
@@ -4842,20 +4842,20 @@ void XB_CDECL PM_WalkMove() {
     forward[2] = f[2];
     forward[1] = f[1];
     forward[0] = f[0];
-    const ext forward_sq = static_cast<ext>(forward[1]) * static_cast<ext>(forward[1]) +
-                           static_cast<ext>(forward[0]) * static_cast<ext>(forward[0]) +
-                           static_cast<ext>(forward[2]) * static_cast<ext>(forward[2]);
+    const ext forward_sq = platform_x87_ld(forward[1]) * platform_x87_ld(forward[1]) +
+                           platform_x87_ld(forward[0]) * platform_x87_ld(forward[0]) +
+                           platform_x87_ld(forward[2]) * platform_x87_ld(forward[2]);
     for (uint32_t i = 0; i < 3; ++i) right[i] = r[i];
-    const float forward_length = pm_ci_sqrt(static_cast<ext>(static_cast<float>(forward_sq)));
+    const float forward_length = pm_ci_sqrt(platform_x87_ld(static_cast<float>(forward_sq)));
     if (!x87_equal(forward_length, title_global<float>(0x0083eafc))) {
         const float inv = one / forward_length;
         forward[0] = inv * forward[0];
         forward[1] = inv * forward[1];
         forward[2] = inv * forward[2];
     }
-    const ext right_sq = static_cast<ext>(r[2]) * static_cast<ext>(r[2]) + static_cast<ext>(r[1]) * static_cast<ext>(r[1]) +
-                         static_cast<ext>(r[0]) * static_cast<ext>(r[0]);
-    const float right_length = pm_ci_sqrt(static_cast<ext>(static_cast<float>(right_sq)));
+    const ext right_sq = platform_x87_ld(r[2]) * platform_x87_ld(r[2]) + platform_x87_ld(r[1]) * platform_x87_ld(r[1]) +
+                         platform_x87_ld(r[0]) * platform_x87_ld(r[0]);
+    const float right_length = pm_ci_sqrt(platform_x87_ld(static_cast<float>(right_sq)));
     if (!x87_equal(right_length, title_global<float>(0x0083eafc))) {
         const float inv = one / right_length;
         for (uint32_t i = 0; i < 3; ++i) right[i] = r[i] * inv;
@@ -4863,7 +4863,7 @@ void XB_CDECL PM_WalkMove() {
     float wish[3];
     for (uint32_t i = 0; i < 3; ++i) wish[i] = right[i] * smove + forward[i] * fmove;
     const float wish_sq = (wish[2] * wish[2] + wish[1] * wish[1]) + wish[0] * wish[0];
-    const float wishspeed_raw = pm_ci_sqrt(static_cast<ext>(wish_sq));
+    const float wishspeed_raw = pm_ci_sqrt(platform_x87_ld(wish_sq));
     float dir[3];
     if (!x87_equal(wishspeed_raw, title_global<float>(0x0083eafc))) {
         const float inv = one / wishspeed_raw;
@@ -4908,7 +4908,7 @@ void XB_CDECL PM_WalkMove() {
     float* const v = &at<float>(ps, 0x10);
     const float old0 = v[0], old1 = v[1], old2 = v[2];
     const float speed_sq = (old0 * old0 + old1 * old1) + old2 * old2;
-    const float speed = pm_ci_sqrt(static_cast<ext>(speed_sq));
+    const float speed = pm_ci_sqrt(platform_x87_ld(speed_sq));
     {
         const float* const n = &title_global<float>(0x0095ffd0);
         float d = (old0 * n[0] + old2 * n[2]) + old1 * n[1];
@@ -5281,7 +5281,7 @@ void XB_CDECL Vec3_BendTowardAxis(const float* axis, const float* point, float* 
     // axis is used as given (up only for a negative length, which never happens).
     float limit = title_global<float>(0x0083066c);  // 0.3
     const float zero = 0.0f;
-    const float len = pm_ci_sqrt(static_cast<long double>((axis[0] * axis[0] + axis[1] * axis[1]) + axis[2] * axis[2]));
+    const float len = pm_ci_sqrt(platform_x87_ld((axis[0] * axis[0] + axis[1] * axis[1]) + axis[2] * axis[2]));
     float nx, ny, nz;
     if (platform_x87_greater(zero, len)) {
         nx = zero;
@@ -5295,7 +5295,7 @@ void XB_CDECL Vec3_BendTowardAxis(const float* axis, const float* point, float* 
     float dy = zero - point[1];
     float dz = zero - point[2];
     float dx = zero - point[0];
-    float l = pm_ci_sqrt(static_cast<long double>((dz * dz + dy * dy) + dx * dx));
+    float l = pm_ci_sqrt(platform_x87_ld((dz * dz + dy * dy) + dx * dx));
     float vx, vy, vz;
     if (!x87_equal(l, title_global<float>(0x0083eafc))) {
         const float inv = title_global<float>(0x0083eb20) / l;
@@ -5318,7 +5318,7 @@ void XB_CDECL Vec3_BendTowardAxis(const float* axis, const float* point, float* 
             const float wz = hz + vz;
             const float wy = hy + vy;
             float sx = wx, sy = wy, sz = wz;
-            l = pm_ci_sqrt(static_cast<long double>((wz * wz + wy * wy) + wx * wx));
+            l = pm_ci_sqrt(platform_x87_ld((wz * wz + wy * wy) + wx * wx));
             if (!x87_equal(l, title_global<float>(0x0083eafc))) {
                 const float inv = title_global<float>(0x0083eb20) / l;
                 sx = inv * sx;
@@ -5484,8 +5484,8 @@ uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t e
     fl(0x18) = back;
     fl(0x20) = back;
     const float full = title_global<float>(0x0083ebcc);  // 360
-    float r = static_cast<float>(pm_ci_fmod(static_cast<long double>(front) - static_cast<long double>(back),
-                                            static_cast<long double>(title_global<double>(0x0083ed40))));
+    float r = static_cast<float>(pm_ci_fmod(platform_x87_ld(front) - platform_x87_ld(back),
+                                            platform_x87_ld(title_global<double>(0x0083ed40))));
     fl(0x18) = r;
     *pointer<uint32_t>(B - 4) = 0x002dcb60;  // __CIfmod's return address (the last call)
     if (platform_x87_greater(r, title_global<float>(0x0083eb60))) r = r - full;

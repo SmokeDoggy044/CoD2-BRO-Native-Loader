@@ -341,12 +341,11 @@ namespace {
 
 // MAXPS(a, b) < 0 (CMPLTPS) on every lane; true when lanes 0-2 are all negative.
 bool inside_xyz(const Lanes& a, const Lanes& b) {
-    int32_t mask = 0;
-    for (int32_t i = 0; i < 4; ++i) {
-        const float m = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
-        if (m < 0.0f && i < 3) mask |= 1 << i;
-    }
-    return mask == 7;
+    // Packed, so -O2 cannot drop lane 3 (unused) and its MXCSR flags.
+    alignas(16) float m[4];
+    platform_maxps(m, a.v, b.v);
+    static const float kZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    return (platform_cmpltps_mask(m, kZero) & 7) == 7;
 }
 
 }  // namespace
@@ -538,7 +537,7 @@ void XB_CDECL CM_TestCapsuleInTempBox(uint8_t* tw) {
     std::memcpy(end, moved_end.v, 16);
     const float half_z = half.v[2];
     *reinterpret_cast<uint32_t*>(tw + 0x160) = 1;
-    const float radius = half.v[0] > half_z ? half_z : half.v[0];
+    const float radius = platform_greater(half.v[0], half_z) ? half_z : half.v[0];  // COMISS (-O2 made it MINSS)
     *reinterpret_cast<float*>(tw + 0x164) = radius;
     *reinterpret_cast<float*>(tw + 0x168) = half_z;
     *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
@@ -1095,7 +1094,7 @@ void XB_CDECL CM_TraceCapsuleThroughTempBox(uint8_t* tw) {
     std::memcpy(end, moved_end.v, 16);
     const float half_z = half.v[2];
     *reinterpret_cast<uint32_t*>(tw + 0x160) = 1;
-    const float radius = half.v[0] > half_z ? half_z : half.v[0];
+    const float radius = platform_greater(half.v[0], half_z) ? half_z : half.v[0];  // COMISS (-O2 made it MINSS)
     *reinterpret_cast<float*>(tw + 0x164) = radius;
     *reinterpret_cast<float*>(tw + 0x168) = half_z;
     *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
@@ -1131,7 +1130,7 @@ long double XB_CDECL Vec4Normalize(const float* v, float* out) {
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(static_cast<long double>(length_squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(length_squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     const float length = static_cast<float>(root);
     const float inverse = title_global<float>(0x0083eb20) / length;  // 1
@@ -1389,7 +1388,7 @@ uint32_t XB_CDECL CM_TempBoxBlocksSight(uint8_t* tw) {
     std::memcpy(end, moved_end.v, 16);
     const float half_z = half.v[2];
     *reinterpret_cast<uint32_t*>(tw + 0x160) = 1;
-    const float radius = half.v[0] > half_z ? half_z : half.v[0];
+    const float radius = platform_greater(half.v[0], half_z) ? half_z : half.v[0];  // COMISS (-O2 made it MINSS)
     *reinterpret_cast<float*>(tw + 0x164) = radius;
     *reinterpret_cast<float*>(tw + 0x168) = half_z;
     *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
@@ -3315,7 +3314,7 @@ float pitch_series(float t) {
 float pitch_series_far(float t) {
     const float one = title_global<float>(0x0083eb20);
     const float half = title_global<float>(0x0083eb24);
-    const float u = static_cast<float>((static_cast<long double>(one) - t) * half);
+    const float u = static_cast<float>((platform_x87_ld(one) - t) * half);
     uint32_t bits;
     std::memcpy(&bits, &u, 4);
     const float s = ci_sqrt_store(from_bits(bits & 0x7fffffffu));
@@ -3341,7 +3340,7 @@ PLATFORM_ASM_ENTRY(Vec3_PitchDegrees_entry,
 float XB_CDECL Vec3_PitchDegrees(const float* v) {
     if (v[1] == 0.0f && v[0] == 0.0f)  // UCOMISS + JP: exactly 0 (a NaN takes the general path)
         return v[2] > 0.0f ? title_global<float>(0x0083efcc) : title_global<float>(0x0083eb64);  // 270 : 90
-    const float a = ci_sqrt_store(static_cast<long double>(v[1] * v[1] + v[0] * v[0]));
+    const float a = ci_sqrt_store(platform_x87_ld(v[1] * v[1] + v[0] * v[0]));
     const float z = v[2];
     uint32_t bits;
     std::memcpy(&bits, &a, 4);
@@ -3349,11 +3348,11 @@ float XB_CDECL Vec3_PitchDegrees(const float* v) {
     std::memcpy(&bits, &z, 4);
     const float abs_z = from_bits(bits & 0x7fffffffu);
     float r;
-    if (static_cast<long double>(abs_z) + abs_a == 0.0L) {  // FUCOMIP with 0.0 (a NaN goes on)
+    if (platform_x87_ld(abs_z) + abs_a == 0.0L) {  // FUCOMIP with 0.0 (a NaN goes on)
         r = 0.0f;
     } else {
-        const float length = ci_sqrt_store(static_cast<long double>(z) * z + static_cast<long double>(a) * a);
-        const float inv = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / length);
+        const float length = ci_sqrt_store(platform_x87_ld(z) * z + platform_x87_ld(a) * a);
+        const float inv = static_cast<float>(platform_x87_ld(title_global<float>(0x0083eb20)) / length);
         const float half = title_global<float>(0x0083eb24);
         if (abs_z > abs_a) {
             const float t = inv * abs_a;
@@ -4774,8 +4773,8 @@ uint8_t* alloc_winding(int32_t points) {
 }
 
 // x87 compares (FCOMIP / FUCOMIP) of floats.
-bool x87_greater(float a, float b) { return static_cast<long double>(a) > static_cast<long double>(b); }
-bool x87_is_zero(float a) { return static_cast<long double>(a) == 0.0L; }
+bool x87_greater(float a, float b) { return platform_x87_ld(a) > platform_x87_ld(b); }
+bool x87_is_zero(float a) { return platform_x87_ld(a) == 0.0L; }
 
 }  // namespace
 
@@ -4801,7 +4800,7 @@ float XB_CDECL WindingArea(const uint8_t* w) {
         const float cy = ax * bz - az * bx;
         const float squared = (cz * cz + cy * cy) + cx * cx;
         const float length = ci_sqrt_store(squared);
-        total = static_cast<float>(static_cast<long double>(length) * title_global<float>(0x0083eb24) + total);  // 0.5
+        total = static_cast<float>(platform_x87_ld(length) * title_global<float>(0x0083eb24) + total);  // 0.5
     }
     return total;
 }

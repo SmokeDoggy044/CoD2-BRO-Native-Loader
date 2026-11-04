@@ -873,8 +873,8 @@ void XB_CDECL CL_AdjustAngles() {
         // clamp(pow(|delta| / 120, 5), 0.5, 5), the pow called again for each test like the original
         const auto rate = [&](float delta) {
             const float magnitude = abs_bits(delta);
-            if (static_cast<long double>(half) > title_ci_pow_of_product(magnitude, scale, power)) return half;
-            if (title_ci_pow_of_product(magnitude, scale, power) > static_cast<long double>(five)) return five;
+            if (platform_x87_ld(half) > title_ci_pow_of_product(magnitude, scale, power)) return half;
+            if (title_ci_pow_of_product(magnitude, scale, power) > platform_x87_ld(five)) return five;
             return static_cast<float>(title_ci_pow_of_product(magnitude, scale, power));
         };
         for (int32_t i = 0; i < 3; ++i) {

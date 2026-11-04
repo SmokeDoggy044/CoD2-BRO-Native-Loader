@@ -805,7 +805,7 @@ uint32_t XB_REGS3 XB_CDECL AnimTree_SetGoalWeightClamped(uint8_t* tree, uint32_t
                                                          uint32_t blend_bits, uint32_t rate_bits, uint32_t anim, uint32_t,
                                                          uint32_t restart) {
     title_global<uint32_t>(0x00928588) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
-    if (title_global<float>(0x0083eb4c) > bits_float(goal_bits)) goal_bits = 0;  // goal under 0.001: 0
+    if (platform_greater(title_global<float>(0x0083eb4c), bits_float(goal_bits))) goal_bits = 0;  // goal under 0.001: 0
     const uint32_t result = AnimTree_SetGoalWeightInternal(index, anim, goal_bits, blend_bits, rate_bits, 0);
     AnimTree_ActivateParents(index, blend_bits);
     AnimTree_ResetTime(index, restart);
@@ -816,7 +816,7 @@ uint32_t XB_REGS3 XB_CDECL AnimTree_SetGoalWeightClamped(uint8_t* tree, uint32_t
 void XB_REGS1 XB_CDECL AnimTree_SetGoalWeight(uint32_t index, uint8_t* tree, uint32_t goal_bits, uint32_t blend_bits,
                                               uint32_t rate_bits, uint32_t anim, uint32_t, uint32_t restart) {
     title_global<uint32_t>(0x00928588) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
-    if (title_global<float>(0x0083eb4c) > bits_float(goal_bits)) goal_bits = 0;
+    if (platform_greater(title_global<float>(0x0083eb4c), bits_float(goal_bits))) goal_bits = 0;
     AnimTree_SetGoalWeightInternal(index, anim, goal_bits, blend_bits, rate_bits, 0);
     // The parents that have no goal weight blend to 1 over the blend time (the root at once).
     for (uint32_t node = index; node;) {
@@ -1010,7 +1010,7 @@ uint32_t XB_CDECL AnimTree_SetKnobAll(uint32_t index, uint8_t* tree, uint32_t st
     // SetKnob on node `index`, then every parent up to `stop` (exclusive; 1 when the root is
     // reached first, else Internal's result) goes to goal 1 with its siblings faded out.
     title_global<uint32_t>(0x00928588) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
-    if (title_global<float>(0x0083eb4c) > bits_float(goal_bits)) goal_bits = 0;
+    if (platform_greater(title_global<float>(0x0083eb4c), bits_float(goal_bits))) goal_bits = 0;
     AnimTree_ClearSiblingGoalWeights(bits_float(goal_bits), tree, index, blend_bits);
     const uint32_t result = AnimTree_SetGoalWeightInternal(index, anim, goal_bits, blend_bits, rate_bits, 0);
     AnimTree_ActivateParents(index, blend_bits);

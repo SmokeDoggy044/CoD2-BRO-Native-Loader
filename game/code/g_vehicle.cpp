@@ -281,7 +281,7 @@ uint32_t XB_CDECL Turret_UpdateTargetAngles(uint32_t* args, uint32_t ai, uint8_t
         bits &= 0x7fffffffu;  // FABS
         float magnitude;
         std::memcpy(&magnitude, &bits, 4);
-        if (static_cast<long double>(magnitude) > static_cast<long double>(title_global<float>(0x0083eed0))) {
+        if (platform_x87_ld(magnitude) > platform_x87_ld(title_global<float>(0x0083eed0))) {
             speed[0] = speed[0] * title_global<float>(0x0083ec9c);
         } else {
             const uint8_t* user = at<uint8_t*>(turret, 0xc);
@@ -301,13 +301,13 @@ uint32_t XB_CDECL Turret_UpdateTargetAngles(uint32_t* args, uint32_t ai, uint8_t
     const float full = title_global<float>(0x0083ebcc);
     auto wrap = [full](long double difference) {
         float d = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
-        if (static_cast<long double>(d) > static_cast<long double>(title_global<float>(0x0083eb60))) d = d - full;
+        if (platform_x87_ld(d) > platform_x87_ld(title_global<float>(0x0083eb60))) d = d - full;
         if (title_global<float>(0x0083ebd0) > d) d = d + full;
         return d;
     };
     for (int i = 0; i < 2; ++i) {
         const float step = speed[i] * title_global<float>(0x008ddaa0);
-        const long double difference = static_cast<long double>(target[i]) - angles[i];
+        const long double difference = platform_x87_ld(target[i]) - angles[i];
         speed[i] = step;
         float d = wrap(difference);
         if (d > step) {
@@ -322,7 +322,7 @@ uint32_t XB_CDECL Turret_UpdateTargetAngles(uint32_t* args, uint32_t ai, uint8_t
     // The pitch offset (+0x98) is what the turn left of the free pitch change.
     const float pitch = angles[0];
     at<float>(ent, 0x98) = pitch;
-    float d = wrap(static_cast<long double>(pitch) - before);
+    float d = wrap(platform_x87_ld(pitch) - before);
     std::memcpy(&args[0], &d, 4);  // the original keeps it in its first argument slot
     uint32_t result;
     if (d > speed[0]) {
@@ -714,18 +714,18 @@ uint32_t XB_CDECL G_TryPushingEntity(const float* move, uint8_t* ent, uint8_t* p
     if (!G_TestEntityPosition(ent, origin)) return pushed_to(ent, pusher, amove, origin);
     // Stuck: try offsets in shells of 4 units up to half the entity's size (+0xf0): z by
     // +-a (a = 0, 4, ...), then x by +-c and y by +-e (c, e = 4, 8, ...).
-    auto radius = [ent]() { return static_cast<long double>(at<float>(ent, 0xf0)) / 2.0L; };
-    auto step4 = [](float v) { return static_cast<float>(static_cast<long double>(v) + static_cast<long double>(4.0f)); };
+    auto radius = [ent]() { return platform_x87_ld(at<float>(ent, 0xf0)) / 2.0L; };
+    auto step4 = [](float v) { return static_cast<float>(platform_x87_ld(v) + platform_x87_ld(4.0f)); };
     if (radius() > 4.0L && radius() > 0.0L) {
         for (float a = 0.0f;;) {
             float b = 0.0f - a;
             if (!(a < b)) {
                 for (;;) {
-                    for (float c = 4.0f; radius() > static_cast<long double>(c); c = step4(c)) {
+                    for (float c = 4.0f; radius() > platform_x87_ld(c); c = step4(c)) {
                         float d = 0.0f - c;
                         if (c < d) continue;
                         for (;;) {
-                            for (float e = 4.0f; radius() > static_cast<long double>(e); e = step4(e)) {
+                            for (float e = 4.0f; radius() > platform_x87_ld(e); e = step4(e)) {
                                 float f = 0.0f - e;
                                 if (e < f) continue;
                                 alignas(16) float probe[4] = {};  // the fourth word: the zeroed dead stack
@@ -748,7 +748,7 @@ uint32_t XB_CDECL G_TryPushingEntity(const float* move, uint8_t* ent, uint8_t* p
                 }
             }
             a = step4(a);
-            if (!(radius() > static_cast<long double>(a))) break;
+            if (!(radius() > platform_x87_ld(a))) break;
         }
     }
     if (G_TestEntityPosition(ent, &at<float>(ent, 0x140))) return 0;
@@ -1221,9 +1221,9 @@ void XB_REGS3 XB_CDECL Vehicle_GetBodyRock(const uint8_t* ent, uint32_t, float* 
     if (!(at<float>(vehicle, 0x1f0) > title_global<float>(0x0083eafc))) return;
     const float angle = platform_x87_mul(platform_x87_mul(at<float>(vehicle, 0x1f4), title_global<float>(0x0083ed00)),
                                          title_global<float>(0x0083ecfc));  // degrees to radians
-    const long double rock = platform_x87_sin_mul(angle, at<float>(vehicle, 0x1f0)) * static_cast<long double>(at<float>(vehicle, 0x1f0));
-    v[0] = static_cast<float>(rock * static_cast<long double>(at<float>(vehicle, 0x1e8)) + static_cast<long double>(v[0]));
-    v[2] = static_cast<float>(rock * static_cast<long double>(at<float>(vehicle, 0x1ec)) + static_cast<long double>(v[2]));
+    const long double rock = platform_x87_sin_mul(angle, at<float>(vehicle, 0x1f0)) * platform_x87_ld(at<float>(vehicle, 0x1f0));
+    v[0] = static_cast<float>(rock * platform_x87_ld(at<float>(vehicle, 0x1e8)) + platform_x87_ld(v[0]));
+    v[2] = static_cast<float>(rock * platform_x87_ld(at<float>(vehicle, 0x1ec)) + platform_x87_ld(v[2]));
 }
 
 PLATFORM_ASM_ENTRY(Vehicle_ApproachProportional_entry,
@@ -1531,7 +1531,7 @@ void XB_REGS1 XB_CDECL Vehicle_UpdateTurnRateAndWheelAngle(uint8_t* ent, int32_t
         return;
     }
     // The yaw change since the last frame, wrapped to -180..180, per second; clamped to +-60.
-    const long double diff = static_cast<long double>(at<float>(vehicle, 0xe4)) - static_cast<long double>(at<float>(vehicle, 0xf4));
+    const long double diff = platform_x87_ld(at<float>(vehicle, 0xe4)) - platform_x87_ld(at<float>(vehicle, 0xf4));
     const float wrapped = static_cast<float>(title_ci_fmod(diff, title_global<double>(0x0083ed40)));  // 360
     float d = wrapped;
     if (platform_x87_greater(wrapped, title_global<float>(0x0083eb60))) d = d - title_global<float>(0x0083ebcc);
@@ -2357,9 +2357,9 @@ float stick_axis(int8_t value) {
     const float dead = title_global<float>(0x008ff004);
     if (platform_x87_greater(dead, abs_bits(f))) return 0.0f;
     const int32_t sign = value > 0 ? 1 : (value >= 0 ? 0 : -1);
-    const long double scaled = (static_cast<long double>(abs_bits(f)) - static_cast<long double>(dead)) /
-                               (static_cast<long double>(title_global<float>(0x0083ebe8)) - static_cast<long double>(dead));  // 128
-    return static_cast<float>(scaled * static_cast<long double>(static_cast<float>(sign)));
+    const long double scaled = (platform_x87_ld(abs_bits(f)) - platform_x87_ld(dead)) /
+                               (platform_x87_ld(title_global<float>(0x0083ebe8)) - platform_x87_ld(dead));  // 128
+    return static_cast<float>(scaled * platform_x87_ld(static_cast<float>(sign)));
 }
 
 // Through the 16-bit short angle and back, no wrap.
@@ -2379,8 +2379,8 @@ void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t
     float stick[2];
     stick[0] = stick_axis(cmd[1]);  // right
     stick[1] = stick_axis(cmd[0]);  // forward
-    const float magnitude = title_ci_sqrt(static_cast<float>(static_cast<long double>(stick[1]) * stick[1] +
-                                                             static_cast<long double>(stick[0]) * stick[0]));
+    const float magnitude = title_ci_sqrt(static_cast<float>(platform_x87_ld(stick[1]) * stick[1] +
+                                                             platform_x87_ld(stick[0]) * stick[0]));
     const float zero = 0.0f;
     const float half = title_global<float>(0x0083eb60);  // 180
     float delta = zero;
@@ -2399,8 +2399,8 @@ void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t
         }
     }
     // Stick pointing further back than 105 + 50 * forward degrees: reverse toward the opposite heading.
-    const float limit = static_cast<float>(static_cast<long double>(stick[1]) * title_global<float>(0x0083ec30) +
-                                           static_cast<long double>(title_global<float>(0x0083f04c)));
+    const float limit = static_cast<float>(platform_x87_ld(stick[1]) * title_global<float>(0x0083ec30) +
+                                           platform_x87_ld(title_global<float>(0x0083f04c)));
     float off = abs_bits(delta);
     if (platform_x87_greater(off, limit)) {
         const int32_t sign = delta > zero ? 1 : (zero > delta ? -1 : 0);
@@ -2442,8 +2442,8 @@ void XB_CDECL Vehicle_PlayerInputToMove(uint8_t* ent, const int8_t* cmd, int32_t
         const float top = at<float>(def, 0x44);
         target = reverse ? zero - top : top;
         target = target * magnitude;
-        if (static_cast<long double>(top) * static_cast<long double>(title_global<float>(0x0083ed28)) >
-            static_cast<long double>(abs_bits(speed))) {  // 0.7, FCOMIP
+        if (platform_x87_ld(top) * platform_x87_ld(title_global<float>(0x0083ed28)) >
+            platform_x87_ld(abs_bits(speed))) {  // 0.7, FCOMIP
             const float angle = abs_bits(delta);
             const float wide = title_global<float>(0x0083f048);  // 85
             if (platform_x87_greater(wide, angle)) {
@@ -3922,7 +3922,7 @@ void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint
             "fmul %%st(0), %%st\n\tfaddp\n\tfsqrt"
             : "=t"(speed)
             : "m"(at<float>(vehicle, 0x100)), "m"(at<float>(vehicle, 0x104)), "m"(at<float>(vehicle, 0x108)));
-    if (static_cast<long double>(title_global<float>(0x0083eb20)) > speed && !G_TestEntityPosition(other, &at<float>(other, 0x140)))
+    if (platform_x87_ld(title_global<float>(0x0083eb20)) > speed && !G_TestEntityPosition(other, &at<float>(other, 0x140)))
         return;
     fl(0x10) = at<float>(vehicle, 0xc0) - at<float>(vehicle, 0xd0);
     fl(0x14) = at<float>(vehicle, 0xc4) - at<float>(vehicle, 0xd4);
@@ -3937,7 +3937,7 @@ void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint
         wd(0x10 + k) = wd(0x20 + k);
     }
     const long double length = Vec4Normalize(&fl(0x10), &fl(0x20));
-    if (static_cast<long double>(title_global<float>(0x0083eb88)) > length) return;  // 0.005
+    if (platform_x87_ld(title_global<float>(0x0083eb88)) > length) return;  // 0.005
     fl(0x18) = fl(0x38);
     fl(0x1c) = fl(0x30);
     fl(0x10) = fl(0x30);
@@ -4914,10 +4914,10 @@ uint32_t veh_call_bp(uint32_t ebp, uint32_t top, uint32_t ret, uint32_t function
 
 // (heat - 0x0083ee68) * 0x0083f1d8 * 0x008fefec on the x87 (doubles, then the float), stored as float.
 float overheat_emission_rate(float heat) {
-    long double v = static_cast<long double>(heat);
-    v = v - static_cast<long double>(title_global<double>(0x0083ee68));
-    v = v * static_cast<long double>(title_global<double>(0x0083f1d8));
-    v = v * static_cast<long double>(title_global<float>(0x008fefec));
+    long double v = platform_x87_ld(heat);
+    v = v - platform_x87_ld(title_global<double>(0x0083ee68));
+    v = v * platform_x87_ld(title_global<double>(0x0083f1d8));
+    v = v * platform_x87_ld(title_global<float>(0x008fefec));
     return static_cast<float>(v);
 }
 
@@ -6406,8 +6406,8 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
                     fl(0x24) = dx;
                     fl(0x28) = dy;
                     fl(0x2c) = zero;
-                    const long double sum = (static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx) +
-                                            static_cast<long double>(fl(0xa0));
+                    const long double sum = (platform_x87_ld(dy) * dy + platform_x87_ld(dx) * dx) +
+                                            platform_x87_ld(fl(0xa0));
                     fl(0xc) = static_cast<float>(sum);
                     fl(0xc) = title_ci_sqrt(fl(0xc));
                     float vx, vy, vz;
@@ -6948,9 +6948,9 @@ uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, u
     const float speed2 = (vel[2] * vel[2] + vel[1] * vel[1]) + vel[0] * vel[0];
     if (!(title_ci_sqrt(speed2) > title_global<float>(0x0083ec84))) return hits;  // 40
     if (!(at<int32_t>(vehicle, 0x304) < title_global<int32_t>(0x0098540c) - 1000)) return hits;  // level.time
-    long double v = static_cast<long double>(title_ci_sqrt(speed2));
-    v = v - static_cast<long double>(title_global<float>(0x0083eb5c));  // 20
-    v = v / static_cast<long double>(title_global<float>(0x0083ed04));  // 300
+    long double v = platform_x87_ld(title_ci_sqrt(speed2));
+    v = v - platform_x87_ld(title_global<float>(0x0083eb5c));  // 20
+    v = v / platform_x87_ld(title_global<float>(0x0083ed04));  // 300
     const float impulse = static_cast<float>(v);
     alignas(16) float n[4];
     {

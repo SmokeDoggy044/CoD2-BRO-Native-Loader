@@ -117,6 +117,45 @@ inline T platform_opaque(T value) {
 }
 #endif
 
+// static_cast<long double>(value) the optimizer cannot narrow. With optimization on, GCC turns
+// (float)((long double)a OP (long double)b) for float a, b into MULSS/ADDSS/... (exact in one
+// rounding, so allowed even with -frounding-math), which then rounds, flushes to zero and sets
+// flags by MXCSR instead of the x87 control word the title's FMUL/FADD ran under: release-only
+// FLT_MAX vs inf and denormal vs 0 results. "+t" keeps the value on the x87 stack (no spill).
+// tools/x87_narrowing.py lists the functions where -O2 still narrows.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__i386__) || defined(__x86_64__))
+template <typename T>
+inline long double platform_x87_ld(T value) {
+    long double result = static_cast<long double>(value);
+    __asm__("" : "+t"(result));
+    return result;
+}
+#else
+template <typename T>
+inline long double platform_x87_ld(T value) {
+    return static_cast<long double>(value);
+}
+#endif
+
+// a > b and a >= b as a signaling COMISS (the invalid flag on any NaN, as the title's compare).
+// -O2 otherwise emits some float compares as a quiet UCOMISS (!(a <= b), branch inversions and
+// selects), which leaves MXCSR's invalid flag clear; -O0 keeps COMISS.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__i386__) || defined(__x86_64__))
+inline bool platform_greater(float a, float b) {
+    bool result;
+    __asm__("comiss %2, %1" : "=@cca"(result) : "x"(a), "xm"(b));
+    return result;
+}
+inline bool platform_greater_equal(float a, float b) {
+    bool result;
+    __asm__("comiss %2, %1" : "=@ccae"(result) : "x"(a), "xm"(b));
+    return result;
+}
+#else
+inline bool platform_greater(float a, float b) { return a > b; }
+inline bool platform_greater_equal(float a, float b) { return a >= b; }
+#endif
+
 // An address the optimizer must not see as a constant. A constant code address in a function
 // pointer that an inlined callee calls (SndVoice_ForEach(title_function<...>(0x000c5270)))
 // makes GCC's inliner turn the call into __builtin_unreachable: no function of its own lives
@@ -691,7 +730,21 @@ inline void platform_mxcsr_or(unsigned) {}
 PLATFORM_PACKED_OP(platform_addps, "addps")
 PLATFORM_PACKED_OP(platform_mulps, "mulps")
 PLATFORM_PACKED_OP(platform_subps, "subps")
+PLATFORM_PACKED_OP(platform_divps, "divps")
+PLATFORM_PACKED_OP(platform_maxps, "maxps")  // a > b ? a : b per lane (NaN: b)
+PLATFORM_PACKED_OP(platform_minps, "minps")  // a < b ? a : b per lane (NaN: b)
 #undef PLATFORM_PACKED_OP
+// CMPLTPS a, b (all four lanes compared: a QNaN in any lane raises MXCSR's invalid flag) as a
+// MOVMSKPS bit mask: bit i set when a[i] < b[i]. Four scalar compares combined with && let -O2
+// skip the later lanes and their flags.
+inline unsigned platform_cmpltps_mask(const float* a, const float* b) {
+    unsigned mask;
+    __asm__ volatile("movups %1, %%xmm0\n\tmovups %2, %%xmm1\n\tcmpltps %%xmm1, %%xmm0\n\tmovmskps %%xmm0, %0"
+                     : "=r"(mask)
+                     : "m"(*reinterpret_cast<const float(*)[4]>(a)), "m"(*reinterpret_cast<const float(*)[4]>(b))
+                     : "xmm0", "xmm1");
+    return mask;
+}
 // MULSS / ADDSS, `a` the destination (the same NaN rule for scalar products and sums).
 inline float platform_mulss(float a, float b) {
     __asm__ volatile("mulss %1, %0" : "+x"(a) : "x"(b));
@@ -712,6 +765,20 @@ inline void platform_mulps(float* r, const float* a, const float* b) {
 }
 inline void platform_subps(float* r, const float* a, const float* b) {
     for (int i = 0; i < 4; ++i) r[i] = a[i] - b[i];
+}
+inline void platform_divps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] / b[i];
+}
+inline void platform_maxps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] > b[i] ? a[i] : b[i];
+}
+inline void platform_minps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] < b[i] ? a[i] : b[i];
+}
+inline unsigned platform_cmpltps_mask(const float* a, const float* b) {
+    unsigned mask = 0;
+    for (int i = 0; i < 4; ++i) mask |= (a[i] < b[i] ? 1u : 0u) << i;
+    return mask;
 }
 #endif
 

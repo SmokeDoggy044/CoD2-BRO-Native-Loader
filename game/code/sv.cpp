@@ -374,7 +374,7 @@ long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t, cons
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(static_cast<long double>(sum)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(sum)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     return static_cast<float>(root);
 }
@@ -574,8 +574,8 @@ void XB_CDECL SV_LinkEntity(uint8_t* ent) {
         const long double radius = RadiusFromBounds(reinterpret_cast<const float*>(ent + 0xf0), 0,
                                                     reinterpret_cast<const float*>(ent + 0xe0));
         for (int32_t i = 0; i < 3; ++i) {
-            absmin[i] = static_cast<float>(static_cast<long double>(origin[i]) - radius);
-            absmax[i] = static_cast<float>(radius + static_cast<long double>(origin[i]));
+            absmin[i] = static_cast<float>(platform_x87_ld(origin[i]) - radius);
+            absmax[i] = static_cast<float>(radius + platform_x87_ld(origin[i]));
         }
     } else {
         const Lanes o = lanes(origin);
@@ -754,7 +754,7 @@ void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t, uint8_t
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(static_cast<long double>(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     const float length = static_cast<float>(root);
     if (x87_equal(length, 0.0f)) {
@@ -818,7 +818,7 @@ void XB_CDECL SV_TraceStaticModels_r(uint8_t* clip, uint8_t* node, float p1f, fl
     uint8_t* const* children = reinterpret_cast<uint8_t* const*>(node + 0x1c);
     if (t1 >= 0.0f && t2 >= 0.0f) {
         SV_TraceStaticModels_r(clip, children[0], p1f, p2f, p1, p2);
-    } else if (0.0f >= t1 && 0.0f >= t2) {
+    } else if (platform_greater_equal(0.0f, t1) && platform_greater_equal(0.0f, t2)) {
         SV_TraceStaticModels_r(clip, children[1], p1f, p2f, p1, p2);
     } else {
         const uint32_t side = 0.0f > t1 ? 1 : 0;
@@ -900,10 +900,10 @@ void XB_CDECL SV_PointTraceToEntity(uint8_t* sv, uint8_t* clip) {
             long double root;
             __asm__ volatile("call *%2"
                              : "=t"(root)
-                             : "0"(static_cast<long double>(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                             : "0"(platform_x87_ld(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
                              : "eax", "ecx", "edx", "memory");
             const float length = static_cast<float>(root);
-            radius = static_cast<float>(static_cast<long double>(length) * scale);
+            radius = static_cast<float>(platform_x87_ld(length) * scale);
         }
         alignas(16) DObjTrace found = {};
         found.fraction = field<float>(clip, 0x40);
@@ -1060,7 +1060,7 @@ void XB_CDECL SV_PointTraceToEntities_r(uint8_t* clip, uint8_t* node, float p1f,
     uint8_t* const* children = reinterpret_cast<uint8_t* const*>(node + 0x1c);
     if (t1 >= 0.0f && t2 >= 0.0f) {
         SV_PointTraceToEntities_r(clip, children[0], p1f, p2f, p1, p2);
-    } else if (0.0f >= t1 && 0.0f >= t2) {
+    } else if (platform_greater_equal(0.0f, t1) && platform_greater_equal(0.0f, t2)) {
         SV_PointTraceToEntities_r(clip, children[1], p1f, p2f, p1, p2);
     } else {
         const uint32_t side = 0.0f > t1 ? 1 : 0;
@@ -1976,7 +1976,7 @@ int32_t XB_CDECL SV_SectorSightTrace_r(uint8_t* clip, uint8_t* node, float f1, f
     if (d1 >= 0.0f && d2 >= 0.0f) {
         r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, 0x1c), f1, f2, p1, p2);
         if (r) return r;
-    } else if (0.0f >= d1 && 0.0f >= d2) {
+    } else if (platform_greater_equal(0.0f, d1) && platform_greater_equal(0.0f, d2)) {
         r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, 0x20), f1, f2, p1, p2);
         if (r) return r;
     } else {

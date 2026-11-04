@@ -59,10 +59,10 @@ void setup_picture_quad(uint8_t* menu, uint32_t rect, uint32_t quad) {
     field<int32_t>(menu, rect + 4) = static_cast<int32_t>(static_cast<int64_t>(get(picture, 0xb4)));
     const long double cx = get(picture, 0x9c);
     field<int32_t>(menu, rect + 8) = static_cast<int32_t>(
-        static_cast<int64_t>(cx - static_cast<long double>(field<int32_t>(menu, rect)) * half));
+        static_cast<int64_t>(cx - platform_x87_ld(field<int32_t>(menu, rect)) * half));
     const long double cy = get(picture, 0xa0);
     field<int32_t>(menu, rect + 0xc) = static_cast<int32_t>(
-        static_cast<int64_t>(cy - static_cast<long double>(field<int32_t>(menu, rect + 4)) * half));
+        static_cast<int64_t>(cy - platform_x87_ld(field<int32_t>(menu, rect + 4)) * half));
     call(picture, 0x7c, 0);
     NglQuad* const q = reinterpret_cast<NglQuad*>(menu + quad);
     nglInitQuad(q);

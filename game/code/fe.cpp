@@ -1187,14 +1187,14 @@ long double XB_THISCALL UIPicture_GetWidth(uint8_t* picture) {
     float max_buffer[3], min_buffer[3];
     const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
     const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
-    return static_cast<long double>(max[0]) - min[0];
+    return platform_x87_ld(max[0]) - min[0];
 }
 
 long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture) {
     float max_buffer[3], min_buffer[3];
     const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
     const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
-    return static_cast<long double>(max[1]) - min[1];
+    return platform_x87_ld(max[1]) - min[1];
 }
 
 void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x1, float y1) {
@@ -1484,8 +1484,8 @@ void XB_THISCALL UIPicture_SetVertexScaledAlpha(uint8_t* picture, float alpha) {
             uint8_t* const quad = picture_quad(picture, i);
             const uint32_t old = screen_quad(quad)->verts[v].color;
             // FLD alpha, FMUL scale, FMUL 255 on the x87, then _ftol.
-            const long double product = static_cast<long double>(alpha) * field<float>(quad, 0x30 + uint32_t(v) * 4) *
-                                        static_cast<long double>(g(0x0083eb8c));
+            const long double product = platform_x87_ld(alpha) * field<float>(quad, 0x30 + uint32_t(v) * 4) *
+                                        platform_x87_ld(g(0x0083eb8c));
             const uint32_t a = uint32_t(int32_t(int64_t(product))) & 0xff;
             nglSetQuadVertexColor(screen_quad(quad), v, a << 24 | (old & 0x00ffffff));
         }
@@ -1878,7 +1878,7 @@ long double XB_THISCALL UIText_GetLineHeight(uint8_t* text) {
 long double XB_THISCALL UIText_GetTextHeight(uint8_t* text) {
     const float line = static_cast<float>(UIText_GetLineHeight(text));
     const int32_t count = method<int32_t XB_THISCALL(uint8_t*)>(text, 0xc4)(text) - 1;  // line count
-    return static_cast<long double>(count) * field<float>(text, 0x6c) + line;
+    return platform_x87_ld(count) * field<float>(text, 0x6c) + line;
 }
 
 // UI text lines (0x20 bytes): +0x00 kind (8), +0x04 (x, y, z), +0x14 the text (ScriptString), +0x18 an owned block.

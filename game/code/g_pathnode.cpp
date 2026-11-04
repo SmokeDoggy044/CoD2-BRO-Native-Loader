@@ -1391,7 +1391,7 @@ void XB_STDCALL PathNode_AdjustBadPlaceArc(uint8_t* tree, const float* arc, uint
     const bool narrow = title_global<float>(0x0083eb60) > span;   // 180
     FastSinCos(&sm, 0, &cm, (span * title_global<float>(0x0083eb24) + arc[5]) * deg);
     const float half_sine =
-        title_ci_sin_ext(static_cast<long double>(span) * static_cast<long double>(title_global<float>(0x0083ecf0)));
+        title_ci_sin_ext(platform_x87_ld(span) * platform_x87_ld(title_global<float>(0x0083ecf0)));
     const float r2 = arc[3] * arc[3];
     const float h2 = arc[4] * arc[4];
     float far2 = arc[3] + title_global<float>(0x0083ecf4);  // 256
@@ -1399,10 +1399,10 @@ void XB_STDCALL PathNode_AdjustBadPlaceArc(uint8_t* tree, const float* arc, uint
     float hfar2 = arc[4] + title_global<float>(0x0083ebe8);  // 128
     hfar2 = hfar2 * hfar2;
     // The centroid of the sector: 2 r sin(span / 2) / span (degrees) along the middle direction.
-    const float k = static_cast<float>(static_cast<long double>(half_sine) / span *
-                                       static_cast<long double>(title_global<float>(0x0083f00c)) * arc[3]);
-    const float cx = static_cast<float>(static_cast<long double>(cm) * k + arc[0]);
-    const float cy = static_cast<float>(static_cast<long double>(sm) * k + arc[1]);
+    const float k = static_cast<float>(platform_x87_ld(half_sine) / span *
+                                       platform_x87_ld(title_global<float>(0x0083f00c)) * arc[3]);
+    const float cx = static_cast<float>(platform_x87_ld(cm) * k + arc[0]);
+    const float cy = static_cast<float>(platform_x87_ld(sm) * k + arc[1]);
     auto W = [](uint32_t a) -> uint32_t& { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(a)); };
     auto Fl = [](uint32_t a) -> float { return *reinterpret_cast<const float*>(static_cast<uintptr_t>(a)); };
     const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));

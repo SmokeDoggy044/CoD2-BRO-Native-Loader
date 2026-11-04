@@ -98,7 +98,7 @@ void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim) {
         field<uint32_t>(ps, 0x4ec) = anim;
         return;
     }
-    if (!anim && field<float>(ps, 0x88) > title_global<float>(0x0083ec18)) anim = 0x17;  // 0.9
+    if (!anim && platform_greater(field<float>(ps, 0x88), title_global<float>(0x0083ec18))) anim = 0x17;  // 0.9
     field<uint32_t>(ps, 0x4ec) = (~field<uint32_t>(ps, 0x4ec) & 0x200) | anim;
 }
 
@@ -127,9 +127,9 @@ float XB_CDECL PM_CmdScale(const int8_t* cmd) {
     if (!max) return 0.0f;
     uint8_t* ps = pm_ps();
     const int32_t forward = cmd[0x14], right = cmd[0x15], up = cmd[0x16];
-    const ext speed = static_cast<ext>(field<int32_t>(ps, 0x50)) * static_cast<ext>(max);
-    ext sum = static_cast<ext>(right * right) + static_cast<ext>(up * up);
-    sum = sum + static_cast<ext>(forward) * static_cast<ext>(forward);
+    const ext speed = platform_x87_ld(field<int32_t>(ps, 0x50)) * platform_x87_ld(max);
+    ext sum = platform_x87_ld(right * right) + platform_x87_ld(up * up);
+    sum = sum + platform_x87_ld(forward) * platform_x87_ld(forward);
     const ext total = platform_x87_sqrt_ext(sum) * title_global<float>(0x0083ed88);  // 127
     const float scale = static_cast<float>(speed / total);
     const uint32_t flags = field<uint32_t>(ps, 0x2c);
@@ -323,10 +323,10 @@ void XB_REGS3 XB_CDECL BG_EvaluateTrajectoryDelta(uint32_t, int32_t time, float*
         std::memcpy(result, delta, 12);
         return;
     case 4: {  // sine: the derivative's cosine factor on the x87
-        const long double phase = static_cast<long double>(time - start) / static_cast<long double>(duration) *
-                                  static_cast<long double>(title_global<float>(0x0083edac));
-        const long double f = x87_cos_ext(phase) * static_cast<long double>(title_global<float>(0x0083eb24));
-        for (int32_t i = 0; i < 3; ++i) result[i] = static_cast<float>(f * static_cast<long double>(delta[i]));
+        const long double phase = platform_x87_ld(time - start) / platform_x87_ld(duration) *
+                                  platform_x87_ld(title_global<float>(0x0083edac));
+        const long double f = x87_cos_ext(phase) * platform_x87_ld(title_global<float>(0x0083eb24));
+        for (int32_t i = 0; i < 3; ++i) result[i] = static_cast<float>(f * platform_x87_ld(delta[i]));
         return;
     }
     case 5:

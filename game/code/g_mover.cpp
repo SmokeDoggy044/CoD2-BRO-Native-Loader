@@ -446,8 +446,8 @@ uint32_t XB_CDECL Turret_IsPlayerWithinArc(const uint8_t* turret, const uint8_t*
         to[2] = inv * title_global<float>(0x0083eafc);
     }
     // The dot product on the x87, stored as float.
-    const float dot = static_cast<float>(static_cast<long double>(aim[2]) * to[2] + static_cast<long double>(aim[1]) * to[1] +
-                                         static_cast<long double>(aim[0]) * to[0]);
+    const float dot = static_cast<float>(platform_x87_ld(aim[2]) * to[2] + platform_x87_ld(aim[1]) * to[1] +
+                                         platform_x87_ld(aim[0]) * to[0]);
     float angle = title_ci_float(0x001f0ff4, dot);  // __CIacos
     const float pi = title_global<float>(0x0083ed00);
     if (platform_x87_greater(angle, pi) || title_global<float>(0x0083ed48) > angle) angle = pi;
@@ -680,9 +680,9 @@ void XB_CDECL InitMover(uint8_t* ent) {
     word_at(ent, 0x20) = word_at(ent, 0x2c0);
     word_at(ent, 0x24) = word_at(ent, 0x2c4);
     word_at(ent, 0x28) = word_at(ent, 0x2c8);
-    const long double dx = static_cast<long double>(field<float>(ent, 0x2d0)) - field<float>(ent, 0x2c0);
-    const long double dy = static_cast<long double>(field<float>(ent, 0x2d4)) - field<float>(ent, 0x2c4);
-    const long double dz = static_cast<long double>(field<float>(ent, 0x2d8)) - field<float>(ent, 0x2c8);
+    const long double dx = platform_x87_ld(field<float>(ent, 0x2d0)) - field<float>(ent, 0x2c0);
+    const long double dy = platform_x87_ld(field<float>(ent, 0x2d4)) - field<float>(ent, 0x2c4);
+    const long double dz = platform_x87_ld(field<float>(ent, 0x2d8)) - field<float>(ent, 0x2c8);
     const float distance = static_cast<float>(platform_x87_sqrt_ext(dz * dz + dy * dy + dx * dx));
     if (field<float>(ent, 0x2fc) == 0.0f) field<float>(ent, 0x2fc) = title_global<float>(0x0083eb90);
     const float scaled = distance * title_global<float>(0x0083eb9c);  // 1000
@@ -806,11 +806,11 @@ void XB_CDECL SP_func_pendulum(uint8_t* ent) {
     float length;
     std::memcpy(&length, &bits, sizeof length);
     if (platform_x87_greater(title_global<float>(0x0083ed78), length)) length = title_global<float>(0x0083ed78);  // 8
-    long double frequency = static_cast<long double>(length) * title_global<float>(0x0083ec9c);  // 3
-    frequency = static_cast<long double>(title_global<float>(0x0094d450)) / frequency;            // gravity
+    long double frequency = platform_x87_ld(length) * title_global<float>(0x0083ec9c);  // 3
+    frequency = platform_x87_ld(title_global<float>(0x0094d450)) / frequency;            // gravity
     frequency = platform_x87_sqrt_ext(frequency) * title_global<float>(0x0083f118);              // 1 / 2pi
     const int32_t duration =
-        static_cast<int32_t>(static_cast<int64_t>(static_cast<long double>(title_global<float>(0x0083eb9c)) / frequency));
+        static_cast<int32_t>(static_cast<int64_t>(platform_x87_ld(title_global<float>(0x0083eb9c)) / frequency));
     field<int32_t>(ent, 0x1c) = duration;
     InitMover(ent);
     word_at(ent, 0x20) = word_at(ent, 0x140);
@@ -1005,8 +1005,8 @@ void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* 
     const float from_short = title_global<float>(0x0083ebd4);  // 360 / 65536
     if (field<float>(tr, 0x18) > title_global<float>(0x0083ebf8)) {
         const float pitch = Plane_PitchAlongYaw(reinterpret_cast<const float*>(tr + 0x10), angles[1]);
-        float delta = static_cast<float>(title_ci_fmod(static_cast<long double>(pitch) - static_cast<long double>(angles[0]),
-                                                       static_cast<long double>(title_global<double>(0x0083ed40))));
+        float delta = static_cast<float>(title_ci_fmod(platform_x87_ld(pitch) - platform_x87_ld(angles[0]),
+                                                       platform_x87_ld(title_global<double>(0x0083ed40))));
         if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - title_global<float>(0x0083ebcc);
         if (title_global<float>(0x0083ebd0) > delta) delta = delta + title_global<float>(0x0083ebcc);
         uint32_t bits;
@@ -1083,7 +1083,7 @@ void XB_CDECL SP_func_door_rotating(uint8_t* ent) {
     const long double x = field<float>(ent, 0x390);
     const long double y = field<float>(ent, 0x394);
     const long double z = field<float>(ent, 0x398);
-    if (platform_x87_sqrt_ext((x * x + y * y) + z * z) > static_cast<long double>(one)) {
+    if (platform_x87_sqrt_ext((x * x + y * y) + z * z) > platform_x87_ld(one)) {
         title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x0083afd0));  // G_Error
         field<float>(ent, 0x398) = 0.0f;
         field<float>(ent, 0x390) = 0.0f;
@@ -1255,7 +1255,7 @@ void XB_CDECL turret_use(uint8_t* ent, uint8_t* other, uint8_t*) {
     const float turn = title_global<float>(0x0083ebcc);
     const float minus_half = title_global<float>(0x0083ebd0);
     float pitch = static_cast<float>(title_ci_fmod(
-        static_cast<long double>(field<float>(pointer_at(other, 0x23c), 0x9c)) - field<float>(ent, 0x150), full));
+        platform_x87_ld(field<float>(pointer_at(other, 0x23c), 0x9c)) - field<float>(ent, 0x150), full));
     if (platform_x87_greater(pitch, half_turn)) pitch = pitch - turn;
     if (minus_half > pitch) pitch = pitch + turn;
     const float third = title_global<float>(0x0083ec9c);
@@ -1268,7 +1268,7 @@ void XB_CDECL turret_use(uint8_t* ent, uint8_t* other, uint8_t*) {
         if (high > pitch) field<float>(ent, 0x90) = high;
     }
     float yaw = static_cast<float>(title_ci_fmod(
-        static_cast<long double>(field<float>(pointer_at(other, 0x23c), 0xa0)) - field<float>(ent, 0x154), full));
+        platform_x87_ld(field<float>(pointer_at(other, 0x23c), 0xa0)) - field<float>(ent, 0x154), full));
     if (platform_x87_greater(yaw, half_turn)) yaw = yaw - turn;
     if (minus_half > yaw) yaw = yaw + turn;
     field<float>(ent, 0x94) = yaw;
@@ -1355,7 +1355,7 @@ uint32_t XB_CDECL Turret_CanTargetPoint(uint8_t* ent, const float* point, float*
     const long double full = title_global<double>(0x0083ed40);  // 360
     for (uint32_t i = 0; i < 2; ++i) {
         float delta = static_cast<float>(
-            title_ci_fmod(static_cast<long double>(view[i]) - field<float>(ent, 0x150 + i * 4), full));
+            title_ci_fmod(platform_x87_ld(view[i]) - field<float>(ent, 0x150 + i * 4), full));
         if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - title_global<float>(0x0083ebcc);
         if (title_global<float>(0x0083ebd0) > delta) delta = delta + title_global<float>(0x0083ebcc);
         angles[i] = delta;
@@ -4483,9 +4483,9 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
                     args);  // AnimTree_GetRootDelta (EDI direction, ESI position)
         }
         const float px = stack_float(F + 0x20), py = stack_float(F + 0x24), pz = stack_float(F + 0x28);
-        stack_float(F + 0x34) = static_cast<float>(static_cast<long double>(pz) * pz +
-                                                   static_cast<long double>(py) * py +
-                                                   static_cast<long double>(px) * px);
+        stack_float(F + 0x34) = static_cast<float>(platform_x87_ld(pz) * pz +
+                                                   platform_x87_ld(py) * py +
+                                                   platform_x87_ld(px) * px);
         stack_float(F + 0x34) = platform_x87_sqrt(stack_float(F + 0x34));
         const float length = stack_float(F + 0x34);
         for (uint32_t i = 0; i < 3; ++i) {
@@ -5597,10 +5597,10 @@ namespace {
 
 // (heat - 0x0083ee68) * 0x0083f1d8 * 0x008ff008 on the x87 (doubles, then the float), stored as float.
 float turret_emission_rate(float heat) {
-    long double v = static_cast<long double>(heat);
-    v = v - static_cast<long double>(title_global<double>(0x0083ee68));
-    v = v * static_cast<long double>(title_global<double>(0x0083f1d8));
-    v = v * static_cast<long double>(title_global<float>(0x008ff008));
+    long double v = platform_x87_ld(heat);
+    v = v - platform_x87_ld(title_global<double>(0x0083ee68));
+    v = v * platform_x87_ld(title_global<double>(0x0083f1d8));
+    v = v * platform_x87_ld(title_global<float>(0x008ff008));
     return static_cast<float>(v);
 }
 
@@ -6467,7 +6467,7 @@ void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* pl
     float* const current = reinterpret_cast<float*>(turret + 0x90);
     const float* const base = reinterpret_cast<const float*>(turret + 0x150);
     const float* const arc = reinterpret_cast<const float*>(info + 0x2c);
-    const long double full_turn = static_cast<long double>(title_global<double>(0x0083ed40));  // 360.0
+    const long double full_turn = platform_x87_ld(title_global<double>(0x0083ed40));  // 360.0
     const float full = title_global<float>(0x0083ebcc);                                        // 360
     const float half = title_global<float>(0x0083eb60);                                        // 180
     const float minus_half = title_global<float>(0x0083ebd0);                                  // -180
@@ -6475,7 +6475,7 @@ void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* pl
     float out[3];
     for (uint32_t i = 0; i < 2; ++i) {
         float delta = static_cast<float>(
-            title_ci_fmod(static_cast<long double>(view[i]) - static_cast<long double>(base[i]), full_turn));
+            title_ci_fmod(platform_x87_ld(view[i]) - platform_x87_ld(base[i]), full_turn));
         if (platform_x87_greater(delta, half)) delta = delta - full;
         if (minus_half > delta) delta = delta + full;
         out[i] = delta;
@@ -6487,7 +6487,7 @@ void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* pl
             changed = true;
         }
         float turn = static_cast<float>(
-            title_ci_fmod(static_cast<long double>(out[i]) - static_cast<long double>(current[i]), full_turn));
+            title_ci_fmod(platform_x87_ld(out[i]) - platform_x87_ld(current[i]), full_turn));
         if (platform_x87_greater(turn, half)) turn = turn - full;
         if (minus_half > turn) turn = turn + full;
         uint32_t bits;
@@ -6918,9 +6918,9 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
             if (G_CheckOtherClientField100(other, 0, by)) hit_client = 1;
             alignas(16) float velocity[3] = {};
             BG_EvaluateTrajectoryDelta(0, title_global<int32_t>(0x0098540c), velocity, ent + 0x14);
-            const long double sq = static_cast<long double>(velocity[2]) * velocity[2] +
-                                   static_cast<long double>(velocity[1]) * velocity[1] +
-                                   static_cast<long double>(velocity[0]) * velocity[0];
+            const long double sq = platform_x87_ld(velocity[2]) * velocity[2] +
+                                   platform_x87_ld(velocity[1]) * velocity[1] +
+                                   platform_x87_ld(velocity[0]) * velocity[0];
             const float length = title_ci_sqrt(static_cast<float>(sq));
             if (length == title_global<float>(0x0083eafc)) velocity[2] = title_global<float>(0x0083eb20);  // straight up
             uint32_t args[9] = {address_of(other), address_of(ent), address_of(attacker), address_of(velocity),
@@ -7574,9 +7574,9 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
         stack_at(S - 4) = 0x0026babc;
         const float r = static_cast<float>(r_x87);
         stack_float(S + 0xc) = r;
-        const long double rl = r;
+        const long double rl = platform_x87_ld(r);
         const float ox = field<float>(pusher, 0x140), oy = field<float>(pusher, 0x144), oz = field<float>(pusher, 0x148);
-        stack_float(S + 0x50) = static_cast<float>((static_cast<long double>(move[0]) + ox) + rl);
+        stack_float(S + 0x50) = static_cast<float>((platform_x87_ld(move[0]) + ox) + rl);
         min_x = ox - r;
         stack_float(S + 0x40) = move[0] + min_x;
         stack_float(S + 0x10) = static_cast<float>(rl + ox);

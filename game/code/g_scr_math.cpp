@@ -32,9 +32,9 @@ ext title_ci_unary_ext(uint32_t function, ext x) {
 }
 
 ext sum_of_squares(float x, float y, float z) {
-    ext sum = static_cast<ext>(x) * x;
-    sum = sum + static_cast<ext>(y) * y;
-    return sum + static_cast<ext>(z) * z;
+    ext sum = platform_x87_ld(x) * x;
+    sum = sum + platform_x87_ld(y) * y;
+    return sum + platform_x87_ld(z) * z;
 }
 
 }  // namespace
@@ -50,9 +50,9 @@ ext XB_CDECL Scr_Atan(float x) { return platform_x87_atan_ext(x); }
 ext XB_CDECL Scr_Log(float x) { return platform_x87_ln_ext(x); }
 
 ext XB_CDECL Scr_VectorDot(const float* a, const float* b) {
-    ext sum = static_cast<ext>(a[2]) * b[2];
-    sum = sum + static_cast<ext>(a[1]) * b[1];
-    return sum + static_cast<ext>(a[0]) * b[0];
+    ext sum = platform_x87_ld(a[2]) * b[2];
+    sum = sum + platform_x87_ld(a[1]) * b[1];
+    return sum + platform_x87_ld(a[0]) * b[0];
 }
 
 ext XB_CDECL Scr_LengthSquared(const float* v) { return sum_of_squares(v[0], v[1], v[2]); }
@@ -62,7 +62,7 @@ ext XB_CDECL Scr_Length(const float* v) { return platform_x87_sqrt_ext(sum_of_sq
 namespace {
 
 void difference(const float* a, const float* b, float* d) {
-    for (int i = 0; i < 3; ++i) d[i] = static_cast<float>(static_cast<ext>(b[i]) - a[i]);
+    for (int i = 0; i < 3; ++i) d[i] = static_cast<float>(platform_x87_ld(b[i]) - a[i]);
 }
 
 }  // namespace
@@ -121,8 +121,8 @@ namespace {
 
 // (high - low) * r / 32768 + low on the x87 (r = 15 random bits), stored as float.
 float random_between(float high, float low, int32_t r) {
-    const float fraction = static_cast<float>(static_cast<ext>(r));
-    ext value = static_cast<ext>(high) - low;
+    const float fraction = static_cast<float>(platform_x87_ld(r));
+    ext value = platform_x87_ld(high) - low;
     value = value * fraction;
     value = value / title_global<float>(0x0083ebc8);  // 32768
     return static_cast<float>(value + low);
@@ -221,8 +221,8 @@ float asin_large(float t) {
 ext XB_CDECL Scr_Atan2(float y, float x) {
     const float ax = abs_bits(x);
     const float ay = abs_bits(y);
-    if (static_cast<ext>(ay) + ax == 0.0L) return 0.0f;
-    const ext length = platform_x87_sqrt_ext(static_cast<ext>(y) * y + static_cast<ext>(x) * x);
+    if (platform_x87_ld(ay) + ax == 0.0L) return 0.0f;
+    const ext length = platform_x87_sqrt_ext(platform_x87_ld(y) * y + platform_x87_ld(x) * x);
     const float inverse = static_cast<float>(1.0L / length);
     float r;
     if (ay > ax) {

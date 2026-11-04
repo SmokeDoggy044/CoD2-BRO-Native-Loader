@@ -351,7 +351,7 @@ PLATFORM_ASM_ENTRY(Q_fmod_entry,
                    "ret")
 
 float XB_CDECL Q_fmod(float a, float b) {
-    const long double difference = static_cast<long double>(a) - b;
+    const long double difference = platform_x87_ld(a) - b;
     float delta = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
     const float full = title_global<float>(0x0083ebcc);                                           // 360
     if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - full;       // 180

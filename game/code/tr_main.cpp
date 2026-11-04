@@ -3745,14 +3745,14 @@ float XB_CDECL R_EntityLodDistance(const uint8_t* ent) {
     // (0x0095e4d0 / 0x0095e4cc), divided by the entity's LOD radius (+0x38) unless that is 0.
     const float* view = &title_global<float>(0x0095e3a0);
     const float* position = reinterpret_cast<const float*>(ent + 0x3c);
-    const float dx = static_cast<float>(static_cast<long double>(view[0]) - position[0]);
-    const float dy = static_cast<float>(static_cast<long double>(view[1]) - position[1]);
-    const float dz = static_cast<float>(static_cast<long double>(view[2]) - position[2]);
+    const float dx = static_cast<float>(platform_x87_ld(view[0]) - position[0]);
+    const float dy = static_cast<float>(platform_x87_ld(view[1]) - position[1]);
+    const float dz = static_cast<float>(platform_x87_ld(view[2]) - position[2]);
     const long double sum =
-        (static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy) + static_cast<long double>(dx) * dx;
+        (platform_x87_ld(dz) * dz + platform_x87_ld(dy) * dy) + platform_x87_ld(dx) * dx;
     const float distance = static_cast<float>(title_ci_sqrt_ext(sum));
     const float radius = *reinterpret_cast<const float*>(ent + 0x38);
-    float lod = static_cast<float>(static_cast<long double>(title_global<float>(0x0095e4d0)) * distance +
+    float lod = static_cast<float>(platform_x87_ld(title_global<float>(0x0095e4d0)) * distance +
                                    title_global<float>(0x0095e4cc));
     if (radius != 0.0f) lod = lod / radius;
     return lod;

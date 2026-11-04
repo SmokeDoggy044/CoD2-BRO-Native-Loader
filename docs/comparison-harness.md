@@ -590,6 +590,29 @@ counts towards the matched counter; an in-game test later moves it to matched/se
 Checked with planted bugs in nglColorToVec4 (alpha ^ 1: 279 of 279 inputs) and
 nglVec4ToColor (alpha from blue: 75 of 285).
 
+### Release builds (-O2/-O3)
+
+Players run the release build; its leaf_test (`build/linux-loader-release/bin/leaf_test`, ~3x
+faster) finds what only the optimizer changes. Found 11-04 (21 functions, all fixed or classed):
+- **x87 narrowing**: GCC turns `(float)((long double)a OP (long double)b)` for floats a, b into
+  MULSS/ADDSS/... (exact, so allowed even with `-frounding-math`; no flag stops it). That rounds by
+  MXCSR (and flushes to zero) instead of the x87 control word the title's FMUL ran under: FLT_MAX
+  vs inf, denormal vs 0 in the physics solver. Every long double conversion goes through
+  `platform_x87_ld` (an opaque `"+t"` asm, no code of its own).
+- **Quiet compares**: -O2 emits some float compares (`!(a <= b)`, selects, branch inversions)
+  as UCOMISS, which leaves MXCSR's invalid flag clear on a QNaN: `platform_greater` /
+  `platform_greater_equal` (COMISS).
+- **Dropped lanes**: a scalar emulation of a packed op whose lane 3 (or later lanes behind
+  `&&`) goes unused loses that lane's operation and flags: `platform_cmpltps_mask`,
+  `platform_divps/maxps/minps` (with add/mul/sub, all volatile). Also a ternary min that became
+  MINSS (CM_TestCapsuleInTempBox's radius: COMISS in the original) and an early multiply -O2 sank
+  past returns (PhysBox_SweepSphere's radius²: `platform_mulss`).
+
+`tools/x87_narrowing.py` lists the source lines with x87 arithmetic at -O0 and more scalar SSE
+arithmetic at -O2, and the COMISS lines that became UCOMISS (0 lines after the fixes); dropped
+lanes it cannot see (the harness does). `LEAF_NO_MXCSR_FLAGS=1` compares only MXCSR's control
+bits, to tell flag-only differences from value ones.
+
 ## Limits
 
 - Functions whose first 5 bytes hold a call, a jump or an instruction the decoder

@@ -2478,8 +2478,8 @@ long double XB_CDECL FxRandom_Range(float low, float high) {
     float unit;
     std::memcpy(&unit, &bits, 4);
     // On the x87: (unit - 1) * (high - low) + low.
-    const long double fraction = static_cast<long double>(unit) - title_global<float>(0x0083eb20);
-    const long double span = static_cast<long double>(high) - low;
+    const long double fraction = platform_x87_ld(unit) - title_global<float>(0x0083eb20);
+    const long double span = platform_x87_ld(high) - low;
     return fraction * span + low;
 }
 

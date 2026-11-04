@@ -242,10 +242,10 @@ long double XB_REGS3 XB_CDECL Actor_NodeDistanceSquared(uint32_t, const uint8_t*
     const uint8_t* origin = *ent + 0x140;
     float d[3];
     for (uint32_t i = 0; i < 3; ++i)
-        d[i] = static_cast<float>(static_cast<ext>(field<float>(origin, i * 4)) - field<float>(node, 0x44 + i * 4));
-    ext sum = static_cast<ext>(d[2]) * d[2];
-    sum = sum + static_cast<ext>(d[1]) * d[1];
-    return sum + static_cast<ext>(d[0]) * d[0];
+        d[i] = static_cast<float>(platform_x87_ld(field<float>(origin, i * 4)) - field<float>(node, 0x44 + i * 4));
+    ext sum = platform_x87_ld(d[2]) * d[2];
+    sum = sum + platform_x87_ld(d[1]) * d[1];
+    return sum + platform_x87_ld(d[0]) * d[0];
 }
 
 namespace {
@@ -691,7 +691,7 @@ PLATFORM_ASM_ENTRY(Sentient_IsYawInGoalArc_entry,
 uint32_t XB_CDECL Sentient_IsYawInGoalArc(const uint8_t* sentient, float yaw) {
     const float goal = field<float>(sentient, 0x20);
     if (goal == title_global<float>(0x0083eb34)) return 1;  // -1: no goal yaw
-    const long double difference = static_cast<long double>(goal) - yaw;
+    const long double difference = platform_x87_ld(goal) - yaw;
     float delta = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
     const float full = title_global<float>(0x0083ebcc);                                           // 360
     if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - full;       // 180
@@ -705,7 +705,7 @@ uint32_t XB_CDECL Sentient_IsYawInGoalArc(const uint8_t* sentient, float yaw) {
 void XB_REGS1 XB_STDCALL Actor_UpdateYaw(uint8_t* actor, int32_t msec) {
     field<uint32_t>(actor, 0x154) = field<uint32_t>(actor, field<uint32_t>(actor, 0x140) ? 0x14c : 0x138);
     uint8_t* ent = field<uint8_t*>(actor, 0);
-    const long double difference = static_cast<long double>(field<float>(actor, 0x154)) - field<float>(ent, 0x154);
+    const long double difference = platform_x87_ld(field<float>(actor, 0x154)) - field<float>(ent, 0x154);
     float delta = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
     const float full = title_global<float>(0x0083ebcc);                                           // 360
     if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - full;       // 180
@@ -1241,7 +1241,7 @@ float title_ci_sqrt_ext(long double x) {
 }
 
 float distance_2d(float dx, float dy) {
-    return title_ci_sqrt_ext(static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx);
+    return title_ci_sqrt_ext(platform_x87_ld(dy) * dy + platform_x87_ld(dx) * dx);
 }
 
 float abs_bits(float x) {
@@ -1923,7 +1923,7 @@ uint32_t XB_CDECL Actor_IsCoverValidAgainst(const uint8_t* node, const uint8_t* 
                 const float ax = abs_bits(dx), ay = abs_bits(dy);
                 float angle = 0.0f;
                 // The title tests |dx| + |dy| against a double that is not 0 (0x0083ed20): never equal.
-                if (static_cast<long double>(ay) + static_cast<long double>(ax) != static_cast<long double>(title_global<double>(0x0083ed20))) {
+                if (platform_x87_ld(ay) + platform_x87_ld(ax) != platform_x87_ld(title_global<double>(0x0083ed20))) {
                     const float inverse = title_global<float>(0x0083eb20) / title_ci_sqrt_ext(dx2 + dy2);
                     angle = ay > ax ? cover_asin(inverse * ax, true) : cover_asin(inverse * ay, false);
                     if (0.0f > dx) angle = title_global<float>(0x0083ed00) - angle;
@@ -2990,8 +2990,8 @@ void XB_CDECL Path_FailCache_Add(uint8_t* cache, const float* goal, const float*
         const float now = float(level_time());
         uint32_t index = 0;
         for (uint32_t i = 0; i < 15; ++i) {
-            const float age = float(platform_x87_abs_ext(static_cast<long double>(now) -
-                                                         static_cast<long double>(field<float>(cache, 0x20 + i * 0x1c))));
+            const float age = float(platform_x87_abs_ext(platform_x87_ld(now) -
+                                                         platform_x87_ld(field<float>(cache, 0x20 + i * 0x1c))));
             if (platform_x87_greater(age, best)) {
                 best = age;
                 index = i;
@@ -3021,9 +3021,9 @@ uint32_t XB_CDECL Path_FailCache_Find(uint8_t* cache, const float* goal, const f
             continue;
         bool near = true;
         for (uint32_t axis = 0; axis < 3 && near; ++axis) {
-            const long double d = platform_x87_abs_ext(static_cast<long double>(start[axis]) -
-                                                       static_cast<long double>(field<float>(entry, axis * 4)));
-            near = static_cast<long double>(limit) > d;
+            const long double d = platform_x87_abs_ext(platform_x87_ld(start[axis]) -
+                                                       platform_x87_ld(field<float>(entry, axis * 4)));
+            near = platform_x87_ld(limit) > d;
         }
         if (near) {
             ++field<int16_t>(cache, 6);
@@ -3540,8 +3540,8 @@ uint32_t XB_CDECL Path_AStarSearch(uint32_t entry, uint8_t* path, uint32_t team,
             } else {
                 field<int32_t>(neighbor, 0x68) = title_global<int32_t>(0x00985fdc);
                 // The 2D distance to the goal, all on the x87.
-                const long double dx = static_cast<long double>(field<float>(neighbor, 0x44)) - goal[0];
-                const long double dy = static_cast<long double>(field<float>(neighbor, 0x48)) - goal[1];
+                const long double dx = platform_x87_ld(field<float>(neighbor, 0x44)) - goal[0];
+                const long double dy = platform_x87_ld(field<float>(neighbor, 0x48)) - goal[1];
                 field<float>(neighbor, 0x7c) = platform_x87_sqrt(static_cast<float>(dx * dx + dy * dy));
             }
             const float total = field<float>(neighbor, 0x7c) + cost;
@@ -3620,7 +3620,7 @@ void turret_aim_dir(const float* point, const uint8_t* turret, float* dir) {
     dir[0] = dx;
     dir[1] = dy;
     dir[2] = dz;
-    const float length = title_ci_sqrt_ext(static_cast<long double>((dz * dz + dy * dy) + dx * dx));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((dz * dz + dy * dy) + dx * dx));
     if (!(length == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         dir[0] = inverse * dx;
@@ -3631,7 +3631,7 @@ void turret_aim_dir(const float* point, const uint8_t* turret, float* dir) {
 
 // Normalizes `out` in place (the length from the values just stored) unless it is 0.
 void normalize_stored(float* out, float x, float y, float z) {
-    const float length = title_ci_sqrt_ext(static_cast<long double>((x * x + y * y) + z * z));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((x * x + y * y) + z * z));
     if (!(length == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         out[0] = out[0] * inverse;
@@ -3655,7 +3655,7 @@ void XB_CDECL Turret_AimDirMiss(const float* target, const uint8_t* turret, floa
     // along the aim by 0x00984d00 + 1, jittered along the axis by up to 12. Unit vector.
     if (title_global<float>(0x008ff044) == title_global<float>(0x0083ee24)) {
         const float radius = title_global<float>(0x0098a554);
-        long double product = static_cast<long double>(radius) * radius;
+        long double product = platform_x87_ld(radius) * radius;
         product = product + product;
         product = product * title_global<float>(0x0083ec9c);  // 3
         title_global<float>(0x008ff044) = title_ci_sqrt_ext(static_cast<float>(product));
@@ -3667,7 +3667,7 @@ void XB_CDECL Turret_AimDirMiss(const float* target, const uint8_t* turret, floa
     const float s1 = u0 * aim[2] - aim[0] * u2;
     const float s2 = aim[0] * u1 - u0 * aim[1];
     float n0 = s0, n1 = s1, n2 = s2;
-    const float length = title_ci_sqrt_ext(static_cast<long double>((s2 * s2 + s1 * s1) + s0 * s0));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((s2 * s2 + s1 * s1) + s0 * s0));
     if (!(length == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         n0 = inverse * s0;
@@ -3678,7 +3678,7 @@ void XB_CDECL Turret_AimDirMiss(const float* target, const uint8_t* turret, floa
     title_global<uint32_t>(0x008db488) = seed;
     const float fraction = platform_x87_int_mul(int32_t(seed & 0xffff), 1.0f);
     const int32_t sign =
-        static_cast<long double>(fraction) / title_global<float>(0x0083eb40) > title_global<double>(0x0083ecb0) ? 1 : -1;
+        platform_x87_ld(fraction) / title_global<float>(0x0083eb40) > title_global<double>(0x0083ecb0) ? 1 : -1;
     const float back = 0.0f - (title_global<float>(0x00984d00) + title_global<float>(0x0083eb20));
     const float b0 = back * aim[0] + target[0];
     const float b1 = back * aim[1] + target[1];
@@ -3713,7 +3713,7 @@ void XB_CDECL Turret_AimDirHit(const float* target, const uint8_t* turret, float
     float s0 = u2 * aim[1] - u1 * aim[2];
     float s1 = u0 * aim[2] - u2 * aim[0];
     float s2 = u1 * aim[0] - u0 * aim[1];
-    const float length = title_ci_sqrt_ext(static_cast<long double>((s2 * s2 + s1 * s1) + s0 * s0));
+    const float length = title_ci_sqrt_ext(platform_x87_ld((s2 * s2 + s1 * s1) + s0 * s0));
     if (!(length == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         s0 = inverse * s0;
@@ -3733,7 +3733,7 @@ void XB_CDECL Turret_AimDirHit(const float* target, const uint8_t* turret, float
     out[1] = y;
     const float z = p2 - field<float>(turret, 0x2c);
     out[2] = z;
-    const float length2 = title_ci_sqrt_ext(static_cast<long double>((out[0] * out[0] + y * y) + z * z));
+    const float length2 = title_ci_sqrt_ext(platform_x87_ld((out[0] * out[0] + y * y) + z * z));
     if (!(length2 == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length2;
         out[0] = out[0] * inverse;
@@ -3836,7 +3836,7 @@ uint32_t XB_CDECL Path_TrimAtGoal(uint8_t* path, const float* goal, float radius
     first[1] = ny;
     first[2] = nz;
     const float distance = Vec2Distance(second, 0, first);
-    const float removed = static_cast<float>(static_cast<long double>(first[5]) - static_cast<long double>(distance));
+    const float removed = static_cast<float>(platform_x87_ld(first[5]) - platform_x87_ld(distance));
     first[5] = distance;
     field<float>(path, 0x390) = nx;
     field<float>(path, 0x394) = ny;
@@ -3851,7 +3851,7 @@ uint32_t XB_CDECL Path_TrimAtGoal(uint8_t* path, const float* goal, float radius
     if (left_points == 2) {
         const float rest = Vec2Distance(reinterpret_cast<const float*>(path + 0x3cc), 0, first);
         field<float>(path, 0x3c8) = rest;
-        if (static_cast<long double>(rest) == static_cast<long double>(title_global<float>(0x0083eafc))) {
+        if (platform_x87_ld(rest) == platform_x87_ld(title_global<float>(0x0083eafc))) {
             field<float>(path, 0x3d4) = nz;
             field<int16_t>(path, 0x380) = 1;
             field<uint16_t>(path, 0x384) = 0;
@@ -4577,9 +4577,9 @@ void XB_CDECL Actor_ClampShotDirToCone(float* shot) {
     // (|dot| below cos 15 on the x87), the direction becomes the forward rotated by 15 degrees
     // around their (normalized) cross product.
     const float* const forward = shot + 12;
-    long double sum = static_cast<long double>(forward[2]) * shot[2];
-    sum = sum + static_cast<long double>(forward[1]) * shot[1];
-    sum = sum + static_cast<long double>(forward[0]) * shot[0];
+    long double sum = platform_x87_ld(forward[2]) * shot[2];
+    sum = sum + platform_x87_ld(forward[1]) * shot[1];
+    sum = sum + platform_x87_ld(forward[0]) * shot[0];
     const float dot = abs_bits(static_cast<float>(sum));
     if (!platform_x87_greater(title_global<float>(0x0083f024), dot)) return;  // cos 15
     float axis[3];
@@ -4587,7 +4587,7 @@ void XB_CDECL Actor_ClampShotDirToCone(float* shot) {
     axis[1] = shot[0] * forward[2] - forward[0] * shot[2];
     axis[2] = forward[0] * shot[1] - shot[0] * forward[1];
     const float length =
-        title_ci_sqrt_ext(static_cast<long double>((axis[2] * axis[2] + axis[1] * axis[1]) + axis[0] * axis[0]));
+        title_ci_sqrt_ext(platform_x87_ld((axis[2] * axis[2] + axis[1] * axis[1]) + axis[0] * axis[0]));
     if (!(length == title_global<float>(0x0083eafc))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         axis[0] = inverse * axis[0];
@@ -4637,7 +4637,7 @@ void XB_CDECL Actor_TurnTowardAngles(uint8_t* actor, int32_t max_turn) {
     const float* const target = reinterpret_cast<const float*>(actor + (field<uint32_t>(actor, 0x140) ? 0x140 : 0x12c));
     const double full = title_global<double>(0x0083ed40);  // 360.0
     auto wrapped = [&](float to, float from) {
-        float delta = static_cast<float>(title_ci_fmod(static_cast<long double>(to) - from, full));
+        float delta = static_cast<float>(title_ci_fmod(platform_x87_ld(to) - from, full));
         if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - title_global<float>(0x0083ebcc);
         if (title_global<float>(0x0083ebd0) > delta) delta = delta + title_global<float>(0x0083ebcc);  // -180, 360
         return delta;
@@ -5872,8 +5872,8 @@ void set_goal_weight(uint32_t index, uint32_t tree, float goal, float blend) {
 void blend_to(uint32_t index, uint32_t tree, float goal, float time) {
     const float current = anim_weight(tree, index);
     if (goal == current) return;
-    const float blend = float(static_cast<long double>(time) /
-                              x87_abs(static_cast<long double>(goal) - static_cast<long double>(current)));
+    const float blend = float(platform_x87_ld(time) /
+                              x87_abs(platform_x87_ld(goal) - platform_x87_ld(current)));
     set_goal_weight(index, tree, goal, blend);
 }
 
@@ -5921,9 +5921,9 @@ void XB_CDECL Actor_UpdateLookAt(uint8_t* actor, float dt) {
         else if (goal > limit)
             goal = limit;
     }
-    const long double offset = static_cast<long double>(goal) - static_cast<long double>(field<float>(actor, 0x1f8));
+    const long double offset = platform_x87_ld(goal) - platform_x87_ld(field<float>(actor, 0x1f8));
     const float diff_stored = float(offset);
-    bool snap = static_cast<long double>(title_global<float>(0x0083eb20)) > x87_abs(offset);
+    bool snap = platform_x87_ld(title_global<float>(0x0083eb20)) > x87_abs(offset);
     if (!snap) {
         float speed = field<float>(actor, 0x1fc), d = goal, diff = diff_stored;
         bool flipped = false;
@@ -6082,8 +6082,8 @@ void shot_finish(uint8_t* shot, const float* point, float distance) {
 
 // A signed unit from the LCG 0x008db488 (x * 0x10dcd + 1, low 16 bits / 65536 > 0.5).
 int32_t lcg_sign(uint32_t value) {
-    return static_cast<long double>(x87_int_to_float(int32_t(value & 0xffff))) / 65536.0L >
-                   static_cast<long double>(title_global<double>(0x0083ecb0))
+    return platform_x87_ld(x87_int_to_float(int32_t(value & 0xffff))) / 65536.0L >
+                   platform_x87_ld(title_global<double>(0x0083ecb0))
                ? 1
                : -1;
 }
@@ -6102,9 +6102,9 @@ void XB_CDECL Actor_ShotDirMissTarget(const uint8_t* target, uint8_t* shot) {
     // (sqrt(6) * 0x0098a554), signs from the LCG 0x008db488; then along the aim by the
     // engagement distance minus 0..44 (player) or by -12..12.
     if (!(title_global<float>(0x008ff048) != title_global<float>(0x0083ee24))) {  // 6969 = not computed
-        long double spread = static_cast<long double>(title_global<float>(0x0098a554)) * title_global<float>(0x0098a554);
+        long double spread = platform_x87_ld(title_global<float>(0x0098a554)) * title_global<float>(0x0098a554);
         spread = spread + spread;
-        spread = spread * static_cast<long double>(title_global<float>(0x0083ec9c));  // 3
+        spread = spread * platform_x87_ld(title_global<float>(0x0083ec9c));  // 3
         title_global<float>(0x008ff048) = ci_sqrt(float(spread));
     }
     const uint8_t* const ent = field<const uint8_t*>(target, 0);
@@ -6274,7 +6274,7 @@ float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* a
         my = inv * my;
         mz = inv * mz;
     }
-    if (static_cast<long double>(title_global<double>(0x0083f188)) > static_cast<long double>(moved)) return 0.0f;
+    if (platform_x87_ld(title_global<double>(0x0083f188)) > platform_x87_ld(moved)) return 0.0f;
     const uint8_t* const ent = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0);
     float tx = eye[0] - field<float>(ent, 0x140);
     float ty = eye[1] - field<float>(ent, 0x144);
@@ -6287,13 +6287,13 @@ float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* a
         tz = inv * tz;
     }
     using ext = long double;
-    ext dot = ext(tz) * ext(mz);
-    dot = dot + ext(ty) * ext(my);
-    dot = dot + ext(tx) * ext(mx);
+    ext dot = platform_x87_ld(tz) * platform_x87_ld(mz);
+    dot = dot + platform_x87_ld(ty) * platform_x87_ld(my);
+    dot = dot + platform_x87_ld(tx) * platform_x87_ld(mx);
     const int32_t speed = field<int32_t>(field<const uint8_t*>(field<const uint8_t*>(target, 0), 0x23c), 0x50) * elapsed;
     const float rate = moved / (float(speed) / title_global<float>(0x0083eb9c));  // 1000
-    const float across = float(x87_abs(ext(float(dot))));
-    const float factor = float(ext(one) - ext(across));
+    const float across = float(x87_abs(platform_x87_ld(float(dot))));
+    const float factor = float(platform_x87_ld(one) - platform_x87_ld(across));
     return rate * factor;
 }
 
@@ -6462,8 +6462,8 @@ const uint8_t* tree_def_node(uint32_t tree, uint32_t index) {
 // The blend factor towards a weight: 1 / (|current - goal| x 0x008ddaa4) on the x87, 0 for no distance.
 float turret_blend(float current, float goal, float rate) {
     const float distance =
-        float(x87_abs(static_cast<long double>(current) - static_cast<long double>(goal)));
-    const float scaled = float(static_cast<long double>(distance) * static_cast<long double>(rate));
+        float(x87_abs(platform_x87_ld(current) - platform_x87_ld(goal)));
+    const float scaled = float(platform_x87_ld(distance) * platform_x87_ld(rate));
     return scaled == 0.0f ? 0.0f : title_global<float>(0x0083eb20) / scaled;
 }
 
@@ -6714,8 +6714,8 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
         row = 0;
         if (pitch > title_global<float>(0x0083ef14)) {  // -15
             const float magnitude = abs_bits(pitch);
-            row_weight = float(static_cast<long double>(title_global<float>(0x0083eb20)) -
-                               static_cast<long double>(magnitude) / static_cast<long double>(k15));
+            row_weight = float(platform_x87_ld(title_global<float>(0x0083eb20)) -
+                               platform_x87_ld(magnitude) / platform_x87_ld(k15));
         } else {
             row_weight = zero;
         }
@@ -6783,7 +6783,7 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
         r.edi = row_node;
         const uint32_t entry_count = field<uint32_t>(def_entry, 0);
         const uint16_t first = uint16_t(field<uint16_t>(tree_def_node(def, row_node), 0x36) + uint16_t(whole));
-        const float goal = float(static_cast<long double>(title_global<float>(0x0083eb20)) - static_cast<long double>(frac));
+        const float goal = float(platform_x87_ld(title_global<float>(0x0083eb20)) - platform_x87_ld(frac));
         blend_node(first, goal, turret_blend(anim_weight(tree, first), goal, rate), false,
                    NodeCall{0x002080d9, 0x00208194, tree, entry_count, entry_count, 0, false, true});
         if (frac != zero) {
@@ -6806,7 +6806,7 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
         bool no_alloc = false;
         uint32_t ret_alloc = 0x002084aa;
         if (i == row) {
-            goal = float(static_cast<long double>(title_global<float>(0x0083eb20)) - static_cast<long double>(row_weight));
+            goal = float(platform_x87_ld(title_global<float>(0x0083eb20)) - platform_x87_ld(row_weight));
             blend = turret_blend(anim_weight(tree, node), goal, rate);
         } else if (i == row + 1 && row_weight != zero) {
             goal = row_weight;
@@ -6955,11 +6955,11 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
     const float pitch_angle = field<float>(turret, 0x150);
     float yaw_angle = field<float>(turret, 0x154);
     const float roll_angle = field<float>(turret, 0x158);
-    const float distance = title_ci_sqrt_ext((static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy) +
-                                             static_cast<long double>(dx) * dx);
+    const float distance = title_ci_sqrt_ext((platform_x87_ld(dz) * dz + platform_x87_ld(dy) * dy) +
+                                             platform_x87_ld(dx) * dx);
     const float frame = title_global<float>(0x008ddaa0);
     const float k300 = title_global<float>(0x0083ed04);
-    if (static_cast<long double>(frame) * static_cast<long double>(k300) > static_cast<long double>(distance)) {
+    if (platform_x87_ld(frame) * platform_x87_ld(k300) > platform_x87_ld(distance)) {
         field<float>(ent, 0x140) = target_x;
         field<float>(ent, 0x144) = target_y;
         field<float>(ent, 0x148) = target_z;
@@ -8197,7 +8197,7 @@ bool grenade_far_enough(uint8_t* node, float* block) {
 float grenade_estimate(const uint8_t* node, const float* block) {
     const float dx = field<float>(node, 0x44) - block[0];
     const float dy = field<float>(node, 0x48) - block[1];
-    return float(static_cast<long double>(block[2]) - static_cast<long double>(distance_2d(dx, dy)));
+    return float(platform_x87_ld(block[2]) - platform_x87_ld(distance_2d(dx, dy)));
 }
 
 float point_estimate(const uint8_t* node, const float* point) {
@@ -8309,8 +8309,8 @@ uint32_t XB_CDECL Path_AStarSearchInsidePlanes(uint32_t entry, uint32_t, uint32_
         [&](const uint8_t* node) { return addr_of(node) == reinterpret_cast<const uint32_t*>(block)[0]; },
         [&](const uint8_t* node) { return block_planes_outside(node, block, 1); },
         [&](const uint8_t* node) {
-            const long double dx = static_cast<long double>(field<float>(node, 0x44)) - point[0];
-            const long double dy = static_cast<long double>(field<float>(node, 0x48)) - point[1];
+            const long double dx = platform_x87_ld(field<float>(node, 0x44)) - point[0];
+            const long double dy = platform_x87_ld(field<float>(node, 0x48)) - point[1];
             return astar_fsqrt(dy * dy + dx * dx);
         });
 }
@@ -9012,10 +9012,10 @@ uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx0, uint32_
                     if (!(seen & 0xff)) continue;
                 }
                 using ext = long double;
-                const float dx = float(ext(pos[0]) - ext(field<float>(point, 0)));
-                const float dy = float(ext(pos[1]) - ext(field<float>(point, 4)));
-                const float dz = float(ext(pos[2]) - ext(field<float>(point, 8)));
-                const float distance = title_ci_sqrt_ext((ext(dz) * ext(dz) + ext(dy) * ext(dy)) + ext(dx) * ext(dx));
+                const float dx = float(platform_x87_ld(pos[0]) - platform_x87_ld(field<float>(point, 0)));
+                const float dy = float(platform_x87_ld(pos[1]) - platform_x87_ld(field<float>(point, 4)));
+                const float dz = float(platform_x87_ld(pos[2]) - platform_x87_ld(field<float>(point, 8)));
+                const float distance = title_ci_sqrt_ext((platform_x87_ld(dz) * platform_x87_ld(dz) + platform_x87_ld(dy) * platform_x87_ld(dy)) + platform_x87_ld(dx) * platform_x87_ld(dx));
                 const float scale =
                     Sentient_GetRangeAccuracyScale(reinterpret_cast<const uint8_t*>(uintptr_t{sentient}), distance);
                 out[index] = scale + out[index];
@@ -9174,9 +9174,9 @@ int32_t XB_CDECL Actor_ScoreEnemy(uint32_t entry, uint32_t ebx0, uint32_t esi0, 
     // The enemy's direction from the node: atan2 through the asin series (x87 inverse).
     const float ax = abs_bits(dx), ay = abs_bits(dy);
     float angle = 0.0f;
-    if (static_cast<long double>(ay) + static_cast<long double>(ax) != static_cast<long double>(title_global<double>(0x0083ed20))) {
-        const float length = title_ci_sqrt_ext(static_cast<long double>(dx2) + static_cast<long double>(dy2));
-        const float inverse = float(static_cast<long double>(title_global<float>(0x0083eb20)) / static_cast<long double>(length));
+    if (platform_x87_ld(ay) + platform_x87_ld(ax) != platform_x87_ld(title_global<double>(0x0083ed20))) {
+        const float length = title_ci_sqrt_ext(platform_x87_ld(dx2) + platform_x87_ld(dy2));
+        const float inverse = float(platform_x87_ld(title_global<float>(0x0083eb20)) / platform_x87_ld(length));
         angle = ay > ax ? cover_asin(inverse * ax, true) : cover_asin(inverse * ay, false);
         if (0.0f > dx) angle = title_global<float>(0x0083ed00) - angle;
         if (0.0f > dy) angle = 0.0f - angle;
@@ -9281,11 +9281,11 @@ uint32_t XB_CDECL Sentient_RouteToGoalNodeCached(uint32_t entry, const float* go
     const uint32_t elapsed = second.first - first.first;
     stack_word(F + 0x18) = elapsed;
     using ext = long double;
-    ext ticks = ext(int32_t(elapsed));
-    if (int32_t(elapsed) < 0) ticks = ticks + ext(title_global<float>(0x0083eb2c));
-    ticks = ticks * ext(title_global<float>(0x0083ed64));
+    ext ticks = platform_x87_ld(int32_t(elapsed));
+    if (int32_t(elapsed) < 0) ticks = ticks + platform_x87_ld(title_global<float>(0x0083eb2c));
+    ticks = ticks * platform_x87_ld(title_global<float>(0x0083ed64));
     uint32_t ecx = elapsed, esi = first.first, edi = second.first;
-    if (ticks > ext(title_global<float>(0x0083ec44))) {
+    if (ticks > platform_x87_ld(title_global<float>(0x0083ec44))) {
         stack_word(F + 0x20) = g[0];
         stack_word(F + 0x24) = g[1];
         stack_word(F + 0x28) = g[2];
@@ -9457,7 +9457,7 @@ void XB_CDECL Actor_UpdateAimBlend(uint32_t entry, uint32_t check_prone, uint8_t
     } else {
         field<float>(actor, 0x190) = title_global<float>(0x0083ebcc);
     }
-    const long double difference = static_cast<long double>(field<float>(actor, 0x1ac)) - field<float>(actor, 0x1a8);
+    const long double difference = platform_x87_ld(field<float>(actor, 0x1ac)) - field<float>(actor, 0x1a8);
     float angle = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
     const float full = title_global<float>(0x0083ebcc);
     if (platform_x87_greater(angle, title_global<float>(0x0083eb60))) angle = angle - full;  // 180
@@ -9856,8 +9856,8 @@ void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi
     stack_word(entry - 4) = ebp;
     const uint32_t frame = aligned_base(entry) - 0x70;
     uint8_t* const move = title_global<uint8_t*>(0x0095f450);
-    long double sum = static_cast<long double>(field<float>(move, 0x14)) * field<float>(move, 0x14) +
-                      static_cast<long double>(field<float>(move, 0x10)) * field<float>(move, 0x10);
+    long double sum = platform_x87_ld(field<float>(move, 0x14)) * field<float>(move, 0x14) +
+                      platform_x87_ld(field<float>(move, 0x10)) * field<float>(move, 0x10);
     __asm__("fsqrt" : "+t"(sum));
     *stack_vec(frame + 0xc) = float(sum);
     const float speed = *stack_vec(frame + 0xc);
@@ -10060,7 +10060,7 @@ void XB_CDECL ActorMove_CheckGround(uint32_t entry, uint32_t ebx, uint32_t esi, 
         title_global<uint32_t>(0x0098a4e8) = steep;
         title_global<uint32_t>(0x0098a4e4) = 0;
     };
-    if (static_cast<long double>(*stack_vec(results + 0x20)) == static_cast<long double>(title_global<double>(0x0083eb10))) {
+    if (platform_x87_ld(*stack_vec(results + 0x20)) == platform_x87_ld(title_global<double>(0x0083eb10))) {
         no_ground(0);
         return;
     }
@@ -10377,7 +10377,7 @@ uint32_t XB_CDECL Path_TraceAhead(uint32_t entry, const float* goal, uint32_t eb
             out[1] = hit[1];
             out[2] = ground;
             const float rise = abs_bits(ground - start[2]);
-            return static_cast<long double>(title_global<float>(0x0083ecdc)) > static_cast<long double>(rise) ? 1u : 0u;
+            return platform_x87_ld(title_global<float>(0x0083ecdc)) > platform_x87_ld(rise) ? 1u : 0u;
         }
         // Blocked: who by.
         const uint32_t blocker = stack_word(results + 0x30);
@@ -10475,7 +10475,7 @@ uint32_t XB_CDECL Actor_GrenadeThrow_TestArc(uint32_t entry, const float* start,
         if (0.0f >= disc) return 0;
         long double root = disc;
         __asm__("fsqrt" : "+t"(root));
-        t_fall = float(root * static_cast<long double>(half));
+        t_fall = float(root * platform_x87_ld(half));
     } else {
         const float disc = (dz * g) * k2 + vel[2] * vel[2];
         t_up = 0.0f;
@@ -10483,8 +10483,8 @@ uint32_t XB_CDECL Actor_GrenadeThrow_TestArc(uint32_t entry, const float* start,
         if (0.0f >= disc) return 0;
         long double root = disc;
         __asm__("fsqrt" : "+t"(root));
-        t_fall = float(((root + static_cast<long double>(vel[2])) / static_cast<long double>(g)) *
-                       static_cast<long double>(half));
+        t_fall = float(((root + platform_x87_ld(vel[2])) / platform_x87_ld(g)) *
+                       platform_x87_ld(half));
     }
     const float t_land = t_fall + t_up;
     const float total = t_land + t_fall;
@@ -10700,7 +10700,7 @@ void actor_clip_move(const float* v, const float* p, float* out) {
 // x87 dot product of a clip vector and a plane, ((a0 p0 + a1 p1) + a2 p2) in the precision control.
 long double actor_dot_x87(const float* a, const float* p) {
     using ext = long double;
-    return (ext(a[0]) * ext(p[0]) + ext(a[1]) * ext(p[1])) + ext(a[2]) * ext(p[2]);
+    return (platform_x87_ld(a[0]) * platform_x87_ld(p[0]) + platform_x87_ld(a[1]) * platform_x87_ld(p[1])) + platform_x87_ld(a[2]) * platform_x87_ld(p[2]);
 }
 
 // The packed dot product: all four lane products, (x + y) + z summed.
@@ -10928,7 +10928,7 @@ uint32_t XB_CDECL ActorMove_SlideMove(uint32_t entry, uint32_t ebx, uint32_t esi
         float into = 0.0f;
         for (i = 0; i < count; ++i) {
             into = actor_dot4(vel, planes + i * 4);
-            if (!(static_cast<long double>(into) >= k01)) break;
+            if (!(platform_x87_ld(into) >= k01)) break;
         }
         if (i == count) continue;
         const float speed = 0.0f - into;
@@ -10970,8 +10970,8 @@ uint32_t XB_CDECL ActorMove_SlideMove(uint32_t entry, uint32_t ebx, uint32_t esi
             for (uint32_t k = 0; k < count; ++k) {
                 if (k == i || k == j) continue;
                 const float* const third = planes + k * 4;
-                const long double d = (static_cast<long double>(clip[1]) * third[1] + static_cast<long double>(clip[0]) * third[0]) +
-                                      static_cast<long double>(clip[2]) * third[2];
+                const long double d = (platform_x87_ld(clip[1]) * third[1] + platform_x87_ld(clip[0]) * third[0]) +
+                                      platform_x87_ld(clip[2]) * third[2];
                 if (!(d >= k01)) return stop();
             }
         }
@@ -11107,7 +11107,7 @@ void XB_CDECL Path_StoreLookahead(uint32_t entry, uint32_t ebx, uint8_t* path, u
     dir[1] = point[1] - origin[1];
     dir[2] = point[2] - origin[2];
     const float length = title_ci_sqrt_ext(dir[0] * dir[0] + dir[1] * dir[1]);
-    if (!(static_cast<long double>(length) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+    if (!(platform_x87_ld(length) == platform_x87_ld(title_global<float>(0x0083eafc)))) {
         const float inverse = title_global<float>(0x0083eb20) / length;
         dir[0] = dir[0] * inverse;
         dir[1] = inverse * dir[1];
@@ -11182,13 +11182,13 @@ uint32_t XB_CDECL Actor_GrenadeThrow_MinEnergy(uint32_t entry, const float* star
     // velocity and Actor_GrenadeThrow_TestArc's verdict.
     const uint32_t F = entry - 0x10;
     using ext = long double;
-    const float dx = float(ext(target[0]) - ext(start[0]));
+    const float dx = float(platform_x87_ld(target[0]) - platform_x87_ld(start[0]));
     const float dz = target[2] - start[2];
-    const float dy = float(ext(target[1]) - ext(start[1]));
-    const float length = float(x87_sqrt((ext(dz) * ext(dz) + ext(dy) * ext(dy)) + ext(dx) * ext(dx)));
+    const float dy = float(platform_x87_ld(target[1]) - platform_x87_ld(start[1]));
+    const float length = float(x87_sqrt((platform_x87_ld(dz) * platform_x87_ld(dz) + platform_x87_ld(dy) * platform_x87_ld(dy)) + platform_x87_ld(dx) * platform_x87_ld(dx)));
     const float g = title_global<float>(0x0094d450);
     if ((length + dz) * g > title_global<float>(0x00830f64)) return 0;
-    ext doubled = ext(length) / ext(g);
+    ext doubled = platform_x87_ld(length) / platform_x87_ld(g);
     doubled = doubled + doubled;
     const float time = float(x87_sqrt(doubled));
     const float inverse = title_global<float>(0x0083eb20) / time;
@@ -11233,10 +11233,10 @@ uint32_t XB_CDECL Actor_GrenadeThrow_ByTime(uint32_t entry, const float* start, 
     const float disc = a * a - reach;
     if (0.0f > disc) return 0;
     using ext = long double;
-    ext r = x87_sqrt(ext(disc));
-    r = high ? r + ext(a) : ext(a) - r;
+    ext r = x87_sqrt(platform_x87_ld(disc));
+    r = high ? r + platform_x87_ld(a) : platform_x87_ld(a) - r;
     r = r + r;
-    const float time = float(x87_sqrt(r) / ext(g));
+    const float time = float(x87_sqrt(r) / platform_x87_ld(g));
     const float inverse = title_global<float>(0x0083eb20) / time;
     velocity[0] = inverse * dx;
     velocity[1] = inverse * dy;
@@ -11275,9 +11275,9 @@ uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start
     if (!count) return 0;
     using ext = long double;
     const float dz = target[2] - start[2];
-    const float dx = float(ext(target[0]) - ext(start[0]));
-    const float dy = float(ext(target[1]) - ext(start[1]));
-    const float distance = title_ci_sqrt_ext(ext(dy) * ext(dy) + ext(dx) * ext(dx));
+    const float dx = float(platform_x87_ld(target[0]) - platform_x87_ld(start[0]));
+    const float dy = float(platform_x87_ld(target[1]) - platform_x87_ld(start[1]));
+    const float distance = title_ci_sqrt_ext(platform_x87_ld(dy) * platform_x87_ld(dy) + platform_x87_ld(dx) * platform_x87_ld(dx));
     float* const aim = stack_vec(F + 0x38);
     const float g = title_global<float>(0x0094d450);
     for (int32_t i = 0; i < count; ++i) {
@@ -11287,8 +11287,8 @@ uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start
         float hx = hint[0] - start[0];
         float ny = hy;
         if (0.0f > (hz * dz + hy * dy) + hx * dx) continue;
-        const float hint_distance = title_ci_sqrt_ext(float(ext(hy) * ext(hy) + ext(hx) * ext(hx)));
-        if (!(static_cast<long double>(hint_distance) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+        const float hint_distance = title_ci_sqrt_ext(float(platform_x87_ld(hy) * platform_x87_ld(hy) + platform_x87_ld(hx) * platform_x87_ld(hx)));
+        if (!(platform_x87_ld(hint_distance) == platform_x87_ld(title_global<float>(0x0083eafc)))) {
             const float inverse = title_global<float>(0x0083eb20) / hint_distance;
             hx = inverse * hx;
             ny = inverse * hy;
@@ -11308,7 +11308,7 @@ uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start
         if (slope >= title_global<float>(0x0083eafc)) continue;
         const float k = (g * title_global<float>(0x0083eb28)) / slope;  // -0.5
         const float speed =
-            title_ci_sqrt_ext(((ext(distance) - ext(hint_distance)) * ext(hint_distance) * ext(k)) * ext(distance));
+            title_ci_sqrt_ext(((platform_x87_ld(distance) - platform_x87_ld(hint_distance)) * platform_x87_ld(hint_distance) * platform_x87_ld(k)) * platform_x87_ld(distance));
         const float vz = ((hz_d * distance) - (hint_distance * hint_distance) * dz) * k / speed;
         if (vz * vz + speed * speed > title_global<float>(0x00830f64)) continue;  // 600^2
         float* const out = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 8)});
@@ -11569,7 +11569,7 @@ uint32_t XB_CDECL ActorMove_StepSlideMove(uint32_t entry, uint32_t ebx, uint32_t
         field<float>(m, 4) = hit[1];
         field<float>(m, 8) = hit[2];
     }
-    if (static_cast<long double>(title_global<double>(0x0083eb10)) > static_cast<long double>(*stack_vec(results + 0x20)))
+    if (platform_x87_ld(title_global<double>(0x0083eb10)) > platform_x87_ld(*stack_vec(results + 0x20)))
         ActorMove_ProjectVelocity(0, &field<float>(m, 0x10), stack_vec(results + 0x10), &field<float>(m, 0x10),
                                   title_global<float>(0x0083f1bc));  // 1.001
     return 1;
@@ -11646,7 +11646,7 @@ uint32_t XB_CDECL ActorMove_Walk(uint32_t entry, uint32_t ebx, uint32_t esi, uin
     const float* const n = &title_global<float>(0x0098a500);
     const bool walkable = n[2] >= title_global<float>(0x0083ed28);
     using ext = long double;
-    ext sum = ext(vx) * ext(vx) + ext(vy) * ext(vy);
+    ext sum = platform_x87_ld(vx) * platform_x87_ld(vx) + platform_x87_ld(vy) * platform_x87_ld(vy);
     __asm__("fsqrt" : "+t"(sum));
     const float speed = float(sum);
     const float zero = 0.0f;
@@ -11920,12 +11920,12 @@ uint32_t XB_CDECL Actor_Grenade_FindThrowbackVelocity(uint32_t entry, const floa
         const float disc = a * a - reach;
         if (0.0f > disc) continue;
         using ext = long double;
-        ext r = ext(disc);
+        ext r = platform_x87_ld(disc);
         __asm__("fsqrt" : "+t"(r));
-        r = ext(a) - r;
+        r = platform_x87_ld(a) - r;
         r = r + r;
         __asm__("fsqrt" : "+t"(r));
-        const float time = float(r / ext(title_global<float>(0x0094d450)));
+        const float time = float(r / platform_x87_ld(title_global<float>(0x0094d450)));
         const float inverse = title_global<float>(0x0083eb20) / time;
         velocity[0] = inverse * dx;
         velocity[1] = inverse * dy;
@@ -12248,18 +12248,18 @@ uint32_t XB_CDECL Actor_ComputeShotSpread(uint32_t entry, uint8_t* actor, float*
             TitleRegs{addr_of(enemy2), addr_of(eye), B + 0xc, 0, addr_of(actor), addr_of(target)}, 0,
             nullptr);  // Sentient_EyeOrigin of the enemy
     using ext = long double;
-    const ext x0 = target[0];
+    const ext x0 = platform_x87_ld(target[0]);
     const float z = (*stack_vec(B + 0x14) - target[2]) * title_global<float>(0x0083eb58) + target[2];  // 0.75
     target[2] = z;
     const float dx = static_cast<float>(x0 - eye[0]);
     const float dz = z - eye[2];
     *stack_vec(B + 0x14) = dz;
     *stack_vec(B + 0xc) = dx;
-    const float dy = static_cast<float>(static_cast<ext>(target[1]) - eye[1]);
+    const float dy = static_cast<float>(platform_x87_ld(target[1]) - eye[1]);
     *stack_vec(B + 0x10) = dy;
-    ext sum = static_cast<ext>(dz) * dz;
-    sum = sum + static_cast<ext>(dy) * dy;
-    sum = sum + static_cast<ext>(dx) * dx;
+    ext sum = platform_x87_ld(dz) * dz;
+    sum = sum + platform_x87_ld(dy) * dy;
+    sum = sum + platform_x87_ld(dx) * dx;
     const float len = title_ci_sqrt_ext(sum);
     const float dist = (title_global<float>(0x00830f60) - field<float>(actor, 0xd4)) * len;  // 1.2
     *stack_vec(B + 4) = dist;
@@ -12325,9 +12325,9 @@ uint32_t XB_CDECL Actor_RollHit(uint32_t entry, uint8_t* actor, uint32_t esi, ui
     const float dx = field<float>(self, 0x140) - field<float>(other, 0x140);
     *stack_vec(B + 8) = dx;
     using ext = long double;
-    ext sum = static_cast<ext>(dz) * dz;
-    sum = sum + static_cast<ext>(dy) * dy;
-    sum = sum + static_cast<ext>(dx) * dx;
+    ext sum = platform_x87_ld(dz) * dz;
+    sum = sum + platform_x87_ld(dy) * dy;
+    sum = sum + platform_x87_ld(dx) * dx;
     const float dist = x87_sqrt_ext(sum);
     *stack_vec(B + 4) = dist;
     stack_word(B - 4) = 0x00211d55;
@@ -12464,7 +12464,7 @@ void ground_tilt(uint32_t entry, const float* origin, uint32_t ebx, uint32_t edi
     stack_word(F + 0x18) = stack_word(point + 8);
     // Ground tilt along the yaw (cos, sin) and across it (sin, -cos): G_SampleGroundTilt from
     // that point, each writing its pitch; the height is the mean of the two.
-    const float angle = static_cast<float>(static_cast<long double>(yaw) * title_global<float>(0x0083edd8));
+    const float angle = static_cast<float>(platform_x87_ld(yaw) * title_global<float>(0x0083edd8));
     *stack_vec(F + 0x2c) = angle;
     const uint32_t sincos_args[1] = {float_bits(angle)};
     call_at(F, 0x00210559, 0x000110f0, TitleRegs{F + 0x2c, handle, F + 0xc, 0, addr_of(origin), mask}, 1,
@@ -12608,13 +12608,13 @@ void XB_CDECL G_UpdateGroundTilt(uint32_t entry, uint8_t* ent, uint32_t esi, uin
     field<float>(rec, 0x10) = pitch;
     const float roll = approach(B + 0x10, 0x14, step, B, 0x00211eb4, B + 8);
     using ext = long double;
-    const ext diff = static_cast<ext>(*stack_vec(B + 0x14)) - field<float>(rec, 0xc);
+    const ext diff = platform_x87_ld(*stack_vec(B + 0x14)) - field<float>(rec, 0xc);
     field<float>(rec, 0x14) = roll;
     const float rounded = static_cast<float>(diff);
     *stack_vec(B + 8) = rounded;
     const float limit = title_global<float>(0x0083eba4);  // 0.6
     const ext magnitude = diff < 0 ? -diff : diff;
-    if (magnitude > static_cast<ext>(limit)) {
+    if (magnitude > platform_x87_ld(limit)) {
         *stack_vec(B + 0x14) = rounded;
         const int32_t sign = int32_t(stack_word(B + 0x14)) < 0 ? -1 : 1;
         field<float>(rec, 0xc) = static_cast<float>(sign) * limit + field<float>(rec, 0xc);
@@ -13129,7 +13129,7 @@ uint32_t XB_CDECL Actor_Spawn(uint32_t entry, uint8_t* ent, uint32_t ecx, uint32
     bits &= 0x7fffffffffffffffull;
     double magnitude;
     std::memcpy(&magnitude, &bits, 8);
-    *stack_vec(entry - 4) = static_cast<float>(static_cast<long double>(magnitude));
+    *stack_vec(entry - 4) = static_cast<float>(platform_x87_ld(magnitude));
     field<float>(sentient, 0x18) = title_global<float>(0x00830be0);  // 384
     field<float>(sentient, 0x1c) = title_global<float>(0x0083f224);  // 147456
     field<float>(sentient, 0x20) = title_global<float>(0x0083eb34);  // -1
@@ -13601,9 +13601,9 @@ void lookahead_to_end(uint8_t* path, const float* origin, uint32_t slot, bool in
     const float x = field<float>(path, 0x39c);
     const float y = field<float>(path, 0x3a0);
     *stack_vec(slot) = x * x + y * y;
-    *stack_vec(slot) = title_ci_sqrt_ext(static_cast<long double>(*stack_vec(slot)));
+    *stack_vec(slot) = title_ci_sqrt_ext(platform_x87_ld(*stack_vec(slot)));
     const float len = *stack_vec(slot);
-    if (!(static_cast<long double>(len) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+    if (!(platform_x87_ld(len) == platform_x87_ld(title_global<float>(0x0083eafc)))) {
         const float inv = title_global<float>(0x0083eb20) / len;
         if (inv_first) {
             field<float>(path, 0x39c) = inv * field<float>(path, 0x39c);
@@ -16874,7 +16874,7 @@ namespace {
 // fld a; fsub b; fstp float (the x87 difference rounded to float).
 float x87_sub_to_float(float a, float b) {
     long double r;
-    __asm__("fsubs %2" : "=t"(r) : "0"(static_cast<long double>(a)), "m"(b));
+    __asm__("fsubs %2" : "=t"(r) : "0"(platform_x87_ld(a)), "m"(b));
     return static_cast<float>(r);
 }
 
@@ -17335,8 +17335,8 @@ uint32_t XB_CDECL Actor_MoveByAnimMode(uint32_t entry, uint32_t, uint32_t ebx, u
             case 0: {
                 root_delta(0x0021dcb8, entry - 0xc);
                 field<uint32_t>(actor, 0x2d8) = 1;
-                const float sum = static_cast<float>(static_cast<long double>(delta[1]) * delta[1] +
-                                                     static_cast<long double>(delta[0]) * delta[0]);
+                const float sum = static_cast<float>(platform_x87_ld(delta[1]) * delta[1] +
+                                                     platform_x87_ld(delta[0]) * delta[0]);
                 float speed = title_ci_sqrt_float(sum);
                 if (field<uint32_t>(actor, 0x1390)) {
                     const float least = title_global<float>(0x008ddaa0) * title_global<float>(0x0083ee38);  // x 30
@@ -18097,7 +18097,7 @@ uint32_t XB_CDECL Actor_Exposed_ReacquireSidestep(uint32_t entry, uint32_t eax, 
         const float dx = field<float>(ee, 0x140) - field<float>(me, 0x140);
         if (title_global<float>(0x0083eb20) >= dy * dy + dx * dx) return next_step();
     }
-    *stack_vec(entry + 4) = static_cast<float>(static_cast<long double>(*stack_vec(entry + 4)) *
+    *stack_vec(entry + 4) = static_cast<float>(platform_x87_ld(*stack_vec(entry + 4)) *
                                                title_global<float>(0x0083edd8));  // x87 degrees to radians
     {
         const uint32_t args[1] = {stack_word(entry + 4)};
@@ -18354,7 +18354,7 @@ uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx
             const float sum = mx * mx + my * my;
             *stack_vec(entry - 0x38) = sum;
             const float root = title_ci_sqrt_float(sum);
-            const float speed = static_cast<float>(static_cast<long double>(root) * title_global<float>(0x0083eb58));  // x87 x 0.75
+            const float speed = static_cast<float>(platform_x87_ld(root) * title_global<float>(0x0083eb58));  // x87 x 0.75
             *stack_vec(entry - 0x38) = speed;
             const float* const d = stack_vec(entry - 0x18);
             turn(field<float>(point, 4) * d[0] >= field<float>(point, 0) * d[1], speed);
@@ -18710,7 +18710,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<float>(r, 0xc) = dx;
         const float dy = field<float>(r, 4) - field<float>(r, 0x20);
         *stack_vec(entry + 0x10) = dy;
-        const long double sq = static_cast<long double>(dx) * dx + static_cast<long double>(dy) * dy;
+        const long double sq = platform_x87_ld(dx) * dx + platform_x87_ld(dy) * dy;
         field<float>(r, 0x10) = dy;
         const long double len = x87_fsqrt_ext(sq);
         const float length = static_cast<float>(len);
@@ -19192,8 +19192,8 @@ uint32_t XB_CDECL Actor_AvoidOthers(uint32_t entry, uint32_t eax, uint32_t ebx, 
                     if (field<uint8_t>(path, 0x3bc) & 1) goto l5b9;
                     const float s = ci_sqrt_at(F, 0x0021531c, sf(0x14));
                     sf(0x44) = s;
-                    if (static_cast<long double>(s) + static_cast<long double>(title_global<float>(0x0083f26c)) >
-                        static_cast<long double>(field<float>(path, 0x3b0)))
+                    if (platform_x87_ld(s) + platform_x87_ld(title_global<float>(0x0083f26c)) >
+                        platform_x87_ld(field<float>(path, 0x3b0)))
                         goto l510;
                     x1 = sf(0x9c);
                     x6 = sf(0x2c);
@@ -19370,7 +19370,7 @@ uint32_t XB_CDECL Actor_AvoidOthers(uint32_t entry, uint32_t eax, uint32_t ebx, 
                 const float s = ci_sqrt_at(F, 0x0021587f, sf(0x18));
                 sf(0x44) = s;
                 const long double sum =
-                    static_cast<long double>(s) + static_cast<long double>(title_global<float>(0x0083f26c));
+                    platform_x87_ld(s) + platform_x87_ld(title_global<float>(0x0083f26c));
                 const long double p3b0 = field<float>(path, 0x3b0);
                 if (p3b0 < sum || p3b0 != p3b0 || sum != sum) {
                     sw(0x48) = 0;
@@ -19384,7 +19384,7 @@ uint32_t XB_CDECL Actor_AvoidOthers(uint32_t entry, uint32_t eax, uint32_t ebx, 
                 // 0x2158bd: the move direction normalized, the start 37.5 off the blocker's
                 // side, the side point 75 ahead of it.
                 const float vx = sf(0x24), vy = sf(0x28);
-                const long double q = static_cast<long double>(vy) * vy + static_cast<long double>(vx) * vx;
+                const long double q = platform_x87_ld(vy) * vy + platform_x87_ld(vx) * vx;
                 sf(0x84) = vx;
                 sf(0x88) = vy;
                 sf(0x2c) = static_cast<float>(q);
@@ -19738,7 +19738,7 @@ uint32_t XB_CDECL Path_StartLookahead(uint32_t entry, uint32_t eax, uint32_t ebx
             }
             f(-0x14) = c3;
             const long double lsq =
-                static_cast<long double>(f(-0xc)) * f(-0xc) + static_cast<long double>(f(-0x10)) * f(-0x10);
+                platform_x87_ld(f(-0xc)) * f(-0xc) + platform_x87_ld(f(-0x10)) * f(-0x10);
             f(-0x28) = static_cast<float>(lsq);
             f(-0x28) = ci_sqrt_at(F, 0x00213ac1, f(-0x28));
             float ux = f(-0x10), uy = f(-0xc);

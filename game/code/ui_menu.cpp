@@ -1287,13 +1287,13 @@ void XB_CDECL DialogOverlay_LayoutTexts(uint32_t eax, uint8_t* overlay, int32_t 
     int32_t gap = 0;
     if (lines(heading) > 0) gap = lines(heading) + 1;
     // Centred on 240 at 10 per line: x87 (the half-height kept as a double for the heading).
-    const long double half = (static_cast<long double>(message_lines + gap + rows) + title_global<double>(0x0083ecb0)) *
+    const long double half = (platform_x87_ld(message_lines + gap + rows) + title_global<double>(0x0083ecb0)) *
                              title_global<double>(0x0083edc0);
     const double half_stored = static_cast<double>(half);
     using Place = void XB_THISCALL(uint8_t*, float, float);
-    const float message_y = static_cast<float>(static_cast<long double>((heading_rows * 5 + 0x3c) * 4) - half);
+    const float message_y = static_cast<float>(platform_x87_ld((heading_rows * 5 + 0x3c) * 4) - half);
     method<Place>(message, 0x7c)(message, 320.0f, message_y);
-    const float heading_y = static_cast<float>(title_global<double>(0x0083edb8) - static_cast<long double>(half_stored));
+    const float heading_y = static_cast<float>(title_global<double>(0x0083edb8) - platform_x87_ld(half_stored));
     method<Place>(heading, 0x7c)(heading, 320.0f, heading_y);
 }
 

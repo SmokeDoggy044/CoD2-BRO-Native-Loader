@@ -1170,11 +1170,11 @@ void XB_CDECL CG_DrawFrontBufferFade() {
     }
     using ext = long double;
     const auto to_byte = [](ext v) { return static_cast<uint8_t>(static_cast<int32_t>(static_cast<int64_t>(v))); };
-    const ext full = static_cast<ext>(g(0x0083eb8c));
-    uint8_t r = to_byte(static_cast<ext>(g(0x008d5114)) * full);
-    uint8_t gr = to_byte(static_cast<ext>(g(0x008d5118)) * full);
-    uint8_t b = to_byte(static_cast<ext>(g(0x008d511c)) * full);
-    uint8_t a = to_byte(static_cast<ext>(g(0x008d5120)) * full);
+    const ext full = platform_x87_ld(g(0x0083eb8c));
+    uint8_t r = to_byte(platform_x87_ld(g(0x008d5114)) * full);
+    uint8_t gr = to_byte(platform_x87_ld(g(0x008d5118)) * full);
+    uint8_t b = to_byte(platform_x87_ld(g(0x008d511c)) * full);
+    uint8_t a = to_byte(platform_x87_ld(g(0x008d5120)) * full);
     const float threshold = g(0x008fefc0);
     int32_t& mark = title_global<int32_t>(0x0095f644);
     int32_t fade_time;
@@ -1194,13 +1194,13 @@ void XB_CDECL CG_DrawFrontBufferFade() {
             static_cast<float>(duration - now + start) / static_cast<float>(fade_time);
     NglQuad quad;
     nglInitQuad(&quad);
-    const ext scale = static_cast<ext>(g(0x008d9d4c));
-    r = to_byte(static_cast<ext>(static_cast<int32_t>(r)) * scale);
+    const ext scale = platform_x87_ld(g(0x008d9d4c));
+    r = to_byte(platform_x87_ld(static_cast<int32_t>(r)) * scale);
     const uint32_t mode = title_global<uint32_t>(0x008d5124);
     if (mode == 5 || mode == 6) {
-        gr = to_byte(static_cast<ext>(static_cast<int32_t>(gr)) * scale);
-        b = to_byte(static_cast<ext>(static_cast<int32_t>(b)) * scale);
-        a = to_byte(static_cast<ext>(static_cast<int32_t>(a)) * scale);
+        gr = to_byte(platform_x87_ld(static_cast<int32_t>(gr)) * scale);
+        b = to_byte(platform_x87_ld(static_cast<int32_t>(b)) * scale);
+        a = to_byte(platform_x87_ld(static_cast<int32_t>(a)) * scale);
     }
     const uint32_t rgba = (static_cast<uint32_t>(r) << 24) | (static_cast<uint32_t>(gr) << 16) |
                           (static_cast<uint32_t>(b) << 8) | a;
@@ -3520,11 +3520,11 @@ void XB_CDECL CG_ShellShock_f() {
     text[0xff] = 0;
     using ext = long double;
     const float seconds = static_cast<float>(title_function<ext XB_CDECL(const char*)>(0x001ef056)(text) *  // atof
-                                             static_cast<ext>(g(0x0083eb9c)));
+                                             platform_x87_ld(g(0x0083eb9c)));
     CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44));
     title_global<int32_t>(0x00973a70) = title_global<int32_t>(0x0097253c);
     title_global<int32_t>(0x00973a74) =
-        static_cast<int32_t>(static_cast<int64_t>(static_cast<ext>(seconds) + static_cast<ext>(g(0x0083eb24))));
+        static_cast<int32_t>(static_cast<int64_t>(platform_x87_ld(seconds) + platform_x87_ld(g(0x0083eb24))));
 }
 
 void XB_CDECL CG_DrawCheckpointReached() {
@@ -3951,7 +3951,7 @@ void XB_CDECL CG_UpdateViewWeaponAdsAnims(uint8_t* tree, const uint8_t* rec) {
     const float length = clip ? *reinterpret_cast<const float*>(clip + 0x38) : g(0x0083eb20);
     const float left = (length - length * t) * rate_of(anim);
     if (!(g(0x0083ec44) > left)) return;
-    const float fade = static_cast<float>(static_cast<long double>(rate_of(anim)) * static_cast<long double>(g(0x0083066c)));
+    const float fade = static_cast<float>(platform_x87_ld(rate_of(anim)) * platform_x87_ld(g(0x0083066c)));
     const uint32_t fade_bits = float_word(fade);
     const uint32_t rate_bits = float_word(rate_of(anim));
     AnimTree_SetGoalWeightClamped(tree, 0, anim, 0, fade_bits, rate_bits, 0, 0, 0);
@@ -4650,7 +4650,7 @@ void XB_CDECL CG_ServerCommand() {
         const int32_t start = title_function<AtolFn>(0x001eeb81)(CG_Argv(2));
         const float alpha = title_function<AtofFn>(0x001ef056)(CG_Argv(1));
         const int32_t alpha255 = static_cast<int32_t>(
-            static_cast<int64_t>(static_cast<long double>(alpha) * static_cast<long double>(g(0x0083eb8c))));
+            static_cast<int64_t>(platform_x87_ld(alpha) * platform_x87_ld(g(0x0083eb8c))));
         CG_SetFade(duration, 0, start, alpha255);
         return;
     }
@@ -4982,14 +4982,14 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                                                    title_global<uint32_t>(0x00972540), top + 0x34};
                         call(0x0027fac0, 5, mover);  // CG_AdjustPositionForMover
                         using ext = long double;
-                        at(0x10) = static_cast<float>(static_cast<ext>(at(0x20)) - static_cast<ext>(at(0x40)));
+                        at(0x10) = static_cast<float>(platform_x87_ld(at(0x20)) - platform_x87_ld(at(0x40)));
                         const int32_t yaw = static_cast<int32_t>(at(0x38) * g(0x0083ebd8)) & 0xffff;
                         title_global<int32_t>(0x009725a8) += yaw;
-                        at(0x14) = static_cast<float>(static_cast<ext>(at(0x24)) - static_cast<ext>(at(0x44)));
-                        at(0x18) = static_cast<float>(static_cast<ext>(at(0x28)) - static_cast<ext>(at(0x48)));
+                        at(0x14) = static_cast<float>(platform_x87_ld(at(0x24)) - platform_x87_ld(at(0x44)));
+                        at(0x18) = static_cast<float>(platform_x87_ld(at(0x28)) - platform_x87_ld(at(0x48)));
                         const float length = ci_sqrt_ext(
-                            (static_cast<ext>(at(0x18)) * static_cast<ext>(at(0x18)) + static_cast<ext>(at(0x14)) * static_cast<ext>(at(0x14))) +
-                            static_cast<ext>(at(0x10)) * static_cast<ext>(at(0x10)));
+                            (platform_x87_ld(at(0x18)) * platform_x87_ld(at(0x18)) + platform_x87_ld(at(0x14)) * platform_x87_ld(at(0x14))) +
+                            platform_x87_ld(at(0x10)) * platform_x87_ld(at(0x10)));
                         at(0xc) = length;
                         if (platform_x87_greater(length, g(0x0083ebf8))) {
                             float e0, e1, e2;
