@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 6,071 have been
+It's early days: about 73% of the functions have a name, and 6,121 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,13 +29,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,288 | 9,093 | 6,071 | 5,217 |
+| Engine and game code (`.text`) | 11,288 | 9,093 | 6,121 | 5,167 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,612** | **12,081** | **6,071** | **10,541** |
+| **Total** | **16,612** | **12,081** | **6,121** | **10,491** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 235 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 256 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -55,7 +55,7 @@ We've also named 2,659 of the game's global variables.
 | Server | 81 | 72 | 9 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 1,158 | 290 | 3 | 548 | 5 |
+| Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 1,208 | 302 | 3 | 486 | 5 |
 | Level-script helpers in the engine code | 1,446 | 0 | 1 | 1 | 1,389 | 48 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |

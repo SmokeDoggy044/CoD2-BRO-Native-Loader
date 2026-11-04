@@ -359,4 +359,134 @@ uint32_t XB_CDECL GScr_HasVisibleModel(uint32_t handle);
 // 0x002f9510: sets flag 0x2000000 of the entity's +0x2a4.
 void XB_CDECL GScr_SetEntFlag2000000(uint32_t handle);
 
+// 0x002f9550: DObj_SetForcedLod on the entity's model (+0x22c), if any (tail jump).
+void XB_CDECL GScr_SetForcedLod(uint32_t handle, int32_t lod);
+// Turret builtins: the turret record at the entity's +0x24c (nothing without one).
+// 0x002f9710, 0x002f9760: the float +0x40 / +0x3c.
+void XB_CDECL GScr_Turret_Set40(uint32_t handle, float value);
+void XB_CDECL GScr_Turret_Set3c(uint32_t handle, float value);
+// 0x002f97b0, 0x002f9850: the arc +0x34 / +0x38 (stored, then 0 when negative).
+void XB_CDECL GScr_Turret_SetArc_34(uint32_t handle, float value);
+void XB_CDECL GScr_Turret_SetArc_38(uint32_t handle, float value);
+// 0x002f9800: the arc +0x2c = 0 - value.
+void XB_CDECL GScr_Turret_SetArc_2c(uint32_t handle, float value);
+// 0x002f98a0: the arc +0x30 = 0 - value, then 0 when positive.
+void XB_CDECL GScr_Turret_SetArc_30(uint32_t handle, float value);
+// 0x002f9900: a spawner's (type byte 0xc) team +0x3b4 from "axis" / "allies" / "neutral" (1-3, _stricmp);
+// others format a message (va, handed the string's rep pointer) and leave it.
+void XB_CDECL GScr_SetSpawnerTeam(uint32_t handle, const ScriptString* team);
+// 0x002f99d0 .. 0x002f9a90: set / clear flag 0x80000 / 0x40000 of the entity's +0x2a4.
+void XB_CDECL GScr_SetEntFlag80000(uint32_t handle);
+void XB_CDECL GScr_ClearEntFlag80000(uint32_t handle);
+void XB_CDECL GScr_ClearEntFlag40000(uint32_t handle);
+void XB_CDECL GScr_SetEntFlag40000(uint32_t handle);
+// 0x002f9ad0: the entity's number (+0x224), 0 when stale.
+int32_t XB_CDECL GScr_GetEntityNumber(uint32_t handle);
+// 0x002f9b10: a gravity trajectory: type +0x14 = 5, start time +0x18 = level_time, velocity +0x2c..+0x34,
+// byte +0x294 = 1.
+void XB_CDECL GScr_MoveGravity(uint32_t handle, const uint32_t* velocity);
+// 0x002f9b70, 0x002f9bb0: clear / set flag 0x8000 of the entity's +0x10.
+void XB_CDECL GScr_ClearEFlag8000(uint32_t handle);
+void XB_CDECL GScr_SetEFlag8000(uint32_t handle);
+// 0x002f9bf0: the client's (+0x23c) kick +0x5d4 = (health +0x354 * damage + 50) / 100 (message when negative),
+// kick origin +0x5d8..+0x5e0 = client origin (+0) - point.
+void XB_CDECL GScr_ViewKick(uint32_t handle, int32_t damage, const float* point);
+// 0x002f9cd0: zeroes the client's (+0x23c, not checked) +0x4f4..+0x4fc.
+void XB_CDECL GScr_ClearClientVec4f4(uint32_t handle);
+// 0x002f9d30: whether the turret's byte +1 is set; message (the classname +0x25c) and false without a turret.
+uint8_t XB_CDECL GScr_Turret_GetFlag1(uint32_t handle);
+// 0x002f9d90: the client's stance (+0x2c bit 0 "prone", bit 1 "crouch", else "stand") into out.
+void XB_CDECL GScr_GetStance(uint32_t handle, ScriptString* out);
+// 0x002f9e00: XAnim_HasNotetrack(anim, name); the first argument is not read.
+uint8_t XB_CDECL GScr_AnimHasNotetrack(uint32_t unused, uint32_t anim, const uint32_t* name);
+// 0x002f9e20: the hint string +0x28c; a trigger_use (+0x260) gets byte +5 = 0xff, others the actor's
+// (+0x240) +0x1380 = 0xffff.
+void XB_CDECL GScr_SetHintString28c(uint32_t handle, uint32_t hint);
+
+// 0x002f9e80: with a hint (*hint != 0) on a trigger_use or an entity with an actor (+0x240): resets the hint
+// cache (trigger_use: byte +5 = 0xff; else the actor's +0x1380 = 0xffff).
+void XB_CDECL GScr_ResetHintCache(uint32_t handle, const uint32_t* hint);
+// 0x002f9ef0: the cursor hint +0xc0: -1 for "HINT_INHERIT" on a trigger_use, else the index (1..0x10b) of the
+// name in the hint type table 0x008dae44 (Q_stricmpn2); unknown names format a message (the rep pointer).
+void XB_CDECL GScr_SetCursorHint(uint32_t handle, const ScriptString* hint);
+// Turret builtins with the "entity type '%s' is not a turret" message (va, the classname +0x25c) when the
+// entity has no turret record (+0x24c).
+// 0x002f9ff0: the number (+0x224) of the turret's owner (+0xc) while flag 0x40 of its +2 is set, else 0.
+int32_t XB_CDECL GScr_Turret_GetOwner(uint32_t handle);
+// 0x002fa070: sqrt of the squared range +0x48 (x87, ST0), 0 without a turret.
+long double XB_CDECL GScr_Turret_GetMaxRange(uint32_t handle);
+// 0x002fa0e0: the squared range +0x48 = range * range.
+void XB_CDECL GScr_Turret_SetMaxRange(uint32_t handle, float range);
+// 0x002fa160: the float +0x54.
+void XB_CDECL GScr_Turret_Set54(uint32_t handle, float value);
+// 0x002fa1e0, 0x002fa250: clear / set the usable flag 0x10 of byte +3.
+void XB_CDECL GScr_Turret_MakeUnusable(uint32_t handle);
+void XB_CDECL GScr_Turret_MakeUsable(uint32_t handle);
+// 0x002fa2c0: the team +0x64 from "axis" (1) / "allies" (2) (_stricmp); others format a message (rep pointer).
+void XB_CDECL GScr_Turret_SetTeam(uint32_t handle, const ScriptString* team);
+// 0x002fa3b0, 0x002fa420: the target entity +8 (null / the second handle's entity; nothing when it is stale).
+void XB_CDECL GScr_Turret_ClearTargetEntity(uint32_t handle);
+void XB_CDECL GScr_Turret_SetTargetEntity(uint32_t handle, uint32_t target_handle);
+// 0x002fa4c0: the entity's +0x1a0 (owner handle), 0 when stale.
+int32_t XB_CDECL GScr_GetOwnerHandle(uint32_t handle);
+// 0x002fa500: the turret's user: the entity's +0x1a0 while its byte +0x297 is set, else 0.
+int32_t XB_CDECL GScr_Turret_GetUser(uint32_t handle);
+// 0x002fa580: the mode bits 0-1 of the turret's 16-bit +2: auto_ai 3, manual 0, manual_ai 1, auto_nonai 2.
+void XB_CDECL GScr_Turret_SetMode(uint32_t handle, uint32_t mode);
+// 0x002fa650, 0x002fa6c0: clear / set flag 4 of the turret's byte +2.
+void XB_CDECL GScr_Turret_ClearFlag4(uint32_t handle);
+void XB_CDECL GScr_Turret_SetFlag4(uint32_t handle);
+// 0x002fa730, 0x002fa770: set / clear flag 0x400 of the entity's +0x2a4.
+void XB_CDECL GScr_SetEntFlag400(uint32_t handle);
+void XB_CDECL GScr_ClearEntFlag400(uint32_t handle);
+// 0x002fa7b0: G_SetEntityInList960070(in_list != 0) on the entity (tail jump).
+void XB_CDECL GScr_SetEntInList960070(uint32_t handle, uint32_t in_list);
+// 0x002fa7f0: the take-damage word +0x29c = the argument's low byte.
+void XB_CDECL GScr_SetTakeDamage(uint32_t handle, uint32_t take_damage);
+
+// 0x002fa830: health +0x350 = max(1, trunc(max health * fraction + 0.5)), the max from the client's +0x580 or
+// the entity's +0x354; fraction above 1 becomes 1, <= 0 formats a message and goes on; no max formats another
+// and stops.
+void XB_CDECL GScr_SetNormalHealth(uint32_t handle, float fraction);
+// 0x002fa960: health / max health on the x87 (FILD/FIDIV, ST0): the client's max (+0x580) while health is
+// non-zero, else the entity's +0x354; 0 without a max.
+long double XB_CDECL GScr_GetNormalHealth(uint32_t handle);
+// 0x002fa9d0: a func_door / func_door_rotating with its +0x3b4 (locked) set.
+uint8_t XB_CDECL GScr_DoorIsLocked(uint32_t handle);
+// 0x002faa30: the entity's origin (+0x140), or for brush models (+0xdc) the centre of +0x100 / +0x110.
+void XB_CDECL GScr_GetOrigin(uint32_t handle, uint32_t* out);
+// 0x002fab10: enables linking: +0x328 = level_time, +0x32c = 0x1c, flag 0x8000 of +0x2a4. Unsupported
+// entities (type byte or +0x294 set, or a link time / content set on other than trigger_multiple) format a
+// message into a local buffer (_sprintf) first.
+void XB_CDECL GScr_EnableLinkTo(uint32_t handle);
+// 0x002fabf0: G_EntUnlink on the entity (tail jump).
+void XB_CDECL GScr_Unlink(uint32_t handle);
+// 0x002fac30: bit `bit` of the entity's byte +0x299 (AL; false when stale).
+uint8_t XB_CDECL GScr_TestEntBit299(uint32_t handle, uint32_t bit);
+// 0x002fac80, 0x002facd0: attachment `index` (+0x3d8 + index * 8: {model, tag}): the tag string / the
+// model's name (+0x48) into out.
+void XB_CDECL GScr_GetAttachTagName(uint32_t handle, ScriptString* out, int32_t index);
+void XB_CDECL GScr_GetAttachModelName(uint32_t handle, ScriptString* out, int32_t index);
+// 0x002fad20: the number of attachments (models before the first null, at most 7).
+int32_t XB_CDECL GScr_GetAttachSize(uint32_t handle);
+// 0x002fad70, 0x002fadb0, 0x002fadf0: whether the entity has a sentient (+0x244) / actor (+0x240) / client
+// (+0x23c).
+int32_t XB_CDECL GScr_IsSentient(uint32_t handle);
+int32_t XB_CDECL GScr_IsAI(uint32_t handle);
+int32_t XB_CDECL GScr_IsPlayer(uint32_t handle);
+// 0x002fae30: an actor's +0x2d0 set, or else health +0x350 > 0.
+int32_t XB_CDECL GScr_IsAlive(uint32_t handle);
+// 0x002faed0, 0x002faef0: FX_SetEffectParamById / FX_StopEffectById on the list at 0x0095f5b4.
+void XB_CDECL GScr_SetSoundParam(uint32_t id, uint32_t value);
+void XB_CDECL GScr_StopSound(uint32_t id);
+// 0x002faf10: VehicleNode_FindByKey(key, value, out), all nodes when either string is empty.
+int32_t XB_CDECL GScr_GetVehicleNode(const ScriptString* value, const ScriptString* key, int32_t* out);
+// 0x002faf40: PathNode_FindByKey over g_pathNodeBlocks with copies of key and value (ScriptString_FromCString
+// of their texts, released after).
+int32_t XB_CDECL GScr_GetNode(const ScriptString* value, const ScriptString* key, uint32_t* out);
+// 0x002fafb0: the number (+0x224) of entity `number` (below 0x540, generation 0), 0 otherwise.
+int32_t XB_CDECL GScr_GetEntByNum(uint32_t number);
+// 0x002faf00: an empty builtin (a bare ret).
+void XB_CDECL GScr_EmptyStub38();
+
 }  // namespace game
