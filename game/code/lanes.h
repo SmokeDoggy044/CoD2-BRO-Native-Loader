@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "compiler.h"
+
 namespace game {
 // Internal linkage per file, as before (no exported copies called through the PLT).
 namespace {
@@ -15,18 +17,31 @@ struct Lanes {
 
 inline Lanes lanes(const float* p) { return {{p[0], p[1], p[2], p[3]}}; }
 
-inline Lanes mul(const Lanes& a, float s) { return {{a.v[0] * s, a.v[1] * s, a.v[2] * s, a.v[3] * s}}; }
+// The arithmetic is the title's packed ops with `a` as the destination (platform_addps): NaN
+// payloads and every lane's MXCSR flags match at any optimization level.
+inline Lanes mul(const Lanes& a, float s) {
+    const Lanes b = {{s, s, s, s}};
+    Lanes r;
+    platform_mulps(r.v, a.v, b.v);
+    return r;
+}
 
 inline Lanes mul(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] * b.v[0], a.v[1] * b.v[1], a.v[2] * b.v[2], a.v[3] * b.v[3]}};
+    Lanes r;
+    platform_mulps(r.v, a.v, b.v);
+    return r;
 }
 
 inline Lanes add(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] + b.v[0], a.v[1] + b.v[1], a.v[2] + b.v[2], a.v[3] + b.v[3]}};
+    Lanes r;
+    platform_addps(r.v, a.v, b.v);
+    return r;
 }
 
 inline Lanes sub(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] - b.v[0], a.v[1] - b.v[1], a.v[2] - b.v[2], a.v[3] - b.v[3]}};
+    Lanes r;
+    platform_subps(r.v, a.v, b.v);
+    return r;
 }
 
 inline Lanes neg(const Lanes& a) { return {{-a.v[0], -a.v[1], -a.v[2], -a.v[3]}}; }

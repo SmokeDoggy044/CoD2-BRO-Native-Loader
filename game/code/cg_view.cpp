@@ -643,7 +643,7 @@ int32_t XB_REGS1 XB_CDECL CG_CalcCameraShakeSlot(uint8_t* slot) {
         distance = (g(0x0082e660) - lr * r) * lr * g(0x0082e670);  // (3 - l r r) l r / 2
     }
     const float one = g(0x0083eb20);
-    const float falloff = one - distance / f(0xc);
+    const float falloff = one - platform_opaque(distance) / f(0xc);  // its compare stays on NaN
     const float time_part = (one - t / f(8)) * f(4);
     f(0x1c) = falloff >= g(0x0083eafc) ? time_part * falloff : falloff / time_part;
     f(0x20) = time_part;

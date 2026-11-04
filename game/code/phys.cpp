@@ -3685,7 +3685,7 @@ void XB_CDECL Phys_AngularVelocityBetweenFrames(const float* from, const float* 
         const float le = length2 * e;
         length = ((title_global<float>(0x007cdb70) - le * e) * le) * title_global<float>(0x007cdb80);
     }
-    if (length > title_global<float>(0x0083ed50)) {  // 1e-4
+    if (platform_opaque(length) > title_global<float>(0x0083ed50)) {  // 1e-4; COMISS on NaN too
         const float f = ((title_global<float>(0x0083eb34) / length) * angle) * inv_dt;
         store4(angular, mul(splat(f), q));
     } else {
@@ -4055,7 +4055,7 @@ namespace {
 
 // |v| from the squared length lane 0: 0 / NaN as they are, else one Newton step on RSQRTSS.
 float frame_length(float length2) {
-    if (length2 == 0.0f || length2 != length2) return length2;
+    if (length2 == 0.0f || length2 != length2) return platform_opaque(length2);  // callers' compares stay
     const float e = platform_rsqrt_estimate(length2);
     const float le = length2 * e;
     return ((title_global<float>(0x007ce0a0) - le * e) * le) * title_global<float>(0x007ce0b0);
@@ -5614,7 +5614,7 @@ Lanes advanced_position(const uint8_t* body, float h) {
 // A 0x1c0 object's transform after one step (h = +0x13c * dt): +0x70 = position + h velocity, rows
 // +0x40..+0x60 = rotation(+0xe0, h) * rows.
 void XB_CDECL PhysObject1c0_PredictTransform(uint8_t* object, const float* dt) {
-    const float h = at<float>(object, 0x13c) * *dt;
+    const float h = platform_mulss(at<float>(object, 0x13c), *dt);  // +0x13c the destination (NaN payload)
     alignas(16) float p[4];
     store4(p, advanced_position(object, h));
     copy_words(reinterpret_cast<float*>(object + 0x70), p);

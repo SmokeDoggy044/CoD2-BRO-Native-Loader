@@ -943,12 +943,13 @@ float* XB_CDECL Mat34_FromAxisSinCos(float* out, const float* axis, float sine, 
     platform_keep(q);
     platform_keep(r);
     platform_keep(s);
-    const float d0 = p.v[0] + cosine;
-    store4(out, {{d0, t.v[2] + q.v[0], r.v[0] - t.v[1], d0}});
+    // The sums with the left operand as the ADDSS destination (NaN payloads).
+    const float d0 = platform_addss(p.v[0], cosine);
+    store4(out, {{d0, platform_addss(t.v[2], q.v[0]), r.v[0] - t.v[1], d0}});
     const float e0 = q.v[0] - t.v[2];
-    store4(out + 4, {{e0, s.v[1] + cosine, t.v[0] + r.v[1], e0}});
-    const float f0 = t.v[1] + r.v[0];
-    store4(out + 8, {{f0, r.v[1] - t.v[0], s.v[2] + cosine, f0}});
+    store4(out + 4, {{e0, platform_addss(s.v[1], cosine), platform_addss(t.v[0], r.v[1]), e0}});
+    const float f0 = platform_addss(t.v[1], r.v[0]);
+    store4(out + 8, {{f0, r.v[1] - t.v[0], platform_addss(s.v[2], cosine), f0}});
     return out + 8;
 }
 
@@ -963,7 +964,8 @@ void XB_CDECL Mat34_FromRotationVector(float* out, const float* v, float scale) 
         const float lr = length2 * r;
         length = ((title_global<float>(0x007cd630) - lr * r) * lr) * title_global<float>(0x007cd640);
     }
-    if (title_global<float>(0x0083effc) > length) {
+    // COMISS on NaN too (the invalid flag): -O2 would fold the compare on the NaN path.
+    if (title_global<float>(0x0083effc) > platform_opaque(length)) {
         Matrix_Identity(out);
         return;
     }

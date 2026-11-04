@@ -6068,6 +6068,8 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
         eax_now = veh_call_at(B - 4, 0x0027215c, 0x00271590, TitleRegs{old_sequence, cl_w, 0, at<uint32_t>(ent, 0x28), old_sequence, ent_w},
                               1, args);  // ClientEvents
     }
+    // EAX after ClientEvents is dead (SV_LinkEntity loads EAX before reading it); passed on as the original's
+    // only so Compare inputs match - a Replaced ClientEvents leaves whatever its C left there.
     veh_call_at(B, 0x00272164, 0x002d7fe0, TitleRegs{eax_now, cl_w, 0, 0, old_sequence, ent_w});  // SV_LinkEntity
     if (at<float>(client, 0) != at<float>(client, 0x5b0) || at<float>(client, 4) != at<float>(client, 0x5b4) ||
         at<float>(client, 8) != at<float>(client, 0x5b8))

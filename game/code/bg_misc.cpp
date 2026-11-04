@@ -102,10 +102,20 @@ void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim) {
     field<uint32_t>(ps, 0x4ec) = (~field<uint32_t>(ps, 0x4ec) & 0x200) | anim;
 }
 
+// The original writes only XMM0 of the SSE registers; its LTCG callers keep XMM1-XMM7 across the call
+// (live once Replaced), so the entry saves them around the C.
 PLATFORM_ASM_ENTRY(PM_CmdScale_entry,
+                   "subl $112, %esp\n"
+                   "movups %xmm1, 0(%esp)\n movups %xmm2, 16(%esp)\n movups %xmm3, 32(%esp)\n"
+                   "movups %xmm4, 48(%esp)\n movups %xmm5, 64(%esp)\n movups %xmm6, 80(%esp)\n"
+                   "movups %xmm7, 96(%esp)\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(PM_CmdScale) "fstps (%esp)\n"
                    "movss (%esp), %xmm0\n"
                    "addl $4, %esp\n"
+                   "movups 0(%esp), %xmm1\n movups 16(%esp), %xmm2\n movups 32(%esp), %xmm3\n"
+                   "movups 48(%esp), %xmm4\n movups 64(%esp), %xmm5\n movups 80(%esp), %xmm6\n"
+                   "movups 96(%esp), %xmm7\n"
+                   "addl $112, %esp\n"
                    "ret")
 
 float XB_CDECL PM_CmdScale(const int8_t* cmd) {

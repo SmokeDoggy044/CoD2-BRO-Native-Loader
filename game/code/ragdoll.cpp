@@ -1348,16 +1348,6 @@ Lanes rotate_out(const float* m, const float* v) {
     return add(add(mul(lanes(m), x), mul(lanes(m + 4), y)), mul(lanes(m + 8), z));
 }
 
-// The same with each sum spelt b + a (GCC -O0 then keeps MSVC's destination operand: NaN payloads).
-Lanes rotate_out_ba(const float* m, const float* v) {
-    const float x = v[0], y = v[1], z = v[2];
-    return add(mul(lanes(m + 8), z), add(mul(lanes(m + 4), y), mul(lanes(m), x)));
-}
-Lanes transform_out_ba(const float* m, const float* v) {
-    const float x = v[0], y = v[1], z = v[2];
-    return add(mul(lanes(m + 8), z), add(mul(lanes(m + 4), y), add(mul(lanes(m), x), lanes(m + 12))));
-}
-
 }  // namespace
 
 void XB_THISCALL RagdollBodyDef_FitToBones(uint8_t* def, uint8_t* entity) {
@@ -1420,9 +1410,9 @@ float* XB_CDECL Ragdoll_PoseToBody(const uint32_t* bone, float* out, const float
     const float* const m = reinterpret_cast<const float*>(
         world_bone_matrix(reinterpret_cast<uint8_t*>(uintptr_t{bone[0]}), static_cast<int32_t>(bone[1]), buffer));
     Lanes rows[3];
-    for (int k = 0; k < 3; ++k) rows[k] = rotate_out_ba(m, inverse + k * 4);
+    for (int k = 0; k < 3; ++k) rows[k] = rotate_out(m, inverse + k * 4);
     std::memcpy(out, rows, 0x30);
-    const Lanes origin = transform_out_ba(m, inverse + 12);  // the matrix re-read after the rows' stores
+    const Lanes origin = transform_out(m, inverse + 12);  // the matrix re-read after the rows' stores
     std::memcpy(out + 12, origin.v, 16);
     return out + 12;
 }

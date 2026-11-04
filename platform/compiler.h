@@ -102,6 +102,21 @@ template <typename T>
 inline void platform_keep(const T&) {}
 #endif
 
+// The value with everything the optimizer knows about it forgotten: a compare the title runs on a
+// value -O2 can prove NaN (COMISS, which raises the invalid flag) is otherwise folded away.
+#if defined(__GNUC__) || defined(__clang__)
+template <typename T>
+inline T platform_opaque(T value) {
+    __asm__ volatile("" : "+m"(value));
+    return value;
+}
+#else
+template <typename T>
+inline T platform_opaque(T value) {
+    return value;
+}
+#endif
+
 // An address the optimizer must not see as a constant. A constant code address in a function
 // pointer that an inlined callee calls (SndVoice_ForEach(title_function<...>(0x000c5270)))
 // makes GCC's inliner turn the call into __builtin_unreachable: no function of its own lives
@@ -658,6 +673,46 @@ inline void platform_mxcsr_or(unsigned bits) { _mm_setcsr(_mm_getcsr() | bits); 
 inline float platform_rsqrt_estimate(float x) { return 1.0f / std::sqrt(x); }
 inline float platform_rcp_estimate(float x) { return 1.0f / x; }
 inline void platform_mxcsr_or(unsigned) {}
+#endif
+
+// ADDPS / MULPS / SUBPS over four floats with the first operand as the destination, as MSVC
+// emits them: with NaN in both operands the destination's payload wins (GCC picks either
+// operand of a commutative op, -O0 the second). Volatile so -O2 never drops a lane whose
+// result goes unused: every lane's exception flags (MXCSR) still count.
+#if (defined(__i386__) || defined(__x86_64__)) && (defined(__GNUC__) || defined(__clang__))
+#define PLATFORM_PACKED_OP(name, insn)                                                                    \
+    inline void name(float* r, const float* a, const float* b) {                                          \
+        __asm__ volatile("movups %1, %%xmm0\n\tmovups %2, %%xmm1\n\t" insn " %%xmm1, %%xmm0\n\tmovups %%xmm0, %0" \
+                         : "=m"(*reinterpret_cast<float(*)[4]>(r))                                        \
+                         : "m"(*reinterpret_cast<const float(*)[4]>(a)),                                  \
+                           "m"(*reinterpret_cast<const float(*)[4]>(b))                                   \
+                         : "xmm0", "xmm1");                                                               \
+    }
+PLATFORM_PACKED_OP(platform_addps, "addps")
+PLATFORM_PACKED_OP(platform_mulps, "mulps")
+PLATFORM_PACKED_OP(platform_subps, "subps")
+#undef PLATFORM_PACKED_OP
+// MULSS / ADDSS, `a` the destination (the same NaN rule for scalar products and sums).
+inline float platform_mulss(float a, float b) {
+    __asm__ volatile("mulss %1, %0" : "+x"(a) : "x"(b));
+    return a;
+}
+inline float platform_addss(float a, float b) {
+    __asm__ volatile("addss %1, %0" : "+x"(a) : "x"(b));
+    return a;
+}
+#else
+inline float platform_mulss(float a, float b) { return a * b; }
+inline float platform_addss(float a, float b) { return a + b; }
+inline void platform_addps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] + b[i];
+}
+inline void platform_mulps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] * b[i];
+}
+inline void platform_subps(float* r, const float* a, const float* b) {
+    for (int i = 0; i < 4; ++i) r[i] = a[i] - b[i];
+}
 #endif
 
 // ---- Game module (g_scr_math.cpp): x87 operations whose result stays in extended precision
