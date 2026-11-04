@@ -506,4 +506,250 @@ ScriptString* XB_THISCALL ScriptString_AppendInt(ScriptString* self, int32_t val
     return self;
 }
 
+// --- push 4 batch 1: key tables, trims, ConcatCString, NewRepFromCString ---
+
+// The value-type lookup (g_scrValueTypeLookup, 0x00922e70): (key, a, b, c, d) with out slots
+// for the per-type value functions; the key tables ask through slot 3 (copy) or slot 5
+// (release), ScriptKeyTable_FromPairs through slot 2. Missing: ScriptValue_DefaultCopy
+// (returns 0) / ScriptValue_DefaultRelease (does nothing).
+using ValueLookup = void XB_CDECL(uint32_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+using ValueFunction = uint32_t XB_CDECL(uint32_t);
+
+static ValueLookup* value_lookup() { return title_global<ValueLookup*>(0x00922e70); }
+
+static ValueFunction* value_function(uint32_t address) { return title_function<ValueFunction>(address); }
+
+// The release function for `key`, asked for through `slot` (a word of the caller's frame).
+static ValueFunction* release_for(uint32_t key, uint32_t* slot) {
+    if (ValueLookup* lookup = value_lookup()) {
+        *slot = 0;
+        lookup(key, nullptr, nullptr, nullptr, slot);
+        if (*slot) return value_function(*slot);
+    }
+    return value_function(0x0011db00);  // ScriptValue_DefaultRelease
+}
+
+static ValueFunction* copy_for(uint32_t key, uint32_t* slot) {
+    if (ValueLookup* lookup = value_lookup()) {
+        *slot = 0;
+        lookup(key, nullptr, slot, nullptr, nullptr);
+        if (*slot) return value_function(*slot);
+    }
+    return value_function(0x0011daf0);  // ScriptValue_DefaultCopy
+}
+
+// The source pointer's argument slot doubles as the lookup's out slot.
+ScriptKeyTable* XB_THISCALL ScriptKeyTable_CopyConstruct(ScriptKeyTable* self, const ScriptKeyTable* source) {
+    const ScriptKeyTable* const src = source;
+    uint32_t* const slot = reinterpret_cast<uint32_t*>(&source);
+    self->count = src->count;
+    const uint32_t capacity = src->capacity;
+    self->capacity = capacity;
+    self->entries = reinterpret_cast<ScriptKeyTable::Entry*>(scr_alloc(capacity * 8u, 4));
+    for (uint32_t i = 0; i < self->count; ++i) {
+        self->entries[i].key = src->entries[i].key;
+        ValueFunction* const copy = copy_for(self->entries[i].key, slot);
+        const uint32_t value = copy(src->entries[i].value);
+        self->entries[i].value = value;
+    }
+    return self;
+}
+
+void XB_THISCALL ScriptKeyTable_Clear(ScriptKeyTable* self) {
+    uint32_t slot = 0;
+    for (uint32_t i = 0; i < self->count; ++i) {
+        ValueFunction* const release = release_for(self->entries[i].key, &slot);
+        release(self->entries[i].value);
+    }
+    title_function<void XB_CDECL(void*)>(0x002f5e10)(self->entries);  // Scr_Free
+    self->entries = nullptr;
+}
+
+// The key's argument slot doubles as the lookup's out slot. The last entry moves into the gap.
+void XB_THISCALL ScriptKeyTable_Remove(ScriptKeyTable* self, uint32_t key) {
+    if (!self->count) return;
+    ScriptKeyTable::Entry* const entries = self->entries;
+    uint32_t i = 0;
+    while (entries[i].key != key) {
+        if (++i >= self->count) return;
+    }
+    ValueFunction* const release = release_for(entries[i].key, &key);
+    release(self->entries[i].value);
+    const uint32_t last = self->count - 1;
+    self->count = last;
+    if (i >= last) return;
+    self->entries[i].key = self->entries[last].key;
+    self->entries[i].value = self->entries[self->count].value;
+}
+
+// Setting a key of the shared empty table (g_scrEmptyKeyTable) throws (C++ exception, the
+// value's argument slot as the object). The key's slot doubles as the lookup's out slot.
+uint32_t* XB_THISCALL ScriptKeyTable_Set(ScriptKeyTable* self, uint32_t key, uint32_t value) {
+    if (reinterpret_cast<uintptr_t>(self) == 0x00922e94) {
+        title_global<uint32_t XB_CDECL (*)()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
+        uint8_t* const object = reinterpret_cast<uint8_t*>(&value);
+        object[0] = static_cast<uint8_t>(value);
+        title_function<void XB_STDCALL(void*, uint32_t)>(0x001f2302)(object, 0x0088ac80);  // _CxxThrowException
+    }
+    const uint32_t count = self->count;
+    if (count) {
+        ScriptKeyTable::Entry* const entries = self->entries;
+        for (uint32_t i = 0; i < self->count; ++i) {
+            if (entries[i].key != key) continue;
+            ValueFunction* const release = release_for(entries[i].key, &key);
+            release(self->entries[i].value);
+            self->entries[i].value = value;
+            return &self->entries[i].value;
+        }
+    }
+    if (count == self->capacity) {
+        ScriptKeyTable::Entry* const old = self->entries;
+        const uint32_t capacity = self->capacity + 8;
+        self->capacity = capacity;
+        self->entries = reinterpret_cast<ScriptKeyTable::Entry*>(scr_alloc(capacity * 8u, 4));
+        for (uint32_t i = 0; i < self->count; ++i) {
+            self->entries[i].key = old[i].key;
+            self->entries[i].value = old[i].value;
+        }
+        title_function<void XB_CDECL(void*)>(0x002f5e10)(old);  // Scr_Free
+    }
+    self->entries[self->count].key = key;
+    self->entries[self->count].value = value;
+    uint32_t* const result = &self->entries[self->count].value;
+    ++self->count;
+    return result;
+}
+
+// (name, value) pairs: each name hashed (the builtin table's HashKeyNoCase, 0x009229e4), its
+// value converted by the type's slot-2 function and set; pairs without one are skipped.
+ScriptKeyTable* XB_CDECL ScriptKeyTable_FromPairs(const uint32_t* pairs, int32_t count) {
+    ScriptKeyTable* table = reinterpret_cast<ScriptKeyTable*>(scr_alloc(0xc, 4));
+    if (table) {
+        table->count = 0;
+        table->capacity = 0;
+        table->entries = nullptr;
+    }
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t name = pairs[i * 2];
+        const uint32_t value = pairs[i * 2 + 1];
+        const uint32_t hash = title_global<uint32_t XB_CDECL (*)(uint32_t)>(0x009229e4)(name);
+        uint32_t convert = 0, release = 0;
+        value_lookup()(hash, &convert, nullptr, nullptr, &release);
+        if (!convert) continue;
+        const uint32_t converted = value_function(convert)(value);
+        title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, uint32_t)>(0x0011ea10)(table, hash,
+                                                                                               converted);  // Set
+    }
+    return table;
+}
+
+ScriptKeyTable* XB_CDECL ScriptKeyTable_Clone(const ScriptKeyTable* source) {
+    // The original's C++ exception frame around the allocation has no effect.
+    uint32_t* block = scr_alloc(0xc, 4);
+    if (!block) return nullptr;
+    return title_function<ScriptKeyTable* XB_THISCALL(uint32_t*, const ScriptKeyTable*)>(0x0011e870)(
+        block, source);  // ScriptKeyTable_CopyConstruct
+}
+
+void XB_CDECL ScriptKeyTable_Delete(ScriptKeyTable* table) {
+    if (!table) return;
+    title_function<void XB_THISCALL(ScriptKeyTable*)>(0x0011e910)(table);  // ScriptKeyTable_Clear
+    title_function<void XB_CDECL(void*)>(0x002f5e10)(table);  // Scr_Free
+}
+
+static uint32_t title_strchr(const char* chars, int32_t c) {
+    return title_function<uint32_t XB_CDECL(const char*, int32_t)>(0x001ef5e0)(chars, c);  // CRT strchr
+}
+
+// Replaces the string with `piece` (made in the caller's argument slot) and destroys the
+// temporary: self takes a reference first, then the old rep and the temporary are released.
+static void take_piece(ScriptString* self, ScriptString* piece) {
+    ScriptStringRep* const fresh = piece->rep;
+    ScriptStringRep* const old = self->rep;
+    self->rep = fresh;
+    if (fresh) ++fresh->refs;
+    if (old && drop_ref(old)) scr_free_rep(old);
+    if (fresh && drop_ref(fresh)) scr_free_rep(fresh);
+}
+
+static void substring(ScriptString* self, ScriptString* out, uint32_t start, uint32_t count) {
+    title_function<ScriptString* XB_THISCALL(ScriptString*, ScriptString*, uint32_t, uint32_t)>(0x0011e290)(
+        self, out, start, count);  // ScriptString_Substring
+}
+
+// Drops leading characters found in `chars`. The `chars` argument slot holds the temporary.
+ScriptString* XB_THISCALL ScriptString_TrimLeftChars(ScriptString* self, const char* chars) {
+    const char* const set = chars;
+    uint32_t start = 0;
+    for (;;) {
+        const ScriptStringRep* rep = self->rep;
+        if (!rep) break;
+        if (start >= rep->length || !title_strchr(set, rep->text[start])) break;
+        ++start;
+    }
+    const uint32_t length = self->rep ? self->rep->length : 0u;
+    ScriptString* const piece = reinterpret_cast<ScriptString*>(&chars);
+    substring(self, piece, start, length);
+    take_piece(self, piece);
+    return self;
+}
+
+// Drops trailing characters found in `chars`. The `chars` argument slot holds the temporary.
+ScriptString* XB_THISCALL ScriptString_TrimRightChars(ScriptString* self, const char* chars) {
+    const char* const set = chars;
+    uint32_t length = self->rep ? self->rep->length : 0u;
+    while (length) {
+        const uintptr_t text = text_address(self->rep);
+        const char c = *reinterpret_cast<const char*>(text + length - 1);
+        if (!title_strchr(set, c)) break;
+        --length;
+    }
+    ScriptString* const piece = reinterpret_cast<ScriptString*>(&chars);
+    substring(self, piece, 0, length);
+    take_piece(self, piece);
+    return self;
+}
+
+// string + C string into out; shares the string's rep for a null `text`, plain FromCString for
+// an empty string. The new rep is made as a temporary (reference taken by out, then dropped).
+ScriptString* XB_CDECL ScriptString_ConcatCString(ScriptString* out, const ScriptString* string, const char* text) {
+    if (!text) {
+        out->rep = nullptr;
+        if (ScriptStringRep* rep = string->rep) {
+            out->rep = rep;
+            ++rep->refs;
+        }
+        return out;
+    }
+    ScriptStringRep* const rep = string->rep;
+    if (!rep || !rep->length) {
+        title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // FromCString
+        return out;
+    }
+    const uint32_t length = rep->length;
+    uint32_t extra = 0;
+    if (*text)
+        while (text[++extra]) {
+        }
+    ScriptStringRep* const fresh = alloc_rep(rep->text, length, length + extra + 1);
+    rep_append(fresh, text, extra);
+    out->rep = nullptr;
+    if (fresh) {
+        out->rep = fresh;
+        ++fresh->refs;
+        if (drop_ref(fresh)) scr_free_rep(fresh);
+    }
+    return out;
+}
+
+// A new rep for `text` with room for exactly its length ((length + 0x27) & ~0x1f bytes).
+ScriptStringRep* XB_CDECL ScriptString_NewRepFromCString(const char* text) {
+    const uint32_t length = text_length(text);
+    const uint32_t size = (length + 0x27) & ~0x1fu;
+    uint32_t* block = scr_alloc(size, 4);
+    if (!block) return nullptr;
+    return title_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(0x0011d540)(
+        block, size - 6, length, text);  // ScriptStringRep_Init
+}
+
 }  // namespace game

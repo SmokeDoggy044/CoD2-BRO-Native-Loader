@@ -316,3 +316,8 @@ address,name,class,evidence
 0011c0c0,ScriptString_GetChar,matched offline,"no call in missions 1/4/5/6 (--only --every 1); leaf test 3683/3683 matched, 100% coverage"
 0011a9b0,ScrClass_007f5f4c_Dtor,not reached,"anim-wad Anim class destructor; only caller ScrClass_007f5f9c_Dtor (tail jump) under ScrWad_Anim_DeletingDtor: 2 calls in missions 1/5, both inside the deleting destructor's own tests (not sampled); no global holds an Anim object for --force"
 0011cca0,ScrClass_007f5f9c_Dtor,not reached,"vtable store + tail jump to ScrClass_007f5f4c_Dtor; only caller ScrWad_Anim_DeletingDtor (matched 2): its 2 calls ran inside that function's tests"
+0011f870,ScrCall_GScr_SetAnim,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f8d0,ScrCall_GScr_Vehicle_GetWheelSurface,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f960,ScrCall_GScr_GetWeaponClassname,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011f9d0,ScrCall_GScr_GetWeaponClassname2,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"
+0011fa40,ScrCall_ScrEnt_SetTargetname_2,not reached,"called from compiled level/BroScr script code only; no call in missions 1/4/5/6 (--only); offline ineligible: indirect call through the builtin table"

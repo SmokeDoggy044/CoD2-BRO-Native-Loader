@@ -26,7 +26,7 @@ struct ScriptString {
 // (key, value) pairs searched by key.
 struct ScriptKeyTable {
     uint32_t count;
-    uint32_t unknown4;
+    uint32_t capacity;  // entries allocated (grows by 8)
     struct Entry {
         uint32_t key;
         uint32_t value;
@@ -155,5 +155,28 @@ ScriptString* XB_THISCALL ScriptString_AppendChar(ScriptString* self, uint32_t c
 ScriptString* XB_THISCALL ScriptString_AppendCString(ScriptString* self, const char* text);
 ScriptString* XB_THISCALL ScriptString_AppendString(ScriptString* self, const ScriptString* other);
 ScriptString* XB_THISCALL ScriptString_AppendInt(ScriptString* self, int32_t value);
+// Push 4: key tables (values converted / released through the value-type lookup at
+// 0x00922e70, ScriptValue_DefaultCopy / DefaultRelease when it has none), trims, ConcatCString.
+// 0x0011e870 (pops 4): copy of `source` with each value copied through its type's function.
+ScriptKeyTable* XB_THISCALL ScriptKeyTable_CopyConstruct(ScriptKeyTable* self, const ScriptKeyTable* source);
+// 0x0011e910: releases every value, frees the entries (count is left as it was).
+void XB_THISCALL ScriptKeyTable_Clear(ScriptKeyTable* self);
+// 0x0011e980 (pops 4): releases and removes `key`'s entry; the last entry fills the gap.
+void XB_THISCALL ScriptKeyTable_Remove(ScriptKeyTable* self, uint32_t key);
+// 0x0011ea10 (pops 8): sets `key` (the old value released), growing by 8 entries; returns the
+// value's address. Throws on the shared empty table (0x00922e94).
+uint32_t* XB_THISCALL ScriptKeyTable_Set(ScriptKeyTable* self, uint32_t key, uint32_t value);
+// 0x0011f060: a new table from `count` (name, value) pairs.
+ScriptKeyTable* XB_CDECL ScriptKeyTable_FromPairs(const uint32_t* pairs, int32_t count);
+// 0x0011f100 / 0x0011f160: new copy / Clear + Scr_Free (null: nothing).
+ScriptKeyTable* XB_CDECL ScriptKeyTable_Clone(const ScriptKeyTable* source);
+void XB_CDECL ScriptKeyTable_Delete(ScriptKeyTable* table);
+// 0x0011ed20 / 0x0011edf0 (pop 4): strip leading / trailing characters that are in `chars`.
+ScriptString* XB_THISCALL ScriptString_TrimLeftChars(ScriptString* self, const char* chars);
+ScriptString* XB_THISCALL ScriptString_TrimRightChars(ScriptString* self, const char* chars);
+// 0x0011eec0: string + C string into `out`.
+ScriptString* XB_CDECL ScriptString_ConcatCString(ScriptString* out, const ScriptString* string, const char* text);
+// 0x0011efc0: a new rep holding `text`.
+ScriptStringRep* XB_CDECL ScriptString_NewRepFromCString(const char* text);
 
 }  // namespace game

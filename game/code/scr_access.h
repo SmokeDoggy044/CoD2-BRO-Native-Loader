@@ -332,5 +332,16 @@ uint32_t XB_CDECL ScrCall_GScr_SetAnimKnobAll(const uint32_t* ent, uint32_t a, u
                                               uint32_t e);  // 0x0011d010
 // 0x0011ba10: through 0x00922d74 (ScrCall_* setter, as above).
 const uint32_t* XB_THISCALL ScrCall_ScrActor_SetRef_12a0(const uint32_t* self, const uint32_t* value);
+// 0x0011f840 / 0x0011f870 / 0x0011f8a0: anim builtins with the trailing 0 / 0 / 1.
+uint32_t XB_CDECL ScrCall_GScr_SetAnimKnob(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+uint32_t XB_CDECL ScrCall_GScr_SetAnim(const uint32_t* ent, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnob(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                  uint32_t c, uint32_t d);
+// 0x0011f8d0 / 0x0011f960 / 0x0011f9d0: string results.
+ScriptString* XB_CDECL ScrCall_GScr_Vehicle_GetWheelSurface(ScriptString* out, const uint32_t* vehicle, uint32_t wheel);
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponClassname(ScriptString* out, uint32_t weapon);
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponClassname2(ScriptString* out, uint32_t weapon);
+// 0x0011fa40 (thiscall, pops 4): {handle, false} in self, targetname "gunner" on the entity.
+uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t handle);
 
 }  // namespace game
