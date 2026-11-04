@@ -926,18 +926,18 @@ template bool* XB_CDECL ScrNode_NodeKeyIsDefined<0xe1453a61u, 0x00922990u>(bool*
 template uint32_t* XB_THISCALL ScrNode_GetKeyOf<0xaecb47fdu, 0x00922980u>(const uint32_t*, uint32_t*);
 template uint32_t* XB_THISCALL ScrNode_GetKeyOf<0xfefdb41bu, 0x00922980u>(const uint32_t*, uint32_t*);
 template const uint32_t* XB_THISCALL ScrNode_SetKeyOf<0xfefdb41bu, 0x0092297cu>(const uint32_t*, const uint32_t*);
-template ScriptString* XB_CDECL ScrNode_String<0x00181170u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x001812d0u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00181350u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x0011b9a0u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00181250u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00119a80u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x0011cd30u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x001811e0u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00119c90u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x001813d0u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00119be0u>(ScriptString*, uint32_t);
-template ScriptString* XB_CDECL ScrNode_String<0x00119b70u>(ScriptString*, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00181170u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x001812d0u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00181350u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x0011b9a0u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00181250u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00119a80u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x0011cd30u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x001811e0u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00119c90u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x001813d0u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00119be0u>(uint32_t, uint32_t);
+template ScriptString* XB_CDECL ScrNode_String<0x00119b70u>(uint32_t, uint32_t);
 template float* XB_CDECL ScrNode_Vector<0x00922ac0u>(float*, uint32_t);
 template float* XB_CDECL ScrNode_Vector<0x00922ab8u>(float*, uint32_t);
 template float* XB_CDECL ScrNode_Vector<0x00922af8u>(float*, uint32_t);
@@ -946,9 +946,9 @@ template float* XB_CDECL ScrNode_FloatKey<0x807116c4u, 0x00922968u>(float*, uint
 template float* XB_CDECL ScrNode_FloatKey<0x807116c4u, 0x00922988u>(float*, uint32_t);
 template float* XB_CDECL ScrNode_Float<0x00922b00u>(float*, uint32_t);
 template float* XB_CDECL ScrNode_Float<0x00922b08u>(float*, uint32_t);
-template bool XB_THISCALL ScrNode_StringNonEmpty<0x00181250u>(const uint32_t*);
-template bool XB_THISCALL ScrNode_StringNonEmpty<0x00181350u>(const uint32_t*);
-template bool XB_THISCALL ScrNode_StringNonEmpty<0x001813d0u>(const uint32_t*);
+template bool XB_CDECL ScrNode_StringNonEmpty<0x00181250u>(uint32_t, uint32_t);
+template bool XB_CDECL ScrNode_StringNonEmpty<0x00181350u>(uint32_t, uint32_t);
+template bool XB_CDECL ScrNode_StringNonEmpty<0x001813d0u>(uint32_t, uint32_t);
 template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000004u>(uint32_t, uint32_t);
 template uint32_t XB_CDECL ScrHudElem_GetWord<0x00000004u>(uint32_t);
 template uint32_t XB_CDECL ScrHudElem_SetWord<0x00000008u>(uint32_t, uint32_t);
@@ -1004,6 +1004,18 @@ SCR_FIELD_ECX_ENTRY(ScrField_hb2f8556f, ScrField_BoolSlot<0xb2f8556fu>)
 SCR_FIELD_ECX_ENTRY(ScrField_he29137e5, ScrField_BoolSlot<0xe29137e5u>)
 SCR_FIELD_ECX_ENTRY(ScrField_h75c85f71, ScrField_BoolSlot<0x75c85f71u>)
 SCR_FIELD_ECX_ENTRY(ScrField_hc54b0523, ScrField_BoolSlot<0xc54b0523u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_door, ScrNode_String<0x00181350u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_noteworthy, ScrNode_String<0x0011b9a0u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_chain, ScrNode_String<0x001812d0u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_targetname, ScrNode_String<0x0011cd30u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_waittill, ScrNode_String<0x00181250u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_target, ScrNode_String<0x00119a80u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_animscript, ScrNode_String<0x00181170u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_type, ScrNode_String<0x001811e0u>)
+SCR_FIELD_ESP_ENTRY(ScrVehNodeField_script_noteworthy, ScrNode_String<0x00119c90u>)
+SCR_FIELD_ESP_ENTRY(ScrVehNodeField_script_uniquename, ScrNode_String<0x001813d0u>)
+SCR_FIELD_ESP_ENTRY(ScrVehNodeField_target, ScrNode_String<0x00119be0u>)
+SCR_FIELD_ESP_ENTRY(ScrVehNodeField_targetname, ScrNode_String<0x00119b70u>)
 SCR_FIELD_ECX_ENTRY(ScrField_player_target, ScrField_BoolSlot<0x19a3d654u>)
 SCR_FIELD_ECX_ENTRY(ScrField_used_an_mg42, ScrField_BoolSlot<0xa287dc52u>)
 SCR_FIELD_ECX_ENTRY(ScrField_h602384d4, ScrField_BoolSlot<0x602384d4u>)
@@ -1016,3 +1028,6 @@ SCR_FIELD_ECX_ENTRY(ScrField_pause_update, ScrField_BoolSlot<0x14b95adau>)
 SCR_FIELD_ECX_ENTRY(ScrField_hbe944753, ScrField_BoolSlot<0xbe944753u>)
 SCR_FIELD_ECX_ENTRY(ScrField_h83ccaf2a, ScrField_BoolSlot<0x83ccaf2au>)
 SCR_FIELD_ECX_ENTRY(ScrField_using_respawner, ScrField_BoolSlot<0x80bdb846u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_waittill_NonEmpty, ScrNode_StringNonEmpty<0x00181250u>)
+SCR_FIELD_ESP_ENTRY(ScrPathNodeField_script_door_IsSet, ScrNode_StringNonEmpty<0x00181350u>)
+SCR_FIELD_ESP_ENTRY(ScrVehNodeField_script_uniquename_IsNonEmpty, ScrNode_StringNonEmpty<0x001813d0u>)

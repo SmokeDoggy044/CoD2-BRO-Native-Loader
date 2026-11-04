@@ -1227,3 +1227,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00379dc0,AtExit_NalClassMap_903fe0,4000,4000,0,0,100.0
 00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0
 00379df0,StaticInit_Vtable_8bb768,4000,4000,0,0,100.0
+002f4e00,ScrField_GetMsAsSeconds,1640,1640,0,0,100.0
+002f4e20,ScrField_SetFloatMin4AndSquare,2888,2888,0,0,100.0
+002f4ed0,ScrField_SetByte,1614,1614,0,0,100.0
+002f96c0,ScrField_SetWeaponIndex,1496,1496,0,0,100.0

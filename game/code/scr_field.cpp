@@ -345,10 +345,19 @@ ScriptString* XB_THISCALL ScrNode_StringCopy(const uint32_t* self, ScriptString*
     return out;
 }
 
+// The node getters below run the title copier where the original calls it: the string slot behind it
+// keeps the address of the copier's temporary (a stack address) in script memory, so the copier's frame
+// has to be the original's (an asm entry moves our frame below a gap, SCR_FIELD_ESP_ENTRY).
 template <uint32_t Getter>
-ScriptString* XB_CDECL ScrNode_String(ScriptString* out, uint32_t node) {
-    title_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(Getter)(&node, out);
-    return out;
+ScriptString* XB_CDECL ScrNode_String(uint32_t entry_esp, uint32_t) {
+    // Frame: push ecx, push esi; the pushed-ECX word is zeroed, `out` pushed, ECX = &node.
+    const uint32_t out = title_global<uint32_t>(entry_esp + 4);
+    title_global<uint32_t>(entry_esp - 4) = 0;
+    TitleRegs regs{};
+    regs.ecx = entry_esp + 8;
+    const uint32_t args[1] = {out};
+    title_call_at_regs(entry_esp - 8, Getter, &regs, 1, args);
+    return reinterpret_cast<ScriptString*>(static_cast<uintptr_t>(out));
 }
 
 template <uint32_t Slot>
@@ -372,11 +381,15 @@ float* XB_CDECL ScrNode_Float(float* out, uint32_t node) {
 }
 
 template <uint32_t Copier>
-bool XB_THISCALL ScrNode_StringNonEmpty(const uint32_t* self) {
-    ScriptString got;
-    title_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(Copier)(self, &got);
-    const bool non_empty = got.rep != nullptr;
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+bool XB_CDECL ScrNode_StringNonEmpty(uint32_t entry_esp, uint32_t self) {
+    // Frame: push ecx (the temporary string), push ebx; Copier(self, &temporary).
+    const uint32_t got = entry_esp - 4;
+    TitleRegs regs{};
+    regs.ecx = self;
+    const uint32_t args[1] = {got};
+    title_call_at_regs(entry_esp - 8, Copier, &regs, 1, args);
+    const bool non_empty = title_global<uint32_t>(got) != 0;
+    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(got);  // ScriptString_Release
     return non_empty;
 }
 
@@ -571,6 +584,17 @@ int32_t* XB_CDECL ScrField_GetMsAsSeconds(uint8_t* base, uint32_t offset, int32_
     return out;
 }
 
+uint8_t* XB_REGS3 XB_CDECL ScrField_SetFloatMin4AndSquare(const float* value, uint32_t, const uint8_t* object) {
+    float v = *value;
+    const float least = title_global<float>(0x0083100c);
+    if (least > v) v = least;
+    const float square = v * v;
+    uint8_t* record = *reinterpret_cast<uint8_t* const*>(object + 4);
+    std::memcpy(record + 0x18, &v, sizeof v);
+    std::memcpy(record + 0x1c, &square, sizeof square);
+    return record;
+}
+
 uint8_t* XB_CDECL ScrField_SetFloat01(uint8_t* base, uint32_t offset, const float* value) {
     float v = *value;
     const float one = title_global<float>(0x0083eb20);
@@ -620,8 +644,16 @@ uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity) {
     return title_call_at_regs(entry_esp, 0x001e4a20, &regs, 1, get_args);  // ScriptKeyTable_GetStruct28
 }
 
-bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined(bool* out, uint32_t node) {
-    *out = node != 0xffffffffu && ScrVehNodeField_script_uniquename_IsNonEmpty(&node);
+bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp) {
+    bool* out = title_global<bool*>(entry_esp + 4);
+    bool defined = false;
+    if (title_global<uint32_t>(entry_esp + 8) != 0xffffffffu) {
+        // No frame: ScrVehNodeField_script_uniquename_IsNonEmpty(&node) at the entry's ESP.
+        TitleRegs regs{};
+        regs.ecx = entry_esp + 8;
+        defined = static_cast<uint8_t>(title_call_at_regs(entry_esp, 0x001e46a0, &regs, 0, nullptr)) != 0;
+    }
+    *out = defined;
     return out;
 }
 
@@ -673,6 +705,32 @@ PLATFORM_ASM_ENTRY(ScrField_h12993a44_entry,
                    "pushl %edx\n" PLATFORM_ASM_CALL(ScrField_h12993a44_c) "addl $8, %esp\n"
                    "popl %esp\n"
                    "ret")
+
+PLATFORM_ASM_ENTRY(ScrVehNodeField_script_uniquename_IsDefined_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n" PLATFORM_ASM_CALL(ScrVehNodeField_script_uniquename_IsDefined_c) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+namespace game {
+namespace {
+template <typename T>
+uint32_t scr_entry_result(T* value) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value)); }
+uint32_t scr_entry_result(bool value) { return value; }  // AL
+}  // namespace
+}  // namespace game
+
+// Instances that run their title call at the original's ESP: (entry ESP, ECX) below a gap.
+#define SCR_FIELD_ESP_ENTRY(name, instance)                                                         \
+    namespace game {                                                                                \
+    extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL name##_c(uint32_t entry_esp, uint32_t ecx) {      \
+        return scr_entry_result(instance(entry_esp, ecx));                                          \
+    }                                                                                               \
+    }                                                                                               \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000")                    \
+                                     "pushl %ecx\n pushl %edx\n" PLATFORM_ASM_CALL(name##_c)         \
+                                     "addl $8, %esp\n popl %esp\n ret")
 
 // Instances taking the caller's ECX (ScrField_BoolSlot): an asm entry hands it on.
 #define SCR_FIELD_ECX_ENTRY(name, instance)                                                         \
