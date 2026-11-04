@@ -677,4 +677,43 @@ uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle);
 // 0x002ff3c0: FX_FreeEffectsById on the list at 0x0095f5b4.
 void XB_CDECL GScr_FreeSound(uint32_t id);
 
+// 0x002ff500: the zone of the world cell holding the point (CM_CellForPoint), else MemContext_FindById of the
+// zone set's +0x34.
+uint8_t* XB_CDECL GScr_GetZoneAtPoint(float x, float y, float z);
+// 0x002ff5a0: CG_SpawnTracer from `from` to `to` when rand & 31 < scale * 32 (0x0094a8e0; 0.7 for weapon 0
+// classes 3 and 4).
+void XB_CDECL GScr_RandomTracer(const float* to, const float* from);
+// 0x002ff680, 0x002ff760: out (DynArray) = the entity numbers of the spawners (of the team mask / all), at most 0x200.
+void XB_CDECL GScr_GetSpawnerTeamArray(uint8_t* out, const ScriptString* team);
+void XB_CDECL GScr_GetSpawnerArray(uint8_t* out);
+// 0x002ff810: GScr_GetAI with the empty team (all).
+void XB_CDECL GScr_GetAIAll(uint8_t* out);
+// 0x002ff840: S_StopSoundHandle on the music handle (*0x0095f4cc).
+void XB_CDECL GScr_MusicStop();
+// 0x002ff850, 0x002ff8d0, 0x002ff950: Cvar_Get(name, value, 0x1000) then Cvar_Set2(name, value, forced) with
+// "%f" / "%d" of the value / the text.
+void XB_CDECL GScr_SetCvarFloat(const char* name, float value);
+void XB_CDECL GScr_SetCvarInt(const char* name, int32_t value);
+void XB_CDECL GScr_SetCvar(const char* name, char* value);
+// 0x002ff9c0, 0x002ffa10: server command "gmb" / "gm" "<text>\n" to everyone.
+void XB_CDECL GScr_SendGameMessageBold(const char* text);
+void XB_CDECL GScr_SendGameMessage(const char* text);
+// 0x002ffb50, 0x002ffb70: G_SetObjectiveString without / with the update message.
+void XB_CDECL GScr_ObjectiveString(int32_t index, const ScriptString* text);
+void XB_CDECL GScr_ObjectiveStringLocalized(int32_t index, const ScriptString* text);
+// 0x002ffb90: "ls %i" with the sound alias's configstring index (0xa0 + up to 0x40, created) to the entity.
+void XB_CDECL GScr_PlayLocalSound(uint32_t handle, const ScriptString* alias);
+// 0x002ffc00: CG_SelectWeapon of the named weapon when the client owns it; AL = selected.
+uint32_t XB_CDECL GScr_PlayerSwitchToWeapon(uint32_t handle, const ScriptString* weapon_name);
+// 0x002ffcb0: vectoyaw of the negated actor obstacle direction (+0x3a8, +0x3ac); 0 without an actor (ST0).
+float XB_CDECL GScr_ActorGetObstacleYaw_3a8(uint32_t handle);
+// 0x002ffd40: the actor's motion yaw (path direction +0x75c, else velocity +0x2a0 when |v|^2 > 1, else 0), Q_fmod
+// by the entity's +0x154 (ST0).
+float XB_CDECL GScr_ActorGetMotionYaw(uint32_t handle);
+// 0x002ffe40, 0x002fff10, 0x002fffa0: the sentient's goal position from a path node (and its yaw when node flag
+// 0x8000 of +0x2c is set) / a point / a point and a yaw wrapped into [0, 360) (+0x20); 0x0095f704 = 0.
+void XB_CDECL GScr_SetGoalPosFromNode(uint32_t handle, const int32_t* node_handle);
+void XB_CDECL GScr_SetGoalPos(uint32_t handle, const float* point);
+void XB_CDECL GScr_SetGoalPosAndYaw(uint32_t handle, const float* point, float yaw);
+
 }  // namespace game
