@@ -1536,4 +1536,49 @@ void XB_CDECL ScrThread_HandlesExhausted(uint32_t* table) {
     title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
 }
 
+void XB_CDECL ScrWaitList_DeleteRange(uint8_t* node, uint32_t* first, uint32_t, uint32_t* last) {
+    // The walk keeps the node it deletes one step behind (the first one is `node`) and stores
+    // each step's position in first's argument slot, as the original does. Records sit 4 bytes
+    // before their link; slot 0 of their vtable is the deleting destructor.
+    uint32_t* walk = first;
+    if (walk == last) return;
+    do {
+        uint8_t* const current = node;
+        uint32_t* const position = walk;
+        if (walk) {
+            node = reinterpret_cast<uint8_t*>(walk);
+            walk = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(*walk));
+        }
+        first = position;
+        if (const uintptr_t at = reinterpret_cast<uintptr_t>(current) - 4) {
+            uint8_t* const record = reinterpret_cast<uint8_t*>(at);
+            const uint32_t* vtable = *reinterpret_cast<uint32_t* const*>(record);
+            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(vtable[0])(record, 1);
+        }
+    } while (walk != last);
+}
+
+uint8_t* XB_THISCALL WaitTilOutputInst1_ent_DeletingDtor(uint8_t* self, uint32_t flags) {
+    *reinterpret_cast<uint32_t*>(self) = 0x007f48c4;  // base vtable
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f574), self);
+    return self;
+}
+
+uint32_t XB_THISCALL WaitTilOutputInst2_str_str_CopyArgs(uint8_t* self, uint8_t* other) {
+    using Assign = uint32_t XB_THISCALL(uint8_t*, uint8_t*);
+    if (output_value_count(other) == 1) return title_function<Assign>(0x0011d600)(other + 0xc, self + 0xc);
+    const uint32_t n = output_value_count(other);
+    if (n != 2) return n;
+    title_function<Assign>(0x0011d600)(other + 0xc, self + 0xc);  // ScriptString_Assign
+    return title_function<Assign>(0x0011d600)(other + 0x10, self + 0x10);
+}
+
+uint8_t* XB_THISCALL WaitTilOutputInst2_str_str_DeletingDtor(uint8_t* self, uint32_t flags) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0x10);  // ScriptString_Release
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0xc);
+    *reinterpret_cast<uint32_t*>(self) = 0x007f48c4;  // base vtable
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f574), self);
+    return self;
+}
+
 }  // namespace game
