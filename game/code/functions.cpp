@@ -27,6 +27,7 @@
 #include "g_main.h"
 #include "g_mover.h"
 #include "g_pathnode.h"
+#include "g_scr_builtins.h"
 #include "g_scr_imports.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
@@ -224,6 +225,8 @@ const Function kFunctions[] = {
     {"Scr_SinCosDegrees", 0x00014440, 0, code(&Scr_SinCosDegrees), 12, Result::None, Status::Replaced},
     {"Scr_Log", 0x00014470, 0, code(&Scr_Log), 4, Result::St0, Status::Replaced},
     {"PathNode_HandleIsValid", 0x00014480, 0, code(&PathNode_HandleIsValid), 0, Result::Eax, Status::Replaced},
+    {"GScr_PhysicsLaunch", 0x000144d0, 0, code(&GScr_PhysicsLaunch), 20, Result::None, Status::Compare},
+    {"GScr_PhysicsStop", 0x00014590, 0, code(&GScr_PhysicsStop), 4, Result::None, Status::Compare},
     {"PathNode_FromHandleInTable", 0x000145d0, 0, code(&PathNode_FromHandleInTable), 0, Result::Eax, Status::Replaced},
     {"DObj_SetForcedLod", 0x00014610, 0, code(&DObj_SetForcedLod), 0, Result::None, Status::Replaced},
     {"ShakeRumbleDesc_Init", 0x000146a0, 0, code(&ShakeRumbleDesc_Init_entry), 0, Result::Eax, Status::Replaced},
@@ -3024,6 +3027,8 @@ const Function kFunctions[] = {
     {"Ragdoll_Free", 0x002348e0, 0, code(&Ragdoll_Free_entry), 0, Result::None, Status::Replaced},
     {"Ragdoll_Alloc", 0x00234930, 0, code(&Ragdoll_Alloc_entry), 0, Result::Eax, Status::Replaced},
     {"Mem_InitLargeBlockPools", 0x00234a00, 0, code(&Mem_InitLargeBlockPools), 0, Result::None, Status::Replaced},
+    {"GScr_EmptyStub174", 0x00234ad0, 0, code(&GScr_EmptyStub174), 0, Result::None, Status::Compare},
+    {"GScr_EmptyStub173", 0x00234ae0, 0, code(&GScr_EmptyStub173), 0, Result::None, Status::Compare},
     {"CG_R_DrawStretchPic", 0x00234b50, 0, code(&CG_R_DrawStretchPic), 32, Result::None, Status::Compare},
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Replaced},
     {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Replaced},
@@ -3048,6 +3053,8 @@ const Function kFunctions[] = {
     {"RE_SetColor", 0x002361a0, 0, code(&RE_SetColor), 4, Result::None, Status::Replaced},
     {"RE_LoadWorldMap", 0x00236230, 0, code(&RE_LoadWorldMap), 0, Result::None, Status::Replaced},
     {"R_SetupFog", 0x002369c0, 0, code(&R_SetupFog), 0, Result::None, Status::Replaced},
+    {"GScr_SetFogColor", 0x00236a20, 0, code(&GScr_SetFogColor), 12, Result::None, Status::Compare},
+    {"GScr_SetFogDistances", 0x00236a70, 0, code(&GScr_SetFogDistances), 8, Result::None, Status::Compare},
     {"FX_FreeAllEffectLights", 0x00236aa0, 0, code(&FX_FreeAllEffectLights), 0, Result::None, Status::Replaced},
     {"FX_FindEvictableEffect", 0x00236b40, 0, code(&FX_FindEvictableEffect), 4, Result::Eax, Status::Replaced},
     {"FxMem_Free", 0x00236ba0, 0, code(&FxMem_Free_entry), 0, Result::None, Status::Replaced},
@@ -3064,6 +3071,7 @@ const Function kFunctions[] = {
     {"RE_TextHeight", 0x00237770, 0, code(&RE_TextHeight), 8, Result::Eax, Status::Replaced},
     {"R_CopyFrustumPlanes", 0x00237940, 0, code(&R_CopyFrustumPlanes), 0, Result::None, Status::Replaced},
     {"DObj_GetBoneBasePose", 0x00237cd0, 0, code(&DObj_GetBoneBasePose), 8, Result::Eax, Status::Replaced},
+    {"GScr_SetFogColorBytes", 0x00238350, 0, code(&GScr_SetFogColorBytes), 12, Result::None, Status::Compare},
     {"FX_SortEffects_r", 0x00238390, 0, code(&FX_SortEffects_r), 8, Result::None, Status::Replaced},
     {"FX_FreeEffect", 0x00238540, 0, code(&FX_FreeEffect_entry), 0, Result::None, Status::Replaced},
     {"FX_ParseEffectTexture", 0x00238570, 0, code(&FX_ParseEffectTexture_entry), 0, Result::Eax, Status::Replaced},
@@ -4540,6 +4548,7 @@ const Function kFunctions[] = {
     {"Stream_LoadSpg", 0x002b7010, 0, code(&Stream_LoadSpg), 16, Result::Eax, Status::Compare},
     {"CameraShake_NoiseSample", 0x002b7060, 0, code(&CameraShake_NoiseSample_entry), 0, Result::Xmm0, Status::Compare},
     {"IN_PadQueueEvents", 0x002b7200, 0, code(&IN_PadQueueEvents), 0, Result::None, Status::Replaced},
+    {"GScr_ClearEntFlag4000000", 0x002b74c0, 0, code(&GScr_ClearEntFlag4000000), 4, Result::None, Status::Compare},
     {"G_SetEntityInList960070", 0x002b7500, 0, code(&G_SetEntityInList960070), 0, Result::None, Status::Replaced},
     {"Scr_Notify", 0x002b75c0, 0, code(&Scr_Notify_entry), 4, Result::None, Status::Replaced},
     {"G_SetAngle", 0x002b7640, 0, code(&G_SetAngle), 0, Result::Eax, Status::Replaced},
@@ -4830,6 +4839,7 @@ const Function kFunctions[] = {
     {"S_OpenWaveBank", 0x002ce830, 0, code(&S_OpenWaveBank_entry), 8, Result::None, Status::Replaced},
     {"S_LoadSoundBank", 0x002ce8f0, 0, code(&S_LoadSoundBank), 12, Result::None, Status::Replaced},
     {"S_WaitForWaveBanks", 0x002ce9c0, 0, code(&S_WaitForWaveBanks_entry), 0, Result::None, Status::Compare},
+    {"GScr_SetEntFlag4000000", 0x002cead0, 0, code(&GScr_SetEntFlag4000000), 4, Result::None, Status::Compare},
     {"Phys_InitBodyState", 0x002ceb50, 0, code(&Phys_InitBodyState), 0, Result::None, Status::Replaced},
     {"AnimTree_FlushClearLists", 0x002ced30, 0, code(&AnimTree_FlushClearLists), 0, Result::None, Status::Compare},
     {"Matrix_Orthonormalize", 0x002cede0, 0, code(&Matrix_Orthonormalize), 0, Result::None, Status::Replaced},
@@ -5061,6 +5071,13 @@ const Function kFunctions[] = {
     {"SV_LoadGame_f", 0x002f4550, 0, code(&SV_LoadGame_f), 0, Result::None, Status::Compare},
     {"SV_AddOperatorCommands", 0x002f4770, 0, code(&SV_AddOperatorCommands), 0, Result::None, Status::Compare},
     {"SV_Init", 0x002f48e0, 0, code(&SV_Init), 0, Result::None, Status::Compare},
+    {"GScr_ObjectiveStateFromString", 0x002f4a50, 0, code(&GScr_ObjectiveStateFromString_entry), 0, Result::Al, Status::Compare},
+    {"GScr_SetFreezeControls", 0x002f4b00, 0, code(&GScr_SetFreezeControls), 4, Result::None, Status::Compare},
+    {"GScr_EmptyStub448", 0x002f4b10, 0, code(&GScr_EmptyStub448), 0, Result::None, Status::Compare},
+    {"GScr_ReturnZero446", 0x002f4b20, 0, code(&GScr_ReturnZero446), 0, Result::Eax, Status::Compare},
+    {"GScr_ReturnZero445", 0x002f4b30, 0, code(&GScr_ReturnZero445), 0, Result::Eax, Status::Compare},
+    {"GScr_EmptyStub561", 0x002f4b60, 0, code(&GScr_EmptyStub561), 0, Result::None, Status::Compare},
+    {"GScr_EmptyStub560", 0x002f4b70, 0, code(&GScr_EmptyStub560), 0, Result::None, Status::Compare},
     {"Scr_NopRefSetter", 0x002f4d40, 0, code(&Scr_NopRefSetter), 0, Result::None, Status::Replaced},
     {"Scr_NopFieldSetter", 0x002f4e50, 0, code(&Scr_NopFieldSetter), 0, Result::None, Status::Replaced},
     {"Scr_TeamFromString", 0x002f5250, 0, code(&Scr_TeamFromString_entry), 0, Result::Eax, Status::Replaced},

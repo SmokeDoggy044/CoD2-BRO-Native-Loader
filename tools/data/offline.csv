@@ -720,6 +720,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00231710,VehiclePhys_RebuildPendingBody,3637,3637,0,0,65.5
 002341f0,VehiclePhys_ApplyDriveInputs,2713,2713,0,0,100.0
 002348a0,VehiclePhys_ApplyDriveInputsAll,1958,1958,0,0,80.0
+00234ad0,GScr_EmptyStub174,4000,4000,0,0,100.0
+00234ae0,GScr_EmptyStub173,4000,4000,0,0,100.0
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
 00235910,R_CullLocalPointAndRadius,3712,3712,0,0,100.0
 00235c50,RE_WaterCubemapShotStub,4000,4000,0,0,100.0
@@ -733,6 +735,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00237120,R_RotateForEntity,3529,3478,51,0,100.0
 00237590,R_DrawPic,3621,3307,314,0,100.0
 002375e0,R_LayoutTextWithIcons,3423,3423,0,0,100.0
+00238350,GScr_SetFogColorBytes,4000,4000,0,0,100.0
 00238540,FX_FreeEffect,1902,1902,0,0,100.0
 00238880,R_SetupEntityOrientation,3447,3432,15,0,100.0
 0023b1e0,XModel_GetBoneCount,3540,3540,0,0,86.8
@@ -997,6 +1000,12 @@ address,name,tested,matched,nan,mismatched,coverage
 002d5ad0,G_RestorePlayerLoadout,2998,2997,0,1,100.0
 002d70a0,G_SetMovedir,3354,3354,0,0,59.5
 002db350,AnglesToAxisVec4,1687,1588,99,0,100.0
+002f4b00,GScr_SetFreezeControls,4000,4000,0,0,100.0
+002f4b10,GScr_EmptyStub448,4000,4000,0,0,100.0
+002f4b20,GScr_ReturnZero446,4000,4000,0,0,100.0
+002f4b30,GScr_ReturnZero445,4000,4000,0,0,100.0
+002f4b60,GScr_EmptyStub561,4000,4000,0,0,100.0
+002f4b70,GScr_EmptyStub560,4000,4000,0,0,100.0
 002f4d40,Scr_NopRefSetter,4000,4000,0,0,100.0
 002f4e50,Scr_NopFieldSetter,4000,4000,0,0,100.0
 002f6080,HudElem_SetDefaults,3800,3800,0,0,100.0
