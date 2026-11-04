@@ -3183,10 +3183,11 @@ void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t
     const float two = title_global<float>(0x0083eba8);
     bits = flags;
     const uint8_t* const def = at<uint8_t*>(vehicle, 0x420);
-    const float speed = at<float>(vehicle, 0x438) * at<float>(def, 0);
+    // |+0x438 * def+0| on the x87 (FMUL, FABS, FSTP: no MXCSR flags, rounded by the control word).
+    const long double speed = platform_x87_abs_ext(static_cast<long double>(at<float>(vehicle, 0x438)) * at<float>(def, 0));
     float force = at<float>(def, 4) * at<float>(vehicle, 0x43c) * title_global<float>(0x00830670);  // 0.02
     at<float>(vehicle, 0x4c8) = force;
-    at<float>(vehicle, 0x4c4) = speed < 0.0f ? -speed : speed;
+    at<float>(vehicle, 0x4c4) = static_cast<float>(speed);
     if (at<int32_t>(def, 0x68) == 2) {
         if (at<float>(vehicle, 0x42c) > 0.0f) force = force * two;
         at<float>(vehicle, 0x4c8) = force;

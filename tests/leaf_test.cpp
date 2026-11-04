@@ -113,6 +113,9 @@ PLATFORM_ASM_ENTRY(leaf_resume_trace,
                    "pushf\n orl $0x100, (%esp)\n popf\n ret")
 
 // The stack arguments are pushed below a zeroed 16 KB (like xbcmp_resume's dead stack), the
+// 64 bytes above the top zeroed too (the slack call_stack_top leaves): a function with more
+// than 8 stack arguments reads its last ones there, and the previous call's RET n + PUSHF left
+// EFLAGS in them (PhysConstraint28c_Setup's 10th argument read 0x282 in our run only); the
 // registers loaded last; TF is set just before the call when tracing (the trap handler
 // clears it once execution leaves the title image, leaf_resume_trace sets it again).
 PLATFORM_ASM_ENTRY(leaf_call,
@@ -120,7 +123,7 @@ PLATFORM_ASM_ENTRY(leaf_call,
                    "mov 20(%esp), %ebp\n"
                    "mov %esp, 1148(%ebp)\n"
                    "mov 1164(%ebp), %esp\n and $-16, %esp\n"
-                   "cld\n lea -16384(%esp), %edi\n mov $4096, %ecx\n xor %eax, %eax\n rep stosl\n"
+                   "cld\n lea -16384(%esp), %edi\n mov $4112, %ecx\n xor %eax, %eax\n rep stosl\n"
                    "mov 1080(%ebp), %ecx\n"
                    "1: test %ecx, %ecx\n jz 2f\n pushl 1080(%ebp,%ecx,4)\n dec %ecx\n jmp 1b\n"
                    "2: mov %esp, 1152(%ebp)\n"

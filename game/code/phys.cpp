@@ -2457,7 +2457,7 @@ void XB_THISCALL PhysContacts_AddPair(uint8_t* world, uint32_t a0, const float* 
         at<float>(contact, 0x64) = title_global<float>(0x0083eb70);  // 1e7
         const float min_dt = title_global<float>(0x007cd880);
         const float d = dt > min_dt ? dt : min_dt;
-        const long double ratio = PhysContact_GetAnchorCrossTerm(contact) / d;
+        const long double ratio = static_cast<long double>(PhysContact_GetAnchorCrossTerm(contact)) / d;  // x87 divide
         at<float>(contact, 0x78) = 0.0f;
         at<float>(contact, 0x80) = 0.0f;
         at<float>(contact, 0x7c) = static_cast<float>(ratio * title_global<float>(0x0083eb28));  // -0.5

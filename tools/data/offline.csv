@@ -558,10 +558,11 @@ address,name,tested,matched,nan,mismatched,coverage
 000b61f0,PhysConstraintPoolD0_Alloc,1184,1184,0,0,92.6
 000b6390,PhysConstraint28c_SetMotor,3043,3043,0,0,100.0
 000b63c0,PhysConstraint28c_SetBrake,3119,3119,0,0,100.0
+000b63f0,PhysConstraint28c_Setup,3351,3351,0,0,100.0
 000b6510,PhysConstraint_AttachSecondBody,2334,2334,0,0,100.0
 000b6590,PhysConstraint_GetSegmentEnds,2172,2149,23,0,100.0
 000b6780,PhysConstraint_UpdateLimitFlag,2554,2554,0,0,100.0
-000b68a0,PhysConstraint_AddContacts,3342,3341,1,0,60.8
+000b68a0,PhysConstraint_AddContacts,3344,3337,7,0,88.1
 000b7020,PhysConstraint_UpdateDrive,2027,1973,54,0,96.6
 000b7260,PhysBody_OffsetByField70,2306,2306,0,0,100.0
 000b72f0,PhysContact_AllocBufferB0,1701,1701,0,0,100.0
@@ -584,9 +585,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000b9500,PhysConstraintFrame_Update,2582,2582,0,0,100.0
 000b95c0,PhysAttach_AddWorldContact,1083,1083,0,0,100.0
 000b9620,PhysHinge_UpdateLimitFlags,1906,1906,0,0,100.0
-000b9750,PhysHinge_AddContacts,1004,1004,0,0,100.0
-000b9a40,PhysDistanceJoint_AddContacts,1620,1610,10,0,30.7
-000ba020,PhysHinge_Setup,1,0,0,1,100.0
+000b9750,PhysHinge_AddContacts,1836,1756,80,0,100.0
+000b9a40,PhysDistanceJoint_AddContacts,3372,3350,22,0,30.7
+000ba020,PhysHinge_Setup,2946,2887,59,0,100.0
 000ba2c0,PhysAngularMotor_AddContacts,1143,1143,0,0,100.0
 000ba860,PhysFrame_RotateByVelocity,2105,2004,101,0,100.0
 000ba9d0,PhysBody_WorldToRelative,1794,1794,0,0,100.0
@@ -615,9 +616,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000bfa50,PhysContact_SolveStep,3346,2801,545,0,100.0
 000bfad0,PhysContact_WarmStart,2934,2777,157,0,100.0
 000c0000,PhysConstraintPair_ApplyScaledImpulses,3108,2650,458,0,100.0
-000c0080,PhysJoint_SolveStep,2454,1753,701,0,100.0
-000c01e0,PhysJoint_ApplyBlendedImpulses,2687,2484,203,0,100.0
-000c02c0,PhysJoint_WarmStart,2315,1688,627,0,100.0
+000c0080,PhysJoint_SolveStep,2556,1930,626,0,100.0
+000c01e0,PhysJoint_ApplyBlendedImpulses,2677,2468,209,0,100.0
+000c02c0,PhysJoint_WarmStart,2183,1972,211,0,100.0
 000c17a0,PhysObject1c0_PredictTransform,1861,1763,98,0,100.0
 000c1980,PhysBody_Integrate,1850,1746,104,0,100.0
 000c2a40,PhysWorld_Destroy,1607,1607,0,0,100.0
@@ -717,6 +718,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0022cec0,Ragdoll_PoseToBody,1011,1011,0,0,100.0
 002302d0,Ragdoll_UpdateFromEntity,1020,1020,0,0,100.0
 00231710,VehiclePhys_RebuildPendingBody,3637,3637,0,0,65.5
+002341f0,VehiclePhys_ApplyDriveInputs,2713,2713,0,0,100.0
 002348a0,VehiclePhys_ApplyDriveInputsAll,1958,1958,0,0,80.0
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
 00235910,R_CullLocalPointAndRadius,3712,3712,0,0,100.0
