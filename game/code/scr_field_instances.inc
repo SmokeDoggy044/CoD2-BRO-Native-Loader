@@ -884,7 +884,6 @@ template void* XB_THISCALL ScrField_CopyOf<0xa1763cc1u, 0x0000000cu, 0x0052bd10u
 template void* XB_THISCALL ScrField_CopyOf<0xe337f297u, 0x00000010u, 0x0017c4e0u>(uint8_t*, void*);
 template void XB_CDECL ScrField_Clear52<0x1791f035u, 0x001e61f0u>(uint32_t);
 template bool* XB_CDECL ScrField_ArrayIsDefinedReleased<0x053fe992u, 0x001e6020u, 0x0045db80u>(bool*, uint32_t);
-template void* XB_CDECL ScrField_Get<0x12993a44u, 0x001e4a20u>(uint32_t);
 template void* XB_CDECL ScrField_Get<0x053fe992u, 0x001e6070u>(uint32_t);
 template void* XB_CDECL ScrField_Get<0x9ef08b23u, 0x001e6250u>(uint32_t);
 template void* XB_CDECL ScrField_Get<0x1791f035u, 0x001e61f0u>(uint32_t);

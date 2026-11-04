@@ -887,7 +887,6 @@ extern template void* XB_THISCALL ScrField_CopyOf<0xa1763cc1u, 0x0000000cu, 0x00
 extern template void* XB_THISCALL ScrField_CopyOf<0xe337f297u, 0x00000010u, 0x0017c4e0u>(uint8_t*, void*);
 extern template void XB_CDECL ScrField_Clear52<0x1791f035u, 0x001e61f0u>(uint32_t);
 extern template bool* XB_CDECL ScrField_ArrayIsDefinedReleased<0x053fe992u, 0x001e6020u, 0x0045db80u>(bool*, uint32_t);
-extern template void* XB_CDECL ScrField_Get<0x12993a44u, 0x001e4a20u>(uint32_t);
 extern template void* XB_CDECL ScrField_Get<0x053fe992u, 0x001e6070u>(uint32_t);
 extern template void* XB_CDECL ScrField_Get<0x9ef08b23u, 0x001e6250u>(uint32_t);
 extern template void* XB_CDECL ScrField_Get<0x1791f035u, 0x001e61f0u>(uint32_t);
@@ -1974,7 +1973,6 @@ inline constexpr auto* ScrField_h3d130364 = &ScrField_Slot<0x3d130364u, 0x000000
 inline constexpr auto* ScrField_h3d130364_IsDefined = &ScrField_SlotIsDefined<0x3d130364u, 0x00000000u>;  // 0x001a4190
 inline constexpr auto* ScrField_h30248704 = &ScrField_Slot<0x30248704u, 0x00000000u>;  // 0x001a41f0
 inline constexpr auto* ScrField_h30248704_IsDefined = &ScrField_SlotIsDefined<0x30248704u, 0x00000000u>;  // 0x001a4230
-inline constexpr auto* ScrField_h12993a44 = &ScrField_Get<0x12993a44u, 0x001e4a20u>;  // 0x001a4290
 inline constexpr auto* ScrField_anim_crouchrunanim = &ScrField_Slot<0x682ea6e9u, 0x00000000u>;  // 0x001a42c0
 inline constexpr auto* ScrField_anim_crouchrunanim_IsDefined = &ScrField_SlotIsDefined<0x682ea6e9u, 0x00000000u>;  // 0x001a4300
 inline constexpr auto* ScrField_standanim = &ScrField_Slot<0x9a7145f5u, 0x00000000u>;  // 0x001a4360

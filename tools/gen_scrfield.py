@@ -106,7 +106,8 @@ SHAPES = [
 ] + [
     dict(template="ScrField_Get", ref=ref, extra=[getter],
          ret="void*", params="uint32_t", stack=4, result="Eax", hashes=1)
-    for ref, getter in [("ScrField_h12993a44", 0x001e4a20), ("ScrField_h053fe992", 0x001e6070),
+    # ScrField_h12993a44 (getter 0x001e4a20) is plain C: its getter copies a never-set word of its frame
+    for ref, getter in [("ScrField_h053fe992", 0x001e6070),
                         ("ScrField_fallback", 0x001e6250), ("ScrField_h1791f035", 0x001e61f0)]
 ] + [
     dict(template="ScrField_ArrayIsDefined", ref=ref, extra=[copier],

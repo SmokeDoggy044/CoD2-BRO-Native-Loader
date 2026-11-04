@@ -610,6 +610,16 @@ uint8_t* XB_CDECL ScrField_SetWeaponIndex(uint8_t* base, uint32_t offset, const 
     return base;
 }
 
+uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity) {
+    // No frame in the original: both calls run with their argument at entry ESP - 4.
+    TitleRegs regs{};
+    const uint32_t object_args[1] = {entity};
+    const uint32_t object = title_call_at_regs(entry_esp, 0x0011db20, &regs, 1, object_args);  // GScr_GetEntScriptObject
+    regs.ecx = object ? object : kEmptyKeyTable;
+    const uint32_t get_args[1] = {0x12993a44};
+    return title_call_at_regs(entry_esp, 0x001e4a20, &regs, 1, get_args);  // ScriptKeyTable_GetStruct28
+}
+
 bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined(bool* out, uint32_t node) {
     *out = node != 0xffffffffu && ScrVehNodeField_script_uniquename_IsNonEmpty(&node);
     return out;
@@ -655,6 +665,14 @@ uint8_t* XB_CDECL ScrIface_Malloc(uint32_t size, uint32_t align) {
 }
 
 }  // namespace game
+
+PLATFORM_ASM_ENTRY(ScrField_h12993a44_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl 4(%edx)\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(ScrField_h12993a44_c) "addl $8, %esp\n"
+                   "popl %esp\n"
+                   "ret")
 
 // Instances taking the caller's ECX (ScrField_BoolSlot): an asm entry hands it on.
 #define SCR_FIELD_ECX_ENTRY(name, instance)                                                         \

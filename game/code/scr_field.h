@@ -223,6 +223,12 @@ uint8_t* XB_CDECL ScrField_SetWeaponIndex(uint8_t* base, uint32_t offset, const 
 // 0x00198d80: node != -1 and its script_uniquename is non-empty.
 bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined(bool* out, uint32_t node);
 
+// 0x001a4290: the struct field 0x12993a44 (ScriptKeyTable_GetStruct28, 0x001e4a20). That getter adds a
+// missing field from a 0x28-byte frame block one word of which (+0x1c) it never sets: the asm entry runs
+// both title calls at the original's ESP so the word holds what it holds in the original.
+extern "C" void ScrField_h12993a44_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity);
+
 // The script runtime's engine interface (pointers handed to the runtime).
 // 0x002f5340: the title CRT's atof (x87 result).
 long double XB_CDECL ScrIface_atof(const char* text);

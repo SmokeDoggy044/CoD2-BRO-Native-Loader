@@ -3553,7 +3553,7 @@ const Function kFunctions[] = {
     {"ScrField_h3d130364_IsDefined", 0x001a4190, 0, code(ScrField_h3d130364_IsDefined), 8, Result::Eax, Status::Compare},
     {"ScrField_h30248704", 0x001a41f0, 0, code(ScrField_h30248704), 4, Result::Eax, Status::Compare},
     {"ScrField_h30248704_IsDefined", 0x001a4230, 0, code(ScrField_h30248704_IsDefined), 8, Result::Eax, Status::Compare},
-    {"ScrField_h12993a44", 0x001a4290, 0, code(ScrField_h12993a44), 4, Result::Eax, Status::Compare},
+    {"ScrField_h12993a44", 0x001a4290, 0, code(&ScrField_h12993a44_entry), 4, Result::Eax, Status::Compare},
     {"ScrField_anim_crouchrunanim", 0x001a42c0, 0, code(ScrField_anim_crouchrunanim), 4, Result::Eax, Status::Compare},
     {"ScrField_anim_crouchrunanim_IsDefined", 0x001a4300, 0, code(ScrField_anim_crouchrunanim_IsDefined), 8, Result::Eax, Status::Compare},
     {"ScrField_standanim", 0x001a4360, 0, code(ScrField_standanim), 4, Result::Eax, Status::Compare},
