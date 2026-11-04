@@ -1765,4 +1765,176 @@ void XB_CDECL GScr_SetHintString28c(uint32_t handle, uint32_t hint) {
         field<uint16_t>(field<uint8_t*>(ent, 0x240), 0x1380) = 0xffff;
 }
 
+namespace {
+
+// The entity's turret record (+0x24c); without one, formats "entity type '%s' is not a turret" with the
+// classname (+0x25c) and gives null.
+uint8_t* turret_or_message(uint8_t* ent) {
+    uint8_t* const turret = field<uint8_t*>(ent, 0x24c);
+    if (!turret)
+        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+            &title_global<char>(0x00832094), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
+    return turret;
+}
+
+}  // namespace
+
+void XB_CDECL GScr_ResetHintCache(uint32_t handle, const uint32_t* hint) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const uint32_t classname = field<uint32_t>(ent, 0x260);
+    const uint32_t trigger_use = title_global<uint32_t>(0x0097a81c);  // scr_const_trigger_use
+    if (classname != trigger_use && !field<uint8_t*>(ent, 0x240)) return;
+    if (*hint == 0) return;
+    if (classname == trigger_use)
+        field<uint8_t>(ent, 5) = 0xff;
+    else
+        field<uint16_t>(field<uint8_t*>(ent, 0x240), 0x1380) = 0xffff;
+}
+
+void XB_CDECL GScr_SetCursorHint(uint32_t handle, const ScriptString* hint) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (field<uint32_t>(ent, 0x260) == title_global<uint32_t>(0x0097a81c) &&  // scr_const_trigger_use
+        Q_stricmpn2(99999, script_text(hint), title_text(0x00832040)) == 0) {  // "HINT_INHERIT"
+        field<int32_t>(ent, 0xc0) = -1;
+        return;
+    }
+    for (int32_t i = 1; i < 0x10c; ++i) {
+        const char* const name = title_text(title_global<uint32_t>(0x008dae44 + i * 4));  // hint type names
+        if (!name) break;
+        if (Q_stricmpn2(99999, script_text(hint), name) == 0) {
+            field<int32_t>(ent, 0xc0) = i;
+            return;
+        }
+    }
+    // (A read-only walk over the table at 0x008dae48 follows: its printing was compiled out.) The message gets
+    // the string's rep pointer, not its text.
+    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x00831ff8), *reinterpret_cast<const uint32_t*>(hint));  // "%s is not a valid hint type..."
+}
+
+int32_t XB_CDECL GScr_Turret_GetOwner(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const turret = turret_or_message(ent);
+    if (!turret) return 0;
+    uint8_t* const owner = field<uint8_t*>(turret, 0xc);
+    if (!owner || !(field<uint8_t>(turret, 2) & 0x40)) return 0;
+    return field<int32_t>(owner, 0x224);
+}
+
+long double XB_CDECL GScr_Turret_GetMaxRange(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (ent) {
+        if (uint8_t* const turret = turret_or_message(ent)) return platform_x87_sqrt_ext(field<float>(turret, 0x48));
+    }
+    return title_global<float>(0x0083eafc);  // 0
+}
+
+void XB_CDECL GScr_Turret_SetMaxRange(uint32_t handle, float range) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<float>(turret, 0x48) = range * range;
+}
+
+void XB_CDECL GScr_Turret_Set54(uint32_t handle, float value) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<float>(turret, 0x54) = value;
+}
+
+void XB_CDECL GScr_Turret_MakeUnusable(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint8_t>(turret, 3) &= 0xef;
+}
+
+void XB_CDECL GScr_Turret_MakeUsable(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint8_t>(turret, 3) |= 0x10;
+}
+
+void XB_CDECL GScr_Turret_SetTeam(uint32_t handle, const ScriptString* team) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const turret = turret_or_message(ent);
+    if (!turret) return;
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(0x0083208c)) == 0) {  // "axis"
+        field<uint32_t>(turret, 0x64) = 1;
+    } else if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(0x00832084)) == 0) {  // "allies"
+        field<uint32_t>(turret, 0x64) = 2;
+    } else {
+        // The string's rep pointer, not its text.
+        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00832050), *reinterpret_cast<const uint32_t*>(team));  // "unknown team '%s', ..."
+    }
+}
+
+void XB_CDECL GScr_Turret_ClearTargetEntity(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint32_t>(turret, 8) = 0;
+}
+
+void XB_CDECL GScr_Turret_SetTargetEntity(uint32_t handle, uint32_t target_handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const target = handle_entity(target_handle);
+    if (!target) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint8_t*>(turret, 8) = target;
+}
+
+int32_t XB_CDECL GScr_GetOwnerHandle(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<int32_t>(ent, 0x1a0) : 0;
+}
+
+int32_t XB_CDECL GScr_Turret_GetUser(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !turret_or_message(ent) || !field<uint8_t>(ent, 0x297)) return 0;
+    return field<int32_t>(ent, 0x1a0);
+}
+
+void XB_CDECL GScr_Turret_SetMode(uint32_t handle, uint32_t mode) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const turret = turret_or_message(ent);
+    if (!turret) return;
+    uint16_t& flags = field<uint16_t>(turret, 2);
+    if (mode == title_global<uint32_t>(0x0097a850))  // scr_const_auto_ai
+        flags |= 3;
+    else if (mode == title_global<uint32_t>(0x0097a858))  // scr_const_manual
+        flags &= 0xfffc;
+    else if (mode == title_global<uint32_t>(0x0097a85c))  // scr_const_manual_ai
+        flags = static_cast<uint16_t>((flags & 0xfffd) | 1);
+    else if (mode == title_global<uint32_t>(0x0097a854))  // scr_const_auto_nonai
+        flags = static_cast<uint16_t>((flags & 0xfffe) | 2);
+}
+
+void XB_CDECL GScr_Turret_ClearFlag4(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint8_t>(turret, 2) &= 0xfb;
+}
+
+void XB_CDECL GScr_Turret_SetFlag4(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const turret = turret_or_message(ent)) field<uint8_t>(turret, 2) |= 4;
+}
+
+void XB_CDECL GScr_SetEntFlag400(uint32_t handle) { set_ent_flag<0x400>(handle); }
+void XB_CDECL GScr_ClearEntFlag400(uint32_t handle) { clear_ent_flag<0x400>(handle); }
+
+void XB_CDECL GScr_SetEntInList960070(uint32_t handle, uint32_t in_list) {
+    if (uint8_t* const ent = handle_entity(handle)) G_SetEntityInList960070(0, in_list != 0, ent);
+}
+
+void XB_CDECL GScr_SetTakeDamage(uint32_t handle, uint32_t take_damage) {
+    if (uint8_t* const ent = handle_entity(handle)) field<uint32_t>(ent, 0x29c) = static_cast<uint8_t>(take_damage);
+}
+
 }  // namespace game

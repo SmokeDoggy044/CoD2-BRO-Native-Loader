@@ -403,4 +403,45 @@ uint8_t XB_CDECL GScr_AnimHasNotetrack(uint32_t unused, uint32_t anim, const uin
 // (+0x240) +0x1380 = 0xffff.
 void XB_CDECL GScr_SetHintString28c(uint32_t handle, uint32_t hint);
 
+// 0x002f9e80: with a hint (*hint != 0) on a trigger_use or an entity with an actor (+0x240): resets the hint
+// cache (trigger_use: byte +5 = 0xff; else the actor's +0x1380 = 0xffff).
+void XB_CDECL GScr_ResetHintCache(uint32_t handle, const uint32_t* hint);
+// 0x002f9ef0: the cursor hint +0xc0: -1 for "HINT_INHERIT" on a trigger_use, else the index (1..0x10b) of the
+// name in the hint type table 0x008dae44 (Q_stricmpn2); unknown names format a message (the rep pointer).
+void XB_CDECL GScr_SetCursorHint(uint32_t handle, const ScriptString* hint);
+// Turret builtins with the "entity type '%s' is not a turret" message (va, the classname +0x25c) when the
+// entity has no turret record (+0x24c).
+// 0x002f9ff0: the number (+0x224) of the turret's owner (+0xc) while flag 0x40 of its +2 is set, else 0.
+int32_t XB_CDECL GScr_Turret_GetOwner(uint32_t handle);
+// 0x002fa070: sqrt of the squared range +0x48 (x87, ST0), 0 without a turret.
+long double XB_CDECL GScr_Turret_GetMaxRange(uint32_t handle);
+// 0x002fa0e0: the squared range +0x48 = range * range.
+void XB_CDECL GScr_Turret_SetMaxRange(uint32_t handle, float range);
+// 0x002fa160: the float +0x54.
+void XB_CDECL GScr_Turret_Set54(uint32_t handle, float value);
+// 0x002fa1e0, 0x002fa250: clear / set the usable flag 0x10 of byte +3.
+void XB_CDECL GScr_Turret_MakeUnusable(uint32_t handle);
+void XB_CDECL GScr_Turret_MakeUsable(uint32_t handle);
+// 0x002fa2c0: the team +0x64 from "axis" (1) / "allies" (2) (_stricmp); others format a message (rep pointer).
+void XB_CDECL GScr_Turret_SetTeam(uint32_t handle, const ScriptString* team);
+// 0x002fa3b0, 0x002fa420: the target entity +8 (null / the second handle's entity; nothing when it is stale).
+void XB_CDECL GScr_Turret_ClearTargetEntity(uint32_t handle);
+void XB_CDECL GScr_Turret_SetTargetEntity(uint32_t handle, uint32_t target_handle);
+// 0x002fa4c0: the entity's +0x1a0 (owner handle), 0 when stale.
+int32_t XB_CDECL GScr_GetOwnerHandle(uint32_t handle);
+// 0x002fa500: the turret's user: the entity's +0x1a0 while its byte +0x297 is set, else 0.
+int32_t XB_CDECL GScr_Turret_GetUser(uint32_t handle);
+// 0x002fa580: the mode bits 0-1 of the turret's 16-bit +2: auto_ai 3, manual 0, manual_ai 1, auto_nonai 2.
+void XB_CDECL GScr_Turret_SetMode(uint32_t handle, uint32_t mode);
+// 0x002fa650, 0x002fa6c0: clear / set flag 4 of the turret's byte +2.
+void XB_CDECL GScr_Turret_ClearFlag4(uint32_t handle);
+void XB_CDECL GScr_Turret_SetFlag4(uint32_t handle);
+// 0x002fa730, 0x002fa770: set / clear flag 0x400 of the entity's +0x2a4.
+void XB_CDECL GScr_SetEntFlag400(uint32_t handle);
+void XB_CDECL GScr_ClearEntFlag400(uint32_t handle);
+// 0x002fa7b0: G_SetEntityInList960070(in_list != 0) on the entity (tail jump).
+void XB_CDECL GScr_SetEntInList960070(uint32_t handle, uint32_t in_list);
+// 0x002fa7f0: the take-damage word +0x29c = the argument's low byte.
+void XB_CDECL GScr_SetTakeDamage(uint32_t handle, uint32_t take_damage);
+
 }  // namespace game

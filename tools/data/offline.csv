@@ -1117,6 +1117,15 @@ address,name,tested,matched,nan,mismatched,coverage
 002f9cd0,GScr_ClearClientVec4f4,3996,3996,0,0,100.0
 002f9d90,GScr_GetStance,3994,3994,0,0,75.0
 002f9e00,GScr_AnimHasNotetrack,1595,1595,0,0,100.0
+002f9e80,GScr_ResetHintCache,3997,3997,0,0,71.9
+002f9ff0,GScr_Turret_GetOwner,3994,3994,0,0,56.4
+002fa070,GScr_Turret_GetMaxRange,3994,3994,0,0,66.7
+002fa0e0,GScr_Turret_SetMaxRange,3997,3997,0,0,64.5
+002fa250,GScr_Turret_MakeUsable,3996,3996,0,0,42.4
+002fa2c0,GScr_Turret_SetTeam,3994,3994,0,0,22.5
+002fa3b0,GScr_Turret_ClearTargetEntity,3989,3989,0,0,53.1
+002fa4c0,GScr_GetOwnerHandle,3998,3998,0,0,100.0
+002fa650,GScr_Turret_ClearFlag4,3991,3991,0,0,53.1
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
