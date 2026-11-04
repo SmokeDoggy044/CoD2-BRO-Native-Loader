@@ -752,4 +752,188 @@ ScriptStringRep* XB_CDECL ScriptString_NewRepFromCString(const char* text) {
         block, size - 6, length, text);  // ScriptStringRep_Init
 }
 
+
+// --- Key tables of structs and arrays. The arrays are {data, capacity, count} (12 bytes) and
+// one instance per element type exists for each shape below; `Assign` is that type's copy
+// (thiscall(dst, src), dst zeroed first). The originals' C++ exception frames have no effect.
+namespace {
+
+using KeyTableAssign = void XB_THISCALL(uint32_t* dst, const uint32_t* source);
+
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// A copy of `source` in a new block (null if the allocation fails) set under `key`; returns
+// the value's slot.
+template <uint32_t Assign>
+uint32_t* key_table_set_array(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    uint32_t* block = scr_alloc(0xc, 4);
+    if (block) {
+        block[0] = 0;
+        block[1] = 0;
+        block[2] = 0;
+        title_function<KeyTableAssign>(Assign)(block, source);
+    }
+    return ScriptKeyTable_Set(self, key, address_of(block));
+}
+
+// The array under `key`; a new empty one is set (through `Setter`) when there is none.
+template <uint32_t Setter>
+uint32_t key_table_get_or_add_array(ScriptKeyTable* self, uint32_t key) {
+    uint32_t* slot = ScriptKeyTable_Find(self, key);
+    if (!slot) {
+        uint32_t empty[3] = {0, 0, 0};
+        slot = title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*)>(Setter)(self, key,
+                                                                                                     empty);
+    }
+    return *slot;
+}
+
+// `out` = a copy of the array under `key`, or empty.
+template <uint32_t Assign>
+uint32_t* key_table_get_array_copy(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    const uint32_t* slot = ScriptKeyTable_Find(self, key);
+    if (!slot) {
+        out[0] = 0;
+        out[1] = 0;
+        out[2] = 0;
+        return out;
+    }
+    const uint32_t array = *slot;
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+    title_function<KeyTableAssign>(Assign)(out, reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(array)));
+    return out;
+}
+
+}  // namespace
+
+// A zeroed 0x1c-byte struct is added when the key has none (null when the allocation fails).
+uint32_t XB_THISCALL ScriptKeyTable_GetStruct1c(ScriptKeyTable* self, uint32_t key) {
+    if (const uint32_t* slot = ScriptKeyTable_Find(self, key)) return *slot;
+    uint32_t* block = scr_alloc(0x1c, 4);
+    if (block) {
+        for (int i = 0; i < 7; ++i) block[i] = 0;  // REP MOVSD of a zeroed local
+    }
+    return *ScriptKeyTable_Set(self, key, address_of(block));
+}
+
+uint32_t* XB_THISCALL ScriptKeyTable_SetArrayBytes(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0017bb40>(self, key, source);  // DynArray_AssignBytes
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_2(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045c740>(self, key, source);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_3(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045c7c0>(self, key, source);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_4(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045c860>(self, key, source);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045c8e0>(self, key, source);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetArray_5(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0017ba30>(self, key, source);  // DynArray_Assign4
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray_2(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045d5f0>(self, key, source);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_SetNewArray_3(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    return key_table_set_array<0x0045c6b0>(self, key, source);
+}
+
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_2(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x0017c200>(self, key);  // ScriptKeyTable_SetArray_2
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_3(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x0017c330>(self, key);  // ScriptKeyTable_SetArray_3
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_4(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x0017c460>(self, key);  // ScriptKeyTable_SetArray_4
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x0017c590>(self, key);  // ScriptKeyTable_SetNewArray
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArrayBytes(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x0017c100>(self, key);  // ScriptKeyTable_SetArrayBytes
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_6(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x001e5fa0>(self, key);  // ScriptKeyTable_SetNewArray_2
+}
+uint32_t XB_THISCALL ScriptKeyTable_FindOrAdd(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x001e6120>(self, key);  // ScriptKeyTable_SetNewArray_3
+}
+uint32_t XB_THISCALL ScriptKeyTable_GetOrAddArray_7(ScriptKeyTable* self, uint32_t key) {
+    return key_table_get_or_add_array<0x001e5f20>(self, key);  // ScriptKeyTable_SetArray_5
+}
+
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopy_2(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c410>(self, out, key);  // DynArray_Assign12
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_2(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c7c0>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c860>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_3(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c8e0>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmptyBytes(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0017bb40>(self, out, key);  // DynArray_AssignBytes
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_7(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045d5f0>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_4(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c740>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_5(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0045c6b0>(self, out, key);
+}
+uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopyOrEmpty_6(ScriptKeyTable* self, uint32_t* out, uint32_t key) {
+    return key_table_get_array_copy<0x0017ba30>(self, out, key);  // DynArray_Assign4
+}
+
+// A copy (0x00458f60: nine words and a script string at +0x20) of the 0x28-byte struct in a new
+// block (null if the allocation fails) set under `key`; returns the value's slot.
+uint32_t* XB_THISCALL ScriptKeyTable_AddStruct28(ScriptKeyTable* self, uint32_t key, const uint32_t* source) {
+    uint32_t* block = scr_alloc(0x28, 4);
+    if (block) title_function<KeyTableAssign>(0x00458f60)(block, source);
+    return ScriptKeyTable_Set(self, key, address_of(block));
+}
+
+// The struct under `key`; a default one is added when there is none: word 0 from 0x00922eb4,
+// six words from 0x00922eb8, an empty string at +0x20. Words +0x1c and +0x24 are never set in
+// the original's local (zero here, as in the test processes' dead stack).
+uint32_t XB_THISCALL ScriptKeyTable_GetStruct28(ScriptKeyTable* self, uint32_t key) {
+    if (const uint32_t* slot = ScriptKeyTable_Find(self, key)) return *slot;
+    uint32_t value[10] = {};
+    value[0] = title_global<uint32_t>(0x00922eb4);
+    for (int i = 1; i <= 6; ++i) value[i] = title_global<uint32_t>(0x00922eb8);
+    ScriptString* const name = reinterpret_cast<ScriptString*>(&value[8]);
+    ScriptString_FromRep(name, nullptr);
+    uint32_t* const slot = ScriptKeyTable_AddStruct28(self, key, value);
+    string_release(name);
+    return *slot;
+}
+
+// Appends a pointer ({data, capacity, count}); a full array grows to count + 4 (the old data
+// copied, then freed). Returns the old count.
+uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
+    if (self[2] >= self[1]) {
+        const uint32_t capacity = self[2] + 4;
+        uint32_t* data = Scr_AllocPtrArray(capacity, self[2] + 1);
+        for (uint32_t i = 0; i < self[2]; ++i) data[i] = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(self[0]))[i];
+        if (self[0]) Scr_Free(reinterpret_cast<void*>(static_cast<uintptr_t>(self[0])));
+        self[0] = address_of(data);
+        self[1] = capacity;
+    }
+    const uint32_t count = self[2];
+    reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(self[0]))[count] = *value;
+    ++self[2];
+    return count;
+}
+
 }  // namespace game

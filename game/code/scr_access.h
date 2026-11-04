@@ -344,4 +344,20 @@ ScriptString* XB_CDECL ScrCall_GScr_GetWeaponClassname2(ScriptString* out, uint3
 // 0x0011fa40 (thiscall, pops 4): {handle, false} in self, targetname "gunner" on the entity.
 uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t handle);
 
+// 0x00181450 (thiscall, pops 4): ScrActor_GetString_f8 through 0x00922d40, copied out.
+ScriptString* XB_THISCALL ScrActor_GetString_f8_Copy(const uint32_t* self, ScriptString* out);
+// 0x001815a0: string result of GScr_GetWeaponDisplayName (0x009223e4).
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponDisplayName(ScriptString* out, uint32_t weapon);
+// 0x00181530 / 0x00181560: SetFlaggedAnimKnob / SetFlaggedAnimKnobAll with 0 as the last argument.
+uint32_t XB_CDECL ScrCall_SetFlaggedAnimKnobByRef(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                  uint32_t c, uint32_t d);
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnobAll_2(const uint32_t* ent, const uint32_t* anim, uint32_t a,
+                                                       uint32_t b, uint32_t c, uint32_t d, uint32_t e);
+// 0x00182060 / 0x001837e0: release a by-value string argument.
+void XB_CDECL ScrLocal_ReleaseString_2(ScriptString value);
+void XB_CDECL ScrLocal_ReleaseString(uint32_t, uint32_t, ScriptString value);
+// 0x001e45f0 (thiscall, pops 4; asm entry): the path node's type string into out.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrPathNode_CopyType_c(uint32_t entry_esp, uint32_t ecx);
+extern "C" void ScrPathNode_CopyType_entry(void);
+
 }  // namespace game

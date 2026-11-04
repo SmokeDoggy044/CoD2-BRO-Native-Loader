@@ -1,5 +1,7 @@
 #include "scr_access.h"
 
+#include <cstring>
+
 #include "g_scr_runtime.h"
 #include "title_data.h"
 
@@ -992,5 +994,53 @@ uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t ha
     string_release(name);
     return self;
 }
+
+
+// Copies of the wrappers above, with other builtin slots or fixed arguments.
+ScriptString* XB_THISCALL ScrActor_GetString_f8_Copy(const uint32_t* self, ScriptString* out) {
+    return call_get_string<0x00922d40>(self, out);
+}
+
+ScriptString* XB_CDECL ScrCall_GScr_GetWeaponDisplayName(ScriptString* out, uint32_t weapon) {
+    return string_of<0x009223e4>(out, weapon);
+}
+
+uint32_t XB_CDECL ScrCall_SetFlaggedAnimKnobByRef(const uint32_t* ent, const uint32_t* anim, uint32_t a, uint32_t b,
+                                                  uint32_t c, uint32_t d) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e0)(
+        *ent, *anim, a, b, c, d, 0);
+}
+
+uint32_t XB_CDECL ScrCall_GScr_SetFlaggedAnimKnobAll_2(const uint32_t* ent, const uint32_t* anim, uint32_t a,
+                                                       uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
+    return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        0x009225e4)(*ent, *anim, a, b, c, d, e, 0);
+}
+
+// Releases a script string passed by value (the first / third argument).
+void XB_CDECL ScrLocal_ReleaseString_2(ScriptString value) { string_release(&value); }
+
+void XB_CDECL ScrLocal_ReleaseString(uint32_t, uint32_t, ScriptString value) { string_release(&value); }
+
+// The node's type string through ScrPathNodeField_type_Copy (0x001811e0), run where the original
+// calls it: the getter behind it keeps a stack address in script memory (see scr_field.cpp
+// ScrNode_String). Frame: push ecx (zeroed), push esi, `out` pushed; ECX = the node object.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrPathNode_CopyType_c(uint32_t entry_esp, uint32_t ecx) {
+    const uint32_t out = title_global<uint32_t>(entry_esp + 4);
+    title_global<uint32_t>(entry_esp - 4) = 0;
+    TitleRegs regs{};
+    regs.ecx = ecx;
+    const uint32_t args[1] = {out};
+    title_call_at_regs(entry_esp - 8, 0x001811e0, &regs, 1, args);
+    return out;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(ScrPathNode_CopyType_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000")
+                                               "pushl %ecx\n pushl %edx\n" PLATFORM_ASM_CALL(ScrPathNode_CopyType_c)
+                                               "addl $8, %esp\n popl %esp\n ret $4")
+
+namespace game {
 
 }  // namespace game
