@@ -58,6 +58,29 @@ SHAPES = [
          ret="uint32_t*", params="uint32_t", stack=4, result="Eax", hashes=2),
     dict(template="ScrField_SlotIsDefined", ref="ScrField_turn_type_IsDefined", extra=[0x00922eb4],
          ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1),
+    # batch 3
+    dict(template="ScrField_HandleSlot", ref="ScrField_h4c9e9556",
+         ret="uint32_t*", params="uint32_t", stack=4, result="Eax", hashes=2),
+    dict(template="ScrField_HandleSlotIsDefined", ref="ScrField_h4c9e9556_IsDefined",
+         ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1),
+    dict(template="ScrField_VectorSlot", ref="ScrField_lead_pos",
+         ret="float*", params="uint32_t", stack=4, result="Eax", hashes=2),
+    dict(template="ScrField_VectorSlotIsDefined", ref="ScrField_lead_pos_IsDefined",
+         ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1),
+] + [
+    # array/struct fields: the getter and the copier are template arguments
+    dict(template="ScrField_Get", ref=ref, extra=[getter],
+         ret="void*", params="uint32_t", stack=4, result="Eax", hashes=1)
+    for ref, getter in [("ScrField_followers", 0x0045cd50), ("ScrField_h4f7c0a56", 0x00602a40),
+                        ("ScrField_h677e856b", 0x0017c280), ("ScrField_hc4813666", 0x0017c080),
+                        ("ScrField_path_pos", 0x0017c400), ("ScrField_he337f297", 0x0017c6c0),
+                        ("ScrField_gunners", 0x0017c660)]
+] + [
+    dict(template="ScrField_ArrayIsDefined", ref=ref, extra=[copier],
+         ret="bool*", params="bool*, uint32_t", stack=8, result="Eax", hashes=1)
+    for ref, copier in [("ScrField_followers_IsDefined", 0x0045cd00), ("ScrField_h4f7c0a56_IsDefined", 0x0017c2e0),
+                        ("ScrField_h677e856b_IsDefined", 0x001e60d0), ("ScrField_path_pos_IsDefined", 0x0017c3b0),
+                        ("ScrField_he337f297_IsDefined", 0x0017c720), ("ScrField_gunners_IsDefined", 0x0017c610)]
 ]
 
 

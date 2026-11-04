@@ -11,6 +11,7 @@ namespace {
 constexpr uint32_t kEmptyKeyTable = 0x00922e94;
 constexpr uint32_t kUndefinedBool = 0x00922ed0;
 constexpr uint32_t kUndefinedFloat = 0x00922eac;
+constexpr uint32_t kUndefinedVectorLane = 0x00922eb8;
 
 // The entity's script object (its field table), or null.
 ScriptKeyTable* script_object(uint32_t entity) {
@@ -118,6 +119,75 @@ bool* XB_CDECL ScrField_StringIsDefined(bool* out, uint32_t entity) {
     const ScriptString* got = title_function<GetStringCopy>(0x0052bd10)(table, &copy, Hash);  // ScriptKeyTable_GetStringCopy
     *out = got->rep != nullptr;
     title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&copy);  // ScriptString_Release
+    return out;
+}
+
+template <uint32_t Hash, uint32_t Getter>
+void* XB_CDECL ScrField_Get(uint32_t entity) {
+    return title_function<void* XB_THISCALL(ScriptKeyTable*, uint32_t)>(Getter)(script_object_or_empty(entity), Hash);
+}
+
+template <uint32_t Hash, uint32_t Copier>
+bool* XB_CDECL ScrField_ArrayIsDefined(bool* out, uint32_t entity) {
+    ScriptKeyTable* table = handle_is_valid(entity) ? script_object(entity) : nullptr;
+    if (!table) {
+        *out = false;
+        return out;
+    }
+    uint32_t copy[3];  // data, count, capacity; the copier writes all three
+    const uint32_t* got = title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t*, uint32_t)>(Copier)(table, copy, Hash);
+    *out = got[1] != 0;
+    if (copy[0]) title_function<void XB_CDECL(uint32_t)>(0x002f5e10)(copy[0]);  // Scr_Free
+    return out;
+}
+
+template <uint32_t Hash>
+uint32_t* XB_CDECL ScrField_HandleSlot(uint32_t entity) {
+    ScriptKeyTable* table = script_object_or_empty(entity);
+    if (uint32_t* value = ScriptKeyTable_Find(table, Hash)) return value;
+    const uint32_t none = 0;
+    using SetValue = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*);
+    return title_function<SetValue>(0x00458e10)(table, Hash, &none);  // ScriptKeyTable_SetValue
+}
+
+template <uint32_t Hash>
+bool* XB_CDECL ScrField_HandleSlotIsDefined(bool* out, uint32_t entity) {
+    ScriptKeyTable* table = handle_is_valid(entity) ? script_object(entity) : nullptr;
+    if (!table) {
+        *out = false;
+        return out;
+    }
+    const uint32_t* value = ScriptKeyTable_Find(table, Hash);
+    *out = handle_is_valid(value ? *value : 0);
+    return out;
+}
+
+template <uint32_t Hash>
+float* XB_CDECL ScrField_VectorSlot(uint32_t entity) {
+    ScriptKeyTable* table = script_object_or_empty(entity);
+    uint32_t* value = ScriptKeyTable_Find(table, Hash);
+    if (!value) {
+        const float undefined = title_global<float>(kUndefinedVectorLane);
+        const float vector[3] = {undefined, undefined, undefined};
+        using SetVector = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const float*);
+        value = title_function<SetVector>(0x005b41b0)(table, Hash, vector);  // ScriptKeyTable_SetVector
+    }
+    return reinterpret_cast<float*>(static_cast<uintptr_t>(*value));
+}
+
+template <uint32_t Hash>
+bool* XB_CDECL ScrField_VectorSlotIsDefined(bool* out, uint32_t entity) {
+    ScriptKeyTable* table = handle_is_valid(entity) ? script_object(entity) : nullptr;
+    if (!table) {
+        *out = false;
+        return out;
+    }
+    const uint32_t* value = ScriptKeyTable_Find(table, Hash);
+    const float undefined = title_global<float>(kUndefinedVectorLane);
+    float v[3] = {undefined, undefined, undefined};
+    if (value) std::memcpy(v, reinterpret_cast<const void*>(static_cast<uintptr_t>(*value)), sizeof v);
+    // UCOMISS per lane, x first; a NaN lane counts as defined.
+    *out = !(v[0] == undefined) || !(v[1] == undefined) || !(v[2] == undefined);
     return out;
 }
 

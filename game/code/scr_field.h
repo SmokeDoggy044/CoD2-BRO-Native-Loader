@@ -53,6 +53,33 @@ ScriptString* XB_CDECL ScrField_String(uint32_t entity);
 template <uint32_t Hash>
 bool* XB_CDECL ScrField_StringIsDefined(bool* out, uint32_t entity);
 
+// The field through a ScriptKeyTable getter at `Getter` (thiscall(table, hash), e.g.
+// the array getters that add an empty array): its result.
+template <uint32_t Hash, uint32_t Getter>
+void* XB_CDECL ScrField_Get(uint32_t entity);
+
+// Whether the array field has elements: a copy through `Copier` (thiscall(table,
+// out[3], hash): data, count, capacity), freed after. Returns `out`.
+template <uint32_t Hash, uint32_t Copier>
+bool* XB_CDECL ScrField_ArrayIsDefined(bool* out, uint32_t entity);
+
+// An entity-handle field (starts as 0, ScriptKeyTable_SetValue).
+template <uint32_t Hash>
+uint32_t* XB_CDECL ScrField_HandleSlot(uint32_t entity);
+
+// Whether the handle field names a live entity (Scr_EntityHandleIsValid; 0 when missing).
+template <uint32_t Hash>
+bool* XB_CDECL ScrField_HandleSlotIsDefined(bool* out, uint32_t entity);
+
+// A vector field: the table holds a pointer to three floats (added as three
+// undefined lanes, 0x00922eb8, when missing). Returns the vector.
+template <uint32_t Hash>
+float* XB_CDECL ScrField_VectorSlot(uint32_t entity);
+
+// Whether any lane differs from the undefined lane (a NaN counts as defined).
+template <uint32_t Hash>
+bool* XB_CDECL ScrField_VectorSlotIsDefined(bool* out, uint32_t entity);
+
 }  // namespace game
 
 #include "scr_field_instances.h"

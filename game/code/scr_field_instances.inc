@@ -482,5 +482,322 @@ template bool* XB_CDECL ScrField_StringIsDefined<0xec2bcfddu>(bool*, uint32_t);
 template bool* XB_CDECL ScrField_StringIsDefined<0xf203df5eu>(bool*, uint32_t);
 template bool* XB_CDECL ScrField_StringIsDefined<0xf8cb7452u>(bool*, uint32_t);
 template bool* XB_CDECL ScrField_StringIsDefined<0xff7c2a57u>(bool*, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x00339844u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x0718b2c3u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x0aa8c328u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x0fc14a52u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x14b95adau>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x185dadcau>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x18b0887bu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x19738af8u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x19a3d654u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x1e46f957u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x1ea97196u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x217d7784u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x262b2a4bu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x2cdbaad4u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x2eecefb8u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x34314719u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x552cfcabu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x602384d4u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x75c85f71u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x788065ebu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x80bdb846u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x83ccaf2au>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x88260b0du>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x8903ef3cu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0x98d8d171u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xa287dc52u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xaa3cdddeu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xac835695u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xb2f8556fu>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xbe944753u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc0bb2676u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc0f54bd1u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc0f54bd2u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc0f54bd3u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc0f54bd4u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xc54b0523u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xd57e151du>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xd8e13e71u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xdbcf23c0u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xddfa2c42u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xdedbf624u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xe29137e5u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xec299128u>(uint32_t, uint32_t);
+template uint32_t* XB_CDECL ScrField_BoolSlot<0xed6f4cccu>(uint32_t, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x00339844u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x0718b2c3u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x0aa8c328u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x0fc14a52u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x14b95adau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x185dadcau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x18b0887bu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x19738af8u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x19a3d654u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x1e46f957u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x1ea97196u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x217d7784u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x262b2a4bu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x2cdbaad4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x2eecefb8u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x34314719u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x552cfcabu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x602384d4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x75c85f71u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x788065ebu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x80bdb846u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x83ccaf2au>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x88260b0du>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x8903ef3cu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0x98d8d171u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xa287dc52u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xaa3cdddeu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xac835695u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xb2f8556fu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xbe944753u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc0bb2676u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc0f54bd1u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc0f54bd2u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc0f54bd3u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc0f54bd4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xc54b0523u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xd57e151du>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xd8e13e71u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xdbcf23c0u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xddfa2c42u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xdedbf624u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xe29137e5u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xec299128u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_BoolSlotIsDefined<0xed6f4cccu>(bool*, uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x01757a0eu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x070009e5u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x07355c08u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x14264808u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x1666e7cfu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x166fe566u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2297b461u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x25bf26c6u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2d4a70b5u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x35ee66afu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x3873520au, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x3dba7deau, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x41a569d7u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x515816fau, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x66db43f0u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6937c3b9u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6a80ec39u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6c663e5fu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6c663f49u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6e62eeddu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x766fe577u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x807116c4u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x8166d37cu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x838d6a89u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x93655872u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x98b54d9fu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x9a44df1eu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xa171373fu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xa22fa6bau, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xa3b8e90eu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xaff9c3b8u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xb3845cc4u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xb873524fu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xbe149b8cu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xc8b638d8u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xc8b639ceu, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xce8a66f4u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xdf09fd77u, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xe223c6aau, 0x00922eacu>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xec0a1800u, 0x00922eacu>(uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x01757a0eu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x070009e5u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x07355c08u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x14264808u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x1666e7cfu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x166fe566u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x2297b461u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x25bf26c6u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x2d4a70b5u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x35ee66afu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x3873520au>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x3dba7deau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x41a569d7u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x515816fau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x66db43f0u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x6937c3b9u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x6a80ec39u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x6c663e5fu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x6c663f49u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x6e62eeddu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x766fe577u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x807116c4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x8166d37cu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x838d6a89u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x93655872u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x98b54d9fu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0x9a44df1eu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xa171373fu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xa22fa6bau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xa3b8e90eu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xaff9c3b8u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xb3845cc4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xb873524fu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xbe149b8cu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xc8b638d8u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xc8b639ceu>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xce8a66f4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xdf09fd77u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xe223c6aau>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_FloatSlotIsDefined<0xec0a1800u>(bool*, uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x0038b194u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x05374cc6u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x095a5675u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x230139deu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2d7db3f6u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2f31323bu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x30248704u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x384ad510u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x3d130364u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x474f5086u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x65637ee2u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x66973beeu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x66a44409u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x682ea6e9u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6bd99abbu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6dcb7c56u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x93348a05u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x9a7145f5u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x9af3e4c4u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x9dc74345u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xa33a251du, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xa78b2c24u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xaeb1527du, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xaee44119u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xb1812439u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xb8e86881u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xc3f4bdfcu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xc511e266u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xd850f89eu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xe057503bu, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xe0b632e1u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xe0b632e2u, 0x00000000u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xf8b8e073u, 0x00000000u>(uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x0038b194u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x230139deu, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x2d7db3f6u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x30248704u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x3d130364u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x66973beeu, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x66a44409u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x682ea6e9u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x93348a05u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x9a7145f5u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x9af3e4c4u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x9dc74345u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xaeb1527du, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xb1812439u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xb8e86881u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xe0b632e1u, 0x00000000u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xe0b632e2u, 0x00000000u>(bool*, uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x0ca29c7fu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x0ccee5c1u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x175567a8u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x1de0c645u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2181000bu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x2afa5406u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x358ad77bu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x3fd9be84u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x42f377f3u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x4de32b74u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x59cb9dd1u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x6f631b0eu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x72e59ffdu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x764918aeu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x7bc62f6eu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x81f1fdcbu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x8cb5047au, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0x97c730fdu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xb7f3f874u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xbad1ef6du, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xbb50e708u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xbfc60f36u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xcaeba6a6u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xcbffac0du, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xd82f7174u, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xdce273fbu, 0x00922eb4u>(uint32_t);
+template uint32_t* XB_CDECL ScrField_Slot<0xfa79d674u, 0x00922eb4u>(uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x0ca29c7fu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x0ccee5c1u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x175567a8u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x1de0c645u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x2181000bu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x2afa5406u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x358ad77bu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x3fd9be84u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x42f377f3u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x4de32b74u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x59cb9dd1u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x6f631b0eu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x72e59ffdu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x764918aeu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x7bc62f6eu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x81f1fdcbu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x8cb5047au, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0x97c730fdu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xb7f3f874u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xbad1ef6du, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xbb50e708u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xbfc60f36u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xcaeba6a6u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xcbffac0du, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xd82f7174u, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xdce273fbu, 0x00922eb4u>(bool*, uint32_t);
+template bool* XB_CDECL ScrField_SlotIsDefined<0xfa79d674u, 0x00922eb4u>(bool*, uint32_t);
 
 }  // namespace game
+
+SCR_FIELD_ECX_ENTRY(ScrField_h19738af8, ScrField_BoolSlot<0x19738af8u>)
+SCR_FIELD_ECX_ENTRY(ScrField_clip, ScrField_BoolSlot<0xc0f54bd4u>)
+SCR_FIELD_ECX_ENTRY(ScrField_hdedbf624, ScrField_BoolSlot<0xdedbf624u>)
+SCR_FIELD_ECX_ENTRY(ScrField_clip_2, ScrField_BoolSlot<0xc0f54bd1u>)
+SCR_FIELD_ECX_ENTRY(ScrField_on_monitor, ScrField_BoolSlot<0x98d8d171u>)
+SCR_FIELD_ECX_ENTRY(ScrField_clip_3, ScrField_BoolSlot<0xc0f54bd3u>)
+SCR_FIELD_ECX_ENTRY(ScrField_clip_4, ScrField_BoolSlot<0xc0f54bd2u>)
+SCR_FIELD_ECX_ENTRY(ScrField_context_text, ScrField_BoolSlot<0xddfa2c42u>)
+SCR_FIELD_ECX_ENTRY(ScrField_haa3cddde, ScrField_BoolSlot<0xaa3cdddeu>)
+SCR_FIELD_ECX_ENTRY(ScrField_dead, ScrField_BoolSlot<0x00339844u>)
+SCR_FIELD_ECX_ENTRY(ScrField_clip_on, ScrField_BoolSlot<0x1ea97196u>)
+SCR_FIELD_ECX_ENTRY(ScrField_mounting, ScrField_BoolSlot<0x2cdbaad4u>)
+SCR_FIELD_ECX_ENTRY(ScrField_hd57e151d, ScrField_BoolSlot<0xd57e151du>)
+SCR_FIELD_ECX_ENTRY(ScrField_h0718b2c3, ScrField_BoolSlot<0x0718b2c3u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h34314719, ScrField_BoolSlot<0x34314719u>)
+SCR_FIELD_ECX_ENTRY(ScrField_hdbcf23c0, ScrField_BoolSlot<0xdbcf23c0u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h8903ef3c, ScrField_BoolSlot<0x8903ef3cu>)
+SCR_FIELD_ECX_ENTRY(ScrField_h788065eb, ScrField_BoolSlot<0x788065ebu>)
+SCR_FIELD_ECX_ENTRY(ScrField_navigating, ScrField_BoolSlot<0x88260b0du>)
+SCR_FIELD_ECX_ENTRY(ScrField_hac835695, ScrField_BoolSlot<0xac835695u>)
+SCR_FIELD_ECX_ENTRY(ScrField_custom_kill, ScrField_BoolSlot<0x1e46f957u>)
+SCR_FIELD_ECX_ENTRY(ScrField_just_delete, ScrField_BoolSlot<0x0fc14a52u>)
+SCR_FIELD_ECX_ENTRY(ScrField_shellshocked, ScrField_BoolSlot<0x2eecefb8u>)
+SCR_FIELD_ECX_ENTRY(ScrField_automated, ScrField_BoolSlot<0xd8e13e71u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h18b0887b, ScrField_BoolSlot<0x18b0887bu>)
+SCR_FIELD_ECX_ENTRY(ScrField_can_shoot_low, ScrField_BoolSlot<0x185dadcau>)
+SCR_FIELD_ECX_ENTRY(ScrField_h217d7784, ScrField_BoolSlot<0x217d7784u>)
+SCR_FIELD_ECX_ENTRY(ScrField_is_paused, ScrField_BoolSlot<0x262b2a4bu>)
+SCR_FIELD_ECX_ENTRY(ScrField_hb2f8556f, ScrField_BoolSlot<0xb2f8556fu>)
+SCR_FIELD_ECX_ENTRY(ScrField_he29137e5, ScrField_BoolSlot<0xe29137e5u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h75c85f71, ScrField_BoolSlot<0x75c85f71u>)
+SCR_FIELD_ECX_ENTRY(ScrField_hc54b0523, ScrField_BoolSlot<0xc54b0523u>)
+SCR_FIELD_ECX_ENTRY(ScrField_player_target, ScrField_BoolSlot<0x19a3d654u>)
+SCR_FIELD_ECX_ENTRY(ScrField_used_an_mg42, ScrField_BoolSlot<0xa287dc52u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h602384d4, ScrField_BoolSlot<0x602384d4u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h552cfcab, ScrField_BoolSlot<0x552cfcabu>)
+SCR_FIELD_ECX_ENTRY(ScrField_hec299128, ScrField_BoolSlot<0xec299128u>)
+SCR_FIELD_ECX_ENTRY(ScrField_hed6f4ccc, ScrField_BoolSlot<0xed6f4cccu>)
+SCR_FIELD_ECX_ENTRY(ScrField_is_firing, ScrField_BoolSlot<0x0aa8c328u>)
+SCR_FIELD_ECX_ENTRY(ScrField_finished_spawning, ScrField_BoolSlot<0xc0bb2676u>)
+SCR_FIELD_ECX_ENTRY(ScrField_pause_update, ScrField_BoolSlot<0x14b95adau>)
+SCR_FIELD_ECX_ENTRY(ScrField_hbe944753, ScrField_BoolSlot<0xbe944753u>)
+SCR_FIELD_ECX_ENTRY(ScrField_h83ccaf2a, ScrField_BoolSlot<0x83ccaf2au>)
+SCR_FIELD_ECX_ENTRY(ScrField_using_respawner, ScrField_BoolSlot<0x80bdb846u>)
