@@ -5,7 +5,10 @@
 #include "cl.h"
 #include "g_main.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
+#include "bg_misc.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
 #include "title_data.h"
@@ -324,7 +327,103 @@ const uint32_t* persistent_end() {
     return field<const uint32_t*>(owner, 0x560) + field<uint32_t>(owner, 0x568) * 3;
 }
 
+// A HUD element (0x7c bytes at 0x0094cc88) by index.
+uint8_t* hud_elem(int32_t index) { return &title_global<uint8_t>(static_cast<uint32_t>(index * 0x7c + 0x0094cc88)); }
+
+// A float widened to double on the x87 (FLD DWORD / FSTP QWORD), as the title passes %g arguments.
+double x87_widen(float value) {
+    double result;
+    __asm__ volatile("flds %1\n\tfstpl %0" : "=m"(result) : "m"(value));
+    return result;
+}
+
+// The *OverTime builtins' range check: a time <= 0 or > 60 formats a message (va) and nothing else.
+void check_hud_time(float time, uint32_t too_small, uint32_t too_large) {
+    using Va = const char* XB_CDECL(const char*, double);
+    if (time <= 0.0f) {  // comiss 0, time; jb: NaN goes on to the second test (also false)
+        title_function<Va>(0x002a93d0)(&title_global<char>(too_small), x87_widen(time));  // va
+    } else if (time > title_global<float>(0x0083eb3c)) {  // 60
+        title_function<Va>(0x002a93d0)(&title_global<char>(too_large), x87_widen(time));  // va
+    }
+}
+
+// time * 1000 + 0.5, truncated (CVTTSS2SI).
+int32_t hud_time_ms(float time) {
+    return static_cast<int32_t>(time * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24));
+}
+
+// va with only a format (the shipped build's script error messages: formatted, then dropped).
+void va_message(uint32_t format) {
+    title_function<const char* XB_CDECL(const char*)>(0x002a93d0)(&title_global<char>(format));  // va
+}
+
+// The vehicle (+0x248) of the handle's entity, or null.
+uint8_t* handle_vehicle(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<uint8_t*>(ent, 0x248) : nullptr;
+}
+
+// The vehicle of a path vehicle builtin: message when the entity's +0x297 is 2 (used by a player).
+uint8_t* path_vehicle(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return nullptr;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return nullptr;
+    if (field<uint8_t>(ent, 0x297) == 2) va_message(0x008319f4);  // "Vehicle is invalid on path after it's been used"
+    return vehicle;
+}
+
+// Turret builtins: message when the entity's health (+0x350, as a float) is <= 0.
+void check_turret_health(uint8_t* ent) {
+    if (static_cast<float>(field<int32_t>(ent, 0x350)) <= 0.0f)
+        va_message(0x00831938);  // "Vehicle must have health to control the turret"
+}
+
 const char* title_text(uint32_t address) { return reinterpret_cast<const char*>(static_cast<uintptr_t>(address)); }
+
+// A script string's text (+6 of its rep), null for the empty string.
+const char* script_text(const ScriptString* s) {
+    const uint32_t rep = *reinterpret_cast<const uint32_t*>(s);
+    return rep ? reinterpret_cast<const char*>(static_cast<uintptr_t>(rep + 6)) : nullptr;
+}
+
+// The weapon slot a script string names (_stricmp over 0x008d23a8, 7 names); "none" (0) and unknown names
+// format the message and give 0.
+uint32_t weapon_slot(const ScriptString* name) {
+    const char* const text = script_text(name);
+    uint32_t slot = 0;
+    for (uint32_t i = 0; i < 7; ++i) {
+        if (title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+                text, title_text(title_global<uint32_t>(0x008d23a8 + i * 4))) == 0) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == 0)
+        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+            &title_global<char>(0x00831cb0), script_text(name));  // "Unknown weaponslot name %s. ..."
+    return slot;
+}
+
+// The client (+0x23c) of the handle's entity, or null.
+uint8_t* handle_client(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<uint8_t*>(ent, 0x23c) : nullptr;
+}
+
+uint8_t* weapon_def(int32_t weapon) { return title_global<uint8_t**>(0x0095f4d8)[weapon]; }  // bg_weaponDefs
+
+// GScr_PlayerAllowPmFlag*: allow clears the flag of the client's +0x2c, else sets it.
+template <uint32_t Flag>
+void allow_pm_flag(uint32_t handle, uint32_t allow) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    if (static_cast<uint8_t>(allow))
+        field<uint32_t>(client, 0x2c) &= ~Flag;
+    else
+        field<uint32_t>(client, 0x2c) |= Flag;
+}
 
 }  // namespace
 
@@ -572,6 +671,431 @@ void XB_CDECL GScr_HudObjectives_Set13d0(uint32_t a, uint32_t b) {
     uint8_t* const objectives = field<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), 4);
     field<uint16_t>(objectives, 0x13d0) = static_cast<uint16_t>(a);
     field<uint16_t>(objectives, 0x13d2) = static_cast<uint16_t>(b);
+}
+
+void XB_CDECL GScr_GetSpgVariant(const char* name, uint32_t* a, uint32_t* b, uint32_t* c) {
+    uint32_t variant[3] = {0, 0, 0};
+    const uint32_t key = Com_HashKeyNoCase(0, name);
+    Spg_FindRandomVariant(title_global<uint8_t*>(0x0095f564), variant, key);
+    if (!variant[0]) {
+        *a = 0;
+        *b = 0;
+        *c = 0;
+        return;
+    }
+    *a = variant[0];
+    *b = variant[1];
+    *c = variant[2];
+}
+
+uint32_t XB_CDECL GScr_IsNotMinusOne(int32_t value) { return value != -1; }
+uint32_t XB_CDECL GScr_IsValidHandle(int32_t value) { return value != 0 && value != -1; }
+
+void XB_CDECL GScr_EntList190_Disable(uint32_t key) { G_EntList190_Disable(title_global<uint8_t*>(0x0095f4f8), key); }
+void XB_CDECL GScr_EntList190_Enable(uint32_t key) { G_EntList190_Enable(title_global<uint8_t*>(0x0095f4f8), key); }
+
+void XB_CDECL GScr_HudDestroy(const int32_t* hud) {
+    if (*hud >= 0) field<uint32_t>(hud_elem(*hud), 0) = 0;
+}
+
+void XB_CDECL GScr_HudMoveOverTime(const int32_t* hud, float time) {
+    uint8_t* const elem = hud_elem(*hud);
+    check_hud_time(time, 0x00832370, 0x0083235c);  // "move time %g <= 0", "move time %g > 60"
+    field<int32_t>(elem, 0x54) = title_global<int32_t>(0x0098540c);
+    field<int32_t>(elem, 0x58) = hud_time_ms(time);
+    field<uint32_t>(elem, 0x4c) = field<uint32_t>(elem, 0x4);
+    field<uint32_t>(elem, 0x50) = field<uint32_t>(elem, 0x8);
+}
+
+void XB_CDECL GScr_HudScaleOverTime(const int32_t* hud, float time, uint32_t width, uint32_t height) {
+    uint8_t* const elem = hud_elem(*hud);
+    check_hud_time(time, 0x00832398, 0x00832384);  // "scale time %g <= 0", "scale time %g > 60"
+    field<int32_t>(elem, 0x44) = title_global<int32_t>(0x0098540c);
+    field<int32_t>(elem, 0x48) = hud_time_ms(time);
+    field<uint32_t>(elem, 0x3c) = field<uint32_t>(elem, 0x30);
+    field<uint32_t>(elem, 0x40) = field<uint32_t>(elem, 0x34);
+    field<uint32_t>(elem, 0x30) = width;
+    field<uint32_t>(elem, 0x34) = height;
+}
+
+void XB_CDECL GScr_HudFadeOverTime(const int32_t* hud, float time) {
+    uint8_t* const elem = hud_elem(*hud);
+    check_hud_time(time, 0x008323c0, 0x008323ac);  // "fade time %g <= 0", "fade time %g > 60"
+    field<int32_t>(elem, 0x24) = title_global<int32_t>(0x0098540c);
+    field<int32_t>(elem, 0x28) = hud_time_ms(time);
+    field<uint32_t>(elem, 0x20) = field<uint32_t>(elem, 0x1c);
+}
+
+void XB_CDECL GScr_HudSetValue(const int32_t* hud, float value) {
+    uint8_t* const elem = hud_elem(*hud);
+    field<float>(elem, 0x64) = 0.0f;
+    static const uint32_t kCleared[] = {0x30, 0x34, 0x38, 0x3c, 0x40, 0x44, 0x48, 0x5c, 0x60, 0x68};
+    for (uint32_t offset : kCleared) field<uint32_t>(elem, offset) = 0;
+    field<uint32_t>(elem, 0) = 2;
+    field<float>(elem, 0x64) = value;
+}
+
+void XB_CDECL GScr_ZoneClearField34(uint8_t* zone) {
+    if (zone) field<uint32_t>(zone, 0x34) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
+}
+
+void XB_CDECL GScr_ZoneSetField34(uint8_t* zone, float value) {
+    if (!zone) return;
+    field<float>(zone, 0x34) = value;
+    ++title_global<uint32_t>(0x008d9d38);
+}
+
+uint8_t XB_CDECL GScr_IsZoneLoaded(const uint8_t* zone) {
+    if (!zone) return 0;
+    const int32_t index = *reinterpret_cast<const int32_t*>(zone + 0x28);
+    if (index == -1) return 0;
+    uint8_t* const entry = field<uint8_t*>(title_global<uint8_t*>(0x0095f638), 0x38 + index * 4);
+    if (!entry) return 0;
+    return field<uint32_t>(entry, 0xdc) == 0;
+}
+
+float XB_CDECL GScr_GetFrameTime() { return title_global<float>(0x008ddaa0); }
+
+void XB_CDECL GScr_SetMusicTrack(float value) {
+    uint8_t* const music = title_global<uint8_t*>(0x0095f4cc);
+    field<float>(music, 0x14) = value;
+    field<uint32_t>(music, 0x1c) = 2;
+    field<float>(music, 0x18) = 0.0f;
+}
+
+uint8_t XB_CDECL GScr_Vehicle_Is180Clear(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return 0;
+    if (field<uint8_t>(ent, 0x297) != 2) va_message(0x00831888);  // "Must be called on a player controlled vehicle"
+    return field<int32_t>(vehicle, 0x180) <= 0;
+}
+
+void XB_CDECL GScr_Vehicle_ClearTurretTarget(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    field<uint32_t>(vehicle, 0x1c8) = 0;
+    field<uint32_t>(vehicle, 0x1cc) = 0;
+    for (uint32_t offset = 0x1d0; offset <= 0x1e4; offset += 4) field<float>(vehicle, offset) = 0.0f;
+}
+
+void XB_CDECL GScr_Vehicle_SetTurretTargetEnt(uint32_t handle, uint32_t target, const uint32_t* offset) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    check_turret_health(ent);
+    uint8_t* const other = handle_entity(target);
+    if (!other) return;
+    field<uint32_t>(vehicle, 0x1c8) = 1;
+    field<uint32_t>(vehicle, 0x1cc) = field<uint32_t>(other, 0x224);
+    if (Vec3_IsNonZero(0, 0, reinterpret_cast<const float*>(offset))) {
+        field<uint32_t>(vehicle, 0x1dc) = offset[0];
+        field<uint32_t>(vehicle, 0x1e0) = offset[1];
+        field<uint32_t>(vehicle, 0x1e4) = offset[2];
+    } else {
+        field<float>(vehicle, 0x1dc) = 0.0f;
+        field<float>(vehicle, 0x1e0) = 0.0f;
+        field<float>(vehicle, 0x1e4) = 0.0f;
+    }
+}
+
+void XB_CDECL GScr_Vehicle_SetTurretTargetVec(uint32_t handle, const uint32_t* point) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    check_turret_health(ent);
+    field<uint32_t>(vehicle, 0x1c8) = 1;
+    field<uint32_t>(vehicle, 0x1cc) = 0;
+    field<uint32_t>(vehicle, 0x1d0) = point[0];
+    field<uint32_t>(vehicle, 0x1d4) = point[1];
+    field<uint32_t>(vehicle, 0x1d8) = point[2];
+    field<float>(vehicle, 0x1dc) = 0.0f;
+    field<float>(vehicle, 0x1e0) = 0.0f;
+    field<float>(vehicle, 0x1e4) = 0.0f;
+}
+
+void XB_CDECL GScr_Vehicle_Clear190(uint32_t handle) {
+    if (uint8_t* const vehicle = handle_vehicle(handle)) field<uint32_t>(vehicle, 0x190) = 0;
+}
+
+void XB_CDECL GScr_Vehicle_Set190(uint32_t handle, uint32_t value) {
+    uint8_t* const vehicle = handle_vehicle(handle);
+    if (!vehicle) return;
+    field<uint32_t>(vehicle, 0x190) = 1;
+    field<uint32_t>(vehicle, 0x194) = static_cast<uint8_t>(value);
+}
+
+void XB_CDECL GScr_Vehicle_MakeUsable(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (handle_entity(field<uint32_t>(ent, 0x1a0))) va_message(0x0083197c);  // "Vehicle is already in use"
+    field<uint32_t>(ent, 0x2a0) &= ~1u;
+    field<uint32_t>(ent, 0x134) &= ~0x200000u;
+}
+
+void XB_CDECL GScr_Vehicle_MakeUnusable(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    field<uint32_t>(ent, 0x2a0) |= 1;
+    field<uint32_t>(ent, 0x134) |= 0x200000;
+}
+
+void XB_CDECL GScr_Vehicle_Clear200(uint32_t handle) {
+    if (uint8_t* const vehicle = handle_vehicle(handle)) field<uint32_t>(vehicle, 0x200) = 0;
+}
+
+void XB_CDECL GScr_Vehicle_Set200(uint32_t handle) {
+    if (uint8_t* const vehicle = handle_vehicle(handle)) field<uint32_t>(vehicle, 0x200) = 1;
+}
+
+uint32_t XB_CDECL GScr_Vehicle_GetOwnerHandle(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    const uint32_t owner = field<uint32_t>(ent, 0x1a0);
+    return handle_entity(owner) ? owner : 0;
+}
+
+long double XB_CDECL GScr_Vehicle_GetSpeedMPH(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return title_global<float>(0x0083eafc);
+    return platform_x87_ld(field<float>(ent, 0x2fc)) * title_global<float>(0x0083ee80);
+}
+
+void XB_CDECL GScr_Vehicle_GetWheelSurface(uint32_t handle, uint32_t wheel, ScriptString* out) {
+    uint8_t* const vehicle = handle_vehicle(handle);
+    if (!vehicle) return;
+    const uint32_t def = title_global<uint32_t>(0x00950a28 + field<int16_t>(vehicle, 0x178) * 4);  // g_vehicleDefs
+    const uint16_t type = field<uint16_t>(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(def)), 0x20);
+    if (type != 2 && type != 1)
+        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00831998), def);  // "Vehicle type [%s] has no wheels\n"
+    static const uint32_t kWheels[] = {0x0097a7c8, 0x0097a7cc, 0x0097a7d0, 0x0097a7d4, 0x0097a7d8, 0x0097a7dc};
+    uint32_t index = 0;
+    for (uint32_t i = 0; i < 6; ++i) {
+        if (wheel == title_global<uint32_t>(kWheels[i])) {
+            index = i;
+            break;
+        }
+    }
+    const int32_t surface = field<int32_t>(vehicle, 0x150 + index * 4);
+    uint32_t text;
+    if (surface == 0)
+        text = 0x00832430;  // "none"
+    else if (surface < 0 || surface >= 0x17)
+        text = 0x00831f70;  // "default"
+    else
+        text = title_global<uint32_t>(0x008d4d08 + surface * 16);
+    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+}
+
+void XB_CDECL GScr_Vehicle_SetSpeedMode2(uint32_t handle, float speed) {
+    uint8_t* const vehicle = path_vehicle(handle);
+    if (!vehicle) return;
+    const float scaled = speed * title_global<float>(0x0083ee64);
+    field<uint32_t>(vehicle, 0x1b0) = 2;
+    field<float>(vehicle, 0x1b8) = scaled;
+}
+
+void XB_CDECL GScr_Vehicle_SetSpeed(uint32_t handle, float speed, float accel) {
+    uint8_t* const vehicle = path_vehicle(handle);
+    if (!vehicle) return;
+    const float k = title_global<float>(0x0083ee64);
+    field<float>(vehicle, 0x1b4) = speed * k;
+    const float scaled = accel * k;
+    field<uint32_t>(vehicle, 0x1b0) = 1;
+    field<float>(vehicle, 0x1b8) = scaled;
+}
+
+void XB_CDECL GScr_Vehicle_SetMaxSpeed(uint32_t handle, float speed) {
+    uint8_t* const vehicle = path_vehicle(handle);
+    if (!vehicle) return;
+    field<float>(vehicle, 0x17c) = speed * title_global<float>(0x0083ee64);
+}
+
+void XB_CDECL GScr_Vehicle_SetWaitNode(uint32_t handle, const int32_t* node) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || *node == -1) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    if (field<uint8_t>(ent, 0x297) == 2) va_message(0x008319f4);  // "Vehicle is invalid on path after it's been used"
+    field<uint16_t>(vehicle, 0x17a) = *reinterpret_cast<const uint16_t*>(node);
+    field<uint32_t>(vehicle, 0x2f8) = 0;
+}
+
+void XB_CDECL GScr_Vehicle_SetSwitchNode(uint32_t handle, const int32_t* from, const int32_t* to) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const int32_t a = *from;
+    if (a == -1) return;
+    const int32_t b = *to;
+    if (b == -1) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    if (field<uint8_t>(ent, 0x297) == 2) va_message(0x008319f4);  // "Vehicle is invalid on path after it's been used"
+    Vehicle_SetSwitchNodes(static_cast<uint32_t>(a), vehicle, static_cast<uint32_t>(b));
+}
+
+void XB_CDECL GScr_Vehicle_StartPath(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    if (field<uint8_t>(ent, 0x297) == 2) va_message(0x008319f4);  // "Vehicle is invalid on path after it's been used"
+    if (field<int16_t>(vehicle, 0) < 0) va_message(0x008319bc);  // "Can't start path on a vehicle that hasn't been attached"
+    field<uint8_t>(ent, 0x297) = 1;
+}
+
+int32_t XB_CDECL GScr_PlayerGetWeaponSlotClipSize(uint32_t handle, const ScriptString* slot) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return 0;
+    const uint32_t index = weapon_slot(slot);
+    const int32_t weapon = field<int8_t>(field<uint8_t*>(ent, 0x23c), 0x3f8 + index);
+    if (!weapon) return 0;
+    return field<int32_t>(weapon_def(weapon), 0x5a8);
+}
+
+void XB_CDECL GScr_PlayerSetWeaponSlotClipAmmo(uint32_t handle, const ScriptString* slot, int32_t count) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    const uint32_t index = weapon_slot(slot);
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const int32_t weapon = field<int8_t>(client, 0x3f8 + index);
+    if (!weapon) return;
+    const uint32_t clip = field<uint32_t>(weapon_def(weapon), 0x5a0);
+    if (!clip) return;
+    int32_t value = count < 0 ? 0 : count;
+    const int32_t max = title_global<int32_t>(0x00935338 + clip * 4);
+    if (value > max) value = max;
+    field<int32_t>(client, 0x280 + clip * 4) = value;
+}
+
+int32_t XB_CDECL GScr_PlayerGetWeaponSlotClipAmmo(uint32_t handle, const ScriptString* slot) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return 0;
+    const uint32_t index = weapon_slot(slot);
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const int32_t weapon = field<int8_t>(client, 0x3f8 + index);
+    if (!weapon) return 0;
+    const uint32_t clip = field<uint32_t>(weapon_def(weapon), 0x5a0);
+    if (!clip) return 0;
+    return field<int32_t>(client, 0x280 + clip * 4);
+}
+
+void XB_CDECL GScr_PlayerSetWeaponSlotAmmo(uint32_t handle, const ScriptString* slot, int32_t count) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    const uint32_t index = weapon_slot(slot);
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const int32_t weapon = field<int8_t>(client, 0x3f8 + index);
+    if (!weapon) return;
+    uint8_t* const def = weapon_def(weapon);
+    uint32_t ammo, base, maxes;
+    if (field<uint32_t>(def, 0x6ec)) {
+        ammo = field<uint32_t>(def, 0x5a0), base = 0x280, maxes = 0x00935338;
+    } else {
+        ammo = field<uint32_t>(def, 0x598), base = 0x110, maxes = 0x00929818;
+    }
+    if (!ammo) return;
+    if (count < 0) {
+        field<int32_t>(client, base + ammo * 4) = 0;
+        return;
+    }
+    const int32_t max = title_global<int32_t>(maxes + ammo * 4);
+    field<int32_t>(client, base + ammo * 4) = count > max ? max : count;
+}
+
+int32_t XB_CDECL GScr_PlayerGetWeaponSlotAmmo(uint32_t handle, const ScriptString* slot) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return 0;
+    const uint32_t index = weapon_slot(slot);
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const int32_t weapon = field<int8_t>(client, 0x3f8 + index);
+    if (!weapon) return 0;
+    uint8_t* const def = weapon_def(weapon);
+    if (field<uint32_t>(def, 0x6ec)) return field<int32_t>(client, 0x280 + field<uint32_t>(def, 0x5a0) * 4);
+    return field<int32_t>(client, 0x110 + field<uint32_t>(def, 0x598) * 4);
+}
+
+void XB_CDECL GScr_CheckWeaponSlot(uint32_t handle, const ScriptString* slot, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    // (The original keeps the entity in its handle argument slot: callee scratch, not compared.)
+    if (!field<uint8_t*>(ent, 0x23c)) return;
+    const uint32_t index = weapon_slot(slot);
+    uint32_t weapon = 0;
+    const char* const text = script_text(weapon_name);
+    const bool none = text && Q_stricmpn(text, title_text(0x00832430), 99999) == 0;  // "none"
+    if (!none) {
+        const char* const name = script_text(weapon_name);
+        if (name && *name) weapon = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, name)) & 0xff;
+        if (!weapon)
+            title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+                &title_global<char>(0x00831c9c), script_text(weapon_name));  // "Unknown weapon %s."
+        const uint32_t kind = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x9c);
+        const bool mixed_primary = (kind == 1 || kind == 2) && (index == 1 || index == 2);
+        if (kind != index && !mixed_primary)
+            title_function<const char* XB_CDECL(const char*, const char*, const char*, const char*)>(0x002a93d0)(  // va
+                &title_global<char>(0x00831c60), script_text(weapon_name),  // "Weapon %s goes in the %s weaponslot, ..."
+                title_text(title_global<uint32_t>(0x008d23a8 + kind * 4)),
+                title_text(title_global<uint32_t>(0x008d23a8 + index * 4)));
+    }
+    const int32_t old = field<int8_t>(field<uint8_t*>(ent, 0x23c), 0x3f8 + index);
+    if (old) BG_RemoveWeaponFromSlot(static_cast<uint32_t>(old), field<uint8_t*>(ent, 0x23c));
+    if (!weapon) return;
+    const bool move_to_b = index == 2 && field<uint8_t>(field<uint8_t*>(ent, 0x23c), 0x3f9) == 0;
+    BG_GivePlayerWeapon(weapon, field<uint8_t*>(ent, 0x23c));
+    if (!move_to_b) return;
+    field<uint8_t>(field<uint8_t*>(ent, 0x23c), 0x3fa) = field<uint8_t>(field<uint8_t*>(ent, 0x23c), 0x3f9);
+    field<uint8_t>(field<uint8_t*>(ent, 0x23c), 0x3f9) = 0;
+}
+
+void XB_CDECL GScr_PlayerGetWeaponSlotWeapon(uint32_t handle, const ScriptString* slot, ScriptString* out) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    const uint32_t index = weapon_slot(slot);
+    const int32_t weapon = field<int8_t>(field<uint8_t*>(ent, 0x23c), 0x3f8 + index);
+    if (!weapon) {
+        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(out, 0x00984cb0);  // ScriptString_Assign
+        return;
+    }
+    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+        out, field<uint32_t>(weapon_def(weapon), 0x8));
+}
+
+void XB_CDECL GScr_PlayerSetNotFlag_630(uint32_t handle, uint32_t value) {
+    if (uint8_t* const client = handle_client(handle)) field<uint32_t>(client, 0x630) = static_cast<uint8_t>(value) == 0;
+}
+
+uint8_t XB_CDECL GScr_PlayerIsLookingAt(uint32_t handle, uint32_t target) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return 0;
+    uint8_t* const other = handle_entity(target);
+    if (!other) return 0;
+    return field<uint8_t*>(client, 0x5f4) == other;
+}
+
+void XB_CDECL GScr_PlayerSetInt_58c(uint32_t handle, uint32_t value) {
+    if (uint8_t* const client = handle_client(handle)) field<uint32_t>(client, 0x58c) = static_cast<uint8_t>(value);
+}
+
+void XB_CDECL GScr_PlayerAllowPmFlag800000(uint32_t handle, uint32_t allow) { allow_pm_flag<0x800000>(handle, allow); }
+void XB_CDECL GScr_PlayerAllowPmFlag400000(uint32_t handle, uint32_t allow) { allow_pm_flag<0x400000>(handle, allow); }
+void XB_CDECL GScr_PlayerAllowPmFlag200000(uint32_t handle, uint32_t allow) { allow_pm_flag<0x200000>(handle, allow); }
+void XB_CDECL GScr_PlayerAllowPmFlag100000(uint32_t handle, uint32_t allow) { allow_pm_flag<0x100000>(handle, allow); }
+void XB_CDECL GScr_PlayerAllowPmFlag80000(uint32_t handle, uint32_t allow) { allow_pm_flag<0x80000>(handle, allow); }
+
+void XB_CDECL GScr_PlayerAllowEFlag100000(uint32_t handle, uint32_t allow) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    if (static_cast<uint8_t>(allow))
+        field<uint32_t>(ent, 0x2a4) &= ~0x100000u;
+    else
+        field<uint32_t>(ent, 0x2a4) |= 0x100000;
 }
 
 }  // namespace game
