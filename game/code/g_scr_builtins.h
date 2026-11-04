@@ -716,4 +716,50 @@ void XB_CDECL GScr_SetGoalPosFromNode(uint32_t handle, const int32_t* node_handl
 void XB_CDECL GScr_SetGoalPos(uint32_t handle, const float* point);
 void XB_CDECL GScr_SetGoalPosAndYaw(uint32_t handle, const float* point, float yaw);
 
+// 0x00300090, 0x003000e0: the value (+0xc) of the key's node in the int map of the owner at 0x0095f4e0 (+0x350)
+// / set it; a missing key is inserted with 0 first.
+uint32_t XB_CDECL GScr_GetIntMapValue(int32_t key);
+void XB_CDECL GScr_SetIntMapValue(int32_t key, uint32_t value);
+// 0x00300140: G_SaveCheckpoint(name, the owner at 0x0095f4e0, at the player).
+void XB_CDECL GScr_SaveCheckpoint(const char* name);
+// 0x00300160: the player's shell shock (client +0x4f4 kind 1-3 for "default"/"pain"/"death", +0x4f8 start,
+// +0x4fc duration in ms) with that kind's parameters read from the cvars; registers the three names first while
+// 0x009655a4 is empty.
+void XB_CDECL GScr_ShellShock(uint32_t handle, const ScriptString* name, float duration);
+// 0x00300320: DObj_DebugDrawAnimTrees on the entity's object (+0x22c).
+void XB_CDECL GScr_DebugDrawAnimTrees(uint32_t handle);
+// 0x00300360: Subtitle_Start(name, no category); AL as its.
+uint8_t XB_CDECL GScr_StartSubtitle(const ScriptString* name);
+// 0x00300390: the subtitle, then the alias at the entity (S_PlaySoundAlias; the channel's +0x2c = notify) and 1;
+// -1 and the notify at once when it cannot play.
+int32_t XB_CDECL GScr_PlaySoundWithNotify(uint32_t handle, const ScriptString* alias, uint32_t notify, uint32_t force);
+// 0x003005a0: HUD element *hud cleared to a text element with the string's configstring index (0x293 + up to 0x40)
+// at +0x68.
+void XB_CDECL GScr_HudSetText(const int32_t* hud, const ScriptString* text);
+// 0x00300630: with a live player: ClientDeathReload and the failure message (0x00985ec0) = the localized reason
+// ("INGAME_PLAYER_DIED" for none or "NEED_LOVE").
+void XB_CDECL GScr_MissionFailed(const ScriptString* reason);
+// 0x003006d0, 0x00300710: S_UnloadSoundBank / S_LoadSoundBank of the named bank (no wait).
+void XB_CDECL GScr_SoundBankUnload(const ScriptString* name);
+void XB_CDECL GScr_SoundBankLoad(const ScriptString* name);
+// 0x00300750, 0x00300780: S_AmbientPlay / Music_Play on the music state at 0x0095f4cc.
+void XB_CDECL GScr_AmbientPlay(const ScriptString* name, uint32_t time_bits);
+void XB_CDECL GScr_MusicPlay(const ScriptString* name);
+// 0x00300ba0: G_SetObjectiveString with the localized string of the hash (with the update message).
+void XB_CDECL GScr_ObjectiveStringByHash(int32_t index, uint32_t hash);
+// 0x00300bf0: the actor's orient mode (+0x140) from the mode name (face angle/current/direction/enemy/...).
+void XB_CDECL GScr_ActorSetOrientMode(uint32_t handle, const ScriptString* mode, float yaw, const float* vec);
+// 0x00300e20: the actor's look anims (+0x210..+0x218), straight at goal 1 and the others cleared; look state reset.
+void XB_CDECL GScr_ActorSetLookAnims(uint32_t handle, uint32_t straight, uint32_t left, uint32_t right);
+// 0x00301640: G_RestorePlayerLoadout of the owner at 0x0095f4e0.
+void XB_CDECL GScr_RestorePlayerLoadout();
+// 0x00301650, 0x003016f0, 0x00301790: AnimTree_SetGoalWeight / SetKnobAll / siblings cleared + SetGoalWeight (goal
+// below 0.001 = 0) on the entity's anim tree (an actor's created when missing), with a notify.
+void XB_CDECL GScr_SetFlaggedAnim(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart);
+void XB_CDECL GScr_SetFlaggedAnimKnobAll(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t stop, uint32_t goal,
+                                         uint32_t blend, uint32_t rate, uint32_t restart);
+void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t anim, float goal, uint32_t blend,
+                                      uint32_t rate, uint32_t restart);
+
 }  // namespace game

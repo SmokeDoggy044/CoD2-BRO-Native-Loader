@@ -3438,4 +3438,290 @@ void XB_CDECL GScr_SetGoalPosAndYaw(uint32_t handle, const float* point, float y
     title_global<uint32_t>(0x0095f704) = 0;
 }
 
+namespace {
+
+// The int map of the owner at 0x0095f4e0 (+0x350): the node of key, inserted as {key, 0} when missing.
+uint8_t* int_map_node(int32_t key) {
+    uint8_t* const map = title_global<uint8_t*>(0x0095f4e0) + 0x350;
+    uint32_t node;
+    IntHashMap_Find(&node, &key, map);
+    if (node == field<uint32_t>(map, 8)) {
+        const uint32_t pair[2] = {static_cast<uint32_t>(key), 0};
+        uint32_t out[2];
+        node = *IntHashMap_Insert(map, out, pair);
+    }
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node));
+}
+
+// repz cmpsb over n bytes: equal when all n match.
+bool bytes_equal(const char* a, uint32_t b, uint32_t n) {
+    for (uint32_t i = 0; i < n; ++i)
+        if (a[i] != title_text(b)[i]) return false;
+    return true;
+}
+
+void notify_entity(uint8_t* ent, uint32_t notify) { Scr_Notify(ent, notify); }
+
+// The animated entity's tree: an actor (type 0xb) gets one created (AnimTree_Create over 0x00987a90) when its
+// entity (+0) has none; the tree (+0x254) of the actor's entity or of the entity itself.
+uint8_t* anim_tree_of(uint8_t* ent) {
+    if (ent[0] == 0xb) {
+        uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+        uint8_t* const self = field<uint8_t*>(actor, 0);
+        if (!field<uint8_t*>(self, 0x254))
+            field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254) = AnimTree_Create(self, title_global<uint8_t*>(0x00987a90));
+        ent = field<uint8_t*>(actor, 0);
+    }
+    return field<uint8_t*>(ent, 0x254);
+}
+
+// 16-bit angle rounding of the orient-mode yaws: (float)((int)(a * 182.044) & 0xffff) * 0.00549316.
+float short_angle(float a) {
+    const int32_t s = static_cast<int32_t>(a * title_global<float>(0x0083ebd8)) & 0xffff;
+    return static_cast<float>(s) * title_global<float>(0x0083ebd4);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL GScr_GetIntMapValue(int32_t key) { return field<uint32_t>(int_map_node(key), 0xc); }
+
+void XB_CDECL GScr_SetIntMapValue(int32_t key, uint32_t value) { field<uint32_t>(int_map_node(key), 0xc) = value; }
+
+void XB_CDECL GScr_SaveCheckpoint(const char* name) { G_SaveCheckpoint(name, title_global<uint8_t*>(0x0095f4e0), 1); }
+
+void XB_CDECL GScr_ShellShock(uint32_t handle, const ScriptString* name, float duration) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint32_t kind = 1;
+    ScriptString registered;  // the original builds it in its first argument slot
+    string_from_rep(&registered);
+    title_function<StringAssign>(0x0011d600)(&registered, &title_global<ScriptString>(0x009655a4));
+    const char* const done = script_text(&registered);
+    if (!done || !*done) {
+        // Registers the three shell shock names (configstrings 0x230.., at most 2).
+        G_FindConfigstringIndex(2, title_text(0x00831f70), 0x230, 1, nullptr);  // "default"
+        G_FindConfigstringIndex(2, title_text(0x00831f68), 0x230, 1, nullptr);  // "pain"
+        G_FindConfigstringIndex(2, title_text(0x00831f60), 0x230, 1, nullptr);  // "death"
+    }
+    if (bytes_equal(script_text(name), 0x00831f70, 8)) {
+        kind = 1;
+    } else if (bytes_equal(script_text(name), 0x00831f68, 5)) {
+        kind = 2;
+    } else if (bytes_equal(script_text(name), 0x00831f60, 6)) {
+        kind = 3;
+    }
+    const int32_t ms = static_cast<int32_t>(duration * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24));
+    if (ms < 0 || ms > 60000) {
+        const double seconds = static_cast<double>(platform_x87_ld(ms) * title_global<float>(0x0083eb4c));
+        title_va(0x00831f38, seconds);  // "duration %g should be >= 0 and <= 60"
+    }
+    CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44 + kind * 0x7c));
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f4) = kind;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f8) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x4fc) = ms;
+    string_release(&registered);
+}
+
+void XB_CDECL GScr_DebugDrawAnimTrees(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const obj = field<uint8_t*>(ent, 0x22c)) DObj_DebugDrawAnimTrees(reinterpret_cast<uint8_t* const*>(obj));
+}
+
+uint8_t XB_CDECL GScr_StartSubtitle(const ScriptString* name) { return Subtitle_Start(script_text(name), nullptr); }
+
+int32_t XB_CDECL GScr_PlaySoundWithNotify(uint32_t handle, const ScriptString* alias, uint32_t notify, uint32_t force) {
+    Subtitle_Start(script_text(alias), nullptr);
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) {
+        // Notified on the level's entity (+8 of 0x0095f534).
+        notify_entity(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), notify);
+        return -1;
+    }
+    const char* const text = script_text(alias);
+    if (!text || !*text) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    // Entities with +0x3c4 play only while 0x0095f4b4 is set or when forced.
+    if (field<uint32_t>(ent, 0x3c4) && !title_global<uint8_t>(0x0095f4b4) && !static_cast<uint8_t>(force)) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    const int32_t sound = S_FindSoundByHash(text);
+    if (sound == -1) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    alignas(16) uint32_t origin[4];
+    std::memcpy(origin, ent + 0x140, 16);
+    alignas(16) uint32_t velocity[4] = {title_global<uint32_t>(0x0082e110), title_global<uint32_t>(0x0082e114),
+                                        title_global<uint32_t>(0x0082e118), title_global<uint32_t>(0x0082e11c)};
+    uint32_t sound_handle;
+    S_PlaySoundAlias(static_cast<uint32_t>(sound), 0, title_global<uint8_t*>(0x0095f4c4), &sound_handle, handle, 1, 0,
+                     word_of(origin), word_of(velocity), 0xbf800000u, 0xbf800000u, 0xbf800000u, 0xbf800000u);
+    if (!SoundHandle_Resolve(&sound_handle)) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    if (SoundHandle_Resolve(&sound_handle) && notify) field<uint32_t>(SoundHandle_Resolve(&sound_handle), 0x2c) = notify;
+    return 1;
+}
+
+void XB_CDECL GScr_HudSetText(const int32_t* hud, const ScriptString* text) {
+    uint8_t* const elem = hud_elem(*hud);
+    for (uint32_t offset = 0x30; offset <= 0x48; offset += 4) field<uint32_t>(elem, offset) = 0;
+    field<uint32_t>(elem, 0x5c) = 0;
+    field<uint32_t>(elem, 0x60) = 0;
+    field<float>(elem, 0x64) = 0.0f;
+    field<uint32_t>(elem, 0x68) = 0;
+    // The empty string's null text is read as well, as in the original.
+    const char* const chars = script_text(text);
+    int32_t index = 0;
+    if (*chars) index = G_FindConfigstringIndex(0x40, chars, 0x293, 1, title_text(0x00832888));  // "localized string"
+    field<int32_t>(elem, 0x68) = index;
+}
+
+void XB_CDECL GScr_MissionFailed(const ScriptString* reason) {
+    const uint8_t* const player = G_FindEntityByIntField(&title_global<uint8_t>(0x0097a8c0), 0x260,
+                                                         title_global<int32_t>(0x0097a75c));  // scr_const_player
+    if (!player || (field<uint32_t>(const_cast<uint8_t*>(player), 0x2a4) & 1)) return;
+    ClientDeathReload();
+    title_global<uint32_t>(0x00985eb8) = 0;
+    title_global<uint32_t>(0x00985ebc) = 1;
+    using AssignCString = uint32_t XB_THISCALL(ScriptString*, const char*);
+    ScriptString* const message = &title_global<ScriptString>(0x00985ec0);
+    const char* const text = script_text(reason);
+    if (!text || bytes_equal(text, 0x008324b8, 10)) {  // "NEED_LOVE"
+        title_function<AssignCString>(0x0011dd20)(message, title_text(0x008324a4));  // "INGAME_PLAYER_DIED"
+        return;
+    }
+    const char* const localized = Loc_GetString(text);
+    title_function<AssignCString>(0x0011dd20)(message, localized ? localized : title_text(0x00832484));
+}
+
+void XB_CDECL GScr_SoundBankUnload(const ScriptString* name) {
+    uint32_t hashed[8];
+    HashStr_Init(hashed, script_text(name));
+    S_UnloadSoundBank(title_global<uint8_t*>(0x0095f4c0), hashed, 1);  // rm_soundBanks
+}
+
+void XB_CDECL GScr_SoundBankLoad(const ScriptString* name) {
+    uint32_t hashed[8];
+    HashStr_Init(hashed, script_text(name));
+    S_LoadSoundBank(title_global<uint8_t*>(0x0095f4c0), hashed, 1);
+}
+
+void XB_CDECL GScr_AmbientPlay(const ScriptString* name, uint32_t time_bits) {
+    S_AmbientPlay(title_global<uint8_t*>(0x0095f4cc), script_text(name), time_bits);
+}
+
+void XB_CDECL GScr_MusicPlay(const ScriptString* name) { Music_Play(title_global<uint8_t*>(0x0095f4cc), script_text(name)); }
+
+void XB_CDECL GScr_ObjectiveStringByHash(int32_t index, uint32_t hash) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    G_SetObjectiveString(index, &text, 1);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ActorSetOrientMode(uint32_t handle, const ScriptString* mode, float yaw, const float* vec) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (!actor) return;
+    const uint32_t hash = Com_HashKeyNoCase(0, script_text(mode));
+    field<float>(actor, 0x150) = 0.0f;
+    uint8_t* const orient = actor + 0x140;
+    const auto is = [hash](uint32_t global) { return hash == title_global<uint32_t>(global); };
+    if (is(0x0097a6ac)) {  // face angle
+        field<uint32_t>(actor, 0x140) = 1;
+        field<float>(actor, 0x144) = short_angle(0.0f);
+        const float angle = short_angle(yaw);
+        field<float>(actor, 0x148) = angle;
+        field<float>(actor, 0x14c) = angle;
+    } else if (is(0x0097a6b0)) {  // face current
+        field<uint32_t>(actor, 0x140) = 1;
+        field<uint32_t>(actor, 0x14c) = field<uint32_t>(actor, 0x154);
+    } else if (is(0x0097a6b8)) {  // face direction
+        field<uint32_t>(actor, 0x140) = 1;
+        Actor_SetOrientFromDir(orient, vec, 0.0f);
+    } else if (is(0x0097a6bc)) {  // face enemy
+        field<uint32_t>(actor, 0x140) = 3;
+    } else if (is(0x0097a6c0)) {  // face enemy or motion
+        field<uint32_t>(actor, 0x140) = 4;
+    } else if (is(0x0097a6c4)) {  // face enemy with offset
+        field<uint32_t>(actor, 0x140) = 3;
+        field<float>(actor, 0x150) = yaw;
+    } else if (is(0x0097a6c8)) {  // face goal
+        field<uint32_t>(actor, 0x140) = 5;
+    } else if (is(0x0097a6cc)) {  // face motion
+        field<uint32_t>(actor, 0x140) = 2;
+    } else if (is(0x0097a6d0)) {  // face point: the direction from the entity's origin
+        field<uint32_t>(actor, 0x140) = 1;
+        const uint8_t* const self = field<uint8_t*>(actor, 0);
+        const float dir[3] = {vec[0] - field<float>(const_cast<uint8_t*>(self), 0x140),
+                              vec[1] - field<float>(const_cast<uint8_t*>(self), 0x144),
+                              vec[2] - field<float>(const_cast<uint8_t*>(self), 0x148)};
+        Actor_SetOrientFromDir(orient, dir, 0.0f);
+    } else if (is(0x0097a6b4)) {  // face default
+        field<uint32_t>(actor, 0x140) = 0;
+    }
+}
+
+void XB_CDECL GScr_ActorSetLookAnims(uint32_t handle, uint32_t straight, uint32_t left, uint32_t right) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (!actor) return;
+    uint8_t* const self = field<uint8_t*>(actor, 0);
+    if (!field<uint8_t*>(self, 0x254))
+        field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254) = AnimTree_Create(self, title_global<uint8_t*>(0x00987a90));
+    uint8_t* const tree = field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254);
+    field<uint32_t>(actor, 0x218) = right;
+    field<uint32_t>(actor, 0x210) = straight;
+    field<uint32_t>(actor, 0x214) = left;
+    AnimTree_ClearGoalWeight_r(tree, left & 0xffff, 0);
+    AnimTree_ClearGoalWeight_r(tree, field<uint16_t>(actor, 0x218), 0);
+    AnimTree_SetGoalWeight(field<uint16_t>(actor, 0x210), tree, 0x3f800000u, 0, 0x3f800000u, 0, 0, 0);
+    field<float>(actor, 0x220) = 0.0f;
+    field<float>(actor, 0x224) = 0.0f;
+    field<uint32_t>(actor, 0x21c) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<uint32_t>(actor, 0x204) = 1;
+}
+
+// G_RestorePlayerLoadout by its title address (its C version has one offline mismatch on record).
+void XB_CDECL GScr_RestorePlayerLoadout() {
+    title_function<void XB_REGS1 XB_CDECL(const uint8_t*)>(0x002d5ad0)(title_global<uint8_t*>(0x0095f4e0));
+}
+
+void XB_CDECL GScr_SetFlaggedAnim(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    AnimTree_SetGoalWeight(anim & 0xffff, anim_tree_of(ent), goal, blend, rate, notify, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetFlaggedAnimKnobAll(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t stop, uint32_t goal,
+                                         uint32_t blend, uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const tree = anim_tree_of(ent);
+    if (!tree) return;
+    AnimTree_SetKnobAll(anim & 0xffff, tree, stop & 0xffff, goal, blend, rate, notify, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t anim, float goal, uint32_t blend,
+                                      uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const tree = anim_tree_of(ent);
+    // Goals under 0.001 become 0 (NaN stays); the siblings fade out first.
+    if (title_global<float>(0x0083eb4c) > goal) goal = 0.0f;
+    AnimTree_ClearSiblingGoalWeights(goal, tree, anim & 0xffff, blend);
+    uint32_t goal_bits;
+    std::memcpy(&goal_bits, &goal, 4);
+    AnimTree_SetGoalWeight(anim & 0xffff, tree, goal_bits, blend, rate, notify, 0, restart & 0xff);
+}
+
 }  // namespace game
