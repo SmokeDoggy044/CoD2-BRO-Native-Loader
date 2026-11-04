@@ -6,6 +6,7 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
+#include "cg_view.h"
 #include "cgame.h"
 #include "cl.h"
 #include "dobj.h"
@@ -18,6 +19,7 @@
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "movie.h"
 #include "ngl_debug.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
@@ -28,6 +30,7 @@
 #include "stream.h"
 #include "sv.h"
 #include "title_data.h"
+#include "tr_main.h"
 #include "xanim.h"
 
 namespace game {
@@ -2792,6 +2795,933 @@ float XB_CDECL GScr_GetCvarFloat(const char* name) {
 int32_t XB_CDECL GScr_GetCvarInt(const char* name) {
     const uint8_t* const cvar = Cvar_FindVar(name);
     return cvar ? *reinterpret_cast<const int32_t*>(cvar + 0x20) : 0;
+}
+
+namespace {
+
+uint32_t word_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// The title CRT's __CIsqrt of a float (FLD DWORD, result stored as float).
+float title_ci_sqrt(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// va with any arguments (the shipped build's script messages: formatted, then dropped).
+template <typename... A>
+const char* title_va(uint32_t format, A... args) {
+    return title_function<const char* XB_CDECL(const char*, A...)>(0x002a93d0)(title_text(format), args...);
+}
+
+using StringRelease = void XB_THISCALL(ScriptString*);
+using StringAssign = void XB_THISCALL(ScriptString*, const ScriptString*);
+using StringFromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+
+void string_release(ScriptString* s) { title_function<StringRelease>(0x0011d640)(s); }
+ScriptString* string_from_rep(ScriptString* s) {
+    return title_function<ScriptString* XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(s, 0);  // ScriptString_FromRep
+}
+void string_copy(ScriptString* s, const ScriptString* other) {
+    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d5e0)(s, other);  // ScriptString_Copy
+}
+uint32_t rep_word(const ScriptString* s) { return *reinterpret_cast<const uint32_t*>(s); }
+uint32_t string_length(const ScriptString* s) {
+    return s->rep ? *reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(s->rep) + 2) : 0;
+}
+char* text_of(const ScriptString* s) { return const_cast<char*>(script_text(s)); }
+
+// The objective configstring slot's __break check (it can never fire for 0x10..0x1f) and its info copy.
+void objective_slot_info(int32_t slot, char* info) {
+    if (slot < 0 || slot >= 0x400)
+        title_function<void XB_CDECL(uint32_t, uint32_t, int32_t)>(0x002938f0)(1, 0x00832d34, slot);  // __break
+    objective_info(slot, info);
+}
+
+void set_objective_state_key(char* info, uint32_t state) {
+    Info_SetValueForKey(title_va(0x0082ded4, state), 0, title_text(0x00831b30), info);  // "%i", "state"
+}
+
+const char* localized_text(uint32_t hash) {
+    const char* text = nullptr;
+    if (const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), hash)) {  // rm_locStrings
+        text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+        if (!text) text = field<const char*>(const_cast<uint8_t*>(entry), 0xc);
+    }
+    return text;
+}
+
+// The *IntText objective builtins: "%d" of the number, checked (alphanumeric or '_' when longer than one
+// character; a message per bad character).
+void int_text(char* buf, int32_t number) {
+    title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(buf, title_text(0x008325b8), number);
+    const int32_t length = static_cast<int32_t>(std::strlen(buf));
+    if (length <= 1) return;
+    for (int32_t i = 0; i < length; ++i) {
+        if (!title_function<int32_t XB_CDECL(int32_t)>(0x001eefc9)(buf[i]) && buf[i] != '_')  // _isalnum
+            title_va(0x00831b80, static_cast<const char*>(buf));  // "Illegal localized string reference: %s ..."
+    }
+}
+
+bool has_strchr(const char* text, int32_t c) {
+    return title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(text, c) != nullptr;  // _strchr
+}
+
+// The 31 high characters objective strings may hold (built on the stack per character by the original).
+const uint8_t kObjectiveChars[31] = {0xe0, 0xe1, 0xe2, 0xe4, 0xe9, 0xe8, 0xea, 0xeb, 0xc7, 0xee, 0xef,
+                                     0xf4, 0xf2, 0xd6, 0xfc, 0xed, 0xf3, 0xfa, 0xf1, 0xa1, 0xba, 0xec,
+                                     0xf9, 0xdf, 0xf6, 0xc4, 0xdc, 0xc9, 0xd1, 0xbf, 0xc8};
+
+}  // namespace
+
+uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name) {
+    char buf[0x80];
+    const uint8_t* const cvar = Cvar_FindVar(name);
+    if (!cvar) {
+        buf[0] = 0;
+    } else {
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+            buf, field<const char*>(const_cast<uint8_t*>(cvar), 4), 0x7f);
+        buf[0x7f] = 0;
+    }
+    return title_function<uint32_t XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(out, buf);  // ScriptString_AssignCString
+}
+
+uint32_t XB_CDECL GScr_GetEntVar(uint32_t handle, uint32_t key, uint32_t callback) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const list = field<uint8_t*>(ent, 0x234);
+    if (!list) return 0;
+    return G_EntityRemoveNotifyCallback(0, list, key, callback);
+}
+
+uint32_t XB_CDECL GScr_SetEntVar(uint32_t handle, uint32_t key, uint32_t callback) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    if (!field<uint8_t*>(ent, 0x234)) {
+        uint8_t* list = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
+        if (list) list = title_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(0x002adfe0)(list);  // NotifyCallbackList_Init
+        field<uint8_t*>(ent, 0x234) = list;
+    }
+    return G_EntityAddNotifyCallback(field<uint8_t*>(ent, 0x234), key, callback);
+}
+
+void XB_CDECL GScr_ObjectiveCurrent(int32_t index) {
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);  // "index %i is an illegal objective index. ..."
+        return;
+    }
+    // Every objective's "state" key: 4 (current) for this one, 1 for the others that were current.
+    for (int32_t slot = 0x10; slot - 0x10 < 0x10; ++slot) {
+        char info[0x100];
+        objective_slot_info(slot, info);
+        const char* const state = Info_ValueForKey(info, title_text(0x00831b30));  // "state"
+        const int32_t value = *state ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(state) : 0;  // _atol
+        if (slot - 0x10 == index) {
+            if (value == 4) continue;
+            set_objective_state_key(info, 4);
+            SV_SetConfigstring(index + 0x10, info);
+        } else if (value == 4) {
+            set_objective_state_key(info, 1);
+            SV_SetConfigstring(slot, info);
+        }
+    }
+    ScriptString state;
+    string_from_rep(&state);
+    title_function<StringAssign>(0x0011d600)(&state, &title_global<ScriptString>(0x00984ae0));  // ScriptString_Assign
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveState(int32_t index, const ScriptString* name) {
+    ScriptString state;
+    string_from_rep(&state);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    const int32_t slot = index + 0x10;
+    char info[0x100];
+    objective_slot_info(slot, info);
+    title_function<StringAssign>(0x0011d600)(&state, name);
+    uint32_t number;
+    if (GScr_ObjectiveStateFromString(&state, &number)) {
+        set_objective_state_key(info, number);
+        SV_SetConfigstring(slot, info);
+        G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    }
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddWithPosition(int32_t index, const ScriptString* state_name, const ScriptString* text,
+                                            const float* origin) {
+    ScriptString state;
+    string_copy(&state, state_name);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    char info[0x100];
+    objective_slot_info(index + 0x10, info);
+    uint32_t number;
+    if (!GScr_ObjectiveStateFromString(&state, &number)) {
+        string_release(&state);
+        return;
+    }
+    set_objective_state_key(info, number);
+    const int32_t length = static_cast<int32_t>(string_length(text));
+    for (int32_t i = 0; i < length; ++i) {
+        if (text_of(text)[i] == 0x14 || text_of(text)[i] == 0x15)
+            title_va(0x00831b04, static_cast<int32_t>(text_of(text)[i]));  // "bad escape character (%i) ..."
+    }
+    if (length >= 0x100) {
+        title_va(0x00831ad8, 0xff, rep_word(text));  // "Objective strings is too long (> %i): %s" (the rep pointer)
+        string_release(&state);
+        return;
+    }
+    if (has_strchr(text_of(text), '"') || has_strchr(text_of(text), ';') || has_strchr(text_of(text), '\\')) {
+        title_va(0x00831a80, static_cast<const char*>(text_of(text)));  // "Objective strings can not have ..."
+        string_release(&state);
+        return;
+    }
+    // Control and high characters outside the allowed set become spaces (in the string itself).
+    for (int32_t i = 0; i < length; ++i) {
+        const uint8_t c = static_cast<uint8_t>(text_of(text)[i]);
+        if ((c >= 1 && c <= 0x1f) || c >= 0x7f) {
+            char* const chars = text_of(text);
+            bool allowed = false;
+            for (int32_t k = 0; k < 31; ++k) {
+                if (c == kObjectiveChars[k]) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (!allowed) {
+                title_va(0x00831a3c, static_cast<int32_t>(static_cast<int8_t>(c)), static_cast<int32_t>(c),
+                         static_cast<const char*>(text_of(text)));  // "Illegal character '%c'(ascii %i) ..."
+                chars[i] = ' ';
+            }
+        }
+    }
+    Info_SetValueForKey(text_of(text), 0, title_text(0x00831a78), info);  // "str"
+    const int32_t z = static_cast<int32_t>(origin[2]);
+    const int32_t y = static_cast<int32_t>(origin[1]);
+    const int32_t x = static_cast<int32_t>(origin[0]);
+    Info_SetValueForKey(title_va(0x00831a30, x, y, z), 0, title_text(0x00831a2c), info);  // "%i %i %i", "org"
+    SV_SetConfigstring(index + 0x10, info);
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddLocalizedWithPosition(int32_t index, const ScriptString* state, uint32_t hash,
+                                                     const float* origin) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));  // ScriptString_FromCString
+    GScr_ObjectiveAddWithPosition(index, state, &text, origin);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddIntTextWithPosition(int32_t index, const ScriptString* state, int32_t number,
+                                                   const float* origin) {
+    char buf[0x400];
+    int_text(buf, number);
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    GScr_ObjectiveAddWithPosition(index, state, &text, origin);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, const ScriptString* text) {
+    ScriptString state;
+    string_copy(&state, state_name);
+    if (index < 0 || index >= 0x10) {
+        title_va(0x00831b38, index, 0xf);
+        string_release(&state);
+        return;
+    }
+    const int32_t slot = index + 0x10;
+    char info[0x100];
+    objective_slot_info(slot, info);
+    uint32_t number;
+    if (!GScr_ObjectiveStateFromString(&state, &number)) {
+        string_release(&state);
+        return;
+    }
+    set_objective_state_key(info, number);
+    if (text->rep) {
+        const int32_t length = static_cast<int32_t>(string_length(text));
+        // Escape characters are reported up to the first letter.
+        for (int32_t i = 0; i < length; ++i) {
+            if (title_function<int32_t XB_CDECL(int32_t)>(0x001eef49)(text_of(text)[i])) break;  // _isalpha
+            if (text_of(text)[i] == 0x14 || text_of(text)[i] == 0x15)
+                title_va(0x00831b04, static_cast<int32_t>(text_of(text)[i]));
+        }
+        if (length >= 0x100) {
+            title_va(0x00831ad8, 0xff, rep_word(text));
+            string_release(&state);
+            return;
+        }
+        if (has_strchr(text_of(text), '"') || has_strchr(text_of(text), ';') || has_strchr(text_of(text), '\\')) {
+            title_va(0x00831a80, rep_word(text));  // the rep pointer, not the text
+            string_release(&state);
+            return;
+        }
+        Info_SetValueForKey(text_of(text), 0, title_text(0x00831a78), info);  // "str"
+    }
+    SV_SetConfigstring(slot, info);
+    G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
+    string_release(&state);
+}
+
+void XB_CDECL GScr_ObjectiveAddLocalized(int32_t index, const ScriptString* state, uint32_t hash) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    GScr_ObjectiveAdd(index, state, &text);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddIntText(int32_t index, const ScriptString* state, int32_t number) {
+    char buf[0x400];
+    int_text(buf, number);
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    GScr_ObjectiveAdd(index, state, &text);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ObjectiveAddNoText(int32_t index, const ScriptString* state) {
+    ScriptString text;
+    GScr_ObjectiveAdd(index, state, string_from_rep(&text));
+    string_release(&text);
+}
+
+// HudText_SetStringByHash runs where the original's call puts it (entry ESP - 8, its callees store and read stack
+// words there): the C frame sits below a gap; the original's saved ESI and return address are written too.
+PLATFORM_ASM_ENTRY(GScr_HudSetTextByHash_entry,
+                   "movl %esi, -4(%esp)\n"
+                   "movl $0x002fef90, -8(%esp)\n"
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(GScr_HudSetTextByHash) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL GScr_HudSetTextByHash(uint32_t entry_esp, uint32_t ebx, uint32_t edi) {
+    // HudText_SetStringByHash with the HUD manager itself as the element (ESI) and the caller's EBX/EDI.
+    const uint32_t hash = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(entry_esp + 4));
+    HudText_SetStringByHash(title_global<uint8_t*>(0x0095f8f0), hash, entry_esp - 8, ebx, edi);
+}
+
+void XB_CDECL GScr_SetHudMode(uint32_t mode) {
+    uint8_t* const manager = title_global<uint8_t*>(0x0095f8f0);  // g_hudManager
+    if (mode == field<uint32_t>(manager, 0x5c)) return;
+    field<uint32_t>(manager, 0x5c) = mode;
+    switch (mode) {
+        case 0: HudManager_LayoutDefault(manager); break;
+        case 1: HudManager_HideAll(manager); break;
+        case 2: HudManager_Layout2(manager); break;
+        case 3: HudManager_Layout3(manager); break;
+        default: break;
+    }
+}
+
+float XB_CDECL GScr_GetAnimLength(uint32_t, uint32_t anim) {
+    // The anim's node: tree anim >> 16 (0 when out of range) of rm_animTrees +4 {count, entries of 12 bytes
+    // {?, count, nodes}}, node anim & 0xffff (0 when out of range), 0x38 bytes each.
+    const uint8_t* const trees = field<uint8_t*>(title_global<uint8_t*>(0x0095f524), 4);
+    uint32_t tree = anim >> 16;
+    if (tree >= field<uint32_t>(const_cast<uint8_t*>(trees), 0)) tree = 0;
+    const uint8_t* const entry = field<uint8_t*>(const_cast<uint8_t*>(trees), 4) + tree * 12 + 4;
+    uint32_t index = anim & 0xffff;
+    if (index >= field<uint32_t>(const_cast<uint8_t*>(entry), 0)) index = 0;
+    uint8_t* const node = field<uint8_t*>(const_cast<uint8_t*>(entry), 4) + index * 0x38;
+    if (!field<uint8_t*>(node, 0x24)) AnimData_EnsureLoaded(node);
+    if (uint8_t* const clip = field<uint8_t*>(node, 0x24)) return field<float>(clip, 0x38);
+    return title_global<float>(0x0083eb20);  // 1
+}
+
+void XB_CDECL GScr_SetHintString(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (field<uint32_t>(ent, 0x260) != title_global<uint32_t>(0x0097a81c) && !field<uint8_t*>(ent, 0x240))
+        return;  // neither a trigger_use nor an actor
+    // The text buffer is never filled in the shipped build (stack garbage; tests zero it).
+    char text[0x100] = {};
+    int32_t index;
+    if (!G_FindHintStringIndex(&index, text)) {
+        title_va(0x00831fa8, 0x20);  // "Too many different hintstring values. ..."
+        return;
+    }
+    if (field<uint32_t>(ent, 0x260) == title_global<uint32_t>(0x0097a81c))  // scr_const_trigger_use
+        field<uint8_t>(ent, 5) = static_cast<uint8_t>(index);
+    else
+        field<uint16_t>(field<uint8_t*>(ent, 0x240), 0x1380) = static_cast<uint16_t>(index);
+}
+
+void XB_CDECL GScr_ConnectPaths(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (!(field<uint32_t>(ent, 0x2a4) & 0x1000)) {
+        title_va(0x008320b8, script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));  // "entity of type ..."
+        return;
+    }
+    Path_ConnectPathsForEntity(ent, title_global<uint8_t*>(0x0095f4f4));  // g_pathNodeBlocks
+}
+
+void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    float at[3] = {point[0], point[1], point[2]};
+    // Direction from the point to the client's origin (+0 of the client) or the entity's (+0x140), normalized
+    // (none for a zero length).
+    const uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    const float* const to = client ? reinterpret_cast<const float*>(client) : &field<float>(ent, 0x140);
+    float dir[3];
+    dir[0] = to[0] - at[0];
+    dir[1] = to[1] - at[1];
+    dir[2] = to[2] - at[2];
+    const float squared =
+        static_cast<float>((platform_x87_ld(dir[2]) * dir[2] + platform_x87_ld(dir[1]) * dir[1]) +
+                           platform_x87_ld(dir[0]) * dir[0]);
+    const float length = title_ci_sqrt(squared);
+    const float* direction = nullptr;
+    if (!(length == title_global<float>(0x0083eafc))) {
+        const float inv = title_global<float>(0x0083eb20) / length;
+        dir[0] = platform_mulss(inv, dir[0]);
+        dir[1] = platform_mulss(inv, dir[1]);
+        dir[2] = platform_mulss(inv, dir[2]);
+        direction = dir;
+    }
+    // G_Damage(point EAX; targ, no inflictor/attacker, dir, damage, 0, mod 0x1b, hit location 2, no weapon).
+    title_function<void XB_REGS1 XB_CDECL(const float*, uint8_t*, uint32_t, uint32_t, const float*, int32_t,
+                                          uint32_t, uint32_t, uint32_t, int32_t)>(0x00250340)(
+        at, ent, 0, 0, direction, static_cast<int32_t>(damage), 0, 0x1b, 2, -1);
+}
+
+uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const other = handle_entity(other_handle);
+    if (!other) return 0;
+    // Notify "trigger" with the other entity (G_NotifyWithEntity, entity in EDI; the number goes in the
+    // original's first argument slot), then the use callback.
+    uint32_t number = field<uint32_t>(other, 0x224);
+    const TitleRegs regs{number, 0, word_of(&number), title_global<uint32_t>(0x0097a818), word_of(other), word_of(ent)};
+    const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), word_of(&number)};  // scr_const_trigger
+    g_ent_call(0x000265a0, &regs, 2, args);
+    if (const uint32_t use = field<uint32_t>(ent, 0x33c))
+        title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*)>(title_global<uint32_t>(0x008da840 + use * 4))(
+            ent, other, other);  // entityUseFuncs
+    return field<uint32_t>(other, 0x224);
+}
+
+void XB_CDECL GScr_FreeSound(uint32_t id) { FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), id); }
+
+namespace {
+
+// The GScr_GetSpawner*Array builtins: entity numbers of the spawners (type byte 0xc) in the list at 0x0097d370
+// (count 0x0097d36c) whose team bit (+0x3b4) is in the mask, at most 0x200, into out (DynArray).
+void spawner_array(uint8_t* out, bool by_team, uint32_t mask) {
+    uint32_t numbers[0x200] = {};
+    int32_t count = 0;
+    const uint32_t* const end = &title_global<uint32_t>(0x0097d370 + title_global<uint32_t>(0x0097d36c) * 4);
+    for (const uint32_t* p = &title_global<uint32_t>(0x0097d370); p != end; ++p) {
+        uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*p));
+        if (!ent || ent[0] != 0xc) continue;
+        if (by_team && !(mask & (1u << (field<uint32_t>(ent, 0x3b4) & 0x1f)))) continue;
+        if (count >= 0x200) continue;
+        numbers[count++] = field<uint32_t>(ent, 0x224);
+    }
+    DynArray_Resize(out, 0, 0);
+    DynArray_Reserve(out, static_cast<uint32_t>(count));
+    for (const uint32_t* p = numbers; p != numbers + count; ++p) DynArray_PushBack(out, p);
+}
+
+// The SetCvar* builtins' copy of the value with '"' turned into '\'' (at most 0x400 characters, no NUL): the
+// copy is never used afterwards.
+void quote_copy(const char* value) {
+    volatile char copy[0x400];
+    for (int32_t i = 0; i < 0x400; ++i) {
+        const char c = value[i];
+        if (!c) break;
+        copy[i] = c == '"' ? '\'' : c;
+    }
+}
+
+void set_cvar_text(const char* name, char* value) {
+    Cvar_Get(name, value, 0x1000);
+    Cvar_Set2(name, value, 1);
+}
+
+// "gm" / "gmb": the text plus a newline as a game message to everyone.
+void send_game_message(uint32_t command, const char* text) {
+    char buf[0x2000];
+    title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(buf, title_text(0x008325cc), text);  // "%s\n"
+    SV_GameSendServerCommand(title_va(0x008325c4, title_text(command), static_cast<const char*>(buf)), 0);  // "%s \"%s\""
+}
+
+// The sentient's goal position from a point (a 16-byte block: x, y, z, x).
+void set_goal_pos(uint8_t* sentient, const float* point) {
+    alignas(16) float pos[4] = {point[0], point[1], point[2], point[0]};
+    Sentient_SetGoalPos(pos, sentient);
+}
+
+uint8_t* handle_sentient(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<uint8_t*>(ent, 0x244) : nullptr;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL GScr_GetZoneAtPoint(float x, float y, float z) {
+    alignas(16) float point[4] = {x, y, z, x};
+    const int32_t cell = CM_CellForPoint(0, point);
+    if (cell == -1) {
+        uint8_t* const pak = title_global<uint8_t*>(0x0095f638);
+        return MemContext_FindById(pak, field<int32_t>(pak, 0x34));
+    }
+    // The cell's zone: world (0x0095f640) cell set +0x1cc -> {.., count +0x1c, cells +0x20}, cell +0x2c -> +0x24.
+    uint8_t* const world = title_global<uint8_t*>(0x0095f640);
+    uint8_t* const cells = field<uint8_t*>(world, 4 + field<uint32_t>(world, 0x1cc) * 4);
+    uint32_t index = static_cast<uint32_t>(cell);
+    if (index >= field<uint32_t>(cells, 0x1c)) index = 0;
+    return field<uint8_t*>(field<uint8_t*>(field<uint8_t**>(cells, 0x20)[index], 0x2c), 0x24);
+}
+
+void XB_CDECL GScr_RandomTracer(const float* to, const float* from) {
+    // A tracer from `from` to `to` with chance scale * 32 / 32 (scale 0x0094a8e0, 0.7 when weapon 0's class +0xa8
+    // is 3 or 4).
+    alignas(16) float start[4] = {from[0], from[1], from[2], from[0]};
+    alignas(16) float end[4] = {to[0], to[1], to[2], to[0]};
+    float scale = title_global<float>(0x0094a8e0);
+    if (const uint8_t* const def = weapon_def(0)) {
+        const uint32_t kind = field<uint32_t>(const_cast<uint8_t*>(def), 0xa8);
+        if (kind == 3 || kind == 4) scale = title_global<float>(0x0083ed28);
+    }
+    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)() & 0x1f;  // rand
+    if (scale * title_global<float>(0x0083eeac) > static_cast<float>(r)) CG_SpawnTracer(start, 0, end, 0);
+}
+
+void XB_CDECL GScr_GetSpawnerTeamArray(uint8_t* out, const ScriptString* team) {
+    ScriptString context;  // "getspawnerteamarray"
+    title_function<StringFromCString>(0x0011eb50)(&context, title_text(0x00832578));
+    const uint32_t mask = Scr_TeamFromString(team);
+    string_release(&context);
+    spawner_array(out, true, mask);
+}
+
+void XB_CDECL GScr_GetSpawnerArray(uint8_t* out) { spawner_array(out, false, 0); }
+
+void XB_CDECL GScr_GetAIAll(uint8_t* out) {
+    ScriptString none;
+    string_from_rep(&none);
+    GScr_GetAI(out, &none);
+    string_release(&none);
+}
+
+void XB_CDECL GScr_MusicStop() { S_StopSoundHandle(title_global<uint32_t*>(0x0095f4cc)); }
+
+void XB_CDECL GScr_SetCvarFloat(const char* name, float value) {
+    char buf[0x400];
+    title_function<int32_t XB_CDECL(char*, const char*, double)>(0x001ee901)(buf, title_text(0x008325b4),
+                                                                             x87_widen(value));  // "%f"
+    quote_copy(buf);
+    set_cvar_text(name, buf);
+}
+
+void XB_CDECL GScr_SetCvarInt(const char* name, int32_t value) {
+    char buf[0x400];
+    title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(buf, title_text(0x008325b8), value);  // "%d"
+    quote_copy(buf);
+    set_cvar_text(name, buf);
+}
+
+void XB_CDECL GScr_SetCvar(const char* name, char* value) {
+    quote_copy(value);
+    set_cvar_text(name, value);
+}
+
+void XB_CDECL GScr_SendGameMessageBold(const char* text) { send_game_message(0x008325bc, text); }  // "gmb"
+void XB_CDECL GScr_SendGameMessage(const char* text) { send_game_message(0x008325c0, text); }      // "gm"
+
+void XB_CDECL GScr_ObjectiveString(int32_t index, const ScriptString* text) { G_SetObjectiveString(index, text, 0); }
+void XB_CDECL GScr_ObjectiveStringLocalized(int32_t index, const ScriptString* text) {
+    G_SetObjectiveString(index, text, 1);
+}
+
+void XB_CDECL GScr_PlayLocalSound(uint32_t handle, const ScriptString* alias) {
+    if (S_FindSoundByHash(script_text(alias)) == -1)
+        title_va(0x00831d2c, rep_word(alias));  // "unknown sound alias '%s'" (the rep pointer)
+    const int32_t index = G_FindConfigstringIndex(0x40, script_text(alias), 0xa0, 1, nullptr);
+    SV_GameSendServerCommand(title_va(0x00831d24, static_cast<uint32_t>(index & 0xff)), handle);  // "ls %i"
+}
+
+uint32_t XB_CDECL GScr_PlayerSwitchToWeapon(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return 0;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!weapon) title_va(0x00831d94, rep_word(weapon_name));  // "unknown weapon '%s'" (the rep pointer)
+    if (!owns_weapon(field<uint8_t*>(ent, 0x23c), weapon)) return 0;
+    CG_SelectWeapon(static_cast<int32_t>(weapon));
+    return 1;
+}
+
+float XB_CDECL GScr_ActorGetObstacleYaw_3a8(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return title_global<float>(0x0083eafc);
+    const float zero = 0.0f;
+    const float v[3] = {zero - field<float>(actor, 0x3a8), zero - field<float>(actor, 0x3ac), zero};
+    return vectoyaw(v);
+}
+
+float XB_CDECL GScr_ActorGetMotionYaw(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return title_global<float>(0x0083eafc);
+    // Q_fmod of the yaw by the entity's +0x154.
+    if (field<int16_t>(actor, 0x740) > 0) {
+        // Along the path (+0x75c, +0x760).
+        const float v[2] = {field<float>(actor, 0x75c), field<float>(actor, 0x760)};
+        const float reference = field<float>(field<uint8_t*>(actor, 0), 0x154);
+        return Q_fmod(vectoyaw(v), reference);
+    }
+    const float* const velocity = &field<float>(actor, 0x2a0);
+    const float squared = platform_addss(platform_addss(velocity[0] * velocity[0], velocity[1] * velocity[1]),
+                                         velocity[2] * velocity[2]);
+    if (squared > title_global<float>(0x0083eb20)) {
+        const float reference = field<float>(field<uint8_t*>(actor, 0), 0x154);
+        return Q_fmod(vectoyaw(velocity), reference);
+    }
+    return 0.0f;
+}
+
+void XB_CDECL GScr_SetGoalPosFromNode(uint32_t handle, const int32_t* node_handle) {
+    uint8_t* const sentient = handle_sentient(handle);
+    if (!sentient) return;
+    const int32_t value = *node_handle;
+    if (value == 0 || value == -1) return;
+    const uint16_t node_word = static_cast<uint16_t>(value);
+    uint8_t* const node = PathNode_FromHandleInTable(&node_word, title_global<uint8_t*>(0x0095f4f4));  // g_pathNodeBlocks
+    if (!node) return;
+    set_goal_pos(sentient, &field<float>(node, 0x44));
+    if (field<uint8_t>(node, 0x2d) & 0x80) Sentient_SetGoalYaw(sentient, field<float>(node, 0x50));
+    title_global<uint32_t>(0x0095f704) = 0;
+}
+
+void XB_CDECL GScr_SetGoalPos(uint32_t handle, const float* point) {
+    uint8_t* const sentient = handle_sentient(handle);
+    if (!sentient) return;
+    set_goal_pos(sentient, point);
+    title_global<uint32_t>(0x0095f704) = 0;
+}
+
+void XB_CDECL GScr_SetGoalPosAndYaw(uint32_t handle, const float* point, float yaw) {
+    uint8_t* const sentient = handle_sentient(handle);
+    if (!sentient) return;
+    set_goal_pos(sentient, point);
+    // The yaw wrapped into [0, 360) at +0x20 (NaN stays).
+    const float full = title_global<float>(0x0083ebcc);
+    if (0.0f > yaw) {
+        do yaw = yaw + full;
+        while (0.0f > yaw);
+    } else if (yaw >= full) {
+        do yaw = yaw - full;
+        while (yaw >= full);
+    }
+    field<float>(sentient, 0x20) = yaw;
+    title_global<uint32_t>(0x0095f704) = 0;
+}
+
+namespace {
+
+// The int map of the owner at 0x0095f4e0 (+0x350): the node of key, inserted as {key, 0} when missing.
+uint8_t* int_map_node(int32_t key) {
+    uint8_t* const map = title_global<uint8_t*>(0x0095f4e0) + 0x350;
+    uint32_t node;
+    IntHashMap_Find(&node, &key, map);
+    if (node == field<uint32_t>(map, 8)) {
+        const uint32_t pair[2] = {static_cast<uint32_t>(key), 0};
+        uint32_t out[2];
+        node = *IntHashMap_Insert(map, out, pair);
+    }
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node));
+}
+
+// repz cmpsb over n bytes: equal when all n match.
+bool bytes_equal(const char* a, uint32_t b, uint32_t n) {
+    for (uint32_t i = 0; i < n; ++i)
+        if (a[i] != title_text(b)[i]) return false;
+    return true;
+}
+
+void notify_entity(uint8_t* ent, uint32_t notify) { Scr_Notify(ent, notify); }
+
+// The animated entity's tree: an actor (type 0xb) gets one created (AnimTree_Create over 0x00987a90) when its
+// entity (+0) has none; the tree (+0x254) of the actor's entity or of the entity itself.
+uint8_t* anim_tree_of(uint8_t* ent) {
+    if (ent[0] == 0xb) {
+        uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+        uint8_t* const self = field<uint8_t*>(actor, 0);
+        if (!field<uint8_t*>(self, 0x254))
+            field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254) = AnimTree_Create(self, title_global<uint8_t*>(0x00987a90));
+        ent = field<uint8_t*>(actor, 0);
+    }
+    return field<uint8_t*>(ent, 0x254);
+}
+
+// 16-bit angle rounding of the orient-mode yaws: (float)((int)(a * 182.044) & 0xffff) * 0.00549316.
+float short_angle(float a) {
+    const int32_t s = static_cast<int32_t>(a * title_global<float>(0x0083ebd8)) & 0xffff;
+    return static_cast<float>(s) * title_global<float>(0x0083ebd4);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL GScr_GetIntMapValue(int32_t key) { return field<uint32_t>(int_map_node(key), 0xc); }
+
+void XB_CDECL GScr_SetIntMapValue(int32_t key, uint32_t value) { field<uint32_t>(int_map_node(key), 0xc) = value; }
+
+void XB_CDECL GScr_SaveCheckpoint(const char* name) { G_SaveCheckpoint(name, title_global<uint8_t*>(0x0095f4e0), 1); }
+
+void XB_CDECL GScr_ShellShock(uint32_t handle, const ScriptString* name, float duration) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint32_t kind = 1;
+    ScriptString registered;  // the original builds it in its first argument slot
+    string_from_rep(&registered);
+    title_function<StringAssign>(0x0011d600)(&registered, &title_global<ScriptString>(0x009655a4));
+    const char* const done = script_text(&registered);
+    if (!done || !*done) {
+        // Registers the three shell shock names (configstrings 0x230.., at most 2).
+        G_FindConfigstringIndex(2, title_text(0x00831f70), 0x230, 1, nullptr);  // "default"
+        G_FindConfigstringIndex(2, title_text(0x00831f68), 0x230, 1, nullptr);  // "pain"
+        G_FindConfigstringIndex(2, title_text(0x00831f60), 0x230, 1, nullptr);  // "death"
+    }
+    if (bytes_equal(script_text(name), 0x00831f70, 8)) {
+        kind = 1;
+    } else if (bytes_equal(script_text(name), 0x00831f68, 5)) {
+        kind = 2;
+    } else if (bytes_equal(script_text(name), 0x00831f60, 6)) {
+        kind = 3;
+    }
+    const int32_t ms = static_cast<int32_t>(duration * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24));
+    if (ms < 0 || ms > 60000) {
+        const double seconds = static_cast<double>(platform_x87_ld(ms) * title_global<float>(0x0083eb4c));
+        title_va(0x00831f38, seconds);  // "duration %g should be >= 0 and <= 60"
+    }
+    CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44 + kind * 0x7c));
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f4) = kind;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x4f8) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x4fc) = ms;
+    string_release(&registered);
+}
+
+void XB_CDECL GScr_DebugDrawAnimTrees(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (uint8_t* const obj = field<uint8_t*>(ent, 0x22c)) DObj_DebugDrawAnimTrees(reinterpret_cast<uint8_t* const*>(obj));
+}
+
+uint8_t XB_CDECL GScr_StartSubtitle(const ScriptString* name) { return Subtitle_Start(script_text(name), nullptr); }
+
+int32_t XB_CDECL GScr_PlaySoundWithNotify(uint32_t handle, const ScriptString* alias, uint32_t notify, uint32_t force) {
+    Subtitle_Start(script_text(alias), nullptr);
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) {
+        // Notified on the level's entity (+8 of 0x0095f534).
+        notify_entity(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), notify);
+        return -1;
+    }
+    const char* const text = script_text(alias);
+    if (!text || !*text) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    // Entities with +0x3c4 play only while 0x0095f4b4 is set or when forced.
+    if (field<uint32_t>(ent, 0x3c4) && !title_global<uint8_t>(0x0095f4b4) && !static_cast<uint8_t>(force)) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    const int32_t sound = S_FindSoundByHash(text);
+    if (sound == -1) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    alignas(16) uint32_t origin[4];
+    std::memcpy(origin, ent + 0x140, 16);
+    alignas(16) uint32_t velocity[4] = {title_global<uint32_t>(0x0082e110), title_global<uint32_t>(0x0082e114),
+                                        title_global<uint32_t>(0x0082e118), title_global<uint32_t>(0x0082e11c)};
+    uint32_t sound_handle;
+    S_PlaySoundAlias(static_cast<uint32_t>(sound), 0, title_global<uint8_t*>(0x0095f4c4), &sound_handle, handle, 1, 0,
+                     word_of(origin), word_of(velocity), 0xbf800000u, 0xbf800000u, 0xbf800000u, 0xbf800000u);
+    if (!SoundHandle_Resolve(&sound_handle)) {
+        notify_entity(ent, notify);
+        return -1;
+    }
+    if (SoundHandle_Resolve(&sound_handle) && notify) field<uint32_t>(SoundHandle_Resolve(&sound_handle), 0x2c) = notify;
+    return 1;
+}
+
+void XB_CDECL GScr_HudSetText(const int32_t* hud, const ScriptString* text) {
+    uint8_t* const elem = hud_elem(*hud);
+    for (uint32_t offset = 0x30; offset <= 0x48; offset += 4) field<uint32_t>(elem, offset) = 0;
+    field<uint32_t>(elem, 0x5c) = 0;
+    field<uint32_t>(elem, 0x60) = 0;
+    field<float>(elem, 0x64) = 0.0f;
+    field<uint32_t>(elem, 0x68) = 0;
+    // The empty string's null text is read as well, as in the original.
+    const char* const chars = script_text(text);
+    int32_t index = 0;
+    if (*chars) index = G_FindConfigstringIndex(0x40, chars, 0x293, 1, title_text(0x00832888));  // "localized string"
+    field<int32_t>(elem, 0x68) = index;
+}
+
+void XB_CDECL GScr_MissionFailed(const ScriptString* reason) {
+    const uint8_t* const player = G_FindEntityByIntField(&title_global<uint8_t>(0x0097a8c0), 0x260,
+                                                         title_global<int32_t>(0x0097a75c));  // scr_const_player
+    if (!player || (field<uint32_t>(const_cast<uint8_t*>(player), 0x2a4) & 1)) return;
+    ClientDeathReload();
+    title_global<uint32_t>(0x00985eb8) = 0;
+    title_global<uint32_t>(0x00985ebc) = 1;
+    using AssignCString = uint32_t XB_THISCALL(ScriptString*, const char*);
+    ScriptString* const message = &title_global<ScriptString>(0x00985ec0);
+    const char* const text = script_text(reason);
+    if (!text || bytes_equal(text, 0x008324b8, 10)) {  // "NEED_LOVE"
+        title_function<AssignCString>(0x0011dd20)(message, title_text(0x008324a4));  // "INGAME_PLAYER_DIED"
+        return;
+    }
+    const char* const localized = Loc_GetString(text);
+    title_function<AssignCString>(0x0011dd20)(message, localized ? localized : title_text(0x00832484));
+}
+
+void XB_CDECL GScr_SoundBankUnload(const ScriptString* name) {
+    uint32_t hashed[8];
+    HashStr_Init(hashed, script_text(name));
+    S_UnloadSoundBank(title_global<uint8_t*>(0x0095f4c0), hashed, 1);  // rm_soundBanks
+}
+
+void XB_CDECL GScr_SoundBankLoad(const ScriptString* name) {
+    uint32_t hashed[8];
+    HashStr_Init(hashed, script_text(name));
+    S_LoadSoundBank(title_global<uint8_t*>(0x0095f4c0), hashed, 1);
+}
+
+void XB_CDECL GScr_AmbientPlay(const ScriptString* name, uint32_t time_bits) {
+    S_AmbientPlay(title_global<uint8_t*>(0x0095f4cc), script_text(name), time_bits);
+}
+
+void XB_CDECL GScr_MusicPlay(const ScriptString* name) { Music_Play(title_global<uint8_t*>(0x0095f4cc), script_text(name)); }
+
+void XB_CDECL GScr_ObjectiveStringByHash(int32_t index, uint32_t hash) {
+    ScriptString text;
+    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    G_SetObjectiveString(index, &text, 1);
+    string_release(&text);
+}
+
+void XB_CDECL GScr_ActorSetOrientMode(uint32_t handle, const ScriptString* mode, float yaw, const float* vec) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (!actor) return;
+    const uint32_t hash = Com_HashKeyNoCase(0, script_text(mode));
+    field<float>(actor, 0x150) = 0.0f;
+    uint8_t* const orient = actor + 0x140;
+    const auto is = [hash](uint32_t global) { return hash == title_global<uint32_t>(global); };
+    if (is(0x0097a6ac)) {  // face angle
+        field<uint32_t>(actor, 0x140) = 1;
+        field<float>(actor, 0x144) = short_angle(0.0f);
+        const float angle = short_angle(yaw);
+        field<float>(actor, 0x148) = angle;
+        field<float>(actor, 0x14c) = angle;
+    } else if (is(0x0097a6b0)) {  // face current
+        field<uint32_t>(actor, 0x140) = 1;
+        field<uint32_t>(actor, 0x14c) = field<uint32_t>(actor, 0x154);
+    } else if (is(0x0097a6b8)) {  // face direction
+        field<uint32_t>(actor, 0x140) = 1;
+        Actor_SetOrientFromDir(orient, vec, 0.0f);
+    } else if (is(0x0097a6bc)) {  // face enemy
+        field<uint32_t>(actor, 0x140) = 3;
+    } else if (is(0x0097a6c0)) {  // face enemy or motion
+        field<uint32_t>(actor, 0x140) = 4;
+    } else if (is(0x0097a6c4)) {  // face enemy with offset
+        field<uint32_t>(actor, 0x140) = 3;
+        field<float>(actor, 0x150) = yaw;
+    } else if (is(0x0097a6c8)) {  // face goal
+        field<uint32_t>(actor, 0x140) = 5;
+    } else if (is(0x0097a6cc)) {  // face motion
+        field<uint32_t>(actor, 0x140) = 2;
+    } else if (is(0x0097a6d0)) {  // face point: the direction from the entity's origin
+        field<uint32_t>(actor, 0x140) = 1;
+        const uint8_t* const self = field<uint8_t*>(actor, 0);
+        const float dir[3] = {vec[0] - field<float>(const_cast<uint8_t*>(self), 0x140),
+                              vec[1] - field<float>(const_cast<uint8_t*>(self), 0x144),
+                              vec[2] - field<float>(const_cast<uint8_t*>(self), 0x148)};
+        Actor_SetOrientFromDir(orient, dir, 0.0f);
+    } else if (is(0x0097a6b4)) {  // face default
+        field<uint32_t>(actor, 0x140) = 0;
+    }
+}
+
+void XB_CDECL GScr_ActorSetLookAnims(uint32_t handle, uint32_t straight, uint32_t left, uint32_t right) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (!actor) return;
+    uint8_t* const self = field<uint8_t*>(actor, 0);
+    if (!field<uint8_t*>(self, 0x254))
+        field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254) = AnimTree_Create(self, title_global<uint8_t*>(0x00987a90));
+    uint8_t* const tree = field<uint8_t*>(field<uint8_t*>(actor, 0), 0x254);
+    field<uint32_t>(actor, 0x218) = right;
+    field<uint32_t>(actor, 0x210) = straight;
+    field<uint32_t>(actor, 0x214) = left;
+    AnimTree_ClearGoalWeight_r(tree, left & 0xffff, 0);
+    AnimTree_ClearGoalWeight_r(tree, field<uint16_t>(actor, 0x218), 0);
+    AnimTree_SetGoalWeight(field<uint16_t>(actor, 0x210), tree, 0x3f800000u, 0, 0x3f800000u, 0, 0, 0);
+    field<float>(actor, 0x220) = 0.0f;
+    field<float>(actor, 0x224) = 0.0f;
+    field<uint32_t>(actor, 0x21c) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<uint32_t>(actor, 0x204) = 1;
+}
+
+// G_RestorePlayerLoadout by its title address (its C version has one offline mismatch on record).
+void XB_CDECL GScr_RestorePlayerLoadout() {
+    title_function<void XB_REGS1 XB_CDECL(const uint8_t*)>(0x002d5ad0)(title_global<uint8_t*>(0x0095f4e0));
+}
+
+void XB_CDECL GScr_SetFlaggedAnim(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    AnimTree_SetGoalWeight(anim & 0xffff, anim_tree_of(ent), goal, blend, rate, notify, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetFlaggedAnimKnobAll(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t stop, uint32_t goal,
+                                         uint32_t blend, uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const tree = anim_tree_of(ent);
+    if (!tree) return;
+    AnimTree_SetKnobAll(anim & 0xffff, tree, stop & 0xffff, goal, blend, rate, notify, 0, restart & 0xff);
+}
+
+void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t anim, float goal, uint32_t blend,
+                                      uint32_t rate, uint32_t restart) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const tree = anim_tree_of(ent);
+    // Goals under 0.001 become 0 (NaN stays); the siblings fade out first.
+    if (title_global<float>(0x0083eb4c) > goal) goal = 0.0f;
+    AnimTree_ClearSiblingGoalWeights(goal, tree, anim & 0xffff, blend);
+    uint32_t goal_bits;
+    std::memcpy(&goal_bits, &goal, 4);
+    AnimTree_SetGoalWeight(anim & 0xffff, tree, goal_bits, blend, rate, notify, 0, restart & 0xff);
 }
 
 }  // namespace game

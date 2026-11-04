@@ -1158,6 +1158,9 @@ address,name,tested,matched,nan,mismatched,coverage
 002fd630,GScr_IsSoundPlaying,2268,2268,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 002fda60,GScr_GetCvarFloat,3575,3575,0,0,100.0
+002ff850,GScr_SetCvarFloat,1013,1013,0,0,97.2
+002ffa10,GScr_SendGameMessage,1924,1924,0,0,100.0
+00301640,GScr_RestorePlayerLoadout,3348,3348,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
 0030be60,FE_BonusCEItemGroup,2929,2929,0,0,97.9

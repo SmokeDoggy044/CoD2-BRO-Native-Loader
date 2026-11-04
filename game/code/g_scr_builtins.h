@@ -627,4 +627,139 @@ void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team);
 float XB_CDECL GScr_GetCvarFloat(const char* name);
 int32_t XB_CDECL GScr_GetCvarInt(const char* name);
 
+// 0x002fdab0: out = the cvar's string (first 0x7f characters), "" for unknown cvars. Returns
+// ScriptString_AssignCString's result.
+uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name);
+// 0x002fdb20, 0x002fdb70: removes / adds the (key, callback) pair of the entity's notify callback list (+0x234;
+// SetEntVar creates it from the small heap 0x0095f568 first). AL = done.
+uint32_t XB_CDECL GScr_GetEntVar(uint32_t handle, uint32_t key, uint32_t callback);
+uint32_t XB_CDECL GScr_SetEntVar(uint32_t handle, uint32_t key, uint32_t callback);
+// 0x002fe250: objective index becomes the current one ("state" 4; a previous current one gets 1); the "active"
+// update (G_SendObjectiveUpdate with 0x00984ae0).
+void XB_CDECL GScr_ObjectiveCurrent(int32_t index);
+// 0x002fe5e0: the objective's "state" key from the state name; G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveState(int32_t index, const ScriptString* name);
+// 0x002fe6f0: objective configstring (index + 0x10): "state" from the name, "str" = text (checked; disallowed
+// control/high characters become spaces in the string itself), "org" = "%i %i %i" of origin; G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveAddWithPosition(int32_t index, const ScriptString* state_name, const ScriptString* text,
+                                            const float* origin);
+// 0x002feaf0, 0x002feb50: the same with the localized string of a hash / the "%d" of a number as the text.
+void XB_CDECL GScr_ObjectiveAddLocalizedWithPosition(int32_t index, const ScriptString* state, uint32_t hash,
+                                                     const float* origin);
+void XB_CDECL GScr_ObjectiveAddIntTextWithPosition(int32_t index, const ScriptString* state, int32_t number,
+                                                   const float* origin);
+// 0x002fec10: objective configstring: "state" from the name, "str" = text (checked; none for the empty string);
+// G_SendObjectiveUpdate.
+void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, const ScriptString* text);
+// 0x002fee50, 0x002feea0, 0x002fef50: GScr_ObjectiveAdd with a localized string / "%d" / no text.
+void XB_CDECL GScr_ObjectiveAddLocalized(int32_t index, const ScriptString* state, uint32_t hash);
+void XB_CDECL GScr_ObjectiveAddIntText(int32_t index, const ScriptString* state, int32_t number);
+void XB_CDECL GScr_ObjectiveAddNoText(int32_t index, const ScriptString* state);
+// 0x002fef80 (hash on the stack; EBX/EDI handed on): HudText_SetStringByHash on the HUD manager (ESI) with the hash.
+// The C version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_HudSetTextByHash(uint32_t entry_esp, uint32_t ebx, uint32_t edi);
+extern "C" void GScr_HudSetTextByHash_entry(void);
+// 0x002fefa0: HUD manager mode +0x5c; a change runs layout default / hide all / 2 / 3 for modes 0-3.
+void XB_CDECL GScr_SetHudMode(uint32_t mode);
+// 0x002feff0: the anim's clip length (+0x38; AnimData_EnsureLoaded first), 1 without a clip (ST0).
+float XB_CDECL GScr_GetAnimLength(uint32_t unused, uint32_t anim);
+// 0x002ff060: a hint-string index (G_FindHintStringIndex of a never-filled buffer) into a trigger_use's +5 or an
+// actor's +0x1380.
+void XB_CDECL GScr_SetHintString(uint32_t handle);
+// 0x002ff120: Path_ConnectPathsForEntity for entities with flag 0x1000 (+0x2a4), else a message.
+void XB_CDECL GScr_ConnectPaths(uint32_t handle);
+// 0x002ff1a0: G_Damage(entity, damage, mod 0x1b, hit location 2) from the point, direction towards the client /
+// entity origin.
+void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point);
+// 0x002ff320: notifies "trigger" with the other entity, runs the use callback (entityUseFuncs[+0x33c]); returns
+// the other's entity number (0 for bad handles).
+uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle);
+// 0x002ff3c0: FX_FreeEffectsById on the list at 0x0095f5b4.
+void XB_CDECL GScr_FreeSound(uint32_t id);
+
+// 0x002ff500: the zone of the world cell holding the point (CM_CellForPoint), else MemContext_FindById of the
+// zone set's +0x34.
+uint8_t* XB_CDECL GScr_GetZoneAtPoint(float x, float y, float z);
+// 0x002ff5a0: CG_SpawnTracer from `from` to `to` when rand & 31 < scale * 32 (0x0094a8e0; 0.7 for weapon 0
+// classes 3 and 4).
+void XB_CDECL GScr_RandomTracer(const float* to, const float* from);
+// 0x002ff680, 0x002ff760: out (DynArray) = the entity numbers of the spawners (of the team mask / all), at most 0x200.
+void XB_CDECL GScr_GetSpawnerTeamArray(uint8_t* out, const ScriptString* team);
+void XB_CDECL GScr_GetSpawnerArray(uint8_t* out);
+// 0x002ff810: GScr_GetAI with the empty team (all).
+void XB_CDECL GScr_GetAIAll(uint8_t* out);
+// 0x002ff840: S_StopSoundHandle on the music handle (*0x0095f4cc).
+void XB_CDECL GScr_MusicStop();
+// 0x002ff850, 0x002ff8d0, 0x002ff950: Cvar_Get(name, value, 0x1000) then Cvar_Set2(name, value, forced) with
+// "%f" / "%d" of the value / the text.
+void XB_CDECL GScr_SetCvarFloat(const char* name, float value);
+void XB_CDECL GScr_SetCvarInt(const char* name, int32_t value);
+void XB_CDECL GScr_SetCvar(const char* name, char* value);
+// 0x002ff9c0, 0x002ffa10: server command "gmb" / "gm" "<text>\n" to everyone.
+void XB_CDECL GScr_SendGameMessageBold(const char* text);
+void XB_CDECL GScr_SendGameMessage(const char* text);
+// 0x002ffb50, 0x002ffb70: G_SetObjectiveString without / with the update message.
+void XB_CDECL GScr_ObjectiveString(int32_t index, const ScriptString* text);
+void XB_CDECL GScr_ObjectiveStringLocalized(int32_t index, const ScriptString* text);
+// 0x002ffb90: "ls %i" with the sound alias's configstring index (0xa0 + up to 0x40, created) to the entity.
+void XB_CDECL GScr_PlayLocalSound(uint32_t handle, const ScriptString* alias);
+// 0x002ffc00: CG_SelectWeapon of the named weapon when the client owns it; AL = selected.
+uint32_t XB_CDECL GScr_PlayerSwitchToWeapon(uint32_t handle, const ScriptString* weapon_name);
+// 0x002ffcb0: vectoyaw of the negated actor obstacle direction (+0x3a8, +0x3ac); 0 without an actor (ST0).
+float XB_CDECL GScr_ActorGetObstacleYaw_3a8(uint32_t handle);
+// 0x002ffd40: the actor's motion yaw (path direction +0x75c, else velocity +0x2a0 when |v|^2 > 1, else 0), Q_fmod
+// by the entity's +0x154 (ST0).
+float XB_CDECL GScr_ActorGetMotionYaw(uint32_t handle);
+// 0x002ffe40, 0x002fff10, 0x002fffa0: the sentient's goal position from a path node (and its yaw when node flag
+// 0x8000 of +0x2c is set) / a point / a point and a yaw wrapped into [0, 360) (+0x20); 0x0095f704 = 0.
+void XB_CDECL GScr_SetGoalPosFromNode(uint32_t handle, const int32_t* node_handle);
+void XB_CDECL GScr_SetGoalPos(uint32_t handle, const float* point);
+void XB_CDECL GScr_SetGoalPosAndYaw(uint32_t handle, const float* point, float yaw);
+
+// 0x00300090, 0x003000e0: the value (+0xc) of the key's node in the int map of the owner at 0x0095f4e0 (+0x350)
+// / set it; a missing key is inserted with 0 first.
+uint32_t XB_CDECL GScr_GetIntMapValue(int32_t key);
+void XB_CDECL GScr_SetIntMapValue(int32_t key, uint32_t value);
+// 0x00300140: G_SaveCheckpoint(name, the owner at 0x0095f4e0, at the player).
+void XB_CDECL GScr_SaveCheckpoint(const char* name);
+// 0x00300160: the player's shell shock (client +0x4f4 kind 1-3 for "default"/"pain"/"death", +0x4f8 start,
+// +0x4fc duration in ms) with that kind's parameters read from the cvars; registers the three names first while
+// 0x009655a4 is empty.
+void XB_CDECL GScr_ShellShock(uint32_t handle, const ScriptString* name, float duration);
+// 0x00300320: DObj_DebugDrawAnimTrees on the entity's object (+0x22c).
+void XB_CDECL GScr_DebugDrawAnimTrees(uint32_t handle);
+// 0x00300360: Subtitle_Start(name, no category); AL as its.
+uint8_t XB_CDECL GScr_StartSubtitle(const ScriptString* name);
+// 0x00300390: the subtitle, then the alias at the entity (S_PlaySoundAlias; the channel's +0x2c = notify) and 1;
+// -1 and the notify at once when it cannot play.
+int32_t XB_CDECL GScr_PlaySoundWithNotify(uint32_t handle, const ScriptString* alias, uint32_t notify, uint32_t force);
+// 0x003005a0: HUD element *hud cleared to a text element with the string's configstring index (0x293 + up to 0x40)
+// at +0x68.
+void XB_CDECL GScr_HudSetText(const int32_t* hud, const ScriptString* text);
+// 0x00300630: with a live player: ClientDeathReload and the failure message (0x00985ec0) = the localized reason
+// ("INGAME_PLAYER_DIED" for none or "NEED_LOVE").
+void XB_CDECL GScr_MissionFailed(const ScriptString* reason);
+// 0x003006d0, 0x00300710: S_UnloadSoundBank / S_LoadSoundBank of the named bank (no wait).
+void XB_CDECL GScr_SoundBankUnload(const ScriptString* name);
+void XB_CDECL GScr_SoundBankLoad(const ScriptString* name);
+// 0x00300750, 0x00300780: S_AmbientPlay / Music_Play on the music state at 0x0095f4cc.
+void XB_CDECL GScr_AmbientPlay(const ScriptString* name, uint32_t time_bits);
+void XB_CDECL GScr_MusicPlay(const ScriptString* name);
+// 0x00300ba0: G_SetObjectiveString with the localized string of the hash (with the update message).
+void XB_CDECL GScr_ObjectiveStringByHash(int32_t index, uint32_t hash);
+// 0x00300bf0: the actor's orient mode (+0x140) from the mode name (face angle/current/direction/enemy/...).
+void XB_CDECL GScr_ActorSetOrientMode(uint32_t handle, const ScriptString* mode, float yaw, const float* vec);
+// 0x00300e20: the actor's look anims (+0x210..+0x218), straight at goal 1 and the others cleared; look state reset.
+void XB_CDECL GScr_ActorSetLookAnims(uint32_t handle, uint32_t straight, uint32_t left, uint32_t right);
+// 0x00301640: G_RestorePlayerLoadout of the owner at 0x0095f4e0.
+void XB_CDECL GScr_RestorePlayerLoadout();
+// 0x00301650, 0x003016f0, 0x00301790: AnimTree_SetGoalWeight / SetKnobAll / siblings cleared + SetGoalWeight (goal
+// below 0.001 = 0) on the entity's anim tree (an actor's created when missing), with a notify.
+void XB_CDECL GScr_SetFlaggedAnim(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t goal, uint32_t blend,
+                                  uint32_t rate, uint32_t restart);
+void XB_CDECL GScr_SetFlaggedAnimKnobAll(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t stop, uint32_t goal,
+                                         uint32_t blend, uint32_t rate, uint32_t restart);
+void XB_CDECL GScr_SetFlaggedAnimKnob(uint32_t handle, uint32_t notify, uint32_t anim, float goal, uint32_t blend,
+                                      uint32_t rate, uint32_t restart);
+
 }  // namespace game
