@@ -6,7 +6,9 @@
 #include "g_main.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "actor.h"
 #include "bg_misc.h"
+#include "cg_hud.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -413,6 +415,44 @@ uint8_t* handle_client(uint32_t handle) {
 
 uint8_t* weapon_def(int32_t weapon) { return title_global<uint8_t**>(0x0095f4d8)[weapon]; }  // bg_weaponDefs
 
+// GScr_PlayerGetFlag*: bit Shift of the client byte at Offset (0 without a client).
+template <uint32_t Offset, uint32_t Shift>
+int32_t client_byte_bit(uint32_t handle) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return 0;
+    return (static_cast<int32_t>(field<int8_t>(client, Offset)) & (1 << Shift)) >> Shift;
+}
+
+// The weapon a script string names: BG_FindWeaponIndexForHash (low byte) of its Com_HashKeyNoCase, 0 for the
+// empty string.
+uint32_t weapon_from_name(const ScriptString* name) {
+    const char* const text = script_text(name);
+    if (!text || !*text) return 0;
+    return BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, text)) & 0xff;
+}
+
+bool owns_weapon(uint8_t* client, uint32_t weapon) {
+    return (field<uint32_t>(client, 0x3f0 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f))) != 0;
+}
+
+// The actor (+0x240) of the handle's entity, or null.
+uint8_t* handle_actor(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent ? field<uint8_t*>(ent, 0x240) : nullptr;
+}
+
+// GScr_ActorSetLookRates: the angle reached so far (start minus the remaining msec times the rate, 0..180).
+float look_angle_now(float start, int32_t end_time, float rate) {
+    int32_t remaining = static_cast<int32_t>(static_cast<uint32_t>(end_time) - title_global<uint32_t>(0x0098540c));
+    if (remaining < 0) remaining = 0;
+    float angle = start - static_cast<float>(remaining) * rate;
+    if (0.0f > angle)
+        angle = 0.0f;
+    else if (angle > title_global<float>(0x0083eb60))  // 180
+        angle = title_global<float>(0x0083eb60);
+    return angle;
+}
+
 // GScr_PlayerAllowPmFlag*: allow clears the flag of the client's +0x2c, else sets it.
 template <uint32_t Flag>
 void allow_pm_flag(uint32_t handle, uint32_t allow) {
@@ -424,6 +464,14 @@ void allow_pm_flag(uint32_t handle, uint32_t allow) {
     else
         field<uint32_t>(client, 0x2c) |= Flag;
 }
+
+// GScr_SetEntFlag* (the 14-instruction ones): sets one flag of an entity's +0x2a4.
+template <uint32_t Flag>
+void set_ent_flag(uint32_t handle) {
+    if (uint8_t* const ent = handle_entity(handle)) field<uint32_t>(ent, 0x2a4) |= Flag;
+}
+
+uint8_t* hud_component(uint32_t offset) { return field<uint8_t*>(title_global<uint8_t*>(0x0095f8f0), offset); }
 
 }  // namespace
 
@@ -1097,5 +1145,465 @@ void XB_CDECL GScr_PlayerAllowEFlag100000(uint32_t handle, uint32_t allow) {
     else
         field<uint32_t>(ent, 0x2a4) |= 0x100000;
 }
+
+int32_t XB_CDECL GScr_PlayerGetFlag20_2c(uint32_t handle) { return client_byte_bit<0x2c, 5>(handle); }
+int32_t XB_CDECL GScr_PlayerGetFlag20_594(uint32_t handle) { return client_byte_bit<0x594, 5>(handle); }
+int32_t XB_CDECL GScr_PlayerGetFlag1_594(uint32_t handle) { return client_byte_bit<0x594, 0>(handle); }
+int32_t XB_CDECL GScr_PlayerGetFlag40_594(uint32_t handle) { return client_byte_bit<0x594, 6>(handle); }
+
+uint32_t* XB_CDECL GScr_PlayerGetAngles(uint32_t* out, uint32_t handle) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) {
+        const uint32_t none = title_global<uint32_t>(0x00922eb8);
+        out[0] = none;
+        out[1] = none;
+        out[2] = none;
+        return out;
+    }
+    out[0] = field<uint32_t>(client, 0x9c);
+    out[1] = field<uint32_t>(client, 0xa0);
+    out[2] = field<uint32_t>(client, 0xa4);
+    return out;
+}
+
+void XB_CDECL GScr_PlayerSetVec_10(uint32_t handle, const uint32_t* value) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x10) = value[0];
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x14) = value[1];
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x18) = value[2];
+}
+
+long double XB_CDECL GScr_PlayerGetWeaponMaxAmmoFraction(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return title_global<float>(0x0083eafc);  // 0
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!owns_weapon(client, weapon)) return title_global<float>(0x0083eb20);  // 1
+    uint8_t* const def = weapon_def(static_cast<int32_t>(weapon));
+    uint32_t ammo_offset, max_table, index;
+    if (field<uint32_t>(def, 0x6ec))
+        index = field<uint32_t>(def, 0x5a0), ammo_offset = 0x280, max_table = 0x00935338;
+    else
+        index = field<uint32_t>(def, 0x598), ammo_offset = 0x110, max_table = 0x00929818;
+    const int32_t max = title_global<int32_t>(max_table + index * 4);
+    if (max < 1) return title_global<float>(0x0083eb20);
+    const int32_t ammo = field<int32_t>(client, ammo_offset + index * 4);
+    if (ammo < 1) return title_global<float>(0x0083eafc);
+    return static_cast<long double>(ammo) / max;  // FILD, FIDIV
+}
+
+long double XB_CDECL GScr_GetWeaponAmmoFraction(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return title_global<float>(0x0083eafc);  // 0
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!owns_weapon(client, weapon)) return title_global<float>(0x0083eb20);  // 1
+    uint8_t* const def = weapon_def(static_cast<int32_t>(weapon));
+    const int32_t max = field<int32_t>(def, 0x590);
+    if (max < 1) return title_global<float>(0x0083eb20);
+    const int32_t ammo = field<int32_t>(client, 0x110 + field<uint32_t>(def, 0x598) * 4);
+    if (ammo < 1) return title_global<float>(0x0083eafc);
+    return static_cast<long double>(ammo) / max;  // FILD, FIDIV
+}
+
+uint8_t XB_CDECL GScr_PlayerHasWeapon(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return 0;
+    return owns_weapon(client, weapon_from_name(weapon_name));
+}
+
+uint8_t XB_CDECL GScr_PlayerGetWeaponTotalAmmo(uint32_t handle, const ScriptString* weapon_name, int32_t* total) {
+    *total = 0;
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return 0;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    if (!owns_weapon(field<uint8_t*>(ent, 0x23c), weapon)) return 0;
+    uint8_t* const def = weapon_def(static_cast<int32_t>(weapon));
+    uint8_t* const client = field<uint8_t*>(ent, 0x23c);
+    *total = field<int32_t>(client, 0x280 + field<uint32_t>(def, 0x5a0) * 4) +
+             field<int32_t>(client, 0x110 + field<uint32_t>(def, 0x598) * 4);
+    return 1;
+}
+
+void XB_CDECL GScr_PlayerGetCurrentWeapon(uint32_t handle, ScriptString* out) {
+    uint8_t* const client = handle_client(handle);
+    if (!client) return;
+    const int32_t weapon = field<int32_t>(client, 0x80);
+    const uint32_t text = weapon > 0 ? field<uint32_t>(weapon_def(weapon), 0x8) : 0x00832430;  // "none"
+    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+}
+
+void XB_CDECL GScr_PlayerTakeAllWeapons(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    const int32_t last = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x80) = 0;
+    uint8_t** const defs = title_global<uint8_t**>(0x0095f4d8);
+    for (int32_t weapon = 1; weapon <= last; ++weapon) {
+        field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x110 + field<uint32_t>(defs[weapon], 0x598) * 4) = 0;
+        field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x280 + field<uint32_t>(defs[weapon], 0x5a0) * 4) = 0;
+        BG_RemoveWeaponFromSlot(static_cast<uint32_t>(weapon), field<uint8_t*>(ent, 0x23c));
+    }
+}
+
+void XB_CDECL GScr_PlayerTakeWeapon(uint32_t handle, const ScriptString* weapon_name) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent || !field<uint8_t*>(ent, 0x23c)) return;
+    const uint32_t weapon = weapon_from_name(weapon_name);
+    uint8_t** const defs = title_global<uint8_t**>(0x0095f4d8);
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x110 + field<uint32_t>(defs[weapon], 0x598) * 4) = 0;
+    field<uint32_t>(field<uint8_t*>(ent, 0x23c), 0x280 + field<uint32_t>(defs[weapon], 0x5a0) * 4) = 0;
+    BG_RemoveWeaponFromSlot(weapon, field<uint8_t*>(ent, 0x23c));
+}
+
+void XB_CDECL GScr_ActorSetFlag2000000(uint32_t handle, uint32_t allow) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    if (static_cast<uint8_t>(allow))
+        field<uint32_t>(actor, 0x310) &= ~0x2000000u;
+    else
+        field<uint32_t>(actor, 0x310) |= 0x2000000;
+}
+
+void XB_CDECL GScr_ActorGetPathNodeOrOrigin(uint32_t handle, uint32_t* out) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    const uint32_t* from;
+    const int16_t point = field<int16_t>(actor, 0x746);
+    if (field<int16_t>(actor, 0x740) <= 0 || point == 0) {
+        from = reinterpret_cast<const uint32_t*>(field<uint8_t*>(actor, 0) + 0x140);
+    } else {
+        const uint8_t* const node = PathNode_FromHandleInTable(
+            reinterpret_cast<const uint16_t*>(actor + 0x3bc + point * 0x1c), title_global<uint8_t*>(0x0095f4f4));
+        from = reinterpret_cast<const uint32_t*>(node + 0x44);
+    }
+    out[0] = from[0];
+    out[1] = from[1];
+    out[2] = from[2];
+}
+
+void XB_CDECL GScr_ActorSetLookRates(uint32_t handle, float yaw, float pitch, float time) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (yaw == field<float>(actor, 0x208) && pitch == field<float>(actor, 0x20c)) return;
+    const int32_t end_time = field<int32_t>(actor, 0x21c);
+    const float yaw_now = look_angle_now(field<float>(actor, 0x208), end_time, field<float>(actor, 0x220));
+    field<float>(actor, 0x208) = yaw;
+    const float yaw_delta = yaw - yaw_now;
+    const float pitch_now = look_angle_now(field<float>(actor, 0x20c), end_time, field<float>(actor, 0x224));
+    field<float>(actor, 0x20c) = pitch;
+    field<int32_t>(actor, 0x21c) =
+        title_global<int32_t>(0x0098540c) - static_cast<int32_t>(time * title_global<float>(0x0083ec74));  // -1000
+    if (time == 0.0f) {
+        field<float>(actor, 0x220) = title_global<float>(0x0083ece4);  // 9999
+        field<float>(actor, 0x224) = title_global<float>(0x0083ece4);
+        return;
+    }
+    const float inverse = title_global<float>(0x0083eb4c) / time;  // 0.001
+    field<float>(actor, 0x220) = platform_mulss(inverse, yaw_delta);
+    field<float>(actor, 0x224) = platform_mulss(pitch - pitch_now, inverse);
+}
+
+void XB_CDECL GScr_ActorStopLookAt(uint32_t handle, float range) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (range > title_global<float>(0x0083eb5c)) field<float>(actor, 0x200) = range;  // 20
+    field<uint32_t>(actor, 0x1e8) = 0;
+}
+
+void XB_CDECL GScr_ActorLookAt(uint32_t handle, const uint32_t* point, float range) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    const float minimum = title_global<float>(0x0083eb5c);  // 20
+    field<uint32_t>(actor, 0x1ec) = point[0];
+    field<uint32_t>(actor, 0x1f0) = point[1];
+    field<uint32_t>(actor, 0x1f4) = point[2];
+    if (range > minimum) field<float>(actor, 0x200) = range;
+    if (minimum > field<float>(actor, 0x200)) field<float>(actor, 0x200) = minimum;
+    field<uint32_t>(actor, 0x1e8) = 1;
+}
+
+void XB_CDECL GScr_EmptyStub398() {}
+
+void XB_CDECL GScr_ActorTeleport(uint32_t handle, const uint32_t* origin, const uint32_t* angles) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const float to_short = title_global<float>(0x0083ebd8);  // 65536 / 360
+    field<uint32_t>(ent, 0x150) = angles[0];
+    field<uint32_t>(ent, 0x154) = angles[1];
+    field<uint32_t>(ent, 0x158) = angles[2];
+    const float y = field<float>(ent, 0x154) * to_short;
+    const float x = field<float>(ent, 0x150) * to_short;
+    const float to_degrees = title_global<float>(0x0083ebd4);  // 360 / 65536
+    const int32_t short_x = static_cast<int32_t>(x) & 0xffff;
+    const int32_t short_y = static_cast<int32_t>(y) & 0xffff;
+    field<float>(actor, 0x130) = static_cast<float>(short_x) * to_degrees;
+    const float yaw = static_cast<float>(short_y) * to_degrees;
+    field<float>(actor, 0x134) = yaw;
+    field<float>(actor, 0x138) = yaw;
+    const float* const to = reinterpret_cast<const float*>(origin);
+    field<float>(actor, 0x2a0) = to[0] - field<float>(ent, 0x140);
+    field<float>(actor, 0x2a4) = to[1] - field<float>(ent, 0x144);
+    field<float>(actor, 0x2a8) = to[2] - field<float>(ent, 0x148);
+    const float thousand = title_global<float>(0x0083eb9c);
+    for (uint32_t offset = 0x2a0; offset <= 0x2a8; offset += 4) {
+        const float per_second = thousand / static_cast<float>(title_global<int32_t>(0x008dda9c));
+        field<float>(actor, offset) = platform_mulss(per_second, field<float>(actor, offset));
+    }
+    field<float>(actor, 0x2cc) = 0.0f;
+    field<float>(actor, 0x2c8) = 0.0f;
+    field<float>(actor, 0x2c4) = 0.0f;
+    field<uint32_t>(ent, 0x140) = origin[0];
+    field<uint32_t>(ent, 0x144) = origin[1];
+    field<uint32_t>(ent, 0x148) = origin[2];
+    field<uint32_t>(actor, 0x2b0) = 0;
+}
+
+uint32_t XB_CDECL GScr_ActorGetTurret(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor || !Actor_IsUsingTurret(actor)) return 0;
+    return field<uint32_t>(field<uint8_t*>(actor, 0x136c), 0x224);
+}
+
+void XB_CDECL GScr_ActorSetAnimMode(uint32_t handle, const ScriptString* mode) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    const uint32_t hash = Com_HashKeyNoCase(0, script_text(mode));
+    if (hash == title_global<uint32_t>(0x0097a868)) {  // scr_const_nophysics
+        field<uint32_t>(actor, 0x280) = 8;
+        field<uint32_t>(field<uint8_t*>(actor, 0), 0x2a4) |= 0x10000;
+        return;
+    }
+    field<uint32_t>(field<uint8_t*>(actor, 0), 0x2a4) &= ~0x10000u;
+    if (hash == title_global<uint32_t>(0x0097a6f0))  // gravity
+        field<uint32_t>(actor, 0x280) = 4;
+    else if (hash == title_global<uint32_t>(0x0097a740))  // nogravity
+        field<uint32_t>(actor, 0x280) = 6;
+    else if (hash == title_global<uint32_t>(0x0097a658))  // angle_deltas
+        field<uint32_t>(actor, 0x280) = 3;
+    else if (hash == title_global<uint32_t>(0x0097a86c))  // none
+        field<uint32_t>(actor, 0x280) = 0;
+}
+
+void XB_CDECL GScr_ActorSetTraverseMode(uint32_t handle, const ScriptString* mode) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    static const uint32_t kModes[] = {0x00984b60, 0x00984bb0, 0x00984ba8};
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (ScriptString_EqualsString(mode, &title_global<ScriptString>(kModes[i]))) {
+            field<uint32_t>(actor, 0x268) = i + 1;
+            return;
+        }
+    }
+}
+
+int32_t XB_CDECL GScr_ActorHasPendingSentientSlot(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return 0;
+    for (uint32_t i = 0; i < 4; ++i)
+        if (field<uint32_t>(actor, 0x12a8 + i * 0x18) && field<uint32_t>(actor, 0x12bc + i * 0x18) == 0) return 1;
+    return 0;
+}
+
+void XB_CDECL GScr_ActorAllowedStances(uint32_t handle, uint32_t a, uint32_t b, uint32_t c) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    const uint32_t crouch = 0x0097a674, prone = 0x0097a764;  // scr_const_crouch, scr_const_prone
+    uint32_t& stances = field<uint32_t>(actor, 0x244);
+    stances = 0;
+    if (a == title_global<uint32_t>(0x0097a7e8))  // scr_const_stand
+        stances = 1;
+    else if (a == title_global<uint32_t>(crouch))
+        stances = 2;
+    else if (a == title_global<uint32_t>(prone))
+        stances = 4;
+    const uint32_t others[] = {b, c};
+    for (uint32_t other : others) {
+        if (other == title_global<uint32_t>(0x0097a7e8))
+            stances |= 1;
+        else if (other == title_global<uint32_t>(crouch))
+            stances |= 2;
+        else if (other == title_global<uint32_t>(prone))
+            stances |= 4;
+    }
+    if (!stances) stances = 7;
+}
+
+int32_t XB_CDECL GScr_ActorPathHasFlag1(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor || field<int16_t>(actor, 0x740) <= 0) return 0;
+    return field<int32_t>(actor, 0x77c) & 1;
+}
+
+float XB_CDECL GScr_GetPathRemainingLength(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return title_global<float>(0x0083eafc);  // 0
+    return Path_GetRemainingLength(actor + 0x3c0);
+}
+
+int32_t XB_CDECL GScr_ActorInCriticalSection(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return 0;
+    const int32_t top = field<int32_t>(actor, 0xbc);
+    for (int32_t i = 0; i <= top; ++i)
+        if (field<int32_t>(actor, 0xa4 + i * 4) == 9) return 1;
+    return 0;
+}
+
+void XB_CDECL GScr_ActorEndCriticalSection(uint32_t handle) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor || title_global<int32_t>(0x0094cbb4) > 0) return;
+    if (field<int32_t>(actor, 0xa4 + field<int32_t>(actor, 0xbc) * 4) == 9) Actor_PopState(actor);
+}
+
+void XB_CDECL GScr_ActorSetPitchBlendAnims(uint32_t handle, float a, float b, uint32_t c, uint32_t d, uint32_t e) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    const float one = title_global<float>(0x0083eb20);
+    const float inverse_a = one / a;
+    const float inverse_b = one / b;
+    field<uint32_t>(actor, 0x178) = c;
+    field<float>(actor, 0x188) = inverse_a;
+    field<float>(actor, 0x18c) = inverse_b;
+    field<uint32_t>(actor, 0x17c) = d;
+    field<uint32_t>(actor, 0x180) = e;
+}
+
+void XB_CDECL GScr_ActorExitProne(uint32_t handle, float time) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    Actor_ExitProne(actor, static_cast<int32_t>(time * title_global<float>(0x0083eb9c)));  // 1000
+}
+
+void XB_CDECL GScr_ActorSetAimParams(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                     uint32_t f) {
+    uint8_t* const actor = handle_actor(handle);
+    if (!actor) return;
+    field<uint32_t>(actor, 0x160) = a;
+    field<uint32_t>(actor, 0x164) = b;
+    field<uint32_t>(actor, 0x168) = c;
+    field<uint32_t>(actor, 0x16c) = d;
+    field<uint32_t>(actor, 0x170) = e;
+    field<uint32_t>(actor, 0x174) = f;
+}
+
+float XB_CDECL GScr_SentientNearestEnemyDist(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return title_global<float>(0x0083eafc);  // 0
+    uint8_t* const sentient = field<uint8_t*>(ent, 0x244);
+    if (!sentient) return title_global<float>(0x0083eafc);
+    static const uint32_t kEnemyTeam[] = {0, 2, 1, 0, 0};
+    const uint32_t enemy = kEnemyTeam[field<uint32_t>(sentient, 4)];
+    const uint32_t mask = 1u << enemy;
+    if (!Sentient_FirstOfTeams(mask)) return title_global<float>(0x0083ee84);  // 1e8
+    float best = title_global<float>(0x0083ee84);
+    if (enemy == 0) return title_global<float>(0x0083eafc);
+    uint8_t* const self = field<uint8_t*>(sentient, 0);
+    const float x = field<float>(self, 0x140), y = field<float>(self, 0x144), z = field<float>(self, 0x148);
+    for (uint8_t* other = Sentient_FirstOfTeams(mask); other; other = Sentient_NextOfTeams(other, mask)) {
+        uint8_t* const actor = field<uint8_t*>(self, 0x240);
+        const int32_t index = static_cast<int32_t>(other - title_global<uint8_t*>(0x00985378)) / 0x60;  // g_sentients
+        if (field<int32_t>(actor, 0x868 + index * 0x50) <= 0) continue;
+        uint8_t* const other_ent = field<uint8_t*>(other, 0);
+        if (field<uint8_t>(other_ent, 0x2a4) & 2) continue;
+        if (field<uint32_t>(other, 0x30)) continue;
+        const float dx = field<float>(other_ent, 0x140) - x;
+        const float dy = field<float>(other_ent, 0x144) - y;
+        const float dz = field<float>(other_ent, 0x148) - z;
+        const float distance = platform_addss(platform_addss(dz * dz, dy * dy), dx * dx);
+        if (best > distance) best = distance;
+    }
+    return best;
+}
+
+void XB_CDECL GScr_SetEnt250Field_f4(uint32_t handle, float value) {
+    uint8_t* const ent = handle_entity(handle);
+    if (ent && field<uint8_t*>(ent, 0x250)) field<float>(field<uint8_t*>(ent, 0x250), 0xf4) = value;
+}
+
+void XB_CDECL GScr_SetEntFlag20000000(uint32_t handle, uint32_t set, uint32_t value) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    if (set)
+        field<uint32_t>(ent, 0x2a4) |= 0x20000000;
+    else
+        field<uint32_t>(ent, 0x2a4) &= ~0x20000000u;
+    if (uint8_t* const record = field<uint8_t*>(ent, 0x250)) field<uint16_t>(record, 0xf8) = static_cast<uint16_t>(value);
+}
+
+void XB_CDECL GScr_HudComp1c_Off() {
+    uint8_t* const comp = hud_component(0x1c);
+    field<int32_t>(comp, 0x44) = -1;
+    field<float>(comp, 0x54) = 0.0f;
+}
+
+void XB_CDECL GScr_HudComp1c_SetMode2() {
+    uint8_t* const comp = hud_component(0x1c);
+    field<int32_t>(comp, 0x44) = 2;
+    field<float>(comp, 0x54) = title_global<float>(0x0083eb20);
+}
+
+void XB_CDECL GScr_HudComp1c_SetMode1() {
+    uint8_t* const comp = hud_component(0x1c);
+    field<int32_t>(comp, 0x44) = 1;
+    field<float>(comp, 0x54) = title_global<float>(0x0083eb20);
+}
+
+void XB_CDECL GScr_HudComp1c_SetMode0() {
+    uint8_t* const comp = hud_component(0x1c);
+    field<int32_t>(comp, 0x44) = 0;
+    field<float>(comp, 0x54) = title_global<float>(0x0083eb20);
+}
+
+void XB_CDECL GScr_HudComp20_EnableWith(uint32_t value) {
+    uint8_t* const comp = hud_component(0x20);
+    field<uint8_t>(comp, 0x14) = 1;
+    field<uint32_t>(comp, 0x18) = value;
+}
+
+void XB_CDECL GScr_HudComp20_Disable() { field<uint8_t>(hud_component(0x20), 0x14) = 0; }
+void XB_CDECL GScr_HudComp20_Enable() { field<uint8_t>(hud_component(0x20), 0x14) = 1; }
+void XB_CDECL GScr_HudComp20_Set10(uint32_t value) { field<uint32_t>(hud_component(0x20), 0x10) = value; }
+
+void XB_CDECL GScr_HudComp24_Clear() {
+    uint8_t* const comp = hud_component(0x24);
+    field<uint32_t>(comp, 0xe4) = 0;
+    field<uint32_t>(comp, 0xe8) = 0;
+}
+
+void XB_CDECL GScr_HudComp24_Push(uint32_t value) {
+    uint8_t* const comp = hud_component(0x24);
+    if (value == 0 || value == 1) {
+        const int32_t count = field<int32_t>(comp, 0xe4) + 1;
+        field<int32_t>(comp, 0xe4) = count;
+        if (count <= 3) field<uint32_t>(comp, 0xa0 + count * 4) = value;
+    } else {
+        const int32_t count = field<int32_t>(comp, 0xe8) + 1;
+        field<int32_t>(comp, 0xe8) = count;
+        if (count <= 0xc) field<uint32_t>(comp, 0xac + count * 4) = value;
+    }
+}
+
+void XB_CDECL GScr_HudComp24_SetEcTwo() { field<float>(hud_component(0x24), 0xec) = title_global<float>(0x0083eba8); }
+
+void XB_CDECL GScr_HudComp24_SetE0(uint32_t value) {
+    uint8_t* const comp = hud_component(0x24);
+    field<uint8_t>(comp, 0xe0) = static_cast<uint8_t>(value);
+    field<float>(comp, 0xec) = 0.0f;
+}
+
+void XB_CDECL GScr_HudSetMeterCount(uint32_t count) { HudCompMeter_SetCount(hud_component(0x24), count); }
+
+uint32_t XB_CDECL GScr_HasVisibleModel(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    uint8_t* const model = field<uint8_t*>(ent, 0x22c);
+    return model && !(field<uint8_t>(model, 0x9c) & 1);
+}
+
+void XB_CDECL GScr_SetEntFlag2000000(uint32_t handle) { set_ent_flag<0x2000000>(handle); }
 
 }  // namespace game

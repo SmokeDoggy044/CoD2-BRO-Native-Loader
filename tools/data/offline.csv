@@ -1075,6 +1075,15 @@ address,name,tested,matched,nan,mismatched,coverage
 002f7210,GScr_PlayerGetWeaponSlotClipSize,3992,3992,0,0,50.0
 002f7980,GScr_PlayerSetNotFlag_630,3998,3998,0,0,100.0
 002f79d0,GScr_PlayerIsLookingAt,3999,3999,0,0,35.0
+002f7ce0,GScr_PlayerGetFlag20_2c,3994,3994,0,0,100.0
+002f7d30,GScr_PlayerGetFlag20_594,3993,3993,0,0,100.0
+002f7d80,GScr_PlayerGetFlag1_594,3992,3992,0,0,100.0
+002f7dd0,GScr_PlayerGetFlag40_594,3996,3996,0,0,100.0
+002f7e90,GScr_PlayerSetVec_10,3994,3994,0,0,100.0
+002f7ef0,GScr_PlayerGetWeaponMaxAmmoFraction,3999,3999,0,0,20.3
+002f8000,GScr_GetWeaponAmmoFraction,3995,3995,0,0,45.5
+002f80d0,GScr_PlayerHasWeapon,3999,3999,0,0,34.8
+002f8360,GScr_PlayerTakeWeapon,3998,3998,0,0,42.6
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 003088b0,G_SetupVehicleScriptImports,3752,3752,0,0,100.0
 0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8

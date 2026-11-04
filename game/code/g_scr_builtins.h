@@ -246,4 +246,117 @@ void XB_CDECL GScr_PlayerAllowPmFlag80000(uint32_t handle, uint32_t allow);
 // 0x002f7c80: the same for flag 0x100000 of the entity's +0x2a4 (players only).
 void XB_CDECL GScr_PlayerAllowEFlag100000(uint32_t handle, uint32_t allow);
 
+// 0x002f7ce0 / 0x002f7d30 / 0x002f7d80 / 0x002f7dd0: one bit of a client byte (+0x2c bit 5; +0x594 bits 5, 0,
+// 6) as 0/1; 0 without a client.
+int32_t XB_CDECL GScr_PlayerGetFlag20_2c(uint32_t handle);
+int32_t XB_CDECL GScr_PlayerGetFlag20_594(uint32_t handle);
+int32_t XB_CDECL GScr_PlayerGetFlag1_594(uint32_t handle);
+int32_t XB_CDECL GScr_PlayerGetFlag40_594(uint32_t handle);
+// 0x002f7e20: the client's view angles (+0x9c) into out, else three copies of 0x00922eb8; returns out.
+uint32_t* XB_CDECL GScr_PlayerGetAngles(uint32_t* out, uint32_t handle);
+// 0x002f7e90: the client's +0x10 vector (the client pointer re-read for each word).
+void XB_CDECL GScr_PlayerSetVec_10(uint32_t handle, const uint32_t* value);
+// Weapon builtins naming a weapon by script string (BG_FindWeaponIndexForHash of Com_HashKeyNoCase; 0 for the
+// empty string); ownership = bit `weapon` of the client's words at +0x3f0.
+// 0x002f7ef0: ammo / max ammo (x87 FILD/FIDIV) of an owned weapon: clip ammo (+0x280, max 0x00935338) for
+// clip-only weapons (def +0x6ec), else the reserve (+0x110, max 0x00929818); 1 when not owned or max < 1, 0 when
+// ammo < 1 or no client.
+long double XB_CDECL GScr_PlayerGetWeaponMaxAmmoFraction(uint32_t handle, const ScriptString* weapon);
+// 0x002f8000: reserve ammo / the def's max ammo (+0x590), as above.
+long double XB_CDECL GScr_GetWeaponAmmoFraction(uint32_t handle, const ScriptString* weapon);
+// 0x002f80d0: whether the player owns the weapon.
+uint8_t XB_CDECL GScr_PlayerHasWeapon(uint32_t handle, const ScriptString* weapon);
+// 0x002f8160: *total = clip + reserve ammo of an owned weapon (0 first); whether owned.
+uint8_t XB_CDECL GScr_PlayerGetWeaponTotalAmmo(uint32_t handle, const ScriptString* weapon, int32_t* total);
+// 0x002f8230: the current weapon's (+0x80) name (def +8) into out, "none" when <= 0.
+void XB_CDECL GScr_PlayerGetCurrentWeapon(uint32_t handle, ScriptString* out);
+// 0x002f82a0: current weapon 0, then for every weapon 1..bg_lastWeaponIndex: reserve and clip ammo 0 and
+// BG_RemoveWeaponFromSlot.
+void XB_CDECL GScr_PlayerTakeAllWeapons(uint32_t handle);
+// 0x002f8360: the same for one weapon (tail jump to BG_RemoveWeaponFromSlot).
+void XB_CDECL GScr_PlayerTakeWeapon(uint32_t handle, const ScriptString* weapon);
+
+// Actor builtins: the handle's entity's actor (+0x240; some do not check it for null, as the original).
+// 0x002f8420: allow clears flag 0x2000000 of the actor's +0x310, else sets it.
+void XB_CDECL GScr_ActorSetFlag2000000(uint32_t handle, uint32_t allow);
+// 0x002f8480: the position of the actor's current path node (+0x746 indexes the 0x1c-byte path points at
+// +0x3bc; PathNode_FromHandleInTable, node +0x44) while it has a path (+0x740 > 0), else its entity's origin.
+void XB_CDECL GScr_ActorGetPathNodeOrOrigin(uint32_t handle, uint32_t* out);
+// 0x002f8540: new look yaw/pitch targets (+0x208/+0x20c) reached in `time` seconds: the current angles from the
+// running blend (end time +0x21c, rates +0x220/+0x224, clamped 0..180), the new end time and rates (9999 for 0).
+void XB_CDECL GScr_ActorSetLookRates(uint32_t handle, float yaw, float pitch, float time);
+// 0x002f86b0: stops looking (+0x1e8 = 0); a range over 20 is kept in +0x200.
+void XB_CDECL GScr_ActorStopLookAt(uint32_t handle, float range);
+// 0x002f8710: looks at a point (+0x1ec, +0x1e8 = 1) with a range of at least 20 (+0x200).
+void XB_CDECL GScr_ActorLookAt(uint32_t handle, const uint32_t* point, float range);
+// 0x002f87a0: empty builtin.
+void XB_CDECL GScr_EmptyStub398();
+// 0x002f87f0: moves the actor: entity angles +0x150 (and the actor's +0x130.. as short-angle rounded yaw,
+// pitch, pitch), the move delta per second (+0x2a0, from the frame msec 0x008dda9c), +0x2c4.. and +0x2b0
+// cleared, origin +0x140.
+void XB_CDECL GScr_ActorTeleport(uint32_t handle, const uint32_t* origin, const uint32_t* angles);
+// 0x002f89a0: the entity handle (+0x224) of the turret the actor uses (+0x136c; Actor_IsUsingTurret), else 0.
+uint32_t XB_CDECL GScr_ActorGetTurret(uint32_t handle);
+// 0x002f8a40: the anim mode +0x280 from a name hash: nophysics 8 (entity flag 0x10000 of +0x2a4 set; cleared
+// for the others), gravity 4, nogravity 6, angle_deltas 3, none 0.
+void XB_CDECL GScr_ActorSetAnimMode(uint32_t handle, const ScriptString* mode);
+// 0x002f8b20: the traverse mode +0x268 = 1 / 2 / 3 for the script strings 0x00984b60 / 0x00984bb0 /
+// 0x00984ba8.
+void XB_CDECL GScr_ActorSetTraverseMode(uint32_t handle, const ScriptString* mode);
+// 0x002f8bc0: whether one of the 4 sentient slots (0x18 bytes at +0x12a8) has a claimant and no +0x14 word.
+int32_t XB_CDECL GScr_ActorHasPendingSentientSlot(uint32_t handle);
+// 0x002f8c20: the allowed stances +0x244 (stand 1, crouch 2, prone 4; the first sets, the others add; 7 when
+// none).
+void XB_CDECL GScr_ActorAllowedStances(uint32_t handle, uint32_t a, uint32_t b, uint32_t c);
+// 0x002f8d50: bit 0 of the path flags +0x77c while the actor has a path.
+int32_t XB_CDECL GScr_ActorPathHasFlag1(uint32_t handle);
+// 0x002f8da0: Path_GetRemainingLength of the actor's path (+0x3c0), 0 without an actor.
+float XB_CDECL GScr_GetPathRemainingLength(uint32_t handle);
+// 0x002f8e00: whether state 9 (critical section) is on the actor's state stack (+0xa4, top +0xbc).
+int32_t XB_CDECL GScr_ActorInCriticalSection(uint32_t handle);
+// 0x002f8e70: pops the top state when it is 9, unless 0x0094cbb4 is positive (Actor_PopState).
+void XB_CDECL GScr_ActorEndCriticalSection(uint32_t handle);
+
+// 0x002f8ed0: the pitch blend anims: +0x178 = c, +0x17c = d, +0x180 = e, +0x188 = 1 / a, +0x18c = 1 / b.
+void XB_CDECL GScr_ActorSetPitchBlendAnims(uint32_t handle, float a, float b, uint32_t c, uint32_t d, uint32_t e);
+// 0x002f8f50: Actor_ExitProne over `time` seconds (msec truncated).
+void XB_CDECL GScr_ActorExitProne(uint32_t handle, float time);
+// 0x002f8fa0: the six aim words +0x160..+0x174.
+void XB_CDECL GScr_ActorSetAimParams(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                     uint32_t f);
+// 0x002f9080: the squared distance from the sentient's (+0x244) entity to the nearest enemy sentient (enemy
+// team of team +4: 1 -> 2, 2 -> 1, else none = 0) that the sentient's actor knows (+0x868 per sentient, 0x50
+// bytes) and that is not flagged (entity +0x2a4 bit 2, sentient +0x30); 1e8 when no enemy exists.
+float XB_CDECL GScr_SentientNearestEnemyDist(uint32_t handle);
+// 0x002f9260: the float +0xf4 of the entity's +0x250 record.
+void XB_CDECL GScr_SetEnt250Field_f4(uint32_t handle, float value);
+// 0x002f92b0: sets / clears flag 0x20000000 of +0x2a4, then the 16-bit +0xf8 of the +0x250 record.
+void XB_CDECL GScr_SetEntFlag20000000(uint32_t handle, uint32_t set, uint32_t value);
+// HUD components of g_hudManager (0x0095f8f0): +0x1c, +0x20, +0x24 (the meter).
+// 0x002f9320 .. 0x002f9380: component +0x1c: mode +0x44 (-1 off with +0x54 = 0; else 2 / 1 / 0 with 1).
+void XB_CDECL GScr_HudComp1c_Off();
+void XB_CDECL GScr_HudComp1c_SetMode2();
+void XB_CDECL GScr_HudComp1c_SetMode1();
+void XB_CDECL GScr_HudComp1c_SetMode0();
+// 0x002f93a0 .. 0x002f93e0: component +0x20: enabled byte +0x14 (EnableWith also +0x18 = value), +0x10.
+void XB_CDECL GScr_HudComp20_EnableWith(uint32_t value);
+void XB_CDECL GScr_HudComp20_Disable();
+void XB_CDECL GScr_HudComp20_Enable();
+void XB_CDECL GScr_HudComp20_Set10(uint32_t value);
+// 0x002f93f0: component +0x24: both list counts (+0xe4, +0xe8) = 0.
+void XB_CDECL GScr_HudComp24_Clear();
+// 0x002f9410: appends a value: 0 and 1 to the first list (count +0xe4, words +0xa4, max 3), others to the
+// second (count +0xe8, words +0xb0, max 12); the count grows even when full.
+void XB_CDECL GScr_HudComp24_Push(uint32_t value);
+// 0x002f9460: component +0x24's +0xec = 2.
+void XB_CDECL GScr_HudComp24_SetEcTwo();
+// 0x002f9480: component +0x24's byte +0xe0 = value, +0xec = 0.
+void XB_CDECL GScr_HudComp24_SetE0(uint32_t value);
+// 0x002f94a0: HudCompMeter_SetCount on component +0x24.
+void XB_CDECL GScr_HudSetMeterCount(uint32_t count);
+// 0x002f94c0: whether the entity has a model (+0x22c) not hidden (bit 0 of its +0x9c).
+uint32_t XB_CDECL GScr_HasVisibleModel(uint32_t handle);
+// 0x002f9510: sets flag 0x2000000 of the entity's +0x2a4.
+void XB_CDECL GScr_SetEntFlag2000000(uint32_t handle);
+
 }  // namespace game
