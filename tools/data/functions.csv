@@ -229,7 +229,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00016770,ScrPathNode_SetSpawnflags,compare,0,0,0,0,0,0,""
 000167e0,ScrPathNode_GetSpawnflags,compare,0,0,0,0,0,0,""
 00016850,ScrPathNode_SetType,compare,0,0,0,0,0,0,""
-000168d0,ScrPathNode_GetType,compare,564,412,286,0,126,0,"new got Segmentation fault at f7d7f0c0 [host] libcod_bro_game.so: _ZN4game17ScriptString_CopyEPNS_12ScriptStringEPKS0_+0x35, address 0000000e"
+000168d0,ScrPathNode_GetType,compare,564,286,286,0,0,0,""
 00016990,ScrVehNode_SetTargetname,compare,0,0,0,0,0,0,""
 000169c0,ScrVehNode_GetTargetname,compare,0,0,0,0,0,0,""
 00016a00,ScrVehNode_SetTarget,compare,0,0,0,0,0,0,""
