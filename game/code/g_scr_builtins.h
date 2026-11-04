@@ -444,4 +444,49 @@ void XB_CDECL GScr_SetEntInList960070(uint32_t handle, uint32_t in_list);
 // 0x002fa7f0: the take-damage word +0x29c = the argument's low byte.
 void XB_CDECL GScr_SetTakeDamage(uint32_t handle, uint32_t take_damage);
 
+// 0x002fa830: health +0x350 = max(1, trunc(max health * fraction + 0.5)), the max from the client's +0x580 or
+// the entity's +0x354; fraction above 1 becomes 1, <= 0 formats a message and goes on; no max formats another
+// and stops.
+void XB_CDECL GScr_SetNormalHealth(uint32_t handle, float fraction);
+// 0x002fa960: health / max health on the x87 (FILD/FIDIV, ST0): the client's max (+0x580) while health is
+// non-zero, else the entity's +0x354; 0 without a max.
+long double XB_CDECL GScr_GetNormalHealth(uint32_t handle);
+// 0x002fa9d0: a func_door / func_door_rotating with its +0x3b4 (locked) set.
+uint8_t XB_CDECL GScr_DoorIsLocked(uint32_t handle);
+// 0x002faa30: the entity's origin (+0x140), or for brush models (+0xdc) the centre of +0x100 / +0x110.
+void XB_CDECL GScr_GetOrigin(uint32_t handle, uint32_t* out);
+// 0x002fab10: enables linking: +0x328 = level_time, +0x32c = 0x1c, flag 0x8000 of +0x2a4. Unsupported
+// entities (type byte or +0x294 set, or a link time / content set on other than trigger_multiple) format a
+// message into a local buffer (_sprintf) first.
+void XB_CDECL GScr_EnableLinkTo(uint32_t handle);
+// 0x002fabf0: G_EntUnlink on the entity (tail jump).
+void XB_CDECL GScr_Unlink(uint32_t handle);
+// 0x002fac30: bit `bit` of the entity's byte +0x299 (AL; false when stale).
+uint8_t XB_CDECL GScr_TestEntBit299(uint32_t handle, uint32_t bit);
+// 0x002fac80, 0x002facd0: attachment `index` (+0x3d8 + index * 8: {model, tag}): the tag string / the
+// model's name (+0x48) into out.
+void XB_CDECL GScr_GetAttachTagName(uint32_t handle, ScriptString* out, int32_t index);
+void XB_CDECL GScr_GetAttachModelName(uint32_t handle, ScriptString* out, int32_t index);
+// 0x002fad20: the number of attachments (models before the first null, at most 7).
+int32_t XB_CDECL GScr_GetAttachSize(uint32_t handle);
+// 0x002fad70, 0x002fadb0, 0x002fadf0: whether the entity has a sentient (+0x244) / actor (+0x240) / client
+// (+0x23c).
+int32_t XB_CDECL GScr_IsSentient(uint32_t handle);
+int32_t XB_CDECL GScr_IsAI(uint32_t handle);
+int32_t XB_CDECL GScr_IsPlayer(uint32_t handle);
+// 0x002fae30: an actor's +0x2d0 set, or else health +0x350 > 0.
+int32_t XB_CDECL GScr_IsAlive(uint32_t handle);
+// 0x002faed0, 0x002faef0: FX_SetEffectParamById / FX_StopEffectById on the list at 0x0095f5b4.
+void XB_CDECL GScr_SetSoundParam(uint32_t id, uint32_t value);
+void XB_CDECL GScr_StopSound(uint32_t id);
+// 0x002faf10: VehicleNode_FindByKey(key, value, out), all nodes when either string is empty.
+int32_t XB_CDECL GScr_GetVehicleNode(const ScriptString* value, const ScriptString* key, int32_t* out);
+// 0x002faf40: PathNode_FindByKey over g_pathNodeBlocks with copies of key and value (ScriptString_FromCString
+// of their texts, released after).
+int32_t XB_CDECL GScr_GetNode(const ScriptString* value, const ScriptString* key, uint32_t* out);
+// 0x002fafb0: the number (+0x224) of entity `number` (below 0x540, generation 0), 0 otherwise.
+int32_t XB_CDECL GScr_GetEntByNum(uint32_t number);
+// 0x002faf00: an empty builtin (a bare ret).
+void XB_CDECL GScr_EmptyStub38();
+
 }  // namespace game

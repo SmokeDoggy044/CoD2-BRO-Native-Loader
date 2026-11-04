@@ -4,6 +4,8 @@
 
 #include "cl.h"
 #include "dobj.h"
+#include "fx.h"
+#include "g_pathnode.h"
 #include "g_main.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
@@ -1936,5 +1938,193 @@ void XB_CDECL GScr_SetEntInList960070(uint32_t handle, uint32_t in_list) {
 void XB_CDECL GScr_SetTakeDamage(uint32_t handle, uint32_t take_damage) {
     if (uint8_t* const ent = handle_entity(handle)) field<uint32_t>(ent, 0x29c) = static_cast<uint8_t>(take_damage);
 }
+
+namespace {
+
+// The entity's targetname text (+0x264) for messages, "<not set>" without one.
+const char* targetname_or_unset(uint8_t* ent) {
+    const uint32_t rep = field<uint32_t>(ent, 0x264);
+    if (!rep || rep + 6 == 0) return title_text(0x00832314);  // "<not set>"
+    return script_text(reinterpret_cast<const ScriptString*>(ent + 0x264));
+}
+
+}  // namespace
+
+void XB_CDECL GScr_SetNormalHealth(uint32_t handle, float fraction) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    const float one = title_global<float>(0x0083eb20);
+    if (fraction > one) {
+        fraction = one;
+    } else if (fraction <= 0.0f) {  // comiss 0, fraction; jb: NaN skips the message
+        title_function<const char* XB_CDECL(const char*, double, int32_t, const char*)>(0x002a93d0)(  // va
+            &title_global<char>(0x00832168), x87_widen(fraction), field<int32_t>(ent, 0x224),
+            targetname_or_unset(ent));  // "setNormalHealth must be greater than 0 (tried to set %g on ent %i, ..."
+    }
+    float max_health;
+    if (uint8_t* const client = field<uint8_t*>(ent, 0x23c)) {
+        max_health = static_cast<float>(field<int32_t>(client, 0x580));
+    } else {
+        const int32_t max = field<int32_t>(ent, 0x354);
+        if (max <= 0) {
+            title_function<const char* XB_CDECL(const char*, int32_t, const char*)>(0x002a93d0)(  // va
+                &title_global<char>(0x00832110), field<int32_t>(ent, 0x224),
+                targetname_or_unset(ent));  // "entity's max health must be greater than 0 to call setNormalHealth ..."
+            return;
+        }
+        max_health = static_cast<float>(max);
+    }
+    int32_t health = static_cast<int32_t>(max_health * fraction + title_global<float>(0x0083eb24));  // + 0.5
+    if (health < 1) health = 1;
+    field<int32_t>(ent, 0x350) = health;
+}
+
+long double XB_CDECL GScr_GetNormalHealth(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return title_global<float>(0x0083eafc);  // 0
+    const int32_t health = field<int32_t>(ent, 0x350);
+    if (uint8_t* const client = field<uint8_t*>(ent, 0x23c)) {
+        if (health) return static_cast<long double>(health) / static_cast<long double>(field<int32_t>(client, 0x580));
+    }
+    const int32_t max = field<int32_t>(ent, 0x354);
+    if (!max) return title_global<float>(0x0083eafc);
+    return static_cast<long double>(field<int32_t>(ent, 0x350)) / static_cast<long double>(max);
+}
+
+uint8_t XB_CDECL GScr_DoorIsLocked(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    const uint32_t classname = field<uint32_t>(ent, 0x260);
+    if (classname != title_global<uint32_t>(0x0097a6e0) &&  // scr_const_func_door_rotating
+        classname != title_global<uint32_t>(0x0097a6dc))    // scr_const_func_door
+        return 0;
+    return field<uint32_t>(ent, 0x3b4) != 0;
+}
+
+void XB_CDECL GScr_GetOrigin(uint32_t handle, uint32_t* out) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    uint32_t origin[3];
+    if (field<uint32_t>(ent, 0xdc)) {
+        // A brush model: the centre of its absolute bounds (+0x100 mins, +0x110 maxs).
+        const float half = title_global<float>(0x0083eb24);
+        for (uint32_t i = 0; i < 3; ++i) {
+            const float centre = platform_addss(field<float>(ent, 0x110 + i * 4), field<float>(ent, 0x100 + i * 4)) * half;
+            std::memcpy(&origin[i], &centre, 4);
+        }
+    } else {
+        for (uint32_t i = 0; i < 3; ++i) origin[i] = field<uint32_t>(ent, 0x140 + i * 4);
+    }
+    out[0] = origin[0];
+    out[1] = origin[1];
+    out[2] = origin[2];
+}
+
+void XB_CDECL GScr_EnableLinkTo(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return;
+    bool supported = false;
+    if (field<uint8_t>(ent, 0) == 0 && field<uint8_t>(ent, 0x294) == 0) {
+        supported = (!field<uint32_t>(ent, 0x328) && !field<uint32_t>(ent, 0x32c)) ||
+                    title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+                        script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)),
+                        title_text(0x00832270)) == 0;  // "trigger_multiple"
+    }
+    if (!supported) {
+        // The message is formatted into a local buffer and dropped; the link is enabled anyway.
+        char message[0x100];
+        const uint8_t type = field<uint8_t>(ent, 0);
+        const char* const type_name = type < 0x11 ? title_text(title_global<uint32_t>(0x008d5090 + type * 4))
+                                                  : title_text(0x00832838);  // "WARNING !! Entity Type Unknown ..."
+        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(  // _sprintf
+            message, title_text(0x00832248), type_name);  // "entity %s:does not support enableLinkTo"
+    }
+    const uint32_t flags = field<uint32_t>(ent, 0x2a4);
+    field<uint32_t>(ent, 0x328) = title_global<uint32_t>(0x0098540c);  // level_time
+    field<uint32_t>(ent, 0x32c) = 0x1c;
+    field<uint32_t>(ent, 0x2a4) = flags | 0x8000;
+}
+
+void XB_CDECL GScr_Unlink(uint32_t handle) {
+    if (uint8_t* const ent = handle_entity(handle)) G_EntUnlink(ent);
+}
+
+uint8_t XB_CDECL GScr_TestEntBit299(uint32_t handle, uint32_t bit) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    return (field<uint8_t>(ent, 0x299) & static_cast<uint8_t>(1u << (bit & 31))) != 0;
+}
+
+void XB_CDECL GScr_GetAttachTagName(uint32_t handle, ScriptString* out, int32_t index) {
+    if (uint8_t* const ent = handle_entity(handle))
+        title_function<void XB_THISCALL(ScriptString*, uint8_t*)>(0x0011d600)(out, ent + 0x3dc + index * 8);  // ScriptString_Assign
+}
+
+void XB_CDECL GScr_GetAttachModelName(uint32_t handle, ScriptString* out, int32_t index) {
+    if (uint8_t* const ent = handle_entity(handle))
+        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+            out, field<uint32_t>(field<uint8_t*>(ent, 0x3d8 + index * 8), 0x48));  // the model's name
+}
+
+int32_t XB_CDECL GScr_GetAttachSize(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    int32_t count = 0;
+    while (count < 7 && field<uint32_t>(ent, 0x3d8 + count * 8)) ++count;
+    return count;
+}
+
+int32_t XB_CDECL GScr_IsSentient(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent && field<uint32_t>(ent, 0x244) ? 1 : 0;
+}
+
+int32_t XB_CDECL GScr_IsAI(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent && field<uint32_t>(ent, 0x240) ? 1 : 0;
+}
+
+int32_t XB_CDECL GScr_IsPlayer(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    return ent && field<uint32_t>(ent, 0x23c) ? 1 : 0;
+}
+
+int32_t XB_CDECL GScr_IsAlive(uint32_t handle) {
+    uint8_t* const ent = handle_entity(handle);
+    if (!ent) return 0;
+    if (uint8_t* const actor = field<uint8_t*>(ent, 0x240)) return field<uint32_t>(actor, 0x2d0) ? 1 : 0;
+    return field<int32_t>(ent, 0x350) > 0 ? 1 : 0;
+}
+
+void XB_CDECL GScr_SetSoundParam(uint32_t id, uint32_t value) {
+    FX_SetEffectParamById(title_global<FxIdList*>(0x0095f5b4), id, value);
+}
+
+void XB_CDECL GScr_StopSound(uint32_t id) { FX_StopEffectById(id, 0, title_global<FxIdList*>(0x0095f5b4)); }
+
+int32_t XB_CDECL GScr_GetVehicleNode(const ScriptString* value, const ScriptString* key, int32_t* out) {
+    const uint32_t all = (!*reinterpret_cast<const uint32_t*>(value) || !*reinterpret_cast<const uint32_t*>(key)) ? 1 : 0;
+    return VehicleNode_FindByKey(all, 0, key, value, out);
+}
+
+int32_t XB_CDECL GScr_GetNode(const ScriptString* value, const ScriptString* key, uint32_t* out) {
+    using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+    using Release = void XB_THISCALL(ScriptString*);
+    ScriptString key_copy, value_copy;  // the original builds the value copy in its first argument slot
+    title_function<FromCString>(0x0011eb50)(&key_copy, script_text(key));
+    title_function<FromCString>(0x0011eb50)(&value_copy, script_text(value));
+    const int32_t result = PathNode_FindByKey(&key_copy, title_global<uint8_t*>(0x0095f4f4), &value_copy, out);
+    title_function<Release>(0x0011d640)(&value_copy);  // ScriptString_Release
+    title_function<Release>(0x0011d640)(&key_copy);
+    return result;
+}
+
+int32_t XB_CDECL GScr_GetEntByNum(uint32_t number) {
+    if (number >= 0x540) return 0;
+    uint8_t* const ent = handle_entity(number);
+    return ent ? field<int32_t>(ent, 0x224) : 0;
+}
+
+void XB_CDECL GScr_EmptyStub38() {}
 
 }  // namespace game
