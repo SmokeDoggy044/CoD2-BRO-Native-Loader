@@ -514,5 +514,12 @@ void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, ui
 void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node,
                                       uint32_t flag);
 
+// 0x001deab0: the turret AI thread (started by BroScr_TurretSetAIMode; ends on "death" / "auto_ai"): to the
+// turret, the level flag of its target waited for when `flag` is defined, a script_origin aim target and
+// a script_model follower (deleted on death / auto_ai). With an mg42_target path: auto mode aimed at the
+// origin, which walks the path, sweeps toward the player's eye, follows the player, bursts around the
+// level +0x190 entity's targets. Without: manual aimed at the player, then auto bursts, forever.
+void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag);
+
 }  // namespace game
 

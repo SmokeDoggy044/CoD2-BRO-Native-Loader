@@ -4864,4 +4864,355 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
     scr_release(&name);
 }
 
+namespace {
+using Vec3Out = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+// ScrEnt_GetOrigin(out, ent) copied to `v`.
+inline void mg_origin(uint32_t ent, float* v) {
+    uint32_t at[3];
+    const uint32_t* const origin = slot<Vec3Out>(0x00922b20)(at, ent);
+    std::memcpy(v, origin, 12);
+}
+inline void mg_set_origin(uint32_t ent, float x, float y, float z) {
+    ScrVec3 v;
+    v.v[0] = bits(x);
+    v.v[1] = bits(y);
+    v.v[2] = bits(z);
+    slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(ent, v);  // ScrEnt_SetOrigin
+}
+// GScr_GetOrigin(the player, v) into undefined lanes.
+inline void mg_player_origin(float* v) {
+    const float lane = as_float(undefined_lane());
+    v[0] = lane;
+    v[1] = lane;
+    v[2] = lane;
+    slot<void XB_CDECL(uint32_t, float*)>(0x00922524)(title_global<uint32_t>(0x009236dc), v);
+}
+// Entry i, the array grown to (i + 1, i + 4) first when i is past the count.
+inline uint32_t mg_at(DynArray* array, uint32_t i) {
+    if (i >= array->size) DynArray_Resize(reinterpret_cast<uint8_t*>(array), i + 1, i + 4);
+    return array->data[i];
+}
+inline long double mg_random_float(uint32_t max) { return slot<long double XB_CDECL(uint32_t)>(0x00922230)(max); }
+inline bool mg_can_target() {
+    uint8_t out;
+    return *BroScr_MgTurretCanTargetStance(&out) != 0;
+}
+inline uint32_t mg_level_word(uint32_t offset) { return at<uint32_t>(title_global<uint8_t*>(0x00922ef8), offset); }
+inline const uint32_t* mg_level_target_owner() {  // the level's +0x190 handle, as ScrEnt_GetTarget's self
+    return reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00922ef8) + 0x190);
+}
+inline void mg_notify(uint32_t ent, uint32_t text) {
+    uint32_t hash;
+    queue_notify(ent, *Scr_HashName(&hash, pointer<const char>(text)));
+}
+// A bool field slot, added as the undefined bool when missing (the original's upper bytes are stale; 0 here).
+inline uint8_t* mg_bool_slot(uint32_t ent, uint32_t key) {
+    return reinterpret_cast<uint8_t*>(key_slot(ent, key, title_global<uint8_t>(0x00922ed0)));
+}
+inline uint32_t mg_spawn_at_zero(uint32_t classname_text) {
+    ScriptString classname;
+    scr_string_from(&classname, classname_text);
+    ScrVec3 zero;
+    zero.v[0] = bits(0.0f);
+    zero.v[1] = bits(0.0f);
+    zero.v[2] = bits(0.0f);
+    const uint32_t spawned = slot<uint32_t XB_CDECL(ScriptString*, ScrVec3*, uint32_t)>(0x009222f0)(&classname, &zero, 0);  // GScr_Spawn
+    scr_release(&classname);
+    return spawned;
+}
+// A BroScr_DeleteEntsOnNotify thread on the level (Scr_StartThread_ent_ent_str_ent_ent_4).
+inline void mg_delete_on(uint32_t* ent, uint32_t text, uint32_t* first, uint32_t* second) {
+    const uint32_t object = title_global<uint32_t>(0x00922ef8);
+    const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+    ScriptString notify;
+    scr_string_from(&notify, text);
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                    const ScriptString*, const uint32_t*, const uint32_t*);
+    title_function<Start>(0x001e4ae0)(0, 0, 0, 0, 0x0018ba10, *level, ent, &notify, first, second);
+    scr_release(&notify);
+}
+// To the turret's spot at the level's goal radius, at the goal uses the turret.
+inline void mg_goal_and_use(uint32_t ent, uint32_t turret, const uint32_t* spot) {
+    slot<void XB_CDECL(uint32_t, const uint32_t*)>(0x00922684)(ent, spot);  // GScr_SetGoalPos
+    slot<SetWord>(0x00922df4)(ent, mg_level_word(0x14c));                 // ScrSentient_SetFloat_18
+    Scr_WaitTillString(ent, pointer<const char>(0x0083ad18));             // "goal"
+    slot<SetWord>(0x0092272c)(ent, turret);                               // GScr_ActorUseTurret
+}
+// The burst targets: a random entity the level's +0x190 handle targets (key 0x0d786b4c), offset by
+// (rand 30 - 15, rand 30 - 15, rand 40 - 60) (the y and x randoms in that order); returns the array.
+inline uint32_t mg_burst_target(DynArray* found, float* offset) {
+    {
+        ScriptString name;
+        const ScriptString* const target = ScrCall_ScrEnt_GetTarget(mg_level_target_owner(), &name);
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(target)), 0x0d786b4c,
+                        reinterpret_cast<uint8_t*>(found), 0);
+        scr_release(&name);
+    }
+    const uint32_t pick = mg_at(found, static_cast<uint32_t>(random_int(static_cast<int32_t>(found->size))));
+    const float y = static_cast<float>(mg_random_float(0x41f00000));  // 30
+    const float x = static_cast<float>(mg_random_float(0x41f00000));
+    const long double z = mg_random_float(0x42200000);              // 40
+    offset[0] = x - title_global<float>(0x0083ef10);                // 15
+    offset[2] = static_cast<float>(z - title_global<float>(0x0083eb3c));  // 60
+    offset[1] = y - title_global<float>(0x0083ef10);
+    return pick;
+}
+// One step of `target` toward the path entry the actor's index field 0x99cb8902 names: `step` units
+// (or a unit vector with `unit`) while farther than `step`, else "next_target" on `ent`.
+inline void mg_follow_step(uint32_t ent, uint32_t target, DynArray* path, float step, bool unit, float* cur) {
+    mg_origin(target, cur);
+    float goal[3];
+    mg_origin(mg_at(path, *int_slot(ent, 0x99cb8902)), goal);
+    const int32_t far = slot<long double XB_CDECL(const float*, const float*)>(0x00922268)(cur, goal) > step ? 1 : 0;
+    if (static_cast<float>(far) != title_global<float>(0x0083eafc)) {
+        float next[3];
+        mg_origin(mg_at(path, *int_slot(ent, 0x99cb8902)), next);
+        float diff[3] = {next[0] - cur[0], next[1] - cur[1], next[2] - cur[2]};
+        float dir[3];
+        const float lane = as_float(undefined_lane());
+        dir[0] = lane;
+        dir[1] = lane;
+        dir[2] = lane;
+        slot<void XB_CDECL(float*, const float*)>(0x00922280)(dir, diff);  // Scr_VectorNormalize
+        if (unit) {
+            cur[0] = cur[0] + dir[0];
+            cur[1] = cur[1] + dir[1];
+            cur[2] = cur[2] + dir[2];
+        } else {
+            const float dx = dir[0] * step;
+            const float dy = step * dir[1];
+            const float dz = step * dir[2];
+            cur[0] = dx + cur[0];
+            cur[1] = dy + cur[1];
+            cur[2] = dz + cur[2];
+        }
+    } else {
+        mg_notify(ent, 0x00825fec);  // "next_target"
+    }
+    mg_set_origin(target, cur[0], cur[1], cur[2]);
+    Scr_Wait(0.1f);
+}
+}  // namespace
+
+void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    Scr_EndOnString(ent, pointer<const char>(0x0083a97c));  // "auto_ai"
+    {
+        uint32_t unused[3];
+        slot<Vec3Out>(0x00922b20)(unused, ent);
+    }
+    {
+        ScriptString text;
+        scr_string_from(&text, 0x00826e5c);  // "MANUAL"
+        scr_release(&text);
+    }
+    slot<SetWord>(0x00922d14)(ent, 1);  // ScrActor_SetInt_7e8
+    slot<void XB_CDECL(uint32_t, const float*)>(0x00922684)(ent, ScrField_org(turret));  // GScr_SetGoalPos
+    slot<SetWord>(0x00922df4)(ent, mg_level_word(0x14c));
+    Scr_WaitTillString(ent, pointer<const char>(0x0083ad18));  // "goal"
+    if (flag != title_global<uint8_t>(0x00922ed0)) {
+        // Unless the level flag of the turret's target is set, the level waits for it.
+        bool clear;
+        {
+            ScriptString name;
+            uint32_t hash;
+            const uint32_t* const key = Scr_HashScriptString(
+                &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTarget(&turret, &name)));
+            using Index = uint8_t* XB_THISCALL(uint32_t, const uint32_t*);
+            clear = *title_function<Index>(0x004611e0)(title_global<uint32_t>(0x00922ef8) + 0xfc, key) == 0;
+            scr_release(&name);
+        }
+        if (clear) {
+            const uint32_t object = title_global<uint32_t>(0x00922ef8);
+            const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+            ScriptString name;
+            const ScriptString* const target = ScrCall_ScrEnt_GetTarget(&turret, &name);
+            Scr_WaitTillString(*level, target->rep ? target->rep->text : nullptr);
+            scr_release(&name);
+        }
+    }
+    slot<SetWord>(0x00922d14)(ent, 0);
+    slot<SetWord>(0x00922584)(turret, 0xad76f051);  // GScr_Turret_SetMode(manual)
+    slot<void XB_CDECL(uint32_t)>(0x00922594)(turret);  // GScr_Turret_ClearTargetEntity
+    uint32_t target = mg_spawn_at_zero(0x0083ab88);  // "script_origin": what the turret aims at
+    uint32_t model = mg_spawn_at_zero(0x0083ab98);   // "script_model"
+    *key_slot(model, 0x070009e5, undefined_float()) = title_global<uint32_t>(0x0083ec9c);  // 3
+    bool show;
+    {
+        ScriptString value;
+        show = !ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x007f49a8), pointer<const char>(0x0080da58));  // mg42, "off"
+        scr_release(&value);
+    }
+    if (show) {
+        ScriptString name;
+        scr_string_from(&name, 0x00826e50);  // "xmodel/temp"
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(model, &name, 0);  // GScr_SetModel
+        scr_release(&name);
+    }
+    {
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f4a10;
+            functor[1] = 0x00199940;  // BroScr_MgFollowEntOrigin
+            functor[2] = model;
+            functor[3] = turret;
+            functor[4] = target;
+        }
+        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+            0, 0, 0, model, functor, 0);  // Scr_CreateThread
+    }
+    mg_delete_on(&ent, 0x00831f60, &target, &model);  // "death"
+    mg_delete_on(&ent, 0x0083a97c, &target, &model);  // "auto_ai"
+    *mg_bool_slot(turret, 0x19a3d654) = 0;
+    DynArray path = {nullptr, 0, 0};
+    {
+        ScriptString name;
+        scr_string_from(&name, 0x00826e44);  // "mg42_target"
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&name)), 0x0d786b4c,
+                        reinterpret_cast<uint8_t*>(&path), 0);
+        scr_release(&name);
+    }
+    if (static_cast<int32_t>(path.size) > 0) {
+        // Targets along the mg42_target path (the array is never freed: the loops never end).
+        float cur[3];
+        mg_origin(mg_at(&path, static_cast<uint32_t>(random_int(static_cast<int32_t>(path.size)))), cur);
+        using StartPath = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const DynArray*);
+        title_function<StartPath>(0x004b1850)(0, 0, 0, 0, 0x001a5100, ent, &path);  // BroScr_CycleTargetsThread
+        slot<void XB_CDECL(uint32_t, const float*)>(0x00922684)(ent, ScrField_org(turret));
+        slot<SetWord>(0x00922df4)(ent, mg_level_word(0x14c));
+        Scr_WaitTillString(ent, pointer<const char>(0x0083ad18));  // "goal"
+        slot<SetWord>(0x0092272c)(ent, turret);  // GScr_ActorUseTurret
+        *key_slot(ent, 0x7d9f2c49, 0) = target;
+        slot<SetWord>(0x00922584)(turret, 0x6c271e5a);  // auto
+        slot<SetWord>(0x00922590)(turret, target);     // GScr_Turret_SetTargetEntity
+        mg_notify(turret, 0x00825fe0);                 // "StartFiring"
+        const float step = title_global<float>(0x0083ef10);  // 15
+        const float rate = title_global<float>(0x0083edc8);  // 0.05
+        {
+            float start[3];
+            mg_origin(mg_at(&path, static_cast<uint32_t>(random_int(static_cast<int32_t>(path.size)))), start);
+            mg_set_origin(target, start[0], start[1], start[2]);
+        }
+        // Along the path until the level's +0x190 entity is valid.
+        while (!entity_handle_is_valid(mg_level_word(0x190))) mg_follow_step(ent, target, &path, step, false, cur);
+        for (;;) {
+            // Toward the player's eye (the fraction is a script int: it stays 0 until the stance check).
+            int32_t t = 0;
+            do {
+                const float f = static_cast<float>(t);
+                float player[3];
+                mg_player_origin(player);
+                uint32_t offset_out[3];
+                const float* const offset = reinterpret_cast<const float*>(BroScr_GetPlayerStanceOffset(offset_out));
+                const float eye_x = player[0] + offset[0];
+                const float eye_z = offset[2] + player[2];
+                const float eye_y = offset[1] + player[1];
+                const float rest = title_global<float>(0x0083eb20) - f;  // 1 - f
+                mg_set_origin(target, f * eye_x + rest * cur[0], f * eye_y + rest * cur[1], f * eye_z + rest * cur[2]);
+                if (mg_can_target()) t = 2;
+                Scr_Wait(0.08f);
+                t = static_cast<int32_t>(float_to_script_int(static_cast<float>(t) + rate));
+            } while (t < 1);
+            // Follows the player's motion until the stance can be targeted.
+            float last[3];
+            mg_player_origin(last);
+            while (!mg_can_target()) {
+                float player[3];
+                mg_player_origin(player);
+                mg_set_origin(target, player[0], player[1], player[2]);
+                float now[3];
+                mg_origin(target, now);
+                const float dz = now[2] - last[2];
+                const float dy = now[1] - last[1];
+                const float dx = now[0] - last[0];
+                float again[3];
+                mg_origin(target, again);
+                const float sz = dz + again[2];
+                const float sy = dy + again[1];
+                const float sx = again[0] + dx;
+                uint32_t offset_out[3];
+                const float* const offset = reinterpret_cast<const float*>(BroScr_GetPlayerStanceOffset(offset_out));
+                mg_set_origin(target, sx + offset[0], offset[1] + sy, offset[2] + sz);
+                mg_player_origin(last);
+                Scr_Wait(0.1f);
+            }
+            if (mg_can_target()) {
+                // Bursts around the level entity's targets for 1.5-5.5 s.
+                const int32_t soon = get_time() + 1500;
+                const float end = static_cast<float>(soon + mg_random_float(0x457a0000));  // 4000
+                for (;;) {
+                    bool burst = false;
+                    if (mg_can_target()) {
+                        ScriptString name;
+                        if (ScrCall_ScrEnt_GetTarget(mg_level_target_owner(), &name)->rep) {
+                            const int32_t later = end > static_cast<float>(get_time()) ? 1 : 0;
+                            burst = static_cast<float>(later) != title_global<float>(0x0083eafc);
+                        }
+                        scr_release(&name);
+                    }
+                    if (!burst) break;
+                    DynArray found = {nullptr, 0, 0};
+                    float offset[3];
+                    const uint32_t pick = mg_burst_target(&found, offset);
+                    float at[3];
+                    mg_origin(pick, at);
+                    mg_set_origin(target, at[0] + offset[0], at[1] + offset[1], at[2] + offset[2]);
+                    Scr_Wait(0.1f);
+                    if (found.data) Scr_Free(found.data);
+                }
+            }
+            mg_notify(ent, 0x00825fec);  // "next_target"
+            if (!mg_can_target()) continue;
+            // Back along the path (unit steps) while the stance can be targeted.
+            do {
+                mg_follow_step(ent, target, &path, step, true, cur);
+            } while (mg_can_target());
+        }
+    }
+    // No path: manual turret, aimed at the player while the level's +0x190 entity is not valid, then
+    // bursts in auto mode, then manual again.
+    for (;;) {
+        mg_goal_and_use(ent, turret, vector_field(turret, 0x0001b227));
+        while (!entity_handle_is_valid(mg_level_word(0x190))) {
+            if (!*mg_bool_slot(turret, 0x19a3d654)) {
+                slot<SetWord>(0x00922590)(turret, title_global<uint32_t>(0x009236dc));  // at the player
+                *mg_bool_slot(turret, 0x19a3d654) = 1;
+                *key_slot(model, 0xc51219a9, 0) = title_global<uint32_t>(0x009236dc);
+            }
+            Scr_Wait(0.2f);
+        }
+        slot<SetWord>(0x00922584)(turret, 0x6c271e5a);  // auto
+        mg_goal_and_use(ent, turret, vector_field(turret, 0x0001b227));
+        mg_notify(turret, 0x00825fe0);  // "StartFiring"
+        const int32_t soon = get_time() + 1500;
+        const float end = static_cast<float>(soon + mg_random_float(0x457a0000));  // 4000
+        for (;;) {
+            const int32_t later = end > static_cast<float>(get_time()) ? 1 : 0;
+            if (static_cast<float>(later) == title_global<float>(0x0083eafc)) break;
+            if (!entity_handle_is_valid(mg_level_word(0x190))) break;
+            DynArray found = {nullptr, 0, 0};
+            float offset[3];
+            const uint32_t pick = mg_burst_target(&found, offset);
+            float at[3];
+            mg_origin(pick, at);
+            mg_set_origin(target, at[0] + offset[0], at[1] + offset[1], at[2] + offset[2]);
+            slot<SetWord>(0x00922590)(turret, target);
+            *key_slot(model, 0xc51219a9, 0) = target;
+            Scr_Wait(static_cast<float>(mg_random_float(0x3f800000)));  // 1
+            if (found.data) Scr_Free(found.data);
+        }
+        mg_notify(turret, 0x00825d0c);  // "StopFiring"
+        mg_goal_and_use(ent, turret, vector_field(turret, 0x0001b227));
+        if (*mg_bool_slot(turret, 0x19a3d654)) {
+            slot<SetWord>(0x00922584)(turret, 0xad76f051);  // manual
+            slot<void XB_CDECL(uint32_t)>(0x00922594)(turret);
+            *mg_bool_slot(turret, 0x19a3d654) = 0;
+            *key_slot(model, 0xc51219a9, 0) = model;
+            mg_set_origin(model, 0.0f, 0.0f, 0.0f);
+        }
+        while (entity_handle_is_valid(mg_level_word(0x190))) Scr_Wait(0.2f);
+        Scr_Wait(static_cast<float>(mg_random_float(0x3e4ccccd) + title_global<float>(0x0083eb58)));  // rand 0.2 + 0.75
+    }
+}
+
 }  // namespace game
