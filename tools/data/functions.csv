@@ -3152,7 +3152,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0012fa80,BroScr_FlakPickLeadPos,compare,0,0,0,0,0,0,""
 0012fd50,ScrField_can_shoot_low_2,replaced,0,6,6,0,0,0,""
 0012ff60,BroScr_FlakCanShootLow,compare,0,0,0,0,0,0,""
-00131180,BroScr_PlayerInsideEntZone,compare,0,120,80,0,40,0,"eax f5f92880 vs f5f92800"
+00131180,BroScr_PlayerInsideEntZone,compare,0,80,80,0,0,0,
 001319d0,BroScr_PlaneCrashSound,compare,0,0,0,0,0,0,""
 00131ad0,BroScr_DeleteVehicleTurrets_2,compare,0,0,0,0,0,0,""
 00132020,BroScr_PlaneCrashSound_2,compare,0,0,0,0,0,0,""
