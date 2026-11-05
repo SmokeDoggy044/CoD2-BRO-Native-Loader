@@ -123,6 +123,8 @@ void XB_CDECL BroScr_DeleteAndCountDown(uint32_t ent);
 // (ScriptKeyTable_SetValue). Not title functions.
 uint32_t* BroScr_FieldSlot(uint32_t ent, uint32_t hash);
 uint32_t* BroScr_FieldHandleSlot(uint32_t ent, uint32_t hash);
+// The entity's script object, or the shared empty table 0x00922e94 when it has none.
+ScriptKeyTable* BroScr_ScriptObjectOrEmpty(uint32_t ent);
 
 // 0x00124cf0: BroScr_LookAtEntity(ent, target, time, 0x06279a34, 0, 0) with time = `ms` as a
 // float (10000 when undefined).

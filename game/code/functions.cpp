@@ -8,14 +8,17 @@
 #include "bro_scr_ai_weapons.h"
 #include "bro_scr_anim.h"
 #include "bro_scr_anim_handles.h"
+#include "bro_scr_array.h"
 #include "bro_scr_banim_handles.h"
 #include "bro_scr_cover_turret.h"
 #include "bro_scr_fx.h"
+#include "bro_scr_level.h"
 #include "bro_scr_math.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_stubs.h"
 #include "bro_scr_util.h"
 #include "bro_scr_vehicle.h"
+#include "bro_scr_vehicle_health.h"
 #include "bro_scr_wad.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
@@ -3142,7 +3145,10 @@ const Function kFunctions[] = {
     {"ScrField_h217d7784_2", 0x00132a50, 0, code(ScrField_h217d7784_2), 8, Result::Eax, Status::Replaced},
     {"BroScr_PlaneCrashSound_3", 0x00134300, 0, code(&BroScr_PlaneCrashSound_3), 4, Result::None, Status::Compare},
     {"BroScr_DeleteVehicleTurrets", 0x00134400, 0, code(&BroScr_DeleteVehicleTurrets), 4, Result::None, Status::Compare},
+    {"BroScr_SetField7ab1fdf4_IsValid", 0x00134be0, 0, code(&BroScr_SetField7ab1fdf4_IsValid), 16, Result::Eax, Status::Compare},
     {"ScrField_mgturret_2", 0x00134e60, 0, code(&ScrField_mgturret_2), 4, Result::Eax, Status::Replaced},
+    {"BroScr_TurretSetAlliesTeam", 0x00134ec0, 0, code(&BroScr_TurretSetAlliesTeam), 4, Result::None, Status::Compare},
+    {"BroScr_StartVehicleTurretFireLoop_8", 0x00135130, 0, code(&BroScr_StartVehicleTurretFireLoop_8), 4, Result::None, Status::Compare},
     {"ScrField_he0b632e1", 0x00135150, 0, code(ScrField_he0b632e1), 4, Result::Eax, Status::Replaced},
     {"ScrField_he0b632e1_IsDefined", 0x00135190, 0, code(ScrField_he0b632e1_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_he0b632e2", 0x001351f0, 0, code(ScrField_he0b632e2), 4, Result::Eax, Status::Replaced},
@@ -3153,12 +3159,41 @@ const Function kFunctions[] = {
     {"ScrField_root_IsDefined", 0x00135370, 0, code(ScrField_root_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_h2d7db3f6", 0x001353d0, 0, code(ScrField_h2d7db3f6), 4, Result::Eax, Status::Replaced},
     {"ScrField_h2d7db3f6_IsDefined", 0x00135410, 0, code(ScrField_h2d7db3f6_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_RandomArrayElement", 0x00135470, 0, code(&BroScr_RandomArrayElement_entry), 16, Result::Eax, Status::Compare},
+    {"BroScr_ActorArray_ClearFlag2000000", 0x001354f0, 0, code(&BroScr_ActorArray_ClearFlag2000000_entry), 12, Result::None, Status::Compare},
+    {"BroScr_ActorArray_SetFlag2000000", 0x00135590, 0, code(&BroScr_ActorArray_SetFlag2000000_entry), 12, Result::None, Status::Compare},
+    {"BroScr_NotifyEntsByTargetname", 0x00135ed0, 0, code(&BroScr_NotifyEntsByTargetname), 8, Result::None, Status::Compare},
     {"Scr_ReleaseStringArrayAndString", 0x00135fb0, 0, code(&Scr_ReleaseStringArrayAndString_entry), 20, Result::None, Status::Compare},
     {"BroScr_EmptyFuncArrStrArgs", 0x00136020, 0, code(&BroScr_EmptyFuncArrStrArgs_entry), 20, Result::None, Status::Compare},
     {"BroScr_EmptyFuncArrStrArgs_2", 0x00136070, 0, code(&BroScr_EmptyFuncArrStrArgs_2_entry), 32, Result::None, Status::Compare},
     {"BroScr_EmptyFuncArrArg", 0x001360c0, 0, code(&BroScr_EmptyFuncArrArg_entry), 8, Result::None, Status::Compare},
     {"BroScr_EmptyFuncArrStrArgs_3", 0x001360d0, 0, code(&BroScr_EmptyFuncArrStrArgs_3_entry), 44, Result::None, Status::Compare},
+    {"BroScr_DeleteFromLevelList784ByTargetname", 0x001362b0, 0, code(&BroScr_DeleteFromLevelList784ByTargetname), 4, Result::None, Status::Compare},
+    {"BroScr_FlakvierlingAnimTree", 0x00136450, 0, code(&BroScr_FlakvierlingAnimTree), 4, Result::None, Status::Compare},
+    {"BroScr_FlakvierlingBaseAnimTree", 0x00136580, 0, code(&BroScr_FlakvierlingBaseAnimTree), 4, Result::None, Status::Compare},
+    {"BroScr_FindLevelVehicleByTargetname", 0x001366b0, 0, code(&BroScr_FindLevelVehicleByTargetname), 8, Result::Eax, Status::Compare},
+    {"BroScr_SetVehicleTargetsGroupByName", 0x001367d0, 0, code(&BroScr_SetVehicleTargetsGroupByName), 8, Result::None, Status::Compare},
+    {"BroScr_SetVehicleTargetsByName", 0x00136870, 0, code(&BroScr_SetVehicleTargetsByName), 8, Result::None, Status::Compare},
+    {"BroScr_SetTargetsByTargetname", 0x00136900, 0, code(&BroScr_SetTargetsByTargetname), 8, Result::None, Status::Compare},
+    {"BroScr_SetVehicleUsableByName", 0x00136990, 0, code(&BroScr_SetVehicleUsableByName), 8, Result::None, Status::Compare},
+    {"BroScr_SetVehicleCanShootLowByName", 0x00136a20, 0, code(&BroScr_SetVehicleCanShootLowByName), 8, Result::None, Status::Compare},
+    {"BroScr_GetVehicleSecondsSince_h05903940", 0x00136c00, 0, code(&BroScr_GetVehicleSecondsSince_h05903940), 8, Result::Eax, Status::Compare},
+    {"BroScr_FindInLevelList798ByTargetname", 0x0013a560, 0, code(&BroScr_FindInLevelList798ByTargetname), 8, Result::Eax, Status::Compare},
+    {"BroScr_StopManagerEnts", 0x0013be00, 0, code(&BroScr_StopManagerEnts), 8, Result::None, Status::Compare},
+    {"BroScr_StopManagerEntsByName", 0x0013bfc0, 0, code(&BroScr_StopManagerEntsByName), 4, Result::None, Status::Compare},
+    {"BroScr_StopManagerEntsByName_2", 0x0013c040, 0, code(&BroScr_StopManagerEntsByName_2), 12, Result::None, Status::Compare},
+    {"BroScr_StopManagerEntsByName_3", 0x0013c0d0, 0, code(&BroScr_StopManagerEntsByName_3), 8, Result::None, Status::Compare},
+    {"BroScr_InitShrimps", 0x0013ddf0, 0, code(&BroScr_InitShrimps), 8, Result::None, Status::Compare},
+    {"BroScr_SetRandomGoalPos", 0x0013df20, 0, code(&BroScr_SetRandomGoalPos), 8, Result::None, Status::Compare},
+    {"BroScr_ArrayRemoveValue", 0x0013ee80, 0, code(&BroScr_ArrayRemoveValue_entry), 20, Result::None, Status::Compare},
+    {"BroScr_ArrayRotateFirstToBack", 0x0013ef90, 0, code(&BroScr_ArrayRotateFirstToBack_entry), 20, Result::None, Status::Compare},
+    {"BroScr_ArrayAddUnique", 0x0013f100, 0, code(&BroScr_ArrayAddUnique), 8, Result::None, Status::Compare},
     {"ScrField_hc4813666", 0x00140090, 0, code(ScrField_hc4813666), 4, Result::Eax, Status::Replaced},
+    {"BroScr_InitWingTurret", 0x00142ff0, 0, code(&BroScr_InitWingTurret), 4, Result::None, Status::Compare},
+    {"BroScr_InitWingTurret_2", 0x00143430, 0, code(&BroScr_InitWingTurret_2), 4, Result::None, Status::Compare},
+    {"BroScr_RocketExplosionThread", 0x00145000, 0, code(&BroScr_RocketExplosionThread), 28, Result::None, Status::Compare},
+    {"BroScr_InitWingTurret_3", 0x00145c80, 0, code(&BroScr_InitWingTurret_3), 8, Result::None, Status::Compare},
+    {"BroScr_TankAttachHullMg", 0x00145cd0, 0, code(&BroScr_TankAttachHullMg), 8, Result::None, Status::Compare},
     {"ScrField_h677e856b", 0x00146420, 0, code(ScrField_h677e856b), 4, Result::Eax, Status::Replaced},
     {"ScrField_h677e856b_IsDefined", 0x00146450, 0, code(ScrField_h677e856b_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_followers", 0x001464c0, 0, code(ScrField_followers), 4, Result::Eax, Status::Replaced},
@@ -3197,9 +3232,36 @@ const Function kFunctions[] = {
     {"ScrField_gunners_IsDefined", 0x00146ef0, 0, code(ScrField_gunners_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_hb0996bdc", 0x00146f60, 0, code(ScrField_hb0996bdc), 4, Result::Eax, Status::Replaced},
     {"ScrField_hb0996bdc_IsDefined", 0x00146f90, 0, code(ScrField_hb0996bdc_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_CountAliveGunners", 0x00147c00, 0, code(&BroScr_CountAliveGunners), 8, Result::Eax, Status::Compare},
+    {"BroScr_NotifyRiders", 0x001499a0, 0, code(&BroScr_NotifyRiders), 4, Result::None, Status::Compare},
     {"ScrField_he104fd5c_PushBack", 0x00149a80, 0, code(&ScrField_he104fd5c_PushBack), 8, Result::Eax, Status::Replaced},
+    {"BroScr_EntArrayRemove_he104fd5c", 0x00149ab0, 0, code(&BroScr_EntArrayRemove_he104fd5c), 8, Result::None, Status::Compare},
+    {"BroScr_GetCurrentPathPos", 0x0014a160, 0, code(&BroScr_GetCurrentPathPos), 8, Result::Eax, Status::Compare},
+    {"BroScr_RemoveFollower", 0x0014a200, 0, code(&BroScr_RemoveFollower), 8, Result::None, Status::Compare},
+    {"BroScr_RotateQueue_h4ced49f6", 0x0014e8c0, 0, code(&BroScr_RotateQueue_h4ced49f6), 8, Result::Eax, Status::Compare},
     {"ScrField_h4ced49f6_PopFront", 0x0014ebc0, 0, code(&ScrField_h4ced49f6_PopFront), 4, Result::Eax, Status::Replaced},
+    {"BroScr_QueueAdd_h4ced49f6", 0x0014ed10, 0, code(&BroScr_QueueAdd_h4ced49f6), 8, Result::None, Status::Compare},
+    {"BroScr_QueueRemove_h4ced49f6", 0x0014ed70, 0, code(&BroScr_QueueRemove_h4ced49f6), 8, Result::None, Status::Compare},
+    {"BroScr_SetHealthByDifficulty", 0x0014ee50, 0, code(&BroScr_SetHealthByDifficulty), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleRandomHealthInit", 0x0014efc0, 0, code(&BroScr_VehicleRandomHealthInit), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleGunnersByName", 0x001504e0, 0, code(&BroScr_VehicleGunnersByName), 4, Result::None, Status::Compare},
+    {"BroScr_SetHealthByDifficulty_2", 0x00150560, 0, code(&BroScr_SetHealthByDifficulty_2), 4, Result::None, Status::Compare},
+    {"BroScr_TankDefaultHealthThink", 0x001506d0, 0, code(&BroScr_TankDefaultHealthThink), 4, Result::None, Status::Compare},
+    {"BroScr_SetHealthByDifficulty_3", 0x00150720, 0, code(&BroScr_SetHealthByDifficulty_3), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleRandomHealthInit_2", 0x00150890, 0, code(&BroScr_VehicleRandomHealthInit_2), 4, Result::None, Status::Compare},
+    {"BroScr_AddToLevelList798EntArray", 0x00150b70, 0, code(&BroScr_AddToLevelList798EntArray), 8, Result::None, Status::Compare},
+    {"BroScr_InList798ByNameCall", 0x00150c10, 0, code(&BroScr_InList798ByNameCall), 8, Result::None, Status::Compare},
+    {"BroScr_VehicleHealth2500Init", 0x00151200, 0, code(&BroScr_VehicleHealth2500Init), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleRandomHealthInit_3", 0x00151230, 0, code(&BroScr_VehicleRandomHealthInit_3), 4, Result::None, Status::Compare},
     {"BroScr_PanzerIVSetDifficultyHealth", 0x00151270, 0, code(&BroScr_PanzerIVSetDifficultyHealth), 4, Result::None, Status::Compare},
+    {"BroScr_RemoveAllFollowers", 0x00151bb0, 0, code(&BroScr_RemoveAllFollowers), 4, Result::None, Status::Compare},
+    {"BroScr_StartPathPosThreads", 0x001522a0, 0, code(&BroScr_StartPathPosThreads), 4, Result::None, Status::Compare},
+    {"BroScr_SetHealthByDifficulty_4", 0x001523e0, 0, code(&BroScr_SetHealthByDifficulty_4), 4, Result::None, Status::Compare},
+    {"BroScr_TankDefaultHealthThink_2", 0x00152550, 0, code(&BroScr_TankDefaultHealthThink_2), 4, Result::None, Status::Compare},
+    {"BroScr_SetHealthByDifficulty_5", 0x00152800, 0, code(&BroScr_SetHealthByDifficulty_5), 4, Result::None, Status::Compare},
+    {"BroScr_TankInitHealth", 0x00152970, 0, code(&BroScr_TankInitHealth), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleSetHealth_Jeep", 0x00154020, 0, code(&BroScr_VehicleSetHealth_Jeep), 4, Result::None, Status::Compare},
+    {"BroScr_SetupWallHopTrigger", 0x00154100, 0, code(&BroScr_SetupWallHopTrigger_entry), 4, Result::None, Status::Compare},
     {"BroScr_VehicleSetHealth_PanzerIV", 0x001552d0, 0, code(&BroScr_VehicleSetHealth_PanzerIV), 4, Result::None, Status::Compare},
     {"BroScr_VehicleSetHealth_Halftrack", 0x00155500, 0, code(&BroScr_VehicleSetHealth_Halftrack), 4, Result::None, Status::Compare},
     {"BroScr_HalftrackAttachAllPassengers", 0x001555e0, 0, code(&BroScr_HalftrackAttachAllPassengers), 4, Result::None, Status::Compare},

@@ -489,6 +489,8 @@ void XB_CDECL BroScr_DeleteAndCountDown(uint32_t ent) {
     *reinterpret_cast<int32_t*>(level + 0x508) -= 1;
 }
 
+ScriptKeyTable* BroScr_ScriptObjectOrEmpty(uint32_t ent) { return script_object_or_empty(ent); }
+
 uint32_t* BroScr_FieldSlot(uint32_t ent, uint32_t hash) {
     ScriptKeyTable* const table = script_object_or_empty(ent);
     if (uint32_t* value = ScriptKeyTable_Find(table, hash)) return value;
