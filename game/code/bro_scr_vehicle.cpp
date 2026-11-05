@@ -205,30 +205,115 @@ uint32_t XB_CDECL BroScr_SetField7ab1fdf4_IsValid(uint32_t ent, uint32_t, uint32
     return slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(other);  // Scr_EntityHandleIsValid
 }
 
-// BroScr_StukaDropBombs keeps stack addresses in host memory: it runs at the original's ESP (C frame
-// below a gap; arguments a, b, the null string and the original's stack word e-8 at the entry ESP).
-PLATFORM_ASM_ENTRY(BroScr_StukaDropBombsThread_entry,
-                   "movl %esp, %edx\n"
-                   GAME_GAP_ESP("0x30000")
-                   "pushl %edi\n"
-                   "pushl %esi\n"
-                   "pushl %ebx\n"
-                   "pushl %edx\n" PLATFORM_ASM_CALL(BroScr_StukaDropBombsThread) "addl $16, %esp\n"
-                   "popl %esp\n"
-                   "ret")
-
-void XB_CDECL BroScr_StukaDropBombsThread(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi) {
-    const uint32_t* const entry = pointer<uint32_t>(entry_esp);
+void XB_CDECL BroScr_StukaDropBombsThread(uint32_t a, uint32_t b) {
     ScriptString none;
     ScriptString_FromRep(&none, nullptr);
-    const uint32_t args[4] = {entry[1], entry[2], static_cast<uint32_t>(reinterpret_cast<uintptr_t>(none.rep)), entry_esp - 8};
-    TitleRegs regs{};
-    regs.eax = entry_esp - 16;
-    regs.ebx = ebx;
-    regs.ecx = entry[1];
-    regs.esi = esi;
-    regs.edi = edi;
-    title_call_at_regs(entry_esp, 0x0014aaa0, &regs, 4, args);  // BroScr_StukaDropBombs(a, b, string, word)
+    // The fourth word is a stack temporary in the original (BroScr_StukaDropBombs reads three).
+    title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString, uint32_t)>(0x0014aaa0)(a, b, none, 0);  // BroScr_StukaDropBombs
+}
+
+namespace {
+
+// The entity's field slot for `key`, added as 0 when missing (ScriptKeyTable_Set).
+uint32_t* zero_slot(uint32_t ent, uint32_t key) {
+    ScriptKeyTable* const table = BroScr_ScriptObjectOrEmpty(ent);
+    if (uint32_t* value = ScriptKeyTable_Find(table, key)) return value;
+    return ScriptKeyTable_Set(table, key, 0);
+}
+
+void use_anim_tree(uint32_t ent, uint32_t name) {
+    ScriptString tree;
+    ScriptString_FromCString(&tree, pointer<const char>(name));
+    slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
+    ScriptString_Release(&tree);
+}
+
+// The flakvierling anim tree and its three anim handles (fields 0x0038b194, 0xe0b632e1, 0xe0b632e2).
+void flakvierling_anim_tree(uint32_t ent, uint32_t tree, uint32_t root, uint32_t firing, uint32_t third) {
+    use_anim_tree(ent, tree);
+    *zero_slot(ent, 0x0038b194) = title_global<uint32_t>(root);
+    *zero_slot(ent, 0xe0b632e1) = title_global<uint32_t>(firing);
+    *zero_slot(ent, 0xe0b632e2) = title_global<uint32_t>(third);
+}
+
+void willy_jeep_setup(uint32_t ent, bool health_thread) {
+    use_anim_tree(ent, 0x007f4948);
+    const int32_t health = slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
+    set_health(ent, static_cast<uint32_t>(health));
+    if (health_thread) create_thread(ent, thread_functor(0x0014d0a0, ent));  // BroScr_VehicleHealthThink
+    create_thread(ent, thread_functor(0x0013f6f0, ent));                     // BroScr_VehicleInit_Jeep
+    create_thread(ent, thread_functor(0x00128f30, ent));                     // BroScr_VehicleTurretFireLoop_7
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f4a1c;
+        functor[1] = 0x00134a90;  // BroScr_TankStunOnDamage
+        functor[2] = ent;
+        functor[3] = 1;
+    }
+    create_thread(ent, functor);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakvierlingAnimTree(uint32_t ent) {
+    flakvierling_anim_tree(ent, 0x007f49c4, 0x008cd1b8, 0x008cd1c4, 0x008cd1d0);
+}
+void XB_CDECL BroScr_FlakvierlingBaseAnimTree(uint32_t ent) {
+    flakvierling_anim_tree(ent, 0x007f49b0, 0x008cd4e8, 0x008cd4f4, 0x008cd500);
+}
+
+void XB_CDECL BroScr_TankAttachHullMg(uint32_t ent, ScriptString tag) {
+    ScriptString weapon;
+    ScriptString_FromCString(&weapon, pointer<const char>(0x007f77f4));
+    ScriptString copy;
+    ScriptString_Copy(&copy, &tag);
+    title_function<void XB_CDECL(uint32_t, ScriptString, ScriptString)>(0x0013f190)(ent, copy, weapon);  // BroScr_TankAttachMgTurret
+    ScriptString_Release(&tag);
+}
+
+void XB_CDECL BroScr_RocketExplosionThread(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                           ScriptString a7) {
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                    const uint32_t*, const uint32_t*, const uint32_t*, const uint32_t*, const ScriptString*);
+    title_function<Start>(0x0052cc30)(0, 0, 0, 0, 0x0013d650, ent, &a2, &a3, &a4, &a5, &a6, &a7);  // Scr_StartThread_ent_i_i_i_i_i_str
+    ScriptString_Release(&a7);
+}
+
+void XB_CDECL BroScr_WillyJeepSetup(uint32_t ent) { willy_jeep_setup(ent, false); }
+void XB_CDECL BroScr_WillyJeepSetup_2(uint32_t ent) { willy_jeep_setup(ent, true); }
+
+uint32_t* XB_CDECL BroScr_CountAliveGunners(uint32_t* out, uint32_t ent) {
+    using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
+    using Resize = void XB_THISCALL(uint32_t*, uint32_t, uint32_t);
+    // The gunner array field 0x2cd69a2a (8-byte elements; ScriptKeyTable_GetOrAddArray, DynArray_Resize8).
+    auto element = [&](uint32_t i) {
+        uint32_t* const array = title_function<GetArray>(0x0017c660)(BroScr_ScriptObjectOrEmpty(ent), 0x2cd69a2a);
+        if (i >= array[2]) title_function<Resize>(0x0017bfb0)(array, i + 1, i + 4);
+        return pointer<uint32_t>(array[0])[i * 2];
+    };
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (!slot<int32_t XB_CDECL(uint32_t)>(0x00922214)(element(i))) continue;  // Scr_EntityHandleIsValid
+        if (slot<int32_t XB_CDECL(uint32_t)>(0x00922210)(element(i))) ++count;    // GScr_IsAlive
+    }
+    *out = count;
+    return out;
+}
+
+void XB_CDECL BroScr_TurretSetAlliesTeam(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922584)(*zero_slot(ent, 0x2f68c7a5), 0x78da62f2);  // GScr_Turret_SetMode
+    bool defined;
+    ScrField_script_team_IsDefined(&defined, ent);
+    using SetTeam = void XB_CDECL(uint32_t, ScriptString*);
+    if (defined) {
+        ScriptString* const team = ScrField_script_team(ent);
+        slot<SetTeam>(0x00922598)(*zero_slot(ent, 0x2f68c7a5), team);  // GScr_Turret_SetTeam
+        return;
+    }
+    ScriptString allies;
+    ScriptString_FromCString(&allies, pointer<const char>(0x00832084));  // "allies"
+    slot<SetTeam>(0x00922598)(*zero_slot(ent, 0x2f68c7a5), &allies);
+    ScriptString_Release(&allies);
 }
 
 }  // namespace game

@@ -45,6 +45,8 @@ uint32_t XB_CDECL BroScr_StartPathPosThreads(uint32_t ent);
 // 0x00154020: the jeep anim tree (0x007f4948), BroScr_SetHealthByDifficulty, then the threads
 // 0x0013f570 (death) and 0x00128f90 (turret fire loop) on `ent` (Scr_CreateThread).
 void XB_CDECL BroScr_VehicleSetHealth_Jeep(uint32_t ent);
+// Not registered (thread_switch): the spawn calls run the new entity's script, which switches script
+// threads and keeps a block of the caller's stack in host memory (compare: mismatches only there).
 // 0x00133eb0: *out = GScr_SpawnVehicle(model (string field 0x05d2529a), name, ent's vehicletype,
 // ent's origin, ent's angles, extra); the new vehicle's vehicletype = ent's. Releases `name`.
 uint32_t* XB_CDECL BroScr_SpawnVehicleFromEnt(uint32_t* out, uint32_t ent, ScriptString name, uint32_t extra);
@@ -57,9 +59,32 @@ uint32_t* XB_CDECL BroScr_ReplaceWithVehicle(uint32_t* out, uint32_t ent, uint32
 uint32_t* XB_CDECL BroScr_ReplaceWithScriptModel(uint32_t* out, uint32_t ent, uint32_t extra);
 // 0x00134be0 (dead): field 0x7ab1fdf4 of `ent` = 1; returns Scr_EntityHandleIsValid(other).
 uint32_t XB_CDECL BroScr_SetField7ab1fdf4_IsValid(uint32_t ent, uint32_t unused1, uint32_t unused2, uint32_t other);
-// 0x001522e0: BroScr_StukaDropBombs(a, b, a null string) (cdecl a, b; the entry hands over its ESP and
-// EBX/ESI/EDI).
-extern "C" PLATFORM_HIDDEN void XB_CDECL BroScr_StukaDropBombsThread(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi);
-extern "C" void BroScr_StukaDropBombsThread_entry(void);
+// 0x001522e0 (not registered, thread_switch: BroScr_StukaDropBombs spawns, see above):
+// BroScr_StukaDropBombs(a, b, a null string).
+void XB_CDECL BroScr_StukaDropBombsThread(uint32_t a, uint32_t b);
+// 0x00136450 / 0x00136580: the flakvierling (0x007f49c4) / flakvierling base (0x007f49b0) anim tree,
+// then the anim handle fields 0x0038b194, 0xe0b632e1, 0xe0b632e2 (added as 0 when missing) = the
+// words at 0x008cd1b8/c4/d0 / 0x008cd4e8/f4, 0x008cd500.
+void XB_CDECL BroScr_FlakvierlingAnimTree(uint32_t ent);
+void XB_CDECL BroScr_FlakvierlingBaseAnimTree(uint32_t ent);
+// 0x00145cd0 (dead): BroScr_TankAttachMgTurret(ent, tag, 0x007f77f4). Releases `tag`.
+void XB_CDECL BroScr_TankAttachHullMg(uint32_t ent, ScriptString tag);
+// 0x00145000: starts the thread 0x0013d650 on `ent` with five words and a string (the KASSPASS
+// section's starter 0x0052cc30, handed pointers to the arguments). Releases `a7`.
+void XB_CDECL BroScr_RocketExplosionThread(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                           ScriptString a7);
+// Not registered (thread_switch): a started thread runs at once and leaves the saved stack pointer
+// in host memory (0x00153ed0 mismatched only there; 0x00145d60 starts the same threads).
+// 0x00145d60 / 0x00153ed0: the jeep anim tree, health 500 + Scr_RandomInt(1000), (0x00153ed0 only: the
+// vehicle health thread), the threads 0x0013f6f0 and 0x00128f30, and 0x00134a90 with a functor
+// {0x007f4a1c, ent, 1}.
+void XB_CDECL BroScr_WillyJeepSetup(uint32_t ent);
+void XB_CDECL BroScr_WillyJeepSetup_2(uint32_t ent);
+// 0x00147c00: *out = how many of the first three gunners (array field 0x2cd69a2a, 8-byte elements)
+// are valid and alive; returns out.
+uint32_t* XB_CDECL BroScr_CountAliveGunners(uint32_t* out, uint32_t ent);
+// 0x00134ec0: the turret (handle field 0x2f68c7a5) gets mode 0x78da62f2 and the entity's script_team,
+// "allies" when that is not set.
+void XB_CDECL BroScr_TurretSetAlliesTeam(uint32_t ent);
 
 }  // namespace game

@@ -30,7 +30,7 @@ void XB_CDECL BroScr_SetVehicleCanShootLowByName(ScriptString name, uint32_t val
 // 0x00136c00: 0x0012ff00(out, the vehicle named `name`); returns out.
 uint32_t* XB_CDECL BroScr_GetVehicleSecondsSince_h05903940(uint32_t* out, ScriptString name);
 // 0x00135ed0: notify 0x78b19de2 to every entity whose targetname is `name` (Scr_GetEntArray).
-void XB_CDECL BroScr_NotifyEntsByTargetname(ScriptString name);
+void XB_CDECL BroScr_NotifyEntsByTargetname(uint32_t unused, ScriptString name);
 // 0x0013be00: when `suffix` is set: notify 0x0c34930d to the entity whose key 0x2d36ed4e is `name`
 // + 0x00824304, then to every entity whose key is `name`, then deletes the first one; else only
 // the notifies to every entity whose key is `name`. Releases both.
@@ -47,5 +47,25 @@ void XB_CDECL BroScr_AddToLevelList798EntArray(ScriptString name, uint32_t value
 // 0x001362b0 (dead): deletes the first valid entity of the list at +0x784 named `name` and erases
 // it from the list.
 void XB_CDECL BroScr_DeleteFromLevelList784ByTargetname(ScriptString name);
+// 0x001504e0: BroScr_ReleaseGunners(the vehicle named `name`). Releases `name`.
+void XB_CDECL BroScr_VehicleGunnersByName(ScriptString name);
+// 0x00154100 (cdecl ent; ECX read): the level's +4 entity gets field 0xddfa2c42 = ECX with its low
+// byte cleared; when ent's script_mantle_type is 0x00824da4, starts the thread 0x0014fb70 on `ent`.
+extern "C" PLATFORM_HIDDEN void XB_CDECL BroScr_SetupWallHopTrigger(uint32_t ecx, uint32_t ent);
+extern "C" void BroScr_SetupWallHopTrigger_entry(void);
+// 0x0014a160 (dead): out = words 0-2 of element (field 0x9aec9c1a) of the 24-byte array field
+// 0xaeae4e0b; returns out.
+uint32_t* XB_CDECL BroScr_GetCurrentPathPos(uint32_t* out, uint32_t ent);
+// 0x0014a200: removes `follower` from the leader's array field 0xdeca7f50 (PtrArray_RemoveValue),
+// notifies it 0x49c98989, then numbers the followers left (their field 0x185cac5b = index).
+void XB_CDECL BroScr_RemoveFollower(uint32_t leader, uint32_t follower);
+// 0x00151bb0 (dead): notify 0xcc07a20a, BroScr_RemoveFollower on each follower, bool field
+// 0xd57e151d = 0.
+void XB_CDECL BroScr_RemoveAllFollowers(uint32_t leader);
+// 0x0013df20 (dead): each entity of `ents` gets the goal position of a random entity of `nodes`.
+void XB_CDECL BroScr_SetRandomGoalPos(uint32_t* ents, uint32_t* nodes);
+// 0x0013ddf0: the first entity named `name`: its sound (field shrimp_id) freed when using_shrimps is
+// set, else BroScr_NotifyEntsByTargetname(name) started as a thread on the level's +4 entity.
+void XB_CDECL BroScr_InitShrimps(uint32_t unused, ScriptString name);
 
 }  // namespace game
