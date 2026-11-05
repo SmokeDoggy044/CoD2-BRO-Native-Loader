@@ -6788,11 +6788,11 @@ address,name,section,module,state,tested,matched
 001cccd0,BroScr_BalconyStumbleDeath,.text,levelscript,set-aside,0,0
 001cd050,BroScr_BattleChatterOnDeath,.text,levelscript,set-aside,0,0
 001cd080,BroScr_StandShootSideStep,.text,levelscript,set-aside,0,0
-001cd420,BroScr_ProneShootLoop,.text,levelscript,named,0,0
+001cd420,BroScr_ProneShootLoop,.text,levelscript,set-aside,0,0
 001cdb10,Bro_anim_main_pain,.text,levelscript,set-aside,0,0
 001cdb30,Bro_anim_main_scripted,.text,levelscript,set-aside,0,0
-001cdb60,BroScr_MeleeCharge,.text,levelscript,named,0,0
-001ce710,BroScr_ProneShootLoop_2,.text,levelscript,named,0,0
+001cdb60,BroScr_MeleeCharge,.text,levelscript,set-aside,0,0
+001ce710,BroScr_ProneShootLoop_2,.text,levelscript,set-aside,0,0
 001cedf0,BroScr_PoseMove_ProneWalk,.text,levelscript,set-aside,0,0
 001cee10,BroScr_PoseMove_ProneRun,.text,levelscript,set-aside,0,0
 001cee30,BroScr_StandIdleTwitch_1,.text,levelscript,set-aside,0,0
@@ -6813,7 +6813,7 @@ address,name,section,module,state,tested,matched
 001d46c0,BroScr_FallbackerTriggerThink,.text,levelscript,set-aside,0,0
 001d4970,BroScr_AnimScript_Aim,.text,levelscript,set-aside,0,0
 001d4a40,BroScr_CoverShootBehavior,.text,levelscript,set-aside,0,0
-001d5410,BroScr_ForceShoot,.text,levelscript,named,0,0
+001d5410,BroScr_ForceShoot,.text,levelscript,set-aside,0,0
 001d5890,BroScr_ForceShootThink,.text,levelscript,set-aside,0,0
 001d5a50,BroScr_BattleChatterInit,.text,levelscript,set-aside,0,0
 001d5e30,BroScr_MiscCombatTimer,.text,levelscript,set-aside,0,0
@@ -6837,7 +6837,7 @@ address,name,section,module,state,tested,matched
 001d9750,BroScr_CoverProne_2,.text,levelscript,set-aside,0,0
 001d99e0,Bro_run__main,.text,levelscript,named,0,0
 001dab60,BroScr_InitPoseMovementTable,.text,levelscript,matched,5,5
-001dabf0,BroScr_StopStandIdle,.text,levelscript,named,0,0
+001dabf0,BroScr_StopStandIdle,.text,levelscript,set-aside,0,0
 001db090,BroScr_StopCrouchIdle,.text,levelscript,set-aside,0,0
 001db300,BroScr_StopAtCornerStandRight,.text,levelscript,set-aside,0,0
 001db4a0,BroScr_StopAtCornerCrouchRight,.text,levelscript,set-aside,0,0
@@ -6871,7 +6871,7 @@ address,name,section,module,state,tested,matched
 001de940,Bro_anim_main_concealment_prone,.text,levelscript,set-aside,0,0
 001de960,Bro_anim_main_cover_prone,.text,levelscript,set-aside,0,0
 001de980,BroScr_TriggerNotifyLevelTargetname,.text,levelscript,set-aside,0,0
-001deab0,BroScr_MgTurretThink,.text,levelscript,named,0,0
+001deab0,BroScr_MgTurretThink,.text,levelscript,set-aside,0,0
 001e0880,BroScr_AiMaybeDropHealth,.text,levelscript,matched,19,19
 001e09e0,BroScr_DropHealth,.text,levelscript,untested,0,0
 001e0c90,BroScr_SpawnerSetupAI,.text,levelscript,set-aside,0,0
@@ -6879,11 +6879,11 @@ address,name,section,module,state,tested,matched
 001e1cf0,BroScr_TurretSetAIMode,.text,levelscript,set-aside,0,0
 001e1f60,BroScr_SpawnerFinishSpawn,.text,levelscript,set-aside,0,0
 001e2010,BroScr_Mg42CoverSpotThink,.text,levelscript,named,0,0
-001e25d0,BroScr_SpawnedThink,.text,levelscript,named,0,0
+001e25d0,BroScr_SpawnedThink,.text,levelscript,set-aside,0,0
 001e2a60,BroScr_InitMg42CoverSpots,.text,levelscript,untested,0,0
-001e2e10,BroScr_BipodGunner,.text,levelscript,named,0,0
+001e2e10,BroScr_BipodGunner,.text,levelscript,set-aside,0,0
 001e3430,BroScr_BipodGunnerStateMain,.text,levelscript,set-aside,0,0
-001e3520,Bro_stop__main,.text,levelscript,named,0,0
+001e3520,Bro_stop__main,.text,levelscript,set-aside,0,0
 001e3c60,Bro_anim_main_stop,.text,levelscript,set-aside,0,0
 001e3c80,BroScr_AnimScript_Reacquire,.text,levelscript,set-aside,0,0
 001e3da0,Bro_anim_main_reacquire,.text,levelscript,set-aside,0,0
