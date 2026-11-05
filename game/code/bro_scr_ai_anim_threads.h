@@ -616,5 +616,10 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent);
 // 0x001d91d0 (inside Ghidra's BroScr_AnimScript_Death; unreferenced): the crouched combat aim and shoot step.
 void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent);
 
+// 0x001d99e0: the run anim script, forever: shoots while running (stand / crouch shoot runs, a rechamber) when it
+// can, else the pose's run - standing a combat run (reload blends, wounded legs, a limp mix), prone a crawl,
+// crouched the crouch run - with the directional move loop thread; notify 0x6d4893a9 per pass.
+void XB_CDECL Bro_run__main(uint32_t ent);
+
 }  // namespace game
 
