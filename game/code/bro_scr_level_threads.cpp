@@ -4740,4 +4740,758 @@ void XB_CDECL BroScr_RespawnerCountDeath(uint32_t ent, uint32_t respawner, uint3
     }
 }
 
+void XB_CDECL BroScr_FollowLagThink(uint32_t ent) {
+    slot<EntHash>(0x00922188)(ent, 0xcc07a20a);  // Scr_EndOn
+    *bool_slot(ent, 0xd57e151d) = 1;
+    bool defined;
+    if (!*ScrField_lag_distance_IsDefined(&defined, ent)) *int_slot(ent, 0x96f9883f) = 0;  // lag_distance
+    // While it and its path (handle key 0xd952b5cf) are valid: the current path position (int key
+    // 0x9aec9c1a) updated, notify 0x14559f8c on a change; 0.25 s steps.
+    for (;;) {
+        if (entity_handle_is_valid(ent)) {
+            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            if (table) {
+                const uint32_t* const path = ScriptKeyTable_Find(table, 0xd952b5cf);
+                if (entity_handle_is_valid(path ? *path : 0)) {
+                    uint32_t buffer;
+                    const uint32_t current = *BroScr_FollowUpdateCurrentPos(&buffer, ent);
+                    if (current != *int_slot(ent, 0x9aec9c1a)) {
+                        *int_slot(ent, 0x9aec9c1a) = current;
+                        queue_notify(ent, 0x14559f8c);
+                    }
+                }
+            }
+        }
+        Scr_Wait(0.25f);
+    }
+}
+
+void XB_CDECL BroScr_FollowEntInit(uint32_t leader, uint32_t follower) {
+    using SetGoalPos = void XB_CDECL(uint32_t, const uint32_t*);
+    slot<EntHash>(0x00922188)(follower, kDeath);     // Scr_EndOn
+    slot<EntHash>(0x00922188)(follower, 0x49c98989);  // Scr_EndOn
+    slot<EntHash>(0x00922188)(leader, 0xb93f38bf);    // Scr_EndOn
+    slot<EntHash>(0x00922188)(leader, 0xcc07a20a);    // Scr_EndOn
+    slot<EntHash>(0x00922df4)(follower, 0);           // ScrSentient_SetFloat_18
+    // On each leader position change (0x14559f8c): the follower's point (BroScr_FollowPathOffsetPoint of
+    // the last index) and its goal: the leader's path position (int key 0x9aec9c1a) plus key 0x5cd3d8b8
+    // minus the follower's key 0x185cac5b, plus twice key 0xea4a313a / lag_distance while that is below
+    // 0x5cd3d8b8; goal the second (bool key 0x217d7784) or first vector of the leader's path entry. At the
+    // path's last entry: notifies 0xcc07a20a and 0xa3122ec6, a BroScr_RemoveAllFollowers thread.
+    int32_t index = static_cast<int32_t>(undefined_int());
+    for (;;) {
+        Scr_WaitTill(leader, 0x14559f8c);
+        if (static_cast<uint32_t>(index) != undefined_int()) BroScr_FollowPathOffsetPoint(leader, index);
+        const int32_t spacing = static_cast<int32_t>(*int_slot(leader, 0xea4a313a));
+        const int32_t lag = spacing / static_cast<int32_t>(*int_slot(leader, 0x96f9883f)) * 2;
+        const uint32_t* const offset = int_slot(leader, 0x5cd3d8b8);
+        if (static_cast<int32_t>(*int_slot(follower, 0x185cac5b)) < static_cast<int32_t>(*offset)) {
+            const uint32_t* const n = int_slot(leader, 0x5cd3d8b8);
+            const int32_t current = static_cast<int32_t>(*int_slot(leader, 0x9aec9c1a));
+            index = static_cast<int32_t>(*n) + (current + lag) - static_cast<int32_t>(*int_slot(follower, 0x185cac5b));
+        } else {
+            const int32_t current = static_cast<int32_t>(*int_slot(leader, 0x9aec9c1a));
+            const int32_t own = static_cast<int32_t>(*int_slot(follower, 0x185cac5b));
+            index = static_cast<int32_t>(*int_slot(leader, 0x5cd3d8b8)) - own + current;
+        }
+        if (index >= 0) {
+            const uint32_t i = static_cast<uint32_t>(index);
+            if (*bool_slot(leader, 0x217d7784)) {
+                DynArray* const path = pointer<DynArray>(path_positions(leader));
+                if (i >= path->size) DynArray_Resize24(path, i + 1, i + 4);
+                slot<SetGoalPos>(0x00922684)(follower, path->data + i * 6 + 3);  // GScr_SetGoalPos
+            } else {
+                DynArray* const path = pointer<DynArray>(path_positions(leader));
+                if (i >= path->size) DynArray_Resize24(path, i + 1, i + 4);
+                slot<SetGoalPos>(0x00922684)(follower, path->data + i * 6);  // GScr_SetGoalPos
+            }
+        }
+        if (index == static_cast<int32_t>(pointer<DynArray>(path_positions(leader))->size - 1)) {
+            queue_notify(leader, 0xcc07a20a);
+            queue_notify(leader, 0xa3122ec6);
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+                0, 0, 0, 0, 0x00151bb0, leader);  // Scr_StartThreadFunctor1(BroScr_RemoveAllFollowers)
+        }
+    }
+}
+
+void XB_CDECL BroScr_VehicleDeadStop(uint32_t ent) {
+    using SetSpeed = void XB_CDECL(uint32_t, uint32_t, uint32_t);
+    using Find = uint32_t* XB_CDECL(uint32_t*, uint32_t, DynArray*);
+    Scr_EndOnString(ent, pointer<const char>(0x00824d98));  // "deadstop"
+    bool defined;
+    if (!*ScrField_hc904bb71_IsDefined(&defined, ent) || *int_slot(ent, 0xc904bb71) == 0)
+        Scr_EndOnString(ent, pointer<const char>(0x0083abfc));  // "reached_end_node"
+    // Paused while int key 0x147beb00 is defined and 0 (1 s steps); a blocker from the level's vehicle
+    // list (+0x4e0) stops it (accel 25 for kind 1, 10000 for kind 2, 0.1 s steps) until it is gone, then
+    // GScr_Vehicle_SetSpeedMode2(5); 0.2 s steps.
+    for (;;) {
+        for (;;) {
+            if (!entity_handle_is_valid(ent)) break;
+            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            if (!table) break;
+            const uint32_t* const value = ScriptKeyTable_Find(table, 0x147beb00);
+            const uint32_t undefined = undefined_int();
+            if ((value ? *value : undefined) == undefined) break;
+            if (*int_slot(ent, 0x147beb00) != 0) break;
+            Scr_Wait(1.0f);
+        }
+        uint32_t result;
+        const uint32_t blocker =
+            *title_function<Find>(0x0014e7a0)(&result, ent, pointer<DynArray>(title_global<uint32_t>(0x00922ee0) + 0x4e0));  // BroScr_VehicleFindBlocker
+        if (blocker) {
+            if (blocker == 1) {
+                slot<SetSpeed>(0x00922890)(ent, 0, 0x41c80000);  // GScr_Vehicle_SetSpeed(0, 25)
+                do {
+                    slot<SetSpeed>(0x00922890)(ent, 0, 0x41c80000);  // GScr_Vehicle_SetSpeed(0, 25)
+                    Scr_Wait(float_bits(0x3dcccccd));                // 0.1
+                } while (*title_function<Find>(0x0014e7a0)(&result, ent, pointer<DynArray>(title_global<uint32_t>(0x00922ee0) + 0x4e0)) == 1);
+                slot<void XB_CDECL(uint32_t, float)>(0x00922894)(ent, 5.0f);  // GScr_Vehicle_SetSpeedMode2
+            } else if (blocker == 2) {
+                slot<SetSpeed>(0x00922890)(ent, 0, 0x461c4000);  // GScr_Vehicle_SetSpeed(0, 10000)
+                do {
+                    slot<SetSpeed>(0x00922890)(ent, 0, 0x461c4000);  // GScr_Vehicle_SetSpeed(0, 10000)
+                    Scr_Wait(float_bits(0x3dcccccd));                // 0.1
+                } while (*title_function<Find>(0x0014e7a0)(&result, ent, pointer<DynArray>(title_global<uint32_t>(0x00922ee0) + 0x4e0)) == 2);
+                slot<void XB_CDECL(uint32_t, float)>(0x00922894)(ent, 5.0f);  // GScr_Vehicle_SetSpeedMode2
+            }
+        }
+        Scr_Wait(float_bits(0x3e4ccccd));  // 0.2
+    }
+}
+
+namespace {
+
+// BroScr_StunnedWait(ent) (the title passes the undefined entity 0x00922e84 as a third, unread word).
+inline bool stunned_wait(uint32_t ent) {
+    bool result;
+    return *title_function<bool* XB_CDECL(bool*, uint32_t, uint32_t)>(0x0014ea50)(&result, ent, title_global<uint32_t>(0x00922e84));
+}
+
+// The first entry of the target queue (array key 0x4ced49f6, set empty when missing), grown to one.
+inline uint32_t first_target(uint32_t ent) {
+    using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, DynArray*);
+    ScriptKeyTable* const table = ent_script_object(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, 0x4ced49f6);
+    if (!value) {
+        DynArray empty = {nullptr, 0, 0};
+        value = title_function<SetArray>(0x0045cc80)(table, 0x4ced49f6, &empty);  // ScriptKeyTable_SetArray
+    }
+    DynArray* const queue = pointer<DynArray>(*value);
+    if (!queue->size) DynArray_Resize(reinterpret_cast<uint8_t*>(queue), 1, 4);
+    return queue->data[0];
+}
+
+// GScr_Vehicle_SetTurretTargetEnt(ent, the first target, offset).
+inline void target_first(uint32_t ent, const float* offset) {
+    const uint32_t target = first_target(ent);
+    slot<void XB_CDECL(uint32_t, uint32_t, const float*)>(0x009228cc)(ent, target, offset);
+}
+
+// Waits `step` while GScr_GetTime is before `end` and BroScr_StunnedWait holds.
+inline void wait_while_stunned(float end, float step, uint32_t ent) {
+    while (end > static_cast<float>(get_time()) && stunned_wait(ent)) Scr_Wait(step);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_TankHullGunnerThink(uint32_t ent, ScriptString weapon, ScriptString tag) {
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
+    using RandomFloat = long double XB_CDECL(float);
+    title_function<StartThread>(0x0045aff0)(0, 0, 0, 0, 0x0013f190, ent, &weapon, &tag);  // Scr_StartThread_ent_str_str(BroScr_TankAttachMgTurret)
+    slot<EntHash>(0x00922188)(ent, kDeath);  // Scr_EndOn
+    bool defined;
+    if (*ScrField_script_team_IsDefined(&defined, ent) &&
+        ScriptString_Equals(ScrField_script_team(ent), pointer<const char>(0x0083208c))) {  // "axis"
+        DynArray* const queue = key_array(ent, 0x4ced49f6);
+        if (!queue->size) DynArray_Resize(reinterpret_cast<uint8_t*>(queue), 1, 4);
+        queue->data[0] = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x6ec);
+    }
+    if (*ScrField_triggeredthink_IsDefined(&defined, ent)) Scr_WaitTill(ent, 0x9a652fcd);
+    // Bursts at the queue's first target: aimed 64 up with a random spread scaled by distance and
+    // script_accuracy, a BroScr_TurretVisTargetWait thread until it sees the target (int key 0x4d917ba7),
+    // then fire (0x2f9d0580 / 0xac1c7bac notifies) for the level's burst time (+0x77c s) and 1 s, then
+    // 1.5-3.5 s aimed without spread; two bursts, then the target is dropped (when not stunned) or
+    // 0x4d7beb69 notified (no queue, or no key 0xde065107); 0.3 s steps.
+    int32_t bursts = 0;
+    for (;;) {
+        bool next = false;
+        if (*BroScr_RotateQueue_h4ced49f6(reinterpret_cast<uint8_t*>(&defined), ent) && stunned_wait(ent)) {
+            float offset[3] = {0.0f, 0.0f, 0.0f};
+            if (*ScrField_script_accuracy_IsDefined(&defined, ent)) {
+                uint32_t buffer[3];
+                const uint32_t* o = slot<GetVec>(0x00922b20)(buffer, first_target(ent));  // ScrEnt_GetOrigin
+                const uint32_t to[3] = {o[0], o[1], o[2]};
+                o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+                const uint32_t from[3] = {o[0], o[1], o[2]};
+                const float d = static_cast<float>(
+                    slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(from, to));  // Scr_Distance
+                const float spread = *reinterpret_cast<const float*>(ScrField_script_accuracy(ent)) * (d * float_bits(0x3951b717));  // 0.0002
+                const float size = static_cast<float>(slot<long double XB_CDECL(float)>(0x00922260)(spread));  // Scr_Abs
+                float sign = title_global<float>(0x00922eac);
+                if (spread != 0.0f) sign = spread / size;
+                const float c0 = (size * float_bits(0x3e19999a) +
+                                  static_cast<float>(slot<RandomFloat>(0x00922230)(size * float_bits(0x3f59999a)))) * sign;  // 0.15, 0.85
+                const float c1 = (size * float_bits(0x3e19999a) +
+                                  static_cast<float>(slot<RandomFloat>(0x00922230)(size * float_bits(0x3f59999a)))) * sign;
+                const float c2 = (size * float_bits(0x3e19999a) +
+                                  static_cast<float>(slot<RandomFloat>(0x00922230)(size * float_bits(0x3f59999a)))) * sign;
+                offset[0] = c0;
+                offset[1] = c1;
+                offset[2] = c2;
+            }
+            const float aim[3] = {offset[0], offset[1], offset[2] + 64.0f};
+            target_first(ent, aim);
+            *int_slot(ent, 0x4d917ba7) = 0;
+            uint32_t* const functor = new_functor(0xc);
+            if (functor) {
+                functor[0] = 0x007f5ba0;
+                functor[1] = 0x00134c40;  // BroScr_TurretVisTargetWait
+                functor[2] = ent;
+            }
+            create_thread(ent, functor);
+            while (stunned_wait(ent) && *int_slot(ent, 0x4d917ba7) == 0) Scr_Wait(float_bits(0x3e4ccccd));  // 0.2
+            queue_notify(ent, 0x2f9d0580);
+            *int_slot(ent, 0x4d917ba7) = 0;
+            if (stunned_wait(ent)) {
+                slot<Ent>(0x009228d0)(ent);  // GScr_Vehicle_ClearTurretTarget
+                const uint32_t burst = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x77c);
+                if (burst != undefined_int()) {
+                    const int32_t ms = static_cast<int32_t>(burst) * 1000;
+                    wait_while_stunned(static_cast<float>(ms + get_time()), float_bits(0x3e4ccccd), ent);  // 0.2
+                }
+                if (stunned_wait(ent)) {
+                    queue_notify(ent, 0xac1c7bac);
+                    wait_while_stunned(static_cast<float>(get_time() + 1000), 0.0f, ent);
+                    if (stunned_wait(ent)) {
+                        const float plain[3] = {0.0f, 0.0f, 64.0f};
+                        target_first(ent, plain);
+                        const int32_t pause = random_int(2000) + 1500;
+                        const int32_t until = get_time() + pause;
+                        const float end = static_cast<uint32_t>(until) == undefined_int() ? title_global<float>(0x00922eac)
+                                                                                         : static_cast<float>(until);
+                        wait_while_stunned(end, float_bits(0x3e99999a), ent);  // 0.3
+                        next = ++bursts <= 1;
+                    }
+                }
+            }
+        }
+        if (next) continue;
+        bursts = 0;
+        if (*ScrField_h4ced49f6_IsDefined(&defined, ent)) {
+            if (!stunned_wait(ent)) {
+                title_function<uint32_t* XB_CDECL(uint32_t, uint32_t)>(0x0014ebc0)(ent, first_target(ent));  // ScrField_h4ced49f6_PopFront
+                Scr_Wait(float_bits(0x3e99999a));  // 0.3
+                continue;
+            }
+            if (entity_handle_is_valid(ent)) {
+                ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+                if (table) {
+                    const uint32_t* const value = ScriptKeyTable_Find(table, 0xde065107);
+                    const uint32_t undefined = undefined_int();
+                    if ((value ? *value : undefined) != undefined) {
+                        Scr_Wait(float_bits(0x3e99999a));  // 0.3
+                        continue;
+                    }
+                }
+            }
+        }
+        queue_notify(ent, 0x4d7beb69);
+        Scr_Wait(float_bits(0x3e99999a));  // 0.3
+    }
+}
+
+namespace {
+
+// The rider's entry point: the vehicle's tag `text` origin (GScr_GetTagOrigin into undefined lanes).
+inline void entry_tag_origin(uint32_t vehicle, uint32_t text, uint32_t* goal) {
+    ScriptString tag;
+    ScriptString_FromCString(&tag, pointer<const char>(text));
+    const uint32_t lane = undefined_lane();
+    uint32_t o[3] = {lane, lane, lane};
+    slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x0092261c)(vehicle, o, &tag);  // GScr_GetTagOrigin
+    goal[0] = o[0];
+    goal[1] = o[1];
+    goal[2] = o[2];
+    ScriptString_Release(&tag);
+}
+
+// The flakvierling loader's mount anim (anim global `anim`) from the rider's origin, angled as the
+// vehicle's tag `text` (ScrCall_GScr_GetTagAngles).
+inline void loader_mount_anim(uint32_t* vehicle, uint32_t* rider, uint32_t anim, uint32_t text) {
+    using Anim = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(*rider, title_global<uint32_t>(anim));  // ScrActor_SetInt_1370
+    ScriptString tag;
+    ScriptString_FromCString(&tag, pointer<const char>(text));
+    const uint32_t mount = title_global<uint32_t>(anim);
+    uint32_t a[3], o[3];
+    const uint32_t* const angles =
+        ScrCall_GScr_GetTagAngles(a, vehicle, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&tag)));
+    const uint32_t* const origin = ScrCall_ScrEnt_GetOrigin(rider, o);
+    slot<Anim>(0x009224c0)(*rider, 0x54e3b2b6, origin, angles, mount);  // GScr_AnimScriptedNoNotify
+    ScriptString_Release(&tag);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleMountRiders(uint32_t vehicle, uint32_t rider, uint32_t seat, ScriptString tag, bool skip_goal) {
+    using SetGoal = void XB_CDECL(uint32_t, const uint32_t*);
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x009223a0)(rider, 1, 1, 1);  // GScr_SetAIFlags
+    slot<EntHash>(0x00922df4)(rider, 0x40800000);  // ScrSentient_SetFloat_18(4)
+    slot<EntHash>(0x00922cfc)(rider, 0x3f800000);  // ScrActor_SetFloat_7a4(1)
+    slot<EntHash>(0x00922188)(rider, kDeath);      // Scr_EndOn
+    slot<EntHash>(0x00922188)(rider, 0x548b3b43);  // Scr_EndOn
+    if (!skip_goal) {
+        slot<SetGoal>(0x00922688)(rider, key_slot(vehicle, 0x6dcb7c56, 0));  // GScr_SetGoalPosFromNode
+        Scr_WaitTill(rider, 0x0032304c);
+    }
+    ++*int_slot(vehicle, 0xb330b301);  // riders getting on / off
+    *bool_slot(rider, 0x2cdbaad4) = 1;
+    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*)>(0x004b09e0)(
+        0, 0, 0, 0, 0x0012fdb0, vehicle, &rider);  // Scr_CallThread_ent_ent_ORAN(BroScr_VehicleRiderDeathWatch)
+    // To the seat's entry tag (none for other tags: the undefined goal), the gun put away.
+    const uint32_t lane = undefined_lane();
+    uint32_t goal[3] = {lane, lane, lane};
+    if (ScriptString_Equals(&tag, pointer<const char>(0x007fa47c))) {  // "tag_gunner"
+        entry_tag_origin(vehicle, 0x00824dd0, goal);                    // "tag_entry_gunner"
+    } else if (ScriptString_Equals(&tag, pointer<const char>(0x007fc0bc))) {  // "tag_passenger1"
+        entry_tag_origin(vehicle, 0x00824dbc, goal);                           // "tag_entry_loaderL"
+    } else if (ScriptString_Equals(&tag, pointer<const char>(0x007f5c08))) {  // "tag_passenger2"
+        ScriptString entry;
+        ScriptString_FromCString(&entry, pointer<const char>(0x00824da8));  // "Tag_entry_loaderR"
+        uint32_t o[3];
+        const uint32_t* const at =
+            ScrCall_GScr_GetTagOrigin(o, &vehicle, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&entry)));
+        goal[0] = at[0];
+        goal[1] = at[1];
+        goal[2] = at[2];
+        ScriptString_Release(&entry);
+    }
+    slot<SetGoal>(0x00922684)(rider, goal);  // GScr_SetGoalPos
+    Scr_WaitTill(rider, 0x0032304c);
+    BroScr_PutGunInHand(rider, 0x0036b1a5);
+    // The mount anim (unless script_noteworthy "no_mount_anim"), waited for.
+    if (!noteworthy_is(&rider, 0x007f69b8)) {
+        if (ScriptString_Equals(&tag, pointer<const char>(0x007fa47c))) {  // "tag_gunner"
+            using Anim = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t);
+            slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(rider, title_global<uint32_t>(0x008cd1f4));  // ScrActor_SetInt_1370(GunnerMount)
+            ScriptString entry;
+            ScriptString_FromCString(&entry, pointer<const char>(0x00824dd0));  // "tag_entry_gunner"
+            const uint32_t lane_2 = undefined_lane();
+            uint32_t a[3] = {lane_2, lane_2, lane_2};
+            slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x00922620)(vehicle, a, &entry);  // GScr_GetTagAngles
+            const uint32_t angles[3] = {a[0], a[1], a[2]};
+            uint32_t buffer[3];
+            const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, rider);  // ScrEnt_GetOrigin
+            const uint32_t origin[3] = {o[0], o[1], o[2]};
+            slot<Anim>(0x009224c0)(rider, 0x54e3b2b6, origin, angles, title_global<uint32_t>(0x008cd1f4));  // GScr_AnimScriptedNoNotify
+            ScriptString_Release(&entry);
+        } else if (ScriptString_Equals(&tag, pointer<const char>(0x007fc0bc))) {  // "tag_passenger1"
+            loader_mount_anim(&vehicle, &rider, 0x008cd218, 0x00824dbc);         // LoaderMountL, "tag_entry_loaderL"
+        } else if (ScriptString_Equals(&tag, pointer<const char>(0x007f5c08))) {  // "tag_passenger2"
+            loader_mount_anim(&vehicle, &rider, 0x008cd224, 0x00824da8);         // LoaderMountR, "Tag_entry_loaderR"
+        }
+        Scr_WaitTill(rider, 0x54e3b2b6);
+    }
+    --*int_slot(vehicle, 0xb330b301);
+    *bool_slot(rider, 0x2cdbaad4) = 0;
+    *reinterpret_cast<uint8_t*>(rider_slot(vehicle, seat) + 1) = 1;
+    queue_notify(rider, 0x9966dcdf);
+    {
+        const uint32_t origin_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+        const uint32_t angles_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+        using Link = void XB_CDECL(uint32_t, uint32_t, const ScriptString*, const uint32_t*, const uint32_t*, uint32_t);
+        slot<Link>(0x009224f4)(rider, vehicle, &tag, origin_offset, angles_offset, 0);  // GScr_LinkToTagWithOffset
+    }
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &tag);
+        BroScr_SetRiderAnimForTag(rider, copy);  // releases its copy
+    }
+    BroScr_PutGunInHand(rider, 0x0036b1a5);
+    uint32_t* const functor = new_functor(0x10);
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = 0x0012fe30;  // BroScr_VehicleRiderUnlinkOnDeath
+        functor[2] = vehicle;
+        functor[3] = rider;
+    }
+    create_thread(vehicle, functor);
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const ScriptString*);
+    title_function<Start>(0x0045b3b0)(0, 0, 0, 0, 0x00150180, vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRiderWait)
+    ScriptString_Release(&tag);
+}
+
+void XB_CDECL BroScr_PanzerIVSetup_3(uint32_t ent) {
+    {
+        ScriptString tree;
+        ScriptString_FromCString(&tree, pointer<const char>(0x007f499c));  // "panzerIV"
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
+        ScriptString_Release(&tree);
+    }
+    slot<EntHash>(0x00922b94)(ent, static_cast<uint32_t>(random_int(1000) + 500));  // ScrEnt_SetHealth
+    uint32_t* functor = new_functor(0xc);
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = 0x0014d0a0;  // BroScr_VehicleHealthThink
+        functor[2] = ent;
+    }
+    create_thread(ent, functor);
+    BroScr_VehicleInit_PanzerIV(ent);
+    functor = new_functor(0xc);
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = 0x001283d0;  // BroScr_VehicleTurretFireLoop_4
+        functor[2] = ent;
+    }
+    create_thread(ent, functor);
+    thread_2(ent, 0x00134a90, ent, 1);  // BroScr_TankStunOnDamage
+}
+
+namespace {
+
+// Scr_WaitTill(level, hash of the entity's targetname + `suffix`).
+inline void wait_targetname_notify(uint32_t* ent, uint32_t suffix) {
+    const uint32_t object = title_global<uint32_t>(0x00922ee0);
+    const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+    ScriptString name;
+    ScriptString text;
+    ScriptString_ConcatCString(&text, ScrCall_ScrEnt_GetTargetname(ent, &name), pointer<const char>(suffix));
+    uint32_t hash;
+    const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text));
+    Scr_WaitTill(*level, h);
+    ScriptString_Release(&text);
+    ScriptString_Release(&name);
+}
+
+// The follower array (key 0xdeca7f50, set empty when missing).
+inline DynArray* follower_array(uint32_t ent) {
+    using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, DynArray*);
+    ScriptKeyTable* const table = ent_script_object(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, 0xdeca7f50);
+    if (!value) {
+        DynArray empty = {nullptr, 0, 0};
+        value = title_function<SetArray>(0x0045cc80)(table, 0xdeca7f50, &empty);  // ScriptKeyTable_SetArray
+    }
+    return pointer<DynArray>(*value);
+}
+
+// Follower i (the array grown to i + 1).
+inline const uint32_t* follower_at(uint32_t ent, uint32_t i) {
+    DynArray* const array = follower_array(ent);
+    if (i >= array->size) DynArray_Resize(reinterpret_cast<uint8_t*>(array), i + 1, i + 4);
+    return array->data + i;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_PauseUnpauseThink(uint32_t ent) {
+    slot<EntHash>(0x00922188)(ent, 0xcc07a20a);  // Scr_EndOn
+    // On the level's "<targetname>_pause": paused (bool key 0x262b2a4b), notify 0xb93f38bf (ends the
+    // followers' threads); on "<targetname>_unpause": unpaused, BroScr_PauseUnpauseWait and
+    // BroScr_FollowEntInit threads again for each follower, notify 0x14559f8c.
+    for (;;) {
+        wait_targetname_notify(&ent, 0x00824e9c);  // "_pause"
+        *bool_slot(ent, 0x262b2a4b) = 1;
+        queue_notify(ent, 0xb93f38bf);
+        wait_targetname_notify(&ent, 0x00824e90);  // "_unpause"
+        *bool_slot(ent, 0x262b2a4b) = 0;
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(follower_array(ent)->size); ++i) {
+            const uint32_t* follower = follower_at(ent, i);
+            uint32_t* functor = new_functor(0x10);
+            if (functor) {
+                functor[0] = 0x007f4a28;
+                functor[1] = 0x00132ab0;  // BroScr_PauseUnpauseWait
+                functor[2] = ent;
+                functor[3] = *follower;
+            }
+            create_thread(ent, functor);
+            follower = follower_at(ent, i);
+            functor = new_functor(0x10);
+            if (functor) {
+                functor[0] = 0x007f4a28;
+                functor[1] = 0x00151e70;  // BroScr_FollowEntInit
+                functor[2] = ent;
+                functor[3] = *follower;
+            }
+            create_thread(ent, functor);
+        }
+        queue_notify(ent, 0x14559f8c);
+    }
+}
+
+void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
+                                    ScriptString mode) {
+    using Count = uint32_t XB_CDECL(uint32_t);
+    using SetCount = void XB_CDECL(uint32_t, uint32_t);
+    using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
+    using RandomFloat = long double XB_CDECL(float);
+    *bool_slot(ent, 0xaa3cddde) = 1;  // the first spawn (no delay)
+    *bool_slot(ent, 0x18b0887b) = 0;
+    // The spawn zone: the spawner's zone when the level uses zones (+0x188 defined and set), else 0.
+    uint32_t zone;
+    const uint32_t zones = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x188);
+    if (zones != undefined_int() && zones) {
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+        zone = slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0092249c)(o[0], o[1], o[2]);  // GScr_GetZoneAtPoint
+    } else {
+        zone = 0;
+    }
+    if (entity_handle_is_valid(respawner)) {
+        slot<EntHash>(0x00922188)(respawner, 0x0c34930d);  // Scr_EndOn
+        *int_slot(respawner, 0x846e35f4) = 0;  // dead count
+        *int_slot(respawner, 0xaa7e54b7) = 0;  // spawned count
+    }
+    slot<EntHash>(0x00922188)(ent, 0x0c34930d);  // Scr_EndOn
+    *bool_slot(ent, 0x788065eb) = 1;  // respawning
+    bool defined;
+    if (entity_handle_is_valid(respawner)) {
+        if (limit != undefined_int() && !*ScrField_h5f01d656_IsDefined(&defined, respawner)) *ScrField_h5f01d656(respawner) = limit;
+    } else if (limit != undefined_int()) {
+        *int_slot(ent, 0x5f01d656) = limit;
+    }
+    if (slot<Count>(0x00922b88)(ent) == undefined_int()) slot<SetCount>(0x00922b8c)(ent, 1);
+    // While respawning: a count reset (int key 0x78063481, notify 0x9767cf68) taken over; with a count
+    // left, after the delay (first delay 0x6e62eedd once, else script_delay / delay_min..max except for
+    // the first spawn) BroScr_StopRespawning, then a spawn (forced with key 0x02d62a20) that gets the
+    // attributes, targetname (key 0x0c4d3fa0 or "<groupname>_ai"), a random target node chain and a
+    // BroScr_RespawnerCountDeath thread; 0.5 s steps.
+    for (;;) {
+        if (entity_handle_is_valid(ent)) {
+            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            if (table) {
+                const uint32_t* const value = ScriptKeyTable_Find(table, 0x78063481);
+                const uint32_t undefined = undefined_int();
+                if ((value ? *value : undefined) != undefined) {
+                    slot<SetCount>(0x00922b8c)(ent, *int_slot(ent, 0x78063481));
+                    queue_notify(ent, 0x9767cf68);
+                    *int_slot(ent, 0x78063481) = title_global<uint32_t>(0x00922ebc);
+                }
+            }
+        }
+        if (static_cast<int32_t>(slot<Count>(0x00922b88)(ent)) < 1) {
+            Scr_Wait(1.0f);
+            continue;
+        }
+        if (*ScrField_h6e62eedd_IsDefined(&defined, ent)) {
+            Scr_Wait(*reinterpret_cast<const float*>(ScrField_h6e62eedd(ent)));
+            const uint32_t undefined = undefined_float();
+            *ScrField_h6e62eedd(ent) = undefined;
+        } else if (!*bool_slot(ent, 0xaa3cddde)) {
+            if (*ScrField_script_delay_IsDefined(&defined, ent)) {
+                const float delay = *reinterpret_cast<const float*>(ScrField_script_delay(ent));
+                const float* const base = reinterpret_cast<const float*>(ScrField_script_delay(ent));
+                const long double r = slot<RandomFloat>(0x00922230)(delay);  // Scr_RandomFloat
+                Scr_Wait(static_cast<float>(*base + r));
+            } else if (*ScrField_script_delay_min_IsDefined(&defined, ent) &&
+                       *ScrField_script_delay_max_IsDefined(&defined, ent)) {
+                const float high = *reinterpret_cast<const float*>(ScrField_script_delay_max(ent));
+                const float low = *reinterpret_cast<const float*>(ScrField_script_delay_min(ent));
+                const float* const base = reinterpret_cast<const float*>(ScrField_script_delay_min(ent));
+                const long double r = slot<RandomFloat>(0x00922230)(high - low);  // Scr_RandomFloat
+                Scr_Wait(static_cast<float>(*base + r));
+            }
+        }
+        BroScr_StopRespawning(ent, respawner);
+        if (!*bool_slot(ent, 0x788065eb)) break;
+        uint32_t guy;
+        if (*ScrField_h02d62a20_IsDefined(&defined, ent) && *ScrField_h02d62a20(ent))
+            guy = slot<Spawn>(0x00922520)(ent, zone);  // GScr_ForceSpawn
+        else
+            guy = slot<Spawn>(0x00922518)(ent, zone);  // GScr_DoSpawn
+        if (entity_handle_is_valid(guy)) {
+            *reinterpret_cast<uint8_t*>(ScrField_using_respawner(guy, 0)) = 1;
+            *bool_slot(ent, 0xaa3cddde) = 0;
+            Scr_WaitTillString(guy, pointer<const char>(0x007f6000));  // "finished spawning"
+            if (entity_handle_is_valid(respawner)) ++*int_slot(respawner, 0xaa7e54b7);
+            if (!*ScrField_h0c4d3fa0_IsDefined(&defined, guy)) {
+                ScriptString group;
+                ScriptString name;
+                ScriptString_ConcatCString(&name, ScrCall_ScrEnt_GetGroupname(&ent, &group), pointer<const char>(0x00824ea4));  // "_ai"
+                ScriptString copy;
+                ScriptString_Copy(&copy, &name);
+                slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname (releases its copy)
+                ScriptString_Release(&name);
+                ScriptString_Release(&group);
+            } else {
+                ScriptString copy;
+                ScriptString_Copy(&copy, ScrField_h0c4d3fa0(guy));
+                slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname (releases its copy)
+            }
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, RespawnerAttributes*)>(0x0017b410)(
+                0, 0, 0, 0, 0x00132f40, guy, &attribs);  // Scr_StartThread_ent_RespawnerAttributes(BroScr_RespawnerApplyAttribs)
+            bool targeted;
+            {
+                ScriptString target;
+                targeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
+                ScriptString_Release(&target);
+            }
+            if (targeted) {
+                DynArray nodes = {nullptr, 0, 0};
+                {
+                    ScriptString key;
+                    ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
+                    ScriptString target;
+                    Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
+                                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&nodes));
+                    ScriptString_Release(&target);
+                    ScriptString_Release(&key);
+                }
+                if (static_cast<int32_t>(nodes.size) > 0) {
+                    const uint32_t i = static_cast<uint32_t>(random_int(static_cast<int32_t>(nodes.size)));
+                    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                                     const ScriptString*)>(0x004b0ae0)(
+                        0, 0, 0, 0, 0x0013b880, guy, element_at(&nodes, i, kReserveInt0), &mode);  // Scr_StartThread_ent_pathnode_str_ORAN(BroScr_FollowNodeChain)
+                }
+                if (nodes.data) Scr_Free(nodes.data);
+            }
+            uint32_t* const functor = new_functor(0x14);
+            if (functor) {
+                functor[0] = 0x007f4a10;
+                functor[1] = 0x00152310;  // BroScr_RespawnerCountDeath
+                functor[2] = ent;
+                functor[3] = respawner;
+                functor[4] = guy;
+            }
+            create_thread(ent, functor);
+            *bool_slot(ent, 0x18b0887b) = 0;
+        }
+        Scr_Wait(0.5f);
+    }
+    title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
+    ScriptString_Release(&mode);
+}
+
+void XB_CDECL BroScr_TankHullGunnerAtGunhull(uint32_t ent, ScriptString weapon) {
+    ScriptString tag;
+    ScriptString_FromCString(&tag, pointer<const char>(0x007f77f4));  // "tag_gunhull"
+    ScriptString copy;
+    ScriptString_Copy(&copy, &weapon);
+    BroScr_TankHullGunnerThink(ent, copy, tag);  // does not return
+}
+
+void XB_CDECL BroScr_AddFollowers(uint32_t leader, uint32_t follower) {
+    if (!pointer<DynArray>(path_positions(leader))->size) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(followers(leader)->size); ++i) {
+        DynArray* const list = followers(leader);
+        if (i >= list->size) DynArray_Resize(reinterpret_cast<uint8_t*>(list), i + 1, i + 4);
+        if (list->data[i] == follower) return;
+    }
+    const uint32_t count = followers(leader)->size;
+    *int_slot(follower, 0x185cac5b) = count;  // its place in the line
+    DynArray_PushBack(reinterpret_cast<uint8_t*>(followers(leader)), &follower);
+    bool defined;
+    if (!*ScrField_hd57e151d_IsDefined(&defined, leader)) {
+        // The leader's first follower: its pause and lag threads.
+        uint32_t* functor = new_functor(0xc);
+        if (functor) {
+            functor[0] = 0x007f5ba0;
+            functor[1] = 0x00156ac0;  // BroScr_PauseUnpauseThink
+            functor[2] = leader;
+        }
+        create_thread(leader, functor);
+        functor = new_functor(0xc);
+        if (functor) {
+            functor[0] = 0x007f5ba0;
+            functor[1] = 0x00151cd0;  // BroScr_FollowLagThink
+            functor[2] = leader;
+        }
+        create_thread(leader, functor);
+        Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+    }
+    uint32_t* functor = new_functor(0x10);
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = 0x0014a670;  // BroScr_RemoveFollowerOnDeath
+        functor[2] = leader;
+        functor[3] = follower;
+    }
+    create_thread(leader, functor);
+    if (*ScrField_is_paused_IsDefined(&defined, leader) && *bool_slot(leader, 0x262b2a4b)) return;
+    functor = new_functor(0x10);
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = 0x00151e70;  // BroScr_FollowEntInit
+        functor[2] = leader;
+        functor[3] = follower;
+    }
+    create_thread(leader, functor);
+}
+
+namespace {
+
+inline bool is_alive(uint32_t ent) { return slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent) != 0; }  // GScr_IsAlive
+
+// Whether rider slot i holds a valid, living rider.
+inline bool rider_alive(uint32_t vehicle, uint32_t i) {
+    return entity_handle_is_valid(rider_slot(vehicle, i)[0]) && is_alive(rider_slot(vehicle, i)[0]);
+}
+
+// Rider slot i emptied: {0, the undefined bool word (stale upper bytes: 0 here)}.
+inline void rider_slot_clear(uint32_t vehicle, uint32_t i, uint32_t flag) {
+    uint32_t* const entry = rider_slot(vehicle, i);
+    entry[0] = 0;
+    entry[1] = flag;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle) {
+    slot<EntHash>(0x00922188)(vehicle, kDeath);     // Scr_EndOn
+    slot<EntHash>(0x00922188)(vehicle, 0xca4175b9);  // Scr_EndOn
+    slot<EntHash>(0x00922188)(vehicle, 0xbe7ade77);  // Scr_EndOn
+    // Every frame while all three rider slots hold living riders (int 0x7e8 set on them); then, without
+    // a gunner (slot 0), a seated loader that is not boarding is sent up (0xa0e65a8e, waits 0x996a3647),
+    // else a living loader is taken out of its slot (0x548b3b43) and respawned as the gunner
+    // (BroScr_VehicleSpawnRider seat 0); notify 0x08d272e5 without one; 1 s steps.
+    for (;;) {
+        Scr_Wait(1.0f);
+        bool all = true;
+        do {
+            Scr_WaitFrames(0);
+            for (uint32_t i = 0; static_cast<int32_t>(i) < 3; ++i) {
+                if (rider_alive(vehicle, i)) {
+                    slot<EntHash>(0x00922d14)(rider_slot(vehicle, i)[0], 1);  // ScrActor_SetInt_7e8
+                } else {
+                    rider_slot_clear(vehicle, i, title_global<uint8_t>(0x00922ed0));
+                    all = false;
+                }
+            }
+        } while (all);
+        if (rider_alive(vehicle, 0)) {
+            queue_notify(vehicle, 0x08d272e5);
+            continue;
+        }
+        bool next = false;
+        for (uint32_t i = 1; static_cast<int32_t>(i) <= 2; ++i) {
+            if (!rider_alive(vehicle, i) || !*reinterpret_cast<const uint8_t*>(rider_slot(vehicle, i) + 1) ||
+                *bool_slot(rider_slot(vehicle, i)[0], 0x2cdbaad4))
+                continue;
+            const uint32_t rider = rider_slot(vehicle, i)[0];
+            queue_notify(rider, 0xa0e65a8e);
+            Scr_WaitTill(vehicle, 0x996a3647);
+            if (is_alive(rider)) {
+                next = true;
+                break;
+            }
+        }
+        if (next) continue;
+        for (uint32_t i = 1; static_cast<int32_t>(i) <= 2; ++i) {
+            if (!rider_alive(vehicle, i) || *bool_slot(rider_slot(vehicle, i)[0], 0x2cdbaad4)) continue;
+            const uint32_t rider = rider_slot(vehicle, i)[0];
+            queue_notify(rider, 0x548b3b43);
+            Scr_WaitFrames(0);
+            rider_slot_clear(vehicle, i, title_global<uint8_t>(0x00922ed0));
+            if (is_alive(rider)) {
+                BroScr_VehicleSpawnRider(vehicle, rider, 0, false);
+                next = true;
+                break;
+            }
+        }
+        if (next) continue;
+        queue_notify(vehicle, 0x08d272e5);
+    }
+}
+
 }  // namespace game

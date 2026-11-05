@@ -564,4 +564,58 @@ void XB_CDECL BroScr_VehicleFollowPathToEnd_2(uint32_t ent);
 // `ent`'s engine count (0x00922b88 / 0x00922b8c) does.
 void XB_CDECL BroScr_RespawnerCountDeath(uint32_t ent, uint32_t respawner, uint32_t guy);
 
+// 0x00151cd0: ends on 0xcc07a20a; bool key 0xd57e151d set, lag_distance 0 when undefined; every 0.25 s
+// while it and its followed path (0xd952b5cf) are valid: BroScr_FollowUpdateCurrentPos into int key
+// 0x9aec9c1a with notify 0x14559f8c on a change.
+void XB_CDECL BroScr_FollowLagThink(uint32_t ent);
+
+// 0x00151e70: the follower's goal along the leader's path positions on each leader position change
+// (ends on the follower's death / 0x49c98989, the leader's 0xb93f38bf / 0xcc07a20a); at the last entry
+// the leader notifies and a BroScr_RemoveAllFollowers thread starts.
+void XB_CDECL BroScr_FollowEntInit(uint32_t leader, uint32_t follower);
+
+// 0x00153210: ends on "deadstop" (and "reached_end_node" unless int key 0xc904bb71 is set); waits while
+// int key 0x147beb00 is defined and 0, stops for blockers in the level's vehicle list (kind 1 / 2) and
+// restarts at speed mode 5; 0.2 s steps.
+void XB_CDECL BroScr_VehicleDeadStop(uint32_t ent);
+
+// 0x00153420: the hull gunner of a tank (BroScr_TankAttachMgTurret thread with `weapon` / `tag`, ends on
+// death): axis tanks target the level's +0x6ec entity first; bursts at the target queue's first entry
+// (spread from script_accuracy and distance), two per target, then the next one.
+void XB_CDECL BroScr_TankHullGunnerThink(uint32_t ent, ScriptString weapon, ScriptString tag);
+
+// 0x001542b0: a rider boards the vehicle's seat (`tag`): AI flags, to the vehicle's node (unless
+// `skip_goal`) and the seat's entry tag, the flakvierling mount anim (unless "no_mount_anim"), seat
+// slot taken (notify 0x9966dcdf), linked to the tag with its rider anim; BroScr_VehicleRiderUnlinkOnDeath
+// and BroScr_VehicleRiderWait threads. Releases `tag`.
+void XB_CDECL BroScr_VehicleMountRiders(uint32_t vehicle, uint32_t rider, uint32_t seat, ScriptString tag, bool skip_goal);
+
+// 0x001566c0: the panzer IV ("panzerIV" anim tree, health 500 + RandomInt(1000)): a
+// BroScr_VehicleHealthThink thread, BroScr_VehicleInit_PanzerIV called, BroScr_VehicleTurretFireLoop_4
+// and BroScr_TankStunOnDamage(1) threads.
+void XB_CDECL BroScr_PanzerIVSetup_3(uint32_t ent);
+
+// 0x00156ac0: the level notifies "<targetname>_pause" / "_unpause" pause the leader (bool key
+// 0x262b2a4b, notify 0xb93f38bf) and restart its followers' threads.
+void XB_CDECL BroScr_PauseUnpauseThink(uint32_t ent);
+
+// 0x00156e70: the respawner loop of spawner `ent` (ends on 0x0c34930d of it and of `respawner`): while
+// its count lasts and respawning (bool key 0x788065eb) holds, delayed spawns that get `attribs`, a
+// targetname, a BroScr_FollowNodeChain thread (`mode`) on a random target node and a
+// BroScr_RespawnerCountDeath thread. Frees `attribs` and `mode` on return.
+void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
+                                    ScriptString mode);
+
+// 0x00157ae0: BroScr_TankHullGunnerThink(ent, a copy of `weapon`, "tag_gunhull") (does not return).
+void XB_CDECL BroScr_TankHullGunnerAtGunhull(uint32_t ent, ScriptString weapon);
+
+// 0x00158aa0: with a leader path: `follower` joins the leader's follower array once (its place in int
+// key 0x185cac5b); the first follower starts the leader's pause / lag threads (then 0.05 s);
+// BroScr_RemoveFollowerOnDeath and, unless paused, BroScr_FollowEntInit threads.
+void XB_CDECL BroScr_AddFollowers(uint32_t leader, uint32_t follower);
+
+// 0x00158420: the flak vehicle's crew respawn loop (ends on death / 0xca4175b9 / 0xbe7ade77): when a
+// rider slot empties and the gunner is gone, a loader moves up or is respawned as the gunner.
+void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle);
+
 }  // namespace game
