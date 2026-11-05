@@ -12,6 +12,7 @@
 #include "bro_scr_cover_turret.h"
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
+#include "bro_scr_stubs.h"
 #include "scr_access.h"
 #include "scr_field.h"
 #include "scr_field_instances.h"
@@ -167,6 +168,13 @@ inline bool int_set(uint32_t ent, uint32_t key) {
     if (!table) return false;
     const uint32_t* const value = ScriptKeyTable_Find(table, key);
     return (value ? *value : 0) != 0;
+}
+// Whether the sentient's team is "axis".
+inline bool team_is_axis(uint32_t ent) {
+    ScriptString team;
+    const bool axis = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x0083208c));
+    scr_release(&team);
+    return axis;
 }
 // The alert-to-aim plays: BroScr_PlayAnimWithNoteTracks(ent, anim, pose, move 0x385d90, 1, critical 1, after).
 inline void play_alert_anim(uint32_t ent, uint32_t anim, uint32_t pose) {
@@ -1472,6 +1480,236 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
     }
     scr_release(&sound);
     scr_release(&kind);
+}
+
+void XB_CDECL BroScr_BattleChatter(uint32_t ent, ScriptString type) {
+    uint32_t alias_anim = 0;
+    if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent) &&  // GScr_IsAlive
+        !ScriptString_Equals(&type, pointer<const char>(0x00831f60))) {  // "death"
+        scr_release(&type);
+        return;
+    }
+    bool defined;
+    if (*ScrField_generic_dialogue_IsDefined(&defined, ent) && *int_slot(ent, 0xec5d0f65) == 0) {
+        scr_release(&type);
+        return;
+    }
+    {
+        ScriptString nationality;
+        bool skip = ScriptString_Equals(ScrActor_GetString_f8_Copy(&ent, &nationality),
+                                        pointer<const char>(0x00833508)) &&  // "german"
+                    ScriptString_Equals(&type, pointer<const char>(0x008267a4));  // "giveupposition"
+        scr_release(&nationality);
+        if (skip) {
+            scr_release(&type);
+            return;
+        }
+    }
+    // The voice: nationality + "_" + (entity number % the nationality's voice count + 1).
+    ScriptString voice;
+    ScrActor_GetString_f8_Copy(&ent, &voice);
+    int32_t voices = 0;
+    bool known = true;
+    if (ScriptString_Equals(&voice, pointer<const char>(0x008236b8)))  // "american"
+        voices = at<int32_t>(anim_object(), 0xec);
+    else if (ScriptString_Equals(&voice, pointer<const char>(0x00833510)))  // "french"
+        voices = at<int32_t>(anim_object(), 0x5c);
+    else if (ScriptString_Equals(&voice, pointer<const char>(0x00833500)))  // "italian"
+        voices = at<int32_t>(anim_object(), 0xc4);
+    else if (ScriptString_Equals(&voice, pointer<const char>(0x00833508)))  // "german"
+        voices = at<int32_t>(anim_object(), 0x12c);
+    else
+        known = false;
+    if (known) {
+        const int32_t number = static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922640)(ent)) % voices + 1;  // GScr_GetEntityNumber
+        ScriptString_AppendCString(&voice, pointer<const char>(0x0082b1b8));  // "_"
+        ScriptString_AppendInt(&voice, number);
+    }
+    // The chance and (some types) the anim, by the type's hash.
+    float chance;
+    uint32_t hash;
+    switch (*Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&type))) {
+    case 0x0039894e: {
+        ScriptString name;
+        ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0x64));
+        uint32_t out;
+        alias_anim = *BroScr_GetDefaultString(&out, ent, name);
+        chance = as_float(0x3f666666);  // 0.9
+        break;
+    }
+    case 0x06730ae8: {  // "death"
+        ScriptString name;
+        ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0xa4));
+        uint32_t out;
+        alias_anim = *BroScr_GetDefaultString(&out, ent, name);
+        chance = 1.0f;
+        break;
+    }
+    case 0x84c3473a:
+    case 0x81098bb4: {
+        ScriptString name;
+        ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0x10));
+        uint32_t out;
+        alias_anim = *BroScr_GetDefaultString(&out, ent, name);
+        chance = 0.5f;
+        break;
+    }
+    case 0x25c9495c:
+    case 0x195345dd:
+    case 0x5119be67:
+    case 0x9a87fdcc:
+        chance = as_float(0x3e4ccccd);  // 0.2
+        break;
+    case 0x27711210:
+        if (team_is_axis(ent)) {
+            ScriptString* const level_voice = reinterpret_cast<ScriptString*>(title_global<uint8_t*>(0x00922ef8) + 0x64);
+            if (!level_voice->rep) ScriptString_AssignCString(level_voice, pointer<const char>(0x008236b8));  // "american"
+            ScriptString_AppendCString(&voice, pointer<const char>(0x0041853c));  // "v"
+            ScriptString_AppendString(&voice, reinterpret_cast<ScriptString*>(title_global<uint8_t*>(0x00922ef8) + 0x64));
+        }
+        chance = as_float(0x3dcccccd);  // 0.1
+        break;
+    case 0x00caced4:
+    case 0x913e1ab2:
+    case 0x9f49c106:
+        chance = as_float(0x3dcccccd);  // 0.1
+        break;
+    case 0x8a317add:
+        chance = as_float(0x3ecccccd);  // 0.4
+        break;
+    case 0xcde22a34:
+        chance = team_is_axis(ent) ? as_float(0x3ecccccd) : as_float(0x3e99999a);  // 0.4 / 0.3
+        break;
+    case 0xc6bf32ed:
+    case 0xc8e5ee49:
+    case 0xee49c4f0:
+        chance = team_is_axis(ent) ? as_float(0x3e99999a) : as_float(0x3ecccccd);  // 0.3 / 0.4
+        break;
+    default:
+        chance = as_float(0x3e99999a);  // 0.3
+        break;
+    }
+    // "generic_" + type + "_" + voice, through BroScr_AnimFaceWait.
+    ScriptString alias;
+    scr_string_from(&alias, 0x00826798);  // "generic_"
+    ScriptString_AppendString(&alias, &type);
+    ScriptString_AppendCString(&alias, pointer<const char>(0x0082b1b8));  // "_"
+    ScriptString_AppendString(&alias, &voice);
+    const uint8_t no = 0;
+    const uint32_t notify = undefined_handle();
+    const uint32_t chance_word = bits(chance);
+    using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                   const ScriptString*, const uint32_t*, const uint32_t*, const ScriptString*,
+                                   const uint32_t*, const uint8_t*);
+    title_function<Call>(0x001e5100)(0, 0, 0, 0, 0x001c1860, ent, &alias_anim, &alias, &chance_word, &notify,
+                                     pointer<ScriptString>(0x00922e90), pointer<uint32_t>(0x00922ea4),
+                                     &no);  // Scr_CallThread_ent_anim_str_f_hash_str_f_b(BroScr_AnimFaceWait)
+    scr_release(&alias);
+    scr_release(&voice);
+    scr_release(&type);
+}
+
+void XB_CDECL BroScr_ChatterGrenadeAttack(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
+    const uint32_t anim = get_int_184(ent) == 0x070b89a4 ? title_global<uint32_t>(0x008cf4a4)   // stand_grenade_return_throw
+                                                         : title_global<uint32_t>(0x008ce5bc);  // crouch_grenade_return_throw
+    slot<KnobAll>(0x009225e4)(ent, 0x59414211, anim, title_global<uint32_t>(0x008cd7dc), bits(1.0f), bits(0.3f),
+                              bits(1.0f), 1);  // GScr_SetFlaggedAnimKnobAll(g_anim_Body)
+    Scr_WaitTillArgs(ent, 0x59414211, 0xe6a022d0, 0, 0);
+    slot<void XB_CDECL(uint32_t)>(0x00922728)(ent);  // slot 0x00922728
+    set_orient_mode(ent, 0x0083adec);  // "face current"
+    Scr_Wait(as_float(0x3e4ccccd));    // 0.2
+    set_orient_mode(ent, 0x0083addc);  // "face default"
+    ScriptString type;
+    scr_string_from(&type, 0x008244e4);  // "grenadeattack"
+    BroScr_BattleChatter(ent, type);
+    Scr_WaitTillArgs(ent, 0x59414211, 0x0032aa25, 0, 0);
+    slot<void XB_CDECL(uint32_t)>(0x00922724)(ent);  // GScr_ActorThrowGrenade
+    Scr_WaitTillArgs(ent, 0x59414211, 0xcaa6aa08, 0, 0);
+}
+
+void XB_CDECL Bro_hide__main(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
+    if (get_int_184(ent) == 0x19669cd9) {  // wounded
+        ScriptString name;
+        scr_string_from(&name, 0x008267b4);  // "hide::main"
+        BroScr_PlayFaceAnim(ent, name);
+    }
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    if (*handle_slot(ent, 0x764918ae) == 0xc4a729a7) {
+        BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x0083ebf8), title_global<uint32_t>(0x0083eba8));  // 0.1, 2
+        return;
+    }
+    for (;;) {
+        slot<KnobAll>(0x009225e4)(ent, 0x8e63b2ff, title_global<uint32_t>(0x008ce8bc), title_global<uint32_t>(0x008cd7dc),
+                                  bits(1.0f), bits(0.2f), bits(1.0f), 0);  // hideLowWall_1
+        Scr_WaitTill(ent, 0x8e63b2ff);
+        slot<KnobAll>(0x009225e4)(ent, 0x8e63b2ff, title_global<uint32_t>(0x008ce8c8), title_global<uint32_t>(0x008cd7dc),
+                                  bits(1.0f), bits(0.2f), bits(1.0f), 0);  // hideLowWall_2
+        Scr_WaitTill(ent, 0x8e63b2ff);
+    }
+}
+
+void XB_CDECL BroScr_StartHideThread(uint32_t ent) {
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c7880, ent);  // Scr_BeginThreadFunctor1(Bro_hide__main)
+}
+
+void XB_CDECL Bro_mg42_stand(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf630));  // ScrActor_SetInt_1370(g_anim_standmg42gunner_aim)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c28d0, ent);  // (BroScr_TurretPoseStand)
+}
+
+void XB_CDECL Bro_mg42_prone(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf204));  // ScrActor_SetInt_1370(g_anim_pronemg42gunner_aim)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c27a0, ent);  // (BroScr_TurretPoseProne)
+}
+
+void XB_CDECL Bro_anim_lmg_gmi(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf210));  // ScrActor_SetInt_1370(g_anim_pronemg42gunner_fire)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c2670, ent);  // (BroScr_SetDesiredPoseProneMg42)
+}
+
+void XB_CDECL BroScr_MeleeAttackAnim(uint32_t ent) {
+    ScriptString type;
+    scr_string_from(&type, 0x008267c0);  // "meleeattack"
+    BroScr_BattleChatter(ent, type);
+    slot<KnobAll>(0x009225e4)(ent, 0xcc615b7e, title_global<uint32_t>(0x008ce9d0), title_global<uint32_t>(0x008cd7dc),
+                              bits(1.0f), bits(0.1f), bits(1.0f), 0);  // melee_charge2right
+    handle_note_tracks(ent, 0xcc615b7e, 0x0018da00);  // BroScr_MeleeNoteTrackHandler
+    *handle_slot(ent, 0x2afa5406) = 0x07151174;
+    *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+}
+
+void XB_CDECL BroScr_RecordSetAnimKnobAll(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6) {
+    BroScr_RecordAnimCommand(ent, 2, 0, a2, a3, a4, a5, a6);
+}
+
+void XB_CDECL BroScr_RecordAnimCommand3(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                        uint32_t a7) {
+    BroScr_RecordAnimCommand(ent, 3, a2, a3, a4, a5, a6, a7);
+}
+
+void XB_CDECL BroScr_ScriptedAnimInit(uint32_t ent) {
+    const uint32_t body = title_global<uint32_t>(0x008cd7dc);  // g_anim_Body
+    at<uint32_t>(pointer<uint8_t>(ScriptKeyTable_GetStruct28(ent_script_object(ent), 0x12993a44)), 0x24) = body;
+    *handle_slot(ent, 0x2181000b) = 0x22a9df44;
+    BroScr_ResetAnimStruct_12993a44(ent);
+    bool defined;
+    if (*ScrField_scripted_dialogue_IsDefined(&defined, ent) || *ScrField_h3d130364_IsDefined(&defined, ent)) {
+        const uint32_t time = title_global<uint32_t>(0x00922ea4);
+        ScriptString kind;
+        ScriptString_Copy(&kind, pointer<ScriptString>(0x00922e90));
+        ScriptString sound;
+        ScriptString_Copy(&sound, title_function<GetString>(0x00458da0)(ent_script_object(ent), 0xbf1ecaaa));  // scripted_dialogue
+        const uint32_t anim = *key_slot(ent, 0x3d130364, 0);
+        BroScr_StartAnimFaceWait(ent, anim, sound, 0x3f666666, 0x0cbd9c3d, kind, time);  // level 0.9
+        title_function<RemoveKey>(0x0011eb30)(&ent, 0x3d130364);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
+        title_function<RemoveKey>(0x0011eb30)(&ent, 0xbf1ecaaa);
+    }
+    if (*ScrField_h210b183c_IsDefined(&defined, ent)) {
+        const ScriptString* const from = title_function<GetString>(0x00458da0)(ent_script_object(ent), 0x210b183c);
+        ScriptString_Assign(title_function<GetString>(0x00458da0)(ent_script_object(ent), 0xe0e46b1d), from);
+    }
 }
 
 }  // namespace game

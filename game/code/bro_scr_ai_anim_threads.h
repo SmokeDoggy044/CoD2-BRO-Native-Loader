@@ -203,5 +203,37 @@ void XB_CDECL BroScr_AnimScript_Walk(uint32_t ent);
 void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString sound, uint32_t level, uint32_t notify,
                                   ScriptString kind, uint32_t time, uint32_t flag);
 
+// 0x001c70a0: unless dead (type other than "death") or generic_dialogue is off, or a german giving up
+// position: the voice (nationality + "_" + entity number % the nationality's voice count + 1; "v" +
+// the level's voice for 0x27711210 axis), a chance and (death and two others) a default anim by the
+// type's hash, then a BroScr_AnimFaceWait call thread with "generic_" + type + "_" + voice.
+// Releases `type`.
+void XB_CDECL BroScr_BattleChatter(uint32_t ent, ScriptString type);
+// 0x001c76a0 (begun thread): grenade return throw (stand / crouch), "face current", 0.2 s,
+// "face default", "grenadeattack" chatter, the throw on note 0x32aa25, then the end note.
+void XB_CDECL BroScr_ChatterGrenadeAttack(uint32_t ent);
+// 0x001c7880 (begun thread): crouch / stop; aiming at a target (0x764918ae is 0xc4a729a7):
+// BroScr_KeepAimingAtTarget(0.1, 2); else the low-wall hide loops forever.
+void XB_CDECL Bro_hide__main(uint32_t ent);
+// 0x001c7a20: Bro_hide__main as a begun thread.
+void XB_CDECL BroScr_StartHideThread(uint32_t ent);
+// 0x001c7a40 / 0x001c7a70 / 0x001c7aa0: the turret anim (stand / prone aim, prone fire) to
+// ScrActor_SetInt_1370, then a begun BroScr_TurretPoseStand / BroScr_TurretPoseProne /
+// BroScr_SetDesiredPoseProneMg42 thread.
+void XB_CDECL Bro_mg42_stand(uint32_t ent);
+void XB_CDECL Bro_mg42_prone(uint32_t ent);
+void XB_CDECL Bro_anim_lmg_gmi(uint32_t ent);
+// 0x001c7ad0: "meleeattack" chatter, melee_charge2right with note tracks (BroScr_MeleeNoteTrackHandler),
+// then 0x2afa5406 = 0x07151174 and movement stop.
+void XB_CDECL BroScr_MeleeAttackAnim(uint32_t ent);
+// 0x001c8660 / 0x001c86a0: BroScr_RecordAnimCommand(ent, 2, 0, a2..a6) / (ent, 3, a2..a7).
+void XB_CDECL BroScr_RecordSetAnimKnobAll(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);
+void XB_CDECL BroScr_RecordAnimCommand3(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                        uint32_t a7);
+// 0x001c86e0: the 0x12993a44 struct's +0x24 = g_anim_Body, 0x2181000b = 0x22a9df44, the struct reset;
+// with scripted dialogue (or 0x3d130364): a face-anim wait (0x3d130364, the dialogue, 0.9, 0x0cbd9c3d)
+// and both keys removed; 0x210b183c copied to 0xe0e46b1d when set.
+void XB_CDECL BroScr_ScriptedAnimInit(uint32_t ent);
+
 }  // namespace game
 
