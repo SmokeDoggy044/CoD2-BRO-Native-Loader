@@ -1,11 +1,11 @@
 #pragma once
 
 // Compiled level-script threads of the shared scripts (levelscript module, .text 0x00131180 -
-// 0x00138760): plane crash moves, explosion sounds, vehicle / plane mg42 fire loops, tank dead
+// 0x0013d650): plane crash moves, explosion sounds, vehicle / plane mg42 fire loops, tank dead
 // guys, death-physics launches, flak sound blends, engine smoke trails, shell shock, tank stun,
 // debug loops, respawner attributes, turret stutter, wall-hop rotation, intro screen, weapon
-// sounds. Every one but BroScr_PlayerInsideEntZone waits (Scr_Wait*, Scr_WaitTill*,
-// BroScr_WaitFrame): class thread_switch, kept out of kFunctions until script threads run as
+// sounds, vehicle deaths, drone fire, plane crash thinkers, flak deaths, random rotation. Every
+// one but BroScr_PlayerInsideEntZone waits (Scr_Wait*, Scr_WaitTill*, BroScr_WaitFrame): class thread_switch, kept out of kFunctions until script threads run as
 // coroutines. Names are ours (from the bodies); "death" is hash 0x06730ae8, the player handle the
 // word at 0x00922eec.
 
@@ -189,5 +189,51 @@ void XB_CDECL BroScr_PlayerWeaponSounds(uint32_t ent);
 // 0x00138650: waits for 0x262a34d8 with the spawned guy; unless it finished spawning, waits for its
 // death; then the group's count key 0xb31e91b0 - 1 and "spawn guy died" on the group.
 void XB_CDECL BroScr_NotifySpawnGuyDied(uint32_t unused, uint32_t spawner, uint32_t group);
+
+// 0x00139da0: the M13's dead model "v_m13_d1", sounds "vehicle_explode" (key 0xcc2baca1) and
+// "explo_metal_rand" (key 0xd70abfb1); after death: the model, the metal sound, death anim knob
+// 0x008cd4ac (1, 0.2, 1, 1), the explosion sound, an earthquake (0.25, 3 s, 1050).
+void XB_CDECL BroScr_VehicleDeath_M13(uint32_t ent);
+// 0x00139f30: ends on the rider's death; after the vehicle's 0xecd7b044 (unload): weapon back in
+// hand, the rider's delay, the unload anim (key 0x2d7db3f6) at the vehicle's tag (string key
+// 0xb6abdc5e); then unlinked with all stances, notifies 0xa663db67 and restores its animname (key
+// 0xf203df5e) when set. Stops when the rider dies.
+void XB_CDECL BroScr_VehicleRiderUnload(uint32_t vehicle, uint32_t rider);
+// 0x0013a0f0: ends on "nokill"; anim tree "halftrack", dead model
+// "v_M3A1_Halftrack_troop_d1_desert", sound "explo_metal_rand"; after death: the model and an
+// earthquake (0.25, 3 s, 1050).
+void XB_CDECL BroScr_VehicleDeath_Halftrack(uint32_t ent);
+// 0x0013a250: until `notify` brings "end", "finished" or none: each "fire" plays
+// "drone_muzzleflash" at "tag_flash" and a random tracer 2000 along the tag's forward. Returns the
+// last string (copied to *out).
+ScriptString* XB_CDECL BroScr_DroneShoot(ScriptString* out, uint32_t ent, uint32_t notify);
+// 0x0013a680 / 0x0013a8f0: a BroScr_PlayExplodeSounds / _2 thread, then as
+// BroScr_StukaPlaneCrashMove with the string key 0xe6f61fa4 every 64 units.
+void XB_CDECL BroScr_StukaPlaneCrashThink(uint32_t ent);
+void XB_CDECL BroScr_P47PlaneCrashThink(uint32_t ent);
+// 0x0013a830 / 0x0013aaa0: ends on death; health + 1000; damage below 300 is given back; the first
+// at or above it ends in radius damage 2 (10000 - 9000) at the origin.
+void XB_CDECL BroScr_WingTurretDamageWatch(uint32_t ent);
+void XB_CDECL BroScr_WingTurretDamageWatch_2(uint32_t ent);
+// 0x0013b200: anim tree "panzerIV", dead model = model + "_d1", sound "vehicle_explode"; after
+// death: the model, the sound, an earthquake (0.25, 3 s, 1050) and damage twice the player's
+// health to the player.
+void XB_CDECL BroScr_VehicleDeath_PanzerIV(uint32_t ent);
+// 0x0013b400: ends on death; forever: yaw a = 10 + random(20), pitch b = 4 + random(3), time
+// t = 0.5 + random(0.5): BroScr_RandomRotateStep, rotate to (key 0x07355c08, base - 2b, -2a) in t
+// (accel / decel t/2), "rotatedone", the step again, rotate to (key, base + 2b, 2a).
+void XB_CDECL BroScr_RandomRotateLoop(uint32_t ent);
+// 0x0013c710: waits for the level's "flak died with flaknum <n>"; then the death anim knob (key
+// 0x9af3e4c4, weight 1) when the current anim is defined.
+void XB_CDECL BroScr_FlakDied(uint32_t ent, int32_t flaknum);
+// 0x0013cc40: waits for "trigger"; clears the level's flag byte `index` (bytes at level + 0x548).
+void XB_CDECL BroScr_WaitTriggerClearFlag(uint32_t trigger, uint32_t index);
+// 0x0013ceb0: forever, every 0.05 s: the vehicle unusable, usable again while any rider lives.
+void XB_CDECL BroScr_FlakPanzerKeepUnusable(uint32_t vehicle, DynArray riders);
+// 0x0013d270: ends on 0xc4e110dd; every 0.5 s: below half the starting health a
+// BroScr_EngineSmokeTrail thread and 0xc4e110dd.
+void XB_CDECL BroScr_SmokeWhenHalfHealth(uint32_t ent);
+// 0x0013d580: ends on death; while alive, 88% of each "damage" below 900 is given back.
+void XB_CDECL BroScr_ReduceDamage(uint32_t ent);
 
 }  // namespace game
