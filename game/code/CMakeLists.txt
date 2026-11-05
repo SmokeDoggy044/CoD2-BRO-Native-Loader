@@ -5,7 +5,10 @@ set(game_code_sources
     actor.cpp
     anim_script.cpp
     bg_misc.cpp
+    bro_scr_ai_weapons.cpp
     bro_scr_anim_handles.cpp
+    bro_scr_cover_turret.cpp
+    bro_scr_nodes_spawner.cpp
     bro_scr_util.cpp
     bro_scr_wad.cpp
     cg_ents.cpp
