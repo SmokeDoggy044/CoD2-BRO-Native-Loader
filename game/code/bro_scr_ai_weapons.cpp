@@ -186,6 +186,59 @@ void XB_CDECL BroScr_AddWeaponClassEntry(uint32_t, ScriptString weapon, ScriptSt
     ScriptString_Release(&fire_type);
 }
 
+namespace {
+
+inline uint32_t word_at(uint32_t address) { return title_global<uint32_t>(address); }
+inline uint32_t word_ea4() { return title_global<uint32_t>(0x00922ea4); }
+
+// One BroScr_AddWeaponClassEntry call: the by-value strings made fire type first, as the original.
+inline void add_weapon_class(uint32_t ent, uint32_t weapon, uint32_t type, uint32_t fire_type, uint32_t fire_rate,
+                             uint32_t shot_delay, uint32_t clip_size) {
+    ScriptString fire;
+    ScriptString_FromCString(&fire, pointer<const char>(fire_type));
+    ScriptString kind;
+    ScriptString_FromCString(&kind, pointer<const char>(type));
+    ScriptString name;
+    ScriptString_FromCString(&name, pointer<const char>(weapon));
+    BroScr_AddWeaponClassEntry(ent, name, kind, fire, fire_rate, shot_delay, clip_size);
+}
+
+}  // namespace
+
+// weapon: class, fire type, the rate (Auto, lmg) or the delay (semi, bolt) float; the other one is
+// the word at 0x00922ea4.
+void XB_CDECL BroScr_WeaponClassFor(uint32_t ent) {
+    add_weapon_class(ent, 0x00832430, 0x0082b6a4, 0x00825fd8, word_at(0x0083ed78), word_ea4(), 30);  // none: rifle, Auto, 8
+    add_weapon_class(ent, 0x00800b00, 0x0082b698, 0x00825fd0, word_ea4(), word_at(0x0083eca0), 8);  // p38: pistol, semi, 0.2
+    add_weapon_class(ent, 0x00824808, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083ec44), 5);  // kar98: rifle, bolt, 0.4
+    add_weapon_class(ent, 0x008247fc, 0x0082b6a4, 0x00825fd0, word_ea4(), word_at(0x0083ec44), 10);  // gewehr43: rifle, semi, 0.4
+    add_weapon_class(ent, 0x008247f4, 0x0082b6a4, 0x00825fd8, word_at(0x007f9780), word_ea4(), 32);  // mp40: rifle, Auto, 8.5
+    add_weapon_class(ent, 0x008247ec, 0x0082b6a4, 0x00825fd8, word_at(0x0083ed78), word_ea4(), 30);  // mp44: rifle, Auto, 8
+    add_weapon_class(ent, 0x008244f4, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083eaf4), 5);  // kar98_sniper: rifle, bolt, 1.5
+    add_weapon_class(ent, 0x00825fb4, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083eaf4), 5);  // kar98_supersniper: rifle, bolt, 1.5
+    add_weapon_class(ent, 0x00824750, 0x00824750, 0x00825fc8, word_ea4(), word_at(0x0083ec9c), 1);  // panzerfaust: panzerfaust, bolt, 3
+    add_weapon_class(ent, 0x00825fa4, 0x00825fa4, 0x00825fc8, word_ea4(), word_at(0x0083ece8), 1);  // panzerschreck: panzerschreck, bolt, 5
+    add_weapon_class(ent, 0x008247e4, 0x008367f4, 0x008367f4, word_at(0x0083eb98), word_ea4(), 150);  // mg34: lmg, lmg, 10
+    add_weapon_class(ent, 0x00824810, 0x0082b698, 0x00825fd0, word_ea4(), word_at(0x0083ec24), 7);  // colt: pistol, semi, 0.25
+    add_weapon_class(ent, 0x0081f5b0, 0x0082b6a4, 0x00825fd0, word_ea4(), word_at(0x0083ec24), 15);  // m1carbine: rifle, semi, 0.25
+    add_weapon_class(ent, 0x007f88c0, 0x0082b6a4, 0x00825fd0, word_ea4(), word_at(0x007c6490), 8);  // m1garand: rifle, semi, 0.3
+    add_weapon_class(ent, 0x007f88cc, 0x0082b6a4, 0x00825fd8, word_at(0x007f4d98), word_ea4(), 30);  // thompson: rifle, Auto, 11
+    add_weapon_class(ent, 0x0081f5bc, 0x0082b6a4, 0x00825fd8, word_at(0x00825fa0), word_ea4(), 20);  // bar: rifle, Auto, 7.5
+    add_weapon_class(ent, 0x00824818, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083eaf4), 5);  // springfield: rifle, bolt, 1.5
+    add_weapon_class(ent, 0x0081a91c, 0x0081a91c, 0x00825fc8, word_ea4(), word_at(0x0083eba8), 1);  // bazooka: bazooka, bolt, 2
+    add_weapon_class(ent, 0x0080d0d4, 0x008367f4, 0x008367f4, word_at(0x0083eb98), word_ea4(), 150);  // mg30cal: lmg, lmg, 10
+    add_weapon_class(ent, 0x008247b0, 0x0082b698, 0x00825fd0, word_ea4(), word_at(0x0083ec24), 8);  // mas1935: pistol, semi, 0.25
+    add_weapon_class(ent, 0x008247b8, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083ec44), 5);  // mas36: rifle, bolt, 0.4
+    add_weapon_class(ent, 0x008247a8, 0x0082b6a4, 0x00825fd8, word_at(0x00825f9c), word_ea4(), 32);  // mas_smg: rifle, Auto, 9.5
+    add_weapon_class(ent, 0x00824790, 0x0082b6a4, 0x00825fd8, word_at(0x007f9780), word_ea4(), 25);  // chatellerault: rifle, Auto, 8.5
+    add_weapon_class(ent, 0x008247d8, 0x0082b698, 0x00825fd0, word_ea4(), word_at(0x0083ec24), 7);  // beretta34: pistol, semi, 0.25
+    add_weapon_class(ent, 0x008247a0, 0x0082b6a4, 0x00825fc8, word_ea4(), word_at(0x0083eb24), 6);  // carcano: rifle, bolt, 0.5
+    add_weapon_class(ent, 0x008247cc, 0x0082b6a4, 0x00825fd8, word_at(0x00825f9c), word_ea4(), 30);  // beretta_smg: rifle, Auto, 9.5
+    add_weapon_class(ent, 0x008247c0, 0x0082b6a4, 0x00825fd8, word_at(0x0083ed78), word_ea4(), 20);  // breda_lmg: rifle, Auto, 8
+    add_weapon_class(ent, 0x00825f8c, 0x0082b6a4, 0x00825fd0, word_ea4(), word_at(0x007c6490), 8);  // m1garand_medic: rifle, semi, 0.3
+    add_weapon_class(ent, 0x00825f78, 0x0082b6a4, 0x00825fd0, word_ea4(), word_at(0x007c6490), 8);  // m1garand_engineer: rifle, semi, 0.3
+}
+
 uint32_t* XB_CDECL BroScr_GetWeaponType(uint32_t* out, uint32_t actor) {
     uint32_t type = 0x0036b1a5;
     if (actor_weapon(actor) != undefined_handle()) {

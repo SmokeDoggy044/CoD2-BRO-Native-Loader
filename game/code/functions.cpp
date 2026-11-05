@@ -29,6 +29,7 @@
 #include "bro_scr_math.h"
 #include "bro_scr_mortar.h"
 #include "bro_scr_nodes_spawner.h"
+#include "bro_scr_notify_threads.h"
 #include "bro_scr_notetrack.h"
 #include "bro_scr_squad.h"
 #include "bro_scr_stubs.h"
@@ -4387,6 +4388,7 @@ const Function kFunctions[] = {
     {"BroScr_CachePerTeamValues", 0x0019d820, 0, code(&BroScr_CachePerTeamValues), 4, Result::None, Status::Compare},
     {"BroScr_AnimFaceResetKeys", 0x0019e050, 0, code(&BroScr_AnimFaceResetKeys), 4, Result::None, Status::Compare},
     {"BroScr_StopLookingAt", 0x0019e2d0, 0, code(&BroScr_StopLookingAt), 4, Result::None, Status::Compare},
+    {"BroScr_PlayerFeelsImportant_2", 0x0019ceb0, 0, code(&BroScr_PlayerFeelsImportant_2), 4, Result::None, Status::Compare},
     {"BroScr_UpdateLookRates", 0x0019e360, 0, code(&BroScr_UpdateLookRates), 28, Result::None, Status::Compare},
     {"BroScr_MgBurstSettings", 0x0019f550, 0, code(&BroScr_MgBurstSettings), 24, Result::None, Status::Compare},
     {"BroScr_UpdateWoundedTime", 0x0019fa40, 0, code(&BroScr_UpdateWoundedTime), 12, Result::None, Status::Compare},
@@ -4426,6 +4428,7 @@ const Function kFunctions[] = {
     {"BroScr_SetAimAnimsForWeapon_2", 0x001a2af0, 0, code(&BroScr_SetAimAnimsForWeapon_2), 4, Result::None, Status::Compare},
     {"BroScr_RefillClip", 0x001a2cd0, 0, code(&BroScr_RefillClip), 4, Result::None, Status::Compare},
     {"BroScr_GetClipSizeOrZero", 0x001a2e30, 0, code(&BroScr_GetClipSizeOrZero), 8, Result::Eax, Status::Compare},
+    {"BroScr_WeaponClassFor", 0x001a2e70, 0, code(&BroScr_WeaponClassFor), 4, Result::None, Status::Compare},
     {"BroScr_SetWoundedPose", 0x001a3c90, 0, code(&BroScr_SetWoundedPose), 8, Result::None, Status::Compare},
     {"ScrField_hb8e86881", 0x001a3d90, 0, code(ScrField_hb8e86881), 4, Result::Eax, Status::Replaced},
     {"ScrField_hb8e86881_IsDefined", 0x001a3dd0, 0, code(ScrField_hb8e86881_IsDefined), 8, Result::Eax, Status::Replaced},

@@ -66,6 +66,10 @@ void XB_CDECL BroScr_ShellShockUntilDeath(uint32_t ent);
 void XB_CDECL BroScr_PlaySoundOnTempOrigin_4(uint32_t unused, ScriptString sound, ScrVec3 origin);
 // 0x00182490: ends on "death"; waits for "stop player feels important", then sets the health.
 void XB_CDECL BroScr_PlayerFeelsImportant(uint32_t player, uint32_t health);
+// 0x0019ceb0 (dead): ends on "death" and "stop player feels important"; starts
+// BroScr_PlayerFeelsImportant(ent, its health), sets the health to 100000000 until there is no
+// player (0x009236dc; no wait in that loop), then back to the saved health.
+void XB_CDECL BroScr_PlayerFeelsImportant_2(uint32_t ent);
 // 0x001824d0: a "sound_blend" entity at `ent`'s origin, its forward vector, the end time; then
 // forever reads scr_debug_blender (the debug draw was compiled out) and waits 0.05 s.
 void XB_CDECL BroScr_SoundBlendDebug(uint32_t ent, int32_t seconds);

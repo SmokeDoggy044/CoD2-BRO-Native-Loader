@@ -247,6 +247,19 @@ void XB_CDECL BroScr_PlayerFeelsImportant(uint32_t player_ent, uint32_t health) 
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(player_ent, health);  // ScrEnt_SetHealth
 }
 
+void XB_CDECL BroScr_PlayerFeelsImportant_2(uint32_t ent) {
+    using StartEntI = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    Scr_EndOnString(ent, pointer<const char>(0x00825b5c));  // "stop player feels important"
+    // The original keeps the health in ent's argument slot (ent stays in ESI); the thread reads it there.
+    const uint32_t health = slot<uint32_t XB_CDECL(uint32_t)>(0x00922b90)(ent);  // ScrEnt_GetHealth
+    title_function<StartEntI>(0x0045a680)(0, 0, 0, 0, 0x00182490, ent, &health);  // Scr_StartThread_ent_i_PROLOGUE(BroScr_PlayerFeelsImportant)
+    do {
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(ent, 100000000);  // ScrEnt_SetHealth
+    } while (player() != 0);  // no wait in the loop: spins while there is a player
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(ent, health);
+}
+
 void XB_CDECL BroScr_SoundBlendDebug(uint32_t ent, int32_t seconds) {
     ScriptString classname;
     scr_string_from(&classname, 0x0083abbc);  // "sound_blend"
