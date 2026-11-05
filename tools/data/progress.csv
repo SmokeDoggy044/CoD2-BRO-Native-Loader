@@ -4349,7 +4349,7 @@ address,name,section,module,state,tested,matched
 00121360,BroScr_AnimScriptedThenNotify,.text,levelscript,named,0,0
 001213c0,BroScr_VehicleFireIfAlive,.text,levelscript,named,0,0
 001213e0,BroScr_VectorSubtract,.text,levelscript,offline,0,0
-00121420,BroScr_TraceGroundPos,.text,levelscript,mismatched,23,0
+00121420,BroScr_TraceGroundPos,.text,levelscript,untested,0,0
 00121520,BroScr_EmptyFunc_20,.text,levelscript,named,0,0
 00121530,BroScr_EmptyFunc_21,.text,levelscript,named,0,0
 00121540,BroScr_PlaySoundOnTempOrigin,.text,levelscript,named,0,0
@@ -5108,7 +5108,7 @@ address,name,section,module,state,tested,matched
 00156e70,BroScr_RespawnerThink,.text,levelscript,named,0,0
 001577d0,BroScr_PanzerIVSetup_4,.text,levelscript,untested,0,0
 001578f0,BroScr_VehicleSetHealth_PanzerIV_2,.text,levelscript,untested,0,0
-001579d0,BroScr_TunisiaPanzerIVInit,.text,levelscript,mismatched,3,0
+001579d0,BroScr_TunisiaPanzerIVInit,.text,levelscript,untested,0,0
 00157ab0,BroScr_PlaneSpawnWingTurretsCall,.text,levelscript,untested,0,0
 00157ae0,BroScr_TankHullGunnerAtGunhull,.text,levelscript,named,0,0
 00157b40,BroScr_FindFlakvierlings,.text,levelscript,untested,0,0
@@ -5258,7 +5258,7 @@ address,name,section,module,state,tested,matched
 0016f790,BroScr_DroneVehicleRidersCall_2,.text,levelscript,untested,0,0
 0016f870,BroScr_DroneVehicleRidersCall_3,.text,levelscript,untested,0,0
 0016f920,BroScr_HalftrackSpawnGuys,.text,levelscript,named,0,0
-0016fa40,BroScr_MortarThinkWithDefaults,.text,levelscript,mismatched,50,0
+0016fa40,BroScr_MortarThinkWithDefaults,.text,levelscript,untested,0,0
 0016fc30,BroScr_PlaneDropBomb,.text,levelscript,named,0,0
 00170200,BroScr_DronePathSpawnOne,.text,levelscript,named,0,0
 001705a0,BroScr_ShellIncomingThenImpact,.text,levelscript,named,0,0
@@ -5674,9 +5674,9 @@ address,name,section,module,state,tested,matched
 001841a0,BroScr_CoverCrouchPlayIdle_5,.text,levelscript,named,0,0
 001841e0,BroScr_CoverCrouchPlayIdle_6,.text,levelscript,named,0,0
 00184220,FUN_00184220,.text,levelscript,offline,0,0
-00184230,BroScr_GetNodeAtPosition,.text,levelscript,mismatched,756,170
-00184310,BroScr_GetNodeOrActorYaw,.text,levelscript,mismatched,195,0
-00184390,BroScr_GetCoverNodeForward,.text,levelscript,mismatched,7,0
+00184230,BroScr_GetNodeAtPosition,.text,levelscript,untested,0,0
+00184310,BroScr_GetNodeOrActorYaw,.text,levelscript,untested,0,0
+00184390,BroScr_GetCoverNodeForward,.text,levelscript,untested,0,0
 00184450,BroScr_EmptyFunc_68,.text,levelscript,offline,0,0
 00184460,BroScr_EmptyFunc_69,.text,levelscript,offline,0,0
 00184470,BroScr_EmptyFunc_70,.text,levelscript,offline,0,0
@@ -5799,12 +5799,12 @@ address,name,section,module,state,tested,matched
 0018db30,BroScr_TurretProneMG42AimLoop,.text,levelscript,untested,0,0
 0018db80,BroScr_TurretStandMG42Aim,.text,levelscript,matched,91,91
 0018dbc0,BroScr_PainAnimByHitLocation,.text,levelscript,named,0,0
-0018def0,BroScr_ActorMayMoveToPointForStance_2,.text,levelscript,mismatched,67,0
+0018def0,BroScr_ActorMayMoveToPointForStance_2,.text,levelscript,untested,0,0
 0018df30,BroScr_SetDirectionalMoveAnims,.text,levelscript,named,0,0
 0018e050,BroScr_CompareIntEqual,.text,levelscript,offline,0,0
 0018e070,BroScr_CompareIntNotEqual,.text,levelscript,offline,0,0
 0018e090,BroScr_ActorWeaponInLevelTable,.text,levelscript,settled,110,110
-0018e100,BroScr_GetNodeTypeAtPosition,.text,levelscript,mismatched,78,0
+0018e100,BroScr_GetNodeTypeAtPosition,.text,levelscript,untested,0,0
 0018e1b0,BroScr_GetCoverNodeOrOrigin,.text,levelscript,matched,96,96
 0018e220,BroScr_IsAnimDebugTarget,.text,levelscript,untested,0,0
 0018e280,BroScr_IsOneOf3,.text,levelscript,matched,14,14
@@ -6500,7 +6500,7 @@ address,name,section,module,state,tested,matched
 001a5f10,BroScr_FloodSpawnerDeleteWatch,.text,levelscript,named,0,0
 001a61f0,BroScr_KillSpawners,.text,levelscript,untested,0,0
 001a63a0,BroScr_MgGetNewUser,.text,levelscript,named,0,0
-001a6730,BroScr_UseNodeTurret,.text,levelscript,mismatched,7,0
+001a6730,BroScr_UseNodeTurret,.text,levelscript,untested,0,0
 001a6a40,BroScr_NotifyFallbackerDied,.text,levelscript,named,0,0
 001a6b10,BroScr_FriendlyWaveSpawn,.text,levelscript,named,0,0
 001a6fe0,BroScr_WaitFriendlyFinishedMG42,.text,levelscript,named,0,0
@@ -6548,7 +6548,7 @@ address,name,section,module,state,tested,matched
 001ac400,BroScr_AnimScript_GrenadeRecover,.text,levelscript,matched,2,2
 001ac460,BroScr_HeadLookMainLoop_Thunk,.text,levelscript,named,0,0
 001ac470,BroScr_GetCombatRunAnim,.text,levelscript,matched,85,85
-001ac700,BroScr_TryLookAtPlayer,.text,levelscript,mismatched,1,0
+001ac700,BroScr_TryLookAtPlayer,.text,levelscript,untested,0,0
 001ac9f0,FUN_001ac9f0,.text,levelscript,unnamed,0,0
 001acac0,Bro_anim_main_grenade_recover,.text,levelscript,named,0,0
 001acae0,BroScr_ForwardNotifyString,.text,levelscript,named,0,0
@@ -6557,7 +6557,7 @@ address,name,section,module,state,tested,matched
 001acf80,BroScr_StandCombatWalk,.text,levelscript,named,0,0
 001ad1f0,BroScr_CrouchRun,.text,levelscript,named,0,0
 001ad330,BroScr_CrouchWalkLoop,.text,levelscript,named,0,0
-001ad3f0,BroScr_PutGunInHand,.text,levelscript,mismatched,73,2
+001ad3f0,BroScr_PutGunInHand,.text,levelscript,untested,0,0
 001ad910,BroScr_DropWeapon,.text,levelscript,named,0,0
 001ada20,BroScr_HandleNoteTracks,.text,levelscript,named,0,0
 001aeac0,BroScr_HandleNoteTracksForever,.text,levelscript,named,0,0
@@ -6583,7 +6583,7 @@ address,name,section,module,state,tested,matched
 001b2150,BroScr_Traverse_9,.text,levelscript,named,0,0
 001b2380,BroScr_TraverseDiveWall,.text,levelscript,named,0,0
 001b26c0,BroScr_Traverse_10,.text,levelscript,named,0,0
-001b2990,BroScr_GetMuzzleOrigin,.text,levelscript,mismatched,1248,195
+001b2990,BroScr_GetMuzzleOrigin,.text,levelscript,untested,0,0
 001b2c80,BroScr_MeleePair_Relink,.text,levelscript,untested,0,0
 001b2e20,BroScr_WaitThreeEndNotes,.text,levelscript,named,0,0
 001b2ed0,FUN_001b2ed0,.text,levelscript,unnamed,0,0
@@ -6598,7 +6598,7 @@ address,name,section,module,state,tested,matched
 001b3960,ScrField_h8969d6d6_Size,.text,script,replaced,6,6
 001b3990,BroScr_HangarChainUpdateLoop,.text,levelscript,named,0,0
 001b4130,BroScr_HangarChainMoverThink,.text,levelscript,named,0,0
-001b4da0,BroScr_ReattachGunInHand,.text,levelscript,mismatched,3,0
+001b4da0,BroScr_ReattachGunInHand,.text,levelscript,untested,0,0
 001b4e40,BroScr_FloodSpawnerTriggerThink,.text,levelscript,named,0,0
 001b5120,BroScr_SetTargetnamesFromOrigins,.text,levelscript,untested,0,0
 001b5280,BroScr_GoToBalconyNode,.text,levelscript,named,0,0
@@ -6606,7 +6606,7 @@ address,name,section,module,state,tested,matched
 001b58e0,BroScr_FriendlyUseMg42,.text,levelscript,named,0,0
 001b6020,BroScr_ExploderIfSet,.text,levelscript,untested,0,0
 001b6090,BroScr_SetTargetnamesFromOriginsCall,.text,levelscript,untested,0,0
-001b60c0,BroScr_ReattachAlliesGuns,.text,levelscript,mismatched,3,2
+001b60c0,BroScr_ReattachAlliesGuns,.text,levelscript,untested,0,0
 001b6350,BroScr_OnSpawnedReattachGun,.text,levelscript,named,0,0
 001b64a0,BroScr_TempEventText,.text,levelscript,named,0,0
 001b6600,BroScr_AnimScript_Turret_2,.text,levelscript,named,0,0
@@ -6660,8 +6660,8 @@ address,name,section,module,state,tested,matched
 001ba580,BroScr_StandCombatRun_2,.text,levelscript,named,0,0
 001ba590,BroScr_PlayPoseTransitionAnim,.text,levelscript,named,0,0
 001ba730,BroScr_PlayAnimWithNoteTracks,.text,levelscript,named,0,0
-001ba930,BroScr_GetMuzzleOriginCall,.text,levelscript,mismatched,152,0
-001ba990,BroScr_CanShootFromPose,.text,levelscript,mismatched,525,0
+001ba930,BroScr_GetMuzzleOriginCall,.text,levelscript,untested,0,0
+001ba990,BroScr_CanShootFromPose,.text,levelscript,untested,0,0
 001bac80,BroScr_PlayAnimWaitEndNotes,.text,levelscript,named,0,0
 001bad70,BroScr_PlayFaceAnim_3,.text,levelscript,named,0,0
 001bb230,BroScr_PlayFaceAnim,.text,levelscript,named,0,0
@@ -6711,7 +6711,7 @@ address,name,section,module,state,tested,matched
 001c2d10,FUN_001c2d10,.text,levelscript,unnamed,0,0
 001c2eb0,BroScr_RecordAnimCommand,.text,levelscript,named,0,0
 001c2f70,BroScr_ReplayAnimCommands,.text,levelscript,named,0,0
-001c30e0,BroScr_ShouldGoProne_2,.text,levelscript,mismatched,284,13
+001c30e0,BroScr_ShouldGoProne_2,.text,levelscript,untested,0,0
 001c3200,BroScr_StandStartWalk,.text,levelscript,named,0,0
 001c3390,BroScr_StandWalkToStop,.text,levelscript,named,0,0
 001c35b0,BroScr_StandWalkToStop_2,.text,levelscript,named,0,0
@@ -6728,7 +6728,7 @@ address,name,section,module,state,tested,matched
 001c4030,BroScr_CrouchToProne,.text,levelscript,named,0,0
 001c40f0,BroScr_StandToProne,.text,levelscript,named,0,0
 001c41b0,BroScr_CrouchRunToProne,.text,levelscript,named,0,0
-001c4360,BroScr_CheckCanShoot,.text,levelscript,mismatched,364,0
+001c4360,BroScr_CheckCanShoot,.text,levelscript,untested,0,0
 001c4510,BroScr_AnimScript_Walk,.text,levelscript,named,0,0
 001c4a80,BroLvl_oran_SetupEvent4Chains,.text,levelscript,named,0,0
 001c51a0,BroScr_GrenadeThrowTriggers,.text,levelscript,named,0,0
