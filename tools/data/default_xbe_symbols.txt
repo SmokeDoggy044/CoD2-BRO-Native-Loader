@@ -6829,6 +6829,7 @@
 001d7a60 BroScr_AnimScript_CoverWideLeft
 001d7d70 BroScr_AnimScript_CoverWideRight
 001d8080 BroScr_AnimScript_Death
+001d91d0 BroScr_CrouchAimAndShoot
 001d93b0 BroScr_CoverProne
 001d96d0 Bro_anim_main_concealment_stand
 001d96f0 Bro_anim_main_cover_wide_left
