@@ -236,4 +236,41 @@ void XB_CDECL BroScr_SmokeWhenHalfHealth(uint32_t ent);
 // 0x0013d580: ends on death; while alive, 88% of each "damage" below 900 is given back.
 void XB_CDECL BroScr_ReduceDamage(uint32_t ent);
 
+// 0x00137780: the player's slot weapons ("primary", "primaryb", "pistol", "grenade"), their ammo
+// and clip ammo and the "stielhandgranate" count saved, all weapons taken; after the level's
+// 0x54965009 each slot is checked and its ammo restored, the grenades given back (when any); then
+// 0x88c7e941 on the level.
+void XB_CDECL BroScr_SetupPlayerWeapons();
+// 0x00138230: the chain nodes: every node without spawnflag 2 that has a target and whose target or
+// targetname nodes (accumulated over all nodes) are not empty. Then forever, each frame, with the
+// cvar "chain" "1": the distance from the player to each chain node and each ally's sentient ref
+// 0x48 (results unused: a debug draw compiled out).
+void XB_CDECL BroScr_InitFriendlyChainNodes();
+// 0x00138760: after `ent`'s death, every trigger (multiple, once, use, damage, lookat) named
+// "friendly_chat" whose target is `ent`'s targetname is deleted.
+void XB_CDECL BroScr_FriendlyChatTriggers(uint32_t unused, uint32_t ent);
+
+// 0x0013c530: after `ai`'s death: the level's flak flag `flaknum` cleared and "flak died with
+// flaknum <n>" on the level; "stop_moving" on `flak` when its int key 0x1ccaaaf3 is set; `ai`
+// teleported 2 / 2 / 5 off its origin.
+void XB_CDECL BroScr_FlakStopMovingOnDeath(uint32_t flak, uint32_t ai, uint32_t flaknum);
+// 0x0013c810: ends on `trigger`'s death; when `trigger` is the "trigger_damage" with noteworthy
+// "deathtrig": waits until the "player_tank" damages it, then a BroScr_NotifyExplode thread on
+// `flak`. Then `flak` deleted, and while the player is within its script_offradius (350) for up
+// to script_offtime (20000 ms), waits a second; the flak flag cleared and "flak died with
+// flaknum <n>" on the level.
+void XB_CDECL BroScr_FlakDeathTrigger(uint32_t flak, uint32_t trigger, uint32_t flaknum);
+// 0x0013cc90: waits for death (with `on_death` set) or "explode"; "broken" on the level,
+// "explo_metal_rand", an earthquake (0.75, 3 s, 1150), the flak flag cleared, "flak died with
+// flaknum <n>" and the objective (when set) on the level; after 0.22 s the model in key 0xb8eafadd.
+void XB_CDECL BroScr_FlakDeathThink(uint32_t ent, uint32_t flaknum, uint8_t on_death);
+// 0x0013cf40: a BroScr_EndSequenceOnDeath thread per crew member; after "end_sequence" on the flak,
+// each live member gets it too, health 250, and with bool key 0x1ea97196 (cleared) an
+// "xmodel/panzerflak_ammo" on its "tag_weapon_left". Frees `crew`.
+void XB_CDECL BroScr_FlakLoaderAmmoAnim(uint32_t flak, DynArray crew);
+// 0x0013d2e0: after death: its mg turret deleted, radius damage 128 (800 - 400) 128 above, the dead
+// model ("v_sdkfz222_mons_d1" on mons1, else model + "_d1"), "vehicle_explode", an earthquake
+// (0.25, 3 s, 1050); "unload" when slower than 1 mph.
+void XB_CDECL BroScr_VehicleDeath_Sdkfz222(uint32_t ent);
+
 }  // namespace game
