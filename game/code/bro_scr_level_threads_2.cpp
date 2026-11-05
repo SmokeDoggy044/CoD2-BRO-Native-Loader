@@ -1,12 +1,15 @@
 #include "bro_scr_level_threads_2.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "bro_scr_ai_common.h"
 #include "bro_scr_common.h"
 #include "bro_scr_thread_misc.h"
 #include "bro_scr_level_threads.h"
+#include "bro_scr_mission.h"
 #include "bro_scr_util.h"
+#include "bro_scr_world.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
 #include "qcommon_core.h"
@@ -93,6 +96,12 @@ inline void notify_level(uint32_t name) {
     queue_notify(handle, *Scr_HashName(&hash, pointer<const char>(name)));
 }
 
+// Scr_QueueNotify(ent, the hash of the title string `name`).
+inline void notify_ent(uint32_t ent, uint32_t name) {
+    uint32_t hash;
+    queue_notify(ent, *Scr_HashName(&hash, pointer<const char>(name)));
+}
+
 inline void notify_not_on_turret() { notify_level(0x00824f20); }  // "player not on turret"
 
 constexpr uint32_t kSetAlpha = 0x00922a78;  // ScrHudElem_SetAlpha
@@ -138,6 +147,43 @@ inline void build_shell_hud() {
     slot<SetShader>(0x009228ec)(&level_field(0x80c), &shader, 0x40, 0x40);  // GScr_HudSetShader
     ScriptString_Release(&shader);
     hud_set(kSetAlpha, 0);
+}
+
+// GScr_PlaySound(ent, the title string `text`, 0, 0, 0) through a ScriptString temporary.
+inline void play_text(uint32_t ent, uint32_t text) {
+    ScriptString sound;
+    ScriptString_FromCString(&sound, pointer<const char>(text));
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0, 0);  // GScr_PlaySound
+    ScriptString_Release(&sound);
+}
+
+// sqrt((a*a + b*b) + c*c) on the x87 as the title computes it (platform_x87_norm3; compiler.h has
+// no fallback for other builds: the C library here).
+inline float norm3(float a, float b, float c) {
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+    return platform_x87_norm3(a, b, c);
+#else
+    return static_cast<float>(std::sqrt(static_cast<double>(a) * a + static_cast<double>(b) * b + static_cast<double>(c) * c));
+#endif
+}
+
+// Whether any lane of `v` differs from the undefined vector lane.
+inline bool vec_defined(const ScrVec3* v) {
+    const float lane = as_float(title_global<uint32_t>(0x00922eb8));
+    return as_float(v->v[0]) != lane || as_float(v->v[1]) != lane || as_float(v->v[2]) != lane;
+}
+
+// Whether `ent`'s targetname is "_fx_creation".
+inline bool is_fx_creation(uint32_t ent) {
+    ScriptString name;
+    bool named = false;
+    if (ScrCall_ScrEnt_GetTargetname(&ent, &name)->rep != nullptr) {
+        ScriptString again;
+        named = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&ent, &again), pointer<const char>(0x00825234));
+        ScriptString_Release(&again);
+    }
+    ScriptString_Release(&name);
+    return named;
 }
 
 }  // namespace
@@ -371,5 +417,464 @@ void XB_CDECL BroScr_MinefieldTriggerThink(uint32_t trigger) {
 }
 
 void XB_CDECL BroScr_PlayShellIncomingCall(uint32_t ent) { BroScr_PlayShellIncoming(ent, title_global<uint32_t>(0x00922e88)); }
+
+void XB_CDECL BroScr_StoneBreakTriggerThink(uint32_t trigger) {
+    {
+        ScriptString target;
+        const bool none = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep == nullptr;
+        ScriptString_Release(&target);
+        if (none) {
+            slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
+            return;
+        }
+    }
+    DynArray stones = {nullptr, 0, 0};
+    {
+        ScriptString target;
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&trigger, &target))),
+                        0x0d786b4c, reinterpret_cast<uint8_t*>(&stones), 0);
+        ScriptString_Release(&target);
+    }
+    uint32_t other = 0;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(trigger, 0xce270885, &other);  // Scr_WaitTillOutputEnt_ORAN("damage")
+    uint8_t light = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool
+    for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(stones.size); ++i) {
+        light = 0;
+        if (!entity_handle_is_valid(element(&stones, i - 1))) continue;
+        random_int(100);
+        ScriptString noteworthy;
+        const bool is_light =
+            ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy), pointer<const char>(0x0083b07c));  // "light"
+        ScriptString_Release(&noteworthy);
+        if (is_light) light = 1;
+        const uint32_t key = 0xc7458393;
+        const uint32_t stone = element(&stones, i - 1);
+        const uint32_t sound = title_function<Index>(0x00461120)(level() + 0x57c, &key);  // HashMap_Index
+        slot<PlaySound>(0x009221dc)(stone, sound, 0, 0, 0);  // GScr_PlaySound
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, other);  // ScrEnt_GetOrigin
+        uint32_t origin[3] = {o[0], o[1], o[2]};
+        using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint8_t*);
+        title_function<StartThread>(0x0017b5c0)(0, 0, 0, 0, 0x001455e0, element(&stones, i - 1), origin,
+                                                &light);  // Scr_StartThread_ent_vec_b_3(BroScr_SpawnStoneGibs)
+    }
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
+    if (stones.data) Scr_Free(stones.data);
+}
+
+void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
+    using Ent = void XB_CDECL(uint32_t);
+    ScriptString model;
+    ScriptString_FromRep(&model, nullptr);
+    ScriptString default_text;
+    ScriptString_FromCString(&default_text, pointer<const char>(0x00825150));  // "^1...Using default tree burst animation..."
+    {
+        ScriptString got;
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+            &model, ScrCall_ScrEnt_GetModel(&tree, &got));  // ScriptString_Assign
+        ScriptString_Release(&got);
+    }
+    ScriptString no_model;
+    {
+        ScriptString text;
+        ScriptString_FromCString(&text, pointer<const char>(0x008250d8));  // "...model type could not be retrieved fr..."
+        ScriptString name;
+        ScriptString joined;
+        ScriptString_Concat(&joined, &text, ScrCall_ScrEnt_GetTargetname(&tree, &name));
+        ScriptString_ConcatCString(&no_model, &joined, pointer<const char>(0x008250b4));  // "!  offset will return ( 0, 0, 0 )."
+        ScriptString_Release(&joined);
+        ScriptString_Release(&name);
+        ScriptString_Release(&text);
+    }
+    uint32_t offset[3];
+    if (model.rep == nullptr) {
+        offset[0] = 0;  // 0.0f
+        offset[1] = 0;
+        offset[2] = 0;
+    } else {
+        ScriptString arg;
+        ScriptString_Copy(&arg, &model);
+        uint32_t buffer[3];
+        const uint32_t* const v = BroScr_GetLevelVecOrZero(buffer, arg);
+        offset[0] = v[0];
+        offset[1] = v[1];
+        offset[2] = v[2];
+    }
+    uint32_t anim = 0;
+    bool none;
+    {
+        ScriptString note;
+        none = ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &note)->rep == nullptr;
+        ScriptString_Release(&note);
+    }
+    if (none) {
+        anim = title_global<uint32_t>(0x008cd3f8);
+    } else {
+        ScriptString note;
+        const bool some = ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &note)->rep != nullptr;
+        ScriptString_Release(&note);
+        if (some) {
+            ScriptString a;
+            const bool is_a = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &a), pointer<const char>(0x00416fcc));  // "a"
+            ScriptString_Release(&a);
+            if (is_a) {
+                anim = title_global<uint32_t>(0x008cd3f8);
+            } else {
+                ScriptString b;
+                const bool is_b = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &b), pointer<const char>(0x00416fc8));  // "b"
+                ScriptString_Release(&b);
+                if (is_b) {
+                    anim = title_global<uint32_t>(0x008cd404);
+                } else {
+                    ScriptString c;
+                    const bool is_c = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &c), pointer<const char>(0x00416fc4));  // "c"
+                    ScriptString_Release(&c);
+                    if (is_c)
+                        anim = title_global<uint32_t>(0x008cd410);
+                    else
+                        anim = title_global<uint32_t>(0x008cd3f8);
+                }
+            }
+        }
+    }
+    slot<Ent>(0x00922564)(tree);  // GScr_ClearEntFlag400
+    ScriptString targetname;
+    ScrCall_ScrEnt_GetTargetname(&tree, &targetname);
+    ScriptString target;
+    ScrCall_ScrEnt_GetTarget(&tree, &target);
+    ScriptString key_text;
+    ScriptString_Copy(&key_text, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(
+                                     ent_script_object(tree), 0x2a11980e));  // ScriptKeyTable_GetString
+    uint32_t hidden;
+    {
+        ScriptString name;
+        using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+        hidden = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&tree, &name), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
+        ScriptString_Release(&name);
+    }
+    slot<Ent>(0x00922568)(hidden);  // GScr_SetEntFlag400
+    uint32_t origin_ent;
+    {
+        ScriptString classname;
+        ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, tree);  // ScrEnt_GetOrigin
+        float at[3];
+        at[0] = as_float(o[0]) + as_float(offset[0]);
+        at[1] = as_float(o[1]) + as_float(offset[1]);
+        at[2] = as_float(o[2]) + as_float(offset[2]);
+        origin_ent = slot<uint32_t XB_CDECL(ScriptString*, const float*, uint32_t)>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
+        ScriptString_Release(&classname);
+    }
+    play_text(origin_ent, 0x008250a0);  // "artillery_treeburst"
+    play_text(origin_ent, 0x00825090);  // "tree_shatter"
+    play_text(origin_ent, 0x00825080);  // "tree_fall_start"
+    {
+        uint32_t buffer[3];
+        const uint32_t* const a = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer, tree);  // ScrEnt_GetAngles
+        ScrVec3 angles;
+        angles.v[0] = a[0];
+        angles.v[1] = a[1];
+        angles.v[2] = a[2];
+        uint32_t buffer2[3];
+        const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer2, tree);  // ScrEnt_GetOrigin
+        ScrVec3 origin;
+        origin.v[0] = o[0];
+        origin.v[1] = o[1];
+        origin.v[2] = o[2];
+        slot<void XB_CDECL(uint32_t, uint32_t, ScrVec3*, ScrVec3*, uint32_t)>(0x009224c0)(tree, 0xce00786e, &origin, &angles,
+                                                                                    anim);  // GScr_AnimScriptedNoNotify
+    }
+    Scr_Wait(static_cast<float>(
+        slot<long double XB_CDECL(float, float)>(0x00922238)(0.5f, 1.0f)));  // Scr_RandomFloatRange
+    play_text(origin_ent, 0x00825070);  // "tree_fall_imp"
+    slot<Ent>(0x00922540)(origin_ent);  // GScr_Delete
+    ScriptString_Release(&key_text);
+    ScriptString_Release(&target);
+    ScriptString_Release(&targetname);
+    ScriptString_Release(&no_model);
+    ScriptString_Release(&default_text);
+    ScriptString_Release(&model);
+}
+
+void XB_CDECL BroScr_WindowBreakOnHit(uint32_t trigger, uint32_t window, uint32_t clip, DynArray origins) {
+    using VecOut = void XB_CDECL(float*, const float*);
+    using PlayAt = void XB_CDECL(uint32_t, uint32_t, const float*, uint32_t, uint32_t);
+    const float lane = as_float(title_global<uint32_t>(0x00922eb8));  // g_scrUndefinedVecLane
+    float dir[3] = {lane, lane, lane};
+    uint8_t heavy;
+    const uint8_t hit = *BroScr_WaitHeavyHitOrDamage(&heavy, trigger, dir);
+    const float lane2 = as_float(title_global<uint32_t>(0x00922eb8));
+    float back[3] = {lane2, lane2, lane2};
+    const float minus_one = title_global<float>(0x0083eb34);  // -1
+    if (hit) {
+        slot<VecOut>(0x00922280)(back, dir);  // Scr_VectorNormalize
+        const float n[3] = {back[0], back[1], back[2]};
+        const float five = title_global<float>(0x0083ece8);  // 5
+        back[0] = n[0] * minus_one;
+        back[1] = n[1] * minus_one;
+        back[2] = n[2] * minus_one;
+        dir[0] = n[0] * five;
+        dir[1] = n[1] * five;
+        dir[2] = n[2] * five;
+    } else {
+        slot<VecOut>(0x00922280)(back, dir);  // Scr_VectorNormalize
+        dir[0] = back[0];
+        dir[1] = back[1];
+        dir[2] = back[2];
+        back[0] = dir[0] * minus_one;
+        back[1] = dir[1] * minus_one;
+        back[2] = dir[2] * minus_one;
+    }
+    slot<void XB_CDECL(uint32_t)>(0x00922568)(window);  // GScr_SetEntFlag400
+    if (entity_handle_is_valid(clip)) slot<void XB_CDECL(uint32_t)>(0x00922564)(clip);  // GScr_ClearEntFlag400
+    if (static_cast<int32_t>(origins.size) > 0) {
+        const uint32_t key_a = 0x51dd6402;
+        const uint32_t key_b = 0x51dd6402;
+        for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(origins.size); ++i) {
+            uint32_t* ent = &element(&origins, i - 1);
+            const float at_a[3] = {dir[0], dir[1], dir[2]};
+            const uint32_t sound_a = title_function<Index>(0x00461120)(level() + 0x57c, &key_a);  // HashMap_Index
+            slot<PlayAt>(0x009221e0)(*ent, sound_a, at_a, 0, 0);  // GScr_PlaySoundAtPosition
+            ent = &element(&origins, i - 1);
+            const float at_b[3] = {back[0], back[1], back[2]};
+            const uint32_t sound_b = title_function<Index>(0x00461120)(level() + 0x57c, &key_b);
+            slot<PlayAt>(0x009221e0)(*ent, sound_b, at_b, 0, 0);
+        }
+    }
+    Scr_Wait(1.0f);
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(window);   // GScr_Delete
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
+    if (origins.data) Scr_Free(origins.data);
+}
+
+void XB_CDECL BroScr_FxCreationSound(uint32_t ent, uint32_t sound, ScrVec3 origin, ScrVec3 to, float delay) {
+    using PlayAt = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, uint32_t, uint32_t);
+    Scr_WaitFrames(0);
+    if (delay != as_float(undefined_float())) Scr_Wait(delay);
+    ScrVec3 dir = to;
+    if (vec_defined(&dir)) {
+        const float dz = as_float(dir.v[2]) - as_float(origin.v[2]);
+        const float dy = as_float(dir.v[1]) - as_float(origin.v[1]);
+        const float dx = as_float(dir.v[0]) - as_float(origin.v[0]);
+        const float length = norm3(dz, dy, dx);
+        const float inverse = title_global<float>(0x0083eb20) / length;  // 1
+        dir.v[0] = bits(inverse * dx);
+        dir.v[1] = bits(inverse * dy);
+        dir.v[2] = bits(inverse * dz);
+    }
+    if (*pointer<uint32_t>(title_function<Index>(0x00461120)(level() + 0x458, &sound)) != 0) {  // HashMap_Index
+        const uint32_t key = sound;
+        slot<PlaySound>(0x009221dc)(ent, title_function<Index>(0x00461120)(level() + 0x458, &key), 0, 0, 0);  // GScr_PlaySound
+    }
+    const bool named = is_fx_creation(ent);
+    if (named) {
+        if (vec_defined(&dir)) {
+            const uint32_t at[3] = {dir.v[0], dir.v[1], dir.v[2]};
+            slot<PlayAt>(0x009221e0)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &sound), at, 0x75c3b344,
+                                     0);  // GScr_PlaySoundAtPosition
+        } else {
+            slot<PlaySound>(0x009221dc)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &sound), 0x75c3b344, 0, 0);
+        }
+        Scr_WaitTill(ent, 0x75c3b344);
+        slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
+        return;
+    }
+    if (vec_defined(&dir)) {
+        const uint32_t at[3] = {dir.v[0], dir.v[1], dir.v[2]};
+        slot<PlayAt>(0x009221e0)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &sound), at, 0, 0);
+    } else {
+        slot<PlaySound>(0x009221dc)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &sound), 0, 0, 0);
+    }
+}
+
+void XB_CDECL BroScr_FxCreationSoundThink(uint32_t ent, uint32_t sound, ScrVec3 to, uint32_t ender, float duration,
+                                          uint32_t far_sound, float far_dist) {
+    using PlayAtHandle = uint32_t XB_CDECL(uint32_t, uint32_t, const uint32_t*, uint32_t, uint32_t);
+    using PlayHandle = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    using GetVec = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    Scr_WaitFrames(0);
+    float end_time = as_float(undefined_float());
+    bool far = false;
+    bool first = true;
+    uint32_t current = sound;
+    uint32_t handle = undefined_int();
+    if (ender != undefined_handle()) {
+        *reinterpret_cast<uint8_t*>(ScrField_h75c85f71(ent, 0)) = 0;
+        uint32_t* const functor = new_functor(0x10);
+        if (functor) {
+            functor[0] = 0x007f4b00;
+            functor[1] = 0x00130870;  // BroScr_FxCreationSoundWait
+            functor[2] = ent;
+            functor[3] = ender;
+        }
+        create_thread(ent, functor);
+    }
+    if (duration != as_float(undefined_float())) {
+        const float ms = duration * title_global<float>(0x0083eb9c);  // 1000
+        end_time = static_cast<float>(get_time()) + ms;
+    }
+    if (*pointer<uint32_t>(title_function<Index>(0x00461120)(level() + 0x458, &sound)) != 0) {  // HashMap_Index
+        uint32_t* const functor = new_functor(0x14);
+        if (functor) {
+            functor[0] = 0x00824464;
+            functor[1] = 0x0015bd20;  // BroScr_LoopSoundUntilFlag
+            functor[2] = ent;
+            functor[3] = sound;
+            functor[4] = ender;
+        }
+        create_thread(ent, functor);
+    }
+    ScrVec3 dir = to;
+    if (vec_defined(&dir)) {
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+        const uint32_t at[3] = {o[0], o[1], o[2]};
+        float delta[3];
+        delta[0] = as_float(dir.v[0]) - as_float(at[0]);
+        delta[1] = as_float(dir.v[1]) - as_float(at[1]);
+        delta[2] = as_float(dir.v[2]) - as_float(at[2]);
+        const uint32_t lane = undefined_lane();
+        uint32_t normal[3] = {lane, lane, lane};
+        slot<void XB_CDECL(uint32_t*, const float*)>(0x00922280)(normal, delta);  // Scr_VectorNormalize
+        dir.v[0] = normal[0];
+        dir.v[1] = normal[1];
+        dir.v[2] = normal[2];
+    }
+    float far_sq = far_dist;
+    if (far_sq != as_float(undefined_float())) far_sq = far_sq * far_sq;
+    for (;;) {
+        if (end_time != as_float(undefined_float())) {
+            const float now = static_cast<float>(get_time());
+            if (static_cast<float>(now > end_time ? 1 : 0) != 0.0f) break;
+        }
+        if (*bool_slot(ent, 0x75c85f71) != 0) break;
+        bool is_far = false;
+        if (far_sound != undefined_handle()) {
+            uint32_t buffer[3];
+            const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+            const uint32_t at[3] = {o[0], o[1], o[2]};
+            uint32_t buffer2[3];
+            const uint32_t* const p = slot<GetVec>(0x00922b20)(buffer2, level_field(0x7f8));  // the player
+            const uint32_t player_at[3] = {p[0], p[1], p[2]};
+            const long double distance_sq =
+                slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x0092226c)(player_at, at);  // Scr_DistanceSquared
+            is_far = static_cast<float>(distance_sq > far_sq ? 1 : 0) != 0.0f;
+        }
+        bool restart;
+        if (is_far) {
+            if (!far) {
+                far = true;
+                current = far_sound;
+                restart = true;
+            } else {
+                restart = first;
+            }
+        } else if (far) {
+            far = false;
+            current = sound;
+            restart = true;
+        } else {
+            restart = first;
+        }
+        if (restart) {
+            first = false;
+            if (handle != undefined_int()) slot<void XB_CDECL(uint32_t)>(0x009221f4)(handle);  // GScr_FreeSound
+            if (vec_defined(&dir)) {
+                const uint32_t at[3] = {dir.v[0], dir.v[1], dir.v[2]};
+                handle = slot<PlayAtHandle>(0x009221e0)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &current), at,
+                                                        0x75c3b344, 1);  // GScr_PlaySoundAtPosition
+            } else {
+                handle = slot<PlayHandle>(0x009221dc)(ent, title_function<Index>(0x00461120)(level() + 0x57c, &current),
+                                                      0x75c3b344, 1, 0);  // GScr_PlaySound
+            }
+        }
+        Scr_Wait(static_cast<float>(slot<long double XB_CDECL(float, float)>(0x00922238)(0.4f, 0.6f)));  // Scr_RandomFloatRange
+    }
+    *bool_slot(ent, 0x75c85f71) = 1;
+    if (handle != undefined_int()) slot<void XB_CDECL(uint32_t)>(0x009221f4)(handle);  // GScr_FreeSound
+    if (is_fx_creation(ent)) slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
+}
+
+void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
+    using Ent = void XB_CDECL(uint32_t);
+    using SetModel = void XB_CDECL(uint32_t, ScriptString*, uint32_t);
+    using Set = void XB_CDECL(uint32_t, uint32_t);
+    {
+        ScriptString target;
+        ScrCall_ScrEnt_GetTarget(&bomb, &target);
+        ScriptString_Release(&target);
+    }
+    uint32_t trigger;
+    {
+        ScriptString target;
+        using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+        trigger = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&bomb, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
+        ScriptString_Release(&target);
+    }
+    {
+        ScriptString model;
+        ScriptString_FromCString(&model, pointer<const char>(0x008252bc));  // "xmodel/bomb_objective_incomplete"
+        slot<SetModel>(0x00922548)(bomb, &model, 0);                       // GScr_SetModel
+        ScriptString_Release(&model);
+    }
+    {
+        ScriptString hint;
+        ScriptString_FromCString(&hint, pointer<const char>(0x0082529c));  // "SCRIPT_HINTSTR_PLANTEXPLOSIVES"
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225b8)(trigger, &hint);  // GScr_ResetHintCache
+        ScriptString_Release(&hint);
+    }
+    Scr_WaitTillString(trigger, pointer<const char>(0x0083aa58));  // "trigger"
+    play_text(self, 0x00825288);                                    // "explo_plant_rand"
+    {
+        ScriptString model;
+        ScriptString_FromCString(&model, pointer<const char>(0x0082527c));  // "xmodel/bomb"
+        slot<SetModel>(0x00922548)(bomb, &model, 0);                       // GScr_SetModel
+        ScriptString_Release(&model);
+    }
+    if (*pointer<uint8_t>(level() + 0x234) == title_global<uint8_t>(0x00922ed0)) {  // g_scrUndefinedBool
+        title_function<void XB_CDECL(const char*)>(0x005b45b0)(pointer<const char>(0x00825260));  // ScrCall_SendGameMessageBoldCStr("SCRIPT_EXPLOSIVESPLANTED")
+        *pointer<uint8_t>(level() + 0x234) = 1;
+    }
+    {
+        ScriptString team;
+        ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, self);  // ScrEnt_GetOrigin
+        const uint32_t origin[3] = {o[0], o[1], o[2]};
+        ScriptString* const name = ScrField_script_objective(self);
+        using BadPlace = void XB_CDECL(ScriptString*, float, const uint32_t*, float, float, ScriptString*);
+        slot<BadPlace>(0x00922484)(name, 6.0f, origin, 400.0f, 400.0f, &team);  // GScr_BadPlace_Cylinder
+        ScriptString_Release(&team);
+    }
+    slot<Ent>(0x00922540)(trigger);  // GScr_Delete
+    bool defined;
+    if (*ScrField_script_objective_IsDefined(&defined, self)) {
+        ScriptString flag;
+        ScriptString_ConcatCString(&flag, ScrField_script_objective(self), pointer<const char>(0x00825254));  // "bomb placed"
+        ScriptString arg;
+        ScriptString_Copy(&arg, &flag);
+        BroScr_FlagSet(arg);
+        ScriptString_Release(&flag);
+    }
+    uint32_t handle;
+    const uint32_t hud = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    uint32_t stopwatch = hud;
+    slot<Set>(0x00922a48)(hud, 0x32);  // ScrHudElem_Set_04 (x 50)
+    slot<Set>(0x00922a50)(hud, 0xf0);  // ScrHudElem_Set_08 (y 240)
+    slot<Set>(0x00922a58)(hud, 1);     // ScrHudElem_Set_14
+    slot<Set>(0x00922a60)(hud, 1);     // ScrHudElem_Set_18
+    {
+        ScriptString shader;
+        ScriptString_FromCString(&shader, pointer<const char>(0x00825244));  // "hudStopwatch"
+        using Timer = void XB_CDECL(uint32_t*, float, float, ScriptString*, uint32_t, uint32_t);
+        slot<Timer>(0x00922900)(&stopwatch, 5.0f, 60.0f, &shader, 0x40, 0x40);  // GScr_HudSetShaderTimer8
+        ScriptString_Release(&shader);
+    }
+    Scr_Wait(5.0f);
+    slot<void XB_CDECL(uint32_t*)>(0x0092291c)(&stopwatch);  // GScr_HudDestroy
+    slot<Ent>(0x00922540)(bomb);                              // GScr_Delete
+    notify_ent(self, 0x00824310);                             // "explode"
+}
 
 }  // namespace game
