@@ -13,6 +13,8 @@
 
 namespace game {
 
+struct DynArray;
+
 // 0x001ba4e0: "Times through: " + n, then a BroScr_HandleNoteTracksForever call thread on ent
 // (0x6cd13551, 0x6d4893a9, 0, the text); the text is released after.
 void XB_CDECL BroScr_DebugPrintTimesThrough(uint32_t ent, uint32_t n);
@@ -115,10 +117,10 @@ void XB_CDECL BroScr_TurretPoseStand(uint32_t ent);
 // standing the mg42 gunner pain (true); else false.
 uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_t special);
 // 0x001c2d10 (FUN_001c2d10; proposed BroScr_AnimMoveUntilEndNote): each frame a begun
-// BroScr_ForwardNotifyString(ent, forward) thread, the anim time advanced, `notify`, a note
+// BroScr_ForwardNotifyString(ent, notify) thread, the anim time advanced, `notify`, a note
 // (0x71445fee) waited: "end" gives true; unless the anim time ended, the anim move is applied and
 // a blocked move (byte +0x3b1) gives false, else FUN_001c2aa0(ent, 4, origin, angles).
-uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t forward, uint32_t notify);
+uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t notify);
 // 0x001c2eb0: appends {a2, a4, a5, a3, a6, a7, a8, six undefined lanes} to the anim command array
 // key 0x1791f035 and applies it (BroScr_ApplyAnimCommand).
 void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
@@ -291,6 +293,70 @@ void XB_CDECL Bro_anim_main_concealment_prone(uint32_t ent);
 void XB_CDECL Bro_anim_main_cover_prone(uint32_t ent);
 void XB_CDECL Bro_anim_main_stop(uint32_t ent);
 void XB_CDECL Bro_anim_main_reacquire(uint32_t ent);
+
+// --- push 3 c (thread switch, not registered) ---
+// 0x001c6040: ends on 0x5e12d3d2 / 0x07b4e7f7; plays the rechamber anim for the pose (stand / prone /
+// crouch, and the corner / hide-low-wall variants by anim_special and anim_idleset) at a random rate
+// 0.9-1.1, clears the pending rechamber, plays the bolt sound, waits on the note tracks, notifies
+// 0x5e12d3d2.
+void XB_CDECL Bro_combat__rechamber(uint32_t ent);
+
+// 0x001c7be0: the pain anim script: chatter "pain", unless pain is off (0xad6d6fd5 = 0) or a turret
+// gunner's pain took it: a running actor stumbles (or falls into a crawl when hurt), else the pose's
+// pain anim (standing: by hit location; 0.2 s movement stop after), then note tracks, the new pose,
+// movement and wounded anim.
+void XB_CDECL BroScr_AnimScript_Pain(uint32_t ent);
+// 0x001c8620 (cut off the end of BroScr_AnimScript_Pain in the symbol file): BroScr_RecordAnimCommand(ent,
+// 1, 0, a2, the whole-body anim, a3..a5).
+void XB_CDECL BroScr_RecordSetAnimKnob(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
+
+// 0x001c9550: in dawnville, past the level's next chatter time (+0xe0): the first living actor of
+// actors[first..end) gets a dawnville_defensive_german_1..5 face-anim line (picked by chance and the
+// array size), the next time 2.5-4.5 s on; frees the array.
+void XB_CDECL BroScr_FallbackSelectActors(DynArray actors, int32_t first, int32_t end);
+
+// 0x001c99f0: a launcher reloads through BroScr_ReloadLauncher; else when BroScr_NeedsReload(threshold):
+// the clip refilled, the rechamber cleared, then `anim` (when set) or the weapon / pose / movement's
+// reload anim (flag 0x047f1336) with its note tracks; an unknown pose waits 2 s.
+void XB_CDECL BroScr_TryReload(uint32_t ent, uint32_t threshold, uint32_t anim);
+// 0x001cee30 / 0x001cefa0 / 0x001cf120 (stand), 0x001cf290 / 0x001cf400 (crouch): anim_idleset 0x77 /
+// 'a' / 'b' / 'a' / 'b', the pose, a reload below half a clip, BroScr_AimToAlert, then an idle or
+// twitch anim by chance (flag 0x54e3b2b6, rate key 0x6937c3b9) with its note tracks.
+void XB_CDECL BroScr_StandIdleTwitch_1(uint32_t ent);
+void XB_CDECL BroScr_StandIdleTwitch_2(uint32_t ent);
+void XB_CDECL BroScr_StandIdleTwitch_3(uint32_t ent);
+void XB_CDECL BroScr_CrouchIdleTwitch_1(uint32_t ent);
+void XB_CDECL BroScr_CrouchIdleTwitch_2(uint32_t ent);
+
+// 0x001d5a50 (FUN_001d5a50): the actor's team chatter block of the anim object started once (flag 1,
+// seven times = now); without a next chatter time (0xad8f34a0): now - 5 s + up to 15 s, chance
+// 0xb3845cc4 = random 0-1, 0xbe944753 = false, and BroScr_GiveUpPositionChatter /
+// BroScr_GrenadeDangerThink as begun threads.
+void XB_CDECL BroScr_BattleChatterInit(uint32_t ent);
+// 0x001cbae0: forever: waits for 0x1d12d724, starts the team chatter (BroScr_BattleChatterInit) when
+// needed, past the team's grenade-chatter time (dc) chatters and sets the next time, waits 5 s.
+void XB_CDECL BroScr_GrenadeDangerThink(uint32_t ent);
+// 0x001cb7b0: the enemy-sighted chatter when allowed, past the team (+20 s) and own times and the
+// enemy is seen: the team time set, a new chance; true. Else an allied actor with an enemy resets the
+// team time; false.
+uint8_t* XB_CDECL BroScr_ChatterEnemySighted(uint8_t* out, uint32_t ent);
+
+// 0x001cca00 (FUN_001cca00): anim mode 0x83ad10; when the point back along `step_out`'s move delta is
+// a safe move point: BroScr_LookAtEnemyLoop begun, anim_special none while `step_out`, BroScr_RamboFire
+// and `step_back` play (flag 0x54e3b2b6, note tracks), then restored.
+void XB_CDECL BroScr_CornerRamboFire(uint32_t ent, uint32_t step_out, uint32_t step_back);
+// 0x001cf570: prone, a reload below 0.x of the clip, then forever: the prone aim idle; past +-x
+// degrees off the desired yaw a turn anim (BroScr_ProneAimWeightsLoop thread, note tracks, notify
+// 0x6660fd4f), else the idle with aim weights for 1 s.
+void XB_CDECL BroScr_StopProneIdle(uint32_t ent);
+
+// 0x001cccd0: the balcony fall, tried with two fall anims: the forward stumble until an obstacle, then
+// the fall to its end note; true when one finished, else the anim commands cleared and false.
+uint8_t* XB_CDECL BroScr_BalconyStumbleDeath(uint8_t* out, uint32_t ent);
+// 0x001cd080: an axis (not allied, not 0xe5aa1ee7 weapon) standing actor tries a shooting side step
+// (jump / walk / run left / right, element anim object +0x38): a safe point it can shoot from plays
+// it (flag 0xf519d3c8) with a delayed rechamber; +0x38 = the failed tries. True when it stepped.
+uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent);
 
 }  // namespace game
 
