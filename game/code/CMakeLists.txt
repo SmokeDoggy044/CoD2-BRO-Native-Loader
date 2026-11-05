@@ -7,8 +7,11 @@ set(game_code_sources
     bg_misc.cpp
     bro_scr_actor.cpp
     bro_scr_ai.cpp
+    bro_scr_ai_anim.cpp
+    bro_scr_ai_look.cpp
     bro_scr_ai_weapons.cpp
     bro_scr_anim.cpp
+    bro_scr_arrays.cpp
     bro_scr_anim_handles.cpp
     bro_scr_array.cpp
     bro_scr_banim_handles.cpp

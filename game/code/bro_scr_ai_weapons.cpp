@@ -1,5 +1,7 @@
 #include "bro_scr_ai_weapons.h"
 
+#include "bro_scr_ai_look.h"
+
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
 #include "scr_field.h"
@@ -161,7 +163,7 @@ void XB_CDECL BroScr_SetCombatDelay(uint32_t ent, int32_t seconds) {
 void XB_CDECL BroScr_UpdateWoundedTimeDefaults(uint32_t ent, uint32_t anim, int32_t time) {
     if (anim == undefined_handle()) anim = 0x0776460f;
     if (static_cast<uint32_t>(time) == undefined_int()) time = 0;
-    title_function<void XB_CDECL(uint32_t, uint32_t, int32_t)>(0x0019fa40)(ent, anim, time);  // UpdateWoundedTime
+    BroScr_UpdateWoundedTime(ent, anim, time);
 }
 
 void XB_CDECL BroScr_AddWeaponClassEntry(uint32_t, ScriptString weapon, ScriptString type, ScriptString fire_type,
@@ -207,9 +209,8 @@ uint32_t* XB_CDECL BroScr_GetWeaponTableField4(uint32_t* out, uint32_t actor) {
 uint32_t* XB_CDECL BroScr_GetWeaponClipSize(uint32_t* out, uint32_t actor) { return weapon_field(out, actor, 5, 0); }
 
 void XB_CDECL BroScr_DelayTimerOnScriptChangeBoth(uint32_t ent, uint32_t first, uint32_t second) {
-    const auto delay_timer = title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001a1290);  // DelayTimerOnScriptChange
-    delay_timer(ent, first);
-    if (second != undefined_handle()) delay_timer(ent, second);
+    BroScr_DelayTimerOnScriptChange(ent, first);
+    if (second != undefined_handle()) BroScr_DelayTimerOnScriptChange(ent, second);
 }
 
 uint8_t* XB_CDECL BroScr_UpdateCombatDelay(uint8_t* out, uint32_t sentient) {
@@ -233,8 +234,9 @@ uint8_t* XB_CDECL BroScr_HasWeapon(uint8_t* out, uint32_t actor) {
 }
 
 uint32_t* XB_CDECL BroScr_GetYawToEnemy(uint32_t* out, uint32_t ent) {
-    float eye[3];
-    title_function<float* XB_CDECL(float*, uint32_t)>(0x001a1680)(eye, ent);  // BroScr_GetEnemyEyePos
+    uint32_t eye_bits[3];
+    BroScr_GetEnemyEyePos(eye_bits, ent);
+    const float* const eye = reinterpret_cast<const float*>(eye_bits);
     const uint32_t undefined = title_global<uint32_t>(0x00922eb8);           // g_scrUndefinedVecLane
     uint32_t dir_bits[3] = {undefined, undefined, undefined};
     uint32_t origin_out[3];
