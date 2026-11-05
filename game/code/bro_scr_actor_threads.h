@@ -233,4 +233,39 @@ void XB_CDECL BroScr_FallbackGoalThink(uint32_t ent, int32_t n, uint32_t node);
 [[noreturn]] void XB_CDECL BroScr_AnimScript_Turret_2(uint32_t ent, uint32_t fire, uint32_t recover, uint32_t aim,
                                                     uint32_t turret);
 
+// 0x001a4910: after 0xe2a210cf: notify 0xad76f051 to the axis AI of the trigger's group (int
+// 0xbe5f9a9f) and handle 0x97c730fd = 0xad76f051 on its spawners; then BroScr_DeleteFloodSpawner.
+void XB_CDECL BroScr_Mg42AutoTriggerThink(uint32_t trigger);
+// 0x001a53e0: ends on "death"; forever: the axis AI touching the trigger (the last one found kept),
+// alive: a grenade (GScr_MagicGrenadeManual, `fuse`) from a random target toward a random target of
+// it at twice their distance as speed, 1 s; each round waits for "throw".
+[[noreturn]] void XB_CDECL BroScr_MagicGrenadeThrowThink(uint32_t trigger, uint32_t fuse);
+// 0x0019db90: with a helmet model (string 0xaee61f94): a script_model of it 64 above at the helmet
+// bone's tag origin / angles tumbling away (BroScr_RandomTumble with actor vec +0x234), the same for
+// the side model (0x3bfcf651) at TAG_HELMETSIDE; after 0.05 s both taken off the actor (slot
+// 0x009224d8) and their keys removed.
+void XB_CDECL BroScr_HelmetPop(uint32_t ent);
+// 0x001ab050 / 0x001ab530 (_2: a frame first, yaw 0 with int 0x33a4ea6c set, the shots paced by the
+// notify 0x1973c1fe and counted off the ammo): ends on `end`, the anim script, death (and the
+// target's); up to `numshots` shots at the target (eye / origin, + offset field 0x7aeb941a) while the
+// enemy is near (or mode "forceShoot"), with ammo and within 20 degrees, 0.05 s apart, until
+// `end_time`; then notify `end`. Releases `mode`.
+void XB_CDECL BroScr_ShootAtTarget(uint32_t ent, uint32_t end, int32_t numshots, ScriptString mode, int32_t end_time,
+                                   uint32_t target);
+void XB_CDECL BroScr_ShootAtTarget_2(uint32_t ent, uint32_t end, int32_t numshots, ScriptString mode, int32_t end_time,
+                                     uint32_t target);
+// 0x001a6b10: friendly reinforcement waves: every 2 s while the level's wave trigger (+0x1d0) has a
+// target: count the wave friendlies (bool 0xed6f4ccc) into level +0xf8 and spawn more (a random
+// spawner of the target, zone at `ent` when level +0x188) up to level +0x158 (7 when undefined),
+// each named <target>_spawned, marked, then either group "friendly_wave" with the player as goal or a
+// level +0x18c thread (level, guy) (level +0x5c set), and a credits name; 2 s between spawns.
+[[noreturn]] void XB_CDECL BroScr_FriendlyWaveSpawn(uint32_t ent);
+
+// 0x00199bc0: once per spawner (int 0xfbac8485): while its count lasts: waits for 0xccd105e5 until int
+// 0x070b8a34 is set (and for the player in the trigger with int 0xa7ad4a18), the delay 0x6e62eedd,
+// a (force) spawn in the zone (level +0x188), then after its death a debug wait ("DIED" / "DELETED"),
+// script_delay or delay_min + RandomFloat(range) or 5 + RandomFloat(4) s, and a growing extra wait
+// (step float 0xce8a66f4, 1 when undefined); 2 s after a failed spawn.
+void XB_CDECL BroScr_TriggeredSpawnerThink(uint32_t spawner, uint32_t trigger);
+
 }  // namespace game
