@@ -4376,6 +4376,178 @@ void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused) {
     scr_release(&unused);
 }
 
+void XB_CDECL BroScr_CoverStandIdle(uint32_t ent, ScrVec3 node, ScrVec3 direction, ScriptString text) {
+    ScrVec3 none;
+    none.v[0] = none.v[1] = none.v[2] = 0;  // 0.0f
+    ScriptString name;
+    ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
+    BroScr_MiscCombatTimer(ent);
+    {
+        ScriptString mode;
+        scr_string_from(&mode, 0x0083adcc);  // "face direction"
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0,
+                                                                                         &direction);  // GScr_ActorSetOrientMode
+        scr_release(&mode);
+    }
+    BroScr_CoverStandIdleTransition(ent);
+    slot<void XB_CDECL(uint32_t, ScrVec3*, uint32_t, uint32_t)>(0x009226f8)(ent, &node, 0, 0);  // GScr_ActorTryTeleport
+    uint32_t thrown;
+    BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), none);
+    BroScr_TryReload(ent, title_global<uint32_t>(0x0083eca0), title_global<uint32_t>(0x00922ea8));
+    BroScr_ReloadLauncher(ent);
+    while (slot<uint32_t XB_CDECL(uint32_t)>(0x0092271c)(ent)) {  // GScr_ActorHasPendingSentientSlot
+        Bro_cover_crouch__idle(ent);
+        BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), none);
+    }
+    BroScr_FaceEnemyAnim(ent);
+    scr_release(&name);
+    scr_release(&text);
+}
+
+void XB_CDECL BroScr_StopCrouchIdle(uint32_t ent) {
+    uint8_t out;
+    if (!*BroScr_HasWeapon(&out, ent)) {
+        BroScr_UnarmedCrouchIdle(ent);
+        return;
+    }
+    uint32_t type;
+    if (*BroScr_GetWeaponType(&type, ent) == 0xe6a85d8c) {  // pistol
+        slot<KnobAll>(0x009225e4)(ent, 0xde61361c, title_global<uint32_t>(0x008ced00), body_root(), 0x3f800000, 0x3dcccccd,
+                                  0x3f800000, 1);  // pistol_crouchaim_idle
+        handle_note_tracks(ent, 0xde61361c);
+        return;
+    }
+    if (*BroScr_UpdateCombatDelay(&out, ent)) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+        BroScr_TryReload(ent, title_global<uint32_t>(0x007c6490), title_global<uint32_t>(0x00922ea8));
+        slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008ce520), body_root(), 0x3f800000, 0x3e4ccccd,
+                                        0x3f800000, 0);  // GScr_SetAnimKnobAll(crouch_aim_straight)
+        slot<SetAnim7>(0x009225e0)(ent, 0xde61361c, title_global<uint32_t>(0x008ce520), 0x3f800000, 0x3ecccccd, 0x3f800000,
+                                   1);  // GScr_SetFlaggedAnimKnob
+        handle_note_tracks(ent, 0xde61361c);
+        return;
+    }
+    bool first;
+    if (get_int_184(ent) == 0xc1165808 && *ScrField_anim_movement(ent) == 0x00385d90 &&
+        *ScrField_anim_alertness(ent) != 0xc4a729a7 &&
+        (*ScrField_anim_idleset(ent) == 0x61 || *ScrField_anim_idleset(ent) == 0x62))
+        first = *ScrField_anim_idleset(ent) == 0x61;  // corner A / B
+    else
+        first = random_int(100) < 50;
+    if (first)
+        BroScr_CrouchIdleTwitch_1(ent);
+    else
+        BroScr_CrouchIdleTwitch_2(ent);
+}
+
+namespace {
+// A vector field kept as a pointer to a Scr_Alloc'd vector (added undefined when missing).
+inline uint32_t* vector_field(uint32_t ent, uint32_t key) {
+    ScriptKeyTable* const table = ent_script_object(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, key);
+    if (!value) {
+        const uint32_t lane = title_global<uint32_t>(0x00922eb8);
+        uint32_t none[3] = {lane, lane, lane};
+        uint32_t* const vector = Scr_Alloc(0xc, 4);
+        if (vector) {
+            vector[0] = none[0];
+            vector[1] = none[1];
+            vector[2] = none[2];
+        }
+        value = ScriptKeyTable_Set(table, key, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vector)));
+    }
+    return pointer<uint32_t>(*value);
+}
+inline void start_turret_think(uint32_t ent, uint32_t* turret, uint32_t* flag) {
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const uint32_t*);
+    title_function<Start>(0x005656f0)(0, 0, 0, 0, 0x001deab0, ent, turret, flag);  // Scr_StartThread_ent_ent_b(BroScr_MgTurretThink)
+}
+// To the turret's goal spot (0x1b227) at the level's goal radius (+0x14c), then on "goal" uses the turret
+// in mode 0xad76f051 (`target`: aimed at the player, else no target).
+inline void turret_manual(uint32_t ent, uint32_t turret, bool target) {
+    slot<void XB_CDECL(uint32_t, const uint32_t*)>(0x00922684)(ent, vector_field(turret, 0x0001b227));  // GScr_SetGoalPos
+    slot<SetWord>(0x00922df4)(ent, at<uint32_t>(title_global<uint8_t*>(0x00922ef8), 0x14c));  // ScrSentient_SetFloat_18
+    Scr_WaitTillString(ent, pointer<const char>(0x0083ad18));  // "goal"
+    slot<SetWord>(0x00922584)(turret, 0xad76f051);  // GScr_Turret_SetMode
+    if (target)
+        slot<SetWord>(0x00922590)(turret, title_global<uint32_t>(0x009236dc));  // GScr_Turret_SetTargetEntity(the player)
+    else
+        slot<void XB_CDECL(uint32_t)>(0x00922594)(turret);  // GScr_Turret_ClearTargetEntity
+    slot<SetWord>(0x0092272c)(ent, turret);  // GScr_ActorUseTurret
+    Scr_WaitTillString(ent, pointer<const char>(0x0083a95c));  // "manual_ai"
+}
+}  // namespace
+
+void XB_CDECL BroScr_TurretSetAIMode(uint32_t ent, uint32_t turret, uint32_t flag, uint32_t mode) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    end_on(ent, 0x2b740dd3);
+    if (mode == 0x6c271e5a) {  // auto first
+        for (;;) {
+            start_turret_think(ent, &turret, &flag);
+            Scr_WaitTillString(ent, pointer<const char>(0x0083a97c));  // "auto_ai"
+            turret_manual(ent, turret, false);
+        }
+    }
+    for (;;) {
+        turret_manual(ent, turret, true);
+        start_turret_think(ent, &turret, &flag);
+        Scr_WaitTillString(ent, pointer<const char>(0x0083a97c));
+    }
+}
+
+void XB_CDECL BroScr_CombatMain(uint32_t ent) {
+    anim_script_begin(ent, 0xc0c70454);
+    {
+        ScriptString text;
+        scr_string_from(&text, 0x00826d04);  // "CombatStart"
+        scr_release(&text);
+    }
+    if (get_int_184(ent) == 0x19669cd9) {  // wounded
+        ScriptString reason;
+        scr_string_from(&reason, 0x00826cf4);  // "pose is wounded"
+        BroScr_PlayFaceAnim_3(ent, reason);
+        ScriptString text;
+        scr_string_from(&text, 0x00826ce8);  // "bad pose"
+        get_int_184(ent);
+        scr_release(&text);
+    }
+    *handle_slot(ent, 0x2afa5406) = 0x0001894d;
+    BroScr_MiscCombatTimer(ent);
+    for (;;) {
+        uint8_t out;
+        if (*title_function<uint8_t* XB_CDECL(uint8_t*, uint32_t)>(0x001cdb60)(&out, ent)) {  // BroScr_MeleeCharge
+            call_thread_str(ent, 0x001dd8d0, 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
+            return;
+        }
+        if (!*title_function<uint8_t* XB_CDECL(uint8_t*, uint32_t)>(0x001b6ab0)(&out, ent)) break;  // FUN_001b6ab0 (other list)
+    }
+    float distance = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent));  // GScr_SentientNearestEnemyDist
+    if (distance == title_global<float>(0x00922eac)) distance = title_global<float>(0x0083ebec);
+    *reinterpret_cast<float*>(ScrField_ha3b8e90e(ent)) = distance;
+    uint32_t type;
+    if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent) != undefined_handle() &&  // ScrActor_GetInt_f0
+        *BroScr_GetWeaponFireType(&type, ent) == 0x0001bdc7) {
+        call_thread_str(ent, 0x001e3430, 0x00826cd8);  // BroScr_BipodGunnerStateMain, "Carrying LMG"
+        return;
+    }
+    uint32_t angles[3];
+    const uint32_t yaw = ScrCall_ScrEnt_GetAngles(&ent, angles)[1];
+    uint32_t at[3];
+    const uint32_t* const origin = ScrCall_ScrEnt_GetOrigin(&ent, at);
+    ScrVec3 point;
+    point.v[0] = origin[0];
+    point.v[1] = origin[1];
+    point.v[2] = origin[2];
+    uint32_t prone;
+    if (*BroScr_ShouldGoProne_2(&prone, ent, point, yaw)) {
+        call_thread_str(ent, 0x001dcd30, 0x00826cac);  // BroScr_AnimScript_Combat, "Dist > ProneRangeSq"
+        return;
+    }
+    BroScr_TryReload(ent, 0, title_global<uint32_t>(0x00922ea8));
+    BroScr_ReloadLauncher(ent);
+    call_thread_str(ent, 0x001de080, 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
+}
+
 void XB_CDECL BroScr_CornerBehavior(uint32_t ent, ScrVec3 node, uint32_t yaw, const uint32_t* set) {
     slot<void XB_CDECL(uint32_t, ScrVec3*, uint32_t, uint32_t)>(0x009226f8)(ent, &node, 0, 0);  // GScr_ActorTryTeleport
     drop_anim_string(0x98);

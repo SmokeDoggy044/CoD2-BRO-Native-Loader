@@ -483,6 +483,21 @@ void XB_CDECL BroScr_CoverProne_2(uint32_t ent, uint32_t end);
 // 0x001e3430: BroScr_BipodGunner as a call thread until 0xc3cc3e6a, then Bro_combat__RangedCombat as a
 // call thread. Releases `unused`.
 void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused);
+// 0x001d78a0: the cover stand idle: misc timer, facing `direction`, the idle transition, teleport to
+// `node`, a grenade try, reloads, crouch idles (with grenade tries) while a sentient slot is pending,
+// then the face-enemy anim. Releases `text`.
+void XB_CDECL BroScr_CoverStandIdle(uint32_t ent, ScrVec3 node, ScrVec3 direction, ScriptString text);
+// 0x001db090: the crouched stop idle: unarmed idle; pistol aim idle; in combat the crouch aim pose with a
+// reload; else a crouch twitch (corner A: _1, corner B: _2, otherwise by chance).
+void XB_CDECL BroScr_StopCrouchIdle(uint32_t ent);
+// 0x001e1cf0: ends on "death" / 0x2b740dd3; forever alternates the turret's auto AI (BroScr_MgTurretThink
+// thread until "auto_ai") and manual use (goal at the turret's spot, mode 0xad76f051, until "manual_ai";
+// started in auto for `mode` 0x6c271e5a, else manual aimed at the player).
+void XB_CDECL BroScr_TurretSetAIMode(uint32_t ent, uint32_t turret, uint32_t flag, uint32_t mode);
+// 0x001dce30: the combat anim script: wounded face anim, the misc timer; melee charge (MeleeCombat), an
+// LMG carrier (BipodGunnerStateMain), prone range (AnimScript_Combat) or reloads and RangedCombat, each
+// as a call thread; the nearest enemy distance to 0xa3b8e90e. No direct callers (anim script table).
+void XB_CDECL BroScr_CombatMain(uint32_t ent);
 // 0x001d6610: teleports to the node, the corner idle, a grenade try (BroScr_TryGrenadeThrow), a
 // reload; casual: the idle for 1 s; else waits out pending sentient slots (flank / cover-me chatter,
 // grenade tries), then by chance the peek anim, a rambo fire (not allied) or BroScr_CoverAttack.
