@@ -1,7 +1,6 @@
 #include "bro_scr_vehicle_health.h"
 
 #include <cstring>
-#include <initializer_list>
 
 #include "bro_scr_util.h"
 #include "g_scr_runtime.h"
@@ -372,7 +371,8 @@ void XB_CDECL BroScr_SpawnWheelOrigins_2(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(spawned[0], ent);  // GScr_LinkTo
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(spawned[1], ent);
     // BroScr_TrackWheelOrigin threads (functors {0x007f4a28, 0x00123250, ent, origin}): left, then right
-    for (const uint32_t origin : {spawned[1], spawned[0]}) {
+    const uint32_t wheel_origins[2] = {spawned[1], spawned[0]};  // plain array: VC7.1 has no <initializer_list>
+    for (const uint32_t origin : wheel_origins) {
         uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;
@@ -512,7 +512,8 @@ void XB_CDECL BroScr_PlaneSpawnWingTurrets(uint32_t ent, uint32_t bombs, uint32_
                               ? slot<uint32_t XB_CDECL(uint8_t*)>(0x00922494)(zone_name)  // GScr_FindZone
                               : 0;
     // (both branches of the original's second zone-name test make these calls; zone is 0 without one)
-    for (auto* field : {ScrField_leftturret, ScrField_rightturret}) {
+    decltype(ScrField_leftturret) const fields[2] = {ScrField_leftturret, ScrField_rightturret};
+    for (auto* field : fields) {
         ScriptString model;
         ScriptString_FromCString(&model, pointer<const char>(0x00824d78));  // "v_p47_guns"
         const uint32_t turret = *field(ent);

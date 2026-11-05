@@ -1,7 +1,6 @@
 #include "bro_scr_vehicle.h"
 
 #include <cstring>
-#include <initializer_list>
 
 #include "bro_scr_common.h"
 #include "bro_scr_util.h"
@@ -826,6 +825,10 @@ ScrVec3 plane_tag_origin(uint32_t plane, ScriptString* tag) {
     return {{out[0], out[1], out[2]}};
 }
 
+// leftturret, rightturret (a plain array: VC7.1 has no <initializer_list>, and -O0 binds its accessors to the
+// loader's copies).
+constexpr uint32_t kTurretHashes[2] = {0xef6522f9u, 0xeead8089u};
+
 // Shared body: the plane's threads, the bomb thread, then (unless script_noteworthy is
 // "noturrets") a misc_turret under each wing linked to tag_gunLeft / tag_gunRight. The original
 // keeps its string temporaries in both argument slots (plane: the noturrets byte, classnames,
@@ -859,7 +862,7 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
         if (no_turrets) return;
     }
     using SpawnTurret = uint32_t XB_CDECL(ScriptString*, const uint32_t*, ScriptString*, uint32_t);
-    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {  // leftturret, rightturret
+    for (uint32_t hash : kTurretHashes) {  // leftturret, rightturret
         scr_string_from(bombs_temp, spec.weapon);
         scr_string_from(plane_temp, 0x00839e8c);  // "misc_turret"
         const uint32_t origin[3] = {0, 0, 0};
@@ -870,7 +873,7 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
     }
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922584)(turret_field(plane, 0xef6522f9), 0xdc26d84c);  // GScr_Turret_SetMode
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922584)(turret_field(plane, 0xeead8089), 0xdc26d84c);
-    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {
+    for (uint32_t hash : kTurretHashes) {
         scr_string_from(plane_temp, spec.model);
         scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(turret_field(plane, hash), plane_temp, 0);  // GScr_SetModel
         scr_release(plane_temp);
@@ -884,7 +887,7 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
     scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(turret_field(plane, 0xeead8089), at);
     scr_release(plane_temp);
     using GetAngles = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
-    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {
+    for (uint32_t hash : kTurretHashes) {
         uint32_t buffer[3];
         const uint32_t* a = scr_slot<GetAngles>(0x00922ba0)(buffer, plane);
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
