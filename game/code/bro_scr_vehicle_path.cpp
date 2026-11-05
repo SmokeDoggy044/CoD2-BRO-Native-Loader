@@ -103,9 +103,7 @@ uint32_t* XB_CDECL BroScr_VehicleFindBlocker(uint32_t* out, uint32_t ent, DynArr
         if (i >= list->size) DynArray_Resize(bytes(list), i + 1, i + 4);
         const uint32_t range_bits = *range;
         uint32_t blocker;
-        using Check = uint32_t* XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
-        const uint32_t found =
-            *title_function<Check>(0x0014e020)(&blocker, ent, ent, list->data[i], range_bits);  // BroScr_VehicleCheckBlocker
+        const uint32_t found = *BroScr_VehicleCheckBlocker(&blocker, ent, ent, list->data[i], range_bits);
         if (found) {
             *out = found;
             return out;
@@ -315,6 +313,87 @@ void XB_CDECL BroScr_FollowPathOffsetPoint(uint32_t ent, int32_t index) {
     offset[0] = bits_of(px);
     offset[1] = bits_of(py);
     offset[2] = bits_of(pz);
+}
+
+namespace {
+
+// The entity's origin with z = 0 (ScrEnt_GetOrigin, then the script's (x, y, 0)).
+void origin_xy0(uint32_t out[3], uint32_t ent) {
+    uint32_t buffer[3];
+    const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+    out[0] = o[0];
+    out[1] = o[1];
+    out[2] = bits_of(0.0f);
+}
+
+long double distance(const uint32_t* a, const uint32_t* b) {
+    return slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(a, b);  // Scr_Distance (ST0)
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL BroScr_VehicleCheckBlocker(uint32_t* out, uint32_t self, uint32_t vehicle, uint32_t other,
+                                              uint32_t range_bits) {
+    uint32_t start[3];
+    origin_xy0(start, *BroScr_FieldHandleSlot(vehicle, 0xcc043125));
+    uint32_t other_origin[3];
+    origin_xy0(other_origin, other);
+    const float apart = static_cast<float>(distance(start, other_origin));
+    if (!platform_greater(as_float(range_bits), apart)) {
+        // out of range: both flags cleared
+        *BroScr_FieldSlot(self, 0xcd84c908) = 0;
+        *BroScr_FieldSlot(self, 0x8c05ef86) = 0;
+        *out = 0;
+        return out;
+    }
+    if (vehicle != other) {
+        const auto level_ent = []() { return *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x6ec); };
+        if (valid(level_ent())) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(field_array(level_ent(), 0xb0996bdc)->size);
+                 ++i) {
+                const uint32_t* const limit = ScrField_h8166d37c(level_ent());
+                uint32_t point[3];
+                origin_xy0(point, *element(field_array(level_ent(), 0xb0996bdc), i));
+                uint32_t own[3];
+                origin_xy0(own, *element(field_array(vehicle, 0xb0996bdc), 0));
+                const long double gap = distance(own, point);
+                if (platform_x87_ld(as_float(*limit)) > gap) {
+                    *ScrField_hcd84c908(self) = 1;
+                    *out = 2;
+                    return out;
+                }
+            }
+        }
+        uint32_t buffer[3];
+        const uint32_t* const angles = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer, vehicle);  // ScrEnt_GetAngles
+        const uint32_t yaw_only[3] = {bits_of(0.0f), angles[1], bits_of(0.0f)};
+        const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+        uint32_t forward[3] = {lane, lane, lane};
+        slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922290)(forward, yaw_only);  // Scr_AnglesToForward
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(field_array(other, 0x9ecce58a)->size); ++i) {
+            uint32_t point[3];
+            origin_xy0(point, *element(field_array(other, 0x9ecce58a), i));
+            const uint32_t delta[3] = {bits_of(as_float(start[0]) - as_float(point[0])),
+                                       bits_of(as_float(start[1]) - as_float(point[1])),
+                                       bits_of(as_float(start[2]) - as_float(point[2]))};
+            uint32_t direction[3] = {lane, lane, lane};
+            slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922280)(direction, delta);  // Scr_VectorNormalize
+            const float dot = static_cast<float>(
+                slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x0092227c)(forward, direction));  // Scr_VectorDot
+            ScriptKeyTable* const table = table_of(self);
+            uint32_t* limit = ScriptKeyTable_Find(table, 0x515816fa);
+            if (!limit) limit = ScriptKeyTable_Set(table, 0x515816fa, title_global<uint32_t>(0x00922eac));
+            if (platform_greater(as_float(*limit), dot)) {
+                *BroScr_FieldSlot(self, 0x8c05ef86) = 1;
+                *out = 1;
+                return out;
+            }
+        }
+    }
+    *BroScr_FieldSlot(self, 0x8c05ef86) = 0;
+    *BroScr_FieldSlot(self, 0xcd84c908) = 0;
+    *out = 0;
+    return out;
 }
 
 }  // namespace game

@@ -165,4 +165,9 @@ void XB_CDECL BroScr_SetLagDistance(uint32_t ent, int32_t distance);
 // (made non-solid), and `ent`'s var 0xe2a210cf = hash of "_window_gmi::new_window_break".
 void XB_CDECL BroScr_WindowBreakSetup(uint32_t ent);
 
+// 0x00127ef0 (dead): plays SHELL_EXPLO_MAINIMP_1..4 on `ent` by a pick kept in the level word
+// +0x310 (undefined -> -1; re-rolled Scr_RandomInt(4) + 1 only while it equals the last pick, which
+// starts at 0). The level entity's ambient "interior" test leads to the same calls.
+void XB_CDECL BroScr_PlayShellExploSound(uint32_t ent);
+
 }  // namespace game

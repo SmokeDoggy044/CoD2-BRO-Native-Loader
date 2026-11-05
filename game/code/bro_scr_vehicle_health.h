@@ -67,7 +67,7 @@ void XB_CDECL BroScr_StukaDropBombsThread(uint32_t a, uint32_t b);
 // words at 0x008cd1b8/c4/d0 / 0x008cd4e8/f4, 0x008cd500.
 void XB_CDECL BroScr_FlakvierlingAnimTree(uint32_t ent);
 void XB_CDECL BroScr_FlakvierlingBaseAnimTree(uint32_t ent);
-// 0x00145cd0 (dead): BroScr_TankAttachMgTurret(ent, tag, 0x007f77f4). Releases `tag`.
+// 0x00145cd0 (dead): BroScr_TankAttachMgTurret(ent, a copy of `weapon`, "tag_gunhull"). Releases `weapon`.
 void XB_CDECL BroScr_TankAttachHullMg(uint32_t ent, ScriptString tag);
 // 0x00145000: starts the thread 0x0013d650 on `ent` with five words and a string (the KASSPASS
 // section's starter 0x0052cc30, handed pointers to the arguments). Releases `a7`.
@@ -86,5 +86,57 @@ uint32_t* XB_CDECL BroScr_CountAliveGunners(uint32_t* out, uint32_t ent);
 // 0x00134ec0: the turret (handle field 0x2f68c7a5) gets mode 0x78da62f2 and the entity's script_team,
 // "allies" when that is not set.
 void XB_CDECL BroScr_TurretSetAlliesTeam(uint32_t ent);
+
+// 0x001346f0 (dead): a "script_origin" at each back wheel tag (right, left; GScr_GetTagOrigin), turned
+// to `ent`'s angles with pitch + 32, linked to `ent`, each tracked by a BroScr_TrackWheelOrigin
+// thread (Scr_CreateThread: left first).
+void XB_CDECL BroScr_SpawnWheelOrigins_2(uint32_t ent);
+
+// Not registered (thread_switch, docs/levelscript_classes.csv): GScr_SpawnTurret runs the new entity's
+// script and Scr_CreateThread starts a thread; both switch script threads and keep a block of the
+// caller's stack in host memory. Kept (reviewed against the disassembly, not compared) until script
+// threads are coroutines.
+// 0x0013f190: unless `weapon` is "no_turret": a "misc_turret" with `weapon` ("mg42_panzerIV_tank" when
+// empty) as the turret handle field 0x2f68c7a5 of `ent`; its field 0x629afc27 (when defined) goes to
+// GScr_Turret_Set54 as a float; model "v_gunturret", linked to `ent`'s `tag` (zero offsets), `ent`'s
+// angles, a BroScr_MgBurstFire thread, unusable; then BroScr_TurretSetAlliesTeam(ent). Releases both
+// strings.
+void XB_CDECL BroScr_TankAttachMgTurret(uint32_t ent, ScriptString weapon, ScriptString tag);
+
+// Not registered (thread_switch, docs/levelscript_classes.csv): GScr_SpawnTurret runs the new
+// entities' scripts and Scr_CreateThread / Scr_BeginThreadEndOn start threads. Kept (reviewed against
+// the disassembly, not compared) until script threads are coroutines.
+// 0x001529c0: health `health` (undefined: 300 and a BroScr_WingTurretDamageWatch_3 thread), a
+// BroScr_VehicleDeath_Stuka thread, with `follow_path` BroScr_VehicleFollowPath (Scr_BeginThreadEndOn,
+// end notify 0x485de552), field 0x4af51227 = 0, with `bombs` defined a BroScr_StukaDropBombsThread
+// (functor {0x007f4a1c, thread, ent, bombs}). Unless script_noteworthy is "noturrets": two "misc_turret"s
+// ("stuka_wing_turret" left, "me109_wing_turret_nosound" right; leftturret / rightturret fields), mode
+// 0xdc26d84c, model "v_p47_guns" in the level zone (GScr_FindZone of the name at level +0x4b0, if set),
+// placed at tag_gunLeft / tag_gunRight with `ent`'s angles and linked there.
+void XB_CDECL BroScr_PlaneSpawnWingTurrets(uint32_t ent, uint32_t bombs, uint32_t health, bool follow_path);
+
+// Not registered (thread_switch, docs/levelscript_classes.csv): GScr_Spawn runs each bomb's script at
+// once (as BroScr_SpawnScriptModelAt). Kept (reviewed against the disassembly, not compared) until
+// script threads are coroutines.
+// 0x0014aaa0: field 0x380a75c4 = `count`, the bomb array 0x0030b1c2 emptied; then while the index is
+// below that field: a "script_model" bomb at `ent`'s origin appended to the array, model `model`
+// ("stuka_bomb" when empty; in the level zone when the zone name at level +0x358 is set),
+// bomb field 0xe2c9ccdd = 0. On a "stuka" / "stuka_flying" / "stuka_prologue" model the bomb takes the
+// origin and angles of tag_bombleft / tag_bombright / tag_bombmid in turn (starting left, wrapping
+// after mid), else `ent`'s origin and angles; then it is linked to `ent`. Releases `model`.
+void XB_CDECL BroScr_StukaDropBombs(uint32_t ent, uint32_t count, ScriptString model);
+
+// Not registered (thread_switch, docs/levelscript_classes.csv): GScr_Spawn of the seven
+// "script_origin"s runs their scripts at once and Scr_CreateThread starts
+// BroScr_DeleteArraysOnVehicleRemoved. Kept (reviewed against the disassembly, not compared) until
+// script threads are coroutines.
+// 0x0014d0a0 (started by the vehicle health setups): field defaults (0x515816fa -0.927, 0xa22fa6ba 400,
+// 0xbe149b8c 22, 0x8166d37c 240, 0x35ee66af 1 = scale s), `ent` appended to the level list at +0x4e0;
+// seven "script_origin"s placed around it from its right (R = right * 64s) and forward (A = forward *
+// 96s, C = forward * 84s) vectors: p0 = origin + R + A, p1 = origin - R + A, p2 = p0 - 2A, p3 = p1 - 2A,
+// p4 = origin + A, p5 = origin + C, p6 = origin - C; p0-p4 go to array 0x9ecce58a, p5-p6 to 0xb0996bdc,
+// p4 to handle field 0xcc043125; all are linked to `ent`, and BroScr_DeleteArraysOnVehicleRemoved runs
+// on the level entity.
+void XB_CDECL BroScr_VehicleHealthThink(uint32_t ent);
 
 }  // namespace game

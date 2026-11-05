@@ -596,4 +596,30 @@ void XB_CDECL BroScr_WindowBreakSetup(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(ent, 0xe2a210cf, value);  // GScr_SetEntVar
 }
 
+void XB_CDECL BroScr_PlayShellExploSound(uint32_t ent) {
+    const auto last = []() { return pointer<int32_t>(title_global<uint32_t>(0x00922ee0) + 0x310); };
+    if (static_cast<uint32_t>(*last()) == title_global<uint32_t>(0x00922ec0)) *last() = -1;
+    int32_t pick = 0;
+    while (pick == *last()) pick = random_int(4) + 1;  // only runs when the last pick was 0
+    *last() = pick;
+    const uint32_t level_ent = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 4);
+    bool interior = false;
+    bool defined;
+    if (*ScrField_ambient_IsDefined(&defined, level_ent)) {
+        const uint32_t table = address_of(script_object_or_empty(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 4)));
+        ScriptString ambient;
+        interior = ScriptString_Equals(static_cast<ScriptString*>(ScrField_ambient_GetCopy(pointer<uint8_t>(table + 0xc), &ambient)),
+                                       pointer<const char>(0x00816a4c));  // "interior"
+        ScriptString_Release(&ambient);
+    }
+    // both branches of the interior test pick the same aliases
+    (void)interior;
+    static const uint32_t kAliases[4] = {0x00816a34, 0x00816a1c, 0x00816a04, 0x008169ec};  // SHELL_EXPLO_MAINIMP_1..4
+    const uint32_t alias = pick == 1 ? kAliases[0] : pick == 2 ? kAliases[1] : pick == 3 ? kAliases[2] : kAliases[3];
+    ScriptString sound;
+    ScriptString_FromCString(&sound, pointer<const char>(alias));
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0, 0);  // GScr_PlaySound
+    ScriptString_Release(&sound);
+}
+
 }  // namespace game
