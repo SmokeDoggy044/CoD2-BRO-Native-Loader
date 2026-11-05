@@ -449,6 +449,40 @@ void XB_CDECL BroScr_AnimScript_Reacquire(uint32_t ent);
 void XB_CDECL BroScr_ChoosePoseRandom(uint32_t ent);
 void XB_CDECL BroScr_ChoosePoseRandom_2(uint32_t ent);
 
+// 0x001c9fc0: a grenade throw with `anim` (none: a rifle / no-weapon actor uses the stand / crouch
+// throw at 80 / 65 high, offset x y 0; others none): the target by "min energy", else "min time",
+// else "max time"; with one the throw anim, the release note, chatter, the throw, the note tracks.
+// *out = 0x19c8ae44 when thrown, else 0 (`offset` is changed in place as in the original).
+uint32_t* XB_CDECL BroScr_TryGrenadeThrow(uint32_t* out, uint32_t ent, uint32_t anim, ScrVec3 offset);
+// 0x001d5f70: battle chatter of `type` when due: no combat delay resets the chatter time; enemy-sighted
+// chatter wins; flankLeft / flankRight after the chance * 30000 + 30000 ms team wait (d4), coverme
+// after the actor's wait with a valid +0x3c ref or on axis, the team time (d8, + 3 s) and the player
+// within 128; others after the actor's wait (chance * 15000 + 20000). Releases `type`.
+void XB_CDECL BroScr_ChooseFlankOrCoverMe(uint32_t ent, ScriptString type);
+// 0x001cbc70: the cover attack from a corner (`set`: the corner anim set): the cover blend, the aim
+// blend thread, step-out knobs, LookAtEnemyLoop, then by fire type an automatic pair of bursts, a
+// semi-automatic series or one bolt-action shot (aiming until it can shoot); out of rounds notifies
+// 0x807e5a80 at once, else the aim idle, the step-back knobs, alertness 0x06279a34, the 0x281d9462 /
+// 0x807e5a80 notifies. Releases `text`.
+void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set, ScriptString text);
+// 0x001d7a60 / 0x001d7d70: the wide cover left / right anim scripts: facing the node yaw + 0x83eb60
+// and teleported to the node, the corner stand (crouch when standing is not allowed) pose for random(1) s
+// and while a sentient slot is pending, forever.
+void XB_CDECL BroScr_AnimScript_CoverWideLeft(uint32_t ent);
+void XB_CDECL BroScr_AnimScript_CoverWideRight(uint32_t ent);
+// 0x001dd180 / 0x001dd510: the cover left / right anim scripts: anim sets, the cover type (keeping the
+// idleset), chatter, then BroScr_ChoosePoseRandom / _2 as a call thread.
+void XB_CDECL BroScr_AnimScript_CoverLeft(uint32_t ent);
+void XB_CDECL BroScr_AnimScript_CoverRight(uint32_t ent);
+// 0x001d93b0 / 0x001d9750: prone cover: ends on 0x07b4e7f7, 0x06730ae8 and `end`; while prone is allowed
+// and it can shoot prone (_1: and may move there), the prone shoot loop (_2: BroScr_ProneShootLoop_2), a
+// reload, until the enemy is near off a "Cover Prone" node; notifies 0xc3cc3e6a (_2: 0xf3e6fbcb,
+// 0x6e5fd3a8). _1 releases `end`.
+void XB_CDECL BroScr_CoverProne(uint32_t ent, ScriptString end);
+void XB_CDECL BroScr_CoverProne_2(uint32_t ent, uint32_t end);
+// 0x001e3430: BroScr_BipodGunner as a call thread until 0xc3cc3e6a, then Bro_combat__RangedCombat as a
+// call thread. Releases `unused`.
+void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused);
 // 0x001d6610: teleports to the node, the corner idle, a grenade try (BroScr_TryGrenadeThrow), a
 // reload; casual: the idle for 1 s; else waits out pending sentient slots (flank / cover-me chatter,
 // grenade tries), then by chance the peek anim, a rambo fire (not allied) or BroScr_CoverAttack.
