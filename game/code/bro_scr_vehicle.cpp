@@ -3,6 +3,7 @@
 #include "bro_scr_common.h"
 #include "bro_scr_util.h"
 #include "g_script.h"
+#include "qcommon_core.h"
 #include "title_data.h"
 
 namespace game {
@@ -238,6 +239,106 @@ void XB_CDECL BroScr_PanzerIVSetup_4(uint32_t vehicle) {
     StartVehicleThread(vehicle, 0x00145080);  // BroScr_VehicleInit_Sherman
     StartVehicleThread(vehicle, 0x00128720);  // BroScr_VehicleTurretFireLoop_5
     start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+}
+
+void XB_CDECL BroScr_PanzerIVSetup_2(uint32_t vehicle) {
+    ScriptString team;
+    scr_string_from(&team, 0x0083208c);  // "axis"
+    BroScr_NormalizeTeamName(vehicle, team);
+    use_anim_tree(vehicle, 0x007f499c);  // "panzerIV"
+    const uint32_t health = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(vehicle, health);         // ScrEnt_SetHealth
+    StartVehicleThread(vehicle, 0x0014d0a0);  // BroScr_VehicleHealthThink
+    StartVehicleThread(vehicle, 0x00143870);  // BroScr_VehicleInit_PanzerIV
+    StartVehicleThread(vehicle, 0x001283d0);  // BroScr_VehicleTurretFireLoop_4
+    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+}
+
+ScriptString* XB_CDECL BroScr_TreadFxSurfaceThink(ScriptString* out, uint32_t vehicle, uint32_t wheel) {
+    ScriptString surface;
+    title_function<ScriptString* XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x0011f8d0)(&surface, &vehicle,
+                                                                                               wheel);  // ScrCall_GScr_Vehicle_GetWheelSurface
+    ScriptString fx;
+    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&fx, 0);  // ScriptString_FromRep(null)
+    const auto equals = [&surface](uint32_t text) {
+        return title_function<uint8_t XB_CDECL(const ScriptString*, uint32_t)>(0x0011d7c0)(&surface, text) != 0;  // ScriptString_Equals
+    };
+    uint32_t key = 0;
+    if (equals(0x008331b4)) {         // "grass"
+        key = 0x438c482f;
+    } else if (equals(0x0083317c)) {  // "sand"
+        key = 0xe2162fb5;
+    } else if (equals(0x008331d4)) {  // "dirt"
+        key = 0xe21d8c25;
+    } else if (equals(0x00833184)) {  // "rock"
+        key = 0xe216961a;
+    } else if (equals(0x00833174)) {  // "snow"
+        key = 0xe2161386;
+    } else {
+        if (equals(0x008331a8)) scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(vehicle, 0x9b4136a0);  // "ice": Scr_QueueNotify
+        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(&fx, 0x00824fb0);  // ScriptString_AssignCString("nofx")
+    }
+    if (key) {
+        using Index = const ScriptString* XB_THISCALL(uint32_t, const uint32_t*);
+        const ScriptString* value = title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x57c, &key);  // HashMap_Index
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(&fx, value);  // ScriptString_Assign
+    }
+    if (fx.rep == nullptr) title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(&fx, 0x00824fb0);  // "nofx"
+    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d5e0)(out, &fx);  // ScriptString_Copy
+    scr_release(&fx);
+    scr_release(&surface);
+    return out;
+}
+
+namespace {
+
+uint32_t script_object(uint32_t ent) {
+    const uint32_t table = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(ent);  // ScrCall_GScr_GetEntScriptObject
+    return table ? table : 0x00922e94;  // g_scrEmptyKeyTable
+}
+
+ScriptString* field_string(uint32_t ent, uint32_t hash) {
+    return title_function<ScriptString* XB_THISCALL(uint32_t, uint32_t)>(0x00458da0)(script_object(ent), hash);  // ScriptKeyTable_GetString
+}
+
+uint8_t* field_array(uint32_t ent, uint32_t hash) {
+    return title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t)>(0x0045cd50)(script_object(ent), hash);  // ScriptKeyTable_GetArray
+}
+
+ScriptString* string_plus_int(ScriptString* out, uint32_t text, uint32_t value) {
+    return title_function<ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t)>(0x0011a7d0)(out, text, value);  // ScriptString_FromCStringPlusInt
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleGetPassengers(uint32_t vehicle, uint32_t rider, ScriptString tag, uint32_t index) {
+    using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
+    const auto assign = title_function<Assign>(0x0011d600);  // ScriptString_Assign
+    ScriptString temp;
+    const bool named = ScrCall_ScrEnt_GetAnimname(&rider, &temp)->rep != nullptr;
+    scr_release(&temp);
+    if (named) {
+        const ScriptString* animname = ScrCall_ScrEnt_GetAnimname(&rider, &temp);
+        assign(field_string(rider, 0x55576ed6), animname);
+        scr_release(&temp);
+    }
+    const ScriptString* name = string_plus_int(&temp, 0x007fb8b4, index);  // "passenger" + index
+    ScriptString copy;
+    title_function<Assign>(0x0011d5e0)(&copy, name);  // ScriptString_Copy
+    scr_slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(rider, copy);  // ScrEnt_SetAnimname
+    scr_release(&temp);
+    const ScriptString* tag_name = string_plus_int(&temp, 0x007f5c18, index);  // "tag_passenger" + index
+    assign(field_string(rider, 0xd91e5c5b), tag_name);
+    scr_release(&temp);
+    DynArray_PushBack(field_array(vehicle, 0xe2a39a33), &rider);
+    const uint32_t zero[6] = {0, 0, 0, 0, 0, 0};  // 0.0f: offset (+0), angles (+3)
+    using Link = void XB_CDECL(uint32_t, uint32_t, const ScriptString*, const uint32_t*, const uint32_t*, uint32_t);
+    scr_slot<Link>(0x009224f4)(rider, vehicle, &tag, &zero[3], &zero[0], 0);  // GScr_LinkToTagWithOffset
+    DynArray_PushBack(field_array(vehicle, 0xe104fd5c), &rider);
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                          const ScriptString*);
+    title_function<StartThread>(0x0045b3b0)(0, 0, 0, 0, 0x0016ace0, vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRidersThink)
+    scr_release(&tag);
 }
 
 }  // namespace game

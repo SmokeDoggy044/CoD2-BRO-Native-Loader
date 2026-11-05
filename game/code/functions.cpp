@@ -11,9 +11,11 @@
 #include "bro_scr_banim_handles.h"
 #include "bro_scr_cover_turret.h"
 #include "bro_scr_defaults.h"
+#include "bro_scr_drones.h"
 #include "bro_scr_fx.h"
 #include "bro_scr_level.h"
 #include "bro_scr_math.h"
+#include "bro_scr_mortar.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_stubs.h"
 #include "bro_scr_util.h"
@@ -3208,6 +3210,7 @@ const Function kFunctions[] = {
     {"BroScr_HalftrackSetup", 0x001553b0, 0, code(&BroScr_HalftrackSetup), 4, Result::None, Status::Compare},
     {"BroScr_VehicleSetHealth_Halftrack", 0x00155500, 0, code(&BroScr_VehicleSetHealth_Halftrack), 4, Result::None, Status::Compare},
     {"BroScr_HalftrackAttachAllPassengers", 0x001555e0, 0, code(&BroScr_HalftrackAttachAllPassengers), 4, Result::None, Status::Compare},
+    {"BroScr_PanzerIVSetup_2", 0x001567f0, 0, code(&BroScr_PanzerIVSetup_2), 4, Result::None, Status::Compare},
     {"BroScr_PanzerIVStartThreads", 0x00156970, 0, code(&BroScr_PanzerIVStartThreads), 4, Result::None, Status::Compare},
     {"BroScr_StartFollowEnt", 0x001569c0, 0, code(&BroScr_StartFollowEnt), 16, Result::None, Status::Compare},
     {"ScrField_follow_ent", 0x00156a60, 0, code(&ScrField_follow_ent), 12, Result::Eax, Status::Replaced},
@@ -3224,6 +3227,7 @@ const Function kFunctions[] = {
     {"BroScr_PlaySoundOn", 0x0015bcf0, 0, code(&BroScr_PlaySoundOn), 8, Result::None, Status::Compare},
     {"BroScr_FlagSet", 0x0015ce00, 0, code(&BroScr_FlagSet), 4, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFx", 0x0015d170, 0, code(&BroScr_SetWheelSmokeFx), 8, Result::None, Status::Compare},
+    {"BroScr_TreadFxSurfaceThink", 0x0015d2c0, 0, code(&BroScr_TreadFxSurfaceThink), 12, Result::Eax, Status::Compare},
     {"BroScr_TreeBurstModelFor", 0x0015d480, 0, code(&BroScr_TreeBurstModelFor), 0, Result::None, Status::Compare},
     {"BroScr_GetLevelVecOrZero", 0x0015d510, 0, code(&BroScr_GetLevelVecOrZero), 8, Result::Eax, Status::Compare},
     {"Bro__treeburst_gmi__tree_burst_getUndamagedModel", 0x0015d650, 0, code(&Bro__treeburst_gmi__tree_burst_getUndamagedModel), 8, Result::Eax, Status::Compare},
@@ -3252,10 +3256,18 @@ const Function kFunctions[] = {
     {"BroScr_TankGunHull_3", 0x00168470, 0, code(&BroScr_TankGunHull_3), 8, Result::None, Status::Compare},
     {"BroScr_PanzerIVGunHullStart_2", 0x00168500, 0, code(&BroScr_PanzerIVGunHullStart_2), 4, Result::None, Status::Compare},
     {"BroScr_AddToNamedEntList", 0x00169650, 0, code(&BroScr_AddToNamedEntList), 8, Result::None, Status::Compare},
+    {"BroScr_StartDronesNearEnt", 0x0016a920, 0, code(&BroScr_StartDronesNearEnt), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleGetPassengers", 0x0016c7c0, 0, code(&BroScr_VehicleGetPassengers), 16, Result::None, Status::Compare},
+    {"BroScr_StukaStartNearbyDrones", 0x0016c9d0, 0, code(&BroScr_StukaStartNearbyDrones), 4, Result::None, Status::Compare},
+    {"BroScr_StartDronesByTargetname", 0x0016d280, 0, code(&BroScr_StartDronesByTargetname), 8, Result::None, Status::Compare},
     {"BroScr_DroneVehicleRidersCall", 0x0016f6b0, 0, code(&BroScr_DroneVehicleRidersCall), 12, Result::None, Status::Compare},
     {"BroScr_DroneVehicleRidersCall_2", 0x0016f790, 0, code(&BroScr_DroneVehicleRidersCall_2), 16, Result::None, Status::Compare},
     {"BroScr_DroneVehicleRidersCall_3", 0x0016f870, 0, code(&BroScr_DroneVehicleRidersCall_3), 36, Result::None, Status::Compare},
+    {"BroScr_MortarThinkWithDefaults", 0x0016fa40, 0, code(&BroScr_MortarThinkWithDefaults), 32, Result::None, Status::Compare},
     {"BroScr_MortarThinkWithDefaultsCall", 0x00170600, 0, code(&BroScr_MortarThinkWithDefaultsCall), 8, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayer", 0x001728b0, 0, code(&BroScr_StartMortarLoopsNearPlayer), 36, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEnt", 0x00173040, 0, code(&BroScr_StartMortarGroupNearEnt), 48, Result::None, Status::Compare},
+    {"BroScr_StartDroneDeathThreads", 0x001731c0, 0, code(&BroScr_StartDroneDeathThreads), 8, Result::None, Status::Compare},
     {"BroScr_StartMortarLoopsNearPlayerCall_1", 0x001738b0, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_1), 24, Result::None, Status::Compare},
     {"BroScr_StartMortarLoopsNearPlayerCall_2", 0x00173950, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_2), 28, Result::None, Status::Compare},
     {"BroScr_StartMortarLoopsNearPlayerCall_3", 0x00173a00, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_3), 28, Result::None, Status::Compare},

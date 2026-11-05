@@ -260,3 +260,8 @@ address,name,class,evidence
 0015d480,BroScr_TreeBurstModelFor,not reached,"level code reaches it (MONS1, levelreach); 0 calls in missions 0,1,2,6 and 0,2,3,4 (--only --every 1 where reachable); leaf test not eligible (SEH frame / engine slot calls)"
 001682c0,BroScr_TreeBurstInit,not reached,"level code reaches it (MONS1, levelreach); 0 calls in missions 0,1,2,6 and 0,2,3,4 (--only --every 1 where reachable); leaf test not eligible (SEH frame / engine slot calls)"
 0015d650,Bro__treeburst_gmi__tree_burst_getUndamagedModel,not reached,"level code reaches it (MONS1, levelreach); 0 calls in missions 0,1,2,6 and 0,2,3,4 (--only --every 1 where reachable); leaf test not eligible (SEH frame / engine slot calls)"
+001731c0,BroScr_StartDroneDeathThreads,dead,"was FUN_001731c0; no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-05); levelreach: no level; C kept"
+0015d2c0,BroScr_TreadFxSurfaceThink,not reached,"level code reaches it (most levels, levelreach); 0 calls in missions 0,2,3,6 (default and --only --every 1); leaf test not eligible (SEH frame / engine slot calls)"
+0016d280,BroScr_StartDronesByTargetname,not reached,"level code reaches it (PROLOGUE, levelreach); 0 calls in missions 0,2,3,6 (default and --only --every 1); leaf test not eligible (SEH frame / engine slot calls)"
+001567f0,BroScr_PanzerIVSetup_2,not reached,"level code reaches it (TUNISIA, levelreach); 0 calls in missions 0,2,3,6 (default and --only --every 1); leaf test not eligible (SEH frame / engine slot calls)"
+00173040,BroScr_StartMortarGroupNearEnt,not reached,"level code reaches it (PIANLUPO, levelreach); 0 calls in missions 0,2,3,6 (default and --only --every 1); leaf test not eligible (SEH frame / engine slot calls)"

@@ -76,4 +76,18 @@ void XB_CDECL BroScr_HalftrackSetup(uint32_t vehicle);
 // BroScr_TankStunOnDamage (with 1).
 void XB_CDECL BroScr_PanzerIVSetup_4(uint32_t vehicle);
 
+// 0x001567f0: team "axis" (BroScr_NormalizeTeamName), GScr_UseAnimTree(vehicle,
+// "panzerIV"), health 500 + RandomInt(1000), threads on BroScr_VehicleHealthThink,
+// BroScr_VehicleInit_PanzerIV, BroScr_VehicleTurretFireLoop_4 and BroScr_TankStunOnDamage (1).
+void XB_CDECL BroScr_PanzerIVSetup_2(uint32_t vehicle);
+// 0x0015d2c0: *out = the level effect map's (+0x57c) tread effect for the wheel's surface
+// (grass/sand/dirt/rock/snow keys), else "nofx" ("ice" notifies 0x9b4136a0 on the vehicle first);
+// "nofx" also when the map's value is empty. Returns out.
+ScriptString* XB_CDECL BroScr_TreadFxSurfaceThink(ScriptString* out, uint32_t vehicle, uint32_t wheel);
+// 0x0016c7c0: seats `rider` in `vehicle`: keeps the rider's animname in field 0x55576ed6 when set,
+// animname = "passenger<index>", field 0xd91e5c5b = "tag_passenger<index>", rider appended to the
+// vehicle's arrays 0xe2a39a33 and 0xe104fd5c around GScr_LinkToTagWithOffset(rider, vehicle, tag,
+// zero offsets), then a BroScr_VehicleRidersThink thread (vehicle, rider, tag). Releases `tag`.
+void XB_CDECL BroScr_VehicleGetPassengers(uint32_t vehicle, uint32_t rider, ScriptString tag, uint32_t index);
+
 }  // namespace game
