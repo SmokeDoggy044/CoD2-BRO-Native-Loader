@@ -3353,6 +3353,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00157b40,BroScr_FindFlakvierlings,compare,0,0,0,0,0,0,""
 00157e60,BroScr_SpawnFlakvierling,compare,0,0,0,0,0,0,""
 001580a0,BroScr_VehicleSpawnRider,compare,0,0,0,0,0,0,""
+00159cc0,BroScr_PlaneSpawnWingTurretsCall_3,compare,0,0,0,0,0,0,""
 00159cf0,BroScr_PlaneSpawnWingTurretsCall_2,compare,0,0,0,0,0,0,""
 00159d20,BroScr_FindAllFlakvierlings,compare,0,0,0,0,0,0,""
 00159d50,BroScr_SpawnFlakvierlingCall,compare,0,0,0,0,0,0,""

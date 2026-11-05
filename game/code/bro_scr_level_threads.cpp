@@ -5708,9 +5708,182 @@ void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, Sc
     attribs_free(&attribs);
 }
 
+void XB_CDECL BroScr_PlaneSpawnWingTurretsCall_3(uint32_t plane) {
+    // As BroScr_PlaneSpawnWingTurretsCall / _2 (bro_scr_vehicle.cpp, which vc71match cannot compile).
+    const uint32_t undefined = title_global<uint32_t>(0x00922ec0);  // g_scrUndefinedInt
+    BroScr_PlaneSpawnWingTurrets(plane, undefined, undefined, true);
+}
+
 void XB_CDECL BroScr_AddFollowersDefault(uint32_t leader, uint32_t follower) {
     // BroScr_AddFollowers(leader, follower) (the title passes the undefined entity 0x00922e84 as a third, unread word).
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00158aa0)(leader, follower, title_global<uint32_t>(0x00922e84));
+}
+
+namespace {
+
+// A script condition stored as a float and tested against the 0.0 at 0x0083eafc.
+inline bool script_true(bool condition) {
+    return static_cast<float>(condition ? 1 : 0) != as_float(title_global<uint32_t>(0x0083eafc));
+}
+
+// The flak's target (entity key 0x0d60fb3d) is defined: the flak valid, its own key table (no shared
+// empty one) and the key's handle (0 when missing) valid.
+inline bool flak_target_defined(uint32_t flak) {
+    if (!entity_handle_is_valid(flak)) return false;
+    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(flak);
+    if (!table) return false;
+    const uint32_t* const target = ScriptKeyTable_Find(table, 0x0d60fb3d);
+    return entity_handle_is_valid(target ? *target : 0) != 0;
+}
+
+inline uint32_t* flak_target(uint32_t flak) { return key_slot(flak, 0x0d60fb3d, 0); }
+
+// Scr_Distance(flak origin, target origin) (the target's origin read first).
+inline float flak_target_distance(uint32_t flak) {
+    ScrVec3 to, from;
+    origin_of(&to, *flak_target(flak));
+    origin_of(&from, flak);
+    return static_cast<float>(distance(&from, &to));
+}
+
+// GScr_Vehicle_SetTurretTargetEnt(flak, target, BroScr_FlakPickLeadPos(flak, target)) (the target read
+// again for the call).
+inline void flak_aim_lead(uint32_t flak) {
+    const uint32_t target = *flak_target(flak);
+    float lead[3];
+    const float* const offset = BroScr_FlakPickLeadPos(lead, flak, target);
+    slot<void XB_CDECL(uint32_t, uint32_t, const float*)>(0x009228cc)(flak, *flak_target(flak), offset);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakAutomatedThink(uint32_t flak) {
+    using ClearTarget = void XB_CDECL(uint32_t);
+    slot<EntHash>(0x00922188)(flak, kDeath);     // Scr_EndOn
+    slot<EntHash>(0x00922188)(flak, 0xca4175b9);  // Scr_EndOn
+    slot<EntHash>(0x00922188)(flak, 0xbe7ade77);  // Scr_EndOn
+    thread_1(flak, 0x007f5ba0, 0x00158420, flak);  // BroScr_FlakGunnerRespawnLoop
+    float dist = as_float(undefined_float());     // the last target distance, kept across passes
+    for (;;) {
+        // Neither a gunner in slot 0 (with int key 0xb330b301 clear) nor `automated`: no target.
+        const bool gunner = *reinterpret_cast<const uint8_t*>(rider_slot_inline(flak, 0) + 1) != 0;
+        if ((!gunner || *int_slot(flak, 0xb330b301) != 0) && !*bool_slot(flak, 0xd8e13e71)) {
+            slot<ClearTarget>(0x009228d0)(flak);  // GScr_Vehicle_ClearTurretTarget
+            Scr_Wait(0.2f);
+            continue;
+        }
+        bool group;
+        if (*ScrField_targets_groupname_IsDefined(&group, flak)) {
+            // A living target beyond flak_dist, or none: BroScr_FlakFindTargets picks a new one.
+            if (flak_target_defined(flak) && is_alive(*flak_target(flak))) {
+                dist = flak_target_distance(flak);
+                if (script_true(dist > static_cast<float>(static_cast<int32_t>(*int_slot(flak, 0x93c3cf6c))))) {
+                    uint32_t found;
+                    const uint32_t* const next = BroScr_FlakFindTargets(&found, flak);
+                    *ScrField_target_ent(flak) = *next;
+                }
+            } else {
+                uint32_t found;
+                const uint32_t* const next = BroScr_FlakFindTargets(&found, flak);
+                *flak_target(flak) = *next;
+            }
+            if (flak_target_defined(flak)) {
+                dist = flak_target_distance(flak);
+                flak_aim_lead(flak);
+            } else {
+                slot<ClearTarget>(0x009228d0)(flak);  // GScr_Vehicle_ClearTurretTarget
+            }
+        } else if (flak_target_defined(flak)) {
+            // A target given by the level: the lead aimed at, 64 higher for "convoy3".
+            dist = flak_target_distance(flak);
+            bool convoy;
+            {
+                ScriptString name;
+                convoy = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(flak_target(flak), &name),
+                                             pointer<const char>(0x007fa63c));  // "convoy3"
+                ScriptString_Release(&name);
+            }
+            if (convoy) {
+                const uint32_t target = *flak_target(flak);
+                float lead[3];
+                const float* const l = BroScr_FlakPickLeadPos(lead, flak, target);
+                float offset[3];
+                offset[2] = l[2] + as_float(title_global<uint32_t>(0x007e5bf0));  // + 64
+                offset[1] = l[1];
+                offset[0] = l[0];
+                slot<void XB_CDECL(uint32_t, uint32_t, const float*)>(0x009228cc)(flak, *flak_target(flak),
+                                                                                  offset);  // GScr_Vehicle_SetTurretTargetEnt
+            } else {
+                flak_aim_lead(flak);
+            }
+        }
+        // In reach (BroScr_FlakCanShootLow; the title passes the target as a third, unread word) and
+        // nearer than flak_dist: fire (notify 0xac1c7bac) when the "tag_flash" trace over flak_dist
+        // runs past the target, or with can_shoot_low.
+        if (flak_target_defined(flak)) {
+            const uint32_t target = *flak_target(flak);
+            uint8_t low;
+            if (*title_function<uint8_t* XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x0012ff60)(&low, flak, target) &&
+                script_true(static_cast<float>(static_cast<int32_t>(*int_slot(flak, 0x93c3cf6c))) > dist)) {
+                ScrVec3 origin;
+                {
+                    ScriptString tag;
+                    ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
+                    ScrVec3 at;
+                    tag_origin(&at, flak, &tag);
+                    origin = at;
+                    ScriptString_Release(&tag);
+                }
+                ScrVec3 angles;
+                {
+                    ScriptString tag;
+                    ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
+                    const uint32_t lane = undefined_lane();
+                    ScrVec3 at;
+                    at.v[0] = lane;
+                    at.v[1] = lane;
+                    at.v[2] = lane;
+                    slot<void XB_CDECL(uint32_t, ScrVec3*, ScriptString*)>(0x00922620)(flak, &at, &tag);  // GScr_GetTagAngles
+                    angles = at;
+                    ScriptString_Release(&tag);
+                }
+                float forward[3];
+                {
+                    const uint32_t lane = undefined_lane();
+                    uint32_t out[3] = {lane, lane, lane};
+                    slot<void XB_CDECL(uint32_t*, const ScrVec3*)>(0x00922290)(out, &angles);  // Scr_AnglesToForward
+                    std::memcpy(forward, out, 12);
+                }
+                const float range = static_cast<float>(static_cast<int32_t>(*int_slot(flak, 0x93c3cf6c)));
+                float o[3];
+                std::memcpy(o, origin.v, 12);
+                const float end[3] = {o[0] + range * forward[0], o[1] + range * forward[1], o[2] + range * forward[2]};
+                struct Trace {
+                    float fraction;  // written by the trace
+                    uint32_t position[3];
+                    uint32_t zero;
+                    uint32_t normal[3];
+                    ScriptString surface;
+                } trace;
+                const uint32_t lane = undefined_lane();
+                trace.position[0] = lane;
+                trace.position[1] = lane;
+                trace.position[2] = lane;
+                trace.zero = 0;
+                trace.normal[0] = lane;
+                trace.normal[1] = lane;
+                trace.normal[2] = lane;
+                ScriptString_FromRep(&trace.surface, nullptr);
+                slot<void XB_CDECL(Trace*, const float*, const float*, uint32_t, uint32_t)>(0x00922414)(
+                    &trace, o, end, 0, flak);  // GScr_LocationalTraceSurface
+                const long double reach =
+                    slot<long double XB_CDECL(const uint32_t*, const float*)>(0x00922268)(trace.position, o);  // Scr_Distance
+                if (script_true(reach > dist) || *bool_slot(flak, 0x185dadca)) queue_notify(flak, 0xac1c7bac);
+                ScriptString_Release(&trace.surface);
+            }
+        }
+        Scr_Wait(0.2f);
+    }
 }
 
 void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned) {
