@@ -4,6 +4,7 @@
 
 #include "bro_scr_ai_anim.h"
 #include "bro_scr_actor.h"
+#include "bro_scr_array.h"
 #include "bro_scr_arrays.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_cover_turret.h"
@@ -20,6 +21,7 @@
 #include "bro_scr_util.h"
 #include "bro_scr_vehicle.h"
 #include "bro_scr_vehicle_path.h"
+#include "bro_scr_wallhop.h"
 #include "bro_scr_notify_threads.h"
 #include "bro_scr_vehicle_health.h"
 #include "bro_scr_wait_misc.h"
@@ -3255,17 +3257,17 @@ inline uint32_t* rider_slot(uint32_t vehicle, uint32_t i) {
 // their tag on the vehicle, waited for; nothing for "tag_gunner" or other tags.
 inline void rider_tag_anim(uint32_t vehicle, uint32_t rider, ScriptString* tag, uint32_t left, uint32_t right) {
     using Anim = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t);
-    using TagVec = void XB_CDECL(uint32_t*, uint32_t, ScriptString*);
+    using TagVec = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
     if (ScriptString_Equals(tag, pointer<const char>(0x007fa47c))) return;  // "tag_gunner"
     if (ScriptString_Equals(tag, pointer<const char>(0x007fc0bc))) {  // "tag_passenger1"
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(rider, title_global<uint32_t>(left));  // ScrActor_SetInt_1370
         const uint32_t lane = undefined_lane();
         uint32_t a[3] = {lane, lane, lane};
-        slot<TagVec>(0x00922620)(a, vehicle, tag);  // GScr_GetTagAngles
+        slot<TagVec>(0x00922620)(vehicle, a, tag);  // GScr_GetTagAngles
         const uint32_t angles[3] = {a[0], a[1], a[2]};
         const uint32_t lane_2 = undefined_lane();
         uint32_t o[3] = {lane_2, lane_2, lane_2};
-        slot<TagVec>(0x0092261c)(o, vehicle, tag);  // GScr_GetTagOrigin
+        slot<TagVec>(0x0092261c)(vehicle, o, tag);  // GScr_GetTagOrigin
         const uint32_t origin[3] = {o[0], o[1], o[2]};
         slot<Anim>(0x009224c0)(rider, 0x54e3b2b6, origin, angles, title_global<uint32_t>(left));  // GScr_AnimScriptedNoNotify
     } else if (ScriptString_Equals(tag, pointer<const char>(0x007f5c08))) {  // "tag_passenger2"
@@ -3697,6 +3699,1045 @@ void XB_CDECL BroScr_FriendlyChatTriggerThink(uint32_t trigger) {
     }
     slot<Ent>(0x00922540)(trigger);  // GScr_Delete
     ScriptString_Release(&reason);
+}
+
+namespace {
+
+inline uint32_t* new_functor(uint32_t size) {
+    return slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(size);  // ScrIface_Alloc
+}
+
+inline void create_thread(uint32_t owner, uint32_t* functor) {
+    slot<CreateThread>(0x0092216c)(0, 0, 0, owner, functor, 0);  // Scr_CreateThread
+}
+
+// Scr_CreateThread(owner, {0x007f4a1c, body, a, b}).
+inline void thread_2(uint32_t owner, uint32_t body, uint32_t a, uint32_t b) {
+    uint32_t* const functor = new_functor(0x10);
+    if (functor) {
+        functor[0] = 0x007f4a1c;
+        functor[1] = body;
+        functor[2] = a;
+        functor[3] = b;
+    }
+    create_thread(owner, functor);
+}
+
+// Scr_CreateThread(owner, {0x007f4af4, body, a, b, c}).
+inline void thread_3(uint32_t owner, uint32_t body, uint32_t a, uint32_t b, uint32_t c) {
+    uint32_t* const functor = new_functor(0x14);
+    if (functor) {
+        functor[0] = 0x007f4af4;
+        functor[1] = body;
+        functor[2] = a;
+        functor[3] = b;
+        functor[4] = c;
+    }
+    create_thread(owner, functor);
+}
+
+// Scr_CreateThread(owner, {0x007f9a78, body, a, a copy of *array (DynArray_Assign4)}).
+inline void thread_array(uint32_t owner, uint32_t body, uint32_t a, const DynArray* array) {
+    uint32_t* const functor = new_functor(0x18);
+    if (functor) {
+        functor[0] = 0x007f9a78;
+        functor[1] = body;
+        functor[2] = a;
+        functor[3] = 0;
+        functor[4] = 0;
+        functor[5] = 0;
+        title_function<void XB_THISCALL(uint32_t*, const DynArray*)>(0x0045c270)(&functor[3], array);  // DynArray_Assign4_PROLOGUE
+    }
+    create_thread(owner, functor);
+}
+
+// The level's byte / int array at `offset` [i], grown first (no null check on the level object).
+inline uint8_t& level_byte(uint32_t offset, uint32_t i) {
+    DynArrayBytes* const array = pointer<DynArrayBytes>(title_global<uint32_t>(0x00922ee0) + offset);
+    if (i >= array->size) DynArray_ResizeBytes(array, i + 1, i + 4);
+    return array->data[i];
+}
+
+inline uint32_t& level_int(uint32_t offset, uint32_t i) {
+    DynArray* const array = pointer<DynArray>(title_global<uint32_t>(0x00922ee0) + offset);
+    if (i >= array->size) DynArray_ResizeInt(array, i + 1, i + 4);
+    return array->data[i];
+}
+
+// The level entity's script key table (the level object read without a null check).
+inline ScriptKeyTable* level_table() {
+    return ent_script_object(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 4));
+}
+
+// Whether the level's byte array key 0xe337f297 [flaknum] is 0 (read from a copy of the array).
+inline bool flak_flag_clear(uint32_t flaknum) {
+    DynArrayBytes copy;
+    DynArrayBytes* const flags = static_cast<DynArrayBytes*>(
+        ScrField_he337f297_GetArrayCopy(reinterpret_cast<uint8_t*>(level_table()) + 0x10, &copy));
+    if (flaknum >= flags->size) DynArray_ResizeBytesNoFill(flags, flaknum + 1, flaknum + 4);
+    const bool clear = flags->data[flaknum] == 0;
+    if (copy.data) Scr_Free(copy.data);
+    return clear;
+}
+
+// BroScr_PutGunInHand(guy, hand) for each guy.
+inline void guns_in_hand(DynArray* guys, uint32_t hand) {
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys->size); ++i)
+        BroScr_PutGunInHand(element(guys, i), hand);
+}
+
+// A BroScr_FlakCrewAnims thread {0x008244d0: flak, anim, flaknum, type} on the flak.
+inline void crew_anims_thread(uint32_t flak, const ScriptString* anim, uint32_t flaknum, const ScriptString* type) {
+    uint32_t* const functor = new_functor(0x18);
+    if (functor) {
+        functor[0] = 0x008244d0;
+        functor[1] = 0x001441c0;  // BroScr_FlakCrewAnims
+        functor[2] = flak;
+        ScriptString_Copy(reinterpret_cast<ScriptString*>(&functor[3]), anim);
+        functor[4] = flaknum;
+        ScriptString_Copy(reinterpret_cast<ScriptString*>(&functor[5]), type);
+    }
+    create_thread(flak, functor);
+}
+
+// A BroScr_FlakCrewAnim thread {0x007ffb0c: guy, flak, flaknum, anim} on each guy.
+inline void crew_anim_threads(DynArray* guys, uint32_t flak, uint32_t flaknum, const ScriptString* anim) {
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys->size); ++i) {
+        const uint32_t guy = element(guys, i);
+        uint32_t* const functor = new_functor(0x18);
+        if (functor) {
+            functor[0] = 0x007ffb0c;
+            functor[1] = 0x00143cb0;  // BroScr_FlakCrewAnim
+            functor[2] = guy;
+            functor[3] = flak;
+            functor[4] = flaknum;
+            ScriptString_Copy(reinterpret_cast<ScriptString*>(&functor[5]), anim);
+        }
+        create_thread(guy, functor);
+    }
+}
+
+// Scr_WaitTill(level, "flak_anim_done" + flaknum) (the text left in *done).
+inline void wait_flak_anim_done(ScriptString* done, uint32_t flaknum) {
+    ScriptString_AssignCString(done, pointer<const char>(0x00824a44));  // "flak_anim_done"
+    ScriptString_AppendInt(done, static_cast<int32_t>(flaknum));
+    const uint32_t object = title_global<uint32_t>(0x00922ee0);
+    const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+    uint32_t hash;
+    const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(done));
+    Scr_WaitTill(*level, h);
+}
+
+// A BroScr_FlakSoundBlend thread {0x007f8f7c: flak, sound, flaknum} on the flak.
+inline void flak_sound_blend(uint32_t flak, uint32_t text, uint32_t flaknum) {
+    ScriptString sound;
+    ScriptString_FromCString(&sound, pointer<const char>(text));
+    uint32_t* const functor = new_functor(0x14);
+    if (functor) {
+        functor[0] = 0x007f8f7c;
+        functor[1] = 0x001336e0;  // BroScr_FlakSoundBlend
+        functor[2] = flak;
+        ScriptString_Copy(reinterpret_cast<ScriptString*>(&functor[3]), &sound);
+        functor[4] = flaknum;
+    }
+    create_thread(flak, functor);
+    ScriptString_Release(&sound);
+}
+
+inline bool string_is(const ScriptString* s, uint32_t text) { return ScriptString_Equals(s, pointer<const char>(text)); }
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum) {
+    using IsAlive = uint32_t XB_CDECL(uint32_t);
+    using SetModel = void XB_CDECL(uint32_t, ScriptString*, uint32_t);
+    // The flak type: "flakpanzer" for the flakpanzer model, else string field 0xd1c52a4f.
+    ScriptString type;
+    ScriptString_FromRep(&type, nullptr);
+    bool panzer_model;
+    {
+        ScriptString model;
+        panzer_model = string_is(ScrCall_ScrEnt_GetModel(&ent, &model), 0x0082534c);  // "xmodel/vehicle_tank_flakpanzer"
+        ScriptString_Release(&model);
+    }
+    if (panzer_model) ScriptString_AssignCString(&type, pointer<const char>(0x00825340));  // "flakpanzer"
+    bool defined;
+    if (*ScrField_hd1c52a4f_IsDefined(&defined, ent)) ScriptString_Assign(&type, ScrField_hd1c52a4f(ent));
+    if (string_is(&type, 0x008251f8) || string_is(&type, 0x00823538) || string_is(&type, 0x00825340) ||
+        string_is(&type, 0x00823544)) {  // "flakair", "flakairlow", "flakpanzer", "flaktank"
+        {
+            const uint8_t undefined = title_global<uint8_t>(0x00922ed0);
+            uint32_t* const functor = new_functor(0x14);
+            if (functor) {
+                functor[0] = 0x008023c8;
+                functor[1] = 0x0013cc90;  // BroScr_FlakDeathThink
+                functor[2] = ent;
+                functor[3] = flaknum;
+                *reinterpret_cast<uint8_t*>(&functor[4]) = undefined;
+            }
+            create_thread(ent, functor);
+        }
+        // The flak's targets: start triggers (BroScr_FlakWaitStartTrigger threads, then wait for
+        // "start_turret"), script models (BroScr_PlantBombObjective threads), the rest the crew spawners.
+        DynArray targets = {nullptr, 0, 0};
+        {
+            ScriptString target;
+            Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
+                            0x0d786b4c, reinterpret_cast<uint8_t*>(&targets), 0);  // by targetname
+            ScriptString_Release(&target);
+        }
+        bool start_trigger = false;
+        DynArray spawners = {nullptr, 0, 0};
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
+            bool is;
+            {
+                ScriptString classname;
+                is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x00832270);  // "trigger_multiple"
+                ScriptString_Release(&classname);
+            }
+            if (is) {
+                thread_3(ent, 0x00143b40, ent, element(&targets, i), flaknum);  // BroScr_FlakWaitStartTrigger
+                start_trigger = true;
+                continue;
+            }
+            {
+                ScriptString classname;
+                is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x0083ab98);  // "script_model"
+                ScriptString_Release(&classname);
+            }
+            if (is)
+                thread_3(ent, 0x001609f0, ent, element(&targets, i), flaknum);  // BroScr_PlantBombObjective
+            else
+                DynArray_PushBack(reinterpret_cast<uint8_t*>(&spawners), &element(&targets, i));
+        }
+        if (start_trigger) Scr_WaitTillString(ent, pointer<const char>(0x00825330));  // "start_turret"
+        DynArray guys = {nullptr, 0, 0};
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
+            const uint32_t guy = slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922518)(element(&spawners, i), 0);  // GScr_DoSpawn
+            element(&guys, i) = guy;
+        }
+        bool alive = true;
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys.size); ++i) {
+            if (!slot<IsAlive>(0x00922210)(element(&guys, i))) {  // GScr_IsAlive
+                alive = false;
+                break;
+            }
+        }
+        if (alive && static_cast<int32_t>(guys.size) >= static_cast<int32_t>(spawners.size)) {
+            thread_array(ent, 0x0013ceb0, ent, &guys);  // BroScr_FlakPanzerKeepUnusable
+            // The crew size: 3 or more (flakair, flakairlow, flaktank), exactly 3 for the flakpanzer
+            // (its four clips taken off first: bool keys 0xc0f54bd1.. set).
+            bool crewed = true;
+            if (string_is(&type, 0x008251f8) || string_is(&type, 0x00823538) || string_is(&type, 0x00823544)) {
+                crewed = guys.capacity && static_cast<int32_t>(guys.size) >= 3;
+            } else if (string_is(&type, 0x00825340)) {
+                *bool_slot(ent, 0xc0f54bd1) = 1;
+                flak_clip_tag(ent, 0x00824b2c, false);  // "tag_clip_1"
+                *bool_slot(ent, 0xc0f54bd2) = 1;
+                flak_clip_tag(ent, 0x00824b14, false);  // "tag_clip_2"
+                *bool_slot(ent, 0xc0f54bd3) = 1;
+                flak_clip_tag(ent, 0x00824afc, false);  // "tag_clip_3"
+                *bool_slot(ent, 0xc0f54bd4) = 1;
+                flak_clip_tag(ent, 0x00824ae4, false);  // "tag_clip_4"
+                crewed = guys.capacity && guys.size == 3;
+            }
+            if (crewed) {
+                if (string_is(&type, 0x008251f8) || string_is(&type, 0x00823538) || string_is(&type, 0x00823544)) {
+                    ScriptString model;
+                    ScriptString_FromCString(&model, pointer<const char>(0x0082521c));  // "xmodel/turret_flak88"
+                    slot<SetModel>(0x00922548)(ent, &model, 0);  // GScr_SetModel
+                    ScriptString_Release(&model);
+                } else if (string_is(&type, 0x00825340)) {
+                    ScriptString model;
+                    ScriptString_FromCString(&model, pointer<const char>(0x0082534c));  // "xmodel/vehicle_tank_flakpanzer"
+                    slot<SetModel>(0x00922548)(ent, &model, 0);  // GScr_SetModel
+                    ScriptString_Release(&model);
+                }
+                // Manned (level bytes +0x684), the level flag array key 0xe337f297 and bytes +0x548 cleared.
+                level_byte(0x684, flaknum) = 1;
+                {
+                    ScriptKeyTable* const table = level_table();
+                    uint32_t* value = ScriptKeyTable_Find(table, 0xe337f297);
+                    if (!value) {
+                        const uint32_t empty[3] = {0, 0, 0};
+                        value = ScriptKeyTable_SetArray_4(table, 0xe337f297, empty);
+                    }
+                    DynArrayBytes* const flags = pointer<DynArrayBytes>(*value);
+                    if (flaknum >= flags->size) DynArray_ResizeBytesNoFill(flags, flaknum + 1, flaknum + 4);
+                    flags->data[flaknum] = 0;
+                }
+                level_byte(0x548, flaknum) = 0;
+                // The flak's setup function (key 0xc511e266: flak, type, the anim set 0xc4813666).
+                {
+                    using Setup = void XB_CDECL(uint32_t, ScriptString, const uint32_t*);
+                    const uint32_t* const anims = flak_anims(ent);
+                    ScriptString copy;
+                    ScriptString_Copy(&copy, &type);
+                    title_function<Setup>(*key_slot(ent, 0xc511e266, 0))(ent, copy, anims);
+                }
+                // Per guy: gun in hand, the crew think (function key 0x2f31323b: guy, index), a
+                // BroScr_FlakStopMovingOnDeath thread, the clip-off bool 0x1ea97196 cleared.
+                for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys.size); ++i) {
+                    BroScr_PutGunInHand(element(&guys, i), 0x0036b1a5);
+                    const uint32_t think = *key_slot(ent, 0x2f31323b, 0);
+                    ScriptString message;
+                    ScriptString_FromCString(&message, pointer<const char>(0x0082531c));  // "No function ptr!"
+                    ScrLocal_ReleaseString(ent, think != 0, message);
+                    const uint32_t guy = element(&guys, i);
+                    thread_2(guy, think, guy, i);
+                    thread_3(ent, 0x0013c530, ent, element(&guys, i), flaknum);  // BroScr_FlakStopMovingOnDeath
+                    *bool_slot(element(&guys, i), 0x1ea97196) = 0;
+                }
+                // A BroScr_FlakWaitDeath thread {0x007f4b84: guy, the flak's origin, flaknum} per guy.
+                for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys.size); ++i) {
+                    ScrVec3 origin;
+                    origin_of(&origin, ent);
+                    const uint32_t guy = element(&guys, i);
+                    uint32_t* const functor = new_functor(0x1c);
+                    if (functor) {
+                        functor[0] = 0x007f4b84;
+                        functor[1] = 0x00122600;  // BroScr_FlakWaitDeath
+                        functor[2] = guy;
+                        functor[3] = origin.v[0];
+                        functor[4] = origin.v[1];
+                        functor[5] = origin.v[2];
+                        functor[6] = flaknum;
+                    }
+                    create_thread(guy, functor);
+                }
+                level_int(0x50c, flaknum) = 0;
+                level_int(0x2d4, flaknum) = 0;
+                *bool_slot(ent, 0x34314719) = 0;
+                *int_slot(ent, 0x872c50bf) = 0;
+                thread_array(ent, 0x0013cf40, ent, &guys);  // BroScr_FlakLoaderAmmoAnim
+                thread_2(ent, 0x00122470, ent, flaknum);    // BroScr_FlakPanzerStopLoopSounds
+                thread_2(ent, 0x0013c710, ent, flaknum);    // BroScr_FlakDied
+                if (string_is(&type, 0x00825340)) {
+                    flak_sound_blend(ent, 0x00824a94, flaknum);  // "flakpanzer_loop"
+                    flak_sound_blend(ent, 0x00825304, flaknum);  // "flakpanzer_loop_fast"
+                }
+                // While manned: with the level flag clear, the crew anims (guns in hand) and a wait for
+                // them ("flak_anim_done<n>" on the level; 2 s for flakairlow); else guns on the back, 1 s.
+                ScriptString anim, done;
+                ScriptString_FromRep(&anim, nullptr);
+                ScriptString_FromRep(&done, nullptr);
+                const ScriptString* const empty = pointer<const ScriptString>(0x00922e90);
+                while (level_byte(0x684, flaknum)) {
+                    if (string_is(&type, 0x008251f8) || string_is(&type, 0x00823544)) {  // "flakair", "flaktank"
+                        if (!flak_flag_clear(flaknum)) {
+                            guns_in_hand(&guys, 0x07151174);
+                            Scr_Wait(1.0f);
+                            continue;
+                        }
+                        guns_in_hand(&guys, 0x0036b1a5);
+                        if (level_byte(0x548, flaknum)) {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x008252e8));  // "preidle"
+                        } else if (!level_int(0x2d4, flaknum)) {
+                            level_int(0x2d4, flaknum) = 1;
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x008252e0));  // "turn"
+                        } else if (random_int(100) > 95) {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00824c88));  // "twitch"
+                        } else if (random_int(100) > 60) {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x0082c09c));  // "fire"
+                        } else {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00804310));  // "idle"
+                        }
+                        crew_anims_thread(ent, &anim, flaknum, empty);
+                        if (string_is(&anim, 0x0082c09c)) slot<Ent>(0x009228d4)(ent);  // GScr_Vehicle_FireWeapon
+                        crew_anim_threads(&guys, ent, flaknum, &anim);
+                        wait_flak_anim_done(&done, flaknum);
+                    } else if (string_is(&type, 0x00823538)) {  // "flakairlow"
+                        if (!flak_flag_clear(flaknum)) {
+                            guns_in_hand(&guys, 0x07151174);
+                            Scr_Wait(1.0f);
+                            continue;
+                        }
+                        guns_in_hand(&guys, 0x0036b1a5);
+                        if (level_byte(0x548, flaknum)) {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00804310));  // "idle"
+                        } else if (!level_int(0x2d4, flaknum)) {
+                            level_int(0x2d4, flaknum) = 1;
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00804310));  // "idle"
+                        } else if (random_int(100) > 70) {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x0082c09c));  // "fire"
+                        } else {
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00804310));  // "idle"
+                        }
+                        crew_anims_thread(ent, &anim, flaknum, empty);
+                        if (string_is(&anim, 0x0082c09c)) flak_sound(ent, 0x008252f8);  // "Flak88_fire"
+                        crew_anim_threads(&guys, ent, flaknum, &anim);
+                        Scr_Wait(2.0f);
+                    } else if (string_is(&type, 0x00825340)) {  // "flakpanzer"
+                        if (!flak_flag_clear(flaknum)) {
+                            guns_in_hand(&guys, 0x07151174);
+                            Scr_Wait(1.0f);
+                            continue;
+                        }
+                        guns_in_hand(&guys, 0x0036b1a5);
+                        if (random_int(100) > 50)
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x00824b44));  // "fireA"
+                        else
+                            ScriptString_AssignCString(&anim, pointer<const char>(0x008252f0));  // "fireB"
+                        {
+                            ScriptString panzer;
+                            ScriptString_FromCString(&panzer, pointer<const char>(0x00824b4c));  // "panzer"
+                            crew_anims_thread(ent, &anim, flaknum, &panzer);
+                            ScriptString_Release(&panzer);
+                        }
+                        crew_anim_threads(&guys, ent, flaknum, &anim);
+                        wait_flak_anim_done(&done, flaknum);
+                    }
+                }
+                ScriptString_Release(&done);
+                ScriptString_Release(&anim);
+            }
+        }
+        if (guys.data) Scr_Free(guys.data);
+        if (spawners.data) Scr_Free(spawners.data);
+        if (targets.data) Scr_Free(targets.data);
+    }
+    ScriptString_Release(&type);
+}
+
+namespace {
+
+// The level's byte array key 0xe337f297 (added empty when missing) [i] (grown without the fill).
+inline uint8_t& level_flag(uint32_t i) {
+    ScriptKeyTable* const table = level_table();
+    uint32_t* value = ScriptKeyTable_Find(table, 0xe337f297);
+    if (!value) {
+        const uint32_t empty[3] = {0, 0, 0};
+        value = ScriptKeyTable_SetArray_4(table, 0xe337f297, empty);
+    }
+    DynArrayBytes* const flags = pointer<DynArrayBytes>(*value);
+    if (i >= flags->size) DynArray_ResizeBytesNoFill(flags, i + 1, i + 4);
+    return flags->data[i];
+}
+
+// The entity's own byte array key 0xe337f297 (added empty when missing, ScriptKeyTable_SetArrayBytes).
+inline DynArrayBytes* ent_flags(uint32_t ent) {
+    ScriptKeyTable* const table = ent_script_object(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, 0xe337f297);
+    if (!value) {
+        const uint32_t empty[3] = {0, 0, 0};
+        value = ScriptKeyTable_SetArrayBytes(table, 0xe337f297, empty);
+    }
+    return pointer<DynArrayBytes>(*value);
+}
+
+inline DynArray* key_array(uint32_t ent, uint32_t key) {
+    return title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(ent_script_object(ent), key);  // ScriptKeyTable_GetArray
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakClaimTriggerThink(uint32_t trigger, uint32_t flaknum) {
+    using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+    bool targeted;
+    {
+        ScriptString target;
+        targeted = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep != nullptr;
+        ScriptString_Release(&target);
+    }
+    if (targeted) {
+        // The target trigger clears the level's byte +0x548 [flaknum] (set now) when touched.
+        uint32_t other;
+        {
+            ScriptString target;
+            other = slot<GetEntArray>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&trigger, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
+            ScriptString_Release(&target);
+        }
+        thread_2(other, 0x0013cc40, other, flaknum);  // BroScr_WaitTriggerClearFlag
+        level_byte(0x548, flaknum) = 1;
+    }
+    // While manned: whoever touches the trigger (unless its own flag 0xe337f297 [flaknum] is set and not
+    // the undefined bool) takes the flak: the level's and its own flag set, a BroScr_FlipLevelFlagOnDeath
+    // thread on the level; then 1 s.
+    uint32_t who = 0;
+    while (level_byte(0x684, flaknum)) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(trigger, 0xe2a210cf, &who);  // Scr_WaitTillOutputEnt_ORAN
+        const uint32_t user = who;
+        bool defined;
+        bool taken = false;
+        if (*ScrField_he337f297_IsDefined(&defined, user)) {
+            DynArrayBytes* const own = ent_flags(user);
+            if (flaknum >= own->size) DynArray_ResizeBytes(own, flaknum + 1, flaknum + 4);
+            taken = own->data[flaknum] != title_global<uint8_t>(0x00922ed0);
+        }
+        if (!taken) {
+            level_flag(flaknum) = 1;
+            DynArrayBytes* const own = ent_flags(user);
+            if (flaknum >= own->size) DynArray_ResizeBytes(own, flaknum + 1, flaknum + 4);
+            own->data[flaknum] = 1;
+            const uint32_t level = level_handle();
+            thread_3(level, 0x00143a40, level, user, flaknum);  // BroScr_FlipLevelFlagOnDeath
+        }
+        Scr_Wait(1.0f);
+    }
+}
+
+void XB_CDECL BroScr_FlakGunnerFireAnim(uint32_t ent, uint32_t flaknum) {
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, uint32_t*,
+                                    const ScriptString*);
+    Scr_EndOnString(ent, pointer<const char>(0x00824c90));  // "fire_turret"
+    ScriptString anim, done;
+    ScriptString_FromRep(&anim, nullptr);
+    ScriptString_FromRep(&done, nullptr);
+    while (level_byte(0x684, flaknum)) {
+        if (flak_flag_clear(flaknum)) {
+            if (random_int(100) > 95)
+                ScriptString_AssignCString(&anim, pointer<const char>(0x00824c88));  // "twitch"
+            else
+                ScriptString_AssignCString(&anim, pointer<const char>(0x00804310));  // "idle"
+            title_function<Start>(0x0017b4a0)(0, 0, 0, 0, 0x001441c0, ent, &anim, &flaknum,
+                                              pointer<const ScriptString>(0x00922e90));  // Scr_StartThread_ent_str_i_str_2(BroScr_FlakCrewAnims)
+        }
+        wait_flak_anim_done(&done, flaknum);
+    }
+    ScriptString_Release(&done);
+    ScriptString_Release(&anim);
+}
+
+void XB_CDECL BroScr_SquadManagerSpawnSquad(uint32_t ent, ScriptString group, int32_t max_alive, int32_t max_total,
+                                            ScriptString endon, float interval, uint32_t think) {
+    using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
+    using SetGoal = void XB_CDECL(uint32_t, const uint32_t*);
+    Scr_EndOnString(ent, endon.rep ? endon.rep->text : nullptr);
+    uint32_t node = 0;
+    uint32_t spawner = 0;
+    DynArray nodes = {nullptr, 0, 0};
+    DynArray spawners = {nullptr, 0, 0};
+    DynArray ai = {nullptr, 0, 0};
+    {
+        ScriptString key;
+        ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
+        Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&group)),
+                         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&nodes));
+        ScriptString_Release(&key);
+    }
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &group);
+        BroScr_GetSpawnersByGroupField(copy, &spawners);
+    }
+    if (!spawners.size || !nodes.size) {
+        ScriptString text;
+        if (!spawners.size)
+            ScriptString_FromCString(&text, pointer<const char>(0x00824cd4));  // "SQUAD MANAGER:  Could not find spawners for squad "
+        else
+            ScriptString_FromCString(&text, pointer<const char>(0x00824c9c));  // "...target nodes for squad "
+        ScriptString message;
+        ScriptString_Concat(&message, &text, &group);
+        ScrLocal_ReleaseString_2(message);
+        ScriptString_Release(&text);
+        if (spawners.data) Scr_Free(spawners.data);
+        if (nodes.data) Scr_Free(nodes.data);
+        ScriptString_Release(&group);
+        ScriptString_Release(&endon);
+        return;
+    }
+    if (interval == title_global<float>(0x00922eac)) interval = title_global<float>(0x0083edc8);  // 0.05
+    // Keeps the squad (string field 0x2dae9972 = group) at the alive limit within the total: spawners in
+    // turn (forced with int key 0x02d62a20 set), each spawn sent to the next node (handle key 0x05374cc6),
+    // after 0.01 s added with its think thread (`think`, else BroScr_SquadMemberThink).
+    for (;;) {
+        {
+            ScriptString copy;
+            ScriptString_Copy(&copy, &group);
+            BroScr_GetAIByGroupField(copy, &ai);
+        }
+        while (static_cast<int32_t>(ai.size) < max_alive && static_cast<int32_t>(ai.size) < max_total) {
+            uint32_t guy;
+            const uint32_t* const force = ScriptKeyTable_Find(ent_script_object(element(&spawners, spawner)), 0x02d62a20);
+            if (force && *force != undefined_int() && *int_slot(element(&spawners, spawner), 0x02d62a20))
+                guy = slot<Spawn>(0x00922520)(element(&spawners, spawner), 0);  // GScr_ForceSpawn
+            else
+                guy = slot<Spawn>(0x00922518)(element(&spawners, spawner), 0);  // GScr_DoSpawn
+            if (entity_handle_is_valid(guy)) {
+                slot<SetGoal>(0x00922688)(guy, element_at(&nodes, node, kReserveInt0));  // GScr_SetGoalPosFromNode
+                const uint32_t* const at = element_at(&nodes, node, kReserveInt0);
+                *key_slot(guy, 0x05374cc6, 0) = *at;
+                if (static_cast<int32_t>(++node) >= static_cast<int32_t>(nodes.size)) node = 0;
+                Scr_Wait(float_bits(0x3c23d70a));  // 0.01
+                const uint32_t n = ai.size;
+                DynArray_Resize(reinterpret_cast<uint8_t*>(&ai), n + 1, n + 4);
+                ai.data[n] = guy;
+                uint32_t* const functor = new_functor(0xc);
+                if (think) {
+                    if (functor) {
+                        functor[0] = 0x007f5ba0;
+                        functor[1] = think;
+                        functor[2] = guy;
+                    }
+                } else if (functor) {
+                    functor[0] = 0x007f5ba0;
+                    functor[1] = 0x00145310;  // BroScr_SquadMemberThink
+                    functor[2] = guy;
+                }
+                create_thread(guy, functor);
+            }
+            if (static_cast<int32_t>(++spawner) >= static_cast<int32_t>(spawners.size)) spawner = 0;
+            Scr_Wait(interval);
+        }
+        Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+    }
+}
+
+void XB_CDECL BroScr_VehicleDeath_Stuka(uint32_t ent) {
+    bool flying;
+    {
+        ScriptString model;
+        flying = string_is(ScrCall_ScrEnt_GetModel(&ent, &model), 0x007f8db8);  // "stuka_flying"
+        ScriptString_Release(&model);
+    }
+    if (flying) {
+        // The death model: the same model on piano_lupo (level +0x1c4 the map name), else "_d1".
+        uint32_t text;
+        if (string_is(pointer<ScriptString>(title_global<uint32_t>(0x00922ee0) + 0x1c4), 0x0082bc28))  // "piano_lupo"
+            text = 0x007f8db8;
+        else
+            text = 0x00824d08;  // "stuka_flying_d1"
+        ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(text));
+    }
+    BroScr_DeleteUndroppedBombs(ent);
+    uint32_t attacker = 0;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(ent, kDeath, &attacker);  // Scr_WaitTillOutputEnt_ORAN
+    BroScr_DeleteVehicleTurrets(ent);
+    flak_sound(ent, 0x008007a8);  // "explo_metal_rand"
+    ScrVec3 origin;
+    origin_of(&origin, ent);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+    bool defined;
+    if (*ScrField_deathmodel_IsDefined(&defined, ent))
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
+    slot<EntHash>(0x009221a4)(ent, 0x07cd8ff6);  // Scr_QueueNotify
+}
+
+void XB_CDECL BroScr_DeleteArraysOnVehicleRemoved(uint32_t, uint32_t vehicle) {
+    DynArray first = {nullptr, 0, 0};
+    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&first, key_array(vehicle, 0x9ecce58a));  // DynArray_Assign4_PROLOGUE
+    DynArray second = {nullptr, 0, 0};
+    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&second, key_array(vehicle, 0xb0996bdc));
+    // Every 5 s until the vehicle is gone, then the still valid entities of both copies deleted.
+    bool removed;
+    do {
+        removed = !entity_handle_is_valid(vehicle);
+        Scr_Wait(5.0f);
+    } while (!removed);
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(second.size); ++i)
+        if (entity_handle_is_valid(element(&second, i))) slot<Ent>(0x00922540)(element(&second, i));  // GScr_Delete
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(first.size); ++i)
+        if (entity_handle_is_valid(element(&first, i))) slot<Ent>(0x00922540)(element(&first, i));  // GScr_Delete
+    if (second.data) Scr_Free(second.data);
+    if (first.data) Scr_Free(first.data);
+}
+
+bool* XB_CDECL BroScr_StunnedWait(bool* out, uint32_t ent) {
+    bool defined;
+    if (*ScrField_stunned_IsDefined(&defined, ent) && *int_slot(ent, 0x2f66b4d8) == 1)
+        Scr_WaitTillString(ent, pointer<const char>(0x00820d2c));  // "stundone"
+    // False without a valid, living first entry in the queue 0x4ced49f6; true without attack_range or
+    // with the player inside it; else after 1 s false.
+    if (!*BroScr_RotateQueue_h4ced49f6(reinterpret_cast<uint8_t*>(&defined), ent)) {
+        *out = false;
+        return out;
+    }
+    DynArray* const queue = key_array(ent, 0x4ced49f6);
+    if (!queue->size) DynArray_Resize(reinterpret_cast<uint8_t*>(queue), 1, 4);
+    const uint32_t target = queue->data[0];
+    if (!entity_handle_is_valid(target) || health(target) <= 0) {
+        *out = false;
+        return out;
+    }
+    if (!*ScrField_attack_range_IsDefined(&defined, ent)) {
+        *out = true;
+        return out;
+    }
+    uint32_t at[3], player_at[3];
+    const uint32_t* const o = ScrCall_ScrEnt_GetOrigin(&ent, at);
+    const uint32_t* const p = ScrCall_GScr_GetOrigin(player_at, pointer<const uint32_t>(0x00922eec));
+    const int32_t range = static_cast<int32_t>(*ScrField_attack_range(ent));
+    const long double d = slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(p, o);  // Scr_Distance
+    if (d < static_cast<long double>(range)) {
+        *out = true;
+        return out;
+    }
+    Scr_Wait(1.0f);
+    *out = false;
+    return out;
+}
+
+namespace {
+
+// Whether the entity's script_noteworthy is set and "stacker".
+inline bool is_stacker(uint32_t* ent) {
+    ScriptString first;
+    bool stacker = false;
+    if (ScrCall_ScrEnt_GetScriptNoteworthy(ent, &first)->rep) {
+        ScriptString again;
+        stacker = string_is(ScrCall_ScrEnt_GetScriptNoteworthy(ent, &again), 0x00824d34);  // "stacker"
+        ScriptString_Release(&again);
+    }
+    ScriptString_Release(&first);
+    return stacker;
+}
+
+// The valid entities `ent`'s target names, flagged (GScr_SetEntFlag400) and appended to `stacked`
+// (`targets` refilled).
+inline void flag_stacked(uint32_t* ent, DynArray* targets, DynArray* stacked) {
+    {
+        ScriptString target;
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(ent, &target))),
+                        0x0d786b4c, reinterpret_cast<uint8_t*>(targets), 0);  // by targetname
+        ScriptString_Release(&target);
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets->size); ++i) {
+        if (!entity_handle_is_valid(element(targets, i))) continue;
+        slot<Ent>(0x00922568)(element(targets, i));  // GScr_SetEntFlag400
+        DynArray_PushBack(reinterpret_cast<uint8_t*>(stacked), &element(targets, i));
+    }
+}
+
+// A BroScr_SpawnWoodGibs thread {0x008244dc: ent, at, flag} on `ent`.
+inline void wood_gibs_thread(uint32_t ent, const ScrVec3* at, uint8_t flag) {
+    uint32_t* const functor = new_functor(0x1c);
+    if (functor) {
+        functor[0] = 0x008244dc;
+        functor[1] = 0x00145e80;  // BroScr_SpawnWoodGibs
+        functor[2] = ent;
+        functor[3] = at->v[0];
+        functor[4] = at->v[1];
+        functor[5] = at->v[2];
+        *reinterpret_cast<uint8_t*>(&functor[6]) = flag;
+    }
+    create_thread(ent, functor);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_SetupStackers_2(uint32_t ent) {
+    uint8_t stacker = 0;
+    uint32_t& count = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x314);
+    if (count == undefined_int()) count = 0;
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x0092255c)(ent, 1);  // GScr_SetTakeDamage
+    DynArray targets = {nullptr, 0, 0};
+    DynArray stacked = {nullptr, 0, 0};
+    if (is_stacker(&ent)) {
+        stacker = 1;
+    } else {
+        bool targeted;
+        {
+            ScriptString target;
+            targeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
+            ScriptString_Release(&target);
+        }
+        if (targeted) flag_stacked(&ent, &targets, &stacked);
+    }
+    // script_health (1 without) taken down by the damage (0xce270885) the level turret's user, the
+    // world, or anyone while the turret is gone deals; then the stacked entities unflagged and wood gibs
+    // at the last attacker (at the stack, 10 units up, when the attacker sits at the origin).
+    int32_t left = 1;
+    bool defined;
+    if (*ScrField_script_health_IsDefined(&defined, ent)) left = static_cast<int32_t>(*ScrField_script_health(ent));
+    uint32_t damage = undefined_int();
+    uint32_t attacker = 0;
+    while (left > 0) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*, uint32_t*)>(0x0045cf40)(ent, 0xce270885, &damage,
+                                                                                         &attacker);  // Scr_WaitTillOutput2_PROLOGUE
+        bool counts = true;
+        if (entity_handle_is_valid(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f0)) &&
+            slot<uint32_t XB_CDECL(uint32_t)>(0x00922588)(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f0)) !=
+                attacker) {  // GScr_Turret_GetUser
+            ScriptString classname;
+            counts = string_is(ScrCall_ScrEnt_GetClassname(&attacker, &classname), 0x0083a984);  // "worldspawn"
+            ScriptString_Release(&classname);
+        }
+        if (counts) left -= static_cast<int32_t>(damage);
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(stacked.size); ++i)
+        slot<Ent>(0x00922564)(element(&stacked, i));  // GScr_ClearEntFlag400
+    ScrVec3 at;
+    origin_of(&at, attacker);
+    if (as_float(at.v[0]) == 0.0f && as_float(at.v[1]) == 0.0f && as_float(at.v[2]) == 0.0f) {
+        ScrVec3 o;
+        origin_of(&o, ent);
+        const float z = as_float(o.v[2]) - title_global<float>(0x0083ed10);  // -10
+        o.v[2] = bits(z);
+        wood_gibs_thread(ent, &o, stacker);
+    } else {
+        ScrVec3 a;
+        origin_of(&a, attacker);
+        wood_gibs_thread(ent, &a, stacker);
+    }
+    if (stacked.data) Scr_Free(stacked.data);
+    if (targets.data) Scr_Free(targets.data);
+}
+
+void XB_CDECL BroScr_SetupStackers(uint32_t ent) {
+    bool untargeted;
+    {
+        ScriptString target;
+        untargeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep == nullptr;
+        ScriptString_Release(&target);
+    }
+    if (untargeted) {
+        slot<Ent>(0x00922540)(ent);  // GScr_Delete
+        return;
+    }
+    uint32_t& count = *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x314);
+    if (count == undefined_int()) count = 0;
+    DynArray targets = {nullptr, 0, 0};
+    {
+        ScriptString target;
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
+                        0x0d786b4c, reinterpret_cast<uint8_t*>(&targets), 0);  // by targetname
+        ScriptString_Release(&target);
+    }
+    if (!targets.size) {
+        slot<Ent>(0x00922540)(ent);  // GScr_Delete
+        if (targets.data) Scr_Free(targets.data);
+        return;
+    }
+    // Per valid target with a target: flag byte = the trigger is a "stacker" (then nothing else), else
+    // the entities it targets flagged and collected. After the trigger is touched they are unflagged, wood
+    // gibs (with the flag) at whoever touched it on each valid target, and the trigger deleted.
+    DynArray sub = {nullptr, 0, 0};
+    DynArray stacked = {nullptr, 0, 0};
+    DynArrayBytes flags = {nullptr, 0, 0};
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
+        bool skip = true;
+        ScriptString target;
+        bool got = false;
+        if (entity_handle_is_valid(element(&targets, i))) {
+            got = true;
+            skip = ScrCall_ScrEnt_GetTarget(&element(&targets, i), &target)->rep == nullptr;
+        }
+        if (got) ScriptString_Release(&target);
+        if (skip) continue;
+        if (is_stacker(&ent)) {
+            if (i >= flags.size) DynArray_ResizeBytes(&flags, i + 1, i + 4);
+            flags.data[i] = 1;
+            continue;
+        }
+        if (i >= flags.size) DynArray_ResizeBytes(&flags, i + 1, i + 4);
+        flags.data[i] = 0;
+        flag_stacked(&element(&targets, i), &sub, &stacked);
+    }
+    uint32_t who = 0;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(ent, 0xe2a210cf, &who);  // Scr_WaitTillOutputEnt_ORAN
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(stacked.size); ++i)
+        slot<Ent>(0x00922564)(element(&stacked, i));  // GScr_ClearEntFlag400
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
+        if (!entity_handle_is_valid(element(&targets, i))) continue;
+        if (i >= flags.size) DynArray_ResizeBytes(&flags, i + 1, i + 4);
+        ScrVec3 at;
+        origin_of(&at, who);
+        const uint32_t target = element(&targets, i);
+        wood_gibs_thread(target, &at, flags.data[i]);
+    }
+    slot<Ent>(0x00922540)(ent);  // GScr_Delete
+    if (flags.data) Scr_Free(flags.data);
+    if (stacked.data) Scr_Free(stacked.data);
+    if (sub.data) Scr_Free(sub.data);
+    if (targets.data) Scr_Free(targets.data);
+}
+
+void XB_CDECL BroScr_WallHopTrigger(uint32_t ent) {
+    using HopOverWall = void XB_CDECL(uint32_t, DynArray, ScrVec3);
+    using Touching = uint8_t XB_CDECL(uint32_t, uint32_t);
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    BroScr_WallHopGetScriptOrigins(ent);
+    bool defined;
+    if (!*ScrField_h4f7c0a56_IsDefined(&defined, ent)) return;
+    if (static_cast<int32_t>(title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00602a40)(
+                                 ent_script_object(ent), 0x4f7c0a56)->size) < 2)  // ScriptKeyTable_GetOrAddArray_5
+        return;
+    for (;;) {
+        do {
+            Scr_WaitTillString(ent, pointer<const char>(0x0083aa58));  // "trigger"
+        } while (!slot<Touching>(0x00922530)(player(), ent));  // GScr_IsTouching
+        // While the player touches it: facing the wall (yaw within 45 degrees of the direction from the
+        // first point to the second), the hint once per level (bool key 0xddfa2c42 unset) and on the use
+        // button the hop (BroScr_PlayerHopOverWall, then 1 s). The points come from a by-value copy that
+        // the callee fills and frees, so this local stays empty.
+        do {
+            DynArray points = {nullptr, 0, 0};
+            {
+                DynArray copy = {nullptr, 0, 0};
+                title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c410)(&copy, &points);  // DynArray_Assign12_PROLOGUE
+                title_function<void XB_CDECL(uint32_t, DynArray)>(0x001471f0)(ent, copy);  // BroScr_WallHopGetPointsNearFirst
+            }
+            using Reserve12 = void XB_THISCALL(DynArray*, uint32_t, uint32_t);
+            if (points.size == 0) title_function<Reserve12>(0x0045cde0)(&points, 1, 4);  // DynArray_Reserve12_PROLOGUE
+            const float* const first = reinterpret_cast<const float*>(points.data);
+            if (points.size <= 1) title_function<Reserve12>(0x0045cde0)(&points, 2, 5);
+            const float* const second = reinterpret_cast<const float*>(points.data) + 3;
+            const float dz = second[2] - first[2];
+            const float dy = second[1] - first[1];
+            const float dx = second[0] - first[0];
+            const uint32_t dir[3] = {bits(dx), bits(dy), bits(dz)};
+            const uint32_t lane = undefined_lane();
+            uint32_t angles[3] = {lane, lane, lane};
+            slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922284)(angles, dir);  // Scr_VectorToAngles
+            const ScrVec3 to = {{angles[0], angles[1], angles[2]}};
+            ScrVec3 view;
+            angles_of(&view, player());
+            float yaw = as_float(view.v[1]);
+            if (0.0f > yaw) yaw += 360.0f;
+            float high = as_float(to.v[1]) + 45.0f;
+            if (high > 360.0f) high -= 360.0f;
+            float low = as_float(to.v[1]) - 45.0f;
+            if (0.0f > low) low += 360.0f;
+            if (high > yaw && yaw > low) {
+                const uint32_t* const shown = ScriptKeyTable_Find(level_table(), 0xddfa2c42);
+                if ((shown ? *reinterpret_cast<const uint8_t*>(shown) : title_global<uint8_t>(0x00922ed0)) == 0) {
+                    title_function<void XB_CDECL(const char*)>(0x005b45b0)(pointer<const char>(0x00824d3c));  // ScrCall_SendGameMessageBoldCStr_LIBEATOR("Press Activate to Hop over wall.")
+                    thread_1(ent, 0x007f5ba0, 0x00124d40, ent);  // BroScr_ShowContextTextBriefly
+                }
+                if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922804)(player())) {  // GScr_PlayerGetFlag40_594 (use)
+                    const uint32_t object = title_global<uint32_t>(0x00922ee0);
+                    const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+                    DynArray copy = {nullptr, 0, 0};
+                    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c410)(&copy, &points);  // DynArray_Assign12_PROLOGUE
+                    title_function<HopOverWall>(0x001400c0)(*level, copy, to);  // BroScr_PlayerHopOverWall
+                    Scr_Wait(1.0f);
+                }
+            }
+            Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+            if (points.data) Scr_Free(points.data);
+        } while (slot<Touching>(0x00922530)(player(), ent));
+    }
+}
+
+void XB_CDECL BroScr_VehicleDeath_Flakvierling(uint32_t ent) {
+    bool full;
+    {
+        ScriptString model;
+        full = string_is(ScrCall_ScrEnt_GetModel(&ent, &model), 0x00824c44);  // "v_flakvierling"
+        ScriptString_Release(&model);
+    }
+    uint32_t text;
+    if (full)
+        text = 0x00824c44;
+    else
+        text = 0x00824d60;  // "v_flakvierling_base_d1"
+    ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(text));
+    Scr_WaitTill(ent, kDeath);
+    flak_sound(ent, 0x007f50f0);  // "artillery_generic"
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
+    slot<Ent>(0x009228d0)(ent);  // GScr_Vehicle_ClearTurretTarget
+    BroScr_ReleaseGunners(ent);
+    ScrVec3 origin;
+    origin_of(&origin, ent);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+    ScrVec3 at;
+    origin_of(&at, ent);
+    slot<void XB_CDECL(const ScrVec3*, uint32_t, uint32_t, uint32_t)>(0x00922428)(&at, 0x437a0000, 0x447a0000,
+                                                                                  0x42c80000);  // GScr_RadiusDamage(250, 1000, 100)
+}
+
+namespace {
+
+// The rider's fire anim (the word at `anim`) played at the tag over and over.
+inline void rider_fire_loop(uint32_t vehicle, uint32_t rider, ScriptString* tag, uint32_t anim) {
+    using Anim = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t);
+    using TagVec = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
+    for (;;) {
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(rider, title_global<uint32_t>(anim));  // ScrActor_SetInt_1370
+        const uint32_t lane = undefined_lane();
+        uint32_t a[3] = {lane, lane, lane};
+        slot<TagVec>(0x00922620)(vehicle, a, tag);  // GScr_GetTagAngles
+        const uint32_t angles[3] = {a[0], a[1], a[2]};
+        const uint32_t lane_2 = undefined_lane();
+        uint32_t o[3] = {lane_2, lane_2, lane_2};
+        slot<TagVec>(0x0092261c)(vehicle, o, tag);  // GScr_GetTagOrigin
+        const uint32_t origin[3] = {o[0], o[1], o[2]};
+        slot<Anim>(0x009224c0)(rider, 0x54e3b2b6, origin, angles, title_global<uint32_t>(anim));  // GScr_AnimScriptedNoNotify
+        Scr_WaitTill(rider, 0x54e3b2b6);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleRiderWait(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    using Call = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*);
+    slot<EntHash>(0x00922188)(rider, kDeath);     // Scr_EndOn
+    slot<EntHash>(0x00922188)(rider, 0xa0e65a8e);  // Scr_EndOn
+    title_function<Call>(0x0017afa0)(0, 0, 0, 0, 0x00148080, vehicle, &rider, &tag);  // Scr_CallThread_ent_ent_str(BroScr_VehicleRiderMount)
+    if (string_is(&tag, 0x007fa47c)) rider_fire_loop(vehicle, rider, &tag, 0x008cd38c);  // "tag_gunner", g_anim_flakpanzer_gunner_fire_a
+    if (string_is(&tag, 0x007fc0bc)) rider_fire_loop(vehicle, rider, &tag, 0x008cd398);  // "tag_passenger1", g_anim_flakpanzer_leftloader_fire_b
+    if (string_is(&tag, 0x007f5c08)) rider_fire_loop(vehicle, rider, &tag, 0x008cd3a4);  // "tag_passenger2", g_anim_flakpanzer_rightloader_fire_a
+    ScriptString_Release(&tag);
+}
+
+namespace {
+
+// Whether the entity's script_noteworthy is set and equals `text`.
+inline bool noteworthy_is(uint32_t* ent, uint32_t text) {
+    ScriptString first;
+    bool equal = false;
+    if (ScrCall_ScrEnt_GetScriptNoteworthy(ent, &first)->rep) {
+        ScriptString again;
+        equal = string_is(ScrCall_ScrEnt_GetScriptNoteworthy(ent, &again), text);
+        ScriptString_Release(&again);
+    }
+    ScriptString_Release(&first);
+    return equal;
+}
+
+// The plane path end shared by the two BroScr_VehicleFollowPathToEnd copies (`second`: the _2 turret
+// and crash-sound helpers).
+template <bool second>
+inline void follow_path_to_end(uint32_t ent) {
+    Scr_WaitTillString(ent, pointer<const char>(0x0083abfc));  // "reached_end_node"
+    if (!noteworthy_is(&ent, 0x007f60b4)) {  // "noturrets"
+        if (second)
+            BroScr_DeleteVehicleTurrets_3(ent);
+        else
+            BroScr_DeleteVehicleTurrets_2(ent);
+    }
+    BroScr_DeleteUndroppedBombs(ent);
+    DynArray_Resize(reinterpret_cast<uint8_t*>(key_array(ent, 0x0030b1c2)), 0, 0);
+    if (health(ent) <= 0 && *int_slot(ent, 0x4af51227)) {
+        if (second)
+            BroScr_PlaneCrashSound_2(ent);
+        else
+            BroScr_PlaneCrashSound(ent);
+        slot<Ent>(0x00922540)(ent);  // GScr_Delete
+        return;
+    }
+    if (health(ent) > 0) {
+        slot<Ent>(0x00922540)(ent);  // GScr_Delete
+        return;
+    }
+    if (noteworthy_is(&ent, 0x00824d24)) {  // "loop"
+        slot<void XB_CDECL(uint32_t, uint32_t*)>(0x0092287c)(ent, ScrField_path(ent));  // GScr_Vehicle_AttachPath
+        slot<Ent>(0x00922880)(ent);  // GScr_Vehicle_StartPath
+        return;
+    }
+    slot<Ent>(0x0092289c)(ent);  // GScr_Vehicle_Kill
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleFollowPathToEnd(uint32_t ent) { follow_path_to_end<false>(ent); }
+void XB_CDECL BroScr_VehicleFollowPathToEnd_2(uint32_t ent) { follow_path_to_end<true>(ent); }
+
+void XB_CDECL BroScr_RespawnerCountDeath(uint32_t ent, uint32_t respawner, uint32_t guy) {
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
+    slot<EntHash>(0x00922188)(ent, 0x9767cf68);  // Scr_EndOn
+    uint32_t attacker = 0;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(guy, kDeath, &attacker);  // Scr_WaitTillOutputEnt_ORAN
+    if (entity_handle_is_valid(respawner)) {
+        ++*int_slot(respawner, 0x846e35f4);
+        title_function<Start>(0x0045a6d0)(0, 0, 0, 0, 0x0014b940, respawner, &ent);  // Scr_StartThread_ent_ent_PROLOGUE(BroScr_UpdateAliveDeadCount)
+        slot<EntHash>(0x009221a4)(respawner, 0x67979261);  // Scr_QueueNotify
+    } else {
+        const uint32_t n = slot<uint32_t XB_CDECL(uint32_t)>(0x00922b88)(ent);  // ScrEnt count
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b8c)(ent, n + 1);
+    }
 }
 
 }  // namespace game

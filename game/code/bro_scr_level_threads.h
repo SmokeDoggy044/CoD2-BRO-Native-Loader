@@ -483,4 +483,85 @@ void XB_CDECL Bro__load_gmi__main();
 // halftrack touching (0xa7ad4a18 / spawnflags 8; else again after 1 s). Deletes the trigger.
 void XB_CDECL BroScr_FriendlyChatTriggerThink(uint32_t trigger);
 
+// 0x00160d40: a flak's think (flakair / flakairlow / flaktank; flakpanzer for its model or type field
+// 0xd1c52a4f), else nothing: a BroScr_FlakDeathThink thread; its targets (start triggers, bomb models,
+// the crew spawners spawned); with the whole crew alive and at least 3 (flakpanzer: exactly 3, clips
+// off) the flak model, the level flak arrays reset, the setup function (key 0xc511e266) and per guy the
+// crew think (key 0x2f31323b), stop-moving / wait-death threads, the loader, loop sound and died
+// threads; then while manned (level bytes +0x684 [flaknum]) the crew anims or, with the level flag
+// array 0xe337f297 set, the guns put away. Frees its arrays and releases the type on the way out.
+void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum);
+
+// 0x0014bac0 (FUN_0014bac0; proposed BroScr_FlakClaimTriggerThink): a trigger's target trigger gets a
+// BroScr_WaitTriggerClearFlag thread (level bytes +0x548 [flaknum] set until touched); then while the
+// flak is manned (level bytes +0x684) each toucher whose own flag array 0xe337f297 [flaknum] is
+// undefined (or that has none) takes the flak: the level's and its own flag set, a
+// BroScr_FlipLevelFlagOnDeath thread; 1 s between touches.
+void XB_CDECL BroScr_FlakClaimTriggerThink(uint32_t trigger, uint32_t flaknum);
+
+// 0x0014bdf0: ends on "fire_turret"; while manned, with the level flag clear a BroScr_FlakCrewAnims
+// thread ("twitch" at 4 %, else "idle"; the empty type), then waits for "flak_anim_done<n>".
+void XB_CDECL BroScr_FlakGunnerFireAnim(uint32_t ent, uint32_t flaknum);
+
+// 0x0014c5a0: ends on `endon`; the squad's nodes (targetname `group`) and spawners (group field); with
+// either missing an error print and return. Else keeps spawning (forced with int key 0x02d62a20) while
+// the squad's AI are fewer than `max_alive` and `max_total`, each to the next node (handle key
+// 0x05374cc6) with its think thread (`think` or BroScr_SquadMemberThink), `interval` (0.05 when
+// undefined) apart, 0.05 s between checks. Never returns otherwise.
+void XB_CDECL BroScr_SquadManagerSpawnSquad(uint32_t ent, ScriptString group, int32_t max_alive, int32_t max_total,
+                                            ScriptString endon, float interval, uint32_t think);
+
+// 0x0014ca20: a flying stuka's death model (the same on piano_lupo, else "stuka_flying_d1"); its
+// undropped bombs deleted; after death: turrets deleted, "explo_metal_rand", an earthquake (0.25, 3 s,
+// 1050), the death model when defined, notify 0x07cd8ff6.
+void XB_CDECL BroScr_VehicleDeath_Stuka(uint32_t ent);
+
+// 0x0014ce80: copies of the vehicle's arrays 0x9ecce58a and 0xb0996bdc; once the vehicle is gone
+// (checked every 5 s) their valid entities are deleted. The first argument is not read.
+void XB_CDECL BroScr_DeleteArraysOnVehicleRemoved(uint32_t self, uint32_t vehicle);
+
+// 0x0014ea50: waits for "stundone" while stunned (int key 0x2f66b4d8 == 1); *out = whether the queue
+// 0x4ced49f6 rotates to a valid living target and (no attack_range, or the player within it); out of
+// range it waits 1 s first. Returns out.
+bool* XB_CDECL BroScr_StunnedWait(bool* out, uint32_t ent);
+
+// 0x0014f000: a stack piece: takes damage; unless it is a "stacker" (script_noteworthy) the entities
+// its target names are flagged (0x400); after script_health (1) damage from the level turret's user or
+// the world (anyone while that turret is gone) they are unflagged and a BroScr_SpawnWoodGibs thread runs
+// at the last attacker (at the piece + 10 up when the attacker is at the origin). Level +0x314 = 0 when
+// undefined.
+void XB_CDECL BroScr_SetupStackers_2(uint32_t ent);
+
+// 0x0014f560: a stack trigger (deleted at once without targets): its targets' targets flagged (0x400)
+// unless the trigger is a "stacker" (then a gib flag per target); once touched: unflagged, a
+// BroScr_SpawnWoodGibs thread per valid target at the toucher, the trigger deleted.
+void XB_CDECL BroScr_SetupStackers(uint32_t ent);
+
+// 0x0014fb70: a wall-hop trigger (ends on death; with at least two script origins): while the player
+// touches it and faces the wall (within 45 degrees), the "Press Activate" hint once per level and on use
+// BroScr_PlayerHopOverWall; 0.05 s steps.
+void XB_CDECL BroScr_WallHopTrigger(uint32_t ent);
+
+// 0x0014ffd0: the flakvierling's death model ("v_flakvierling" / "v_flakvierling_base_d1"); on death
+// "artillery_generic", the model, turret target cleared, gunners released, an earthquake (0.25, 3 s,
+// 1050) and radius damage (250, 1000 to 100).
+void XB_CDECL BroScr_VehicleDeath_Flakvierling(uint32_t ent);
+
+// 0x00150180: ends on the rider's death / 0xa0e65a8e; mounts it (Scr_CallThread BroScr_VehicleRiderMount),
+// then loops its seat's flakpanzer fire anim at the tag (gunner / passenger1 / passenger2; other tags:
+// return). Releases `tag` on return.
+void XB_CDECL BroScr_VehicleRiderWait(uint32_t vehicle, uint32_t rider, ScriptString tag);
+
+// 0x00150ca0 / 0x00150f50: at the path end: turrets deleted (BroScr_DeleteVehicleTurrets_2 / _3) unless
+// script_noteworthy "noturrets", undropped bombs deleted, array 0x0030b1c2 emptied; dead with int key
+// 0x4af51227: crash sound (BroScr_PlaneCrashSound / _2) and delete; alive: delete; else "loop" reattaches
+// and restarts the path, otherwise the vehicle is killed.
+void XB_CDECL BroScr_VehicleFollowPathToEnd(uint32_t ent);
+void XB_CDECL BroScr_VehicleFollowPathToEnd_2(uint32_t ent);
+
+// 0x00152310: ends on 0x9767cf68; after `guy`'s death the respawner's dead count (int key 0x846e35f4)
+// goes up with a BroScr_UpdateAliveDeadCount thread and notify 0x67979261, or without a valid respawner
+// `ent`'s engine count (0x00922b88 / 0x00922b8c) does.
+void XB_CDECL BroScr_RespawnerCountDeath(uint32_t ent, uint32_t respawner, uint32_t guy);
+
 }  // namespace game
