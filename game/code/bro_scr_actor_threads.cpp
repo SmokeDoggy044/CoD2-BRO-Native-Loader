@@ -763,6 +763,166 @@ void XB_CDECL BroScr_GrenadeCowerHide(uint32_t ent) {
     *key_slot(ent, 0xe057503b, 0) = 0;
 }
 
+namespace {
+
+inline void copy3(uint32_t* dst, const uint32_t* src) {
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+}
+inline void undefined3(uint32_t* v) { v[0] = v[1] = v[2] = undefined_lane(); }
+inline void get_eye(uint32_t ent, uint32_t* out) {
+    slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922528)(ent, out);  // GScr_GetEye
+}
+// GScr_ActorLookAt(ent, target, look rate 0x5e1a2a0c).
+inline void actor_look_at(uint32_t ent, const uint32_t* target) {
+    slot<void XB_CDECL(uint32_t, const uint32_t*, float)>(0x009226c4)(
+        ent, target, static_cast<float>(static_cast<int32_t>(*int_slot(ent, 0x5e1a2a0c))));
+}
+// A vector call out = f(in) (Scr_AnglesToUp / _Right / Scr_VectorNormalize) into an undefined temp.
+inline void vec_call(uint32_t address, uint32_t* out, const uint32_t* in) {
+    uint32_t tmp[3];
+    undefined3(tmp);
+    slot<void XB_CDECL(uint32_t*, const uint32_t*)>(address)(tmp, in);
+    copy3(out, tmp);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_HeadLookThink(uint32_t ent, uint32_t notify_type) {
+    using CallThreadVec3I = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                              const uint32_t*, const uint32_t*, const uint32_t*, const int32_t*);
+    end_on(ent, kDeath);
+    end_on(ent, 0xe099bb44);
+    end_on(ent, 0x247afc7f);
+    uint32_t look_ent = 0;
+    uint32_t target[3];
+    undefined3(target);
+
+    // The look target by kind 0x42f377f3: a sentient's eye, an entity's origin, else the vector 0xb217897f.
+    if (*handle_slot(ent, 0x42f377f3) == 0x9b751a35) {
+        look_ent = *key_slot(ent, 0xeeadf3f2, 0);
+        if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922220)(look_ent)) return;  // GScr_IsSentient
+        uint32_t eye[3];
+        undefined3(eye);
+        get_eye(look_ent, eye);
+        copy3(target, eye);
+    } else if (*handle_slot(ent, 0x42f377f3) == 0xccdbaaf9) {
+        look_ent = *ScrField_heeadf3f2(ent);
+        if (!entity_handle_is_valid(look_ent)) return;
+        uint32_t buffer[3];
+        copy3(target, ScrCall_ScrEnt_GetOrigin(&look_ent, buffer));
+    } else {
+        copy3(target, reinterpret_cast<const uint32_t*>(ScrField_hb217897f(ent)));
+    }
+    actor_look_at(ent, target);
+    const int32_t start = get_time();
+    *int_slot(ent, 0x7b74ea2f) = static_cast<uint32_t>(start);
+    const int32_t t0 = get_time();
+    float rate_arg = 1.0f;
+
+    // Until the look time 0x644536d0: follow the target, every 500 ms (first 50) the look rates.
+    for (;;) {
+        const uint32_t* const until = int_slot(ent, 0x644536d0);
+        if (!(get_time() < static_cast<int32_t>(*until))) break;
+        if (*handle_slot(ent, 0x42f377f3) == 0x9b751a35) {
+            if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(look_ent)) {  // GScr_IsAlive
+                uint32_t eye[3];
+                undefined3(eye);
+                get_eye(look_ent, eye);
+                copy3(target, eye);
+            }
+            actor_look_at(ent, target);
+        } else if (*handle_slot(ent, 0x42f377f3) == 0xccdbaaf9) {
+            uint32_t buffer[3];
+            copy3(target, slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, look_ent));  // ScrEnt_GetOrigin
+            actor_look_at(ent, target);
+        }
+        uint32_t eye_buffer[3];
+        undefined3(eye_buffer);
+        get_eye(ent, eye_buffer);
+        uint32_t eye[3];
+        copy3(eye, eye_buffer);
+        uint32_t aim[3];
+        aim[0] = target[0];
+        aim[1] = target[1];
+        aim[2] = bits(as_float(target[2]) - 2.0f);
+
+        // The eye-to-target line (stripped debug thread BroScr_EmptyFunc_68).
+        if (notify_type != undefined_handle() && notify_type == 0xa3c65328) {
+            int32_t two = 2;
+            title_function<CallThreadVec3I>(0x001e52f0)(0, 0, 0, 0, 0x00184450, ent, eye, aim, pointer<const uint32_t>(0x008ccaa0),
+                                                        &two);  // Scr_CallThread_ent_vec_vec_vec_i
+        } else {
+            uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x34);  // ScrIface_Alloc
+            if (functor) {
+                functor[0] = 0x00825c38;
+                functor[1] = 0x00184450;  // BroScr_EmptyFunc_68
+                functor[2] = ent;
+                copy3(functor + 3, eye);
+                copy3(functor + 6, aim);
+                copy3(functor + 9, pointer<const uint32_t>(0x008cca64));
+                functor[12] = 2;
+            }
+            begin_thread(ent, functor);
+        }
+
+        // The head yaw / pitch toward the target (computed; the clamps keep nothing).
+        uint32_t angles[3], up[3], right[3], dir[3], delta[3];
+        undefined3(angles);
+        undefined3(up);
+        undefined3(right);
+        undefined3(dir);
+        undefined3(delta);
+        {
+            ScriptString tag;
+            scr_string_from(&tag, 0x0083c714);  // "Bip01 Head"
+            uint32_t tmp[3];
+            undefined3(tmp);
+            slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x00922620)(ent, tmp, &tag);  // GScr_GetTagAngles
+            copy3(angles, tmp);
+            scr_release(&tag);
+        }
+        vec_call(0x00922288, up, angles);     // Scr_AnglesToUp
+        vec_call(0x0092228c, right, angles);  // Scr_AnglesToRight
+        uint32_t diff[3];
+        diff[0] = bits(as_float(target[0]) - as_float(eye[0]));
+        diff[1] = bits(as_float(target[1]) - as_float(eye[1]));
+        diff[2] = bits(as_float(target[2]) - as_float(eye[2]));
+        copy3(delta, diff);
+        vec_call(0x00922280, dir, delta);  // Scr_VectorNormalize
+        using Dot = long double XB_CDECL(const uint32_t*, const uint32_t*);
+        using Asin = long double XB_CDECL(float);
+        const float dot_right = static_cast<float>(slot<Dot>(0x0092227c)(right, dir));  // Scr_VectorDot
+        const float dot_up = static_cast<float>(slot<Dot>(0x0092227c)(up, dir));
+        const float asin_right = static_cast<float>(slot<Asin>(0x0092224c)(dot_right));  // Scr_Asin
+        const float asin_up = static_cast<float>(slot<Asin>(0x0092224c)(dot_up));
+        const float pitch = (asin_up + 7.0f) * 0.6f;
+        const float yaw = asin_right * 0.5f;
+
+        if ((get_time() - t0) % 500 < 50) {
+            BroScr_UpdateLookRates(ent, slot<uint32_t XB_CDECL(uint32_t)>(0x00922dc0)(ent),  // ScrActor_GetInt_184
+                                   *handle_slot(ent, 0x0ccee5c1), *handle_slot(ent, 0x764918ae),
+                                   *handle_slot(ent, 0x175567a8), bits(rate_arg), notify_type);
+        }
+        const float limit = 30.0f;
+        float clamped;
+        if (static_cast<float>(limit * -1.0f > yaw) == 0.0f) {
+            clamped = limit;
+            clamped = yaw;
+        }
+        if (static_cast<float>(limit * -1.0f > pitch) == 0.0f) {
+            clamped = limit;
+            clamped = pitch;
+        }
+        (void)clamped;
+        const int32_t now = get_time();
+        *int_slot(ent, 0x7b74ea2f) = static_cast<uint32_t>(now);
+        Scr_Wait(0.05f);
+    }
+    BroScr_StopLookingAt(ent);
+}
+
 void XB_CDECL BroScr_HeadLookMainLoop(uint32_t ent) {
     end_on(ent, kDeath);
     end_on(ent, 0x247afc7f);

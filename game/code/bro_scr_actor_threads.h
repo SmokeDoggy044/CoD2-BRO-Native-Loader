@@ -13,6 +13,15 @@
 
 namespace game {
 
+// 0x0019e5c0 (functor target): ends on death, 0xe099bb44 and 0x247afc7f. The look target by kind
+// 0x42f377f3: 0x9b751a35 the eye of sentient 0xeeadf3f2, 0xccdbaaf9 the origin of entity 0xeeadf3f2
+// (returns when not sentient / not valid), else the vector 0xb217897f; GScr_ActorLookAt with rate
+// 0x5e1a2a0c, look start 0x7b74ea2f = now. Until the time 0x644536d0, every 0.05 s: the target followed
+// (the eye while alive, the origin), a stripped debug line thread (eye, target - 2 z; called when
+// `notify_type` is 0xa3c65328, else begun), the head yaw / pitch toward the target computed and
+// dropped, BroScr_UpdateLookRates in the first 50 of every 500 ms, 0x7b74ea2f = now. Then
+// BroScr_StopLookingAt.
+void XB_CDECL BroScr_HeadLookThink(uint32_t ent, uint32_t notify_type);
 // 0x0019f090: ends on death; waits for 0x247afc7f, then BroScr_StopLookingAt.
 void XB_CDECL BroScr_StopLookingAtOnNotify(uint32_t ent);
 // 0x0019f320 / 0x0019f6f0 (_2 ends on 0x07b4e7f7 first): a BroScr_TurretSetProneRecoverAnim /

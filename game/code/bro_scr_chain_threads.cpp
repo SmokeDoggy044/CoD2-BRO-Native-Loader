@@ -99,12 +99,12 @@ inline void origin_of(uint32_t* out, uint32_t ent) {
     out[2] = o[2];
 }
 
-// Scr_CreateThread of a {0x007f4a28, BroScr_ActorRunToEntIgnoringAll_2, ai, *node} functor on `ai`.
-inline void run_to_node(uint32_t ai, const uint32_t* node) {
+// Scr_CreateThread of a {0x007f4a28, function (BroScr_ActorRunToEntIgnoringAll_2), ai, *node} functor on `ai`.
+inline void run_to_node(uint32_t ai, const uint32_t* node, uint32_t function = 0x00199200) {
     uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a28;
-        functor[1] = 0x00199200;  // BroScr_ActorRunToEntIgnoringAll_2
+        functor[1] = function;
         functor[2] = ai;
         functor[3] = *node;
     }
@@ -171,6 +171,83 @@ inline void push_back_inline(DynArray* array, uint32_t value) {
 inline DynArray* level_array(uint32_t offset) { return pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset); }
 
 }  // namespace
+
+void XB_CDECL BroScr_HangarChainMoverThink(uint32_t ent) {
+    slot<EntPair>(0x00922188)(level_handle(), 0x011066c4);  // Scr_EndOn
+    DynArray axis = {};
+    while (count_of(found_array(ent, kNodes)) > 1) {
+        Scr_Wait(static_cast<float>(
+            slot<long double XB_CDECL(float, float)>(0x00922238)(1.0f, 2.0f)));  // Scr_RandomFloatRange
+        if (found_array(ent, kAI)->size == 0) continue;
+
+        // The node-0 radius, squared.
+        float radius_sq;
+        if (int_defined(*element_at(found_array(ent, kNodes), 0), kRadius) &&
+            static_cast<float>(static_cast<float>(static_cast<int32_t>(
+                                   *int_slot(*element_at(get_array(ent, kNodes), 0), kRadius))) > 64.0f) != 0.0f) {
+            const uint32_t* const a = int_slot(*element_at(get_array(ent, kNodes), 0), kRadius);
+            const uint32_t* const b = int_slot(*element_at(get_array(ent, kNodes), 0), kRadius);
+            const int32_t sq = static_cast<int32_t>(*b) * static_cast<int32_t>(*a);
+            radius_sq = static_cast<uint32_t>(sq) == undefined_int() ? title_global<float>(0x00922eac)
+                                                                      : static_cast<float>(sq);
+        } else {
+            const float radius = title_global<float>(0x008cd770);
+            radius_sq = radius * radius;
+        }
+
+        // Any living axis AI near node 0 or node 1: wait.
+        {
+            ScriptString team;
+            scr_string_from(&team, 0x0083208c);  // "axis"
+            slot<GetAI>(0x009223d0)(&axis, &team);  // GScr_GetAI
+            scr_release(&team);
+        }
+        int32_t near = 0;
+        for (uint32_t i = 1; static_cast<int32_t>(i - 1) < count_of(&axis); ++i) {
+            if (!is_alive(*element_at(&axis, i - 1))) continue;
+            uint32_t from[3];
+            origin_of(from, *element_at(&axis, i - 1));
+            uint32_t to[3];
+            origin_of(to, *element_at(found_array(ent, kNodes), 0));
+            const long double distance_sq =
+                slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x0092226c)(to, from);  // Scr_DistanceSquared
+            const float radius = radius_sq;
+            if (static_cast<float>(radius > distance_sq) != 0.0f) ++near;
+        }
+        if (near > 0) continue;
+        near = 0;
+        for (uint32_t i = 1; static_cast<int32_t>(i - 1) < count_of(&axis); ++i) {
+            if (!is_alive(*element_at(&axis, i - 1))) continue;
+            uint32_t from[3];
+            origin_of(from, *element_at(&axis, i - 1));
+            uint32_t to[3];
+            origin_of(to, *element_at(found_array(ent, kNodes), 1));
+            const long double distance_sq =
+                slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x0092226c)(to, from);  // Scr_DistanceSquared
+            const float radius = radius_sq;
+            if (static_cast<float>(radius > distance_sq) != 0.0f) ++near;
+        }
+        if (near > 0) continue;
+
+        // Clear: after 0xce19d6b0 (busy flag set) every living AI runs to node 1, each awaited
+        // (node 1's 0x455955a2) and 0.5 s apart; then node 0 is dropped.
+        Scr_WaitTill(ent, 0xce19d6b0);
+        *bool_slot(ent, kBusy) = 1;
+        for (uint32_t i = 1; static_cast<int32_t>(i - 1) < count_of(found_array(ent, kAI)); ++i) {
+            if (!is_alive(*element_at(found_array(ent, kAI), i - 1))) continue;
+            queue_notify(*element_at(found_array(ent, kAI), i - 1), 0xb633d42e);
+            const uint32_t* const node = element_at(found_array(ent, kNodes), 1);
+            const uint32_t ai = *element_at(found_array(ent, kAI), i - 1);
+            run_to_node(ai, node, 0x00199120);  // BroScr_ActorRunToEntIgnoringAll
+            Scr_WaitTill(*element_at(found_array(ent, kNodes), 1), 0x455955a2);
+            Scr_Wait(0.5f);
+        }
+        *bool_slot(ent, kBusy) = 0;
+        erase_at(found_array(ent, kNodes), 0);
+    }
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
+    if (axis.data) Scr_Free(axis.data);
+}
 
 void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent) {
     slot<EntPair>(0x00922188)(level_handle(), 0x011066c4);  // Scr_EndOn

@@ -12,6 +12,13 @@
 
 namespace game {
 
+// 0x001b4130 (functor target): ends on the level's 0x011066c4. A chain mover `ent` (nodes 0x0605894e,
+// AI 0x8969d6d6), while it has two nodes or more: every 1-2 s (while it has AI), when no living axis AI
+// is within the node-0 radius (its 0x2266f963 squared when above 64, else 0x008cd770 squared) of node 0
+// nor of node 1: after 0xce19d6b0 (busy flag 0x14b95ada set) each living AI notified 0xb633d42e and
+// sent to node 1 (BroScr_ActorRunToEntIgnoringAll thread), awaiting node 1's 0x455955a2 and 0.5 s
+// each; then node 0 is dropped. With one node left the mover is deleted.
+void XB_CDECL BroScr_HangarChainMoverThink(uint32_t ent);
 // 0x001bc7c0 (functor target): ends on the level's 0x011066c4. A chain owner `ent` holds the chain
 // nodes (array 0x0605894e) and its AI (array 0x8969d6d6; each AI's chain_pos 0x94ce2dcb = its node).
 // With one node or none: forever every 3-5 s, each living AI notified 0xb633d42e, chain_pos 0 and a
