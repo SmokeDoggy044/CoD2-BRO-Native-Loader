@@ -85,7 +85,8 @@ sequences and their diff, and adds `calls ok` / `calls N differ` to the summary 
 - the C++ EH frame (`push -1; push handler`, the state word's stores) is left out (the
   state word is found by esp depth, followed across jumps and callee `ret N`);
 - a function or slot address loaded into a register or a stack word and called through it
-  reads like the direct call; ScrField_Slot<hash> instances read `ScrField_h<hash>`.
+  reads like the direct call; ScrField_*<hash> template instances read as the accessor named in
+  scr_field_instances.h (the symbol file's name), else `ScrField_h<hash>`.
 
 Known noise left in: zero stores done with xorps on one side (`const 0x0`), inlined
 helpers, a call sequence the XBE shares between two branches (tail merging; our side lists

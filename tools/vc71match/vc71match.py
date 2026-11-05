@@ -411,12 +411,33 @@ def template_number(code):
     return "".join("0123456789abcdef"[ord(c) - ord("A")] for c in code)
 
 
+_FIELD_NAMES = None
+
+
+def field_names():
+    """(template, hash) -> accessor name, from scr_field_instances.h (the symbol file's names)."""
+    global _FIELD_NAMES
+    if _FIELD_NAMES is None:
+        _FIELD_NAMES = {}
+        path = ROOT / "game" / "code" / "scr_field_instances.h"
+        if path.exists():
+            for m in re.finditer(r"auto\*\s*(ScrField_\w+)\s*=\s*&(ScrField_\w+)<0x([0-9a-fA-F]+)u?",
+                                 path.read_text()):
+                _FIELD_NAMES.setdefault((m[2], int(m[3], 16)), m[1])
+    return _FIELD_NAMES
+
+
 def plain_name(symbol):
-    # ScrField_Slot<Hash, ...> instances: named like the title's accessors (ScrField_h<hash>).
-    f = re.match(r"\?\?\$ScrField_(\w+?)@\$0([A-P]+)@", symbol)
+    # ScrField_*<Hash, ...> template instances: the accessor's name (scr_field_instances.h), else
+    # ScrField_h<hash>[_kind].
+    f = re.match(r"\?\?\$(ScrField_\w+?)@\$0([A-P]+)@", symbol)
     if f:
-        kind = "" if f[1] == "Slot" else "_" + f[1].replace("Slot", "")
-        return f"ScrField_h{template_number(f[2]).rjust(8, '0')}{kind}"
+        number = int(template_number(f[2]), 16)
+        name = field_names().get((f[1], number))
+        if name:
+            return name
+        kind = "" if f[1] == "ScrField_Slot" else "_" + f[1][len("ScrField_"):].replace("Slot", "")
+        return f"ScrField_h{number:08x}{kind}"
     m = re.match(r"\?(\w+)@", symbol)
     name = m[1] if m else symbol.lstrip("_@").split("@")[0]
     t = re.match(r"vc71_fn_([0-9a-f]{8})_", name)
