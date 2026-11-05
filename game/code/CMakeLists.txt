@@ -51,6 +51,9 @@ set(game_code_sources
     bro_scr_entity_threads.cpp
     bro_scr_anim_reach.cpp
     bro_scr_drone_threads.cpp
+    bro_scr_path_mover.cpp
+    bro_scr_halftrack_crew.cpp
+    bro_scr_stuka_bomb.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
     bro_scr_grenade.cpp

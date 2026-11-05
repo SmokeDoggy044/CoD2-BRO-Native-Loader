@@ -530,4 +530,107 @@ void XB_CDECL BroScr_DronePathsStartAllStaggered(uint32_t spawner, DynArray path
     scr_release(&type);
 }
 
+void XB_CDECL BroScr_SpawnEventDrones(uint32_t, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                      uint32_t min_death, uint32_t max_death, uint32_t just_delete) {
+    Scr_WaitFrames(0);
+    DynArray drones = {nullptr, 0, 0};
+    Scr_GetEntArray(address_of(&name), 0x0d786b4c, reinterpret_cast<uint8_t*>(&drones), 0);  // by targetname
+    uint32_t sound = undefined_int();
+    if (slot<int32_t XB_CDECL(uint32_t)>(0x009222dc)(0x007f4ca4) > 0) {  // GScr_GetCvarInt("no_shrimps")
+        const float undefined = as_float(undefined_float());
+        if (as_float(min) == undefined) min = title_global<uint32_t>(0x0083ece8);  // 5
+        if (as_float(max) == undefined) min = title_global<uint32_t>(0x0083f1f8);  // 7 (into min, as the original)
+        if (!type.rep) ScriptString_AssignCString(&type, pointer<const char>(0x007f6644));  // "event1_drones"
+        DynArray paths = {nullptr, 0, 0};
+        Scr_GetEntArray(address_of(&name), 0x0d786b4c, reinterpret_cast<uint8_t*>(&paths), 0);
+        const uint32_t* const handle = level_handle_ptr();
+        uint8_t staggered = 1;
+        uint32_t zero = 0;
+        using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, DynArray*, ScriptString*,
+                                        uint32_t*, uint32_t*, uint32_t*, uint8_t*);
+        title_function<Start>(0x0045ddc0)(0, 0, 0, 0, 0x00173710, *handle, &paths, &type, &zero, &min, &max,
+                                          &staggered);  // Scr_StartThread_ent_arrent_str_i_f_f_b(BroScr_DronePathsStartAllCall_6)
+        if (paths.data) Scr_Free(paths.data);
+    } else {
+        const uint32_t* const handle = level_handle_ptr();
+        sound = slot<uint32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(
+            *handle, &name, 0, 0, 0);  // GScr_PlaySound
+    }
+    if (drones.data && static_cast<int32_t>(drones.size) >= 1) {
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(drones.size); ++i) {
+            {
+                const uint32_t drone = *path_at(&drones, i);
+                ScriptString copy;
+                ScriptString_Copy(&copy, &type);
+                slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(drone, copy);  // ScrEnt_SetAnimname
+            }
+            *key_slot(*path_at(&drones, i), 0x3873520a, undefined_float()) = min;        // min_delay
+            *key_slot(*path_at(&drones, i), 0xb873524f, undefined_float()) = max;        // max_delay
+            *key_slot(*path_at(&drones, i), 0x766fe577, undefined_float()) = min_death;  // min_death_delay
+            *key_slot(*path_at(&drones, i), 0x166fe566, undefined_float()) = max_death;  // max_death_delay
+            *reinterpret_cast<uint8_t*>(ScrField_just_delete(*path_at(&drones, i), 0)) = static_cast<uint8_t>(just_delete);
+            *int_slot(*path_at(&drones, i), 0x7f3c9f90) = 1;  // using_shrimps
+            *int_slot(*path_at(&drones, i), 0x54e90118) = sound;  // shrimp_id
+        }
+    }
+    if (drones.data) Scr_Free(drones.data);
+    scr_release(&name);
+    scr_release(&type);
+}
+
+namespace {
+
+// BroScr_SpawnEventDrones(ent, a copy of `name`, `type`, ...): `type` is the callee's (a copy made first).
+inline void spawn_event_drones(uint32_t ent, ScriptString* name, ScriptString type, uint32_t min, uint32_t max,
+                               uint32_t min_death, uint32_t max_death, uint32_t just_delete) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, name);
+    BroScr_SpawnEventDrones(ent, copy, type, min, max, min_death, max_death, just_delete);
+}
+inline ScriptString copy_of(const ScriptString* s) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, s);
+    return copy;
+}
+inline uint32_t undefined_bool_word() { return title_global<uint8_t>(0x00922ed0); }  // zero-extended
+
+}  // namespace
+
+void XB_CDECL BroScr_SpawnEventDronesCall_1(uint32_t ent, ScriptString name) {
+    const uint32_t f = undefined_float();
+    ScriptString empty;
+    ScriptString_FromRep(&empty, nullptr);
+    spawn_event_drones(ent, &name, empty, f, f, f, f, undefined_bool_word());
+    scr_release(&name);
+}
+
+void XB_CDECL BroScr_SpawnEventDronesCall_2(uint32_t ent, ScriptString name, ScriptString type) {
+    const uint32_t f = undefined_float();
+    spawn_event_drones(ent, &name, copy_of(&type), f, f, f, f, undefined_bool_word());
+    scr_release(&name);
+    scr_release(&type);
+}
+
+void XB_CDECL BroScr_SpawnEventDronesCall_3(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max) {
+    const uint32_t f = undefined_float();
+    spawn_event_drones(ent, &name, copy_of(&type), min, max, f, f, undefined_bool_word());
+    scr_release(&name);
+    scr_release(&type);
+}
+
+void XB_CDECL BroScr_SpawnEventDronesCall_4(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                            uint32_t just_delete) {
+    const uint32_t f = undefined_float();
+    spawn_event_drones(ent, &name, copy_of(&type), min, max, f, f, just_delete);
+    scr_release(&name);
+    scr_release(&type);
+}
+
+void XB_CDECL BroScr_SpawnEventDronesCall_5(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                            uint32_t min_death, uint32_t max_death) {
+    spawn_event_drones(ent, &name, copy_of(&type), min, max, min_death, max_death, undefined_bool_word());
+    scr_release(&name);
+    scr_release(&type);
+}
+
 }  // namespace game

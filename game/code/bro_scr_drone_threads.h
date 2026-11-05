@@ -61,4 +61,23 @@ void XB_CDECL BroScr_DronePathsStartAll(uint32_t spawner, DynArray paths, Script
 void XB_CDECL BroScr_DronePathsStartAllStaggered(uint32_t spawner, DynArray paths, ScriptString type, uint32_t p6,
                                                  uint32_t p7, uint32_t p8, uint32_t p9, uint32_t p10, uint32_t p11);
 
+// 0x00174810: one frame; the entities with targetname `name`. With the no_shrimps cvar above 0: min
+// (5 when undefined; an undefined max also sets min, to 7), type "event1_drones" when empty, and a
+// BroScr_DronePathsStartAllCall_6 thread (level, those entities, type, 0, min, max, true); else the
+// shrimp sound (`name`) played on the level. Then each entity: animname = type, min_delay = min,
+// max_delay = max, min/max_death_delay, just_delete = `just_delete`, using_shrimps = 1, shrimp_id =
+// the sound (undefined in the first case). Frees the list, releases `name` and `type`.
+void XB_CDECL BroScr_SpawnEventDrones(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                      uint32_t min_death, uint32_t max_death, uint32_t just_delete);
+// 0x00174f60 / 0x00175020 / 0x001750f0 / 0x001751b0 / 0x00175270: BroScr_SpawnEventDrones with copies
+// of the strings (an empty type for _1) and the missing arguments undefined (floats, bool); _4 passes
+// its sixth argument as `just_delete`. Release the strings.
+void XB_CDECL BroScr_SpawnEventDronesCall_1(uint32_t ent, ScriptString name);
+void XB_CDECL BroScr_SpawnEventDronesCall_2(uint32_t ent, ScriptString name, ScriptString type);
+void XB_CDECL BroScr_SpawnEventDronesCall_3(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max);
+void XB_CDECL BroScr_SpawnEventDronesCall_4(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                            uint32_t just_delete);
+void XB_CDECL BroScr_SpawnEventDronesCall_5(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
+                                            uint32_t min_death, uint32_t max_death);
+
 }  // namespace game
