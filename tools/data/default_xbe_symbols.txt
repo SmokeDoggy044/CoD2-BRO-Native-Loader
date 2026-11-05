@@ -4934,7 +4934,7 @@
 0013f550 BroScr_TurretStutterCall
 0013f570 BroScr_VehicleDeath_Jeep
 0013f6f0 BroScr_VehicleInit_Jeep
-0013f820 FUN_0013f820
+0013f820 BroScr_WaitHeavyHitOrDamage
 0013f990 BroScr_SpawnWoodGibsSmall
 00140090 ScrField_hc4813666
 001400c0 BroScr_PlayerHopOverWall

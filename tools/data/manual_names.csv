@@ -14717,3 +14717,4 @@ address,name,kind,confidence,evidence
 001c8620,BroScr_RecordSetAnimKnob,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 001cca00,BroScr_CornerRamboFire,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 001d5a50,BroScr_BattleChatterInit,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+0013f820,BroScr_WaitHeavyHitOrDamage,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
