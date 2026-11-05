@@ -46,6 +46,10 @@ set(game_code_sources
     bro_scr_trigger_threads.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
+    bro_scr_grenade.cpp
+    bro_scr_hud_fade.cpp
+    bro_scr_treefall.cpp
+    bro_scr_thread_misc.cpp
     bro_scr_wait_misc.cpp
     bro_scr_wait_notify.cpp
     bro_scr_wallhop.cpp
