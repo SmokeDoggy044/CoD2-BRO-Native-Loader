@@ -1605,7 +1605,8 @@ uint32_t XB_CDECL ClientThink_RunPendingTouch(uint8_t* ent) {
     if (!vehicle_call(0x00248e10, address_of(other), 0, 0, 0, 0, 0)) return 0;  // FUN_00248e10
     if (title_global<int32_t>(0x0098540c) - at<int32_t>(client, 0x62c) <= title_global<int32_t>(0x0095bc34)) return 0;  // level.time
     at<uint32_t>(client, 0x628) = 0;
-    vehicle_call(0x0024f570, address_of(ent), 0, 0, 0, 0, title_global<uint32_t>(0x0097a814));  // G_NotifyWithOwnHandle(touch)
+    // EDI = the touched entity (notified), as the original (0x002509a3): EDI 0 crashed G_NotifyWithEntity on weapon pickup.
+    vehicle_call(0x0024f570, address_of(ent), 0, 0, 0, address_of(other), title_global<uint32_t>(0x0097a814));  // G_NotifyWithOwnHandle(touch)
     const uint32_t touch = at<uint32_t>(other, 0x338);
     if (!touch) return 0;
     at<uint8_t>(other, 0x297) = 1;
