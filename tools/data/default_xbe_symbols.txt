@@ -269,6 +269,8 @@
 00017590 ScrEnt_GetWait
 000175f0 ScrEnt_SetRandom
 00017650 ScrEnt_GetRandom
+000176b0 ScrEnt_SetInt_370
+00017710 ScrEnt_GetInt_370
 00017770 ScrEnt_SetHealth
 000177d0 ScrEnt_GetHealth
 00017830 ScrEnt_SetDmg
@@ -782,7 +784,7 @@
 0002bd30 InGameLiveOptionsMenu_DeletingDtor
 0002bd50 PathNode_Construct
 0002bdc0 Actor_PathEntityIsFresh
-0002be40 Path_Init
+0002be40 FUN_0002be40
 0002bf00 G_RestoreSavedEntityField134
 0002bf50 AitbManager_DeletingDtor
 0002bf80 ZoneStringMap_Lookup
@@ -4093,7 +4095,7 @@
 00119e50 ScrCall_ScrEnt_GetTarget
 00119ec0 ScrCall_ScrEnt_SetTargetname
 00119ef0 ScrCall_ScrEnt_GetTargetname
-00119f60 FUN_00119f60
+00119f60 ScrCall_ScrEnt_SetInt_370
 00119f80 ScrCall_ScrEnt_SetHealth
 00119fa0 ScrCall_ScrEnt_GetHealth
 00119fc0 ScrCall_ScrEnt_SetAngles
@@ -4133,7 +4135,7 @@
 0011a780 ScrCall_Scr_QueueNotify
 0011a7b0 ScrCall_GScr_PlaySoundWithNotify
 0011a7d0 ScriptString_FromCStringPlusInt
-0011a850 FUN_0011a850
+0011a850 ScriptString_ReleaseAt20
 0011a860 ScrCall_Scr_EntityHandleIsValid
 0011a880 FUN_0011a880
 0011a910 Scr_StartThreadFunctor1
@@ -5068,7 +5070,7 @@
 00151200 BroScr_VehicleHealth2500Init
 00151230 BroScr_VehicleRandomHealthInit_3
 00151270 BroScr_PanzerIVSetDifficultyHealth
-00151370 FUN_00151370
+00151370 FollowEnt_Worker
 00151bb0 BroScr_RemoveAllFollowers
 00151c90 BroScr_WaitForFollowersCall
 00151cd0 BroScr_FollowLagThink
@@ -8302,7 +8304,7 @@
 0024b610 Use_Multi
 0024b620 G_FreeStringTable
 0024b700 XAnim_HasNotetrack
-0024b860 FUN_0024b860
+0024b860 AnimTree_RootHandle
 0024ba60 G_ClientInOpenVehicle
 0024bad0 G_ClientInVehicle
 0024bb30 G_GetPlayerTurret
@@ -9117,7 +9119,7 @@
 0029ab20 FS_IsCfgMenuOrDatFile
 0029aba0 FUN_0029aba0
 0029ac20 Scr_EntityWaitList_FreeWaits
-0029acb0 FUN_0029acb0
+0029acb0 EntNotifyCallbacks_CallByKey
 0029ae90 FxShakeRumbleComponent_Stop
 0029af30 FxComponent_GetEntityOrigin
 0029b010 FxSoundComponent_SetParent
@@ -9362,7 +9364,7 @@
 002ad9d0 FUN_002ad9d0
 002add40 SoundRef_IsState3
 002adea0 SoundRef_SetVolumeScale
-002adfe0 FUN_002adfe0
+002adfe0 EntNotifyCallbacks_Init
 002ae040 SpgManager_Unload
 002ae080 Spg_FindRandomVariant
 002ae350 Mat44_ToQuatTranslation
@@ -9429,7 +9431,7 @@
 002b2200 CM_FloodAreaConnections
 002b2260 WindingArea
 002b2340 WindingPlane
-002b2790 FUN_002b2790
+002b2790 BrushModel_CopyBounds
 002b2880 CL_CubemapShot_f
 002b2c60 SCR_DrawSmallChar
 002b2e80 DebugDraw_Shutdown
@@ -10041,6 +10043,7 @@
 002f2b00 CL_UpdateLoadingProgress
 002f2b20 Console_SubmitLine
 002f2b80 VM_Create
+002f2ce0 VM_Restart
 002f2d30 SV_InitGameProgs
 002f2db0 CL_InitCGame
 002f2e40 SV_RunGameFrame
@@ -10079,6 +10082,7 @@
 002f4d90 ScrActor_GetString2c0Field
 002f4dd0 ScrField_GetWeaponName
 002f4e00 ScrField_GetMsAsSeconds
+002f4e20 ScrField_SetFloatMin4AndSquare
 002f4e50 Scr_NopFieldSetter
 002f4e60 ScrField_SetFloat01
 002f4ea0 GScr_Set95f4b4
@@ -10168,7 +10172,7 @@
 002f62c0 Scr_Sqrt
 002f62d0 ScrIface_Malloc
 002f6320 IntHashMap_FindValue
-002f6350 Scr_InitWaitRecord4
+002f6350 FUN_002f6350
 002f64f0 ScrWaitTimeoutRecord_Init
 002f6600 Scr_RestoreThreadStack
 002f6670 ScrThread_AppendData
@@ -10373,18 +10377,18 @@
 002fc110 ScrWaitTimeoutRecord_Check
 002fc1b0 ScrWaitRecord_Check
 002fc230 ScrWaitRecord_Dtor
-002fc2a0 Scr_AbortAllThreads
-002fc3c0 Scr_HasEndOnRecord
+002fc2a0 FUN_002fc2a0
+002fc3c0 FUN_002fc3c0
 002fc440 Scr_UpdateThreadWaits
 002fc540 Scr_DestroyThreadContents
 002fc670 AnimTree_Setup
-002fc710 GScr_ValidateObjectiveIndex
+002fc710 GScr_ObjectiveToggleRing
 002fc7f0 GScr_ObjectivePosition
 002fc8a0 GScr_ObjectiveDelete
 002fc920 G_SendObjectiveUpdate
 002fc9d0 GScr_SetReverb
 002fca10 GScr_ToggleNoclip
-002fca80 GScr_SendServerCommand
+002fca80 GScr_ClosePopup
 002fca90 GScr_PlayerGetBool_60
 002fcae0 GScr_PlayerSetAngles
 002fcb20 GScr_PlayerSetOrigin
@@ -10482,7 +10486,7 @@
 00300320 GScr_DebugDrawAnimTrees
 00300360 GScr_StartSubtitle
 00300390 GScr_PlaySoundWithNotify
-00300530 FUN_00300530
+00300530 Scr_StartAnimNotify
 003005a0 GScr_HudSetText
 00300630 GScr_MissionFailed
 003006d0 GScr_SoundBankUnload
@@ -10585,9 +10589,9 @@
 00305560 GScr_ActorGrabGrenade
 003055b0 GScr_ActorEnterProne
 00305610 GScr_MagicGrenadeManualDefaultFuse
-00305630 GScr_AttachNoTag
-00305660 GScr_DetachNoTag
-003056a0 GScr_DetachEx
+00305630 GScr_DetachNoTag
+00305660 GScr_AttachNoTag
+003056a0 GScr_AttachWithOwner
 003056c0 GScr_LocationalTraceSurface
 00305d80 GScr_PlaySoundMode7
 00305de0 GScr_PlayLoopSound
@@ -14261,7 +14265,7 @@
 00458e10 ScriptKeyTable_SetValue
 00458e70 FUN_00458e70
 00458f40 FUN_00458f40
-00458f60 FUN_00458f60
+00458f60 KeyTableStruct28_CopyCtor
 00458fc0 WaitTilOutputInst2_i_ent_PROLOGUE_Dtor
 00458fd0 FUN_00458fd0
 00459020 AeThreadFunctor2_ent_vec_Invoke
@@ -14455,7 +14459,7 @@
 0045d5f0 FUN_0045d5f0
 0045d6e0 std_UninitializedFillN4_PROLOGUE
 0045d710 anim_wad_Anim_Ctor_PROLOGUE
-0045db80 FUN_0045db80
+0045db80 ArrayOf1c_DestroyAll
 0045dbc0 AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Invoke
 0045dc50 AeThreadFunctor4_ent_arrent_vec_i_Invoke
 0045dcb0 AeThreadFunctor4_ent_arrent_hash_hash_Invoke
@@ -15143,7 +15147,7 @@
 004b3740 FUN_004b3740
 004b37f0 FUN_004b37f0
 004b38a0 FUN_004b38a0
-004b3950 FUN_004b3950
+004b3950 LevelScript_oran_Ctor
 004b3d70 FUN_004b3d70
 004b3e40 FUN_004b3e40
 004b3e80 FUN_004b3e80
@@ -15823,9 +15827,9 @@
 0052b430 LevelScript_kasserine_pass_InternalMain
 0052b440 LevelScript_kasserine_pass_Main
 0052b580 LevelScript_kasserine_pass_ModuleEntry
-0052b970 FUN_0052b970
+0052b970 RespawnerAttributes_Dtor
 0052ba00 FUN_0052ba00
-0052ba50 FUN_0052ba50
+0052ba50 RespawnerAttributes_CopyCtor
 0052bcb0 FUN_0052bcb0
 0052bd10 ScriptKeyTable_GetStringCopy
 0052bd50 FUN_0052bd50
