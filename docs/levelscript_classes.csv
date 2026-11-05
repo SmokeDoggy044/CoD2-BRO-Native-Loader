@@ -661,3 +661,4 @@ address,name,class,evidence
 00130ee0,BroScr_WaitForNotifyOrTimeoutCall_2,thread_switch,"path BroScr_WaitForNotifyOrTimeoutCall_2 -> BroScr_WaitForNotifyOrTimeout; C kept, not registered; vc71match 27.5 (/Ob1), --facts same"
 00130fc0,BroScr_WaitForNotifyOrTimeoutCall_3,thread_switch,"path BroScr_WaitForNotifyOrTimeoutCall_3 -> BroScr_WaitForNotifyOrTimeout; C kept, not registered; vc71match 15.4 (/Ob1), --facts same"
 001310b0,BroScr_WaitForNotifyOrTimeoutCall_4,thread_switch,"path BroScr_WaitForNotifyOrTimeoutCall_4 -> BroScr_WaitForNotifyOrTimeout; C kept, not registered; vc71match 14.0 (/Ob1), --facts same"
+001301d0,BroScr_StrafeImpacts,thread_switch,"path BroScr_StrafeImpacts -> Scr_Wait; C kept, not registered; vc71match 13.5 (/Ob1), --facts: constants same; calls differ by ScrField_flak_dist inlined, one FromCString per surface case in the title (ours picks the text, then one call) and block order"

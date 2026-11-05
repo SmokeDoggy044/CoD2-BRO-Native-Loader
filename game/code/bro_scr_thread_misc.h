@@ -31,6 +31,13 @@ void XB_CDECL BroScr_AiSpawnInit(uint32_t ent);
 // its targetname: force-spawns (int field 0x02d62a20 = 1) or spawns, waits trigger's wait (when
 // positive) and, count left, starts itself again.
 void XB_CDECL BroScr_TriggerSpawnerThink(uint32_t trigger, uint32_t spawner);
+// 0x001301d0: one strafing round from ent's "tag_flash": traces flak_dist along the tag's forward
+// (LocationalTraceSurface). A "default" surface or a fraction above 0.95: a flak sound thread
+// (BroScr_PlayFlakSound) at the trace end after distance * 5e-05 s. Otherwise, within flak_dist (and
+// 96 of 100 rolls; the undefined bool cleared): after the same wait, the surface's "strafe_*_hit"
+// sound at the hit point facing back to the tag (BroScr_PlaySoundAtTempOrigin thread), else the
+// flak sound at the hit point (the undefined vector when the undefined bool is set).
+void XB_CDECL BroScr_StrafeImpacts(uint32_t ent);
 // 0x00130df0 / 0x00130ee0 / 0x00130fc0 / 0x001310b0: BroScr_WaitForNotifyOrTimeout with the empty
 // endon and the undefined timeout (_4: `timeout`), the notify (_2.._4: empty), the second vector
 // (_3: undefined) as given. Release their own strings.

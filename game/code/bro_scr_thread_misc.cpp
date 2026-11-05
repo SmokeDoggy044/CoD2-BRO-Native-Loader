@@ -155,6 +155,132 @@ void XB_CDECL BroScr_TriggerSpawnerThink(uint32_t trigger, uint32_t spawner) {
     }
 }
 
+void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
+    using GetTagVec = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
+    ScriptString tag;
+    ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
+    uint32_t lane = title_global<uint32_t>(0x00922eb8);                // g_scrUndefinedVecLane
+    uint32_t vec[3] = {lane, lane, lane};
+    slot<GetTagVec>(0x0092261c)(ent, vec, &tag);  // GScr_GetTagOrigin
+    const uint32_t origin[3] = {vec[0], vec[1], vec[2]};
+    ScriptString_Release(&tag);
+    ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));
+    lane = title_global<uint32_t>(0x00922eb8);
+    vec[0] = lane;
+    vec[1] = lane;
+    vec[2] = lane;
+    slot<GetTagVec>(0x00922620)(ent, vec, &tag);  // GScr_GetTagAngles
+    const uint32_t angles[3] = {vec[0], vec[1], vec[2]};
+    ScriptString_Release(&tag);
+    lane = title_global<uint32_t>(0x00922eb8);
+    vec[0] = lane;
+    vec[1] = lane;
+    vec[2] = lane;
+    slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922290)(vec, angles);  // Scr_AnglesToForward
+    float forward[3];
+    std::memcpy(forward, vec, 12);
+
+    ScriptKeyTable* const table = script_object_or_empty(ent);
+    uint32_t* range_word = ScriptKeyTable_Find(table, 0x93c3cf6c);  // flak_dist
+    if (!range_word) range_word = ScriptKeyTable_Set(table, 0x93c3cf6c, title_global<uint32_t>(0x00922ec0));  // g_scrUndefinedInt
+    const float range = static_cast<float>(static_cast<int32_t>(*range_word));
+    float o[3];
+    std::memcpy(o, origin, 12);
+    const float end[3] = {o[0] + forward[0] * range, o[1] + forward[1] * range, o[2] + forward[2] * range};
+
+    struct Trace {
+        float fraction;  // written by the trace
+        uint32_t position[3];
+        uint32_t zero;
+        uint32_t normal[3];
+        ScriptString surface;
+    } trace;
+    lane = title_global<uint32_t>(0x00922eb8);
+    trace.position[0] = lane;
+    trace.position[1] = lane;
+    trace.position[2] = lane;
+    trace.zero = 0;
+    trace.normal[0] = lane;
+    trace.normal[1] = lane;
+    trace.normal[2] = lane;
+    ScriptString_FromRep(&trace.surface, nullptr);
+    slot<void XB_CDECL(Trace*, const float*, const float*, uint32_t, uint32_t)>(0x00922414)(&trace, o, end, 0,
+                                                                                            ent);  // GScr_LocationalTraceSurface
+    const float distance = static_cast<float>(
+        slot<long double XB_CDECL(const uint32_t*, const float*)>(0x00922268)(trace.position, o));  // Scr_Distance
+    lane = title_global<uint32_t>(0x00922eb8);
+    const uint8_t unset = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool
+    uint32_t impact[3] = {lane, lane, lane};
+
+    bool flak = true;
+    const uint32_t* flak_at = impact;
+    uint32_t end_bits[3];
+    std::memcpy(end_bits, end, 12);
+    if (ScriptString_Equals(&trace.surface, pointer<const char>(0x00831f70)) ||  // "default"
+        trace.fraction > as_float(title_global<uint32_t>(0x007e4400))) {        // 0.95
+        flak_at = end_bits;
+    } else if (static_cast<float>(static_cast<float>(static_cast<int32_t>(*ScrField_flak_dist(ent))) > distance ? 1 : 0) !=
+               as_float(title_global<uint32_t>(0x0083eafc))) {
+        impact[0] = trace.position[0];
+        impact[1] = trace.position[1];
+        impact[2] = trace.position[2];
+        flak = slot<int32_t XB_CDECL(uint32_t)>(0x0092222c)(100) > 95;  // Scr_RandomInt
+    } else {
+        flak = unset != 0;
+    }
+    const float delay =
+        static_cast<float>(platform_x87_ld(distance) * platform_x87_ld(as_float(title_global<uint32_t>(0x008245e4))));  // * 5e-05 (x87)
+    if (flak) {
+        Scr_Wait(delay);
+        const uint32_t level = level_handle();
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x18);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f49e0;  // an entity + vector functor
+            functor[1] = 0x00120650;  // BroScr_PlayFlakSound
+            functor[2] = level;
+            functor[3] = flak_at[0];
+            functor[4] = flak_at[1];
+            functor[5] = flak_at[2];
+        }
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, level, functor,
+                                                                                                   0);  // Scr_CreateThread
+    } else {
+        Scr_Wait(delay);
+        float at[3];
+        std::memcpy(at, impact, 12);
+        const float back[3] = {o[0] - at[0], o[1] - at[1], o[2] - at[2]};
+        lane = title_global<uint32_t>(0x00922eb8);
+        uint32_t normal[3] = {lane, lane, lane};
+        slot<void XB_CDECL(uint32_t*, const float*)>(0x00922280)(normal, back);  // Scr_VectorNormalize
+        const uint32_t facing[3] = {normal[0], normal[1], normal[2]};
+        uint32_t hash;
+        const uint32_t surface = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&trace.surface));
+        uint32_t sound_text = 0;
+        switch (surface) {
+        case 0x1a0899e6: sound_text = 0x007fa3d4; break;  // "strafe_concrete_hit"
+        case 0x003809a4: sound_text = 0x007fa3c4; break;  // "strafe_sand_hit"
+        case 0x0033aa34: sound_text = 0x007fa3b4; break;  // "strafe_dirt_hit"
+        case 0x0038b00b: sound_text = 0x007fa3d4; break;
+        case 0xc91154cc: sound_text = 0x007fa3d4; break;
+        case 0x06e35c4c: sound_text = 0x007fa3a0; break;  // "strafe_metal_hit"
+        case 0x003a3184: sound_text = 0x007fa390; break;  // "strafe_wood_hit"
+        case 0x06488a13: sound_text = 0x007fa37c; break;  // "strafe_grass_hit"
+        default: ScriptString_Equals(&trace.surface, pointer<const char>(0x00831f70)); break;  // result unused
+        }
+        if (sound_text) {
+            const uint32_t level = level_handle();
+            ScriptString sound;
+            ScriptString_FromCString(&sound, pointer<const char>(sound_text));
+            using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                              ScriptString*, const uint32_t*);
+            title_function<StartThread>(0x006d1370)(0, 0, 0, 0, 0x00120750, level, impact, &sound,
+                                                    facing);  // Scr_StartThread_ent_vec_str_vec (BroScr_PlaySoundAtTempOrigin)
+            ScriptString_Release(&sound);
+        }
+    }
+    ScriptString_Release(&trace.surface);
+}
+
 void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall(uint32_t a, ScrVec3 v1, ScriptString s, ScrVec3 v2, ScriptString notify) {
     // The arguments are built in place, last first.
     const float timeout = as_float(title_global<uint32_t>(0x00922eac));  // g_scrUndefinedFloat
