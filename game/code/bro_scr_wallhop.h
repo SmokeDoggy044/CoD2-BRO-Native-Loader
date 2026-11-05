@@ -7,6 +7,7 @@
 
 #include "bro_scr_util.h"
 #include "compiler.h"
+#include "qcommon_fs.h"
 #include "scr_access.h"
 
 namespace game {
@@ -27,5 +28,13 @@ BRO_SCR_ARGS_DECL(BroScr_WallHopGetPointsNearFirst)
 // 0x00147470 / 0x001476b0 (dead): *out = the point of `ent`'s field 0x4f7c0a56 nearest the player.
 uint32_t* XB_CDECL BroScr_GetClosestArrayPointToPlayer(uint32_t* out, uint32_t ent);
 uint32_t* XB_CDECL BroScr_GetClosestArrayPointToPlayer_2(uint32_t* out, uint32_t ent);
+
+// 0x00135870: resamples the hop path (12-byte points) into `out`: queues "stop_spline_math_drawing"
+// on the level entity (+4), then walks each segment in `steps` steps of (next - point) / steps;
+// each step moves a cursor (starting at the first point) toward the stepped position by its
+// direction scaled by (cursor-to-position length / first-segment length) * step length. A cursor
+// position is appended when `min_gap` is undefined or not above its distance from the last kept
+// one; the path's last point is appended as is.
+void XB_CDECL BroScr_PlayerHopSplineMath(DynArray* path, float steps, float min_gap, DynArray* out);
 
 }  // namespace game

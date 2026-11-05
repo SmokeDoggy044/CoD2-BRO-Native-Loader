@@ -16,6 +16,16 @@ void XB_CDECL BroScr_DeleteUndroppedBombs(uint32_t ent);
 // 0x0014e7a0: *out = the first non-zero BroScr_VehicleCheckBlocker(ent, ent, other, range) over the
 // valid entities of `list` (range = `ent`'s float field 0xa22fa6ba), else 0. Returns out.
 uint32_t* XB_CDECL BroScr_VehicleFindBlocker(uint32_t* out, uint32_t ent, DynArray* list);
+// 0x0014e020: whether `other` blocks `vehicle` (z-flattened origins; `vehicle`'s position is the
+// entity in its handle field 0xcc043125; `range_bits` is a float). Out of range: `self`'s flags
+// 0xcd84c908 and 0x8c05ef86 cleared, *out = 0. In range and other != vehicle: *out = 2 (flag
+// 0xcd84c908 set) when a point of the level entity's (+0x6ec) array 0xb0996bdc is nearer the vehicle's
+// first 0xb0996bdc point than that entity's float field 0x8166d37c; else *out = 1 (flag 0x8c05ef86 set)
+// when the direction from a point of `other`'s array 0x9ecce58a to the vehicle, dotted with the
+// vehicle's yaw forward, is below `self`'s float field 0x515816fa. Otherwise both flags cleared,
+// *out = 0. Returns out.
+uint32_t* XB_CDECL BroScr_VehicleCheckBlocker(uint32_t* out, uint32_t self, uint32_t vehicle, uint32_t other,
+                                              uint32_t range_bits);
 // 0x00136ab0: clears the root anim, then the flak panzer fire anim of the rider's tag ("tag_gunner",
 // "tag_passenger1", "tag_passenger2") through GScr_SetFlaggedAnimKnobAll. Releases `tag`.
 void XB_CDECL BroScr_SetRiderAnimForTag(uint32_t ent, ScriptString tag);

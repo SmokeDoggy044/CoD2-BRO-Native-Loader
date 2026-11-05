@@ -21,6 +21,7 @@ set(game_code_sources
     bro_scr_drones.cpp
     bro_scr_flak.cpp
     bro_scr_fx.cpp
+    bro_scr_gibs.cpp
     bro_scr_level.cpp
     bro_scr_level_info.cpp
     bro_scr_mission.cpp

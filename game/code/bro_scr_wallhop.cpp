@@ -225,4 +225,87 @@ uint32_t* XB_CDECL BroScr_GetClosestArrayPointToPlayer_2(uint32_t* out, uint32_t
     return closest_point_to_player(out, ent);
 }
 
+void XB_CDECL BroScr_PlayerHopSplineMath(DynArray* path, float steps, float min_gap, DynArray* out) {
+    const uint32_t level = title_global<uint32_t>(0x00922ee0);
+    uint32_t hash;
+    const uint32_t notify = *Scr_HashName(&hash, pointer<const char>(0x00824638));  // "stop_spline_math_drawing"
+    // the level's entity at +4 (the original reads address 0 without a level; never seen)
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(*pointer<uint32_t>(level ? level + 4 : 0), notify);  // Scr_QueueNotify
+    if (path->size <= 1) reserve12(path, 2, 5);
+    const uint32_t* second = &path->data[3];  // taken before the (never needed) growth below
+    if (path->size == 0) reserve12(path, 1, 4);
+    const float total = distance_to(path->data, second);
+    if (path->size == 0) reserve12(path, 1, 4);
+    uint32_t last_kept[3] = {path->data[0], path->data[1], path->data[2]};
+    if (path->size == 0) reserve12(path, 1, 4);
+    float cur[3] = {as_float(path->data[0]), as_float(path->data[1]), as_float(path->data[2])};
+    uint32_t size = path->size;
+    if (static_cast<int32_t>(size) <= 0) return;
+    for (uint32_t i = 0;;) {
+        if (i == size - 1) {
+            // the last point is kept as it is
+            if (i >= size) reserve12(path, i + 1, i + 4);
+            const uint32_t* const p = &path->data[i * 3];
+            const uint32_t n = out->size;
+            reserve12(out, n + 1, n + 4);
+            uint32_t* const dst = &out->data[n * 3];
+            dst[0] = p[0];
+            dst[1] = p[1];
+            dst[2] = p[2];
+        } else {
+            if (i >= size) reserve12(path, i + 1, i + 4);
+            const uint32_t* const p = &path->data[i * 3];
+            const uint32_t* next;
+            if (i + 1 < path->size) {
+                next = &path->data[i * 3 + 3];
+            } else {
+                reserve12(path, i + 2, i + 5);
+                next = &path->data[i * 3 + 3];
+            }
+            const float dx = as_float(next[0]) - as_float(p[0]);
+            const float dy = as_float(next[1]) - as_float(p[1]);
+            const float dz = as_float(next[2]) - as_float(p[2]);
+            const float inverse = 1.0f / steps;
+            const uint32_t step[3] = {bits_of(platform_mulss(inverse, dx)), bits_of(platform_mulss(inverse, dy)),
+                                      bits_of(platform_mulss(inverse, dz))};
+            const float segment = static_cast<float>(slot<long double XB_CDECL(const uint32_t*)>(0x00922270)(step));  // Scr_Length
+            if (i >= path->size) reserve12(path, i + 1, i + 4);
+            const uint32_t* const from = &path->data[i * 3];
+            float pos[3] = {as_float(from[0]), as_float(from[1]), as_float(from[2])};
+            for (int32_t k = 0; platform_greater(steps, static_cast<float>(k)); ++k) {
+                pos[0] = platform_addss(pos[0], as_float(step[0]));
+                pos[1] = platform_addss(pos[1], as_float(step[1]));
+                pos[2] = platform_addss(pos[2], as_float(step[2]));
+                const uint32_t to_pos[3] = {bits_of(pos[0] - cur[0]), bits_of(pos[1] - cur[1]), bits_of(pos[2] - cur[2])};
+                const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+                uint32_t direction[3] = {lane, lane, lane};
+                slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922280)(direction, to_pos);  // Scr_VectorNormalize
+                const uint32_t to_pos_2[3] = {bits_of(pos[0] - cur[0]), bits_of(pos[1] - cur[1]), bits_of(pos[2] - cur[2])};
+                const long double length = slot<long double XB_CDECL(const uint32_t*)>(0x00922270)(to_pos_2);  // Scr_Length
+                const float scale =
+                    static_cast<float>(length / platform_x87_ld(total) * platform_x87_ld(segment));
+                cur[0] = platform_addss(platform_mulss(as_float(direction[0]), scale), cur[0]);
+                cur[1] = platform_addss(platform_mulss(as_float(direction[1]), scale), cur[1]);
+                cur[2] = platform_addss(platform_mulss(as_float(direction[2]), scale), cur[2]);
+                const uint32_t cur_bits[3] = {bits_of(cur[0]), bits_of(cur[1]), bits_of(cur[2])};
+                const float gap = distance_to(last_kept, cur_bits);
+                if (min_gap == as_float(title_global<uint32_t>(0x00922eac)) || !platform_greater(min_gap, gap)) {
+                    last_kept[0] = cur_bits[0];
+                    last_kept[1] = cur_bits[1];
+                    last_kept[2] = cur_bits[2];
+                    const uint32_t n = out->size;
+                    reserve12(out, n + 1, n + 4);
+                    uint32_t* const dst = &out->data[n * 3];
+                    dst[0] = cur_bits[0];
+                    dst[1] = cur_bits[1];
+                    dst[2] = cur_bits[2];
+                }
+            }
+        }
+        size = path->size;
+        ++i;
+        if (static_cast<int32_t>(i) >= static_cast<int32_t>(size)) break;
+    }
+}
+
 }  // namespace game
