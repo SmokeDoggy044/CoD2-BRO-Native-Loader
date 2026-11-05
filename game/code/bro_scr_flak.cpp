@@ -10,6 +10,8 @@
 #include "qcommon_fs.h"
 #include "scr_access.h"
 #include "scr_field.h"
+#include "scr_field_instances.h"
+#include "script_string.h"
 #include "title_data.h"
 
 // A cdecl title call with two stack words returning on the x87 (left in ST0); *ecx_out = the ECX
@@ -90,6 +92,37 @@ void normalize(uint32_t* out, const uint32_t* in) {
 
 long double random_float_range(uint32_t low, uint32_t high) {
     return slot<long double XB_CDECL(uint32_t, uint32_t)>(0x00922238)(low, high);  // Scr_RandomFloatRange
+}
+
+// A flak 88 crew member's role: its string field 0x062bea65 = `role`, and the five anim words of its
+// anim-set field 0xc4813666 (+0 pre-turn idle, +4 turn, +8 fire, +0x14 idle, +0x18 twitch) from the
+// anim-handle globals given; each field is looked up again per write, as the title does.
+inline void set_crew_anims(uint32_t ent, uint32_t role, uint32_t preturn, uint32_t turn, uint32_t fire, uint32_t idle,
+                    uint32_t twitch) {
+    ScriptString_AssignCString(ScrField_h062bea65(ent), pointer<const char>(role));
+    static_cast<uint32_t*>(ScrField_hc4813666(ent))[0] = title_global<uint32_t>(preturn);
+    static_cast<uint32_t*>(ScrField_hc4813666(ent))[1] = title_global<uint32_t>(turn);
+    static_cast<uint32_t*>(ScrField_hc4813666(ent))[2] = title_global<uint32_t>(fire);
+    static_cast<uint32_t*>(ScrField_hc4813666(ent))[5] = title_global<uint32_t>(idle);
+    static_cast<uint32_t*>(ScrField_hc4813666(ent))[6] = title_global<uint32_t>(twitch);
+}
+
+// The anti-air sets (0x00140fc0 and its dead twin 0x001413b0): the passer keeps its anti-tank turn.
+inline void crew_anims_antiair(uint32_t ent, uint32_t role) {
+    switch (role) {
+    case 0:
+        set_crew_anims(ent, 0x007ff368, 0x008cd368, 0x008cd374, 0x008cd350, 0x008cd35c, 0x008cd380);  // "passer"
+        break;
+    case 1:
+        set_crew_anims(ent, 0x007ff37c, 0x008cd314, 0x008cd320, 0x008cd2e4, 0x008cd2fc, 0x008cd338);  // "loader"
+        break;
+    case 2:
+        set_crew_anims(ent, 0x007ff390, 0x008cd260, 0x008cd26c, 0x008cd230, 0x008cd248, 0x008cd284);  // "ejecter"
+        break;
+    case 3:
+        set_crew_anims(ent, 0x00824960, 0x008cd2b4, 0x008cd2c0, 0x008cd29c, 0x008cd2a8, 0x008cd2d8);  // "leader"
+        break;
+    }
 }
 
 }  // namespace
@@ -249,5 +282,26 @@ void XB_CDECL BroScr_RandomRotateStep(uint32_t ent, float step) {
     *ScrField_pitch(ent) = bits_of(platform_addss(delta, pitch));
     if (as_float(*ScrField_pitch(ent)) > limit) *ScrField_pitch(ent) = bits_of(limit);
 }
+
+void XB_CDECL BroScr_Flak88CrewAnimsAntitank(uint32_t ent, uint32_t role) {
+    switch (role) {
+    case 0:
+        set_crew_anims(ent, 0x007ff368, 0x008cd368, 0x008cd374, 0x008cd350, 0x008cd35c, 0x008cd380);  // "passer"
+        break;
+    case 1:
+        set_crew_anims(ent, 0x007ff37c, 0x008cd314, 0x008cd32c, 0x008cd2f0, 0x008cd308, 0x008cd344);  // "loader"
+        break;
+    case 2:
+        set_crew_anims(ent, 0x007ff390, 0x008cd260, 0x008cd278, 0x008cd23c, 0x008cd254, 0x008cd290);  // "ejecter"
+        break;
+    case 3:
+        set_crew_anims(ent, 0x00824960, 0x008cd2b4, 0x008cd2cc, 0x008cd29c, 0x008cd2a8, 0x008cd2d8);  // "leader"
+        break;
+    }
+}
+
+void XB_CDECL BroScr_Flak88CrewAnimsAntiair(uint32_t ent, uint32_t role) { crew_anims_antiair(ent, role); }
+
+void XB_CDECL BroScr_Flak88CrewAnimsAntiair_2(uint32_t ent, uint32_t role) { crew_anims_antiair(ent, role); }
 
 }  // namespace game

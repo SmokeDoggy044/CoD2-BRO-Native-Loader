@@ -102,6 +102,19 @@ uint32_t* closest_point_to_player(uint32_t* out, uint32_t ent) {
     return out;
 }
 
+// Element `i` of a 12-byte / 4-byte local array, grown to i + 1 (capacity i + 4) first when too short.
+inline uint32_t* at12(DynArray* array, uint32_t i) {
+    if (i >= array->size) reserve12(array, i + 1, i + 4);
+    return &array->data[i * 3];
+}
+inline void reserve4(DynArray* array, uint32_t size, uint32_t capacity) {
+    title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(0x0052d530)(array, size, capacity);  // DynArray_Reserve_KASSPASS
+}
+inline float* at4(DynArray* array, uint32_t i) {
+    if (i >= array->size) reserve4(array, i + 1, i + 4);
+    return reinterpret_cast<float*>(&array->data[i]);
+}
+
 }  // namespace
 
 uint32_t* XB_CDECL BroScr_WallHopMidpoint(uint32_t* out, uint32_t, ScrVec3 to, ScrVec3 offset) {
@@ -306,6 +319,197 @@ void XB_CDECL BroScr_PlayerHopSplineMath(DynArray* path, float steps, float min_
         ++i;
         if (static_cast<int32_t>(i) >= static_cast<int32_t>(size)) break;
     }
+}
+
+void XB_CDECL BroScr_PlayerHopOverWall(uint32_t level_ent, DynArray points, ScrVec3 to) {
+    // The title also passes `to` to BroScr_WallHopMove as a fourth argument it never reads.
+    (void)to;
+    uint32_t move[3];
+    {
+        const uint32_t* const p = at12(&points, 1);
+        ScrVec3 second;
+        second.v[0] = p[0];
+        second.v[1] = p[1];
+        second.v[2] = p[2];
+        BroScr_WallHopMove(move, level_ent, second);
+    }
+    uint32_t mid[3];
+    {
+        ScrVec3 offset;
+        offset.v[0] = bits_of(0.0f);
+        offset.v[1] = bits_of(0.0f);
+        offset.v[2] = bits_of(title_global<float>(0x0083eb3c));  // 60
+        ScrVec3 target;
+        target.v[0] = move[0];
+        target.v[1] = move[1];
+        target.v[2] = move[2];
+        BroScr_WallHopMidpoint(mid, level_ent, target, offset);
+    }
+    DynArray path = {};
+    {
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, player());
+        const uint32_t start[3] = {o[0], o[1], bits_of(as_float(o[2]) + title_global<float>(0x0083eb3c))};  // + 60
+        uint32_t* d = at12(&path, 0);
+        d[0] = start[0];
+        d[1] = start[1];
+        d[2] = start[2];
+        d = at12(&path, 1);
+        d[0] = mid[0];
+        d[1] = mid[1];
+        d[2] = mid[2];
+        d = at12(&path, 2);
+        d[0] = move[0];
+        d[1] = move[1];
+        d[2] = move[2];
+    }
+    DynArray spline = {};
+    BroScr_PlayerHopSplineMath(&path, title_global<float>(0x007bd0c8), title_global<float>(0x007bd0c8), &spline);  // 4, 4
+
+    using Spawn = uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t);
+    uint32_t mover;
+    {
+        ScriptString classname;
+        ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, player());
+        const uint32_t at[3] = {o[0], o[1], o[2]};
+        mover = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
+        ScriptString_Release(&classname);
+    }
+    uint32_t anchor;
+    {
+        ScriptString classname;
+        ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, player());
+        const uint32_t at[3] = {o[0], o[1], bits_of(as_float(o[2]) + title_global<float>(0x0083eb3c))};  // + 60
+        anchor = slot<Spawn>(0x009222f0)(&classname, at, 0);
+        ScriptString_Release(&classname);
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(mover, anchor);  // GScr_LinkTo
+    {
+        ScriptString tag;
+        ScriptString_FromCString(&tag, pointer<const char>(0x0082dfeb));  // ""
+        const float one = title_global<float>(0x0083eb20);
+        const float limits[3] = {one, one, one};
+        using PlayerLinkTo = void XB_CDECL(uint32_t, uint32_t, ScriptString*, const float*);
+        slot<PlayerLinkTo>(0x00922500)(player(), mover, &tag, limits);  // GScr_PlayerLinkTo
+        ScriptString_Release(&tag);
+    }
+    {
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, mover);
+        float dir[3];
+        dir[0] = as_float(move[0]) - as_float(o[0]);
+        dir[1] = as_float(move[1]) - as_float(o[1]);
+        dir[2] = as_float(move[2]) - as_float(o[2]);
+        const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+        uint32_t angles[3] = {lane, lane, lane};
+        slot<void XB_CDECL(uint32_t*, const float*)>(0x00922290)(angles, dir);  // slot 0x00922290 (direction in, angles out)
+        ScrVec3 yaw;
+        yaw.v[0] = bits_of(0.0f);
+        yaw.v[1] = angles[1];
+        yaw.v[2] = bits_of(0.0f);
+        slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922ba4)(anchor, yaw);  // ScrEnt_SetAngles
+    }
+
+    // Per spline point: the anchor's travel time at 400 units/s (distance * 0.0025); points with a
+    // time above 0.05 are kept, and the kept points / times are copied back over the first ones.
+    DynArray times = {};
+    DynArray kept_times = {};
+    DynArray kept_points = {};
+    for (uint32_t i = 0; i < spline.size; ++i) {
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, anchor);
+        const uint32_t from[3] = {o[0], o[1], o[2]};
+        const uint32_t* const p = at12(&spline, i);
+        const uint32_t point[3] = {p[0], p[1], p[2]};
+        using Distance = long double XB_CDECL(const uint32_t*, const uint32_t*);
+        const float distance = static_cast<float>(slot<Distance>(0x00922268)(from, point));  // Scr_Distance
+        *at4(&times, i) = distance * title_global<float>(0x0083f0e4);                       // * 0.0025
+        if (static_cast<float>(*at4(&times, i) > title_global<float>(0x0083edc8) ? 1 : 0) != title_global<float>(0x0083eafc)) {
+            const uint32_t* const src = at12(&spline, i);
+            const uint32_t n = kept_points.size;
+            reserve12(&kept_points, n + 1, n + 4);
+            uint32_t* const dst = &kept_points.data[n * 3];
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst[2] = src[2];
+            const float* const t = at4(&times, i);
+            const uint32_t m = kept_times.size;
+            reserve4(&kept_times, m + 1, m + 4);
+            reinterpret_cast<float*>(kept_times.data)[m] = *t;
+        }
+    }
+    for (uint32_t i = 0; i < spline.size; ++i) {
+        const uint32_t* const src = at12(&kept_points, i);
+        uint32_t* const dst = at12(&spline, i);
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+    }
+    const uint32_t count = spline.size;
+    for (uint32_t i = 0; i < count; ++i) {
+        const float* const src = at4(&kept_times, i);
+        *at4(&times, i) = *src;
+    }
+
+    // BroScr_WallHopRotate as a thread on the level entity: functor {0x00824630, 0x001356f0, level
+    // entity, anchor, copy of the times, (count + 1) / 2 rounded up}.
+    int32_t half = static_cast<int32_t>(static_cast<float>(static_cast<int32_t>(count) + 1) * title_global<float>(0x0083eb24));  // * 0.5
+    if (static_cast<int32_t>(count) % 2 > 0) ++half;
+    const uint32_t level = title_global<uint32_t>(0x00922ee0);
+    const uint32_t owner = *pointer<uint32_t>(level ? level + 4 : 0);
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x20);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x00824630;
+        functor[1] = 0x001356f0;  // BroScr_WallHopRotate
+        functor[2] = owner;
+        functor[3] = anchor;
+        DynArray* const copy = reinterpret_cast<DynArray*>(&functor[4]);
+        copy->data = nullptr;
+        copy->capacity = 0;
+        copy->size = 0;
+        title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0052d600)(copy, &times);  // DynArray_Assign4_KASSPASS
+        functor[7] = static_cast<uint32_t>(half);
+    }
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, owner, functor,
+                                                                                                    0);  // Scr_CreateThread
+
+    // The anchor (carrying the linked player) moves point by point, waiting each time (less 0.05 when
+    // above 0.1).
+    if (count > 0) {
+        for (uint32_t i = 0; i < spline.size; ++i) {
+            const float t = *at4(&times, i);
+            const uint32_t* const p = at12(&spline, i);
+            slot<void XB_CDECL(uint32_t, const uint32_t*, float, uint32_t, uint32_t)>(0x00922794)(anchor, p, t, 0, 0);  // GScr_MoveTo
+            const float v = *at4(&times, i);
+            if (static_cast<float>(v > title_global<float>(0x0083ebf8) ? 1 : 0) != title_global<float>(0x0083eafc))  // 0.1
+                Scr_Wait(*at4(&times, i) - title_global<float>(0x0083edc8));                                          // - 0.05
+            else
+                Scr_Wait(*at4(&times, i));
+        }
+    }
+    {
+        uint32_t buffer[3];
+        const uint32_t* const o = origin_of(buffer, anchor);
+        const uint32_t from[3] = {o[0], o[1], o[2]};
+        using Distance = long double XB_CDECL(const uint32_t*, const uint32_t*);
+        const float t = static_cast<float>(slot<Distance>(0x00922268)(from, move) *
+                                           title_global<float>(0x0081c378));  // * 0.00571429 (175 units/s)
+        slot<void XB_CDECL(uint32_t, const uint32_t*, float, uint32_t, uint32_t)>(0x00922794)(anchor, move, t, 0, 0);
+    }
+    Scr_WaitTillString(anchor, pointer<const char>(0x0083ac7c));  // "movedone"
+    slot<void XB_CDECL(uint32_t)>(0x0092250c)(player());          // GScr_Unlink
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(mover);             // GScr_Delete
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(anchor);
+    if (kept_points.data) Scr_Free(kept_points.data);
+    if (kept_times.data) Scr_Free(kept_times.data);
+    if (times.data) Scr_Free(times.data);
+    if (spline.data) Scr_Free(spline.data);
+    if (path.data) Scr_Free(path.data);
+    if (points.data) Scr_Free(points.data);
 }
 
 }  // namespace game

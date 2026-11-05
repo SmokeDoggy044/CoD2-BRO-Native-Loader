@@ -37,4 +37,17 @@ uint32_t* XB_CDECL BroScr_GetClosestArrayPointToPlayer_2(uint32_t* out, uint32_t
 // one; the path's last point is appended as is.
 void XB_CDECL BroScr_PlayerHopSplineMath(DynArray* path, float steps, float min_gap, DynArray* out);
 
+// Not registered (thread_switch, docs/levelscript_classes.csv): waits and starts a thread; the C is
+// kept (reviewed against the disassembly, not compared) until script threads are coroutines.
+// 0x001400c0 (0x001400c0-0x00140bcf; Ghidra's body also holds four more functions up to 0x0014183c):
+// the player's hop over a wall. `points` (by value, freed at the end) gives the landing side's point
+// 1; BroScr_WallHopMove finds the landing spot, BroScr_WallHopMidpoint the top (+60), and
+// BroScr_PlayerHopSplineMath(start (player origin + 60), top, landing; 4, 4) the path. The player is
+// linked to a "script_origin" linked to a second one (the anchor, at the player + 60, yawed toward the
+// landing); BroScr_WallHopRotate runs as a thread on the level entity with the per-point times
+// (distance * 0.0025, points of time <= 0.05 dropped); the anchor moves along the path (waits of
+// time - 0.05 when above 0.1), then to the landing at distance * 0.00571429 s, waits for "movedone",
+// unlinks the player and deletes both origins. `to` is only passed on to BroScr_WallHopMove (unread).
+void XB_CDECL BroScr_PlayerHopOverWall(uint32_t level_ent, DynArray points, ScrVec3 to);
+
 }  // namespace game
