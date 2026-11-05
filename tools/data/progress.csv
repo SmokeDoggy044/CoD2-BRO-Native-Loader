@@ -5178,7 +5178,7 @@ address,name,section,module,state,tested,matched
 00160110,BroScr_SpawnerGroupManager_2,.text,levelscript,named,0,0
 001609f0,BroScr_PlantBombObjective,.text,levelscript,named,0,0
 00160d40,BroScr_FlakPanzerThink,.text,levelscript,set-aside,0,0
-00162960,BroScr_Flak88Think,.text,levelscript,named,0,0
+00162960,BroScr_Flak88Think,.text,levelscript,set-aside,0,0
 00163980,BroScr_SetWheelSmokeFxCall_5,.text,levelscript,untested,0,0
 001639f0,BroScr_StoneBreakFx,.text,levelscript,untested,0,0
 00163b40,BroScr_TreadFx,.text,levelscript,set-aside,0,0

@@ -3,6 +3,7 @@
 import csv, os, subprocess, sys
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/"  # the repo (worktree) this file is in
 addr, name, file, score, facts = sys.argv[1:6]
+addr = addr.lower().removeprefix("0x").zfill(8)  # rows use 8 hex digits, no 0x
 extra = sys.argv[6] if len(sys.argv) > 6 else ""
 path = subprocess.run(["python3", R + "tools/waitreach.py", "--path", name], capture_output=True, text=True,
                       cwd=R).stdout.strip().splitlines()[0]

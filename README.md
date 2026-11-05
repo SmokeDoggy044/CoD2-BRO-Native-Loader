@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,008 | 1,703 | 294 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,451 | 271 | 319 | 803 | 50 | 1 |
+| Level-script helpers in the engine code | 1,451 | 271 | 319 | 804 | 49 | 1 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
