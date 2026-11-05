@@ -7030,7 +7030,7 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
     scr_release(&none);
 }
 
-// 0x001d91d0 (no Ghidra function: inside BroScr_AnimScript_Death's range; no references, dead): the crouched
+// 0x001d91d0 (split out of BroScr_AnimScript_Death's old Ghidra range; no references, dead): the crouched
 // combat's aim and shoot step - crouch / stop, the idle aiming at the target, then when the muzzle is clear a
 // cover shoot. Its two assert texts are built and dropped.
 void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent) {

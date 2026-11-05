@@ -6,6 +6,7 @@
 #include "bro_scr_actor.h"
 #include "bro_scr_ai.h"
 #include "bro_scr_ai_anim.h"
+#include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
 #include "bro_scr_anim.h"
@@ -25,6 +26,7 @@
 #include "bro_scr_level.h"
 #include "bro_scr_level_info.h"
 #include "bro_scr_level_threads.h"
+#include "bro_scr_level_threads_2.h"
 #include "bro_scr_mission.h"
 #include "bro_scr_math.h"
 #include "bro_scr_mortar.h"
@@ -3378,6 +3380,7 @@ const Function kFunctions[] = {
     {"BroScr_CreateModel", 0x0015ad70, 0, code(&BroScr_CreateModel), 8, Result::None, Status::Compare},
     {"BroScr_DeleteModel", 0x0015afe0, 0, code(&BroScr_DeleteModel), 8, Result::None, Status::Compare},
     {"BroScr_NotetrackDropGun", 0x0015b3b0, 0, code(&BroScr_NotetrackDropGun), 12, Result::None, Status::Compare},
+    {"BroScr_ArrayUseAnimTreeByAnimname", 0x0015b6c0, 0, code(&BroScr_ArrayUseAnimTreeByAnimname), 12, Result::None, Status::Compare},
     {"BroScr_PlaySoundOn", 0x0015bcf0, 0, code(&BroScr_PlaySoundOn), 8, Result::None, Status::Compare},
     {"BroScr_FlagSet", 0x0015ce00, 0, code(&BroScr_FlagSet), 4, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFx", 0x0015d170, 0, code(&BroScr_SetWheelSmokeFx), 8, Result::None, Status::Compare},
@@ -4533,6 +4536,7 @@ const Function kFunctions[] = {
     {"BroScr_AnimMoveUntilObstacle", 0x001c2b40, 0, code(&BroScr_AnimMoveUntilObstacle), 12, Result::Eax, Status::Compare},
     {"BroScr_ShouldGoProne_2", 0x001c30e0, 0, code(&BroScr_ShouldGoProne_2), 24, Result::Eax, Status::Compare},
     {"BroScr_CheckCanShoot", 0x001c4360, 0, code(&BroScr_CheckCanShoot), 12, Result::Eax, Status::Compare},
+    {"BroScr_CrouchAimAndShoot", 0x001d91d0, 0, code(&BroScr_CrouchAimAndShoot), 4, Result::None, Status::Compare},
     {"BroScr_InitPoseMovementTable", 0x001dab60, 0, code(&BroScr_InitPoseMovementTable), 0, Result::None, Status::Compare},
     {"BroScr_AiMaybeDropHealth", 0x001e0880, 0, code(&BroScr_AiMaybeDropHealth), 8, Result::None, Status::Compare},
     {"BroScr_DropHealth", 0x001e09e0, 0, code(&BroScr_DropHealth), 4, Result::None, Status::Compare},
