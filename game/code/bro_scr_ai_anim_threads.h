@@ -442,5 +442,21 @@ void XB_CDECL BroScr_AnimScript_Reacquire(uint32_t ent);
 void XB_CDECL BroScr_ChoosePoseRandom(uint32_t ent);
 void XB_CDECL BroScr_ChoosePoseRandom_2(uint32_t ent);
 
+// 0x001d6610: teleports to the node, the corner idle, a grenade try (BroScr_TryGrenadeThrow), a
+// reload; casual: the idle for 1 s; else waits out pending sentient slots (flank / cover-me chatter,
+// grenade tries), then by chance the peek anim, a rambo fire (not allied) or BroScr_CoverAttack.
+// `set` is the corner anim set (BroScr_GetCoverLeft/RightAnimSet).
+void XB_CDECL BroScr_CornerBehavior(uint32_t ent, ScrVec3 node, uint32_t yaw, const uint32_t* set);
+// 0x001d70f0 / 0x001d7280 / 0x001d74b0 / 0x001d7680: the left / right cover pose scripts (_1 stand,
+// _2 crouch): the cover idle, movement stop, with `flag` (low byte) the corner A / B stance change,
+// then BroScr_CornerBehavior. _2 releases `text`.
+void XB_CDECL BroScr_CoverLeftPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
+                                     uint32_t flag);
+void XB_CDECL BroScr_CoverLeftPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag);
+void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
+                                      uint32_t flag);
+void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node,
+                                      uint32_t flag);
+
 }  // namespace game
 

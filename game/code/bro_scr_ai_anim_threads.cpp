@@ -3802,20 +3802,20 @@ namespace {
 // (released here), _2 by value.
 using CoverPose1 = void XB_CDECL(uint32_t, const ScriptString*, uint32_t, const uint32_t*, uint32_t);
 using CoverPose2 = void XB_CDECL(uint32_t, ScriptString, uint32_t, const uint32_t*, uint32_t);
-inline void cover_pose_1(uint32_t function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+inline void cover_pose_1(CoverPose1* function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
     ScriptString text;
     scr_string_from(&text, 0x00826bbc);
-    title_function<CoverPose1>(function)(ent, &text, yaw, node, flag);
+    function(ent, &text, yaw, node, flag);
     scr_release(&text);
 }
-inline void cover_pose_2(uint32_t function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+inline void cover_pose_2(CoverPose2* function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
     ScriptString text;
     scr_string_from(&text, 0x00826ba0);
-    title_function<CoverPose2>(function)(ent, text, yaw, node, flag);
+    function(ent, text, yaw, node, flag);
 }
 // Forever: stand / crouch allowed (a launcher never stands), 90 % chance of a pose change; the
 // pose script for the current pose (`checked`: the last case also needs standing allowed).
-inline void choose_pose_random(uint32_t ent, uint32_t pose_1, uint32_t pose_2, bool checked) {
+inline void choose_pose_random(uint32_t ent, CoverPose1* pose_1, CoverPose2* pose_2, bool checked) {
     Scr_EndOnString(ent, pointer<const char>(0x008325dc));
     uint32_t out;
     const uint32_t yaw = *title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00184310)(&out, ent);  // BroScr_GetNodeOrActorYaw
@@ -3842,11 +3842,141 @@ inline void choose_pose_random(uint32_t ent, uint32_t pose_1, uint32_t pose_2, b
 }  // namespace
 
 void XB_CDECL BroScr_ChoosePoseRandom(uint32_t ent) {
-    choose_pose_random(ent, 0x001d70f0, 0x001d7280, true);  // BroScr_CoverLeftPose_1 / _2
+    choose_pose_random(ent, &BroScr_CoverLeftPose_1, &BroScr_CoverLeftPose_2, true);
 }
 
 void XB_CDECL BroScr_ChoosePoseRandom_2(uint32_t ent) {
-    choose_pose_random(ent, 0x001d74b0, 0x001d7680, false);  // BroScr_CoverRightPose_1 / _2
+    choose_pose_random(ent, &BroScr_CoverRightPose_1, &BroScr_CoverRightPose_2, false);
+}
+
+void XB_CDECL BroScr_CornerBehavior(uint32_t ent, ScrVec3 node, uint32_t yaw, const uint32_t* set) {
+    slot<void XB_CDECL(uint32_t, ScrVec3*, uint32_t, uint32_t)>(0x009226f8)(ent, &node, 0, 0);  // GScr_ActorTryTeleport
+    drop_anim_string(0x98);
+    using GrenadeThrow = uint8_t* XB_CDECL(uint8_t*, uint32_t, uint32_t, ScrVec3);
+    const ScrVec3* const throw_offset = reinterpret_cast<const ScrVec3*>(set + 0xc);  // set + 0x30
+    {
+        ScriptString text;
+        scr_string_from(&text, 0x008269bc);
+        BroScr_CornerPlayAnimForTime(ent, title_global<float>(0x0083eb24), set[4], text);  // set + 0x10
+    }
+    uint8_t thrown;
+    title_function<GrenadeThrow>(0x001c9fc0)(&thrown, ent, set[3], *throw_offset);  // BroScr_TryGrenadeThrow
+    BroScr_TryReload(ent, title_global<uint32_t>(0x0083ed2c), set[2]);
+    BroScr_ReloadLauncher(ent);
+    // A missing 0x602384d4 word: the undefined bool under stale stack bytes in the original; 0 here.
+    if (*reinterpret_cast<uint8_t*>(key_slot(ent, 0x602384d4, title_global<uint8_t>(0x00922ed0)))) {  // casual
+        ScriptString text;
+        scr_string_from(&text, 0x008269bc);
+        BroScr_CornerPlayAnimForTime(ent, title_global<float>(0x0083eb20), set[4], text);
+        return;
+    }
+    bool waited = false;
+    if (slot<uint32_t XB_CDECL(uint32_t)>(0x0092271c)(ent)) {  // GScr_ActorHasPendingSentientSlot
+        do {
+            if (waited) {
+                ScriptString text;
+                scr_string_from(&text, 0x008269a8);
+                title_function<void XB_CDECL(uint32_t, ScriptString)>(0x001d5f70)(ent, text);  // BroScr_ChooseFlankOrCoverMe
+            }
+            waited = true;
+            ScriptString text;
+            scr_string_from(&text, 0x0082699c);
+            const float time = static_cast<float>(static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922d20)(ent)));  // ScrActor_GetInt_1308
+            BroScr_CornerPlayAnimForTime(ent, time, set[4], text);
+            if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922d20)(ent)) break;
+            title_function<GrenadeThrow>(0x001c9fc0)(&thrown, ent, set[3], *throw_offset);
+        } while (slot<uint32_t XB_CDECL(uint32_t)>(0x0092271c)(ent));
+    }
+    const int32_t r = random_int(100);
+    if (waited && r < 50 && set[1]) {  // set + 4: the peek anim
+        slot<KnobAll>(0x009225e4)(ent, 0x54e3b2b6, set[1], body_root(), 0x3f800000, 0x3dcccccd, 0x3f800000, 0);
+        handle_note_tracks(ent, 0x54e3b2b6);
+        return;
+    }
+    const uint32_t* const chance = ScrField_h01757a0e(ent);
+    const int32_t roll = random_int(100);
+    bool rambo = false;
+    if (static_cast<float>(as_float(*chance) > static_cast<float>(roll) ? 1 : 0) != title_global<float>(0x0083eafc) &&
+        set[6]) {
+        ScriptString team;
+        rambo = !ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084));
+        scr_release(&team);
+    }
+    if (rambo) {
+        BroScr_CornerRamboFire(ent, set[6], set[7]);  // set + 0x18 / 0x1c
+        return;
+    }
+    ScriptString text;
+    scr_string_from(&text, 0x0082698c);
+    title_function<void XB_CDECL(uint32_t, uint32_t, const uint32_t*, ScriptString)>(0x001cbc70)(ent, yaw, set,
+                                                                                               text);  // BroScr_CoverAttack
+}
+
+namespace {
+// The cover pose scripts: the cover idle (0x001b7360 left / 0x001b7670 right) at the yaw, movement
+// stop, a prone actor 0.5 to slot 0x9226b4; with `flag` the corner A / B stance change; then
+// BroScr_CornerBehavior with the corner anim set. `right` differs in the order of the first steps.
+inline void cover_pose(uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag, bool right, bool to_crouch,
+                       uint32_t idle, uint32_t anim_a, uint32_t anim_b, uint32_t anim_set) {
+    ScriptString name;
+    ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(idle)(ent, yaw);
+    uint32_t type = 0;
+    if (!right) {
+        if (get_int_184(ent) == 0x0738b1a5) slot<void XB_CDECL(uint32_t, uint32_t)>(0x009226b4)(ent, 0x3f000000);
+        if (to_crouch) {
+            *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+            BroScr_GetWeaponType(&type, ent);
+        }
+    } else {
+        *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+        if (to_crouch) BroScr_GetWeaponType(&type, ent);
+        if (get_int_184(ent) == 0x0738b1a5) slot<void XB_CDECL(uint32_t, uint32_t)>(0x009226b4)(ent, 0x3f000000);
+    }
+    if (to_crouch && type == 0xa39d17dd)
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    if (static_cast<uint8_t>(flag)) {
+        const uint32_t pose = to_crouch ? 0xc1165808 : 0x070b89a4;
+        if (*handle_slot(ent, 0xbfc60f36) == 0x61) {
+            if (to_crouch)
+                BroScr_PlayStanceTransitionAnim(ent, title_global<uint32_t>(anim_a), title_global<float>(0x0083eb24), pose,
+                                                0x00385d90, 0);
+            else
+                play_cover_anim(ent, title_global<uint32_t>(anim_a), pose);
+        } else {
+            play_cover_anim(ent, title_global<uint32_t>(anim_b), pose);
+        }
+    }
+    const uint32_t* const set = pointer<uint32_t>(title_function<uint32_t XB_CDECL(uint32_t)>(anim_set)(ent));
+    ScrVec3 at;
+    at.v[0] = node[0];
+    at.v[1] = node[1];
+    at.v[2] = node[2];
+    BroScr_CornerBehavior(ent, at, yaw, set);
+    scr_release(&name);
+}
+}  // namespace
+
+// Note: CoverLeftPose plays the "right" corner stance anims and CoverRightPose the "left" ones.
+void XB_CDECL BroScr_CoverLeftPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
+                                     uint32_t flag) {
+    (void)text;
+    cover_pose(ent, yaw, node, flag, false, false, 0x001b7360, 0x008ce358, 0x008cdecc,
+               0x001ac2c0);  // BroScr_CoverLeftIdle, cornercrouch2stand_right / cornerb_, BroScr_GetCoverLeftAnimSet
+}
+void XB_CDECL BroScr_CoverLeftPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    cover_pose(ent, yaw, node, flag, false, true, 0x001b7360, 0x008ce3d0, 0x008ce130, 0x001ac2c0);  // stand2crouch_right
+    scr_release(&text);
+}
+void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
+                                      uint32_t flag) {
+    (void)text;
+    cover_pose(ent, yaw, node, flag, true, false, 0x001b7670, 0x008ce34c, 0x008cdec0,
+               0x001ac360);  // BroScr_CoverRightIdle, cornercrouch2stand_left / cornerb_, BroScr_GetCoverRightAnimSet
+}
+void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    cover_pose(ent, yaw, node, flag, true, true, 0x001b7670, 0x008ce3c4, 0x008ce124, 0x001ac360);  // stand2crouch_left
+    scr_release(&text);
 }
 
 }  // namespace game
