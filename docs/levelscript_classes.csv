@@ -248,3 +248,7 @@ address,name,class,evidence
 001522e0,BroScr_StukaDropBombsThread,thread_switch,"compare: mismatches only in a host block holding a saved stack pointer/stack copy that moves with the C frame depth (StukaDropBombsThread: also with its callee run at the original ESP); path BroScr_StukaDropBombs 0x0014aaa0 -> GScr_Spawn; C kept, not registered"
 00153ed0,BroScr_WillyJeepSetup_2,thread_switch,"compare: mismatches only in a host block holding a saved stack pointer that moves with the C frame depth; path Scr_CreateThread slot 0x0092216c with 0x0013f6f0 / 0x00128f30 / 0x00134a90 (the health thread 0x0014d0a0 alone matched in VehicleSetHealth_Jeep); C kept, not registered"
 00145d60,BroScr_WillyJeepSetup,thread_switch,"not reached; starts the same threads as BroScr_WillyJeepSetup_2 (0x0013f6f0 / 0x00128f30 / 0x00134a90); C kept, not registered"
+0013ab60,BroScr_TakeSpawnerSaveState,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
+0013c150,BroScr_GetNonSentientsByGroupname,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
+0013c3f0,BroScr_GetClosestNodeToEnt,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
+00152730,BroScr_GetAIByGroupFieldCall,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"

@@ -17,10 +17,12 @@ set(game_code_sources
     bro_scr_level.cpp
     bro_scr_math.cpp
     bro_scr_nodes_spawner.cpp
+    bro_scr_squad.cpp
     bro_scr_stubs.cpp
     bro_scr_util.cpp
     bro_scr_vehicle.cpp
     bro_scr_vehicle_health.cpp
+    bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
     cg_ents.cpp
     cg_hud.cpp
