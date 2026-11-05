@@ -129,4 +129,22 @@ void XB_CDECL BroScr_FindFlakvierlings(uint32_t health, uint32_t a2);
 uint32_t* XB_CDECL BroScr_SpawnFlakvierling(uint32_t* out, ScriptString targetname, uint32_t spawnflags, ScrVec3 origin,
                                             uint32_t node, uint32_t health, uint32_t a2);
 
+// 0x0015e7f0: every script_model / script_vehicle with the model xmodel/turret_flak88(_sno):
+// damaged model field 0xb8eafadd = "xmodel/turret_flak88_d", anim tree "flak88"; by its type
+// (field 0xd1c52a4f): none -> think 0x00140bd0 (field 0x2f31323b), "flakair"/"flakairlow" ->
+// think 0x00140fc0, "controlled"/"flaktank" -> anim_thread 0x00140bd0, each with target filter
+// BroScr_IsFlakTarget (0xc511e266); "player_only" starts BroScr_TankShellReadyHud on it and ends
+// the setup. Any other type: nothing.
+void XB_CDECL BroScr_SetupFlak88s();
+
+// 0x00155610 / 0x00155e50: health 300 and five plane threads (damage watch, crash, follow path,
+// takeoff / empty); field 0x4af51227 = 0; BroScr_StukaDropBombsThread(plane, bombs) unless bombs
+// is the undefined int. Unless script_noteworthy is "noturrets": a misc_turret per wing
+// ("mg50cal_air_single" / "P47_WING_TURRET", the P47 in the level's zone +0x480) in fields
+// leftturret / rightturret, mode 0xdc26d84c, model "w_50cal" / "v_p47_guns", at and linked to
+// tag_gunLeft / tag_gunRight with the plane's angles. Both argument slots hold string
+// temporaries, as the original.
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_50cal(uint32_t plane, uint32_t bombs);
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_P47(uint32_t plane, uint32_t bombs);
+
 }  // namespace game

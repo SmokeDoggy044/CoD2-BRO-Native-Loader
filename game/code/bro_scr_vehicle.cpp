@@ -1,6 +1,7 @@
 #include "bro_scr_vehicle.h"
 
 #include <cstring>
+#include <initializer_list>
 
 #include "bro_scr_common.h"
 #include "bro_scr_util.h"
@@ -720,6 +721,198 @@ uint32_t* XB_CDECL BroScr_SpawnFlakvierling(uint32_t* out, ScriptString targetna
     *out = vehicle;
     scr_release(&targetname);
     return out;
+}
+
+namespace {
+
+uint32_t* zero_key_value(uint32_t ent, uint32_t hash) {
+    ScriptKeyTable* const table = BroScr_ScriptObjectOrEmpty(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, hash);
+    if (!value) value = ScriptKeyTable_Set(table, hash, 0);
+    return value;
+}
+
+bool flak_type_is(uint32_t ent, uint32_t text) {
+    const ScriptString* type = title_function<ScriptString* XB_CDECL(uint32_t)>(0x00193680)(ent);  // ScrField_hd1c52a4f
+    return ScriptString_Equals(type, reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
+}
+
+bool flak_type_defined(uint32_t ent) {
+    bool defined;
+    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x001936b0)(&defined, ent);  // ScrField_hd1c52a4f_IsDefined
+    return defined;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_SetupFlak88s() {
+    DynArray guns = {nullptr, 0, 0};
+    DynArray vehicles = {nullptr, 0, 0};
+    using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t);
+    {
+        ScriptString classname;
+        scr_string_from(&classname, 0x0083ab98);  // "script_model"
+        title_function<GetEntArray>(0x0011f5d0)(&classname, 0xa106e9bd, &guns, 0);  // Scr_GetEntArray
+        scr_release(&classname);
+        scr_string_from(&classname, 0x0083ab78);  // "script_vehicle"
+        title_function<GetEntArray>(0x0011f5d0)(&classname, 0xa106e9bd, &vehicles, 0);
+        scr_release(&classname);
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(vehicles.size); ++i)
+        DynArray_PushBack(reinterpret_cast<uint8_t*>(&guns), ent_at(&vehicles, i));
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guns.size); ++i) {
+        ScriptString model1;
+        ScriptString model2;
+        bool flak = ScriptString_Equals(ScrCall_ScrEnt_GetModel(ent_at(&guns, i), &model1),
+                                        reinterpret_cast<const char*>(static_cast<uintptr_t>(0x0082521c)));  // "xmodel/turret_flak88"
+        bool second = false;
+        if (!flak) {
+            second = true;
+            flak = ScriptString_Equals(ScrCall_ScrEnt_GetModel(ent_at(&guns, i), &model2),
+                                       reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825200)));  // "xmodel/turret_flak88_sno"
+        }
+        if (second) scr_release(&model2);
+        scr_release(&model1);
+        if (!flak) continue;
+        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(field_string(*ent_at(&guns, i), 0xb8eafadd),
+                                                                            0x00824654);  // "xmodel/turret_flak88_d"
+        {
+            ScriptString tree;
+            scr_string_from(&tree, 0x007f49d4);  // "flak88"
+            scr_slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(*ent_at(&guns, i), &tree);  // GScr_UseAnimTree
+            scr_release(&tree);
+        }
+        // Type field 0xd1c52a4f: think thread (0x2f31323b / anim_thread) and target filter (0xc511e266).
+        uint32_t* filter = nullptr;
+        if (!flak_type_defined(*ent_at(&guns, i))) {
+            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = 0x00140bd0;
+            filter = zero_key_value(*ent_at(&guns, i), 0xc511e266);
+        } else if (flak_type_is(*ent_at(&guns, i), 0x008251f8) || flak_type_is(*ent_at(&guns, i), 0x00823538)) {  // "flakair", "flakairlow"
+            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = 0x00140fc0;
+            filter = zero_key_value(*ent_at(&guns, i), 0xc511e266);
+        } else if (flak_type_is(*ent_at(&guns, i), 0x008251ec) || flak_type_is(*ent_at(&guns, i), 0x00823544)) {  // "controlled", "flaktank"
+            *title_function<uint32_t* XB_CDECL(uint32_t)>(0x0012e800)(*ent_at(&guns, i)) = 0x00140bd0;  // ScrField_anim_thread
+            filter = title_function<uint32_t* XB_CDECL(uint32_t)>(0x0012acc0)(*ent_at(&guns, i));         // ScrField_hc511e266
+        } else if (flak_type_is(*ent_at(&guns, i), 0x008251e0)) {  // "player_only": the HUD thread, and the setup ends
+            const uint32_t gun = *title_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(0x0045cb70)(&guns, i);  // DynArray_At
+            const uint32_t args[6] = {0, 0, 0, 0, 0x0015b990, gun};  // BroScr_TankShellReadyHud
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+                args[0], args[1], args[2], args[3], args[4], args[5]);  // Scr_StartThreadFunctor1
+            break;
+        }
+        if (filter) *filter = 0x001204a0;  // BroScr_IsFlakTarget
+        if (flak_type_defined(*ent_at(&guns, i))) flak_type_is(*ent_at(&guns, i), 0x008251ec);  // "controlled" (unused)
+    }
+    if (vehicles.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(vehicles.data);  // Scr_Free
+    if (guns.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(guns.data);
+}
+
+namespace {
+
+struct WingTurrets {
+    uint32_t threads[5];  // started on the plane in this order
+    uint32_t weapon;      // turret weapon text
+    uint32_t model;       // turret model text
+    bool find_zone;       // GScr_FindZone of the level's zone name (+0x480) for the spawn
+};
+
+uint32_t turret_field(uint32_t plane, uint32_t hash) { return *zero_key_value(plane, hash); }
+
+// GScr_GetTagOrigin(plane, tag) with the out vector preset to the undefined lane.
+ScrVec3 plane_tag_origin(uint32_t plane, ScriptString* tag) {
+    const uint32_t lane = title_global<uint32_t>(0x00922eb8);
+    uint32_t out[3] = {lane, lane, lane};
+    scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x0092261c)(plane, out, tag);
+    return {{out[0], out[1], out[2]}};
+}
+
+// Shared body: the plane's threads, the bomb thread, then (unless script_noteworthy is
+// "noturrets") a misc_turret under each wing linked to tag_gunLeft / tag_gunRight. The original
+// keeps its string temporaries in both argument slots (plane: the noturrets byte, classnames,
+// models, tags; bombs: the noteworthy and the weapon names).
+void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTurrets& spec) {
+    const uint32_t plane = *plane_slot;
+    const uint32_t bombs = *bombs_slot;
+    ScriptString* const plane_temp = reinterpret_cast<ScriptString*>(plane_slot);
+    ScriptString* const bombs_temp = reinterpret_cast<ScriptString*>(bombs_slot);
+    uint32_t zone = 0;
+    if (spec.find_zone) {
+        ScriptString* name = &title_global<ScriptString>(title_global<uint32_t>(0x00922ee0) + 0x480);
+        if (name->rep) zone = scr_slot<uint32_t XB_CDECL(ScriptString*)>(0x00922494)(name);  // GScr_FindZone
+    }
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(plane, 300);  // ScrEnt_SetHealth
+    for (uint32_t thread : spec.threads) StartVehicleThread(plane, thread);
+    *BroScr_FieldSlot(plane, 0x4af51227) = 0;
+    if (bombs != title_global<uint32_t>(0x00922ec0)) start_vehicle_thread2(plane, 0x001522e0, bombs);  // BroScr_StukaDropBombsThread
+    {
+        ScriptString noteworthy;
+        bool second = false;
+        bool no_turrets = false;
+        if (ScrCall_ScrEnt_GetScriptNoteworthy(plane_slot, &noteworthy)->rep != nullptr) {
+            second = true;
+            no_turrets = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(plane_slot, bombs_temp),
+                                             reinterpret_cast<const char*>(static_cast<uintptr_t>(0x007f60b4)));  // "noturrets"
+        }
+        *reinterpret_cast<uint8_t*>(plane_slot) = no_turrets;
+        if (second) scr_release(bombs_temp);
+        scr_release(&noteworthy);
+        if (no_turrets) return;
+    }
+    using SpawnTurret = uint32_t XB_CDECL(ScriptString*, const uint32_t*, ScriptString*, uint32_t);
+    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {  // leftturret, rightturret
+        scr_string_from(bombs_temp, spec.weapon);
+        scr_string_from(plane_temp, 0x00839e8c);  // "misc_turret"
+        const uint32_t origin[3] = {0, 0, 0};
+        const uint32_t turret = scr_slot<SpawnTurret>(0x00922300)(plane_temp, origin, bombs_temp, zone);  // GScr_SpawnTurret
+        *zero_key_value(plane, hash) = turret;
+        scr_release(plane_temp);
+        scr_release(bombs_temp);
+    }
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922584)(turret_field(plane, 0xef6522f9), 0xdc26d84c);  // GScr_Turret_SetMode
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922584)(turret_field(plane, 0xeead8089), 0xdc26d84c);
+    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {
+        scr_string_from(plane_temp, spec.model);
+        scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(turret_field(plane, hash), plane_temp, 0);  // GScr_SetModel
+        scr_release(plane_temp);
+    }
+    scr_string_from(plane_temp, 0x008057d4);  // "tag_gunLeft"
+    ScrVec3 at = plane_tag_origin(plane, plane_temp);
+    scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(turret_field(plane, 0xef6522f9), at);  // ScrEnt_SetOrigin
+    scr_release(plane_temp);
+    scr_string_from(plane_temp, 0x008057c4);  // "tag_gunRight"
+    at = plane_tag_origin(plane, plane_temp);
+    scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(turret_field(plane, 0xeead8089), at);
+    scr_release(plane_temp);
+    using GetAngles = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    for (uint32_t hash : {0xef6522f9u, 0xeead8089u}) {
+        uint32_t buffer[3];
+        const uint32_t* a = scr_slot<GetAngles>(0x00922ba0)(buffer, plane);
+        const ScrVec3 angles = {{a[0], a[1], a[2]}};
+        scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922ba4)(turret_field(plane, hash), angles);  // ScrEnt_SetAngles
+    }
+    using Link = void XB_CDECL(uint32_t, uint32_t, ScriptString*, const uint32_t*, const uint32_t*, uint32_t);
+    const uint32_t zero[6] = {0, 0, 0, 0, 0, 0};
+    scr_string_from(plane_temp, 0x008057d4);
+    scr_slot<Link>(0x009224f4)(turret_field(plane, 0xef6522f9), plane, plane_temp, &zero[3], &zero[0], 0);  // GScr_LinkToTagWithOffset
+    scr_release(plane_temp);
+    ScriptString tag;
+    scr_string_from(&tag, 0x008057c4);
+    scr_slot<Link>(0x009224f4)(turret_field(plane, 0xeead8089), plane, &tag, &zero[3], &zero[0], 0);
+    scr_release(&tag);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_50cal(uint32_t plane, uint32_t bombs) {
+    // BroScr_WingTurretDamageWatch, StukaPlaneCrash, VehicleFollowPathToEnd, StukaTakeoff, EmptyFunc_3
+    static const WingTurrets kSpec = {{0x0013a830, 0x00143020, 0x00150ca0, 0x001216d0, 0x00121790}, 0x00824e6c, 0x00824e64, false};
+    plane_wing_turrets(&plane, &bombs, kSpec);  // "mg50cal_air_single", "w_50cal"
+}
+
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_P47(uint32_t plane, uint32_t bombs) {
+    // BroScr_WingTurretDamageWatch_2, P47PlaneCrash, VehicleFollowPathToEnd_2, EmptyFunc_4, EmptyFunc_5
+    static const WingTurrets kSpec = {{0x0013aaa0, 0x00143460, 0x00150f50, 0x00121940, 0x00121950}, 0x00824e80, 0x00824d78, true};
+    plane_wing_turrets(&plane, &bombs, kSpec);  // "P47_WING_TURRET", "v_p47_guns"
 }
 
 }  // namespace game

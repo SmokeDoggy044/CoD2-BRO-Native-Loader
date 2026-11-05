@@ -1,6 +1,8 @@
 #include "bro_scr_mission.h"
 
 #include "bro_scr_common.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
 #include "scr_access.h"
 #include "title_data.h"
 
@@ -75,6 +77,146 @@ void XB_CDECL BroScr_PrecacheModelBySpawn(ScriptString model) {
     scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, &model, 0);              // GScr_SetModel
     scr_slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);                                                  // GScr_Delete
     scr_release(&model);
+}
+
+namespace {
+
+uint32_t level_entity() {
+    const uint32_t level = title_global<uint32_t>(0x00922ee0);
+    return title_global<uint32_t>(level ? level + 4 : 0);
+}
+
+using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+
+// Script thread on `ent`: functor {0x007f5ba0, function, ent}.
+void start_ent_thread(uint32_t ent, uint32_t function) {
+    uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0xc));  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = function;
+        functor[2] = ent;
+    }
+    scr_slot<CreateThread>(0x0092216c)(0, 0, 0, ent, functor, 0);
+}
+
+// Script thread on the level entity with `ent` as its argument: functor {0x007f4a28, function, level, ent}.
+void start_level_thread(uint32_t ent, uint32_t function) {
+    const uint32_t level = level_entity();
+    uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0x10));
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = function;
+        functor[2] = level;
+        functor[3] = ent;
+    }
+    scr_slot<CreateThread>(0x0092216c)(0, 0, 0, level, functor, 0);
+}
+
+bool field_defined(uint32_t is_defined, uint32_t ent) {
+    bool defined;
+    title_function<bool* XB_CDECL(bool*, uint32_t)>(is_defined)(&defined, ent);
+    return defined;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
+    const uint32_t ent = trigger;
+    bool not_wave = true;
+    {
+        ScriptString name1;
+        ScriptString name2;
+        bool second = false;
+        if (ScrCall_ScrEnt_GetTargetname(&trigger, &name1)->rep != nullptr) {
+            second = true;
+            not_wave = !ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&trigger, &name2),
+                                            reinterpret_cast<const char*>(static_cast<uintptr_t>(0x0081351c)));  // "friendly_wave"
+        }
+        if (second) scr_release(&name2);
+        scr_release(&name1);
+    }
+    if (not_wave) {
+        ScriptString target;
+        const bool has_target = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep != nullptr;
+        scr_release(&target);
+        if (has_target) {
+            // Spawners (spawnflags bit 0) among the targets: BroScr_TriggerSpawnerThink(trigger, &spawner),
+            // ending on 0xe2a210cf.
+            DynArray targets = {nullptr, 0, 0};
+            title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(
+                ScrCall_ScrEnt_GetTarget(&trigger, &target), 0x0d786b4c, &targets, 0);  // Scr_GetEntArray
+            scr_release(&target);
+            const auto at = [&targets](uint32_t i) {
+                if (i >= targets.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&targets), i + 1, i + 4);
+                return targets.data + i;
+            };
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
+                if (!(scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922b30)(*at(i)) & 1)) continue;  // ScrEnt_GetSpawnflags
+                using BeginThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
+                title_function<BeginThread>(0x0078a980)(0, 0, 0, ent, 0xe2a210cf, 0x00130c80, ent, at(i));  // Scr_BeginThread_ent_ent
+            }
+            if (targets.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(targets.data);  // Scr_Free
+        }
+    }
+    static const uint32_t kFieldThreads[8][2] = {
+        {0x0018e360, 0x001a5940},  // script_increment: BroScr_IncrementTriggerThink
+        {0x0018fe00, 0x001d46c0},  // script_fallback: BroScr_FallbackerTriggerThink
+        {0x00192c90, 0x001a4910},  // 0xbe5f9a9f: BroScr_Mg42AutoTriggerThink
+        {0x00190a40, 0x001a5f10},  // script_killspawner: BroScr_FloodSpawnerDeleteWatch
+        {0x00192b50, 0x00120fb0},  // 0x83048760
+        {0x001958b0, 0x00120ff0},  // script_hint
+        {0x0018f450, 0x00121010},  // script_exploder: BroScr_ExploderTriggerThink
+        {0x00191a30, 0x00120e60},  // ambient: BroScr_EmptyFunc_2
+    };
+    for (const auto& field : kFieldThreads)
+        if (field_defined(field[0], ent)) start_ent_thread(ent, field[1]);
+    if (field_defined(0x00191f20, ent)) start_level_thread(ent, 0x00120e70);  // 0x7fa1fc35: BroScr_StartFxOnTrigger
+    if (field_defined(0x0018ff80, ent)) start_level_thread(ent, 0x00120f10);  // 0x0bfd0e20
+    {
+        ScriptString name;
+        const bool named = ScrCall_ScrEnt_GetTargetname(&trigger, &name)->rep != nullptr;
+        scr_release(&name);
+        if (!named) return;
+    }
+    const auto name_is = [&trigger](uint32_t text) {
+        ScriptString name;
+        const bool same = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&trigger, &name),
+                                              reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
+        scr_release(&name);
+        return same;
+    };
+    // The original keeps a stack address (its entry ESP - 0x40) in the argument slot on the
+    // Scr_StartThreadFunctor1 and wall-hop paths.
+    const uint32_t stack_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&trigger)) - 4 - 0x40;
+    const auto functor1 = [&trigger, ent, stack_word](uint32_t function) {
+        trigger = stack_word;
+        using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+        title_function<StartThread>(0x0011a910)(0, 0, 0, 0, function, ent);  // Scr_StartThreadFunctor1
+    };
+    const auto level_thread = [&trigger](uint32_t function) {
+        using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
+        title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, function, level_entity(), &trigger);  // Scr_StartThread_ent_ent
+    };
+    if (name_is(0x00824e54)) {  // "flood_spawner"
+        start_ent_thread(ent, 0x001b4e40);  // BroScr_FloodSpawnerTriggerThink
+    } else if (name_is(0x00824e44)) {  // "grenade_spawner"
+        start_ent_thread(ent, 0x001c51a0);  // BroScr_GrenadeThrowTriggers
+    } else if (name_is(0x00824e2c)) {  // "grenade_spawner_once"
+        functor1(0x001c5790);  // BroScr_GrenadeSpawnerOnceTriggerThink
+    } else if (name_is(0x0081351c) || name_is(0x00824e18)) {  // "friendly_wave", "friendly_wave_off"
+        level_thread(0x001b5880);  // BroScr_SetFriendlyWaveTrigger
+    } else if (name_is(0x00824724)) {  // "friendly_chat"
+        functor1(0x00149200);  // BroScr_FriendlyChatTriggerThink
+    } else if (name_is(0x00824e08)) {  // "axis_touching"
+        level_thread(0x00141c00);  // BroScr_HalftrackGunnerGrenadeHint
+    } else if (name_is(0x00824dfc)) {  // "axis_dead"
+        level_thread(0x00142070);  // BroScr_SpawnGuyDiedThink
+    } else if (name_is(0x00824dec)) {  // "friendly_mg42"
+        level_thread(0x001bf200);  // BroScr_FriendlyMg42TriggerThink
+    } else if (name_is(0x00824de4)) {  // "context"
+        trigger = stack_word;
+        title_function<void XB_CDECL(uint32_t)>(0x00154100)(ent);  // BroScr_SetupWallHopTrigger
+    }
 }
 
 }  // namespace game

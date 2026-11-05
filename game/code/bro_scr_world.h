@@ -51,4 +51,11 @@ void XB_CDECL BroScr_WindowBreakThink(uint32_t trigger);
 // BroScr_TreeBurstTriggerThink on each (flag 1 for the first group, 0 for the scripted).
 void XB_CDECL BroScr_SetupTreeBursts();
 
+// 0x0015d7b0: with per_target set, for each target of the tree: a script_model at it with the
+// undamaged model (Bro__treeburst_gmi__tree_burst_getUndamagedModel), targetname "<tree number
+// (0x4c7e3571)>tree_to_die_<i>" and the target's angles; the target then targets it, becomes
+// animname "treeburst" with its anim tree and flag 0x400. Without: the same for the tree itself
+// ("..._0"). Uses the flag's argument slot for string temporaries, as the original.
+void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target);
+
 }  // namespace game

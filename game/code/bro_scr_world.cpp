@@ -2,6 +2,7 @@
 
 #include "bro_scr_common.h"
 #include "bro_scr_util.h"
+#include "g_scr_runtime.h"
 #include "g_script.h"
 #include "scr_access.h"
 #include "qcommon_core.h"
@@ -311,6 +312,133 @@ void XB_CDECL BroScr_SetupTreeBursts() {
     }
     setup_tree_group(0x0082540c, 0, &number);  // "tree_burst_scripted"
     if (trees.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(trees.data);
+}
+
+namespace {
+
+using CopyString = void XB_THISCALL(ScriptString*, const ScriptString*);
+
+void from_int(ScriptString* out, uint32_t value) { title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011df90)(out, value); }  // ScriptString_FromInt2
+
+// A slot setter (ScrEnt_SetTargetname / SetTarget / SetAnimname) with a copy of `value`.
+void set_string(uint32_t slot, uint32_t ent, const ScriptString* value) {
+    ScriptString copy;
+    title_function<CopyString>(0x0011d5e0)(&copy, value);  // ScriptString_Copy
+    scr_slot<void XB_CDECL(uint32_t, ScriptString)>(slot)(ent, copy);
+}
+
+// GScr_UseAnimTree(ent, the level's tree for its animname); the animname goes to `temp`.
+void use_animname_tree(uint32_t* ent, ScriptString* temp) {
+    const ScriptString* name = ScrCall_ScrEnt_GetAnimname(ent, temp);
+    uint32_t hash;
+    Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
+    using Index = ScriptString* XB_THISCALL(uint32_t, const uint32_t*);
+    scr_slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(
+        *ent, title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x238, &hash));  // GScr_UseAnimTree
+    scr_release(temp);
+}
+
+// model = Bro__treeburst_gmi__tree_burst_getUndamagedModel(ent's model) into `temp`.
+void undamaged_model(ScriptString* model, uint32_t* ent, ScriptString* temp) {
+    ScriptString current;
+    ScrCall_ScrEnt_GetModel(ent, &current);
+    title_function<ScriptString* XB_CDECL(ScriptString*, ScriptString)>(0x0015d650)(temp, current);
+    title_function<CopyString>(0x0011d600)(model, temp);  // ScriptString_Assign
+    scr_release(temp);
+}
+
+uint32_t spawn_model_at(ScriptString* temp, uint32_t ent) {
+    scr_string_from(temp, 0x0083ab98);  // "script_model"
+    using GetOrigin = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    uint32_t buffer[3];
+    const uint32_t* o = scr_slot<GetOrigin>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+    const uint32_t origin[3] = {o[0], o[1], o[2]};
+    const uint32_t spawned = scr_slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(temp, origin, 0);  // GScr_Spawn
+    scr_release(temp);
+    return spawned;
+}
+
+void copy_angles(uint32_t to, uint32_t from) {
+    using GetAngles = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    uint32_t buffer[3];
+    const uint32_t* a = scr_slot<GetAngles>(0x00922ba0)(buffer, from);
+    scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922ba4)(to, ScrVec3{{a[0], a[1], a[2]}});  // ScrEnt_SetAngles
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
+    // The original uses the flag's argument slot for its string temporaries.
+    ScriptString* const temp = reinterpret_cast<ScriptString*>(&per_target);
+    ScriptString model;
+    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&model, 0);  // ScriptString_FromRep(null)
+    if (static_cast<uint8_t>(per_target)) {
+        // A dying copy of each target: script_model "<number>tree_to_die_<i>" with the undamaged
+        // model, the target's angles, targeting the original, which becomes a "treeburst".
+        DynArray targets = {nullptr, 0, 0};
+        title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(
+            ScrCall_ScrEnt_GetTarget(&tree, temp), 0x0d786b4c, &targets, 0);  // Scr_GetEntArray
+        scr_release(temp);
+        const bool has_target = ScrCall_ScrEnt_GetTarget(&tree, temp)->rep != nullptr;
+        scr_release(temp);
+        if (has_target) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
+                uint32_t spawned = spawn_model_at(temp, *array_at(&targets, i));
+                ScriptString undamaged;
+                undamaged_model(&model, array_at(&targets, i), &undamaged);
+                scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(spawned, &model, 0);  // GScr_SetModel
+                ScriptString number;
+                from_int(&number, *BroScr_FieldSlot(tree, 0x4c7e3571));
+                ScriptString index;
+                from_int(&index, i);
+                ScriptString prefix;
+                ScriptString_ConcatCString(&prefix, &number, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825060)));  // "tree_to_die_"
+                ScriptString name;
+                ScriptString_Concat(&name, &prefix, &index);
+                set_string(0x00922b54, spawned, &name);  // ScrEnt_SetTargetname
+                scr_release(&name);
+                scr_release(&prefix);
+                copy_angles(spawned, *array_at(&targets, i));
+                ScriptString targetname;
+                const ScriptString* target = ScrCall_ScrEnt_GetTargetname(&spawned, &targetname);
+                set_string(0x00922b4c, *array_at(&targets, i), target);  // ScrEnt_SetTarget
+                scr_release(&targetname);
+                ScriptString anim;
+                scr_string_from(&anim, 0x007f4954);  // "treeburst"
+                set_string(0x00922c44, *array_at(&targets, i), &anim);  // ScrEnt_SetAnimname
+                scr_release(&anim);
+                ScriptString animname;
+                use_animname_tree(array_at(&targets, i), &animname);
+                scr_slot<void XB_CDECL(uint32_t)>(0x00922568)(*array_at(&targets, i));  // GScr_SetEntFlag400
+                scr_release(&index);
+                scr_release(&number);
+            }
+        }
+        if (targets.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(targets.data);  // Scr_Free
+    } else {
+        // A dying copy of the tree itself: "<number>tree_to_die_0".
+        uint32_t spawned = spawn_model_at(temp, tree);
+        undamaged_model(&model, &tree, temp);
+        scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(spawned, &model, 0);
+        ScriptString number;
+        from_int(&number, *BroScr_FieldSlot(tree, 0x4c7e3571));
+        ScriptString prefix;
+        ScriptString_ConcatCString(&prefix, &number, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825060)));
+        set_string(0x00922b54, spawned,
+                   title_function<ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t)>(0x0011b1c0)(temp, &prefix, 0));  // ScriptString_PlusInt
+        scr_release(temp);
+        scr_release(&prefix);
+        copy_angles(spawned, tree);
+        set_string(0x00922b4c, tree, ScrCall_ScrEnt_GetTargetname(&spawned, temp));
+        scr_release(temp);
+        scr_string_from(temp, 0x007f4954);  // "treeburst"
+        set_string(0x00922c44, tree, temp);
+        scr_release(temp);
+        use_animname_tree(&tree, temp);
+        scr_slot<void XB_CDECL(uint32_t)>(0x00922568)(tree);  // GScr_SetEntFlag400
+        scr_release(&number);
+    }
+    scr_release(&model);
 }
 
 }  // namespace game
