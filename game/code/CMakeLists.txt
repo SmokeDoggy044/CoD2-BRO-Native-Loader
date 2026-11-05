@@ -40,6 +40,7 @@ set(game_code_sources
     bro_scr_vehicle_health.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
+    bro_scr_wait_misc.cpp
     bro_scr_wait_notify.cpp
     bro_scr_wallhop.cpp
     bro_scr_world.cpp
