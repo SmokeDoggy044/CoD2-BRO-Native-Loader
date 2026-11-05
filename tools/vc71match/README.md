@@ -34,6 +34,13 @@ file does not have yet). `--thread-switch` adds every `thread_switch` row of
 `docs/*_classes.csv`. With names or `--thread-switch` only the `.cpp` files that define
 them are compiled (about 1.5 minutes for a few files, most of it Wine start-up).
 
+Identical copies written as one-line wrappers around a shared `inline` body compare
+better with `--flags "<default flags> /Dinline=__forceinline"` (VC7.1 does not inline a
+body with an endless loop on its own).
+
+A full run (no names) still stops at headers VC7.1 cannot read (in-class member
+initialisers in cl.h and ngl.h, 2026-11-05); a selection of bro_scr_* files compiles.
+
 Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 `/arch:SSE2` and no `/arch`, none scored higher (2026-10-19: 58 exact of 346).
 
@@ -57,7 +64,8 @@ Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 
 ## Reading the scores
 
-Compared: mnemonics and operands; jumps inside a function as function-relative
+Compared: mnemonics and operands (a call through a pointer keeps the pointer's address,
+`call [ptr 922b90]`, so script-interface slots compare by slot); jumps inside a function as function-relative
 offsets; calls and tail jumps by callee name (symbol file on the XBE side,
 relocations on ours); every constant inside the image reads `ADDR` on both sides.
 So a wrong global address is not caught here (`--compare` catches it).
@@ -68,5 +76,9 @@ Expected misses, not decomp bugs:
   cannot come from one-file compiles; `asm-entry` functions are not compared.
 - Thiscall-typed calls through function pointers (EDX, above).
 - Instruction scheduling: an equal instruction one slot earlier counts as a change.
+- Compiled-script code: the title builds by-value handle arguments in place (`push ecx;
+  mov eax,esp; mov [eax],x`), keeps EH state stores and re-reads interface slots at each
+  call (VC7.1 hoists them into a register): scores of 30-70 are normal there; compare the
+  order of calls and constants instead.
 
 A low score next to a clean `--compare` record is worth a read, not a rewrite.
