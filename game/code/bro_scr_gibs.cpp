@@ -80,6 +80,66 @@ void gib_thread(uint32_t thread, uint32_t gib, uint32_t a, uint32_t b, uint32_t 
                                                                                                     0);  // Scr_CreateThread
 }
 
+// The level's gib count (+0x314 of the level object at 0x00922ee0).
+inline int32_t* spawned_count() { return pointer<int32_t>(title_global<uint32_t>(0x00922ee0) + 0x314); }
+
+// The debris gibs' jitter: gib `i` is moved by (Scr_RandomFloat(10) - 5, 0, Scr_RandomFloat(30) - 15)
+// from its own origin (the z offset keeps the x87's precision until it is stored).
+inline void jitter_gib(DynArray* gibs, uint32_t i) {
+    const float x_random = static_cast<float>(random_float(0x41200000));                                 // 10
+    const float z_offset = static_cast<float>(random_float(0x41f00000) - title_global<float>(0x0083ef10));  // 30, - 15
+    const float x_offset = x_random - title_global<float>(0x0083ece8);                                       // - 5
+    uint32_t buffer[3];
+    const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, *element(gibs, i));  // ScrEnt_GetOrigin
+    ScrVec3 at;
+    at.v[0] = bits_of(as_float(o[0]) + x_offset);
+    at.v[1] = o[1];
+    at.v[2] = bits_of(as_float(o[2]) + z_offset);
+    slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(*element(gibs, i), at);  // ScrEnt_SetOrigin
+}
+
+// The debris gibs' throw: `from` (the caller's argument, changed in place) moves by 50 - Scr_RandomInt(100)
+// in x and y; gib `i` flies along normalize(origin of `ent` - from) * (Scr_RandomInt(150) + 300) with z
+// replaced by Scr_RandomFloat(200) + 120, rolling -(rand(2500) + 1500) when x > 0 (the script's test goes
+// through a float truth value), else +(rand(2500) + 1500), over `roll_time` with GScr_RotateRoll's last
+// argument `roll_last`; GScr_MoverMoveGravity for 12 s.
+inline void throw_gib(DynArray* gibs, uint32_t i, uint32_t ent, ScrVec3* from, uint32_t roll_time, uint32_t roll_last) {
+    const int32_t rx = random_int(100);
+    const int32_t ry = random_int(100);
+    from->v[0] = bits_of(as_float(from->v[0]) + static_cast<float>(50 - rx));
+    from->v[1] = bits_of(as_float(from->v[1]) + static_cast<float>(50 - ry));
+    uint32_t buffer[3];
+    const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+    float dir[3];
+    dir[0] = as_float(o[0]) - as_float(from->v[0]);
+    dir[1] = as_float(o[1]) - as_float(from->v[1]);
+    dir[2] = as_float(o[2]) - as_float(from->v[2]);
+    const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+    uint32_t normal[3] = {lane, lane, lane};
+    slot<void XB_CDECL(uint32_t*, const float*)>(0x00922280)(normal, dir);  // Scr_VectorNormalize
+    float velocity[3];
+    std::memcpy(velocity, normal, sizeof(velocity));
+    const float speed = static_cast<float>(random_int(150) + 300);
+    velocity[0] = speed * velocity[0];
+    velocity[1] = velocity[1] * speed;
+    velocity[2] = speed * velocity[2];
+    velocity[2] = static_cast<float>(random_float(0x43480000) + title_global<float>(0x0083eb68));  // 200, + 120
+    float roll;
+    if (static_cast<float>(velocity[0] > 0.0f ? 1 : 0) != 0.0f) {
+        uint32_t* const gib = element(gibs, i);
+        roll = static_cast<float>(-(random_float(0x451c4000) + title_global<float>(0x0083edb0)));  // 2500, + 1500
+        slot<void XB_CDECL(uint32_t, float, uint32_t, uint32_t, uint32_t)>(0x009227b4)(*gib, roll, roll_time, 0,
+                                                                                      roll_last);  // GScr_RotateRoll
+    } else {
+        uint32_t* const gib = element(gibs, i);
+        roll = static_cast<float>(random_float(0x451c4000) + title_global<float>(0x0083edb0));
+        slot<void XB_CDECL(uint32_t, float, uint32_t, uint32_t, uint32_t)>(0x009227b4)(*gib, roll, roll_time, 0,
+                                                                                      roll_last);
+    }
+    slot<void XB_CDECL(uint32_t, const float*, uint32_t)>(0x009227a4)(*element(gibs, i), velocity,
+                                                                      0x41400000);  // GScr_MoverMoveGravity 12
+}
+
 }  // namespace
 
 void XB_CDECL BroScr_SpawnStoneGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, bool stone_only) {
@@ -120,7 +180,6 @@ void XB_CDECL BroScr_SpawnWoodGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint3
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(ent, 0x06730ae8);  // Scr_QueueNotify
     DynArray gibs = {};
     const int32_t count = slot<int32_t XB_CDECL(int32_t, int32_t)>(0x00922234)(3, 4);  // Scr_RandomIntRange
-    const auto spawned_count = []() { return pointer<int32_t>(title_global<uint32_t>(0x00922ee0) + 0x314); };
     for (int32_t i = 0; i < count; ++i) {
         if (*spawned_count() > title_global<int32_t>(0x008cd190)) continue;  // level gib limit
         {
@@ -171,6 +230,69 @@ void XB_CDECL BroScr_SpawnWoodGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint3
         }
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
+    if (gibs.data) Scr_Free(gibs.data);
+}
+
+void XB_CDECL BroScr_SpawnConcreteGibs(uint32_t ent, ScrVec3 from) {
+    DynArray gibs = {};
+    const int32_t count = random_int(3) + 1;
+    for (int32_t i = 0; i < count; ++i) {
+        {
+            ScriptString classname;
+            ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
+            uint32_t buffer[3];
+            const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+            const uint32_t at[3] = {o[0], o[1], o[2]};
+            const uint32_t gib = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
+            *element(&gibs, i) = gib;
+            ScriptString_Release(&classname);
+        }
+        jitter_gib(&gibs, i);
+        if (random_int(100) > 50)
+            set_model_of(&gibs, i, 0x008248ac);  // "xmodel/m_gib_concrete_a"
+        else
+            set_model_of(&gibs, i, 0x00824894);  // "xmodel/m_gib_concrete_b"
+        throw_gib(&gibs, i, ent, &from, 0x40a00000, 0);  // roll over 5 s
+    }
+    Scr_Wait(6.0f);
+    for (uint32_t i = 0; i < gibs.size; ++i) slot<void XB_CDECL(uint32_t)>(0x00922540)(*element(&gibs, i));  // GScr_Delete
+    if (gibs.data) Scr_Free(gibs.data);
+}
+
+void XB_CDECL BroScr_SpawnWoodGibsSmall(uint32_t ent, ScrVec3 from) {
+    DynArray gibs = {};
+    const int32_t count = slot<int32_t XB_CDECL(int32_t, int32_t)>(0x00922234)(1, 3);  // Scr_RandomIntRange
+    for (int32_t i = 0; i < count; ++i) {
+        if (*spawned_count() > title_global<int32_t>(0x008cd190)) continue;  // level gib limit
+        {
+            ScriptString classname;
+            ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
+            uint32_t buffer[3];
+            const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+            const uint32_t at[3] = {o[0], o[1], o[2]};
+            const uint32_t zone = slot<uint32_t XB_CDECL(uint32_t)>(0x00922498)(ent);  // GScr_GetEntZone
+            const uint32_t gib = slot<Spawn>(0x009222f0)(&classname, at, zone);       // GScr_Spawn
+            *element(&gibs, i) = gib;
+            ScriptString_Release(&classname);
+        }
+        ++*spawned_count();
+        jitter_gib(&gibs, i);
+        const int32_t roll = random_int(100);
+        if (roll > 66)
+            set_model_of(&gibs, i, 0x00824934);  // "wood_gib_a_small"
+        else if (roll > 33)
+            set_model_of(&gibs, i, 0x00824920);  // "wood_gib_b_small"
+        else
+            set_model_of(&gibs, i, 0x0082490c);  // "wood_gib_c_small"
+        throw_gib(&gibs, i, ent, &from, 0x41200000, 0x40e00000);  // roll over 10 s, last argument 7
+    }
+    Scr_Wait(3.0f);
+    for (uint32_t i = 0; i < gibs.size; ++i) {
+        slot<void XB_CDECL(uint32_t)>(0x00922540)(*element(&gibs, i));  // GScr_Delete
+        --*spawned_count();
+    }
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);
+    --*spawned_count();
     if (gibs.data) Scr_Free(gibs.data);
 }
 
