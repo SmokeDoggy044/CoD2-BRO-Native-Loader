@@ -91,7 +91,28 @@ def matching_paren(text, start):
     return -1
 
 
+def nested_namespaces(text):
+    """namespace a::b { ... }  ->  namespace a { namespace b { ... }}  (VC7.1 has no nested form)."""
+    while True:
+        m = re.search(r"\bnamespace\s+(\w+(?:::\w+)+)\s*\{", text)
+        if not m:
+            return text
+        depth, close = 0, -1
+        for i, c in scan(text[m.end() - 1:]):
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    close = m.end() - 1 + i
+                    break
+        names = m[1].split("::")
+        text = (text[:m.start()] + " ".join("namespace %s {" % n for n in names) + text[m.end():close]
+                + "}" * len(names) + text[close + 1:])
+
+
 def lower(text):
+    text = nested_namespaces(text)
     out, pos = [], 0
     for m in re.finditer(r"\bstatic_assert\s*\(", text):
         if m.start() < pos:
