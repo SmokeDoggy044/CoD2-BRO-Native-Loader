@@ -175,15 +175,8 @@ inline void play_text(uint32_t ent, uint32_t text) {
     ScriptString_Release(&sound);
 }
 
-// sqrt((a*a + b*b) + c*c) on the x87 as the title computes it (platform_x87_norm3; compiler.h has
-// no fallback for other builds: the C library here).
-inline float norm3(float a, float b, float c) {
-#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
-    return platform_x87_norm3(a, b, c);
-#else
-    return static_cast<float>(std::sqrt(static_cast<double>(a) * a + static_cast<double>(b) * b + static_cast<double>(c) * c));
-#endif
-}
+// sqrt((a*a + b*b) + c*c) on the x87 as the title computes it.
+inline float norm3(float a, float b, float c) { return platform_x87_norm3(a, b, c); }
 
 // Whether any lane of `v` differs from the undefined vector lane.
 inline bool vec_defined(const ScrVec3* v) {

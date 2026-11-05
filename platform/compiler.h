@@ -654,6 +654,7 @@ inline float platform_x87_add_mul(float a, float b, float c) { return (a + b) * 
 inline float platform_x87_rcp_norm4(float a, float b, float c, float d, float one) {
     return one / std::sqrt(((a * a + b * b) + c * c) + d * d);
 }
+inline float platform_x87_norm3(float a, float b, float c) { return std::sqrt((a * a + b * b) + c * c); }
 inline float platform_x87_exp2_series(float k, float t, float half, float one) {
     const float y = std::log(k) * t;
     return (half * y + one) * y + one;

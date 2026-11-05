@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,301 | 9,160 | 6,898 | 4,403 |
-| Mission scripts (14 level sections) | 5,324 | 2,994 | 0 | 5,324 |
-| **Total** | **16,625** | **12,154** | **6,898** | **9,727** |
+| Engine and game code (`.text`) | 11,302 | 9,162 | 6,898 | 4,404 |
+| Mission scripts (14 level sections) | 5,324 | 2,996 | 0 | 5,324 |
+| **Total** | **16,626** | **12,158** | **6,898** | **9,728** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,008 | 1,703 | 294 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,453 | 272 | 321 | 833 | 19 | 1 |
+| Level-script helpers in the engine code | 1,454 | 272 | 323 | 852 | 0 | 0 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
@@ -90,7 +90,7 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 672 | 410 |
+| PROLOGUE | `sp/prologue` | 672 | 412 |
 | ORAN | `sp/oran` | 465 | 247 |
 | TUNISIA | `sp/tunisia` | 313 | 180 |
 | KASSPASS | `sp/kasspass` | 526 | 310 |

@@ -5144,6 +5144,7 @@
 0015afe0 BroScr_DeleteModel
 0015b3b0 BroScr_NotetrackDropGun
 0015b6c0 BroScr_ArrayUseAnimTreeByAnimname
+0015b7e0 BroScr_TankShellHudFireWait
 0015b8d0 BroScr_TankShellHudHideOnDeath
 0015b990 BroScr_TankShellReadyHud
 0015bcf0 BroScr_PlaySoundOn
@@ -5163,7 +5164,7 @@
 0015d7b0 BroScr_TreeBurstSetup
 0015def0 Bro__treeburst_gmi__tree_burst_playBurst
 0015e450 BroScr_SetWheelSmokeFxCall
-0015e4c0 FUN_0015e4c0
+0015e4c0 BroScr_WindowBreakOnHit
 0015e7f0 BroScr_SetupFlak88s
 0015eed0 BroScr_TankShellReadyHud_2
 0015f380 BroScr_FxCreationSound
@@ -14449,7 +14450,7 @@
 0045cd50 ScriptKeyTable_GetArray
 0045cdb0 FUN_0045cdb0
 0045cde0 DynArray_Reserve12_PROLOGUE
-0045ceb0 FUN_0045ceb0
+0045ceb0 DynArray_AtInt0
 0045cee0 FUN_0045cee0
 0045cf10 FUN_0045cf10
 0045cf40 Scr_WaitTillOutput2_PROLOGUE
@@ -14576,7 +14577,7 @@
 004610d0 FUN_004610d0
 004610e0 FUN_004610e0
 00461120 HashMap_Index_PROLOGUE_11
-004611e0 FUN_004611e0
+004611e0 HashMap_IndexBool
 00461230 HashMap_Index_PROLOGUE_12
 004612f0 HashMap_Index_PROLOGUE
 004613c0 FUN_004613c0

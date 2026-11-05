@@ -14741,3 +14741,7 @@ address,name,kind,confidence,evidence
 001abb00,BroScr_GetFieldUnlessAutoOrSemi,function,medium,"name from functions.csv (decompile agents), applied in Ghidra 2026-11-05"
 001d91d0,BroScr_CrouchAimAndShoot,function,medium,"split out of BroScr_AnimScript_Death's old extent by the levelscript push agent (combat::CrouchedCombat asserts), applied 2026-11-05"
 00159cc0,BroScr_PlaneSpawnWingTurretsCall_3,function,medium,"split out of BroScr_RunSpawnerGroupsByGroupname's old extent by the levelscript push agent, applied 2026-11-05"
+0015b7e0,BroScr_TankShellHudFireWait,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+0015e4c0,BroScr_WindowBreakOnHit,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+004611e0,HashMap_IndexBool,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+0045ceb0,DynArray_AtInt0,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
