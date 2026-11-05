@@ -61,4 +61,16 @@ void XB_CDECL BroScr_RandomSoundBurstsThread_3(uint32_t entity, uint32_t alias, 
     RandomSoundBursts(entity, values);
 }
 
+void XB_CDECL BroScr_SpawnLoopSoundOrigin(uint32_t self, uint32_t alias, ScrVec3 origin, uint32_t a5, uint32_t a6,
+                                          uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10, uint32_t a11) {
+    (void)self;
+    ScriptString classname;
+    scr_string_from(&classname, 0x0083ab88);  // "script_origin"
+    using Spawn = uint32_t XB_CDECL(ScriptString*, ScrVec3*, uint32_t);
+    const uint32_t ent = scr_slot<Spawn>(0x009222f0)(&classname, &origin, 0);  // GScr_Spawn
+    scr_release(&classname);
+    const uint32_t* const values[8] = {&alias, &a5, &a6, &a7, &a8, &a9, &a10, &a11};
+    RandomSoundBursts(ent, values);
+}
+
 }  // namespace game

@@ -50,4 +50,30 @@ void XB_CDECL BroScr_TunisiaPanzerIVInit(uint32_t vehicle);
 // = 0, then four 0x14-byte entries {0, undefined int x3, undefined float}. Returns self.
 uint32_t* XB_THISCALL BroScr_TankSpawnerSlots_Init(uint32_t* self);
 
+// 0x00156970: BroScr_PanzerIVSetDifficultyHealth(ent), then threads (Scr_StartThreadFunctor1) on
+// BroScr_VehicleDeath_PanzerIV and BroScr_VehicleTurretFireLoop.
+void XB_CDECL BroScr_PanzerIVStartThreads(uint32_t ent);
+// 0x001569c0: handle field 0xd952b5cf = `target`, field 0x5cd3d8b8 = `count`, then
+// FollowEnt_Worker(ent, a1).
+void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, uint32_t count);
+// 0x00167340: ScrEnt_SetHealth(ent, health; 600 when undefined), then threads on
+// BroScr_VehicleDeath_Sdkfz222, BroScr_SpawnWheelOrigins and BroScr_SmokeWhenHalfHealth.
+void XB_CDECL BroScr_Sdkfz222Init(uint32_t ent, uint32_t health);
+// 0x0015d170: compares `fx` with "day" when set (result unused), then sets the level's wheel
+// smoke map (0x00922ee0 +0x57c) entries 0xe2162fb5, 0x438c482f, 0xe21d8c25, 0xe216961a,
+// 0xe2161386, 0x8f10d935 to "generic_wheelsmoke". `vehicle` is unused. Releases `fx`.
+void XB_CDECL BroScr_SetWheelSmokeFx(uint32_t vehicle, ScriptString fx);
+// 0x00154190: field 0xb330b301 = 0, health = `health` (10000000 when undefined), field
+// 0x93c3cf6c = `a2` (0x2000 when undefined), then threads on BroScr_VehicleDeath_Flakvierling and
+// BroScr_FlakvierlingThink.
+void XB_CDECL BroScr_FlakvierlingInit(uint32_t ent, uint32_t health, uint32_t a2);
+// 0x001553b0 (dead): GScr_UseAnimTree(vehicle, "halftrack"), health 500 + RandomInt(1000), threads
+// on BroScr_VehicleHealthThink, BroScr_VehicleInit_Halftrack, BroScr_VehicleTurretFireLoop_2 and
+// BroScr_TankStunOnDamage (with 1).
+void XB_CDECL BroScr_HalftrackSetup(uint32_t vehicle);
+// 0x001577d0: GScr_UseAnimTree(vehicle, "panzerIV"), BroScr_TankDefaultHealthThink_2(vehicle),
+// threads on BroScr_VehicleInit_Sherman, BroScr_VehicleTurretFireLoop_5 and
+// BroScr_TankStunOnDamage (with 1).
+void XB_CDECL BroScr_PanzerIVSetup_4(uint32_t vehicle);
+
 }  // namespace game

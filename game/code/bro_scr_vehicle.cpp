@@ -1,6 +1,8 @@
 #include "bro_scr_vehicle.h"
 
 #include "bro_scr_common.h"
+#include "bro_scr_util.h"
+#include "g_script.h"
 #include "title_data.h"
 
 namespace game {
@@ -140,6 +142,102 @@ uint32_t* XB_THISCALL BroScr_TankSpawnerSlots_Init(uint32_t* self) {
         entry[4] = title_global<uint32_t>(0x00922eac);  // g_scrUndefinedFloat (movss: a word copy)
     }
     return self;
+}
+
+namespace {
+
+// Scr_StartThreadFunctor1 (0x0011a910): four zero words, the function, the entity.
+void start_thread1(uint32_t function, uint32_t ent) {
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, function, ent);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_PanzerIVStartThreads(uint32_t ent) {
+    BroScr_PanzerIVSetDifficultyHealth(ent);
+    start_thread1(0x0013b200, ent);  // BroScr_VehicleDeath_PanzerIV
+    start_thread1(0x00121a00, ent);  // BroScr_VehicleTurretFireLoop
+}
+
+void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, uint32_t count) {
+    *BroScr_FieldHandleSlot(ent, 0xd952b5cf) = target;
+    *BroScr_FieldSlot(ent, 0x5cd3d8b8) = count;
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x00151370)(ent, a1);  // FollowEnt_Worker
+}
+
+void XB_CDECL BroScr_Sdkfz222Init(uint32_t ent, uint32_t health) {
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(
+        ent, health == title_global<uint32_t>(0x00922ec0) ? 600 : health);  // ScrEnt_SetHealth
+    start_thread1(0x0013d2e0, ent);  // BroScr_VehicleDeath_Sdkfz222
+    start_thread1(0x001655f0, ent);  // BroScr_SpawnWheelOrigins
+    start_thread1(0x0013d270, ent);  // BroScr_SmokeWhenHalfHealth
+}
+
+void XB_CDECL BroScr_SetWheelSmokeFx(uint32_t vehicle, ScriptString fx) {
+    (void)vehicle;
+    if (fx.rep) title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t)>(0x0011d7c0)(&fx, 0x007ff364);  // ScriptString_Equals(fx, "day")
+    static const uint32_t kKeys[6] = {0xe2162fb5, 0x438c482f, 0xe21d8c25, 0xe216961a, 0xe2161386, 0x8f10d935};
+    for (uint32_t k : kKeys) {
+        uint32_t key = k;
+        using Index = uint32_t XB_THISCALL(uint32_t, const uint32_t*);
+        const uint32_t value = title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x57c, &key);  // HashMap_Index
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011dd20)(value, 0x00824f9c);  // ScriptString_AssignCString("generic_wheelsmoke")
+    }
+    scr_release(&fx);
+}
+
+void XB_CDECL BroScr_FlakvierlingInit(uint32_t ent, uint32_t health, uint32_t a2) {
+    *BroScr_FieldSlot(ent, 0xb330b301) = 0;
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(
+        ent, health == title_global<uint32_t>(0x00922ec0) ? 0x989680 : health);  // ScrEnt_SetHealth
+    const uint32_t value = a2 != title_global<uint32_t>(0x00922ec0) ? a2 : 0x2000;
+    *BroScr_FieldSlot(ent, 0x93c3cf6c) = value;
+    start_thread1(0x0014ffd0, ent);  // BroScr_VehicleDeath_Flakvierling
+    start_thread1(0x00148760, ent);  // BroScr_FlakvierlingThink
+}
+
+namespace {
+
+void use_anim_tree(uint32_t vehicle, uint32_t tree) {
+    ScriptString name;
+    scr_string_from(&name, tree);
+    scr_slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(vehicle, &name);  // GScr_UseAnimTree
+    scr_release(&name);
+}
+
+// Script thread with one extra argument: functor {0x007f4a1c, function, vehicle, value}
+// (ScrIface_Alloc(0x10), null when it fails), then Scr_CreateThread(0, 0, 0, vehicle, functor, 0).
+void start_vehicle_thread2(uint32_t vehicle, uint32_t function, uint32_t value) {
+    uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0x10));
+    if (functor) {
+        functor[0] = 0x007f4a1c;
+        functor[1] = function;
+        functor[2] = vehicle;
+        functor[3] = value;
+    }
+    using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+    scr_slot<CreateThread>(0x0092216c)(0, 0, 0, vehicle, functor, 0);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_HalftrackSetup(uint32_t vehicle) {
+    use_anim_tree(vehicle, 0x00803cc4);  // "halftrack"
+    const uint32_t health = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
+    scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(vehicle, health);         // ScrEnt_SetHealth
+    StartVehicleThread(vehicle, 0x0014d0a0);  // BroScr_VehicleHealthThink
+    StartVehicleThread(vehicle, 0x00142ee0);  // BroScr_VehicleInit_Halftrack
+    StartVehicleThread(vehicle, 0x00127e30);  // BroScr_VehicleTurretFireLoop_2
+    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+}
+
+void XB_CDECL BroScr_PanzerIVSetup_4(uint32_t vehicle) {
+    use_anim_tree(vehicle, 0x007f499c);  // "panzerIV"
+    title_function<void XB_CDECL(uint32_t)>(0x00152550)(vehicle);  // BroScr_TankDefaultHealthThink_2
+    StartVehicleThread(vehicle, 0x00145080);  // BroScr_VehicleInit_Sherman
+    StartVehicleThread(vehicle, 0x00128720);  // BroScr_VehicleTurretFireLoop_5
+    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
 }
 
 }  // namespace game

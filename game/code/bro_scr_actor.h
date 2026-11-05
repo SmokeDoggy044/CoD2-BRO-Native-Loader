@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -37,5 +38,13 @@ uint32_t* XB_CDECL BroScr_GetPlayerStanceOffset(uint32_t* out);
 // 0x00181b10: level object (0x00922ef8) defaults for load_gmi: +0x88 = 10, +0x200, +0xe0,
 // +0x198, +0xdc, +0xf4 = 0, byte +0xf0 = 0. EAX = 0.
 uint32_t XB_CDECL BroScr_LoadGmiInitLevelVars();
+
+// 0x001814c0 (thiscall, callee pops 4): *out = the word ScrSentient_GetRef_3c (slot 0x00922e00)
+// returns for the handle at self; returns out.
+uint32_t* XB_THISCALL BroScr_GetSentientRef3c(const uint32_t* self, uint32_t* out);
+// 0x001814e0: out = GScr_GetEye(*ent) (into an undefined vector first); returns out.
+uint32_t* XB_CDECL BroScr_GetEyePos(uint32_t* out, const uint32_t* ent);
+// 0x001835b0: GScr_MagicGrenadeManual(ent, the origin of "TAG_WEAPON_RIGHT", (0, 0, 10), 3.0).
+void XB_CDECL BroScr_DropWeaponRight(uint32_t ent);
 
 }  // namespace game
