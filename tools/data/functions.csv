@@ -3277,7 +3277,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0014a200,BroScr_RemoveFollower,compare,0,0,0,0,0,0,""
 0014a430,BroScr_FollowUpdateCurrentPos,compare,0,0,0,0,0,0,""
 0014a6d0,BroScr_FollowPathOffsetPoint,compare,0,0,0,0,0,0,""
-0014aaa0,BroScr_StukaDropBombs,compare,19,14,13,0,1,0,"80391999 [host] [1] 67 vs 6c; 803919d9 [host] [1] 67 vs 6c; 80391a10 [host] [10] 756b615f666c79696e67 vs 726970745f6d6f64656c"
+0014aaa0,BroScr_StukaDropBombs,compare,19,13,13,0,0,0,""
 0014b780,BroScr_DeleteUndroppedBombs,compare,13,13,13,0,0,0,""
 0014b940,BroScr_UpdateAliveDeadCount,compare,0,0,0,0,0,0,""
 0014bfd0,BroScr_BuildDroneSplines,compare,0,0,0,0,0,0,""
