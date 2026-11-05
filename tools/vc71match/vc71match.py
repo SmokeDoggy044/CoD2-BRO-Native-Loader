@@ -14,13 +14,16 @@ are function-relative, calls are compared by callee name (symbol file / relocati
 and every constant inside the image (globals, literals, float constants) reads as
 ADDR on both sides, so a score is about code generation, not about addresses.
 
-usage: tools/vc71match/vc71match.py [FUNCTION...] [--flags "/O2 ..."] [--diff] [--csv] [--thread-switch]
+usage: tools/vc71match/vc71match.py [FUNCTION...] [--flags "/O2 ..."] [--diff] [--csv] [--thread-switch] [--calls]
   FUNCTION  only these kFunctions names (default: all); a name not in kFunctions is
             compared too (unregistered C, e.g. thread_switch rows): its address comes
             from the symbol file, or give it as NAME=0xADDR
   --thread-switch  add every thread_switch row of docs/*_classes.csv (unregistered C)
   --diff    print the side-by-side differences of each function under 100%
   --csv     write tools/data/vc71match.csv (name,address,score,status)
+  --calls   per function, the ordered calls/tail jumps/constants of both sides and their
+            diff (the check under a low score); the summary line says "calls ok" or how
+            many entries differ
 
 Needs: wine, objdump, and the XDK's compiler in Tools/xdk5849 next to cod_bro/ (see README.md).
 """
@@ -403,7 +406,17 @@ def unregistered(args, registered):
 RELOC = re.compile(r"^\s*([0-9a-f]+): (\S+)\s+(\S+)$")
 
 
+def template_number(code):
+    """A VC7.1-mangled template integer ($0 + hex digits as letters A-P, @-terminated)."""
+    return "".join("0123456789abcdef"[ord(c) - ord("A")] for c in code)
+
+
 def plain_name(symbol):
+    # ScrField_Slot<Hash, ...> instances: named like the title's accessors (ScrField_h<hash>).
+    f = re.match(r"\?\?\$ScrField_(\w+?)@\$0([A-P]+)@", symbol)
+    if f:
+        kind = "" if f[1] == "Slot" else "_" + f[1].replace("Slot", "")
+        return f"ScrField_h{template_number(f[2]).rjust(8, '0')}{kind}"
     m = re.match(r"\?(\w+)@", symbol)
     name = m[1] if m else symbol.lstrip("_@").split("@")[0]
     t = re.match(r"vc71_fn_([0-9a-f]{8})_", name)
@@ -488,6 +501,86 @@ def normalize(insns, address, by_address, image):
     return lines
 
 
+IMM = re.compile(r"(?:^|[ ,])(-?0x[0-9a-f]+|ADDR)$")
+SLOT_LOAD = re.compile(r"^mov (e[a-d]x|e[sd]i|ebp),(?:DWORD PTR )?ds:0x([0-9a-f]+)$")
+
+
+def call_sequence(insns, lines, by_address, pops=lambda callee: 0):
+    """The ordered calls (callee name or slot), tail jumps and constants of a function: what
+    must agree under a low score (block layout and register choice drop out).
+    - a slot or function address loaded into a register (or a stack slot) and called through
+      it reads like the direct call (`call [ptr SLOT]`, `call NAME`);
+    - constants: immediates pushed or stored to the stack (both read `const`), addresses
+      taken (ADDR) and other immediates of 0x100 and up; never displacements or global reads;
+    - the C++ EH frame (push -1; push handler at the top, the state word's stores) is left out."""
+    seq, regs, stack, depth = [], {}, {}, 0
+    # The EH frame's two pushes (after the fs:0 load, which may come first).
+    top = next((k for k in range(min(3, len(lines) - 1))
+                if lines[k] == "push 0xffffffff" and lines[k + 1] == "push ADDR"), None)
+    eh = top is not None
+
+    def target(operand):
+        m = re.match(r"^DWORD PTR \[esp(?:\+0x([0-9a-f]+))?\]$", operand)
+        if m:
+            return stack.get(depth - int(m[1] or "0", 16))
+        return regs.get(operand)
+
+    labels, fallthrough = {}, True  # esp depth at branch targets (blocks reached by a jump)
+    for k, ((off, raw, _), text) in enumerate(zip(insns, lines)):
+        raw = re.sub(r"\s+", " ", raw.split("#")[0].strip()).replace(", ", ",")
+        op, _, rest = text.partition(" ")
+        rop, _, rrest = raw.partition(" ")
+        if not fallthrough and off in labels:
+            depth = labels[off]
+        fallthrough = not (op == "jmp" or op.startswith("ret"))
+        if op.startswith("j") and rest.startswith(".+"):
+            labels.setdefault(int(rest[2:], 16), depth)
+        # esp depth (bytes below the entry), for calls through a pointer kept on the stack
+        if op == "push":
+            depth += 4
+        elif op == "pop":
+            depth -= 4
+        elif re.match(r"^(sub|add) esp,0x[0-9a-f]+$", raw):
+            depth += int(raw.split(",")[1], 16) * (1 if op == "sub" else -1)
+        if eh and k in (top, top + 1):
+            continue
+        m = SLOT_LOAD.match(raw)
+        if m:
+            regs[m[1]] = f"[ptr {m[2]}]"
+            continue
+        m = re.match(r"^mov (e[a-d]x|e[sd]i|ebp),0x([0-9a-f]+)$", raw)
+        if m and int(m[2], 16) in by_address:
+            regs[m[1]] = by_address[int(m[2], 16)]
+            continue
+        m = re.match(r"^mov DWORD PTR \[esp(?:\+0x([0-9a-f]+))?\],(e[a-d]x|e[sd]i|ebp)$", raw)
+        if m and m[2] in regs:
+            stack[depth - int(m[1] or "0", 16)] = regs[m[2]]
+        if op in ("call", "jmp") and not rest.startswith(".+"):
+            callee = target(rrest) or target(rest) or rest
+            seq.append(f"{op} {callee}")
+            if op == "call":
+                depth -= pops(callee)  # a callee that pops its arguments (thiscall/stdcall ret N)
+                for r in ("eax", "ecx", "edx"):
+                    regs.pop(r, None)
+            continue
+        dest = rest.split(",")[0]
+        regs.pop(dest, None)
+        if op.startswith("j") or op == "lea":
+            continue
+        m = IMM.search(re.sub(r"\[[^]]*\]", "[]", rest))
+        if not m or re.search(r"ds:0x[0-9a-f]+$", raw):  # a global read, not a constant
+            continue
+        value = m[1]
+        stack_store = op == "push" or (op == "mov" and re.search(r"\[(esp|ebp)", rest.split(",")[0]))
+        if eh and op == "mov" and stack_store:
+            m = re.match(r"^(?:\w+ PTR )?\[esp(?:\+0x([0-9a-f]+))?\],", rest)
+            if m and depth - int(m[1] or "0", 16) == 4:  # the EH state word (pushed -1 at entry)
+                continue
+        if stack_store or value == "ADDR" or abs(int(value, 16)) >= 0x100:
+            seq.append(f"const {value}")
+    return seq
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("names", nargs="*")
@@ -495,6 +588,7 @@ def main():
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--csv", action="store_true")
     ap.add_argument("--thread-switch", action="store_true")
+    ap.add_argument("--calls", action="store_true")
     args = ap.parse_args()
     if not (XDK / "bin" / "vc71" / "CL.Exe").exists():
         sys.exit(f"no compiler at {XDK}/bin/vc71 (set XDK5849)")
@@ -519,7 +613,23 @@ def main():
     # another symbol's body): they end the function before them too.
     starts = sorted({a for a, _ in syms} | {a for _, a, _ in extra})
 
-    rows, total = [], []
+    rows, total, calls_state = [], [], {}
+    by_name = {n: a for a, n in syms}
+    popped = {}
+
+    def pops(callee):
+        """Bytes the callee's `ret N` pops (from the XBE), for the call sequence's esp depth."""
+        if callee not in popped:
+            address = by_name.get(callee)
+            popped[callee] = 0
+            if address is not None:
+                nxt = next((a for a in starts if a > address), address + 0x1000)
+                for _, text, _ in xbe_function(xbe, address, nxt - address):
+                    m = re.match(r"^ret\s+0x([0-9a-f]+)$", text)
+                    if m:
+                        popped[callee] = int(m[1], 16)
+                        break
+        return popped[callee]
     for name, address, code in registered + extra:
         if code.endswith("_entry") or code != name and code not in compiled:
             rows.append((name, address, "", "asm-entry"))
@@ -535,7 +645,8 @@ def main():
         if len(body) == 1 and body[0][2] in compiled:  # a wrapper that jumps to a template
             body = compiled[body[0][2]]
         ours = normalize(body, None, by_address, xbe[2])
-        theirs = normalize(xbe_function(xbe, address, nxt - address), address, by_address, xbe[2])
+        xbe_insns = xbe_function(xbe, address, nxt - address)
+        theirs = normalize(xbe_insns, address, by_address, xbe[2])
         score = difflib.SequenceMatcher(None, theirs, ours, autojunk=False).ratio() * 100
         total.append(score)
         rows.append((name, address, f"{score:.1f}", "ok" if score == 100 else f"{len(theirs)}/{len(ours)} insns"))
@@ -546,9 +657,23 @@ def main():
                     left = theirs[a0 + k] if a0 + k < a1 else ""
                     right = ours[b0 + k] if b0 + k < b1 else ""
                     print(f"  {'  ' if op == 'equal' else '!='} {left:40.40} | {right}")
+        if args.calls:
+            a, b = call_sequence(xbe_insns, theirs, by_address, pops), call_sequence(body, ours, by_address, pops)
+            ops = difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
+            same = all(op == "equal" for op, *_ in ops)
+            calls_state[name] = "calls ok" if same else \
+                f"calls {sum(max(a1 - a0, b1 - b0) for op, a0, a1, b0, b1 in ops if op != 'equal')} differ"
+            print(f"--- calls {name} {address:#010x}: {len(a)} | {len(b)} {calls_state[name]}")
+            if not same:
+                for op, a0, a1, b0, b1 in ops:
+                    for k in range(max(a1 - a0, b1 - b0)):
+                        left = a[a0 + k] if a0 + k < a1 else ""
+                        right = b[b0 + k] if b0 + k < b1 else ""
+                        print(f"  {'  ' if op == 'equal' else '!='} {left:40.40} | {right}")
 
     for name, address, score, status in rows:
-        print(f"{name:40} {address:#010x} {score:>6} {status}")
+        extra_state = f"  {calls_state[name]}" if name in calls_state else ""
+        print(f"{name:40} {address:#010x} {score:>6} {status}{extra_state}")
     if total:
         exact = sum(1 for s in total if s == 100)
         print(f"\n{len(total)} compared: {exact} exact, mean {sum(total) / len(total):.1f}%; "

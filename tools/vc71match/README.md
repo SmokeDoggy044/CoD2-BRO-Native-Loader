@@ -70,3 +70,23 @@ Expected misses, not decomp bugs:
 - Instruction scheduling: an equal instruction one slot earlier counts as a change.
 
 A low score next to a clean `--compare` record is worth a read, not a rewrite.
+
+## Ordered calls and constants (`--calls`)
+
+Compiled-script code (levelscript) scores low by nature, so under a low score the check
+is the ORDERED list of calls and constants. `--calls` prints, per function, both sides'
+sequences and their diff, and adds `calls ok` / `calls N differ` to the summary line:
+
+- calls and tail jumps by callee name; a slot loaded into a register and called through
+  it reads `call [ptr SLOT]` like a direct `call [slot]`;
+- constants: immediates pushed or stored to the stack (both read `const`), addresses
+  taken (`ADDR`), other immediates of 0x100 and up; displacements and global reads are
+  left out;
+- the C++ EH frame (`push -1; push handler`, the state word's stores) is left out (the
+  state word is found by esp depth, followed across jumps and callee `ret N`);
+- a function or slot address loaded into a register or a stack word and called through it
+  reads like the direct call; ScrField_Slot<hash> instances read `ScrField_h<hash>`.
+
+Known noise left in: zero stores done with xorps on one side (`const 0x0`), inlined
+helpers, a call sequence the XBE shares between two branches (tail merging; our side lists
+it twice) or duplicates, `_ftol` vs `_ftol2`.
