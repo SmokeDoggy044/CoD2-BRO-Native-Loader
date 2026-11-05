@@ -5322,7 +5322,7 @@
 001753c0 BroScr_PathMoverFromTargetChainCall_3
 00175410 BroScr_PathMoverFromTargetChainCall_4
 00175460 BroScr_PathMoverFromTargetChainCall_5
-001754b0 FUN_001754b0
+001754b0 BroScr_NotetrackFaceAnim
 001757f0 BroScr_AnimNotetrackCommands
 00176720 BroScr_AnimLoopGuys
 00177450 BroScr_AnimSingleGuys
@@ -6412,6 +6412,7 @@
 0019f550 BroScr_MgBurstSettings
 0019f6f0 BroScr_TurretProneMG42Recover_2
 0019f770 BroScr_Mg42AnimTree_2
+0019f930 BroScr_Mg42AnimThenShootLoop_3
 0019f9d0 BroScr_SetAnimMovementStopAfter
 0019fa40 BroScr_UpdateWoundedTime
 0019fe80 BroScr_DirectionalMoveAnimsOnNotify
@@ -6587,7 +6588,7 @@
 001b2990 BroScr_GetMuzzleOrigin
 001b2c80 BroScr_MeleePair_Relink
 001b2e20 BroScr_WaitThreeEndNotes
-001b2ed0 FUN_001b2ed0
+001b2ed0 BroScr_ShuffleForwardAnim
 001b3060 ScrField_h8969d6d6
 001b3090 ScrField_h8969d6d6_IsDefined
 001b3100 ScrField_chain
