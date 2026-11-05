@@ -6,6 +6,7 @@
 #include "bro_scr_actor.h"
 #include "bro_scr_ai.h"
 #include "bro_scr_ai_anim.h"
+#include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
 #include "bro_scr_anim.h"
@@ -4529,6 +4530,7 @@ const Function kFunctions[] = {
     {"BroScr_AnimMoveUntilObstacle", 0x001c2b40, 0, code(&BroScr_AnimMoveUntilObstacle), 12, Result::Eax, Status::Compare},
     {"BroScr_ShouldGoProne_2", 0x001c30e0, 0, code(&BroScr_ShouldGoProne_2), 24, Result::Eax, Status::Compare},
     {"BroScr_CheckCanShoot", 0x001c4360, 0, code(&BroScr_CheckCanShoot), 12, Result::Eax, Status::Compare},
+    {"BroScr_CrouchAimAndShoot", 0x001d91d0, 0, code(&BroScr_CrouchAimAndShoot), 4, Result::None, Status::Compare},
     {"BroScr_InitPoseMovementTable", 0x001dab60, 0, code(&BroScr_InitPoseMovementTable), 0, Result::None, Status::Compare},
     {"BroScr_AiMaybeDropHealth", 0x001e0880, 0, code(&BroScr_AiMaybeDropHealth), 8, Result::None, Status::Compare},
     {"BroScr_DropHealth", 0x001e09e0, 0, code(&BroScr_DropHealth), 4, Result::None, Status::Compare},
