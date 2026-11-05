@@ -5126,13 +5126,13 @@ address,name,section,module,state,tested,matched
 00159530,BroScr_SpawnerGroupManagerCall_3,.text,levelscript,set-aside,0,0
 001596a0,BroScr_SpawnerGroupManagerCall_4,.text,levelscript,set-aside,0,0
 001597a0,BroScr_RunSpawnerGroupsByGroupname,.text,levelscript,set-aside,0,0
-00159cc0,BroScr_PlaneSpawnWingTurretsCall_3,.text,levelscript,named,0,0
+00159cc0,BroScr_PlaneSpawnWingTurretsCall_3,.text,levelscript,untested,0,0
 00159cf0,BroScr_PlaneSpawnWingTurretsCall_2,.text,levelscript,untested,0,0
 00159d20,BroScr_FindAllFlakvierlings,.text,levelscript,untested,0,0
 00159d50,BroScr_SpawnFlakvierlingCall,.text,levelscript,untested,0,0
 00159de0,BroScr_VehicleSpawnRiderCall,.text,levelscript,untested,0,0
 00159e10,BroScr_VehicleSpawnRiderCall_2,.text,levelscript,untested,0,0
-00159e40,BroScr_FlakAutomatedThink,.text,levelscript,named,0,0
+00159e40,BroScr_FlakAutomatedThink,.text,levelscript,set-aside,0,0
 0015aa50,BroScr_AddFollowersDefault,.text,levelscript,set-aside,0,0
 0015aa80,BroScr_SetFlakManned,.text,levelscript,set-aside,0,0
 0015aae0,BroScr_SetFlakAutomated,.text,levelscript,set-aside,0,0
