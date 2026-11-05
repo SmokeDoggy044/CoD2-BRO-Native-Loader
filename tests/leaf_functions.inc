@@ -415,6 +415,7 @@
 {"G_DObjGetBoneMatrix", 0x002d67a0, 92, 39, {}, {}},
 {"G_SetMovedir", 0x002d70a0, 357, 84, {}, {0xbf800000, 0xc0000000}},
 {"G_UpdateSoundListenerFromPlayer", 0x002ddd70, 303, 71, {0x008bda18, 0x008bda1c, 0x0095f534}, {}},
+{"BroFunc_Find", 0x002f4f30, 82, 26, {}, {0x34, 0x41, 0x5a}},
 {"GScr_PushToList95fdf0", 0x002f53b0, 39, 9, {0x0095fdf6}, {}},
 {"GScr_HudScaleOverTime", 0x002f5ef0, 145, 39, {0x0098540c, 0x0098ad2c}, {0x42700000, 0x400, 0x3ff}},
 {"HudElem_SetDefaults", 0x002f6080, 99, 28, {}, {}},
