@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "g_scr_runtime.h"
+#include "g_script.h"
 #include "scr_field.h"
 #include "title_data.h"
 
@@ -14,6 +15,7 @@ template <typename T>
 T* pointer(uint32_t address) {
     return reinterpret_cast<T*>(static_cast<uintptr_t>(address));
 }
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
 // A script-interface slot (pScr_*: a word in the import block at 0x00922xxx) called as F.
 template <typename F>
@@ -75,15 +77,62 @@ int32_t random_int(int32_t limit) { return slot<int32_t XB_CDECL(int32_t)>(0x009
 // Scr_RandomFloat: the result in ST0, used at the x87's precision.
 long double random_float(uint32_t limit_bits) { return slot<long double XB_CDECL(uint32_t)>(0x00922230)(limit_bits); }
 
-float bits_float(uint32_t bits) {
-    float f;
-    std::memcpy(&f, &bits, 4);
-    return f;
-}
+// By reference: a float returned by value goes through the x87 (FLD quiets a signalling NaN).
+const float& bits_float(const uint32_t& bits) { return *reinterpret_cast<const float*>(&bits); }
 uint32_t float_bits(float f) {
     uint32_t bits;
     std::memcpy(&bits, &f, 4);
     return bits;
+}
+
+ScriptKeyTable* script_object_or_empty(uint32_t ent) {
+    const uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(ent);  // GScr_GetEntScriptObject
+    if (object) return pointer<ScriptKeyTable>(object);
+    return &title_global<ScriptKeyTable>(0x00922e94);
+}
+
+bool handle_field_defined(bool* XB_CDECL (*is_defined)(bool*, uint32_t), uint32_t ent) {
+    bool defined;
+    is_defined(&defined, ent);
+    return defined;
+}
+
+void delete_attached(uint32_t ent, uint32_t gun) {
+    if (!handle_field_defined(ScrField_h4225d5c5_IsDefined, ent)) return;
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(*BroScr_FieldHandleSlot(ent, 0x4225d5c5));  // GScr_Delete
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d94)(ent, 1);                           // ScrActor_SetInt_1378
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001ad3f0)(ent, gun);               // BroScr_PutGunInHand
+}
+
+// The cleared turret fields: 0, or the word at 0x00922e84 (re-read for each).
+void delete_turrets(uint32_t ent, bool global_value) {
+    if (handle_field_defined(ScrField_leftturret_IsDefined, ent))
+        slot<void XB_CDECL(uint32_t)>(0x00922540)(*BroScr_FieldHandleSlot(ent, 0xef6522f9));  // GScr_Delete
+    if (handle_field_defined(ScrField_rightturret_IsDefined, ent))
+        slot<void XB_CDECL(uint32_t)>(0x00922540)(*BroScr_FieldHandleSlot(ent, 0xeead8089));
+    uint32_t* left = BroScr_FieldHandleSlot(ent, 0xef6522f9);
+    *left = global_value ? title_global<uint32_t>(0x00922e84) : 0;
+    uint32_t* right = BroScr_FieldHandleSlot(ent, 0xeead8089);
+    *right = global_value ? title_global<uint32_t>(0x00922e84) : 0;
+}
+
+void plane_crash_sound(uint32_t ent, uint32_t thread) {
+    using GetOrigin = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    uint32_t buffer[3];
+    const uint32_t* o = slot<GetOrigin>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+    uint32_t origin[3] = {o[0], o[1], o[2]};
+    using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
+    ScriptString* const sound = title_function<GetString>(0x00458da0)(script_object_or_empty(ent), 0x22282ca0);  // ScriptKeyTable_GetString
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t*, uint32_t, uint32_t)>(0x009221e0)(ent, sound, origin, 0,
+                                                                                           0);  // GScr_PlaySoundAtPosition
+    ScriptString name;
+    ScriptString_FromCString(&name, pointer<const char>(0x008245e8));  // "Plane_crash"
+    uint32_t buffer2[3];
+    o = slot<GetOrigin>(0x00922b20)(buffer2, ent);
+    uint32_t origin2[3] = {o[0], o[1], o[2]};
+    const uint32_t args[8] = {0, 0, 0, 0, thread, ent, address_of(&name), address_of(origin2)};
+    Scr_StartThreadFunctorN(args);
+    ScriptString_Release(&name);
 }
 
 ScriptString* team_field(uint32_t ent) { return ScrField_script_team(ent); }
@@ -438,6 +487,111 @@ void XB_CDECL BroScr_DeleteAndCountDown(uint32_t ent) {
     slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);                   // GScr_Delete
     uint8_t* const level = pointer<uint8_t>(title_global<uint32_t>(0x00922ee0));
     *reinterpret_cast<int32_t*>(level + 0x508) -= 1;
+}
+
+uint32_t* BroScr_FieldSlot(uint32_t ent, uint32_t hash) {
+    ScriptKeyTable* const table = script_object_or_empty(ent);
+    if (uint32_t* value = ScriptKeyTable_Find(table, hash)) return value;
+    return ScriptKeyTable_Set(table, hash, title_global<uint32_t>(0x00922ec0));
+}
+
+uint32_t* BroScr_FieldHandleSlot(uint32_t ent, uint32_t hash) {
+    ScriptKeyTable* const table = script_object_or_empty(ent);
+    if (uint32_t* value = ScriptKeyTable_Find(table, hash)) return value;
+    const uint32_t none = 0;
+    using SetValue = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*);
+    return title_function<SetValue>(0x00458e10)(table, hash, &none);  // ScriptKeyTable_SetValue
+}
+
+void XB_CDECL BroScr_AnimNotetrack_Alert(uint32_t ent, uint32_t target, int32_t ms) {
+    if (static_cast<uint32_t>(ms) == title_global<uint32_t>(0x00922ec0)) ms = 0x2710;
+    const float time = static_cast<float>(ms);
+    using LookAt = void XB_CDECL(uint32_t, uint32_t, float, uint32_t, uint32_t, uint32_t);
+    title_function<LookAt>(0x001a0940)(ent, target, time, 0x06279a34, 0, 0);  // BroScr_LookAtEntity
+}
+
+void XB_CDECL BroScr_AnimNotetrack_DeleteAttached(uint32_t ent) { delete_attached(ent, 0x003798b4); }
+void XB_CDECL BroScr_AnimNotetrack_DeleteAttached_2(uint32_t ent) { delete_attached(ent, 0x07151174); }
+
+void XB_CDECL BroScr_TankShellReadySetHealth(uint32_t ent) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    *BroScr_FieldSlot(ent, 0xa027aabf) = 1;
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(ent, 0x258);  // ScrEnt_SetHealth
+}
+
+void XB_CDECL BroScr_SetTargetsGroupAndEnt(uint32_t ent, uint32_t target) {
+    using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
+    ScriptString* const group = title_function<GetString>(0x00458da0)(script_object_or_empty(ent), 0x46861906);  // ScriptKeyTable_GetString
+    ScriptString_Assign(group, &title_global<ScriptString>(0x00922e90));
+    *BroScr_FieldHandleSlot(ent, 0x0d60fb3d) = target;
+}
+
+void XB_CDECL BroScr_PlaneCrashSound(uint32_t ent) { plane_crash_sound(ent, 0x00121540); }
+void XB_CDECL BroScr_PlaneCrashSound_2(uint32_t ent) { plane_crash_sound(ent, 0x001217b0); }
+void XB_CDECL BroScr_PlaneCrashSound_3(uint32_t ent) { plane_crash_sound(ent, 0x00122dc0); }
+
+void XB_CDECL BroScr_DeleteVehicleTurrets(uint32_t ent) { delete_turrets(ent, false); }
+void XB_CDECL BroScr_DeleteVehicleTurrets_2(uint32_t ent) { delete_turrets(ent, true); }
+void XB_CDECL BroScr_DeleteVehicleTurrets_3(uint32_t ent) { delete_turrets(ent, true); }
+
+void XB_CDECL BroScr_RestoreSpawnerSavedState(uint32_t ent) {
+    const uint32_t value = *BroScr_FieldSlot(ent, 0x56aed3da);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b8c)(ent, value);
+    const uint32_t* origin = reinterpret_cast<const uint32_t*>(ScrField_hcc045c84(ent));
+    const ScrVec3 position = {{origin[0], origin[1], origin[2]}};
+    slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(ent, position);  // ScrEnt_SetOrigin
+}
+
+void XB_CDECL BroScr_SetFollowEnt(uint32_t ent, uint32_t target, int32_t count) {
+    *BroScr_FieldHandleSlot(ent, 0xd952b5cf) = target;
+    if (count < 0) count = 0;
+    *BroScr_FieldSlot(ent, 0x5cd3d8b8) = static_cast<uint32_t>(count);
+}
+
+void XB_CDECL BroScr_SetLagDistance(uint32_t ent, int32_t distance) {
+    if (static_cast<uint32_t>(distance) == title_global<uint32_t>(0x00922ec0)) distance = 0;
+    *BroScr_FieldSlot(ent, 0x96f9883f) = static_cast<uint32_t>(distance);
+    const int32_t bound = static_cast<int32_t>(*BroScr_FieldSlot(ent, 0xea4a313a));
+    if (static_cast<int32_t>(*BroScr_FieldSlot(ent, 0x96f9883f)) >= bound - 1) return;
+    const int32_t again = static_cast<int32_t>(*BroScr_FieldSlot(ent, 0xea4a313a));
+    *BroScr_FieldSlot(ent, 0x96f9883f) = static_cast<uint32_t>(again - 1);
+}
+
+void XB_CDECL BroScr_WindowBreakSetup(uint32_t ent) {
+    using Ent = void XB_CDECL(uint32_t);
+    auto target_ent = [](const uint32_t* of) {
+        ScriptString target;
+        using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+        const uint32_t found = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(of, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
+        ScriptString_Release(&target);
+        return found;
+    };
+    auto valid = [](uint32_t e) { return slot<int32_t XB_CDECL(uint32_t)>(0x00922214)(e) != 0; };  // Scr_EntityHandleIsValid
+    ScriptString target;
+    const bool no_target = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep == nullptr;
+    ScriptString_Release(&target);
+    if (no_target) {
+        slot<Ent>(0x00922540)(ent);  // GScr_Delete
+        return;
+    }
+    const uint32_t window = target_ent(&ent);
+    if (!valid(window)) {
+        slot<Ent>(0x00922540)(ent);
+        return;
+    }
+    const uint32_t pane = target_ent(&window);
+    if (!valid(pane)) {
+        slot<Ent>(0x00922540)(ent);
+        return;
+    }
+    slot<Ent>(0x00922644)(ent);     // GScr_SetEntFlag40000
+    slot<Ent>(0x00922650)(window);  // GScr_SetEntFlag80000
+    slot<Ent>(0x00922564)(window);  // GScr_ClearEntFlag400
+    slot<Ent>(0x00922568)(pane);    // GScr_SetEntFlag400
+    slot<Ent>(0x009227c0)(pane);    // GScr_MoverNotSolid
+    uint32_t hash;
+    const uint32_t value = *Scr_HashName(&hash, pointer<const char>(0x00824590));
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(ent, 0xe2a210cf, value);  // GScr_SetEntVar
 }
 
 }  // namespace game

@@ -117,4 +117,50 @@ void XB_CDECL BroScr_SetHealthOrDefault(uint32_t ent, uint32_t health);
 // that 0x00922ee0 points to.
 void XB_CDECL BroScr_DeleteAndCountDown(uint32_t ent);
 
+// Inlined entity field access (the ScrField_* bodies the compiled script repeats): the entity's
+// script object (or the shared empty table 0x00922e94), the value word for `hash`, added when
+// missing as the undefined int (ScriptKeyTable_Set) / as 0 for an entity-handle field
+// (ScriptKeyTable_SetValue). Not title functions.
+uint32_t* BroScr_FieldSlot(uint32_t ent, uint32_t hash);
+uint32_t* BroScr_FieldHandleSlot(uint32_t ent, uint32_t hash);
+
+// 0x00124cf0: BroScr_LookAtEntity(ent, target, time, 0x06279a34, 0, 0) with time = `ms` as a
+// float (10000 when undefined).
+void XB_CDECL BroScr_AnimNotetrack_Alert(uint32_t ent, uint32_t target, int32_t ms);
+// 0x0012f1c0 / 0x0012f250: when the attached entity (handle field 0x4225d5c5) is set: deletes it,
+// ScrActor_SetInt_1378(ent, 1) and BroScr_PutGunInHand(ent, 0x003798b4 / 0x07151174).
+void XB_CDECL BroScr_AnimNotetrack_DeleteAttached(uint32_t ent);
+void XB_CDECL BroScr_AnimNotetrack_DeleteAttached_2(uint32_t ent);
+// 0x0012f840: ends on "death"; field 0xa027aabf = 1, health 600.
+void XB_CDECL BroScr_TankShellReadySetHealth(uint32_t ent);
+// 0x0012fa00: string field 0x46861906 = the empty string (0x00922e90), handle field 0x0d60fb3d =
+// `target`.
+void XB_CDECL BroScr_SetTargetsGroupAndEnt(uint32_t ent, uint32_t target);
+// 0x001319d0 / 0x00132020 / 0x00134300: plays the entity's sound (string field 0x22282ca0) at
+// its origin, then starts the thread 0x00121540 / 0x001217b0 / 0x00122dc0 with (ent, "Plane_crash",
+// origin) (Scr_StartThreadFunctorN).
+void XB_CDECL BroScr_PlaneCrashSound(uint32_t ent);
+void XB_CDECL BroScr_PlaneCrashSound_2(uint32_t ent);
+void XB_CDECL BroScr_PlaneCrashSound_3(uint32_t ent);
+// 0x00134400: deletes the left/right turrets (handle fields 0xef6522f9 / 0xeead8089) when set,
+// then sets both fields to 0. 0x00131ad0 / 0x00132120: the same, the fields set to the word at
+// 0x00922e84.
+void XB_CDECL BroScr_DeleteVehicleTurrets(uint32_t ent);
+void XB_CDECL BroScr_DeleteVehicleTurrets_2(uint32_t ent);
+void XB_CDECL BroScr_DeleteVehicleTurrets_3(uint32_t ent);
+// 0x00132410 (dead): the slot 0x00922b8c setter with field 0x56aed3da, then the origin from the
+// vector field 0xcc045c84.
+void XB_CDECL BroScr_RestoreSpawnerSavedState(uint32_t ent);
+// 0x00132830 (dead): handle field 0xd952b5cf = `target`, field 0x5cd3d8b8 = max(count, 0).
+void XB_CDECL BroScr_SetFollowEnt(uint32_t ent, uint32_t target, int32_t count);
+// 0x001328c0 (dead): field 0x96f9883f = `distance` (0 when undefined), raised to field
+// 0xea4a313a - 1 when it is smaller (both re-read through the table).
+void XB_CDECL BroScr_SetLagDistance(uint32_t ent, int32_t distance);
+
+// 0x00128ff0: a breakable window: the trigger's target (the window) and the window's target (the
+// broken pane) by targetname (GScr_GetEntArray with no buffer); `ent` is deleted when either is
+// missing. Else flags 0x40000 on `ent`, 0x80000 on and 0x400 off the window, 0x400 on the pane
+// (made non-solid), and `ent`'s var 0xe2a210cf = hash of "_window_gmi::new_window_break".
+void XB_CDECL BroScr_WindowBreakSetup(uint32_t ent);
+
 }  // namespace game
