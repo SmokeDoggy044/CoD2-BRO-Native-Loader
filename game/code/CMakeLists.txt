@@ -26,7 +26,6 @@ set(game_code_sources
     bro_scr_gibs.cpp
     bro_scr_level.cpp
     bro_scr_level_info.cpp
-    bro_scr_mission.cpp
     bro_scr_math.cpp
     bro_scr_mission.cpp
     bro_scr_mortar.cpp
@@ -39,8 +38,9 @@ set(game_code_sources
     bro_scr_vehicle.cpp
     bro_scr_vehicle_health.cpp
     bro_scr_vehicle_path.cpp
-    bro_scr_wallhop.cpp
     bro_scr_wad.cpp
+    bro_scr_wait_notify.cpp
+    bro_scr_wallhop.cpp
     bro_scr_world.cpp
     cg_ents.cpp
     cg_hud.cpp
