@@ -4449,12 +4449,12 @@ address,name,section,module,state,tested,matched
 001258a0,BroScr_ThrowGrenadeAtTarget,.text,levelscript,named,0,0
 00125d30,BroScr_CheckpointFade,.text,levelscript,named,0,0
 001266f0,BroScr_FadeHudBlack,.text,levelscript,named,0,0
-00126a30,BroScr_SetupLevelInfo,.text,levelscript,named,0,0
+00126a30,BroScr_SetupLevelInfo,.text,levelscript,matched,7,7
 00127d30,BroScr_TankTurretFireLoopRecoil,.text,levelscript,named,0,0
 00127db0,BroScr_TankTurretFireLoopRecoil_2,.text,levelscript,named,0,0
 00127e30,BroScr_VehicleTurretFireLoop_2,.text,levelscript,named,0,0
 00127e90,BroScr_VehicleTurretFireLoop_3,.text,levelscript,named,0,0
-00127ef0,BroScr_PlayShellExploSound,.text,levelscript,named,0,0
+00127ef0,BroScr_PlayShellExploSound,.text,levelscript,untested,0,0
 001281c0,BroScr_WaitForNotifyOrTimeout,.text,levelscript,named,0,0
 00128360,BroScr_DropToGround,.text,levelscript,untested,0,0
 001283d0,BroScr_VehicleTurretFireLoop_4,.text,levelscript,named,0,0
@@ -4824,7 +4824,7 @@ address,name,section,module,state,tested,matched
 00134300,BroScr_PlaneCrashSound_3,.text,levelscript,untested,0,0
 00134400,BroScr_DeleteVehicleTurrets,.text,levelscript,untested,0,0
 00134540,BroScr_VehicleMg42Fire_2,.text,levelscript,named,0,0
-001346f0,BroScr_SpawnWheelOrigins_2,.text,levelscript,named,0,0
+001346f0,BroScr_SpawnWheelOrigins_2,.text,levelscript,untested,0,0
 001349d0,BroScr_DebugStub_h8c05ef86,.text,levelscript,named,0,0
 00134a30,BroScr_DebugStub_hcd84c908,.text,levelscript,named,0,0
 00134a90,BroScr_TankStunOnDamage,.text,levelscript,named,0,0
@@ -4851,7 +4851,7 @@ address,name,section,module,state,tested,matched
 00135590,BroScr_ActorArray_SetFlag2000000,.text,levelscript,untested,0,0
 00135630,BroScr_WaitTillFinished,.text,levelscript,named,0,0
 001356f0,BroScr_WallHopRotate,.text,levelscript,named,0,0
-00135870,BroScr_PlayerHopSplineMath,.text,levelscript,named,0,0
+00135870,BroScr_PlayerHopSplineMath,.text,levelscript,untested,0,0
 00135e10,BroScr_WaitForNotifyForever,.text,levelscript,named,0,0
 00135ed0,BroScr_NotifyEntsByTargetname,.text,levelscript,matched,4,4
 00135fb0,Scr_ReleaseStringArrayAndString,.text,game,untested,0,0
@@ -4883,7 +4883,7 @@ address,name,section,module,state,tested,matched
 00138760,BroScr_FriendlyChatTriggers,.text,levelscript,named,0,0
 00138a40,BroScr_GetPanzerfaustRespawns,.text,levelscript,matched,7,7
 00138ba0,BroScr_PanzerfaustAmmoBox,.text,levelscript,named,0,0
-001398e0,BroScr_InitWeaponNames,.text,levelscript,named,0,0
+001398e0,BroScr_InitWeaponNames,.text,levelscript,untested,0,0
 00139da0,BroScr_VehicleDeath_M13,.text,levelscript,named,0,0
 00139f30,BroScr_VehicleRiderUnload,.text,levelscript,named,0,0
 0013a0f0,BroScr_VehicleDeath_Halftrack,.text,levelscript,named,0,0
@@ -4958,7 +4958,7 @@ address,name,section,module,state,tested,matched
 00145080,BroScr_VehicleInit_Sherman,.text,levelscript,named,0,0
 00145310,BroScr_SquadMemberThink,.text,levelscript,named,0,0
 001454a0,FUN_001454a0,.text,levelscript,unnamed,0,0
-001455e0,BroScr_SpawnStoneGibs,.text,levelscript,named,0,0
+001455e0,BroScr_SpawnStoneGibs,.text,levelscript,untested,0,0
 00145ac0,BroScr_VehicleExplodeSound,.text,levelscript,named,0,0
 00145c80,BroScr_InitWingTurret_3,.text,levelscript,untested,0,0
 00145cd0,BroScr_TankAttachHullMg,.text,levelscript,untested,0,0
@@ -5043,7 +5043,7 @@ address,name,section,module,state,tested,matched
 0014cbf0,BroScr_VehicleFollowPath,.text,levelscript,untested,0,0
 0014ce80,BroScr_DeleteArraysOnVehicleRemoved,.text,levelscript,named,0,0
 0014d0a0,BroScr_VehicleHealthThink,.text,levelscript,named,0,0
-0014e020,BroScr_VehicleCheckBlocker,.text,levelscript,named,0,0
+0014e020,BroScr_VehicleCheckBlocker,.text,levelscript,settled,12226,12224
 0014e7a0,BroScr_VehicleFindBlocker,.text,levelscript,settled,1782,1782
 0014e8c0,BroScr_RotateQueue_h4ced49f6,.text,levelscript,settled,470,470
 0014ea50,BroScr_StunnedWait,.text,levelscript,named,0,0
