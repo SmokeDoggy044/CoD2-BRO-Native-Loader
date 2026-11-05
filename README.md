@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 6,830 have been
+It's early days: about 73% of the functions have a name, and 6,842 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,13 +29,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,292 | 9,101 | 6,830 | 4,462 |
+| Engine and game code (`.text`) | 11,292 | 9,101 | 6,842 | 4,450 |
 | Mission scripts (14 level sections) | 5,324 | 2,993 | 0 | 5,324 |
-| **Total** | **16,616** | **12,094** | **6,830** | **9,786** |
+| **Total** | **16,616** | **12,094** | **6,842** | **9,774** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 243 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 244 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,006 | 1,702 | 293 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,446 | 208 | 278 | 1 | 928 | 24 |
+| Level-script helpers in the engine code | 1,446 | 220 | 307 | 1 | 891 | 20 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
