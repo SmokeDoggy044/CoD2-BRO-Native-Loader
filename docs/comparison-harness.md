@@ -374,6 +374,17 @@ a 128 KB gap Stream_UpdateLoad's File_PumpRequests zeroed its own C frame in tes
 0); its gap is 192 KB. Stale-stack reads inside title callees can still differ (R_AddEntityModel's subtree): bisect by calling
 original addresses instead of ours for groups of callees.
 
+Stack guard table (2026-11-05): in the Debug build every title_call_at* / floor helper records itself in
+`game/code/stack_guard.cpp`'s thread-local `t_live[]` (44-byte entries: floor, C frames' top, return address, the
+callee's position, ... - all C frame or host code addresses). Leaving popped the entry without clearing it, so a test
+of a caller of a gap-entry callee (BroScr_GetNodeAtPosition, BroScr_GetMuzzleOrigin, BroScr_PutGunInHand ...: ~17
+levelscript rows) left words in host TLS (`f3xxxec4 [host] [19] ...`, slots 0x2c apart) that differed by the C
+caller's frame depth. Only `t_live[0..t_depth)` is ever read and an enter rewrites a whole slot, so the popped slot is
+dead: leave now zeroes it. Before/after (missions 1,4,5,6, `--only --every 1`): GetNodeAtPosition 94/523 -> 522/522
+matched, GetNodeOrActorYaw 0/27 -> 39/39, PutGunInHand 4/103 -> 106/106. Left in GetMuzzleOrigin, CanShootFromPose,
+CheckCanShoot, ShouldGoProne_2: only 0x804fff2c / 0x81e23c5c, the temp box model's w lanes CM_TempBoxModel copies from
+stale stack (accepted.csv for the SV trace family) - title code, reached at a depth that follows our C frame.
+
 Debugging variables: `XBCMP_ORIGINAL_TWICE=1` (both sides run the original, Sound calls);
 `XBCMP_ONLY=name,name` hooks only those functions and keeps testing
 them past 100 matches (settled ones too); `XBCMP_EVERY=N` tests every N-th call instead of
