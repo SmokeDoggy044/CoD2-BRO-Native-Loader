@@ -483,4 +483,13 @@ void XB_CDECL Bro__load_gmi__main();
 // halftrack touching (0xa7ad4a18 / spawnflags 8; else again after 1 s). Deletes the trigger.
 void XB_CDECL BroScr_FriendlyChatTriggerThink(uint32_t trigger);
 
+// 0x00160d40: a flak's think (flakair / flakairlow / flaktank; flakpanzer for its model or type field
+// 0xd1c52a4f), else nothing: a BroScr_FlakDeathThink thread; its targets (start triggers, bomb models,
+// the crew spawners spawned); with the whole crew alive and at least 3 (flakpanzer: exactly 3, clips
+// off) the flak model, the level flak arrays reset, the setup function (key 0xc511e266) and per guy the
+// crew think (key 0x2f31323b), stop-moving / wait-death threads, the loader, loop sound and died
+// threads; then while manned (level bytes +0x684 [flaknum]) the crew anims or, with the level flag
+// array 0xe337f297 set, the guns put away. Frees its arrays and releases the type on the way out.
+void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum);
+
 }  // namespace game
