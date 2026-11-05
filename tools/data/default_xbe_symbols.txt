@@ -6631,7 +6631,7 @@
 001b7980 BroScr_PlayCoverDeathAnim
 001b7bc0 BroScr_AnimFaceWaitNotetracks
 001b7c70 BroScr_GrenadeCowerHide
-001b7e70 FUN_001b7e70
+001b7e70 BroScr_AnimScriptEntSetDefaults
 001b84a0 BroScr_TurnToEnemy
 001b8b50 BroScr_TurretOwnerChangeSwap
 001b8c60 Bro_climb_up_ledge

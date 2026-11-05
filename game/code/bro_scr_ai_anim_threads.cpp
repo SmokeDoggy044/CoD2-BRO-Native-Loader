@@ -14,6 +14,7 @@
 #include "bro_scr_notify_threads.h"
 #include "bro_scr_common.h"
 #include "bro_scr_cover_turret.h"
+#include "bro_scr_friendly_threads.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
 #include "qcommon_core.h"
@@ -1918,13 +1919,13 @@ void XB_CDECL BroScr_AnimScriptEntInit(uint32_t ent) {
 void XB_CDECL BroScr_AnimScriptEntInitIfValid(uint32_t ent) {
     if (!entity_handle_is_valid(ent)) return;
     BroScr_AnimScriptEntInit(ent);
-    title_function<void XB_CDECL(uint32_t)>(0x001b7e70)(ent);  // FUN_001b7e70 (agent-b list)
+    BroScr_AnimScriptEntSetDefaults(ent);
 }
 
 uint32_t XB_CDECL Bro_anim_main_init(uint32_t ent) {
     if (!entity_handle_is_valid(ent)) return 0;
     BroScr_AnimScriptEntInit(ent);
-    title_function<void XB_CDECL(uint32_t)>(0x001b7e70)(ent);  // FUN_001b7e70 (agent-b list)
+    BroScr_AnimScriptEntSetDefaults(ent);
     return 0;
 }
 
