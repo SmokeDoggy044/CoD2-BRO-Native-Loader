@@ -1,6 +1,7 @@
 #include "bro_scr_actor_threads.h"
 
 #include "bro_scr_ai_anim.h"
+#include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_common.h"
 #include "bro_scr_entity_threads.h"
@@ -214,6 +215,89 @@ void XB_CDECL BroScr_PlayStandMG42GunnerPain(uint32_t ent) {
     slot<Knob>(0x009225e0)(ent, 0x94d136d5, title_global<uint32_t>(0x008cf648), 0x3f800000, 0x3dcccccd, 0x3f800000,
                            0);  // GScr_SetFlaggedAnimKnob(standMG42gunner_pain)
     handle_note_tracks(ent, 0x94d136d5);
+}
+
+namespace {
+
+// level + offset [animname hash][key]: an array of 0x28-byte hash maps (Index_6/7 then Index_8/9),
+// element `index` (resized by `resize` first when past the count).
+inline uint8_t* face_map(uint32_t offset, bool second, uint32_t* ent, const uint32_t* key, uint32_t index,
+                         ScriptString* animname) {
+    uint32_t hash;
+    const uint32_t* const h =
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(ent, animname)));
+    HashMap* const outer = reinterpret_cast<HashMap*>(title_global<uint8_t*>(0x00922ee0) + offset);
+    DynArray* const maps = reinterpret_cast<DynArray*>(second ? HashMap_Index_9(reinterpret_cast<HashMap*>(HashMap_Index_7(outer, h)), key)
+                                                              : HashMap_Index_8(reinterpret_cast<HashMap*>(HashMap_Index_6(outer, h)), key));
+    if (index >= maps->size) {
+        if (second)
+            DynArray_ResizeHashMap_2(maps, index + 1, index + 4);
+        else
+            DynArray_ResizeHashMap(maps, index + 1, index + 4);
+    }
+    return reinterpret_cast<uint8_t*>(maps->data) + index * 0x28;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_NotetrackFaceAnim(uint32_t ent, uint32_t key, uint32_t index, ScriptString note) {
+    using Find = uint32_t* XB_THISCALL(uint8_t*, uint32_t*, const uint32_t*);
+    using Index = uint32_t* XB_THISCALL(uint8_t*, const uint32_t*);
+    uint32_t anim = 0;
+    ScriptString face;
+    ScriptString_FromRep(&face, nullptr);
+    bool has;
+    {
+        ScriptString animname;
+        uint8_t* const map = face_map(0x6f0, true, &ent, &key, index, &animname);
+        const uint32_t anim_key = 0xca20284c;
+        uint32_t it;
+        title_function<Find>(0x0045e6d0)(map, &it, &anim_key);  // HashMap_Find
+        if (it == *reinterpret_cast<uint32_t*>(map + 8)) {
+            const uint32_t pair[2] = {anim_key, 0};
+            uint32_t inserted;
+            it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        }
+        has = pointer<uint32_t>(it)[3] != 0;
+        scr_release(&animname);
+    }
+    if (has) {
+        ScriptString animname;
+        uint8_t* const map = face_map(0x6f0, true, &ent, &key, index, &animname);
+        const uint32_t anim_key = 0xca20284c;
+        anim = *title_function<Index>(0x00461030)(map, &anim_key);  // HashMap_Index_13
+        scr_release(&animname);
+    }
+    {
+        ScriptString animname;
+        uint8_t* const map = face_map(0x160, false, &ent, &key, index, &animname);
+        uint32_t hash;
+        ScriptString_Assign(&face, reinterpret_cast<ScriptString*>(title_function<Index>(0x00461120)(
+                                       map, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&note)))));  // HashMap_Index_11
+        scr_release(&animname);
+    }
+    {
+        ScriptString empty;
+        ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
+        ScriptString copy;
+        ScriptString_Copy(&copy, &face);
+        BroScr_StartAnimFaceWait(ent, anim, copy, title_global<uint32_t>(0x0083eb20), title_global<uint32_t>(0x00922ee8),
+                                 empty, title_global<uint32_t>(0x00922ea4));
+    }
+    {
+        ScriptString cleared;
+        ScriptString* const value = ScriptString_FromRep(&cleared, nullptr);
+        ScriptString animname;
+        uint8_t* const map = face_map(0x160, false, &ent, &key, index, &animname);
+        uint32_t hash;
+        ScriptString_Assign(reinterpret_cast<ScriptString*>(title_function<Index>(0x00461120)(
+                                map, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&note)))),
+                            value);
+        scr_release(&animname);
+        scr_release(&cleared);
+    }
+    scr_release(&face);
+    scr_release(&note);
 }
 
 }  // namespace game

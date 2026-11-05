@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -64,5 +65,11 @@ void XB_CDECL BroScr_AnimFaceWaitNotetracks(uint32_t ent);
 // 0x001b9950: the stand MG42 gunner pain anim as flagged knob 0x94d136d5 (1, 0.1, 1), then its
 // note tracks.
 void XB_CDECL BroScr_PlayStandMG42GunnerPain(uint32_t ent);
+
+// 0x001754b0 (was FUN_001754b0): the face anim of note track `note` in the animname's table
+// (level +0x160 [animname][key][index][hash(note)]), with the anim from level +0x6f0 [animname]
+// [key][index] value 0xca20284c (0 when unset): BroScr_StartAnimFaceWait(ent, anim, face, 1, the word
+// at 0x00922ee8, "", the word at 0x00922ea4); the table entry then emptied. Releases `note`.
+void XB_CDECL BroScr_NotetrackFaceAnim(uint32_t ent, uint32_t key, uint32_t index, ScriptString note);
 
 }  // namespace game
