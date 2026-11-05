@@ -41,4 +41,22 @@ void XB_CDECL BroScr_FallbackerSetup(uint32_t unused, uint32_t n, uint32_t group
 // and awaited till death; with none, waits "get new user". 0x7b1e85ba defaults to 0.
 void XB_CDECL BroScr_MgUserGoToNode(uint32_t turret);
 
+// 0x001c51a0 (functor target): the trigger's targets split into trigger_multiples (each a
+// BroScr_MagicGrenadeThrowThink thread) and thrower triggers (each a BroScr_GrenadeThrowTrigger
+// thread), both with the trigger's script_delay (3.5 when undefined). Then `count` times (the
+// trigger's count when defined, else 2): on each trigger by the player while touching, the targets
+// re-read into the thrower list, both lists notified "throw", and a random wait (script_delay_min +
+// random(max - min), else 2 + random(7)).
+void XB_CDECL BroScr_GrenadeThrowTriggers(uint32_t ent);
+// 0x001c5790 (functor target): a BroScr_GrenadeThrowTrigger thread on each target of the trigger
+// (script_delay, 2 when undefined); after the trigger 0xe2a210cf, BroScr_DeleteFloodSpawner(trigger).
+void XB_CDECL BroScr_GrenadeSpawnerOnceTriggerThink(uint32_t trigger);
+// 0x001c5910 (functor target): adds the spawner's count to the level's fallbacker count of `group`
+// (level +0x6c); for each spawned AI (output of 0x262a34d8): the first notifies "fallback_firstspawn"
+// + group; after 0.05 s, a living AI (after "finished spawning" unless 0xc0bb2676 is set) joins the
+// fallback (BroScr_FallbackerJoinFallback with group, `node`, "is spawner"); a dead one notifies
+// "fallbacker_died" + group and counts down.
+void XB_CDECL BroScr_FallbackSpawnerThink(uint32_t spawner, uint32_t group, uint32_t node);
+
 }  // namespace game
+

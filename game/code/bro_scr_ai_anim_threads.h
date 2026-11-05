@@ -179,4 +179,29 @@ void XB_CDECL BroScr_StartAnimFaceWait(uint32_t ent, uint32_t anim, ScriptString
 void XB_CDECL Bro_anim_main_grenade_return_throw(uint32_t ent);
 void XB_CDECL Bro_anim_main_walk(uint32_t ent);
 
+// 0x001c5c60: unless 0x764918ae is 0xc4a729a7: the alert-to-aim anim of the pose and idle set
+// (standing: 'w' wounded, 'a', else set 'b'; crouching with anim_special 0x3124fe8f:
+// BroScr_PlayCrouchIdleAnim; crouching / prone: 'a', else set 'b'), then 0x764918ae = 0xc4a729a7.
+void XB_CDECL BroScr_PlayIdleAnim(uint32_t ent);
+
+// 0x001c4510 (begun thread): ends on 0x07b4e7f7; anim script 0x3a09eb, desired pose applied
+// (wounded: BroScr_WoundedWalk). Then forever by the allowed move pose: crouch walk / prone crawl,
+// standing the walk combat anim (walk_combatanim with a combat delay passed, 0x9dc74345 without;
+// 20 %: the alternates 0x30248704 / 0xb8e86881), the wounded walk (until 0x32292cf8 or 0x8ef2ad7c
+// above 0.5), the stand shuffle (FUN_001b2ed0, below the anim object's +0xc0 limit, no combat, move
+// 0x385d90) or a random walk loop; played flagged 0x9e83b205 (blend 1.2) and waited for.
+void XB_CDECL BroScr_AnimScript_Walk(uint32_t ent);
+
+// 0x001c1860 (call thread): BroScr_AnimFaceResetKeys, then with an anim or a sound (ends on death):
+// a "wait" kind at or below the level playing (0x03375c37) queues a record {anim, sound, notify,
+// kind, time, id, level} (array 0x053fe992, id = 0x257acba4 + 1), starts the stop-notify and (with a
+// time) stop-time threads, waits for 0xc77f1e4d, then replays the record ("notify" in 0x1cc76848) or
+// reports "failed", and drops it. A level at or above the one playing interrupts it (0xad9b8a7b,
+// "interrupted"), plays the anim (flagged 0x1c859d65, note-track thread) and sound (after note
+// 0x84f611ff; with `flag` a notifying sound and the set-flag thread), waits until 0xaa35a0b5 is set
+// and reports "finished". Else "failed". Releases `sound` and `kind`.
+void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString sound, uint32_t level, uint32_t notify,
+                                  ScriptString kind, uint32_t time, uint32_t flag);
+
 }  // namespace game
+
