@@ -29,6 +29,10 @@ uint32_t hash_name(const char* name) {
     return *Scr_HashName(&hash, name);
 }
 
+inline void delete_if_valid(uint32_t ent) {
+    if (entity_handle_is_valid(ent)) slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
+}
+
 void turret_fire(uint32_t turret) { slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922580)(turret, 0); }  // GScr_TurretCall272
 void delete_ent(uint32_t ent) { slot<void XB_CDECL(uint32_t)>(0x00922540)(ent); }                      // GScr_Delete
 
@@ -41,10 +45,39 @@ void turret_idle_knob(uint32_t turret) {
         turret, title_global<uint32_t>(0x008cf684), 1.0f, 0.2f, 1.0f, 1);  // GScr_SetAnimKnob
 }
 
-void cover_crouch_idle(uint32_t actor, uint32_t anim) {
+inline void cover_crouch_idle(uint32_t actor, uint32_t anim) {
     slot<SetAnim8>(0x009225e4)(actor, 0xde61361c, anim, title_global<uint32_t>(0x008cd7dc), 1.0f, 0.1f, 0.0f,
                                1);  // GScr_SetFlaggedAnimKnobAll(.., g_anim_Body, ..)
     Scr_Wait(1.0f);
+}
+
+// Forever: fire, wait 0.06 s, the "mg42_shoot" sound, wait 0.06 s.
+[[noreturn]] inline void mg42_shoot_loop(uint32_t turret) {
+    for (;;) {
+        turret_fire(turret);
+        Scr_Wait(0.06f);
+        ScriptString sound;
+        scr_string_from(&sound, 0x00813a54);  // "mg42_shoot"
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(turret, &sound, 0, 0,
+                                                                                               0);  // GScr_PlaySound
+        scr_release(&sound);
+        Scr_Wait(0.06f);
+    }
+}
+
+inline void notify_on_notify(uint32_t ent, uint32_t wait, uint32_t notify, uint32_t end) {
+    end_on(ent, 0x07b4e7f7);
+    end_on(ent, kDeath);
+    end_on(ent, end);
+    wait_till(ent, wait);
+    queue_notify(ent, notify);
+}
+inline void notify_after_time(uint32_t ent, float time, uint32_t notify, uint32_t end) {
+    end_on(ent, 0x07b4e7f7);
+    end_on(ent, kDeath);
+    end_on(ent, end);
+    Scr_Wait(time);
+    queue_notify(ent, notify);
 }
 
 void stand_anim_for_time(uint32_t actor, float time, uint32_t stand, uint32_t crouch) {
@@ -97,16 +130,7 @@ void XB_CDECL BroScr_TurretAutoAiOnNotify(uint32_t ent, uint32_t turret) {
 
 void XB_CDECL BroScr_Mg42ShootSoundLoop(uint32_t turret) {
     end_on(turret, 0xeb04625e);
-    for (;;) {
-        turret_fire(turret);
-        Scr_Wait(0.06f);
-        ScriptString sound;
-        scr_string_from(&sound, 0x00813a54);  // "mg42_shoot"
-        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(turret, &sound, 0, 0,
-                                                                                               0);  // GScr_PlaySound
-        scr_release(&sound);
-        Scr_Wait(0.06f);
-    }
+    mg42_shoot_loop(turret);
 }
 
 void XB_CDECL BroScr_TurretStateChangeWait(uint32_t turret, float time) {
@@ -350,17 +374,271 @@ void XB_CDECL BroScr_WaitFrameStrArg(uint32_t, uint32_t, ScriptString unused) {
 }
 
 void XB_CDECL BroScr_NotifyOnNotify(uint32_t ent, uint32_t wait, uint32_t notify, uint32_t end) {
+    notify_on_notify(ent, wait, notify, end);
+}
+void XB_CDECL BroScr_NotifyAfterTime(uint32_t ent, float time, uint32_t notify, uint32_t end) {
+    notify_after_time(ent, time, notify, end);
+}
+
+// --- 0x00183930-0x0018c700 ---
+
+void XB_CDECL BroScr_TurretStateChangeAfterTime_2(uint32_t ai, float time, uint32_t turret) {
+    // The compiled test is inverted: the body runs when time is not above 0 (or NaN).
+    if (time > 0.0f) return;
+    end_on(ai, 0x07b4e7f7);
+    end_on(turret, 0xeb04625e);
+    Scr_WaitFrames(0);
+    Scr_Wait(time);
+    queue_notify(turret, 0xeb04625e);
+}
+
+void XB_CDECL BroScr_Mg42ShootLoop(uint32_t ai, uint32_t turret) {
+    end_on(ai, 0x07b4e7f7);
+    end_on(turret, 0xeb04625e);
+    slot<void XB_CDECL(uint32_t, uint32_t, float, float, float, uint32_t)>(0x009225d8)(
+        turret, title_global<uint32_t>(0x008cf7b0), 1.0f, 0.2f, 1.0f, 1);  // GScr_SetAnimKnob
+    mg42_shoot_loop(turret);
+}
+
+void XB_CDECL BroScr_TurretStateChangeAfterTime_3(uint32_t ai, float time, uint32_t turret) {
+    if (0.0f >= time) return;
+    end_on(ai, 0x07b4e7f7);
+    end_on(turret, 0xeb04625e);
+    end_on(turret, kDeath);
+    Scr_Wait(time);
+    queue_notify(turret, 0xeb04625e);
+}
+
+void XB_CDECL BroScr_Mg42ShootLoop_2(uint32_t ai, uint32_t turret) {
+    end_on(ai, kDeath);
+    end_on(ai, 0x07b4e7f7);
+    end_on(turret, 0xeb04625e);
+    end_on(turret, kDeath);
+    mg42_shoot_loop(turret);
+}
+
+void XB_CDECL BroScr_Mg42ShootLoop_3(uint32_t ai, uint32_t turret) {
+    end_on(ai, kDeath);
+    end_on(ai, 0x07b4e7f7);
+    end_on(turret, 0xeb04625e);
+    mg42_shoot_loop(turret);
+}
+
+void XB_CDECL BroScr_ActorAdvanceAnimAndTeleport(uint32_t actor, AnimCommand command) {
+    slot<void XB_CDECL(uint32_t)>(0x00922760)(actor);  // GScr_ActorAdvanceAnimTime
+    slot<void XB_CDECL(uint32_t, const uint32_t*, const uint32_t*)>(0x00922758)(actor, &command.w[7],
+                                                                               &command.w[10]);  // GScr_ActorTeleport
+    Scr_Wait(0.05f);
+}
+
+void XB_CDECL BroScr_ApplyAnimCommand(uint32_t actor, AnimCommand command) {
+    using Handler = void XB_CDECL(uint32_t, AnimCommand);
+    switch (command.w[0]) {
+    case 1:
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225dc)(
+            actor, command.w[1], command.w[4], command.w[5], command.w[6], 0);  // GScr_SetAnim
+        break;
+    case 2:
+        title_function<Handler>(0x00183d10)(actor, command);  // BroScr_AnimCmd_SetAnimKnobAll
+        break;
+    case 3:
+        title_function<Handler>(0x00183d40)(actor, command);  // BroScr_AnimCmd_SetFlaggedAnimKnobAll
+        break;
+    case 4:
+        BroScr_ActorAdvanceAnimAndTeleport(actor, command);
+        break;
+    default:
+        break;
+    }
+}
+
+void XB_CDECL BroScr_NotifyOnNotify_2(uint32_t ent, uint32_t wait, uint32_t notify, uint32_t end) {
+    notify_on_notify(ent, wait, notify, end);
+}
+void XB_CDECL BroScr_NotifyAfterTime_2(uint32_t ent, float time, uint32_t notify, uint32_t end) {
+    notify_after_time(ent, time, notify, end);
+}
+
+void XB_CDECL BroScr_MiscStepSounds(uint32_t ent, uint32_t end) {
+    using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
     end_on(ent, 0x07b4e7f7);
+    end_on(ent, end);
+    for (;;) {
+        Scr_Wait(0.5f);
+        ScriptString step1;
+        scr_string_from(&step1, 0x00825b98);  // "misc_step1"
+        slot<PlaySound>(0x009221dc)(ent, &step1, 0, 0, 0);  // GScr_PlaySound
+        scr_release(&step1);
+        Scr_Wait(0.5f);
+        ScriptString step2;
+        scr_string_from(&step2, 0x00825b8c);  // "misc_step2"
+        slot<PlaySound>(0x009221dc)(ent, &step2, 0, 0, 0);
+        scr_release(&step2);
+    }
+}
+
+void XB_CDECL BroScr_WaitKillAnimScript(uint32_t ent) {
+    end_on(ent, 0x9657e884);
+    wait_till(ent, 0x07b4e7f7);
+}
+
+void XB_CDECL BroScr_DeleteAfter300(uint32_t ent) {
+    Scr_Wait(300.0f);
+    delete_ent(ent);  // tail jump
+}
+
+void XB_CDECL BroScr_ProneAimWeightsLoop(uint32_t actor) {
+    end_on(actor, 0x07b4e7f7);
+    end_on(actor, kDeath);
+    end_on(actor, 0x6660fd4f);
+    for (;;) {
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, float, float, float)>(0x009226bc)(
+            actor, title_global<uint32_t>(0x008cf1d4), title_global<uint32_t>(0x008cf1c8), 1.0f, 0.05f,
+            1.0f);  // GScr_ActorSetAimAnimWeights(prone shootfeet 45 up, 45 down)
+        Scr_Wait(0.1f);
+    }
+}
+
+void XB_CDECL BroScr_CoverCrouchPlayIdle_3(uint32_t actor) { cover_crouch_idle(actor, title_global<uint32_t>(0x008ceec8)); }
+void XB_CDECL BroScr_CoverCrouchPlayIdle_4(uint32_t actor) { cover_crouch_idle(actor, title_global<uint32_t>(0x008ceed4)); }
+void XB_CDECL BroScr_CoverCrouchPlayIdle_5(uint32_t actor) { cover_crouch_idle(actor, title_global<uint32_t>(0x008ceec8)); }
+void XB_CDECL BroScr_CoverCrouchPlayIdle_6(uint32_t actor) { cover_crouch_idle(actor, title_global<uint32_t>(0x008ceed4)); }
+
+void XB_CDECL BroScr_NotifyAfterTime_3(uint32_t ent, uint32_t notify, uint32_t end, float time) {
     end_on(ent, kDeath);
     end_on(ent, end);
-    wait_till(ent, wait);
+    Scr_Wait(time);
     queue_notify(ent, notify);
 }
 
-void XB_CDECL BroScr_NotifyAfterTime(uint32_t ent, float time, uint32_t notify, uint32_t end) {
+void XB_CDECL BroScr_GetEyeLoop(uint32_t ent) {
+    end_on(ent, 0x07b4e7f7);
+    end_on(ent, 0x47e458b4);
+    for (;;) {
+        Scr_Wait(0.05f);
+        uint32_t eye[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+        slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922528)(ent, eye);  // GScr_GetEye (unused)
+    }
+}
+
+void XB_CDECL BroScr_DeleteEntsOnNotify(uint32_t, uint32_t ent, ScriptString notify, uint32_t first, uint32_t second) {
+    Scr_WaitTillString(ent, notify.rep ? notify.rep->text : nullptr);
+    delete_if_valid(first);
+    delete_if_valid(second);
+    scr_release(&notify);
+}
+
+void XB_CDECL BroScr_DebugCvarWait(uint32_t, ScriptString unused) {
+    ScriptString cvar;
+    const bool debug = ScriptString_Equals(ScrCall_GScr_GetCvar(&cvar, 0x00823564), pointer<const char>(0x0082e058));
+    scr_release(&cvar);  // debug == "1"
+    if (debug) {
+        const int32_t end = get_time() + 3000;
+        while (end > get_time()) Scr_Wait(0.05f);
+    }
+    scr_release(&unused);
+}
+
+void XB_CDECL BroScr_FallbackDebugLoop(uint32_t ent) {
+    end_on(ent, 0xed4ff1b2);
+    end_on(ent, 0x6a48b933);
+    for (;;) Scr_Wait(0.05f);
+}
+
+void XB_CDECL BroScr_SetGoalRadiusFromNodeOnNotify(uint32_t ai, uint32_t node) {
+    using SetFloat = void XB_CDECL(uint32_t, float);
+    using GetRadius = long double XB_CDECL(uint32_t);
+    wait_till(ai, 0x0032304c);
+    if (node != 0 && node != 0xffffffffu && slot<uint32_t XB_CDECL(uint32_t)>(0x00922224)(node) &&  // GScr_IsValidHandle
+        slot<GetRadius>(0x00922ac8)(node) > title_global<float>(0x0083eafc)) {  // ScrPathNode_GetRadius > 0
+        slot<SetFloat>(0x00922df4)(ai, static_cast<float>(slot<GetRadius>(0x00922ac8)(node)));  // ScrSentient_SetFloat_18
+        return;
+    }
+    slot<SetFloat>(0x00922df4)(ai, 512.0f);
+}
+
+void XB_CDECL BroScr_DeleteAfterFrame(uint32_t ent) {
+    Scr_Wait(0.05f);
+    delete_ent(ent);  // tail jump
+}
+
+void XB_CDECL BroScr_DeleteOnOtherDeath(uint32_t other, uint32_t ent) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));     // "death"
+    Scr_WaitTillString(other, pointer<const char>(0x00831f60));
+    delete_if_valid(ent);
+}
+
+void XB_CDECL Bro__util__Switch_Music(uint32_t trigger) {
+    if (level_object()[0xcc] || !level_object()[0x68]) return;
+    level_object()[0xcc] = 1;
+    const char* const self = pointer<const char>(0x00825c7c);  // "_util::Switch_Music"
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221c0)(trigger, 0xe2a210cf, hash_name(self));  // GScr_GetEntVar
+    ScriptString noteworthy;
+    const bool named = ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy)->rep != nullptr;
+    scr_release(&noteworthy);
+    if (named) {
+        uint32_t hash;
+        ScriptString name;
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &name)));
+        scr_release(&name);
+        if (*reinterpret_cast<uint32_t*>(level_object() + 0x150) != hash) {
+            ScriptString track;
+            slot<void XB_CDECL(ScriptString*, float)>(0x00922310)(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &track),
+                                                                  1.0f);  // GScr_AmbientPlay
+            scr_release(&track);
+            *reinterpret_cast<uint32_t*>(level_object() + 0x150) = hash;
+        }
+    } else if (*reinterpret_cast<uint32_t*>(level_object() + 0x150) != 0x2d7828fe) {
+        slot<void XB_CDECL(float)>(0x00922314)(1.0f);  // GScr_SetMusicTrack
+        *reinterpret_cast<uint32_t*>(level_object() + 0x150) = 0x2d7828fe;
+    }
+    Scr_Wait(0.25f);
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(trigger, 0xe2a210cf, hash_name(self));  // GScr_SetEntVar
+    level_object()[0xcc] = 0;
+}
+
+void XB_CDECL BroScr_AmbientPlayOutside(ScriptString name) {
+    if (!level_object()[0xcc]) {
+        level_object()[0xcc] = 1;
+        if (name.rep && !ScriptString_Equals(&name, pointer<const char>(0x0081dee0))) {  // "outside"
+            uint32_t hash;
+            Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
+            if (*reinterpret_cast<uint32_t*>(level_object() + 0x150) != hash) {
+                slot<void XB_CDECL(ScriptString*, float)>(0x00922310)(&name, 1.0f);  // GScr_AmbientPlay
+                *reinterpret_cast<uint32_t*>(level_object() + 0x150) = hash;
+            }
+        } else if (*reinterpret_cast<uint32_t*>(level_object() + 0x150) != 0x2d7828fe) {
+            slot<void XB_CDECL(float)>(0x00922314)(1.0f);  // GScr_SetMusicTrack
+            *reinterpret_cast<uint32_t*>(level_object() + 0x150) = 0x2d7828fe;
+        }
+        Scr_Wait(0.25f);
+        level_object()[0xcc] = 0;
+    }
+    scr_release(&name);
+}
+
+void XB_CDECL BroScr_TurretIdleAnimStart(uint32_t ai, uint32_t turret) {
+    end_on(ai, 0x07b4e7f7);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ai, title_global<uint32_t>(0x008cf0d8));  // ScrActor_SetInt_1370
+    slot<void XB_CDECL(uint32_t, uint32_t, float, float, float, uint32_t)>(0x009225d8)(
+        ai, title_global<uint32_t>(0x008cf0d8), 1.0f, 0.2f, 1.0f, 1);  // GScr_SetAnimKnob
+    BroScr_TurretIdleAnimLoop(ai, turret);  // never returns
+}
+
+void XB_CDECL BroScr_Turret30calFire(uint32_t ai, uint32_t turret) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ai, title_global<uint32_t>(0x008cf348));  // ScrActor_SetInt_1370
+    slot<void XB_CDECL(uint32_t, uint32_t, float, float, float, uint32_t)>(0x009225d8)(
+        ai, title_global<uint32_t>(0x008cf348), 1.0f, 0.05f, 1.0f, 1);  // GScr_SetAnimKnob(stand30calgunner_fire)
+    BroScr_TurretIdleAnimLoop_2(ai, turret);  // never returns
+}
+
+void XB_CDECL BroScr_NotifyAfterTimeChecked(uint32_t ent, uint32_t notify, float time) {
+    ScriptString message;
+    scr_string_from(&message, 0x00825c90);  // "time must be > 0" (the check was compiled out)
+    scr_release(&message);
+    end_on(ent, notify);
     end_on(ent, 0x07b4e7f7);
     end_on(ent, kDeath);
-    end_on(ent, end);
     Scr_Wait(time);
     queue_notify(ent, notify);
 }

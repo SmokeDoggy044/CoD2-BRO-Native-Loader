@@ -1,7 +1,7 @@
 #pragma once
 
 // Compiled level-script waits around notifies, turrets, music and small AI animations
-// (levelscript module, .text 0x00181610-0x001838a3). Every one waits (Scr_Wait*, Scr_WaitTill*):
+// (levelscript module, .text 0x00181610-0x0018c700). Every one waits (Scr_Wait*, Scr_WaitTill*):
 // class thread_switch, kept out of kFunctions until script threads run as coroutines. Names are
 // ours (from the bodies). "death" is hash 0x06730ae8; the level handle is word +4 of the level
 // script object (0x00922ef8).
@@ -13,6 +13,13 @@
 #include "script_string.h"
 
 namespace game {
+
+// An anim command passed by value (13 words): w[0] the kind (1 SetAnim, 2 SetAnimKnobAll,
+// 3 SetFlaggedAnimKnobAll, 4 advance and teleport), w[1..6] anim arguments, w[7..9] an origin,
+// w[10..12] angles.
+struct AnimCommand {
+    uint32_t w[13];
+};
 
 // 0x00181610: ends on death; saves the sentient float +0x18 (goal radius), sets it to 64, waits
 // for 0x011066c4 on the level, restores it.
@@ -97,5 +104,69 @@ void XB_CDECL BroScr_WaitFrameStrArg(uint32_t, uint32_t, ScriptString unused);
 void XB_CDECL BroScr_NotifyOnNotify(uint32_t ent, uint32_t wait, uint32_t notify, uint32_t end);
 // 0x00183860: ends on 0x07b4e7f7, death and `end`; waits `time`, notifies `notify`.
 void XB_CDECL BroScr_NotifyAfterTime(uint32_t ent, float time, uint32_t notify, uint32_t end);
+
+// --- 0x00183930-0x0018c700 ---
+
+// 0x00183930: the compiled test is inverted: for time NOT above 0 (or NaN): ends on 0x07b4e7f7
+// (ai) and 0xeb04625e (turret), waits a frame (WaitFrames(0)) and `time`, notifies 0xeb04625e.
+void XB_CDECL BroScr_TurretStateChangeAfterTime_2(uint32_t ai, float time, uint32_t turret);
+// 0x001839a0: ends (ai 0x07b4e7f7, turret 0xeb04625e), knob 0x008cf7b0 on the turret, then the
+// mg42 fire/sound loop (as 0x001818c0). 0x00183b30 / 0x00183c20: ends on ai death and 0x07b4e7f7,
+// turret 0xeb04625e (and death in _2), the same loop.
+void XB_CDECL BroScr_Mg42ShootLoop(uint32_t ai, uint32_t turret);
+void XB_CDECL BroScr_Mg42ShootLoop_2(uint32_t ai, uint32_t turret);
+void XB_CDECL BroScr_Mg42ShootLoop_3(uint32_t ai, uint32_t turret);
+// 0x00183ad0: BroScr_TurretStateChangeAfterTime plus an end on the turret's death.
+void XB_CDECL BroScr_TurretStateChangeAfterTime_3(uint32_t ai, float time, uint32_t turret);
+// 0x00183d70: advance the anim time, teleport to the command's origin/angles, wait 0.05 s.
+void XB_CDECL BroScr_ActorAdvanceAnimAndTeleport(uint32_t actor, AnimCommand command);
+// 0x00183db0: runs the command by kind (1-4; others nothing). Kind 4 waits.
+void XB_CDECL BroScr_ApplyAnimCommand(uint32_t actor, AnimCommand command);
+// 0x00183ea0 / 0x00183ef0: copies of BroScr_NotifyOnNotify / BroScr_NotifyAfterTime.
+void XB_CDECL BroScr_NotifyOnNotify_2(uint32_t ent, uint32_t wait, uint32_t notify, uint32_t end);
+void XB_CDECL BroScr_NotifyAfterTime_2(uint32_t ent, float time, uint32_t notify, uint32_t end);
+// 0x00183f50: ends on 0x07b4e7f7 and `end`; forever "misc_step1" / "misc_step2" every 0.5 s.
+void XB_CDECL BroScr_MiscStepSounds(uint32_t ent, uint32_t end);
+// 0x00184020: ends on 0x9657e884; waits for 0x07b4e7f7.
+void XB_CDECL BroScr_WaitKillAnimScript(uint32_t ent);
+// 0x00184090 / 0x0018c090: waits 300 s / 0.05 s, deletes `ent`.
+void XB_CDECL BroScr_DeleteAfter300(uint32_t ent);
+void XB_CDECL BroScr_DeleteAfterFrame(uint32_t ent);
+// 0x001840b0: ends on 0x07b4e7f7, death, 0x6660fd4f; prone aim weights (45 up / 45 down) every 0.1 s.
+void XB_CDECL BroScr_ProneAimWeightsLoop(uint32_t actor);
+// 0x00184120-0x001841e0: copies of BroScr_CoverCrouchPlayIdle_1/_2 (idles 0x008ceec8, 0x008ceed4).
+void XB_CDECL BroScr_CoverCrouchPlayIdle_3(uint32_t actor);
+void XB_CDECL BroScr_CoverCrouchPlayIdle_4(uint32_t actor);
+void XB_CDECL BroScr_CoverCrouchPlayIdle_5(uint32_t actor);
+void XB_CDECL BroScr_CoverCrouchPlayIdle_6(uint32_t actor);
+// 0x00184b30: ends on death and `end`; waits `time`, notifies `notify`.
+void XB_CDECL BroScr_NotifyAfterTime_3(uint32_t ent, uint32_t notify, uint32_t end, float time);
+// 0x00184b90: ends on 0x07b4e7f7 and 0x47e458b4; reads the eye position every 0.05 s (unused).
+void XB_CDECL BroScr_GetEyeLoop(uint32_t ent);
+// 0x0018ba10: waits for the `notify` string on `ent`, deletes `first` and `second` when valid.
+void XB_CDECL BroScr_DeleteEntsOnNotify(uint32_t unused, uint32_t ent, ScriptString notify, uint32_t first,
+                                        uint32_t second);
+// 0x0018bf00: with cvar debug "1", waits 3 s in 0.05 s steps; releases `unused`.
+void XB_CDECL BroScr_DebugCvarWait(uint32_t, ScriptString unused);
+// 0x0018bfc0: ends on 0xed4ff1b2 and 0x6a48b933; waits forever (the debug draw compiled out).
+void XB_CDECL BroScr_FallbackDebugLoop(uint32_t ent);
+// 0x0018bff0: on 0x0032304c, goal radius (+0x18) = the node's radius when the node is valid and
+// its radius above 0, else 512.
+void XB_CDECL BroScr_SetGoalRadiusFromNodeOnNotify(uint32_t ai, uint32_t node);
+// 0x0018c130: ends on `ent`'s death; on `other`'s death deletes `ent` when valid.
+void XB_CDECL BroScr_DeleteOnOtherDeath(uint32_t other, uint32_t ent);
+// 0x0018c190: the music trigger callback (level +0xcc busy, +0x68 enabled, +0x150 current):
+// ambient by the trigger's script_noteworthy, else the default track 0x2d7828fe; 0.25 s later
+// the callback var is set again.
+void XB_CDECL Bro__util__Switch_Music(uint32_t trigger);
+// 0x0018c320: the same for an ambient name ("outside" or none: the default); releases `name`.
+void XB_CDECL BroScr_AmbientPlayOutside(ScriptString name);
+// 0x0018c4e0 / 0x0018c5a0: the gunner idle (0x008cf0d8) / 30cal fire knob on the AI, then
+// BroScr_TurretIdleAnimLoop / _2 (never return).
+void XB_CDECL BroScr_TurretIdleAnimStart(uint32_t ai, uint32_t turret);
+void XB_CDECL BroScr_Turret30calFire(uint32_t ai, uint32_t turret);
+// 0x0018c6a0: ("time must be > 0" built and dropped) ends on `notify`, 0x07b4e7f7, death; waits
+// `time`, notifies `notify`.
+void XB_CDECL BroScr_NotifyAfterTimeChecked(uint32_t ent, uint32_t notify, float time);
 
 }  // namespace game
