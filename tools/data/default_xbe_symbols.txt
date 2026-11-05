@@ -5126,6 +5126,7 @@
 00159530 BroScr_SpawnerGroupManagerCall_3
 001596a0 BroScr_SpawnerGroupManagerCall_4
 001597a0 BroScr_RunSpawnerGroupsByGroupname
+00159cc0 BroScr_PlaneSpawnWingTurretsCall_3
 00159cf0 BroScr_PlaneSpawnWingTurretsCall_2
 00159d20 BroScr_FindAllFlakvierlings
 00159d50 BroScr_SpawnFlakvierlingCall

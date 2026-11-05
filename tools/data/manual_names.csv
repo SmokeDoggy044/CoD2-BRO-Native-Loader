@@ -14740,3 +14740,4 @@ address,name,kind,confidence,evidence
 0019e050,BroScr_AnimFaceResetKeys,function,medium,"name from functions.csv (decompile agents), applied in Ghidra 2026-11-05"
 001abb00,BroScr_GetFieldUnlessAutoOrSemi,function,medium,"name from functions.csv (decompile agents), applied in Ghidra 2026-11-05"
 001d91d0,BroScr_CrouchAimAndShoot,function,medium,"split out of BroScr_AnimScript_Death's old extent by the levelscript push agent (combat::CrouchedCombat asserts), applied 2026-11-05"
+00159cc0,BroScr_PlaneSpawnWingTurretsCall_3,function,medium,"split out of BroScr_RunSpawnerGroupsByGroupname's old extent by the levelscript push agent, applied 2026-11-05"
