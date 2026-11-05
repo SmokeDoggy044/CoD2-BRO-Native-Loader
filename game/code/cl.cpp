@@ -2831,7 +2831,7 @@ void XB_CDECL CL_CubemapShot_f() {
     const uint32_t count = cmd_argc();
     if (count == 10) {  // water: two vectors, the six faces written by re function 0x00928564
         if (title_stricmp(Cmd_Argv(3), &title_global<const char>(0x00833fb8))) return;
-        float first[3], second[3];
+        alignas(16) float first[3], second[3];
         first[0] = title_atof(Cmd_Argv(4));
         first[1] = title_atof(Cmd_Argv(5));
         first[2] = title_atof(Cmd_Argv(6));

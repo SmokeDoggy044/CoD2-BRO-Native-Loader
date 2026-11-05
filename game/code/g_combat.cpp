@@ -120,7 +120,7 @@ void XB_CDECL G_ApplyDamage(const float* dir, uint8_t* targ, int32_t damage, uin
     // +0x5e4 = 0), health (+0x350) down, "damage" notify, then death (health clamped to -999,
     // "death" notify for non-clients, die callback) or pain (pain callback with the dir in +0x390
     // and the point in +0x2e0); the client's health copy (+0x100).
-    float d[3];
+    alignas(16) float d[3];
     std::memcpy(d, dir, sizeof d);
     int32_t value = damage;
     uint8_t* const ps = pointer_at(targ, 0x23c);
@@ -509,7 +509,7 @@ void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t, uint8_t* self,
         }
         if (shake) {
             const uint8_t* const attacker = *reinterpret_cast<uint8_t* const*>(pointer_at(self, 0x244));
-            float origin[3];
+            alignas(16) float origin[3];
             for (uint32_t i = 0; i < 3; ++i) origin[i] = reinterpret_cast<const float*>(attacker + 0x140)[i];
             title_function<FromCString>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{0x00831f70}));  // "default"
             using Cue = void XB_CDECL(uint32_t, uint32_t*, float);

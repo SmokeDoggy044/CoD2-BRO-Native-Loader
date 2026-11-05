@@ -123,7 +123,7 @@ void ik_solve(const IkOperands& o, const IkRecord& r, float* root, const float* 
               float* upper_out, float* lower_out, float* pole) {
     const float twist = record_angle(r.twist);
     const float point[3] = {upper_position[0], upper_position[1], upper_position[2]};
-    float origin[3], dir[3], sin_a, cos_a, sin_b, cos_b;
+    alignas(16) float origin[3], dir[3], sin_a, cos_a, sin_b, cos_b;
     IkTwoBoneArgs args = {root, point, r.target, o.f0, o.f1, o.f2, o.f3, origin, dir, &sin_a, &cos_a, &sin_b, &cos_b};
     NAL_IK_TwoBoneAngles(&args);
     ik_pole(o.extra, root, target_bone, dir, pole);

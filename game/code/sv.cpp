@@ -722,8 +722,8 @@ void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t, uint8_t
     XModel_CalcSkeleton(reinterpret_cast<const XModel*>(model), skeleton, nullptr);
     const float* o = reinterpret_cast<const float*>(inst + 0x90);
     const float* m = reinterpret_cast<const float*>(inst + 0xb8);  // 3x3 axis
-    float local_start[3];
-    float local_end[3];
+    alignas(16) float local_start[3];
+    alignas(16) float local_end[3];
     {
         const float dx = start[0] - o[0], dy = start[1] - o[1], dz = start[2] - o[2];
         local_start[0] = (m[6] * dz + m[3] * dy) + m[0] * dx;

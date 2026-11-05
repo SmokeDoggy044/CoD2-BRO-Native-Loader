@@ -47,7 +47,9 @@ ScriptStringRep* XB_THISCALL ScriptStringRep_Init(ScriptStringRep* self, uint16_
 // 0x0011d580: copies `text` ("(null)" for null) to the end of the text and adds
 // `length` (the caller's count, not checked against the text) to the length. The
 // caller makes sure the allocation is large enough.
-void XB_THISCALL ScriptStringRep_Append(ScriptStringRep* self, const char* text, uint16_t length);
+// The entry keeps ECX: the original never writes it, and callers store the rep (ECX) after the call.
+extern "C" PLATFORM_HIDDEN void XB_THISCALL ScriptStringRep_Append(ScriptStringRep* self, const char* text, uint16_t length);
+extern "C" void ScriptStringRep_Append_entry(void);
 
 // 0x0011d5d0: constructor taking a rep without adding a reference.
 ScriptString* XB_THISCALL ScriptString_FromRep(ScriptString* self, ScriptStringRep* rep);

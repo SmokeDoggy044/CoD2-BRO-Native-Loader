@@ -2679,7 +2679,9 @@ void XB_CDECL PM_PeriodicContentsEvent() {
         static_cast<int32_t>(static_cast<float>(title_global<int32_t>(0x00929c44) - lo) * frac + static_cast<float>(lo));
     if (interval + at<int32_t>(ps, 0x40) >= at<int32_t>(pm, 4)) return;
     const float k = title_global<float>(0x0083eb58);  // 0.75
-    float mins[3], maxs[3];
+    // 16-byte aligned vec4s like the original's ([esp+0x20] / [esp+0x10], lane 3 unwritten): CM_CandidateCapsuleTrace
+    // reads them with MOVAPS (float[3] crashed on movement once the stack depth left them misaligned, 11-05).
+    alignas(16) float mins[4], maxs[4];
     mins[0] = at<float>(pm, 0x100) * k;
     mins[1] = at<float>(pm, 0x104) * k;
     mins[2] = at<float>(pm, 0x108) * k;
