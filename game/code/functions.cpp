@@ -3367,6 +3367,7 @@ const Function kFunctions[] = {
     {"BroScr_FindFlakvierlings", 0x00157b40, 0, code(&BroScr_FindFlakvierlings), 8, Result::None, Status::Compare},
     {"BroScr_SpawnFlakvierling", 0x00157e60, 0, code(&BroScr_SpawnFlakvierling), 32, Result::Eax, Status::Compare},
     {"BroScr_VehicleSpawnRider", 0x001580a0, 0, code(&BroScr_VehicleSpawnRider), 16, Result::None, Status::Compare},
+    {"BroScr_PlaneSpawnWingTurretsCall_3", 0x00159cc0, 0, code(&BroScr_PlaneSpawnWingTurretsCall_3), 4, Result::None, Status::Compare},
     {"BroScr_PlaneSpawnWingTurretsCall_2", 0x00159cf0, 0, code(&BroScr_PlaneSpawnWingTurretsCall_2), 8, Result::None, Status::Compare},
     {"BroScr_FindAllFlakvierlings", 0x00159d20, 0, code(&BroScr_FindAllFlakvierlings), 0, Result::None, Status::Compare},
     {"BroScr_SpawnFlakvierlingCall", 0x00159d50, 0, code(&BroScr_SpawnFlakvierlingCall), 28, Result::None, Status::Compare},

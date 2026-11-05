@@ -637,8 +637,18 @@ void XB_CDECL BroScr_SpawnerGroupManagerCall_4(uint32_t ent, ScriptString group,
 void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, ScriptString notify, RespawnerAttributes attribs,
                                                  uint32_t limit);
 
+// 0x00159cc0 (dead): BroScr_PlaneSpawnWingTurrets(plane, the undefined int, the undefined int, true);
+// siblings BroScr_PlaneSpawnWingTurretsCall / _2 in bro_scr_vehicle.h.
+void XB_CDECL BroScr_PlaneSpawnWingTurretsCall_3(uint32_t plane);
 // 0x0015aa50: BroScr_AddFollowers(leader, follower).
 void XB_CDECL BroScr_AddFollowersDefault(uint32_t leader, uint32_t follower);
+// 0x00159e40: the flak's automated think (ends on death / 0xca4175b9 / 0xbe7ade77; started by
+// BroScr_SetFlakManned / SetFlakAutomated): a BroScr_FlakGunnerRespawnLoop thread; every 0.2 s, without
+// a gunner (rider slot 0) or `automated`, the turret target cleared; else with targets_groupname a new
+// target (BroScr_FlakFindTargets) when the target is dead / missing or beyond flak_dist, otherwise the
+// level's target ("convoy3": 64 higher); the lead aimed at; in reach and range, notify 0xac1c7bac
+// (fire) when the "tag_flash" trace runs past the target or with can_shoot_low. Not registered: waits.
+void XB_CDECL BroScr_FlakAutomatedThink(uint32_t flak);
 // 0x0015aa80: notify 0xca4175b9; manned: after a frame a BroScr_FlakAutomatedThink thread, else
 // BroScr_ReleaseGunners.
 void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned);
