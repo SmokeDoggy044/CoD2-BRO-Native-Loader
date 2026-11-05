@@ -621,5 +621,13 @@ void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent);
 // crouched the crouch run - with the directional move loop thread; notify 0x6d4893a9 per pass.
 void XB_CDECL Bro_run__main(uint32_t ent);
 
+// 0x001ca420: a force-shoot call thread (BroScr_ForceShoot) until now + time: ends on death / 0x0039894e /
+// 0x2cf20de4; flag 0x88c31fb5, its thread handle to 0x60d7df22; looks at / faces the target (death watch) or
+// the point, stores both, the aim idle; then by weapon: 0xe5aa1ee7 bursts (BroScr_ShootAtTarget), full auto
+// bursts timed by the fire rate (BroScr_ShootAtTarget_2), single shots, or launcher shots; reloads between.
+// Releases `name`; `wait_stop` is not read.
+void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
+                                      uint32_t target, uint32_t wait_stop);
+
 }  // namespace game
 

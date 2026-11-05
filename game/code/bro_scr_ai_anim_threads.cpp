@@ -7327,4 +7327,233 @@ void XB_CDECL Bro_run__main(uint32_t ent) {
     }
 }
 
+namespace {
+using FsEntEnt = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
+using FsShoot = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const int32_t*,
+                                  const ScriptString*, const int32_t*, const uint32_t*);
+using FsAimIdle = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const float*, const uint32_t*);
+inline void fs_knob(uint32_t ent, uint32_t notify, uint32_t anim, uint32_t blend, uint32_t rate, uint32_t restart) {
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e0)(
+        ent, notify, anim, 0x3f800000, blend, rate, restart);  // GScr_SetFlaggedAnimKnob
+}
+inline void fs_set_knob(uint32_t ent, uint32_t anim) {
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(
+        ent, anim, 0x3f800000, 0x3e19999a, 0, 0);  // GScr_SetAnimKnob 1, 0.15
+}
+// A dropped copy of the anim object's script string at `offset`.
+inline void fs_drop_string(uint32_t offset) {
+    ScriptString s;
+    ScriptString_Copy(&s, reinterpret_cast<const ScriptString*>(anim_object() + offset));
+    scr_release(&s);
+}
+inline bool fs_before(int32_t end) { return get_time() < end; }
+// The reload while time is left: BroScr_NeedsReload(0); BroScr_TryReload(0, 0x00922ea8).
+inline bool fs_needs_reload(uint32_t ent) {
+    uint8_t out;
+    return *BroScr_NeedsReload(&out, ent, 0) != 0;  // 0.0f
+}
+inline void fs_reload(uint32_t ent) { BroScr_TryReload(ent, 0, title_global<uint32_t>(0x00922ea8)); }
+// GScr_ActorShootAt(ent, 1, the target's eye (a sentient) or origin, else `point`).
+inline void fs_shoot_at(uint32_t ent, uint32_t& target, const ScrVec3& point) {
+    if (entity_handle_is_valid(target)) {
+        const uint32_t u = undefined_lane();
+        uint32_t at[3] = {u, u, u};
+        uint32_t buffer[3];
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922220)(target)) {  // GScr_IsSentient
+            const uint32_t* const eye = BroScr_GetEyePos(buffer, &target);
+            at[0] = eye[0];
+            at[1] = eye[1];
+            at[2] = eye[2];
+        } else {
+            const uint32_t* const origin = ScrCall_ScrEnt_GetOrigin(&target, buffer);
+            at[0] = origin[0];
+            at[1] = origin[1];
+            at[2] = origin[2];
+        }
+        slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*)>(0x00922698)(ent, 0x3f800000, at);  // GScr_ActorShootAt
+    } else {
+        slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*)>(0x00922698)(ent, 0x3f800000, point.v);
+    }
+}
+// Shots left (0x0feddbea) - 1.
+inline void fs_count_shot(uint32_t ent) {
+    const uint32_t left = *int_slot(ent, 0x0feddbea);
+    *int_slot(ent, 0x0feddbea) = left - 1;
+}
+// A burst length: base + random(spread), at most the shots left.
+inline int32_t fs_burst(uint32_t ent, int32_t spread, int32_t base) {
+    int32_t n = random_int(spread) + base;
+    if (static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) < n) n = static_cast<int32_t>(*int_slot(ent, 0x0feddbea));
+    return n;
+}
+}  // namespace
+
+void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
+                                      uint32_t target, uint32_t /*wait_stop*/) {
+    const int32_t end = static_cast<int32_t>(static_cast<float>(get_time()) + time);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);  // Scr_EndOn "death"
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x0039894e);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x2cf20de4);
+    *int_slot(ent, 0x88c31fb5) = 1;
+    {
+        uint32_t* const handle = int_slot(ent, 0x60d7df22);
+        *handle = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
+    }
+    Scr_WaitFrames(0);
+    uint32_t auto_anim = 0;
+    uint32_t single_anim = 0;
+    uint32_t weapon_out;
+    const uint32_t weapon = *BroScr_GetWeaponType(&weapon_out, ent);
+    if (get_int_184(ent) == 0x070b89a4) {
+        auto_anim = title_global<uint32_t>(0x008cf510);    // stand_shoot_auto
+        single_anim = title_global<uint32_t>(0x008cf504);  // stand_shoot
+    } else if (get_int_184(ent) == 0xc1165808) {
+        auto_anim = title_global<uint32_t>(0x008ce604);    // crouch_shoot_auto
+        single_anim = title_global<uint32_t>(0x008ce5f8);  // crouch_shoot
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(
+        ent, title_global<uint32_t>(0x008cf318), 0x3f800000, 0x3e19999a, 0x3f800000, 0);  // GScr_SetAnimKnob g_anim_Shoot
+    queue_notify(ent, 0x3c77a48b);
+    // Look at and face the target (watching its death), else the point.
+    if (entity_handle_is_valid(target)) {
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001c02d0, ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_LookAtEntityLoop)
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001abe30, ent, &target);  // BroScr_UpdateOrientToEntity
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001c6ba0, ent, &target);  // BroScr_ForceShootTargetDeathWatch
+    } else {
+        using CallVec = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*);
+        title_function<CallVec>(0x001e4f00)(0, 0, 0, 0, 0x001c0130, ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
+        ScriptString mode;
+        ScriptString_FromCString(&mode, pointer<const char>(0x0083ad6c));  // "face point"
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0, &point);  // GScr_ActorSetOrientMode
+        scr_release(&mode);
+    }
+    *key_slot(ent, 0x27cc2178, 0) = target;
+    {
+        float* const stored = ScrField_h7aeb941a(ent);
+        std::memcpy(stored, point.v, sizeof(point.v));
+    }
+    const float u = as_float(title_global<uint32_t>(0x00922eb8));  // g_scrUndefinedVecLane
+    if (as_float(point.v[0]) != u || as_float(point.v[1]) != u || as_float(point.v[2]) != u) *int_slot(ent, 0x33a4ea6c) = 1;
+    {
+        const float half = title_global<float>(0x0083eb24);  // 0.5
+        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, 0x001c9890, ent, &half,
+                                              pointer<uint32_t>(0x00922ea4));  // Scr_CallThread_ent_f_f_5(BroScr_AimIdleAtTarget)
+    }
+    Scr_WaitTill(ent, 0xf378e0c7);
+    uint32_t type_out;
+    if (*BroScr_GetWeaponType(&type_out, ent) == 0xe5aa1ee7) {
+        // Bursts (80-119 shots, at most those left) through BroScr_ShootAtTarget, each waited for (0x3457a259).
+        fs_drop_string(0x160);
+        fs_knob(ent, 0x54e3b2b6, auto_anim, 0x3e19999a, 0, 0);
+        Scr_Wait(0.2f);
+        uint32_t interval_out;
+        fs_knob(ent, 0x1973c1fe, auto_anim, 0x3d4ccccd, *BroScr_GetShotInterval_2(&interval_out, ent), 1);
+        if (fs_before(end)) {
+            const uint32_t done = 0x3457a259;
+            do {
+                const int32_t shots = fs_burst(ent, 40, 80);
+                title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab050, ent, &done, &shots, &name, &end,
+                                                    &target);  // Scr_CallThread_ent_hash_i_str_i_ent(BroScr_ShootAtTarget)
+                Scr_WaitTill(ent, done);
+                if (fs_before(end) && fs_needs_reload(ent))
+                    fs_reload(ent);
+                else
+                    Scr_Wait(0.3f);
+            } while (fs_before(end));
+        }
+        queue_notify(ent, 0x933be1f6);
+    } else {
+        uint32_t fire_out;
+        if (*BroScr_GetWeaponFireType(&fire_out, ent) == 0x00315aef) {
+            // Full auto: bursts of 6-13 (BroScr_ShootAtTarget_2, ended by a 0x36f77b94 notify after shots * 0.1 / rate).
+            fs_drop_string(0x160);
+            while (fs_before(end)) {
+                fs_knob(ent, 0x54e3b2b6, auto_anim, 0x3e19999a, 0, 0);
+                Scr_Wait(0.2f);
+                float rate;
+                uint32_t type2_out;
+                if (*BroScr_GetWeaponFireType(&type2_out, ent) == 0x00315aef) {
+                    uint32_t rate_out;
+                    rate = as_float(*BroScr_GetWeaponFireRate(&rate_out, ent)) * title_global<float>(0x0083ebf8);  // 0.1
+                } else {
+                    rate = title_global<float>(0x0083eca0);  // 0.2
+                }
+                fs_knob(ent, 0x1973c1fe, auto_anim, 0x3d4ccccd, bits(rate), 1);
+                while (fs_before(end)) {
+                    const int32_t shots = fs_burst(ent, 8, 6);
+                    if (shots > 0) {
+                        const float wait = static_cast<float>(shots) * title_global<float>(0x0083ebf8) / rate;
+                        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
+                        if (functor) {
+                            functor[0] = 0x007f4a58;
+                            functor[1] = 0x0018c6a0;  // BroScr_NotifyAfterTimeChecked
+                            functor[2] = ent;
+                            functor[3] = 0x36f77b94;
+                            functor[4] = bits(wait);
+                        }
+                        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x00922168)(
+                            0, 0, 0, ent, functor, 0);  // Scr_BeginThread
+                        if (slot<uint8_t XB_CDECL()>(0x0092218c)()) Scr_WaitFrames(0);  // Scr_InThread
+                        const uint32_t stop = 0x36f77b94;
+                        title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab530, ent, &stop, &shots, &name, &end,
+                                                            &target);  // (BroScr_ShootAtTarget_2)
+                    }
+                    if (fs_before(end) && fs_needs_reload(ent)) {
+                        fs_reload(ent);
+                        const float half = title_global<float>(0x0083eb24);
+                        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, 0x001c9890, ent, &half, pointer<uint32_t>(0x00922ea4));
+                        Scr_WaitTill(ent, 0xf378e0c7);
+                        break;
+                    }
+                    Scr_WaitTill(ent, 0x36f77b94);
+                }
+            }
+            if (a7) Scr_Wait(0.25f);
+            queue_notify(ent, 0x933be1f6);
+        } else if (*BroScr_GetWeaponFireType(&fire_out, ent) == 0x003819c9) {
+            // Single shots at the target, 0.25 s apart (with a7 also the rest of a longer shot interval).
+            fs_drop_string(0x194);
+            fs_set_knob(ent, single_anim);
+            Scr_Wait(0.2f);
+            if (fs_before(end)) {
+                const float pause = title_global<float>(0x0083ec24);  // 0.25
+                do {
+                    fs_knob(ent, 0x1973c1fe, single_anim, 0, 0x3f800000, 1);
+                    fs_shoot_at(ent, target, point);
+                    fs_count_shot(ent);
+                    uint32_t interval_out;
+                    const float interval = as_float(*BroScr_GetShotInterval(&interval_out, ent));
+                    if (fs_before(end) && fs_needs_reload(ent)) {
+                        fs_reload(ent);
+                    } else {
+                        Scr_Wait(pause);
+                        if (a7 && static_cast<float>(interval > pause ? 1 : 0) != title_global<float>(0x0083eafc))
+                            Scr_Wait(interval - pause);
+                    }
+                } while (fs_before(end));
+            }
+        } else if (fs_before(end)) {
+            // A launcher: reload, aim (0.5 s for rockets), unless 0x552cfcab a shot, 0xc786fa48 set; 0.25 s apart.
+            do {
+                BroScr_ReloadLauncher(ent);
+                fs_drop_string(0x194);
+                fs_set_knob(ent, single_anim);
+                if (weapon == 0xa39d17dd || weapon == 0x318fbe80 || weapon == 0x45963119)
+                    Scr_Wait(0.5f);
+                else
+                    Scr_Wait(0.2f);
+                if (*reinterpret_cast<uint8_t*>(ScrField_h552cfcab(ent, 0)) == 1) break;
+                fs_knob(ent, 0x1973c1fe, single_anim, 0, 0x3f800000, 1);
+                fs_shoot_at(ent, target, point);
+                *int_slot(ent, 0xc786fa48) = 1;
+                fs_count_shot(ent);
+                uint32_t interval_out;
+                BroScr_GetShotInterval(&interval_out, ent);
+                Scr_Wait(0.25f);
+            } while (fs_before(end));
+        }
+    }
+    scr_release(&name);
+}
+
 }  // namespace game
