@@ -4787,7 +4787,7 @@
 00130ee0 BroScr_WaitForNotifyOrTimeoutCall_2
 00130fc0 BroScr_WaitForNotifyOrTimeoutCall_3
 001310b0 BroScr_WaitForNotifyOrTimeoutCall_4
-00131180 FUN_00131180
+00131180 BroScr_PlayerInsideEntZone
 001315b0 BroScr_DebugForwardStub
 00131720 BroScr_StukaPlaneCrashMove
 001318b0 BroScr_PlayExplodeSounds
@@ -5250,7 +5250,7 @@
 0016d390 BroScr_DroneMainCall
 0016d3b0 BroScr_DroneFollowSpline
 0016dae0 BroScr_DroneVehicleRiders
-0016e270 FUN_0016e270
+0016e270 BroScr_HalftrackSeatGuy
 0016e760 BroScr_MortarThink
 0016f040 BroScr_StukaBombImpact
 0016f650 BroScr_DroneMainDelayed
@@ -5321,6 +5321,7 @@
 00175370 BroScr_PathMoverFromTargetChainCall_2
 001753c0 BroScr_PathMoverFromTargetChainCall_3
 00175410 BroScr_PathMoverFromTargetChainCall_4
+00175460 BroScr_PathMoverFromTargetChainCall_5
 001754b0 FUN_001754b0
 001757f0 BroScr_AnimNotetrackCommands
 00176720 BroScr_AnimLoopGuys
@@ -16509,7 +16510,7 @@
 005b4c40 FUN_005b4c40
 005b4c80 FUN_005b4c80
 005b4ca0 FUN_005b4ca0
-005b4cd0 FUN_005b4cd0
+005b4cd0 DynArray_PushBackVec3
 005b4d70 FUN_005b4d70
 005b4da0 Scr_WaitTillOutputEnt_LIBEATOR
 005b4e20 FUN_005b4e20
