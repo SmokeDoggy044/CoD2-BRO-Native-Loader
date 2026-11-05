@@ -6,7 +6,10 @@ set(game_code_sources
     anim_script.cpp
     bg_misc.cpp
     bro_scr_anim_handles.cpp
+    bro_scr_array.cpp
+    bro_scr_level.cpp
     bro_scr_util.cpp
+    bro_scr_vehicle.cpp
     bro_scr_wad.cpp
     cg_ents.cpp
     cg_hud.cpp
