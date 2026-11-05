@@ -28,8 +28,10 @@
 #include "bro_scr_math.h"
 #include "bro_scr_mortar.h"
 #include "bro_scr_nodes_spawner.h"
+#include "bro_scr_notetrack.h"
 #include "bro_scr_squad.h"
 #include "bro_scr_stubs.h"
+#include "bro_scr_tank_init.h"
 #include "bro_scr_util.h"
 #include "bro_scr_vehicle.h"
 #include "bro_scr_vehicle_health.h"
@@ -3321,6 +3323,7 @@ const Function kFunctions[] = {
     {"BroScr_VehicleSetHealth_Jeep", 0x00154020, 0, code(&BroScr_VehicleSetHealth_Jeep), 4, Result::None, Status::Compare},
     {"BroScr_SetupWallHopTrigger", 0x00154100, 0, code(&BroScr_SetupWallHopTrigger_entry), 4, Result::None, Status::Compare},
     {"BroScr_FlakvierlingInit", 0x00154190, 0, code(&BroScr_FlakvierlingInit), 12, Result::None, Status::Compare},
+    {"BroScr_SetupSpawnerTriggers", 0x00154990, 0, code(&BroScr_SetupSpawnerTriggers), 4, Result::None, Status::Compare},
     {"BroScr_VehicleSetHealth_PanzerIV", 0x001552d0, 0, code(&BroScr_VehicleSetHealth_PanzerIV), 4, Result::None, Status::Compare},
     {"BroScr_HalftrackSetup", 0x001553b0, 0, code(&BroScr_HalftrackSetup), 4, Result::None, Status::Compare},
     {"BroScr_VehicleSetHealth_Halftrack", 0x00155500, 0, code(&BroScr_VehicleSetHealth_Halftrack), 4, Result::None, Status::Compare},
@@ -3333,12 +3336,19 @@ const Function kFunctions[] = {
     {"BroScr_VehicleSetHealth_PanzerIV_2", 0x001578f0, 0, code(&BroScr_VehicleSetHealth_PanzerIV_2), 4, Result::None, Status::Compare},
     {"BroScr_TunisiaPanzerIVInit", 0x001579d0, 0, code(&BroScr_TunisiaPanzerIVInit), 4, Result::None, Status::Compare},
     {"BroScr_PlaneSpawnWingTurretsCall", 0x00157ab0, 0, code(&BroScr_PlaneSpawnWingTurretsCall), 12, Result::None, Status::Compare},
+    {"BroScr_FindFlakvierlings", 0x00157b40, 0, code(&BroScr_FindFlakvierlings), 8, Result::None, Status::Compare},
+    {"BroScr_SpawnFlakvierling", 0x00157e60, 0, code(&BroScr_SpawnFlakvierling), 32, Result::Eax, Status::Compare},
+    {"BroScr_VehicleSpawnRider", 0x001580a0, 0, code(&BroScr_VehicleSpawnRider), 16, Result::None, Status::Compare},
     {"BroScr_PlaneSpawnWingTurretsCall_2", 0x00159cf0, 0, code(&BroScr_PlaneSpawnWingTurretsCall_2), 8, Result::None, Status::Compare},
     {"BroScr_FindAllFlakvierlings", 0x00159d20, 0, code(&BroScr_FindAllFlakvierlings), 0, Result::None, Status::Compare},
     {"BroScr_SpawnFlakvierlingCall", 0x00159d50, 0, code(&BroScr_SpawnFlakvierlingCall), 28, Result::None, Status::Compare},
     {"BroScr_VehicleSpawnRiderCall", 0x00159de0, 0, code(&BroScr_VehicleSpawnRiderCall), 8, Result::None, Status::Compare},
     {"BroScr_VehicleSpawnRiderCall_2", 0x00159e10, 0, code(&BroScr_VehicleSpawnRiderCall_2), 12, Result::None, Status::Compare},
+    {"BroScr_VehicleSpawnRiderByName", 0x0015ab50, 0, code(&BroScr_VehicleSpawnRiderByName), 12, Result::None, Status::Compare},
     {"BroScr_VehicleSpawnRiderByNameCall", 0x0015ad00, 0, code(&BroScr_VehicleSpawnRiderByNameCall), 8, Result::None, Status::Compare},
+    {"BroScr_CreateModel", 0x0015ad70, 0, code(&BroScr_CreateModel), 8, Result::None, Status::Compare},
+    {"BroScr_DeleteModel", 0x0015afe0, 0, code(&BroScr_DeleteModel), 8, Result::None, Status::Compare},
+    {"BroScr_NotetrackDropGun", 0x0015b3b0, 0, code(&BroScr_NotetrackDropGun), 12, Result::None, Status::Compare},
     {"BroScr_PlaySoundOn", 0x0015bcf0, 0, code(&BroScr_PlaySoundOn), 8, Result::None, Status::Compare},
     {"BroScr_FlagSet", 0x0015ce00, 0, code(&BroScr_FlagSet), 4, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFx", 0x0015d170, 0, code(&BroScr_SetWheelSmokeFx), 8, Result::None, Status::Compare},
@@ -3346,7 +3356,9 @@ const Function kFunctions[] = {
     {"BroScr_TreeBurstModelFor", 0x0015d480, 0, code(&BroScr_TreeBurstModelFor), 0, Result::None, Status::Compare},
     {"BroScr_GetLevelVecOrZero", 0x0015d510, 0, code(&BroScr_GetLevelVecOrZero), 8, Result::Eax, Status::Compare},
     {"Bro__treeburst_gmi__tree_burst_getUndamagedModel", 0x0015d650, 0, code(&Bro__treeburst_gmi__tree_burst_getUndamagedModel), 8, Result::Eax, Status::Compare},
+    {"BroScr_TreeBurstSetup", 0x0015d7b0, 0, code(&BroScr_TreeBurstSetup), 8, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFxCall", 0x0015e450, 0, code(&BroScr_SetWheelSmokeFxCall), 0, Result::None, Status::Compare},
+    {"BroScr_SetupFlak88s", 0x0015e7f0, 0, code(&BroScr_SetupFlak88s), 0, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread", 0x0015fd60, 0, code(&BroScr_RandomSoundBurstsThread), 8, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread_2", 0x0015fde0, 0, code(&BroScr_RandomSoundBurstsThread_2), 24, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread_3", 0x0015fe50, 0, code(&BroScr_RandomSoundBurstsThread_3), 32, Result::None, Status::Compare},
@@ -3355,8 +3367,11 @@ const Function kFunctions[] = {
     {"BroScr_SetWheelSmokeFxCall_4", 0x001600a0, 0, code(&BroScr_SetWheelSmokeFxCall_4), 4, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFxCall_5", 0x00163980, 0, code(&BroScr_SetWheelSmokeFxCall_5), 4, Result::None, Status::Compare},
     {"BroScr_StoneBreakFx", 0x001639f0, 0, code(&BroScr_StoneBreakFx), 0, Result::None, Status::Compare},
+    {"BroScr_WindowBreakThink", 0x001642b0, 0, code(&BroScr_WindowBreakThink), 4, Result::None, Status::Compare},
     {"BroScr_SpawnLoopSoundOrigin", 0x001653b0, 0, code(&BroScr_SpawnLoopSoundOrigin), 48, Result::None, Status::Compare},
     {"BroScr_MinefieldTriggers", 0x001654a0, 0, code(&BroScr_MinefieldTriggers), 0, Result::None, Status::Compare},
+    {"BroScr_SpawnWheelOrigins", 0x001655f0, 0, code(&BroScr_SpawnWheelOrigins), 4, Result::None, Status::Compare},
+    {"BroScr_SetupTreeBursts", 0x00165960, 0, code(&BroScr_SetupTreeBursts), 0, Result::None, Status::Compare},
     {"BroScr_GetWindowBreaks", 0x00165f90, 0, code(&BroScr_GetWindowBreaks), 0, Result::None, Status::Compare},
     {"BroScr_StartFxLoopingThread", 0x001660b0, 0, code(&BroScr_StartFxLoopingThread), 0, Result::None, Status::Compare},
     {"BroScr_SpawnLoopSoundOriginCall", 0x00166450, 0, code(&BroScr_SpawnLoopSoundOriginCall), 20, Result::None, Status::Compare},
@@ -3370,6 +3385,9 @@ const Function kFunctions[] = {
     {"BroScr_PanzerIVGunHullStart", 0x001683e0, 0, code(&BroScr_PanzerIVGunHullStart), 4, Result::None, Status::Compare},
     {"BroScr_TankGunHull_3", 0x00168470, 0, code(&BroScr_TankGunHull_3), 8, Result::None, Status::Compare},
     {"BroScr_PanzerIVGunHullStart_2", 0x00168500, 0, code(&BroScr_PanzerIVGunHullStart_2), 4, Result::None, Status::Compare},
+    {"BroScr_AnimLoopPickIndex", 0x00168590, 0, code(&BroScr_AnimLoopPickIndex), 20, Result::Eax, Status::Compare},
+    {"BroScr_AnimGroupTeleportGuys", 0x00168df0, 0, code(&BroScr_AnimGroupTeleportGuys), 32, Result::None, Status::Compare},
+    {"BroScr_AnimGroupPlaceGuys", 0x00169250, 0, code(&BroScr_AnimGroupPlaceGuys), 32, Result::None, Status::Compare},
     {"BroScr_AddToNamedEntList", 0x00169650, 0, code(&BroScr_AddToNamedEntList), 8, Result::None, Status::Compare},
     {"BroScr_StartDronesNearEnt", 0x0016a920, 0, code(&BroScr_StartDronesNearEnt), 4, Result::None, Status::Compare},
     {"BroScr_VehicleGetPassengers", 0x0016c7c0, 0, code(&BroScr_VehicleGetPassengers), 16, Result::None, Status::Compare},
@@ -3665,6 +3683,7 @@ const Function kFunctions[] = {
     {"BroScr_EmptyFunc_72", 0x00184490, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Compare},
     {"BroScr_AngleClamp", 0x001844a0, 0, code(&BroScr_AngleClamp), 12, Result::Eax, Status::Compare},
     {"BroScr_SetDirectionBlendWeights", 0x00184520, 0, code(&BroScr_SetDirectionBlendWeights), 8, Result::None, Status::Compare},
+    {"BroScr_ComputeMoveDirectionWeights", 0x00184640, 0, code(&BroScr_ComputeMoveDirectionWeights), 8, Result::None, Status::Compare},
     {"BroScr_YawToDirectionName", 0x00184a20, 0, code(&BroScr_YawToDirectionName), 8, Result::Eax, Status::Compare},
     {"BroScr_EmptyFunc_73", 0x00184b20, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Compare},
     {"BroScr_EmptyFuncStrArg_9", 0x00184b70, 0, code(&BroScr_Stub_ReleaseArg2), 8, Result::Eax, Status::Compare},

@@ -24,4 +24,13 @@ void XB_CDECL BroScr_FriendlyFireMissionFail();
 // origin, sets `model` and deletes it. Releases `model`.
 void XB_CDECL BroScr_PrecacheModelBySpawn(ScriptString model);
 
+// 0x00154990: a spawner trigger's threads: unless it is named "friendly_wave", the
+// BroScr_TriggerSpawnerThink thread (ends on 0xe2a210cf) for each target with spawnflags bit 0;
+// one thread per defined field (script_increment, script_fallback, 0xbe5f9a9f,
+// script_killspawner, 0x83048760, script_hint, script_exploder, ambient; 0x7fa1fc35 / 0x0bfd0e20
+// on the level entity); then by targetname: flood_spawner, grenade_spawner, grenade_spawner_once,
+// friendly_wave(_off), friendly_chat, axis_touching, axis_dead, friendly_mg42 threads, "context"
+// BroScr_SetupWallHopTrigger.
+void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger);
+
 }  // namespace game

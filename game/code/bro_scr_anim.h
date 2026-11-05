@@ -7,6 +7,8 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "qcommon_fs.h"
+#include "scr_access.h"
 #include "script_string.h"
 
 namespace game {
@@ -47,5 +49,22 @@ void XB_CDECL BroScr_AnimCmd_SetFlaggedAnimKnobAll(uint32_t a1, uint32_t a2, uin
 // a missing key inserted as the undefined handle). The int-map members it calls (0x0078b560,
 // 0x0078d040, 0x0078d440) sit in a level section. Releases `name`.
 void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent);
+
+// 0x00168590 (was FUN_00168590; BroScr_AnimLoopGuys): *out = an anim index of the guys' set
+// (level +0x744 by the first guy's animname: its anim count): Scr_RandomInt(count); with more
+// than one anim and every weight (level +0x5dc by animname, then by `key`) defined, the first
+// index whose running weight sum exceeds Scr_RandomFloat(total). Frees `guys`; returns out.
+uint32_t* XB_CDECL BroScr_AnimLoopPickIndex(uint32_t* out, DynArray guys, uint32_t key);
+
+// 0x00168df0 / 0x00169250 (dead; were FUN_00168df0 / FUN_00169250): the reference = tag `tag` on
+// tag_ent (on `ent` when tag_ent is invalid), else path node `node` (not 0/-1), else `ent`; a
+// script_origin spawned at the level entity +0x7f8 (unused); each guy goes to the reference +
+// its local offset (level +0x19c map by animname, then `key`, inserted when missing;
+// GScr_TransformLocalOffset): GScr_ActorTryTeleport for sentients (first only; the offset starts
+// undefined there) else ScrEnt_SetOrigin. Frees `guys`, releases `tag`.
+void XB_CDECL BroScr_AnimGroupTeleportGuys(uint32_t ent, DynArray guys, uint32_t key, ScriptString tag, uint32_t node,
+                                           uint32_t tag_ent);
+void XB_CDECL BroScr_AnimGroupPlaceGuys(uint32_t ent, DynArray guys, uint32_t key, ScriptString tag, uint32_t node,
+                                        uint32_t tag_ent);
 
 }  // namespace game

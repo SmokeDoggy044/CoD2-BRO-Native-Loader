@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "scr_access.h"
 #include "script_string.h"
 
 namespace game {
@@ -89,5 +90,61 @@ ScriptString* XB_CDECL BroScr_TreadFxSurfaceThink(ScriptString* out, uint32_t ve
 // vehicle's arrays 0xe2a39a33 and 0xe104fd5c around GScr_LinkToTagWithOffset(rider, vehicle, tag,
 // zero offsets), then a BroScr_VehicleRidersThink thread (vehicle, rider, tag). Releases `tag`.
 void XB_CDECL BroScr_VehicleGetPassengers(uint32_t vehicle, uint32_t rider, ScriptString tag, uint32_t index);
+
+// 0x001580a0: seats a valid, living rider on the vehicle: the asked seat when its rider slot
+// (array field 0x2cd69a2a, 8-byte {handle, flag}) is empty or its gunner dead, else the first seat
+// 0-2 without a live gunner; for the undefined int the first slot 0-2 without a live rider; none
+// free: nothing. The slot = {rider, false} (targetname "gunner"), notify 0x387a52e5 on the
+// vehicle, tag "tag_gunner"/"tag_passenger1"/"tag_passenger2" by seat; unless skip_mount, the
+// BroScr_VehicleMountRiders thread (vehicle, &slot, &seat, &tag, &skip_mount).
+void XB_CDECL BroScr_VehicleSpawnRider(uint32_t vehicle, uint32_t rider, uint32_t seat, bool skip_mount);
+// 0x0015ab50: BroScr_VehicleSpawnRider(the level vehicle named `name`, rider, seat, false) when
+// one is found (BroScr_FindLevelVehicleByTargetname on a copy). Releases `name`.
+void XB_CDECL BroScr_VehicleSpawnRiderByName(ScriptString name, uint32_t rider, uint32_t seat);
+
+// 0x001655f0: field 0x8473dd9d = 0x5c and float field 0xdf09fd77 = 1000 when undefined; a
+// script_origin at tag_wheel_back_right and one at tag_wheel_back_left (GScr_Spawn), each given
+// the vehicle's angles + 32 on the first component and linked to it; a BroScr_TreadFx thread for
+// each (hash 0x79193376 right, 0x13c7f9a4 left).
+void XB_CDECL BroScr_SpawnWheelOrigins(uint32_t vehicle);
+
+// 0x0016dae0: seats `rider` on the vehicle by role ("driver" / "gunner" / "passenger" + index;
+// any other: nothing): script models get "drone_<role>" and the level's anim tree for it; other
+// riders (not the level's player, +0x7f8) keep their animname in oldanimname and get the role;
+// the rider's tag field 0xd91e5c5b = "tag_driver" / "tag_gunner" / "tag_passenger" + index. Then
+// rider arrays 0xe2a39a33 and 0xe104fd5c, GScr_LinkToTagWithOffset(offset, angles: zeroed when
+// all undefined, in the argument slots) and the BroScr_VehicleRidersThink thread. Releases role.
+void XB_CDECL BroScr_DroneVehicleRiders(uint32_t vehicle, uint32_t rider, ScriptString role, uint32_t index, ScrVec3 offset,
+                                        ScrVec3 angles);
+
+// 0x00157b40: every script_vehicle with the model v_flakvierling or v_flakvierling_base that is
+// not in the level's flak list (+0x784) yet: added, BroScr_FlakvierlingInit(it, health, a2) and
+// the base / gun anim tree.
+void XB_CDECL BroScr_FindFlakvierlings(uint32_t health, uint32_t a2);
+
+// 0x00157e60: a v_flakvierling vehicle (GScr_SpawnVehicle, type "FlakVierling", targetname
+// "flakvierling" when null, origin (0, 0, 0) when undefined, zero angles), added to the level's
+// flak list, BroScr_FlakvierlingInit(it, health, a2) and its anim tree; field 0x6dcb7c56 = node
+// (unless 0 / -1), 0x05903940 = GScr_GetTime(). *out = it; releases targetname; returns out.
+uint32_t* XB_CDECL BroScr_SpawnFlakvierling(uint32_t* out, ScriptString targetname, uint32_t spawnflags, ScrVec3 origin,
+                                            uint32_t node, uint32_t health, uint32_t a2);
+
+// 0x0015e7f0: every script_model / script_vehicle with the model xmodel/turret_flak88(_sno):
+// damaged model field 0xb8eafadd = "xmodel/turret_flak88_d", anim tree "flak88"; by its type
+// (field 0xd1c52a4f): none -> think 0x00140bd0 (field 0x2f31323b), "flakair"/"flakairlow" ->
+// think 0x00140fc0, "controlled"/"flaktank" -> anim_thread 0x00140bd0, each with target filter
+// BroScr_IsFlakTarget (0xc511e266); "player_only" starts BroScr_TankShellReadyHud on it and ends
+// the setup. Any other type: nothing.
+void XB_CDECL BroScr_SetupFlak88s();
+
+// 0x00155610 / 0x00155e50: health 300 and five plane threads (damage watch, crash, follow path,
+// takeoff / empty); field 0x4af51227 = 0; BroScr_StukaDropBombsThread(plane, bombs) unless bombs
+// is the undefined int. Unless script_noteworthy is "noturrets": a misc_turret per wing
+// ("mg50cal_air_single" / "P47_WING_TURRET", the P47 in the level's zone +0x480) in fields
+// leftturret / rightturret, mode 0xdc26d84c, model "w_50cal" / "v_p47_guns", at and linked to
+// tag_gunLeft / tag_gunRight with the plane's angles. Both argument slots hold string
+// temporaries, as the original.
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_50cal(uint32_t plane, uint32_t bombs);
+void XB_CDECL BroScr_PlaneSpawnWingTurrets_P47(uint32_t plane, uint32_t bombs);
 
 }  // namespace game
