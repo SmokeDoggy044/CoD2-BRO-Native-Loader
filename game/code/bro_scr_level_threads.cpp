@@ -5,9 +5,15 @@
 #include "bro_scr_ai_common.h"
 #include "bro_scr_common.h"
 #include "bro_scr_death_watch.h"
+#include "bro_scr_entity_threads.h"
+#include "bro_scr_grenade.h"
+#include "bro_scr_hud_fade.h"
+#include "bro_scr_level.h"
 #include "bro_scr_notify_threads.h"
+#include "bro_scr_vehicle_health.h"
 #include "bro_scr_wait_misc.h"
 #include "g_scr_runtime.h"
+#include "scr_access.h"
 #include "scr_field.h"
 #include "scr_field_instances.h"
 #include "title_data.h"
@@ -521,6 +527,312 @@ void XB_CDECL BroScr_DebugForwardStub_2(uint32_t ent) {
         angles_to_forward(&turned);
         Scr_Wait(0.0f);
     }
+}
+
+namespace {
+
+inline void set_word(uint32_t setter, uint32_t ent, uint32_t value) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(setter)(ent, value);
+}
+inline void set_float(uint32_t setter, uint32_t ent, float value) {
+    uint32_t value_bits;
+    std::memcpy(&value_bits, &value, 4);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(setter)(ent, value_bits);
+}
+inline void set_vec(uint32_t setter, uint32_t ent, ScrVec3 value) { slot<SetVec>(setter)(ent, value); }
+// The setter takes a copy (released by it).
+inline void set_string(uint32_t setter, uint32_t ent, const ScriptString* value) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, value);
+    slot<void XB_CDECL(uint32_t, ScriptString)>(setter)(ent, copy);
+}
+// Any lane not the undefined lane (NaN counts as defined).
+inline bool vec_defined(const ScrVec3* v) {
+    const float lane = title_global<float>(0x00922eb8);  // g_scrUndefinedVecLane
+    float x, y, z;
+    std::memcpy(&x, &v->v[0], 4);
+    std::memcpy(&y, &v->v[1], 4);
+    std::memcpy(&z, &v->v[2], 4);
+    return x != lane || y != lane || z != lane;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_RespawnerApplyAttribs(uint32_t ent, RespawnerAttributes a) {
+    Scr_WaitFrames(0);
+    if (a.health != undefined_int()) set_word(0x00922b94, ent, a.health);  // ScrEnt_SetHealth
+    if (a.actor_d4 != title_global<float>(0x00922eac)) set_float(0x00922c5c, ent, a.actor_d4);  // ScrActor_SetFloat_d4
+    if (a.actor_d8 != title_global<float>(0x00922eac)) set_float(0x00922c64, ent, a.actor_d8);  // ScrActor_SetFloat_d8
+    if (vec_defined(&a.actor_108)) set_vec(0x00922c6c, ent, a.actor_108);  // ScrActor_SetVec_108
+    if (vec_defined(&a.actor_114)) set_vec(0x00922c74, ent, a.actor_114);  // ScrActor_SetVec_114
+    if (vec_defined(&a.actor_120)) set_vec(0x00922c7c, ent, a.actor_120);  // ScrActor_SetVec_120
+    if (a.actor_828 != title_global<float>(0x00922eac)) set_float(0x00922c84, ent, a.actor_828);  // ScrActor_SetFloat_828
+    if (a.actor_82c != title_global<float>(0x00922eac)) set_float(0x00922c8c, ent, a.actor_82c);  // ScrActor_SetFloat_82c
+    if (a.actor_824 != title_global<float>(0x00922eac)) set_float(0x00922c94, ent, a.actor_824);  // ScrActor_SetFloat_824
+    if (a.actor_830 != undefined_int()) set_word(0x00922c9c, ent, a.actor_830);  // ScrActor_SetInt_830
+    if (a.actor_7b0 != undefined_int()) set_word(0x00922ca4, ent, a.actor_7b0);  // ScrActor_SetInt_7b0
+    if (a.actor_7b4 != undefined_int()) set_word(0x00922cac, ent, a.actor_7b4);  // ScrActor_SetInt_7b4
+    if (a.actor_7dc != undefined_int()) set_word(0x00922cb4, ent, a.actor_7dc);  // ScrActor_SetShort_7dc
+    if (a.actor_7b8 != title_global<float>(0x00922eac)) set_float(0x00922cbc, ent, a.actor_7b8);  // ScrActor_SetFloat_7b8
+    if (a.actor_7bc != title_global<float>(0x00922eac)) set_float(0x00922cc4, ent, a.actor_7bc);  // ScrActor_SetFloat_7bc
+    if (a.actor_228 != undefined_int()) set_word(0x00922ccc, ent, a.actor_228);  // ScrActor_SetInt_228
+    if (a.actor_22c != undefined_int()) set_word(0x00922cd4, ent, a.actor_22c);  // ScrActor_SetInt_22c
+    if (vec_defined(&a.actor_234)) set_vec(0x00922cdc, ent, a.actor_234);  // ScrActor_SetVec_234
+    if (a.actor_230 != undefined_int()) set_word(0x00922ce4, ent, a.actor_230);  // ScrActor_SetInt_230
+    if (a.actor_240 != undefined_handle()) set_word(0x00922cec, ent, a.actor_240);  // ScrActor_SetInt_240
+    if (a.actor_194 != undefined_int()) set_word(0x00922cf4, ent, a.actor_194);  // ScrActor_SetInt_194
+    if (a.actor_7a4 != title_global<float>(0x00922eac)) set_float(0x00922cfc, ent, a.actor_7a4);  // ScrActor_SetFloat_7a4
+    if (a.actor_154 != title_global<float>(0x00922eac)) set_float(0x00922d04, ent, a.actor_154);  // ScrActor_SetFloat_154
+    if (a.actor_7e4 != title_global<float>(0x00922eac)) set_float(0x00922d0c, ent, a.actor_7e4);  // ScrActor_SetFloat_7e4
+    if (a.actor_7e8 != undefined_int()) set_word(0x00922d14, ent, a.actor_7e8);  // ScrActor_SetInt_7e8
+    if (a.actor_7ec != undefined_int()) set_word(0x00922d1c, ent, a.actor_7ec);  // ScrActor_SetInt_7ec
+    if (a.actor_1308 != undefined_int()) set_word(0x00922d24, ent, a.actor_1308);  // ScrActor_SetInt_1308
+    if (a.actor_ec.rep) set_string(0x00922d2c, ent, &a.actor_ec);  // ScrActor_SetString_ec
+    if (a.actor_f0 != undefined_handle()) set_word(0x00922d34, ent, a.actor_f0);  // ScrActor_SetInt_f0
+    if (a.actor_7d8 != undefined_int()) set_word(0x00922d4c, ent, a.actor_7d8);  // ScrActor_SetInt_7d8
+    if (a.actor_130c != title_global<float>(0x00922eac)) set_float(0x00922d54, ent, a.actor_130c);  // ScrActor_SetFloat_130c
+    if (entity_handle_is_valid(a.actor_1310)) set_word(0x00922d5c, ent, a.actor_1310);  // ScrActor_SetRef_1310
+    if (a.actor_131c != undefined_int()) set_word(0x00922d64, ent, a.actor_131c);  // ScrActor_SetInt_131c
+    if (a.actor_1328 != undefined_int()) set_word(0x00922d6c, ent, a.actor_1328);  // ScrActor_SetInt_1328
+    if (entity_handle_is_valid(a.actor_12a0)) set_word(0x00922d74, ent, a.actor_12a0);  // ScrActor_SetRef_12a0
+    if (a.actor_cc != undefined_int()) set_word(0x00922d7c, ent, a.actor_cc);  // ScrActor_SetInt_cc
+    if (a.actor_1374 != undefined_int()) set_word(0x00922d84, ent, a.actor_1374);  // ScrActor_SetByte_1374
+    if (a.actor_7de != undefined_int()) set_word(0x00922d8c, ent, a.actor_7de);  // ScrActor_SetByte_7de
+    if (static_cast<uint32_t>(a.sentient_18) != undefined_int()) set_float(0x00922df4, ent, static_cast<float>(a.sentient_18));  // ScrSentient_SetFloat_18
+    if (a.actor_1378 != undefined_int()) set_word(0x00922d94, ent, a.actor_1378);  // ScrActor_SetInt_1378
+    if (a.actor_137c != undefined_int()) set_word(0x00922d9c, ent, a.actor_137c);  // ScrActor_SetInt_137c
+    if (a.actor_1384.rep) set_string(0x00922da4, ent, &a.actor_1384);  // ScrActor_SetString_1384
+    if (a.actor_1388.rep) set_string(0x00922dac, ent, &a.actor_1388);  // ScrActor_SetString_1388
+    if (a.actor_138c.rep) set_string(0x00922db4, ent, &a.actor_138c);  // ScrActor_SetString_138c
+    if (a.actor_2c0.rep) set_string(0x00922dbc, ent, &a.actor_2c0);  // ScrActor_SetString_2c0
+    if (a.actor_184 != undefined_handle()) set_word(0x00922dc4, ent, a.actor_184);  // ScrActor_SetInt_184
+    if (a.sentient_30 != undefined_int()) set_word(0x00922e0c, ent, a.sentient_30);  // ScrSentient_SetInt_30
+    if (a.sentient_28 != undefined_int()) set_word(0x00922dd4, ent, a.sentient_28);  // ScrSentient_SetInt_28
+    ScriptString value;
+    const bool debug = ScriptString_EqualsInt(ScrCall_GScr_GetCvar(&value, 0x008245f4), 1) != 0;  // "debug_attrib"
+    ScriptString_Release(&value);
+    if (debug) {
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f5ba0;
+            functor[1] = 0x00122230;  // BroScr_EmptyFunc_31
+            functor[2] = ent;
+        }
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, ent, functor,
+                                                                                                   0);  // Scr_CreateThread
+    }
+    title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&a);  // RespawnerAttributes_Dtor
+}
+
+void XB_CDECL BroScr_WaitForever() {
+    for (;;) Scr_Wait(float_bits(0x3d99999a));  // 0.075
+}
+
+void XB_CDECL BroScr_TurretStutter(uint32_t ent, float on_min, float on_max, float off_min, float off_max) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    Scr_EndOnString(ent, pointer<const char>(0x0082461c));  // "stop_stutter"
+    const float off_range = off_max - off_min;
+    const float on_range = on_max - on_min;
+    using RandomFloat = long double XB_CDECL(float);
+    for (;;) {
+        Scr_Wait(static_cast<float>(slot<RandomFloat>(0x00922230)(off_range) + off_min));  // Scr_RandomFloat
+        BroScr_TurretSetAlliesTeam(ent);
+        Scr_Wait(static_cast<float>(slot<RandomFloat>(0x00922230)(on_range) + on_min));
+        slot<EntHash>(0x00922584)(*ent_slot(ent, 0x2f68c7a5), 0xdc26d84c);  // GScr_Turret_SetMode
+    }
+}
+
+void XB_CDECL BroScr_WaitTillFinished(uint32_t ent, uint32_t notify, uint32_t done) {
+    ScriptString text;
+    ScriptString_FromRep(&text, nullptr);
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, notify,
+                                                                                    &text);  // Scr_WaitTillOutputStr_ORAN
+        if (!text.rep) ScriptString_AssignCString(&text, pointer<const char>(0x007f9e88));  // "undefined"
+        uint32_t hash;
+        const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text));
+        if (h == 0x000199a4 || h == 0x9aa82fee || h == 0xcc5542ad || h == done) break;
+    }
+    ScriptString_Release(&text);
+}
+
+namespace {
+
+// times[i], reserving the float array first when i is past its count (DynArray_Reserve_KASSPASS).
+inline float time_at(DynArray* times, uint32_t i) {
+    if (i >= times->size)
+        title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(0x0052d530)(times, i + 1, i + 4);
+    float f;
+    std::memcpy(&f, &times->data[i], 4);
+    return f;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_WallHopRotate(uint32_t unused, uint32_t ent, DynArray times, int32_t split) {
+    (void)unused;
+    float up = 0.0f;
+    uint32_t i = 0;
+    for (; static_cast<int32_t>(i) < split; ++i) up = time_at(&times, i) + up;
+    float down = 0.0f;
+    for (i = static_cast<uint32_t>(split); static_cast<int32_t>(i) < static_cast<int32_t>(times.size); ++i) down = time_at(&times, i) + down;
+    using Rotate = void XB_CDECL(uint32_t, uint32_t, float, uint32_t, uint32_t);
+    slot<Rotate>(0x009227ac)(ent, 0x41f00000, up, 0, 0);  // GScr_RotatePitch(30)
+    Scr_WaitTillString(ent, pointer<const char>(0x0083abc8));  // "rotatedone"
+    slot<Rotate>(0x009227ac)(ent, 0xc1f00000, down, 0, 0);  // GScr_RotatePitch(-30)
+    Scr_WaitTillString(ent, pointer<const char>(0x0083abc8));
+    if (times.data) Scr_Free(times.data);
+}
+
+void XB_CDECL BroScr_WaitForNotifyForever(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                          ScriptString notify, ScriptString end_on) {
+    if (end_on.rep) Scr_EndOnString(level_handle(), end_on.rep->text);
+    if (notify.rep) {
+        const uint32_t level = title_global<uint32_t>(0x00922ee0);
+        const uint32_t* const self = pointer<uint32_t>(level ? level + 4 : 0);
+        uint32_t hash;
+        const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&notify));
+        slot<EntHash>(0x009221a4)(*self, h);  // Scr_QueueNotify
+        Scr_EndOnString(level_handle(), notify.rep ? notify.rep->text : nullptr);
+    }
+    for (;;) Scr_Wait(float_bits(0x3dcccccd));  // 0.1
+}
+
+void XB_CDECL BroScr_VehicleDeath_Flak88(uint32_t ent) {
+    ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(0x00824654));  // "xmodel/turret_flak88_d"
+    ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
+    const uint32_t self = ent;
+    // The attacker goes to the ent argument slot, as the original.
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(self, kDeath, &ent);  // Scr_WaitTillOutputEnt_ORAN
+    *int_slot(self, 0xa027aabf) = 0;
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(self, string_key(self, 0xd6eafad9), 0);  // GScr_SetModel
+    slot<PlaySound>(0x009221dc)(self, string_key(self, 0xd70abfb1), 0, 0, 0);                                    // GScr_PlaySound
+    slot<Ent>(0x009228d0)(self);  // GScr_Vehicle_ClearTurretTarget
+    ScrVec3 origin;
+    origin_of(&origin, self);
+    slot<void XB_CDECL(const ScrVec3*, uint32_t, uint32_t, uint32_t)>(0x00922428)(&origin, 0x43a00000, 0x443b8000,
+                                                                                  0x44228000);  // GScr_RadiusDamage(320, 750, 650)
+    origin_of(&origin, self);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+}
+
+void XB_CDECL BroScr_WaitTillVehicleByName(ScriptString name) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, &name);
+    uint32_t vehicle;
+    BroScr_FindLevelVehicleByTargetname(&vehicle, copy);
+    if (entity_handle_is_valid(vehicle)) Scr_WaitTill(vehicle, 0x08d272e5);
+    ScriptString_Release(&name);
+}
+
+void XB_CDECL BroScr_TryThrowGrenadeRightHand(uint32_t ent, ScrVec3 target, float time, float fuse) {
+    using GetInt = uint32_t XB_CDECL(uint32_t);
+    uint32_t anim;
+    float z;
+    if (slot<GetInt>(0x00922dc0)(ent) == 0x070b89a4) {  // ScrActor_GetInt_184: stand
+        anim = title_global<uint32_t>(0x008cf4b0);       // g_anim_stand_grenade_throw
+        z = title_global<float>(0x0083ecdc);
+    } else if (slot<GetInt>(0x00922dc0)(ent) == 0xc1165808) {  // crouch
+        anim = title_global<uint32_t>(0x008ce5c8);              // g_anim_crouch_grenade_throw
+        z = title_global<float>(0x007f5cfc);
+    } else {
+        return;
+    }
+    ScrVec3 offset;
+    offset.v[0] = 0;
+    offset.v[1] = 0;
+    std::memcpy(&offset.v[2], &z, 4);
+    BroScr_ThrowGrenadeRightHand(ent, target, time, anim, offset, fuse);
+}
+
+void XB_CDECL BroScr_ThrowGrenadeByPoseCall(uint32_t ent, ScrVec3 target) {
+    BroScr_ThrowGrenadeByPose(ent, target, title_global<float>(0x00922eac));  // g_scrUndefinedFloat
+}
+
+namespace {
+
+// The level's name (the ScriptString at +0x1c4 of the level object) equals `name`.
+inline bool level_is(uint32_t name) {
+    return ScriptString_Equals(pointer<const ScriptString>(title_global<uint32_t>(0x00922ee0) + 0x1c4),
+                               pointer<const char>(name));
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_SetIntroScreenCvars() {
+    using SetCvarInt = void XB_CDECL(const char*, uint32_t);
+    const uint32_t none = undefined_handle();
+    slot<SetCvarInt>(0x009222e8)(pointer<const char>(0x008344f4), 1);  // GScr_SetCvarInt "introScreen"
+    ScriptString value;
+    const bool from_checkpoint =
+        !ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x008353b8), pointer<const char>(0x0082e098));  // "checkpoint" != "0"
+    ScriptString_Release(&value);
+    if (from_checkpoint) {
+        BroScr_SetIntroScreenLine(none, none, none, none);
+    } else {
+        if (level_is(0x0082bcb8)) {  // mons1
+            BroScr_SetIntroScreenLine(0x47705ceb, 0x7231b442, 0x72399762, 0x462a0acf);
+        } else if (level_is(0x0082cc0c)) {  // liberator
+            BroScr_SetIntroScreenLine(0x73cf2ca2, 0x3b944fc0, 0x3b9c6ce0, 0x72957a86);
+        } else if (level_is(0x0082bc28)) {  // piano_lupo
+            BroScr_SetIntroScreenLine(0x92a2a489, 0x649f2381, 0x649700a1, 0x93f8f2ad);
+        } else if (level_is(0x008325d0)) {  // prologue
+            BroScr_SetIntroScreenLine(0xc2915e9b, 0xf61ebc51, 0xf6169f71, 0xc3cb08bf);
+        } else if (level_is(0x0082bc3c)) {  // kasserine
+            BroScr_SetIntroScreenLine(0x4518b395, 0x8222f339, 0x822ad019, 0x4442e5b1);
+        } else if (level_is(0x0082bc48)) {  // kasserine_pass
+            BroScr_SetIntroScreenLine(0x5166aa37, 0x928103f4, 0x928920d4, 0x503cfc13);
+        } else if (level_is(0x0082bca0)) {  // buchholz
+            BroScr_SetIntroScreenLine(0x2f1564a1, 0x21729d80, 0x217abea0, 0x2e4f3285);
+        } else if (level_is(0x0082bcc0)) {  // omaha_beach
+            BroScr_SetIntroScreenLine(0x5884132b, 0x72ce163c, 0x72c6351c, 0x59de450f);
+        } else if (level_is(0x0082bc60)) {  // oran
+            BroScr_SetIntroScreenLine(0xb71d5bca, 0x7db2dc7b, 0x7dbaff5b, 0xb6470dee);
+        } else if (level_is(0x0082bc90)) {  // dragons_teeth
+            BroScr_SetIntroScreenLine(0x770186e6, 0x1bb23a92, 0x1bba19b2, 0x765bd0c2);
+        } else if (level_is(0x0082bc20)) {  // troina
+            BroScr_SetIntroScreenLine(0x49ef5d14, 0x8a454c4d, 0x8a4d6f6d, 0x48b50b30);
+        } else if (level_is(0x0082bcac)) {  // eilendorf
+            BroScr_SetIntroScreenLine(0x0bd302c9, 0x6054aeb3, 0x605c8d93, 0x0a8954ed);
+        } else if (level_is(0x0082bc58)) {  // tunisia
+            BroScr_SetIntroScreenLine(0x99d36b9b, 0xf4c4adf9, 0xf4cc8ed9, 0x98893dbf);
+        } else if (level_is(0x0082bc34)) {  // gela
+            BroScr_SetIntroScreenLine(0x471d1e10, 0xaa32de55, 0xaa3afd75, 0x46474834);
+        }
+    }
+    slot<SetCvarInt>(0x009222e8)(pointer<const char>(0x008344f4), 0);
+}
+
+void XB_CDECL BroScr_PlayerWeaponSounds(uint32_t ent) {
+    ScriptString note;
+    ScriptString_FromRep(&note, nullptr);
+    using WeaponSound = void XB_CDECL(uint32_t, uint32_t);
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, 0xa7062d94,
+                                                                                    &note);  // Scr_WaitTillOutputStr_ORAN
+        if (ScriptString_Equals(&note, pointer<const char>(0x008246b0)))  // "weapsound0"
+            slot<WeaponSound>(0x009221fc)(ent, 0);                        // GScr_PlayerWeaponSound
+        else if (ScriptString_Equals(&note, pointer<const char>(0x008246a4)))  // "weapsound1"
+            slot<WeaponSound>(0x009221fc)(ent, 1);
+        else if (ScriptString_Equals(&note, pointer<const char>(0x00824698)))  // "weapsound2"
+            slot<WeaponSound>(0x009221fc)(ent, 2);
+        else if (ScriptString_Equals(&note, pointer<const char>(0x0082468c)))  // "weapsound3"
+            slot<WeaponSound>(0x009221fc)(ent, 3);
+        else if (ScriptString_Equals(&note, pointer<const char>(0x00824680)))  // "weapsound4"
+            slot<WeaponSound>(0x009221fc)(ent, 4);
+    }
+}
+
+void XB_CDECL BroScr_NotifySpawnGuyDied(uint32_t unused, uint32_t spawner, uint32_t group) {
+    uint32_t guy;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(spawner, 0x262a34d8,
+                                                                            &guy);  // Scr_WaitTillOutputEnt_ORAN
+    // The result byte goes to the unused argument slot, as the original.
+    if (!*BroScr_WaitFinishedSpawning(reinterpret_cast<uint8_t*>(&unused), guy)) Scr_WaitTill(guy, kDeath);
+    --*int_slot(group, 0xb31e91b0);
+    uint32_t hash;
+    slot<EntHash>(0x009221a4)(group, *Scr_HashName(&hash, pointer<const char>(0x00824714)));  // Scr_QueueNotify "spawn guy died"
 }
 
 }  // namespace game

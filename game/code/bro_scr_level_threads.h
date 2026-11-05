@@ -1,9 +1,10 @@
 #pragma once
 
 // Compiled level-script threads of the shared scripts (levelscript module, .text 0x00131180 -
-// 0x00134e60): plane crash moves, explosion sounds, vehicle / plane mg42 fire loops, tank dead
+// 0x00138760): plane crash moves, explosion sounds, vehicle / plane mg42 fire loops, tank dead
 // guys, death-physics launches, flak sound blends, engine smoke trails, shell shock, tank stun,
-// debug loops. Every one but BroScr_PlayerInsideEntZone waits (Scr_Wait*, Scr_WaitTill*,
+// debug loops, respawner attributes, turret stutter, wall-hop rotation, intro screen, weapon
+// sounds. Every one but BroScr_PlayerInsideEntZone waits (Scr_Wait*, Scr_WaitTill*,
 // BroScr_WaitFrame): class thread_switch, kept out of kFunctions until script threads run as
 // coroutines. Names are ours (from the bodies); "death" is hash 0x06730ae8, the player handle the
 // word at 0x00922eec.
@@ -11,6 +12,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "qcommon_fs.h"
 #include "scr_access.h"
 #include "script_string.h"
 
@@ -95,5 +97,97 @@ void XB_CDECL BroScr_TurretVisTargetWait(uint32_t ent);
 // 0x00134cb0: each frame the forward vectors of the angles turned by +/- the float key 0xbe149b8c
 // (results unused: a debug draw compiled out).
 void XB_CDECL BroScr_DebugForwardStub_2(uint32_t ent);
+
+// 0x00132f40: after a frame, each attribute of the record that is not undefined is set on the
+// actor (undefined int / handle / float / vector lanes, empty string, invalid entity skip it), then
+// with the "debug_attrib" cvar 1 a BroScr_EmptyFunc_31 thread; frees the record's strings
+// (RespawnerAttributes_Dtor 0x0052b970). Field names: the setter (interface slot) each one feeds.
+struct RespawnerAttributes {
+    float actor_d4;  // +0x00 (argument +0x08): ScrActor_SetFloat_d4
+    float actor_d8;  // +0x04 (argument +0x0c): ScrActor_SetFloat_d8
+    ScrVec3 actor_108;  // +0x08 (argument +0x10): ScrActor_SetVec_108
+    ScrVec3 actor_114;  // +0x14 (argument +0x1c): ScrActor_SetVec_114
+    ScrVec3 actor_120;  // +0x20 (argument +0x28): ScrActor_SetVec_120
+    float actor_828;  // +0x2c (argument +0x34): ScrActor_SetFloat_828
+    float actor_82c;  // +0x30 (argument +0x38): ScrActor_SetFloat_82c
+    float actor_824;  // +0x34 (argument +0x3c): ScrActor_SetFloat_824
+    uint32_t actor_830;  // +0x38 (argument +0x40): ScrActor_SetInt_830
+    uint32_t actor_7b0;  // +0x3c (argument +0x44): ScrActor_SetInt_7b0
+    uint32_t actor_7b4;  // +0x40 (argument +0x48): ScrActor_SetInt_7b4
+    uint32_t actor_7dc;  // +0x44 (argument +0x4c): ScrActor_SetShort_7dc
+    float actor_7b8;  // +0x48 (argument +0x50): ScrActor_SetFloat_7b8
+    float actor_7bc;  // +0x4c (argument +0x54): ScrActor_SetFloat_7bc
+    uint32_t actor_22c;  // +0x50 (argument +0x58): ScrActor_SetInt_22c
+    ScrVec3 actor_234;  // +0x54 (argument +0x5c): ScrActor_SetVec_234
+    uint32_t actor_230;  // +0x60 (argument +0x68): ScrActor_SetInt_230
+    uint32_t actor_240;  // +0x64 (argument +0x6c): ScrActor_SetInt_240
+    uint32_t actor_194;  // +0x68 (argument +0x70): ScrActor_SetInt_194
+    float actor_7a4;  // +0x6c (argument +0x74): ScrActor_SetFloat_7a4
+    float actor_154;  // +0x70 (argument +0x78): ScrActor_SetFloat_154
+    float actor_7e4;  // +0x74 (argument +0x7c): ScrActor_SetFloat_7e4
+    uint32_t actor_7e8;  // +0x78 (argument +0x80): ScrActor_SetInt_7e8
+    uint32_t actor_7ec;  // +0x7c (argument +0x84): ScrActor_SetInt_7ec
+    uint32_t actor_1308;  // +0x80 (argument +0x88): ScrActor_SetInt_1308
+    ScriptString actor_ec;  // +0x84 (argument +0x8c): ScrActor_SetString_ec
+    uint32_t actor_f0;  // +0x88 (argument +0x90): ScrActor_SetInt_f0
+    uint32_t actor_7d8;  // +0x8c (argument +0x94): ScrActor_SetInt_7d8
+    float actor_130c;  // +0x90 (argument +0x98): ScrActor_SetFloat_130c
+    uint32_t actor_1310;  // +0x94 (argument +0x9c): ScrActor_SetRef_1310
+    uint32_t actor_131c;  // +0x98 (argument +0xa0): ScrActor_SetInt_131c
+    uint32_t actor_1328;  // +0x9c (argument +0xa4): ScrActor_SetInt_1328
+    uint32_t actor_12a0;  // +0xa0 (argument +0xa8): ScrActor_SetRef_12a0
+    uint32_t actor_cc;  // +0xa4 (argument +0xac): ScrActor_SetInt_cc
+    uint32_t actor_1374;  // +0xa8 (argument +0xb0): ScrActor_SetByte_1374
+    uint32_t actor_7de;  // +0xac (argument +0xb4): ScrActor_SetByte_7de
+    int32_t sentient_18;  // +0xb0 (argument +0xb8): ScrSentient_SetFloat_18
+    uint32_t actor_1378;  // +0xb4 (argument +0xbc): ScrActor_SetInt_1378
+    uint32_t actor_137c;  // +0xb8 (argument +0xc0): ScrActor_SetInt_137c
+    ScriptString actor_1384;  // +0xbc (argument +0xc4): ScrActor_SetString_1384
+    ScriptString actor_1388;  // +0xc0 (argument +0xc8): ScrActor_SetString_1388
+    ScriptString actor_138c;  // +0xc4 (argument +0xcc): ScrActor_SetString_138c
+    ScriptString actor_2c0;  // +0xc8 (argument +0xd0): ScrActor_SetString_2c0
+    uint32_t actor_184;  // +0xcc (argument +0xd4): ScrActor_SetInt_184
+    uint32_t health;  // +0xd0 (argument +0xd8): ScrEnt_SetHealth
+    uint32_t actor_228;  // +0xd4 (argument +0xdc): ScrActor_SetInt_228
+    uint32_t sentient_30;  // +0xd8 (argument +0xe0): ScrSentient_SetInt_30
+    uint32_t sentient_28;  // +0xdc (argument +0xe4): ScrSentient_SetInt_28
+};
+void XB_CDECL BroScr_RespawnerApplyAttribs(uint32_t ent, RespawnerAttributes a);
+// 0x00135020: waits forever (0.075 s steps).
+void XB_CDECL BroScr_WaitForever();
+// 0x00135030: ends on death / "stop_stutter"; forever: waits off_min + random(off_max - off_min),
+// BroScr_TurretSetAlliesTeam, waits on_min + random(on_max - on_min), turret mode 0xdc26d84c on the
+// entity key 0x2f68c7a5.
+void XB_CDECL BroScr_TurretStutter(uint32_t ent, float on_min, float on_max, float off_min, float off_max);
+// 0x00135630: waits for `notify` (with a string, "undefined" when none) until the string's hash is
+// 0x000199a4, 0x9aa82fee, 0xcc5542ad or `done`.
+void XB_CDECL BroScr_WaitTillFinished(uint32_t ent, uint32_t notify, uint32_t done);
+// 0x001356f0: pitch +30 over the sum of the first `split` times, waits "rotatedone", pitch -30 over
+// the sum of the rest, waits again; frees `times`.
+void XB_CDECL BroScr_WallHopRotate(uint32_t unused, uint32_t ent, DynArray times, int32_t split);
+// 0x00135e10: on the level: ends on `end_on` (when not empty); notifies and ends on `notify` (when
+// not empty); then waits forever (0.1 s steps). The first seven words are not read.
+void XB_CDECL BroScr_WaitForNotifyForever(uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
+                                          uint32_t a6, uint32_t a7, ScriptString notify, ScriptString end_on);
+// 0x00136120: the flak88's dead model "xmodel/turret_flak88_d" and sound "explo_metal_rand" (string
+// keys 0xd6eafad9 / 0xd70abfb1); after death: int key 0xa027aabf = 0, the model, the sound, turret
+// target cleared, radius damage 320 (750 - 650) and an earthquake (0.25, 3 s, 1050) at the origin.
+void XB_CDECL BroScr_VehicleDeath_Flak88(uint32_t ent);
+// 0x00137230: waits for 0x08d272e5 on the level vehicle named `name` (when there is one).
+void XB_CDECL BroScr_WaitTillVehicleByName(ScriptString name);
+// 0x001372b0: BroScr_ThrowGrenadeRightHand with the stand (pose 0x070b89a4, z 0x0083ecdc) or crouch
+// (0xc1165808, z 0x007f5cfc) throw anim; nothing for another pose.
+void XB_CDECL BroScr_TryThrowGrenadeRightHand(uint32_t ent, ScrVec3 target, float time, float fuse);
+// 0x00137370: BroScr_ThrowGrenadeByPose with an undefined fuse.
+void XB_CDECL BroScr_ThrowGrenadeByPoseCall(uint32_t ent, ScrVec3 target);
+// 0x001373b0: "introScreen" 1; from a checkpoint (cvar "checkpoint" not "0") an empty intro line,
+// else the level's four intro string keys; then "introScreen" 0.
+void XB_CDECL BroScr_SetIntroScreenCvars();
+// 0x00137c50: forever: waits for 0xa7062d94 with a string; "weapsound0".."weapsound4" play the
+// player weapon sound 0..4.
+void XB_CDECL BroScr_PlayerWeaponSounds(uint32_t ent);
+// 0x00138650: waits for 0x262a34d8 with the spawned guy; unless it finished spawning, waits for its
+// death; then the group's count key 0xb31e91b0 - 1 and "spawn guy died" on the group.
+void XB_CDECL BroScr_NotifySpawnGuyDied(uint32_t unused, uint32_t spawner, uint32_t group);
 
 }  // namespace game
