@@ -1,0 +1,814 @@
+address,name,vc71match,facts,differences
+0011fb00,BroScr_NotifyAfterWaitTill_56caf2eb,75.0,same,
+0011fb40,BroScr_NotifyAfterSingleAnim,60.0,same,
+0011fb90,BroScr_AnimNoteTracksThread,42.1,same,
+0011fc20,BroScr_AnimReachNotifyOnDeath,64.7,same,
+00120030,BroScr_FlagWhilePlayerLooksAway,30.0,same,
+001205b0,BroScr_KillWhenHealthLow,48.8,same,
+00120630,BroScr_WaitTill_h08d272e5,53.3,same,
+00120650,BroScr_PlayFlakSound,37.9,same,
+00120750,BroScr_PlaySoundAtTempOrigin,29.4,same,
+00120860,BroScr_WaitFiveSeconds,73.3,same,
+00120890,BroScr_FadeFromBlack,41.6,same,
+00120e70,BroScr_StartFxOnTrigger,52.3,differ,known noise
+00120f10,BroScr_StopFxOnTrigger,52.3,differ,known noise
+00120fb0,BroScr_FriendlyChainOnTrigger,52.4,differ,known noise
+00120ff0,BroScr_WaitTillTrigger,57.1,same,
+00121010,BroScr_ExploderTriggerThink,49.1,differ,known noise
+00121110,BroScr_PanzerfaustObjectiveModels,35.7,same,
+00121360,BroScr_AnimScriptedThenNotify,63.0,same,
+00121540,BroScr_PlaySoundOnTempOrigin,32.2,same,
+00121630,BroScr_StukaSiren,41.8,same,
+001216d0,BroScr_StukaTakeoff,47.6,same,
+001217b0,BroScr_PlaySoundOnTempOrigin_2,32.2,same,
+001218a0,BroScr_StukaSiren_2,41.8,same,
+00121960,BroScr_TankDeadGuyPlayAnim,56.0,differ,known noise
+00121a00,BroScr_VehicleTurretFireLoop,54.8,same,
+00121a60,BroScr_NotifyLevelOnDeath,68.0,same,
+00121ac0,BroScr_WaitTillNotifyCount,42.3,same,
+00121b10,BroScr_WaitTill_hcc07a20a,53.3,same,
+00121cc0,BroScr_DeathPhysicsLaunch,36.0,same,
+00121ea0,BroScr_DeleteAfter5s,100.0,same,
+00122040,BroScr_SetDeadQuote,76.0,same,
+00122240,BroScr_ObjectiveTrackerManager,47.3,same,
+00122470,BroScr_FlakPanzerStopLoopSounds,46.3,same,
+00122540,BroScr_EarthquakeUntilBroken,48.3,same,
+001225b0,BroScr_EndSequenceOnDeath,62.2,same,
+00122600,BroScr_FlakWaitDeath,42.4,differ,known noise
+001227d0,BroScr_FlakWaitDeath_2,34.6,same,
+00122910,BroScr_FlakPanzerLoopSounds,54.2,same,
+00122a60,BroScr_RestoreHealthOnDamage,60.3,same,
+00122af0,BroScr_AnimScriptedThenNotify_2,63.0,same,
+00122b50,BroScr_StoneGibLaunch,35.9,same,
+00122d50,BroScr_AnimScriptedThenNotify_3,63.0,same,
+00122dc0,BroScr_PlaySoundOnTempOrigin_3,32.2,same,
+00122eb0,BroScr_StukaSiren_3,41.8,same,
+00123250,BroScr_TrackWheelOrigin,49.3,differ,known noise
+001233d0,BroScr_WaitPoint15,66.7,same,
+001233e0,BroScr_WaitZero,100.0,same,
+001235f0,BroScr_IdleUntilEnd,53.3,same,
+00123670,BroScr_LerpPlayerAngles,29.9,same,
+00123900,BroScr_LerpPlayerAngles_2,25.5,same,
+00123c00,Bro__window_gmi__new_window_break,40.4,differ,known noise
+00124d40,BroScr_ShowContextTextBriefly,48.4,same,
+001250a0,BroScr_DroneDeleteLater,26.8,same,
+00125290,BroScr_ThrowGrenadeAtTarget_2,22.4,differ,known noise
+001258a0,BroScr_ThrowGrenadeAtTarget,17.9,differ,known noise
+00125d30,BroScr_CheckpointFade,54.2,same,
+001266f0,BroScr_FadeHudBlack,20.8,differ,known noise
+00127d30,BroScr_TankTurretFireLoopRecoil,63.2,same,
+00127db0,BroScr_TankTurretFireLoopRecoil_2,63.2,same,
+00127e30,BroScr_VehicleTurretFireLoop_2,54.8,same,
+00127e90,BroScr_VehicleTurretFireLoop_3,54.8,same,
+001281c0,BroScr_WaitForNotifyOrTimeout,48.9,differ,known noise
+001283d0,BroScr_VehicleTurretFireLoop_4,54.8,same,
+00128430,BroScr_DeathPhysicsLaunch_2,39.5,same,
+001285e0,BroScr_DeathPhysicsLaunchNoForce,24.4,same,
+00128640,BroScr_DeathPhysicsLaunchFromTag,45.0,same,
+00128720,BroScr_VehicleTurretFireLoop_5,60.0,same,
+00128780,BroScr_VehicleTurretFireLoop_6,60.0,same,
+001287e0,BroScr_TankTurretFireLoopRecoil_3,63.2,same,
+00128860,BroScr_TankTurretFireLoopRecoil_4,63.2,same,
+001288e0,Bro__treefall_callbacked__treefall,32.9,differ,known noise
+00128eb0,BroScr_LerpPlayerAnglesCall,35.3,same,
+00128ef0,BroScr_LerpPlayerAnglesCall_2,35.3,same,
+00128f30,BroScr_VehicleTurretFireLoop_7,54.8,same,
+00128f90,BroScr_VehicleTurretFireLoop_8,54.8,same,
+0012f2e0,BroScr_AnimReachGuyThread,48.5,same,
+0012f3b0,BroScr_LimitSameAnimation,43.2,same,
+0012f460,BroScr_DecrementCounterOnNotify,52.2,same,
+0012f6c0,BroScr_AttachDroneGun,36.8,same,
+0012f8b0,BroScr_FlakFireAndReload,54.9,same,
+0012fdb0,BroScr_VehicleRiderDeathWatch,56.4,same,
+0012fe30,BroScr_VehicleRiderUnlinkOnDeath,26.4,same,
+0012fe80,BroScr_VehicleRiderDeathWatch_2,63.6,same,
+001301d0,BroScr_StrafeImpacts,15.1,differ,known noise
+00130870,BroScr_FxCreationSoundWait,35.1,same,
+001308e0,BroScr_ThrowGrenadeRightHand,78.1,same,
+00130950,BroScr_ThrowGrenadeByPose,24.3,same,
+00130a10,BroScr_SetIntroScreenLine,26.3,same,
+00130ab0,BroScr_CheckpointFadeLocalized,19.4,same,
+00130b50,BroScr_AiSpawnInit,41.7,differ,known noise
+00130c80,BroScr_TriggerSpawnerThink,39.3,differ,known noise
+00130df0,BroScr_WaitForNotifyOrTimeoutCall,7.1,same,
+00130ee0,BroScr_WaitForNotifyOrTimeoutCall_2,15.2,same,
+00130fc0,BroScr_WaitForNotifyOrTimeoutCall_3,16.5,same,
+001310b0,BroScr_WaitForNotifyOrTimeoutCall_4,14.0,same,
+001315b0,BroScr_DebugForwardStub,11.0,differ,see note
+00131720,BroScr_StukaPlaneCrashMove,37.9,differ,known noise
+001318b0,BroScr_PlayExplodeSounds,53.5,same,
+00131c30,BroScr_VehicleMg42Fire,38.1,differ,known noise
+00131d70,BroScr_P47PlaneCrashMove,37.9,differ,known noise
+00131f00,BroScr_PlayExplodeSounds_2,53.5,same,
+00132280,BroScr_PlaneTurretsFire,40.6,differ,known noise
+00132490,BroScr_SpawnTankDeadGuys,21.9,same,
+00132ab0,BroScr_PauseUnpauseWait,52.9,same,
+00132b40,BroScr_DeathPhysicsLaunchThread,32.7,same,
+00132bb0,BroScr_DeathPhysicsLaunch_2FromTag,57.7,same,
+00132c80,BroScr_DeathPhysicsLaunch_2FromTag_2,57.7,same,
+00132d50,BroScr_DeathPhysicsLaunch_2Call,80.8,same,
+00132f40,BroScr_RespawnerApplyAttribs,58.4,same,
+001336e0,BroScr_FlakSoundBlend,25.3,differ,known noise
+00133950,BroScr_EngineSmokeTrail,19.3,differ,known noise
+00133db0,BroScr_ShellShockWait,58.1,same,
+00134150,BroScr_MoveSoundEvery128Units,44.6,differ,known noise
+00134540,BroScr_VehicleMg42Fire_2,45.3,differ,known noise
+001349d0,BroScr_DebugStub_h8c05ef86,55.2,same,
+00134a30,BroScr_DebugStub_hcd84c908,55.2,same,
+00134a90,BroScr_TankStunOnDamage,45.9,differ,known noise
+00134c40,BroScr_TurretVisTargetWait,53.1,same,
+00134cb0,BroScr_DebugForwardStub_2,20.9,same,
+00135020,BroScr_WaitForever,40.0,same,
+00135030,BroScr_TurretStutter,32.8,same,
+00135630,BroScr_WaitTillFinished,52.4,same,
+001356f0,BroScr_WallHopRotate,23.4,same,
+00135e10,BroScr_WaitForNotifyForever,48.4,same,
+00136120,BroScr_VehicleDeath_Flak88,53.8,same,
+00137230,BroScr_WaitTillVehicleByName,31.2,same,
+001372b0,BroScr_TryThrowGrenadeRightHand,49.1,same,
+00137370,BroScr_ThrowGrenadeByPoseCall,45.7,same,
+001373b0,BroScr_SetIntroScreenCvars,51.5,same,
+00137780,BroScr_SetupPlayerWeapons,21.8,same,
+00137c50,BroScr_PlayerWeaponSounds,65.4,same,
+00138230,BroScr_InitFriendlyChainNodes,32.5,same,
+00138650,BroScr_NotifySpawnGuyDied,27.5,differ,known noise
+00138760,BroScr_FriendlyChatTriggers,17.7,same,
+00138ba0,BroScr_PanzerfaustAmmoBox,13.5,same,
+00139da0,BroScr_VehicleDeath_M13,53.6,same,
+00139f30,BroScr_VehicleRiderUnload,34.4,differ,known noise
+0013a0f0,BroScr_VehicleDeath_Halftrack,35.2,same,
+0013a250,BroScr_DroneShoot,27.6,same,
+0013a680,BroScr_StukaPlaneCrashThink,39.3,differ,known noise
+0013a830,BroScr_WingTurretDamageWatch,38.1,differ,known noise
+0013a8f0,BroScr_P47PlaneCrashThink,39.3,differ,known noise
+0013aaa0,BroScr_WingTurretDamageWatch_2,38.1,differ,known noise
+0013aca0,BroScr_TankSpawnerThink,32.7,differ,known noise
+0013b200,BroScr_VehicleDeath_PanzerIV,20.3,same,
+0013b400,BroScr_RandomRotateLoop,33.5,same,
+0013b880,BroScr_FollowNodeChain,33.5,differ,known noise
+0013c530,BroScr_FlakStopMovingOnDeath,37.7,differ,known noise
+0013c710,BroScr_FlakDied,43.7,differ,known noise
+0013c810,BroScr_FlakDeathTrigger,22.3,differ,known noise
+0013cc40,BroScr_WaitTriggerClearFlag,54.5,same,
+0013cc90,BroScr_FlakDeathThink,37.0,differ,known noise
+0013ceb0,BroScr_FlakPanzerKeepUnusable,35.3,same,
+0013cf40,BroScr_FlakLoaderAmmoAnim,19.7,differ,known noise
+0013d270,BroScr_SmokeWhenHalfHealth,67.6,same,
+0013d2e0,BroScr_VehicleDeath_Sdkfz222,32.0,differ,known noise
+0013d580,BroScr_ReduceDamage,49.1,differ,known noise
+0013d650,BroScr_RocketExplosion,29.7,same,
+0013d9a0,BroScr_VehicleDeath_Tank,26.9,differ,known noise
+0013dc30,BroScr_VehicleRiderUnload_2,34.4,differ,known noise
+0013e180,BroScr_SpawnConcreteGibs,17.0,same,
+0013e770,BroScr_VehicleDeath_Stuart,53.6,same,
+0013e900,BroScr_VehicleRiderUnload_3,34.4,differ,known noise
+0013eac0,BroScr_VehicleShootGunsThink,45.7,same,
+0013eb00,BroScr_WingTurretDamageWatch_3,38.1,differ,known noise
+0013ebc0,BroScr_VehicleDeathThink,50.2,differ,known noise
+0013f550,BroScr_TurretStutterCall,70.0,same,
+0013f570,BroScr_VehicleDeath_Jeep,33.7,differ,see note
+0013f6f0,BroScr_VehicleInit_Jeep,42.8,differ,see note
+0013f820,BroScr_WaitHeavyHitOrDamage,31.5,same,
+0013f990,BroScr_SpawnWoodGibsSmall,20.1,same,
+001400c0,BroScr_PlayerHopOverWall,20.3,same,
+00141840,BroScr_TryThrowGrenadeRightHandCall,46.2,same,
+00141890,BroScr_LetterboxFade,44.2,same,
+00141c00,BroScr_HalftrackGunnerGrenadeHint,28.5,differ,known noise
+00142070,BroScr_SpawnGuyDiedThink,16.2,differ,known noise
+00142800,BroScr_InfinitePanzerfaust,24.3,differ,known noise
+00142d50,BroScr_VehicleInit_M13,31.2,same,
+00142ee0,BroScr_VehicleInit_Halftrack,45.3,same,
+00143020,BroScr_StukaPlaneCrash,50.2,differ,known noise
+00143460,BroScr_P47PlaneCrash,50.2,differ,known noise
+00143870,BroScr_VehicleInit_PanzerIV,25.4,differ,known noise
+00143a40,BroScr_FlipLevelFlagOnDeath,38.1,differ,known noise
+00143b40,BroScr_FlakWaitStartTrigger,31.2,same,
+00143cb0,BroScr_FlakCrewAnim,26.5,differ,known noise
+001441c0,BroScr_FlakCrewAnims,41.2,differ,known noise
+00145080,BroScr_VehicleInit_Sherman,35.7,differ,known noise
+00145310,BroScr_SquadMemberThink,44.1,differ,known noise
+001454a0,BroScr_SquadMemberThinkOnNotify,34.2,differ,known noise
+00145ac0,BroScr_VehicleExplodeSound,27.0,differ,known noise
+00147cf0,BroScr_VehicleRiderAttach,41.0,same,
+00148080,BroScr_VehicleRiderMount,35.8,same,
+00148760,BroScr_FlakvierlingThink,37.6,differ,known noise
+00148c90,BroScr_TryThrowGrenadeRightHandCall_2,19.5,same,
+00148ce0,BroScr_LetterboxFadeOn,50.0,same,
+00148d10,Bro__load_gmi__main,31.6,same,
+00149200,BroScr_FriendlyChatTriggerThink,17.2,differ,see note
+0014a2f0,BroScr_WaitForFollowers,45.7,same,
+0014a380,BroScr_WaitForAllFollowersNotify,53.2,same,
+0014a670,BroScr_RemoveFollowerOnDeath,64.4,same,
+0014a910,BroScr_PathPosDebugStub,64.9,same,
+0014a9c0,BroScr_CurrentPathPosDebugStub,49.6,same,
+0014bac0,BroScr_FlakClaimTriggerThink,42.7,differ,known noise
+0014bdf0,BroScr_FlakGunnerFireAnim,39.1,differ,known noise
+0014c5a0,BroScr_SquadManagerSpawnSquad,27.0,differ,known noise
+0014ca20,BroScr_VehicleDeath_Stuka,35.9,differ,known noise
+0014ce80,BroScr_DeleteArraysOnVehicleRemoved,20.6,same,
+0014ea50,BroScr_StunnedWait,43.2,differ,known noise
+0014f000,BroScr_SetupStackers_2,30.0,differ,known noise
+0014f560,BroScr_SetupStackers,20.9,same,
+0014fb70,BroScr_WallHopTrigger,26.8,differ,see note
+0014ffd0,BroScr_VehicleDeath_Flakvierling,41.9,same,
+00150180,BroScr_VehicleRiderWait,27.5,same,
+00150ca0,BroScr_VehicleFollowPathToEnd,32.4,differ,known noise
+00150f50,BroScr_VehicleFollowPathToEnd_2,32.4,differ,known noise
+00151c90,BroScr_WaitForFollowersCall,63.4,same,
+00151cd0,BroScr_FollowLagThink,39.4,differ,known noise
+00151e70,BroScr_FollowEntInit,43.2,differ,known noise
+00152310,BroScr_RespawnerCountDeath,46.9,same,
+00153210,BroScr_VehicleDeadStop,49.7,differ,known noise
+00153420,BroScr_TankHullGunnerThink,36.5,differ,see note
+001542b0,BroScr_VehicleMountRiders,24.9,differ,known noise
+001566c0,BroScr_PanzerIVSetup_3,64.7,same,
+00156ac0,BroScr_PauseUnpauseThink,40.1,same,
+00156e70,BroScr_RespawnerThink,19.4,differ,known noise
+00157ae0,BroScr_TankHullGunnerAtGunhull,15.0,same,
+00158420,BroScr_FlakGunnerRespawnLoop,28.2,same,
+00158aa0,BroScr_AddFollowers,48.6,differ,known noise
+00158d40,BroScr_SpawnerGroupManager,19.0,same,
+001592d0,BroScr_SpawnerGroupManagerCall,14.5,same,
+00159400,BroScr_SpawnerGroupManagerCall_2,16.4,same,
+00159530,BroScr_SpawnerGroupManagerCall_3,19.8,same,
+001596a0,BroScr_SpawnerGroupManagerCall_4,13.5,same,
+001597a0,BroScr_RunSpawnerGroupsByGroupname,20.2,differ,known noise
+00159e40,BroScr_FlakAutomatedThink,27.0,differ,known noise
+0015aa50,BroScr_AddFollowersDefault,33.3,same,
+0015aa80,BroScr_SetFlakManned,67.9,same,
+0015aae0,BroScr_SetFlakAutomated,68.7,differ,known noise
+0015abe0,BroScr_SetFlakMannedByName,30.3,same,
+0015ac70,BroScr_SetFlakAutomatedByName,30.3,same,
+0015b7e0,BroScr_TankShellHudFireWait,43.8,same,
+0015b8d0,BroScr_TankShellHudHideOnDeath,41.8,same,
+0015b990,BroScr_TankShellReadyHud,56.5,differ,known noise
+0015bd20,BroScr_LoopSoundUntilFlag,61.0,same,
+0015bde0,BroScr_RandomSoundBursts,57.0,same,
+0015bee0,BroScr_PlayBloodImpactFx,32.8,differ,known noise
+0015c120,BroScr_MinefieldKill,46.3,same,
+0015c390,BroScr_PlayShellIncoming,27.7,differ,known noise
+0015c510,BroScr_RespawnerThink_2,21.3,differ,known noise
+0015cee0,BroScr_StoneBreakTriggerThink,35.6,same,
+0015def0,Bro__treeburst_gmi__tree_burst_playBurst,28.4,same,
+0015e4c0,BroScr_WindowBreakOnHit,27.8,same,
+0015eed0,BroScr_TankShellReadyHud_2,51.1,same,
+0015f380,BroScr_FxCreationSound,34.7,differ,known noise
+0015f720,BroScr_FxCreationSoundThink,42.6,differ,known noise
+0015ff60,BroScr_MinefieldTriggerThink,44.9,same,
+00160010,BroScr_PlayShellIncomingCall,75.0,same,
+00160110,BroScr_SpawnerGroupManager_2,23.2,same,
+001609f0,BroScr_PlantBombObjective,32.3,differ,known noise
+00160d40,BroScr_FlakPanzerThink,16.8,differ,known noise
+00162960,BroScr_Flak88Think,26.3,differ,known noise
+00163b40,BroScr_TreadFx,34.0,differ,known noise
+001640c0,BroScr_TreeBurstTriggerThink,18.9,differ,known noise
+00164750,BroScr_StartLoopingFx,10.4,differ,known noise
+00164e20,BroScr_SpawnFxCreationOrigin,11.7,same,
+00164f20,BroScr_FxCreationSoundCall,21.1,same,
+00164fb0,BroScr_FxCreationSoundCall_2,14.0,same,
+00165030,BroScr_FxCreationSoundCall_3,21.8,same,
+001650a0,BroScr_FxCreationSoundCall_4,21.6,same,
+00165120,BroScr_SpawnFxCreationOrigin_2,25.8,same,
+00165210,BroScr_FxCreationSoundThinkCall,30.2,same,
+00165290,BroScr_FxCreationSoundThinkCall_2,24.5,same,
+001652f0,BroScr_FxCreationSoundThinkCall_3,39.2,same,
+00165350,BroScr_FxCreationSoundThinkCall_4,43.1,same,
+001660e0,BroScr_SpawnFxCreationOriginCall,23.2,same,
+00166170,BroScr_SpawnFxCreationOriginCall_2,47.3,same,
+001661d0,BroScr_SpawnFxCreationOrigin_2Call,13.2,differ,see note
+00166260,BroScr_SpawnFxCreationOrigin_2Call_2,19.4,differ,see note
+001662d0,BroScr_SpawnFxCreationOrigin_2Call_3,16.2,differ,see note
+00166350,BroScr_SpawnFxCreationOrigin_2Call_4,10.3,differ,see note
+001663e0,BroScr_SpawnFxCreationOrigin_2Call_5,24.3,differ,see note
+00168910,BroScr_AnimReachCore,24.2,same,
+00169b20,BroScr_DroneAnimLoop,22.5,same,
+00169e50,BroScr_DroneMain,21.3,differ,known noise
+0016aa90,BroScr_AnimScriptedRestoreAnimname,27.4,differ,known noise
+0016ace0,BroScr_VehicleRidersThink,11.7,differ,see note
+0016cb40,BroScr_StukaBombExplode,29.7,same,
+0016ce40,BroScr_AnimReach,26.9,same,
+0016cf80,BroScr_AnimReachEnt,25.0,same,
+0016d0c0,BroScr_AnimReachCall,4.8,differ,known noise
+0016d1a0,BroScr_AnimReachEntCall,4.6,differ,known noise
+0016d390,BroScr_DroneMainCall,50.0,same,
+0016d3b0,BroScr_DroneFollowSpline,24.9,differ,known noise
+0016e270,BroScr_HalftrackSeatGuy,25.3,same,
+0016f040,BroScr_StukaBombImpact,26.4,differ,known noise
+0016f650,BroScr_DroneMainDelayed,51.7,same,
+0016f920,BroScr_HalftrackSpawnGuys,30.2,same,
+0016fc30,BroScr_PlaneDropBomb,21.3,differ,known noise
+001705a0,BroScr_ShellIncomingThenImpact,80.6,same,
+00170670,BroScr_PlaneDropBombCall,72.7,same,
+001706b0,BroScr_DronePathSpawnLoop,18.2,same,
+00170a90,BroScr_MortarGroupShuffledLoop,31.6,differ,known noise
+00170fb0,BroScr_MortarLoopNearPlayer,20.9,differ,known noise
+00171450,BroScr_ShellIncomingThenImpact_2,32.9,same,
+001714e0,BroScr_ShellIncomingAtPos,35.8,differ,see note
+00171530,BroScr_MortarGroupNearEntLoop,30.0,differ,known noise
+00171920,BroScr_PlaneDropBombCall_2,34.0,same,
+00171970,BroScr_DroneDeathThink,19.1,differ,known noise
+00171f00,BroScr_PlaneBombLoop,34.3,same,
+00171f80,BroScr_DronePathsStartAll,25.5,same,
+00172150,BroScr_DronePathsStartAllStaggered,27.2,same,
+001723b0,BroScr_DronePathSpawnLoopCall_1,21.3,same,
+00172440,BroScr_DronePathSpawnLoopCall_2,14.1,same,
+001724d0,BroScr_DronePathSpawnLoopCall_3,13.9,same,
+00172560,BroScr_DronePathSpawnLoopCall_4,14.5,same,
+001725f0,BroScr_DronePathSpawnLoopCall_5,18.4,same,
+00172680,BroScr_DronePathSpawnLoopCall_6,19.2,same,
+00172710,BroScr_MortarGroupShuffledLoopCall_1,18.9,same,
+00172770,BroScr_MortarGroupShuffledLoopCall_2,22.2,same,
+001727d0,BroScr_MortarGroupShuffledLoopCall_3,20.3,same,
+00172840,BroScr_MortarGroupShuffledLoopCall_4,17.9,same,
+00172a10,BroScr_RandomMortarsAroundEnt,17.6,differ,known noise
+00173320,BroScr_DronePathsStartAllCall_1,21.6,differ,known noise
+001733f0,BroScr_DronePathsStartAllCall_2,21.9,differ,known noise
+001734b0,BroScr_DronePathsStartAllCall_3,21.6,differ,known noise
+00173580,BroScr_DronePathsStartAllCall_4,22.2,differ,known noise
+00173640,BroScr_DronePathsStartAllCall_5,26.0,differ,known noise
+00173710,BroScr_DronePathsStartAllCall_6,26.3,differ,known noise
+001737e0,BroScr_DronePathsStartAllStaggeredCall,26.3,differ,known noise
+00173c50,BroScr_PathMoverRun,23.4,differ,known noise
+00174810,BroScr_SpawnEventDrones,14.9,differ,known noise
+00174d40,BroScr_PathMoverFromTargetChain,26.4,same,
+00174f60,BroScr_SpawnEventDronesCall_1,14.5,same,
+00175020,BroScr_SpawnEventDronesCall_2,15.9,same,
+001750f0,BroScr_SpawnEventDronesCall_3,25.0,same,
+001751b0,BroScr_SpawnEventDronesCall_4,26.2,same,
+00175270,BroScr_SpawnEventDronesCall_5,24.1,same,
+00175320,BroScr_PathMoverFromTargetChainCall,39.0,same,
+00175370,BroScr_PathMoverFromTargetChainCall_2,39.0,same,
+001753c0,BroScr_PathMoverFromTargetChainCall_3,32.6,same,
+00175410,BroScr_PathMoverFromTargetChainCall_4,35.6,same,
+00175460,BroScr_PathMoverFromTargetChainCall_5,40.0,same,
+001754b0,BroScr_NotetrackFaceAnim,43.8,same,
+001757f0,BroScr_AnimNotetrackCommands,35.6,differ,known noise
+00176720,BroScr_AnimLoopGuys,21.3,differ,see note
+00177450,BroScr_AnimSingleGuys,19.0,differ,see note
+00178080,BroScr_AnimLoopAtEnt,19.8,differ,known noise
+00178280,BroScr_AnimLoopAtNode,21.2,differ,known noise
+001784c0,BroScr_AnimSingleAtNode,20.9,differ,known noise
+00178710,BroScr_AnimSingleAtEnt,21.8,differ,known noise
+00178960,BroScr_AnimSingleSoloAtNode,18.9,same,
+00178a30,BroScr_AnimSingleSoloAtNode_2,16.7,same,
+00178b00,BroScr_AnimSingleAtNode_2,18.0,same,
+00178cd0,BroScr_WaitAnimSoloFinished,36.4,differ,known noise
+00178e70,BroScr_AnimLoopAtEntCall_1,21.8,same,
+00178ed0,BroScr_AnimLoopAtEntCall_2,22.6,same,
+00178f30,BroScr_AnimLoopAtEntCall_3,16.4,same,
+00178fd0,BroScr_AnimLoopAtEntCall_4,19.7,same,
+00179070,BroScr_AnimLoopAtEntCall_5,22.9,same,
+00179110,BroScr_AnimLoopAtEntCall_6,22.9,same,
+001791a0,BroScr_AnimLoopAtNodeCall_1,27.7,same,
+00179230,BroScr_AnimLoopAtNodeCall_2,26.9,same,
+001792c0,BroScr_AnimSingleAtNodeCall_1,26.1,same,
+00179310,BroScr_AnimSingleAtNodeCall_2,21.7,same,
+00179360,BroScr_AnimSingleAtNodeCall_3,19.0,same,
+001793f0,BroScr_AnimSingleAtNodeCall_4,21.9,same,
+00179480,BroScr_AnimSingleAtNodeCall_5,27.3,same,
+00179510,BroScr_AnimSingleAtEntCall_1,23.9,same,
+001795b0,BroScr_AnimSingleAtEntCall_2,23.2,same,
+00179650,BroScr_AnimLoopAtNodeArrayCall,20.4,differ,see note
+00179710,BroScr_AnimSingleSoloAtNode_3,28.3,same,
+001797d0,BroScr_AnimLoopAtNode_2,35.0,same,
+001799a0,BroScr_ShermanTankAnim,31.1,differ,known noise
+00179ca0,BroScr_ShermanTankAnim_2,31.1,differ,known noise
+00179fa0,BroScr_ShermanTankAnim_3,31.1,differ,known noise
+0017a2a0,BroScr_AnimLoopSoloAtNode,21.6,same,
+00181610,BroScr_SetGoalRadius64UntilNotify,58.5,same,
+00181670,BroScr_NotifyWhenOtherDies,70.6,same,
+00181700,BroScr_TrackTriggerTouch,27.2,same,
+001817b0,BroScr_TurretAutoAiOnNotify,77.8,same,
+001818c0,BroScr_Mg42ShootSoundLoop,58.0,same,
+00181960,BroScr_TurretStateChangeWait,78.3,same,
+00181b70,BroScr_SetAIFlagsUntilNotify,78.3,same,
+00181bc0,BroScr_NotifyFallbackReachedGoal,30.6,same,
+00181ce0,BroScr_WaitFrame,100.0,same,
+00181cf0,Bro__spawner_gmi__friendly_wave_callback,57.6,same,
+00181df0,BroScr_NotifyMg42FinishedOnDeath,70.6,same,
+00181e30,BroScr_UseAiOnMg42Hint,53.9,same,
+00181f20,BroScr_NotifyFinishedUsingMg42,41.7,same,
+001821f0,BroScr_DeleteOnNotify,43.3,same,
+001822e0,BroScr_ShellShockUntilDeath,42.7,same,
+001823a0,BroScr_PlaySoundOnTempOrigin_4,36.4,same,
+00182490,BroScr_PlayerFeelsImportant,62.9,same,
+001824d0,BroScr_SoundBlendDebug,26.9,same,
+00182640,BroScr_WaitForever_2,100.0,same,
+00182650,BroScr_MusicStopThenPlay,100.0,same,
+00182670,BroScr_PlayLevelMusic,62.5,same,
+00182700,BroScr_TurretStateChangeAfterTime,90.5,same,
+00182750,BroScr_TurretIdleAnimLoop,100.0,same,
+00182830,BroScr_TurretIdleAnimLoop_2,100.0,same,
+001828d0,BroScr_RelayNotifyWhileBothAlive,78.3,same,
+00183170,BroScr_CornerPlayAnimForTime,38.4,same,
+00183290,BroScr_CoverCrouchPlayIdle_1,100.0,same,
+001832d0,BroScr_CoverCrouchPlayIdle_2,100.0,same,
+001833d0,BroScr_StandAnimForTime,53.6,differ,see note
+00183430,BroScr_StandAnimForTime_2,53.6,differ,see note
+001834a0,BroScr_RandomTumble,35.8,same,
+00183790,BroScr_WaitFrameStrArg,27.3,same,
+00183810,BroScr_NotifyOnNotify,81.6,same,
+00183860,BroScr_NotifyAfterTime,100.0,same,
+00183930,BroScr_TurretStateChangeAfterTime_2,55.2,same,
+001839a0,BroScr_Mg42ShootLoop,66.0,same,
+00183ad0,BroScr_TurretStateChangeAfterTime_3,91.7,same,
+00183b30,BroScr_Mg42ShootLoop_2,65.2,same,
+00183c20,BroScr_Mg42ShootLoop_3,63.4,same,
+00183d70,BroScr_ActorAdvanceAnimAndTeleport,100.0,same,
+00183db0,BroScr_ApplyAnimCommand,60.1,same,
+00183ea0,BroScr_NotifyOnNotify_2,81.6,same,
+00183ef0,BroScr_NotifyAfterTime_2,100.0,same,
+00183f50,BroScr_MiscStepSounds,52.4,same,
+00184020,BroScr_WaitKillAnimScript,61.5,same,
+00184090,BroScr_DeleteAfter300,100.0,same,
+001840b0,BroScr_ProneAimWeightsLoop,100.0,same,
+00184120,BroScr_CoverCrouchPlayIdle_3,100.0,same,
+00184160,BroScr_CoverCrouchPlayIdle_4,100.0,same,
+001841a0,BroScr_CoverCrouchPlayIdle_5,100.0,same,
+001841e0,BroScr_CoverCrouchPlayIdle_6,100.0,same,
+00184b30,BroScr_NotifyAfterTime_3,100.0,same,
+00184b90,BroScr_GetEyeLoop,61.5,same,
+0018ba10,BroScr_DeleteEntsOnNotify,35.0,same,
+0018bf00,BroScr_DebugCvarWait,48.9,same,
+0018bfc0,BroScr_FallbackDebugLoop,100.0,same,
+0018bff0,BroScr_SetGoalRadiusFromNodeOnNotify,38.8,same,
+0018c090,BroScr_DeleteAfterFrame,100.0,same,
+0018c130,BroScr_DeleteOnOtherDeath,59.1,same,
+0018c190,Bro__util__Switch_Music,49.7,same,
+0018c320,BroScr_AmbientPlayOutside,63.8,same,
+0018c4e0,BroScr_TurretIdleAnimStart,79.2,same,
+0018c5a0,BroScr_Turret30calFire,76.2,same,
+0018c6a0,BroScr_NotifyAfterTimeChecked,58.5,same,
+0018da20,BroScr_Mg42AnimThenShootLoop,76.2,same,
+0018dad0,BroScr_Mg42AnimThenShootLoop_2,79.2,same,
+0018dbc0,BroScr_PainAnimByHitLocation,53.7,differ,known noise
+00199120,BroScr_ActorRunToEntIgnoringAll,7.4,same,
+00199200,BroScr_ActorRunToEntIgnoringAll_2,7.4,same,
+001992e0,BroScr_MgBurstFire,44.1,differ,known noise
+00199630,BroScr_TurretRandomSpread,28.7,differ,known noise
+00199940,BroScr_MgFollowEntOrigin,53.4,same,
+00199bc0,BroScr_TriggeredSpawnerThink,30.0,differ,known noise
+0019a150,BroScr_TrackStartFlagLoop,28.6,same,
+0019a200,BroScr_SetIdlePoseByAllowedStance,55.3,differ,known noise
+0019a400,BroScr_MgWaitNewUser,43.3,differ,known noise
+0019a500,BroScr_FallbackOnGoalRestore,38.4,same,
+0019a5c0,BroScr_FallbackGoalThink,49.2,differ,known noise
+0019a8b0,BroScr_FallbackClearGoalWait,20.0,same,
+0019a930,BroScr_FallbackClearGoalWait_2,0.0,same,
+0019a9a0,BroScr_FallbackNodeThink,31.4,differ,known noise
+0019b0d0,BroScr_RestoreGoalRadiusOnGoal,57.1,same,
+0019b190,BroScr_LeaveTurretToNode,41.2,same,
+0019bab0,BroScr_DecrementAiSizeOnDeath,45.0,same,
+0019bb60,BroScr_MagicBulletShieldWait,39.5,same,
+0019bbf0,BroScr_MagicBulletShield,50.2,same,
+0019bec0,BroScr_ExploderPlaySound,43.1,differ,known noise
+0019bf80,BroScr_ExploderSoundFx,6.5,differ,known noise
+0019c2c0,BroScr_ExploderSoundFx_2,12.0,differ,known noise
+0019c660,BroScr_ScriptDelayConnectPaths,61.5,differ,known noise
+0019c6c0,BroScr_NotSolidAfterDelay,27.3,differ,known noise
+0019c800,BroScr_NotSolidThrow,26.6,differ,known noise
+0019ca70,BroScr_PlaySoundOnTag,16.5,same,
+0019cc40,BroScr_PlayLoopSoundOnTag,15.7,same,
+0019ce50,BroScr_WaitFinishedSpawning,28.2,differ,known noise
+0019cf40,BroScr_TurretPlayAnimDone,78.4,same,
+0019cfc0,BroScr_Mg30calAnimTree,15.4,differ,known noise
+0019d180,BroScr_Mg30calAnimTree_2,29.2,differ,known noise
+0019d460,BroScr_ReloadLauncherTimeout,50.6,same,
+0019d7b0,BroScr_OrientToEntityKillWatch,78.8,same,
+0019da60,BroScr_CoverShootOnNotify,21.9,same,
+0019db90,BroScr_HelmetPop,27.7,differ,known noise
+0019e120,BroScr_AnimFaceWaitSetFlag,42.0,same,
+0019e1a0,BroScr_AnimFaceWaitOnNotify,51.5,same,
+0019e260,BroScr_AnimFaceWaitOnTime,75.0,same,
+0019e5c0,BroScr_HeadLookThink,26.3,differ,see note
+0019f090,BroScr_StopLookingAtOnNotify,56.2,same,
+0019f0d0,BroScr_HeadLookMainLoop,47.6,differ,known noise
+0019f320,BroScr_TurretProneMG42Recover,83.6,same,
+0019f390,BroScr_Mg42AnimTree,39.7,differ,known noise
+0019f6f0,BroScr_TurretProneMG42Recover_2,78.4,same,
+0019f770,BroScr_Mg42AnimTree_2,39.7,differ,known noise
+0019f930,BroScr_Mg42AnimThenShootLoop_3,70.1,same,
+0019f9d0,BroScr_SetAnimMovementStopAfter,64.6,same,
+0019fe80,BroScr_DirectionalMoveAnimsOnNotify,41.0,same,
+0019ff70,BroScr_DirectionalMoveAnimsLoop,40.5,differ,known noise
+001a05f0,BroScr_ProneAimFaceDefault,51.8,differ,known noise
+001a07d0,BroScr_PlayStanceTransitionAnim,35.8,same,
+001a2450,BroScr_WoundedWalkLoop,48.7,same,
+001a2510,BroScr_PlayStepSounds,23.3,same,
+001a4910,BroScr_Mg42AutoTriggerThink,37.2,same,
+001a4d30,BroScr_MgBurstFireThink,39.4,differ,known noise
+001a4f40,BroScr_TurretManualTargetThink,46.6,differ,known noise
+001a5100,BroScr_CycleTargetsThread,30.5,differ,known noise
+001a53e0,BroScr_MagicGrenadeThrowThink,25.7,same,
+001a5940,BroScr_IncrementTriggerThink,33.4,same,
+001a5f10,BroScr_FloodSpawnerDeleteWatch,21.0,same,
+001a63a0,BroScr_MgGetNewUser,19.1,differ,known noise
+001a6a40,BroScr_NotifyFallbackerDied,38.7,same,
+001a6b10,BroScr_FriendlyWaveSpawn,35.7,same,
+001a6fe0,BroScr_WaitFriendlyFinishedMG42,34.8,same,
+001a7010,BroScr_SetupFriendlyFireMissionFail,19.9,differ,known noise
+001a7ec0,BroScr_WaitForAliveTouchingCount,24.9,same,
+001a81b0,BroScr_WaitTriggerAiCleared,37.6,same,
+001a95a0,BroScr_MagicBulletShieldDefault,28.6,same,
+001aad20,BroScr_TempEventTextThink,20.3,same,
+001ab050,BroScr_ShootAtTarget,37.2,differ,known noise
+001ab530,BroScr_ShootAtTarget_2,33.3,differ,known noise
+001abc70,BroScr_LookAtEndOnNotify_1,54.9,same,
+001abd00,BroScr_LookAtEndOnNotify_2,54.9,same,
+001abd90,BroScr_LookAtEndOnNotify_3,56.6,same,
+001abe30,BroScr_UpdateOrientToEntity,48.8,same,
+001ac460,BroScr_HeadLookMainLoop_Thunk,0.0,same,
+001ac9f0,FUN_001ac9f0,40.8,same,
+001acac0,Bro_anim_main_grenade_recover,72.7,same,
+001acae0,BroScr_ForwardNotifyString,54.2,same,
+001acd90,BroScr_StandCombatRun,22.8,differ,known noise
+001acf80,BroScr_StandCombatWalk,22.4,differ,known noise
+001ad1f0,BroScr_CrouchRun,57.4,differ,known noise
+001ad330,BroScr_CrouchWalkLoop,45.5,differ,known noise
+001ad910,BroScr_DropWeapon,26.0,differ,known noise
+001ada20,BroScr_HandleNoteTracks,8.2,differ,known noise
+001aeac0,BroScr_HandleNoteTracksForever,36.8,same,
+001aeca0,BroScr_HandleNoteTracksForTime,53.3,same,
+001aed40,BroScr_UnarmedCrouchIdle,31.1,differ,known noise
+001aee80,BroScr_Traverse,25.8,same,
+001af0a0,BroScr_Traverse_2,2.6,same,
+001af480,BroScr_Traverse_3,2.6,same,
+001af860,BroScr_Traverse_4,2.6,same,
+001afc40,BroScr_Traverse_11,10.8,same,
+001b0070,BroScr_Traverse_5,30.4,same,
+001b0310,BroScr_Traverse_12,15.4,same,
+001b0550,BroScr_Traverse_13,15.4,same,
+001b0790,BroScr_Traverse_6,13.9,same,
+001b0ab0,BroScr_PlayStepRunSound,48.9,same,
+001b0bb0,BroScr_Traverse_14,25.6,same,
+001b0ed0,BroScr_Traverse_15,29.5,same,
+001b12c0,BroScr_Traverse_7,2.6,same,
+001b16a0,BroScr_Traverse_16,20.1,same,
+001b1990,BroScr_Traverse_17,26.4,same,
+001b1ca0,BroScr_Traverse_18,15.4,same,
+001b1ee0,BroScr_Traverse_8,8.3,same,
+001b2150,BroScr_Traverse_9,27.7,same,
+001b2380,BroScr_TraverseDiveWall,26.9,same,
+001b26c0,BroScr_Traverse_10,13.8,same,
+001b2e20,BroScr_WaitThreeEndNotes,45.4,same,
+001b2ed0,BroScr_ShuffleForwardAnim,45.8,same,
+001b31a0,BroScr_DebugDrawChainRadiiLoop,48.2,same,
+001b3360,BroScr_GoToChainNode,60.4,same,
+001b3450,BroScr_FriendlyChainThink,13.2,differ,known noise
+001b3990,BroScr_HangarChainUpdateLoop,15.9,same,
+001b4130,BroScr_HangarChainMoverThink,32.7,differ,see note
+001b4e40,BroScr_FloodSpawnerTriggerThink,31.0,same,
+001b5280,BroScr_GoToBalconyNode,22.0,differ,known noise
+001b58e0,BroScr_FriendlyUseMg42,26.8,differ,known noise
+001b6350,BroScr_OnSpawnedReattachGun,30.6,differ,known noise
+001b64a0,BroScr_TempEventText,37.6,same,
+001b6600,BroScr_AnimScript_Turret_2,37.1,differ,known noise
+001b6a50,BroScr_AnimScript_TurretCall_1,45.5,same,
+001b6a80,BroScr_AnimScript_TurretCall_2,43.5,same,
+001b6ab0,BroScr_TryShootRunBack,11.8,differ,known noise
+001b6dc0,BroScr_LookAtUntilKillAnimscript_1,56.6,same,
+001b6e70,BroScr_LookAtUntilKillAnimscript_2,56.6,same,
+001b6f20,BroScr_LookAtUntilKillAnimscript_3,58.7,same,
+001b6fe0,BroScr_BlendAimAnimsByYawLoop,45.3,same,
+001b7060,BroScr_CoverCrouchIdleTwitch,44.4,same,
+001b7180,BroScr_CoverCrouchRandomIdleAnim,36.4,same,
+001b7230,BroScr_CoverCrouchIdleTwitch_2,41.5,same,
+001b7360,BroScr_CoverLeftIdle,34.5,differ,known noise
+001b7670,BroScr_CoverRightIdle,34.5,differ,known noise
+001b7980,BroScr_PlayCoverDeathAnim,17.9,differ,known noise
+001b7bc0,BroScr_AnimFaceWaitNotetracks,42.2,same,
+001b7c70,BroScr_GrenadeCowerHide,58.6,differ,known noise
+001b7e70,BroScr_AnimScriptEntSetDefaults,21.6,differ,known noise
+001b84a0,BroScr_TurnToEnemy,17.4,differ,known noise
+001b8b50,BroScr_TurretOwnerChangeSwap,23.6,same,
+001b8c60,Bro_climb_up_ledge,72.7,same,
+001b8c80,Bro_fence_climb,72.7,same,
+001b8ca0,Bro_fence_climb_39,72.7,same,
+001b8cc0,Bro_fence_climb_48,72.7,same,
+001b8ce0,Bro_jump_across_72,72.7,same,
+001b8d00,Bro_jump_down,72.7,same,
+001b8d20,Bro_jump_down_96,72.7,same,
+001b8d40,Bro_jump_over_high_wall,72.7,same,
+001b8d60,Bro_ladder_down,72.7,same,
+001b8d80,Bro_ladder_up,72.7,same,
+001b8da0,Bro_platform_climb,72.7,same,
+001b8dc0,Bro_stairs_down,72.7,same,
+001b8de0,Bro_stairs_up,72.7,same,
+001b8e00,Bro_step_down,72.7,same,
+001b8e20,Bro_step_up,72.7,same,
+001b8e40,Bro_train_jump,72.7,same,
+001b8e60,Bro_wall_dive,72.7,same,
+001b8e80,Bro_windowclimb,72.7,same,
+001b8ea0,Bro_hill_slide,72.7,same,
+001b8ec0,BroScr_AnimScript_Turret_3,37.7,differ,known noise
+001b9310,BroScr_AnimScript_TurretCall_3,45.5,same,
+001b9340,BroScr_AnimScript_Turret,38.4,same,
+001b9710,BroScr_AnimScript_TurretCall_4,45.5,same,
+001b9740,BroScr_AnimScript_TurretCall_5,43.5,same,
+001b9770,BroScr_Mg42AnimTree_3,33.6,differ,known noise
+001b9950,BroScr_PlayStandMG42GunnerPain,50.0,same,
+001b99c0,BroScr_TurnToEnemy_2,46.3,differ,known noise
+001ba4e0,BroScr_DebugPrintTimesThrough,33.8,same,
+001ba580,BroScr_StandCombatRun_2,0.0,same,
+001ba590,BroScr_PlayPoseTransitionAnim,47.2,differ,known noise
+001ba730,BroScr_PlayAnimWithNoteTracks,44.2,differ,known noise
+001bac80,BroScr_PlayAnimWaitEndNotes,41.1,same,
+001bad70,BroScr_PlayFaceAnim_3,35.7,same,
+001bb230,BroScr_PlayFaceAnim,40.6,same,
+001bb610,BroScr_PlayFaceAnim_2,31.3,differ,known noise
+001bb930,BroScr_WoundedWalk,14.2,differ,known noise
+001bc7c0,BroScr_HangarChainAIThink,16.5,differ,see note
+001be170,BroScr_MgUserGoToNode,30.9,differ,known noise
+001be660,BroScr_GrenadeThrowTrigger,38.0,same,
+001bec70,BroScr_FallbackerSetup,26.0,differ,known noise
+001bf200,BroScr_FriendlyMg42TriggerThink,39.7,differ,known noise
+001bf490,BroScr_WaitUntilTeamNotTouching,45.1,same,
+001bf600,BroScr_AimToAlert,39.7,differ,known noise
+001bf8b0,Bro_aim__keep_aiming,52.3,same,
+001bfc50,BroScr_SetDesiredPoseProne,46.5,same,
+001bfd80,BroScr_SetDesiredPoseStandStop,47.6,same,
+001bfe70,BroScr_LookAtEnemyLoop,43.0,differ,known noise
+001c0030,BroScr_StopForceShoot,50.7,same,
+001c0130,BroScr_LookAtPositionLoop,44.9,differ,known noise
+001c02d0,BroScr_LookAtEntityLoop,40.6,differ,known noise
+001c0460,BroScr_StopCoverCrouchIdle,23.9,differ,known noise
+001c0c10,Bro_cover_crouch__idle,28.3,differ,known noise
+001c0f30,BroScr_CoverCrouchReloadAnim,24.3,differ,known noise
+001c1230,BroScr_PlayCrouchIdleAnim,34.5,differ,known noise
+001c1470,BroScr_CoverStandIdleTransition,24.6,differ,known noise
+001c1770,BroScr_FaceEnemyAnim,37.6,same,
+001c1860,BroScr_AnimFaceWait,35.0,differ,known noise
+001c22b0,BroScr_AnimScript_GrenadeCower,34.3,same,
+001c25f0,Bro_anim_main_grenade_cower,72.7,same,
+001c2610,Bro_b30cal_stand,82.4,same,
+001c2640,Bro_b30cal_prone,82.4,same,
+001c2670,BroScr_SetDesiredPoseProneMg42,46.5,same,
+001c27a0,BroScr_TurretPoseProne,46.5,same,
+001c28d0,BroScr_TurretPoseStand,47.6,same,
+001c29c0,BroScr_TryTurretGunnerPain,47.6,same,
+001c2d10,BroScr_AnimMoveUntilEndNote,54.9,differ,known noise
+001c2eb0,BroScr_RecordAnimCommand,54.7,same,
+001c2f70,BroScr_ReplayAnimCommands,47.2,same,
+001c3200,BroScr_StandStartWalk,32.5,differ,known noise
+001c3390,BroScr_StandWalkToStop,42.6,differ,known noise
+001c35b0,BroScr_StandWalkToStop_2,48.6,differ,known noise
+001c37a0,BroScr_StandMoveToStop,33.6,differ,known noise
+001c3880,BroScr_CrouchToCrouchWalk,41.2,same,
+001c38c0,BroScr_CrouchWalkToCrouchStop,28.1,differ,known noise
+001c3a20,BroScr_CrouchWalkToCrouchStop_2,28.1,differ,known noise
+001c3b80,BroScr_CrouchRun_2,0.0,same,
+001c3b90,BroScr_ProneFaceCurrent,49.6,same,
+001c3ca0,BroScr_StandToCrouchStop,42.0,same,
+001c3d80,BroScr_IdleFaceCurrent,42.1,same,
+001c3f10,BroScr_ProneAimToCrawl,64.1,same,
+001c3fa0,BroScr_ProneCrawlToAim,70.1,same,
+001c4030,BroScr_CrouchToProne,80.8,same,
+001c40f0,BroScr_StandToProne,80.8,same,
+001c41b0,BroScr_CrouchRunToProne,53.9,same,
+001c4510,BroScr_AnimScript_Walk,8.3,differ,see note
+001c4a80,BroLvl_oran_SetupEvent4Chains,36.6,same,
+001c51a0,BroScr_GrenadeThrowTriggers,31.3,differ,see note
+001c5790,BroScr_GrenadeSpawnerOnceTriggerThink,24.4,differ,see note
+001c5910,BroScr_FallbackSpawnerThink,25.5,differ,known noise
+001c5bf0,BroScr_WaitUntilTeamNotTouchingCall,23.8,same,
+001c5c60,BroScr_PlayIdleAnim,33.1,differ,known noise
+001c5f20,BroScr_KeepAimingAtTarget,47.6,differ,known noise
+001c6040,Bro_combat__rechamber,13.0,differ,known noise
+001c6840,BroScr_RechamberRifle,29.8,differ,see note
+001c6ba0,BroScr_ForceShootTargetDeathWatch,73.1,same,
+001c6c00,BroScr_RamboFire,41.4,same,
+001c6ea0,BroScr_AimUntilCanShoot,28.0,differ,see note
+001c70a0,BroScr_BattleChatter,22.5,differ,see note
+001c7600,BroScr_StartAnimFaceWait,40.5,same,
+001c76a0,BroScr_ChatterGrenadeAttack,35.6,same,
+001c7880,Bro_hide__main,37.6,same,
+001c79e0,Bro_anim_main_grenade_return_throw,72.7,same,
+001c7a00,Bro_anim_main_walk,72.7,same,
+001c7a20,BroScr_StartHideThread,72.7,same,
+001c7a40,Bro_mg42_stand,82.4,same,
+001c7a70,Bro_mg42_prone,82.4,same,
+001c7aa0,Bro_anim_lmg_gmi,82.4,same,
+001c7ad0,BroScr_MeleeAttackAnim,35.6,same,
+001c7be0,BroScr_AnimScript_Pain,34.4,differ,known noise
+001c8620,BroScr_RecordSetAnimKnob,70.0,same,
+001c8660,BroScr_RecordSetAnimKnobAll,70.0,same,
+001c86a0,BroScr_RecordAnimCommand3,75.0,same,
+001c86e0,BroScr_ScriptedAnimInit,24.1,differ,see note
+001c8920,BroScr_PoseMove_StandStop,45.7,differ,known noise
+001c8ad0,BroScr_PoseMove_StandWalk,41.4,differ,known noise
+001c8c40,BroScr_PoseMove_StandRun,45.1,differ,known noise
+001c8db0,BroScr_PoseMove_CrouchStop,46.6,differ,known noise
+001c8f50,BroScr_PoseMove_CrouchWalk,45.0,differ,known noise
+001c90c0,BroScr_PoseMove_CrouchRun,45.4,differ,known noise
+001c9210,BroScr_PoseMove_ProneStop,45.1,differ,known noise
+001c9370,BroScr_PoseToProneCrawl,40.0,differ,known noise
+001c9550,BroScr_FallbackSelectActors,27.8,same,
+001c9890,BroScr_AimIdleAtTarget,73.2,same,
+001c98d0,BroScr_ReloadLauncher,44.4,differ,known noise
+001c99f0,BroScr_TryReload,35.5,differ,known noise
+001c9fc0,BroScr_TryGrenadeThrow,31.0,differ,known noise
+001ca3c0,BroScr_RechamberRifleDelayed,78.0,same,
+001ca420,BroScr_ForceShootThread,34.9,differ,known noise
+001cb310,BroScr_ForceShootAtPoint,43.3,differ,known noise
+001cb7b0,BroScr_ChatterEnemySighted,26.8,differ,known noise
+001cba70,BroScr_GiveUpPositionChatter,24.1,same,
+001cbae0,BroScr_GrenadeDangerThink,28.7,same,
+001cbc70,BroScr_CoverAttack,20.1,differ,known noise
+001cca00,BroScr_CornerRamboFire,26.0,same,
+001cccd0,BroScr_BalconyStumbleDeath,27.3,differ,see note
+001cd050,BroScr_BattleChatterOnDeath,38.5,same,
+001cd080,BroScr_StandShootSideStep,6.9,differ,known noise
+001cd420,BroScr_ProneShootLoop,34.2,differ,known noise
+001cdb10,Bro_anim_main_pain,72.7,same,
+001cdb30,Bro_anim_main_scripted,71.0,same,
+001cdb60,BroScr_MeleeCharge,19.2,differ,known noise
+001ce710,BroScr_ProneShootLoop_2,28.9,differ,known noise
+001cedf0,BroScr_PoseMove_ProneWalk,53.3,same,
+001cee10,BroScr_PoseMove_ProneRun,53.3,same,
+001cee30,BroScr_StandIdleTwitch_1,38.7,same,
+001cefa0,BroScr_StandIdleTwitch_2,39.5,same,
+001cf120,BroScr_StandIdleTwitch_3,38.7,same,
+001cf290,BroScr_CrouchIdleTwitch_1,38.7,same,
+001cf400,BroScr_CrouchIdleTwitch_2,38.7,same,
+001cf570,BroScr_StopProneIdle,36.8,differ,known noise
+001cf8b0,BroScr_CornerRun2AlertRight,9.9,differ,known noise
+001d00c0,BroScr_CornerBRun2AlertRight,21.9,differ,known noise
+001d0970,BroScr_CornerCrouchRun2AlertRight,23.6,differ,known noise
+001d10d0,BroScr_CornerBCrouchRun2AlertRight,14.8,differ,known noise
+001d1960,BroScr_CornerRun2AlertLeft,20.1,differ,known noise
+001d2160,BroScr_CornerBRun2AlertLeft,28.5,differ,known noise
+001d2a80,BroScr_CornerCrouchRun2AlertLeft,10.4,differ,known noise
+001d3210,BroScr_CornerBCrouchRun2AlertLeft,28.6,differ,known noise
+001d3980,BroScr_FallbackThink,26.9,same,
+001d46c0,BroScr_FallbackerTriggerThink,38.4,differ,known noise
+001d4970,BroScr_AnimScript_Aim,31.0,same,
+001d4a40,BroScr_CoverShootBehavior,27.8,differ,known noise
+001d5410,BroScr_ForceShoot,33.9,differ,known noise
+001d5890,BroScr_ForceShootThink,36.2,differ,known noise
+001d5a50,BroScr_BattleChatterInit,24.6,differ,known noise
+001d5e30,BroScr_MiscCombatTimer,30.8,differ,known noise
+001d5f70,BroScr_ChooseFlankOrCoverMe,27.3,differ,known noise
+001d6420,BroScr_AnimScript_ConcealmentStand,12.9,same,
+001d6610,BroScr_CornerBehavior,25.8,differ,known noise
+001d6a10,Bro_cover_crouch__cover_crouch,22.6,differ,see note
+001d70f0,BroScr_CoverLeftPose_1,30.9,same,
+001d7280,BroScr_CoverLeftPose_2,27.4,same,
+001d74b0,BroScr_CoverRightPose_1,30.4,same,
+001d7680,BroScr_CoverRightPose_2,26.5,same,
+001d78a0,BroScr_CoverStandIdle,22.9,same,
+001d7a60,BroScr_AnimScript_CoverWideLeft,49.2,same,
+001d7d70,BroScr_AnimScript_CoverWideRight,49.2,same,
+001d8080,BroScr_AnimScript_Death,24.0,differ,see note
+001d93b0,BroScr_CoverProne,28.7,same,
+001d96d0,Bro_anim_main_concealment_stand,72.7,same,
+001d96f0,Bro_anim_main_cover_wide_left,72.7,same,
+001d9710,Bro_anim_main_cover_wide_right,72.7,same,
+001d9730,Bro_anim_main_death,72.7,same,
+001d9750,BroScr_CoverProne_2,39.0,same,
+001d99e0,Bro_run__main,23.7,differ,known noise
+001dabf0,BroScr_StopStandIdle,23.3,differ,known noise
+001db090,BroScr_StopCrouchIdle,47.1,differ,known noise
+001db300,BroScr_StopAtCornerStandRight,29.2,differ,known noise
+001db4a0,BroScr_StopAtCornerCrouchRight,33.3,differ,known noise
+001db6c0,BroScr_StopAtCornerStandLeft,28.6,differ,known noise
+001db860,BroScr_StopAtCornerCrouchLeft,32.9,differ,known noise
+001dba80,BroScr_AnimScript_ConcealmentCrouch,26.7,same,
+001dbb90,BroScr_AnimScript_CoverCrouch,31.5,same,
+001dbc90,BroScr_ChoosePoseRandom,22.5,differ,see note
+001dbeb0,BroScr_ChoosePoseRandom_2,31.9,differ,known noise
+001dc0c0,Bro_cover_stand__cover_stand,14.2,differ,see note
+001dca00,BroScr_AnimScriptEntInit,49.4,same,
+001dcc70,BroScr_AnimScriptEntInitIfValid,56.2,same,
+001dcca0,Bro_anim_main_init,58.8,same,
+001dccd0,Bro_anim_main_concealment_crouch,72.7,same,
+001dccf0,Bro_anim_main_cover_crouch,72.7,same,
+001dcd10,Bro_anim_main_run,72.7,same,
+001dcd30,BroScr_AnimScript_Combat,34.9,differ,known noise
+001dce30,BroScr_CombatMain,20.2,differ,known noise
+001dd180,BroScr_AnimScript_CoverLeft,45.2,same,
+001dd3c0,BroScr_CoverProneBehavior,31.6,same,
+001dd510,BroScr_AnimScript_CoverRight,45.2,same,
+001dd750,BroScr_AnimScript_CoverStand,31.0,same,
+001dd850,Bro_anim_main_combat,72.7,same,
+001dd870,Bro_anim_main_cover_left,72.7,same,
+001dd890,Bro_anim_main_cover_right,72.7,same,
+001dd8b0,Bro_anim_main_cover_stand,72.7,same,
+001dd8d0,Bro_combat__MeleeCombat,34.0,same,
+001de000,BroScr_AnimScript_ConcealmentProne,54.1,same,
+001de040,BroScr_AnimScript_CoverProne,54.1,same,
+001de080,Bro_combat__RangedCombat,15.0,differ,known noise
+001de940,Bro_anim_main_concealment_prone,72.7,same,
+001de960,Bro_anim_main_cover_prone,72.7,same,
+001de980,BroScr_TriggerNotifyLevelTargetname,41.5,same,
+001deab0,BroScr_MgTurretThink,15.3,differ,known noise
+001e0c90,BroScr_SpawnerSetupAI,29.8,differ,known noise
+001e1cf0,BroScr_TurretSetAIMode,47.6,same,
+001e1f60,BroScr_SpawnerFinishSpawn,22.0,differ,see note
+001e2010,BroScr_Mg42CoverSpotThink,28.0,differ,known noise
+001e25d0,BroScr_SpawnedThink,37.7,differ,known noise
+001e2e10,BroScr_BipodGunner,19.1,differ,known noise
+001e3430,BroScr_BipodGunnerStateMain,33.3,same,
+001e3520,Bro_stop__main,20.9,differ,known noise
+001e3c60,Bro_anim_main_stop,72.7,same,
+001e3c80,BroScr_AnimScript_Reacquire,36.7,same,
+001e3da0,Bro_anim_main_reacquire,72.7,same,
