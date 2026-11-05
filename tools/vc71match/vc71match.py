@@ -426,35 +426,69 @@ def plain_name(symbol):
     return f"vc71_fn_{t[1]}" if t else name
 
 
+def coff_functions(path):
+    """(name, code bytes, {offset: relocation symbol}) per function symbol of a COFF object.
+    Read directly: objdump looks symbols up by section name, and every COMDAT section here is
+    called .text, so a symbol of one section (a file-local helper at +0x14, a $L label) cut the
+    decoding of the others mid-instruction."""
+    data = path.read_bytes()
+    nsec, symptr, nsyms = struct.unpack_from("<H", data, 2)[0], *struct.unpack_from("<II", data, 8)
+    opt = struct.unpack_from("<H", data, 16)[0]
+    strings = symptr + 18 * nsyms
+
+    def name_at(raw):
+        if raw[:4] == b"\0\0\0\0":
+            off = strings + struct.unpack_from("<I", raw, 4)[0]
+            return data[off:data.index(b"\0", off)].decode("latin-1")
+        return raw.rstrip(b"\0").decode("latin-1")
+
+    symbols, k = {}, 0
+    while k < nsyms:
+        raw = data[symptr + 18 * k:symptr + 18 * k + 18]
+        value, sec, typ, cls, naux = struct.unpack_from("<IhHBB", raw, 8)
+        symbols[k] = (name_at(raw[:8]), value, sec, typ, cls)
+        k += 1 + naux
+    sections = []
+    for i in range(nsec):
+        h = 20 + opt + 40 * i
+        _, _, size, raw_ptr, rel_ptr, _, nrel, _, flags = struct.unpack_from("<IIIIIIHHI", data, h + 8)
+        relocs = {}
+        for r in range(nrel):
+            off, idx, _ = struct.unpack_from("<IIH", data, rel_ptr + 10 * r)
+            relocs[off] = symbols[idx][0]
+        sections.append((data[raw_ptr:raw_ptr + size] if raw_ptr else b"", relocs, flags))
+    out = []
+    for i, (code, relocs, flags) in enumerate(sections, 1):
+        if not flags & 0x20:  # IMAGE_SCN_CNT_CODE
+            continue
+        starts = sorted((v, n) for n, v, sec, typ, cls in symbols.values() if sec == i and typ == 0x20)
+        for j, (start, name) in enumerate(starts):
+            end = starts[j + 1][0] if j + 1 < len(starts) else len(code)
+            out.append((name, code[start:end], {o - start: t for o, t in relocs.items() if start <= o < end}))
+    return out
+
+
+def decode(code):
+    """(offset, text) of the instructions in `code` (i386, Intel syntax)."""
+    tmp = WORK / "code.bin"
+    tmp.write_bytes(code)
+    out = subprocess.run(["objdump", "-D", "-b", "binary", "-m", "i386", "-M", "intel",
+                          "--no-show-raw-insn", str(tmp)], capture_output=True, text=True).stdout
+    return [(int(m[1], 16), m[2].strip()) for m in re.finditer(r"^\s*([0-9a-f]+):\t(.*)$", out, re.M)]
+
+
 def obj_functions(objs):
     """name -> list of (offset, text, reloc target or None)."""
     funcs = {}
     for obj in objs:
-        # VC7.1's local $L symbols are not always on instruction boundaries; objdump restarts
-        # decoding at each symbol, so drop them from a copy first.
-        plain = obj.with_suffix(".nolabels.obj")
-        if subprocess.run(["objcopy", "--wildcard", "-N", "$L*", str(obj), str(plain)]).returncode == 0:
-            obj = plain
-        out = subprocess.run(["objdump", "-d", "-r", "-M", "intel", "--no-show-raw-insn", str(obj)],
-                             capture_output=True, text=True).stdout
-        current = None
-        for line in out.splitlines():
-            m = re.match(r"^[0-9a-f]+ <(.+)>:$", line)
-            if m and m[1].startswith("$"):  # a local label ($L...) inside the function
-                continue
-            if m:
-                current = funcs.setdefault(plain_name(m[1]), [])
-                continue
-            if current is None:
-                continue
-            r = RELOC.match(line)
-            if r and current:
-                off, text, _ = current[-1]
-                current[-1] = (off, text, plain_name(r[3]))
-                continue
-            m = re.match(r"^\s*([0-9a-f]+):\t(.*)$", line)
-            if m:
-                current.append((int(m[1], 16), m[2].strip(), None))
+        for name, code, relocs in coff_functions(obj):
+            insns = decode(code.rstrip(b"\xcc"))
+            body = []
+            for k, (off, text) in enumerate(insns):
+                nxt = insns[k + 1][0] if k + 1 < len(insns) else len(code)
+                target = next((plain_name(t) for o, t in relocs.items() if off <= o < nxt), None)
+                body.append((off, text, target))
+            funcs.setdefault(plain_name(name), []).extend(body)
     return funcs
 
 

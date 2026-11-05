@@ -70,6 +70,11 @@ array growth (DynArray_Resize) against our inline accessors / BroScr_ArrayElemen
 - A function VC7.1 still rejects (range-for, lambdas, `auto`) has its body cut and is
   reported `no-compile` with the first error.
 
+Our side is read from the object files directly (COFF sections, symbols, relocations) and
+each function decoded on its own: objdump looks symbols up by section name, and every COMDAT
+section is called `.text`, so a symbol of one section (a file-local helper at +0x14, a `$L`
+label) cut the decoding of another mid-instruction (2026-11-05).
+
 ## Reading the scores
 
 Compared: mnemonics and operands; jumps inside a function as function-relative
