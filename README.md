@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 6,897 have been
+It's early days: about 73% of the functions have a name, and 6,898 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,300 | 9,159 | 6,897 | 4,403 |
+| Engine and game code (`.text`) | 11,300 | 9,159 | 6,898 | 4,402 |
 | Mission scripts (14 level sections) | 5,324 | 2,994 | 0 | 5,324 |
-| **Total** | **16,624** | **12,153** | **6,897** | **9,727** |
+| **Total** | **16,624** | **12,153** | **6,898** | **9,726** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,008 | 1,703 | 294 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,452 | 271 | 319 | 807 | 47 | 1 |
+| Level-script helpers in the engine code | 1,452 | 272 | 320 | 810 | 42 | 1 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
