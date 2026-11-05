@@ -1156,7 +1156,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002fbf20,GScr_DebugLine,1988,1988,0,0,100.0
 002fbf80,GScr_Print3D,1898,1898,0,0,100.0
 002fca10,GScr_ToggleNoclip,1823,1823,0,0,93.1
-002fca80,GScr_SendServerCommand,1886,1886,0,0,100.0
+002fca80,GScr_ClosePopup,1886,1886,0,0,100.0
 002fca90,GScr_PlayerGetBool_60,3997,3997,0,0,65.2
 002fcb60,GScr_PlayerGiveMaxAmmoByAmmoType,3998,3998,0,0,25.9
 002fcc20,GScr_PlayerGiveMaxAmmo,3993,3993,0,0,62.1

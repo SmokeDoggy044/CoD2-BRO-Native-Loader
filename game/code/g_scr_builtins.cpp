@@ -2372,7 +2372,7 @@ void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const 
     DebugDraw_AddString(reinterpret_cast<const float*>(rgba), origin, scale, script_text(text), 1);
 }
 
-void XB_CDECL GScr_ValidateObjectiveIndex(int32_t index) {
+void XB_CDECL GScr_ObjectiveToggleRing(int32_t index) {
     if (index < 0 || index >= 0x10) {
         title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
             &title_global<char>(0x00831b38), index, 0xf);  // "index %i is an illegal objective index. ..."
@@ -2448,7 +2448,7 @@ void XB_CDECL GScr_ToggleNoclip() {
                              handle);
 }
 
-void XB_CDECL GScr_SendServerCommand(uint32_t handle) {
+void XB_CDECL GScr_ClosePopup(uint32_t handle) {
     SV_GameSendServerCommand(title_text(0x00831d88), handle);  // "popupclose"
 }
 

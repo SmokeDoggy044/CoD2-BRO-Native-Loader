@@ -2131,11 +2131,13 @@ void packed_float3_channel_block(uint32_t* args, uint32_t low_at, uint32_t high_
     const float* block_scale = reinterpret_cast<const float*>(static_cast<uintptr_t>(args[5]));
     const float* ranges = reinterpret_cast<const float*>(static_cast<uintptr_t>(args[6]));
     float* const buffer = &title_global<float>(0x00906820);
-    const float bias = ranges[1];
-    const float factor = ranges[2];
+    float bias = 0.0f, factor = 0.0f;
     for (int32_t c = 0; c < static_cast<int32_t>(N); ++c) {
         const uint8_t length = **stream;
         *stream += 1;
+        // Reloaded per channel after the stream step, as the original does: the output may overlap ranges.
+        bias = ranges[1];
+        factor = ranges[2];
         *reinterpret_cast<uint8_t*>(&args[1]) = length;
         EntropyReader reader;  // prev is set by the header (mode 0xff) before it is read
         reader.ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream));

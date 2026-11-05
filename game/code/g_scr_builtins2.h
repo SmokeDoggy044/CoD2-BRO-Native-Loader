@@ -146,14 +146,14 @@ void XB_CDECL GScr_ActorEnterProne(uint32_t handle, float seconds);
 void XB_CDECL GScr_MagicGrenadeManualDefaultFuse(uint32_t handle, const float* origin, const float* velocity);
 
 
-// 0x00305630 (named AttachNoTag; proposed GScr_DetachNoTag): GScr_Detach with an empty tag (a temporary string
+// 0x00305630 (was named GScr_AttachNoTag until 11-05): GScr_Detach with an empty tag (a temporary string
 // from "" around the call).
-void XB_CDECL GScr_AttachNoTag(uint32_t handle, const ScriptString* model);
-// 0x00305660 (named DetachNoTag; proposed GScr_AttachNoTag): GScr_Attach with an empty tag, no ignore flag, no
-// owner.
 void XB_CDECL GScr_DetachNoTag(uint32_t handle, const ScriptString* model);
-// 0x003056a0 (proposed GScr_AttachWithOwner): GScr_Attach(handle, model, tag, 0, owner).
-void XB_CDECL GScr_DetachEx(uint32_t handle, const ScriptString* model, const ScriptString* tag, const uint8_t* owner);
+// 0x00305660 (was named GScr_DetachNoTag until 11-05): GScr_Attach with an empty tag, no ignore flag, no
+// owner.
+void XB_CDECL GScr_AttachNoTag(uint32_t handle, const ScriptString* model);
+// 0x003056a0 (was named GScr_DetachEx until 11-05): GScr_Attach(handle, model, tag, 0, owner).
+void XB_CDECL GScr_AttachWithOwner(uint32_t handle, const ScriptString* model, const ScriptString* tag, const uint8_t* owner);
 // The sound builtins return FXCmd_*'s id, -1 for an empty alias or a stale handle; the FXCmd builders run at the
 // original's ESP (ESP entries).
 // 0x00305d80 (handle, alias, value): FXCmd_PlaySoundAliasMode7.

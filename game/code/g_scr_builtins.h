@@ -545,7 +545,7 @@ void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const 
 // Objective builtins: objective `index` (0-15) is config string index + 16, an info string.
 // 0x002fc710: toggles the objective's "ring" key ("1" when absent or 0, else "0"); message for bad indexes.
 // (Proposed name: GScr_ObjectiveToggleRing.)
-void XB_CDECL GScr_ValidateObjectiveIndex(int32_t index);
+void XB_CDECL GScr_ObjectiveToggleRing(int32_t index);
 // 0x002fc7f0: the objective's "org" key = "%i %i %i" of the truncated origin; nothing for bad indexes.
 void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin);
 // 0x002fc8a0: empties the objective's config string; message for bad indexes.
@@ -555,7 +555,7 @@ void XB_CDECL GScr_SetReverb(uint32_t handle, const ScriptString* name, float a,
 // 0x002fca10: toggles the player's noclip (client +0x584; byte 0x0095f679 = on) and prints GAME_NOCLIPON/OFF.
 void XB_CDECL GScr_ToggleNoclip();
 // 0x002fca80: SV_GameSendServerCommand("popupclose", handle) (tail jump). (Proposed name: GScr_ClosePopup.)
-void XB_CDECL GScr_SendServerCommand(uint32_t handle);
+void XB_CDECL GScr_ClosePopup(uint32_t handle);
 // 0x002fca90: whether the client's +0x60 is set (0 without a client).
 int32_t XB_CDECL GScr_PlayerGetBool_60(uint32_t handle);
 // 0x002fcae0, 0x002fcb20: SetClientViewAngle / TeleportPlayer on players (tail jumps).

@@ -41,7 +41,7 @@ const ImportSlot kObjectiveImports[] = {
     {0x188, 0x002ffb50},  // GScr_ObjectiveString
     {0x18c, 0x002fc7f0},  // GScr_ObjectivePosition
     {0x190, 0x002fe250},  // GScr_ObjectiveCurrent
-    {0x194, 0x002fc710},  // GScr_ValidateObjectiveIndex
+    {0x194, 0x002fc710},  // GScr_ObjectiveToggleRing
 };
 
 const ImportSlot kPlayerImports[] = {
@@ -75,7 +75,7 @@ const ImportSlot kPlayerImports[] = {
     {0x6f0, 0x002f7aa0},  // GScr_PlayerAllowPmFlag800000
     {0x6f4, 0x002f4b30},  // GScr_ReturnZero445
     {0x6f8, 0x002f4b20},  // GScr_ReturnZero446
-    {0x6fc, 0x002fca80},  // GScr_SendServerCommand
+    {0x6fc, 0x002fca80},  // GScr_ClosePopup
     {0x700, 0x002f4b10},  // GScr_EmptyStub448
     {0x704, 0x002f7a50},  // GScr_PlayerSetInt_58c
     {0x708, 0x002f4b00},  // GScr_SetFreezeControls
@@ -287,10 +287,10 @@ const ImportSlot kGameImports[] = {
     {0x384, 0x00307460},  // GScr_AnimScripted
     {0x388, 0x00301ba0},  // GScr_StopAnimScripted
     {0x38c, 0x003051c0},  // GScr_Attach
-    {0x390, 0x003056a0},  // GScr_DetachEx
-    {0x394, 0x00305660},  // GScr_DetachNoTag
+    {0x390, 0x003056a0},  // GScr_AttachWithOwner
+    {0x394, 0x00305660},  // GScr_AttachNoTag
     {0x398, 0x00305150},  // GScr_Detach
-    {0x39c, 0x00305630},  // GScr_AttachNoTag
+    {0x39c, 0x00305630},  // GScr_DetachNoTag
     {0x3a0, 0x00305110},  // GScr_DetachAll
     {0x3a4, 0x002fad20},  // GScr_GetAttachSize
     {0x3a8, 0x002facd0},  // GScr_GetAttachModelName

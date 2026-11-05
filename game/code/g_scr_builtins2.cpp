@@ -737,21 +737,21 @@ uint8_t* spawn_by_classname(const ScriptString* classname, const uint32_t* origi
 
 }  // namespace
 
-void XB_CDECL GScr_AttachNoTag(uint32_t handle, const ScriptString* model) {
+void XB_CDECL GScr_DetachNoTag(uint32_t handle, const ScriptString* model) {
     uint32_t tag = 0;
     ScriptString_FromCString(reinterpret_cast<ScriptString*>(&tag), title_text(0x0082dfeb));  // ""
     GScr_Detach(handle, model, reinterpret_cast<const ScriptString*>(&tag));
     ScriptString_Release(reinterpret_cast<ScriptString*>(&tag));
 }
 
-void XB_CDECL GScr_DetachNoTag(uint32_t handle, const ScriptString* model) {
+void XB_CDECL GScr_AttachNoTag(uint32_t handle, const ScriptString* model) {
     uint32_t tag = 0;
     ScriptString_FromCString(reinterpret_cast<ScriptString*>(&tag), title_text(0x0082dfeb));  // ""
     GScr_Attach(handle, model, reinterpret_cast<const ScriptString*>(&tag), 0, nullptr);
     ScriptString_Release(reinterpret_cast<ScriptString*>(&tag));
 }
 
-void XB_CDECL GScr_DetachEx(uint32_t handle, const ScriptString* model, const ScriptString* tag, const uint8_t* owner) {
+void XB_CDECL GScr_AttachWithOwner(uint32_t handle, const ScriptString* model, const ScriptString* tag, const uint8_t* owner) {
     GScr_Attach(handle, model, tag, 0, owner);
 }
 

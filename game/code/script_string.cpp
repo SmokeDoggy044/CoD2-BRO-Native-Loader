@@ -1,5 +1,6 @@
 #include "script_string.h"
 
+#include <cstddef>
 #include <cstring>
 
 #include "g_scr_runtime.h"
@@ -56,7 +57,10 @@ static void string_release(ScriptString* string) {
 // The text's address as the original computes it: 0 for the empty string (kept as
 // an integer: arithmetic on a null pointer is undefined in C++).
 static uintptr_t text_address(const ScriptStringRep* rep) {
-    return rep ? reinterpret_cast<uintptr_t>(rep->text) : 0;
+    // Integer arithmetic, as the original's `add eax,6`: rep 0xfffffffa wraps to 0, and callers that test the text
+    // address for null must see that. `rep->text` lets the optimizer assume a member address is never null (the
+    // release build dropped ScriptString_IsEmpty's null test and read address 0).
+    return rep ? reinterpret_cast<uintptr_t>(rep) + offsetof(ScriptStringRep, text) : 0;
 }
 
 int32_t XB_THISCALL ScriptString_Find(const ScriptString* self, const char* text, uint32_t start) {
