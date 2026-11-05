@@ -1,5 +1,7 @@
 #include "bro_scr_vehicle_path.h"
 
+#include <cstring>
+
 #include "bro_scr_array.h"
 #include "bro_scr_util.h"
 #include "g_scr_runtime.h"
@@ -221,6 +223,98 @@ void XB_CDECL BroScr_VehicleFollowPath(uint32_t ent) {
         if (noteworthy_is(ent, pointer<const char>(0x00824d18))) return;  // "no_delete"
     }
     slot<void XB_CDECL(uint32_t)>(0x0092289c)(ent);  // GScr_Vehicle_Kill
+}
+
+namespace {
+
+float as_float(uint32_t bits) {
+    float f;
+    std::memcpy(&f, &bits, 4);
+    return f;
+}
+uint32_t bits_of(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// The follow path (24-byte elements: point, offset point; ScriptKeyTable_GetOrAddArray_3).
+DynArray* follow_path(uint32_t ent) {
+    return reinterpret_cast<DynArray*>(ScriptKeyTable_GetOrAddArray_3(table_of(ent), 0xaeae4e0b));
+}
+
+uint32_t* field_slot(uint32_t ent, uint32_t key, uint32_t missing) {
+    ScriptKeyTable* const table = table_of(ent);
+    if (uint32_t* value = ScriptKeyTable_Find(table, key)) return value;
+    return ScriptKeyTable_Set(table, key, missing);
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL BroScr_FollowUpdateCurrentPos(uint32_t* out, uint32_t ent) {
+    const uint32_t undefined = title_global<uint32_t>(0x00922ec0);
+    uint32_t start = *field_slot(ent, 0x9aec9c1a, undefined);
+    if (start == undefined) start = 0;
+    float best = title_global<float>(0x00824c78);  // 1e10
+    uint32_t best_index = start;
+    for (uint32_t i = start;; ++i) {
+        if (static_cast<int32_t>(i) >= static_cast<int32_t>(follow_path(ent)->size)) {
+            *out = best_index;
+            return out;
+        }
+        DynArray* const path = follow_path(ent);
+        if (i >= path->size) DynArray_Resize24(path, i + 1, i + 4);
+        const uint32_t* const point = &path->data[i * 6];
+        const uint32_t followed = *BroScr_FieldHandleSlot(ent, 0xd952b5cf);
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, followed);  // ScrEnt_GetOrigin
+        const uint32_t origin[3] = {o[0], o[1], o[2]};
+        const float distance = slot<float XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(origin, point);  // Scr_Distance
+        if (!(best > distance)) continue;
+        best = distance;
+        best_index = i;
+        const int32_t lag = static_cast<int32_t>(*field_slot(ent, 0x96f9883f, undefined));
+        if (!(static_cast<float>(lag) > distance)) continue;
+        if (i == start) {
+            *out = i;
+        } else if (i == 0) {
+            *out = 0;
+        } else {
+            *out = i - 1;
+        }
+        return out;
+    }
+}
+
+void XB_CDECL BroScr_FollowPathOffsetPoint(uint32_t ent, int32_t index) {
+    ScriptKeyTable* const table = table_of(ent);
+    uint32_t* enabled = ScriptKeyTable_Find(table, 0x217d7784);
+    // The original builds the added word in `ent`'s argument slot: its upper bytes stay.
+    if (!enabled) enabled = ScriptKeyTable_Set(table, 0x217d7784, (ent & 0xffffff00u) | title_global<uint8_t>(0x00922ed0));
+    if (!*reinterpret_cast<const uint8_t*>(enabled)) return;
+    if (index <= 0) return;
+    if (static_cast<uint32_t>(index) == follow_path(ent)->size - 1) return;
+    const uint32_t* const before = DynArray_At24(follow_path(ent), static_cast<uint32_t>(index - 1));
+    const float bx = as_float(before[0]), by = as_float(before[1]);
+    const uint32_t* const after = DynArray_At24(follow_path(ent), static_cast<uint32_t>(index + 1));
+    const float dx = as_float(after[0]) - bx;
+    const float dy = as_float(after[1]) - by;
+    const uint32_t side[3] = {bits_of(0.0f - dy), bits_of(dx), bits_of(0.0f)};
+    uint32_t normal_buffer[3];
+    const uint32_t* const n = ScrCall_Scr_VectorNormalize(normal_buffer, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(side)));
+    const float nx = as_float(n[0]), ny = as_float(n[1]), nz = as_float(n[2]);
+    const float r = static_cast<float>(slot<long double XB_CDECL(uint32_t, uint32_t)>(0x00922238)(0xc2000000, 0x42000000));  // Scr_RandomFloatRange(-32, 32)
+    const float ox = platform_mulss(r, nx);
+    const float oy = platform_mulss(ny, r);
+    const float oz = platform_mulss(nz, r);
+    const uint32_t* const point = DynArray_At24(follow_path(ent), static_cast<uint32_t>(index));
+    const float pz = platform_addss(as_float(point[2]), oz);
+    const float py = platform_addss(as_float(point[1]), oy);
+    const float px = platform_addss(as_float(point[0]), ox);
+    uint32_t* const offset = DynArray_At24(follow_path(ent), static_cast<uint32_t>(index)) + 3;
+    offset[0] = bits_of(px);
+    offset[1] = bits_of(py);
+    offset[2] = bits_of(pz);
 }
 
 }  // namespace game

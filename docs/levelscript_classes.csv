@@ -252,3 +252,5 @@ address,name,class,evidence
 0013c150,BroScr_GetNonSentientsByGroupname,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
 0013c3f0,BroScr_GetClosestNodeToEnt,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
 00152730,BroScr_GetAIByGroupFieldCall,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
+00147470,BroScr_GetClosestArrayPointToPlayer,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"
+001476b0,BroScr_GetClosestArrayPointToPlayer_2,dead,"no CALL/JMP, data pointer or code address (levelreach --dead)"

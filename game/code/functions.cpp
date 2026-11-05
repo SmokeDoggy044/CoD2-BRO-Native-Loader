@@ -11,6 +11,7 @@
 #include "bro_scr_array.h"
 #include "bro_scr_banim_handles.h"
 #include "bro_scr_cover_turret.h"
+#include "bro_scr_flak.h"
 #include "bro_scr_fx.h"
 #include "bro_scr_level.h"
 #include "bro_scr_math.h"
@@ -21,6 +22,7 @@
 #include "bro_scr_vehicle.h"
 #include "bro_scr_vehicle_health.h"
 #include "bro_scr_vehicle_path.h"
+#include "bro_scr_wallhop.h"
 #include "bro_scr_wad.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
@@ -2839,6 +2841,7 @@ const Function kFunctions[] = {
     {"BroScr_ReturnTrue_2", 0x00124bd0, 0, code(&BroScr_ReturnTrue_2), 0, Result::Al, Status::Compare},
     {"BroScr_AnimHandle_Lookup", 0x00124be0, 0, code(&BroScr_AnimHandle_Lookup), 8, Result::Eax, Status::Compare},
     {"BroScr_AnimNotetrack_Alert", 0x00124cf0, 0, code(&BroScr_AnimNotetrack_Alert), 12, Result::None, Status::Compare},
+    {"BroScr_WallHopMidpoint", 0x00124db0, 0, code(&BroScr_WallHopMidpoint), 32, Result::Eax, Status::Compare},
     {"BroScr_TraceGroundPos_3", 0x00124f70, 0, code(&BroScr_TraceGroundPos_3), 20, Result::Eax, Status::Compare},
     {"BroScr_DeleteAndCountDown", 0x00125060, 0, code(&BroScr_DeleteAndCountDown), 4, Result::None, Status::Compare},
     {"BroScr_DropToGround", 0x00128360, 0, code(&BroScr_DropToGround), 4, Result::None, Status::Compare},
@@ -3131,10 +3134,13 @@ const Function kFunctions[] = {
     {"ScrField_spawn_num_IsDefined", 0x0012f160, 0, code(ScrField_spawn_num_IsDefined), 8, Result::Eax, Status::Replaced},
     {"BroScr_AnimNotetrack_DeleteAttached", 0x0012f1c0, 0, code(&BroScr_AnimNotetrack_DeleteAttached), 4, Result::None, Status::Compare},
     {"BroScr_AnimNotetrack_DeleteAttached_2", 0x0012f250, 0, code(&BroScr_AnimNotetrack_DeleteAttached_2), 4, Result::None, Status::Compare},
+    {"BroScr_WallHopMove", 0x0012f4d0, 0, code(&BroScr_WallHopMove), 20, Result::Eax, Status::Compare},
     {"BroScr_TankShellReadySetHealth", 0x0012f840, 0, code(&BroScr_TankShellReadySetHealth), 4, Result::None, Status::Compare},
     {"ScrField_targets_groupname_2", 0x0012f990, 0, code(&ScrField_targets_groupname_2), 8, Result::None, Status::Replaced},
     {"BroScr_SetTargetsGroupAndEnt", 0x0012fa00, 0, code(&BroScr_SetTargetsGroupAndEnt), 8, Result::None, Status::Compare},
+    {"BroScr_FlakPickLeadPos", 0x0012fa80, 0, code(&BroScr_FlakPickLeadPos), 12, Result::Eax, Status::Compare},
     {"ScrField_can_shoot_low_2", 0x0012fd50, 0, code(ScrField_can_shoot_low_2), 8, Result::Eax, Status::Replaced},
+    {"BroScr_FlakCanShootLow", 0x0012ff60, 0, code(&BroScr_FlakCanShootLow), 8, Result::Eax, Status::Compare},
     {"BroScr_PlaneCrashSound", 0x001319d0, 0, code(&BroScr_PlaneCrashSound), 4, Result::None, Status::Compare},
     {"BroScr_DeleteVehicleTurrets_2", 0x00131ad0, 0, code(&BroScr_DeleteVehicleTurrets_2), 4, Result::None, Status::Compare},
     {"BroScr_PlaneCrashSound_2", 0x00132020, 0, code(&BroScr_PlaneCrashSound_2), 4, Result::None, Status::Compare},
@@ -3145,6 +3151,7 @@ const Function kFunctions[] = {
     {"BroScr_SetLagDistance", 0x001328c0, 0, code(&BroScr_SetLagDistance), 8, Result::None, Status::Compare},
     {"ScrField_follow_ent_pos_Set", 0x00132a00, 0, code(&ScrField_follow_ent_pos_Set), 8, Result::Eax, Status::Replaced},
     {"ScrField_h217d7784_2", 0x00132a50, 0, code(ScrField_h217d7784_2), 8, Result::Eax, Status::Replaced},
+    {"BroScr_RandomRotateStep", 0x00132da0, 0, code(&BroScr_RandomRotateStep), 8, Result::None, Status::Compare},
     {"BroScr_PlaneCrashSound_3", 0x00134300, 0, code(&BroScr_PlaneCrashSound_3), 4, Result::None, Status::Compare},
     {"BroScr_DeleteVehicleTurrets", 0x00134400, 0, code(&BroScr_DeleteVehicleTurrets), 4, Result::None, Status::Compare},
     {"BroScr_SetField7ab1fdf4_IsValid", 0x00134be0, 0, code(&BroScr_SetField7ab1fdf4_IsValid), 16, Result::Eax, Status::Compare},
@@ -3181,6 +3188,7 @@ const Function kFunctions[] = {
     {"BroScr_SetVehicleCanShootLowByName", 0x00136a20, 0, code(&BroScr_SetVehicleCanShootLowByName), 8, Result::None, Status::Compare},
     {"BroScr_SetRiderAnimForTag", 0x00136ab0, 0, code(&BroScr_SetRiderAnimForTag), 8, Result::None, Status::Compare},
     {"BroScr_GetVehicleSecondsSince_h05903940", 0x00136c00, 0, code(&BroScr_GetVehicleSecondsSince_h05903940), 8, Result::Eax, Status::Compare},
+    {"BroScr_FlakFindTargets", 0x00136c80, 0, code(&BroScr_FlakFindTargets), 8, Result::Eax, Status::Compare},
     {"BroScr_GetPanzerfaustRespawns", 0x00138a40, 0, code(&BroScr_GetPanzerfaustRespawns), 4, Result::None, Status::Compare},
     {"BroScr_FindInLevelList798ByTargetname", 0x0013a560, 0, code(&BroScr_FindInLevelList798ByTargetname), 8, Result::Eax, Status::Compare},
     {"BroScr_TakeSpawnerSaveState", 0x0013ab60, 0, code(&BroScr_TakeSpawnerSaveState), 4, Result::Eax, Status::Compare},
@@ -3241,6 +3249,10 @@ const Function kFunctions[] = {
     {"ScrField_gunners_IsDefined", 0x00146ef0, 0, code(ScrField_gunners_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_hb0996bdc", 0x00146f60, 0, code(ScrField_hb0996bdc), 4, Result::Eax, Status::Replaced},
     {"ScrField_hb0996bdc_IsDefined", 0x00146f90, 0, code(ScrField_hb0996bdc_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_WallHopGetScriptOrigins", 0x00147000, 0, code(&BroScr_WallHopGetScriptOrigins), 4, Result::None, Status::Compare},
+    {"BroScr_WallHopGetPointsNearFirst", 0x001471f0, 0, code(&BroScr_WallHopGetPointsNearFirst_entry), 16, Result::None, Status::Compare},
+    {"BroScr_GetClosestArrayPointToPlayer", 0x00147470, 0, code(&BroScr_GetClosestArrayPointToPlayer), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetClosestArrayPointToPlayer_2", 0x001476b0, 0, code(&BroScr_GetClosestArrayPointToPlayer_2), 8, Result::Eax, Status::Compare},
     {"BroScr_CountAliveGunners", 0x00147c00, 0, code(&BroScr_CountAliveGunners), 8, Result::Eax, Status::Compare},
     {"BroScr_ReleaseGunners", 0x001485f0, 0, code(&BroScr_ReleaseGunners), 4, Result::None, Status::Compare},
     {"BroScr_NotifyRiders", 0x001499a0, 0, code(&BroScr_NotifyRiders), 4, Result::None, Status::Compare},
@@ -3250,6 +3262,8 @@ const Function kFunctions[] = {
     {"BroScr_MortarEntInit", 0x00149f60, 0, code(&BroScr_MortarEntInit), 4, Result::None, Status::Compare},
     {"BroScr_GetCurrentPathPos", 0x0014a160, 0, code(&BroScr_GetCurrentPathPos), 8, Result::Eax, Status::Compare},
     {"BroScr_RemoveFollower", 0x0014a200, 0, code(&BroScr_RemoveFollower), 8, Result::None, Status::Compare},
+    {"BroScr_FollowUpdateCurrentPos", 0x0014a430, 0, code(&BroScr_FollowUpdateCurrentPos), 8, Result::Eax, Status::Compare},
+    {"BroScr_FollowPathOffsetPoint", 0x0014a6d0, 0, code(&BroScr_FollowPathOffsetPoint), 8, Result::None, Status::Compare},
     {"BroScr_DeleteUndroppedBombs", 0x0014b780, 0, code(&BroScr_DeleteUndroppedBombs), 4, Result::None, Status::Compare},
     {"BroScr_UpdateAliveDeadCount", 0x0014b940, 0, code(&BroScr_UpdateAliveDeadCount), 8, Result::None, Status::Compare},
     {"BroScr_GetAIByGroupField", 0x0014c260, 0, code(&BroScr_GetAIByGroupField), 8, Result::None, Status::Compare},

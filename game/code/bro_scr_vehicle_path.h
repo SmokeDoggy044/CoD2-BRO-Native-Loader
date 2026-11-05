@@ -31,4 +31,14 @@ void XB_CDECL BroScr_HalftrackAttachPassengers(uint32_t ent, int32_t number);
 // vehicle is deleted; else "loop" restarts the path, "no_delete" keeps it, anything else kills it.
 void XB_CDECL BroScr_VehicleFollowPath(uint32_t ent);
 
+// 0x0014a430: *out = the follow path index (24-byte array field 0xaeae4e0b) from the current one
+// (int field 0x9aec9c1a, 0 when undefined) on: the index of the point nearest the followed entity
+// (handle field 0xd952b5cf), once the lag distance (int field 0x96f9883f) exceeds it - the point
+// before it (the current index itself, or 0 at the start). Returns out.
+uint32_t* XB_CDECL BroScr_FollowUpdateCurrentPos(uint32_t* out, uint32_t ent);
+// 0x0014a6d0 (proposed name; was FUN_0014a6d0): when the bool field 0x217d7784 is set and `index` is
+// an inner point of the follow path, the point's second vector (+0xc) = the point moved sideways
+// (perpendicular to the neighbours' segment in x/y, normalized) by Scr_RandomFloatRange(-32, 32).
+void XB_CDECL BroScr_FollowPathOffsetPoint(uint32_t ent, int32_t index);
+
 }  // namespace game

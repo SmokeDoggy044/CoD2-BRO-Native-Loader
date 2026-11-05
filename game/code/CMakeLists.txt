@@ -13,6 +13,7 @@ set(game_code_sources
     bro_scr_array.cpp
     bro_scr_banim_handles.cpp
     bro_scr_cover_turret.cpp
+    bro_scr_flak.cpp
     bro_scr_fx.cpp
     bro_scr_level.cpp
     bro_scr_math.cpp
@@ -23,6 +24,7 @@ set(game_code_sources
     bro_scr_vehicle.cpp
     bro_scr_vehicle_health.cpp
     bro_scr_vehicle_path.cpp
+    bro_scr_wallhop.cpp
     bro_scr_wad.cpp
     cg_ents.cpp
     cg_hud.cpp
