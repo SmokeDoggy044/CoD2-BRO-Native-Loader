@@ -339,4 +339,27 @@ void XB_CDECL BroScr_VehicleInit_Jeep(uint32_t ent);
 // false once the hits add up past 150.
 uint8_t* XB_CDECL BroScr_WaitHeavyHitOrDamage(uint8_t* out, uint32_t ent, float* dir);
 
+// 0x00141840 / 0x00148c90: BroScr_TryThrowGrenadeRightHand(ent, target, time / undefined, undefined).
+void XB_CDECL BroScr_TryThrowGrenadeRightHandCall(uint32_t ent, ScrVec3 target, float time);
+void XB_CDECL BroScr_TryThrowGrenadeRightHandCall_2(uint32_t ent, ScrVec3 target);
+// 0x00141890: letterbox bars. With `setup_weapons` and `closing` (low bytes) BroScr_SetupPlayerWeapons
+// runs as a thread on the level entity. Not closing: BroScr_FadeHudBlack(level entity, duration, closing,
+// 70) (the bars shrink and go), notify 0x54965009 on the level entity, letterbox_enabled 0, cg_drawgun
+// "1", hud visible, Scr_WaitFrames(0). Closing: letterbox_enabled 1, cg_drawgun "0", hud hidden, two
+// new "black" hud elements (level +0x79c at y 0 and +0x270 at y 480, 640 wide, 0 / 70 high), the
+// fade, +0x79c 70 high, +0x270 to y 410, notify 0x71291ea8. The first argument is not read.
+void XB_CDECL BroScr_LetterboxFade(uint32_t self, float duration, uint32_t closing, uint32_t setup_weapons);
+// 0x00148ce0: BroScr_LetterboxFade(self, duration, closing, true).
+void XB_CDECL BroScr_LetterboxFadeOn(uint32_t self, float duration, uint32_t closing);
+
+// 0x00141c00: the halftrack named by `trigger`'s target gets a BroScr_FriendlyChatTriggers thread (once:
+// bool field 0x0718b2c3) and ends this thread on its "death"; then, on each trigger (Scr_WaitTillOutputEnt
+// 0xe2a210cf): with spawnflags 8 the halftrack (or, without one, an allied AI, which becomes it) must be
+// the one touching; without, the player (the halftrack then defaults to the allied AI nearest the player;
+// none: return). When an axis AI touches the trigger: script_noteworthy "grenades" waits for that notify
+// on the halftrack, 1.2 s, the "weaponslot grenade" key binding and the (empty) hint
+// "SCRIPT_HINT_SWITCHTOGRENADE"; "get halftrack gunner" waits for that notify and 1 s. Then the trigger
+// is deleted. The first argument is not read.
+void XB_CDECL BroScr_HalftrackGunnerGrenadeHint(uint32_t self, uint32_t trigger);
+
 }  // namespace game

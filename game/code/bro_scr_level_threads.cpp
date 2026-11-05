@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "bro_scr_ai_anim.h"
+#include "bro_scr_arrays.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_cover_turret.h"
 #include "bro_scr_common.h"
@@ -2227,6 +2228,194 @@ uint8_t* XB_CDECL BroScr_WaitHeavyHitOrDamage(uint8_t* out, uint32_t ent, float*
     }
     *out = 0;
     return out;
+}
+
+void XB_CDECL BroScr_TryThrowGrenadeRightHandCall(uint32_t ent, ScrVec3 target, float time) {
+    BroScr_TryThrowGrenadeRightHand(ent, target, time, title_global<float>(0x00922eac));  // fuse: g_scrUndefinedFloat
+}
+
+void XB_CDECL BroScr_TryThrowGrenadeRightHandCall_2(uint32_t ent, ScrVec3 target) {
+    const float undefined = title_global<float>(0x00922eac);  // g_scrUndefinedFloat
+    BroScr_TryThrowGrenadeRightHand(ent, target, undefined, undefined);
+}
+
+namespace {
+
+// The level object's word at `offset` (0x00922ee0 + offset).
+inline uint32_t& level_field(uint32_t offset) {
+    return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00922ee0) + offset));
+}
+
+// GScr_HudSetShader(&level hud at `offset`, "black", 640, height).
+inline void black_shader(uint32_t offset, uint32_t height) {
+    ScriptString shader;
+    ScriptString_FromCString(&shader, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x007f51f8)));  // "black"
+    using SetShader = void XB_CDECL(uint32_t*, ScriptString*, uint32_t, uint32_t);
+    slot<SetShader>(0x009228ec)(&level_field(offset), &shader, 0x280, height);
+    ScriptString_Release(&shader);
+}
+
+// BroScr_FadeHudBlack(level entity (its first word), duration, closing, 70).
+inline void fade_bars(float duration, uint32_t closing) {
+    BroScr_FadeHudBlack(float_bits(level_handle()), duration, closing, title_global<float>(0x0083eda0));  // 70
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_LetterboxFade(uint32_t, float duration, uint32_t closing, uint32_t setup_weapons) {
+    using Set = void XB_CDECL(uint32_t, uint32_t);
+    using SetCvar = void XB_CDECL(uint32_t, uint32_t);
+    if (static_cast<uint8_t>(setup_weapons) && static_cast<uint8_t>(closing)) {
+        const uint32_t owner = level_handle();
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f5ba0;
+            functor[1] = 0x00137780;  // BroScr_SetupPlayerWeapons
+            functor[2] = owner;
+        }
+        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+            0, 0, 0, owner, functor, 0);  // Scr_CreateThread
+    }
+    if (!static_cast<uint8_t>(closing)) {
+        fade_bars(duration, closing);
+        slot<EntHash>(0x009221a4)(level_handle(), 0x54965009);  // Scr_QueueNotify
+        slot<SetCvar>(0x009222e8)(0x00835390, 0);                // GScr_SetCvarInt("letterbox_enabled", 0)
+        slot<SetCvar>(0x009222e4)(0x008235b0, 0x0082e058);       // GScr_SetCvar("cg_drawgun", "1")
+        slot<Ent>(0x009228e4)(1);                                // GScr_SetHudVisible
+        Scr_WaitFrames(0);
+        return;
+    }
+    slot<SetCvar>(0x009222e8)(0x00835390, 1);           // GScr_SetCvarInt("letterbox_enabled", 1)
+    slot<SetCvar>(0x009222e4)(0x008235b0, 0x0082e098);  // GScr_SetCvar("cg_drawgun", "0")
+    slot<Ent>(0x009228e4)(0);                           // GScr_SetHudVisible
+    uint32_t handle;
+    level_field(0x79c) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    slot<Set>(0x00922a48)(level_field(0x79c), 0);                                   // ScrHudElem_Set_04
+    slot<Set>(0x00922a50)(level_field(0x79c), 0);                                   // ScrHudElem_Set_08
+    slot<Set>(0x00922a68)(level_field(0x79c), 0);                                   // ScrHudElem_SetFloat_6c
+    if (level_field(0x79c) != 0xffffffffu) black_shader(0x79c, 0);
+    level_field(0x270) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);
+    slot<Set>(0x00922a48)(level_field(0x270), 0);
+    slot<Set>(0x00922a50)(level_field(0x270), 0x1e0);  // y 480
+    slot<Set>(0x00922a68)(level_field(0x270), 0);
+    if (level_field(0x270) != 0xffffffffu) black_shader(0x270, 0x46);
+    fade_bars(duration, closing);
+    if (level_field(0x79c) != 0xffffffffu) black_shader(0x79c, 0x46);
+    slot<Set>(0x00922a50)(level_field(0x270), 0x19a);         // y 410
+    slot<EntHash>(0x009221a4)(level_handle(), 0x71291ea8);  // Scr_QueueNotify
+}
+
+void XB_CDECL BroScr_LetterboxFadeOn(uint32_t self, float duration, uint32_t closing) {
+    BroScr_LetterboxFade(self, duration, closing, 1);  // the title sets only the low byte of the last word
+}
+
+void XB_CDECL BroScr_HalftrackGunnerGrenadeHint(uint32_t, uint32_t trigger) {
+    using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+    uint32_t halftrack;
+    {
+        ScriptString target;
+        const ScriptString* const name = ScrCall_ScrEnt_GetTarget(&trigger, &target);
+        halftrack = slot<GetEntArray>(0x009221c4)(name, 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray (by targetname)
+        ScriptString_Release(&target);
+    }
+    if (entity_handle_is_valid(halftrack)) {
+        bool defined;
+        if (!*ScrField_h0718b2c3_IsDefined(&defined, halftrack)) {
+            const uint32_t owner = level_handle();
+            uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+            if (functor) {
+                functor[0] = 0x007f4a28;
+                functor[1] = 0x00138760;  // BroScr_FriendlyChatTriggers
+                functor[2] = owner;
+                functor[3] = halftrack;
+            }
+            slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+                0, 0, 0, owner, functor, 0);  // Scr_CreateThread
+            // The added word's upper bytes are the ECX the thread call leaves (stale): 0 here.
+            *reinterpret_cast<uint8_t*>(ScrField_h0718b2c3(halftrack, 0)) = 1;
+        }
+        Scr_EndOnString(halftrack, pointer<const char>(0x00831f60));  // "death"
+    }
+    // Wait for the halftrack (when it is valid), else an allied AI, to touch a spawnflags-8 trigger, or
+    // for the player when the flag is clear (then the halftrack is the allied AI nearest the player).
+    uint32_t who = 0;
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(trigger, 0xe2a210cf, &who);  // Scr_WaitTillOutputEnt_ORAN
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922b30)(trigger) & 8) {  // ScrEnt_GetSpawnflags
+            if (entity_handle_is_valid(halftrack)) {
+                if (who == halftrack) break;
+                continue;
+            }
+            ScriptString team;
+            const bool allies = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&who, &team), pointer<const char>(0x00832084));
+            ScriptString_Release(&team);
+            if (!allies) continue;
+            halftrack = who;
+            break;
+        }
+        if (who != player()) continue;
+        if (entity_handle_is_valid(halftrack)) break;
+        DynArray exclude = {};
+        ScriptString team;
+        ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
+        uint32_t buffer[3];
+        const uint32_t* const o = ScrCall_GScr_GetOrigin(buffer, pointer<uint32_t>(0x00922eec));
+        ScrVec3 origin;
+        origin.v[0] = o[0];
+        origin.v[1] = o[1];
+        origin.v[2] = o[2];
+        uint32_t closest;
+        halftrack = *BroScr_GetClosestAI(&closest, origin, team, &exclude);
+        if (!entity_handle_is_valid(halftrack)) {
+            if (exclude.data) Scr_Free(exclude.data);
+            return;
+        }
+        if (exclude.data) Scr_Free(exclude.data);
+        break;
+    }
+    DynArray keys = {};  // script strings
+    DynArray axis = {};
+    {
+        ScriptString team;
+        ScriptString_FromCString(&team, pointer<const char>(0x0083208c));  // "axis"
+        slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&axis, &team);  // GScr_GetAI
+        ScriptString_Release(&team);
+    }
+    for (uint32_t i = 0; i < axis.size; ++i) {
+        if (i >= axis.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&axis), i + 1, i + 4);
+        if (!slot<uint8_t XB_CDECL(uint32_t, uint32_t)>(0x00922530)(trigger, axis.data[i])) continue;  // GScr_IsTouching
+        ScriptString noteworthy;
+        bool match = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy), pointer<const char>(0x008249b0));
+        ScriptString_Release(&noteworthy);
+        if (match) {  // "grenades"
+            Scr_WaitTillString(halftrack, pointer<const char>(0x008249b0));
+            Scr_Wait(float_bits(0x3f99999a));  // 1.2
+            ScriptString command;
+            ScriptString_FromCString(&command, pointer<const char>(0x0082499c));  // "weaponslot grenade"
+            slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223f0)(&keys, &command);  // GScr_GetKeyBinding
+            ScriptString_Release(&command);
+            ScriptString hint;
+            ScriptString_FromCString(&hint, pointer<const char>(0x00824980));  // "SCRIPT_HINT_SWITCHTOGRENADE"
+            // BroScr_EmptyFuncStrArg_8 (0x00182480): releases the string; the key array is passed unread.
+            title_function<void XB_CDECL(ScriptString, DynArray*)>(0x00182480)(hint, &keys);
+            break;
+        }
+        ScriptString noteworthy_2;
+        match = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy_2), pointer<const char>(0x00824968));
+        ScriptString_Release(&noteworthy_2);
+        if (match) {  // "get halftrack gunner"
+            Scr_WaitTillString(halftrack, pointer<const char>(0x00824968));
+            Scr_Wait(1.0f);
+        }
+        break;
+    }
+    slot<Ent>(0x00922540)(trigger);  // GScr_Delete
+    if (axis.data) Scr_Free(axis.data);
+    if (keys.data) {
+        ScriptString* const strings = reinterpret_cast<ScriptString*>(keys.data);
+        for (uint32_t i = 0; i < keys.size; ++i) ScriptString_Release(&strings[i]);
+        Scr_Free(keys.data);
+    }
 }
 
 }  // namespace game

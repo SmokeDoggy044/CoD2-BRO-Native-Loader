@@ -115,6 +115,17 @@ void XB_CDECL BroScr_SetTargetsByTargetname(uint32_t ent, ScriptString name) {
     ScriptString_Release(&name);
 }
 
+void XB_CDECL BroScr_SetVehicleTargetsByTargetname(ScriptString vehicle_name, ScriptString target_name) {
+    const uint32_t vehicle = find_vehicle(&vehicle_name);
+    if (valid(vehicle)) {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &target_name);
+        BroScr_SetTargetsByTargetname(vehicle, copy);
+    }
+    ScriptString_Release(&vehicle_name);
+    ScriptString_Release(&target_name);
+}
+
 void XB_CDECL BroScr_SetVehicleUsableByName(ScriptString name, uint32_t unusable) {
     const uint32_t vehicle = find_vehicle(&name);
     if (valid(vehicle)) {

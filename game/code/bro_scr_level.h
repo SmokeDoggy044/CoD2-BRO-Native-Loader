@@ -23,6 +23,9 @@ void XB_CDECL BroScr_SetVehicleTargetsGroupByName(ScriptString name, ScriptStrin
 void XB_CDECL BroScr_SetVehicleTargetsByName(ScriptString name, uint32_t target);
 // 0x00136900: BroScr_SetTargetsGroupAndEnt(ent, the entity named `name` (GScr_GetEntArray)).
 void XB_CDECL BroScr_SetTargetsByTargetname(uint32_t ent, ScriptString name);
+// 0x001417a0 (dead; Ghidra holds it inside BroScr_PlayerHopOverWall): BroScr_SetTargetsByTargetname(the
+// level vehicle named `vehicle_name`, a copy of `target_name`) when one is found; releases both.
+void XB_CDECL BroScr_SetVehicleTargetsByTargetname(ScriptString vehicle_name, ScriptString target_name);
 // 0x00136990: the vehicle named `name` made unusable (low byte of `unusable` set) or usable.
 void XB_CDECL BroScr_SetVehicleUsableByName(ScriptString name, uint32_t unusable);
 // 0x00136a20 (dead): the vehicle's can_shoot_low byte = the low byte of `value`.

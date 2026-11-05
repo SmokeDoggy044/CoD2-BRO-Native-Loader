@@ -27,4 +27,14 @@ uint32_t* XB_CDECL BroScr_FlakFindTargets(uint32_t* out, uint32_t gun);
 // Scr_RandomFloat(5)); below 80 it grows by step * 40, capped at 80.
 void XB_CDECL BroScr_RandomRotateStep(uint32_t ent, float step);
 
+// 0x00140bd0 / 0x00140fc0 / 0x001413b0 (dead; Ghidra holds all three inside BroScr_PlayerHopOverWall):
+// a flak 88 crew member's anims by `role` (0 "passer", 1 "loader", 2 "ejecter", 3 "leader", others
+// nothing): its string field 0x062bea65 = the role name and anim-set field 0xc4813666's pre-turn idle,
+// turn, fire, idle and twitch words (g_anim_flak88_<role>_*); the anti-tank set, and the anti-air set
+// (loader / ejecter / leader turn, and loader / ejecter fire / idle / twitch, the _antiair anims).
+// BroScr_SetupFlak88s stores the first two as the gun's crew-anim callback.
+void XB_CDECL BroScr_Flak88CrewAnimsAntitank(uint32_t ent, uint32_t role);
+void XB_CDECL BroScr_Flak88CrewAnimsAntiair(uint32_t ent, uint32_t role);
+void XB_CDECL BroScr_Flak88CrewAnimsAntiair_2(uint32_t ent, uint32_t role);
+
 }  // namespace game
