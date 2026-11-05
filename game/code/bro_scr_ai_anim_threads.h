@@ -599,5 +599,12 @@ void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason);
 // slot, half the time): a grenade and a reload; otherwise the cover-stand idle at the cover spot.
 void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent);
 
+// 0x001d3980: the fallback thread (on the level, from BroScr_FallbackerTriggerThink) for fallback n:
+// its nodes (script_fallback n); with any: the level's +0x6c / +0xc / +0xe4 entries cleared, the spawner
+// threads (counted at +0xc), the AI join threads; unless nobody is in it: the fallbacker setup thread,
+// the "fallbacker_trigger<n>" wait, +0xe4 set, then 40% of its AI (n or `group`) selected, sent to random
+// nodes and waited for ("fallback_reached_goal<n>"), then the living rest sent.
+void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group);
+
 }  // namespace game
 

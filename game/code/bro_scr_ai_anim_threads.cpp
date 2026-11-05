@@ -6574,4 +6574,176 @@ void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent) {
     }
 }
 
+namespace {
+using ArrayGrow = void XB_THISCALL(DynArray*, uint32_t, uint32_t);
+// Element i of a script array, the array grown to i + 1 (capacity i + 4) first by `grow`:
+// DynArray_Resize (0x00015a90), DynArray_ReserveInt0 (0x0045d480) or DynArray_ResizeInt (0x0017b9a0).
+inline uint32_t* fb_at(DynArray* array, uint32_t i, uint32_t grow) {
+    if (i >= array->size) title_function<ArrayGrow>(grow)(array, i + 1, i + 4);
+    return &array->data[i];
+}
+inline uint32_t* fb_level_at(uint32_t offset, uint32_t n) {
+    return fb_at(pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset), n, 0x0017b9a0);
+}
+// Whether the entity's table holds `key` with a value other than the undefined int (nothing added).
+inline bool fb_has_int_key(uint32_t ent, uint32_t key) {
+    if (!entity_handle_is_valid(ent)) return false;
+    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    if (!table) return false;
+    const uint32_t* const value = ScriptKeyTable_Find(table, key);
+    return (value ? *value : undefined_int()) != undefined_int();
+}
+// A 0x14-byte {vtable, function, a, b, c} thread functor on `ent` (Scr_CreateThread).
+inline void fb_thread(uint32_t vtable, uint32_t function, uint32_t ent, uint32_t b, const uint32_t* c) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = vtable;
+        functor[1] = function;
+        functor[2] = ent;
+        functor[3] = b;
+        functor[4] = *c;
+    }
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+        0, 0, 0, ent, functor, 0);  // Scr_CreateThread
+}
+}  // namespace
+
+void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
+    const uint32_t kFallback = 0x8bbe4822;  // script_fallback
+    DynArray nodes = {nullptr, 0, 0};
+    DynArray found = {nullptr, 0, 0};
+    Scr_GetNodeArrayNoKey(reinterpret_cast<uint32_t*>(&nodes));
+    // The fallback's nodes: script_fallback n.
+    if (static_cast<int32_t>(nodes.size) > 0) {
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(nodes.size); ++i) {
+            const uint32_t node = *fb_at(&nodes, i, 0x0045d480);
+            using GetIntKey = uint32_t XB_CDECL(uint32_t, uint32_t);
+            const bool keyed = node != 0 && node != 0xffffffff &&
+                               slot<GetIntKey>(0x00922960)(node, kFallback) != undefined_int();  // ScrPathNode_GetIntKey
+            if (keyed && slot<GetIntKey>(0x00922960)(*fb_at(&nodes, i, 0x0045d480), kFallback) == static_cast<uint32_t>(n))
+                ScrPtrArray_Append(reinterpret_cast<uint32_t*>(&found), fb_at(&nodes, i, 0x0045d480));
+        }
+    }
+    if (static_cast<int32_t>(nodes.size) > 0 && found.capacity) {
+        *fb_level_at(0x6c, n) = 0;
+        *fb_level_at(0x0c, n) = 0;
+        *fb_level_at(0xe4, n) = 0;
+        // Spawners of the fallback with a count: a spawner thread to a random node, counted at level +0xc.
+        DynArray spawners = {nullptr, 0, 0};
+        slot<void XB_CDECL(DynArray*)>(0x009223d8)(&spawners);  // GScr_GetSpawnerArray
+        if (static_cast<int32_t>(spawners.size) > 0) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
+                if (!fb_has_int_key(*fb_at(&spawners, i, 0x00015a90), kFallback)) continue;
+                if (*int_slot(*fb_at(&spawners, i, 0x00015a90), kFallback) != static_cast<uint32_t>(n)) continue;
+                if (!(static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922b88)(*fb_at(&spawners, i, 0x00015a90))) > 0))
+                    continue;
+                const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
+                const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
+                fb_thread(0x0080e554, 0x001c5910, *fb_at(&spawners, i, 0x00015a90), n, node);  // BroScr_FallbackSpawnerThink
+                ++*fb_level_at(0x0c, n);
+            }
+        }
+        // The AI of the fallback join it.
+        DynArray ai = {nullptr, 0, 0};
+        slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);  // GScr_GetAIAll
+        if (static_cast<int32_t>(ai.size) > 0) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
+                if (!fb_has_int_key(*fb_at(&ai, i, 0x00015a90), kFallback)) continue;
+                if (*int_slot(*fb_at(&ai, i, 0x00015a90), kFallback) != static_cast<uint32_t>(n)) continue;
+                using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const int32_t*,
+                                                      const uint32_t*, const ScriptString*);
+                title_function<StartThread>(0x001e4b70)(0, 0, 0, 0, 0x001bea50, *fb_at(&ai, i, 0x00015a90), &n,
+                                                        pointer<uint32_t>(0x00922ea0), pointer<ScriptString>(0x00922e90));
+                // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
+            }
+        }
+        if (*fb_level_at(0x6c, n) == 0 && *fb_level_at(0x0c, n) == 0) {  // nobody in it
+            if (ai.data) Scr_Free(ai.data);
+            if (spawners.data) Scr_Free(spawners.data);
+            if (found.data) Scr_Free(found.data);
+            if (nodes.data) Scr_Free(nodes.data);
+            return;
+        }
+        title_function<ArrayGrow>(0x00015a90)(&spawners, 0, 0);  // DynArray_Resize
+        title_function<ArrayGrow>(0x00015a90)(&ai, 0, 0);
+        fb_thread(0x007ffb9c, 0x001bec70, level, n, &group);  // BroScr_FallbackerSetup
+        // Its trigger, then the fallback starts.
+        ScriptString name;
+        ScriptString_FromCString(&name, pointer<const char>(0x00826458));  // "fallbacker_trigger"
+        ScriptString_AppendInt(&name, n);
+        {
+            const uint32_t* const owner = pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4 : 0);
+            uint32_t hash;
+            const uint32_t notify = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
+            Scr_WaitTill(*owner, notify);
+        }
+        {
+            ScriptString value;
+            ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x00823550), pointer<const char>(0x0082e058));  // "fallback", "1" (unused)
+            scr_release(&value);
+        }
+        *fb_level_at(0xe4, n) = 1;
+        slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);  // GScr_GetAIAll
+        DynArray chosen = {nullptr, 0, 0};
+        if (static_cast<int32_t>(ai.size) > 0) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
+                bool join = fb_has_int_key(*fb_at(&ai, i, 0x00015a90), kFallback) &&
+                            *int_slot(*fb_at(&ai, i, 0x00015a90), kFallback) == static_cast<uint32_t>(n);
+                if (!join)
+                    join = fb_has_int_key(*fb_at(&ai, i, 0x00015a90), 0x1aa720d8) && group != undefined_int() &&
+                           *int_slot(*fb_at(&ai, i, 0x00015a90), 0x1aa720d8) == group;
+                if (join) DynArray_PushBack(reinterpret_cast<uint8_t*>(&chosen), fb_at(&ai, i, 0x00015a90));
+            }
+        }
+        title_function<ArrayGrow>(0x00015a90)(&ai, 0, 0);
+        if (chosen.capacity) {
+            // 40% of them go first; the fallback waits for each to reach its goal, then the rest go.
+            const float part = static_cast<float>(static_cast<int32_t>(chosen.size)) * title_global<float>(0x0083ec44);  // 0.4
+            {
+                ScriptString_AssignCString(&name, pointer<const char>(0x00826914));  // "fallback initiated "
+                ScriptString_AppendInt(&name, n);
+                const uint32_t* const owner =
+                    pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4 : 0);
+                uint32_t hash;
+                queue_notify(*owner, *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name)));
+            }
+            {
+                DynArray copy = {nullptr, 0, 0};
+                title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, &chosen);  // DynArray_Assign4_PROLOGUE
+                BroScr_FallbackSelectActors(copy, 0, static_cast<int32_t>(part));
+            }
+            for (int32_t i = 0;; ++i) {
+                const int32_t more = part > static_cast<float>(i) ? 1 : 0;
+                if (static_cast<float>(more) == title_global<float>(0x0083eafc)) break;
+                const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
+                const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
+                fb_thread(0x0080e554, 0x0019a5c0, *fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90), n, node);  // BroScr_FallbackGoalThink
+            }
+            for (int32_t i = 0;; ++i) {
+                const int32_t more = part > static_cast<float>(i) ? 1 : 0;
+                if (static_cast<float>(more) == title_global<float>(0x0083eafc)) break;
+                ScriptString_AssignCString(&name, pointer<const char>(0x00825ac4));  // "fallback_reached_goal"
+                ScriptString_AppendInt(&name, n);
+                const uint32_t* const owner =
+                    pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4 : 0);
+                uint32_t hash;
+                const uint32_t notify = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
+                Scr_WaitTill(*owner, notify);
+            }
+            for (int32_t i = static_cast<int32_t>(float_to_script_int(part)); i < static_cast<int32_t>(chosen.size); ++i) {
+                if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(*fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90))) continue;  // GScr_IsAlive
+                const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
+                const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
+                fb_thread(0x0080e554, 0x0019a5c0, *fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90), n, node);
+            }
+        }
+        if (chosen.data) Scr_Free(chosen.data);
+        scr_release(&name);
+        if (ai.data) Scr_Free(ai.data);
+        if (spawners.data) Scr_Free(spawners.data);
+    }
+    if (found.data) Scr_Free(found.data);
+    if (nodes.data) Scr_Free(nodes.data);
+}
+
 }  // namespace game
