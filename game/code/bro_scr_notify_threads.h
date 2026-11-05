@@ -169,4 +169,43 @@ void XB_CDECL BroScr_Turret30calFire(uint32_t ai, uint32_t turret);
 // `time`, notifies `notify`.
 void XB_CDECL BroScr_NotifyAfterTimeChecked(uint32_t ent, uint32_t notify, float time);
 
+// --- 0x0018da20-0x0019a99a ---
+
+// 0x0018da20 / 0x0018dad0: the prone mg42 fire knob on the AI (_2 first ends on 0x07b4e7f7),
+// then BroScr_Mg42ShootLoop / _2 (never return).
+void XB_CDECL BroScr_Mg42AnimThenShootLoop(uint32_t ai, uint32_t turret);
+void XB_CDECL BroScr_Mg42AnimThenShootLoop_2(uint32_t ai, uint32_t turret);
+// 0x0018dbc0: for a standing/crouching actor (or `force`): direction blend from int +0x230, the
+// minor-pain front/back/left/right set by hit location (+0x240; some locations none, unknown
+// ones assert), weighted by damage (+0x22c: 1 above 200, else (damage + 50) * 0.004), played
+// 0.05 s, cleared over 0.2 s / weight.
+void XB_CDECL BroScr_PainAnimByHitLocation(uint32_t actor, uint8_t force);
+// 0x00199120 / 0x00199200: ends on death; a BroScr_NotifyWhenOtherDies thread (target, ai);
+// runs to the target's origin ignoring all (AI flags 1,1,1) until the goal, then flags 0,0,0,
+// goal = the node slot 0x009226ec(ai, 0x008cd76c, 1 / 0) gives (-1 -> 0); notifies 0x455955a2.
+void XB_CDECL BroScr_ActorRunToEntIgnoringAll(uint32_t ai, uint32_t target);
+void XB_CDECL BroScr_ActorRunToEntIgnoringAll_2(uint32_t ai, uint32_t target);
+// 0x00199940: unless cvar mg42 is "off": key 0xc51219a9 = mg, then keeps the mg at `ent`'s origin.
+void XB_CDECL BroScr_MgFollowEntOrigin(uint32_t mg, uint32_t unused, uint32_t ent);
+// 0x0019a150: forever int key 0x070b8a34 = 0 on 0xd50105fc, = 1 on 0xccd105e5.
+void XB_CDECL BroScr_TrackStartFlagLoop(uint32_t ent);
+// 0x0019a400: a free mg (key 0x7b1e85ba 0) is taken by `ai` (used_an_mg42) until its death,
+// then "get new user" is notified on the mg.
+void XB_CDECL BroScr_MgWaitNewUser(uint32_t mg, uint32_t ai);
+// 0x0019a500: at the goal: int +0x1308 and float +0x7e4 back from keys 0xac91e5fb / 0x62271501,
+// notifies 0xed4ff1b2 and 0x6a48b933.
+void XB_CDECL BroScr_FallbackOnGoalRestore(uint32_t ai);
+// 0x0019a8b0 / 0x0019a930: ends on ("fallback",) "fallback_clear_goal", "fallback_clear_death";
+// forever reads key 0xa33a251d (unused) every 0.05 s.
+void XB_CDECL BroScr_FallbackClearGoalWait(uint32_t ai);
+void XB_CDECL BroScr_FallbackClearGoalWait_2(uint32_t ai);
+// 0x00199630: notifies/ends on "stop random_spread" (and "StopFiring"), aims the turret at
+// `target`; forever moves the target to the turret's key 0xcf1e52a5 entity (see the C) plus a
+// random offset (+-20 x/y, 20-60..20 z) every 0.2 s.
+void XB_CDECL BroScr_TurretRandomSpread(uint32_t turret, uint32_t target);
+// 0x0019a200: after 0.1 s, a live actor gets the stand idle (crouch where standing is not
+// allowed, prone where neither), idleset 0x61 (not prone), pose +0x184; 0.2 s later "end" on
+// 0x2c6a01b1 and 0x8d403617.
+void XB_CDECL BroScr_SetIdlePoseByAllowedStance(uint32_t actor);
+
 }  // namespace game

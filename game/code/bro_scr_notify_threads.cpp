@@ -1,8 +1,10 @@
 #include "bro_scr_notify_threads.h"
 
+#include "bro_scr_actor.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_common.h"
 #include "g_scr_runtime.h"
+#include "scr_field.h"
 #include "title_data.h"
 
 namespace game {
@@ -641,6 +643,291 @@ void XB_CDECL BroScr_NotifyAfterTimeChecked(uint32_t ent, uint32_t notify, float
     end_on(ent, kDeath);
     Scr_Wait(time);
     queue_notify(ent, notify);
+}
+
+// --- 0x0018da20-0x0019a99a ---
+
+namespace {
+
+// The gunner fire knob (0x008cf210 prone mg42 fire) on the AI: SetInt_1370, then SetAnimKnob
+// (1, 0.2, 1, restart).
+void gunner_fire_knob(uint32_t ai) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ai, title_global<uint32_t>(0x008cf210));  // ScrActor_SetInt_1370
+    slot<void XB_CDECL(uint32_t, uint32_t, float, float, float, uint32_t)>(0x009225d8)(
+        ai, title_global<uint32_t>(0x008cf210), 1.0f, 0.2f, 1.0f, 1);  // GScr_SetAnimKnob
+}
+
+// Shared body of BroScr_ActorRunToEntIgnoringAll(_2); `flag` is the third argument of slot
+// 0x009226ec (1 / 0).
+void run_to_ent_ignoring_all(uint32_t ai, uint32_t target, uint32_t flag) {
+    end_on(ai, kDeath);
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
+    title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, 0x00181670, target,
+                                            &ai);  // Scr_StartThread_ent_ent(BroScr_NotifyWhenOtherDies)
+    using SetFlags = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t);
+    slot<SetFlags>(0x009223a0)(ai, 1, 1, 1);  // GScr_SetAIFlags
+    uint32_t buffer[3];
+    const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, target);  // ScrEnt_GetOrigin
+    const uint32_t goal[3] = {o[0], o[1], o[2]};
+    slot<void XB_CDECL(uint32_t, const uint32_t*)>(0x00922684)(ai, goal);  // GScr_SetGoalPos
+    wait_till(ai, 0x0032304c);
+    slot<SetFlags>(0x009223a0)(ai, 0, 0, 0);
+    uint32_t node = slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009226ec)(ai, title_global<uint32_t>(0x008cd76c),
+                                                                                      flag);
+    if (node == 0xffffffffu) node = 0;
+    slot<void XB_CDECL(uint32_t, const uint32_t*)>(0x00922688)(ai, &node);  // GScr_SetGoalPosFromNode
+    queue_notify(target, 0x455955a2);
+}
+
+bool stance_allowed(uint32_t actor, uint32_t pose) {
+    return static_cast<uint8_t>(
+               slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922714)(actor, pose)) != 0;  // GScr_ActorIsStanceAllowed
+}
+
+void fallback_clear_goal_loop(uint32_t ai) {
+    Scr_EndOnString(ai, pointer<const char>(0x00825d54));  // "fallback_clear_goal"
+    Scr_EndOnString(ai, pointer<const char>(0x00825d3c));  // "fallback_clear_death"
+    for (;;) {
+        if (entity_handle_is_valid(ai)) {
+            if (ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ai))
+                ScriptKeyTable_Find(table, 0xa33a251d);  // read, unused (the debug draw was compiled out)
+        }
+        Scr_Wait(0.05f);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_Mg42AnimThenShootLoop(uint32_t ai, uint32_t turret) {
+    gunner_fire_knob(ai);
+    BroScr_Mg42ShootLoop(ai, turret);  // never returns
+}
+
+void XB_CDECL BroScr_Mg42AnimThenShootLoop_2(uint32_t ai, uint32_t turret) {
+    end_on(ai, 0x07b4e7f7);
+    gunner_fire_knob(ai);
+    BroScr_Mg42ShootLoop_2(ai, turret);  // never returns
+}
+
+void XB_CDECL BroScr_PainAnimByHitLocation(uint32_t actor, uint8_t force) {
+    using GetInt = uint32_t XB_CDECL(uint32_t);
+    if (!force && slot<GetInt>(0x00922dc0)(actor) != 0x070b89a4 &&  // ScrActor_GetInt_184 (pose)
+        slot<GetInt>(0x00922dc0)(actor) != 0xc1165808)
+        return;
+    BroScr_SetDirectionBlendWeights(actor, static_cast<float>(static_cast<int32_t>(slot<GetInt>(0x00922ce0)(actor))));
+    uint32_t front, back, left, right;
+    switch (slot<GetInt>(0x00922ce8)(actor)) {  // ScrActor_GetInt_240: the hit location
+    case 0x78b45d51:
+    case 0x792bc151:  // chest
+        front = title_global<uint32_t>(0x008cea6c);
+        back = title_global<uint32_t>(0x008cea60);
+        left = title_global<uint32_t>(0x008cea78);
+        right = title_global<uint32_t>(0x008cea84);
+        break;
+    case 0x6dc5e695:
+    case 0x9a2dd287:
+    case 0x9bb24e87:  // left arm
+        right = title_global<uint32_t>(0x008ceae4);
+        front = title_global<uint32_t>(0x008ceacc);
+        back = title_global<uint32_t>(0x008ceac0);
+        left = title_global<uint32_t>(0x008cead8);
+        break;
+    case 0x0036980b:
+    case 0x00359844:
+    case 0xd667b8d4:  // head
+        right = title_global<uint32_t>(0x008ceab4);
+        front = title_global<uint32_t>(0x008cea9c);
+        back = title_global<uint32_t>(0x008cea90);
+        left = title_global<uint32_t>(0x008ceaa8);
+        break;
+    case 0x000192ce:
+    case 0xbcb2520d:
+    case 0xedcba386:
+    case 0xbd2dce0d:  // right arm
+        front = title_global<uint32_t>(0x008ceafc);
+        back = title_global<uint32_t>(0x008ceaf0);
+        left = title_global<uint32_t>(0x008ceb08);
+        right = title_global<uint32_t>(0x008ceb14);
+        break;
+    case 0x1a2ddf3d:
+    case 0x3d2dc3b7:
+    case 0x1bb2433d:
+    case 0x3cb25fb7:
+    case 0x6dc2dea5:
+    case 0x0036b1a5:
+    case 0xedcc9bb6:  // no pain anim
+        return;
+    default: {
+        ScriptString message;
+        scr_string_from(&message, 0x00825cac);  // "Unexpected_hit_location + self.damagelocation" (assert compiled out)
+        scr_release(&message);
+        return;
+    }
+    }
+    float weight;
+    if (static_cast<int32_t>(slot<GetInt>(0x00922cd0)(actor)) > 200)  // ScrActor_GetInt_22c: the damage
+        weight = title_global<float>(0x0083eb20);  // 1
+    else
+        weight = (static_cast<float>(static_cast<int32_t>(slot<GetInt>(0x00922cd0)(actor))) + title_global<float>(0x0083ec30)) *
+                 title_global<float>(0x0083ef78);  // (damage + 50) * 0.004
+    using ClearAnim = void XB_CDECL(uint32_t, uint32_t, float);
+    using SetAnim = void XB_CDECL(uint32_t, uint32_t, uint32_t, float, float, uint32_t);
+    slot<ClearAnim>(0x009225d4)(actor, title_global<uint32_t>(0x008cea54), 0.1f);  // GScr_ClearAnim(minor_pain)
+    slot<SetAnim>(0x009225dc)(actor, front, at<uint32_t>(anim_object(), 0x140), 0.05f, 1.0f, 0);  // GScr_SetAnim
+    slot<SetAnim>(0x009225dc)(actor, back, at<uint32_t>(anim_object(), 0x13c), 0.05f, 1.0f, 0);
+    slot<SetAnim>(0x009225dc)(actor, left, at<uint32_t>(anim_object(), 0x144), 0.05f, 1.0f, 0);
+    slot<SetAnim>(0x009225dc)(actor, right, at<uint32_t>(anim_object(), 0x148), 0.05f, 1.0f, 0);
+    const float rate = title_global<float>(0x0083eb20) / weight;
+    using SetAnimRate = void XB_CDECL(uint32_t, uint32_t, float, float, float, uint32_t);
+    slot<SetAnimRate>(0x009225dc)(actor, title_global<uint32_t>(0x008cea54), weight, rate * title_global<float>(0x0083edc8),
+                                  1.0f, 0);  // minor_pain, time 0.05 / weight
+    Scr_Wait(0.05f);
+    slot<ClearAnim>(0x009225d4)(actor, title_global<uint32_t>(0x008cea54), rate * title_global<float>(0x0083eca0));  // 0.2 / weight
+    Scr_Wait(0.2f);
+}
+
+void XB_CDECL BroScr_ActorRunToEntIgnoringAll(uint32_t ai, uint32_t target) { run_to_ent_ignoring_all(ai, target, 1); }
+void XB_CDECL BroScr_ActorRunToEntIgnoringAll_2(uint32_t ai, uint32_t target) { run_to_ent_ignoring_all(ai, target, 0); }
+
+void XB_CDECL BroScr_MgFollowEntOrigin(uint32_t mg, uint32_t, uint32_t ent) {
+    ScriptString cvar;
+    const bool off = ScriptString_Equals(ScrCall_GScr_GetCvar(&cvar, 0x007f49a8), pointer<const char>(0x0080da58));
+    scr_release(&cvar);  // mg42 == "off"
+    if (off) return;
+    *key_slot(mg, 0xc51219a9, 0) = mg;
+    for (;;) {
+        uint32_t buffer[3];
+        const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+        const ScrVec3 origin = {{o[0], o[1], o[2]}};
+        slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(mg, origin);  // ScrEnt_SetOrigin
+        Scr_Wait(0.1f);
+    }
+}
+
+void XB_CDECL BroScr_TrackStartFlagLoop(uint32_t ent) {
+    for (;;) {
+        wait_till(ent, 0xd50105fc);
+        *int_slot(ent, 0x070b8a34) = 0;
+        wait_till(ent, 0xccd105e5);
+        *int_slot(ent, 0x070b8a34) = 1;
+    }
+}
+
+void XB_CDECL BroScr_MgWaitNewUser(uint32_t mg, uint32_t ai) {
+    if (*int_slot(mg, 0x7b1e85ba) != 0) return;
+    // The original's ECX here is a stale table pointer; its upper bytes would land in a missing field.
+    *reinterpret_cast<uint8_t*>(ScrField_used_an_mg42(ai, 0)) = 1;
+    *int_slot(mg, 0x7b1e85ba) = 1;
+    wait_till(ai, kDeath);
+    *int_slot(mg, 0x7b1e85ba) = 0;
+    queue_notify(mg, hash_name(pointer<const char>(0x007fff6c)));  // "get new user"
+}
+
+void XB_CDECL BroScr_FallbackOnGoalRestore(uint32_t ai) {
+    wait_till(ai, 0x0032304c);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d24)(ai, *int_slot(ai, 0xac91e5fb));  // ScrActor_SetInt_1308
+    slot<void XB_CDECL(uint32_t, float)>(0x00922d0c)(
+        ai, static_cast<float>(static_cast<int32_t>(*int_slot(ai, 0x62271501))));  // ScrActor_SetFloat_7e4
+    queue_notify(ai, 0xed4ff1b2);
+    queue_notify(ai, 0x6a48b933);
+}
+
+void XB_CDECL BroScr_FallbackClearGoalWait(uint32_t ai) {
+    Scr_EndOnString(ai, pointer<const char>(0x00823550));  // "fallback"
+    fallback_clear_goal_loop(ai);
+}
+void XB_CDECL BroScr_FallbackClearGoalWait_2(uint32_t ai) { fallback_clear_goal_loop(ai); }
+
+void XB_CDECL BroScr_TurretRandomSpread(uint32_t turret, uint32_t target) {
+    const char* const stop = pointer<const char>(0x00825d18);  // "stop random_spread"
+    queue_notify(turret, hash_name(stop));
+    Scr_EndOnString(turret, stop);
+    Scr_EndOnString(turret, pointer<const char>(0x00825d0c));  // "StopFiring"
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922590)(turret, target);  // GScr_Turret_SetTargetEntity
+    using GetOrigin = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    using SetOrigin = void XB_CDECL(uint32_t, ScrVec3);
+    using RandomFloat = long double XB_CDECL(float);
+    for (;;) {
+        // The target follows the turret's key 0xcf1e52a5 entity (the player's origin through
+        // GScr_GetOrigin when the target is the player; 48 up when the entity is the player).
+        if (target == player()) {
+            ScrVec3 at = {{undefined_lane(), undefined_lane(), undefined_lane()}};
+            slot<void XB_CDECL(uint32_t, ScrVec3*)>(0x00922524)(*ent_slot(turret, 0xcf1e52a5), &at);  // GScr_GetOrigin
+            slot<SetOrigin>(0x00922b24)(target, at);
+        } else if (*ent_slot(turret, 0xcf1e52a5) == player()) {
+            uint32_t buffer[3];
+            const uint32_t* o = slot<GetOrigin>(0x00922b20)(buffer, *ent_slot(turret, 0xcf1e52a5));  // ScrEnt_GetOrigin
+            const float z = as_float(o[2]) + title_global<float>(0x0083ecd8);                       // + 48
+            const ScrVec3 at = {{o[0], o[1], bits(z)}};
+            slot<SetOrigin>(0x00922b24)(target, at);
+        } else {
+            uint32_t buffer[3];
+            const uint32_t* o = slot<GetOrigin>(0x00922b20)(buffer, *ent_slot(turret, 0xcf1e52a5));
+            const ScrVec3 at = {{o[0], o[1], o[2]}};
+            slot<SetOrigin>(0x00922b24)(target, at);
+        }
+        // A random offset: x and y from the second and first RandomFloat(40), z from RandomFloat(60)
+        // (subtracted on the x87).
+        const float r1 = static_cast<float>(slot<RandomFloat>(0x00922230)(40.0f));
+        const float r2 = static_cast<float>(slot<RandomFloat>(0x00922230)(40.0f));
+        const float half = title_global<float>(0x0083eb5c);  // 20
+        const float dx = half - r2;
+        const float dy = half - r1;
+        const float dz = static_cast<float>(half - slot<RandomFloat>(0x00922230)(60.0f));
+        uint32_t buffer[3];
+        const uint32_t* o = slot<GetOrigin>(0x00922b20)(buffer, target);
+        const float x = as_float(o[0]) + dx;
+        const float z = static_cast<float>(static_cast<long double>(as_float(o[2])) + dz);
+        const float y = as_float(o[1]) + dy;
+        const ScrVec3 at = {{bits(x), bits(y), bits(z)}};
+        slot<SetOrigin>(0x00922b24)(target, at);
+        Scr_Wait(0.2f);
+    }
+}
+
+void XB_CDECL BroScr_SetIdlePoseByAllowedStance(uint32_t actor) {
+    using SetAnim7 = void XB_CDECL(uint32_t, uint32_t, uint32_t, float, float, float, uint32_t);
+    using SetPose = void XB_CDECL(uint32_t, uint32_t);
+    Scr_Wait(0.1f);
+    if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(actor)) return;  // GScr_IsAlive
+    const uint32_t root = 0x008cf300;  // g_anim_root
+    // stand first; crouch, then prone where standing is not allowed (each tested once)
+    uint32_t pose = 0x070b89a4;
+    if (!stance_allowed(actor, 0x070b89a4)) {
+        if (stance_allowed(actor, 0xc1165808))
+            pose = 0xc1165808;
+        else if (stance_allowed(actor, 0x0738b1a5))
+            pose = 0x0738b1a5;
+    }
+    if (pose == 0xc1165808) {  // crouch
+        slot<SetAnim7>(0x009225c8)(actor, title_global<uint32_t>(0x008ce544), title_global<uint32_t>(root), 1.0f, 0.2f, 1.0f,
+                                   0);  // GScr_SetAnimKnobAll(crouch_alert_a_idle)
+        *ScrField_anim_idleset(actor) = 0x61;
+        slot<SetPose>(0x00922dc4)(actor, 0xc1165808);  // ScrActor_SetInt_184
+    } else if (pose == 0x0738b1a5) {  // prone
+        slot<SetAnim7>(0x009225c8)(actor, title_global<uint32_t>(0x008cf0f0), title_global<uint32_t>(root), 1.0f, 0.2f, 1.0f,
+                                   0);  // prone_aim_idle
+        slot<void XB_CDECL(uint32_t, float, float, uint32_t, uint32_t, uint32_t)>(0x009226b8)(
+            actor, -45.0f, 45.0f, title_global<uint32_t>(0x008cf12c), title_global<uint32_t>(0x008cf138),
+            title_global<uint32_t>(0x008cf144));  // GScr_ActorSetPitchBlendAnims(legs down, straight, up)
+        slot<void XB_CDECL(uint32_t, float)>(0x009226b0)(actor, 1.0f);
+        slot<SetPose>(0x00922dc4)(actor, 0x0738b1a5);
+    } else {  // stand
+        slot<SetAnim7>(0x009225c8)(actor, title_global<uint32_t>(0x008cf3e4), title_global<uint32_t>(root), 1.0f, 0.2f, 1.0f,
+                                   0);  // stand_alert_1
+        *ScrField_anim_idleset(actor) = 0x61;
+        slot<SetPose>(0x00922dc4)(actor, 0x070b89a4);
+    }
+    Scr_Wait(0.2f);
+    using NotifyWithString = void XB_CDECL(uint32_t, uint32_t, ScriptString*);
+    ScriptString end;
+    scr_string_from(&end, 0x00832b28);  // "end"
+    slot<NotifyWithString>(0x009221ac)(actor, 0x2c6a01b1, &end);  // Scr_QueueNotifyWithString
+    scr_release(&end);
+    ScriptString end2;
+    scr_string_from(&end2, 0x00832b28);
+    slot<NotifyWithString>(0x009221ac)(actor, 0x8d403617, &end2);
+    scr_release(&end2);
 }
 
 }  // namespace game
