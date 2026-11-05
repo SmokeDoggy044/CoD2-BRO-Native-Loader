@@ -440,3 +440,7 @@ address,name,class,evidence
 003798a0,AtExit_FreeList_95fdf0,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"
 00379e50,AtExit_ScrFree_922e90,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"
 00379e70,AtExit_ScriptKeyTable,exit,"atexit handler (registered by the CRT init table), runs only when the title exits (it reboots instead); C kept, untested by design"
+00308cc0,GScr_ForceSpawnNamed,thread_switch,"script builtin; GScr_ForceSpawnNamed -> Actor_SpawnFromSpawner -> Actor_InitStateMachine, whose script init copies the x86 stack (host frames and return addresses of the C version land in the copy: 36 mismatches in missions 1,4,5,6, all in the saved-stack block); C kept, Compare"
+00308df0,GScr_DoSpawnNamed,thread_switch,"script builtin; GScr_DoSpawnNamed -> Actor_SpawnFromSpawner -> Actor_InitStateMachine (script init copies the x86 stack; 1 mismatch in the saved-stack block); C kept, Compare"
+00308fb0,GScr_ForceSpawn,thread_switch,"script builtin; GScr_ForceSpawn -> GScr_ForceSpawnNamed -> Actor_SpawnFromSpawner -> Actor_InitStateMachine (script init copies the x86 stack; 61 mismatches, saved-stack block only); C kept, Compare"
+00308ff0,GScr_DoSpawn,thread_switch,"script builtin; GScr_DoSpawn -> GScr_DoSpawnNamed -> Actor_SpawnFromSpawner -> Actor_InitStateMachine (script init copies the x86 stack; 2 mismatches, saved-stack block only); C kept, Compare"
