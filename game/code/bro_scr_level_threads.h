@@ -220,6 +220,7 @@ void XB_CDECL BroScr_P47PlaneCrashThink(uint32_t ent);
 // at or above it ends in radius damage 2 (10000 - 9000) at the origin.
 void XB_CDECL BroScr_WingTurretDamageWatch(uint32_t ent);
 void XB_CDECL BroScr_WingTurretDamageWatch_2(uint32_t ent);
+void XB_CDECL BroScr_WingTurretDamageWatch_3(uint32_t ent);  // 0x0013eb00, the same body
 // 0x0013b200: anim tree "panzerIV", dead model = model + "_d1", sound "vehicle_explode"; after
 // death: the model, the sound, an earthquake (0.25, 3 s, 1050) and damage twice the player's
 // health to the player.
@@ -312,5 +313,30 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger);
 // is set), after 1.5 s the first two flags back on. Defaults 150 / 100 / 100. Releases `shock`.
 void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t base_damage, int32_t damage_range,
                                      int32_t min_damage, uint32_t no_wait_thread, ScriptString shock);
+
+// 0x0013d9a0: anim tree "panzerIV"; dead model: "v_sherman" stays, "v_sherman_snow" ->
+// "v_sherman_snow_d1", else the model; sounds "vehicle_explode" / "explo_metal_rand"; after death:
+// the model, both sounds, an earthquake (0.25, 3 s, 1050).
+void XB_CDECL BroScr_VehicleDeath_Tank(uint32_t ent);
+// 0x0013eac0: ends on death; on each "shoot_guns" a BroScr_VehicleMg42Fire_2 (targets kept).
+void XB_CDECL BroScr_VehicleShootGunsThink(uint32_t ent);
+// 0x0013ebc0: ends on "nokill"; after death: the tank-spawner key cleared (bool key 0xc54b0523),
+// the mg turret deleted, 0x10a95eae, turret target cleared, an earthquake; a rolling death keeps
+// at least 8 until 0x6b6fe7fa; stopped, after 0.1 s the dead model, after 0.3 s full stop,
+// 0x84785ea9, paths disconnected; waits for the spawner's 0x9d03d3cf (when spawning); bool key
+// 0x00339844 set.
+void XB_CDECL BroScr_VehicleDeathThink(uint32_t ent);
+// 0x0013f550: BroScr_TurretStutter(ent, on_min, on_max, on_min, on_max).
+void XB_CDECL BroScr_TurretStutterCall(uint32_t ent, float min, float max);
+// 0x0013f570 / 0x0013f6f0: ends on "nokill" (death only); anim tree "willyjeep", dead model
+// "v_willysjeep_d1" ("_mons" on mons1), sound "explo_metal_rand". The death: after death the
+// model and an earthquake (0.25, 3 s, 1050). The init: a BroScr_VehicleDeathThink thread, then
+// waits for 0x10a95eae.
+void XB_CDECL BroScr_VehicleDeath_Jeep(uint32_t ent);
+void XB_CDECL BroScr_VehicleInit_Jeep(uint32_t ent);
+// 0x0013f820 (FUN_0013f820; proposed BroScr_WaitHeavyHitOrDamage): waits for damage (FUN_006609c0
+// with the attacker) and gives *dir = ent - attacker each time: true for a single hit above 95,
+// false once the hits add up past 150.
+uint8_t* XB_CDECL BroScr_WaitHeavyHitOrDamage(uint8_t* out, uint32_t ent, float* dir);
 
 }  // namespace game

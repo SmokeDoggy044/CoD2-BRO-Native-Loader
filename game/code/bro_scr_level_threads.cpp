@@ -2078,4 +2078,155 @@ void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t b
     ScriptString_Release(&shock);
 }
 
+void XB_CDECL BroScr_WingTurretDamageWatch_3(uint32_t ent) { wing_turret_damage_watch(ent); }
+
+void XB_CDECL BroScr_VehicleDeath_Tank(uint32_t ent) {
+    {
+        ScriptString tree;
+        ScriptString_FromCString(&tree, pointer<const char>(0x007f499c));  // "panzerIV"
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
+        ScriptString_Release(&tree);
+    }
+    ScriptString model;
+    uint32_t dead = 0;
+    if (ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x007f790c))) dead = 0x007f790c;  // "v_sherman"
+    ScriptString_Release(&model);
+    if (!dead) {
+        if (ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00821090)))  // "v_sherman_snow"
+            dead = 0x00821f50;                                                                          // "v_sherman_snow_d1"
+        ScriptString_Release(&model);
+    }
+    if (dead) {
+        ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(dead));
+    } else {
+        ScriptString* const m = ScrCall_ScrEnt_GetModel(&ent, &model);
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(string_key(ent, 0xd6eafad9),
+                                                                                        m);  // ScriptString_Assign
+        ScriptString_Release(&model);
+    }
+    ScriptString_AssignCString(string_key(ent, 0xcc2baca1), pointer<const char>(0x007f4e40));  // "vehicle_explode"
+    ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
+    const uint32_t self = ent;
+    // The attacker goes to the ent argument slot, as the original.
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(self, kDeath, &ent);  // Scr_WaitTillOutputEnt_ORAN
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(self, string_key(self, 0xd6eafad9), 0);  // GScr_SetModel
+    slot<PlaySound>(0x009221dc)(self, string_key(self, 0xd70abfb1), 0, 0, 0);                                    // GScr_PlaySound
+    slot<PlaySound>(0x009221dc)(self, string_key(self, 0xcc2baca1), 0, 0, 0);
+    ScrVec3 origin;
+    origin_of(&origin, self);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+}
+
+void XB_CDECL BroScr_VehicleShootGunsThink(uint32_t ent) {
+    Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
+    for (;;) {
+        Scr_WaitTillString(ent, pointer<const char>(0x008248c4));  // "shoot_guns"
+        BroScr_VehicleMg42Fire_2(ent, 0);
+    }
+}
+
+void XB_CDECL BroScr_VehicleDeathThink(uint32_t ent) {
+    using SetSpeed = void XB_CDECL(uint32_t, uint32_t, uint32_t);
+    const uint32_t self = ent;
+    Scr_EndOnString(self, pointer<const char>(0x008007bc));  // "nokill"
+    ent = 0;
+    // The attacker and the IsDefined bytes go to the ent argument slot, as the original.
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(self, kDeath, &ent);  // Scr_WaitTillOutputEnt_ORAN
+    if (*ScrField_hc54b0523_IsDefined(reinterpret_cast<bool*>(&ent), self)) *int_slot(self, 0x086550be) = 0;
+    if (*ScrField_mgturret_IsDefined(reinterpret_cast<bool*>(&ent), self)) slot<Ent>(0x00922540)(*key_slot(self, 0x2f68c7a5, 0));  // GScr_Delete
+    slot<EntHash>(0x009221a4)(self, 0x10a95eae);  // Scr_QueueNotify
+    slot<Ent>(0x009228d0)(self);                  // GScr_Vehicle_ClearTurretTarget
+    ScrVec3 origin;
+    origin_of(&origin, self);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+    if (*ScrField_rollingdeath_IsDefined(reinterpret_cast<bool*>(&ent), self)) {
+        if (title_global<float>(0x0083ed78) > vehicle_speed(self))  // 8
+            slot<SetSpeed>(0x00922890)(self, 0x41000000, 0x41c80000);  // GScr_Vehicle_SetSpeed(8, 25)
+        Scr_WaitTill(self, 0x6b6fe7fa);
+        slot<SetSpeed>(0x00922890)(self, 0, 0x41c80000);
+    } else {
+        slot<SetSpeed>(0x00922890)(self, 0, 0x41c80000);  // (0, 25)
+    }
+    Scr_Wait(float_bits(0x3dcccccd));  // 0.1
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(self, string_key(self, 0xd6eafad9), 0);  // GScr_SetModel
+    Scr_Wait(float_bits(0x3e99999a));                       // 0.3
+    slot<SetSpeed>(0x00922890)(self, 0, 0x461c4000);        // (0, 10000)
+    slot<EntHash>(0x009221a4)(self, 0x84785ea9);            // Scr_QueueNotify
+    slot<Ent>(0x00922570)(self);                            // GScr_DisconnectPaths
+    slot<Ent>(0x009228b0)(self);                            // GScr_Vehicle_Clear200
+    if (*ScrField_h086550be_IsDefined(reinterpret_cast<bool*>(&ent), self)) Scr_WaitTill(self, 0x9d03d3cf);
+    *bool_slot(self, 0x00339844) = 1;
+}
+
+void XB_CDECL BroScr_TurretStutterCall(uint32_t ent, float min, float max) { BroScr_TurretStutter(ent, min, max, min, max); }
+
+namespace {
+
+// The jeep's anim tree, dead model and sound (BroScr_VehicleDeath_Jeep / BroScr_VehicleInit_Jeep).
+inline void jeep_setup(uint32_t ent) {
+    ScriptString tree;
+    ScriptString_FromCString(&tree, pointer<const char>(0x007f4948));  // "willyjeep"
+    slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
+    ScriptString_Release(&tree);
+    ScriptString_AssignCString(string_key(ent, 0xd6eafad9),
+                               pointer<const char>(level_is(0x0082bcb8) ? 0x008248f4 : 0x008248e4));  // mons1: "v_willysjeep_d1_mons"
+    ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleDeath_Jeep(uint32_t ent) {
+    Scr_EndOnString(ent, pointer<const char>(0x008007bc));  // "nokill"
+    jeep_setup(ent);
+    uint32_t attacker;
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(ent, kDeath, &attacker);  // Scr_WaitTillOutputEnt_ORAN
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
+    ScrVec3 origin;
+    origin_of(&origin, ent);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
+                                                                                  0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
+}
+
+void XB_CDECL BroScr_VehicleInit_Jeep(uint32_t ent) {
+    jeep_setup(ent);
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = 0x0013ebc0;  // BroScr_VehicleDeathThink
+        functor[2] = ent;
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, ent, functor,
+                                                                                               0);  // Scr_CreateThread
+    Scr_WaitTill(ent, 0x10a95eae);
+}
+
+uint8_t* XB_CDECL BroScr_WaitHeavyHitOrDamage(uint8_t* out, uint32_t ent, float* dir) {
+    float total = 0.0f;
+    float damage = 0.0f;
+    uint32_t attacker = 0;
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, float*, uint32_t*)>(0x006609c0)(ent, 0xce270885, &damage,
+                                                                                         &attacker);  // waits for "damage"
+        ScrVec3 from, to;
+        origin_of(&from, attacker);
+        origin_of(&to, ent);
+        float a[3], b[3];
+        std::memcpy(a, from.v, 12);
+        std::memcpy(b, to.v, 12);
+        dir[0] = b[0] - a[0];
+        dir[1] = b[1] - a[1];
+        dir[2] = b[2] - a[2];
+        if (damage > title_global<float>(0x0083ee28)) {  // 95
+            *out = 1;
+            return out;
+        }
+        total = damage + total;
+        if (total > title_global<float>(0x0083ebf0)) break;  // 150
+    }
+    *out = 0;
+    return out;
+}
+
 }  // namespace game
