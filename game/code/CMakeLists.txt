@@ -5,6 +5,8 @@ set(game_code_sources
     actor.cpp
     anim_script.cpp
     bg_misc.cpp
+    bro_scr_util.cpp
+    bro_scr_wad.cpp
     cg_ents.cpp
     cg_hud.cpp
     cg_view.cpp
@@ -66,10 +68,10 @@ set(game_code_sources
     shaders.cpp
     snd.cpp
     snd_env.cpp
+    stack_guard.cpp
     stream.cpp
     sv.cpp
     tr_main.cpp
-    stack_guard.cpp
     ui_menu.cpp
     ui_panel.cpp
     unzip.cpp
