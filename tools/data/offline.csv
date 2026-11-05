@@ -713,6 +713,8 @@ address,name,tested,matched,nan,mismatched,coverage
 0018d840,BroScr_CoverRightAnimSet_5,3867,3867,0,0,100.0
 0018d930,BroScr_CoverRightInitAnimSets,4000,4000,0,0,100.0
 0018d9a0,BroScr_EmptyFunc_79,4000,4000,0,0,100.0
+0018e050,BroScr_CompareIntEqual,3652,3652,0,0,100.0
+0018e070,BroScr_CompareIntNotEqual,3652,3652,0,0,100.0
 001ef700,std_exception_Ctor,3801,3801,0,0,100.0
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
 001fab10,Actor_Noncombat_Resume,4000,4000,0,0,100.0

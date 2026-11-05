@@ -4,6 +4,7 @@
 #include "anim_script.h"
 #include "bg_misc.h"
 #include "bro_scr_cover_turret.h"
+#include "bro_scr_nodes_spawner.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
 #include "cg_view.h"
@@ -3375,6 +3376,15 @@ const Function kFunctions[] = {
     {"BroScr_TurretProneMG42Aim", 0x0018da70, 0, code(&BroScr_TurretProneMG42Aim), 8, Result::None, Status::Compare},
     {"BroScr_TurretProneMG42AimLoop", 0x0018db30, 0, code(&BroScr_TurretProneMG42AimLoop), 4, Result::None, Status::Compare},
     {"BroScr_TurretStandMG42Aim", 0x0018db80, 0, code(&BroScr_TurretStandMG42Aim), 4, Result::None, Status::Compare},
+    {"BroScr_ActorMayMoveToPointForStance_2", 0x0018def0, 0, code(&BroScr_ActorMayMoveToPointForStance_2), 24, Result::Eax, Status::Compare},
+    {"BroScr_CompareIntEqual", 0x0018e050, 0, code(&BroScr_CompareIntEqual), 12, Result::Eax, Status::Compare},
+    {"BroScr_CompareIntNotEqual", 0x0018e070, 0, code(&BroScr_CompareIntNotEqual), 12, Result::Eax, Status::Compare},
+    {"BroScr_ActorWeaponInLevelTable", 0x0018e090, 0, code(&BroScr_ActorWeaponInLevelTable), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetNodeTypeAtPosition", 0x0018e100, 0, code(&BroScr_GetNodeTypeAtPosition), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetCoverNodeOrOrigin", 0x0018e1b0, 0, code(&BroScr_GetCoverNodeOrOrigin), 8, Result::Eax, Status::Compare},
+    {"BroScr_IsAnimDebugTarget", 0x0018e220, 0, code(&BroScr_IsAnimDebugTarget), 8, Result::Eax, Status::Compare},
+    {"BroScr_IsOneOf3", 0x0018e280, 0, code(&BroScr_IsOneOf3), 20, Result::Eax, Status::Compare},
+    {"BroScr_SetOrientFaceMotionIf", 0x0018e2b0, 0, code(&BroScr_SetOrientFaceMotionIf), 8, Result::None, Status::Compare},
     {"ScrField_script_increment", 0x0018e320, 0, code(ScrField_script_increment), 4, Result::Eax, Status::Replaced},
     {"ScrField_script_increment_IsDefined", 0x0018e360, 0, code(ScrField_script_increment_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_h2ebdbc24", 0x0018e3c0, 0, code(ScrField_h2ebdbc24), 4, Result::Eax, Status::Replaced},
@@ -3888,6 +3898,13 @@ const Function kFunctions[] = {
     {"ScrField_h72e59ffd_IsDefined", 0x00198930, 0, code(ScrField_h72e59ffd_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_ha33a251d", 0x00198990, 0, code(ScrField_ha33a251d), 4, Result::Eax, Status::Replaced},
     {"ScrField_ha33a251d_IsDefined", 0x001989d0, 0, code(ScrField_ha33a251d_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_PathNodeHasDoor", 0x00198a40, 0, code(&BroScr_PathNodeHasDoor), 8, Result::Eax, Status::Compare},
+    {"BroScr_PathNodeHasScriptDelay", 0x00198a80, 0, code(&BroScr_PathNodeHasScriptDelay), 8, Result::Eax, Status::Compare},
+    {"BroScr_IsChainNode", 0x00198ad0, 0, code(&BroScr_IsChainNode), 8, Result::Eax, Status::Compare},
+    {"BroScr_PathNodeHasScriptFallback", 0x00198b10, 0, code(&BroScr_PathNodeHasScriptFallback), 8, Result::Eax, Status::Compare},
+    {"BroScr_NodeHasScriptWaittill", 0x00198b60, 0, code(&BroScr_NodeHasScriptWaittill), 8, Result::Eax, Status::Compare},
+    {"BroScr_PathNodeHasScriptMg42", 0x00198ba0, 0, code(&BroScr_PathNodeHasScriptMg42), 8, Result::Eax, Status::Compare},
+    {"BroScr_VehNodeHasScriptDelay", 0x00198bf0, 0, code(&BroScr_VehNodeHasScriptDelay), 8, Result::Eax, Status::Compare},
     {"ScrVehNodeField_endswitch_IsDefined", 0x00198c40, 0, code(ScrVehNodeField_endswitch_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrVehNodeField_detourstart_IsDefined", 0x00198c90, 0, code(ScrVehNodeField_detourstart_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrVehNodeField_hfefdb41b_IsDefined", 0x00198ce0, 0, code(ScrVehNodeField_hfefdb41b_IsDefined), 8, Result::Eax, Status::Replaced},
@@ -3901,6 +3918,20 @@ const Function kFunctions[] = {
     {"ScrVehNodeField_detourpath_IsDefined", 0x00198f50, 0, code(ScrVehNodeField_detourpath_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrVehNodeField_h37ff641a_IsDefined", 0x00198fa0, 0, code(ScrVehNodeField_h37ff641a_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrVehNodeField_derailed_IsDefined", 0x00198ff0, 0, code(ScrVehNodeField_derailed_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_DebugDrawRadiusCircle", 0x00199040, 0, code(&BroScr_DebugDrawRadiusCircle), 4, Result::None, Status::Compare},
+    {"BroScr_SetCreditsName", 0x00199a20, 0, code(&BroScr_SetCreditsName), 8, Result::None, Status::Compare},
+    {"BroScr_AddKeyedEnt", 0x00199b50, 0, code(&BroScr_AddKeyedEnt), 8, Result::None, Status::Compare},
+    {"BroScr_TurretUseTimeCheck", 0x0019aef0, 0, code(&BroScr_TurretUseTimeCheck), 16, Result::Eax, Status::Compare},
+    {"BroScr_FriendlyFinishedMg42", 0x0019b050, 0, code(&BroScr_FriendlyFinishedMg42), 4, Result::None, Status::Compare},
+    {"Bro__spawner_gmi__tanksquish", 0x0019b390, 0, code(&Bro__spawner_gmi__tanksquish), 12, Result::None, Status::Compare},
+    {"Bro__spawner_gmi__Allies_Death", 0x0019b440, 0, code(&Bro__spawner_gmi__Allies_Death), 8, Result::None, Status::Compare},
+    {"Bro__spawner_gmi__KillFriends_Damage_Think", 0x0019b540, 0, code(&Bro__spawner_gmi__KillFriends_Damage_Think), 12, Result::None, Status::Compare},
+    {"Bro__spawner_gmi__KillFriends_MissionFail_OnDamage", 0x0019b6b0, 0, code(&Bro__spawner_gmi__KillFriends_MissionFail_OnDamage), 8, Result::None, Status::Compare},
+    {"Bro__spawner_gmi__KillFriends_MissionFail_OnDeath", 0x0019b760, 0, code(&Bro__spawner_gmi__KillFriends_MissionFail_OnDeath), 8, Result::None, Status::Compare},
+    {"BroScr_TriggerOff", 0x0019b830, 0, code(&BroScr_TriggerOff), 4, Result::None, Status::Compare},
+    {"BroScr_TriggerOn", 0x0019b940, 0, code(&BroScr_TriggerOn), 4, Result::None, Status::Compare},
+    {"BroScr_PushActorFloat82c", 0x0019b990, 0, code(&BroScr_PushActorFloat82c), 4, Result::None, Status::Compare},
+    {"BroScr_PopActorFloat82c", 0x0019ba00, 0, code(&BroScr_PopActorFloat82c), 4, Result::None, Status::Compare},
     {"PtrArray_RemoveValue", 0x0019ba60, 0, code(&PtrArray_RemoveValue), 8, Result::Eax, Status::Replaced},
     {"ScrField_h80658b23_SetTrue", 0x001a1240, 0, code(&ScrField_h80658b23_SetTrue), 4, Result::Eax, Status::Replaced},
     {"ScrField_hb8e86881", 0x001a3d90, 0, code(ScrField_hb8e86881), 4, Result::Eax, Status::Replaced},

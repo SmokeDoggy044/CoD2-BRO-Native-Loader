@@ -6,6 +6,7 @@ set(game_code_sources
     anim_script.cpp
     bg_misc.cpp
     bro_scr_cover_turret.cpp
+    bro_scr_nodes_spawner.cpp
     cg_ents.cpp
     cg_hud.cpp
     cg_view.cpp
