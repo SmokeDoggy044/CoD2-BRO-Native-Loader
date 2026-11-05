@@ -576,13 +576,6 @@ uint32_t* int_slot(uint32_t ent, uint32_t hash) {
     return ScriptKeyTable_Set(table, hash, title_global<uint32_t>(0x00922ec0));
 }
 
-bool model_is(uint32_t* ent, uint32_t text) {
-    ScriptString model;
-    const bool equal = ScriptString_Equals(ScrCall_ScrEnt_GetModel(ent, &model), pointer<const char>(text));
-    ScriptString_Release(&model);
-    return equal;
-}
-
 }  // namespace
 
 void XB_CDECL BroScr_StukaDropBombs(uint32_t ent, uint32_t count, ScriptString model) {
@@ -621,8 +614,25 @@ void XB_CDECL BroScr_StukaDropBombs(uint32_t ent, uint32_t count, ScriptString m
             slot<SetModel>(0x00922548)(*grow_at(table_array(ent, kBombs), i), &model, bomb_zone);
         }
         *int_slot(*grow_at(table_array_or_add(ent, kBombs), i), 0xe2c9ccdd) = 0;
-        // "stuka", "stuka_flying", "stuka_prologue"
-        const bool stuka = model_is(&ent, 0x007f4970) || model_is(&ent, 0x007f8db8) || model_is(&ent, 0x007f60c0);
+        // "stuka", "stuka_flying", "stuka_prologue": the model strings stay alive until all checks are done,
+        // released last to first (the string pool's reuse order)
+        bool stuka;
+        {
+            ScriptString first, second, third;
+            uint32_t held = 1;
+            stuka = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &first), pointer<const char>(0x007f4970));
+            if (!stuka) {
+                held |= 2;
+                stuka = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &second), pointer<const char>(0x007f8db8));
+                if (!stuka) {
+                    held |= 4;
+                    stuka = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &third), pointer<const char>(0x007f60c0));
+                }
+            }
+            if (held & 4) ScriptString_Release(&third);
+            if (held & 2) ScriptString_Release(&second);
+            ScriptString_Release(&first);
+        }
         if (!stuka) {
             uint32_t buffer[3];
             const uint32_t* v = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin

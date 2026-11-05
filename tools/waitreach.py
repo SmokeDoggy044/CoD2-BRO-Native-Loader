@@ -42,10 +42,13 @@ def main():
         return starts[i] if i >= 0 else None
 
     seeds = {a for a, n in functions.items() if SEED_NAME.match(n)}
-    for path in ["tools/data/set_aside.csv"] + glob.glob("docs/*_classes.csv"):
+    # the classes files are append-only: the last row per address is the current class
+    last = {}
+    for path in ["tools/data/set_aside.csv"] + sorted(glob.glob("docs/*_classes.csv")):
         for row in csv.reader(open(path)):
-            if len(row) >= 3 and row[2].replace("_", " ") == "thread switch":
-                seeds.add(int(row[0], 16))
+            if len(row) >= 3 and re.fullmatch(r"[0-9a-fA-F]{8}", row[0]):
+                last[int(row[0], 16)] = row[2].replace("_", " ")
+    seeds |= {a for a, cls in last.items() if cls == "thread switch"}
 
     # slot -> builtin (the engine-interface inits), as levelreach
     slots = {}

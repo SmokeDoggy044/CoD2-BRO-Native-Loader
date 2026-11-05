@@ -4,3 +4,8 @@ address,name,approved
 0021cca0,Actor_InitStateMachine,user 2026-11-03: accepted below 100 matches (script-thread stack copy of the running call's return address)
 0021ceb0,Actor_SpawnFromSpawner,user 2026-11-03: accepted below 100 matches (script-thread stack copy of the running call's return address)
 0022ebe0,Ragdoll_BuildBodyDefs,user 2026-11-03: accepted below 100 matches (inertia w lane Phys_SphereMassProperties never writes)
+001ba990,BroScr_CanShootFromPose,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
+001c4360,BroScr_CheckCanShoot,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
+001ba930,BroScr_GetMuzzleOriginCall,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
+001c30e0,BroScr_ShouldGoProne_2,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
+001ac700,BroScr_TryLookAtPlayer,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)

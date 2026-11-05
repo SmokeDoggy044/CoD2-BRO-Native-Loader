@@ -430,11 +430,18 @@ def obj_functions(objs):
     """name -> list of (offset, text, reloc target or None)."""
     funcs = {}
     for obj in objs:
+        # VC7.1's local $L symbols are not always on instruction boundaries; objdump restarts
+        # decoding at each symbol, so drop them from a copy first.
+        plain = obj.with_suffix(".nolabels.obj")
+        if subprocess.run(["objcopy", "--wildcard", "-N", "$L*", str(obj), str(plain)]).returncode == 0:
+            obj = plain
         out = subprocess.run(["objdump", "-d", "-r", "-M", "intel", "--no-show-raw-insn", str(obj)],
                              capture_output=True, text=True).stdout
         current = None
         for line in out.splitlines():
             m = re.match(r"^[0-9a-f]+ <(.+)>:$", line)
+            if m and m[1].startswith("$"):  # a local label ($L...) inside the function
+                continue
             if m:
                 current = funcs.setdefault(plain_name(m[1]), [])
                 continue
@@ -453,13 +460,16 @@ def obj_functions(objs):
 
 def xbe_function(xbe, address, length):
     code = xbe_bytes(xbe, address, length)
-    pad = code.find(b"\xcc\xcc")  # the gap before an unlisted next function
-    code = (code[:pad] if pad > 0 else code).rstrip(b"\xcc")
+    code = code.rstrip(b"\xcc")
     tmp = WORK / "xbe.bin"
     tmp.write_bytes(code)
     out = subprocess.run(["objdump", "-D", "-b", "binary", "-m", "i386", "-M", "intel",
                           "--no-show-raw-insn", str(tmp)], capture_output=True, text=True).stdout
     insns = [(int(m[1], 16), m[2].strip(), None) for m in re.finditer(r"^\s*([0-9a-f]+):\t(.*)$", out, re.M)]
+    # The int3 gap before an unlisted next function (decoded, so a constant's cc bytes stay).
+    cut = next((k for k, (_, text, _) in enumerate(insns) if text == "int3"), None)
+    if cut:
+        insns = insns[:cut]
     while insns and re.match(r"(nop|xchg\s+ax,ax|lea\s+esi,\[esi(\+eiz\*1)?\+0x0\])", insns[-1][1]):
         insns.pop()
     return insns
@@ -578,7 +588,9 @@ def main():
     xbe = load_xbe()
     syms = symbols()
     by_address = {a: n for a, n in syms}
-    starts = [a for a, _ in syms]
+    # Unregistered rows may start functions the symbol file does not have (e.g. found inside
+    # another symbol's body): they end the function before them too.
+    starts = sorted({a for a, _ in syms} | {a for _, a, _ in extra})
 
     rows, total, per_obj = [], [], None
     for name, address, code in registered + extra:
