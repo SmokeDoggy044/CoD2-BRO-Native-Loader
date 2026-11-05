@@ -784,7 +784,7 @@
 0002bd30 InGameLiveOptionsMenu_DeletingDtor
 0002bd50 PathNode_Construct
 0002bdc0 Actor_PathEntityIsFresh
-0002be40 FUN_0002be40
+0002be40 Path_Init
 0002bf00 G_RestoreSavedEntityField134
 0002bf50 AitbManager_DeletingDtor
 0002bf80 ZoneStringMap_Lookup
@@ -4137,7 +4137,7 @@
 0011a7d0 ScriptString_FromCStringPlusInt
 0011a850 ScriptString_ReleaseAt20
 0011a860 ScrCall_Scr_EntityHandleIsValid
-0011a880 FUN_0011a880
+0011a880 ScriptString_FromCStringPlusVec
 0011a910 Scr_StartThreadFunctor1
 0011a960 Scr_BeginThreadEndOnFunctor1
 0011a9b0 ScrClass_007f5f4c_Dtor
@@ -4175,7 +4175,7 @@
 0011ba30 ScrCall_GScr_GetOrigin
 0011ba80 ScriptString_ToInt
 0011bac0 BroScr_SpawnerGroupParams_Init
-0011bdc0 FUN_0011bdc0
+0011bdc0 BroScr_GetMap_h4fcdc42e
 0011bdf0 kasserine_pass_wad_Level_DeletingDtor
 0011be10 ScrClass_00802298_Dtor
 0011bff0 ScrCall_GScr_AmbientPlay
@@ -5022,7 +5022,7 @@
 00149200 BroScr_FriendlyChatTriggerThink
 001499a0 BroScr_NotifyRiders
 00149a80 ScrField_he104fd5c_PushBack
-00149ab0 FUN_00149ab0
+00149ab0 BroScr_EntArrayRemove_he104fd5c
 00149b90 BroScr_DeleteRiders
 00149f60 BroScr_MortarEntInit
 0014a160 BroScr_GetCurrentPathPos
@@ -5031,7 +5031,7 @@
 0014a380 BroScr_WaitForAllFollowersNotify
 0014a430 BroScr_FollowUpdateCurrentPos
 0014a670 BroScr_RemoveFollowerOnDeath
-0014a6d0 FUN_0014a6d0
+0014a6d0 BroScr_FollowPathOffsetPoint
 0014a910 BroScr_PathPosDebugStub
 0014a9c0 BroScr_CurrentPathPosDebugStub
 0014aaa0 BroScr_StukaDropBombs
@@ -5232,11 +5232,11 @@
 001683e0 BroScr_PanzerIVGunHullStart
 00168470 BroScr_TankGunHull_3
 00168500 BroScr_PanzerIVGunHullStart_2
-00168590 FUN_00168590
+00168590 BroScr_AnimLoopPickIndex
 00168910 BroScr_AnimReachCore
 00168df0 BroScr_AnimGroupTeleportGuys
 00169250 BroScr_AnimGroupPlaceGuys
-00169650 FUN_00169650
+00169650 BroScr_AddToNamedEntList
 00169810 BroScr_SpawnDrone
 00169b20 BroScr_DroneAnimLoop
 00169e50 BroScr_DroneMain
@@ -6402,7 +6402,7 @@
 0019d820 BroScr_CachePerTeamValues
 0019da60 BroScr_CoverShootOnNotify
 0019db90 BroScr_HelmetPop
-0019e050 FUN_0019e050
+0019e050 BroScr_AnimFaceResetKeys
 0019e120 BroScr_AnimFaceWaitSetFlag
 0019e1a0 BroScr_AnimFaceWaitOnNotify
 0019e260 BroScr_AnimFaceWaitOnTime
@@ -6542,7 +6542,7 @@
 001aad20 BroScr_TempEventTextThink
 001ab050 BroScr_ShootAtTarget
 001ab530 BroScr_ShootAtTarget_2
-001abb00 FUN_001abb00
+001abb00 BroScr_GetFieldUnlessAutoOrSemi
 001abb70 BroScr_NeedsReload
 001abc70 BroScr_LookAtEndOnNotify_1
 001abd00 BroScr_LookAtEndOnNotify_2
@@ -10179,7 +10179,7 @@
 002f62c0 Scr_Sqrt
 002f62d0 ScrIface_Malloc
 002f6320 IntHashMap_FindValue
-002f6350 FUN_002f6350
+002f6350 Scr_InitWaitRecord4
 002f64f0 ScrWaitTimeoutRecord_Init
 002f6600 Scr_RestoreThreadStack
 002f6670 ScrThread_AppendData
@@ -10384,8 +10384,8 @@
 002fc110 ScrWaitTimeoutRecord_Check
 002fc1b0 ScrWaitRecord_Check
 002fc230 ScrWaitRecord_Dtor
-002fc2a0 FUN_002fc2a0
-002fc3c0 FUN_002fc3c0
+002fc2a0 Scr_AbortAllThreads
+002fc3c0 Scr_HasEndOnRecord
 002fc440 Scr_UpdateThreadWaits
 002fc540 Scr_DestroyThreadContents
 002fc670 AnimTree_Setup

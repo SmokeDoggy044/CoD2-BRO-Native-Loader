@@ -784,7 +784,7 @@ address,name,section,module,state,tested,matched
 0002bd30,InGameLiveOptionsMenu_DeletingDtor,.text,client,set-aside,0,0
 0002bd50,PathNode_Construct,.text,game,replaced,368,368
 0002bdc0,Actor_PathEntityIsFresh,.text,game,replaced,130,130
-0002be40,FUN_0002be40,.text,game,replaced,138,138
+0002be40,Path_Init,.text,game,replaced,138,138
 0002bf00,G_RestoreSavedEntityField134,.text,game,replaced,4,4
 0002bf50,AitbManager_DeletingDtor,.text,qcommon,replaced,8,8
 0002bf80,ZoneStringMap_Lookup,.text,streaming,settled,218,218
@@ -4137,7 +4137,7 @@ address,name,section,module,state,tested,matched
 0011a7d0,ScriptString_FromCStringPlusInt,.text,script,replaced,1451,1451
 0011a850,ScriptString_ReleaseAt20,.text,script,replaced,2,2
 0011a860,ScrCall_Scr_EntityHandleIsValid,.text,script,replaced,74,74
-0011a880,FUN_0011a880,.text,levelscript,matched,12,12
+0011a880,ScriptString_FromCStringPlusVec,.text,script,matched,12,12
 0011a910,Scr_StartThreadFunctor1,.text,game,set-aside,0,0
 0011a960,Scr_BeginThreadEndOnFunctor1,.text,game,set-aside,0,0
 0011a9b0,ScrClass_007f5f4c_Dtor,.text,script,matched,4,4
@@ -4175,7 +4175,7 @@ address,name,section,module,state,tested,matched
 0011ba30,ScrCall_GScr_GetOrigin,.text,script,untested,0,0
 0011ba80,ScriptString_ToInt,.text,script,untested,0,0
 0011bac0,BroScr_SpawnerGroupParams_Init,.text,levelscript,matched,17,17
-0011bdc0,FUN_0011bdc0,.text,levelscript,matched,2,2
+0011bdc0,BroScr_GetMap_h4fcdc42e,.text,levelscript,matched,2,2
 0011bdf0,kasserine_pass_wad_Level_DeletingDtor,.text,levelscript,matched,1,1
 0011be10,ScrClass_00802298_Dtor,.text,script,replaced,2,2
 0011bff0,ScrCall_GScr_AmbientPlay,.text,script,untested,0,0
@@ -5022,7 +5022,7 @@ address,name,section,module,state,tested,matched
 00149200,BroScr_FriendlyChatTriggerThink,.text,levelscript,set-aside,0,0
 001499a0,BroScr_NotifyRiders,.text,levelscript,untested,0,0
 00149a80,ScrField_he104fd5c_PushBack,.text,script,replaced,6,6
-00149ab0,FUN_00149ab0,.text,levelscript,matched,4,4
+00149ab0,BroScr_EntArrayRemove_he104fd5c,.text,levelscript,matched,4,4
 00149b90,BroScr_DeleteRiders,.text,levelscript,untested,0,0
 00149f60,BroScr_MortarEntInit,.text,levelscript,matched,12,12
 0014a160,BroScr_GetCurrentPathPos,.text,levelscript,untested,0,0
@@ -5031,7 +5031,7 @@ address,name,section,module,state,tested,matched
 0014a380,BroScr_WaitForAllFollowersNotify,.text,levelscript,set-aside,0,0
 0014a430,BroScr_FollowUpdateCurrentPos,.text,levelscript,untested,0,0
 0014a670,BroScr_RemoveFollowerOnDeath,.text,levelscript,set-aside,0,0
-0014a6d0,FUN_0014a6d0,.text,levelscript,untested,0,0
+0014a6d0,BroScr_FollowPathOffsetPoint,.text,levelscript,untested,0,0
 0014a910,BroScr_PathPosDebugStub,.text,levelscript,set-aside,0,0
 0014a9c0,BroScr_CurrentPathPosDebugStub,.text,levelscript,set-aside,0,0
 0014aaa0,BroScr_StukaDropBombs,.text,levelscript,matched,13,13
@@ -5232,17 +5232,17 @@ address,name,section,module,state,tested,matched
 001683e0,BroScr_PanzerIVGunHullStart,.text,levelscript,untested,0,0
 00168470,BroScr_TankGunHull_3,.text,levelscript,untested,0,0
 00168500,BroScr_PanzerIVGunHullStart_2,.text,levelscript,untested,0,0
-00168590,FUN_00168590,.text,levelscript,matched,32,32
+00168590,BroScr_AnimLoopPickIndex,.text,levelscript,matched,32,32
 00168910,BroScr_AnimReachCore,.text,levelscript,set-aside,0,0
 00168df0,BroScr_AnimGroupTeleportGuys,.text,levelscript,untested,0,0
 00169250,BroScr_AnimGroupPlaceGuys,.text,levelscript,untested,0,0
-00169650,FUN_00169650,.text,levelscript,settled,811,811
+00169650,BroScr_AddToNamedEntList,.text,levelscript,settled,811,811
 00169810,BroScr_SpawnDrone,.text,levelscript,settled,103,103
 00169b20,BroScr_DroneAnimLoop,.text,levelscript,set-aside,0,0
 00169e50,BroScr_DroneMain,.text,levelscript,set-aside,0,0
 0016a920,BroScr_StartDronesNearEnt,.text,levelscript,matched,64,64
 0016aa90,BroScr_AnimScriptedRestoreAnimname,.text,levelscript,set-aside,0,0
-0016ace0,BroScr_VehicleRidersThink,.text,levelscript,named,0,0
+0016ace0,BroScr_VehicleRidersThink,.text,levelscript,set-aside,0,0
 0016c7c0,BroScr_VehicleGetPassengers,.text,levelscript,matched,5,5
 0016c9d0,BroScr_StukaStartNearbyDrones,.text,levelscript,settled,223,223
 0016cb40,BroScr_StukaBombExplode,.text,levelscript,set-aside,0,0
@@ -5327,8 +5327,8 @@ address,name,section,module,state,tested,matched
 00175410,BroScr_PathMoverFromTargetChainCall_4,.text,levelscript,set-aside,0,0
 00175460,BroScr_PathMoverFromTargetChainCall_5,.text,levelscript,set-aside,0,0
 001754b0,BroScr_NotetrackFaceAnim,.text,levelscript,set-aside,0,0
-001757f0,BroScr_AnimNotetrackCommands,.text,levelscript,named,0,0
-00176720,BroScr_AnimLoopGuys,.text,levelscript,named,0,0
+001757f0,BroScr_AnimNotetrackCommands,.text,levelscript,set-aside,0,0
+00176720,BroScr_AnimLoopGuys,.text,levelscript,set-aside,0,0
 00177450,BroScr_AnimSingleGuys,.text,levelscript,set-aside,0,0
 00178080,BroScr_AnimLoopAtEnt,.text,levelscript,set-aside,0,0
 00178280,BroScr_AnimLoopAtNode,.text,levelscript,set-aside,0,0
@@ -6402,7 +6402,7 @@ address,name,section,module,state,tested,matched
 0019d820,BroScr_CachePerTeamValues,.text,levelscript,untested,0,0
 0019da60,BroScr_CoverShootOnNotify,.text,levelscript,set-aside,0,0
 0019db90,BroScr_HelmetPop,.text,levelscript,set-aside,0,0
-0019e050,FUN_0019e050,.text,levelscript,matched,89,89
+0019e050,BroScr_AnimFaceResetKeys,.text,levelscript,matched,89,89
 0019e120,BroScr_AnimFaceWaitSetFlag,.text,levelscript,set-aside,0,0
 0019e1a0,BroScr_AnimFaceWaitOnNotify,.text,levelscript,set-aside,0,0
 0019e260,BroScr_AnimFaceWaitOnTime,.text,levelscript,set-aside,0,0
@@ -6542,7 +6542,7 @@ address,name,section,module,state,tested,matched
 001aad20,BroScr_TempEventTextThink,.text,levelscript,set-aside,0,0
 001ab050,BroScr_ShootAtTarget,.text,levelscript,set-aside,0,0
 001ab530,BroScr_ShootAtTarget_2,.text,levelscript,set-aside,0,0
-001abb00,FUN_001abb00,.text,levelscript,settled,151,151
+001abb00,BroScr_GetFieldUnlessAutoOrSemi,.text,levelscript,settled,151,151
 001abb70,BroScr_NeedsReload,.text,levelscript,settled,2599,2599
 001abc70,BroScr_LookAtEndOnNotify_1,.text,levelscript,set-aside,0,0
 001abd00,BroScr_LookAtEndOnNotify_2,.text,levelscript,set-aside,0,0
@@ -10179,7 +10179,7 @@ address,name,section,module,state,tested,matched
 002f62c0,Scr_Sqrt,.text,game,replaced,0,0
 002f62d0,ScrIface_Malloc,.text,script,replaced,16,16
 002f6320,IntHashMap_FindValue,.text,qcommon,replaced,27,27
-002f6350,FUN_002f6350,.text,game,replaced,121,121
+002f6350,Scr_InitWaitRecord4,.text,game,replaced,121,121
 002f64f0,ScrWaitTimeoutRecord_Init,.text,script,replaced,0,0
 002f6600,Scr_RestoreThreadStack,.text,game,replaced,400,400
 002f6670,ScrThread_AppendData,.text,script,replaced,15328,15328
@@ -10384,8 +10384,8 @@ address,name,section,module,state,tested,matched
 002fc110,ScrWaitTimeoutRecord_Check,.text,script,replaced,6,6
 002fc1b0,ScrWaitRecord_Check,.text,script,replaced,28481,28481
 002fc230,ScrWaitRecord_Dtor,.text,script,replaced,34,34
-002fc2a0,FUN_002fc2a0,.text,game,replaced,27,27
-002fc3c0,FUN_002fc3c0,.text,game,replaced,156,156
+002fc2a0,Scr_AbortAllThreads,.text,game,replaced,27,27
+002fc3c0,Scr_HasEndOnRecord,.text,game,replaced,156,156
 002fc440,Scr_UpdateThreadWaits,.text,game,replaced,403,403
 002fc540,Scr_DestroyThreadContents,.text,game,replaced,109,109
 002fc670,AnimTree_Setup,.text,xanim,settled,110,110
