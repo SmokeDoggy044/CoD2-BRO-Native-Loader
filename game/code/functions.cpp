@@ -2695,7 +2695,7 @@ const Function kFunctions[] = {
     {"ScrClass_00821f34_Dtor", 0x0011d390, 0, code(&ScrClass_00821f34_Dtor), 0, Result::None, Status::Compare},
     {"ScrClass_00823508_Dtor", 0x0011d470, 0, code(&ScrClass_00823508_Dtor), 0, Result::None, Status::Compare},
     {"ScriptStringRep_Init", 0x0011d540, 0, code(&ScriptStringRep_Init), 12, Result::Eax, Status::Compare},
-    {"ScriptStringRep_Append", 0x0011d580, 0, code(&ScriptStringRep_Append), 8, Result::None, Status::Compare},
+    {"ScriptStringRep_Append", 0x0011d580, 0, code(&ScriptStringRep_Append_entry), 8, Result::None, Status::Compare},
     {"ScriptStringRep_Release", 0x0011d5b0, 0, code(&ScriptStringRep_Release), 0, Result::None, Status::Compare},
     {"ScriptString_FromRep", 0x0011d5d0, 0, code(&ScriptString_FromRep), 4, Result::Eax, Status::Compare},
     {"ScriptString_Copy", 0x0011d5e0, 0, code(&ScriptString_Copy), 4, Result::Eax, Status::Compare},
@@ -4338,7 +4338,7 @@ const Function kFunctions[] = {
     {"Actor_FindNearbyCoverNode", 0x0021c9d0, 0, code(&Actor_FindNearbyCoverNode_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_OrientToEnemyOrMotion", 0x0021cb30, 0, code(&Actor_OrientToEnemyOrMotion_entry), 4, Result::None, Status::Replaced},
     {"Actor_InitStateMachine", 0x0021cca0, 0, code(&Actor_InitStateMachine_entry), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"Actor_SpawnFromSpawner", 0x0021ceb0, 0, code(&Actor_SpawnFromSpawner_entry), 0, Result::Eax, Status::Replaced},
+    {"Actor_SpawnFromSpawner", 0x0021ceb0, 0, code(&Actor_SpawnFromSpawner_entry), 0, Result::Eax, Status::Compare},  // kept original: script thread switch (stack_guard 11-05: its C frame is live while the original Actor_InitStateMachine waits)
     {"Actor_Exposed_CheckNearbyCover", 0x0021d250, 0, code(&Actor_Exposed_CheckNearbyCover_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_Exposed_Start", 0x0021d300, 0, code(&Actor_Exposed_Start_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_Exposed_Combat", 0x0021d3c0, 0, code(&Actor_Exposed_Combat_entry), 0, Result::None, Status::Replaced},

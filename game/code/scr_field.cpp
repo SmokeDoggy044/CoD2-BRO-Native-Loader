@@ -172,7 +172,7 @@ float* XB_CDECL ScrField_VectorSlot(uint32_t entity) {
     uint32_t* value = ScriptKeyTable_Find(table, Hash);
     if (!value) {
         const float undefined = title_global<float>(kUndefinedVectorLane);
-        const float vector[3] = {undefined, undefined, undefined};
+        alignas(16) const float vector[3] = {undefined, undefined, undefined};
         using SetVector = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const float*);
         value = title_function<SetVector>(0x005b41b0)(table, Hash, vector);  // ScriptKeyTable_SetVector
     }

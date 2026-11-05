@@ -1289,7 +1289,7 @@ void XB_CDECL turret_controller(uint8_t* ent) {
     // "tag_aim_animatedY", the pitch alone onto "tag_aim_animatedP" (G_DObjSetBoneRotation,
     // controller vec3_origin). Tag hashes cached under 0x0098eba4.
     using SetBoneRotation = void XB_CDECL(uint8_t*, uint32_t, const float*, int32_t, uint32_t);
-    float angles[3];
+    alignas(16) float angles[3];
     angles[1] = field<float>(ent, 0x94);
     angles[0] = field<float>(ent, 0x90);
     angles[2] = 0.0f;
@@ -1304,7 +1304,7 @@ void XB_CDECL turret_controller(uint8_t* ent) {
         const int32_t bone = DObj_GetTagIndex(obj, hashes[i]);
         if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, angles, bone, 0);
     }
-    float single[3];
+    alignas(16) float single[3];
     single[1] = angles[1];
     single[0] = 0.0f;
     single[2] = 0.0f;
@@ -6827,7 +6827,7 @@ void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret)
         title_global<uint32_t>(0x0095f64c) = field<uint32_t>(turret, 0x90);
         title_global<uint32_t>(0x0095f650) = field<uint32_t>(turret, 0x94);
     }
-    float angles[3];
+    alignas(16) float angles[3];
     angles[0] = field<float>(turret, 0x90);
     angles[1] = field<float>(turret, 0x94);
     angles[2] = 0.0f;

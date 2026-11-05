@@ -9,6 +9,7 @@
 #include "g_script.h"
 #include "g_utils.h"
 #include "qcommon_fs.h"
+#include "stack_guard.h"
 #include "sv.h"
 #include "lanes.h"
 #include "qcommon.h"
@@ -833,6 +834,7 @@ void XB_REGS3 XB_CDECL Scr_RestoreThreadStack(const uint32_t* saved, uint32_t, u
     // The saved stack: a chain of 0xfc-byte chunks (next chunk at +0xfc), copied in words.
     const uint8_t* chunk = reinterpret_cast<const uint8_t*>(uintptr_t{saved[0]});
     int32_t remaining = static_cast<int32_t>(saved[1]);
+    stack_guard_restore(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(dst)), static_cast<uint32_t>(remaining));
     ++title_global<uint32_t>(0x0098ad18);
     while (remaining) {
         const int32_t size = remaining < 0xfc ? remaining : 0xfc;

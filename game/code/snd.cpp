@@ -130,7 +130,7 @@ void XB_REGS3 XB_CDECL SoundRef_SetSource(const uint8_t* source, uint32_t, uint8
     *reinterpret_cast<uint32_t*>(ref + 0x28) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(source));
     const uint32_t voice = ref_word(ref, 0);
     if (voice == 0xffffffffu) return;
-    float position[3];
+    alignas(16) float position[3];
     position[0] = *reinterpret_cast<const float*>(source + 0x30);
     position[1] = *reinterpret_cast<const float*>(source + 0x34);
     position[2] = *reinterpret_cast<const float*>(source + 0x38);

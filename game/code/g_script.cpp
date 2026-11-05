@@ -484,7 +484,7 @@ void XB_REGS3 XB_CDECL G_KillEntityOutright(uint32_t, uint32_t, uint8_t* ent) {
     const int32_t health = at<int32_t>(ent, 0x350);
     at<int32_t>(ent, 0x350) = health - (health + 1);
     const uint32_t world = at<uint32_t>(title_global<uint8_t*>(0x0095f534), 4);
-    float direction[3] = {0.0f, 0.0f, title_global<float>(0x0083eb20)};
+    alignas(16) float direction[3] = {0.0f, 0.0f, title_global<float>(0x0083eb20)};
     using Die = void XB_CDECL(uint8_t*, uint32_t, uint32_t, int32_t, uint32_t, uint32_t, float*, float*, uint32_t);
     title_function<Die>(title_global<uint32_t>(0x008da88c + die * 4))(ent, world, world, health + 1, 0, 0, &at<float>(ent, 0x140),
                                                                      direction, 0);

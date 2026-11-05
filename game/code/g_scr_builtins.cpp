@@ -3179,7 +3179,7 @@ void XB_CDECL GScr_ConnectPaths(uint32_t handle) {
 void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point) {
     uint8_t* const ent = handle_entity(handle);
     if (!ent) return;
-    float at[3] = {point[0], point[1], point[2]};
+    alignas(16) float at[3] = {point[0], point[1], point[2]};
     // Direction from the point to the client's origin (+0 of the client) or the entity's (+0x140), normalized
     // (none for a zero length).
     const uint8_t* const client = field<uint8_t*>(ent, 0x23c);

@@ -7,6 +7,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "shaders.h"
+#include "stack_guard.h"
 #include "stream.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
@@ -1983,12 +1984,14 @@ constexpr uint32_t kFloorMargin = 256;
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor) {
     const uint32_t previous = t_host_floor;
+    stack_guard_enter(floor);
     t_host_floor = floor;
     platform_set_title_frame_limit(floor ? floor - kFloorMargin : 0);
     return previous;
 }
 
 extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) {
+    stack_guard_leave(t_host_floor);
     t_host_floor = previous;
     platform_set_title_frame_limit(previous ? previous - kFloorMargin : 0);
 }

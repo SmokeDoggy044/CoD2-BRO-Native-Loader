@@ -23,6 +23,14 @@ ScriptStringRep* XB_THISCALL ScriptStringRep_Init(ScriptStringRep* self, uint16_
     return self;
 }
 
+// thiscall, callee pops 8: ECX saved around the call (the C may clobber it).
+PLATFORM_ASM_ENTRY(ScriptStringRep_Append_entry,
+                   "pushl %ecx\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n" PLATFORM_ASM_CALL(ScriptStringRep_Append)
+                   "popl %ecx\n"
+                   "ret $8")
+
 void XB_THISCALL ScriptStringRep_Append(ScriptStringRep* self, const char* text, uint16_t length) {
     if (!text) text = "(null)";
     char* out = self->text + self->length;

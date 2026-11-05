@@ -69,6 +69,7 @@ set(game_code_sources
     stream.cpp
     sv.cpp
     tr_main.cpp
+    stack_guard.cpp
     ui_menu.cpp
     ui_panel.cpp
     unzip.cpp

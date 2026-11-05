@@ -2523,7 +2523,7 @@ void XB_CDECL Vehicle_UpdateTurretBones(uint8_t* ent) {
     const DObj* const obj = at<const DObj*>(ent, 0x22c);
     if (!obj || !at<uint32_t>(obj, 0x20)) return;
     // Body pitch/roll (+0x250/+0x258, plus the rock), turret yaw (+0x264), barrel pitch (+0x260).
-    float body[3] = {0.0f, 0.0f, 0.0f}, turret[3] = {0.0f, 0.0f, 0.0f}, barrel[3] = {0.0f, 0.0f, 0.0f};
+    alignas(16) float body[3] = {0.0f, 0.0f, 0.0f}, turret[3] = {0.0f, 0.0f, 0.0f}, barrel[3] = {0.0f, 0.0f, 0.0f};
     if (vehicle) {
         body[0] = at<float>(vehicle, 0x250);
         body[2] = at<float>(vehicle, 0x258);
@@ -2756,7 +2756,7 @@ uint8_t* XB_CDECL Weapon_SpawnClusterGrenades(uint8_t* owner, const uint8_t* sou
         const float fy = pitch_cos * yaw_sin;
         const float fx = pitch_cos * yaw_cos;
         const float d = static_cast<float>(dist[i]);
-        float at_pos[3];
+        alignas(16) float at_pos[3];
         at_pos[0] = static_cast<float>(static_cast<int32_t>(d * fx + origin[0]));
         at_pos[1] = static_cast<float>(static_cast<int32_t>(d * fy + origin[1]));
         at_pos[2] = static_cast<float>(static_cast<int32_t>(d * up + origin[2]));
