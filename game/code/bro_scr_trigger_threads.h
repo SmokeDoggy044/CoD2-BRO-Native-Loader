@@ -21,6 +21,8 @@ void XB_CDECL BroScr_FriendlyMg42TriggerThink(uint32_t unused, uint32_t trigger)
 // 0x001bf490: spawns a "script_origin" at 0 and, every second, rebuilds the team's AI list until
 // none touches the trigger; then deletes the origin. `team` is released.
 void XB_CDECL BroScr_WaitUntilTeamNotTouching(uint32_t trigger, ScriptString team);
+// 0x001c5bf0: BroScr_WaitUntilTeamNotTouching(trigger, a copy of `team`); `team` is released.
+void XB_CDECL BroScr_WaitUntilTeamNotTouchingCall(uint32_t trigger, ScriptString team);
 // 0x001be660 (functor target): waits for a thrower (trigger 0x262a34d8; end on its death), starts its
 // BroScr_GoToBalconyNode thread (0x00922ea0), sets its ref +0x12a0 to the player; then forever: a
 // random start among the trigger target's targets, a random end among the start's targets, a manual

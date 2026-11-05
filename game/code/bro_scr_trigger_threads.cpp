@@ -360,4 +360,11 @@ void XB_CDECL BroScr_MgUserGoToNode(uint32_t turret) {
     }
 }
 
+void XB_CDECL BroScr_WaitUntilTeamNotTouchingCall(uint32_t trigger, ScriptString team) {
+    ScriptString copy;
+    ScriptString_Copy(&copy, &team);
+    BroScr_WaitUntilTeamNotTouching(trigger, copy);
+    scr_release(&team);
+}
+
 }  // namespace game

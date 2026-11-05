@@ -149,4 +149,34 @@ void XB_CDECL BroScr_ProneFaceCurrent(uint32_t ent);
 // 0x001c3ca0: random idle set, stand -> crouch attack, Shoot cleared.
 void XB_CDECL BroScr_StandToCrouchStop(uint32_t ent);
 
+// 0x001c22b0: grenade cower anim script (0xfe429dc3; ends on 0x07b4e7f7): after a random 0.25 s,
+// the prone cower or a random left / right grenade hide (side string key 0x75f8caea) from the pose
+// (crouching otherwise), its note tracks, the loop, start callback BroScr_GrenadeCowerHide; then
+// waits forever.
+void XB_CDECL BroScr_AnimScript_GrenadeCower(uint32_t ent);
+// 0x001c3d80: random idle set, "face current", prone body, prone -> crouch.
+void XB_CDECL BroScr_IdleFaceCurrent(uint32_t ent);
+// 0x001c3f10 / 0x001c3fa0: prone aim -> crawl (move `move`, into the crawl) / crawl -> aim.
+void XB_CDECL BroScr_ProneAimToCrawl(uint32_t ent, uint32_t move);
+void XB_CDECL BroScr_ProneCrawlToAim(uint32_t ent);
+// 0x001c4030 / 0x001c40f0 / 0x001c41b0: into prone (pitch blends, legs 0.3 / 0.2 s, aim weights):
+// crouch2prone gunsupport / stand2prone onehand / by the motion direction a crouch-run dive when
+// its end point is a safe move point, else gunsupport.
+void XB_CDECL BroScr_CrouchToProne(uint32_t ent);
+void XB_CDECL BroScr_StandToProne(uint32_t ent);
+void XB_CDECL BroScr_CrouchRunToProne(uint32_t ent);
+// 0x001c5f20: blend times (first, second), then Bro_aim__keep_aiming at the 0x7aeb941a point (when
+// 0x33a4ea6c is set), the 0x27cc2178 entity's origin, or the enemy's eye; min / max 0x009230ec /
+// 0x0092379c.
+void XB_CDECL BroScr_KeepAimingAtTarget(uint32_t ent, uint32_t first, uint32_t second);
+// 0x001c6ba0: ends on death / 0x39894e / 0x2cf20de4 / 0x3c77a48b; on the target's death
+// BroScr_StopForceShoot.
+void XB_CDECL BroScr_ForceShootTargetDeathWatch(uint32_t ent, uint32_t target);
+// 0x001c7600: a BroScr_AnimFaceWait call thread (anim, a3..a7, true); a3 and a6 are released.
+void XB_CDECL BroScr_StartAnimFaceWait(uint32_t ent, uint32_t anim, ScriptString a3, uint32_t a4, uint32_t a5,
+                                       ScriptString a6, uint32_t a7);
+// 0x001c79e0 / 0x001c7a00: begun threads (a1 = 1): BroScr_ChatterGrenadeAttack / BroScr_AnimScript_Walk.
+void XB_CDECL Bro_anim_main_grenade_return_throw(uint32_t ent);
+void XB_CDECL Bro_anim_main_walk(uint32_t ent);
+
 }  // namespace game
