@@ -76,4 +76,77 @@ void XB_CDECL BroScr_LookAtEntityLoop(uint32_t ent, uint32_t target);
 // 0x7aeb941a removed, stop looking.
 void XB_CDECL BroScr_StopForceShoot(uint32_t ent);
 
+// 0x001c0460: the low-wall cover idle for the weapon (anim_special 0x175567a8 0x3124fe8f = in
+// cover): faces the node or actor yaw ("face angle"); in cover, the idle set 0x62 rises
+// (special 0x36b1a5), waits 0.75 s and settles back (idle set 0x61 / 0x63); else from the crouch
+// pose movement into cover (pistol a, panzerfaust, or a / c by the idle set kept within anim
+// object +0x11c, re-picked at random 30 %).
+void XB_CDECL BroScr_StopCoverCrouchIdle(uint32_t ent);
+// 0x001c0c10: the cover-crouch idle (the assert reads only build and drop their strings): pistol /
+// no weapon play idle 1 / 2 or twitch 2 (idle set 0x63) by the idle set; a panzerfaust the low-wall
+// idle (70 %) or twitch at rate 0.9 + random 0.2; others twitch / random idle / twitch 2.
+void XB_CDECL Bro_cover_crouch__idle(uint32_t ent);
+// 0x001c0f30: the cover-crouch reload: a panzerfaust stops the cover idle; not in cover goes in
+// (crouch aim -> low wall b); then idle set 0x61 rises and settles, others c -> b, idle set 0x62.
+// The 1384 string is read and dropped; `unused` is released.
+void XB_CDECL BroScr_CoverCrouchReloadAnim(uint32_t ent, ScriptString unused);
+// 0x001c1230: out of the low-wall cover to crouch aim by weapon / idle set (special 0x36b1a5).
+void XB_CDECL BroScr_PlayCrouchIdleAnim(uint32_t ent);
+// 0x001c1470: into the cover stand idle: from stand a stand2crouch_hide transition (idle set 0x62,
+// in cover); else crouched (pose / movement set when not), in cover a / c settle to b, out of cover
+// a crouch aim -> low wall b transition.
+void XB_CDECL BroScr_CoverStandIdleTransition(uint32_t ent);
+// 0x001c1770: "face enemy", crouch hide -> stand, special 0x36b1a5.
+void XB_CDECL BroScr_FaceEnemyAnim(uint32_t ent);
+// 0x001c25f0 / 0x001c2610 / 0x001c2640: begun threads (Scr_BeginThreadFunctor1, a1 = 1):
+// BroScr_AnimScript_GrenadeCower; the 30cal stand / prone scripts set the actor int +0x1370 (fire
+// anim) first and run BroScr_SetDesiredPoseStandStop / BroScr_SetDesiredPoseProne.
+void XB_CDECL Bro_anim_main_grenade_cower(uint32_t ent);
+void XB_CDECL Bro_b30cal_stand(uint32_t ent);
+void XB_CDECL Bro_b30cal_prone(uint32_t ent);
+// 0x001c2670 (inside Ghidra's Bro_b30cal_prone, which ends at 0x001c2670; pushed by
+// Bro_anim_lmg_gmi; proposed BroScr_SetDesiredPoseProneMg42) / 0x001c27a0 / 0x001c28d0: the turret
+// pose scripts as BroScr_SetDesiredPoseProne with BroScr_Mg42AnimTree(_2/_3) and
+// BroScr_AnimScript_TurretCall_3/_4/_5: crouch then prone; prone; stand.
+void XB_CDECL BroScr_SetDesiredPoseProneMg42(uint32_t ent);
+void XB_CDECL BroScr_TurretPoseProne(uint32_t ent);
+void XB_CDECL BroScr_TurretPoseStand(uint32_t ent);
+// 0x001c29c0: a BroScr_PainAnimByHitLocation call thread (true), then for special 0x371ab2 while
+// standing the mg42 gunner pain (true); else false.
+uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_t special);
+// 0x001c2d10 (FUN_001c2d10; proposed BroScr_AnimMoveUntilEndNote): each frame a begun
+// BroScr_ForwardNotifyString(ent, forward) thread, the anim time advanced, `notify`, a note
+// (0x71445fee) waited: "end" gives true; unless the anim time ended, the anim move is applied and
+// a blocked move (byte +0x3b1) gives false, else FUN_001c2aa0(ent, 4, origin, angles).
+uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t forward, uint32_t notify);
+// 0x001c2eb0: appends {a2, a4, a5, a3, a6, a7, a8, six undefined lanes} to the anim command array
+// key 0x1791f035 and applies it (BroScr_ApplyAnimCommand).
+void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                       uint32_t a7, uint32_t a8);
+// 0x001c2f70: anim mode "nophysics", every recorded command applied again, the array emptied,
+// anim mode "none".
+void XB_CDECL BroScr_ReplayAnimCommands(uint32_t ent);
+// 0x001c3200: start walking: the combat walk when a combat anim takes over, else (alert: alert2aim)
+// the walk start into one of three combat walk loops (50 / 30 / 20 %).
+void XB_CDECL BroScr_StandStartWalk(uint32_t ent);
+// 0x001c3390 / 0x001c35b0: walk to stop (random idle set 0x61 / 0x62): rff before half the walk
+// cycle, else lff; just the move 0x385d90 when a combat anim takes over (_2: no standanim check).
+void XB_CDECL BroScr_StandWalkToStop(uint32_t ent);
+void XB_CDECL BroScr_StandWalkToStop_2(uint32_t ent);
+// 0x001c37a0: to stop standing (pistol / none: their anim; else random idle set and crouch2stand),
+// Shoot cleared.
+void XB_CDECL BroScr_StandMoveToStop(uint32_t ent);
+// 0x001c3880: crouch to crouch walk (move 0x3a09eb).
+void XB_CDECL BroScr_CrouchToCrouchWalk(uint32_t ent);
+// 0x001c38c0 / 0x001c3a20 (identical): random idle set; h66973bee set or no weapon: just the move;
+// else the crouch walk stop into crouch aim.
+void XB_CDECL BroScr_CrouchWalkToCrouchStop(uint32_t ent);
+void XB_CDECL BroScr_CrouchWalkToCrouchStop_2(uint32_t ent);
+// 0x001c3b80: BroScr_CrouchRun(ent).
+void XB_CDECL BroScr_CrouchRun_2(uint32_t ent);
+// 0x001c3b90: "face current", prone legs straight and aim weights, prone -> crouch run.
+void XB_CDECL BroScr_ProneFaceCurrent(uint32_t ent);
+// 0x001c3ca0: random idle set, stand -> crouch attack, Shoot cleared.
+void XB_CDECL BroScr_StandToCrouchStop(uint32_t ent);
+
 }  // namespace game

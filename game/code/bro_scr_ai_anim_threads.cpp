@@ -1,10 +1,15 @@
 #include "bro_scr_ai_anim_threads.h"
 
+#include <cstring>
+
 #include "bro_scr_ai_anim.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_ai_look.h"
+#include "bro_scr_ai_weapons.h"
+#include "bro_scr_nodes_spawner.h"
 #include "bro_scr_common.h"
 #include "g_scr_runtime.h"
+#include "qcommon_fs.h"
 #include "scr_access.h"
 #include "scr_field.h"
 #include "scr_field_instances.h"
@@ -28,7 +33,13 @@ using CallHashHashHash = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_
                                            const uint32_t*, const uint32_t*);
 using CallHashHashF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                         const uint32_t*, const float*);
+// A recorded anim command (13 words, the array under key 0x1791f035), passed by value.
+struct AnimCommand {
+    uint32_t w[13];
+};
+using ApplyAnimCommand = void XB_CDECL(uint32_t, AnimCommand);
 using StandCombatRun = void XB_CDECL(uint32_t);
+using BeginThreadFunctor1 = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 using Knob6 = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 using CallEntHashI = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                        const uint32_t*);
@@ -88,6 +99,94 @@ inline void bump_look_counter(uint32_t ent, uint32_t kill, bool inlined) {
     const uint32_t count = *int_slot(ent, 0x747cde6c) + 1;
     *int_slot(ent, 0x747cde6c) = count;
     queue_notify(ent, kill);
+}
+
+// GScr_ActorSetOrientMode(ent, "face angle", the node's or actor's yaw (0x00184310), 0).
+inline void orient_face_angle(uint32_t ent) {
+    uint32_t out;
+    const uint32_t yaw = *title_function<GetRef>(0x00184310)(&out, ent);  // BroScr_GetNodeOrActorYaw
+    ScriptString mode;
+    scr_string_from(&mode, 0x0083adfc);  // "face angle"
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(ent, &mode, yaw, 0);
+    scr_release(&mode);
+}
+inline uint32_t weapon_type(uint32_t ent) {
+    uint32_t out;
+    return *BroScr_GetWeaponType(&out, ent);
+}
+// BroScr_IsOneOf3(value, the three words at anim object + offset).
+inline bool is_one_of3(uint32_t value, uint32_t offset) {
+    const uint32_t* const set = reinterpret_cast<const uint32_t*>(anim_object() + offset);
+    uint8_t out;
+    return *BroScr_IsOneOf3(&out, value, set[0], set[1], set[2]) != 0;
+}
+// The cover plays: BroScr_PlayAnimWithNoteTracks(ent, anim, pose, move 0x385d90, 0, critical 1, after).
+inline void play_cover_anim(uint32_t ent, uint32_t anim, uint32_t pose) {
+    BroScr_PlayAnimWithNoteTracks(ent, anim, pose, 0x00385d90, 0, 1, anim_after());
+}
+
+// The turret pose scripts: desired pose `pose` (key 0x8cb5047a) applied (BroScr_ApplyDesiredAnimPose),
+// then `then` (when not 0) as the desired pose, move 0x385d90 (key 0xccee5c1); with a turret:
+// call threads `tree` on the turret (with the actor) and `call` on the actor (with the turret).
+inline void set_turret_pose(uint32_t ent, uint32_t pose, uint32_t then, uint32_t tree, uint32_t call) {
+    *handle_slot(ent, 0x8cb5047a) = pose;
+    BroScr_ApplyDesiredAnimPose(ent);
+    if (then) *handle_slot(ent, 0x8cb5047a) = then;
+    *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+    uint32_t turret = slot<uint32_t XB_CDECL(uint32_t)>(0x0092274c)(ent);  // GScr_ActorGetTurret
+    if (!entity_handle_is_valid(turret)) return;
+    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, tree, turret, &ent);  // Scr_CallThread_ent_ent_ORAN
+    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, call, ent, &turret);
+}
+
+// Whether a combat walk / stand anim takes over (walk_combatanim with a combat delay passed,
+// h9dc74345 without one, standanim when `stand_anim`).
+inline bool combat_anim_takes_over(uint32_t ent, bool stand_anim) {
+    bool defined;
+    uint8_t passed;
+    if (*ScrField_walk_combatanim_IsDefined(&defined, ent) && *BroScr_UpdateCombatDelay(&passed, ent)) return true;
+    if (*ScrField_h9dc74345_IsDefined(&defined, ent) && !*BroScr_UpdateCombatDelay(&passed, ent)) return true;
+    return stand_anim && *ScrField_standanim_IsDefined(&defined, ent);
+}
+// The idle set (key 0xbfc60f36) 0x61 or 0x62 at random.
+inline void random_idle_set(uint32_t ent) {
+    if (random_int(100) < 50)
+        *handle_slot(ent, 0xbfc60f36) = 0x61;
+    else
+        *handle_slot(ent, 0xbfc60f36) = 0x62;
+}
+// BroScr_StandWalkToStop(_2): the stop anim by the walk cycle's time (rff before half way, else lff),
+// or just the move 0x385d90 when a combat anim takes over.
+inline void stand_walk_to_stop(uint32_t ent, bool stand_anim) {
+    random_idle_set(ent);
+    const float time = static_cast<float>(slot<long double XB_CDECL(uint32_t, uint32_t)>(0x009225ec)(
+        ent, title_global<uint32_t>(0x008cf6c0)));  // GScr_GetAnimTime(g_anim_walk_and_run_loops)
+    if (combat_anim_takes_over(ent, stand_anim)) {
+        *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+        return;
+    }
+    const int32_t early = title_global<float>(0x0083eb24) > time ? 1 : 0;  // 0.5
+    if (static_cast<float>(early) != title_global<float>(0x0083eafc))
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf624), 0x070b89a4, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_stand_walk_stop_rff
+    else
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf618), 0x070b89a4, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_stand_walk_stop_lff
+}
+// BroScr_CrouchWalkToCrouchStop(_2) (two identical copies).
+inline void crouch_walk_to_stop(uint32_t ent) {
+    random_idle_set(ent);
+    bool defined;
+    if (*ScrField_h66973bee_IsDefined(&defined, ent)) {
+        *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
+        return;
+    }
+    if (weapon_type(ent) == 0x0036b1a5) {
+        *ScrField_anim_movement(ent) = 0x00385d90;
+        return;
+    }
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce76c), 0xc1165808, 0x00385d90, 1, 1,
+                                  title_global<uint32_t>(0x008ce520));  // g_anim_crouchwalk_stop_rff, then crouch_aim_straight
 }
 
 // The wounded pose key 0xb7f3f874: 0x6088a8c crawling, 0x68698d3 kneeling, 0x70b89a4 standing.
@@ -381,24 +480,11 @@ void XB_CDECL BroScr_AimToAlert(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_SetDesiredPoseProne(uint32_t ent) {
-    *handle_slot(ent, 0x8cb5047a) = 0xc1165808;
-    BroScr_ApplyDesiredAnimPose(ent);
-    *handle_slot(ent, 0x8cb5047a) = 0x0738b1a5;
-    *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
-    uint32_t turret = slot<uint32_t XB_CDECL(uint32_t)>(0x0092274c)(ent);  // GScr_ActorGetTurret
-    if (!entity_handle_is_valid(turret)) return;
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x0019cfc0, turret, &ent);  // Scr_CallThread_ent_ent_ORAN(BroScr_Mg30calAnimTree)
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001b6a50, ent, &turret);  // (BroScr_AnimScript_TurretCall_1)
+    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, 0x0019cfc0, 0x001b6a50);  // BroScr_Mg30calAnimTree, BroScr_AnimScript_TurretCall_1
 }
 
 void XB_CDECL BroScr_SetDesiredPoseStandStop(uint32_t ent) {
-    *handle_slot(ent, 0x8cb5047a) = 0x070b89a4;
-    BroScr_ApplyDesiredAnimPose(ent);
-    *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
-    uint32_t turret = slot<uint32_t XB_CDECL(uint32_t)>(0x0092274c)(ent);  // GScr_ActorGetTurret
-    if (!entity_handle_is_valid(turret)) return;
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x0019d180, turret, &ent);  // Scr_CallThread_ent_ent_ORAN(BroScr_Mg30calAnimTree_2)
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001b6a80, ent, &turret);  // (BroScr_AnimScript_TurretCall_2)
+    set_turret_pose(ent, 0x070b89a4, 0, 0x0019d180, 0x001b6a80);  // BroScr_Mg30calAnimTree_2, BroScr_AnimScript_TurretCall_2
 }
 
 void XB_CDECL BroScr_LookAtEnemyLoop(uint32_t ent) {
@@ -513,6 +599,417 @@ void XB_CDECL Bro_aim__keep_aiming(uint32_t ent, ScrVec3 point, float min_time, 
     if (static_cast<float>(positive) != 0.0f) Scr_Wait(time);
     queue_notify(ent, 0xf378e0c7);
     slot<Knob6>(0x009225dc)(ent, title_global<uint32_t>(0x008cf318), 0, 0x3e4ccccd, 0x3f800000, 0);  // GScr_SetAnim(g_anim_Shoot)
+}
+
+void XB_CDECL BroScr_StopCoverCrouchIdle(uint32_t ent) {
+    const uint32_t weapon = weapon_type(ent);
+    if (*handle_slot(ent, 0x175567a8) == 0x3124fe8f) {  // anim_special: low wall cover already
+        if (weapon == 0xa39d17dd) {
+            orient_face_angle(ent);
+            return;
+        }
+        if (weapon == 0xe6a85d8c || weapon == 0x0036b1a5) {  // pistol, none
+            orient_face_angle(ent);
+            const uint32_t idle = *ScrField_anim_idleset(ent);
+            const uint32_t* const set = reinterpret_cast<const uint32_t*>(anim_object() + 0xa8);
+            if (idle != set[0] && idle != set[1] && idle != set[2]) *ScrField_anim_idleset(ent) = 0x61;
+            if (*ScrField_anim_idleset(ent) != 0x62) return;
+            *ScrField_anim_special(ent) = 0x0036b1a5;
+            play_cover_anim(ent, title_global<uint32_t>(0x008ceed4), 0xc1165808);
+            Scr_Wait(0.75f);
+            *ScrField_anim_idleset(ent) = 0x61;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            play_cover_anim(ent, title_global<uint32_t>(0x008cece8), 0xc1165808);  // g_anim_pistol_crouch2lowwallcovera
+            return;
+        }
+        orient_face_angle(ent);
+        if (!is_one_of3(*ScrField_anim_idleset(ent), 0xb4)) *ScrField_anim_idleset(ent) = 0x61;
+        if (*ScrField_anim_idleset(ent) != 0x62) return;
+        *ScrField_anim_special(ent) = 0x0036b1a5;
+        play_cover_anim(ent, title_global<uint32_t>(0x008ce8d4), 0xc1165808);  // g_anim_hidelowwallb2crouch_aim
+        Scr_Wait(0.75f);
+        if (random_int(100) > 50) {
+            *ScrField_anim_idleset(ent) = 0x61;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            play_cover_anim(ent, title_global<uint32_t>(0x008ce4b4), 0xc1165808);  // g_anim_crouch2hideLowWall
+        } else {
+            *ScrField_anim_idleset(ent) = 0x63;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            play_cover_anim(ent, title_global<uint32_t>(0x008ce508), 0xc1165808);  // g_anim_crouch_aim2hidelowwallc
+        }
+        return;
+    }
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    if (weapon == 0xe6a85d8c || weapon == 0x0036b1a5) {
+        orient_face_angle(ent);
+        *handle_slot(ent, 0xbfc60f36) = 0x61;        // anim_idleset
+        *handle_slot(ent, 0x175567a8) = 0x3124fe8f;  // anim_special
+        play_cover_anim(ent, title_global<uint32_t>(0x008cece8), 0xc1165808);  // g_anim_pistol_crouch2lowwallcovera
+    } else if (weapon == 0xa39d17dd) {
+        orient_face_angle(ent);
+        *ScrField_anim_special(ent) = 0x3124fe8f;
+        play_cover_anim(ent, title_global<uint32_t>(0x008cec64), 0xc1165808);  // g_anim_panzerfaust_crouchaim2lowwallcover
+    } else {
+        orient_face_angle(ent);
+        if (random_int(100) > 70 || !is_one_of3(*ScrField_anim_idleset(ent), 0x11c))
+            *ScrField_anim_idleset(ent) = random_int(100) < 50 ? 0x61 : 0x63;
+        const uint32_t idle = *ScrField_anim_idleset(ent);
+        if (idle == 0x61) {
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            play_cover_anim(ent, title_global<uint32_t>(0x008ce4b4), 0xc1165808);  // g_anim_crouch2hideLowWall
+        } else {
+            if (idle != 0x63) *ScrField_anim_idleset(ent) = 0x63;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            play_cover_anim(ent, title_global<uint32_t>(0x008ce508), 0xc1165808);  // g_anim_crouch_aim2hidelowwallc
+        }
+    }
+}
+
+void XB_CDECL Bro_cover_crouch__idle(uint32_t ent) {
+    {
+        ScriptString message;
+        scr_string_from(&message, 0x008264f8);  // "cover_crouch::idle: Not in crouch pose."
+        get_int_184(ent);                       // the assert's read
+        scr_release(&message);
+    }
+    {
+        ScriptString message;
+        scr_string_from(&message, 0x008264c8);  // "cover_crouch::idle: Not in cover_crouch pose."
+        handle_slot(ent, 0x175567a8);
+        scr_release(&message);
+    }
+    using EntFn = void XB_CDECL(uint32_t);
+    const uint32_t weapon = weapon_type(ent);
+    if (weapon == 0xe6a85d8c || weapon == 0x0036b1a5) {  // pistol, none
+        const uint32_t idle = *handle_slot(ent, 0xbfc60f36);  // anim_idleset
+        if (idle == 0x61) {
+            title_function<EntFn>(0x00183290)(ent);  // BroScr_CoverCrouchPlayIdle_1 (agent-b list)
+        } else if (idle == 0x62) {
+            title_function<EntFn>(0x001832d0)(ent);  // BroScr_CoverCrouchPlayIdle_2 (agent-b list)
+        } else {
+            *ScrField_anim_idleset(ent) = 0x63;
+            title_function<EntFn>(0x001b7230)(ent);  // BroScr_CoverCrouchIdleTwitch_2 (agent-b list)
+        }
+    } else if (weapon == 0xa39d17dd) {
+        orient_face_angle(ent);
+        const int32_t pick = random_int(100);
+        const float rate = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3e4ccccd) +
+                                              title_global<float>(0x0083ec18));  // Scr_RandomFloat(0.2) + 0.9
+        const uint32_t notify = 0x54e3b2b6;
+        const uint32_t anim = pick < 70 ? title_global<uint32_t>(0x008cecb8)   // g_anim_panzerfaust_lowwall_idle
+                                        : title_global<uint32_t>(0x008cecc4);  // g_anim_panzerfaust_lowwall_twitch
+        ScrCall_GScr_SetFlaggedAnimKnobAll(&ent, &notify, anim, title_global<uint32_t>(0x008cd7dc), 0x3f800000,
+                                           0x3dcccccd, bits(rate));
+        handle_note_tracks(ent, 0x54e3b2b6);
+    } else {
+        const uint32_t idle = *ScrField_anim_idleset(ent);
+        if (idle == 0x61) {
+            title_function<EntFn>(0x001b7060)(ent);  // BroScr_CoverCrouchIdleTwitch (agent-b list)
+        } else if (idle == 0x62) {
+            title_function<EntFn>(0x001b7180)(ent);  // BroScr_CoverCrouchRandomIdleAnim (agent-b list)
+        } else {
+            if (idle != 0x63) *ScrField_anim_idleset(ent) = 0x63;
+            title_function<EntFn>(0x001b7230)(ent);  // BroScr_CoverCrouchIdleTwitch_2 (agent-b list)
+        }
+    }
+}
+
+void XB_CDECL BroScr_CoverCrouchReloadAnim(uint32_t ent, ScriptString unused) {
+    ScriptString name;
+    ScrCall_ScrActor_GetString_1384(&ent, &name);  // read and dropped
+    if (weapon_type(ent) == 0xa39d17dd) {
+        BroScr_StopCoverCrouchIdle(ent);
+    } else if (*handle_slot(ent, 0x175567a8) != 0x3124fe8f) {  // anim_special
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+        *ScrField_anim_idleset(ent) = 0x62;
+        *ScrField_anim_special(ent) = 0x3124fe8f;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce4fc), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_crouch_aim2hidelowwallb
+    }
+    if (*handle_slot(ent, 0xbfc60f36) != 0x62) {  // anim_idleset
+        if (*handle_slot(ent, 0xbfc60f36) == 0x61) {
+            *ScrField_anim_special(ent) = 0x0036b1a5;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8b0), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_hideLowWall2crouch
+            *ScrField_anim_idleset(ent) = 0x62;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce4fc), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_crouch_aim2hidelowwallb
+        } else {
+            *ScrField_anim_idleset(ent) = 0x62;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce904), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_hidelowwallc2hidelowwallb
+        }
+    }
+    scr_release(&name);
+    scr_release(&unused);
+}
+
+void XB_CDECL BroScr_PlayCrouchIdleAnim(uint32_t ent) {
+    if (weapon_type(ent) == 0xa39d17dd) {
+        *handle_slot(ent, 0x175567a8) = 0x0036b1a5;  // anim_special
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cecd0), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_panzerfaust_lowwallcover2crouchaim
+    } else if (*handle_slot(ent, 0xbfc60f36) == 0x61) {  // anim_idleset
+        *ScrField_anim_special(ent) = 0x0036b1a5;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8b0), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_hideLowWall2crouch
+    } else if (*ScrField_anim_idleset(ent) == 0x62) {
+        *ScrField_anim_special(ent) = 0x0036b1a5;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8d4), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_hidelowwallb2crouch_aim
+    } else if (*ScrField_anim_idleset(ent) == 0x63) {
+        *ScrField_anim_idleset(ent) = 0x62;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce904), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_hidelowwallc2hidelowwallb
+        *ScrField_anim_special(ent) = 0x0036b1a5;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8d4), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_hidelowwallb2crouch_aim
+    } else {
+        *ScrField_anim_idleset(ent) = 0x62;
+        *ScrField_anim_special(ent) = 0x0036b1a5;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8d4), 0xc1165808, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_hidelowwallb2crouch_aim
+    }
+}
+
+void XB_CDECL BroScr_CoverStandIdleTransition(uint32_t ent) {
+    using SetPoseMovement = void XB_CDECL(uint32_t, uint32_t, uint32_t);
+    const uint32_t pose = get_int_184(ent);
+    if (pose == 0x070b89a4) {
+        title_function<SetPoseMovement>(0x001a00c0)(ent, 0x070b89a4, 0x00385d90);  // BroScr_SetPoseMovement
+        BroScr_PlayPoseTransitionAnim(ent, title_global<uint32_t>(0x008cf330), 0xc1165808, 0x00385d90, 0, 0,
+                                      anim_after());  // g_anim_stand2crouch_hide
+        *handle_slot(ent, 0xbfc60f36) = 0x62;        // anim_idleset
+        *handle_slot(ent, 0x175567a8) = 0x3124fe8f;  // anim_special
+        return;
+    }
+    if (pose != 0xc1165808) {
+        if (pose != 0x0738b1a5) set_int_184(ent, 0xc1165808);
+        title_function<SetPoseMovement>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);
+    }
+    if (*handle_slot(ent, 0x175567a8) == 0x3124fe8f) {
+        if (*ScrField_anim_idleset(ent) == 0x61) {
+            *ScrField_anim_special(ent) = 0x0036b1a5;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce8b0), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_hideLowWall2crouch
+            *ScrField_anim_idleset(ent) = 0x62;
+            *ScrField_anim_special(ent) = 0x3124fe8f;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce4fc), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_crouch_aim2hidelowwallb
+        } else if (*ScrField_anim_idleset(ent) == 0x63) {
+            *ScrField_anim_idleset(ent) = 0x62;
+            BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce904), 0xc1165808, 0x00385d90, 1, 1,
+                                          anim_after());  // g_anim_hidelowwallc2hidelowwallb
+        } else if (*ScrField_anim_idleset(ent) != 0x62) {
+            *ScrField_anim_idleset(ent) = 0x62;
+        }
+    } else {
+        *ScrField_anim_special(ent) = 0x3124fe8f;
+        *ScrField_anim_idleset(ent) = 0x62;
+        BroScr_PlayPoseTransitionAnim(ent, title_global<uint32_t>(0x008ce4fc), 0xc1165808, 0x00385d90, 0, 1,
+                                      anim_after());  // g_anim_crouch_aim2hidelowwallb
+    }
+}
+
+void XB_CDECL BroScr_FaceEnemyAnim(uint32_t ent) {
+    set_orient_mode(ent, 0x0083adc0);  // "face enemy"
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce6ac), 0x070b89a4, 0x00385d90, 1, 0,
+                                  anim_after());  // g_anim_crouchhide2stand
+    *handle_slot(ent, 0x175567a8) = 0x0036b1a5;  // anim_special
+}
+
+void XB_CDECL Bro_anim_main_grenade_cower(uint32_t ent) {
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c22b0, ent);  // Scr_BeginThreadFunctor1(BroScr_AnimScript_GrenadeCower)
+}
+
+void XB_CDECL Bro_b30cal_stand(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf348));  // ScrActor_SetInt_1370(g_anim_stand30calgunner_fire)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001bfd80, ent);  // (BroScr_SetDesiredPoseStandStop)
+}
+
+void XB_CDECL Bro_b30cal_prone(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf0d8));  // ScrActor_SetInt_1370
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001bfc50, ent);  // (BroScr_SetDesiredPoseProne)
+}
+
+void XB_CDECL BroScr_SetDesiredPoseProneMg42(uint32_t ent) {
+    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, 0x0019f390, 0x001b9310);  // BroScr_Mg42AnimTree, BroScr_AnimScript_TurretCall_3
+}
+
+void XB_CDECL BroScr_TurretPoseProne(uint32_t ent) {
+    set_turret_pose(ent, 0x0738b1a5, 0x0738b1a5, 0x0019f770, 0x001b9710);  // BroScr_Mg42AnimTree_2, BroScr_AnimScript_TurretCall_4
+}
+
+void XB_CDECL BroScr_TurretPoseStand(uint32_t ent) {
+    set_turret_pose(ent, 0x070b89a4, 0, 0x001b9770, 0x001b9740);  // BroScr_Mg42AnimTree_3, BroScr_AnimScript_TurretCall_5
+}
+
+uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_t special) {
+    const uint8_t yes = 1;
+    using CallEntB = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*);
+    title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, 0x0018dbc0, ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
+    if (special == 0x00371ab2 && get_int_184(ent) == 0x070b89a4) {
+        title_function<void XB_CDECL(uint32_t)>(0x001b9950)(ent);  // BroScr_PlayStandMG42GunnerPain (agent-b list)
+        *out = 1;
+    } else {
+        *out = 0;
+    }
+    return out;
+}
+
+uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t forward, uint32_t notify) {
+    ScriptString note;
+    ScriptString_FromRep(&note, nullptr);
+    for (;;) {
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f4b00;
+            functor[1] = 0x001acae0;  // BroScr_ForwardNotifyString
+            functor[2] = ent;
+            functor[3] = forward;
+        }
+        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x00922168)(
+            0, 0, 0, ent, functor, 0);  // Scr_BeginThread
+        if (static_cast<uint8_t>(slot<uint32_t XB_CDECL()>(0x0092218c)())) Scr_WaitFrames(0);  // Scr_InThread
+        const uint8_t done = static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922760)(ent));  // GScr_ActorAdvanceAnimTime
+        queue_notify(ent, notify);
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, 0x71445fee,
+                                                                                      &note);  // Scr_WaitTillOutputStr_ORAN
+        if (note.rep && ScriptString_Equals(&note, pointer<const char>(0x00832b28))) {  // "end"
+            *out = 1;
+            break;
+        }
+        if (done) continue;
+        slot<void XB_CDECL(uint32_t)>(0x0092275c)(ent);  // GScr_ActorApplyAnimMove
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922770)(ent)) {  // ScrActor_GetByte_3b1
+            *out = 0;
+            break;
+        }
+        uint32_t buffer[3];
+        const uint32_t* a = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer, ent);  // ScrEnt_GetAngles
+        const ScrVec3 angles = {{a[0], a[1], a[2]}};
+        uint32_t origin_buffer[3];
+        const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(origin_buffer, ent);  // ScrEnt_GetOrigin
+        const ScrVec3 origin = {{o[0], o[1], o[2]}};
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, ScrVec3)>(0x001c2aa0)(ent, 4, origin, angles);  // FUN_001c2aa0
+    }
+    scr_release(&note);
+    return out;
+}
+
+void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                       uint32_t a7, uint32_t a8) {
+    const uint32_t u = undefined_lane();
+    const AnimCommand command = {{a2, a4, a5, a3, a6, a7, a8, u, u, u, u, u, u}};
+    ScriptKeyTable* const table = ent_script_object(ent);
+    DynArray_Push52(reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(table, 0x1791f035)), command.w);
+    title_function<ApplyAnimCommand>(0x00183db0)(ent, command);  // BroScr_ApplyAnimCommand (agent-b list)
+}
+
+void XB_CDECL BroScr_ReplayAnimCommands(uint32_t ent) {
+    using SetAnimMode = void XB_CDECL(uint32_t, ScriptString*);
+    {
+        ScriptString mode;
+        scr_string_from(&mode, 0x0083a928);  // "nophysics"
+        slot<SetAnimMode>(0x0092273c)(ent, &mode);  // GScr_ActorSetAnimMode
+        scr_release(&mode);
+    }
+    const uint8_t* it = reinterpret_cast<const uint8_t*>(
+        reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(ent_script_object(ent), 0x1791f035))->data);
+    for (;;) {
+        ScriptKeyTable* const table = ent_script_object(ent);
+        uint32_t* value = ScriptKeyTable_Find(table, 0x1791f035);
+        if (!value) {
+            const uint32_t empty[3] = {0, 0, 0};
+            value = ScriptKeyTable_SetNewArray_3(table, 0x1791f035, empty);
+        }
+        const DynArray* const commands = pointer<DynArray>(*value);
+        if (it == reinterpret_cast<const uint8_t*>(commands->data) + commands->size * 0x34) break;
+        AnimCommand command;
+        std::memcpy(&command, it, sizeof(command));
+        title_function<ApplyAnimCommand>(0x00183db0)(ent, command);  // BroScr_ApplyAnimCommand (agent-b list)
+        it += 0x34;
+    }
+    DynArray_Resize52(reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(ent_script_object(ent), 0x1791f035)), 0, 0);
+    {
+        ScriptString mode;
+        scr_string_from(&mode, 0x00832430);  // "none"
+        slot<SetAnimMode>(0x0092273c)(ent, &mode);
+        scr_release(&mode);
+    }
+}
+
+void XB_CDECL BroScr_StandStartWalk(uint32_t ent) {
+    if (combat_anim_takes_over(ent, true)) {
+        title_function<void XB_CDECL(uint32_t)>(0x001acf80)(ent);  // BroScr_StandCombatWalk (agent-b list)
+        return;
+    }
+    if (*ScrField_anim_alertness(ent) == 0xc028584c)
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf3d8), 0x070b89a4, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_stand_alert2aim
+    const int32_t pick = random_int(100);
+    uint32_t loop;
+    if (pick < 50)
+        loop = title_global<uint32_t>(0x008cf5e8);
+    else if (pick < 80)
+        loop = title_global<uint32_t>(0x008cf5f4);  // g_anim_stand_walk_combat_loop_02
+    else
+        loop = title_global<uint32_t>(0x008cf600);
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf60c), 0x070b89a4, 0x003a09eb, 1, 1,
+                                  loop);  // g_anim_stand_walk_start_straight
+}
+
+void XB_CDECL BroScr_StandWalkToStop(uint32_t ent) { stand_walk_to_stop(ent, true); }
+
+void XB_CDECL BroScr_StandWalkToStop_2(uint32_t ent) { stand_walk_to_stop(ent, false); }
+
+void XB_CDECL BroScr_StandMoveToStop(uint32_t ent) {
+    const uint32_t weapon = weapon_type(ent);
+    if (weapon == 0xe6a85d8c || weapon == 0x0036b1a5) {  // pistol, none
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ced0c), 0x070b89a4, 0x00385d90, 1, 1,
+                                      anim_after());
+    } else {
+        if (random_int(100) < 50)
+            *ScrField_anim_idleset(ent) = 0x61;
+        else
+            *ScrField_anim_idleset(ent) = 0x62;
+        BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce4cc), 0x070b89a4, 0x00385d90, 1, 1,
+                                      anim_after());  // g_anim_crouch2stand
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009225d4)(ent, title_global<uint32_t>(0x008cf318), 0);  // GScr_ClearAnim(g_anim_Shoot)
+}
+
+void XB_CDECL BroScr_CrouchToCrouchWalk(uint32_t ent) {
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008ce4a8), 0xc1165808, 0x003a09eb, 0, 1,
+                                  title_global<uint32_t>(0x008ce760));  // g_anim_crouch2crouchwalk_straight, then crouchwalk_loop
+}
+
+void XB_CDECL BroScr_CrouchWalkToCrouchStop(uint32_t ent) { crouch_walk_to_stop(ent); }
+
+void XB_CDECL BroScr_CrouchWalkToCrouchStop_2(uint32_t ent) { crouch_walk_to_stop(ent); }
+
+void XB_CDECL BroScr_CrouchRun_2(uint32_t ent) {
+    title_function<void XB_CDECL(uint32_t)>(0x001ad1f0)(ent);  // BroScr_CrouchRun (agent-b list)
+}
+
+void XB_CDECL BroScr_ProneFaceCurrent(uint32_t ent) {
+    set_orient_mode(ent, 0x0083adec);  // "face current"
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x009226b4)(ent, 0x3f800000);
+    slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008cf138), title_global<uint32_t>(0x008cd7dc),
+                                    0x3f800000, 0x3e4ccccd, 0x3f800000, 0);  // GScr_SetAnimKnobAll(g_anim_prone_legsstraight)
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009226bc)(
+        ent, title_global<uint32_t>(0x008cf1d4), title_global<uint32_t>(0x008cf1c8), 0x3f800000, 0x3dcccccd,
+        0x3f800000);  // GScr_ActorSetAimAnimWeights(prone shootfeet 45 up / down)
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf0cc), 0xc1165808, 0x0001c6ce, 0, 1,
+                                  title_global<uint32_t>(0x008ce70c));  // g_anim_prone2crouchrun_straight, then crouchrun_loop_forward
+}
+
+void XB_CDECL BroScr_StandToCrouchStop(uint32_t ent) {
+    random_idle_set(ent);
+    BroScr_PlayAnimWithNoteTracks(ent, title_global<uint32_t>(0x008cf324), 0xc1165808, 0x00385d90, 1, 1,
+                                  anim_after());  // g_anim_stand2crouch_attack
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009225d4)(ent, title_global<uint32_t>(0x008cf318), 0);  // GScr_ClearAnim(g_anim_Shoot)
 }
 
 }  // namespace game
