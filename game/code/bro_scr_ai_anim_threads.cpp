@@ -9,6 +9,8 @@
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
 #include "bro_scr_nodes_spawner.h"
+#include "bro_scr_note_handlers.h"
+#include "bro_scr_notify_threads.h"
 #include "bro_scr_common.h"
 #include "bro_scr_cover_turret.h"
 #include "g_scr_runtime.h"
@@ -38,10 +40,7 @@ using CallHashHashHash = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_
                                            const uint32_t*, const uint32_t*);
 using CallHashHashF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                         const uint32_t*, const float*);
-// A recorded anim command (13 words, the array under key 0x1791f035), passed by value.
-struct AnimCommand {
-    uint32_t w[13];
-};
+// A recorded anim command (AnimCommand, 13 words, the array under key 0x1791f035), passed by value.
 using ApplyAnimCommand = void XB_CDECL(uint32_t, AnimCommand);
 using StandCombatRun = void XB_CDECL(uint32_t);
 using BeginThreadFunctor1 = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
@@ -3560,6 +3559,294 @@ void XB_CDECL BroScr_AnimScript_ConcealmentStand(uint32_t ent) {
         }
         BroScr_TryReload(ent, 0, title_global<uint32_t>(0x00922ea8));
     }
+}
+
+namespace {
+// Scr_CallThread_ent_str_PROLOGUE(function) on the entity with a temporary title string.
+inline void call_thread_str(uint32_t ent, uint32_t function, uint32_t text) {
+    ScriptString arg;
+    scr_string_from(&arg, text);
+    using CallEntStr = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScriptString*);
+    title_function<CallEntStr>(0x0045b2b0)(0, 0, 0, 0, function, ent, &arg);
+    scr_release(&arg);
+}
+// The anim-script start: ends on 0x07b4e7f7, BroScr_InitAnimScript(script), the desired pose.
+inline void anim_script_begin(uint32_t ent, uint32_t script) {
+    end_on(ent, 0x07b4e7f7);
+    BroScr_InitAnimScript(ent, script);
+    BroScr_ApplyDesiredAnimPose(ent);
+}
+// A wounded actor (pose 0x19669cd9) first plays its face anim (BroScr_PlayFaceAnim_2, `pose`).
+inline void wounded_face_anim(uint32_t ent, uint32_t pose) {
+    if (get_int_184(ent) != 0x19669cd9) return;
+    ScriptString unused;
+    scr_string_from(&unused, 0x00826928);
+    BroScr_PlayFaceAnim_2(ent, unused, pose);
+}
+}  // namespace
+
+void XB_CDECL BroScr_CoverProneBehavior(uint32_t ent) {
+    uint32_t spot[3];
+    BroScr_GetCoverNodeOrOrigin(spot, ent);
+    wounded_face_anim(ent, 0x0738b1a5);
+    BroScr_MiscCombatTimer(ent);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x0738b1a5, 0x00385d90);  // BroScr_SetPoseMovement
+    slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x009226f8)(ent, spot, 0, 0);  // GScr_ActorTryTeleport
+    BroScr_ReloadLauncher(ent);
+    set_orient_mode(ent, 0x0083adc0);
+    call_thread_str(ent, 0x001dcd30, 0x00826d28);  // BroScr_AnimScript_Combat
+}
+
+void XB_CDECL BroScr_AnimScript_ConcealmentProne(uint32_t ent) {
+    anim_script_begin(ent, 0xd8651488);
+    BroScr_CoverProneBehavior(ent);
+}
+
+void XB_CDECL BroScr_AnimScript_CoverProne(uint32_t ent) {
+    anim_script_begin(ent, 0x38b92491);
+    BroScr_CoverProneBehavior(ent);
+}
+
+void XB_CDECL BroScr_AnimScript_CoverCrouch(uint32_t ent) {
+    anim_script_begin(ent, 0x3124fe8f);
+    wounded_face_anim(ent, 0xc1165808);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    call_thread_str(ent, 0x001d6a10, 0x00826b90);  // Bro_cover_crouch__cover_crouch
+}
+
+void XB_CDECL BroScr_AnimScript_ConcealmentCrouch(uint32_t ent) {
+    anim_script_begin(ent, 0x2aa2fdb3);
+    wounded_face_anim(ent, 0xc1165808);
+    BroScr_MiscCombatTimer(ent);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);
+    call_thread_str(ent, 0x001d6a10, 0x00826b74);  // Bro_cover_crouch__cover_crouch
+}
+
+void XB_CDECL BroScr_AnimScript_CoverStand(uint32_t ent) {
+    anim_script_begin(ent, 0x388a1c90);
+    wounded_face_anim(ent, 0);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x00385d90);
+    call_thread_str(ent, 0x001dc0c0, 0x00826d4c);  // Bro_cover_stand__cover_stand
+}
+
+void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused) {
+    end_on(ent, 0x07b4e7f7);
+    {
+        ScriptString message;
+        scr_string_from(&message, 0x00826c88);  // a debug print, built and dropped
+        scr_release(&message);
+    }
+    {
+        const uint32_t then = 0x001d9750;  // BroScr_CoverProne_2
+        const uint32_t done = 0x6e5fd3a8;
+        using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                       const uint32_t*);
+        title_function<Call>(0x001e4c00)(0, 0, 0, 0, 0x001b99c0, ent, &then, &done);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
+    }
+    Scr_WaitTill(ent, 0x6e5fd3a8);
+    call_thread_str(ent, 0x001de080, 0x00826c74);  // Bro_combat__RangedCombat
+    scr_release(&unused);
+}
+
+namespace {
+// The stop-at-corner pick: the actor already stopped at this corner (pose, movement 0x385d90,
+// anim_special `special`, anim_idleset 'a' / 'b') keeps its idleset; else corner A when the yaw off
+// the actor's ((yaw -/+ 0x83ef10 - angles) % 360) is within 180 (right: <= 180, left: >= 180).
+inline bool at_corner(uint32_t ent, uint32_t pose, uint32_t special) {
+    return get_int_184(ent) == pose && *handle_slot(ent, 0x0ccee5c1) == 0x00385d90 &&
+           *ScrField_anim_special(ent) == special &&
+           (*ScrField_anim_idleset(ent) == 0x61 || *ScrField_anim_idleset(ent) == 0x62);
+}
+inline bool corner_a_by_yaw(uint32_t ent, uint32_t yaw, bool left) {
+    uint32_t out[3];
+    const uint32_t* const angles = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(out, ent);  // ScrEnt_GetAngles
+    const uint32_t copy[3] = {angles[0], angles[1], angles[2]};
+    float off = as_float(yaw) - as_float(copy[1]);
+    off = left ? off + title_global<float>(0x0083ef10) : off - title_global<float>(0x0083ef10);
+    const float turn = static_cast<float>(static_cast<int32_t>(off) % 360);
+    return left ? turn >= title_global<float>(0x0083eb60) : title_global<float>(0x0083eb60) >= turn;
+}
+inline void stop_at_corner_stand(uint32_t ent, uint32_t yaw, ScriptString& unused, bool left) {
+    ScriptString name;
+    ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
+    const uint32_t special = left ? 0x38948440 : 0xa1cb941d;
+    bool a;
+    if (at_corner(ent, 0x070b89a4, special))
+        a = *ScrField_anim_idleset(ent) == 0x61;
+    else
+        a = corner_a_by_yaw(ent, yaw, left);
+    if (a) {
+        if (left) BroScr_CornerRun2AlertLeft(ent, yaw);
+        else BroScr_CornerRun2AlertRight(ent, yaw);
+    } else {
+        if (left) BroScr_CornerBRun2AlertLeft(ent, yaw);
+        else BroScr_CornerBRun2AlertRight(ent, yaw);
+    }
+    scr_release(&name);
+    scr_release(&unused);
+}
+inline void stop_at_corner_crouch(uint32_t ent, uint32_t yaw, ScriptString& unused, bool left) {
+    ScriptString name;
+    ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
+    uint32_t type;
+    BroScr_GetWeaponType(&type, ent);
+    const uint32_t special = left ? 0x38948440 : 0xa1cb941d;
+    uint32_t set;
+    if (at_corner(ent, 0xc1165808, special))
+        set = *ScrField_anim_idleset(ent);
+    else
+        set = corner_a_by_yaw(ent, yaw, left) ? 0x61 : 0x62;
+    uint8_t armed;
+    if (!*BroScr_HasWeapon(&armed, ent)) {
+        BroScr_UnarmedCrouchIdle(ent);
+    } else if (type == 0xe6a85d8c || type == 0x0036b1a5) {  // pistol / none
+        if (set == 0x61) {
+            if (left) BroScr_CoverCrouchPlayIdle_5(ent);
+            else BroScr_CoverCrouchPlayIdle_3(ent);
+        } else {
+            if (left) BroScr_CoverCrouchPlayIdle_6(ent);
+            else BroScr_CoverCrouchPlayIdle_4(ent);
+        }
+    } else if (set == 0x61) {
+        if (left) BroScr_CornerCrouchRun2AlertLeft(ent, yaw);
+        else BroScr_CornerCrouchRun2AlertRight(ent, yaw);
+    } else {
+        if (left) BroScr_CornerBCrouchRun2AlertLeft(ent, yaw);
+        else BroScr_CornerBCrouchRun2AlertRight(ent, yaw);
+    }
+    scr_release(&name);
+    scr_release(&unused);
+}
+}  // namespace
+
+void XB_CDECL BroScr_StopAtCornerStandRight(uint32_t ent, uint32_t yaw, ScriptString unused) {
+    stop_at_corner_stand(ent, yaw, unused, false);
+}
+void XB_CDECL BroScr_StopAtCornerCrouchRight(uint32_t ent, uint32_t yaw, ScriptString unused) {
+    stop_at_corner_crouch(ent, yaw, unused, false);
+}
+void XB_CDECL BroScr_StopAtCornerStandLeft(uint32_t ent, uint32_t yaw, ScriptString unused) {
+    stop_at_corner_stand(ent, yaw, unused, true);
+}
+void XB_CDECL BroScr_StopAtCornerCrouchLeft(uint32_t ent, uint32_t yaw, ScriptString unused) {
+    stop_at_corner_crouch(ent, yaw, unused, true);
+}
+
+void XB_CDECL BroScr_SpawnerFinishSpawn(uint32_t spawner, uint32_t ent, ScriptString name) {
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &name);
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString)>(0x001e0c90)(spawner, ent, copy);  // BroScr_SpawnerSetupAI
+    }
+    if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent)) {  // GScr_IsAlive
+        // ScrField_finished_spawning (a bool field; a missing word's upper bytes are the caller's stale ECX).
+        *reinterpret_cast<uint8_t*>(key_slot(ent, 0xc0bb2676, title_global<uint8_t>(0x00922ed0))) = 1;
+        uint32_t hash;
+        queue_notify(ent, *Scr_HashName(&hash, pointer<const char>(0x007f6000)));
+    }
+    scr_release(&name);
+}
+
+void XB_CDECL BroScr_TriggerNotifyLevelTargetname(uint32_t trigger) {
+    Scr_WaitTill(trigger, 0xe2a210cf);  // trigger
+    const uint32_t* const level = pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4
+                                                                                      : 0);
+    {
+        ScriptString name;
+        uint32_t hash;
+        const uint32_t value = *Scr_HashScriptString(
+            &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTargetname(&trigger, &name)));
+        queue_notify(*level, value);
+        scr_release(&name);
+    }
+    {
+        ScriptString name;
+        uint32_t hash;
+        const uint32_t* const key = Scr_HashScriptString(
+            &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTargetname(&trigger, &name)));
+        const uint32_t map = title_global<uint32_t>(0x00922ef8) + 0xfc;
+        uint32_t pair[2];  // the found iterator, then the inserted (key, value) pair
+        title_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &pair[0], key);  // HashMap_Find_PROLOGUE
+        uint32_t node = pair[0];
+        if (node == *reinterpret_cast<uint32_t*>(map + 8)) {  // end
+            pair[0] = *key;
+            pair[1] = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool (upper bytes stale in the original; 0 here)
+            uint32_t result[2];
+            using Insert = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
+            node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert_PROLOGUE_2
+        }
+        *reinterpret_cast<uint8_t*>(node + 0xc) = 1;  // the level flag of the targetname set
+        scr_release(&name);
+    }
+    slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
+}
+
+void XB_CDECL BroScr_AnimScript_Reacquire(uint32_t ent) {
+    anim_script_begin(ent, 0x812b5b15);
+    for (;;) {
+        if (get_int_184(ent) == 0x19669cd9) {
+            ScriptString unused;
+            scr_string_from(&unused, 0x00826f88);
+            BroScr_PlayFaceAnim(ent, unused);
+        }
+        if (*handle_slot(ent, 0x764918ae) == 0xc4a729a7 && *handle_slot(ent, 0x0ccee5c1) == 0x00385d90)  // alertness, movement
+            BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x00922ea4), title_global<uint32_t>(0x00922ea4));
+        else
+            title_function<void XB_CDECL(uint32_t)>(0x001e3520)(ent);  // Bro_stop__main
+    }
+}
+
+namespace {
+// The cover pose picks: the pose scripts take (ent, debug text, the node yaw, the cover node or
+// origin, a flag byte; the original writes only the slot's low byte). _1 takes the text by address
+// (released here), _2 by value.
+using CoverPose1 = void XB_CDECL(uint32_t, const ScriptString*, uint32_t, const uint32_t*, uint32_t);
+using CoverPose2 = void XB_CDECL(uint32_t, ScriptString, uint32_t, const uint32_t*, uint32_t);
+inline void cover_pose_1(uint32_t function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    ScriptString text;
+    scr_string_from(&text, 0x00826bbc);
+    title_function<CoverPose1>(function)(ent, &text, yaw, node, flag);
+    scr_release(&text);
+}
+inline void cover_pose_2(uint32_t function, uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    ScriptString text;
+    scr_string_from(&text, 0x00826ba0);
+    title_function<CoverPose2>(function)(ent, text, yaw, node, flag);
+}
+// Forever: stand / crouch allowed (a launcher never stands), 90 % chance of a pose change; the
+// pose script for the current pose (`checked`: the last case also needs standing allowed).
+inline void choose_pose_random(uint32_t ent, uint32_t pose_1, uint32_t pose_2, bool checked) {
+    Scr_EndOnString(ent, pointer<const char>(0x008325dc));
+    uint32_t out;
+    const uint32_t yaw = *title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00184310)(&out, ent);  // BroScr_GetNodeOrActorYaw
+    uint32_t node[3];
+    BroScr_GetCoverNodeOrOrigin(node, ent);
+    for (;;) {
+        uint32_t stand_ok = static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922714)(ent, 0x070b89a4));
+        const uint32_t crouch_ok = static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922714)(ent, 0xc1165808));
+        uint32_t type;
+        if (*BroScr_GetWeaponType(&type, ent) == 0xa39d17dd) stand_ok = 0;
+        const bool change = random_int(100) < 90;
+        if ((get_int_184(ent) == 0xc1165808 && !stand_ok) || (get_int_184(ent) == 0x070b89a4 && !crouch_ok) || change) {
+            if (get_int_184(ent) == 0xc1165808 && crouch_ok)
+                cover_pose_2(pose_2, ent, yaw, node, 0);
+            else
+                cover_pose_1(pose_1, ent, yaw, node, 0);
+        } else if (get_int_184(ent) == 0x070b89a4 && crouch_ok) {
+            cover_pose_2(pose_2, ent, yaw, node, 1);
+        } else if (!checked || (get_int_184(ent) == 0xc1165808 && stand_ok)) {
+            cover_pose_1(pose_1, ent, yaw, node, 1);
+        }
+    }
+}
+}  // namespace
+
+void XB_CDECL BroScr_ChoosePoseRandom(uint32_t ent) {
+    choose_pose_random(ent, 0x001d70f0, 0x001d7280, true);  // BroScr_CoverLeftPose_1 / _2
+}
+
+void XB_CDECL BroScr_ChoosePoseRandom_2(uint32_t ent) {
+    choose_pose_random(ent, 0x001d74b0, 0x001d7680, false);  // BroScr_CoverRightPose_1 / _2
 }
 
 }  // namespace game

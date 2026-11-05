@@ -403,5 +403,44 @@ void XB_CDECL BroScr_FallbackerTriggerThink(uint32_t trigger);
 // when it can shoot, a reload.
 void XB_CDECL BroScr_AnimScript_ConcealmentStand(uint32_t ent);
 
+// 0x001dd3c0: prone at the cover node (teleport), the misc combat timer, a launcher reload, then
+// BroScr_AnimScript_Combat as a call thread.
+void XB_CDECL BroScr_CoverProneBehavior(uint32_t ent);
+// 0x001de000 / 0x001de040: the concealment / cover prone anim scripts (BroScr_CoverProneBehavior).
+void XB_CDECL BroScr_AnimScript_ConcealmentProne(uint32_t ent);
+void XB_CDECL BroScr_AnimScript_CoverProne(uint32_t ent);
+// 0x001dbb90 / 0x001dba80 / 0x001dd750: the cover crouch / concealment crouch / cover stand anim
+// scripts: the pose, then Bro_cover_crouch__cover_crouch / Bro_cover_stand__cover_stand as a call thread.
+void XB_CDECL BroScr_AnimScript_CoverCrouch(uint32_t ent);
+void XB_CDECL BroScr_AnimScript_ConcealmentCrouch(uint32_t ent);
+void XB_CDECL BroScr_AnimScript_CoverStand(uint32_t ent);
+// 0x001dcd30: turns to the enemy (BroScr_TurnToEnemy_2 thread, then BroScr_CoverProne_2) until
+// 0x6e5fd3a8, then Bro_combat__RangedCombat. Releases `unused`.
+void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused);
+
+// 0x001db300 / 0x001db4a0 / 0x001db6c0 / 0x001db860: stop at a right / left corner standing /
+// crouching: corner A or B (the current idleset when already there, else by the yaw), then that
+// corner's run-to-alert script; crouching unarmed or with a pistol plays the corner idle instead.
+// Release `unused`.
+void XB_CDECL BroScr_StopAtCornerStandRight(uint32_t ent, uint32_t yaw, ScriptString unused);
+void XB_CDECL BroScr_StopAtCornerCrouchRight(uint32_t ent, uint32_t yaw, ScriptString unused);
+void XB_CDECL BroScr_StopAtCornerStandLeft(uint32_t ent, uint32_t yaw, ScriptString unused);
+void XB_CDECL BroScr_StopAtCornerCrouchLeft(uint32_t ent, uint32_t yaw, ScriptString unused);
+
+// 0x001e1f60: BroScr_SpawnerSetupAI(spawner, ent, name); a living actor gets finished_spawning and
+// notifies 0x7f6000. Releases `name`.
+void XB_CDECL BroScr_SpawnerFinishSpawn(uint32_t spawner, uint32_t ent, ScriptString name);
+// 0x001de980: on the trigger the level is notified the trigger's targetname, its level flag set, the
+// trigger deleted.
+void XB_CDECL BroScr_TriggerNotifyLevelTargetname(uint32_t trigger);
+// 0x001e3c80: the reacquire anim script: forever (wounded: the face anim first) aims at the target
+// while alert (0xc4a729a7) and stopped, else Bro_stop__main.
+void XB_CDECL BroScr_AnimScript_Reacquire(uint32_t ent);
+
+// 0x001dbc90 / 0x001dbeb0: ends on 0x8325dc; forever picks a cover pose at the node: by chance
+// and the allowed stances the left / right cover pose scripts (_1 / _2, flag 0 or 1).
+void XB_CDECL BroScr_ChoosePoseRandom(uint32_t ent);
+void XB_CDECL BroScr_ChoosePoseRandom_2(uint32_t ent);
+
 }  // namespace game
 
