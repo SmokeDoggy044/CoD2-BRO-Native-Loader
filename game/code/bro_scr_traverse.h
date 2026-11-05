@@ -6,9 +6,9 @@
 // waits (note tracks, Scr_WaitTill*): class thread_switch, kept out of kFunctions until script
 // threads run as coroutines. Names are the title's script names (Bro_*) and ours (from the bodies).
 //
-// Keys (handles in the actor's key table): 0x8cb5047a the desired pose, 0x0ccee5c1 / 0x764918ae
-// two movement keys (saved in 0x0ca29c7f / 0x7bc62f6e around some traversals), 0x682ea6e9 the
-// anim the traversal blends back to (added as 0 when missing).
+// Keys (handles in the actor's key table): 0x8cb5047a the desired pose, 0x0ccee5c1 anim_movement
+// and 0x764918ae anim_alertness (saved in 0x0ca29c7f / 0x7bc62f6e around some traversals),
+// 0x682ea6e9 the anim the traversal blends back to (added as 0 when missing).
 
 #include <cstdint>
 
