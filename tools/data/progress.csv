@@ -4345,9 +4345,9 @@ address,name,section,module,state,tested,matched
 00121010,BroScr_ExploderTriggerThink,.text,levelscript,named,0,0
 00121270,BroScr_SetAmericanScreens,.text,levelscript,matched,21,21
 00121310,BroScr_EmptyFunc_19,.text,levelscript,named,0,0
-00121320,BroScr_VehicleFireAnimIfAlive,.text,levelscript,named,0,0
+00121320,BroScr_VehicleFireAnimIfAlive,.text,levelscript,untested,0,0
 00121360,BroScr_AnimScriptedThenNotify,.text,levelscript,named,0,0
-001213c0,BroScr_VehicleFireIfAlive,.text,levelscript,named,0,0
+001213c0,BroScr_VehicleFireIfAlive,.text,levelscript,untested,0,0
 001213e0,BroScr_VectorSubtract,.text,levelscript,offline,0,0
 00121420,BroScr_TraceGroundPos,.text,levelscript,matched,9,9
 00121520,BroScr_EmptyFunc_20,.text,levelscript,named,0,0
@@ -4365,7 +4365,7 @@ address,name,section,module,state,tested,matched
 00121950,BroScr_EmptyFunc_5,.text,levelscript,named,0,0
 00121960,BroScr_TankDeadGuyPlayAnim,.text,levelscript,named,0,0
 001219c0,BroScr_WaitFrame,.text,levelscript,library,0,0
-001219d0,BroScr_VehicleFireIfAlive_2,.text,levelscript,named,0,0
+001219d0,BroScr_VehicleFireIfAlive_2,.text,levelscript,untested,0,0
 001219f0,BroScr_EmptyFunc_23,.text,levelscript,named,0,0
 00121a00,BroScr_VehicleTurretFireLoop,.text,levelscript,named,0,0
 00121a60,BroScr_NotifyLevelOnDeath,.text,levelscript,named,0,0
@@ -4396,12 +4396,12 @@ address,name,section,module,state,tested,matched
 00122a20,BroScr_FlakPanzerLoopSound,.text,levelscript,untested,0,0
 00122a60,BroScr_RestoreHealthOnDamage,.text,levelscript,named,0,0
 00122ac0,BroScr_EmptyFunc_33,.text,levelscript,named,0,0
-00122ad0,BroScr_VehicleFireIfAlive_3,.text,levelscript,named,0,0
+00122ad0,BroScr_VehicleFireIfAlive_3,.text,levelscript,untested,0,0
 00122af0,BroScr_AnimScriptedThenNotify_2,.text,levelscript,named,0,0
 00122b50,BroScr_StoneGibLaunch,.text,levelscript,named,0,0
 00122cf0,BroScr_DeleteEnt,.text,levelscript,named,0,0
 00122d00,BroScr_EmptyFunc_34,.text,levelscript,named,0,0
-00122d10,BroScr_VehicleFireAnimIfAlive_2,.text,levelscript,named,0,0
+00122d10,BroScr_VehicleFireAnimIfAlive_2,.text,levelscript,untested,0,0
 00122d50,BroScr_AnimScriptedThenNotify_3,.text,levelscript,named,0,0
 00122db0,BroScr_EmptyFunc_35,.text,levelscript,named,0,0
 00122dc0,BroScr_PlaySoundOnTempOrigin_3,.text,levelscript,named,0,0
@@ -4419,7 +4419,7 @@ address,name,section,module,state,tested,matched
 00123660,BroScr_EmptyFunc_36,.text,levelscript,named,0,0
 00123670,BroScr_LerpPlayerAngles,.text,levelscript,named,0,0
 00123900,BroScr_LerpPlayerAngles_2,.text,levelscript,named,0,0
-00123be0,BroScr_VehicleFireIfAlive_4,.text,levelscript,named,0,0
+00123be0,BroScr_VehicleFireIfAlive_4,.text,levelscript,untested,0,0
 00123c00,Bro__window_gmi__new_window_break,.text,levelscript,named,0,0
 00123d60,BroScr_EmptyFunc_37,.text,levelscript,named,0,0
 00123d70,BroScr_WoodGibLaunch,.text,levelscript,untested,0,0
