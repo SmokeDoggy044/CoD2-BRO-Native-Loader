@@ -36,6 +36,7 @@
 #include "bro_scr_vehicle.h"
 #include "bro_scr_vehicle_health.h"
 #include "bro_scr_vehicle_path.h"
+#include "bro_scr_wait_notify.h"
 #include "bro_scr_wallhop.h"
 #include "bro_scr_wad.h"
 #include "bro_scr_world.h"
@@ -2831,16 +2832,22 @@ const Function kFunctions[] = {
     {"BroScr_GetGameSkill", 0x00120b00, 0, code(&BroScr_GetGameSkill), 4, Result::None, Status::Compare},
     {"BroScr_InitLevelCvars", 0x00120b80, 0, code(&BroScr_InitLevelCvars), 0, Result::None, Status::Compare},
     {"BroScr_SetAmericanScreens", 0x00121270, 0, code(&BroScr_SetAmericanScreens), 0, Result::None, Status::Compare},
+    {"BroScr_VehicleFireAnimIfAlive", 0x00121320, 0, code(&BroScr_VehicleFireAnimIfAlive), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleFireIfAlive", 0x001213c0, 0, code(&BroScr_VehicleFireIfAlive), 4, Result::None, Status::Compare},
     {"BroScr_VectorSubtract", 0x001213e0, 0, code(&BroScr_VectorSubtract), 28, Result::Eax, Status::Compare},
     {"BroScr_TraceGroundPos", 0x00121420, 0, code(&BroScr_TraceGroundPos), 20, Result::Eax, Status::Compare},
+    {"BroScr_VehicleFireIfAlive_2", 0x001219d0, 0, code(&BroScr_VehicleFireIfAlive_2), 4, Result::None, Status::Compare},
     {"BroScr_TraceGroundPos_2", 0x00121b30, 0, code(&BroScr_TraceGroundPos_2), 16, Result::Eax, Status::Compare},
     {"BroScr_SetRandomVictoryQuote", 0x00121ed0, 0, code(&BroScr_SetRandomVictoryQuote), 0, Result::None, Status::Compare},
     {"BroScr_NotifyExplode", 0x00122440, 0, code(&BroScr_NotifyExplode), 4, Result::None, Status::Compare},
     {"BroScr_FlakPanzerLoopSound", 0x00122a20, 0, code(&BroScr_FlakPanzerLoopSound), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleFireIfAlive_3", 0x00122ad0, 0, code(&BroScr_VehicleFireIfAlive_3), 4, Result::None, Status::Compare},
+    {"BroScr_VehicleFireAnimIfAlive_2", 0x00122d10, 0, code(&BroScr_VehicleFireAnimIfAlive_2), 4, Result::None, Status::Compare},
     {"BroScr_InitTankDebugCvars", 0x00122f50, 0, code(&BroScr_InitTankDebugCvars), 0, Result::None, Status::Compare},
     {"BroScr_MakeVec0Y0", 0x001233f0, 0, code(&BroScr_MakeVec0Y0), 16, Result::Eax, Status::Compare},
     {"BroScr_MakeVecXY0", 0x00123430, 0, code(&BroScr_MakeVecXY0), 16, Result::Eax, Status::Compare},
     {"BroScr_NormalizeTeamName", 0x00123470, 0, code(&BroScr_NormalizeTeamName), 8, Result::None, Status::Compare},
+    {"BroScr_VehicleFireIfAlive_4", 0x00123be0, 0, code(&BroScr_VehicleFireIfAlive_4), 4, Result::None, Status::Compare},
     {"BroScr_WoodGibLaunch", 0x00123d70, 0, code(&BroScr_WoodGibLaunch), 16, Result::None, Status::Compare},
     {"BroScr_WoodGibInit", 0x00123f00, 0, code(&BroScr_WoodGibInit), 20, Result::None, Status::Compare},
     {"BroScr_AnimHandles_tankdeadguys", 0x00123fc0, 0, code(&BroScr_AnimHandles_tankdeadguys), 0, Result::Eax, Status::Compare},

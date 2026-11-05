@@ -17,6 +17,7 @@ set(game_code_sources
     bro_scr_banim_handles.cpp
     bro_scr_brofunc.cpp
     bro_scr_cover_turret.cpp
+    bro_scr_death_watch.cpp
     bro_scr_defaults.cpp
     bro_scr_drone.cpp
     bro_scr_drones.cpp
@@ -26,7 +27,6 @@ set(game_code_sources
     bro_scr_gibs.cpp
     bro_scr_level.cpp
     bro_scr_level_info.cpp
-    bro_scr_mission.cpp
     bro_scr_math.cpp
     bro_scr_mission.cpp
     bro_scr_mortar.cpp
@@ -42,8 +42,10 @@ set(game_code_sources
     bro_scr_battle_threads.cpp
     bro_scr_anim_threads.cpp
     bro_scr_vehicle_path.cpp
-    bro_scr_wallhop.cpp
     bro_scr_wad.cpp
+    bro_scr_wait_misc.cpp
+    bro_scr_wait_notify.cpp
+    bro_scr_wallhop.cpp
     bro_scr_world.cpp
     cg_ents.cpp
     cg_hud.cpp
