@@ -61,3 +61,30 @@ uint32_t* XB_CDECL BroScr_GetYawToEnemy(uint32_t* out, uint32_t ent);
 void XB_CDECL BroScr_MeleePair_Link(uint32_t a, uint32_t b);
 
 }  // namespace game
+
+namespace game {
+
+struct ScrVec3;
+
+// 0x001b2990: whether the actor (armed, with a valid enemy or `target`) can shoot at the target's
+// eye (or origin for a non-sentient; the enemy's eye without a target) or 20 below it with
+// `offset`; unless `flag` is 0, first also from its "tag_flash" corrected by eye - tag.
+uint8_t* XB_CDECL BroScr_GetMuzzleOrigin(uint8_t* out, uint32_t actor, ScrVec3 offset, uint32_t target, uint32_t flag);
+// 0x001ba930: BroScr_GetMuzzleOrigin with a zero offset.
+uint8_t* XB_CDECL BroScr_GetMuzzleOriginCall(uint8_t* out, uint32_t actor, uint32_t target, uint32_t flag);
+// 0x001ba990: BroScr_GetMuzzleOrigin from `pose` (stand / crouch / prone): blocked weapons fail
+// (prone with 0x371a54 succeeds), the height change from the current pose, `offset` taken from
+// local to world relative to the origin unless undefined; target 0.
+uint8_t* XB_CDECL BroScr_CanShootFromPose(uint8_t* out, uint32_t actor, uint32_t pose, ScrVec3 offset, uint32_t flag);
+// 0x001c24e0 (dead) / 0x001c30e0: the nearest enemy is beyond anim-object +0x90 (500 undefined)
+// and the actor can shoot prone (flag: the word at 0x00922ebc / 1): may it move to `point` prone.
+uint32_t* XB_CDECL BroScr_ShouldGoProne(uint32_t* out, uint32_t actor, ScrVec3 point, uint32_t yaw);
+uint32_t* XB_CDECL BroScr_ShouldGoProne_2(uint32_t* out, uint32_t actor, ScrVec3 point, uint32_t yaw);
+
+// 0x001c4360: whether the actor can shoot at its enemy (BroScr_GetMuzzleOrigin, zero offset); the
+// miss count 0xa31c116e is reset on success, else counted (unless `count_misses` is 0; undefined
+// counts); above 4 misses: GScr_ActorFindBetterCover and reset.
+uint32_t* XB_CDECL BroScr_CheckCanShoot(uint32_t* out, uint32_t actor, uint32_t count_misses);
+
+}  // namespace game
+

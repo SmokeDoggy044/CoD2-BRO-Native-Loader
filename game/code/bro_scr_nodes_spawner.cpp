@@ -466,3 +466,31 @@ void XB_CDECL BroScr_PopActorFloat82c(uint32_t actor) {
 
 }  // namespace game
 
+
+namespace game {
+
+// The ScrNode_StringNonEmpty shape (scr_field.cpp) for script_chain: the copier runs at the
+// original's ESP (frame: push ecx (the temporary string), push ebx).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BroScr_NodeHasScriptChain_c(uint32_t entry_esp, uint32_t node) {
+    const uint32_t got = entry_esp - 4;
+    TitleRegs regs{};
+    regs.ecx = node;
+    const uint32_t args[1] = {got};
+    title_call_at_regs(entry_esp - 8, 0x001812d0, &regs, 1, args);  // ScrPathNodeField_script_chain_Copy
+    const bool non_empty = title_global<uint32_t>(got) != 0;
+    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(got);  // ScriptString_Release
+    return non_empty;
+}
+
+void* XB_THISCALL ScrField_fallback_Copy(uint8_t* self, void* out) {
+    ScriptKeyTable_GetArrayCopyOrEmpty_4(reinterpret_cast<ScriptKeyTable*>(self - 0xc), static_cast<uint32_t*>(out),
+                                         0x9ef08b23);
+    return out;
+}
+
+}  // namespace game
+
+PLATFORM_ASM_ENTRY(BroScr_NodeHasScriptChain_entry,
+                   "movl %esp, %edx\n" GAME_GAP_ESP("0x10000")
+                   "pushl %ecx\n pushl %edx\n" PLATFORM_ASM_CALL(BroScr_NodeHasScriptChain_c)
+                   "addl $8, %esp\n popl %esp\n ret")

@@ -15,10 +15,12 @@ set(game_code_sources
     bro_scr_anim_handles.cpp
     bro_scr_array.cpp
     bro_scr_banim_handles.cpp
+    bro_scr_brofunc.cpp
     bro_scr_cover_turret.cpp
     bro_scr_defaults.cpp
     bro_scr_drone.cpp
     bro_scr_drones.cpp
+    bro_scr_exploder.cpp
     bro_scr_flak.cpp
     bro_scr_fx.cpp
     bro_scr_level.cpp

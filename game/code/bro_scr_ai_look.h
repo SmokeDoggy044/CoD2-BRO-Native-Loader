@@ -55,3 +55,12 @@ void XB_CDECL BroScr_DelayTimerOnScriptChange(uint32_t ent, uint32_t script);
 uint32_t* XB_CDECL BroScr_GetEnemyEyePos(uint32_t* out, uint32_t ent);
 
 }  // namespace game
+
+namespace game {
+
+// 0x001ac700: when the player is alive and close (squared distance below anim-object +0x60), the
+// actor's anim script is not 0x22a9df44 / 0xef68c4d4, its 0x644536d0 time has passed and it can
+// see the player: BroScr_LookAtEntity(actor, player, 0.75..1.5 s, ...) and true.
+uint8_t* XB_CDECL BroScr_TryLookAtPlayer(uint8_t* out, uint32_t actor);
+
+}  // namespace game

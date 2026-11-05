@@ -74,3 +74,58 @@ namespace game {
 void XB_CDECL BroScr_UseNodeTurret(uint32_t actor, uint32_t turret, uint32_t aim_anim);
 
 }  // namespace game
+
+namespace game {
+
+struct ScriptString;
+
+// 0x001abb00 (FUN_001abb00; proposed BroScr_GetFieldUnlessAutoOrSemi): 0 for fire types auto
+// (0x315aef) / semi (0x3819c9), else the int field 0xc786fa48. Returns out.
+uint32_t* XB_CDECL BroScr_GetFieldUnlessAutoOrSemi(uint32_t* out, uint32_t actor);
+// 0x001abb70: whether the clip key 0x0feddbea is at most int(clip size x `fraction`) (0 for the
+// undefined float; clip 0 without a weapon); false while key 0x0ccee5c1 is 0x1c6ce.
+uint8_t* XB_CDECL BroScr_NeedsReload(uint8_t* out, uint32_t actor, uint32_t fraction_bits);
+// 0x001abfc0: blends three aim anims by the yaw to the enemy relative to `base` (wrapped to
+// -180..180) against the limits a < b < c: weights clamped to 0.01..0.99 between neighbours.
+void XB_CDECL BroScr_BlendAimAnimsByYaw(uint32_t ent, uint32_t anim_a, uint32_t anim_b, uint32_t anim_c, uint32_t a_bits,
+                                       uint32_t b_bits, uint32_t c_bits, uint32_t base_bits);
+// 0x001ac2c0 / 0x001ac360: the cover-left / cover-right anim set (an anim-script global) for the
+// weapon (0xa39d17dd, pistol) or idle set 0x61, by stand / other pose.
+uint32_t XB_CDECL BroScr_GetCoverLeftAnimSet(uint32_t actor);
+uint32_t XB_CDECL BroScr_GetCoverRightAnimSet(uint32_t actor);
+// 0x001ac400 (functor target): end on 0x07b4e7f7, anim script 0x5f32132f, pose movement
+// (0xc1165808, 0x385d90), sentient int +0x38 = 0.
+void XB_CDECL BroScr_AnimScript_GrenadeRecover(uint32_t ent);
+// 0x001ac470: the combat / crouch run anims for the weapon (pistol or none, LMG, other) and the
+// two random run-rate floats when undefined (0.8 + rand 0.4; the second 0.9 + for non-axis).
+void XB_CDECL BroScr_GetCombatRunAnim(uint32_t actor);
+// 0x001acb60: clears the anim struct 0x12993a44 (+0 = 0, +0x1c/+0x24 undefined, string +0x20
+// released). 0x001acc10 (inside Ghidra's 0x001acb60; proposed BroScr_SetAnimStruct_12993a44, used
+// by the levels): copies a struct in (string "normal" when unset, anim g_anim_Body for 0xfefefefe).
+void XB_CDECL BroScr_ResetAnimStruct_12993a44(uint32_t ent);
+void XB_CDECL BroScr_SetAnimStruct_12993a44(uint32_t ent, const uint32_t* source);
+// 0x001ad3f0: moves the actor's gun to `hand` (0x3798b4 left / 0x7151174 right, anything else:
+// none): reattaches the current model at the held hand's tag, detaches it from the new hand's tag,
+// stores the model name (0x81ea0dd3) and hand (0x1de0c645), then BroScr_GetCombatRunAnim. Nothing
+// when hand and model already match.
+void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand);
+
+// 0x001b2c80: unlinks `a` from its melee partner (field 0x31aaf853) and `b` from a partner that is
+// not paired back; false for an invalid `b` or one paired both ways with another.
+uint8_t* XB_CDECL BroScr_MeleePair_Relink(uint8_t* out, uint32_t a, uint32_t b);
+// 0x001b4da0: detaches all, then puts the gun back in the stored hand (0x1de0c645) when defined.
+void XB_CDECL BroScr_ReattachGunInHand(uint32_t actor);
+// 0x001b60c0 (functor target): BroScr_ReattachGunInHand on each "allies" AI without field 0xa1763cc1
+// (the allies spawners only counted), at most 100000.
+void XB_CDECL BroScr_ReattachAlliesGuns();
+// 0x001c2b40 (FUN_001c2b40; proposed BroScr_AnimMoveUntilObstacle): advances and applies the anim
+// move for seconds x 20 frames (tracking it through 0x001c2aa0) until an obstacle: kind 0x074645e4
+// turns the actor to face its yaw (true), 0x61710285 stops (false).
+uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uint32_t seconds_bits);
+
+// 0x001dab60: the anim object's pose-movement handlers (+0x168..+0x188: BroScr_PoseMove_StandStop
+// .. BroScr_PoseMove_ProneRun).
+void XB_CDECL BroScr_InitPoseMovementTable();
+
+}  // namespace game
+

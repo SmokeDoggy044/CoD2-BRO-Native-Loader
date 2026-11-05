@@ -1138,6 +1138,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f4e50,Scr_NopFieldSetter,4000,4000,0,0,100.0
 002f4ea0,GScr_Set95f4b4,4000,4000,0,0,100.0
 002f4ed0,ScrField_SetByte,1614,1614,0,0,100.0
+002f4f30,BroFunc_Find,3814,3814,0,0,100.0
 002f5190,GScr_EmptyStub221,4000,4000,0,0,100.0
 002f51a0,GScr_EmptyStub220,4000,4000,0,0,100.0
 002f51b0,GScr_EmptyStub223,4000,4000,0,0,100.0
