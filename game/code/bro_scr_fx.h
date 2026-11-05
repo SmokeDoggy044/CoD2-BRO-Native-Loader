@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "scr_access.h"
 #include "script_string.h"
 
 namespace game {
@@ -26,5 +27,10 @@ void XB_CDECL BroScr_RandomSoundBurstsThread_2(uint32_t entity, uint32_t alias, 
                                                uint32_t a6);
 void XB_CDECL BroScr_RandomSoundBurstsThread_3(uint32_t entity, uint32_t alias, uint32_t a3, uint32_t a4, uint32_t a5,
                                                uint32_t a6, uint32_t a7, uint32_t a8);
+
+// 0x001653b0: spawns a "script_origin" at `origin` (GScr_Spawn), then a BroScr_RandomSoundBursts
+// thread on it with pointers to alias, a5..a11 (the arguments in place; `self` is unused).
+void XB_CDECL BroScr_SpawnLoopSoundOrigin(uint32_t self, uint32_t alias, ScrVec3 origin, uint32_t a5, uint32_t a6,
+                                          uint32_t a7, uint32_t a8, uint32_t a9, uint32_t a10, uint32_t a11);
 
 }  // namespace game

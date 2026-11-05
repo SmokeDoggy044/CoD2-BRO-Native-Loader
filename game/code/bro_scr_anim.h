@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -39,5 +40,12 @@ void XB_CDECL BroScr_AnimCmd_SetAnimKnobAll(uint32_t a1, uint32_t a2, uint32_t a
                                             uint32_t a6, uint32_t a7, uint32_t a8);
 void XB_CDECL BroScr_AnimCmd_SetFlaggedAnimKnobAll(uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
                                                    uint32_t a6, uint32_t a7, uint32_t a8);
+
+// 0x00169650: appends `ent` to the level's list for `name` (map 0x00922ee0 +0x408: hash -> int
+// -> handle map; a copy of it is made and destroyed first, as the script's discarded read)
+// unless it is already in it: [0] when empty, else [count] (the int map's find/insert inline,
+// a missing key inserted as the undefined handle). The int-map members it calls (0x0078b560,
+// 0x0078d040, 0x0078d440) sit in a level section. Releases `name`.
+void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent);
 
 }  // namespace game

@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -24,5 +25,9 @@ void XB_CDECL BroScr_SetPerTeamValue_d0(uint32_t entity, uint32_t value);
 void XB_CDECL BroScr_SetPerTeamValue_d4(uint32_t entity, uint32_t value);
 void XB_CDECL BroScr_SetPerTeamValue_d8(uint32_t entity, uint32_t value);
 void XB_CDECL BroScr_SetPerTeamValue_dc(uint32_t entity, uint32_t value);
+
+// 0x00181810: *out = the burst factor of `mode` by hash: 0x061b4614 -> 0.5, 0x06733c59 -> 1,
+// 0xf88dfb93 -> 0.8, else 1.5. Releases `mode`; returns out.
+uint32_t* XB_CDECL BroScr_MgBurstModeFactor(uint32_t* out, ScriptString mode);
 
 }  // namespace game

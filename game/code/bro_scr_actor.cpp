@@ -204,4 +204,38 @@ uint32_t XB_CDECL BroScr_LoadGmiInitLevelVars() {
     return 0;
 }
 
+uint32_t* XB_THISCALL BroScr_GetSentientRef3c(const uint32_t* self, uint32_t* out) {
+    uint32_t value;
+    const uint32_t* ref = scr_slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922e00)(&value, *self);  // ScrSentient_GetRef_3c
+    *out = *ref;
+    return out;
+}
+
+uint32_t* XB_CDECL BroScr_GetEyePos(uint32_t* out, const uint32_t* ent) {
+    const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+    uint32_t eye[3] = {lane, lane, lane};
+    scr_slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922528)(*ent, eye);  // GScr_GetEye
+    out[0] = eye[0];
+    out[1] = eye[1];
+    out[2] = eye[2];
+    return out;
+}
+
+void XB_CDECL BroScr_DropWeaponRight(uint32_t ent) {
+    uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+    uint32_t origin[3] = {lane, lane, lane};
+    uint32_t velocity[3] = {0, 0, title_global<uint32_t>(0x0083eb98)};  // (0, 0, 10)
+    ScriptString tag;
+    scr_string_from(&tag, 0x007f6438);  // "TAG_WEAPON_RIGHT"
+    lane = title_global<uint32_t>(0x00922eb8);
+    uint32_t pos[3] = {lane, lane, lane};
+    scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x0092261c)(ent, pos, &tag);  // GScr_GetTagOrigin
+    origin[0] = pos[0];
+    origin[1] = pos[1];
+    origin[2] = pos[2];
+    scr_release(&tag);
+    scr_slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t*, uint32_t)>(0x0092260c)(ent, origin, velocity,
+                                                                                    0x40400000);  // GScr_MagicGrenadeManual(.., 3.0f)
+}
+
 }  // namespace game
