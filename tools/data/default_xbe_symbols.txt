@@ -4954,14 +4954,14 @@
 00143430 BroScr_InitWingTurret_2
 00143460 BroScr_P47PlaneCrash
 00143870 BroScr_VehicleInit_PanzerIV
-00143a40 FUN_00143a40
+00143a40 BroScr_FlipLevelFlagOnDeath
 00143b40 BroScr_FlakWaitStartTrigger
 00143cb0 BroScr_FlakCrewAnim
 001441c0 BroScr_FlakCrewAnims
 00145000 BroScr_RocketExplosionThread
 00145080 BroScr_VehicleInit_Sherman
 00145310 BroScr_SquadMemberThink
-001454a0 FUN_001454a0
+001454a0 BroScr_SquadMemberThinkOnNotify
 001455e0 BroScr_SpawnStoneGibs
 00145ac0 BroScr_VehicleExplodeSound
 00145c80 BroScr_InitWingTurret_3

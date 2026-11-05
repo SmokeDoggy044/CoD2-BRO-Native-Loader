@@ -14728,3 +14728,5 @@ address,name,kind,confidence,evidence
 001b6ab0,BroScr_TryShootRunBack,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 001a81b0,BroScr_WaitTriggerAiCleared,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 001b7e70,BroScr_AnimScriptEntSetDefaults,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+00143a40,BroScr_FlipLevelFlagOnDeath,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+001454a0,BroScr_SquadMemberThinkOnNotify,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
