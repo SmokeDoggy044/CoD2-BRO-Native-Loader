@@ -235,5 +235,62 @@ void XB_CDECL BroScr_RecordAnimCommand3(uint32_t ent, uint32_t a2, uint32_t a3, 
 // and both keys removed; 0x210b183c copied to 0xe0e46b1d when set.
 void XB_CDECL BroScr_ScriptedAnimInit(uint32_t ent);
 
+// 0x001c6840: with rounds left (0x0feddbea): a pending rechamber (0xc786fa48) plays the upper-body
+// bolt anim, sound and note tracks and clears it; else a look-at-enemy thread and a burst (auto 3-8,
+// semi 2-3, else 1 and a rechamber pending) while rounds last and the target is within 25 degrees,
+// each shot counting a round down; then notify 0x807e5a80.
+void XB_CDECL BroScr_RechamberRifle(uint32_t ent);
+// 0x001ca3c0: ends on 0x07b4e7f7 (and `end` when defined), waits `delay` when defined, then
+// BroScr_RechamberRifle.
+void XB_CDECL BroScr_RechamberRifleDelayed(uint32_t ent, uint32_t end, uint32_t delay);
+// 0x001c6c00: the rambo anticipation, then automatic: one burst of 5-9 shots on note 0x32aa25 when
+// the muzzle is clear; else 2-4 single semi-auto shots (muzzle clear), each after its interval.
+void XB_CDECL BroScr_RamboFire(uint32_t ent);
+// 0x001c6ea0: until the actor can shoot, `time` runs out or a sentient slot is pending: the three
+// aim anims in steps of 0.25 s (four at a time). `name` ("FIXME" when empty) is released.
+void XB_CDECL BroScr_AimUntilCanShoot(uint32_t ent, uint32_t anim_a, uint32_t anim_b, uint32_t anim_c, uint32_t time,
+                                      ScriptString name);
+// 0x001c98d0: with a reload pending (BroScr_GetFieldUnlessAutoOrSemi): launchers (three weapon types)
+// reload in place (int f0 = f4, 0x552cfcab set, gun in the right hand, clip refilled, pending cleared);
+// else a reload-timeout and a rechamber thread, then waits for 0x5e12d3d2.
+void XB_CDECL BroScr_ReloadLauncher(uint32_t ent);
+// 0x001c9890: blend times, the idle anim, then BroScr_KeepAimingAtTarget(0x009230ec, 0x0092379c).
+void XB_CDECL BroScr_AimIdleAtTarget(uint32_t ent, uint32_t first, uint32_t second);
+// 0x001cba70 (functor target): on each trigger: "giveupposition" chatter, a look at the player, 5 s.
+void XB_CDECL BroScr_GiveUpPositionChatter(uint32_t ent);
+// 0x001cd050: BroScr_BattleChatter(ent, "death").
+void XB_CDECL BroScr_BattleChatterOnDeath(uint32_t ent);
+// 0x001dca00: once (anim object +0x158 undefined): the "animscriptent" cvar (-1 when not positive),
+// an empty level thread, the anim object's ranges / times / idle-set letters / voice counts, the pose
+// movement table and the weapon class.
+void XB_CDECL BroScr_AnimScriptEntInit(uint32_t ent);
+// 0x001dcc70 / 0x001dcca0: for a valid entity BroScr_AnimScriptEntInit and FUN_001b7e70; the latter
+// returns 0.
+void XB_CDECL BroScr_AnimScriptEntInitIfValid(uint32_t ent);
+uint32_t XB_CDECL Bro_anim_main_init(uint32_t ent);
+// 0x001cdb30: BroScr_ScriptedAnimInit, then BroScr_WaitKillAnimScript as a begun thread.
+void XB_CDECL Bro_anim_main_scripted(uint32_t ent);
+// The anim-script main entries (begun threads, a1 = 1): 0x001cdb10 pain, 0x001d96d0 concealment
+// stand, 0x001d96f0 / 0x001d9710 cover wide left / right, 0x001d9730 death, 0x001dccd0 concealment
+// crouch, 0x001dccf0 cover crouch, 0x001dcd10 run, 0x001dd850 combat, 0x001dd870 / 0x001dd890 /
+// 0x001dd8b0 cover left / right / stand, 0x001de940 concealment prone, 0x001de960 cover prone,
+// 0x001e3c60 stop, 0x001e3da0 reacquire.
+void XB_CDECL Bro_anim_main_pain(uint32_t ent);
+void XB_CDECL Bro_anim_main_concealment_stand(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_wide_left(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_wide_right(uint32_t ent);
+void XB_CDECL Bro_anim_main_death(uint32_t ent);
+void XB_CDECL Bro_anim_main_concealment_crouch(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_crouch(uint32_t ent);
+void XB_CDECL Bro_anim_main_run(uint32_t ent);
+void XB_CDECL Bro_anim_main_combat(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_left(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_right(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_stand(uint32_t ent);
+void XB_CDECL Bro_anim_main_concealment_prone(uint32_t ent);
+void XB_CDECL Bro_anim_main_cover_prone(uint32_t ent);
+void XB_CDECL Bro_anim_main_stop(uint32_t ent);
+void XB_CDECL Bro_anim_main_reacquire(uint32_t ent);
+
 }  // namespace game
 

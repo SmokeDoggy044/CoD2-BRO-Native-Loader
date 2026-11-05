@@ -169,6 +169,16 @@ inline bool int_set(uint32_t ent, uint32_t key) {
     const uint32_t* const value = ScriptKeyTable_Find(table, key);
     return (value ? *value : 0) != 0;
 }
+using SetAnim6 = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+// Scr_BeginThreadFunctor1(1, 0, 0, 0, function, ent): an anim script as a begun thread.
+inline void begin_anim_thread(uint32_t ent, uint32_t function) {
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, function, ent);
+}
+// The level object's handle word (g_levelScriptObject + 4; a null object reads address 0).
+inline uint32_t level_handle() {
+    const uint32_t object = title_global<uint32_t>(0x00922ef8);
+    return *pointer<uint32_t>(object ? object + 4 : 0);
+}
 // Whether the sentient's team is "axis".
 inline bool team_is_axis(uint32_t ent) {
     ScriptString team;
@@ -1711,6 +1721,232 @@ void XB_CDECL BroScr_ScriptedAnimInit(uint32_t ent) {
         ScriptString_Assign(title_function<GetString>(0x00458da0)(ent_script_object(ent), 0xe0e46b1d), from);
     }
 }
+
+void XB_CDECL BroScr_RechamberRifle(uint32_t ent) {
+    if (static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) <= 0) return;  // no rounds left
+    if (*int_slot(ent, 0xc786fa48) != 0) {  // rechamber pending: the bolt anim and sound
+        slot<SetAnim6>(0x009225dc)(ent, title_global<uint32_t>(0x008cf6a8), bits(1.0f), bits(0.1f), bits(1.0f),
+                                   0);  // GScr_SetAnim(g_anim_upperbody)
+        slot<SetAnim7>(0x009225e0)(ent, 0x5e10573a, title_global<uint32_t>(0x008cf6b4), bits(1.0f), bits(0.1f), bits(1.0f),
+                                   0);  // GScr_SetFlaggedAnimKnob(g_anim_upperbody_rechamber)
+        {
+            ScriptString sound;
+            scr_string_from(&sound, 0x00826578);  // "weap_kar98k_rechamber"
+            slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0,
+                                                                                                0);  // GScr_PlaySound
+            scr_release(&sound);
+        }
+        handle_note_tracks(ent, 0x5e10573a);
+        *ScrField_hc786fa48(ent) = 0;
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009225d4)(ent, title_global<uint32_t>(0x008cf6a8),
+                                                                     bits(0.1f));  // GScr_ClearAnim
+        return;
+    }
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001bfe70, ent);  // Scr_BeginThreadFunctor1(BroScr_LookAtEnemyLoop)
+    int32_t shots;
+    uint32_t fire;
+    if (*BroScr_GetWeaponFireType(&fire, ent) == 0x00315aef) {  // automatic
+        shots = random_int(6) + 3;
+    } else if (*BroScr_GetWeaponFireType(&fire, ent) == 0x003819c9) {  // semi-automatic
+        shots = random_int(2) + 2;
+    } else {
+        shots = 1;
+        *ScrField_hc786fa48(ent) = 1;
+    }
+    uint32_t out;
+    uint32_t yaw = *BroScr_GetAbsYawToTarget(&out, ent);
+    for (int32_t i = 0; i < shots; ++i) {
+        if (!(static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) > 0)) break;
+        if (static_cast<float>(25.0f > as_float(yaw)) == 0.0f) break;
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x0092269c)(ent, at<uint32_t>(anim_object(), 0x154));  // GScr_ActorShoot
+        const uint32_t left = *ScrField_h0feddbea(ent);
+        *ScrField_h0feddbea(ent) = left - 1;
+        Scr_Wait(as_float(*BroScr_GetShotInterval(&out, ent)));
+        yaw = *BroScr_GetAbsYawToTarget(&out, ent);
+    }
+    queue_notify(ent, 0x807e5a80);
+}
+
+void XB_CDECL BroScr_RechamberRifleDelayed(uint32_t ent, uint32_t end, uint32_t delay) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
+    if (end != undefined_handle()) slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, end);
+    if (as_float(delay) != title_global<float>(0x00922eac)) Scr_Wait(as_float(delay));
+    BroScr_RechamberRifle(ent);
+}
+
+void XB_CDECL BroScr_RamboFire(uint32_t ent) {
+    slot<KnobAll>(0x009225e4)(ent, 0x54e3b2b6, title_global<uint32_t>(0x008cf240), title_global<uint32_t>(0x008cd7dc),
+                              bits(1.0f), bits(0.1f), bits(1.0f), 0);  // ramboanticipation
+    handle_note_tracks(ent, 0x54e3b2b6);
+    uint32_t out;
+    if (*BroScr_GetWeaponFireType(&out, ent) == 0x00315aef) {  // automatic: a burst while the muzzle is clear
+        slot<KnobAll>(0x009225e4)(ent, 0xa263b28f, title_global<uint32_t>(0x008cf24c), title_global<uint32_t>(0x008cd7dc),
+                                  bits(1.0f), bits(0.1f), bits(1.0f), 0);  // ramboautomaticfire
+        BroScr_CheckCanShoot(&out, ent, title_global<uint32_t>(0x00922ebc));
+        uint8_t clear;
+        if (!*BroScr_GetMuzzleOriginCall(&clear, ent, title_global<uint32_t>(0x00922e84), 0)) return;
+        for (int32_t shots = random_int(5) + 5; shots > 0; --shots) {
+            slot<void XB_CDECL(uint32_t, uint32_t)>(0x0092269c)(ent, at<uint32_t>(anim_object(), 0x58));  // GScr_ActorShoot
+            Scr_WaitTillArgs(ent, 0xa263b28f, 0x0032aa25, 0, 0);
+        }
+        return;
+    }
+    BroScr_CheckCanShoot(&out, ent, title_global<uint32_t>(0x00922ebc));
+    for (int32_t shots = random_int(3) + 2; shots > 0; --shots) {  // semi-automatic: single shots
+        const ScrVec3 zero = {0, 0, 0};  // 0.0f words
+        uint8_t clear;
+        if (!*BroScr_GetMuzzleOrigin(&clear, ent, zero, title_global<uint32_t>(0x00922e84), 0)) continue;
+        const uint32_t interval = *BroScr_GetShotInterval(&out, ent);
+        slot<KnobAll>(0x009225e4)(ent, 0xa263b28f, title_global<uint32_t>(0x008cf258), title_global<uint32_t>(0x008cd7dc),
+                                  bits(1.0f), bits(0.1f), bits(1.0f), 0);  // rambosemiautofire
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x0092269c)(ent, at<uint32_t>(anim_object(), 0x58));  // GScr_ActorShoot
+        Scr_Wait(as_float(interval));
+    }
+}
+
+void XB_CDECL BroScr_AimUntilCanShoot(uint32_t ent, uint32_t anim_a, uint32_t anim_b, uint32_t anim_c, uint32_t time,
+                                      ScriptString name) {
+    if (!name.rep) ScriptString_AssignCString(&name, pointer<const char>(0x00826790));  // "FIXME"
+    ScriptString unused;
+    ScrCall_ScrActor_GetString_1384(&ent, &unused);
+    float elapsed = 0.0f;
+    uint32_t out;
+    for (;;) {
+        if (*BroScr_CheckCanShoot(&out, ent, title_global<uint32_t>(0x00922ebc))) break;
+        if (static_cast<float>(as_float(time) > elapsed) == 0.0f) break;
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x0092271c)(ent)) break;  // GScr_ActorHasPendingSentientSlot
+        for (int32_t i = 0; i < 4; ++i) {
+            if (*BroScr_CheckCanShoot(&out, ent, 0)) break;
+            if (static_cast<float>(as_float(time) > elapsed) == 0.0f) break;
+            slot<SetAnim6>(0x009225d8)(ent, anim_a, bits(1.0f), bits(0.1f), bits(1.0f), 0);  // GScr_SetAnimKnob
+            slot<SetAnim6>(0x009225d8)(ent, anim_b, bits(1.0f), bits(0.1f), bits(1.0f), 0);
+            slot<SetAnim6>(0x009225d8)(ent, anim_c, bits(1.0f), bits(0.1f), bits(1.0f), 0);
+            Scr_Wait(0.25f);
+            elapsed = elapsed + 0.25f;
+        }
+    }
+    scr_release(&unused);
+    scr_release(&name);
+}
+
+void XB_CDECL BroScr_ReloadLauncher(uint32_t ent) {
+    uint32_t type;
+    BroScr_GetWeaponType(&type, ent);
+    uint32_t pending;
+    if (!*BroScr_GetFieldUnlessAutoOrSemi(&pending, ent)) return;
+    if (type == 0xa39d17dd || type == 0x318fbe80 || type == 0x45963119) {  // reload in place
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d34)(ent, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d38)(ent));  // ScrActor_SetInt_f0(GetInt_f4)
+        *reinterpret_cast<uint8_t*>(ScrField_h552cfcab(ent, 0)) = 1;
+        BroScr_PutGunInHand(ent, 0x07151174);
+        BroScr_RefillClip(ent);
+        *int_slot(ent, 0xc786fa48) = 0;
+        return;
+    }
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x0019d460, ent);  // Scr_BeginThreadFunctor1(BroScr_ReloadLauncherTimeout)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001c6040, ent);  // (Bro_combat__rechamber)
+    Scr_WaitTill(ent, 0x5e12d3d2);
+}
+
+void XB_CDECL BroScr_AimIdleAtTarget(uint32_t ent, uint32_t first, uint32_t second) {
+    BroScr_SetAimBlendTimes(first, second);
+    BroScr_PlayIdleAnim(ent);
+    BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+}
+
+void XB_CDECL BroScr_GiveUpPositionChatter(uint32_t ent) {
+    for (;;) {
+        Scr_WaitTill(ent, 0xe2a210cf);  // trigger
+        ScriptString type;
+        scr_string_from(&type, 0x008267a4);  // "giveupposition"
+        BroScr_BattleChatter(ent, type);
+        uint8_t looked;
+        BroScr_TryLookAtPlayer(&looked, ent);
+        Scr_Wait(5.0f);
+    }
+}
+
+void XB_CDECL BroScr_BattleChatterOnDeath(uint32_t ent) {
+    ScriptString type;
+    scr_string_from(&type, 0x00831f60);  // "death"
+    BroScr_BattleChatter(ent, type);
+}
+
+void XB_CDECL BroScr_AnimScriptEntInit(uint32_t ent) {
+    if (at<uint32_t>(anim_object(), 0x158) != undefined_int()) return;  // once
+    at<uint32_t>(anim_object(), 0x158) = 1;
+    if (slot<int32_t XB_CDECL(uint32_t)>(0x009222dc)(0x00826c64) <= 0)  // GScr_GetCvarInt("animscriptent")
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x009222e4)(0x00826c64, 0x00832c8c);  // GScr_SetCvar(.., "-1")
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001837f0, level_handle());  // (BroScr_EmptyFunc_54)
+    at<uint32_t>(anim_object(), 0xa0) = 1;
+    at<uint32_t>(anim_object(), 0x190) = 0;
+    at<uint32_t>(anim_object(), 0x38) = 0;
+    at<uint32_t>(anim_object(), 0x9c) = title_global<uint32_t>(0x0083ed4c);   // 4096
+    at<uint32_t>(anim_object(), 0x198) = title_global<uint32_t>(0x00826c60);  // 253069.36
+    at<uint32_t>(anim_object(), 0x118) = title_global<uint32_t>(0x007f5144);  // 40000
+    at<uint32_t>(anim_object(), 0x94) = title_global<uint32_t>(0x007f5144);
+    at<uint32_t>(anim_object(), 0x90) = title_global<uint32_t>(0x0083f150);   // 490000
+    at<uint32_t>(anim_object(), 0x68) = title_global<uint32_t>(0x007f71fc);   // 90000
+    at<uint32_t>(anim_object(), 0xc0) = title_global<uint32_t>(0x0083ec30);   // 50
+    at<uint32_t>(anim_object(), 0x58) = title_global<uint32_t>(0x0083eb20);   // 1
+    at<uint32_t>(anim_object(), 0x154) = title_global<uint32_t>(0x0083eb24);  // 0.5
+    at<uint32_t>(anim_object(), 0x18c) = 10000;
+    at<uint32_t>(anim_object(), 0x8) = 6000;
+    at<uint32_t>(anim_object(), 0x15c) = title_global<uint32_t>(0x0083eb24);  // 0.5
+    at<uint32_t>(anim_object(), 0x54) = title_global<uint32_t>(0x0083ebf8);   // 0.1
+    BroScr_InitPoseMovementTable();
+    title_function<void XB_CDECL(uint32_t)>(0x001a2e70)(ent);  // BroScr_WeaponClassFor (agent-b list)
+    at<uint32_t>(anim_object(), 0xec) = 8;  // the nationalities' voice counts
+    at<uint32_t>(anim_object(), 0x5c) = 1;
+    at<uint32_t>(anim_object(), 0xc4) = 1;
+    at<uint32_t>(anim_object(), 0x12c) = 1;
+    at<uint32_t>(anim_object(), 0xa8) = 'a';
+    at<uint32_t>(anim_object(), 0xac) = 'b';
+    at<uint32_t>(anim_object(), 0xb0) = 0;
+    at<uint32_t>(anim_object(), 0x11c) = 'a';
+    at<uint32_t>(anim_object(), 0x120) = 0;
+    at<uint32_t>(anim_object(), 0x124) = 'c';
+    at<uint32_t>(anim_object(), 0xb4) = 'a';
+    at<uint32_t>(anim_object(), 0xb8) = 'b';
+    at<uint32_t>(anim_object(), 0xbc) = 'c';
+    ScriptString_AssignCString(reinterpret_cast<ScriptString*>(anim_object() + 0x114),
+                               pointer<const char>(0x00826c44));  // "abcdefghijklmnopqrstuvwxyz"
+}
+
+void XB_CDECL BroScr_AnimScriptEntInitIfValid(uint32_t ent) {
+    if (!entity_handle_is_valid(ent)) return;
+    BroScr_AnimScriptEntInit(ent);
+    title_function<void XB_CDECL(uint32_t)>(0x001b7e70)(ent);  // FUN_001b7e70 (agent-b list)
+}
+
+uint32_t XB_CDECL Bro_anim_main_init(uint32_t ent) {
+    if (!entity_handle_is_valid(ent)) return 0;
+    BroScr_AnimScriptEntInit(ent);
+    title_function<void XB_CDECL(uint32_t)>(0x001b7e70)(ent);  // FUN_001b7e70 (agent-b list)
+    return 0;
+}
+
+void XB_CDECL Bro_anim_main_scripted(uint32_t ent) {
+    BroScr_ScriptedAnimInit(ent);
+    begin_anim_thread(ent, 0x00184020);  // BroScr_WaitKillAnimScript
+}
+
+// The anim-script main entries: the script as a begun thread.
+void XB_CDECL Bro_anim_main_pain(uint32_t ent) { begin_anim_thread(ent, 0x001c7be0); }  // BroScr_AnimScript_Pain
+void XB_CDECL Bro_anim_main_concealment_stand(uint32_t ent) { begin_anim_thread(ent, 0x001d6420); }  // BroScr_AnimScript_ConcealmentStand
+void XB_CDECL Bro_anim_main_cover_wide_left(uint32_t ent) { begin_anim_thread(ent, 0x001d7a60); }  // BroScr_AnimScript_CoverWideLeft
+void XB_CDECL Bro_anim_main_cover_wide_right(uint32_t ent) { begin_anim_thread(ent, 0x001d7d70); }  // BroScr_AnimScript_CoverWideRight
+void XB_CDECL Bro_anim_main_death(uint32_t ent) { begin_anim_thread(ent, 0x001d8080); }  // BroScr_AnimScript_Death
+void XB_CDECL Bro_anim_main_concealment_crouch(uint32_t ent) { begin_anim_thread(ent, 0x001dba80); }  // BroScr_AnimScript_ConcealmentCrouch
+void XB_CDECL Bro_anim_main_cover_crouch(uint32_t ent) { begin_anim_thread(ent, 0x001dbb90); }  // BroScr_AnimScript_CoverCrouch
+void XB_CDECL Bro_anim_main_run(uint32_t ent) { begin_anim_thread(ent, 0x001d99e0); }  // Bro_run__main
+void XB_CDECL Bro_anim_main_combat(uint32_t ent) { begin_anim_thread(ent, 0x001dce30); }  // BroScr_CombatMain
+void XB_CDECL Bro_anim_main_cover_left(uint32_t ent) { begin_anim_thread(ent, 0x001dd180); }  // BroScr_AnimScript_CoverLeft
+void XB_CDECL Bro_anim_main_cover_right(uint32_t ent) { begin_anim_thread(ent, 0x001dd510); }  // BroScr_AnimScript_CoverRight
+void XB_CDECL Bro_anim_main_cover_stand(uint32_t ent) { begin_anim_thread(ent, 0x001dd750); }  // BroScr_AnimScript_CoverStand
+void XB_CDECL Bro_anim_main_concealment_prone(uint32_t ent) { begin_anim_thread(ent, 0x001de000); }  // BroScr_AnimScript_ConcealmentProne
+void XB_CDECL Bro_anim_main_cover_prone(uint32_t ent) { begin_anim_thread(ent, 0x001de040); }  // BroScr_AnimScript_CoverProne
+void XB_CDECL Bro_anim_main_stop(uint32_t ent) { begin_anim_thread(ent, 0x001e3520); }  // Bro_stop__main
+void XB_CDECL Bro_anim_main_reacquire(uint32_t ent) { begin_anim_thread(ent, 0x001e3c80); }  // BroScr_AnimScript_Reacquire
 
 }  // namespace game
 
