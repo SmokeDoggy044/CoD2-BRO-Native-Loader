@@ -14,8 +14,11 @@ are function-relative, calls are compared by callee name (symbol file / relocati
 and every constant inside the image (globals, literals, float constants) reads as
 ADDR on both sides, so a score is about code generation, not about addresses.
 
-usage: tools/vc71match/vc71match.py [FUNCTION...] [--flags "/O2 ..."] [--diff] [--csv]
-  FUNCTION  only these kFunctions names (default: all)
+usage: tools/vc71match/vc71match.py [FUNCTION...] [--flags "/O2 ..."] [--diff] [--csv] [--thread-switch]
+  FUNCTION  only these kFunctions names (default: all); a name not in kFunctions is
+            compared too (unregistered C, e.g. thread_switch rows): its address comes
+            from the symbol file, or give it as NAME=0xADDR
+  --thread-switch  add every thread_switch row of docs/*_classes.csv (unregistered C)
   --diff    print the side-by-side differences of each function under 100%
   --csv     write tools/data/vc71match.csv (name,address,score,status)
 
@@ -102,6 +105,11 @@ def lower(text):
     text = re.sub(r"\benum\s+class\b", "enum", text)
     text = re.sub(r"\balignas\s*\(([^)]*)\)", r"__declspec(align(\1))", text)
     text = re.sub(r"\bconstexpr\b", "const", text)
+    # inline const auto* X = &F<...>;  ->  #define X (&F<...>)   (no auto in VC7.1)
+    text = re.sub(r"(?m)^\s*(?:inline\s+)?const\s+auto\s*\*?\s*(\w+)\s*=\s*(&[^;]+);", r"#define \1 (\2)", text)
+    # [const] auto* p = static_cast<T*>(x);  ->  T* p = static_cast<T*>(x);
+    text = re.sub(r"(?:\bconst\s+)?\bauto\s*\*?\s*(\w+)\s*=\s*(static_cast|reinterpret_cast)<([^>]+)>",
+                  r"\3 \1 = \2<\3>", text)
     text = re.sub(r"\bnullptr\b", "0", text)
     text = re.sub(r"\bnoexcept\b", "", text)
     text = re.sub(r"\[\[\w+\]\]", "", text)
@@ -286,7 +294,7 @@ def wine_env():
     return env
 
 
-def compile_all(flags):
+def compile_all(flags, only=None):
     src = WORK / "src"
     shutil.rmtree(src, ignore_errors=True)
     src.mkdir(parents=True)
@@ -302,6 +310,8 @@ def compile_all(flags):
     cut, objs = {}, []
     for cpp in sorted(src.glob("*.cpp")):
         if cpp.name in SKIP_SOURCES:
+            continue
+        if only is not None and not any(re.search(rf"\b{n}\s*\(", cpp.read_text()) for n in only):
             continue
         obj = WORK / (cpp.stem + ".obj")
         for _ in range(200):
@@ -367,6 +377,27 @@ def kfunctions():
     text = (ROOT / "game" / "code" / "functions.cpp").read_text()
     return [(m[0], int(m[1], 16), m[2]) for m in
             re.findall(r'\{"(\w+)", (0x[0-9a-fA-F]+), \w+, code\(&(\w+)\)', text)]
+
+
+def unregistered(args, registered):
+    """(name, address, name) rows for C that is not in kFunctions."""
+    by_name = {n: a for a, n in symbols()}
+    rows, seen = [], set(registered)
+    for arg in args.names:
+        name, _, addr = arg.partition("=")
+        if name in seen:
+            continue
+        if not addr and name not in by_name:
+            sys.exit(f"{name}: not in kFunctions or the symbol file (give NAME=0xADDR)")
+        rows.append((name, int(addr, 16) if addr else by_name[name], name))
+        seen.add(name)
+    if args.thread_switch:
+        for path in sorted((ROOT / "docs").glob("*_classes.csv")):
+            for r in csv.DictReader(open(path)):
+                if r.get("class") == "thread_switch" and r["name"] not in seen:
+                    rows.append((r["name"], int(r["address"], 16), r["name"]))
+                    seen.add(r["name"])
+    return rows
 
 
 RELOC = re.compile(r"^\s*([0-9a-f]+): (\S+)\s+(\S+)$")
@@ -452,13 +483,23 @@ def main():
     ap.add_argument("--flags", default=DEFAULT_FLAGS)
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--csv", action="store_true")
+    ap.add_argument("--thread-switch", action="store_true")
     args = ap.parse_args()
     if not (XDK / "bin" / "vc71" / "CL.Exe").exists():
         sys.exit(f"no compiler at {XDK}/bin/vc71 (set XDK5849)")
     WORK.mkdir(parents=True, exist_ok=True)
 
     subprocess.run(["wineserver", "-p60"], env=wine_env())  # stays up between the compiles
-    objs, cut = compile_all(args.flags)
+    registered = kfunctions()
+    wanted = {n.partition("=")[0] for n in args.names}
+    extra = unregistered(args, [n for n, _, _ in registered])
+    if args.thread_switch and not args.names:
+        registered = []  # only the thread_switch rows
+    if wanted:
+        registered = [r for r in registered if r[0] in wanted]
+    # A selection compiles only the files that define it (a full run compiles all).
+    only = {code for _, _, code in registered + extra} if wanted or args.thread_switch else None
+    objs, cut = compile_all(args.flags, only)
     compiled = obj_functions(objs)
     xbe = load_xbe()
     syms = symbols()
@@ -466,9 +507,7 @@ def main():
     starts = [a for a, _ in syms]
 
     rows, total = [], []
-    for name, address, code in kfunctions():
-        if args.names and name not in args.names:
-            continue
+    for name, address, code in registered + extra:
         if code.endswith("_entry") or code != name and code not in compiled:
             rows.append((name, address, "", "asm-entry"))
             continue

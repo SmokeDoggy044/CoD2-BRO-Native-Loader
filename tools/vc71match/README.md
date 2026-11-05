@@ -19,13 +19,20 @@ elsewhere.) It runs under Wine; the prefix lives in `build/vc71match/wineprefix`
 
 ## Run
 
-    python3 -I tools/vc71match/vc71match.py [FUNCTION...] [--diff] [--csv] [--flags "..."]
+    python3 -I tools/vc71match/vc71match.py [FUNCTION...] [--diff] [--csv] [--flags "..."] [--thread-switch]
 
 One line per function: score (0-100, difflib ratio of the normalized instructions),
 `ok` at 100, else the instruction counts (XBE/ours). `--diff` prints each non-exact
 function side by side; `--csv` writes `tools/data/vc71match.csv`. A full run takes
 about 2.5 minutes (each compile round starts Wine). `VC71MATCH_WORK` moves the work
 folder, so flag sets can run in parallel.
+
+Unregistered C (thread_switch rows, which stay out of kFunctions): name the function
+anyway; a name not in kFunctions is compared by its C symbol of the same name, at the
+address the symbol file gives (`NAME=0xADDR` when the C uses a proposed name the symbol
+file does not have yet). `--thread-switch` adds every `thread_switch` row of
+`docs/*_classes.csv`. With names or `--thread-switch` only the `.cpp` files that define
+them are compiled (about 1.5 minutes for a few files, most of it Wine start-up).
 
 Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 `/arch:SSE2` and no `/arch`, none scored higher (2026-10-19: 58 exact of 346).
@@ -34,7 +41,9 @@ Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 
 `game/code/` is C++20; a lowered copy goes to `build/vc71match/src/`:
 
-- `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `enum class` -> `enum`,
+- `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
+  a `#define`, `auto* p = static_cast<T*>(...)` takes T; `std::nearbyint` comes from the
+  prelude; `enum class` -> `enum`,
   `alignas` -> `__declspec(align)`, `constexpr` -> `const`, `nullptr` -> `0`,
   `using X = ...` -> `typedef`, `T{x}` -> `T(x)`, `return {...}` -> a named local.
 - A free `XB_THISCALL` definition becomes a member function of a struct of its own
