@@ -606,5 +606,28 @@ void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent);
 // nodes and waited for ("fallback_reached_goal<n>"), then the living rest sent.
 void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group);
 
+// 0x001d8080: the death anim script (Ghidra's body also holds 0x001d91d0, an unreferenced combat aim/shoot
+// helper). Weapons dropped, notify 0x247afc7f; a scripted deathanim (looped on note tracks with 0x27ed5a85) or
+// a cover death, else the pain thread, death chatter, the face wait, g_anim_DEATH; a balcony launch; a helmet
+// pop; then the death anim by explosion damage / running direction / pose, hit location, damage yaw and a
+// roll, played on its note tracks (0x54e3b2b6).
+void XB_CDECL BroScr_AnimScript_Death(uint32_t ent);
+
+// 0x001d91d0 (inside Ghidra's BroScr_AnimScript_Death; unreferenced): the crouched combat aim and shoot step.
+void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent);
+
+// 0x001d99e0: the run anim script, forever: shoots while running (stand / crouch shoot runs, a rechamber) when it
+// can, else the pose's run - standing a combat run (reload blends, wounded legs, a limp mix), prone a crawl,
+// crouched the crouch run - with the directional move loop thread; notify 0x6d4893a9 per pass.
+void XB_CDECL Bro_run__main(uint32_t ent);
+
+// 0x001ca420: a force-shoot call thread (BroScr_ForceShoot) until now + time: ends on death / 0x0039894e /
+// 0x2cf20de4; flag 0x88c31fb5, its thread handle to 0x60d7df22; looks at / faces the target (death watch) or
+// the point, stores both, the aim idle; then by weapon: 0xe5aa1ee7 bursts (BroScr_ShootAtTarget), full auto
+// bursts timed by the fire rate (BroScr_ShootAtTarget_2), single shots, or launcher shots; reloads between.
+// Releases `name`; `wait_stop` is not read.
+void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
+                                      uint32_t target, uint32_t wait_stop);
+
 }  // namespace game
 
