@@ -552,5 +552,17 @@ uint8_t* XB_CDECL BroScr_ForceShoot(uint8_t* out, uint32_t ent, ScrVec3 point, f
 // idle by the allowed pose. An LMG carrier: the bipod gunner state call thread, then the stop idle.
 void XB_CDECL Bro_stop__main(uint32_t ent);
 
+// 0x001e25d0: a spawner's thread: the script_mg42 new-user thread, the script_delete key entry, then for
+// each living sentient it spawns: the friendly-fire mission fail and debug threads, the script_delete
+// others deleted, key 0xd66dcf8c cleared when it and 0xb5ea7cdf are set, BroScr_SpawnerFinishSpawn
+// (with the level as spawner and the spawner's targetname). Ends on a non-sentient or dead spawn.
+void XB_CDECL BroScr_SpawnedThink(uint32_t unused, uint32_t spawner);
+
+// 0x001e2e10: the bipod gunner (ends on 0x07b4e7f7 / death / `end`): waits out field 0xf56955a1 and
+// 0x0032304c, the "gunner" mg34 run / deploy / go-prone anims in the level map, plays deploy and go
+// prone, then spawns a misc_turret ahead of the actor (an mg34 / 30cal bipod turret by the weapon), the
+// owner-change call thread, the weapon back to int +0xf4, and uses the turret.
+void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end);
+
 }  // namespace game
 

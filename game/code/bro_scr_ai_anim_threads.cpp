@@ -5781,4 +5781,202 @@ void XB_CDECL Bro_stop__main(uint32_t ent) {
     scr_release(&type);
 }
 
+namespace {
+// The inlined int field test: a valid entity with a script object whose value (missing: the undefined
+// int) is not the undefined int.
+inline bool int_defined(uint32_t ent, uint32_t key) {
+    if (!entity_handle_is_valid(ent)) return false;
+    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    if (!table) return false;
+    const uint32_t* const value = ScriptKeyTable_Find(table, key);
+    const uint32_t none = undefined_int();
+    return (value ? *value : none) != none;
+}
+inline const uint32_t* level_handle_or_null() {
+    const uint32_t object = title_global<uint32_t>(0x00922ef8);
+    return pointer<uint32_t>(object ? object + 4 : 0);
+}
+}  // namespace
+
+void XB_CDECL BroScr_SpawnedThink(uint32_t, uint32_t spawner) {
+    bool defined;
+    if (*ScrField_script_mg42_IsDefined(&defined, spawner)) {
+        const uint32_t* const mg = int_slot(spawner, 0xec070be6);  // script_mg42
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f4a1c;
+            functor[1] = 0x001a63a0;  // BroScr_MgGetNewUser
+            functor[2] = spawner;
+            functor[3] = *mg;
+        }
+        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+            0, 0, 0, spawner, functor, 0);  // Scr_CreateThread
+    }
+    if (*ScrField_script_delete_IsDefined(&defined, spawner)) BroScr_AddKeyedEnt(spawner, *int_slot(spawner, 0x0e22c955));
+    uint32_t spawned = 0;
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(spawner, 0x262a34d8, &spawned);  // Scr_WaitTillOutputEnt_ORAN
+        if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922220)(spawned)) return;  // GScr_IsSentient
+        if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(spawned)) return;  // GScr_IsAlive
+        {
+            const uint32_t* const level = level_handle_or_null();
+            using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, uint32_t,
+                                              uint32_t);
+            title_function<StartThread>(0x0052c6d0)(0, 0, 0, 0, 0x001a7010, *level, &spawned, 0x00922ebc,
+                                                    0x00922e90);  // Scr_StartThread_ent_ent_i_str (BroScr_SetupFriendlyFireMissionFail)
+        }
+        {
+            const uint32_t* const level = level_handle_or_null();
+            ScriptString name;
+            scr_string_from(&name, 0x00826ed4);  // "SPAWNED"
+            uint32_t buffer[3];
+            const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, spawned);  // ScrEnt_GetOrigin
+            uint32_t origin[3];
+            origin[0] = o[0];
+            origin[2] = o[2];
+            origin[1] = o[1];
+            using StartN = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScriptString*,
+                                             const uint32_t*);
+            title_function<StartN>(0x0017b150)(0, 0, 0, 0, 0x0018bf00, *level, &name,
+                                               origin);  // Scr_StartThreadFunctorN(BroScr_DebugCvarWait)
+            scr_release(&name);
+        }
+        if (int_defined(spawner, 0x0e22c955)) BroScr_DeleteOthersWithKey(spawner, *int_slot(spawner, 0x0e22c955));
+        if (int_defined(spawner, 0xd66dcf8c) && int_defined(spawner, 0xb5ea7cdf) && *int_slot(spawner, 0xd66dcf8c) != 0 &&
+            *int_slot(spawner, 0xb5ea7cdf) != 0)
+            *int_slot(spawner, 0xd66dcf8c) = 0;
+        bool named;
+        {
+            ScriptString name;
+            named = ScrCall_ScrEnt_GetTargetname(&spawner, &name)->rep != nullptr;
+            scr_release(&name);
+        }
+        const uint32_t* const level = level_handle_or_null();
+        ScriptString name;
+        if (named)
+            ScrCall_ScrEnt_GetTargetname(&spawner, &name);
+        else
+            ScriptString_Copy(&name, pointer<ScriptString>(0x00922e90));
+        BroScr_SpawnerFinishSpawn(*level, spawned, name);  // the level as the spawner argument
+    }
+}
+
+namespace {
+// The level's anim map (+0x19c) entry [animname][anime] = anim (the inner entry added as 0 when missing).
+inline void set_level_anim(uint32_t animname, uint32_t anime, uint32_t anim) {
+    using Index = uint32_t* XB_THISCALL(uint32_t, const uint32_t*);
+    using Find = uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*);
+    const uint32_t key = anime;
+    const uint32_t name = animname;
+    uint32_t* const map = title_function<Index>(0x004641e0)(title_global<uint32_t>(0x00922ef8) + 0x19c, &name);  // HashMap_Index_8
+    uint32_t it;
+    title_function<Find>(0x0045e6d0)(map, &it, &key);  // HashMap_Find
+    if (it == map[2]) {
+        const uint32_t pair[2] = {key, 0};
+        uint32_t inserted;
+        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+    }
+    pointer<uint32_t>(it)[3] = anim;
+}
+// GScr_SetFlaggedAnimKnobAll(ent, notify, anim, Body, 1, 0.1, 1, 1), then its note tracks.
+inline void flagged_body_knob(uint32_t ent, uint32_t notify, uint32_t anim) {
+    slot<KnobAll>(0x009225e4)(ent, notify, anim, title_global<uint32_t>(0x008cd7dc), 0x3f800000, 0x3dcccccd, 0x3f800000, 1);
+    handle_note_tracks(ent, notify);
+}
+}  // namespace
+
+void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
+    end_on(ent, 0x07b4e7f7);
+    end_on(ent, 0x06730ae8);  // death
+    end_on(ent, end);
+    bool defined;
+    if (*ScrField_hf56955a1_IsDefined(&defined, ent))
+        while (*int_slot(ent, 0xf56955a1) != 0) Scr_Wait(0.1f);
+    Scr_WaitTill(ent, 0x0032304c);
+    *handle_slot(ent, 0x2afa5406) = 0x0001894d;
+    set_level_anim(0xc966b4d2, 0x00351de5, title_global<uint32_t>(0x008cd80c));  // c_mg_mg34_run
+    set_level_anim(0xc966b4d2, 0xce69bd99, title_global<uint32_t>(0x008cd7f4));  // c_mg_mg34_deploy
+    set_level_anim(0xc966b4d2, 0x7938b286, title_global<uint32_t>(0x008cd800));  // c_mg_mg34_go_prone
+    {
+        ScriptString name;
+        scr_string_from(&name, 0x007fc050);  // "gunner"
+        ScriptString copy;
+        ScriptString_Copy(&copy, &name);
+        slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(ent, copy);  // ScrEnt_SetAnimname
+        scr_release(&name);
+    }
+    flagged_body_knob(ent, 0x365de636, title_global<uint32_t>(0x008cd7f4));  // deploy
+    flagged_body_knob(ent, 0x09334428, title_global<uint32_t>(0x008cd800));  // go prone
+    uint32_t angles[3];
+    {
+        uint32_t buffer[3];
+        const uint32_t* const a = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer, ent);  // ScrEnt_GetAngles
+        angles[0] = a[0];
+        angles[1] = a[1];
+        angles[2] = a[2];
+    }
+    float offset[3];
+    {
+        float forward[3];
+        const float lane = as_float(undefined_lane());
+        forward[0] = lane;
+        forward[1] = lane;
+        forward[2] = lane;
+        slot<void XB_CDECL(float*, const uint32_t*)>(0x00922290)(forward, angles);  // Scr_AnglesToForward
+        const float scale = title_global<float>(0x007fa488);
+        offset[0] = forward[0] * scale;
+        offset[1] = forward[1] * scale;
+        offset[2] = forward[2] * scale;
+    }
+    ScriptString info;
+    ScriptString_FromRep(&info, nullptr);
+    ScriptString model;
+    ScriptString_FromRep(&model, nullptr);
+    const uint32_t weapon = slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent);  // ScrActor_GetInt_f0
+    if (weapon == 0x0033c678 || weapon == 0x00371a54) {
+        ScriptString_AssignCString(&info, pointer<const char>(0x00826f0c));   // "mg34_bipod_prone"
+        ScriptString_AssignCString(&model, pointer<const char>(0x00826f00));  // "w_ge_mg42"
+    } else if (weapon == 0x8d298057) {
+        ScriptString_AssignCString(&info, pointer<const char>(0x00826f20));  // "mg30cal_bipod_prone"
+        ScriptString_AssignCString(&model, pointer<const char>(0x00826f00));
+    }
+    ScriptString* const zone_name = title_function<GetString>(0x00458da0)(ent_script_object(ent), 0x142a3d9e);  // ScriptKeyTable_GetString
+    const uint32_t zone = slot<uint32_t XB_CDECL(ScriptString*)>(0x00922494)(zone_name);  // GScr_FindZone
+    float position[3];
+    {
+        float origin[3];
+        mg_origin(ent, origin);
+        position[0] = origin[0] + offset[0];
+        position[1] = origin[1] + offset[1];
+        position[2] = origin[2] + offset[2];
+    }
+    ScriptString classname;
+    scr_string_from(&classname, 0x00839e8c);  // "misc_turret"
+    using SpawnTurret = uint32_t XB_CDECL(ScriptString*, const float*, ScriptString*, const uint32_t*, uint32_t);
+    const uint32_t turret = slot<SpawnTurret>(0x00922304)(&classname, position, &info, angles, zone);  // GScr_SpawnTurretWithAngles
+    {
+        uint32_t buffer[3];
+        const uint32_t* const a = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer, ent);
+        ScrVec3 v;
+        v.v[0] = a[0];
+        v.v[1] = a[1];
+        v.v[2] = a[2];
+        slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922ba4)(turret, v);  // ScrEnt_SetAngles
+    }
+    slot<SetWord>(0x00922584)(turret, 0xad76f051);  // GScr_Turret_SetMode(manual)
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(turret, &model, 0);  // GScr_SetModel
+    if (slot<long double XB_CDECL(uint32_t)>(0x00922c58)(ent) != as_float(undefined_float()))  // ScrActor_GetFloat_d4
+        slot<SetWord>(0x009225a4)(turret, bits(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922c58)(ent))));  // GScr_Turret_Set54
+    ScriptString weapon_class;
+    ScrCall_GScr_GetWeaponClassname(&weapon_class, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent));
+    using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const ScriptString*);
+    title_function<Call>(0x0017afa0)(0, 0, 0, 0, 0x001b8b50, turret, &ent, &weapon_class);  // Scr_CallThread_ent_ent_str(BroScr_TurretOwnerChangeSwap)
+    slot<SetWord>(0x00922d34)(ent, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d38)(ent));  // ScrActor_SetInt_f0(GetInt_f4)
+    slot<SetWord>(0x0092272c)(ent, turret);  // GScr_ActorUseTurret
+    scr_release(&weapon_class);
+    scr_release(&classname);
+    scr_release(&model);
+    scr_release(&info);
+}
+
 }  // namespace game
