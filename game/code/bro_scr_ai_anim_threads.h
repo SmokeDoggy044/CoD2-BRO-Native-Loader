@@ -514,5 +514,55 @@ void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, ui
 void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node,
                                       uint32_t flag);
 
+// 0x001deab0: the turret AI thread (started by BroScr_TurretSetAIMode; ends on "death" / "auto_ai"): to the
+// turret, the level flag of its target waited for when `flag` is defined, a script_origin aim target and
+// a script_model follower (deleted on death / auto_ai). With an mg42_target path: auto mode aimed at the
+// origin, which walks the path, sweeps toward the player's eye, follows the player, bursts around the
+// level +0x190 entity's targets. Without: manual aimed at the player, then auto bursts, forever.
+void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag);
+
+// 0x001cd420 / 0x001ce710: the prone shoot loop (busy 0xb66101f1 meanwhile): prone aim knobs, a random wait
+// up to 1 s, then an automatic burst of 6-13 shots on the "fire" note, 2-4 semi-automatic shots, or a
+// launcher reload and one shot (field 0xc786fa48 set). _2 draws the wait before the knobs.
+void XB_CDECL BroScr_ProneShootLoop(uint32_t ent);
+void XB_CDECL BroScr_ProneShootLoop_2(uint32_t ent);
+
+// 0x001cdb60: whether a standing actor's melee charge reaches its living enemy (*out): in melee range
+// already, or within range 0x118 with a safe spot 32 short of the enemy: the charge anim (with
+// "meleecharge" chatter and the melee pair linked once) until in range, then the melee attack anim.
+// The distance (squared) goes to 0xa3b8e90e; notifies 0x807e5a80 at the end.
+uint8_t* XB_CDECL BroScr_MeleeCharge(uint8_t* out, uint32_t ent);
+
+// 0x001dabf0: the standing stop idle: in combat facing the target, stand pose, a reload, the pistol
+// aim idle or one of four aim loops; else the standanim field, the pistol idle, or a stand twitch
+// (_1 while wounded or field 0x8ef2ad7c over the limit; corner A: _2, corner B: _3, else by chance),
+// a 0.2 s wait when no time passed.
+void XB_CDECL BroScr_StopStandIdle(uint32_t ent);
+
+// 0x001d5410: ends on death / 0xcd9e558b; the end time (now + time * 1000) to 0x18cd6af8; unless a
+// 0x0036b1a5 weapon, moving (or waiting to stop with `wait_stop`, until the end) or prone: repeated
+// BroScr_ForceShootThread call threads (name default "forceShoot", a7 undefined: 0) while time is
+// left, then 0x2cf20de4 and BroScr_StopForceShoot; *out whether it shot. Releases `name`.
+uint8_t* XB_CDECL BroScr_ForceShoot(uint8_t* out, uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
+                                    uint32_t target, uint32_t wait_stop);
+
+// 0x001e3520: the stop anim script (wounded: the face anim first), forever by the node at the actor's
+// position: cover left / right: the corner stops (StopAtCorner*Right / *Left; the idle set re-picked every
+// 10 s off a corner); cover crouch: the cover-crouch idle forever; else the stand / crouch / prone stop
+// idle by the allowed pose. An LMG carrier: the bipod gunner state call thread, then the stop idle.
+void XB_CDECL Bro_stop__main(uint32_t ent);
+
+// 0x001e25d0: a spawner's thread: the script_mg42 new-user thread, the script_delete key entry, then for
+// each living sentient it spawns: the friendly-fire mission fail and debug threads, the script_delete
+// others deleted, key 0xd66dcf8c cleared when it and 0xb5ea7cdf are set, BroScr_SpawnerFinishSpawn
+// (with the level as spawner and the spawner's targetname). Ends on a non-sentient or dead spawn.
+void XB_CDECL BroScr_SpawnedThink(uint32_t unused, uint32_t spawner);
+
+// 0x001e2e10: the bipod gunner (ends on 0x07b4e7f7 / death / `end`): waits out field 0xf56955a1 and
+// 0x0032304c, the "gunner" mg34 run / deploy / go-prone anims in the level map, plays deploy and go
+// prone, then spawns a misc_turret ahead of the actor (an mg34 / 30cal bipod turret by the weapon), the
+// owner-change call thread, the weapon back to int +0xf4, and uses the turret.
+void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end);
+
 }  // namespace game
 
