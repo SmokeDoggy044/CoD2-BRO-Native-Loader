@@ -5979,4 +5979,353 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
     scr_release(&info);
 }
 
+// The MG42 cover spot (a spawner's thread).
+void XB_CDECL BroScr_Mg42CoverSpotThink(uint32_t ent) {
+    {
+        bool defined;
+        if (!*ScrField_ai_mode_IsDefined(&defined, ent)) *handle_slot(ent, 0x97c730fd) = 0x6c271e5a;
+    }
+    uint32_t node;
+    {
+        ScriptString key;
+        ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
+        ScriptString target;
+        using GetNode = uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t);
+        node = slot<GetNode>(0x009221cc)(ScrCall_ScrEnt_GetTarget(&ent, &target), &key, 0, 0);  // GScr_GetNode
+        if (node == 0xffffffff) node = 0;
+        scr_release(&target);
+        scr_release(&key);
+    }
+    if (node == 0 || node == 0xffffffff) return;
+    using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+    uint32_t turret;
+    {
+        ScriptString target;
+        turret = slot<GetEnt>(0x009221c4)(ScrCall_ScrPathNode_GetTarget(&node, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
+        scr_release(&target);
+    }
+    {
+        uint32_t out[3];
+        const uint32_t* const origin = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ab8)(out, node);  // ScrPathNode_GetOrigin
+        const uint32_t x = origin[0];
+        const uint32_t y = origin[1];
+        const uint32_t z = origin[2];
+        uint32_t* const org = reinterpret_cast<uint32_t*>(ScrField_org(turret));
+        org[0] = x;
+        org[1] = y;
+        org[2] = z;
+    }
+    uint8_t flagged = 0;
+    bool has_target;
+    {
+        ScriptString target;
+        has_target = ScrCall_ScrEnt_GetTarget(&turret, &target)->rep != nullptr;
+        scr_release(&target);
+    }
+    if (has_target) {
+        {
+            HashMap copy;
+            HashMap_CopyCtor_6(&copy, reinterpret_cast<const HashMap*>(title_global<uint32_t>(0x00922ef8) + 0xfc));
+            title_function<void XB_THISCALL(HashMap*)>(0x0045ec50)(&copy);  // HashMap_Dtor_PROLOGUE_2
+        }
+        using Index = uint8_t* XB_THISCALL(uint32_t, const uint32_t*);
+        bool unset;
+        {
+            ScriptString target;
+            uint32_t hash;
+            const uint32_t* const key = Scr_HashScriptString(
+                &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTarget(&turret, &target)));
+            unset = *title_function<Index>(0x004611e0)(title_global<uint32_t>(0x00922ef8) + 0xfc, key) ==
+                    title_global<uint8_t>(0x00922ed0);
+            scr_release(&target);
+        }
+        if (unset) {
+            // The level flag of the turret's target, cleared; the trigger notify thread on its target.
+            {
+                ScriptString target;
+                uint32_t hash;
+                const uint32_t* const key = Scr_HashScriptString(
+                    &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTarget(&turret, &target)));
+                *title_function<Index>(0x004611e0)(title_global<uint32_t>(0x00922ef8) + 0xfc, key) = 0;
+                scr_release(&target);
+            }
+            uint32_t trigger;
+            {
+                ScriptString target;
+                trigger = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&turret, &target), 0x0d786b4c, 0, 0, 0);
+                scr_release(&target);
+            }
+            using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+            title_function<Start>(0x0011a910)(0, 0, 0, 0, 0x001de980, trigger);  // Scr_StartThreadFunctor1(BroScr_TriggerNotifyLevelTargetname)
+        }
+        flagged = 1;
+    }
+    using Count = uint32_t XB_CDECL(uint32_t);
+    using Create = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+    if (!slot<Count>(0x00922b88)(ent)) return;
+    do {
+        // A living guy from the spawner (one try a second), the AI mode and manual target threads on him.
+        uint32_t guy = 0;
+        while (!entity_handle_is_valid(guy)) {
+            guy = slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922518)(ent, 0);  // GScr_DoSpawn
+            Scr_Wait(1.0f);
+        }
+        const uint32_t* const mode = handle_slot(ent, 0x97c730fd);  // ai_mode
+        uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x18);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x00825bb4;
+            functor[1] = 0x001e1cf0;  // BroScr_TurretSetAIMode
+            functor[2] = guy;
+            functor[3] = turret;
+            *reinterpret_cast<uint8_t*>(&functor[4]) = flagged;
+            functor[5] = *mode;
+        }
+        slot<Create>(0x0092216c)(0, 0, 0, guy, functor, 0);  // Scr_CreateThread
+        functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);
+        if (functor) {
+            functor[0] = 0x007f4a28;
+            functor[1] = 0x001a4f40;  // BroScr_TurretManualTargetThink
+            functor[2] = guy;
+            functor[3] = turret;
+        }
+        slot<Create>(0x0092216c)(0, 0, 0, guy, functor, 0);
+        Scr_WaitTillString(guy, pointer<const char>(0x00831f60));  // "death"
+        bool defined;
+        if (*ScrField_script_delay_IsDefined(&defined, ent)) {
+            Scr_Wait(as_float(*key_slot(ent, 0x807116c4, undefined_float())));  // script_delay
+        } else if (*ScrField_script_delay_min_IsDefined(&defined, ent) &&
+                   *ScrField_script_delay_max_IsDefined(&defined, ent)) {
+            const float max = as_float(*key_slot(ent, 0x6c663f49, undefined_float()));
+            const float min = as_float(*key_slot(ent, 0x6c663e5f, undefined_float()));
+            const uint32_t* const base = key_slot(ent, 0x6c663e5f, undefined_float());
+            const long double random = slot<long double XB_CDECL(float)>(0x00922230)(max - min);  // Scr_RandomFloat
+            Scr_Wait(static_cast<float>(as_float(*base) + random));
+        } else {
+            Scr_Wait(1.0f);
+        }
+    } while (slot<Count>(0x00922b88)(ent));
+}
+
+namespace {
+inline bool pending_slot(uint32_t ent) { return slot<uint32_t XB_CDECL(uint32_t)>(0x0092271c)(ent) != 0; }  // GScr_ActorHasPendingSentientSlot
+// A debug message string (built and released) with the key read its assert makes.
+inline void message_read(uint32_t ent, uint32_t text, uint32_t key) {
+    ScriptString message;
+    scr_string_from(&message, text);
+    handle_slot(ent, key);
+    scr_release(&message);
+}
+}  // namespace
+
+void XB_CDECL Bro_cover_crouch__cover_crouch(uint32_t ent) {
+    end_on(ent, 0x07b4e7f7);
+    ScrVec3 offset;
+    offset.v[0] = bits(0.0f);
+    offset.v[1] = bits(0.0f);
+    offset.v[2] = bits(0.0f);
+    uint32_t cover[3];
+    BroScr_GetCoverNodeOrOrigin(cover, ent);
+    for (;;) {
+        if (!pending_slot(ent)) {
+            do {
+                if (!(static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) > 0)) break;  // no rounds left
+                if (*int_slot(ent, 0xc786fa48) != 0) break;                          // rechamber pending
+                set_orient_mode(ent, 0x0083adc0);  // "face enemy"
+                message_read(ent, 0x00826a5c, 0x0ccee5c1);  // "... About to call aim, movement is bad"
+                if (team_is_axis(ent))
+                    BroScr_SetAimBlendTimes(title_global<uint32_t>(0x0083eb24), title_global<uint32_t>(0x00922ea4));  // 0.5
+                else
+                    BroScr_SetAimBlendTimes(title_global<uint32_t>(0x0083ebf8), title_global<uint32_t>(0x00922ea4));  // 0.1
+                BroScr_PlayIdleAnim(ent);
+                BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+                slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008ce4d8), title_global<uint32_t>(0x008cd7dc),
+                                                0x3f800000, 0x3e4ccccd, 0x3f800000, 0);  // GScr_SetAnimKnobAll(crouch_aim, Body)
+                {
+                    const uint32_t aim = title_global<uint32_t>(0x008ce4d8);
+                    ScriptString name;
+                    scr_string_from(&name, 0x00826a38);  // "Not suppressed and ready to fire"
+                    BroScr_AimUntilCanShoot(ent, aim, aim, aim, title_global<uint32_t>(0x0083ec9c), name);  // 3
+                }
+                uint32_t can;
+                if (*BroScr_CheckCanShoot(&can, ent, title_global<uint32_t>(0x00922ebc))) {
+                    message_read(ent, 0x008269f0, 0x764918ae);  // "... About to call ShootVolley but not aiming"
+                    ScriptString mode;
+                    ScriptString_Copy(&mode, pointer<ScriptString>(0x00922e90));
+                    uint8_t shot;
+                    BroScr_CoverShootBehavior(&shot, ent, 0, mode, title_global<uint32_t>(0x00922e84));
+                }
+            } while (!pending_slot(ent));
+        }
+        bool volley_over;
+        {
+            ScriptString team;
+            volley_over = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084)) ||  // "allies"
+                          pending_slot(ent) ||
+                          title_global<float>(0x0083eb24) >
+                              slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000);  // 0.5 > Scr_RandomFloat(1)
+            scr_release(&team);
+        }
+        uint32_t thrown;
+        if (volley_over) {
+            {
+                ScriptString name;
+                scr_string_from(&name, 0x008269d4);  // "CoverCrouch volley over"
+                BroScr_CoverCrouchReloadAnim(ent, name);
+            }
+            slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x009226f8)(ent, cover, 0, 0);  // GScr_ActorTryTeleport
+            BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+            BroScr_TryReload(ent, title_global<uint32_t>(0x0083eca0), title_global<uint32_t>(0x00922ea8));  // 0.2
+            BroScr_ReloadLauncher(ent);
+            while (pending_slot(ent)) {
+                {
+                    ScriptString type;
+                    scr_string_from(&type, 0x008269a8);  // "undersuppression"
+                    BroScr_ChooseFlankOrCoverMe(ent, type);
+                }
+                Bro_cover_crouch__idle(ent);
+                BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+            }
+            set_orient_mode(ent, 0x0083adc0);  // "face enemy"
+            BroScr_PlayCrouchIdleAnim(ent);
+        } else {
+            BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+            BroScr_TryReload(ent, title_global<uint32_t>(0x0083eca0), title_global<uint32_t>(0x00922ea8));
+            BroScr_ReloadLauncher(ent);
+        }
+    }
+}
+
+namespace {
+// GScr_SetFlaggedAnimKnob(ent, the melee notify 0xcc615b7e, anim, 1, blend, 1, 0).
+inline void melee_knob(uint32_t ent, uint32_t anim, uint32_t blend) {
+    slot<SetAnim7>(0x009225e0)(ent, 0xcc615b7e, title_global<uint32_t>(anim), 0x3f800000, blend, 0x3f800000, 0);
+}
+inline void message_only(uint32_t text) {
+    ScriptString message;
+    scr_string_from(&message, text);
+    scr_release(&message);
+}
+}  // namespace
+
+void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
+    const uint32_t kStand = 0x070b89a4;
+    const uint32_t kLeft = 0x003798b4;
+    const uint32_t kRight = 0x07151174;
+    end_on(ent, 0x07b4e7f7);
+    slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent);  // GScr_SentientNearestEnemyDist (unused)
+    message_only(0x00826dc8);  // "combat::MeleeCombat - not in range!"
+    {
+        ScriptString message;
+        scr_string_from(&message, 0x00826da0);  // "Can't melee - I don't have an enemy."
+        is_alive(enemy_of(ent));                // the assert's read
+        scr_release(&message);
+    }
+    message_only(0x00826c88);  // "Script state called without reason."
+    uint8_t linked = 0;
+    do {
+        uint8_t charged;
+        if (!*BroScr_MeleeCharge(&charged, ent)) break;
+        uint8_t relinked;
+        if (*BroScr_MeleePair_Relink(&relinked, ent, enemy_of(ent))) {
+            BroScr_MeleePair_Link(ent, enemy_of(ent));
+            linked = 1;
+        } else {
+            linked = 0;
+        }
+        begin_entity_thread(0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+        if (*handle_slot(ent, 0x0ccee5c1) == 0x0001c6ce && get_int_184(ent) == kStand)
+            BroScr_MeleeAttackAnim(ent);
+        else
+            title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, kStand, 0x00385d90);  // BroScr_SetPoseMovement
+        message_read(ent, 0x00826d90, 0x0ccee5c1);  // "should be stop"
+        if (!is_alive(enemy_of(ent))) break;
+        {
+            ScriptString type;
+            scr_string_from(&type, 0x008267c0);  // "meleeattack"
+            BroScr_BattleChatter(ent, type);
+        }
+        slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008ce9b8), title_global<uint32_t>(0x008cd7dc),
+                                        0x3f800000, 0x3d4ccccd, 0x3f800000, 0);  // GScr_SetAnimKnobAll(MELEE, Body)
+        uint32_t state = *handle_slot(ent, 0x2afa5406);
+        uint32_t stance;
+        if (enemy_of(ent) == title_global<uint32_t>(0x009236dc)) {  // the player: his stance
+            ScriptString name;
+            ScriptString_FromRep(&name, nullptr);
+            slot<void XB_CDECL(uint32_t, ScriptString*)>(0x00922600)(title_global<uint32_t>(0x009236dc), &name);  // GScr_GetStance
+            uint32_t hash;
+            stance = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
+            scr_release(&name);
+        } else {
+            stance = get_int_184(enemy_of(ent));
+        }
+        switch (*handle_slot(ent, 0x2afa5406)) {
+        case 0x0001894d:  // the first swing
+            if (stance == kStand) {
+                melee_knob(ent, 0x008cd77c, 0x3e19999a);  // aim2melee_right
+                state = kRight;
+            } else {
+                melee_knob(ent, 0x008cd788, 0x3e19999a);  // aim2meleecrouch_left
+                state = kLeft;
+            }
+            break;
+        case kLeft: {
+            const int32_t r = random_int(100);
+            if (stance == kStand) {
+                if (r < 30) {
+                    melee_knob(ent, 0x008ce9dc, 0x3dcccccd);
+                } else {
+                    const uint32_t notify = 0xcc615b7e;
+                    if (r < 60) {
+                        ScrCall_SetFlaggedAnimKnobByRef(&ent, &notify, title_global<uint32_t>(0x008ce9e8), 0x3f800000, 0x3dcccccd,
+                                                        0x3f800000);
+                    } else {
+                        ScrCall_SetFlaggedAnimKnobByRef(&ent, &notify, title_global<uint32_t>(0x008ce9f4), 0x3f800000, 0x3dcccccd,
+                                                        0x3f800000);  // melee_left2right
+                        state = kRight;
+                    }
+                }
+            } else if (r < 40) {
+                melee_knob(ent, 0x008cea24, 0x3dcccccd);  // meleecrouch_left2left
+            } else {
+                melee_knob(ent, 0x008cea30, 0x3dcccccd);  // meleecrouch_left2right
+                state = kRight;
+            }
+            break;
+        }
+        case kRight: {
+            const int32_t r = random_int(100);
+            if (stance == kStand) {
+                if (r < 30) {
+                    melee_knob(ent, 0x008cea0c, 0x3dcccccd);  // melee_right2right_1
+                } else if (r < 60) {
+                    melee_knob(ent, 0x008cea18, 0x3dcccccd);  // melee_right2right_2
+                } else {
+                    melee_knob(ent, 0x008cea00, 0x3dcccccd);  // melee_right2left
+                    state = kLeft;
+                }
+            } else if (r < 40) {
+                melee_knob(ent, 0x008cea48, 0x3dcccccd);  // meleecrouch_right2right
+            } else {
+                melee_knob(ent, 0x008cea3c, 0x3dcccccd);  // meleecrouch_right2left
+                state = kLeft;
+            }
+            break;
+        }
+        case 0xc0b14485:  // after the charge
+            melee_knob(ent, 0x008ce9d0, 0x3dcccccd);  // melee_charge2right
+            state = kRight;
+            break;
+        default:
+            message_only(0x00826d54);  // "homemade_error = Unexpected_meleeState_value + meleeState"
+            break;
+        }
+        handle_note_tracks(ent, 0xcc615b7e, 0x0018da00);  // BroScr_MeleeNoteTrackHandler
+        *handle_slot(ent, 0x2afa5406) = state;
+    } while (is_alive(enemy_of(ent)));
+    if (linked) BroScr_MeleePair_Unlink(ent, enemy_of(ent));
+    begin_entity_thread(0x001dce30, ent);  // BroScr_CombatMain
+    queue_notify(ent, 0x807e5a80);
+    scr_release(&reason);
+}
+
 }  // namespace game

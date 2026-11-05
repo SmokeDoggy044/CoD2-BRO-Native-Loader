@@ -564,5 +564,25 @@ void XB_CDECL BroScr_SpawnedThink(uint32_t unused, uint32_t spawner);
 // owner-change call thread, the weapon back to int +0xf4, and uses the turret.
 void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end);
 
+// 0x001e2010: the MG42 cover spot spawner thread: ai_mode defaulted, the target node's turret moved to the node;
+// a turret with a target: its level flag cleared and a trigger notify thread when undefined. While the
+// spawner has a count: a guy spawned (retried each second), the AI mode / manual target threads on
+// him, his death, then the spawner's script_delay (or a random delay_min..max, else 1 s).
+void XB_CDECL BroScr_Mg42CoverSpotThink(uint32_t ent);
+
+// 0x001d6a10: the cover-crouch thread (ends on 0x07b4e7f7), forever: while no sentient slot is pending
+// and rounds are left (no rechamber): face enemy, aim blend times by team, idle, keep aiming, the
+// crouch aim, aim until it can shoot, then the cover shoot behaviour. Allies / a pending slot / half
+// the time: the crouch reload, teleport to the cover spot, grenade, reload, then flank / cover-me and
+// idle while a slot is pending; otherwise grenade and reload.
+void XB_CDECL Bro_cover_crouch__cover_crouch(uint32_t ent);
+
+// 0x001dd8d0: the melee combat thread (ends on 0x07b4e7f7): while the melee charge reaches the living
+// enemy: the melee pair relinked, the look-at-enemy thread, the attack anim (or stand pose), chatter,
+// the MELEE knob, then the next swing by the melee state 0x2afa5406 (start / left / right / after the
+// charge) and the enemy's stance (the player's by GScr_GetStance), its note tracks, the new state.
+// Then the pair unlinked if linked, the combat main thread, notify 0x807e5a80. Releases `reason`.
+void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason);
+
 }  // namespace game
 
