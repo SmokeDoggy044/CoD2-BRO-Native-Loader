@@ -25,6 +25,29 @@ struct ScrVec3;
 void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys, uint32_t anime, ScriptString tag, ScrVec3 origin,
                                     uint32_t tag_ent, uint32_t flag, ScrVec3 angles);
 
+// 0x001757f0: the notetrack thread of a scene guy (started by BroScr_AnimLoopGuys / _AnimSingleGuys with
+// the scene entity `owner`): notifies 0x3621f548, ends the guy's previous one (field notetrack_wait, now
+// this thread), then per notetrack of `notify` until "end": each entry of the scene's table (level +0x160
+// [animname][anime]) whose "notetrack" matches (and "anime", when set): attach / detach gun, "swap from",
+// "attach model" / "detach model" (on "selftag" of the guy, else "tag" on tag_ent or owner), "sound"
+// (BroScr_PlaySoundOnTag thread), dialogue face anim (once per notetrack), create / delete model;
+// entries that don't match check the built-in "anim_gunhand = left/right" and "lookat = on/off".
+void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_t notify, uint32_t tag_ent, uint32_t anime);
+
+// 0x00176720: the looped scene `anime` for `guys` (a DynArray's address) of the entity *ref: guy 0's `loops`
+// field defined (0), a BroScr_LimitSameAnimation thread on guy 0; with `ender` (not the undefined handle)
+// *ref ends on it and a BroScr_DecrementCounterOnNotify thread (*ref, guy 0, ender) runs. Then forever:
+// the place at `tag` (on tag_ent when valid, else on *ref), a variant index (BroScr_AnimLoopPickIndex,
+// redrawn while it repeats the last nonzero one) and per guy (an AI guy that is dead ends it all): the
+// variant's face anim (level map +0x5b0), sound (+0x634) and anim (+0x744; with `flag` at the guy's own
+// place): GScr_AnimScriptedNoNotify 0x7c70a61e, a BroScr_AnimNotetrackCommands thread (*ref, guy,
+// 0x7c70a61e, tag_ent, anime) on *ref and a BroScr_AnimNoteTracksThread; face / sound:
+// BroScr_StartAnimFaceWait (notify 0x00922ee8 with an anim, else 0x7c70a61e);
+// BroScr_AddToNamedEntList(animname, anime). Then it waits for 0x7c70a61e on the last guy with an anim
+// (Scr_WaitTillArgs ... 0x199a4) or with a face / sound (Scr_WaitTill). Releases `tag` when it ends.
+void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys, uint32_t anime, ScriptString tag, uint32_t ender,
+                                  ScrVec3 origin, uint32_t tag_ent, uint32_t flag, ScrVec3 angles);
+
 // 0x00178080 / 0x00178280: BroScr_AnimLoopGuys(ref, guys, a3, a copy of `anime`, p5, origin, p7, p8,
 // angles) at: the vector 0x00922ec4 (AtEnt) / the undefined lanes (AtNode) when `p8`; else the
 // valid entity / path node `place`; else that vector with p8 true when *ref is the level object;

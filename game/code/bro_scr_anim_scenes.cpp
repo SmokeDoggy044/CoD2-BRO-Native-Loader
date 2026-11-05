@@ -3,8 +3,12 @@
 #include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_anim.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_ai_anim.h"
 #include "bro_scr_anim_threads.h"
 #include "bro_scr_common.h"
+#include "bro_scr_notetrack.h"
+#include "bro_scr_util.h"
 #include "g_scr_runtime.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -211,6 +215,105 @@ inline void notify_thread(uint32_t function, uint32_t on, const uint32_t* guy, u
         0, 0, 0, on, functor, 0);  // Scr_CreateThread
 }
 
+// level + offset [hash(guy's animname)] [key]: a looped scene's per-variant array (`index` / `array` are
+// HashMap_Index_10 / HashMap_Index for the int maps +0x5b0 / +0x744, 0x0078e280 / 0x0078d350 for the string
+// map +0x634). The animname (in `animname`) is the caller's to release.
+inline DynArray* variant_array(uint32_t offset, uint32_t index, uint32_t array, const uint32_t* guy, const uint32_t* key,
+                               ScriptString* animname) {
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, animname);
+    uint32_t hash;
+    const uint32_t* const h = Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
+    uint32_t* const map =
+        title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(index)(title_global<uint32_t>(0x00922ee0) + offset, h);
+    return title_function<DynArray* XB_THISCALL(uint32_t*, const uint32_t*)>(array)(map, key);
+}
+// &array[i], reserved to (i + 1, i + 4) first by `reserve` (DynArray_ReserveInt0 / _ReserveString) when i >= count.
+inline uint32_t* variant_at(DynArray* array, uint32_t i, uint32_t reserve) {
+    if (i >= array->size) title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(reserve)(array, i + 1, i + 4);
+    return &array->data[i];
+}
+constexpr uint32_t kIntIndex = 0x00464380;     // HashMap_Index_10
+constexpr uint32_t kIntArray = 0x004612f0;     // HashMap_Index
+constexpr uint32_t kStringIndex = 0x0078e280;  // HashMap_Index_BUCHHOLZ
+constexpr uint32_t kStringArray = 0x0078d350;
+constexpr uint32_t kReserveInt = 0x0045d480;     // DynArray_ReserveInt0
+constexpr uint32_t kReserveString = 0x0045c2e0;  // DynArray_ReserveString
+// Scr_CreateThread of a {0x007f4b00, function, on, notify} functor on `on`.
+inline void notify_thread_on(uint32_t function, uint32_t on, uint32_t notify) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f4b00;
+        functor[1] = function;
+        functor[2] = on;
+        functor[3] = notify;
+    }
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+        0, 0, 0, on, functor, 0);  // Scr_CreateThread
+}
+// DynArray copy-assign (0x0045c270, thiscall) into a zeroed by-value argument.
+inline DynArray copy_array(const DynArray* source) {
+    DynArray copy = {0, 0, 0};
+    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, source);  // DynArray_Assign4
+    return copy;
+}
+// The guy's level +0x160 map, copied (HashMap_CopyCtor_4 inlined) and dropped (the script's discarded read).
+inline void drop_map_copy(const uint32_t* guy) {
+    ScriptString animname;
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, &animname);
+    uint32_t hash;
+    const HashMap* const source = reinterpret_cast<HashMap*>(HashMap_Index_6(
+        pointer<HashMap>(title_global<uint32_t>(0x00922ee0) + 0x160),
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name))));
+    HashMap copy;
+    copy.traits = source->traits;
+    copy.head = title_function<HashNode* XB_CDECL()>(0x0017bc80)();  // std_list_BuyHead
+    copy.size = 0;
+    copy.buckets = nullptr;
+    copy.buckets_last = nullptr;
+    copy.buckets_end = nullptr;
+    HashMap_CopyFrom_4(&copy, source);
+    title_function<void XB_THISCALL(HashMap*)>(0x00463c70)(&copy);  // HashMap_Dtor
+    scr_release(&animname);
+}
+
+// The scene's notetrack entries: level +0x160 [animname hash] [anime] (an array of 0x28-byte string maps).
+inline DynArray* note_entries(const uint32_t* animhash, const uint32_t* anime) {
+    return reinterpret_cast<DynArray*>(HashMap_Index_8(
+        reinterpret_cast<HashMap*>(HashMap_Index_6(pointer<HashMap>(title_global<uint32_t>(0x00922ee0) + 0x160), animhash)),
+        anime));
+}
+// Entry j with the element access inline (DynArray_ResizeHashMap past the count), as the title's first
+// lookups are; the later ones call DynArray_AtHashMap (entry_at).
+inline uint8_t* entry_inline(const uint32_t* animhash, const uint32_t* anime, uint32_t j) {
+    DynArray* const list = note_entries(animhash, anime);
+    if (j >= list->size) DynArray_ResizeHashMap(list, j + 1, j + 4);
+    return reinterpret_cast<uint8_t*>(list->data) + j * 0x28;
+}
+inline uint8_t* entry_at(const uint32_t* animhash, const uint32_t* anime, uint32_t j) {
+    return DynArray_AtHashMap(note_entries(animhash, anime), j);
+}
+inline ScriptString* note_field(uint8_t* entry, const uint32_t* key) {
+    return title_function<ScriptString* XB_THISCALL(uint8_t*, const uint32_t*)>(0x00461120)(entry, key);  // HashMap_Index_11
+}
+// The entry's string under the hash of title string `name`: inline entry first, then the name's hash.
+inline ScriptString* field_inline(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t name) {
+    uint8_t* const entry = entry_inline(animhash, anime, j);
+    uint32_t hash;
+    return note_field(entry, Scr_HashName(&hash, pointer<const char>(name)));
+}
+// The same through DynArray_AtHashMap: the name's hash first.
+inline ScriptString* field_at(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t name) {
+    uint32_t hash;
+    const uint32_t* const key = Scr_HashName(&hash, pointer<const char>(name));
+    return note_field(entry_at(animhash, anime, j), key);
+}
+// The same under a constant key hash.
+inline ScriptString* field_key(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t key) {
+    const uint32_t k = key;
+    return note_field(entry_at(animhash, anime, j), &k);
+}
+inline uint32_t word_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
 }  // namespace
 
 void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t anime, ScriptString tag, ScrVec3 origin,
@@ -364,6 +467,316 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
     queue_notify(ent, anime);
     if (entity_handle_is_valid(waiter)) slot<void XB_CDECL(uint32_t)>(0x00922540)(waiter);  // GScr_Delete
     scr_release(&tag);
+}
+
+void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint32_t anime, ScriptString tag, uint32_t ender,
+                                  ScrVec3 origin, uint32_t tag_ent, uint32_t flag, ScrVec3 angles) {
+    using TagVec3 = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
+    DynArray* const guys = pointer<DynArray>(guys_word);
+    {
+        bool defined;
+        if (!*ScrField_loops_IsDefined(&defined, *element_at(guys, 0))) *int_slot(*element_at(guys, 0), 0x06f63273) = 0;
+    }
+    notify_thread_on(0x0012f3b0, *element_at(guys, 0), anime);  // BroScr_LimitSameAnimation
+    if (ender != undefined_handle()) {
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(*ref, ender);  // Scr_EndOn
+        notify_thread(0x0012f460, *ref, element_at(guys, 0), ender);     // BroScr_DecrementCounterOnNotify
+    }
+    const bool has_tag = tag.rep != nullptr;
+    const bool on_tag_ent = has_tag && entity_handle_is_valid(tag_ent);
+    uint32_t last_pick = 0;
+    for (;;) {
+        // The place at `tag` on tag_ent (else on *ref).
+        if (has_tag) {
+            if (on_tag_ent) {
+                uint32_t tmp[3];
+                tmp[0] = tmp[1] = tmp[2] = undefined_lane();
+                slot<TagVec3>(0x0092261c)(tag_ent, tmp, &tag);  // GScr_GetTagOrigin
+                origin.v[0] = tmp[0];
+                origin.v[1] = tmp[1];
+                origin.v[2] = tmp[2];
+                uint32_t tmp2[3];
+                tmp2[0] = tmp2[1] = tmp2[2] = undefined_lane();
+                slot<TagVec3>(0x00922620)(tag_ent, tmp2, &tag);  // GScr_GetTagAngles
+                angles.v[0] = tmp2[0];
+                angles.v[1] = tmp2[1];
+                angles.v[2] = tmp2[2];
+            } else {
+                uint32_t tmp[3];
+                tmp[0] = tmp[1] = tmp[2] = undefined_lane();
+                slot<TagVec3>(0x0092261c)(*ref, tmp, &tag);  // GScr_GetTagOrigin
+                origin.v[0] = tmp[0];
+                origin.v[1] = tmp[1];
+                origin.v[2] = tmp[2];
+                uint32_t tmp2[3];
+                tmp2[0] = tmp2[1] = tmp2[2] = undefined_lane();
+                slot<TagVec3>(0x00922620)(*ref, tmp2, &tag);  // GScr_GetTagAngles
+                angles.v[0] = tmp2[0];
+                angles.v[1] = tmp2[1];
+                angles.v[2] = tmp2[2];
+            }
+        }
+
+        // The variant: drawn again while it repeats the last (nonzero) one.
+        uint32_t out;
+        uint32_t pick = *BroScr_AnimLoopPickIndex(&out, copy_array(guys), anime);
+        while (pick == last_pick && pick != 0) {
+            uint32_t again;
+            pick = *BroScr_AnimLoopPickIndex(&again, copy_array(guys), anime);
+        }
+        last_pick = pick;
+
+        // Each guy: the variant's face anim, sound and scene anim, as in BroScr_AnimSingleGuys.
+        int32_t last_anim = -1;
+        int32_t last_face = -1;
+        for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(guys->size); ++i) {
+            ScriptString sound;
+            ScriptString_FromRep(&sound, nullptr);
+            bool has_face = false;
+            bool has_sound = false;
+            bool has_anim = false;
+            uint32_t face = 0;
+            if (slot<uint32_t XB_CDECL(uint32_t)>(0x0092221c)(*element_at(guys, i - 1)) &&    // GScr_IsAI
+                !slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(*element_at(guys, i - 1))) {  // GScr_IsAlive
+                scr_release(&sound);
+                scr_release(&tag);
+                return;
+            }
+            bool test;
+            {
+                ScriptString animname;
+                test = *variant_at(variant_array(0x5b0, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                                   kReserveInt) != 0;
+                scr_release(&animname);
+            }
+            if (test) {
+                has_face = true;
+                ScriptString animname;
+                face = *variant_at(variant_array(0x5b0, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                                   kReserveInt);
+                scr_release(&animname);
+            }
+            {
+                ScriptString animname;
+                test = *variant_at(variant_array(0x634, kStringIndex, kStringArray, element_at(guys, i - 1), &anime, &animname),
+                                   pick, kReserveString) != 0;
+                scr_release(&animname);
+            }
+            if (test) {
+                has_sound = true;
+                ScriptString animname;
+                ScriptString_Assign(&sound, reinterpret_cast<ScriptString*>(variant_at(
+                                                variant_array(0x634, kStringIndex, kStringArray, element_at(guys, i - 1), &anime,
+                                                              &animname),
+                                                pick, kReserveString)));
+                scr_release(&animname);
+            }
+            {
+                ScriptString animname;
+                test = *variant_at(variant_array(0x744, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                                   kReserveInt) != 0;
+                scr_release(&animname);
+            }
+            if (test) {
+                has_anim = true;
+                if (static_cast<uint8_t>(flag) != title_global<uint8_t>(0x00922ed0) && static_cast<uint8_t>(flag)) {
+                    // At the guy's own place.
+                    uint32_t buffer[3];
+                    const uint32_t* o =
+                        slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, *element_at(guys, i - 1));
+                    origin.v[0] = o[0];
+                    origin.v[1] = o[1];
+                    origin.v[2] = o[2];
+                    uint32_t buffer2[3];
+                    const uint32_t* a =
+                        slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer2, *element_at(guys, i - 1));
+                    angles.v[0] = a[0];
+                    angles.v[1] = a[1];
+                    angles.v[2] = a[2];
+                }
+                {
+                    ScriptString animname;
+                    const uint32_t anim = *variant_at(
+                        variant_array(0x744, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick, kReserveInt);
+                    slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t)>(0x009224c0)(
+                        *element_at(guys, i - 1), 0x7c70a61e, origin.v, angles.v, anim);  // GScr_AnimScriptedNoNotify
+                    scr_release(&animname);
+                }
+                last_anim = static_cast<int32_t>(i - 1);
+                drop_map_copy(element_at(guys, i - 1));
+                {
+                    const uint32_t* const guy = element_at(guys, i - 1);
+                    const uint32_t owner = *ref;
+                    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x1c);  // ScrIface_Alloc
+                    if (functor) {
+                        functor[0] = 0x00824428;
+                        functor[1] = 0x001757f0;  // BroScr_AnimNotetrackCommands
+                        functor[2] = owner;
+                        functor[3] = *guy;
+                        functor[4] = 0x7c70a61e;
+                        functor[5] = tag_ent;
+                        functor[6] = anime;
+                    }
+                    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+                        0, 0, 0, owner, functor, 0);  // Scr_CreateThread
+                }
+                notify_thread_on(0x0011fb90, *element_at(guys, i - 1), 0x7c70a61e);  // BroScr_AnimNoteTracksThread
+            }
+            if (has_face || has_sound) {
+                const uint32_t last = title_global<uint32_t>(0x00922ea4);
+                ScriptString empty;
+                ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
+                ScriptString copy;
+                if (has_anim) {
+                    const uint32_t notify = title_global<uint32_t>(0x00922ee8);
+                    ScriptString_Copy(&copy, &sound);
+                    BroScr_StartAnimFaceWait(*element_at(guys, i - 1), face, copy, 0x3f800000, notify, empty, last);
+                } else {
+                    ScriptString_Copy(&copy, &sound);
+                    BroScr_StartAnimFaceWait(*element_at(guys, i - 1), face, copy, 0x3f800000, 0x7c70a61e, empty, last);
+                }
+                last_face = static_cast<int32_t>(i - 1);
+            }
+            {
+                ScriptString animname;
+                ScrCall_ScrEnt_GetAnimname(element_at(guys, i - 1), &animname);
+                BroScr_AddToNamedEntList(animname, anime);
+            }
+            scr_release(&sound);
+        }
+
+        // Wait for the variant's end on the remembered guy.
+        if (last_anim != -1) {
+            Scr_WaitTillArgs(*element_at(guys, static_cast<uint32_t>(last_anim)), 0x7c70a61e, 0x199a4, 0, 0);
+        } else if (last_face != -1) {
+            Scr_WaitTill(*element_at(guys, static_cast<uint32_t>(last_face)), 0x7c70a61e);
+        }
+    }
+}
+
+void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_t notify, uint32_t tag_ent, uint32_t anime) {
+    using Attach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t);
+    using Detach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*);
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
+    // One notetrack thread per guy: the previous one (field notetrack_wait) is terminated.
+    queue_notify(guy, 0x3621f548);
+    slot<void XB_CDECL(uint32_t)>(0x009221a0)(*key_slot(guy, 0xd850f89e, 0));  // Scr_TerminateThread
+    uint32_t* const wait = key_slot(guy, 0xd850f89e, 0);
+    *wait = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
+    const uint32_t holder = entity_handle_is_valid(tag_ent) ? tag_ent : owner;
+    ScriptString note;
+    ScriptString_FromRep(&note, nullptr);
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(guy, notify,
+                                                                                      &note);  // Scr_WaitTillOutputStr_ORAN
+        bool faced = false;
+        uint32_t note_hash;
+        Scr_HashScriptString(&note_hash, reinterpret_cast<const uint8_t* const*>(&note));
+        if (note_hash == 0x199a4) break;  // "end"
+        uint32_t animhash;
+        {
+            ScriptString animname;
+            Scr_HashScriptString(&animhash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&guy, &animname)));
+            scr_release(&animname);
+        }
+        // Every entry of the scene's notetrack table.
+        for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(note_entries(&animhash, &anime)->size); ++j) {
+            if (ScriptString_EqualsString(&note, field_inline(&animhash, &anime, j, 0x0082555c))) {  // "notetrack"
+                if (field_inline(&animhash, &anime, j, 0x00825554)->rep) {  // "anime": only for that scene
+                    uint32_t hash;
+                    if (*Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(
+                                                         field_inline(&animhash, &anime, j, 0x00825554))) != anime)
+                        continue;
+                }
+                if (field_inline(&animhash, &anime, j, 0x00825544)->rep) {  // "attach gun left"
+                    BroScr_AnimNotetrack_DeleteAttached(guy);
+                } else if (field_inline(&animhash, &anime, j, 0x00825530)->rep) {  // "attach gun right"
+                    BroScr_AnimNotetrack_DeleteAttached_2(guy);
+                } else if (field_inline(&animhash, &anime, j, 0x00825524)->rep) {  // "detach gun"
+                    BroScr_NotetrackDropGun(owner, guy, word_of(entry_inline(&animhash, &anime, j)));
+                } else if (field_inline(&animhash, &anime, j, 0x00825518)->rep) {  // "swap from"
+                    {
+                        ScriptString* const model = string_field(guy, 0xe86f599a);
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x00825518);  // "swap from"
+                        slot<Detach>(0x009224d8)(guy, model, tag);                               // GScr_Attach
+                    }
+                    ScriptString* const model = string_field(guy, 0xe86f599a);
+                    ScriptString* const tag = field_at(&animhash, &anime, j, 0x0082550c);  // "self tag"
+                    slot<Attach>(0x009224d0)(guy, model, tag, 0);                            // GScr_DetachEx
+                } else if (field_at(&animhash, &anime, j, 0x008254fc)->rep) {  // "attach model"
+                    if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {      // "selftag"
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
+                        ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
+                        slot<Attach>(0x009224d0)(guy, model, tag, 0);  // GScr_DetachEx
+                    } else {
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
+                        ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
+                        slot<Attach>(0x009224d0)(holder, model, tag, 0);  // GScr_DetachEx
+                    }
+                } else {
+                    if (field_at(&animhash, &anime, j, 0x008254e0)->rep) {  // "detach model"
+                        if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {  // "selftag"
+                            ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
+                            ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
+                            slot<Detach>(0x009224d8)(guy, model, tag);  // GScr_Attach
+                        } else {
+                            ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
+                            ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
+                            slot<Detach>(0x009224d8)(holder, model, tag);  // GScr_Attach
+                        }
+                    }
+                    if (field_at(&animhash, &anime, j, 0x008254d8)->rep) {  // "sound"
+                        ScriptString none;
+                        ScriptString_FromRep(&none, nullptr);
+                        ScriptString animname;
+                        const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(&guy, &animname);
+                        const uint32_t key = 0x070659a4;
+                        uint32_t hash;
+                        ScriptString* const alias = note_field(
+                            entry_at(Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)), &anime, j), &key);
+                        title_function<StartThread>(0x0045aff0)(0, 0, 0, 0, 0x0019ca70, guy, alias,
+                                                                &none);  // Scr_StartThread_ent_str_str(BroScr_PlaySoundOnTag)
+                        scr_release(&animname);
+                        scr_release(&none);
+                    }
+                    if (!faced) {
+                        if (field_key(&animhash, &anime, j, 0x84f611ff)->rep) {
+                            ScriptString name;
+                            scr_string_from(&name, 0x0081093c);  // "dialogue"
+                            BroScr_NotetrackFaceAnim(guy, anime, j, name);
+                            faced = true;
+                        } else if (field_key(&animhash, &anime, j, 0xcea13d87)->rep) {
+                            ScriptString name;
+                            scr_string_from(&name, 0x008254d0);  // "dialog"
+                            BroScr_NotetrackFaceAnim(guy, anime, j, name);
+                            faced = true;
+                        }
+                    }
+                    if (field_at(&animhash, &anime, j, 0x00824ebc)->rep) {  // "create model"
+                        BroScr_CreateModel(guy, word_of(entry_at(&animhash, &anime, j)));
+                    } else if (field_at(&animhash, &anime, j, 0x008254c0)->rep) {  // "delete model"
+                        BroScr_DeleteModel(guy, word_of(entry_at(&animhash, &anime, j)));
+                    }
+                    // Reads whose results the script drops (they add the keys).
+                    if (field_key(&animhash, &anime, j, 0x0cf2dc5b)->rep) field_key(&animhash, &anime, j, 0xcc529814);
+                    if (field_key(&animhash, &anime, j, 0x0001dc47)->rep) field_key(&animhash, &anime, j, 0xcc529814);
+                }
+            } else {
+                // Not this entry's notetrack: the built-in ones.
+                uint32_t hash;
+                if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x008254ac))) {  // "anim_gunhand = left"
+                    BroScr_PutGunInHand(guy, 0x003798b4);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825494))) {  // "anim_gunhand = right"
+                    BroScr_PutGunInHand(guy, 0x07151174);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825488))) {  // "lookat = on"
+                    BroScr_AnimNotetrack_Alert(guy, title_global<uint32_t>(0x00922eec), 10000);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825478))) {  // "lookat = off"
+                    BroScr_AnimNotetrack_Alert(guy, guy, 0);
+                }
+            }
+        }
+    }
+    scr_release(&note);
 }
 
 namespace {
