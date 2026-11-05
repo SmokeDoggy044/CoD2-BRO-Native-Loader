@@ -38,6 +38,7 @@ set(game_code_sources
     bro_scr_util.cpp
     bro_scr_vehicle.cpp
     bro_scr_vehicle_health.cpp
+    bro_scr_fx_threads.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wallhop.cpp
     bro_scr_wad.cpp
