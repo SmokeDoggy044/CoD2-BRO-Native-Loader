@@ -37,11 +37,26 @@ them are compiled (about 1.5 minutes for a few files, most of it Wine start-up).
 Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 `/arch:SSE2` and no `/arch`, none scored higher (2026-10-19: 58 exact of 346).
 
+`--facts` adds a check that ignores code generation: per function, the title functions
+called (direct calls and loaded function addresses, in order) and the set of image
+constants (globals, interface-block slots, strings), with the XBE's EH frame left out and
+our own file-local helpers expanded. Only differences are printed. Run it with `/Ob1` so
+that only `inline` helpers are inlined (the title's calls between script bodies stay calls):
+
+    python3 -I tools/vc71match/vc71match.py NAME... --facts \
+        --flags "/nologo /c /FIvc71_prelude.h /O2 /Ob1 /Oy /G6 /arch:SSE /GR- /GF /Gy /W0"
+
+Left-over differences to expect: a function address loaded once into a register and
+called twice (header `title_function` calls) lists once; the title's duplicated branch
+tails list a call twice; a helper taking a function address lists it before the calls
+that build its arguments; the title's out-of-line field accessors (ScrField_*) and inline
+array growth (DynArray_Resize) against our inline accessors / BroScr_ArrayElement.
+
 ## What the copy compiled looks like
 
 `game/code/` is C++20; a lowered copy goes to `build/vc71match/src/`:
 
-- `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
+- `namespace a::b {` becomes `namespace a { namespace b {`; `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
   a `#define`, `auto* p = static_cast<T*>(...)` takes T; `std::nearbyint` comes from the
   prelude; `enum class` -> `enum`,
   `alignas` -> `__declspec(align)`, `constexpr` -> `const`, `nullptr` -> `0`,
@@ -54,6 +69,11 @@ Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
   so the call compares by callee name.
 - A function VC7.1 still rejects (range-for, lambdas, `auto`) has its body cut and is
   reported `no-compile` with the first error.
+
+Our side is read from the object files directly (COFF sections, symbols, relocations) and
+each function decoded on its own: objdump looks symbols up by section name, and every COMDAT
+section is called `.text`, so a symbol of one section (a file-local helper at +0x14, a `$L`
+label) cut the decoding of another mid-instruction (2026-11-05).
 
 ## Reading the scores
 
@@ -70,24 +90,3 @@ Expected misses, not decomp bugs:
 - Instruction scheduling: an equal instruction one slot earlier counts as a change.
 
 A low score next to a clean `--compare` record is worth a read, not a rewrite.
-
-## Ordered calls and constants (`--calls`)
-
-Compiled-script code (levelscript) scores low by nature, so under a low score the check
-is the ORDERED list of calls and constants. `--calls` prints, per function, both sides'
-sequences and their diff, and adds `calls ok` / `calls N differ` to the summary line:
-
-- calls and tail jumps by callee name; a slot loaded into a register and called through
-  it reads `call [ptr SLOT]` like a direct `call [slot]`;
-- constants: immediates pushed or stored to the stack (both read `const`), addresses
-  taken (`ADDR`), other immediates of 0x100 and up; displacements and global reads are
-  left out;
-- the C++ EH frame (`push -1; push handler`, the state word's stores) is left out (the
-  state word is found by esp depth, followed across jumps and callee `ret N`);
-- a function or slot address loaded into a register or a stack word and called through it
-  reads like the direct call; ScrField_*<hash> template instances read as the accessor named in
-  scr_field_instances.h (the symbol file's name), else `ScrField_h<hash>`.
-
-Known noise left in: zero stores done with xorps on one side (`const 0x0`), inlined
-helpers, a call sequence the XBE shares between two branches (tail merging; our side lists
-it twice) or duplicates, `_ftol` vs `_ftol2`.
