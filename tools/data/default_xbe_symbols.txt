@@ -6520,7 +6520,7 @@
 001a7b70 BroScr_MoveFriendlyChainTrigger
 001a7d10 BroScr_DeleteFriendlyChainTrigger
 001a7ec0 BroScr_WaitForAliveTouchingCount
-001a81b0 FUN_001a81b0
+001a81b0 BroScr_WaitTriggerAiCleared
 001a8590 BroScr_AnyAliveAITouching
 001a8840 BroScr_AppendIfValidEnt
 001a8870 BroScr_ArrayRemoveEnt
@@ -6618,7 +6618,7 @@
 001b6600 BroScr_AnimScript_Turret_2
 001b6a50 BroScr_AnimScript_TurretCall_1
 001b6a80 BroScr_AnimScript_TurretCall_2
-001b6ab0 FUN_001b6ab0
+001b6ab0 BroScr_TryShootRunBack
 001b6dc0 BroScr_LookAtUntilKillAnimscript_1
 001b6e70 BroScr_LookAtUntilKillAnimscript_2
 001b6f20 BroScr_LookAtUntilKillAnimscript_3
