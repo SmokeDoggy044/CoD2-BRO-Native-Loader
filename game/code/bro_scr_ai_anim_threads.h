@@ -358,5 +358,50 @@ uint8_t* XB_CDECL BroScr_BalconyStumbleDeath(uint8_t* out, uint32_t ent);
 // it (flag 0xf519d3c8) with a delayed rechamber; +0x38 = the failed tries. True when it stepped.
 uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent);
 
+// 0x001cf8b0 .. 0x001d3210: the corner run-to-alert scripts (corner A / B, stand / crouch, right /
+// left): face the corner yaw, the run-to-alert anim when moving, the corner idleset / special / pose,
+// a reload; then casual idles, or with the combat delay passed the alert pose and an aim sequence (or
+// a look), else back to casual.
+void XB_CDECL BroScr_CornerRun2AlertRight(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerBRun2AlertRight(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerCrouchRun2AlertRight(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerBCrouchRun2AlertRight(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerRun2AlertLeft(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerBRun2AlertLeft(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerCrouchRun2AlertLeft(uint32_t ent, uint32_t yaw);
+void XB_CDECL BroScr_CornerBCrouchRun2AlertLeft(uint32_t ent, uint32_t yaw);
+
+// 0x001d4970: the aim anim script: pose movement stop, the aim blend times, the idle anim, then
+// aiming at the target (0x009230ec / 0x0092379c).
+void XB_CDECL BroScr_AnimScript_Aim(uint32_t ent);
+// 0x001d5e30: the team chatter started; before the combat delay passes the next chatter time is now
+// (0xbe944753 false); after it, unless the enemy-sighted chatter played, a chatter past the chance-
+// scaled time.
+void XB_CDECL BroScr_MiscCombatTimer(uint32_t ent);
+// 0x001cb310: ends on death / 0x39894e / 0x2cf20de4; marks the force-shoot (0x88c31fb5, the thread in
+// 0x60d7df22), looks / turns at the target entity (death watch) or at the point, stores both, aims
+// (BroScr_AimIdleAtTarget) until 0xf378e0c7, waits `delay`, plays the pose's shoot anim and shoots at
+// the target's eye / origin or the point. Releases `name`.
+void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t unused7,
+                                       uint32_t target, uint32_t unused9);
+// 0x001d5890: ends on death; unless unarmed or prone (a moving actor only when `wait_stop`, after it
+// stops) BroScr_ForceShootAtPoint with `name` (default 0x7f63f0) and a7 (undefined: 0).
+void XB_CDECL BroScr_ForceShootThink(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t a7,
+                                     uint32_t target, uint32_t wait_stop);
+
+// 0x001d4a40: one cover shooting burst when the enemy is far enough (or `mode` is 0x7f63f0), with
+// rounds, a weapon and a muzzle line to `target`: the flamethrower / automatic bursts as
+// BroScr_ShootAtTarget threads, the semi-automatic 2-3 single shots, else a launcher / bolt shot;
+// then the shoot anim off and 0x807e5a80. Releases `mode`; true when it shot.
+uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t wait_after, ScriptString mode,
+                                            uint32_t target);
+// 0x001d46c0: a fallback trigger: unless its level fallback entry exists, a BroScr_FallbackThink thread
+// on the level (script_fallback 0x8bbe4822, 0x1aa720d8); on the trigger the level is notified
+// "<0x826458><fallback>" and the trigger's flood spawner deleted.
+void XB_CDECL BroScr_FallbackerTriggerThink(uint32_t trigger);
+// 0x001d6420: the concealment stand anim script: forever standing aim idles, a cover shooting burst
+// when it can shoot, a reload.
+void XB_CDECL BroScr_AnimScript_ConcealmentStand(uint32_t ent);
+
 }  // namespace game
 
