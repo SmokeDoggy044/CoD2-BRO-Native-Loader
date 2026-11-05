@@ -3,6 +3,7 @@
 #include "bro_scr_ai_common.h"
 #include "bro_scr_arrays.h"
 #include "bro_scr_common.h"
+#include "bro_scr_cover_turret.h"
 #include "bro_scr_nodes_spawner.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
@@ -75,6 +76,12 @@ inline int32_t level_int(uint32_t offset, uint32_t n) {
     if (n >= array->size) title_function<Resize>(0x0017b9a0)(array, n + 1, n + 4);  // DynArray_ResizeInt
     return static_cast<int32_t>(array->data[n]);
 }
+// Element n of the level object's int array at `offset`, grown like level_int first.
+inline uint32_t* level_int_at(uint32_t offset, uint32_t n) {
+    DynArray* const array = pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset);
+    if (n >= array->size) title_function<Resize>(0x0017b9a0)(array, n + 1, n + 4);  // DynArray_ResizeInt
+    return &array->data[n];
+}
 // The "fallback" cvar compared with "1"; the result is not used.
 inline void check_fallback_cvar() {
     ScriptString value;
@@ -90,6 +97,19 @@ inline bool has_int_key(uint32_t ent, uint32_t key) {
     const uint32_t* const value = ScriptKeyTable_Find(table, key);
     return (value ? *value : undefined_int()) != undefined_int();
 }
+
+// A 0x10-byte thread functor {vtable, function, two words} from ScrIface_Alloc (null when it fails).
+inline uint32_t* functor2(uint32_t vtable, uint32_t function, uint32_t a, uint32_t b) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+    if (!functor) return nullptr;
+    functor[0] = vtable;
+    functor[1] = function;
+    functor[2] = a;
+    functor[3] = b;
+    return functor;
+}
+// GScr_IsTouching(a, b) (the low byte).
+inline bool is_touching(uint32_t a, uint32_t b) { return static_cast<uint8_t>(slot<EntPair>(0x00922530)(a, b)) != 0; }
 
 }  // namespace
 
@@ -365,6 +385,163 @@ void XB_CDECL BroScr_WaitUntilTeamNotTouchingCall(uint32_t trigger, ScriptString
     ScriptString_Copy(&copy, &team);
     BroScr_WaitUntilTeamNotTouching(trigger, copy);
     scr_release(&team);
+}
+
+void XB_CDECL BroScr_GrenadeThrowTriggers(uint32_t ent) {
+    DynArray throwers = {nullptr, 0, 0};
+    DynArray magic = {nullptr, 0, 0};
+    DynArray targets = {nullptr, 0, 0};
+    {
+        ScriptString target;
+        Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&ent, &target)), 0x0d786b4c,
+                        reinterpret_cast<uint8_t*>(&targets), 0);
+        scr_release(&target);
+    }
+    // trigger_multiple targets throw magic grenades; the others are thrower triggers.
+    for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(targets.size); ++i) {
+        ScriptString classname;
+        const bool multiple = ScriptString_Equals(ScrCall_ScrEnt_GetClassname(element_at(&targets, i - 1), &classname),
+                                                  pointer<const char>(0x00832270));  // "trigger_multiple"
+        scr_release(&classname);
+        if (multiple)
+            DynArray_PushBack(reinterpret_cast<uint8_t*>(&magic), element_at(&targets, i - 1));
+        else
+            DynArray_PushBack(reinterpret_cast<uint8_t*>(&throwers), element_at(&targets, i - 1));
+    }
+    uint32_t delay;
+    bool defined;
+    if (*ScrField_script_delay_IsDefined(&defined, ent))
+        delay = *key_slot(ent, 0x807116c4, undefined_float());  // script_delay
+    else
+        delay = bits(3.5f);
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(throwers.size); ++i) {
+        const uint32_t thrower = *element_at(&throwers, i);
+        slot<CreateThread>(0x0092216c)(0, 0, 0, thrower,
+                                       functor2(0x007f4a70, 0x001be660, thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(magic.size); ++i) {
+        const uint32_t trigger = *element_at(&magic, i);
+        slot<CreateThread>(0x0092216c)(0, 0, 0, trigger,
+                                       functor2(0x007f4a70, 0x001a53e0, trigger, delay), 0);  // BroScr_MagicGrenadeThrowThink
+    }
+
+    // The count (ScrEnt_GetCount 0x00922b88; 2 when undefined) of throws while the player touches the trigger.
+    using GetCount = int32_t XB_CDECL(uint32_t);
+    const int32_t undefined = static_cast<int32_t>(undefined_int());
+    int32_t count;
+    if (slot<GetCount>(0x00922b88)(ent) != static_cast<int32_t>(undefined_int()) && undefined > 0)
+        count = slot<GetCount>(0x00922b88)(ent);
+    else
+        count = 2;
+    while (count > 0) {
+        Scr_WaitTill(ent, 0xe2a210cf);  // trigger
+        if (!is_touching(title_global<uint32_t>(0x009236dc), ent)) continue;
+        do {
+            {
+                ScriptString target;
+                Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&ent, &target)), 0x0d786b4c,
+                                reinterpret_cast<uint8_t*>(&throwers), 0);
+                scr_release(&target);
+            }
+            ScriptString message;
+            scr_string_from(&message, 0x007fa3ec);  // "throw"
+            BroScr_NotifyArray(&throwers, message);
+            scr_string_from(&message, 0x007fa3ec);
+            BroScr_NotifyArray(&magic, message);
+            bool min_defined;
+            bool max_defined;
+            if (*ScrField_script_delay_min_IsDefined(&min_defined, ent) &&
+                *ScrField_script_delay_max_IsDefined(&max_defined, ent)) {
+                const float high = as_float(*key_slot(ent, 0x6c663f49, undefined_float()));  // script_delay_max
+                const float range = high - as_float(*key_slot(ent, 0x6c663e5f, undefined_float()));  // script_delay_min
+                const uint32_t* const low = key_slot(ent, 0x6c663e5f, undefined_float());
+                const long double random = slot<long double XB_CDECL(float)>(0x00922230)(range);  // Scr_RandomFloat
+                Scr_Wait(static_cast<float>(as_float(*low) + random));
+            } else {
+                Scr_Wait(static_cast<float>(slot<long double XB_CDECL(float)>(0x00922230)(7.0f) + 2.0f));
+            }
+            --count;
+            if (count <= 0) break;
+        } while (is_touching(title_global<uint32_t>(0x009236dc), ent));
+    }
+    if (targets.data) Scr_Free(targets.data);
+    if (magic.data) Scr_Free(magic.data);
+    if (throwers.data) Scr_Free(throwers.data);
+}
+
+void XB_CDECL BroScr_GrenadeSpawnerOnceTriggerThink(uint32_t trigger) {
+    DynArray throwers = {nullptr, 0, 0};
+    {
+        ScriptString target;
+        Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&trigger, &target)), 0x0d786b4c,
+                        reinterpret_cast<uint8_t*>(&throwers), 0);
+        scr_release(&target);
+    }
+    uint32_t delay;
+    bool defined;
+    if (*ScrField_script_delay_IsDefined(&defined, trigger))
+        delay = *ScrField_script_delay(trigger);
+    else
+        delay = bits(2.0f);
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(throwers.size); ++i) {
+        const uint32_t thrower = *element_at(&throwers, i);
+        slot<CreateThread>(0x0092216c)(0, 0, 0, thrower,
+                                       functor2(0x007f4a70, 0x001be660, thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
+    }
+    Scr_WaitTill(trigger, 0xe2a210cf);  // trigger
+    BroScr_DeleteFloodSpawner(trigger);
+    if (throwers.data) Scr_Free(throwers.data);
+}
+
+void XB_CDECL BroScr_FallbackSpawnerThink(uint32_t spawner, uint32_t group, uint32_t node) {
+    using GetCount = int32_t XB_CDECL(uint32_t);
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                          const uint32_t*, const ScriptString*);
+    const int32_t count = slot<GetCount>(0x00922b88)(spawner);  // ScrEnt_GetCount
+    const uint32_t total = count + *level_int_at(0x6c, group);
+    *level_int_at(0x6c, group) = total;
+    uint32_t first = 1;
+    uint32_t spawned = 0;
+    while (slot<GetCount>(0x00922b88)(spawner) > 0) {
+        title_function<WaitTillOutputEnt>(0x004b1590)(spawner, 0x262a34d8, &spawned);  // Scr_WaitTillOutputEnt_ORAN
+        if (first) {
+            check_fallback_cvar();
+            ScriptString name;
+            scr_string_from(&name, 0x00826444);  // "fallback_firstspawn"
+            ScriptString_AppendInt(&name, static_cast<int32_t>(group));
+            queue_notify(level_handle(), hash_of(&name));
+            first = 0;
+            scr_release(&name);
+        }
+        Scr_Wait(as_float(0x3d4ccccd));  // 0.05
+        const uint32_t ai = spawned;
+        if (slot<EntTest>(0x00922210)(ai)) {  // GScr_IsAlive
+            // Unless its 0xc0bb2676 is set: wait for "finished spawning".
+            bool done = false;
+            if (entity_handle_is_valid(ai)) {
+                if (ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ai)) {
+                    const uint32_t* const value = ScriptKeyTable_Find(table, 0xc0bb2676);
+                    const uint8_t undefined = title_global<uint8_t>(0x00922ed0);
+                    done = (value ? static_cast<uint8_t>(*value) : undefined) != undefined;
+                }
+            }
+            if (!done) Scr_WaitTillString(ai, pointer<const char>(0x007f6000));  // "finished spawning"
+            if (slot<EntTest>(0x00922210)(ai)) {
+                ScriptString kind;
+                scr_string_from(&kind, 0x00826558);  // "is spawner"
+                title_function<StartThread>(0x001e4b70)(0, 0, 0, 0, 0x001bea50, ai, &group, &node, &kind);
+                // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
+                scr_release(&kind);
+                continue;
+            }
+        }
+        ScriptString name;
+        scr_string_from(&name, 0x00825ff8);  // "fallbacker_died"
+        ScriptString_AppendInt(&name, static_cast<int32_t>(group));
+        queue_notify(level_handle(), hash_of(&name));
+        --*level_int_at(0x6c, group);
+        scr_release(&name);
+    }
 }
 
 }  // namespace game
