@@ -5037,7 +5037,7 @@
 0014aaa0 BroScr_StukaDropBombs
 0014b780 BroScr_DeleteUndroppedBombs
 0014b940 BroScr_UpdateAliveDeadCount
-0014bac0 FUN_0014bac0
+0014bac0 BroScr_FlakClaimTriggerThink
 0014bdf0 BroScr_FlakGunnerFireAnim
 0014bfd0 BroScr_BuildDroneSplines
 0014c260 BroScr_GetAIByGroupField
