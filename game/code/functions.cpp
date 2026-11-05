@@ -10,6 +10,7 @@
 #include "bro_scr_anim_handles.h"
 #include "bro_scr_banim_handles.h"
 #include "bro_scr_cover_turret.h"
+#include "bro_scr_defaults.h"
 #include "bro_scr_fx.h"
 #include "bro_scr_math.h"
 #include "bro_scr_nodes_spawner.h"
@@ -17,6 +18,7 @@
 #include "bro_scr_util.h"
 #include "bro_scr_vehicle.h"
 #include "bro_scr_wad.h"
+#include "bro_scr_world.h"
 #include "cg_ents.h"
 #include "cg_hud.h"
 #include "cg_view.h"
@@ -3209,18 +3211,47 @@ const Function kFunctions[] = {
     {"BroScr_PlaneSpawnWingTurretsCall", 0x00157ab0, 0, code(&BroScr_PlaneSpawnWingTurretsCall), 12, Result::None, Status::Compare},
     {"BroScr_PlaneSpawnWingTurretsCall_2", 0x00159cf0, 0, code(&BroScr_PlaneSpawnWingTurretsCall_2), 8, Result::None, Status::Compare},
     {"BroScr_FindAllFlakvierlings", 0x00159d20, 0, code(&BroScr_FindAllFlakvierlings), 0, Result::None, Status::Compare},
+    {"BroScr_SpawnFlakvierlingCall", 0x00159d50, 0, code(&BroScr_SpawnFlakvierlingCall), 28, Result::None, Status::Compare},
     {"BroScr_VehicleSpawnRiderCall", 0x00159de0, 0, code(&BroScr_VehicleSpawnRiderCall), 8, Result::None, Status::Compare},
     {"BroScr_VehicleSpawnRiderCall_2", 0x00159e10, 0, code(&BroScr_VehicleSpawnRiderCall_2), 12, Result::None, Status::Compare},
+    {"BroScr_VehicleSpawnRiderByNameCall", 0x0015ad00, 0, code(&BroScr_VehicleSpawnRiderByNameCall), 8, Result::None, Status::Compare},
     {"BroScr_PlaySoundOn", 0x0015bcf0, 0, code(&BroScr_PlaySoundOn), 8, Result::None, Status::Compare},
+    {"BroScr_GetLevelVecOrZero", 0x0015d510, 0, code(&BroScr_GetLevelVecOrZero), 8, Result::Eax, Status::Compare},
+    {"BroScr_SetWheelSmokeFxCall", 0x0015e450, 0, code(&BroScr_SetWheelSmokeFxCall), 0, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread", 0x0015fd60, 0, code(&BroScr_RandomSoundBurstsThread), 8, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread_2", 0x0015fde0, 0, code(&BroScr_RandomSoundBurstsThread_2), 24, Result::None, Status::Compare},
     {"BroScr_RandomSoundBurstsThread_3", 0x0015fe50, 0, code(&BroScr_RandomSoundBurstsThread_3), 32, Result::None, Status::Compare},
+    {"BroScr_SetWheelSmokeFxCall_2", 0x0015fef0, 0, code(&BroScr_SetWheelSmokeFxCall_2), 0, Result::None, Status::Compare},
+    {"BroScr_SetWheelSmokeFxCall_3", 0x00160030, 0, code(&BroScr_SetWheelSmokeFxCall_3), 4, Result::None, Status::Compare},
+    {"BroScr_SetWheelSmokeFxCall_4", 0x001600a0, 0, code(&BroScr_SetWheelSmokeFxCall_4), 4, Result::None, Status::Compare},
+    {"BroScr_SetWheelSmokeFxCall_5", 0x00163980, 0, code(&BroScr_SetWheelSmokeFxCall_5), 4, Result::None, Status::Compare},
     {"BroScr_StartFxLoopingThread", 0x001660b0, 0, code(&BroScr_StartFxLoopingThread), 0, Result::None, Status::Compare},
+    {"BroScr_SpawnLoopSoundOriginCall", 0x00166450, 0, code(&BroScr_SpawnLoopSoundOriginCall), 20, Result::None, Status::Compare},
+    {"BroScr_SpawnLoopSoundOriginCall_2", 0x001664d0, 0, code(&BroScr_SpawnLoopSoundOriginCall_2), 28, Result::None, Status::Compare},
+    {"BroScr_SpawnLoopSoundOriginCall_3", 0x00166550, 0, code(&BroScr_SpawnLoopSoundOriginCall_3), 36, Result::None, Status::Compare},
+    {"BroScr_SpawnLoopSoundOriginCall_4", 0x001665c0, 0, code(&BroScr_SpawnLoopSoundOriginCall_4), 44, Result::None, Status::Compare},
     {"BroScr_PanzerIVTankInitStart", 0x00167660, 0, code(&BroScr_PanzerIVTankInitStart), 4, Result::None, Status::Compare},
     {"BroScr_TankGunHull_5", 0x00168350, 0, code(&BroScr_TankGunHull_5), 8, Result::None, Status::Compare},
     {"BroScr_PanzerIVGunHullStart", 0x001683e0, 0, code(&BroScr_PanzerIVGunHullStart), 4, Result::None, Status::Compare},
     {"BroScr_TankGunHull_3", 0x00168470, 0, code(&BroScr_TankGunHull_3), 8, Result::None, Status::Compare},
     {"BroScr_PanzerIVGunHullStart_2", 0x00168500, 0, code(&BroScr_PanzerIVGunHullStart_2), 4, Result::None, Status::Compare},
+    {"BroScr_DroneVehicleRidersCall", 0x0016f6b0, 0, code(&BroScr_DroneVehicleRidersCall), 12, Result::None, Status::Compare},
+    {"BroScr_DroneVehicleRidersCall_2", 0x0016f790, 0, code(&BroScr_DroneVehicleRidersCall_2), 16, Result::None, Status::Compare},
+    {"BroScr_DroneVehicleRidersCall_3", 0x0016f870, 0, code(&BroScr_DroneVehicleRidersCall_3), 36, Result::None, Status::Compare},
+    {"BroScr_MortarThinkWithDefaultsCall", 0x00170600, 0, code(&BroScr_MortarThinkWithDefaultsCall), 8, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayerCall_1", 0x001738b0, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_1), 24, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayerCall_2", 0x00173950, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_2), 28, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayerCall_3", 0x00173a00, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_3), 28, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayerCall_4", 0x00173ad0, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_4), 32, Result::None, Status::Compare},
+    {"BroScr_StartMortarLoopsNearPlayerCall_5", 0x00173b80, 0, code(&BroScr_StartMortarLoopsNearPlayerCall_5), 32, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_1", 0x00174250, 0, code(&BroScr_StartMortarGroupNearEntCall_1), 20, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_2", 0x00174310, 0, code(&BroScr_StartMortarGroupNearEntCall_2), 28, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_3", 0x001743c0, 0, code(&BroScr_StartMortarGroupNearEntCall_3), 24, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_4", 0x00174480, 0, code(&BroScr_StartMortarGroupNearEntCall_4), 32, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_5", 0x00174530, 0, code(&BroScr_StartMortarGroupNearEntCall_5), 24, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_6", 0x001745f0, 0, code(&BroScr_StartMortarGroupNearEntCall_6), 32, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_7", 0x001746a0, 0, code(&BroScr_StartMortarGroupNearEntCall_7), 28, Result::None, Status::Compare},
+    {"BroScr_StartMortarGroupNearEntCall_8", 0x00174760, 0, code(&BroScr_StartMortarGroupNearEntCall_8), 36, Result::None, Status::Compare},
     {"AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke", 0x0017a370, 0, code(&AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_f_f_b_Invoke", 0x0017a3a0, 0, code(&AeThreadFunctor4_ent_f_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
     {"AeThreadFunctor4_ent_ent_str_vec_Ctor", 0x0017a3c0, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Ctor), 20, Result::Eax, Status::Replaced},
@@ -3247,6 +3278,7 @@ const Function kFunctions[] = {
     {"DynArray_Alloc24_FillUndefined", 0x0017ab70, 0, code(&DynArray_Alloc24_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_AllocInt_FillUndefined", 0x0017ac00, 0, code(&DynArray_AllocInt_FillUndefined), 4, Result::Eax, Status::Replaced},
     {"DynArray_AllocBool_FillUndefined", 0x0017ac40, 0, code(&DynArray_AllocBool_FillUndefined), 4, Result::Eax, Status::Replaced},
+    {"BroScr_TankSpawnerSlots_Init", 0x0017ac70, 0, code(&BroScr_TankSpawnerSlots_Init), 0, Result::None, Status::Compare},
     {"Scr_StartThread_ent_ent_str_vec", 0x0017ae80, 0, code(&Scr_StartThread_ent_ent_str_vec_entry), 36, Result::Eax, Status::Compare},
     {"Scr_StartThread_ent_ent_i_str_b_2", 0x0017af10, 0, code(&Scr_StartThread_ent_ent_i_str_b_2_entry), 40, Result::Eax, Status::Compare},
     {"Scr_StartThreadFunctorN", 0x0017b150, 0, code(&Scr_StartThreadFunctorN_entry), 32, Result::Eax, Status::Replaced},

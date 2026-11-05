@@ -46,4 +46,8 @@ void XB_CDECL BroScr_VehicleSetHealth_Halftrack(uint32_t vehicle);
 void XB_CDECL BroScr_VehicleSetHealth_PanzerIV_2(uint32_t vehicle);
 void XB_CDECL BroScr_TunisiaPanzerIVInit(uint32_t vehicle);
 
+// 0x0017ac70 (thiscall): the tank spawner's slot block (BroScr_TankSpawnerThink's local): word 0
+// = 0, then four 0x14-byte entries {0, undefined int x3, undefined float}. Returns self.
+uint32_t* XB_THISCALL BroScr_TankSpawnerSlots_Init(uint32_t* self);
+
 }  // namespace game

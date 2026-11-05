@@ -129,4 +129,17 @@ void XB_CDECL BroScr_TunisiaPanzerIVInit(uint32_t vehicle) {
     VehicleSetHealth(vehicle, 0x007f499c, 0x00152800, 0x0013e770, 0x00128860);
 }
 
+uint32_t* XB_THISCALL BroScr_TankSpawnerSlots_Init(uint32_t* self) {
+    self[0] = 0;
+    for (int slot = 0; slot < 4; ++slot) {
+        uint32_t* entry = self + 1 + slot * 5;
+        entry[0] = 0;
+        entry[1] = title_global<uint32_t>(0x00922ec0);  // g_scrUndefinedInt, re-read for each word
+        entry[2] = title_global<uint32_t>(0x00922ec0);
+        entry[3] = title_global<uint32_t>(0x00922ec0);
+        entry[4] = title_global<uint32_t>(0x00922eac);  // g_scrUndefinedFloat (movss: a word copy)
+    }
+    return self;
+}
+
 }  // namespace game

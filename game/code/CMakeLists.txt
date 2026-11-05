@@ -12,6 +12,7 @@ set(game_code_sources
     bro_scr_anim_handles.cpp
     bro_scr_banim_handles.cpp
     bro_scr_cover_turret.cpp
+    bro_scr_defaults.cpp
     bro_scr_fx.cpp
     bro_scr_math.cpp
     bro_scr_nodes_spawner.cpp
@@ -19,6 +20,7 @@ set(game_code_sources
     bro_scr_util.cpp
     bro_scr_vehicle.cpp
     bro_scr_wad.cpp
+    bro_scr_world.cpp
     cg_ents.cpp
     cg_hud.cpp
     cg_view.cpp
