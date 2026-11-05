@@ -37,11 +37,26 @@ them are compiled (about 1.5 minutes for a few files, most of it Wine start-up).
 Default flags: `/O2 /Oy /G6 /arch:SSE /GR- /GF /Gy`. Of `/O1`, `/Ox`, `/G7`,
 `/arch:SSE2` and no `/arch`, none scored higher (2026-10-19: 58 exact of 346).
 
+`--facts` adds a check that ignores code generation: per function, the title functions
+called (direct calls and loaded function addresses, in order) and the set of image
+constants (globals, interface-block slots, strings), with the XBE's EH frame left out and
+our own file-local helpers expanded. Only differences are printed. Run it with `/Ob1` so
+that only `inline` helpers are inlined (the title's calls between script bodies stay calls):
+
+    python3 -I tools/vc71match/vc71match.py NAME... --facts \
+        --flags "/nologo /c /FIvc71_prelude.h /O2 /Ob1 /Oy /G6 /arch:SSE /GR- /GF /Gy /W0"
+
+Left-over differences to expect: a function address loaded once into a register and
+called twice (header `title_function` calls) lists once; the title's duplicated branch
+tails list a call twice; a helper taking a function address lists it before the calls
+that build its arguments; the title's out-of-line field accessors (ScrField_*) and inline
+array growth (DynArray_Resize) against our inline accessors / BroScr_ArrayElement.
+
 ## What the copy compiled looks like
 
 `game/code/` is C++20; a lowered copy goes to `build/vc71match/src/`:
 
-- `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
+- `namespace a::b {` becomes `namespace a { namespace b {`; `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
   a `#define`, `auto* p = static_cast<T*>(...)` takes T; `std::nearbyint` comes from the
   prelude; `enum class` -> `enum`,
   `alignas` -> `__declspec(align)`, `constexpr` -> `const`, `nullptr` -> `0`,

@@ -91,7 +91,23 @@ def matching_paren(text, start):
     return -1
 
 
+def nested_namespaces(text):
+    """namespace a::b {...}  ->  namespace a { namespace b {...}}  (C++17; not in VC7.1)."""
+    for m in reversed(list(re.finditer(r"\bnamespace\s+(\w+(?:::\w+)+)\s*\{", text))):
+        depth, close = 0, -1
+        for i, c in scan(text[m.end() - 1:]):
+            depth += {"{": 1, "}": -1}.get(c, 0)
+            if depth == 0:
+                close = m.end() - 1 + i
+                break
+        parts = m[1].split("::")
+        text = (text[:m.start()] + " ".join(f"namespace {p} {{" for p in parts) + text[m.end():close]
+                + "}" * len(parts) + text[close + 1:])
+    return text
+
+
 def lower(text):
+    text = nested_namespaces(text)
     out, pos = [], 0
     for m in re.finditer(r"\bstatic_assert\s*\(", text):
         if m.start() < pos:
@@ -455,6 +471,7 @@ def normalize(insns, address, by_address, image):
     size = insns[-1][0] if insns else 0
     for off, text, target in insns:
         text = re.sub(r"\s+", " ", text.split("#")[0].strip())
+        text = re.sub(r"^(call|jmp) DWORD PTR ds:0x([0-9a-f]+)$", r"\1 [ptr \2]", text)  # through a pointer (slot kept)
         text = re.sub(r"^(\w+) (?:DWORD|WORD|BYTE) PTR ds:", r"\1 ", text)
         m = re.match(r"^(call|j\w+) (?:0x)?([0-9a-f]+)(?: <.*>)?$", text)
         if m:
@@ -477,12 +494,69 @@ def normalize(insns, address, by_address, image):
     return lines
 
 
+def facts(insns, address, by_address, compiled=None, depth=0):
+    """What a body does, without code generation: the title functions it calls (direct
+    calls, and function addresses it loads), in order, and the set of other image
+    constants (globals, interface-block slots, strings). On our side a call to a helper of
+    our own (not a title function) is expanded into the helper's facts. Compile with
+    --flags "... /Ob1" so that only `inline` helpers are inlined, like the XBE's calls."""
+    names = set(by_address.values())
+    by_value = {a: n for a, n in by_address.items()}
+    lines = normalize(insns, address, by_address, (1, 0))  # nothing masked
+    calls, consts, skip = [], [], 0
+    for i, t in enumerate(lines):
+        if t == "push 0xffffffff" and i < 4:
+            skip = 1  # the EH frame: the handler push after it
+            continue
+        if skip:
+            skip -= 1
+            continue
+        if "fs:" in t:
+            continue
+        m = re.match(r"^(?:call|jmp) \[ptr ([0-9a-f]+)\]$", t)
+        if m:
+            consts.append(int(m[1], 16))
+            continue
+        m = re.match(r"^(?:call|jmp) (\w+)$", t)
+        if m and not m[1].startswith("0x") and not re.fullmatch(r"e[a-d]x|e[sd]i|ebp", m[1]):
+            if compiled is not None and m[1] not in names and m[1] in compiled and depth < 4:
+                c, k = facts(compiled[m[1]], None, by_address, compiled, depth + 1)
+                calls += c
+                consts += k
+            else:
+                calls.append(m[1])
+            continue
+        if re.match(r"^(j|call \.)", t):
+            continue
+        for h in re.findall(r"0x[0-9a-f]+", t):
+            v = int(h, 16)
+            if v in by_value:
+                calls.append(by_value[v])
+            elif 0x10000 <= v < 0x1000000:
+                consts.append(v)
+    return calls, consts
+
+
+def facts_diff(theirs, ours):
+    from collections import Counter
+    out = []
+    if theirs[0] != ours[0]:
+        out.append(f"  calls xbe:  {' '.join(theirs[0])}\n  calls ours: {' '.join(ours[0])}")
+    a, b = Counter(set(theirs[1])), Counter(set(ours[1]))  # how often a global is read: codegen
+    if a != b:
+        fmt = lambda c: " ".join(f"{v:#x}" + (f"x{n}" if n > 1 else "") for v, n in sorted(c.items()))
+        out.append(f"  consts only xbe:  {fmt(a - b)}\n  consts only ours: {fmt(b - a)}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("names", nargs="*")
     ap.add_argument("--flags", default=DEFAULT_FLAGS)
     ap.add_argument("--diff", action="store_true")
     ap.add_argument("--csv", action="store_true")
+    ap.add_argument("--facts", action="store_true",
+                    help="also compare callees and constants (no EH frame); prints only differences")
     ap.add_argument("--thread-switch", action="store_true")
     args = ap.parse_args()
     if not (XDK / "bin" / "vc71" / "CL.Exe").exists():
@@ -506,7 +580,7 @@ def main():
     by_address = {a: n for a, n in syms}
     starts = [a for a, _ in syms]
 
-    rows, total = [], []
+    rows, total, per_obj = [], [], None
     for name, address, code in registered + extra:
         if code.endswith("_entry") or code != name and code not in compiled:
             rows.append((name, address, "", "asm-entry"))
@@ -526,6 +600,17 @@ def main():
         score = difflib.SequenceMatcher(None, theirs, ours, autojunk=False).ratio() * 100
         total.append(score)
         rows.append((name, address, f"{score:.1f}", "ok" if score == 100 else f"{len(theirs)}/{len(ours)} insns"))
+        if args.facts:
+            # file-local helpers (anonymous namespace) repeat across objects: expand from the
+            # object that defines this function
+            if per_obj is None:
+                per_obj = [obj_functions([o]) for o in objs]
+            local = next((f for f in per_obj if code in f), compiled)
+            diff = facts_diff(facts(xbe_function(xbe, address, nxt - address), address, by_address),
+                              facts(body, None, by_address, local))
+            print(f"=== {name} {address:#010x} facts " + ("differ" if diff else "same"))
+            for line in diff:
+                print(line)
         if args.diff and score < 100:
             print(f"--- {name} {address:#010x} (xbe | vc71)")
             for op, a0, a1, b0, b1 in difflib.SequenceMatcher(None, theirs, ours, autojunk=False).get_opcodes():
