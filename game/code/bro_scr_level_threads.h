@@ -362,4 +362,71 @@ void XB_CDECL BroScr_LetterboxFadeOn(uint32_t self, float duration, uint32_t clo
 // is deleted. The first argument is not read.
 void XB_CDECL BroScr_HalftrackGunnerGrenadeHint(uint32_t self, uint32_t trigger);
 
+// 0x00142d50 / 0x00142ee0 / 0x00143870 / 0x00145080: vehicle inits. Dead model key 0xd6eafad9
+// ("v_m13_d1"; "v_M3A1_Halftrack_troop_d1_desert"; PanzerIV: model + "_d1" unless defined; Sherman:
+// "v_sherman_d1", the snow / buchholz ones "v_sherman_snow_d1", the bulldozer none, else the model
+// unless defined), sound 0xd70abfb1 "explo_metal_rand", a BroScr_VehicleDeathThink thread (Sherman: unless
+// custom_kill is defined), then waits for 0x10a95eae; M13 then sets the dead model, and M13 / PanzerIV /
+// Sherman play the "vehicle_explode" key (0xcc2baca1). The halftrack and PanzerIV set their anim tree.
+void XB_CDECL BroScr_VehicleInit_M13(uint32_t ent);
+void XB_CDECL BroScr_VehicleInit_Halftrack(uint32_t ent);
+void XB_CDECL BroScr_VehicleInit_PanzerIV(uint32_t ent);
+void XB_CDECL BroScr_VehicleInit_Sherman(uint32_t ent);
+
+// 0x00142070: the friendly halftrack from `trigger`'s target and the wait for the trigger as in
+// BroScr_HalftrackGunnerGrenadeHint (with Scr_EndOn death); then the axis AI and the axis spawners with
+// a count touching the trigger: entity 0's int key 0xb31e91b0 = the spawner count, a
+// BroScr_NotifySpawnGuyDied thread per spawner; waits until every touching AI is dead (dead ones
+// removed after each death) and the key is down to 0 ("spawn guy died"), 2 s, notifies the level
+// "<halftrack animname> <trigger script_noteworthy>" and deletes the trigger. The first argument is
+// not read.
+void XB_CDECL BroScr_SpawnGuyDiedThink(uint32_t self, uint32_t trigger);
+// 0x00142800: a point per panzerfaust of BroScr_GetPanzerfaustRespawns (its target, else a spawned
+// script_origin; the panzerfaust's angles); every 3 s, once fewer are left than points: notifies
+// "picked up infinite panzerfaust", spawns a "weapon_panzerfaust" (targetname "respawn") at each point,
+// and after 0.3 s deletes the old ones. Never returns (no respawns: returns at once).
+void XB_CDECL BroScr_InfinitePanzerfaust();
+
+// 0x00143020 / 0x00143460: plane crashes (Stuka / P47). Effect keys, dead model ("..._stuka_shot" /
+// "v_p47_d1"); after death: turrets deleted (BroScr_DeleteVehicleTurrets_2 / _3), "explo_metal_rand",
+// a BroScr_*PlaneCrashThink thread, an earthquake (0.25, 3 s, 1050), a script_origin (entity key
+// 0x5553515d) linked to "tag_engine_left", a BroScr_*PlaneCrashMove thread; model "..._stuka_d" /
+// "v_p47_d1" (script_vehiclegroup undefined, 4 or 5) or the dead model; 0.7 s.
+void XB_CDECL BroScr_StukaPlaneCrash(uint32_t ent);
+void XB_CDECL BroScr_P47PlaneCrash(uint32_t ent);
+
+// 0x00143a40 (FUN_00143a40; proposed BroScr_FlipLevelFlagOnDeath): after `ent`'s "death", the level's
+// byte array key 0xe337f297 [index] becomes (its old value != 1). The first argument is not read.
+void XB_CDECL BroScr_FlipLevelFlagOnDeath(uint32_t self, uint32_t ent, uint32_t index);
+// 0x00143b40: waits for the trigger's "trigger"; a BroScr_FlakDeathTrigger(flak, each trigger the
+// start trigger targets, flaknum) thread; notifies the flak 0x17349563 and deletes the trigger.
+void XB_CDECL BroScr_FlakWaitStartTrigger(uint32_t flak, uint32_t trigger, uint32_t flaknum);
+
+// 0x00143cb0: `ent` plays the anim the name's hash picks from its anim-set field 0xc4813666 (words
+// 0, 1, 2, 5, 6; none: the "bad animname passed in" message) scripted at `flak` (notify 0xfd3cf694),
+// counted in the level's per-flak array (+0x50c); its note tracks until "end" take the
+// "xmodel/panzerflak_ammo" clip off "tag_weapon_left" ("clip on") and back ("clip off"), bool key
+// 0x1ea97196. The last one done notifies the level "flak_anim_done<flaknum>". Releases `animname`.
+void XB_CDECL BroScr_FlakCrewAnim(uint32_t ent, uint32_t flak, uint32_t flaknum, ScriptString animname);
+
+// 0x001441c0: as BroScr_FlakCrewAnim with the anim-set words 0-6, as the flagged anim knob 0x54e3b2b6
+// (int key 0x9af3e4c4 = the anim); with cvar "old flak" not "on" a "panzer" starts its loop sound
+// thread ("fireA": BroScr_FlakPanzerLoopSounds, else BroScr_FlakPanzerLoopSound). While the level's
+// byte flag +0x684 [flaknum] is set, the note tracks until "end": the four clips ("clip_<n> on" / "off",
+// "tag_clip_<n>", bool keys 0xc0f54bd1..4) and, except for a "panzer", the loop / cooldown sounds of
+// "fire_1" / "fire_2" (600 ms; keys 0x872c50bf / 0x34314719). Releases both strings.
+void XB_CDECL BroScr_FlakCrewAnims(uint32_t ent, ScriptString animname, uint32_t flaknum, ScriptString type);
+
+// 0x00145310: ends on "death"; with a node (key 0x05374cc6) that has a target: the wait range fields
+// 0x7212d405 / 0x7212d513 default to 5 / 15; after "goal" a random wait in that range,
+// BroScr_SetRandomGoalNode, then the same thread again.
+void XB_CDECL BroScr_SquadMemberThink(uint32_t ent);
+// 0x001454a0 (FUN_001454a0; proposed BroScr_SquadMemberThinkOnNotify): as BroScr_SquadMemberThink with
+// `notify` for "goal" and no wait; restarts itself (Scr_StartThread_ent_str) while the node is defined.
+// Releases `notify`.
+void XB_CDECL BroScr_SquadMemberThinkOnNotify(uint32_t ent, ScriptString notify);
+// 0x00145ac0: as BroScr_VehicleInit_PanzerIV without the anim tree, then the dead model is set
+// before the "vehicle_explode" sound.
+void XB_CDECL BroScr_VehicleExplodeSound(uint32_t ent);
+
 }  // namespace game
