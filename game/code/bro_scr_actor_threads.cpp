@@ -11,6 +11,8 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "scr_access.h"
+#include "scr_field.h"
+#include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
 
@@ -298,6 +300,149 @@ void XB_CDECL BroScr_NotetrackFaceAnim(uint32_t ent, uint32_t key, uint32_t inde
     }
     scr_release(&face);
     scr_release(&note);
+}
+
+namespace {
+
+inline void mg42_anim_tree(uint32_t* ent) {
+    {
+        ScriptString tree;
+        scr_string_from(&tree, 0x007f49a8);  // "mg42"
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(*ent, &tree);  // GScr_UseAnimTree
+        scr_release(&tree);
+    }
+    bool defined;
+    if (*ScrField_habc1df0a_IsDefined(&defined, *ent))
+        ++*int_slot(*ent, 0xabc1df0a);
+    else
+        *int_slot(*ent, 0xabc1df0a) = 0;
+    Scr_WaitTill(*ent, kKillAnimScript);
+    if (*int_slot(*ent, 0xabc1df0a) != 0) {
+        --*int_slot(*ent, 0xabc1df0a);
+        return;
+    }
+    title_function<void XB_THISCALL(uint32_t*, uint32_t)>(0x0011eb30)(ent, 0xabc1df0a);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
+    slot<void XB_CDECL(uint32_t)>(0x009225f4)(*ent);  // GScr_ClearAnimTree
+}
+using SetMoveAnims = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+// The thread kept in `key` terminated, this one kept instead.
+inline void replace_thread(uint32_t ent, uint32_t key) {
+    slot<void XB_CDECL(uint32_t)>(0x009221a0)(*key_slot(ent, key, 0));  // Scr_TerminateThread
+    uint32_t* const kept = key_slot(ent, key, 0);
+    *kept = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
+}
+inline void move_anims(uint32_t ent, const uint32_t* a, uint32_t visible) {
+    title_function<SetMoveAnims>(0x0018df30)(ent, a[0], a[1], a[2], a[3], a[4], a[5], title_global<uint32_t>(0x0083eca0),
+                                            visible);  // BroScr_SetDirectionalMoveAnims(.., 0.2, visible)
+}
+inline uint32_t visible_model(uint32_t ent) {
+    return slot<uint32_t XB_CDECL(uint32_t)>(0x00922358)(ent) != 0;  // GScr_HasVisibleModel
+}
+inline void anim_knob(uint32_t ent, uint32_t anim) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(anim));  // ScrActor_SetInt_1370
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(
+        ent, title_global<uint32_t>(anim), 0x3f800000, 0x3e4ccccd, 0x3f800000, 1);  // GScr_SetAnimKnob
+}
+inline void step_sound(uint32_t ent, uint32_t name) {
+    Scr_Wait(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f333333)));  // RandomFloat(0.7)
+    ScriptString sound;
+    scr_string_from(&sound, name);
+    slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0, 0);  // GScr_PlaySound
+    scr_release(&sound);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_Mg42AnimTree(uint32_t, uint32_t ent) { mg42_anim_tree(&ent); }
+
+void XB_CDECL BroScr_Mg42AnimTree_2(uint32_t, uint32_t ent) { mg42_anim_tree(&ent); }
+
+void XB_CDECL BroScr_Mg42AnimThenShootLoop_3(uint32_t ent, uint32_t turret) {
+    uint32_t ref;
+    if (entity_handle_is_valid(*slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922e00)(&ref, ent))) {  // ScrSentient_GetRef_3c
+        anim_knob(ent, 0x008cf63c);  // standmg42gunner_fire
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x00183c20)(ent, turret);  // BroScr_Mg42ShootLoop_3
+    }
+    anim_knob(ent, 0x008cf630);  // standmg42gunner_aim
+}
+
+void XB_CDECL BroScr_DirectionalMoveAnimsOnNotify(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
+                                                 uint32_t a6, uint32_t a7) {
+    end_on(ent, kKillAnimScript);
+    replace_thread(ent, 0xa78b2c24);
+    const uint32_t anims[6] = {a2, a3, a4, a5, a6, a7};
+    for (;;) {
+        Scr_WaitTill(ent, 0x2faeed05);
+        move_anims(ent, anims, visible_model(ent));
+    }
+}
+
+void XB_CDECL BroScr_DirectionalMoveAnimsLoop(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                             uint32_t a7) {
+    end_on(ent, kKillAnimScript);
+    replace_thread(ent, 0xf8b8e073);
+    using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*,
+                                   uint32_t*, uint32_t*, uint32_t*, uint32_t*);
+    title_function<Call>(0x001e53e0)(0, 0, 0, 0, 0x0019fe80, ent, &a2, &a3, &a4, &a5, &a6,
+                                     &a7);  // Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(OnNotify)
+    const uint32_t anims[6] = {a2, a3, a4, a5, a6, a7};
+    move_anims(ent, anims, 1);
+    for (;;) {
+        Scr_Wait(as_float(0x3e4ccccd));  // 0.2
+        move_anims(ent, anims, visible_model(ent));
+    }
+}
+
+void XB_CDECL BroScr_ProneAimFaceDefault(uint32_t ent, float time, uint32_t end, uint32_t pose, uint32_t movement,
+                                         uint32_t flag) {
+    end_on(ent, kKillAnimScript);
+    end_on(ent, kDeath);
+    end_on(ent, end);
+    Scr_Wait(time);
+    const uint32_t current = slot<uint32_t XB_CDECL(uint32_t)>(0x00922dc0)(ent);  // ScrActor_GetInt_184
+    if (pose == 0x0738b1a5) {
+        if (current != pose) {
+            slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009226bc)(
+                ent, title_global<uint32_t>(0x008cf1d4), title_global<uint32_t>(0x008cf1c8), 0x3f800000, 0x3dcccccd,
+                0x3f800000);  // GScr_ActorSetAimAnimWeights(prone shootfeet up / down)
+            slot<void XB_CDECL(uint32_t, uint32_t)>(0x009226b0)(ent, 0x3f800000);
+        }
+    } else if (current == 0x0738b1a5) {
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x009226b4)(ent, 0x3f800000);
+        ScriptString mode;
+        scr_string_from(&mode, 0x0083addc);  // "face default"
+        slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(ent, &mode, 0, 0);  // GScr_ActorSetOrientMode
+        scr_release(&mode);
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922dc4)(ent, pose);  // ScrActor_SetInt_184
+    *handle_slot(ent, 0x0ccee5c1) = movement;
+    *handle_slot(ent, 0x764918ae) = static_cast<uint8_t>(flag) ? 0xc4a729a7 : 0xc028584c;
+}
+
+void XB_CDECL BroScr_PlayStepSounds(uint32_t ent) {
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x0001c6ce);  // BroScr_SetPoseMovement
+    *handle_slot(ent, 0x0ccee5c1) = 0x0001c6ce;
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922dc4)(ent, 0x070b89a4);  // ScrActor_SetInt_184
+    step_sound(ent, 0x00825b98);  // "misc_step1"
+    step_sound(ent, 0x00825b8c);  // "misc_step2"
+    step_sound(ent, 0x00825b98);
+    step_sound(ent, 0x00825b8c);
+    Scr_Wait(as_float(0x3f800000));
+}
+
+void XB_CDECL BroScr_NotifyFallbackerDied(uint32_t, uint32_t guy, int32_t n) {
+    Scr_WaitTill(guy, kDeath);
+    ScriptString name;
+    scr_string_from(&name, 0x00825ff8);  // "fallbacker_died"
+    ScriptString_AppendInt(&name, n);
+    const uint32_t object = title_global<uint32_t>(0x00922ef8);  // g_levelScriptObject
+    const uint32_t* const handle = pointer<uint32_t>(object ? object + 4 : 0);
+    uint32_t hash;
+    queue_notify(*handle, *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name)));
+    DynArray* const counts = pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + 0x6c);
+    if (static_cast<uint32_t>(n) >= counts->size) DynArray_ResizeInt(counts, n + 1, n + 4);
+    --counts->data[n];
+    scr_release(&name);
 }
 
 }  // namespace game

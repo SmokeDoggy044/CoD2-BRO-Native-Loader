@@ -72,4 +72,34 @@ void XB_CDECL BroScr_PlayStandMG42GunnerPain(uint32_t ent);
 // at 0x00922ee8, "", the word at 0x00922ea4); the table entry then emptied. Releases `note`.
 void XB_CDECL BroScr_NotetrackFaceAnim(uint32_t ent, uint32_t key, uint32_t index, ScriptString note);
 
+// 0x0019f390 / 0x0019f770 (identical): anim tree "mg42"; the users count 0xabc1df0a + 1 (0 when
+// undefined); waits for 0x07b4e7f7; then the count - 1 while above 0, else the key removed and the
+// anim tree cleared. The first argument is unused.
+void XB_CDECL BroScr_Mg42AnimTree(uint32_t unused, uint32_t ent);
+void XB_CDECL BroScr_Mg42AnimTree_2(uint32_t unused, uint32_t ent);
+// 0x0019f930 (new; Ghidra counts it into 0x0019f770): with a valid sentient ref +0x3c: the stand
+// MG42 fire anim (actor int +0x1370, knob 1 / 0.2 / 1) and BroScr_Mg42ShootLoop_3(ent, turret);
+// then the stand MG42 aim anim the same way. BroScr_AnimScript_TurretCall_5's first callback.
+void XB_CDECL BroScr_Mg42AnimThenShootLoop_3(uint32_t ent, uint32_t turret);
+// 0x0019fe80: ends on 0x07b4e7f7; the thread kept in 0xa78b2c24 terminated and replaced by this one;
+// forever: waits for 0x2faeed05, BroScr_SetDirectionalMoveAnims(ent, anims, 0.2, has a visible model).
+[[noreturn]] void XB_CDECL BroScr_DirectionalMoveAnimsOnNotify(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                             uint32_t a5, uint32_t a6, uint32_t a7);
+// 0x0019ff70: the same with key 0xf8b8e073, a BroScr_DirectionalMoveAnimsOnNotify call thread, one
+// BroScr_SetDirectionalMoveAnims(.., 0.2, true), then every 0.2 s the visible-model form.
+[[noreturn]] void XB_CDECL BroScr_DirectionalMoveAnimsLoop(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                         uint32_t a5, uint32_t a6, uint32_t a7);
+// 0x001a05f0: ends on 0x07b4e7f7 / death / `end`; waits `time`; entering prone (0x0738b1a5) sets the
+// prone feet aim weights (slot 0x009226b0 = 1); leaving it slot 0x009226b4 = 1 and orient "face
+// default"; actor int +0x184 = `pose`, handle 0x0ccee5c1 = `movement`, 0x764918ae = 0xc4a729a7 /
+// 0xc028584c by `flag`.
+void XB_CDECL BroScr_ProneAimFaceDefault(uint32_t ent, float time, uint32_t end, uint32_t pose, uint32_t movement,
+                                         uint32_t flag);
+// 0x001a2510: pose movement 0x070b89a4 / 0x1c6ce (handle 0x0ccee5c1 and actor int +0x184 too), then
+// "misc_step1" / "misc_step2" twice each RandomFloat(0.7) s apart, and 1 s.
+void XB_CDECL BroScr_PlayStepSounds(uint32_t ent);
+// 0x001a6a40: waits for `guy`'s death, notifies "fallbacker_died<n>" on the level object and
+// decrements its count n (int array +0x6c).
+void XB_CDECL BroScr_NotifyFallbackerDied(uint32_t unused, uint32_t guy, int32_t n);
+
 }  // namespace game
