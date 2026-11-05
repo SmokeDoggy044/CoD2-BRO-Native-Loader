@@ -14727,3 +14727,4 @@ address,name,kind,confidence,evidence
 001417a0,BroScr_SetVehicleTargetsByTargetname,function,medium,"split out of BroScr_PlayerHopOverWall's old extent by the levelscript push agent, applied 2026-11-05"
 001b6ab0,BroScr_TryShootRunBack,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 001a81b0,BroScr_WaitTriggerAiCleared,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+001b7e70,BroScr_AnimScriptEntSetDefaults,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
