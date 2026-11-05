@@ -1,6 +1,10 @@
 #include "bro_scr_ai_weapons.h"
 
+#include "bro_scr_ai_common.h"
 #include "bro_scr_ai_look.h"
+#include "bro_scr_cover_turret.h"
+#include "bro_scr_nodes_spawner.h"
+#include "scr_access.h"
 
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
@@ -263,3 +267,213 @@ void XB_CDECL BroScr_MeleePair_Link(uint32_t a, uint32_t b) {
 }
 
 }  // namespace game
+
+// Push c3: line-of-fire checks from the muzzle and from a pose.
+namespace game {
+
+namespace {
+
+using bro_ai::as_float;
+using bro_ai::bits;
+using bro_ai::undefined_lane;
+
+using CanShoot = uint32_t XB_CDECL(uint32_t, const uint32_t*, const uint32_t*);
+
+const uint32_t* eye_pos(uint32_t* out, const uint32_t* ent) {
+    return title_function<const uint32_t* XB_CDECL(uint32_t*, const uint32_t*)>(0x001814e0)(out, ent);  // BroScr_GetEyePos
+}
+
+uint32_t actor_int(uint32_t slot_address, uint32_t actor) { return slot<uint32_t XB_CDECL(uint32_t)>(slot_address)(actor); }
+
+}  // namespace
+
+uint8_t* XB_CDECL BroScr_GetMuzzleOrigin(uint8_t* out, uint32_t actor, ScrVec3 offset, uint32_t target, uint32_t flag) {
+    uint32_t ref;
+    if (!entity_handle_is_valid(*slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922e00)(&ref, actor)) &&
+        !entity_handle_is_valid(target)) {  // ScrSentient_GetRef_3c
+        *out = 0;
+        return out;
+    }
+    uint8_t armed;
+    if (!*BroScr_HasWeapon(&armed, actor)) {
+        *out = 0;
+        return out;
+    }
+    uint32_t aim[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    uint32_t low[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    uint32_t buffer[3];
+    const uint32_t* eye = nullptr;
+    if (entity_handle_is_valid(target)) {
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922220)(target)) {  // GScr_IsSentient
+            eye = eye_pos(buffer, &target);
+        } else {
+            const uint32_t* const o = ScrCall_ScrEnt_GetOrigin(&target, buffer);
+            aim[0] = o[0];
+            aim[1] = o[1];
+            aim[2] = o[2];
+            low[0] = aim[0];
+            low[1] = aim[1];
+            low[2] = aim[2];
+        }
+    } else {
+        eye = BroScr_GetEnemyEyePos(buffer, actor);
+    }
+    if (eye) {
+        aim[0] = eye[0];
+        aim[1] = eye[1];
+        aim[2] = eye[2];
+        low[0] = aim[0];
+        low[1] = aim[1];
+        low[2] = bits(as_float(aim[2]) - title_global<float>(0x0083eb5c));  // 20
+    }
+    uint32_t shifted[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    ScriptString tag_name;
+    ScriptString_FromCString(&tag_name, pointer<const char>(0x008389c0));  // "tag_flash"
+    uint32_t tag[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x0092261c)(actor, tag, &tag_name);  // GScr_GetTagOrigin
+    const uint32_t flash[3] = {tag[0], tag[1], tag[2]};
+    ScriptString_Release(&tag_name);
+    if (flag == bro_ai::undefined_int() || flag != 0) {
+        uint32_t eye_buffer[3];
+        const uint32_t* const e = eye_pos(eye_buffer, &actor);
+        const uint32_t self_eye[3] = {e[0], e[1], e[2]};
+        shifted[0] = bits(platform_addss(as_float(offset.v[0]), as_float(self_eye[0]) - as_float(flash[0])));
+        shifted[1] = bits(platform_addss(as_float(offset.v[1]), as_float(self_eye[1]) - as_float(flash[1])));
+        shifted[2] = bits(platform_addss(as_float(offset.v[2]), as_float(self_eye[2]) - as_float(flash[2])));
+        if (!slot<CanShoot>(0x009226d0)(actor, aim, shifted)) {  // GScr_ActorCanShootWithOffset
+            *out = 0;
+            return out;
+        }
+    }
+    uint32_t result = slot<CanShoot>(0x009226d0)(actor, aim, offset.v);
+    if (!result && slot<CanShoot>(0x009226d0)(actor, low, offset.v)) result = 1;
+    *out = result != 0;
+    return out;
+}
+
+uint8_t* XB_CDECL BroScr_GetMuzzleOriginCall(uint8_t* out, uint32_t actor, uint32_t target, uint32_t flag) {
+    const ScrVec3 zero = {{bits(0.0f), bits(0.0f), bits(0.0f)}};
+    BroScr_GetMuzzleOrigin(out, actor, zero, target, flag);
+    return out;
+}
+
+uint8_t* XB_CDECL BroScr_CanShootFromPose(uint8_t* out, uint32_t actor, uint32_t pose, ScrVec3 offset, uint32_t flag) {
+    uint32_t local[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+    constexpr uint32_t kStand = 0x070b89a4;
+    constexpr uint32_t kCrouch = 0xc1165808;
+    constexpr uint32_t kProne = 0x0738b1a5;
+    // The height change from the current pose (no change for an unknown one).
+    uint32_t heights[3] = {0, 0, 0};  // global addresses of the stand / crouch / prone heights, 0 = 0.0
+    bool known_pose = true;
+    if (pose == kStand) {
+        static const uint32_t kBlocked[6] = {0xa39d17dd, 0x318fbe80, 0x45963119, 0x00371a54, 0x0033c678, 0x8d298057};
+        for (uint32_t i = 0; i < 6; ++i) {
+            if (actor_int(0x00922d30, actor) == kBlocked[i]) {  // ScrActor_GetInt_f0
+                *out = 0;
+                return out;
+            }
+        }
+        heights[1] = 0x0083eb5c;  // 20
+        heights[2] = 0x0083f14c;  // 55
+    } else if (pose == kCrouch) {
+        if (actor_int(0x00922d30, actor) == 0x00371a54) {
+            *out = 0;
+            return out;
+        }
+        heights[0] = 0x0083f198;  // -20
+        heights[2] = 0x0083ebc4;  // 25
+    } else if (pose == kProne) {
+        if (actor_int(0x00922d30, actor) == 0x00371a54) {
+            *out = 1;
+            return out;
+        }
+        heights[0] = 0x007f8948;  // -55
+        heights[1] = 0x007fcdc0;  // -25
+    } else {
+        known_pose = false;
+    }
+    if (known_pose) {
+        int32_t index = -1;
+        if (actor_int(0x00922dc0, actor) == kStand) index = 0;  // ScrActor_GetInt_184
+        else if (actor_int(0x00922dc0, actor) == kCrouch) index = 1;
+        else if (actor_int(0x00922dc0, actor) == kProne) index = 2;
+        if (index >= 0) local[2] = heights[index] ? title_global<uint32_t>(heights[index]) : bits(0.0f);
+    }
+    uint32_t v[3];
+    const float lane = as_float(undefined_lane());
+    if (as_float(offset.v[0]) == lane && as_float(offset.v[1]) == lane && as_float(offset.v[2]) == lane) {
+        v[0] = local[0];
+        v[1] = local[1];
+        v[2] = local[2];
+    } else {
+        uint32_t world[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+        slot<void XB_CDECL(uint32_t, const uint32_t*, uint32_t*)>(0x0092263c)(actor, offset.v, world);  // GScr_LocalToWorldCoords
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, actor);  // ScrEnt_GetOrigin
+        const uint32_t origin[3] = {o[0], o[1], o[2]};
+        const float z = platform_addss(as_float(world[2]), as_float(local[2]));
+        v[0] = bits(as_float(world[0]) - as_float(origin[0]));
+        v[1] = bits(as_float(world[1]) - as_float(origin[1]));
+        v[2] = bits(z - as_float(origin[2]));
+    }
+    const ScrVec3 shifted = {{v[0], v[1], v[2]}};
+    BroScr_GetMuzzleOrigin(out, actor, shifted, 0, flag);
+    return out;
+}
+
+namespace {
+
+// The common test of BroScr_ShouldGoProne / _2: the nearest enemy (500 when undefined) is not
+// closer than anim-object +0x90 and the actor can shoot prone.
+bool prone_worthwhile(uint32_t actor, uint32_t flag) {
+    float distance = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922690)(actor));  // GScr_SentientNearestEnemyDist
+    if (distance == as_float(title_global<uint32_t>(0x00922eac))) distance = title_global<float>(0x0083ebec);  // 500
+    const float limit = as_float(at<uint32_t>(bro_ai::anim_object(), 0x90));
+    if (limit > distance) return false;
+    const ScrVec3 none = {{title_global<uint32_t>(0x00922ec4), title_global<uint32_t>(0x00922ec8),
+                           title_global<uint32_t>(0x00922ecc)}};
+    uint8_t can_shoot;
+    return *BroScr_CanShootFromPose(&can_shoot, actor, 0x0738b1a5, none, flag) != 0;
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL BroScr_ShouldGoProne(uint32_t* out, uint32_t actor, ScrVec3 point, uint32_t yaw) {
+    if (!prone_worthwhile(actor, title_global<uint32_t>(0x00922ebc))) {
+        *out = 0;
+        return out;
+    }
+    BroScr_ActorMayMoveToPointForStance(out, actor, point, yaw);
+    return out;
+}
+
+uint32_t* XB_CDECL BroScr_ShouldGoProne_2(uint32_t* out, uint32_t actor, ScrVec3 point, uint32_t yaw) {
+    if (!prone_worthwhile(actor, 1)) {
+        *out = 0;
+        return out;
+    }
+    uint8_t may;
+    *out = *BroScr_ActorMayMoveToPointForStance_2(&may, actor, point, yaw) != 0;
+    return out;
+}
+
+uint32_t* XB_CDECL BroScr_CheckCanShoot(uint32_t* out, uint32_t actor, uint32_t count_misses) {
+    bool defined;
+    if (!*ScrField_ha31c116e_IsDefined(&defined, actor)) *key_slot(actor, 0xa31c116e, undefined_int()) = 0;
+    if (count_misses == undefined_int()) count_misses = 1;
+    const ScrVec3 zero = {{bits(0.0f), bits(0.0f), bits(0.0f)}};
+    uint8_t can;
+    const uint32_t shoot = *BroScr_GetMuzzleOrigin(&can, actor, zero, title_global<uint32_t>(0x00922e84),
+                                                   title_global<uint32_t>(0x00922ebc)) != 0;
+    if (shoot) *key_slot(actor, 0xa31c116e, undefined_int()) = 0;
+    else if (count_misses) ++*ScrField_ha31c116e(actor);
+    if (static_cast<int32_t>(*key_slot(actor, 0xa31c116e, undefined_int())) > 4) {
+        slot<void XB_CDECL(uint32_t)>(0x009226e8)(actor);  // GScr_ActorFindBetterCover
+        *key_slot(actor, 0xa31c116e, undefined_int()) = 0;
+    }
+    *out = shoot;
+    return out;
+}
+
+}  // namespace game
+

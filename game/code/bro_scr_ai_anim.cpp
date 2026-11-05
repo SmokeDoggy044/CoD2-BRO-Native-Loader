@@ -4,6 +4,10 @@
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
 #include "bro_scr_nodes_spawner.h"
+#include "g_scr_runtime.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
+#include "scr_access.h"
 #include "scr_field.h"
 #include "scr_field_instances.h"
 #include "script_string.h"
@@ -350,3 +354,384 @@ void XB_CDECL BroScr_UseNodeTurret(uint32_t actor, uint32_t turret, uint32_t aim
 }
 
 }  // namespace game
+
+// Push c3: weapon/reload checks, aim blends, cover anim sets, run anims, the gun hand.
+namespace game {
+
+using namespace bro_ai;
+
+namespace {
+
+// ScriptKeyTable_GetString (0x00458da0): the entity's string under `key`, added empty when missing.
+ScriptString* key_string(uint32_t ent, uint32_t key) {
+    return title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(ent_script_object(ent), key);
+}
+
+// ScriptKeyTable_GetStruct28 (0x001e4a20) of the anim struct key 0x12993a44.
+uint32_t* anim_struct(uint32_t ent) {
+    return pointer<uint32_t>(ScriptKeyTable_GetStruct28(ent_script_object(ent), 0x12993a44));
+}
+
+long double random_float(uint32_t limit_bits) { return slot<long double XB_CDECL(uint32_t)>(0x00922230)(limit_bits); }
+
+uint32_t cover_anim_set(uint32_t actor, const uint32_t (&sets)[7]) {
+    uint32_t value;
+    const uint32_t type = *BroScr_GetWeaponType(&value, actor);
+    if (type == 0xa39d17dd) return sets[0];
+    if (type == 0xe6a85d8c) return actor_pose(actor) == 0x070b89a4 ? sets[1] : sets[2];
+    if (*ScrField_anim_idleset(actor) == 0x61) return actor_pose(actor) == 0x070b89a4 ? sets[3] : sets[4];
+    return actor_pose(actor) == 0x070b89a4 ? sets[5] : sets[6];
+}
+
+constexpr uint32_t kCoverLeftSets[7] = {0x009232b8, 0x00923188, 0x00923350, 0x00923220, 0x00923480, 0x009235b0, 0x009233e8};
+constexpr uint32_t kCoverRightSets[7] = {0x00923518, 0x00923648, 0x00922f08, 0x009230f0, 0x00923058, 0x00922fc0, 0x00923708};
+
+// A hand tag string ("tag_weapon_left" / "tag_weapon_right").
+const char* hand_tag(uint32_t hand) {
+    return pointer<const char>(hand == 0x003798b4 ? 0x00831e28 : 0x00831e14);
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL BroScr_GetFieldUnlessAutoOrSemi(uint32_t* out, uint32_t actor) {
+    uint32_t type;
+    if (*BroScr_GetWeaponFireType(&type, actor) == 0x00315aef || *BroScr_GetWeaponFireType(&type, actor) == 0x003819c9) {
+        *out = 0;
+        return out;
+    }
+    *out = *ScrField_hc786fa48(actor);
+    return out;
+}
+
+uint8_t* XB_CDECL BroScr_NeedsReload(uint8_t* out, uint32_t actor, uint32_t fraction_bits) {
+    float fraction = as_float(fraction_bits);
+    if (fraction == as_float(title_global<uint32_t>(0x00922eac))) fraction = 0.0f;
+    if (*handle_slot(actor, 0x0ccee5c1) == 0x0001c6ce) {
+        *out = 0;
+        return out;
+    }
+    const int32_t left = static_cast<int32_t>(*int_slot(actor, 0x0feddbea));
+    int32_t clip;
+    if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(actor) == 0x0036b1a5) {  // ScrActor_GetInt_f0
+        clip = 0;
+    } else {
+        uint32_t size;
+        clip = static_cast<int32_t>(*BroScr_GetWeaponClipSize(&size, actor));
+    }
+    const int32_t threshold = static_cast<int32_t>(static_cast<float>(clip) * fraction);
+    *out = left > threshold ? 0 : 1;
+    return out;
+}
+
+void XB_CDECL BroScr_BlendAimAnimsByYaw(uint32_t ent, uint32_t anim_a, uint32_t anim_b, uint32_t anim_c, uint32_t a_bits,
+                                       uint32_t b_bits, uint32_t c_bits, uint32_t base_bits) {
+    const uint32_t floor_bits = title_global<uint32_t>(0x0083eb94);  // 0.01
+    uint32_t yaw_bits;
+    BroScr_GetYawToEnemy(&yaw_bits, ent);
+    const float full = title_global<float>(0x0083ebcc);  // 360
+    const int32_t whole = static_cast<int32_t>(platform_addss(as_float(base_bits) - as_float(yaw_bits), full));
+    float yaw = static_cast<float>(whole % 360);
+    if (yaw > title_global<float>(0x0083eb60)) yaw = yaw - full;  // 180
+    const float a = as_float(a_bits);
+    const float b = as_float(b_bits);
+    const float c = as_float(c_bits);
+    const float floor = as_float(floor_bits);
+    const float ceiling = title_global<float>(0x0083ed08);  // 0.99
+    const float one = title_global<float>(0x0083eb20);
+    uint32_t weight_a;
+    uint32_t weight_b;
+    uint32_t weight_c;
+    if (a >= yaw) {
+        weight_a = bits(one);
+        weight_b = floor_bits;
+        weight_c = floor_bits;
+    } else if (b > yaw) {
+        const float span = b - a;
+        float t = (b - yaw) / span;
+        if (floor > t) t = floor;
+        if (t > ceiling) t = ceiling;
+        weight_a = bits(t);
+        weight_b = bits(one - t);
+        weight_c = floor_bits;
+    } else if (c > yaw) {
+        const float span = c - b;
+        float t = (c - yaw) / span;
+        if (floor > t) t = floor;
+        if (t > ceiling) t = ceiling;
+        weight_a = floor_bits;
+        weight_b = bits(t);
+        weight_c = bits(one - t);
+    } else {
+        weight_a = floor_bits;
+        weight_b = floor_bits;
+        weight_c = bits(one);
+    }
+    using SetAnim = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    slot<SetAnim>(0x009225dc)(ent, anim_a, weight_a, 0x3dcccccd, 0x3f800000, 0);  // GScr_SetAnim (0.1, 1.0)
+    slot<SetAnim>(0x009225dc)(ent, anim_b, weight_b, 0x3dcccccd, 0x3f800000, 0);
+    slot<SetAnim>(0x009225dc)(ent, anim_c, weight_c, 0x3dcccccd, 0x3f800000, 0);
+}
+
+uint32_t XB_CDECL BroScr_GetCoverLeftAnimSet(uint32_t actor) { return cover_anim_set(actor, kCoverLeftSets); }
+uint32_t XB_CDECL BroScr_GetCoverRightAnimSet(uint32_t actor) { return cover_anim_set(actor, kCoverRightSets); }
+
+void XB_CDECL BroScr_AnimScript_GrenadeRecover(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
+    BroScr_InitAnimScript(ent, 0x5f32132f);
+    BroScr_ApplyDesiredAnimPose(ent);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922e2c)(ent, 0);  // ScrSentient_SetInt_38
+}
+
+void XB_CDECL BroScr_GetCombatRunAnim(uint32_t actor) {
+    uint32_t value;
+    const uint32_t type = *BroScr_GetWeaponType(&value, actor);
+    if (type == 0xe6a85d8c || type == 0x0036b1a5) {
+        *key_slot(actor, 0x66a44409, 0) = title_global<uint32_t>(0x008cdaa0);  // g_anim_combatrun_forward_1
+        *key_slot(actor, 0x682ea6e9, 0) = title_global<uint32_t>(0x008ced18);  // g_anim_pistol_crouchrun_loop_forward_1
+    } else if (type == 0x0001bdc7) {
+        *ScrField_anim_combatrunanim(actor) = title_global<uint32_t>(0x008cd80c);  // g_anim_c_mg_mg34_run
+        *ScrField_anim_crouchrunanim(actor) = title_global<uint32_t>(0x008ce718);  // g_anim_crouchrun_loop_forward_1
+        *ScrField_h93348a05(actor) = title_global<uint32_t>(0x008cd80c);
+    } else {
+        *ScrField_anim_combatrunanim(actor) = title_global<uint32_t>(0x008cdaa0);
+        *ScrField_anim_crouchrunanim(actor) = title_global<uint32_t>(0x008ce718);
+    }
+    bool defined;
+    if (!*ScrField_h6937c3b9_IsDefined(&defined, actor)) {
+        uint32_t* const field = ScrField_h6937c3b9(actor);
+        const long double r = random_float(0x3ecccccd) + static_cast<long double>(title_global<float>(0x0083ebc0));  // 0.4, 0.8
+        *reinterpret_cast<float*>(field) = static_cast<float>(r);
+    }
+    if (*ScrField_haff9c3b8_IsDefined(&defined, actor)) return;
+    if (!entity_handle_is_valid(actor)) return;
+    ScriptString team;
+    ScriptString team2;
+    bool axis = true;
+    const bool has_team = ScrCall_ScrSentient_GetTeam(&actor, &team)->rep != nullptr;
+    if (has_team) {
+        axis = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&actor, &team2), pointer<const char>(0x0083208c));  // "axis"
+        ScriptString_Release(&team2);
+    }
+    ScriptString_Release(&team);
+    uint32_t* const field = ScrField_haff9c3b8(actor);
+    const long double offset = static_cast<long double>(title_global<float>(axis ? 0x0083ebc0 : 0x0083ec18));  // 0.8 / 0.9
+    *reinterpret_cast<float*>(field) = static_cast<float>(random_float(0x3ecccccd) + offset);
+}
+
+void XB_CDECL BroScr_ResetAnimStruct_12993a44(uint32_t ent) {
+    anim_struct(ent)[0] = 0;
+    const uint32_t undefined = undefined_int();
+    anim_struct(ent)[7] = undefined;
+    uint32_t* const s = anim_struct(ent);
+    if (s[8]) {
+        ScriptStringRep_Release(pointer<ScriptStringRep>(s[8]));
+        s[8] = 0;
+    }
+    const uint32_t undefined2 = undefined_int();
+    anim_struct(ent)[9] = undefined2;
+}
+
+void XB_CDECL BroScr_SetAnimStruct_12993a44(uint32_t ent, const uint32_t* source) {
+    anim_struct(ent)[0] = source[0];
+    uint32_t* s = anim_struct(ent);
+    s[1] = source[1];
+    s[2] = source[2];
+    s[3] = source[3];
+    s = anim_struct(ent);
+    s[4] = source[4];
+    s[5] = source[5];
+    s[6] = source[6];
+    anim_struct(ent)[7] = source[7];
+    if (source[8]) {
+        ScriptString_Assign(reinterpret_cast<ScriptString*>(anim_struct(ent) + 8),
+                            reinterpret_cast<const ScriptString*>(source + 8));
+    } else {
+        ScriptString_AssignCString(reinterpret_cast<ScriptString*>(anim_struct(ent) + 8), pointer<const char>(0x0082d25c));
+    }
+    if (source[9] == 0xfefefefe) {
+        const uint32_t body = title_global<uint32_t>(0x008cd7dc);  // g_anim_Body
+        anim_struct(ent)[9] = body;
+    } else {
+        anim_struct(ent)[9] = source[9];
+    }
+}
+
+uint8_t* XB_CDECL BroScr_MeleePair_Relink(uint8_t* out, uint32_t a, uint32_t b) {
+    if (!entity_handle_is_valid(b)) {
+        *out = 0;
+        return out;
+    }
+    bool defined;
+    if (*ScrField_h31aaf853_IsDefined(&defined, a)) {
+        BroScr_MeleePair_Unlink(a, *ScrField_h31aaf853(a));
+        if (*ScrField_h31aaf853_IsDefined(&defined, a)) drop_bad_parameter();
+    }
+    if (*ScrField_h236fc839_IsDefined(&defined, b)) {
+        const uint32_t partner = *ScrField_h236fc839(b);
+        if (*ScrField_h31aaf853_IsDefined(&defined, partner) && *ScrField_h31aaf853(partner) == b) {
+            *out = 0;
+            return out;
+        }
+        remove_key(&b, 0x236fc839);
+    }
+    if (*ScrField_h31aaf853_IsDefined(&defined, a)) drop_bad_parameter();
+    if (*ScrField_h236fc839_IsDefined(&defined, b)) drop_bad_parameter();
+    *out = 1;
+    return out;
+}
+
+void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
+    using GetInt = uint32_t XB_CDECL(uint32_t);
+    ScriptString weapon;
+    ScriptString_FromCString(&weapon, pointer<const char>(0x0082dfeb));  // ""
+    if (slot<GetInt>(0x00922d30)(actor) != 0) {  // ScrActor_GetInt_f0
+        ScriptString name;
+        ScriptString_Assign(&weapon, ScrCall_GScr_GetWeaponDisplayName(&name, slot<GetInt>(0x00922d30)(actor)));
+        ScriptString_Release(&name);
+    }
+    bool defined;
+    uint32_t wanted = 0x0036b1a5;
+    if (!*ScrField_hasweapon_IsDefined(&defined, actor) || *int_slot(actor, 0x2861269a) != 0) {
+        if (weapon.rep && *reinterpret_cast<const uint16_t*>(reinterpret_cast<const uint8_t*>(weapon.rep) + 2) != 0 &&
+            !ScriptString_Equals(&weapon, pointer<const char>(0x0082dfeb)))
+            wanted = hand;
+    }
+    if (!*ScrField_h81ea0dd3_IsDefined(&defined, actor))
+        ScriptString_AssignCString(key_string(actor, 0x81ea0dd3), pointer<const char>(0x00832430));  // "none"
+    if (wanted == *handle_slot(actor, 0x1de0c645) && ScriptString_EqualsString(&weapon, key_string(actor, 0x81ea0dd3))) {
+        ScriptString_Release(&weapon);
+        return;
+    }
+    const int32_t now = get_time();
+    if (static_cast<int32_t>(*int_slot(actor, 0x77f1e6fa)) != now) *int_slot(actor, 0x77f1e6fa) = static_cast<uint32_t>(now);
+    using Attach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*);
+    using Detach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t);
+    const uint32_t held = *handle_slot(actor, 0x1de0c645);
+    if (held == 0x003798b4 || *handle_slot(actor, 0x1de0c645) == 0x07151174) {
+        ScriptString tag;
+        ScriptString_FromCString(&tag, hand_tag(held));
+        slot<Attach>(0x009224d8)(actor, key_string(actor, 0x81ea0dd3), &tag);  // GScr_Attach
+        ScriptString_Release(&tag);
+    }
+    if (wanted == 0x003798b4 || wanted == 0x07151174) {
+        ScriptString tag;
+        ScriptString_FromCString(&tag, hand_tag(wanted));
+        slot<Detach>(0x009224d0)(actor, &weapon, &tag, 0);  // GScr_DetachEx
+        ScriptString_Release(&tag);
+        ScriptString_Assign(key_string(actor, 0x81ea0dd3), &weapon);
+        if (wanted == 0x003798b4) *handle_slot(actor, 0x1de0c645) = 0x003798b4;
+        else *ScrField_anim_gunhand(actor) = 0x07151174;
+    } else {
+        *ScrField_anim_gunhand(actor) = 0x0036b1a5;
+        remove_key(&actor, 0x81ea0dd3);
+    }
+    BroScr_GetCombatRunAnim(actor);
+    ScriptString_Release(&weapon);
+}
+
+void XB_CDECL BroScr_ReattachGunInHand(uint32_t actor) {
+    slot<void XB_CDECL(uint32_t)>(0x009224e0)(actor);  // GScr_DetachAll
+    const uint32_t hand = *handle_slot(actor, 0x1de0c645);
+    if (hand == undefined_handle()) return;
+    *handle_slot(actor, 0x1de0c645) = 0x0036b1a5;
+    BroScr_PutGunInHand(actor, hand);
+}
+
+void XB_CDECL BroScr_ReattachAlliesGuns() {
+    int32_t budget = 100000;
+    DynArray ai = {nullptr, 0, 0};
+    ScriptString team;
+    ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
+    slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&ai, &team);  // GScr_GetAI
+    ScriptString_Release(&team);
+    int32_t ai_left = static_cast<int32_t>(ai.size);
+    DynArray spawners = {nullptr, 0, 0};
+    ScriptString team2;
+    ScriptString_FromCString(&team2, pointer<const char>(0x00832084));
+    slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223dc)(&spawners, &team2);  // GScr_GetSpawnerTeamArray
+    ScriptString_Release(&team2);
+    int32_t spawners_left = static_cast<int32_t>(spawners.size);
+    uint32_t ai_index = 0;
+    uint32_t spawner_index = 0;
+    auto at_index = [](DynArray* array, uint32_t index) {
+        if (index >= array->size) DynArray_Resize(reinterpret_cast<uint8_t*>(array), index + 1, index + 4);
+        return pointer<uint32_t>(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(array->data)) + index * 4);
+    };
+    // Whether the entity's field 0xa1763cc1 (a string) is set.
+    auto has_field = [](uint32_t ent) {
+        ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+        if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
+        ScriptString copy;
+        const bool set = static_cast<ScriptString*>(ScrField_ha1763cc1_Copy(reinterpret_cast<uint8_t*>(table) + 0xc, &copy))
+                             ->rep != nullptr;
+        ScriptString_Release(&copy);
+        return set;
+    };
+    while ((ai_left > 0 || spawners_left > 0) && budget > 0) {
+        if (ai_left > 0) {
+            if (!has_field(*at_index(&ai, ai_index))) {
+                BroScr_ReattachGunInHand(*at_index(&ai, ai_index));
+                --budget;
+            }
+            --ai_left;
+            ++ai_index;
+        } else {
+            const bool set = has_field(*at_index(&spawners, spawner_index));
+            --spawners_left;
+            ++spawner_index;
+            if (!set) --budget;
+        }
+    }
+    if (spawners.data) Scr_Free(spawners.data);
+    if (ai.data) Scr_Free(ai.data);
+}
+
+uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uint32_t seconds_bits) {
+    const int32_t frames = static_cast<int32_t>(as_float(seconds_bits) * title_global<float>(0x0083eb5c));  // x 20
+    using EntVec = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    using Track = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    for (int32_t i = 0; i < frames; ++i) {
+        slot<void XB_CDECL(uint32_t)>(0x00922760)(actor);  // GScr_ActorAdvanceAnimTime
+        slot<void XB_CDECL(uint32_t)>(0x0092275c)(actor);  // GScr_ActorApplyAnimMove
+        uint32_t angles_buffer[3];
+        const uint32_t* const a = slot<EntVec>(0x00922ba0)(angles_buffer, actor);  // ScrEnt_GetAngles
+        const uint32_t angles[3] = {a[0], a[1], a[2]};
+        uint32_t origin_buffer[3];
+        const uint32_t* const o = slot<EntVec>(0x00922b20)(origin_buffer, actor);  // ScrEnt_GetOrigin
+        title_function<Track>(0x001c2aa0)(actor, 4, o[0], o[1], o[2], angles[0], angles[1], angles[2]);  // FUN_001c2aa0
+        ScriptString kind;
+        ScriptString_FromRep(&kind, nullptr);
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x00922764)(actor, &kind);  // GScr_ActorGetObstacleKind_39c
+        uint32_t hash;
+        const uint32_t kind_hash = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&kind));
+        if (kind_hash == 0x074645e4) {
+            ScriptString mode;
+            ScriptString_FromCString(&mode, pointer<const char>(0x0083adfc));  // "face angle"
+            const float yaw = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922768)(actor));  // ObstacleYaw_3a8
+            slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(actor, &mode, bits(yaw), 0);  // GScr_ActorSetOrientMode
+            ScriptString_Release(&mode);
+            *out = 1;
+            ScriptString_Release(&kind);
+            return out;
+        }
+        if (kind_hash == 0x61710285) {
+            *out = 0;
+            ScriptString_Release(&kind);
+            return out;
+        }
+        ScriptString_Release(&kind);
+    }
+    *out = 0;
+    return out;
+}
+
+void XB_CDECL BroScr_InitPoseMovementTable() {
+    // anim object +0x168..+0x188: stand / crouch / prone x stop / walk / run handlers.
+    static const uint32_t kHandlers[9] = {0x001c8920, 0x001c8ad0, 0x001c8c40, 0x001c8db0, 0x001c8f50,
+                                          0x001c90c0, 0x001c9210, 0x001cedf0, 0x001cee10};
+    for (uint32_t i = 0; i < 9; ++i) at<uint32_t>(anim_object(), 0x168 + i * 4) = kHandlers[i];
+}
+
+}  // namespace game
+

@@ -65,9 +65,19 @@ void XB_CDECL BroScr_AppendIfValidEnt(DynArray* array, uint32_t ent);
 // 0x001a8590 (dead): whether any live AI of `team` touches `trigger` (collected, then re-checked
 // alive). Releases `team`.
 uint8_t* XB_CDECL BroScr_AnyAliveAITouching(uint8_t* out, uint32_t trigger, ScriptString team);
+// 0x001a8a90: the entity of `array` closest to `origin`, skipping invalid ones and those in
+// `exclude` (when it has storage); the undefined entity (0x00922e84) for an array without storage
+// or, with `exclude`, no live entry left. As compiled, the start entry is measured from entry 0
+// when there is no `exclude`. 0x001a8fc0: the same over path nodes (valid = not 0 / -1, no
+// liveness test, undefined node 0x00922ea0). Both return out.
+uint32_t* XB_CDECL BroScr_GetClosestFromArray(uint32_t* out, ScrVec3 origin, DynArray* array, DynArray* exclude);
+uint32_t* XB_CDECL BroScr_GetClosestNodeFromArray(uint32_t* out, ScrVec3 origin, DynArray* nodes, DynArray* exclude);
+// 0x001aa9c0 (dead): stores each entity's distance from `origin` under key 0xa171373f (stops at
+// the first entity whose origin is the undefined vector), then exchange-sorts `ents` by it.
+void XB_CDECL BroScr_SortByDistance(ScrVec3 origin, DynArray* ents);
 // 0x001a94c0: BroScr_GetClosestFromArray over the AI of `team` (all AI for an empty string), the
 // word at 0x00922e84 when there are none. Releases `team`.
-uint32_t* XB_CDECL BroScr_GetClosestAI(uint32_t* out, ScrVec3 origin, ScriptString team, uint32_t max_distance);
+uint32_t* XB_CDECL BroScr_GetClosestAI(uint32_t* out, ScrVec3 origin, ScriptString team, DynArray* exclude);
 // 0x001aa670 (FUN_001aa670, dead; proposed BroScr_CheckAlliesField_ha1763cc1): reads field
 // 0xa1763cc1's defined state on every "allies" AI (result unused).
 void XB_CDECL BroScr_CheckAlliesField_ha1763cc1();

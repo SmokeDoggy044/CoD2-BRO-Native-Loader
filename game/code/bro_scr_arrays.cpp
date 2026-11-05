@@ -260,6 +260,108 @@ long double distance(const uint32_t* a, const uint32_t* b) {
     return slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(a, b);  // Scr_Distance (ST0)
 }
 
+// The closest-entry search shared by BroScr_GetClosestFromArray (entities) and
+// BroScr_GetClosestNodeFromArray (path nodes); `Kind` supplies the growth call, the validity
+// test, the first-pick test and the origin slot.
+template <typename Kind>
+uint32_t* get_closest(uint32_t* out, const ScrVec3& origin, DynArray* array, DynArray* exclude) {
+    if (array->capacity == 0) {
+        *out = title_global<uint32_t>(Kind::kUndefined);
+        return out;
+    }
+    auto at = [](DynArray* a, uint32_t index) {
+        if (index >= a->size) Kind::grow(a, index + 1, index + 4);
+        return pointer<uint32_t>(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a->data)) + index * 4);
+    };
+    DynArrayBytes excluded = {nullptr, 0, 0};
+    auto flag = [&](uint32_t index) {
+        if (index >= excluded.size) DynArray_ResizeBytes(&excluded, index + 1, index + 4);
+        return excluded.data + index;
+    };
+    auto distance_to = [&](uint32_t value) {
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(Kind::kGetOrigin)(buffer, value);
+        const uint32_t position[3] = {o[0], o[1], o[2]};
+        return static_cast<float>(
+            slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(origin.v, position));  // Scr_Distance
+    };
+    uint32_t best_index = undefined_int();
+    float best = as_float(title_global<uint32_t>(0x00922eac));  // g_scrUndefinedFloat
+    if (exclude->capacity != 0) {
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) *flag(i) = 0;
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+            for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(exclude->size); ++j) {
+                const uint32_t* const excluded_entry = at(exclude, j);
+                if (*at(array, i) == *excluded_entry) *flag(i) = 1;
+            }
+        }
+        // The first live entry not excluded starts the search.
+        bool found = false;
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+            if (*flag(i) != 0) continue;
+            if (!Kind::first_ok(*at(array, i))) continue;
+            found = true;
+            best = distance_to(*at(array, i));
+            best_index = i;
+            break;
+        }
+        if (!found) {
+            *out = title_global<uint32_t>(Kind::kUndefined);
+            if (excluded.data) Scr_Free(excluded.data);
+            return out;
+        }
+    } else {
+        // The first valid entry starts the search, measured from entry 0 (as compiled).
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+            if (!Kind::valid(*at(array, i))) continue;
+            if (array->size == 0) Kind::grow(array, 1, 4);
+            best = distance_to(*array->data);
+            best_index = i;
+            break;
+        }
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+        if (!Kind::valid(*at(array, i))) continue;
+        if (exclude->capacity != 0) {
+            bool skip = false;
+            for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(exclude->size); ++j) {
+                const uint32_t* const excluded_entry = at(exclude, j);
+                if (*at(array, i) == *excluded_entry) skip = true;
+            }
+            if (skip) continue;
+        }
+        const float d = distance_to(*at(array, i));
+        if (best > d) {
+            best = d;
+            best_index = i;
+        }
+    }
+    if (best_index != undefined_int()) *out = *at(array, best_index);
+    else *out = title_global<uint32_t>(Kind::kUndefined);
+    if (excluded.data) Scr_Free(excluded.data);
+    return out;
+}
+
+struct ClosestEntity {
+    static constexpr uint32_t kUndefined = 0x00922e84;  // the undefined entity
+    static constexpr uint32_t kGetOrigin = 0x00922b20;  // ScrEnt_GetOrigin
+    static void grow(DynArray* a, uint32_t size, uint32_t capacity) {
+        DynArray_Resize(reinterpret_cast<uint8_t*>(a), size, capacity);
+    }
+    static bool valid(uint32_t ent) { return entity_handle_is_valid(ent) != 0; }
+    static bool first_ok(uint32_t ent) { return slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent) != 0; }  // GScr_IsAlive
+};
+
+struct ClosestNode {
+    static constexpr uint32_t kUndefined = 0x00922ea0;  // the undefined node
+    static constexpr uint32_t kGetOrigin = 0x00922ab8;  // ScrPathNode_GetOrigin
+    static void grow(DynArray* a, uint32_t size, uint32_t capacity) {
+        title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(0x0045d480)(a, size, capacity);  // DynArray_ReserveInt0
+    }
+    static bool valid(uint32_t node) { return node != 0 && node != 0xffffffffu; }
+    static bool first_ok(uint32_t) { return true; }
+};
+
 }  // namespace
 
 void XB_CDECL BroScr_GetFriendlyChainTriggers(ScriptString chain) {
@@ -375,15 +477,50 @@ uint8_t* XB_CDECL BroScr_AnyAliveAITouching(uint8_t* out, uint32_t trigger, Scri
     return out;
 }
 
-uint32_t* XB_CDECL BroScr_GetClosestAI(uint32_t* out, ScrVec3 origin, ScriptString team, uint32_t max_distance) {
+uint32_t* XB_CDECL BroScr_GetClosestFromArray(uint32_t* out, ScrVec3 origin, DynArray* array, DynArray* exclude) {
+    return get_closest<ClosestEntity>(out, origin, array, exclude);
+}
+
+uint32_t* XB_CDECL BroScr_GetClosestNodeFromArray(uint32_t* out, ScrVec3 origin, DynArray* nodes, DynArray* exclude) {
+    return get_closest<ClosestNode>(out, origin, nodes, exclude);
+}
+
+void XB_CDECL BroScr_SortByDistance(ScrVec3 origin, DynArray* ents) {
+    using GetOrigin = uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents->size); ++i) {
+        uint32_t buffer[3];
+        const uint32_t* o = slot<GetOrigin>(0x00922b20)(buffer, *element_at(ents, i));  // ScrEnt_GetOrigin
+        const uint32_t first[3] = {o[0], o[1], o[2]};
+        const float lane = as_float(title_global<uint32_t>(0x00922eb8));  // g_scrUndefinedVecLane
+        if (as_float(first[0]) == lane && as_float(first[1]) == lane && as_float(first[2]) == lane) return;
+        uint32_t buffer2[3];
+        o = slot<GetOrigin>(0x00922b20)(buffer2, *element_at(ents, i));
+        const uint32_t position[3] = {o[0], o[1], o[2]};
+        uint32_t* const value = key_slot(*element_at(ents, i), 0xa171373f, title_global<uint32_t>(0x00922eac));
+        *reinterpret_cast<float*>(value) = static_cast<float>(distance(position, origin.v));
+    }
+    // An exchange sort on the distance key (0xa171373f), nearest first.
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents->size); ++i) {
+        for (uint32_t j = i; static_cast<int32_t>(j) < static_cast<int32_t>(ents->size); ++j) {
+            const uint32_t* const later = key_slot(*element_at(ents, j), 0xa171373f, title_global<uint32_t>(0x00922eac));
+            const uint32_t* const earlier = key_slot(*element_at(ents, i), 0xa171373f, title_global<uint32_t>(0x00922eac));
+            if (!(as_float(*earlier) > as_float(*later))) continue;
+            const uint32_t held = *element_at(ents, i);
+            const uint32_t* const source = element_at(ents, j);
+            *element_at(ents, i) = *source;
+            *element_at(ents, j) = held;
+        }
+    }
+}
+
+uint32_t* XB_CDECL BroScr_GetClosestAI(uint32_t* out, ScrVec3 origin, ScriptString team, DynArray* exclude) {
     DynArray ai = {nullptr, 0, 0};
     if (team.rep) slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&ai, &team);  // GScr_GetAI
     else slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);                                  // GScr_GetAIAll
     if (ai.size == 0) {
         *out = title_global<uint32_t>(0x00922e84);
     } else {
-        using Closest = uint32_t* XB_CDECL(uint32_t*, ScrVec3, DynArray*, uint32_t);
-        title_function<Closest>(0x001a8a90)(out, origin, &ai, max_distance);  // BroScr_GetClosestFromArray
+        BroScr_GetClosestFromArray(out, origin, &ai, exclude);
     }
     free_array(ai);
     ScriptString_Release(&team);

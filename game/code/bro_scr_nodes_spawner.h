@@ -82,3 +82,15 @@ void XB_CDECL BroScr_PushActorFloat82c(uint32_t actor);
 void XB_CDECL BroScr_PopActorFloat82c(uint32_t actor);
 
 }  // namespace game
+
+namespace game {
+
+// 0x001e4640: thiscall (ECX = &node): whether the node's script_chain string is non-empty (the
+// ScrNode_StringNonEmpty shape with ScrPathNodeField_script_chain_Copy; asm entry, AL).
+extern "C" void BroScr_NodeHasScriptChain_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BroScr_NodeHasScriptChain_c(uint32_t entry_esp, uint32_t node);
+// 0x001e6300 (FUN_001e6300; proposed ScrField_fallback_Copy): thiscall on an object whose key table
+// sits 0xc before it: the fallback array (key 0x9ef08b23) copied into `out`, empty when missing.
+void* XB_THISCALL ScrField_fallback_Copy(uint8_t* self, void* out);
+
+}  // namespace game

@@ -283,3 +283,44 @@ uint32_t* XB_CDECL BroScr_GetEnemyEyePos(uint32_t* out, uint32_t ent) {
 }
 
 }  // namespace game
+
+namespace game {
+
+using namespace bro_ai;
+
+uint8_t* XB_CDECL BroScr_TryLookAtPlayer(uint8_t* out, uint32_t actor) {
+    using GetEye = void XB_CDECL(uint32_t, uint32_t*);
+    *out = 0;
+    if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(title_global<uint32_t>(0x009236dc))) return out;  // GScr_IsAlive(player)
+    if (*handle_slot(actor, 0x764918ae) == 0xc4a729a7) return out;
+    uint32_t player_eye[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    slot<GetEye>(0x00922528)(title_global<uint32_t>(0x009236dc), player_eye);  // GScr_GetEye
+    const uint32_t from[3] = {player_eye[0], player_eye[1], player_eye[2]};
+    uint32_t actor_eye[3] = {undefined_lane(), undefined_lane(), undefined_lane()};
+    slot<GetEye>(0x00922528)(actor, actor_eye);
+    const uint32_t eye[3] = {actor_eye[0], actor_eye[1], actor_eye[2]};
+    const uint32_t delta[3] = {bits(as_float(from[0]) - as_float(eye[0])), bits(as_float(from[1]) - as_float(eye[1])),
+                               bits(as_float(from[2]) - as_float(eye[2]))};
+    const float length_squared =
+        static_cast<float>(slot<long double XB_CDECL(const uint32_t*)>(0x00922274)(delta));  // Scr_LengthSquared (ST0)
+    if (*ScrField_anim_script(actor) == 0x22a9df44) return out;
+    if (*ScrField_anim_script(actor) == 0xef68c4d4) return out;
+    const uint32_t* const next = ScrField_h644536d0(actor);
+    if (!(get_time() > static_cast<int32_t>(*next))) return out;
+    if (!(as_float(at<uint32_t>(anim_object(), 0x60)) > length_squared)) return out;
+    const long double seen = slot<long double XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009226d8)(
+        actor, title_global<uint32_t>(0x009236dc), 0x41200000);  // GScr_ActorCanSee(actor, player, 10)
+    if (seen == 0.0L) return out;
+    uint32_t to_player[3] = {bits(as_float(eye[0]) - as_float(from[0])), bits(as_float(eye[1]) - as_float(from[1])),
+                             bits(as_float(eye[2]) - as_float(from[2]))};
+    uint32_t angles[3];
+    ScrCall_ScrEnt_GetAngles(pointer<const uint32_t>(0x009236dc), angles);
+    ScrCall_Scr_VectorToAngles(angles, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(to_player)));  // unused
+    const float time = static_cast<float>(
+        slot<long double XB_CDECL(uint32_t, uint32_t)>(0x00922238)(0x3f400000, 0x3fc00000));  // Scr_RandomFloatRange(0.75, 1.5)
+    BroScr_LookAtEntity(actor, title_global<uint32_t>(0x009236dc), time, 0xc028584c, 0, 0x0bc350d7);
+    *out = 1;
+    return out;
+}
+
+}  // namespace game
