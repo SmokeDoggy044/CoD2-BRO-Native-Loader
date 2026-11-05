@@ -49,6 +49,8 @@ set(game_code_sources
     bro_scr_traverse.cpp
     bro_scr_note_handlers.cpp
     bro_scr_entity_threads.cpp
+    bro_scr_anim_reach.cpp
+    bro_scr_drone_threads.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
     bro_scr_grenade.cpp
