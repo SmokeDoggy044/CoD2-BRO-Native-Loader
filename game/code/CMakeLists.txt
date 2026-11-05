@@ -5,6 +5,7 @@ set(game_code_sources
     actor.cpp
     anim_script.cpp
     bg_misc.cpp
+    bro_scr_ai_weapons.cpp
     bro_scr_cover_turret.cpp
     bro_scr_nodes_spawner.cpp
     cg_ents.cpp

@@ -3,6 +3,7 @@
 #include "actor.h"
 #include "anim_script.h"
 #include "bg_misc.h"
+#include "bro_scr_ai_weapons.h"
 #include "bro_scr_cover_turret.h"
 #include "bro_scr_nodes_spawner.h"
 #include "cg_ents.h"
@@ -3933,7 +3934,25 @@ const Function kFunctions[] = {
     {"BroScr_PushActorFloat82c", 0x0019b990, 0, code(&BroScr_PushActorFloat82c), 4, Result::None, Status::Compare},
     {"BroScr_PopActorFloat82c", 0x0019ba00, 0, code(&BroScr_PopActorFloat82c), 4, Result::None, Status::Compare},
     {"PtrArray_RemoveValue", 0x0019ba60, 0, code(&PtrArray_RemoveValue), 8, Result::Eax, Status::Replaced},
+    {"BroScr_InitScriptRadius", 0x0019bd80, 0, code(&BroScr_InitScriptRadius), 4, Result::None, Status::Compare},
+    {"BroScr_IsNearestEnemyInRange", 0x0019d3d0, 0, code(&BroScr_IsNearestEnemyInRange), 8, Result::Eax, Status::Compare},
+    {"BroScr_AnimFaceResetKeys", 0x0019e050, 0, code(&BroScr_AnimFaceResetKeys), 4, Result::None, Status::Compare},
+    {"BroScr_StopLookingAt", 0x0019e2d0, 0, code(&BroScr_StopLookingAt), 4, Result::None, Status::Compare},
+    {"BroScr_StopLookingAt_2", 0x001a0d20, 0, code(&BroScr_StopLookingAt_2), 4, Result::None, Status::Compare},
+    {"BroScr_SetCombatDelay", 0x001a0dc0, 0, code(&BroScr_SetCombatDelay), 8, Result::None, Status::Compare},
+    {"BroScr_UpdateWoundedTimeDefaults", 0x001a0e60, 0, code(&BroScr_UpdateWoundedTimeDefaults), 12, Result::None, Status::Compare},
+    {"BroScr_AddWeaponClassEntry", 0x001a0ea0, 0, code(&BroScr_AddWeaponClassEntry), 28, Result::None, Status::Compare},
+    {"BroScr_GetWeaponType", 0x001a0f70, 0, code(&BroScr_GetWeaponType), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetWeaponFireType", 0x001a1040, 0, code(&BroScr_GetWeaponFireType), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetWeaponFireRate", 0x001a10c0, 0, code(&BroScr_GetWeaponFireRate), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetWeaponTableField4", 0x001a1140, 0, code(&BroScr_GetWeaponTableField4), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetWeaponClipSize", 0x001a11c0, 0, code(&BroScr_GetWeaponClipSize), 8, Result::Eax, Status::Compare},
     {"ScrField_h80658b23_SetTrue", 0x001a1240, 0, code(&ScrField_h80658b23_SetTrue), 4, Result::Eax, Status::Replaced},
+    {"BroScr_DelayTimerOnScriptChangeBoth", 0x001a14d0, 0, code(&BroScr_DelayTimerOnScriptChangeBoth), 12, Result::None, Status::Compare},
+    {"BroScr_UpdateCombatDelay", 0x001a1510, 0, code(&BroScr_UpdateCombatDelay), 8, Result::Eax, Status::Compare},
+    {"BroScr_HasWeapon", 0x001a1600, 0, code(&BroScr_HasWeapon), 8, Result::Eax, Status::Compare},
+    {"BroScr_GetYawToEnemy", 0x001a18c0, 0, code(&BroScr_GetYawToEnemy), 8, Result::Eax, Status::Compare},
+    {"BroScr_MeleePair_Link", 0x001a19a0, 0, code(&BroScr_MeleePair_Link), 8, Result::None, Status::Compare},
     {"ScrField_hb8e86881", 0x001a3d90, 0, code(ScrField_hb8e86881), 4, Result::Eax, Status::Replaced},
     {"ScrField_hb8e86881_IsDefined", 0x001a3dd0, 0, code(ScrField_hb8e86881_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_anim_combatrunanim", 0x001a3e30, 0, code(ScrField_anim_combatrunanim), 4, Result::Eax, Status::Replaced},
