@@ -1,6 +1,9 @@
 #include "bro_scr_anim.h"
 
 #include "bro_scr_common.h"
+#include "g_scr_runtime.h"
+#include "qcommon_core.h"
+#include "scr_access.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
 
@@ -120,6 +123,163 @@ void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent) {
         *reinterpret_cast<uint32_t*>(found + 0xc) = ent;
     }
     scr_release(&name);
+}
+
+namespace {
+
+// The weight list of the group's anim set: level +0x5dc map by the first guy's animname hash
+// (HashMap_Index_5), then by `key` (HashMap_Index_2); an int array.
+DynArray* anim_weights(DynArray* guys, uint32_t* key) {
+    if (guys->size == 0) DynArray_Resize(reinterpret_cast<uint8_t*>(guys), 1, 4);
+    ScriptString animname;
+    const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guys->data, &animname);
+    uint32_t hash;
+    Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
+    void* map = title_function<void* XB_THISCALL(uint32_t, const uint32_t*)>(0x00180020)(title_global<uint32_t>(0x00922ee0) + 0x5dc, &hash);
+    DynArray* weights = title_function<DynArray* XB_THISCALL(void*, uint32_t*)>(0x0017edf0)(map, key);
+    scr_release(&animname);
+    return weights;
+}
+
+uint32_t* weight_at(DynArray* weights, uint32_t i) {
+    if (i >= weights->size) title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(0x0017b9a0)(weights, i + 1, i + 4);  // DynArray_ResizeInt
+    return weights->data + i;
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL BroScr_AnimLoopPickIndex(uint32_t* out, DynArray guys, uint32_t key) {
+    if (guys.size == 0) DynArray_Resize(reinterpret_cast<uint8_t*>(&guys), 1, 4);
+    uint32_t count;
+    {
+        ScriptString animname;
+        const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guys.data, &animname);
+        uint32_t hash;
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
+        count = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00464380)(
+            title_global<uint32_t>(0x00922ee0) + 0x744, &hash)[3];  // HashMap_Index_10: the set's anims
+        scr_release(&animname);
+    }
+    uint32_t result = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(count);  // Scr_RandomInt
+    if (static_cast<int32_t>(count) > 1) {
+        float total = 0.0f;
+        uint32_t weighted = 0;
+        const bool any = static_cast<int32_t>(count) > 0;
+        if (any) {
+            for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(count); ++i) {
+                const bool set = *weight_at(anim_weights(&guys, &key), i) != title_global<uint32_t>(0x00922ec0);
+                if (set) {
+                    ++weighted;
+                    total = platform_addss(static_cast<float>(static_cast<int32_t>(*weight_at(anim_weights(&guys, &key), i))), total);
+                }
+            }
+        }
+        if (weighted == count) {
+            // All anims weighted: the first whose running sum passes RandomFloat(total).
+            const float pick = static_cast<float>(scr_slot<long double XB_CDECL(float)>(0x00922230)(total));  // Scr_RandomFloat
+            float sum = 0.0f;
+            if (any) {
+                for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(count); ++i) {
+                    sum = platform_addss(static_cast<float>(static_cast<int32_t>(*weight_at(anim_weights(&guys, &key), i))), sum);
+                    if (sum > pick) {
+                        result = i;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    *out = result;
+    if (guys.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(guys.data);  // Scr_Free
+    return out;
+}
+
+namespace {
+
+ScrVec3 lane_vector() {
+    const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+    return {{lane, lane, lane}};
+}
+
+// GScr_GetTagOrigin / GScr_GetTagAngles (`slot`) of `tag` on `ent`, out preset to the undefined lane.
+ScrVec3 tag_vector(uint32_t slot, uint32_t ent, ScriptString* tag) {
+    ScrVec3 out = lane_vector();
+    scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(slot)(ent, out.v, tag);
+    return out;
+}
+
+// ScrEnt_ / ScrPathNode_ GetOrigin / GetAngles (`slot`, out first).
+ScrVec3 get_vector(uint32_t slot, uint32_t handle) {
+    uint32_t buffer[3];
+    const uint32_t* v = scr_slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(slot)(buffer, handle);
+    return {{v[0], v[1], v[2]}};
+}
+
+uint32_t* guy_at(DynArray* guys, uint32_t i) {
+    if (i >= guys->size) DynArray_Resize(reinterpret_cast<uint8_t*>(guys), i + 1, i + 4);
+    return guys->data + i;
+}
+
+// Shared body of the two dead placers below.
+void place_guys(uint32_t ent, DynArray* guys, uint32_t* key, ScriptString* tag, uint32_t node, uint32_t tag_ent, bool teleport) {
+    ScrVec3 origin = lane_vector();
+    ScrVec3 angles = lane_vector();
+    if (tag->rep) {
+        const uint32_t holder = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(tag_ent) ? tag_ent : ent;  // Scr_EntityHandleIsValid
+        origin = tag_vector(0x0092261c, holder, tag);
+        angles = tag_vector(0x00922620, holder, tag);
+    } else if (node != 0 && node != 0xffffffff) {
+        origin = get_vector(0x00922ab8, node);  // ScrPathNode_GetOrigin
+        angles = get_vector(0x00922ac0, node);  // ScrPathNode_GetAngles
+    } else {
+        origin = get_vector(0x00922b20, ent);  // ScrEnt_GetOrigin
+        angles = get_vector(0x00922ba0, ent);  // ScrEnt_GetAngles
+    }
+    {
+        ScriptString classname;
+        scr_string_from(&classname, 0x0083ab88);  // "script_origin"
+        ScrVec3 at = get_vector(0x00922b20, title_global<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f8));
+        scr_slot<uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t)>(0x009222f0)(&classname, &at, 0);  // GScr_Spawn (unused)
+        scr_release(&classname);
+    }
+    ScrVec3 offset = teleport ? lane_vector() : ScrVec3{{0, 0, 0}};
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys->size); ++i) {
+        ScriptString animname;
+        const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guy_at(guys, i), &animname);
+        uint32_t hash;
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
+        uint32_t* map = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x004641e0)(
+            title_global<uint32_t>(0x00922ee0) + 0x19c, &hash);  // HashMap_Index_8
+        uint32_t it;
+        title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+        if (it == map[2]) {
+            const uint32_t pair[2] = {*key, 0};
+            uint32_t inserted;
+            it = *title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        }
+        const uint32_t local = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(it))[3];
+        scr_slot<void XB_CDECL(uint32_t*, const ScrVec3*, const ScrVec3*, uint32_t)>(0x009223fc)(offset.v, &origin, &angles,
+                                                                                               local);  // GScr_TransformLocalOffset
+        scr_release(&animname);
+        if (teleport && scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922220)(*guy_at(guys, i)))  // GScr_IsSentient
+            scr_slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x009226f8)(*guy_at(guys, i), offset.v, 0, 0);  // GScr_ActorTryTeleport
+        else
+            scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(*guy_at(guys, i), offset);  // ScrEnt_SetOrigin
+    }
+    if (guys->data) title_function<void XB_CDECL(void*)>(0x002f5e10)(guys->data);  // Scr_Free
+    scr_release(tag);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_AnimGroupTeleportGuys(uint32_t ent, DynArray guys, uint32_t key, ScriptString tag, uint32_t node,
+                                           uint32_t tag_ent) {
+    place_guys(ent, &guys, &key, &tag, node, tag_ent, true);
+}
+
+void XB_CDECL BroScr_AnimGroupPlaceGuys(uint32_t ent, DynArray guys, uint32_t key, ScriptString tag, uint32_t node,
+                                        uint32_t tag_ent) {
+    place_guys(ent, &guys, &key, &tag, node, tag_ent, false);
 }
 
 }  // namespace game
