@@ -564,4 +564,89 @@ void XB_CDECL BroScr_VehicleFollowPathToEnd_2(uint32_t ent);
 // `ent`'s engine count (0x00922b88 / 0x00922b8c) does.
 void XB_CDECL BroScr_RespawnerCountDeath(uint32_t ent, uint32_t respawner, uint32_t guy);
 
+// 0x00151cd0: ends on 0xcc07a20a; bool key 0xd57e151d set, lag_distance 0 when undefined; every 0.25 s
+// while it and its followed path (0xd952b5cf) are valid: BroScr_FollowUpdateCurrentPos into int key
+// 0x9aec9c1a with notify 0x14559f8c on a change.
+void XB_CDECL BroScr_FollowLagThink(uint32_t ent);
+
+// 0x00151e70: the follower's goal along the leader's path positions on each leader position change
+// (ends on the follower's death / 0x49c98989, the leader's 0xb93f38bf / 0xcc07a20a); at the last entry
+// the leader notifies and a BroScr_RemoveAllFollowers thread starts.
+void XB_CDECL BroScr_FollowEntInit(uint32_t leader, uint32_t follower);
+
+// 0x00153210: ends on "deadstop" (and "reached_end_node" unless int key 0xc904bb71 is set); waits while
+// int key 0x147beb00 is defined and 0, stops for blockers in the level's vehicle list (kind 1 / 2) and
+// restarts at speed mode 5; 0.2 s steps.
+void XB_CDECL BroScr_VehicleDeadStop(uint32_t ent);
+
+// 0x00153420: the hull gunner of a tank (BroScr_TankAttachMgTurret thread with `weapon` / `tag`, ends on
+// death): axis tanks target the level's +0x6ec entity first; bursts at the target queue's first entry
+// (spread from script_accuracy and distance), two per target, then the next one.
+void XB_CDECL BroScr_TankHullGunnerThink(uint32_t ent, ScriptString weapon, ScriptString tag);
+
+// 0x001542b0: a rider boards the vehicle's seat (`tag`): AI flags, to the vehicle's node (unless
+// `skip_goal`) and the seat's entry tag, the flakvierling mount anim (unless "no_mount_anim"), seat
+// slot taken (notify 0x9966dcdf), linked to the tag with its rider anim; BroScr_VehicleRiderUnlinkOnDeath
+// and BroScr_VehicleRiderWait threads. Releases `tag`.
+void XB_CDECL BroScr_VehicleMountRiders(uint32_t vehicle, uint32_t rider, uint32_t seat, ScriptString tag, bool skip_goal);
+
+// 0x001566c0: the panzer IV ("panzerIV" anim tree, health 500 + RandomInt(1000)): a
+// BroScr_VehicleHealthThink thread, BroScr_VehicleInit_PanzerIV called, BroScr_VehicleTurretFireLoop_4
+// and BroScr_TankStunOnDamage(1) threads.
+void XB_CDECL BroScr_PanzerIVSetup_3(uint32_t ent);
+
+// 0x00156ac0: the level notifies "<targetname>_pause" / "_unpause" pause the leader (bool key
+// 0x262b2a4b, notify 0xb93f38bf) and restart its followers' threads.
+void XB_CDECL BroScr_PauseUnpauseThink(uint32_t ent);
+
+// 0x00156e70: the respawner loop of spawner `ent` (ends on 0x0c34930d of it and of `respawner`): while
+// its count lasts and respawning (bool key 0x788065eb) holds, delayed spawns that get `attribs`, a
+// targetname, a BroScr_FollowNodeChain thread (`mode`) on a random target node and a
+// BroScr_RespawnerCountDeath thread. Frees `attribs` and `mode` on return.
+void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
+                                    ScriptString mode);
+
+// 0x00157ae0: BroScr_TankHullGunnerThink(ent, a copy of `weapon`, "tag_gunhull") (does not return).
+void XB_CDECL BroScr_TankHullGunnerAtGunhull(uint32_t ent, ScriptString weapon);
+
+// 0x00158aa0: with a leader path: `follower` joins the leader's follower array once (its place in int
+// key 0x185cac5b); the first follower starts the leader's pause / lag threads (then 0.05 s);
+// BroScr_RemoveFollowerOnDeath and, unless paused, BroScr_FollowEntInit threads.
+void XB_CDECL BroScr_AddFollowers(uint32_t leader, uint32_t follower);
+
+// 0x00158420: the flak vehicle's crew respawn loop (ends on death / 0xca4175b9 / 0xbe7ade77): when a
+// rider slot empties and the gunner is gone, a loader moves up or is respawned as the gunner.
+void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle);
+
+// 0x00158d40: the spawners whose groupname is `group` (after the level notify `start_notify`, when
+// set) each get a BroScr_RespawnerThink thread (`attribs`, `limit`, `mode`) with a manager script_origin
+// when `name` is set (else 0). Frees its arguments.
+void XB_CDECL BroScr_SpawnerGroupManager(uint32_t unused, ScriptString group, ScriptString name, RespawnerAttributes attribs,
+                                         uint32_t limit, ScriptString start_notify, ScriptString mode);
+// 0x001592d0 / 0x00159400 / 0x00159530 / 0x001596a0: BroScr_SpawnerGroupManager with the default
+// attributes (BroScr_SpawnerGroupParams_Init; _4: `attribs`), empty strings and the word at 0x00922ebc
+// for what is not passed. Release their arguments.
+void XB_CDECL BroScr_SpawnerGroupManagerCall(uint32_t ent, ScriptString group);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_2(uint32_t ent, ScriptString group, uint32_t limit);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_3(uint32_t ent, ScriptString group, ScriptString name, uint32_t limit,
+                                               ScriptString notify, ScriptString mode);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_4(uint32_t ent, ScriptString group, RespawnerAttributes attribs);
+
+// 0x001597a0: a BroScr_SpawnerGroupManager (on the level, default strings) per name in `names` that a
+// spawner's groupname matches, each followed by `delay` or the level notify `notify`. Frees its arguments.
+void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, ScriptString notify, RespawnerAttributes attribs,
+                                                 uint32_t limit);
+
+// 0x0015aa50: BroScr_AddFollowers(leader, follower).
+void XB_CDECL BroScr_AddFollowersDefault(uint32_t leader, uint32_t follower);
+// 0x0015aa80: notify 0xca4175b9; manned: after a frame a BroScr_FlakAutomatedThink thread, else
+// BroScr_ReleaseGunners.
+void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned);
+// 0x0015aae0: bool field `automated` set: notify 0xca4175b9, after a frame a BroScr_FlakAutomatedThink
+// thread; cleared: notify 0xbe7ade77.
+void XB_CDECL BroScr_SetFlakAutomated(uint32_t flak, bool automated);
+// 0x0015abe0 / 0x0015ac70: the same on the level vehicle named `name` when found. Release `name`.
+void XB_CDECL BroScr_SetFlakMannedByName(ScriptString name, bool manned);
+void XB_CDECL BroScr_SetFlakAutomatedByName(ScriptString name, bool automated);
+
 }  // namespace game
