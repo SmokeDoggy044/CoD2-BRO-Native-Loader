@@ -12,6 +12,19 @@
 
 namespace game {
 
+struct ScrVec3;
+
+// 0x00177450: the scene `anime` for `guys` (a DynArray's address) at origin / angles (or at `tag` on
+// tag_ent, else on ent; with `flag` each guy at its own place). Per guy: the face anim (level map
+// +0x1d8) and sound string (+0x124); with a scene anim (+0x19c): GScr_AnimScriptedNoNotify 0xce00786e,
+// a BroScr_AnimNotetrackCommands thread (ent, guy, 0xce00786e, tag_ent, anime) and a
+// BroScr_AnimNoteTracksThread; face / sound: BroScr_StartAnimFaceWait (notify 0x00922ee8 with an anim,
+// else 0x56caf2eb); BroScr_AddToNamedEntList(animname, anime). Then a script_origin waits for
+// `anime` (Scr_NotifyAfterDeath plus BroScr_NotifyAfterSingleAnim / _NotifyAfterWaitTill_56caf2eb of
+// the last such guy), notifies ent `anime`, is deleted. Releases `tag`.
+void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys, uint32_t anime, ScriptString tag, ScrVec3 origin,
+                                    uint32_t tag_ent, uint32_t flag, ScrVec3 angles);
+
 // 0x00178080 / 0x00178280: BroScr_AnimLoopGuys(ref, guys, a3, a copy of `anime`, p5, origin, p7, p8,
 // angles) at: the vector 0x00922ec4 (AtEnt) / the undefined lanes (AtNode) when `p8`; else the
 // valid entity / path node `place`; else that vector with p8 true when *ref is the level object;
@@ -20,12 +33,13 @@ void XB_CDECL BroScr_AnimLoopAtEnt(const uint32_t* ref, uint32_t guys, uint32_t 
                                    uint32_t place, uint32_t p7, uint32_t p8);
 void XB_CDECL BroScr_AnimLoopAtNode(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
                                     uint32_t place, uint32_t p7, uint32_t p8);
-// 0x001784c0 / 0x00178710: the same for BroScr_AnimSingleGuys(ent, guys, a3, anime, p5, origin, flag,
-// angles), the entity by value, the undefined lanes in both.
-void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
-                                      uint32_t place, uint32_t flag);
-void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
-                                     uint32_t place, uint32_t flag);
+// 0x001784c0 / 0x00178710: the same for BroScr_AnimSingleGuys(ent, guys, a3, anime, origin, tag_ent,
+// flag, angles), the entity by value, the undefined lanes in both (`place` is the 5th word, `tag_ent`
+// the 6th, passed on).
+void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
+                                      uint32_t tag_ent, uint32_t flag);
+void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
+                                     uint32_t tag_ent, uint32_t flag);
 // 0x00178b00 / 0x001797d0: validity checks of the guys and the place (tag of `tag` on `tag_ent` or
 // `ent`, path node `node`, or `ent`; results unused), then BroScr_AnimSingleAtNode(ent, guys, a3, tag,
 // node, tag_ent, false) / BroScr_AnimLoopAtNodeCall_2(&ent, guys, a3, tag, p5, node, tag_ent).

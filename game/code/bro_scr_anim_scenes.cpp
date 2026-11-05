@@ -1,6 +1,8 @@
 #include "bro_scr_anim_scenes.h"
 
+#include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_common.h"
+#include "bro_scr_anim.h"
 #include "bro_scr_anim_threads.h"
 #include "bro_scr_common.h"
 #include "g_scr_runtime.h"
@@ -21,7 +23,7 @@ namespace {
 using GetVec = uint32_t* XB_CDECL(uint32_t*, uint32_t);
 using LoopGuys = void XB_CDECL(const uint32_t*, uint32_t, uint32_t, ScriptString, uint32_t, ScrVec3, uint32_t, uint32_t,
                                ScrVec3);
-using SingleGuys = void XB_CDECL(uint32_t, uint32_t, uint32_t, ScriptString, uint32_t, ScrVec3, uint32_t, ScrVec3);
+using SingleGuys = void XB_CDECL(uint32_t, uint32_t, uint32_t, ScriptString, ScrVec3, uint32_t, uint32_t, ScrVec3);
 using TagVec = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
 
 inline ScrVec3 get_vector(uint32_t address, uint32_t handle) {
@@ -59,11 +61,11 @@ inline void loop_guys(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptStr
     ScriptString_Copy(&copy, anime);
     title_function<LoopGuys>(0x00176720)(ref, guys, a3, copy, p5, origin, p7, p8, angles);  // BroScr_AnimLoopGuys
 }
-inline void single_guys(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString* anime, uint32_t p5, const ScrVec3& origin,
+inline void single_guys(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString* anime, const ScrVec3& origin, uint32_t tag_ent,
                         uint32_t flag, const ScrVec3& angles) {
     ScriptString copy;
     ScriptString_Copy(&copy, anime);
-    title_function<SingleGuys>(0x00177450)(ent, guys, a3, copy, p5, origin, flag, angles);  // BroScr_AnimSingleGuys
+    title_function<SingleGuys>(0x00177450)(ent, guys, a3, copy, origin, tag_ent, flag, angles);  // BroScr_AnimSingleGuys
 }
 // The scene place checks of the _2 forms (all results unused).
 inline void place_checks(const DynArray* guys, uint32_t ent, ScriptString* tag, uint32_t node, uint32_t tag_ent) {
@@ -147,6 +149,225 @@ inline void sherman_tank_anim(uint32_t* tank, uint32_t id, ScriptString* anime) 
     scr_release(anime);
 }
 
+// The inlined element access: &data[i], the array resized to (i + 1, i + 4) first when i >= count.
+inline uint32_t* element_at(DynArray* array, uint32_t i) {
+    if (i >= array->size) DynArray_Resize(reinterpret_cast<uint8_t*>(array), i + 1, i + 4);
+    return &array->data[i];
+}
+// The level's per-animname map at `offset` (HashMap_Index_8 by the hash of `guy`'s animname): the
+// node under `key`, a missing key inserted as 0. The animname (in `animname`) is the caller's to release.
+inline uint32_t* scene_node(uint32_t offset, const uint32_t* guy, const uint32_t* key, ScriptString* animname) {
+    using Index = uint32_t* XB_THISCALL(uint32_t, const uint32_t*);
+    using Find = uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*);
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, animname);
+    uint32_t hash;
+    uint32_t* const map = title_function<Index>(0x004641e0)(
+        title_global<uint32_t>(0x00922ee0) + offset,
+        Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)));  // HashMap_Index_8
+    uint32_t it;
+    title_function<Find>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+    if (it == map[2]) {
+        const uint32_t pair[2] = {*key, 0};
+        uint32_t inserted;
+        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+    }
+    return pointer<uint32_t>(it);
+}
+// The scene's sound string: level +0x124 [hash(animname)] [key] (HashMap_Index_7, HashMap_Index_11).
+inline ScriptString* scene_sound(const uint32_t* guy, const uint32_t* key, ScriptString* animname) {
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, animname);
+    uint32_t hash;
+    uint8_t* const map = title_function<uint8_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00464110)(
+        title_global<uint32_t>(0x00922ee0) + 0x124, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)));
+    return title_function<ScriptString* XB_THISCALL(uint8_t*, const uint32_t*)>(0x00461120)(map, key);
+}
+// A script_origin spawned at the 0x00922eec entity's origin.
+inline uint32_t spawn_scene_origin() {
+    ScriptString classname;
+    scr_string_from(&classname, 0x0083ab88);  // "script_origin"
+    uint32_t buffer[3];
+    const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(  // ScrEnt_GetOrigin
+        buffer, title_global<uint32_t>(0x00922eec));
+    uint32_t origin[3];
+    origin[0] = o[0];
+    origin[1] = o[1];
+    origin[2] = o[2];
+    const uint32_t spawned =
+        slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&classname, origin, 0);  // GScr_Spawn
+    scr_release(&classname);
+    return spawned;
+}
+// Scr_CreateThread of a {0x007f4a88, function, on, guy, notify} functor on `on`.
+inline void notify_thread(uint32_t function, uint32_t on, const uint32_t* guy, uint32_t notify) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f4a88;
+        functor[1] = function;
+        functor[2] = on;
+        functor[3] = *guy;
+        functor[4] = notify;
+    }
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+        0, 0, 0, on, functor, 0);  // Scr_CreateThread
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t anime, ScriptString tag, ScrVec3 origin,
+                                    uint32_t tag_ent, uint32_t flag, ScrVec3 angles) {
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                          const uint32_t*, const uint32_t*, const uint32_t*);
+    DynArray* const guys = pointer<DynArray>(guys_word);
+    // The place at `tag` on tag_ent (else on ent).
+    if (tag.rep) {
+        uint32_t tmp[3];
+        tmp[0] = tmp[1] = tmp[2] = undefined_lane();
+        const uint32_t holder = entity_handle_is_valid(tag_ent) ? tag_ent : ent;
+        using TagVec3 = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
+        slot<TagVec3>(0x0092261c)(holder, tmp, &tag);  // GScr_GetTagOrigin
+        origin.v[0] = tmp[0];
+        origin.v[1] = tmp[1];
+        origin.v[2] = tmp[2];
+        tmp[0] = tmp[1] = tmp[2] = undefined_lane();
+        slot<TagVec3>(0x00922620)(holder, tmp, &tag);  // GScr_GetTagAngles
+        angles.v[0] = tmp[0];
+        angles.v[1] = tmp[1];
+        angles.v[2] = tmp[2];
+    }
+
+    // Each guy: its face anim (map +0x1d8) and sound (+0x124), its scene anim (+0x19c) played with a
+    // notetrack thread; the last guy with a scene anim / with only a face anim is remembered.
+    int32_t last_anim = -1;
+    int32_t last_face = -1;
+    for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(guys->size); ++i) {
+        ScriptString sound;
+        ScriptString_FromRep(&sound, nullptr);
+        bool has_face = false;
+        bool has_sound = false;
+        bool has_anim = false;
+        uint32_t face = 0;
+        bool test;
+        {
+            ScriptString animname;
+            test = scene_node(0x1d8, element_at(guys, i - 1), &anime, &animname)[3] != 0;
+            scr_release(&animname);
+        }
+        if (test) {
+            has_face = true;
+            ScriptString animname;
+            face = scene_node(0x1d8, element_at(guys, i - 1), &anime, &animname)[3];
+            scr_release(&animname);
+        }
+        {
+            ScriptString animname;
+            test = scene_sound(element_at(guys, i - 1), &anime, &animname)->rep != nullptr;
+            scr_release(&animname);
+        }
+        if (test) {
+            has_sound = true;
+            ScriptString animname;
+            ScriptString_Assign(&sound, scene_sound(element_at(guys, i - 1), &anime, &animname));
+            scr_release(&animname);
+        }
+        {
+            ScriptString animname;
+            test = scene_node(0x19c, element_at(guys, i - 1), &anime, &animname)[3] != 0;
+            scr_release(&animname);
+        }
+        if (test) {
+            has_anim = true;
+            if (static_cast<uint8_t>(flag) != title_global<uint8_t>(0x00922ed0) && static_cast<uint8_t>(flag)) {
+                // At the guy's own place.
+                uint32_t buffer[3];
+                const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, *element_at(guys, i - 1));
+                origin.v[0] = o[0];
+                origin.v[1] = o[1];
+                origin.v[2] = o[2];
+                uint32_t buffer2[3];
+                const uint32_t* a = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(buffer2, *element_at(guys, i - 1));
+                angles.v[0] = a[0];
+                angles.v[1] = a[1];
+                angles.v[2] = a[2];
+            }
+            {
+                ScriptString animname;
+                const uint32_t anim = scene_node(0x19c, element_at(guys, i - 1), &anime, &animname)[3];
+                slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t)>(0x009224c0)(
+                    *element_at(guys, i - 1), 0xce00786e, origin.v, angles.v, anim);  // GScr_AnimScriptedNoNotify
+                scr_release(&animname);
+            }
+            last_anim = static_cast<int32_t>(i - 1);
+            {
+                // The guy's level +0x160 map, copied and dropped (the script's discarded read).
+                ScriptString animname;
+                const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(element_at(guys, i - 1), &animname);
+                uint32_t hash;
+                HashMap copy;
+                HashMap_CopyCtor_4(&copy, reinterpret_cast<HashMap*>(HashMap_Index_6(
+                                              pointer<HashMap>(title_global<uint32_t>(0x00922ee0) + 0x160),
+                                              Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)))));
+                title_function<void XB_THISCALL(HashMap*)>(0x00463c70)(&copy);  // HashMap_Dtor
+                scr_release(&animname);
+            }
+            const uint32_t notify = 0xce00786e;
+            title_function<StartThread>(0x0017ada0)(0, 0, 0, 0, 0x001757f0, ent, element_at(guys, i - 1), &notify, &tag_ent,
+                                                    &anime);  // Scr_StartThread_ent_ent_hash_ent_hash(BroScr_AnimNotetrackCommands)
+            const uint32_t guy = *element_at(guys, i - 1);
+            uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+            if (functor) {
+                functor[0] = 0x007f4b00;
+                functor[1] = 0x0011fb90;  // BroScr_AnimNoteTracksThread
+                functor[2] = guy;
+                functor[3] = 0xce00786e;
+            }
+            slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+                0, 0, 0, guy, functor, 0);  // Scr_CreateThread
+        }
+        if (has_face || has_sound) {
+            ScriptString empty;
+            ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
+            ScriptString copy;
+            if (has_anim) {
+                const uint32_t notify = title_global<uint32_t>(0x00922ee8);
+                ScriptString_Copy(&copy, &sound);
+                BroScr_StartAnimFaceWait(*element_at(guys, i - 1), face, copy, 0x3f800000, notify, empty,
+                                         title_global<uint32_t>(0x00922ea4));
+            } else {
+                ScriptString_Copy(&copy, &sound);
+                BroScr_StartAnimFaceWait(*element_at(guys, i - 1), face, copy, 0x3f800000, 0x56caf2eb, empty,
+                                         title_global<uint32_t>(0x00922ea4));
+            }
+            last_face = static_cast<int32_t>(i - 1);
+        }
+        {
+            ScriptString animname;
+            ScrCall_ScrEnt_GetAnimname(element_at(guys, i - 1), &animname);
+            BroScr_AddToNamedEntList(animname, anime);
+        }
+        scr_release(&sound);
+    }
+
+    // Wait for the scene: a script_origin notified `anime` when the remembered guy dies or finishes.
+    uint32_t waiter = 0;
+    if (last_anim != -1) {
+        waiter = spawn_scene_origin();
+        notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // Scr_NotifyAfterDeath
+        notify_thread(0x0011fb40, waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // BroScr_NotifyAfterSingleAnim
+        Scr_WaitTill(waiter, anime);
+    } else if (last_face != -1) {
+        waiter = spawn_scene_origin();
+        notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_face)), anime);  // Scr_NotifyAfterDeath
+        notify_thread(0x0011fb00, waiter, element_at(guys, static_cast<uint32_t>(last_face)),
+                      anime);  // BroScr_NotifyAfterWaitTill_56caf2eb
+        Scr_WaitTill(waiter, anime);
+    }
+    queue_notify(ent, anime);
+    if (entity_handle_is_valid(waiter)) slot<void XB_CDECL(uint32_t)>(0x00922540)(waiter);  // GScr_Delete
+    scr_release(&tag);
+}
+
+namespace {
+
 }  // namespace
 
 void XB_CDECL BroScr_AnimLoopAtEnt(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
@@ -193,16 +414,16 @@ void XB_CDECL BroScr_AnimLoopAtNode(const uint32_t* ref, uint32_t guys, uint32_t
     scr_release(&anime);
 }
 
-void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
-                                      uint32_t place, uint32_t flag) {
+void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
+                                      uint32_t tag_ent, uint32_t flag) {
     if (static_cast<uint8_t>(flag)) {
-        single_guys(ent, guys, a3, &anime, p5, lanes(), flag, lanes());
+        single_guys(ent, guys, a3, &anime, lanes(), tag_ent, flag, lanes());
     } else if (node_valid(place)) {
         const ScrVec3 origin = get_vector(0x00922ab8, place);  // ScrPathNode_GetOrigin
         const ScrVec3 angles = get_vector(0x00922ac0, place);  // ScrPathNode_GetAngles
-        single_guys(ent, guys, a3, &anime, p5, origin, flag, angles);
+        single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     } else if (ent == level_handle()) {
-        single_guys(ent, guys, a3, &anime, p5, lanes(), 1, lanes());
+        single_guys(ent, guys, a3, &anime, lanes(), tag_ent, 1, lanes());
     } else {
         uint32_t b1[3];
         const uint32_t* o = ScrCall_ScrEnt_GetOrigin(&ent, b1);
@@ -210,21 +431,21 @@ void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, 
         uint32_t b2[3];
         const uint32_t* a = ScrCall_ScrEnt_GetAngles(&ent, b2);
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
-        single_guys(ent, guys, a3, &anime, p5, origin, flag, angles);
+        single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     }
     scr_release(&anime);
 }
 
-void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
-                                     uint32_t place, uint32_t flag) {
+void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
+                                     uint32_t tag_ent, uint32_t flag) {
     if (static_cast<uint8_t>(flag)) {
-        single_guys(ent, guys, a3, &anime, p5, lanes(), flag, lanes());
+        single_guys(ent, guys, a3, &anime, lanes(), tag_ent, flag, lanes());
     } else if (entity_handle_is_valid(place)) {
         const ScrVec3 origin = get_vector(0x00922b20, place);  // ScrEnt_GetOrigin
         const ScrVec3 angles = get_vector(0x00922ba0, place);  // ScrEnt_GetAngles
-        single_guys(ent, guys, a3, &anime, p5, origin, flag, angles);
+        single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     } else if (ent == level_handle()) {
-        single_guys(ent, guys, a3, &anime, p5, lanes(), 1, lanes());
+        single_guys(ent, guys, a3, &anime, lanes(), tag_ent, 1, lanes());
     } else {
         uint32_t b1[3];
         const uint32_t* o = ScrCall_ScrEnt_GetOrigin(&ent, b1);
@@ -232,7 +453,7 @@ void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, S
         uint32_t b2[3];
         const uint32_t* a = ScrCall_ScrEnt_GetAngles(&ent, b2);
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
-        single_guys(ent, guys, a3, &anime, p5, origin, flag, angles);
+        single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     }
     scr_release(&anime);
 }
