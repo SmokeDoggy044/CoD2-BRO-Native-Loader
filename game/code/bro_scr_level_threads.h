@@ -618,4 +618,35 @@ void XB_CDECL BroScr_AddFollowers(uint32_t leader, uint32_t follower);
 // rider slot empties and the gunner is gone, a loader moves up or is respawned as the gunner.
 void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle);
 
+// 0x00158d40: the spawners whose groupname is `group` (after the level notify `start_notify`, when
+// set) each get a BroScr_RespawnerThink thread (`attribs`, `limit`, `mode`) with a manager script_origin
+// when `name` is set (else 0). Frees its arguments.
+void XB_CDECL BroScr_SpawnerGroupManager(uint32_t unused, ScriptString group, ScriptString name, RespawnerAttributes attribs,
+                                         uint32_t limit, ScriptString start_notify, ScriptString mode);
+// 0x001592d0 / 0x00159400 / 0x00159530 / 0x001596a0: BroScr_SpawnerGroupManager with the default
+// attributes (BroScr_SpawnerGroupParams_Init; _4: `attribs`), empty strings and the word at 0x00922ebc
+// for what is not passed. Release their arguments.
+void XB_CDECL BroScr_SpawnerGroupManagerCall(uint32_t ent, ScriptString group);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_2(uint32_t ent, ScriptString group, uint32_t limit);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_3(uint32_t ent, ScriptString group, ScriptString name, uint32_t limit,
+                                               ScriptString notify, ScriptString mode);
+void XB_CDECL BroScr_SpawnerGroupManagerCall_4(uint32_t ent, ScriptString group, RespawnerAttributes attribs);
+
+// 0x001597a0: a BroScr_SpawnerGroupManager (on the level, default strings) per name in `names` that a
+// spawner's groupname matches, each followed by `delay` or the level notify `notify`. Frees its arguments.
+void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, ScriptString notify, RespawnerAttributes attribs,
+                                                 uint32_t limit);
+
+// 0x0015aa50: BroScr_AddFollowers(leader, follower).
+void XB_CDECL BroScr_AddFollowersDefault(uint32_t leader, uint32_t follower);
+// 0x0015aa80: notify 0xca4175b9; manned: after a frame a BroScr_FlakAutomatedThink thread, else
+// BroScr_ReleaseGunners.
+void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned);
+// 0x0015aae0: bool field `automated` set: notify 0xca4175b9, after a frame a BroScr_FlakAutomatedThink
+// thread; cleared: notify 0xbe7ade77.
+void XB_CDECL BroScr_SetFlakAutomated(uint32_t flak, bool automated);
+// 0x0015abe0 / 0x0015ac70: the same on the level vehicle named `name` when found. Release `name`.
+void XB_CDECL BroScr_SetFlakMannedByName(ScriptString name, bool manned);
+void XB_CDECL BroScr_SetFlakAutomatedByName(ScriptString name, bool automated);
+
 }  // namespace game

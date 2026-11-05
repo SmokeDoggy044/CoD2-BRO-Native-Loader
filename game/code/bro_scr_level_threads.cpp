@@ -5494,4 +5494,269 @@ void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle) {
     }
 }
 
+void XB_CDECL BroScr_SpawnerGroupManager(uint32_t, ScriptString group, ScriptString name, RespawnerAttributes attribs,
+                                         uint32_t limit, ScriptString start_notify, ScriptString mode) {
+    using StartRespawner = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                             const RespawnerAttributes*, const uint32_t*, const ScriptString*);
+    // The group's spawners (groupname == `group`).
+    DynArray spawners = {nullptr, 0, 0};
+    slot<void XB_CDECL(DynArray*)>(0x009223d8)(&spawners);  // GScr_GetSpawnerArray
+    DynArray list = {nullptr, 0, 0};
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
+        bool match = false;
+        ScriptString first;
+        if (ScrCall_ScrEnt_GetGroupname(element_at(&spawners, i, 0x00015a90), &first)->rep) {
+            ScriptString again;
+            match = ScriptString_EqualsString(ScrCall_ScrEnt_GetGroupname(element_at(&spawners, i, 0x00015a90), &again), &group);
+            ScriptString_Release(&again);
+        }
+        ScriptString_Release(&first);
+        if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), element_at(&spawners, i, 0x00015a90));
+    }
+    if (start_notify.rep) {
+        const uint32_t object = title_global<uint32_t>(0x00922ee0);
+        const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+        uint32_t hash;
+        const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&start_notify));
+        Scr_WaitTill(*level, h);
+    }
+    // A named group gets a manager script_origin (groupname "<group>_manager", string key 0xdfe2186c =
+    // group, int key 0xa8ce4655 = spawner count, array 0xc548bcb7 = the spawners, string key 0x22cb4cdd
+    // = name); every spawner a BroScr_RespawnerThink thread with it.
+    uint32_t manager = 0;
+    if (name.rep) {
+        {
+            ScriptString kind;
+            ScriptString_FromCString(&kind, pointer<const char>(0x0083ab88));  // "script_origin"
+            const uint32_t origin[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+            manager = slot<Spawn>(0x009222f0)(&kind, origin, 0);  // GScr_Spawn
+            ScriptString_Release(&kind);
+        }
+        {
+            ScriptString text;
+            ScriptString_ConcatCString(&text, &group, pointer<const char>(0x00824304));  // "_manager"
+            ScriptString copy;
+            ScriptString_Copy(&copy, &text);
+            slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c1c)(manager, copy);  // ScrEnt_SetGroupname (releases its copy)
+            ScriptString_Release(&text);
+        }
+        ScriptString_Assign(title_function<GetString>(0x00458da0)(ent_script_object(manager), 0xdfe2186c), &group);  // ScriptKeyTable_GetString
+        *bool_slot(manager, 0x18b0887b) = 0;
+        slot<EntHash>(0x00922188)(manager, 0x0c34930d);  // Scr_EndOn
+        *int_slot(manager, 0xa8ce4655) = list.size;
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(*int_slot(manager, 0xa8ce4655)); ++i) {
+            const uint32_t* const spawner = element_at(&list, i, 0x00015a90);
+            using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, DynArray*);
+            ScriptKeyTable* const table = ent_script_object(manager);
+            uint32_t* value = ScriptKeyTable_Find(table, 0xc548bcb7);
+            if (!value) {
+                DynArray empty = {nullptr, 0, 0};
+                value = title_function<SetArray>(0x0045cc80)(table, 0xc548bcb7, &empty);  // ScriptKeyTable_SetArray
+            }
+            DynArray_PushBack(pointer<uint8_t>(*value), spawner);
+        }
+        {
+            ScriptKeyTable* const table = ent_script_object(manager);
+            ScriptString* text = reinterpret_cast<ScriptString*>(ScriptKeyTable_Find(table, 0x22cb4cdd));
+            if (!text) {
+                ScriptString empty;
+                ScriptString_FromRep(&empty, nullptr);
+                ScriptString copy;
+                ScriptString_Copy(&copy, &empty);
+                text = reinterpret_cast<ScriptString*>(
+                    ScriptKeyTable_Set(table, 0x22cb4cdd, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy.rep))));
+                ScriptString_Release(&empty);
+            }
+            ScriptString_Assign(text, &name);
+        }
+    }
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(list.size); ++i)
+        title_function<StartRespawner>(0x0017b370)(0, 0, 0, 0, 0x00156e70, *element_at(&list, i, 0x00015a90), &manager, &attribs,
+                                                   &limit, &mode);  // Scr_StartThread_ent_ent_RespawnerAttributes_i_str(BroScr_RespawnerThink)
+    if (list.data) Scr_Free(list.data);
+    if (spawners.data) Scr_Free(spawners.data);
+    ScriptString_Release(&group);
+    ScriptString_Release(&name);
+    title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
+    ScriptString_Release(&start_notify);
+    ScriptString_Release(&mode);
+}
+
+namespace {
+
+// The default spawner-group attributes (BroScr_SpawnerGroupParams_Init) / a copy (RespawnerAttributes_CopyCtor).
+inline void attribs_default(RespawnerAttributes* a) { BroScr_SpawnerGroupParams_Init(reinterpret_cast<uint8_t*>(a)); }
+inline void attribs_copy(RespawnerAttributes* out, const RespawnerAttributes* a) {
+    title_function<void XB_THISCALL(RespawnerAttributes*, const RespawnerAttributes*)>(0x0052ba50)(out, a);
+}
+inline void attribs_free(RespawnerAttributes* a) {
+    title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(a);  // RespawnerAttributes_Dtor
+}
+
+// BroScr_SpawnerGroupManager(0, copies of group / name, a copy of *a, limit, copies of notify / mode),
+// the arguments built last to first as the title pushes them.
+inline void group_manager(uint32_t ent, const ScriptString* group, const ScriptString* name, const RespawnerAttributes* a,
+                          uint32_t limit, const ScriptString* notify, const ScriptString* mode) {
+    ScriptString mode_copy, notify_copy, name_copy, group_copy;
+    ScriptString_Copy(&mode_copy, mode);
+    ScriptString_Copy(&notify_copy, notify);
+    RespawnerAttributes copy;
+    attribs_copy(&copy, a);
+    ScriptString_Copy(&name_copy, name);
+    ScriptString_Copy(&group_copy, group);
+    BroScr_SpawnerGroupManager(ent, group_copy, name_copy, copy, limit, notify_copy, mode_copy);
+}
+
+inline const ScriptString* empty_string() { return pointer<const ScriptString>(0x00922e90); }
+
+}  // namespace
+
+void XB_CDECL BroScr_SpawnerGroupManagerCall(uint32_t ent, ScriptString group) {
+    RespawnerAttributes a;
+    attribs_default(&a);
+    group_manager(ent, &group, empty_string(), &a, title_global<uint32_t>(0x00922ebc), empty_string(), empty_string());
+    attribs_free(&a);
+    ScriptString_Release(&group);
+}
+
+void XB_CDECL BroScr_SpawnerGroupManagerCall_2(uint32_t ent, ScriptString group, uint32_t limit) {
+    RespawnerAttributes a;
+    attribs_default(&a);
+    group_manager(ent, &group, empty_string(), &a, limit, empty_string(), empty_string());
+    attribs_free(&a);
+    ScriptString_Release(&group);
+}
+
+void XB_CDECL BroScr_SpawnerGroupManagerCall_3(uint32_t ent, ScriptString group, ScriptString name, uint32_t limit,
+                                               ScriptString notify, ScriptString mode) {
+    RespawnerAttributes a;
+    attribs_default(&a);
+    group_manager(ent, &group, &name, &a, limit, &notify, &mode);
+    attribs_free(&a);
+    ScriptString_Release(&group);
+    ScriptString_Release(&name);
+    ScriptString_Release(&notify);
+    ScriptString_Release(&mode);
+}
+
+void XB_CDECL BroScr_SpawnerGroupManagerCall_4(uint32_t ent, ScriptString group, RespawnerAttributes attribs) {
+    group_manager(ent, &group, empty_string(), &attribs, title_global<uint32_t>(0x00922ebc), empty_string(), empty_string());
+    ScriptString_Release(&group);
+    attribs_free(&attribs);
+}
+
+void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, ScriptString notify, RespawnerAttributes attribs,
+                                                 uint32_t limit) {
+    // Without names: nothing. Without a delay or notify: the names freed. Else a BroScr_SpawnerGroupManager
+    // per name that matches a spawner's groupname (the spawner test compares spawner j with name j),
+    // each followed by `delay` or the level notify `notify`; empty names wait 0.05 s.
+    if (!names.capacity) {
+        free_strings(&names);
+    } else if (delay == title_global<float>(0x00922eac) && !notify.rep) {
+        title_function<void XB_THISCALL(DynArray*)>(0x0045c9c0)(&names);  // ScrStringArray_Free
+    } else {
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(names.size); ++i) {
+            if (!*element_at(&names, i, kReserveString)) {
+                Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+                continue;
+            }
+            DynArray spawners = {nullptr, 0, 0};
+            slot<void XB_CDECL(DynArray*)>(0x009223d8)(&spawners);  // GScr_GetSpawnerArray
+            DynArray list = {nullptr, 0, 0};
+            for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(spawners.size); ++j) {
+                if (!*element_at(&names, j, kReserveString)) continue;
+                bool match = false;
+                ScriptString first;
+                if (ScrCall_ScrEnt_GetGroupname(element_at(&spawners, j, 0x00015a90), &first)->rep) {
+                    ScriptString again;
+                    const ScriptString* const group = ScrCall_ScrEnt_GetGroupname(element_at(&spawners, j, 0x00015a90), &again);
+                    match = ScriptString_EqualsString(group, reinterpret_cast<const ScriptString*>(element_at(&names, j, kReserveString)));
+                    ScriptString_Release(&again);
+                }
+                ScriptString_Release(&first);
+                if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), element_at(&spawners, j, 0x00015a90));
+            }
+            if (static_cast<int32_t>(list.size) < 1) {
+                if (list.data) Scr_Free(list.data);
+                if (spawners.data) Scr_Free(spawners.data);
+                continue;
+            }
+            const uint32_t object = title_global<uint32_t>(0x00922ee0);
+            const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
+            {
+                ScriptString mode_copy, notify_copy, name_copy, group_copy;
+                ScriptString_Copy(&mode_copy, empty_string());
+                ScriptString_Copy(&notify_copy, empty_string());
+                RespawnerAttributes copy;
+                attribs_copy(&copy, &attribs);
+                ScriptString_Copy(&name_copy, empty_string());
+                ScriptString_Copy(&group_copy, reinterpret_cast<const ScriptString*>(element_at(&names, i, kReserveString)));
+                BroScr_SpawnerGroupManager(*level, group_copy, name_copy, copy, limit, notify_copy, mode_copy);
+            }
+            if (delay != title_global<float>(0x00922eac)) {
+                Scr_Wait(delay);
+            } else if (notify.rep) {
+                const uint32_t object_2 = title_global<uint32_t>(0x00922ee0);
+                Scr_WaitTillScriptString(*pointer<uint32_t>(object_2 ? object_2 + 4 : 0), &notify);
+            }
+            if (list.data) Scr_Free(list.data);
+            if (spawners.data) Scr_Free(spawners.data);
+        }
+        free_strings(&names);
+    }
+    ScriptString_Release(&notify);
+    attribs_free(&attribs);
+}
+
+void XB_CDECL BroScr_AddFollowersDefault(uint32_t leader, uint32_t follower) {
+    // BroScr_AddFollowers(leader, follower) (the title passes the undefined entity 0x00922e84 as a third, unread word).
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00158aa0)(leader, follower, title_global<uint32_t>(0x00922e84));
+}
+
+void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned) {
+    queue_notify(flak, 0xca4175b9);
+    if (manned) {
+        Scr_WaitFrames(0);
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+            0, 0, 0, 0, 0x00159e40, flak);  // Scr_StartThreadFunctor1(BroScr_FlakAutomatedThink)
+    } else {
+        BroScr_ReleaseGunners(flak);
+    }
+}
+
+void XB_CDECL BroScr_SetFlakAutomated(uint32_t flak, bool automated) {
+    if (automated) {
+        *reinterpret_cast<uint8_t*>(ScrField_automated(flak, 0)) = 1;
+        queue_notify(flak, 0xca4175b9);
+        Scr_WaitFrames(0);
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+            0, 0, 0, 0, 0x00159e40, flak);  // Scr_StartThreadFunctor1(BroScr_FlakAutomatedThink)
+    } else {
+        *reinterpret_cast<uint8_t*>(ScrField_automated(flak, 0)) = 0;
+        queue_notify(flak, 0xbe7ade77);
+    }
+}
+
+void XB_CDECL BroScr_SetFlakMannedByName(ScriptString name, bool manned) {
+    uint32_t flak;
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &name);
+        BroScr_FindLevelVehicleByTargetname(&flak, copy);
+    }
+    if (entity_handle_is_valid(flak)) BroScr_SetFlakManned(flak, manned);
+    ScriptString_Release(&name);
+}
+
+void XB_CDECL BroScr_SetFlakAutomatedByName(ScriptString name, bool automated) {
+    uint32_t flak;
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &name);
+        BroScr_FindLevelVehicleByTargetname(&flak, copy);
+    }
+    if (entity_handle_is_valid(flak)) BroScr_SetFlakAutomated(flak, automated);
+    ScriptString_Release(&name);
+}
+
 }  // namespace game
