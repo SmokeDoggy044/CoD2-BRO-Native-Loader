@@ -102,6 +102,10 @@ void stack_guard_leave(uint32_t floor) {
         report("live across a script thread switch", e, title_global<uint32_t>(kRestoreCount) - e.restores);
     for (int j = i; j + 1 < t_depth; ++j) t_live[j] = t_live[j + 1];
     --t_depth;
+    // The popped slot is dead (only t_live[0..t_depth) is ever read; enter overwrites the whole slot), but its
+    // words are C frame addresses and host return addresses: left there, a compare test of a caller of a gap
+    // entry saw them differ by its C frame depth in host TLS (docs/comparison-harness.md, Stack guard table).
+    t_live[t_depth] = Entry{};
 }
 
 void stack_guard_restore(uint32_t dst, uint32_t size) {

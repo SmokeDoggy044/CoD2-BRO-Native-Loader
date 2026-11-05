@@ -11,9 +11,9 @@ set(game_code_sources
     bro_scr_ai_look.cpp
     bro_scr_ai_weapons.cpp
     bro_scr_anim.cpp
-    bro_scr_arrays.cpp
     bro_scr_anim_handles.cpp
     bro_scr_array.cpp
+    bro_scr_arrays.cpp
     bro_scr_banim_handles.cpp
     bro_scr_brofunc.cpp
     bro_scr_cover_turret.cpp
@@ -28,10 +28,13 @@ set(game_code_sources
     bro_scr_level_info.cpp
     bro_scr_mission.cpp
     bro_scr_math.cpp
+    bro_scr_mission.cpp
     bro_scr_mortar.cpp
     bro_scr_nodes_spawner.cpp
+    bro_scr_notetrack.cpp
     bro_scr_squad.cpp
     bro_scr_stubs.cpp
+    bro_scr_tank_init.cpp
     bro_scr_util.cpp
     bro_scr_vehicle.cpp
     bro_scr_vehicle_health.cpp

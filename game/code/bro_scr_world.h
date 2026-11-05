@@ -38,4 +38,24 @@ void XB_CDECL BroScr_MinefieldTriggers();
 // Releases `name`; returns out.
 ScriptString* XB_CDECL Bro__treeburst_gmi__tree_burst_getUndamagedModel(ScriptString* out, ScriptString name);
 
+// 0x001642b0: window break trigger: deleted when it has no target or its target window is not
+// valid; flags 0x40000 (trigger) / 0x80000 (window); the window's own target entity is its clip.
+// The script_origins touching the trigger (or one spawned at it when none) and the clip go to
+// thread 0x0015e4c0 (trigger, &window, &clip, &origins); the window loses flag 0x400 and a clip
+// gets 0x400 and MoverNotSolid. A trigger with script_noteworthy also compares each origin's
+// targetname with it (unused result).
+void XB_CDECL BroScr_WindowBreakThink(uint32_t trigger);
+
+// 0x00165960: numbers the "tree_burst" trees, then the "tree_burst_scripted" ones (field
+// 0x4c7e3571, one running count) and starts BroScr_TreeBurstSetup and
+// BroScr_TreeBurstTriggerThink on each (flag 1 for the first group, 0 for the scripted).
+void XB_CDECL BroScr_SetupTreeBursts();
+
+// 0x0015d7b0: with per_target set, for each target of the tree: a script_model at it with the
+// undamaged model (Bro__treeburst_gmi__tree_burst_getUndamagedModel), targetname "<tree number
+// (0x4c7e3571)>tree_to_die_<i>" and the target's angles; the target then targets it, becomes
+// animname "treeburst" with its anim tree and flag 0x400. Without: the same for the tree itself
+// ("..._0"). Uses the flag's argument slot for string temporaries, as the original.
+void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target);
+
 }  // namespace game
