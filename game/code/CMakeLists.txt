@@ -60,6 +60,7 @@ set(game_code_sources
     bro_scr_friendly_threads.cpp
     bro_scr_anim_scenes.cpp
     bro_scr_vehicle_path.cpp
+    bro_scr_vehicle_riders.cpp
     bro_scr_wad.cpp
     bro_scr_grenade.cpp
     bro_scr_hud_fade.cpp
