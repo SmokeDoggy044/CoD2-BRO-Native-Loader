@@ -8,6 +8,7 @@
 #include "bro_scr_thread_misc.h"
 #include "bro_scr_level_threads.h"
 #include "bro_scr_mission.h"
+#include "bro_scr_squad.h"
 #include "bro_scr_util.h"
 #include "bro_scr_world.h"
 #include "g_scr_runtime.h"
@@ -60,6 +61,23 @@ inline uint8_t* level_flag(uint32_t key) {
         node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert
     }
     return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node + 0xc));
+}
+
+// The int value under `*key` in the level map at `offset` (HashMap_Find, inserted as the undefined
+// int when missing).
+inline uint32_t* level_map_int(uint32_t offset, const uint32_t* key) {
+    const uint32_t map = level() + offset;
+    uint32_t pair[2];
+    title_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &pair[0], key);  // HashMap_Find
+    uint32_t node = pair[0];
+    if (node == *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(map + 8))) {  // end
+        pair[0] = *key;
+        pair[1] = undefined_int();
+        uint32_t result[2];
+        using Insert = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
+        node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert
+    }
+    return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(node + 0xc));
 }
 
 inline uint32_t* new_functor(uint32_t size) {
@@ -875,6 +893,241 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
     slot<void XB_CDECL(uint32_t*)>(0x0092291c)(&stopwatch);  // GScr_HudDestroy
     slot<Ent>(0x00922540)(bomb);                              // GScr_Delete
     notify_ent(self, 0x00824310);                             // "explode"
+}
+
+void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
+                                      ScriptString mode) {
+    using Count = uint32_t XB_CDECL(uint32_t);
+    using SetCount = void XB_CDECL(uint32_t, uint32_t);
+    using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
+    using EntHash = void XB_CDECL(uint32_t, uint32_t);
+    using RandomFloat = long double XB_CDECL(float);
+    using GetVec = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
+    // The spawn zone: the spawner's zone when the level uses zones (+0x188 defined and set), else 0.
+    uint32_t zone;
+    const uint32_t zones = *pointer<uint32_t>(level() + 0x188);
+    if (zones != undefined_int() && zones) {
+        uint32_t buffer[3];
+        const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+        zone = slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0092249c)(o[0], o[1], o[2]);  // GScr_GetZoneAtPoint
+    } else {
+        zone = 0;
+    }
+    bool defined;
+    if (!*ScrField_haa3cddde_IsDefined(&defined, ent)) *reinterpret_cast<uint8_t*>(ScrField_haa3cddde(ent, 0)) = 1;  // the first spawn
+    *bool_slot(ent, 0x18b0887b) = 0;
+    {
+        ScriptString group;
+        uint32_t hash;
+        const uint32_t* const key = Scr_HashScriptString(
+            &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetGroupname(&ent, &group)));
+        ++*level_map_int(0x4b4, key);  // the group's spawner count
+        ScriptString_Release(&group);
+    }
+    if (entity_handle_is_valid(respawner)) {
+        slot<EntHash>(0x00922188)(respawner, 0x0c34930d);  // Scr_EndOn
+        *int_slot(respawner, 0x846e35f4) = 0;  // dead count
+        *int_slot(respawner, 0xaa7e54b7) = 0;  // spawned count
+    }
+    slot<EntHash>(0x00922188)(ent, 0x0c34930d);  // Scr_EndOn
+    *bool_slot(ent, 0x788065eb) = 1;  // respawning
+    if (entity_handle_is_valid(respawner)) {
+        if (limit != undefined_int() && !*ScrField_h5f01d656_IsDefined(&defined, respawner)) *ScrField_h5f01d656(respawner) = limit;
+    } else if (limit != undefined_int()) {
+        *int_slot(ent, 0x5f01d656) = limit;
+    }
+    if (slot<Count>(0x00922b88)(ent) == undefined_int()) slot<SetCount>(0x00922b8c)(ent, 1);
+    if (*ScrField_new_count_IsDefined(&defined, ent)) {
+        slot<SetCount>(0x00922b8c)(ent, *int_slot(ent, 0x78063481));
+        queue_notify(ent, 0x9767cf68);
+        *int_slot(ent, 0x78063481) = title_global<uint32_t>(0x00922ebc);
+    }
+    if (*ScrField_h6e62eedd_IsDefined(&defined, ent)) {
+        Scr_Wait(as_float(*ScrField_h6e62eedd(ent)));
+        *ScrField_h6e62eedd(ent) = title_global<uint32_t>(0x00922ea4);
+    } else if (!*reinterpret_cast<uint8_t*>(ScrField_haa3cddde(ent, 0))) {
+        if (*ScrField_script_delay_IsDefined(&defined, ent)) {
+            const float delay = as_float(*ScrField_script_delay(ent));
+            const uint32_t* const base = ScrField_script_delay(ent);
+            const long double r = slot<RandomFloat>(0x00922230)(delay);  // Scr_RandomFloat
+            Scr_Wait(static_cast<float>(as_float(*base) + r));
+        } else if (*ScrField_script_delay_min_IsDefined(&defined, ent) &&
+                   *ScrField_script_delay_max_IsDefined(&defined, ent)) {
+            const float high = as_float(*ScrField_script_delay_max(ent));
+            const float low = as_float(*ScrField_script_delay_min(ent));
+            const uint32_t* const base = ScrField_script_delay_min(ent);
+            const long double r = slot<RandomFloat>(0x00922230)(high - low);  // Scr_RandomFloat
+            Scr_Wait(static_cast<float>(as_float(*base) + r));
+        }
+    }
+    BroScr_StopRespawning(ent, respawner);
+    if (*bool_slot(ent, 0x788065eb)) {
+        uint32_t guy;
+        if (*ScrField_h02d62a20_IsDefined(&defined, ent) && *ScrField_h02d62a20(ent))
+            guy = slot<Spawn>(0x00922520)(ent, zone);  // GScr_ForceSpawn
+        else
+            guy = slot<Spawn>(0x00922518)(ent, zone);  // GScr_DoSpawn
+        if (entity_handle_is_valid(guy)) {
+            *reinterpret_cast<uint8_t*>(ScrField_using_respawner(guy, 0)) = 1;
+            *reinterpret_cast<uint8_t*>(ScrField_haa3cddde(ent, 0)) = 0;
+            if (!*ScrField_alive_ai_IsDefined(&defined, ent)) *ScrField_alive_ai(ent) = 0;
+            ++*ScrField_alive_ai(ent);
+            Scr_WaitTill(guy, 0xc0bb2676);  // "finished spawning"
+            if (entity_handle_is_valid(respawner)) ++*ScrField_alive_num(respawner);
+            {
+                ScriptString group;
+                ScriptString name;
+                ScriptString_ConcatCString(&name, ScrCall_ScrEnt_GetGroupname(&ent, &group), pointer<const char>(0x00824ea4));  // "_ai"
+                ScriptString copy;
+                ScriptString_Copy(&copy, &name);
+                slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname (releases its copy)
+                ScriptString_Release(&name);
+                ScriptString_Release(&group);
+            }
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, RespawnerAttributes*)>(0x0017b410)(
+                0, 0, 0, 0, 0x00132f40, guy, &attribs);  // Scr_StartThread_ent_RespawnerAttributes(BroScr_RespawnerApplyAttribs)
+            bool targeted;
+            {
+                ScriptString target;
+                targeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
+                ScriptString_Release(&target);
+            }
+            if (targeted) {
+                DynArray nodes = {nullptr, 0, 0};
+                {
+                    ScriptString key;
+                    ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
+                    ScriptString target;
+                    Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
+                                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&nodes));
+                    ScriptString_Release(&target);
+                    ScriptString_Release(&key);
+                }
+                if (static_cast<int32_t>(nodes.size) > 0) {
+                    const uint32_t i = static_cast<uint32_t>(random_int(static_cast<int32_t>(nodes.size)));
+                    slot<void XB_CDECL(uint32_t, float)>(0x00922df4)(guy, 32.0f);  // ScrSentient_SetFloat_18
+                    const uint32_t* const node =
+                        title_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(0x0045ceb0)(&nodes, i);  // DynArray_AtInt0
+                    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                                     const ScriptString*)>(0x004b0ae0)(
+                        0, 0, 0, 0, 0x0013b880, guy, node, &mode);  // Scr_StartThread_ent_pathnode_str_ORAN(BroScr_FollowNodeChain)
+                }
+                if (nodes.data) Scr_Free(nodes.data);
+            }
+            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*)>(0x0045a620)(
+                0, 0, 0, 0, 0x00152310, ent, &respawner, &guy);  // Scr_StartThread_ent_ent_ent(BroScr_RespawnerCountDeath)
+            *reinterpret_cast<uint8_t*>(ScrField_h18b0887b(ent, 0)) = 0;
+            Scr_WaitTill(guy, 0x06730ae8);  // "death"
+            --*ScrField_alive_ai(ent);
+        }
+        ScriptString group;
+        uint32_t hash;
+        const uint32_t* const key = Scr_HashScriptString(
+            &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetGroupname(&ent, &group)));
+        --*title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00460f80)(level() + 0x4b4, key);  // HashMap_Index_14
+        ScriptString_Release(&group);
+    }
+    title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
+    ScriptString_Release(&mode);
+}
+
+void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t, ScriptString group, ScriptString name, RespawnerAttributes attribs,
+                                           uint32_t limit, float start, ScriptString mode, int32_t max_alive) {
+    using EntHash = void XB_CDECL(uint32_t, uint32_t);
+    using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
+    using StartRespawner = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                             const RespawnerAttributes*, const uint32_t*, const ScriptString*);
+    // The group's spawners (groupname == `group`).
+    DynArray spawners = {nullptr, 0, 0};
+    slot<void XB_CDECL(DynArray*)>(0x009223d8)(&spawners);  // GScr_GetSpawnerArray
+    DynArray list = {nullptr, 0, 0};
+    for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(spawners.size); ++i) {
+        bool match = false;
+        ScriptString first;
+        if (ScrCall_ScrEnt_GetGroupname(&element(&spawners, i - 1), &first)->rep) {
+            ScriptString again;
+            match = ScriptString_EqualsString(ScrCall_ScrEnt_GetGroupname(&element(&spawners, i - 1), &again), &group);
+            ScriptString_Release(&again);
+        }
+        ScriptString_Release(&first);
+        if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), &element(&spawners, i - 1));
+    }
+    if (start != as_float(undefined_float())) {
+        const uint32_t object = level();
+        const uint32_t* const handle = pointer<uint32_t>(object ? object + 4 : 0);
+        ScriptString text;
+        const ScriptStringRep* const rep = ScriptString_FromFloat(&text, start)->rep;
+        Scr_WaitTillString(*handle, rep ? reinterpret_cast<const char*>(rep) + 6 : nullptr);
+        ScriptString_Release(&text);
+    }
+    uint32_t manager = 0;
+    if (name.rep) {
+        {
+            ScriptString kind;
+            ScriptString_FromCString(&kind, pointer<const char>(0x0083ab88));  // "script_origin"
+            const uint32_t origin[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+            manager = slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&kind, origin, 0);  // GScr_Spawn
+            ScriptString_Release(&kind);
+        }
+        {
+            ScriptString text;
+            ScriptString_ConcatCString(&text, &group, pointer<const char>(0x00824304));  // "_manager"
+            ScriptString copy;
+            ScriptString_Copy(&copy, &text);
+            slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c1c)(manager, copy);  // ScrEnt_SetGroupname (releases its copy)
+            ScriptString_Release(&text);
+        }
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+            title_function<GetString>(0x00458da0)(ent_script_object(manager), 0xdfe2186c), &group);  // ScriptString_Assign(ScriptKeyTable_GetString)
+        *bool_slot(manager, 0x18b0887b) = 0;
+        slot<EntHash>(0x00922188)(manager, 0x0c34930d);  // Scr_EndOn
+        title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(
+            title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(ent_script_object(manager), 0xc548bcb7),
+            &list);  // DynArray_Assign4(ScriptKeyTable_GetArray)
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+            title_function<GetString>(0x00458da0)(ent_script_object(manager), 0x22cb4cdd), &name);  // ScriptString_Assign(ScriptKeyTable_GetString)
+        *int_slot(manager, 0xa8ce4655) = list.size;
+    }
+    for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(list.size); ++i) {
+        *int_slot(element(&list, i - 1), 0xd553f35a) = 0;          // alive_ai
+        slot<EntHash>(0x00922188)(element(&list, i - 1), 0x0c34930d);  // Scr_EndOn
+    }
+    uint32_t hash;
+    *level_map_int(0x4b4, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group))) = 0;
+    *level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group))) =
+        static_cast<uint32_t>(max_alive);
+    int32_t max = max_alive;
+    for (;;) {
+        const int32_t alive = static_cast<int32_t>(
+            *level_map_int(0x4b4, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group))));
+        if (alive < max) {
+            uint32_t pick = title_global<uint32_t>(0x00922ebc);
+            if (pick == undefined_int()) {
+                do {
+                    const uint32_t r = static_cast<uint32_t>(random_int(static_cast<int32_t>(list.size)));
+                    if (*int_slot(element(&list, r), 0xd553f35a) == 0) pick = r;  // alive_ai
+                    Scr_Wait(0.05f);
+                } while (pick == undefined_int());
+            }
+            const uint32_t spawner = element(&list, pick);
+            title_function<StartRespawner>(0x0017b370)(0, 0, 0, 0, 0x0015c510, spawner, &manager, &attribs, &limit,
+                                                       &mode);  // Scr_StartThread_ent_ent_RespawnerAttributes_i_str(BroScr_RespawnerThink_2)
+            if (static_cast<int32_t>(*level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group)))) !=
+                max_alive)
+                max_alive = static_cast<int32_t>(
+                    *level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group))));
+            Scr_Wait(0.5f);
+            max = max_alive;
+        } else {
+            Scr_Wait(1.0f);
+            if (static_cast<int32_t>(*level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group)))) !=
+                max) {
+                max = static_cast<int32_t>(
+                    *level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group))));
+                max_alive = max;
+            }
+        }
+    }
 }
 
 }  // namespace game

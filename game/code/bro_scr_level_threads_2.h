@@ -9,6 +9,7 @@
 
 #include <cstdint>
 
+#include "bro_scr_level_threads.h"  // RespawnerAttributes
 #include "compiler.h"
 #include "qcommon_fs.h"
 #include "scr_access.h"
@@ -125,5 +126,28 @@ void XB_CDECL BroScr_FxCreationSoundThink(uint32_t ent, uint32_t sound, ScrVec3 
 // flag set when it has one; a 5 s stopwatch hud (50,240), then the bomb is deleted and `self`
 // notified "explode".
 void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb);
+
+// 0x0015c510: one spawn of spawner `ent` (a single-shot variant of BroScr_RespawnerThink, no loop):
+// counts the spawner in the level's group map (+0x4b4, by groupname); ends on 0x0c34930d of it and
+// `respawner` (whose dead / spawned counts are reset); the limit, count and count reset as there;
+// the delay (first delay 0x6e62eedd once, else script_delay / delay_min..max unless the first
+// spawn); BroScr_StopRespawning; then while still respawning a spawn (forced with key 0x02d62a20)
+// counted in alive_ai (and the respawner's alive_num after "finished spawning" 0xc0bb2676), named
+// "<groupname>_ai", given `attribs`, a random target node chain (`mode`; sentient float +0x18 =
+// 32) and a BroScr_RespawnerCountDeath thread; on its death the counts drop again (the group count
+// too when the spawn failed). Frees `attribs` and `mode`.
+void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
+                                      ScriptString mode);
+
+// 0x00160110: the spawners whose groupname is `group` (after the level notify named by `start` as
+// text, when defined); with `name` set a manager script_origin ("<group>_manager", string keys
+// 0xdfe2186c = group / 0x22cb4cdd = name, array 0xc548bcb7 = the spawners, int 0xa8ce4655 = their
+// count, ends on 0x0c34930d); each spawner's alive_ai cleared and ended on 0x0c34930d; the level's
+// group maps reset (+0x4b4 alive = 0, +0x35c max = `max_alive`). Forever: while fewer than the max
+// are alive, a BroScr_RespawnerThink_2 thread on the spawner at index 0x00922ebc - when that word is
+// the undefined int, a random spawner with no one alive (0.05 s per try) - then 0.5 s; else 1 s; the
+// max re-read from +0x35c when it changed. Never returns (its arguments are not freed).
+void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t unused, ScriptString group, ScriptString name, RespawnerAttributes attribs,
+                                           uint32_t limit, float start, ScriptString mode, int32_t max_alive);
 
 }  // namespace game
