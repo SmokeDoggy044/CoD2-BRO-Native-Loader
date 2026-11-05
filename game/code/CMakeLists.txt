@@ -28,6 +28,7 @@ set(game_code_sources
     bro_scr_level.cpp
     bro_scr_level_info.cpp
     bro_scr_level_threads.cpp
+    bro_scr_level_threads_2.cpp
     bro_scr_math.cpp
     bro_scr_mission.cpp
     bro_scr_mortar.cpp

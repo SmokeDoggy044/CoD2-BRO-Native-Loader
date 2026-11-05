@@ -26,6 +26,7 @@
 #include "bro_scr_level.h"
 #include "bro_scr_level_info.h"
 #include "bro_scr_level_threads.h"
+#include "bro_scr_level_threads_2.h"
 #include "bro_scr_mission.h"
 #include "bro_scr_math.h"
 #include "bro_scr_mortar.h"
@@ -3377,6 +3378,7 @@ const Function kFunctions[] = {
     {"BroScr_CreateModel", 0x0015ad70, 0, code(&BroScr_CreateModel), 8, Result::None, Status::Compare},
     {"BroScr_DeleteModel", 0x0015afe0, 0, code(&BroScr_DeleteModel), 8, Result::None, Status::Compare},
     {"BroScr_NotetrackDropGun", 0x0015b3b0, 0, code(&BroScr_NotetrackDropGun), 12, Result::None, Status::Compare},
+    {"BroScr_ArrayUseAnimTreeByAnimname", 0x0015b6c0, 0, code(&BroScr_ArrayUseAnimTreeByAnimname), 12, Result::None, Status::Compare},
     {"BroScr_PlaySoundOn", 0x0015bcf0, 0, code(&BroScr_PlaySoundOn), 8, Result::None, Status::Compare},
     {"BroScr_FlagSet", 0x0015ce00, 0, code(&BroScr_FlagSet), 4, Result::None, Status::Compare},
     {"BroScr_SetWheelSmokeFx", 0x0015d170, 0, code(&BroScr_SetWheelSmokeFx), 8, Result::None, Status::Compare},

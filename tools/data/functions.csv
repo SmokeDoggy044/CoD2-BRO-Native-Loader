@@ -3363,6 +3363,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0015ad70,BroScr_CreateModel,compare,0,0,0,0,0,0,""
 0015afe0,BroScr_DeleteModel,compare,0,0,0,0,0,0,""
 0015b3b0,BroScr_NotetrackDropGun,compare,0,0,0,0,0,0,""
+0015b6c0,BroScr_ArrayUseAnimTreeByAnimname,compare,0,0,0,0,0,0,""
 0015bcf0,BroScr_PlaySoundOn,compare,0,0,0,0,0,0,""
 0015ce00,BroScr_FlagSet,compare,0,0,0,0,0,0,""
 0015d170,BroScr_SetWheelSmokeFx,compare,8,3,3,0,0,0,""
