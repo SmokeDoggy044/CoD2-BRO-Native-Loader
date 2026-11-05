@@ -5329,7 +5329,7 @@ address,name,section,module,state,tested,matched
 001754b0,BroScr_NotetrackFaceAnim,.text,levelscript,set-aside,0,0
 001757f0,BroScr_AnimNotetrackCommands,.text,levelscript,named,0,0
 00176720,BroScr_AnimLoopGuys,.text,levelscript,named,0,0
-00177450,BroScr_AnimSingleGuys,.text,levelscript,named,0,0
+00177450,BroScr_AnimSingleGuys,.text,levelscript,set-aside,0,0
 00178080,BroScr_AnimLoopAtEnt,.text,levelscript,set-aside,0,0
 00178280,BroScr_AnimLoopAtNode,.text,levelscript,set-aside,0,0
 001784c0,BroScr_AnimSingleAtNode,.text,levelscript,set-aside,0,0
@@ -6408,7 +6408,7 @@ address,name,section,module,state,tested,matched
 0019e260,BroScr_AnimFaceWaitOnTime,.text,levelscript,set-aside,0,0
 0019e2d0,BroScr_StopLookingAt,.text,levelscript,matched,8,8
 0019e360,BroScr_UpdateLookRates,.text,levelscript,matched,14,14
-0019e5c0,BroScr_HeadLookThink,.text,levelscript,named,0,0
+0019e5c0,BroScr_HeadLookThink,.text,levelscript,set-aside,0,0
 0019f090,BroScr_StopLookingAtOnNotify,.text,levelscript,set-aside,0,0
 0019f0d0,BroScr_HeadLookMainLoop,.text,levelscript,set-aside,0,0
 0019f320,BroScr_TurretProneMG42Recover,.text,levelscript,set-aside,0,0
@@ -6603,7 +6603,7 @@ address,name,section,module,state,tested,matched
 001b3450,BroScr_FriendlyChainThink,.text,levelscript,set-aside,0,0
 001b3960,ScrField_h8969d6d6_Size,.text,script,replaced,6,6
 001b3990,BroScr_HangarChainUpdateLoop,.text,levelscript,set-aside,0,0
-001b4130,BroScr_HangarChainMoverThink,.text,levelscript,named,0,0
+001b4130,BroScr_HangarChainMoverThink,.text,levelscript,set-aside,0,0
 001b4da0,BroScr_ReattachGunInHand,.text,levelscript,matched,7,7
 001b4e40,BroScr_FloodSpawnerTriggerThink,.text,levelscript,set-aside,0,0
 001b5120,BroScr_SetTargetnamesFromOrigins,.text,levelscript,untested,0,0
