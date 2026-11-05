@@ -6755,6 +6755,7 @@
 001c7aa0 Bro_anim_lmg_gmi
 001c7ad0 BroScr_MeleeAttackAnim
 001c7be0 BroScr_AnimScript_Pain
+001c8620 BroScr_RecordSetAnimKnob
 001c8660 BroScr_RecordSetAnimKnobAll
 001c86a0 BroScr_RecordAnimCommand3
 001c86e0 BroScr_ScriptedAnimInit
@@ -6778,7 +6779,7 @@
 001cba70 BroScr_GiveUpPositionChatter
 001cbae0 BroScr_GrenadeDangerThink
 001cbc70 BroScr_CoverAttack
-001cca00 FUN_001cca00
+001cca00 BroScr_CornerRamboFire
 001cccd0 BroScr_BalconyStumbleDeath
 001cd050 BroScr_BattleChatterOnDeath
 001cd080 BroScr_StandShootSideStep
@@ -6809,7 +6810,7 @@
 001d4a40 BroScr_CoverShootBehavior
 001d5410 BroScr_ForceShoot
 001d5890 BroScr_ForceShootThink
-001d5a50 FUN_001d5a50
+001d5a50 BroScr_BattleChatterInit
 001d5e30 BroScr_MiscCombatTimer
 001d5f70 BroScr_ChooseFlankOrCoverMe
 001d6420 BroScr_AnimScript_ConcealmentStand
