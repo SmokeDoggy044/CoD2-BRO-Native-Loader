@@ -14,6 +14,7 @@
 #include "bro_scr_common.h"
 #include "bro_scr_cover_turret.h"
 #include "g_scr_runtime.h"
+#include "g_script.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "bro_scr_stubs.h"
@@ -3736,7 +3737,7 @@ void XB_CDECL BroScr_SpawnerFinishSpawn(uint32_t spawner, uint32_t ent, ScriptSt
     {
         ScriptString copy;
         ScriptString_Copy(&copy, &name);
-        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString)>(0x001e0c90)(spawner, ent, copy);  // BroScr_SpawnerSetupAI
+        BroScr_SpawnerSetupAI(spawner, ent, copy);
     }
     if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent)) {  // GScr_IsAlive
         // ScrField_finished_spawning (a bool field; a missing word's upper bytes are the caller's stale ECX).
@@ -3981,3 +3982,228 @@ void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t 
 
 }  // namespace game
 
+
+namespace game {
+
+using namespace bro_ai;
+
+namespace {
+using IsDefinedFn = bool* XB_CDECL(bool*, uint32_t);
+inline bool field_defined(IsDefinedFn* is_defined, uint32_t ent) {
+    bool defined;
+    return *is_defined(&defined, ent);
+}
+using SetWord = void XB_CDECL(uint32_t, uint32_t);
+inline void set_word(uint32_t address, uint32_t ent, uint32_t value) { slot<SetWord>(address)(ent, value); }
+// Scr_CreateThread of a {0x007f5ba0, function, ent} functor on `ent`.
+inline void create_entity_thread(uint32_t function, uint32_t ent) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = function;
+        functor[2] = ent;
+    }
+    slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+        0, 0, 0, ent, functor, 0);  // Scr_CreateThread
+}
+// ScrEnt_SetTargetname(ent, a copy of the C string; the temporary released after).
+inline void set_targetname_text(uint32_t ent, uint32_t text) {
+    ScriptString name;
+    scr_string_from(&name, text);
+    ScriptString copy;
+    ScriptString_Copy(&copy, &name);
+    slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(ent, copy);  // ScrEnt_SetTargetname (releases its copy)
+    scr_release(&name);
+}
+inline bool team_is(uint32_t* ent, uint32_t text) {
+    ScriptString team;
+    const bool same = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(ent, &team), pointer<const char>(text));
+    scr_release(&team);
+    return same;
+}
+inline bool actor_name_is(uint32_t* ent, ScriptString* temp, uint32_t text) {
+    return ScriptString_Equals(ScrCall_ScrActor_GetString_ec(ent, temp), pointer<const char>(text));
+}
+}  // namespace
+
+void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString name) {
+    (void)spawner;
+    if (field_defined(ScrField_hc07c63aa_IsDefined, ent)) create_entity_thread(0x0019a200, ent);  // BroScr_SetIdlePoseByAllowedStance
+    if (field_defined(ScrField_h95b9edc3_IsDefined, ent)) create_entity_thread(0x001816c0, ent);  // BroScr_EmptyFunc_40
+    {
+        uint32_t hash;
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(
+            ent, 0xce270885, *Scr_HashName(&hash, pointer<const char>(0x007ff4e0)));  // GScr_SetEntVar("_spawner_gmi::tanksquish")
+    }
+    Scr_Wait(as_float(0x3d4ccccd));  // 0.05
+    // `fixed`: the actor keeps its radius and goal (field 0x4a3b5a6c == 1, the special spawner names,
+    // field 0xa287dc52).
+    uint32_t fixed = 0;
+    if (field_defined(ScrField_h4a3b5a6c_IsDefined, ent) && *int_slot(ent, 0x4a3b5a6c) == 1) fixed = 1;
+    if (team_is(&ent, 0x00832084)) field_defined(ScrField_h7a6bf1dd_IsDefined, ent);  // "allies"; the result is unused
+    DynArray found = {nullptr, 0, 0};
+    if (name.rep) {
+        const ScriptStringRep* const rep = name.rep;
+        const uint32_t length = rep->length;
+        if (length > 4 && rep->text[0] == 'a' && rep->text[1] == 'u' && rep->text[2] == 't' &&
+            static_cast<uint8_t>(ScriptString_GetChar(&name, 3)) == 'o') {  // "auto..."
+            Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&name)), 0xee2890d4, reinterpret_cast<uint8_t*>(&found), 0);
+            using At = uint32_t* XB_THISCALL(DynArray*, uint32_t);
+            bool named = false;
+            if (found.size) {
+                ScriptString target;
+                named = ScrCall_ScrEnt_GetTargetname(title_function<At>(0x0045cb70)(&found, 0), &target)->rep != nullptr;  // DynArray_At
+                scr_release(&target);
+            }
+            if (named) {
+                ScriptString target;
+                ScriptString_Assign(&name, ScrCall_ScrEnt_GetTargetname(title_function<At>(0x0045cb70)(&found, 0), &target));
+                scr_release(&target);
+            }
+        }
+        if (ScriptString_Equals(&name, pointer<const char>(0x007f49a8)) ||   // "mg42"
+            ScriptString_Equals(&name, pointer<const char>(0x00824e44)) ||   // "grenade_spawner"
+            ScriptString_Equals(&name, pointer<const char>(0x0081351c)) ||   // "friendly_wave"
+            ScriptString_Equals(&name, pointer<const char>(0x00826eac)))     // "grenade_spawner_auto"
+            fixed = 1;
+        if (ScriptString_Equals(&name, pointer<const char>(0x00826e94))) {  // "secondfloor_gren_guy"
+            set_targetname_text(ent, 0x00826e94);
+            set_word(0x00922c8c, ent, 0x47afc800);  // ScrActor_SetFloat_82c(90000)
+        }
+    }
+    if (field_defined(ScrField_h0c4d3fa0_IsDefined, ent)) {
+        ScriptString copy;
+        ScriptString_Copy(&copy, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(
+                                     ent_script_object(ent), 0x0c4d3fa0));  // ScriptKeyTable_GetString
+        slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(ent, copy);  // ScrEnt_SetTargetname
+    }
+    if (field_defined(ScrField_hdd7e1820_IsDefined, ent)) *reinterpret_cast<uint8_t*>(ScrField_hed6f4ccc(ent, 0)) = 1;
+    // A missing 0xa287dc52 bool: the undefined byte under stale stack bytes in the original; 0 here.
+    if (*reinterpret_cast<uint8_t*>(key_slot(ent, 0xa287dc52, title_global<uint8_t>(0x00922ed0)))) {
+        fixed = 1;
+    } else if (!fixed) {
+        if (team_is(&ent, 0x00832084)) set_word(0x00922d54, ent, 0x3f666666);  // "allies": ScrActor_SetFloat_130c(0.9)
+        if (team_is(&ent, 0x0083208c)) {  // "axis": grenade awareness by the skill
+            ScriptString first;
+            bool hard = ScriptString_Equals(ScrCall_GScr_GetCvar(&first, 0x00832fec), pointer<const char>(0x008351bc));  // g_gameskill "2"
+            if (!hard) {
+                ScriptString second;
+                hard = ScriptString_Equals(ScrCall_GScr_GetCvar(&second, 0x00832fec), pointer<const char>(0x008398e0));  // "3"
+                scr_release(&second);
+            }
+            scr_release(&first);
+            uint32_t awareness;
+            if (hard)
+                awareness = random_int(3) ? 0x3f000000 : 0x3e4ccccd;  // 0.5 / 0.2
+            else
+                awareness = random_int(3) ? 0x3e4ccccd : 0;  // 0.2 / 0
+            set_word(0x00922d54, ent, awareness);
+        }
+        set_word(0x00922d24, ent, 2);  // ScrActor_SetInt_1308
+    }
+    if (field_defined(ScrField_script_grenadeawareness_IsDefined, ent))
+        set_word(0x00922d54, ent, *ScrField_script_grenadeawareness(ent));  // ScrActor_SetFloat_130c
+    if (field_defined(ScrField_script_suppression_IsDefined, ent))
+        set_word(0x00922d24, ent, static_cast<uint32_t>(static_cast<int32_t>(as_float(*ScrField_script_suppression(ent)))));
+    if (field_defined(ScrField_h6a80ec39_IsDefined, ent)) set_word(0x00922d0c, ent, *ScrField_h6a80ec39(ent));  // SetFloat_7e4
+    if (field_defined(ScrField_script_accuracy_IsDefined, ent)) set_word(0x00922c5c, ent, *ScrField_script_accuracy(ent));  // SetFloat_d4
+    if (field_defined(ScrField_h66db43f0_IsDefined, ent)) set_word(0x00922c64, ent, *ScrField_h66db43f0(ent));  // SetFloat_d8
+    if (team_is(&ent, 0x00832084)) set_word(0x00922cfc, ent, 0x41800000);  // "allies": ScrActor_SetFloat_7a4(16)
+    if (field_defined(ScrField_script_ignoreme_IsDefined, ent)) set_word(0x00922e0c, ent, 1);  // ScrSentient_SetInt_30
+    if (field_defined(ScrField_drophealth_IsDefined, ent) && *int_slot(ent, 0xd66dcf8c)) {
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f5ba0;
+            functor[1] = 0x001e09e0;  // BroScr_DropHealth
+            functor[2] = ent;
+        }
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(0x00922170)(
+            0, 0, 0, ent, ent, 0x06730ae8, functor);  // Scr_BeginThreadEndOn
+    }
+    if (field_defined(ScrField_script_sightrange_IsDefined, ent))
+        set_word(0x00922c8c, ent, bits(static_cast<float>(static_cast<int32_t>(*int_slot(ent, 0xd4133af2)))));  // SetFloat_82c
+    if (!fixed) {
+        if (field_defined(ScrField_script_radius_IsDefined, ent))
+            set_word(0x00922df4, ent, bits(static_cast<float>(static_cast<int32_t>(*ScrField_script_radius(ent)))));  // SetFloat_18
+        else
+            set_word(0x00922df4, ent, 0x44000000);  // 512
+    }
+    if (!team_is(&ent, 0x0083208c)) {  // not "axis"
+        if (field_defined(ScrField_h77123c0f_IsDefined, ent)) set_word(0x00922ca4, ent, *ScrField_h77123c0f(ent));  // SetInt_7b0
+        if (field_defined(ScrField_h77123d19_IsDefined, ent)) set_word(0x00922cac, ent, *ScrField_h77123d19(ent));  // SetInt_7b4
+        BroScr_SetCreditsName(ent, undefined_int());
+        ScriptString a;
+        bool stavro = actor_name_is(&ent, &a, 0x00826e88);  // "Cpl. Stavro"
+        if (!stavro) {
+            ScriptString b;
+            stavro = actor_name_is(&ent, &b, 0x00826e7c);  // "Sgt. Stavro"
+            if (!stavro) {
+                ScriptString c;
+                stavro = actor_name_is(&ent, &c, 0x00826e70);  // "Lt. Stavro"
+                scr_release(&c);
+            }
+            scr_release(&b);
+        }
+        scr_release(&a);
+        if (stavro) {
+            ScriptString text;
+            scr_string_from(&text, 0x00826e64);  // "Cpt. Stavro"
+            ScriptString copy;
+            ScriptString_Copy(&copy, &text);
+            slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922d2c)(ent, copy);  // ScrActor_SetString_ec
+            scr_release(&text);
+        }
+        const uint32_t level = *pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4 : 0);
+        uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+        if (functor) {
+            functor[0] = 0x007f4a28;
+            functor[1] = 0x00181c80;  // BroScr_EmptyFunc_44
+            functor[2] = level;
+            functor[3] = ent;
+        }
+        slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
+            0, 0, 0, level, functor, 0);  // Scr_CreateThread
+    }
+    if (field_defined(ScrField_h9f19950c_IsDefined, ent) &&
+        ScriptString_Equals(title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(
+                                ent_script_object(ent), 0x9f19950c),
+                            pointer<const char>(0x0083ac1c))) {  // "player"
+        set_word(0x00922d74, ent, title_global<uint32_t>(0x009236dc));  // ScrActor_SetRef_12a0(the player)
+        set_targetname_text(title_global<uint32_t>(0x009236dc), 0x0083ac1c);
+    }
+    if (field_defined(ScrField_script_grenades_IsDefined, ent)) set_word(0x00922d6c, ent, *int_slot(ent, 0x599fdcf6));  // SetInt_1328
+    if (field_defined(ScrField_script_pacifist_IsDefined, ent)) set_word(0x00922d14, ent, 1);  // SetInt_7e8
+    if (field_defined(ScrField_h2ebdbc24_IsDefined, ent)) set_word(0x00922d94, ent, 0);  // SetInt_1378
+    if (field_defined(ScrField_h227464a0_IsDefined, ent)) set_word(0x00922b94, ent, *int_slot(ent, 0x227464a0));  // ScrEnt_SetHealth
+    if (field_defined(ScrField_script_battle_IsDefined, ent) && *int_slot(ent, 0x026e8e55))
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011b4d0)(
+            0, 0, 0, 0, 0x001bc150, ent);  // Scr_BeginThreadFunctor1(FUN_001bc150)
+    if (field_defined(ScrField_hb61a7388_IsDefined, ent)) {
+        set_word(0x0092268c, ent, title_global<uint32_t>(0x009236dc));  // GScr_SetGoalEntity(the player)
+    } else if (!field_defined(ScrField_h4b1fafe5_IsDefined, ent)) {
+        if (field_defined(ScrField_hee885a52_IsDefined, ent)) {
+            // (The original takes the bool through the dead `ent` argument slot.)
+            if (!field_defined(ScrField_script_radius_IsDefined, ent)) set_word(0x00922df4, ent, 0x44480000);  // 800
+            set_word(0x0092268c, ent, title_global<uint32_t>(0x009236dc));
+            using GetFloat = long double XB_CDECL(uint32_t);
+            while (slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(ent)) {  // GScr_IsAlive
+                if (static_cast<float>(slot<GetFloat>(0x00922df0)(ent) > title_global<float>(0x0083ef08) ? 1 : 0) !=
+                    title_global<float>(0x0083eafc))  // radius > 200
+                    set_word(0x00922df4, ent,
+                             bits(static_cast<float>(slot<GetFloat>(0x00922df0)(ent) - title_global<float>(0x0083ef08))));
+                Scr_Wait(6.0f);
+            }
+        } else if (!fixed && !*reinterpret_cast<uint8_t*>(ScrField_using_respawner(ent, 0))) {
+            ScriptString target;
+            const bool has_target = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
+            scr_release(&target);
+            if (has_target)
+                title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0045aad0)(
+                    0, 0, 0, 0, 0x001b5280, ent, 0x00922ea0);  // Scr_StartThread_ent_pathnode(BroScr_GoToBalconyNode)
+        }
+    }
+    if (found.data) Scr_Free(found.data);
+    scr_release(&name);
+}
+
+}  // namespace game
