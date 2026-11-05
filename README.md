@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 6,844 have been
+It's early days: about 73% of the functions have a name, and 6,852 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,292 | 9,101 | 6,844 | 4,448 |
+| Engine and game code (`.text`) | 11,292 | 9,101 | 6,852 | 4,440 |
 | Mission scripts (14 level sections) | 5,324 | 2,993 | 0 | 5,324 |
-| **Total** | **16,616** | **12,094** | **6,844** | **9,772** |
+| **Total** | **16,616** | **12,094** | **6,852** | **9,764** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -52,11 +52,11 @@ We've also named 2,667 of the game's global variables.
 | Client game (HUD, view, effects on screen) | 300 | 293 | 1 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 875 | 66 | 70 | 0 | 0 |
 | Client and menus | 770 | 618 | 110 | 42 | 0 | 0 |
-| Server | 81 | 70 | 11 | 0 | 0 | 0 |
+| Server | 81 | 71 | 10 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,006 | 1,702 | 293 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,446 | 222 | 312 | 1 | 884 | 20 |
+| Level-script helpers in the engine code | 1,446 | 229 | 322 | 1 | 870 | 17 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
