@@ -4312,9 +4312,9 @@ address,name,section,module,state,tested,matched
 001201f0,BroScr_MoveToThread,.text,levelscript,untested,0,0
 00120220,BroScr_RotateToFaceDirection,.text,levelscript,settled,1487,1487
 00120340,BroScr_EmptyFunc_9,.text,levelscript,set-aside,0,0
-00120350,FUN_00120350,.text,levelscript,offline,0,0
-00120360,FUN_00120360,.text,levelscript,offline,0,0
-00120370,FUN_00120370,.text,levelscript,offline,0,0
+00120350,BroScr_EmptyFuncStrArg_4,.text,levelscript,offline,0,0
+00120360,BroScr_EmptyFuncStrArg_5,.text,levelscript,offline,0,0
+00120370,BroScr_EmptyFuncStrArg_6,.text,levelscript,offline,0,0
 00120380,BroScr_EmptyFunc2StrArgs,.text,levelscript,untested,0,0
 001203d0,BroScr_EmptyFuncStrArg,.text,levelscript,offline,0,0
 001203e0,BroScr_EmptyFunc2StrArgs_2,.text,levelscript,untested,0,0
@@ -4328,7 +4328,7 @@ address,name,section,module,state,tested,matched
 001204a0,BroScr_IsFlakTarget,.text,levelscript,untested,0,0
 00120580,BroScr_VehicleSetUnusable,.text,levelscript,untested,0,0
 001205b0,BroScr_KillWhenHealthLow,.text,levelscript,set-aside,0,0
-00120630,FUN_00120630,.text,levelscript,set-aside,0,0
+00120630,BroScr_WaitTill_h08d272e5,.text,levelscript,set-aside,0,0
 00120650,BroScr_PlayFlakSound,.text,levelscript,set-aside,0,0
 00120750,BroScr_PlaySoundAtTempOrigin,.text,levelscript,set-aside,0,0
 00120830,BroScr_EmptyFunc_15,.text,levelscript,set-aside,0,0
@@ -4828,7 +4828,7 @@ address,name,section,module,state,tested,matched
 001349d0,BroScr_DebugStub_h8c05ef86,.text,levelscript,set-aside,0,0
 00134a30,BroScr_DebugStub_hcd84c908,.text,levelscript,set-aside,0,0
 00134a90,BroScr_TankStunOnDamage,.text,levelscript,set-aside,0,0
-00134be0,FUN_00134be0,.text,levelscript,untested,0,0
+00134be0,BroScr_SetField7ab1fdf4_IsValid,.text,levelscript,untested,0,0
 00134c40,BroScr_TurretVisTargetWait,.text,levelscript,set-aside,0,0
 00134cb0,BroScr_DebugForwardStub_2,.text,levelscript,set-aside,0,0
 00134e60,ScrField_mgturret_2,.text,script,replaced,20,20
@@ -4863,7 +4863,7 @@ address,name,section,module,state,tested,matched
 00136450,BroScr_FlakvierlingAnimTree,.text,levelscript,untested,0,0
 00136580,BroScr_FlakvierlingBaseAnimTree,.text,levelscript,untested,0,0
 001366b0,BroScr_FindLevelVehicleByTargetname,.text,levelscript,untested,0,0
-001367d0,BroScr_GetVehicleTargetsGroupByName,.text,levelscript,untested,0,0
+001367d0,BroScr_SetVehicleTargetsGroupByName,.text,levelscript,untested,0,0
 00136870,BroScr_SetVehicleTargetsByName,.text,levelscript,untested,0,0
 00136900,BroScr_SetTargetsByTargetname,.text,levelscript,untested,0,0
 00136990,BroScr_SetVehicleUsableByName,.text,levelscript,untested,0,0
@@ -5153,7 +5153,7 @@ address,name,section,module,state,tested,matched
 0015d170,BroScr_SetWheelSmokeFx,.text,levelscript,matched,3,3
 0015d2c0,BroScr_TreadFxSurfaceThink,.text,levelscript,untested,0,0
 0015d480,BroScr_TreeBurstModelFor,.text,levelscript,untested,0,0
-0015d510,FUN_0015d510,.text,levelscript,untested,0,0
+0015d510,BroScr_GetLevelVecOrZero,.text,levelscript,untested,0,0
 0015d650,Bro__treeburst_gmi__tree_burst_getUndamagedModel,.text,levelscript,untested,0,0
 0015d7b0,BroScr_TreeBurstSetup,.text,levelscript,untested,0,0
 0015def0,Bro__treeburst_gmi__tree_burst_playBurst,.text,levelscript,named,0,0
@@ -5230,8 +5230,8 @@ address,name,section,module,state,tested,matched
 00168500,BroScr_PanzerIVGunHullStart_2,.text,levelscript,untested,0,0
 00168590,FUN_00168590,.text,levelscript,matched,3,3
 00168910,BroScr_AnimReachCore,.text,levelscript,set-aside,0,0
-00168df0,FUN_00168df0,.text,levelscript,untested,0,0
-00169250,FUN_00169250,.text,levelscript,untested,0,0
+00168df0,BroScr_AnimGroupTeleportGuys,.text,levelscript,untested,0,0
+00169250,BroScr_AnimGroupPlaceGuys,.text,levelscript,untested,0,0
 00169650,FUN_00169650,.text,levelscript,settled,811,811
 00169810,BroScr_SpawnDrone,.text,levelscript,matched,91,91
 00169b20,BroScr_DroneAnimLoop,.text,levelscript,set-aside,0,0
@@ -5288,7 +5288,7 @@ address,name,section,module,state,tested,matched
 001728b0,BroScr_StartMortarLoopsNearPlayer,.text,levelscript,matched,5,5
 00172a10,BroScr_RandomMortarsAroundEnt,.text,levelscript,named,0,0
 00173040,BroScr_StartMortarGroupNearEnt,.text,levelscript,untested,0,0
-001731c0,FUN_001731c0,.text,levelscript,untested,0,0
+001731c0,BroScr_StartDroneDeathThreads,.text,levelscript,untested,0,0
 00173320,BroScr_DronePathsStartAllCall_1,.text,levelscript,set-aside,0,0
 001733f0,BroScr_DronePathsStartAllCall_2,.text,levelscript,set-aside,0,0
 001734b0,BroScr_DronePathsStartAllCall_3,.text,levelscript,set-aside,0,0
@@ -5382,7 +5382,7 @@ address,name,section,module,state,tested,matched
 0017ab70,DynArray_Alloc24_FillUndefined,.text,qcommon,untested,0,0
 0017ac00,DynArray_AllocInt_FillUndefined,.text,qcommon,replaced,1,1
 0017ac40,DynArray_AllocBool_FillUndefined,.text,qcommon,replaced,0,0
-0017ac70,FUN_0017ac70,.text,levelscript,offline,0,0
+0017ac70,BroScr_TankSpawnerSlots_Init,.text,levelscript,offline,0,0
 0017ad50,FUN_0017ad50,.text,unassigned,unnamed,0,0
 0017ada0,Scr_StartThread_ent_ent_hash_ent_hash,.text,game,set-aside,0,0
 0017ae10,Scr_StartThread_ent_f_f_b,.text,game,set-aside,0,0
@@ -5557,7 +5557,7 @@ address,name,section,module,state,tested,matched
 00181700,BroScr_TrackTriggerTouch,.text,levelscript,set-aside,0,0
 001817b0,BroScr_TurretAutoAiOnNotify,.text,levelscript,set-aside,0,0
 00181810,BroScr_MgBurstModeFactor,.text,levelscript,matched,61,61
-001818c0,BroScr_Mg42ShootLoop_2,.text,levelscript,set-aside,0,0
+001818c0,BroScr_Mg42ShootSoundLoop,.text,levelscript,set-aside,0,0
 00181960,BroScr_TurretStateChangeWait,.text,levelscript,set-aside,0,0
 001819b0,BroScr_DeleteEntArg2,.text,levelscript,untested,0,0
 001819c0,BroScr_GetPlayerStanceOffset,.text,levelscript,untested,0,0
@@ -5585,7 +5585,7 @@ address,name,section,module,state,tested,matched
 00182270,BroScr_VectorScale,.text,levelscript,matched,78,78
 001822e0,BroScr_ShellShockUntilDeath,.text,levelscript,set-aside,0,0
 001823a0,BroScr_PlaySoundOnTempOrigin_4,.text,levelscript,set-aside,0,0
-00182480,FUN_00182480,.text,levelscript,offline,0,0
+00182480,BroScr_EmptyFuncStrArg_8,.text,levelscript,offline,0,0
 00182490,BroScr_PlayerFeelsImportant,.text,levelscript,set-aside,0,0
 001824d0,BroScr_SoundBlendDebug,.text,levelscript,set-aside,0,0
 00182640,BroScr_WaitForever_2,.text,levelscript,set-aside,0,0
@@ -5614,8 +5614,8 @@ address,name,section,module,state,tested,matched
 00183280,BroScr_EmptyFunc_49,.text,levelscript,offline,0,0
 00183290,BroScr_CoverCrouchPlayIdle_1,.text,levelscript,set-aside,0,0
 001832d0,BroScr_CoverCrouchPlayIdle_2,.text,levelscript,set-aside,0,0
-00183310,FUN_00183310,.text,levelscript,offline,0,0
-00183370,FUN_00183370,.text,levelscript,offline,0,0
+00183310,BroScr_GetStateBlock1To7,.text,levelscript,offline,0,0
+00183370,BroScr_GetStateBlock8To14,.text,levelscript,offline,0,0
 001833d0,BroScr_StandAnimForTime,.text,levelscript,set-aside,0,0
 00183430,BroScr_StandAnimForTime_2,.text,levelscript,set-aside,0,0
 00183490,BroScr_EmptyFunc_50,.text,levelscript,offline,0,0
@@ -5628,7 +5628,7 @@ address,name,section,module,state,tested,matched
 00183700,BroScr_EmptyFuncStrArg_6,.text,levelscript,offline,0,0
 00183710,BroScr_GetDefaultString,.text,levelscript,matched,97,97
 00183730,BroScr_EmptyFunc_52,.text,levelscript,offline,0,0
-00183740,FUN_00183740,.text,levelscript,offline,0,0
+00183740,BroScr_AnimStateSetDefaults,.text,levelscript,offline,0,0
 00183780,BroScr_EmptyFunc_53,.text,levelscript,offline,0,0
 00183790,BroScr_WaitFrameStrArg,.text,levelscript,set-aside,0,0
 001837e0,ScrLocal_ReleaseString,.text,script,replaced,4,4
@@ -5639,7 +5639,7 @@ address,name,section,module,state,tested,matched
 001838b0,BroScr_EmptyFunc_56,.text,levelscript,offline,0,0
 001838c0,BroScr_EndOnDeath,.text,levelscript,matched,61,61
 001838e0,BroScr_EmptyFunc_57,.text,levelscript,offline,0,0
-001838f0,FUN_001838f0,.text,levelscript,offline,0,0
+001838f0,BroScr_SetScriptGlobal_922e8c,.text,levelscript,offline,0,0
 00183900,BroScr_EmptyFuncStrArg_7,.text,levelscript,offline,0,0
 00183910,BroScr_EmptyFunc_58,.text,levelscript,offline,0,0
 00183920,BroScr_EmptyFunc_59,.text,levelscript,offline,0,0
@@ -5674,7 +5674,7 @@ address,name,section,module,state,tested,matched
 00184160,BroScr_CoverCrouchPlayIdle_4,.text,levelscript,set-aside,0,0
 001841a0,BroScr_CoverCrouchPlayIdle_5,.text,levelscript,set-aside,0,0
 001841e0,BroScr_CoverCrouchPlayIdle_6,.text,levelscript,set-aside,0,0
-00184220,FUN_00184220,.text,levelscript,offline,0,0
+00184220,BroScr_GetPlayer,.text,levelscript,offline,0,0
 00184230,BroScr_GetNodeAtPosition,.text,levelscript,settled,564,564
 00184310,BroScr_GetNodeOrActorYaw,.text,levelscript,matched,35,35
 00184390,BroScr_GetCoverNodeForward,.text,levelscript,matched,4,4
@@ -5689,8 +5689,8 @@ address,name,section,module,state,tested,matched
 00184a20,BroScr_YawToDirectionName,.text,levelscript,matched,17,17
 00184b20,BroScr_EmptyFunc_73,.text,levelscript,offline,0,0
 00184b30,BroScr_NotifyAfterTime_3,.text,levelscript,set-aside,0,0
-00184b70,FUN_00184b70,.text,levelscript,offline,0,0
-00184b80,FUN_00184b80,.text,levelscript,offline,0,0
+00184b70,BroScr_EmptyFuncStrArg_9,.text,levelscript,offline,0,0
+00184b80,BroScr_EmptyFuncStrArg_10,.text,levelscript,offline,0,0
 00184b90,BroScr_GetEyeLoop,.text,levelscript,set-aside,0,0
 00184c10,BroScr_EmptyFunc_74,.text,levelscript,offline,0,0
 00184c20,BroScr_ReturnQuarter,.text,levelscript,offline,0,0
@@ -6420,7 +6420,7 @@ address,name,section,module,state,tested,matched
 001a05f0,BroScr_ProneAimFaceDefault,.text,levelscript,named,0,0
 001a07d0,BroScr_PlayStanceTransitionAnim,.text,levelscript,set-aside,0,0
 001a0940,BroScr_LookAtEntity,.text,levelscript,matched,43,43
-001a0b80,FUN_001a0b80,.text,levelscript,untested,0,0
+001a0b80,BroScr_LookAtPositionNoType,.text,levelscript,untested,0,0
 001a0d20,BroScr_StopLookingAt_2,.text,levelscript,untested,0,0
 001a0dc0,BroScr_SetCombatDelay,.text,levelscript,matched,5,5
 001a0e60,BroScr_UpdateWoundedTimeDefaults,.text,levelscript,untested,0,0
@@ -6497,7 +6497,7 @@ address,name,section,module,state,tested,matched
 001a53e0,BroScr_MagicGrenadeThrowThink,.text,levelscript,named,0,0
 001a5830,BroScr_SetTargetnameFromOrigin,.text,levelscript,matched,2,2
 001a5940,BroScr_IncrementTriggerThink,.text,levelscript,named,0,0
-001a5c90,FUN_001a5c90,.text,levelscript,untested,0,0
+001a5c90,BroScr_DeleteTeamEntsWithKeyValue,.text,levelscript,untested,0,0
 001a5f10,BroScr_FloodSpawnerDeleteWatch,.text,levelscript,named,0,0
 001a61f0,BroScr_KillSpawners,.text,levelscript,untested,0,0
 001a63a0,BroScr_MgGetNewUser,.text,levelscript,named,0,0
@@ -6531,7 +6531,7 @@ address,name,section,module,state,tested,matched
 001a9ac0,DynArray_ShuffleString,.text,qcommon,replaced,0,0
 001a9bf0,BroScr_Exploder,.text,levelscript,matched,2,2
 001aa3b0,BroScr_GetFriendlyChainNode,.text,levelscript,matched,3,3
-001aa670,FUN_001aa670,.text,levelscript,untested,0,0
+001aa670,BroScr_CheckAlliesField_ha1763cc1,.text,levelscript,untested,0,0
 001aa750,BroScr_DamageAllAiInRange,.text,levelscript,untested,0,0
 001aa9c0,BroScr_SortByDistance,.text,levelscript,untested,0,0
 001aad20,BroScr_TempEventTextThink,.text,levelscript,named,0,0
@@ -6656,7 +6656,7 @@ address,name,section,module,state,tested,matched
 001b9770,BroScr_Mg42AnimTree_3,.text,levelscript,named,0,0
 001b9950,BroScr_PlayStandMG42GunnerPain,.text,levelscript,set-aside,0,0
 001b99c0,BroScr_TurnToEnemy_2,.text,levelscript,named,0,0
-001ba0d0,FUN_001ba0d0,.text,levelscript,untested,0,0
+001ba0d0,BroScr_PickWeightedChoice,.text,levelscript,untested,0,0
 001ba4e0,BroScr_DebugPrintTimesThrough,.text,levelscript,set-aside,0,0
 001ba580,BroScr_StandCombatRun_2,.text,levelscript,set-aside,0,0
 001ba590,BroScr_PlayPoseTransitionAnim,.text,levelscript,set-aside,0,0
@@ -6708,8 +6708,8 @@ address,name,section,module,state,tested,matched
 001c2a40,ScrField_h1791f035_Clear,.text,script,replaced,12,12
 001c2a70,ScrField_h1791f035_Clear_2,.text,script,replaced,12,12
 001c2aa0,FUN_001c2aa0,.text,unassigned,unnamed,0,0
-001c2b40,FUN_001c2b40,.text,levelscript,untested,0,0
-001c2d10,FUN_001c2d10,.text,levelscript,set-aside,0,0
+001c2b40,BroScr_AnimMoveUntilObstacle,.text,levelscript,untested,0,0
+001c2d10,BroScr_AnimMoveUntilEndNote,.text,levelscript,set-aside,0,0
 001c2eb0,BroScr_RecordAnimCommand,.text,levelscript,set-aside,0,0
 001c2f70,BroScr_ReplayAnimCommands,.text,levelscript,set-aside,0,0
 001c30e0,BroScr_ShouldGoProne_2,.text,levelscript,accepted,130,20
@@ -6814,12 +6814,12 @@ address,name,section,module,state,tested,matched
 001d5e30,BroScr_MiscCombatTimer,.text,levelscript,set-aside,0,0
 001d5f70,BroScr_ChooseFlankOrCoverMe,.text,levelscript,named,0,0
 001d6420,BroScr_AnimScript_ConcealmentStand,.text,levelscript,set-aside,0,0
-001d6610,BroScr_CornerBehavior,.text,levelscript,named,0,0
+001d6610,BroScr_CornerBehavior,.text,levelscript,set-aside,0,0
 001d6a10,Bro_cover_crouch__cover_crouch,.text,levelscript,named,0,0
-001d70f0,BroScr_CoverLeftPose_1,.text,levelscript,named,0,0
-001d7280,BroScr_CoverLeftPose_2,.text,levelscript,named,0,0
-001d74b0,BroScr_CoverRightPose_1,.text,levelscript,named,0,0
-001d7680,BroScr_CoverRightPose_2,.text,levelscript,named,0,0
+001d70f0,BroScr_CoverLeftPose_1,.text,levelscript,set-aside,0,0
+001d7280,BroScr_CoverLeftPose_2,.text,levelscript,set-aside,0,0
+001d74b0,BroScr_CoverRightPose_1,.text,levelscript,set-aside,0,0
+001d7680,BroScr_CoverRightPose_2,.text,levelscript,set-aside,0,0
 001d78a0,BroScr_CoverStandIdle,.text,levelscript,named,0,0
 001d7a60,BroScr_AnimScript_CoverWideLeft,.text,levelscript,named,0,0
 001d7d70,BroScr_AnimScript_CoverWideRight,.text,levelscript,named,0,0
@@ -6966,7 +6966,7 @@ address,name,section,module,state,tested,matched
 001e61f0,ScriptKeyTable_FindOrAdd,.text,script,replaced,14,14
 001e6250,ScriptKeyTable_GetOrAddArray_7,.text,script,replaced,14,14
 001e62b0,ScriptKeyTable_GetArrayCopyOrEmpty_6,.text,script,replaced,14,14
-001e6300,FUN_001e6300,.text,levelscript,untested,0,0
+001e6300,ScrField_fallback_Copy,.text,script,untested,0,0
 001e6330,HashMap_Find_2,.text,qcommon,replaced,110,110
 001e63d0,std_list_BuyNodeKeyArray_4,.text,qcommon,replaced,6,6
 001e6470,std_list_IncSize_3,.text,qcommon,replaced,6,6
@@ -13791,7 +13791,7 @@ address,name,section,module,state,tested,matched
 005b4c40,FUN_005b4c40,levels,libeator,unnamed,0,0
 005b4c80,FUN_005b4c80,levels,libeator,unnamed,0,0
 005b4ca0,FUN_005b4ca0,levels,libeator,unnamed,0,0
-005b4cd0,DynArray_PushBackVec3,levels,libeator,library,0,0
+005b4cd0,DynArray_PushBackVec3,levels,libeator,named,0,0
 005b4d70,FUN_005b4d70,levels,libeator,unnamed,0,0
 005b4da0,Scr_WaitTillOutputEnt_LIBEATOR,levels,libeator,named,0,0
 005b4e20,FUN_005b4e20,levels,libeator,unnamed,0,0

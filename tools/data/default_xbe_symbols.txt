@@ -4312,9 +4312,9 @@
 001201f0 BroScr_MoveToThread
 00120220 BroScr_RotateToFaceDirection
 00120340 BroScr_EmptyFunc_9
-00120350 FUN_00120350
-00120360 FUN_00120360
-00120370 FUN_00120370
+00120350 BroScr_EmptyFuncStrArg_4
+00120360 BroScr_EmptyFuncStrArg_5
+00120370 BroScr_EmptyFuncStrArg_6
 00120380 BroScr_EmptyFunc2StrArgs
 001203d0 BroScr_EmptyFuncStrArg
 001203e0 BroScr_EmptyFunc2StrArgs_2
@@ -4328,7 +4328,7 @@
 001204a0 BroScr_IsFlakTarget
 00120580 BroScr_VehicleSetUnusable
 001205b0 BroScr_KillWhenHealthLow
-00120630 FUN_00120630
+00120630 BroScr_WaitTill_h08d272e5
 00120650 BroScr_PlayFlakSound
 00120750 BroScr_PlaySoundAtTempOrigin
 00120830 BroScr_EmptyFunc_15
@@ -4828,7 +4828,7 @@
 001349d0 BroScr_DebugStub_h8c05ef86
 00134a30 BroScr_DebugStub_hcd84c908
 00134a90 BroScr_TankStunOnDamage
-00134be0 FUN_00134be0
+00134be0 BroScr_SetField7ab1fdf4_IsValid
 00134c40 BroScr_TurretVisTargetWait
 00134cb0 BroScr_DebugForwardStub_2
 00134e60 ScrField_mgturret_2
@@ -4863,7 +4863,7 @@
 00136450 BroScr_FlakvierlingAnimTree
 00136580 BroScr_FlakvierlingBaseAnimTree
 001366b0 BroScr_FindLevelVehicleByTargetname
-001367d0 BroScr_GetVehicleTargetsGroupByName
+001367d0 BroScr_SetVehicleTargetsGroupByName
 00136870 BroScr_SetVehicleTargetsByName
 00136900 BroScr_SetTargetsByTargetname
 00136990 BroScr_SetVehicleUsableByName
@@ -5153,7 +5153,7 @@
 0015d170 BroScr_SetWheelSmokeFx
 0015d2c0 BroScr_TreadFxSurfaceThink
 0015d480 BroScr_TreeBurstModelFor
-0015d510 FUN_0015d510
+0015d510 BroScr_GetLevelVecOrZero
 0015d650 Bro__treeburst_gmi__tree_burst_getUndamagedModel
 0015d7b0 BroScr_TreeBurstSetup
 0015def0 Bro__treeburst_gmi__tree_burst_playBurst
@@ -5230,8 +5230,8 @@
 00168500 BroScr_PanzerIVGunHullStart_2
 00168590 FUN_00168590
 00168910 BroScr_AnimReachCore
-00168df0 FUN_00168df0
-00169250 FUN_00169250
+00168df0 BroScr_AnimGroupTeleportGuys
+00169250 BroScr_AnimGroupPlaceGuys
 00169650 FUN_00169650
 00169810 BroScr_SpawnDrone
 00169b20 BroScr_DroneAnimLoop
@@ -5288,7 +5288,7 @@
 001728b0 BroScr_StartMortarLoopsNearPlayer
 00172a10 BroScr_RandomMortarsAroundEnt
 00173040 BroScr_StartMortarGroupNearEnt
-001731c0 FUN_001731c0
+001731c0 BroScr_StartDroneDeathThreads
 00173320 BroScr_DronePathsStartAllCall_1
 001733f0 BroScr_DronePathsStartAllCall_2
 001734b0 BroScr_DronePathsStartAllCall_3
@@ -5382,7 +5382,7 @@
 0017ab70 DynArray_Alloc24_FillUndefined
 0017ac00 DynArray_AllocInt_FillUndefined
 0017ac40 DynArray_AllocBool_FillUndefined
-0017ac70 FUN_0017ac70
+0017ac70 BroScr_TankSpawnerSlots_Init
 0017ad50 FUN_0017ad50
 0017ada0 Scr_StartThread_ent_ent_hash_ent_hash
 0017ae10 Scr_StartThread_ent_f_f_b
@@ -5557,7 +5557,7 @@
 00181700 BroScr_TrackTriggerTouch
 001817b0 BroScr_TurretAutoAiOnNotify
 00181810 BroScr_MgBurstModeFactor
-001818c0 BroScr_Mg42ShootLoop_2
+001818c0 BroScr_Mg42ShootSoundLoop
 00181960 BroScr_TurretStateChangeWait
 001819b0 BroScr_DeleteEntArg2
 001819c0 BroScr_GetPlayerStanceOffset
@@ -5585,7 +5585,7 @@
 00182270 BroScr_VectorScale
 001822e0 BroScr_ShellShockUntilDeath
 001823a0 BroScr_PlaySoundOnTempOrigin_4
-00182480 FUN_00182480
+00182480 BroScr_EmptyFuncStrArg_8
 00182490 BroScr_PlayerFeelsImportant
 001824d0 BroScr_SoundBlendDebug
 00182640 BroScr_WaitForever_2
@@ -5614,8 +5614,8 @@
 00183280 BroScr_EmptyFunc_49
 00183290 BroScr_CoverCrouchPlayIdle_1
 001832d0 BroScr_CoverCrouchPlayIdle_2
-00183310 FUN_00183310
-00183370 FUN_00183370
+00183310 BroScr_GetStateBlock1To7
+00183370 BroScr_GetStateBlock8To14
 001833d0 BroScr_StandAnimForTime
 00183430 BroScr_StandAnimForTime_2
 00183490 BroScr_EmptyFunc_50
@@ -5628,7 +5628,7 @@
 00183700 BroScr_EmptyFuncStrArg_6
 00183710 BroScr_GetDefaultString
 00183730 BroScr_EmptyFunc_52
-00183740 FUN_00183740
+00183740 BroScr_AnimStateSetDefaults
 00183780 BroScr_EmptyFunc_53
 00183790 BroScr_WaitFrameStrArg
 001837e0 ScrLocal_ReleaseString
@@ -5639,7 +5639,7 @@
 001838b0 BroScr_EmptyFunc_56
 001838c0 BroScr_EndOnDeath
 001838e0 BroScr_EmptyFunc_57
-001838f0 FUN_001838f0
+001838f0 BroScr_SetScriptGlobal_922e8c
 00183900 BroScr_EmptyFuncStrArg_7
 00183910 BroScr_EmptyFunc_58
 00183920 BroScr_EmptyFunc_59
@@ -5674,7 +5674,7 @@
 00184160 BroScr_CoverCrouchPlayIdle_4
 001841a0 BroScr_CoverCrouchPlayIdle_5
 001841e0 BroScr_CoverCrouchPlayIdle_6
-00184220 FUN_00184220
+00184220 BroScr_GetPlayer
 00184230 BroScr_GetNodeAtPosition
 00184310 BroScr_GetNodeOrActorYaw
 00184390 BroScr_GetCoverNodeForward
@@ -5689,8 +5689,8 @@
 00184a20 BroScr_YawToDirectionName
 00184b20 BroScr_EmptyFunc_73
 00184b30 BroScr_NotifyAfterTime_3
-00184b70 FUN_00184b70
-00184b80 FUN_00184b80
+00184b70 BroScr_EmptyFuncStrArg_9
+00184b80 BroScr_EmptyFuncStrArg_10
 00184b90 BroScr_GetEyeLoop
 00184c10 BroScr_EmptyFunc_74
 00184c20 BroScr_ReturnQuarter
@@ -6420,7 +6420,7 @@
 001a05f0 BroScr_ProneAimFaceDefault
 001a07d0 BroScr_PlayStanceTransitionAnim
 001a0940 BroScr_LookAtEntity
-001a0b80 FUN_001a0b80
+001a0b80 BroScr_LookAtPositionNoType
 001a0d20 BroScr_StopLookingAt_2
 001a0dc0 BroScr_SetCombatDelay
 001a0e60 BroScr_UpdateWoundedTimeDefaults
@@ -6497,7 +6497,7 @@
 001a53e0 BroScr_MagicGrenadeThrowThink
 001a5830 BroScr_SetTargetnameFromOrigin
 001a5940 BroScr_IncrementTriggerThink
-001a5c90 FUN_001a5c90
+001a5c90 BroScr_DeleteTeamEntsWithKeyValue
 001a5f10 BroScr_FloodSpawnerDeleteWatch
 001a61f0 BroScr_KillSpawners
 001a63a0 BroScr_MgGetNewUser
@@ -6531,7 +6531,7 @@
 001a9ac0 DynArray_ShuffleString
 001a9bf0 BroScr_Exploder
 001aa3b0 BroScr_GetFriendlyChainNode
-001aa670 FUN_001aa670
+001aa670 BroScr_CheckAlliesField_ha1763cc1
 001aa750 BroScr_DamageAllAiInRange
 001aa9c0 BroScr_SortByDistance
 001aad20 BroScr_TempEventTextThink
@@ -6656,7 +6656,7 @@
 001b9770 BroScr_Mg42AnimTree_3
 001b9950 BroScr_PlayStandMG42GunnerPain
 001b99c0 BroScr_TurnToEnemy_2
-001ba0d0 FUN_001ba0d0
+001ba0d0 BroScr_PickWeightedChoice
 001ba4e0 BroScr_DebugPrintTimesThrough
 001ba580 BroScr_StandCombatRun_2
 001ba590 BroScr_PlayPoseTransitionAnim
@@ -6708,8 +6708,8 @@
 001c2a40 ScrField_h1791f035_Clear
 001c2a70 ScrField_h1791f035_Clear_2
 001c2aa0 FUN_001c2aa0
-001c2b40 FUN_001c2b40
-001c2d10 FUN_001c2d10
+001c2b40 BroScr_AnimMoveUntilObstacle
+001c2d10 BroScr_AnimMoveUntilEndNote
 001c2eb0 BroScr_RecordAnimCommand
 001c2f70 BroScr_ReplayAnimCommands
 001c30e0 BroScr_ShouldGoProne_2
@@ -6966,7 +6966,7 @@
 001e61f0 ScriptKeyTable_FindOrAdd
 001e6250 ScriptKeyTable_GetOrAddArray_7
 001e62b0 ScriptKeyTable_GetArrayCopyOrEmpty_6
-001e6300 FUN_001e6300
+001e6300 ScrField_fallback_Copy
 001e6330 HashMap_Find_2
 001e63d0 std_list_BuyNodeKeyArray_4
 001e6470 std_list_IncSize_3

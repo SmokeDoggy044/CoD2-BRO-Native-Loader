@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,294 | 9,107 | 6,893 | 4,401 |
-| Mission scripts (14 level sections) | 5,324 | 2,993 | 0 | 5,324 |
-| **Total** | **16,618** | **12,100** | **6,893** | **9,725** |
+| Engine and game code (`.text`) | 11,294 | 9,132 | 6,893 | 4,401 |
+| Mission scripts (14 level sections) | 5,324 | 2,994 | 0 | 5,324 |
+| **Total** | **16,618** | **12,126** | **6,893** | **9,725** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -55,8 +55,8 @@ We've also named 2,667 of the game's global variables.
 | Server | 81 | 71 | 10 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 2,006 | 1,702 | 293 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,448 | 270 | 318 | 619 | 224 | 10 |
+| Script engine (script VM, entity bindings, built-in script functions) | 2,007 | 1,702 | 294 | 8 | 3 | 0 |
+| Level-script helpers in the engine code | 1,447 | 270 | 317 | 624 | 219 | 10 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
@@ -95,7 +95,7 @@ automatically.
 | TUNISIA | `sp/tunisia` | 313 | 180 |
 | KASSPASS | `sp/kasspass` | 526 | 310 |
 | KASSRINE | `sp/kassrine` | 250 | 135 |
-| LIBEATOR | `sp/liberatr` | 327 | 153 |
+| LIBEATOR | `sp/liberatr` | 327 | 154 |
 | GELA | `sp/gela` | 417 | 258 |
 | PIANLUPO | `sp/piano` | 411 | 245 |
 | TROINA | `sp/troina` | 242 | 112 |
