@@ -217,4 +217,116 @@ extern "C" void GScr_RadiusDamageFromEntity_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_RadiusDamage_c(uint32_t entry_esp);
 extern "C" void GScr_RadiusDamage_entry(void);
 
+// 0x00307010 (handle): a vehicle's kill - Vehicle_FreePhysics, entity type 15, classname 0x00984c04 (hash +0x260),
+// G_UpdateEntityStringHashes, Scr_Notify "death".
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_Vehicle_Kill_c(uint32_t entry_esp);
+extern "C" void GScr_Vehicle_Kill_entry(void);
+// 0x00307090 (handle, &node): the vehicle starts its path at the node (VehPath_InitAtNode; a message for a used
+// path, +0x297 == 2): origin/angles placed twice around the wheel heights (6 tags 0x009886f8 -> +0x138) and, for
+// def types 1/2, Vehicle_UpdatePhysics.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_Vehicle_AttachPath_c(uint32_t entry_esp);
+extern "C" void GScr_Vehicle_AttachPath_entry(void);
+// 0x00307250 (handle, turret handle): Actor_CanUseTurret != 0 (AL).
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL GScr_ActorCanUseTurret_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanUseTurret_entry(void);
+// 0x003072d0 (handle, end): GScr_ActorCanShootWithOffset with a zero offset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_ActorCanShoot_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanShoot_entry(void);
+// 0x00307300 (handle): Actor_MeleeAttack with 0x0095f704 = the actor's entity meanwhile.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ActorMelee_c(uint32_t entry_esp);
+extern "C" void GScr_ActorMelee_entry(void);
+// 0x00307350 (handle, start, end, fuse seconds) / 0x00307ca0 (5 s): a grenade thrown by the actor from start to
+// end on the first arc that works (min energy, low / high by time, fallback).
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_MagicGrenade_c(uint32_t entry_esp);
+extern "C" void GScr_MagicGrenade_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_MagicGrenadeDefaultFuse_c(uint32_t entry_esp);
+extern "C" void GScr_MagicGrenadeDefaultFuse_entry(void);
+// 0x00307460 (handle, rate, origin, angles, anim, notify, root anim): G_AnimScriptedStart (an actor aborts its
+// anim script and pushes state 10 first). 0x00307cc0: the same with an unread eighth word 0; 0x00307cf0 (handle,
+// rate, origin, angles, anim): empty notify, the anim's tree as root, nothing for node 0xffff.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_AnimScripted_c(uint32_t entry_esp);
+extern "C" void GScr_AnimScripted_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_AnimScriptedFlag0_c(uint32_t entry_esp);
+extern "C" void GScr_AnimScriptedFlag0_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_AnimScriptedNoNotify_c(uint32_t entry_esp);
+extern "C" void GScr_AnimScriptedNoNotify_entry(void);
+// 0x00307690 (handle, turret handle): the actor takes the turret (+0x136c) when Actor_CanUseTurret (AL 1).
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL GScr_ActorUseTurret_c(uint32_t entry_esp);
+extern "C" void GScr_ActorUseTurret_entry(void);
+// 0x00307720 (handle): the actor's grenade throw (Actor_CheckGrenadeThrow, held grenade or fire_grenade).
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ActorThrowGrenade_c(uint32_t entry_esp);
+extern "C" void GScr_ActorThrowGrenade_entry(void);
+// 0x00307950 (handle, out velocity, hand offset, method): whether and how the actor can throw at its enemy.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_CheckGrenadeThrow_c(uint32_t entry_esp);
+extern "C" void GScr_CheckGrenadeThrow_entry(void);
+// 0x00307c10 (handle, goal handle): Sentient_SetGoalEntity, the sentient's +0x20 = -1.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_SetGoalEntity_c(uint32_t entry_esp);
+extern "C" void GScr_SetGoalEntity_entry(void);
+// 0x00307d40 (value, key hash, out, unused): the entities whose key field equals the value (targetname, target,
+// classname, groupname, script_noteworthy; else any spawn field) into out; returns the count (no out: the first
+// one's handle).
+uint32_t XB_CDECL GScr_GetEntArray(const ScriptString* name, uint32_t key, uint32_t* out, uint32_t unused);
+// 0x00307ed0 (handle, other, max age seconds): the actor's visibility of the other entity (ST0).
+extern "C" PLATFORM_HIDDEN float XB_CDECL GScr_ActorCanSee_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanSee_entry(void);
+// 0x00307fa0 (zone): Stream_Update until the zone has loaded.
+void XB_CDECL GScr_LoadZoneSync(uint8_t* zone);
+
+// 0x00308010 (handle) / 0x00308070 (handle, max age seconds): the actor's visibility of its enemy
+// (Actor_UpdateVisibilityIfStale; default age +0x830 ms), 0 without one (ST0).
+extern "C" PLATFORM_HIDDEN float XB_CDECL GScr_ActorCanSeeEnemyDefaultAge_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanSeeEnemyDefaultAge_entry(void);
+extern "C" PLATFORM_HIDDEN float XB_CDECL GScr_ActorCanSeeEnemy_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanSeeEnemy_entry(void);
+// 0x003080e0 (handle, other): GScr_ActorCanSee with the default age (ST0).
+extern "C" PLATFORM_HIDDEN float XB_CDECL GScr_ActorCanSeeDefaultAge_c(uint32_t entry_esp);
+extern "C" void GScr_ActorCanSeeDefaultAge_entry(void);
+// 0x00308150 (handle): the vehicle's turret fires once per flash tag.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp);
+extern "C" void GScr_Vehicle_FireWeapon_entry(void);
+// 0x00308720 (weapon name, start, end): a bullet fired by the world entity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_MagicBullet_c(uint32_t entry_esp);
+extern "C" void GScr_MagicBullet_entry(void);
+// 0x00308a30 (handle, scale) / 0x00308a90 (handle, unused, point): Actor_ShootWeapon.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ActorShoot_c(uint32_t entry_esp);
+extern "C" void GScr_ActorShoot_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ActorShootAt_c(uint32_t entry_esp);
+extern "C" void GScr_ActorShootAt_entry(void);
+// 0x00308af0 (handle, flag 28, flag 27, clear enemy): entity flags +0x2a4 bits 28/27 set or cleared; the third
+// makes its sentient forget the enemy.
+void XB_CDECL GScr_SetAIFlags(uint32_t handle, uint32_t flag28, uint32_t flag27, uint32_t clear_enemy);
+// 0x00308bb0 (turret handle, user handle): Turret_FireForUserOrDriver, or the not-a-turret message (tail jumps;
+// the C version returns the target and the EAX/ECX words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_TurretCall272_c(uint32_t entry_esp, uint32_t* regs);
+extern "C" void GScr_TurretCall272_entry(void);
+// 0x00308c50 (handle): Actor_Cover_FindBetterCover's result, 0 unless the actor may look for cover.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_ActorFindBetterCover_c(uint32_t entry_esp);
+extern "C" void GScr_ActorFindBetterCover_entry(void);
+// 0x00308cc0 / 0x00308df0 (spawner handle, targetname, owner): Actor_SpawnFromSpawner (forced / not); the new
+// actor's handle or 0. 0x00308fb0 / 0x00308ff0 (spawner handle, owner): the same with an empty targetname.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_ForceSpawnNamed_c(uint32_t entry_esp);
+extern "C" void GScr_ForceSpawnNamed_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_DoSpawnNamed_c(uint32_t entry_esp);
+extern "C" void GScr_DoSpawnNamed_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_ForceSpawn_c(uint32_t entry_esp);
+extern "C" void GScr_ForceSpawn_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_DoSpawn_c(uint32_t entry_esp);
+extern "C" void GScr_DoSpawn_entry(void);
+// 0x00308f20 (handle): the actor's anim move for this frame (Actor_MoveByAnimMode, Actor_ApplyMove, blend).
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ActorApplyAnimMove_c(uint32_t entry_esp);
+extern "C" void GScr_ActorApplyAnimMove_entry(void);
+
+// 0x003056c0 (out, start, end, hit-box contents, pass handle): GScr_TraceSurfaceType's record from a locational
+// trace (SV_LocationalTrace over an entity's cached candidates for near-vertical traces, else
+// G_LocationalTrace). Returns ScriptString_AssignCString's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL GScr_LocationalTraceSurface_c(uint32_t entry_esp);
+extern "C" void GScr_LocationalTraceSurface_entry(void);
+// 0x003063c0 (handle, point, angles or null, ignore sight): the actor teleports to the point unless the
+// player could see it happen (AL 1 when it did).
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL GScr_ActorTryTeleport_c(uint32_t entry_esp);
+extern "C" void GScr_ActorTryTeleport_entry(void);
+// 0x00306740 (handle, point): whether the actor may move to the point (AL).
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL GScr_ActorIsSafeMovePoint_c(uint32_t entry_esp);
+extern "C" void GScr_ActorIsSafeMovePoint_entry(void);
+
 }  // namespace game
