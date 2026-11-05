@@ -13,9 +13,11 @@ set(game_code_sources
     bro_scr_array.cpp
     bro_scr_banim_handles.cpp
     bro_scr_cover_turret.cpp
+    bro_scr_drone.cpp
     bro_scr_flak.cpp
     bro_scr_fx.cpp
     bro_scr_level.cpp
+    bro_scr_level_info.cpp
     bro_scr_math.cpp
     bro_scr_nodes_spawner.cpp
     bro_scr_squad.cpp

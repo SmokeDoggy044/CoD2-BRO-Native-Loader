@@ -11,9 +11,11 @@
 #include "bro_scr_array.h"
 #include "bro_scr_banim_handles.h"
 #include "bro_scr_cover_turret.h"
+#include "bro_scr_drone.h"
 #include "bro_scr_flak.h"
 #include "bro_scr_fx.h"
 #include "bro_scr_level.h"
+#include "bro_scr_level_info.h"
 #include "bro_scr_math.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_squad.h"
@@ -3189,6 +3191,7 @@ const Function kFunctions[] = {
     {"BroScr_SetRiderAnimForTag", 0x00136ab0, 0, code(&BroScr_SetRiderAnimForTag), 8, Result::None, Status::Compare},
     {"BroScr_GetVehicleSecondsSince_h05903940", 0x00136c00, 0, code(&BroScr_GetVehicleSecondsSince_h05903940), 8, Result::Eax, Status::Compare},
     {"BroScr_FlakFindTargets", 0x00136c80, 0, code(&BroScr_FlakFindTargets), 8, Result::Eax, Status::Compare},
+    {"BroScr_SetupExploders", 0x00137d60, 0, code(&BroScr_SetupExploders), 4, Result::None, Status::Compare},
     {"BroScr_GetPanzerfaustRespawns", 0x00138a40, 0, code(&BroScr_GetPanzerfaustRespawns), 4, Result::None, Status::Compare},
     {"BroScr_FindInLevelList798ByTargetname", 0x0013a560, 0, code(&BroScr_FindInLevelList798ByTargetname), 8, Result::Eax, Status::Compare},
     {"BroScr_TakeSpawnerSaveState", 0x0013ab60, 0, code(&BroScr_TakeSpawnerSaveState), 4, Result::Eax, Status::Compare},
@@ -3253,6 +3256,7 @@ const Function kFunctions[] = {
     {"BroScr_WallHopGetPointsNearFirst", 0x001471f0, 0, code(&BroScr_WallHopGetPointsNearFirst_entry), 16, Result::None, Status::Compare},
     {"BroScr_GetClosestArrayPointToPlayer", 0x00147470, 0, code(&BroScr_GetClosestArrayPointToPlayer), 8, Result::Eax, Status::Compare},
     {"BroScr_GetClosestArrayPointToPlayer_2", 0x001476b0, 0, code(&BroScr_GetClosestArrayPointToPlayer_2), 8, Result::Eax, Status::Compare},
+    {"BroScr_DroneSplineMath", 0x001478f0, 0, code(&BroScr_DroneSplineMath), 12, Result::Eax, Status::Compare},
     {"BroScr_CountAliveGunners", 0x00147c00, 0, code(&BroScr_CountAliveGunners), 8, Result::Eax, Status::Compare},
     {"BroScr_ReleaseGunners", 0x001485f0, 0, code(&BroScr_ReleaseGunners), 4, Result::None, Status::Compare},
     {"BroScr_NotifyRiders", 0x001499a0, 0, code(&BroScr_NotifyRiders), 4, Result::None, Status::Compare},
@@ -3266,6 +3270,7 @@ const Function kFunctions[] = {
     {"BroScr_FollowPathOffsetPoint", 0x0014a6d0, 0, code(&BroScr_FollowPathOffsetPoint), 8, Result::None, Status::Compare},
     {"BroScr_DeleteUndroppedBombs", 0x0014b780, 0, code(&BroScr_DeleteUndroppedBombs), 4, Result::None, Status::Compare},
     {"BroScr_UpdateAliveDeadCount", 0x0014b940, 0, code(&BroScr_UpdateAliveDeadCount), 8, Result::None, Status::Compare},
+    {"BroScr_BuildDroneSplines", 0x0014bfd0, 0, code(&BroScr_BuildDroneSplines_entry), 20, Result::None, Status::Compare},
     {"BroScr_GetAIByGroupField", 0x0014c260, 0, code(&BroScr_GetAIByGroupField), 8, Result::None, Status::Compare},
     {"BroScr_GetSpawnersByGroupField", 0x0014c400, 0, code(&BroScr_GetSpawnersByGroupField), 8, Result::None, Status::Compare},
     {"BroScr_VehicleFollowPath", 0x0014cbf0, 0, code(&BroScr_VehicleFollowPath), 4, Result::None, Status::Compare},
@@ -3291,6 +3296,7 @@ const Function kFunctions[] = {
     {"BroScr_StartPathPosThreads", 0x001522a0, 0, code(&BroScr_StartPathPosThreads), 4, Result::None, Status::Compare},
     {"BroScr_SetHealthByDifficulty_4", 0x001523e0, 0, code(&BroScr_SetHealthByDifficulty_4), 4, Result::None, Status::Compare},
     {"BroScr_TankDefaultHealthThink_2", 0x00152550, 0, code(&BroScr_TankDefaultHealthThink_2), 4, Result::None, Status::Compare},
+    {"BroScr_BuildDroneSplinesForEntArrays", 0x001525a0, 0, code(&BroScr_BuildDroneSplinesForEntArrays_entry), 20, Result::None, Status::Compare},
     {"BroScr_GetAIByGroupFieldCall", 0x00152730, 0, code(&BroScr_GetAIByGroupFieldCall), 4, Result::None, Status::Compare},
     {"BroScr_SetHealthByDifficulty_5", 0x00152800, 0, code(&BroScr_SetHealthByDifficulty_5), 4, Result::None, Status::Compare},
     {"BroScr_TankInitHealth", 0x00152970, 0, code(&BroScr_TankInitHealth), 4, Result::None, Status::Compare},
