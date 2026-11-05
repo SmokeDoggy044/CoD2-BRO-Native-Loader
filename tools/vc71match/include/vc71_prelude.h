@@ -13,3 +13,7 @@ inline float _mm_cvtss_f32(__m128 v) {
 #define PLATFORM_ASM_SYMBOL(name) #name
 #define PLATFORM_ASM_CALL(name) ""
 #define PLATFORM_ASM_ENTRY(name, body)
+#include <math.h>
+namespace std {
+inline double nearbyint(double x) { return x >= 0 ? floor(x + 0.5) : ceil(x - 0.5); }  // compiles; not compared
+}
