@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "bro_scr_actor.h"
+#include "bro_scr_actor_threads.h"
 #include "bro_scr_anim.h"
 #include "bro_scr_ai.h"
 #include "bro_scr_ai_anim.h"
@@ -6744,6 +6745,314 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
     }
     if (found.data) Scr_Free(found.data);
     if (nodes.data) Scr_Free(nodes.data);
+}
+
+namespace {
+inline int32_t dt_amount(uint32_t ent) { return static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922cd0)(ent)); }  // ScrActor_GetInt_22c
+inline int32_t dt_yaw(uint32_t ent) { return static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922ce0)(ent)); }     // ScrActor_GetInt_230
+inline uint32_t dt_location(uint32_t ent) { return slot<uint32_t XB_CDECL(uint32_t)>(0x00922ce8)(ent); }                      // ScrActor_GetInt_240
+// GScr_ActorSetAnimMode(ent, "nogravity").
+inline void dt_no_gravity(uint32_t ent) {
+    ScriptString mode;
+    ScriptString_FromCString(&mode, pointer<const char>(0x0083ac50));  // "nogravity"
+    slot<void XB_CDECL(uint32_t, ScriptString*)>(0x0092273c)(ent, &mode);
+    scr_release(&mode);
+}
+// GScr_SetFlaggedAnimKnob(ent, notify, anim, 1, 0.05, 1, 0) through the slot.
+inline void dt_knob_slot(uint32_t ent, uint32_t notify, uint32_t anim) {
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e0)(
+        ent, notify, anim, 0x3f800000, 0x3d4ccccd, 0x3f800000, 0);
+}
+// The same through ScrCall_SetFlaggedAnimKnobByRef (the notify in a local).
+inline void dt_knob(const uint32_t* ent, uint32_t notify_hash, uint32_t anim) {
+    const uint32_t notify = notify_hash;
+    ScrCall_SetFlaggedAnimKnobByRef(ent, &notify, anim, 0x3f800000, 0x3d4ccccd, 0x3f800000);
+}
+// GScr_SetFlaggedAnimKnobAll(ent, 0xaeb1527d, anim, g_anim_root, 1, 0.05, 1, 0).
+inline void dt_knob_all(uint32_t ent, uint32_t anim) {
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e4)(
+        ent, 0xaeb1527d, anim, title_global<uint32_t>(0x008cf300), 0x3f800000, 0x3d4ccccd, 0x3f800000, 0);
+}
+// A throwaway script string (the script's println / assert texts).
+inline void dt_text(uint32_t text) {
+    ScriptString s;
+    ScriptString_FromCString(&s, pointer<const char>(text));
+    scr_release(&s);
+}
+inline uint32_t dt_addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+inline uint32_t dt_balcony_node(uint32_t ent) { return *ScrField_balcony_node(ent); }
+// Scr_BeginThreadFunctor1(0, 0, 0, 0, BroScr_HelmetPop, ent).
+inline void dt_helmet_pop(uint32_t ent) {
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x0019db90, ent);
+}
+inline bool dt_back(int32_t yaw) { return yaw > 135 || yaw <= -135; }
+inline uint32_t dt_anim(uint32_t address) { return title_global<uint32_t>(address); }
+}  // namespace
+
+void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
+    const uint32_t cover_side = *handle_slot(ent, 0x175567a8);
+    bool defined;
+    const bool drop_right = *ScrField_he5f891d2_IsDefined(&defined, ent) && *int_slot(ent, 0xe5f891d2) != 0;
+    BroScr_InitAnimScript(ent, 0x06730ae8);  // "death"
+    BroScr_ApplyDesiredAnimPose(ent);
+    const int32_t roll = random_int(100);
+    BroScr_DropWeapon(ent);
+    if (drop_right) BroScr_DropWeaponRight(ent);
+    queue_notify(ent, 0x247afc7f);
+    // A scripted death anim: played, then (with 0x27ed5a85) the second one looped on its note tracks.
+    if (*ScrField_deathanim_IsDefined(&defined, ent)) {
+        dt_knob_all(ent, *key_slot(ent, 0xaeb1527d, 0));
+        handle_note_tracks(ent, 0xaeb1527d);
+        if (!*ScrField_h27ed5a85_IsDefined(&defined, ent)) return;
+        dt_knob_all(ent, *ScrField_h27ed5a85(ent));
+        for (;;) handle_note_tracks(ent, 0xaeb1527d);
+    }
+    if (cover_side != 0x0036b1a5) {
+        bool played;
+        if (*BroScr_PlayCoverDeathAnim(&played, ent, cover_side)) return;
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009225d4)(ent, title_global<uint32_t>(0x008cf300),
+                                                                 0x3e4ccccd);  // GScr_ClearAnim root, 0.2
+    {
+        using CallEntB = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*);
+        const uint8_t yes = 1;
+        title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, 0x0018dbc0, ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
+    }
+    {
+        ScriptString type;
+        ScriptString_FromCString(&type, pointer<const char>(0x00831f60));  // "death"
+        BroScr_BattleChatter(ent, type);
+    }
+    ScriptString none;
+    ScriptString_FromRep(&none, nullptr);
+    {
+        ScriptString name;
+        ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0xa4));
+        uint32_t out;
+        const uint32_t face = *BroScr_GetDefaultString(&out, ent, name);
+        ScriptString empty6;
+        ScriptString_Copy(&empty6, pointer<ScriptString>(0x00922e90));
+        ScriptString empty3;
+        ScriptString_Copy(&empty3, pointer<ScriptString>(0x00922e90));
+        BroScr_StartAnimFaceWait(ent, face, empty3, title_global<uint32_t>(0x0083eb20), undefined_handle(), empty6,
+                                 title_global<uint32_t>(0x00922ea4));
+    }
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(
+        ent, dt_anim(0x008ce778), 0x3f800000, 0x3d4ccccd, 0x3f800000, 0);  // GScr_SetAnimKnob g_anim_DEATH
+    // A standing guy on a balcony near its balcony node (within its radius when over 32, else 32) goes
+    // over: a physics launch along the node's forward, from the spine at 64 (spawnflag 0x20) or the neck at 100.
+    if (*ScrField_script_balcony_IsDefined(&defined, ent) && *ScrField_script_balcony(ent) != 0 &&
+        get_int_184(ent) == 0x070b89a4 && *ScrField_balcony_node_IsDefined(&defined, ent)) {
+        uint32_t node_buffer[3], buffer[3];
+        const uint32_t* const node_origin = ScrCall_ScrPathNode_GetOrigin(ScrField_balcony_node(ent), node_buffer);
+        const float distance = static_cast<float>(
+            ScrCall_Scr_DistanceSquared(dt_addr(ScrCall_ScrEnt_GetOrigin(&ent, buffer)), dt_addr(node_origin)));
+        using Radius = long double XB_CDECL(uint32_t);
+        float limit;
+        uint8_t valid;
+        if (*BroScr_IsValidHandle(&valid, dt_balcony_node(ent)) &&
+            static_cast<float>(slot<Radius>(0x00922ac8)(dt_balcony_node(ent)) > 32.0L ? 1 : 0) !=
+                title_global<float>(0x0083eafc)) {  // ScrPathNode_GetRadius
+            const float radius = static_cast<float>(slot<Radius>(0x00922ac8)(dt_balcony_node(ent)));
+            limit = radius * radius;
+        } else {
+            limit = title_global<float>(0x0083eff8);  // 1024
+        }
+        if (static_cast<float>(limit > distance ? 1 : 0) != title_global<float>(0x0083eafc)) {
+            uint32_t forward[3];
+            ScriptString tag;
+            const uint32_t* at;
+            uint32_t speed;
+            if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922ad0)(dt_balcony_node(ent)) & 0x20) {  // ScrPathNode_GetSpawnflags
+                ScrCall_Scr_AnglesToForward(forward, dt_addr(ScrCall_ScrPathNode_GetAngles(ScrField_balcony_node(ent), buffer)));
+                ScriptString_FromCString(&tag, pointer<const char>(0x007f6214));  // "Bip01 Spine1"
+                at = ScrCall_GScr_GetTagOrigin(buffer, &ent, dt_addr(&tag));
+                speed = 0x42800000;  // 64
+            } else {
+                ScrCall_Scr_AnglesToForward(forward, dt_addr(ScrCall_ScrPathNode_GetAngles(ScrField_balcony_node(ent), buffer)));
+                ScriptString_FromCString(&tag, pointer<const char>(0x007f645c));  // "Bip01 Neck"
+                at = ScrCall_GScr_GetTagOrigin(buffer, &ent, dt_addr(&tag));
+                speed = 0x42c80000;  // 100
+            }
+            slot<void XB_CDECL(uint32_t, const uint32_t*, const uint32_t*, uint32_t, uint32_t)>(0x009228dc)(
+                ent, at, forward, speed, 0);  // GScr_PhysicsLaunch
+            scr_release(&tag);
+            scr_release(&none);
+            return;
+        }
+    }
+    // The helmet pops off (0x05a82fed set, or a head hit 30% of the time).
+    if (*ScrField_h05a82fed_IsDefined(&defined, ent) && *ScrField_h05a82fed(ent) != 0)
+        dt_helmet_pop(ent);
+    else if (dt_location(ent) == 0x00359844 && roll < 30)
+        dt_helmet_pop(ent);
+    const uint32_t kNotify = 0x54e3b2b6;
+    if (dt_location(ent) == 0x0036b1a5 && dt_amount(ent) > 40) {
+        // Explosive damage: thrown up (over 215) or by the damage yaw (over 160), no gravity.
+        if (dt_amount(ent) > 215) {
+            dt_no_gravity(ent);
+            dt_knob_slot(ent, kNotify, dt_anim(0x008ce7b4));  // death_explosion_up10
+        } else if (dt_amount(ent) > 160) {
+            const int32_t yaw = dt_yaw(ent);
+            if (dt_back(yaw)) {
+                dt_no_gravity(ent);
+                dt_knob(&ent, kNotify, dt_anim(0x008ce784));  // death_explosion_back13
+            } else if (yaw > 45 && yaw <= 135) {
+                dt_no_gravity(ent);
+                dt_knob(&ent, kNotify, dt_anim(0x008ce79c));  // death_explosion_left11
+            } else if (yaw > -45 && yaw <= 45) {
+                dt_no_gravity(ent);
+                dt_knob(&ent, kNotify, dt_anim(0x008ce790));  // death_explosion_forward13
+            } else {
+                dt_text(0x00826ac0);  // "death::main: DamageYaw logic error"
+                dt_no_gravity(ent);
+                dt_knob(&ent, kNotify, dt_anim(0x008ce7a8));  // death_explosion_right13
+            }
+        } else if (dt_yaw(ent) > 135 || dt_yaw(ent) <= -135) {
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7c0));  // death_run_back
+        } else if (dt_yaw(ent) > 45 && dt_yaw(ent) <= 135) {
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7d8));  // death_run_left
+        } else if (dt_yaw(ent) > -45 && dt_yaw(ent) <= 45) {
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7cc));  // death_run_forward_crumple
+        } else {
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7fc));  // death_run_right
+        }
+    } else if (*ScrField_anim_movement(ent) == 0x0001c6ce && get_int_184(ent) != 0x0738b1a5) {
+        // Running: by the motion direction; forward ones cycle through six (the counter at anim object + 0xc).
+        uint32_t out;
+        const uint32_t direction = *BroScr_YawToDirectionName(
+            &out, static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922744)(ent)));  // GScr_ActorGetMotionYaw
+        switch (direction) {
+        case 0x003798b4:
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7d8));  // death_run_left
+            break;
+        case 0x0030880b:
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7c0));  // death_run_back
+            break;
+        case 0x0658b1b4: {
+            uint32_t* const counter = reinterpret_cast<uint32_t*>(anim_object() + 0xc);
+            if (*counter == undefined_int())
+                *counter = static_cast<uint32_t>(random_int(6));
+            else
+                *counter = static_cast<uint32_t>((static_cast<int32_t>(*counter) + 1) % 6);
+            switch (*reinterpret_cast<uint32_t*>(anim_object() + 0xc)) {
+            case 0: dt_knob(&ent, kNotify, dt_anim(0x008ce7cc)); break;  // death_run_forward_crumple
+            case 1: dt_knob(&ent, kNotify, dt_anim(0x008ce7e4)); break;  // death_run_onfront
+            case 2: dt_knob(&ent, kNotify, dt_anim(0x008ce7f0)); break;  // death_run_onleft
+            case 3: dt_knob(&ent, kNotify, dt_anim(0x008ce808)); break;  // death_run_stumble
+            case 4: dt_knob(&ent, kNotify, dt_anim(0x008ce6f4)); break;  // crouchrun_death_drop
+            case 5: dt_knob(&ent, kNotify, dt_anim(0x008ce6e8)); break;  // crouchrun_death_crumple
+            }
+            break;
+        }
+        case 0x07151174:
+            dt_knob(&ent, kNotify, dt_anim(0x008ce7fc));  // death_run_right
+            break;
+        default:
+            dt_text(0x00826ab8);  // "badness"
+            break;
+        }
+    } else {
+        // By pose, hit location, damage yaw and the roll.
+        switch (get_int_184(ent)) {
+        case 0x070b89a4: {  // stand
+            if ((dt_location(ent) == 0xd667b8d4 || dt_location(ent) == 0x78b45d51 || dt_location(ent) == 0x9bb24e87 ||
+                 dt_location(ent) == 0xbcb2520d) &&
+                dt_amount(ent) > 80) {
+                if (dt_yaw(ent) > 135 || dt_yaw(ent) <= -135) {
+                    if (roll < 50)
+                        dt_knob(&ent, kNotify, dt_anim(0x008cf444));  // stand_death_frontspin
+                    else
+                        dt_knob(&ent, kNotify, dt_anim(0x008ce7c0));  // death_run_back
+                } else if (dt_yaw(ent) > 45 && dt_yaw(ent) <= 135)
+                    dt_knob(&ent, kNotify, dt_anim(0x008ce7d8));  // death_run_left
+                else if (dt_yaw(ent) > -45 && dt_yaw(ent) <= 45)
+                    dt_knob(&ent, kNotify, dt_anim(0x008ce7cc));  // death_run_forward_crumple
+                else
+                    dt_knob(&ent, kNotify, dt_anim(0x008ce7fc));  // death_run_right
+            } else if (dt_location(ent) == 0x00359844) {
+                if (roll < 45 && (dt_yaw(ent) > 90 || dt_yaw(ent) < -135))
+                    dt_knob(&ent, kNotify, dt_anim(0x008cf444));  // stand_death_frontspin
+                else if (roll < 90 && (dt_yaw(ent) > 90 || dt_yaw(ent) < -90))
+                    dt_knob(&ent, kNotify, dt_anim(0x008cf450));  // stand_death_head_collapse
+                else
+                    dt_knob(&ent, kNotify, dt_anim(0x008cf45c));  // stand_death_headchest_topple
+            } else if (dt_location(ent) == 0x0036980b || dt_location(ent) == 0x78b45d51) {
+                if (roll < 40 && (dt_yaw(ent) > 90 || dt_yaw(ent) < -135))
+                    dt_knob(&ent, kNotify, dt_anim(0x008cf444));  // stand_death_frontspin
+                else
+                    if (roll < 60)
+                        dt_knob(&ent, kNotify, dt_anim(0x008cf48c));
+                    else
+                        dt_knob(&ent, kNotify, dt_anim(0x008cf480));  // neckdeath_thrash / neckdeath
+            } else if (dt_location(ent) == 0x1a2ddf3d || dt_location(ent) == 0x3d2dc3b7 ||
+                       dt_location(ent) == 0x6dc2dea5 || dt_location(ent) == 0xedcc9bb6) {
+                dt_knob(&ent, kNotify, dt_anim(0x008cf468));  // stand_death_legs
+            } else if (dt_yaw(ent) < 45 && dt_yaw(ent) > -45) {
+                dt_knob(&ent, kNotify, dt_anim(0x008cf474));  // stand_death_lowerback
+            } else {
+                dt_knob(&ent, kNotify, dt_anim(0x008cf498));  // stand_death_nervedeath
+            }
+            break;
+        }
+        case 0x0030880b:
+            if (roll < 50)
+                    dt_knob(&ent, kNotify, dt_anim(0x008cd794));
+                else
+                    dt_knob(&ent, kNotify, dt_anim(0x008cd7a0));  // back_death / back_death2
+            break;
+        case 0x0738b1a5:  // prone
+            dt_knob_slot(ent, kNotify, dt_anim(0x008cf114));  // prone_death_quickdeath
+            break;
+        case 0x19669cd9:
+        case 0xc1165808:  // crouch
+            if ((dt_location(ent) == 0x00359844 || dt_location(ent) == 0xd667b8d4 || dt_location(ent) == 0x0036980b) &&
+                (dt_yaw(ent) > 135 || dt_yaw(ent) < -135))
+                dt_knob_slot(ent, kNotify, dt_anim(0x008ce5b0));  // crouch_death_headshot_front
+            else if (roll < 25)
+                dt_knob(&ent, kNotify, dt_anim(0x008ce580));  // crouch_death_clutchchest
+            else if (roll < 50)
+                dt_knob(&ent, kNotify, dt_anim(0x008ce5a4));  // crouch_death_flip
+            else
+                if (roll < 75)
+                    dt_knob(&ent, kNotify, dt_anim(0x008ce598));
+                else
+                    dt_knob(&ent, kNotify, dt_anim(0x008ce58c));  // crouch_death_fetal / falltohands
+            break;
+        default:
+            dt_text(0x00826a9c);  // "Bad anim_pose in death.gsc"
+            break;
+        }
+    }
+    handle_note_tracks(ent, kNotify);
+    scr_release(&none);
+}
+
+// 0x001d91d0 (no Ghidra function: inside BroScr_AnimScript_Death's range; no references, dead): the crouched
+// combat's aim and shoot step - crouch / stop, the idle aiming at the target, then when the muzzle is clear a
+// cover shoot. Its two assert texts are built and dropped.
+void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent) {
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    {
+        ScriptString text;
+        ScriptString_FromCString(&text, pointer<const char>(0x00826b2c));  // "...About to call aim, movement is bad "
+        handle_slot(ent, 0x0ccee5c1);  // anim_movement
+        scr_release(&text);
+    }
+    aim_idle(ent, title_global<uint32_t>(0x00922ea4));
+    const ScrVec3 zero = {0, 0, 0};  // 0.0f words
+    uint8_t clear;
+    if (!*BroScr_GetMuzzleOrigin(&clear, ent, zero, title_global<uint32_t>(0x00922e84), title_global<uint32_t>(0x00922ebc)))
+        return;
+    {
+        ScriptString text;
+        ScriptString_FromCString(&text, pointer<const char>(0x00826ae8));  // "...About to call ShootVolley but not aiming"
+        handle_slot(ent, 0x764918ae);
+        scr_release(&text);
+    }
+    uint8_t shot;
+    cover_shoot(&shot, ent);
 }
 
 }  // namespace game
