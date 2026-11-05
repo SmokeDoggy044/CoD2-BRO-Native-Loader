@@ -429,4 +429,58 @@ void XB_CDECL BroScr_SquadMemberThinkOnNotify(uint32_t ent, ScriptString notify)
 // before the "vehicle_explode" sound.
 void XB_CDECL BroScr_VehicleExplodeSound(uint32_t ent);
 
+// 0x0014a2f0: waits for 0x92b8c65f on `ent` `count` times (at most its follower count, array key
+// 0xdeca7f50). 0x00151c90: the same for all of them.
+void XB_CDECL BroScr_WaitForFollowers(uint32_t ent, int32_t count);
+void XB_CDECL BroScr_WaitForFollowersCall(uint32_t ent);
+// 0x0014a380: waits for 0x92b8c65f on the level once per follower of every leader.
+void XB_CDECL BroScr_WaitForAllFollowersNotify(DynArray* leaders);
+// 0x0014a670: ends on the leader's 0xcc07a20a; on the follower's death it leaves the leader's
+// follower array.
+void XB_CDECL BroScr_RemoveFollowerOnDeath(uint32_t leader, uint32_t follower);
+// 0x0014a910 / 0x0014a9c0: end on 0x71017853 of the entity and the level; every 0.05 s they walk the
+// path-position array 0xaeae4e0b (all positions / the one at int key 0x9aec9c1a when not negative):
+// the debug drawing is compiled out, only the key lookups are left. Never return.
+void XB_CDECL BroScr_PathPosDebugStub(uint32_t ent);
+void XB_CDECL BroScr_CurrentPathPosDebugStub(uint32_t ent);
+
+// 0x00147cf0: ends on the rider's death; after its 0xa0e65a8e: the vehicle's int key 0xb330b301 counts
+// it, a BroScr_VehicleRiderDeathWatch_2(vehicle, rider) thread; "tag_passenger1" / "tag_passenger2"
+// play the flakvierling loader dismount L / R at the tag (waits for its end); the rider leaves its
+// slot (array key 0x2cd69a2a), is unlinked, the count drops, 0x996a3647 on the vehicle, AI flags
+// cleared and the gun back in the hand (0x07151174). Releases `tag`.
+void XB_CDECL BroScr_VehicleRiderAttach(uint32_t vehicle, uint32_t rider, ScriptString tag);
+
+// 0x00148080: as BroScr_VehicleRiderAttach with the flakvierling gun mount L / R anims; the rider's
+// slot is cleared, then it becomes the gunner (slot 0, ScrCall_ScrEnt_SetTargetname_2, bool set),
+// is linked to "tag_gunner" a frame later with that tag's rider anim, gets
+// BroScr_VehicleRiderUnlinkOnDeath and BroScr_VehicleRiderWait(vehicle, rider, "tag_gunner") threads.
+// Releases `tag`.
+void XB_CDECL BroScr_VehicleRiderMount(uint32_t vehicle, uint32_t rider, ScriptString tag);
+
+// 0x00148760: ends on death; anim tree "flakvierling" ("flakvierling_base" unless the model is
+// "v_flakvierling"); on each 0xac1c7bac: fires (an earthquake 0.2 / 0.1 s / 2250) with a
+// BroScr_StrafeImpacts thread; when manned (rider slot 0's bool, or bool key 0xd8e13e71) every shot
+// past the count at 0x008cd168 damages the target (entity key 0x0d60fb3d, bool 0xe29137e5) by the int at
+// 0x008cd16c and starts over, the shot time in int key 0x05903940; then the two barrel fire anims
+// (keys 0xe0b632e2 / 0xe0b632e1) in turn, waited for. Never returns.
+void XB_CDECL BroScr_FlakvierlingThink(uint32_t ent);
+
+// 0x00148d10: the shared level main (each level script calls it): level cvars, the player
+// (level +0x7f8, its bool key 0x2eecefb8 cleared, a BroScr_PlayerWeaponSounds thread), level +0x354 set,
+// the difficulty hash (+0x84), the map name (+0x1c4) once, level info, dead / victory quotes, the intro
+// screen cvars (Scr_BeginThread), a frame when in a thread, normal health 1 on g_gameskill "3",
+// BroScr_InfinitePanzerfaust, every AI's damage var "_spawner_gmi::tanksquish", the friendly chain
+// triggers (unused), +0x194 = 0, the level vars, BroScr_InitFriendlyChainNodes (cvar "chain" "1") and
+// BroScr_ReattachAlliesGuns threads.
+void XB_CDECL Bro__load_gmi__main();
+
+// 0x00149200: a friendly chat trigger: the halftrack its target names (BroScr_FriendlyChatTriggers
+// thread once, ends on its death); waits for the level's script_waittill notify; then for the
+// halftrack (or an AI with the trigger's script_animname) with spawnflags 8, else for the player (then
+// the allied AI with that animname nearest the player). With script_min_friendlies / 0xa7ad4a18, until
+// the time limit (0x8177124f) the allies touching (BroScr_WaitForAliveTouchingCount) and the
+// halftrack touching (0xa7ad4a18 / spawnflags 8; else again after 1 s). Deletes the trigger.
+void XB_CDECL BroScr_FriendlyChatTriggerThink(uint32_t trigger);
+
 }  // namespace game

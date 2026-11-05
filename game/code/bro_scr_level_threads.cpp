@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "bro_scr_ai_anim.h"
+#include "bro_scr_actor.h"
 #include "bro_scr_arrays.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_cover_turret.h"
@@ -13,10 +14,12 @@
 #include "bro_scr_grenade.h"
 #include "bro_scr_hud_fade.h"
 #include "bro_scr_level.h"
+#include "bro_scr_level_info.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_squad.h"
 #include "bro_scr_util.h"
 #include "bro_scr_vehicle.h"
+#include "bro_scr_vehicle_path.h"
 #include "bro_scr_notify_threads.h"
 #include "bro_scr_vehicle_health.h"
 #include "bro_scr_wait_misc.h"
@@ -3161,6 +3164,539 @@ void XB_CDECL BroScr_VehicleExplodeSound(uint32_t ent) {
     ScriptString_AssignCString(string_key(ent, 0xcc2baca1), pointer<const char>(0x007f4e40));  // "vehicle_explode"
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
     play_explode_key(ent);
+}
+
+
+namespace {
+
+// The entity's follower array (key 0xdeca7f50, ScriptKeyTable_GetArray).
+inline DynArray* followers(uint32_t ent) {
+    return title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(ent_script_object(ent), 0xdeca7f50);
+}
+
+// The entity's path-position debug array (key 0xaeae4e0b; the debug drawing is compiled out).
+inline uint32_t path_positions(uint32_t ent) { return ScriptKeyTable_GetOrAddArray_3(ent_script_object(ent), 0xaeae4e0b); }
+
+}  // namespace
+
+void XB_CDECL BroScr_WaitForFollowers(uint32_t ent, int32_t count) {
+    if (count > static_cast<int32_t>(followers(ent)->size)) count = static_cast<int32_t>(followers(ent)->size);
+    for (int32_t left = count; left > 0; --left) Scr_WaitTill(ent, 0x92b8c65f);
+}
+
+void XB_CDECL BroScr_WaitForAllFollowersNotify(DynArray* leaders) {
+    int32_t total = 0;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(leaders->size); ++i)
+        total += static_cast<int32_t>(followers(element(leaders, i))->size);
+    for (int32_t left = total; left > 0; --left) Scr_WaitTill(level_handle(), 0x92b8c65f);
+}
+
+void XB_CDECL BroScr_RemoveFollowerOnDeath(uint32_t leader, uint32_t follower) {
+    slot<EntHash>(0x00922188)(leader, 0xcc07a20a);  // Scr_EndOn
+    Scr_WaitTill(follower, kDeath);
+    PtrArray_RemoveValue(followers(leader), follower);
+}
+
+void XB_CDECL BroScr_PathPosDebugStub(uint32_t ent) {
+    slot<EntHash>(0x00922188)(ent, 0x71017853);             // Scr_EndOn
+    slot<EntHash>(0x00922188)(level_handle(), 0x71017853);  // Scr_EndOn
+    for (;;) {
+        for (int32_t i = 0; i < static_cast<int32_t>(pointer<DynArray>(path_positions(ent))->size); ++i) {
+            path_positions(ent);
+            path_positions(ent);
+        }
+        Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+    }
+}
+
+void XB_CDECL BroScr_CurrentPathPosDebugStub(uint32_t ent) {
+    slot<EntHash>(0x00922188)(ent, 0x71017853);             // Scr_EndOn
+    slot<EntHash>(0x00922188)(level_handle(), 0x71017853);  // Scr_EndOn
+    for (;;) {
+        if (static_cast<int32_t>(*int_slot(ent, 0x9aec9c1a)) >= 0) {  // the current index
+            path_positions(ent);
+            int_slot(ent, 0x9aec9c1a);
+        }
+        Scr_Wait(float_bits(0x3d4ccccd));  // 0.05
+    }
+}
+
+void XB_CDECL BroScr_WaitForFollowersCall(uint32_t ent) {
+    BroScr_WaitForFollowers(ent, static_cast<int32_t>(followers(ent)->size));
+}
+
+
+namespace {
+
+using Resize8 = void XB_THISCALL(uint32_t*, uint32_t, uint32_t);
+
+// The vehicle's rider slots (array key 0x2cd69a2a, 8-byte entries {rider, bool}) found inline (an
+// empty array set when missing), slot i grown in.
+inline uint32_t* rider_slot_inline(uint32_t vehicle, uint32_t i) {
+    ScriptKeyTable* const table = ent_script_object(vehicle);
+    uint32_t* value = ScriptKeyTable_Find(table, 0x2cd69a2a);
+    if (!value) {
+        const uint32_t empty[3] = {0, 0, 0};
+        value = ScriptKeyTable_SetNewArray(table, 0x2cd69a2a, empty);
+    }
+    uint32_t* const array = pointer<uint32_t>(*value);
+    if (i >= array[2]) title_function<Resize8>(0x0017bfb0)(array, i + 1, i + 4);  // DynArray_Resize8
+    return pointer<uint32_t>(array[0]) + i * 2;
+}
+
+// The same slot through ScriptKeyTable_GetOrAddArray.
+inline uint32_t* rider_slot(uint32_t vehicle, uint32_t i) {
+    uint32_t* const array = pointer<uint32_t>(ScriptKeyTable_GetOrAddArray(ent_script_object(vehicle), 0x2cd69a2a));
+    if (i >= array[2]) title_function<Resize8>(0x0017bfb0)(array, i + 1, i + 4);  // DynArray_Resize8
+    return pointer<uint32_t>(array[0]) + i * 2;
+}
+
+// The flakvierling loaders' anim (passenger1: `left`, passenger2: `right`, anim globals) played at
+// their tag on the vehicle, waited for; nothing for "tag_gunner" or other tags.
+inline void rider_tag_anim(uint32_t vehicle, uint32_t rider, ScriptString* tag, uint32_t left, uint32_t right) {
+    using Anim = void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t);
+    using TagVec = void XB_CDECL(uint32_t*, uint32_t, ScriptString*);
+    if (ScriptString_Equals(tag, pointer<const char>(0x007fa47c))) return;  // "tag_gunner"
+    if (ScriptString_Equals(tag, pointer<const char>(0x007fc0bc))) {  // "tag_passenger1"
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(rider, title_global<uint32_t>(left));  // ScrActor_SetInt_1370
+        const uint32_t lane = undefined_lane();
+        uint32_t a[3] = {lane, lane, lane};
+        slot<TagVec>(0x00922620)(a, vehicle, tag);  // GScr_GetTagAngles
+        const uint32_t angles[3] = {a[0], a[1], a[2]};
+        const uint32_t lane_2 = undefined_lane();
+        uint32_t o[3] = {lane_2, lane_2, lane_2};
+        slot<TagVec>(0x0092261c)(o, vehicle, tag);  // GScr_GetTagOrigin
+        const uint32_t origin[3] = {o[0], o[1], o[2]};
+        slot<Anim>(0x009224c0)(rider, 0x54e3b2b6, origin, angles, title_global<uint32_t>(left));  // GScr_AnimScriptedNoNotify
+    } else if (ScriptString_Equals(tag, pointer<const char>(0x007f5c08))) {  // "tag_passenger2"
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(rider, title_global<uint32_t>(right));  // ScrActor_SetInt_1370
+        const uint32_t anim = title_global<uint32_t>(right);
+        const uint32_t tag_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tag));
+        uint32_t a[3], o[3];
+        const uint32_t* const angles = ScrCall_GScr_GetTagAngles(a, &vehicle, tag_word);
+        const uint32_t* const origin = ScrCall_GScr_GetTagOrigin(o, &vehicle, tag_word);
+        slot<Anim>(0x009224c0)(rider, 0x54e3b2b6, origin, angles, anim);  // GScr_AnimScriptedNoNotify
+    } else {
+        return;
+    }
+    Scr_WaitTill(rider, 0x54e3b2b6);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_VehicleRiderAttach(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    slot<EntHash>(0x00922188)(rider, kDeath);  // Scr_EndOn
+    Scr_WaitTill(rider, 0xa0e65a8e);
+    ++*int_slot(vehicle, 0xb330b301);  // riders getting off
+    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*)>(0x004b09e0)(
+        0, 0, 0, 0, 0x0012fe80, vehicle, &rider);  // Scr_CallThread_ent_ent_ORAN(BroScr_VehicleRiderDeathWatch_2)
+    // The flakvierling loaders' dismount anims at their tag ("tag_gunner" none).
+    rider_tag_anim(vehicle, rider, &tag, 0x008cd200, 0x008cd20c);  // LoaderDismountL / R
+    // The rider leaves its slot: {0, the undefined bool} (the title stores a word whose upper bytes
+    // are stale stack: 0 here).
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (rider_slot_inline(vehicle, i)[0] != rider) continue;
+        const uint32_t flag = title_global<uint8_t>(0x00922ed0);
+        uint32_t* const entry = rider_slot(vehicle, i);
+        entry[0] = 0;
+        entry[1] = flag;
+    }
+    slot<Ent>(0x0092250c)(rider);  // GScr_Unlink
+    --*int_slot(vehicle, 0xb330b301);
+    slot<EntHash>(0x009221a4)(vehicle, 0x996a3647);  // Scr_QueueNotify
+    slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x009223a0)(rider, 0, 0, 0);  // GScr_SetAIFlags
+    BroScr_PutGunInHand(rider, 0x07151174);
+    ScriptString_Release(&tag);
+}
+
+
+void XB_CDECL BroScr_VehicleRiderMount(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    slot<EntHash>(0x00922188)(rider, kDeath);  // Scr_EndOn
+    Scr_WaitTill(rider, 0xa0e65a8e);
+    ++*int_slot(vehicle, 0xb330b301);
+    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*)>(0x004b09e0)(
+        0, 0, 0, 0, 0x0012fe80, vehicle, &rider);  // Scr_CallThread_ent_ent_ORAN(BroScr_VehicleRiderDeathWatch_2)
+    rider_tag_anim(vehicle, rider, &tag, 0x008cd1dc, 0x008cd1e8);  // GunMountL / R
+    // The rider leaves its slot ({0, the undefined bool word: stale upper bytes, 0 here}, then the
+    // bool cleared) and becomes the gunner in slot 0.
+    for (uint32_t i = 0; i < 3; ++i) {
+        if (rider_slot_inline(vehicle, i)[0] != rider) continue;
+        const uint32_t flag = title_global<uint8_t>(0x00922ed0);
+        uint32_t* const entry = rider_slot(vehicle, i);
+        entry[0] = 0;
+        entry[1] = flag;
+        *reinterpret_cast<uint8_t*>(rider_slot(vehicle, i) + 1) = 0;
+    }
+    slot<Ent>(0x0092250c)(rider);  // GScr_Unlink
+    --*int_slot(vehicle, 0xb330b301);
+    slot<EntHash>(0x009221a4)(vehicle, 0x996a3647);  // Scr_QueueNotify
+    uint32_t pair[2];
+    const uint32_t* const gunner = ScrCall_ScrEnt_SetTargetname_2(pair, rider);  // {rider, false}, targetname "gunner"
+    uint32_t* const first = rider_slot_inline(vehicle, 0);
+    first[0] = gunner[0];
+    first[1] = gunner[1];
+    *reinterpret_cast<uint8_t*>(rider_slot_inline(vehicle, 0) + 1) = 1;
+    ScriptString gun_tag;
+    ScriptString_FromCString(&gun_tag, pointer<const char>(0x007fa47c));  // "tag_gunner"
+    Scr_WaitFrames(0);
+    {
+        const uint32_t angles_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+        const uint32_t origin_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+        using Link = void XB_CDECL(uint32_t, uint32_t, const ScriptString*, const uint32_t*, const uint32_t*, uint32_t);
+        slot<Link>(0x009224f4)(rider, vehicle, &gun_tag, origin_offset, angles_offset, 0);  // GScr_LinkToTagWithOffset
+    }
+    {
+        ScriptString copy;
+        ScriptString_Copy(&copy, &gun_tag);
+        BroScr_SetRiderAnimForTag(rider, copy);  // releases its copy
+    }
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = 0x0012fe30;  // BroScr_VehicleRiderUnlinkOnDeath
+        functor[2] = vehicle;
+        functor[3] = rider;
+    }
+    slot<CreateThread>(0x0092216c)(0, 0, 0, vehicle, functor, 0);  // Scr_CreateThread
+    using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
+                                    const ScriptString*);
+    title_function<Start>(0x0045b3b0)(0, 0, 0, 0, 0x00150180, vehicle, &rider, &gun_tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRiderWait)
+    ScriptString_Release(&gun_tag);
+    ScriptString_Release(&tag);
+}
+
+
+namespace {
+
+// The flakvierling's shot: GScr_Vehicle_FireWeapon, an earthquake (0.2, 0.1 s, 2250) at it.
+inline void flakvierling_fire(uint32_t ent) {
+    slot<Ent>(0x009228d4)(ent);  // GScr_Vehicle_FireWeapon
+    ScrVec3 origin;
+    origin_of(&origin, ent);
+    slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e4ccccd, 0x3dcccccd, &origin,
+                                                                                  0x450ca000);  // GScr_Earthquake(0.2, 0.1, 2250)
+}
+
+// The fire anim (key `anim`) on the anim root (key 0x0038b194) as the flagged knob 0x54e3b2b6 of all,
+// waited for.
+inline void flakvierling_fire_anim(uint32_t ent, uint32_t anim) {
+    using KnobAll = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t root = *key_slot(ent, 0x0038b194, 0);
+    slot<KnobAll>(0x009225e4)(ent, 0x54e3b2b6, *key_slot(ent, anim, 0), root, 0x3f800000, 0x3e4ccccd, 0x3f800000,
+                              1);  // GScr_SetFlaggedAnimKnobAll(1, 0.2, 1)
+    Scr_WaitTill(ent, 0x54e3b2b6);
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FlakvierlingThink(uint32_t ent) {
+    slot<EntHash>(0x00922188)(ent, kDeath);  // Scr_EndOn
+    uint32_t right = 0;  // which barrel pair's anim plays next
+    int32_t shots = 0;
+    bool full;
+    {
+        ScriptString model;
+        full = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00824c44));  // "v_flakvierling"
+        ScriptString_Release(&model);
+    }
+    {
+        ScriptString tree;
+        if (full)
+            ScriptString_FromCString(&tree, pointer<const char>(0x007f49c4));  // "flakvierling"
+        else
+            ScriptString_FromCString(&tree, pointer<const char>(0x007f49b0));  // "flakvierling_base"
+        slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
+        ScriptString_Release(&tree);
+    }
+    for (;;) {
+        Scr_WaitTill(ent, 0xac1c7bac);  // a shot
+        if (!*reinterpret_cast<const uint8_t*>(rider_slot_inline(ent, 0) + 1) && !*bool_slot(ent, 0xd8e13e71)) {
+            // No gunner: impacts only.
+            flakvierling_fire(ent);
+            thread_1(ent, 0x007f5ba0, 0x001301d0, ent);  // BroScr_StrafeImpacts
+        } else {
+            // Manned: past the shot count at 0x008cd168 the target (entity key 0x0d60fb3d, when its bool
+            // key 0xe29137e5 is set) takes the damage at 0x008cd16c; the time of the shot in int key
+            // 0x05903940.
+            flakvierling_fire(ent);
+            if (shots > title_global<int32_t>(0x008cd168) && *bool_slot(*key_slot(ent, 0x0d60fb3d, 0), 0xe29137e5)) {
+                const uint32_t zero[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
+                const uint32_t target = *key_slot(ent, 0x0d60fb3d, 0);
+                const float damage = static_cast<float>(title_global<int32_t>(0x008cd16c));
+                slot<void XB_CDECL(uint32_t, float, const uint32_t*)>(0x00922558)(target, damage, zero);  // GScr_DoDamage
+                shots = 0;
+            }
+            thread_1(ent, 0x007f5ba0, 0x001301d0, ent);  // BroScr_StrafeImpacts
+            ++shots;
+            const int32_t now = slot<int32_t XB_CDECL()>(0x009223c4)();  // GScr_GetTime
+            *int_slot(ent, 0x05903940) = static_cast<uint32_t>(now);
+        }
+        if (right == 1) {
+            flakvierling_fire_anim(ent, 0xe0b632e1);
+            right = 0;
+        } else {
+            flakvierling_fire_anim(ent, 0xe0b632e2);
+            right = 1;
+        }
+    }
+}
+
+
+namespace {
+
+// A thread on the level entity (functor {0x007f5ba0, body, level}) through `starter`
+// (Scr_CreateThread / Scr_BeginThread).
+inline void level_thread(uint32_t starter, uint32_t body) {
+    const uint32_t level = level_handle();
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = body;
+        functor[2] = level;
+    }
+    slot<CreateThread>(starter)(0, 0, 0, level, functor, 0);
+}
+
+// Whether cvar `name` equals `text`.
+inline bool cvar_is(uint32_t name, uint32_t text) {
+    ScriptString value;
+    const bool equal = ScriptString_Equals(ScrCall_GScr_GetCvar(&value, name), pointer<const char>(text));
+    ScriptString_Release(&value);
+    return equal;
+}
+
+}  // namespace
+
+void XB_CDECL Bro__load_gmi__main() {
+    BroScr_InitLevelCvars();
+    level_field(0x7f8) = player();
+    *bool_slot(level_field(0x7f8), 0x2eecefb8) = 0;
+    thread_1(player(), 0x007f5ba0, 0x00137c50, player());  // BroScr_PlayerWeaponSounds
+    *reinterpret_cast<uint8_t*>(&level_field(0x354)) = 1;
+    ScriptString difficulty;
+    ScriptString_FromRep(&difficulty, nullptr);
+    slot<void XB_CDECL(ScriptString*)>(0x009223cc)(&difficulty);  // GScr_GetDifficulty
+    uint32_t hash;
+    level_field(0x84) = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&difficulty));
+    if (level_field(0x1c4) == 0) {  // the level's map name string
+        ScriptString mapname;
+        const ScriptString* const value = ScrCall_GScr_GetCvar(&mapname, 0x00835230);  // "mapname"
+        ScriptString_Assign(reinterpret_cast<ScriptString*>(&level_field(0x1c4)), value);
+        ScriptString_Release(&mapname);
+    }
+    BroScr_SetupLevelInfo(level_handle());
+    level_thread(0x0092216c, 0x00122040);  // Scr_CreateThread(BroScr_SetDeadQuote)
+    BroScr_SetRandomVictoryQuote();  // the title passes the level entity, not read
+    level_thread(0x00922168, 0x001373b0);  // Scr_BeginThread(BroScr_SetIntroScreenCvars)
+    if (slot<uint8_t XB_CDECL()>(0x0092218c)()) Scr_WaitFrames(0);  // Scr_InThread
+    if (cvar_is(0x00832fec, 0x008398e0)) slot<void XB_CDECL(uint32_t, float)>(0x00922554)(player(), 1.0f);  // g_gameskill "3": GScr_SetNormalHealth
+    level_thread(0x0092216c, 0x00142800);  // BroScr_InfinitePanzerfaust
+    // Every AI's damage var 0xce270885 = "_spawner_gmi::tanksquish".
+    DynArray ai = {};
+    slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);  // GScr_GetAIAll
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
+        const uint32_t* const guy = &element(&ai, i);
+        slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(
+            *guy, 0xce270885, *Scr_HashName(&hash, pointer<const char>(0x007ff4e0)));  // GScr_SetEntVar
+    }
+    DynArray chains = {};
+    {
+        ScriptString classname;
+        ScriptString_FromCString(&classname, pointer<const char>(0x00839e3c));  // "trigger_friendlychain"
+        Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&classname)), 0xa106e9bd,
+                        reinterpret_cast<uint8_t*>(&chains), 0);  // by classname
+        ScriptString_Release(&classname);
+    }
+    level_field(0x194) = 0;
+    BroScr_LoadGmiInitLevelVars();  // the title passes the level entity, not read
+    if (cvar_is(0x0082355c, 0x0082e058)) level_thread(0x0092216c, 0x00138230);  // "chain" "1": BroScr_InitFriendlyChainNodes
+    level_thread(0x0092216c, 0x001b60c0);  // BroScr_ReattachAlliesGuns
+    if (chains.data) Scr_Free(chains.data);
+    if (ai.data) Scr_Free(ai.data);
+    ScriptString_Release(&difficulty);
+}
+
+
+namespace {
+
+// Whether `ent` has an animname equal to the trigger's script_animname (the empty animname: false).
+inline bool animname_matches(uint32_t* ent, uint32_t trigger) {
+    bool empty;
+    {
+        ScriptString animname;
+        empty = ScrCall_ScrEnt_GetAnimname(ent, &animname)->rep == nullptr;
+        ScriptString_Release(&animname);
+    }
+    if (empty) return false;
+    ScriptString animname;
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(ent, &animname);
+    const bool equal = ScriptString_EqualsString(name, ScrField_script_animname(trigger));
+    ScriptString_Release(&animname);
+    return equal;
+}
+
+// The same for the AI array's element i (the element looked up again for each use).
+inline bool ai_animname_matches(DynArray* ai, uint32_t i, uint32_t trigger) {
+    bool empty;
+    {
+        ScriptString animname;
+        empty = ScrCall_ScrEnt_GetAnimname(&element(ai, i), &animname)->rep == nullptr;
+        ScriptString_Release(&animname);
+    }
+    if (empty) return false;
+    ScriptString animname;
+    const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(&element(ai, i), &animname);
+    const bool equal = ScriptString_EqualsString(name, ScrField_script_animname(trigger));
+    ScriptString_Release(&animname);
+    return equal;
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_FriendlyChatTriggerThink(uint32_t trigger) {
+    uint32_t halftrack = 0;
+    bool targeted;
+    {
+        ScriptString target;
+        targeted = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep != nullptr;
+        ScriptString_Release(&target);
+    }
+    bool defined;
+    if (targeted) {
+        // The halftrack named by the target: a BroScr_FriendlyChatTriggers thread (once: bool field
+        // 0x0718b2c3), this thread ends on its death. The validity and "allies" checks' results are
+        // not used.
+        {
+            ScriptString target;
+            const ScriptString* const name = ScrCall_ScrEnt_GetTarget(&trigger, &target);
+            halftrack = slot<uint32_t XB_CDECL(const ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221c4)(
+                name, 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray (by targetname)
+            ScriptString_Release(&target);
+        }
+        entity_handle_is_valid(halftrack);
+        {
+            ScriptString team;
+            ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&halftrack, &team), pointer<const char>(0x00832084));  // "allies"
+            ScriptString_Release(&team);
+        }
+        if (!*ScrField_h0718b2c3_IsDefined(&defined, halftrack)) {
+            const uint32_t owner = level_handle();
+            uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+            if (functor) {
+                functor[0] = 0x007f4a28;
+                functor[1] = 0x00138760;  // BroScr_FriendlyChatTriggers
+                functor[2] = owner;
+                functor[3] = halftrack;
+            }
+            slot<CreateThread>(0x0092216c)(0, 0, 0, owner, functor, 0);  // Scr_CreateThread
+            *reinterpret_cast<uint8_t*>(ScrField_h0718b2c3(halftrack, 0)) = 1;
+        }
+        slot<EntHash>(0x00922188)(halftrack, kDeath);  // Scr_EndOn
+    } else {
+        ScrField_script_animname_IsDefined(&defined, trigger);  // result not used
+    }
+    if (*ScrField_script_waittill_IsDefined(&defined, trigger)) {
+        uint32_t* const level = title_global<uint32_t>(0x00922ee0) ? pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 4) : nullptr;
+        uint32_t hash;
+        const uint32_t notify = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(ScrField_script_waittill(trigger)));
+        Scr_WaitTill(*level, notify);
+    }
+    // Waits for the halftrack (or, without one, an AI with the trigger's script_animname, which
+    // becomes it) with spawnflags 8, else for the player (then, without a halftrack, the allied AI
+    // with that animname nearest the player).
+    uint32_t who = 0;
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(trigger, 0xe2a210cf, &who);  // Scr_WaitTillOutputEnt_ORAN
+        if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922b30)(trigger) & 8) {  // ScrEnt_GetSpawnflags
+            if (entity_handle_is_valid(halftrack)) {
+                if (who == halftrack) break;
+                continue;
+            }
+            if (!animname_matches(&who, trigger)) continue;
+            halftrack = who;
+            break;
+        }
+        if (who != player()) continue;
+        if (entity_handle_is_valid(halftrack)) break;
+        DynArray matches = {};
+        DynArray ai = {};
+        {
+            ScriptString team;
+            ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
+            slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&ai, &team);  // GScr_GetAI
+            ScriptString_Release(&team);
+        }
+        for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
+            if (!ai_animname_matches(&ai, i, trigger)) continue;
+            const uint32_t* const guy = &element(&ai, i);
+            const uint32_t n = matches.size;
+            DynArray_Resize(reinterpret_cast<uint8_t*>(&matches), n + 1, n + 4);
+            matches.data[n] = *guy;
+        }
+        if (matches.size == 0) {
+            if (ai.data) Scr_Free(ai.data);
+            if (matches.data) Scr_Free(matches.data);
+            continue;
+        }
+        DynArray_Resize(reinterpret_cast<uint8_t*>(&ai), 0, 0);
+        DynArray exclude = {};
+        const uint32_t lane = undefined_lane();
+        ScrVec3 origin;
+        origin.v[0] = lane;
+        origin.v[1] = lane;
+        origin.v[2] = lane;
+        slot<void XB_CDECL(uint32_t, ScrVec3*)>(0x00922524)(player(), &origin);  // GScr_GetOrigin
+        uint32_t closest;
+        halftrack = *BroScr_GetClosestFromArray(&closest, origin, &matches, &exclude);
+        DynArray_Resize(reinterpret_cast<uint8_t*>(&matches), 0, 0);
+        const bool found = entity_handle_is_valid(halftrack) != 0;
+        if (exclude.data) Scr_Free(exclude.data);
+        if (ai.data) Scr_Free(ai.data);
+        if (matches.data) Scr_Free(matches.data);
+        if (found) break;
+    }
+    // With script_min_friendlies / field 0xa7ad4a18: until the time limit (field 0x8177124f, ms; none
+    // without), wait for the friendlies touching the trigger; the halftrack must touch it too (0xa7ad4a18
+    // or spawnflags 8; else 1 s and again).
+    ScriptString reason;
+    ScriptString_FromCString(&reason, pointer<const char>(0x00824c6c));  // "reason 0"
+    uint8_t ok = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool
+    (void)ok;
+    if (*ScrField_script_min_friendlies_IsDefined(&defined, trigger) || *ScrField_ha7ad4a18_IsDefined(&defined, trigger)) {
+        int32_t until = 0;
+        if (*ScrField_h8177124f_IsDefined(&defined, trigger)) {
+            const uint32_t* const limit = ScrField_h8177124f(trigger);
+            const int32_t now = slot<int32_t XB_CDECL()>(0x009223c4)();  // GScr_GetTime
+            until = static_cast<int32_t>(*limit) + now;
+        }
+        for (;;) {
+            if (!(slot<int32_t XB_CDECL()>(0x009223c4)() < until) && until != 0) break;  // GScr_GetTime
+            ok = 1;
+            if (*ScrField_script_min_friendlies_IsDefined(&defined, trigger)) {
+                const uint32_t undefined = undefined_float();
+                const uint32_t count = *ScrField_script_min_friendlies(trigger);
+                ScriptString team;
+                ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
+                title_function<void XB_CDECL(uint32_t, ScriptString, uint32_t, uint32_t)>(0x001a7ec0)(
+                    trigger, team, count, undefined);  // BroScr_WaitForAliveTouchingCount
+            }
+            using Touching = uint8_t XB_CDECL(uint32_t, uint32_t);
+            if (*ScrField_ha7ad4a18_IsDefined(&defined, trigger) && !slot<Touching>(0x00922530)(halftrack, trigger)) {  // GScr_IsTouching
+                ScriptString_AssignCString(&reason, pointer<const char>(0x00824c60));  // "reason 1"
+                ok = 0;
+            }
+            if ((slot<uint32_t XB_CDECL(uint32_t)>(0x00922b30)(trigger) & 8) && !slot<Touching>(0x00922530)(halftrack, trigger)) {
+                ScriptString_AssignCString(&reason, pointer<const char>(0x00824c54));  // "reason 2"
+                ok = 0;
+                Scr_Wait(1.0f);
+                continue;
+            }
+            if (ok) break;
+            Scr_Wait(1.0f);
+        }
+    }
+    slot<Ent>(0x00922540)(trigger);  // GScr_Delete
+    ScriptString_Release(&reason);
 }
 
 }  // namespace game
