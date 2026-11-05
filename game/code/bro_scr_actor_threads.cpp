@@ -376,6 +376,25 @@ void XB_CDECL BroScr_Mg42AnimThenShootLoop_3(uint32_t ent, uint32_t turret) {
     anim_knob(ent, 0x008cf630);  // standmg42gunner_aim
 }
 
+void XB_CDECL BroScr_SetDirectionalMoveAnims(uint32_t ent, uint32_t forward, uint32_t back, uint32_t side_a,
+                                             uint32_t side_b, uint32_t diagonal_a, uint32_t diagonal_b, uint32_t blend,
+                                             uint32_t) {
+    using SetAnim = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    slot<void XB_CDECL(uint32_t)>(0x009224b0)(5);  // GScr_EmptyStub220
+    // The original keeps the yaw in ent's argument slot (FSTP there, ent stays in ESI).
+    const uint32_t yaw = bits(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922744)(ent)));  // GScr_ActorGetMotionYaw
+    BroScr_ComputeMoveDirectionWeights(ent, as_float(yaw));
+    // The weights block (0x00922efc) re-read for each call: +0x140 forward, +0x13c back, +0x148 / +0x144 the
+    // sides, +0x14c / +0x150 the diagonals (only with their anim set).
+    slot<SetAnim>(0x009225dc)(ent, forward, at<uint32_t>(anim_object(), 0x140), blend, 0x3f800000, 0);  // GScr_SetAnim
+    slot<SetAnim>(0x009225dc)(ent, back, at<uint32_t>(anim_object(), 0x13c), blend, 0x3f800000, 0);
+    slot<SetAnim>(0x009225dc)(ent, side_b, at<uint32_t>(anim_object(), 0x148), blend, 0x3f800000, 0);
+    slot<SetAnim>(0x009225dc)(ent, side_a, at<uint32_t>(anim_object(), 0x144), blend, 0x3f800000, 0);
+    if (diagonal_a) slot<SetAnim>(0x009225dc)(ent, diagonal_a, at<uint32_t>(anim_object(), 0x14c), blend, 0x3f800000, 0);
+    if (diagonal_b) slot<SetAnim>(0x009225dc)(ent, diagonal_b, at<uint32_t>(anim_object(), 0x150), blend, 0x3f800000, 0);
+    slot<void XB_CDECL(uint32_t)>(0x009224b4)(5);  // GScr_EmptyStub221
+}
+
 void XB_CDECL BroScr_DirectionalMoveAnimsOnNotify(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
                                                  uint32_t a6, uint32_t a7) {
     end_on(ent, kKillAnimScript);

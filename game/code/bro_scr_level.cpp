@@ -1,5 +1,6 @@
 #include "bro_scr_level.h"
 
+#include "bro_scr_ai_common.h"
 #include "bro_scr_array.h"
 #include "bro_scr_util.h"
 #include "g_scr_runtime.h"
@@ -141,6 +142,13 @@ void XB_CDECL BroScr_SetVehicleCanShootLowByName(ScriptString name, uint32_t val
     const uint32_t vehicle = find_vehicle(&name);
     if (valid(vehicle)) *title_function<uint8_t* XB_CDECL(uint32_t)>(0x0012e6a0)(vehicle) = static_cast<uint8_t>(value);  // ScrField_can_shoot_low
     ScriptString_Release(&name);
+}
+
+uint32_t* XB_CDECL BroScr_GetEntSecondsSince_h05903940(uint32_t* out, uint32_t ent) {
+    const int32_t now = bro_ai::get_time();
+    const int32_t since = static_cast<int32_t>(*bro_ai::int_slot(ent, 0x05903940));
+    *reinterpret_cast<float*>(out) = static_cast<float>(now - since) * title_global<float>(0x0083eb4c);  // 0.001
+    return out;
 }
 
 uint32_t* XB_CDECL BroScr_GetVehicleSecondsSince_h05903940(uint32_t* out, ScriptString name) {

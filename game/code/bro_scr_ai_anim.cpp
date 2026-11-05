@@ -733,5 +733,71 @@ void XB_CDECL BroScr_InitPoseMovementTable() {
     for (uint32_t i = 0; i < 9; ++i) at<uint32_t>(anim_object(), 0x168 + i * 4) = kHandlers[i];
 }
 
+void XB_CDECL BroScr_SetPoseMovement(uint32_t ent, uint32_t pose, uint32_t movement) {
+    // The original uses ent's argument slot as scratch (the IsDefined byte, the two dropped strings).
+    *int_slot(ent, 0x521b4bf0) = static_cast<uint32_t>(get_time());
+    *handle_slot(ent, 0x6f631b0e) = actor_pose(ent);
+    {
+        const uint32_t* const from = handle_slot(ent, 0x0ccee5c1);
+        *handle_slot(ent, 0xbad1ef6d) = *from;
+    }
+    bool defined;
+    if (*ScrField_wounded_anim_IsDefined(&defined, ent)) {
+        const uint32_t* const from = handle_slot(ent, 0xb7f3f874);  // wounded_anim
+        *handle_slot(ent, 0x4de32b74) = *from;
+    } else {
+        *handle_slot(ent, 0x4de32b74) = 0;
+    }
+    {
+        const uint32_t* const from = handle_slot(ent, 0x175567a8);
+        *handle_slot(ent, 0x72e59ffd) = *from;
+    }
+    *handle_slot(ent, 0xdce273fb) = pose;
+    if (movement == undefined_handle() || movement == 0) movement = *handle_slot(ent, 0x0ccee5c1);
+    {
+        ScriptString text;
+        ScriptString_FromCString(&text, pointer<const char>(0x00825ed4));  // "bad input" (dropped)
+        ScriptString_Release(&text);
+    }
+    if (movement != undefined_handle())
+        *handle_slot(ent, 0x358ad77b) = movement;
+    else
+        *handle_slot(ent, 0x358ad77b) = 0;
+    if (actor_pose(ent) == 0x19669cd9) {
+        ScriptString text;
+        ScriptString_FromCString(&text, pointer<const char>(0x00825ebc));  // "crap_out_now + please" (dropped)
+        ScriptString_Release(&text);
+    }
+    if (pose == 0) {
+        // The script compares the movement hash with the "walk" / "run" string addresses (never equal
+        // for the hashes the callers pass), so a prone actor keeps prone here.
+        if (actor_pose(ent) == 0x0738b1a5 && (movement == 0x00825eb4 || movement == 0x00825eb0))
+            pose = 0xc1165808;
+        else
+            pose = actor_pose(ent);
+    }
+    // Handler index: stand 0 / crouch 3 / prone 6 (else the undefined int) + stop 0 / walk 1 / run 2;
+    // out of range (unsigned) takes the last entry.
+    uint32_t index = undefined_int();
+    if (pose == 0x070b89a4)
+        index = 0;
+    else if (pose == 0xc1165808)
+        index = 3;
+    else if (pose == 0x0738b1a5)
+        index = 6;
+    if (movement == 0x00385d90) {
+    } else if (movement == 0x003a09eb) {
+        ++index;
+    } else if (movement == 0x0001c6ce) {
+        index += 2;
+    }
+    const uint32_t handler = at<uint32_t>(anim_object(), index < 9 ? 0x168 + index * 4 : 0x188);
+    title_function<void XB_CDECL(uint32_t)>(handler)(ent);
+    *int_slot(ent, 0x521b4bf0) = static_cast<uint32_t>(get_time());
+    *handle_slot(ent, 0xcbffac0d) = actor_pose(ent);
+    const uint32_t* const from = handle_slot(ent, 0x0ccee5c1);
+    *handle_slot(ent, 0xcaeba6a6) = *from;
+}
+
 }  // namespace game
 

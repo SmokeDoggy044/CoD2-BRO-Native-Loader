@@ -94,6 +94,14 @@ void XB_CDECL BroScr_Mg42AnimTree_3(uint32_t ent, uint32_t gunner);
 // MG42 fire anim (actor int +0x1370, knob 1 / 0.2 / 1) and BroScr_Mg42ShootLoop_3(ent, turret);
 // then the stand MG42 aim anim the same way. BroScr_AnimScript_TurretCall_5's first callback.
 void XB_CDECL BroScr_Mg42AnimThenShootLoop_3(uint32_t ent, uint32_t turret);
+// 0x0018df30 (unhookable: GScr_EmptyStub220 is called at +4, inside the first 5 bytes; not
+// registered): the directional move weights for the actor's motion yaw
+// (BroScr_ComputeMoveDirectionWeights), then GScr_SetAnim(ent, anim, weight, blend, 1.0, 0) for the
+// forward, back, second side (index 4) and first side (index 3) anims and the two diagonals when set; between
+// GScr_EmptyStub220/221(5). The last argument (the callers' visible-model flag) is unused.
+void XB_CDECL BroScr_SetDirectionalMoveAnims(uint32_t ent, uint32_t forward, uint32_t back, uint32_t side_a,
+                                             uint32_t side_b, uint32_t diagonal_a, uint32_t diagonal_b, uint32_t blend,
+                                             uint32_t visible);
 // 0x0019fe80: ends on 0x07b4e7f7; the thread kept in 0xa78b2c24 terminated and replaced by this one;
 // forever: waits for 0x2faeed05, BroScr_SetDirectionalMoveAnims(ent, anims, 0.2, has a visible model).
 [[noreturn]] void XB_CDECL BroScr_DirectionalMoveAnimsOnNotify(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4,

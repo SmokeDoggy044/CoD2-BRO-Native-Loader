@@ -38,6 +38,10 @@ void XB_CDECL BroScr_UpdateWoundedTimeDefaults(uint32_t ent, uint32_t anim, int3
 // 0x001a0ea0: appends a weapon class entry (the names hashed; the by-value strings released).
 void XB_CDECL BroScr_AddWeaponClassEntry(uint32_t unused, ScriptString weapon, ScriptString type, ScriptString fire_type,
                                          uint32_t fire_rate, uint32_t field4, uint32_t clip_size);
+// 0x001a2e70: the weapon class table (29 BroScr_AddWeaponClassEntry calls: "none", the German, US,
+// French and Italian weapons, m1garand_medic / _engineer): class rifle / pistol / lmg or the weapon
+// itself for launchers, fire type Auto / semi / bolt / lmg, fire rate, shot delay, clip size.
+void XB_CDECL BroScr_WeaponClassFor(uint32_t ent);
 // 0x001a0f70: the actor's weapon type (entry +4), 0x36b1a5 for no weapon, an undefined weapon,
 // hasweapon defined and 0, weapon model 0x36b1a5 or a weapon not in the table.
 uint32_t* XB_CDECL BroScr_GetWeaponType(uint32_t* out, uint32_t actor);

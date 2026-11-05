@@ -126,6 +126,14 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uin
 // 0x001dab60: the anim object's pose-movement handlers (+0x168..+0x188: BroScr_PoseMove_StandStop
 // .. BroScr_PoseMove_ProneRun).
 void XB_CDECL BroScr_InitPoseMovementTable();
+// 0x001a00c0 (unhookable: GScr_GetTime is called at +4, inside the first 5 bytes; not registered):
+// stores the time (0x521b4bf0), the current pose (0x6f631b0e) and the previous movement / wounded
+// anim / 0x175567a8 copies, then pose (0xdce273fb) and movement (0x358ad77b; undefined or 0 = the
+// current one 0x0ccee5c1); pose 0 = the current pose; calls the handler for pose (stand 0x070b89a4,
+// crouch 0xc1165808, prone 0x0738b1a5) x movement (stop 0x385d90, walk 0x3a09eb, run 0x1c6ce) from
+// the table above (out of range: the last), then the time, the pose (0xcbffac0d) and the movement
+// (0xcaeba6a6) again.
+void XB_CDECL BroScr_SetPoseMovement(uint32_t ent, uint32_t pose, uint32_t movement);
 
 }  // namespace game
 
