@@ -310,12 +310,16 @@ def wine_env():
     return env
 
 
-def compile_all(flags, only=None):
+def compile_all(flags, only=None, force_inline=False):
     src = WORK / "src"
     shutil.rmtree(src, ignore_errors=True)
     src.mkdir(parents=True)
     for path in list((ROOT / "game" / "code").glob("*.[ch]*")) + [ROOT / "platform" / "compiler.h"]:
         text = lower(path.read_text())
+        if force_inline:
+            # inline helpers as __forceinline: the compiled scripts' helpers were inlined (LTCG), so the
+            # ordered calls compare one to one instead of through an out-of-line helper.
+            text = re.sub(r"(?m)^(\s*)inline(\s+[^=;{]*\()", r"\1__forceinline\2", text)
         if path.suffix == ".cpp":
             text = thiscall_members(title_calls(text))
         if path.name == "compiler.h":
@@ -602,6 +606,8 @@ def main():
     ap.add_argument("--facts", action="store_true",
                     help="also compare callees and constants (no EH frame); prints only differences")
     ap.add_argument("--thread-switch", action="store_true")
+    ap.add_argument("--force-inline", action="store_true",
+                    help="compile inline helpers as __forceinline (helpers of compiled-script C)")
     args = ap.parse_args()
     if not (XDK / "bin" / "vc71" / "CL.Exe").exists():
         sys.exit(f"no compiler at {XDK}/bin/vc71 (set XDK5849)")
@@ -617,7 +623,7 @@ def main():
         registered = [r for r in registered if r[0] in wanted]
     # A selection compiles only the files that define it (a full run compiles all).
     only = {code for _, _, code in registered + extra} if wanted or args.thread_switch else None
-    objs, cut = compile_all(args.flags, only)
+    objs, cut = compile_all(args.flags, only, args.force_inline)
     compiled = obj_functions(objs)
     xbe = load_xbe()
     syms = symbols()

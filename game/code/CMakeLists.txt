@@ -40,8 +40,10 @@ set(game_code_sources
     bro_scr_vehicle_health.cpp
     bro_scr_fx_threads.cpp
     bro_scr_battle_threads.cpp
+    bro_scr_ai_anim_threads.cpp
     bro_scr_notify_threads.cpp
     bro_scr_anim_threads.cpp
+    bro_scr_trigger_threads.cpp
     bro_scr_vehicle_path.cpp
     bro_scr_wad.cpp
     bro_scr_wait_misc.cpp
