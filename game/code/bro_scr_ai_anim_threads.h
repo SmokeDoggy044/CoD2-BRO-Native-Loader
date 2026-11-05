@@ -584,5 +584,20 @@ void XB_CDECL Bro_cover_crouch__cover_crouch(uint32_t ent);
 // Then the pair unlinked if linked, the combat main thread, notify 0x807e5a80. Releases `reason`.
 void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason);
 
+// 0x001de080: the ranged combat thread (ends on 0x07b4e7f7), facing the enemy, each pass: no pose
+// movement, a reload; within anim object +0x198 of the enemy (none: just past it for the pose): stand
+// or crouch where it can shoot (close and seeing the enemy: stand), farther: crouch first. Standing may
+// side step first (chance by the distance, not allies); then the cover shoot behaviour; no pose: a side
+// step or the plain aim. Then the enemy distance to 0xa3b8e90e: prone range: the combat anim script;
+// a melee charge: the melee combat thread (both end it); else a grenade try. Releases `reason`.
+void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason);
+
+// 0x001dc0c0: the cover-stand thread (ends on 0x07b4e7f7), forever: aim (blend 2); while no sentient
+// slot is pending and rounds are left (no rechamber): face enemy, team blend times, the stand aim, aim
+// until it can shoot, then a volley (none: the plain aim; every tenth another) and a grenade try; or a
+// machine gunner seeing the enemy node suppresses (70%) while rounds are left. Then axis (no pending
+// slot, half the time): a grenade and a reload; otherwise the cover-stand idle at the cover spot.
+void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent);
+
 }  // namespace game
 

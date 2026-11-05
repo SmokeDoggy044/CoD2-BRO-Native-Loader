@@ -6329,4 +6329,249 @@ void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
     scr_release(&reason);
 }
 
+namespace {
+inline bool stance_allowed_now(uint32_t ent, uint32_t pose) {
+    return static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922714)(ent, pose)) != 0;  // GScr_ActorIsStanceAllowed
+}
+// BroScr_CanShootFromPose(ent, pose, no offset, `change`: 1 unless already in the pose).
+inline bool can_shoot_from(uint32_t ent, uint32_t pose, bool already) {
+    ScrVec3 none;
+    none.v[0] = title_global<uint32_t>(0x00922ec4);
+    none.v[1] = title_global<uint32_t>(0x00922ec8);
+    none.v[2] = title_global<uint32_t>(0x00922ecc);
+    uint8_t can;
+    return *BroScr_CanShootFromPose(&can, ent, pose, none, already ? 0 : 1) != 0;
+}
+// Aims in `pose` (both blend times from 0x00922ea4).
+inline void ranged_aim(uint32_t ent, uint32_t pose) {
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, pose, 0x00385d90);  // BroScr_SetPoseMovement
+    BroScr_SetAimBlendTimes(title_global<uint32_t>(0x00922ea4), title_global<uint32_t>(0x00922ea4));
+    BroScr_PlayIdleAnim(ent);
+    BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+}
+// BroScr_CoverShootBehavior(0, the empty string, 0x00922e84), then state slot 5.
+inline void ranged_cover_shoot(uint32_t ent) {
+    ScriptString mode;
+    ScriptString_Copy(&mode, pointer<ScriptString>(0x00922e90));
+    uint8_t shot;
+    BroScr_CoverShootBehavior(&shot, ent, 0, mode, title_global<uint32_t>(0x00922e84));
+    slot<void XB_CDECL(uint32_t)>(0x009226a4)(ent);  // Actor_CallStateSlot5
+}
+}  // namespace
+
+void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason) {
+    const uint32_t kStand = 0x070b89a4;
+    const uint32_t kCrouch = 0xc1165808;
+    end_on(ent, 0x07b4e7f7);
+    message_only(0x00826c88);  // "Script state called without reason."
+    set_orient_mode(ent, 0x0083adc0);  // "face enemy"
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0, 0x00385d90);  // BroScr_SetPoseMovement
+        BroScr_TryReload(ent, bits(0.0f), title_global<uint32_t>(0x00922ea8));
+        float dist = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent));  // GScr_SentientNearestEnemyDist
+        const bool standing = get_int_184(ent) == kStand;
+        const bool crouching = get_int_184(ent) == kCrouch;
+        const float range = at<float>(anim_object(), 0x198);
+        if (dist == title_global<float>(0x00922eac)) {  // no enemy: just past the range for the current pose
+            if (standing)
+                dist = range - title_global<float>(0x0083eb20);
+            else
+                dist = at<float>(anim_object(), 0x198) + title_global<float>(0x0083eb20);  // 1
+        }
+        int pose = 0;  // 1 stand, 2 crouch, 0 neither
+        const int32_t near = at<float>(anim_object(), 0x198) > dist ? 1 : 0;
+        if (static_cast<float>(near) != title_global<float>(0x0083eafc)) {
+            if (stance_allowed_now(ent, kStand) && can_shoot_from(ent, kStand, standing)) {
+                pose = 1;
+            } else {
+                const bool crouch_ok = stance_allowed_now(ent, kCrouch) && can_shoot_from(ent, kCrouch, crouching);
+                if (crouch_ok) {
+                    pose = 2;
+                } else {
+                    const int32_t close = title_global<float>(0x00826e40) > dist ? 1 : 0;  // 2304
+                    if (static_cast<float>(close) != title_global<float>(0x0083eafc)) {
+                        const long double sees = slot<long double XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009226d8)(
+                            ent, enemy_of(ent), 0);  // GScr_ActorCanSee
+                        if (sees != title_global<float>(0x0083eafc)) pose = 1;
+                    }
+                }
+            }
+        } else if (stance_allowed_now(ent, kCrouch) && can_shoot_from(ent, kCrouch, crouching)) {
+            pose = 2;
+        } else if (stance_allowed_now(ent, kStand) && can_shoot_from(ent, kStand, standing)) {
+            pose = 1;
+        }
+        if (pose == 2) {
+            ranged_aim(ent, kCrouch);
+            ranged_cover_shoot(ent);
+        } else if (pose == 1) {
+            ranged_aim(ent, kStand);
+            // Sometimes a side step first: more likely the nearer the enemy (not allies).
+            const float chance = (at<float>(anim_object(), 0x68) - dist) /
+                                 (at<float>(anim_object(), 0x68) - at<float>(anim_object(), 0x9c));
+            bool step;
+            {
+                ScriptString team;
+                step = !ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084)) &&  // "allies"
+                       static_cast<float>(chance > slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000) ? 1 : 0) !=
+                           title_global<float>(0x0083eafc);  // > Scr_RandomFloat(1)
+                scr_release(&team);
+            }
+            if (step) {
+                uint8_t stepped;
+                BroScr_StandShootSideStep(&stepped, ent);
+            }
+            ranged_cover_shoot(ent);
+        } else {
+            // The original tests the whole word its byte result sits in (stale upper bytes: 0 here).
+            uint32_t stepped = 0;
+            if (!*reinterpret_cast<uint32_t*>(BroScr_StandShootSideStep(reinterpret_cast<uint8_t*>(&stepped), ent))) {
+                title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0, 0x00385d90);
+                message_read(ent, 0x00826e04, 0x0ccee5c1);  // "combat::RangedCombat: About to call aim, movement is bad"
+                BroScr_SetAimBlendTimes(title_global<uint32_t>(0x0083ebf8), title_global<uint32_t>(0x00922ea4));  // 0.1
+                BroScr_PlayIdleAnim(ent);
+                BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+            }
+        }
+        {
+            float enemy_dist = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent));
+            if (enemy_dist == title_global<float>(0x00922eac)) enemy_dist = title_global<float>(0x0083ebec);  // 500
+            *key_slot(ent, 0xa3b8e90e, undefined_float()) = bits(enemy_dist);
+        }
+        uint32_t angles_at[3];
+        const uint32_t yaw = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ba0)(angles_at, ent)[1];  // ScrEnt_GetAngles
+        uint32_t origin_at[3];
+        const uint32_t* const origin = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(origin_at, ent);  // ScrEnt_GetOrigin
+        ScrVec3 point;
+        point.v[0] = origin[0];
+        point.v[1] = origin[1];
+        point.v[2] = origin[2];
+        uint32_t prone;
+        if (*BroScr_ShouldGoProne_2(&prone, ent, point, yaw)) {
+            call_thread_str(ent, 0x001dcd30, 0x00826dec);  // BroScr_AnimScript_Combat, "enemydist > pronerange"
+            break;
+        }
+        uint8_t charged;
+        if (*BroScr_MeleeCharge(&charged, ent)) {
+            call_thread_str(ent, 0x001dd8d0, 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
+            break;
+        }
+        ScrVec3 none;
+        none.v[0] = title_global<uint32_t>(0x00922ec4);
+        none.v[1] = title_global<uint32_t>(0x00922ec8);
+        none.v[2] = title_global<uint32_t>(0x00922ecc);
+        uint32_t thrown;
+        BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), none);
+        slot<void XB_CDECL(uint32_t)>(0x009226a4)(ent);  // Actor_CallStateSlot5
+    }
+    scr_release(&reason);
+}
+
+namespace {
+// BroScr_SetAimBlendTimes(first, 0x00922ea4), the idle, keep aiming at the target.
+inline void aim_idle(uint32_t ent, uint32_t first) {
+    BroScr_SetAimBlendTimes(first, title_global<uint32_t>(0x00922ea4));
+    BroScr_PlayIdleAnim(ent);
+    BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+}
+// BroScr_CoverShootBehavior(0, the empty string, 0x00922e84) into `out`.
+inline uint8_t* cover_shoot(uint8_t* out, uint32_t ent) {
+    ScriptString mode;
+    ScriptString_Copy(&mode, pointer<ScriptString>(0x00922e90));
+    return BroScr_CoverShootBehavior(out, ent, 0, mode, title_global<uint32_t>(0x00922e84));
+}
+}  // namespace
+
+void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent) {
+    end_on(ent, 0x07b4e7f7);
+    ScrVec3 offset;
+    offset.v[0] = bits(0.0f);
+    offset.v[1] = bits(0.0f);
+    offset.v[2] = bits(0.0f);
+    ScrVec3 cover;
+    BroScr_GetCoverNodeOrOrigin(cover.v, ent);
+    ScrVec3 forward;
+    title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00184390)(forward.v, ent);  // BroScr_GetCoverNodeForward
+    const uint32_t first_blend = title_global<uint32_t>(0x0083eba8);  // 2
+    for (;;) {
+        aim_idle(ent, first_blend);
+        if (!pending_slot(ent)) {
+            do {
+                if (!(static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) > 0)) break;  // no rounds left
+                if (*int_slot(ent, 0xc786fa48) != 0) break;                          // rechamber pending
+                set_orient_mode(ent, 0x0083adc0);  // "face enemy"
+                if (team_is_axis(ent))
+                    BroScr_SetAimBlendTimes(title_global<uint32_t>(0x0083eb24), title_global<uint32_t>(0x00922ea4));  // 0.5
+                else
+                    BroScr_SetAimBlendTimes(title_global<uint32_t>(0x0083ebf8), title_global<uint32_t>(0x00922ea4));  // 0.1
+                BroScr_PlayIdleAnim(ent);
+                BroScr_KeepAimingAtTarget(ent, title_global<uint32_t>(0x009230ec), title_global<uint32_t>(0x0092379c));
+                slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008cf354), title_global<uint32_t>(0x008cd7dc),
+                                                0x3f800000, 0x3e4ccccd, 0x3f800000, 0);  // GScr_SetAnimKnobAll(stand_aim, Body)
+                {
+                    const uint32_t aim = title_global<uint32_t>(0x008cf354);
+                    ScriptString name;
+                    scr_string_from(&name, 0x00826a38);  // "Not suppressed and ready to fire"
+                    BroScr_AimUntilCanShoot(ent, aim, aim, aim, title_global<uint32_t>(0x0083ec9c), name);  // 3
+                }
+                uint32_t can;
+                if (*BroScr_CheckCanShoot(&can, ent, title_global<uint32_t>(0x00922ebc))) {
+                    // The original tests the whole word its byte result sits in (stale upper bytes: 0 here).
+                    uint32_t shot = 0;
+                    cover_shoot(reinterpret_cast<uint8_t*>(&shot), ent);
+                    ++at<int32_t>(anim_object(), 0x190);
+                    if (!shot) aim_idle(ent, title_global<uint32_t>(0x0083ebf8));  // 0.1
+                    if (at<int32_t>(anim_object(), 0x190) > 10) {  // every tenth volley another
+                        at<int32_t>(anim_object(), 0x190) = 0;
+                        uint8_t again;
+                        cover_shoot(&again, ent);
+                    }
+                    uint32_t thrown;
+                    BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+                } else {
+                    // A machine gunner (fire type 0x315aef) that sees the enemy node: suppression (70%).
+                    uint32_t type;
+                    if (*BroScr_GetWeaponFireType(&type, ent) == 0x00315aef && random_int(100) < 70 &&
+                        slot<uint32_t XB_CDECL(uint32_t)>(0x00922780)(ent)) {  // GScr_ActorNodeCanSeeEnemyNode
+                        message_read(ent, 0x00826c00, 0x764918ae);  // "... About to call ShootVolley but not aiming"
+                        while (static_cast<int32_t>(*int_slot(ent, 0x0feddbea)) > 0) {
+                            {
+                                ScriptString type_name;
+                                scr_string_from(&type_name, 0x00826bec);  // "doingsuppression"
+                                BroScr_ChooseFlankOrCoverMe(ent, type_name);
+                            }
+                            const long double random = slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f333333);  // Scr_RandomFloat(0.7)
+                            aim_idle(ent, bits(static_cast<float>(random + title_global<float>(0x0083eca0))));  // + 0.2
+                            uint8_t shot;
+                            cover_shoot(&shot, ent);
+                            uint32_t thrown;
+                            BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+                        }
+                    }
+                }
+            } while (!pending_slot(ent));
+        }
+        bool grenade;
+        {
+            ScriptString team;
+            grenade = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x0083208c)) &&  // "axis"
+                      !pending_slot(ent) &&
+                      slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000) > title_global<float>(0x0083eb24);  // > 0.5
+            scr_release(&team);
+        }
+        if (grenade) {
+            uint32_t thrown;
+            BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), offset);
+            if (!pending_slot(ent)) {
+                BroScr_TryReload(ent, title_global<uint32_t>(0x0083eca0), title_global<uint32_t>(0x00922ea8));  // 0.2
+                BroScr_ReloadLauncher(ent);
+            }
+        } else {
+            ScriptString text;
+            scr_string_from(&text, 0x00826bd4);  // "Bottom of CoverStand"
+            BroScr_CoverStandIdle(ent, cover, forward, text);
+        }
+    }
+}
+
 }  // namespace game
