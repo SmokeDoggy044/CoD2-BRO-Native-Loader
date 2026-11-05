@@ -25,6 +25,15 @@ struct ScrVec3;
 void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys, uint32_t anime, ScriptString tag, ScrVec3 origin,
                                     uint32_t tag_ent, uint32_t flag, ScrVec3 angles);
 
+// 0x001757f0: the notetrack thread of a scene guy (started by BroScr_AnimLoopGuys / _AnimSingleGuys with
+// the scene entity `owner`): notifies 0x3621f548, ends the guy's previous one (field notetrack_wait, now
+// this thread), then per notetrack of `notify` until "end": each entry of the scene's table (level +0x160
+// [animname][anime]) whose "notetrack" matches (and "anime", when set): attach / detach gun, "swap from",
+// "attach model" / "detach model" (on "selftag" of the guy, else "tag" on tag_ent or owner), "sound"
+// (BroScr_PlaySoundOnTag thread), dialogue face anim (once per notetrack), create / delete model;
+// entries that don't match check the built-in "anim_gunhand = left/right" and "lookat = on/off".
+void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_t notify, uint32_t tag_ent, uint32_t anime);
+
 // 0x00176720: the looped scene `anime` for `guys` (a DynArray's address) of the entity *ref: guy 0's `loops`
 // field defined (0), a BroScr_LimitSameAnimation thread on guy 0; with `ender` (not the undefined handle)
 // *ref ends on it and a BroScr_DecrementCounterOnNotify thread (*ref, guy 0, ender) runs. Then forever:

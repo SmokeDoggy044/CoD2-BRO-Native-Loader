@@ -3,8 +3,12 @@
 #include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_anim.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_ai_anim.h"
 #include "bro_scr_anim_threads.h"
 #include "bro_scr_common.h"
+#include "bro_scr_notetrack.h"
+#include "bro_scr_util.h"
 #include "g_scr_runtime.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -271,6 +275,44 @@ inline void drop_map_copy(const uint32_t* guy) {
     title_function<void XB_THISCALL(HashMap*)>(0x00463c70)(&copy);  // HashMap_Dtor
     scr_release(&animname);
 }
+
+// The scene's notetrack entries: level +0x160 [animname hash] [anime] (an array of 0x28-byte string maps).
+inline DynArray* note_entries(const uint32_t* animhash, const uint32_t* anime) {
+    return reinterpret_cast<DynArray*>(HashMap_Index_8(
+        reinterpret_cast<HashMap*>(HashMap_Index_6(pointer<HashMap>(title_global<uint32_t>(0x00922ee0) + 0x160), animhash)),
+        anime));
+}
+// Entry j with the element access inline (DynArray_ResizeHashMap past the count), as the title's first
+// lookups are; the later ones call DynArray_AtHashMap (entry_at).
+inline uint8_t* entry_inline(const uint32_t* animhash, const uint32_t* anime, uint32_t j) {
+    DynArray* const list = note_entries(animhash, anime);
+    if (j >= list->size) DynArray_ResizeHashMap(list, j + 1, j + 4);
+    return reinterpret_cast<uint8_t*>(list->data) + j * 0x28;
+}
+inline uint8_t* entry_at(const uint32_t* animhash, const uint32_t* anime, uint32_t j) {
+    return DynArray_AtHashMap(note_entries(animhash, anime), j);
+}
+inline ScriptString* note_field(uint8_t* entry, const uint32_t* key) {
+    return title_function<ScriptString* XB_THISCALL(uint8_t*, const uint32_t*)>(0x00461120)(entry, key);  // HashMap_Index_11
+}
+// The entry's string under the hash of title string `name`: inline entry first, then the name's hash.
+inline ScriptString* field_inline(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t name) {
+    uint8_t* const entry = entry_inline(animhash, anime, j);
+    uint32_t hash;
+    return note_field(entry, Scr_HashName(&hash, pointer<const char>(name)));
+}
+// The same through DynArray_AtHashMap: the name's hash first.
+inline ScriptString* field_at(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t name) {
+    uint32_t hash;
+    const uint32_t* const key = Scr_HashName(&hash, pointer<const char>(name));
+    return note_field(entry_at(animhash, anime, j), key);
+}
+// The same under a constant key hash.
+inline ScriptString* field_key(const uint32_t* animhash, const uint32_t* anime, uint32_t j, uint32_t key) {
+    const uint32_t k = key;
+    return note_field(entry_at(animhash, anime, j), &k);
+}
+inline uint32_t word_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
 }  // namespace
 
@@ -610,6 +652,131 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
             Scr_WaitTill(*element_at(guys, static_cast<uint32_t>(last_face)), 0x7c70a61e);
         }
     }
+}
+
+void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_t notify, uint32_t tag_ent, uint32_t anime) {
+    using Attach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t);
+    using Detach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*);
+    using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
+    // One notetrack thread per guy: the previous one (field notetrack_wait) is terminated.
+    queue_notify(guy, 0x3621f548);
+    slot<void XB_CDECL(uint32_t)>(0x009221a0)(*key_slot(guy, 0xd850f89e, 0));  // Scr_TerminateThread
+    uint32_t* const wait = key_slot(guy, 0xd850f89e, 0);
+    *wait = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
+    const uint32_t holder = entity_handle_is_valid(tag_ent) ? tag_ent : owner;
+    ScriptString note;
+    ScriptString_FromRep(&note, nullptr);
+    for (;;) {
+        title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(guy, notify,
+                                                                                      &note);  // Scr_WaitTillOutputStr_ORAN
+        bool faced = false;
+        uint32_t note_hash;
+        Scr_HashScriptString(&note_hash, reinterpret_cast<const uint8_t* const*>(&note));
+        if (note_hash == 0x199a4) break;  // "end"
+        uint32_t animhash;
+        {
+            ScriptString animname;
+            Scr_HashScriptString(&animhash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&guy, &animname)));
+            scr_release(&animname);
+        }
+        // Every entry of the scene's notetrack table.
+        for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(note_entries(&animhash, &anime)->size); ++j) {
+            if (ScriptString_EqualsString(&note, field_inline(&animhash, &anime, j, 0x0082555c))) {  // "notetrack"
+                if (field_inline(&animhash, &anime, j, 0x00825554)->rep) {  // "anime": only for that scene
+                    uint32_t hash;
+                    if (*Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(
+                                                         field_inline(&animhash, &anime, j, 0x00825554))) != anime)
+                        continue;
+                }
+                if (field_inline(&animhash, &anime, j, 0x00825544)->rep) {  // "attach gun left"
+                    BroScr_AnimNotetrack_DeleteAttached(guy);
+                } else if (field_inline(&animhash, &anime, j, 0x00825530)->rep) {  // "attach gun right"
+                    BroScr_AnimNotetrack_DeleteAttached_2(guy);
+                } else if (field_inline(&animhash, &anime, j, 0x00825524)->rep) {  // "detach gun"
+                    BroScr_NotetrackDropGun(owner, guy, word_of(entry_inline(&animhash, &anime, j)));
+                } else if (field_inline(&animhash, &anime, j, 0x00825518)->rep) {  // "swap from"
+                    {
+                        ScriptString* const model = string_field(guy, 0xe86f599a);
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x00825518);  // "swap from"
+                        slot<Detach>(0x009224d8)(guy, model, tag);                               // GScr_Attach
+                    }
+                    ScriptString* const model = string_field(guy, 0xe86f599a);
+                    ScriptString* const tag = field_at(&animhash, &anime, j, 0x0082550c);  // "self tag"
+                    slot<Attach>(0x009224d0)(guy, model, tag, 0);                            // GScr_DetachEx
+                } else if (field_at(&animhash, &anime, j, 0x008254fc)->rep) {  // "attach model"
+                    if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {      // "selftag"
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
+                        ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
+                        slot<Attach>(0x009224d0)(guy, model, tag, 0);  // GScr_DetachEx
+                    } else {
+                        ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
+                        ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
+                        slot<Attach>(0x009224d0)(holder, model, tag, 0);  // GScr_DetachEx
+                    }
+                } else {
+                    if (field_at(&animhash, &anime, j, 0x008254e0)->rep) {  // "detach model"
+                        if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {  // "selftag"
+                            ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
+                            ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
+                            slot<Detach>(0x009224d8)(guy, model, tag);  // GScr_Attach
+                        } else {
+                            ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
+                            ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
+                            slot<Detach>(0x009224d8)(holder, model, tag);  // GScr_Attach
+                        }
+                    }
+                    if (field_at(&animhash, &anime, j, 0x008254d8)->rep) {  // "sound"
+                        ScriptString none;
+                        ScriptString_FromRep(&none, nullptr);
+                        ScriptString animname;
+                        const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(&guy, &animname);
+                        const uint32_t key = 0x070659a4;
+                        uint32_t hash;
+                        ScriptString* const alias = note_field(
+                            entry_at(Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)), &anime, j), &key);
+                        title_function<StartThread>(0x0045aff0)(0, 0, 0, 0, 0x0019ca70, guy, alias,
+                                                                &none);  // Scr_StartThread_ent_str_str(BroScr_PlaySoundOnTag)
+                        scr_release(&animname);
+                        scr_release(&none);
+                    }
+                    if (!faced) {
+                        if (field_key(&animhash, &anime, j, 0x84f611ff)->rep) {
+                            ScriptString name;
+                            scr_string_from(&name, 0x0081093c);  // "dialogue"
+                            BroScr_NotetrackFaceAnim(guy, anime, j, name);
+                            faced = true;
+                        } else if (field_key(&animhash, &anime, j, 0xcea13d87)->rep) {
+                            ScriptString name;
+                            scr_string_from(&name, 0x008254d0);  // "dialog"
+                            BroScr_NotetrackFaceAnim(guy, anime, j, name);
+                            faced = true;
+                        }
+                    }
+                    if (field_at(&animhash, &anime, j, 0x00824ebc)->rep) {  // "create model"
+                        BroScr_CreateModel(guy, word_of(entry_at(&animhash, &anime, j)));
+                    } else if (field_at(&animhash, &anime, j, 0x008254c0)->rep) {  // "delete model"
+                        BroScr_DeleteModel(guy, word_of(entry_at(&animhash, &anime, j)));
+                    }
+                    // Reads whose results the script drops (they add the keys).
+                    if (field_key(&animhash, &anime, j, 0x0cf2dc5b)->rep) field_key(&animhash, &anime, j, 0xcc529814);
+                    if (field_key(&animhash, &anime, j, 0x0001dc47)->rep) field_key(&animhash, &anime, j, 0xcc529814);
+                }
+            } else {
+                // Not this entry's notetrack: the built-in ones.
+                uint32_t hash;
+                if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x008254ac))) {  // "anim_gunhand = left"
+                    BroScr_PutGunInHand(guy, 0x003798b4);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825494))) {  // "anim_gunhand = right"
+                    BroScr_PutGunInHand(guy, 0x07151174);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825488))) {  // "lookat = on"
+                    BroScr_AnimNotetrack_Alert(guy, title_global<uint32_t>(0x00922eec), 10000);
+                } else if (note_hash == *Scr_HashName(&hash, pointer<const char>(0x00825478))) {  // "lookat = off"
+                    BroScr_AnimNotetrack_Alert(guy, guy, 0);
+                }
+            }
+        }
+    }
+    scr_release(&note);
 }
 
 namespace {
