@@ -194,11 +194,16 @@ void XB_CDECL BroScr_NotifySpawnGuyDied(uint32_t unused, uint32_t spawner, uint3
 // "explo_metal_rand" (key 0xd70abfb1); after death: the model, the metal sound, death anim knob
 // 0x008cd4ac (1, 0.2, 1, 1), the explosion sound, an earthquake (0.25, 3 s, 1050).
 void XB_CDECL BroScr_VehicleDeath_M13(uint32_t ent);
+// 0x0013e770: the same with the dead model "v_stuart_d1".
+void XB_CDECL BroScr_VehicleDeath_Stuart(uint32_t ent);
 // 0x00139f30: ends on the rider's death; after the vehicle's 0xecd7b044 (unload): weapon back in
 // hand, the rider's delay, the unload anim (key 0x2d7db3f6) at the vehicle's tag (string key
 // 0xb6abdc5e); then unlinked with all stances, notifies 0xa663db67 and restores its animname (key
 // 0xf203df5e) when set. Stops when the rider dies.
 void XB_CDECL BroScr_VehicleRiderUnload(uint32_t vehicle, uint32_t rider);
+// 0x0013dc30 / 0x0013e900: the same body.
+void XB_CDECL BroScr_VehicleRiderUnload_2(uint32_t vehicle, uint32_t rider);
+void XB_CDECL BroScr_VehicleRiderUnload_3(uint32_t vehicle, uint32_t rider);
 // 0x0013a0f0: ends on "nokill"; anim tree "halftrack", dead model
 // "v_M3A1_Halftrack_troop_d1_desert", sound "explo_metal_rand"; after death: the model and an
 // earthquake (0.25, 3 s, 1050).
@@ -215,6 +220,7 @@ void XB_CDECL BroScr_P47PlaneCrashThink(uint32_t ent);
 // at or above it ends in radius damage 2 (10000 - 9000) at the origin.
 void XB_CDECL BroScr_WingTurretDamageWatch(uint32_t ent);
 void XB_CDECL BroScr_WingTurretDamageWatch_2(uint32_t ent);
+void XB_CDECL BroScr_WingTurretDamageWatch_3(uint32_t ent);  // 0x0013eb00, the same body
 // 0x0013b200: anim tree "panzerIV", dead model = model + "_d1", sound "vehicle_explode"; after
 // death: the model, the sound, an earthquake (0.25, 3 s, 1050) and damage twice the player's
 // health to the player.
@@ -235,5 +241,102 @@ void XB_CDECL BroScr_FlakPanzerKeepUnusable(uint32_t vehicle, DynArray riders);
 void XB_CDECL BroScr_SmokeWhenHalfHealth(uint32_t ent);
 // 0x0013d580: ends on death; while alive, 88% of each "damage" below 900 is given back.
 void XB_CDECL BroScr_ReduceDamage(uint32_t ent);
+
+// 0x00137780: the player's slot weapons ("primary", "primaryb", "pistol", "grenade"), their ammo
+// and clip ammo and the "stielhandgranate" count saved, all weapons taken; after the level's
+// 0x54965009 each slot is checked and its ammo restored, the grenades given back (when any); then
+// 0x88c7e941 on the level.
+void XB_CDECL BroScr_SetupPlayerWeapons();
+// 0x00138230: the chain nodes: every node without spawnflag 2 that has a target and whose target or
+// targetname nodes (accumulated over all nodes) are not empty. Then forever, each frame, with the
+// cvar "chain" "1": the distance from the player to each chain node and each ally's sentient ref
+// 0x48 (results unused: a debug draw compiled out).
+void XB_CDECL BroScr_InitFriendlyChainNodes();
+// 0x00138760: after `ent`'s death, every trigger (multiple, once, use, damage, lookat) named
+// "friendly_chat" whose target is `ent`'s targetname is deleted.
+void XB_CDECL BroScr_FriendlyChatTriggers(uint32_t unused, uint32_t ent);
+
+// 0x0013c530: after `ai`'s death: the level's flak flag `flaknum` cleared and "flak died with
+// flaknum <n>" on the level; "stop_moving" on `flak` when its int key 0x1ccaaaf3 is set; `ai`
+// teleported 2 / 2 / 5 off its origin.
+void XB_CDECL BroScr_FlakStopMovingOnDeath(uint32_t flak, uint32_t ai, uint32_t flaknum);
+// 0x0013c810: ends on `trigger`'s death; when `trigger` is the "trigger_damage" with noteworthy
+// "deathtrig": waits until the "player_tank" damages it, then a BroScr_NotifyExplode thread on
+// `flak`. Then `flak` deleted, and while the player is within its script_offradius (350) for up
+// to script_offtime (20000 ms), waits a second; the flak flag cleared and "flak died with
+// flaknum <n>" on the level.
+void XB_CDECL BroScr_FlakDeathTrigger(uint32_t flak, uint32_t trigger, uint32_t flaknum);
+// 0x0013cc90: waits for death (with `on_death` set) or "explode"; "broken" on the level,
+// "explo_metal_rand", an earthquake (0.75, 3 s, 1150), the flak flag cleared, "flak died with
+// flaknum <n>" and the objective (when set) on the level; after 0.22 s the model in key 0xb8eafadd.
+void XB_CDECL BroScr_FlakDeathThink(uint32_t ent, uint32_t flaknum, uint8_t on_death);
+// 0x0013cf40: a BroScr_EndSequenceOnDeath thread per crew member; after "end_sequence" on the flak,
+// each live member gets it too, health 250, and with bool key 0x1ea97196 (cleared) an
+// "xmodel/panzerflak_ammo" on its "tag_weapon_left". Frees `crew`.
+void XB_CDECL BroScr_FlakLoaderAmmoAnim(uint32_t flak, DynArray crew);
+// 0x0013d2e0: after death: its mg turret deleted, radius damage 128 (800 - 400) 128 above, the dead
+// model ("v_sdkfz222_mons_d1" on mons1, else model + "_d1"), "vehicle_explode", an earthquake
+// (0.25, 3 s, 1050); "unload" when slower than 1 mph.
+void XB_CDECL BroScr_VehicleDeath_Sdkfz222(uint32_t ent);
+
+// 0x0013aca0: int key 0x086550be = 1; the "tankspawner" guys (by target) go into a dead-guy table
+// (BroScr_TankSpawnerSlots_Init: getout right / left / back with their death anims, model-only
+// random, delays 0, 2 + random(1), that + random(1) + 2); after 0x84785ea9: with bool key
+// 0xc54b0523 the key is cleared and nothing spawns; else the hatch tag's origin and angles, and per
+// table entry (the table's count word) the spawner moved to the tank and a BroScr_SpawnTankDeadGuys
+// thread; after 10 s 0x9d03d3cf. Every guy is model-only when the first spawner is invalid; with
+// more than 10 axis AI the first is too.
+void XB_CDECL BroScr_TankSpawnerThink(uint32_t self, uint32_t tank);
+
+// 0x0013b880: ends on death; walks a node chain: per node the goal radius from the node (valid
+// handle), a "misc_mg42" / "misc_turret" it targets gets a BroScr_MgWaitNewUser thread (radius 4),
+// goal at the node, waits for 0x0032304c, uses that turret, the node's script_delay; next is a random
+// node it targets. At the end: the level's panzer thread (word +0x318) for script_panzer 1; unless
+// the last node is "no_last_goal": `mode` "sometimes" (half the time) or "player" sets the goal on
+// the player (radius at least 192 / 128); then waits for 0x0032304c, radius 512. Releases `mode`.
+void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mode);
+
+// 0x00138ba0: the infinite panzerfaust box: of the trigger's targets the panzerfaust objective
+// model and the ammo-box objective model get their plain models, the others are replaced by
+// "script_origin"s (yaw + 270); hint "DAWNVILLE_PANZER"; a BroScr_PanzerfaustObjectiveModels
+// thread on the level. Then forever on "trigger": "picked up infinite panzerfaust" on the level,
+// objective off on the trigger; a panzerfaust in the primary / primaryb slot is refilled (taken,
+// 0.1 s, given, switched to); else the weapon in the current slot is dropped onto the first free
+// origin (key 0xda24dbe7) as its classname's model and replaced by a panzerfaust.
+void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger);
+
+// 0x0013d650: a rocket hitting near the player: "weapons_rocket_explosion", after 0.25 s radius
+// damage 320 (base + random(range) - min) 8 / 2 off the player and an earthquake (0.75, 2 s, 2250),
+// max health 100; while alive: player pm flags 0x80000 / 0x100000 off and 0x200000 on, after
+// 0.15 s a view kick from `ent`, shell shock
+// `shock` ("default") for `shock_time` (12; a BroScr_ShellShockWait thread unless `no_wait_thread`
+// is set), after 1.5 s the first two flags back on. Defaults 150 / 100 / 100. Releases `shock`.
+void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t base_damage, int32_t damage_range,
+                                     int32_t min_damage, uint32_t no_wait_thread, ScriptString shock);
+
+// 0x0013d9a0: anim tree "panzerIV"; dead model: "v_sherman" stays, "v_sherman_snow" ->
+// "v_sherman_snow_d1", else the model; sounds "vehicle_explode" / "explo_metal_rand"; after death:
+// the model, both sounds, an earthquake (0.25, 3 s, 1050).
+void XB_CDECL BroScr_VehicleDeath_Tank(uint32_t ent);
+// 0x0013eac0: ends on death; on each "shoot_guns" a BroScr_VehicleMg42Fire_2 (targets kept).
+void XB_CDECL BroScr_VehicleShootGunsThink(uint32_t ent);
+// 0x0013ebc0: ends on "nokill"; after death: the tank-spawner key cleared (bool key 0xc54b0523),
+// the mg turret deleted, 0x10a95eae, turret target cleared, an earthquake; a rolling death keeps
+// at least 8 until 0x6b6fe7fa; stopped, after 0.1 s the dead model, after 0.3 s full stop,
+// 0x84785ea9, paths disconnected; waits for the spawner's 0x9d03d3cf (when spawning); bool key
+// 0x00339844 set.
+void XB_CDECL BroScr_VehicleDeathThink(uint32_t ent);
+// 0x0013f550: BroScr_TurretStutter(ent, on_min, on_max, on_min, on_max).
+void XB_CDECL BroScr_TurretStutterCall(uint32_t ent, float min, float max);
+// 0x0013f570 / 0x0013f6f0: ends on "nokill" (death only); anim tree "willyjeep", dead model
+// "v_willysjeep_d1" ("_mons" on mons1), sound "explo_metal_rand". The death: after death the
+// model and an earthquake (0.25, 3 s, 1050). The init: a BroScr_VehicleDeathThink thread, then
+// waits for 0x10a95eae.
+void XB_CDECL BroScr_VehicleDeath_Jeep(uint32_t ent);
+void XB_CDECL BroScr_VehicleInit_Jeep(uint32_t ent);
+// 0x0013f820 (FUN_0013f820; proposed BroScr_WaitHeavyHitOrDamage): waits for damage (FUN_006609c0
+// with the attacker) and gives *dir = ent - attacker each time: true for a single hit above 95,
+// false once the hits add up past 150.
+uint8_t* XB_CDECL BroScr_WaitHeavyHitOrDamage(uint8_t* out, uint32_t ent, float* dir);
 
 }  // namespace game
