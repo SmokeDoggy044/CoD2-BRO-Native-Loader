@@ -24,6 +24,7 @@
 #include "bro_scr_gibs.h"
 #include "bro_scr_level.h"
 #include "bro_scr_level_info.h"
+#include "bro_scr_level_threads.h"
 #include "bro_scr_mission.h"
 #include "bro_scr_math.h"
 #include "bro_scr_mortar.h"
@@ -3165,6 +3166,7 @@ const Function kFunctions[] = {
     {"BroScr_FlakPickLeadPos", 0x0012fa80, 0, code(&BroScr_FlakPickLeadPos), 12, Result::Eax, Status::Compare},
     {"ScrField_can_shoot_low_2", 0x0012fd50, 0, code(ScrField_can_shoot_low_2), 8, Result::Eax, Status::Replaced},
     {"BroScr_FlakCanShootLow", 0x0012ff60, 0, code(&BroScr_FlakCanShootLow), 8, Result::Eax, Status::Compare},
+    {"BroScr_PlayerInsideEntZone", 0x00131180, 0, code(&BroScr_PlayerInsideEntZone), 16, Result::Eax, Status::Compare},
     {"BroScr_PlaneCrashSound", 0x001319d0, 0, code(&BroScr_PlaneCrashSound), 4, Result::None, Status::Compare},
     {"BroScr_DeleteVehicleTurrets_2", 0x00131ad0, 0, code(&BroScr_DeleteVehicleTurrets_2), 4, Result::None, Status::Compare},
     {"BroScr_PlaneCrashSound_2", 0x00132020, 0, code(&BroScr_PlaneCrashSound_2), 4, Result::None, Status::Compare},
