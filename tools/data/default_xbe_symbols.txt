@@ -4938,6 +4938,10 @@
 0013f990 BroScr_SpawnWoodGibsSmall
 00140090 ScrField_hc4813666
 001400c0 BroScr_PlayerHopOverWall
+00140bd0 BroScr_Flak88CrewAnimsAntitank
+00140fc0 BroScr_Flak88CrewAnimsAntiair
+001413b0 BroScr_Flak88CrewAnimsAntiair_2
+001417a0 BroScr_SetVehicleTargetsByTargetname
 00141840 BroScr_TryThrowGrenadeRightHandCall
 00141890 BroScr_LetterboxFade
 00141c00 BroScr_HalftrackGunnerGrenadeHint

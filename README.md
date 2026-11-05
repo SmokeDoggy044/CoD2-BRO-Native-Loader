@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 6,893 have been
+It's early days: about 73% of the functions have a name, and 6,897 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,295 | 9,136 | 6,893 | 4,402 |
+| Engine and game code (`.text`) | 11,299 | 9,140 | 6,897 | 4,402 |
 | Mission scripts (14 level sections) | 5,324 | 2,994 | 0 | 5,324 |
-| **Total** | **16,619** | **12,130** | **6,893** | **9,726** |
+| **Total** | **16,623** | **12,134** | **6,897** | **9,726** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -47,7 +47,7 @@ We've also named 2,667 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,097 | 1,088 | 7 | 1 | 0 | 0 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,647 | 1,323 | 261 | 43 | 17 | 0 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,647 | 1,325 | 259 | 43 | 17 | 0 |
 | Animation (animation trees, the animation codec) | 285 | 257 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 300 | 293 | 1 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 875 | 66 | 70 | 0 | 0 |
@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,007 | 1,702 | 294 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,448 | 270 | 317 | 700 | 147 | 7 |
+| Level-script helpers in the engine code | 1,452 | 272 | 319 | 708 | 139 | 7 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
