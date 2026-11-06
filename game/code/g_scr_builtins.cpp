@@ -2238,7 +2238,7 @@ uint8_t* XB_CDECL GScr_GetEntZone(uint32_t handle) {
     return MemContext_FindById(title_global<uint8_t*>(0x0095f638), id);
 }
 
-int32_t* XB_CDECL GScr_GetCurrentZoneId(int32_t* out) {
+int32_t* XB_CDECL GScr_NewHudElem(int32_t* out) {
     int32_t value = HudElem_Alloc();
     if (value == -1) value = title_global<int32_t>(0x008dda38);
     *out = value;

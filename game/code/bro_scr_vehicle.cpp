@@ -799,7 +799,7 @@ void XB_CDECL BroScr_SetupFlak88s() {
                 args[0], args[1], args[2], args[3], args[4], args[5]);  // Scr_StartThreadFunctor1
             break;
         }
-        if (filter) *filter = 0x001204a0;  // BroScr_IsFlakTarget
+        if (filter) *filter = 0x001204a0;  // BroScr_SetFlak88AnimsByType
         if (flak_type_defined(*ent_at(&guns, i))) flak_type_is(*ent_at(&guns, i), 0x008251ec);  // "controlled" (unused)
     }
     if (vehicles.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(vehicles.data);  // Scr_Free

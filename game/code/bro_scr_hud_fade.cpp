@@ -30,7 +30,7 @@ float as_float(uint32_t bits) {
 using Set = void XB_CDECL(uint32_t, uint32_t);       // ScrHudElem_Set* (handle, value bits)
 using HudOp = void XB_CDECL(uint32_t, uint32_t);     // GScr_HudFadeOverTime (&handle, seconds bits)
 using HudDestroy = void XB_CDECL(uint32_t);          // GScr_HudDestroy (&handle)
-using NewHud = uint32_t* XB_CDECL(uint32_t*);        // GScr_GetCurrentZoneId (a new hud elem)
+using NewHud = uint32_t* XB_CDECL(uint32_t*);        // GScr_NewHudElem (a new hud elem)
 using HudSetText = void XB_CDECL(uint32_t, ScriptString*);
 using HudSetShader = void XB_CDECL(uint32_t, ScriptString*, uint32_t, int32_t);
 

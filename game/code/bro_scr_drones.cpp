@@ -169,7 +169,7 @@ uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString
             ScriptString tag;
             scr_string_from(&tag, 0x00831e14);  // "tag_weapon_right"
             uint32_t* gun_model = title_function<uint32_t* XB_CDECL(uint32_t)>(0x0012b660)(drone);  // ScrField_drone_gun
-            scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*, uint32_t)>(0x009224d0)(drone, gun_model, &tag, 0);  // GScr_DetachEx
+            scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*, uint32_t)>(0x009224d0)(drone, gun_model, &tag, 0);  // GScr_AttachWithOwner
             scr_release(&tag);
         }
     }

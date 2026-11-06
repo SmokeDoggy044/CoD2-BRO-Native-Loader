@@ -53,7 +53,7 @@ void XB_CDECL BroScr_AttachDroneGun(uint32_t, uint32_t ent, ScriptString model, 
     ScriptString_FromCString(&tag, pointer<const char>(0x00831e14));  // "tag_weapon_right"
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
     ScriptString* const held = title_function<GetString>(0x00458da0)(script_object_or_empty(ent), 0x1a7e7545);  // ScriptKeyTable_GetString
-    slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, held, &tag);  // GScr_Attach
+    slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, held, &tag);  // GScr_Detach
     ScriptString_Release(&tag);
 
     ScriptString_FromCString(&tag, pointer<const char>(0x00831e14));

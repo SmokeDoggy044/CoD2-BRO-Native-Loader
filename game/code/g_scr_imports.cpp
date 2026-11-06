@@ -739,7 +739,7 @@ const ImportSlot kLevelImports[] = {
     {0x340, 0x00303880},  // GScr_BadPlace_Delete
     {0x344, 0x00303e70},  // GScr_BadPlace_Cylinder
     {0x348, 0x00303d20},  // GScr_BadPlace_Arc
-    {0x34c, 0x002fb600},  // GScr_GetCurrentZoneId
+    {0x34c, 0x002fb600},  // GScr_NewHudElem
     {0x350, 0x002ff590},  // Actor_FreeAllCorpses
     {0x7a4, 0x002f5140},  // GScr_SetHudVisible
     {0x7a8, 0x003005a0},  // GScr_HudSetText

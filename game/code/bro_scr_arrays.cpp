@@ -89,7 +89,7 @@ ScriptString* XB_CDECL BroScr_RandomArrayString(ScriptString* out, DynArray stri
     return out;
 }
 
-void XB_CDECL BroScr_DetachRandomModel(uint32_t ent, DynArray models) {
+void XB_CDECL BroScr_AttachRandomModel(uint32_t ent, DynArray models) {
     ScriptString name;
     ScriptString_FromRep(&name, nullptr);
     DynArray copy = {nullptr, 0, 0};
@@ -98,7 +98,7 @@ void XB_CDECL BroScr_DetachRandomModel(uint32_t ent, DynArray models) {
     const ScriptString* const result = BroScr_RandomArrayString(&chosen, copy);
     ScriptString_Assign(&name, result);
     ScriptString_Release(&chosen);
-    slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009224d4)(ent, &name);  // GScr_DetachNoTag
+    slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009224d4)(ent, &name);  // GScr_AttachNoTag
     ScriptString_Release(&name);
     release_strings(models.data, models.size);
 }

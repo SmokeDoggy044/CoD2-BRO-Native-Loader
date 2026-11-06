@@ -2297,7 +2297,7 @@ void XB_CDECL BroScr_LetterboxFade(uint32_t, float duration, uint32_t closing, u
     slot<SetCvar>(0x009222e4)(0x008235b0, 0x0082e098);  // GScr_SetCvar("cg_drawgun", "0")
     slot<Ent>(0x009228e4)(0);                           // GScr_SetHudVisible
     uint32_t handle;
-    level_field(0x79c) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    level_field(0x79c) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_NewHudElem (a new hud elem)
     slot<Set>(0x00922a48)(level_field(0x79c), 0);                                   // ScrHudElem_Set_04
     slot<Set>(0x00922a50)(level_field(0x79c), 0);                                   // ScrHudElem_Set_08
     slot<Set>(0x00922a68)(level_field(0x79c), 0);                                   // ScrHudElem_SetFloat_6c
@@ -2919,16 +2919,16 @@ inline uint32_t& flak_anim_count(uint32_t flaknum) {
     return counts->data[flaknum];
 }
 
-// The "xmodel/panzerflak_ammo" clip on "tag_weapon_left": GScr_DetachEx or GScr_Attach.
+// The "xmodel/panzerflak_ammo" clip on "tag_weapon_left": GScr_Detach or GScr_AttachWithOwner.
 inline void flak_clip(uint32_t ent, bool attach) {
     ScriptString tag;
     ScriptString_FromCString(&tag, pointer<const char>(0x00831e28));  // "tag_weapon_left"
     ScriptString model;
     ScriptString_FromCString(&model, pointer<const char>(0x00824860));  // "xmodel/panzerflak_ammo"
     if (attach)
-        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, &model, &tag);  // GScr_Attach
+        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, &model, &tag);  // GScr_Detach
     else
-        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, &model, &tag, 0);  // GScr_DetachEx
+        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, &model, &tag, 0);  // GScr_AttachWithOwner
     ScriptString_Release(&model);
     ScriptString_Release(&tag);
 }
@@ -2997,9 +2997,9 @@ inline void flak_clip_tag(uint32_t ent, uint32_t tag_text, bool attach) {
     ScriptString model;
     ScriptString_FromCString(&model, pointer<const char>(0x00824860));  // "xmodel/panzerflak_ammo"
     if (attach)
-        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, &model, &tag);  // GScr_Attach
+        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, &model, &tag);  // GScr_Detach
     else
-        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, &model, &tag, 0);  // GScr_DetachEx
+        slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, &model, &tag, 0);  // GScr_AttachWithOwner
     ScriptString_Release(&model);
     ScriptString_Release(&tag);
 }

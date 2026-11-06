@@ -24,8 +24,8 @@ void XB_CDECL BroScr_EmptyFunc_StrArray_2(uint32_t unused, DynArray strings);
 void XB_CDECL BroScr_EmptyFunc_StrArray_3(DynArray strings);
 // 0x001a4700 (dead): out = a copy of a random entry of `strings`; frees the array. Returns out.
 ScriptString* XB_CDECL BroScr_RandomArrayString(ScriptString* out, DynArray strings);
-// 0x001a47b0 (dead): GScr_DetachNoTag(ent, a random entry of `models`); frees `models`.
-void XB_CDECL BroScr_DetachRandomModel(uint32_t ent, DynArray models);
+// 0x001a47b0 (dead): GScr_AttachNoTag(ent, a random entry of `models`); frees `models`.
+void XB_CDECL BroScr_AttachRandomModel(uint32_t ent, DynArray models);
 // 0x001a53c0 (dead): BroScr_SetCreditsName(actor, the word at 0x00922ebc).
 void XB_CDECL BroScr_SetCreditsNameDefault(uint32_t actor);
 // 0x001a5830 (dead): targetname = "null " + the origin as "%f,%f,%f", key 0x070b8a34 = 1, then a

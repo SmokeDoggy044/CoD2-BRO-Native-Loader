@@ -611,13 +611,13 @@ void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
     if (held == 0x003798b4 || *handle_slot(actor, 0x1de0c645) == 0x07151174) {
         ScriptString tag;
         ScriptString_FromCString(&tag, hand_tag(held));
-        slot<Attach>(0x009224d8)(actor, key_string(actor, 0x81ea0dd3), &tag);  // GScr_Attach
+        slot<Attach>(0x009224d8)(actor, key_string(actor, 0x81ea0dd3), &tag);  // GScr_Detach
         ScriptString_Release(&tag);
     }
     if (wanted == 0x003798b4 || wanted == 0x07151174) {
         ScriptString tag;
         ScriptString_FromCString(&tag, hand_tag(wanted));
-        slot<Detach>(0x009224d0)(actor, &weapon, &tag, 0);  // GScr_DetachEx
+        slot<Detach>(0x009224d0)(actor, &weapon, &tag, 0);  // GScr_AttachWithOwner
         ScriptString_Release(&tag);
         ScriptString_Assign(key_string(actor, 0x81ea0dd3), &weapon);
         if (wanted == 0x003798b4) *handle_slot(actor, 0x1de0c645) = 0x003798b4;

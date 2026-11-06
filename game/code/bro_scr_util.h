@@ -44,9 +44,9 @@ void XB_CDECL BroScr_MoveToThread(uint32_t ent, ScrVec3 pos, uint32_t time);
 void XB_CDECL BroScr_RotateToFaceDirection(uint32_t ent, ScrVec3 from, ScrVec3 to, uint32_t time);
 // 0x00120350 / 0x00120360 / 0x00120370 / 0x001203d0 (args[4]), 0x00120460 (args[10]), 0x00120480
 // (args[12]): empty script bodies that release their one string argument (tail jump).
-BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_4)
-BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_5)
-BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_6)
+BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_11)
+BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_12)
+BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_13)
 BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg)
 BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_2)
 BRO_SCR_ARGS_DECL(BroScr_EmptyFuncStrArg_3)
@@ -62,11 +62,11 @@ BRO_SCR_ARGS_DECL(BroScr_EmptyFuncArrArg)
 // 0x001204a0: flak parameters by type into `out` (words 0, 1, 2, 5, 6 from .data 0x008cd41c..):
 // "flaktank" sets its set, then "flakairlow" overrides words 2 and 5, any other type (also
 // "flaktank") the defaults. Releases `type`.
-void XB_CDECL BroScr_IsFlakTarget(uint32_t unused, ScriptString type, uint32_t* out);
+void XB_CDECL BroScr_SetFlak88AnimsByType(uint32_t unused, ScriptString type, uint32_t* out);
 // 0x00120580: GScr_Vehicle_MakeUnusable when the low byte of `unusable` is set, else MakeUsable.
 void XB_CDECL BroScr_VehicleSetUnusable(uint32_t vehicle, uint32_t unusable);
 // 0x00120b00: deletes `ent` when the cvar g_gameskill is "3".
-void XB_CDECL BroScr_GetGameSkill(uint32_t ent);
+void XB_CDECL BroScr_DeleteIfGameSkill3(uint32_t ent);
 // 0x00120b80: the level's default cvars (eleven Scr_SetCvar, SetHudVisible(1), one more), then
 // six cvars (0x0082c0e0, "skipto", "debug", "chain", "fallback", "debug_mortars") reset when
 // their value equals "" (0x0082dfeb).

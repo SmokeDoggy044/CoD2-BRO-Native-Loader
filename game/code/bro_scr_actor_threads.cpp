@@ -1923,7 +1923,7 @@ void XB_CDECL BroScr_HelmetPop(uint32_t ent) {
     if (*ScrField_h3bfcf651_IsDefined(&defined, ent)) {
         ScriptString tag;
         scr_string_from(&tag, 0x00825e98);  // "TAG_HELMETSIDE"
-        slot<AttachSlot>(0x009224d8)(ent, key_string(ent, 0x3bfcf651), &tag);  // GScr_Attach slot
+        slot<AttachSlot>(0x009224d8)(ent, key_string(ent, 0x3bfcf651), &tag);  // GScr_Detach slot
         scr_release(&tag);
         remove_key(&ent, 0x3bfcf651);
     }

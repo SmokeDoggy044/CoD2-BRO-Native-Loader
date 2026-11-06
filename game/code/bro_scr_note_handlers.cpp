@@ -149,7 +149,7 @@ void remove_key(const uint32_t* ent, uint32_t key) {
 }
 // GScr_Attach(ent, model, a temporary of `tag`).
 void attach_with(uint32_t ent, ScriptString* model, ScriptString* tag) {
-    slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, model, tag);  // GScr_Attach
+    slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, model, tag);  // GScr_Detach
     scr_release(tag);
 }
 
@@ -423,7 +423,7 @@ ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, 
             ScriptString tag;
             scr_string_from(&tag, 0x007f644c);  // "TAG_WEAPON_LEFT"
             slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, ScrField_haee61f94(ent),
-                                                                                             &tag, 0);  // GScr_DetachEx
+                                                                                             &tag, 0);  // GScr_AttachWithOwner
             scr_release(&tag);
             remove_key(&ent, 0xaee61f94);
         } else if (callback) {

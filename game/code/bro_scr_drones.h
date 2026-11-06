@@ -29,7 +29,7 @@ void XB_CDECL BroScr_StartDroneDeathThreads(uint32_t self, ScriptString name);
 // undefined: then *out = the word at 0x00922e84). Counts it, entity flag 0x2000000, a random
 // model of the type's list (level +0x814), group "drone", forced LOD min(lod, 4) unless
 // undefined; when the type has guns (level +0x274) field 0x1a7e7545 = a random one and, with
-// drone_gun defined, GScr_DetachEx of it from tag_weapon_right. *out = the drone; releases
+// drone_gun defined, GScr_AttachWithOwner of it to tag_weapon_right. *out = the drone; releases
 // `type`; returns out. Not registered (thread_switch: GScr_Spawn runs the new entity's script).
 uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString type, uint32_t lod);
 // 0x00170200: builds the path's spline (BroScr_DroneSplineMath into array field 0xb89aec99) when

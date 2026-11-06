@@ -212,12 +212,12 @@ void XB_CDECL BroScr_RotateToFaceDirection(uint32_t ent, ScrVec3 from, ScrVec3 t
     slot<void XB_CDECL(uint32_t, ScrVec3*, uint32_t, uint32_t, uint32_t)>(0x009227a8)(ent, &angles, time, 0, 0);  // GScr_RotateTo
 }
 
-BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_4)
-uint32_t XB_CDECL BroScr_EmptyFuncStrArg_4(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
-BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_5)
-uint32_t XB_CDECL BroScr_EmptyFuncStrArg_5(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
-BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_6)
-uint32_t XB_CDECL BroScr_EmptyFuncStrArg_6(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
+BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_11)
+uint32_t XB_CDECL BroScr_EmptyFuncStrArg_11(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
+BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_12)
+uint32_t XB_CDECL BroScr_EmptyFuncStrArg_12(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
+BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_13)
+uint32_t XB_CDECL BroScr_EmptyFuncStrArg_13(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
 BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg)
 uint32_t XB_CDECL BroScr_EmptyFuncStrArg(uint32_t* args) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(release(&args[4]))); }
 BRO_SCR_ARGS_ENTRY(BroScr_EmptyFuncStrArg_2)
@@ -262,7 +262,7 @@ uint32_t XB_CDECL BroScr_EmptyFuncArrArg(uint32_t* args) {
     return 0;
 }
 
-void XB_CDECL BroScr_IsFlakTarget(uint32_t, ScriptString type, uint32_t* out) {
+void XB_CDECL BroScr_SetFlak88AnimsByType(uint32_t, ScriptString type, uint32_t* out) {
     if (ScriptString_Equals(&type, pointer<const char>(0x00823544))) {  // "flaktank"
         out[0] = title_global<uint32_t>(0x008cd470);
         out[1] = title_global<uint32_t>(0x008cd488);
@@ -290,7 +290,7 @@ void XB_CDECL BroScr_VehicleSetUnusable(uint32_t vehicle, uint32_t unusable) {
         slot<void XB_CDECL(uint32_t)>(0x009228b8)(vehicle);  // GScr_Vehicle_MakeUsable
 }
 
-void XB_CDECL BroScr_GetGameSkill(uint32_t ent) {
+void XB_CDECL BroScr_DeleteIfGameSkill3(uint32_t ent) {
     if (cvar_equals(0x00832fec, 0x008398e0))                 // "g_gameskill" == "3"
         slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
 }

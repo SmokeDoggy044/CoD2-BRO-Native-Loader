@@ -505,7 +505,7 @@ void XB_CDECL GScr_HudClear(const int32_t* index);
 // context's own id (+0x34) for stale entities and zone -1.
 uint8_t* XB_CDECL GScr_GetEntZone(uint32_t handle);
 // 0x002fb600: *out = HudElem_Alloc(), or 0x008dda38 when none is free. Returns out.
-int32_t* XB_CDECL GScr_GetCurrentZoneId(int32_t* out);
+int32_t* XB_CDECL GScr_NewHudElem(int32_t* out);
 // 0x002fb620: the weapon's type name (0x008d237c[def +0x94]) into out, "none" for unknown weapons.
 void XB_CDECL GScr_WeaponType(ScriptString* out, const ScriptString* weapon_name);
 // 0x002fb680, 0x002fb6c0: the weapon def's +0x6d8 / +0x6d4, 0 for unknown weapons.

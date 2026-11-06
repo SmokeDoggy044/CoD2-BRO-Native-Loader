@@ -133,7 +133,7 @@ uint32_t* XB_CDECL BroScr_SpawnFlakvierling(uint32_t* out, ScriptString targetna
 // damaged model field 0xb8eafadd = "xmodel/turret_flak88_d", anim tree "flak88"; by its type
 // (field 0xd1c52a4f): none -> think 0x00140bd0 (field 0x2f31323b), "flakair"/"flakairlow" ->
 // think 0x00140fc0, "controlled"/"flaktank" -> anim_thread 0x00140bd0, each with target filter
-// BroScr_IsFlakTarget (0xc511e266); "player_only" starts BroScr_TankShellReadyHud on it and ends
+// BroScr_SetFlak88AnimsByType (0xc511e266); "player_only" starts BroScr_TankShellReadyHud on it and ends
 // the setup. Any other type: nothing.
 void XB_CDECL BroScr_SetupFlak88s();
 

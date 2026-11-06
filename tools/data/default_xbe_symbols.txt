@@ -4325,7 +4325,7 @@
 00120470 BroScr_EmptyFunc_13
 00120480 BroScr_EmptyFuncStrArg_3
 00120490 BroScr_EmptyFunc_14
-001204a0 BroScr_IsFlakTarget
+001204a0 BroScr_SetFlak88AnimsByType
 00120580 BroScr_VehicleSetUnusable
 001205b0 BroScr_KillWhenHealthLow
 00120630 BroScr_WaitTill_h08d272e5
@@ -4336,13 +4336,17 @@
 00120850 BroScr_EmptyFunc_17
 00120860 BroScr_WaitFiveSeconds
 00120890 BroScr_FadeFromBlack
-00120b00 BroScr_GetGameSkill
+00120b00 BroScr_DeleteIfGameSkill3
 00120b80 BroScr_InitLevelCvars
 00120e40 BroScr_EmptyFunc
 00120e50 BroScr_EmptyFunc_18
 00120e60 BroScr_EmptyFunc_2
 00120e70 BroScr_StartFxOnTrigger
+00120f10 BroScr_StopFxOnTrigger
+00120fb0 BroScr_FriendlyChainOnTrigger
+00120ff0 BroScr_WaitTillTrigger
 00121010 BroScr_ExploderTriggerThink
+00121110 BroScr_PanzerfaustObjectiveModels
 00121270 BroScr_SetAmericanScreens
 00121310 BroScr_EmptyFunc_19
 00121320 BroScr_VehicleFireAnimIfAlive
@@ -4858,6 +4862,7 @@
 00136020 BroScr_EmptyFuncArrStrArgs
 00136070 BroScr_EmptyFuncArrStrArgs_2
 001360c0 BroScr_EmptyFuncArrArg
+001360d0 BroScr_EmptyFuncArrStrArgs_3
 00136120 BroScr_VehicleDeath_Flak88
 001362b0 BroScr_DeleteFromLevelList784ByTargetname
 00136450 BroScr_FlakvierlingAnimTree
@@ -5129,6 +5134,7 @@
 00159cc0 BroScr_PlaneSpawnWingTurretsCall_3
 00159cf0 BroScr_PlaneSpawnWingTurretsCall_2
 00159d20 BroScr_FindAllFlakvierlings
+00159d30 BroScr_FindFlakvierlingsCall
 00159d50 BroScr_SpawnFlakvierlingCall
 00159de0 BroScr_VehicleSpawnRiderCall
 00159e10 BroScr_VehicleSpawnRiderCall_2
@@ -5172,6 +5178,7 @@
 0015fd60 BroScr_RandomSoundBurstsThread
 0015fde0 BroScr_RandomSoundBurstsThread_2
 0015fe50 BroScr_RandomSoundBurstsThread_3
+0015fea0 BroScr_RandomSoundBurstsThread_4
 0015fef0 BroScr_SetWheelSmokeFxCall_2
 0015ff60 BroScr_MinefieldTriggerThink
 00160010 BroScr_PlayShellIncomingCall
@@ -6429,6 +6436,7 @@
 001a0940 BroScr_LookAtEntity
 001a0b80 BroScr_LookAtPositionNoType
 001a0d20 BroScr_StopLookingAt_2
+001a0d30 BroScr_SetLookOverrideFields
 001a0dc0 BroScr_SetCombatDelay
 001a0e60 BroScr_UpdateWoundedTimeDefaults
 001a0ea0 BroScr_AddWeaponClassEntry
@@ -6450,6 +6458,7 @@
 001a1dd0 BroScr_GetAllowedMovePose
 001a1f50 BroScr_InitAnimScript
 001a2260 BroScr_ApplyDesiredAnimPose
+001a2420 BroScr_InitAnimScriptAndPose
 001a2450 BroScr_WoundedWalkLoop
 001a2510 BroScr_PlayStepSounds
 001a2710 BroScr_IsFlamethrower
@@ -6493,7 +6502,7 @@
 001a4620 BroScr_SetRandomModel
 001a46c0 BroScr_EmptyFunc_StrArray
 001a4700 BroScr_RandomArrayString
-001a47b0 BroScr_DetachRandomModel
+001a47b0 BroScr_AttachRandomModel
 001a4890 BroScr_EmptyFunc_StrArray_2
 001a48d0 BroScr_EmptyFunc_StrArray_3
 001a4910 BroScr_Mg42AutoTriggerThink
@@ -6557,10 +6566,11 @@
 001ac460 BroScr_HeadLookMainLoop_Thunk
 001ac470 BroScr_GetCombatRunAnim
 001ac700 BroScr_TryLookAtPlayer
-001ac9f0 FUN_001ac9f0
+001ac9f0 BroScr_LookAtPlayerLoop
 001acac0 Bro_anim_main_grenade_recover
 001acae0 BroScr_ForwardNotifyString
 001acb60 BroScr_ResetAnimStruct_12993a44
+001acc10 BroScr_SetAnimStruct_12993a44
 001acd90 BroScr_StandCombatRun
 001acf80 BroScr_StandCombatWalk
 001ad1f0 BroScr_CrouchRun
@@ -6709,6 +6719,7 @@
 001c25f0 Bro_anim_main_grenade_cower
 001c2610 Bro_b30cal_stand
 001c2640 Bro_b30cal_prone
+001c2670 BroScr_SetDesiredPoseProneMg42
 001c27a0 BroScr_TurretPoseProne
 001c28d0 BroScr_TurretPoseStand
 001c29c0 BroScr_TryTurretGunnerPain
@@ -10361,7 +10372,7 @@
 002fb4e0 GScr_HudClear
 002fb500 HudElem_SetTimerKind
 002fb5a0 GScr_GetEntZone
-002fb600 GScr_GetCurrentZoneId
+002fb600 GScr_NewHudElem
 002fb620 GScr_WeaponType
 002fb680 GScr_WeaponGet_6d8
 002fb6c0 GScr_WeaponGet_6d4

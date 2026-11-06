@@ -154,7 +154,7 @@ inline void fire_wait_thread(uint32_t tank) { thread_1(tank, 0x007f5ba0, 0x0015b
 // The ready-shell hud as BroScr_TankShellReadyHud(_2) build it (a new hud elem in level +0x80c).
 inline void build_shell_hud() {
     uint32_t handle;
-    level_field(0x80c) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    level_field(0x80c) = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_NewHudElem (a new hud elem)
     hud_set(0x00922a58, 1);      // ScrHudElem_Set_14
     hud_set(0x00922a60, 1);      // ScrHudElem_Set_18
     hud_set(0x00922a48, 0x24e);  // ScrHudElem_Set_04 (x 590)
@@ -869,7 +869,7 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
         ScriptString_Release(&flag);
     }
     uint32_t handle;
-    const uint32_t hud = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    const uint32_t hud = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_NewHudElem (a new hud elem)
     uint32_t stopwatch = hud;
     slot<Set>(0x00922a48)(hud, 0x32);  // ScrHudElem_Set_04 (x 50)
     slot<Set>(0x00922a50)(hud, 0xf0);  // ScrHudElem_Set_08 (y 240)

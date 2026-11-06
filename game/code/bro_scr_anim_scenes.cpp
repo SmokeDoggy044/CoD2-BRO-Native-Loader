@@ -698,31 +698,31 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
                     {
                         ScriptString* const model = string_field(guy, 0xe86f599a);
                         ScriptString* const tag = field_at(&animhash, &anime, j, 0x00825518);  // "swap from"
-                        slot<Detach>(0x009224d8)(guy, model, tag);                               // GScr_Attach
+                        slot<Detach>(0x009224d8)(guy, model, tag);                               // GScr_Detach
                     }
                     ScriptString* const model = string_field(guy, 0xe86f599a);
                     ScriptString* const tag = field_at(&animhash, &anime, j, 0x0082550c);  // "self tag"
-                    slot<Attach>(0x009224d0)(guy, model, tag, 0);                            // GScr_DetachEx
+                    slot<Attach>(0x009224d0)(guy, model, tag, 0);                            // GScr_AttachWithOwner
                 } else if (field_at(&animhash, &anime, j, 0x008254fc)->rep) {  // "attach model"
                     if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {      // "selftag"
                         ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
                         ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
-                        slot<Attach>(0x009224d0)(guy, model, tag, 0);  // GScr_DetachEx
+                        slot<Attach>(0x009224d0)(guy, model, tag, 0);  // GScr_AttachWithOwner
                     } else {
                         ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
                         ScriptString* const model = field_at(&animhash, &anime, j, 0x008254fc);
-                        slot<Attach>(0x009224d0)(holder, model, tag, 0);  // GScr_DetachEx
+                        slot<Attach>(0x009224d0)(holder, model, tag, 0);  // GScr_AttachWithOwner
                     }
                 } else {
                     if (field_at(&animhash, &anime, j, 0x008254e0)->rep) {  // "detach model"
                         if (field_at(&animhash, &anime, j, 0x008254f4)->rep) {  // "selftag"
                             ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f4);
                             ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
-                            slot<Detach>(0x009224d8)(guy, model, tag);  // GScr_Attach
+                            slot<Detach>(0x009224d8)(guy, model, tag);  // GScr_Detach
                         } else {
                             ScriptString* const tag = field_at(&animhash, &anime, j, 0x008254f0);  // "tag"
                             ScriptString* const model = field_at(&animhash, &anime, j, 0x008254e0);
-                            slot<Detach>(0x009224d8)(holder, model, tag);  // GScr_Attach
+                            slot<Detach>(0x009224d8)(holder, model, tag);  // GScr_Detach
                         }
                     }
                     if (field_at(&animhash, &anime, j, 0x008254d8)->rep) {  // "sound"

@@ -259,7 +259,7 @@ void XB_CDECL BroScr_FadeFromBlack(ScriptString text) {
     using HudOp = void XB_CDECL(uint32_t, uint32_t);
     // The new hud element's handle is written to a stack word first (the slot returns a pointer to it).
     uint32_t handle;
-    const uint32_t black = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_GetCurrentZoneId (a new hud elem)
+    const uint32_t black = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_NewHudElem (a new hud elem)
     level_word(0x2e0) = black;
     slot<Set>(0x00922a48)(level_word(0x2e0), 0);                                    // ScrHudElem_Set_04
     slot<Set>(0x00922a50)(level_word(0x2e0), 0);                                    // ScrHudElem_Set_08

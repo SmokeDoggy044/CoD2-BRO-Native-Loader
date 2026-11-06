@@ -3268,7 +3268,7 @@ address,name,kind,confidence,evidence
 00307fa0,GScr_LoadZoneSync,function,medium,script builtin slot 219: requests the zone and runs Stream_Update until it is loaded (up to 10000 steps)
 009224ac,pScr_GScr_LoadZoneSync,data,medium,script builtin slot 219 pointer
 00305150,GScr_Attach,function,medium,script builtin slot 230: G_EntAttach with model and tag; call sites push xmodel/... and tag_weapon_right
-009224d8,pScr_GScr_Attach,data,medium,script builtin slot 230 pointer
+009224d8,pScr_GScr_Detach,data,high,"script iface slot 230 pointer (0x00922140 + 4*230) -> GScr_Detach (G_SetupGameScriptImports table offset 0x398; fixed 2026-11-05, was shifted)"
 00305630,GScr_AttachNoTag,function,medium,script builtin slot 231: GScr_Attach with an empty tag
 009224dc,pScr_GScr_AttachNoTag,data,medium,script builtin slot 231 pointer
 00305110,GScr_DetachAll,function,medium,script builtin slot 232: G_EntDetachAll on the entity
@@ -3597,8 +3597,8 @@ address,name,kind,confidence,evidence
 009223c0,pScr_GScr_GetIntMapValue,data,medium,script iface slot 160 pointer (0x00922140 + 4*160) -> GScr_GetIntMapValue
 00922414,pScr_GScr_LocationalTraceSurface,data,medium,script iface slot 181 pointer (0x00922140 + 4*181) -> GScr_LocationalTraceSurface
 00922418,pScr_GScr_TraceSurfaceType,data,medium,script iface slot 182 pointer (0x00922140 + 4*182) -> GScr_TraceSurfaceType
-009224d0,pScr_GScr_DetachEx,data,medium,script iface slot 228 pointer (0x00922140 + 4*228) -> GScr_DetachEx
-009224d4,pScr_GScr_DetachNoTag,data,medium,script iface slot 229 pointer (0x00922140 + 4*229) -> GScr_DetachNoTag
+009224d0,pScr_GScr_AttachWithOwner,data,high,"script iface slot 228 pointer (0x00922140 + 4*228) -> GScr_AttachWithOwner (G_SetupGameScriptImports table offset 0x390; fixed 2026-11-05, was shifted)"
+009224d4,pScr_GScr_AttachNoTag,data,high,"script iface slot 229 pointer (0x00922140 + 4*229) -> GScr_AttachNoTag (G_SetupGameScriptImports table offset 0x394; fixed 2026-11-05, was shifted)"
 009224f0,pScr_GScr_TestEntBit299,data,medium,script iface slot 236 pointer (0x00922140 + 4*236) -> GScr_TestEntBit299
 00922530,pScr_GScr_IsTouching,data,medium,script iface slot 252 pointer (0x00922140 + 4*252) -> GScr_IsTouching
 00922544,pScr_GScr_SetRefEntFlag_ef,data,medium,script iface slot 257 pointer (0x00922140 + 4*257) -> GScr_SetRefEntFlag_ef
@@ -3754,7 +3754,7 @@ address,name,kind,confidence,evidence
 002fb4e0,GScr_HudClear,function,medium,"slot 502 (between HudMoveOverTime and HudDestroy): HudElem_SetDefaults"
 002fb5a0,GScr_GetEntZone,function,medium,"slot 214: memory context of the entity's zone (+0x220, -1 = current 0x0095f638 +0x34)"
 002ff500,GScr_GetZoneAtPoint,function,medium,"slot 215: CM_CellForPoint -> cell's zone, else the current zone"
-002fb600,GScr_GetCurrentZoneId,function,low,"slot 211: FUN_002f6160 or the default 0x008dda38"
+002fb600,GScr_NewHudElem,function,low,"slot 211: FUN_002f6160 or the default 0x008dda38"
 002f53b0,GScr_PushToList95fdf0,function,low,"slot 557: appends a value to the bounded array 0x0095fdf0 (count 0x0095fdf6, max 0x0095fdf4)"
 002f5350,GScr_CopyStringFromEngine,function,low,"slot 558: engine iface +0x870 string -> strncpy into (buf, size)"
 002b74c0,GScr_ClearEntFlag4000000,function,low,"slot 577: entity +0x2a4 &= ~0x4000000"
@@ -4254,7 +4254,7 @@ address,name,kind,confidence,evidence
 00922420,pScr_GScr_EmptyStub184,data,medium,"script iface slot 184 pointer (0x00922140 + 4*184, filled by 0030adb0) -> GScr_EmptyStub184"
 0092245c,pScr_GScr_EmptyStub199,data,medium,"script iface slot 199 pointer (0x00922140 + 4*199, filled by 0030adb0) -> GScr_EmptyStub199"
 00922460,pScr_GScr_EmptyStub200,data,medium,"script iface slot 200 pointer (0x00922140 + 4*200, filled by 0030adb0) -> GScr_EmptyStub200"
-0092248c,pScr_GScr_GetCurrentZoneId,data,medium,"script iface slot 211 pointer (0x00922140 + 4*211, filled by 0030adb0) -> GScr_GetCurrentZoneId"
+0092248c,pScr_GScr_NewHudElem,data,medium,"script iface slot 211 pointer (0x00922140 + 4*211, filled by 0030adb0) -> GScr_NewHudElem (HudElem_Alloc; was named GetCurrentZoneId until 11-05)"
 00922490,pScr_Actor_FreeAllCorpses,data,medium,"script iface slot 212 pointer (0x00922140 + 4*212, filled by 0030adb0) -> Actor_FreeAllCorpses"
 009228e4,pScr_GScr_SetHudVisible,data,medium,"script iface slot 489 pointer (0x00922140 + 4*489, filled by 0030adb0) -> GScr_SetHudVisible"
 009228f0,pScr_GScr_HudSetTimer4,data,medium,"script iface slot 492 pointer (0x00922140 + 4*492, filled by 0030adb0) -> GScr_HudSetTimer4"
@@ -4288,7 +4288,7 @@ address,name,kind,confidence,evidence
 009223f8,pScr_GScr_EmptyStub174,data,medium,"script iface slot 174 pointer (0x00922140 + 4*174, filled by 0030adb0) -> GScr_EmptyStub174"
 00922a44,pScr_GScr_ClearEntFlag4000000,data,medium,"script iface slot 577 pointer (0x00922140 + 4*577, filled by 0030adb0) -> GScr_ClearEntFlag4000000"
 00922a40,pScr_GScr_SetEntFlag4000000,data,medium,"script iface slot 576 pointer (0x00922140 + 4*576, filled by 0030adb0) -> GScr_SetEntFlag4000000"
-009224cc,pScr_GScr_Detach,data,medium,"script iface slot 227 pointer (0x00922140 + 4*227, filled by 003094a0) -> GScr_Detach"
+009224cc,pScr_GScr_Attach,data,high,"script iface slot 227 pointer (0x00922140 + 4*227) -> GScr_Attach (G_SetupGameScriptImports table offset 0x38c; fixed 2026-11-05, was shifted)"
 00922510,pScr_GScr_EnableLinkTo,data,medium,"script iface slot 244 pointer (0x00922140 + 4*244, filled by 003094a0) -> GScr_EnableLinkTo"
 00922580,pScr_GScr_TurretCall272,data,medium,"script iface slot 272 pointer (0x00922140 + 4*272, filled by 003094a0) -> GScr_TurretCall272"
 00922a78,pScr_ScrHudElem_SetAlpha,data,medium,"script iface slot 590 pointer (0x00922140 + 4*590, filled by 003094a0) -> ScrHudElem_SetAlpha"
@@ -5776,7 +5776,7 @@ address,name,kind,confidence,evidence
 001cb310,BroScr_ForceShootAtPoint,function,medium,"'face point'; called by BroScr_ForceShootThink; shot interval / weapon type"
 001d5410,BroScr_ForceShoot,function,medium,"'forceShoot'; called by level scripts (event5_bazooka_guy)"
 00181e30,BroScr_UseAiOnMg42Hint,function,medium,"'CGAME_USEAIONMG42', 'trigger'"
-001204a0,BroScr_IsFlakTarget,function,low,"compares 'flaktank' / 'flakairlow'"
+001204a0,BroScr_SetFlak88AnimsByType,function,low,"compares 'flaktank' / 'flakairlow'"
 0012f3b0,BroScr_LimitSameAnimation,function,low,"'Too many of same animation playing'"
 001c7880,Bro_hide__main,function,high,"own debug string 'hide::main'"
 001cbae0,BroScr_GrenadeDangerThink,function,medium,"'grenadedanger' + BroScr_BattleChatter"
@@ -5792,7 +5792,7 @@ address,name,kind,confidence,evidence
 0019b050,BroScr_FriendlyFinishedMg42,function,medium,"notify 'friendly_finished_using_mg42'"
 001818c0,BroScr_Mg42ShootSoundLoop,function,low,"'mg42_shoot'"
 00181960,BroScr_TurretStateChangeWait,function,low,"endon + wait 'turretstatechange'"
-00120b00,BroScr_GetGameSkill,function,medium,"reads cvar 'g_gameskill' and compares"
+00120b00,BroScr_DeleteIfGameSkill3,function,medium,"reads cvar 'g_gameskill' and compares"
 00183f50,BroScr_MiscStepSounds,function,low,"'misc_step1', 'misc_step2'"
 001835b0,BroScr_DropWeaponRight,function,low,"'TAG_WEAPON_RIGHT'; called from the death anim script"
 00135870,BroScr_PlayerHopSplineMath,function,low,"'stop_spline_math_drawing'; called by BroScr_PlayerHopOverWall"
@@ -12675,7 +12675,7 @@ address,name,kind,confidence,evidence
 002ecc80,PM_Footsteps,function,medium,"Q3 PM_Footsteps shape: pm->xyspeed (pm[0x49]) = horizontal speed first; bails on turret/vehicle; stance from viewheight +0xa8 vs prone/crouch heights (+0x424/+0x420); bob cycle by pml_msec, legs anims"
 002ef090,PM_CheckDuck,function,medium,"Q3 PM_CheckDuck shape: pm mins/maxs (pm[0x40..0x45]) from ps +0x408..+0x418, viewheight +0xa8 per stance (+0x42c), prone checks with BG_CheckProneFeet and stance-change events"
 002f1220,PM_Weapon,function,medium,"Q3 PM_Weapon role: skipped on pm_flags 0x800 or dead (pm_type > 3); PM_UpdateAimDownSightFrac, weapon state machine helpers, PM_WeaponUseAmmo, PM_RemoveEmptyWeapon, HUD grenade-cook reset"
-002f6160,HudElem_Alloc,function,medium,"first free 0x7c-byte hud record of 16 at 0x0094cc88 (+0 inuse): sets inuse, alpha-like +0xc = 1.0, color +0x1c = 0xffffffff, clears the rest, returns index or -1; caller 002fb600 'GScr_GetCurrentZoneId' looks like newHudElem"
+002f6160,HudElem_Alloc,function,medium,"first free 0x7c-byte hud record of 16 at 0x0094cc88 (+0 inuse): sets inuse, alpha-like +0xc = 1.0, color +0x1c = 0xffffffff, clears the rest, returns index or -1; caller 002fb600 'GScr_NewHudElem' looks like newHudElem"
 002fdf40,ScrObject_GetThreadHandle,function,medium,"Scr_InitWaitRecord: clears the 3-dword record (ESI), allocates a handle for the object (EDI +0x14) via ScrThread_AllocHandle when it has none (slot table 0x008dd228), stores it in record[2]"
 002ff3e0,Sys_InitHeaps,function,medium,"Sys_Main: SmallHeap_Init (3 size classes) into 0x0095f4a4, Heap_CreateFromZone (0x494-byte heap) into 0x0095f4a0, registers callback 0x002fd6e0 in the list 0x00988784 (max 32)"
 0030adb0,G_SetupLevelScriptImports,function,high,"G_LoadLevelScriptModule: fills the level-script import table (0x0095f49c) with engine function pointers: GScr_EmptyStub0/1, GScr_SendGameMessage, GScr_Print3D, sprintf/strcpy, Scr_CreateThread, Scr_BeginThread, wait records ..."
@@ -13723,7 +13723,7 @@ address,name,kind,confidence,evidence
 001a46c0,BroScr_EmptyFunc_StrArray,function,medium,"no references; empty script function taking a string array by value: releases each string, Scr_Free"
 001a4890,BroScr_EmptyFunc_StrArray_2,function,medium,"no references; empty script function (self, string array by value): releases each string, Scr_Free"
 001a48d0,BroScr_EmptyFunc_StrArray_3,function,medium,no references; same body as BroScr_EmptyFunc_StrArray
-001a47b0,BroScr_DetachRandomModel,function,medium,"no references; BroScr_RandomArrayString of a string array arg, GScr_DetachNoTag(self, model)"
+001a47b0,BroScr_AttachRandomModel,function,medium,"no references; BroScr_RandomArrayString of a string array arg, GScr_DetachNoTag(self, model)"
 001a4910,BroScr_Mg42AutoTriggerThink,function,medium,"functor thread from BroScr_SetupSpawnerTriggers when trigger.script_mg42auto (0xbe5f9a9f) is defined: waittill trigger, AI/spawners with matching script_mg42auto get ai_mode = auto_ai + notify auto_ai, BroScr_DeleteFloodSpawner"
 001a5940,BroScr_IncrementTriggerThink,function,medium,"functor thread from BroScr_SetupSpawnerTriggers when trigger.script_increment is defined: waittill trigger loop, ents by classname with script_increment adjusted, ScrEnt_GetDelay, BroScr_DeleteFloodSpawner"
 001a7650,BroScr_ArrayExclude,function,medium,no references; copies array elements not found in the excluders array (1024-entry stack buffer) into the out array
@@ -14685,9 +14685,9 @@ address,name,kind,confidence,evidence
 007f48d4,vtbl_AeThreadFunctor,data,high,"AeThreadFunctor base vtable"
 0094cc88,g_hudElems,data,high,"0x7c-byte HUD element records"
 
-00120350,BroScr_EmptyFuncStrArg_4,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
-00120360,BroScr_EmptyFuncStrArg_5,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
-00120370,BroScr_EmptyFuncStrArg_6,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+00120350,BroScr_EmptyFuncStrArg_11,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+00120360,BroScr_EmptyFuncStrArg_12,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+00120370,BroScr_EmptyFuncStrArg_13,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 00120630,BroScr_WaitTill_h08d272e5,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 00134be0,BroScr_SetField7ab1fdf4_IsValid,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 0015d510,BroScr_GetLevelVecOrZero,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
@@ -14745,3 +14745,15 @@ address,name,kind,confidence,evidence
 0015e4c0,BroScr_WindowBreakOnHit,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 004611e0,HashMap_IndexBool,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
 0045ceb0,DynArray_AtInt0,function,medium,"proposed by the levelscript push agents (from the body), applied 2026-11-05"
+001360d0,BroScr_EmptyFuncArrStrArgs_3,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+001a0d30,BroScr_SetLookOverrideFields,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+001a2420,BroScr_InitAnimScriptAndPose,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+00159d30,BroScr_FindFlakvierlingsCall,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+0015fea0,BroScr_RandomSoundBurstsThread_4,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+001acc10,BroScr_SetAnimStruct_12993a44,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+00120f10,BroScr_StopFxOnTrigger,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+00120fb0,BroScr_FriendlyChainOnTrigger,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+00120ff0,BroScr_WaitTillTrigger,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+00121110,BroScr_PanzerfaustObjectiveModels,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+001c2670,BroScr_SetDesiredPoseProneMg42,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
+001ac9f0,BroScr_LookAtPlayerLoop,function,medium,"levelscript push (wt/ghidra_todo.md), created/applied in Ghidra 2026-11-05"
