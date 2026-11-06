@@ -262,7 +262,18 @@ def compile_check(state):
             ranges.append((cur[0], cur[1], i))
             cur = None
     out = {}
+    hdr = cpp.with_suffix(".h")
+    hlines = hdr.read_text().split("\n")
     for e in r.stderr.split("\n"):
+        mh = re.match(rf"{re.escape(str(hdr))}:(\d+):\d+: error: (.*)", e)
+        if mh:  # a header declaration: blame the row whose DECLS block holds that line
+            n, addr = int(mh.group(1)), "file"
+            for i in range(n - 1, -1, -1):
+                if hlines[i].startswith("// api_worker BEGIN "):
+                    addr = hlines[i].split()[-1]
+                    break
+            out.setdefault(addr, []).append(f"header line {n}: {mh.group(2)}")
+            continue
         m = re.match(rf"{re.escape(str(cpp))}:(\d+):\d+: error: (.*)", e)
         if m:
             n = int(m.group(1))
@@ -500,6 +511,10 @@ def cmd_recheck(args):
     state = load(args.run)
     cpp, hdr = module_files(state)
     t = cpp.read_text()
+    h = hdr.read_text()
+    if '#include "scr_access.h"' not in h:
+        hdr.write_text(h.replace('#include "script_string.h"', '#include "qcommon_fs.h"\n#include "scr_access.h"\n'
+                                 '#include "script_string.h"', 1))
     if "using bro_ai::slot;\n\n" in t and "namespace {\nusing bro_ai::pointer" not in t:
         t = t.replace("using bro_ai::pointer;\nusing bro_ai::slot;\n",
                       "namespace {\nusing bro_ai::pointer;\nusing bro_ai::slot;\n}  // namespace\n", 1)
