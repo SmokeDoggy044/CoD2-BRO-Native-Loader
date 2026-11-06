@@ -109,6 +109,7 @@ set(game_code_sources
     g_vehicle.cpp
     levels_prologue_a.cpp
     levels_prologue_b.cpp
+    levels_prologue_events.cpp
     movie.cpp
     movie_vid.cpp
     nal_anim.cpp
