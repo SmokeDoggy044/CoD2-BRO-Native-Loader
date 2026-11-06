@@ -35,6 +35,7 @@ public class ApplyPrototypes extends GhidraScript {
             case "void": return VoidDataType.dataType;
             case "uint64_t": return UnsignedLongLongDataType.dataType;
             case "int64_t": return LongLongDataType.dataType;
+            case "long double": return Float10DataType.dataType;
         }
         return null;
     }
@@ -116,7 +117,7 @@ public class ApplyPrototypes extends GhidraScript {
                 }
                 VariableStorage rs;
                 if (ret instanceof VoidDataType) rs = VariableStorage.VOID_STORAGE;
-                else if (ret instanceof FloatDataType || ret instanceof DoubleDataType) rs = new VariableStorage(currentProgram, st0);
+                else if (ret instanceof FloatDataType || ret instanceof DoubleDataType || ret instanceof Float10DataType) rs = new VariableStorage(currentProgram, st0);
                 else if (ret.getLength() == 8) rs = new VariableStorage(currentProgram, eax, edx);
                 else rs = new VariableStorage(currentProgram, eax);
                 FunctionDefinitionDataType def = new FunctionDefinitionDataType(r[1], dtm);

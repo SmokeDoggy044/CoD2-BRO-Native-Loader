@@ -7,7 +7,7 @@ by the levelreach.py init functions) get the prototype of the builtin stored in 
 
 Types: fixed-width scalars -> Ghidra builtins; pointers to our structs -> placeholder structs of that name
 (category /bro); structs passed by value -> structs of their real size (a compiled sizeof probe). Skipped and
-counted: asm entries, long double / 64-bit results, parameters that are function pointers or references.
+counted: asm entries that are not plain push sequences, parameters that are function pointers or references.
 
 Output: build/protos/functions.csv (address,name,convention,regs,return,params and param_names with '|' between,
 varargs,
@@ -38,7 +38,7 @@ DECL = re.compile(r'^(?:extern "C" )?(?:PLATFORM_HIDDEN )?(?:static )?(?:inline 
 SCALARS = {"uint32_t": "uint", "int32_t": "int", "uint8_t": "byte", "int8_t": "sbyte", "uint16_t": "ushort",
            "int16_t": "short", "float": "float", "double": "double", "bool": "bool", "char": "char",
            "void": "void", "uintptr_t": "uint", "size_t": "uint", "unsigned": "uint", "int": "int",
-           "uint64_t": "ulonglong", "int64_t": "longlong"}
+           "uint64_t": "ulonglong", "int64_t": "longlong", "long double": "float10"}
 
 
 def clean(t):
@@ -159,15 +159,15 @@ def main():
         if any("&" in t or "(" in t for t in types + [ret]):
             skipped["reference or function-pointer type"] += 1
             continue
-        if ret in ("long double", "uint64_t", "int64_t", "double") and not ret.endswith("*"):
-            skipped["x87 / 64-bit result"] += 1
-            continue
         if regs and (cc == "thiscall" or cc == "fastcall"):
             skipped["regparm with thiscall/fastcall"] += 1
             continue
         out = []
         for t in [ret] + types:
             base = t.rstrip("*")
+            if base == "long double" and t == base:
+                out.append(t)
+                continue
             if base not in SCALARS and not re.fullmatch(r"\w+", base):
                 out = None
                 break
