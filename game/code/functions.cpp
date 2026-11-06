@@ -99,6 +99,7 @@
 #include "scr_access.h"
 #include "levels_prologue_a.h"
 #include "levels_prologue_b.h"
+#include "levels_templates.h"
 #include "levels_twins.h"
 #include "scr_class.h"
 #include "scr_field.h"
@@ -8415,6 +8416,7 @@ const Function kFunctions[] = {
     {"AeThreadFunctor4_ent_str_f_f_Invoke", 0x00459a30, 0, code(&AeThreadFunctor4_ent_str_f_f_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor4_ent_str_hash_hash_Invoke; kept original: script thread switch (as its reference)
     {"AeThreadFunctor4_ent_i_f_f_Invoke", 0x00459c60, 0, code(&AeThreadFunctor4_ent_i_f_f_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor4_ent_hash_i_f_Invoke; kept original: script thread switch (as its reference)
     {"AeThreadFunctor7_ent_i_f_f_i_i_i_Invoke", 0x00459f30, 0, code(&AeThreadFunctor7_ent_i_f_f_i_i_i_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke; kept original: script thread switch (as its reference)
+    {"ListNode_DestroyValue_PROLOGUE", 0x0045a370, 0, code(&ListNode_DestroyValue_PROLOGUE), 0, Result::Eax, Status::Compare},
     {"Scr_StartThread_ent_str_f_f_PROLOGUE", 0x0045b190, 0, code(&Scr_StartThread_ent_str_f_f_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_str_i_str_2
     {"Scr_StartThread_ent_vec_f_str_PROLOGUE", 0x0045b220, 0, code(&Scr_StartThread_ent_vec_f_str_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_ent_str_vec
     {"Scr_StartThread_ent_vec_str_PROLOGUE", 0x0045b780, 0, code(&Scr_StartThread_ent_vec_str_PROLOGUE_entry), 32, Result::Eax, Status::Compare},  // near twin of Scr_StartThreadFunctorN
@@ -8441,34 +8443,62 @@ const Function kFunctions[] = {
     {"std_list_Clear_2_PROLOGUE", 0x0045ca00, 0, code(&std_list_Clear_2_PROLOGUE), 0, Result::None, Status::Compare},  // near twin of std_list_Clear_2
     {"std_list_BuyHead_PROLOGUE", 0x0045ca40, 0, code(&std_list_BuyHead), 0, Result::Eax, Status::Compare},  // twin of std_list_BuyHead
     {"DynArray_Resize4_PROLOGUE", 0x0045cad0, 0, code(&DynArray_Resize4), 8, Result::None, Status::Compare},  // twin of DynArray_Resize4
+    {"DynArray_At_PROLOGUE", 0x0045cb70, 0, code(&DynArray_At_PROLOGUE), 4, Result::Eax, Status::Compare},
     {"ScriptKeyTable_SetArray_2_PROLOGUE", 0x0045cba0, 0, code(&ScriptKeyTable_SetArray_2), 8, Result::Eax, Status::Compare},  // twin of ScriptKeyTable_SetArray_2
     {"ScriptKeyTable_GetOrAddArray_2_PROLOGUE", 0x0045cc20, 0, code(&ScriptKeyTable_GetOrAddArray_2), 4, Result::Eax, Status::Compare},  // twin of ScriptKeyTable_GetOrAddArray_2
     {"ScriptKeyTable_SetArray", 0x0045cc80, 0, code(&ScriptKeyTable_SetArray), 8, Result::Eax, Status::Compare},  // near twin of ScriptKeyTable_SetArrayBytes
     {"ScriptKeyTable_GetArrayCopy", 0x0045cd00, 0, code(&ScriptKeyTable_GetArrayCopy), 8, Result::Eax, Status::Compare},  // near twin of ScriptKeyTable_GetArrayCopy_2
     {"ScriptKeyTable_GetArray", 0x0045cd50, 0, code(&ScriptKeyTable_GetArray), 4, Result::Eax, Status::Compare},  // near twin of ScriptKeyTable_GetOrAddArray_2
+    {"DynArray_At_PROLOGUE_2", 0x0045cdb0, 0, code(&DynArray_At_PROLOGUE_2), 4, Result::Eax, Status::Compare},  // near twin of DynArray_At_PROLOGUE
+    {"DynArray_AtInt0", 0x0045ceb0, 0, code(&DynArray_AtInt0), 4, Result::Eax, Status::Compare},  // near twin of DynArray_At_PROLOGUE
+    {"DynArray_At_PROLOGUE_3", 0x0045cee0, 0, code(&DynArray_At_PROLOGUE_3), 4, Result::Eax, Status::Compare},  // near twin of DynArray_At_PROLOGUE
+    {"DynArray_At_PROLOGUE_4", 0x0045cf10, 0, code(&DynArray_At_PROLOGUE_4), 4, Result::Eax, Status::Compare},  // near twin of DynArray_At_PROLOGUE
+    {"DynArray_NewCopy_PROLOGUE", 0x0045cfd0, 0, code(&DynArray_NewCopy_PROLOGUE), 4, Result::Eax, Status::Compare},
+    {"DynArray_NewCopy_PROLOGUE_2", 0x0045d030, 0, code(&DynArray_NewCopy_PROLOGUE_2), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
     {"DynArray_Assign4_PROLOGUE_3", 0x0045d530, 0, code(&DynArray_Assign4_PROLOGUE_3), 4, Result::None, Status::Compare},  // near twin of DynArray_Assign4
     {"std_UninitializedFillN4_PROLOGUE", 0x0045d6e0, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Compare},  // twin of std_UninitializedFillN4
     {"Scr_StartThread_ent_arrent_hash_hash_PROLOGUE", 0x0045def0, 0, code(&Scr_StartThread_ent_arrent_hash_hash_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_ent_str_vec
     {"Scr_StartThread_ent_arrent_i_PROLOGUE", 0x0045e0c0, 0, code(&Scr_StartThread_ent_arrent_i_PROLOGUE_entry), 32, Result::Eax, Status::Compare},  // near twin of Scr_StartThreadFunctorN
+    {"DynArray_NewCopy_PROLOGUE_3", 0x0045e150, 0, code(&DynArray_NewCopy_PROLOGUE_3), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
+    {"DynArray_NewCopy_PROLOGUE_4", 0x0045e1b0, 0, code(&DynArray_NewCopy_PROLOGUE_4), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
+    {"DynArray_NewCopy_PROLOGUE_5", 0x0045e210, 0, code(&DynArray_NewCopy_PROLOGUE_5), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
+    {"DynArray_NewCopy_PROLOGUE_6", 0x0045e270, 0, code(&DynArray_NewCopy_PROLOGUE_6), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
+    {"DynArray_NewCopy_PROLOGUE_7", 0x0045e2d0, 0, code(&DynArray_NewCopy_PROLOGUE_7), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
     {"AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDtor", 0x0045e360, 0, code(&AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDtor), 4, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor
     {"AeThreadFunctor_PROLOGUE_DeletingDtor_6", 0x0045e430, 0, code(&AeThreadFunctor_PROLOGUE_DeletingDtor_6), 4, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor
     {"HashMap_LowerBound_PROLOGUE", 0x0045e450, 0, code(&HashMap_Find_2), 8, Result::Eax, Status::Compare},  // twin of HashMap_Find_2
+    {"std_list_ClearDestroy_PROLOGUE", 0x0045e540, 0, code(&std_list_ClearDestroy_PROLOGUE), 0, Result::None, Status::Compare},
     {"std_UninitializedFillN4Ret_PROLOGUE", 0x0045e5d0, 0, code(&std_vector_UfillN4), 12, Result::Eax, Status::Compare},  // twin of std_vector_UfillN4
+    {"DynArray_NewCopy_PROLOGUE_8", 0x0045e600, 0, code(&DynArray_NewCopy_PROLOGUE_8), 4, Result::Eax, Status::Compare},  // near twin of DynArray_NewCopy_PROLOGUE
+    {"std_list_Dtor_PROLOGUE", 0x0045e6b0, 0, code(&std_list_Dtor_PROLOGUE), 0, Result::None, Status::Compare},
     {"HashMap_Find_PROLOGUE", 0x0045e6d0, 0, code(&HashMap_Find), 8, Result::Eax, Status::Compare},  // twin of HashMap_Find
     {"std_vector_Tidy4_PROLOGUE", 0x0045e780, 0, code(&std_vector_Tidy4_PROLOGUE), 0, Result::None, Status::Compare},  // near twin of std_vector_Tidy4
     {"std_vector_Erase4_PROLOGUE", 0x0045e9d0, 0, code(&std_vector_Erase4), 12, Result::Eax, Status::Compare},  // twin of std_vector_Erase4
+    {"std_list_Dtor_PROLOGUE_2", 0x0045ea10, 0, code(&std_list_Dtor_PROLOGUE_2), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"std_list_BuyNodeKeyArray_PROLOGUE", 0x0045ea30, 0, code(&std_list_BuyNodeKeyArray_PROLOGUE), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeKeyArray_2
     {"std_list_IncSize_PROLOGUE", 0x0045ead0, 0, code(&std_list_IncSize_PROLOGUE), 4, Result::Eax, Status::Compare},  // near twin of std_list_IncSize
     {"std_vector_Xlen_PROLOGUE", 0x0045eb70, 0, code(&std_vector_Xlen), 0, Result::None, Status::Compare},  // twin of std_vector_Xlen
+    {"HashMap_Dtor_PROLOGUE", 0x0045ebe0, 0, code(&HashMap_Dtor_PROLOGUE), 0, Result::None, Status::Compare},
+    {"HashMap_Dtor_PROLOGUE_2", 0x0045ec50, 0, code(&HashMap_Dtor_PROLOGUE_2), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"std_vector_InsertN4_PROLOGUE", 0x0045ecc0, 0, code(&std_vector_InsertN4_5), 12, Result::None, Status::Compare},  // twin of std_vector_InsertN4_5
     {"std_list_IncSize_PROLOGUE_2", 0x0045ef10, 0, code(&std_list_IncSize), 4, Result::Eax, Status::Compare},  // twin of std_list_IncSize
     {"std_list_IncSize_PROLOGUE_3", 0x0045efb0, 0, code(&std_list_IncSize_2), 4, Result::Eax, Status::Compare},  // twin of std_list_IncSize_2
+    {"HashMap_Dtor_PROLOGUE_3", 0x0045f0a0, 0, code(&HashMap_Dtor_PROLOGUE_3), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_2", 0x0045f110, 0, code(&std_list_ClearDestroy_PROLOGUE_2), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
     {"std_vector_Buy4_PROLOGUE", 0x0045f150, 0, code(&std_vector_Buy4), 4, Result::Al, Status::Compare},  // twin of std_vector_Buy4
+    {"HashMap_Dtor_PROLOGUE_4", 0x0045f1a0, 0, code(&HashMap_Dtor_PROLOGUE_4), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"std_vector_Resize4_PROLOGUE", 0x0045f250, 0, code(&std_vector_Resize4_5), 8, Result::None, Status::Compare},  // twin of std_vector_Resize4_5
     {"std_vector_ConstructN4_PROLOGUE", 0x0045f2c0, 0, code(&std_vector_ConstructN4), 8, Result::None, Status::Compare},  // twin of std_vector_ConstructN4
+    {"ListNode_DestroyValue_PROLOGUE_2", 0x0045f340, 0, code(&ListNode_DestroyValue_PROLOGUE_2), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_3", 0x0045f350, 0, code(&ListNode_DestroyValue_PROLOGUE_3), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_3", 0x0045f3a0, 0, code(&std_list_ClearDestroy_PROLOGUE_3), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
     {"std_list_InsertRange_PROLOGUE", 0x0045f3e0, 0, code(&std_list_InsertRange_PROLOGUE), 16, Result::None, Status::Compare},  // near twin of std_list_InsertRange_2
     {"std_list_InsertRange_PROLOGUE_2", 0x0045f490, 0, code(&std_list_InsertRange_6), 16, Result::None, Status::Compare},  // twin of std_list_InsertRange_6
     {"std_list_InsertRange_PROLOGUE_3", 0x0045f540, 0, code(&std_list_InsertRange_PROLOGUE_3), 16, Result::None, Status::Compare},  // near twin of std_list_InsertRange_2
+    {"ListNode_DestroyValue_PROLOGUE_4", 0x0045f5f0, 0, code(&ListNode_DestroyValue_PROLOGUE_4), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_5", 0x0045f600, 0, code(&ListNode_DestroyValue_PROLOGUE_5), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_3", 0x0045f610, 0, code(&std_list_Dtor_PROLOGUE_3), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_4", 0x0045f630, 0, code(&std_list_Dtor_PROLOGUE_4), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"HashMap_CopyFrom_PROLOGUE", 0x0045f650, 0, code(&HashMap_CopyFrom_PROLOGUE), 4, Result::None, Status::Compare},  // near twin of HashMap_CopyFrom
     {"HashMap_CopyFrom_PROLOGUE_2", 0x0045f760, 0, code(&HashMap_CopyFrom_6), 4, Result::None, Status::Compare},  // twin of HashMap_CopyFrom_6
     {"HashMap_Ctor_PROLOGUE", 0x0045f8b0, 0, code(&HashMap_Ctor_PROLOGUE), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
@@ -8481,6 +8511,7 @@ const Function kFunctions[] = {
     {"HashMap_Ctor_PROLOGUE_8", 0x0045fc30, 0, code(&HashMap_Ctor_PROLOGUE_8), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_9", 0x0045fcb0, 0, code(&HashMap_Ctor), 8, Result::Eax, Status::Compare},  // twin of HashMap_Ctor
     {"HashMap_CopyFrom_PROLOGUE_3", 0x0045fd30, 0, code(&HashMap_CopyFrom_PROLOGUE_3), 4, Result::None, Status::Compare},  // near twin of HashMap_CopyFrom
+    {"HashMap_Dtor_PROLOGUE_5", 0x0045fe40, 0, code(&HashMap_Dtor_PROLOGUE_5), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_10", 0x0045feb0, 0, code(&HashMap_Ctor_PROLOGUE_10), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_CopyCtor_PROLOGUE", 0x0045ff30, 0, code(&HashMap_CopyCtor_PROLOGUE), 4, Result::Eax, Status::Compare},  // near twin of HashMap_CopyCtor
     {"HashMap_Ctor_PROLOGUE_11", 0x0045ffa0, 0, code(&HashMap_Ctor_PROLOGUE_11), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
@@ -8491,6 +8522,7 @@ const Function kFunctions[] = {
     {"HashMap_CopyCtor_PROLOGUE_4", 0x00460200, 0, code(&HashMap_CopyCtor_6), 4, Result::Eax, Status::Compare},  // twin of HashMap_CopyCtor_6
     {"HashMap_Ctor_PROLOGUE_14", 0x00460270, 0, code(&HashMap_Ctor_PROLOGUE_14), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_CopyCtor_PROLOGUE_5", 0x004602f0, 0, code(&HashMap_CopyCtor_6), 4, Result::Eax, Status::Compare},  // twin of HashMap_CopyCtor_6
+    {"ListNode_DestroyValue_PROLOGUE_6", 0x00460360, 0, code(&ListNode_DestroyValue_PROLOGUE_6), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
     {"HashMap_Insert_PROLOGUE", 0x00460400, 0, code(&HashMap_Insert_PROLOGUE), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
     {"HashMap_Insert_11_PROLOGUE", 0x00460650, 0, code(&HashMap_Insert_11_PROLOGUE), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
     {"HashMap_Insert_PROLOGUE_2", 0x004608a0, 0, code(&HashMap_Insert_PROLOGUE_2), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
@@ -8499,25 +8531,55 @@ const Function kFunctions[] = {
     {"HashMap_CopyCtor_PROLOGUE_7", 0x00460db0, 0, code(&HashMap_CopyCtor_PROLOGUE_7), 4, Result::Eax, Status::Compare},  // near twin of HashMap_CopyCtor
     {"HashMap_CopyCtor_PROLOGUE_8", 0x00460e20, 0, code(&HashMap_CopyCtor_6), 4, Result::Eax, Status::Compare},  // twin of HashMap_CopyCtor_6
     {"HashMap_CopyCtor_PROLOGUE_9", 0x00460e90, 0, code(&HashMap_CopyCtor_PROLOGUE_9), 4, Result::Eax, Status::Compare},  // near twin of HashMap_CopyCtor
+    {"HashMap_Dtor_PROLOGUE_6", 0x00460f10, 0, code(&HashMap_Dtor_PROLOGUE_6), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Index_PROLOGUE", 0x004612f0, 0, code(&HashMap_Index_PROLOGUE), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_2
+    {"std_list_ClearDestroy_PROLOGUE_4", 0x004613c0, 0, code(&std_list_ClearDestroy_PROLOGUE_4), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_5", 0x00461400, 0, code(&std_list_ClearDestroy_PROLOGUE_5), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_6", 0x00461450, 0, code(&std_list_ClearDestroy_PROLOGUE_6), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_Clear_PROLOGUE", 0x00461490, 0, code(&std_list_Clear_PROLOGUE), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_7", 0x004614e0, 0, code(&ListNode_DestroyValue_PROLOGUE_7), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_8", 0x004614f0, 0, code(&ListNode_DestroyValue_PROLOGUE_8), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
     {"std_list_BuyNodeHashMap_PROLOGUE", 0x00461510, 0, code(&std_list_BuyNodeHashMap_PROLOGUE), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_2", 0x004615a0, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_2), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_3", 0x00461630, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_3), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_4", 0x004616c0, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_4), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_5", 0x00461750, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_5), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
+    {"std_list_Dtor_PROLOGUE_5", 0x004617e0, 0, code(&std_list_Dtor_PROLOGUE_5), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_6", 0x00461800, 0, code(&std_list_Dtor_PROLOGUE_6), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_7", 0x00461820, 0, code(&std_list_Dtor_PROLOGUE_7), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"std_list_BuyNodeHashMap_PROLOGUE_6", 0x00461840, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_6), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_7", 0x004618d0, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_7), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_8", 0x00461960, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_8), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
     {"std_list_BuyNodeHashMap_PROLOGUE_9", 0x004619f0, 0, code(&std_list_BuyNodeHashMap_PROLOGUE_9), 12, Result::Eax, Status::Compare},  // near twin of std_list_BuyNodeHashMap
+    {"std_list_Dtor_PROLOGUE_8", 0x00461a80, 0, code(&std_list_Dtor_PROLOGUE_8), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_7", 0x00461aa0, 0, code(&std_list_ClearDestroy_PROLOGUE_7), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_7", 0x00461ae0, 0, code(&HashMap_Dtor_PROLOGUE_7), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_8", 0x00461b50, 0, code(&HashMap_Dtor_PROLOGUE_8), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_9", 0x00461bc0, 0, code(&HashMap_Dtor_PROLOGUE_9), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_15", 0x00461c30, 0, code(&HashMap_Ctor_PROLOGUE_15), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_16", 0x00461cb0, 0, code(&HashMap_Ctor_PROLOGUE_16), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_17", 0x00461d30, 0, code(&HashMap_Ctor_PROLOGUE_17), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"HashMap_Dtor_PROLOGUE_10", 0x00461db0, 0, code(&HashMap_Dtor_PROLOGUE_10), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_11", 0x00461e20, 0, code(&HashMap_Dtor_PROLOGUE_11), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_12", 0x00461e90, 0, code(&HashMap_Dtor_PROLOGUE_12), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_13", 0x00461f00, 0, code(&HashMap_Dtor_PROLOGUE_13), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_14", 0x00461f70, 0, code(&HashMap_Dtor_PROLOGUE_14), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_18", 0x00461fe0, 0, code(&HashMap_Ctor_PROLOGUE_18), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_19", 0x00462060, 0, code(&HashMap_Ctor_PROLOGUE_19), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_20", 0x004620e0, 0, code(&HashMap_Ctor_PROLOGUE_20), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_21", 0x00462160, 0, code(&HashMap_Ctor_PROLOGUE_21), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_22", 0x004621e0, 0, code(&HashMap_Ctor_PROLOGUE_22), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"std_list_ClearDestroy_PROLOGUE_8", 0x00462260, 0, code(&std_list_ClearDestroy_PROLOGUE_8), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_9", 0x004622a0, 0, code(&std_list_Dtor_PROLOGUE_9), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_10", 0x004622c0, 0, code(&std_list_Dtor_PROLOGUE_10), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_9", 0x004622e0, 0, code(&std_list_ClearDestroy_PROLOGUE_9), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_15", 0x00462320, 0, code(&HashMap_Dtor_PROLOGUE_15), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_23", 0x00462390, 0, code(&HashMap_Ctor_PROLOGUE_23), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"std_list_Dtor_PROLOGUE_11", 0x00462410, 0, code(&std_list_Dtor_PROLOGUE_11), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_10", 0x00462430, 0, code(&std_list_ClearDestroy_PROLOGUE_10), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_12", 0x00462470, 0, code(&std_list_Dtor_PROLOGUE_12), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_16", 0x00462490, 0, code(&HashMap_Dtor_PROLOGUE_16), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_17", 0x00462500, 0, code(&HashMap_Dtor_PROLOGUE_17), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Insert_11_PROLOGUE_2", 0x00462570, 0, code(&HashMap_Insert_11_PROLOGUE_2), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
     {"HashMap_Insert_11_PROLOGUE_3", 0x004627c0, 0, code(&HashMap_Insert_11_PROLOGUE_3), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
     {"HashMap_Insert_11_PROLOGUE_4", 0x00462a10, 0, code(&HashMap_Insert_11_PROLOGUE_4), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
@@ -8525,11 +8587,15 @@ const Function kFunctions[] = {
     {"HashMap_Insert_11_PROLOGUE_6", 0x00462eb0, 0, code(&HashMap_Insert_11_PROLOGUE_6), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
     {"HashMap_Ctor_PROLOGUE_24", 0x00463100, 0, code(&HashMap_Ctor_PROLOGUE_24), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_25", 0x00463180, 0, code(&HashMap_Ctor_PROLOGUE_25), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"HashMap_Dtor_PROLOGUE_18", 0x00463200, 0, code(&HashMap_Dtor_PROLOGUE_18), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Insert_PROLOGUE_4", 0x00463270, 0, code(&HashMap_Insert_PROLOGUE_4), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
     {"HashMap_Insert_PROLOGUE_5", 0x004634c0, 0, code(&HashMap_Insert_PROLOGUE_5), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
     {"HashMap_Insert_PROLOGUE_6", 0x00463710, 0, code(&HashMap_Insert_PROLOGUE_6), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
     {"HashMap_Ctor_PROLOGUE_26", 0x00463960, 0, code(&HashMap_Ctor_PROLOGUE_26), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Insert_PROLOGUE_7", 0x004639e0, 0, code(&HashMap_Insert_PROLOGUE_7), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
+    {"std_list_ClearDestroy_PROLOGUE_11", 0x00463c30, 0, code(&std_list_ClearDestroy_PROLOGUE_11), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_19", 0x00463c70, 0, code(&HashMap_Dtor_PROLOGUE_19), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_13", 0x00463ce0, 0, code(&std_list_Dtor_PROLOGUE_13), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"HashMap_Index_PROLOGUE_2", 0x00463d00, 0, code(&HashMap_Index_PROLOGUE_2), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
     {"HashMap_Index_PROLOGUE_3", 0x00463dd0, 0, code(&HashMap_Index_PROLOGUE_3), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
     {"HashMap_Index_PROLOGUE_4", 0x00463ea0, 0, code(&HashMap_Index_PROLOGUE_4), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
@@ -8539,10 +8605,41 @@ const Function kFunctions[] = {
     {"HashMap_Index_PROLOGUE_8", 0x004641e0, 0, code(&HashMap_Index_PROLOGUE_8), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
     {"HashMap_Index_PROLOGUE_9", 0x004642b0, 0, code(&HashMap_Index_PROLOGUE_9), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
     {"HashMap_Index_PROLOGUE_10", 0x00464380, 0, code(&HashMap_Index_PROLOGUE_10), 4, Result::Eax, Status::Compare},  // near twin of HashMap_Index_4
+    {"std_list_Dtor_PROLOGUE_14", 0x00464450, 0, code(&std_list_Dtor_PROLOGUE_14), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_15", 0x00464470, 0, code(&std_list_Dtor_PROLOGUE_15), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE", 0x00464490, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE), 4, Result::Eax, Status::Compare},
+    {"StaticHashMap_GetOrRelease_PROLOGUE_2", 0x00464540, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_2), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_3", 0x004645f0, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_3), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_4", 0x004646a0, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_4), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_5", 0x00464750, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_5), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_6", 0x00464800, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_6), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_7", 0x004648b0, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_7), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_8", 0x00464960, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_8), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_20", 0x00464a20, 0, code(&HashMap_Dtor_PROLOGUE_20), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_21", 0x00464b00, 0, code(&HashMap_Dtor_PROLOGUE_21), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_22", 0x00464b70, 0, code(&HashMap_Dtor_PROLOGUE_22), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_16", 0x00464be0, 0, code(&std_list_Dtor_PROLOGUE_16), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_27", 0x00464c00, 0, code(&HashMap_Ctor_PROLOGUE_27), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_Ctor_PROLOGUE_28", 0x00464c80, 0, code(&HashMap_Ctor_PROLOGUE_28), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"StaticHashMap_SetString_PROLOGUE", 0x00464d00, 0, code(&StaticHashMap_SetString_PROLOGUE), 12, Result::None, Status::Compare},
+    {"StaticHashMap_GetString_PROLOGUE", 0x00464dc0, 0, code(&StaticHashMap_GetString_PROLOGUE), 12, Result::Eax, Status::Compare},
+    {"StaticHashMap_SetString_PROLOGUE_2", 0x00464fc0, 0, code(&StaticHashMap_SetString_PROLOGUE_2), 12, Result::None, Status::Compare},  // near twin of StaticHashMap_SetString_PROLOGUE
+    {"StaticHashMap_GetString_PROLOGUE_2", 0x00465080, 0, code(&StaticHashMap_GetString_PROLOGUE_2), 12, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetString_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_23", 0x004652a0, 0, code(&HashMap_Dtor_PROLOGUE_23), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_29", 0x00465310, 0, code(&HashMap_Ctor_PROLOGUE_29), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"StaticHashMap_GetOrRelease_PROLOGUE_9", 0x00465390, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_9), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_10", 0x00465440, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_10), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_11", 0x004654f0, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_11), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"StaticHashMap_GetOrRelease_PROLOGUE_12", 0x004655a0, 0, code(&StaticHashMap_GetOrRelease_PROLOGUE_12), 4, Result::Eax, Status::Compare},  // near twin of StaticHashMap_GetOrRelease_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_9", 0x00465650, 0, code(&ListNode_DestroyValue_PROLOGUE_9), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_10", 0x00465670, 0, code(&ListNode_DestroyValue_PROLOGUE_10), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_12", 0x00465680, 0, code(&std_list_ClearDestroy_PROLOGUE_12), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_ClearDestroy_PROLOGUE_13", 0x004656c0, 0, code(&std_list_ClearDestroy_PROLOGUE_13), 0, Result::None, Status::Compare},  // near twin of std_list_ClearDestroy_PROLOGUE
+    {"std_list_Dtor_PROLOGUE_17", 0x00465700, 0, code(&std_list_Dtor_PROLOGUE_17), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_24", 0x00465720, 0, code(&HashMap_Dtor_PROLOGUE_24), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_30", 0x00465790, 0, code(&HashMap_Ctor_PROLOGUE_30), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    {"std_list_Dtor_PROLOGUE_18", 0x00465810, 0, code(&std_list_Dtor_PROLOGUE_18), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
+    {"HashMap_Dtor_PROLOGUE_25", 0x00465830, 0, code(&HashMap_Dtor_PROLOGUE_25), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_31", 0x004658a0, 0, code(&HashMap_Ctor_PROLOGUE_31), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
 };
 
