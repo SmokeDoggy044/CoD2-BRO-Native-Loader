@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 7,031 have been
+It's early days: about 73% of the functions have a name, and 7,067 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -30,8 +30,8 @@ function of the game.*
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
 | Engine and game code (`.text`) | 11,313 | 9,174 | 6,977 | 4,336 |
-| Mission scripts (14 level sections) | 5,324 | 3,023 | 54 | 5,270 |
-| **Total** | **16,637** | **12,197** | **7,031** | **9,606** |
+| Mission scripts (14 level sections) | 5,324 | 3,023 | 90 | 5,234 |
+| **Total** | **16,637** | **12,197** | **7,067** | **9,570** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
