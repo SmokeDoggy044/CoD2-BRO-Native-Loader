@@ -14,7 +14,8 @@ Inputs per row: fnpack's pack (disassembly with names, callers, callees, globals
 the callees we have C for. The system prompt (cached) holds the decompiling rules, the push brief and the
 pilot's C as examples - the same rules the session agents get.
 
-usage (run with build/api_venv/bin/python; credentials from ANTHROPIC_API_KEY or an `ant auth login` profile):
+usage (run with build/api_venv/bin/python; credentials: ANTHROPIC_API_KEY, else the file
+~/.config/cod_bro/anthropic_api_key (chmod 600, outside the repo), else an `ant auth login` profile):
   worker.py claim FILE OWNER                      claim the rows of a list for OWNER (session agents' lists)
   worker.py prepare RUN --worktree DIR --module M --rows FILE --raw DIR
                                                   claim the rows for this run and build their first prompts
@@ -437,7 +438,11 @@ def client_or_exit():
         import anthropic
     except ImportError:
         sys.exit("run with build/api_venv/bin/python (pip install anthropic there)")
-    return anthropic.Anthropic()
+    import os
+    key_file = Path.home() / ".config" / "cod_bro" / "anthropic_api_key"
+    if not os.environ.get("ANTHROPIC_API_KEY") and key_file.exists():
+        return anthropic.Anthropic(api_key=key_file.read_text().strip())
+    return anthropic.Anthropic()  # ANTHROPIC_API_KEY or an `ant auth login` profile
 
 
 def cmd_dry(args):
