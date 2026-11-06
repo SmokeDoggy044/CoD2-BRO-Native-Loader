@@ -99,6 +99,7 @@
 #include "scr_access.h"
 #include "levels_prologue_a.h"
 #include "levels_prologue_b.h"
+#include "levels_prologue_events.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
 #include "scr_class.h"
@@ -8402,9 +8403,21 @@ const Function kFunctions[] = {
     {"BroLvl_prologue_AllyManDownMedicLine", 0x00432010, 0, code(&BroLvl_prologue_AllyManDownMedicLine), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_StartEvent1Drones3d", 0x00432da0, 0, code(&BroLvl_prologue_StartEvent1Drones3d), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_SwapLodModel", 0x0043d730, 0, code(&BroLvl_prologue_SwapLodModel), 12, Result::None, Status::Compare},
+    {"BroLvl_prologue_AddTankTargets", 0x0043fbd0, 0, code(&BroLvl_prologue_AddTankTargets), 16, Result::None, Status::Compare},
+    {"LevelScript_prologue_ValueTypeLookup", 0x0043fcd0, 0, code(&LevelScript_prologue_ValueTypeLookup), 20, Result::None, Status::Compare},
+    {"BroLvl_prologue_Event3HilltopShermans", 0x00442b60, 0, code(&BroLvl_prologue_Event3HilltopShermans), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_TankStartTargets", 0x00444270, 0, code(&BroLvl_prologue_TankStartTargets), 8, Result::None, Status::Compare},
+    {"BroLvl_prologue_TruckDrones", 0x0044cfb0, 0, code(&BroLvl_prologue_TruckDrones), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_InitDialogueMisc", 0x0044ed20, 0, code(&BroLvl_prologue_InitDialogueMisc), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_InitDialogueBloomfield", 0x0044edf0, 0, code(&BroLvl_prologue_InitDialogueBloomfield), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_InitDialogueKelly", 0x0044f1e0, 0, code(&BroLvl_prologue_InitDialogueKelly), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_InitJeepPassIntroScene", 0x0044f4b0, 0, code(&BroLvl_prologue_InitJeepPassIntroScene), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_InitReadMapAnims", 0x0044f5d0, 0, code(&BroLvl_prologue_InitReadMapAnims), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_SetupDrones", 0x0044f690, 0, code(&BroLvl_prologue_SetupDrones), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_SetDroneRunAnims", 0x0044fa80, 0, code(&BroLvl_prologue_SetDroneRunAnims), 0, Result::None, Status::Compare},
     {"LevelScript_prologue_SetImportCallbacks", 0x004533d0, 0, code(&LevelScript_prologue_SetImportCallbacks), 4, Result::Eax, Status::Compare},
+    {"Bro_prologue__Event4_Plane_Crash_Distance", 0x004557e0, 0, code(&Bro_prologue__Event4_Plane_Crash_Distance), 4, Result::None, Status::Compare},
+    {"BroLvl_prologue_StartFromCheckpoint", 0x00457fd0, 0, code(&BroLvl_prologue_StartFromCheckpoint), 0, Result::None, Status::Compare},
     {"ScriptString_ReleaseAt20_PROLOGUE", 0x00458cc0, 0, code(&ScriptString_ReleaseAt20), 0, Result::None, Status::Compare},  // twin of ScriptString_ReleaseAt20
     {"std_Fill4_PROLOGUE", 0x00458f40, 0, code(&std_Fill4), 12, Result::Eax, Status::Compare},  // twin of std_Fill4
     {"WaitTilOutputInst2_i_ent_PROLOGUE_Dtor", 0x00458fc0, 0, code(&WaitTilOutputInst2_i_ent_PROLOGUE_Dtor), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor_Dtor
