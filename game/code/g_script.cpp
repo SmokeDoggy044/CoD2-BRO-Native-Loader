@@ -701,4 +701,6 @@ uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity) {
 
 #include "g_script_levels.inc"
 
+#include "g_script_gen.inc"
+
 }  // namespace game

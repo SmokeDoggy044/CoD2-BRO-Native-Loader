@@ -1274,4 +1274,6 @@ void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self
 
 #include "scr_class_levels.inc"
 
+#include "scr_class_gen.inc"
+
 }  // namespace game
