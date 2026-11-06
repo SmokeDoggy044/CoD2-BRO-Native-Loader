@@ -35,6 +35,9 @@ HEADER = CODE / "levels_twins.h"
 HEX = re.compile(r"0x[0-9a-f]{5,}")
 LIT = re.compile(r"0x[0-9a-fA-F]{5,8}u?\b")
 BRANCH = re.compile(r"^(call|j\w+) 0x([0-9a-f]+)$")
+LEVELS = ("PROLOGUE", "BUCHHOLZ", "DRAGEETH", "EILEDORF", "GELA", "KASSPASS", "KASSRINE", "LIBEATOR", "MONS1", "OMAHEACH",
+          "ORAN", "PIANLUPO", "TROINA", "TUNISIA")
+LEVEL_SUFFIX = re.compile(rf"_({'|'.join(LEVELS)})(_\d+)?$")
 ENTRY = (r'^    \{"(\w+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+|0), (code\([^)]*\)), (\d+), (Result::\w+), '
          r'Status::(\w+)\},')
 
@@ -83,12 +86,13 @@ def rename_comments(body, sub):
     global NAMES
     if NAMES is None:
         NAMES = fnpack.load_names()[0]
-    out = []
+    out, values = [], set(sub.values()) - {0}
     for line in body.split("\n"):
         code, sep, _ = line.partition("//")
-        hits = [sub[l] for l in LIT.findall(code) if l in sub]
+        # the body already carries the new values: name every substituted value on the line
+        hits = [NAMES[v] for v in (int(l.rstrip("u"), 16) for l in LIT.findall(code)) if v in values and v in NAMES]
         if sep and hits:
-            line = code + "// " + ", ".join(NAMES.get(v, f"{v:#010x}") for v in hits)
+            line = code + "// " + ", ".join(hits)
         out.append(line)
     return "\n".join(out)
 
@@ -242,7 +246,8 @@ def main():
     for a, r, (path, head, body, m, args_entry) in made:
         name = r["name"]
         if name.startswith("FUN_") or name in known_names or name in defs:
-            base = f"{m.group(1)}_{module}"
+            # a level reference (X_PROLOGUE, X_PROLOGUE_3) names its copies X_<MODULE>, not X_PROLOGUE_<MODULE>
+            base = f"{LEVEL_SUFFIX.sub('', m.group(1))}_{module}"
             name, k = base, 2
             while name in known_names or name in defs:
                 name, k = f"{base}_{k}", k + 1
