@@ -98,6 +98,7 @@
 #include "ragdoll.h"
 #include "scr_access.h"
 #include "levels_prologue_a.h"
+#include "levels_prologue_b.h"
 #include "levels_twins.h"
 #include "scr_class.h"
 #include "scr_field.h"
@@ -8384,15 +8385,25 @@ const Function kFunctions[] = {
     {"BroLvl_prologue_InitDebugCvars", 0x0041ba60, 0, code(&BroLvl_prologue_InitDebugCvars), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_ShermanDestroyed", 0x0041cd70, 0, code(&BroLvl_prologue_ShermanDestroyed), 4, Result::None, Status::Compare},
     {"BroLvl_prologue_DeleteNoteworthyAndTargeter", 0x004214a0, 0, code(&BroLvl_prologue_DeleteNoteworthyAndTargeter), 8, Result::None, Status::Compare},
+    {"BroLvl_prologue_KellyAllClearLines", 0x00422250, 0, code(&BroLvl_prologue_KellyAllClearLines), 16, Result::Eax, Status::Compare},
     {"ScrField_drive_state_PROLOGUE", 0x00422a60, 0, code(ScrField_drive_state_PROLOGUE), 4, Result::Eax, Status::Compare},
     {"ScrField_stuka_wing_PROLOGUE", 0x00422c40, 0, code(ScrField_stuka_wing_PROLOGUE), 4, Result::Eax, Status::Compare},
     {"ScrField_tank_firing_PROLOGUE", 0x00422f90, 0, code(ScrField_tank_firing_PROLOGUE), 4, Result::Eax, Status::Compare},
+    {"BroLvl_prologue_LaunchVelocity", 0x00425510, 0, code(&BroLvl_prologue_LaunchVelocity), 36, Result::Eax, Status::Compare},
+    {"Bro_prologue__Health_Reset", 0x004264b0, 0, code(&Bro_prologue__Health_Reset), 4, Result::None, Status::Compare},
+    {"Bro_prologue__Vehicle_TankDeath", 0x004268c0, 0, code(&Bro_prologue__Vehicle_TankDeath), 4, Result::None, Status::Compare},
     {"BroLvl_prologue_Event3BloomfieldHoldUp", 0x004273d0, 0, code(&BroLvl_prologue_Event3BloomfieldHoldUp), 4, Result::Eax, Status::Compare},
+    {"BroLvl_prologue_LineBloomfieldWaitForThe", 0x004275f0, 0, code(&BroLvl_prologue_LineBloomfieldWaitForThe), 4, Result::Eax, Status::Compare},
     {"BroLvl_prologue_AllList880XBelowNeg1760", 0x0042c220, 0, code(&BroLvl_prologue_AllList880XBelowNeg1760), 4, Result::Eax, Status::Compare},
+    {"BroLvl_prologue_Event3MgRouteThreads", 0x0042c6d0, 0, code(&BroLvl_prologue_Event3MgRouteThreads), 20, Result::None, Status::Compare},
     {"BroLvl_prologue_KillByTargetnameAfterRandomDelay", 0x004309b0, 0, code(&BroLvl_prologue_KillByTargetnameAfterRandomDelay), 16, Result::None, Status::Compare},
     {"DynArray_Shuffle12_PROLOGUE", 0x00431720, 0, code(&DynArray_Shuffle12), 4, Result::None, Status::Compare},  // twin of DynArray_Shuffle12
+    {"BroLvl_prologue_AllyManDownMedicLine", 0x00432010, 0, code(&BroLvl_prologue_AllyManDownMedicLine), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_StartEvent1Drones3d", 0x00432da0, 0, code(&BroLvl_prologue_StartEvent1Drones3d), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_SwapLodModel", 0x0043d730, 0, code(&BroLvl_prologue_SwapLodModel), 12, Result::None, Status::Compare},
+    {"BroLvl_prologue_InitDialogueMisc", 0x0044ed20, 0, code(&BroLvl_prologue_InitDialogueMisc), 0, Result::None, Status::Compare},
     {"BroLvl_prologue_InitDialogueKelly", 0x0044f1e0, 0, code(&BroLvl_prologue_InitDialogueKelly), 0, Result::None, Status::Compare},
+    {"LevelScript_prologue_SetImportCallbacks", 0x004533d0, 0, code(&LevelScript_prologue_SetImportCallbacks), 4, Result::Eax, Status::Compare},
     {"ScriptString_ReleaseAt20_PROLOGUE", 0x00458cc0, 0, code(&ScriptString_ReleaseAt20), 0, Result::None, Status::Compare},  // twin of ScriptString_ReleaseAt20
     {"std_Fill4_PROLOGUE", 0x00458f40, 0, code(&std_Fill4), 12, Result::Eax, Status::Compare},  // twin of std_Fill4
     {"WaitTilOutputInst2_i_ent_PROLOGUE_Dtor", 0x00458fc0, 0, code(&WaitTilOutputInst2_i_ent_PROLOGUE_Dtor), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor_Dtor
