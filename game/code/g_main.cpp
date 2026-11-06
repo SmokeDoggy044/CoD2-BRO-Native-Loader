@@ -1018,7 +1018,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
         const uint32_t padded = (size + 0x7fff) & 0xffff8000u;
         const uint32_t data =
             title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00093950)(padded, 0x80, 0x30000);  // Mem_AlignedAlloc
-        title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t)>(0x000caff0)(file, data, 0, padded);  // File_ReadAt
+        title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t)>(0x000caff0)(file, 0, data, padded);  // File_ReadAt (file, offset, buffer, size)
         uint32_t name = 0;
         title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(&name, text(0x0083b32c));  // HashStr_Init "texSuc"
         const uint32_t texture = title_function<uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t)>(0x000635a0)(

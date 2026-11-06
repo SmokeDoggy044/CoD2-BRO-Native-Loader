@@ -401,7 +401,10 @@ def kfunctions():
 
 def unregistered(args, registered):
     """(name, address, name) rows for C that is not in kFunctions."""
-    by_name = {n: a for a, n in symbols()}
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    import fnpack
+    xbe = load_xbe()
+    by_name = fnpack.name_index(symbols(), lambda a, n: xbe_bytes(xbe, a, n))
     rows, seen = [], set(registered)
     for arg in args.names:
         name, _, addr = arg.partition("=")

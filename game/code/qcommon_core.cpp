@@ -2336,23 +2336,23 @@ uint32_t XB_CDECL File_Exists(uint32_t bit, const char* path) {
     return handle != -1;
 }
 
-int32_t XB_CDECL File_QueueRequestEx(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size, uint32_t arg5) {
-    const uint32_t desc[10] = {file, 0, arg5, 0, 2, buffer, offset, size, 0, 0};
+int32_t XB_CDECL File_QueueRequestEx(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size, uint32_t arg5) {
+    const uint32_t desc[10] = {file, 0, arg5, 0, 2, offset, buffer, size, 0, 0};
     return File_QueueRead(desc);
 }
 
-int32_t XB_CDECL File_QueueRequest(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
-    const uint32_t desc[10] = {file, 0, 0, 0, 2, buffer, offset, size, 0, 0};
+int32_t XB_CDECL File_QueueRequest(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size) {
+    const uint32_t desc[10] = {file, 0, 0, 0, 2, offset, buffer, size, 0, 0};
     return File_QueueRead(desc);
 }
 
-int32_t XB_CDECL File_QueueRequestAlt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
-    const uint32_t desc[10] = {file, 0, 0, 1, 2, buffer, offset, size, 0, 0};
+int32_t XB_CDECL File_QueueRequestAlt(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size) {
+    const uint32_t desc[10] = {file, 0, 0, 1, 2, offset, buffer, size, 0, 0};
     return File_QueueRead(desc);
 }
 
-int32_t XB_CDECL File_ReadAt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
-    const int32_t handle = File_QueueRequest(file, buffer, offset, size);
+int32_t XB_CDECL File_ReadAt(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size) {
+    const int32_t handle = File_QueueRequest(file, offset, buffer, size);
     if (handle == -1) return -1;
     pump_requests();
     for (;;) {

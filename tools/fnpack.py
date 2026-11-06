@@ -114,6 +114,22 @@ class Image:
         return out
 
 
+def name_index(pairs, read):
+    """{name: address} from (address, name) pairs. Ghidra gives an incremental-link thunk (`jmp rel32`) the name of
+    its target, so a name can have two or more addresses: prefer the one that is not a bare jmp (else the lowest).
+    read(va, n) -> bytes."""
+    seen = {}
+    for a, n in sorted(pairs):
+        seen.setdefault(n, []).append(a)
+    out = {}
+    for n, addrs in seen.items():
+        if len(addrs) > 1:
+            real = [a for a in addrs if read(a, 1) not in (b"\xe9", b"\xeb")]
+            addrs = real or addrs
+        out[n] = addrs[0]
+    return out
+
+
 def load_names():
     functions = {}
     for line in open(DATA / "default_xbe_symbols.txt"):
@@ -468,7 +484,7 @@ def main():
     parser.add_argument("--no-asm", action="store_true")
     args = parser.parse_args()
     functions, data = load_names()
-    by_name = {n: a for a, n in functions.items()}
+    by_name = name_index(functions.items(), Image().read)
     targets = []
     for item in args.functions:
         if item in by_name:

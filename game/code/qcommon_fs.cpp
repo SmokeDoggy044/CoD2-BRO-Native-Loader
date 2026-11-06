@@ -7009,8 +7009,7 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
             StreamMem_Alloc(title_global<uint32_t*>(0x0095f62c), bits, block);
             uint32_t slot[2] = {0, 0};  // {address, size}
             StreamMem_GetBlock(bits, title_global<uint8_t*>(0x0095f62c), slot, 0);
-            // Positional as the original pushes them: (file, pak offset, memory, size) - File_ReadAt's declared
-            // parameter names have buffer and offset the other way round.
+            // (file, pak offset, memory, size), as the original pushes them.
             File_ReadAt(pk<uint32_t>(zone, 0x50), offset, slot[0], (pk<uint32_t>(record, 8) + 0x7fff) & 0xffff8000u);
             platform_rep_movs(table, reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(slot[0])), pk<uint32_t>(record, 8));
             StreamMem_MoveSlots(0, bits, title_global<uint32_t*>(0x0095f62c), -1);

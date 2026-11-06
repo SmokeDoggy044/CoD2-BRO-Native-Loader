@@ -4312,9 +4312,9 @@
 001201f0 BroScr_MoveToThread
 00120220 BroScr_RotateToFaceDirection
 00120340 BroScr_EmptyFunc_9
-00120350 BroScr_EmptyFuncStrArg_4
-00120360 BroScr_EmptyFuncStrArg_5
-00120370 BroScr_EmptyFuncStrArg_6
+00120350 BroScr_EmptyFuncStrArg_11
+00120360 BroScr_EmptyFuncStrArg_12
+00120370 BroScr_EmptyFuncStrArg_13
 00120380 BroScr_EmptyFunc2StrArgs
 001203d0 BroScr_EmptyFuncStrArg
 001203e0 BroScr_EmptyFunc2StrArgs_2

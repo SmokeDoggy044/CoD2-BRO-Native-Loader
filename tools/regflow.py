@@ -13,7 +13,7 @@ img = fnpack.Image()
 syms = sorted((int(l.split()[0], 16), l.split()[1]) for l in open(fnpack.DATA / "default_xbe_symbols.txt")
               if l.strip() and not l.startswith("#"))
 names = dict(syms)
-by_name = {n: a for a, n in syms}
+by_name = fnpack.name_index(syms, img.read)
 starts = [a for a, _ in syms]
 R = ["eax", "ebx", "ecx", "edx", "esi", "edi"]
 PAT = {"eax": r"\b(eax|ax|al|ah)\b", "ebx": r"\b(ebx|bx|bl|bh)\b", "ecx": r"\b(ecx|cx|cl|ch)\b",
