@@ -933,10 +933,13 @@ uint32_t XB_THISCALL ScriptKeyTable_GetStruct28(ScriptKeyTable* self, uint32_t k
 
 // Appends a pointer ({data, capacity, count}); a full array grows to count + 4 (the old data
 // copied, then freed). Returns the old count.
-uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
+namespace {
+
+// `alloc` (stdcall, capacity and count): Scr_AllocPtrArray here, a level copy of it in the level copies.
+uint32_t scr_ptr_array_append(uint32_t* self, const uint32_t* value, uint32_t alloc) {
     if (self[2] >= self[1]) {
         const uint32_t capacity = self[2] + 4;
-        uint32_t* data = Scr_AllocPtrArray(capacity, self[2] + 1);
+        uint32_t* data = title_function<uint32_t* XB_STDCALL(uint32_t, uint32_t)>(alloc)(capacity, self[2] + 1);
         for (uint32_t i = 0; i < self[2]; ++i) data[i] = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(self[0]))[i];
         if (self[0]) Scr_Free(reinterpret_cast<void*>(static_cast<uintptr_t>(self[0])));
         self[0] = address_of(data);
@@ -946,6 +949,12 @@ uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
     reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(self[0]))[count] = *value;
     ++self[2];
     return count;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
+    return scr_ptr_array_append(self, value, 0x0011f660);  // Scr_AllocPtrArray
 }
 
 

@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 73% of the functions have a name, and 7,010 have been
+It's early days: about 73% of the functions have a name, and 7,024 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -30,8 +30,8 @@ function of the game.*
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
 | Engine and game code (`.text`) | 11,313 | 9,174 | 6,977 | 4,336 |
-| Mission scripts (14 level sections) | 5,324 | 2,996 | 33 | 5,291 |
-| **Total** | **16,637** | **12,170** | **7,010** | **9,627** |
+| Mission scripts (14 level sections) | 5,324 | 2,996 | 47 | 5,277 |
+| **Total** | **16,637** | **12,170** | **7,024** | **9,613** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -48,7 +48,7 @@ We've also named 2,667 of the game's global variables.
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,097 | 1,088 | 7 | 1 | 0 | 0 |
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,647 | 1,340 | 244 | 43 | 17 | 0 |
-| Animation (animation trees, the animation codec) | 285 | 257 | 0 | 28 | 0 | 0 |
+| Animation (animation trees, the animation codec) | 285 | 256 | 1 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 300 | 292 | 2 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,015 | 877 | 64 | 70 | 0 | 0 |
 | Client and menus | 770 | 620 | 108 | 42 | 0 | 0 |
@@ -56,7 +56,7 @@ We've also named 2,667 of the game's global variables.
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,008 | 1,722 | 275 | 8 | 3 | 0 |
-| Level-script helpers in the engine code | 1,465 | 314 | 285 | 852 | 7 | 0 |
+| Level-script helpers in the engine code | 1,465 | 315 | 284 | 852 | 7 | 0 |
 | Sound | 145 | 129 | 1 | 14 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |

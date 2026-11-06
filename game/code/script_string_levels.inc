@@ -15,3 +15,7 @@ uint32_t* XB_THISCALL ScriptKeyTable_GetArrayCopy(ScriptKeyTable* self, uint32_t
 uint32_t XB_THISCALL ScriptKeyTable_GetArray(ScriptKeyTable* self, uint32_t key) {
     return key_table_get_or_add_array<0x0045cc80>(self, key);  // ScriptKeyTable_SetArray
 }
+// 0x0045c550, copy of ScrPtrArray_Append
+uint32_t XB_THISCALL ScrPtrArray_Append_PROLOGUE(uint32_t* self, const uint32_t* value) {
+    return scr_ptr_array_append(self, value, 0x0045a410);  // Scr_AllocPtrArray
+}

@@ -27,3 +27,22 @@ uint8_t* XB_THISCALL AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDt
 
 // 0x0045e430, copy of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor
 uint8_t* XB_THISCALL AeThreadFunctor_PROLOGUE_DeletingDtor_6(uint8_t* self, uint32_t flags) { return deleting<0x0045e3e0>(self, flags); }
+// 0x004591e0, copy of AeThreadFunctor2_ent_RespawnerAttributes_Ctor
+uint8_t* XB_THISCALL AeThreadFunctor2_ent_str_PROLOGUE_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x007f4a40);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0011d5e0, self + 0xc, a3);  // FUN_0052ba50
+    return self;
+}
+
+// 0x004599c0, copy of AeThreadFunctor4_ent_str_hash_hash_Ctor
+uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5) {
+    put(self, 0x4, a1);
+    put(self, 0x0, 0x007f4b60);
+    put(self, 0x8, word(a2, 0));
+    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    put(self, 0x10, word(a4, 0));
+    put(self, 0x14, word(a5, 0));
+    return self;
+}

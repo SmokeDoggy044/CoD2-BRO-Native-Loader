@@ -50,12 +50,31 @@ def definitions():
                 depth += {"{": 1, "}": -1}.get(text[i], 0)
                 i += 1
             body = text[start:i - 1]
-            if body.count("\n") <= 4 and body.count(";") <= 3:
+            if body.count("\n") <= 30:  # the operand check below is what makes a copy safe, not the length
                 out.setdefault(m.group(1), (path, text[m.start():m.end() - 1].rstrip(), body))
     return out
 
 
 NAMES = None
+
+
+CONSTS = {}
+# (engine callee, engine function the level callee is an exact twin of) -> rewrite of the wrapper body:
+# the engine helper calls the first through C, a parameter selects the second.
+CALL_SWAPS = {
+    (0x0017cb40, 0x001e6330): ("hash_map_index_map(", lambda b: b[:b.rindex(");")] + ", hash_map_find_node_signed);"
+                               + b[b.rindex(");") + 2:]),  # HashMap_Find -> HashMap_Find_2
+    (0x000428d0, 0x002f5e10): ("", lambda b: re.sub(r"\b(list_clear|vector_tidy4)\((\w+)\)", r"\1(\2, true)", b)),  # Z_Free -> Scr_Free
+}
+
+
+def expand_constants(path, body):
+    """kName of a `constexpr Type kName{...};` in the same file -> `Type{...}`, so its literals can be replaced."""
+    if path not in CONSTS:
+        CONSTS[path] = {m.group(2): f"{m.group(1)}{{{m.group(3)}}}" for m in
+                        re.finditer(r"^constexpr (\w+) (k\w+)\{([^{}]*)\};", path.read_text(), re.M)}
+    consts = CONSTS[path]
+    return re.sub(r"\bk\w+\b", lambda m: consts.get(m.group(0), m.group(0)), body)
 
 
 def rename_comments(body, sub):
@@ -99,16 +118,29 @@ def main():
             cache[va] = [t for _, _, t in fnpack.disassemble(image, va, int(by_addr[va]["size"]))]
         return cache[va]
 
+    def catch_lines(va):
+        """Indices of instructions in catch(...) { ...; throw; } blocks (rethrow = push 0, push 0, call
+        _CxxThrowException); the C code leaves these unwind paths out."""
+        lines, out = dis(va), set()
+        for i in range(2, len(lines)):
+            if lines[i] == "call 0x1f2302" and lines[i - 1] == lines[i - 2] == "push 0x0":
+                j = i
+                while j > 0 and not lines[j - 1].startswith(("jmp ", "ret")):
+                    j -= 1
+                out.update(range(j, i + 1))
+        return out
+
     def operands(va):
-        """[(index, value, is_branch)] for every hex operand of 5+ digits, in order."""
+        """[(value, is_branch, in_catch)] for every hex operand of 5+ digits, in order."""
         out, previous = [], ""
-        for t in dis(va):
+        catch = catch_lines(va)
+        for n, t in enumerate(dis(va)):
             if previous == "push 0xffffffff" and t.startswith("push 0x"):
                 t = "push EH"  # SEH handler address: each copy has its own, C code has none
             previous = t
             b = BRANCH.match(t)
             for h in HEX.findall(t):
-                out.append((int(h, 16), bool(b)))
+                out.append((int(h, 16), bool(b), n in catch))
         return out
 
     memo = {}
@@ -139,35 +171,50 @@ def main():
         """Wrapper body for level row x from engine function f, or (None, reason)."""
         m = entries[f]
         name = m.group(1)
-        if m.group(4) not in (f"code(&{name})", f"code({name})"):
-            return None, f"{name}: asm entry {m.group(4)}"
         if name not in defs:
             return None, f"{name}: no short C definition"
         path, head, body = defs[name]
+        args_entry = m.group(4) == f"code(&{name}_entry)" and f"SCRIPT_ARGS_ENTRY({name})\n" in path.read_text()
+        if m.group(4) not in (f"code(&{name})", f"code({name})") and not args_entry:
+            return None, f"{name}: asm entry {m.group(4)}"
+        plain = set(LIT.findall(body))
+        body = expand_constants(path, body)
         of, ox = operands(f), operands(x)
         if len(of) != len(ox):
             return None, f"{name}: operand count"
         sub = {}
         for lit in set(LIT.findall(body)):
             v = int(lit.rstrip("u"), 16)
-            new = {ox[i][0] for i, (val, _) in enumerate(of) if val == v}
+            new = {ox[i][0] for i, (val, _, _) in enumerate(of) if val == v}
+            if not new and lit not in plain:
+                new = {0}  # a field of an expanded instance constant that this body never calls
             if not new:
                 return None, f"{name}: literal {lit} not in the disassembly"
             if len(new) != 1:
                 return None, f"{name}: literal {lit} maps to {len(new)} values"
             sub[lit] = new.pop()
         covered = {v for v in (int(k.rstrip("u"), 16) for k in sub)}
+        zeroed = [k for k, v in sub.items() if v == 0]
         x_start, f_start = x, f
-        for (vf, br), (vx, _) in zip(of, ox):
+        swaps = []
+        for (vf, br, eh), (vx, _, eh_x) in zip(of, ox):
             if vf == vx or vf in covered:
+                continue
+            if br and eh and eh_x:
+                continue  # catch block: not in the C code
+            swap = next((v for (cf, cg), v in CALL_SWAPS.items() if br and vf == cf and same(vx, cg)), None)
+            if swap and swap[0] in body:
+                swaps.append(swap[1])
                 continue
             if br and ((f_start <= vf < f_start + int(by_addr[f]["size"]) and vx - x_start == vf - f_start)
                        or same(vx, vf)):
                 continue
             return None, f"{name}: operand {vf:#x} -> {vx:#x} not a literal or twin"
-        new_body = LIT.sub(lambda mm: f"{sub[mm.group(0)]:#010x}" + ("u" if mm.group(0).endswith("u") else "")
+        new_body = LIT.sub(lambda mm: ("0" if mm.group(0) in zeroed else f"{sub[mm.group(0)]:#010x}") + ("u" if mm.group(0).endswith("u") else "")
                            if mm.group(0) in sub else mm.group(0), body)
-        return (path, head, rename_comments(new_body, sub), m), None
+        for swap in dict.fromkeys(swaps):
+            new_body = swap(new_body)
+        return (path, head, rename_comments(new_body, sub), m, args_entry), None
 
     module = args.module.upper()
     have_names = {line.split(",", 1)[0] for line in open(MANUAL)}
@@ -190,7 +237,7 @@ def main():
             print(f"skip {a:08x} {by_addr[a]['name']}: {reasons[0]}" + (f" (+{len(reasons) - 1})" if len(reasons) > 1 else ""))
 
     incs, decls, new_entries, new_csv, new_names = {}, [], [], [], []
-    for a, r, (path, head, body, m) in made:
+    for a, r, (path, head, body, m, args_entry) in made:
         name = r["name"]
         if name.startswith("FUN_") or name in known_names or name in defs:
             base = f"{m.group(1)}_{module}"
@@ -202,9 +249,16 @@ def main():
                                  f'with this level\'s callees (tools/near_twins.py)"')
         known_names.add(name)
         new_head = re.sub(rf"\b{m.group(1)}\(", f"{name}(", head, count=1)
-        incs.setdefault(path, []).append(f"// {a:#010x}, copy of {m.group(1)}\n{new_head} {{{body}}}\n")
-        decls.append((path, new_head + ";"))
-        new_entries.append((a, f'    {{"{name}", {a:#010x}, 0, code(&{name}), {m.group(5)}, {m.group(6)}, '
+        if args_entry:  # SCRIPT_ARGS_ENTRY shim: it calls the C symbol, so the body needs C linkage
+            incs.setdefault(path, []).append(f"// {a:#010x}, copy of {m.group(1)}\n"
+                                             f"extern \"C\" PLATFORM_HIDDEN {new_head};\n"
+                                             f"SCRIPT_ARGS_ENTRY({name})\n{new_head} {{{body}}}\n")
+            decls.append((path, f'extern "C" void {name}_entry(void);'))
+        else:
+            incs.setdefault(path, []).append(f"// {a:#010x}, copy of {m.group(1)}\n{new_head} {{{body}}}\n")
+            decls.append((path, new_head + ";"))
+        entry = f"code(&{name}_entry)" if args_entry else f"code(&{name})"
+        new_entries.append((a, f'    {{"{name}", {a:#010x}, 0, {entry}, {m.group(5)}, {m.group(6)}, '
                                f'Status::Compare}},  // near twin of {m.group(1)}'))
         new_csv.append(f'{a:08x},{name},compare,0,0,0,0,0,0,""')
         print(f"{a:08x} {name:50} ~ {m.group(1)}")

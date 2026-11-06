@@ -143,3 +143,214 @@ uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_9(HashMap* map, const uint32_t* key)
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_10(HashMap* map, const uint32_t* key) {
     return hash_map_index_map(map, key, 0x0045fcb0, 0x00460e90, 0x004639e0, 0x00460f10);
 }
+// 0x0045f8b0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045f9b0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_3(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045fa30, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_4(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045fb30, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_6(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045fbb0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_7(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045fc30, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_8(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045feb0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_10(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x0045ffa0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_11(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00460090, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_12(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00460180, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_13(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00460270, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_14(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00461c30, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_15(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00461cb0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_16(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00461d30, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_17(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00461fe0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_18(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00462060, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_19(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x004620e0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_20(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00462160, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_21(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x004621e0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_22(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00462390, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_23(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00463100, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_24(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00463180, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_25(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00463960, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_26(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00464c00, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_27(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00464c80, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_28(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00465310, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_29(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x00465790, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_30(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+
+// 0x004658a0, copy of HashMap_Ctor
+HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_31(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+}
+// 0x0045f650, copy of HashMap_CopyFrom
+void XB_THISCALL HashMap_CopyFrom_PROLOGUE(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, 0x0045e540, 0x0045f3e0, 0x0045f250, 0, 0}); }
+
+// 0x0045fd30, copy of HashMap_CopyFrom
+void XB_THISCALL HashMap_CopyFrom_PROLOGUE_3(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, 0x0045f3a0, 0x0045f540, 0x0045f250, 0, 0}); }
+
+// 0x0045ff30, copy of HashMap_CopyCtor
+HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+}
+
+// 0x00460d40, copy of HashMap_CopyCtor
+HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_6(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+}
+
+// 0x00460db0, copy of HashMap_CopyCtor
+HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_7(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+}
+
+// 0x00460e90, copy of HashMap_CopyCtor
+HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_9(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca40, 0, 0, 0, 0, 0x0045fd30});
+}
+// 0x00463d00, copy of HashMap_Index_4
+uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_2(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0045feb0, 0x0045ff30, 0x00462570, 0x0045f0a0, hash_map_find_node_signed);
+}
+
+// 0x00463dd0, copy of HashMap_Index_4
+uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_3(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0045ffa0, 0x00460020, 0x004627c0, 0x0045f1a0, hash_map_find_node_signed);
+}
+
+// 0x00463ea0, copy of HashMap_Index_4
+uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_4(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x00460090, 0x00460110, 0x00462a10, 0x0045f1a0, hash_map_find_node_signed);
+}
+
+// 0x00463f70, copy of HashMap_Index_4
+uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_5(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x00460180, 0x00460200, 0x00462c60, 0x0045f1a0, hash_map_find_node_signed);
+}
+
+// 0x00464040, copy of HashMap_Index_4
+uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_6(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x00460270, 0x004602f0, 0x00462eb0, 0x0045f1a0, hash_map_find_node_signed);
+}
+// 0x0045f3e0, copy of std_list_InsertRange_2
+void XB_THISCALL std_list_InsertRange_PROLOGUE(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0045d3b0, 0x0045ead0);  // BUCHHOLZ copies
+}
+
+// 0x0045f540, copy of std_list_InsertRange_2
+void XB_THISCALL std_list_InsertRange_PROLOGUE_3(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0045ea30, 0x0045efb0);  // BUCHHOLZ copies
+}
+// 0x0045c270, copy of DynArray_Assign4
+void XB_THISCALL DynArray_Assign4_PROLOGUE(DynArray* array, const DynArray* source) {
+    dyn_array_assign4(array, source, 0x0001b6d0);  // DynArray_AllocInt_FillUndefined
+}
+
+// 0x0045c5b0, copy of DynArray_Assign4
+void XB_THISCALL DynArray_Assign4_PROLOGUE_2(DynArray* array, const DynArray* source) {
+    dyn_array_assign4(array, source, 0x0045a450);  // DynArray_AllocInt_FillUndefined
+}
+
+// 0x0045d530, copy of DynArray_Assign4
+void XB_THISCALL DynArray_Assign4_PROLOGUE_3(DynArray* array, const DynArray* source) {
+    dyn_array_assign4(array, source, 0x0045c950);  // DynArray_AllocInt_FillUndefined
+}

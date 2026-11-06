@@ -699,4 +699,6 @@ uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity) {
     return object ? object : 0x00922e94;
 }
 
+#include "g_script_levels.inc"
+
 }  // namespace game

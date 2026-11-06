@@ -14771,3 +14771,6 @@ address,name,kind,confidence,evidence
 00462a10,HashMap_Insert_11_PROLOGUE_4,function,high,"copy of HashMap_Insert_11 (0x001e6a00) with this level's callees (tools/near_twins.py)"
 00462c60,HashMap_Insert_11_PROLOGUE_5,function,high,"copy of HashMap_Insert_11 (0x001e6a00) with this level's callees (tools/near_twins.py)"
 00462eb0,HashMap_Insert_11_PROLOGUE_6,function,high,"copy of HashMap_Insert_11 (0x001e6a00) with this level's callees (tools/near_twins.py)"
+0045ca00,std_list_Clear_2_PROLOGUE,function,high,"copy of std_list_Clear_2 (0x00028b00) with this level's callees (tools/near_twins.py)"
+0045c550,ScrPtrArray_Append_PROLOGUE,function,high,"copy of ScrPtrArray_Append (0x001e5ec0) with this level's callees (tools/near_twins.py)"
+0045e780,std_vector_Tidy4_PROLOGUE,function,high,"copy of std_vector_Tidy4 (0x00028ad0) with this level's callees (tools/near_twins.py)"

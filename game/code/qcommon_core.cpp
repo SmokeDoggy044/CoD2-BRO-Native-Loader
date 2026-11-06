@@ -2510,17 +2510,33 @@ char* XB_CDECL FixedStr64_Printf(char* buffer, const char* format, void* args) {
     return printf_with_length(buffer, 0x3f, format, args);
 }
 
-void XB_THISCALL std_vector_Tidy4(uint8_t* vector) {
+namespace {
+
+// `scr_heap`: the level copies free with Scr_Free instead of Z_Free.
+void vector_tidy4(uint8_t* vector, bool scr_heap = false) {
     uint8_t* const data = pointer_at<uint8_t>(vector, 4);
-    if (data) Z_Free(data);
+    if (data) {
+        if (scr_heap) {
+            Scr_Free(data);
+        } else {
+            Z_Free(data);
+        }
+    }
     word_at(vector, 4) = 0;
     word_at(vector, 8) = 0;
     word_at(vector, 0xc) = 0;
 }
 
+}  // namespace
+
+void XB_THISCALL std_vector_Tidy4(uint8_t* vector) {
+    vector_tidy4(vector);
+}
+
 namespace {
 
-void list_clear(uint8_t* list) {
+// `scr_heap`: the level copies free the nodes with Scr_Free instead of Z_Free.
+void list_clear(uint8_t* list, bool scr_heap = false) {
     uint8_t* const head = pointer_at<uint8_t>(list, 4);
     uint8_t* node = pointer_at<uint8_t>(head, 0);
     word_at(head, 0) = addr32(head);
@@ -2531,7 +2547,11 @@ void list_clear(uint8_t* list) {
     if (empty) return;
     for (;;) {
         uint8_t* const next = pointer_at<uint8_t>(node, 0);
-        Z_Free(node);
+        if (scr_heap) {
+            Scr_Free(node);
+        } else {
+            Z_Free(node);
+        }
         node = next;
         if (next == pointer_at<uint8_t>(list, 4)) return;
     }
@@ -5831,5 +5851,7 @@ int32_t XB_CDECL Save_AsyncReadCallback() {
     Save_CloseFileHandles();
     return -1;
 }
+
+#include "qcommon_core_levels.inc"
 
 }  // namespace game

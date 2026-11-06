@@ -41,7 +41,7 @@ def main():
     image = fnpack.Image()
     text = FUNCTIONS_CPP.read_text()
     entries = {int(m.group(2), 16): m for m in re.finditer(
-        r'^    \{"(\w+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+|0), (code\([^)]*\)), (\d+), (Result::\w+), Status::(\w+)\},$',
+        r'^    \{"(\w+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+|0), (code\([^)]*\)), (\d+), (Result::\w+), Status::(\w+)\},',
         text, re.M)}
     engine = {}  # exact hash -> Replaced engine addresses with a kFunctions entry
     for a, r in by_addr.items():

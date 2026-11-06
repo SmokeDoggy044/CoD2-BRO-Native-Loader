@@ -103,7 +103,10 @@ void XB_THISCALL DynArray_ResizeInt(DynArray* array, uint32_t size, uint32_t cap
     array->size = size;
 }
 
-void XB_THISCALL DynArray_Assign4(DynArray* array, const DynArray* source) {
+namespace {
+
+// `alloc` (stdcall, element count): DynArray_AllocInt_FillUndefined here, another allocator in the level copies.
+void dyn_array_assign4(DynArray* array, const DynArray* source, uint32_t alloc) {
     if (array->data) Scr_Free(array->data);
     if (!source->size) {
         array->data = nullptr;
@@ -111,11 +114,17 @@ void XB_THISCALL DynArray_Assign4(DynArray* array, const DynArray* source) {
         array->capacity = 0;
         return;
     }
-    uint32_t* data = DynArray_AllocInt_FillUndefined(source->capacity);
+    uint32_t* data = title_function<uint32_t* XB_STDCALL(uint32_t)>(alloc)(source->capacity);
     for (int32_t i = 0; i < static_cast<int32_t>(source->size); ++i) data[i] = source->data[i];
     array->data = data;
     array->size = source->size;
     array->capacity = source->capacity;
+}
+
+}  // namespace
+
+void XB_THISCALL DynArray_Assign4(DynArray* array, const DynArray* source) {
+    dyn_array_assign4(array, source, 0x0017ac00);  // DynArray_AllocInt_FillUndefined
 }
 
 void XB_THISCALL DynArray_ResizeBytes(DynArrayBytes* array, uint32_t size, uint32_t capacity) {
@@ -4964,9 +4973,16 @@ uint8_t* hash_map_index_array(HashMap* map, const uint32_t* key, HashNode* (*fin
 // operator[] with a HashMap value: a temporary map built with traits = the found iterator word (the
 // original passes its own argument slot, which now holds the head), copied into {key, map}, inserted, then
 // both maps destroyed.
+HashNode* hash_map_find_node_signed(HashMap* map, const uint32_t* key) {
+    HashNode* node = nullptr;
+    HashMap_Find_2(map, &node, reinterpret_cast<const int32_t*>(key));
+    return node;
+}
+
+// `find` is hash_map_find_node_signed in the level copies whose lookup is HashMap_Find_2's.
 uint8_t* hash_map_index_map(HashMap* map, const uint32_t* key, uint32_t ctor, uint32_t copy_ctor, uint32_t insert,
-                            uint32_t dtor) {
-    HashNode* found = hash_map_find_node(map, key);
+                            uint32_t dtor, HashNode* (*find)(HashMap*, const uint32_t*) = hash_map_find_node) {
+    HashNode* found = find(map, key);
     if (found != map->head) return reinterpret_cast<uint8_t*>(found) + 0xc;
     alignas(4) uint8_t temp[0x28] = {};
     title_function<void XB_THISCALL(uint8_t*, HashNode**, HashNode**)>(ctor)(temp, &found, &found);
@@ -4979,12 +4995,6 @@ uint8_t* hash_map_index_map(HashMap* map, const uint32_t* key, uint32_t ctor, ui
     title_function<void XB_THISCALL(uint8_t*)>(dtor)(pair + 4);
     title_function<void XB_THISCALL(uint8_t*)>(dtor)(temp);
     return node + 0xc;
-}
-
-HashNode* hash_map_find_node_signed(HashMap* map, const uint32_t* key) {
-    HashNode* node = nullptr;
-    HashMap_Find_2(map, &node, reinterpret_cast<const int32_t*>(key));
-    return node;
 }
 
 }  // namespace
