@@ -448,21 +448,21 @@ int32_t XB_CDECL File_OpenReadEx(uint32_t bit, const char* path, uint32_t* size)
 // 0x000c9df0: request priority low byte (+0x20 = bits 8-15 kept | priority).
 void XB_CDECL File_SetRequestPriority(int32_t handle, uint32_t priority);
 // 0x000c9f70: queues a read described by desc[10] {file, device (0 = default), +8, +0xc, priority,
-// buffer, offset, size, timeout (0 = none), +0x24}; wakes the request thread. Returns the request or -1.
+// file offset, buffer, size, timeout (0 = none), +0x24}; wakes the request thread. Returns the request or -1.
 int32_t XB_CDECL File_QueueRead(const uint32_t* desc);
 // 0x000ca0e0: a busy request (1) becomes failed (3), any other but 3 aborted (4).
 void XB_CDECL File_AbortRequest(int32_t handle);
 // 0x000cae10: File_OpenRead + File_Close; 1 when it opened.
 uint32_t XB_CDECL File_Exists(uint32_t bit, const char* path);
-// 0x000cae70: File_QueueRead {file, 0, arg5, 0, 2, buffer, offset, size, 0, 0}.
-int32_t XB_CDECL File_QueueRequestEx(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size, uint32_t arg5);
-// 0x000caed0: File_QueueRead {file, 0, 0, 0, 2, buffer, offset, size, 0, 0}.
-int32_t XB_CDECL File_QueueRequest(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size);
+// 0x000cae70: File_QueueRead {file, 0, arg5, 0, 2, offset, buffer, size, 0, 0}.
+int32_t XB_CDECL File_QueueRequestEx(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size, uint32_t arg5);
+// 0x000caed0: File_QueueRead {file, 0, 0, 0, 2, offset, buffer, size, 0, 0}.
+int32_t XB_CDECL File_QueueRequest(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size);
 // 0x000caf20 (dead: only the dead 0x000caf80 and 0x000cb060 call it): as File_QueueRequest with +0xc = 1.
-int32_t XB_CDECL File_QueueRequestAlt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size);
+int32_t XB_CDECL File_QueueRequestAlt(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size);
 // 0x000caff0: File_QueueRequest, then File_PumpRequests until the request is gone (returns size) or
 // failed (aborted, 0); -1 when it could not queue.
-int32_t XB_CDECL File_ReadAt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size);
+int32_t XB_CDECL File_ReadAt(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t size);
 // 0x000cac20: File_AbortRequest for each request of the file.
 void XB_CDECL File_AbortRequestsForFile(uint32_t file);
 // 0x000cac90: aborts the file's requests; a file without references is closed (driver close op) and its
