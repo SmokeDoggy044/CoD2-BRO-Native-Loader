@@ -8377,6 +8377,20 @@ const Function kFunctions[] = {
     {"StaticInit_Vtable_8bb768", 0x00379df0, 0, code(&StaticInit_Vtable_8bb768), 0, Result::None, Status::Replaced},
     {"AtExit_ScrFree_922e90", 0x00379e50, 0, code(&AtExit_ScrFree_922e90), 0, Result::None, Status::Compare},
     {"AtExit_ScriptKeyTable", 0x00379e70, 0, code(&AtExit_ScriptKeyTable), 0, Result::None, Status::Compare},
+    {"DynArray_Shuffle12_PROLOGUE", 0x00431720, 0, code(&DynArray_Shuffle12), 4, Result::None, Status::Compare},  // twin of DynArray_Shuffle12
+    {"ScriptString_ReleaseAt20_PROLOGUE", 0x00458cc0, 0, code(&ScriptString_ReleaseAt20), 0, Result::None, Status::Compare},  // twin of ScriptString_ReleaseAt20
+    {"std_Fill4_PROLOGUE", 0x00458f40, 0, code(&std_Fill4), 12, Result::Eax, Status::Compare},  // twin of std_Fill4
+    {"std_CopyBackward4_PROLOGUE", 0x0045bca0, 0, code(&std_CopyBackward4), 12, Result::Eax, Status::Compare},  // twin of std_CopyBackward4
+    {"AeThreadFunctor_PROLOGUE_Dtor_4", 0x0045be50, 0, code(&AeThreadFunctor_Dtor), 0, Result::None, Status::Compare},  // twin of AeThreadFunctor_Dtor
+    {"AeThreadFunctor_PROLOGUE_DeletingDtor_4", 0x0045c020, 0, code(&AeThreadFunctor_DeletingDtor), 4, Result::Eax, Status::Compare},  // twin of AeThreadFunctor_DeletingDtor
+    {"std_UninitializedCopy4_PROLOGUE", 0x0045c990, 0, code(&std_UninitializedCopy4), 12, Result::Eax, Status::Compare},  // twin of std_UninitializedCopy4
+    {"std_list_BuyHead_PROLOGUE", 0x0045ca40, 0, code(&std_list_BuyHead), 0, Result::Eax, Status::Compare},  // twin of std_list_BuyHead
+    {"DynArray_Resize4_PROLOGUE", 0x0045cad0, 0, code(&DynArray_Resize4), 8, Result::None, Status::Compare},  // twin of DynArray_Resize4
+    {"std_UninitializedFillN4_PROLOGUE", 0x0045d6e0, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Compare},  // twin of std_UninitializedFillN4
+    {"HashMap_LowerBound_PROLOGUE", 0x0045e450, 0, code(&HashMap_Find_2), 8, Result::Eax, Status::Compare},  // twin of HashMap_Find_2
+    {"std_UninitializedFillN4Ret_PROLOGUE", 0x0045e5d0, 0, code(&std_vector_UfillN4), 12, Result::Eax, Status::Compare},  // twin of std_vector_UfillN4
+    {"HashMap_Find_PROLOGUE", 0x0045e6d0, 0, code(&HashMap_Find), 8, Result::Eax, Status::Compare},  // twin of HashMap_Find
+    {"std_vector_Erase4_PROLOGUE", 0x0045e9d0, 0, code(&std_vector_Erase4), 12, Result::Eax, Status::Compare},  // twin of std_vector_Erase4
 };
 
 }  // namespace
