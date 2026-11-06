@@ -107,6 +107,7 @@ set(game_code_sources
     g_static.cpp
     g_utils.cpp
     g_vehicle.cpp
+    levels_prologue_b.cpp
     movie.cpp
     movie_vid.cpp
     nal_anim.cpp
