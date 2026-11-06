@@ -207,6 +207,30 @@ void types(uint32_t* a, uint32_t* b, uint32_t* c, uint32_t* d, uint32_t va, uint
     if (d) *d = vd;
 }
 
+// ScrField_tank_firing_IsDefined_PROLOGUE (0x00422fd0, out in ESI in the title): the int field
+// 0x0b74e4e8 holds a value other than the undefined int; false for an invalid handle / no script object.
+bool tank_firing_defined(uint32_t tank) {
+    if (!entity_handle_is_valid(tank)) return false;
+    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(tank);
+    if (!table) return false;
+    const uint32_t undefined = undefined_int();
+    const uint32_t* const value = ScriptKeyTable_Find(table, 0x0b74e4e8);
+    return (value ? *value : undefined) != undefined;
+}
+
+// ScrField_tank_targets_IsDefined_PROLOGUE (0x00432d30): a copy of the array field 0xfe9bb316
+// (ScriptKeyTable_GetArrayCopy) has storage; the copy is freed.
+bool tank_targets_defined(uint32_t tank) {
+    if (!entity_handle_is_valid(tank)) return false;
+    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(tank);
+    if (!table) return false;
+    uint32_t copy[3];
+    const uint32_t* const array = ScriptKeyTable_GetArrayCopy(table, copy, 0xfe9bb316);
+    const bool defined = array[1] != 0;
+    if (copy[0]) Scr_Free(pointer<void>(copy[0]));
+    return defined;
+}
+
 }  // namespace
 
 void XB_CDECL BroLvl_prologue_StartEntArrayDefault(uint32_t self, ScriptString name) {
@@ -216,6 +240,32 @@ void XB_CDECL BroLvl_prologue_StartEntArrayDefault(uint32_t self, ScriptString n
     ScriptString_Copy(&copy, &name);
     title_function<void XB_CDECL(uint32_t, ScriptString, ScriptString)>(0x00437bb0)(self, copy, empty);  // FUN_00437bb0
     ScriptString_Release(&name);
+}
+
+void XB_CDECL BroLvl_prologue_TankFireAtTargets(uint32_t tank, float a, float b) {
+    using EndOn = void XB_CDECL(uint32_t, uint32_t);
+    slot<EndOn>(0x00922188)(tank, 0x06730ae8);  // Scr_EndOn death
+    slot<EndOn>(0x00922188)(tank, 0x318562c7);
+    if (!tank_firing_defined(tank)) *int_slot(tank, 0x0b74e4e8) = 1;  // (the result byte goes over the `tank` argument slot)
+    using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
+    for (;;) {
+        while (*int_slot(tank, 0x0b74e4e8) == 0) Scr_Wait(as_float(0x3e800000));  // 0.25
+        if (!tank_targets_defined(tank)) return;
+        if (static_cast<int32_t>(title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316)->size) < 1) return;
+        title_function<void XB_CDECL(DynArray*)>(0x001a95e0)(  // DynArray_Shuffle
+            title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316));
+        for (uint32_t i = 0;
+             static_cast<int32_t>(i) <
+             static_cast<int32_t>(title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316)->size);
+             ++i) {
+            DynArray* const targets = title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316);
+            if (i >= targets->size) DynArray_Resize(reinterpret_cast<uint8_t*>(targets), i + 1, i + 4);
+            title_function<StartThread>(0x0045a850)(0, 0, 0, 0, 0x00432c90, tank, targets->data + i, &a,
+                                                    &b);  // Scr_StartThread_ent_ent_f_f_PROLOGUE
+            Scr_WaitTill(tank, 0xf931a702);
+            while (*int_slot(tank, 0x0b74e4e8) == 0) Scr_Wait(as_float(0x3e800000));  // 0.25
+        }
+    }
 }
 
 void XB_CDECL BroLvl_prologue_AddTankTargets(uint32_t tank, DynArray targets) {

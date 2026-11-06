@@ -19,6 +19,11 @@ struct ScrVec3;
 
 // 0x0043fb40 (thread switch): FUN_00437bb0(self, name, the empty string); releases `name`.
 void XB_CDECL BroLvl_prologue_StartEntArrayDefault(uint32_t self, ScriptString name);
+// 0x0043d4f0 (thread switch, the target thread of BroLvl_prologue_TankStartTargets and the hilltop
+// Shermans): ends on death / 0x318562c7; marks tank_firing (0x0b74e4e8) 1 when undefined; while it is
+// set, shuffles the tank's targets (0xfe9bb316) and per target starts thread 0x00432c90 (tank, target,
+// a, b) and waits for notify 0xf931a702; ends when the targets are gone.
+void XB_CDECL BroLvl_prologue_TankFireAtTargets(uint32_t tank, float a, float b);
 // 0x0043fbd0: each entity of `targets` appended to the tank's array field 0xfe9bb316 (added empty
 // first); frees the array.
 void XB_CDECL BroLvl_prologue_AddTankTargets(uint32_t tank, DynArray targets);
