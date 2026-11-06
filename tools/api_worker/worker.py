@@ -22,6 +22,7 @@ usage (run with build/api_venv/bin/python; credentials: ANTHROPIC_API_KEY, else 
   worker.py dry RUN                               token count of one request + cost estimate, nothing sent
   worker.py run RUN [--rounds 3] [--budget USD]   submit / wait / check rounds until done or out of budget
   worker.py status RUN                            per-row states and the cost so far
+  worker.py recheck RUN [--no-retry]              rewrite + check every answer again offline (after a harness fix)
 Run state: build/api_worker/RUN/state.json (the batch ids, every conversation, usage).
 """
 import argparse
@@ -181,7 +182,8 @@ def module_files(state):
                        "namespace game {\n\n// DECLS\n\n}  // namespace game\n")
         includes = re.findall(r'^#include "[^"]+"$', (ROOT / "game/code/levels_prologue_a.cpp").read_text(), re.M)
         cpp.write_text(f'#include "{stem}.h"\n\n' + "\n".join(i for i in includes if "levels_prologue" not in i) +
-                       "\n\nnamespace game {\n\nusing bro_ai::pointer;\nusing bro_ai::slot;\n\n// BODIES\n\n"
+                       "\n\nnamespace game {\n\nnamespace {\nusing bro_ai::pointer;  // inside an unnamed namespace: VC7.1 finds\n"
+                       "using bro_ai::slot;     // them ambiguous at namespace scope (pilot run dra1)\n}  // namespace\n\n// BODIES\n\n"
                        "}  // namespace game\n")
         cmake = wt / "game" / "code" / "CMakeLists.txt"
         t = cmake.read_text()
@@ -491,6 +493,50 @@ def cmd_run(args):
     save(state)
 
 
+def cmd_recheck(args):
+    """Rewrite every answered row from the state and check it again (no API calls): fixes rows a harness
+    problem had marked wrongly. Rows that now pass become ok; the others get the new check as feedback and
+    one more round (state retry) unless --no-retry."""
+    state = load(args.run)
+    cpp, hdr = module_files(state)
+    t = cpp.read_text()
+    if "using bro_ai::slot;\n\n" in t and "namespace {\nusing bro_ai::pointer" not in t:
+        t = t.replace("using bro_ai::pointer;\nusing bro_ai::slot;\n",
+                      "namespace {\nusing bro_ai::pointer;\nusing bro_ai::slot;\n}  // namespace\n", 1)
+        cpp.write_text(t)
+    rows = [a for a, r in state["rows"].items() if r.get("answer") and r["state"] != "refused"]
+    for a in rows:
+        row, ans = state["rows"][a], state["rows"][a]["answer"]
+        put_block(cpp, "BODIES", a, f"// {'0x' + a} (api_worker, {MODEL})\n" + ans["c_code"])
+        put_block(hdr, "DECLS", a, ans["header_decl"])
+        if row["kind"] == "safe":
+            register(state, row, ans)
+    errors = compile_check(state)
+    ok_compile = [a for a in rows if a not in errors]
+    facts = facts_check(state, ok_compile)
+    claims_update(rows, f"api:{args.run}")
+    for a in rows:
+        row = state["rows"][a]
+        if a in errors:
+            text = "It does not compile:\n" + "\n".join(errors[a][:20])
+            same = False
+        else:
+            same, text = facts[a]
+        row["log"].append("recheck: " + ("facts same" if same else text[:2000]))
+        if same:
+            row["state"] = "ok"
+        elif args.no_retry:
+            row["state"] = "failed"
+        else:
+            row["messages"].append({"role": "user", "content": "Correction: the previous check result was a "
+                                    "harness problem on our side, not your code. The real check of your last "
+                                    "version:\n" + text + "\nFix real differences; for known noise return the "
+                                    "same c_code and explain it in noise_explanations."})
+            row["state"], row["round_count"] = "retry", min(row["round_count"], state["max_rounds"] - 1)
+    save(state)
+    cmd_status(args, state)
+
+
 def cmd_status(args, state=None):
     state = state or load(args.run)
     counts = {}
@@ -513,8 +559,10 @@ def main():
     s = sub.add_parser("run"); s.add_argument("run"); s.add_argument("--rounds", type=int, default=3)
     s.add_argument("--budget", type=float)
     s = sub.add_parser("status"); s.add_argument("run"); s.add_argument("-v", "--verbose", action="store_true")
+    s = sub.add_parser("recheck"); s.add_argument("run"); s.add_argument("--no-retry", action="store_true")
     args = p.parse_args()
-    {"claim": cmd_claim, "prepare": cmd_prepare, "dry": cmd_dry, "run": cmd_run, "status": cmd_status}[args.cmd](args)
+    {"claim": cmd_claim, "prepare": cmd_prepare, "dry": cmd_dry, "run": cmd_run, "status": cmd_status,
+     "recheck": cmd_recheck}[args.cmd](args)
 
 
 if __name__ == "__main__":
