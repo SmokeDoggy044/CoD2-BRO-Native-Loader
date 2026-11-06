@@ -239,7 +239,9 @@ def main():
         count = int(args.items[0]) if args.items else 5
         print("\n\n".join(pack(p, va, args.lines) for _, va, _ in candidates(p, args)[:count]))
     elif args.command == "pack":
-        by_name = {n: a for a, n in p.names.items()}
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import fnpack
+        by_name = fnpack.name_index(p.names.items(), fnpack.Image().read)
         print("\n\n".join(pack(p, by_name[i] if i in by_name else int(i, 16), args.lines) for i in args.items))
     else:
         fields_report(p, args.items[0], args.unknown, args.n if args.n != 30 else 6)
