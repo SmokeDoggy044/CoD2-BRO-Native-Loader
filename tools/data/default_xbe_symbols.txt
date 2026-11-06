@@ -14044,12 +14044,12 @@
 0041b650 LevelScript_prologue_AnimHandles_prologue_wounded
 0041b800 LevelScript_prologue_AnimHandle_GetSet
 0041b910 FUN_0041b910
-0041ba00 FUN_0041ba00
+0041ba00 BroLvl_prologue_AnimHandleByName
 0041ba60 BroLvl_prologue_InitDebugCvars
 0041bc10 BroLvl_prologue_InitMusic
 0041be80 BroLvl_prologue_FriendlyChainThink
 0041cd00 FUN_0041cd00
-0041cd70 FUN_0041cd70
+0041cd70 BroLvl_prologue_ShermanDestroyed
 0041ce90 FUN_0041ce90
 0041cf10 FUN_0041cf10
 0041d290 FUN_0041d290
@@ -14090,7 +14090,7 @@
 00420d00 FUN_00420d00
 00420e10 FUN_00420e10
 00421180 FUN_00421180
-004214a0 FUN_004214a0
+004214a0 BroLvl_prologue_DeleteNoteworthyAndTargeter
 00421590 FUN_00421590
 00421620 FUN_00421620
 00421760 FUN_00421760
@@ -14113,7 +14113,7 @@
 00424a00 FUN_00424a00
 00424ac0 BroLvl_prologue_GrenadeThrowModel
 00424fc0 FUN_00424fc0
-00425510 FUN_00425510
+00425510 BroLvl_prologue_LaunchVelocity
 00425640 FUN_00425640
 00425810 FUN_00425810
 004258c0 BroLvl_prologue_FlakVierlingFire
@@ -14124,7 +14124,7 @@
 00426bd0 FUN_00426bd0
 00426ea0 BroLvl_prologue_Event2InsideBuilding
 004273d0 BroLvl_prologue_Event3BloomfieldHoldUp
-004275f0 FUN_004275f0
+004275f0 BroLvl_prologue_LineBloomfieldWaitForThe
 00427710 FUN_00427710
 00427aa0 BroLvl_prologue_FlakBurstAt
 00427bd0 FUN_00427bd0
@@ -14139,10 +14139,10 @@
 0042af40 BroLvl_prologue_Event2Battle
 0042b910 FUN_0042b910
 0042bef0 BroLvl_prologue_CeilingDust
-0042c220 FUN_0042c220
+0042c220 BroLvl_prologue_AllList880XBelowNeg1760
 0042c2d0 FUN_0042c2d0
 0042c5b0 FUN_0042c5b0
-0042c6d0 FUN_0042c6d0
+0042c6d0 BroLvl_prologue_Event3MgRouteThreads
 0042c870 FUN_0042c870
 0042d2b0 FUN_0042d2b0
 0042d3a0 BroLvl_prologue_Event4DoorBash
@@ -14164,7 +14164,7 @@
 0042fd40 BroLvl_prologue_SpawnGroup
 00430170 FUN_00430170
 00430370 FUN_00430370
-004309b0 FUN_004309b0
+004309b0 BroLvl_prologue_KillByTargetnameAfterRandomDelay
 00430b00 FUN_00430b00
 00430c40 FUN_00430c40
 00430d30 FUN_00430d30
@@ -14178,11 +14178,11 @@
 00431720 DynArray_Shuffle12_PROLOGUE
 00431840 FUN_00431840
 00431e90 FUN_00431e90
-00432010 FUN_00432010
+00432010 BroLvl_prologue_AllyManDownMedicLine
 00432200 BroLvl_prologue_Event1JeepAndAA
 00432a80 FUN_00432a80
 00432d30 ScrField_tank_targets_IsDefined_PROLOGUE
-00432da0 FUN_00432da0
+00432da0 BroLvl_prologue_StartEvent1Drones3d
 00432ec0 BroLvl_prologue_StukaDeath
 00433130 BroLvl_prologue_Event1Jeeps
 00433660 FUN_00433660
