@@ -1990,4 +1990,6 @@ PLATFORM_ASM_ENTRY(Scr_StartAnimNotify_entry, "movl %esp, %eax\n" GAME_GAP_ESP("
 
 namespace game {
 
+#include "g_scr_runtime_levels.inc"
+
 }  // namespace game

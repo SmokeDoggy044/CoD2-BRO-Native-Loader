@@ -46,3 +46,20 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor(uint8_t* self, u
     put(self, 0x14, word(a5, 0));
     return self;
 }
+// 0x00459050, copy of AeThreadFunctor5_ent_f_f_hash_hash_Invoke
+void XB_THISCALL AeThreadFunctor5_ent_i_f_i_i_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_f_f_hash_hash); }
+
+// 0x00459290, copy of AeThreadFunctor3_ent_hash_hash_Invoke
+void XB_THISCALL AeThreadFunctor3_ent_i_f_Invoke(uint8_t* self) { call_body(self, 0xc, &build_AeThreadFunctor3_ent_hash_hash); }
+
+// 0x00459420, copy of AeThreadFunctor4_ent_f_f_b_Invoke
+void XB_THISCALL AeThreadFunctor4_ent_i_i_b_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_f_f_b); }
+
+// 0x00459a30, copy of AeThreadFunctor4_ent_str_hash_hash_Invoke
+void XB_THISCALL AeThreadFunctor4_ent_str_f_f_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_str_hash_hash); }
+
+// 0x00459c60, copy of AeThreadFunctor4_ent_hash_i_f_Invoke
+void XB_THISCALL AeThreadFunctor4_ent_i_f_f_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_hash_i_f); }
+
+// 0x00459f30, copy of AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke
+void XB_THISCALL AeThreadFunctor7_ent_i_f_f_i_i_i_Invoke(uint8_t* self) { call_body(self, 0x1c, &build_AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim); }

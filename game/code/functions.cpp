@@ -8407,10 +8407,19 @@ const Function kFunctions[] = {
     {"ScriptString_ReleaseAt20_PROLOGUE", 0x00458cc0, 0, code(&ScriptString_ReleaseAt20), 0, Result::None, Status::Compare},  // twin of ScriptString_ReleaseAt20
     {"std_Fill4_PROLOGUE", 0x00458f40, 0, code(&std_Fill4), 12, Result::Eax, Status::Compare},  // twin of std_Fill4
     {"WaitTilOutputInst2_i_ent_PROLOGUE_Dtor", 0x00458fc0, 0, code(&WaitTilOutputInst2_i_ent_PROLOGUE_Dtor), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor_Dtor
+    {"AeThreadFunctor5_ent_i_f_i_i_Invoke", 0x00459050, 0, code(&AeThreadFunctor5_ent_i_f_i_i_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor5_ent_f_f_hash_hash_Invoke; kept original: script thread switch (as its reference)
     {"AeThreadFunctor2_ent_str_PROLOGUE_Ctor", 0x004591e0, 0, code(&AeThreadFunctor2_ent_str_PROLOGUE_Ctor), 12, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor2_ent_RespawnerAttributes_Ctor
+    {"AeThreadFunctor3_ent_i_f_Invoke", 0x00459290, 0, code(&AeThreadFunctor3_ent_i_f_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor3_ent_hash_hash_Invoke; kept original: script thread switch (as its reference)
+    {"AeThreadFunctor4_ent_i_i_b_Invoke", 0x00459420, 0, code(&AeThreadFunctor4_ent_i_i_b_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor4_ent_f_f_b_Invoke; kept original: script thread switch (as its reference)
     {"AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor", 0x004599c0, 0, code(&AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor), 20, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_str_hash_hash_Ctor
+    {"AeThreadFunctor4_ent_str_f_f_Invoke", 0x00459a30, 0, code(&AeThreadFunctor4_ent_str_f_f_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor4_ent_str_hash_hash_Invoke; kept original: script thread switch (as its reference)
+    {"AeThreadFunctor4_ent_i_f_f_Invoke", 0x00459c60, 0, code(&AeThreadFunctor4_ent_i_f_f_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor4_ent_hash_i_f_Invoke; kept original: script thread switch (as its reference)
+    {"AeThreadFunctor7_ent_i_f_f_i_i_i_Invoke", 0x00459f30, 0, code(&AeThreadFunctor7_ent_i_f_f_i_i_i_Invoke), 0, Result::None, Status::Compare},  // near twin of AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke; kept original: script thread switch (as its reference)
+    {"Scr_StartThread_ent_str_f_f_PROLOGUE", 0x0045b190, 0, code(&Scr_StartThread_ent_str_f_f_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_str_i_str_2
+    {"Scr_StartThread_ent_vec_f_str_PROLOGUE", 0x0045b220, 0, code(&Scr_StartThread_ent_vec_f_str_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_ent_str_vec
     {"Scr_StartThread_ent_vec_str_PROLOGUE", 0x0045b780, 0, code(&Scr_StartThread_ent_vec_str_PROLOGUE_entry), 32, Result::Eax, Status::Compare},  // near twin of Scr_StartThreadFunctorN
     {"std_CopyBackward4_PROLOGUE", 0x0045bca0, 0, code(&std_CopyBackward4), 12, Result::Eax, Status::Compare},  // twin of std_CopyBackward4
+    {"WaitTilOutputInst2_i_ent_PROLOGUE_VFunc1", 0x0045bd50, 0, code(&WaitTilOutputInst2_i_ent_PROLOGUE_VFunc1), 4, Result::Eax, Status::Compare},  // near twin of WaitTilOutputInst2_CopyArgs
     {"WaitTilOutputInst2_i_ent_PROLOGUE_DeletingDtor", 0x0045bda0, 0, code(&WaitTilOutputInst2_i_ent_PROLOGUE_DeletingDtor), 4, Result::Eax, Status::Compare},  // near twin of ScrWad_Anim_DeletingDtor
     {"AeThreadFunctor_PROLOGUE_DeletingDtor", 0x0045bdc0, 0, code(&AeThreadFunctor_PROLOGUE_DeletingDtor), 4, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor
     {"AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_DeletingDtor", 0x0045bde0, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_DeletingDtor), 4, Result::Eax, Status::Compare},  // twin of AeThreadFunctor5_ent_ent_i_str_b_DeletingDtor
@@ -8439,6 +8448,7 @@ const Function kFunctions[] = {
     {"ScriptKeyTable_GetArray", 0x0045cd50, 0, code(&ScriptKeyTable_GetArray), 4, Result::Eax, Status::Compare},  // near twin of ScriptKeyTable_GetOrAddArray_2
     {"DynArray_Assign4_PROLOGUE_3", 0x0045d530, 0, code(&DynArray_Assign4_PROLOGUE_3), 4, Result::None, Status::Compare},  // near twin of DynArray_Assign4
     {"std_UninitializedFillN4_PROLOGUE", 0x0045d6e0, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Compare},  // twin of std_UninitializedFillN4
+    {"Scr_StartThread_ent_arrent_hash_hash_PROLOGUE", 0x0045def0, 0, code(&Scr_StartThread_ent_arrent_hash_hash_PROLOGUE_entry), 36, Result::Eax, Status::Compare},  // near twin of Scr_StartThread_ent_ent_str_vec
     {"Scr_StartThread_ent_arrent_i_PROLOGUE", 0x0045e0c0, 0, code(&Scr_StartThread_ent_arrent_i_PROLOGUE_entry), 32, Result::Eax, Status::Compare},  // near twin of Scr_StartThreadFunctorN
     {"AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDtor", 0x0045e360, 0, code(&AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDtor), 4, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor
     {"AeThreadFunctor_PROLOGUE_DeletingDtor_6", 0x0045e430, 0, code(&AeThreadFunctor_PROLOGUE_DeletingDtor_6), 4, Result::Eax, Status::Compare},  // near twin of AeThreadFunctor4_ent_ent_str_vec_DeletingDtor

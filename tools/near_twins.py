@@ -3,7 +3,8 @@
 
 Many engine functions are one-line calls into a shared body with the instance's addresses as literals, e.g.
     uint8_t* XB_THISCALL HashMap_Insert_2(HashMap* map, ...) { return hash_map_insert<uint32_t>(map, ..., 0x0017dc30, ...); }
-A level row is a near twin of such an engine function F when the masked disassembly is equal
+A level row is a near twin of such a function F (a Replaced engine function, else any row with C - e.g. one
+level's copy of a template written once) when the masked disassembly is equal
 (build/all_body_hashes.csv "masked"). Every address literal in F's body is located in F's disassembly (all positions
 holding that value); the level copy's values at those positions replace it. Every other differing operand must be
 a call/branch target that is the same offset inside the function or an exact twin (tools/twin_register.py rule),
@@ -106,9 +107,10 @@ def main():
     entries = {int(m.group(2), 16): m for m in re.finditer(ENTRY, text, re.M)}
     known_names = {m.group(1) for m in entries.values()}
     defs = definitions()
-    engine = {}
-    for a, r in by_addr.items():
-        if r["section"] != "levels" and r["state"] == "replaced" and a in entries and int(r["size"]) >= 8:
+    engine = {}  # masked hash -> reference rows with C: Replaced engine functions first, then any row with C
+    for a, r in sorted(by_addr.items(), key=lambda kv: (kv[1]["section"] == "levels" or kv[1]["state"] != "replaced",
+                                                        kv[0])):
+        if a in entries and int(r["size"]) >= 8:
             engine.setdefault(r["masked"], []).append(a)
 
     cache = {}
@@ -259,7 +261,10 @@ def main():
             decls.append((path, new_head + ";"))
         entry = f"code(&{name}_entry)" if args_entry else f"code(&{name})"
         new_entries.append((a, f'    {{"{name}", {a:#010x}, 0, {entry}, {m.group(5)}, {m.group(6)}, '
-                               f'Status::Compare}},  // near twin of {m.group(1)}'))
+                               f'Status::Compare}},  // near twin of {m.group(1)}'
+                               + ("; kept original: script thread switch (as its reference)"
+                                  if "kept original: script thread switch" in text[m.end():text.find("\n", m.end())]
+                                  else "")))
         new_csv.append(f'{a:08x},{name},compare,0,0,0,0,0,0,""')
         print(f"{a:08x} {name:50} ~ {m.group(1)}")
     print(f"{len(made)} near twins in {args.module}, {len(skipped)} skipped")
