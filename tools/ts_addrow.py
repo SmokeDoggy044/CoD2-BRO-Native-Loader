@@ -9,8 +9,13 @@ if levels:
 addr, name, file, score, facts = sys.argv[1:6]
 addr = addr.lower().removeprefix("0x").zfill(8)  # rows use 8 hex digits, no 0x
 extra = sys.argv[6] if len(sys.argv) > 6 else ""
-path = subprocess.run(["python3", R + "tools/waitreach.py", "--path", addr], capture_output=True, text=True,
-                      cwd=R).stdout.strip().splitlines()[0]
+path = subprocess.run(["python3", R + "tools/waitreach.py", "--path", name], capture_output=True, text=True,
+                      cwd=R).stdout.strip().splitlines()
+if not path:  # a proposed name the symbol file does not have yet: look the path up by address
+    path = subprocess.run(["python3", R + "tools/waitreach.py", "--path", addr], capture_output=True, text=True,
+                          cwd=R).stdout.strip().splitlines()
+    path = [path[0].replace(f"FUN_{addr}", name, 1)] if path else ["no path"]
+path = path[0]
 ev = (f"waitreach path {path}; C in {file} reviewed against the disassembly, vc71match {score} "
       f"(--facts --force-inline: {facts}){'; ' + extra if extra else ''}, not registered (tested once script threads are coroutines)")
 classes = R + ("docs/levels_classes.csv" if levels else "docs/levelscript_classes.csv")

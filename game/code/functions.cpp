@@ -99,6 +99,7 @@
 #include "scr_access.h"
 #include "levels_prologue_a.h"
 #include "levels_prologue_b.h"
+#include "levels_prologue_bodies_a.h"
 #include "levels_prologue_events.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
@@ -8382,10 +8383,19 @@ const Function kFunctions[] = {
     {"StaticInit_Vtable_8bb768", 0x00379df0, 0, code(&StaticInit_Vtable_8bb768), 0, Result::None, Status::Replaced},
     {"AtExit_ScrFree_922e90", 0x00379e50, 0, code(&AtExit_ScrFree_922e90), 0, Result::None, Status::Compare},
     {"AtExit_ScriptKeyTable", 0x00379e70, 0, code(&AtExit_ScriptKeyTable), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_DeleteByChainOrTarget", 0x0041a600, 0, code(&BroLvl_prologue_DeleteByChainOrTarget), 12, Result::None, Status::Compare},
+    {"BroLvl_prologue_SaveCheckpointNamed", 0x0041a700, 0, code(&BroLvl_prologue_SaveCheckpointNamed), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_RandomManDownMedicLine", 0x0041aa00, 0, code(&BroLvl_prologue_RandomManDownMedicLine), 4, Result::Eax, Status::Compare},
+    {"BroLvl_prologue_FindVehicleZones", 0x0041aa50, 0, code(&BroLvl_prologue_FindVehicleZones), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_AnimTreeNameOp", 0x0041b910, 0, code(&BroLvl_prologue_AnimTreeNameOp), 12, Result::Al, Status::Compare},
     {"BroLvl_prologue_AnimHandleByName", 0x0041ba00, 0, code(&BroLvl_prologue_AnimHandleByName), 8, Result::Eax, Status::Compare},
     {"BroLvl_prologue_InitDebugCvars", 0x0041ba60, 0, code(&BroLvl_prologue_InitDebugCvars), 0, Result::None, Status::Compare},
+    {"BroLvl_prologue_FriendlyChainThink", 0x0041be80, 0, code(&BroLvl_prologue_FriendlyChainThink), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_ShermanDestroyed", 0x0041cd70, 0, code(&BroLvl_prologue_ShermanDestroyed), 4, Result::None, Status::Compare},
+    {"BroLvl_prologue_SetEvent1DriverAnimname", 0x0041cf10, 0, code(&BroLvl_prologue_SetEvent1DriverAnimname), 4, Result::None, Status::Compare},
+    {"BroLvl_prologue_PlayerStanceAtMost", 0x0041d850, 0, code(&BroLvl_prologue_PlayerStanceAtMost), 12, Result::Eax, Status::Compare},
+    {"BroLvl_prologue_PitchUpStep", 0x0041eac0, 0, code(&BroLvl_prologue_PitchUpStep), 8, Result::None, Status::Compare},
+    {"BroLvl_prologue_PlayerAllowOnlyStance", 0x0041f1a0, 0, code(&BroLvl_prologue_PlayerAllowOnlyStance), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_DeleteNoteworthyAndTargeter", 0x004214a0, 0, code(&BroLvl_prologue_DeleteNoteworthyAndTargeter), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_KellyAllClearLines", 0x00422250, 0, code(&BroLvl_prologue_KellyAllClearLines), 16, Result::Eax, Status::Compare},
     {"ScrField_drive_state_PROLOGUE", 0x00422a60, 0, code(ScrField_drive_state_PROLOGUE), 4, Result::Eax, Status::Compare},

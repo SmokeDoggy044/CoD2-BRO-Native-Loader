@@ -109,6 +109,7 @@ set(game_code_sources
     g_vehicle.cpp
     levels_prologue_a.cpp
     levels_prologue_b.cpp
+    levels_prologue_bodies_a.cpp
     levels_prologue_events.cpp
     levels_templates.cpp
     movie.cpp
