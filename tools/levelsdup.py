@@ -6,6 +6,7 @@ The levels' compiler instantiated the same templates once per level. Two hashes 
           copies that differ only in strings, hashes, globals or callees group together (template families)
   exact   only branch/call targets masked: same code apart from what it calls (tools/twin_register.py checks
           the callees)
+Both ignore the SEH prologue's handler address (push 0xffffffff; push HANDLER): every copy has its own.
 Writes build/all_body_hashes.csv (every function) and build/levels_groups.csv (level rows grouped by masked
 hash, largest group first), and prints a summary.
 usage: tools/levelsdup.py [--module prologue]   (about 20 s; objdump per function, 16 threads)
@@ -42,7 +43,11 @@ def main():
         i = bisect.bisect_right(starts, a)
         n = min((starts[i] - a) if i < len(starts) else 0, 0x8000)
         masked, exact = [], []
+        previous = ""
         for _, _, t in fnpack.disassemble(image, a, n):
+            if previous == "push 0xffffffff" and t.startswith("push 0x"):
+                t = "push EH"  # SEH prologue: each copy has its own unwind handler; C code has none
+            previous = t
             masked.append(HEX.sub(lambda m: m.group(0) if m.group(0).startswith("0x922") else "X", t))
             exact.append(BRANCH.sub(r"\1 X", t))
         md5 = lambda lines: hashlib.md5("\n".join(lines).encode()).hexdigest()  # noqa: E731

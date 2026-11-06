@@ -7593,4 +7593,6 @@ void XB_CDECL FS_Dir_f() {
     Z_Free(reinterpret_cast<uint8_t*>(list));
 }
 
+#include "qcommon_fs_levels.inc"
+
 }  // namespace game

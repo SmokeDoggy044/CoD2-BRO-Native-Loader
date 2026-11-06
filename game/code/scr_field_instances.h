@@ -16,6 +16,7 @@ extern template uint32_t* XB_CDECL ScrField_Slot<0x06f63273u, 0x00922ec0u>(uint3
 extern template uint32_t* XB_CDECL ScrField_Slot<0x070b8a34u, 0x00922ec0u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0x086550beu, 0x00922ec0u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0x0881aad6u, 0x00922ec0u>(uint32_t);
+extern template uint32_t* XB_CDECL ScrField_Slot<0x0b74e4e8u, 0x00922ec0u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0x0bc3efc4u, 0x00922ec0u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0x0bfd0e20u, 0x00922ec0u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0x0e22c955u, 0x00922ec0u>(uint32_t);
@@ -731,6 +732,7 @@ extern template uint32_t* XB_CDECL ScrField_Slot<0xcaeba6a6u, 0x00922eb4u>(uint3
 extern template uint32_t* XB_CDECL ScrField_Slot<0xcbffac0du, 0x00922eb4u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0xd82f7174u, 0x00922eb4u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0xdce273fbu, 0x00922eb4u>(uint32_t);
+extern template uint32_t* XB_CDECL ScrField_Slot<0xf895a04cu, 0x00922eb4u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_Slot<0xfa79d674u, 0x00922eb4u>(uint32_t);
 extern template bool* XB_CDECL ScrField_SlotIsDefined<0x0ca29c7fu, 0x00922eb4u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_SlotIsDefined<0x0ccee5c1u, 0x00922eb4u>(bool*, uint32_t);
@@ -759,6 +761,7 @@ extern template bool* XB_CDECL ScrField_SlotIsDefined<0xcbffac0du, 0x00922eb4u>(
 extern template bool* XB_CDECL ScrField_SlotIsDefined<0xd82f7174u, 0x00922eb4u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_SlotIsDefined<0xdce273fbu, 0x00922eb4u>(bool*, uint32_t);
 extern template bool* XB_CDECL ScrField_SlotIsDefined<0xfa79d674u, 0x00922eb4u>(bool*, uint32_t);
+extern template uint32_t* XB_CDECL ScrField_HandleSlot<0x07c43e15u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_HandleSlot<0x0d60fb3du>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_HandleSlot<0x236fc839u>(uint32_t);
 extern template uint32_t* XB_CDECL ScrField_HandleSlot<0x27cc2178u>(uint32_t);
@@ -2012,5 +2015,8 @@ inline constexpr auto* ScrPathNodeField_script_waittill_NonEmpty = &ScrNode_Stri
 inline constexpr auto* ScrPathNodeField_script_door_IsSet = &ScrNode_StringNonEmpty<0x00181350u>;  // 0x001e4670
 inline constexpr auto* ScrVehNodeField_script_uniquename_IsNonEmpty = &ScrNode_StringNonEmpty<0x001813d0u>;  // 0x001e46a0
 inline constexpr auto* ScrField_ha1763cc1_Copy = &ScrField_CopyOf<0xa1763cc1u, 0x0000000cu, 0x0052bd10u>;  // 0x001e46d0
+inline constexpr auto* ScrField_drive_state_PROLOGUE = &ScrField_Slot<0xf895a04cu, 0x00922eb4u>;  // 0x00422a60
+inline constexpr auto* ScrField_stuka_wing_PROLOGUE = &ScrField_HandleSlot<0x07c43e15u>;  // 0x00422c40
+inline constexpr auto* ScrField_tank_firing_PROLOGUE = &ScrField_Slot<0x0b74e4e8u, 0x00922ec0u>;  // 0x00422f90
 
 }  // namespace game

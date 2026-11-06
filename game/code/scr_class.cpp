@@ -1272,4 +1272,6 @@ static void build_AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash(uint8_t* args, uint
 
 void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash); }
 
+#include "scr_class_levels.inc"
+
 }  // namespace game

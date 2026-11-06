@@ -971,4 +971,6 @@ PLATFORM_ASM_ENTRY(ScriptString_ExpandNewlines_entry,
 
 namespace game {
 
+#include "script_string_levels.inc"
+
 }  // namespace game
