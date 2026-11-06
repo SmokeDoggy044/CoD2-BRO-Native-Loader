@@ -10,7 +10,8 @@ Types: fixed-width scalars -> Ghidra builtins; pointers to our structs -> placeh
 counted: asm entries, long double / 64-bit results, parameters that are function pointers or references.
 
 Output: build/protos/functions.csv (address,name,convention,regs,return,params and param_names with '|' between,
-varargs),
+varargs,
+storage = explicit parameter storage from an asm shim: eax|stack:8;purge:N, else empty),
 build/protos/slots.csv (slot address, builtin address), build/protos/structs.csv (name,size; 0 = pointer only).
 
 usage: tools/protos.py
@@ -62,6 +63,47 @@ def param_type(p):
     return t
 
 
+SHIM = re.compile(r'PLATFORM_ASM_ENTRY\((\w+)_entry,\s*((?:"[^"]*"\s*|PLATFORM_ASM_CALL\(\w+\)\s*)+)\)', re.S)
+ARGS_SHIM = re.compile(r"^(?:SCRIPT_ARGS_ENTRY|BRO_SCR_ARGS_ENTRY)\((\w+)\)", re.M)
+
+
+def shims():
+    """C name -> storage list for asm entries that only push registers/stack words before calling the C body:
+    the C parameters are the last pushes (earlier ones save registers), first parameter pushed last.
+    Also C name -> "args" for the SCRIPT_ARGS shims (stack arguments read through a pointer)."""
+    out = {}
+    for path in sorted(CODE.glob("*.cpp")) + sorted(CODE.glob("*.inc")):
+        text = path.read_text()
+        for m in ARGS_SHIM.finditer(text):
+            out[m.group(1)] = "args"
+        for m in SHIM.finditer(text):
+            body = m.group(2)
+            if re.findall(r"PLATFORM_ASM_CALL\((\w+)\)", body) != [m.group(1)]:
+                continue
+            split = lambda part: [i.strip() for q in re.findall(r'"([^"]*)"', part) for i in q.split("\\n") if i.strip()]
+            before, after = body.split("PLATFORM_ASM_CALL", 1)
+            pushes = split(before)
+            rest = split(after.split(")", 1)[1])
+            storage = []
+            for n, ins in enumerate(pushes):
+                r = re.fullmatch(r"pushl %(e\w\w)", ins)
+                st = re.fullmatch(r"pushl (0x[0-9a-f]+|\d+)\(%esp\)", ins)
+                if r:
+                    storage.append(r.group(1))
+                elif st:
+                    off = int(st.group(1), 0) - 4 * n
+                    storage.append(f"stack:{off}" if off >= 4 else None)
+                else:
+                    storage = None
+                    break
+            if storage is None:
+                continue
+            ret = next((i for i in rest if i.startswith("ret")), "ret")
+            purge = int(ret.split("$")[1], 0) if "$" in ret else 0
+            out[m.group(1)] = (storage, purge)
+    return out
+
+
 def main():
     text = (CODE / "functions.cpp").read_text()
     entries = [(int(m.group(2), 16), m.group(4)) for m in ENTRY.finditer(text)]
@@ -80,9 +122,27 @@ def main():
     skipped = collections.Counter()
     structs = {}
     rows = {}
-    for address, cname in entries:
+    shim = shims()
+    for address, entry in entries:
         if address in rows:
             continue
+        cname = entry[:-6] if entry.endswith("_entry") and entry[:-6] in shim else entry
+        storage = ""
+        if cname != entry:
+            sh = shim[cname]
+            if sh == "args":  # stack arguments through a pointer: count unknown here
+                rows[address] = (address, cname, "cdecl", 0, "uint32_t", "", 1, "", "")
+                continue
+            if cname not in decls:
+                skipped["shim without a declaration"] += 1
+                continue
+            nparams = len([p for p in decls[cname][2].split(",") if param_type(p) not in (None, "...")])
+            regs_pushed = sh[0]
+            if nparams > len(regs_pushed) or None in regs_pushed[len(regs_pushed) - nparams:]:
+                skipped["shim pushes do not cover the parameters"] += 1
+                continue
+            args = list(reversed(regs_pushed[len(regs_pushed) - nparams:])) if nparams else []
+            storage = "|".join(args) + f";purge:{sh[1]}"
         if cname not in decls:
             skipped["no declaration (asm entry or not XB_ convention)"] += 1
             continue
@@ -120,7 +180,8 @@ def main():
         if out is None:
             skipped["unparsed type"] += 1
             continue
-        rows[address] = (address, cname, cc, regs, out[0], "|".join(out[1:]), int(varargs), "|".join(names))
+        rows[address] = (address, cname, cc, regs, out[0], "|".join(out[1:]), int(varargs), "|".join(names),
+                          storage)
 
     # sizeof probe for structs passed by value
     by_value = sorted(n for n, s in structs.items() if s == -1)
@@ -153,7 +214,7 @@ def main():
 
     with open(OUT / "functions.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["address", "name", "convention", "regs", "return", "params", "varargs", "param_names"])
+        w.writerow(["address", "name", "convention", "regs", "return", "params", "varargs", "param_names", "storage"])
         for r in sorted(rows.values()):
             w.writerow([f"{r[0]:08x}", *r[1:]])
     with open(OUT / "structs.csv", "w", newline="") as f:

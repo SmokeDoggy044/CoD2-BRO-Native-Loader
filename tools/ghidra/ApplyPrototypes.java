@@ -1,4 +1,5 @@
 // Applies our C prototypes (tools/protos.py output) to the functions and types the script-interface slots.
+// Script arguments: DIR [apply]   (functions.csv column storage: explicit storage from an asm shim)
 // Script arguments: DIR [apply]   DIR = build/protos; without "apply" it only counts (dry run).
 // Storage is set explicitly (custom storage) from the convention: cdecl/stdcall all on the stack, thiscall
 // first in ECX, fastcall first two in ECX/EDX, regparm(N) the first N integer-class ones in EAX/EDX/ECX.
@@ -87,6 +88,8 @@ public class ApplyPrototypes extends GhidraScript {
                 String[] names = r.length > 7 && !r[7].isEmpty() ? r[7].split("\\|", -1) : new String[0];
                 List<ParameterImpl> params = new ArrayList<>();
                 List<ParameterDefinition> pdefs = new ArrayList<>();
+                String[] shim = r.length > 8 && !r[8].isEmpty() ? r[8].split(";")[0].split("\\|", -1) : null;
+                int purge = shim != null ? Integer.parseInt(r[8].split(";purge:")[1]) : -1;
                 int stack = 4, used = 0;
                 Register[] regOrder = {eax, edx, ecx};
                 for (int i = 0; i < ps.length; i++) {
@@ -94,7 +97,12 @@ public class ApplyPrototypes extends GhidraScript {
                     String name = i < names.length && !names[i].isEmpty() ? names[i] : "param_" + (i + 1);
                     pdefs.add(new ParameterDefinitionImpl(name, dt, null));
                     VariableStorage st;
-                    if (cc.equals("thiscall") && i == 0) st = new VariableStorage(currentProgram, ecx);
+                    if (shim != null) {
+                        String w = shim[i];
+                        st = w.startsWith("stack:") ? new VariableStorage(currentProgram, Integer.parseInt(w.substring(6)), dt.getLength())
+                                                    : new VariableStorage(currentProgram, currentProgram.getRegister(w.toUpperCase()));
+                    }
+                    else if (cc.equals("thiscall") && i == 0) st = new VariableStorage(currentProgram, ecx);
                     else if (cc.equals("fastcall") && used < 2 && integerClass(dt))
                         st = new VariableStorage(currentProgram, used++ == 0 ? ecx : edx);
                     else if (regs > 0 && used < regs && integerClass(dt))
@@ -124,6 +132,7 @@ public class ApplyPrototypes extends GhidraScript {
                     f.updateFunction(ccName, new ReturnParameterImpl(ret, rs, currentProgram), params,
                                      FunctionUpdateType.CUSTOM_STORAGE, true, SourceType.USER_DEFINED);
                     f.setVarArgs(r[6].equals("1"));
+                    if (purge >= 0) f.setStackPurgeSize(purge);
                 }
                 done++;
             } catch (Exception e) {
