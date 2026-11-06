@@ -35,10 +35,11 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-WT = ROOT.parent / "wt"
+COD = next(p for p in ROOT.parents if (p / "wt").is_dir() and (p / "decomp").is_dir())  # cod_bro/
+WT = COD / "wt"
 CLAIMS = WT / "claims.csv"
-RUNS = ROOT / "build" / "api_worker"
-SKILL = ROOT.parent.parent / ".claude" / "skills" / "xbox-port"
+RUNS = COD / "decomp" / "build" / "api_worker"  # run state always in the main tree
+SKILL = next(p for p in ROOT.parents if (p / ".claude" / "skills" / "xbox-port").is_dir()) / ".claude" / "skills" / "xbox-port"
 MODEL = "claude-opus-5-5"
 EFFORT = "high"
 MAX_TOKENS = 32000
@@ -273,8 +274,10 @@ def facts_check(state, rows):
         return {}
     wt = Path(state["worktree"])
     args = [f"{state['rows'][a]['answer']['name']}={'0x' + a}" for a in rows]
+    import os
+    env = dict(os.environ, XDK5849=str(COD.parent / "Tools" / "xdk5849" / "XDK" / "xbox"))
     r = run(["python3", "-I", "tools/vc71match/vc71match.py", *args, "--facts", "--force-inline"], cwd=wt,
-            timeout=3600)
+            timeout=3600, env=env)
     out, cur, buf = {}, None, []
     by_name = {state["rows"][a]["answer"]["name"]: a for a in rows}
     for line in r.stdout.split("\n") + ["=== end"]:
