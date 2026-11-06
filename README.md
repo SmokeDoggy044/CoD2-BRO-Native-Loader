@@ -30,8 +30,8 @@ function of the game.*
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
 | Engine and game code (`.text`) | 11,313 | 9,174 | 6,977 | 4,336 |
-| Mission scripts (14 level sections) | 5,324 | 2,996 | 47 | 5,277 |
-| **Total** | **16,637** | **12,170** | **7,024** | **9,613** |
+| Mission scripts (14 level sections) | 5,324 | 3,013 | 47 | 5,277 |
+| **Total** | **16,637** | **12,187** | **7,024** | **9,613** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -90,7 +90,7 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 672 | 412 |
+| PROLOGUE | `sp/prologue` | 672 | 429 |
 | ORAN | `sp/oran` | 465 | 247 |
 | TUNISIA | `sp/tunisia` | 313 | 180 |
 | KASSPASS | `sp/kasspass` | 526 | 310 |
