@@ -7819,7 +7819,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00319c20,HudManager_Layout2,compare,115,10,10,0,0,0,""
 00319cb0,HudManager_HideAll,compare,0,8,8,0,0,0,""
 00319d50,HudManager_LayoutDefault,compare,0,8,8,0,0,0,""
-00319df0,HudManager_Update,compare,69314,1244,1233,0,11,0,"100006a8 [host] [1] 9f vs 3f"
+00319df0,HudManager_Update,compare,69314,1233,1233,0,0,0,""
 00319f20,HudManager_Dtor,compare,0,16,16,0,0,0,""
 0031a020,HudManager_Create,compare,494,10,10,0,0,0,""
 0031a390,SpecialConceptMenu_NextItem,compare,0,0,0,0,0,0,""

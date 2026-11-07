@@ -9,3 +9,8 @@ address,name,approved
 001ba930,BroScr_GetMuzzleOriginCall,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
 001c30e0,BroScr_ShouldGoProne_2,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
 001ac700,BroScr_TryLookAtPlayer,user 2026-11-05: accepted below 100 matches (CM_TempBoxModel w lanes)
+00308ff0,GScr_DoSpawn,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
+00308fb0,GScr_ForceSpawn,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
+00308df0,GScr_DoSpawnNamed,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
+00308cc0,GScr_ForceSpawnNamed,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
+002e6650,AnimTree_GetRootDelta,user 2026-11-07: accepted below 100 matches (never-written w lane)

@@ -7929,8 +7929,8 @@ address,name,section,module,state,tested,matched
 0021c810,Actor_Grenade_ClaimBestCover,.text,game,replaced,1,1
 0021c9d0,Actor_FindNearbyCoverNode,.text,game,replaced,157,157
 0021cb30,Actor_OrientToEnemyOrMotion,.text,game,replaced,193,193
-0021cca0,Actor_InitStateMachine,.text,game,mismatched,303,19
-0021ceb0,Actor_SpawnFromSpawner,.text,game,mismatched,377,0
+0021cca0,Actor_InitStateMachine,.text,game,accepted,303,19
+0021ceb0,Actor_SpawnFromSpawner,.text,game,accepted,377,0
 0021d250,Actor_Exposed_CheckNearbyCover,.text,game,replaced,157,157
 0021d300,Actor_Exposed_Start,.text,game,replaced,108,108
 0021d3c0,Actor_Exposed_Combat,.text,game,replaced,186,186
@@ -9983,7 +9983,7 @@ address,name,section,module,state,tested,matched
 002e6260,G_SeparateFromSolids,.text,game,replaced,4184,4184
 002e6420,G_DObjTryGetTagMatrix,.text,game,replaced,102,102
 002e6490,G_GeneralLink,.text,game,replaced,385,385
-002e6650,AnimTree_GetRootDelta,.text,xanim,mismatched,14,13
+002e6650,AnimTree_GetRootDelta,.text,xanim,accepted,14,13
 002e6710,AnimTree_GetRootDeltaBetween,.text,xanim,settled,124,124
 002e67d0,AnimTree_CalcRootDelta_r,.text,xanim,settled,115,115
 002e6d80,SV_SendMessages,.text,server,settled,138,138
@@ -10665,11 +10665,11 @@ address,name,section,module,state,tested,matched
 00308af0,GScr_SetAIFlags,.text,script,replaced,11,11
 00308bb0,GScr_TurretCall272,.text,script,replaced,841,841
 00308c50,GScr_ActorFindBetterCover,.text,script,replaced,22,22
-00308cc0,GScr_ForceSpawnNamed,.text,script,mismatched,193,0
-00308df0,GScr_DoSpawnNamed,.text,script,mismatched,7,2
+00308cc0,GScr_ForceSpawnNamed,.text,script,accepted,193,0
+00308df0,GScr_DoSpawnNamed,.text,script,accepted,7,2
 00308f20,GScr_ActorApplyAnimMove,.text,script,replaced,2,2
-00308fb0,GScr_ForceSpawn,.text,script,mismatched,238,0
-00308ff0,GScr_DoSpawn,.text,script,mismatched,10,2
+00308fb0,GScr_ForceSpawn,.text,script,accepted,238,0
+00308ff0,GScr_DoSpawn,.text,script,accepted,10,2
 00309030,G_SetupActorScriptImports,.text,game,replaced,8,8
 003094a0,G_SetupGameScriptImports,.text,game,replaced,22,22
 0030adb0,G_SetupLevelScriptImports,.text,game,replaced,30,30
@@ -10884,7 +10884,7 @@ address,name,section,module,state,tested,matched
 00319c20,HudManager_Layout2,.text,cgame,matched,10,10
 00319cb0,HudManager_HideAll,.text,cgame,matched,8,8
 00319d50,HudManager_LayoutDefault,.text,cgame,matched,8,8
-00319df0,HudManager_Update,.text,cgame,mismatched,1244,1233
+00319df0,HudManager_Update,.text,cgame,settled,1233,1233
 00319f20,HudManager_Dtor,.text,cgame,matched,16,16
 0031a020,HudManager_Create,.text,cgame,matched,10,10
 0031a390,SpecialConceptMenu_NextItem,.text,client,untested,0,0
