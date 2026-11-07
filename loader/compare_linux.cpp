@@ -2133,7 +2133,10 @@ void record(Hook& hook, uint64_t call, const Verdict& verdict) {
                  static_cast<unsigned long long>(e.matched + t.matched));
     }
     if (verdict.outcome == Outcome::Matched) return;
-    hook.last_issue = verdict.details;
+    // An inconclusive test does not hide a recorded mismatch or drift (progress.py and
+    // accepted.csv judge a function by its latest issue).
+    const bool bad_on_record = e.mismatched + t.mismatched + e.drift + t.drift != 0;
+    if (verdict.outcome != Outcome::Inconclusive || !bad_on_record) hook.last_issue = verdict.details;
     // Separate caps, so front-end inconclusive tests do not hide the first mismatches.
     uint32_t& reports = verdict.outcome == Outcome::Inconclusive ? hook.reports : hook.issue_reports;
     if (reports >= 5) return;
