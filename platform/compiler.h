@@ -176,12 +176,26 @@ inline uintptr_t platform_opaque_address(uintptr_t address) { return address; }
 // reads it): the lowest address of this thread's live host frames below a title-position
 // call, minus a margin, for the decompiled code's asm entries (game/code/title_data.h
 // GAME_GAP_ESP); 0 = none. Title threads only: host threads have no usable FS on Linux.
+// Bit 0 of the word (limits are word aligned) says the thread runs on a script fiber
+// (game/code/scr_fiber.cpp): GAME_GAP_ESP then takes a small gap.
 #if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+inline uint32_t platform_title_frame_word() {
+    uint32_t word;
+    __asm__ volatile("movl %%fs:0x14, %0" : "=r"(word));
+    return word;
+}
+inline void platform_set_title_frame_word(uint32_t word) {
+    __asm__ volatile("movl %0, %%fs:0x14" : : "r"(word) : "memory");
+}
 inline void platform_set_title_frame_limit(uint32_t limit) {
-    __asm__ volatile("movl %0, %%fs:0x14" : : "r"(limit) : "memory");
+    platform_set_title_frame_word((limit & ~1u) | (platform_title_frame_word() & 1u));
+}
+inline void platform_set_title_on_fiber(bool on) {
+    platform_set_title_frame_word((platform_title_frame_word() & ~1u) | (on ? 1u : 0u));
 }
 #else
 inline void platform_set_title_frame_limit(uint32_t) {}
+inline void platform_set_title_on_fiber(bool) {}
 #endif
 
 // The x87 FSIN/FCOS the title uses, rounded by the caller's precision control and

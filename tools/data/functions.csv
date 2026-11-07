@@ -7398,6 +7398,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002fdf40,ScrObject_GetThreadHandle,replaced,3876,16,16,0,0,0,""
 002fdf90,Scr_FreeThread,replaced,9703,108,108,0,0,0,""
 002fdff0,Scr_MovePendingEntityWaits,replaced,10646,179,179,0,0,0,""
+002fe100,Scr_ResumeThread,replaced,0,0,0,0,0,0,""
 002fe200,G_SetupAnimTrees,replaced,64,4,4,0,0,0,""
 002fe250,GScr_ObjectiveCurrent,replaced,3,2,2,0,0,0,""
 002fe3b0,G_SetObjectiveString,replaced,15,1,1,0,0,0,""

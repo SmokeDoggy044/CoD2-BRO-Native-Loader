@@ -10457,7 +10457,7 @@ address,name,section,module,state,tested,matched
 002fdf40,ScrObject_GetThreadHandle,.text,script,replaced,16,16
 002fdf90,Scr_FreeThread,.text,game,replaced,108,108
 002fdff0,Scr_MovePendingEntityWaits,.text,game,replaced,179,179
-002fe100,Scr_ResumeThread,.text,game,named,0,0
+002fe100,Scr_ResumeThread,.text,game,replaced,0,0
 002fe200,G_SetupAnimTrees,.text,game,replaced,4,4
 002fe250,GScr_ObjectiveCurrent,.text,script,replaced,2,2
 002fe3b0,G_SetObjectiveString,.text,game,replaced,1,1

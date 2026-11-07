@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "log.h"
+#include "scr_fiber.h"
 #include "symbols.h"
 #include "thread_env.h"
 #include "xbe.h"
@@ -23,7 +24,10 @@ std::atomic<bool> g_exiting{false};
 
 bool on_xbox_stack(uint32_t address) {
     const ThreadEnv* env = current_thread_env();
-    return env && address >= env->stack_limit && address + 8 <= env->stack_base;
+    if (env && address >= env->stack_limit && address + 8 <= env->stack_base) return true;
+    // A script thread's own stack (game/code/scr_fiber.cpp), when the crash happened on one.
+    uint32_t limit = 0, base = 0;
+    return env && game::scr_fiber_stack(&limit, &base) && address >= limit && address + 8 <= base;
 }
 
 }  // namespace

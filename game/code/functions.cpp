@@ -2,6 +2,7 @@
 
 #include "actor.h"
 #include "anim_script.h"
+#include "scr_fiber.h"
 #include "bg_misc.h"
 #include "bro_scr_actor.h"
 #include "bro_scr_ai.h"
@@ -7550,6 +7551,8 @@ const Function kFunctions[] = {
     {"IntHashMap_EraseByString", 0x002fdef0, 0, code(&IntHashMap_EraseByString), 0, Result::Al, Status::Replaced},
     {"ScrObject_GetThreadHandle", 0x002fdf40, 0, code(&ScrObject_GetThreadHandle_entry), 0, Result::Eax, Status::Replaced},
     {"Scr_FreeThread", 0x002fdf90, 0, code(&Scr_FreeThread), 0, Result::None, Status::Replaced},
+    // Script threads on their own stacks (scr_fiber.cpp); a thread switch, so never compared.
+    {"Scr_ResumeThread", 0x002fe100, 0, code(&Scr_ResumeThread_entry), 0, Result::None, Status::Replaced},
     {"Scr_MovePendingEntityWaits", 0x002fdff0, 0, code(&Scr_MovePendingEntityWaits), 4, Result::None, Status::Replaced},
     {"G_SetupAnimTrees", 0x002fe200, 0, code(&G_SetupAnimTrees), 8, Result::None, Status::Replaced},
     {"GScr_ObjectiveCurrent", 0x002fe250, 0, code(&GScr_ObjectiveCurrent), 4, Result::None, Status::Replaced},

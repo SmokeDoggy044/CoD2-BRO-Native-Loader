@@ -45,6 +45,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_at_regs(uint32_t top, ui
 // at the original's ESP) put its C frame on its caller's. Keeps EAX, ECX and EDX.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor);
 extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous);
+// Swaps this thread's floor for another stack's (a script fiber switch, scr_fiber.cpp); returns the old one.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_swap(uint32_t floor);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
 // Its scratch (the saved registers, game_body_esp's call) sits 64 KB below the gap, where only
 // our C runs: not just below the entry, where some C rebuilds the original's frame and reads words
@@ -60,7 +62,12 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
 // R_RenderView, live) would otherwise put it on the caller's live C frame, which lies about one
 // gap below that position too. Its top word is the ESP the scratch would have had (S = entry
 // ESP - gap - 64 KB), so the entry's ESP is S + gap + 64 KB either way.
+// On a script fiber (FS:[0x14] bit 0, game/code/scr_fiber.cpp) the scratch sits just 256 bytes below the gap
+// instead of 64 KB: the gap itself stays (the C rebuilds the original's frame there and title callees run
+// there at the original's position - a 2 KB gap let them overwrite the C frame, 11-07), the 64 KB only kept
+// stale words for the compare harness and would cost every fiber's stack. The floor rules stay (bit 0 kept).
 #define GAME_GAP_ESP(gap)                                                                          \
+    "testl $1, %fs:0x14\n jnz 5f\n"                                                                \
     "subl $(" gap "+0x10000), %esp\n"                                                              \
     "cmpl $0, %fs:0x14\n je 7f\n cmpl %fs:0x14, %esp\n jbe 7f\n"                                  \
     "xchgl %esp, %fs:0x14\n pushl %fs:0x14\n pushl %eax\n leal 8(%esp), %eax\n"                   \
@@ -69,4 +76,13 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
     "8:\n pushl %eax\n pushl %ecx\n pushl %edx\n"                                                 \
     "movl 12(%esp), %eax\n addl $0x10000, %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)    \
     "movl %esp, %ecx\n movl %eax, %esp\n movl 16(%ecx), %edx\n addl $(" gap "+0x10000), %edx\n"     \
-    "pushl %edx\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n movl 8(%ecx), %ecx\n"
+    "jmp 6f\n"                                                                                     \
+    "5:\n subl $(" gap "+0x100), %esp\n"                                                            \
+    "cmpl $1, %fs:0x14\n je 4f\n cmpl %fs:0x14, %esp\n jbe 4f\n"                                  \
+    "xchgl %esp, %fs:0x14\n andl $-4, %esp\n pushl %fs:0x14\n pushl %eax\n leal 8(%esp), %eax\n"  \
+    "orl $1, %eax\n movl %eax, %fs:0x14\n popl %eax\n jmp 3f\n"                                   \
+    "4:\n pushl %esp\n"                                                                           \
+    "3:\n pushl %eax\n pushl %ecx\n pushl %edx\n"                                                 \
+    "movl 12(%esp), %eax\n addl $0x100, %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)      \
+    "movl %esp, %ecx\n movl %eax, %esp\n movl 16(%ecx), %edx\n addl $(" gap "+0x100), %edx\n"      \
+    "6:\n pushl %edx\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n movl 8(%ecx), %ecx\n"

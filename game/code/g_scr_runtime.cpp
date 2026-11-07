@@ -16,6 +16,7 @@
 #include "xanim.h"
 #include "qcommon_core.h"
 #include "script_string.h"
+#include "scr_fiber.h"
 #include "title_data.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
@@ -910,11 +911,12 @@ void XB_CDECL Scr_QueueNotifyWithString(uint32_t handle, uint32_t notify, const 
 }
 
 uint32_t XB_CDECL Scr_SaveThreadLocals(uint32_t data) {
-    // ScrThread_AppendData (0x002f6670; EAX data, ECX the current thread's +0x28, its +0x2c on the stack, ret 4).
+    // The original copied [data, thread +0x28) into the thread's chunks (ScrThread_AppendData 0x002f6670, EAX =
+    // its result). Threads have stacks of their own now (scr_fiber.cpp): the wait's frame stays where it is and
+    // only its ESP is kept. The suspend ignores EAX.
     uint8_t* const thread = title_global<uint8_t*>(0x008dda2c);
-    const TitleRegs regs{data, 0, word_at(thread, 0x28), 0, 0, 0};
-    const uint32_t arg = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thread + 0x2c));
-    return g_ent_call(0x002f6670, &regs, 1, &arg);
+    scr_fiber_note_wait(thread, data);
+    return 0;
 }
 
 void XB_STDCALL Scr_AbortAllThreads(uint8_t* scheduler) {
@@ -1042,6 +1044,7 @@ void XB_CDECL Scr_DestroyThreadContents(uint8_t* thread, uint32_t ecx) {
     title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x00947700),
                                                                     word_at(thread, 0xc));  // SmallHeap_Free
     if (const uint32_t handle = word_at(thread, 0x14)) HandleTable256_Free(&title_global<uint8_t>(0x008dd208), handle);
+    scr_fiber_release(thread);
     while (const uint32_t chunk = word_at(thread, 0x2c)) {
         word_at(thread, 0x2c) = *reinterpret_cast<const uint32_t*>(uintptr_t{chunk + 0xfc});
         title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f490),

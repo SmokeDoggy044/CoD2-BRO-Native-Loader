@@ -5,6 +5,7 @@
 #include <set>
 #include <utility>
 
+#include "scr_fiber.h"
 #include "title_data.h"
 #endif
 
@@ -28,7 +29,7 @@ constexpr uint32_t kRestoreCount = 0x0098ad18;   // ++ in every Scr_RestoreThrea
 // caller's EBP, [floor+16] the return address into the C caller, [floor+20] `top` (the title
 // callee's position), [floor+24] the title callee.
 struct Entry {
-    uint32_t floor, ctop, ret, top, function, thread, restores;
+    uint32_t floor, ctop, ret, top, function, thread, restores, stack;
     uint32_t chain[4];  // return addresses further up the C frame chain
 };
 
@@ -36,6 +37,12 @@ constexpr int kMax = 256;
 PLATFORM_TLS_FIXED thread_local Entry t_live[kMax];
 PLATFORM_TLS_FIXED thread_local int t_depth;
 uint32_t g_lowest_margin = 0xffffffffu;
+
+// The stack a frame is on: the running script fiber's limit, 0 for the thread's own stack.
+uint32_t current_stack() {
+    uint32_t limit = 0, base = 0;
+    return scr_fiber_stack(&limit, &base) ? limit : 0;
+}
 
 uint32_t word(uint32_t address) { return *reinterpret_cast<const uint32_t*>(uintptr_t{address}); }
 
@@ -85,8 +92,10 @@ void stack_guard_enter(uint32_t floor) {
     e.ctop = c_frames_top(floor, e.top, e.chain);
     e.thread = title_global<uint32_t>(kCurrentThread);
     e.restores = title_global<uint32_t>(kRestoreCount);
+    e.stack = current_stack();
     for (int i = 0; i < t_depth; ++i) {
         const Entry& outer = t_live[i];
+        if (outer.stack != e.stack) continue;  // another script fiber's stack
         if (e.top > outer.floor && e.top <= outer.ctop) report("title callee placed on a live C frame", outer, e.top);
         note_margin(outer, e.top);
     }
@@ -97,9 +106,8 @@ void stack_guard_leave(uint32_t floor) {
     int i = t_depth - 1;
     while (i >= 0 && t_live[i].floor != floor) --i;
     if (i < 0) return;
-    const Entry e = t_live[i];
-    if (e.thread && e.restores != title_global<uint32_t>(kRestoreCount))
-        report("live across a script thread switch", e, title_global<uint32_t>(kRestoreCount) - e.restores);
+    // A frame live across a script thread switch was the copied-stack hazard; threads have stacks of their
+    // own since 11-07 (scr_fiber.cpp), so no longer reported.
     for (int j = i; j + 1 < t_depth; ++j) t_live[j] = t_live[j + 1];
     --t_depth;
     // The popped slot is dead (only t_live[0..t_depth) is ever read; enter overwrites the whole slot), but its

@@ -1996,6 +1996,13 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) {
     platform_set_title_frame_limit(previous ? previous - kFloorMargin : 0);
 }
 
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_swap(uint32_t floor) {
+    const uint32_t previous = t_host_floor;
+    t_host_floor = floor;
+    platform_set_title_frame_limit(floor ? floor - kFloorMargin : 0);
+    return previous;
+}
+
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed) {
     if (t_host_floor && t_host_floor - kFloorMargin < proposed) proposed = t_host_floor - kFloorMargin;
     // GAME_GAP_ESP pushes the entry's ESP at the result - 4 before it reads the registers back

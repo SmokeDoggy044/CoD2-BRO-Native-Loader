@@ -138,6 +138,7 @@ set(game_code_sources
     shaders.cpp
     snd.cpp
     snd_env.cpp
+    scr_fiber.cpp
     stack_guard.cpp
     stream.cpp
     sv.cpp
@@ -159,8 +160,11 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # memory_order operators, initializer_list) are weak out-of-line copies, and without this they
     # bind to the loader's copies - host code to the harness ("called host code").
     target_link_options(game_code PRIVATE -Wl,-Bsymbolic-functions)
+    # Script thread stacks (scr_fiber.cpp): platform's page allocator, built into this library.
+    target_sources(game_code PRIVATE ${PROJECT_SOURCE_DIR}/platform/vmem_posix.cpp)
 else()
     add_library(game_code STATIC ${game_code_sources})
+    target_link_libraries(game_code PRIVATE platform)
 endif()
 target_include_directories(game_code PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Only platform's headers (compiler.h): its library is not built for a shared object.
