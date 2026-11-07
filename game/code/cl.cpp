@@ -1,5 +1,7 @@
 #include "cl.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "cg_ents.h"
@@ -914,17 +916,92 @@ void XB_CDECL CL_AdjustAngles() {
 PLATFORM_ASM_ENTRY(CL_CreateCmd_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(CL_CreateCmd) "addl $4, %esp\n"
                                        "ret")
 
+namespace {
+
+// Debugging aid, not the original: COD_LOOK_TRACE=1 prints one line per command that turned the view, with the
+// turn of each stage (keys, PC mouse look, stick via CL_MouseMove, joystick axes, compensation cvars) and the
+// player state's delta angles (+0x54/+0x58), view (+0x9c/+0xa0), sticky-aim lock (+0x500) and turret flag
+// (+0xc0 0x100000). Off: nothing is read or printed.
+struct LookTrace {
+    bool on = false;
+    float last[2] = {};
+    float stage[5][2] = {};
+    float between[2] = {};  // turned since the last command (outside CL_CreateCmd)
+    int32_t ps_last[3] = {};
+};
+LookTrace& look_trace() {
+    static LookTrace t = [] {
+        LookTrace t;
+        const char* env = std::getenv("COD_LOOK_TRACE");
+        t.on = env && env[0] == '1';
+        return t;
+    }();
+    return t;
+}
+void look_mark(int stage, const float* before) {
+    LookTrace& t = look_trace();
+    const float* va = &title_global<float>(0x00961798);
+    t.stage[stage][0] = va[0] - before[0];
+    t.stage[stage][1] = va[1] - before[1];
+}
+void look_print() {
+    LookTrace& t = look_trace();
+    const uint8_t* const level = title_global<uint8_t*>(0x0095f534);
+    const uint8_t* const player = level ? *reinterpret_cast<uint8_t* const*>(level + 4) : nullptr;
+    const uint8_t* const ps = player ? *reinterpret_cast<uint8_t* const*>(player + 0x23c) : nullptr;
+    bool turned = false;
+    for (auto& st : t.stage) turned |= st[0] != 0.0f || st[1] != 0.0f;
+    turned |= t.between[0] != 0.0f || t.between[1] != 0.0f;
+    int32_t now[3] = {};
+    if (ps) {
+        now[0] = *reinterpret_cast<const int32_t*>(ps + 0x54);
+        now[1] = *reinterpret_cast<const int32_t*>(ps + 0x58);
+        now[2] = *reinterpret_cast<const int32_t*>(ps + 0x500);
+    }
+    const bool changed = now[0] != t.ps_last[0] || now[1] != t.ps_last[1] || now[2] != t.ps_last[2];
+    std::memcpy(t.ps_last, now, sizeof now);
+    if (!turned && !changed) return;
+    const float* va = &title_global<float>(0x00961798);
+    std::fprintf(stderr,
+                 "[look] cmd %d va %.3f %.3f | between %+.4f %+.4f keys %+.3f %+.3f mouse %+.3f %+.3f stick %+.3f %+.3f joy %+.3f %+.3f"
+                 " comp %+.3f %+.3f | stickacc %d %d axes %d %d %d",
+                 title_global<int32_t>(0x009622ac), va[0], va[1], t.between[0], t.between[1], t.stage[0][0], t.stage[0][1], t.stage[1][0],
+                 t.stage[1][1], t.stage[2][0], t.stage[2][1], t.stage[3][0], t.stage[3][1], t.stage[4][0], t.stage[4][1],
+                 title_global<int32_t>(0x0096173c), title_global<int32_t>(0x00961744), title_global<int32_t>(0x00961750),
+                 title_global<int32_t>(0x00961754), title_global<int32_t>(0x00961758));
+    if (ps)
+        std::fprintf(stderr, " | ps delta %d %d view %.3f %.3f lock %d turret %d\n", now[0], now[1],
+                     *reinterpret_cast<const float*>(ps + 0x9c), *reinterpret_cast<const float*>(ps + 0xa0), now[2],
+                     (*reinterpret_cast<const uint32_t*>(ps + 0xc0) & 0x100000) ? 1 : 0);
+    else
+        std::fprintf(stderr, "\n");
+}
+
+}  // namespace
+
 uint8_t* XB_CDECL CL_CreateCmd(uint8_t* out) {
     float* const viewangles = &title_global<float>(0x00961798);
     const float old_pitch = viewangles[0];
+    const bool trace = look_trace().on;
+    float before[2] = {viewangles[0], viewangles[1]};
+    if (trace) {
+        LookTrace& t = look_trace();
+        std::memset(t.stage, 0, sizeof t.stage);
+        t.between[0] = viewangles[0] - t.last[0];
+        t.between[1] = viewangles[1] - t.last[1];
+    }
     CL_AdjustAngles();
+    if (trace) look_mark(0, before), before[0] = viewangles[0], before[1] = viewangles[1];
     uint8_t cmd[0x2c] = {};
     if (!cvar_integer(0x00934a5c)) {
         CL_CmdButtons(cmd);
         CL_KeyMove(cmd);
         if (const auto look = client_pc_hooks().mouse_look) look();  // the loader's patch at 0x002c7ad7
+        if (trace) look_mark(1, before), before[0] = viewangles[0], before[1] = viewangles[1];
         CL_MouseMove(cmd);
+        if (trace) look_mark(2, before), before[0] = viewangles[0], before[1] = viewangles[1];
         CL_JoystickMove(0, 0, cmd);
+        if (trace) look_mark(3, before), before[0] = viewangles[0], before[1] = viewangles[1];
         const float zero = title_global<float>(0x0083eafc);
         char* const value_zero = &title_global<char>(0x0082e098);  // "0"
         if (!(cvar_value(0x0092f54c) == zero)) {
@@ -935,6 +1012,7 @@ uint8_t* XB_CDECL CL_CreateCmd(uint8_t* out) {
             viewangles[1] = cvar_value(0x0093ef60) + viewangles[1];
             Cvar_Set2(&title_global<const char>(0x00835140), value_zero, 1);  // "cl_viewYawCompensate"
         }
+        if (trace) look_mark(4, before);
         const float limit = title_global<float>(0x0083eb64);  // 90
         const float pitch = viewangles[0];
         if (pitch - old_pitch > limit)
@@ -943,6 +1021,11 @@ uint8_t* XB_CDECL CL_CreateCmd(uint8_t* out) {
             viewangles[0] = old_pitch - limit;
     }
     CL_FinishMove(cmd);
+    if (trace) {
+        look_print();
+        look_trace().last[0] = viewangles[0];
+        look_trace().last[1] = viewangles[1];
+    }
     std::memcpy(out, cmd, sizeof cmd);
     return out;
 }

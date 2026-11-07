@@ -273,5 +273,8 @@ void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, cons
 // 0x002db7d0 (player state in ECX; cdecl cmd, old cmd): aim assist - picks the nearest squad-1 actor the eye ray
 // passes close to, eases the view toward a locked target (+0x500 / +0x504 / +0x508) and locks beyond 130.
 void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const uint8_t* cmd, const uint8_t* old);
+// PC option (the loader's --aim-assist off): off, PM_UpdateStickyAim only clears the lock (+0x500 = 0), as the
+// loader's patch of the original does. On by default (the original's behaviour, --compare runs).
+void set_aim_assist(bool on);
 
 }  // namespace game

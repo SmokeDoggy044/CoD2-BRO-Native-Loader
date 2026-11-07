@@ -6203,7 +6203,17 @@ void sticky_line(const Lanes& end, const Lanes& start, uint32_t color, int32_t f
 
 }  // namespace
 
+namespace {
+bool g_aim_assist = true;
+}  // namespace
+
+void set_aim_assist(bool on) { g_aim_assist = on; }
+
 void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const uint8_t* cmd, const uint8_t* old) {
+    if (!g_aim_assist) {
+        at<uint32_t>(ps, 0x500) = 0;
+        return;
+    }
     // Player state in ECX. Aim assist: the eye ray (view angles) against each active squad-1 actor's vertical
     // plane facing the eye (RayPlaneIntersectFrac); a hit nearer than the best so far (first the client's +0x5fc +
     // 35) inside a box growing with distance (radius (s + 1) * 25, height 70 / 60 crouched / 30 prone times s * 0.1

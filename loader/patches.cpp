@@ -36,6 +36,7 @@
 #include "kernel.h"
 #include "log.h"
 #include "ngl.h"
+#include "pmove.h"
 #include "release_map.h"
 #include "sound_engine.h"
 #include "symbols.h"
@@ -642,6 +643,13 @@ AimAssist g_aim_assist = {0x002db7d0, 0x500};
 
 void disable_aim_assist() {
     const uint32_t kStickyAim = g_aim_assist.function;
+    // Runs as C (Status::Replaced, since 2026-11-04): the Replaced hook would overwrite a patch here, and did
+    // until 2026-11-07 (sticky aim stayed on; it pulled mounted guns toward enemies).
+    if (g_campaign && compare::replaced(game::functions(), kStickyAim)) {
+        game::set_aim_assist(false);
+        LOG_INFO("patches", "aim assist off");
+        return;
+    }
     auto* code = reinterpret_cast<uint8_t*>(uintptr_t{kStickyAim});
     static constexpr uint8_t kOriginal[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0};  // push ebp; mov ebp,esp; and esp,-16
     if (std::memcmp(code, kOriginal, sizeof(kOriginal)) != 0) {
