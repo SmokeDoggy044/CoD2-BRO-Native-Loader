@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Compares the pictures of two runs (--replay-shots folders, or any two folders of same-named BMPs).
 
-usage: tools/shot_compare.py DIR_A DIR_B [--threshold N]
+usage: tools/shot_compare.py DIR_A DIR_B [--threshold N] [--max-share P]
 One line per picture both folders have: identical, or the share of pixels whose largest channel difference is
-above the threshold (default 8 of 255) and the largest difference. Exit code 1 if any picture differs above it.
+above the threshold (default 8 of 255) and the largest difference. Exit code 1 if any picture has more than
+P percent of such pixels (default 0: any; another back end, e.g. Wine, differs on ~0.01%).
 No dependencies: reads uncompressed 24/32-bit BMPs (what the loader writes).
 """
 import os
@@ -26,7 +27,7 @@ def read_bmp(path):
     return width, abs(height), step, rows
 
 
-def compare(a, b, threshold):
+def compare(a, b, threshold, max_share):
     wa, ha, sa, ra = read_bmp(a)
     wb, hb, sb, rb = read_bmp(b)
     if (wa, ha) != (wb, hb):
@@ -45,16 +46,21 @@ def compare(a, b, threshold):
             if diff > threshold:
                 over += 1
     share = 100.0 * over / (wa * ha)
-    return f"{share:.2f}% of pixels differ by more than {threshold} (largest {largest})", over > 0
+    bad = share > max_share if max_share else over > 0
+    return f"{share:.2f}% of pixels differ by more than {threshold} (largest {largest}){' - TOO MANY' if bad else ''}", bad
 
 
 def main():
     args = sys.argv[1:]
-    threshold = 8
-    if "--threshold" in args:
-        i = args.index("--threshold")
-        threshold = int(args[i + 1])
-        del args[i:i + 2]
+    threshold, max_share = 8, 0.0
+    for flag in ("--threshold", "--max-share"):
+        if flag in args:
+            i = args.index(flag)
+            if flag == "--threshold":
+                threshold = int(args[i + 1])
+            else:
+                max_share = float(args[i + 1])
+            del args[i:i + 2]
     if len(args) != 2:
         sys.exit(__doc__)
     a_dir, b_dir = args
@@ -64,7 +70,7 @@ def main():
         sys.exit(f"no pictures in both {a_dir} and {b_dir}")
     failed = False
     for n in names:
-        text, bad = compare(os.path.join(a_dir, n), os.path.join(b_dir, n), threshold)
+        text, bad = compare(os.path.join(a_dir, n), os.path.join(b_dir, n), threshold, max_share)
         failed |= bad
         print(f"  {n}: {text}")
     sys.exit(1 if failed else 0)

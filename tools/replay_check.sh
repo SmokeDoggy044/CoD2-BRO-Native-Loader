@@ -7,7 +7,8 @@
 #   SAVES: a copy of the save folder as it was when the recording started (never the real one)
 #   default builds: release, debug (Linux) and windows (MinGW release under Wine, build/wine_wrap.sh)
 #   SHOTS=600,1800,... (environment): each build also saves those frames' pictures to OUT_DIR/<name>.shots/
-#   (--replay-shots), and tools/shot_compare.py compares them with the first build's
+#   (--replay-shots), and tools/shot_compare.py compares them with the first build's; SHOT_MAX_SHARE (default
+#   0.05) = percent of pixels allowed to differ (Wine's back end differs on ~0.01%)
 # Result: one line per build; OUT_DIR/<name>.txt holds each run's log.
 set -u
 rec=${1:?usage: $0 RECORDING SAVES MISSION OUT_DIR [NAME=LOADER ...]}
@@ -69,6 +70,7 @@ if [ -n "${SHOTS:-}" ]; then
     for b in "${builds[@]:1}"; do
         name=${b%%=*}
         echo "pictures, $first vs $name:"
-        python3 -I "$port/tools/shot_compare.py" "$out/$first.shots" "$out/$name.shots"
+        python3 -I "$port/tools/shot_compare.py" "$out/$first.shots" "$out/$name.shots" \
+            --max-share "${SHOT_MAX_SHARE:-0.05}" && echo "  ok"
     done
 fi

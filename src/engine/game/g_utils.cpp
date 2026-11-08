@@ -562,7 +562,10 @@ void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* star
     }
     *reinterpret_cast<float*>(results + 0x20) = 0.0f;
     float* normal = reinterpret_cast<float*>(results + 0x10);
-    for (int32_t i = 0; i < 4; ++i) normal[i] = start[i] - end[i];  // all four lanes, as the title's SUBPS
+    for (int32_t i = 0; i < 3; ++i) normal[i] = start[i] - end[i];
+    // Lane 3: the title's SUBPS takes it from the callers' 3-lane vectors (a stale stack word, build-dependent
+    // with our C - see G_RunMissile); our addition: 0.
+    normal[3] = 0.0f;
 }
 
 namespace {

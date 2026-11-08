@@ -55,7 +55,24 @@ Run on a copy of the save folder (`--data COPY`) so the real saves stay untouche
   unattended and gathers every summary.txt into OUT/report.txt (mission 4's start: no
   new warnings; full sweep not run yet).
 
-## Profiles
+## Recordings for bug reports
+
+A recording replays a run exactly (see [own-engine-host.md](own-engine-host.md), record/replay), so a bug that
+happened once can be watched again, stepped through and checked after a fix.
+
+What the player does:
+1. Copy the save folder first (Linux `~/.local/share/cod_bro`, Windows `%APPDATA%\cod_bro`) - the replay has to
+   start from the saves as they were.
+2. Play with `--record bug.rep` added to the command line (with `--diag DIR` too, F12 marks still work). A recording
+   covers one boot; quitting to the dashboard or rebooting ends it.
+3. Send `bug.rep`, the save-folder copy and the mission played. The recording carries its own settings.ini and
+   command line, so the player's later changes do not matter. Size: ~9 MB per minute of play (mostly per-entity
+   state hashes, which do not compress).
+
+What we do: `tools/replay_check.sh bug.rep SAVES MISSION OUT` (Linux release, debug, Windows under Wine at once;
+`SHOTS=...` adds pictures of chosen frames), or one build with `--replay bug.rep --replay-continue` and `--data` on a
+copy of the saves to watch it or attach gdb. The replay logs the first frame that differs from the recording.
+
 `tools/profile_edit.py [SAVE_DIR]` lists the profiles (name, chapters unlocked, play time, signature);
 `--unlock-all FILE` unlocks every chapter and bonus (what the chapter-select cheat does: hold both triggers,
 Up Up Down Down Left Left Right Right X Right X Right X) and re-signs the file. Use it on a run's `--data` copy
