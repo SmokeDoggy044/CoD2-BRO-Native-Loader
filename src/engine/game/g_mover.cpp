@@ -7350,8 +7350,10 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         return;
     }
     title_global<uint32_t>(0x0095f704) = self;
-    // The trace's 4th end-point word (a lane the trace copies from its own stack, so build-dependent here): our
-    // addition, 0, since G_MissileImpact copies it into the entity (+0x6c) with the end point.
+    // The trace's 4th end-point word: our addition, 0, since G_MissileImpact copies it into the entity (+0x6c) with
+    // the end point. CM_BoxTrace/SV_Trace compute the end point in all 4 lanes (start + (end - start) * fraction),
+    // and `end` (S+0x20) gets only 3 lanes from BG_EvaluateTrajectory: lane 3 is a stale stack word (S+0x2c),
+    // fixed in the original, left by our C here - so it differed per build.
     stack_at(tr + 0xc) = 0;
     const uint32_t args[1] = {tr};
     call_at(S, 0x002743d7, own_address(&G_MissileImpact), TitleRegs{self, self, tr, 0, origin, self}, 1, args);  // G_MissileImpact
