@@ -1,274 +1,168 @@
-# Call of Duty 2: Big Red One - decompilation
+<div align="center">
 
-*Call of Duty 2: Big Red One* never came out on PC. This project is working toward
-changing that: we're turning the original Xbox game back into C++ source code that
-can be built and run natively on Linux and Windows.
+# Call of Duty 2: Big Red One — Custom Engine
 
-<!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 77% of the functions have a name, and 7,881 have been
-rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
-engine core (memory, files, settings, commands) and the client with its menus are done or
-nearly; the game logic (AI, entities, level scripts) is the big part still to come.
-<!-- intro:end -->
+**Our own engine implementation of *Call of Duty 2: Big Red One*, built from source for Linux and Windows.**
 
-**Just want to play?** Use the
-[native loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader) instead.
-It already runs the full single-player campaign on PC today. This repository is
-where the decompilation happens, and there's nothing here to play yet.
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
+![Platforms: Linux | Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-lightgrey)
+[![Playable release](https://img.shields.io/github/v/release/SmokeDoggy044/CoD2-BRO-Native-Loader?label=playable%20release)](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases)
+![Made with AI](https://img.shields.io/badge/made%20with-AI-8A2BE2)
 
-You'll need your own copy of the game either way. None of the game's code or data is
-included here.
+[Play](#play) · [Features](#features) · [Progress](#progress) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
 
-Developed with AI: see [Made with AI](#made-with-ai).
+</div>
+
+---
+
+*Call of Duty 2: Big Red One* (2005) came out on consoles only. This project brings it to
+PC by rewriting its engine as source code of our own: the renderer, sound, script engine,
+game logic and menus. The game's maps, models, sounds and mission scripts come from your
+own copy of the Xbox game.
+
+> [!NOTE]
+> You need your own copy of the Xbox game. This repository contains none of the game's
+> code or data.
+
+## Play
+
+The whole single-player campaign is playable on PC today.
+
+1. Download the latest release for Linux or Windows from the
+   [releases page](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases).
+2. Unpack it and copy your game dump into its `assets/` folder.
+3. Start `cod_bro_launcher`, pick your options and play.
+
+The releases are built from the
+[CoD2-BRO-Native-Loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader)
+repository, which has the system requirements, controls and antivirus notes. This
+repository is where the engine is rewritten; its first release will replace that one.
+
+## Features
+
+**Available now**
+
+- The whole single-player campaign.
+- 60 fps, higher render resolutions, widescreen, borderless fullscreen and a field of view setting.
+- Controllers, and keyboard and mouse with your own key bindings.
+- Optional enhanced graphics (anti-aliasing, anisotropic filtering, sharpening) and enhanced
+  sound (reverb, occlusion behind walls, more voices), each with its own switch. Switched
+  off, you get the picture and sound as on the Xbox.
+- Multiplayer over System Link on your local network.
+
+**Planned for the custom engine**
+
+- A Vulkan renderer next to Direct3D 9.
+- A proper in-game settings menu, and a launcher that has every option.
+- Ambient occlusion, occlusion culling and dynamic lighting on top of the game's baked lighting.
+- More realistic sound occlusion: materials, partial cover, sound bending around corners.
+
+Every enhancement stays optional, so the original look and sound are always one switch away.
 
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-11-16. The numbers come from `tools/progress.py`, which tracks every
-function of the game.*
+*As of 2026-11-07. Full numbers per part of the game: [docs/progress.md](docs/progress.md).*
 
-| | Functions | Named | Rewritten | Left to rewrite |
-|---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 12,131 | 10,257 | 7,732 | 4,399 |
-| Mission scripts (14 level sections) | 5,326 | 3,131 | 149 | 5,177 |
-| **Total** | **17,457** | **13,388** | **7,881** | **9,576** |
-
-**Named** means we know what the function does and it has a proper name.
-**Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 7 functions the campaign never runs, the same comparison offline on random inputs.
-**Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
-and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
-its files (these are in C++ already). The Xbox Live code is set aside without being
-rewritten: the service is gone. Our own engine replaces all of this.
-We've also named 2,667 of the game's global variables.
-
-### By part of the game
-
-| Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
-|---|---:|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,313 | 1,152 | 159 | 1 | 0 | 0 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,671 | 1,411 | 245 | 11 | 1 | 0 |
-| Animation (animation trees, the animation codec) | 386 | 276 | 82 | 28 | 0 | 0 |
-| Client game (HUD, view, effects on screen) | 337 | 308 | 23 | 6 | 0 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 1,091 | 918 | 112 | 60 | 0 | 0 |
-| Client and menus | 1,029 | 732 | 257 | 40 | 0 | 0 |
-| Server | 82 | 72 | 10 | 0 | 0 | 0 |
-| Collision | 116 | 98 | 3 | 15 | 0 | 0 |
-| Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 2,027 | 1,778 | 243 | 5 | 1 | 0 |
-| Level-script helpers in the engine code | 1,468 | 583 | 835 | 43 | 2 | 0 |
-| Sound | 152 | 134 | 4 | 13 | 0 | 0 |
-| Streaming (asset loading, zones) | 188 | 163 | 16 | 9 | 0 | 0 |
-| Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
-| Microsoft library code built into the game (replaced, not rewritten) | 2,146 | 84 | 226 | 0 | 0 | 462 |
-| Not sorted into a part yet | 39 | 5 | 8 | 7 | 1 | 18 |
-
-The Microsoft library row is Microsoft's own code that was built into the game (the C
-runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType
-font rasteriser). We recognise 1,374 of these functions by comparing their bytes with
-the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the
-same blocks. They still count towards the total.
+| | Functions | Rewritten in C++ | Status |
+|---|---:|---:|---|
+| **Engine** (renderer, sound, script engine, game logic, menus, ...) | 9,231 | 6,993 | 76% rewritten |
+| **Mission scripts** (14 missions) | 5,325 | 101 | run from your disc |
+| **Microsoft libraries** built into the game | 2,082 | - | being replaced by our own code |
 <!-- progress:end -->
 
-Most functions aren't sorted into a part yet. That happens as they get named: until
-then, nothing tells us which part they belong to. A part of the game switches over to
-the rewritten code once all of its functions pass the comparison; until then the
-original keeps running and the rewritten functions are only tested.
-
-The renderer comes first. It's the part of the game that talks to the Xbox's graphics
-chip most directly, so a rewritten renderer that uses a PC graphics API is what a
-native PC version needs most.
-
-### The mission scripts
-
-<!-- levels:start (tools/progress.py --readme) -->
-Each mission has its own section of code: its level scripts (the objectives, enemy
-waves, scripted events and dialogue) compiled down to machine code. All 5,326
-of these functions were generated by the game's script compiler, so rather than
-rewriting them one by one, the plan is to build a translator that converts them
-automatically.
-
-| Section | Mission | Functions | Named |
-|---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 674 | 547 |
-| ORAN | `sp/oran` | 465 | 247 |
-| TUNISIA | `sp/tunisia` | 313 | 180 |
-| KASSPASS | `sp/kasspass` | 526 | 310 |
-| KASSRINE | `sp/kassrine` | 250 | 135 |
-| LIBEATOR | `sp/liberatr` | 327 | 154 |
-| GELA | `sp/gela` | 417 | 258 |
-| PIANLUPO | `sp/piano` | 411 | 245 |
-| TROINA | `sp/troina` | 242 | 112 |
-| OMAHEACH | `sp/omaha` | 332 | 215 |
-| MONS1 | `sp/mons` | 542 | 322 |
-| EILEDORF | `sp/eilndrf` | 186 | 113 |
-| BUCHHOLZ | `sp/buchholz` | 461 | 218 |
-| DRAGEETH | `sp/dragonth` | 180 | 75 |
-<!-- levels:end -->
-
-The totals can still grow a little as more functions turn up during the analysis.
-
-### What isn't counted
-
-<!-- excluded:start (tools/progress.py --readme) -->
-The game also contains about 2,960 functions from Microsoft's Xbox libraries:
-Direct3D, DirectSound, Xbox Live and networking, and a few others. We're leaving
-them out on purpose:
-<!-- excluded:end -->
-
-- They talk directly to the Xbox's own hardware and online services, so a
-  rewritten version couldn't do anything useful on a PC anyway. The PC versions of
-  graphics, sound, input and networking we already wrote for the native loader
-  take their place.
-- They aren't part of the game itself. Every Xbox game was built with these same
-  libraries, so they say nothing about how *Big Red One* works.
+Every rewritten function is checked against the original game while it runs: both
+versions start from exactly the same state, and their results are compared down to the
+last byte. Each part of the game switches over to our code once its functions have passed;
+a function no test has reached yet keeps running the original until one does. Every part
+of the engine has switched over, apart from Microsoft's libraries.
 
 ## How it works
 
-The Xbox runs on an ordinary x86 processor, much like a PC. That's what makes this
-project possible. The [native loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader)
-runs the original game code directly on your PC and swaps in PC versions of
-everything around it: graphics, sound, controllers, saving.
+The Xbox has an ordinary x86 processor, much like a PC, so the original game code can run
+on a PC directly while its surroundings are replaced. That is how the playable release
+works, and it is what makes the rewrite testable inside the real game:
 
-This project builds on top of that, one part of the game at a time:
+1. **Name.** The game contains no names, only addresses. Its engine descends from
+   Quake III Arena, whose source code is public, so many functions can be matched to
+   their Quake III counterparts; the rest are named by working out what they do.
+2. **Rewrite.** Each function becomes C++ that behaves exactly like the original, down to
+   the order of its floating-point operations.
+3. **Compare.** While the game runs, the original and the rewrite run side by side on
+   the same input, and every register and every byte they write is compared.
+4. **Replace.** Once every function of a part has passed, that part runs our code.
 
-1. **Name.** The game files contain no names at all, just numbered addresses. *Big
-   Red One* is built on an engine that traces back to Quake III Arena, whose source
-   code is public, so many functions can be matched with their Quake III
-   counterparts. The rest, like the AI and the vehicles, are named by working out
-   what they do.
-2. **Rewrite.** Each function is turned into C++ that behaves exactly like the
-   original, down to the order of floating-point operations.
-3. **Compare.** While the game runs, it runs both versions from exactly the same
-   starting point and compares the results down to the last byte.
-4. **Replace.** Once every function of a part has passed enough of these tests, the
-   game uses our code for that part instead of the original.
+The mission scripts were compiled to machine code by the game's own script compiler.
+They keep running as the original code from your disc, and our engine gives them
+everything they expect from it.
 
-Keep doing that until every function has been replaced, and the original game code
-is no longer needed. What's left is a game that builds from source and only needs
-the original game files for its maps, models, sounds and textures.
+More in [How it works](docs/developers/how-it-works.md) and
+[The comparison harness](docs/developers/comparison-harness.md).
 
-## Tools we use
+## Build from source
 
-- **[Ghidra](https://ghidra-sre.org/)**, the NSA's open-source reverse-engineering
-  suite, for disassembling and exploring the game. The AI works in it through
-  an MCP server for Ghidra, decompiling functions and running analysis scripts
-  directly.
-- **Our Ghidra scripts** (`tools/ghidra/`): apply names from our name lists, export
-  the symbol file the rest of the tools use, name settings variables after the
-  settings they hold, and export per-function data for matching.
-- **`tools/fnpack.py`**: one compact text per function from the XBE and the symbol
-  file: callers, callees, globals and constants, strings, which registers and stack
-  slots it takes, and the traps to watch for (float instructions, code the harness
-  cannot hook), with the disassembly named inline.
-- **`tools/namepack.py`**: naming packets. It ranks unnamed functions by how much
-  there is to go on (strings, named callers and callees, Q3 matches, known struct
-  fields) and prints each one's context with its decompile in one text, from an
-  export by `tools/ghidra/ExportNaming.java`. Its `fields` report lists every offset
-  of a struct that the code uses, with the functions that use it.
-- **`tools/data/structs.txt`**: the struct layouts found so far (entities, cvars,
-  actors, ...). `tools/ghidra/ApplyStructs.java` creates them in Ghidra and types the
-  globals and parameters listed there, so the decompiler shows field names.
-- **`tools/scaffold.py`**: writes a batch's declarations, stubs (with the asm entry
-  for register arguments and the callees as ready calls) and registrations from the
-  same analysis; an `#error` in each stub marks the body still to write.
-- **`tools/compare_batch.py`**: builds the loader, runs the comparison in several
-  missions at once and prints one line per function.
-- **The Quake III Arena and Return to Castle Wolfenstein source code** (GPL), the
-  engine's ancestors, plus **q3match** (`tools/q3match/`), which matches the game's
-  functions to them by their strings and calls.
-- **The native loader**, which runs the original game on Linux and Windows. It's
-  what lets us test rewritten code inside the real game instead of in isolation.
-- **The comparison harness** (`--compare`), built into the loader. For each tested
-  call it copies the running game, runs the original and our version side by side,
-  and compares registers and every byte of memory they write. Calls into graphics
-  code are recorded and compared too, so drawing code can be tested. Results go to
-  `tools/data/functions.csv`.
-- **`tools/progress.py`**, which tracks every function's state (unnamed, named,
-  decompiled, tested, rewritten) by part of the game, and lists what's left.
-- **`tools/smoke_test.sh`**, a quick unattended play-through run after every batch
-  to make sure the game still works.
-- **[Claude Code](https://claude.com/claude-code)** with Claude, Anthropic's AI
-  model, which does the naming and decompiling (see [Made with AI](#made-with-ai)).
-- GCC and CMake for building, and objdump for checking the compiled code.
+Linux is needed for development: the in-game comparison only works there for now.
 
-This is for people who want to help with the decompilation or try it out. If you
-just want to play, see the native loader above.
+```sh
+git clone --recursive https://github.com/SmokeDoggy044/CoD2-BRO-Decomp.git
+cd CoD2-BRO-Decomp
 
-You'll need Linux. The in-game comparison only works there for now. Clone the
-repository with its submodule:
+# Fedora: 32-bit libraries and vkd3d's shader compiler
+sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 SDL3-devel.i686 vkd3d-compiler
 
-    git clone --recursive https://github.com/SmokeDoggy044/CoD2-BRO-Decomp.git
+cmake --preset linux-loader -DCOD_BRO_GAME_FILES=/path/to/your/game/dump
+cmake --build --preset linux-loader
+ctest --preset linux-loader
+./build/linux-loader/bin/cod_bro_loader --level 1
+```
 
-The game runs as a 32-bit program, so you'll need the 32-bit development
-libraries, vkd3d's shader compiler for the renderer's shaders and glslang for the
-Vulkan renderer's own shaders. On Fedora:
+Add `--compare` to run the rewritten functions side by side with the original. Windows
+builds, release packaging and all options are described in
+[Development](docs/developers/development.md).
 
-    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler glslang
+## Project layout
 
-Then build, run the tests and start the game with the comparison switched on:
+```
+src/
+  engine/      the rewritten game code, one folder per part of the game
+  runtime/     runs the original code on a PC: the program loader and the Xbox system layer
+  render/      graphics (Direct3D 9 through DXVK, our own graphics interface)
+  audio/       sound on OpenAL Soft
+  input/       controllers, keyboard and mouse
+  platform/    files, memory, threads, settings
+  launcher/    the launcher
+  text/        sharper text and button prompts
+  online/      System Link
+tests/         unit tests and the comparison tests
+tools/         analysis, decompiling and testing tools; tools/data holds the names and results
+docs/          documentation for developers, file formats and research notes
+```
 
-    cmake --preset linux-loader && cmake --build --preset linux-loader
-    ctest --preset linux-loader
-    ./build/linux-loader/bin/cod_bro_loader --compare --level 1
+## Contributing
 
-By default the build looks for your game files in a folder called `unpacked`
-next to the repository. You can point it somewhere else with `--assets` followed
-by the folder.
-
-Windows builds, release packaging and the rest of the game's options are covered in
-the [native loader's README](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader#readme).
-
-## Finding your way around
-
-- `src/engine/` is where the rewritten game code lives.
-- `tools/` has the Ghidra scripts, the Quake III matcher, the progress tracker and
-  the quick gameplay test.
-- `tools/data/` holds the function names with the evidence for each, the in-game
-  comparison results and the per-function progress list (`progress.csv`).
-- `src/runtime/loader/`, `src/runtime/xbox/`, `src/platform/`, `src/render/`, `src/audio/` and `src/input/` come from the
-  native loader: the PC replacements for the Xbox and its libraries.
-
-For the details:
-
-- [docs/research/status.md](docs/research/status.md): what each component does today
-- [docs/formats/level_boundary.md](docs/formats/level_boundary.md): what the original level code needs from the
-  engine (generated by tools/levels/boundary.py)
-- [docs/research/naming.md](docs/research/naming.md): how functions get their names, and what we've
-  found so far
-- [docs/developers/comparison-harness.md](docs/developers/comparison-harness.md): how the in-game
-  comparison works
-- [docs/formats/nal_animation.md](docs/formats/nal_animation.md): the NAL animation codec (channel
-  classes, vtable slots, stream formats)
-- [docs/research/renderer-inventory.md](docs/research/renderer-inventory.md): what the decompiled renderer
-  still asks the Xbox graphics libraries to do (first step of our own renderer)
-- [docs/developers/own-renderer.md](docs/developers/own-renderer.md): our own renderer, step by step
-- [docs/developers/texture-packs.md](docs/developers/texture-packs.md): texture pack releases (format, keys from
-  the player's own textures, the launcher's install)
-- [docs/developers/game-files.md](docs/developers/game-files.md): the launcher's edition check and disc dump
-  import
-- [docs/developers/rendering.md](docs/developers/rendering.md), [docs/developers/multiplayer.md](docs/developers/multiplayer.md)
-  and [docs/developers/playtesting.md](docs/developers/playtesting.md): graphics, multiplayer and testing
-  in the native loader
+Bug reports and questions are welcome in the
+[issues](https://github.com/SmokeDoggy044/CoD2-BRO-Decomp/issues); for problems while
+playing, attach `log.txt` from your user data folder (`~/.local/share/cod_bro` or
+`%APPDATA%\cod_bro`). To work on the code, start with [Development](docs/developers/development.md)
+and the [tools we use](docs/developers/tools.md).
 
 ## Made with AI
 
-This project is developed with AI. The function names, the decompiled code and the
-tools around them were produced by Claude, Anthropic's AI model, working in Claude
-Code, with the evidence for each name recorded in `tools/data/manual_names.csv` and
-every rewritten function checked against the original by the in-game comparison
-harness before it replaces it. The maintainer directs the work, playtests the
-builds, and reviews and publishes the results. Mistakes are the project's own:
-please report them as issues.
+This project is developed with AI. The function names, the rewritten code, the tools
+and the documentation are written by Claude, Anthropic's AI model, working in
+[Claude Code](https://claude.com/claude-code). The evidence for every function name is
+recorded in `tools/data/manual_names.csv`, and every rewritten function is checked against
+the original before it replaces it. The maintainer directs the work, decides what gets
+built, playtests the builds, and reviews and publishes the results. Mistakes are the
+project's own: please report them as issues.
 
 ## License
 
-Our own code is licensed under the
-[GNU General Public License, version 2 or later](LICENSE). The libraries we use
-come under their own licenses, listed in [LICENSES/README.md](LICENSES/README.md).
+Our code is licensed under the [GNU General Public License, version 2 or later](LICENSE).
+Bundled libraries and fonts come under their own licenses, listed in
+[LICENSES/README.md](LICENSES/README.md).
 
-*Call of Duty 2: Big Red One* and all of its code and data belong to their owners,
-and you need your own copy of the game. The function names and test results in
-this repository come from our own analysis. This project isn't affiliated with or
-endorsed by Activision, Treyarch or Microsoft. Call of Duty is a trademark of
-Activision Publishing, Inc.; Xbox is a trademark of Microsoft Corporation.
+*Call of Duty 2: Big Red One* and all of its code and data belong to their owners. This
+project is not affiliated with or endorsed by Activision, Treyarch or Microsoft. Call of
+Duty is a trademark of Activision Publishing, Inc.; Xbox is a trademark of Microsoft
+Corporation.
