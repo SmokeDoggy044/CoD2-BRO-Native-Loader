@@ -284,6 +284,12 @@ def helpers_pass(args):
 KEEP_CALLEES = re.compile(r"\b(Heap_CreateFromZone|sample_root)\s*\([^()]*$")
 
 
+# functions whose C is not ready to run live yet: their addresses stay original (status in
+# docs/developers/own-engine-host.md). SV_Map_f: its C calls SV_SpawnServer's C (inconclusive), which
+# crashes live (a callee at the original's position overwrites the body's return address, 2026-11-07).
+KEEP_NAMES = {"SV_Map_f"}
+
+
 # ---- pass 3 (--values): addresses of our C used as values (slot tables, comparators, thread entries) ---
 def values_pass(args):
     tab = table()
@@ -328,6 +334,9 @@ def values_pass(args):
                     stats["skipped (compare/data)"] += 1
                     return m.group(0)
                 amp, name = tab[a]
+                if name in KEEP_NAMES:
+                    stats["kept (KEEP_NAMES)"] += 1
+                    return m.group(0)
                 base = name.split("::")[-1]
                 headers = decl.get(base) or (decl.get(base[:-len("_entry")], set()) if base.endswith("_entry") else set())
                 headers = {wrapper.get(h, h) for h in headers}
