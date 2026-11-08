@@ -921,6 +921,8 @@ int loader_main(int argc, char** argv) {
     }
     d3d_config.backend.pc_menu = &loader::pc_menu;
     d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    // The front-end menus' PC rows (src/engine/client/fe_pc.h); --compare and --pc-patches off: the original menus.
+    if (options->pc_patches.value_or(!options->compare)) loader::install_menu_settings();
     d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks

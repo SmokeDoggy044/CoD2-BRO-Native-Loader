@@ -4,6 +4,7 @@
 
 #include "cl.h"
 #include "fe.h"
+#include "fe_pc.h"
 #include "movie.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -321,7 +322,12 @@ void XB_CDECL ScreenMenu_ToggleAspect(uint8_t* menu, uint32_t right) {
     if (field<int16_t>(menu, 0x22) != 0) return;
     const uint8_t four_three = menu[0x50] == 0;
     menu[0x50] = four_three;
-    call(field<uint8_t*>(menu, 0x3c), 0x6c, four_three ? 0x0082bd44u : 0x0082bd34u);  // FEMENU_COP_4X3 / _16X9
+    if (pc_menus()) {  // ENHANCED GRAPHICS (fe_pc.h): switched at once
+        pc_settings_hooks().set_graphics_enhanced(four_three != 0);
+        show_on_off(field<uint8_t*>(menu, 0x3c), four_three);
+    } else {
+        call(field<uint8_t*>(menu, 0x3c), 0x6c, four_three ? 0x0082bd44u : 0x0082bd34u);  // FEMENU_COP_4X3 / _16X9
+    }
     copy_color(menu_item(menu, 0), field<uint8_t*>(menu, 0x3c));
     call(menu, 0x10);
     const int32_t row = selection(menu);
@@ -737,6 +743,71 @@ void XB_THISCALL GameplayMenu_RestoreSelection(uint8_t* menu) {
         show_on_off(field<uint8_t*>(menu, 0x3c + i * 4), menu[0x7c + i]);
     }
     gameplay_label_colors(menu);
+}
+
+// --- Our own engine's PC menus (fe_pc.h) ---
+
+PcSettingsHooks& pc_settings_hooks() {
+    static PcSettingsHooks hooks;
+    return hooks;
+}
+
+bool pc_menus() {
+    const PcSettingsHooks& hooks = pc_settings_hooks();
+    return hooks.graphics_enhanced && hooks.set_graphics_enhanced && hooks.save_graphics;
+}
+
+void XB_THISCALL OptionsMenu_Accept(uint8_t* menu, uint32_t index) {
+    field<uint32_t>(menu, 0x3c) = index;
+    static constexpr uint32_t kScreens[3] = {4, 5, 7};        // Gameplay, Controller, Sound
+    static constexpr uint32_t kPcScreens[4] = {4, 5, 6, 7};   // Gameplay, Controller, Graphics, Sound
+    const bool pc = pc_menus();
+    if (index >= (pc ? 4u : 3u)) return;
+    call(field<uint8_t*>(menu, 8), 0xc, pc ? kPcScreens[index] : kScreens[index]);  // the owner's active screen
+}
+
+void XB_THISCALL ScreenMenu_RestoreSelection(uint8_t* menu) {
+    UIMenu_RestoreSelection(menu);
+    open_background_movie();
+    uint8_t* const value = field<uint8_t*>(menu, 0x3c);
+    if (pc_menus()) {
+        menu[0x50] = pc_settings_hooks().graphics_enhanced() ? 1 : 0;
+        menu[0x51] = menu[0x50];
+        show_on_off(value, menu[0x50]);
+    } else {
+        menu[0x50] = title_global<uint32_t>(0x00948f64) == 0;  // 4:3 without the widescreen word
+        call(value, 0x6c, menu[0x50] ? 0x0082bd44u : 0x0082bd34u);  // FEMENU_COP_4X3 / _16X9
+    }
+    // Item 0's colour, twice as in the original.
+    copy_color(menu_item(menu, 0), value);
+    copy_color(menu_item(menu, 0), value);
+}
+
+void XB_THISCALL ScreenMenu_Accept(uint8_t* menu, uint32_t index) {
+    if (pc_menus()) {
+        if (index == 1) {  // RESET TO DEFAULTS: Enhanced graphics on
+            if (!menu[0x50]) {
+                menu[0x50] = 1;
+                pc_settings_hooks().set_graphics_enhanced(true);
+                show_on_off(field<uint8_t*>(menu, 0x3c), 1);
+                call(menu, 0x10);  // the move sound, as a toggle
+            }
+            return;
+        }
+        if (index == 2 && menu[0x50] != menu[0x51]) {
+            pc_settings_hooks().save_graphics();
+            menu[0x51] = menu[0x50];
+        }
+    }
+    if (index == 2) call(field<uint8_t*>(menu, 8), 0xc, 3);  // back to Options
+}
+
+void XB_THISCALL ScreenMenu_Back(uint8_t* menu, uint32_t) {
+    if (pc_menus() && menu[0x50] != menu[0x51]) {  // undo the change
+        menu[0x50] = menu[0x51];
+        pc_settings_hooks().set_graphics_enhanced(menu[0x50] != 0);
+    }
+    call(title_global<uint8_t*>(0x0095f8f8), 0xc, 3);  // the front end: Options
 }
 
 }  // namespace game

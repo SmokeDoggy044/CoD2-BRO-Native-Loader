@@ -82,6 +82,7 @@
 #include "fe_bonus.h"
 #include "fe_menus.h"
 #include "fe_options.h"
+#include "fe_pc.h"
 #include "fe_profile.h"
 #include "fe_setup.h"
 #include "fe_setup_bonus.h"
@@ -222,6 +223,7 @@ const Function kFunctions[] = {
     {"SoundMenu_OnRight", 0x00012a10, 0, code(&SoundMenu_OnRight), 4, Result::None, Status::Replaced},
     {"SoundMenu_DeletingDtor", 0x00012a60, 0, code(&SoundMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"OptionsMenu_Dtor", 0x00012a80, 0, code(&OptionsMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"OptionsMenu_Accept", 0x00012af0, 0, code(&OptionsMenu_Accept), 4, Result::None, Status::Replaced},
     {"OptionsMenu_DeletingDtor", 0x00012b60, 0, code(&OptionsMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"PauseMenu_Dtor", 0x00012b80, 0, code(&PauseMenu_Dtor), 0, Result::None, Status::Replaced},
     {"PauseMenu_DeletingDtor", 0x00012be0, 0, code(&PauseMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -8642,6 +8644,8 @@ const Function kFunctions[] = {
     {"LoadAfricaMenu_ClearElements", 0x0030de90, 0, code(&LoadAfricaMenu_ClearElements_entry), 0, Result::None, Status::Replaced},
     {"LoadingMenu_ClearElements", 0x0030df00, 0, code(&LoadingMenu_ClearElements_entry), 0, Result::None, Status::Replaced},
     {"FE_AspectOptionLabel", 0x0030dfd0, 0, code(&FE_AspectOptionLabel_entry), 0, Result::None, Status::Compare},
+    {"ScreenMenu_Back", 0x0030e030, 0, code(&ScreenMenu_Back), 4, Result::None, Status::Replaced},
+    {"ScreenMenu_Accept", 0x0030e050, 0, code(&ScreenMenu_Accept), 4, Result::None, Status::Replaced},
     {"ControllerConfigMenu_UpdateLabelColors", 0x0030e080, 0, code(&ControllerConfigMenu_UpdateLabelColors_entry), 0, Result::None, Status::Replaced},
     {"FE_CommandDisplayName", 0x0030e0f0, 0, code(&FE_CommandDisplayName_entry), 0, Result::Eax, Status::Replaced},
     {"ControllerConfigMenu_UpdateVibrationText", 0x0030e2f0, 0, code(&ControllerConfigMenu_UpdateVibrationText), 0, Result::None, Status::Replaced},
@@ -8729,7 +8733,7 @@ const Function kFunctions[] = {
     {"LoadAfricaMenu_SetProgress", 0x003134e0, 0, code(&LoadAfricaMenu_SetProgress_entry), 4, Result::None, Status::Replaced},
     {"LoadingMenu_ShowMissions", 0x00313610, 0, code(&LoadingMenu_ShowMissions_entry), 0, Result::None, Status::Replaced},
     {"LoadingMenu_SetProgress", 0x00313790, 0, code(&LoadingMenu_SetProgress_entry), 4, Result::None, Status::Replaced},
-    {"ScreenMenu_ToggleAspect", 0x00313900, 0, code(&ScreenMenu_ToggleAspect_entry), 4, Result::None, Status::Compare},
+    {"ScreenMenu_ToggleAspect", 0x00313900, 0, code(&ScreenMenu_ToggleAspect_entry), 4, Result::None, Status::Replaced},
     {"GameplayMenu_ToggleOption", 0x003139f0, 0, code(&GameplayMenu_ToggleOption_entry), 4, Result::None, Status::Compare},
     {"AdvancedOptionsMenu_OnDown", 0x00313bc0, 0, code(&AdvancedOptionsMenu_OnDown), 4, Result::None, Status::Replaced},
     {"AdvancedOptionsMenu_OnUp", 0x00313c00, 0, code(&AdvancedOptionsMenu_OnUp), 4, Result::None, Status::Replaced},
@@ -9134,6 +9138,7 @@ const Function kFunctions[] = {
     {"CreateProfileMenu_HandleSelect", 0x00338c40, 0, code(&CreateProfileMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},
     {"FE_DifficultyMenu_Init", 0x00338d70, 0, code(&FE_DifficultyMenu_Init_entry), 0, Result::None, Status::Replaced},
     {"SoundMenu_RestoreSelection", 0x00338e40, 0, code(&SoundMenu_RestoreSelection), 0, Result::None, Status::Replaced},
+    {"ScreenMenu_RestoreSelection", 0x00338ea0, 0, code(&ScreenMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_RestoreSelection", 0x00338f50, 0, code(&ControllerConfigMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"GameplayMenu_RestoreSelection", 0x00339050, 0, code(&GameplayMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"OptionsMenu_RestoreSelection", 0x00339110, 0, code(&OptionsMenu_RestoreSelection), 0, Result::None, Status::Replaced},

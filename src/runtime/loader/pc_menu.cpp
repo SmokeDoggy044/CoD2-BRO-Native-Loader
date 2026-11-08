@@ -8,6 +8,8 @@
 
 #include "devices.h"
 #include "enhanced_graphics.h"
+#include "fe_pc.h"
+#include "float_env.h"
 #include "imgui.h"
 #include "log.h"
 #include "patches.h"
@@ -331,6 +333,27 @@ void pc_menu_shown(bool open) {
         LOG_INFO("loader", "field of view %.0f saved", static_cast<double>(fov));
     else
         LOG_WARN("loader", "cannot save the field of view to %s", platform::settings_path().string().c_str());
+}
+
+void install_menu_settings() {
+    // Called from title threads (the front end's menus): host code under the title's float modes.
+    game::PcSettingsHooks& hooks = game::pc_settings_hooks();
+    hooks.graphics_enhanced = [] { return render::graphics_enhanced(); };
+    hooks.set_graphics_enhanced = [](bool on) {
+        platform::HostFloatEnv env;
+        render::set_graphics(on, render::graphics_features());
+        LOG_INFO("loader", "graphics %s (front-end menu)", on ? "enhanced" : "original");
+    };
+    hooks.save_graphics = [] {
+        platform::HostFloatEnv env;
+        const bool graphics = render::graphics_enhanced();
+        platform::Settings settings = platform::load_settings();
+        settings.set("graphics", graphics ? "enhanced" : "original");
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "%s graphics saved (front-end menu)", graphics ? "enhanced" : "original");
+        else
+            LOG_WARN("loader", "cannot save the graphics setting to %s", platform::settings_path().string().c_str());
+    };
 }
 
 }  // namespace loader

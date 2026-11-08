@@ -1,5 +1,6 @@
 #include "fe_setup.h"
 
+#include "fe_pc.h"
 #include "fe_setup_internal.h"
 
 namespace game {
@@ -331,30 +332,52 @@ void XB_CDECL FE_SetupScreenMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_e
     add_items(top, regs, menu, 0x34, kNames, 3);
     regs.ebx = kNames[2];
     regs.edi = field<uint32_t>(menu, 0);
-    static constexpr uint32_t kItemTexts[3] = {0x0082bda4, 0x0082c2b0, 0x0082c294};
+    // With the PC menus (fe_pc.h) row 0 is ENHANCED GRAPHICS, the menu GRAPHICS.
+    const bool pc = pc_menus();
+    uint32_t item_texts[3] = {0x0082bda4, 0x0082c2b0, 0x0082c294};  // FEMENU_COP_SCREEN_SIZE / _RESET_TO_DEFAULTS / _SAVE_AND_EXIT
+    if (pc) item_texts[0] = address_of(kPcTextEnhancedGraphics);
     for (uint32_t i = 0; i < 3; ++i) {
-        const uint32_t args[1] = {kItemTexts[i]};
+        const uint32_t args[1] = {item_texts[i]};
         method_at(top, regs, item(menu, i), 0x30, 1, args);
     }
-    // The size selection text: 4x3 when +0x50 is set, else 16x9; item 0's colour (+0x84).
+    // The size selection text: 4x3 when +0x50 is set, else 16x9 (PC menus: ON / OFF); item 0's colour (+0x84).
     uint8_t* const selection = Panel_FindText(text_at(0x0082bd90), field<uint8_t*>(menu, 0x34));
     field<uint8_t*>(menu, 0x3c) = selection;
     regs.ebx = 0x0082bd90;
-    const uint32_t size_args[1] = {field<uint8_t>(menu, 0x50) ? 0x0082bd44u : 0x0082bd34u};
+    const uint32_t size_args[1] = {pc ? (field<uint8_t>(menu, 0x50) ? 0x0082c550u : 0x0082c540u)  // FEMENU_COP_ON / _OFF
+                                      : (field<uint8_t>(menu, 0x50) ? 0x0082bd44u : 0x0082bd34u)};
     method_at(top, regs, selection, 0x6c, 1, size_args);
     uint32_t local = 0;
     const uint32_t colour = *method<ColourMethod>(item(menu, 0), 0x84)(item(menu, 0), &local);
     call(field<uint8_t*>(menu, 0x3c), 0x90, colour);
-    set_title(top, regs, menu, 0x34, 0x0082bd84, 0x0082bd70);  // "ScreenMenu", "FEMENU_OP_SCREEN"
+    set_title(top, regs, menu, 0x34, 0x0082bd84, pc ? address_of(kPcTextGraphics) : 0x0082bd70);  // "ScreenMenu", "FEMENU_OP_SCREEN"
     field<uint8_t*>(menu, 0x44) = find_picture(menu, 0x0082bd64);  // "arrowleft01"
     field<uint8_t*>(menu, 0x48) = find_picture(menu, 0x0082bd54);  // "arrowright01"
     field<uint32_t>(menu, 0x4c) = *method<ColourMethod>(field<uint8_t*>(menu, 0x44), 0xac)(field<uint8_t*>(menu, 0x44), &local);
+    if (pc) {
+        // "Enhanced Graphics" is wider than "Screen Size": the arrows and the value move right, into the paper's
+        // free space (pictures +0x8c (x, y) from +0x9c / +0xa0, texts +0x7c (x, y) from +0xc8 / +0xcc).
+        constexpr float kShift = 36.0f;
+        static constexpr uint32_t kArrows[2] = {0x44, 0x48};
+        for (const uint32_t offset : kArrows) {
+            uint8_t* const arrow = field<uint8_t*>(menu, offset);
+            if (!arrow) continue;
+            const float x = static_cast<float>(get(arrow, 0x9c) + kShift);
+            const float y = static_cast<float>(get(arrow, 0xa0));
+            method<PairMethod>(arrow, 0x8c)(arrow, x, y);
+        }
+        uint8_t* const value = field<uint8_t*>(menu, 0x3c);
+        const float x = static_cast<float>(get(value, 0xc8) + kShift);
+        const float y = static_cast<float>(get(value, 0xcc));
+        method<PairMethod>(value, 0x7c)(value, x, y);
+    }
     setup_help(top, regs, menu, 0x34, 0x38);
     uint8_t* const mp_menu = find_picture(menu, 0x0082c31c);  // "mp_menu"
     uint8_t* const back = find_picture(menu, 0x0082c314);     // "mp_back"
     if (mp_menu) call(mp_menu, 0x7c, 0);
     if (back) call(back, 0x7c, 0);
-    call(item(menu, 0), 0x20, 1);
+    // The original hides item 0 (+0x20 (1): the cut Screen Size row, not drawn or selectable); the PC menus show it.
+    if (!pc) call(item(menu, 0), 0x20, 1);
 }
 
 SETUP_GAP_ENTRY(FE_SetupOptionsMenu, "%ecx")
@@ -363,25 +386,39 @@ void XB_CDECL FE_SetupOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_
     const uint32_t top = entry_esp - 0x14;  // 8 bytes of locals, push ebx / esi / edi
     field<uint8_t*>(menu, 0x34) = panel;
     Panel_SetLayer(panel, 2);
-    static constexpr uint32_t kNames[3] = {0x0082c370, 0x0082c364, 0x0082c35c};  // Gameplay / Controller / Sound
+    // With the PC menus (fe_pc.h) the panel's fourth row, its "Screen" text, is item 2: GRAPHICS (the Screen menu);
+    // Sound moves to item 3, and the rows keep the panel's spacing.
+    static constexpr char kScreen[] = "Screen";
+    const bool pc = pc_menus();
+    const uint32_t count = pc ? 4 : 3;
+    uint32_t names[4] = {0x0082c370, 0x0082c364, 0x0082c35c, 0};  // Gameplay / Controller / Sound
+    uint32_t item_texts[4] = {0x0082c348, 0x0082c334, 0x0082c324, 0};  // FEMENU_OP_GAMEPLAY / _CONTROLS / _SOUND
+    if (pc) {
+        names[3] = names[2];
+        names[2] = address_of(kScreen);
+        item_texts[3] = item_texts[2];
+        item_texts[2] = address_of(kPcTextGraphics);
+    }
     TitleRegs regs{};
     regs.esi = address_of(menu);
-    add_items(top, regs, menu, 0x34, kNames, 3);
-    regs.ebx = kNames[2];
+    add_items(top, regs, menu, 0x34, names, count);
+    regs.ebx = names[count - 1];
     regs.edi = field<uint32_t>(menu, 0);
-    static constexpr uint32_t kItemTexts[3] = {0x0082c348, 0x0082c334, 0x0082c324};
-    for (uint32_t i = 0; i < 3; ++i) {
-        const uint32_t args[1] = {kItemTexts[i]};
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t args[1] = {item_texts[i]};
         method_at(top, regs, item(menu, i), 0x30, 1, args);
     }
-    // Items 0 and 1 move by half the gap between them, item 2 the other way (+0x70 y, +0x6c x, +0x2c (x, y)).
-    const float second = static_cast<float>(get(item(menu, 1), 0x70));
-    const double half = static_cast<double>((second - get(item(menu, 0), 0x70)) * 0.5L);
-    for (uint32_t i = 0; i < 3; ++i) {
-        uint8_t* const entry = item(menu, i);
-        const float y = static_cast<float>(i < 2 ? get(entry, 0x70) + half : get(entry, 0x70) - half);
-        const float x = static_cast<float>(get(entry, 0x6c));
-        method<PairMethod>(entry, 0x2c)(entry, x, y);
+    // Original: items 0 and 1 move by half the gap between them, item 2 the other way (+0x70 y, +0x6c x, +0x2c
+    // (x, y)) - closing up the left-out Screen row.
+    if (!pc) {
+        const float second = static_cast<float>(get(item(menu, 1), 0x70));
+        const double half = static_cast<double>((second - get(item(menu, 0), 0x70)) * 0.5L);
+        for (uint32_t i = 0; i < 3; ++i) {
+            uint8_t* const entry = item(menu, i);
+            const float y = static_cast<float>(i < 2 ? get(entry, 0x70) + half : get(entry, 0x70) - half);
+            const float x = static_cast<float>(get(entry, 0x6c));
+            method<PairMethod>(entry, 0x2c)(entry, x, y);
+        }
     }
     setup_help(top, regs, menu, 0x34, 0x38);
     uint8_t* const mp_menu = find_picture(menu, 0x0082c31c);  // "mp_menu"

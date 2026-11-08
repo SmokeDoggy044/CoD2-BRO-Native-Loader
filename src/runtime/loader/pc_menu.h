@@ -9,6 +9,10 @@ namespace loader {
 // Makes the menu's widgets (Dear ImGui) for this frame; false closes it.
 bool pc_menu();
 
+// The settings the game's own front-end menus show (our engine's PC menus, src/engine/client/fe_pc.h):
+// Enhanced graphics for now. Called before the title runs; not for --compare runs (the original menus).
+void install_menu_settings();
+
 // The menu opened or closed: blocks the title's input while it is open, and saves
 // what changed to settings.ini when it closes.
 void pc_menu_shown(bool open);

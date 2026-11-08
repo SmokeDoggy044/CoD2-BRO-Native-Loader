@@ -4,6 +4,7 @@
 
 #include "cl.h"
 #include "fe.h"
+#include "fe_pc.h"
 #include "ngl.h"
 #include "script_string.h"
 #include "snd.h"
@@ -1851,7 +1852,7 @@ uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
     add_screen(mgr, construct_screen(0x00331210, 0x4c, mgr));  // SinglePlayerMenu_Construct
     uint8_t* options = z_malloc(0x40);
     if (options) {
-        init_screen_menu(options, 3, mgr);
+        init_screen_menu(options, pc_menus() ? 4 : 3, mgr);  // GRAPHICS with the PC menus (fe_pc.h)
         options[0x2a] |= 0x80;
         field<uint32_t>(options, 0) = 0x00829348;  // OptionsMenu vtable
         options[0x33] = 7;
