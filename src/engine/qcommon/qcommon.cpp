@@ -1322,7 +1322,6 @@ void XB_REGS1 XB_CDECL Cbuf_AddText(const char* text) {
 namespace {
 
 using CvarSet2 = uint32_t XB_CDECL(const char*, const char*, uint32_t);
-constexpr uint32_t kCvarSet2 = 0x0029c030;
 
 const char* cmd_argv_or_empty(uint32_t index) {
     if (title_global<uint32_t>(0x00934248) > index) return title_global<const char*>(0x0092df90 + index * 4);
@@ -1356,7 +1355,7 @@ void XB_CDECL Cvar_Restart_f() {
                 *reinterpret_cast<uint32_t*>(var) = 0;
                 continue;
             }
-            title_function<CvarSet2>(kCvarSet2)(*reinterpret_cast<const char**>(var),
+            own_function<CvarSet2>(&Cvar_Set2)(*reinterpret_cast<const char**>(var),
                                                  *reinterpret_cast<const char**>(var + 8), 1);
         }
         prev = reinterpret_cast<uint8_t**>(var + 0x24);
@@ -1369,7 +1368,7 @@ void XB_CDECL Com_StartupVariable(const char* match) {
         if (std::strcmp(cmd_argv_or_empty(0), title_pointer<const char>(0x00837d70))) continue;  // "set"
         const char* name = cmd_argv_or_empty(1);
         if (match && std::strcmp(name, match)) continue;
-        title_function<CvarSet2>(kCvarSet2)(name, cmd_argv_or_empty(2), 1);
+        own_function<CvarSet2>(&Cvar_Set2)(name, cmd_argv_or_empty(2), 1);
         uint8_t* var = own_function<uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Get)(  // Cvar_Get
             name, title_pointer<const char>(0x0082dfeb), 0);
         *reinterpret_cast<uint32_t*>(var + 0x10) |= 0x80;  // CVAR_USER_CREATED
@@ -1649,7 +1648,6 @@ T& cvar_field(uint8_t* var, uint32_t offset) {
 }
 
 using ZFreeFn = void XB_CDECL(void*);
-constexpr uint32_t kZFree = 0x000428d0;
 
 // The title CRT's atof (double in ST0, stored as a float) and atol.
 float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
@@ -1686,7 +1684,7 @@ uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force) {
     if (!value) value = cvar_field<char*>(var, 8);
     if (!std::strcmp(value, cvar_field<const char*>(var, 4))) {
         if ((cvar_field<uint32_t>(var, 0x10) & 0x20) && cvar_field<void*>(var, 0xc)) {
-            title_function<ZFreeFn>(kZFree)(cvar_field<void*>(var, 0xc));
+            own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 0xc));
             cvar_field<void*>(var, 0xc) = nullptr;
         }
         return var;
@@ -1700,7 +1698,7 @@ uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force) {
         if (flags & 0x20) {  // CVAR_LATCH
             if (char* latched = cvar_field<char*>(var, 0xc)) {
                 if (!std::strcmp(value, latched)) return var;
-                title_function<ZFreeFn>(kZFree)(latched);
+                own_function<ZFreeFn>(&Z_Free)(latched);
             } else if (!std::strcmp(value, cvar_field<const char*>(var, 4))) {
                 return var;
             }
@@ -1709,13 +1707,13 @@ uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force) {
             return var;
         }
     } else if (cvar_field<void*>(var, 0xc)) {
-        title_function<ZFreeFn>(kZFree)(cvar_field<void*>(var, 0xc));
+        own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 0xc));
         cvar_field<void*>(var, 0xc) = nullptr;
     }
     if (!std::strcmp(value, cvar_field<const char*>(var, 4))) return var;
     cvar_field<uint32_t>(var, 0x14) = 1;
     ++cvar_field<int32_t>(var, 0x18);
-    title_function<ZFreeFn>(kZFree)(cvar_field<void*>(var, 4));
+    own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 4));
     cvar_field<char*>(var, 4) = CopyString(value);
     cvar_field<float>(var, 0x1c) = title_atof(cvar_field<const char*>(var, 4));
     cvar_field<int32_t>(var, 0x20) = title_atol(cvar_field<const char*>(var, 4));
@@ -1731,19 +1729,19 @@ uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags) 
     if (var) {
         if ((cvar_field<uint32_t>(var, 0x10) & 0x1080) && !(flags & 0x1080) && (value[0] || (flags & 0x200))) {
             cvar_field<uint32_t>(var, 0x10) &= ~0x1080u;
-            title_function<ZFreeFn>(kZFree)(cvar_field<void*>(var, 8));
+            own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 8));
             cvar_field<char*>(var, 8) = CopyString(value);
             title_global<uint32_t>(0x009403ec) |= flags;
         }
         cvar_field<uint32_t>(var, 0x10) |= flags;
         if (!cvar_field<const char*>(var, 8)[0]) {
-            title_function<ZFreeFn>(kZFree)(cvar_field<void*>(var, 8));
+            own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 8));
             cvar_field<char*>(var, 8) = CopyString(value);
         }
         if (char* latched = cvar_field<char*>(var, 0xc)) {
             cvar_field<char*>(var, 0xc) = nullptr;
             own_function<Set2>(&Cvar_Set2)(name, latched, 1);  // Cvar_Set2
-            title_function<ZFreeFn>(kZFree)(latched);
+            own_function<ZFreeFn>(&Z_Free)(latched);
         }
         if (flags & 0x40) own_function<Set2>(&Cvar_Set2)(name, value, 1);
         if ((cvar_field<uint32_t>(var, 0x10) & 0x200) && title_global<uint8_t*>(0x00940358) && cheats_off())

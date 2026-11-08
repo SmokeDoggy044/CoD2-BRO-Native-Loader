@@ -357,8 +357,6 @@ namespace {
 constexpr uint32_t kEventQueue = 0x0095e800;
 constexpr uint32_t kEventHead = 0x0095e7f4;
 constexpr uint32_t kEventTail = 0x0095ee04;
-constexpr uint32_t kSysMilliseconds = 0x002b1ca0;
-constexpr uint32_t kZFree = 0x000428d0;
 
 SysEvent& event_slot(int32_t index) {
     return (&title_global<SysEvent>(kEventQueue))[index & 0x3f];
@@ -378,7 +376,7 @@ SysEvent* XB_CDECL Sys_GetEvent(SysEvent* out) {
         *out = event;
         return out;
     }
-    const int32_t time = title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+    const int32_t time = own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
     out->time = time;
     out->type = 0;
     out->value = 0;
@@ -393,11 +391,11 @@ int32_t XB_REGS1 XB_CDECL Sys_QueEvent(int32_t time, int32_t type, int32_t value
     const int32_t head = title_global<int32_t>(kEventHead);
     SysEvent& event = event_slot(head);
     if (head - title_global<int32_t>(kEventTail) >= 64) {
-        if (event.ptr) title_function<void XB_CDECL(void*)>(kZFree)(event.ptr);
+        if (event.ptr) own_function<void XB_CDECL(void*)>(&Z_Free)(event.ptr);
         ++title_global<int32_t>(kEventTail);
     }
     ++title_global<int32_t>(kEventHead);
-    if (!time) time = title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+    if (!time) time = own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
     event.type = type;
     event.value = value;
     event.time = time;
@@ -4151,11 +4149,11 @@ int32_t XB_CDECL Com_EventLoop() {
     while (NET_GetLoopPacket(1, msg, from)) {
         if (!cvar_int(0x0093fcf0)) continue;  // com_sv_running
         uint8_t* speeds = cvar_ptr(0x009403e8);  // com_speeds
-        if (pk<int32_t>(speeds, 0x20)) title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+        if (pk<int32_t>(speeds, 0x20)) own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
         const TitleRegs regs{u32(msg), u32(msg), 0, 0, 0, static_cast<uint32_t>(ev.time)};
         qc_call_regs(0x002c9de0, &regs, 5, from);  // SV_PacketEvent (msg in EAX, from by value)
         speeds = cvar_ptr(0x009403e8);
-        if (pk<int32_t>(speeds, 0x20)) title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+        if (pk<int32_t>(speeds, 0x20)) own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
     }
     return ev.time;
 }
@@ -4199,7 +4197,7 @@ void XB_CDECL Com_Frame() {
     if (cvar_int(0x0093fc20) && title_global<uint32_t>(0x00940280)) title_global<uint32_t>(0x00940280) = 0;
     if (pk<uint32_t>(cvar_ptr(0x0093fcb4), 0x14)) pk<uint32_t>(cvar_ptr(0x0093fcb4), 0x14) = 0;
     title_global<int32_t>(0x0095f4b8) = cvar_int(0x009472e8);
-    const auto sys_milliseconds = title_function<int32_t XB_CDECL()>(kSysMilliseconds);
+    const auto sys_milliseconds = own_function<int32_t XB_CDECL()>(&Sys_Milliseconds);
     if (cvar_int(0x009403e8)) sys_milliseconds();  // com_speeds
     int32_t min_msec = 1;
     if (cvar_int(0x0094770c) > 0) min_msec = 1000 / cvar_int(0x0094770c);  // com_maxfps
@@ -6553,15 +6551,12 @@ void XB_CDECL Cmd_Take_f(uint8_t* ent) {
 
 namespace {
 
-constexpr uint32_t kScriptString_FromCString = 0x0011eb50;  // thiscall (string slot, text)
-constexpr uint32_t kScriptString_ConcatCString = 0x0011eec0;  // cdecl (out slot, a slot, text)
-constexpr uint32_t kScriptString_Release = 0x0011d640;      // thiscall (string slot)
 
 void script_string_from(uint32_t* slot, const char* text) {
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(kScriptString_FromCString)(slot, text);
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(slot, text);
 }
 void script_string_release(uint32_t* slot) {
-    title_function<void XB_THISCALL(uint32_t*)>(kScriptString_Release)(slot);
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(slot);
 }
 // A ScriptString's characters start 6 bytes into its record; null for none.
 const char* script_string_text(uint32_t slot) {
@@ -6631,7 +6626,7 @@ void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self) {
     uint32_t prefix = 0;
     uint32_t dir = 0;
     script_string_from(&prefix, reinterpret_cast<const char*>(static_cast<uintptr_t>(Save_GetData())));
-    title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t*, const char*)>(kScriptString_ConcatCString)(
+    own_function<uint32_t* XB_CDECL(uint32_t*, uint32_t*, const char*)>(&ScriptString_ConcatCString)(
         &dir, &prefix, tstr(0x0082aaec));  // the save path + "Profiles"
     script_string_release(&prefix);
     pk<uint32_t>(self, 0x11e7) = 0;

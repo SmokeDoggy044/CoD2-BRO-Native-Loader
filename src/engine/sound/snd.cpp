@@ -778,7 +778,6 @@ void XB_CDECL SndVoice_ApplyParams() {
     const uint8_t* const pool = reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8b4});
     const uint8_t* const source_pool = reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8e4});
     using Free = void XB_CDECL(int32_t);
-    constexpr uint32_t kFree = 0x000c3f50;  // SndVoice_Free
     int32_t handle = HandlePool_First(pool);
     while (handle != -1) {
         const int32_t next = HandlePool_Next(pool, handle);
@@ -810,7 +809,7 @@ void XB_CDECL SndVoice_ApplyParams() {
                 const bool free_it = v[0xd6] & 8;
                 snd_at<int32_t>(v, 0xcc) = -1;
                 if (free_it) {
-                    title_function<Free>(kFree)(handle);
+                    own_function<Free>(&SndVoice_Free)(handle);
                     break;
                 }
             }
@@ -844,7 +843,7 @@ void XB_CDECL SndVoice_ApplyParams() {
                                                      v[0xd6] & 0x40);
                 snd_at<int16_t>(v, 0xd0) = static_cast<int16_t>(slot);
                 if (static_cast<uint16_t>(slot) == 0xffff) {
-                    if (++snd_at<uint32_t>(v, 0xd8) > 10 && !(entry[5] & 8)) title_function<Free>(kFree)(handle);
+                    if (++snd_at<uint32_t>(v, 0xd8) > 10 && !(entry[5] & 8)) own_function<Free>(&SndVoice_Free)(handle);
                     break;
                 }
                 if (v[0xd6] & 0x20) {
@@ -859,7 +858,7 @@ void XB_CDECL SndVoice_ApplyParams() {
                 uintptr_t{0x00911548 + static_cast<uint32_t>(static_cast<int32_t>(snd_at<int16_t>(v, 0xd0)) * 0xe0)});
             if (hw[0xc0] == 6) {
                 if (!(entry[5] & 8))
-                    title_function<Free>(kFree)(handle);
+                    own_function<Free>(&SndVoice_Free)(handle);
                 else
                     hw[0xc0] = 1;
                 break;
@@ -934,7 +933,6 @@ uint32_t XB_CDECL SndBank_Free(uint32_t key) {
 
 void XB_CDECL SndBank_UpdateLoads() {
     using Poll = int32_t XB_CDECL(uint32_t);
-    constexpr uint32_t kPoll = 0x000c8fa0;
     uint8_t* const request = reinterpret_cast<uint8_t*>(uintptr_t{0x0090a914});
     int32_t best = -1;
     uint32_t best_priority = 0xffffffff;
@@ -951,7 +949,7 @@ void XB_CDECL SndBank_UpdateLoads() {
             continue;
         }
         if (state != 2) continue;
-        const int32_t result = title_function<Poll>(kPoll)(0x0090a914);
+        const int32_t result = own_function<Poll>(&SndBank_PollLoad)(0x0090a914);
         if (result == 1) {
             uint8_t* bank = title_global<uint8_t*>(0x0090a92c);
             snd_at<uint8_t*>(slot, 0x18) = bank;
@@ -971,18 +969,16 @@ void XB_CDECL SndBank_UpdateLoads() {
     snd_at<uint32_t>(slot, 4) = 2;
     Snd_InitRequest(request, snd_at<uint32_t>(slot, 8), snd_at<uint32_t>(slot, 0xc), snd_at<uint32_t>(slot, 0x10),
                     snd_at<int32_t>(slot, 0x1c));
-    title_function<Poll>(kPoll)(0x0090a914);
+    own_function<Poll>(&SndBank_PollLoad)(0x0090a914);
 }
 
 int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
     int32_t* r = reinterpret_cast<int32_t*>(request);
     using Queue = int32_t XB_CDECL(int32_t, int32_t, int32_t, int32_t);
-    constexpr uint32_t kQueue = 0x000caed0;  // File_QueueRequest
     using Wait = int32_t XB_CDECL(int32_t);
-    constexpr uint32_t kWait = 0x000c9db0;
     if (r[0] == 0x100) {
         if (r[2] != -1) {
-            const int32_t result = title_function<Wait>(kWait)(r[2]);
+            const int32_t result = own_function<Wait>(&File_GetRequestStatus)(r[2]);
             if (result != -1) return r[0];
             r[2] = result;
         }
@@ -991,11 +987,11 @@ int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
     }
     if (r[0] == 0) r[0] = 2;
     if (r[0] == 2) {
-        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], 0x1000);
+        r[2] = own_function<Queue>(&File_QueueRequest)(r[4], r[5], r[6], 0x1000);
         if (r[2] != -1) r[0] = 3;
     }
     if (r[0] == 3) {
-        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        const int32_t result = own_function<Wait>(&File_GetRequestStatus)(r[2]);
         if (result == -1) {
             r[2] = result;
             const uint8_t* header = reinterpret_cast<const uint8_t*>(uintptr_t{static_cast<uint32_t>(r[6])});
@@ -1028,22 +1024,22 @@ int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
         }
     }
     if (r[0] == 4) {
-        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], r[7]);
+        r[2] = own_function<Queue>(&File_QueueRequest)(r[4], r[5], r[6], r[7]);
         if (r[2] != -1) r[0] = 5;
     }
     if (r[0] == 5) {
-        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        const int32_t result = own_function<Wait>(&File_GetRequestStatus)(r[2]);
         if (result == -1) {
             r[2] = result;
             r[0] = r[9] ? 7 : 0xb;
         }
     }
     if (r[0] == 7) {
-        r[2] = title_function<Queue>(kQueue)(r[4], r[7] + r[5], r[8], r[9]);
+        r[2] = own_function<Queue>(&File_QueueRequest)(r[4], r[7] + r[5], r[8], r[9]);
         if (r[2] != -1) r[0] = 8;
     }
     if (r[0] == 8) {
-        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        const int32_t result = own_function<Wait>(&File_GetRequestStatus)(r[2]);
         if (result == -1) {
             r[2] = result;
             r[0] = 0xb;

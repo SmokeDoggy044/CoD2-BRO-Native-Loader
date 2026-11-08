@@ -34,7 +34,6 @@ using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uin
 using GetNode = uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t);
 
 constexpr uint32_t kStartFunctor1 = 0x0011a910;  // Scr_StartThreadFunctor1
-constexpr uint32_t kStartEntStr = 0x0045a7c0;    // Scr_StartThread_ent_str_PROLOGUE
 constexpr uint32_t kStartEntF = 0x0045a920;      // Scr_StartThread_ent_f_PROLOGUE
 
 void create_thread(uint32_t ent, uint32_t* functor) {
@@ -139,7 +138,7 @@ void hilltop_sherman(uint32_t path, uint32_t name, uint32_t health, uint32_t tar
     {
         ScriptString arg;
         ScriptString_FromCString(&arg, pointer<const char>(0x007f7820));  // "no_turret"
-        title_function<StartThread>(kStartEntStr)(0, 0, 0, 0, 0x001673c0, tank, &arg);  // BroScr_TankInit_2
+        own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x001673c0, tank, &arg);  // BroScr_TankInit_2
         ScriptString_Release(&arg);
     }
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x0092287c)(tank, &node);  // GScr_Vehicle_AttachPath
@@ -571,7 +570,7 @@ void XB_CDECL BroLvl_prologue_TruckDrones(uint32_t self, uint32_t truck) {
         uint32_t angles[3] = {0, 0, 0};
         using Link = void XB_CDECL(uint32_t, uint32_t, ScriptString*, uint32_t*, uint32_t*, uint32_t);
         slot<Link>(0x009224f4)(drone, truck, &tag, angles, offset, 1);  // GScr_LinkToTagWithOffset
-        title_function<StartThread>(kStartEntStr)(0, 0, 0, 0, 0x004230e0, drone, &tag);  // BroLvl_prologue_AttachPassengerDrones
+        own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x004230e0, drone, &tag);  // BroLvl_prologue_AttachPassengerDrones
     }
     ScriptString_Release(&tag);
 }

@@ -23,7 +23,8 @@ ENGINE = ROOT / "src/engine"
 TABLE = ENGINE / "shared/functions.cpp"
 ENTRY = re.compile(r'\{"(\w+)", 0x([0-9a-f]+), (?:0x[0-9a-f]+|0), code\((&?)([\w:]+)\), (\d+), '
                    r'Result::(\w+), Status::(\w+)\}')
-CALL = re.compile(r"title_function<((?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*)>\(\s*0x([0-9a-fA-F]{8})\s*\)")
+CALL = re.compile(r"title_function<((?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*)>\(\s*(?:0x([0-9a-fA-F]{8})|(k\w+))\s*\)")
+CONST = re.compile(r"constexpr (?:uint32_t|auto|std::uint32_t) (k\w+) = 0x([0-9a-fA-F]{8})u?;")
 INCLUDE = re.compile(r'^#include "([^"]+)"', re.M)
 
 
@@ -91,10 +92,16 @@ def main():
             continue
         text = path.read_text()
         includes = set(INCLUDE.findall(text))
+        consts = {n: int(a, 16) for n, a in CONST.findall(text)}
         need = set()
 
         def sub(m):
-            a = int(m.group(2), 16)
+            if m.group(3):
+                if m.group(3) not in consts:
+                    return m.group(0)
+                a = consts[m.group(3)]
+            else:
+                a = int(m.group(2), 16)
             if a not in tab:
                 stats["no C"] += 1
                 return m.group(0)
