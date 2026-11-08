@@ -671,7 +671,7 @@ uint8_t XB_CDECL GScr_ActorMayMoveToPoint_c(uint32_t entry_esp) {
     regs.edx = handle;
     regs.esi = title_global<uint32_t>(0x0097a96c + (handle & 0xfff) * 8);
     const uint32_t args[14] = {handle, addr(origin), title_global<uint32_t>(0x0098a550), 0x41c00000, at<uint32_t>(F + 0xc),
-                               0, 0, 0, 1, addr(bounds), 0x002601a0, 0x002601e0, 1, 0x42700000};
+                               0, 0, 0, 1, addr(bounds), own_address(&G_TraceCapsule), own_address(&G_Trace), 1, 0x42700000};
     return call_at(A - 0x30, 0x0030554c, own_address(&BG_CheckProne_entry), regs, 14, args) != 0;  // BG_CheckProne (G_TraceCapsule, G_Trace)
 }
 
@@ -807,7 +807,7 @@ uint64_t XB_CDECL GScr_PlayerWeaponSound_c(uint32_t entry_esp) {
     if (kind > 2) return tail_jump(0, 0xffffffffu);
     at<uint32_t>(F + 8) = 0x17 + kind;
     at<uint32_t>(F + 4) = title_global<uint32_t>(record + 4);
-    return tail_jump(0x002a62d0, addr(ent));  // FXCmd_PlayWeaponSound (EAX = the entity)
+    return tail_jump(own_address(&FXCmd_PlayWeaponSound_entry), addr(ent));  // FXCmd_PlayWeaponSound (EAX = the entity)
 }
 
 uint32_t XB_CDECL GScr_SpawnVehicle(const ScriptString* model, const ScriptString* targetname, const ScriptString* def,
@@ -994,7 +994,7 @@ uint64_t XB_CDECL GScr_ActorSetAimAnimWeights_c(uint32_t entry_esp) {
     const uint32_t goal = at<uint32_t>(F + 0x10), blend_time = at<uint32_t>(F + 0x14), rate = at<uint32_t>(F + 0x18);
     AnimTree_SetGoalWeight(at<uint32_t>(F + 8) & 0xffff, tree, goal, blend_time, rate, 0, 0, 0);
     AnimTree_SetGoalWeight(at<uint32_t>(F + 0xc) & 0xffff, tree, goal, blend_time, rate, 0, 0, 0);
-    return tail_jump(0x0020d430, addr(actor));  // Actor_UpdateAimBlend (ECX = actor, EAX = 0)
+    return tail_jump(own_address(&Actor_UpdateAimBlend_entry), addr(actor));  // Actor_UpdateAimBlend (ECX = actor, EAX = 0)
 }
 
 void XB_CDECL GScr_RadiusDamageFromEntity_c(uint32_t entry_esp) {
@@ -2061,12 +2061,12 @@ uint32_t XB_CDECL GScr_TurretCall272_c(uint32_t entry_esp, uint32_t* regs) {
     if (!turret) return 0;
     regs[0] = addr(turret);
     regs[1] = addr(handle_entity(at<uint32_t>(F + 8)));
-    if (field<uint32_t>(turret, 0x24c)) return 0x00271b20;  // Turret_FireForUserOrDriver
+    if (field<uint32_t>(turret, 0x24c)) return own_address(&Turret_FireForUserOrDriver_entry);  // Turret_FireForUserOrDriver
     const uint32_t rep = field<uint32_t>(turret, 0x25c);
     at<uint32_t>(F + 8) = rep ? rep + 6 : 0;
     at<uint32_t>(F + 4) = 0x00832094;  // "entity type '%s' is not a turret"
     regs[0] = at<uint32_t>(F + 8);
-    return 0x002a93d0;  // va
+    return own_address(&va_entry);  // va
 }
 
 uint32_t XB_CDECL GScr_ActorFindBetterCover_c(uint32_t entry_esp) {

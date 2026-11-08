@@ -4089,7 +4089,7 @@ void XB_CDECL nglMeshBuilder_Begin(uint32_t flags, uint32_t section_count, uint3
     // +0x10 material count, +0x14 materials.
     using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
     uint32_t& allocator = title_global<uint32_t>(0x00902928);
-    allocator = (flags & 0x40000) ? 0x00066ad0 : 0x00066af0;
+    allocator = (flags & 0x40000) ? own_address(&nglAllocFrameGpu) : 0x00066af0;
     uint32_t* mesh = reinterpret_cast<uint32_t*>(title_function<Alloc>(allocator)(0x40, 0x10, 0));
     std::memset(mesh, 0, 0x40);
     mesh[1] = flags | 0x20000;
@@ -6276,7 +6276,7 @@ void XB_CDECL nglEndFrame() {
     // By its title address: the shader Draws read a never-set constant lane that the title walker
     // leaves a return address in (stale stack; see nglRenderTranslucentList).
     own_function<void XB_CDECL()>(&nglRenderSceneTree)();  // nglRenderSceneTree
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003eb9c0)(1, 0x00064580, 0);  // InsertCallback(nglVBlankCallback)
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003eb9c0)(1, own_address(&nglVBlankCallback), 0);  // InsertCallback(nglVBlankCallback)
     nglFreeFogTextures();
     elapsed = title_clock() - global64(0x00902bb0);
     set_global64(0x00902bb0, elapsed);

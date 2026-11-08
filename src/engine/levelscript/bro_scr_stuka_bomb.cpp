@@ -14,6 +14,8 @@
 #include "title_data.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "bro_scr_death_watch.h"
+#include "bro_scr_level_threads.h"
 
 namespace game {
 
@@ -239,13 +241,13 @@ void XB_CDECL BroScr_PlaneDropBomb(uint32_t plane, uint32_t count, uint32_t inte
         }
         slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t)>(0x009227a4)(bomb_at(plane, i), velocity,
                                                                      0x40a00000);  // GScr_MoverMoveGravity(5 s)
-        start_functor1(0x00121ea0, bomb_at(plane, i));  // BroScr_DeleteAfter5s
-        start_functor1(0x0013b400, bomb_at(plane, i));  // BroScr_RandomRotateLoop
+        start_functor1(own_address(&BroScr_DeleteAfter5s), bomb_at(plane, i));  // BroScr_DeleteAfter5s
+        start_functor1(own_address(&BroScr_RandomRotateLoop), bomb_at(plane, i));  // BroScr_RandomRotateLoop
         {
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*,
                                             uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
             const uint32_t bomb = bomb_at(plane, i);
-            title_function<Start>(0x0017b2f0)(0, 0, 0, 0, 0x0016f040, bomb, &plane, &delay, &range, &max_damage,
+            title_function<Start>(0x0017b2f0)(0, 0, 0, 0, own_address(&BroScr_StukaBombImpact), bomb, &plane, &delay, &range, &max_damage,
                                               &min_damage, &height);  // Scr_StartThread_ent_ent_f_i_i_i_f(StukaBombImpact)
         }
         uint32_t pause = interval;

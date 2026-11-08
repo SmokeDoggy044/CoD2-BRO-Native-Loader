@@ -919,11 +919,11 @@ PROFILE_GAP_ENTRY(AutosaveMenu_ShowDeleteSuccessDialog_entry, "pushl %eax\n", Au
 PROFILE_GAP_ENTRY(ProfileMenu_ShowDeleteSuccessDialog_entry, "", ProfileMenu_ShowDeleteSuccessDialog, "4", "ret")
 
 uint32_t XB_CDECL AutosaveMenu_ShowSaveWarning(uint8_t* menu, uint32_t entry_esp) {
-    return save_warning(menu, 0x50, field<int32_t>(menu, 0x4c), 0x0030cdf0, entry_esp);  // FE_SplitPlayTime2
+    return save_warning(menu, 0x50, field<int32_t>(menu, 0x4c), own_address(&FE_SplitPlayTime2), entry_esp);  // FE_SplitPlayTime2
 }
 
 uint32_t XB_CDECL ProfileMenu_ShowSaveWarning(uint8_t* menu, uint32_t entry_esp) {
-    return save_warning(menu, 0x54, selection(menu), 0x0030d140, entry_esp);  // FE_SplitPlayTime
+    return save_warning(menu, 0x54, selection(menu), own_address(&FE_SplitPlayTime), entry_esp);  // FE_SplitPlayTime
 }
 
 void XB_CDECL AutosaveMenu_ShowNoSaveDialog(uint8_t* menu, uint32_t entry_esp) {

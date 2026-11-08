@@ -349,13 +349,13 @@ void mark_slots_empty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi,
 MARK_SLOTS_EMPTY_ENTRY(AutosaveMenu_MarkSlotsEmpty)
 
 void XB_CDECL AutosaveMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi) {
-    mark_slots_empty(entry, menu, esi, edi, 0x5c, 0x0030ccb0, 0x0030cf8e);  // AutosaveMenu_UpdateSlotTexts
+    mark_slots_empty(entry, menu, esi, edi, 0x5c, own_address(&AutosaveMenu_UpdateSlotTexts_entry), 0x0030cf8e);  // AutosaveMenu_UpdateSlotTexts
 }
 
 MARK_SLOTS_EMPTY_ENTRY(ProfileMenu_MarkSlotsEmpty)
 
 void XB_CDECL ProfileMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi) {
-    mark_slots_empty(entry, menu, esi, edi, 0x6c, 0x00312690, 0x0031286e);  // FE_SaveSlotsUpdateText
+    mark_slots_empty(entry, menu, esi, edi, 0x6c, own_address(&FE_SaveSlotsUpdateText_entry), 0x0031286e);  // FE_SaveSlotsUpdateText
 }
 
 #undef MARK_SLOTS_EMPTY_ENTRY
@@ -2975,8 +2975,8 @@ void load_category_image(const FrameIn* in, uint32_t entry_esp, const CategoryIm
 FE_FRAME_ENTRY(FE_BonusWeaponLoadImage, "ret")
 
 uint32_t XB_CDECL FE_BonusWeaponLoadImage(const FrameIn* in, uint32_t entry_esp) {
-    static constexpr CategoryImage kWeapon{
-        0x0030db60, 0x0031cc30, 0x84, 0xac, {0xb0, 0xb4, 0xb8}, 0x0082b598, 0x0082b5b4, 0x0082b57c, 0x0082b588,
+    static const CategoryImage kWeapon{
+        own_address(&FE_BonusWeaponFreeImage_entry), own_address(&FE_BonusWeaponSetText_entry), 0x84, 0xac, {0xb0, 0xb4, 0xb8}, 0x0082b598, 0x0082b5b4, 0x0082b57c, 0x0082b588,
         0xbc, 0x120,  // bonus\weapon%i\wp%i_%i(f).dds, "texweapon" / "texweaponfull"
         {0x0031cd66, 0x0031cd6b, 0x0031cdb3, 0x0031cdc7, 0x0031cde0, 0x0031cdfe, 0x0031ce14, 0x0031ce30, 0x0031ce4b,
          0x0031ce5f, 0x0031ce85, 0x0031cea1},
@@ -2988,8 +2988,8 @@ uint32_t XB_CDECL FE_BonusWeaponLoadImage(const FrameIn* in, uint32_t entry_esp)
 FE_FRAME_ENTRY(FE_BonusVehicleLoadImage, "ret")
 
 uint32_t XB_CDECL FE_BonusVehicleLoadImage(const FrameIn* in, uint32_t entry_esp) {
-    static constexpr CategoryImage kVehicle{
-        0x0030db00, 0x0031be80, 0x70, 0x88, {0x8c, 0x90, 0x94}, 0x0082b414, 0x0082b430, 0x0082b3f8, 0x0082b404,
+    static const CategoryImage kVehicle{
+        own_address(&FE_BonusVehicleFreeImage_entry), own_address(&FE_BonusVehicleSetText_entry), 0x70, 0x88, {0x8c, 0x90, 0x94}, 0x0082b414, 0x0082b430, 0x0082b3f8, 0x0082b404,
         0x98, 0xfc,  // bonus\vehicle%i\vh%i_%i(f).dds, "texvehicle" / "texvehicleFull"
         {0x0031bf86, 0x0031bf8b, 0x0031bfe0, 0x0031bff4, 0x0031c00d, 0x0031c02b, 0x0031c041, 0x0031c05d, 0x0031c078,
          0x0031c08c, 0x0031c0b2, 0x0031c0ce},
@@ -3005,8 +3005,8 @@ uint32_t XB_CDECL FE_BonusVehicleLoadImage(const FrameIn* in, uint32_t entry_esp
 FE_FRAME_ENTRY(FE_BonusConceptLoadImage, "ret")
 
 uint32_t XB_CDECL FE_BonusConceptLoadImage(const FrameIn* in, uint32_t entry_esp) {
-    static constexpr CategoryImage kConcept{
-        0x0030daa0, 0x00312ad0, 0x8c, 0xc0, {0xc4, 0xc8, 0xcc}, 0x0082b270, 0x0082b28c, 0x0082b25c, 0x0082b264,
+    static const CategoryImage kConcept{
+        own_address(&FE_BonusConceptFreeImage_entry), own_address(&FE_BonusConceptSetText_entry), 0x8c, 0xc0, {0xc4, 0xc8, 0xcc}, 0x0082b270, 0x0082b28c, 0x0082b25c, 0x0082b264,
         0xd0, 0x134,  // bonus\concept%i\cp%i_%i(f).dds, "texart" / "texartFull"
         {0x0031b746, 0x0031b74b, 0x0031b785, 0x0031b798, 0x0031b7b1, 0x0031b7cf, 0x0031b7e5, 0x0031b801, 0x0031b81c,
          0x0031b830, 0x0031b856, 0x0031b872},
@@ -3766,7 +3766,7 @@ uint32_t XB_CDECL FE_CheckStartupStorage(const FrameIn* in, uint32_t entry_esp) 
     using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
     const uint32_t args[1] = {address_of(block)};
     const uint64_t space =
-        reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(f.entry - 0x4c, 0x000d1b40, &f.regs, 1, args);  // Save_GetFreeSpace
+        reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(f.entry - 0x4c, own_address(&Save_GetFreeSpace), &f.regs, 1, args);  // Save_GetFreeSpace
     stack_word(f.entry - 0x54) = 0x00334738;
     const uint32_t device = uint32_t(space);
     f.regs.eax = device;

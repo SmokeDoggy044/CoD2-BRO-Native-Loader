@@ -9,6 +9,7 @@
 #include "ngl_debug.h"
 #include "qcommon_core.h"
 #include "shaders.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -137,33 +138,33 @@ uint32_t XB_REGS2 GetRefAPI(const uint32_t* imports, uint32_t version) {
     }
     // (word index, function)
     static const uint32_t kExports[][2] = {
-        {0x00, 0x002372e0},  // RE_Shutdown
-        {0x01, 0x0023f0c0},  // RE_BeginRegistration
-        {0x02, 0x00243fb0},  // RE_RegisterModel
-        {0x05, 0x00236230},  // RE_LoadWorldMap
-        {0x0a, 0x0023ba80},
-        {0x09, 0x00235e90},  // RE_GetFarCullDist
-        {0x18, 0x0023bd90},  // RE_BeginFrame
-        {0x19, 0x00235fe0},  // RE_EndFrame
-        {0x1a, 0x00235fd0},
-        {0x0b, 0x00234cc0},  // RE_ClearScene
-        {0x0c, 0x0023ee60},  // RE_AddPolyToScene
-        {0x0e, 0x00235dc0},  // RE_SetFarCullDist
-        {0x0f, 0x002476b0},  // RE_RenderScene
-        {0x11, 0x002361a0},  // RE_SetColor
-        {0x12, 0x002360f0},  // RE_StretchPic
-        {0x14, 0x00240590},  // RE_StretchPicRotate
-        {0x15, 0x00235ff0},  // RE_DrawQuadPic
-        {0x1e, 0x00235c60},
-        {0x1f, 0x00235c50},
-        {0x20, 0x00235f70},
-        {0x21, 0x00235f60},
-        {0x22, 0x0023fc70},  // RE_TextWidth
-        {0x23, 0x00237770},  // RE_TextHeight
-        {0x24, 0x0023fc30},  // RE_DrawText
-        {0x25, 0x00241a30},  // RE_TextWidthWithIcons
-        {0x26, 0x00241860},  // RE_DrawTextWithIcons
-        {0x27, 0x0023f570},  // RE_DrawTextExt
+        {0x00, own_address(&RE_Shutdown)},  // RE_Shutdown
+        {0x01, own_address(&RE_BeginRegistration)},  // RE_BeginRegistration
+        {0x02, own_address(&RE_RegisterModel)},  // RE_RegisterModel
+        {0x05, own_address(&RE_LoadWorldMap)},  // RE_LoadWorldMap
+        {0x0a, own_address(&RE_EndRegistration)},
+        {0x09, own_address(&RE_GetFarCullDist)},  // RE_GetFarCullDist
+        {0x18, own_address(&RE_BeginFrame)},  // RE_BeginFrame
+        {0x19, own_address(&RE_EndFrame)},  // RE_EndFrame
+        {0x1a, own_address(&RE_EmptyStub26)},
+        {0x0b, own_address(&RE_ClearScene)},  // RE_ClearScene
+        {0x0c, own_address(&RE_AddPolyToScene)},  // RE_AddPolyToScene
+        {0x0e, own_address(&RE_SetFarCullDist)},  // RE_SetFarCullDist
+        {0x0f, own_address(&RE_RenderScene_entry)},  // RE_RenderScene
+        {0x11, own_address(&RE_SetColor)},  // RE_SetColor
+        {0x12, own_address(&RE_StretchPic)},  // RE_StretchPic
+        {0x14, own_address(&RE_StretchPicRotate)},  // RE_StretchPicRotate
+        {0x15, own_address(&RE_DrawQuadPic)},  // RE_DrawQuadPic
+        {0x1e, own_address(&RE_CubemapShotStub)},
+        {0x1f, own_address(&RE_WaterCubemapShotStub)},
+        {0x20, own_address(&RE_AddDebugStringsStub)},
+        {0x21, own_address(&RE_AddDebugLinesStub)},
+        {0x22, own_address(&RE_TextWidth)},  // RE_TextWidth
+        {0x23, own_address(&RE_TextHeight)},  // RE_TextHeight
+        {0x24, own_address(&RE_DrawText)},  // RE_DrawText
+        {0x25, own_address(&RE_TextWidthWithIcons)},  // RE_TextWidthWithIcons
+        {0x26, own_address(&RE_DrawTextWithIcons)},  // RE_DrawTextWithIcons
+        {0x27, own_address(&RE_DrawTextExt)},  // RE_DrawTextExt
     };
     for (const auto& entry : kExports) exports[entry[0]] = entry[1];
     return address_of(exports);

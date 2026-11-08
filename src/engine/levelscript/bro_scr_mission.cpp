@@ -9,6 +9,14 @@
 #include "g_scr_runtime.h"
 #include "g_script.h"
 #include "levels_twins.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_ai_anim_threads.h"
+#include "bro_scr_exploder.h"
+#include "bro_scr_level_threads.h"
+#include "bro_scr_thread_misc.h"
+#include "bro_scr_trigger_threads.h"
+#include "bro_scr_wait_notify.h"
+#include "scr_field.h"
 
 namespace game {
 
@@ -157,25 +165,25 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
                 if (!(scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922b30)(*at(i)) & 1)) continue;  // ScrEnt_GetSpawnflags
                 using BeginThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-                title_function<BeginThread>(0x0078a980)(0, 0, 0, ent, 0xe2a210cf, 0x00130c80, ent, at(i));  // Scr_BeginThread_ent_ent
+                title_function<BeginThread>(0x0078a980)(0, 0, 0, ent, 0xe2a210cf, own_address(&BroScr_TriggerSpawnerThink), ent, at(i));  // Scr_BeginThread_ent_ent
             }
             if (targets.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(targets.data);  // Scr_Free
         }
     }
     static const uint32_t kFieldThreads[8][2] = {
-        {0x0018e360, 0x001a5940},  // script_increment: BroScr_IncrementTriggerThink
-        {0x0018fe00, 0x001d46c0},  // script_fallback: BroScr_FallbackerTriggerThink
-        {0x00192c90, 0x001a4910},  // 0xbe5f9a9f: BroScr_Mg42AutoTriggerThink
-        {0x00190a40, 0x001a5f10},  // script_killspawner: BroScr_FloodSpawnerDeleteWatch
-        {0x00192b50, 0x00120fb0},  // 0x83048760
-        {0x001958b0, 0x00120ff0},  // script_hint
-        {0x0018f450, 0x00121010},  // script_exploder: BroScr_ExploderTriggerThink
-        {0x00191a30, 0x00120e60},  // ambient: BroScr_EmptyFunc_2
+        {own_address(ScrField_script_increment_IsDefined), own_address(&BroScr_IncrementTriggerThink)},  // script_increment: BroScr_IncrementTriggerThink
+        {own_address(ScrField_script_fallback_IsDefined), own_address(&BroScr_FallbackerTriggerThink)},  // script_fallback: BroScr_FallbackerTriggerThink
+        {own_address(ScrField_hbe5f9a9f_IsDefined), own_address(&BroScr_Mg42AutoTriggerThink)},  // 0xbe5f9a9f: BroScr_Mg42AutoTriggerThink
+        {own_address(ScrField_script_killspawner_IsDefined), own_address(&BroScr_FloodSpawnerDeleteWatch)},  // script_killspawner: BroScr_FloodSpawnerDeleteWatch
+        {own_address(ScrField_h83048760_IsDefined), own_address(&BroScr_FriendlyChainOnTrigger)},  // 0x83048760
+        {own_address(ScrField_script_hint_IsDefined), own_address(&BroScr_WaitTillTrigger)},  // script_hint
+        {own_address(ScrField_script_exploder_IsDefined), own_address(&BroScr_ExploderTriggerThink)},  // script_exploder: BroScr_ExploderTriggerThink
+        {own_address(ScrField_ambient_IsDefined), 0x00120e60},  // ambient: BroScr_EmptyFunc_2
     };
     for (const auto& field : kFieldThreads)
         if (field_defined(field[0], ent)) start_ent_thread(ent, field[1]);
-    if (field_defined(0x00191f20, ent)) start_level_thread(ent, 0x00120e70);  // 0x7fa1fc35: BroScr_StartFxOnTrigger
-    if (field_defined(0x0018ff80, ent)) start_level_thread(ent, 0x00120f10);  // 0x0bfd0e20
+    if (field_defined(own_address(ScrField_h7fa1fc35_IsDefined), ent)) start_level_thread(ent, own_address(&BroScr_StartFxOnTrigger));  // 0x7fa1fc35: BroScr_StartFxOnTrigger
+    if (field_defined(own_address(ScrField_h0bfd0e20_IsDefined), ent)) start_level_thread(ent, own_address(&BroScr_StopFxOnTrigger));  // 0x0bfd0e20
     {
         ScriptString name;
         const bool named = ScrCall_ScrEnt_GetTargetname(&trigger, &name)->rep != nullptr;
@@ -202,21 +210,21 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
         title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, function, level_entity(), &trigger);  // Scr_StartThread_ent_ent
     };
     if (name_is(0x00824e54)) {  // "flood_spawner"
-        start_ent_thread(ent, 0x001b4e40);  // BroScr_FloodSpawnerTriggerThink
+        start_ent_thread(ent, own_address(&BroScr_FloodSpawnerTriggerThink));  // BroScr_FloodSpawnerTriggerThink
     } else if (name_is(0x00824e44)) {  // "grenade_spawner"
-        start_ent_thread(ent, 0x001c51a0);  // BroScr_GrenadeThrowTriggers
+        start_ent_thread(ent, own_address(&BroScr_GrenadeThrowTriggers));  // BroScr_GrenadeThrowTriggers
     } else if (name_is(0x00824e2c)) {  // "grenade_spawner_once"
-        functor1(0x001c5790);  // BroScr_GrenadeSpawnerOnceTriggerThink
+        functor1(own_address(&BroScr_GrenadeSpawnerOnceTriggerThink));  // BroScr_GrenadeSpawnerOnceTriggerThink
     } else if (name_is(0x0081351c) || name_is(0x00824e18)) {  // "friendly_wave", "friendly_wave_off"
-        level_thread(0x001b5880);  // BroScr_SetFriendlyWaveTrigger
+        level_thread(own_address(&BroScr_SetFriendlyWaveTrigger));  // BroScr_SetFriendlyWaveTrigger
     } else if (name_is(0x00824724)) {  // "friendly_chat"
-        functor1(0x00149200);  // BroScr_FriendlyChatTriggerThink
+        functor1(own_address(&BroScr_FriendlyChatTriggerThink));  // BroScr_FriendlyChatTriggerThink
     } else if (name_is(0x00824e08)) {  // "axis_touching"
-        level_thread(0x00141c00);  // BroScr_HalftrackGunnerGrenadeHint
+        level_thread(own_address(&BroScr_HalftrackGunnerGrenadeHint));  // BroScr_HalftrackGunnerGrenadeHint
     } else if (name_is(0x00824dfc)) {  // "axis_dead"
-        level_thread(0x00142070);  // BroScr_SpawnGuyDiedThink
+        level_thread(own_address(&BroScr_SpawnGuyDiedThink));  // BroScr_SpawnGuyDiedThink
     } else if (name_is(0x00824dec)) {  // "friendly_mg42"
-        level_thread(0x001bf200);  // BroScr_FriendlyMg42TriggerThink
+        level_thread(own_address(&BroScr_FriendlyMg42TriggerThink));  // BroScr_FriendlyMg42TriggerThink
     } else if (name_is(0x00824de4)) {  // "context"
         trigger = stack_word;
         own_function<void XB_CDECL(uint32_t)>(&BroScr_SetupWallHopTrigger_entry)(ent);  // BroScr_SetupWallHopTrigger

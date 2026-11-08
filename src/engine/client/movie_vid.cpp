@@ -1486,7 +1486,7 @@ void XB_CDECL MovieVid_ConvertMacroblockRow(uint8_t* const* planes, uint8_t* dst
     MmxRegs m;
     auto convert_row = [&] {
         for (int32_t n = groups; n != 0; --n) {
-            movie_vid_call_mmx3(0x000d0860, y, u, v, &m);
+            movie_vid_call_mmx3(own_address(&MovieVid_ConvertYuv8), y, u, v, &m);
             const Mm zero = mm_zero();
             const Mm lo = punpcklbw(m.r[0], zero), hi = punpckhbw(m.r[0], zero);
             mm_store(out, punpcklwd(punpcklbw(m.r[2], m.r[1]), lo));
@@ -1570,7 +1570,7 @@ void XB_CDECL MovieVid_ConvertMacroblockRow565(uint8_t* const* planes, uint8_t* 
     MmxRegs m;
     auto convert_row = [&] {
         for (int32_t n = groups; n != 0; --n) {
-            movie_vid_call_mmx3(0x000d0860, y, u, v, &m);
+            movie_vid_call_mmx3(own_address(&MovieVid_ConvertYuv8), y, u, v, &m);
             const Mm r0 = pand(m.r[0], title_mm(0x008c02c8));
             const Mm r1 = pand(m.r[1], title_mm(0x008c02c0));
             const Mm r2 = psrlq(pand(m.r[2], title_mm(0x008c02c8)), 3);

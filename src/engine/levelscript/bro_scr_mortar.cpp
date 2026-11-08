@@ -14,6 +14,9 @@
 #include "levels_twins.h"
 #include "scr_field.h"
 #include "script_string.h"
+#include "bro_scr_drones.h"
+#include "bro_scr_mortar_loops.h"
+#include "bro_scr_thread_misc.h"
 
 namespace game {
 
@@ -53,7 +56,7 @@ void XB_CDECL BroScr_StartMortarGroupNearEnt(uint32_t ent, DynArray ents, float 
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const DynArray*, const float*, const float*, const uint32_t*,
                                           const uint32_t*, const uint32_t*, const DynArray*);
-    own_function<StartThread>(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry)(0, 0, 0, 0, 0x00171530, level, &ent, &ents, &f1, &f2, &handle, &w, &i,
+    own_function<StartThread>(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry)(0, 0, 0, 0, own_address(&BroScr_MortarGroupNearEntLoop), level, &ent, &ents, &f1, &f2, &handle, &w, &i,
                                             &extra);  // Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr(BroScr_MortarGroupNearEntLoop)
     free_array(&ents);
     free_array(&extra);
@@ -69,7 +72,7 @@ void XB_CDECL BroScr_StartMortarLoopsNearPlayer(uint32_t self, DynArray ents, ui
         uint32_t* init = static_cast<uint32_t*>(alloc(0xc));
         if (init) {
             init[0] = 0x007f5ba0;
-            init[1] = 0x00149f60;  // BroScr_MortarEntInit
+            init[1] = own_address(&BroScr_MortarEntInit);  // BroScr_MortarEntInit
             init[2] = ent;
         }
         create_thread(ent, init);
@@ -78,7 +81,7 @@ void XB_CDECL BroScr_StartMortarLoopsNearPlayer(uint32_t self, DynArray ents, ui
         uint32_t* loop = static_cast<uint32_t*>(alloc(0x1c));
         if (loop) {
             loop[0] = 0x00824488;
-            loop[1] = 0x00170fb0;  // BroScr_MortarLoopNearPlayer
+            loop[1] = own_address(&BroScr_MortarLoopNearPlayer);  // BroScr_MortarLoopNearPlayer
             loop[2] = ent2;
             loop[3] = a4;
             loop[4] = a5;
@@ -164,7 +167,7 @@ void print_boom(ScrVec3* origin) {
     const uint32_t red[3] = {title_global<uint32_t>(0x0083eb20), 0, 0};
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScrVec3*, ScriptString*,
                                           const uint32_t*);
-    title_function<StartThread>(0x006d1370)(0, 0, 0, 0, 0x00130ee0, level, origin, &text, red);
+    title_function<StartThread>(0x006d1370)(0, 0, 0, 0, own_address(&BroScr_WaitForNotifyOrTimeoutCall_2), level, origin, &text, red);
     scr_release(&text);
 }
 
@@ -218,7 +221,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
         const uint32_t time = title_global<uint32_t>(0x0083ec9c);  // 3.0
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScrVec3*,
                                               ScriptString*, const uint32_t*, const uint32_t*);
-        own_function<StartThread>(&Scr_StartThread_ent_vec_str_vec_f_3_entry)(0, 0, 0, 0, 0x001310b0, level, &origin, &text, red, &time);
+        own_function<StartThread>(&Scr_StartThread_ent_vec_str_vec_f_3_entry)(0, 0, 0, 0, own_address(&BroScr_WaitForNotifyOrTimeoutCall_4), level, &origin, &text, red, &time);
         scr_release(&text);
     } else if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(target)) {  // Scr_EntityHandleIsValid
         using GetOrigin = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
@@ -286,7 +289,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0xc));  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f5ba0;
-        functor[1] = 0x0016c9d0;  // BroScr_StukaStartNearbyDrones
+        functor[1] = own_address(&BroScr_StukaStartNearbyDrones);  // BroScr_StukaStartNearbyDrones
         functor[2] = vehicle;
     }
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);

@@ -9,6 +9,8 @@
 #include "qcommon_fs.h"
 #include "title_data.h"
 #include "script_string.h"
+#include "bro_scr_fx_threads.h"
+#include "bro_scr_level_threads_2.h"
 
 #include <cstring>
 
@@ -117,17 +119,17 @@ void XB_CDECL BroScr_TreeBurstInit() {
     const uint32_t field = object ? object + 4 : 0;
     const uint32_t value = *reinterpret_cast<volatile uint32_t*>(field);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, 0x00165960, value);  // Scr_StartThreadFunctor1(BroScr_SetupTreeBursts)
+    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_SetupTreeBursts), value);  // Scr_StartThreadFunctor1(BroScr_SetupTreeBursts)
 }
 
-void XB_CDECL BroScr_GetWindowBreaks() { threads_on_targetname(0x00824414, false, 0, 0, 0x001642b0); }  // "window_break", BroScr_WindowBreakThink
+void XB_CDECL BroScr_GetWindowBreaks() { threads_on_targetname(0x00824414, false, 0, 0, own_address(&BroScr_WindowBreakThink)); }  // "window_break", BroScr_WindowBreakThink
 
 void XB_CDECL BroScr_StoneBreakFx() {
-    threads_on_targetname(0x00825394, false, 0xdcb4052e, 0x00825380, 0x0015cee0);  // "stone_break", "impact_lmg_concrete", BroScr_StoneBreakTriggerThink
+    threads_on_targetname(0x00825394, false, 0xdcb4052e, 0x00825380, own_address(&BroScr_StoneBreakTriggerThink));  // "stone_break", "impact_lmg_concrete", BroScr_StoneBreakTriggerThink
 }
 
 void XB_CDECL BroScr_MinefieldTriggers() {
-    threads_on_targetname(0x00825400, true, 0x7857af8e, 0x007f50f0, 0x0015ff60);  // "minefield", "artillery_generic", BroScr_MinefieldTriggerThink
+    threads_on_targetname(0x00825400, true, 0x7857af8e, 0x007f50f0, own_address(&BroScr_MinefieldTriggerThink));  // "minefield", "artillery_generic", BroScr_MinefieldTriggerThink
 }
 
 ScriptString* XB_CDECL Bro__treeburst_gmi__tree_burst_getUndamagedModel(ScriptString* out, ScriptString name) {
@@ -252,7 +254,7 @@ void XB_CDECL BroScr_WindowBreakThink(uint32_t trigger) {
         scr_slot<void XB_CDECL(uint32_t)>(0x009227c0)(clip);  // GScr_MoverNotSolid
     }
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*, DynArray*);
-    own_function<StartThread>(&Scr_StartThreadFunctor_20_3_entry)(0, 0, 0, 0, 0x0015e4c0, trigger, &window, &clip, &touching);  // Scr_StartThreadFunctor_20_3
+    own_function<StartThread>(&Scr_StartThreadFunctor_20_3_entry)(0, 0, 0, 0, own_address(&BroScr_WindowBreakOnHit), trigger, &window, &clip, &touching);  // Scr_StartThreadFunctor_20_3
     if (origins.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(origins.data);  // Scr_Free
     if (touching.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(touching.data);
 }
@@ -285,8 +287,8 @@ void setup_tree_group(uint32_t name, uint8_t flag, uint32_t* number) {
     }
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(trees.size); ++i) {
         *BroScr_FieldSlot(*array_at(&trees, i), 0x4c7e3571) = *number;
-        start_thread_flag(*array_at(&trees, i), 0x0015d7b0, flag);  // BroScr_TreeBurstSetup
-        start_thread_flag(*array_at(&trees, i), 0x001640c0, flag);  // BroScr_TreeBurstTriggerThink
+        start_thread_flag(*array_at(&trees, i), own_address(&BroScr_TreeBurstSetup), flag);  // BroScr_TreeBurstSetup
+        start_thread_flag(*array_at(&trees, i), own_address(&BroScr_TreeBurstTriggerThink), flag);  // BroScr_TreeBurstTriggerThink
         ++*number;
     }
     if (trees.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(trees.data);  // Scr_Free
@@ -307,8 +309,8 @@ void XB_CDECL BroScr_SetupTreeBursts() {
     }
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(trees.size); ++i) {
         *BroScr_FieldSlot(*array_at(&trees, i), 0x4c7e3571) = number;
-        start_thread_flag(*array_at(&trees, i), 0x0015d7b0, 1);
-        start_thread_flag(*array_at(&trees, i), 0x001640c0, 1);
+        start_thread_flag(*array_at(&trees, i), own_address(&BroScr_TreeBurstSetup), 1);
+        start_thread_flag(*array_at(&trees, i), own_address(&BroScr_TreeBurstTriggerThink), 1);
         ++number;
     }
     setup_tree_group(0x0082540c, 0, &number);  // "tree_burst_scripted"

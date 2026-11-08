@@ -3791,21 +3791,21 @@ TREE_INSERT_ENTRY(std_map_string_Insert)
 uint32_t* XB_CDECL std_map_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
                                          const uint8_t* value) {
     return tree_insert<0x64, 0x02e8ba2d>(where, tree, out, addleft, value, std_map_string_BuyNode,
-                                         std_map_string_Lrotate, std_map_string_Rrotate, 0x00020c00);
+                                         std_map_string_Lrotate, std_map_string_Rrotate, own_address(&std_map_string_Insert_entry));
 }
 
 TREE_INSERT_ENTRY(std_set_string_Insert)
 uint32_t* XB_CDECL std_set_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
                                          const uint8_t* value) {
     return tree_insert<0x2c, 0x07fffffe>(where, tree, out, addleft, value, std_set_string_BuyNode,
-                                         std_set_string_Lrotate, std_set_string_Rrotate, 0x00021050);
+                                         std_set_string_Lrotate, std_set_string_Rrotate, own_address(&std_set_string_Insert_entry));
 }
 
 TREE_INSERT_ENTRY(std_tree_Insert29)
 uint32_t* XB_CDECL std_tree_Insert29(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
                                      const uint8_t* value) {
     return tree_insert<0x28, 0x09249248>(where, tree, out, addleft, value, std_tree_BuyNode29, std_tree_Lrotate29,
-                                         std_tree_Rrotate29, 0x000206e0);
+                                         std_tree_Rrotate29, own_address(&std_tree_Insert29_entry));
 }
 
 #undef TREE_INSERT_ENTRY
@@ -5305,7 +5305,7 @@ void ptr_array_reserve(uint32_t* array, uint32_t capacity, uint32_t alloc) {
 }  // namespace
 
 void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity) {
-    ptr_array_reserve(array, capacity, 0x0011f660);  // Scr_AllocPtrArray
+    ptr_array_reserve(array, capacity, own_address(&Scr_AllocPtrArray));  // Scr_AllocPtrArray
 }
 
 void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity) {
@@ -5513,7 +5513,7 @@ uint32_t XB_CDECL Save_GetClusterSize() {
 int32_t XB_CDECL Save_StartAsyncWrite() {
     // The file set to the buffer size, then the first sector written overlapped (callback 0x000d1ef0
     // continues); a failure other than ERROR_IO_PENDING closes the device.
-    title_global<uint32_t>(0x00920eb0) = 0x000d1ef0;
+    title_global<uint32_t>(0x00920eb0) = own_address(&Save_AsyncWriteCallback);
     title_global<uint32_t>(0x00920da0) = 0;
     for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
     title_global<uint32_t>(0x00920da0) =
@@ -5534,7 +5534,7 @@ int32_t XB_CDECL Save_StartAsyncWrite() {
 
 int32_t XB_CDECL Save_StartAsyncRead() {
     // The first sector read overlapped (callback 0x000d1f90); ERROR_HANDLE_EOF closes the file handles.
-    title_global<uint32_t>(0x00920eb0) = 0x000d1f90;
+    title_global<uint32_t>(0x00920eb0) = own_address(&Save_AsyncReadCallback);
     title_global<uint32_t>(0x00920da0) = 0;
     for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
     title_global<uint32_t>(0x00920da0) =

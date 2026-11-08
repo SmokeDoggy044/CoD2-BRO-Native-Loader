@@ -10,6 +10,8 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "bro_scr_note_handlers.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -112,7 +114,7 @@ void wait_gravity_on(uint32_t ent, uint32_t flag) {
 // Scr_CallThread_ent_hash(BroScr_MiscStepSounds, ent, end 0x19791439).
 void step_sounds(uint32_t ent) {
     const uint32_t end = 0x19791439;
-    title_function<CallEntHash>(0x004b08e0)(0, 0, 0, 0, 0x00183f50, ent, &end);
+    title_function<CallEntHash>(0x004b08e0)(0, 0, 0, 0, own_address(&BroScr_MiscStepSounds), ent, &end);
 }
 // The assert text the script builds and drops before a timed play.
 void climbing_time_text() {
@@ -436,7 +438,7 @@ void XB_CDECL BroScr_TraverseDiveWall(uint32_t ent) {
     set_move_keys(ent, 0x0001c6ce, 0xc028584c);
     blend_back(ent, body());
     title_function<CallEnt6Anims>(0x001e53e0)(
-        0, 0, 0, 0, 0x0019ff70, ent, pointer<const uint32_t>(0x008ce70c), pointer<const uint32_t>(0x008ce700),
+        0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsLoop), ent, pointer<const uint32_t>(0x008ce70c), pointer<const uint32_t>(0x008ce700),
         pointer<const uint32_t>(0x008ce73c), pointer<const uint32_t>(0x008ce748), pointer<const uint32_t>(0x008ce730),
         pointer<const uint32_t>(0x008ce724));  // BroScr_DirectionalMoveAnimsLoop(crouchrun_loop forward, back, left, right, forwardright, forwardleft)
     step_sounds(ent);
@@ -465,25 +467,25 @@ void XB_CDECL BroScr_WaitThreeEndNotes(uint32_t ent, uint32_t notify, uint32_t d
     scr_release(&note);
 }
 
-void XB_CDECL Bro_anim_main_grenade_recover(uint32_t ent) { begin_functor_thread(0x001ac400, ent); }  // BroScr_AnimScript_GrenadeRecover
-void XB_CDECL Bro_climb_up_ledge(uint32_t ent) { begin_functor_thread(0x001aee80, ent); }       // BroScr_Traverse
-void XB_CDECL Bro_fence_climb(uint32_t ent) { begin_functor_thread(0x001af0a0, ent); }          // BroScr_Traverse_2
-void XB_CDECL Bro_fence_climb_39(uint32_t ent) { begin_functor_thread(0x001af480, ent); }       // BroScr_Traverse_3
-void XB_CDECL Bro_fence_climb_48(uint32_t ent) { begin_functor_thread(0x001af860, ent); }       // BroScr_Traverse_4
-void XB_CDECL Bro_jump_across_72(uint32_t ent) { begin_functor_thread(0x001b0070, ent); }       // BroScr_Traverse_5
-void XB_CDECL Bro_jump_down(uint32_t ent) { begin_functor_thread(0x001b0310, ent); }            // BroScr_Traverse_12
-void XB_CDECL Bro_jump_down_96(uint32_t ent) { begin_functor_thread(0x001b0550, ent); }         // BroScr_Traverse_13
-void XB_CDECL Bro_jump_over_high_wall(uint32_t ent) { begin_functor_thread(0x001b0790, ent); }  // BroScr_Traverse_6
-void XB_CDECL Bro_ladder_down(uint32_t ent) { begin_functor_thread(0x001b0bb0, ent); }          // BroScr_Traverse_14
-void XB_CDECL Bro_ladder_up(uint32_t ent) { begin_functor_thread(0x001b0ed0, ent); }            // BroScr_Traverse_15
-void XB_CDECL Bro_platform_climb(uint32_t ent) { begin_functor_thread(0x001b12c0, ent); }       // BroScr_Traverse_7
-void XB_CDECL Bro_stairs_down(uint32_t ent) { begin_functor_thread(0x001b16a0, ent); }          // BroScr_Traverse_16
-void XB_CDECL Bro_stairs_up(uint32_t ent) { begin_functor_thread(0x001b1990, ent); }            // BroScr_Traverse_17
-void XB_CDECL Bro_step_down(uint32_t ent) { begin_functor_thread(0x001b1ca0, ent); }            // BroScr_Traverse_18
-void XB_CDECL Bro_step_up(uint32_t ent) { begin_functor_thread(0x001b1ee0, ent); }              // BroScr_Traverse_8
-void XB_CDECL Bro_train_jump(uint32_t ent) { begin_functor_thread(0x001b2150, ent); }           // BroScr_Traverse_9
-void XB_CDECL Bro_wall_dive(uint32_t ent) { begin_functor_thread(0x001b2380, ent); }            // BroScr_TraverseDiveWall
-void XB_CDECL Bro_windowclimb(uint32_t ent) { begin_functor_thread(0x001b26c0, ent); }          // BroScr_Traverse_10
-void XB_CDECL Bro_hill_slide(uint32_t ent) { begin_functor_thread(0x001afc40, ent); }           // BroScr_Traverse_11
+void XB_CDECL Bro_anim_main_grenade_recover(uint32_t ent) { begin_functor_thread(own_address(&BroScr_AnimScript_GrenadeRecover), ent); }  // BroScr_AnimScript_GrenadeRecover
+void XB_CDECL Bro_climb_up_ledge(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse), ent); }       // BroScr_Traverse
+void XB_CDECL Bro_fence_climb(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_2), ent); }          // BroScr_Traverse_2
+void XB_CDECL Bro_fence_climb_39(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_3), ent); }       // BroScr_Traverse_3
+void XB_CDECL Bro_fence_climb_48(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_4), ent); }       // BroScr_Traverse_4
+void XB_CDECL Bro_jump_across_72(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_5), ent); }       // BroScr_Traverse_5
+void XB_CDECL Bro_jump_down(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_12), ent); }            // BroScr_Traverse_12
+void XB_CDECL Bro_jump_down_96(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_13), ent); }         // BroScr_Traverse_13
+void XB_CDECL Bro_jump_over_high_wall(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_6), ent); }  // BroScr_Traverse_6
+void XB_CDECL Bro_ladder_down(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_14), ent); }          // BroScr_Traverse_14
+void XB_CDECL Bro_ladder_up(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_15), ent); }            // BroScr_Traverse_15
+void XB_CDECL Bro_platform_climb(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_7), ent); }       // BroScr_Traverse_7
+void XB_CDECL Bro_stairs_down(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_16), ent); }          // BroScr_Traverse_16
+void XB_CDECL Bro_stairs_up(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_17), ent); }            // BroScr_Traverse_17
+void XB_CDECL Bro_step_down(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_18), ent); }            // BroScr_Traverse_18
+void XB_CDECL Bro_step_up(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_8), ent); }              // BroScr_Traverse_8
+void XB_CDECL Bro_train_jump(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_9), ent); }           // BroScr_Traverse_9
+void XB_CDECL Bro_wall_dive(uint32_t ent) { begin_functor_thread(own_address(&BroScr_TraverseDiveWall), ent); }            // BroScr_TraverseDiveWall
+void XB_CDECL Bro_windowclimb(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_10), ent); }          // BroScr_Traverse_10
+void XB_CDECL Bro_hill_slide(uint32_t ent) { begin_functor_thread(own_address(&BroScr_Traverse_11), ent); }           // BroScr_Traverse_11
 
 }  // namespace game

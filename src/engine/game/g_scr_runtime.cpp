@@ -19,6 +19,8 @@
 #include "scr_fiber.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "cgame.h"
+#include "g_mover.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -1695,15 +1697,15 @@ uint8_t* XB_CDECL VM_Create(const char* module, uint32_t system_calls) {
     if (!std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x00832b2c}))) return nullptr;  // "ui"
     if (!std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x00832df0}))) {                 // "game"
         *reinterpret_cast<uint32_t*>(vm + 0x84) = 0xffffffffu;
-        *reinterpret_cast<uint32_t*>(vm + 0x88) = 0x00273d70;  // G_vmMain
-        title_global<uint32_t>(0x008db08c) = 0x002a8580;       // g_syscall = VM_DllSyscall
+        *reinterpret_cast<uint32_t*>(vm + 0x88) = own_address(&G_vmMain_entry);  // G_vmMain
+        title_global<uint32_t>(0x008db08c) = own_address(&VM_DllSyscall);       // g_syscall = VM_DllSyscall
         return vm;
     }
     if (std::strcmp(module, reinterpret_cast<const char*>(uintptr_t{0x0083521c}))) return nullptr;  // "cgame"
     *reinterpret_cast<uint32_t*>(vm) = system_calls;
     *reinterpret_cast<uint32_t*>(vm + 0x84) = 0xffffffffu;
-    *reinterpret_cast<uint32_t*>(vm + 0x88) = 0x0028b960;  // CG_vmMain
-    title_global<uint32_t>(0x008da6d0) = 0x002a8580;       // cg_syscall = VM_DllSyscall
+    *reinterpret_cast<uint32_t*>(vm + 0x88) = own_address(&CG_vmMain_entry);  // CG_vmMain
+    title_global<uint32_t>(0x008da6d0) = own_address(&VM_DllSyscall);       // cg_syscall = VM_DllSyscall
     return vm;
 }
 

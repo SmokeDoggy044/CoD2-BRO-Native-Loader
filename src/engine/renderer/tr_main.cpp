@@ -17,6 +17,8 @@
 #include "ngl_debug.h"
 #include "qcommon_core.h"
 #include "cg_ents.h"
+#include "fx.h"
+#include "ui_menu.h"
 
 namespace game {
 
@@ -2813,11 +2815,11 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
         return *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(address) + 0x20);
     };
     if (cvar_integer(0x0095e700)) at(0, &R_RenderTestShadow);
-    static const uint32_t kFogCallback[] = {1, 0x00073380, 0};  // nglDrawFogPass
+    static const uint32_t kFogCallback[] = {1, own_address(&nglDrawFogPass), 0};  // nglDrawFogPass
     at(0, &nglSetSceneCallback, 3, kFogCallback);
-    if (title_global<uint32_t>(0x008db13c)) at(0, 0x00282040);  // CG_AddLocalEntities
-    at(0, 0x0028a760);                                           // CG_AddPacketEntities
-    if (title_global<uint32_t>(0x008db134)) at(0, 0x00246810);  // FX_DrawEffects
+    if (title_global<uint32_t>(0x008db13c)) at(0, own_address(&CG_AddLocalEntities));  // CG_AddLocalEntities
+    at(0, own_address(&CG_AddPacketEntities));                                           // CG_AddPacketEntities
+    if (title_global<uint32_t>(0x008db134)) at(0, own_address(&FX_DrawEffects));  // FX_DrawEffects
     if (title_global<uint32_t>(0x008db130)) {
         at(0, &R_SetupProjection);
         const uint8_t* world = title_global<const uint8_t*>(0x0095e608);
@@ -2825,7 +2827,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
         if (title_global<uint32_t>(0x008db148)) at(0, &R_AddEntitySurfaces);
     }
     const uint32_t effects_arg[] = {title_global<uint32_t>(0x0095f4f8)};
-    at(0, 0x002a8d30, 1, effects_arg);
+    at(0, own_address(&R_AddSimpleInstancesToScene_entry), 1, effects_arg);
     if (title_global<uint32_t>(0x008db144)) {
         const uint32_t* callbacks = &title_global<uint32_t>(0x00988784);
         const uint32_t* end = callbacks + title_global<int32_t>(0x00988780);
@@ -2868,7 +2870,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     title_global<uint8_t>(0x0095f6d2) = 0;
     at(0, &nglPopScene);
     at(0, &nglPopScene);
-    at(0, 0x003154b0, 0, nullptr, 0, 0x0095f8d0);  // ESI = 0x0095f8d0
+    at(0, own_address(&UIRoot_DrawHud_entry), 0, nullptr, 0, 0x0095f8d0);  // ESI = 0x0095f8d0
     uint32_t* table = title_global<uint32_t*>(0x00909908);
     const int32_t count = static_cast<int32_t>(table[0]);
     for (int32_t i = 0; i < count; ++i) {
@@ -3420,7 +3422,7 @@ void XB_CDECL R_AddFogPass() {
     nglSetClearFlags(0);
     nglSetSceneDepthTest(0);
     nglSetSceneDepthEnable(0);
-    nglListAddCustomNode(0x00045850, 0, kData);  // R_DrawFogPass
+    nglListAddCustomNode(own_address(&R_DrawFogPass), 0, kData);  // R_DrawFogPass
     nglPopScene();
 }
 

@@ -16,6 +16,8 @@
 #include "bro_scr_level_threads.h"
 #include "levels_twins.h"
 #include "qcommon_fs.h"
+#include "bro_scr_battle_threads.h"
+#include "bro_scr_thread_misc.h"
 
 namespace game {
 
@@ -86,7 +88,7 @@ inline void attach_gun_inline(uint32_t drone) {
 inline void fling_gun(uint32_t* drone, ScriptString* gun, const uint32_t* direction, uint32_t level_handle) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*,
                                     const uint32_t*);
-    own_function<Start>(&Scr_StartThread_ent_ent_str_vec_entry)(0, 0, 0, 0, 0x0012f6c0, level_handle, drone, gun, direction);
+    own_function<Start>(&Scr_StartThread_ent_ent_str_vec_entry)(0, 0, 0, 0, own_address(&BroScr_AttachDroneGun), level_handle, drone, gun, direction);
 }
 inline const uint32_t* level_handle_ptr() {
     const uint32_t object = level();
@@ -107,7 +109,7 @@ inline void start_spawn_loop(uint32_t spawner, uint32_t* path, ScriptString* typ
                              uint32_t* p8, uint32_t* p9, uint32_t* p10, uint32_t* p11) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*,
                                     uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
-    title_function<Start>(0x0052c7f0)(0, 0, 0, 0, 0x001706b0, spawner, path, type, p6, p7, p8, p9, p10,
+    title_function<Start>(0x0052c7f0)(0, 0, 0, 0, own_address(&BroScr_DronePathSpawnLoop), spawner, path, type, p6, p7, p8, p9, p10,
                                       p11);  // (BroScr_DronePathSpawnLoop)
 }
 // The path's start field 0x6bd99abb = 0 (added as 0) and its bool 0x19738af8 = false.
@@ -322,12 +324,12 @@ inline void blow_up(uint32_t* drone, bool call) {
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221dc)(*drone, level() + 0x6e8, 0, 0,
                                                                                          0);  // GScr_PlaySound
     title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
-        0, 0, 0, 0, 0x0016c9d0, *drone);  // Scr_StartThreadFunctor1(BroScr_StukaStartNearbyDrones)
+        0, 0, 0, 0, own_address(&BroScr_StukaStartNearbyDrones), *drone);  // Scr_StartThreadFunctor1(BroScr_StukaStartNearbyDrones)
 }
 // A BroScr_DroneMain(drone, *hide, *explode) thread (Scr_StartThread_ent_b_b).
 inline void start_drone_main(uint32_t drone, uint8_t* hide, uint8_t* explode) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint8_t*, uint8_t*);
-    title_function<Start>(0x0045a970)(0, 0, 0, 0, 0x00169e50, drone, hide, explode);
+    title_function<Start>(0x0045a970)(0, 0, 0, 0, own_address(&BroScr_DroneMain), drone, hide, explode);
 }
 
 }  // namespace
@@ -414,7 +416,7 @@ void XB_CDECL BroScr_DroneFollowSpline(uint32_t drone, uint32_t path, uint32_t f
         }
     }
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-    title_function<Start>(0x0045b810)(0, 0, 0, 0, 0x0016d390, drone, &flag);  // Scr_StartThread_ent_b(BroScr_DroneMainCall)
+    title_function<Start>(0x0045b810)(0, 0, 0, 0, own_address(&BroScr_DroneMainCall), drone, &flag);  // Scr_StartThread_ent_b(BroScr_DroneMainCall)
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoop(uint32_t spawner, uint32_t path, ScriptString type, uint32_t count,
@@ -489,7 +491,7 @@ void XB_CDECL BroScr_DroneDeathThink(uint32_t, ScriptString name) {
                     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*,
                                                     ScriptString*, uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*,
                                                     uint32_t*);
-                    title_function<Start>(0x0052c7f0)(0, 0, 0, 0, 0x001706b0, *handle, path_at(&drones, i), type, &count,
+                    title_function<Start>(0x0052c7f0)(0, 0, 0, 0, own_address(&BroScr_DronePathSpawnLoop), *handle, path_at(&drones, i), type, &count,
                                                       min_delay, max_delay, min_death, max_death,
                                                       just_delete);  // (BroScr_DronePathSpawnLoop)
                     scr_release(&animname);
@@ -551,7 +553,7 @@ void XB_CDECL BroScr_SpawnEventDrones(uint32_t, ScriptString name, ScriptString 
         uint32_t zero = 0;
         using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, DynArray*, ScriptString*,
                                         uint32_t*, uint32_t*, uint32_t*, uint8_t*);
-        own_function<Start>(&Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE_entry)(0, 0, 0, 0, 0x00173710, *handle, &paths, &type, &zero, &min, &max,
+        own_function<Start>(&Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_DronePathsStartAllCall_6), *handle, &paths, &type, &zero, &min, &max,
                                           &staggered);  // Scr_StartThread_ent_arrent_str_i_f_f_b(BroScr_DronePathsStartAllCall_6)
         if (paths.data) Scr_Free(paths.data);
     } else {

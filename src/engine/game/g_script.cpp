@@ -9,6 +9,10 @@
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_tank_init.h"
+#include "bro_scr_vehicle_health.h"
+#include "levels_twins.h"
+#include "scr_class.h"
 
 namespace game {
 
@@ -164,53 +168,53 @@ uint32_t XB_CDECL Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2(const uint32_t* ar
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_str_vec)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_str_vec(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x0017a3c0, 4, 5));
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor4_ent_ent_str_vec_Ctor), 4, 5));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_i_str_b_2)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_i_str_b_2(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x1c, 0x0017a490, 4, 6));
+    return create_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor5_ent_ent_i_str_b_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_ent_str)
 uint32_t XB_CDECL Scr_CallThread_ent_ent_str(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x14, 0x00459b70, 4, 4));
+    return call_thread(args, construct_functor(args, 0x14, own_address(&AeThreadFunctor3_ent_ent_str_PROLOGUE_Ctor), 4, 4));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_hash_vec_hash_f_hash_f)
 uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_hash_f_hash_f(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x2c, 0x0017a550, 4, 8));
+    return create_thread(args, construct_functor(args, 0x2c, own_address(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor), 4, 8));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThreadFunctorN)
 uint32_t XB_CDECL Scr_StartThreadFunctorN(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x1c, 0x0017a650, 4, 4));
+    return create_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor3_ent_str_vec_Ctor), 4, 4));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_vec_str_vec_f_3)
 uint32_t XB_CDECL Scr_StartThread_ent_vec_str_vec_f_3(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x2c, 0x0017a740, 4, 6));
+    return create_thread(args, construct_functor(args, 0x2c, own_address(&AeThreadFunctor5_ent_vec_str_vec_f_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_RespawnerAttributes_i_str)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_RespawnerAttributes_i_str(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0xf8, 0x0017a870, 4, 6));
+    return create_thread(args, construct_functor(args, 0xf8, own_address(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_RespawnerAttributes)
 uint32_t XB_CDECL Scr_StartThread_ent_RespawnerAttributes(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0xec, 0x0017a9a0, 4, 3));
+    return create_thread(args, construct_functor(args, 0xec, own_address(&AeThreadFunctor2_ent_RespawnerAttributes_Ctor), 4, 3));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_i_str_2)
 uint32_t XB_CDECL Scr_StartThread_ent_str_i_str_2(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x18, 0x0017aa40, 4, 5));
+    return create_thread(args, construct_functor(args, 0x18, own_address(&AeThreadFunctor4_ent_str_i_str_Ctor), 4, 5));
 }
 
 // Constructor (a6, &a7, a8), then Scr_BeginThreadEndOn(a1, a2, a3, a7, a4, a5, functor).
 SCRIPT_ARGS_ENTRY(Scr_BeginThread_ent_str)
 uint32_t XB_CDECL Scr_BeginThread_ent_str(const uint32_t* args) {
-    uint32_t* functor = construct_functor(args, 0x10, 0x004591e0, 5, 3);
+    uint32_t* functor = construct_functor(args, 0x10, own_address(&AeThreadFunctor2_ent_str_PROLOGUE_Ctor), 5, 3);
     using BeginThreadEndOn = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
     return title_function<BeginThreadEndOn>(title_global<uint32_t>(0x00922170))(args[0], args[1], args[2], args[6], args[3],
                                                                                args[4], functor);
@@ -218,22 +222,22 @@ uint32_t XB_CDECL Scr_BeginThread_ent_str(const uint32_t* args) {
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x3c, 0x0017c770, 4, 10));
+    return create_thread(args, construct_functor(args, 0x3c, own_address(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor), 4, 10));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThreadFunctor_20_3)
 uint32_t XB_CDECL Scr_StartThreadFunctor_20_3(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x0017c830, 4, 5));
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor4_ent_ent_ent_arrent_Ctor), 4, 5));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_str_ent_ent_4)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_str_ent_ent_4(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x1c, 0x001e3df0, 4, 6));
+    return create_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor5_ent_ent_str_ent_ent_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_i_pathnode_str_3)
 uint32_t XB_CDECL Scr_StartThread_ent_i_pathnode_str_3(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x18, 0x001e3ec0, 4, 5));
+    return create_thread(args, construct_functor(args, 0x18, own_address(&AeThreadFunctor4_ent_i_pathnode_str_Ctor), 4, 5));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_vt00825be4_2)
@@ -250,7 +254,7 @@ uint32_t XB_CDECL Scr_CallThread_ent_f_ent_3(const uint32_t* args) {
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_i_str_i_ent)
 uint32_t XB_CDECL Scr_CallThread_ent_hash_i_str_i_ent(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x20, 0x001e3fb0, 4, 7));
+    return call_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor), 4, 7));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_f_4)
@@ -278,7 +282,7 @@ uint32_t XB_CDECL Scr_CallThread_ent_f_f_5(const uint32_t* args) {
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2)
 uint32_t XB_CDECL Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x2c, 0x001e4080, 4, 6));
+    return call_thread(args, construct_functor(args, 0x2c, own_address(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_i_f_2)
@@ -289,12 +293,12 @@ uint32_t XB_CDECL Scr_CallThread_ent_hash_i_f_2(const uint32_t* args) {
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_anim_str_f_hash_str_f_b)
 uint32_t XB_CDECL Scr_CallThread_ent_anim_str_f_hash_str_f_b(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x28, 0x001e4150, 4, 9));
+    return call_thread(args, construct_functor(args, 0x28, own_address(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor), 4, 9));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_str_hash_hash_3)
 uint32_t XB_CDECL Scr_CallThread_ent_str_hash_hash_3(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x18, 0x001e4280, 4, 5));
+    return call_thread(args, construct_functor(args, 0x18, own_address(&AeThreadFunctor4_ent_str_hash_hash_Ctor), 4, 5));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_hash_hash_4)
@@ -305,7 +309,7 @@ uint32_t XB_CDECL Scr_CallThread_ent_f_hash_hash_4(const uint32_t* args) {
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_vec_vec_vec_i)
 uint32_t XB_CDECL Scr_CallThread_ent_vec_vec_vec_i(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x34, 0x001e4330, 4, 6));
+    return call_thread(args, construct_functor(args, 0x34, own_address(&AeThreadFunctor5_ent_vec_vec_vec_i_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f)
@@ -322,7 +326,7 @@ uint32_t XB_CDECL Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(const uint32_
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_vt00825c50)
 uint32_t XB_CDECL Scr_CallThread_vt00825c50(const uint32_t* args) {
-    return call_thread(args, construct_functor(args, 0x1c, 0x001e4430, 4, 6));
+    return call_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor5_vt00825c50_Ctor), 4, 6));
 }
 
 SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_hash_hash_hash_i_2)
@@ -396,7 +400,7 @@ void XB_CDECL BroScr_PanzerIVSetDifficultyHealth(uint32_t ent) {
     uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
     if (functor) {
         functor[0] = 0x007f5ba0;
-        functor[1] = 0x0014d0a0;
+        functor[1] = own_address(&BroScr_VehicleHealthThink);
         functor[2] = ent;
     }
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
@@ -413,7 +417,7 @@ uint32_t XB_CDECL BroScr_PanzerIVUseAnimTree(uint32_t ent) {
     uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
     if (functor) {
         functor[0] = 0x007f5ba0;
-        functor[1] = 0x001679b0;
+        functor[1] = own_address(&BroScr_TankInit_7);
         functor[2] = ent;
     }
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
@@ -507,7 +511,7 @@ void XB_CDECL G_Trigger(uint8_t* self, uint8_t* other) {
         const uint32_t regs[6] = {at<uint32_t>(other, 0x224), 0x100, title_global<uint32_t>(0x0097a818), address_of(other), 0x100,
                                   address_of(self)};
         const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address_of(&number)};
-        script_call(0x000265a0, regs, 2, args);
+        script_call(own_address(&G_NotifyWithEntity_entry), regs, 2, args);
         return;
     }
     uint32_t* pair = pairs + count * 4;

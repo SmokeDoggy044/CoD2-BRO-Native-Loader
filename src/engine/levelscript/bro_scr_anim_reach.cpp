@@ -11,6 +11,7 @@
 #include "title_data.h"
 #include "levels_twins.h"
 #include "qcommon_fs.h"
+#include "bro_scr_wait_misc.h"
 
 namespace game {
 
@@ -111,7 +112,7 @@ void XB_CDECL BroScr_AnimReachCore(uint32_t ent, DynArray guys, uint32_t anime, 
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;
-            functor[1] = 0x0012f2e0;  // BroScr_AnimReachGuyThread
+            functor[1] = own_address(&BroScr_AnimReachGuyThread);  // BroScr_AnimReachGuyThread
             functor[2] = guy;
             functor[3] = spawned;
         }

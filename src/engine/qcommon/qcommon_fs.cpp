@@ -39,6 +39,10 @@
 #include "fe_profile.h"
 #include "g_spawn.h"
 #include "ui_menu.h"
+#include "fx_cmd.h"
+#include "g_pathnode.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -138,7 +142,7 @@ void dyn_array_assign4(DynArray* array, const DynArray* source, uint32_t alloc) 
 }  // namespace
 
 void XB_THISCALL DynArray_Assign4(DynArray* array, const DynArray* source) {
-    dyn_array_assign4(array, source, 0x0017ac00);  // DynArray_AllocInt_FillUndefined
+    dyn_array_assign4(array, source, own_address(&DynArray_AllocInt_FillUndefined));  // DynArray_AllocInt_FillUndefined
 }
 
 void XB_THISCALL DynArray_ResizeBytes(DynArrayBytes* array, uint32_t size, uint32_t capacity) {
@@ -3841,7 +3845,7 @@ uint32_t XB_CDECL Cbuf_ExecuteText(uint32_t entry_esp) {
                 return 0;
             }
         }
-        return 0x002c62b0;  // Cbuf_Execute
+        return own_address(&Cbuf_Execute_entry);  // Cbuf_Execute
     case 1:  // EXEC_INSERT
         Cbuf_InsertText(text);
         return 0;
@@ -3921,7 +3925,7 @@ void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists) {
         head = pk_ptr(tree, 4);
         pk<uint32_t>(head, 8) = u32(head);
     };
-    clear_tree(state + 0x78, 0x000200d0);  // std_map_string_EraseSubtree
+    clear_tree(state + 0x78, own_address(&std_map_string_EraseSubtree));  // std_map_string_EraseSubtree
     if (!keep_lists) {
         if (pk_ptr(state, 0x8c)) {
             std_string_DestroyRange(pk_ptr(state, 0x8c), pk_ptr(state, 0x90));
@@ -3930,7 +3934,7 @@ void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists) {
         pk<uint32_t>(state, 0x8c) = 0;
         pk<uint32_t>(state, 0x90) = 0;
         pk<uint32_t>(state, 0x94) = 0;
-        clear_tree(state + 0x98, 0x00020610);  // std_set_string_EraseSubtree
+        clear_tree(state + 0x98, own_address(&std_set_string_EraseSubtree));  // std_set_string_EraseSubtree
     }
     pk<uint32_t>(state, 0) = 0;
     own_function<AssignN>(&std_string_AssignN)(state + 4, tstr(0x0082dfeb), 0);
@@ -4803,23 +4807,23 @@ uint32_t XB_THISCALL std_list_IncSize(uint8_t* list, uint32_t count) { return li
 uint32_t XB_THISCALL std_list_IncSize_2(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x0fffffff); }
 
 void XB_THISCALL std_list_InsertRange(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0017cd90, 0x0017d8d0);  // BuyNodeKeyArray, IncSize_2
+    list_insert_range(list, where, first, last, own_address(&std_list_BuyNodeKeyArray), own_address(&std_list_IncSize_2));  // BuyNodeKeyArray, IncSize_2
 }
 void XB_THISCALL std_list_InsertRange_2(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
     list_insert_range(list, where, first, last, 0x0078aec0, 0x0078bd30);  // BUCHHOLZ copies
 }
 void XB_THISCALL std_list_InsertRange_3(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0017f320, 0x0017d5e0);  // BuyNodeHashMap, IncSize
+    list_insert_range(list, where, first, last, own_address(&std_list_BuyNodeHashMap), own_address(&std_list_IncSize));  // BuyNodeHashMap, IncSize
 }
 void XB_THISCALL std_list_InsertRange_4(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0017f610, 0x0017d8d0);  // BuyNodeKeyArray_2, IncSize_2
+    list_insert_range(list, where, first, last, own_address(&std_list_BuyNodeKeyArray_2), own_address(&std_list_IncSize_2));  // BuyNodeKeyArray_2, IncSize_2
 }
 void XB_THISCALL std_list_InsertRange_5(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0017f6b0, 0x0017d8d0);  // BuyNodeKeyArray_3, IncSize_2
+    list_insert_range(list, where, first, last, own_address(&std_list_BuyNodeKeyArray_3), own_address(&std_list_IncSize_2));  // BuyNodeKeyArray_3, IncSize_2
 }
 
 uint8_t** XB_THISCALL std_list_Erase_2(uint8_t* list, uint8_t** out, uint8_t* node) {
-    return list_erase(list, out, node, 0x0045f600);
+    return list_erase(list, out, node, own_address(&ListNode_DestroyValue_PROLOGUE_5));
 }
 uint8_t** XB_THISCALL std_list_Erase_3(uint8_t* list, uint8_t** out, uint8_t* node) {
     return list_erase(list, out, node, 0x004610d0);
@@ -4829,22 +4833,22 @@ uint8_t** XB_THISCALL std_list_Erase_4(uint8_t* list, uint8_t** out, uint8_t* no
 }
 
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x0017eb90);  // HashMap_CopyCtor_2
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_2));  // HashMap_CopyCtor_2
 }
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_2(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x0017eb20);  // HashMap_CopyCtor
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor));  // HashMap_CopyCtor
 }
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_3(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00180310);  // HashMap_CopyCtor_4
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_4));  // HashMap_CopyCtor_4
 }
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00180820);  // HashMap_CopyCtor_5
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_5));  // HashMap_CopyCtor_5
 }
 uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_2(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_key_array(next, prev, value, 0x0017f020);  // DynArray_AssignHashMap
+    return list_buy_node_key_array(next, prev, value, own_address(&DynArray_AssignHashMap));  // DynArray_AssignHashMap
 }
 uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_3(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_key_array(next, prev, value, 0x0017f230);  // DynArray_AssignHashMap_2
+    return list_buy_node_key_array(next, prev, value, own_address(&DynArray_AssignHashMap_2));  // DynArray_AssignHashMap_2
 }
 
 // --- Script-heap hash map insert / operator[] ---
@@ -5011,31 +5015,31 @@ uint8_t* hash_map_index_map(HashMap* map, const uint32_t* key, uint32_t ctor, ui
 }  // namespace
 
 uint8_t* XB_THISCALL HashMap_Insert_2(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017dc30, 0x0017d8d0, 0x0017bc40);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_2), own_address(&std_list_IncSize_2), own_address(&std_list_BuyNode16));
 }
 uint8_t* XB_THISCALL HashMap_Insert_3(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017cd90);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_2), own_address(&std_list_BuyNodeKeyArray));
 }
 uint8_t* XB_THISCALL HashMap_Insert_4(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017e370, 0x0017d5e0, 0x0017f320);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_6), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap));
 }
 uint8_t* XB_THISCALL HashMap_Insert_5(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017dca0, 0x0017d5e0, 0x0017f3b0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_3), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_2));
 }
 uint8_t* XB_THISCALL HashMap_Insert_6(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017f610);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_2), own_address(&std_list_BuyNodeKeyArray_2));
 }
 uint8_t* XB_THISCALL HashMap_Insert_7(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017f6b0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_2), own_address(&std_list_BuyNodeKeyArray_3));
 }
 uint8_t* XB_THISCALL HashMap_Insert_8(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017dbc0, 0x0017d5e0, 0x00180a10);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_3));
 }
 uint8_t* XB_THISCALL HashMap_Insert_9(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0017dd10, 0x0017d5e0, 0x00180aa0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_4), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_4));
 }
 uint8_t* XB_THISCALL HashMap_Insert_11(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x001e6760, 0x001e6470, 0x001e63d0);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_7), own_address(&std_list_IncSize_3), own_address(&std_list_BuyNodeKeyArray_4));
 }
 
 uint8_t* XB_THISCALL HashMap_Index(HashMap* map, const uint32_t* key) {
@@ -5049,28 +5053,28 @@ uint8_t* XB_THISCALL HashMap_Index(HashMap* map, const uint32_t* key) {
     return pk_ptr(out, 0) + 0xc;
 }
 uint8_t* XB_THISCALL HashMap_Index_2(HashMap* map, const uint32_t* key) {
-    return hash_map_index_array(map, key, hash_map_find_node, 0x0017ba30, 0x0017e8d0, 0);
+    return hash_map_index_array(map, key, hash_map_find_node, own_address(&DynArray_Assign4), own_address(&HashMap_Insert_3), 0);
 }
 uint8_t* XB_THISCALL HashMap_Index_3(HashMap* map, const uint32_t* key) {
-    return hash_map_index_array(map, key, hash_map_find_node_signed, 0x0045c270, 0x001e6a00, 0);
+    return hash_map_index_array(map, key, hash_map_find_node_signed, own_address(&DynArray_Assign4_PROLOGUE), own_address(&HashMap_Insert_11), 0);
 }
 uint8_t* XB_THISCALL HashMap_Index_4(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0078c930, 0x0017eb90, 0x0017fa30, 0x0045f1a0);
+    return hash_map_index_map(map, key, 0x0078c930, own_address(&HashMap_CopyCtor_2), own_address(&HashMap_Insert_4), own_address(&HashMap_Dtor_PROLOGUE_4));
 }
 uint8_t* XB_THISCALL HashMap_Index_5(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0017e3e0, 0x0017eb20, 0x0017fc80, 0x00460f10);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor), own_address(&HashMap_CopyCtor), own_address(&HashMap_Insert_5), own_address(&HashMap_Dtor_PROLOGUE_6));
 }
 uint8_t* XB_THISCALL HashMap_Index_6(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0017f590, 0x00180310, 0x00180b30, 0x00463c70);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_2), own_address(&HashMap_CopyCtor_4), own_address(&HashMap_Insert_8), own_address(&HashMap_Dtor_PROLOGUE_19));
 }
 uint8_t* XB_THISCALL HashMap_Index_7(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0017fed0, 0x00180820, 0x00180d80, 0x00464a20);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_3), own_address(&HashMap_CopyCtor_5), own_address(&HashMap_Insert_9), own_address(&HashMap_Dtor_PROLOGUE_20));
 }
 uint8_t* XB_THISCALL HashMap_Index_8(HashMap* map, const uint32_t* key) {
-    return hash_map_index_array(map, key, hash_map_find_node, 0x0017f020, 0x00180380, 0x00460370);
+    return hash_map_index_array(map, key, hash_map_find_node, own_address(&DynArray_AssignHashMap), own_address(&HashMap_Insert_6), 0x00460370);
 }
 uint8_t* XB_THISCALL HashMap_Index_9(HashMap* map, const uint32_t* key) {
-    return hash_map_index_array(map, key, hash_map_find_node, 0x0017f230, 0x001805d0, 0x004610e0);
+    return hash_map_index_array(map, key, hash_map_find_node, own_address(&DynArray_AssignHashMap_2), own_address(&HashMap_Insert_7), 0x004610e0);
 }
 
 // --- Localized-string tables (0x0095fe70) ---
@@ -5079,7 +5083,7 @@ void XB_CDECL StaticInit_LocStrings() {
     TitleRegs regs{};
     regs.esi = 0x0095fe70;
     qc_call_regs(0x0001d930, &regs, 0, nullptr);  // constructor (object in ESI)
-    title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379950);  // _atexit(AtExit_LocStrings)
+    title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(own_address(&AtExit_LocStrings));  // _atexit(AtExit_LocStrings)
 }
 
 void XB_CDECL AtExit_LocStrings() {
@@ -5168,8 +5172,8 @@ void dynarray_assign_hash_map(DynArray* array, const DynArray* source, const Has
     array->capacity = source->capacity;
 }
 
-const HashMapArrayInstance kHashMapArray1{0x0045f8b0, 0x0045ebe0, 0x0011aa90, 0x0045f650, &DynArray_AllocHashMap};
-const HashMapArrayInstance kHashMapArray2{0x0045fc30, 0x0045ec50, 0x0045f220, 0x0045f760, &DynArray_AllocHashMap_2};
+const HashMapArrayInstance kHashMapArray1{own_address(&HashMap_Ctor_PROLOGUE), own_address(&HashMap_Dtor_PROLOGUE), 0x0011aa90, own_address(&HashMap_CopyFrom_PROLOGUE), &DynArray_AllocHashMap};
+const HashMapArrayInstance kHashMapArray2{own_address(&HashMap_Ctor_PROLOGUE_8), own_address(&HashMap_Dtor_PROLOGUE_2), 0x0045f220, own_address(&HashMap_CopyFrom_6), &DynArray_AllocHashMap_2};
 
 // Shuffle: element i swaps with element Scr_RandomInt(size), each access through At (resize thiscall
 // (index + 1, index + 4) when index >= size).
@@ -5214,8 +5218,8 @@ constexpr uint32_t kRecord28Dtor = 0x00458fd0;
 
 }  // namespace
 
-uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045f8b0); }
-uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045fc30); }
+uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count) { return dynarray_alloc_hash_map(count, own_address(&HashMap_Ctor_PROLOGUE)); }
+uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count) { return dynarray_alloc_hash_map(count, own_address(&HashMap_Ctor_PROLOGUE_8)); }
 
 void XB_THISCALL DynArray_ResizeHashMap(DynArray* array, uint32_t size, uint32_t capacity) {
     dynarray_resize_hash_map(array, size, capacity, kHashMapArray1);
@@ -5235,10 +5239,10 @@ uint8_t* XB_THISCALL DynArray_AtHashMap(DynArray* array, uint32_t index) {
     return reinterpret_cast<uint8_t*>(array->data) + index * 0x28;
 }
 
-void XB_CDECL DynArray_Shuffle(DynArray* array) { dynarray_shuffle<4>(array, 0x00015a90); }
-void XB_CDECL DynArray_Shuffle_2(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_Shuffle(DynArray* array) { dynarray_shuffle<4>(array, own_address(&DynArray_Resize)); }
+void XB_CDECL DynArray_Shuffle_2(DynArray* array) { dynarray_shuffle<4>(array, own_address(&DynArray_Resize4)); }
 void XB_CDECL DynArray_Shuffle12(DynArray* array) { dynarray_shuffle<12>(array, 0x0045cde0); }
-void XB_CDECL DynArray_ShuffleInt(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_ShuffleInt(DynArray* array) { dynarray_shuffle<4>(array, own_address(&DynArray_Resize4)); }
 void XB_CDECL DynArray_Shuffle_3(DynArray* array) { dynarray_shuffle<4>(array, 0x0045c4a0); }
 
 void XB_CDECL DynArray_ShuffleString(DynArray* array) {
@@ -5383,11 +5387,11 @@ constexpr HashMapInstance kHashMap6{0x0045ca60, 0x0045ca00, 0x001e67d0, 0x0045f2
 }  // namespace
 
 uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_key_array(next, prev, value, 0x0045c270);  // DynArray_Assign4 (PROLOGUE copy)
+    return list_buy_node_key_array(next, prev, value, own_address(&DynArray_Assign4_PROLOGUE));  // DynArray_Assign4 (PROLOGUE copy)
 }
 uint32_t XB_THISCALL std_list_IncSize_3(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x0fffffff); }
 void XB_THISCALL std_list_InsertRange_6(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0045caa0, 0x0045ead0);  // PROLOGUE BuyNode, IncSize
+    list_insert_range(list, where, first, last, 0x0045caa0, own_address(&std_list_IncSize_PROLOGUE));  // PROLOGUE BuyNode, IncSize
 }
 void XB_THISCALL HashMap_CopyFrom_6(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap6); }
 HashMap* XB_THISCALL HashMap_CopyCtor_6(HashMap* map, const HashMap* source) {
@@ -7230,19 +7234,19 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     Com_StartupVariable(nullptr);
     Com_StartupVariable(tstr(0x00837ce4));  // "developer"
     const auto add_command = own_function<void XB_CDECL(const char*, uint32_t)>(&Cmd_AddCommand);  // Cmd_AddCommand
-    add_command(tstr(0x0083453c), 0x002c1c20);  // bind
-    add_command(tstr(0x00834534), 0x002c1db0);  // unbind
-    add_command(tstr(0x00834528), 0x002c1d60);  // unbindall
-    add_command(tstr(0x0083451c), 0x002b3370);  // bindlist
+    add_command(tstr(0x0083453c), own_address(&Key_Bind_f));  // bind
+    add_command(tstr(0x00834534), own_address(&Key_Unbind_f));  // unbind
+    add_command(tstr(0x00834528), own_address(&Key_Unbindall_f));  // unbindall
+    add_command(tstr(0x0083451c), own_address(&Key_Bindlist_f));  // bindlist
     FS_InitFilesystem();
     const uint32_t keep = 0;
     boot_call(own_address(&Loc_ResetStringFileState_entry), 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
     Loc_Init();
     own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate
-    boot_construct(0x0095f480, 4, 0x11f0, 0x00330640, 'D');  // ProfileSave_Construct
-    boot_construct(0x0095f638, 4, 0x57c, 0x00290020);        // Pak_Init
-    boot_construct(0x0095f62c, 4, 0x2c, 0x002909d0);         // Stream_InitBanks
-    boot_construct(0x0095f630, 4, 0x1e8, 0x0028ec30);        // ResourceManager_Construct
+    boot_construct(0x0095f480, 4, 0x11f0, own_address(&ProfileSave_Construct_entry), 'D');  // ProfileSave_Construct
+    boot_construct(0x0095f638, 4, 0x57c, own_address(&Pak_Init_entry));        // Pak_Init
+    boot_construct(0x0095f62c, 4, 0x2c, own_address(&Stream_InitBanks_entry));         // Stream_InitBanks
+    boot_construct(0x0095f630, 4, 0x1e8, own_address(&ResourceManager_Construct_entry));        // ResourceManager_Construct
     own_function<void XB_CDECL()>(&ResourceManager_CreateLgrid)();           // ResourceManager_CreateLgrid
     own_function<void XB_CDECL()>(&ResourceManager_CreateModels)();           // ResourceManager_CreateModels
     own_function<void XB_CDECL()>(&ResourceManager_CreateXmpb)();           // ResourceManager_CreateXmpb
@@ -7263,21 +7267,21 @@ void XB_CDECL Com_Init(uint8_t* launch) {
         pk<uint32_t>(fade, 0x1c) = 0;
     }
     title_global<uint8_t*>(0x0095f4cc) = fade;
-    boot_construct(0x0095f640, 0x10, 0x1e0, 0x0028f620);  // ZoneGraph_Init
+    boot_construct(0x0095f640, 0x10, 0x1e0, own_address(&ZoneGraph_Init_entry));  // ZoneGraph_Init
     own_function<void XB_CDECL()>(&ResourceManager_CreateDb)();        // ResourceManager_CreateDb
-    boot_construct(0x0095f5b4, 0x10, 0x8e30, 0x0029fbd0); // FXCmdQueue_Ctor
+    boot_construct(0x0095f5b4, 0x10, 0x8e30, own_address(&FXCmdQueue_Ctor_entry)); // FXCmdQueue_Ctor
     own_function<void XB_CDECL()>(&ResourceManager_CreateDlg)();        // ResourceManager_CreateDlg
     own_function<void XB_CDECL()>(&ResourceManager_CreateLevel)();        // ResourceManager_CreateLevel
-    boot_construct(0x0095f4f8, 4, 0x1a8, 0x002c03e0);     // SceneFX_Init -> scn_zoneScenes
+    boot_construct(0x0095f4f8, 4, 0x1a8, own_address(&SceneFX_Init_entry));     // SceneFX_Init -> scn_zoneScenes
     own_function<void XB_CDECL()>(&ResourceManager_CreateCfgstr)();        // ResourceManager_CreateCfgstr
-    boot_construct(0x0095f4f4, 4, 0x198, 0x002b1190, 'd'); // g_pathNodeBlocks (EDX)
+    boot_construct(0x0095f4f4, 4, 0x198, own_address(&PathData_Construct), 'd'); // g_pathNodeBlocks (EDX)
     own_function<void XB_CDECL()>(&ResourceManager_CreateLocStrings)();        // ResourceManager_CreateLocStrings
     title_global<uint8_t*>(0x0095f5e0) = boot_alloc(1, 0x800);
-    boot_construct(0x0095f4e0, 4, 0x598, 0x002cdca0);     // Checkpoint_Init
-    boot_construct(0x0095f564, 4, 0x184, 0x002b6fc0, 'a'); // SpgManager_Construct (EAX) -> rm_spg
+    boot_construct(0x0095f4e0, 4, 0x598, own_address(&Checkpoint_Init_entry));     // Checkpoint_Init
+    boot_construct(0x0095f564, 4, 0x184, own_address(&SpgManager_Construct), 'a'); // SpgManager_Construct (EAX) -> rm_spg
     own_function<void XB_CDECL()>(&Phys_Init)();        // Phys_Init
-    boot_construct(0x0095f4fc, 4, 0x328, 0x002d8a10);     // CM_WorldTrees_Construct
-    boot_construct(0x0095f500, 0x10, 0x1e0, 0x002d0d60, 'b');  // CM_WorldTreeManager_Construct (EBX)
+    boot_construct(0x0095f4fc, 4, 0x328, own_address(&CM_WorldTrees_Construct_entry));     // CM_WorldTrees_Construct
+    boot_construct(0x0095f500, 0x10, 0x1e0, own_address(&CM_WorldTreeManager_Construct_entry), 'b');  // CM_WorldTreeManager_Construct (EBX)
     own_function<void XB_CDECL()>(&ResourceManager_CreateAnimTrees)();        // ResourceManager_CreateAnimTrees
     own_function<void XB_CDECL()>(&ShakeRumble_CreateManager)();        // ShakeRumble_CreateManager
     title_global<uint8_t>(0x00940178) = 0;
@@ -7360,9 +7364,9 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     if (developer && pk<uint32_t>(developer, 0x20)) {
         add_command(tstr(0x00837bf4), 0x00297090);  // error
         add_command(tstr(0x00837bec), 0x00293850);  // crash
-        add_command(tstr(0x00837be4), 0x0029e8d0);  // freeze (Com_Freeze_f)
+        add_command(tstr(0x00837be4), own_address(&Com_Freeze_f));  // freeze (Com_Freeze_f)
     }
-    add_command(tstr(0x0082ac38), 0x002a6dc0);  // quit (Com_Quit_f)
+    add_command(tstr(0x0082ac38), own_address(&Com_Quit_f));  // quit (Com_Quit_f)
     add_command(tstr(0x00837bd8), 0x00293820);  // writeconfig
     add_command(tstr(0x00837bc8), 0x00293810);  // writedefaults
     const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"

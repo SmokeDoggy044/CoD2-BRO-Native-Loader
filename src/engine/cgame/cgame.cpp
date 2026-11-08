@@ -25,6 +25,7 @@
 #include "g_scr_runtime.h"
 #include "nal_anim.h"
 #include "stream.h"
+#include "fe_menus.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -1313,7 +1314,7 @@ uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp) {
     // Q3's CG_DrawActive: without a snapshot the loading screen; else the refdef (flag 0x10
     // set while 0x009493e4) rendered (import 0x00928524), the shell shock blur and, while
     // 0x008d9d48, CG_Draw2D (0x00285f80).
-    if (!title_global<uint32_t>(0x00971aa8)) return 0x00279650;  // CG_UpdateScreenWhileLoading
+    if (!title_global<uint32_t>(0x00971aa8)) return own_address(&CG_UpdateScreenWhileLoading);  // CG_UpdateScreenWhileLoading
     uint32_t& flags = title_global<uint32_t>(0x00972be8);
     flags |= 0x10;
     if (!title_global<uint32_t>(0x009493e4)) flags &= ~0x10u;
@@ -1321,7 +1322,7 @@ uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp) {
     const uint32_t refdef[1] = {0x00972b90};
     title_call_at_regs(entry_esp, title_global<uint32_t>(0x00928524), &regs, 1, refdef);
     title_call_at_regs(entry_esp, own_address(&CG_DrawShellShockBlur), &regs, 0, nullptr);  // CG_DrawShellShockBlur
-    return title_global<uint32_t>(0x008d9d48) ? 0x00285f80 : 0;  // CG_Draw2D
+    return title_global<uint32_t>(0x008d9d48) ? own_address(&CG_Draw2D) : 0;  // CG_Draw2D
 }
 
 void XB_CDECL CG_ParseServerinfo() {
@@ -4214,15 +4215,15 @@ void XB_CDECL CG_SetInitialSnapshot(uint32_t entry_esp, uint8_t* snap, uint32_t 
         uint32_t start;
         if (chapter <= 5) {
             page = field_ptr(pages, 0xc);
-            start = 0x003134e0;
+            start = own_address(&LoadAfricaMenu_SetProgress_entry);
             text_slot = 0x124;
         } else if (chapter <= 8) {
             page = field_ptr(pages, 0x10);
-            start = 0x00313240;
+            start = own_address(&LoadSicilyMenu_SetProgress_entry);
             text_slot = 0xa8;
         } else {
             page = field_ptr(pages, 8);
-            start = 0x00313790;
+            start = own_address(&LoadingMenu_SetProgress_entry);
             text_slot = 0x10c;
         }
         regs.esi = addr(page);
@@ -4367,19 +4368,19 @@ int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint3
     };
     switch (command) {
     case 0:
-        call(0x0028b7c0, 0, nullptr);  // CG_Init
+        call(own_address(&CG_Init_entry), 0, nullptr);  // CG_Init
         return 0;
     case 1:
-        call(0x0027cc30, 0, nullptr);  // CG_Shutdown
+        call(own_address(&CG_Shutdown), 0, nullptr);  // CG_Shutdown
         return 0;
     case 2:
-        return static_cast<int32_t>(call(0x00279dd0, 0, nullptr));  // CG_ConsoleCommand
+        return static_cast<int32_t>(call(own_address(&CG_ConsoleCommand), 0, nullptr));  // CG_ConsoleCommand
     case 3: {
         regs.eax = arg(2);
         regs.ecx = arg(1);
         regs.edx = arg(4);
         const uint32_t args[3] = {arg(4), arg(5), arg(6)};
-        call(0x0028b340, 3, args);  // CG_DrawActiveFrame
+        call(own_address(&CG_DrawActiveFrame_entry), 3, args);  // CG_DrawActiveFrame
         return 0;
     }
     case 4:
@@ -4397,7 +4398,7 @@ int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint3
         regs.ecx = arg(1);
         regs.edx = arg(3);
         const uint32_t args[3] = {arg(1), arg(2), arg(3)};
-        call(0x0027f8e0, 3, args);  // CL_DObjCreateSkeleton
+        call(own_address(&CL_DObjCreateSkeleton), 3, args);  // CL_DObjCreateSkeleton
         return 0;
     }
     case 11: {
@@ -4412,16 +4413,16 @@ int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint3
     case 12:
         return 1;
     case 13:
-        call(0x00276b90, 0, nullptr);  // CG_SaveViewModelAnimTrees
+        call(own_address(&CG_SaveViewModelAnimTrees), 0, nullptr);  // CG_SaveViewModelAnimTrees
         return 0;
     case 14:
-        call(0x00285da0, 0, nullptr);  // CG_LoadViewModelAnimTrees
+        call(own_address(&CG_LoadViewModelAnimTrees), 0, nullptr);  // CG_LoadViewModelAnimTrees
         return 0;
     case 15:
-        call(0x00278cb0, 0, nullptr);  // CG_CopySaveState
+        call(own_address(&CG_CopySaveState), 0, nullptr);  // CG_CopySaveState
         return 0;
     case 16:
-        call(0x00276b10, 0, nullptr);  // CG_WriteSaveState
+        call(own_address(&CG_WriteSaveState), 0, nullptr);  // CG_WriteSaveState
         return 0;
     case 19: {
         uint32_t* const out = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(arg(1)));
@@ -4432,11 +4433,11 @@ int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint3
     }
     case 20:
         regs.eax = 1;
-        call(0x0027cad0, 0, nullptr);  // CG_ClearState
+        call(own_address(&CG_ClearState), 0, nullptr);  // CG_ClearState
         return 0;
     case 21:
         regs.eax = arg(1);
-        call(0x002867a0, 0, nullptr);  // CG_ConfigStringModified
+        call(own_address(&CG_ConfigStringModified), 0, nullptr);  // CG_ConfigStringModified
         return 0;
     case 22:
         title_global<uint32_t>(0x0097253c) = arg(1);
@@ -4444,7 +4445,7 @@ int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint3
         return 0;
     default: {
         const uint32_t args[2] = {0x00838dbc, static_cast<uint32_t>(command)};
-        call(0x00277630, 2, args);  // CG_Error
+        call(own_address(&CG_Error), 2, args);  // CG_Error
         return -1;
     }
     }
@@ -4761,12 +4762,12 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     title_global<uint32_t>(0x00972538) = arg(2);
     regs.ecx = arg(2);
     regs.edx = arg(1);
-    call(0x00279500);  // CG_UpdateCvars
+    call(own_address(&CG_UpdateCvars));  // CG_UpdateCvars
     call(title_global<uint32_t>(0x00928514));
-    call(0x0028b220);  // CG_ProcessSnapshots
+    call(own_address(&CG_ProcessSnapshots_entry));  // CG_ProcessSnapshots
     if (title_global<uint32_t>(0x0094a974)) return;
     ++title_global<int32_t>(0x00971a80);
-    call(0x0028acc0);  // CG_PredictPlayerState
+    call(own_address(&CG_PredictPlayerState_entry));  // CG_PredictPlayerState
     const uint8_t* const snap = title_global<const uint8_t*>(0x00971aa8);
     const int32_t preset = *reinterpret_cast<const int32_t*>(snap + 0x504);
     uint32_t params, start, duration;
@@ -4789,9 +4790,9 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     const uint32_t shock_args[1] = {params};
     title_call_at_regs(top, own_address(&CG_UpdateShellShock_entry), &regs, 1, shock_args);  // CG_UpdateShellShock
     title_global<uint32_t>(0x00972548) = title_global<uint32_t>(0x00948394);
-    call(0x002880a0);  // CG_CalcViewValues
+    call(own_address(&CG_CalcViewValues));  // CG_CalcViewValues
     if (!title_global<uint32_t>(0x00971a8c)) {
-        call(0x0027fc40);  // CG_ShakeCamera
+        call(own_address(&CG_ShakeCamera));  // CG_ShakeCamera
         regs.esi = 0x00972bd8;
         regs.edi = top + 0x14;
         const uint32_t axis_args[2] = {0x00972bf0, 0x00972bc0};
@@ -4801,9 +4802,9 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
         title_global<float>(0x00972bcc) = 0.0f - at(0x14);
         title_global<float>(0x00972bd0) = r1;
         title_global<float>(0x00972bd4) = r2;
-        call(0x00278fa0);  // CG_TiltViewAxis
+        call(own_address(&CG_TiltViewAxis));  // CG_TiltViewAxis
     }
-    call(0x0027afd0);  // CG_DrawSkyBoxPortal
+    call(own_address(&CG_DrawSkyBoxPortal));  // CG_DrawSkyBoxPortal
     if (title_global<uint32_t>(0x008da6d4)) {
         const uint32_t ps[1] = {0x00972550};
         title_call_at_regs(top, own_address(&CG_AddViewWeapon_entry), &regs, 1, ps);  // CG_AddViewWeapon
@@ -4816,7 +4817,7 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     for (uint32_t k = 0; k < 5; ++k) title_global<uint32_t>(0x00961784 + k * 4) = title_global<uint32_t>(0x00972fa0 + k * 4);
     title_global<uint32_t>(0x00961768) = title_global<uint32_t>(0x00947fa4);
     title_global<uint32_t>(0x0096176c) = 0;
-    call(0x00286bc0);  // CG_DrawActive
+    call(own_address(&CG_DrawActive_entry));  // CG_DrawActive
     // Three 4-lane temporaries (w = x) through +0x30: origin to +0x20, forward to +0x40, up to +0x50.
     auto lanes = [&](uint32_t x, uint32_t y, uint32_t z, uint32_t dst) {
         word(0x3c) = x;
@@ -4909,22 +4910,22 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
     }
     if (title_global<uint32_t>(0x0094b66c)) {
         const uint32_t one[1] = {1};
-        call(0x00287d60, 1, one);  // CG_InterpolatePlayerState
+        call(own_address(&CG_InterpolatePlayerState), 1, one);  // CG_InterpolatePlayerState
         return;
     }
     const int32_t state = title_global<int32_t>(0x00972574);
-    title_global<uint32_t>(0x00974800) = 0x00286c60;  // CG_Trace
-    title_global<uint32_t>(0x00974804) = 0x00286c60;
-    title_global<uint32_t>(0x00974808) = 0x00286c60;
+    title_global<uint32_t>(0x00974800) = own_address(&CG_Trace_entry);  // CG_Trace
+    title_global<uint32_t>(0x00974804) = own_address(&CG_Trace_entry);
+    title_global<uint32_t>(0x00974808) = own_address(&CG_Trace_entry);
     const int32_t current = title_global<int32_t>(0x009622ac);
     title_global<uint32_t>(0x009746d0) = 0x00972550;
-    title_global<uint32_t>(0x0097480c) = 0x00281fa0;  // CG_PointContents
+    title_global<uint32_t>(0x0097480c) = own_address(&CG_PointContents);  // CG_PointContents
     word(0x1c) = static_cast<uint32_t>(current);
     title_global<uint32_t>(0x0097472c) = ((static_cast<uint32_t>(state < 4) - 1u) & 0xfdff4000u) + 0x0381c011u;
     regs.ebx = static_cast<uint32_t>(current);
     regs.eax = static_cast<uint32_t>(current);
     regs.edx = top + 0x94;
-    if (!call(0x002ac630, 0, nullptr)) return;  // CL_GetUserCmd (the latest command)
+    if (!call(own_address(&CL_GetUserCmd_entry), 0, nullptr)) return;  // CL_GetUserCmd (the latest command)
     word(0x30) = title_global<uint32_t>(0x00972570);
     const uint32_t old_flags = title_global<uint32_t>(0x00972610);
     for (uint32_t k = 0; k < 0xf; ++k) word(0x58 + k * 4) = title_global<uint32_t>(0x00972614 + k * 4);
@@ -4941,20 +4942,20 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
     const int32_t view_state = title_global<int32_t>(0x00972574);
     if (view_state == 1 || view_state == 5) {
         const uint32_t zero[1] = {0};
-        call(0x00287d60, 1, zero);  // CG_InterpolatePlayerState
+        call(own_address(&CG_InterpolatePlayerState), 1, zero);  // CG_InterpolatePlayerState
     }
     weapon_def();
     const int32_t msec = title_global<int32_t>(0x00948ae4);
     if (msec < 8) {
         const uint32_t args[3] = {title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(0x00948ad8) * 0x2c), 0x00839454, 1};
-        call(0x0029c030, 3, args);  // Cvar_Set2(pmove_msec, "8")
+        call(own_address(&Cvar_Set2), 3, args);  // Cvar_Set2(pmove_msec, "8")
         regs.ebx = 0x00948ad8;
-        call(0x00296ec0, 0, nullptr);  // Cvar_Update
+        call(own_address(&Cvar_Update_entry), 0, nullptr);  // Cvar_Update
         regs.ebx = static_cast<uint32_t>(current);
     } else if (msec > 0x21) {
         regs.eax = 0x00838ca4;  // "33"
         const uint32_t vm[1] = {0x00948ad8};
-        call(0x0029fe40, 1, vm);  // Cvar_SetByVmIndex
+        call(own_address(&Cvar_SetByVmIndex), 1, vm);  // Cvar_SetByVmIndex
     }
     title_global<uint32_t>(0x009747f8) = title_global<uint32_t>(0x0094be4c);
     title_global<uint32_t>(0x009747fc) = title_global<uint32_t>(0x00948ae4);
@@ -4972,21 +4973,21 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
             for (uint32_t k = 0; k < 0xb; ++k) title_global<uint32_t>(0x009746d4 + k * 4) = title_global<uint32_t>(from + k * 4);
             regs.esi = from + 0x2c;
             regs.edi = 0x00974700;
-            const uint32_t pm_args[3] = {0x009746d4, 0x00974700, 0x00286c60};
+            const uint32_t pm_args[3] = {0x009746d4, 0x00974700, own_address(&CG_Trace_entry)};
             if (title_global<uint32_t>(0x009747f8)) {
                 regs.eax = title_global<uint32_t>(0x009746d0);
-                call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles
+                call(own_address(&PM_UpdateViewAngles), 3, pm_args);  // PM_UpdateViewAngles
             }
             const int32_t time = title_global<int32_t>(0x009746d4);
             if (time > title_global<int32_t>(0x00972570) && time <= static_cast<int32_t>(word(0x94))) {
                 regs.eax = static_cast<uint32_t>(number - 1);
                 regs.edx = 0x00974700;
-                if (call(0x002ac630, 0, nullptr)) {  // CL_GetUserCmd (the command before)
+                if (call(own_address(&CL_GetUserCmd_entry), 0, nullptr)) {  // CL_GetUserCmd (the command before)
                     if (title_global<uint32_t>(0x00972570) == word(0x30)) {
                         regs.esi = top + 0x40;
                         const uint32_t mover[5] = {0x00972550, title_global<uint32_t>(0x009725b0), title_global<uint32_t>(0x00972544),
                                                    title_global<uint32_t>(0x00972540), top + 0x34};
-                        call(0x0027fac0, 5, mover);  // CG_AdjustPositionForMover
+                        call(own_address(&CG_AdjustPositionForMover_entry), 5, mover);  // CG_AdjustPositionForMover
                         using ext = long double;
                         at(0x10) = static_cast<float>(platform_x87_ld(at(0x20)) - platform_x87_ld(at(0x40)));
                         const int32_t yaw = static_cast<int32_t>(at(0x38) * g(0x0083ebd8)) & 0xffff;
@@ -5034,7 +5035,7 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                         if (command_time - ps_time > 1) title_global<int32_t>(0x009746d4) = ps_time + 1;
                     }
                     regs.eax = title_global<uint32_t>(0x009746d0);
-                    call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles again, the previous command as old (no Pmove on the client)
+                    call(own_address(&PM_UpdateViewAngles), 3, pm_args);  // PM_UpdateViewAngles again, the previous command as old (no Pmove on the client)
                     word(0xc) = 1;
                 }
             }
@@ -5046,21 +5047,21 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
     regs.esi = 0x00972550;
     const uint32_t mover[5] = {0x00972550, title_global<uint32_t>(0x009725b0), title_global<uint32_t>(0x00972544),
                                title_global<uint32_t>(0x0097253c), top + 0x34};
-    call(0x0027fac0, 5, mover);  // CG_AdjustPositionForMover
+    call(own_address(&CG_AdjustPositionForMover_entry), 5, mover);  // CG_AdjustPositionForMover
     const uint32_t flags = title_global<uint32_t>(0x00972610);
     regs.esi = flags;
     if (title_global<uint32_t>(0x0097263c) != word(0x80) && title_global<uint32_t>(0x00972648)) {
         regs.eax = title_global<uint32_t>(0x00972640);
         regs.ecx = title_global<uint32_t>(0x00972644);
         const uint32_t damage[1] = {title_global<uint32_t>(0x00972648)};
-        call(0x0027eb80, 1, damage);  // CG_DamageFeedback
+        call(own_address(&CG_DamageFeedback), 1, damage);  // CG_DamageFeedback
     }
-    call(0x002793f0, 0, nullptr);  // CG_CheckAmmo
+    call(own_address(&CG_CheckAmmo), 0, nullptr);  // CG_CheckAmmo
     regs.eax = flags;
     regs.edx = word(0x2c);
     regs.ecx = top + 0x58;
     regs.edi = 0x00972614;
-    call(0x0028a440, 0, nullptr);  // CG_CheckPlayerstateEvents
+    call(own_address(&CG_CheckPlayerstateEvents_entry), 0, nullptr);  // CG_CheckPlayerstateEvents
     weapon_def();
 }
 

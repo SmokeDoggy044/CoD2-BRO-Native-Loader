@@ -11,6 +11,12 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_ai_anim_threads.h"
+#include "bro_scr_ai_weapons.h"
+#include "bro_scr_arrays.h"
+#include "bro_scr_entity_threads.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -86,12 +92,12 @@ void XB_CDECL BroScr_Exploder(uint32_t, int32_t number) {
         const uint32_t* const found = ScriptKeyTable_Find(table, 0xf3b8dce5);
         if ((found ? *found : undefined_int()) == undefined_int()) continue;
         if (*int_slot(*element(&ents, i), 0xf3b8dce5) != static_cast<uint32_t>(number)) continue;
-        if (defined(ScrField_h0aedcb08_IsDefined, *element(&ents, i))) level_thread(&ents, i, 0x0019c2c0);  // BroScr_ExploderSoundFx_2
-        if (defined(ScrField_script_fxid_IsDefined, *element(&ents, i))) level_thread(&ents, i, 0x0019bf80);  // BroScr_ExploderSoundFx
+        if (defined(ScrField_h0aedcb08_IsDefined, *element(&ents, i))) level_thread(&ents, i, own_address(&BroScr_ExploderSoundFx_2));  // BroScr_ExploderSoundFx_2
+        if (defined(ScrField_script_fxid_IsDefined, *element(&ents, i))) level_thread(&ents, i, own_address(&BroScr_ExploderSoundFx));  // BroScr_ExploderSoundFx
         if (defined(ScrField_script_damage_IsDefined, *element(&ents, i)))
-            ent_thread(*element(&ents, i), 0x0019bd80);  // BroScr_InitScriptRadius
+            ent_thread(*element(&ents, i), own_address(&BroScr_InitScriptRadius));  // BroScr_InitScriptRadius
         if (defined(ScrField_script_sound_IsDefined, *element(&ents, i)))
-            ent_thread(*element(&ents, i), 0x0019bec0);  // BroScr_ExploderPlaySound
+            ent_thread(*element(&ents, i), own_address(&BroScr_ExploderPlaySound));  // BroScr_ExploderPlaySound
         ScriptString name;
         bool named = ScrCall_ScrEnt_GetTargetname(element(&ents, i), &name)->rep != nullptr;
         ScriptString_Release(&name);
@@ -101,7 +107,7 @@ void XB_CDECL BroScr_Exploder(uint32_t, int32_t number) {
                 ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(element(&ents, i), &first), pointer<const char>(0x008246fc));
             ScriptString_Release(&first);
             if (exploder) {
-                ent_thread(*element(&ents, i), 0x0019c6c0);  // BroScr_NotSolidAfterDelay
+                ent_thread(*element(&ents, i), own_address(&BroScr_NotSolidAfterDelay));  // BroScr_NotSolidAfterDelay
                 continue;
             }
             ScriptString second;
@@ -117,14 +123,14 @@ void XB_CDECL BroScr_Exploder(uint32_t, int32_t number) {
             if (made_third) ScriptString_Release(&third);
             ScriptString_Release(&second);
             if (chunk) {
-                start_thread_functor1(0x0019c800, *element(&ents, i));  // BroScr_NotSolidThrow
+                start_thread_functor1(own_address(&BroScr_NotSolidThrow), *element(&ents, i));  // BroScr_NotSolidThrow
                 continue;
             }
             if (defined(ScrField_script_fxid_IsDefined, *element(&ents, i))) continue;
-            start_thread_functor1(0x0019c660, *element(&ents, i));  // BroScr_ScriptDelayConnectPaths
+            start_thread_functor1(own_address(&BroScr_ScriptDelayConnectPaths), *element(&ents, i));  // BroScr_ScriptDelayConnectPaths
         } else {
             if (defined(ScrField_script_fxid_IsDefined, *element(&ents, i))) continue;
-            ent_thread(*element(&ents, i), 0x0019c660);  // BroScr_ScriptDelayConnectPaths
+            ent_thread(*element(&ents, i), own_address(&BroScr_ScriptDelayConnectPaths));  // BroScr_ScriptDelayConnectPaths
         }
     }
     if (ents.data) Scr_Free(ents.data);
@@ -165,13 +171,13 @@ void XB_CDECL BroScr_BuildTargetChain(uint32_t owner, uint32_t start) {
 void XB_CDECL BroScr_SetTargetnamesFromOrigins(DynArray ents) {
     if (ents.capacity != 0 && ents.size != 0) {
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i)
-            ent_thread(*element(&ents, i), 0x001a5830);  // BroScr_SetTargetnameFromOrigin
+            ent_thread(*element(&ents, i), own_address(&BroScr_SetTargetnameFromOrigin));  // BroScr_SetTargetnameFromOrigin
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i) {
             const uint32_t ent = *element(&ents, i);
             uint32_t* const functor = slot<Alloc>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4a28;
-                functor[1] = 0x00199bc0;  // BroScr_TriggeredSpawnerThink
+                functor[1] = own_address(&BroScr_TriggeredSpawnerThink);  // BroScr_TriggeredSpawnerThink
                 functor[2] = ent;
                 functor[3] = title_global<uint32_t>(0x00922e84);
             }
@@ -195,7 +201,7 @@ void XB_CDECL BroScr_SetFriendlyWaveTrigger(uint32_t, uint32_t trigger) {
     if (level_object[0x1cc]) return;
     level_object[0x1cc] = 1;
     const uint32_t self = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00922ef8) + 4);
-    start_thread_functor1(0x001a6b10, self);  // BroScr_FriendlyWaveSpawn
+    start_thread_functor1(own_address(&BroScr_FriendlyWaveSpawn), self);  // BroScr_FriendlyWaveSpawn
 }
 
 void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32_t node, ScriptString name) {
@@ -224,7 +230,7 @@ void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32
         if (*int_at(reinterpret_cast<DynArray*>(level_object + 0xe4), index) != 0) {
             using Start = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                         const uint32_t*);
-            title_function<Start>(0x00660450)(0, 0, 0, 0, 0x0019a5c0, ent, &index, &node);  // BroScr_FallbackGoalThink
+            title_function<Start>(0x00660450)(0, 0, 0, 0, own_address(&BroScr_FallbackGoalThink), ent, &index, &node);  // BroScr_FallbackGoalThink
         }
     }
     level_object = title_global<uint8_t*>(0x00922ef8);
@@ -233,7 +239,7 @@ void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32
     uint32_t* const functor = slot<Alloc>(0x00922928)(0x14);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4af4;
-        functor[1] = 0x001a6a40;  // BroScr_NotifyFallbackerDied
+        functor[1] = own_address(&BroScr_NotifyFallbackerDied);  // BroScr_NotifyFallbackerDied
         functor[2] = self;
         functor[3] = ent;
         functor[4] = index;
@@ -410,7 +416,7 @@ void XB_CDECL BroScr_InitMg42CoverSpots() {
     Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&name)), 0x0d786b4c, reinterpret_cast<uint8_t*>(&turrets), 0);
     ScriptString_Release(&name);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(turrets.size); ++i)
-        ent_thread(*element(&turrets, i), 0x001e2010);  // BroScr_Mg42CoverSpotThink
+        ent_thread(*element(&turrets, i), own_address(&BroScr_Mg42CoverSpotThink));  // BroScr_Mg42CoverSpotThink
     DynArray spots = {nullptr, 0, 0};
     // A BroScr_TrackTriggerTouch thread (functor 0x007f4a40 {vtable, function, ent, kind}) per spot.
     auto track_all = [&](uint32_t targetname, uint32_t kind) {
@@ -425,7 +431,7 @@ void XB_CDECL BroScr_InitMg42CoverSpots() {
             uint32_t* const functor = slot<Alloc>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4a40;
-                functor[1] = 0x00181700;  // BroScr_TrackTriggerTouch
+                functor[1] = own_address(&BroScr_TrackTriggerTouch);  // BroScr_TrackTriggerTouch
                 functor[2] = spot;
                 ScriptString_Copy(reinterpret_cast<ScriptString*>(functor + 3), kind_string);
             }

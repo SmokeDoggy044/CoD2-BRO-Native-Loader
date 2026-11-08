@@ -13,6 +13,11 @@
 #include "levels_twins.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_death_watch.h"
+#include "bro_scr_level_threads.h"
+#include "bro_scr_vehicle_path.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -80,7 +85,7 @@ void set_health_by_difficulty(uint32_t ent, const uint32_t (&health)[6]) {
         const uint32_t value = ScriptString_Equals(&difficulty, pointer<const char>(0x008007a0)) ? health[4] : health[5];  // "gimp"
         ScrCall_ScrEnt_SetHealth(&ent, &value);
     }
-    create_thread(ent, thread_functor(0x0014d0a0, ent));  // BroScr_VehicleHealthThink
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleHealthThink), ent));  // BroScr_VehicleHealthThink
     ScriptString_Release(&difficulty);
 }
 
@@ -90,7 +95,7 @@ constexpr uint32_t kVehicleHealth5[6] = {0x4a38, 0x4268, 0x32c8, 0x2af8, 0x55f0,
 uint32_t random_health_init(uint32_t ent) {
     const int32_t health = slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
     set_health(ent, static_cast<uint32_t>(health));
-    return start_thread(0x0014d0a0, ent);  // BroScr_VehicleHealthThink
+    return start_thread(own_address(&BroScr_VehicleHealthThink), ent);  // BroScr_VehicleHealthThink
 }
 
 uint32_t default_health_think(uint32_t ent) {
@@ -98,7 +103,7 @@ uint32_t default_health_think(uint32_t ent) {
         const int32_t health = slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(1000) + 500;
         set_health(ent, static_cast<uint32_t>(health));
     }
-    return start_thread(0x0014d0a0, ent);
+    return start_thread(own_address(&BroScr_VehicleHealthThink), ent);
 }
 
 uint32_t wing_turret(uint32_t ent, uint32_t watch) {
@@ -131,25 +136,25 @@ uint32_t XB_CDECL BroScr_TankInitHealth(uint32_t ent) { return default_health_th
 
 uint32_t XB_CDECL BroScr_VehicleHealth2500Init(uint32_t ent) {
     set_health(ent, 2500);
-    return start_thread(0x0014d0a0, ent);
+    return start_thread(own_address(&BroScr_VehicleHealthThink), ent);
 }
 
-uint32_t XB_CDECL BroScr_InitWingTurret(uint32_t ent) { return wing_turret(ent, 0x0013a830); }
-uint32_t XB_CDECL BroScr_InitWingTurret_2(uint32_t ent) { return wing_turret(ent, 0x0013aaa0); }
+uint32_t XB_CDECL BroScr_InitWingTurret(uint32_t ent) { return wing_turret(ent, own_address(&BroScr_WingTurretDamageWatch)); }
+uint32_t XB_CDECL BroScr_InitWingTurret_2(uint32_t ent) { return wing_turret(ent, own_address(&BroScr_WingTurretDamageWatch_2)); }
 
 uint32_t XB_CDECL BroScr_InitWingTurret_3(uint32_t ent, uint32_t health) {
     if (health != title_global<uint32_t>(0x00922ec0)) {
         set_health(ent, health);
         return 0;
     }
-    return wing_turret(ent, 0x0013eb00);
+    return wing_turret(ent, own_address(&BroScr_WingTurretDamageWatch_3));
 }
 
-uint32_t XB_CDECL BroScr_StartVehicleTurretFireLoop_8(uint32_t ent) { return start_thread(0x00128f90, ent); }
+uint32_t XB_CDECL BroScr_StartVehicleTurretFireLoop_8(uint32_t ent) { return start_thread(own_address(&BroScr_VehicleTurretFireLoop_8), ent); }
 
 uint32_t XB_CDECL BroScr_StartPathPosThreads(uint32_t ent) {
-    start_thread(0x0014a910, ent);
-    return start_thread(0x0014a9c0, ent);
+    start_thread(own_address(&BroScr_PathPosDebugStub), ent);
+    return start_thread(own_address(&BroScr_CurrentPathPosDebugStub), ent);
 }
 
 void XB_CDECL BroScr_VehicleSetHealth_Jeep(uint32_t ent) {
@@ -158,8 +163,8 @@ void XB_CDECL BroScr_VehicleSetHealth_Jeep(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
     ScriptString_Release(&tree);
     BroScr_SetHealthByDifficulty(ent);
-    create_thread(ent, thread_functor(0x0013f570, ent));  // BroScr_VehicleDeath_Jeep
-    create_thread(ent, thread_functor(0x00128f90, ent));  // BroScr_VehicleTurretFireLoop_8
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleDeath_Jeep), ent));  // BroScr_VehicleDeath_Jeep
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleTurretFireLoop_8), ent));  // BroScr_VehicleTurretFireLoop_8
 }
 
 uint32_t* XB_CDECL BroScr_SpawnVehicleFromEnt(uint32_t* out, uint32_t ent, ScriptString name, uint32_t extra) {
@@ -258,13 +263,13 @@ void willy_jeep_setup(uint32_t ent, bool health_thread) {
     use_anim_tree(ent, 0x007f4948);
     const int32_t health = slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
     set_health(ent, static_cast<uint32_t>(health));
-    if (health_thread) create_thread(ent, thread_functor(0x0014d0a0, ent));  // BroScr_VehicleHealthThink
-    create_thread(ent, thread_functor(0x0013f6f0, ent));                     // BroScr_VehicleInit_Jeep
-    create_thread(ent, thread_functor(0x00128f30, ent));                     // BroScr_VehicleTurretFireLoop_7
+    if (health_thread) create_thread(ent, thread_functor(own_address(&BroScr_VehicleHealthThink), ent));  // BroScr_VehicleHealthThink
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleInit_Jeep), ent));                     // BroScr_VehicleInit_Jeep
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleTurretFireLoop_7), ent));                     // BroScr_VehicleTurretFireLoop_7
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a1c;
-        functor[1] = 0x00134a90;  // BroScr_TankStunOnDamage
+        functor[1] = own_address(&BroScr_TankStunOnDamage);  // BroScr_TankStunOnDamage
         functor[2] = ent;
         functor[3] = 1;
     }
@@ -293,7 +298,7 @@ void XB_CDECL BroScr_RocketExplosionThread(uint32_t ent, uint32_t a2, uint32_t a
                                            ScriptString a7) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                     const uint32_t*, const uint32_t*, const uint32_t*, const uint32_t*, const ScriptString*);
-    title_function<Start>(0x0052cc30)(0, 0, 0, 0, 0x0013d650, ent, &a2, &a3, &a4, &a5, &a6, &a7);  // Scr_StartThread_ent_i_i_i_i_i_str
+    title_function<Start>(0x0052cc30)(0, 0, 0, 0, own_address(&BroScr_RocketExplosion), ent, &a2, &a3, &a4, &a5, &a6, &a7);  // Scr_StartThread_ent_i_i_i_i_i_str
     ScriptString_Release(&a7);
 }
 
@@ -380,7 +385,7 @@ void XB_CDECL BroScr_SpawnWheelOrigins_2(uint32_t ent) {
         uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;
-            functor[1] = 0x00123250;
+            functor[1] = own_address(&BroScr_TrackWheelOrigin);
             functor[2] = ent;
             functor[3] = origin;
         }
@@ -445,7 +450,7 @@ void XB_CDECL BroScr_TankAttachMgTurret(uint32_t ent, ScriptString weapon, Scrip
     const ScrVec3 angles = {{a[0], a[1], a[2]}};
     slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922ba4)(*turret_slot(ent), angles);  // ScrEnt_SetAngles
     const uint32_t turret = *turret_slot(ent);
-    create_thread(turret, thread_functor(0x001992e0, turret));  // BroScr_MgBurstFire
+    create_thread(turret, thread_functor(own_address(&BroScr_MgBurstFire), turret));  // BroScr_MgBurstFire
     slot<void XB_CDECL(uint32_t)>(0x009225a0)(*turret_slot(ent));  // GScr_Turret_MakeUnusable
     BroScr_TurretSetAlliesTeam(ent);
     ScriptString_Release(&weapon);
@@ -456,13 +461,13 @@ void XB_CDECL BroScr_PlaneSpawnWingTurrets(uint32_t ent, uint32_t bombs, uint32_
     const uint32_t undefined = title_global<uint32_t>(0x00922ec0);
     if (health == undefined) {
         set_health(ent, 300);
-        create_thread(ent, thread_functor(0x0013eb00, ent));  // BroScr_WingTurretDamageWatch_3
+        create_thread(ent, thread_functor(own_address(&BroScr_WingTurretDamageWatch_3), ent));  // BroScr_WingTurretDamageWatch_3
     } else {
         set_health(ent, health);
     }
-    create_thread(ent, thread_functor(0x0014ca20, ent));  // BroScr_VehicleDeath_Stuka
+    create_thread(ent, thread_functor(own_address(&BroScr_VehicleDeath_Stuka), ent));  // BroScr_VehicleDeath_Stuka
     if (follow_path) {
-        uint32_t* const functor = thread_functor(0x0014cbf0, ent);  // BroScr_VehicleFollowPath
+        uint32_t* const functor = thread_functor(own_address(&BroScr_VehicleFollowPath), ent);  // BroScr_VehicleFollowPath
         using BeginThreadEndOn = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
         slot<BeginThreadEndOn>(0x00922170)(0, 0, 0, ent, ent, 0x485de552, functor);  // Scr_BeginThreadEndOn
     }
@@ -476,7 +481,7 @@ void XB_CDECL BroScr_PlaneSpawnWingTurrets(uint32_t ent, uint32_t bombs, uint32_
         uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a1c;
-            functor[1] = 0x001522e0;  // BroScr_StukaDropBombsThread
+            functor[1] = own_address(&BroScr_StukaDropBombsThread);  // BroScr_StukaDropBombsThread
             functor[2] = ent;
             functor[3] = bombs;
         }
@@ -789,7 +794,7 @@ void XB_CDECL BroScr_VehicleHealthThink(uint32_t ent) {
     uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a28;
-        functor[1] = 0x0014ce80;  // BroScr_DeleteArraysOnVehicleRemoved
+        functor[1] = own_address(&BroScr_DeleteArraysOnVehicleRemoved);  // BroScr_DeleteArraysOnVehicleRemoved
         functor[2] = level_ent;
         functor[3] = ent;
     }

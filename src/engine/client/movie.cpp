@@ -205,7 +205,7 @@ void XB_THISCALL Movie_QueueReads(Movie* movie) {
         request[0] = static_cast<uint32_t>(movie->file);
         const uint32_t position = movie->read_pos;
         request[1] = 0;
-        request[2] = 0x000cf820;  // completion: Movie_OnReadComplete
+        request[2] = own_address(&Movie_ReadCallback);  // completion: Movie_OnReadComplete
         request[3] = 0;
         request[4] = 2;
         request[5] = movie->data_offset + position;

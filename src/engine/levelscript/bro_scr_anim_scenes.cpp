@@ -18,6 +18,9 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "bro_scr_entity_threads.h"
+#include "bro_scr_wait_misc.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -145,7 +148,7 @@ inline void sherman_tank_anim(uint32_t* tank, uint32_t id, ScriptString* anime) 
             const uint32_t* const idle_key = Scr_HashScriptString(&idle_hash, reinterpret_cast<const uint8_t* const*>(idle_name));
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*,
                                             const uint32_t*, ScriptString*, const uint32_t*, uint32_t*, uint32_t*);
-            title_function<Start>(0x0078ab20)(0, 0, 0, 0, 0x00179650, guy, &guy, idle_key, anim, stop_hash,
+            title_function<Start>(0x0078ab20)(0, 0, 0, 0, own_address(&BroScr_AnimLoopAtNodeArrayCall), guy, &guy, idle_key, anim, stop_hash,
                                               pointer<uint32_t>(0x00922ea0), tank);  // (BroScr_AnimLoopAtNodeArrayCall)
             scr_release(&idle);
             break;
@@ -414,13 +417,13 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
                 scr_release(&animname);
             }
             const uint32_t notify = 0xce00786e;
-            title_function<StartThread>(0x0017ada0)(0, 0, 0, 0, 0x001757f0, ent, element_at(guys, i - 1), &notify, &tag_ent,
+            title_function<StartThread>(0x0017ada0)(0, 0, 0, 0, own_address(&BroScr_AnimNotetrackCommands), ent, element_at(guys, i - 1), &notify, &tag_ent,
                                                     &anime);  // Scr_StartThread_ent_ent_hash_ent_hash(BroScr_AnimNotetrackCommands)
             const uint32_t guy = *element_at(guys, i - 1);
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4b00;
-                functor[1] = 0x0011fb90;  // BroScr_AnimNoteTracksThread
+                functor[1] = own_address(&BroScr_AnimNoteTracksThread);  // BroScr_AnimNoteTracksThread
                 functor[2] = guy;
                 functor[3] = 0xce00786e;
             }
@@ -456,12 +459,12 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
     if (last_anim != -1) {
         waiter = spawn_scene_origin();
         notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // Scr_NotifyAfterDeath
-        notify_thread(0x0011fb40, waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // BroScr_NotifyAfterSingleAnim
+        notify_thread(own_address(&BroScr_NotifyAfterSingleAnim), waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // BroScr_NotifyAfterSingleAnim
         Scr_WaitTill(waiter, anime);
     } else if (last_face != -1) {
         waiter = spawn_scene_origin();
         notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_face)), anime);  // Scr_NotifyAfterDeath
-        notify_thread(0x0011fb00, waiter, element_at(guys, static_cast<uint32_t>(last_face)),
+        notify_thread(own_address(&BroScr_NotifyAfterWaitTill_56caf2eb), waiter, element_at(guys, static_cast<uint32_t>(last_face)),
                       anime);  // BroScr_NotifyAfterWaitTill_56caf2eb
         Scr_WaitTill(waiter, anime);
     }
@@ -478,10 +481,10 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
         bool defined;
         if (!*ScrField_loops_IsDefined(&defined, *element_at(guys, 0))) *int_slot(*element_at(guys, 0), 0x06f63273) = 0;
     }
-    notify_thread_on(0x0012f3b0, *element_at(guys, 0), anime);  // BroScr_LimitSameAnimation
+    notify_thread_on(own_address(&BroScr_LimitSameAnimation), *element_at(guys, 0), anime);  // BroScr_LimitSameAnimation
     if (ender != undefined_handle()) {
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(*ref, ender);  // Scr_EndOn
-        notify_thread(0x0012f460, *ref, element_at(guys, 0), ender);     // BroScr_DecrementCounterOnNotify
+        notify_thread(own_address(&BroScr_DecrementCounterOnNotify), *ref, element_at(guys, 0), ender);     // BroScr_DecrementCounterOnNotify
     }
     const bool has_tag = tag.rep != nullptr;
     const bool on_tag_ent = has_tag && entity_handle_is_valid(tag_ent);
@@ -611,7 +614,7 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
                     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x1c);  // ScrIface_Alloc
                     if (functor) {
                         functor[0] = 0x00824428;
-                        functor[1] = 0x001757f0;  // BroScr_AnimNotetrackCommands
+                        functor[1] = own_address(&BroScr_AnimNotetrackCommands);  // BroScr_AnimNotetrackCommands
                         functor[2] = owner;
                         functor[3] = *guy;
                         functor[4] = 0x7c70a61e;
@@ -621,7 +624,7 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
                     slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(
                         0, 0, 0, owner, functor, 0);  // Scr_CreateThread
                 }
-                notify_thread_on(0x0011fb90, *element_at(guys, i - 1), 0x7c70a61e);  // BroScr_AnimNoteTracksThread
+                notify_thread_on(own_address(&BroScr_AnimNoteTracksThread), *element_at(guys, i - 1), 0x7c70a61e);  // BroScr_AnimNoteTracksThread
             }
             if (has_face || has_sound) {
                 const uint32_t last = title_global<uint32_t>(0x00922ea4);
@@ -735,7 +738,7 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
                         uint32_t hash;
                         ScriptString* const alias = note_field(
                             entry_at(Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)), &anime, j), &key);
-                        own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0019ca70, guy, alias,
+                        own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_PlaySoundOnTag), guy, alias,
                                                                 &none);  // Scr_StartThread_ent_str_str(BroScr_PlaySoundOnTag)
                         scr_release(&animname);
                         scr_release(&none);

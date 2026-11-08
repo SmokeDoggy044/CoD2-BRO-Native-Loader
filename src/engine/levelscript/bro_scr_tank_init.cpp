@@ -7,6 +7,9 @@
 #include "bro_scr_vehicle.h"
 #include "levels_twins.h"
 #include "script_string.h"
+#include "bro_scr_level_threads.h"
+#include "bro_scr_vehicle_health.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -30,7 +33,7 @@ void start_stun_thread(uint32_t vehicle) {
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0x10));
     if (functor) {
         functor[0] = 0x007f4a1c;
-        functor[1] = 0x00134a90;  // BroScr_TankStunOnDamage
+        functor[1] = own_address(&BroScr_TankStunOnDamage);  // BroScr_TankStunOnDamage
         functor[2] = vehicle;
         functor[3] = 1;
     }
@@ -55,7 +58,7 @@ void use_anim_tree(uint32_t vehicle, uint32_t tree) {
 void random_health(uint32_t vehicle) {
     const uint32_t health = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(vehicle, health);         // ScrEnt_SetHealth
-    start_thread(vehicle, 0x0014d0a0);  // BroScr_VehicleHealthThink
+    start_thread(vehicle, own_address(&BroScr_VehicleHealthThink));  // BroScr_VehicleHealthThink
 }
 
 struct Spec {
@@ -78,7 +81,7 @@ void init_start(uint32_t vehicle, const Spec& spec) {
     start_thread(vehicle, spec.init);
     start_thread(vehicle, spec.turret);
     start_stun_thread(vehicle);
-    if (spec.dead_stop) start_thread(vehicle, 0x00153210);  // BroScr_VehicleDeadStop
+    if (spec.dead_stop) start_thread(vehicle, own_address(&BroScr_VehicleDeadStop));  // BroScr_VehicleDeadStop
 }
 
 // The shared tail; `slot` is the vehicle's argument slot (the original keeps the key there).
@@ -94,7 +97,7 @@ void init_finish(uint32_t vehicle, uint32_t* slot, uint32_t smoke) {
             own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Copy)(&fx, 0x00922e90);  // ScriptString_Copy(empty)
         own_function<void XB_CDECL(uint32_t, ScriptString)>(&BroScr_SetWheelSmokeFx)(vehicle, fx);  // BroScr_SetWheelSmokeFx
     }
-    start_thread(vehicle, 0x001655f0);  // BroScr_SpawnWheelOrigins
+    start_thread(vehicle, own_address(&BroScr_SpawnWheelOrigins));  // BroScr_SpawnWheelOrigins
 }
 
 // Scr_StartThread_ent_str(0, 0, 0, 0, BroScr_TankHullGunnerAtGunhull, vehicle, weapon or
@@ -103,11 +106,11 @@ void gunner_at_gunhull(uint32_t vehicle, ScriptString* weapon, uint32_t fallback
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*);
     const auto start = own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry);
     if (weapon->rep) {
-        start(0, 0, 0, 0, 0x00157ae0, vehicle, weapon);
+        start(0, 0, 0, 0, own_address(&BroScr_TankHullGunnerAtGunhull), vehicle, weapon);
     } else {
         ScriptString name;
         scr_string_from(&name, fallback);
-        start(0, 0, 0, 0, 0x00157ae0, vehicle, &name);
+        start(0, 0, 0, 0, own_address(&BroScr_TankHullGunnerAtGunhull), vehicle, &name);
         scr_release(&name);
     }
 }
@@ -119,11 +122,11 @@ void gunner_think(uint32_t vehicle, ScriptString* weapon, ScriptString* tag) {
         uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
     const auto start = own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry);
     if (weapon->rep) {
-        start(0, 0, 0, 0, 0x00153420, vehicle, weapon, tag);
+        start(0, 0, 0, 0, own_address(&BroScr_TankHullGunnerThink), vehicle, weapon, tag);
     } else {
         ScriptString name;
         scr_string_from(&name, 0x00808b50);  // "mg30cal_sherman_tank"
-        start(0, 0, 0, 0, 0x00153420, vehicle, &name, tag);
+        start(0, 0, 0, 0, own_address(&BroScr_TankHullGunnerThink), vehicle, &name, tag);
         scr_release(&name);
     }
 }
@@ -170,8 +173,8 @@ void XB_CDECL BroScr_TankInit(uint32_t tank, ScriptString weapon) {
         *value = title_global<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x6ec);
     }
     random_health(vehicle);
-    start_thread(vehicle, 0x00143870);  // BroScr_VehicleInit_PanzerIV
-    start_thread(vehicle, 0x001283d0);  // BroScr_VehicleTurretFireLoop_4
+    start_thread(vehicle, own_address(&BroScr_VehicleInit_PanzerIV));  // BroScr_VehicleInit_PanzerIV
+    start_thread(vehicle, own_address(&BroScr_VehicleTurretFireLoop_4));  // BroScr_VehicleTurretFireLoop_4
     start_stun_thread(vehicle);
     gunner_at_gunhull(vehicle, &weapon, 0x00801670);  // "mg34_german_tank"
     init_finish(vehicle, &tank, kDay);
@@ -181,7 +184,7 @@ void XB_CDECL BroScr_TankInit(uint32_t tank, ScriptString weapon) {
 void XB_CDECL BroScr_TankInit_2(uint32_t tank, ScriptString weapon) {
     const uint32_t vehicle = tank;
     // TankDefaultHealthThink_2, VehicleInit_Sherman, VehicleTurretFireLoop_5
-    init_start(vehicle, {kAllies, kPanzerIV, 0x00152550, 0x00145080, 0x00128720, true});
+    init_start(vehicle, {kAllies, kPanzerIV, own_address(&BroScr_TankDefaultHealthThink_2), own_address(&BroScr_VehicleInit_Sherman), own_address(&BroScr_VehicleTurretFireLoop_5), true});
     gunner_at_gunhull(vehicle, &weapon, 0x00808b50);  // "mg30cal_sherman_tank"
     init_finish(vehicle, &tank, 0);
     scr_release(&weapon);
@@ -218,14 +221,14 @@ void XB_CDECL BroScr_TankInit_8(uint32_t tank) {
 void XB_CDECL BroScr_VehicleInit_JeepAllies(uint32_t vehicle) {
     const uint32_t ent = vehicle;
     // "willyjeep", VehicleInit_Jeep, VehicleTurretFireLoop_7
-    init_start(ent, {kAllies, 0x007f4948, 0, 0x0013f6f0, 0x00128f30, true});
+    init_start(ent, {kAllies, 0x007f4948, 0, own_address(&BroScr_VehicleInit_Jeep), own_address(&BroScr_VehicleTurretFireLoop_7), true});
     init_finish(ent, &vehicle, kDay);
 }
 
 void XB_CDECL BroScr_VehicleInit_HalftrackAllies(uint32_t vehicle) {
     const uint32_t ent = vehicle;
     // "halftrack", VehicleInit_Halftrack, VehicleTurretFireLoop_2
-    init_start(ent, {kAllies, 0x00803cc4, 0, 0x00142ee0, 0x00127e30, true});
+    init_start(ent, {kAllies, 0x00803cc4, 0, own_address(&BroScr_VehicleInit_Halftrack), own_address(&BroScr_VehicleTurretFireLoop_2), true});
     init_finish(ent, &vehicle, kDay);
 }
 

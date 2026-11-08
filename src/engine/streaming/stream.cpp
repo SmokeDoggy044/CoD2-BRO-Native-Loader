@@ -26,6 +26,7 @@
 #include "tr_main.h"
 #include "xanim.h"
 #include "g_spawn.h"
+#include "fe.h"
 
 namespace game {
 
@@ -2314,37 +2315,37 @@ uint32_t XB_CDECL Stream_ReleaseZoneResources(const uint8_t* record) {
 
 uint32_t XB_REGS1 XB_CDECL Stream_GetLoadHandler(const char* extension) {
     static const uint32_t kHandlers[][2] = {
-        {0x00000c07, 0x002d0d40},  // Cg
-        {0x00000ce2, 0x0028ee20},  // Db
-        {0x00000d42, 0x0028ee50},  // Ib
-        {0x00018665, 0x002911c0},  // Bpe
-        {0x000186f2, 0x0023a1b0},  // Btr
-        {0x000194e6, 0x0028fc60},  // Fdf
-        {0x000195e9, 0x0028e030},  // Fli
-        {0x00019c07, 0x002caba0},  // Dcg
-        {0x00019cf3, 0x00290e50},  // Dds
-        {0x00019de7, 0x00299250},  // Dlg
-        {0x0001a8ac, 0x00290e10},  // Ifl
-        {0x0001c00e, 0x002ee680},  // Scn
-        {0x0001c267, 0x002b7010},  // Spg
-        {0x0001c2e2, 0x0028ee00},  // Stb
-        {0x0001e422, 0x00291920},  // Zbb
-        {0x0001edc2, 0x00290730},  // Xmb
-        {0x00312ae2, 0x0028d120},  // Aitb
-        {0x00315e22, 0x002aeb70},  // Atrb
-        {0x0037cee8, 0x002906f0},  // Lpth
-        {0x003ccee8, 0x00290df0},  // Zpth
-        {0x003dba62, 0x00291300},  // Xmpb
-        {0x06172a73, 0x0028ee80},  // Bmips
-        {0x0673c1d0, 0x00290e30},  // Ddsmp
-        {0x06f24544, 0x0028d0e0},  // Lgrid
-        {0x07098805, 0x0028bea0},  // Space
-        {0x073134cc, 0x003393f0},  // FE_LoadPanel
-        {0xc05242f2, 0x00298570},  // Cfgstr
-        {0xf61019ec, 0x00290920},  // mesh file
-        {0xf611354d, 0x00290760},  // Xbanim
-        {0xf6171a08, 0x00290920},  // mesh file
-        {0xf61820cc, 0x002907f0},  // Xbskel
+        {0x00000c07, own_address(&Stream_LoadCg)},  // Cg
+        {0x00000ce2, own_address(&Stream_LoadDb)},  // Db
+        {0x00000d42, own_address(&Stream_LoadIb)},  // Ib
+        {0x00018665, own_address(&Stream_LoadBpe_entry)},  // Bpe
+        {0x000186f2, own_address(&Stream_LoadBtr)},  // Btr
+        {0x000194e6, own_address(&Stream_LoadFdf)},  // Fdf
+        {0x000195e9, own_address(&Stream_LoadFli)},  // Fli
+        {0x00019c07, own_address(&Stream_LoadDcg)},  // Dcg
+        {0x00019cf3, own_address(&Stream_LoadDds)},  // Dds
+        {0x00019de7, own_address(&Stream_LoadDlg)},  // Dlg
+        {0x0001a8ac, own_address(&Stream_LoadIfl)},  // Ifl
+        {0x0001c00e, own_address(&Stream_LoadScn_entry)},  // Scn
+        {0x0001c267, own_address(&Stream_LoadSpg)},  // Spg
+        {0x0001c2e2, own_address(&Stream_LoadStb)},  // Stb
+        {0x0001e422, own_address(&Stream_LoadZbb)},  // Zbb
+        {0x0001edc2, own_address(&Stream_LoadXmb)},  // Xmb
+        {0x00312ae2, own_address(&Stream_LoadAitb)},  // Aitb
+        {0x00315e22, own_address(&Stream_LoadAtrb)},  // Atrb
+        {0x0037cee8, own_address(&Stream_LoadLpth)},  // Lpth
+        {0x003ccee8, own_address(&Stream_LoadZpth)},  // Zpth
+        {0x003dba62, own_address(&Stream_LoadXmpb)},  // Xmpb
+        {0x06172a73, own_address(&Stream_LoadBmips)},  // Bmips
+        {0x0673c1d0, own_address(&Stream_LoadDdsmp)},  // Ddsmp
+        {0x06f24544, own_address(&Stream_LoadLgrid)},  // Lgrid
+        {0x07098805, own_address(&Stream_LoadSpace)},  // Space
+        {0x073134cc, own_address(&FE_LoadPanel_entry)},  // FE_LoadPanel
+        {0xc05242f2, own_address(&Stream_LoadCfgstr)},  // Cfgstr
+        {0xf61019ec, own_address(&Stream_LoadMeshFile)},  // mesh file
+        {0xf611354d, own_address(&Stream_LoadXbanim)},  // Xbanim
+        {0xf6171a08, own_address(&Stream_LoadMeshFile)},  // mesh file
+        {0xf61820cc, own_address(&Stream_LoadXbskel)},  // Xbskel
     };
     uint32_t hashed[8];
     own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, extension);  // HashStr_Init

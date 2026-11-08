@@ -8,6 +8,8 @@
 #include "scr_field.h"
 #include "title_data.h"
 #include "bro_scr_ai_anim_threads.h"
+#include "bro_scr_friendly_threads.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -110,7 +112,7 @@ void XB_CDECL BroScr_AiSpawnInit(uint32_t ent) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;  // a two-entity functor
-            functor[1] = 0x001e25d0;  // BroScr_SpawnedThink
+            functor[1] = own_address(&BroScr_SpawnedThink);  // BroScr_SpawnedThink
             functor[2] = level;
             functor[3] = ent;
         }
@@ -124,7 +126,7 @@ void XB_CDECL BroScr_AiSpawnInit(uint32_t ent) {
                                                                                none);  // BroScr_SpawnerFinishSpawn
     using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, uint32_t,
                                       uint32_t);
-    title_function<StartThread>(0x0052c6d0)(0, 0, 0, 0, 0x001a7010, level_handle(), &ent, 0x00922ebc,
+    title_function<StartThread>(0x0052c6d0)(0, 0, 0, 0, own_address(&BroScr_SetupFriendlyFireMissionFail), level_handle(), &ent, 0x00922ebc,
                                             0x00922e90);  // Scr_StartThread_ent_ent_i_str (BroScr_SetupFriendlyFireMissionFail)
 }
 
@@ -151,7 +153,7 @@ void XB_CDECL BroScr_TriggerSpawnerThink(uint32_t trigger, uint32_t spawner) {
         Scr_Wait(static_cast<float>(slot<GetWait>(0x00922b78)(trigger)));  // ScrEnt_GetWait
     if (slot<Count>(0x00922b88)(spawner)) {
         using BeginThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
-        title_function<BeginThread>(0x0078a980)(0, 0, 0, trigger, 0xe2a210cf, 0x00130c80, trigger,
+        title_function<BeginThread>(0x0078a980)(0, 0, 0, trigger, 0xe2a210cf, own_address(&BroScr_TriggerSpawnerThink), trigger,
                                                 &spawner);  // Scr_BeginThread_ent_ent (BroScr_TriggerSpawnerThink)
     }
 }
@@ -237,7 +239,7 @@ void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x18);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f49e0;  // an entity + vector functor
-            functor[1] = 0x00120650;  // BroScr_PlayFlakSound
+            functor[1] = own_address(&BroScr_PlayFlakSound);  // BroScr_PlayFlakSound
             functor[2] = level;
             functor[3] = flak_at[0];
             functor[4] = flak_at[1];
@@ -274,7 +276,7 @@ void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
             ScriptString_FromCString(&sound, pointer<const char>(sound_text));
             using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                               ScriptString*, const uint32_t*);
-            title_function<StartThread>(0x006d1370)(0, 0, 0, 0, 0x00120750, level, impact, &sound,
+            title_function<StartThread>(0x006d1370)(0, 0, 0, 0, own_address(&BroScr_PlaySoundAtTempOrigin), level, impact, &sound,
                                                     facing);  // Scr_StartThread_ent_vec_str_vec (BroScr_PlaySoundAtTempOrigin)
             ScriptString_Release(&sound);
         }

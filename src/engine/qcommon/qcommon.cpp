@@ -1202,14 +1202,14 @@ void XB_CDECL Cvar_Shutdown() {
 }
 
 uint32_t XB_CDECL Swap_Init() {
-    title_global<uint32_t>(0x0092f138) = 0x002a97c0;  // _BigShort = ShortSwap
-    title_global<uint32_t>(0x0092f134) = 0x002a97b0;  // _LittleShort = ShortNoSwap
-    title_global<uint32_t>(0x00933e38) = 0x002a9780;  // _BigLong = LongSwap
-    title_global<uint32_t>(0x00927de0) = 0x002a9770;  // _LittleLong = LongNoSwap
-    title_global<uint32_t>(0x00929b10) = 0x002a9710;  // _BigLong64 = Long64Swap
-    title_global<uint32_t>(0x00929c24) = 0x002a9700;  // _LittleLong64 = Long64NoSwap
-    title_global<uint32_t>(0x00934a58) = 0x002a96c0;  // _BigFloat = FloatSwap
-    title_global<uint32_t>(0x00929b20) = 0x002a96b0;  // _LittleFloat = FloatNoSwap
+    title_global<uint32_t>(0x0092f138) = own_address(&ShortSwap);  // _BigShort = ShortSwap
+    title_global<uint32_t>(0x0092f134) = own_address(&ShortNoSwap_entry);  // _LittleShort = ShortNoSwap
+    title_global<uint32_t>(0x00933e38) = own_address(&LongSwap);  // _BigLong = LongSwap
+    title_global<uint32_t>(0x00927de0) = own_address(&LongNoSwap);  // _LittleLong = LongNoSwap
+    title_global<uint32_t>(0x00929b10) = own_address(&Long64Swap);  // _BigLong64 = Long64Swap
+    title_global<uint32_t>(0x00929c24) = own_address(&Long64NoSwap);  // _LittleLong64 = Long64NoSwap
+    title_global<uint32_t>(0x00934a58) = own_address(&FloatSwap);  // _BigFloat = FloatSwap
+    title_global<uint32_t>(0x00929b20) = own_address(&FloatNoSwap);  // _LittleFloat = FloatNoSwap
     return 1;
 }
 
@@ -1245,21 +1245,21 @@ void XB_REGS1 XB_CDECL Info_SetValueForKey_Big(const char* key, char* info, cons
 }
 
 void XB_CDECL Cvar_Init() {
-    Cmd_AddCommand(title_pointer<const char>(0x00837a64), 0x0029e4d0);  // "toggle", Cvar_Toggle_f
-    Cmd_AddCommand(title_pointer<const char>(0x00837d70), 0x0029e3d0);  // "set", Cvar_Set_f
-    Cmd_AddCommand(title_pointer<const char>(0x00837a5c), 0x0029fd20);  // "sets", Cvar_SetS_f
-    Cmd_AddCommand(title_pointer<const char>(0x00837a54), 0x0029fce0);  // "seta", Cvar_SetA_f
-    Cmd_AddCommand(title_pointer<const char>(0x00837a48), 0x0029e380);  // "setfromcvar"
-    Cmd_AddCommand(title_pointer<const char>(0x00837a40), 0x0029fcc0);  // "reset", Cvar_Reset_f
-    Cmd_AddCommand(title_pointer<const char>(0x00837d74), 0x0029fc30);  // "cvar_restart", Cvar_Restart_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a64), own_address(&Cvar_Toggle_f));  // "toggle", Cvar_Toggle_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837d70), own_address(&Cvar_Set_f));  // "set", Cvar_Set_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a5c), own_address(&Cvar_SetS_f));  // "sets", Cvar_SetS_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a54), own_address(&Cvar_SetA_f));  // "seta", Cvar_SetA_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a48), own_address(&Cvar_SetFromCvar_f));  // "setfromcvar"
+    Cmd_AddCommand(title_pointer<const char>(0x00837a40), own_address(&Cvar_Reset_f));  // "reset", Cvar_Reset_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837d74), own_address(&Cvar_Restart_f));  // "cvar_restart", Cvar_Restart_f
 }
 
 void XB_CDECL Cmd_Init() {
-    Cmd_AddCommand(title_pointer<const char>(0x00833ca8), 0x002aa870);  // "cmdlist", Cmd_List_f
-    Cmd_AddCommand(title_pointer<const char>(0x00833ca0), 0x002cae20);  // "exec", Cmd_Exec_f
-    Cmd_AddCommand(title_pointer<const char>(0x00833c98), 0x002c0d30);  // "vstr", Cmd_Vstr_f
-    Cmd_AddCommand(title_pointer<const char>(0x00833c90), 0x002aaad0);  // "echo", Cmd_Echo_f
-    Cmd_AddCommand(title_pointer<const char>(0x00833c88), 0x002aac40);  // "wait", Cmd_Wait_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833ca8), own_address(&Cmd_List_f));  // "cmdlist", Cmd_List_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833ca0), own_address(&Cmd_Exec_f));  // "exec", Cmd_Exec_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c98), own_address(&Cmd_Vstr_f));  // "vstr", Cmd_Vstr_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c90), own_address(&Cmd_Echo_f));  // "echo", Cmd_Echo_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c88), own_address(&Cmd_Wait_f));  // "wait", Cmd_Wait_f
 }
 
 int32_t XB_REGS1 XB_CDECL generateHashValue(const char* name) {

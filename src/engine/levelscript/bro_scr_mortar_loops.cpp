@@ -13,6 +13,8 @@
 #include "bro_scr_level_threads_2.h"
 #include "levels_twins.h"
 #include "qcommon_fs.h"
+#include "bro_scr_battle_threads.h"
+#include "bro_scr_squad.h"
 
 namespace game {
 
@@ -64,7 +66,7 @@ inline void shell_then_impact(uint32_t ent, uint32_t type) {
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x28);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4b18;
-        functor[1] = 0x001705a0;  // BroScr_ShellIncomingThenImpact
+        functor[1] = own_address(&BroScr_ShellIncomingThenImpact);  // BroScr_ShellIncomingThenImpact
         functor[2] = ent;
         for (int k = 3; k < 9; ++k) functor[k] = u;
         functor[9] = type;
@@ -95,7 +97,7 @@ void XB_CDECL BroScr_MortarGroupShuffledLoop(uint32_t, DynArray group, uint32_t 
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f5ba0;
-            functor[1] = 0x00149f60;  // BroScr_MortarEntInit
+            functor[1] = own_address(&BroScr_MortarEntInit);  // BroScr_MortarEntInit
             functor[2] = ent;
         }
         slot<CreateThread>(0x0092216c)(0, 0, 0, ent, functor, 0);  // Scr_CreateThread
@@ -177,7 +179,7 @@ void XB_CDECL BroScr_MortarGroupNearEntLoop(uint32_t, uint32_t ent, DynArray gro
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4b00;
-                functor[1] = 0x00171450;  // BroScr_ShellIncomingThenImpact_2
+                functor[1] = own_address(&BroScr_ShellIncomingThenImpact_2);  // BroScr_ShellIncomingThenImpact_2
                 functor[2] = target;
                 functor[3] = type;
             }

@@ -235,7 +235,7 @@ void XB_CDECL BroScr_StartLoopingFx() {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x2c);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x00824458;
-                functor[1] = 0x0015f720;  // BroScr_FxCreationSoundThink
+                functor[1] = own_address(&BroScr_FxCreationSoundThink);  // BroScr_FxCreationSoundThink
                 functor[2] = ent;
                 functor[3] = sound;
                 functor[4] = to[0];
@@ -269,7 +269,7 @@ void XB_CDECL BroScr_StartLoopingFx() {
         uint32_t* const element = BroScr_ArrayElement(array, i);
         uint32_t sound;
         hash_of(&sound, sound_name);
-        title_function<StartThread>(0x0017b050)(0, 0, 0, 0, 0x0015f720, *element, &sound, to, &h2, &f1, &h1,
+        title_function<StartThread>(0x0017b050)(0, 0, 0, 0, own_address(&BroScr_FxCreationSoundThink), *element, &sound, to, &h2, &f1, &h1,
                                                 &f2);  // Scr_StartThread_ent_hash_vec_hash_f_hash_f(BroScr_FxCreationSoundThink)
     }
     if (ents.data) Scr_Free(ents.data);

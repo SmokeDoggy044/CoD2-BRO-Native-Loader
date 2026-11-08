@@ -12,6 +12,8 @@
 #include "title_data.h"
 #include "bro_scr_exploder.h"
 #include "levels_twins.h"
+#include "bro_scr_friendly_threads.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -102,7 +104,7 @@ inline void origin_of(uint32_t* out, uint32_t ent) {
 }
 
 // Scr_CreateThread of a {0x007f4a28, function (BroScr_ActorRunToEntIgnoringAll_2), ai, *node} functor on `ai`.
-inline void run_to_node(uint32_t ai, const uint32_t* node, uint32_t function = 0x00199200) {
+inline void run_to_node(uint32_t ai, const uint32_t* node, uint32_t function = own_address(&BroScr_ActorRunToEntIgnoringAll_2)) {
     uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a28;
@@ -240,7 +242,7 @@ void XB_CDECL BroScr_HangarChainMoverThink(uint32_t ent) {
             queue_notify(*element_at(found_array(ent, kAI), i - 1), 0xb633d42e);
             const uint32_t* const node = element_at(found_array(ent, kNodes), 1);
             const uint32_t ai = *element_at(found_array(ent, kAI), i - 1);
-            run_to_node(ai, node, 0x00199120);  // BroScr_ActorRunToEntIgnoringAll
+            run_to_node(ai, node, own_address(&BroScr_ActorRunToEntIgnoringAll));  // BroScr_ActorRunToEntIgnoringAll
             Scr_WaitTill(*element_at(found_array(ent, kNodes), 1), 0x455955a2);
             Scr_Wait(0.5f);
         }
@@ -358,7 +360,7 @@ void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent) {
                 *ScrField_chain_pos(*element_at(found_array(ent, kAI), i - 1)) = 0;
                 uint32_t* const node = element_at(get_array(ent, kNodes), 0);
                 const uint32_t ai = *element_at(get_array(ent, kAI), i - 1);
-                title_function<StartEntEnt>(0x0045a6d0)(0, 0, 0, 0, 0x00199200, ai, node);  // Scr_StartThread_ent_ent(BroScr_ActorRunToEntIgnoringAll_2)
+                title_function<StartEntEnt>(0x0045a6d0)(0, 0, 0, 0, own_address(&BroScr_ActorRunToEntIgnoringAll_2), ai, node);  // Scr_StartThread_ent_ent(BroScr_ActorRunToEntIgnoringAll_2)
                 --missing;
                 Scr_Wait(1.0f);
             }
@@ -402,7 +404,7 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
             set_string(mover, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
             scr_release(&name);
             own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(mover, ent, 1);  // BroScr_BuildTargetChain (third word unused)
-            start_on(0x001b4130, mover);  // BroScr_HangarChainMoverThink
+            start_on(own_address(&BroScr_HangarChainMoverThink), mover);  // BroScr_HangarChainMoverThink
             DynArray_PushBack(reinterpret_cast<uint8_t*>(level_array(0x8c)), &mover);
             ++n;
         }
@@ -415,13 +417,13 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
             set_string(owner, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
             scr_release(&name);
             own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(owner, ent, 0);  // BroScr_BuildTargetChain
-            start_on(0x001bc7c0, owner);  // BroScr_HangarChainAIThink
+            start_on(own_address(&BroScr_HangarChainAIThink), owner);  // BroScr_HangarChainAIThink
             push_back_inline(level_array(0x98), owner);
             ++n;
         }
     }
     title_global<uint8_t*>(0x00922ef8)[0x15c] = 1;
-    start_on(0x001b3990, level_handle());  // BroScr_HangarChainUpdateLoop
+    start_on(own_address(&BroScr_HangarChainUpdateLoop), level_handle());  // BroScr_HangarChainUpdateLoop
     queue_notify(level_handle(), 0x492f14bc);
     scr_release(&movers);
     scr_release(&chains);

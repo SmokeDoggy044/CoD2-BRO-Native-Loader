@@ -14,6 +14,11 @@
 #include "ui_panel.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "fe_bonus.h"
+#include "fe_menus.h"
+#include "fe_options.h"
+#include "fe_profile.h"
+#include "fe_special.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -1081,7 +1086,7 @@ struct DialogFrame {
     // A by-value copy of `source` into the argument slot at body - top_offset - 4 (ScriptString_Copy).
     void copy(uint32_t ret, uint32_t top_offset, uint32_t source) {
         const uint32_t args[1] = {source};
-        method(ret, body - top_offset - 4, 0x0011d5e0, 1, args, top_offset + 4);
+        method(ret, body - top_offset - 4, own_address(&ScriptString_Copy), 1, args, top_offset + 4);
     }
     // A dialog button: text (+0x30), handler, +0x20 (0), count +0x34.
     void button(uint8_t* dialog, uint32_t label, uint32_t handler, uint32_t ret_text, uint32_t ret_flag) {
@@ -1148,12 +1153,12 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
     }
     f.regs.edi = address_of(text);
     const uint32_t from_text[1] = {address_of(text)};
-    f.method(0x00331a1e, message, 0x0011eb50, 1, from_text);  // ScriptString_FromCString
+    f.method(0x00331a1e, message, own_address(&ScriptString_FromCString), 1, from_text);  // ScriptString_FromCString
     const uint32_t from_empty[1] = {0x0082dfeb};  // ""
-    f.method(0x00331a2c, heading, 0x0011eb50, 1, from_empty);
+    f.method(0x00331a2c, heading, own_address(&ScriptString_FromCString), 1, from_empty);
     if (*title) {
         const uint32_t from_title[1] = {address_of(title)};
-        f.method(0x00331a3f, heading, 0x0011dd20, 1, from_title);  // ScriptString_AssignCString
+        f.method(0x00331a3f, heading, own_address(&ScriptString_AssignCString), 1, from_title);  // ScriptString_AssignCString
     }
     const auto* const rep = *reinterpret_cast<const uint8_t* const*>(uintptr_t{message});
     const bool has_text = rep && field<uint16_t>(const_cast<uint8_t*>(rep), 2);
@@ -1163,11 +1168,11 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
     const uint32_t* const rets = kRets[has_text ? 0 : 1];
     if (!has_text) {
         const uint32_t from_name[1] = {address_of(name)};
-        f.method(0x00331aad, message, 0x0011dd20, 1, from_name);
+        f.method(0x00331aad, message, own_address(&ScriptString_AssignCString), 1, from_name);
     }
     f.regs.eax = 0;
     f.regs.edx = keep_running;
-    f.method(rets[0], address_of(mgr), 0x0032dec0);  // CL_PauseForDialog
+    f.method(rets[0], address_of(mgr), own_address(&CL_PauseForDialog));  // CL_PauseForDialog
     f.copy(rets[1], 0, heading);
     f.copy(rets[2], 4, message);
     f.regs.esi = field<uint32_t>(mgr, 0x1c);
@@ -1195,8 +1200,8 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
         f.regs.edi = address_of(layout);
         f.call(0x00331c08, own_address(&Dialog_LayoutButtons_entry));  // Dialog_LayoutButtons
     }
-    f.method(0x00331c11, heading, 0x0011d640);  // ScriptString_Release
-    f.method(0x00331c1a, message, 0x0011d640);
+    f.method(0x00331c11, heading, own_address(&ScriptString_Release_entry));  // ScriptString_Release
+    f.method(0x00331c1a, message, own_address(&ScriptString_Release_entry));
 }
 
 void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
@@ -1810,7 +1815,7 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
         pause[0x40] = 1;
     }
     add_screen(mgr, pause);
-    add_screen(mgr, construct_screen(0x003315e0, 0xc4, mgr));  // AdvancedOptionsMenu_Construct
+    add_screen(mgr, construct_screen(own_address(&AdvancedOptionsMenu_Construct), 0xc4, mgr));  // AdvancedOptionsMenu_Construct
     add_screen(mgr, loading_screen(0x110, 0x00829180, mgr));  // LoadingMenu
     add_screen(mgr, loading_screen(0x128, 0x0082a1f8, mgr));  // LoadAfricaMenu
     add_screen(mgr, loading_screen(0xac, 0x00828718, mgr));   // LoadSicilyMenu
@@ -1825,9 +1830,9 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
         field<uint32_t>(maubeuge, 0x40) = 0;
     }
     add_screen(mgr, maubeuge);
-    add_screen(mgr, construct_screen(0x00330820, 0xc4, mgr));  // MissionSuccessFailMenu_Construct
-    add_screen(mgr, construct_screen(0x00330730, 0x88, mgr));  // AutosaveMenu_Construct
-    add_screen(mgr, construct_screen(0x00223e80, 0x4c, mgr));  // InGameLiveOptionsMenu_Construct
+    add_screen(mgr, construct_screen(own_address(&MissionSuccessFailMenu_Construct), 0xc4, mgr));  // MissionSuccessFailMenu_Construct
+    add_screen(mgr, construct_screen(own_address(&AutosaveMenu_Construct), 0x88, mgr));  // AutosaveMenu_Construct
+    add_screen(mgr, construct_screen(own_address(&InGameLiveOptionsMenu_Construct), 0x4c, mgr));  // InGameLiveOptionsMenu_Construct
     call(mgr, 0x18);
     for (int32_t i = 0; i < field<int32_t>(mgr, 0x14); ++i) call(screen(mgr, i), 0x1c);
     return mgr;
@@ -1851,7 +1856,7 @@ uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
     uint8_t* main = z_malloc(0x4c);
     if (main) main = MainMenu_Construct(mgr, 0, main);
     add_screen(mgr, main);
-    add_screen(mgr, construct_screen(0x00331210, 0x4c, mgr));  // SinglePlayerMenu_Construct
+    add_screen(mgr, construct_screen(own_address(&SinglePlayerMenu_Construct), 0x4c, mgr));  // SinglePlayerMenu_Construct
     uint8_t* options = z_malloc(0x40);
     if (options) {
         init_screen_menu(options, pc_menus() ? 4 : 3, mgr);  // GRAPHICS with the PC menus (fe_pc.h)
@@ -1866,8 +1871,8 @@ uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
     // (constructor, size): Gameplay, ControllerConfig, Screen, Sound, BonusMaterials, BonusCharacters, BonusWeapons,
     // BonusVehicles, BonusConcepts.
     static const uint32_t kMenus[][2] = {
-        {0x00331150, 0x8c},  {0x003310d0, 0xd8},  {0x00330fd0, 0x5c},  {0x00330f80, 0x44},  {0x00330de0, 0x108},
-        {0x00330d60, 0xf4},  {0x00330c40, 0x194}, {0x00330bb0, 0x1d4}, {0x00330ab0, 0x20c},
+        {own_address(&GameplayMenu_Construct), 0x8c},  {own_address(&ControllerConfigMenu_Construct), 0xd8},  {own_address(&ScreenMenu_Construct), 0x5c},  {own_address(&SoundMenu_Construct), 0x44},  {own_address(&BonusMaterialsMenu_Construct), 0x108},
+        {own_address(&BonusCharactersMenu_Construct), 0xf4},  {own_address(&BonusWeaponsMenu_Construct), 0x194}, {own_address(&BonusVehiclesMenu_Construct), 0x1d4}, {own_address(&BonusConceptsMenu_Construct), 0x20c},
     };
     for (const auto& menu : kMenus) add_screen(mgr, construct_screen(menu[0], menu[1], mgr));
     uint8_t* difficulty = z_malloc(0x54);
@@ -1883,8 +1888,8 @@ uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
     add_screen(mgr, difficulty);
     // CreateProfile, Profile, 0x003308a0, Chapter, SpecialMaterials, SpecialConcept, XboxLive.
     static const uint32_t kMoreMenus[][2] = {
-        {0x00335570, 0x1b4}, {0x003308f0, 0x9c}, {0x003308a0, 0x44}, {0x00333380, 0x1b8},
-        {0x003305e0, 0xdc},  {0x00330560, 0x148}, {0x00223ed0, 0x4c},
+        {own_address(&CreateProfileMenu_Construct), 0x1b4}, {own_address(&ProfileMenu_Construct), 0x9c}, {own_address(&StorageMenu_Construct), 0x44}, {own_address(&ChapterMenu_Construct), 0x1b8},
+        {own_address(&SpecialMaterialsMenu_Construct), 0xdc},  {own_address(&SpecialConceptMenu_Construct), 0x148}, {own_address(&XboxLiveMenu_Construct), 0x4c},
     };
     for (const auto& menu : kMoreMenus) add_screen(mgr, construct_screen(menu[0], menu[1], mgr));
     NglQuad* const top = reinterpret_cast<NglQuad*>(mgr + 0x20);

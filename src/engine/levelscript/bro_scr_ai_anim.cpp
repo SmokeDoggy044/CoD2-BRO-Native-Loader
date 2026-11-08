@@ -12,6 +12,9 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_notify_threads.h"
+#include "bro_scr_pose_threads.h"
 
 namespace game {
 
@@ -344,11 +347,11 @@ void XB_CDECL BroScr_UseNodeTurret(uint32_t actor, uint32_t turret, uint32_t aim
         *key_slot(turret, 0xcf1e52a5, 0) = ent;
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922590)(turret, ent);  // GScr_Turret_SetTargetEntity
         slot<SetMode>(0x00922584)(turret, 0x6c271e5a);
-        start_turret_thread(0x001817b0, actor, turret);  // BroScr_TurretAutoAiOnNotify
+        start_turret_thread(own_address(&BroScr_TurretAutoAiOnNotify), actor, turret);  // BroScr_TurretAutoAiOnNotify
         bool defined;
         ScrField_hbe5f9a9f_IsDefined(&defined, actor);
     }
-    start_turret_thread(0x001a4f40, actor, turret);  // BroScr_TurretManualTargetThink
+    start_turret_thread(own_address(&BroScr_TurretManualTargetThink), actor, turret);  // BroScr_TurretManualTargetThink
     queue_notify(turret, 0xcb6a4b2a);
     slot<ActorUseTurret>(0x0092272c)(actor, turret);
 }
@@ -728,8 +731,8 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uin
 
 void XB_CDECL BroScr_InitPoseMovementTable() {
     // anim object +0x168..+0x188: stand / crouch / prone x stop / walk / run handlers.
-    static const uint32_t kHandlers[9] = {0x001c8920, 0x001c8ad0, 0x001c8c40, 0x001c8db0, 0x001c8f50,
-                                          0x001c90c0, 0x001c9210, 0x001cedf0, 0x001cee10};
+    static const uint32_t kHandlers[9] = {own_address(&BroScr_PoseMove_StandStop), own_address(&BroScr_PoseMove_StandWalk), own_address(&BroScr_PoseMove_StandRun), own_address(&BroScr_PoseMove_CrouchStop), own_address(&BroScr_PoseMove_CrouchWalk),
+                                          own_address(&BroScr_PoseMove_CrouchRun), own_address(&BroScr_PoseMove_ProneStop), own_address(&BroScr_PoseMove_ProneWalk), own_address(&BroScr_PoseMove_ProneRun)};
     for (uint32_t i = 0; i < 9; ++i) at<uint32_t>(anim_object(), 0x168 + i * 4) = kHandlers[i];
 }
 

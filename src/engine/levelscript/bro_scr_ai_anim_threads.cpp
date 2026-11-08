@@ -30,6 +30,9 @@
 #include "g_scr_math.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "bro_scr_entity_threads.h"
+#include "bro_scr_traverse.h"
+#include "bro_scr_trigger_threads.h"
 
 namespace game {
 
@@ -301,7 +304,7 @@ void XB_CDECL BroScr_DebugPrintTimesThrough(uint32_t ent, uint32_t n) {
     const uint32_t a = 0x6cd13551;
     const uint32_t b = 0x6d4893a9;
     const uint32_t c = 0;
-    title_function<CallVt00825c50>(0x001e5480)(0, 0, 0, 0, 0x001aeac0, ent, &a, &b, &c, &text);  // Scr_CallThread_vt00825c50(BroScr_HandleNoteTracksForever)
+    title_function<CallVt00825c50>(0x001e5480)(0, 0, 0, 0, own_address(&BroScr_HandleNoteTracksForever), ent, &a, &b, &c, &text);  // Scr_CallThread_vt00825c50(BroScr_HandleNoteTracksForever)
     scr_release(&text);
 }
 
@@ -329,7 +332,7 @@ void XB_CDECL BroScr_PlayAnimWithNoteTracks(uint32_t ent, uint32_t anim, uint32_
     const bool began = begin_critical(ent, critical);
     const uint32_t notify = 0x97d5fe54;
     const float half = static_cast<float>(anim_length(ent, anim) * title_global<float>(0x0083eb24));  // 0.5
-    title_function<CallFHashHashHashI>(0x001e5530)(0, 0, 0, 0, 0x001a05f0, ent, &half, &notify, &a3, &a4,
+    title_function<CallFHashHashHashI>(0x001e5530)(0, 0, 0, 0, own_address(&BroScr_ProneAimFaceDefault), ent, &half, &notify, &a3, &a4,
                                      &flag);  // Scr_CallThread_ent_f_hash_hash_hash_i_2(BroScr_ProneAimFaceDefault)
     slot<KnobAll>(0x009225e4)(ent, 0x8d403617, anim, title_global<uint32_t>(0x008cd7dc), 0x3f800000, 0x3f800000,
                               0x3f800000, 0);  // GScr_SetFlaggedAnimKnobAll(g_anim_Body)
@@ -352,9 +355,9 @@ void XB_CDECL BroScr_PlayAnimWaitEndNotes(uint32_t ent, uint32_t anim) {
     const uint32_t end = 0xf8a618a1;
     const float timeout = length * title_global<float>(0x0083ec9c) + title_global<float>(0x0083eb20);  // x 3 + 1
     const uint32_t notify = 0xc5a136d6;
-    title_function<CallHashHashHash>(0x0052c8a0)(0, 0, 0, 0, 0x001b2e20, ent, &notify, &end,
+    title_function<CallHashHashHash>(0x0052c8a0)(0, 0, 0, 0, own_address(&BroScr_WaitThreeEndNotes), ent, &notify, &end,
                                       &end);  // Scr_CallThread_ent_hash_hash_hash_KASSPASS(BroScr_WaitThreeEndNotes)
-    title_function<CallHashHashF>(0x001e55c0)(0, 0, 0, 0, 0x00184b30, ent, &end, &end,
+    title_function<CallHashHashF>(0x001e55c0)(0, 0, 0, 0, own_address(&BroScr_NotifyAfterTime_3), ent, &end, &end,
                                       &timeout);  // Scr_CallThread_ent_hash_hash_f_5(BroScr_NotifyAfterTime_3)
     Scr_WaitTill(ent, end);
     queue_notify(ent, 0x47e458b4);
@@ -517,7 +520,7 @@ void XB_CDECL BroScr_WoundedWalk(uint32_t ent, ScriptString unused) {
                 slot<KnobAll>(0x009225e4)(ent, 0x54e3b2b6, title_global<uint32_t>(0x008cf6fc),
                                           title_global<uint32_t>(0x008cd7dc), 0x3f800000, 0x3dcccccd, 0x3f800000,
                                           1);  // g_anim_wounded_crawl2stumble
-                handle_note_tracks(ent, 0x54e3b2b6, 0x0018e2b0);  // BroScr_SetOrientFaceMotionIf
+                handle_note_tracks(ent, 0x54e3b2b6, own_address(&BroScr_SetOrientFaceMotionIf));  // BroScr_SetOrientFaceMotionIf
                 set_int_184(ent, 0x070b89a4);
                 *handle_slot(ent, 0x0ccee5c1) = 0x0001c6ce;
                 set_orient_mode(ent, 0x0083adec);  // "face current"
@@ -581,18 +584,18 @@ void XB_CDECL BroScr_AimToAlert(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_SetDesiredPoseProne(uint32_t ent) {
-    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, 0x0019cfc0, 0x001b6a50);  // BroScr_Mg30calAnimTree, BroScr_AnimScript_TurretCall_1
+    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, own_address(&BroScr_Mg30calAnimTree), own_address(&BroScr_AnimScript_TurretCall_1));  // BroScr_Mg30calAnimTree, BroScr_AnimScript_TurretCall_1
 }
 
 void XB_CDECL BroScr_SetDesiredPoseStandStop(uint32_t ent) {
-    set_turret_pose(ent, 0x070b89a4, 0, 0x0019d180, 0x001b6a80);  // BroScr_Mg30calAnimTree_2, BroScr_AnimScript_TurretCall_2
+    set_turret_pose(ent, 0x070b89a4, 0, own_address(&BroScr_Mg30calAnimTree_2), own_address(&BroScr_AnimScript_TurretCall_2));  // BroScr_Mg30calAnimTree_2, BroScr_AnimScript_TurretCall_2
 }
 
 void XB_CDECL BroScr_LookAtEnemyLoop(uint32_t ent) {
     bump_look_counter(ent, 0xa538f810, true);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);  // Scr_EndOn "death"
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0xa538f810);
-    title_function<CallEntI>(0x0052d0f0)(0, 0, 0, 0, 0x001b6dc0, ent,
+    title_function<CallEntI>(0x0052d0f0)(0, 0, 0, 0, own_address(&BroScr_LookAtUntilKillAnimscript_1), ent,
                                          int_slot(ent, 0x747cde6c));  // Scr_CallThread_ent_i_KASSPASS(BroScr_LookAtUntilKillAnimscript_1)
     for (;;) {
         uint32_t ref;
@@ -608,7 +611,7 @@ void XB_CDECL BroScr_LookAtEnemyLoop(uint32_t ent) {
 void XB_CDECL BroScr_StopForceShoot(uint32_t ent) {
     *int_slot(ent, 0x88c31fb5) = 0;
     title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011b4d0)(
-        0, 0, 0, 0, 0x001bf600, ent);  // Scr_BeginThreadFunctor1(BroScr_AimToAlert)
+        0, 0, 0, 0, own_address(&BroScr_AimToAlert), ent);  // Scr_BeginThreadFunctor1(BroScr_AimToAlert)
     queue_notify(ent, 0xd6604ba3);
     queue_notify(ent, 0x0fc3c1c9);
     queue_notify(ent, 0x259b8110);
@@ -622,7 +625,7 @@ void XB_CDECL BroScr_LookAtPositionLoop(uint32_t ent, uint32_t x, uint32_t y, ui
     bump_look_counter(ent, 0x671c92d3, true);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);  // Scr_EndOn "death"
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x671c92d3);
-    title_function<CallEntI>(0x0052d0f0)(0, 0, 0, 0, 0x001b6e70, ent,
+    title_function<CallEntI>(0x0052d0f0)(0, 0, 0, 0, own_address(&BroScr_LookAtUntilKillAnimscript_2), ent,
                                          int_slot(ent, 0x747cde6c));  // Scr_CallThread_ent_i_KASSPASS(BroScr_LookAtUntilKillAnimscript_2)
     for (;;) {
         BroScr_LookAtPosition(ent, x, y, z, title_global<float>(0x0083eba8), 0x06279a34, 0, 0x71b01aea);  // 2 s
@@ -636,7 +639,7 @@ void XB_CDECL BroScr_LookAtEntityLoop(uint32_t ent, uint32_t target) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);     // Scr_EndOn "death"
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(target, 0x06730ae8);  // the target's death
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x1651c9e7);
-    title_function<CallEntEntI>(0x0052ced0)(0, 0, 0, 0, 0x001b6f20, ent, &target,
+    title_function<CallEntEntI>(0x0052ced0)(0, 0, 0, 0, own_address(&BroScr_LookAtUntilKillAnimscript_3), ent, &target,
                                             int_slot(ent, 0x747cde6c));  // Scr_CallThread_ent_ent_i_KASSPASS(BroScr_LookAtUntilKillAnimscript_3)
     for (;;) {
         BroScr_LookAtEntity(ent, target, title_global<float>(0x0083eba8), 0x06279a34, 0xa3c65328, 0x0bc350d7);  // 2 s
@@ -687,7 +690,7 @@ void XB_CDECL Bro_aim__keep_aiming(uint32_t ent, ScrVec3 point, float min_time, 
         slot<Knob6>(0x009225d8)(ent, title_global<uint32_t>(0x008cf1bc), 0x3f800000, 0x3e4ccccd, 0, 0);  // g_anim_prone_shoot_straight
         const uint32_t notify = 0xf378e0c7;
         const uint32_t zero = 0;
-        title_function<CallEntHashI>(0x001e4c00)(0, 0, 0, 0, 0x001b99c0, ent, &notify,
+        title_function<CallEntHashI>(0x001e4c00)(0, 0, 0, 0, own_address(&BroScr_TurnToEnemy_2), ent, &notify,
                                                  &zero);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
     }
     // Clamped to min_time..max_time (each step as a script bool converted to float), then waited when positive.
@@ -920,35 +923,35 @@ void XB_CDECL BroScr_FaceEnemyAnim(uint32_t ent) {
 }
 
 void XB_CDECL Bro_anim_main_grenade_cower(uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c22b0, ent);  // Scr_BeginThreadFunctor1(BroScr_AnimScript_GrenadeCower)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_AnimScript_GrenadeCower), ent);  // Scr_BeginThreadFunctor1(BroScr_AnimScript_GrenadeCower)
 }
 
 void XB_CDECL Bro_b30cal_stand(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf348));  // ScrActor_SetInt_1370(g_anim_stand30calgunner_fire)
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001bfd80, ent);  // (BroScr_SetDesiredPoseStandStop)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_SetDesiredPoseStandStop), ent);  // (BroScr_SetDesiredPoseStandStop)
 }
 
 void XB_CDECL Bro_b30cal_prone(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf0d8));  // ScrActor_SetInt_1370
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001bfc50, ent);  // (BroScr_SetDesiredPoseProne)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_SetDesiredPoseProne), ent);  // (BroScr_SetDesiredPoseProne)
 }
 
 void XB_CDECL BroScr_SetDesiredPoseProneMg42(uint32_t ent) {
-    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, 0x0019f390, 0x001b9310);  // BroScr_Mg42AnimTree, BroScr_AnimScript_TurretCall_3
+    set_turret_pose(ent, 0xc1165808, 0x0738b1a5, own_address(&BroScr_Mg42AnimTree), own_address(&BroScr_AnimScript_TurretCall_3));  // BroScr_Mg42AnimTree, BroScr_AnimScript_TurretCall_3
 }
 
 void XB_CDECL BroScr_TurretPoseProne(uint32_t ent) {
-    set_turret_pose(ent, 0x0738b1a5, 0x0738b1a5, 0x0019f770, 0x001b9710);  // BroScr_Mg42AnimTree_2, BroScr_AnimScript_TurretCall_4
+    set_turret_pose(ent, 0x0738b1a5, 0x0738b1a5, own_address(&BroScr_Mg42AnimTree_2), own_address(&BroScr_AnimScript_TurretCall_4));  // BroScr_Mg42AnimTree_2, BroScr_AnimScript_TurretCall_4
 }
 
 void XB_CDECL BroScr_TurretPoseStand(uint32_t ent) {
-    set_turret_pose(ent, 0x070b89a4, 0, 0x001b9770, 0x001b9740);  // BroScr_Mg42AnimTree_3, BroScr_AnimScript_TurretCall_5
+    set_turret_pose(ent, 0x070b89a4, 0, own_address(&BroScr_Mg42AnimTree_3), own_address(&BroScr_AnimScript_TurretCall_5));  // BroScr_Mg42AnimTree_3, BroScr_AnimScript_TurretCall_5
 }
 
 uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_t special) {
     const uint8_t yes = 1;
     using CallEntB = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*);
-    title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, 0x0018dbc0, ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
+    title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, own_address(&BroScr_PainAnimByHitLocation), ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
     if (special == 0x00371ab2 && get_int_184(ent) == 0x070b89a4) {
         own_function<void XB_CDECL(uint32_t)>(&BroScr_PlayStandMG42GunnerPain)(ent);  // BroScr_PlayStandMG42GunnerPain (agent-b list)
         *out = 1;
@@ -965,7 +968,7 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4b00;
-            functor[1] = 0x001acae0;  // BroScr_ForwardNotifyString
+            functor[1] = own_address(&BroScr_ForwardNotifyString);  // BroScr_ForwardNotifyString
             functor[2] = ent;
             functor[3] = notify;
         }
@@ -1177,11 +1180,11 @@ void XB_CDECL BroScr_ForceShootTargetDeathWatch(uint32_t ent, uint32_t target) {
 }
 
 void XB_CDECL Bro_anim_main_grenade_return_throw(uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c76a0, ent);  // Scr_BeginThreadFunctor1(BroScr_ChatterGrenadeAttack)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_ChatterGrenadeAttack), ent);  // Scr_BeginThreadFunctor1(BroScr_ChatterGrenadeAttack)
 }
 
 void XB_CDECL Bro_anim_main_walk(uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c4510, ent);  // Scr_BeginThreadFunctor1(BroScr_AnimScript_Walk)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_AnimScript_Walk), ent);  // Scr_BeginThreadFunctor1(BroScr_AnimScript_Walk)
 }
 
 void XB_CDECL BroScr_AnimScript_GrenadeCower(uint32_t ent) {
@@ -1220,7 +1223,7 @@ void XB_CDECL BroScr_AnimScript_GrenadeCower(uint32_t ent) {
     handle_note_tracks(ent, 0x8e613617);
     slot<KnobAllNoFlag>(0x009225c8)(ent, loop, title_global<uint32_t>(0x008cd7dc), 0x3f800000, 0x3dcccccd, 0x3f800000,
                                     1);  // GScr_SetAnimKnobAll
-    *key_slot(ent, 0xe057503b, 0) = 0x001b7c70;  // the start callback: BroScr_GrenadeCowerHide
+    *key_slot(ent, 0xe057503b, 0) = own_address(&BroScr_GrenadeCowerHide);  // the start callback: BroScr_GrenadeCowerHide
     for (;;) Scr_Wait(10.0f);
 }
 
@@ -1260,7 +1263,7 @@ void XB_CDECL BroScr_StartAnimFaceWait(uint32_t ent, uint32_t anim, ScriptString
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                    const ScriptString*, const uint32_t*, const uint32_t*, const ScriptString*,
                                    const uint32_t*, const uint8_t*);
-    title_function<Call>(0x001e5100)(0, 0, 0, 0, 0x001c1860, ent, &anim, &a3, &a4, &a5, &a6, &a7,
+    title_function<Call>(0x001e5100)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWait), ent, &anim, &a3, &a4, &a5, &a6, &a7,
                                      &yes);  // Scr_CallThread_ent_anim_str_f_hash_str_f_b(BroScr_AnimFaceWait)
     scr_release(&a3);
     scr_release(&a6);
@@ -1396,12 +1399,12 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
             ScriptString_AppendInt(&name, static_cast<int32_t>(id));
             const uint32_t stop_a = 0xc77f1e4d;
             const uint32_t stop_b = 0xc77f1e4d;
-            title_function<CallEntStrHashHash>(0x001e51c0)(0, 0, 0, 0, 0x0019e1a0, ent, &name, &stop_a,
+            title_function<CallEntStrHashHash>(0x001e51c0)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWaitOnNotify), ent, &name, &stop_a,
                                                           &stop_b);  // Scr_CallThread_ent_str_hash_hash_3(BroScr_AnimFaceWaitOnNotify)
             if (as_float(time) != title_global<float>(0x00922eac)) {
                 const uint32_t stop_c = 0xc77f1e4d;
                 const uint32_t stop_d = 0xc77f1e4d;
-                title_function<CallEntFHashHash>(0x001e5270)(0, 0, 0, 0, 0x0019e260, ent, &time, &stop_c,
+                title_function<CallEntFHashHash>(0x001e5270)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWaitOnTime), ent, &time, &stop_c,
                                                             &stop_d);  // Scr_CallThread_ent_f_hash_hash_4(BroScr_AnimFaceWaitOnTime)
             }
             Scr_WaitTill(ent, 0xc77f1e4d);
@@ -1463,7 +1466,7 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
                 slot<SetAnim7>(0x009225e0)(ent, 0x1c859d65, anim, bits(1.0f), bits(0.1f), bits(1.0f),
                                            1);  // GScr_SetFlaggedAnimKnob
                 *ScrField_hfd6181bd(ent) = 0;
-                title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001b7bc0,
+                title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWaitNotetracks),
                                                                 ent);  // Scr_BeginThreadFunctor1(BroScr_AnimFaceWaitNotetracks)
             }
             if (sound.rep) {
@@ -1475,7 +1478,7 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
                     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x0092220c)(
                         ent, &sound, 0x91935ca7, 1);  // GScr_PlaySoundWithNotify
                     *ScrField_haa35a0b5(ent) = 0;
-                    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x0019e120,
+                    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWaitSetFlag),
                                                                     ent);  // Scr_BeginThreadFunctor1(BroScr_AnimFaceWaitSetFlag)
                 } else {
                     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(
@@ -1620,7 +1623,7 @@ void XB_CDECL BroScr_BattleChatter(uint32_t ent, ScriptString type) {
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                    const ScriptString*, const uint32_t*, const uint32_t*, const ScriptString*,
                                    const uint32_t*, const uint8_t*);
-    title_function<Call>(0x001e5100)(0, 0, 0, 0, 0x001c1860, ent, &alias_anim, &alias, &chance_word, &notify,
+    title_function<Call>(0x001e5100)(0, 0, 0, 0, own_address(&BroScr_AnimFaceWait), ent, &alias_anim, &alias, &chance_word, &notify,
                                      pointer<ScriptString>(0x00922e90), pointer<uint32_t>(0x00922ea4),
                                      &no);  // Scr_CallThread_ent_anim_str_f_hash_str_f_b(BroScr_AnimFaceWait)
     scr_release(&alias);
@@ -1670,22 +1673,22 @@ void XB_CDECL Bro_hide__main(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_StartHideThread(uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c7880, ent);  // Scr_BeginThreadFunctor1(Bro_hide__main)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&Bro_hide__main), ent);  // Scr_BeginThreadFunctor1(Bro_hide__main)
 }
 
 void XB_CDECL Bro_mg42_stand(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf630));  // ScrActor_SetInt_1370(g_anim_standmg42gunner_aim)
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c28d0, ent);  // (BroScr_TurretPoseStand)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_TurretPoseStand), ent);  // (BroScr_TurretPoseStand)
 }
 
 void XB_CDECL Bro_mg42_prone(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf204));  // ScrActor_SetInt_1370(g_anim_pronemg42gunner_aim)
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c27a0, ent);  // (BroScr_TurretPoseProne)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_TurretPoseProne), ent);  // (BroScr_TurretPoseProne)
 }
 
 void XB_CDECL Bro_anim_lmg_gmi(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922748)(ent, title_global<uint32_t>(0x008cf210));  // ScrActor_SetInt_1370(g_anim_pronemg42gunner_fire)
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, 0x001c2670, ent);  // (BroScr_SetDesiredPoseProneMg42)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, own_address(&BroScr_SetDesiredPoseProneMg42), ent);  // (BroScr_SetDesiredPoseProneMg42)
 }
 
 void XB_CDECL BroScr_MeleeAttackAnim(uint32_t ent) {
@@ -1694,7 +1697,7 @@ void XB_CDECL BroScr_MeleeAttackAnim(uint32_t ent) {
     BroScr_BattleChatter(ent, type);
     slot<KnobAll>(0x009225e4)(ent, 0xcc615b7e, title_global<uint32_t>(0x008ce9d0), title_global<uint32_t>(0x008cd7dc),
                               bits(1.0f), bits(0.1f), bits(1.0f), 0);  // melee_charge2right
-    handle_note_tracks(ent, 0xcc615b7e, 0x0018da00);  // BroScr_MeleeNoteTrackHandler
+    handle_note_tracks(ent, 0xcc615b7e, own_address(&BroScr_MeleeNoteTrackHandler));  // BroScr_MeleeNoteTrackHandler
     *handle_slot(ent, 0x2afa5406) = 0x07151174;
     *handle_slot(ent, 0x0ccee5c1) = 0x00385d90;
 }
@@ -1751,7 +1754,7 @@ void XB_CDECL BroScr_RechamberRifle(uint32_t ent) {
                                                                      bits(0.1f));  // GScr_ClearAnim
         return;
     }
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001bfe70, ent);  // Scr_BeginThreadFunctor1(BroScr_LookAtEnemyLoop)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_LookAtEnemyLoop), ent);  // Scr_BeginThreadFunctor1(BroScr_LookAtEnemyLoop)
     int32_t shots;
     uint32_t fire;
     if (*BroScr_GetWeaponFireType(&fire, ent) == 0x00315aef) {  // automatic
@@ -1851,8 +1854,8 @@ void XB_CDECL BroScr_ReloadLauncher(uint32_t ent) {
         *int_slot(ent, 0xc786fa48) = 0;
         return;
     }
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x0019d460, ent);  // Scr_BeginThreadFunctor1(BroScr_ReloadLauncherTimeout)
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001c6040, ent);  // (Bro_combat__rechamber)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_ReloadLauncherTimeout), ent);  // Scr_BeginThreadFunctor1(BroScr_ReloadLauncherTimeout)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&Bro_combat__rechamber), ent);  // (Bro_combat__rechamber)
     Scr_WaitTill(ent, 0x5e12d3d2);
 }
 
@@ -1885,7 +1888,7 @@ void XB_CDECL BroScr_AnimScriptEntInit(uint32_t ent) {
     at<uint32_t>(anim_object(), 0x158) = 1;
     if (slot<int32_t XB_CDECL(uint32_t)>(0x009222dc)(0x00826c64) <= 0)  // GScr_GetCvarInt("animscriptent")
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x009222e4)(0x00826c64, 0x00832c8c);  // GScr_SetCvar(.., "-1")
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001837f0, level_handle());  // (BroScr_EmptyFunc_54)
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_Stub_Ret), level_handle());  // (BroScr_EmptyFunc_54)
     at<uint32_t>(anim_object(), 0xa0) = 1;
     at<uint32_t>(anim_object(), 0x190) = 0;
     at<uint32_t>(anim_object(), 0x38) = 0;
@@ -1936,26 +1939,26 @@ uint32_t XB_CDECL Bro_anim_main_init(uint32_t ent) {
 
 void XB_CDECL Bro_anim_main_scripted(uint32_t ent) {
     BroScr_ScriptedAnimInit(ent);
-    begin_anim_thread(ent, 0x00184020);  // BroScr_WaitKillAnimScript
+    begin_anim_thread(ent, own_address(&BroScr_WaitKillAnimScript));  // BroScr_WaitKillAnimScript
 }
 
 // The anim-script main entries: the script as a begun thread.
-void XB_CDECL Bro_anim_main_pain(uint32_t ent) { begin_anim_thread(ent, 0x001c7be0); }  // BroScr_AnimScript_Pain
-void XB_CDECL Bro_anim_main_concealment_stand(uint32_t ent) { begin_anim_thread(ent, 0x001d6420); }  // BroScr_AnimScript_ConcealmentStand
-void XB_CDECL Bro_anim_main_cover_wide_left(uint32_t ent) { begin_anim_thread(ent, 0x001d7a60); }  // BroScr_AnimScript_CoverWideLeft
-void XB_CDECL Bro_anim_main_cover_wide_right(uint32_t ent) { begin_anim_thread(ent, 0x001d7d70); }  // BroScr_AnimScript_CoverWideRight
-void XB_CDECL Bro_anim_main_death(uint32_t ent) { begin_anim_thread(ent, 0x001d8080); }  // BroScr_AnimScript_Death
-void XB_CDECL Bro_anim_main_concealment_crouch(uint32_t ent) { begin_anim_thread(ent, 0x001dba80); }  // BroScr_AnimScript_ConcealmentCrouch
-void XB_CDECL Bro_anim_main_cover_crouch(uint32_t ent) { begin_anim_thread(ent, 0x001dbb90); }  // BroScr_AnimScript_CoverCrouch
-void XB_CDECL Bro_anim_main_run(uint32_t ent) { begin_anim_thread(ent, 0x001d99e0); }  // Bro_run__main
-void XB_CDECL Bro_anim_main_combat(uint32_t ent) { begin_anim_thread(ent, 0x001dce30); }  // BroScr_CombatMain
-void XB_CDECL Bro_anim_main_cover_left(uint32_t ent) { begin_anim_thread(ent, 0x001dd180); }  // BroScr_AnimScript_CoverLeft
-void XB_CDECL Bro_anim_main_cover_right(uint32_t ent) { begin_anim_thread(ent, 0x001dd510); }  // BroScr_AnimScript_CoverRight
-void XB_CDECL Bro_anim_main_cover_stand(uint32_t ent) { begin_anim_thread(ent, 0x001dd750); }  // BroScr_AnimScript_CoverStand
-void XB_CDECL Bro_anim_main_concealment_prone(uint32_t ent) { begin_anim_thread(ent, 0x001de000); }  // BroScr_AnimScript_ConcealmentProne
-void XB_CDECL Bro_anim_main_cover_prone(uint32_t ent) { begin_anim_thread(ent, 0x001de040); }  // BroScr_AnimScript_CoverProne
-void XB_CDECL Bro_anim_main_stop(uint32_t ent) { begin_anim_thread(ent, 0x001e3520); }  // Bro_stop__main
-void XB_CDECL Bro_anim_main_reacquire(uint32_t ent) { begin_anim_thread(ent, 0x001e3c80); }  // BroScr_AnimScript_Reacquire
+void XB_CDECL Bro_anim_main_pain(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_Pain)); }  // BroScr_AnimScript_Pain
+void XB_CDECL Bro_anim_main_concealment_stand(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_ConcealmentStand)); }  // BroScr_AnimScript_ConcealmentStand
+void XB_CDECL Bro_anim_main_cover_wide_left(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverWideLeft)); }  // BroScr_AnimScript_CoverWideLeft
+void XB_CDECL Bro_anim_main_cover_wide_right(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverWideRight)); }  // BroScr_AnimScript_CoverWideRight
+void XB_CDECL Bro_anim_main_death(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_Death)); }  // BroScr_AnimScript_Death
+void XB_CDECL Bro_anim_main_concealment_crouch(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_ConcealmentCrouch)); }  // BroScr_AnimScript_ConcealmentCrouch
+void XB_CDECL Bro_anim_main_cover_crouch(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverCrouch)); }  // BroScr_AnimScript_CoverCrouch
+void XB_CDECL Bro_anim_main_run(uint32_t ent) { begin_anim_thread(ent, own_address(&Bro_run__main)); }  // Bro_run__main
+void XB_CDECL Bro_anim_main_combat(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_CombatMain)); }  // BroScr_CombatMain
+void XB_CDECL Bro_anim_main_cover_left(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverLeft)); }  // BroScr_AnimScript_CoverLeft
+void XB_CDECL Bro_anim_main_cover_right(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverRight)); }  // BroScr_AnimScript_CoverRight
+void XB_CDECL Bro_anim_main_cover_stand(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverStand)); }  // BroScr_AnimScript_CoverStand
+void XB_CDECL Bro_anim_main_concealment_prone(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_ConcealmentProne)); }  // BroScr_AnimScript_ConcealmentProne
+void XB_CDECL Bro_anim_main_cover_prone(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_CoverProne)); }  // BroScr_AnimScript_CoverProne
+void XB_CDECL Bro_anim_main_stop(uint32_t ent) { begin_anim_thread(ent, own_address(&Bro_stop__main)); }  // Bro_stop__main
+void XB_CDECL Bro_anim_main_reacquire(uint32_t ent) { begin_anim_thread(ent, own_address(&BroScr_AnimScript_Reacquire)); }  // BroScr_AnimScript_Reacquire
 
 // --- push 3 c: combat / cover / pain anim scripts (thread switch, not registered) ---
 
@@ -2148,7 +2151,7 @@ void XB_CDECL BroScr_AnimScript_Pain(uint32_t ent) {
     {
         const uint8_t no = 0;
         using CallEntB = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*);
-        title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, 0x0018dbc0, ent, &no);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
+        title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, own_address(&BroScr_PainAnimByHitLocation), ent, &no);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
     }
     uint32_t wounded = *handle_slot(ent, 0xb7f3f874);  // wounded_anim
     uint32_t movement = 0x00385d90;
@@ -2288,7 +2291,7 @@ void XB_CDECL BroScr_AnimScript_Pain(uint32_t ent) {
     if (stop_after) {
         const float after = title_global<float>(0x0083eca0);  // 0.2
         using CallEntF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const float*);
-        title_function<CallEntF>(0x001e5370)(0, 0, 0, 0, 0x0019f9d0, ent, &after);  // Scr_CallThread_ent_f(BroScr_SetAnimMovementStopAfter)
+        title_function<CallEntF>(0x001e5370)(0, 0, 0, 0, own_address(&BroScr_SetAnimMovementStopAfter), ent, &after);  // Scr_CallThread_ent_f(BroScr_SetAnimMovementStopAfter)
         movement = 0x00385d90;
     }
     set_orient_mode(ent, 0x0083adec);  // "face current"
@@ -2541,8 +2544,8 @@ void XB_CDECL BroScr_BattleChatterInit(uint32_t ent) {
     *chance = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000));  // Scr_RandomFloat(1)
     // ScrField_hbe944753 (a bool field; a missing word's upper bytes are the caller's stale ECX).
     *reinterpret_cast<uint8_t*>(key_slot(ent, 0xbe944753, title_global<uint8_t>(0x00922ed0))) = 0;
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001cba70, ent);  // BroScr_GiveUpPositionChatter
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001cbae0, ent);  // BroScr_GrenadeDangerThink
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_GiveUpPositionChatter), ent);  // BroScr_GiveUpPositionChatter
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_GrenadeDangerThink), ent);  // BroScr_GrenadeDangerThink
 }
 
 void XB_CDECL BroScr_GrenadeDangerThink(uint32_t ent) {
@@ -2645,7 +2648,7 @@ void XB_CDECL BroScr_CornerRamboFire(uint32_t ent, uint32_t step_out, uint32_t s
     float point[3] = {as_float(undefined_lane()), as_float(undefined_lane()), as_float(undefined_lane())};
     slot<void XB_CDECL(uint32_t, float*, float*)>(0x0092263c)(ent, back, point);  // GScr_LocalToWorldCoords
     if (static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t, float*)>(0x009226f4)(ent, point))) {  // GScr_ActorIsSafeMovePoint
-        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_LookAtEnemyLoop), ent);  // BroScr_LookAtEnemyLoop
         const uint32_t special = *handle_slot(ent, 0x175567a8);  // anim_special
         *handle_slot(ent, 0x175567a8) = 0x0036b1a5;
         slot<KnobAll>(0x009225e4)(ent, 0x54e3b2b6, step_out, body_root(), 0x3f800000, 0x3dcccccd, 0x3f800000, 0);
@@ -2676,7 +2679,7 @@ void XB_CDECL BroScr_StopProneIdle(uint32_t ent) {
             // Both directions play g_anim_prone_turn_right (two copies in the original).
             slot<SetAnim7>(0x009225e0)(ent, 0x59c142f9, title_global<uint32_t>(0x008cf1f8), 0x3f800000, 0x3dcccccd,
                                        0x3f800000, 1);  // GScr_SetFlaggedAnimKnob
-            begin_entity_thread(0x001840b0, ent);  // BroScr_ProneAimWeightsLoop
+            begin_entity_thread(own_address(&BroScr_ProneAimWeightsLoop), ent);  // BroScr_ProneAimWeightsLoop
             handle_note_tracks(ent, 0x59c142f9);
             queue_notify(ent, 0x6660fd4f);
         } else {
@@ -2794,7 +2797,7 @@ uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent) {
                         const uint32_t end = 0xeac9abbd;
                         using CallEntHashF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                                                const uint32_t*, const float*);
-                        title_function<CallEntHashF>(0x001e4dc0)(0, 0, 0, 0, 0x001ca3c0, ent, &end,
+                        title_function<CallEntHashF>(0x001e4dc0)(0, 0, 0, 0, own_address(&BroScr_RechamberRifleDelayed), ent, &end,
                                                                  &delay);  // Scr_CallThread_ent_hash_f_4(BroScr_RechamberRifleDelayed)
                     }
                     handle_note_tracks(ent, 0xf519d3c8);
@@ -3254,12 +3257,12 @@ void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t del
     queue_notify(ent, 0x3c77a48b);
     using CallEntEntPtr = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
     if (entity_handle_is_valid(target)) {
-        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, 0x001c02d0, ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_LookAtEntityLoop)
-        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, 0x001abe30, ent, &target);  // (BroScr_UpdateOrientToEntity)
-        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, 0x001c6ba0, ent, &target);  // (BroScr_ForceShootTargetDeathWatch)
+        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_LookAtEntityLoop), ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_LookAtEntityLoop)
+        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_UpdateOrientToEntity), ent, &target);  // (BroScr_UpdateOrientToEntity)
+        title_function<CallEntEntPtr>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_ForceShootTargetDeathWatch), ent, &target);  // (BroScr_ForceShootTargetDeathWatch)
     } else {
         using CallEntVec = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*);
-        title_function<CallEntVec>(0x001e4f00)(0, 0, 0, 0, 0x001c0130, ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
+        title_function<CallEntVec>(0x001e4f00)(0, 0, 0, 0, own_address(&BroScr_LookAtPositionLoop), ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
         ScriptString mode;
         scr_string_from(&mode, 0x0083ad6c);
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0,
@@ -3280,7 +3283,7 @@ void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t del
         const float first = title_global<float>(0x0083eb24);
         using CallEntFF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const float*,
                                             const uint32_t*);
-        title_function<CallEntFF>(0x001e4f80)(0, 0, 0, 0, 0x001c9890, ent, &first,
+        title_function<CallEntFF>(0x001e4f80)(0, 0, 0, 0, own_address(&BroScr_AimIdleAtTarget), ent, &first,
                                              pointer<uint32_t>(0x00922ea4));  // Scr_CallThread_ent_f_f_5(BroScr_AimIdleAtTarget)
     }
     Scr_WaitTill(ent, 0xf378e0c7);
@@ -3390,7 +3393,7 @@ uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t
             automatic = title_global<uint32_t>(0x008ce604);  // g_anim_crouch_shoot_auto
             single = title_global<uint32_t>(0x008ce5f8);     // g_anim_crouch_shoot
         }
-        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_LookAtEnemyLoop), ent);  // BroScr_LookAtEnemyLoop
         slot<SetAnim6>(0x009225d8)(ent, title_global<uint32_t>(0x008cf318), 0x3f800000, 0x3e19999a, 0x3f800000,
                                    0);  // GScr_SetAnimKnob(g_anim_Shoot)
         uint32_t value;
@@ -3409,7 +3412,7 @@ uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t
             if (static_cast<int32_t>(*ScrField_h0feddbea(ent)) < shots) shots = static_cast<int32_t>(*ScrField_h0feddbea(ent));
             const uint32_t done = 0x3457a259;
             const uint32_t count = static_cast<uint32_t>(shots);
-            title_function<CallShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab050, ent, &done, &count, &mode,
+            title_function<CallShoot>(0x001e4d00)(0, 0, 0, 0, own_address(&BroScr_ShootAtTarget), ent, &done, &count, &mode,
                                                   pointer<uint32_t>(0x00922ebc),
                                                   pointer<uint32_t>(0x00922e84));  // Scr_CallThread_ent_hash_i_str_i_ent(BroScr_ShootAtTarget)
             Scr_WaitTill(ent, 0x3457a259);
@@ -3430,12 +3433,12 @@ uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t
                 const float time = static_cast<float>(shots) * title_global<float>(0x0083ebf8) / as_float(interval);
                 using CallEntHashF = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                                        const uint32_t*, const float*);
-                title_function<CallEntHashF>(0x001e4dc0)(0, 0, 0, 0, 0x0018c6a0, ent, &done,
+                title_function<CallEntHashF>(0x001e4dc0)(0, 0, 0, 0, own_address(&BroScr_NotifyAfterTimeChecked), ent, &done,
                                                          &time);  // Scr_CallThread_ent_hash_f_4(BroScr_NotifyAfterTimeChecked)
             }
             const uint32_t done = 0x36f77b94;
             const uint32_t count = static_cast<uint32_t>(shots);
-            title_function<CallShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab530, ent, &done, &count, &mode,
+            title_function<CallShoot>(0x001e4d00)(0, 0, 0, 0, own_address(&BroScr_ShootAtTarget_2), ent, &done, &count, &mode,
                                                   pointer<uint32_t>(0x00922ebc),
                                                   pointer<uint32_t>(0x00922e84));  // (BroScr_ShootAtTarget_2)
             Scr_WaitTill(ent, 0x36f77b94);
@@ -3525,7 +3528,7 @@ void XB_CDECL BroScr_FallbackerTriggerThink(uint32_t trigger) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007ffb9c;
-            functor[1] = 0x001d3980;  // BroScr_FallbackThink
+            functor[1] = own_address(&BroScr_FallbackThink);  // BroScr_FallbackThink
             functor[2] = owner;
             functor[3] = *a;
             functor[4] = *b;
@@ -3611,7 +3614,7 @@ void XB_CDECL BroScr_CoverProneBehavior(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x009226f8)(ent, spot, 0, 0);  // GScr_ActorTryTeleport
     BroScr_ReloadLauncher(ent);
     set_orient_mode(ent, 0x0083adc0);
-    call_thread_str(ent, 0x001dcd30, 0x00826d28);  // BroScr_AnimScript_Combat
+    call_thread_str(ent, own_address(&BroScr_AnimScript_Combat), 0x00826d28);  // BroScr_AnimScript_Combat
 }
 
 void XB_CDECL BroScr_AnimScript_ConcealmentProne(uint32_t ent) {
@@ -3628,7 +3631,7 @@ void XB_CDECL BroScr_AnimScript_CoverCrouch(uint32_t ent) {
     anim_script_begin(ent, 0x3124fe8f);
     wounded_face_anim(ent, 0xc1165808);
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
-    call_thread_str(ent, 0x001d6a10, 0x00826b90);  // Bro_cover_crouch__cover_crouch
+    call_thread_str(ent, own_address(&Bro_cover_crouch__cover_crouch), 0x00826b90);  // Bro_cover_crouch__cover_crouch
 }
 
 void XB_CDECL BroScr_AnimScript_ConcealmentCrouch(uint32_t ent) {
@@ -3636,14 +3639,14 @@ void XB_CDECL BroScr_AnimScript_ConcealmentCrouch(uint32_t ent) {
     wounded_face_anim(ent, 0xc1165808);
     BroScr_MiscCombatTimer(ent);
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);
-    call_thread_str(ent, 0x001d6a10, 0x00826b74);  // Bro_cover_crouch__cover_crouch
+    call_thread_str(ent, own_address(&Bro_cover_crouch__cover_crouch), 0x00826b74);  // Bro_cover_crouch__cover_crouch
 }
 
 void XB_CDECL BroScr_AnimScript_CoverStand(uint32_t ent) {
     anim_script_begin(ent, 0x388a1c90);
     wounded_face_anim(ent, 0);
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x00385d90);
-    call_thread_str(ent, 0x001dc0c0, 0x00826d4c);  // Bro_cover_stand__cover_stand
+    call_thread_str(ent, own_address(&Bro_cover_stand__cover_stand), 0x00826d4c);  // Bro_cover_stand__cover_stand
 }
 
 void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused) {
@@ -3654,14 +3657,14 @@ void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused) {
         scr_release(&message);
     }
     {
-        const uint32_t then = 0x001d9750;  // BroScr_CoverProne_2
+        const uint32_t then = own_address(&BroScr_CoverProne_2);  // BroScr_CoverProne_2
         const uint32_t done = 0x6e5fd3a8;
         using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                        const uint32_t*);
-        title_function<Call>(0x001e4c00)(0, 0, 0, 0, 0x001b99c0, ent, &then, &done);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
+        title_function<Call>(0x001e4c00)(0, 0, 0, 0, own_address(&BroScr_TurnToEnemy_2), ent, &then, &done);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
     }
     Scr_WaitTill(ent, 0x6e5fd3a8);
-    call_thread_str(ent, 0x001de080, 0x00826c74);  // Bro_combat__RangedCombat
+    call_thread_str(ent, own_address(&Bro_combat__RangedCombat), 0x00826c74);  // Bro_combat__RangedCombat
     scr_release(&unused);
 }
 
@@ -4094,9 +4097,9 @@ inline void cover_auto_burst(uint32_t ent, const uint32_t* set, uint32_t interva
     if (static_cast<int32_t>(*ScrField_h0feddbea(ent)) < shots) shots = static_cast<int32_t>(*ScrField_h0feddbea(ent));
     const float time = static_cast<float>(shots) * title_global<float>(0x0083ebf8) / as_float(interval);
     const uint32_t done = 0x36f77b94;
-    title_function<CallEntHashFloat>(0x001e4dc0)(0, 0, 0, 0, 0x0018c6a0, ent, &done,
+    title_function<CallEntHashFloat>(0x001e4dc0)(0, 0, 0, 0, own_address(&BroScr_NotifyAfterTimeChecked), ent, &done,
                                                  &time);  // Scr_CallThread_ent_hash_f_4(BroScr_NotifyAfterTimeChecked)
-    title_function<CallEntHashIntFloat>(0x001e5080)(0, 0, 0, 0, 0x0019da60, ent, &done, &shots,
+    title_function<CallEntHashIntFloat>(0x001e5080)(0, 0, 0, 0, own_address(&BroScr_CoverShootOnNotify), ent, &done, &shots,
                                                     aim);  // Scr_CallThread_ent_hash_i_f_2(BroScr_CoverShootOnNotify)
     Scr_WaitTill(ent, 0x36f77b94);
 }
@@ -4112,7 +4115,7 @@ void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set
         const uint32_t notify = 0x281d9462;
         using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                        const uint32_t*, const uint32_t*, const uint32_t*);
-        title_function<Call>(0x001e5000)(0, 0, 0, 0, 0x001b6fe0, ent, &notify, set + 0x10, set + 9,
+        title_function<Call>(0x001e5000)(0, 0, 0, 0, own_address(&BroScr_BlendAimAnimsByYawLoop), ent, &notify, set + 0x10, set + 9,
                                          &yaw);  // Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2(BroScr_BlendAimAnimsByYawLoop)
     }
     cover_knob_triple(ent, set, 0x13);  // set + 0x4c
@@ -4121,7 +4124,7 @@ void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set
     for (uint32_t i = 0x1c; i < 0x1f; ++i)  // set + 0x70: the three aim-down knobs
         slot<SetAnim6>(0x009225d8)(ent, set[i], 0x3f800000, 0x3dcccccd, 0, 1);
     Scr_Wait(as_float(0x3dcccccd));  // 0.1
-    begin_entity_thread(0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+    begin_entity_thread(own_address(&BroScr_LookAtEnemyLoop), ent);  // BroScr_LookAtEnemyLoop
     uint32_t aim;  // the shot accuracy
     if (team_is(&ent, 0x00832084))  // "allies"
         aim = at<uint32_t>(anim_object(), 0x15c);
@@ -4301,10 +4304,10 @@ void XB_CDECL BroScr_AnimScript_CoverWideRight(uint32_t ent) {
     anim_script_cover_wide(ent, 0x91649867, 0x38948440, 0x008ce418, 0x008ce394);  // cornerstandpose_left / cornercrouchpose_left
 }
 void XB_CDECL BroScr_AnimScript_CoverLeft(uint32_t ent) {
-    anim_script_cover_side(ent, &BroScr_CoverLeftInitAnimSets, 0xa1cb941d, 0x00826d1c, 0x001dbc90, 0x00826d10);  // BroScr_ChoosePoseRandom
+    anim_script_cover_side(ent, &BroScr_CoverLeftInitAnimSets, 0xa1cb941d, 0x00826d1c, own_address(&BroScr_ChoosePoseRandom), 0x00826d10);  // BroScr_ChoosePoseRandom
 }
 void XB_CDECL BroScr_AnimScript_CoverRight(uint32_t ent) {
-    anim_script_cover_side(ent, &BroScr_CoverRightInitAnimSets, 0x38948440, 0x00826d40, 0x001dbeb0,
+    anim_script_cover_side(ent, &BroScr_CoverRightInitAnimSets, 0x38948440, 0x00826d40, own_address(&BroScr_ChoosePoseRandom_2),
                            0x00826d10);  // BroScr_ChoosePoseRandom_2
 }
 
@@ -4385,9 +4388,9 @@ void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused) {
     }
     const uint32_t done = 0xc3cc3e6a;
     using CallEntHash = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
-    title_function<CallEntHash>(0x004b08e0)(0, 0, 0, 0, 0x001e2e10, ent, &done);  // Scr_CallThread_ent_hash(BroScr_BipodGunner)
+    title_function<CallEntHash>(0x004b08e0)(0, 0, 0, 0, own_address(&BroScr_BipodGunner), ent, &done);  // Scr_CallThread_ent_hash(BroScr_BipodGunner)
     Scr_WaitTill(ent, 0xc3cc3e6a);
-    call_thread_str(ent, 0x001de080, 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
+    call_thread_str(ent, own_address(&Bro_combat__RangedCombat), 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
     scr_release(&unused);
 }
 
@@ -4475,7 +4478,7 @@ inline uint32_t* vector_field(uint32_t ent, uint32_t key) {
 }
 inline void start_turret_think(uint32_t ent, uint32_t* turret, uint32_t* flag) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const uint32_t*);
-    title_function<Start>(0x005656f0)(0, 0, 0, 0, 0x001deab0, ent, turret, flag);  // Scr_StartThread_ent_ent_b(BroScr_MgTurretThink)
+    title_function<Start>(0x005656f0)(0, 0, 0, 0, own_address(&BroScr_MgTurretThink), ent, turret, flag);  // Scr_StartThread_ent_ent_b(BroScr_MgTurretThink)
 }
 // To the turret's goal spot (0x1b227) at the level's goal radius (+0x14c), then on "goal" uses the turret
 // in mode 0xad76f051 (`target`: aimed at the player, else no target).
@@ -4531,7 +4534,7 @@ void XB_CDECL BroScr_CombatMain(uint32_t ent) {
     for (;;) {
         uint8_t out;
         if (*BroScr_MeleeCharge(&out, ent)) {
-            call_thread_str(ent, 0x001dd8d0, 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
+            call_thread_str(ent, own_address(&Bro_combat__MeleeCombat), 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
             return;
         }
         if (!*own_function<uint8_t* XB_CDECL(uint8_t*, uint32_t)>(&BroScr_TryShootRunBack)(&out, ent)) break;  // FUN_001b6ab0 (other list)
@@ -4542,7 +4545,7 @@ void XB_CDECL BroScr_CombatMain(uint32_t ent) {
     uint32_t type;
     if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent) != undefined_handle() &&  // ScrActor_GetInt_f0
         *BroScr_GetWeaponFireType(&type, ent) == 0x0001bdc7) {
-        call_thread_str(ent, 0x001e3430, 0x00826cd8);  // BroScr_BipodGunnerStateMain, "Carrying LMG"
+        call_thread_str(ent, own_address(&BroScr_BipodGunnerStateMain), 0x00826cd8);  // BroScr_BipodGunnerStateMain, "Carrying LMG"
         return;
     }
     uint32_t angles[3];
@@ -4555,12 +4558,12 @@ void XB_CDECL BroScr_CombatMain(uint32_t ent) {
     point.v[2] = origin[2];
     uint32_t prone;
     if (*BroScr_ShouldGoProne_2(&prone, ent, point, yaw)) {
-        call_thread_str(ent, 0x001dcd30, 0x00826cac);  // BroScr_AnimScript_Combat, "Dist > ProneRangeSq"
+        call_thread_str(ent, own_address(&BroScr_AnimScript_Combat), 0x00826cac);  // BroScr_AnimScript_Combat, "Dist > ProneRangeSq"
         return;
     }
     BroScr_TryReload(ent, 0, title_global<uint32_t>(0x00922ea8));
     BroScr_ReloadLauncher(ent);
-    call_thread_str(ent, 0x001de080, 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
+    call_thread_str(ent, own_address(&Bro_combat__RangedCombat), 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
 }
 
 void XB_CDECL BroScr_CornerBehavior(uint32_t ent, ScrVec3 node, uint32_t yaw, const uint32_t* set) {
@@ -4673,21 +4676,21 @@ inline void cover_pose(uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_
 void XB_CDECL BroScr_CoverLeftPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
                                      uint32_t flag) {
     (void)text;
-    cover_pose(ent, yaw, node, flag, false, false, 0x001b7360, 0x008ce358, 0x008cdecc,
-               0x001ac2c0);  // BroScr_CoverLeftIdle, cornercrouch2stand_right / cornerb_, BroScr_GetCoverLeftAnimSet
+    cover_pose(ent, yaw, node, flag, false, false, own_address(&BroScr_CoverLeftIdle), 0x008ce358, 0x008cdecc,
+               own_address(&BroScr_GetCoverLeftAnimSet));  // BroScr_CoverLeftIdle, cornercrouch2stand_right / cornerb_, BroScr_GetCoverLeftAnimSet
 }
 void XB_CDECL BroScr_CoverLeftPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
-    cover_pose(ent, yaw, node, flag, false, true, 0x001b7360, 0x008ce3d0, 0x008ce130, 0x001ac2c0);  // stand2crouch_right
+    cover_pose(ent, yaw, node, flag, false, true, own_address(&BroScr_CoverLeftIdle), 0x008ce3d0, 0x008ce130, own_address(&BroScr_GetCoverLeftAnimSet));  // stand2crouch_right
     scr_release(&text);
 }
 void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
                                       uint32_t flag) {
     (void)text;
-    cover_pose(ent, yaw, node, flag, true, false, 0x001b7670, 0x008ce34c, 0x008cdec0,
-               0x001ac360);  // BroScr_CoverRightIdle, cornercrouch2stand_left / cornerb_, BroScr_GetCoverRightAnimSet
+    cover_pose(ent, yaw, node, flag, true, false, own_address(&BroScr_CoverRightIdle), 0x008ce34c, 0x008cdec0,
+               own_address(&BroScr_GetCoverRightAnimSet));  // BroScr_CoverRightIdle, cornercrouch2stand_left / cornerb_, BroScr_GetCoverRightAnimSet
 }
 void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
-    cover_pose(ent, yaw, node, flag, true, true, 0x001b7670, 0x008ce3c4, 0x008ce124, 0x001ac360);  // stand2crouch_left
+    cover_pose(ent, yaw, node, flag, true, true, own_address(&BroScr_CoverRightIdle), 0x008ce3c4, 0x008ce124, own_address(&BroScr_GetCoverRightAnimSet));  // stand2crouch_left
     scr_release(&text);
 }
 
@@ -4701,8 +4704,8 @@ using namespace bro_ai;
 
 void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString name) {
     (void)spawner;
-    if (field_defined(ScrField_hc07c63aa_IsDefined, ent)) create_entity_thread(0x0019a200, ent);  // BroScr_SetIdlePoseByAllowedStance
-    if (field_defined(ScrField_h95b9edc3_IsDefined, ent)) create_entity_thread(0x001816c0, ent);  // BroScr_EmptyFunc_40
+    if (field_defined(ScrField_hc07c63aa_IsDefined, ent)) create_entity_thread(own_address(&BroScr_SetIdlePoseByAllowedStance), ent);  // BroScr_SetIdlePoseByAllowedStance
+    if (field_defined(ScrField_h95b9edc3_IsDefined, ent)) create_entity_thread(own_address(&BroScr_Stub_Ret), ent);  // BroScr_EmptyFunc_40
     {
         uint32_t hash;
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(
@@ -4787,7 +4790,7 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f5ba0;
-            functor[1] = 0x001e09e0;  // BroScr_DropHealth
+            functor[1] = own_address(&BroScr_DropHealth);  // BroScr_DropHealth
             functor[2] = ent;
         }
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(0x00922170)(
@@ -4830,7 +4833,7 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;
-            functor[1] = 0x00181c80;  // BroScr_EmptyFunc_44
+            functor[1] = own_address(&BroScr_Stub_Ret);  // BroScr_EmptyFunc_44
             functor[2] = level;
             functor[3] = ent;
         }
@@ -4872,7 +4875,7 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
             scr_release(&target);
             if (has_target)
                 title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0045aad0)(
-                    0, 0, 0, 0, 0x001b5280, ent, 0x00922ea0);  // Scr_StartThread_ent_pathnode(BroScr_GoToBalconyNode)
+                    0, 0, 0, 0, own_address(&BroScr_GoToBalconyNode), ent, 0x00922ea0);  // Scr_StartThread_ent_pathnode(BroScr_GoToBalconyNode)
         }
     }
     if (found.data) Scr_Free(found.data);
@@ -4943,7 +4946,7 @@ inline void mg_delete_on(uint32_t* ent, uint32_t text, uint32_t* first, uint32_t
     scr_string_from(&notify, text);
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                     const ScriptString*, const uint32_t*, const uint32_t*);
-    own_function<Start>(&Scr_StartThread_ent_ent_str_ent_ent_4_entry)(0, 0, 0, 0, 0x0018ba10, *level, ent, &notify, first, second);
+    own_function<Start>(&Scr_StartThread_ent_ent_str_ent_ent_4_entry)(0, 0, 0, 0, own_address(&BroScr_DeleteEntsOnNotify), *level, ent, &notify, first, second);
     scr_release(&notify);
 }
 // To the turret's spot at the level's goal radius, at the goal uses the turret.
@@ -5068,7 +5071,7 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a10;
-            functor[1] = 0x00199940;  // BroScr_MgFollowEntOrigin
+            functor[1] = own_address(&BroScr_MgFollowEntOrigin);  // BroScr_MgFollowEntOrigin
             functor[2] = model;
             functor[3] = turret;
             functor[4] = target;
@@ -5092,7 +5095,7 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
         float cur[3];
         mg_origin(mg_at(&path, static_cast<uint32_t>(random_int(static_cast<int32_t>(path.size)))), cur);
         using StartPath = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const DynArray*);
-        title_function<StartPath>(0x004b1850)(0, 0, 0, 0, 0x001a5100, ent, &path);  // BroScr_CycleTargetsThread
+        title_function<StartPath>(0x004b1850)(0, 0, 0, 0, own_address(&BroScr_CycleTargetsThread), ent, &path);  // BroScr_CycleTargetsThread
         slot<void XB_CDECL(uint32_t, const float*)>(0x00922684)(ent, ScrField_org(turret));
         slot<SetWord>(0x00922df4)(ent, mg_level_word(0x14c));
         Scr_WaitTillString(ent, pointer<const char>(0x0083ad18));  // "goal"
@@ -5375,7 +5378,7 @@ uint8_t* XB_CDECL BroScr_MeleeCharge(uint8_t* out, uint32_t ent) {
     }
     uint8_t linked;
     if (*BroScr_MeleePair_Relink(&linked, ent, enemy_of(ent))) {
-        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+        title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_LookAtEnemyLoop), ent);  // BroScr_LookAtEnemyLoop
         float delta[3];
         {
             const float lane = as_float(undefined_lane());
@@ -5648,7 +5651,7 @@ uint8_t* XB_CDECL BroScr_ForceShoot(uint8_t* out, uint32_t ent, ScrVec3 point, f
             if (static_cast<float>(more) == 0.0f) break;
             using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*, const float*,
                                            const ScriptString*, const uint32_t*, const uint32_t*, const uint32_t*);
-            title_function<Call>(0x001e4e40)(0, 0, 0, 0, 0x001ca420, ent, &point, &left, &name, &a7_or_0, &target,
+            title_function<Call>(0x001e4e40)(0, 0, 0, 0, own_address(&BroScr_ForceShootThread), ent, &point, &left, &name, &a7_or_0, &target,
                                              &wait_stop);  // Scr_CallThread_ent_vec_f_str_i_ent_i(BroScr_ForceShootThread)
             bool finished = true;
             while (static_cast<uint8_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922190)(*int_slot(ent, 0x60d7df22))) == 1) {  // Scr_ThreadHandleIsValid
@@ -5785,7 +5788,7 @@ void XB_CDECL Bro_stop__main(uint32_t ent) {
     }
     // An LMG carrier: stand, the bipod gunner state as a call thread, then the pose's idle.
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x00385d90);  // BroScr_SetPoseMovement
-    call_thread_str(ent, 0x001e3430, 0x00826cd8);  // BroScr_BipodGunnerStateMain, "Carrying LMG"
+    call_thread_str(ent, own_address(&BroScr_BipodGunnerStateMain), 0x00826cd8);  // BroScr_BipodGunnerStateMain, "Carrying LMG"
     if (pose == 0x070b89a4) {
         BroScr_StopStandIdle(ent);
     } else if (pose == 0xc1165808) {
@@ -5820,7 +5823,7 @@ void XB_CDECL BroScr_SpawnedThink(uint32_t, uint32_t spawner) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a1c;
-            functor[1] = 0x001a63a0;  // BroScr_MgGetNewUser
+            functor[1] = own_address(&BroScr_MgGetNewUser);  // BroScr_MgGetNewUser
             functor[2] = spawner;
             functor[3] = *mg;
         }
@@ -5837,7 +5840,7 @@ void XB_CDECL BroScr_SpawnedThink(uint32_t, uint32_t spawner) {
             const uint32_t* const level = level_handle_or_null();
             using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, uint32_t,
                                               uint32_t);
-            title_function<StartThread>(0x0052c6d0)(0, 0, 0, 0, 0x001a7010, *level, &spawned, 0x00922ebc,
+            title_function<StartThread>(0x0052c6d0)(0, 0, 0, 0, own_address(&BroScr_SetupFriendlyFireMissionFail), *level, &spawned, 0x00922ebc,
                                                     0x00922e90);  // Scr_StartThread_ent_ent_i_str (BroScr_SetupFriendlyFireMissionFail)
         }
         {
@@ -5852,7 +5855,7 @@ void XB_CDECL BroScr_SpawnedThink(uint32_t, uint32_t spawner) {
             origin[1] = o[1];
             using StartN = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScriptString*,
                                              const uint32_t*);
-            own_function<StartN>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, 0x0018bf00, *level, &name,
+            own_function<StartN>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, own_address(&BroScr_DebugCvarWait), *level, &name,
                                                origin);  // Scr_StartThreadFunctorN(BroScr_DebugCvarWait)
             scr_release(&name);
         }
@@ -5985,7 +5988,7 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
     ScriptString weapon_class;
     ScrCall_GScr_GetWeaponClassname(&weapon_class, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent));
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const ScriptString*);
-    title_function<Call>(0x0017afa0)(0, 0, 0, 0, 0x001b8b50, turret, &ent, &weapon_class);  // Scr_CallThread_ent_ent_str(BroScr_TurretOwnerChangeSwap)
+    title_function<Call>(0x0017afa0)(0, 0, 0, 0, own_address(&BroScr_TurretOwnerChangeSwap), turret, &ent, &weapon_class);  // Scr_CallThread_ent_ent_str(BroScr_TurretOwnerChangeSwap)
     slot<SetWord>(0x00922d34)(ent, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d38)(ent));  // ScrActor_SetInt_f0(GetInt_f4)
     slot<SetWord>(0x0092272c)(ent, turret);  // GScr_ActorUseTurret
     scr_release(&weapon_class);
@@ -6071,7 +6074,7 @@ void XB_CDECL BroScr_Mg42CoverSpotThink(uint32_t ent) {
                 scr_release(&target);
             }
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-            title_function<Start>(0x0011a910)(0, 0, 0, 0, 0x001de980, trigger);  // Scr_StartThreadFunctor1(BroScr_TriggerNotifyLevelTargetname)
+            title_function<Start>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_TriggerNotifyLevelTargetname), trigger);  // Scr_StartThreadFunctor1(BroScr_TriggerNotifyLevelTargetname)
         }
         flagged = 1;
     }
@@ -6089,7 +6092,7 @@ void XB_CDECL BroScr_Mg42CoverSpotThink(uint32_t ent) {
         uint32_t* functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x18);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x00825bb4;
-            functor[1] = 0x001e1cf0;  // BroScr_TurretSetAIMode
+            functor[1] = own_address(&BroScr_TurretSetAIMode);  // BroScr_TurretSetAIMode
             functor[2] = guy;
             functor[3] = turret;
             *reinterpret_cast<uint8_t*>(&functor[4]) = flagged;
@@ -6099,7 +6102,7 @@ void XB_CDECL BroScr_Mg42CoverSpotThink(uint32_t ent) {
         functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);
         if (functor) {
             functor[0] = 0x007f4a28;
-            functor[1] = 0x001a4f40;  // BroScr_TurretManualTargetThink
+            functor[1] = own_address(&BroScr_TurretManualTargetThink);  // BroScr_TurretManualTargetThink
             functor[2] = guy;
             functor[3] = turret;
         }
@@ -6247,7 +6250,7 @@ void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
         } else {
             linked = 0;
         }
-        begin_entity_thread(0x001bfe70, ent);  // BroScr_LookAtEnemyLoop
+        begin_entity_thread(own_address(&BroScr_LookAtEnemyLoop), ent);  // BroScr_LookAtEnemyLoop
         if (*handle_slot(ent, 0x0ccee5c1) == 0x0001c6ce && get_int_184(ent) == kStand)
             BroScr_MeleeAttackAnim(ent);
         else
@@ -6334,11 +6337,11 @@ void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
             message_only(0x00826d54);  // "homemade_error = Unexpected_meleeState_value + meleeState"
             break;
         }
-        handle_note_tracks(ent, 0xcc615b7e, 0x0018da00);  // BroScr_MeleeNoteTrackHandler
+        handle_note_tracks(ent, 0xcc615b7e, own_address(&BroScr_MeleeNoteTrackHandler));  // BroScr_MeleeNoteTrackHandler
         *handle_slot(ent, 0x2afa5406) = state;
     } while (is_alive(enemy_of(ent)));
     if (linked) BroScr_MeleePair_Unlink(ent, enemy_of(ent));
-    begin_entity_thread(0x001dce30, ent);  // BroScr_CombatMain
+    begin_entity_thread(own_address(&BroScr_CombatMain), ent);  // BroScr_CombatMain
     queue_notify(ent, 0x807e5a80);
     scr_release(&reason);
 }
@@ -6462,12 +6465,12 @@ void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason) {
         point.v[2] = origin[2];
         uint32_t prone;
         if (*BroScr_ShouldGoProne_2(&prone, ent, point, yaw)) {
-            call_thread_str(ent, 0x001dcd30, 0x00826dec);  // BroScr_AnimScript_Combat, "enemydist > pronerange"
+            call_thread_str(ent, own_address(&BroScr_AnimScript_Combat), 0x00826dec);  // BroScr_AnimScript_Combat, "enemydist > pronerange"
             break;
         }
         uint8_t charged;
         if (*BroScr_MeleeCharge(&charged, ent)) {
-            call_thread_str(ent, 0x001dd8d0, 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
+            call_thread_str(ent, own_address(&Bro_combat__MeleeCombat), 0x00826cc0);  // Bro_combat__MeleeCombat, "TryMeleeCharge passed"
             break;
         }
         ScrVec3 none;
@@ -6597,7 +6600,7 @@ inline uint32_t* fb_at(DynArray* array, uint32_t i, uint32_t grow) {
     return &array->data[i];
 }
 inline uint32_t* fb_level_at(uint32_t offset, uint32_t n) {
-    return fb_at(pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset), n, 0x0017b9a0);
+    return fb_at(pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset), n, own_address(&DynArray_ResizeInt));
 }
 // Whether the entity's table holds `key` with a value other than the undefined int (nothing added).
 inline bool fb_has_int_key(uint32_t ent, uint32_t key) {
@@ -6647,13 +6650,13 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
         slot<void XB_CDECL(DynArray*)>(0x009223d8)(&spawners);  // GScr_GetSpawnerArray
         if (static_cast<int32_t>(spawners.size) > 0) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
-                if (!fb_has_int_key(*fb_at(&spawners, i, 0x00015a90), kFallback)) continue;
-                if (*int_slot(*fb_at(&spawners, i, 0x00015a90), kFallback) != static_cast<uint32_t>(n)) continue;
-                if (!(static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922b88)(*fb_at(&spawners, i, 0x00015a90))) > 0))
+                if (!fb_has_int_key(*fb_at(&spawners, i, own_address(&DynArray_Resize)), kFallback)) continue;
+                if (*int_slot(*fb_at(&spawners, i, own_address(&DynArray_Resize)), kFallback) != static_cast<uint32_t>(n)) continue;
+                if (!(static_cast<int32_t>(slot<uint32_t XB_CDECL(uint32_t)>(0x00922b88)(*fb_at(&spawners, i, own_address(&DynArray_Resize)))) > 0))
                     continue;
                 const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
                 const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
-                fb_thread(0x0080e554, 0x001c5910, *fb_at(&spawners, i, 0x00015a90), n, node);  // BroScr_FallbackSpawnerThink
+                fb_thread(0x0080e554, own_address(&BroScr_FallbackSpawnerThink), *fb_at(&spawners, i, own_address(&DynArray_Resize)), n, node);  // BroScr_FallbackSpawnerThink
                 ++*fb_level_at(0x0c, n);
             }
         }
@@ -6662,11 +6665,11 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
         slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);  // GScr_GetAIAll
         if (static_cast<int32_t>(ai.size) > 0) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
-                if (!fb_has_int_key(*fb_at(&ai, i, 0x00015a90), kFallback)) continue;
-                if (*int_slot(*fb_at(&ai, i, 0x00015a90), kFallback) != static_cast<uint32_t>(n)) continue;
+                if (!fb_has_int_key(*fb_at(&ai, i, own_address(&DynArray_Resize)), kFallback)) continue;
+                if (*int_slot(*fb_at(&ai, i, own_address(&DynArray_Resize)), kFallback) != static_cast<uint32_t>(n)) continue;
                 using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const int32_t*,
                                                       const uint32_t*, const ScriptString*);
-                own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, 0x001bea50, *fb_at(&ai, i, 0x00015a90), &n,
+                own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, own_address(&BroScr_FallbackerJoinFallback), *fb_at(&ai, i, own_address(&DynArray_Resize)), &n,
                                                         pointer<uint32_t>(0x00922ea0), pointer<ScriptString>(0x00922e90));
                 // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
             }
@@ -6680,7 +6683,7 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
         }
         own_function<ArrayGrow>(&DynArray_Resize)(&spawners, 0, 0);  // DynArray_Resize
         own_function<ArrayGrow>(&DynArray_Resize)(&ai, 0, 0);
-        fb_thread(0x007ffb9c, 0x001bec70, level, n, &group);  // BroScr_FallbackerSetup
+        fb_thread(0x007ffb9c, own_address(&BroScr_FallbackerSetup), level, n, &group);  // BroScr_FallbackerSetup
         // Its trigger, then the fallback starts.
         ScriptString name;
         ScriptString_FromCString(&name, pointer<const char>(0x00826458));  // "fallbacker_trigger"
@@ -6701,12 +6704,12 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
         DynArray chosen = {nullptr, 0, 0};
         if (static_cast<int32_t>(ai.size) > 0) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
-                bool join = fb_has_int_key(*fb_at(&ai, i, 0x00015a90), kFallback) &&
-                            *int_slot(*fb_at(&ai, i, 0x00015a90), kFallback) == static_cast<uint32_t>(n);
+                bool join = fb_has_int_key(*fb_at(&ai, i, own_address(&DynArray_Resize)), kFallback) &&
+                            *int_slot(*fb_at(&ai, i, own_address(&DynArray_Resize)), kFallback) == static_cast<uint32_t>(n);
                 if (!join)
-                    join = fb_has_int_key(*fb_at(&ai, i, 0x00015a90), 0x1aa720d8) && group != undefined_int() &&
-                           *int_slot(*fb_at(&ai, i, 0x00015a90), 0x1aa720d8) == group;
-                if (join) DynArray_PushBack(reinterpret_cast<uint8_t*>(&chosen), fb_at(&ai, i, 0x00015a90));
+                    join = fb_has_int_key(*fb_at(&ai, i, own_address(&DynArray_Resize)), 0x1aa720d8) && group != undefined_int() &&
+                           *int_slot(*fb_at(&ai, i, own_address(&DynArray_Resize)), 0x1aa720d8) == group;
+                if (join) DynArray_PushBack(reinterpret_cast<uint8_t*>(&chosen), fb_at(&ai, i, own_address(&DynArray_Resize)));
             }
         }
         own_function<ArrayGrow>(&DynArray_Resize)(&ai, 0, 0);
@@ -6731,7 +6734,7 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
                 if (static_cast<float>(more) == title_global<float>(0x0083eafc)) break;
                 const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
                 const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
-                fb_thread(0x0080e554, 0x0019a5c0, *fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90), n, node);  // BroScr_FallbackGoalThink
+                fb_thread(0x0080e554, own_address(&BroScr_FallbackGoalThink), *fb_at(&chosen, static_cast<uint32_t>(i), own_address(&DynArray_Resize)), n, node);  // BroScr_FallbackGoalThink
             }
             for (int32_t i = 0;; ++i) {
                 const int32_t more = part > static_cast<float>(i) ? 1 : 0;
@@ -6745,10 +6748,10 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
                 Scr_WaitTill(*owner, notify);
             }
             for (int32_t i = static_cast<int32_t>(float_to_script_int(part)); i < static_cast<int32_t>(chosen.size); ++i) {
-                if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(*fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90))) continue;  // GScr_IsAlive
+                if (!slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(*fb_at(&chosen, static_cast<uint32_t>(i), own_address(&DynArray_Resize)))) continue;  // GScr_IsAlive
                 const uint32_t pick = static_cast<uint32_t>(random_int(static_cast<int32_t>(found.size)));
                 const uint32_t* const node = fb_at(&found, pick, 0x0045d480);
-                fb_thread(0x0080e554, 0x0019a5c0, *fb_at(&chosen, static_cast<uint32_t>(i), 0x00015a90), n, node);
+                fb_thread(0x0080e554, own_address(&BroScr_FallbackGoalThink), *fb_at(&chosen, static_cast<uint32_t>(i), own_address(&DynArray_Resize)), n, node);
             }
         }
         if (chosen.data) Scr_Free(chosen.data);
@@ -6796,7 +6799,7 @@ inline uint32_t dt_addr(const void* p) { return static_cast<uint32_t>(reinterpre
 inline uint32_t dt_balcony_node(uint32_t ent) { return *ScrField_balcony_node(ent); }
 // Scr_BeginThreadFunctor1(0, 0, 0, 0, BroScr_HelmetPop, ent).
 inline void dt_helmet_pop(uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x0019db90, ent);
+    title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_HelmetPop), ent);
 }
 inline bool dt_back(int32_t yaw) { return yaw > 135 || yaw <= -135; }
 inline uint32_t dt_anim(uint32_t address) { return title_global<uint32_t>(address); }
@@ -6830,7 +6833,7 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
     {
         using CallEntB = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*);
         const uint8_t yes = 1;
-        title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, 0x0018dbc0, ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
+        title_function<CallEntB>(0x0052cb60)(0, 0, 0, 0, own_address(&BroScr_PainAnimByHitLocation), ent, &yes);  // Scr_CallThread_ent_b_KASSPASS(BroScr_PainAnimByHitLocation)
     }
     {
         ScriptString type;
@@ -7075,7 +7078,7 @@ using RunDirs = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32
 // forward right, forward left (the anim globals by address).
 inline void rn_directions(uint32_t ent, uint32_t forward, uint32_t back, uint32_t left, uint32_t right, uint32_t forward_right,
                           uint32_t forward_left) {
-    title_function<RunDirs>(0x001e53e0)(0, 0, 0, 0, 0x0019ff70, ent, pointer<uint32_t>(forward), pointer<uint32_t>(back),
+    title_function<RunDirs>(0x001e53e0)(0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsLoop), ent, pointer<uint32_t>(forward), pointer<uint32_t>(back),
                                         pointer<uint32_t>(left), pointer<uint32_t>(right), pointer<uint32_t>(forward_right),
                                         pointer<uint32_t>(forward_left));
 }
@@ -7428,12 +7431,12 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
     queue_notify(ent, 0x3c77a48b);
     // Look at and face the target (watching its death), else the point.
     if (entity_handle_is_valid(target)) {
-        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001c02d0, ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_LookAtEntityLoop)
-        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001abe30, ent, &target);  // BroScr_UpdateOrientToEntity
-        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001c6ba0, ent, &target);  // BroScr_ForceShootTargetDeathWatch
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_LookAtEntityLoop), ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_LookAtEntityLoop)
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_UpdateOrientToEntity), ent, &target);  // BroScr_UpdateOrientToEntity
+        title_function<FsEntEnt>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_ForceShootTargetDeathWatch), ent, &target);  // BroScr_ForceShootTargetDeathWatch
     } else {
         using CallVec = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*);
-        title_function<CallVec>(0x001e4f00)(0, 0, 0, 0, 0x001c0130, ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
+        title_function<CallVec>(0x001e4f00)(0, 0, 0, 0, own_address(&BroScr_LookAtPositionLoop), ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
         ScriptString mode;
         ScriptString_FromCString(&mode, pointer<const char>(0x0083ad6c));  // "face point"
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0, &point);  // GScr_ActorSetOrientMode
@@ -7448,7 +7451,7 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
     if (as_float(point.v[0]) != u || as_float(point.v[1]) != u || as_float(point.v[2]) != u) *int_slot(ent, 0x33a4ea6c) = 1;
     {
         const float half = title_global<float>(0x0083eb24);  // 0.5
-        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, 0x001c9890, ent, &half,
+        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, own_address(&BroScr_AimIdleAtTarget), ent, &half,
                                               pointer<uint32_t>(0x00922ea4));  // Scr_CallThread_ent_f_f_5(BroScr_AimIdleAtTarget)
     }
     Scr_WaitTill(ent, 0xf378e0c7);
@@ -7464,7 +7467,7 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
             const uint32_t done = 0x3457a259;
             do {
                 const int32_t shots = fs_burst(ent, 40, 80);
-                title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab050, ent, &done, &shots, &name, &end,
+                title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, own_address(&BroScr_ShootAtTarget), ent, &done, &shots, &name, &end,
                                                     &target);  // Scr_CallThread_ent_hash_i_str_i_ent(BroScr_ShootAtTarget)
                 Scr_WaitTill(ent, done);
                 if (fs_before(end) && fs_needs_reload(ent))
@@ -7498,7 +7501,7 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
                         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
                         if (functor) {
                             functor[0] = 0x007f4a58;
-                            functor[1] = 0x0018c6a0;  // BroScr_NotifyAfterTimeChecked
+                            functor[1] = own_address(&BroScr_NotifyAfterTimeChecked);  // BroScr_NotifyAfterTimeChecked
                             functor[2] = ent;
                             functor[3] = 0x36f77b94;
                             functor[4] = bits(wait);
@@ -7507,13 +7510,13 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
                             0, 0, 0, ent, functor, 0);  // Scr_BeginThread
                         if (slot<uint8_t XB_CDECL()>(0x0092218c)()) Scr_WaitFrames(0);  // Scr_InThread
                         const uint32_t stop = 0x36f77b94;
-                        title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, 0x001ab530, ent, &stop, &shots, &name, &end,
+                        title_function<FsShoot>(0x001e4d00)(0, 0, 0, 0, own_address(&BroScr_ShootAtTarget_2), ent, &stop, &shots, &name, &end,
                                                             &target);  // (BroScr_ShootAtTarget_2)
                     }
                     if (fs_before(end) && fs_needs_reload(ent)) {
                         fs_reload(ent);
                         const float half = title_global<float>(0x0083eb24);
-                        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, 0x001c9890, ent, &half, pointer<uint32_t>(0x00922ea4));
+                        title_function<FsAimIdle>(0x001e4f80)(0, 0, 0, 0, own_address(&BroScr_AimIdleAtTarget), ent, &half, pointer<uint32_t>(0x00922ea4));
                         Scr_WaitTill(ent, 0xf378e0c7);
                         break;
                     }

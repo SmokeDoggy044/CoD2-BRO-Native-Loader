@@ -12,6 +12,7 @@
 #include "title_data.h"
 #include "levels_twins.h"
 #include "qcommon_fs.h"
+#include "bro_scr_anim_reach.h"
 
 namespace game {
 
@@ -123,7 +124,7 @@ void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, Script
         !ScriptString_Equals(&tag, pointer<const char>(0x007f5c28))) {  // "tag_driver"
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                               const ScriptString*);
-        own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0016aa90, vehicle, &rider,
+        own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_AnimScriptedRestoreAnimname), vehicle, &rider,
                                                 &tag);  // Scr_StartThread_ent_ent_str(BroScr_AnimScriptedRestoreAnimname)
     }
     bool first = true;

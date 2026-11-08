@@ -554,25 +554,25 @@ void XB_CDECL CL_RefPrintf(const char* format, const uint32_t* args) {
 }
 
 uint8_t* XB_CDECL CL_InitInput() {
-    static constexpr struct {
+    static const struct {
         uint32_t name;
         uint32_t function;
     } kCommands[] = {
-        {0x00835134, 0x002abe80}, {0x0082d62c, 0x002c7de0}, {0x0083512c, 0x002b48f0},
-        {0x00835120, 0x002cd640}, {0x00835114, 0x002cd5f0}, {0x0083510c, 0x002b48e0},
-        {0x00835104, 0x002b48d0}, {0x008350fc, 0x002b48c0}, {0x008350f4, 0x002b48b0},
-        {0x008350e8, 0x002b48a0}, {0x008350dc, 0x002b4890}, {0x008350d4, 0x002b4880},
-        {0x008350cc, 0x002b4870}, {0x008350c4, 0x002b4860}, {0x008350bc, 0x002b4850},
-        {0x008350b0, 0x002b4840}, {0x008350a4, 0x002b4830}, {0x0083509c, 0x002b47c0},
-        {0x00835094, 0x002b47b0}, {0x00835088, 0x002b4820}, {0x0083507c, 0x002b4810},
-        {0x00835070, 0x002b4800}, {0x00835064, 0x002b47f0}, {0x0082dfa8, 0x002b47e0},
-        {0x0083505c, 0x002b47d0}, {0x0082d6ac, 0x002b47a0}, {0x00835054, 0x002b4790},
-        {0x0082d694, 0x002b4720}, {0x0083504c, 0x002b4710}, {0x0082dfc0, 0x002b4700},
-        {0x00835040, 0x002b46f0}, {0x0082d640, 0x002b46a0}, {0x00835038, 0x002b4690},
-        {0x0082be38, 0x002b4680}, {0x0083502c, 0x002b4670}, {0x0082be5c, 0x002b4660},
-        {0x00835020, 0x002b4650}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},
-        {0x0082d654, 0x002abec0}, {0x00835008, 0x002abeb0}, {0x00835000, 0x002ac0b0},
-        {0x00834ff8, 0x002ac060}, {0x0082d610, 0x002c7d90}, {0x0082bed8, 0x002c7d40},
+        {0x00835134, own_address(&IN_CenterView)}, {0x0082d62c, own_address(&IN_UpDown)}, {0x0083512c, own_address(&IN_UpUp)},
+        {0x00835120, own_address(&IN_DownDown)}, {0x00835114, own_address(&IN_DownUp)}, {0x0083510c, own_address(&IN_LeftDown)},
+        {0x00835104, own_address(&IN_LeftUp)}, {0x008350fc, own_address(&IN_RightDown)}, {0x008350f4, own_address(&IN_RightUp)},
+        {0x008350e8, own_address(&IN_ForwardDown)}, {0x008350dc, own_address(&IN_ForwardUp)}, {0x008350d4, own_address(&IN_BackDown)},
+        {0x008350cc, own_address(&IN_BackUp)}, {0x008350c4, own_address(&IN_LookupDown)}, {0x008350bc, own_address(&IN_LookupUp)},
+        {0x008350b0, own_address(&IN_LookdownDown)}, {0x008350a4, own_address(&IN_LookdownUp)}, {0x0083509c, own_address(&IN_StrafeDown)},
+        {0x00835094, own_address(&IN_StrafeUp)}, {0x00835088, own_address(&IN_MoveleftDown)}, {0x0083507c, own_address(&IN_MoveleftUp)},
+        {0x00835070, own_address(&IN_MoverightDown)}, {0x00835064, own_address(&IN_MoverightUp)}, {0x0082dfa8, own_address(&IN_SpeedDown)},
+        {0x0083505c, own_address(&IN_SpeedUp)}, {0x0082d6ac, own_address(&IN_Button0Down)}, {0x00835054, own_address(&IN_Button0Up)},
+        {0x0082d694, 0x002b4720}, {0x0083504c, 0x002b4710}, {0x0082dfc0, own_address(&IN_ActivateDown)},
+        {0x00835040, own_address(&IN_ActivateUp)}, {0x0082d640, own_address(&IN_ReloadDown)}, {0x00835038, own_address(&IN_ReloadUp)},
+        {0x0082be38, own_address(&IN_LeanLeftDown)}, {0x0083502c, own_address(&IN_LeanLeftUp)}, {0x0082be5c, own_address(&IN_LeanRightDown)},
+        {0x00835020, own_address(&IN_LeanRightUp)}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},
+        {0x0082d654, own_address(&IN_SprintDown)}, {0x00835008, own_address(&IN_SprintUp)}, {0x00835000, own_address(&IN_MLookDown)},
+        {0x00834ff8, own_address(&IN_MLookUp)}, {0x0082d610, 0x002c7d90}, {0x0082bed8, 0x002c7d40},
         {0x00834fe8, 0x002c7cf0}, {0x00834fdc, 0x002c7ca0}, {0x00834fd4, 0x002c7c70},
         {0x00834fc8, 0x002c7c40}, {0x00834fbc, 0x002c7bc0}, {0x00834fb0, 0x002b45f0},
         {0x0082d5ac, 0x002db660}, {0x00834f98, 0x002bb900}, {0x0082d5d4, 0x002db640},
@@ -1807,7 +1807,7 @@ uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen) {
         for (uint32_t i = 0; i < 3; ++i) show(field<uint8_t*>(screen, 0x44 + i * 4), 0);
         show(field<uint8_t*>(screen, 0x44 + uint32_t(dot) * 4), 0x3f800000);
     }
-    return field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) == 5 ? 0x002f1e60 : 0;
+    return field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) == 5 ? own_address(&SCR_UpdateScreen_entry) : 0;
 }
 
 const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t, char* out) {
@@ -2964,33 +2964,33 @@ void XB_CDECL CL_CubemapShot_f() {
 void XB_CDECL CL_InitRef() {
     // refimport_t (0x22 words). Words 0x12 and 0x17 are never set by the original (stale stack there).
     uint32_t imports[0x22] = {};
-    imports[0x0b] = 0x002ba5c0;  // Cmd_AddCommand
-    imports[0x0c] = 0x002b1dc0;  // Cmd_RemoveCommand
-    imports[0x0d] = 0x002aaac0;  // Cmd_Argc
-    imports[0x0e] = 0x002aaaa0;  // Cmd_Argv
-    imports[0x0f] = 0x002c63a0;  // Cbuf_ExecuteText
-    imports[0x00] = 0x002ab760;  // CL_RefPrintf
+    imports[0x0b] = own_address(&Cmd_AddCommand);  // Cmd_AddCommand
+    imports[0x0c] = own_address(&Cmd_RemoveCommand);  // Cmd_RemoveCommand
+    imports[0x0d] = own_address(&Cmd_Argc);  // Cmd_Argc
+    imports[0x0e] = own_address(&Cmd_Argv_entry);  // Cmd_Argv
+    imports[0x0f] = own_address(&Cbuf_ExecuteText_entry);  // Cbuf_ExecuteText
+    imports[0x00] = own_address(&CL_RefPrintf_entry);  // CL_RefPrintf
     imports[0x01] = 0x002938f0;  // __break (Com_Error)
-    imports[0x02] = 0x002b3250;  // CL_ScaledMilliseconds
-    imports[0x13] = 0x002a1fd0;  // FS_ReadFile
-    imports[0x14] = 0x00297a30;  // FS_FreeFile
-    imports[0x16] = 0x002979f0;  // FS_FreeFileList
-    imports[0x15] = 0x002a1fb0;  // FS_ListFiles
-    imports[0x18] = 0x0029d4a0;  // FS_FileExists
-    imports[0x19] = 0x002a1b30;  // FS_FOpenFileByMode
-    imports[0x1a] = 0x00297d70;  // FS_FCloseFile
-    imports[0x1b] = 0x00297af0;  // FS_Read
-    imports[0x1c] = 0x00297a60;  // FS_Write
-    imports[0x1d] = 0x002aac90;  // CL_RefCM_GetEntry
-    imports[0x08] = 0x0029c2d0;  // Cvar_Get
-    imports[0x09] = 0x00299710;  // Cvar_FindVar
-    imports[0x0a] = 0x0029e6e0;  // Cvar_Set
-    imports[0x10] = 0x0029c4f0;  // Cvar_WriteNamedValues
-    imports[0x11] = 0x0029e700;  // CG_ShellShock_ParseParams
-    imports[0x1e] = 0x002ab710;  // CL_CGameCall8
-    imports[0x1f] = 0x0027f8e0;  // CL_DObjCreateSkeleton
-    imports[0x20] = 0x002ab470;  // SCR_AdjustFrom640
-    imports[0x21] = 0x002bb7c0;  // CL_RefGetFont
+    imports[0x02] = own_address(&CL_ScaledMilliseconds);  // CL_ScaledMilliseconds
+    imports[0x13] = own_address(&FS_ReadFile);  // FS_ReadFile
+    imports[0x14] = own_address(&FS_FreeFile);  // FS_FreeFile
+    imports[0x16] = own_address(&FS_FreeFileList);  // FS_FreeFileList
+    imports[0x15] = own_address(&FS_ListFiles);  // FS_ListFiles
+    imports[0x18] = own_address(&FS_FileExists);  // FS_FileExists
+    imports[0x19] = own_address(&FS_FOpenFileByMode);  // FS_FOpenFileByMode
+    imports[0x1a] = own_address(&FS_FCloseFile);  // FS_FCloseFile
+    imports[0x1b] = own_address(&FS_Read);  // FS_Read
+    imports[0x1c] = own_address(&FS_Write);  // FS_Write
+    imports[0x1d] = own_address(&CL_RefCM_GetEntry);  // CL_RefCM_GetEntry
+    imports[0x08] = own_address(&Cvar_Get);  // Cvar_Get
+    imports[0x09] = own_address(&Cvar_FindVar);  // Cvar_FindVar
+    imports[0x0a] = own_address(&Cvar_Set);  // Cvar_Set
+    imports[0x10] = own_address(&Cvar_WriteNamedValues);  // Cvar_WriteNamedValues
+    imports[0x11] = own_address(&CG_ShellShock_ParseParams_entry);  // CG_ShellShock_ParseParams
+    imports[0x1e] = own_address(&CL_CGameCall8);  // CL_CGameCall8
+    imports[0x1f] = own_address(&CL_DObjCreateSkeleton);  // CL_DObjCreateSkeleton
+    imports[0x20] = own_address(&SCR_AdjustFrom640);  // SCR_AdjustFrom640
+    imports[0x21] = own_address(&CL_RefGetFont);  // CL_RefGetFont
     const uint32_t exports = GetRefAPI(imports, 0xe);
     if (!exports)
         title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(0, &title_global<const char>(0x00834438));
@@ -3007,7 +3007,7 @@ uint32_t XB_CDECL CL_InitCGame() {
     const uint32_t args[2] = {0x00835224, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(map))};  // "maps/%s.bsp"
     Com_sprintf(&title_global<char>(0x009616b8), 0x80, args);  // cl.mapname
     uint8_t* const vm = own_function<uint8_t* XB_CDECL(const char*, uint32_t)>(&VM_Create)(
-        &title_global<const char>(0x0083521c), 0x002ac200);  // VM_Create("cgame", CL_CgameSystemCalls)
+        &title_global<const char>(0x0083521c), own_address(&CL_CgameSystemCalls));  // VM_Create("cgame", CL_CgameSystemCalls)
     title_global<uint8_t*>(0x0093f7f8) = vm;
     if (!vm) title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<const char>(0x00835200));
     own_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(&VM_Call_entry)(0, vm, 0);  // VM_Call CG_INIT
@@ -3504,15 +3504,15 @@ void XB_CDECL CL_Init() {
     title_global<uint8_t*>(0x0092f098) = Cvar_Get(&title_global<const char>(0x00834220), &title_global<const char>(0x0082e098), 0x200);
     title_global<uint8_t*>(0x00929b50) = Cvar_Get(&title_global<const char>(0x0083420c), &title_global<const char>(0x0082e098), 0x200);
     Cvar_Get(&title_global<const char>(0x008341f4), &title_global<const char>(0x008341fc), 0x1);
-    Cmd_AddCommand(&title_global<const char>(0x008341f0), 0x002b32b0);
-    Cmd_AddServerCommand(&title_global<const char>(0x008341e4), 0x002ab7b0);
-    Cmd_AddCommand(&title_global<const char>(0x008341dc), 0x002ab7c0);
-    Cmd_AddCommand(&title_global<const char>(0x008341cc), 0x002f1e60);
-    Cmd_AddCommand(&title_global<const char>(0x008341bc), 0x002b31f0);
-    Cmd_AddCommand(&title_global<const char>(0x008341ac), 0x002ccfb0);
-    Cmd_AddCommand(&title_global<const char>(0x0083419c), 0x002ccf40);
+    Cmd_AddCommand(&title_global<const char>(0x008341f0), own_address(&CL_ForwardToServer_f));
+    Cmd_AddServerCommand(&title_global<const char>(0x008341e4), own_address(&CL_Disconnect_f));
+    Cmd_AddCommand(&title_global<const char>(0x008341dc), own_address(&CL_Setenv_f));
+    Cmd_AddCommand(&title_global<const char>(0x008341cc), own_address(&SCR_UpdateScreen_entry));
+    Cmd_AddCommand(&title_global<const char>(0x008341bc), own_address(&CL_ShellExecute_URL_f));
+    Cmd_AddCommand(&title_global<const char>(0x008341ac), own_address(&CL_IncAnimWeight_f));
+    Cmd_AddCommand(&title_global<const char>(0x0083419c), own_address(&CL_DecAnimWeight_f));
     title_global<uint8_t*>(0x00929b0c) = Cvar_Get(&title_global<const char>(0x0083441c), &title_global<const char>(0x0082e098), 0x0);
-    Cmd_AddCommand(&title_global<const char>(0x00834190), 0x002b2880);
+    Cmd_AddCommand(&title_global<const char>(0x00834190), own_address(&CL_CubemapShot_f));
     CL_InitRef();
     // CL_InitRef never sets refimport words 0x12 and 0x17; in the original they are this function's last pushed
     // arguments still on the stack (names 0x00834190 at entry-0x44 and 0x0083419c at entry-0x30), which GetRefAPI

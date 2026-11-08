@@ -12,6 +12,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "bro_scr_actor_threads.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -61,7 +62,7 @@ float time_float() {
 // BroScr_DirectionalMoveAnimsLoop as a thread with the six move anims (pointers to the globals).
 void directional_move_thread(uint32_t ent, const uint32_t* forward, const uint32_t* back, const uint32_t* left,
                              const uint32_t* right, const uint32_t* forward_right, const uint32_t* forward_left) {
-    title_function<CallEnt6Anims>(0x001e53e0)(0, 0, 0, 0, 0x0019ff70, ent, forward, back, left, right, forward_right,
+    title_function<CallEnt6Anims>(0x001e53e0)(0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsLoop), ent, forward, back, left, right, forward_right,
                                               forward_left);
 }
 void combat_run_thread(uint32_t ent, const uint32_t* forward) {
@@ -305,7 +306,7 @@ void XB_CDECL BroScr_DropWeapon(uint32_t ent) {
             ent, &weapon_name, hand, static_cast<float>(ammo));  // GScr_DropWeapon
         scr_release(&weapon_name);
         if (entity_handle_is_valid(weapon))
-            title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x00184090, weapon);  // BroScr_DeleteAfter300
+            title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, own_address(&BroScr_DeleteAfter300), weapon);  // BroScr_DeleteAfter300
     }
     own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(ent, 0x0036b1a5);  // BroScr_PutGunInHand
 }
@@ -463,7 +464,7 @@ void XB_CDECL BroScr_HandleNoteTracksForever(uint32_t ent, uint32_t notify, uint
 void XB_CDECL BroScr_HandleNoteTracksForTime(uint32_t ent, float time, uint32_t notify, uint32_t callback,
                                              ScriptString text) {
     const uint32_t end = 0x6cd0168f;
-    title_function<CallVt00825c50>(0x001e5480)(0, 0, 0, 0, 0x001aeac0, ent, &notify, &end, &callback,
+    title_function<CallVt00825c50>(0x001e5480)(0, 0, 0, 0, own_address(&BroScr_HandleNoteTracksForever), ent, &notify, &end, &callback,
                                                &text);  // BroScr_HandleNoteTracksForever
     Scr_Wait(time);
     queue_notify(ent, 0x6cd0168f);

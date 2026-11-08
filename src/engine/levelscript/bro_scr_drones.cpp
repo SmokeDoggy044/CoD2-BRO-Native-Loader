@@ -14,6 +14,8 @@
 #include "levels_twins.h"
 #include "scr_field.h"
 #include "script_string.h"
+#include "bro_scr_battle_threads.h"
+#include "bro_scr_drone_threads.h"
 
 namespace game {
 
@@ -44,7 +46,7 @@ void start_drones_near(uint32_t ent, uint32_t radius_sq, uint8_t flag) {
         if (n >= list->size) DynArray_Resize(reinterpret_cast<uint8_t*>(list), n + 1, n + 4);
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint8_t*,
                                               const uint8_t*);
-        title_function<StartThread>(0x0045a970)(0, 0, 0, 0, 0x00169e50, list->data[n], &flags[1], &flags[0]);  // Scr_StartThread_ent_b_b(BroScr_DroneMain)
+        title_function<StartThread>(0x0045a970)(0, 0, 0, 0, own_address(&BroScr_DroneMain), list->data[n], &flags[1], &flags[0]);  // Scr_StartThread_ent_b_b(BroScr_DroneMain)
     }
 }
 
@@ -65,7 +67,7 @@ void XB_CDECL BroScr_StartDronesByTargetname(uint32_t self, ScriptString name) {
         if (functor) {
             uint32_t* words = reinterpret_cast<uint32_t*>(functor);
             words[0] = 0x007f4a7c;
-            words[1] = 0x00169e50;  // BroScr_DroneMain
+            words[1] = own_address(&BroScr_DroneMain);  // BroScr_DroneMain
             words[2] = drone;
             functor[0xc] = 0;
             functor[0xd] = 0;
@@ -92,7 +94,7 @@ void XB_CDECL BroScr_StartDroneDeathThreads(uint32_t self, ScriptString name) {
         if (n >= drones.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&drones), n + 1, n + 4);
         using Begin = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                         ScriptString*);
-        own_function<Begin>(&Scr_BeginThread_ent_str_entry)(0, 0, 0, drones.data[n], 0xe2a210cf, 0x00171970, level_word,
+        own_function<Begin>(&Scr_BeginThread_ent_str_entry)(0, 0, 0, drones.data[n], 0xe2a210cf, own_address(&BroScr_DroneDeathThink), level_word,
                                           note);  // Scr_BeginThread_ent_str(BroScr_DroneDeathThink)
         scr_release(&noteworthy);
     }
@@ -233,7 +235,7 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0xc));  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f5ba0;
-        functor[1] = 0x00169b20;  // BroScr_DroneAnimLoop
+        functor[1] = own_address(&BroScr_DroneAnimLoop);  // BroScr_DroneAnimLoop
         functor[2] = drone;
     }
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
@@ -241,7 +243,7 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
     functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0x14));
     if (functor) {
         functor[0] = 0x00802434;
-        functor[1] = 0x0016d3b0;  // BroScr_DroneFollowSpline
+        functor[1] = own_address(&BroScr_DroneFollowSpline);  // BroScr_DroneFollowSpline
         functor[2] = drone;
         functor[3] = node;
         *reinterpret_cast<uint8_t*>(&functor[4]) = static_cast<uint8_t>(flag);
@@ -254,7 +256,7 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
         std::memcpy(&path, &delay_max, 4);
         if (delay_max != undefined) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float*, float*, uint32_t*);
-            title_function<StartThread>(0x0017ae10)(0, 0, 0, 0, 0x0016f650, drone, &delay_min, &delay_max, &flag);  // Scr_StartThread_ent_f_f_b(BroScr_DroneMainDelayed)
+            title_function<StartThread>(0x0017ae10)(0, 0, 0, 0, own_address(&BroScr_DroneMainDelayed), drone, &delay_min, &delay_max, &flag);  // Scr_StartThread_ent_f_f_b(BroScr_DroneMainDelayed)
         }
     }
     scr_release(&type);

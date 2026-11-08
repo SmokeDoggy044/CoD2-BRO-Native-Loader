@@ -2078,7 +2078,7 @@ namespace {
 // tag is gone.
 void ent_update_link_tag(uint32_t check, uint8_t* ent) {
     uint32_t ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
-    uint32_t function = 0x002be510;
+    uint32_t function = own_address(&G_EntUpdateLinkTag_entry);
     __asm__ volatile("pushl %%ebx\n\tmovl %%esi, %%ebx\n\tcall *%%edx\n\tpopl %%ebx"
                      : "+c"(check), "+d"(function), "+S"(ebx)
                      :

@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "g_script.h"
 #include "title_data.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -143,7 +144,7 @@ void XB_CDECL BroScr_WaitForNotifyOrTimeout(uint32_t, ScrVec3, ScriptString unus
 void XB_CDECL BroScr_AnimReachGuyThread(uint32_t ent, uint32_t other) {
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const uint32_t*);
-    title_function<StartThread>(0x0045a620)(0, 0, 0, 0, 0x0011fc20, *level_handle_word(), &ent,
+    title_function<StartThread>(0x0045a620)(0, 0, 0, 0, own_address(&BroScr_AnimReachNotifyOnDeath), *level_handle_word(), &ent,
                                             &other);  // Scr_StartThread_ent_ent_ent (BroScr_AnimReachNotifyOnDeath)
     const float radius = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922df0)(ent));  // ScrSentient_GetFloat_18
     uint32_t* const saved = field(ent, 0x25bf26c6, title_global<uint32_t>(0x00922eac));
@@ -181,7 +182,7 @@ void XB_CDECL BroScr_VehicleRiderDeathWatch(uint32_t vehicle, uint32_t rider) {
 }
 
 void XB_CDECL BroScr_VehicleRiderUnlinkOnDeath(uint32_t vehicle, uint32_t rider) {
-    const uint32_t args[6] = {0, 0, 0, 0, 0x001205b0, rider};  // BroScr_KillWhenHealthLow
+    const uint32_t args[6] = {0, 0, 0, 0, own_address(&BroScr_KillWhenHealthLow), rider};  // BroScr_KillWhenHealthLow
     Scr_StartThreadFunctor1(args);
     Scr_WaitTill(rider, kDeath);
     queue_notify(vehicle, 0xa05165ad);

@@ -11,6 +11,9 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_tank_init.h"
+#include "levels_prologue_bodies_a.h"
+#include "levels_templates.h"
 
 namespace game {
 
@@ -91,7 +94,7 @@ void target_thread(uint32_t tank, uint32_t a, uint32_t b) {
     uint32_t* const functor = alloc(0x14);
     if (functor) {
         functor[0] = 0x007f4a64;
-        functor[1] = 0x0043d4f0;
+        functor[1] = own_address(&BroLvl_prologue_TankFireAtTargets);
         functor[2] = tank;
         functor[3] = a;
         functor[4] = b;
@@ -138,7 +141,7 @@ void hilltop_sherman(uint32_t path, uint32_t name, uint32_t health, uint32_t tar
     {
         ScriptString arg;
         ScriptString_FromCString(&arg, pointer<const char>(0x007f7820));  // "no_turret"
-        own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x001673c0, tank, &arg);  // BroScr_TankInit_2
+        own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_TankInit_2), tank, &arg);  // BroScr_TankInit_2
         ScriptString_Release(&arg);
     }
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x0092287c)(tank, &node);  // GScr_Vehicle_AttachPath
@@ -291,7 +294,7 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0x0030b1c2: case 0x00325b53: case 0x05c4ceb7: case 0x0605894e: case 0x4ced49f6: case 0x8969d6d6:
     case 0x9ecce58a: case 0xb0996bdc: case 0xc5121aee: case 0xc548bcb7: case 0xdeca7f50: case 0xe104fd5c:
     case 0xe2a39a33: case 0xef260d98: case 0xfe9bb316:
-        types(a, b, c, d, 0, 0x0045cfd0, 0, 0x0045e330);  // FUN_0045cfd0, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE), 0, 0x0045e330);  // FUN_0045cfd0, FUN_0045e330
         return;
     case 0x00339844: case 0x0718b2c3: case 0x0aa8c328: case 0x0aff1238: case 0x0fc14a52: case 0x14b95ada:
     case 0x185dadca: case 0x18b0887b: case 0x19738af8: case 0x19a3d654: case 0x1e46f957: case 0x1ea97196:
@@ -358,10 +361,10 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0x93655872: case 0x98b54d9f: case 0x9a44df1e: case 0xa171373f: case 0xa22fa6ba: case 0xa3b8e90e:
     case 0xac9b3dfb: case 0xaff9c3b8: case 0xb3845cc4: case 0xb873524f: case 0xbe149b8c: case 0xc8b638d8:
     case 0xc8b639ce: case 0xce8a66f4: case 0xdf09fd77: case 0xe223c6aa: case 0xec0a1800:
-        types(a, b, c, d, 0x0011da40, 0x00458ed0, 0x0011da90, 0x00458ec0);  // ScrCall_ScrIface_atof
+        types(a, b, c, d, own_address(&ScrCall_ScrIface_atof), 0x00458ed0, 0x0011da90, 0x00458ec0);  // ScrCall_ScrIface_atof
         return;
     case 0x053fe992:
-        types(a, b, c, d, 0, 0x0045e600, 0, 0x0045e660);  // FUN_0045e600, FUN_0045e660
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_8), 0, 0x0045e660);  // FUN_0045e600, FUN_0045e660
         return;
     case 0x05d2529a: case 0x062bea65: case 0x0aedcb08: case 0x0c4d3fa0: case 0x142a3d9e: case 0x16e6cf7e:
     case 0x17138232: case 0x1a7e7545: case 0x1cc418a4: case 0x1cc76848: case 0x1e0d2e88: case 0x1fbf2135:
@@ -377,31 +380,31 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0xe33cb884: case 0xe5d3774f: case 0xe5d3a68d: case 0xe6f61fa4: case 0xe6f61fa7: case 0xe86f599a:
     case 0xec02fc10: case 0xec05b8e0: case 0xec099bbc: case 0xec0b8919: case 0xec0bd591: case 0xec2bcfdd:
     case 0xf203df5e: case 0xf8cb7452: case 0xff7c2a57:
-        types(a, b, c, d, 0x0011efc0, 0x00458e70, 0x0011dac0, 0x0045bc10);  // ScriptString_NewRepFromCString, FUN_00458e70
+        types(a, b, c, d, own_address(&ScriptString_NewRepFromCString), 0x00458e70, 0x0011dac0, 0x0045bc10);  // ScriptString_NewRepFromCString, FUN_00458e70
         return;
     case 0x12993a44:
         types(a, b, c, d, 0, 0x0045bc20, 0, 0x0045bc80);  // FUN_0045bc20
         return;
     case 0x1791f035:
-        types(a, b, c, d, 0, 0x0045e150, 0, 0x0045e330);  // FUN_0045e150, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_3), 0, 0x0045e330);  // FUN_0045e150, FUN_0045e330
         return;
     case 0x2cd69a2a:
-        types(a, b, c, d, 0, 0x0045e270, 0, 0x0045e330);  // FUN_0045e270, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_6), 0, 0x0045e330);  // FUN_0045e270, FUN_0045e330
         return;
     case 0x4f7c0a56: case 0x85644aaa: case 0xb89aec99:
-        types(a, b, c, d, 0, 0x0045d030, 0, 0x0045e330);  // FUN_0045d030, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_2), 0, 0x0045e330);  // FUN_0045d030, FUN_0045e330
         return;
     case 0x512d9463: case 0x677e856b: case 0x78250ed9: case 0x9ef08b23:
-        types(a, b, c, d, 0, 0x0045e1b0, 0, 0x0045e330);  // FUN_0045e1b0, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_4), 0, 0x0045e330);  // FUN_0045e1b0, FUN_0045e330
         return;
     case 0xaeae4e0b:
-        types(a, b, c, d, 0, 0x0045e2d0, 0, 0x0045e330);  // FUN_0045e2d0, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_7), 0, 0x0045e330);  // FUN_0045e2d0, FUN_0045e330
         return;
     case 0xc4813666:
         types(a, b, c, d, 0, 0x00458ef0, 0, 0x00458f20);
         return;
     case 0xe337f297:
-        types(a, b, c, d, 0, 0x0045e210, 0, 0x0045e330);  // FUN_0045e210, FUN_0045e330
+        types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_5), 0, 0x0045e330);  // FUN_0045e210, FUN_0045e330
         return;
 
     default:
@@ -650,7 +653,7 @@ void XB_CDECL Bro_prologue__Event4_Plane_Crash_Distance(uint32_t self) {
     queue_notify(*level_ent(), 0xc9fe433d);
     const uint32_t* const owner = level_ent();
     scratch = title_global<uint32_t>(0x007f4d90);  // 11.1
-    title_function<StartThread>(kStartEntF)(0, 0, 0, 0, 0x0041be80, *owner, &scratch);  // BroLvl_prologue_FriendlyChainThink
+    title_function<StartThread>(kStartEntF)(0, 0, 0, 0, own_address(&BroLvl_prologue_FriendlyChainThink), *owner, &scratch);  // BroLvl_prologue_FriendlyChainThink
     title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00424a00, *level_ent());  // FUN_00424a00
     title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00435c30, *level_ent());  // BroLvl_prologue_Event4Flak
     title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00452b90, *level_ent());

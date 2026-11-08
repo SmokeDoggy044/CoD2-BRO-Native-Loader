@@ -930,10 +930,10 @@ int32_t world_pool_reset(uint8_t* pool, uint32_t size) {
 }  // namespace
 
 void XB_CDECL PhysWorld_RemoveBodyConstraints(uint32_t body) {
-    world_pool_remove_body(0x1fc, 0x000b5c00, body);  // PhysConstraintPool30_Free
-    world_pool_remove_body(0x228, 0x000b5c90, body);  // PhysConstraintPool50_Free
-    world_pool_remove_body(0x23c, 0x000b5d10, body);  // PhysConstraintPoolF0_Free
-    world_pool_remove_body(0x250, 0x000b5da0, body);  // PhysConstraintPool60_Free
+    world_pool_remove_body(0x1fc, own_address(&PhysConstraintPool30_Free), body);  // PhysConstraintPool30_Free
+    world_pool_remove_body(0x228, own_address(&PhysConstraintPool50_Free), body);  // PhysConstraintPool50_Free
+    world_pool_remove_body(0x23c, own_address(&PhysConstraintPoolF0_Free), body);  // PhysConstraintPoolF0_Free
+    world_pool_remove_body(0x250, own_address(&PhysConstraintPool60_Free), body);  // PhysConstraintPool60_Free
     // The 0x10 link pool's free, inlined (element index by SAR 4).
     int32_t i = 0;
     while (i < at<int32_t>(phys_world(), 0x274)) {
@@ -961,9 +961,9 @@ void XB_CDECL PhysWorld_RemoveBodyConstraints(uint32_t body) {
         at<int32_t*>(pool, 8)[index] = at<int32_t>(pool, 0x10);
         at<int32_t*>(pool, 8)[last_index] = slot;
     }
-    world_pool_remove_body(0x278, 0x000b6250, body);  // PhysConstraintPool1B0_Free
-    world_pool_remove_body(0x28c, 0x000b5e80, body);  // PhysConstraintPoolE0_Free
-    world_pool_remove_body(0x2a0, 0x000b5f10, body);  // PhysConstraintPoolD0_Free
+    world_pool_remove_body(0x278, own_address(&PhysConstraintPool1B0_Free), body);  // PhysConstraintPool1B0_Free
+    world_pool_remove_body(0x28c, own_address(&PhysConstraintPoolE0_Free), body);  // PhysConstraintPoolE0_Free
+    world_pool_remove_body(0x2a0, own_address(&PhysConstraintPoolD0_Free), body);  // PhysConstraintPoolD0_Free
 }
 
 void XB_CDECL PhysWorld_DestroyBody(uint32_t body) {
@@ -1437,7 +1437,7 @@ float constraint_separation(uint8_t* c, uint32_t rotate, uint32_t offset) {
 // only for constraints with a second body (flag 1).
 void XB_THISCALL PhysConstraint_UpdateLimitFlag(uint8_t* c, uint32_t) {
     if (!(at<uint8_t>(c, 0xa4) & 1)) return;
-    const float separation = constraint_separation(c, 0x000b73d0, 0x000b7260);  // PhysBody_RotateVector2, PhysBody_OffsetByField70
+    const float separation = constraint_separation(c, own_address(&PhysBody_RotateVector2), own_address(&PhysBody_OffsetByField70));  // PhysBody_RotateVector2, PhysBody_OffsetByField70
     const uint32_t flags = at<uint32_t>(c, 0xa4);
     at<uint32_t>(c, 0xa4) = separation >= at<float>(c, 0x74) ? flags | 2 : flags & ~2u;
 }
@@ -1450,7 +1450,7 @@ void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* c, float dt) {
     const uint32_t flags = at<uint32_t>(c, 0xa4);
     float separation = 0.0f;
     if (flags & 1) {
-        separation = constraint_separation(c, 0x0002ac30, 0x000b71d0);  // PhysBody_RotateVector, PhysBody_OffsetByPosition
+        separation = constraint_separation(c, own_address(&PhysBody_RotateVector), own_address(&PhysBody_OffsetByPosition));  // PhysBody_RotateVector, PhysBody_OffsetByPosition
         if (separation > at<float>(c, 0x74)) separation = at<float>(c, 0x74);
     }
     at<float>(c, 0x98) = separation;
@@ -6040,7 +6040,7 @@ void XB_CDECL Phys_Init() {
     PhysWorld_SetParams20(4, 8, 0x43908000u);
     PhysWorld_SetField2C(0x430d9c29u);
     PhysWorld_SetCallbackC(0x00233c30);
-    const uint32_t callbacks[2] = {0x00230e40, 0x0022cec0};  // Ragdoll_BodyToPose, Ragdoll_PoseToBody
+    const uint32_t callbacks[2] = {own_address(&Ragdoll_BodyToPose), own_address(&Ragdoll_PoseToBody)};  // Ragdoll_BodyToPose, Ragdoll_PoseToBody
     Phys_SetBoneCallbacks(callbacks);
     const int32_t count = title_global<int32_t>(0x00988780);
     if (count < 0x20) {

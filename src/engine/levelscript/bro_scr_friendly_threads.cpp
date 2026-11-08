@@ -14,6 +14,10 @@
 #include "title_data.h"
 #include "bro_scr_note_handlers.h"
 #include "levels_twins.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_entity_threads.h"
+#include "bro_scr_mission.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -327,7 +331,7 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
         uint32_t* const functor = alloc(0x10);
         if (functor) {
             functor[0] = 0x007f4aac;
-            functor[1] = 0x0018bff0;  // BroScr_SetGoalRadiusFromNodeOnNotify
+            functor[1] = own_address(&BroScr_SetGoalRadiusFromNodeOnNotify);  // BroScr_SetGoalRadiusFromNodeOnNotify
             functor[2] = ent;
             functor[3] = node;
         }
@@ -346,7 +350,7 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
             uint32_t* const functor = alloc(0x14);
             if (functor) {
                 functor[0] = 0x007f4af4;
-                functor[1] = 0x00181bc0;  // BroScr_NotifyFallbackReachedGoal
+                functor[1] = own_address(&BroScr_NotifyFallbackReachedGoal);  // BroScr_NotifyFallbackReachedGoal
                 functor[2] = level;
                 functor[3] = ent;
                 functor[4] = 0;
@@ -359,7 +363,7 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
             debug = ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x00823550), pointer<const char>(0x0082e058));  // "fallback" == "1"
             scr_release(&value);
         }
-        if (debug) create_thread(ent, ent_functor(0x0019a930, ent));  // BroScr_FallbackClearGoalWait_2
+        if (debug) create_thread(ent, ent_functor(own_address(&BroScr_FallbackClearGoalWait_2), ent));  // BroScr_FallbackClearGoalWait_2
         bool more;
         {
             ScriptString target;
@@ -382,7 +386,7 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
         *saved = float_to_script_int(old);
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d0c)(ent, 0x43fa0000);  // ScrActor_SetFloat_7e4(500)
         slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922688)(ent, &node);  // GScr_SetGoalPosFromNode
-        create_thread(ent, ent_functor(0x0019a500, ent));  // BroScr_FallbackOnGoalRestore
+        create_thread(ent, ent_functor(own_address(&BroScr_FallbackOnGoalRestore), ent));  // BroScr_FallbackOnGoalRestore
         if (is_valid_node(node) && radius_positive(node)) {
             const float radius = static_cast<float>(node_radius(node));
             set_goal_radius(ent, bits(radius));
@@ -412,7 +416,7 @@ void XB_CDECL BroScr_SetupFriendlyFireMissionFail(uint32_t self, uint32_t ent, u
             if ((*ScrField_h7599373d_IsDefined(&defined, ent) && *ScrField_h7599373d(ent) == 1) ||
                 *reinterpret_cast<int32_t*>(level_object() + 0xdc) < 4) {
                 using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-                title_function<StartThread>(0x0011a910)(0, 0, 0, 0, 0x00181f70, self);  // Scr_StartThreadFunctor1(BroScr_FriendlyFireMissionFail)
+                title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_FriendlyFireMissionFail), self);  // Scr_StartThreadFunctor1(BroScr_FriendlyFireMissionFail)
             } else {
                 *reinterpret_cast<uint32_t*>(level_object() + 0xf4) = 0;
                 *reinterpret_cast<uint32_t*>(level_object() + 0xdc) = 0;
@@ -511,7 +515,7 @@ void XB_CDECL BroScr_GoToBalconyNode(uint32_t ent, uint32_t node) {
         uint32_t turret = node_target_ent(&node);
         if (is_mg(&turret)) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-            title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, 0x0019a400, turret, &ent);  // Scr_StartThread_ent_ent(BroScr_MgWaitNewUser)
+            title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, own_address(&BroScr_MgWaitNewUser), turret, &ent);  // Scr_StartThread_ent_ent(BroScr_MgWaitNewUser)
         }
     }
     {
@@ -524,7 +528,7 @@ void XB_CDECL BroScr_GoToBalconyNode(uint32_t ent, uint32_t node) {
         bool defined;
         if (*ScrField_h73623f0d_IsDefined(&defined, ent) && *ScrField_h73623f0d(ent) != 0) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-            title_function<StartThread>(0x0011a910)(0, 0, 0, 0, 0x00181b70, ent);  // Scr_StartThreadFunctor1(BroScr_SetAIFlagsUntilNotify)
+            title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_SetAIFlagsUntilNotify), ent);  // Scr_StartThreadFunctor1(BroScr_SetAIFlagsUntilNotify)
         }
     }
     {
@@ -582,7 +586,7 @@ void XB_CDECL BroScr_AnimScriptEntSetDefaults(uint32_t ent) {
     *bool_slot(ent, 0x552cfcab) = 0;
     BroScr_GetCombatRunAnim(ent);
     ScriptString_Equals(string_slot(ent, 0x28ce30a6), pointer<const char>(0x00826424));  // "dogshit", result unused
-    begin_thread(ent, ent_functor(0x001ac460, ent));  // BroScr_HeadLookMainLoop_Thunk
+    begin_thread(ent, ent_functor(own_address(&BroScr_HeadLookMainLoop_Thunk), ent));  // BroScr_HeadLookMainLoop_Thunk
     if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent) != undefined_handle() &&  // ScrActor_GetInt_f0
         slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent) == 0)
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d34)(ent, 0x0036b1a5);  // ScrActor_SetInt_f0
@@ -649,7 +653,7 @@ void XB_CDECL BroScr_TurnToEnemy(uint32_t ent, uint32_t callback, uint32_t end) 
                 }
             }
         }
-        notify_or_timeout(ent, 0x00183810, 0xefd4ee43, 0x00183860, delay, 0x7fa61cea);  // BroScr_NotifyOnNotify / NotifyAfterTime
+        notify_or_timeout(ent, own_address(&BroScr_NotifyOnNotify), 0xefd4ee43, own_address(&BroScr_NotifyAfterTime), delay, 0x7fa61cea);  // BroScr_NotifyOnNotify / NotifyAfterTime
     }
 }
 
@@ -690,7 +694,7 @@ void XB_CDECL BroScr_TurnToEnemy_2(uint32_t ent, uint32_t callback, uint32_t end
                 }
             }
         }
-        notify_or_timeout(ent, 0x00183ea0, 0x31e22e08, 0x00183ef0, delay, 0xf3e6fbcb);  // BroScr_NotifyOnNotify_2 / NotifyAfterTime_2
+        notify_or_timeout(ent, own_address(&BroScr_NotifyOnNotify_2), 0x31e22e08, own_address(&BroScr_NotifyAfterTime_2), delay, 0xf3e6fbcb);  // BroScr_NotifyOnNotify_2 / NotifyAfterTime_2
     }
 }
 
@@ -702,7 +706,7 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
         uint32_t* const functor = alloc(0x14);
         if (functor) {
             functor[0] = 0x007f4a10;
-            functor[1] = 0x00181df0;  // BroScr_NotifyMg42FinishedOnDeath
+            functor[1] = own_address(&BroScr_NotifyMg42FinishedOnDeath);  // BroScr_NotifyMg42FinishedOnDeath
             functor[2] = level;
             functor[3] = ent;
             functor[4] = turret;
@@ -714,7 +718,7 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
         *float_slot(ent, 0xe223c6aa) = bits(radius);
     }
     set_goal_radius(ent, 0x41e00000);  // 28
-    create_thread(ent, ent_functor(0x0019b0d0, ent));  // BroScr_RestoreGoalRadiusOnGoal
+    create_thread(ent, ent_functor(own_address(&BroScr_RestoreGoalRadiusOnGoal), ent));  // BroScr_RestoreGoalRadiusOnGoal
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922688)(ent, &node);  // GScr_SetGoalPosFromNode
     {
         const uint32_t kept = slot<uint32_t XB_CDECL(uint32_t)>(0x00922d20)(ent);  // ScrActor_GetInt_1308
@@ -751,7 +755,7 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
     uint32_t* functor = alloc(0x10);
     if (functor) {
         functor[0] = 0x007f4a28;
-        functor[1] = 0x00181e30;  // BroScr_UseAiOnMg42Hint
+        functor[1] = own_address(&BroScr_UseAiOnMg42Hint);  // BroScr_UseAiOnMg42Hint
         functor[2] = ent;
         functor[3] = turret;
     }
@@ -759,7 +763,7 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
     functor = alloc(0x10);
     if (functor) {
         functor[0] = 0x007f4a28;
-        functor[1] = 0x001a6fe0;  // BroScr_WaitFriendlyFinishedMG42
+        functor[1] = own_address(&BroScr_WaitFriendlyFinishedMG42);  // BroScr_WaitFriendlyFinishedMG42
         functor[2] = ent;
         functor[3] = turret;
     }
@@ -781,7 +785,7 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
         if (entity_handle_is_valid(hint)) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                                   const uint32_t*);
-            title_function<StartThread>(0x0045a620)(0, 0, 0, 0, 0x00181f20, hint, &turret,
+            title_function<StartThread>(0x0045a620)(0, 0, 0, 0, own_address(&BroScr_NotifyFinishedUsingMg42), hint, &turret,
                                                     &ent);  // Scr_StartThread_ent_ent_ent(BroScr_NotifyFinishedUsingMg42)
         }
     }

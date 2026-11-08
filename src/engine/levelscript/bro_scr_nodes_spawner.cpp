@@ -11,6 +11,7 @@
 #include "title_data.h"
 #include "bro_scr_actor.h"
 #include "scr_access.h"
+#include "bro_scr_mission.h"
 
 namespace game {
 
@@ -60,7 +61,7 @@ uint32_t level_handle() {
 void start_friendly_fire_fail() {
     const uint32_t handle = level_handle();
     title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
-        0, 0, 0, 0, 0x00181f70, handle);  // Scr_StartThreadFunctor1
+        0, 0, 0, 0, own_address(&BroScr_FriendlyFireMissionFail), handle);  // Scr_StartThreadFunctor1
 }
 
 // Field 0x7599373d defined and 0: this friend does not count.

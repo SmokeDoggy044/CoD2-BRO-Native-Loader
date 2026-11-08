@@ -690,7 +690,7 @@ void XB_CDECL MissionSuccessFailMenu_ShowRetryDialog(uint8_t* menu, uint32_t ent
         add_button_inline(kNo, kOnNo);
     } else if (field<uint32_t>(menu, 0x58) == 0) {
         show_dialog(0x0082abcc);       // MEM_SAVE_QUIT
-        add_button(kYes, 0x003307a0);  // MissionSuccessFailMenu_ReloadCheckpoint
+        add_button(kYes, own_address(&MissionSuccessFailMenu_ReloadCheckpoint));  // MissionSuccessFailMenu_ReloadCheckpoint
         add_button(kNo, kOnRetryYes);
     } else {
         show_dialog(0x0082c8c8);  // MEM_QUIT_WARNING

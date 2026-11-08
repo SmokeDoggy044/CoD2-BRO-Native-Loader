@@ -12,6 +12,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_prologue_a.h"
+#include "levels_templates.h"
 
 namespace game {
 
@@ -272,16 +273,16 @@ void XB_CDECL BroLvl_prologue_InitDialogueMisc() {
 }
 
 uint32_t* XB_CDECL LevelScript_prologue_SetImportCallbacks(uint32_t* block) {
-    block[5] = 0x00464d00;
-    block[6] = 0x00464dc0;
+    block[5] = own_address(&StaticHashMap_SetString_PROLOGUE);
+    block[6] = own_address(&StaticHashMap_GetString_PROLOGUE);
     block[7] = 0x00464e60;
     block[8] = 0x00464ea0;
     block[9] = 0x00464ed0;
     block[10] = 0x00464f20;
     block[11] = 0x00464f50;
     block[12] = 0x00464f90;
-    block[13] = 0x00464fc0;
-    block[14] = 0x00465080;
+    block[13] = own_address(&StaticHashMap_SetString_PROLOGUE_2);
+    block[14] = own_address(&StaticHashMap_GetString_PROLOGUE_2);
     block[15] = 0x00465120;
     block[16] = 0x00465160;
     block[17] = 0x00465190;

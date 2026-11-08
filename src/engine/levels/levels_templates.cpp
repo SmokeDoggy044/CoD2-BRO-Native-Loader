@@ -2,6 +2,9 @@
 
 #include "title_data.h"
 #include "script_string.h"
+#include "g_scr_runtime.h"
+#include "levels_twins.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -141,30 +144,30 @@ uint32_t* dyn_array_at(uint8_t* array, uint32_t i, uint32_t resize) {
 }  // namespace
 
 uint32_t XB_CDECL StaticHashMap_GetOrRelease_PROLOGUE(uint8_t release) {
-    return static_map_get_or_release(release, StaticMap{0x00921cd4, 0x00921ccc, 0x00461fe0, 0x00461db0},
-                                     0x002fb3d0, 0x002f5e10);  // Scr_Alloc, Scr_Free
+    return static_map_get_or_release(release, StaticMap{0x00921cd4, 0x00921ccc, own_address(&HashMap_Ctor_PROLOGUE_18), own_address(&HashMap_Dtor_PROLOGUE_10)},
+                                     own_address(&Scr_Alloc), own_address(&Scr_Free));  // Scr_Alloc, Scr_Free
 }
 
 void XB_CDECL StaticHashMap_SetString_PROLOGUE(uint32_t a, uint32_t b, uint32_t text) {
-    static_map_set_string(a, b, &text, StaticMap{0x00921cd4, 0x00921ccc, 0x00461fe0, 0}, 0x00464a90, 0x002fb3d0,
-                          0x0011d5e0, 0x0011d640);  // HashMap_SetString_PROLOGUE, Scr_Alloc, ScriptString_Copy/Release
+    static_map_set_string(a, b, &text, StaticMap{0x00921cd4, 0x00921ccc, own_address(&HashMap_Ctor_PROLOGUE_18), 0}, 0x00464a90, own_address(&Scr_Alloc),
+                          own_address(&ScriptString_Copy), own_address(&ScriptString_Release_entry));  // HashMap_SetString_PROLOGUE, Scr_Alloc, ScriptString_Copy/Release
 }
 
 uint32_t XB_CDECL StaticHashMap_GetString_PROLOGUE(uint32_t out, uint32_t a, uint32_t b) {
-    return static_map_get_string(&out, a, b, StaticMap{0x00921cd4, 0x00921ccc, 0x00461fe0, 0}, 0x0045e7b0,
-                                 0x002fb3d0);  // HashMap_GetStringOrEmpty_PROLOGUE, Scr_Alloc
+    return static_map_get_string(&out, a, b, StaticMap{0x00921cd4, 0x00921ccc, own_address(&HashMap_Ctor_PROLOGUE_18), 0}, 0x0045e7b0,
+                                 own_address(&Scr_Alloc));  // HashMap_GetStringOrEmpty_PROLOGUE, Scr_Alloc
 }
 
 void XB_THISCALL HashMap_Dtor_PROLOGUE(uint8_t* map) {
-    hash_map_dtor(map, 0x0045e540, 0x002f5e10);  // std_list_ClearDestroy_PROLOGUE, Scr_Free
+    hash_map_dtor(map, own_address(&std_list_ClearDestroy_PROLOGUE), own_address(&Scr_Free));  // std_list_ClearDestroy_PROLOGUE, Scr_Free
 }
 
 void XB_THISCALL std_list_ClearDestroy_PROLOGUE(uint8_t* list) {
-    list_clear_destroy(list, 0x0045a370, 0x002f5e10);  // ListNode_DestroyValue_PROLOGUE, Scr_Free
+    list_clear_destroy(list, own_address(&ListNode_DestroyValue_PROLOGUE), own_address(&Scr_Free));  // ListNode_DestroyValue_PROLOGUE, Scr_Free
 }
 
 void XB_THISCALL std_list_Dtor_PROLOGUE(uint8_t* list) {
-    list_dtor(list, 0x0045ca00, 0x002f5e10);  // std_list_Clear_2_PROLOGUE, Scr_Free
+    list_dtor(list, own_address(&std_list_Clear_2_PROLOGUE), own_address(&Scr_Free));  // std_list_Clear_2_PROLOGUE, Scr_Free
 }
 
 uint32_t XB_THISCALL ListNode_DestroyValue_PROLOGUE(uint8_t* node) {
@@ -172,11 +175,11 @@ uint32_t XB_THISCALL ListNode_DestroyValue_PROLOGUE(uint8_t* node) {
 }
 
 uint8_t* XB_CDECL DynArray_NewCopy_PROLOGUE(const uint8_t* source) {
-    return dyn_array_new_copy(source, 0x0045c270, 0x002fb3d0);  // DynArray_Assign4_PROLOGUE, Scr_Alloc
+    return dyn_array_new_copy(source, own_address(&DynArray_Assign4_PROLOGUE), own_address(&Scr_Alloc));  // DynArray_Assign4_PROLOGUE, Scr_Alloc
 }
 
 uint32_t* XB_THISCALL DynArray_At_PROLOGUE(uint8_t* array, uint32_t i) {
-    return dyn_array_at(array, i, 0x00015a90);  // DynArray_Resize
+    return dyn_array_at(array, i, own_address(&DynArray_Resize));  // DynArray_Resize
 }
 
 #include "levels_templates_levels.inc"

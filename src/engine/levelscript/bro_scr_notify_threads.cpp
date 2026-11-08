@@ -254,7 +254,7 @@ void XB_CDECL BroScr_PlayerFeelsImportant_2(uint32_t ent) {
     Scr_EndOnString(ent, pointer<const char>(0x00825b5c));  // "stop player feels important"
     // The original keeps the health in ent's argument slot (ent stays in ESI); the thread reads it there.
     const uint32_t health = slot<uint32_t XB_CDECL(uint32_t)>(0x00922b90)(ent);  // ScrEnt_GetHealth
-    title_function<StartEntI>(0x0045a680)(0, 0, 0, 0, 0x00182490, ent, &health);  // Scr_StartThread_ent_i_PROLOGUE(BroScr_PlayerFeelsImportant)
+    title_function<StartEntI>(0x0045a680)(0, 0, 0, 0, own_address(&BroScr_PlayerFeelsImportant), ent, &health);  // Scr_StartThread_ent_i_PROLOGUE(BroScr_PlayerFeelsImportant)
     do {
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(ent, 100000000);  // ScrEnt_SetHealth
     } while (player() != 0);  // no wait in the loop: spins while there is a player
@@ -676,7 +676,7 @@ void gunner_fire_knob(uint32_t ai) {
 void run_to_ent_ignoring_all(uint32_t ai, uint32_t target, uint32_t flag) {
     end_on(ai, kDeath);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-    title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, 0x00181670, target,
+    title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, own_address(&BroScr_NotifyWhenOtherDies), target,
                                             &ai);  // Scr_StartThread_ent_ent(BroScr_NotifyWhenOtherDies)
     using SetFlags = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t);
     slot<SetFlags>(0x009223a0)(ai, 1, 1, 1);  // GScr_SetAIFlags

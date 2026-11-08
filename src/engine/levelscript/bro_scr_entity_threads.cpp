@@ -9,6 +9,8 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "g_script.h"
+#include "bro_scr_anim.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -138,7 +140,7 @@ uint32_t spawn_linked_origin(uint32_t ent, const ScriptString* tag) {
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a28;
-        functor[1] = 0x0018c130;  // BroScr_DeleteOnOtherDeath
+        functor[1] = own_address(&BroScr_DeleteOnOtherDeath);  // BroScr_DeleteOnOtherDeath
         functor[2] = ent;
         functor[3] = origin;
     }
@@ -234,7 +236,7 @@ void XB_CDECL BroScr_MagicBulletShield(uint32_t ent, uint32_t health, float time
     const uint32_t multiplier = scale == undefined_int() ? 1 : scale;
     uint32_t restore = restore_health;
     if (restore == undefined_int()) restore = slot<GetInt>(0x00922b90)(ent);  // ScrEnt_GetHealth
-    title_function<CallEntEnt>(0x0045a680)(0, 0, 0, 0, 0x0019bb60, ent,
+    title_function<CallEntEnt>(0x0045a680)(0, 0, 0, 0, own_address(&BroScr_MagicBulletShieldWait), ent,
                                            &restore);  // Scr_StartThread_ent_i_PROLOGUE(BroScr_MagicBulletShieldWait)
     *reinterpret_cast<uint8_t*>(key_slot(ent, 0x83ccaf2a, title_global<uint8_t>(0x00922ed0))) = 1;
     float wait = time;
@@ -268,7 +270,7 @@ void XB_CDECL BroScr_ExploderPlaySound(uint32_t ent) {
     uint32_t origin[3] = {o[0], o[1], o[2]};
     ScriptString* const sound = string_key(ent, 0x81047339);
     own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
-                                     uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, 0x001823a0, *level, sound,
+                                     uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, own_address(&BroScr_PlaySoundOnTempOrigin_4), *level, sound,
                                                              origin);  // Scr_StartThreadFunctorN(BroScr_PlaySoundOnTempOrigin_4)
 }
 
@@ -373,7 +375,7 @@ uint8_t* XB_CDECL BroScr_WaitFinishedSpawning(uint8_t* out, uint32_t ent) {
 
 void XB_CDECL BroScr_TurretPlayAnimDone(uint32_t ent, uint32_t turret) {
     end_on(ent, kKillAnimScript);
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001827d0, ent,
+    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_TurretSetAnimKnob_8cf684), ent,
                                            &turret);  // Scr_CallThread_ent_ent(BroScr_TurretSetAnimKnob_8cf684)
     slot<EntWord>(0x00922748)(ent, title_global<uint32_t>(0x008cf0d8));  // ScrActor_SetInt_1370
     slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, float, float, float, uint32_t)>(0x009225e0)(
@@ -423,7 +425,7 @@ void XB_CDECL BroScr_ReloadLauncherTimeout(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_OrientToEntityKillWatch(uint32_t ent, uint32_t other) {
-    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, 0x001828d0, ent,
+    title_function<CallEntEnt>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_RelayNotifyWhileBothAlive), ent,
                                            &other);  // Scr_CallThread_ent_ent(BroScr_RelayNotifyWhileBothAlive)
     end_on(ent, kDeath);
     end_on(other, kDeath);

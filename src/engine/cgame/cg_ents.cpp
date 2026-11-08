@@ -1421,7 +1421,7 @@ uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp) {
         const uint32_t first = call(own_address(&CG_ReadNextSnapshot), 0);  // CG_ReadNextSnapshot
         call(own_address(&CG_SetInitialSnapshot_entry), first);                     // CG_SetInitialSnapshot
         call(own_address(&CG_SetNextSnap_entry), first);                     // CG_SetNextSnap
-        return 0x0028abd0;                           // CG_TransitionSnapshot (tail jump)
+        return own_address(&CG_TransitionSnapshot);                           // CG_TransitionSnapshot (tail jump)
     }
     const int32_t delta = at<int32_t>(next, 4) - at<int32_t>(snap, 4);
     float& interpolation = title_global<float>(0x00972530);
@@ -1682,7 +1682,7 @@ void XB_CDECL CG_InterpolatePlayerState(uint32_t grab_angles) {
         regs.eax = 0x00972550;
         regs.ecx = addr(cmd);
         regs.edx = addr(cmd);
-        const uint32_t args[3] = {addr(cmd), addr(cmd), 0x00286c60};  // CG_Trace
+        const uint32_t args[3] = {addr(cmd), addr(cmd), own_address(&CG_Trace_entry)};  // CG_Trace
         cg_call_regs(own_address(&PM_UpdateViewAngles), &regs, args, 3);  // PM_UpdateViewAngles
     }
     if (at<int32_t>(next, 4) <= at<int32_t>(snap, 4)) return;

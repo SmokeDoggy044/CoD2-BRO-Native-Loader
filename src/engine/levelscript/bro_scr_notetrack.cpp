@@ -9,6 +9,7 @@
 #include "bro_scr_ai_anim.h"
 #include "levels_twins.h"
 #include "scr_field.h"
+#include "bro_scr_exploder.h"
 
 namespace game {
 
@@ -131,7 +132,7 @@ void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
                 const uint32_t level = level_entity();
                 key = 0xe6f61fe4;
                 using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-                own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x001b6020, level, param(params, &key));  // Scr_StartThread_ent_str(BroScr_ExploderIfSet)
+                own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_ExploderIfSet), level, param(params, &key));  // Scr_StartThread_ent_str(BroScr_ExploderIfSet)
             }
         }
         scr_slot<void XB_CDECL(uint32_t)>(0x00922540)(*grow(model_array(ent), i));  // GScr_Delete

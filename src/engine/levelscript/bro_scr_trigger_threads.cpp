@@ -14,6 +14,9 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor_threads.h"
+#include "bro_scr_exploder.h"
+#include "bro_scr_friendly_threads.h"
 
 namespace game {
 
@@ -157,7 +160,7 @@ void XB_CDECL BroScr_FriendlyMg42TriggerThink(uint32_t /*unused*/, uint32_t trig
         const uint32_t use_node = node;
         uint8_t usable;
         if (*BroScr_TurretUseTimeCheck(&usable, user, turret, use_node)) {
-            uint32_t* const functor = functor3(0x0081a3a8, 0x001b58e0, user, turret, use_node);  // BroScr_FriendlyUseMg42
+            uint32_t* const functor = functor3(0x0081a3a8, own_address(&BroScr_FriendlyUseMg42), user, turret, use_node);  // BroScr_FriendlyUseMg42
             slot<CreateThread>(0x0092216c)(0, 0, 0, user, functor, 0);  // Scr_CreateThread
             Scr_WaitTill(turret, 0x7b91738c);
             if (slot<EntTest>(0x00922210)(user)) {  // GScr_IsAlive
@@ -208,7 +211,7 @@ void XB_CDECL BroScr_GrenadeThrowTrigger(uint32_t trigger, uint32_t timer) {
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4aac;
-        functor[1] = 0x001b5280;  // BroScr_GoToBalconyNode
+        functor[1] = own_address(&BroScr_GoToBalconyNode);  // BroScr_GoToBalconyNode
         functor[2] = ent;
         functor[3] = title_global<uint32_t>(0x00922ea0);
     }
@@ -282,7 +285,7 @@ void XB_CDECL BroScr_FallbackerSetup(uint32_t /*unused*/, uint32_t n, uint32_t g
             join = has_int_key(*element_at(&ai, i), 0x1aa720d8) && group != undefined_int() &&
                    *int_slot(*element_at(&ai, i), 0x1aa720d8) == group;
         if (join)
-            own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, 0x001bea50, *element_at(&ai, i), &n,
+            own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, own_address(&BroScr_FallbackerJoinFallback), *element_at(&ai, i), &n,
                                                     pointer<uint32_t>(0x00922ea0), pointer<ScriptString>(0x00922e90));
         // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
     }
@@ -368,7 +371,7 @@ void XB_CDECL BroScr_MgUserGoToNode(uint32_t turret) {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4aac;
-                functor[1] = 0x001b5280;  // BroScr_GoToBalconyNode
+                functor[1] = own_address(&BroScr_GoToBalconyNode);  // BroScr_GoToBalconyNode
                 functor[2] = user;
                 functor[3] = node;
             }
@@ -417,12 +420,12 @@ void XB_CDECL BroScr_GrenadeThrowTriggers(uint32_t ent) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(throwers.size); ++i) {
         const uint32_t thrower = *element_at(&throwers, i);
         slot<CreateThread>(0x0092216c)(0, 0, 0, thrower,
-                                       functor2(0x007f4a70, 0x001be660, thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
+                                       functor2(0x007f4a70, own_address(&BroScr_GrenadeThrowTrigger), thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
     }
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(magic.size); ++i) {
         const uint32_t trigger = *element_at(&magic, i);
         slot<CreateThread>(0x0092216c)(0, 0, 0, trigger,
-                                       functor2(0x007f4a70, 0x001a53e0, trigger, delay), 0);  // BroScr_MagicGrenadeThrowThink
+                                       functor2(0x007f4a70, own_address(&BroScr_MagicGrenadeThrowThink), trigger, delay), 0);  // BroScr_MagicGrenadeThrowThink
     }
 
     // The count (ScrEnt_GetCount 0x00922b88; 2 when undefined) of throws while the player touches the trigger.
@@ -486,7 +489,7 @@ void XB_CDECL BroScr_GrenadeSpawnerOnceTriggerThink(uint32_t trigger) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(throwers.size); ++i) {
         const uint32_t thrower = *element_at(&throwers, i);
         slot<CreateThread>(0x0092216c)(0, 0, 0, thrower,
-                                       functor2(0x007f4a70, 0x001be660, thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
+                                       functor2(0x007f4a70, own_address(&BroScr_GrenadeThrowTrigger), thrower, delay), 0);  // BroScr_GrenadeThrowTrigger
     }
     Scr_WaitTill(trigger, 0xe2a210cf);  // trigger
     BroScr_DeleteFloodSpawner(trigger);
@@ -529,7 +532,7 @@ void XB_CDECL BroScr_FallbackSpawnerThink(uint32_t spawner, uint32_t group, uint
             if (slot<EntTest>(0x00922210)(ai)) {
                 ScriptString kind;
                 scr_string_from(&kind, 0x00826558);  // "is spawner"
-                own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, 0x001bea50, ai, &group, &node, &kind);
+                own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, own_address(&BroScr_FallbackerJoinFallback), ai, &group, &node, &kind);
                 // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
                 scr_release(&kind);
                 continue;

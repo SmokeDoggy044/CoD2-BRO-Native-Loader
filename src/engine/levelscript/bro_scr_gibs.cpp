@@ -9,6 +9,8 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "bro_scr_death_watch.h"
+#include "bro_scr_util.h"
 
 namespace game {
 
@@ -169,9 +171,9 @@ void XB_CDECL BroScr_SpawnStoneGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint
         const long double rz = random_float(0x3f800000);
         const ScrVec3 position = jittered(x_base, rx, y_base, ry, z_base, rz);
         slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(*element(&gibs, i), position);  // ScrEnt_SetOrigin
-        gib_thread(0x00122b50, *element(&gibs, i), a2, a3, a4);  // BroScr_StoneGibLaunch
-        gib_thread(0x0013e180, *element(&gibs, i), a2, a3, a4);  // BroScr_SpawnConcreteGibs
-        gib_thread(0x0013e180, *element(&gibs, i), a2, a3, a4);
+        gib_thread(own_address(&BroScr_StoneGibLaunch), *element(&gibs, i), a2, a3, a4);  // BroScr_StoneGibLaunch
+        gib_thread(own_address(&BroScr_SpawnConcreteGibs), *element(&gibs, i), a2, a3, a4);  // BroScr_SpawnConcreteGibs
+        gib_thread(own_address(&BroScr_SpawnConcreteGibs), *element(&gibs, i), a2, a3, a4);
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
     if (gibs.data) Scr_Free(gibs.data);
@@ -208,8 +210,8 @@ void XB_CDECL BroScr_SpawnWoodGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint3
         const long double rz = random_float(0x3f800000);
         const ScrVec3 position = jittered(x_base, rx, y_base, ry, z_base, rz);
         slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(*element(&gibs, i), position);  // ScrEnt_SetOrigin
-        gib_thread(0x00123d70, *element(&gibs, i), a2, a3, a4);  // BroScr_WoodGibLaunch
-        gib_thread(0x0013f990, *element(&gibs, i), a2, a3, a4);  // BroScr_SpawnWoodGibsSmall
+        gib_thread(own_address(&BroScr_WoodGibLaunch), *element(&gibs, i), a2, a3, a4);  // BroScr_WoodGibLaunch
+        gib_thread(own_address(&BroScr_SpawnWoodGibsSmall), *element(&gibs, i), a2, a3, a4);  // BroScr_SpawnWoodGibsSmall
     }
     if (init_target) {
         ScriptString target;
@@ -226,7 +228,7 @@ void XB_CDECL BroScr_SpawnWoodGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint3
             // Scr_StartThread_ent_vec_str (0x0045b780): BroScr_WoodGibInit(found, origin, ent's targetname)
             using Start = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                         const ScriptString*);
-            own_function<Start>(&Scr_StartThread_ent_vec_str_PROLOGUE_entry)(0, 0, 0, 0, 0x00123f00, found, origin, own_name);
+            own_function<Start>(&Scr_StartThread_ent_vec_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_WoodGibInit), found, origin, own_name);
             ScriptString_Release(&targetname);
         }
     }

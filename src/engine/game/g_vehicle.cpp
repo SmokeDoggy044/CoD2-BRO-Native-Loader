@@ -4068,7 +4068,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
     wd(0xf0) = v_w + 0xe0;
     {
         const uint32_t args[2] = {v_w + 0xe0, B + 0x50};
-        call(B, 0x0026a468, 0x002a2af0, TitleRegs{v_w + 0xe0, origin_w, B + 0x50, count, B + 0x68, B + 0x18}, 2,
+        call(B, 0x0026a468, own_address(&AnglesToAxis_entry), TitleRegs{v_w + 0xe0, origin_w, B + 0x50, count, B + 0x68, B + 0x18}, 2,
              args);  // AnglesToAxis (forward B+0x50, right B+0x18, up B+0x68)
     }
     const float zero = 0.0f;
@@ -4153,7 +4153,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
     const float up64 = title_global<float>(0x00830c1c), down256 = title_global<float>(0x0083ecf4);
     for (uint32_t i = 0; i < count; ++i) {
         const uint32_t args[2] = {i, B + 0x110};
-        call(B, 0x0026a6f1, 0x0025a810, TitleRegs{0, ent_w, B + 0x110, 0, slot, i}, 2,
+        call(B, 0x0026a6f1, own_address(&Vehicle_GetTagOrigin_entry), TitleRegs{0, ent_w, B + 0x110, 0, slot, i}, 2,
              args);  // Vehicle_GetTagOrigin (EBX entity)
         const float wz = at<float>(v, 0x1c0);
         float x, y, z;
@@ -4212,7 +4212,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 *pointer<float>(ent_w + 0x440 + k * 4) = hi[k];
             }
             const uint32_t args[3] = {ent_w + 0x430, at<uint32_t>(ent, 0x450), at<uint32_t>(ent, 0x454)};
-            call(B, 0x0026a8f0, 0x002cb0f0, TitleRegs{ent_w + 0x430, origin_w, args[1], args[2], slot, ent_w + 0x440}, 3,
+            call(B, 0x0026a8f0, own_address(&CM_GatherBoxCandidates_entry), TitleRegs{ent_w + 0x430, origin_w, args[1], args[2], slot, ent_w + 0x440}, 3,
                  args);  // CM_GatherBoxCandidates (EDI maxs)
         }
     }
@@ -4235,7 +4235,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
         uint32_t ebx_now = ent_w;
         {
             const uint32_t args[2] = {i, B + 0x1b0};
-            wd(0x14) = call(B, 0x0026a991, 0x0025a810, TitleRegs{0, ent_w, B + 0x1b0, 0, i, ids}, 2,
+            wd(0x14) = call(B, 0x0026a991, own_address(&Vehicle_GetTagOrigin_entry), TitleRegs{0, ent_w, B + 0x1b0, 0, i, ids}, 2,
                             args);  // Vehicle_GetTagOrigin: the bone
         }
         const float wz = at<float>(v, 0x1c0);
@@ -4271,7 +4271,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
             if (*pointer<uint32_t>(ids) != 0xffffffffu) {
                 const uint32_t args[3] = {B + 0x80, B + 0xd0, ids};
                 ebx_now = B + 0x1f0;
-                retested = static_cast<uint8_t>(call(B, 0x0026ab6a, 0x002d1ce0,
+                retested = static_cast<uint8_t>(call(B, 0x0026ab6a, own_address(&CM_RetestCachedMeshTriangle_entry),
                                                      TitleRegs{ids - 0x18, B + 0x1f0, B + 0x80, wd(0xcc), ids - 0x18, ids},
                                                      3, args)) != 0;  // CM_RetestCachedMeshTriangle
                 if (!retested) *pointer<uint32_t>(ids) = 0xffffffffu;
@@ -4295,11 +4295,11 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 fl(0x140) = fl(0x1e0);
                 const uint32_t fargs[3] = {B + 0x1d0, B + 0x1c0, mask};
                 const uint32_t list = at<uint32_t>(ent, 0x454);
-                call(B, 0x0026ac37, 0x002c0ec0, TitleRegs{B + 0x1d0, B + 0x1f0, ent_w, B + 0x1c0, B + 0x210, list}, 3,
+                call(B, 0x0026ac37, own_address(&Phys_FilterEntriesInBox_entry), TitleRegs{B + 0x1d0, B + 0x1f0, ent_w, B + 0x1c0, B + 0x210, list}, 3,
                      fargs);  // Phys_FilterEntriesInBox (ESI out, EDI list)
                 const uint32_t targs[7] = {B + 0xa20, B + 0x210, B + 0x80, B + 0xd0, B + 0x140, B + 0x144, B + 0x148};
                 wd(0x1a24) = 0;
-                call(B - 0xc, 0x0026ac7a, 0x002d2b50, TitleRegs{B + 0x80, B + 0x1f0, B + 0x210, B + 0xa20, B + 0x210, list},
+                call(B - 0xc, 0x0026ac7a, own_address(&CM_TraceSegmentThroughCandidates), TitleRegs{B + 0x80, B + 0x1f0, B + 0x210, B + 0xa20, B + 0x210, list},
                      7, targs);  // CM_TraceSegmentThroughCandidates
                 frac = fl(0x140);
                 float hit[4];
@@ -4309,12 +4309,12 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
             } else {
                 const uint32_t in_brushes = at<uint32_t>(ent, 0x454);
                 const uint32_t fargs[5] = {B + 0x1d0, B + 0x1c0, mask, at<uint32_t>(ent, 0x450), B + 0xa20};
-                call(B, 0x0026ad0a, 0x002c6630, TitleRegs{B + 0x210, ebx_now, in_brushes, B + 0x1c0, i, ids}, 5,
+                call(B, 0x0026ad0a, own_address(&CM_FilterBoxCandidates), TitleRegs{B + 0x210, ebx_now, in_brushes, B + 0x1c0, i, ids}, 5,
                      fargs);  // CM_FilterBoxCandidates (EAX out brushes, ECX in brushes)
                 const uint32_t targs[7] = {B + 0xa20, B + 0x210, B + 0x80, B + 0xd0, B + 0x140, B + 0x144, B + 0x148};
                 title_global<uint32_t>(0x009507e0) = 0xffffffffu;
                 fl(0x140) = one;
-                call(B - 0x14, 0x0026ad62, 0x002d2b50, TitleRegs{B + 0x210, ebx_now, B + 0xa20, B + 0x80, i, ids}, 7,
+                call(B - 0x14, 0x0026ad62, own_address(&CM_TraceSegmentThroughCandidates), TitleRegs{B + 0x210, ebx_now, B + 0xa20, B + 0x80, i, ids}, 7,
                      targs);  // CM_TraceSegmentThroughCandidates
                 frac = fl(0x140);
                 if (one > frac) {
@@ -4341,7 +4341,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 wd(0x11c) = w3;
                 const uint32_t args[11] = {B + 0x120, B + 0x110, B + 0x100, B + 0xc0, at<uint32_t>(ent, 0x224), mask,
                                            0, 0, 0, 0, 0};
-                call(B, 0x0026ae5d, 0x002e9af0, TitleRegs{B + 0x100, B + 0xa0, B + 0x110, B + 0x120, i, ids}, 11,
+                call(B, 0x0026ae5d, own_address(&SV_Trace_entry), TitleRegs{B + 0x100, B + 0xa0, B + 0x110, B + 0x120, i, ids}, 11,
                      args);  // SV_Trace (EBX start)
                 frac = fl(0x140);
             }
@@ -4404,7 +4404,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 static_cast<int32_t>(i) != title_global<int32_t>(0x008d9d58))
                 fl(0x48) = zero;
             const uint32_t args[5] = {ent_w, B + 0xf4, B + 0x44, wd(0x14), 0};
-            call(B, 0x0026b074, 0x002de420, TitleRegs{ent_w, v_w, B + 0x44, B + 0xf4, i, ids}, 5,
+            call(B, 0x0026b074, own_address(&G_DObjSetBoneRotation_entry), TitleRegs{ent_w, v_w, B + 0x44, B + 0xf4, i, ids}, 5,
                  args);  // G_DObjSetBoneRotation
         }
         uint32_t* const fx = pointer<uint32_t>(wd(0x94));  // +0x21c
@@ -4412,7 +4412,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
         if (at<float>(v, 0x240) > title_global<float>(0x0083ebf8) && *surface_type) {  // 0.1
             if (*fx == 0xffffffffu) {
                 const uint32_t args[3] = {wd(0xc), *surface_type, title_global<uint32_t>(0x009886f8 + i * 4)};
-                *fx = call(B, 0x0026b0b5, 0x00266cd0, TitleRegs{ent_w, address_of(fx), wd(0x24), args[2], i, ids}, 3,
+                *fx = call(B, 0x0026b0b5, own_address(&Vehicle_PlayFxAtTag_entry), TitleRegs{ent_w, address_of(fx), wd(0x24), args[2], i, ids}, 3,
                            args);  // Vehicle_PlayFxAtTag (EAX entity)
             }
             float rate;
@@ -4422,12 +4422,12 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
                     : "st");
             fl(0x14) = rate;
             const uint32_t args[4] = {list, *fx, 0x0083b284, wd(0x14)};
-            call(B, 0x0026b0ea, 0x00296b80, TitleRegs{wd(0x14), address_of(fx), *fx, list, i, ids}, 4,
+            call(B, 0x0026b0ea, own_address(&FXParam_Broadcast), TitleRegs{wd(0x14), address_of(fx), *fx, list, i, ids}, 4,
                  args);  // FXParam_Broadcast "EmissionRate" (stdcall)
         } else {
             if (*fx != 0xffffffffu) {
                 const uint32_t args[1] = {*fx};
-                call(B, 0x0026b106, 0x0029b620, TitleRegs{*fx, address_of(fx), 0, 0, list, ids}, 1,
+                call(B, 0x0026b106, own_address(&FX_FreeEffectsById_entry), TitleRegs{*fx, address_of(fx), 0, 0, list, ids}, 1,
                      args);  // FX_FreeEffectsById (ESI list; stdcall)
             }
             *fx = 0xffffffffu;
@@ -4441,7 +4441,7 @@ void XB_CDECL Vehicle_UpdatePhysics(uint32_t entry_esp, uint32_t ebx, uint32_t e
     }
     if (!(at<float>(v, 0x240) > title_global<float>(0x0083ebf8)) && at<uint32_t>(v, 0x234) != 0xffffffffu) {
         const uint32_t args[1] = {at<uint32_t>(v, 0x234)};
-        call(B, 0x0026b195, 0x0029b620, TitleRegs{args[0], origin_w, 0, 0, title_global<uint32_t>(0x0095f5b4), v_w}, 1,
+        call(B, 0x0026b195, own_address(&FX_FreeEffectsById_entry), TitleRegs{args[0], origin_w, 0, 0, title_global<uint32_t>(0x0095f5b4), v_w}, 1,
              args);  // FX_FreeEffectsById (ESI list; stdcall)
         at<uint32_t>(v, 0x234) = 0xffffffffu;
     }
@@ -5968,11 +5968,11 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     wd(0x18) = old_sequence;
     wd(0x9c) = at<int32_t>(client, 0x24) >= 4 ? 0x01810011u : at<uint32_t>(ent, 0x2a8);
     const uint32_t fixed = title_global<uint32_t>(0x0094be4c);
-    wd(0x17c) = 0x002e01a0;  // SV_PointContents
+    wd(0x17c) = own_address(&SV_PointContents);  // SV_PointContents
     wd(0xa0) = 0;
-    wd(0x170) = 0x002601a0;  // G_TraceCapsule
-    wd(0x174) = 0x002601a0;
-    wd(0x178) = 0x002601a0;
+    wd(0x170) = own_address(&G_TraceCapsule);  // G_TraceCapsule
+    wd(0x174) = own_address(&G_TraceCapsule);
+    wd(0x178) = own_address(&G_TraceCapsule);
     wd(0x16c) = title_global<uint32_t>(0x00948ae4);
     wd(0x168) = at<uint32_t>(client, 0x57c) | fixed;
     at<uint32_t>(client, 0x5b0) = at<uint32_t>(client, 0);

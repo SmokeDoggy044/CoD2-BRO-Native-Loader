@@ -24,6 +24,9 @@
 #include "bro_scr_note_handlers.h"
 #include "bro_scr_notify_threads.h"
 #include "levels_twins.h"
+#include "bro_scr_anim.h"
+#include "bro_scr_arrays.h"
+#include "bro_scr_stubs.h"
 
 namespace game {
 
@@ -86,12 +89,12 @@ void XB_CDECL BroScr_StopLookingAtOnNotify(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_TurretProneMG42Recover(uint32_t ent, uint32_t a2) {
-    prone_recover(ent, &a2, 0x00183a70);  // BroScr_TurretSetProneRecoverAnim
+    prone_recover(ent, &a2, own_address(&BroScr_TurretSetProneRecoverAnim));  // BroScr_TurretSetProneRecoverAnim
 }
 
 void XB_CDECL BroScr_TurretProneMG42Recover_2(uint32_t ent, uint32_t a2) {
     end_on(ent, kKillAnimScript);
-    prone_recover(ent, &a2, 0x00183bf0);  // BroScr_EmptyFunc_60
+    prone_recover(ent, &a2, own_address(&BroScr_Stub_Ret));  // BroScr_EmptyFunc_60
 }
 
 void XB_CDECL BroScr_SetAnimMovementStopAfter(uint32_t ent, float time) {
@@ -150,40 +153,40 @@ void XB_CDECL BroScr_DebugDrawChainRadiiLoop(uint32_t ent, uint32_t) {
 }
 
 void XB_CDECL BroScr_AnimScript_TurretCall_1(uint32_t ent, uint32_t a2) {
-    own_function<Turret>(&BroScr_AnimScript_Turret_2)(ent, 0x0018c4e0, 0x0019cf40, 0x0018c540, a2);  // BroScr_AnimScript_Turret_2
+    own_function<Turret>(&BroScr_AnimScript_Turret_2)(ent, own_address(&BroScr_TurretIdleAnimStart), own_address(&BroScr_TurretPlayAnimDone), own_address(&BroScr_TurretSetIdleKnobs), a2);  // BroScr_AnimScript_Turret_2
     for (;;) {}
 }
 
 void XB_CDECL BroScr_AnimScript_TurretCall_2(uint32_t ent, uint32_t a2) {
-    own_function<Turret>(&BroScr_AnimScript_Turret_2)(ent, 0x0018c5a0, 0, 0x0018c5f0, a2);  // BroScr_AnimScript_Turret_2
+    own_function<Turret>(&BroScr_AnimScript_Turret_2)(ent, own_address(&BroScr_Turret30calFire), 0, own_address(&BroScr_Turret30calFire_2), a2);  // BroScr_AnimScript_Turret_2
     for (;;) {}
 }
 
 void XB_CDECL BroScr_AnimScript_TurretCall_3(uint32_t ent, uint32_t a2) {
-    own_function<Turret>(&BroScr_AnimScript_Turret_3)(ent, 0x0018da20, 0x0019f320, 0x0018da70, a2);  // BroScr_AnimScript_Turret_3
+    own_function<Turret>(&BroScr_AnimScript_Turret_3)(ent, own_address(&BroScr_Mg42AnimThenShootLoop), own_address(&BroScr_TurretProneMG42Recover), own_address(&BroScr_TurretProneMG42Aim), a2);  // BroScr_AnimScript_Turret_3
     for (;;) {}
 }
 
 void XB_CDECL BroScr_AnimScript_TurretCall_4(uint32_t ent, uint32_t a2) {
-    own_function<Turret>(&BroScr_AnimScript_Turret)(ent, 0x0018dad0, 0x0019f6f0, 0x0018db30, a2);  // BroScr_AnimScript_Turret
+    own_function<Turret>(&BroScr_AnimScript_Turret)(ent, own_address(&BroScr_Mg42AnimThenShootLoop_2), own_address(&BroScr_TurretProneMG42Recover_2), own_address(&BroScr_TurretProneMG42AimLoop), a2);  // BroScr_AnimScript_Turret
     for (;;) {}
 }
 
 void XB_CDECL BroScr_AnimScript_TurretCall_5(uint32_t ent, uint32_t a2) {
-    own_function<Turret>(&BroScr_AnimScript_Turret)(ent, 0x0019f930, 0, 0x0018db80, a2);  // BroScr_AnimScript_Turret
+    own_function<Turret>(&BroScr_AnimScript_Turret)(ent, own_address(&BroScr_Mg42AnimThenShootLoop_3), 0, own_address(&BroScr_TurretStandMG42Aim), a2);  // BroScr_AnimScript_Turret
     for (;;) {}
 }
 
 void XB_CDECL BroScr_LookAtUntilKillAnimscript_1(uint32_t ent, uint32_t id) {
-    look_until_kill(ent, &id, 0x001abc70, 0xa538f810);  // BroScr_LookAtEndOnNotify_1
+    look_until_kill(ent, &id, own_address(&BroScr_LookAtEndOnNotify_1), 0xa538f810);  // BroScr_LookAtEndOnNotify_1
 }
 
 void XB_CDECL BroScr_LookAtUntilKillAnimscript_2(uint32_t ent, uint32_t id) {
-    look_until_kill(ent, &id, 0x001abd00, 0x671c92d3);  // BroScr_LookAtEndOnNotify_2
+    look_until_kill(ent, &id, own_address(&BroScr_LookAtEndOnNotify_2), 0x671c92d3);  // BroScr_LookAtEndOnNotify_2
 }
 
 void XB_CDECL BroScr_LookAtUntilKillAnimscript_3(uint32_t ent, uint32_t other, uint32_t id) {
-    title_function<CallThread2>(0x0052ced0)(0, 0, 0, 0, 0x001abd90, ent, &other, &id);  // Scr_CallThread_ent_ent_i(_3)
+    title_function<CallThread2>(0x0052ced0)(0, 0, 0, 0, own_address(&BroScr_LookAtEndOnNotify_3), ent, &other, &id);  // Scr_CallThread_ent_ent_i(_3)
     end_on(ent, kDeath);
     end_on(other, kDeath);
     end_on(ent, 0x1651c9e7);
@@ -416,7 +419,7 @@ void XB_CDECL BroScr_DirectionalMoveAnimsLoop(uint32_t ent, uint32_t a2, uint32_
     replace_thread(ent, 0xf8b8e073);
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*,
                                    uint32_t*, uint32_t*, uint32_t*, uint32_t*);
-    title_function<Call>(0x001e53e0)(0, 0, 0, 0, 0x0019fe80, ent, &a2, &a3, &a4, &a5, &a6,
+    title_function<Call>(0x001e53e0)(0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsOnNotify), ent, &a2, &a3, &a4, &a5, &a6,
                                      &a7);  // Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(OnNotify)
     const uint32_t anims[6] = {a2, a3, a4, a5, a6, a7};
     move_anims(ent, anims, 1);
@@ -616,7 +619,7 @@ void XB_CDECL BroScr_TempEventText(uint32_t, uint32_t, uint32_t, uint32_t p4, ui
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x20);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x00825bd8;
-            functor[1] = 0x001aad20;  // BroScr_TempEventTextThink
+            functor[1] = own_address(&BroScr_TempEventTextThink);  // BroScr_TempEventTextThink
             functor[2] = level;
             functor[3] = *text;
             functor[4] = p4;
@@ -641,7 +644,7 @@ void XB_CDECL BroScr_UpdateOrientToEntity(uint32_t ent, uint32_t target) {
     end_on(ent, kDeath);
     end_on(target, kDeath);
     end_on(ent, 0x1e4aecac);
-    title_function<CallThread>(0x004b09e0)(0, 0, 0, 0, 0x0019d7b0, ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_OrientToEntityKillWatch)
+    title_function<CallThread>(0x004b09e0)(0, 0, 0, 0, own_address(&BroScr_OrientToEntityKillWatch), ent, &target);  // Scr_CallThread_ent_ent_ORAN(BroScr_OrientToEntityKillWatch)
     for (;;) {
         const uint32_t lane = undefined_lane();
         uint32_t point[3] = {lane, lane, lane};
@@ -707,7 +710,7 @@ void XB_CDECL BroScr_TurretManualTargetThink(uint32_t gunner, uint32_t turret) {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4a10;
-                functor[1] = 0x001a4d30;  // BroScr_MgBurstFireThink
+                functor[1] = own_address(&BroScr_MgBurstFireThink);  // BroScr_MgBurstFireThink
                 functor[2] = gunner;
                 functor[3] = turret;
                 functor[4] = target;
@@ -740,7 +743,7 @@ void XB_CDECL BroScr_MgBurstFireThink(uint32_t, uint32_t turret, uint32_t target
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4a28;
-                functor[1] = 0x00199630;  // BroScr_TurretRandomSpread
+                functor[1] = own_address(&BroScr_TurretRandomSpread);  // BroScr_TurretRandomSpread
                 functor[2] = turret;
                 functor[3] = target;
             }
@@ -874,13 +877,13 @@ void XB_CDECL BroScr_HeadLookThink(uint32_t ent, uint32_t notify_type) {
         // The eye-to-target line (stripped debug thread BroScr_EmptyFunc_68).
         if (notify_type != undefined_handle() && notify_type == 0xa3c65328) {
             int32_t two = 2;
-            title_function<CallThreadVec3I>(0x001e52f0)(0, 0, 0, 0, 0x00184450, ent, eye, aim, pointer<const uint32_t>(0x008ccaa0),
+            title_function<CallThreadVec3I>(0x001e52f0)(0, 0, 0, 0, own_address(&BroScr_Stub_Ret), ent, eye, aim, pointer<const uint32_t>(0x008ccaa0),
                                                         &two);  // Scr_CallThread_ent_vec_vec_vec_i
         } else {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x34);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x00825c38;
-                functor[1] = 0x00184450;  // BroScr_EmptyFunc_68
+                functor[1] = own_address(&BroScr_Stub_Ret);  // BroScr_EmptyFunc_68
                 functor[2] = ent;
                 copy3(functor + 3, eye);
                 copy3(functor + 6, aim);
@@ -954,13 +957,13 @@ void XB_CDECL BroScr_HeadLookMainLoop(uint32_t ent) {
     const int32_t now = get_time();
     *int_slot(ent, 0x644536d0) = static_cast<uint32_t>(now);
     *int_slot(ent, 0xfa9a8384) = 1;
-    begin_thread(ent, ent_functor(0x0019f090, ent));  // BroScr_StopLookingAtOnNotify
+    begin_thread(ent, ent_functor(own_address(&BroScr_StopLookingAtOnNotify), ent));  // BroScr_StopLookingAtOnNotify
     {
         ScriptString team;
         ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084));  // "allies" (unused)
         scr_release(&team);
     }
-    begin_thread(ent, ent_functor(0x001838c0, ent));  // BroScr_EndOnDeath
+    begin_thread(ent, ent_functor(own_address(&BroScr_EndOnDeath), ent));  // BroScr_EndOnDeath
     for (;;) {
         Scr_WaitTill(ent, 0x189e36ec);
         queue_notify(ent, 0xe099bb44);
@@ -968,7 +971,7 @@ void XB_CDECL BroScr_HeadLookMainLoop(uint32_t ent) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4b00;
-            functor[1] = 0x0019e5c0;  // BroScr_HeadLookThink
+            functor[1] = own_address(&BroScr_HeadLookThink);  // BroScr_HeadLookThink
             functor[2] = ent;
             functor[3] = none;
         }
@@ -1110,7 +1113,7 @@ void XB_CDECL BroScr_FloodSpawnerDeleteWatch(uint32_t ent) {
         const ScrVec3 o = get_vec(0x00922b20, *element(&spawners, i));  // ScrEnt_GetOrigin
         uint32_t origin[3] = {o.v[0], o.v[1], o.v[2]};
         own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
-                                         uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, 0x0018bf00, *level, &text,
+                                         uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, own_address(&BroScr_DebugCvarWait), *level, &text,
                                                                  origin);  // Scr_StartThreadFunctorN(BroScr_DebugCvarWait)
         scr_release(&text);
         slot<void XB_CDECL(uint32_t)>(0x00922540)(*element(&spawners, i));  // GScr_Delete
@@ -1142,7 +1145,7 @@ void XB_CDECL BroScr_FloodSpawnerTriggerThink(uint32_t ent) {
     }
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
         const uint32_t target = *element(&targets, i);
-        create_thread(target, ent_functor(0x001a5830, target));  // BroScr_SetTargetnameFromOrigin
+        create_thread(target, ent_functor(own_address(&BroScr_SetTargetnameFromOrigin), target));  // BroScr_SetTargetnameFromOrigin
     }
     Scr_WaitTill(ent, 0xe2a210cf);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
@@ -1154,7 +1157,7 @@ void XB_CDECL BroScr_FloodSpawnerTriggerThink(uint32_t ent) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4a28;
-            functor[1] = 0x00199bc0;  // BroScr_TriggeredSpawnerThink
+            functor[1] = own_address(&BroScr_TriggeredSpawnerThink);  // BroScr_TriggeredSpawnerThink
             functor[2] = spawner;
             functor[3] = ent;
         }
@@ -1220,7 +1223,7 @@ inline uint32_t* turret_state_functor(uint32_t turret, float time) {
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f4a70;
-        functor[1] = 0x00181960;  // BroScr_TurretStateChangeWait
+        functor[1] = own_address(&BroScr_TurretStateChangeWait);  // BroScr_TurretStateChangeWait
         functor[2] = turret;
         functor[3] = bits(time);
     }
@@ -1299,7 +1302,7 @@ void XB_CDECL BroScr_WaitTriggerAiCleared(uint32_t trigger, ScriptString team, D
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f4a28;
-                functor[1] = 0x0019bab0;  // BroScr_DecrementAiSizeOnDeath
+                functor[1] = own_address(&BroScr_DecrementAiSizeOnDeath);  // BroScr_DecrementAiSizeOnDeath
                 functor[2] = counter;
                 functor[3] = *guy;
             }
@@ -1431,7 +1434,7 @@ void XB_CDECL BroScr_MgBurstFire(uint32_t turret) {
         if (slot<bool XB_CDECL(uint32_t)>(0x00922614)(turret) && next <= get_time()) {  // GScr_Turret_GetFlag1
             if (!ScriptString_Equals(&state, pointer<const char>(0x0082c09c))) {  // "fire"
                 ScriptString_AssignCString(&state, pointer<const char>(0x0082c09c));
-                create_thread(turret, ent_functor(0x001818c0, turret));  // BroScr_Mg42ShootSoundLoop
+                create_thread(turret, ent_functor(own_address(&BroScr_Mg42ShootSoundLoop), turret));  // BroScr_Mg42ShootSoundLoop
             }
             const float time = static_cast<float>(slot<long double XB_CDECL(float)>(0x00922230)(burst_range) + burst_min);  // Scr_RandomFloat
             create_thread(turret, turret_state_functor(turret, time));
@@ -1577,14 +1580,14 @@ void XB_CDECL BroScr_FallbackGoalThink(uint32_t ent, int32_t n, uint32_t node) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
         if (functor) {
             functor[0] = 0x007f4af4;
-            functor[1] = 0x00181bc0;  // BroScr_NotifyFallbackReachedGoal
+            functor[1] = own_address(&BroScr_NotifyFallbackReachedGoal);  // BroScr_NotifyFallbackReachedGoal
             functor[2] = level;
             functor[3] = ent;
             functor[4] = static_cast<uint32_t>(n);
         }
         create_thread(level, functor);
     }
-    create_thread(ent, ent_functor(0x0019a500, ent));  // BroScr_FallbackOnGoalRestore
+    create_thread(ent, ent_functor(own_address(&BroScr_FallbackOnGoalRestore), ent));  // BroScr_FallbackOnGoalRestore
     bool debug;
     {
         ScriptString value;
@@ -1595,7 +1598,7 @@ void XB_CDECL BroScr_FallbackGoalThink(uint32_t ent, int32_t n, uint32_t node) {
         const ScrVec3 o = get_vec(0x00922ab8, node);  // ScrPathNode_GetOrigin
         uint32_t origin[3] = {o.v[0], o.v[1], o.v[2]};
         title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(0x0045a540)(
-            0, 0, 0, 0, 0x0018bfc0, ent, origin);  // Scr_StartThread_ent_vec_PROLOGUE(BroScr_FallbackDebugLoop)
+            0, 0, 0, 0, own_address(&BroScr_FallbackDebugLoop), ent, origin);  // Scr_StartThread_ent_vec_PROLOGUE(BroScr_FallbackDebugLoop)
     }
     Scr_WaitTill(ent, 0xed4ff1b2);
     ScriptString name;
@@ -1710,14 +1713,14 @@ void XB_CDECL BroScr_AnimScript_Turret(uint32_t ent, uint32_t fire, uint32_t rec
             const float time = burst_time(as_float(values[2]), as_float(values[3]));
             if (static_cast<float>(time > 0.0f ? 1 : 0) != 0.0f) {
                 turret_fire_state(&state, ent, fire, &turret);
-                turret_burst(ent, 0x00183ad0, time, &turret);  // BroScr_TurretStateChangeAfterTime_3
+                turret_burst(ent, own_address(&BroScr_TurretStateChangeAfterTime_3), time, &turret);  // BroScr_TurretStateChangeAfterTime_3
             }
             next = turret_next(as_float(values[0]), as_float(values[1]));
             turret_recover(&state, ent, recover, turret);
         } else {
             turret_aim_state(&state, ent, aim, turret);
             const float time = static_cast<float>(next - get_time()) * title_global<float>(0x0083eb4c);  // * 0.001
-            turret_aim_wait(ent, 0x00183ad0, time, turret);
+            turret_aim_wait(ent, own_address(&BroScr_TurretStateChangeAfterTime_3), time, turret);
         }
         burst_settings(turret, values);
     }
@@ -1732,13 +1735,13 @@ void XB_CDECL BroScr_AnimScript_Turret_3(uint32_t ent, uint32_t fire, uint32_t r
     for (;;) {
         if (slot<bool XB_CDECL(uint32_t)>(0x00922614)(turret) && next <= get_time()) {  // GScr_Turret_GetFlag1
             turret_fire_state(&state, ent, fire, &turret);
-            turret_burst(ent, 0x00183930, burst_time(b.burst_min, b.burst_range), &turret);  // BroScr_TurretStateChangeAfterTime_2
+            turret_burst(ent, own_address(&BroScr_TurretStateChangeAfterTime_2), burst_time(b.burst_min, b.burst_range), &turret);  // BroScr_TurretStateChangeAfterTime_2
             next = turret_next(b.delay_min, b.delay_range);
             turret_recover(&state, ent, recover, turret);
         } else {
             turret_aim_state(&state, ent, aim, turret);
             const float time = static_cast<float>(next - get_time()) * title_global<float>(0x0083eb4c);  // * 0.001
-            turret_aim_wait(ent, 0x00183930, time, turret);
+            turret_aim_wait(ent, own_address(&BroScr_TurretStateChangeAfterTime_2), time, turret);
         }
     }
 }
@@ -1753,12 +1756,12 @@ void XB_CDECL BroScr_AnimScript_Turret_2(uint32_t ent, uint32_t fire, uint32_t r
         const float wait = static_cast<float>(next - get_time()) * title_global<float>(0x0083eb4c);  // * 0.001
         if (slot<bool XB_CDECL(uint32_t)>(0x00922614)(turret) && 0.0f >= wait) {  // GScr_Turret_GetFlag1
             turret_fire_state(&state, ent, fire, &turret);
-            turret_burst(ent, 0x00182700, burst_time(b.burst_min, b.burst_range), &turret);  // BroScr_TurretStateChangeAfterTime
+            turret_burst(ent, own_address(&BroScr_TurretStateChangeAfterTime), burst_time(b.burst_min, b.burst_range), &turret);  // BroScr_TurretStateChangeAfterTime
             next = turret_next(b.delay_min, b.delay_range);
             turret_recover(&state, ent, recover, turret);
         } else {
             turret_aim_state(&state, ent, aim, turret);
-            turret_aim_wait(ent, 0x00182700, wait, turret);
+            turret_aim_wait(ent, own_address(&BroScr_TurretStateChangeAfterTime), wait, turret);
         }
     }
 }
@@ -1792,7 +1795,7 @@ inline void copy_tag(uint32_t get, uint32_t set, uint32_t ent, ScriptString* tag
 inline void tumble(uint32_t ent, uint32_t piece) {
     ScrVec3 v = get_vec(0x00922cd8, ent);  // ScrActor_GetVec_234
     title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(0x001e4f00)(
-        0, 0, 0, 0, 0x001834a0, piece, v.v);  // Scr_CallThread_ent_vec(BroScr_RandomTumble)
+        0, 0, 0, 0, own_address(&BroScr_RandomTumble), piece, v.v);  // Scr_CallThread_ent_vec(BroScr_RandomTumble)
 }
 using AttachSlot = void XB_CDECL(uint32_t, ScriptString*, ScriptString*);
 

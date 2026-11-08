@@ -207,7 +207,7 @@ int32_t XB_CDECL CM_BoxLeafnums(const float* maxs, const float* mins, uint8_t* c
     std::memcpy(ll.bounds[0], mins, 16);
     std::memcpy(ll.bounds[1], maxs, 16);
     ll.last_leaf = 0;
-    ll.store = 0x002aafc0;  // CM_StoreLeafs
+    ll.store = own_address(&CM_StoreLeafs);  // CM_StoreLeafs
     float* cached_center = reinterpret_cast<float*>(cache + 0x120);
     const float* center = reinterpret_cast<const float*>(cache + 0x140);
     float distance = cached_center[3] - title_global<float>(0x0083ece8);  // radius - 5

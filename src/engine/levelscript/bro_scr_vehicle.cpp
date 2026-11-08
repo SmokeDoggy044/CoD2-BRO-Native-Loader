@@ -18,6 +18,12 @@
 #include "scr_field.h"
 #include "script_string.h"
 #include "bro_scr_tank_init.h"
+#include "bro_scr_flak.h"
+#include "bro_scr_fx_threads.h"
+#include "bro_scr_level_threads.h"
+#include "bro_scr_level_threads_2.h"
+#include "bro_scr_vehicle_riders.h"
+#include "bro_scr_wait_notify.h"
 
 namespace game {
 
@@ -114,35 +120,35 @@ void XB_CDECL BroScr_TankGunHull_3(uint32_t tank, ScriptString name) {
 }
 
 void XB_CDECL BroScr_PanzerIVTankInitStart(uint32_t tank) {
-    PanzerIVStart(tank, 0x001673c0);  // BroScr_TankInit_2
+    PanzerIVStart(tank, own_address(&BroScr_TankInit_2));  // BroScr_TankInit_2
 }
 
 void XB_CDECL BroScr_PanzerIVGunHullStart(uint32_t tank) {
-    PanzerIVStart(tank, 0x00168350);  // BroScr_TankGunHull_5
+    PanzerIVStart(tank, own_address(&BroScr_TankGunHull_5));  // BroScr_TankGunHull_5
 }
 
 void XB_CDECL BroScr_PanzerIVGunHullStart_2(uint32_t tank) {
-    PanzerIVStart(tank, 0x00168470);  // BroScr_TankGunHull_3
+    PanzerIVStart(tank, own_address(&BroScr_TankGunHull_3));  // BroScr_TankGunHull_3
 }
 
 void XB_CDECL BroScr_VehicleSetHealth_PanzerIV(uint32_t vehicle) {
     // "panzerIV", BroScr_SetHealthByDifficulty_2, BroScr_VehicleDeath_M13, BroScr_TankTurretFireLoopRecoil_2
-    VehicleSetHealth(vehicle, 0x007f499c, 0x00150560, 0x00139da0, 0x00127db0);
+    VehicleSetHealth(vehicle, 0x007f499c, own_address(&BroScr_SetHealthByDifficulty_2), own_address(&BroScr_VehicleDeath_M13), own_address(&BroScr_TankTurretFireLoopRecoil_2));
 }
 
 void XB_CDECL BroScr_VehicleSetHealth_Halftrack(uint32_t vehicle) {
     // "halftrack", BroScr_SetHealthByDifficulty_3, BroScr_VehicleDeath_Halftrack, BroScr_VehicleTurretFireLoop_3
-    VehicleSetHealth(vehicle, 0x00803cc4, 0x00150720, 0x0013a0f0, 0x00127e90);
+    VehicleSetHealth(vehicle, 0x00803cc4, own_address(&BroScr_SetHealthByDifficulty_3), own_address(&BroScr_VehicleDeath_Halftrack), own_address(&BroScr_VehicleTurretFireLoop_3));
 }
 
 void XB_CDECL BroScr_VehicleSetHealth_PanzerIV_2(uint32_t vehicle) {
     // "panzerIV", BroScr_SetHealthByDifficulty_4, BroScr_VehicleDeath_Tank, BroScr_VehicleTurretFireLoop_6
-    VehicleSetHealth(vehicle, 0x007f499c, 0x001523e0, 0x0013d9a0, 0x00128780);
+    VehicleSetHealth(vehicle, 0x007f499c, own_address(&BroScr_SetHealthByDifficulty_4), own_address(&BroScr_VehicleDeath_Tank), own_address(&BroScr_VehicleTurretFireLoop_6));
 }
 
 void XB_CDECL BroScr_TunisiaPanzerIVInit(uint32_t vehicle) {
     // "panzerIV", BroScr_SetHealthByDifficulty_5, BroScr_VehicleDeath_Stuart, BroScr_TankTurretFireLoopRecoil_4
-    VehicleSetHealth(vehicle, 0x007f499c, 0x00152800, 0x0013e770, 0x00128860);
+    VehicleSetHealth(vehicle, 0x007f499c, own_address(&BroScr_SetHealthByDifficulty_5), own_address(&BroScr_VehicleDeath_Stuart), own_address(&BroScr_TankTurretFireLoopRecoil_4));
 }
 
 uint32_t* XB_THISCALL BroScr_TankSpawnerSlots_Init(uint32_t* self) {
@@ -170,8 +176,8 @@ void start_thread1(uint32_t function, uint32_t ent) {
 
 void XB_CDECL BroScr_PanzerIVStartThreads(uint32_t ent) {
     BroScr_PanzerIVSetDifficultyHealth(ent);
-    start_thread1(0x0013b200, ent);  // BroScr_VehicleDeath_PanzerIV
-    start_thread1(0x00121a00, ent);  // BroScr_VehicleTurretFireLoop
+    start_thread1(own_address(&BroScr_VehicleDeath_PanzerIV), ent);  // BroScr_VehicleDeath_PanzerIV
+    start_thread1(own_address(&BroScr_VehicleTurretFireLoop), ent);  // BroScr_VehicleTurretFireLoop
 }
 
 void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, uint32_t count) {
@@ -183,9 +189,9 @@ void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, 
 void XB_CDECL BroScr_Sdkfz222Init(uint32_t ent, uint32_t health) {
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(
         ent, health == title_global<uint32_t>(0x00922ec0) ? 600 : health);  // ScrEnt_SetHealth
-    start_thread1(0x0013d2e0, ent);  // BroScr_VehicleDeath_Sdkfz222
-    start_thread1(0x001655f0, ent);  // BroScr_SpawnWheelOrigins
-    start_thread1(0x0013d270, ent);  // BroScr_SmokeWhenHalfHealth
+    start_thread1(own_address(&BroScr_VehicleDeath_Sdkfz222), ent);  // BroScr_VehicleDeath_Sdkfz222
+    start_thread1(own_address(&BroScr_SpawnWheelOrigins), ent);  // BroScr_SpawnWheelOrigins
+    start_thread1(own_address(&BroScr_SmokeWhenHalfHealth), ent);  // BroScr_SmokeWhenHalfHealth
 }
 
 void XB_CDECL BroScr_SetWheelSmokeFx(uint32_t vehicle, ScriptString fx) {
@@ -207,8 +213,8 @@ void XB_CDECL BroScr_FlakvierlingInit(uint32_t ent, uint32_t health, uint32_t a2
         ent, health == title_global<uint32_t>(0x00922ec0) ? 0x989680 : health);  // ScrEnt_SetHealth
     const uint32_t value = a2 != title_global<uint32_t>(0x00922ec0) ? a2 : 0x2000;
     *BroScr_FieldSlot(ent, 0x93c3cf6c) = value;
-    start_thread1(0x0014ffd0, ent);  // BroScr_VehicleDeath_Flakvierling
-    start_thread1(0x00148760, ent);  // BroScr_FlakvierlingThink
+    start_thread1(own_address(&BroScr_VehicleDeath_Flakvierling), ent);  // BroScr_VehicleDeath_Flakvierling
+    start_thread1(own_address(&BroScr_FlakvierlingThink), ent);  // BroScr_FlakvierlingThink
 }
 
 namespace {
@@ -240,18 +246,18 @@ void XB_CDECL BroScr_HalftrackSetup(uint32_t vehicle) {
     use_anim_tree(vehicle, 0x00803cc4);  // "halftrack"
     const uint32_t health = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(vehicle, health);         // ScrEnt_SetHealth
-    StartVehicleThread(vehicle, 0x0014d0a0);  // BroScr_VehicleHealthThink
-    StartVehicleThread(vehicle, 0x00142ee0);  // BroScr_VehicleInit_Halftrack
-    StartVehicleThread(vehicle, 0x00127e30);  // BroScr_VehicleTurretFireLoop_2
-    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleHealthThink));  // BroScr_VehicleHealthThink
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleInit_Halftrack));  // BroScr_VehicleInit_Halftrack
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleTurretFireLoop_2));  // BroScr_VehicleTurretFireLoop_2
+    start_vehicle_thread2(vehicle, own_address(&BroScr_TankStunOnDamage), 1);  // BroScr_TankStunOnDamage
 }
 
 void XB_CDECL BroScr_PanzerIVSetup_4(uint32_t vehicle) {
     use_anim_tree(vehicle, 0x007f499c);  // "panzerIV"
     own_function<void XB_CDECL(uint32_t)>(&BroScr_TankDefaultHealthThink_2)(vehicle);  // BroScr_TankDefaultHealthThink_2
-    StartVehicleThread(vehicle, 0x00145080);  // BroScr_VehicleInit_Sherman
-    StartVehicleThread(vehicle, 0x00128720);  // BroScr_VehicleTurretFireLoop_5
-    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleInit_Sherman));  // BroScr_VehicleInit_Sherman
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleTurretFireLoop_5));  // BroScr_VehicleTurretFireLoop_5
+    start_vehicle_thread2(vehicle, own_address(&BroScr_TankStunOnDamage), 1);  // BroScr_TankStunOnDamage
 }
 
 void XB_CDECL BroScr_PanzerIVSetup_2(uint32_t vehicle) {
@@ -261,10 +267,10 @@ void XB_CDECL BroScr_PanzerIVSetup_2(uint32_t vehicle) {
     use_anim_tree(vehicle, 0x007f499c);  // "panzerIV"
     const uint32_t health = scr_slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(1000) + 500;  // Scr_RandomInt
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(vehicle, health);         // ScrEnt_SetHealth
-    StartVehicleThread(vehicle, 0x0014d0a0);  // BroScr_VehicleHealthThink
-    StartVehicleThread(vehicle, 0x00143870);  // BroScr_VehicleInit_PanzerIV
-    StartVehicleThread(vehicle, 0x001283d0);  // BroScr_VehicleTurretFireLoop_4
-    start_vehicle_thread2(vehicle, 0x00134a90, 1);  // BroScr_TankStunOnDamage
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleHealthThink));  // BroScr_VehicleHealthThink
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleInit_PanzerIV));  // BroScr_VehicleInit_PanzerIV
+    StartVehicleThread(vehicle, own_address(&BroScr_VehicleTurretFireLoop_4));  // BroScr_VehicleTurretFireLoop_4
+    start_vehicle_thread2(vehicle, own_address(&BroScr_TankStunOnDamage), 1);  // BroScr_TankStunOnDamage
 }
 
 ScriptString* XB_CDECL BroScr_TreadFxSurfaceThink(ScriptString* out, uint32_t vehicle, uint32_t wheel) {
@@ -350,7 +356,7 @@ void XB_CDECL BroScr_VehicleGetPassengers(uint32_t vehicle, uint32_t rider, Scri
     DynArray_PushBack(field_array(vehicle, 0xe104fd5c), &rider);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const ScriptString*);
-    own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0016ace0, vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRidersThink)
+    own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_VehicleRidersThink), vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRidersThink)
     scr_release(&tag);
 }
 
@@ -415,7 +421,7 @@ void XB_CDECL BroScr_VehicleSpawnRider(uint32_t vehicle, uint32_t rider, uint32_
         uint32_t* const mount = rider_slot(vehicle, free_seat);
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*,
                                               uint32_t*, ScriptString*, bool*);
-        own_function<StartThread>(&Scr_StartThread_ent_ent_i_str_b_2_entry)(0, 0, 0, 0, 0x001542b0, vehicle, mount, &free_seat, &tag, &skip_mount);
+        own_function<StartThread>(&Scr_StartThread_ent_ent_i_str_b_2_entry)(0, 0, 0, 0, own_address(&BroScr_VehicleMountRiders), vehicle, mount, &free_seat, &tag, &skip_mount);
     }
     scr_release(&tag);
 }
@@ -465,7 +471,7 @@ void start_tread_fx(uint32_t vehicle, uint32_t ent, uint32_t hash) {
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0x14));
     if (functor) {
         functor[0] = 0x007f4a88;
-        functor[1] = 0x00163b40;
+        functor[1] = own_address(&BroScr_TreadFx);
         functor[2] = vehicle;
         functor[3] = ent;
         functor[4] = hash;
@@ -629,7 +635,7 @@ void XB_CDECL BroScr_DroneVehicleRiders(uint32_t vehicle, uint32_t rider, Script
     DynArray_PushBack(field_array(vehicle, 0xe104fd5c), &copy);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const ScriptString*);
-    own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0016ace0, vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRidersThink)
+    own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_VehicleRidersThink), vehicle, &rider, &tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRidersThink)
     scr_release(&tag);
     scr_release(&role);
 }
@@ -792,22 +798,22 @@ void XB_CDECL BroScr_SetupFlak88s() {
         // Type field 0xd1c52a4f: think thread (0x2f31323b / anim_thread) and target filter (0xc511e266).
         uint32_t* filter = nullptr;
         if (!flak_type_defined(*ent_at(&guns, i))) {
-            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = 0x00140bd0;
+            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = own_address(&BroScr_Flak88CrewAnimsAntitank);
             filter = zero_key_value(*ent_at(&guns, i), 0xc511e266);
         } else if (flak_type_is(*ent_at(&guns, i), 0x008251f8) || flak_type_is(*ent_at(&guns, i), 0x00823538)) {  // "flakair", "flakairlow"
-            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = 0x00140fc0;
+            *zero_key_value(*ent_at(&guns, i), 0x2f31323b) = own_address(&BroScr_Flak88CrewAnimsAntiair);
             filter = zero_key_value(*ent_at(&guns, i), 0xc511e266);
         } else if (flak_type_is(*ent_at(&guns, i), 0x008251ec) || flak_type_is(*ent_at(&guns, i), 0x00823544)) {  // "controlled", "flaktank"
-            *own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_anim_thread)(*ent_at(&guns, i)) = 0x00140bd0;  // ScrField_anim_thread
+            *own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_anim_thread)(*ent_at(&guns, i)) = own_address(&BroScr_Flak88CrewAnimsAntitank);  // ScrField_anim_thread
             filter = own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_hc511e266)(*ent_at(&guns, i));         // ScrField_hc511e266
         } else if (flak_type_is(*ent_at(&guns, i), 0x008251e0)) {  // "player_only": the HUD thread, and the setup ends
             const uint32_t gun = *own_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(&DynArray_At_PROLOGUE)(&guns, i);  // DynArray_At
-            const uint32_t args[6] = {0, 0, 0, 0, 0x0015b990, gun};  // BroScr_TankShellReadyHud
+            const uint32_t args[6] = {0, 0, 0, 0, own_address(&BroScr_TankShellReadyHud), gun};  // BroScr_TankShellReadyHud
             title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
                 args[0], args[1], args[2], args[3], args[4], args[5]);  // Scr_StartThreadFunctor1
             break;
         }
-        if (filter) *filter = 0x001204a0;  // BroScr_SetFlak88AnimsByType
+        if (filter) *filter = own_address(&BroScr_SetFlak88AnimsByType);  // BroScr_SetFlak88AnimsByType
         if (flak_type_defined(*ent_at(&guns, i))) flak_type_is(*ent_at(&guns, i), 0x008251ec);  // "controlled" (unused)
     }
     if (vehicles.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(vehicles.data);  // Scr_Free
@@ -854,7 +860,7 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922b94)(plane, 300);  // ScrEnt_SetHealth
     for (uint32_t thread : spec.threads) StartVehicleThread(plane, thread);
     *BroScr_FieldSlot(plane, 0x4af51227) = 0;
-    if (bombs != title_global<uint32_t>(0x00922ec0)) start_vehicle_thread2(plane, 0x001522e0, bombs);  // BroScr_StukaDropBombsThread
+    if (bombs != title_global<uint32_t>(0x00922ec0)) start_vehicle_thread2(plane, own_address(&BroScr_StukaDropBombsThread), bombs);  // BroScr_StukaDropBombsThread
     {
         ScriptString noteworthy;
         bool second = false;
@@ -916,13 +922,13 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
 
 void XB_CDECL BroScr_PlaneSpawnWingTurrets_50cal(uint32_t plane, uint32_t bombs) {
     // BroScr_WingTurretDamageWatch, StukaPlaneCrash, VehicleFollowPathToEnd, StukaTakeoff, EmptyFunc_3
-    static const WingTurrets kSpec = {{0x0013a830, 0x00143020, 0x00150ca0, 0x001216d0, 0x00121790}, 0x00824e6c, 0x00824e64, false};
+    static const WingTurrets kSpec = {{own_address(&BroScr_WingTurretDamageWatch), own_address(&BroScr_StukaPlaneCrash), own_address(&BroScr_VehicleFollowPathToEnd), own_address(&BroScr_StukaTakeoff), 0x00121790}, 0x00824e6c, 0x00824e64, false};
     plane_wing_turrets(&plane, &bombs, kSpec);  // "mg50cal_air_single", "w_50cal"
 }
 
 void XB_CDECL BroScr_PlaneSpawnWingTurrets_P47(uint32_t plane, uint32_t bombs) {
     // BroScr_WingTurretDamageWatch_2, P47PlaneCrash, VehicleFollowPathToEnd_2, EmptyFunc_4, EmptyFunc_5
-    static const WingTurrets kSpec = {{0x0013aaa0, 0x00143460, 0x00150f50, 0x00121940, 0x00121950}, 0x00824e80, 0x00824d78, true};
+    static const WingTurrets kSpec = {{own_address(&BroScr_WingTurretDamageWatch_2), own_address(&BroScr_P47PlaneCrash), own_address(&BroScr_VehicleFollowPathToEnd_2), 0x00121940, 0x00121950}, 0x00824e80, 0x00824d78, true};
     plane_wing_turrets(&plane, &bombs, kSpec);  // "P47_WING_TURRET", "v_p47_guns"
 }
 

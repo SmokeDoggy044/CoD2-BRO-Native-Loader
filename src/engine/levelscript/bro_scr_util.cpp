@@ -8,6 +8,8 @@
 #include "title_data.h"
 #include "bro_scr_ai_anim.h"
 #include "bro_scr_ai_look.h"
+#include "bro_scr_wait_notify.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -157,10 +159,10 @@ uint8_t* XB_THISCALL BroScr_GetMap_h4fcdc42e(uint8_t* self, uint8_t* out) {
 }
 
 uint32_t* XB_CDECL BroRuntime_SetImportCallbacks(uint32_t* block) {
-    block[1] = 0x0011f060;  // ScriptKeyTable_FromPairs
-    block[2] = 0x0011f160;  // ScriptKeyTable_Delete
+    block[1] = own_address(&ScriptKeyTable_FromPairs);  // ScriptKeyTable_FromPairs
+    block[2] = own_address(&ScriptKeyTable_Delete);  // ScriptKeyTable_Delete
     block[3] = 0x0011e800;
-    block[4] = 0x0011f100;  // ScriptKeyTable_Clone
+    block[4] = own_address(&ScriptKeyTable_Clone);  // ScriptKeyTable_Clone
     return block;
 }
 
@@ -530,9 +532,9 @@ void XB_CDECL BroScr_SetTargetsGroupAndEnt(uint32_t ent, uint32_t target) {
     *BroScr_FieldHandleSlot(ent, 0x0d60fb3d) = target;
 }
 
-void XB_CDECL BroScr_PlaneCrashSound(uint32_t ent) { plane_crash_sound(ent, 0x00121540); }
-void XB_CDECL BroScr_PlaneCrashSound_2(uint32_t ent) { plane_crash_sound(ent, 0x001217b0); }
-void XB_CDECL BroScr_PlaneCrashSound_3(uint32_t ent) { plane_crash_sound(ent, 0x00122dc0); }
+void XB_CDECL BroScr_PlaneCrashSound(uint32_t ent) { plane_crash_sound(ent, own_address(&BroScr_PlaySoundOnTempOrigin)); }
+void XB_CDECL BroScr_PlaneCrashSound_2(uint32_t ent) { plane_crash_sound(ent, own_address(&BroScr_PlaySoundOnTempOrigin_2)); }
+void XB_CDECL BroScr_PlaneCrashSound_3(uint32_t ent) { plane_crash_sound(ent, own_address(&BroScr_PlaySoundOnTempOrigin_3)); }
 
 void XB_CDECL BroScr_DeleteVehicleTurrets(uint32_t ent) { delete_turrets(ent, false); }
 void XB_CDECL BroScr_DeleteVehicleTurrets_2(uint32_t ent) { delete_turrets(ent, true); }

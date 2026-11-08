@@ -12,6 +12,7 @@
 #include "scr_access.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_notify_threads.h"
 
 namespace game {
 
@@ -121,7 +122,7 @@ void XB_CDECL BroScr_SetTargetnameFromOrigin(uint32_t ent) {
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x007f5ba0;
-        functor[1] = 0x0019a150;  // BroScr_TrackStartFlagLoop
+        functor[1] = own_address(&BroScr_TrackStartFlagLoop);  // BroScr_TrackStartFlagLoop
         functor[2] = ent;
     }
     slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, ent, functor,
@@ -629,7 +630,7 @@ void XB_CDECL BroScr_DeleteTeamEntsWithKeyValue(ScriptString value) {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
             if (functor) {
                 functor[0] = 0x007f5ba0;
-                functor[1] = 0x0018c090;  // BroScr_DeleteAfterFrame
+                functor[1] = own_address(&BroScr_DeleteAfterFrame);  // BroScr_DeleteAfterFrame
                 functor[2] = target;
             }
             slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(

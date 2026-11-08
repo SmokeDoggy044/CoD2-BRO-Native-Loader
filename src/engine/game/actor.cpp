@@ -9487,7 +9487,7 @@ void XB_CDECL Actor_UpdateAimBlend(uint32_t entry, uint32_t check_prone, uint8_t
         const uint32_t maxs = title_global<uint32_t>(0x0098a550);
         const uint32_t args[14] = {field<uint32_t>(ent, 0x224), addr_of(ent + 0x140), maxs, 0x41c00000,
                                    field<uint32_t>(ent, 0x154), a + 0x1a4, a + 0x1a8, a + 0x1ac, 1, F + 0x30,
-                                   0x002601a0, 0x002601e0, 1, 0x42340000};
+                                   own_address(&G_TraceCapsule), own_address(&G_Trace), 1, 0x42340000};
         field<uint32_t>(actor, 0x194) = call_at(F, 0x0020d4c5, own_address(&BG_CheckProne_entry),
                                                 TitleRegs{addr_of(ent + 0x140), ebx0, 1, maxs, esi0, a}, 14,
                                                 args);  // BG_CheckProne (G_TraceCapsule, G_Trace)
@@ -14185,7 +14185,7 @@ uint32_t XB_CDECL Actor_Grenade_FindCover(uint32_t entry, uint32_t eax, uint32_t
     stack_word(entry - 0xc) = field<uint32_t>(ent, 0x140);
     stack_word(entry - 8) = field<uint32_t>(ent, 0x144);
     stack_word(entry - 4) = field<uint32_t>(ent, 0x148);
-    const uint32_t args[5] = {entry - 0xc, 0x49100000, 0x42a00000, 0x0020d030, 0x00201640};
+    const uint32_t args[5] = {entry - 0xc, 0x49100000, 0x42a00000, own_address(&Actor_Grenade_IsCoverNodeSafe_entry), 0x00201640};
     call_at(entry - 0x10, 0x0021db90, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x1ffc, ecx, field<uint32_t>(ent, 0x148), edx, esi, edi}, 5,
             args);  // Actor_GatherCoverCandidates
     field<uint32_t>(field<uint8_t*>(actor, 0), 0x140) = stack_word(entry - 0xc);
@@ -15051,7 +15051,7 @@ uint32_t XB_CDECL Actor_Exposed_ReacquireNode(uint32_t entry, uint32_t eax, uint
     if (field<uint32_t>(actor, 0x2c)) {
         const uint8_t* const s = field<const uint8_t*>(actor, 4);
         field<uint32_t>(actor, 0x2c) = 0;
-        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, 0x001fd2b0};
+        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, own_address(&Actor_NodeDistanceSquared)};
         call_at(frame, 0x0021ff32, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x2000, a, field<uint32_t>(s, 0x18), edx, esi, edi}, 5,
                 args);  // Actor_GatherCoverCandidates
     }

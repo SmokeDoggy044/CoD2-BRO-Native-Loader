@@ -13,6 +13,7 @@
 #include "levels_twins.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "bro_scr_level_threads.h"
 
 namespace game {
 
@@ -257,7 +258,7 @@ void XB_CDECL BroScr_SetupWallHopTrigger(uint32_t ecx, uint32_t ent) {
     ScrField_script_mantle_type_IsDefined(&defined, ent);
     if (!defined) return;
     if (!ScriptString_Equals(ScrField_script_mantle_type(ent), pointer<const char>(0x00824da4))) return;
-    const uint32_t args[6] = {0, 0, 0, 0, 0x0014fb70, ent};  // BroScr_WallHopTrigger
+    const uint32_t args[6] = {0, 0, 0, 0, own_address(&BroScr_WallHopTrigger), ent};  // BroScr_WallHopTrigger
     Scr_StartThreadFunctor1(args);
 }
 
@@ -322,7 +323,7 @@ void XB_CDECL BroScr_InitShrimps(uint32_t, ScriptString name) {
             const uint32_t level = title_global<uint32_t>(0x00922ee0);
             const uint32_t player = *pointer<uint32_t>(level ? level + 4 : 0);
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*);
-            own_function<Start>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x00135ed0, player, &name);  // Scr_StartThread_ent_str: BroScr_NotifyEntsByTargetname
+            own_function<Start>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_NotifyEntsByTargetname), player, &name);  // Scr_StartThread_ent_str: BroScr_NotifyEntsByTargetname
         }
     }
     if (array[0]) Scr_Free(pointer<void>(array[0]));

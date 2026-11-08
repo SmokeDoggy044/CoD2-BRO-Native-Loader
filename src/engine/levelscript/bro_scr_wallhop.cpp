@@ -9,6 +9,7 @@
 #include "qcommon_fs.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_level_threads.h"
 
 namespace game {
 
@@ -464,7 +465,7 @@ void XB_CDECL BroScr_PlayerHopOverWall(uint32_t level_ent, DynArray points, ScrV
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x20);  // ScrIface_Alloc
     if (functor) {
         functor[0] = 0x00824630;
-        functor[1] = 0x001356f0;  // BroScr_WallHopRotate
+        functor[1] = own_address(&BroScr_WallHopRotate);  // BroScr_WallHopRotate
         functor[2] = owner;
         functor[3] = anchor;
         DynArray* const copy = reinterpret_cast<DynArray*>(&functor[4]);

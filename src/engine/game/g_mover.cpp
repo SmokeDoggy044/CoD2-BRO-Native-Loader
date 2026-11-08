@@ -2739,7 +2739,7 @@ void XB_CDECL Actor_EnterProne(uint8_t* actor, int32_t duration) {
         const uint32_t maxs = title_global<uint32_t>(0x0098a550);  // g_actorMaxs
         const uint32_t args[14] = {word_at(ent, 0x224), address_of(ent + 0x140), maxs, 0x41c00000, word_at(ent, 0x154),
                                    address_of(actor + 0x1a4), address_of(actor + 0x1a8), address_of(actor + 0x1ac), 1,
-                                   address_of(bounds), 0x002601a0, 0x002601e0, 1, 0x42340000};
+                                   address_of(bounds), own_address(&G_TraceCapsule), own_address(&G_Trace), 1, 0x42340000};
         const TitleRegs regs{address_of(ent + 0x140), static_cast<uint32_t>(duration), 0, maxs, address_of(prone),
                              address_of(actor)};
         word_at(actor, 0x194) = g_ent_call(own_address(&BG_CheckProne_entry), &regs, 14, args);  // BG_CheckProne (G_TraceCapsule, G_Trace)

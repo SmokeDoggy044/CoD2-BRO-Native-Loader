@@ -25,6 +25,7 @@
 #include "g_pathnode.h"
 #include "g_vehicle.h"
 #include "stream.h"
+#include "fe_menus.h"
 
 namespace game {
 
@@ -344,11 +345,11 @@ void XB_CDECL SV_AddOperatorCommands() {
     // {name, handler} in the original's order: map_restart_internal, map_restart, map_restart_check, ...,
     // reboot, load_mp_exe, the three map commands (SV_Map_f), loadgame, loadlastsave, the skill commands ...
     static const uint32_t kCommands[][2] = {
-        {0x0082abdc, 0x002cfc20}, {0x0082c874, 0x002cfba0}, {0x0082abf4, 0x002c00b0}, {0x00832f1c, 0x002c0100},
+        {0x0082abdc, own_address(&SV_MapRestartInternal_f)}, {0x0082c874, 0x002cfba0}, {0x0082abf4, 0x002c00b0}, {0x00832f1c, 0x002c0100},
         {0x00832f10, 0x002a8870}, {0x00832f08, 0x002a8840}, {0x0082c894, 0x002cfa40}, {0x0082c51c, 0x002cf920},
-        {0x00832f00, 0x002f3f40}, {0x00832efc, 0x002f3f40}, {0x00832fa8, 0x002f3f40}, {0x00832ef0, 0x002f4550},
-        {0x00832edc, 0x002f4510}, {0x00832ec8, 0x002c5130}, {0x00832eb8, 0x002c5200}, {0x00832ea4, 0x002c51a0},
-        {0x00832e94, 0x002c5140}, {0x00832e88, 0x002a8880}, {0x00832e7c, 0x002af760},
+        {0x00832f00, own_address(&SV_Map_f)}, {0x00832efc, own_address(&SV_Map_f)}, {0x00832fa8, own_address(&SV_Map_f)}, {0x00832ef0, own_address(&SV_LoadGame_f)},
+        {0x00832edc, own_address(&SV_LoadLastSave_f)}, {0x00832ec8, 0x002c5130}, {0x00832eb8, own_address(&SV_SetSkillHard)}, {0x00832ea4, own_address(&SV_SetSkillMedium)},
+        {0x00832e94, own_address(&SV_SetSkillEasy)}, {0x00832e88, 0x002a8880}, {0x00832e7c, 0x002af760},
     };
     if (title_global<uint32_t>(0x0098f2cc)) return;
     title_global<uint32_t>(0x0098f2cc) = 1;
@@ -2504,7 +2505,7 @@ PLATFORM_ASM_ENTRY(SV_InitGameProgs_entry,
                    "ret")
 
 void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi) {
-    const uint32_t create[2] = {0x00832df0, 0x002a8750};  // "game", SV_GameSystemCalls
+    const uint32_t create[2] = {0x00832df0, own_address(&SV_GameSystemCalls)};  // "game", SV_GameSystemCalls
     const TitleRegs regs = {0, ebx, 0, 0, esi, edi};
     uint8_t* vm = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(entry_esp, own_address(&VM_Create), &regs, 2, create)});  // VM_Create
     title_global<uint8_t*>(0x0095f50c) = vm;
@@ -2551,20 +2552,20 @@ uint32_t check_reload_status() { return own_function<uint32_t XB_CDECL()>(&Check
 
 void XB_CDECL SV_Shutdown() {
     free_block(0x0095f5e0, 0);
-    free_block(0x0095f4e0, 0x002c1ff0);  // LevelPersist_Free
+    free_block(0x0095f4e0, own_address(&LevelPersist_Free));  // LevelPersist_Free
     static const uint32_t kManagers1[] = {0x0095f564, 0x0095f5d8, 0x0095f4f4, 0x0095f5d4,
                                           0x0095f534, 0x0095f4f8, 0x0095f5ac};
     for (const uint32_t address : kManagers1) delete_object(address, 0);
-    free_block(0x0095f5b4, 0x002991c0);  // FxSystem_FreeLevel
+    free_block(0x0095f5b4, own_address(&FxSystem_FreeLevel));  // FxSystem_FreeLevel
     delete_object(0x0095f5a8, 0);
     delete_object(0x0095f640, 0);
-    free_block(0x0095f4cc, 0x002ce6a0);
+    free_block(0x0095f4cc, own_address(&S_StopCrossfadeChannels));
     free_block(0x0095f4c8, 0);
     delete_object(0x0095f4c0, 0);
-    free_block(0x0095f4c4, 0x002c8ed0);  // S_FreeLevelSounds
+    free_block(0x0095f4c4, own_address(&S_FreeLevelSounds));  // S_FreeLevelSounds
     static const uint32_t kManagers2[] = {0x0095f6b0, 0x0095f6ac, 0x0095f718, 0x0095f6a0, 0x0095f630};
     for (const uint32_t address : kManagers2) delete_object(address, 0);
-    free_block(0x0095f62c, 0x0028ef40);  // StreamMem_Free
+    free_block(0x0095f62c, own_address(&StreamMem_Free));  // StreamMem_Free
     PakRender_Shutdown();
     delete_object(0x0095f480, 1);
     if (uint8_t* rumble = title_global<uint8_t*>(0x0095f5c4)) {
@@ -2894,9 +2895,9 @@ void spawn_progress(SpawnFrame& f, uint32_t fraction, const uint32_t (&returns)[
         f.esi = SpawnFrame::at(panels + 0x14);
         f.call(0, own_address(&SCR_UpdateLoadingDots_entry), returns[0]);  // SCR_UpdateLoadingDots
     } else {
-        uint32_t function = 0x00313790, slot = 8, ret = returns[3];
-        if (chapter <= 5) function = 0x003134e0, slot = 0xc, ret = returns[1];
-        else if (chapter <= 8) function = 0x00313240, slot = 0x10, ret = returns[2];
+        uint32_t function = own_address(&LoadingMenu_SetProgress_entry), slot = 8, ret = returns[3];
+        if (chapter <= 5) function = own_address(&LoadAfricaMenu_SetProgress_entry), slot = 0xc, ret = returns[1];
+        else if (chapter <= 8) function = own_address(&LoadSicilyMenu_SetProgress_entry), slot = 0x10, ret = returns[2];
         f.eax = SpawnFrame::at(panels + slot);
         f.call(0, function, ret, fraction);
     }
@@ -3067,7 +3068,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.ebx = f.eax;
     }
     const uint32_t map = f.ebx;
-    at(title_global<uint32_t>(0x0095f638) + 0x35c) = 0x002f2b00;
+    at(title_global<uint32_t>(0x0095f638) + 0x35c) = own_address(&CL_UpdateLoadingProgress);
     f.esi = title_global<uint32_t>(0x0095f4c4);
     at(frame + 0x3c) = title_global<uint32_t>(0x0092bdf0);  // cls.state
     for (uint32_t i = 0; i < 16; i += 4) {
@@ -3197,7 +3198,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
     at(frame + 0xc) = blocks;
     f.esi = blocks + 0x194;
-    const uint32_t passes[2][2] = {{0x002b0e80, 0x002f3b20}, {0x002c0950, 0x002f3b53}};
+    const uint32_t passes[2][2] = {{own_address(&PathNode_ParseScriptKeys), 0x002f3b20}, {own_address(&PathNode_ResolveAnimScripts), 0x002f3b53}};
     for (uint32_t pass = 0; pass < 2; ++pass) {
         if (!at(f.esi) || static_cast<int32_t>(at(at(f.esi) + 0xc)) <= 0) continue;
         f.edi = 0;

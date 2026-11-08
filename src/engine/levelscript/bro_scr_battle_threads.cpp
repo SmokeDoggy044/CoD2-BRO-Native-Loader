@@ -97,7 +97,7 @@ void XB_CDECL BroScr_DroneMainDelayed(uint32_t drone, uint32_t min, uint32_t max
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(drone, 0xf9ed2681);  // Scr_EndOn
     Scr_WaitExact(slot<float XB_CDECL(uint32_t, uint32_t)>(0x00922238)(min, max));  // Scr_RandomFloatRange
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*);
-    title_function<StartThread>(0x0045b810)(0, 0, 0, 0, 0x0016d390, drone, &flag);  // Scr_StartThread_ent_b(BroScr_DroneMainCall)
+    title_function<StartThread>(0x0045b810)(0, 0, 0, 0, own_address(&BroScr_DroneMainCall), drone, &flag);  // Scr_StartThread_ent_b(BroScr_DroneMainCall)
 }
 
 void XB_CDECL BroScr_ShellIncomingThenImpact(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,

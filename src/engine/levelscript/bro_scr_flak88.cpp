@@ -14,6 +14,9 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "bro_scr_death_watch.h"
+#include "bro_scr_level_threads.h"
+#include "bro_scr_level_threads_2.h"
 
 namespace game {
 
@@ -153,7 +156,7 @@ inline void crew_anim_threads(DynArray* guys, uint32_t flak, uint32_t flaknum, c
         uint32_t* const functor = new_functor(0x18);
         if (functor) {
             functor[0] = 0x007ffb0c;
-            functor[1] = 0x00143cb0;  // BroScr_FlakCrewAnim
+            functor[1] = own_address(&BroScr_FlakCrewAnim);  // BroScr_FlakCrewAnim
             functor[2] = guy;
             functor[3] = flak;
             functor[4] = flaknum;
@@ -191,7 +194,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
         uint32_t* const functor = new_functor(0x14);
         if (functor) {
             functor[0] = 0x008023c8;
-            functor[1] = 0x0013cc90;  // BroScr_FlakDeathThink
+            functor[1] = own_address(&BroScr_FlakDeathThink);  // BroScr_FlakDeathThink
             functor[2] = ent;
             functor[3] = flaknum;
             *reinterpret_cast<uint8_t*>(&functor[4]) = 1;
@@ -225,7 +228,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 ScriptString_Release(&classname);
             }
             if (is) {
-                thread_3(ent, 0x00143b40, ent, element(&targets, i), flaknum);  // BroScr_FlakWaitStartTrigger
+                thread_3(ent, own_address(&BroScr_FlakWaitStartTrigger), ent, element(&targets, i), flaknum);  // BroScr_FlakWaitStartTrigger
                 start_trigger = true;
                 continue;
             }
@@ -235,7 +238,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 ScriptString_Release(&classname);
             }
             if (is)
-                title_function<StartThread>(0x0045ad90)(0, 0, 0, 0, 0x001609f0, ent, &element(&targets, i),
+                title_function<StartThread>(0x0045ad90)(0, 0, 0, 0, own_address(&BroScr_PlantBombObjective), ent, &element(&targets, i),
                                                         &flaknum);  // Scr_StartThread_ent_ent_i(BroScr_PlantBombObjective)
             else
                 DynArray_PushBack(reinterpret_cast<uint8_t*>(&spawners), &element(&targets, i));
@@ -301,7 +304,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 ScrLocal_ReleaseString(ent, think != 0, message);
                 const uint32_t guy = element(&guys, i);
                 thread_2(guy, think, guy, i);
-                thread_3(ent, 0x0013c530, ent, element(&guys, i), flaknum);  // BroScr_FlakStopMovingOnDeath
+                thread_3(ent, own_address(&BroScr_FlakStopMovingOnDeath), ent, element(&guys, i), flaknum);  // BroScr_FlakStopMovingOnDeath
                 *bool_slot(element(&guys, i), 0x1ea97196) = 0;
                 ScrVec3 origin;
                 origin_of(&origin, ent);
@@ -309,7 +312,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 uint32_t* const functor = new_functor(0x1c);
                 if (functor) {
                     functor[0] = 0x007f4b84;
-                    functor[1] = 0x00122600;  // BroScr_FlakWaitDeath
+                    functor[1] = own_address(&BroScr_FlakWaitDeath);  // BroScr_FlakWaitDeath
                     functor[2] = waiter;
                     functor[3] = origin.v[0];
                     functor[4] = origin.v[1];
@@ -323,9 +326,9 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
         level_int(0x2d4, flaknum) = 0;
         *bool_slot(ent, 0x34314719) = 0;
         *int_slot(ent, 0x872c50bf) = 0;
-        if (guys.capacity) thread_array(ent, 0x0013cf40, ent, &guys);  // BroScr_FlakLoaderAmmoAnim
-        thread_2(ent, 0x00122470, ent, flaknum);  // BroScr_FlakPanzerStopLoopSounds
-        thread_2(ent, 0x0013c710, ent, flaknum);  // BroScr_FlakDied
+        if (guys.capacity) thread_array(ent, own_address(&BroScr_FlakLoaderAmmoAnim), ent, &guys);  // BroScr_FlakLoaderAmmoAnim
+        thread_2(ent, own_address(&BroScr_FlakPanzerStopLoopSounds), ent, flaknum);  // BroScr_FlakPanzerStopLoopSounds
+        thread_2(ent, own_address(&BroScr_FlakDied), ent, flaknum);  // BroScr_FlakDied
         // While manned: with the level flag clear, guns in hand and the round's anim ("preidle" while
         // level byte +0x548 is set, "turn" once, else a BroScr_FlakGunnerFireAnim thread), a wait for
         // "fire_turret", then "fire" for the crew; else guns on the back and 1 s.
@@ -345,7 +348,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 level_int(0x2d4, flaknum) = 1;
                 ScriptString_AssignCString(&anim, pointer<const char>(0x008252e0));  // "turn"
             } else {
-                thread_2(ent, 0x0014bdf0, ent, flaknum);  // BroScr_FlakGunnerFireAnim
+                thread_2(ent, own_address(&BroScr_FlakGunnerFireAnim), ent, flaknum);  // BroScr_FlakGunnerFireAnim
             }
             Scr_WaitTillString(ent, pointer<const char>(0x00824c90));  // "fire_turret"
             ScriptString_AssignCString(&anim, pointer<const char>(0x0082c09c));  // "fire"

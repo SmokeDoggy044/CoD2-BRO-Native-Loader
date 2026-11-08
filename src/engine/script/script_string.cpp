@@ -954,7 +954,7 @@ uint32_t scr_ptr_array_append(uint32_t* self, const uint32_t* value, uint32_t al
 }  // namespace
 
 uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value) {
-    return scr_ptr_array_append(self, value, 0x0011f660);  // Scr_AllocPtrArray
+    return scr_ptr_array_append(self, value, own_address(&Scr_AllocPtrArray));  // Scr_AllocPtrArray
 }
 
 

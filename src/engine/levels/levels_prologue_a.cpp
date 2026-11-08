@@ -11,6 +11,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_battle_threads.h"
 
 namespace game {
 
@@ -214,7 +215,7 @@ void XB_CDECL BroLvl_prologue_StartEvent1Drones3d() {
     uint8_t staggered = 0;
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, DynArray*, ScriptString*,
                                     uint32_t*, uint32_t*, uint32_t*, uint8_t*);
-    own_function<Start>(&Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE_entry)(0, 0, 0, 0, 0x00173710, *handle, &paths, &type, &zero, &min, &max,
+    own_function<Start>(&Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_DronePathsStartAllCall_6), *handle, &paths, &type, &zero, &min, &max,
                                       &staggered);  // Scr_StartThread_ent_arrent_str_i_f_f_b(BroScr_DronePathsStartAllCall_6)
     ScriptString_Release(&type);
     if (paths.data) Scr_Free(paths.data);

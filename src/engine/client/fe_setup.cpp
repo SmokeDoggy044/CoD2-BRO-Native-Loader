@@ -3,6 +3,8 @@
 #include "fe_pc.h"
 #include "fe_setup_internal.h"
 #include "ui_panel.h"
+#include "fe_setup_bonus.h"
+#include "fe_setup_special.h"
 
 namespace game {
 
@@ -680,41 +682,41 @@ struct Branch {
     uint32_t function, ret;  // the helper and the original's return address (0 for a tail jump)
 };
 
-constexpr Branch kBranches[] = {
-    {0x0082cf78, 0x22, Source::Front, 0x08, Pass::Esi, 0x00328d10, 0x0032a96a},  // FE_SetupSinglePlayerMenu
+const Branch kBranches[] = {
+    {0x0082cf78, 0x22, Source::Front, 0x08, Pass::Esi, own_address(&FE_SetupSinglePlayerMenu_entry), 0x0032a96a},  // FE_SetupSinglePlayerMenu
     {0, 0, Source::Front, 0, Pass::Esi, 0, 0},                                     // the title screen (below)
-    {0x0082cf44, 0x19, Source::Front, 0x3c, Pass::Esi, 0x003256b0, 0x0032a9e6},  // FE_SetupProfileMenu
-    {0x0082cf2c, 0x16, Source::Front, 0x34, Pass::Esi, 0x00325e60, 0x0032aa10},  // FE_SetupDifficultyMenu
-    {0x0082cf0c, 0x1d, Source::Front, 0x0c, Pass::Ecx, 0x00328af0, 0x0032aa3a},  // FE_SetupOptionsMenu
-    {0x0082cef0, 0x19, Source::Front, 0x44, Pass::Tail, 0x00324f70, 0},           // FE_SetupChapterMenu
-    {0x0082ced8, 0x16, Source::Dialogs, 0x1c, Pass::Esi, 0x00329fe0, 0x0032aa8c},  // FE_SetupMemcardMenu
-    {0x0082cebc, 0x1a, Source::Front, 0x20, Pass::Esi, 0x00327490, 0x0032aab6},  // FE_SetupBonusMaterialsMenu
-    {0x0082ce9c, 0x20, Source::Front, 0x24, Pass::Esi, 0x00326f20, 0x0032aae0},  // FE_SetupBonusCharactersMenu
-    {0x0082ce7c, 0x1d, Source::Front, 0x28, Pass::Ecx, 0x00326970, 0x0032ab0a},  // FE_SetupBonusWeaponsMenu
-    {0x0082ce5c, 0x1e, Source::Front, 0x2c, Pass::Ecx, 0x00326460, 0x0032ab34},  // FE_SetupBonusVehiclesMenu
-    {0x0082ce3c, 0x1e, Source::Front, 0x30, Pass::Ecx, 0x00326010, 0x0032ab5e},  // FE_SetupBonusConceptsMenu
+    {0x0082cf44, 0x19, Source::Front, 0x3c, Pass::Esi, own_address(&FE_SetupProfileMenu_entry), 0x0032a9e6},  // FE_SetupProfileMenu
+    {0x0082cf2c, 0x16, Source::Front, 0x34, Pass::Esi, own_address(&FE_SetupDifficultyMenu_entry), 0x0032aa10},  // FE_SetupDifficultyMenu
+    {0x0082cf0c, 0x1d, Source::Front, 0x0c, Pass::Ecx, own_address(&FE_SetupOptionsMenu_entry), 0x0032aa3a},  // FE_SetupOptionsMenu
+    {0x0082cef0, 0x19, Source::Front, 0x44, Pass::Tail, own_address(&FE_SetupChapterMenu_entry), 0},           // FE_SetupChapterMenu
+    {0x0082ced8, 0x16, Source::Dialogs, 0x1c, Pass::Esi, own_address(&FE_SetupMemcardMenu_entry), 0x0032aa8c},  // FE_SetupMemcardMenu
+    {0x0082cebc, 0x1a, Source::Front, 0x20, Pass::Esi, own_address(&FE_SetupBonusMaterialsMenu_entry), 0x0032aab6},  // FE_SetupBonusMaterialsMenu
+    {0x0082ce9c, 0x20, Source::Front, 0x24, Pass::Esi, own_address(&FE_SetupBonusCharactersMenu_entry), 0x0032aae0},  // FE_SetupBonusCharactersMenu
+    {0x0082ce7c, 0x1d, Source::Front, 0x28, Pass::Ecx, own_address(&FE_SetupBonusWeaponsMenu_entry), 0x0032ab0a},  // FE_SetupBonusWeaponsMenu
+    {0x0082ce5c, 0x1e, Source::Front, 0x2c, Pass::Ecx, own_address(&FE_SetupBonusVehiclesMenu_entry), 0x0032ab34},  // FE_SetupBonusVehiclesMenu
+    {0x0082ce3c, 0x1e, Source::Front, 0x30, Pass::Ecx, own_address(&FE_SetupBonusConceptsMenu_entry), 0x0032ab5e},  // FE_SetupBonusConceptsMenu
     {0, 0, Source::Front, 0, Pass::Esi, 0, 0},                                     // the special edition main menu
-    {0x0082ce00, 0x1a, Source::Front, 0x4c, Pass::Esi, 0x00324740, 0x0032abb7},  // FE_SetupSpecialConceptMenu
-    {0x0082cde4, 0x1c, Source::Front, 0x48, Pass::Esi, 0x00324ab0, 0x0032abe1},  // FE_SetupSpecialMaterialsMenu
-    {0x0082cdd0, 0x11, Source::Game, 0x00, Pass::Esi, 0x00329c80, 0x0032ac0a},   // FE_SetupPauseMenu
-    {0x0082cdb4, 0x1c, Source::Game, 0x04, Pass::Esi, 0x00329480, 0x0032ac34},   // FE_SetupAdvancedOptionsMenu
-    {0x0082cda0, 0x13, Source::Game, 0x08, Pass::Esi, 0x00327c70, 0x0032ac5e},   // FE_SetupLoadingMenu
-    {0x0082cd88, 0x16, Source::Game, 0x10, Pass::Esi, 0x003279b0, 0x0032ac88},   // FE_SetupLoadSicilyMenu
-    {0x0082cd70, 0x18, Source::Game, 0x14, Pass::Esi, 0x003278b0, 0x0032acb2},   // FE_SetupLoadMaubeugeMenu
-    {0x0082cd58, 0x16, Source::Game, 0x0c, Pass::Esi, 0x00327b00, 0x0032acdc},   // FE_SetupLoadAfricaMenu
-    {0x0082cd38, 0x1e, Source::Game, 0x18, Pass::Tail, 0x00325370, 0},            // FE_SetupMissionSuccessFailMenu
-    {0x0082cd24, 0x14, Source::Game, 0x1c, Pass::Esi, 0x00325210, 0x0032ad31},   // FE_SetupAutosaveMenu
-    {0x0082cd10, 0x14, Source::Front, 0x10, Pass::Esi, 0x00328720, 0x0032ad5b},  // FE_SetupGameplayMenu
-    {0x0082ccf0, 0x20, Source::Front, 0x14, Pass::Esi, 0x00328210, 0x0032ad85},  // FE_SetupControllerConfigMenu
-    {0x0082ccdc, 0x13, Source::Owner, 0x28, Pass::Tail, 0x0032a660, 0},            // FE_SetupLoginStatus
-    {0x0082ccc4, 0x17, Source::Front, 0x50, Pass::Esi, 0x00223260, 0x0032add5},  // FE_SetupXboxLiveSingle
-    {0x0082cca8, 0x1b, Source::Game, 0x20, Pass::Esi, 0x00223140, 0x0032adff},   // FE_SetupInGameLiveOptions
-    {0x0082cc94, 0x12, Source::Front, 0x18, Pass::Esi, 0x00327fd0, 0x0032ae29},  // FE_SetupScreenMenu
-    {0x0082cc80, 0x11, Source::Front, 0x1c, Pass::Ecx, 0x00327de0, 0x0032ae53},  // FE_SetupSoundMenu
-    {0x0082cc5c, 0x24, Source::Owner, 0x24, Pass::Edi, 0x00325c90, 0x0032ae78},  // FE_SetupControllerDisconnected
+    {0x0082ce00, 0x1a, Source::Front, 0x4c, Pass::Esi, own_address(&FE_SetupSpecialConceptMenu_entry), 0x0032abb7},  // FE_SetupSpecialConceptMenu
+    {0x0082cde4, 0x1c, Source::Front, 0x48, Pass::Esi, own_address(&FE_SetupSpecialMaterialsMenu_entry), 0x0032abe1},  // FE_SetupSpecialMaterialsMenu
+    {0x0082cdd0, 0x11, Source::Game, 0x00, Pass::Esi, own_address(&FE_SetupPauseMenu_entry), 0x0032ac0a},   // FE_SetupPauseMenu
+    {0x0082cdb4, 0x1c, Source::Game, 0x04, Pass::Esi, own_address(&FE_SetupAdvancedOptionsMenu_entry), 0x0032ac34},   // FE_SetupAdvancedOptionsMenu
+    {0x0082cda0, 0x13, Source::Game, 0x08, Pass::Esi, own_address(&FE_SetupLoadingMenu_entry), 0x0032ac5e},   // FE_SetupLoadingMenu
+    {0x0082cd88, 0x16, Source::Game, 0x10, Pass::Esi, own_address(&FE_SetupLoadSicilyMenu_entry), 0x0032ac88},   // FE_SetupLoadSicilyMenu
+    {0x0082cd70, 0x18, Source::Game, 0x14, Pass::Esi, own_address(&FE_SetupLoadMaubeugeMenu_entry), 0x0032acb2},   // FE_SetupLoadMaubeugeMenu
+    {0x0082cd58, 0x16, Source::Game, 0x0c, Pass::Esi, own_address(&FE_SetupLoadAfricaMenu_entry), 0x0032acdc},   // FE_SetupLoadAfricaMenu
+    {0x0082cd38, 0x1e, Source::Game, 0x18, Pass::Tail, own_address(&FE_SetupMissionSuccessFailMenu_entry), 0},            // FE_SetupMissionSuccessFailMenu
+    {0x0082cd24, 0x14, Source::Game, 0x1c, Pass::Esi, own_address(&FE_SetupAutosaveMenu_entry), 0x0032ad31},   // FE_SetupAutosaveMenu
+    {0x0082cd10, 0x14, Source::Front, 0x10, Pass::Esi, own_address(&FE_SetupGameplayMenu_entry), 0x0032ad5b},  // FE_SetupGameplayMenu
+    {0x0082ccf0, 0x20, Source::Front, 0x14, Pass::Esi, own_address(&FE_SetupControllerConfigMenu_entry), 0x0032ad85},  // FE_SetupControllerConfigMenu
+    {0x0082ccdc, 0x13, Source::Owner, 0x28, Pass::Tail, own_address(&FE_SetupLoginStatus_entry), 0},            // FE_SetupLoginStatus
+    {0x0082ccc4, 0x17, Source::Front, 0x50, Pass::Esi, own_address(&FE_SetupXboxLiveSingle_entry), 0x0032add5},  // FE_SetupXboxLiveSingle
+    {0x0082cca8, 0x1b, Source::Game, 0x20, Pass::Esi, own_address(&FE_SetupInGameLiveOptions_entry), 0x0032adff},   // FE_SetupInGameLiveOptions
+    {0x0082cc94, 0x12, Source::Front, 0x18, Pass::Esi, own_address(&FE_SetupScreenMenu_entry), 0x0032ae29},  // FE_SetupScreenMenu
+    {0x0082cc80, 0x11, Source::Front, 0x1c, Pass::Ecx, own_address(&FE_SetupSoundMenu_entry), 0x0032ae53},  // FE_SetupSoundMenu
+    {0x0082cc5c, 0x24, Source::Owner, 0x24, Pass::Edi, own_address(&FE_SetupControllerDisconnected_entry), 0x0032ae78},  // FE_SetupControllerDisconnected
     {0, 0, Source::Front, 0, Pass::Esi, 0, 0},                                     // hud_menu (below)
-    {0x0082cc34, 0x15, Source::OwnerHud, 0x24, Pass::Ecx, 0x00323160, 0x0032aec6},  // FE_SetupLiberatorMenu
-    {0x0082cc18, 0x19, Source::Front, 0x38, Pass::Esi, 0x00325ac0, 0x0032aef0},  // FE_SetupCreateProfileMenu
+    {0x0082cc34, 0x15, Source::OwnerHud, 0x24, Pass::Ecx, own_address(&FE_SetupLiberatorMenu_entry), 0x0032aec6},  // FE_SetupLiberatorMenu
+    {0x0082cc18, 0x19, Source::Front, 0x38, Pass::Esi, own_address(&FE_SetupCreateProfileMenu_entry), 0x0032aef0},  // FE_SetupCreateProfileMenu
 };
 
 // repe cmpsb over `length` bytes.

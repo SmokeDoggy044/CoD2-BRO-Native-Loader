@@ -2,6 +2,8 @@
 
 #include "bro_scr_common.h"
 #include "title_data.h"
+#include "bro_scr_fx_threads.h"
+#include "bro_scr_level_threads_2.h"
 
 namespace game {
 
@@ -17,7 +19,7 @@ void RandomSoundBursts(uint32_t entity, const uint32_t* const (&values)[8]) {
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const uint32_t*, const uint32_t*, const uint32_t*, const uint32_t*,
                                           const uint32_t*, const uint32_t*, const uint32_t*);
-    title_function<StartThread>(0x0017b0c0)(0, 0, 0, 0, 0x0015bde0, entity, values[0], values[1], values[2], values[3],
+    title_function<StartThread>(0x0017b0c0)(0, 0, 0, 0, own_address(&BroScr_RandomSoundBursts), entity, values[0], values[1], values[2], values[3],
                                             values[4], values[5], values[6], values[7]);
 }
 
@@ -34,7 +36,7 @@ void XB_CDECL BroScr_StartFxLoopingThread() {
     const uint32_t field = object ? object + 4 : 0;
     const uint32_t value = *reinterpret_cast<volatile uint32_t*>(field);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, 0x00164750, value);  // Scr_StartThreadFunctor1(BroScr_StartLoopingFx)
+    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_StartLoopingFx), value);  // Scr_StartThreadFunctor1(BroScr_StartLoopingFx)
 }
 
 void XB_CDECL BroScr_RandomSoundBurstsThread(uint32_t entity, uint32_t alias) {
