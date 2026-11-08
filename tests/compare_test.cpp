@@ -1,4 +1,4 @@
-// The comparison harness (loader/compare_linux.cpp) without the game: hand-assembled
+// The comparison harness (src/runtime/loader/compare_linux.cpp) without the game: hand-assembled
 // "original" functions in an executable block standing in for the title's code, and
 // "decompiled" versions (compare_test_code.cpp) that are right, wrong, hang, crash,
 // pop the wrong number of bytes or call host code.

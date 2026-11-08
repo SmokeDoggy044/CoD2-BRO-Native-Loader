@@ -1,4 +1,4 @@
-// Force-included (/FI) before every lowered game/code file: what platform/compiler.h
+// Force-included (/FI) before every lowered src/engine file: what src/platform/compiler.h
 // only defines for GCC/Clang, and what Visual C++ 7.1's headers lack.
 #pragma once
 #include <cstdint>

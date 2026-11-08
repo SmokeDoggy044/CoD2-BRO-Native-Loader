@@ -9,7 +9,7 @@
 // 16 KB arena whose words are drawn the same way (pointer chains to any depth); some get a
 // constant the code compares against (leaf_functions.inc) or a copy of another word. Both
 // versions run from the same state; compared as the in-game harness does
-// (docs/comparison-harness.md): the result by kind, EBX/ESI/EDI/EBP, ESP, DF, the x87
+// (docs/developers/comparison-harness.md): the result by kind, EBX/ESI/EDI/EBP, ESP, DF, the x87
 // control word, stack and values, MXCSR, the stack arguments, the arena and every title
 // data page either side wrote. Inputs the original crashes or hangs on are skipped. The
 // original is single-stepped on some inputs: the share of its instructions reached says

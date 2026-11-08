@@ -1,4 +1,4 @@
-// The NAL entropy mode decoders (game/code/nal_entropy.cpp) against the title's own code:
+// The NAL entropy mode decoders (src/engine/xanim/nal_entropy.cpp) against the title's own code:
 // the original decoders are pure functions of the stream (no globals, relative jumps
 // only), so their bytes run as they are from a copy of default.xbe's .text. Each mode
 // decodes the same random streams both ways; the words written, the reader's position and

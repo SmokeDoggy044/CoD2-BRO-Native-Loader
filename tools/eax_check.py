@@ -17,7 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
-    source = open(os.path.join(ROOT, 'game/code/functions.cpp')).read()
+    source = open(os.path.join(ROOT, 'src/engine/shared/functions.cpp')).read()
     entries = re.findall(r'\{"([A-Za-z0-9_]+)", 0x([0-9a-f]{8}), [^}]*Result::None', source)
     if not entries:
         return 0

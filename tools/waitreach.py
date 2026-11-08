@@ -2,7 +2,7 @@
 """Which functions can reach a script thread switch (a wait, or starting a thread that runs at once).
 
 C that is called from a script thread and reaches a wait stays original until the own engine's coroutines
-(docs/status.md, script module rule). Seeds: the set-aside and classed "thread switch" rows
+(docs/research/status.md, script module rule). Seeds: the set-aside and classed "thread switch" rows
 (tools/data/set_aside.csv, docs/*_classes.csv) and the Scr_Suspend*/Scr_Wait* primitives. Edges: CALL/JMP rel32
 and `call [0x00922xxx]` engine-interface slots (slot -> builtin, as tools/levelreach.py). Byte scans: an E8/E9 or
 FF 15 inside another instruction can add a false edge, so the "reaches" side is an over-approximation (safe for

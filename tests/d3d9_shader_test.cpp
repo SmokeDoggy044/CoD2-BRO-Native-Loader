@@ -1,4 +1,4 @@
-// render/d3d9_shader: translated shaders keep the read-port limits that Windows'
+// src/render/d3d9_shader: translated shaders keep the read-port limits that Windows'
 // Direct3D 9 runtime enforces in CreateVertexShader/CreatePixelShader (DXVK does not
 // check them): vs_3_0 and ps_3_0 read at most one constant (c#) and one input (v#)
 // register per instruction.

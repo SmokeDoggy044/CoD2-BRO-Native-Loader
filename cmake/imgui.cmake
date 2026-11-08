@@ -1,5 +1,5 @@
 # Dear ImGui (MIT), fetched at configure time on every platform: the launcher's window
-# (SDL renderer back end) and the in-game menu (render/, Direct3D 9 back end).
+# (SDL renderer back end) and the in-game menu (src/render/, Direct3D 9 back end).
 include(FetchContent)
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git

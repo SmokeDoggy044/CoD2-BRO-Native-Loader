@@ -22,9 +22,9 @@ The license text is `LICENSE` at the repository root (also
 `GPL-2.0-or-later.txt` here).
 
 None of the headers below are compiled into any build; the port has its own
-(`audio/xbox_dsound.h`, `online/xonline.h`, `render/xbox_d3d.h`, ...). Only
+(`src/audio/xbox_dsound.h`, `src/online/xonline.h`, `src/render/xbox_d3d.h`, ...). Only
 `xboxkrnl.h` (CC0) is read, by `tools/gen_kernel_exports.py`, to generate
-`xbox/kernel_exports.inc`. GPL-2.0-or-later code from them (or from Cxbx-Reloaded
+`src/runtime/xbox/kernel_exports.inc`. GPL-2.0-or-later code from them (or from Cxbx-Reloaded
 or xemu) could be used directly, since the port has the same license.
 
 ## Third-party code
@@ -40,14 +40,14 @@ pinned at commit 0f8e252 of 2024-07-30; its own `COPYING` is the GPL-2.0 text; i
 | `d3d8types_wine.h` (from Wine) | LGPL-2.1-or-later | `LGPL-2.1-or-later.txt` |
 | `xboxdef.h` | no notice in the file; the package's `COPYING` (GPL-2.0) | `GPL-2.0-or-later.txt` |
 
-`game/code/zlib.cpp` and `game/code/unzip.cpp`: decompiled from the title's linked copies of
+`src/engine/zlib/zlib.cpp` and `src/engine/zlib/unzip.cpp`: decompiled from the title's linked copies of
 zlib 1.1.4 (Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler, zlib license) and unzip 0.15
 (Copyright (C) 1998 Gilles Vollant, the zlib license), using the upstream sources as a guide; each
 file keeps its upstream notice. The zlib license allows use in GPL software.
 
-`fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
-Liberation Serif, Anton); sources and license texts in `fonts/README.md` and
-`fonts/licenses/`. They are shipped as separate files next to the programs, which
+`src/text/fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
+Liberation Serif, Anton); sources and license texts in `src/text/fonts/README.md` and
+`src/text/fonts/licenses/`. They are shipped as separate files next to the programs, which
 the OFL allows alongside software under any license.
 
 Fetched by CMake at configure time, not stored here: Dear ImGui (MIT,

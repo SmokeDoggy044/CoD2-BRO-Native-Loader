@@ -1,5 +1,5 @@
-// render/shaders (tools/shader_hlsl.py): every translated title shader draws the same picture as
-// the Xbox path's translation of the same program (render/d3d9_shader.cpp, the reference checked in
+// src/render/shaders (tools/shader_hlsl.py): every translated title shader draws the same picture as
+// the Xbox path's translation of the same program (src/render/d3d9_shader.cpp, the reference checked in
 // game), on a real D3D9 device with random inputs:
 // - pixel shaders: a quad with random colours, texture coordinates and fog per corner, random
 //   textures and combiner constants, alpha kill off and on;
@@ -220,7 +220,7 @@ void test_pixel_shaders(Harness& h, const std::string& dir, const std::vector<ui
     for (uint32_t slot = 0; slot < 4; ++slot) g.set_texture(slot, 0);
 }
 
-// NORMPACKED3 as the Xbox path decodes it (render/draw.cpp): 11:11:10 signed normalized, w 1.
+// NORMPACKED3 as the Xbox path decodes it (src/render/draw.cpp): 11:11:10 signed normalized, w 1.
 void unpack_normal(uint32_t v, float* out) {
     auto extend = [](uint32_t value, int bits) {
         return static_cast<float>(static_cast<int32_t>(value << (32 - bits)) >> (32 - bits));

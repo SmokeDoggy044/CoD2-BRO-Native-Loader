@@ -1,4 +1,4 @@
-// Waits, events, mutants, timers, DPCs and IRQL (xbox/dispatcher.cpp), called through
+// Waits, events, mutants, timers, DPCs and IRQL (src/runtime/xbox/dispatcher.cpp), called through
 // the export table the way the title calls them.
 //
 // Timing checks have strict lower bounds (firing early is a bug) and loose upper

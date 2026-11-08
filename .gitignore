@@ -1,8 +1,7 @@
 /build/
 
 # Game files are never part of the repository.
-/assets/*
-!/assets/README.md
+/assets/
 # DXVK writes <exe>_d3d9.log into the working folder.
 *.log
 # Playtest diagnostics (--diag DIR) kept in the port folder.

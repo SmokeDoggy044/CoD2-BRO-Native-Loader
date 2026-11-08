@@ -1,4 +1,4 @@
-// FramePacing (render/frame_pacing.h): per-second counts, hitches, stalls, excluded time.
+// FramePacing (src/render/frame_pacing.h): per-second counts, hitches, stalls, excluded time.
 
 #include "test_support.h"
 

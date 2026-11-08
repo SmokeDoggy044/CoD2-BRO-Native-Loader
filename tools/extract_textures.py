@@ -7,7 +7,7 @@ chaiNNer/PBRify read) and optionally as the original DDS. manifest.csv lists eve
 occurrence - pack, entry, offset - and the content hash of the bytes after the
 128-byte DDS header, which is how the port finds a texture at draw time.
 
-Pack format: see text/kapf.h.
+Pack format: see src/text/kapf.h.
 
 Usage: extract_textures.py <unpacked dir> <output dir> [--dds] [--no-png] [--jobs N]
 """

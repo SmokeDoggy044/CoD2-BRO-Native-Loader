@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Which levels' scripts can reach a function: the level sections (compiled level scripts,
 loaded per mission) call the engine only through the import block at 0x00922140 (slot =
-offset / 4, filled by 0x0030adb0 and its sub-inits; docs/naming.md "Script engine
+offset / 4, filled by 0x0030adb0 and its sub-inits; docs/research/naming.md "Script engine
 interface"), as `call [0x00922xxx]`, and engine functions directly. For each function: the
 builtins (slot targets) whose callee trees contain it - found by walking CALL/JMP callers and
 code addresses stored by code (callbacks) upward - and the call sites of those slots plus the

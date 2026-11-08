@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Writes the boilerplate for a batch of functions to decompile: per function a
-declaration in game/code/MODULE.h, a stub in MODULE.cpp (an asm entry for register
+declaration in src/engine/MODULE.h, a stub in MODULE.cpp (an asm entry for register
 arguments, the callees as ready title_function<> lines, an #error where the body goes)
 and its kFunctions entry (stack bytes, result kind; sorted by address). A new module
 gets its files, its CMake entry and its include in functions.cpp.
 
 usage: tools/scaffold.py MODULE FUNCTION... [--dry-run]
-  MODULE     game/code/<MODULE>.cpp/.h (created when missing)
+  MODULE     src/engine/<MODULE>.cpp/.h (created when missing)
   FUNCTION   hex address or symbol name (skipped when already in kFunctions)
 
 The signatures are guesses from fnpack.py's linear scan: parameters are uint32_t
@@ -23,11 +23,12 @@ import sys
 from pathlib import Path
 
 import fnpack
+import engine_src
 
 ROOT = fnpack.ROOT
-CODE = ROOT / "game" / "code"
-FUNCTIONS_CPP = CODE / "functions.cpp"
-CMAKE = CODE / "CMakeLists.txt"
+CODE = engine_src.ENGINE
+FUNCTIONS_CPP = engine_src.FUNCTIONS_CPP
+CMAKE = engine_src.CMAKE
 POPS = None
 GCC_REGS = ["eax", "edx", "ecx"]  # regparm order
 ENTRY_ORDER = ["eax", "ecx", "edx", "ebx", "esi", "edi"]
@@ -179,7 +180,7 @@ def insert_before_namespace_end(path, text):
 
 
 def ensure_module(module):
-    header, source = CODE / f"{module}.h", CODE / f"{module}.cpp"
+    header, source = engine_src.path(f"{module}.h"), engine_src.path(f"{module}.cpp")
     created = []
     if not header.exists():
         header.write_text("#pragma once\n\n// TODO: what this module is.\n\n#include <cstddef>\n#include <cstdint>\n\n"
@@ -191,7 +192,7 @@ def ensure_module(module):
         created.append(source.name)
         cmake = CMAKE.read_text()
         files = re.search(r"set\(game_code_sources\n(.*?)\)", cmake, re.S)
-        names = sorted(set(files.group(1).split()) | {f"{module}.cpp"})
+        names = sorted(set(files.group(1).split()) | {engine_src.cmake_entry(f"{module}.cpp")})
         CMAKE.write_text(cmake[:files.start(1)] + "".join(f"    {n}\n" for n in names) + cmake[files.end(1):])
     functions = FUNCTIONS_CPP.read_text()
     include = f'#include "{module}.h"\n'
@@ -271,8 +272,8 @@ def main():
         print("\n".join(decls) + "\n\n" + "\n".join(defs) + "\n" + "\n".join(line for _, line in entries))
     elif targets:
         created = ensure_module(args.module)
-        insert_before_namespace_end(CODE / f"{args.module}.h", "\n".join(decls))
-        insert_before_namespace_end(CODE / f"{args.module}.cpp", "\n".join(defs))
+        insert_before_namespace_end(engine_src.path(f"{args.module}.h"), "\n".join(decls))
+        insert_before_namespace_end(engine_src.path(f"{args.module}.cpp"), "\n".join(defs))
         register(entries)
         if created:
             print(f"created {', '.join(created)} (CMake list and functions.cpp include added)")

@@ -1,4 +1,4 @@
-// Virtual Xbox LAN (online/lan.h): two stations in one process find each other the
+// Virtual Xbox LAN (src/online/lan.h): two stations in one process find each other the
 // way system link does - a broadcast to a fixed port, a unicast answer to the sender.
 
 #include <cstdio>

@@ -9,8 +9,8 @@ level's copy of a template written once) when the masked disassembly is equal
 holding that value); the level copy's values at those positions replace it. Every other differing operand must be
 a call/branch target that is the same offset inside the function or an exact twin (tools/twin_register.py rule),
 otherwise the row is skipped. Output:
-  game/code/<file>_levels.inc   the wrappers, included at the end of F's source file <file>.cpp
-  game/code/levels_twins.h      their declarations (functions.cpp includes it)
+  src/engine/<file>_levels.inc   the wrappers, included at the end of F's source file <file>.cpp
+  src/engine/levels/levels_twins.h      their declarations (functions.cpp includes it)
   functions.cpp entries (Status::Compare), functions.csv zero rows, manual_names.csv names for FUN_ rows
 
 usage: tools/near_twins.py [--module prologue] [--dry-run] [--why]
@@ -25,13 +25,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
+import engine_src
 
 ROOT = fnpack.ROOT
-CODE = ROOT / "game" / "code"
-FUNCTIONS_CPP = CODE / "functions.cpp"
+CODE = engine_src.ENGINE
+FUNCTIONS_CPP = engine_src.FUNCTIONS_CPP
 FUNCTIONS_CSV = fnpack.DATA / "functions.csv"
 MANUAL = fnpack.DATA / "manual_names.csv"
-HEADER = CODE / "levels_twins.h"
+HEADER = engine_src.path("levels_twins.h")
 HEX = re.compile(r"0x[0-9a-f]{5,}")
 LIT = re.compile(r"0x[0-9a-fA-F]{5,8}u?\b")
 BRANCH = re.compile(r"^(call|j\w+) 0x([0-9a-f]+)$")
@@ -43,9 +44,9 @@ ENTRY = (r'^    \{"(\w+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+|0), (code\([^)]*\))
 
 
 def definitions():
-    """name -> (file, header text before '{', body text) for short free functions in game/code/*.cpp."""
+    """name -> (file, header text before '{', body text) for short free functions in src/engine/*.cpp."""
     out = {}
-    for path in sorted(CODE.glob("*.cpp")):
+    for path in engine_src.files("*.cpp"):
         text = path.read_text()
         for m in re.finditer(r"^(?![ /#}])[^\n;{}]*\bXB_\w+\s+(\w+)\(([^;{}]*?)\)\s*\{", text, re.M):
             start = m.end()

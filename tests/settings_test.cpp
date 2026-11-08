@@ -1,5 +1,5 @@
 // settings.ini: parsing, writing back, and the command-line options it stands for.
-// Portable (no xbox/), so it runs on every preset.
+// Portable (no src/runtime/xbox/), so it runs on every preset.
 
 #include <cstdio>
 #include <filesystem>

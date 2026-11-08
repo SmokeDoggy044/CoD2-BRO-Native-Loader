@@ -1,0 +1,91 @@
+# Multiplayer (codmp_xboxf.xbe)
+
+The disc's second title. The same native loader runs it: the campaign's Multiplayer
+item reboots into it (console command `load_mp_exe`, SP FUN_002cf920) and its "Back
+to Single Player" back (MP FUN_0023fa90; MP FUN_00262020 restarts MP itself), or
+directly with `--xbe <assets>/codmp_xboxf.xbe`.
+
+## How the loader tells the titles apart
+
+`loader::find_title` (src/runtime/loader/patches.cpp) picks a `TitleInfo` by XBE file name:
+symbol file (`tools/data/codmp_xbe_symbols.txt`, exported from the Ghidra project
+with scripts/ExportSymbols.java), D3D/XPP globals, XAPI patches, RDTSC sites and
+unnamed SDK functions. MP addresses were found by matching function hashes against
+default.xbe (skill scripts FunctionHashes.java + match_hashes.py): about 80% of MP's
+engine functions have an identical twin in SP, the SDK sections nearly all.
+Mouse look and the keyboard's controller-style remap work in both titles (MP client
+globals: same instructions in the twin functions CL_CreateCmd FUN_0024c130,
+CL_MouseMove FUN_002259f0, key label FUN_0027fa60; skill script DataRefs.java lists
+them in order). MP's pad bindings come from the same style_*.cfg files
+(default_mp.cfg is a PC keyboard leftover).
+
+60 fps, widescreen in-game menus and --aim-assist also work in MP (user-tested
+2026-10-17); per-title tables in src/runtime/loader/patches.cpp:
+- Frame pacing: the same code (setter FUN_00065520, vblanks 0x003e8850, late flag
+  0x004523d8, wait setup 0x000652d0, decoder vtable 0x0038e830). MP sets the interval
+  only in its intro movie player (FUN_0029ab90, mode 2, never reset), so the
+  original MP runs at 1 vblank (60) until that movie; the loader writes the chosen
+  rate at startup. Release build: 60.0 fps; accumulated game time 0x0041cdd8 runs
+  at 1.000x wall time at 60 and 30 (the -O0 Debug build only reaches 31-41 fps).
+- Menus: render functions FUN_002862d0/FUN_00286340/FUN_002863b0, render method in
+  vtable slot 0x24 (SP 0x1c), current scene 0x004520fc, frame allocator 0x00452108,
+  swap counter 0x00452440. No objectives panel in MP (Back shows the scoreboard).
+- Aim assist: FUN_0024c940 (no exact twin; found as the only function calling the
+  twins of all five callees of SP's FUN_002db7d0), target field +0x510 (SP +0x500).
+- --level stays campaign-only.
+
+## System link
+
+The title's network code is Demonware's bdNet (bdSocket, bdDiscovery,
+bdUnicastConnection) on XNET:
+
+- Discovery: a client broadcasts a request (type 0x1b) to UDP port 50000; the
+  server answers the sender with type 0x1c and its game info (XNADDR, session key).
+  Session list -> Join.
+- The client registers the session key, turns the host's XNADDR into an IN_ADDR
+  (XNetXnAddrToInAddr), XNetConnect, then talks over a VDP socket (port 1000).
+- XNetQos*, XOnlineMatch* are Xbox Live matchmaking only.
+
+Replacement (src/online/xnet.cpp, src/online/lan.cpp): the title's sockets are virtual
+(protocol + port on a virtual 10.x.y.z address) and travel over one host UDP socket
+per game, ports 3074-3077 (the first free one), with a 21-byte header. Broadcasts go
+to 255.255.255.255 and 127.0.0.1 on all four ports, so up to four games on one PC
+and games on other PCs in the LAN see each other. XNADDR.ina is the virtual
+address; XnAddr <-> InAddr is the identity; keys are only remembered; nothing is
+encrypted. Not interoperable with real Xboxes.
+
+Two games on one PC (separate save folders):
+
+    L=build/linux-loader/bin/cod_bro_loader; A=build/linux-loader/bin/assets
+    $L --data /tmp/host --xbe $A/codmp_xboxf.xbe \
+       --press "down@11,a@12,down@14,a@15,down@18,down@18.5,down@19,down@19.5,down@20,down@20.5,down@21,a@22.5" &
+    sleep 25; $L --data /tmp/client --xbe $A/codmp_xboxf.xbe --press "down@11,a@12,a@15,a@22"
+
+(host: System Link > Create Match > Start Game; client: System Link > Find Match >
+join the first session). Checked 2026-10-17: both in the same Bizerte match, the
+host shows "Unknown Soldier Connected".
+
+## Threads
+
+- MPLevelLoader::run (FUN_00189af0, "Level pump thread", created at priority
+  HIGHEST by FUN_00268700 with bdThread FUN_000d3750) pumps the network
+  (FUN_00189280) every 200 ms while the main thread loads a level. The game heap
+  (dlmalloc-style; current heap 0x00451648; malloc 0x00043a10, memalign 0x00043850,
+  free 0x00043630, free-in-heap 0x00043470) has no lock: the client crashed in free
+  while joining. All four entry points now run under one recursive lock
+  (install_multiplayer_heap_lock). Other data the pump shares with the main thread
+  is unchecked.
+
+## Xbox Live
+
+Play Xbox Live calls the sign-in starter FUN_0018edd0 (twin of SP FUN_00221eb0;
+online object at [0x004b2fec]), which would open the XOnline sign-in UI (XFONT):
+replaced, as in SP, by a notice; the menu stays at "Not signed in".
+
+## Not done
+
+- Launcher (2026-10-17): Multiplayer button (`--multiplayer`) and the System Link
+  port (`net-port`, `--net-port`). Not yet in a release build.
+- Split screen (if the title has it), release, Windows test (Windows firewall
+  prompt for UDP 3074-3077 unverified).
+- MP's startup memory probing logs ~40 "budget exhausted" warnings (harmless).

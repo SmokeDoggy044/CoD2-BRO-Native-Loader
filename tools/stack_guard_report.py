@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolves the [stack_guard] lines (game/code/stack_guard.h) of one or more loader logs.
+"""Resolves the [stack_guard] lines (src/engine/shared/stack_guard.h) of one or more loader logs.
 
 usage: tools/stack_guard_report.py LOG... [--lib PATH]
 C return addresses become our C function (addr2line on libcod_bro_game.so, using the marker

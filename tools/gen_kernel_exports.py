@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate xbox/kernel_exports.inc from the xboxkrnl ordinal list and xboxkrnl.h.
+"""Generate src/runtime/xbox/kernel_exports.inc from the xboxkrnl ordinal list and xboxkrnl.h.
 
 Each export becomes one line:
     KEXPORT(ordinal, Name, KIND, stack_bytes)

@@ -442,7 +442,7 @@ def main():
             pending = {row["name"] for row in csv.DictReader(f)}  # known mismatches being fixed
         # The test finds functions by kFunctions' name (Ghidra's can still be FUN_xxxxxxxx).
         table = {int(a, 16): n for n, a in
-                 re.findall(r'\{"(\w+)", 0x([0-9a-fA-F]+),', (fnpack.ROOT / "game/code/functions.cpp").read_text())}
+                 re.findall(r'\{"(\w+)", 0x([0-9a-fA-F]+),', (fnpack.ROOT / "src/engine/shared/functions.cpp").read_text())}
         for va, name, _ in eligible:
             name = table.get(va, name)
             if name in pending:

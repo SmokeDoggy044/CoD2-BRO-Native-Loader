@@ -1,7 +1,7 @@
 #pragma once
 
 // Minimal test support for the kernel layer: a CHECK macro, export lookup by name,
-// and a fake host (what the loader provides to xbox/ in the real program).
+// and a fake host (what the loader provides to src/runtime/xbox/ in the real program).
 
 #include <atomic>
 #include <chrono>

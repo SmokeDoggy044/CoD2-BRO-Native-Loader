@@ -1,0 +1,1071 @@
+# Naming engine functions
+
+default.xbe has no symbols. Before decompiling a subsystem we name its functions and
+globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
+ancestry), so decompiled code reads like the original and callers make sense.
+
+State (2026-10-25): 10393 functions named (counter, incl. level sections), plus 3008 Microsoft library functions
+named by signature; all applied in Ghidra and exported to `tools/data/default_xbe_symbols.txt`.
+
+Next hub targets (2026-10-22 pass stopped at 46; ranks 130-411 surveyed): path/trace 0x002e75d0, 0x002e84d0,
+0x002e88d0, 0x002e8350/0x002e8650; sound voices 0x000c3d00, 0x000c47d0, 0x000c3ff0, 0x000c5400; Loc_* string tables
+0x00020890, 0x0001f2e0, 0x002ca5e0; AnimTree helpers 0x002c9940, 0x002af0a0, 0x002b7ad0; FX component loaders
+0x00023b20, 0x0029b320, 0x002990d0. The front-end widget methods (0x0082a628 family, ~20 hubs such as 0x0031f4b0)
+need their class hierarchy mapped first (UIMenu_Init is the anchor).
+
+## Files
+
+| File | What |
+|---|---|
+| `tools/data/q3_name_proposals.csv` | Automatic proposals from [tools/q3match](../../tools/q3match/README.md) (96 applied) |
+| `tools/data/manual_names.csv` | Names from reading the function bodies: address, name, kind (`function`/`data`), confidence (`high`/`medium`), evidence |
+| `tools/data/cvar_globals.csv` | cvar_t* globals named after their cvars (`tools/ghidra/CvarGlobals.java`) |
+| `tools/ghidra/ApplyNames.java` | Applies a CSV: renames only `FUN_`/default names, `data` rows become labels; rows without a function are left uncreated (gap functions) unless the second argument is `create` |
+| `tools/protos.py` + `tools/ghidra/ApplyPrototypes.java` | Our C prototypes into Ghidra (explicit storage per convention, regparm included; placeholder structs in /bro; the 0x00922xxx script-interface slots typed as pointers to their builtin's prototype). Rerun after a batch of new C: `tools/protos.py`, then the script with `build/protos apply`, save. First run 11-05: 7029 functions (asm shims with plain push sequences included), 551 slots (backup before: cod_bro/ghidra_backups/20261105-before-prototypes) |
+| `tools/ghidra/ExportMatchData.java` | Per-function strings and callees for q3match |
+| `tools/ghidra/ExportSymbols.java` | Re-export the symbol file after renaming |
+| `tools/data/library_names.csv` | Microsoft library code in the title's own sections, matched byte for byte (relocations masked) against the XDK 5849 .lib files (the XBE's library table says 5849) with the skill's `scripts/libmatch.py` + `libnames.py`: libcmt, xapilib, uix, xvoice, xgraphics, d3dx8, dsound, xonlines. Applied by `tools/ghidra/ApplyLibNames.java` into the library's namespace (UIX::CPopupScreen_Output); state `library` in progress.py (still counted in the total, user decision 2026-10-18) |
+
+## Workflow per batch
+
+1. Decompile a group (a region of `.text` or the callees of a named function) and
+   compare with the Q3/RTCW source. Write a row per name into `manual_names.csv`;
+   evidence says what pins it (strings, call order, table slot, argument count).
+   `high` = body matches; `medium` = position or role only, or a CoD-only function
+   named by convention (`Cmd_UFO_f`).
+2. Run `ApplyNames.java` with the CSV, save the program, run `ExportSymbols.java`.
+   ApplyNames never overwrites a name that is set: to correct an applied name, fix
+   the CSV and rename that function directly in Ghidra.
+3. Check no new function name equals a name the loader looks up (`grep -rw '"NAME"'`
+   over src/runtime/loader/, src/audio/, src/render/, src/input/, src/online/, src/runtime/xbox/), then
+   `tools/smoke_test.sh OUT` (mission 4, A presses past the movie and the briefing,
+   ~130 s) and look at `OUT/last.png`: the last frames must show the level with the
+   HUD. A run without presses only reaches the opening movie and the loading screen,
+   which does not exercise game code (runs before 2026-10-17 21:45 were like that).
+4. Sort the new names: `tools/progress.py` must show no named function in `unassigned` (`awk -F, '$4=="unassigned"
+   && $5!="library" && $5!="unnamed"' tools/data/progress.csv`); add a prefix or exact-name rule to
+   `tools/data/modules.csv` for any that is (user rule 2026-10-23: no module counts as finished while a function is
+   unnamed or unsorted). Copy the symbol file to the loader repo too (`port/tools/data/`).
+5. Commit the CSV, the symbol file, modules.csv and this document's state line.
+
+Running a script by name (`run_ghidra_script`) needs a copy in `~/ghidra_scripts/`;
+copy the repository version there first so it is not stale.
+
+## What the binary looks like (findings)
+
+- Release build with messages stripped: only ~1,200 of 9,200 `.text` functions
+  reference a string. Errors compile to `__break(code, message)` (Com_Error,
+  G_Error), prints to an empty vsprintf (CL_RefPrintf, CG_Printf).
+- Many small functions take arguments in registers (EAX/EDX/ESI/EDI/EBX); the
+  decompiler shows them as `in_EAX`/`unaff_ESI`.
+- q_shared, cvar, cmd, files, common, msg and the CM area/PVS helpers are close to
+  Q3: cvar_t is Q3's (0x2c bytes, hash chains), fileHandleData_t is 0x120 bytes,
+  Swap_Init stores the 8 byte-order helpers in Q3's order.
+- CM_LoadMap only registers cm_noCurves/cm_playerCurveClip; the collision map is
+  loaded elsewhere (and the renderer's world comes from it, RE_LoadWorldMap).
+- Modules are linked statically. VM_Create (0x002f2b80) fills a 3-slot vm_t table
+  (0x00927c38, 0x8c each): entryPoint +0x88 is G_vmMain (0x00273d70) or CG_vmMain
+  (0x0028b960). VM_Call (0x002a84e0) passes 16 arguments.
+- The syscall dispatchers are dead code: SV_GameSystemCalls only errors (the game
+  calls engine functions directly), CL_CgameSystemCalls has no callers (the cgame
+  calls the renderer through `re`).
+- G_vmMain: 0 G_InitGame, 1 G_ShutdownGame, 2 ClientConnect, 3 ClientBegin,
+  4 ClientDisconnect, 5 ClientCommand, 6 ClientThink, 7 unknown, 8 reload
+  (g_reloading), 10 advances level.time, 0xc ConsoleCommand. CoD has no
+  ClientUserinfoChanged export, so from 4 on Q3's numbers are off by one - each case
+  was checked against its body.
+  Cases 0-6 were checked against their bodies or calls (pers.connected goes 1 in
+  ClientConnect, 2 in ClientBegin, 0 in ClientDisconnect; GAME_INIT is called with
+  levelTime, Com_Milliseconds(), restart). Case 7 is not G_RunFrame: G_RunFrame is 0x00274660, called directly (SV_SpawnServer
+  settles a map with five 50 ms calls).
+- CG_vmMain: 0 CG_Init, 1 CG_Shutdown, 2 CG_ConsoleCommand, 3 CG_DrawActiveFrame;
+  the rest are CoD's.
+- Renderer interface: CL_InitRef (0x002f10d0) builds refimport_t in Q3 order
+  (Printf, Error, Milliseconds, Hunk x3, Malloc/Free, Cvar_Get at slot 8, CoD adds
+  Cvar_FindVar before Cvar_Set) and copies GetRefAPI's 40-slot refexport_t into
+  `re` (0x009284e8). re slots: 0 RE_Shutdown, 1 RE_BeginRegistration, 2 ?,
+  5 RE_LoadWorldMap, 9/14 a float get/set pair (unknown), 11 RE_ClearScene,
+  12 RE_AddPolyToScene, 15 RE_RenderScene, 17 RE_SetColor, 18 RE_StretchPic,
+  20 RE_StretchPicRotate, 21 RE_DrawQuadPic, 24 RE_BeginFrame, 25 RE_EndFrame,
+  34 RE_TextWidth, 35 RE_TextHeight, 36 RE_DrawText, 37 RE_TextWidthWithIcons,
+  38 RE_DrawTextWithIcons, 39 RE_DrawTextExt. Empty stubs: 10, 26, 30-33. Never
+  filled by GetRefAPI: 3, 4, 6-8, 13, 16, 19, 22, 23, 27-29 (3, 4 and 13 are still
+  called - from the dead syscall code and two cgame functions; unresolved). The dead
+  cgame syscall cases give each slot's argument count, which confirmed them.
+- Command tables: cgame `cg_commands` (0x0082f420), game cheat commands
+  (0x008ddb70) and developer commands (0x008ddae0), all `{name, function}`.
+- Spawn table g_spawns (0x009885e0): `{classname handle, SP_ function}` x32, built by a
+  C++ static initializer (0x00377330) that hashes each classname with Com_HashKeyNoCase (0x00292fe0) -
+  not a data table, so pointer-pair scans miss it; parse the initializer (MSVC loads
+  the next classname into EDX before storing the previous result). G_CallSpawn
+  (0x00260220) uses it, refuses `actor_*`, then falls back to bg_itemlist. Other
+  name tables may be built the same way: look for runs of `mov edx, str / call /
+  mov [tbl], eax / mov [tbl+4], func`.
+- Function-pointer tables without names: five init functions (0x00309030-0x0030b00c,
+  ~640 stores) fill an object behind 0x0095f49c (`mov [reg+0x540..], func`;
+  G_InitGame calls slot +0x868). The level scripts call engine builtins through
+  another table (0x009221xx-0x009225xx, bss, never written through its own address).
+  Neither has names next to the pointers - only bodies identify them (not done).
+  Scanning all of .text for immediate code-pointer stores found no other name
+  tables than GetRefAPI, the spawn initializer and Swap_Init.
+- Game entities are reached through handle tables (index & 0xfff, generation >> 12;
+  entities at 0x0097a968, 0x540 entries); ent->think is an index into a function
+  table at 0x008da788.
+- G_RunEntity dispatches like Q3's G_RunFrame loop: eType 3 G_RunMissile, then
+  physicsObject (+0x294) G_RunItem, eType 4 (also 7, 0xb) G_RunMover, else G_RunThink;
+  an entity with a tag parent (+0x3cc) runs its parent first and is placed by
+  G_GeneralLink. gentity_t: inuse +0x224, currentOrigin +0x140, s.pos +0x0c,
+  teamchain +0x37c. level_locals: framenum, time, previousTime at 0x00985408.. (Q3 order).
+- ClientThink_real follows Q3 call for call: Pmove (pmove_msec chunks), then
+  BG_PlayerStateToEntityStateExtraPolate, pm.mins/maxs copied, ClientEvents,
+  SV_LinkEntity, G_TouchTriggers, ClientImpacts, oldbuttons/latched buttons
+  (0x40 = use). pm.trace is G_TraceCapsule; every G_ trace wrapper ends in SV_Trace
+  (0x002e9af0, 11 arguments).
+- Entity callbacks are indices into one table per kind (entry 0 empty), not pointers:
+  think +0x32c -> 0x008da788 (28), reached +0x330 -> 0x008da7fc, blocked +0x334 ->
+  0x008da808, touch +0x338 -> 0x008da814, use +0x33c -> 0x008da840, pain +0x340 ->
+  0x008da874, die +0x344 -> 0x008da88c, +0x348 -> 0x008da8a4 (unknown, actors),
+  controller +0x34c -> 0x008da8b0 (turret/vehicle bone aiming).
+  Entries are named from the SP_/Init function that stores the index where Q3 assigns
+  that callback (SP_func_door: blocked[1] = Blocked_Door), or from their bodies.
+  Mover states follow RTCW's enum (POS1 0, POS2 1, POS3 2, 1TO2 3, 2TO1 4, 2TO3 5,
+  3TO2 6, rotate POS1/POS2/1TO2/2TO1 7-10). ~27 entries had no function in Ghidra
+  (reached only through the tables) and were created on 2026-10-17. The skill's
+  scripts/HandlerStores.java lists every immediate store into these fields.
+- Spawn variables are looked up by key hash (Com_HashKeyNoCase, cached in static
+  guards next to each SP_ function): G_SpawnFloat/Int/Vector take the hash in EDX.
+- gentity_t (SP_func_door, InitMover): pos1 +0x2c0, pos2 +0x2d0, speed +0x2fc,
+  wait +0x384, movedir +0x310, moverState +0x298 (byte), spawnflags +0x2a0,
+  flags +0x2a4, takedamage +0x29c, nextthink +0x328.
+- Notify names, classnames and other script constants are string hashes
+  (Com_HashKeyNoCase) kept in globals: GScr_LoadConsts (0x002557c0) fills 132 of them
+  (scr_const_*, 0x0097a650-0x0097a888) once; entities keep their classname hash at
+  +0x260. Extracted with the skill's scripts/hashinit.py. G_Damage keeps Q3's
+  knockback and splits the rest (health, die/pain, the "damage"/"death" notifies) into
+  G_ApplyDamage; there is no armor code.
+- Maps are not spawned from an entity string: G_SpawnEntitiesFromString walks 99
+  precompiled map zones (SP_worldspawn, then G_SpawnGEntityFromSpawnVars per entity,
+  G_SpawnVehicleNode per vehicle node) between level.spawning set/clear. Entities are
+  0x460-byte objects from a pool (G_Spawn), not a fixed g_entities array slot.
+- Entity sub-objects: +0x22c anim tree (XAnim), +0x23c gclient, +0x240 actor,
+  +0x244 sentient (team at +4), +0x248 vehicle (a g_vehicles record), +0x24c turret
+  info. Vehicles also have physics bodies (list 0x008feb70) stepped once per frame in
+  G_VehiclePhysicsFrame.
+- Correction (2026-10-17): 0x0095f694 / 0x00986000 are the vehicle pool and its slot
+  count (g_vehicles, g_vehicleSlotCount), not g_entities / level_num_entities: the
+  0x340-byte records hold an entity handle (+0x170) and a vehicle def index (+0x178).
+- Game vmCvars (vmCvar_t, Q3 layout, integer at +0xc) come from gameCvarTable
+  (0x008da8e8, 57 entries); they are named vm_<cvar> because several cvars also have
+  an engine cvar_t* global of the same name (sv_cheats, developer, g_reloading, ...).
+- Cgame vmCvars come from cgameCvarTable (0x008d9d60, 137 entries of 4 dwords,
+  CG_UpdateCvars); also named vm_<cvar>, vm_cg_<cvar> where the game table already
+  has that name (g_reloading, developer, cl_languagewarningsaserrors).
+- `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
+  function's unnamed callees with size, caller count and strings (where to look next).
+- `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
+  few functions: cl_cgame, sv_game, common, cm_load, com_files, tr_dpvs.
+
+## Corrections made along the way
+
+- 0x00929c04 is `cl_disable_ads`, not `cl_run` (0x00934c70); CL_Init showed it.
+- FS_FOpenFileWrite / FS_FOpenFileAppend were swapped until FS_FOpenFileByMode and the
+  `"wb"`/`"ab"` mode strings settled them.
+- 0x00272760 (G_vmMain case 7) was named G_RunFrame (medium) by position; the real one
+  is 0x00274660. Reset to its default name.
+- 0x0029ea80 is FS_ListFilteredFiles; FS_ListFiles (0x002a1fb0) is its wrapper.
+- q3match proposals rejected: Q_stricmp for 0x00300b30 (a key-table store), a graph
+  guess swapping COM_ParseExt (0x002b0250) and SkipWhitespace (0x002a9b30).
+
+## Next
+
+Decision (user, 2026-10-17): naming continues before step 2 (decompile + compare),
+CoD-specific functions included, so later decompilation covers both kinds.
+
+- Game module (2026-10-17, from G_RunFrame): entity runners, ClientThink_real,
+  ClientEndFrame, spawn/mover/trigger paths, the callback tables and the G_RunFrame
+  helpers are named. Small leftovers: pain[4] (0x0024c5e0, unclear), the +0x348
+  table (actors - do with the AI), 0x002df880 (per-model pose/tag update) and
+  0x002be8f0 ('COD_Note' list), 0x0024c9f0 (entity list bookkeeping), the 12
+  scr_const slots GScr_LoadConsts does not fill.
+- AI (2026-10-17, started): the state machine is named. g_aiStateFuncs (0x00830c28)
+  is 13 states x 9 callbacks: Start (returns a state to chain to, 0 = none), Finish
+  (actor, next state), Suspend (default: Finish), Resume (default: Start), Think,
+  slot 5 (role unknown, Actor_CallStateSlot5 via the 0x0095f49c interface), Touch,
+  Pain, NodeClaimRevoked (releases the claimed node; Actor_DropClaimedNode asks the
+  states top down). States, from the
+  debug strings the thinks store at actor +0x13e8: 1 cover, 2 exposed, 3 turret,
+  4 lmg, 5 noncombat, 6 grenade, 7 death, 8 pain, 9 critical section,
+  10 animscripted, 11 animcustom, 12 negotiation. actor_t: +0 ent, +4 sentient, +8 state stack
+  with its level at +0x20, transitions {type 1 set/2 push/3 pop, state} at +0x38
+  (count +0xa0), simulated copy +0xa4/+0xbc; thinks queue transitions
+  (Actor_SetState/PushState/PopState), Actor_ApplyStateTransitions applies them next
+  frame. Each state has sub-states in actor +0x28 (cover 100/101, exposed 200-0xd7,
+  death 400/401, grenade 600-0x25f, lmg 0x2bd/0x2be); the think's switch sets a
+  debug string per case, which named the cover/exposed/grenade sub-behaviours.
+- AI animation: the anim scripts are compiled script functions ("BroFunc"), found
+  by name hash in g_broFuncs (0x00927170, 0x34 x {hash, function}). Filled by the
+  level's compiled script module itself: G_LoadLevelScriptModule (0x0030b960) passes
+  it an import table (g_levelScriptImports, 0x009270d0) with BroFunc_Clear (+0x90)
+  and BroFunc_Register (+0x94), plus the engine interface 0x0095f49c; pathnodes get
+  their animscript functions the same way (PathNode_ResolveAnimScripts). G_InitAnimScripts (0x0024a070) stores "anim_main_<name>" at +8 of a
+  0x10-byte record per script (g_animScript_combat ... _walk, 0x00987a98-0x00987bf7)
+  and a second function at +0xc, looked up by a precomputed hash (no string; name
+  unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
+  mode); Actor_UpdateAnimScript commits them and calls the record's +8 with the
+  entity number. Turret weapons have their own records (g_turretAnimScripts).
+- Pathfinding (2026-10-18): Nodes
+  are 0x80-byte records reached by a ushort handle (block (h >> 9) - 1 of
+  g_pathNodeBlocks, index h & 0x1ff; 0 and 0xffff = none; PathNode_FromHandle), origin
+  +0x44, radius +0x54, type +0x28 (0x10/0x11 = negotiation begin/end), A* transient
+  fields +0x68..+0x7c. the path record sits at actor +0x3c0: 32 path point of 0x1c (origin,
+  dir2D, length, node), then the point count +0x380, the original point count +0x382, dodge count
+  +0x384, negotiation start +0x386, lookahead node +0x388, dodge entity +0x38c,
+  final goal +0x390,
+  lookahead dir +0x39c, forward dir2D +0x3a8, lookahead dist +0x3b0, lookahead amount
+  +0x3b4 (64..65536), dist to next node +0x3b8, flags +0x3bc, time +0x3c0, team
+  +0x3c4, current segment length +0x3c8, current point +0x3cc. Named: Path_AStarSearch (+ a
+  NotCrossingPlanes copy), Path_BuildFromNodes, Path_Route*, PathNode_FindNearest,
+  Node types (Actor_IsCoverValidAgainst): 2 cover stand, 3 crouch, 4 prone, 5 right,
+  6 left, 7 wide right, 8 wide left, 9-11 concealment stand/crouch/prone, 0x10/0x11
+  negotiation begin/end.
+  Path_TryDodge, Path_TraceAhead, the lookahead updaters (Path_RefreshLookahead
+  and helpers), Sentient_CachedNearestNode (cached at sentient +0x58), Sentient_SetGoalNode
+  (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
+  Spawning: Actor_Spawn (actors bypass G_CallSpawn) with Actor_Alloc / Sentient_Alloc.
+  Awareness (2026-10-18): per-sentient records of 0x50 at actor +0x850 (one per
+  sentient, 33): +0x14 attacked-me time (Actor_WasAttackedBy, last attacker at actor
+  +0x12a4), +0x18 last-known time (Actor_RecordSentientPosition), +0x1c a threat-until
+  time. Point events (Actor_HandlePointEvent) 2/3/6 notice, 4 learn from another
+  actor, 5 attacked, 8/9 grenade, 10 notice; line events (Actor_SendLineEvent)
+  0x10 bullet, 0x11 attacked. Orient: mode at actor +0x12c (override record +0x140),
+  named by the binary's ai_orient_* strings (Actor_UpdateOrient: 2 to_motion, 3 to_enemy,
+  4 to_enemy_or_motion, 5 to_goal); sentient +0x20/+0x24 goal yaw
+  and arc (-1 = none).
+  Actor physics (2026-10-18): a Pmove-shaped movement step for actors -
+  Actor_RunMovement on the record at actor +0x290 (g_actorMove, locals g_actorMoveLocals),
+  ActorMove_CheckGround/WalkMove/AirMove/FlyMove/FootSteps/FoliageSounds; move mode
+  at actor +0x278 (1 path: Actor_MoveAlongPath, 7: 0x00212a20). Move history: 10
+  vec2 samples at +0x1398 (Actor_*MoveHistory).
+  Leftovers named (2026-10-18): ActorMove_SlideMove/StepSlideMove/AddTouchEnt (the
+  Pmove trio), move mode 7 = Actor_MoveOutOfTheWay (steps away from the entity at
+  actor +0x1390, which Actor_AskActorsToMoveAside sets on actors standing in the
+  way), the grenade escape searches (Actor_FindPathAwayFromGrenade and its
+  Path_*AwayFromGrenade* chain), Actor_Grenade_FindCover, corpse ground tilt
+  (G_UpdateGroundTilt), PathNode_CanSee (node visibility bit matrix).
+  Still open in the AI range (low value, unclear roles): 0x001fd6f0 (chain at
+  +0x7c8, from Actor_AvoidOthers), 0x0020d110 / 0x0020c6d0 (exposed reacquire),
+  0x002057b0, 0x00218890 / 0x00216080 (node search using PathNode_CanSee; callers
+  0x0021bc00, 0x002196d0), the slot-5 role, the level script module's interface
+  (0x0095f49c, filled by five init functions). 0x00201e90 and 0x001fd3d0 have no
+  effect (every path returns).
+  XAnim trees (2026-10-18, 20 functions, AnimTree_*/AnimData_*): a tree
+  (AnimTree_Create: anim list +8, owner +0xc, heap +0x10, info count +0x14, ushort info
+  index per anim +0x18) points at an anim list (+4 count, +8 entries of 0x38: +0x20
+  child count, +0x22 parent, +0x24 data, +0x28 notetracks {name, time} of 0xc, +0x2c
+  load generation, +0x34 flags, +0x36 first child). Per-anim playback state is a
+  0x30-byte info from the pool at 0x00965cf0 (free list +0xa/+0xc; +2 next notetrack,
+  +0x10 sync time, +0x14 time, +0x18/+0x1a cycles, +0x1c blend rate, +0x20 goal
+  weight, +0x24 weight, +0x28 rate, +0x2c playback object). The current tree for the
+  recursive walkers is 0x00928588. Open: 0x002bf7d0 (goal-time check in
+  AnimTree_AdvanceTimeForModel), 0x002b7e40 (notetrack build, "COD_Note"/"fakeroot"),
+  0x002b7c60, 0x002af080, and the memory-context push/pop pair 0x0028f6c0/0x0028c690
+  (stack of 0x80 at +0x374 of the 0x0095f5d0 record).
+- Cgame (2026-10-18, from CG_DrawActiveFrame, Q3 cg_view.c order): the frame
+  (CG_UpdateCvars, CG_PredictPlayerState, CG_InterpolatePlayerState, CG_CalcViewValues,
+  CG_ShakeCamera, CG_DrawActive, CG_AddViewWeapon), the snapshot code (cg_snapshot.c:
+  CG_ReadNextSnapshot, CG_SetInitialSnapshot, CG_SetNextSnap, CG_TransitionSnapshot,
+  CG_CheckEvents/CG_CheckPlayerstateEvents -> CG_EntityEvent, plus a pre-event pass
+  with its own counter), CG_ConfigStringModified, CG_RegisterGraphics/Items, and the
+  2D pass (CG_Draw2D: crosshair, centre print, damage direction icons, fades, hud
+  elems, objectives); the 137 vmCvars; cg_t fields cg_snap/cg_time/... as labels.
+  Range 0x00275040-0x0028bc50: 220 functions, 73 named after this batch.
+  Open: CG_EntityEvent's body (0x00289790, big switch), 0x00285260 (2188 bytes, HUD),
+  0x0027ff20 (projects a view direction to a screen offset), 0x00283120/0x00285e00
+  (per-client model reload by name), 0x0027cad0 (cg state init: clears cg, parses
+  configstrings), 0x002764c0/0x00276530 (identical fade stubs).
+  Sweep of the range (2026-10-18, 80 more): CG_AddPacketEntities -> CG_AddCEntity and
+  one adder per eType (the binary's ET_* name table at 0x008d5090: 0 general, 1 player,
+  2 item, 3 missile, 4 mover, 5 portal, 6 invisible, 7 script mover, 8 sound blend,
+  9 loop fx, 10 mg42, 11 actor, 12 actor spawner, 13 actor corpse, 14 vehicle,
+  15 vehicle corpse, 16 vehicle collmap), CG_Trace/CG_ClipMoveToEntities, the view
+  (CG_OffsetFirst/ThirdPersonView, tank/vehicle/linked views, CG_CalcFov, CG_StepOffset),
+  the view weapon (CG_RegisterWeapon, CG_CalculateWeaponPosition/Angles, bob, sway,
+  gun move/rot offsets pinned by the cg_gun_* cvars, CG_AddPlayerWeapon), weapon
+  events (CG_FireWeapon, tracers, whizby), local entities, camera shake, hud element
+  drawers and timers, shellshock sound/view, CG_RegisterCvars, CG_ParseServerinfo,
+  objectives configstrings. Still open in the range (~65): the big HUD/compass draws
+  (0x00285260, 0x00282620, 0x002824f0), CG_CalcViewValues' 0x002812d0, the view weapon
+  anim helpers (0x002808b0, 0x00280ed0), weapon cycle helpers, save/restore of cg
+  state (0x00276b10, 0x00278cb0), configstring sound/fx registration (0x0027b9a0).
+  Leftovers (2026-10-18, 24 more): CG_AddLocalEntities with the tracer (CG_Tracer)
+  and near-culled types, CG_PointContents, CG_Save/LoadViewModelAnimTrees (their
+  debug strings) and the save-state pair (CG_vmMain 0xf/0x10), CG_ReadShellShockCvars,
+  CG_GetViewFov, bob cycles, gun kick, weapon cycling helpers. Still open (~40, low
+  value): the big HUD/compass draws, CG_CalcViewValues' 0x002812d0, view weapon anim
+  helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
+  (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
+  readers (0x0027abb0, 0x0027ad70).
+- Renderer (user decision 2026-10-18, see status.md; started 2026-10-18), then back to the client/UI.
+  Three layers: (1) the Q3-shaped tr_* side at 0x00234a00-0x00247ad0 (RE_* exports, R_Init/R_Register
+  with 48 r_* cvars, R_RenderView -> R_RotateForViewer/R_SetupFrustum/R_SetupProjection, the
+  cell-and-portal world walk of tr_dpvs.cpp: R_AddWorldSurfaces -> R_VisitCell_r -> R_AddCellSurfaces/
+  Models, R_AddEntitySurfaces; tr.viewParms at 0x0095e3a0 is Q3's viewParms_t); (2) NGL, Treyarch's
+  scene library (the binary's own 'ngl*' names: nglwhite, nglSysFont, nglFrontBuffer) at
+  0x0005dd00-0x0007c000: frame (nglBeginFrame/nglEndFrame), a scene stack (nglPushScene/PopScene,
+  setters on the current scene 0x0090259c), 2D quads (nglInitQuad, nglSetQuad*, nglListAddQuad), meshes
+  (.xbmesh, nglListAddMesh), textures (DDS loader, managers), fonts, render-state caches; (3) the shader
+  classes at 0x00045790-0x00055400 ('cdWorld' .. 'cdGlass' and 'PCUV'): singletons with a 9-slot vtable
+  (Register, GetName, AddToList, Load/ReleaseTexture, Relocate) and a Draw each, toggled by
+  nglToggleShaderByName (disable mask 0x00901e8c).
+  Second pass (2026-10-18): lighting (R_SetupEntityLighting with a per-entity cache, R_SampleLightGrid,
+  NGL light sets), models (R_RegisterModel, DObj_Create/CreateSkeleton/Free, XModel_CalcSkeleton),
+  the cell links (CM_CellForPoint, R_AddEntitiesToCells, R_LinkEntityToCell), the effect pool
+  (FX_InitEffectPool, FX_SpawnEffect, FX_DrawEffects) and the particle library's entry points
+  ('aps*': apsEffect_Create/Init, apsGroup_Create), Q3's myGLMultMatrix and R_RotateForEntity, the
+  scene draw (nglRenderSceneTree: pre-callback, opaque list, mid-callback, translucent list,
+  post-callback, then nglGenerateRenderTargetMips), refexport slots 9/14 (RE_Get/SetFarCullDist).
+  Third pass (2026-10-18): NGL's matrix builders (perspective/ortho/viewport/screen-to-clip, the scene's
+  matrix block: +0x10 projection, +0x50 viewport, +0xd0 view, +0x1d0, +0x210), the depth-fog pass
+  (0x00073380 = nglDrawFogPass, R_RenderView's mid-scene callback: depth buffer read as a texture + fog
+  lookup texture, fog range at scene +0x388..0x394, colour +0x3a0), the light sets (point/directional
+  records, object-light constants, shadow projectors), the mesh builder (Begin/AddSection/SetBounds/End,
+  also used by RE_AddPolyToScene), debug lines/axes, the draw-list sorts' std::sort helpers (opaque:
+  uint key, translucent: float depth), render-target and palette helpers, the FX pool helpers.
+  Still open in NGL: scene bytes +0x384/+0x385 (0x0005e490/0x0005e4b0, default 1, cleared by
+  R_ClearAlpha: probably depth test/write), the frame-memory pools (0x000778b0, 0x00077b50), the
+  container destructors (0x00069b00.., 0x0007bd20..), the debug shape draws 0x0006cb80/cc50/cd30.
+  Shader classes: vtable = [Draw, nglShader_Nop | Register, GetName, AddToList, LoadTexture,
+  ReleaseTexture, Relocate] (the class pointer is the Register slot); the texture slots are shared
+  between classes (nglMaterial_*). The 45/47-byte pairs next to each class (a vtable call that makes
+  an object, and a Z_Malloc copy of {vtable, a, b}) are functor clone boilerplate - left unnamed.
+  Particle library: only three strings (apsEffect pool/create, apsGroup particles, apsMemory pool);
+  the ~40 tiny constructors at 0x000a08c0-0x000a0e00 make its memory pools (0x0009c520). Not named
+  further: body reading only, and outside the renderer proper.
+  Size (2026-10-18): shader classes 241 functions (138 named), NGL core 0x5dd00-0x7c000 307 (146),
+  tr_* 149 (100), particle library 0x94000-0xa8000 324 (5). Open: the memory heap at
+  0x00042000-0x00044200 (Z_Malloc's debug heap - not renderer), NGL's dynamic vertex buffers
+  (0x00066da0..), the skinned-mesh constants (0x00076620, cdChar), the draw-node sorts' helpers,
+  0x00073380 (R_RenderView's mid-scene callback), the particle actions.
+- Client/UI (2026-10-18, started; SCR_DrawScreenField itself is only cvar + CG_DrawActiveFrame
+  + the in-game menu draws). The Q3 client is thin in this single-player build: CL_Frame ->
+  CL_CreateNewCommands, CL_WritePacket -> Netchan_Transmit (loopback inlined),
+  CL_ParseServerMessage (svc nop 1, serverCommand 5, snapshot 7, EOF 8; CL_ParseSnapshot
+  copies the player state from the local server, no delta), CL_ConfigstringModified /
+  CL_SystemInfoChanged, clc_* globals in Q3 order. cls_keyCatchers 0x0092bdf4 (2 UI, 8 cgame).
+  The rest of CL_Frame is CoD-specific per-frame work: sound (S_StopAllSounds,
+  S_CheckWaveBankNotifies 'wbk_loaded', S_UpdateCrossfade; sound handles are
+  index | generation << 12 into 0x00962860), CL_UpdateRumble, FX_UpdateEffects (effects of
+  vtable components; SOUND/PARTICLE/LIGHT/SHAKEANDRUMBLE.FX), the streaming loader
+  (0x00292c20 and 0x0028c000-0x00292000: AUDIO/VIDEO/ANIM streams, file extension table),
+  0x002ea4f0 (99 per-entity effect slots, state machine), 0x0024b140.
+  Front end (0x0030e000-0x0033a000, ~600 functions, mostly C++ vtable code): menus are
+  .panel files (Panel_Load / Panel_LoadNode_r: node 0x91 picture, 0x94 text), bound to their
+  screen by FE_SetupPanel, one FE_Setup<Screen> per panel (names from the panel file names);
+  Panel_FindPicture/Panel_FindText by element name; dialogs via UI_ShowDialog (MEM_* memory
+  unit dialogs at 0x00333000-0x0033a700 still unnamed). FE_CreateMenus (Com_Init) builds the
+  front-end (0xf8) and in-game (0x24) menu objects; SCR_UpdateScreen calls the UI object's
+  update (vtable +0xc) or 0x00315520/0x00315560. Open: the screen classes' vtables
+  (0x00828xxx-0x0082axxx tables, one per screen), the memory-unit flow, 0x0032f650 (Com_Frame,
+  'MOVIE'), the NGL 2D scene code at 0x0005d000-0x00066000 (loader names kSceneCreate etc.).
+  RTTI: the binary keeps 266 type descriptors, but only for the level-script runtime
+  (AeThreadFunctorN<...>, WaitTilOutputInstN<...>, Broc::entity) and std exceptions - a lever
+  for the script runtime's vtables, not for the UI.
+- CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
+  plus what the body does; `high` only when strings, tables or calls pin the role,
+  else `medium`. Evidence column says which.
+- re slots 2, 9/14 and the never-filled 3/4/13; the unnamed pointer tables above.
+- 27 functions created for table entries are still unnamed (`FUN_`).
+- Session 2026-10-20: library pass (tools/data/library_names.csv, 3008 functions) took
+  .text unnamed from 7616 to 6243. Then zlib 1.1.4 (deflate, trees, inflate helpers),
+  minizip, the gamepad layer IN_Pad* (per-pad 0x58 records at 0x00902400: +0x1c pressed,
+  +0x26 released edges), the effect-file stream readers, bad places (BadPlace_*: 32
+  records of 0x28 at 0x0098a574) and grenade-throw checks (Actor_CheckGrenadeThrow and
+  its solvers: the method compares at 0x00984b88/90/94 are script strings, mapping of
+  the three solvers medium). Where the rest is (unnamed .text, 2026-10-20): compiled
+  common scripts 0x110000-0x1e3fff (~1,900; no bulk lever yet - ~20 carry their own
+  "file::function" string, e.g. 0x0019b440 _spawner_gmi::Allies_Death), engine
+  0x1fa000-0x340000 (~1,970; dump with the skill's DumpUnnamed.java and read in slices),
+  0x10000-0x45000 (~950: front-end bonus screens, STL instantiations, Z_Malloc's heap),
+  XAnim key decoders 0x7c000-0x8a000 (vtable classes, bit-packed channels), the particle
+  library 0x94000-0xa8000, NSL sound 0xb0000-0xd0000. Libmatch with --min 5 adds ~50
+  more but short patterns false-match (YaccSetStream at 8 places): not applied.
+  Pre-existing clashes to fix with RenameFromMap: MSG_ReadString twice in
+  manual_names.csv (0x002aa480/0x002aa4f0), Z_Malloc/Z_Free/Mem_AlignedAlloc/
+  Mem_AlignedFree each on two addresses.
+
+- Script engine interface (2026-10-20, later): DAT_0095f49c is the level module's import
+  block at 0x00922140 (`*param_1 = &DAT_00922140` in each module entry), so every
+  runtime pointer 0x00922xxx is slot (addr - 0x00922140) / 4. Filled by 0x0030adb0 and
+  its sub-inits 0x003094a0, 0x00301df0, 0x003088b0 (632 slots; the skill's
+  SlotStores.java dumps slot -> function). Named so far: 36 slot pointers pScr_<name>,
+  string-anchored builtins GScr_*, runtime hubs (ScriptString_*, Scr_Alloc/Free,
+  SmallHeap_*, DynArray_*, Scr_Wait/WaitTill, Scr_CreateThread = slot 11, 3972 call
+  sites). Call-site evidence per slot: SlotCallStrings.java (e.g. slot 33 called with
+  "trigger"/"targetname" = GetEntArray 0x00307d40, slot 35 "targetname" = GetNode
+  0x002faf40, slot 25 notify names = queued notify 0x002fbe00, slots 103-107 cvar
+  get/set with "r_zfar", slot 164 GScr_GetAI "axis"/"allies").
+  Field tables: entity spawn fields at 0x0082ff38 {name, offset, type, 0}: classname
+  0x25c, origin 0x140, model 0x258, spawnflags 0x2a0, speed/time 0x2fc, closespeed 0x300,
+  target 0x26c, targetname 0x264, teamname 0x2f8, wait 0x384, random 0x388, count/shard
+  0x370, health 0x350, dmg 0x358, angles 0x150, rotate 0x390, degrees 0x2f4, key 0x3b4,
+  delay 0x38c, spawnitem 0x3b8, groupname 0x274, script_noteworthy 0x27c, maxhealth
+  0x354, animname 0x284, persistent_index 0x290, takedamage 0x29c. Path-node fields at
+  0x008d3990 (targetname 0x30, script_noteworthy 0x34, target 0x38, animscript 0x3c,
+  origin 0x44, angles 0x50, radius 0x54, spawnflags 0x2c, type 0x28); vehicle-node
+  fields at 0x008d3a40 (targetname 0, target 4, speed 8, lookahead 0xc,
+  script_noteworthy 0x10, origin 0x14, angles 0x2c; nodes in table 0x0095c228).
+  Accessor slots 590-827 (code 0x00015dd0-0x0001b580) are named (2026-10-20): even slot =
+  getter, odd = setter. Getters return the value (float10/uint) or, for strings, vectors
+  and handles, write through param_1 with the handle in param_2; setters are
+  `void f(handle, value)`. Prefixes by object: ScrHudElem_ (590-597, byte fields of the
+  color dword +0x1c of the 0x7c hud records at 0x0094cc88), ScrPathNode_, ScrVehNode_
+  (616-629), ScrEnt_ (field names from the tables above), ScrActor_ (entity +0x240) and
+  ScrSentient_ (entity +0x244). Actor/sentient fields have no table: named by type and
+  offset (ScrActor_GetFloat_d4, ScrSentient_GetRef_48); Team (+4) and GoalNode (+0x50),
+  GoalArc (+0x24) from the AI notes. Rename those when a decompile shows what the field
+  is. Per-field debug hooks at 0x008d20e8-0x008d2170 (no names). Slots with no pair in
+  the dump (638/639, 646-651, 658/659, ...) are unfilled.
+  Builtin slots by body (2026-10-20, later): 180 more named from their bodies and call-site
+  strings (GScr_*/Scr_*, each slot pointer labelled pScr_<name>): math 59-84 (random,
+  trig, vector helpers; the angle-vector order up/right/forward is by slot order), cvars
+  102-107, spawns 108-113, objectives 87-101 (configstring 0x10 + index), mission end
+  189-192, links 237-243, doors 253-255, turrets 270-330 (turret info at entity +0x24c),
+  anims 290-301, vehicles 463-484 (+0x248), hud 490-503 and 578-589 (fields by offset).
+  Slot bodies, fourth pass (2026-10-21, 152 + 2 globals): SlotStores.java on the four init
+  functions plus 0x00303bb0 (script movers) and 0x00309030 (actor builtins) - 69 slot targets
+  had no function; created them first. Movers follow the builtin order: 405 moveTo, 406-408
+  moveX/Y/Z (GScr_MoveAxis 0/1/2), 409 moveGravity (trType 5), 410 rotateTo, 411-413
+  rotatePitch/Yaw/Roll, 414 rotateVelocity, 415/416 solid/notsolid. Actor slots 336-404:
+  goal pos/node/entity, canSee/canShoot, critical section (state 9), stance, turret, anim
+  and orient modes. Hud elements: 0x0094cc88, 16 records of 0x7c, type at +0 (3 shader,
+  5 timer, 4/6/7 other timer kinds, 8/9 shader timers). Entity string hashes: groupname
+  +0x278, script_noteworthy +0x280, classname +0x260, target +0x270, targetname +0x268,
+  animname +0x288 (G_FindEntsBy*). Empty slots -> GScr_EmptyStub<slot>, 509-511
+  GScr_ReturnFalse<slot>. Thread/wait primitives 10/12/13/15-17/26/29 are `low` (record
+  kinds by vtable, meaning unread). Open in the slots: 176-179 (vector math via
+  FUN_002e6710), 185 (configstring 9 "%g"), 340/344/346-352/363/365/366/370/372/375-378/
+  382/385/393-396/400/402/404, 565-568 (setters of 0x00897954-60, read by NGL code at
+  0x45xxx), 572-575 (a list at 0x008dda50), 828-838 (0x00044bc0 range).
+  Slot bodies, third pass (2026-10-21, 137 + 100 slot pointers): every slot the four init
+  functions fill with a direct store now has a name. Sound slots 39-47 build commands on the
+  0x0095f5b4 queue (FXCmd_*: type at +0x1b4, 3 = sound alias by name, 4 = weapon sound by
+  weapon name + index; the ids they return feed FX_StopEffectById / FX_IsEffectActive);
+  objective strings 96-98 (G_SetObjectiveString); checkpoint 120 (G_SaveCheckpoint);
+  persistent setters 126/127; g_hudManager (0x0095f8f0, made in Com_Init, drawn from
+  SCR_UpdateScreen) with hud modes (slot 136) and component setters 132-151; shake/rumble
+  157/158 (SHAKEANDRUMBLE.FX); TR_GRAVITY move 318. Many are `low` with field/offset names
+  (GScr_SetEntFlag400, GScr_Vehicle_Set200): rename when the field is understood. Unnamed
+  callees left: 0x002ae080, 0x00271b20/0x002712a0, 0x002cf330 (anim knob set), 0x0032f650,
+  0x0024b700, 0x002c9b30, 0x002028a0; slots 154, 272, 289, 292, 302, 334 unnamed.
+  Earlier note - left open (~210): empty stubs, one-line wrappers into unnamed engine code, the
+  thread/wait primitives 10/12/15-17 (wait records with vtables 0x00831800-0x00831824)
+  and the 0x0095f8f0 setters 132-151 - name them with their callees.
+  Compiled scripts: each level module entry (LevelScript_<level>_ModuleEntry, via
+  G_FindLevelScriptModule) registers the 48 shared anim/negotiation scripts by name
+  (BroFuncRegs.java -> Bro_*); thread starts pass null file/name except the 14
+  "InternalMain" ones, but BroThreadSites.java still lists the 2110 thread targets and
+  their functor RTTI signature (AeThreadFunctorN<entity, ...>). Gela's entry is split
+  at 0x0060201b (function boundary to fix).
+
+- Engine hubs (2026-10-20, night): HubRank.java over 0x1fa000-0x30c000 (1,559 unnamed, 209
+  with 3+ callers) -> 95 names. Pinned: bg_weaponDefs (0x0095f4d8, def +4 name hash, +0x98
+  type, +0x9c inventory slot type, +0x598 ammo index, +0x5a0 clip index, +0x718 alternate
+  weapon, +0x800 AI range) with bg_lastWeaponIndex and BG_FindWeaponIndexForHash; playerState
+  weapon bits +0x3f0, slot bytes +0x3f8, ammo +0x110, clip +0x280; the memory contexts
+  (MemContext_Push/Pop/Alloc_r/Free_r on the 0x0095f5d0 record); Q3 collision/server names
+  (CM_BoxTrace, CM_TransformedBoxTrace, CM_TempBoxModel, CM_PointContents,
+  CM_AdjustAreaPortalState, SV_AreaEntities_r, SV_ClipToEntity, SV_ClipHandleForEntity);
+  game helpers (G_SetOrigin/G_SetAngle - each has a byte-identical copy named ...2,
+  G_SetModel, G_EntLinkTo, G_TryPushingEntity, TeleportPlayer, SetClientViewAngle,
+  SaveRegisteredItems, G_RegisterWeapon, Add_Ammo, Drop_Weapon, fire_grenade); pmove
+  (PM_AddEvent, PM_AddTouchEnt, PM_CmdScale, PM_WeaponUseAmmo); RTCW's AddLeanToPosition;
+  sound channels (S_StopChannel, S_StopSoundHandle, S_Pause/ResumeAllChannels). Left open
+  among the hubs: 002ac7e0 (pm anim with toggle bit 0x200 - torso or weapon anim), the
+  0x0095f5b4 0x210-byte record pool (002a5a40, filled as type 3/4 with a name), the vehicle
+  physics body 0026a3c0, the SIMD box gathers 002c6630/002cb0f0, the trace helpers
+  002e95b0/002e84d0/002e88d0, AnimTree/vectoangles variants (002a0ea0/002a11f0/002a1540).
+- Engine range, address-order pass (2026-10-20, late night): DumpUnnamed over
+  0x1fa000-0x2f6d30, 126 names + 2 globals (manual_names.csv). Pinned: actor blocking pairs
+  (ActorBlockList_*, Actor_ResolveBlockingPairs, step-aside node search), bad places
+  (BadPlace_Create, Path_CrossesBadPlace), AI shooting (Actor_ComputeHitChance/RollHit/
+  ShootWeapon), the Live/voice wrapper (Live_Init/Frame/Render, Voice_*), ragdoll and
+  physics-object pools (Ragdoll_Alloc/Update/Free, PhysObj_Create/UpdateAll,
+  G_PhysicsLaunch), vehicles (g_vehicleDefs, Vehicle_UpdatePhysics/Turret/FreePhysics),
+  Q3 names by body (ConcatArgs, LookAtKiller, TossClientItems, Pickup_Ammo,
+  BG_CanItemBeGrabbed, COM_SkipPath, CM_FloodAreaConnections, CM_TransformedPointContents,
+  SV_AdjustAreaPortalState, NET_OutOfBandPrint, SV_SendClientMessages), sound banks, the
+  FX command queue (FXCmd_Alloc/Commit; the 0x0095f5b4 0x210-byte records are FX commands,
+  type 3/4/8 = component kinds, not yet told apart). Still open in that range: the
+  streaming/pack loader internals (0x28bc50-0x2926c0), pmove weapon-state helpers, the
+  collision trace internals (0x2c6-0x2e8), the cgame view-weapon code - each needs a
+  per-module decompile rather than a skim.
+  Builtin bodies by slot (same night): SlotStores.java on 0x0030adb0/0x003094a0/0x00301df0/
+  0x003088b0 + SlotCallStrings.java at base 0x00922140, joined per slot, then DecompToFile on
+  the 145 unnamed bodies: 27 more named (GScr_Attach/DetachAll/GetAttach*, persistent values
+  0x0095f4e0+0x560 that carry level_jeep_origin across levels, zone load/query, turret
+  usable flag 0x10, physics launch/stop, music stop). ~115 slots stay open: one-line flag
+  setters on entity +0x2a4/+0x10 bits, UI-state setters on 0x0095f8f0, hud timer variants
+  (0x002fb500 kind 4/6/7), vehicle path/speed setters - name them when those fields are known.
+  Front end 0x30c000-0x340000 (same night): its 495 unnamed functions dumped; the 32 with
+  distinctive strings named (FE_Bonus* labels/texts, ChapterMenu_Draw, Hud_Setup* panel
+  hooks, CL_TogglePause/ResumeFromPause, CL_ApplyProfileSettings, SCR_DrawLoadingScreen,
+  Save_CheckVersion). Left: ~30 MEM_* memory-unit dialogs (one per error case; name them from
+  their callers' state machine 0x0033a530/0x003381c0), duplicate UI_Highlight/UI_Select
+  sound hooks (one per screen class - name with the class vtables), and the string-less rest.
+- Streaming loader (2026-10-20, later): Stream_GetLoadHandler (0x00292420) picks a loader by
+  the HashStr hash (rol-5/xor, lowercase) of the file extension without the dot; hashing the
+  binary's extension strings named all 31 handlers Stream_Load<Ext> (19 had no function in
+  Ghidra). dds/ddsmp/ifl share Stream_LoadTexture (modes 0/1/3; was R_LoadFogRamp, low),
+  xbmesh/xbcell Stream_LoadMeshFile. Per frame Stream_Update runs Stream_UpdateLoad (type 1)
+  or Stream_UpdateUnload (type 2: state 4 notify the resource managers in 0x009719fc, 5 release
+  the zone's meshes/fonts/textures/anims, 6 free memory). Zones are memory contexts; the loaded
+  resources go into per-zone hash maps through wrapper managers (vtables 0x0083813c texture,
+  0x00838184 mesh file, 0x008382b8 mesh, 0x008382dc anim, 0x008381a8 skeleton; slot 3 = Add)
+  and are found again by Stream_Find<Type> over Stream_ListSearchZones. Open: what btr, atrb,
+  aitb, xmpb, xmb, zbb, spg, scn, dcg, cg, db, ib, dlg hold (handlers named by extension only),
+  the wrapper managers at 0x00838118/0x0083824c (globals 0x00909828/0x00909830), the
+  read path (0x00291960, 0x00292220, 0x0028f2f0) and the zone priority code (0x0028c870,
+  0x0028d150, 0x0028e460).
+- Naming packets, 2026-10-21 (218 names in three batches, `namepack.py rank/pack` after a fresh
+  ExportNaming): the string- and caller-ranked engine leftovers (map restart, subtitles
+  Subtitle_Start/Draw, player death, bonus-screen image loaders FE_Bonus*LoadImage/FreeImage, pause
+  and profile screens, CL_PlayMovie, IN_Frame), low-range hubs (Heap_* on the heap list 0x008ff638 +
+  n*0x494 with current heap 0x00901ae8; HashStr_Hash/Loc_HashKey; StringMap_Find/UintMap_Find =
+  implicit binary trees in arrays; IntHashMap_Find = 0xdeadbeef-keyed buckets), the file layer
+  (File_OpenRead/GetSize/ReadAt/Close over HandlePool_Resolve, File_PumpRequests), sound voices
+  (0xf8-byte records in pool 0x0090a8b4, SndVoice_SetParam marks 0x2e params dirty; mix groups
+  'NSL_MASTER'/'NSL_LISTENER'), and the streaming loader's open list from the 2026-10-20 note:
+  the pak (0x0095f638) keeps a zone graph (children +0x1c/+0x20, id +0x28, refcount +0x2c,
+  distance +0x30/+0x34, priority +0x3c), load requests at pak +0x38[id] (state +0xdc: 0 idle,
+  1 reading, 2 unloading, 3 done; chunk state +0xe0), and stream memory as slot sets (two bitsets
+  +0/+8: both bits = free full slot, one = half slot; StreamMem_*). Pak_ParseFli sets the region
+  (0x0095f5dc from 'de'/'eu' + XGetLanguage) and the collector's-edition flag 0x0095e7f8 from the
+  pack name. Still open there: 0x0028ef90, 0x00290350/0x002904b0 (finders by resource kind),
+  0x0028ea20/0x0028eaa0 (a per-zone named-entry map at +0xd8). Compiled common scripts
+  (0x110000-0x1e3fff) now top the rank by strings; 0x00148d10 is the shared level setup every
+  LevelScript_*_InternalMain calls (left unnamed: needs a naming scheme for script threads).
+- Compiled script functions by name hash (2026-10-21): each level module stores a
+  dispatcher in import slot +0x80 (LevelScript_<level>_CallFunctionByHash, 14) that maps the
+  HashStr hash of a "file::function" name to the compiled function (called or thread-started).
+  The binary keeps ~235 such names as string values (death/damage callbacks, trigger funcs:
+  `self.deathfunc = "prologue::Vehicle_TankDeath"`), so hashing them named 209 targets
+  (skill scripts BroHashDispatch.java + broname_hash.py; 139 were not functions yet).
+  Scheme: `Bro_<file>__<function>` (double underscore between file and function; the
+  file keeps its leading underscore: Bro__spawner_gmi__tanksquish). 10 are low guesses from
+  file x identifier combinations (piano_lupo CheckPoint_N, ...); the hash is weak, so a
+  guess needs a single candidate (tunisia_utility "JJ20" was rejected). 0x00148d10 is
+  Bro__load_gmi__main (file name from the MP XBE's "_load_gmi::main_trigger"). Left: 380
+  dispatcher entries whose names have no string (hash only) and the ~1,750 other compiled
+  script functions; name those from their callers now that the callbacks read.
+- Compiled-script runtime and field accessors (2026-10-21, later): the 257 still unlabeled slot
+  pointers of the script interface (slots 0-838 at 0x00922140) got `pScr_<target>` labels, which
+  made the runtime 0x119a00-0x121000 readable: 76 one-slot wrappers `ScrCall_<target>`, the
+  ScriptString operations (Append*/Concat/Substring/FromInt/FromFloat/Trim*), the key table
+  (ScriptKeyTable_Set/Remove/Clear/Clone/FromPairs; values copied/released through the type
+  lookup g_scrValueTypeLookup 0x00922e70), the wait family (Scr_WaitExact, Scr_WaitFrames,
+  Scr_WaitTillTimeout/Args, Scr_WaitOnObject over wait records 15/16/17; Scr_Suspend* save the
+  thread locals and trap with int3), the undefined sentinels g_scrUndefinedFloat/Int, and 18
+  script-class destructors (ScrClass_<vtable>_Dtor; 0x007f8b00 is the base of most).
+  Entity script fields (`ent.name` in the source) live in a per-entity key table keyed by
+  Com_HashKeyNoCase(name); every compiled function reads them through tiny accessors
+  (GetEntScriptObject + ScriptKeyTable_Find(hash) [+ Set(hash, undefined)]) or
+  isdefined checks. Collecting the key of every ScriptKeyTable_Find call (KeyHashSites.java) and
+  reversing the hashes against the XBEs' strings + English words (skill scripts keyhash_*.py: the
+  hash is linear, so word pairs/triples are a meet-in-the-middle) recovered 214 of 487 field names
+  (anim_movement, script_accuracy, goalnode, script_delay_min/max, last_shot_time, ...). Named
+  ScrField_<name> / ScrField_<name>_IsDefined (level copies suffixed with the section), 223 more
+  as ScrField_h<hash> until their names are found (rename with RenameFromMap.java). Also
+  BroScr_MagicBulletShield, BroScr_Exploder, BroScr_GetFriendlyChainNode, BroScr_HandleNoteTracks.
+  Then 211 string-anchored common-script functions (same day): vehicle init/death per model
+  (BroScr_VehicleInit_*/VehicleDeath_*), turret burst fire (script_burst_min/max), flak/stuka/
+  drone/tree-burst systems, spawner/fallback/friendly-chain logic, and the anim scripts whose
+  debug strings carry their own "file::function" (Bro_cover_crouch__idle, Bro_combat__MeleeCombat,
+  Bro_run__main, Bro_stop__main, Bro_aim__keep_aiming, Bro__treeburst_gmi__tree_burst_playBurst).
+  BroScr_<Descriptive> = our name for a common-script function whose source name is unknown.
+  Next: the ~1,300 string-less common-script functions, best from their now-named callers
+  (`namepack.py next N --range 00120000-001e4000`).
+- Typed field accessors (2026-10-21, evening): besides the int ones, compiled scripts read
+  fields through typed key-table helpers - ScriptKeyTable_GetString/GetStringCopy (string),
+  GetArray/GetArrayCopy (12-byte {data, capacity, count}), SetVector (12-byte vector, undefined =
+  g 0x00922eb8 x3), GetStruct1c. A scan of every small unnamed function by its call/push shape
+  named 288 more accessors (isdefined for float/string/array fields, vector/string/array getters);
+  cracking their key hashes (keyhash_crack.py + pick) gave 57 new field names (script_team,
+  script_chain, riders, gunners, flakers, lead_pos, end_pos, squad_name, ...); 20 already-applied
+  ScrField_h names were renamed. Also 56 string-anchored common-script functions (battle chatter
+  BroScr_BattleChatter + its event callers, flak crew/death threads, vehicle rider tags, traverse
+  anims BroScr_Traverse_N, flank/pose choosers, tank inits _5-_8).
+  Next: same as before - the string-less common-script functions from their callers; the
+  'face current/default/angle' anim helpers around Bro_stop__main/Bro_cover_crouch__idle and the
+  'bad parameter: crap_out_now + please' family (001a19a0/001a1aa0/001b2c80) are the next clusters.
+- Anim-script helpers (2026-10-21, late): 32 more field hashes cracked with a meet-in-the-middle
+  over an AI/anim vocabulary (one- and two-word hits are near-certain with a 32-bit hash, three-part
+  ones are medium; 49 accessors renamed: desired_anim_pose, anim_woundedtime, deathanim, standanim,
+  script_sightrange, script_suppression, ...). Script strings are stored as the same hash, so
+  compared constants read as words: poses stand/crouch/prone/back/wounded (actor int +0x184 is the
+  pose), movement stop/walk/run, fire types auto/semi, weapon types panzerfaust/panzerschreck/bazooka.
+  95 bodies named from that: the anim-script entry (BroScr_InitAnimScript: anim_script = name, exit
+  callback), BroScr_SetPoseMovement (3x3 pose x movement transition table at level +0x168), the
+  melee pair link/unlink, reload/clip helpers, the level weapon table (+0x130, 0x18-byte records:
+  [1] weapon type, [2] fire type, [5] clip size), cover idle/aim/shoot helpers, vehicle/flak/spawner
+  helpers. Function-hash twins inside the XBE were tried and dropped: the hash masks immediates, so
+  field accessors that differ only by key collide.
+  Next: the anim-script mains that start with InitAnimScript + ApplyDesiredAnimPose ('pose be
+  wounded': 0x001dbb90, 0x001dd3c0, 0x001dd750) need their script names; then
+  `namepack.py rank --range 00120000-001e4000` as before.
+- Uncovered code and hash words (2026-10-21, night): the anim-script mains pass their script name
+  to BroScr_InitAnimScript as the same rol5/xor hash (cover_prone, concealment_stand, grenadecower,
+  reacquire, ...); 20 entries named BroScr_AnimScript_<Name> (FlankLeft/FlankRight, PainOrDeathAnim
+  and MgBurstFire_2/_3 were these mains and were renamed). Five of them were not functions: the
+  script range had 881 more function entries Ghidra never created (16-byte aligned starts after int3
+  padding, reached only through thread/functor pointers); all created, so the total grew to 16,284.
+  The engine .text still has ~3,800 such gaps (many C++ unwind funclets above 0x340000) and the
+  level sections ~2,700: left as they are for now.
+  Every 32-bit immediate in a function that is not an address was hashed against the XBEs' string
+  tokens + cracked field names (single tokens only, so near-certain): 2,171 unnamed functions got
+  readable notify/endon/value words. Accessor bodies are byte-identical per kind apart from the key
+  (call displacements made absolute): 36 templates from the named ScrField_* accessors named 399
+  of the new functions (ScrField_<key>[_IsDefined]), 68 more keys cracked as word pairs.
+  Call-by-name dispatcher hashes cover "file::function"; a crack with file prefixes from the known
+  names gives noise for two-token names (32-bit hash, ~36 false hits per hash); only one-token hits
+  are usable (dragons_teeth_15::mortarattackend).
+  Plus 61 string-anchored common-script functions (Combat::rechamber, hide::main, plane crashes,
+  fallback spawners, minefield/friendly-fire mission fails, dead quotes, traverses 11-18).
+  Next: the remaining ~550 unnamed functions in 0x120000-0x1e4000 with hash words or strings
+  (namepack + the immediate words), then the same accessor-template pass over the level sections.
+- Functor RTTI and anim handles (2026-10-21, late night): the 297 vtables with an RTTI type
+  descriptor (COL at vtable-4) are the script runtime's AeThreadFunctorN<args> (2 slots: deleting
+  dtor, invoke), WaitTilOutputInstN<...> (3 slots) and <level>_wad::Level/Anim (dtor only). Each
+  class names its invoke slot (176 were not functions yet), its dtor, its constructor (the function
+  storing the vtable) and the thread-start helpers that build it: Scr_StartThread_<args>
+  (ScrIface_Alloc + Scr_CreateThread), Scr_CallThread_<args> (Scr_BeginThread, then WaitFrames(0)
+  when in a thread), Scr_BeginThread_<args>; args abbreviated (ent, str, vec, f, i, b, anim, hash,
+  arr<type>); level copies carry the section (_ORAN). 254 helpers, 95 ctors, ~230 invokes, ~100 dtors;
+  classes the demangler cannot read (enums, hash_map, static_array, function pointers) keep
+  _vt<vtable>. ScrClass_*_DeletingDtor renamed to <level>_wad_Level_DeletingDtor.
+  Anim handles: BroScr_AnimHandle_GetSet(tree hash, anim hash, out, value) dispatches by tree name
+  hash to one table per anim tree (BroScr_AnimHandles_<tree>: anim hash -> global; out set reads,
+  else stores); each level has its own dispatcher falling back to the common one
+  (LevelScript_<level>_AnimHandle_GetSet, _AnimHandles_<tree>), 120 functions. The anim-handle
+  globals (008cd2xx, per tree) are not named yet - the anim name hashes would name them.
+  Plus 76 common-script functions from their now-known referrers (RefsToFile.java lists functor
+  references that the naming export's callers miss): turret fire loops, plane crash/wing turret
+  threads, vehicle rider death watches, tank health/stun threads, gib launches, empty stubs.
+  Next: ~1,050 unnamed left in 0x120000-0x1e4000 (423 with no references at all); the anim-handle
+  globals; the WaitTilOutputInst slots (named _VFunc1/_VFunc2 for now).
+- Interface slots and script helpers (2026-10-21, continued): 90 more script-interface slot pointers
+  named after their already-named engine targets (the actor/mover/goal fillers 00302360,
+  00303bb0, 00309030 had been missed); 43 of their targets were not functions yet (created), and
+  31 player/global builtins named from their bodies (give/take/switch weapon, weaponslot
+  ammo/clip get/set, setorigin/angles, noclip toggle, reverb). Slots 512-550 are in BSS with no
+  static filler found; 518-532 are named from use only (path/vehicle-node key getters, low).
+  Script side: 74 empty functions (BroScr_EmptyFunc_N), the path-node and vehicle-node field
+  accessor slots (ScrPathNodeField_*/ScrVehNodeField_*, getter + isdefined pairs in field order),
+  key-table isdefineds, default-argument wrappers (*Call_N), vehicle-by-targetname helpers,
+  follower/path_pos helpers, flak automation, mortar/stuka/plane-bomb helpers.
+  Next: 741 unnamed left in 0x120000-0x1e4000 (the 161 below 0x173c50 were skimmed once, the
+  rest not yet). Name the big targets first, their default-argument wrappers follow: drone path
+  (00170200/001706b0/00171f80/00172150, key drone_path_array), scripted anims (00176720 looping,
+  key loops; 00177450 single_anim; entry wrappers 00178080/00178280/001784c0 (23 callers)/00178710),
+  then 00170a90, 001728b0, 00173040, 0016ce40/0016cf80.
+  Tool: the skill's scripts/leanpack.sh N ADDR... reads them with hash words.
+- Containers and script-range pass (2026-10-21, evening): the script runtime's container templates are
+  VC7.1 STL plus the script DynArray {data, capacity, count}: stdext::hash_map keyed by hash
+  (bucket = (key ^ 0xdeadbeef) & mask; list at +4/+8/+0xc, bucket vector +0x10..+0x1c, mask +0x20,
+  maxidx +0x24), std::list, std::vector<list iterator>. One read per template shape in .text
+  0x17b000-0x181600 named the copies in PROLOGUE/ORAN/KASSPASS/LIBEATOR/BUCHHOLZ by code shape
+  (FunctionHashes, shapes of 30+ instructions only; level copies get the _<SECTION> suffix):
+  HashMap_Find/Insert/Index/Ctor/CopyCtor/CopyFrom/Dtor, std_list_*, std_vector_*, DynArray_*
+  (Assign4/Resize4/At/Shuffle...), 331 names. Plus 100 functor non-deleting dtors (only caller
+  is the class's _DeletingDtor). Script side: drone paths (BroScr_DronePath*), mortar groups
+  (BroScr_Mortar*), scripted anims (BroScr_AnimLoop*/AnimSingle* + wrappers), trigger off/on
+  (key hash 0xd91b375d = "realorigin"), cover left/right anim sets, ~120 small leaves.
+  Next: the rest of 0x1b4000-0x1e4000 (todo from brief.py), then the level sections.
+- Anim handles and interface-slot targets (2026-10-21, late): the 101 anim-handle tables
+  (BroScr_AnimHandles_<tree>, LevelScript_<level>_AnimHandles_<tree>) map the HashStr of an anim
+  name to one global per anim; the .cod packs list every anim file (`<name>.xbanim`), so hashing their
+  tokens named 1,045 of the 1,133 handle globals (g_anim_[<level>_][<tree>__]<anim>; skill scripts
+  AnimHandleTables.java + animhandle_names.py; the generic_human B table at 0x00184c60 is too big for
+  the decompiler, hence the instruction scan). 88 hashes stay uncracked. Script code now reads by anim
+  (prone_legsstraight, crouch2prone_gunsupport, corner_run2alert_right ...).
+  The "~115 open slots" of the 2026-10-20 note mostly had a static filler after all (0x00309030,
+  0x00302360, 0x0030adb0, 0x003094a0 store immediates into them); only their targets were unnamed.
+  25 named from their bodies (GScr_ActorTryTeleport = slot 366 with 222 call sites: refuses while the
+  player sees either end unless forced; GScr_ActorSetTraverseMode gravity/nogravity/noclip;
+  GScr_ActorSetPitchBlendAnims -45..45 over three leg anims; player client (+0x23c) flag getters;
+  music track, subtitles, zone +0x34). ~45 slot targets stay unnamed (offset setters, math at
+  0x00044bc0+ used only by piano_lupo, stream/fx at 0x002c4110/0x002a8260 used by falling ruins).
+  Entity layout seen in all of them: +0x23c client, +0x240 actor, +0x244 sentient.
+  Pose x movement table (level +0x168, BroScr_InitPoseMovementTable 0x001dab60): pose-major
+  stand/crouch/prone x stop/walk/run, BroScr_PoseMove_<Pose><Move>; their transition helpers are
+  named by the anims they play. Correction to commit 7f32377: it named 1,070 globals, not 1,101.
+  Next: 302 unnamed left in 0x120000-0x1e4000 (50 above 0x1b4000; all skimmed at least once, the
+  rest need per-function reads); the level sections (accessor templates + anim names now help).
+- Level-script functions (2026-10-21, evening): ExportNaming now also covers the level sections
+  (0x41a220-0x7a9e84; rerun it there after big renames). Scheme for our descriptive names of level-script
+  functions whose source name is unknown: `BroLvl_<level>_<Descriptive>` (level as in
+  LevelScript_<level>_*: KASSPASS = kasserine_pass, KASSRINE = kasserine, OMAHEACH = omaha_beach);
+  `Bro_<file>__<function>` stays reserved for names recovered from the binary. Named from their strings
+  (targetnames, dialogue aliases, fx, debug prints): per-level drone-group setups (<level>_drones),
+  skipto handlers, dialogue alias tables per speaker (InitDialogue<Speaker>), squad setups, persistent
+  save/restore of engineers/redshirts (kasserine_pass), door kicks, mortar loops, event scripts. Debug
+  strings gave three source names: _event3::liberators_ascend, ThrowAIs_FromSpot (mons1), the FLYBY ad
+  check. Most are low confidence (name from strings, not a full read). 50 same-code-shape copies of
+  named functions in the level sections (std_list, DynArray, a few BroScr helpers) named with _<SECTION>.
+  Same evening, three more batches (1,279 names in all this session, 7169 -> 8448): checkpoints and
+  skipto handlers per level, liberator bomber/fighter part setups (_event3 liberators_descend too),
+  kasserine cowardice triggers (kasserine::curiosity_killed_the_cat_* callbacks), hub helpers named from
+  their bodies (gela BroLvl_gela_SetFriendlyChain 48 callers, WaitTriggerOff 51, oran
+  FindVehicleByTargetname 19, mons1 NotifyObjectivesComplete). Port repo's symbol file refreshed.
+- Level scripts, 2026-10-21 (evening 2): fresh whole-program ExportNaming (three chunks 00011000-00100000,
+  00100000-00280000, 00280000-007b3000; the older overlapping range files deleted), then 188 names from the
+  top ~200 string-ranked level functions (skiptos, mortar/artillery events, squad LOD model swaps, jeep
+  crashes, bunker explosions, mons1 Event11_88Controller from its error string). Mostly low confidence.
+  ~2,340 unnamed level functions are left, deliberately (see below).
+- Priority change (user, 2026-10-21): no more string-only sweeps of leaf functions - a leaf's name helps
+  no other decompile and its body gets read anyway when decompiled. Name hubs only (HubRank over the whole
+  XBE: 93 unnamed functions with 10+ callers, 353 with 5+), then decompile modules, renderer first; level-
+  script leaves get named when their level's script module is decompiled. First hub batch (29): heap
+  internals (Heap_Malloc/FreeBlock/Free/EnsureInit/Init/GetCurrent/AllocFromHeap, Mem_AllocPhysicalPools),
+  script HashMap helpers (LowerBound, AllocHeadNode, Get/SetString), ScriptKeyTable_AddArray/GetOrAddArray_5,
+  level GetEntArray wrappers (62 and 29 callers), the FX quad batch (nglQuadBatch_Reserve/Draw/SetMaterial),
+  SndVoice_Resolve/GetParam, PM_StartLegsAnim, Quat_Slerp, _errno.
+  Left on purpose: unmatched library helpers inside XVOICE/XONLINES/DSOUND/LIBCMT/XAPILIB (not our code),
+  and the front-end widget hubs (00315210 ctor, vtables 0x0082a628/0x008297f0, 0032ea00, 00314c30,
+  00310010/00310070, 0031f4b0, 00314b20): one class hierarchy - name it per class (vtable slots) during
+  the client/UI phase, not hub by hub. Most remaining hubs (collision traces 002c6630/002cb0f0, FX math
+  0x0009d900-0x000a7670, DObj 0x0001cae0) need their bodies read, so they come with their module's decompile. Second hub batch (17, from the 123
+  unnamed functions with 7+ callers outside the groups above): std exception/string/vector helpers and their
+  PROLOGUE copies, anim_wad_Anim/util_wad_Level ctors, Mat44_TransformPoint/Vector, actor-array flag setters.
+  The rest of that list was read and left: XVOICE/LIBCMT/XGRAPHICS helpers in .text (0x00038xxx fixed point,
+  0x000f2b2b-0x000f4d7d, 0x001ee8xx-0x001f3e9c), level-script class dtors/copy ctors (per class later) and
+  hubs whose role needs the module (temp-buffer scope 0x00086da0/0x00087ad0, handle pool 0x000c9db0).
+  Hubs are dry for string/shape naming: next is the renderer decomp. The many tiny wrappers around
+  still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
+  0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.
+- Hub pass 3 (2026-10-25, two subagents over the 302 unnamed .text functions with 3+ callers, bodies read):
+  batch 1 = 127 names (low range 66: file/movie streaming, memory-unit saves, rigid-body physics, sound,
+  std::string/map, script thread handles; high range 61: anim_reach/notetracks/anim commands, pmove slide/step,
+  AnimTree helpers, DebugDraw, loading icon, entity notify callbacks). SndVoice_Resolve renamed
+  SndBank_GetSoundEntry (sound id (bank<<16|index) -> 0x28-byte entry; not a voice). Findings:
+  - 0x11000-0x2xxxx: small helpers the linker pulled out of every module - name them after their callers.
+  - Physics world 0x0090a87c: static body +0x40, constraint pool +0x254/+0x25c/+0x260, constraint lists from
+    +0x200; bodies 0x170-byte pool records (linear vel +0x10, angular +0x20); contacts: body A +0x94, B +0x98,
+    normal +0x10, rA +0x20, rB +0x30. Fixed pools share one template {base, ptrs[], indices[], capacity, count}
+    (ragdoll 0x570/0x1d50 at 0x008dfde0/0x008f0470; physics 0x170/0x1c0/0x30/0xd0).
+  - Voice records (0xf8): param i at +0x10+4i, dirty bit i at +8; params 19-21 origin, 22-24 velocity.
+  - Saves: state 0x00920af4 (0 idle, 1 read, 2 write); XCalculateSignature over the file into its last 0x20 bytes.
+  - Entity +0x234: notify-callback blocks (6 {hash, func} pairs at +8/+0xc, next +0x38), walked by Scr_Notify and
+    G_NotifyWithEntity (script slot 544). Entity +0x458: CM cell index (cm +0x1c cells of 0x50, +0x3c in-map).
+  - Anim tree records 0x38 (trees 0x0095f524, current 0x00928588): child count +0x20 (u16), first child +0x36,
+    data +0x24 (length data+0x38), notetracks +0x28, sync flags +0x34 (&3 sync, 4 marked); anim info 0x30 at
+    0x00965cf0 (weight +0x20, goal +0x24, rate +0x28). Compiled scripts queue 0x34-byte anim commands (type 1-4).
+  Batch 2 = 88 names: physics pools per record size (PhysWorld_Create carves them from one arena), contacts,
+  sound listener/voice setters, save buffers, Stream_RelocateZone/UnrelocateZone, std templates; PM_AirMove/
+  PM_Friction, turrets, G_EntityAddNotifyCallback, vehicle state. 002dcc60 is BG_CheckProne (15 args, ground
+  normal z > 0.7, two traces); the earlier BG_CheckProne 002dc6f0 is BG_CheckProneFeet (24 units behind the yaw).
+  - Physics world (0x300): pools {base, ptrs, idx, cap, count} - bodies 0x170 +0x1e8, constraints 0x30 +0x1fc,
+    0x50 +0x228, 0x60 +0x250, 0x10 +0x264; contact arena +0x2b4..+0x2bc, contact lists +0x2cc (0xa0), +0x2d8
+    (0x140), +0x2e4 (0xa0). Body flags +0x144 (0x10 static, 2 scalar inverse inertia +0xb0), rotation +0x40,
+    inverse inertia tensor +0x80.
+  - Sound mix state 0x008bda18: listener origin +0x54, velocity +0x60, front +0xc0, top +0xcc (DirectSound listener).
+  - Loaded stream blocks keep offsets: Stream_RelocateZone adds the base to the zone table (+8, count +0xc) and
+    each entry's 0x14-byte items (count +0xe); Stream_UnrelocateZone undoes it on cancel.
+  - Turret info (entity +0x24c): +1 state (0 idle, 2 on target, turretstatechange), +2 flags, +0xc target,
+    +0x1c target time, +0x2c..+0x38 yaw/pitch arcs. Pmove locals: forward/right 0x0095ff80..94, ground plane
+    flag 0x0095ffb0, ground normal 0x0095ffd0, frametime 0x0095ffa4.
+  Skipped on purpose (need their module's decompile): physics solver internals (0xb1b40 GJK simplex, 0xbb4f0,
+  0xc0000, 0xbfc20 ...), movie bit decoder 0xcea00, compiled-script helpers, online UIX LiveEngine callers.
+  UI batch (82 names: 40 vtables + 42 methods). Front-end class map (vtables in .rdata):
+  - UIElement 0x00829244 (14 slots; alpha +4, fade +0xc, flags +0x10) -> UIPicture 0x0082a2c0 (UIPicture_Init
+    0x00317050); UITextBase 0x008298b8 (UIText_Init) -> UIText 0x0082a450 (84 slots, UIText_Construct). A panel
+    holds a picture vector (+0, count +8) and a text vector (+0xc, count +0x14): Panel_SetLayer/Draw/FreeElements.
+  - UIMenu 0x0082a628 (49 slots, UIMenu_Init): items +4, owner +8, x/y +0xc/+0x10, spacing +0x14, scroll +0x20,
+    selection +0x22, default +0x24, count +0x26, visible +0x28, flags +0x2a, sound +0x2c. Slots: 0 deleting dtor,
+    4/5 select sound, 7 Layout, 10 Draw, 12 Update(dt), 13 SelectFirst, 14 HandleSelect(i) (per screen), 15/17
+    enter/leave, 16 RestoreSelection, 18-31 per-button (24 A/accept, 25 back), 32 any button, 34 SetSelection,
+    35 ScrollTo, 44-47 move up/down/left/right, 48 auto-repeat. UIGridMenu 0x008294d8 (UIGridMenu_Init 0x00331dc0)
+    moves by per-item neighbour links (+8/+0xa/+0xc/+0xe): Difficulty, CreateProfile.
+  - UIMenuItem 0x008290c8 (owner +4, text +0x10, style +0x14) -> UIOptionItem 0x00829680 (options +0x20, index
+    +0x18, count +0x1c).
+  - UIScreenMgr 0x0082a5f8 (12 slots; screens +4, active +0xc, count +0x14; pad input -> active screen's slots
+    18-31): FrontEndMenu 0x0082905c (global 0x0095f8f8; screens 0-19 Title, Main, SinglePlayer, Options, Gameplay,
+    ControllerConfig, Screen, Sound, five Bonus*, Difficulty, CreateProfile, Profile, ? (0x00829e10), Chapter,
+    SpecialMaterials, SpecialConcept; 20 Xbox Live), InGameScreens 0x008286cc (Pause, AdvancedOptions, Loading,
+    LoadAfrica/Sicily/Maubeuge, MissionSuccessFail, Autosave, InGameLiveOptions), DialogMgr 0x0082881c (global
+    0x0095f900, two UIDialog 0x00829d48; was "InGameMenu_Construct"). Screen vtables mapped by FE_SetupPanel's slot
+    index vs the ctor's fill order; 003341e0 is MissionSuccessFailMenu_HandleSelect (was PauseMenu_HandleSelect).
+  - Many vtable slots target uncreated functions (0x00011xxx-0x00013xxx dtors/getters): left as gap functions.
+    The 7-slot HUD component vtables (HudManager_Create, ~12) are a separate hierarchy, not done yet.
+  2-caller batch 1 (82 names): file request queue, script containers, std tree/string templates, sound bank memory,
+  saves, pmove/weapons, path-node walkers, physics pools, MatrixMultiply (Q3 body).
+  - File requests (0x44, pool 0x00920798): +0 desc[5], +4 op type, +8 device, +0xc handle, +0x10 desc[2], +0x18 queue
+    time, +0x1c deadline, +0x20 device priority << 8 | request priority, +0x2c state, +0x34 bytes done; devices
+    (0x10, pool 0x009207c0) priority +0xc.
+  - Sound bank memory: two-ended stack allocator, base 0x0091f648, size 0x0091f64c, 0x240-byte units, 64 block sizes
+    at 0x0091f548 (bit 31 = freed), bottom index 0x008bed08, top 0x008bed04, free size 0x0091f650.
+  - Fixed pools: vehicle physics 5 x 0x220 (ptrs +0xaa0, idx +0xab4, base +0xac8, count +0xacc), physics objects
+    30 x 0xd0 (+0x1860/+0x18d8/+0x1950/+0x1954), ragdoll physics 6 x 0x1d50 (+0xafe0/+0xaff8/+0xb010/+0xb014).
+  - pm->ps +0x88: 0..1 aim-down-sight fraction (weapon def rates +0x868 in, +0x86c out; medium).
+  - g_pathNodeBlocks: block array +8, count via +0x194 -> +0xc; block: node count +4, 0x80-byte nodes at +0x10.
+  UI batch 2 (85 names): <Screen>Menu_Construct (21; Options/Difficulty/Pause/Loading/LoadAfrica/LoadSicily are
+  built inline), <Screen>Menu_Dtor (27: own vtable, free panel + children, back to UIMenu_vtable, UIMenu_FreeItems)
+  and overridden slots 10/12/14/16/24/25. Slots confirmed: 18/19 buttons 1/2, 20-23 Up/Down/Left/Right (pad bits
+  4/8/0x10/0x20; Up/Down call 44/45 and wrap; Sound's Left/Right step a 0..50 volume), 16 handlers start with
+  UIMenu_RestoreSelection. Screen panel pointer +0x34 (+0x38 for UIGridMenu screens), owned children after it.
+  Screen 16 (0x00829e10, ctor 003308a0) has a second base at +0x34 (vtable 0x00829e0c) registered as the
+  save-device removal callback 0x00920af8 - probably a memory-unit-removed screen (UIScreenMgr_Dtor skips it).
+  UI batch 3 (81 names): slots 20-23 handlers, the slot-0 deleting dtors (0x00011xxx-0x00013xxx: <Class>_Dtor or an
+  inline copy, then Z_Free if flag & 1; UIElement/UIPicture/FrontEndMenu's are uncreated), DialogMgr_CloseDialog,
+  Profile_SumMissionStats, ProfileSave_PrepareRequest, UIText_LayoutLines. Profile progress: 0x48-byte per-mission
+  records of 18 ints at 0x0095f924. Save requests (0x00920b00): up to 8 files, names 0x40 at +0, buffers +0x200,
+  sizes +0x220, count +0x244; the profile save object 0x0095f480 keeps 4 cluster buffers at +0x11c0 ('<name>',
+  '<name>1'..'3'). Dialog manager: +0x1c current dialog (flag 8 at its +0x44 = close), +0x20 flag 2 = nested dialog
+  returns to dialog 0. Screen 16 stays unnamed (nothing pins it).
+  2-caller batch 2 (60 names; the 2-caller list is now fully read, skips listed in the session's reports are
+  library code (0x38xxx-0x41xxx fixed point, XAPILIB, CRT), the MMX IDCT 0x000cfb20 (video), UIX/Live wrappers,
+  and bodies that need their module: DObj bone recursion 002d7850/002d7310, anim-tree sync 002bf7d0/002b7c60,
+  Actor_ShootWeapon aim offsets 002072d0/00206dc0, 11 compiled common-script functions).
+  - Physics world: 0x1c0 pool +0x1d4 (ptrs +0x1d8, cap +0x1e0, count +0x1e4), body-pair tree +0x1bc (pairs from
+    the 0x30 pool: {bodyA, bodyB, lists +0xc/+0x18, back +0x2c}), contact points 0x80 from the linear pool +0x34.
+    Body: position +0x30, predicted +0x70, force +0x110, torque +0x120, inverse mass +0x130, angular vel +0xe0.
+  - Handle tables {free bitmap, entries {ptr, generation}}, handle = generation << 8 | slot (HandleTable256_*);
+    the entity list 0x0097a8c0 (0x540 entries, G_EntityList_Init) uses it at +0xa8.
+  HUD batch (67 names): 15 component classes on HudComponent_vtable 0x008286fc (7 slots: 0 DeletingDtor, 1 Setup(panel),
+  2 Update(dt), 3 Draw, 4 IsVisible / 5 SetVisible (byte +4), 6 SetWidescreen(bool, anchor x 50/320/590)); Hud_Setup*/
+  Hud_CreateTankIcons/HudMeter_SetCount renamed to their class methods. g_hudManager 0x0095f8f0 (HudManager_vtable
+  0x0082a5d8: 0 DeletingDtor, 1 Setup, 2 Detach, 3 Update): +4 Compass, +8 Stance, +0xc Health, +0x10 Ammo, +0x14
+  WeaponName, +0x18 Hint, +0x1c BomberMap, +0x20 IconCount, +0x24 Meter (12 LED pairs), +0x28 TankHealth, +0x2c
+  TankShells, +0x30 Grenades, +0x34 GrenadeCook, +0x38 TankIcon, +0x3c UIText, +0x40 TankReticle, +0x44 panel, +0x58
+  last widescreen value, +0x5c hud mode (0 infantry, 1 hidden except Meter - also FE_SetupLiberatorMenu, 2 bomber,
+  3 tank), +0x60 timer. Compass (0x13dc): needle angle +0x38, velocity +0x34, 32 firing-enemy markers of 0x28 at
+  +0x554, objectives from cg +0x1648 (0x98 each), tank markers from +0xe38, script-set fields +0x13d0..+0x13d8.
+  Open: the GScr_HudComp20_*/24_*/1c_* setters (low) can be renamed after IconCount/Meter/BomberMap; most slot-1
+  Setup bodies and HudCompTankShells' methods are uncreated (gap rule).
+  1-caller batch A1 (101 names, callers named): std/container helpers, Com_Init's resource managers (rm_* globals:
+  models 0x0095f6ac, xmpb 0x0095f6b0, lgrid 0x0095f6a0, animTrees 0x0095f524, locStrings 0x0095f5d8, dlg 0x0095f5ac,
+  aitb 0x0095f718, db 0x0095f5a8, cfgstr 0x0095f5d4; one shape: Heap_AllocAligned(4,400), base vtable 0x00838220,
+  list 0x009719fc), physical pools (Mem_AllocPhysicalPools: contiguous 0x232b000 at 0x00901af0/af4/af8,
+  write-combined 0x3ac000 at 0x00901b08/b0c/b10), physics world size (PhysWorld_GetMemorySize -> 0x0090a880; pair
+  tree node 0x18 {left, right, balance, key pair +0xc/+0x10, value}), sound arena (bump allocator base/used/limit
+  0x0090a890/94/98, base 0 = sizing pass), ragdoll object (bodies +0x28 count +0x2c max 10, joints +0x58 count +0x5c,
+  bones +0x410 count +0x464, angle limits +400 count +0x194 max 4 {axis, cos, sin}), Live users (0x0095f6fc: 0xfe8
+  records at +0x30, current +0x44d0, wide name +0x10). Skipped (need modules): physics 0xb3130-0xc0ca0 helpers,
+  file system 0xc9390-0xca380, movie/save 0xcbc10-0xd0dd0, sound 0xc3fb0/0xc5a80/0xc6fb0/0xc7540.
+  1-caller batch B (111 names; list ones_b 0x248000-0x33ac80 fully read). Findings: language index 0x0095f5dc (0 en,
+  1 de, 2 fr, 3 es, 4 it; from XGetLanguage in 0030f210; suffix table 0x008d5a80). Weapon def name -> index pairs:
+  altWeapon +0x714/+0x718, ammo +0x594/+0x598 (max ammo 0x00929818), clip +0x59c/+0x5a0 (clip size 0x00935338),
+  shared ammo cap +0x5ac/+0x5b0 (0x00934a68), hint +0x840/+0x844. Actor +0x46 "stance not allowed" bits (1 prone,
+  2 crouch, 4 stand) from node flags +0x2c (0x10/8/4). Vehicle: wheel angle +0x1c4, steer +0x270, wheel bones +0x2dc,
+  turret target +0x1c8..+0x1e4; def +0x30/+0x34/+0x38 nonzero = immune to bullet/grenade/projectile. Hud records 16 x
+  0x7c at 0x0094cc88. ps +0x45c drains 2/3 per second under pm_flags 0x10000, blocked prone/crouched: a stamina/
+  sprint-style meter (not ADS, that is ps +0x88). Suspect names to re-check: 002fb600 "GScr_GetCurrentZoneId" acts
+  like a newHudElem-style allocator. Skipped (need modules): vehicle paths/physics, turret states, pmove internals,
+  view-weapon anim, stream relocation, localization parsers; ~60 bodies read with roles unclear.
+  1-caller batch A2 (71 names; ones_a fully read, so all 522 1-caller functions with a named caller are read):
+  async save workers, script field accessors (hits, onfire, detoured), BroScr_* helpers (flamethrower check, drones,
+  keyed ents), container copies, Path_GetAllowedStances, actor shot spread/cone, InGameLiveOptions/XboxLive menus,
+  ragdoll and vehicle-physics lifecycle. Field h4ced49f6 kept by hash (single-word crack 'enemyque' unconfirmed).
+  - Vehicle-node interface slot 527 (0x0092297c): key setter (node, hash, value), between GetStringKey 526 and
+    GetIntKey 528; node +8/+0xc start at -1, filled from prev/next links (+0x3c bits 14-27 / 0-13).
+  - Script level object 0x00922ee0: keyed-ent list at 0x00922ef8+0x50 ({key, 0, ent}, count +0x58), live drones
+    +0x508, drone delay +0x544, drone array +0x770 (count +0x778). Weapon-class hash 0xe5aa1ee7 = "flamethrower".
+  - Actor +0x1382: index in g_actors; ClientEndFrame packs a hidden team-2 actor marker (+0x137c flag) into ps +0x4d0
+    (dx/dy 9 bits each, yaw top byte, index low 6 bits). Ragdoll record (0x570): physics state +0x568 (0x1d50) with
+    10 preallocated bodies +0xbf0 (taken +0xc44); at most 6 live (0x008fb450, used 0x008fb484). Vehicle physics
+    record at vehicle +0x300 (body +0x34, object +0x30).
+  Next: ~560 1-caller functions whose caller is still unnamed (bottom-up: name a caller, its callees follow) and
+  ~720 0-caller functions (pointer/vtable/script targets); skipped bodies above wait for their module's decompile.
+  Tree pass (2026-10-25, day 21c): unnamed functions grouped into call trees (members = 1-caller functions whose
+  caller is another unnamed function; root = 0 callers or a skipped caller; library neighbourhoods filtered out):
+  208 trees, 657 functions, read in ~100-function lists by fresh agents.
+  Trees 1-2 (159 names): UI pictures/text, UIRootMenu/ProfileSave/LiveMgr dtors, SoundBankManager, AnimScript ctor,
+  std set<string> (std_tree_*29), G_ClearClient/PlayerState/ClientPersistant, ocean wave sets, the FX particle
+  library, NAL Packed8/16 entropy channels (vtables 0x007c2828/0x007c2890), SOLID-style GJK, the physics step tree
+  (Phys_RunFrame, PhysWorld_Step/Substep/BuildIslands, PhysIsland_Solve, contacts), ragdoll joints/forces/damping.
+  - Corrections: 0x0083261c (rm_animTrees' vtable) is only 2 slots; AnimScript_vtable starts at 0x00832624
+    (slot 0 0x0001de20 notetrack load, slot 1 AnimScript_Update, slot 3 AnimScript_Destroy). Ghidra sizes
+    Loc_GetString 0x0029d5f0 past 0x0029d6b5, which is FX component code.
+  - Handle tables: sound channels 0x00962820 = 512 entries (free bitmap 16 words, {ptr, gen} at +0x40,
+    full-callback +0x1040, handle = gen << 12 | slot); the entity table 0x0097a8c0 has the same layout with 0x540
+    entries (callback +0x2aa8). UI root 0x0095f8d0 (vtable 0x0082a5f4, built by 0x00331e90): fonts +4, menu
+    +0x24, FrontEndMenu +0x28 (0x0095f8f8), DialogMgr +0x30 (0x0095f900). gclient: playerState +0, pers +0x520.
+  - Physics body (0x170): +0 rotation 3x4, +0x30 position, +0x40/+0x70 predicted rotation/position, +0xc0
+    gravity direction, +0xd0 linear / +0xe0 angular velocity, +0x110/+0x120 force/torque (cleared per step),
+    +0x130 mass, +0x134 gravity scale, +0x138 max angular speed, +0x13c time scale, +0x140 max step, +0x154
+    island. Islands (0x3c, pool world +0x1c8): 8 constraint-type lists +0..+0x1c (order of the world lists +0x200,
+    +0x22c, +0x240, +0x254, +0x268, +0x27c (0x1b0 joints), +0x290, +0x2a4), body +0x20, next +0x24, tail +0x28,
+    count +0x2c, iterations +0x30, dt +0x34, next island +0x38. Collision shapes: base vtable 0x0083263c, box
+    0x007cc6c0 (slot 5 ray, 7 segment; center +0x10, half extents +0x20). GJK simplex: statics 0x0090a630-0x0090a850.
+  - Skipped: 37 per-constraint-type prepare/solve routines 0xb6780-0xc1d60 (need the solver decompile), 8 billboard
+    particle draws 0xa7930-0xac3b0 (differ only in shader globals), unreferenced box tests (af120, ae970, af460,
+    ad140, af800, afbd0, b0f70, b1500: probably dead code).
+  Trees 3 (96 names, incl. the earlier-skipped file-system and movie regions): PhysWorld_Destroy, the XAPI file
+  device (File_StartDeviceRequest, FileDevice_IssueIo/AlignTransfer/OnIoComplete), the movie class and its video
+  decoder (Movie_/MovieBase_/MovieVid_, 35 names), Save_GetProgressFraction/GetOpState, enemy-queue helpers.
+  - Movie player: vtable 0x007cf390 {DeletingDtor 000cefd0, 0x000cbc70, Decode 0x000ce210, Reset 000cf170} (two
+    slots not functions yet), base vtable 0x007cf600. MPEG-2 style decoder: bitstream XOR 0xa6 (bits +0x14c/
+    +0x150), macroblock rows start with sync 0xfacadeca/0xfaca0000, non-linear quantiser table 0x008bffd0, quant
+    tables +0x160, motion-compensation put/average tables 0x008c0208/0x008c0228, coefficient block +0x154, read
+    ring +0x20[4], cursor +0x140; soundtrack DirectSound buffer 0x00920850.
+  - XAPI file driver table 0x008bfe9c: Open (CreateFileA) 0x000cba40, Close 0x000cbae0, GetSize+SortKey
+    0x000cbb00, 0x000cbb30, Read/WriteFileEx 0x000cbb70 (completion 0x000cbb50), CancelIo 0x000cbbe0, SleepEx poll
+    0x000cbc00; alignment 0x1000 follows. Sound bank slots 0x008bd770 (12 x 0x20: handle, state, flags, file, ?,
+    serial from 0x0090a93c, ?, priority). Streaming voice: media object +0x2c, DS stream +0x30, two 0xc packets
+    +0x38, bytes left +0x58, last packet +0x5c, packet size +0x60, loop start +0x64.
+  Trees 4 (98 names): ragdoll collision (Ragdoll_CollideAll -> PhysRagdoll_Collide), mass properties
+  (Phys_SphereMassProperties, PhysBody_SetMass/SetInertia), vehicle physics and paths, Live manager, anim-tree deltas.
+  - Ragdoll state collision: capsules (0x130 pool: ptrs +0xbe0, idx +0xc08, base +0xc30, count +0xc34; live list
+    +0xbf0 count +0xc44; capsule id +0x128, body +0x124, spheres +0x80 count +0x84, 0x40 each), capsule pairs
+    ({a, b} at +0xc88, count +0xcc4), bone pool 0x50 (ptrs +0x320, idx +0x348, base +0x370, count +0x374). Rest:
+    asleep count +0x47c, settled +0x470 (80% asleep for 0.25 s), fade +0x1d38. World pools also: 0x10 link pool
+    (ptrs +0x268, cap +0x270, count +0x274: {body, object, ?, owner}) and +0x28c; neither alloc checks for full.
+  - Vehicle physics record (VehiclePhys_Init): object +0x30, body +0x34, 4 wheel points +0x50, down axis +0x90,
+    wheel radius +0x120, hit flags +0x130, distances +0x134; tags tag_body/tag_turret/tag_barrel (turret yaw
+    +0x258, pitch +0x260), muzzles tag_flash/tag_flash_2. Path state: node short +0, end flag +2, frac +4, speed +8,
+    lookahead +0xc, origin +0x14, angles +0x20, target name +0x38; g_vehNodes: origin +0x14, dir +0x20, angles
+    +0x2c, length +0x38, next index bits 0-13 of +0x3c, flags 0x30000000.
+  - Live manager g_liveMgr 0x0095f6fc: base vtable 0x0083c738 (slot 6 SetInput), derived 0x0083c788; state +0x10
+    = 2 dashboard (CLiveEngine_Reboot) dialog, 3 yes/no confirm, shown by the InGameLiveOptionsMenu update at
+    0x00224510 (not a function yet). XboxLiveMenu_vtable slot 10 = XboxLiveMenu_Draw 00222750. Entity +0x350 =
+    health (Actor_ClampLethalDamage, Mover_UnstickPlayer crushes for health + 50).
+  Trees 5 (95 names): Q3 polylib windings (CheckWinding/WindingArea/WindingPlane/CopyWinding, c_active_windings,
+  c_peak_windings), Com_Filter/FilterPath/StringContains, SndMem_Init/GetSize, path-node link disabling, inline
+  brush models (Dcg_*), FX command queue, rumble, localization maps, copy-on-write strings. Low: AnimTree_AdvanceTime_r_2
+  (same shape as AnimTree_AdvanceTime_r, saves times and calls two stubs), FxMem_Alloc/Free.
+  - Path node tree: node tree id +0x5c, depth +0x5e, parent handle +0x60; sorted handle list at blocks(+0x194)
+    +0x14 (count +8), free list of 8-byte disconnected-link entries +0x10 (head +6); the entity's ring of
+    disconnected links +0x410; 12-byte links with disable count +2; node +0x24 active link count (total +0x62),
+    disabled links swapped past it.
+  - DCG = inline brush models: per zone, 0x50-byte records keyed by modelindex +0x48 (CM_FindInlineModel) with
+    0x40-byte sub-records (vtable 0x008325ec); the two-array 99-slot zone list (+0x10/+0x19c) is removed from by
+    002c5c60, which resets the cached area bounds (+0x430..+0x44c).
+  - FX command queue 0x0095f5b4: 64 records of 0x210. FxShakeRumbleComponent vtable 0x008376d0 slot 4 = Stop;
+    rumble manager: 2 motor lists at +8 stride 0x10, node id +8.
+  - Pmove: weaponstates 0xc/0xd = ADS raise/drop (def times +0x678/+0x67c, events 0xa0/0xa1; weapon types 3/8);
+    jump velocity sqrt(2*39*gravity), event 0x46 + surface type, 0x53 on a ladder; stamina ps +0x45c (flag 0x20000
+    = exhausted, breath event 0x8c every 1700 ms).
+  - Localization: entry map map<string, {string, string, int}> (isnil +0x65); flag map map<string, uint bit>
+    (isnil +0x2d, std_set_string_*), flag names in a vector at +0x8c. RcString rep {len, refs, text, cap} (0x10,
+    Z_Malloc, capacity steps of 20). Unidentified class: dtor 00296710 (vtable 0x008376c4, base 0x0083760c).
+  Trees 7 (73 names): UIText word wrap and line drawing, UIPicture quads/meshes, the save module setup
+  (Save_Init, drive names, ports, listeners), the save-completion state machine (ProfileSave_OnSaveOpComplete and
+  its Autosave/Profile dialogs), memory-unit checks, play-time split, controller config, pause dialogs.
+  - Save listener 0x00920af0 = the ProfileSave object (vtable 0x008287dc: slot 0 OnSaveOpComplete(op 1 read,
+    2 write, 3 delete, 4 format), slot 1 DeletingDtor); HudCompGrenades' vtable starts right after (0x008287e4).
+    FrontEndMenu 0x0095f8f8 == 0 means in-game (Autosave screen handles it); active screen 0xf = Profile screen.
+    Ghidra cuts many of these handlers short (switch cases past their ends). Save drive names: 9 x 64 at
+    0x00920860 from 0x007cfa40 (F:\..M:\, 'XBOX HARD DISK'; port 8 = hard disk). ProfileSave: slot records 4 x
+    0x3cc at +0x28c, loaded profile copy +0x2a8, valid flags +0x11e7[4]; play time split to 0x008dce58..64
+    (s/m/h/d, capped 99:59:59). Save_SetPathPrefix 0x000d0c60 (low) conflicts with the Save_GetData reading of
+    0x00920aa8 ("Profiles" is appended to it): re-check when the save module is decompiled.
+  - UIText line records (0x20 at +0x80, count +0x78): font +0, x +4, y +8, text +0x14, '~' icon markers +0x18,
+    count +0x1c; "\f[N" switches font; width +0x74, line spacing +0x6c. Fonts 0x0095f8d4[idx] (index 2 = button
+    icons, 7/8 = none). UIPicture quads: 0xa8 elements (corners 4x3 floats +0, per-vertex alpha +0x30, ngl quad
+    +0x40 (vertex stride 0x14, colour +0x10), flag +0xa4) in a vector at picture +0x20 (count +0x28).
+  - Uncreated gap callers: 0x0032cd60 HudCompGrenades update, 0x00336670 PauseMenu slot 14, 0x003357b0
+    BonusMaterials update, 0x000127a0/0x000127b0 ControllerConfigMenu slots 22/23, 0x00012ff0, 0x000d13f0.
+  Trees 6 (108 names): world collision trees (.cg: CM_LoadWorldTree + fixups, box hull, sphere/mesh contacts),
+  pmove (PM_GroundTrace, PM_CrashLand, PM_WalkMove, PM_LadderMove, PM_Accelerate, reload path, PM_WeaponFire),
+  scene files (.scn: Stream_ParseScn, Scn_*), the script thread runtime under Com_Frame (Scr_RunThreads,
+  Scr_ResumeThread, Scr_SaveContext setjmp-style, waits, anim notifies), G_SetupGameScriptImports (0x003094a0)
+  and its builtins by slot (154 GetSpgVariant, 292 AnimHasNotetrack, 344/348/349 melee/prone, 363/370/378), UI
+  button tokens, DialogMgr_Draw, Movie_Load. Unclear: 0x002d5ba0/0x002531b0 (PM_Weapon-gated use interaction,
+  ps flag 0x1000000, Sentient_TakeNodeClaim + "trigger" notify).
+  - .cg manager 0x0095f4fc: count +0xc, trees +0x10, zone per tree +0x19c, temp box model +0x190; meshes 0x50
+    (vtable 0x00832680), brushes 0x40 (vtable 0x008325ec, shape base 0x0083263c); mesh triangles one dword each
+    (three 6-bit indices into 0x10-byte vertices). .scn table 0x0095f4f8 (scene per zone at +4 + zone*4): static
+    models +0x18, instances +0x20/+0x24, spawn entities +0x10, 0x60-byte update-group items +0x30/+0x34.
+  - Script threads: flags +0x10 (1 start, 2|4 woken, 8 done, 0x800 on the wait list), waits +0x1c, saved-stack
+    blocks +0x2c (0xfc each, next +0xfc); current thread 0x008dda2c; manager +0x858 woken chain.
+  - ps view heights: stand +0x420, crouch +0x424, prone +0x428, current +0xac, target +0xa8. Surface type =
+    (0x0095ffe4 >> 20) & 0x1f; event bases run +1, walk +0x18, prone +0x2f, jump +0x46, land +0x5d.
+  Zero-caller list 0 (102 names): UIElement/UIText slots, the UI root object (g_uiRoot 0x0095f8d0, UIRoot_vtable
+  0x0082a5f4, UIRoot_Construct 0x00331e90), collision shape slots and dtors (CM_Brush 0x008325ec type 9, CM_Mesh
+  0x00832680 type 8, CM_TriMesh 0x0083270c type 6), resource-manager subclass dtors, NAL channel slots, the 1 MB
+  HeapAllocator of Sys_Main, cdOcean wave-set setters (level-script imports, 0x0095f49c +0xcf0..+0xd18).
+  - Correction: the NAL channel descriptor table 0x008bb130 (stride 0x14: vtable, base 0x00832774, 0, name, self)
+    names all 21 classes; 0x007c2c38 is NAL_Packed16EntropyIKSpin, so the NAL_PackedPosOri_* functions were
+    renamed (Ghidra, sources, CSVs). A 22nd descriptor at 0x008dda5c is the "COD_Note" notetrack class (vtable
+    0x008326a8). 0x008325ec-0x00832790 holds packed small vtables: collision shapes have 10 slots (8 type id,
+    9 deleting dtor), resource managers 1-3; several deleting dtors store an intermediate base vtable that only
+    they reference (0x00837618, 0x0083765c, 0x008376a0, 0x0083be8c, 0x0083bea4, 0x0083ce3c).
+  - Ocean wave sets (0xd0 at 0x00901b30): +0 base height; 4 waves: origin +0x50 + wave*8, float[4] arrays +0x70
+    direction (degrees), +0x80 falloff, +0x90 wavelength, +0xa0 amplitude, +0xb0 phase, +0xc0 speed (x shader time
+    0x00901e90). UI text element: +0x18 font, +0x1c text, +0x2c/+0x30 x/y, +0x38/+0x3c scale, +0x54 name, +0x5c
+    flags (0x30 horizontal, 0xc0 vertical align); UIElement +8 draw depth.
+  Zero-caller list 1 (91 names; functions reached only by pointer): particle domains, collision shape classes,
+  fx render ops, movie motion compensation. About 35 of the 90 have no reference anywhere (not even a raw dword):
+  dead out-of-line copies, named only where the body is clear ("no references" in the evidence).
+  - Particle domains (FxDomain_Create strings), vtables [0x9a280, 1 Generate, 2 Within, 3 ?, 4 0xa4980, 5 ?]:
+    1d/3dBox 0x007c5ac0/5ad8, 1d/3dPoint 5af0/5b08, 1d/3dBump 5b20/5b38; Sphere, YHemisphere, ZHemisphere,
+    SphereSurface, 3dLine, Disc, Circle = 0x007c9330, 9348, 9360, 9378, 9390, 93a8, 93c0 (center +0x10, radius
+    +0x1c, disc/circle basis +0x20/+0x30).
+  - Collision shape vtable slots: 2 local support, 4 sphere contact, 5 ray, 7 segment; unreferenced point/sphere/
+    capsule/segment/OBB classes keep the layout (capsule ends +0x30/+0x40, radius +0x50). Fx render ops: Draw in
+    slot 7 (FxOp31 0x007c6724 mesh particles, FxOp1d5 0x007c70a0 quads). Movie motion compensation 0x008c0208 =
+    [put16, put8, avg16, avg8] x [full, x, y, xy half-pel].
+  - Notify hashes (HashStr, rol 5 xor, lowercase): 'single_anim' 0xce00786e, 'looping_anim' 0x7c70a61e; 0x56caf2eb
+    and 0x3621f548 unknown. 0x0011db10 is a `return false` stub that key-table lookups return on a miss.
+  Zero-caller list 2 (79 names, compiled common scripts 0x120000-0x184000): thread targets named from their
+  store sites (spawner trigger think, tree-burst/stone/window-break triggers, sound loops, turret anim knobs),
+  default-argument wrappers (SpawnerGroupManagerCall 1-4 - level sections call them by absolute address,
+  PathMoverFromTargetChainCall 1-4), BroScr_WaitForNotifyOrTimeout. 64 of the 90 have no reference at all: many are
+  empty script functions that only release by-value string/array arguments (BroScr_EmptyFuncStrArg*/EmptyFuncArr*;
+  the older ScrLocal_ReleaseString names 001837e0/00182060 are the same shape) and compiled-out debug-draw loops
+  (BroScr_*DebugStub).
+  - Open: script interface slots 638 (0x00922b38, a speed getter?), 658/659 (0x00922b88/0x00922b8c, spawner get/set
+    with keys 0x56aed3da/0xcc045c84); turret anim handles 0x008cf684/0x008cf7a4/0x008cf7bc uncracked. 0x00922eec =
+    the player, 0x00922ee0+4 = the level entity.
+  Zero-caller list 3 (84 names, compiled common scripts 0x184b70-0x1e2010): thread/functor bodies of the spawner
+  triggers, exploders, fallback goals, anim face waits, MG turret think; Bro_anim_main_init 0x001dcca0 (high: every
+  LevelScript_*_ModuleEntry registers it as "anim_main_init" through import slot +0x94); array helpers.
+  - BroScr_SetupSpawnerTriggers 0x00154990 targetname branches: flood_spawner 0x001b4e40, grenade_spawner
+    BroScr_GrenadeThrowTriggers, grenade_spawner_once 0x001c5790, friendly_wave(_off) BroScr_SetFriendlyWaveTrigger,
+    friendly_chat 0x00149200, friendly_mg42 0x001bf200; script_increment 0x001a5940; key 0xbe5f9a9f =
+    script_mg42auto -> 0x001a4910. Global 0x007f49a8 = "mg42"; 0x0019f390/0x0019f770/0x001b9770 share
+    BroScr_Mg30calAnimTree's shape (refcount field habc1df0a). Field h1791f035 = array of 0x34-byte anim-command
+    records (BroScr_RecordAnimCommand / BroScr_ApplyAnimCommand); h747cde6c = look-at id counter.
+  Zero-caller list 4 (77 names): refexport stubs (slot 10 RE_EndRegistration), refimport slots 29/30/33, level-script
+  import slots 572-574 (G_Create/Start/FreeCodNote), InGameLiveOptionsMenu_Draw, LiveMgr_SetVoiceEnabled, the .spg
+  manager (SpgManager_*, rm_spg 0x0095f564), unreferenced Q3 matches (Com_Freeze_f, Com_Prefetch,
+  BaseWindingForPlane, R_CullLocalPointAndRadius, SCR_DrawSmallChar).
+  - Entity callback table +0x348 at 0x008da8a4: [1] 0x001fbec0, [2] 0x00248a30, both empty; Actor_Spawn stores 1,
+    Actor_BecomeCorpse/SP_script_model/Turret_ParseInfo/Vehicle_FreePhysics store 2; no dispatch site found.
+  - refimport_t at [esp+8] in CL_InitRef: slots 3-7, 18, 23 left zero; 29 = cm+0x14 16-byte table lookup, 30 =
+    VM_Call(cgvm, 8), 31 CL_DObjCreateSkeleton, 32 SCR_AdjustFrom640, 33 font lookup (ri+0x84, RE_TextWidth).
+  - Vehicle physics pool records: vtable 0x0083c5f0 (0 build contacts, 1 wheel distances), pool allocated at
+    0x0002b2c0. .spg manager (0x002b6fc0, from Com_Init): 32 slots {id, ?, data} of 0xc at +4. Localized strings:
+    std::map head 0x0095feec, text +0x2c, alternate text +0x48 (when 0x0095fef4 is set), dword +0x60.
+  Zero-caller list 5 (128 names): script import slots by their stores (pScr_<name> data rows at 0x00922140 +
+  4*slot; e.g. 450 SetFreezeControls, 565-568 fog pass count/alpha/step/final alpha read by R_DrawFogPass, 180
+  missile max lifetime, 194 compass markers, 453 PlayerIsLookingAt, 178/179 Get{Move,Angle}Delta), UI vtable slots
+  across the widget classes and screens, script wait records, ScriptStrings none/obstacle/world.
+  - UI menu slots (UIScreenMgr_OnButtonDown, SetActiveScreen): 15 OnEnter(prev), 17 OnLeave(next); button bits
+    1/2 -> 18/19, 4/8/0x10/0x20 -> 20-23 (up/down/left/right), 0x40 -> 24 (A), 0x80 -> 25 (back),
+    0x100..0x800 -> 26-29, 0x1000/0x2000 -> 30/31; 32 any button. UIElement: 6 SetAlign (0x40/0x80), 7
+    SetLayer(frac, layer) -> 9 SetDepth(layer*1000+frac), 12 IsVisible, 13 SetVisible (+0x10 bit 4). UIPicture: 9
+    SetDepth, 27 SetQuadFlags, 30 SetAlpha, 31 vertex-scaled alpha, 33 SetRect -> 34 SetQuadCorners, 36
+    ResetTransform, 15 AddQuad; UITextBase: 14 CopyFrom, 15 Draw, 19/20 align. UIWorldPicture (vtable 0x00828df8,
+    world point +0x40, slot 51 projects then calls 35) is dead (unreferenced ctor).
+  - Wait records: vtable 0x00831800 plain waittill, 0x0083182c timeout variant (countdown +0x1c); entity +0x14,
+    name +0x18, result +0x10, done +0xc. Actor +0x39c/+0x2b0 entity handles read as "none"/"obstacle"/"world"
+    (entity +0x2a4 bit 0x4000); client +0x5f4 look-at entity. Import slot stores in 0x00309030-0x003094a0 belong to
+    G_SetupActorScriptImports (older evidence saying "Game" for those slots may be wrong).
+  Fresh 1-caller list (51 names; callers named during this pass): std vector/set/string pieces, PM_Weapon parts
+  (timers, reload check, rechamber, melee, PM_FinishWeaponChange, grenade hold/cook/throw, raise/ADS states), the
+  compass marker passes, G_SetupObjectiveScriptImports/G_SetupVehicleScriptImports, small-heap inits, Heap_Sbrk,
+  turret player placement, G_QueueEntityRemove. Several callers sit in gap code (0x337e0b, 0x318051.., 0x12133).
+  - Weapon states (ps +0x84): 1 raising, 2 dropping, 3 firing, 4 rechamber (def +0x6d8, ps bit +0x400, times def
+    +0x5e0/+0x5e4, events 0xa7/0xa8), 10 melee wind-up (def +0x5d8, time +0x5ec, event 0xa9), 11 melee strike/
+    recover (0xaa), 0xf grenade cooking (fuse ps +0x3c = def +0x618, event 0xa2); melee button cmd +8 & 0x20,
+    offhand & 2; weapon class def +0x9c == 4 offhand, type +0x94 == 1 grenade.
+  - Chapters: 0x008dce48 current (0..13), 0x008dce44 highest unlocked; UIRoot +0x54 14 x 0x48 per-chapter table
+    (low). Compass records (0x28): actor markers +0x40 (32; entity type 0xb, team 2, ps +0x4e0), firing enemies
+    +0x540 (32), tank markers +0xe28 (25, ps +0x4e4), 16 x 0x1c pulse list ~+0x1210. HudCompCompass slot 6 may be
+    the compass Draw (Ghidra cuts it at 0x318051; the three draw passes follow) - re-check the HUD batch's slot 6.
+  - Entity removal queue 0x00987a78 (count 0x00987a80); 0024cab0 is the add-side twin (count 0x0097a648). Small
+    heaps: 0x0095f624 (0xe4 units), 0x0095f628 (0x494 stream free-block headers), 0x0095f490 (0x100 script
+    thread data chunks).
+  Where the pass ends: .text has ~700 unnamed non-library functions left, all read at least once and skipped as
+  needing their module's decompile (physics constraint solver, FX billboard draws, ragdoll/vehicle internals,
+  unclear compiled-script bodies); ~2,320 level-section functions stay deferred (leaf rule).

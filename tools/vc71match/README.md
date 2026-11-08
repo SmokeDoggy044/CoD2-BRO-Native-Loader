@@ -1,6 +1,6 @@
 # vc71match: static match check
 
-Compiles `game/code/` with the title's own compiler and diffs every `kFunctions` entry
+Compiles `src/engine/` with the title's own compiler and diffs every `kFunctions` entry
 against default.xbe, instruction by instruction. No game run. It checks code
 generation next to `--compare` (behaviour); the decomp stays functional and is not
 held to byte matching.
@@ -54,7 +54,7 @@ array growth (DynArray_Resize) against our inline accessors / BroScr_ArrayElemen
 
 ## What the copy compiled looks like
 
-`game/code/` is C++20; a lowered copy goes to `build/vc71match/src/`:
+`src/engine/` is C++20; a lowered copy goes to `build/vc71match/src/`:
 
 - `namespace a::b {` becomes `namespace a { namespace b {`; `static_assert` and `PLATFORM_ASM_ENTRY` dropped; `inline const auto* X = &F;` becomes
   a `#define`, `auto* p = static_cast<T*>(...)` takes T; `std::nearbyint` comes from the

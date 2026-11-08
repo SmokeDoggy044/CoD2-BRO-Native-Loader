@@ -1,6 +1,6 @@
 # zlib end-to-end test (manual)
 
-The zlib module (game/code/zlib.cpp, unzip.cpp) is never reached by shipped data, so the compare
+The zlib module (src/engine/zlib/zlib.cpp, unzip.cpp) is never reached by shipped data, so the compare
 harness cannot test it in game. This test maps default.xbe, swaps the title CRT's malloc/free/stdio
 for host stand-ins and runs ~1000 inflate/deflate/zip scenarios through the title's entry points:
 first the original code, then each decompiled function patched in alone, then all of them. Results

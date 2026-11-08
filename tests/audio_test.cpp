@@ -1,4 +1,4 @@
-// DirectSound replacement (audio/): ADPCM decoding, the Voice playback rules, and the
+// DirectSound replacement (src/audio/): ADPCM decoding, the Voice playback rules, and the
 // Xbox API end to end on an OpenAL loopback device whose output is measured.
 
 #include <cmath>

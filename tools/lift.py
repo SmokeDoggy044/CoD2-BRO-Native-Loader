@@ -19,9 +19,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+import engine_src
 
 ROOT = Path(__file__).resolve().parent.parent
-CODE = ROOT / "game" / "code"
+CODE = engine_src.ENGINE
 PROTOS = ROOT / "build" / "protos"
 
 GTYPES = {"undefined8": "uint64_t", "undefined4": "uint32_t", "undefined2": "uint16_t", "undefined1": "uint8_t",
@@ -104,9 +105,9 @@ def main():
     c_names = {r["name"] for r in protos.values()}
     slots = {int(r["slot"], 16): int(r["builtin"], 16) for r in csv.DictReader(open(PROTOS / "slots.csv"))}
     cmd = next(e["command"] for e in json.load(open(ROOT / "build" / "linux-loader" / "compile_commands.json"))
-               if "/game/code/" in e["file"])
+               if "/src/engine/" in e["file"])
     incs = re.findall(r"-I\S+", cmd)
-    headers = "".join(f'#include "{p.name}"\n' for p in sorted(CODE.glob("*.h")))
+    headers = "".join(f'#include "{p.name}"\n' for p in engine_src.files("*.h"))
     report = []
 
     for cfile in sorted(raw.glob("*.c")):

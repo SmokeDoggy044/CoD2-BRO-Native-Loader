@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory of the graphics library code and data the decompiled C reaches.
 
-Scans game/code/*.cpp for title addresses inside the title's D3D8, D3DX and XGraphics
+Scans src/engine/*.cpp for title addresses inside the title's D3D8, D3DX and XGraphics
 sections and writes one row per (C function, library address, kind) to
 tools/data/d3d_calls.csv. Kind: call (title_function), data (title_global / title_pointer /
 title_data or a bare address). The C function is the enclosing definition; its module
@@ -15,9 +15,10 @@ import csv
 import pathlib
 import re
 import sys
+import engine_src
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CODE = ROOT / "game" / "code"
+CODE = engine_src.ENGINE
 DATA = ROOT / "tools" / "data"
 
 # XBE sections (default.xbe).
@@ -170,7 +171,7 @@ def main():
     symbols = load_symbols()
     modules = load_modules()
     rows = []
-    for path in sorted(CODE.glob("*.cpp")):
+    for path in engine_src.files("*.cpp"):
         for function, number, address, kind, comment in scan(path):
             rows.append({
                 "file": path.name,

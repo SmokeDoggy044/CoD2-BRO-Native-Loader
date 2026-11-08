@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the level-script anim-handle tables (game/code/bro_scr_anim_handles.inc).
+"""Generates the level-script anim-handle tables (src/engine/levelscript/bro_scr_anim_handles.inc).
 
 Each BroScr_AnimHandles_<set> function (0x00123fc0..0x00124a30) maps an anim-name hash to a
 .data word holding that anim's handle: a compiled switch (binary compare tree, or a chain of
@@ -18,8 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
+import engine_src
 
-OUT = fnpack.ROOT / "game" / "code" / "bro_scr_anim_handles.inc"
+OUT = engine_src.path("bro_scr_anim_handles.inc")
 
 TABLES = [
     ("BroScr_AnimHandles_tankdeadguys", 0x00123FC0),

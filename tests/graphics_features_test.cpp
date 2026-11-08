@@ -1,4 +1,4 @@
-// render/enhanced_graphics.h: the settings text of enhanced graphics' improvements.
+// src/render/enhanced_graphics.h: the settings text of enhanced graphics' improvements.
 
 #include "test_support.h"
 

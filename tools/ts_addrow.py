@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ts_addrow.py [--levels] ADDR NAME FILE SCORE FACTS [EXTRA] : append the thread_switch class row + set_aside row.
---levels: level-section rows (docs/levels_classes.csv) instead of levelscript."""
+--levels: level-section rows (docs/research/levels_classes.csv) instead of levelscript."""
 import csv, os, subprocess, sys
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/"  # the repo (worktree) this file is in
 levels = "--levels" in sys.argv
@@ -18,7 +18,7 @@ if not path:  # a proposed name the symbol file does not have yet: look the path
 path = path[0]
 ev = (f"waitreach path {path}; C in {file} reviewed against the disassembly, vc71match {score} "
       f"(--facts --force-inline: {facts}){'; ' + extra if extra else ''}, not registered (tested once script threads are coroutines)")
-classes = R + ("docs/levels_classes.csv" if levels else "docs/levelscript_classes.csv")
+classes = R + ("docs/research/levels_classes.csv" if levels else "docs/research/levelscript_classes.csv")
 if not os.path.exists(classes):
     with open(classes, "w") as f:
         f.write("address,name,class,evidence\n")

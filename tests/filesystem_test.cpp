@@ -1,4 +1,4 @@
-// Files, directories, volumes and symbolic links (xbox/filesystem.cpp), called through
+// Files, directories, volumes and symbolic links (src/runtime/xbox/filesystem.cpp), called through
 // the export table the way XAPI calls them, against a fake disc and data folder in a
 // temporary directory.
 

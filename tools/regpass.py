@@ -10,7 +10,7 @@ statement has the callee as a literal (indirect calls skipped).
 11-05 review: all 82 hits of the first version were false; the pre-fix ClientThink_RunPendingTouch EDI bug is the
 reference case this version must find.
 
-usage: tools/regpass.py [FILE.cpp...]   (default: game/code/*.cpp)"""
+usage: tools/regpass.py [FILE.cpp...]   (default: src/engine/*.cpp)"""
 import glob
 import re
 import sys
@@ -77,10 +77,10 @@ def original_value(owner_addr, callee, reg):
     return found
 
 
-src = (regflow.fnpack.ROOT / "game/code/functions.cpp").read_text()
+src = (regflow.fnpack.ROOT / "src/engine/shared/functions.cpp").read_text()
 row_addr = {n: int(a, 16) for n, a in re.findall(r'\{"(\w+)", 0x([0-9a-f]{8}),', src)}
 hits = []
-files = sys.argv[1:] or sorted(glob.glob(str(regflow.fnpack.ROOT / "game/code/*.cpp")))
+files = sys.argv[1:] or sorted(glob.glob(str(regflow.fnpack.ROOT / "src/engine/*.cpp")))
 for f in files:
     text = open(f).read()
     lines = text.split("\n")

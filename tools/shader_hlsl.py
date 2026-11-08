@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""The title's shader programs -> HLSL files of our own (docs/own-renderer.md, step R3).
+"""The title's shader programs -> HLSL files of our own (docs/developers/own-renderer.md, step R3).
 
 Input: a --dump-shaders directory (the loader records every vertex program and pixel shader
 definition the renderer's shader slots get: vs_KEY.bin, ps_KEY.bin, shaders.csv). Output:
-render/shaders/vs_KEY.hlsl and ps_KEY.hlsl (KEY: the title data address naming the program),
-plus manifest.csv. The build compiles them with vkd3d-compiler (render/CMakeLists.txt).
+src/render/shaders/vs_KEY.hlsl and ps_KEY.hlsl (KEY: the title data address naming the program),
+plus manifest.csv. The build compiles them with vkd3d-compiler (src/render/CMakeLists.txt).
 
-Translation follows render/d3d9_shader.cpp (the Xbox path's translation to D3D9 tokens, checked
+Translation follows src/render/d3d9_shader.cpp (the Xbox path's translation to D3D9 tokens, checked
 in game), written as HLSL: NV2A vertex program microcode (MAC + ILU pairs) and register combiners.
 What that translation took from the draw-time state comes from reserved constants instead
 (gfx_device.h): the fog mode (vertex c194.z) and alpha kill per texture stage (pixel c27).
 
-usage: tools/shader_hlsl.py DUMP_DIR [OUT_DIR]   (OUT_DIR default: render/shaders)
+usage: tools/shader_hlsl.py DUMP_DIR [OUT_DIR]   (OUT_DIR default: src/render/shaders)
 """
 
 import csv
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 COMMON = """\
 // Shared by the translated shaders (tools/shader_hlsl.py; generated, do not edit).
-// Constant registers: see render/gfx_device.h. Every reserved register is declared, so the
+// Constant registers: see src/render/gfx_device.h. Every reserved register is declared, so the
 // compiler's own literal constants land above them.
 
 #ifdef VERTEX_SHADER
@@ -527,9 +527,9 @@ def translate_pixel_shader(blob, key, users):
 # --- Who uses which slot ----------------------------------------------------------------------
 
 def slot_owners():
-    """Shader slot address -> the C function that fills it (game/code), for the comments."""
+    """Shader slot address -> the C function that fills it (src/engine), for the comments."""
     owners, drawn = {}, {}
-    for path in sorted((ROOT / "game/code").glob("*.cpp")):
+    for path in sorted((ROOT / "src/engine").glob("*.cpp")):
         name = None
         for line in path.read_text(errors="replace").splitlines():
             m = re.match(r"(?:void|uint\w*|int\w*|\w+\*?)\s+XB_\w+\s+(\w+)\(", line)
@@ -559,7 +559,7 @@ def slot_owners():
     for slot, text in drawn.items():
         owners.setdefault(slot, text)
     # The screen-space shaders loaded from a table (nglInitShaderConstantTable's {slot, word} pairs).
-    text = (ROOT / "game/code/ngl.cpp").read_text()
+    text = (ROOT / "src/engine/renderer/ngl.cpp").read_text()
     start = text.find("void XB_CDECL nglInitShaderConstantTable()")
     table = text[start:text.find("kStored", start)] if start >= 0 else ""
     for m in re.finditer(r"\{0x([0-9a-f]+), 0x[0-9a-f]+\}", table):
@@ -581,7 +581,7 @@ def main():
         print(__doc__)
         return 2
     dump = Path(sys.argv[1])
-    out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "render/shaders"
+    out_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "src/render/shaders"
     out_dir.mkdir(parents=True, exist_ok=True)
     owners = slot_owners()
     users = {}  # (kind, key) -> set of owner names

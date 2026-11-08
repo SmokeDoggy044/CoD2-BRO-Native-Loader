@@ -1,4 +1,4 @@
-// ReleaseMap (loader/release_map.h): finding the supported build's functions and data
+// ReleaseMap (src/runtime/loader/release_map.h): finding the supported build's functions and data
 // in a build where code grew in the middle, later sections moved and data moved
 // within its section (as the European multiplayer XBE of issue #9), and variables
 // after the code in its section changed (as D3D's in that XBE).

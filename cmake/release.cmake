@@ -2,7 +2,7 @@
 #
 #   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   lib/libcod_bro_game.so     the decompiled game code
-#   assets/README.md          the player copies the game dump here
+#   packaging/assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
 #                             the system's 32-bit graphics/sound drivers
 #   LICENSES/                 the port's notes plus every bundled library's license
@@ -25,7 +25,7 @@ endforeach()
 install(TARGETS ${release_programs}
     RUNTIME_DEPENDENCY_SET release_libraries
     RUNTIME DESTINATION .)
-# The decompiled code is a shared library in Linux loader builds (game/code).
+# The decompiled code is a shared library in Linux loader builds (src/engine).
 install(TARGETS game_code LIBRARY DESTINATION lib)
 install(RUNTIME_DEPENDENCY_SET release_libraries
     DESTINATION lib
@@ -42,10 +42,10 @@ install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
-install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
+install(FILES ${PROJECT_SOURCE_DIR}/packaging/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
-# Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
+# Fonts for sharper text (SIL OFL; their licenses and sources in src/text/fonts/).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/text/fonts/ DESTINATION fonts)
 
 # Oldest glibc that runs the release: the newest GLIBC_ symbol version the shipped
 # binaries use, found after install (see release_glibc.cmake). The README gets it
@@ -62,7 +62,7 @@ FetchContent_GetProperties(imgui SOURCE_DIR imgui_source_dir)
 install(FILES "${imgui_source_dir}/LICENSE.txt" DESTINATION LICENSES/bundled RENAME Dear-ImGui.txt)
 FetchContent_GetProperties(stb SOURCE_DIR stb_source_dir)
 install(FILES "${stb_source_dir}/LICENSE" DESTINATION LICENSES/bundled RENAME stb.txt)
-set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
+set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in src/text/fonts/: SIL Open Font License 1.1, see src/text/fonts/README.md and src/text/fonts/licenses/\n")
 if(COD_BRO_RELEASE_DEPS)
     file(GLOB dep_licenses "${COD_BRO_RELEASE_DEPS}/licenses/*.txt")
     list(FILTER dep_licenses EXCLUDE REGEX "/BUNDLED\\.txt$")

@@ -20,9 +20,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
+import engine_src
 
 ROOT = fnpack.ROOT
-FUNCTIONS_CPP = ROOT / "game" / "code" / "functions.cpp"
+FUNCTIONS_CPP = engine_src.FUNCTIONS_CPP
 FUNCTIONS_CSV = fnpack.DATA / "functions.csv"
 MANUAL = fnpack.DATA / "manual_names.csv"
 CALL = re.compile(r"^(call|j\w+) 0x([0-9a-f]+)$")

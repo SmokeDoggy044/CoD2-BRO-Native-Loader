@@ -11,12 +11,12 @@ GCC narrows in the front end (a direct cast) and in the middle end (through a lo
 variable, a long double return value). This compiles each game file twice into a scratch
 directory with -g and without inlining (-O0 and -O2 -S) and prints the source lines with x87
 arithmetic at -O0 that have more scalar SSE arithmetic at -O2 (c++filt the function names).
-Fix such a line by passing one operand through platform_x87_ld (platform/compiler.h).
+Fix such a line by passing one operand through platform_x87_ld (src/platform/compiler.h).
 
 It also lists the lines whose signaling compare (COMISS, invalid flag on any NaN, as the
 title's) -O2 made quiet: GCC folds !(a <= b) into an unordered compare (UCOMISS).
 
-usage: tools/x87_narrowing.py [file.cpp ...]   (default: every file in game/code)
+usage: tools/x87_narrowing.py [file.cpp ...]   (default: every file in src/engine)
 """
 import json
 import os
@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
+import engine_src
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(ROOT, "build/linux-loader-release/compile_commands.json")
@@ -76,7 +77,7 @@ def line_counts(command, source, opt, out_dir):
 def main():
     entries = json.load(open(DB))
     wanted = [os.path.abspath(p) for p in sys.argv[1:]]
-    jobs = [e for e in entries if "/game/code/" in e["file"] and e["file"].endswith(".cpp")
+    jobs = [e for e in entries if "/src/engine/" in e["file"] and e["file"].endswith(".cpp")
             and (not wanted or os.path.abspath(e["file"]) in wanted)]
     with tempfile.TemporaryDirectory() as tmp:
         def one(e):

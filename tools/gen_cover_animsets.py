@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the cover anim-set fillers (game/code/bro_scr_cover_animsets.inc).
+"""Generates the cover anim-set fillers (src/engine/levelscript/bro_scr_cover_animsets.inc).
 
 BroScr_CoverLeftAnimSet_1..7 / BroScr_CoverRightAnimSet_1..7 are straight-line code that
 fills an anim-set record (the stack argument) from float constants and anim handles in
@@ -21,9 +21,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
+import engine_src
 
 ROOT = fnpack.ROOT
-OUT = ROOT / "game" / "code" / "bro_scr_cover_animsets.inc"
+OUT = engine_src.path("bro_scr_cover_animsets.inc")
 MEMBERS = [
     ("BroScr_CoverLeftAnimSet_6", 0x0018c710), ("BroScr_CoverLeftAnimSet_1", 0x0018c800),
     ("BroScr_CoverLeftAnimSet_2", 0x0018c990), ("BroScr_CoverLeftAnimSet_3", 0x0018cb20),

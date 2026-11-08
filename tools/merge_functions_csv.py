@@ -3,7 +3,7 @@
 base + (ours - base) + (theirs - base), so test results recorded on both branches add
 up; the other columns (status, last_issue) come from the side whose counts changed
 last (theirs when both changed). Conflicts where each side only added list lines (functions.cpp's kFunctions rows and
-#includes, game/code/CMakeLists.txt's sources) keep both sides' lines.
+#includes, src/engine/CMakeLists.txt's sources) keep both sides' lines.
 
 usage: tools/merge_functions_csv.py [THEIRS]   (during a conflicted `git merge THEIRS`;
        default MERGE_HEAD) - writes the merged file and `git add`s it
@@ -14,6 +14,7 @@ import io
 import subprocess
 import sys
 from pathlib import Path
+import engine_src
 
 ROOT = Path(__file__).resolve().parent.parent
 PATH = "tools/data/functions.csv"
@@ -30,7 +31,7 @@ def load(rev):
 def resolve_lists():
     """Conflicts where both sides only added list lines - kFunctions rows (address order),
     #include lines or CMake source files (name order) - keep both sides' lines once."""
-    kinds = [(ROOT / "game" / "code" / "functions.cpp", True), (ROOT / "game" / "code" / "CMakeLists.txt", False)]
+    kinds = [(engine_src.FUNCTIONS_CPP, True), (engine_src.CMAKE, False)]
     for path, table in kinds:
         text = path.read_text()
         if "<<<<<<< " not in text:

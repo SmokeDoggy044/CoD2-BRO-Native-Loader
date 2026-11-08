@@ -2,7 +2,7 @@
 """Exports our C prototypes for Ghidra (tools/ghidra/ApplyPrototypes.java).
 
 Every kFunctions entry whose code is a plain C function (code(&Name)) gets that function's declaration from
-game/code (*.h, *.cpp, *.inc), translated to Ghidra types. The script-interface slots (0x00922140 block, filled
+src/engine (*.h, *.cpp, *.inc), translated to Ghidra types. The script-interface slots (0x00922140 block, filled
 by the levelreach.py init functions) get the prototype of the builtin stored in them.
 
 Types: fixed-width scalars -> Ghidra builtins; pointers to our structs -> placeholder structs of that name
@@ -27,9 +27,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
 import levelreach  # noqa: E402
+import engine_src
 
 ROOT = fnpack.ROOT
-CODE = ROOT / "game" / "code"
+CODE = engine_src.ENGINE
 OUT = ROOT / "build" / "protos"
 ENTRY = re.compile(r'^    \{"(\w+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+|0), code\(&?(\w+)\),', re.M)
 CONV = r"(?:XB_(?:CDECL|STDCALL|THISCALL|FASTCALL|REGS[123])\s+)+"
@@ -72,7 +73,7 @@ def shims():
     the C parameters are the last pushes (earlier ones save registers), first parameter pushed last.
     Also C name -> "args" for the SCRIPT_ARGS shims (stack arguments read through a pointer)."""
     out = {}
-    for path in sorted(CODE.glob("*.cpp")) + sorted(CODE.glob("*.inc")):
+    for path in engine_src.files("*.cpp") + engine_src.files("*.inc"):
         text = path.read_text()
         for m in ARGS_SHIM.finditer(text):
             out[m.group(1)] = "args"
@@ -105,14 +106,14 @@ def shims():
 
 
 def main():
-    text = (CODE / "functions.cpp").read_text()
+    text = (engine_src.FUNCTIONS_CPP).read_text()
     entries = [(int(m.group(2), 16), m.group(4)) for m in ENTRY.finditer(text)]
     decls = {}
-    for path in sorted(CODE.glob("*.h")) + sorted(CODE.glob("*.cpp")) + sorted(CODE.glob("*.inc")):
+    for path in engine_src.files("*.h") + engine_src.files("*.cpp") + engine_src.files("*.inc"):
         for m in DECL.finditer(path.read_text()):
             decls.setdefault(m.group(3), (m.group(1), m.group(2), m.group(4)))
     aliases = {}  # inline constexpr auto* X = &Template<...>;
-    for path in sorted(CODE.glob("*.h")) + sorted(CODE.glob("*.cpp")):
+    for path in engine_src.files("*.h") + engine_src.files("*.cpp"):
         for m in re.finditer(r"constexpr auto\*?\s+(\w+)\s*=\s*&(\w+)<", path.read_text()):
             aliases.setdefault(m.group(1), m.group(2))
     for alias, template in aliases.items():
@@ -186,13 +187,13 @@ def main():
     # sizeof probe for structs passed by value
     by_value = sorted(n for n, s in structs.items() if s == -1)
     OUT.mkdir(parents=True, exist_ok=True)
-    headers = sorted(p.name for p in CODE.glob("*.h"))
+    headers = sorted(p.name for p in engine_src.files("*.h"))
     probe = OUT / "probe.cpp"
     probe.write_text("".join(f'#include "{h}"\n' for h in headers) + "#include <cstdio>\nusing namespace game;\n"
                      "int main() {\n" + "".join(f'    std::printf("{n} %u\\n", unsigned(sizeof({n})));\n'
                                                 for n in by_value) + "}\n")
     cmd = next(e["command"] for e in json.load(open(ROOT / "build" / "linux-loader" / "compile_commands.json"))
-               if "/game/code/" in e["file"])
+               if "/src/engine/" in e["file"])
     incs = re.findall(r"-I\S+", cmd)
     run = subprocess.run(["c++", "-m32", "-std=c++20", "-fsyntax-only", *incs, str(probe)], capture_output=True,
                          text=True)

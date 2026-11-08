@@ -10,7 +10,7 @@ folder, so the user's saves stay untouched.
 
 usage: tools/compare_batch.py [FUNCTION ...] [options]
   FUNCTION       names or hex addresses to report (default: the kFunctions entries
-                 added or changed in game/code/functions.cpp since HEAD; with none,
+                 added or changed in src/engine/shared/functions.cpp since HEAD; with none,
                  every function whose counts changed)
   --missions L   comma-separated missions (default 1,4,5,6)
   --seconds S    length of each run (default 200: mission 1's intro ends at ~95 s)
@@ -42,10 +42,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import engine_src
 
 ROOT = Path(__file__).resolve().parent.parent
 CSV = ROOT / "tools" / "data" / "functions.csv"
-FUNCTIONS_CPP = ROOT / "game" / "code" / "functions.cpp"
+FUNCTIONS_CPP = engine_src.FUNCTIONS_CPP
 COUNTS = ("tested", "matched", "drift", "mismatched", "inconclusive")
 ENOUGH = 100  # Config::enough_matches
 
@@ -85,7 +86,7 @@ def resolve(items, names):
         try:
             address = f"{int(item, 16):08x}"
         except ValueError:
-            sys.exit(f"{item}: not in kFunctions (game/code/functions.cpp)")
+            sys.exit(f"{item}: not in kFunctions (src/engine/shared/functions.cpp)")
         out.append((by_address.get(address, item), address))
     return out
 

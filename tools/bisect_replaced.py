@@ -25,7 +25,7 @@ PORT = Path(__file__).resolve().parent.parent
 def replaced_functions(module):
     modules = {r["name"]: r["module"] for r in csv.DictReader(open(PORT / "tools/data/progress.csv"))}
     names = re.findall(r'\{"(\w+)", 0x[0-9a-f]{8},.*Status::Replaced\}',
-                       (PORT / "game/code/functions.cpp").read_text())
+                       (PORT / "src/engine/shared/functions.cpp").read_text())
     return [n for n in names if module == "all" or modules.get(n) == module]
 
 

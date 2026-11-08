@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+import engine_src
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "tools" / "data"
@@ -151,13 +152,13 @@ def load_states():
             for row in csv.DictReader(f):
                 states[int(row["address"], 16)] = row["state"]
     ours = {int(m.group(1), 16) for m in
-            re.finditer(r'\{"\w+", 0x([0-9a-fA-F]+),', (ROOT / "game/code/functions.cpp").read_text())}
+            re.finditer(r'\{"\w+", 0x([0-9a-fA-F]+),', (ROOT / "src/engine/shared/functions.cpp").read_text())}
     return states, ours
 
 
 def loader_patch_sites():
     sites = set()
-    for path in (ROOT / "loader").glob("*.cpp"):
+    for path in (ROOT / "src" / "runtime" / "loader").glob("*.cpp"):
         sites.update(int(v, 16) for v in re.findall(r"0x00[0-9a-fA-F]{6}\b", path.read_text()))
     return sites
 
@@ -450,7 +451,7 @@ def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, a
     if problem := hook_problem(rows, va):
         notes.add(problem)
     if any(va <= site < va + size for site in patch_sites):
-        notes.add("the loader patches an address inside it (loader/*.cpp): not compared with PC patches on")
+        notes.add("the loader patches an address inside it (src/runtime/loader/*.cpp): not compared with PC patches on")
     if notes:
         out.append("notes:")
         out += [f"  - {n}" for n in sorted(notes)]

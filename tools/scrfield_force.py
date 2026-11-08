@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--count", type=int, default=2, help="calls per spec")
     parser.add_argument("--group", choices=["entity", "node", "oneoff"], default="entity")
     args = parser.parse_args()
-    text = (ROOT / "game/code/scr_field_instances.h").read_text()
+    text = (ROOT / "src/engine/script/scr_field_instances.h").read_text()
     rows = {r["name"]: r for r in csv.DictReader(open(ROOT / "tools/data/functions.csv"))}
     def untested(name):
         return name not in rows or int(rows[name]["tested"]) == 0

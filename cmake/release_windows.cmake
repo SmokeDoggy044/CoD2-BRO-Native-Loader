@@ -5,7 +5,7 @@
 #   OpenAL32.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   dxvk/d3d9.dll             DXVK (Direct3D 9 on Vulkan); the game falls back to the
 #                             system's d3d9.dll without it or without Vulkan
-#   assets/README.md          the player copies the game dump here
+#   packaging/assets/README.md          the player copies the game dump here
 #   LICENSES/                 the port's notes plus every bundled component's license
 #
 # The GCC runtime and SDL3 are linked in; OpenAL Soft stays a DLL (LGPL: replaceable).
@@ -16,7 +16,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
-install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
+install(FILES ${PROJECT_SOURCE_DIR}/packaging/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 
 set(dxvk_dir "${PROJECT_SOURCE_DIR}/build/windows-dxvk/out")
@@ -25,8 +25,8 @@ if(NOT EXISTS "${dxvk_dir}/d3d9.dll")
 endif()
 file(STRINGS "${dxvk_dir}/VERSION" dxvk_version)
 install(FILES "${dxvk_dir}/d3d9.dll" DESTINATION dxvk)
-# Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
+# Fonts for sharper text (SIL OFL; their licenses and sources in src/text/fonts/).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/text/fonts/ DESTINATION fonts)
 
 set(COD_BRO_README_SYSTEM "Windows")
 set(COD_BRO_README_REQUIREMENTS "- 64-bit Windows 10 or 11 (the game needs memory above 2 GB, which a 32-bit

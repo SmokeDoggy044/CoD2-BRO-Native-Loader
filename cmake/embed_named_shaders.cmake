@@ -1,4 +1,4 @@
-# Writes OUTPUT, a C++ table of compiled shaders by file name (render/post_shaders.h):
+# Writes OUTPUT, a C++ table of compiled shaders by file name (src/render/post_shaders.h):
 # cmake -DOUTPUT=file.cpp -DINPUTS="a.d3dbc;b.d3dbc" -P embed_named_shaders.cmake
 set(arrays "")
 set(rows "")

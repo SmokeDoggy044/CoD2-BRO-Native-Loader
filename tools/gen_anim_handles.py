@@ -14,7 +14,7 @@ leaf leaves the global in that register: EDX in generic_human, ECX in mg42). Thi
 key (so every interval between keys is checked to reach the default), checks each leaf against the
 shape word by word, and writes one sorted table per function:
 
-    game/code/bro_scr_anim_handles_tables.inc   {hash, global, register the get leaf loads: 0 EAX, 1 ECX, 2 EDX}
+    src/engine/levelscript/bro_scr_anim_handles_tables.inc   {hash, global, register the get leaf loads: 0 EAX, 1 ECX, 2 EDX}
 
 usage: tools/gen_anim_handles.py FUNCTION... [--dry-run]
   FUNCTION  symbol name or hex address of a dispatcher (its size comes from the symbol list)
@@ -27,8 +27,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
+import engine_src
 
-OUT = fnpack.ROOT / "game" / "code" / "bro_scr_anim_handles_tables.inc"
+OUT = engine_src.path("bro_scr_anim_handles_tables.inc")
 JUMPS = {  # on (old value, immediate) of the last cmp/sub/dec
          "ja": lambda v, k: v > k, "jae": lambda v, k: v >= k, "jb": lambda v, k: v < k,
          "jbe": lambda v, k: v <= k, "je": lambda v, k: v == k, "jne": lambda v, k: v != k}

@@ -2,7 +2,7 @@
 """Per-function decompilation progress, per section and module.
 
 Reads the symbol file, the XBE's section table, our name lists (manual_names.csv,
-applied q3_name_proposals.csv), game/code/functions.cpp (decompiled functions) and
+applied q3_name_proposals.csv), src/engine/shared/functions.cpp (decompiled functions) and
 functions.csv (comparison results); modules come from tools/data/modules.csv
 (name prefix first, then tools/data/module_hints.csv - provisional modules by address,
 see tools/sort_unnamed.py - then address ranges); library-named functions that
@@ -90,7 +90,7 @@ def main():
         if syms.get(a) == r["name"]:
             ours.add(a)
     decompiled = {}
-    for m in re.finditer(r'\{"(\w+)", 0x([0-9a-f]{8}),.*Status::(\w+)\}', (ROOT / "game/code/functions.cpp").read_text()):
+    for m in re.finditer(r'\{"(\w+)", 0x([0-9a-f]{8}),.*Status::(\w+)\}', (ROOT / "src/engine/shared/functions.cpp").read_text()):
         decompiled[int(m.group(2), 16)] = m.group(3)
     results = {int(r["address"], 16): r for r in csv.DictReader(open(DATA / "functions.csv"))}
     offline = set()

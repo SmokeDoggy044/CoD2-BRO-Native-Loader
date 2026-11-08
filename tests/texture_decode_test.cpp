@@ -1,4 +1,4 @@
-// render/texture_decode.h: Xbox texture layouts as PC formats (our textures, the Xbox path's).
+// src/render/texture_decode.h: Xbox texture layouts as PC formats (our textures, the Xbox path's).
 
 #include "test_support.h"
 

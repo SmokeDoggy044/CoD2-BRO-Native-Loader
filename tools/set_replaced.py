@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Switches a finished module to Replaced: every kFunctions row in game/code/functions.cpp whose progress state
+"""Switches a finished module to Replaced: every kFunctions row in src/engine/shared/functions.cpp whose progress state
 (tools/data/progress.csv from tools/progress.py) is rewritten (matched/settled/offline/accepted) gets
 Status::Replaced; the rest (untested, inconclusive, set-aside, host, mismatched) stay Compare.
 
@@ -13,7 +13,7 @@ dry = "--dry-run" in sys.argv
 keep = set(sys.argv[sys.argv.index("--keep") + 1].split(",")) if "--keep" in sys.argv else set()
 
 state = {r["name"]: (r["module"], r["state"]) for r in csv.DictReader(open("tools/data/progress.csv"))}
-path = "game/code/functions.cpp"
+path = "src/engine/shared/functions.cpp"
 src = open(path).read()
 switched = []
 

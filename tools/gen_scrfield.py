@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generates the ScrField_* template instances (game/code/scr_field.cpp).
+"""Generates the ScrField_* template instances (src/engine/script/scr_field.cpp).
 
 The title has hundreds of field accessors that are one function per field hash. Each
 shape (SHAPES below) is one template in scr_field.cpp; this script finds the members
 of each shape in the function list, checks that each really has the reference
 function's disassembly (tools/shapes.py: immediates masked) with one hash, and writes
-  game/code/scr_field_instances.h    extern template lines + ScrField_<name> pointers
-  game/code/scr_field_instances.inc  the explicit instantiations
-  game/code/functions.cpp            a kFunctions entry per member (missing ones only)
+  src/engine/script/scr_field_instances.h    extern template lines + ScrField_<name> pointers
+  src/engine/script/scr_field_instances.inc  the explicit instantiations
+  src/engine/shared/functions.cpp            a kFunctions entry per member (missing ones only)
   tools/data/functions.csv           a zero row per member (missing ones only)
 
 usage: tools/gen_scrfield.py LIST [--dry-run]
@@ -22,10 +22,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import fnpack  # noqa: E402
 import shapes  # noqa: E402
+import engine_src
 
 ROOT = fnpack.ROOT
-CODE = ROOT / "game" / "code"
-FUNCTIONS_CPP = CODE / "functions.cpp"
+CODE = engine_src.ENGINE
+FUNCTIONS_CPP = engine_src.FUNCTIONS_CPP
 FUNCTIONS_CSV = fnpack.DATA / "functions.csv"
 
 # One entry per shape: the template, the member whose disassembly defines the shape,
@@ -283,8 +284,8 @@ def write_sources(found, dry_run):
     if entries:
         inc += "\n" + "\n".join(entries) + "\n"
     if not dry_run:
-        (CODE / "scr_field_instances.h").write_text(header)
-        (CODE / "scr_field_instances.inc").write_text(inc)
+        (engine_src.path("scr_field_instances.h")).write_text(header)
+        (engine_src.path("scr_field_instances.inc")).write_text(inc)
 
 
 def register(found, dry_run):

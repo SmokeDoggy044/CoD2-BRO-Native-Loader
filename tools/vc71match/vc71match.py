@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Static match check: compiles game/code/ with the title's own compiler (Visual C++
+"""Static match check: compiles src/engine/ with the title's own compiler (Visual C++
 7.1 from XDK 5849, under Wine) and diffs each decompiled function against
 default.xbe's bytes. A verification aid next to --compare, not a matching decomp.
 
-game/code/ is C++20; the copy compiled here is lowered first (static_assert dropped,
+src/engine/ is C++20; the copy compiled here is lowered first (static_assert dropped,
 enum class -> enum, alignas -> __declspec(align), constexpr -> const, nullptr -> 0).
 A function VC7.1 still cannot compile (lambdas, auto, ...) has its body cut to a
 declaration and is reported as "no-compile". Functions with a PLATFORM_ASM_ENTRY
@@ -35,6 +35,8 @@ import subprocess
 import sys
 import zlib
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import engine_src
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 TOOL = Path(__file__).resolve().parent
@@ -314,7 +316,7 @@ def compile_all(flags, only=None, force_inline=False):
     src = WORK / "src"
     shutil.rmtree(src, ignore_errors=True)
     src.mkdir(parents=True)
-    for path in list((ROOT / "game" / "code").glob("*.[ch]*")) + [ROOT / "platform" / "compiler.h"]:
+    for path in engine_src.files("*.[ch]*") + [ROOT / "src" / "platform" / "compiler.h"]:
         text = lower(path.read_text())
         if force_inline:
             # inline helpers as __forceinline: the compiled scripts' helpers were inlined (LTCG), so the
@@ -394,7 +396,7 @@ def symbols():
 
 
 def kfunctions():
-    text = (ROOT / "game" / "code" / "functions.cpp").read_text()
+    text = (engine_src.FUNCTIONS_CPP).read_text()
     return [(m[0], int(m[1], 16), m[2]) for m in
             re.findall(r'\{"(\w+)", (0x[0-9a-fA-F]+), \w+, code\(&(\w+)\)', text)]
 
@@ -415,7 +417,7 @@ def unregistered(args, registered):
         rows.append((name, int(addr, 16) if addr else by_name[name], name))
         seen.add(name)
     if args.thread_switch:
-        for path in sorted((ROOT / "docs").glob("*_classes.csv")):
+        for path in sorted((ROOT / "docs" / "research").glob("*_classes.csv")):
             for r in csv.DictReader(open(path)):
                 if r.get("class") == "thread_switch" and r["name"] not in seen:
                     rows.append((r["name"], int(r["address"], 16), r["name"]))

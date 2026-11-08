@@ -1,4 +1,4 @@
-// render/gfx_d3d9: our graphics interface on the D3D9 back end, drawn on a real device (DXVK on
+// src/render/gfx_d3d9: our graphics interface on the D3D9 back end, drawn on a real device (DXVK on
 // Linux) in a hidden window and read back: pixel coverage of the screen -> clip mapping at render
 // scales 1 and 2, vertex attributes, textures, our own render targets, blending, quads, buffers.
 // Skipped (exit 77) where no device can be made.
