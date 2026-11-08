@@ -217,6 +217,9 @@ void print_usage(const char* program) {
         "                   and a game-state hash per frame to FILE (until the next reboot)\n"
         "  --replay FILE    developer: play FILE back and report the first frame whose state differs;\n"
         "                   exits at its end (0 = every frame matched, 3 = some differed)\n"
+        "  --replay-hashes FILE  with --replay: this run's own state hashes, for tools/replay_compare.py\n"
+        "  --replay-reference FILE DIR  with --replay: compare with another run's hashes (a recording or\n"
+        "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
@@ -343,6 +346,19 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
             options.replay.mode = arg == "--record" ? xbox::replay::Mode::Record : xbox::replay::Mode::Replay;
             options.replay.file = fs::path(argv[++i]);
+        } else if (arg == "--replay-hashes") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--replay-hashes needs a file\n");
+                return std::nullopt;
+            }
+            options.replay.hashes_out = fs::path(argv[++i]);
+        } else if (arg == "--replay-reference") {
+            if (i + 2 >= argc) {
+                std::fprintf(stderr, "--replay-reference needs a file and a folder\n");
+                return std::nullopt;
+            }
+            options.replay.reference = fs::path(argv[++i]);
+            options.replay.reference_dump_dir = fs::path(argv[++i]);
         } else if (arg == "--replay-continue") {
             options.replay.exit_at_end = false;
         } else if (arg == "--replay-dump") {
@@ -648,11 +664,11 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
             name == "--level" || name == "--exec" || name == "--force" || name == "--multiplayer" || (name == "--symbols" && !same_title) ||
-            name == "--record" || name == "--replay") {
+            name == "--record" || name == "--replay" || name == "--replay-hashes") {
             ++i;  // dropped with its value
             continue;
         }
-        if (name == "--replay-dump") {  // a recording covers one boot
+        if (name == "--replay-dump" || name == "--replay-reference") {  // a recording covers one boot
             i += 2;
             continue;
         }

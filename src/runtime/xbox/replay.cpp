@@ -53,13 +53,58 @@ uint32_t g_first_mismatch = 0;
 
 bool on_stream() { return g_file && t_bound && !(g_config.mode == Mode::Replay && g_live); }
 
-void write_record(char tag, const void* data, size_t size) {
+struct ReferenceFrame {
+    FrameRecord record;
+    std::vector<uint32_t> entities;
+};
+std::vector<ReferenceFrame> g_reference;  // by frame number
+bool g_reference_done = false;
+
+// Loads another run's 'E'/'F' records (Config::reference). False if the file is no recording.
+bool load_reference(const std::filesystem::path& path) {
+    std::FILE* f = std::fopen(path.string().c_str(), "rb");
+    if (!f) return false;
+    char magic[8];
+    uint32_t version = 0;
+    if (std::fread(magic, 1, 8, f) != 8 || std::memcmp(magic, kMagic, 8) != 0 || std::fread(&version, 4, 1, f) != 1 ||
+        version != kVersion) {
+        std::fclose(f);
+        return false;
+    }
+    std::vector<uint32_t> entities;
+    for (;;) {
+        uint8_t tag = 0;
+        uint16_t length = 0;
+        if (std::fread(&tag, 1, 1, f) != 1 || std::fread(&length, 2, 1, f) != 1) break;
+        std::vector<uint8_t> payload(length);
+        if (std::fread(payload.data(), 1, length, f) != length) break;
+        if (static_cast<char>(tag) == kEntityHashesTag) {
+            entities.assign(length / 4, 0);
+            std::memcpy(entities.data(), payload.data(), length / 4 * 4);
+        } else if (static_cast<char>(tag) == kFrameTag && length == sizeof(FrameRecord)) {
+            ReferenceFrame r;
+            std::memcpy(&r.record, payload.data(), sizeof(FrameRecord));
+            r.entities = std::move(entities);
+            entities.clear();
+            if (r.record.frame >= g_reference.size()) g_reference.resize(r.record.frame + 1);
+            g_reference[r.record.frame] = std::move(r);
+        }
+    }
+    std::fclose(f);
+    return true;
+}
+
+std::FILE* g_hashes = nullptr;  // replay: this run's own state records (Config::hashes_out)
+
+void write_to(std::FILE* file, char tag, const void* data, size_t size) {
     const uint8_t tag_byte = static_cast<uint8_t>(tag);
     const uint16_t length = static_cast<uint16_t>(size);
-    std::fwrite(&tag_byte, 1, 1, g_file);
-    std::fwrite(&length, 2, 1, g_file);
-    std::fwrite(data, 1, size, g_file);
+    std::fwrite(&tag_byte, 1, 1, file);
+    std::fwrite(&length, 2, 1, file);
+    std::fwrite(data, 1, size, file);
 }
+
+void write_record(char tag, const void* data, size_t size) { write_to(g_file, tag, data, size); }
 
 void finish();
 
@@ -191,10 +236,10 @@ FrameRecord measure() {
     return r;
 }
 
-void dump_state() {
+void dump_state(const std::filesystem::path& dir) {
     std::error_code error;
-    std::filesystem::create_directories(g_config.dump_dir, error);
-    const std::string base = (g_config.dump_dir / ("frame_" + std::to_string(g_frame))).string();
+    std::filesystem::create_directories(dir, error);
+    const std::string base = (dir / ("frame_" + std::to_string(g_frame))).string();
     if (std::FILE* f = std::fopen((base + "_level.bin").c_str(), "wb")) {
         std::fwrite(title_bytes(kLevelLocals), 1, kLevelLocalsSize, f);
         std::fclose(f);
@@ -265,6 +310,22 @@ bool start(const Config& config) {
         LOG_ERROR("replay", "%s has no frames", config.file.string().c_str());
         return false;
     }
+    if (!config.reference.empty()) {
+        if (!load_reference(config.reference)) {
+            LOG_ERROR("replay", "%s is not a recording (version %u expected)", config.reference.string().c_str(), kVersion);
+            return false;
+        }
+        LOG_INFO("replay", "reference: %zu frames from %s", g_reference.size(), config.reference.string().c_str());
+    }
+    if (!config.hashes_out.empty()) {
+        g_hashes = std::fopen(config.hashes_out.string().c_str(), "wb");
+        if (!g_hashes) {
+            LOG_ERROR("replay", "cannot write %s", config.hashes_out.string().c_str());
+            return false;
+        }
+        std::fwrite(kMagic, 1, sizeof(kMagic), g_hashes);
+        std::fwrite(&kVersion, 4, 1, g_hashes);
+    }
     LOG_INFO("replay", "replaying %s", config.file.string().c_str());
     return true;
 }
@@ -327,9 +388,32 @@ void frame() {
         return;
     }
     ++g_frame;
-    if (g_config.dump_frame == g_frame) dump_state();
+    if (g_config.dump_frame == g_frame) dump_state(g_config.dump_dir);
     if (g_live) return;
     const FrameRecord now = measure();
+    if (!g_reference_done && g_frame < g_reference.size() && g_reference[g_frame].record.frame == g_frame &&
+        std::memcmp(&g_reference[g_frame].record, &now, sizeof(now)) != 0) {
+        g_reference_done = true;
+        const ReferenceFrame& ref = g_reference[g_frame];
+        std::string list;
+        int shown = 0;
+        for (size_t i = 0; i < std::max(ref.entities.size(), g_entity_hashes.size()) && shown < 16; ++i) {
+            const uint32_t was = i < ref.entities.size() ? ref.entities[i] : 0;
+            const uint32_t is = i < g_entity_hashes.size() ? g_entity_hashes[i] : 0;
+            if (was == is) continue;
+            list += " " + std::to_string(i);
+            ++shown;
+        }
+        LOG_WARN("replay", "frame %u: first difference from the reference (level.time %d/%d%s%s); entities:%s", g_frame,
+                 ref.record.level_time, now.level_time, ref.record.level_hash != now.level_hash ? ", level locals" : "",
+                 ref.record.client_hash != now.client_hash ? ", clients" : "", list.c_str());
+        dump_state(g_config.reference_dump_dir);
+    }
+    if (g_hashes) {
+        write_to(g_hashes, kEntityHashesTag, g_entity_hashes.data(), g_entity_hashes.size() * 4);
+        write_to(g_hashes, kFrameTag, &now, sizeof(now));
+        std::fflush(g_hashes);
+    }
     if (g_config.mode == Mode::Record) {
         write_record(kEntityHashesTag, g_entity_hashes.data(), g_entity_hashes.size() * 4);
         write_record(kFrameTag, &now, sizeof(now));

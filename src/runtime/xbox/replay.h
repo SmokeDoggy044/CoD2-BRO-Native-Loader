@@ -27,6 +27,13 @@ struct Config {
     std::filesystem::path dump_dir;
     // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed).
     bool exit_at_end = true;
+    // Replay: also write this run's own state records ('E' + 'F', the recording's format) to this file, so runs in
+    // different builds can be compared with each other (tools/replay_compare.py). Empty = no.
+    std::filesystem::path hashes_out;
+    // Replay: another run's state records (a recording or a hashes_out file); the first frame whose state differs
+    // from it is logged (differing entities) and written to reference_dump_dir like dump_frame. Empty = no.
+    std::filesystem::path reference;
+    std::filesystem::path reference_dump_dir;
 };
 
 // False (logged) if the file cannot be opened or is not a recording.
