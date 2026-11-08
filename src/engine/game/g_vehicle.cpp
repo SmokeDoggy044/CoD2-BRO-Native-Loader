@@ -2083,9 +2083,14 @@ int32_t XB_CDECL Vehicle_GatherCollisionCandidates(const float* a, const float* 
                 for (uint32_t k = 0; k < 4; ++k) title_global<float>(0x0098bf40 + k * 4) = wide;
             }
             const Quad margin = quad(pointer<const float>(0x0098bf40));
-            const Quad new_lo = quad_sub(lo, margin);
+            // Lane 3 is never read; it comes from whatever follows the caller's 3-float points (the original's
+            // Xbox stack, our host stack: host addresses that differ every run). Stored as 0 so that the
+            // entity's state is the same in every run (record/replay, 2026-11-08).
+            Quad new_lo = quad_sub(lo, margin);
+            new_lo.v[3] = 0.0f;
             std::memcpy(cache_lo, new_lo.v, 16);
-            const Quad new_hi = quad_add(hi, quad(pointer<const float>(0x0098bf40)));
+            Quad new_hi = quad_add(hi, quad(pointer<const float>(0x0098bf40)));
+            new_hi.v[3] = 0.0f;
             std::memcpy(cache_hi, new_hi.v, 16);
             CM_GatherBoxCandidates(cache_lo, at<uint8_t*>(ent, 0x450), at<uint8_t*>(ent, 0x454), cache_hi);
         }

@@ -217,6 +217,7 @@ void print_usage(const char* program) {
         "                   and a game-state hash per frame to FILE (until the next reboot)\n"
         "  --replay FILE    developer: play FILE back and report the first frame whose state differs;\n"
         "                   exits at its end (0 = every frame matched, 3 = some differed)\n"
+        "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
         "  --diag DIR [S]   diagnostics while playing: DIR/log.txt, a screenshot every S seconds\n"
@@ -342,6 +343,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
             options.replay.mode = arg == "--record" ? xbox::replay::Mode::Record : xbox::replay::Mode::Replay;
             options.replay.file = fs::path(argv[++i]);
+        } else if (arg == "--replay-continue") {
+            options.replay.exit_at_end = false;
         } else if (arg == "--replay-dump") {
             if (i + 2 >= argc || (options.replay.dump_frame = static_cast<uint32_t>(std::atoi(argv[++i]))) < 1) {
                 std::fprintf(stderr, "--replay-dump needs a frame number and a folder\n");

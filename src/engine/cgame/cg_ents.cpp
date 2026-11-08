@@ -486,7 +486,9 @@ void XB_REGS1 XB_CDECL CG_FireWeaponEmpty(const uint8_t* cent, int32_t event) {
     }
     const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
     const uint32_t sound = *reinterpret_cast<const uint32_t*>(def + 8);
-    own_function<void XB_CDECL(uint32_t, uint32_t)>(&FXCmd_PlayWeaponSound_entry)(sound, event == 0xa6 ? 4 : 3);  // FXCmd_PlayWeaponSound
+    // EAX = the entity, as in the original (cent stays in EAX up to the call).
+    own_function<void XB_REGS1 XB_CDECL(const uint8_t*, uint32_t, uint32_t)>(&FXCmd_PlayWeaponSound_entry)(
+        cent, sound, event == 0xa6 ? 4 : 3);  // FXCmd_PlayWeaponSound
 }
 
 uint8_t* XB_REGS2 XB_CDECL RefEntity_Clear(uint32_t, uint8_t* record) {
