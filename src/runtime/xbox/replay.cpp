@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -13,9 +14,10 @@ namespace {
 
 // File: "XBREPLAY" + u32 version, then records [tag u8][size u16][payload].
 constexpr char kMagic[8] = {'X', 'B', 'R', 'E', 'P', 'L', 'A', 'Y'};
-constexpr uint32_t kVersion = 2;
+constexpr uint32_t kVersion = 3;
 constexpr char kClockTag = 'C';
 constexpr char kFrameTag = 'F';
+constexpr char kEntityHashesTag = 'E';  // per entity (u32 each), just before its frame's 'F'
 
 // Game state (CoD BRO campaign): level locals, and the entity table (count at +0x2aac, pointers at +0x2ab0) whose
 // entities are 0x460 bytes each.
@@ -125,6 +127,7 @@ void report_counts() {
     if (g_count_reports >= 5) return;
     std::string text;
     for (int t = 0; t < 256; ++t) {
+        if (t == kEntityHashesTag) continue;  // read by frame(), not by the title
         const Queue& q = g_queues[t];
         const size_t unread = q.items.size() - q.next;
         if (!q.extra && !unread) continue;
@@ -164,17 +167,21 @@ const uint8_t* entity(uint32_t index) {
     return pointer ? title_bytes(pointer) : nullptr;
 }
 
+std::vector<uint32_t> g_entity_hashes;  // the last measure()'s, per entity index (0 = no entity)
+
 FrameRecord measure() {
     FrameRecord r{};
     r.frame = g_frame;
     std::memcpy(&r.level_time, title_bytes(kLevelTime), 4);
     r.level_hash = hash_words(title_bytes(kLevelLocals), kLevelLocalsSize);
     r.entity_count = entity_count();
+    g_entity_hashes.assign(r.entity_count, 0);
     uint32_t h = 2166136261u;
     for (uint32_t i = 0; i < r.entity_count; ++i) {
         const uint8_t* const ent = entity(i);
-        h = (h ^ i) * 16777619u;
-        if (ent) h = hash_words(ent, kEntitySize, h);
+        const uint32_t one = ent ? hash_words(ent, kEntitySize) : 0;
+        g_entity_hashes[i] = one;
+        h = (h ^ one) * 16777619u;
     }
     r.entity_hash = h;
     uint32_t clients = 0, count = 0;
@@ -324,8 +331,9 @@ void frame() {
     if (g_live) return;
     const FrameRecord now = measure();
     if (g_config.mode == Mode::Record) {
+        write_record(kEntityHashesTag, g_entity_hashes.data(), g_entity_hashes.size() * 4);
         write_record(kFrameTag, &now, sizeof(now));
-        if (g_frame % 600 == 0) std::fflush(g_file);
+        std::fflush(g_file);  // a crash keeps every frame before it
         return;
     }
     if (!g_have_frame) return go_live();
@@ -333,6 +341,28 @@ void frame() {
     const FrameRecord recorded = g_recorded_frame;
     ++g_checked;
     if (std::memcmp(&recorded, &now, sizeof(now)) != 0) {
+        if (g_mismatches < 10 && recorded.entity_hash != now.entity_hash) {
+            const Queue& q = g_queues[static_cast<uint8_t>(kEntityHashesTag)];
+            std::string list;
+            if (!q.items.empty()) {
+                const std::vector<uint8_t>& item = q.items.front();
+                const size_t n = std::max(item.size() / 4, g_entity_hashes.size());
+                int shown = 0;
+                for (size_t i = 0; i < n && shown < 12; ++i) {
+                    uint32_t was = 0;
+                    if (i < item.size() / 4) std::memcpy(&was, item.data() + i * 4, 4);
+                    const uint32_t is = i < g_entity_hashes.size() ? g_entity_hashes[i] : 0;
+                    if (was == is) continue;
+                    const uint8_t* const ent = i < g_entity_hashes.size() ? entity(static_cast<uint32_t>(i)) : nullptr;
+                    char text[48];
+                    std::snprintf(text, sizeof(text), " %zu (%08x)", i,
+                                  static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent)));
+                    list += text;
+                    ++shown;
+                }
+            }
+            LOG_WARN("replay", "frame %u: entities that differ (index, address):%s", g_frame, list.c_str());
+        }
         if (!g_mismatches++) {
             g_first_mismatch = g_frame;
             LOG_WARN("replay",
