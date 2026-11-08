@@ -12,6 +12,9 @@
 #include "scr_field.h"
 #include "scr_field_instances.h"
 #include "title_data.h"
+#include "bro_scr_level_threads_2.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -23,12 +26,12 @@ uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_ca
 
 // BroScr_FxCreationSound (0x0015f380; agent-a list): (ent, sound, origin, to, delay).
 void fx_creation_sound(uint32_t ent, uint32_t sound, ScrVec3 origin, ScrVec3 to, uint32_t delay) {
-    title_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, ScrVec3, uint32_t)>(0x0015f380)(ent, sound, origin, to,
+    own_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, ScrVec3, uint32_t)>(&BroScr_FxCreationSound)(ent, sound, origin, to,
                                                                                              delay);
 }
 // BroScr_FxCreationSoundThink (0x0015f720; agent-a list): (ent, sound, to, a, b, c, d).
 void fx_creation_sound_think(uint32_t ent, uint32_t sound, ScrVec3 to, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0015f720)(
+    own_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, uint32_t, uint32_t, uint32_t, uint32_t)>(&BroScr_FxCreationSoundThink)(
         ent, sound, to, a, b, c, d);
 }
 
@@ -63,7 +66,7 @@ long double distance(const uint32_t* a, const uint32_t* b) {
 long double vehicle_speed(uint32_t ent) { return slot<long double XB_CDECL(uint32_t)>(0x00922b38)(ent); }
 
 // The tree-burst play (0x0015def0) on one entity.
-void play_burst(uint32_t ent) { title_function<void XB_CDECL(uint32_t)>(0x0015def0)(ent); }  // Bro__treeburst_gmi__tree_burst_playBurst
+void play_burst(uint32_t ent) { own_function<void XB_CDECL(uint32_t)>(&Bro__treeburst_gmi__tree_burst_playBurst)(ent); }  // Bro__treeburst_gmi__tree_burst_playBurst
 
 void create_thread(uint32_t ent, uint32_t* functor) {
     slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x0092216c)(0, 0, 0, ent, functor,
@@ -102,8 +105,8 @@ void XB_CDECL BroScr_TreadFx(uint32_t vehicle, uint32_t tread, uint32_t wheel) {
     scr_release(&fast);
     if (skip) return;
     alignas(4) uint8_t map[0x28];
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x00460d40)(map, title_global<uint32_t>(0x00922ee0) + 0x57c);  // HashMap_CopyCtor
-    title_function<void XB_THISCALL(uint8_t*)>(0x0045ebe0)(map);  // HashMap_Dtor
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&HashMap_CopyCtor_PROLOGUE_6)(map, title_global<uint32_t>(0x00922ee0) + 0x57c);  // HashMap_CopyCtor
+    own_function<void XB_THISCALL(uint8_t*)>(&HashMap_Dtor_PROLOGUE)(map);  // HashMap_Dtor
     uint32_t key = 0x438c482f;
     using Index = uint32_t* XB_THISCALL(uint32_t, uint32_t*);
     if (*title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x57c, &key) == 0) {  // HashMap_Index

@@ -10,6 +10,10 @@
 #include "qcommon_fs.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "bro_scr_drone.h"
+#include "levels_twins.h"
+#include "scr_field.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -69,7 +73,7 @@ void XB_CDECL BroScr_StartDronesByTargetname(uint32_t self, ScriptString name) {
         using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint8_t*, uint32_t);
         scr_slot<CreateThread>(0x0092216c)(0, 0, 0, drone, functor, 0);  // Scr_CreateThread
     }
-    if (drones.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(drones.data);  // Scr_Free
+    if (drones.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(drones.data);  // Scr_Free
     scr_release(&name);
 }
 
@@ -88,11 +92,11 @@ void XB_CDECL BroScr_StartDroneDeathThreads(uint32_t self, ScriptString name) {
         if (n >= drones.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&drones), n + 1, n + 4);
         using Begin = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                         ScriptString*);
-        title_function<Begin>(0x0017b530)(0, 0, 0, drones.data[n], 0xe2a210cf, 0x00171970, level_word,
+        own_function<Begin>(&Scr_BeginThread_ent_str_entry)(0, 0, 0, drones.data[n], 0xe2a210cf, 0x00171970, level_word,
                                           note);  // Scr_BeginThread_ent_str(BroScr_DroneDeathThink)
         scr_release(&noteworthy);
     }
-    if (drones.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(drones.data);  // Scr_Free
+    if (drones.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(drones.data);  // Scr_Free
     scr_release(&name);
 }
 
@@ -103,7 +107,7 @@ uint32_t level_block() { return title_global<uint32_t>(0x00922ee0); }
 // The level's per-type tables (+0x814 models, +0x274 guns): HashMap_Index (0x004642b0) by the
 // type's hash; an entry is an array (count at +0xc) indexed through 0x00461230.
 uint32_t* type_entry(uint32_t offset, const uint32_t* hash) {
-    return title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x004642b0)(level_block() + offset, hash);
+    return own_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_9)(level_block() + offset, hash);
 }
 
 uint32_t* entry_at(uint32_t* entry, const uint32_t* index) {
@@ -162,13 +166,13 @@ uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString
         uint32_t* name = entry_at(type_entry(0x274, &gun_hash), &gun);
         using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
         ScriptString* field = title_function<GetString>(0x00458da0)(BroScr_ScriptObjectOrEmpty(drone), 0x1a7e7545);  // ScriptKeyTable_GetString
-        title_function<void XB_THISCALL(ScriptString*, const uint32_t*)>(0x0011d600)(field, name);         // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*, const uint32_t*)>(&ScriptString_Assign_entry)(field, name);         // ScriptString_Assign
         bool defined;
-        title_function<bool* XB_CDECL(bool*, uint32_t)>(0x0012b690)(&defined, drone);  // ScrField_drone_gun_IsDefined
+        own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_drone_gun_IsDefined)(&defined, drone);  // ScrField_drone_gun_IsDefined
         if (defined && scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(drone)) {      // Scr_EntityHandleIsValid
             ScriptString tag;
             scr_string_from(&tag, 0x00831e14);  // "tag_weapon_right"
-            uint32_t* gun_model = title_function<uint32_t* XB_CDECL(uint32_t)>(0x0012b660)(drone);  // ScrField_drone_gun
+            uint32_t* gun_model = own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_drone_gun)(drone);  // ScrField_drone_gun
             scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*, uint32_t)>(0x009224d0)(drone, gun_model, &tag, 0);  // GScr_AttachWithOwner
             scr_release(&tag);
         }
@@ -186,19 +190,19 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
     if (spline()[2] == 0 && *handle_field(node, 0x6bd99abb) == 0) {
         const uint32_t level = level_block();
         uint32_t points[3];
-        title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t, uint32_t)>(0x001478f0)(points, title_global<uint32_t>(level ? level + 4 : 0),
+        own_function<uint32_t* XB_CDECL(uint32_t*, uint32_t, uint32_t)>(&BroScr_DroneSplineMath)(points, title_global<uint32_t>(level ? level + 4 : 0),
                                                                                     node);  // BroScr_DroneSplineMath
         title_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(0x0045c410)(spline(), points);  // DynArray_Assign12
-        if (points[0]) title_function<void XB_CDECL(uint32_t)>(0x002f5e10)(points[0]);              // Scr_Free
+        if (points[0]) own_function<void XB_CDECL(uint32_t)>(&Scr_Free)(points[0]);              // Scr_Free
     }
     uint32_t drone = 0;
     if (*handle_field(node, 0x6bd99abb) != 0) {
-        const uint32_t lod = *title_function<uint32_t* XB_CDECL(uint32_t)>(0x0018f890)(node);  // ScrField_hce29c482
+        const uint32_t lod = *own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_hce29c482)(node);  // ScrField_hce29c482
         ScriptString copy;
         ScriptString_Copy(&copy, &type);
         const uint32_t* start = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(*handle_field(node, 0x6bd99abb)));
         uint32_t result;
-        drone = *title_function<uint32_t* XB_CDECL(uint32_t*, ScrVec3, ScriptString, uint32_t)>(0x00169810)(
+        drone = *own_function<uint32_t* XB_CDECL(uint32_t*, ScrVec3, ScriptString, uint32_t)>(&BroScr_SpawnDrone)(
             &result, {{start[0], start[1], start[2]}}, copy, lod);  // BroScr_SpawnDrone
     }
     if (!scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(drone)) {  // Scr_EntityHandleIsValid
@@ -222,9 +226,9 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
         scr_slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(drone, copy);  // ScrEnt_SetAnimname
     }
     // The IsDefined byte goes to the path's argument slot, as the original.
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x00191b70)(reinterpret_cast<bool*>(&path), spawner);  // ScrField_script_explode_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_script_explode_IsDefined)(reinterpret_cast<bool*>(&path), spawner);  // ScrField_script_explode_IsDefined
     if (!*reinterpret_cast<bool*>(&path) ||
-        static_cast<int32_t>(*title_function<uint32_t* XB_CDECL(uint32_t)>(0x00191b30)(spawner)) < 1)  // ScrField_script_explode
+        static_cast<int32_t>(*own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_script_explode)(spawner)) < 1)  // ScrField_script_explode
         DynArray_PushBack(reinterpret_cast<uint8_t*>(level_block() + 0x770), &drone);
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0xc));  // ScrIface_Alloc
     if (functor) {

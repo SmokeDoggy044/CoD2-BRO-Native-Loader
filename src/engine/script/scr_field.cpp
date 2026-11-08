@@ -7,6 +7,9 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "g_scr_runtime.h"
+#include "levels_twins.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -34,7 +37,7 @@ bool handle_is_valid(uint32_t entity) {
 }
 
 uint32_t* key_table_set(ScriptKeyTable* table, uint32_t key, uint32_t value) {
-    return title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, uint32_t)>(0x0011ea10)(table, key, value);  // ScriptKeyTable_Set
+    return own_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, uint32_t)>(&ScriptKeyTable_Set)(table, key, value);  // ScriptKeyTable_Set
 }
 
 }  // namespace
@@ -122,7 +125,7 @@ bool* XB_CDECL ScrField_StringIsDefined(bool* out, uint32_t entity) {
     ScriptString copy;
     const ScriptString* got = title_function<GetStringCopy>(0x0052bd10)(table, &copy, Hash);  // ScriptKeyTable_GetStringCopy
     *out = got->rep != nullptr;
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&copy);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&copy);  // ScriptString_Release
     return out;
 }
 
@@ -141,7 +144,7 @@ bool* XB_CDECL ScrField_ArrayIsDefined(bool* out, uint32_t entity) {
     uint32_t copy[3];  // data, count, capacity; the copier writes all three
     const uint32_t* got = title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t*, uint32_t)>(Copier)(table, copy, Hash);
     *out = got[1] != 0;
-    if (copy[0]) title_function<void XB_CDECL(uint32_t)>(0x002f5e10)(copy[0]);  // Scr_Free
+    if (copy[0]) own_function<void XB_CDECL(uint32_t)>(&Scr_Free)(copy[0]);  // Scr_Free
     return out;
 }
 
@@ -332,7 +335,7 @@ ScriptString* XB_THISCALL ScrNode_StringKeyCopy(const uint32_t* self, ScriptStri
     ScriptString got;
     using Get = const ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t);
     ScriptString_Copy(out, builtin<Get>(Slot)(&got, *self, Hash));
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&got);  // ScriptString_Release
     return out;
 }
 
@@ -341,7 +344,7 @@ ScriptString* XB_THISCALL ScrNode_StringCopy(const uint32_t* self, ScriptString*
     ScriptString got;
     using Get = const ScriptString* XB_CDECL(ScriptString*, uint32_t);
     ScriptString_Copy(out, builtin<Get>(Slot)(&got, *self));
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&got);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&got);  // ScriptString_Release
     return out;
 }
 
@@ -389,7 +392,7 @@ bool XB_CDECL ScrNode_StringNonEmpty(uint32_t entry_esp, uint32_t self) {
     const uint32_t args[1] = {got};
     title_call_at_regs(entry_esp - 8, Copier, &regs, 1, args);
     const bool non_empty = title_global<uint32_t>(got) != 0;
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(got);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(got);  // ScriptString_Release
     return non_empty;
 }
 
@@ -449,7 +452,7 @@ uint32_t* set_value(ScriptKeyTable* table, uint32_t key, const uint32_t* value) 
 }
 
 DynArray* key_table_array(uint32_t entity, uint32_t key) {
-    return title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(  // ScriptKeyTable_GetArray
+    return own_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(&ScriptKeyTable_GetArray)(  // ScriptKeyTable_GetArray
         script_object_or_empty(entity), key);
 }
 
@@ -484,8 +487,8 @@ void XB_CDECL ScrField_targets_groupname_2(uint32_t entity, ScriptString value) 
     ScriptKeyTable* table = script_object_or_empty(entity);
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
     ScriptString* field = title_function<GetString>(0x00458da0)(table, 0x46861906);  // ScriptKeyTable_GetString
-    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(field, &value);  // ScriptString_Assign
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&value);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(field, &value);  // ScriptString_Assign
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&value);  // ScriptString_Release
 }
 
 uint32_t* XB_CDECL ScrField_follow_ent_Set(uint32_t entity, uint32_t value) {
@@ -574,7 +577,7 @@ uint32_t XB_CDECL ScrField_GetWeaponName(uint8_t* base, uint32_t offset, ScriptS
     if (!def) return 0;
     const uint32_t name = title_global<uint32_t>(def + 8);
     using Assign = uint32_t XB_THISCALL(ScriptString*, uint32_t);
-    return title_function<Assign>(0x0011dd20)(out, name);  // ScriptString_AssignCString
+    return own_function<Assign>(&ScriptString_AssignCString)(out, name);  // ScriptString_AssignCString
 }
 
 int32_t* XB_CDECL ScrField_GetMsAsSeconds(uint8_t* base, uint32_t offset, int32_t* out) {

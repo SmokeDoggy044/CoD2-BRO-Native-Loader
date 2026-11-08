@@ -11,6 +11,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_prologue_a.h"
 
 namespace game {
 
@@ -98,7 +99,7 @@ ScriptString* XB_CDECL BroLvl_prologue_KellyAllClearLines(ScriptString* out, uin
         if (pick == 1) return from_text(out, 0x007f5604);  // "PRO_ADDL02_RED_Sargeover"
         if (pick == 2) return from_text(out, 0x007f5620);  // "PRO_ADDL03_RED_Sargethis"
     } else if (line == 0x06e31d43) {
-        title_function<MedicLine>(0x0041aa00)(out, ent);  // BroLvl_prologue_RandomManDownMedicLine
+        own_function<MedicLine>(&BroLvl_prologue_RandomManDownMedicLine)(out, ent);  // BroLvl_prologue_RandomManDownMedicLine
         return out;
     }
     ScriptString_Copy(out, &title_global<ScriptString>(0x00922e90));  // the empty string
@@ -224,7 +225,7 @@ void XB_CDECL BroLvl_prologue_AllyManDownMedicLine() {
         if (static_cast<float>(closer) != title_global<float>(0x0083eafc)) speaker = i;  // 0.0
     }
     ScriptString line;
-    title_function<MedicLine>(0x0041aa00)(&line, *level_ent());  // BroLvl_prologue_RandomManDownMedicLine
+    own_function<MedicLine>(&BroLvl_prologue_RandomManDownMedicLine)(&line, *level_ent());  // BroLvl_prologue_RandomManDownMedicLine
     if (line.rep) {
         using PlaySound = int32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t);
         slot<PlaySound>(0x0092220c)(*BroScr_ArrayElement(array, speaker), &line, 0xfaca5d86, 0);  // GScr_PlaySoundWithNotify

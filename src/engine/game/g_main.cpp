@@ -19,6 +19,11 @@
 #include "sv.h"
 #include "title_data.h"
 #include "xanim.h"
+#include "cl.h"
+#include "g_scr_runtime.h"
+#include "ngl.h"
+#include "phys.h"
+#include "snd.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -145,13 +150,13 @@ void XB_CDECL G_ClearLevelLocals(uint8_t* level) {
     const char* const empty = reinterpret_cast<const char*>(static_cast<uintptr_t>(0x0082dfeb));
     zero(level, 0, 0xb4);
     zero(level, 0x2b4, 0xb50);
-    title_function<AssignCString>(0x0011dd20)(level + 0xb50, empty);  // ScriptString_AssignCString
+    own_function<AssignCString>(&ScriptString_AssignCString)(level + 0xb50, empty);  // ScriptString_AssignCString
     zero(level, 0xb54, 0xc90);
     level[0xc90] = 0;
     level[0xc91] = 0;
     zero(level, 0xc94, 0xca7);
     zero(level, 0xca8, 0xcb8);
-    title_function<AssignCString>(0x0011dd20)(level + 0xcb8, empty);  // ScriptString_AssignCString
+    own_function<AssignCString>(&ScriptString_AssignCString)(level + 0xcb8, empty);  // ScriptString_AssignCString
     zero(level, 0xcbc, 0x2708);
 }
 
@@ -187,14 +192,14 @@ void XB_CDECL G_VehiclePhysicsFrame(float frame_time) {
     const float scaled = platform_x87_mul(title_global<float>(0x008ff028), frame_time);
     uint32_t bits;
     std::memcpy(&bits, &scaled, sizeof bits);
-    title_function<void XB_CDECL(uint32_t)>(0x00230390)(bits);  // Ragdoll_UpdateAllFromEntities
-    title_function<void XB_CDECL(uint32_t)>(0x000b4170)(bits);  // Phys_RunFrame
-    title_function<void XB_CDECL()>(0x00230930)();              // PhysObj_UpdateAll
-    title_function<void XB_CDECL(uint32_t)>(0x00230350)(bits);  // Ragdoll_UpdateAll
+    own_function<void XB_CDECL(uint32_t)>(&Ragdoll_UpdateAllFromEntities)(bits);  // Ragdoll_UpdateAllFromEntities
+    own_function<void XB_CDECL(uint32_t)>(&Phys_RunFrame)(bits);  // Phys_RunFrame
+    own_function<void XB_CDECL()>(&PhysObj_UpdateAll)();              // PhysObj_UpdateAll
+    own_function<void XB_CDECL(uint32_t)>(&Ragdoll_UpdateAll)(bits);  // Ragdoll_UpdateAll
     // The vehicles with physics: 0x008feb70, count at 0x008feb9c (read once).
     const uint32_t end = 0x008feb70 + title_global<uint32_t>(0x008feb9c) * 4;
     for (uint32_t at = 0x008feb70; at != end; at += 4)
-        title_function<void XB_STDCALL(uint32_t)>(0x0022d230)(title_global<uint32_t>(at));  // Vehicle_UpdateFromPhysics
+        own_function<void XB_STDCALL(uint32_t)>(&Vehicle_UpdateFromPhysics)(title_global<uint32_t>(at));  // Vehicle_UpdateFromPhysics
 }
 
 namespace {
@@ -217,7 +222,7 @@ void scale4(float* out, const float* v, float scale) {
 
 void add_force_to_bodies(const float* dir, uint8_t* ent, const float* point, float scale) {
     using AddForce = void XB_REGS1 XB_CDECL(const float*, uint8_t*, const float*, float, uint32_t);
-    title_function<AddForce>(0x00226890)(dir, ent, point, scale, 0x3f800000);  // Phys_AddForceToEntityBodies
+    own_function<AddForce>(&Phys_AddForceToEntityBodies)(dir, ent, point, scale, 0x3f800000);  // Phys_AddForceToEntityBodies
 }
 
 }  // namespace
@@ -228,7 +233,7 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
     const uint32_t ragdoll = word_at(ent, 0x238);
     if (ragdoll) {
         // FUN_00225480: hit location (EAX) -> ragdoll body index.
-        const uint32_t body = title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(0x00225480)(hit_location);
+        const uint32_t body = own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(&Phys_MapLaunchType_entry)(hit_location);
         uint8_t* const doll = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(ragdoll));
         if (!word_at(doll, 0x568)) {
             if (title_global<int32_t>(0x008fb484) >= 6) return;
@@ -252,7 +257,7 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
         return;
     }
     // FUN_00248850: the entity is a vehicle whose def has type 1.
-    if (title_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*)>(0x00248850)(ent) & 0xff) {
+    if (own_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*)>(&Vehicle_HasDefType1)(ent) & 0xff) {
         const uint32_t vehicle = word_at(ent, 0x248);
         if (word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(vehicle)), 0x300)) return;
         const TitleRegs regs{vehicle, 0, 0, 0, address(ent), 0};
@@ -260,7 +265,7 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
         return;
     }
     if (!(word_at(ent, 0x2a4) & 0x400000)) {
-        title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t)>(0x002303f0)(ent, 0, 0x3f800000,
+        own_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t)>(&PhysObj_Create)(ent, 0, 0x3f800000,
                                                                                         0xbf800000);  // PhysObj_Create
         if (!(word_at(ent, 0x2a4) & 0x400000)) return;
     }
@@ -647,9 +652,9 @@ uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text) {
 void XB_CDECL G_FreeAnimTrees() {
     // Each anim tree's notetracks (from 1), then the string table when the game loaded it.
     for (int32_t i = 1; i < title_global<int32_t>(0x00927098); ++i)
-        title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002f6840)(static_cast<uint32_t>(i));  // AnimTree_FreeNotetracks
+        own_function<void XB_REGS1 XB_CDECL(uint32_t)>(&AnimTree_FreeNotetracks)(static_cast<uint32_t>(i));  // AnimTree_FreeNotetracks
     if (title_global<int32_t>(0x0095f5a0) == 1) {
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(title_global<uint32_t>(0x0095f59c));  // Z_Free
         title_global<uint32_t>(0x0095f59c) = 0;
         title_global<uint32_t>(0x0095f5a0) = 0;
     }
@@ -671,7 +676,7 @@ void XB_CDECL G_TrimCorpseQueue() {
         uint32_t ent = 0;
         if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
             ent = title_global<uint32_t>(0x0097a968 + index * 8);
-        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+        own_function<void XB_CDECL(uint32_t, uint32_t)>(&G_FreeEntity)(ent, 0);  // G_FreeEntity
         handle = 0;
     }
     title_global<int32_t>(0x00985418) = limit;
@@ -682,7 +687,7 @@ void XB_CDECL G_FreeStringTable(uint32_t keep) {
     // `keep`; the owner is cleared either way.
     if (title_global<int32_t>(0x0095f5a0) != 1) return;
     if (!keep) {
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(title_global<uint32_t>(0x0095f59c));  // Z_Free
         title_global<uint32_t>(0x0095f59c) = 0;
     }
     title_global<uint32_t>(0x0095f5a0) = 0;
@@ -751,13 +756,13 @@ void XB_CDECL G_InitAnimTrees(uint32_t arg) {
         static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x868)))();
     const uint32_t* const list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
     title_global<uint32_t>(0x00927098) = list[0];  // g_numAnimTrees
-    title_function<void XB_CDECL()>(0x0024a070)();  // G_InitAnimScripts
-    title_function<void XB_CDECL()>(0x0024abb0)();  // G_InitTurretAnimScripts
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002fe200)(0x0024a050, arg);  // G_SetupAnimTrees
+    own_function<void XB_CDECL()>(&G_InitAnimScripts)();  // G_InitAnimScripts
+    own_function<void XB_CDECL()>(&G_InitTurretAnimScripts)();  // G_InitTurretAnimScripts
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&G_SetupAnimTrees)(0x0024a050, arg);  // G_SetupAnimTrees
     const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0083a894});  // "generic_human"
     uint8_t* const tree = G_FindAnimTreeByName(name);
     if (!tree)
-        title_function<void XB_CDECL(const char*, ...)>(0x00248af0)(
+        own_function<void XB_CDECL(const char*, ...)>(&G_Error_entry)(
             reinterpret_cast<const char*>(uintptr_t{0x0083a8a4}), name);  // G_Error
     title_global<uint32_t>(0x00987a90) = address(tree);
 }
@@ -776,35 +781,35 @@ void XB_CDECL G_StartMissionEndFade() {
                                                          title_global<uint32_t>(0x0097a75c));
     if (*reinterpret_cast<const int32_t*>(player + 0x350) <= 0) return;
     if (title_global<uint32_t>(0x0095bf9c)) return;
-    const char* text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083b37c}),
+    const char* text = own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x0083b37c}),
                                                       title_global<int32_t>(0x0098540c) + 250,
                                                       title_global<int32_t>(0x00985ec8) + 750);  // "scr_fade 1 %i %i"
     SV_GameSendServerCommand(text, 0);
-    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}),
+    text = own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}),
                                           title_global<int32_t>(0x00985ec8) + 1000);  // "snd_fade 0 %d"
     SV_GameSendServerCommand(text, 0);
     title_global<int32_t>(0x00985e28) = title_global<int32_t>(0x0098540c) + title_global<int32_t>(0x00985ec8) + 1000;
     using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
     const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0082c89c});  // "g_reloading"
-    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 4);  // "%d"
-    title_function<CvarSet>(0x0029c030)(name, text, 1);  // Cvar_Set2
+    text = own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 4);  // "%d"
+    own_function<CvarSet>(&Cvar_Set2)(name, text, 1);  // Cvar_Set2
     if (title_global<uint32_t>(0x00985eb4)) {
-        text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 16);
-        title_function<CvarSet>(0x0029c030)(name, text, 1);
+        text = own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 16);
+        own_function<CvarSet>(&Cvar_Set2)(name, text, 1);
     }
 }
 
 void XB_CDECL G_ShutdownGame(uint32_t restart) {
     // Q3's G_ShutdownGame: every entity, the vehicle pool and the second vehicle block
     // (0x0095f690), the vehicle defs; without a restart also the corpse queue and anim trees.
-    title_function<void XB_STDCALL(uint32_t)>(0x002c3870)(title_global<uint32_t>(0x0095f534));  // G_FreeAllEntities
+    own_function<void XB_STDCALL(uint32_t)>(&G_FreeAllEntities)(title_global<uint32_t>(0x0095f534));  // G_FreeAllEntities
     if (title_global<uint32_t>(0x0095f694)) {
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f694));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(title_global<uint32_t>(0x0095f694));  // Z_Free
         title_global<uint32_t>(0x0095f694) = 0;
         title_global<uint16_t>(0x00986000) = 0;
     }
     if (title_global<uint32_t>(0x0095f690)) {
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f690));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(title_global<uint32_t>(0x0095f690));  // Z_Free
         title_global<uint32_t>(0x0095f690) = 0;
     }
     Vehicle_FreeDefs();
@@ -821,7 +826,7 @@ void XB_CDECL G_SetFog(const char* fog) {
     // "fog <text>" to every client; then the fog range (0x00985fcc, its square 0x00985fd0;
     // FLT_MAX without) from seven floats: when the third is >= 1, start + (end - start) * 0.828.
     using Va = char* XB_CDECL(const char*, ...);
-    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bd50}), fog), 0);
+    SV_GameSendServerCommand(own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x0083bd50}), fog), 0);
     float v[7];  // as the original's frame: v[0] first, v[1] second, v[2] third
     title_global<float>(0x00985fcc) = title_global<float>(0x0082eed0);
     title_global<float>(0x00985fd0) = title_global<float>(0x0082eed0);
@@ -877,7 +882,7 @@ void XB_CDECL G_RegisterCvars() {
     for (int32_t i = 0; i < title_global<int32_t>(0x008dae40); ++i) {
         const uint32_t entry = 0x008da8e8 + i * 0x18;
         using CvarGet = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
-        const uint32_t cvar = title_function<CvarGet>(0x0029c2d0)(title_global<uint32_t>(entry + 4),
+        const uint32_t cvar = own_function<CvarGet>(&Cvar_Get)(title_global<uint32_t>(entry + 4),
                                                                   title_global<uint32_t>(entry + 8),
                                                                   title_global<uint32_t>(entry + 12));  // Cvar_Get
         const uint32_t vm = title_global<uint32_t>(entry);
@@ -894,7 +899,7 @@ void XB_CDECL G_RegisterCvars() {
     static const uint32_t kCleared[] = {0x00948898, 0x009482f8, 0x0094b780, 0x00948538};
     for (uint32_t i = 0; i < 4; ++i) {
         const uint32_t vm = kCleared[i];
-        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0029c030)(
+        own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Cvar_Set2)(
             title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(vm) * 0x2c), 0x0082dfeb, 1);  // Cvar_Set2 ""
         const TitleRegs regs{0, vm, 0, 0, 0, 0};
         g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update
@@ -1011,42 +1016,42 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
         const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
         uint32_t format = 0x0083b364;  // "textures\%s\suc_eur.dds"
         if (chapter > 1 && chapter < 10) format = chapter <= 6 ? 0x0083b34c : 0x0083b334;  // suc_afr / suc_sic
-        const char* const path = title_function<Va>(0x002a93d0)(text(format), text(language));
-        const int32_t file = title_function<int32_t XB_CDECL(uint32_t, const char*)>(0x000c9d40)(
+        const char* const path = own_function<Va>(&va_entry)(text(format), text(language));
+        const int32_t file = own_function<int32_t XB_CDECL(uint32_t, const char*)>(&File_OpenRead)(
             title_global<uint32_t>(0x0095f6f4), path);  // File_OpenRead
-        const uint32_t size = title_function<uint32_t XB_CDECL(int32_t)>(0x000c9d10)(file);  // File_GetSize
+        const uint32_t size = own_function<uint32_t XB_CDECL(int32_t)>(&File_GetSize)(file);  // File_GetSize
         const uint32_t padded = (size + 0x7fff) & 0xffff8000u;
         const uint32_t data =
-            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00093950)(padded, 0x80, 0x30000);  // Mem_AlignedAlloc
-        title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t)>(0x000caff0)(file, 0, data, padded);  // File_ReadAt (file, offset, buffer, size)
+            own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Mem_AlignedAlloc)(padded, 0x80, 0x30000);  // Mem_AlignedAlloc
+        own_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t)>(&File_ReadAt)(file, 0, data, padded);  // File_ReadAt (file, offset, buffer, size)
         uint32_t name = 0;
-        title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(&name, text(0x0083b32c));  // HashStr_Init "texSuc"
-        const uint32_t texture = title_function<uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t)>(0x000635a0)(
+        own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(&name, text(0x0083b32c));  // HashStr_Init "texSuc"
+        const uint32_t texture = own_function<uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t)>(&nglLoadTexture)(
             &name, 0, data, size);  // nglLoadTexture
         uint32_t quad[0x19] = {};
-        title_function<void XB_CDECL(uint32_t*)>(0x0005ddb0)(quad);  // nglInitQuad
-        title_function<void XB_CDECL(uint32_t*, float, float, float, float)>(0x0005ded0)(quad, 0.0f, 0.0f, 640.0f,
+        own_function<void XB_CDECL(uint32_t*)>(&nglInitQuad)(quad);  // nglInitQuad
+        own_function<void XB_CDECL(uint32_t*, float, float, float, float)>(&nglSetQuadRect)(quad, 0.0f, 0.0f, 640.0f,
                                                                                          480.0f);  // nglSetQuadRect
-        title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x0005de20)(quad, texture);  // nglSetQuadTexture
-        title_function<void XB_CDECL(uint32_t*, float)>(0x0005df20)(quad, 300.0f);    // nglSetQuadZ
+        own_function<void XB_CDECL(uint32_t*, uint32_t)>(&nglSetQuadTexture)(quad, texture);  // nglSetQuadTexture
+        own_function<void XB_CDECL(uint32_t*, float)>(&nglSetQuadZ)(quad, 300.0f);    // nglSetQuadZ
         using PadCreate = uint32_t XB_CDECL();
         for (;;) {
-            title_function<uint32_t XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+            own_function<uint32_t XB_CDECL()>(&File_PumpRequests)();  // File_PumpRequests
             {
-                const TitleRegs pad{0, 0, title_function<PadCreate>(0x00055e40)(), 0, 0, 0};
+                const TitleRegs pad{0, 0, own_function<PadCreate>(&IN_PadCreate)(), 0, 0, 0};
                 g_ent_call(0x00055e70, &pad, 0, nullptr);  // IN_PadUpdate (ECX)
             }
             const uint32_t controller = title_global<uint32_t>(0x008d50d8);
-            const uint32_t pad = title_function<PadCreate>(0x00055e40)();
-            if (!(title_function<uint8_t XB_THISCALL(uint32_t, uint32_t)>(0x000560e0)(pad, controller))) {  // IN_PadIsConnected
+            const uint32_t pad = own_function<PadCreate>(&IN_PadCreate)();
+            if (!(own_function<uint8_t XB_THISCALL(uint32_t, uint32_t)>(&IN_PadIsConnected)(pad, controller))) {  // IN_PadIsConnected
                 title_global<uint8_t>(0x008d50dc) = 0;
                 if (!title_global<uint32_t>(0x0095f8f4) || title_global<uint8_t>(0x0095f538)) continue;
                 const TitleRegs pause{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
                 g_ent_call(0x002b6be0, &pause, 0, nullptr);  // S_PauseAllChannels (EAX)
-                title_function<void XB_STDCALL(uint32_t)>(0x002c8f60)(title_global<uint32_t>(0x0095f4c0));  // S_CheckWaveBankNotifies
+                own_function<void XB_STDCALL(uint32_t)>(&S_CheckWaveBankNotifies)(title_global<uint32_t>(0x0095f4c0));  // S_CheckWaveBankNotifies
                 const uint32_t paused = word_at(title_global<uint8_t*>(0x0093fcd8), 0x20);
                 title_global<uint8_t>(0x0095f539) = paused != 0;
-                title_function<CvarSet>(0x0029c030)(text(0x0082ca00), text(0x0082e058), 1);  // cl_paused "1"
+                own_function<CvarSet>(&Cvar_Set2)(text(0x0082ca00), text(0x0082e058), 1);  // cl_paused "1"
                 const TitleRegs draw{0, 0, 0, 0, 0x0095f8d0, paused};
                 g_ent_call(0x0030f190, &draw, 0, nullptr);  // a paused frame (ESI = g_uiRoot)
                 title_global<uint8_t>(0x0095f538) = 1;
@@ -1055,35 +1060,35 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
             title_global<uint8_t>(0x008d50dc) = 1;
             if (title_global<uint8_t>(0x0095f538)) {
                 const uint32_t pressed_controller = title_global<uint32_t>(0x008d50d8);
-                const uint32_t pressed_pad = title_function<PadCreate>(0x00055e40)();
-                if (!(title_function<uint8_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00056580)(
+                const uint32_t pressed_pad = own_function<PadCreate>(&IN_PadCreate)();
+                if (!(own_function<uint8_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&IN_PadButtonPressed)(
                         pressed_pad, pressed_controller, 0xe)))  // IN_PadButtonPressed
                     continue;
                 const TitleRegs resume{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
                 g_ent_call(0x002b6ba0, &resume, 0, nullptr);  // S_ResumeAllChannels (EAX)
-                title_function<CvarSet>(0x0029c030)(
+                own_function<CvarSet>(&Cvar_Set2)(
                     text(0x0082ca00), text(title_global<uint8_t>(0x0095f539) ? 0x0082e058 : 0x0082e098), 1);  // cl_paused
                 title_global<uint8_t>(0x0095f538) = 0;
-                const uint32_t consume_pad = title_function<PadCreate>(0x00055e40)();
+                const uint32_t consume_pad = own_function<PadCreate>(&IN_PadCreate)();
                 const TitleRegs consume{0, consume_pad, 0, 0, 0, title_global<uint32_t>(0x008d50d8)};
                 g_ent_call(0x00011b80, &consume, 0, nullptr);  // IN_PadConsumeAllPressed (EDI)
             }
             using Set = void XB_CDECL(uint32_t);
-            title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
-            title_function<Set>(0x00062fc0)(0);  // nglPushScene
-            title_function<Set>(0x0005e430)(0);  // nglSetClearFlags
-            title_function<Set>(0x0005e4b0)(0);  // nglSetSceneDepthTest
-            title_function<Set>(0x0005e490)(0);  // nglSetSceneDepthEnable
-            title_function<void XB_CDECL(const uint32_t*)>(0x0005e270)(quad);  // nglListAddQuad
-            title_function<void XB_CDECL()>(0x0005e730)();                     // nglPopScene
-            title_function<Set>(0x00062fc0)(0);
-            title_function<Set>(0x0005e430)(0);
-            title_function<Set>(0x0005e4b0)(0);
-            title_function<Set>(0x0005e490)(0);
+            own_function<void XB_CDECL()>(&nglBeginFrame)();  // nglBeginFrame
+            own_function<Set>(&nglPushScene)(0);  // nglPushScene
+            own_function<Set>(&nglSetClearFlags)(0);  // nglSetClearFlags
+            own_function<Set>(&nglSetSceneDepthTest)(0);  // nglSetSceneDepthTest
+            own_function<Set>(&nglSetSceneDepthEnable)(0);  // nglSetSceneDepthEnable
+            own_function<void XB_CDECL(const uint32_t*)>(&nglListAddQuad)(quad);  // nglListAddQuad
+            own_function<void XB_CDECL()>(&nglPopScene)();                     // nglPopScene
+            own_function<Set>(&nglPushScene)(0);
+            own_function<Set>(&nglSetClearFlags)(0);
+            own_function<Set>(&nglSetSceneDepthTest)(0);
+            own_function<Set>(&nglSetSceneDepthEnable)(0);
             const TitleRegs ui{0, 0, 0, 0, 0x0095f8d0, 0};
             g_ent_call(0x003153d0, &ui, 0, nullptr);         // UIRoot_DrawInGameScreens (ESI)
-            title_function<void XB_CDECL()>(0x0005e730)();  // nglPopScene
-            title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+            own_function<void XB_CDECL()>(&nglPopScene)();  // nglPopScene
+            own_function<void XB_CDECL()>(&nglEndFrame)();  // nglEndFrame
             const uint32_t dt = title_global<uint32_t>(0x008ddaa0);
             g_ent_call(0x00315520, &ui, 1, &dt);  // UIRoot_UpdateInGameScreens (ESI, stdcall)
         }
@@ -1135,10 +1140,10 @@ void XB_CDECL G_InitSkillCvars(uint32_t restore) {
     }
     const auto reset = [&text](uint32_t vm_cvar, const char* value) {
         const uint32_t index = title_global<uint32_t>(vm_cvar);
-        title_function<CvarSet>(0x0029c030)(text(title_global<uint32_t>(0x00940a10 + index * 0x2c)), value, 1);  // cvar_indexes
+        own_function<CvarSet>(&Cvar_Set2)(text(title_global<uint32_t>(0x00940a10 + index * 0x2c)), value, 1);  // cvar_indexes
         Cvar_Update(&title_global<uint8_t>(vm_cvar));
     };
-    reset(0x00947f98, title_function<Va>(0x002a93d0)(text(0x0082ded4), 0));  // "%i"
+    reset(0x00947f98, own_function<Va>(&va_entry)(text(0x0082ded4), 0));  // "%i"
     reset(0x0094c230, text(0x0082e098));
     reset(0x00948778, text(0x0082e098));  // vm_cl_stance
     reset(0x0094a3b8, text(0x0082e058));
@@ -1151,11 +1156,11 @@ void XB_CDECL G_FreeLevelEntities() {
     // or the zone, and the entity number queued for removal.
     using FreeEntity = void XB_CDECL(uint32_t, uint32_t);
     const uint32_t world = word_at(title_global<uint8_t*>(0x0095f534), 8);
-    if (world) title_function<FreeEntity>(0x002be420)(world, 0);  // G_FreeEntity
+    if (world) own_function<FreeEntity>(&G_FreeEntity)(world, 0);  // G_FreeEntity
     uint32_t* const first = &title_global<uint32_t>(0x0097d370);
     const uint32_t* const last = first + title_global<uint32_t>(0x0097d36c);
     for (uint32_t* it = first; it != last; ++it) {
-        if (*it) title_function<FreeEntity>(0x002be420)(*it, 0);  // G_FreeEntity
+        if (*it) own_function<FreeEntity>(&G_FreeEntity)(*it, 0);  // G_FreeEntity
     }
     title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
     const uint32_t* const end = first + title_global<uint32_t>(0x0097d36c);
@@ -1170,7 +1175,7 @@ void XB_CDECL G_FreeLevelEntities() {
             if (word_at(ragdoll, 0x568)) {
                 uint8_t* const owner = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0)));
                 PhysRagdoll_WriteBodiesToPose(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0x568))));
-                title_function<void XB_STDCALL(uint8_t*)>(0x0022c0f0)(owner);
+                own_function<void XB_STDCALL(uint8_t*)>(&Ragdoll_PropagateBoneMatrices)(owner);
                 RagdollPhysPool_Free(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ragdoll, 0x568))), 0,
                                      &title_global<uint8_t>(0x008f0470));
                 word_at(ragdoll, 0x568) = 0;
@@ -1304,7 +1309,7 @@ void checkpoint_reset(uint8_t* checkpoint, bool clear_name) {
     word_at(checkpoint, 0x554) = 0;
     *reinterpret_cast<float*>(checkpoint + 0x34c) = 0.0f;
     word_at(checkpoint, 0x594) = 0;
-    if (clear_name) title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(checkpoint + 0x558);  // ScriptString_Clear
+    if (clear_name) own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear)(checkpoint + 0x558);  // ScriptString_Clear
     Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x008353b8}), reinterpret_cast<char*>(uintptr_t{0x0082e098}),
               1);  // checkpoint "0"
     word_at(checkpoint, 4) = 0;
@@ -1351,7 +1356,7 @@ PLATFORM_ASM_ENTRY(Checkpoint_Init_entry,
 
 uint8_t* XB_CDECL Checkpoint_Init(uint8_t* checkpoint) {
     using FromRep = void XB_THISCALL(uint8_t*, uint32_t);
-    const auto from_rep = title_function<FromRep>(0x0011d5d0);  // ScriptString_FromRep
+    const auto from_rep = own_function<FromRep>(&ScriptString_FromRep);  // ScriptString_FromRep
     for (uint32_t i = 0; i < 6; ++i) from_rep(checkpoint + 8 + i * 4, 0);
     checkpoint_map_init(checkpoint, 0x354);
     for (uint32_t i = 0; i < 16; ++i) {
@@ -1400,25 +1405,25 @@ void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t a
     const uint32_t current_word = word_at(checkpoint, 0x558);
     if (current_word && *text(current_word + 6) && ScriptString_Equals(current, name)) return;
     using AssignCString = void XB_THISCALL(uint8_t*, const char*);
-    const auto assign_cstring = title_function<AssignCString>(0x0011dd20);  // ScriptString_AssignCString
+    const auto assign_cstring = own_function<AssignCString>(&ScriptString_AssignCString);  // ScriptString_AssignCString
     uint8_t* source;
     if (!static_cast<uint8_t>(at_player)) {
         // The entity whose targetname is the name: its +0x27c string names the checkpoint.
         uint32_t local = 0;
-        title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&local, name);  // ScriptString_FromCString
+        own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&local, name);  // ScriptString_FromCString
         const uint32_t key = Com_HashKeyNoCase(0, text(0x0082dda8));  // "targetname"
         using Find = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
         const uint32_t handle =
             title_function<Find>(word_at(title_global<uint8_t*>(0x0095f49c), 0x84))(&local, key, 0, 0, 0);
-        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&local);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&local);  // ScriptString_Release
         local = handle;
         source = G_EntHandleToEnt(&local);
         if (!source) return;
         const uint32_t label = word_at(source, 0x27c);
         if (!label) return;
-        if (title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(source + 0x27c)) return;  // ScriptString_IsEmpty
+        if (own_function<uint8_t XB_THISCALL(uint8_t*)>(&ScriptString_IsEmpty)(source + 0x27c)) return;  // ScriptString_IsEmpty
         if (ScriptString_EqualsString(current, reinterpret_cast<const ScriptString*>(source + 0x27c))) return;
-        title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(checkpoint + 0x558,
+        own_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(&ScriptString_Assign_entry)(checkpoint + 0x558,
                                                                              source + 0x27c);  // ScriptString_Assign
         assign_cstring(checkpoint + 0x55c, text(0x00988c58));  // the map name
         word_at(checkpoint, 0x378) = 0;  // 0.0f
@@ -1481,7 +1486,7 @@ void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t a
         word_at(spot(), 4) = word_at(actor, 0x150);
         word_at(spot(), 8) = word_at(actor, 0x154);
         word_at(spot(), 0xc) = word_at(actor, 0x158);
-        title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(spot(), actor + 0x264);  // Assign
+        own_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(&ScriptString_Assign_entry)(spot(), actor + 0x264);  // Assign
         ++word_at(checkpoint, 0x554);
     }
 }

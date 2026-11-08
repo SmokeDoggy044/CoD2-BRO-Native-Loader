@@ -7,6 +7,11 @@
 #include "g_scr_runtime.h"
 #include "qcommon_core.h"
 #include "title_data.h"
+#include "bro_scr_drone_threads.h"
+#include "bro_scr_level_threads_2.h"
+#include "bro_scr_mortar_loops.h"
+#include "bro_scr_stuka_bomb.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -17,7 +22,7 @@ namespace {
 // DynArray copy-assign (0x0045c270, thiscall) into a zeroed by-value argument.
 DynArray copy_array(const DynArray* source) {
     DynArray copy = {0, 0, 0};
-    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, source);
+    own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, source);
     return copy;
 }
 ScriptString copy_string(const ScriptString* source) {
@@ -45,20 +50,20 @@ void anim_reach(uint32_t function, uint32_t ent, uint32_t guy, uint32_t a3, cons
 using PlaneDropBomb = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 void plane_drop_bomb(uint32_t plane, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7,
                      uint32_t a8) {
-    title_function<PlaneDropBomb>(0x0016fc30)(plane, a2, a3, a4, a5, a6, a7, a8, 1);  // BroScr_PlaneDropBomb(.., true)
+    own_function<PlaneDropBomb>(&BroScr_PlaneDropBomb)(plane, a2, a3, a4, a5, a6, a7, a8, 1);  // BroScr_PlaneDropBomb(.., true)
 }
 
 // BroScr_DronePathSpawnLoop (0x001706b0) with a copy of `name`; releases `name`.
 void drone_path_spawn_loop(uint32_t a1, uint32_t a2, ScriptString* name, uint32_t p4, uint32_t p5, uint32_t p6, uint32_t p7,
                            uint32_t p8, uint32_t p9) {
     using Loop = void XB_CDECL(uint32_t, uint32_t, ScriptString, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<Loop>(0x001706b0)(a1, a2, copy_string(name), p4, p5, p6, p7, p8, p9);
+    own_function<Loop>(&BroScr_DronePathSpawnLoop)(a1, a2, copy_string(name), p4, p5, p6, p7, p8, p9);
     scr_release(name);
 }
 
 // BroScr_MortarGroupShuffledLoop (0x00170a90; never returns).
 void mortar_group_shuffled_loop(uint32_t ent, const DynArray* group, uint32_t a, uint32_t b) {
-    title_function<void XB_CDECL(uint32_t, DynArray, uint32_t, uint32_t)>(0x00170a90)(ent, copy_array(group), a, b);
+    own_function<void XB_CDECL(uint32_t, DynArray, uint32_t, uint32_t)>(&BroScr_MortarGroupShuffledLoop)(ent, copy_array(group), a, b);
 }
 
 // BroScr_DronePathsStartAll (0x00171f80) / ..Staggered (0x00172150) with copies; frees `paths`, releases `name`.
@@ -84,7 +89,7 @@ void XB_CDECL BroScr_AnimReachEntCall(uint32_t ent, uint32_t guy, uint32_t a3, S
 }
 
 void XB_CDECL BroScr_DroneMainCall(uint32_t drone, uint32_t flag) {
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00169e50)(drone, flag, 0);  // BroScr_DroneMain
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_DroneMain)(drone, flag, 0);  // BroScr_DroneMain
 }
 
 void XB_CDECL BroScr_DroneMainDelayed(uint32_t drone, uint32_t min, uint32_t max, uint32_t flag) {
@@ -96,13 +101,13 @@ void XB_CDECL BroScr_DroneMainDelayed(uint32_t drone, uint32_t min, uint32_t max
 
 void XB_CDECL BroScr_ShellIncomingThenImpact(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
                                              uint32_t a7, uint32_t type) {
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0015c390)(ent, type);  // BroScr_PlayShellIncoming
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PlayShellIncoming)(ent, type);  // BroScr_PlayShellIncoming
     if (entity_handle_is_valid(ent)) BroScr_MortarThinkWithDefaults(ent, a2, a3, a4, a5, a6, a7, type);
 }
 
 void XB_CDECL BroScr_ShellIncomingThenImpact_2(uint32_t ent, uint32_t type) {
     const uint32_t f = undefined_float();
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0015c390)(ent, type);  // BroScr_PlayShellIncoming
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PlayShellIncoming)(ent, type);  // BroScr_PlayShellIncoming
     if (entity_handle_is_valid(ent)) BroScr_MortarThinkWithDefaults(ent, f, f, f, f, f, f, type);
 }
 

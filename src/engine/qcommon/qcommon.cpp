@@ -4,6 +4,9 @@
 
 #include "lanes.h"
 #include "title_data.h"
+#include "g_utils.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -74,12 +77,12 @@ char* XB_CDECL FixedStr_BaseName(const char* src, char* dst, uint32_t flag) {
     int32_t stem_length;
     stem[0x7f] = 0;
     stem[0] = 0;
-    title_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(0x00044500)(  // Path_BaseName
+    own_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(&Path_BaseName)(  // Path_BaseName
         stem, &stem_length, src, static_cast<uint8_t>(src[0x7f]), flag);
     const uint8_t length = static_cast<uint8_t>(stem_length);
     stem[0x7f] = static_cast<char>(length);
     int32_t copied;
-    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+    own_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(&FixedStr_Copy)(  // FixedStr_Copy
         dst, &copied, 0x7f, stem, length);
     dst[0x7f] = static_cast<char>(copied);
     return dst;
@@ -744,7 +747,7 @@ void XB_CDECL Info_RemoveKey_Big(char* info, const char* key) {
 }
 
 uint32_t XB_CDECL Cvar_Set(const char* name, const char* value) {
-    return title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 1);  // Cvar_Set2
+    return own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(name, value, 1);  // Cvar_Set2
 }
 
 namespace {
@@ -785,8 +788,8 @@ void XB_CDECL Cmd_RemoveCommand(const char* name) {
          cmd = reinterpret_cast<uint32_t*>(uintptr_t{cmd[0]})) {
         if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{cmd[1]}))) {
             *back = cmd[0];
-            if (cmd[1]) title_function<ZFree>(0x000428d0)(reinterpret_cast<void*>(uintptr_t{cmd[1]}));  // Z_Free
-            title_function<ZFree>(0x000428d0)(cmd);
+            if (cmd[1]) own_function<ZFree>(&Z_Free)(reinterpret_cast<void*>(uintptr_t{cmd[1]}));  // Z_Free
+            own_function<ZFree>(&Z_Free)(cmd);
             return;
         }
         back = cmd;
@@ -809,18 +812,18 @@ void XB_CDECL Mem_AlignedFree(void* pointer) {
 void XB_STDCALL Mem_AlignedFreeCall(void* pointer) { Mem_AlignedFree(pointer); }
 
 void* XB_CDECL Z_MallocDebug(uint32_t size) {
-    return title_function<void* XB_CDECL(uint32_t)>(0x00042cb0)(size);  // Z_Malloc
+    return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size);  // Z_Malloc
 }
 
 void XB_CDECL FS_FreeFile(void* buffer) {
     if (!buffer) title_function<Break>(kBreak)(0, title_pointer<const char>(0x00837f10));  // "FS_FreeFile( NULL )"
     --title_global<int32_t>(0x00940a0c);  // fs_loadStack
-    title_function<void XB_CDECL(void*)>(0x000428d0)(buffer);  // Z_Free
+    own_function<void XB_CDECL(void*)>(&Z_Free)(buffer);  // Z_Free
 }
 
 void XB_CDECL Cvar_Reset_f() {
     if (title_global<int32_t>(0x00934248) != 2) return;  // cmd_argc
-    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+    own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(  // Cvar_Set2
         title_global<const char*>(0x0092df94), nullptr, 0);
 }
 
@@ -829,13 +832,13 @@ void XB_CDECL Cvar_SetCheatState() {
         if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & 0x200)) continue;  // CVAR_CHEAT
         const char* reset = *reinterpret_cast<const char**>(var + 8);
         if (!std::strcmp(reset, *reinterpret_cast<const char**>(var + 4))) continue;
-        title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+        own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(  // Cvar_Set2
             *reinterpret_cast<const char**>(var), reset, 1);
     }
 }
 
 uint32_t XB_CDECL FS_ListFiles(const char* path, const char* extension, int32_t* count) {
-    return title_function<uint32_t XB_CDECL(const char*, const char*, const char*, int32_t*)>(0x0029ea80)(  // FS_ListFilteredFiles
+    return own_function<uint32_t XB_CDECL(const char*, const char*, const char*, int32_t*)>(&FS_ListFilteredFiles)(  // FS_ListFilteredFiles
         path, extension, nullptr, count);
 }
 
@@ -862,7 +865,7 @@ void XB_CDECL Com_PushEvent(const uint32_t* event) {
     uint32_t* slot = title_pointer<uint32_t>(0x00940400 + (head & 0x3f) * 0x18);  // com_pushedEvents
     if (head - tail >= 0x40) {
         if (!title_global<uint32_t>(0x0098ad44)) title_global<uint32_t>(0x0098ad44) = 1;
-        if (slot[5]) title_function<void XB_CDECL(void*)>(0x000428d0)(reinterpret_cast<void*>(uintptr_t{slot[5]}));  // Z_Free
+        if (slot[5]) own_function<void XB_CDECL(void*)>(&Z_Free)(reinterpret_cast<void*>(uintptr_t{slot[5]}));  // Z_Free
         ++tail;
     } else {
         title_global<uint32_t>(0x0098ad44) = 0;
@@ -918,7 +921,7 @@ const char* XB_CDECL Cvar_InfoString(uint32_t bits) {
     info[0] = 0;
     for (uint8_t* var = title_global<uint8_t*>(0x0093fcec); var; var = *reinterpret_cast<uint8_t**>(var + 0x24)) {
         if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & bits)) continue;
-        title_function<void XB_REGS3 XB_CDECL(const char*, uint32_t, const char*, char*)>(0x002aff40)(  // Info_SetValueForKey
+        own_function<void XB_REGS3 XB_CDECL(const char*, uint32_t, const char*, char*)>(&Info_SetValueForKey)(  // Info_SetValueForKey
             *reinterpret_cast<const char**>(var + 4), 0, *reinterpret_cast<const char**>(var), info);
     }
     return info;
@@ -933,7 +936,7 @@ const char* XB_CDECL Cvar_InfoString_Big(uint32_t bits) {
     info[0] = 0;
     for (uint8_t* var = title_global<uint8_t*>(0x0093fcec); var; var = *reinterpret_cast<uint8_t**>(var + 0x24)) {
         if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & bits)) continue;
-        title_function<void XB_REGS1 XB_CDECL(const char*, char*, const char*)>(0x002afdb0)(  // Info_SetValueForKey_Big
+        own_function<void XB_REGS1 XB_CDECL(const char*, char*, const char*)>(&Info_SetValueForKey_Big)(  // Info_SetValueForKey_Big
             *reinterpret_cast<const char**>(var), info, *reinterpret_cast<const char**>(var + 4));
     }
     return info;
@@ -942,7 +945,7 @@ const char* XB_CDECL Cvar_InfoString_Big(uint32_t bits) {
 int32_t XB_CDECL Cvar_WriteNamedValues(const char* const* names, int32_t count, char* buffer, int32_t size) {
     using Snprintf = int32_t XB_CDECL(char*, int32_t, const char*, const char*, const char*);
     for (int32_t i = 0; i < count; ++i) {
-        const uint8_t* var = title_function<const uint8_t* XB_CDECL(const char*)>(0x00299710)(names[i]);  // Cvar_FindVar
+        const uint8_t* var = own_function<const uint8_t* XB_CDECL(const char*)>(&Cvar_FindVar)(names[i]);  // Cvar_FindVar
         const char* value = var ? *reinterpret_cast<const char* const*>(var + 4) : title_pointer<const char>(0x0082dfeb);
         const int32_t written = title_function<Snprintf>(0x001eebff)(  // _snprintf
             buffer, size, title_pointer<const char>(0x00834544), names[i], value);  // "%s \"%s\"\n"
@@ -976,7 +979,7 @@ void XB_CDECL MSG_WriteString(const char* text, uint8_t* msg) {
 }
 
 uint8_t* XB_CDECL Cvar_FindVar(const char* name) {
-    const int32_t hash = title_function<int32_t XB_REGS1 XB_CDECL(const char*)>(0x00296f60)(name);  // generateHashValue
+    const int32_t hash = own_function<int32_t XB_REGS1 XB_CDECL(const char*)>(&generateHashValue)(name);  // generateHashValue
     for (uint8_t* var = title_global<uint8_t*>(0x009472f8 + hash * 4); var;
          var = *reinterpret_cast<uint8_t**>(var + 0x28)) {
         const char* var_name = *reinterpret_cast<const char**>(var);
@@ -997,12 +1000,12 @@ void XB_CDECL Cvar_SetValue(const char* name, float value) {
         std::memcpy(&args[1], &d, 8);
         Com_sprintf(text, 0x20, args);
     }
-    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, text, 1);  // Cvar_Set2
+    own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(name, text, 1);  // Cvar_Set2
 }
 
 void XB_REGS1 XB_CDECL Cvar_SetByVmIndex(const char* value, uint8_t* vm_cvar) {
     const uint32_t handle = *reinterpret_cast<uint32_t*>(vm_cvar);
-    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+    own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(  // Cvar_Set2
         title_global<const char*>(0x00940a10 + handle * 0x2c), value, 1);
     Cvar_Update(vm_cvar);
 }
@@ -1096,8 +1099,8 @@ void XB_REGS1 XB_CDECL FS_FreePackList(uint8_t* pack) {
     using ZFree = void XB_CDECL(void*);
     while (pack) {
         uint8_t* next = *reinterpret_cast<uint8_t**>(pack + 0x90);
-        title_function<ZFree>(0x000428d0)(*reinterpret_cast<void**>(pack + 0x8c));  // Z_Free
-        title_function<ZFree>(0x000428d0)(pack);
+        own_function<ZFree>(&Z_Free)(*reinterpret_cast<void**>(pack + 0x8c));  // Z_Free
+        own_function<ZFree>(&Z_Free)(pack);
         pack = next;
     }
 }
@@ -1105,8 +1108,8 @@ void XB_REGS1 XB_CDECL FS_FreePackList(uint8_t* pack) {
 void XB_CDECL FS_FreeFileList(char** list) {
     using ZFree = void XB_CDECL(void*);
     if (!list) return;
-    for (char** p = list; *p; ++p) title_function<ZFree>(0x000428d0)(*p);  // Z_Free
-    title_function<ZFree>(0x000428d0)(list);
+    for (char** p = list; *p; ++p) own_function<ZFree>(&Z_Free)(*p);  // Z_Free
+    own_function<ZFree>(&Z_Free)(list);
 }
 
 PLATFORM_ASM_ENTRY(FS_AddFileToList_entry,
@@ -1183,11 +1186,11 @@ void XB_CDECL Cvar_Shutdown() {
             for (int32_t i = 0; i < 3; ++i) {
                 void*& string = *reinterpret_cast<void**>(var + kStrings[i]);
                 if (string) {
-                    title_function<ZFree>(0x000428d0)(string);  // Z_Free
+                    own_function<ZFree>(&Z_Free)(string);  // Z_Free
                     string = nullptr;
                 }
             }
-            title_function<ZFree>(0x000428d0)(*reinterpret_cast<void**>(var));
+            own_function<ZFree>(&Z_Free)(*reinterpret_cast<void**>(var));
             *reinterpret_cast<void**>(var) = nullptr;
         }
         head = nullptr;
@@ -1328,7 +1331,7 @@ const char* cmd_argv_or_empty(uint32_t index) {
 
 void set_and_flag(uint32_t flag) {
     if (title_global<int32_t>(0x00934248) != 3) return;
-    title_function<void XB_CDECL()>(0x0029e3d0)();  // Cvar_Set_f
+    own_function<void XB_CDECL()>(&Cvar_Set_f)();  // Cvar_Set_f
     if (uint8_t* var = Cvar_FindVar(cmd_argv_or_empty(1))) *reinterpret_cast<uint32_t*>(var + 0x10) |= flag;
 }
 
@@ -1349,7 +1352,7 @@ void XB_CDECL Cvar_Restart_f() {
                 static const uint32_t kStrings[4] = {0, 4, 0xc, 8};  // name, string, latched, reset
                 for (int32_t i = 0; i < 4; ++i)
                     if (void* string = *reinterpret_cast<void**>(var + kStrings[i]))
-                        title_function<ZFree>(0x000428d0)(string);  // Z_Free
+                        own_function<ZFree>(&Z_Free)(string);  // Z_Free
                 *reinterpret_cast<uint32_t*>(var) = 0;
                 continue;
             }
@@ -1367,7 +1370,7 @@ void XB_CDECL Com_StartupVariable(const char* match) {
         const char* name = cmd_argv_or_empty(1);
         if (match && std::strcmp(name, match)) continue;
         title_function<CvarSet2>(kCvarSet2)(name, cmd_argv_or_empty(2), 1);
-        uint8_t* var = title_function<uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+        uint8_t* var = own_function<uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Get)(  // Cvar_Get
             name, title_pointer<const char>(0x0082dfeb), 0);
         *reinterpret_cast<uint32_t*>(var + 0x10) |= 0x80;  // CVAR_USER_CREATED
     }
@@ -1739,12 +1742,12 @@ uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags) 
         }
         if (char* latched = cvar_field<char*>(var, 0xc)) {
             cvar_field<char*>(var, 0xc) = nullptr;
-            title_function<Set2>(0x0029c030)(name, latched, 1);  // Cvar_Set2
+            own_function<Set2>(&Cvar_Set2)(name, latched, 1);  // Cvar_Set2
             title_function<ZFreeFn>(kZFree)(latched);
         }
-        if (flags & 0x40) title_function<Set2>(0x0029c030)(name, value, 1);
+        if (flags & 0x40) own_function<Set2>(&Cvar_Set2)(name, value, 1);
         if ((cvar_field<uint32_t>(var, 0x10) & 0x200) && title_global<uint8_t*>(0x00940358) && cheats_off())
-            title_function<Set2>(0x0029c030)(name, value, 1);
+            own_function<Set2>(&Cvar_Set2)(name, value, 1);
         return var;
     }
     int32_t& count = title_global<int32_t>(0x009476f8);  // cvar_numIndexes

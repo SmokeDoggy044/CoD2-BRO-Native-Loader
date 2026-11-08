@@ -10,6 +10,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_exploder.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -37,7 +39,7 @@ constexpr uint32_t kBusy = 0x14b95ada;      // the owner moves AI (bool)
 
 // The inlined element access: &data[i], the array resized to (i + 1, i + 4) first when i >= count.
 inline uint32_t* element_at(DynArray* array, uint32_t i) {
-    if (i >= array->size) title_function<Resize>(0x00015a90)(array, i + 1, i + 4);  // DynArray_Resize
+    if (i >= array->size) own_function<Resize>(&DynArray_Resize)(array, i + 1, i + 4);  // DynArray_Resize
     return &array->data[i];
 }
 // The inlined erase of element `index` (elements after it moved down one, the count decremented).
@@ -59,13 +61,13 @@ inline DynArray* found_array(uint32_t ent, uint32_t key) {
     uint32_t* value = ScriptKeyTable_Find(table, key);
     if (!value) {
         const uint32_t empty[3] = {0, 0, 0};
-        value = title_function<SetArray>(0x0045cc80)(table, key, empty);  // ScriptKeyTable_SetArray
+        value = own_function<SetArray>(&ScriptKeyTable_SetArray)(table, key, empty);  // ScriptKeyTable_SetArray
     }
     return pointer<DynArray>(*value);
 }
 // The entity's array field (ScriptKeyTable_GetArray).
 inline DynArray* get_array(uint32_t ent, uint32_t key) {
-    return title_function<GetArray>(0x0045cd50)(ent_script_object(ent), key);
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(ent), key);
 }
 inline int32_t count_of(const DynArray* array) { return static_cast<int32_t>(array->size); }
 
@@ -275,7 +277,7 @@ void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent) {
         }
 
         // The living AI at node 0.
-        title_function<Resize>(0x00015a90)(&ready, 0, 0);  // DynArray_Resize
+        own_function<Resize>(&DynArray_Resize)(&ready, 0, 0);  // DynArray_Resize
         for (uint32_t i = 1; static_cast<int32_t>(i - 1) < count_of(found_array(ent, kAI)); ++i) {
             if (!entity_handle_is_valid(*element_at(found_array(ent, kAI), i - 1))) continue;
             if (!is_alive(*element_at(found_array(ent, kAI), i - 1))) continue;
@@ -389,8 +391,8 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
         slot<void XB_CDECL(uint32_t)>(0x00922540)(*element_at(level_array(0x8c), i));  // GScr_Delete
     for (uint32_t i = 0; static_cast<int32_t>(i) < count_of(level_array(0x98)); ++i)
         slot<void XB_CDECL(uint32_t)>(0x00922540)(*element_at(level_array(0x98), i));  // GScr_Delete
-    title_function<Resize>(0x00015a90)(level_array(0x8c), 0, 0);  // DynArray_Resize
-    title_function<Resize>(0x00015a90)(level_array(0x98), 0, 0);
+    own_function<Resize>(&DynArray_Resize)(level_array(0x8c), 0, 0);  // DynArray_Resize
+    own_function<Resize>(&DynArray_Resize)(level_array(0x98), 0, 0);
 
     if (movers.rep) {
         int32_t n = 0;
@@ -399,7 +401,7 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
             ScriptString name;
             set_string(mover, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
             scr_release(&name);
-            title_function<BuildTargetChain>(0x001b3250)(mover, ent, 1);  // BroScr_BuildTargetChain (third word unused)
+            own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(mover, ent, 1);  // BroScr_BuildTargetChain (third word unused)
             start_on(0x001b4130, mover);  // BroScr_HangarChainMoverThink
             DynArray_PushBack(reinterpret_cast<uint8_t*>(level_array(0x8c)), &mover);
             ++n;
@@ -412,7 +414,7 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
             ScriptString name;
             set_string(owner, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
             scr_release(&name);
-            title_function<BuildTargetChain>(0x001b3250)(owner, ent, 0);  // BroScr_BuildTargetChain
+            own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(owner, ent, 0);  // BroScr_BuildTargetChain
             start_on(0x001bc7c0, owner);  // BroScr_HangarChainAIThink
             push_back_inline(level_array(0x98), owner);
             ++n;

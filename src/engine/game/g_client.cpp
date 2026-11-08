@@ -11,6 +11,8 @@
 #include "qcommon_fs.h"
 #include "sv.h"
 #include "title_data.h"
+#include "g_script.h"
+#include "qcommon.h"
 
 namespace game {
 
@@ -223,7 +225,7 @@ int32_t XB_REGS3 XB_CDECL Pickup_Ammo(uint8_t* other, uint32_t, uint8_t* ent) {
     const uint32_t handle = field<uint32_t>(other, 0x224);
     using Va = char* XB_CDECL(const char*, ...);
     const uint32_t format = field<uint32_t>(const_cast<uint8_t*>(def), 0x6ec) ? 0x0083b77c : 0x0083b760;
-    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{format}),
+    SV_GameSendServerCommand(own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{format}),
                                                             field<uint32_t>(const_cast<uint8_t*>(def), 0xc)),
                              handle);
     uint32_t number = field<uint32_t>(other, 0x224);
@@ -253,14 +255,14 @@ void XB_CDECL ClientCommand(uint32_t handle) {
     using Stricmpn = int32_t XB_CDECL(const char*, const char*, int32_t);
     for (uint32_t i = 0; i < 0x12; ++i) {
         const char* const name = reinterpret_cast<const char*>(static_cast<uintptr_t>(title_global<uint32_t>(0x008ddae0 + i * 8)));
-        if (!title_function<Stricmpn>(0x000441c0)(command, name, 0xfffffff)) {  // Q_stricmpn
+        if (!own_function<Stricmpn>(&Q_stricmpn)(command, name, 0xfffffff)) {  // Q_stricmpn
             title_function<void XB_CDECL()>(title_global<uint32_t>(0x008ddae4 + i * 8))();
             return;
         }
     }
     for (uint32_t i = 0; i < 0x10; ++i) {
         const char* const name = reinterpret_cast<const char*>(static_cast<uintptr_t>(title_global<uint32_t>(0x008ddb70 + i * 8)));
-        if (!title_function<Stricmpn>(0x000441c0)(command, name, 0xfffffff)) {
+        if (!own_function<Stricmpn>(&Q_stricmpn)(command, name, 0xfffffff)) {
             title_function<void XB_CDECL(uint8_t*)>(title_global<uint32_t>(0x008ddb74 + i * 8))(ent);
             return;
         }
@@ -319,7 +321,7 @@ uint32_t XB_CDECL ClientConnect(uint32_t handle) {
     field<uint32_t>(ent, 0x23c) = address_of(client);
     uint8_t* const sentient = Sentient_Alloc();
     if (!sentient)
-        title_function<void XB_CDECL(const char*, ...)>(0x00248af0)(
+        own_function<void XB_CDECL(const char*, ...)>(&G_Error_entry)(
             reinterpret_cast<const char*>(uintptr_t{0x0083bd98}));  // G_Error "No sentient for player."
     field<uint32_t>(ent, 0x244) = address_of(sentient);
     field<uint32_t>(sentient, 0x0) = address_of(ent);
@@ -335,15 +337,15 @@ void XB_CDECL ClientDeathReload() {
     // 2 s and the sound fade.
     if (title_global<uint32_t>(0x0095bf9c)) return;
     using Va = char* XB_CDECL(const char*, ...);
-    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdc4}),
+    SV_GameSendServerCommand(own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x0083bdc4}),
                                                             title_global<int32_t>(0x0098540c) + 1000),
                              0);  // "scr_fade 1 %i 2000"
-    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(
+    own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(
         reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<const char*>(uintptr_t{0x0082e058}),
         1);  // Cvar_Set2 g_reloading "1"
     title_global<int32_t>(0x00985e28) = title_global<int32_t>(0x0098540c) + 2000;
     SV_GameSendServerCommand(
-        title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}), 2000), 0);  // "snd_fade 0 %d"
+        own_function<Va>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}), 2000), 0);  // "snd_fade 0 %d"
 }
 
 PLATFORM_ASM_ENTRY(G_ClientActivateTargetActor_entry,
@@ -516,7 +518,7 @@ uint8_t* XB_CDECL SelectSpawnPoint(const float* avoid, float* angles, float* ori
         if (spot == nearest) spot = SelectRandomDeathmatchSpawnPoint();
     }
     if (!spot)
-        title_function<int32_t XB_CDECL(const char*)>(0x00248af0)(
+        own_function<int32_t XB_CDECL(const char*)>(&G_Error_entry)(
             reinterpret_cast<const char*>(uintptr_t{0x0083bdd8}));  // G_Error "Couldn't find a spawn point"
     uint8_t* const e = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(spot));
     uint32_t* const out = reinterpret_cast<uint32_t*>(origin);
@@ -543,7 +545,7 @@ void XB_REGS1 XB_CDECL G_UpdatePlayerHeadEnt(uint8_t* ent) {
     AddLeanToPosition(position, field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
     uint8_t* head = pointer_at(pointer_at(ent, 0x23c), 0x5f0);
     if (!head) {
-        head = title_function<uint8_t* XB_REGS1 XB_CDECL(int32_t)>(0x002d7030)(-1);  // G_Spawn
+        head = own_function<uint8_t* XB_REGS1 XB_CDECL(int32_t)>(&G_Spawn)(-1);  // G_Spawn
         field<uint8_t*>(pointer_at(ent, 0x23c), 0x5f0) = head;
         head = pointer_at(pointer_at(ent, 0x23c), 0x5f0);
         const float low = title_global<float>(0x003f48ac);

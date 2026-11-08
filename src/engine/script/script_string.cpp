@@ -55,11 +55,11 @@ ScriptString* XB_THISCALL ScriptString_Copy(ScriptString* self, const ScriptStri
 }
 
 static void string_assign(ScriptString* dst, const ScriptString* src) {
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(dst, src);  // ScriptString_Assign
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(dst, src);  // ScriptString_Assign
 }
 
 static void string_release(ScriptString* string) {
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(string);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(string);  // ScriptString_Release
 }
 
 // The text's address as the original computes it: 0 for the empty string (kept as
@@ -197,7 +197,7 @@ ScriptStringRep* XB_CDECL ScriptString_Release(ScriptString* self) {
 uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value) {
     // The original's C++ exception frame around the temporary has no effect.
     ScriptString text;
-    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ded0)(&text, value);  // ScriptString_FromInt
+    own_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(&ScriptString_FromInt)(&text, value);  // ScriptString_FromInt
     const uint8_t equal = ScriptString_EqualsString(self, &text);
     string_release(&text);
     return equal;
@@ -206,8 +206,8 @@ uint8_t XB_CDECL ScriptString_EqualsInt(const ScriptString* self, int32_t value)
 // The original's C++ exception frames around the temporaries have no effect.
 ScriptString* XB_CDECL ScriptString_FromCStringPlusInt(ScriptString* out, const char* text, int32_t value) {
     ScriptString result{nullptr};
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&result, text);  // FromCString
-    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ec30)(&result, value);  // AppendInt
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(&result, text);  // FromCString
+    own_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(&ScriptString_AppendInt)(&result, value);  // AppendInt
     ScriptString_Copy(out, &result);
     string_release(&result);
     return out;
@@ -216,7 +216,7 @@ ScriptString* XB_CDECL ScriptString_FromCStringPlusInt(ScriptString* out, const 
 ScriptString* XB_CDECL ScriptString_PlusInt(ScriptString* out, const ScriptString* string, int32_t value) {
     ScriptString result{nullptr};
     ScriptString_Copy(&result, string);
-    title_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(0x0011ec30)(&result, value);  // AppendInt
+    own_function<ScriptString* XB_THISCALL(ScriptString*, int32_t)>(&ScriptString_AppendInt)(&result, value);  // AppendInt
     ScriptString_Copy(out, &result);
     string_release(&result);
     return out;
@@ -237,29 +237,29 @@ uint32_t XB_THISCALL ScriptString_GetChar(const ScriptString* self, uint32_t ind
 }
 
 ScriptStringRep* XB_THISCALL ScriptString_ReleaseAt20(uint8_t* self) {
-    return title_function<ScriptStringRep* XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0x20);  // ScriptString_Release
+    return own_function<ScriptStringRep* XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(self + 0x20);  // ScriptString_Release
 }
 
 // --- push 3 batch 3: rep allocation, assignment, conversion, append/substring/concat ---
 
 static uint32_t* scr_alloc(uint32_t size, uint32_t flags) {
-    return title_function<uint32_t* XB_CDECL(uint32_t, uint32_t)>(0x002fb3d0)(size, flags);  // Scr_Alloc
+    return own_function<uint32_t* XB_CDECL(uint32_t, uint32_t)>(&Scr_Alloc)(size, flags);  // Scr_Alloc
 }
 
 static void scr_free_rep(ScriptStringRep* rep) {
-    title_function<void XB_CDECL(ScriptStringRep*)>(0x002f5e10)(rep);  // Scr_Free
+    own_function<void XB_CDECL(ScriptStringRep*)>(&Scr_Free)(rep);  // Scr_Free
 }
 
 // The dec/compare of the original's inlined release (signed 16-bit count).
 static bool drop_ref(ScriptStringRep* rep) { return static_cast<int16_t>(--rep->refs) <= 0; }
 
 static ScriptStringRep* alloc_rep(const char* text, uint32_t length, uint32_t reserve) {
-    return title_function<ScriptStringRep* XB_CDECL(const char*, uint32_t, uint32_t)>(0x0011dcd0)(text, length,
+    return own_function<ScriptStringRep* XB_CDECL(const char*, uint32_t, uint32_t)>(&ScriptString_AllocRep)(text, length,
                                                                                                    reserve);  // ScriptString_AllocRep
 }
 
 static void rep_append(ScriptStringRep* rep, const char* text, uint32_t length) {
-    title_function<void XB_THISCALL(ScriptStringRep*, const char*, uint32_t)>(0x0011d580)(rep, text, length);  // ScriptStringRep_Append
+    own_function<void XB_THISCALL(ScriptStringRep*, const char*, uint32_t)>(&ScriptStringRep_Append_entry)(rep, text, length);  // ScriptStringRep_Append
 }
 
 // The original's inline strlen: 0 for a null or empty text.
@@ -305,7 +305,7 @@ ScriptStringRep* XB_CDECL ScriptString_AllocRep(const char* text, uint32_t lengt
     const uint32_t size = (needed + 0x26) & ~0x1fu;
     uint32_t* block = scr_alloc(size, 4);
     if (!block) return nullptr;
-    return title_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(0x0011d540)(
+    return own_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(&ScriptStringRep_Init)(
         block, size - 6, length, text);  // ScriptStringRep_Init
 }
 
@@ -391,7 +391,7 @@ ScriptString* XB_THISCALL ScriptString_FromFloat(ScriptString* self, float value
 ScriptString* XB_THISCALL ScrCall_sprintf(ScriptString* self, int32_t value) {
     char buffer[16];
     scr_sprintf()(buffer, title_text(0x008325b8), value);  // "%d"
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(self, buffer);  // AssignCString
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_AssignCString)(self, buffer);  // AssignCString
     return self;
 }
 
@@ -418,7 +418,7 @@ void XB_THISCALL ScriptString_Append(ScriptString* self, const char* text, uint3
     }
     ScriptStringRep* const fresh = alloc_rep(rep->text, old_length, total);
     rep_append(fresh, text, length);
-    title_function<void XB_THISCALL(ScriptStringRep*)>(0x0011d5b0)(self->rep);  // ScriptStringRep_Release
+    own_function<void XB_THISCALL(ScriptStringRep*)>(&ScriptStringRep_Release)(self->rep);  // ScriptStringRep_Release
     self->rep = fresh;
 }
 
@@ -442,7 +442,7 @@ ScriptString* XB_THISCALL ScriptString_Substring(ScriptString* self, ScriptStrin
     uint32_t* block = scr_alloc(size, 4);
     ScriptStringRep* fresh = nullptr;
     if (block)
-        fresh = title_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(0x0011d540)(
+        fresh = own_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(&ScriptStringRep_Init)(
             block, size - 6, count, text);  // ScriptStringRep_Init
     self->rep->text[end] = reinterpret_cast<const char*>(&start)[0];
     out->rep = fresh;
@@ -479,7 +479,7 @@ ScriptString* XB_CDECL ScriptString_Concat(ScriptString* out, const ScriptString
 }
 
 static void append(ScriptString* self, const char* text, uint32_t length) {
-    title_function<void XB_THISCALL(ScriptString*, const char*, uint32_t)>(0x0011e1c0)(self, text, length);  // ScriptString_Append
+    own_function<void XB_THISCALL(ScriptString*, const char*, uint32_t)>(&ScriptString_Append)(self, text, length);  // ScriptString_Append
 }
 
 ScriptString* XB_THISCALL ScriptString_FromCString(ScriptString* self, const char* text) {
@@ -573,7 +573,7 @@ void XB_THISCALL ScriptKeyTable_Clear(ScriptKeyTable* self) {
         ValueFunction* const release = release_for(self->entries[i].key, &slot);
         release(self->entries[i].value);
     }
-    title_function<void XB_CDECL(void*)>(0x002f5e10)(self->entries);  // Scr_Free
+    own_function<void XB_CDECL(void*)>(&Scr_Free)(self->entries);  // Scr_Free
     self->entries = nullptr;
 }
 
@@ -623,7 +623,7 @@ uint32_t* XB_THISCALL ScriptKeyTable_Set(ScriptKeyTable* self, uint32_t key, uin
             self->entries[i].key = old[i].key;
             self->entries[i].value = old[i].value;
         }
-        title_function<void XB_CDECL(void*)>(0x002f5e10)(old);  // Scr_Free
+        own_function<void XB_CDECL(void*)>(&Scr_Free)(old);  // Scr_Free
     }
     self->entries[self->count].key = key;
     self->entries[self->count].value = value;
@@ -649,7 +649,7 @@ ScriptKeyTable* XB_CDECL ScriptKeyTable_FromPairs(const uint32_t* pairs, int32_t
         value_lookup()(hash, &convert, nullptr, nullptr, &release);
         if (!convert) continue;
         const uint32_t converted = value_function(convert)(value);
-        title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, uint32_t)>(0x0011ea10)(table, hash,
+        own_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, uint32_t)>(&ScriptKeyTable_Set)(table, hash,
                                                                                                converted);  // Set
     }
     return table;
@@ -659,14 +659,14 @@ ScriptKeyTable* XB_CDECL ScriptKeyTable_Clone(const ScriptKeyTable* source) {
     // The original's C++ exception frame around the allocation has no effect.
     uint32_t* block = scr_alloc(0xc, 4);
     if (!block) return nullptr;
-    return title_function<ScriptKeyTable* XB_THISCALL(uint32_t*, const ScriptKeyTable*)>(0x0011e870)(
+    return own_function<ScriptKeyTable* XB_THISCALL(uint32_t*, const ScriptKeyTable*)>(&ScriptKeyTable_CopyConstruct)(
         block, source);  // ScriptKeyTable_CopyConstruct
 }
 
 void XB_CDECL ScriptKeyTable_Delete(ScriptKeyTable* table) {
     if (!table) return;
-    title_function<void XB_THISCALL(ScriptKeyTable*)>(0x0011e910)(table);  // ScriptKeyTable_Clear
-    title_function<void XB_CDECL(void*)>(0x002f5e10)(table);  // Scr_Free
+    own_function<void XB_THISCALL(ScriptKeyTable*)>(&ScriptKeyTable_Clear)(table);  // ScriptKeyTable_Clear
+    own_function<void XB_CDECL(void*)>(&Scr_Free)(table);  // Scr_Free
 }
 
 static uint32_t title_strchr(const char* chars, int32_t c) {
@@ -685,7 +685,7 @@ static void take_piece(ScriptString* self, ScriptString* piece) {
 }
 
 static void substring(ScriptString* self, ScriptString* out, uint32_t start, uint32_t count) {
-    title_function<ScriptString* XB_THISCALL(ScriptString*, ScriptString*, uint32_t, uint32_t)>(0x0011e290)(
+    own_function<ScriptString* XB_THISCALL(ScriptString*, ScriptString*, uint32_t, uint32_t)>(&ScriptString_Substring)(
         self, out, start, count);  // ScriptString_Substring
 }
 
@@ -735,7 +735,7 @@ ScriptString* XB_CDECL ScriptString_ConcatCString(ScriptString* out, const Scrip
     }
     ScriptStringRep* const rep = string->rep;
     if (!rep || !rep->length) {
-        title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // FromCString
+        own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(out, text);  // FromCString
         return out;
     }
     const uint32_t length = rep->length;
@@ -760,7 +760,7 @@ ScriptStringRep* XB_CDECL ScriptString_NewRepFromCString(const char* text) {
     const uint32_t size = (length + 0x27) & ~0x1fu;
     uint32_t* block = scr_alloc(size, 4);
     if (!block) return nullptr;
-    return title_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(0x0011d540)(
+    return own_function<ScriptStringRep* XB_THISCALL(uint32_t*, uint32_t, uint32_t, const char*)>(&ScriptStringRep_Init)(
         block, size - 6, length, text);  // ScriptStringRep_Init
 }
 

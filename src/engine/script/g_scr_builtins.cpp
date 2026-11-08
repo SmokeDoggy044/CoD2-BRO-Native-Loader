@@ -33,6 +33,7 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
+#include "scr_field.h"
 
 namespace game {
 
@@ -361,9 +362,9 @@ double x87_widen(float value) {
 void check_hud_time(float time, uint32_t too_small, uint32_t too_large) {
     using Va = const char* XB_CDECL(const char*, double);
     if (time <= 0.0f) {  // comiss 0, time; jb: NaN goes on to the second test (also false)
-        title_function<Va>(0x002a93d0)(&title_global<char>(too_small), x87_widen(time));  // va
+        own_function<Va>(&va_entry)(&title_global<char>(too_small), x87_widen(time));  // va
     } else if (time > title_global<float>(0x0083eb3c)) {  // 60
-        title_function<Va>(0x002a93d0)(&title_global<char>(too_large), x87_widen(time));  // va
+        own_function<Va>(&va_entry)(&title_global<char>(too_large), x87_widen(time));  // va
     }
 }
 
@@ -374,7 +375,7 @@ int32_t hud_time_ms(float time) {
 
 // va with only a format (the shipped build's script error messages: formatted, then dropped).
 void va_message(uint32_t format) {
-    title_function<const char* XB_CDECL(const char*)>(0x002a93d0)(&title_global<char>(format));  // va
+    own_function<const char* XB_CDECL(const char*)>(&va_entry)(&title_global<char>(format));  // va
 }
 
 // The vehicle (+0x248) of the handle's entity, or null.
@@ -420,7 +421,7 @@ uint32_t weapon_slot(const ScriptString* name) {
         }
     }
     if (slot == 0)
-        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
             &title_global<char>(0x00831cb0), script_text(name));  // "Unknown weaponslot name %s. ..."
     return slot;
 }
@@ -532,17 +533,17 @@ void XB_CDECL GScr_LoadConsts() {
     for (const NameSlot& row : kConstHashes) {
         const char* const text = title_text(row.text);
         const uint32_t hash = Com_HashKeyNoCase(0, text);
-        NameMap_Insert(title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(text), text);  // ScrIface_HashStringNoCase
+        NameMap_Insert(own_function<uint32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(text), text);  // ScrIface_HashStringNoCase
         title_global<uint32_t>(row.slot) = hash;
     }
     uint32_t temp;
     for (const NameSlot& row : kConstStrings) {
-        title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&temp, title_text(row.text));  // ScriptString_FromCString
-        title_function<void XB_THISCALL(uint32_t, uint32_t*)>(0x0011d600)(row.slot, &temp);  // ScriptString_Assign
-        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&temp);                     // ScriptString_Release
+        own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&temp, title_text(row.text));  // ScriptString_FromCString
+        own_function<void XB_THISCALL(uint32_t, uint32_t*)>(&ScriptString_Assign_entry)(row.slot, &temp);  // ScriptString_Assign
+        own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&temp);                     // ScriptString_Release
     }
     for (const NameSlot& row : kConstCStrings)
-        title_function<void XB_THISCALL(uint32_t, const char*)>(0x0011dd20)(row.slot, title_text(row.text));  // ScriptString_AssignCString
+        own_function<void XB_THISCALL(uint32_t, const char*)>(&ScriptString_AssignCString)(row.slot, title_text(row.text));  // ScriptString_AssignCString
 }
 
 void XB_CDECL GScr_ClearEntFlag4000000(uint32_t handle) { clear_ent_flag<0x4000000>(handle); }
@@ -641,7 +642,7 @@ void XB_CDECL GScr_EmptyStub183() {}
 
 uint32_t XB_CDECL GScr_GetDifficulty(ScriptString* out) {
     const uint32_t text = title_global<uint32_t>(0x008d20d0 + title_global<uint32_t>(0x00950b3c) * 4);
-    return title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    return own_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 int32_t XB_CDECL GScr_GetTime() { return title_global<int32_t>(0x0098540c); }
@@ -938,7 +939,7 @@ void XB_CDECL GScr_Vehicle_GetWheelSurface(uint32_t handle, uint32_t wheel, Scri
     const uint32_t def = title_global<uint32_t>(0x00950a28 + field<int16_t>(vehicle, 0x178) * 4);  // g_vehicleDefs
     const uint16_t type = field<uint16_t>(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(def)), 0x20);
     if (type != 2 && type != 1)
-        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(  // va
             &title_global<char>(0x00831998), def);  // "Vehicle type [%s] has no wheels\n"
     static const uint32_t kWheels[] = {0x0097a7c8, 0x0097a7cc, 0x0097a7d0, 0x0097a7d4, 0x0097a7d8, 0x0097a7dc};
     uint32_t index = 0;
@@ -956,7 +957,7 @@ void XB_CDECL GScr_Vehicle_GetWheelSurface(uint32_t handle, uint32_t wheel, Scri
         text = 0x00831f70;  // "default"
     else
         text = title_global<uint32_t>(0x008d4d08 + surface * 16);
-    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    own_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 void XB_CDECL GScr_Vehicle_SetSpeedMode2(uint32_t handle, float speed) {
@@ -1100,12 +1101,12 @@ void XB_CDECL GScr_CheckWeaponSlot(uint32_t handle, const ScriptString* slot, co
         const char* const name = script_text(weapon_name);
         if (name && *name) weapon = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, name)) & 0xff;
         if (!weapon)
-            title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+            own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
                 &title_global<char>(0x00831c9c), script_text(weapon_name));  // "Unknown weapon %s."
         const uint32_t kind = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x9c);
         const bool mixed_primary = (kind == 1 || kind == 2) && (index == 1 || index == 2);
         if (kind != index && !mixed_primary)
-            title_function<const char* XB_CDECL(const char*, const char*, const char*, const char*)>(0x002a93d0)(  // va
+            own_function<const char* XB_CDECL(const char*, const char*, const char*, const char*)>(&va_entry)(  // va
                 &title_global<char>(0x00831c60), script_text(weapon_name),  // "Weapon %s goes in the %s weaponslot, ..."
                 title_text(title_global<uint32_t>(0x008d23a8 + kind * 4)),
                 title_text(title_global<uint32_t>(0x008d23a8 + index * 4)));
@@ -1126,10 +1127,10 @@ void XB_CDECL GScr_PlayerGetWeaponSlotWeapon(uint32_t handle, const ScriptString
     const uint32_t index = weapon_slot(slot);
     const int32_t weapon = field<int8_t>(field<uint8_t*>(ent, 0x23c), 0x3f8 + index);
     if (!weapon) {
-        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(out, 0x00984cb0);  // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Assign_entry)(out, 0x00984cb0);  // ScriptString_Assign
         return;
     }
-    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+    own_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(  // ScriptString_AssignCString
         out, field<uint32_t>(weapon_def(weapon), 0x8));
 }
 
@@ -1247,7 +1248,7 @@ void XB_CDECL GScr_PlayerGetCurrentWeapon(uint32_t handle, ScriptString* out) {
     if (!client) return;
     const int32_t weapon = field<int32_t>(client, 0x80);
     const uint32_t text = weapon > 0 ? field<uint32_t>(weapon_def(weapon), 0x8) : 0x00832430;  // "none"
-    title_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    own_function<uint32_t XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 void XB_CDECL GScr_PlayerTakeAllWeapons(uint32_t handle) {
@@ -1685,7 +1686,7 @@ void XB_CDECL GScr_SetSpawnerTeam(uint32_t handle, const ScriptString* team) {
         }
     }
     // The message gets the string's rep pointer, not its text (+6).
-    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+    own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(  // va
         &title_global<char>(0x00831edc), *reinterpret_cast<const uint32_t*>(team));  // "unknown team '%s', ..."
 }
 
@@ -1725,7 +1726,7 @@ void XB_CDECL GScr_ViewKick(uint32_t handle, int32_t damage, const float* point)
         static_cast<int32_t>(field<uint32_t>(ent, 0x354) * static_cast<uint32_t>(damage) + 50u);
     field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x5d4) = scaled / 100;
     if (field<int32_t>(field<uint8_t*>(ent, 0x23c), 0x5d4) < 0)
-        title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, double)>(&va_entry)(  // va
             &title_global<char>(0x00831f1c), static_cast<double>(damage));  // "viewkick: damage %g < 0\n"
     for (uint32_t i = 0; i < 3; ++i) {
         uint8_t* const client = field<uint8_t*>(ent, 0x23c);
@@ -1746,7 +1747,7 @@ uint8_t XB_CDECL GScr_Turret_GetFlag1(uint32_t handle) {
     if (!ent) return 0;
     uint8_t* const turret = field<uint8_t*>(ent, 0x24c);
     if (!turret) {
-        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
             &title_global<char>(0x00832094), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
         return 0;  // "entity type '%s' is not a turret"
     }
@@ -1764,7 +1765,7 @@ void XB_CDECL GScr_GetStance(uint32_t handle, ScriptString* out) {
         stance = 0x00984bd4;                      // "prone"
     else if (flags & 2)
         stance = 0x00984ae4;                      // "crouch"
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(out, stance);  // ScriptString_Assign
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Assign_entry)(out, stance);  // ScriptString_Assign
 }
 
 uint8_t XB_CDECL GScr_AnimHasNotetrack(uint32_t, uint32_t anim, const uint32_t* name) {
@@ -1789,7 +1790,7 @@ namespace {
 uint8_t* turret_or_message(uint8_t* ent) {
     uint8_t* const turret = field<uint8_t*>(ent, 0x24c);
     if (!turret)
-        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
             &title_global<char>(0x00832094), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
     return turret;
 }
@@ -1827,7 +1828,7 @@ void XB_CDECL GScr_SetCursorHint(uint32_t handle, const ScriptString* hint) {
     }
     // (A read-only walk over the table at 0x008dae48 follows: its printing was compiled out.) The message gets
     // the string's rep pointer, not its text.
-    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+    own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(  // va
         &title_global<char>(0x00831ff8), *reinterpret_cast<const uint32_t*>(hint));  // "%s is not a valid hint type..."
 }
 
@@ -1885,7 +1886,7 @@ void XB_CDECL GScr_Turret_SetTeam(uint32_t handle, const ScriptString* team) {
         field<uint32_t>(turret, 0x64) = 2;
     } else {
         // The string's rep pointer, not its text.
-        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(  // va
             &title_global<char>(0x00832050), *reinterpret_cast<const uint32_t*>(team));  // "unknown team '%s', ..."
     }
 }
@@ -1972,7 +1973,7 @@ void XB_CDECL GScr_SetNormalHealth(uint32_t handle, float fraction) {
     if (fraction > one) {
         fraction = one;
     } else if (fraction <= 0.0f) {  // comiss 0, fraction; jb: NaN skips the message
-        title_function<const char* XB_CDECL(const char*, double, int32_t, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, double, int32_t, const char*)>(&va_entry)(  // va
             &title_global<char>(0x00832168), x87_widen(fraction), field<int32_t>(ent, 0x224),
             targetname_or_unset(ent));  // "setNormalHealth must be greater than 0 (tried to set %g on ent %i, ..."
     }
@@ -1982,7 +1983,7 @@ void XB_CDECL GScr_SetNormalHealth(uint32_t handle, float fraction) {
     } else {
         const int32_t max = field<int32_t>(ent, 0x354);
         if (max <= 0) {
-            title_function<const char* XB_CDECL(const char*, int32_t, const char*)>(0x002a93d0)(  // va
+            own_function<const char* XB_CDECL(const char*, int32_t, const char*)>(&va_entry)(  // va
                 &title_global<char>(0x00832110), field<int32_t>(ent, 0x224),
                 targetname_or_unset(ent));  // "entity's max health must be greater than 0 to call setNormalHealth ..."
             return;
@@ -2072,12 +2073,12 @@ uint8_t XB_CDECL GScr_TestEntBit299(uint32_t handle, uint32_t bit) {
 
 void XB_CDECL GScr_GetAttachTagName(uint32_t handle, ScriptString* out, int32_t index) {
     if (uint8_t* const ent = handle_entity(handle))
-        title_function<void XB_THISCALL(ScriptString*, uint8_t*)>(0x0011d600)(out, ent + 0x3dc + index * 8);  // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*, uint8_t*)>(&ScriptString_Assign_entry)(out, ent + 0x3dc + index * 8);  // ScriptString_Assign
 }
 
 void XB_CDECL GScr_GetAttachModelName(uint32_t handle, ScriptString* out, int32_t index) {
     if (uint8_t* const ent = handle_entity(handle))
-        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+        own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(  // ScriptString_AssignCString
             out, field<uint32_t>(field<uint8_t*>(ent, 0x3d8 + index * 8), 0x48));  // the model's name
 }
 
@@ -2126,11 +2127,11 @@ int32_t XB_CDECL GScr_GetNode(const ScriptString* value, const ScriptString* key
     using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
     using Release = void XB_THISCALL(ScriptString*);
     ScriptString key_copy, value_copy;  // the original builds the value copy in its first argument slot
-    title_function<FromCString>(0x0011eb50)(&key_copy, script_text(key));
-    title_function<FromCString>(0x0011eb50)(&value_copy, script_text(value));
+    own_function<FromCString>(&ScriptString_FromCString)(&key_copy, script_text(key));
+    own_function<FromCString>(&ScriptString_FromCString)(&value_copy, script_text(value));
     const int32_t result = PathNode_FindByKey(&key_copy, title_global<uint8_t*>(0x0095f4f4), &value_copy, out);
-    title_function<Release>(0x0011d640)(&value_copy);  // ScriptString_Release
-    title_function<Release>(0x0011d640)(&key_copy);
+    own_function<Release>(&ScriptString_Release_entry)(&value_copy);  // ScriptString_Release
+    own_function<Release>(&ScriptString_Release_entry)(&key_copy);
     return result;
 }
 
@@ -2155,11 +2156,11 @@ uint32_t weapon_by_id(uint32_t id) {
 // "unknown weapon" messages skip the unset id (0xfefefefe) and "none".
 void unknown_weapon_message(uint32_t id, uint32_t format) {
     if (id != 0xfefefefe && id != title_global<uint32_t>(0x0097a86c))  // scr_const_none
-        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(&title_global<char>(format), id);  // va
+        own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(&title_global<char>(format), id);  // va
 }
 
 ScriptString* script_from_text(ScriptString* out, const char* text) {
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // ScriptString_FromCString
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(out, text);  // ScriptString_FromCString
     return out;
 }
 
@@ -2178,7 +2179,7 @@ ScriptString* weapon_classname(ScriptString* out, uint32_t id) {
         current = field<uint32_t>(weapon_def(static_cast<int32_t>(current)), 0x718);
         if (!current || current == weapon) break;
     }
-    title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(  // va
+    own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(  // va
         &title_global<char>(0x008324d8), id);  // "^3WARNING^7: no Radiant name found for weapon '%d' ..."
     return script_from_text(out, title_text(0x0082dfeb));
 }
@@ -2215,12 +2216,12 @@ int32_t XB_CDECL GScr_GetLevelEnt8Handle() {
 void XB_REGS3 XB_CDECL GScr_ReturnObstacleKind(uint32_t, uint32_t, ScriptString* out, uint32_t handle) {
     using Assign = void XB_THISCALL(ScriptString*, uint32_t);
     if (!handle) {
-        title_function<Assign>(0x0011d600)(out, 0x00984cb0);  // ScriptString_Assign(scr_string_none)
+        own_function<Assign>(&ScriptString_Assign_entry)(out, 0x00984cb0);  // ScriptString_Assign(scr_string_none)
         return;
     }
     // A stale handle reads entity 0 (null) as the original does.
     uint8_t* const ent = handle_entity(handle);
-    title_function<Assign>(0x0011d600)(
+    own_function<Assign>(&ScriptString_Assign_entry)(
         out, (field<uint32_t>(ent, 0x2a4) & 0x4000) ? 0x00984cb4 : 0x00984cb8);  // scr_string_obstacle / _world
 }
 
@@ -2249,11 +2250,11 @@ void XB_CDECL GScr_WeaponType(ScriptString* out, const ScriptString* weapon_name
     using AssignCString = void XB_THISCALL(ScriptString*, const char*);
     const uint32_t weapon = weapon_from_name(weapon_name);
     if (!weapon) {
-        title_function<AssignCString>(0x0011dd20)(out, title_text(0x00832430));  // "none"
+        own_function<AssignCString>(&ScriptString_AssignCString)(out, title_text(0x00832430));  // "none"
         return;
     }
     const uint32_t type = field<uint32_t>(weapon_def(static_cast<int32_t>(weapon)), 0x94);
-    title_function<AssignCString>(0x0011dd20)(out, title_text(title_global<uint32_t>(0x008d237c + type * 4)));
+    own_function<AssignCString>(&ScriptString_AssignCString)(out, title_text(title_global<uint32_t>(0x008d237c + type * 4)));
 }
 
 int32_t XB_CDECL GScr_WeaponGet_6d8(const ScriptString* weapon_name) {
@@ -2339,7 +2340,7 @@ uint8_t XB_CDECL GScr_EntHasNotifyListener(uint32_t handle, uint32_t name, uint3
     if (!ent || !field<uint8_t*>(ent, 0x230)) return 0;
     // 0x0029acb0 (EDX list, callee pops 8): the listener whose key (+8) is *name; calls its object's slot 1.
     using CallListener = uint8_t XB_REGS2 XB_STDCALL(uint32_t, uint8_t*, const uint32_t*, uint32_t);
-    return title_function<CallListener>(0x0029acb0)(0, field<uint8_t*>(ent, 0x230), &name, arg);
+    return own_function<CallListener>(&EntNotifyCallbacks_CallByKey)(0, field<uint8_t*>(ent, 0x230), &name, arg);
 }
 
 namespace {
@@ -2374,7 +2375,7 @@ void XB_CDECL GScr_Print3D(const float* origin, const ScriptString* text, const 
 
 void XB_CDECL GScr_ObjectiveToggleRing(int32_t index) {
     if (index < 0 || index >= 0x10) {
-        title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(&va_entry)(  // va
             &title_global<char>(0x00831b38), index, 0xf);  // "index %i is an illegal objective index. ..."
         return;
     }
@@ -2384,7 +2385,7 @@ void XB_CDECL GScr_ObjectiveToggleRing(int32_t index) {
     objective_info(configstring, info);
     const char* const ring = Info_ValueForKey(info, title_text(0x00831a24));  // "ring"
     const int32_t value = *ring ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(ring) : 0;  // _atol
-    const char* const text = title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(  // va
+    const char* const text = own_function<const char* XB_CDECL(const char*, int32_t)>(&va_entry)(  // va
         title_text(0x0082ded4), value == 0 ? 1 : 0);  // "%i"
     Info_SetValueForKey(text, 0, title_text(0x00831a24), info);
     SV_SetConfigstring(configstring, info);
@@ -2398,7 +2399,7 @@ void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin) {
     const int32_t z = static_cast<int32_t>(origin[2]);
     const int32_t y = static_cast<int32_t>(origin[1]);
     const int32_t x = static_cast<int32_t>(origin[0]);
-    const char* const text = title_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t)>(0x002a93d0)(
+    const char* const text = own_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t)>(&va_entry)(
         title_text(0x00831a30), x, y, z);  // va("%i %i %i")
     Info_SetValueForKey(text, 0, title_text(0x00831a2c), info);  // "org"
     SV_SetConfigstring(configstring, info);
@@ -2406,7 +2407,7 @@ void XB_CDECL GScr_ObjectivePosition(int32_t index, const float* origin) {
 
 void XB_CDECL GScr_ObjectiveDelete(int32_t index) {
     if (index < 0 || index >= 0x10) {
-        title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(&va_entry)(  // va
             &title_global<char>(0x00831b38), index, 0xf);
         return;
     }
@@ -2422,7 +2423,7 @@ void XB_CDECL GScr_ObjectiveDelete(int32_t index) {
 
 void XB_CDECL GScr_SetReverb(uint32_t handle, const ScriptString* name, float a, float b) {
     // The name goes in as the string's rep pointer, not its text.
-    const char* const text = title_function<const char* XB_CDECL(const char*, uint32_t, double, double)>(0x002a93d0)(
+    const char* const text = own_function<const char* XB_CDECL(const char*, uint32_t, double, double)>(&va_entry)(
         title_text(0x00831d48), *reinterpret_cast<const uint32_t*>(name), x87_widen(a),
         x87_widen(b));  // va("reverb \"%s\" %g %g")
     SV_GameSendServerCommand(text, handle);
@@ -2443,7 +2444,7 @@ void XB_CDECL GScr_ToggleNoclip() {
     }
     field<uint32_t>(client, 0x584) = noclip == 0;
     const uint32_t handle = field<uint32_t>(player, 0x224);
-    SV_GameSendServerCommand(title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+    SV_GameSendServerCommand(own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
                                  title_text(0x00831d5c), title_text(message)),  // "print \"%s\""
                              handle);
 }
@@ -2569,7 +2570,7 @@ void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString
     const int32_t top = field<int32_t>(actor, 0xbc);
     for (int32_t i = 0; i <= top; ++i) {
         if (field<int32_t>(actor, 0xa4 + i * 4) == 9) {
-            title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+            own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
                 &title_global<char>(0x00831dd0),
                 script_text(reinterpret_cast<const ScriptString*>(actor + 0xc8)));  // "enterCriticalSection: ..."
             break;
@@ -2578,10 +2579,10 @@ void XB_CDECL GScr_ActorBeginCriticalSection(uint32_t handle, const ScriptString
     Actor_PushState(actor, 9);
     ScriptString* const section = reinterpret_cast<ScriptString*>(actor + 0xc8);
     if (name) {
-        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(section, name);  // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(section, name);  // ScriptString_Assign
     } else {
         // Unnamed: the text the int hash map holds for the actor record's (+0x250) 16-bit +4.
-        title_function<void XB_THISCALL(ScriptString*, const uint8_t*)>(0x0011dd20)(  // ScriptString_AssignCString
+        own_function<void XB_THISCALL(ScriptString*, const uint8_t*)>(&ScriptString_AssignCString)(  // ScriptString_AssignCString
             section, IntHashMap_FindValue(field<uint16_t>(field<uint8_t*>(actor, 0x250), 4)));
     }
 }
@@ -2598,8 +2599,8 @@ void start_shake_rumble(uint8_t* desc) {
         uint32_t id;  // the original lets ShakeRumble_Start write it into one of its argument slots
         ShakeRumble_Start(desc, manager, &id, 1.0f);
     }
-    title_function<ReleaseFn>(0x0011d640)(reinterpret_cast<ScriptString*>(desc + 0x38));  // ScriptString_Release
-    title_function<ReleaseFn>(0x0011d640)(reinterpret_cast<ScriptString*>(desc + 0x18));
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(reinterpret_cast<ScriptString*>(desc + 0x38));  // ScriptString_Release
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(reinterpret_cast<ScriptString*>(desc + 0x18));
 }
 
 const char* cvar_string_or_empty(uint32_t name) {
@@ -2641,14 +2642,14 @@ void XB_CDECL GScr_ShakeRumbleNamed(const ScriptString* rumble, float strength, 
     ShakeRumbleDesc_Init(desc);
     const float zero = title_global<float>(0x0083eafc);
     if (strength > zero) {
-        title_function<AssignFn>(0x0011d600)(reinterpret_cast<ScriptString*>(desc + 0x18), shake);  // ScriptString_Assign
+        own_function<AssignFn>(&ScriptString_Assign_entry)(reinterpret_cast<ScriptString*>(desc + 0x18), shake);  // ScriptString_Assign
         field<uint32_t>(desc, 0x10) = shake_time;
         field<float>(desc, 8) = title_global<float>(0x0083eb20);
     } else {
         field<uint8_t>(desc, 0) = 0;
     }
     if (strength > zero) {
-        title_function<AssignFn>(0x0011d600)(reinterpret_cast<ScriptString*>(desc + 0x38), rumble);
+        own_function<AssignFn>(&ScriptString_Assign_entry)(reinterpret_cast<ScriptString*>(desc + 0x38), rumble);
         field<float>(desc, 0x30) = strength;
         field<float>(desc, 0x28) = title_global<float>(0x0083eb20);
     } else {
@@ -2695,20 +2696,20 @@ void XB_CDECL GScr_Delete(uint32_t handle) {
 uint32_t XB_CDECL GScr_CheckScriptAnimTreeCvars() {
     using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
     ScriptString tree, name;
-    title_function<FromCString>(0x0011eb50)(&tree, cvar_string_or_empty(0x008322b4));  // "script_animtree"
-    title_function<FromCString>(0x0011eb50)(&name, cvar_string_or_empty(0x008322a8));  // "script_name"
+    own_function<FromCString>(&ScriptString_FromCString)(&tree, cvar_string_or_empty(0x008322b4));  // "script_animtree"
+    own_function<FromCString>(&ScriptString_FromCString)(&name, cvar_string_or_empty(0x008322a8));  // "script_name"
     const char* const tree_text = script_text(&tree);
     const char* const name_text = script_text(&name);
     if (tree_text && *tree_text && name_text && *name_text) {
         // The callback at +0x86c of the object at 0x0095f49c.
         const uint32_t check = field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x86c);
         const uint32_t result = title_function<uint32_t XB_CDECL(const char*, const char*)>(check)(tree_text, name_text);
-        title_function<ReleaseFn>(0x0011d640)(&name);  // ScriptString_Release
-        title_function<ReleaseFn>(0x0011d640)(&tree);
+        own_function<ReleaseFn>(&ScriptString_Release_entry)(&name);  // ScriptString_Release
+        own_function<ReleaseFn>(&ScriptString_Release_entry)(&tree);
         return result;
     }
-    title_function<ReleaseFn>(0x0011d640)(&name);
-    title_function<ReleaseFn>(0x0011d640)(&tree);
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(&name);
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(&tree);
     return 0;
 }
 
@@ -2720,7 +2721,7 @@ ScriptString* XB_CDECL GScr_GetLocalizedString(ScriptString* out, uint32_t hash)
         text = field<const char*>(const_cast<uint8_t*>(entry), 8);
         if (!text) text = field<const char*>(const_cast<uint8_t*>(entry), 0xc);
     }
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(out, text);  // ScriptString_FromCString
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(out, text);  // ScriptString_FromCString
     return out;
 }
 
@@ -2742,7 +2743,7 @@ uint32_t XB_CDECL GScr_FindZone(const ScriptString* name) {
 }
 
 void XB_CDECL GScr_SetConfigstring9Float(float value) {
-    SV_SetConfigstring(9, title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+    SV_SetConfigstring(9, own_function<const char* XB_CDECL(const char*, double)>(&va_entry)(  // va
                               title_text(0x008324d4), x87_widen(value)));  // "%g"
 }
 
@@ -2753,19 +2754,19 @@ int32_t XB_CDECL GScr_GetKeyBinding(ScrStringArray* out, const ScriptString* com
     int32_t result = 0;
     const char* const text = script_text(command);
     if (const uint32_t vm = title_global<uint32_t>(0x0093f7f8)) {  // cgvm
-        result = title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint32_t, int32_t, const char*, const char**,
-                                                          const char**)>(0x002a84e0)(0, vm, 0xc, text, &key1, &key2);  // VM_Call
+        result = own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint32_t, int32_t, const char*, const char**,
+                                                          const char**)>(&VM_Call_entry)(0, vm, 0xc, text, &key1, &key2);  // VM_Call
     } else {
         key1 = title_text(0x008344d0);  // "KEY_UNBOUND"
         key2 = title_text(0x0082dfeb);  // ""
     }
     ScriptString temp;  // the original builds it in its second argument slot
-    title_function<FromCString>(0x0011eb50)(&temp, key1);
+    own_function<FromCString>(&ScriptString_FromCString)(&temp, key1);
     ScrStringArray_PushBack(out, &temp);
-    title_function<ReleaseFn>(0x0011d640)(&temp);
-    title_function<FromCString>(0x0011eb50)(&temp, key2);
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(&temp);
+    own_function<FromCString>(&ScriptString_FromCString)(&temp, key2);
     ScrStringArray_PushBack(out, &temp);
-    title_function<ReleaseFn>(0x0011d640)(&temp);
+    own_function<ReleaseFn>(&ScriptString_Release_entry)(&temp);
     return result;
 }
 
@@ -2775,9 +2776,9 @@ void XB_CDECL GScr_GetAI(uint8_t* out, const ScriptString* team) {
     const char* const text = script_text(team);
     if (text && *text) {
         ScriptString context;  // "getai", built in the original's second argument slot
-        title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&context, title_text(0x0083258c));
+        own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(&context, title_text(0x0083258c));
         mask = Scr_TeamFromString(team);
-        title_function<ReleaseFn>(0x0011d640)(&context);
+        own_function<ReleaseFn>(&ScriptString_Release_entry)(&context);
     }
     for (uint8_t* actor = Actor_FirstOfTeams(mask); actor && field<uint8_t*>(actor, 0);
          actor = Actor_NextOfTeams(actor, mask)) {
@@ -2815,19 +2816,19 @@ float title_ci_sqrt(float x) {
 // va with any arguments (the shipped build's script messages: formatted, then dropped).
 template <typename... A>
 const char* title_va(uint32_t format, A... args) {
-    return title_function<const char* XB_CDECL(const char*, A...)>(0x002a93d0)(title_text(format), args...);
+    return own_function<const char* XB_CDECL(const char*, A...)>(&va_entry)(title_text(format), args...);
 }
 
 using StringRelease = void XB_THISCALL(ScriptString*);
 using StringAssign = void XB_THISCALL(ScriptString*, const ScriptString*);
 using StringFromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
 
-void string_release(ScriptString* s) { title_function<StringRelease>(0x0011d640)(s); }
+void string_release(ScriptString* s) { own_function<StringRelease>(&ScriptString_Release_entry)(s); }
 ScriptString* string_from_rep(ScriptString* s) {
-    return title_function<ScriptString* XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(s, 0);  // ScriptString_FromRep
+    return own_function<ScriptString* XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(s, 0);  // ScriptString_FromRep
 }
 void string_copy(ScriptString* s, const ScriptString* other) {
-    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d5e0)(s, other);  // ScriptString_Copy
+    own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Copy)(s, other);  // ScriptString_Copy
 }
 uint32_t rep_word(const ScriptString* s) { return *reinterpret_cast<const uint32_t*>(s); }
 uint32_t string_length(const ScriptString* s) {
@@ -2888,7 +2889,7 @@ uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name) {
             buf, field<const char*>(const_cast<uint8_t*>(cvar), 4), 0x7f);
         buf[0x7f] = 0;
     }
-    return title_function<uint32_t XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(out, buf);  // ScriptString_AssignCString
+    return own_function<uint32_t XB_THISCALL(ScriptString*, const char*)>(&ScriptString_AssignCString)(out, buf);  // ScriptString_AssignCString
 }
 
 uint32_t XB_CDECL GScr_GetEntVar(uint32_t handle, uint32_t key, uint32_t callback) {
@@ -2904,7 +2905,7 @@ uint32_t XB_CDECL GScr_SetEntVar(uint32_t handle, uint32_t key, uint32_t callbac
     if (!ent) return 0;
     if (!field<uint8_t*>(ent, 0x234)) {
         uint8_t* list = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f568), 0x3c, 0);
-        if (list) list = title_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(0x002adfe0)(list);  // NotifyCallbackList_Init
+        if (list) list = own_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(&EntNotifyCallbacks_Init)(list);  // NotifyCallbackList_Init
         field<uint8_t*>(ent, 0x234) = list;
     }
     return G_EntityAddNotifyCallback(field<uint8_t*>(ent, 0x234), key, callback);
@@ -2932,7 +2933,7 @@ void XB_CDECL GScr_ObjectiveCurrent(int32_t index) {
     }
     ScriptString state;
     string_from_rep(&state);
-    title_function<StringAssign>(0x0011d600)(&state, &title_global<ScriptString>(0x00984ae0));  // ScriptString_Assign
+    own_function<StringAssign>(&ScriptString_Assign_entry)(&state, &title_global<ScriptString>(0x00984ae0));  // ScriptString_Assign
     G_SendObjectiveUpdate(&state, static_cast<uint32_t>(index));
     string_release(&state);
 }
@@ -2948,7 +2949,7 @@ void XB_CDECL GScr_ObjectiveState(int32_t index, const ScriptString* name) {
     const int32_t slot = index + 0x10;
     char info[0x100];
     objective_slot_info(slot, info);
-    title_function<StringAssign>(0x0011d600)(&state, name);
+    own_function<StringAssign>(&ScriptString_Assign_entry)(&state, name);
     uint32_t number;
     if (GScr_ObjectiveStateFromString(&state, &number)) {
         set_objective_state_key(info, number);
@@ -3022,7 +3023,7 @@ void XB_CDECL GScr_ObjectiveAddWithPosition(int32_t index, const ScriptString* s
 void XB_CDECL GScr_ObjectiveAddLocalizedWithPosition(int32_t index, const ScriptString* state, uint32_t hash,
                                                      const float* origin) {
     ScriptString text;
-    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));  // ScriptString_FromCString
+    own_function<StringFromCString>(&ScriptString_FromCString)(&text, localized_text(hash));  // ScriptString_FromCString
     GScr_ObjectiveAddWithPosition(index, state, &text, origin);
     string_release(&text);
 }
@@ -3032,7 +3033,7 @@ void XB_CDECL GScr_ObjectiveAddIntTextWithPosition(int32_t index, const ScriptSt
     char buf[0x400];
     int_text(buf, number);
     ScriptString text;
-    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    own_function<StringFromCString>(&ScriptString_FromCString)(&text, buf);
     GScr_ObjectiveAddWithPosition(index, state, &text, origin);
     string_release(&text);
 }
@@ -3081,7 +3082,7 @@ void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, c
 
 void XB_CDECL GScr_ObjectiveAddLocalized(int32_t index, const ScriptString* state, uint32_t hash) {
     ScriptString text;
-    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    own_function<StringFromCString>(&ScriptString_FromCString)(&text, localized_text(hash));
     GScr_ObjectiveAdd(index, state, &text);
     string_release(&text);
 }
@@ -3090,7 +3091,7 @@ void XB_CDECL GScr_ObjectiveAddIntText(int32_t index, const ScriptString* state,
     char buf[0x400];
     int_text(buf, number);
     ScriptString text;
-    title_function<StringFromCString>(0x0011eb50)(&text, buf);
+    own_function<StringFromCString>(&ScriptString_FromCString)(&text, buf);
     GScr_ObjectiveAdd(index, state, &text);
     string_release(&text);
 }
@@ -3201,8 +3202,8 @@ void XB_CDECL GScr_DoDamage(uint32_t handle, float damage, const float* point) {
         direction = dir;
     }
     // G_Damage(point EAX; targ, no inflictor/attacker, dir, damage, 0, mod 0x1b, hit location 2, no weapon).
-    title_function<void XB_REGS1 XB_CDECL(const float*, uint8_t*, uint32_t, uint32_t, const float*, int32_t,
-                                          uint32_t, uint32_t, uint32_t, int32_t)>(0x00250340)(
+    own_function<void XB_REGS1 XB_CDECL(const float*, uint8_t*, uint32_t, uint32_t, const float*, int32_t,
+                                          uint32_t, uint32_t, uint32_t, int32_t)>(&G_Damage_entry)(
         at, ent, 0, 0, direction, static_cast<int32_t>(damage), 0, 0x1b, 2, -1);
 }
 
@@ -3312,7 +3313,7 @@ void XB_CDECL GScr_RandomTracer(const float* to, const float* from) {
 
 void XB_CDECL GScr_GetSpawnerTeamArray(uint8_t* out, const ScriptString* team) {
     ScriptString context;  // "getspawnerteamarray"
-    title_function<StringFromCString>(0x0011eb50)(&context, title_text(0x00832578));
+    own_function<StringFromCString>(&ScriptString_FromCString)(&context, title_text(0x00832578));
     const uint32_t mask = Scr_TeamFromString(team);
     string_release(&context);
     spawner_array(out, true, mask);
@@ -3496,7 +3497,7 @@ void XB_CDECL GScr_ShellShock(uint32_t handle, const ScriptString* name, float d
     uint32_t kind = 1;
     ScriptString registered;  // the original builds it in its first argument slot
     string_from_rep(&registered);
-    title_function<StringAssign>(0x0011d600)(&registered, &title_global<ScriptString>(0x009655a4));
+    own_function<StringAssign>(&ScriptString_Assign_entry)(&registered, &title_global<ScriptString>(0x009655a4));
     const char* const done = script_text(&registered);
     if (!done || !*done) {
         // Registers the three shell shock names (configstrings 0x230.., at most 2).
@@ -3594,11 +3595,11 @@ void XB_CDECL GScr_MissionFailed(const ScriptString* reason) {
     ScriptString* const message = &title_global<ScriptString>(0x00985ec0);
     const char* const text = script_text(reason);
     if (!text || bytes_equal(text, 0x008324b8, 10)) {  // "NEED_LOVE"
-        title_function<AssignCString>(0x0011dd20)(message, title_text(0x008324a4));  // "INGAME_PLAYER_DIED"
+        own_function<AssignCString>(&ScriptString_AssignCString)(message, title_text(0x008324a4));  // "INGAME_PLAYER_DIED"
         return;
     }
     const char* const localized = Loc_GetString(text);
-    title_function<AssignCString>(0x0011dd20)(message, localized ? localized : title_text(0x00832484));
+    own_function<AssignCString>(&ScriptString_AssignCString)(message, localized ? localized : title_text(0x00832484));
 }
 
 void XB_CDECL GScr_SoundBankUnload(const ScriptString* name) {
@@ -3621,7 +3622,7 @@ void XB_CDECL GScr_MusicPlay(const ScriptString* name) { Music_Play(title_global
 
 void XB_CDECL GScr_ObjectiveStringByHash(int32_t index, uint32_t hash) {
     ScriptString text;
-    title_function<StringFromCString>(0x0011eb50)(&text, localized_text(hash));
+    own_function<StringFromCString>(&ScriptString_FromCString)(&text, localized_text(hash));
     G_SetObjectiveString(index, &text, 1);
     string_release(&text);
 }
@@ -3693,7 +3694,7 @@ void XB_CDECL GScr_ActorSetLookAnims(uint32_t handle, uint32_t straight, uint32_
 
 // G_RestorePlayerLoadout by its title address (its C version has one offline mismatch on record).
 void XB_CDECL GScr_RestorePlayerLoadout() {
-    title_function<void XB_REGS1 XB_CDECL(const uint8_t*)>(0x002d5ad0)(title_global<uint8_t*>(0x0095f4e0));
+    own_function<void XB_REGS1 XB_CDECL(const uint8_t*)>(&G_RestorePlayerLoadout)(title_global<uint8_t*>(0x0095f4e0));
 }
 
 void XB_CDECL GScr_SetFlaggedAnim(uint32_t handle, uint32_t notify, uint32_t anim, uint32_t goal, uint32_t blend,
@@ -3913,7 +3914,7 @@ uint32_t XB_CDECL GScr_GetModelBoneName(ScriptString* out, const ScriptString* m
     const char* const text = node != title_global<uint32_t>(0x0095fe08)
                                  ? reinterpret_cast<const char*>(static_cast<uintptr_t>(node + 0xc))
                                  : nullptr;
-    return title_function<AssignCString>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    return own_function<AssignCString>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 uint32_t XB_CDECL GScr_GetModelBoneCount(const ScriptString* model_name) {

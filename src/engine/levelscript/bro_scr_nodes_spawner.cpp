@@ -9,6 +9,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor.h"
+#include "scr_access.h"
 
 namespace game {
 
@@ -94,7 +96,7 @@ bool float_key_defined(uint32_t getter, uint32_t node, uint32_t key) {
 
 
 uint32_t node_at_position(uint32_t* out, uint32_t ent) {
-    title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00184230)(out, ent);  // BroScr_GetNodeAtPosition
+    own_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(&BroScr_GetNodeAtPosition_entry)(out, ent);  // BroScr_GetNodeAtPosition
     return *out;
 }
 
@@ -146,7 +148,7 @@ ScriptString* XB_CDECL BroScr_GetNodeTypeAtPosition(ScriptString* out, uint32_t 
         return out;
     }
     ScriptString type;
-    title_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(0x001e45f0)(&ent, &type);  // CopyType
+    own_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(&ScrPathNode_CopyType_entry)(&ent, &type);  // CopyType
     ScriptString_Copy(out, &type);
     ScriptString_Release(&type);
     return out;
@@ -478,7 +480,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BroScr_NodeHasScriptChain_c(uint32_
     const uint32_t args[1] = {got};
     title_call_at_regs(entry_esp - 8, 0x001812d0, &regs, 1, args);  // ScrPathNodeField_script_chain_Copy
     const bool non_empty = title_global<uint32_t>(got) != 0;
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(got);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(got);  // ScriptString_Release
     return non_empty;
 }
 

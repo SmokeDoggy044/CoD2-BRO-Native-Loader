@@ -18,6 +18,9 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
+#include "g_mover.h"
+#include "g_pathnode.h"
+#include "scr_field.h"
 
 namespace game {
 
@@ -834,7 +837,7 @@ uint32_t XB_CDECL Actor_GetAnimTree(const uint8_t* actor) { return actor_anim_tr
 void XB_REGS3 XB_CDECL Actor_AnimScripted_Finish(uint32_t, uint32_t next, const uint8_t* actor) {
     uint8_t* ent = field<uint8_t*>(actor, 0);
     if (next == 10 || !field<uint32_t>(ent, 0x3d4)) return;
-    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(field<uint32_t>(ent, 0x3d4));  // Z_Free
+    own_function<void XB_CDECL(uint32_t)>(&Z_Free)(field<uint32_t>(ent, 0x3d4));  // Z_Free
     field<uint32_t>(ent, 0x3d4) = 0;
 }
 
@@ -1022,10 +1025,10 @@ namespace {
 
 // PathNode_HandleIsValid (0x00014480) / PathNode_FromHandle2 (0x002ba010): handle pointer in EAX.
 bool node_handle_valid(const uint16_t* handle) {
-    return static_cast<uint8_t>(title_function<uint32_t XB_REGS1 XB_CDECL(const uint16_t*)>(0x00014480)(handle)) != 0;
+    return static_cast<uint8_t>(own_function<uint32_t XB_REGS1 XB_CDECL(const uint16_t*)>(&PathNode_HandleIsValid)(handle)) != 0;
 }
 uint8_t* node_from_handle(const uint16_t* handle) {
-    return title_function<uint8_t* XB_REGS1 XB_CDECL(const uint16_t*)>(0x002ba010)(handle);
+    return own_function<uint8_t* XB_REGS1 XB_CDECL(const uint16_t*)>(&PathNode_FromHandle2)(handle);
 }
 
 }  // namespace
@@ -1111,7 +1114,7 @@ uint8_t* XB_REGS1 XB_CDECL Actor_Alloc(int32_t context) {
         const uint32_t memory =
             context >= 0 && context < 0x63 ? field<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4) : 0;
         // MemContext_Alloc_r (0x0028c0f0): context in ECX, alignment and size, callee pops.
-        actor = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(memory, 0x10, 0x1400);
+        actor = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(memory, 0x10, 0x1400);
     }
     if (!actor) actor = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x1400);  // Heap_AllocAligned
     if (!actor) return nullptr;
@@ -1136,8 +1139,8 @@ uint32_t XB_REGS1 XB_STDCALL Path_CrossesBadPlace(const uint8_t* path, uint32_t 
         if (!node_handle_set(*from) || !node_handle_set(*to)) continue;
         // PathNode_IsLinkInBadPlace (0x002b96c0): EAX = to, EDX = blocks, ECX = from; from and
         // the bad place on the stack (callee pops).
-        const uint32_t in = title_function<uint32_t XB_REGS3 XB_STDCALL(const uint16_t*, uint32_t, const uint16_t*,
-                                                                         const uint16_t*, uint32_t)>(0x002b96c0)(
+        const uint32_t in = own_function<uint32_t XB_REGS3 XB_STDCALL(const uint16_t*, uint32_t, const uint16_t*,
+                                                                         const uint16_t*, uint32_t)>(&PathNode_IsLinkInBadPlace_entry)(
             to, blocks, from, from, bad_place);
         if (static_cast<uint8_t>(in)) return 1;
     }
@@ -1149,10 +1152,10 @@ void XB_CDECL G_ExpireBadPlaces() {
         uint8_t* place = &title_global<uint8_t>(0x0098a570 + i * 0x28);
         if (!place[8] || level_time() < field<int32_t>(place, 0)) continue;
         if (place[8] == 1)
-            title_function<void XB_STDCALL(uint32_t, uint8_t*, uint32_t, int32_t)>(0x002d0db0)(  // AdjustBadPlaceArc
+            own_function<void XB_STDCALL(uint32_t, uint8_t*, uint32_t, int32_t)>(&PathNode_AdjustBadPlaceArc)(  // AdjustBadPlaceArc
                 title_global<uint32_t>(0x0095f4f4), place + 0xc, place[9], -1);
         place[8] = 0;
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(place + 4);  // ScriptString_Clear
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear)(place + 4);  // ScriptString_Clear
     }
 }
 
@@ -2693,8 +2696,8 @@ uint32_t XB_CDECL BadPlace_ClearAll() {
     for (uint32_t i = 0; i < 32; ++i) {
         ScriptString empty;
         ScriptString_FromRep(&empty, nullptr);
-        title_function<Assign>(0x0011d600)(&title_global<ScriptString>(0x0098a574 + i * 0x28), &empty);  // ScriptString_Assign
-        title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&empty);                           // ScriptString_Release
+        own_function<Assign>(&ScriptString_Assign_entry)(&title_global<ScriptString>(0x0098a574 + i * 0x28), &empty);  // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&empty);                           // ScriptString_Release
     }
     for (uint32_t offset = 0; offset < 0x500; offset += 4) title_global<uint32_t>(0x0098a570 + offset) = 0;
     return 0;
@@ -2924,7 +2927,7 @@ void XB_CDECL Actor_ForgetSentient(uint8_t* actor, uint8_t* sentient) {
     uint8_t* const own = field<uint8_t*>(actor, 4);
     if (field<uint8_t*>(own, 0x3c) == sentient) {
         using SetEnemy = void XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint8_t*, uint32_t);
-        title_function<SetEnemy>(0x002184f0)(0, 0, own, 0);  // Sentient_SetEnemy
+        own_function<SetEnemy>(&Sentient_SetEnemy_entry)(0, 0, own, 0);  // Sentient_SetEnemy
     }
     if (field<uint8_t*>(actor, 0x12a0) == sentient) field<uint32_t>(actor, 0x12a0) = 0;
     if (field<uint8_t*>(actor, 0x12a4) == sentient) field<uint32_t>(actor, 0x12a4) = 0;
@@ -3312,7 +3315,7 @@ void XB_CDECL Sentient_Dissociate(uint8_t* sentient) {
     // team 4, and every other sentient forgets it (actors; +8 goal entity handed over to the
     // old team's sentients, else cleared; +0x3c enemy).
     using SetEnemy = void XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint8_t*, uint32_t);
-    title_function<SetEnemy>(0x002184f0)(0, 0, sentient, 0);  // Sentient_SetEnemy
+    own_function<SetEnemy>(&Sentient_SetEnemy_entry)(0, 0, sentient, 0);  // Sentient_SetEnemy
     const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
     if (node_of(field<uint16_t>(sentient, 0x48))) {
         // The handle is looked up again for the call.
@@ -3895,7 +3898,7 @@ uint8_t* entity_of_handle(uint32_t handle) {
 }
 
 void free_entity(uint8_t* ent) {
-    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+    own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_FreeEntity)(ent, 0);  // G_FreeEntity
 }
 
 }  // namespace
@@ -3905,7 +3908,7 @@ void XB_CDECL SP_info_grenade_hint(uint8_t* ent) {
     // 128), then the entity is freed.
     uint32_t count = title_global<uint32_t>(0x00985fd4);
     if (count >= 0x80) {
-        title_function<void XB_CDECL(const char*, int32_t)>(0x00248af0)(&title_global<const char>(0x0083d0cc), 0x80);
+        own_function<void XB_CDECL(const char*, int32_t)>(&G_Error_entry)(&title_global<const char>(0x0083d0cc), 0x80);
         count = title_global<uint32_t>(0x00985fd4);
     }
     const uint32_t hint = 0x0095ee20 + count * 12;
@@ -4176,7 +4179,7 @@ uint32_t XB_REGS1 XB_STDCALL Path_GetNegotiationNodeInfo(const uint8_t* path, ui
     const uint8_t* const name = field<const uint8_t*>(node, 0x3c);
     if (name) {
         const char* const text = reinterpret_cast<const char*>(name + 6);
-        const uint32_t hash = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(text);  // ScrIface_HashStringNoCase
+        const uint32_t hash = own_function<uint32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(text);  // ScrIface_HashStringNoCase
         NameMap_Insert(hash, text);
         field<uint16_t>(info, 4) = uint16_t(hash);
         *out = field<uint32_t>(node, 0x50);
@@ -4258,11 +4261,11 @@ void XB_REGS1 XB_CDECL BadPlace_FreeIndex(int32_t index) {
     const uint32_t slot = uint32_t(index) * 0x28;
     if (title_global<uint8_t>(0x0098a578 + slot) == 1) {
         using AdjustArc = void XB_STDCALL(uint32_t, uint32_t, uint32_t, int32_t);
-        title_function<AdjustArc>(0x002d0db0)(title_global<uint32_t>(0x0095f4f4), 0x0098a57c + slot,
+        own_function<AdjustArc>(&PathNode_AdjustBadPlaceArc)(title_global<uint32_t>(0x0095f4f4), 0x0098a57c + slot,
                                               title_global<uint8_t>(0x0098a579 + slot), -1);
     }
     title_global<uint8_t>(0x0098a578 + slot) = 0;
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d660)(0x0098a574 + slot);  // ScriptString_Clear
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Clear)(0x0098a574 + slot);  // ScriptString_Clear
 }
 
 PLATFORM_ASM_ENTRY(BadPlace_Delete_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(BadPlace_Delete) "addl $4, %esp\n"
@@ -4289,11 +4292,11 @@ uint8_t* XB_REGS3 XB_CDECL BadPlace_Alloc(int32_t duration, uint32_t, const Scri
     for (; i < 0x20; ++i)
         if (!title_global<uint8_t>(0x0098a578 + i * 0x28)) break;
     if (i == 0x20) {
-        title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0)(&title_global<const char>(0x0083d354), 0x20);  // va
+        own_function<const char* XB_CDECL(const char*, ...)>(&va_entry)(&title_global<const char>(0x0083d354), 0x20);  // va
         return nullptr;
     }
     const uint32_t slot = i * 0x28;
-    title_function<void XB_THISCALL(uint32_t, const ScriptString*)>(0x0011d600)(0x0098a574 + slot, name);  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint32_t, const ScriptString*)>(&ScriptString_Assign_entry)(0x0098a574 + slot, name);  // ScriptString_Assign
     title_global<int32_t>(0x0098a570 + slot) = end;
     return &title_global<uint8_t>(0x0098a570 + slot);
 }
@@ -4350,7 +4353,7 @@ void XB_CDECL Actor_UpdateStatusNotifies(uint8_t* actor) {
             reached = Sentient_IsYawInGoalArc(sentient, field<float>(field<const uint8_t*>(actor, 0), 0x154)) != 0;
         }
         if (reached) {
-            title_function<void XB_REGS3 XB_CDECL(uint8_t*, uint8_t*)>(0x002ba050)(actor + 0x3c0, sentient);  // Actor_SetStanceLimitsFromNode
+            own_function<void XB_REGS3 XB_CDECL(uint8_t*, uint8_t*)>(&Actor_SetStanceLimitsFromNode)(actor + 0x3c0, sentient);  // Actor_SetStanceLimitsFromNode
             notify(0x0097a6ec);  // goal
         }
     } else {
@@ -4941,7 +4944,7 @@ void release_string_fields(uint8_t* base, uint32_t table) {
         if (title_global<int32_t>(entry + 4) == 0x10) {
             uint32_t& slot = field<uint32_t>(base, title_global<uint32_t>(entry));
             if (slot) {
-                title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(slot);  // ScriptStringRep_Release
+                own_function<void XB_THISCALL(uint32_t)>(&ScriptStringRep_Release)(slot);  // ScriptStringRep_Release
                 slot = 0;
             }
         }
@@ -4981,13 +4984,13 @@ void XB_CDECL Actor_ReleaseTurret(uint8_t* actor) {
     if (link && field<uint8_t*>(link, 0) == turret) {
         const uint8_t* const parent_link = field<const uint8_t*>(turret, 0x3cc);
         if (!parent_link) {
-            title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002b7900)(ent);  // G_EntUnlink
+            own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&G_EntUnlink)(ent);  // G_EntUnlink
         } else {
             const int32_t tag = field<int32_t>(parent_link, 8);
             const uint32_t name = tag ? uint32_t(uintptr_t(IntHashMap_FindValue(tag))) : 0x0082dfeb;  // ""
             using LinkTo = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t);
-            if (title_function<LinkTo>(0x002df740)(field<uint32_t>(parent_link, 0), ent, name, 0))  // G_EntLinkTo
-                title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002e3f10)(ent, 0);       // G_CalcTagLinkOffset
+            if (own_function<LinkTo>(&G_EntLinkTo)(field<uint32_t>(parent_link, 0), ent, name, 0))  // G_EntLinkTo
+                own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_CalcTagLinkOffset)(ent, 0);       // G_CalcTagLinkOffset
         }
     }
     field<uint8_t>(field<uint8_t*>(turret, 0x24c), 3) &= 0xfd;
@@ -5003,12 +5006,12 @@ uint32_t XB_REGS3 XB_CDECL Actor_Turret_Start(uint32_t, uint32_t previous, uint8
     if (turret && !field<uint8_t>(turret, 0x297)) {
         uint8_t* const ent = field<uint8_t*>(actor, 0);
         using LinkTo = uint32_t XB_REGS1 XB_CDECL(uint8_t*, uint8_t*, uint32_t, uint32_t);
-        if (title_function<LinkTo>(0x002df740)(turret, ent, 0x0082dfeb, 0)) {  // G_EntLinkTo
-            title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002e3f10)(ent, 0);  // G_CalcTagLinkOffset
+        if (own_function<LinkTo>(&G_EntLinkTo)(turret, ent, 0x0082dfeb, 0)) {  // G_EntLinkTo
+            own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_CalcTagLinkOffset)(ent, 0);  // G_CalcTagLinkOffset
             field<uint8_t>(turret, 0x297) = 1;
             field<uint32_t>(turret, 0x1a0) = field<uint32_t>(field<uint8_t*>(actor, 0), 0x224);
             Scr_Notify(turret, title_global<uint32_t>(0x0097a864));
-            title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x0024fd90)(turret);  // Turret_SetIdle
+            own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&Turret_SetIdle)(turret);  // Turret_SetIdle
             uint8_t* const info = field<uint8_t*>(turret, 0x24c);
             field<uint16_t>(info, 2) = uint16_t((field<uint16_t>(info, 2) & 0xff17) | 0x100);
             Actor_ClearSentientThreatTimes(actor);
@@ -5135,7 +5138,7 @@ void XB_REGS2 XB_CDECL BadPlace_Create(int32_t duration, const uint32_t* arc, co
     field<uint8_t>(place, 8) = 1;
     for (uint32_t i = 0; i < 7; ++i) field<uint32_t>(place, 0xc + i * 4) = copy[i];
     using AdjustArc = void XB_STDCALL(uint32_t, uint32_t, uint32_t, int32_t);
-    title_function<AdjustArc>(0x002d0db0)(blocks, uint32_t(uintptr_t(place)) + 0xc, uint8_t(team), 1);
+    own_function<AdjustArc>(&PathNode_AdjustBadPlaceArc)(blocks, uint32_t(uintptr_t(place)) + 0xc, uint8_t(team), 1);
     BadPlace_ClearCrossingPaths();
 }
 
@@ -5155,7 +5158,7 @@ uint32_t XB_CDECL Actor_GetMuzzleInfo(uint8_t* actor, uint8_t* origin, uint8_t* 
         const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
         if (tag < 0) return 0;
         alignas(16) uint8_t m[0x40];
-        title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+        own_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(&G_DObjGetWorldTagMatrix)(ent, tag, m);  // G_DObjGetWorldTagMatrix
         copy3(actor + 0x1d0, m + 0x30);
         copy3(actor + 0x1dc, m);
         field<int32_t>(actor, 0x1cc) = level_time();
@@ -5182,7 +5185,7 @@ void XB_CDECL Actor_RefreshEyeOrigin(uint8_t* actor) {
         const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
         if (tag >= 0) {
             alignas(16) uint8_t m[0x40];
-            title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+            own_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(&G_DObjGetWorldTagMatrix)(ent, tag, m);  // G_DObjGetWorldTagMatrix
             copy3(actor + 0x1b4, m + 0x30);
             field<uint32_t>(actor, 0x1c0) = field<uint32_t>(m, 0x10);
             field<uint32_t>(actor, 0x1c4) = field<uint32_t>(m, 0x14);
@@ -5200,7 +5203,7 @@ void XB_CDECL Actor_RefreshEyeOrigin(uint8_t* actor) {
 void XB_CDECL Actor_ThinkLinked(uint8_t* ent) {
     // Think of a linked actor entity: next think next frame; follows its link (G_GeneralLink).
     field<int32_t>(ent, 0x328) = level_time() + 1;
-    if (field<uint32_t>(ent, 0x3cc)) title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002e6490)(ent);  // G_GeneralLink
+    if (field<uint32_t>(ent, 0x3cc)) own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&G_GeneralLink)(ent);  // G_GeneralLink
 }
 
 void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor) {
@@ -5214,7 +5217,7 @@ void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor) {
     Actor_StopAnimScript(actor);
     uint8_t* const grenade = field<uint8_t*>(actor, 0x1310);
     if (grenade && field<uint8_t*>(grenade, 0x378) == ent && (field<uint8_t>(grenade, 0xd4) & 1)) {
-        title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(grenade, 0);  // G_FreeEntity
+        own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_FreeEntity)(grenade, 0);  // G_FreeEntity
         field<uint32_t>(actor, 0x1310) = 0;
     }
     const uint32_t handle = field<uint32_t>(ent, 0x224);
@@ -5243,7 +5246,7 @@ void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor) {
     release_string_fields(actor, 0x0082fb70);
     static const uint32_t kStrings[7] = {0x138c, 0x1388, 0x1384, 0x1320, 0xf8, 0xec, 0xc8};
     for (uint32_t i = 0; i < 7; ++i)
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(actor + kStrings[i]);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(actor + kStrings[i]);  // ScriptString_Release
     const int32_t actors_left = title_global<int32_t>(0x0095f44c) - 1;
     const uint8_t* const clients = title_global<const uint8_t*>(0x0095f638);
     field<int32_t>(actor, 0x1360) = actors_left;
@@ -5255,7 +5258,7 @@ void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor) {
         const uint32_t owner = context >= 0 && context < 0x63 ? field<uint32_t>(clients, 0x38 + context * 4) : 0;
         if (MemContext_Free_r(reinterpret_cast<uint8_t*>(uintptr_t(owner)), actor)) return;
     }
-    title_function<void XB_CDECL(uint8_t*)>(0x000428d0)(actor);  // Z_Free
+    own_function<void XB_CDECL(uint8_t*)>(&Z_Free)(actor);  // Z_Free
 }
 
 PLATFORM_ASM_ENTRY(Actor_GetEyePosition_entry,
@@ -5296,7 +5299,7 @@ void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor) {
     for (uint32_t i = 0; i < 2; ++i) {
         const char* const name = field<const char*>(spawn, 0x10 + i * 4);
         if (!name) continue;
-        const uint32_t hash = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(name);  // ScrIface_HashStringNoCase
+        const uint32_t hash = own_function<uint32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(name);  // ScrIface_HashStringNoCase
         NameMap_Insert(hash, name);
         field<uint32_t>(actor, 0xf0 + i * 4) = hash;
     }
@@ -5309,11 +5312,11 @@ void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor) {
     const uint32_t pick = uint32_t(title_function<int32_t XB_CDECL()>(0x001efcc0)()) % field<uint32_t>(spawn, 0x28);  // _rand
     const uint32_t model = pick < field<uint32_t>(spawn, 0x28) ? pick : 0;
     using SetModel = void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t);
-    title_function<SetModel>(0x002d7c60)(-1, ent, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), model * 8));  // G_SetModel
+    own_function<SetModel>(&G_SetModel)(-1, ent, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), model * 8));  // G_SetModel
     const uint32_t name_index = pick < field<uint32_t>(spawn, 0x28) ? pick : 0;
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&ScriptString_AssignCString)(  // ScriptString_AssignCString
         actor + 0xf8, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), name_index * 8 + 4));
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     SV_LinkEntity(ent);
 }
 
@@ -5832,7 +5835,7 @@ void XB_CDECL Actor_Die(uint8_t* self, uint32_t, uint32_t attacker, int32_t dama
     g_ent_call(0x002026f0, &regs, 0, nullptr);  // Actor_ForceState (ESI actor, EDI state)
     field<uint32_t>(actor, 0x2d0) = 0;
     field<uint32_t>(self, 0x374) = attacker;
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(self + 0x264);  // ScriptString_Clear
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear)(self + 0x264);  // ScriptString_Clear
 }
 
 PLATFORM_ASM_ENTRY(Sentient_GetLaggedEyeOrigin_entry,
@@ -6213,7 +6216,7 @@ void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor) {
     // owner +0x378 and velocity +0x2c0 cleared.
     const uint8_t* const weapon =
         title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
-    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(  // G_EntAttach
+    own_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(&G_EntDetach)(  // G_EntAttach
         field<uint8_t*>(actor, 0), field<uint32_t>(weapon, 0x57c), 0x00831e14);  // "tag_weapon_right"
     const uint32_t hash = cached_hash(0x0098eee4, 1, 0x0098eee0, 0x00831e14);
     uint8_t* const ent = field<uint8_t*>(actor, 0);
@@ -6221,7 +6224,7 @@ void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor) {
     if (dobj_of(ent)) {
         const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
         if (tag >= 0)
-            title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+            own_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(&G_DObjGetWorldTagMatrix)(ent, tag, m);  // G_DObjGetWorldTagMatrix
     }
     auto grenade = [actor]() { return field<uint8_t*>(actor, 0x1310); };
     const uint32_t x = field<uint32_t>(m, 0x30), y = field<uint32_t>(m, 0x34), z = field<uint32_t>(m, 0x38);
@@ -6254,7 +6257,7 @@ uint32_t XB_CDECL Actor_Grenade_Grab(uint8_t* actor) {
     const uint8_t* const weapon =
         title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
     const uint32_t model = field<uint32_t>(weapon, 0x57c);
-    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(field<uint8_t*>(actor, 0), model,
+    own_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(&G_EntDetach)(field<uint8_t*>(actor, 0), model,
                                                                            0x00831e14);  // G_EntAttach
     const TitleRegs regs = {0, 0, 0xffffffff, 0, uint32_t(uintptr_t(actor)), field<uint32_t>(actor, 0)};
     const uint32_t args[3] = {model, 0x00831e14, 0};
@@ -7489,7 +7492,7 @@ float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint8_t* actor, const float* po
     if (turret && entity_from_handle(field<uint32_t>(turret, 0x1a0)) == field<uint32_t>(actor, 0)) {
         point_vec4_at(frame + 0x20, point);
         for (uint32_t i = 0; i < 16; i += 4) stack_word(frame + 0x30 + i) = stack_word(frame + 0x20 + i);
-        from_turret = title_function<uint32_t XB_CDECL(uint8_t*, float*, float*, uint32_t*)>(0x0025ccd0)(
+        from_turret = own_function<uint32_t XB_CDECL(uint8_t*, float*, float*, uint32_t*)>(&Turret_CanTargetPoint)(
                           turret, stack_vec(frame + 0x30), eye, &stack_word(frame + 0x18)) != 0;  // Turret_CanTargetPoint
     }
     if (!from_turret) {
@@ -10318,7 +10321,7 @@ uint32_t XB_CDECL Path_TraceAhead(uint32_t entry, const float* goal, uint32_t eb
         o[2] = w[2];
     };
     if (!title_global<uint32_t>(0x0095bf0c) &&
-        (!record || !(title_function<uint8_t XB_STDCALL(uint32_t)>(0x002ae8f0)(record) & 0xff))) {  // G_EntityInValidCell
+        (!record || !(own_function<uint8_t XB_STDCALL(uint32_t)>(&G_EntityInValidCell)(record) & 0xff))) {  // G_EntityInValidCell
         copy3(out, start);
         return 1;
     }
@@ -10692,7 +10695,7 @@ void XB_CDECL Actor_ForceFreeSlot(uint32_t entry, uint32_t ebx, uint32_t esi, ui
                     chosen = actor;
                 }
             }
-            if (!chosen) title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x0083d480));
+            if (!chosen) own_function<void XB_CDECL(const char*)>(&G_Error_entry)(&title_global<const char>(0x0083d480));
         }
     }
     Scr_Notify(field<uint8_t*>(chosen, 0), title_global<uint32_t>(0x0097a684));  // scr_const_death
@@ -11987,7 +11990,7 @@ uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t entry, uint32_t ebx, uint32_t
     uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
     ScriptString* const method = reinterpret_cast<ScriptString*>(uintptr_t{entry + 0x10});
     const auto release = [method]() {
-        title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(method);  // ScriptString_Release
+        own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(method);  // ScriptString_Release
     };
     const uint8_t* const target = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
     if (!target || 0.0f >= title_global<float>(0x0094d450) || (field<uint32_t>(actor, 0x1310) && !stack_word(entry + 0x1c))) {
@@ -12032,7 +12035,7 @@ uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t entry, uint32_t ebx, uint32_t
         result = by_time(1);
     } else {
         const uint32_t rep = stack_word(entry + 0x10);
-        title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0)(&title_global<const char>(0x0083d068),
+        own_function<const char* XB_CDECL(const char*, ...)>(&va_entry)(&title_global<const char>(0x0083d068),
                                                                          rep ? rep + 6 : 0);  // va
     }
     if (!result) {

@@ -127,8 +127,8 @@ void ik_solve(const IkOperands& o, const IkRecord& r, float* root, const float* 
     IkTwoBoneArgs args = {root, point, r.target, o.f0, o.f1, o.f2, o.f3, origin, dir, &sin_a, &cos_a, &sin_b, &cos_b};
     NAL_IK_TwoBoneAngles(&args);
     ik_pole(o.extra, root, target_bone, dir, pole);
-    title_function<void XB_CDECL(float, float, float, float, float, const float*, const float*, const float*, float,
-                                 float, float*, float*)>(0x00093250)(o.f4, sin_a, cos_a, sin_b, cos_b, origin, dir, pole,
+    own_function<void XB_CDECL(float, float, float, float, float, const float*, const float*, const float*, float,
+                                 float, float*, float*)>(&NAL_IK_BuildChainMatrices)(o.f4, sin_a, cos_a, sin_b, cos_b, origin, dir, pole,
                                                                      platform_x87_sin(twist), platform_x87_cos(twist),
                                                                      upper_out, lower_out);
     ik_flip_rows(upper_out);

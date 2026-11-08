@@ -10,6 +10,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -143,7 +144,7 @@ void XB_CDECL BroScr_BuildTargetChain(uint32_t owner, uint32_t start) {
         uint32_t* chain = ScriptKeyTable_Find(table, 0x0605894e);
         if (!chain) {
             const DynArray empty = {nullptr, 0, 0};
-            chain = title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const DynArray*)>(0x0045cc80)(
+            chain = own_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const DynArray*)>(&ScriptKeyTable_SetArray)(
                 table, 0x0605894e, &empty);  // ScriptKeyTable_SetArray
         }
         DynArray_PushBack(pointer<uint8_t>(*chain), &current);
@@ -182,7 +183,7 @@ void XB_CDECL BroScr_SetTargetnamesFromOrigins(DynArray ents) {
 
 void XB_CDECL BroScr_SetTargetnamesFromOriginsCall(const DynArray* ents) {
     DynArray copy = {nullptr, 0, 0};
-    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, ents);  // DynArray_Assign4_PROLOGUE
+    own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, ents);  // DynArray_Assign4_PROLOGUE
     BroScr_SetTargetnamesFromOrigins(copy);
 }
 

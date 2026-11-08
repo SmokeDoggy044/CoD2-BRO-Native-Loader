@@ -12,6 +12,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor.h"
 
 namespace game {
 
@@ -333,7 +334,7 @@ using bro_ai::undefined_lane;
 using CanShoot = uint32_t XB_CDECL(uint32_t, const uint32_t*, const uint32_t*);
 
 const uint32_t* eye_pos(uint32_t* out, const uint32_t* ent) {
-    return title_function<const uint32_t* XB_CDECL(uint32_t*, const uint32_t*)>(0x001814e0)(out, ent);  // BroScr_GetEyePos
+    return own_function<const uint32_t* XB_CDECL(uint32_t*, const uint32_t*)>(&BroScr_GetEyePos)(out, ent);  // BroScr_GetEyePos
 }
 
 uint32_t actor_int(uint32_t slot_address, uint32_t actor) { return slot<uint32_t XB_CDECL(uint32_t)>(slot_address)(actor); }

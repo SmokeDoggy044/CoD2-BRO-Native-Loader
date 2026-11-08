@@ -18,6 +18,7 @@
 #include "script_string.h"
 #include "scr_fiber.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -67,7 +68,7 @@ namespace {
 
 // SmallHeap_Alloc (0x00044850): heap in ECX, size and a flag on the stack, callee pops.
 uint32_t* small_heap_alloc(uint32_t heap, uint32_t size) {
-    return title_function<uint32_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+    return own_function<uint32_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(
         title_global<uint32_t>(heap), size, 0);
 }
 
@@ -105,7 +106,7 @@ void XB_CDECL Scr_Notify(uint8_t* ent, uint32_t notify) {
     }
     queue_notify(node);
     if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+        own_function<NotifyHandler>(&G_EntityRunNotifyCallbacks)(handlers, ent, notify, nullptr);
 }
 
 // The handler gets the parameter block's address and keeps it in a global (0x008dd1e4) for the
@@ -201,7 +202,7 @@ void XB_CDECL Scr_QueueNotify(uint32_t handle, uint32_t notify) {
     uint8_t* ent = title_global<uint8_t*>(0x0097a968 + index * 8);
     if (!ent) return;
     if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+        own_function<NotifyHandler>(&G_EntityRunNotifyCallbacks)(handlers, ent, notify, nullptr);
 }
 
 namespace {
@@ -273,7 +274,7 @@ PLATFORM_ASM_ENTRY(Scr_TeamFromString_entry,
 
 uint32_t XB_CDECL Scr_TeamFromString(const void* name) {
     static const uint32_t kTeams[3][2] = {{0x00984cd0, 2}, {0x00984cd4, 4}, {0x00984cd8, 8}};
-    const auto equals = title_function<uint32_t XB_CDECL(const void*, uint32_t)>(0x0011d820);  // ScriptString_EqualsString
+    const auto equals = own_function<uint32_t XB_CDECL(const void*, uint32_t)>(&ScriptString_EqualsString);  // ScriptString_EqualsString
     for (const auto& team : kTeams)
         if (static_cast<uint8_t>(equals(name, team[0]))) return team[1];
     title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
@@ -306,7 +307,7 @@ uint32_t* XB_CDECL Scr_Alloc(uint32_t size, uint32_t flags) {
     }
     // Heap_AllocFromHeap (0x00042de0): heap in ECX, callee pops. The original traps (int3) when
     // it fails too.
-    return title_function<uint32_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00042de0)(
+    return own_function<uint32_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&Heap_AllocFromHeap)(
         title_global<uint32_t>(0x0095f4a0), size, flags);
 }
 
@@ -320,10 +321,10 @@ uint32_t* XB_STDCALL Scr_AllocPtrArray(uint32_t count, uint32_t) {
 void XB_CDECL Scr_Free(void* block) {
     using HeapCall = uint32_t XB_THISCALL(uint32_t, void*);
     const uint32_t small = title_global<uint32_t>(0x0095f4a4);
-    if (static_cast<uint8_t>(title_function<HeapCall>(0x00044960)(small, block)))  // SmallHeap_Owns (AL)
-        title_function<HeapCall>(0x00044910)(title_global<uint32_t>(0x0095f4a4), block);  // SmallHeap_Free
+    if (static_cast<uint8_t>(own_function<HeapCall>(&SmallHeap_Owns)(small, block)))  // SmallHeap_Owns (AL)
+        own_function<HeapCall>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f4a4), block);  // SmallHeap_Free
     else
-        title_function<HeapCall>(0x00042e30)(title_global<uint32_t>(0x0095f4a0), block);  // Heap_FreeIn2
+        own_function<HeapCall>(&Heap_FreeIn2)(title_global<uint32_t>(0x0095f4a0), block);  // Heap_FreeIn2
 }
 
 uint32_t* XB_CDECL Scr_HashScriptString(uint32_t* out, const uint8_t* const* string) {
@@ -385,7 +386,7 @@ void XB_CDECL Scr_NotifyWithString(uint8_t* ent, uint32_t notify, const ScriptSt
     }
     queue_notify(node);
     if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+        own_function<NotifyHandler>(&G_EntityRunNotifyCallbacks)(handlers, ent, notify, nullptr);
 }
 
 // G_NotifyWithEntity's twin with value kind 0x008317d8 (same frame: the parameter block at entry
@@ -517,7 +518,7 @@ void XB_CDECL G_NotifyWithTwoStrings(uint8_t* ent, uint32_t notify, const Script
     queue_notify(node);
     // The original tail-jumps to the handler with its own argument slots rewritten.
     if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+        own_function<NotifyHandler>(&G_EntityRunNotifyCallbacks)(handlers, ent, notify, nullptr);
 }
 
 // The script wait family (not registered: the waits suspend the script thread - Scr_Suspend*
@@ -643,7 +644,7 @@ void append_nodes(uint32_t* array, const uint32_t* nodes, int32_t count) {
     for (int32_t i = 0; i < count; ++i) {
         uint32_t node = nodes[i];
         if (node == 0xffffffff) node = 0;
-        title_function<ArrayCall>(0x001e5ec0)(array, &node);
+        own_function<ArrayCall>(&ScrPtrArray_Append)(array, &node);
     }
 }
 
@@ -682,7 +683,7 @@ void XB_CDECL Scr_GetVehicleNodeArray(uint32_t key, uint32_t value, uint32_t* ar
     PtrArray_Reserve2(array, array[2] + count);
     for (int32_t i = 0; i < count; ++i) {
         uint32_t node = nodes[i];
-        title_function<ArrayCall>(0x0045c550)(array, &node);  // vehicle node array append
+        own_function<ArrayCall>(&ScrPtrArray_Append_PROLOGUE)(array, &node);  // vehicle node array append
     }
 }
 
@@ -856,12 +857,12 @@ namespace {
 void notify_level_prefixed(uint32_t prefix, const char* name) {
     using StringFrom = void XB_THISCALL(uint32_t*, const char*);
     uint32_t text;
-    title_function<StringFrom>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{prefix}));  // ScriptString_FromCString
-    title_function<StringFrom>(0x0011ebc0)(&text, name);  // ScriptString_AppendCString
+    own_function<StringFrom>(&ScriptString_FromCString)(&text, reinterpret_cast<const char*>(uintptr_t{prefix}));  // ScriptString_FromCString
+    own_function<StringFrom>(&ScriptString_AppendCString)(&text, name);  // ScriptString_AppendCString
     uint8_t* const level = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(
         title_global<uint8_t*>(0x0095f534) + 8)});
     if (level) Scr_Notify(level, Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr));
-    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&text);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&text);  // ScriptString_Release
 }
 
 }  // namespace
@@ -1032,7 +1033,7 @@ void XB_CDECL Scr_DestroyThreadContents(uint8_t* thread, uint32_t ecx) {
         first_next = nullptr;
         first = nullptr;
     }
-    title_function<void XB_CDECL(uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t)>(0x0001b580)(
+    own_function<void XB_CDECL(uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t)>(&ScrWaitList_DeleteRange)(
         first, first_next, end, nullptr, ecx & 0xffffff00u);  // ScrWaitList_DeleteRange
     word_at(thread, 0x1c) = address_of(end);
     word_at(thread, 0x24) = address_of(thread + 0x1c);
@@ -1041,13 +1042,13 @@ void XB_CDECL Scr_DestroyThreadContents(uint8_t* thread, uint32_t ecx) {
     // the saved-stack chunks (+0x2c, next at +0xfc).
     uint8_t* const context = ptr_at(thread, 0xc);
     title_function<void XB_THISCALL(uint8_t*, uint32_t)>(word_at(ptr_at(context, 0), 0))(context, 0);
-    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x00947700),
+    own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(title_global<uint32_t>(0x00947700),
                                                                     word_at(thread, 0xc));  // SmallHeap_Free
     if (const uint32_t handle = word_at(thread, 0x14)) HandleTable256_Free(&title_global<uint8_t>(0x008dd208), handle);
     scr_fiber_release(thread);
     while (const uint32_t chunk = word_at(thread, 0x2c)) {
         word_at(thread, 0x2c) = *reinterpret_cast<const uint32_t*>(uintptr_t{chunk + 0xfc});
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f490),
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f490),
                                                                         chunk);  // SmallHeap_Free
     }
 }
@@ -1069,7 +1070,7 @@ void XB_REGS3 XB_CDECL Scr_FreeThread(uint8_t* scheduler, uint32_t, uint8_t* thr
     else
         --word_at(scheduler, 0);
     Scr_DestroyThreadContents(thread, word_at(thread, 0));
-    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f488),
+    own_function<void XB_THISCALL(uint32_t, uint8_t*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f488),
                                                                     thread);  // SmallHeap_Free
 }
 
@@ -1180,7 +1181,7 @@ void XB_STDCALL Scr_MovePendingEntityWaits(uint8_t* scheduler) {
             if (uint8_t* const value = ptr_at(wait, 0x10))
                 title_function<void XB_THISCALL(uint8_t*, uint32_t)>(word_at(ptr_at(value, 0), 0))(value, 1);
             word_at(wait, 0x10) = 0;
-            title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f56c),
+            own_function<void XB_THISCALL(uint32_t, uint8_t*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f56c),
                                                                             wait);  // SmallHeap_Free
         }
     } while (next);
@@ -1487,7 +1488,7 @@ uint32_t XB_THISCALL WaitTilOutputInst1_ent_VFunc1(const uint8_t* self, uint8_t*
 }
 
 uint32_t XB_THISCALL WaitTilOutputInst1_str_VFunc1(uint8_t* self, uint8_t* other) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(other + 0xc, self + 0xc);  // ScriptString_Assign
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint8_t*)>(&ScriptString_Assign_entry)(other + 0xc, self + 0xc);  // ScriptString_Assign
 }
 
 namespace {
@@ -1514,7 +1515,7 @@ uint32_t XB_THISCALL WaitTilOutputInst2_CopyArgs(const uint8_t* self, uint8_t* o
 }
 
 uint8_t* XB_THISCALL WaitTilOutputInst1_str_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0xc);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(self + 0xc);  // ScriptString_Release
     *reinterpret_cast<uint32_t*>(self) = 0x007f48c4;  // base vtable
     if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f574), self);
     return self;
@@ -1571,16 +1572,16 @@ uint8_t* XB_THISCALL WaitTilOutputInst1_ent_DeletingDtor(uint8_t* self, uint32_t
 
 uint32_t XB_THISCALL WaitTilOutputInst2_str_str_CopyArgs(uint8_t* self, uint8_t* other) {
     using Assign = uint32_t XB_THISCALL(uint8_t*, uint8_t*);
-    if (output_value_count(other) == 1) return title_function<Assign>(0x0011d600)(other + 0xc, self + 0xc);
+    if (output_value_count(other) == 1) return own_function<Assign>(&ScriptString_Assign_entry)(other + 0xc, self + 0xc);
     const uint32_t n = output_value_count(other);
     if (n != 2) return n;
-    title_function<Assign>(0x0011d600)(other + 0xc, self + 0xc);  // ScriptString_Assign
-    return title_function<Assign>(0x0011d600)(other + 0x10, self + 0x10);
+    own_function<Assign>(&ScriptString_Assign_entry)(other + 0xc, self + 0xc);  // ScriptString_Assign
+    return own_function<Assign>(&ScriptString_Assign_entry)(other + 0x10, self + 0x10);
 }
 
 uint8_t* XB_THISCALL WaitTilOutputInst2_str_str_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0x10);  // ScriptString_Release
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(self + 0xc);
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(self + 0x10);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(self + 0xc);
     *reinterpret_cast<uint32_t*>(self) = 0x007f48c4;  // base vtable
     if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f574), self);
     return self;
@@ -1662,7 +1663,7 @@ int32_t XB_CDECL VM_DllSyscall(uint32_t arg) {
 // The three vmTable entries (0x00927c38, 0x8c bytes) cleared, currentVM 0.
 void XB_CDECL VM_Clear() {
     for (uint32_t vm = 0x00927c38; vm < 0x00927ddc; vm += 0x8c)
-        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00293be0)(vm, 0, 0x23);  // Com_Memset32
+        own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Com_Memset32)(vm, 0, 0x23);  // Com_Memset32
     title_global<uint32_t>(0x0095f514) = 0;
 }
 
@@ -1676,7 +1677,7 @@ uint8_t* XB_CDECL VM_Create(const char* module, uint32_t system_calls) {
         title_function<Break>(0x002938f0)(0, reinterpret_cast<const char*>(uintptr_t{0x00832b4c}));
     uint32_t index = 0;
     for (uint32_t name = 0x00927c3c; name < 0x00927de0; name += 0x8c, ++index) {
-        if (module && !title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x000441c0)(
+        if (module && !own_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(&Q_stricmpn)(
                           reinterpret_cast<const char*>(static_cast<uintptr_t>(name)), module, 99999))  // Q_stricmpn
             return &title_global<uint8_t>(0x00927c38 + index * 0x8c);
     }
@@ -1738,7 +1739,7 @@ namespace {
 // A 0x100-byte thread-data block (next pointer +0xfc cleared), or 0.
 uint32_t thread_data_block() {
     using Alloc = uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t);
-    uint8_t* block = title_function<Alloc>(0x00044850)(title_global<uint32_t>(0x0095f490), 0x100, 0);  // SmallHeap_Alloc
+    uint8_t* block = own_function<Alloc>(&SmallHeap_Alloc)(title_global<uint32_t>(0x0095f490), 0x100, 0);  // SmallHeap_Alloc
     if (!block) return 0;
     *reinterpret_cast<uint32_t*>(block + 0xfc) = 0;
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block));
@@ -1784,7 +1785,7 @@ uint32_t XB_REGS3 XB_STDCALL ScrThread_AppendData(const uint8_t* data, uint32_t,
     do {
         const uint32_t freed = block;
         block = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(block + 0xfc));
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f490),
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f490),
                                                                          freed);  // SmallHeap_Free
     } while (block);
     holder[1] = static_cast<uint32_t>(size);
@@ -1885,7 +1886,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL ScrWaitRecord_Dtor(uint8_t* self) {
                 --*reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(list + 0x1c));
             }
         }
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f498),
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f498),
                                                                          word_at(self, 0x1c));  // SmallHeap_Free
     }
     *reinterpret_cast<uint32_t*>(self) = 0x008317e4;
@@ -1971,7 +1972,7 @@ void XB_CDECL StaticInit_DownVec4_95fde0() {
 }
 
 void XB_CDECL AtExit_FreeList_95fdf0() {
-    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095fdf0));  // Z_Free
+    own_function<void XB_CDECL(uint32_t)>(&Z_Free)(title_global<uint32_t>(0x0095fdf0));  // Z_Free
 }
 
 // The script string rep at 0x00922e90: one reference dropped, freed at 0.

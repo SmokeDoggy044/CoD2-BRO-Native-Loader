@@ -7,6 +7,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor.h"
+#include "bro_scr_ai.h"
 
 namespace game {
 
@@ -142,7 +144,7 @@ void XB_CDECL BroScr_MgBurstSettings(uint32_t, uint32_t ent, uint32_t* delay_min
         ScriptString mode;
         ScriptString_FromCString(&mode, pointer<const char>(text));
         uint32_t out;
-        return *title_function<Factor>(0x00181810)(&out, mode);  // BroScr_MgBurstModeFactor (releases mode)
+        return *own_function<Factor>(&BroScr_MgBurstModeFactor)(&out, mode);  // BroScr_MgBurstModeFactor (releases mode)
     };
     bool defined;
     if (*ScrField_script_delay_min_IsDefined(&defined, ent)) *delay_min = *ScrField_script_delay_min(ent);
@@ -238,7 +240,7 @@ void XB_CDECL BroScr_DelayTimerOnScriptChange(uint32_t ent, uint32_t script) {
     if (in_list(kKeepScripts, sizeof(kKeepScripts) / 4, script)) return;
     uint32_t ref;
     using GetRef = uint32_t* XB_THISCALL(const uint32_t*, uint32_t*);
-    if (!static_cast<uint8_t>(ScrCall_Scr_EntityHandleIsValid(title_function<GetRef>(0x001814c0)(&ent, &ref))))
+    if (!static_cast<uint8_t>(ScrCall_Scr_EntityHandleIsValid(own_function<GetRef>(&BroScr_GetSentientRef3c)(&ent, &ref))))
         return;  // BroScr_GetSentientRef3c
     const int32_t until = delay_until();
     if (until > static_cast<int32_t>(*ScrField_h900ed884(ent))) *ScrField_h900ed884(ent) = static_cast<uint32_t>(until);

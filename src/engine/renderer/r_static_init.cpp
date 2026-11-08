@@ -4,6 +4,8 @@
 
 #include "qcommon.h"
 #include "title_data.h"
+#include "qcommon_core.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -37,7 +39,7 @@ void free_aligned_global(uint32_t address) {
 }
 
 void hash_str_map_clear(uint32_t map) {
-    title_function<void XB_THISCALL(uint32_t)>(0x00094010)(map);  // HashStrMap_Clear
+    own_function<void XB_THISCALL(uint32_t)>(&HashStrMap_Clear)(map);  // HashStrMap_Clear
 }
 
 }  // namespace
@@ -68,7 +70,7 @@ void XB_CDECL AtExit_FxScriptStrings_96e90c() { release_script_string_arrays(0x0
 void XB_CDECL AtExit_FxScriptStrings_971970() { release_script_string_arrays(0x009719d0, 0x60, 2); }
 
 void XB_CDECL AtExit_ReleaseScriptString_971908() {
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00971908);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(0x00971908);  // ScriptString_Release
 }
 
 void XB_CDECL AtExit_FxEffectList() { free_aligned_global(0x00988ce8); }

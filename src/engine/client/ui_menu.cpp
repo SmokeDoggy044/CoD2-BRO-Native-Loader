@@ -12,6 +12,8 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "ui_panel.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -48,10 +50,10 @@ void call(uint8_t* object, uint32_t offset, uint32_t a, uint32_t b) {
     method<PairMethod>(object, offset)(object, a, b);
 }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
 uint8_t* heap_alloc16(uint32_t size) {
-    return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(size);  // Heap_Alloc16
+    return own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(size);  // Heap_Alloc16
 }
 
 // Menus.
@@ -92,7 +94,7 @@ bool play_ui_sound(uint32_t name, uint32_t& handle, bool axis_in_edx) {
     using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t,
                                                      uint32_t, const float*, const float*, uint32_t, uint32_t,
                                                      uint32_t, uint32_t);
-    title_function<PlayAlias>(0x002c30a0)(uint32_t(alias), axis_in_edx ? address_of(axis) : address_of(&handle), table,
+    own_function<PlayAlias>(&S_PlaySoundAlias)(uint32_t(alias), axis_in_edx ? address_of(axis) : address_of(&handle), table,
                                           &handle, 0, 1, 0, axis, origin, 0xbf800000, 0xbf800000, 0xbf800000,
                                           0xbf800000);  // S_PlaySoundAlias
     return true;
@@ -252,7 +254,7 @@ void XB_STDCALL UIOptionItem_Dtor(uint8_t* item) {
             uint8_t* string = strings + count * 4;
             for (int32_t n = count; n != 0; --n) {
                 string -= 4;
-                title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(string);  // ScriptString_Release
+                own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(string);  // ScriptString_Release
             }
         }
         z_free(strings - 4);
@@ -760,7 +762,7 @@ namespace {
 bool stick_direction_held(int32_t bit) { return UI_StickDirectionHeld(bit) != 0; }
 
 using PadCreate = uint8_t* XB_CDECL();
-void pad_create() { title_function<PadCreate>(0x00055e40)(); }
+void pad_create() { own_function<PadCreate>(&IN_PadCreate)(); }
 
 }  // namespace
 
@@ -815,7 +817,7 @@ void XB_THISCALL UIScreenMgr_HandleInput(uint8_t* mgr) {
         if (IN_PadConsumeReleased(active_pad, button)) {
             const uint32_t again = uint32_t(UIScreenMgr_PadBitToButton(bit));
             pad_create();
-            title_function<uint8_t XB_STDCALL(int32_t, uint32_t)>(0x00056570)(active_pad, again);  // IN_PadReturnFalse
+            own_function<uint8_t XB_STDCALL(int32_t, uint32_t)>(&IN_PadReturnFalse)(active_pad, again);  // IN_PadReturnFalse
             call(mgr, 0x2c, uint32_t(bit), uint32_t(active_pad));
             return;
         }
@@ -944,9 +946,9 @@ void XB_CDECL UIFontTable_AcquireFont(int32_t index, uint8_t* table) {
     const char* const name = text_at(0x0095f7e8 + uint32_t(index) * 32);
     using HashStrInit = char* XB_THISCALL(char*, const char*);
     char hashed[32];
-    title_function<HashStrInit>(0x00011060)(hashed, name);  // HashStr_Init
+    own_function<HashStrInit>(&HashStr_Init)(hashed, name);  // HashStr_Init
     nglFindTexture(hashed);
-    title_function<HashStrInit>(0x00011060)(hashed, name);
+    own_function<HashStrInit>(&HashStr_Init)(hashed, name);
     field<void*>(table, 4 + uint32_t(index) * 4) = nglFindFontAddRef(hashed);
 }
 
@@ -1040,7 +1042,7 @@ namespace game {
 namespace {
 
 using StringMethod = void XB_THISCALL(ScriptString*, const char*);
-void string_release(ScriptString* s) { title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(s); }
+void string_release(ScriptString* s) { own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(s); }
 // A by-value copy (the callee releases it).
 uint32_t string_copy(const ScriptString* s) {
     ScriptString copy;
@@ -1105,16 +1107,16 @@ PLATFORM_ASM_ENTRY(UIDialog_Init_entry, "leal 4(%esp), %eax\n"
 void XB_CDECL UIDialog_Init(uint8_t* dialog, ScriptString* strings) {
     using Assign = void XB_THISCALL(uint8_t*, ScriptString*);
     using Release = void XB_THISCALL(ScriptString*);
-    title_function<Assign>(0x0011d600)(dialog + 0x50, &strings[1]);  // ScriptString_Assign
-    title_function<Assign>(0x0011d600)(dialog + 0x4c, &strings[0]);
+    own_function<Assign>(&ScriptString_Assign_entry)(dialog + 0x50, &strings[1]);  // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(dialog + 0x4c, &strings[0]);
     field<uint32_t>(dialog, 0x34) = 0;
     field<uint32_t>(dialog, 0x44) = 0;
     field<uint32_t>(dialog, 0x48) = 0;
     field<uint32_t>(dialog, 0x54) = title_global<uint32_t>(0x0083eb34);  // -1.0
     dialog[0x59] = 0;
     for (int32_t i = 0; i < 3; ++i) call(menu_item(dialog, i), 0x20, 1);
-    title_function<Release>(0x0011d640)(&strings[0]);  // the by-value arguments (ScriptString_Release)
-    title_function<Release>(0x0011d640)(&strings[1]);
+    own_function<Release>(&ScriptString_Release_entry)(&strings[0]);  // the by-value arguments (ScriptString_Release)
+    own_function<Release>(&ScriptString_Release_entry)(&strings[1]);
 }
 
 void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, uint32_t ebp, uint32_t esi,
@@ -1200,7 +1202,7 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
 void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
                                        uint8_t keep_running) {
     using Show = void XB_REGS1 XB_STDCALL(const char*, uint8_t*, uint8_t, uint8_t, const char*, uint8_t);
-    title_function<Show>(0x003319e0)(name, mgr, ok, yes_no, title, keep_running);
+    own_function<Show>(&UI_ShowDialog_entry)(name, mgr, ok, yes_no, title, keep_running);
 }
 
 // --- Dialogs ---
@@ -1656,7 +1658,7 @@ uint8_t* construct_screen(uint32_t function, uint32_t size, uint8_t* owner) {
 // A localized string (rm_locStrings): the entry's text ("NO STRING" when null), the name itself without an entry.
 const char* localized(const char* name) {
     uint8_t* const zone = title_global<uint8_t*>(0x0095f5d8);  // rm_locStrings
-    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(name);  // Loc_HashKey
+    const uint32_t hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&Loc_HashKey)(name);  // Loc_HashKey
     const uint8_t* const entry = Zone_FindByHash(zone, hash);
     if (!entry) return name;
     const char* const text = field<const char*>(const_cast<uint8_t*>(entry), 8);
@@ -1757,7 +1759,7 @@ uint8_t* XB_REGS3 XB_CDECL StorageMenu_Construct(uint8_t* owner, uint32_t, uint8
     field<uint32_t>(menu, 0x34) = 0x00829ab4;
     field<uint32_t>(menu, 0) = 0x00829e10;     // vtable
     field<uint32_t>(menu, 0x34) = 0x00829e0c;  // the device-removed listener's vtable
-    title_function<void XB_CDECL(uint8_t*)>(0x000d0cc0)(menu + 0x34);  // Save_SetDeviceRemovedListener
+    own_function<void XB_CDECL(uint8_t*)>(&Save_SetDeviceRemovedListener)(menu + 0x34);  // Save_SetDeviceRemovedListener
     field<uint32_t>(menu, 0x38) = 0;
     menu[0x3c] = 0;
     menu[0x3d] = 0;
@@ -2191,12 +2193,12 @@ void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu) {
 void XB_THISCALL TitleMenu_OnAccept(uint8_t* menu, uint32_t) { TitleMenu_Accept(menu); }
 
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
-    title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
-    title_function<uint32_t XB_CDECL()>(0x000d1ec0)();               // Save_GetClusterSize
-    title_function<uint32_t XB_CDECL()>(0x000d1ec0)();
+    own_function<uint32_t XB_CDECL(uint32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
+    own_function<uint32_t XB_CDECL()>(&Save_GetClusterSize)();               // Save_GetClusterSize
+    own_function<uint32_t XB_CDECL()>(&Save_GetClusterSize)();
     const char* const first = localized(text_at(0x0082aabc));   // "MEM_ERROR_NOT_ENOUGH_BLOCKS1"
     const char* const second = localized(text_at(0x0082aa9c));  // "MEM_ERROR_NOT_ENOUGH_BLOCKS2"
-    const int32_t blocks = title_function<int32_t XB_CDECL()>(0x0031ac10)();  // Save_GetBlocksNeeded
+    const int32_t blocks = own_function<int32_t XB_CDECL()>(&Save_GetBlocksNeeded)();  // Save_GetBlocksNeeded
     title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(out, text_at(0x0082b1c8), first, blocks,
                                                                           second);  // _sprintf "%s %d %s"
 }
@@ -2206,17 +2208,17 @@ void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
 namespace {
 
 uint8_t* dialog_mgr() { return title_global<uint8_t*>(0x0095f900); }
-bool profiles_dir_exists() { return title_function<uint8_t XB_CDECL()>(0x0030c300)() != 0; }  // Save_ProfilesDirExists
-bool has_free_space() { return title_function<uint8_t XB_CDECL()>(0x0031ac60)() != 0; }
+bool profiles_dir_exists() { return own_function<uint8_t XB_CDECL()>(&Save_ProfilesDirExists)() != 0; }  // Save_ProfilesDirExists
+bool has_free_space() { return own_function<uint8_t XB_CDECL()>(&Save_HasEnoughFreeSpace)() != 0; }
 
 // The blocks a save needs (BytesToBlocks of 4 clusters of 1 KB, two and five clusters).
 int32_t blocks_needed() {
-    const int32_t clusters = title_function<int32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    const int32_t clusters = own_function<int32_t XB_CDECL(uint32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
     int32_t bytes = clusters * 4;
-    bytes = bytes + title_function<int32_t XB_CDECL()>(0x000d1ec0)() * 2;  // Save_GetClusterSize
-    const int32_t size = title_function<int32_t XB_CDECL()>(0x000d1ec0)();
+    bytes = bytes + own_function<int32_t XB_CDECL()>(&Save_GetClusterSize)() * 2;  // Save_GetClusterSize
+    const int32_t size = own_function<int32_t XB_CDECL()>(&Save_GetClusterSize)();
     bytes = bytes + size * 4 + size;
-    return title_function<int32_t XB_CDECL(int64_t)>(0x000d1610)(bytes);  // BytesToBlocks
+    return own_function<int32_t XB_CDECL(int64_t)>(&BytesToBlocks)(bytes);  // BytesToBlocks
 }
 
 // The "not enough blocks" dialog with the continue-without-saving button (and the manage-memory one).
@@ -2230,7 +2232,7 @@ void show_not_enough_blocks(const char* text, uint32_t continue_handler, uint32_
 // Copies a save slot record (0x3cc bytes) into its write buffer (the slot's +0x11c0 pointer, cleared first for
 // the save's size), with the device byte +0x11e6 after it.
 void fill_write_buffer(uint8_t* saves, int32_t slot, const uint8_t* record) {
-    const uint32_t size = title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    const uint32_t size = own_function<uint32_t XB_CDECL(uint32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
     uint8_t* const buffer = field<uint8_t*>(saves, 0x11c0 + slot * 4);
     for (uint32_t i = 0; i < size; ++i) buffer[i] = 0;
     platform_rep_movs(field<uint8_t*>(saves, 0x11c0 + slot * 4), record, 0x3cc);
@@ -2300,12 +2302,12 @@ uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
     uint8_t* const record = saves + slot * 0x3cc;
     const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
     title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x28c), version, 0x19);  // "9-21-05(CE)"
-    const char* const data = title_function<const char* XB_CDECL()>(0x000d0c80)();  // Save_GetData
+    const char* const data = own_function<const char* XB_CDECL()>(&Save_GetData)();  // Save_GetData
     title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x64c), data, 0xc);
     saves[slot + 0x11e7] = 1;
     if (!keep) Profile_StoreToSaveSlot(saves);
     fill_write_buffer(saves, slot, record + 0x28c);
-    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*)>(0x000d2620)(saves + 4);  // Save_BeginWrite
+    const uint32_t result = own_function<uint32_t XB_CDECL(uint8_t*)>(&Save_BeginWrite)(saves + 4);  // Save_BeginWrite
     field<int32_t>(saves, 0x11e0) = slot;
     return result;
 }
@@ -2322,14 +2324,14 @@ void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
         uint8_t* const record = saves + 0x28c + slot * 0x3cc;
         const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
         title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record), version, 0x19);
-        const char* const data = title_function<const char* XB_CDECL()>(0x000d0c80)();  // Save_GetData
+        const char* const data = own_function<const char* XB_CDECL()>(&Save_GetData)();  // Save_GetData
         title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x3c0), data, 0xc);
         saves[slot + 0x11e7] = 1;
         profile[0] = 0;
         platform_rep_movs(record + 0x1c, profile, 0x3a4);
         fill_write_buffer(saves, slot, record);
     }
-    title_function<void XB_CDECL(uint8_t*)>(0x000d2620)(saves + 4);  // Save_BeginWrite
+    own_function<void XB_CDECL(uint8_t*)>(&Save_BeginWrite)(saves + 4);  // Save_BeginWrite
     field<int32_t>(saves, 0x11e0) = slot;
 }
 

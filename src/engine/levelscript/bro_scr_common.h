@@ -7,6 +7,7 @@
 
 #include "compiler.h"
 #include "title_data.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -18,12 +19,12 @@ F* scr_slot(uint32_t slot) {
 
 // ScriptString_Release (0x0011d640, thiscall on the string); EAX = what it returns.
 inline uint32_t scr_release(void* string) {
-    return title_function<uint32_t XB_THISCALL(void*)>(0x0011d640)(string);
+    return own_function<uint32_t XB_THISCALL(void*)>(&ScriptString_Release_entry)(string);
 }
 
 // ScriptString_FromCString (0x0011eb50) on a title string.
 inline void scr_string_from(void* string, uint32_t text) {
-    title_function<void XB_THISCALL(void*, uint32_t)>(0x0011eb50)(string, text);
+    own_function<void XB_THISCALL(void*, uint32_t)>(&ScriptString_FromCString)(string, text);
 }
 
 }  // namespace game

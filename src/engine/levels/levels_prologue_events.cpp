@@ -63,7 +63,7 @@ void set_anim(uint32_t outer, uint32_t inner, uint32_t i, uint32_t anim) {
 void map_set(HashMap* map, uint32_t key, uint32_t missing, uint32_t anim) {
     uint32_t it[2];
     uint32_t pair[2] = {key, missing};
-    title_function<Find>(0x0045e6d0)(map, &it[0], &pair[0]);  // HashMap_Find_PROLOGUE
+    own_function<Find>(&HashMap_Find)(map, &it[0], &pair[0]);  // HashMap_Find_PROLOGUE
     uint32_t node = it[0];
     if (node == *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(map) + 8))  // end
         node = *reinterpret_cast<uint32_t*>(HashMap_Insert_PROLOGUE_2(map, reinterpret_cast<uint8_t*>(it), &pair[0]));
@@ -251,14 +251,14 @@ void XB_CDECL BroLvl_prologue_TankFireAtTargets(uint32_t tank, float a, float b)
     for (;;) {
         while (*int_slot(tank, 0x0b74e4e8) == 0) Scr_Wait(as_float(0x3e800000));  // 0.25
         if (!tank_targets_defined(tank)) return;
-        if (static_cast<int32_t>(title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316)->size) < 1) return;
-        title_function<void XB_CDECL(DynArray*)>(0x001a95e0)(  // DynArray_Shuffle
-            title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316));
+        if (static_cast<int32_t>(own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(tank), 0xfe9bb316)->size) < 1) return;
+        own_function<void XB_CDECL(DynArray*)>(&DynArray_Shuffle)(  // DynArray_Shuffle
+            own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(tank), 0xfe9bb316));
         for (uint32_t i = 0;
              static_cast<int32_t>(i) <
-             static_cast<int32_t>(title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316)->size);
+             static_cast<int32_t>(own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(tank), 0xfe9bb316)->size);
              ++i) {
-            DynArray* const targets = title_function<GetArray>(0x0045cd50)(ent_script_object(tank), 0xfe9bb316);
+            DynArray* const targets = own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(tank), 0xfe9bb316);
             if (i >= targets->size) DynArray_Resize(reinterpret_cast<uint8_t*>(targets), i + 1, i + 4);
             title_function<StartThread>(0x0045a850)(0, 0, 0, 0, 0x00432c90, tank, targets->data + i, &a,
                                                     &b);  // Scr_StartThread_ent_ent_f_f_PROLOGUE
@@ -474,7 +474,7 @@ void XB_CDECL BroLvl_prologue_LoopSoundAtPoints(uint32_t self, uint32_t sound, D
     const uint32_t ent = spawn_origin();
     if (static_cast<uint8_t>(loop)) {
         for (;;) {
-            title_function<void XB_CDECL(DynArray*)>(0x00431720)(points);  // DynArray_Shuffle12_PROLOGUE
+            own_function<void XB_CDECL(DynArray*)>(&DynArray_Shuffle12)(points);  // DynArray_Shuffle12_PROLOGUE
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(points->size); ++i) {
                 if (i >= points->size) title_function<Reserve>(0x0045cde0)(points, i + 1, i + 4);  // DynArray_Reserve12_PROLOGUE
                 set_origin(ent, points->data + i * 3);

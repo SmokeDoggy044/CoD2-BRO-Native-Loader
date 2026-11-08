@@ -9,6 +9,10 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_math.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -223,7 +227,7 @@ void XB_CDECL BroScr_StukaDropBombsThread(uint32_t a, uint32_t b) {
     ScriptString none;
     ScriptString_FromRep(&none, nullptr);
     // The fourth word is a stack temporary in the original (BroScr_StukaDropBombs reads three).
-    title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString, uint32_t)>(0x0014aaa0)(a, b, none, 0);  // BroScr_StukaDropBombs
+    own_function<void XB_CDECL(uint32_t, uint32_t, ScriptString, uint32_t)>(&BroScr_StukaDropBombs)(a, b, none, 0);  // BroScr_StukaDropBombs
 }
 
 namespace {
@@ -281,7 +285,7 @@ void XB_CDECL BroScr_TankAttachHullMg(uint32_t ent, ScriptString tag) {
     ScriptString_FromCString(&weapon, pointer<const char>(0x007f77f4));
     ScriptString copy;
     ScriptString_Copy(&copy, &tag);
-    title_function<void XB_CDECL(uint32_t, ScriptString, ScriptString)>(0x0013f190)(ent, copy, weapon);  // BroScr_TankAttachMgTurret
+    own_function<void XB_CDECL(uint32_t, ScriptString, ScriptString)>(&BroScr_TankAttachMgTurret)(ent, copy, weapon);  // BroScr_TankAttachMgTurret
     ScriptString_Release(&tag);
 }
 
@@ -301,8 +305,8 @@ uint32_t* XB_CDECL BroScr_CountAliveGunners(uint32_t* out, uint32_t ent) {
     using Resize = void XB_THISCALL(uint32_t*, uint32_t, uint32_t);
     // The gunner array field 0x2cd69a2a (8-byte elements; ScriptKeyTable_GetOrAddArray, DynArray_Resize8).
     auto element = [&](uint32_t i) {
-        uint32_t* const array = title_function<GetArray>(0x0017c660)(BroScr_ScriptObjectOrEmpty(ent), 0x2cd69a2a);
-        if (i >= array[2]) title_function<Resize>(0x0017bfb0)(array, i + 1, i + 4);
+        uint32_t* const array = own_function<GetArray>(&ScriptKeyTable_GetOrAddArray)(BroScr_ScriptObjectOrEmpty(ent), 0x2cd69a2a);
+        if (i >= array[2]) own_function<Resize>(&DynArray_Resize8)(array, i + 1, i + 4);
         return pointer<uint32_t>(array[0])[i * 2];
     };
     uint32_t count = 0;
@@ -550,7 +554,7 @@ namespace {
 
 DynArray* table_array(uint32_t ent, uint32_t key) {
     using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(ent), key);  // ScriptKeyTable_GetArray
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(ent), key);  // ScriptKeyTable_GetArray
 }
 
 // The array under `key` through ScriptKeyTable_Find, else ScriptKeyTable_SetArray with an empty one.
@@ -560,7 +564,7 @@ DynArray* table_array_or_add(uint32_t ent, uint32_t key) {
     if (!value) {
         DynArray empty = {};
         using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, DynArray*);
-        value = title_function<SetArray>(0x0045cc80)(table, key, &empty);
+        value = own_function<SetArray>(&ScriptKeyTable_SetArray)(table, key, &empty);
     }
     return pointer<DynArray>(*value);
 }
@@ -691,7 +695,7 @@ struct Vec {
 // BroScr_VectorScale (0x00182270, the other list's helper; called at its title address).
 Vec vector_scale(const Vec& v, float scale) {
     float out[3];
-    const float* const r = title_function<float* XB_CDECL(float*, float, float, float, float)>(0x00182270)(out, v.x, v.y, v.z,
+    const float* const r = own_function<float* XB_CDECL(float*, float, float, float, float)>(&BroScr_VectorScale)(out, v.x, v.y, v.z,
                                                                                                          scale);
     return {r[0], r[1], r[2]};
 }

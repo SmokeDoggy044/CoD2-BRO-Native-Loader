@@ -8,6 +8,8 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_arrays.h"
+#include "levels_twins.h"
 
 // A cdecl title call with two stack words that returns the ECX the callee leaves: the bool-field
 // accessors (ScrField_BoolSlot) build a missing field's word from their caller's ECX.
@@ -73,7 +75,7 @@ const ScriptString* key_string(uint32_t ent, uint32_t key) {
 
 DynArray* field_array(uint32_t ent, uint32_t key) {
     using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return title_function<GetArray>(0x0045cd50)(table_of(ent), key);  // ScriptKeyTable_GetArray
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(table_of(ent), key);  // ScriptKeyTable_GetArray
 }
 
 template <typename F>
@@ -170,7 +172,7 @@ void XB_CDECL BroScr_GetPanzerfaustRespawns(DynArray* out) {
                                                  pointer<const char>(0x00824734));  // "respawn"
         ScriptString_Release(&targetname);
         if (!respawn) continue;
-        title_function<void XB_CDECL(DynArray*, uint32_t)>(0x001a8840)(out, *element(&found, i));  // BroScr_AppendIfValidEnt
+        own_function<void XB_CDECL(DynArray*, uint32_t)>(&BroScr_AppendIfValidEnt)(out, *element(&found, i));  // BroScr_AppendIfValidEnt
     }
     free_data(found);
 }
@@ -192,7 +194,7 @@ uint32_t* XB_CDECL BroScr_GetClosestNodeToEnt(uint32_t* out, uint32_t ent, Scrip
         uint32_t origin_buffer[3];
         const uint32_t* const origin = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(origin_buffer, ent);
         using Closest = void XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, DynArray*, DynArray*);
-        title_function<Closest>(0x001a8fc0)(out, origin[0], origin[1], origin[2], &nodes, &skip);  // BroScr_GetClosestNodeFromArray
+        own_function<Closest>(&BroScr_GetClosestNodeFromArray)(out, origin[0], origin[1], origin[2], &nodes, &skip);  // BroScr_GetClosestNodeFromArray
         free_data(skip);
     }
     free_data(nodes);
@@ -257,7 +259,7 @@ void XB_CDECL BroScr_MortarEntInit(uint32_t ent) {
     DynArray targets = {};
     Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&self, &target)), 0x0d786b4c, bytes(&targets), 0);
     ScriptString_Release(&target);
-    title_function<void XB_THISCALL(DynArray*, DynArray*)>(0x0045c270)(field_array(ent, 0x05c4ceb7), &targets);  // DynArray_Assign4
+    own_function<void XB_THISCALL(DynArray*, DynArray*)>(&DynArray_Assign4_PROLOGUE)(field_array(ent, 0x05c4ceb7), &targets);  // DynArray_Assign4
     *reinterpret_cast<uint8_t*>(ScrField_hb2f8556f(ent, 0)) = 1;
     free_data(targets);
     if (!string_defined(ScrField_h05c4ceb7_IsDefined, ent)) {

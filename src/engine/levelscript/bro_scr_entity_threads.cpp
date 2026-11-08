@@ -8,6 +8,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "g_script.h"
 
 namespace game {
 
@@ -266,8 +267,8 @@ void XB_CDECL BroScr_ExploderPlaySound(uint32_t ent) {
     const uint32_t* o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
     uint32_t origin[3] = {o[0], o[1], o[2]};
     ScriptString* const sound = string_key(ent, 0x81047339);
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
-                                     uint32_t*)>(0x0017b150)(0, 0, 0, 0, 0x001823a0, *level, sound,
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
+                                     uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, 0x001823a0, *level, sound,
                                                              origin);  // Scr_StartThreadFunctorN(BroScr_PlaySoundOnTempOrigin_4)
 }
 

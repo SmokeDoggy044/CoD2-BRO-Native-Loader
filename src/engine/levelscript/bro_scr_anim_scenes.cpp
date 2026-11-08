@@ -17,6 +17,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -63,13 +64,13 @@ inline void loop_guys(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptStr
                       uint32_t p7, uint32_t p8, const ScrVec3& angles) {
     ScriptString copy;
     ScriptString_Copy(&copy, anime);
-    title_function<LoopGuys>(0x00176720)(ref, guys, a3, copy, p5, origin, p7, p8, angles);  // BroScr_AnimLoopGuys
+    own_function<LoopGuys>(&BroScr_AnimLoopGuys)(ref, guys, a3, copy, p5, origin, p7, p8, angles);  // BroScr_AnimLoopGuys
 }
 inline void single_guys(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString* anime, const ScrVec3& origin, uint32_t tag_ent,
                         uint32_t flag, const ScrVec3& angles) {
     ScriptString copy;
     ScriptString_Copy(&copy, anime);
-    title_function<SingleGuys>(0x00177450)(ent, guys, a3, copy, origin, tag_ent, flag, angles);  // BroScr_AnimSingleGuys
+    own_function<SingleGuys>(&BroScr_AnimSingleGuys)(ent, guys, a3, copy, origin, tag_ent, flag, angles);  // BroScr_AnimSingleGuys
 }
 // The scene place checks of the _2 forms (all results unused).
 inline void place_checks(const DynArray* guys, uint32_t ent, ScriptString* tag, uint32_t node, uint32_t tag_ent) {
@@ -111,9 +112,9 @@ inline void sherman_tank_anim(uint32_t* tank, uint32_t id, ScriptString* anime) 
         using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
         for (uint32_t i = 0;; ++i) {
             if (!(static_cast<int32_t>(i) <
-                  static_cast<int32_t>(title_function<GetArray>(0x0045cd50)(ent_script_object(*tank), 0x00325b53)->size)))
+                  static_cast<int32_t>(own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(*tank), 0x00325b53)->size)))
                 break;
-            DynArray* const guys = title_function<GetArray>(0x0045cd50)(ent_script_object(*tank), 0x00325b53);
+            DynArray* const guys = own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(*tank), 0x00325b53);
             if (i >= guys->size) DynArray_Resize(reinterpret_cast<uint8_t*>(guys), i + 1, i + 4);
             uint32_t guy = guys->data[i];
             if (guy_field(guy) != id) continue;
@@ -165,15 +166,15 @@ inline uint32_t* scene_node(uint32_t offset, const uint32_t* guy, const uint32_t
     using Find = uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*);
     const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, animname);
     uint32_t hash;
-    uint32_t* const map = title_function<Index>(0x004641e0)(
+    uint32_t* const map = own_function<Index>(&HashMap_Index_PROLOGUE_8)(
         title_global<uint32_t>(0x00922ee0) + offset,
         Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)));  // HashMap_Index_8
     uint32_t it;
-    title_function<Find>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+    own_function<Find>(&HashMap_Find)(map, &it, key);  // HashMap_Find
     if (it == map[2]) {
         const uint32_t pair[2] = {*key, 0};
         uint32_t inserted;
-        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        it = *own_function<Find>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
     }
     return pointer<uint32_t>(it);
 }
@@ -181,7 +182,7 @@ inline uint32_t* scene_node(uint32_t offset, const uint32_t* guy, const uint32_t
 inline ScriptString* scene_sound(const uint32_t* guy, const uint32_t* key, ScriptString* animname) {
     const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(guy, animname);
     uint32_t hash;
-    uint8_t* const map = title_function<uint8_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00464110)(
+    uint8_t* const map = own_function<uint8_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_7)(
         title_global<uint32_t>(0x00922ee0) + 0x124, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)));
     return title_function<ScriptString* XB_THISCALL(uint8_t*, const uint32_t*)>(0x00461120)(map, key);
 }
@@ -253,7 +254,7 @@ inline void notify_thread_on(uint32_t function, uint32_t on, uint32_t notify) {
 // DynArray copy-assign (0x0045c270, thiscall) into a zeroed by-value argument.
 inline DynArray copy_array(const DynArray* source) {
     DynArray copy = {0, 0, 0};
-    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, source);  // DynArray_Assign4
+    own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, source);  // DynArray_Assign4
     return copy;
 }
 // The guy's level +0x160 map, copied (HashMap_CopyCtor_4 inlined) and dropped (the script's discarded read).
@@ -266,13 +267,13 @@ inline void drop_map_copy(const uint32_t* guy) {
         Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name))));
     HashMap copy;
     copy.traits = source->traits;
-    copy.head = title_function<HashNode* XB_CDECL()>(0x0017bc80)();  // std_list_BuyHead
+    copy.head = own_function<HashNode* XB_CDECL()>(&std_list_BuyHead)();  // std_list_BuyHead
     copy.size = 0;
     copy.buckets = nullptr;
     copy.buckets_last = nullptr;
     copy.buckets_end = nullptr;
     HashMap_CopyFrom_4(&copy, source);
-    title_function<void XB_THISCALL(HashMap*)>(0x00463c70)(&copy);  // HashMap_Dtor
+    own_function<void XB_THISCALL(HashMap*)>(&HashMap_Dtor_PROLOGUE_19)(&copy);  // HashMap_Dtor
     scr_release(&animname);
 }
 
@@ -409,7 +410,7 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
                 HashMap_CopyCtor_4(&copy, reinterpret_cast<HashMap*>(HashMap_Index_6(
                                               pointer<HashMap>(title_global<uint32_t>(0x00922ee0) + 0x160),
                                               Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)))));
-                title_function<void XB_THISCALL(HashMap*)>(0x00463c70)(&copy);  // HashMap_Dtor
+                own_function<void XB_THISCALL(HashMap*)>(&HashMap_Dtor_PROLOGUE_19)(&copy);  // HashMap_Dtor
                 scr_release(&animname);
             }
             const uint32_t notify = 0xce00786e;
@@ -734,7 +735,7 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
                         uint32_t hash;
                         ScriptString* const alias = note_field(
                             entry_at(Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)), &anime, j), &key);
-                        title_function<StartThread>(0x0045aff0)(0, 0, 0, 0, 0x0019ca70, guy, alias,
+                        own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0019ca70, guy, alias,
                                                                 &none);  // Scr_StartThread_ent_str_str(BroScr_PlaySoundOnTag)
                         scr_release(&animname);
                         scr_release(&none);

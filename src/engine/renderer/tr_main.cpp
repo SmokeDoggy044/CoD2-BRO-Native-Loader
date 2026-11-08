@@ -11,6 +11,11 @@
 #include "stream.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
+#include "cg_view.h"
+#include "cl.h"
+#include "g_script.h"
+#include "ngl_debug.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -519,7 +524,7 @@ uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
     const uint32_t handle = title_function<uint32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x0095e6b4))(font, size);
     uint32_t width;
     uint32_t height;
-    title_function<void XB_CDECL(uint32_t, uint32_t*, uint32_t*, float, float, const char*, ...)>(0x00066310)(
+    own_function<void XB_CDECL(uint32_t, uint32_t*, uint32_t*, float, float, const char*, ...)>(&nglGetTextSizef)(
         handle, &width, &height, size, size, "LltygI");
     return height;
 }
@@ -848,7 +853,7 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
         title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(bones, 0x40, 0x20,
                                                                                       0x0001b920);
     }
-    title_function<void XB_CDECL(const XModel*, float*)>(0x00241ff0)(xmodel, bones);
+    own_function<void XB_CDECL(const XModel*, float*)>(&R_ModelBoneMatrices)(xmodel, bones);
 
     const float one = title_global<float>(0x0083eb20);
     const Lanes m0 = {{model->axis[0][0], model->axis[0][1], model->axis[0][2], 0.0f}};
@@ -1200,7 +1205,7 @@ void XB_CDECL RE_BeginFrame() {
     alignas(16) const float color[4] = {title_global<float>(0x0095e41c), title_global<float>(0x0095e420),
                                         title_global<float>(0x0095e424), title_global<float>(0x0095e41c)};
     ++title_global<uint32_t>(0x0095e398);
-    title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+    own_function<void XB_CDECL()>(&nglBeginFrame)();  // nglBeginFrame
     nglAdvanceShaderTime(color, title_global<float>(0x008ddaa0));
     nglSetClearFlags(3);
     alignas(16) float fog[4];
@@ -1250,7 +1255,7 @@ void XB_CDECL R_SetupEntityLighting(REntityLighting* cache, const float* origin)
 void XB_CDECL R_UnlinkEntityFromCells(const void* owner) {
     const uint8_t* world = title_global<uint8_t*>(0x0095f6b8);
     if (!world) return;
-    auto free_link = title_function<void XB_THISCALL(void*, void*)>(0x00044910);
+    auto free_link = own_function<void XB_THISCALL(void*, void*)>(&SmallHeap_Free);
     for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(world + 0x18); ++i) {
         RCellModelLink*& head = *reinterpret_cast<RCellModelLink**>(world_cell(world, i) + 0x34);
         RCellModelLink* prev = nullptr;
@@ -1282,7 +1287,7 @@ void XB_CDECL R_LinkEntityToCell(const uint8_t* owner, uint32_t cell, uint8_t* m
     RCellModelLink*& head = *reinterpret_cast<RCellModelLink**>(c + 0x34);
     if (head && head->model == model) return;  // only the first link is checked
     auto* link = static_cast<RCellModelLink*>(
-        title_function<void* XB_THISCALL(void*, uint32_t, uint32_t)>(0x00044850)(title_global<void*>(0x0095f6d4), 8, 0));
+        own_function<void* XB_THISCALL(void*, uint32_t, uint32_t)>(&SmallHeap_Alloc)(title_global<void*>(0x0095f6d4), 8, 0));
     link->model = model;
     link->next = head;
     head = link;
@@ -1514,7 +1519,7 @@ void XB_CDECL R_AddCellSurfaces(uint8_t* cell, const uint8_t* planes, int32_t co
 namespace {
 
 void* z_malloc_debug(int32_t size, uint32_t file, uint32_t text, int32_t line) {
-    return title_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(0x00042c20)(
+    return own_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(&Z_MallocDebug)(
         size, reinterpret_cast<const char*>(file), reinterpret_cast<const char*>(text), line);
 }
 
@@ -1719,7 +1724,7 @@ void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uin
         visiting = 1;
         R_VisitCell_r(*reinterpret_cast<uint8_t* const*>(portal + 0x14), portal, reinterpret_cast<const uint8_t*>(clipped),
                       clipped_count, pass);
-        title_function<void XB_CDECL(void*)>(0x000428d0)(clipped);  // Z_Free
+        own_function<void XB_CDECL(void*)>(&Z_Free)(clipped);  // Z_Free
         visiting = 0;
     }
 }
@@ -1741,7 +1746,7 @@ void set_box_offsets(RCullPlane& plane) {
 void XB_CDECL R_SetupFrustum() {
     // Q3's R_SetupFrustum: the side planes from the view axes (0x0095e3ac, three rows)
     // and the half field of view angles (0x0095e4c4 x, 0x0095e4c8 y, degrees).
-    const auto sin_cos = title_function<void XB_REGS3(float*, uint32_t, float*, float)>(0x000110f0);  // FastSinCos
+    const auto sin_cos = own_function<void XB_REGS3(float*, uint32_t, float*, float)>(&FastSinCos);  // FastSinCos
     const float* axis = &title_global<float>(0x0095e3ac);
     float* frustum = &title_global<float>(0x0095e518);  // 4 planes, 0x14 bytes apart
     const float to_half_radians = title_global<float>(0x0083ed0c);  // pi / 2
@@ -1786,7 +1791,7 @@ void XB_CDECL R_RotateForViewer() {
     alignas(16) float axis[3][4];
     for (int row = 0; row < 3; ++row)
         std::memcpy(axis[row], &title_global<float>(0x0095e3ac + row * 12), sizeof axis[row]);
-    title_function<void XB_THISCALL(void*, float*)>(0x002c9270)(&title_global<uint8_t>(0x00964b80), axis[0]);
+    own_function<void XB_THISCALL(void*, float*)>(&CameraShake_Evaluate)(&title_global<uint8_t>(0x00964b80), axis[0]);
     alignas(16) float viewer[16];
     for (int row = 0; row < 3; ++row) {
         viewer[row] = axis[row][0];
@@ -1969,7 +1974,7 @@ void XB_CDECL R_AddEntitySurfaces() {
         if (!object) continue;
         uint8_t* model = *reinterpret_cast<uint8_t**>(object + 0x22c);
         if (!model) continue;
-        float* object_matrix = title_function<float* XB_STDCALL(uint8_t*, float*)>(0x002de120)(object, matrix);
+        float* object_matrix = own_function<float* XB_STDCALL(uint8_t*, float*)>(&G_GetEntityMatrix)(object, matrix);
         reinterpret_cast<uint32_t XB_CDECL (*)(uint8_t*, uint8_t*, float*, int32_t, int32_t, int32_t)>(
             &R_AddDObjSurfaces_entry)(model, object, object_matrix, 1, 0xff, 0);
     }
@@ -2484,7 +2489,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
         float* axes = reinterpret_cast<float*>(frame + 0x130);
         for (int k = 0; k < 3; ++k) std::memcpy(axes + k * 3, matrix + k * 4, 12);
         std::memcpy(axes + 9, matrix + 12, 12);
-        title_function<void XB_REGS1 XB_CDECL(float*, DObj*)>(0x00241b40)(axes, obj);  // R_DrawDObjSkeleton
+        own_function<void XB_REGS1 XB_CDECL(float*, DObj*)>(&R_DrawDObjSkeleton)(axes, obj);  // R_DrawDObjSkeleton
     }
     return result;
 }
@@ -2886,7 +2891,7 @@ void XB_CDECL R_CheckCvarRange(uint32_t integral, const uint8_t* cvar, float min
     using Va = const char* XB_CDECL(const char*, ...);
     using CvarSet = void XB_CDECL(const char*, const char*);
     const auto printf = title_function<Printf>(title_global<uint32_t>(0x0095e630));  // ri.Printf
-    const auto va = title_function<Va>(0x002a93d0);
+    const auto va = own_function<Va>(&va_entry);
     const auto cvar_set = [](const char* name, const char* value) {
         title_function<CvarSet>(title_global<uint32_t>(0x0095e658))(name, value);  // ri.Cvar_Set
     };
@@ -2910,13 +2915,13 @@ void XB_CDECL R_CheckCvarRange(uint32_t integral, const uint8_t* cvar, float min
 
 uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t flags) {
     using RegisterModel = void XB_REGS1 XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t);
-    title_function<RegisterModel>(0x00241f40)(name, title_global<uint32_t>(0x0095f6ac), handle, flags);  // R_RegisterModel
+    own_function<RegisterModel>(&R_RegisterModel)(name, title_global<uint32_t>(0x0095f6ac), handle, flags);  // R_RegisterModel
     return handle;
 }
 
 uint32_t XB_CDECL R_Register() {
     using CvarGet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
-    const auto Cvar_Get = title_function<CvarGet>(0x0029c2d0);
+    const auto Cvar_Get = own_function<CvarGet>(&game::Cvar_Get);
     const auto cvar_get = title_function<CvarGet>(title_global<uint32_t>(0x0095e650));  // ri.Cvar_Get
     const auto add_command = [](const char* name, uint32_t function) {
         title_function<void XB_CDECL(const char*, uint32_t)>(title_global<uint32_t>(0x0095e65c))(  // ri.Cmd_AddCommand
@@ -2991,7 +2996,7 @@ void XB_CDECL R_InitDebugMeshes(uint32_t* out) {
     for (int i = 0; i < 3; ++i) {
         uint8_t hashed[0x20];
         const auto* name =
-            title_function<const char* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, kMeshes[i]);  // HashStr_Init
+            own_function<const char* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, kMeshes[i]);  // HashStr_Init
         out[i] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(nglFindMesh(name)));
     }
 }
@@ -3008,7 +3013,7 @@ uint32_t* XB_REGS1 XB_STDCALL R_RegisterModel(const char* name, uint32_t maps, u
     // index). The original's out slot is its length local with the low byte cleared (0).
     uint32_t model = static_cast<uint32_t>(length) & ~0xffu;
     using Lookup = void XB_REGS2 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, const char*, uint32_t, uint32_t*);
-    title_function<Lookup>(0x0002bf80)(0, zone_set, maps, &model, text, model, nullptr);
+    own_function<Lookup>(&ZoneStringMap_Lookup)(0, zone_set, maps, &model, text, model, nullptr);
     if (model) {
         auto** parts = reinterpret_cast<XModelParts**>(uintptr_t{model + 0x24});
         for (int i = 0; i < 5; ++i) {
@@ -3057,7 +3062,7 @@ uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint32_t table, const char* text
                 out[length] = '\0';
                 // Key_TranslateButtonName (name in EAX, table in ECX)
                 const char* name =
-                    title_function<const char* XB_REGS3(const char*, uint32_t, uint32_t)>(0x00292ee0)(out, 0, table);
+                    own_function<const char* XB_REGS3(const char*, uint32_t, uint32_t)>(&Key_TranslateButtonName)(out, 0, table);
                 *icon = name;
                 if (name) {
                     strncpy(out, text, static_cast<uint32_t>(open - text));
@@ -3130,7 +3135,7 @@ void XB_CDECL RE_DrawTextExt(float x, float y, uint32_t font_name, float scale, 
             }
             if (icon) {
                 using RegisterShader = const uint8_t* XB_REGS2 XB_CDECL(uint32_t, const char*);
-                const uint8_t* shader = title_function<RegisterShader>(0x0023ec30)(0, icon);  // RE_RegisterShader
+                const uint8_t* shader = own_function<RegisterShader>(&RE_RegisterShader)(0, icon);  // RE_RegisterShader
                 if (shader) {
                     const float shader_height = platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x14));
                     const float ratio =
@@ -3208,7 +3213,7 @@ int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale)
             }
             if (icon) {
                 using RegisterShader = const uint8_t* XB_REGS2 XB_CDECL(uint32_t, const char*);
-                const uint8_t* shader = title_function<RegisterShader>(0x0023ec30)(0, icon);  // RE_RegisterShader
+                const uint8_t* shader = own_function<RegisterShader>(&RE_RegisterShader)(0, icon);  // RE_RegisterShader
                 if (shader) {
                     const float ratio = platform_x87_unsigned_to_float(static_cast<uint32_t>(height)) /
                                         platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x14));
@@ -3463,7 +3468,7 @@ void XB_CDECL R_LoadCellMeshes(uint32_t cell_index, uint32_t release) {
     uint8_t* files[32];
     int32_t count = 0;
     sprintf(name, "%s_%03d", map, cell_index);
-    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
     uint8_t* file = Stream_FindMeshFile_call(hashed, title_global<uint32_t>(0x0095f630), zone, 0);
     file_slot = reinterpret_cast<uintptr_t>(file);
     if (file) {
@@ -3472,7 +3477,7 @@ void XB_CDECL R_LoadCellMeshes(uint32_t cell_index, uint32_t release) {
     } else {
         for (int32_t split = 0; split < 0x20; ++split) {
             sprintf(name, "%s_%03d_SPLIT%d", map, cell_index, split);
-            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+            own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
             file = Stream_FindMeshFile_call(hashed, title_global<uint32_t>(0x0095f630), zone, 0);
             file_slot = reinterpret_cast<uintptr_t>(file);
             if (!file) break;
@@ -3536,19 +3541,19 @@ uint8_t* XB_REGS2 XB_CDECL RE_RegisterShader(uint32_t, const char* name) {
     uint8_t hashed[0x20];
     using FindTexture = uint8_t* XB_STDCALL(uint32_t, uint32_t, const uint8_t*, uint32_t, uint32_t);
     if (zone) {
-        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, file);  // HashStr_Init
-        uint8_t* texture = title_function<FindTexture>(0x00290620)(title_global<uint32_t>(0x0095f630), bank, hashed,
+        own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, file);  // HashStr_Init
+        uint8_t* texture = own_function<FindTexture>(&Stream_FindTexture)(title_global<uint32_t>(0x0095f630), bank, hashed,
                                                                    0, 0);  // Stream_FindTexture
         if (texture) return texture;
     }
-    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, file);  // HashStr_Init
-    uint8_t* texture = title_function<FindTexture>(0x00290620)(title_global<uint32_t>(0x0095f630),
+    own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, file);  // HashStr_Init
+    uint8_t* texture = own_function<FindTexture>(&Stream_FindTexture)(title_global<uint32_t>(0x0095f630),
                                                                field<uint32_t>(zones, 0x34), hashed, 0, 0);
     return texture ? texture : title_global<uint8_t*>(0x00902700);
 }
 
 void XB_CDECL RE_EndFrame() {
-    title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+    own_function<void XB_CDECL()>(&nglEndFrame)();  // nglEndFrame
     R_ClearFrameLists();
 }
 
@@ -3556,7 +3561,7 @@ void XB_CDECL R_Init() {
     using Printf = void XB_CDECL(int32_t, const char*, ...);
     title_function<Printf>(title_global<uint32_t>(0x0095e630))(0, "----- R_Init -----\n");  // ri.Printf
     std::memset(&title_global<uint32_t>(0x0095e390), 0, 0x9f * 4);
-    title_function<void XB_CDECL()>(0x002b0140)();  // Swap_Init
+    own_function<void XB_CDECL()>(&Swap_Init)();  // Swap_Init
     R_Register();
     R_ClearFrameLists();
     GLimp_Init();
@@ -3623,7 +3628,7 @@ PLATFORM_ASM_ENTRY(R_FindEffectByName_entry,
 
 uint32_t XB_CDECL R_FindEffectByName(const char* name) {
     uint32_t hashed[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
     const uint32_t zone = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34);
     return Stream_FindEffect(hashed, title_global<uint32_t>(0x0095f630), zone, 0, 0);
 }

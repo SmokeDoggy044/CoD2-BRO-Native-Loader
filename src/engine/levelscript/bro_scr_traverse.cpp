@@ -9,6 +9,7 @@
 #include "g_scr_runtime.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_note_handlers.h"
 
 namespace game {
 
@@ -94,14 +95,14 @@ void note_tracks(uint32_t ent, uint32_t flag) {
     ScriptString empty;
     ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
     ScriptString result;
-    title_function<HandleNoteTracks>(0x001ada20)(&result, ent, flag, 0, empty);  // BroScr_HandleNoteTracks
+    own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, flag, 0, empty);  // BroScr_HandleNoteTracks
     scr_release(&result);
 }
 // BroScr_HandleNoteTracksForTime(ent, time, flag, 0, a copy of the empty string).
 void note_tracks_for_time(uint32_t ent, float time, uint32_t flag) {
     ScriptString empty;
     ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
-    title_function<HandleNoteTracksForTime>(0x001aeca0)(ent, time, flag, 0, empty);  // BroScr_HandleNoteTracksForTime
+    own_function<HandleNoteTracksForTime>(&BroScr_HandleNoteTracksForTime)(ent, time, flag, 0, empty);  // BroScr_HandleNoteTracksForTime
 }
 // Waits for the flag's "gravity on" note (Scr_WaitTillArgs(ent, flag, hash, 0, 0)).
 void wait_gravity_on(uint32_t ent, uint32_t flag) {

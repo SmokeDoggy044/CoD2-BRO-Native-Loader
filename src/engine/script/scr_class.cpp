@@ -1,6 +1,7 @@
 #include "scr_class.h"
 
 #include "title_data.h"
+#include "g_scr_runtime.h"
 
 namespace game {
 
@@ -11,7 +12,7 @@ void set_vtable(uint8_t* self, uint32_t vtable) { *reinterpret_cast<uint32_t*>(s
 uint32_t word_at(const uint8_t* self, uint32_t offset) { return *reinterpret_cast<const uint32_t*>(self + offset); }
 
 void scr_free(uint32_t block) {
-    title_function<void XB_CDECL(uint32_t)>(0x002f5e10)(block);  // Scr_Free
+    own_function<void XB_CDECL(uint32_t)>(&Scr_Free)(block);  // Scr_Free
 }
 
 // A member destructor (thiscall) by title address.
@@ -377,11 +378,11 @@ void XB_THISCALL ScrClass_00823508_Dtor(uint8_t* self) {
 
 void XB_THISCALL ScrClass_007f5f9c_Dtor(uint8_t* self) {
     set_vtable(self, 0x007f5f9c);
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011a9b0)(self);  // ScrClass_007f5f4c_Dtor
+    own_function<void XB_THISCALL(uint8_t*)>(&ScrClass_007f5f4c_Dtor)(self);  // ScrClass_007f5f4c_Dtor
 }
 
 uint8_t* XB_THISCALL ScrWad_Anim_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011cca0)(self);  // ScrClass_007f5f9c_Dtor
+    own_function<void XB_THISCALL(uint8_t*)>(&ScrClass_007f5f9c_Dtor)(self);  // ScrClass_007f5f9c_Dtor
     if (flags & 1) scr_free(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)));
     return self;
 }

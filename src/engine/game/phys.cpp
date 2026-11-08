@@ -117,7 +117,7 @@ uint8_t XB_THISCALL PhysShape_IntersectInFrame(void* shape, const float* frame, 
 void XB_THISCALL PhysContact_ComputeBias_2(uint8_t* contact, float dt, float limit) {
     const float min_dt = title_global<float>(0x00830678);  // 1/240
     if (!(dt > min_dt)) dt = min_dt;
-    const long double separation = title_function<long double XB_THISCALL(uint8_t*)>(0x000bc510)(contact);  // PhysContact_GetSeparation
+    const long double separation = own_function<long double XB_THISCALL(uint8_t*)>(&PhysContact_GetSeparation)(contact);  // PhysContact_GetSeparation
     const float bias = static_cast<float>(-((separation - title_global<float>(0x00830670)) / dt));  // 0.02
     float& out = at<float>(contact, 0x7c);
     out = bias;
@@ -556,7 +556,7 @@ float XB_CDECL PhysBox_PointDistanceSqInFrame(const float* p, const uint8_t* box
 int32_t XB_CDECL Phys_GjkContact(uint32_t a, uint32_t b, uint32_t c, float* out) {
     using Closest = int32_t XB_CDECL(uint32_t, uint32_t, uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t,
                                      uint32_t, uint32_t);
-    const int32_t result = title_function<Closest>(0x000b1b40)(a, b, c, out, title_global<uint32_t>(0x008bd430), 0, 0,
+    const int32_t result = own_function<Closest>(&Gjk_ClosestPoints)(a, b, c, out, title_global<uint32_t>(0x008bd430), 0, 0,
                                                                   0, 0, 0);  // Gjk_ClosestPoints
     if (result != 1) return result;
     const Lanes sq = mul(lanes(out + 8), lanes(out + 8));
@@ -728,7 +728,7 @@ uint8_t XB_CDECL Phys_SphereShapeContact(const uint8_t* sphere, const float* fra
         for (;;) {
             std::memcpy(moved, add(lanes(moved_frame + 12), lanes(n)).v, 16);
             std::memcpy(moved_frame + 12, moved, 16);
-            const int32_t separated = title_function<Closest>(0x000b1b40)(sphere, moved_frame, shape, out,
+            const int32_t separated = own_function<Closest>(&Gjk_ClosestPoints)(sphere, moved_frame, shape, out,
                                                                            title_global<uint32_t>(0x008bd430), 1, 0, 0,
                                                                            0, 0);  // Gjk_ClosestPoints
             const Lanes sq = mul(lanes(out + 8), lanes(out + 8));
@@ -803,7 +803,7 @@ void XB_CDECL PhysWorld_SetField2C(uint32_t value) { at<uint32_t>(phys_world(), 
 void XB_CDECL PhysWorld_SetCallbackC(uint32_t callback) { at<uint32_t>(phys_world(), 0xc) = callback; }
 
 void XB_CDECL Phys_RunFrame(float dt) {
-    title_function<void XB_THISCALL(uint8_t*, float)>(0x000be640)(phys_world(), dt);  // PhysWorld_Step
+    own_function<void XB_THISCALL(uint8_t*, float)>(&PhysWorld_Step_entry)(phys_world(), dt);  // PhysWorld_Step
 }
 
 // A full list writes a, b through null (the title faults there).
@@ -827,7 +827,7 @@ uint8_t* XB_CDECL PhysWorld_AllocBody() { return world_list_alloc(0x1ec, 0x1f4, 
 
 uint32_t XB_CDECL PhysWorld_AllocConstraint50(uint32_t a, uint32_t b) {
     using Alloc = uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t);
-    return title_function<Alloc>(0x000b5fe0)(phys_world() + 0x228, 0, a, b);  // PhysConstraintPool_Alloc
+    return own_function<Alloc>(&PhysConstraintPool_Alloc)(phys_world() + 0x228, 0, a, b);  // PhysConstraintPool_Alloc
 }
 
 // A new constraint gets -1 in +0x48, +0x50 and +0x58; a full list writes a, b through null.
@@ -846,11 +846,11 @@ uint32_t* XB_CDECL PhysWorld_AllocConstraint(uint32_t a, uint32_t b) {
 
 uint32_t XB_CDECL PhysWorld_AllocConstraint28c(uint32_t a, uint32_t b) {
     using Alloc = uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t);
-    return title_function<Alloc>(0x000b6040)(phys_world() + 0x28c, 0, a, b);  // PhysConstraintPool28c_Alloc
+    return own_function<Alloc>(&PhysConstraintPool28c_Alloc)(phys_world() + 0x28c, 0, a, b);  // PhysConstraintPool28c_Alloc
 }
 
 void XB_CDECL PhysWorld_FreeConstraintD0(uint32_t constraint) {
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5f10)(phys_world() + 0x2a0, constraint);  // PhysConstraintPoolD0_Free
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&PhysConstraintPoolD0_Free)(phys_world() + 0x2a0, constraint);  // PhysConstraintPoolD0_Free
 }
 
 uint8_t* XB_CDECL PhysWorld_AllocObject1c0() { return world_list_alloc(0x1d8, 0x1e0, 0x1e4); }
@@ -968,12 +968,12 @@ void XB_CDECL PhysWorld_RemoveBodyConstraints(uint32_t body) {
 
 void XB_CDECL PhysWorld_DestroyBody(uint32_t body) {
     PhysWorld_RemoveBodyConstraints(body);
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5b70)(phys_world() + 0x1e8, body);  // PhysBodyPool_Free
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&PhysBodyPool_Free)(phys_world() + 0x1e8, body);  // PhysBodyPool_Free
 }
 
 void XB_CDECL PhysWorld_DestroyObject1c0(uint32_t object) {
     PhysWorld_RemoveBodyConstraints(object);
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b5ae0)(phys_world() + 0x1d4, object);  // PhysPool1c0_Free
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&PhysPool1c0_Free)(phys_world() + 0x1d4, object);  // PhysPool1c0_Free
 }
 
 int32_t XB_THISCALL PhysPool1c0_Reset(uint8_t* pool) { return world_pool_reset(pool, 0x1c0); }
@@ -1047,7 +1047,7 @@ uint8_t XB_THISCALL PhysOrientedBox_SphereContact(uint8_t* shape, const float* c
     alignas(16) uint8_t box[0x30];
     PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
     using Contact = uint8_t XB_THISCALL(uint8_t*, const float*, uint32_t, float*, uint32_t);
-    const uint8_t result = title_function<Contact>(0x000ae970)(box, local, radius, hit, arg4);  // PhysBox_SphereContact
+    const uint8_t result = own_function<Contact>(&PhysBox_SphereContact)(box, local, radius, hit, arg4);  // PhysBox_SphereContact
     if (result) std::memcpy(out, transform_out(frame, hit).v, 16);
     std::memcpy(out + 4, rotate_out(frame, hit + 4).v, 16);
     return result ? 1 : 0;
@@ -1070,7 +1070,7 @@ uint8_t XB_THISCALL PhysOrientedBox_SweepSphere(uint8_t* shape, const float* a, 
     alignas(16) uint8_t box[0x30];
     PhysBox_Construct(box, zero, reinterpret_cast<const float*>(shape + 0x70));
     using Sweep = uint8_t XB_THISCALL(uint8_t*, const float*, float*, uint32_t, const float*);
-    if (!title_function<Sweep>(0x000ad140)(box, local_a, hit, radius, local_dir)) return 0;  // PhysBox_SweepSphere
+    if (!own_function<Sweep>(&PhysBox_SweepSphere)(box, local_a, hit, radius, local_dir)) return 0;  // PhysBox_SweepSphere
     std::memcpy(b, transform_out(frame, hit).v, 16);
     std::memcpy(b + 4, rotate_out(frame, hit + 4).v, 16);
     return 1;
@@ -2232,7 +2232,7 @@ void XB_THISCALL PhysContact140_SetBias(uint8_t* contact, float dt) {
     const float min_dt = title_global<float>(0x007cd880);
     if (!(dt > min_dt)) dt = min_dt;
     alignas(16) float t[4];
-    const float* const v = title_function<const float* XB_THISCALL(uint8_t*, float*)>(0x000bc620)(contact, t);
+    const float* const v = own_function<const float* XB_THISCALL(uint8_t*, float*)>(&PhysContact140_GetSeparationVector)(contact, t);
     const Lanes value = lanes(v);
     const float scale = title_global<float>(0x0083eb28) / dt;
     std::memcpy(contact + 0xe0, mul(splat(scale), value).v, 16);
@@ -2665,7 +2665,7 @@ void XB_THISCALL PhysConstraint_AddContacts(uint8_t* c, uint8_t* world, float dt
     const float k = at<float>(c, 0x6c) * dt;
     const float inv = title_global<float>(0x0083eb20) / (at<float>(c, 0x70) * dt + k * dt);
     uint8_t* const p = at<uint8_t*>(c, 0xc8);
-    const long double separation = title_function<long double XB_THISCALL(uint8_t*)>(0x000bc510)(p);  // PhysContact_GetSeparation
+    const long double separation = own_function<long double XB_THISCALL(uint8_t*)>(&PhysContact_GetSeparation)(p);  // PhysContact_GetSeparation
     const long double scaled = separation * ((platform_x87_ld(k) * inv) * dt);
     const long double rate = platform_x87_ld(title_global<float>(0x0083eb34)) / dt;  // -1
     at<float>(p, 0x7c) = 0.0f;
@@ -3808,7 +3808,7 @@ void XB_THISCALL PhysContact_Init(uint8_t* contact, uint8_t* body_a, const float
     }
     at<uint8_t*>(contact, 0x9c) = extra;
     at<uint32_t>(contact, 0x8c) = 0;
-    title_function<void XB_THISCALL(uint8_t*, const float*)>(0x000c0ca0)(contact, w);
+    own_function<void XB_THISCALL(uint8_t*, const float*)>(&PhysContact_InitNormalMass)(contact, w);
 }
 
 void XB_THISCALL PhysContact140_Init(uint8_t* contact, uint8_t* body_a, const float* anchor_a, uint8_t* body_b,
@@ -3826,7 +3826,7 @@ void XB_THISCALL PhysContact140_Init(uint8_t* contact, uint8_t* body_a, const fl
         copy_words(reinterpret_cast<float*>(contact + 0x20), PhysBody_OffsetByPosition(t, body_b, anchor_b));
     }
     at<uint32_t>(contact, 0x138) = value;
-    title_function<void XB_THISCALL(uint8_t*)>(0x000c0e80)(contact);
+    own_function<void XB_THISCALL(uint8_t*)>(&PhysContact140_InitMassMatrix)(contact);
 }
 
 void XB_THISCALL PhysAngularContact_Init(uint8_t* contact, uint8_t* body_a, const float* axis_a, uint8_t* body_b,
@@ -3862,7 +3862,7 @@ void XB_THISCALL PhysAngularContact_Init(uint8_t* contact, uint8_t* body_a, cons
     }
     at<uint32_t>(contact, 0x94) = value;
     at<uint32_t>(contact, 0x88) = 0;
-    title_function<void XB_THISCALL(uint8_t*)>(0x000c14d0)(contact);
+    own_function<void XB_THISCALL(uint8_t*)>(&PhysAngularContact_InitMass)(contact);
 }
 
 float XB_THISCALL PhysConstraint_ClampImpulse(uint8_t* constraint, float impulse) {
@@ -4094,7 +4094,7 @@ uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params) {
 }
 
 uint32_t XB_CDECL Phys_DestroyWorld() {
-    title_function<void XB_THISCALL(uint8_t*)>(0x000c2a40)(title_global<uint8_t*>(0x0090a87c));  // PhysWorld_Destroy
+    own_function<void XB_THISCALL(uint8_t*)>(&PhysWorld_Destroy)(title_global<uint8_t*>(0x0090a87c));  // PhysWorld_Destroy
     Mem_AlignedFree(title_global<uint8_t*>(0x0090a87c));
     title_global<uint32_t>(0x0090a87c) = 0;
     title_global<uint32_t>(0x0090a880) = 0;
@@ -4194,7 +4194,7 @@ uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena) {
     if (params[3] > 0) world_array_create(world + 0x1b0, params[3], arena, 24, 3);
     if (params[0] > 0) world_array_create(world + 0x1c8, params[0], arena, 0x3c, 3);
     PhysPool1c0_Init(world + 0x1d4, params[1], arena);
-    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c03c0)(world + 0x1e8, params[0], arena);  // PhysBodyPool_Init
+    own_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(&PhysBodyPool_Init)(world + 0x1e8, params[0], arena);  // PhysBodyPool_Init
     if (params[3] > 0) {
         world_pool_create(world + 0x1fc, params[3], arena, 0x30, 0xf);
         PhysConstraintPool30_Reset(world + 0x1fc);
@@ -4205,7 +4205,7 @@ uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena) {
         world_pool_create(world + 0x228, params[4], arena, 0x50, 0xf);
         PhysConstraintPool50_Reset(world + 0x228);
     }
-    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0420)(world + 0x23c, params[5], arena);  // PhysConstraintPoolF0_Init
+    own_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(&PhysConstraintPoolF0_Init)(world + 0x23c, params[5], arena);  // PhysConstraintPoolF0_Init
     if (params[6] > 0) {
         world_pool_create(world + 0x250, params[6], arena, 0x60, 0xf);
         PhysConstraintPool60_Reset(world + 0x250);
@@ -4214,9 +4214,9 @@ uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena) {
         world_pool_create(world + 0x264, params[7], arena, 0x10, 3);
         PhysPool10_Reset(world + 0x264);
     }
-    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c29e0)(world + 0x278, params[8], arena);  // PhysConstraintPool1B0_Init
-    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0480)(world + 0x28c, params[9], arena);  // PhysConstraintPoolE0_Init
-    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c04e0)(world + 0x2a0, params[10], arena);  // PhysConstraintPoolD0_Init
+    own_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(&PhysConstraintPool1B0_Init)(world + 0x278, params[8], arena);  // PhysConstraintPool1B0_Init
+    own_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(&PhysConstraintPoolE0_Init)(world + 0x28c, params[9], arena);  // PhysConstraintPoolE0_Init
+    own_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(&PhysConstraintPoolD0_Init)(world + 0x2a0, params[10], arena);  // PhysConstraintPoolD0_Init
     const uint32_t size = (static_cast<uint32_t>(params[11]) * 5 + 5) * 0x20 + (static_cast<uint32_t>(params[0]) << 6);
     const uint32_t block = arena_alloc(arena, size, 0xf);
     at<uint32_t>(world, 0x2b4) = block;

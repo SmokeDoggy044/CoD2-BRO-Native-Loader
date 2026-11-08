@@ -15,6 +15,11 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "g_utils.h"
+#include "g_scr_runtime.h"
+#include "ngl_debug.h"
+#include "phys.h"
+#include "qcommon_core.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -293,7 +298,7 @@ void XB_CDECL SV_RunGameFrame(uint32_t top, int32_t time, uint32_t ebx, uint32_t
 void XB_CDECL SV_ShutdownGameProgs() {
     uint8_t* vm = title_global<uint8_t*>(0x0095f50c);  // gvm
     if (!vm) return;
-    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(0, vm, 1, 0);  // VM_Call
+    own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(&VM_Call_entry)(0, vm, 1, 0);  // VM_Call
     Com_Memset(title_global<uint8_t*>(0x0095f50c), 0, 0x8c);
     title_global<uint32_t>(0x0095f514) = 0;  // currentVM
     title_global<uint32_t>(0x0095f50c) = 0;
@@ -306,12 +311,12 @@ void dobj_skeleton(uint8_t* ent, uint32_t line, uint32_t fill) {
     uint8_t* obj = field<uint8_t*>(ent, 0x22c);
     if (field<uint32_t>(obj, 0x20)) return;
     const uint32_t size = static_cast<uint32_t>(obj[0x2f]) * 0x40 + 0x30;
-    void* memory = title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(  // Z_MallocDebug
+    void* memory = own_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(&Z_MallocDebug)(  // Z_MallocDebug
         size, title_text(0x0083534c), title_text(0x00832e14), line);  // "hunk", "c:\cod\code\game\sv_game.cpp"
-    title_function<void XB_CDECL(uint8_t*, void*)>(0x00240c00)(obj, memory);  // DObj_CreateSkeleton
+    own_function<void XB_CDECL(uint8_t*, void*)>(&DObj_CreateSkeleton)(obj, memory);  // DObj_CreateSkeleton
     uint32_t parts[4] = {fill, fill, fill, fill};
     if (uint8_t* current = field<uint8_t*>(ent, 0x22c))
-        title_function<void XB_CDECL(uint8_t*)>(0x002df880)(current);  // DObj_UpdateSkeletons (title: stale-stack lanes)
+        own_function<void XB_CDECL(uint8_t*)>(&DObj_UpdateSkeletons)(current);  // DObj_UpdateSkeletons (title: stale-stack lanes)
     if (const uint32_t controller = field<uint32_t>(ent, 0x34c))
         title_function<void XB_CDECL(uint8_t*, uint32_t*)>(title_global<uint32_t>(0x008da8b0 + controller * 4))(ent, parts);
 }
@@ -736,8 +741,7 @@ void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t, uint8_t
         local_end[1] = (m[7] * dz + m[4] * dy) + m[1] * dx;
         local_end[2] = (m[8] * dz + m[5] * dy) + m[2] * dx;
     }
-    const int32_t hit = title_function<int32_t XB_CDECL(uint8_t*, uint8_t*, uint8_t*, const float*, const float*, uint32_t)>(
-        0x0023d070)(model, trace, skeleton, local_start, local_end, content_mask);
+    const int32_t hit = own_function<int32_t XB_CDECL(uint8_t*, uint8_t*, uint8_t*, const float*, const float*, uint32_t)>(&XModel_TraceParts)(model, trace, skeleton, local_start, local_end, content_mask);
     if (hit < 0) return;
     const float f = field<float>(trace, 0x20);
     float* pos = reinterpret_cast<float*>(trace);
@@ -877,10 +881,10 @@ void XB_CDECL SV_PointTraceToEntity(uint8_t* sv, uint8_t* clip) {
             for (int32_t i = 0; i < 3; ++i) maxs[i] = title_global<float>(0x0095ff70 + i * 4) + origin[i];
             if (SegmentMissesBounds(mins, maxs, end, start, field<float>(clip, 0x40))) return;
         }
-        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(  // VM_Call
+        own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(&VM_Call_entry)(  // VM_Call
             0, title_global<uint8_t*>(0x0095f50c), 0x12, field<int32_t>(ent, 0x224));
         float a[9];
-        title_function<void XB_REGS1 XB_CDECL(const float*, float*)>(0x002a4610)(  // AnglesToAxisLeft
+        own_function<void XB_REGS1 XB_CDECL(const float*, float*)>(&AnglesToAxisLeft)(  // AnglesToAxisLeft
             reinterpret_cast<const float*>(ent + 0x150), a);
         const float dx = start[0] - origin[0], dy = start[1] - origin[1], dz = start[2] - origin[2];
         alignas(16) float local_start[4] = {};
@@ -909,7 +913,7 @@ void XB_CDECL SV_PointTraceToEntity(uint8_t* sv, uint8_t* clip) {
         found.fraction = field<float>(clip, 0x40);
         if (flags & 0x10) {
             if (SegmentMissesBounds(mins, maxs, local_end, local_start, field<float>(clip, 0x40))) return;
-            title_function<void XB_CDECL(const DObj*, const float*, const float*, uint32_t, DObjTrace*)>(0x0023da30)(
+            own_function<void XB_CDECL(const DObj*, const float*, const float*, uint32_t, DObjTrace*)>(&SV_TraceDObjModels)(
                 obj, local_start, local_end, mask, &found);
         } else {
             DObj_TraceBoneBoxes(obj, local_start, local_end, field<const uint8_t*>(clip, 0x74), &found, radius);
@@ -1282,7 +1286,7 @@ void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
     uint8_t* slot = reinterpret_cast<uint8_t*>(uintptr_t{0x00964ce0 + static_cast<uint32_t>(index) * 4});
     const uint8_t* current = field<uint8_t*>(slot, 0);
     if (!std::strcmp(value, reinterpret_cast<const char*>(current ? current + 6 : nullptr))) return;
-    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(slot, value);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(slot, value);  // ScriptString_AssignCString
     if (title_global<int32_t>(0x00964cd4) != 2) return;
     uint8_t* svs = title_global<uint8_t*>(0x00927e8c);
     if (field<int32_t>(svs, 0) != 1) return;
@@ -1470,7 +1474,7 @@ void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t
 }
 
 void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time) {
-    title_function<void XB_CDECL(uint32_t)>(0x002ab560)(1);
+    own_function<void XB_CDECL(uint32_t)>(&DebugDraw_Flush)(1);
     uint32_t& modified = title_global<uint32_t>(0x009403ec);  // cvar_modifiedFlags
     if (modified & 4) {
         SV_SetConfigstring(0, Cvar_InfoString(4));
@@ -1480,7 +1484,7 @@ void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time) {
         SV_SetConfigstring(1, Cvar_InfoString_Big(8));
         modified &= ~8u;
     }
-    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(  // VM_Call
+    own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(&VM_Call_entry)(  // VM_Call
         0, title_global<uint8_t*>(0x0095f50c), 0xa, time);
 }
 
@@ -1542,7 +1546,7 @@ PLATFORM_ASM_ENTRY(SV_WriteSnapshotToClient_entry,
 void XB_CDECL SV_WriteSnapshotToClient(uint8_t* msg) {
     msg_put_byte(msg, 7);  // svc_snapshot
     const uint32_t time = static_cast<uint32_t>(
-        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(0x002a84e0)(  // VM_Call
+        own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(&VM_Call_entry)(  // VM_Call
             0, title_global<uint8_t*>(0x0095f50c), 0x13));
     msg_put_long(msg, time);
     msg_put_byte(msg, title_global<uint8_t>(0x00927e88));
@@ -1567,14 +1571,14 @@ void XB_CDECL SV_SendClientMessages(uint8_t* client) {
     const int32_t size = field<int32_t>(msg, 0xc);
     buffer[size] = 8;  // svc_EOF
     title_global<uint32_t>(0x0093e6b8) = title_global<uint32_t>(0x00947b0c);  // com_frameNumber
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002b1480)(client + 0x690, size + 1,
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*, int32_t, uint8_t*)>(&Netchan_Transmit)(client + 0x690, size + 1,
                                                                                  buffer);  // Netchan_Transmit
 }
 
 void XB_CDECL SV_SendMessages() {
     uint8_t* svs = title_global<uint8_t*>(0x00927e8c);
     if (!svs) return;
-    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(0x002a84e0)(  // VM_Call
+    own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(&VM_Call_entry)(  // VM_Call
         0, title_global<uint8_t*>(0x0095f50c), 0x15);
     SV_SendClientMessages(title_global<uint8_t*>(0x00927e8c));
     title_global<uint32_t>(0x0092f548) = 0;
@@ -1606,7 +1610,7 @@ uint32_t XB_REGS3 XB_CDECL SV_ClientCommand(uint8_t* msg, uint32_t, uint8_t* cli
     if (field<int32_t>(client, 0x60) >= sequence) return 1;
     if (title_global<int32_t>(0x00964cd4) == 2) {
         Cmd_TokenizeString(text, 0);
-        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, uint32_t, uint32_t)>(0x002a84e0)(  // VM_Call
+        own_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, uint32_t, uint32_t)>(&VM_Call_entry)(  // VM_Call
             0, title_global<uint8_t*>(0x0095f50c), 5, field<uint32_t>(client, 0x164), 0);
     }
     field<int32_t>(client, 0x60) = sequence;
@@ -2136,9 +2140,9 @@ using VmCall6 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t
                                           uint32_t);
 constexpr uint32_t kVmCall = 0x002a84e0;
 uint8_t* gvm() { return title_global<uint8_t*>(0x0095f50c); }
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Malloc's free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Malloc's free
 uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
-void script_string_release(void* s) { title_function<void XB_THISCALL(void*)>(0x0011d640)(s); }
+void script_string_release(void* s) { own_function<void XB_THISCALL(void*)>(&ScriptString_Release_entry)(s); }
 // The packet counter SV_PacketEvent also bumps (never 0).
 void bump_packet_count() {
     if (!++title_global<int32_t>(0x0093fc28)) title_global<int32_t>(0x0093fc28) = 1;
@@ -2186,7 +2190,7 @@ void XB_REGS1 XB_CDECL FxSystem_FreeLevel(uint8_t* fx) {
         uint32_t* effect = reinterpret_cast<uint32_t**>(fx + 4)[i];
         if (!effect) continue;
         FX_FreeEffectComponents(effect);
-        title_function<void XB_THISCALL(uint8_t*, void*)>(0x00044910)(title_global<uint8_t*>(0x0095f5bc),
+        own_function<void XB_THISCALL(uint8_t*, void*)>(&SmallHeap_Free)(title_global<uint8_t*>(0x0095f5bc),
                                                                        effect);  // SmallHeap_Free
     }
     for (uint32_t i = 0; i < field<uint32_t>(fx, 0x804); ++i) {
@@ -2287,16 +2291,16 @@ void XB_REGS1 XB_CDECL SV_ConnectionlessPacket(uint8_t* msg, uint32_t type, uint
     Cmd_TokenizeString(reinterpret_cast<const char*>(uintptr_t{cg_call_regs(0x002aa480, &line_regs, nullptr, 0)}), 0);
     const char* command = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)  // cmd_argv[0]
                                                              : title_text(0x0082dfeb);                // ""
-    title_function<AdrToString>(0x002aa2f0)(type, ip, ipx1, ipx2, port_word);  // NET_AdrToString
+    own_function<AdrToString>(&NET_AdrToString_entry)(type, ip, ipx1, ipx2, port_word);  // NET_AdrToString
     if (command && !Q_stricmpn(command, title_text(0x008341e4), 99999)) return;  // "disconnect"
-    title_function<AdrToString>(0x002aa2f0)(type, ip, ipx1, ipx2, port_word);
+    own_function<AdrToString>(&NET_AdrToString_entry)(type, ip, ipx1, ipx2, port_word);
 }
 
 void XB_CDECL SV_ClearServer() {
     if (uint8_t* client = title_global<uint8_t*>(0x00927e8c)) SV_FreeClientFrames(client);
     for (uint32_t address = 0x00964ce0; address < 0x00965ce0; address += 4) {
         if (void* rep = title_global<void*>(address)) {
-            title_function<void XB_THISCALL(void*)>(0x0011d5b0)(rep);  // ScriptStringRep_Release
+            own_function<void XB_THISCALL(void*)>(&ScriptStringRep_Release)(rep);  // ScriptStringRep_Release
             title_global<void*>(address) = nullptr;
         }
     }
@@ -2441,7 +2445,7 @@ void XB_REGS1 XB_CDECL SV_CheckAutosave(char* name) {
     }
     const uint32_t args[2] = {0x00832f48, word(map)};  // "save/autosave/%s.svg"
     Com_sprintf(name, 0x80, args);
-    if (title_function<int32_t XB_CDECL(const char*, void*)>(0x002a1fd0)(name, nullptr) < 0) name[0] = 0;  // FS_ReadFile
+    if (own_function<int32_t XB_CDECL(const char*, void*)>(&FS_ReadFile)(name, nullptr) < 0) name[0] = 0;  // FS_ReadFile
 }
 
 void XB_CDECL SV_ShutdownServer() {
@@ -2536,7 +2540,7 @@ void free_block(uint32_t address, uint32_t release) {
     title_global<uint32_t>(address) = 0;
 }
 
-uint32_t check_reload_status() { return title_function<uint32_t XB_CDECL()>(0x002f3de0)(); }  // CheckReloadStatus
+uint32_t check_reload_status() { return own_function<uint32_t XB_CDECL()>(&CheckReloadStatus_entry)(); }  // CheckReloadStatus
 
 }  // namespace
 
@@ -2563,7 +2567,7 @@ void XB_CDECL SV_Shutdown() {
         z_free(rumble);
     }
     title_global<uint32_t>(0x0095f5c4) = 0;
-    title_function<void XB_CDECL()>(0x000bee40)();  // Phys_DestroyWorld
+    own_function<void XB_CDECL()>(&Phys_DestroyWorld)();  // Phys_DestroyWorld
     uint32_t eax = title_global<uint32_t>(0x00947704);
     if (eax && field<uint32_t>(title_global<uint8_t*>(0x00947704), 0x20)) {
         Cvar_Set2(title_text(0x00835238), const_cast<char*>(title_text(0x0082e058)), 1);  // "r_uiFullScreen", "1"
@@ -2669,7 +2673,7 @@ uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t 
     Cvar_Set2(title_text(0x008340dc), va(va_args), 1);  // "sv_serverid"
     uint8_t* const local = title_global<uint8_t*>(0x00927e8c);
     SV_FreeClientFrames(local);
-    title_function<void XB_CDECL()>(0x002c0ce0)();  // Netchan_Init
+    own_function<void XB_CDECL()>(&Netchan_Init)();  // Netchan_Init
     const uint32_t loopback[5] = {2, 0, 0, 0, 0};
     const TitleRegs connect_regs = {0, 2, 0, 0, 0, 0};
     title_call_at_regs(top - 0x14, 0x002e03a0, &connect_regs, 5, loopback);  // SV_ConnectLocalClient
@@ -3337,9 +3341,9 @@ void XB_CDECL SV_Map_f() {
             }
         }
         using ReadFile = int32_t XB_CDECL(const char*, uint8_t**);
-        if (title_function<ReadFile>(0x002a1fd0)(path, nullptr) < 0) return;  // FS_ReadFile
+        if (own_function<ReadFile>(&FS_ReadFile)(path, nullptr) < 0) return;  // FS_ReadFile
         uint8_t* data = nullptr;
-        title_function<ReadFile>(0x002a1fd0)(path, &data);
+        own_function<ReadFile>(&FS_ReadFile)(path, &data);
         const uint32_t name_length = data[4];
         std::memcpy(spawn, data + 5, name_length);
         spawn[name_length] = 0;
@@ -3362,7 +3366,7 @@ void XB_CDECL SV_Map_f() {
     title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(spawn, map, 0x7f);  // _strncpy
     spawn[0x7f] = 0;
     if (uint8_t* record = title_global<uint8_t*>(0x0095f8f8)) field<int32_t>(record, 0xc) = -1;
-    title_function<void XB_CDECL(const char*, uint32_t)>(0x002f3140)(spawn, savegame);  // SV_SpawnServer
+    own_function<void XB_CDECL(const char*, uint32_t)>(&SV_SpawnServer_entry)(spawn, savegame);  // SV_SpawnServer
     Cvar_Set2(title_text(0x008340d0), const_cast<char*>(title_text(0x0082e058)), 1);
 }
 

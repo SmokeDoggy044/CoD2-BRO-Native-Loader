@@ -9,6 +9,8 @@
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "movie.h"
+#include "qcommon_core.h"
 
 // The gap entries (see fe_bonus.cpp): the C frame moves below a gap; the C version gets the menu, the entry
 // EBX / EDI / ESI and the entry ESP.
@@ -35,7 +37,7 @@ uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uin
 
 int32_t selection(uint8_t* menu) { return field<int16_t>(menu, 0x22); }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 // A title object's vtable slot (byte offset).
 template <typename F>
@@ -158,7 +160,7 @@ void release_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, 
     const int32_t file = field<int32_t>(menu, file_offset);
     if (clear_texture) field<uint32_t>(menu, texture_offset) = 0;
     if (file != -1) {
-        title_function<void XB_CDECL(int32_t)>(0x000cac90)(file);  // File_Close
+        own_function<void XB_CDECL(int32_t)>(&File_Close)(file);  // File_Close
         if (void* const buffer = field<void*>(menu, buffer_offset)) Mem_AlignedFree(buffer);
     }
     field<uint32_t>(menu, buffer_offset) = 0;
@@ -333,7 +335,7 @@ void XB_THISCALL XboxLiveMenu_Draw(uint8_t* menu) {
         if (uint8_t* const movie = title_global<uint8_t*>(0x0095f454)) {
             call(movie, 8);
             Subtitle_Draw();
-            const uint32_t texture = title_function<uint32_t XB_THISCALL(uint8_t*)>(0x000cf100)(
+            const uint32_t texture = own_function<uint32_t XB_THISCALL(uint8_t*)>(&Movie_GetFrameTexture)(
                 title_global<uint8_t*>(0x0095f454));  // Movie_GetFrameTexture
             uint8_t* const quad = title_global<uint8_t*>(0x0095f458);
             field<uint32_t>(quad, 0x60) = texture;

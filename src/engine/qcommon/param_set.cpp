@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -11,7 +12,7 @@ namespace {
 constexpr uint32_t kParamListVtable = 0x008376c0;
 constexpr uint32_t kParamSetVtable = 0x008376b8;
 
-void Z_Free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }
+void Z_Free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }
 
 void set_bit(uint32_t* bits, uint32_t index, bool on) {
     const uint32_t mask = 1u << (index & 0x1f);

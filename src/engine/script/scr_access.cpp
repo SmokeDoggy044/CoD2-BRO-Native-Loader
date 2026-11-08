@@ -6,6 +6,7 @@
 #include "qcommon.h"
 #include "sv.h"
 #include "title_data.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -18,11 +19,11 @@ FieldHook* field_hook() { return title_global<FieldHook*>(0x008d20e8); }
 FieldHook* hook_at(uint32_t address) { return title_global<FieldHook*>(address); }
 
 void string_assign(void* dst, const void* src) {
-    title_function<void* XB_THISCALL(void*, const void*)>(0x0011d600)(dst, src);  // ScriptString_Assign
+    own_function<void* XB_THISCALL(void*, const void*)>(&ScriptString_Assign_entry)(dst, src);  // ScriptString_Assign
 }
 
 void string_release(void* string) {
-    title_function<void XB_THISCALL(void*)>(0x0011d640)(string);  // ScriptString_Release
+    own_function<void XB_THISCALL(void*)>(&ScriptString_Release_entry)(string);  // ScriptString_Release
 }
 
 // A path node by handle as the accessors look it up: block (handle >> 9) - 1 of g_pathNodeBlocks
@@ -919,7 +920,7 @@ uint32_t* XB_CDECL ScrCall_GScr_GetPersistentVector(uint32_t* out, uint32_t key)
 // The builtin gets the address of the wrapper's own string argument.
 ScriptStringRep* XB_CDECL ScrCall_GScr_ShakeRumbleNamed(uint32_t a, uint32_t b, ScriptString name, uint32_t c) {
     builtin<uint32_t XB_CDECL(uint32_t, uint32_t, ScriptString*, uint32_t)>(0x009223b8)(a, b, &name, c);
-    return title_function<ScriptStringRep* XB_THISCALL(ScriptString*)>(0x0011d640)(&name);  // ScriptString_Release
+    return own_function<ScriptStringRep* XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&name);  // ScriptString_Release
 }
 
 uint32_t XB_CDECL ScrCall_GScr_GetZoneAtPoint(const uint32_t* point) {
@@ -988,7 +989,7 @@ uint32_t* XB_THISCALL ScrCall_ScrEnt_SetTargetname_2(uint32_t* self, uint32_t ha
     self[0] = handle;
     reinterpret_cast<uint8_t*>(self)[4] = 0;
     ScriptString* const name = reinterpret_cast<ScriptString*>(&handle);
-    title_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(
+    own_function<ScriptString* XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(
         name, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x007fc050)));  // FromCString("gunner")
     ScriptString copy;
     ScriptString_Copy(&copy, name);
@@ -1053,7 +1054,7 @@ namespace {
 uint32_t word_at(const uint8_t* p, uint32_t offset) { return *reinterpret_cast<const uint32_t*>(p + offset); }
 
 void assign_cstring(void* out, const char* text) {
-    title_function<void XB_THISCALL(void*, const char*)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(void*, const char*)>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 const char* string_text(const ScriptString* string) { return string->rep ? string->rep->text : nullptr; }
@@ -1177,7 +1178,7 @@ void XB_CDECL ScrSentient_SetTeamFromString(uint8_t* object, uint32_t, const Scr
         if (word_at(object, 4) != team) *reinterpret_cast<uint32_t*>(object + 4) = team;
         return;
     }
-    title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x00831ea4}),
+    own_function<char* XB_CDECL(const char*, ...)>(&va_entry)(reinterpret_cast<const char*>(uintptr_t{0x00831ea4}),
                                                                  string_text(value));  // va
 }
 
@@ -1257,7 +1258,7 @@ void XB_CDECL ScrEnt_SetHealthField(uint8_t* ent, uint32_t, const int32_t* value
         const uint32_t rep = word_at(ent, 0x264);
         const char* name = reinterpret_cast<const char*>(uintptr_t{0x00832314});  // "<not set>"
         if (rep && rep + 6) name = reinterpret_cast<const char*>(static_cast<uintptr_t>(rep + 6));
-        title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(
+        own_function<char* XB_CDECL(const char*, ...)>(&va_entry)(
             reinterpret_cast<const char*>(uintptr_t{0x008322c8}), health, word_at(ent, 0x224), name);  // va
     }
     if (static_cast<int32_t>(word_at(ent, 0x350)) > 0 || !word_at(ent, 0x354)) {

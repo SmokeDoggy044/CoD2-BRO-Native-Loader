@@ -8,6 +8,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "qcommon_core.h"
 
 PLATFORM_ASM_ENTRY(ui_call_regs,
                    "pushl %ebp\n"
@@ -61,7 +62,7 @@ void call(uint8_t* object, uint32_t offset, uint32_t a) {
 }
 
 void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }
 
 // PtrVector (data, capacity, count): Resize (0x00013970: vector in ESI, count in EBX), PushBack (0x000138c0: vector
 // in ESI, a pointer to the value on the stack).
@@ -194,7 +195,7 @@ void XB_CDECL Panel_ReadString(uint32_t* offset, const uint8_t* data, ScriptStri
     const int32_t length = read_i16(data, offset);
     for (int32_t n = length; n > 0; --n) {
         const uint8_t c = read_u8(data, offset);
-        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011eb90)(string, c);  // ScriptString_AppendChar
+        own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AppendChar)(string, c);  // ScriptString_AppendChar
     }
 }
 
@@ -451,13 +452,13 @@ void XB_REGS1 XB_STDCALL Panel_CreateText(uint32_t* offset, uint8_t* panel, cons
     field<uint32_t>(text, 0x28) = 0;
     call(text, 0x8c, value);
     ptrvector_push(panel + 0xc, &text);
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&font_name);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&font_name);  // ScriptString_Release
 }
 
 void XB_REGS1 XB_STDCALL Panel_CreatePicture(uint32_t* offset, uint8_t* panel, const uint8_t* data,
                                              const float* matrix, const char* name, uint32_t align) {
     const int32_t material_count = read_i16(data, offset);
-    uint8_t* const block = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(
+    uint8_t* const block = own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(
         uint32_t(material_count) * 16 + 4);  // Heap_Alloc16
     uint8_t* materials = nullptr;
     if (block) {
@@ -498,7 +499,7 @@ void XB_REGS1 XB_STDCALL Panel_CreatePicture(uint32_t* offset, uint8_t* panel, c
             field<uint32_t>(picture, 0x38) = one;
             field<uint32_t>(picture, 0x2c) = 0;
         }
-        title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(picture + 0x3c,
+        own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(picture + 0x3c,
                                                                             name);  // ScriptString_AssignCString
         call(picture, 0x18, align);
         using LoadMesh = void XB_THISCALL(uint8_t*, const uint8_t*, const uint8_t*, uint32_t*, const float*);

@@ -9,6 +9,10 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_squad.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -140,7 +144,7 @@ void XB_CDECL BroScr_SetVehicleUsableByName(ScriptString name, uint32_t unusable
 
 void XB_CDECL BroScr_SetVehicleCanShootLowByName(ScriptString name, uint32_t value) {
     const uint32_t vehicle = find_vehicle(&name);
-    if (valid(vehicle)) *title_function<uint8_t* XB_CDECL(uint32_t)>(0x0012e6a0)(vehicle) = static_cast<uint8_t>(value);  // ScrField_can_shoot_low
+    if (valid(vehicle)) *own_function<uint8_t* XB_CDECL(uint32_t)>(&ScrField_can_shoot_low_entry)(vehicle) = static_cast<uint8_t>(value);  // ScrField_can_shoot_low
     ScriptString_Release(&name);
 }
 
@@ -217,7 +221,7 @@ void XB_CDECL BroScr_AddToLevelList798EntArray(ScriptString name, uint32_t value
     const uint32_t found = find_in_798(&name);
     if (valid(found)) {
         const uint32_t item = value;
-        uint32_t* const array = title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(found), 0xe104fd5c);  // ScriptKeyTable_GetArray
+        uint32_t* const array = own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(found), 0xe104fd5c);  // ScriptKeyTable_GetArray
         DynArray_PushBack(reinterpret_cast<uint8_t*>(array), &item);
     }
     ScriptString_Release(&name);
@@ -236,7 +240,7 @@ void XB_CDECL BroScr_DeleteFromLevelList784ByTargetname(ScriptString name) {
 
 void XB_CDECL BroScr_VehicleGunnersByName(ScriptString name) {
     const uint32_t vehicle = find_vehicle(&name);
-    if (valid(vehicle)) title_function<void XB_CDECL(uint32_t)>(0x001485f0)(vehicle);  // BroScr_ReleaseGunners
+    if (valid(vehicle)) own_function<void XB_CDECL(uint32_t)>(&BroScr_ReleaseGunners)(vehicle);  // BroScr_ReleaseGunners
     ScriptString_Release(&name);
 }
 
@@ -260,8 +264,8 @@ void XB_CDECL BroScr_SetupWallHopTrigger(uint32_t ecx, uint32_t ent) {
 uint32_t* XB_CDECL BroScr_GetCurrentPathPos(uint32_t* out, uint32_t ent) {
     const uint32_t index = *BroScr_FieldSlot(ent, 0x9aec9c1a);
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    uint32_t* const array = title_function<GetArray>(0x0017c400)(BroScr_ScriptObjectOrEmpty(ent), 0xaeae4e0b);  // ScriptKeyTable_GetOrAddArray_3
-    if (index >= array[2]) title_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(0x0017bd20)(array, index + 1, index + 4);  // DynArray_Resize24
+    uint32_t* const array = own_function<GetArray>(&ScriptKeyTable_GetOrAddArray_3)(BroScr_ScriptObjectOrEmpty(ent), 0xaeae4e0b);  // ScriptKeyTable_GetOrAddArray_3
+    if (index >= array[2]) own_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(&DynArray_Resize24)(array, index + 1, index + 4);  // DynArray_Resize24
     const uint32_t* const element = pointer<uint32_t>(array[0] + index * 24);
     out[0] = element[0];
     out[1] = element[1];
@@ -273,13 +277,13 @@ namespace {
 
 uint32_t* followers(uint32_t leader) {
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(leader), 0xdeca7f50);  // ScriptKeyTable_GetArray
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(leader), 0xdeca7f50);  // ScriptKeyTable_GetArray
 }
 
 }  // namespace
 
 void XB_CDECL BroScr_RemoveFollower(uint32_t leader, uint32_t follower) {
-    title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x0019ba60)(followers(leader), follower);  // PtrArray_RemoveValue
+    own_function<void XB_CDECL(uint32_t*, uint32_t)>(&PtrArray_RemoveValue)(followers(leader), follower);  // PtrArray_RemoveValue
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(follower, 0x49c98989);  // Scr_QueueNotify
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(followers(leader)[2]); ++i)
         *BroScr_FieldSlot(*BroScr_ArrayElement(followers(leader), i), 0x185cac5b) = i;
@@ -318,7 +322,7 @@ void XB_CDECL BroScr_InitShrimps(uint32_t, ScriptString name) {
             const uint32_t level = title_global<uint32_t>(0x00922ee0);
             const uint32_t player = *pointer<uint32_t>(level ? level + 4 : 0);
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*);
-            title_function<Start>(0x0045a7c0)(0, 0, 0, 0, 0x00135ed0, player, &name);  // Scr_StartThread_ent_str: BroScr_NotifyEntsByTargetname
+            own_function<Start>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x00135ed0, player, &name);  // Scr_StartThread_ent_str: BroScr_NotifyEntsByTargetname
         }
     }
     if (array[0]) Scr_Free(pointer<void>(array[0]));

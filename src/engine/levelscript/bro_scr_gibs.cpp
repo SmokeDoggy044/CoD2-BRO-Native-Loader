@@ -8,6 +8,7 @@
 #include "scr_access.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -225,7 +226,7 @@ void XB_CDECL BroScr_SpawnWoodGibs(uint32_t ent, uint32_t a2, uint32_t a3, uint3
             // Scr_StartThread_ent_vec_str (0x0045b780): BroScr_WoodGibInit(found, origin, ent's targetname)
             using Start = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                         const ScriptString*);
-            title_function<Start>(0x0045b780)(0, 0, 0, 0, 0x00123f00, found, origin, own_name);
+            own_function<Start>(&Scr_StartThread_ent_vec_str_PROLOGUE_entry)(0, 0, 0, 0, 0x00123f00, found, origin, own_name);
             ScriptString_Release(&targetname);
         }
     }

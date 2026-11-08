@@ -12,6 +12,10 @@
 #include "nal_math.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
+#include "scr_field.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -529,7 +533,7 @@ void XB_CDECL DObj_CreateSkeleton(DObj* obj) {
         uint32_t context = 0;
         if (client >= 0 && client < 0x63)
             context = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x38 + client * 4);
-        memory = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(context, 0x20,
+        memory = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x20,
                                                                                             size);  // MemContext_Alloc_r
     }
     if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, size);  // Heap_AllocAligned
@@ -554,8 +558,8 @@ void XB_CDECL XModel_ResolveBoneNames(XModelParts* parts) {
         const char* text = bone(i).text;
         uint32_t name = 0;
         if (text) {
-            name = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(text);  // ScrIface_HashStringNoCase
-            title_function<void XB_CDECL(uint32_t, const char*)>(0x00300b30)(name, text);  // NameMap_Insert
+            name = own_function<uint32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(text);  // ScrIface_HashStringNoCase
+            own_function<void XB_CDECL(uint32_t, const char*)>(&NameMap_Insert)(name, text);  // NameMap_Insert
         }
         bone(i).name = name;
     }
@@ -569,9 +573,9 @@ void free_in_context(void* memory, int32_t context) {
     if (context != -1) {
         const uint32_t owner =
             context >= 0 && context < 0x63 ? title_global<uint32_t*>(0x0095f638)[0x38 / 4 + context] : 0;
-        if (title_function<uint8_t XB_THISCALL(uint32_t, void*)>(0x0028bfc0)(owner, memory)) return;  // MemContext_Free_r
+        if (own_function<uint8_t XB_THISCALL(uint32_t, void*)>(&MemContext_Free_r)(owner, memory)) return;  // MemContext_Free_r
     }
-    title_function<void XB_CDECL(void*)>(0x000428d0)(memory);  // Z_Free
+    own_function<void XB_CDECL(void*)>(&Z_Free)(memory);  // Z_Free
 }
 
 }  // namespace
@@ -612,7 +616,7 @@ void XB_CDECL DObj_Free(DObj* obj, uint32_t free_trees) {
         uint32_t* tree = reinterpret_cast<uint32_t*>(uintptr_t{trees[i]});
         if (!tree) continue;
         if (free_trees) {
-            title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x002c3ae0)(tree, 0);  // AnimTree_ClearNode_r
+            own_function<void XB_CDECL(uint32_t*, uint32_t)>(&AnimTree_ClearNode_r)(tree, 0);  // AnimTree_ClearNode_r
             AnimTree_Free(tree);
         }
         trees[i] = 0;
@@ -855,7 +859,7 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
         if (!skeleton) {
             // Models without a generic skeleton share the one named "simple".
             alignas(4) uint8_t name[0x20];
-            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(name, &title_global<char>(0x00832a28));
+            own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(name, &title_global<char>(0x00832a28));
             int32_t lod = 0;
             while (!model->lods[lod]) ++lod;
             *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(model->lods[lod]->parts) + 0x38) =
@@ -974,7 +978,7 @@ void XB_STDCALL XModel_Free(uint8_t* model) {
     for (int i = 0; i < 8; ++i) {
         if (AnimState* state = states[i]) {
             NAL_AnimState_Destroy(state);
-            title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+            own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(state);  // Mem_AlignedFree
         }
     }
     const uint32_t handle = *reinterpret_cast<const uint32_t*>(model + 0x8c);
@@ -1014,7 +1018,7 @@ uint32_t XB_CDECL XModel_FreeAnimStates(uint8_t* model) {
     for (int32_t i = 0; i < model[0x2e]; ++i) {
         if (AnimState* state = states[i]) {
             NAL_AnimState_Destroy(state);
-            title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+            own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(state);  // Mem_AlignedFree
             states[i] = nullptr;
         }
     }
@@ -1037,7 +1041,7 @@ void XB_CDECL DObj_DebugDrawAnimTrees(uint8_t* const* obj) {
     int32_t line = 0;
     for (int32_t i = 0; i < *count; ++i) {
         if (uint8_t* tree = obj[i]) {
-            title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, int32_t*)>(0x002c4310)(tree, 0, 0, &line);  // AnimTree_DebugDraw_r
+            own_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, int32_t*)>(&AnimTree_DebugDraw_r)(tree, 0, 0, &line);  // AnimTree_DebugDraw_r
         }
     }
 }
@@ -1125,7 +1129,7 @@ void XB_CDECL XModel_CalcBoneChildrenOrtho(const XModel* model, uint8_t* matrice
         const float* t = b + 12;
         const Lanes v3 = add(add(add(lanes(p + 12), mul(lanes(p), t[0])), mul(lanes(p + 4), t[1])), mul(lanes(p + 8), t[2]));
         std::memcpy(b + 12, v3.v, 16);
-        title_function<void XB_THISCALL(float*)>(0x002cede0)(b);  // Matrix_Orthonormalize
+        own_function<void XB_THISCALL(float*)>(&Matrix_Orthonormalize)(b);  // Matrix_Orthonormalize
         XModel_CalcBoneChildrenOrtho(model, matrices, bone);
     }
 }

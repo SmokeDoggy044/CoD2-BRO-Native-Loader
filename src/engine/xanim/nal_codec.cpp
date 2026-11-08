@@ -2664,7 +2664,7 @@ int32_t ik_lerp_short(const uint8_t* a, const uint8_t* b, uint32_t offset, float
 // Quat_Slerp by title address: its C version differs from the original in NaN payloads on
 // NaN inputs (found by the offline test of NAL_Packed16EntropyIKSpin_Lerp).
 const float* ik_quat_slerp(float* out, const uint8_t* a, const uint8_t* b, float s) {
-    return title_function<const float* XB_CDECL(float*, const uint8_t*, const uint8_t*, float)>(0x0001c3b0)(out, a, b,
+    return own_function<const float* XB_CDECL(float*, const uint8_t*, const uint8_t*, float)>(&Quat_Slerp)(out, a, b,
                                                                                                           s);  // Quat_Slerp
 }
 // x * v + y * s with the title's operand order (the left operand is the destination: a NaN

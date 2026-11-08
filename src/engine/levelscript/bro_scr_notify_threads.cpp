@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_anim.h"
 
 namespace game {
 
@@ -454,10 +455,10 @@ void XB_CDECL BroScr_ApplyAnimCommand(uint32_t actor, AnimCommand command) {
             actor, command.w[1], command.w[4], command.w[5], command.w[6], 0);  // GScr_SetAnim
         break;
     case 2:
-        title_function<Handler>(0x00183d10)(actor, command);  // BroScr_AnimCmd_SetAnimKnobAll
+        own_function<Handler>(&BroScr_AnimCmd_SetAnimKnobAll)(actor, command);  // BroScr_AnimCmd_SetAnimKnobAll
         break;
     case 3:
-        title_function<Handler>(0x00183d40)(actor, command);  // BroScr_AnimCmd_SetFlaggedAnimKnobAll
+        own_function<Handler>(&BroScr_AnimCmd_SetFlaggedAnimKnobAll)(actor, command);  // BroScr_AnimCmd_SetFlaggedAnimKnobAll
         break;
     case 4:
         BroScr_ActorAdvanceAnimAndTeleport(actor, command);

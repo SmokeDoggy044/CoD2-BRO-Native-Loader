@@ -368,10 +368,10 @@ void XB_CDECL Scr_ReleaseStringArrayAndString(uint32_t* args) {
     uint32_t* const strings = pointer<uint32_t>(args[1]);
     if (strings) {
         const uint32_t end = args[1] + args[3] * 4;
-        for (uint32_t p = args[1]; p != end; p += 4) title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(p);  // ScriptString_Release
+        for (uint32_t p = args[1]; p != end; p += 4) own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(p);  // ScriptString_Release
         Scr_Free(strings);
     }
-    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&args[4]);
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&args[4]);
 }
 
 void XB_CDECL BroScr_PanzerIVSetDifficultyHealth(uint32_t ent) {
@@ -401,15 +401,15 @@ void XB_CDECL BroScr_PanzerIVSetDifficultyHealth(uint32_t ent) {
     }
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
     title_function<CreateThread>(title_global<uint32_t>(0x0092216c))(0, 0, 0, ent, functor, 0);
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&difficulty);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&difficulty);  // ScriptString_Release
 }
 
 uint32_t XB_CDECL BroScr_PanzerIVUseAnimTree(uint32_t ent) {
     // The "panzerIV" anim tree, then the thread 0x001679b0 on the entity.
     ScriptString tree;
-    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&tree, pointer<const char>(0x007f499c));
+    own_function<void XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(&tree, pointer<const char>(0x007f499c));
     title_function<void XB_CDECL(uint32_t, ScriptString*)>(title_global<uint32_t>(0x009225f0))(ent, &tree);  // GScr_UseAnimTree
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&tree);
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&tree);
     uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
     if (functor) {
         functor[0] = 0x007f5ba0;
@@ -523,7 +523,7 @@ namespace {
 
 using FreeEntity = void XB_CDECL(uint8_t*, uint32_t);
 uint32_t free_entity(uint8_t* ent) {
-    title_function<FreeEntity>(0x002be420)(ent, 0);  // G_FreeEntity
+    own_function<FreeEntity>(&G_FreeEntity)(ent, 0);  // G_FreeEntity
     return 0;
 }
 

@@ -6,6 +6,9 @@
 #include "qcommon_core.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "bro_scr_ai_anim.h"
+#include "levels_twins.h"
+#include "scr_field.h"
 
 namespace game {
 
@@ -53,7 +56,7 @@ uint32_t* grow(uint32_t* array, uint32_t index) {
 // Element `index` of the model array (ScriptKeyTable_GetArray, grown when past the count).
 uint32_t* model_at(uint32_t actor, uint32_t index) {
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return grow(title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(actor), kModels), index);
+    return grow(own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(actor), kModels), index);
 }
 
 // The model array through ScriptKeyTable_Find, added empty (ScriptKeyTable_SetArray) when missing.
@@ -62,7 +65,7 @@ uint32_t* model_array(uint32_t actor) {
     uint32_t* value = ScriptKeyTable_Find(table, kModels);
     if (!value) {
         const uint32_t empty[3] = {0, 0, 0};
-        value = title_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*)>(0x0045cc80)(table, kModels, empty);
+        value = own_function<uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*)>(&ScriptKeyTable_SetArray)(table, kModels, empty);
     }
     return pointer<uint32_t>(*value);
 }
@@ -77,7 +80,7 @@ uint32_t level_entity() {
 void XB_CDECL BroScr_CreateModel(uint32_t actor, uint32_t params) {
     const uint32_t ent = actor;
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    const uint32_t index = title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(ent), kModels)[2];
+    const uint32_t index = own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(ent), kModels)[2];
     ScriptString classname;
     scr_string_from(&classname, 0x0083ab98);  // "script_model"
     const uint32_t model = spawn(&classname);
@@ -98,7 +101,7 @@ void XB_CDECL BroScr_CreateModel(uint32_t actor, uint32_t params) {
 void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
     const uint32_t ent = actor;
     bool defined;
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x00146bd0)(&defined, ent);  // ScrField_scriptmodel_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_scriptmodel_IsDefined)(&defined, ent);  // ScrField_scriptmodel_IsDefined
     if (!defined) {
         ScriptString message;
         scr_string_from(&message, 0x00824ed0);  // "Tried to remove a model with delete model before it was create model'd on guy: "
@@ -128,7 +131,7 @@ void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
                 const uint32_t level = level_entity();
                 key = 0xe6f61fe4;
                 using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
-                title_function<StartThread>(0x0045a7c0)(0, 0, 0, 0, 0x001b6020, level, param(params, &key));  // Scr_StartThread_ent_str(BroScr_ExploderIfSet)
+                own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x001b6020, level, param(params, &key));  // Scr_StartThread_ent_str(BroScr_ExploderIfSet)
             }
         }
         scr_slot<void XB_CDECL(uint32_t)>(0x00922540)(*grow(model_array(ent), i));  // GScr_Delete
@@ -137,7 +140,7 @@ void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
 
 void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t params) {
     bool defined;
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x0012ac60)(&defined, actor);  // ScrField_h4225d5c5_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_h4225d5c5_IsDefined)(&defined, actor);  // ScrField_h4225d5c5_IsDefined
     if (defined) return;
     const bool attach = target != actor;
     ScriptString classname;
@@ -171,7 +174,7 @@ void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t 
         title_function<StartThread>(0x0045a620)(0, 0, 0, 0, 0x0011fbf0, level_entity(), &gun, &holder);  // Scr_StartThread_ent_ent_ent
         scr_release(&name);
     }
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001ad3f0)(actor, 0x0036b1a5);  // BroScr_PutGunInHand
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(actor, 0x0036b1a5);  // BroScr_PutGunInHand
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d94)(actor, 0);                 // ScrActor_SetInt_1378
     scr_release(&classname);
 }

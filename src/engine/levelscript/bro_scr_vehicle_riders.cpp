@@ -10,6 +10,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -26,7 +28,7 @@ uint32_t rider_anim_indexed(const uint32_t* rider, uint32_t key, ScriptString* a
     const uint32_t k = key;
     uint32_t hash;
     const uint32_t* const h = Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
-    uint32_t* const map = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x004641e0)(
+    uint32_t* const map = own_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_8)(
         title_global<uint32_t>(0x00922ee0) + 0x19c, h);  // HashMap_Index_8
     return *title_function<uint32_t* XB_THISCALL(uint32_t*, const uint32_t*)>(0x00461030)(map, &k);  // HashMap_Index_13
 }
@@ -37,14 +39,14 @@ uint32_t rider_anim_found(const uint32_t* rider, uint32_t key, ScriptString* ani
     const uint32_t k = key;
     uint32_t hash;
     const uint32_t* const h = Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
-    uint32_t* const map = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x004641e0)(
+    uint32_t* const map = own_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_8)(
         title_global<uint32_t>(0x00922ee0) + 0x19c, h);  // HashMap_Index_8
     uint32_t it;
-    title_function<Find>(0x0045e6d0)(map, &it, &k);  // HashMap_Find
+    own_function<Find>(&HashMap_Find)(map, &it, &k);  // HashMap_Find
     if (it == map[2]) {
         const uint32_t pair[2] = {k, 0};
         uint32_t inserted;
-        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        it = *own_function<Find>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
     }
     return pointer<uint32_t>(it)[3];
 }
@@ -121,7 +123,7 @@ void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, Script
         !ScriptString_Equals(&tag, pointer<const char>(0x007f5c28))) {  // "tag_driver"
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                               const ScriptString*);
-        title_function<StartThread>(0x0045b3b0)(0, 0, 0, 0, 0x0016aa90, vehicle, &rider,
+        own_function<StartThread>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x0016aa90, vehicle, &rider,
                                                 &tag);  // Scr_StartThread_ent_ent_str(BroScr_AnimScriptedRestoreAnimname)
     }
     bool first = true;

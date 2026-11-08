@@ -7,6 +7,7 @@
 #include "qcommon.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -483,7 +484,7 @@ void XB_REGS1 XB_CDECL R_DrawDObjSkeleton(const float* transform, const uint8_t*
         uint32_t lod = 0;
         while (lods[lod] == 0) ++lod;
         const uint32_t skeleton = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(lods[lod] + 8));
-        title_function<DrawSkeleton>(0x00240930)(skeleton, bones + 0x30 + (uint32_t{obj[0x60 + i]} << 6), 0, matrix);
+        own_function<DrawSkeleton>(&R_DrawSkeletonBones_r)(skeleton, bones + 0x30 + (uint32_t{obj[0x60 + i]} << 6), 0, matrix);
     }
 }
 
@@ -803,7 +804,7 @@ uint32_t XB_CDECL DebugDraw_Shutdown() {
     const auto release = [](uint32_t address) {
         void*& block = title_global<void*>(address);
         if (block) {
-            title_function<void XB_CDECL(void*)>(0x000428d0)(block);  // Z_Free
+            own_function<void XB_CDECL(void*)>(&Z_Free)(block);  // Z_Free
             block = nullptr;
         }
     };

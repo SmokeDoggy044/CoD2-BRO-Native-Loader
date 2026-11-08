@@ -1,6 +1,7 @@
 #include "levels_templates.h"
 
 #include "title_data.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -167,7 +168,7 @@ void XB_THISCALL std_list_Dtor_PROLOGUE(uint8_t* list) {
 }
 
 uint32_t XB_THISCALL ListNode_DestroyValue_PROLOGUE(uint8_t* node) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*)>(0x0011d640)(node + 0xc);  // ScriptString_Release
+    return own_function<uint32_t XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(node + 0xc);  // ScriptString_Release
 }
 
 uint8_t* XB_CDECL DynArray_NewCopy_PROLOGUE(const uint8_t* source) {

@@ -10,6 +10,9 @@
 #include "sv.h"
 #include "tr_main.h"
 #include "title_data.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
+#include "unzip.h"
 
 namespace game {
 
@@ -268,10 +271,10 @@ void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
     char copy[0x80];
     title_function<Strncpy>(0x001eed80)(copy, name, 0x7f);
     copy[0x7f] = 0;
-    title_global<uint8_t*>(0x00928360) = title_function<CvarGet>(0x0029c2d0)(  // Cvar_Get
+    title_global<uint8_t*>(0x00928360) = own_function<CvarGet>(&Cvar_Get)(  // Cvar_Get
         reinterpret_cast<const char*>(uintptr_t{0x00833f58}), reinterpret_cast<const char*>(uintptr_t{0x0082e098}),
         0x200);  // "cm_noCurves", "0"
-    title_global<uint8_t*>(0x0092effc) = title_function<CvarGet>(0x0029c2d0)(
+    title_global<uint8_t*>(0x0092effc) = own_function<CvarGet>(&Cvar_Get)(
         reinterpret_cast<const char*>(uintptr_t{0x00833f44}), reinterpret_cast<const char*>(uintptr_t{0x0082e058}),
         0x201);  // "cm_playerCurveClip", "1"
     if (client_load) return;
@@ -606,7 +609,7 @@ void XB_CDECL CM_TestInWorldTrees(uint8_t* tw) {
         alignas(16) float center[4];
         float half;
         const uint8_t* leaf = CM_QuadTreeFindLeaf(tree, tw_row(tw, 0), center, &half);
-        title_function<void XB_CDECL(uint8_t*, const uint8_t*, const uint8_t*)>(0x002da4d0)(tw, tree, leaf);
+        own_function<void XB_CDECL(uint8_t*, const uint8_t*, const uint8_t*)>(&CM_TestInLeafObjects)(tw, tree, leaf);
         if (tw[0x13c]) return;
     }
 }
@@ -4106,7 +4109,7 @@ T* ptr(uint32_t address) {
 
 uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 void align_cursor(uint32_t* cursor, uint32_t mask) {
     while (*cursor & mask) ++*cursor;
@@ -4757,7 +4760,7 @@ void cm_break(uint32_t level, uint32_t text) { title_function<Break>(0x002938f0)
 void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }  // Z_Malloc
 
 void com_memcpy(void* dst, const void* src, uint32_t size) {
-    title_function<void XB_CDECL(void*, const void*, uint32_t)>(0x00293ab0)(dst, src, size);  // Com_MemcpyPrefetch
+    own_function<void XB_CDECL(void*, const void*, uint32_t)>(&Com_MemcpyPrefetch)(dst, src, size);  // Com_MemcpyPrefetch
 }
 
 float* winding_point(const uint8_t* w, int32_t i) { return reinterpret_cast<float*>(const_cast<uint8_t*>(w) + 4 + i * 12); }
@@ -5026,19 +5029,19 @@ int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint
     uint32_t header[0x4e];
     int32_t file = 0;
     title_global<uint32_t>(0x00940280) = 1;
-    title_function<int32_t XB_CDECL(const char*, int32_t*, uint32_t, uint32_t)>(0x0029cde0)(  // FS_FOpenFileRead
+    own_function<int32_t XB_CDECL(const char*, int32_t*, uint32_t, uint32_t)>(&FS_FOpenFileRead)(  // FS_FOpenFileRead
         ptr<const char>(0x009355d8), &file, 0, 0);
     if (!file) {
-        const char* text = title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0)(  // va
+        const char* text = own_function<const char* XB_CDECL(const char*, ...)>(&va_entry)(  // va
             ptr<const char>(0x00833f2c), ptr<const char>(0x009355d8));
         title_function<Break>(0x002938f0)(1, text);
     }
     using FsRead = int32_t XB_CDECL(void*, int32_t, int32_t);
     using FsClose = void XB_CDECL(int32_t);
-    title_function<FsRead>(0x00297af0)(header, 0x138, file);
+    own_function<FsRead>(&FS_Read)(header, 0x138, file);
     const int32_t length = static_cast<int32_t>(header[2 + lump * 2]);
     if (!length) {
-        title_function<FsClose>(0x00297d70)(file);
+        own_function<FsClose>(&FS_FCloseFile)(file);
         return 0;
     }
     int32_t skip = static_cast<int32_t>(header[3 + lump * 2]) - 0x138;
@@ -5046,22 +5049,22 @@ int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint
     if (title_global<uint32_t>(handle + 0x18)) {  // in a zip
         if (skip) {
             const uint32_t zip = title_global<uint32_t>(handle);
-            const int32_t position = title_function<int32_t XB_CDECL(uint32_t)>(0x00057810)(zip);  // unztell
+            const int32_t position = own_function<int32_t XB_CDECL(uint32_t)>(&unztell)(zip);  // unztell
             int32_t remaining = skip;
             if (skip < 0) {
-                title_function<int32_t XB_CDECL(uint32_t, uint32_t)>(0x000572f0)(  // unzSetCurrentFileInfoPosition
+                own_function<int32_t XB_CDECL(uint32_t, uint32_t)>(&unzSetCurrentFileInfoPosition)(  // unzSetCurrentFileInfoPosition
                     title_global<uint32_t>(handle), title_global<uint32_t>(handle + 0x14));
-                title_function<int32_t XB_CDECL(uint32_t)>(0x00057bd0)(title_global<uint32_t>(handle));  // unzOpenCurrentFile
+                own_function<int32_t XB_CDECL(uint32_t)>(&unzOpenCurrentFile)(title_global<uint32_t>(handle));  // unzOpenCurrentFile
                 remaining = skip + position;
             }
             static uint8_t buffer[0x10000];
             while (remaining) {
                 int32_t read;
                 if (remaining < 0x10000) {
-                    read = title_function<FsRead>(0x00297af0)(buffer, remaining, file);
+                    read = own_function<FsRead>(&FS_Read)(buffer, remaining, file);
                     remaining = 0;
                 } else {
-                    read = title_function<FsRead>(0x00297af0)(buffer, 0x10000, file);
+                    read = own_function<FsRead>(&FS_Read)(buffer, 0x10000, file);
                     remaining -= 0x10000;
                 }
                 if (!read) break;
@@ -5070,11 +5073,11 @@ int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint
     } else {
         title_function<int32_t XB_CDECL(uint32_t, int32_t, int32_t)>(0x001f06fb)(title_global<uint32_t>(handle), skip, 1);  // fseek
     }
-    void* block = title_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(0x00042c20)(  // Z_MallocDebug
+    void* block = own_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(&Z_MallocDebug)(  // Z_MallocDebug
         length, ptr<const char>(0x0083534c), ptr<const char>(0x00833f0c), 0xed);
     title_global<void*>(0x0093e6b0) = block;
-    title_function<FsRead>(0x00297af0)(block, length, file);
-    title_function<FsClose>(0x00297d70)(file);
+    own_function<FsRead>(&FS_Read)(block, length, file);
+    own_function<FsClose>(&FS_FCloseFile)(file);
     *out = title_global<uint8_t*>(0x0093e6b0);
     return length;
 }

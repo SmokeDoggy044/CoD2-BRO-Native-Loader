@@ -12,6 +12,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_note_handlers.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -96,7 +98,7 @@ inline bool team_is(uint32_t* ent, uint32_t text) {
 
 using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
 inline DynArray* get_array(uint32_t ent, uint32_t key) {
-    return title_function<GetArray>(0x0045cd50)(ent_script_object(ent), key);  // ScriptKeyTable_GetArray
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(ent_script_object(ent), key);  // ScriptKeyTable_GetArray
 }
 // The inlined element access of a script array: &data[i], resized first when i is past the count.
 inline uint32_t* element(DynArray* array, uint32_t i) {
@@ -120,7 +122,7 @@ inline bool int_above(uint32_t value, uint32_t limit) {
 }
 
 using At = uint32_t* XB_THISCALL(DynArray*, uint32_t);  // FUN_0045ceb0: &data[i], grown first
-inline uint32_t at_index(DynArray* array, uint32_t i) { return *title_function<At>(0x0045ceb0)(array, i); }
+inline uint32_t at_index(DynArray* array, uint32_t i) { return *own_function<At>(&DynArray_AtInt0)(array, i); }
 // A bool field's byte, added as the undefined bool (the original's word keeps stale stack bytes above it).
 inline uint8_t* bool_slot(uint32_t ent, uint32_t key) {
     return reinterpret_cast<uint8_t*>(key_slot(ent, key, title_global<uint8_t>(0x00922ed0)));
@@ -197,7 +199,7 @@ inline void prone_turn(uint32_t ent, uint32_t anim) {
         ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
         ScriptString result;
         using HandleNoteTracks = ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, ScriptString);
-        title_function<HandleNoteTracks>(0x001ada20)(&result, ent, 0x59c142f9, 0, empty);  // BroScr_HandleNoteTracks
+        own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, 0x59c142f9, 0, empty);  // BroScr_HandleNoteTracks
         scr_release(&result);
     }
     slot<Anim6>(0x009226bc)(ent, title_global<uint32_t>(0x008cf1d4), title_global<uint32_t>(0x008cf1c8), 0x3f800000, 0x3dcccccd,

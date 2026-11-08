@@ -22,6 +22,7 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
+#include "g_scr_builtins.h"
 
 // title_call_at_regs for callees with an ST0 result (left on the x87 stack; asm entry at the end of the file).
 extern "C" PLATFORM_HIDDEN float XB_CDECL gscr_call_at_st0(uint32_t top, uint32_t function, const game::TitleRegs* regs,
@@ -60,7 +61,7 @@ const char* script_text(const ScriptString* s) {
 }
 
 uint32_t assign_cstring(void* out, const char* text) {
-    return title_function<uint32_t XB_THISCALL(void*, const char*)>(0x0011dd20)(out, text);  // ScriptString_AssignCString
+    return own_function<uint32_t XB_THISCALL(void*, const char*)>(&ScriptString_AssignCString)(out, text);  // ScriptString_AssignCString
 }
 
 // The anim record of an anim value's tree (high 16 bits; tree 0 when out of range).
@@ -182,22 +183,22 @@ uint32_t XB_CDECL GScr_SpawnBoxEntity(float* mins, float* maxs, uint32_t solid, 
 }
 
 void XB_CDECL GScr_RotateRoll(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00302fb0)(a, b, handle, 2, a, b, c, d);  // GScr_RotateAxis
+    own_function<AxisBuiltin>(&GScr_RotateAxis)(a, b, handle, 2, a, b, c, d);  // GScr_RotateAxis
 }
 void XB_CDECL GScr_RotateYaw(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00302fb0)(a, b, handle, 1, a, b, c, d);  // GScr_RotateAxis
+    own_function<AxisBuiltin>(&GScr_RotateAxis)(a, b, handle, 1, a, b, c, d);  // GScr_RotateAxis
 }
 void XB_CDECL GScr_RotatePitch(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00302fb0)(a, b, handle, 0, a, b, c, d);  // GScr_RotateAxis
+    own_function<AxisBuiltin>(&GScr_RotateAxis)(a, b, handle, 0, a, b, c, d);  // GScr_RotateAxis
 }
 void XB_CDECL GScr_MoveZ(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00303080)(a, b, handle, 2, a, b, c, d);  // GScr_MoveAxis
+    own_function<AxisBuiltin>(&GScr_MoveAxis)(a, b, handle, 2, a, b, c, d);  // GScr_MoveAxis
 }
 void XB_CDECL GScr_MoveY(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00303080)(a, b, handle, 1, a, b, c, d);  // GScr_MoveAxis
+    own_function<AxisBuiltin>(&GScr_MoveAxis)(a, b, handle, 1, a, b, c, d);  // GScr_MoveAxis
 }
 void XB_CDECL GScr_MoveX(uint32_t handle, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    title_function<AxisBuiltin>(0x00303080)(a, b, handle, 0, a, b, c, d);  // GScr_MoveAxis
+    own_function<AxisBuiltin>(&GScr_MoveAxis)(a, b, handle, 0, a, b, c, d);  // GScr_MoveAxis
 }
 
 void XB_CDECL GScr_ActorLeaveTurret(uint32_t handle) {
@@ -410,7 +411,7 @@ void XB_CDECL GScr_DisconnectPaths_c(uint32_t entry_esp) {
     uint8_t* const ent = handle_entity(handle);
     if (!ent) return;
     if (!(field<uint32_t>(ent, 0x2a4) & 0x1000)) {
-        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
             title_text(0x008320e4), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
         return;
     }
@@ -436,7 +437,7 @@ int32_t model_context(uint8_t* ent, const uint8_t* owner) {
 
 // The cannot-change-the-animtree message with the entity's classname.
 void animtree_message(uint8_t* ent) {
-    title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+    own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
         title_text(0x00831f78), script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)));
 }
 
@@ -640,7 +641,7 @@ void XB_CDECL GScr_Vehicle_EjectDriver(uint32_t handle) {
     if (!ent) return;
     const uint32_t owner = field<uint32_t>(ent, 0x1a0);
     if (!handle_entity(owner)) {
-        title_function<const char* XB_CDECL(const char*)>(0x002a93d0)(title_text(0x00831968));  // va "No driver to eject"
+        own_function<const char* XB_CDECL(const char*)>(&va_entry)(title_text(0x00831968));  // va "No driver to eject"
         return;
     }
     uint8_t* const driver = handle_entity(owner);
@@ -730,7 +731,7 @@ uint8_t* spawn_by_classname(const ScriptString* classname, const uint32_t* origi
     std::memcpy(ent + 0x140, origin, 12);
     field<uint32_t>(ent, 0x2a0) = flags;
     if (G_CallSpawn(ent)) return ent;
-    title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+    own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
         title_text(0x00832598), script_text(classname));  // "unable to spawn \"%s\" entity"
     return nullptr;
 }
@@ -895,7 +896,7 @@ uint32_t XB_CDECL GScr_DropWeapon(uint32_t handle, const ScriptString* weapon, u
     uint32_t index = 0;
     if (text && *text) index = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, text)) & 0xff;
     if (!index)
-        title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(  // va
             title_text(0x00831e38), text);  // "unknown weapon '%s' in dropWeapon"
     const char* tag = nullptr;
     if (side == title_global<uint32_t>(0x0097a714))  // scr_const_left
@@ -1131,7 +1132,7 @@ uint32_t call_at_xmm0(uint32_t top, uint32_t ret, uint32_t function, const Title
 }
 
 const char* title_va(uint32_t format) {
-    return title_function<const char* XB_CDECL(const char*)>(0x002a93d0)(title_text(format));  // va
+    return own_function<const char* XB_CDECL(const char*)>(&va_entry)(title_text(format));  // va
 }
 
 }  // namespace
@@ -1353,7 +1354,7 @@ void XB_CDECL GScr_AnimScripted_c(uint32_t entry_esp) {
         call_at(F - 0x14, 0x003074f6, 0x00202770, regs, 0, nullptr);  // Actor_PushState (ESI, EDI = 10)
     }
     if (at<uint16_t>(F + 6) == 0)
-        anim = title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(0x0024b860)(tree);  // the tree's root anim
+        anim = own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(&AnimTree_RootHandle)(tree);  // the tree's root anim
     const uint32_t mode = ScriptString_EqualsString(notify, &title_global<ScriptString>(0x00984af8)) ? 1 : 0;
     at<uint32_t>(F - 0x14) = 0x00984af8;  // EqualsString's arguments, still on the stack
     at<uint32_t>(F - 0x18) = addr(notify);
@@ -1539,7 +1540,7 @@ void XB_CDECL GScr_CheckGrenadeThrow_c(uint32_t entry_esp) {
                     result = call_at(F - 0x38, 0x00307bb9, 0x0020fc20, regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime
                 } else {
                     // "checkGrenadeThrow: method must be 'min energy', 'min time', or 'max time' - value %s"
-                    title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(title_text(0x0083d068),
+                    own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(title_text(0x0083d068),
                                                                                           script_text(method));
                 }
             }
@@ -1754,8 +1755,7 @@ uint32_t spawn_named(uint32_t F, bool force, uint32_t ret) {
         if (rep && rep + 6 != 0) targetname = script_text(reinterpret_cast<const ScriptString*>(ent + 0x264));
         const char* const classname = script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c));
         // "dospawn can only be called on actor spawners\nattempted to call dospawn on entity ..."
-        title_function<const char* XB_CDECL(const char*, const char*, const char*, double, double, double)>(
-            0x002a93d0)(title_text(0x008321b8), targetname, classname, x87_widen_at(&field<float>(ent, 0x140)),
+        own_function<const char* XB_CDECL(const char*, const char*, const char*, double, double, double)>(&va_entry)(title_text(0x008321b8), targetname, classname, x87_widen_at(&field<float>(ent, 0x140)),
                         x87_widen_at(&field<float>(ent, 0x144)), x87_widen_at(&field<float>(ent, 0x148)));  // va
         ScriptString_Release(name);
         return 0;
@@ -1840,7 +1840,7 @@ void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp) {
         title_va(0x00831938);  // "Vehicle must have health to control the turret"
     const uint8_t weapon = ent[3];
     if (!weapon) {
-        title_function<Va2>(0x002a93d0)(title_text(0x00831918), targetname());  // "No weapon specified for [%s]"
+        own_function<Va2>(&va_entry)(title_text(0x00831918), targetname());  // "No weapon specified for [%s]"
         return;
     }
     uint8_t* const wdef = title_global<uint8_t**>(0x0095f4d8)[weapon];  // bg_weaponDefs
@@ -1849,7 +1849,7 @@ void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp) {
     if (type != 0 && type != 2) title_va(0x008318e0);  // "Vehicles only support bullet and projectile weapons"
     const int32_t barrel = field<int32_t>(vehicle, 0x2c4);
     if (barrel < 0) {
-        title_function<Va2>(0x002a93d0)(title_text(0x008318c8), targetname());  // "No tag_barrel for [%s]"
+        own_function<Va2>(&va_entry)(title_text(0x008318c8), targetname());  // "No tag_barrel for [%s]"
         return;
     }
     G_DObjGetWorldTagMatrix(ent, static_cast<uint32_t>(barrel), &at<float>(S + 0xe0));
@@ -1883,7 +1883,7 @@ void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp) {
             G_DObjGetWorldTagMatrix(ent, static_cast<uint32_t>(bone), tag);
         } else {
             const char* const text = targetname();
-            title_function<const char* XB_CDECL(const char*, uint32_t, const char*)>(0x002a93d0)(
+            own_function<const char* XB_CDECL(const char*, uint32_t, const char*)>(&va_entry)(
                 title_text(0x008318b8), name, text);  // "No %s for [%s]"
         }
         bool aimed = false;
@@ -1973,7 +1973,7 @@ void XB_CDECL GScr_MagicBullet_c(uint32_t entry_esp) {
     if (rep && rep + 6 != 0 && title_global<char>(rep + 6))
         index = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(rep, title_text(rep + 6))) & 0xff;
     if (!index) {
-        title_function<const char* XB_CDECL(const char*, uint32_t)>(0x002a93d0)(
+        own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(
             title_text(0x00832454), *reinterpret_cast<const uint32_t*>(name));  // va
         return;
     }

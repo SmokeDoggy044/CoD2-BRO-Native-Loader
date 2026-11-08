@@ -60,8 +60,8 @@ void call_with_edi(uint32_t address, void* edi) {
 // the pool at 0x008f0470, and the entity's ragdoll flag (+0x294) cleared.
 void ragdoll_release_physics(uint8_t* ragdoll) {
     uint8_t* const entity = at<uint8_t*>(ragdoll, 0);
-    title_function<void XB_THISCALL(uint8_t*)>(0x000b3690)(at<uint8_t*>(ragdoll, 0x568));  // PhysRagdoll_WriteBodiesToPose
-    title_function<void XB_STDCALL(uint8_t*)>(0x0022c0f0)(entity);
+    own_function<void XB_THISCALL(uint8_t*)>(&PhysRagdoll_WriteBodiesToPose)(at<uint8_t*>(ragdoll, 0x568));  // PhysRagdoll_WriteBodiesToPose
+    own_function<void XB_STDCALL(uint8_t*)>(&Ragdoll_PropagateBoneMatrices)(entity);
     RagdollPhysPool_Free(at<uint8_t*>(ragdoll, 0x568), 0, &title_global<uint8_t>(0x008f0470));
     at<uint32_t>(ragdoll, 0x568) = 0;
     at<uint8_t>(at<uint8_t*>(ragdoll, 0), 0x294) = 0;
@@ -114,7 +114,7 @@ void XB_REGS1 XB_STDCALL Ragdoll_AddForce(const float* force, void* ragdoll, uin
     alignas(16) float copy[4];
     std::memcpy(copy, force, 16);
     using AddBodyForce = void XB_THISCALL(void*, uint32_t, const float*);
-    title_function<AddBodyForce>(0x000b38d0)(ragdoll, body, copy);  // PhysRagdoll_AddBodyForce
+    own_function<AddBodyForce>(&PhysRagdoll_AddBodyForce)(ragdoll, body, copy);  // PhysRagdoll_AddBodyForce
 }
 
 void XB_REGS3 XB_STDCALL Ragdoll_AddForceAtPoint(const float* force, uint32_t, const float* point, void* ragdoll,
@@ -124,14 +124,14 @@ void XB_REGS3 XB_STDCALL Ragdoll_AddForceAtPoint(const float* force, uint32_t, c
     alignas(16) float p[4];
     std::memcpy(p, point, 16);
     using AddBodyForceAtPoint = void XB_THISCALL(void*, uint32_t, const float*, const float*, uint32_t);
-    title_function<AddBodyForceAtPoint>(0x000b3300)(ragdoll, body, p, f, arg3);  // PhysRagdoll_AddBodyForceAtPoint
+    own_function<AddBodyForceAtPoint>(&PhysRagdoll_AddBodyForceAtPoint)(ragdoll, body, p, f, arg3);  // PhysRagdoll_AddBodyForceAtPoint
 }
 
 // A ragdoll capsule (0x130 bytes): spheres at +0x80 (count +0x84), segment +0xb0, body +0x124
 // (its transform at +0x40).
 void XB_STDCALL RagdollCapsule_UpdateWorldPoints(uint8_t* capsule) {
     using TransformSegment = void XB_REGS1 XB_STDCALL(const float*, uint8_t*);
-    title_function<TransformSegment>(0x002279c0)(  // RagdollCapsule_TransformSegment
+    own_function<TransformSegment>(&RagdollCapsule_TransformSegment)(  // RagdollCapsule_TransformSegment
         reinterpret_cast<const float*>(at<uint8_t*>(capsule, 0x124) + 0x40), capsule + 0xb0);
     uint8_t* sphere = at<uint8_t*>(capsule, 0x80);
     uint8_t* const end = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(sphere) + (at<uint32_t>(capsule, 0x84) << 6));
@@ -331,10 +331,10 @@ void XB_CDECL RagdollPool_Clear(uint8_t* pool) {
 void XB_STDCALL RagdollPhysPool_DestroyAll(uint8_t* pool) {
     for (int32_t i = 0; i < at<int32_t>(pool, kRagdollPhysPool.count); ++i) {
         uint8_t* const phys = at<uint8_t*>(pool, kRagdollPhysPool.pointers + i * 4);
-        title_function<void XB_THISCALL(uint8_t*)>(0x000b3640)(phys);  // PhysRagdoll_DestroyObjects
+        own_function<void XB_THISCALL(uint8_t*)>(&PhysRagdoll_DestroyObjects)(phys);  // PhysRagdoll_DestroyObjects
         for (uint32_t offset = 0; offset < 0x28; offset += 4) {
             const uint32_t body = at<uint32_t>(at<uint8_t*>(phys, 0x28), offset);
-            if (body) title_function<void XB_CDECL(uint32_t)>(0x000b56e0)(body);  // PhysWorld_DestroyBody
+            if (body) own_function<void XB_CDECL(uint32_t)>(&PhysWorld_DestroyBody)(body);  // PhysWorld_DestroyBody
         }
     }
 }
@@ -420,7 +420,7 @@ void XB_THISCALL PhysRagdoll_SetLaunchTarget(uint8_t* phys, const float* target)
 }
 
 uint32_t XB_THISCALL PhysRagdoll_AllocBody(uint8_t* phys, int32_t index) {
-    const uint32_t body = title_function<uint32_t XB_CDECL()>(0x000b47b0)();  // PhysWorld_AllocBody
+    const uint32_t body = own_function<uint32_t XB_CDECL()>(&PhysWorld_AllocBody)();  // PhysWorld_AllocBody
     at<uint32_t*>(phys, 0x28)[index] = body;
     return body;
 }
@@ -430,12 +430,12 @@ uint32_t XB_THISCALL PhysRagdoll_CreateJoint(uint8_t* phys, int32_t a, int32_t b
     const uint32_t* const bodies = at<uint32_t*>(phys, 0x28);
     uint32_t* const slot = at<uint32_t*>(phys, 0x58) + b;
     using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t);
-    *slot = title_function<Alloc>(0x000b4b40)(bodies[a], bodies[b]);  // PhysWorld_AllocConstraint1B0
+    *slot = own_function<Alloc>(&PhysWorld_AllocConstraint1B0)(bodies[a], bodies[b]);  // PhysWorld_AllocConstraint1B0
     return at<uint32_t*>(phys, 0x58)[b];
 }
 
 void XB_THISCALL PhysRagdoll_FreeConstraintD0(uint8_t* phys, int32_t index) {
-    title_function<void XB_CDECL(uint32_t)>(0x000b49b0)(at<uint32_t*>(phys, 0x88)[index]);  // PhysWorld_FreeConstraintD0
+    own_function<void XB_CDECL(uint32_t)>(&PhysWorld_FreeConstraintD0)(at<uint32_t*>(phys, 0x88)[index]);  // PhysWorld_FreeConstraintD0
     at<uint32_t*>(phys, 0x88)[index] = 0;
 }
 
@@ -449,7 +449,7 @@ void XB_THISCALL PhysRagdoll_UpdateLaunchToTarget(uint8_t* phys) {
     const uint32_t bits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(phys));
     std::memcpy(&remaining, &bits, 4);
     using Launch = void XB_CDECL(uint32_t, int32_t, uint8_t*, float*);
-    title_function<Launch>(0x000bad60)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), phys + 0x490,
+    own_function<Launch>(&PhysBodies_LaunchTowardTarget)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), phys + 0x490,
                                        &remaining);  // PhysBodies_LaunchTowardTarget
     if (title_global<float>(0x007cd0a4) > remaining) at<uint32_t>(phys, 0x4a0) = 0;  // 2.25
 }
@@ -458,7 +458,7 @@ void XB_THISCALL PhysRagdoll_GetCenterOfMass(uint8_t* phys, float* center, float
     alignas(16) float a[4];
     alignas(16) float b[4];
     using Get = void XB_CDECL(uint32_t, int32_t, float*, float*, uint32_t);
-    title_function<Get>(0x000bab40)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), a, b, arg3);  // PhysBodies_GetCenterOfMass
+    own_function<Get>(&PhysBodies_GetCenterOfMass)(at<uint32_t>(phys, 0x28), at<int32_t>(phys, 0x2c), a, b, arg3);  // PhysBodies_GetCenterOfMass
     std::memcpy(center, a, 12);
     std::memcpy(velocity, b, 12);
 }
@@ -470,7 +470,7 @@ void XB_THISCALL PhysRagdoll_AddBodyForceAtPoint(uint8_t* phys, int32_t index, c
     if (!body) return;
     ragdoll_reset_rest(phys);
     using Add = void XB_THISCALL(uint32_t, const float*, const float*, uint32_t);
-    title_function<Add>(0x000bbd30)(body, force, point, arg4);  // PhysBody_AddForceAtPoint
+    own_function<Add>(&PhysBody_AddForceAtPoint)(body, force, point, arg4);  // PhysBody_AddForceAtPoint
 }
 
 // count empty slots at the end of the body, joint and 0xd0 constraint lists.
@@ -494,7 +494,7 @@ void XB_THISCALL PhysRagdoll_SolveJointPositions(uint8_t* phys) {
         if (end == it) return;
         for (; it != end; ++it) {
             if (!*it) continue;
-            const float error = title_function<Snap>(0x000b7770)(*it);  // PhysJoint_SnapBodyToAnchor
+            const float error = own_function<Snap>(&PhysJoint_SnapBodyToAnchor)(*it);  // PhysJoint_SnapBodyToAnchor
             if (platform_x87_greater(error, worst)) worst = error;
         }
         if (!(worst > title_global<float>(0x0083effc))) return;  // 1e-5
@@ -513,13 +513,13 @@ void XB_THISCALL PhysRagdoll_RemoveBody(uint8_t* phys, int32_t index) {
     while (i < at<int32_t>(phys, 0x464)) {
         if (at<int32_t>(*bone, 0x44) == index) {
             // The pool moves the last bone into this slot.
-            title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x000b3ef0)(phys + 0xf0, *bone);  // PhysRagdoll_FreeBone
+            own_function<void XB_THISCALL(uint8_t*, uint8_t*)>(&PhysRagdoll_FreeBone)(phys + 0xf0, *bone);  // PhysRagdoll_FreeBone
         } else {
             ++i;
             ++bone;
         }
     }
-    title_function<void XB_CDECL(uint32_t)>(0x000b56e0)(at<uint32_t*>(phys, 0x28)[index]);  // PhysWorld_DestroyBody
+    own_function<void XB_CDECL(uint32_t)>(&PhysWorld_DestroyBody)(at<uint32_t*>(phys, 0x28)[index]);  // PhysWorld_DestroyBody
     at<uint32_t*>(phys, 0x28)[index] = 0;
 }
 
@@ -527,15 +527,15 @@ void XB_THISCALL PhysRagdoll_RemoveBody(uint8_t* phys, int32_t index) {
 void XB_THISCALL PhysRagdoll_AttachBodyToObject(uint8_t* phys, uint32_t owner, int32_t index, uint32_t arg3,
                                                 uint32_t arg4) {
     if (!at<uint32_t*>(phys, 0x28)[index]) return;
-    uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x000b44a0)(owner);  // PhysWorld_FindObject1c0ByOwner
+    uint32_t object = own_function<uint32_t XB_CDECL(uint32_t)>(&PhysWorld_FindObject1c0ByOwner)(owner);  // PhysWorld_FindObject1c0ByOwner
     if (!object) {
-        object = title_function<uint32_t XB_CDECL()>(0x000b4b10)();  // PhysWorld_AllocObject1c0
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x000bbde0)(object, owner);  // PhysObject1c0_Init
+        object = own_function<uint32_t XB_CDECL()>(&PhysWorld_AllocObject1c0)();  // PhysWorld_AllocObject1c0
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&PhysObject1c0_Init)(object, owner);  // PhysObject1c0_Init
     }
     using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t);
-    const uint32_t constraint = title_function<Alloc>(0x000b47e0)(at<uint32_t*>(phys, 0x28)[index], object);  // PhysWorld_AllocConstraint50
-    title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x000b92a0)(constraint, arg4, arg3);
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x000b3f90)(phys, object);  // PhysRagdoll_AddAttachedObject
+    const uint32_t constraint = own_function<Alloc>(&PhysWorld_AllocConstraint50)(at<uint32_t*>(phys, 0x28)[index], object);  // PhysWorld_AllocConstraint50
+    own_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&PhysAttach_SetAnchors)(constraint, arg4, arg3);
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&PhysRagdoll_AddAttachedObject)(phys, object);  // PhysRagdoll_AddAttachedObject
     *ragdoll_list_append(phys, 0xe8) = constraint;
 }
 
@@ -543,7 +543,7 @@ void XB_THISCALL PhysRagdoll_DestroyObjects(uint8_t* phys) {
     uint32_t* it = at<uint32_t*>(phys, 0xb8);
     uint32_t* const end = it + at<int32_t>(phys, 0xbc);
     for (; it != end; ++it)
-        if (*it) title_function<void XB_CDECL(uint32_t)>(0x000b5710)(*it);  // PhysWorld_DestroyObject1c0
+        if (*it) own_function<void XB_CDECL(uint32_t)>(&PhysWorld_DestroyObject1c0)(*it);  // PhysWorld_DestroyObject1c0
     at<uint32_t>(phys, 0xbc) = 0;
     at<uint32_t>(phys, 0xec) = 0;
 }
@@ -1221,8 +1221,8 @@ uint32_t XB_CDECL PhysObj_GetInheritedVelocity(uint8_t* ent, float* angular, flo
             return 1;
         }
         if (at<uint32_t>(ent, 0x248)) {
-            title_function<void XB_THISCALL(uint8_t*)>(0x0024bec0)(ent);                // Vehicle_LoadPhysicsState
-            title_function<void XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(0x00252530)(0x32, ent);  // Vehicle_MoveAlongPath
+            own_function<void XB_THISCALL(uint8_t*)>(&Vehicle_LoadPhysicsState)(ent);                // Vehicle_LoadPhysicsState
+            own_function<void XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(&Vehicle_MoveAlongPath_entry)(0x32, ent);  // Vehicle_MoveAlongPath
             const uint8_t* const vehicle = at<uint8_t*>(ent, 0x248);
             const float x = at<float>(vehicle, 0x100);
             const float v[4] = {x, at<float>(vehicle, 0x104), at<float>(vehicle, 0x108), x};
@@ -1251,7 +1251,7 @@ using WorldBoneMatrix = const uint8_t* XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, i
 
 // G_DObjGetWorldBoneMatrix: EAX entity, ECX bone, stack buffer (EDX = the buffer as well).
 const uint8_t* world_bone_matrix(uint8_t* entity, int32_t bone, float* buffer) {
-    return title_function<WorldBoneMatrix>(0x002d6800)(entity, addr(buffer), bone, buffer);
+    return own_function<WorldBoneMatrix>(&G_DObjGetWorldBoneMatrix)(entity, addr(buffer), bone, buffer);
 }
 
 }  // namespace
@@ -1454,9 +1454,9 @@ void XB_STDCALL Ragdoll_Update(uint8_t* ragdoll, float dt) {
     const float duration = at<float>(phys, 0x1d44);
     if (duration > t) {
         at<float>(phys, 0x1d40) = t;
-        title_function<void XB_STDCALL(uint8_t*, uint8_t*, float)>(0x0022b500)(phys + 0x4b0, entity, t / duration);  // Ragdoll_BlendBonePoses
+        own_function<void XB_STDCALL(uint8_t*, uint8_t*, float)>(&Ragdoll_BlendBonePoses)(phys + 0x4b0, entity, t / duration);  // Ragdoll_BlendBonePoses
     } else {
-        title_function<void XB_STDCALL(uint8_t*)>(0x0022c0f0)(entity);
+        own_function<void XB_STDCALL(uint8_t*)>(&Ragdoll_PropagateBoneMatrices)(entity);
     }
     if (!at<uint8_t*>(ragdoll, 0x568)[0x1d3c] &&
         !(title_global<float>(0x0083f10c) > at<float>(at<uint8_t*>(ragdoll, 0), 0x148)))  // -60000
@@ -1594,7 +1594,7 @@ uint32_t XB_CDECL Ragdoll_StartPhysics(uint32_t value, uint8_t* ragdoll, uint32_
     }
     at<uint8_t*>(ragdoll, 0x568) = phys;
     at<uint32_t>(phys, 0x1d34) = value;
-    title_function<void XB_STDCALL(uint8_t*, uint8_t*)>(0x00231860)(phys, at<uint8_t*>(ragdoll, 0));  // PhysRagdoll_Build
+    own_function<void XB_STDCALL(uint8_t*, uint8_t*)>(&PhysRagdoll_Build_entry)(phys, at<uint8_t*>(ragdoll, 0));  // PhysRagdoll_Build
     at<float>(phys, 0x1d40) = 0.0f;
     at<float>(phys, 0x1d44) = title_global<float>(0x0083eb24);  // 0.5
     PhysRagdoll_ResetRestState(phys);
@@ -3194,7 +3194,7 @@ void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t
     bits = flags;
     call_with_esi(0x002255d0, vehicle);  // the wheel motors
     if (!(at<uint8_t>(vehicle, 0x450) & 1))
-        title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002256b0)(vehicle);  // the wheel friction
+        own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&VehiclePhys_ApplyWheelFriction)(vehicle);  // the wheel friction
 }
 
 namespace {
@@ -3878,7 +3878,7 @@ PLATFORM_ASM_ENTRY(PhysRagdoll_BuildAndReset_entry,
 
 void XB_CDECL PhysRagdoll_BuildAndReset(uint32_t value, uint8_t* phys, uint8_t* ent) {
     at<uint32_t>(phys, 0x1d34) = value;
-    title_function<void XB_STDCALL(uint8_t*, uint8_t*)>(0x00231860)(phys, ent);  // PhysRagdoll_Build
+    own_function<void XB_STDCALL(uint8_t*, uint8_t*)>(&PhysRagdoll_Build_entry)(phys, ent);  // PhysRagdoll_Build
     at<float>(phys, 0x1d40) = 0.0f;
     at<float>(phys, 0x1d44) = title_global<float>(0x0083eb24);  // 0.5
     PhysRagdoll_ResetRestState(phys);

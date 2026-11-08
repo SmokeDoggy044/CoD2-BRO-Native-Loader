@@ -9,6 +9,7 @@
 #include "stream.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -249,7 +250,7 @@ uint8_t* XB_THISCALL FxEffect_Init(uint8_t* self, const char* name) {
     at<uint16_t>(self, 0x5e) = 0;
     at<uint32_t>(self, 0x64) = 0;
     at<uint32_t>(self, 0x68) = 0x40;
-    title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(self);  // Matrix_Identity
+    own_function<void XB_CDECL(uint8_t*)>(&Matrix_Identity)(self);  // Matrix_Identity
     FxEffect_SetName(self, name);
     for (uint32_t offset = 0xac; offset <= 0xc0; offset += 4) at<uint32_t>(self, offset) = 0;
     return self;
@@ -516,7 +517,7 @@ void destroy_stage_renderer(uint8_t* stage) {
 }
 
 void destroy_stage_list(uint32_t list) {
-    title_function<void XB_THISCALL(uint32_t)>(0x0009ca90)(list);  // apsPtrVector_DeleteAll
+    own_function<void XB_THISCALL(uint32_t)>(&apsPtrVector_DeleteAll)(list);  // apsPtrVector_DeleteAll
 }
 
 void init_stage(uint8_t* stage) {
@@ -1132,7 +1133,7 @@ void read_name(uint32_t* stream, char* buffer) {
 }
 
 void hash_string(uint32_t* out, const char* text) {
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, text);  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(out, text);  // HashStr_Init
 }
 
 void free_list(uint8_t* list) {
@@ -1414,7 +1415,7 @@ uint8_t* XB_CDECL FxShaderClass_Create() {
 }
 
 uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out) {
-    return title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, "aeps_simple");
+    return own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(out, "aeps_simple");
 }
 
 void XB_THISCALL FxEffectPool_Release(uint8_t* self) {
@@ -1694,7 +1695,7 @@ float XB_THISCALL FxOp_SetupNode(const uint8_t* op, uint8_t* node, uint32_t text
     if (matrix)
         std::memcpy(node + 0x10, matrix, 0x40);
     else
-        title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(node + 0x10);  // Matrix_Identity
+        own_function<void XB_CDECL(uint8_t*)>(&Matrix_Identity)(node + 0x10);  // Matrix_Identity
     if (scale_source && at<int32_t>(op, 0x34) == 3) {
         alignas(16) float extent[4];
         FxVec3_ScaledHalfExtent(extent, scale_source);
@@ -1785,7 +1786,7 @@ uint8_t* op_node(const uint8_t* op, uint32_t node_vtable, uint32_t a0, uint32_t 
     if (matrix)
         std::memcpy(node + 0x10, matrix, 0x40);
     else
-        title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(node + 0x10);  // Matrix_Identity
+        own_function<void XB_CDECL(uint8_t*)>(&Matrix_Identity)(node + 0x10);  // Matrix_Identity
     return node;
 }
 
@@ -1987,7 +1988,7 @@ void XB_THISCALL FxOp1d5_Draw(uint8_t* node) {
     const Lanes right = mul(Lanes{{d.v[1], from_bits(neg_x), 0.0f, d.v[1]}}, title_global<float>(0x00909984));
     platform_keep(right);
     // The camera's heading as a fraction of a turn (times the billboard size), wrapped to [0, 1).
-    float heading = title_function<float XB_CDECL(float)>(0x000a7570)(d.v[0]);  // FastAcos
+    float heading = own_function<float XB_CDECL(float)>(&FastAcos)(d.v[0]);  // FastAcos
     if (0.0f > d.v[1]) heading = title_global<float>(0x0083edac) - heading;      // 2 pi
     heading = heading * title_global<float>(0x0083f118) * title_global<float>(0x00909984);  // 1 / (2 pi)
     if (0.0f > heading) heading += title_global<float>(0x0083eb20);
@@ -2008,7 +2009,7 @@ void XB_THISCALL FxOp1d5_Draw(uint8_t* node) {
         alignas(16) const float scale[4] = {title_global<float>(0x0083eb20), title_global<float>(0x0083eb20),
                                             title_global<float>(0x0083eb20), at<float>(record, 0x10)};
         const uint32_t argb =
-            title_function<uint32_t XB_CDECL(const float*, const float*)>(0x000a7670)(colour, scale);  // apsColor_PackScaled
+            own_function<uint32_t XB_CDECL(const float*, const float*)>(&apsColor_PackScaled)(colour, scale);  // apsColor_PackScaled
         // The atlas v by the view angle around the particle (in steps), u by the frame.
         float angle = at<float>(record, 0x14) * title_global<float>(0x0083f118) + half_step;
         const float wrap = title_global<float>(0x0083eb20);
@@ -2143,7 +2144,7 @@ void draw_op_quads(uint8_t* const* node_ref, const QuadOpLayout& layout) {
         const Lanes centre = lanes(centre_ptr);
         alignas(16) float alpha_scale[4] = {one, one, one, at<float>(record, 0x10)};
         const float* scale = layout.colour_scale ? reinterpret_cast<const float*>(record + 0x10) : alpha_scale;
-        const uint32_t argb = title_function<uint32_t XB_CDECL(const float*, const float*)>(0x000a7670)(
+        const uint32_t argb = own_function<uint32_t XB_CDECL(const float*, const float*)>(&apsColor_PackScaled)(
             reinterpret_cast<const float*>(*node_ref + 0x60), scale);  // apsColor_PackScaled
         Lanes up_axis, right_axis;
         if (toward_camera) {

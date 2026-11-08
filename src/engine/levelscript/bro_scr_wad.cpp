@@ -2,6 +2,7 @@
 
 #include "scr_class.h"
 #include "title_data.h"
+#include "g_scr_runtime.h"
 
 namespace game {
 
@@ -9,7 +10,7 @@ namespace {
 
 uint8_t* delete_wad(uint8_t* self, uint32_t flags, void(XB_THISCALL* dtor)(uint8_t*)) {
     dtor(self);
-    if (flags & 1) title_function<void XB_CDECL(uint8_t*)>(0x002f5e10)(self);  // Scr_Free
+    if (flags & 1) own_function<void XB_CDECL(uint8_t*)>(&Scr_Free)(self);  // Scr_Free
     return self;
 }
 

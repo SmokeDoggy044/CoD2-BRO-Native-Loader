@@ -8,6 +8,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "script_string.h"
 
 #include <cstring>
 
@@ -20,7 +21,7 @@ uint32_t* XB_CDECL BroScr_GetLevelVecOrZero(uint32_t* out, ScriptString name) {
         out[2] = 0;
     } else {
         uint32_t hash;
-        const uint32_t* key = title_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(0x0011d8b0)(&hash, &name);  // Scr_HashScriptString
+        const uint32_t* key = own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(&hash, &name);  // Scr_HashScriptString
         HashMap* map = reinterpret_cast<HashMap*>(title_global<uint32_t>(0x00922ee0) + 0x3b4);
         const uint32_t* v = reinterpret_cast<const uint32_t*>(HashMap_Index(map, key));
         const uint32_t w0 = v[0], w1 = v[1], w2 = v[2];
@@ -51,11 +52,11 @@ ScriptString* string_map_index(uint32_t map, const uint32_t* key) {
 }
 
 void assign_cstring(ScriptString* string, uint32_t text) {
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011dd20)(string, text);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_AssignCString)(string, text);  // ScriptString_AssignCString
 }
 
 uint32_t* hash_name(uint32_t* out, uint32_t name) {
-    return title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x0011d890)(out, name);  // Scr_HashName
+    return own_function<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(&Scr_HashName)(out, name);  // Scr_HashName
 }
 
 // A thread (functor {0x007f5ba0, function, ent} from ScrIface_Alloc, null when it fails;
@@ -89,7 +90,7 @@ void threads_on_targetname(uint32_t name, bool signed_gate, uint32_t fx_key, uin
             scr_slot<CreateThread>(0x0092216c)(0, 0, 0, ent, functor, 0);  // Scr_CreateThread
         }
     }
-    if (ents.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(ents.data);  // Scr_Free
+    if (ents.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(ents.data);  // Scr_Free
 }
 
 }  // namespace
@@ -134,26 +135,26 @@ ScriptString* XB_CDECL Bro__treeburst_gmi__tree_burst_getUndamagedModel(ScriptSt
     ScriptString model;
     scr_string_from(&model, 0x00824fb8);  // "p_env_oak_grn_med_b"
     ScriptString value;
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&value, 0);  // ScriptString_FromRep(null)
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&value, 0);  // ScriptString_FromRep(null)
     ScriptString text;
     scr_string_from(&text, 0x00824ff8);  // "..._getUndamagedModel(): modelname is undefined!  ret..."
     ScriptString joined;
     ScriptString warning;
     using Concat = ScriptString* XB_CDECL(ScriptString*, const ScriptString*, const ScriptString*);
     using ConcatC = ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t);
-    title_function<ConcatC>(0x0011eec0)(&warning, title_function<Concat>(0x0011e340)(&joined, &text, &model),
+    own_function<ConcatC>(&ScriptString_ConcatCString)(&warning, own_function<Concat>(&ScriptString_Concat)(&joined, &text, &model),
                                         0x00824ff0);  // ScriptString_ConcatCString(ScriptString_Concat(text, model), ..)
     scr_release(&joined);
     scr_release(&text);
     if (name.rep == nullptr) {
-        title_function<StringOp>(0x0011d5e0)(out, &model);  // ScriptString_Copy
+        own_function<StringOp>(&ScriptString_Copy)(out, &model);  // ScriptString_Copy
     } else {
         uint32_t hash;
-        const uint32_t* key = title_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(0x0011d8b0)(&hash, &name);  // Scr_HashScriptString
+        const uint32_t* key = own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(&hash, &name);  // Scr_HashScriptString
         using Index = ScriptString* XB_THISCALL(uint32_t, const uint32_t*);
         const ScriptString* found = title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x388, key);  // HashMap_Index
-        title_function<StringOp>(0x0011d600)(&value, found);  // ScriptString_Assign
-        title_function<StringOp>(0x0011d5e0)(out, value.rep ? &value : &model);  // ScriptString_Copy
+        own_function<StringOp>(&ScriptString_Assign_entry)(&value, found);  // ScriptString_Assign
+        own_function<StringOp>(&ScriptString_Copy)(out, value.rep ? &value : &model);  // ScriptString_Copy
     }
     scr_release(&warning);
     scr_release(&value);
@@ -216,7 +217,7 @@ void XB_CDECL BroScr_WindowBreakThink(uint32_t trigger) {
     {
         ScriptString classname;
         scr_string_from(&classname, 0x0083ab88);  // "script_origin"
-        title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(&classname, 0xa106e9bd, &origins,
+        own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(&classname, 0xa106e9bd, &origins,
                                                                                                          0);  // Scr_GetEntArray
         scr_release(&classname);
     }
@@ -251,9 +252,9 @@ void XB_CDECL BroScr_WindowBreakThink(uint32_t trigger) {
         scr_slot<void XB_CDECL(uint32_t)>(0x009227c0)(clip);  // GScr_MoverNotSolid
     }
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*, DynArray*);
-    title_function<StartThread>(0x0017ccc0)(0, 0, 0, 0, 0x0015e4c0, trigger, &window, &clip, &touching);  // Scr_StartThreadFunctor_20_3
-    if (origins.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(origins.data);  // Scr_Free
-    if (touching.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(touching.data);
+    own_function<StartThread>(&Scr_StartThreadFunctor_20_3_entry)(0, 0, 0, 0, 0x0015e4c0, trigger, &window, &clip, &touching);  // Scr_StartThreadFunctor_20_3
+    if (origins.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(origins.data);  // Scr_Free
+    if (touching.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(touching.data);
 }
 
 namespace {
@@ -278,7 +279,7 @@ void setup_tree_group(uint32_t name, uint8_t flag, uint32_t* number) {
     {
         ScriptString targetname;
         scr_string_from(&targetname, name);
-        title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(&targetname, 0x0d786b4c,
+        own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(&targetname, 0x0d786b4c,
                                                                                                          &trees, 0);  // Scr_GetEntArray
         scr_release(&targetname);
     }
@@ -288,7 +289,7 @@ void setup_tree_group(uint32_t name, uint8_t flag, uint32_t* number) {
         start_thread_flag(*array_at(&trees, i), 0x001640c0, flag);  // BroScr_TreeBurstTriggerThink
         ++*number;
     }
-    if (trees.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(trees.data);  // Scr_Free
+    if (trees.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(trees.data);  // Scr_Free
 }
 
 }  // namespace
@@ -300,7 +301,7 @@ void XB_CDECL BroScr_SetupTreeBursts() {
     {
         ScriptString targetname;
         scr_string_from(&targetname, 0x00825420);  // "tree_burst"
-        title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(&targetname, 0x0d786b4c,
+        own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(&targetname, 0x0d786b4c,
                                                                                                          &trees, 0);
         scr_release(&targetname);
     }
@@ -311,19 +312,19 @@ void XB_CDECL BroScr_SetupTreeBursts() {
         ++number;
     }
     setup_tree_group(0x0082540c, 0, &number);  // "tree_burst_scripted"
-    if (trees.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(trees.data);
+    if (trees.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(trees.data);
 }
 
 namespace {
 
 using CopyString = void XB_THISCALL(ScriptString*, const ScriptString*);
 
-void from_int(ScriptString* out, uint32_t value) { title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011df90)(out, value); }  // ScriptString_FromInt2
+void from_int(ScriptString* out, uint32_t value) { own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromInt2)(out, value); }  // ScriptString_FromInt2
 
 // A slot setter (ScrEnt_SetTargetname / SetTarget / SetAnimname) with a copy of `value`.
 void set_string(uint32_t slot, uint32_t ent, const ScriptString* value) {
     ScriptString copy;
-    title_function<CopyString>(0x0011d5e0)(&copy, value);  // ScriptString_Copy
+    own_function<CopyString>(&ScriptString_Copy)(&copy, value);  // ScriptString_Copy
     scr_slot<void XB_CDECL(uint32_t, ScriptString)>(slot)(ent, copy);
 }
 
@@ -342,8 +343,8 @@ void use_animname_tree(uint32_t* ent, ScriptString* temp) {
 void undamaged_model(ScriptString* model, uint32_t* ent, ScriptString* temp) {
     ScriptString current;
     ScrCall_ScrEnt_GetModel(ent, &current);
-    title_function<ScriptString* XB_CDECL(ScriptString*, ScriptString)>(0x0015d650)(temp, current);
-    title_function<CopyString>(0x0011d600)(model, temp);  // ScriptString_Assign
+    own_function<ScriptString* XB_CDECL(ScriptString*, ScriptString)>(&Bro__treeburst_gmi__tree_burst_getUndamagedModel)(temp, current);
+    own_function<CopyString>(&ScriptString_Assign_entry)(model, temp);  // ScriptString_Assign
     scr_release(temp);
 }
 
@@ -371,12 +372,12 @@ void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
     // The original uses the flag's argument slot for its string temporaries.
     ScriptString* const temp = reinterpret_cast<ScriptString*>(&per_target);
     ScriptString model;
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&model, 0);  // ScriptString_FromRep(null)
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&model, 0);  // ScriptString_FromRep(null)
     if (static_cast<uint8_t>(per_target)) {
         // A dying copy of each target: script_model "<number>tree_to_die_<i>" with the undamaged
         // model, the target's angles, targeting the original, which becomes a "treeburst".
         DynArray targets = {nullptr, 0, 0};
-        title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(
+        own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(
             ScrCall_ScrEnt_GetTarget(&tree, temp), 0x0d786b4c, &targets, 0);  // Scr_GetEntArray
         scr_release(temp);
         const bool has_target = ScrCall_ScrEnt_GetTarget(&tree, temp)->rep != nullptr;
@@ -414,7 +415,7 @@ void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
                 scr_release(&number);
             }
         }
-        if (targets.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(targets.data);  // Scr_Free
+        if (targets.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(targets.data);  // Scr_Free
     } else {
         // A dying copy of the tree itself: "<number>tree_to_die_0".
         uint32_t spawned = spawn_model_at(temp, tree);
@@ -425,7 +426,7 @@ void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
         ScriptString prefix;
         ScriptString_ConcatCString(&prefix, &number, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825060)));
         set_string(0x00922b54, spawned,
-                   title_function<ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t)>(0x0011b1c0)(temp, &prefix, 0));  // ScriptString_PlusInt
+                   own_function<ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t)>(&ScriptString_PlusInt)(temp, &prefix, 0));  // ScriptString_PlusInt
         scr_release(temp);
         scr_release(&prefix);
         copy_angles(spawned, tree);

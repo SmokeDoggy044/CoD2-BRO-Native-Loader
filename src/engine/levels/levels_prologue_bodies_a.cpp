@@ -96,7 +96,7 @@ using ObjectiveAdd = uint32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, ScrVec
 void objective_add(uint32_t index, uint32_t text, ScrVec3 position) {
     ScriptString state;
     from_text(&state, 0x0083aecc);  // "active"
-    title_function<ObjectiveAdd>(0x0011a730)(index, &state, text, position);
+    own_function<ObjectiveAdd>(&ScrCall_GScr_ObjectiveAddLocalizedWithPosition)(index, &state, text, position);
     ScriptString_Release(&state);
 }
 bool stage_is(float stage, uint32_t value) { return stage == title_global<float>(value); }
@@ -637,7 +637,7 @@ void XB_CDECL BroLvl_prologue_FriendlyChainThink(uint32_t, float stage) {
         uint32_t buffer[3];
         const uint32_t* const o = ScrCall_ScrEnt_GetOrigin(&bomb, buffer);
         const ScrVec3 origin = {{o[0], o[1], o[2]}};
-        title_function<ObjectiveAdd>(0x0011a730)(10, &state, 0xa2bafea2, origin);
+        own_function<ObjectiveAdd>(&ScrCall_GScr_ObjectiveAddLocalizedWithPosition)(10, &state, 0xa2bafea2, origin);
         ScriptString_Release(&state);
         current = 10;
     } else if (stage_is(stage, 0x007f4d98)) {  // 11

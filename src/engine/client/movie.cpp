@@ -8,6 +8,7 @@
 #include "sound_device.h"
 #include "stream.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -35,7 +36,7 @@ void*& audio_buffer() { return title_global<void*>(0x00920850); }  // movie_audi
 
 void free_aligned(void* p) { Mem_AlignedFree(p); }
 void operator_delete(void* p) { title_function<void XB_CDECL(void*)>(0x00011050)(p); }  // Z_Free (0x00011050)
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }            // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }            // Z_Free
 void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
 
 // The movie sound runs on our device (SndSys_InitDevice made the buffer there); Movie_DecodeFrame's C stays on the
@@ -90,7 +91,7 @@ int32_t XB_THISCALL Movie_ReadHeader(Movie* movie, int32_t file, uint8_t flag_74
     movie->state = -1;
     uint8_t* header = static_cast<uint8_t*>(Mem_AlignedAlloc(0x400, 0x40, 0));
     const int32_t read =
-        title_function<int32_t XB_CDECL(int32_t, uint32_t, void*, uint32_t)>(0x000caff0)(file, offset, header, 0x400);  // File_ReadAt
+        own_function<int32_t XB_CDECL(int32_t, uint32_t, void*, uint32_t)>(&File_ReadAt)(file, offset, header, 0x400);  // File_ReadAt
     if (read != 0x400) return -1;
     movie->file = file;
     movie->data_offset = offset;
@@ -123,7 +124,7 @@ int32_t XB_THISCALL Movie_ReadHeader(Movie* movie, int32_t file, uint8_t flag_74
 
 void XB_THISCALL Movie_StartAudio(Movie* movie) {
     if (!movie->has_audio) return;
-    const long double master = title_function<long double XB_CDECL()>(0x000c64d0)();  // Snd_GetMasterGroupVolume
+    const long double master = own_function<long double XB_CDECL()>(&Snd_GetMasterGroupVolume)();  // Snd_GetMasterGroupVolume
     float volume = static_cast<float>(master);
     const float least = title_global<float>(0x0083ed50);  // 0.0001
     if (platform_x87_ld(least) > master) {
@@ -222,7 +223,7 @@ void XB_THISCALL Movie_QueueReads(Movie* movie) {
             movie->read_pos = 0;
             request[7] = (left + 0x7ff) & 0xfffff800;
         }
-        const int32_t id = title_function<int32_t XB_CDECL(uint32_t*)>(0x000c9f70)(request);  // File_QueueRead
+        const int32_t id = own_function<int32_t XB_CDECL(uint32_t*)>(&File_QueueRead)(request);  // File_QueueRead
         movie->requests[movie->queue_slot] = id;
         movie->queue_slot = (movie->queue_slot + 1) & 3;
     } while (movie->queue_slot != movie->read_slot);
@@ -361,14 +362,13 @@ int32_t XB_CDECL Movie_DrawFrame() {
 
 uint8_t XB_FASTCALL Movie_Load(const char* name) {
     uint32_t size = 0;
-    const int32_t file = title_function<int32_t XB_CDECL(uint32_t, const char*, uint32_t*)>(0x000c9d60)(
+    const int32_t file = own_function<int32_t XB_CDECL(uint32_t, const char*, uint32_t*)>(&File_OpenReadEx)(
         title_global<uint32_t>(0x0095f6f4), name, &size);  // File_OpenReadEx
     if (file == -1) return 0;
     if (Movie_ReadHeader(the_movie(), file, 1, 0, size)) return 0;
     const float eight = title_global<float>(0x0083ed78);
     uint32_t allocated[4] = {};
-    const uint32_t* slots = title_function<uint32_t* XB_REGS1 XB_STDCALL(uint8_t*, uint32_t*, float, float, float, float)>(
-        0x0028d5e0)(stream_memory(), allocated, eight, eight, eight, 0.0f);  // StreamMem_Alloc
+    const uint32_t* slots = own_function<uint32_t* XB_REGS1 XB_STDCALL(uint8_t*, uint32_t*, float, float, float, float)>(&StreamMem_Alloc_entry)(stream_memory(), allocated, eight, eight, eight, 0.0f);  // StreamMem_Alloc
     uint32_t* held = movie_slots();
     held[0] = slots[0];
     held[1] = slots[1];
@@ -391,7 +391,7 @@ uint8_t XB_FASTCALL Movie_Load(const char* name) {
 
 uint8_t XB_CDECL Movie_CheckSkipInput() {
     using PadCreate = uint8_t* XB_CDECL();
-    title_function<void XB_THISCALL(uint8_t*)>(0x00055e70)(title_function<PadCreate>(0x00055e40)());  // IN_PadUpdate
+    own_function<void XB_THISCALL(uint8_t*)>(&IN_PadUpdate)(own_function<PadCreate>(&IN_PadCreate)());  // IN_PadUpdate
     if (title_global<float>(0x0095f460) > title_global<float>(0x0095f45c)) return 0;
     static const uint32_t kButtons[12] = {5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 15, 14};
     int32_t& active = title_global<int32_t>(0x008d50d8);
@@ -399,10 +399,10 @@ uint8_t XB_CDECL Movie_CheckSkipInput() {
     bool skip = false;
     if (active == -1) {
         for (pad = 0; pad < 4 && !skip; ++pad) {
-            title_function<PadCreate>(0x00055e40)();
+            own_function<PadCreate>(&IN_PadCreate)();
             if (IN_PadButtonPressed(pad, 0xe)) title_global<uint8_t>(0x0095f91c) = 1;
             for (uint32_t button : kButtons) {
-                title_function<PadCreate>(0x00055e40)();
+                own_function<PadCreate>(&IN_PadCreate)();
                 if (IN_PadButtonPressed(pad, button)) {
                     skip = true;
                     break;
@@ -411,10 +411,10 @@ uint8_t XB_CDECL Movie_CheckSkipInput() {
             if (skip) break;
         }
     } else {
-        title_function<PadCreate>(0x00055e40)();
+        own_function<PadCreate>(&IN_PadCreate)();
         if (IN_PadButtonPressed(active, 0xe)) title_global<uint8_t>(0x0095f91c) = 1;
         for (uint32_t button : kButtons) {
-            title_function<PadCreate>(0x00055e40)();
+            own_function<PadCreate>(&IN_PadCreate)();
             if (IN_PadButtonPressed(active, button)) {
                 skip = true;
                 pad = active;
@@ -423,7 +423,7 @@ uint8_t XB_CDECL Movie_CheckSkipInput() {
         }
     }
     if (!skip) return 0;
-    title_function<PadCreate>(0x00055e40)();
+    own_function<PadCreate>(&IN_PadCreate)();
     for (uint32_t button = 0; button <= 0xf; ++button) IN_PadConsumePressed(pad, button);
     title_global<uint8_t>(0x0095f915) = 1;
     return 1;
@@ -433,12 +433,12 @@ void XB_CDECL Movie_Stop(uint8_t clear) {
     if (movie_blocked()) return;
     if (!the_movie()) return;
     using HasPending = uint8_t XB_THISCALL(Movie*);
-    while (title_function<HasPending>(0x000cf140)(the_movie()))  // any request queued
-        title_function<void XB_CDECL()>(0x000ca690)();         // File_PumpRequests
-    title_function<void XB_REGS2 XB_STDCALL(uint8_t*, uint32_t*, uint8_t*, int32_t)>(0x0028d4c0)(
+    while (own_function<HasPending>(&Movie_HasPendingReads)(the_movie()))  // any request queued
+        own_function<void XB_CDECL()>(&File_PumpRequests)();         // File_PumpRequests
+    own_function<void XB_REGS2 XB_STDCALL(uint8_t*, uint32_t*, uint8_t*, int32_t)>(&StreamMem_MoveSlots)(
         stream_memory(), movie_slots(), stream_memory(), -1);  // StreamMem_MoveSlots
     const int32_t file = Movie_FreeResources(the_movie());
-    title_function<void XB_CDECL(int32_t)>(0x000cac90)(file);  // File_Close
+    own_function<void XB_CDECL(int32_t)>(&File_Close)(file);  // File_Close
     NglQuad* quad = movie_quad();
     title_global<uint32_t>(0x0095f470) = 0;
     title_global<uint32_t>(0x0095f474) = 0;
@@ -477,7 +477,7 @@ uint8_t XB_REGS1 XB_CDECL Subtitle_Start(const char* name, const char* category)
     const int32_t n = counter;
     counter = n + 1;
     crt_sprintf(key, &title_global<char>(0x0082d7d8), category, subtitle, n);  // "%s_%s_%d"
-    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(key);  // Loc_HashKey
+    const uint32_t hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&Loc_HashKey)(key);  // Loc_HashKey
     const uint8_t* entry = Zone_FindByHash(title_global<const uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
     const char* text = key;
     if (entry) {
@@ -612,17 +612,17 @@ uint8_t XB_CDECL Movie_Open(const char* name) {
         const int32_t language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
         if (language) {
             const int32_t track = language == 4 ? 1 : language == 3 ? 2 : 0;
-            title_function<int32_t XB_THISCALL(Movie*, int32_t)>(0x000cf130)(the_movie(), track);  // audio_track = track
+            own_function<int32_t XB_THISCALL(Movie*, int32_t)>(&Movie_SetAudioTrack)(the_movie(), track);  // audio_track = track
         }
     }
     title_global<uint8_t>(0x0095f46d) = 0;
-    title_function<void XB_THISCALL(Movie*, int32_t)>(0x000cf0c0)(the_movie(), 3);  // state = 3
+    own_function<void XB_THISCALL(Movie*, int32_t)>(&Movie_SetState)(the_movie(), 3);  // state = 3
     nglInitQuad(movie_quad());
     nglSetQuadRect(movie_quad(), 0.0f, 0.0f, 640.0f, 480.0f);
     nglSetQuadZ(movie_quad(), 500.0f);
     nglSetQuadTexture(movie_quad(), the_movie()->texture);
     title_global<uint32_t>(0x0095f45c) = 0;  // movie time 0.0f
-    while (!Movie_IsReady(the_movie())) title_function<void XB_CDECL()>(0x00331fb0)();  // SCR_LoadingPump
+    while (!Movie_IsReady(the_movie())) own_function<void XB_CDECL()>(&SCR_LoadingPump)();  // SCR_LoadingPump
     title_global<uint8_t>(0x0095f46c) = 1;
     return 1;
 }

@@ -7,6 +7,7 @@
 #include "g_scr_runtime.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_ai_anim_threads.h"
 
 namespace game {
 
@@ -119,7 +120,7 @@ void XB_CDECL BroScr_AiSpawnInit(uint32_t ent) {
     }
     ScriptString none;
     ScriptString_Copy(&none, &title_global<ScriptString>(0x00922e90));
-    title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString)>(0x001e1f60)(level_handle(), ent,
+    own_function<void XB_CDECL(uint32_t, uint32_t, ScriptString)>(&BroScr_SpawnerFinishSpawn)(level_handle(), ent,
                                                                                none);  // BroScr_SpawnerFinishSpawn
     using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, uint32_t,
                                       uint32_t);

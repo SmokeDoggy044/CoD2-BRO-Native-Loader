@@ -9,6 +9,8 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -36,7 +38,7 @@ ScriptKeyTable* table_of(uint32_t ent) { return BroScr_ScriptObjectOrEmpty(ent);
 
 DynArray* field_array(uint32_t ent, uint32_t key) {
     using GetArray = DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return title_function<GetArray>(0x0045cd50)(table_of(ent), key);  // ScriptKeyTable_GetArray
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(table_of(ent), key);  // ScriptKeyTable_GetArray
 }
 
 // The array stored under `key` (the value word points to it), set to an empty array when missing
@@ -47,7 +49,7 @@ DynArray* array_or_add(uint32_t ent, uint32_t key) {
     if (!value) {
         DynArray empty = {};
         using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, DynArray*);
-        value = title_function<SetArray>(0x0045cc80)(table, key, &empty);
+        value = own_function<SetArray>(&ScriptKeyTable_SetArray)(table, key, &empty);
     }
     return pointer<DynArray>(*value);
 }
@@ -90,7 +92,7 @@ void XB_CDECL BroScr_DeleteUndroppedBombs(uint32_t ent) {
         if (!is_defined(ScrField_dropped_IsDefined, *element(field_array(ent, 0x0030b1c2), i))) continue;
         if (*ScrField_dropped(*element(field_array(ent, 0x0030b1c2), i)) != 0) continue;
         using At = uint32_t* XB_THISCALL(void*, uint32_t);
-        delete_ent(*title_function<At>(0x0045cb70)(ScrField_bomb(ent), i));  // DynArray_At
+        delete_ent(*own_function<At>(&DynArray_At_PROLOGUE)(ScrField_bomb(ent), i));  // DynArray_At
     }
 }
 

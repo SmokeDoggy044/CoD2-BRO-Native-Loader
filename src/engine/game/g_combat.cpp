@@ -12,6 +12,9 @@
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "g_pathnode.h"
+#include "g_vehicle.h"
+#include "qcommon.h"
 
 namespace game {
 
@@ -99,7 +102,7 @@ void XB_CDECL hurt_think(const uint32_t* args) {
     const int32_t now = title_global<int32_t>(0x0098540c);  // level.time
     *reinterpret_cast<int32_t*>(ent + 0x328) = now + 1;    // nextthink
     if (static_cast<float>(title_global<int32_t>(0x0098540c)) > *reinterpret_cast<const float*>(ent + 0x384))
-        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(args[0], args[1]);  // G_FreeEntity
+        own_function<void XB_CDECL(uint32_t, uint32_t)>(&G_FreeEntity)(args[0], args[1]);  // G_FreeEntity
 }
 
 PLATFORM_ASM_ENTRY(G_ApplyDamage_entry,
@@ -193,7 +196,7 @@ void XB_CDECL G_Damage(const float* point, uint32_t* args) {
                                 reinterpret_cast<const char*>(uintptr_t{0x0082dd9c})) &&  // "player_tank"
             title_global<uint8_t>(0x0095f678))
             return;
-        if (title_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*, int32_t)>(0x00248620)(
+        if (own_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*, int32_t)>(&Vehicle_TakesDamageFromMod_entry)(
                 targ, static_cast<int32_t>(args[6])))  // Vehicle_TakesDamageFromMod
             return;
     }
@@ -209,7 +212,7 @@ void XB_CDECL G_Damage(const float* point, uint32_t* args) {
     std::memcpy(dn, pt, sizeof dn);
     if (pointer_at(targ, 0x23c)) {
         using CvarGet = const uint8_t* XB_CDECL(const char*, const char*, uint32_t);
-        const uint8_t* const intro = title_function<CvarGet>(0x0029c2d0)(
+        const uint8_t* const intro = own_function<CvarGet>(&Cvar_Get)(
             reinterpret_cast<const char*>(uintptr_t{0x008344f4}), reinterpret_cast<const char*>(uintptr_t{0x0082e098}),
             0);  // Cvar_Get "introScreen"
         if (*reinterpret_cast<const uint32_t*>(intro + 0x20)) return;
@@ -388,7 +391,7 @@ void XB_CDECL hurt_touch(uint8_t* self, uint8_t* other) {
 void XB_CDECL Touch_FriendlyChain(uint8_t* self, uint8_t* other) {
     // The toucher's sentient (+0x244) gets the friendly chain node named by the trigger's
     // target (+0x26c), then G_Trigger.
-    title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x002c0480)(
+    own_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&G_FriendlyChainNode)(
         field<uint32_t>(other, 0x244), title_global<uint32_t>(0x0095f4f4), address_of(self + 0x26c));  // G_FriendlyChainNode
     G_Trigger(self, other);
 }
@@ -511,11 +514,11 @@ void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t, uint8_t* self,
             const uint8_t* const attacker = *reinterpret_cast<uint8_t* const*>(pointer_at(self, 0x244));
             alignas(16) float origin[3];
             for (uint32_t i = 0; i < 3; ++i) origin[i] = reinterpret_cast<const float*>(attacker + 0x140)[i];
-            title_function<FromCString>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{0x00831f70}));  // "default"
+            own_function<FromCString>(&ScriptString_FromCString)(&text, reinterpret_cast<const char*>(uintptr_t{0x00831f70}));  // "default"
             using Cue = void XB_CDECL(uint32_t, uint32_t*, float);
             title_function<Cue>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x4e4))(
                 field<uint32_t>(self, 0x224), &text, 3.0f);
-            title_function<Release>(0x0011d640)(&text);  // ScriptString_Release
+            own_function<Release>(&ScriptString_Release_entry)(&text);  // ScriptString_Release
             CG_StartShakeCamera(origin, title_global<float>(0x0083eb20), 800, 2000.0f);  // 0x44fa0000
             title_global<int32_t>(0x00972f7c) = title_global<int32_t>(0x0097253c) + 500;  // cg_time + 500
             uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
@@ -536,15 +539,15 @@ void XB_REGS3 XB_CDECL G_PlayerDeathSetup(uint32_t mod, uint32_t, uint8_t* self,
                 field<float>(desc, 0x34) = title_global<float>(0x0083eca0);  // 0.2
                 ShakeRumble_Start(desc, manager, &text, 1.0f);
                 for (uint32_t i = 2; i-- > 0;) {
-                    title_function<Release>(0x0011d640)(reinterpret_cast<uint32_t*>(desc + 0x18 + i * 0x20));
+                    own_function<Release>(&ScriptString_Release_entry)(reinterpret_cast<uint32_t*>(desc + 0x18 + i * 0x20));
                 }
             }
         }
     }
     SV_LinkEntity(self);
-    title_function<FromCString>(0x0011eb50)(&text, reinterpret_cast<const char*>(uintptr_t{0x008324a4}));  // "INGAME_PLAYER_DIED"
+    own_function<FromCString>(&ScriptString_FromCString)(&text, reinterpret_cast<const char*>(uintptr_t{0x008324a4}));  // "INGAME_PLAYER_DIED"
     title_function<void XB_CDECL(uint32_t*)>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x2f8))(&text);
-    title_function<Release>(0x0011d640)(&text);
+    own_function<Release>(&ScriptString_Release_entry)(&text);
 }
 
 }  // namespace game

@@ -4,6 +4,8 @@
 #include "qcommon_core.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -32,13 +34,13 @@ int32_t health(uint32_t ent) { return slot<int32_t XB_CDECL(uint32_t)>(0x00922b9
 // The entity's array field (ScriptKeyTable_GetArray on its script object or the empty table).
 uint32_t* field_array(uint32_t ent, uint32_t key) {
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    return title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(ent), key);
+    return own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(ent), key);
 }
 
 // A by-value copy of an array (DynArray_Assign4 into a zeroed block).
 void copy_array(uint32_t* copy, uint32_t* source) {
     copy[0] = copy[1] = copy[2] = 0;
-    title_function<void XB_THISCALL(uint32_t*, uint32_t*)>(0x0045c270)(copy, source);  // DynArray_Assign4_PROLOGUE
+    own_function<void XB_THISCALL(uint32_t*, uint32_t*)>(&DynArray_Assign4_PROLOGUE)(copy, source);  // DynArray_Assign4_PROLOGUE
 }
 
 // GScr_ActorSetFlag2000000 on each element.
@@ -72,7 +74,7 @@ uint32_t XB_CDECL BroScr_RandomArrayElement(uint32_t* args) {
     uint32_t* const array = &args[1];
     const uint32_t index = slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(array[2]);  // Scr_RandomInt
     if (index >= array[2])
-        title_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(0x0017bca0)(array, index + 1, index + 4);  // DynArray_Resize4
+        own_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(&DynArray_Resize4)(array, index + 1, index + 4);  // DynArray_Resize4
     *out = data_of(array)[index];
     free_data(array);
     return args[0];

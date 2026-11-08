@@ -189,7 +189,7 @@ uint32_t* hash_map_insert(uint8_t* map, uint32_t* out, const uint32_t* pair, Buy
         if (!(vector_size() - 1 > maxidx)) {
             const uint32_t mask = vector_size() * 2 - 3;
             word_at(map, 0x20) = mask;
-            title_function<void XB_REGS3 XB_STDCALL(uint32_t, uint8_t*, uint32_t, uint32_t)>(0x00028a50)(  // std_vector_Resize4_8
+            own_function<void XB_REGS3 XB_STDCALL(uint32_t, uint8_t*, uint32_t, uint32_t)>(&std_vector_Resize4_8)(  // std_vector_Resize4_8
                 0, map + 0x10, mask + 2, word_at(map, 8));
         } else if (word_at(map, 0x20) < maxidx) {
             word_at(map, 0x20) = word_at(map, 0x20) * 2 + 1;
@@ -1340,7 +1340,7 @@ uint32_t* XB_CDECL File_GetRequestProgress(int32_t handle, uint32_t* out) {
     const uint8_t* const request = title_global<const uint8_t*>(0x00920810) + index * 0x44;
     if (!request) return out;
     out[0] = word_at(request, 0x34);
-    out[1] = title_function<uint32_t XB_CDECL()>(0x000cb200)() - word_at(request, 0x18);  // Snd_UpdateTime
+    out[1] = own_function<uint32_t XB_CDECL()>(&Snd_UpdateTime)() - word_at(request, 0x18);  // Snd_UpdateTime
     return out;
 }
 
@@ -1647,7 +1647,7 @@ uint8_t* account_or_retry(uint8_t* result, Retry retry) {
 
 uint8_t* XB_CDECL Heap_AllocAligned(uint32_t align, uint32_t size) {
     if (!title_global<uint32_t>(0x00901ad8)) Heap_InitDefaultHeaps();
-    uint8_t* const result = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00043b70)(align, size);  // Heap_MallocAligned
+    uint8_t* const result = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_MallocAligned)(align, size);  // Heap_MallocAligned
     return account_or_retry(result, [=] { return Heap_AllocAligned(align, size); });
 }
 
@@ -1658,7 +1658,7 @@ uint8_t* XB_CDECL Heap_Alloc16_2(uint32_t size) { return Heap_AllocAligned(0x10,
 uint8_t* XB_CDECL Z_Malloc(uint32_t size) {
     if (!size) return nullptr;
     if (!title_global<uint32_t>(0x00901ad8)) Heap_InitDefaultHeaps();
-    uint8_t* const result = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00043500)(size);  // Heap_Malloc
+    uint8_t* const result = own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Malloc)(size);  // Heap_Malloc
     return account_or_retry(result, [=] { return Z_Malloc(size); });
 }
 
@@ -2213,7 +2213,7 @@ uint8_t* file_device(uint32_t handle) {
     return index == -1 ? nullptr : title_global<uint8_t*>(0x0092081c) + index * 16;
 }
 
-void pump_requests() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+void pump_requests() { own_function<void XB_CDECL()>(&File_PumpRequests)(); }  // File_PumpRequests
 
 template <typename F>
 F* driver_op(const uint8_t* driver, uint32_t table, uint32_t slot) {
@@ -2466,7 +2466,7 @@ uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags) {
 }
 
 uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x003124f0)(self);  // ProfileSave_Dtor
+    own_function<void XB_THISCALL(uint8_t*)>(&ProfileSave_Dtor)(self);  // ProfileSave_Dtor
     if (flags & 1) Z_Free(self);
     return self;
 }
@@ -3089,7 +3089,7 @@ uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint3
     const uint32_t size = word_at(list, 8);
     if (!(0x1fffffffu - size >= count)) {
         // "list<T> too long": the title's length_error throw (never returns).
-        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x00028b40)(eax, list, count);
+        return own_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(&std_list_IncSize_4)(eax, list, count);
     }
     word_at(list, 8) = size + count;
     return size + count;
@@ -3100,7 +3100,7 @@ uint32_t XB_REGS3 XB_CDECL std_list_IncSize_5(uint32_t eax, uint8_t* list, uint3
     const uint32_t size = word_at(list, 8);
     if (!(0x071c71c7u - size >= count)) {
         // "list<T> too long": the title's length_error throw (never returns).
-        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x000151f0)(eax, list, count);
+        return own_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(&std_list_IncSize_5)(eax, list, count);
     }
     word_at(list, 8) = size + count;
     return size + count;
@@ -3135,8 +3135,8 @@ void string_init_empty(uint8_t* s) {
 
 // 0x001ee881 / 0x001ee8c1: the CRT's "invalid string position" (out_of_range) / "string too long"
 // (length_error) throws.
-void string_throw_range() { title_function<void XB_CDECL()>(0x001ee881)(); }
-void string_throw_length(uint8_t* s) { title_function<void XB_THISCALL(uint8_t*)>(0x001ee8c1)(s); }
+void string_throw_range() { own_function<void XB_CDECL()>(&std_string_Xran)(); }
+void string_throw_length(uint8_t* s) { own_function<void XB_THISCALL(uint8_t*)>(&std_string_Xlen)(s); }
 
 // The trees' erase(iterator) on the end node: an out_of_range ("invalid map/set<T> iterator",
 // 0x008327b0; logic_error vtable 0x007f6748, then 0x00832778) thrown with type info 0x00895b68.
@@ -3942,7 +3942,7 @@ void vector_construct_n4(uint32_t count, uint8_t* vector, const uint32_t* value)
     word_at(vector, 8) = 0;
     word_at(vector, 0xc) = 0;
     if (!count) return;
-    if (count > 0x3fffffffu) title_function<void XB_CDECL()>(0x000156f0)();  // std_vector_Xlen_2 (throws)
+    if (count > 0x3fffffffu) own_function<void XB_CDECL()>(&std_vector_Xlen_2)();  // std_vector_Xlen_2 (throws)
     const uint32_t bytes = count * 4;
     uint8_t* const data = Z_Malloc(bytes);
     word_at(vector, 4) = addr32(data);

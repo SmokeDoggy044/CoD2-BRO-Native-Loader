@@ -6,6 +6,7 @@
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "qcommon_core.h"
 
 // The gap entries (see fe_menus.cpp): the C frame moves below a gap; the C version gets the menu, `extra` (pushed
 // before ECX: the next parameters), the entry EBX / EDI / ESI and the entry ESP. 192 KB gap: the image loaders'
@@ -33,7 +34,7 @@ uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uin
 
 int32_t selection(uint8_t* menu) { return field<int16_t>(menu, 0x22); }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 // A title object's vtable slot (byte offset), thiscall, from C.
 void delete_object(uint8_t* object) {
@@ -513,7 +514,7 @@ namespace {
 
 int32_t* chapter_stats() { return &title_global<int32_t>(0x0095f924); }
 // 0x00312d60 (out in EAX): the 18 stored bests from 0x008dce90.
-void read_bests(int32_t* out) { title_function<void XB_REGS1 XB_CDECL(int32_t*)>(0x00312d60)(out); }
+void read_bests(int32_t* out) { own_function<void XB_REGS1 XB_CDECL(int32_t*)>(&Profile_CopyBonusBests)(out); }
 // A row's lock query (vtable +0x24).
 uint8_t row_locked(uint8_t* menu, int32_t row) {
     uint8_t* const item = field<uint8_t**>(menu, 4)[row];

@@ -2,6 +2,7 @@
 
 #include "fe_setup_internal.h"
 #include "ngl.h"
+#include "cg_hud.h"
 
 namespace game {
 
@@ -106,7 +107,7 @@ void XB_CDECL FE_SetupLiberatorMenu(uint8_t* menu, uint8_t* panel, uint32_t entr
     field<uint32_t>(menu, 0xe4) = 0;
     field<uint32_t>(menu, 0xe8) = 0;
     field<uint8_t>(menu, 0xe0) = 1;
-    title_function<void XB_REGS1 XB_STDCALL(uint8_t*, int32_t)>(0x00311090)(menu, 0);  // HudCompMeter_SetCount
+    own_function<void XB_REGS1 XB_STDCALL(uint8_t*, int32_t)>(&HudCompMeter_SetCount)(menu, 0);  // HudCompMeter_SetCount
     field<float>(menu, 0xec) = 0.0f;
     // The cross icons and the HUD manager's +0x1c (vtable +4 (panel)), at the original's ESP.
     uint8_t* const hud = title_global<uint8_t*>(0x0095f8f0);  // g_hudManager

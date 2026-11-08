@@ -6,6 +6,9 @@
 #include "ngl_gfx.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "ngl_debug.h"
+#include "qcommon_core.h"
+#include "shaders.h"
 
 namespace game {
 
@@ -46,8 +49,8 @@ void XB_CDECL PakRender_Shutdown() {
         const uint32_t list = title_global<uint32_t>(0x0095f608);
         title_global<uint32_t>(0x0095f60c) = 0;
         title_global<uint32_t>(0x0095f608) = 0;
-        if (list) title_function<void XB_CDECL(uint32_t)>(0x000428d0)(list);  // Z_Free
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(state);            // Z_Free
+        if (list) own_function<void XB_CDECL(uint32_t)>(&Z_Free)(list);  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(state);            // Z_Free
     }
     title_global<uint32_t>(0x0095f638) = 0;
 }
@@ -321,7 +324,7 @@ void XB_CDECL nglCreateNormalCubeMap(uint32_t size) {
     }
     NglTexture* const texture = nglCreateTexture(0x10000101, size, size, 0, 0);
     uint8_t hashed[0x20];
-    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, "nglNormalCubeMapTex");  // HashStr_Init
+    own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, "nglNormalCubeMapTex");  // HashStr_Init
     std::memcpy(texture->name, hashed, sizeof hashed);
     uint32_t* const pixels = static_cast<uint32_t*>(Mem_AlignedAlloc(size * size * 4, 4, 0));
     const float last = platform_x87_unsigned_mul_mul(size - 1, 1.0f, 1.0f);
@@ -439,7 +442,7 @@ void XB_CDECL nglInit() {
     title_global<uint32_t>(0x003f8320) = dirty;
     nglInitShaderConstants(1);
     nglInitTextureManager();
-    title_function<void XB_CDECL()>(0x00093be0)();
+    own_function<void XB_CDECL()>(&nglShaderList_InitAll)();
     nglInitFrameBuffers();
     for (uint32_t i = 0; i < title_global<uint32_t>(0x0090275c) + 1; ++i) {
         nglSetRenderTargetCached(nglGetBackBufferTexture(), 0, nullptr, 6);
@@ -451,14 +454,14 @@ void XB_CDECL nglInit() {
     title_global<uint32_t>(0x0090286c) = title_function<uint32_t XB_STDCALL()>(0x003e68f0)();  // D3DDevice_InsertFence
     nglCreateFogTextures(0x100, 0x100, 0x100, 0x40);
     nglDynamicVB_BeginFrame(&title_global<uint32_t>(0x00902938));
-    title_function<void XB_CDECL()>(0x0006da20)();  // nglInitDebugMeshes
+    own_function<void XB_CDECL()>(&nglInitDebugMeshes)();  // nglInitDebugMeshes
     nglDynamicVB_EndFrame(&title_global<uint32_t>(0x00902938));
 }
 
 uint8_t* XB_THISCALL SceneFX_DeletingDtor(uint8_t* self, uint32_t flags) {
     field<uint32_t>(self, 0) = 0x00832634;  // SceneFX vtable
     ResourceManager_Destruct(self);
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000428d0)(self);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
 

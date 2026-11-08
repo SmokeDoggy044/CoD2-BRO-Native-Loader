@@ -11,6 +11,8 @@
 #include "gfx_device.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
+#include "ngl_debug.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -190,7 +192,7 @@ NglScene* XB_CDECL nglInitScene(NglScene* scene, int32_t mode) {
     current_scene() = scene;
     if (mode == 0) {
         std::memset(scene, 0, sizeof(*scene));
-        title_function<void XB_CDECL()>(0x00062a70)();  // nglSetDefaultSceneParams
+        own_function<void XB_CDECL()>(&nglSetDefaultSceneParams)();  // nglSetDefaultSceneParams
     } else if (mode == 1) {
         std::memcpy(scene, previous, sizeof(*scene));
     } else if (mode == 2) {
@@ -1815,8 +1817,8 @@ void XB_CDECL nglFreeTexture(NglTexture* texture) {
     // +0x4c is a count here.
     if (kind == 0x0f) {
         for (uint32_t i = 0; i < reinterpret_cast<uintptr_t>(texture->target); ++i) nglReleaseTexture(texture->frames[i]);
-        title_function<Free>(0x000939b0)(texture->frames);  // Mem_AlignedFree
-        title_function<Free>(0x000939b0)(texture);
+        own_function<Free>(&Mem_AlignedFree)(texture->frames);  // Mem_AlignedFree
+        own_function<Free>(&Mem_AlignedFree)(texture);
         return;
     }
     if (texture->target) {
@@ -1826,7 +1828,7 @@ void XB_CDECL nglFreeTexture(NglTexture* texture) {
             item->palette = nullptr;
             manager_slot<ManagerRemove>(texture_manager(), 4)(texture_manager(), item);
         }
-        title_function<Free>(0x000939b0)(texture->frames);
+        own_function<Free>(&Mem_AlignedFree)(texture->frames);
     }
     if (texture->palette) {
         nglFreePalette(reinterpret_cast<uint32_t*>(texture->palette));
@@ -1846,7 +1848,7 @@ void XB_CDECL nglFreeTexture(NglTexture* texture) {
         nglFreeTexture(texture->companion);
         texture->companion = nullptr;
     }
-    title_function<Free>(0x000939b0)(texture);
+    own_function<Free>(&Mem_AlignedFree)(texture);
 }
 
 void* XB_CDECL nglFindMesh(const char* name) {
@@ -2882,7 +2884,7 @@ void XB_CDECL nglRenderTranslucentList(NglNode* nodes, uint32_t count, uint32_t 
 void XB_CDECL nglRenderSceneTree() {
     uintptr_t& frame_memory = title_global<uintptr_t>(0x00903c34);
     const uintptr_t saved_frame_memory = frame_memory;
-    title_function<void XB_CDECL()>(0x0006ab10)();  // nglAllocSceneRenderTargets
+    own_function<void XB_CDECL()>(&nglAllocSceneRenderTargets)();  // nglAllocSceneRenderTargets
     NglScene* const scene = current_scene();
     for (NglScene* child = scene->first_child; child; child = child->next_sibling) {
         current_scene() = child;
@@ -2919,7 +2921,7 @@ void XB_CDECL nglRenderSceneTree() {
     nglFreeSceneRenderTargets();
     frame_memory = saved_frame_memory;
     NglRenderTarget* target = current_scene()->render_target;
-    if (target->levels > 1) title_function<void XB_CDECL(NglRenderTarget*)>(0x00063870)(target);  // nglGenerateRenderTargetMips
+    if (target->levels > 1) own_function<void XB_CDECL(NglRenderTarget*)>(&nglGenerateRenderTargetMips)(target);  // nglGenerateRenderTargetMips
 }
 
 const uint32_t* XB_THISCALL nglResourceManager_Find(const uint8_t* manager, const uint32_t* name) {
@@ -2973,8 +2975,8 @@ void XB_CDECL nglResetDeviceBindings() {
 void XB_THISCALL nglVertexBuffer_Destroy(uint32_t* buffer) {
     // {memory, size, D3D vertex buffer}
     title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffer[2]);  // D3DResource_BlockUntilNotBusy
-    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[2]);    // Mem_AlignedFree
-    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[0]);
+    own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffer[2]);    // Mem_AlignedFree
+    own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffer[0]);
     buffer[0] = 0;
     buffer[1] = 0;
     buffer[2] = 0;
@@ -2996,7 +2998,7 @@ void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect) {
     // Frees the D3D object only; the memory gets the protection `protect` when nonzero.
     title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffer[2]);  // D3DResource_BlockUntilNotBusy
     if (protect) title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(buffer[0], buffer[1], protect);  // XPhysicalProtect
-    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[2]);  // Mem_AlignedFree
+    own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffer[2]);  // Mem_AlignedFree
     buffer[1] = 0;
     buffer[2] = 0;
 }
@@ -3030,12 +3032,12 @@ void XB_CDECL nglFreePalette(uint32_t* palette) {
     nglUnbindTextures();
     using Free = void XB_CDECL(uint32_t);
     if (!reinterpret_cast<uint8_t*>(palette)[8]) {
-        title_function<Free>(0x000939b0)(palette[0]);  // Mem_AlignedFree
+        own_function<Free>(&Mem_AlignedFree)(palette[0]);  // Mem_AlignedFree
         palette[0] = 0;
     }
-    title_function<Free>(0x000939b0)(palette[3]);
+    own_function<Free>(&Mem_AlignedFree)(palette[3]);
     palette[3] = 0;
-    title_function<Free>(0x000939b0)(address_of(palette));
+    own_function<Free>(&Mem_AlignedFree)(address_of(palette));
 }
 
 void XB_THISCALL nglRegisterTexture(NglTexture* texture, uint32_t data) {
@@ -3059,7 +3061,7 @@ void XB_THISCALL nglReleaseTextureMemory(NglTexture* texture) {
     if (!memory) return;
     const uint32_t resource_offset = (texture->flags & 0x2000) ? 0x34 : 0x30;
     nglUnbindTextures();
-    if (!(texture->flags & 0x400)) title_function<void XB_CDECL(uint32_t)>(0x000939b0)(memory);  // Mem_AlignedFree
+    if (!(texture->flags & 0x400)) own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(memory);  // Mem_AlignedFree
     uint32_t* resource = *reinterpret_cast<uint32_t**>(t + resource_offset);
     memory = 0;
     resource[1] = 0;
@@ -3342,7 +3344,7 @@ void XB_THISCALL nglReleaseTextureSurfaces(NglTexture* texture) {
                     reinterpret_cast<uint32_t**>(surfaces)[face][level] = 0;
                 }
             }
-            title_function<Free>(0x000939b0)(reinterpret_cast<uint32_t**>(surfaces)[face]);  // Mem_AlignedFree
+            own_function<Free>(&Mem_AlignedFree)(reinterpret_cast<uint32_t**>(surfaces)[face]);  // Mem_AlignedFree
             reinterpret_cast<uint32_t**>(surfaces)[face] = nullptr;
         }
     } else {
@@ -3353,7 +3355,7 @@ void XB_THISCALL nglReleaseTextureSurfaces(NglTexture* texture) {
             }
         }
     }
-    title_function<Free>(0x000939b0)(surfaces);
+    own_function<Free>(&Mem_AlignedFree)(surfaces);
     surfaces = nullptr;
 }
 
@@ -3961,7 +3963,7 @@ uint8_t XB_THISCALL nglCreateVertexBuffer(uint32_t* self, uint32_t size, uint32_
     if (!self[0]) return 0;
     self[2] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
     if (!self[2]) {
-        title_function<void XB_CDECL(uint32_t)>(0x000939b0)(self[0]);  // Mem_AlignedFree
+        own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(self[0]);  // Mem_AlignedFree
         return 0;
     }
     register_vertex_buffer(self, self[0]);
@@ -4476,7 +4478,7 @@ NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t h
     *reinterpret_cast<uint32_t*>(texture) = 1;
     uint8_t hashed[0x20];
     const uint8_t* name =
-        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, text);  // HashStr_Init
+        own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, text);  // HashStr_Init
     std::memcpy(texture->name, name, 0x20);
     const bool bit12 = (flags >> 12) & 1;
     const bool bit14 = (flags >> 14) & 1;
@@ -4514,8 +4516,8 @@ uint8_t* load_builtin_texture(const char* name, uint32_t data, uint32_t size) {
     uint8_t* copy = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x80, 0x30000));
     std::memcpy(copy, &title_global<uint8_t>(data), size);
     uint8_t hashed[0x20];
-    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
-    return title_function<uint8_t* XB_CDECL(uint8_t*, uint32_t, uint8_t*, uint32_t)>(0x000635a0)(  // nglLoadTexture
+    own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
+    return own_function<uint8_t* XB_CDECL(uint8_t*, uint32_t, uint8_t*, uint32_t)>(&nglLoadTexture)(  // nglLoadTexture
         hashed, 0, copy, size);
 }
 
@@ -4550,7 +4552,7 @@ void XB_CDECL nglCreateWhiteTexture() {
     nglTexture_Unlock();
     uint8_t hashed[0x20];
     const uint8_t* name =
-        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, "nglwhite");  // HashStr_Init
+        own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, "nglwhite");  // HashStr_Init
     std::memcpy(white->name, name, 0x20);
     reinterpret_cast<uint32_t*>(white)[0x28 / 4] |= 2;
     using Add = void XB_THISCALL(NglResourceManager*, void*);
@@ -4641,17 +4643,17 @@ void XB_CDECL nglFlushDebugLineBatch() {
 void XB_THISCALL nglTexture_FreeHeaders(NglTexture* texture) {
     using Free = void XB_CDECL(void*);
     if (texture->d3d_texture) {
-        title_function<Free>(0x000939b0)(texture->d3d_texture);  // Mem_AlignedFree
+        own_function<Free>(&Mem_AlignedFree)(texture->d3d_texture);  // Mem_AlignedFree
         texture->d3d_texture = nullptr;
     }
     if (texture->surfaces) {
-        title_function<Free>(0x000939b0)(texture->surfaces);  // Mem_AlignedFree
+        own_function<Free>(&Mem_AlignedFree)(texture->surfaces);  // Mem_AlignedFree
         texture->surfaces = nullptr;
     }
 }
 
 void XB_THISCALL nglIndexBuffer_Free(uint8_t** self) {
-    title_function<void XB_CDECL(void*)>(0x000939b0)(*self);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(*self);  // Mem_AlignedFree
     *self = nullptr;
 }
 
@@ -4663,7 +4665,7 @@ uint32_t& texture_word(NglTexture* texture, uint32_t offset) {
     return *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(texture) + offset);
 }
 
-void title_free(uint32_t memory) { title_function<void XB_CDECL(uint32_t)>(0x000939b0)(memory); }  // Mem_AlignedFree
+void title_free(uint32_t memory) { own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(memory); }  // Mem_AlignedFree
 
 }  // namespace
 
@@ -4850,7 +4852,7 @@ bool XB_CDECL nglLoadAnimatedTextureList(NglTexture* texture, const char* text, 
                 if (dot) *dot = 0;
                 uint8_t hashed[0x20];
                 std::memcpy(name,
-                            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, token),
+                            own_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, token),
                             0x20);  // HashStr_Init
                 int32_t repeat = 1;
                 char number[0x40];
@@ -5106,7 +5108,7 @@ bool skip_list_remove(NglSkipList* self, const uint32_t* object, SkipName kind) 
     } while (--level >= 0);
     if (!node || node->key != object) return false;
     for (int32_t i = 0; i <= top && update[i]->next[i] == node; ++i) update[i]->next[i] = node->next[i];
-    title_function<void XB_CDECL(void*)>(0x000939b0)(node);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(node);  // Mem_AlignedFree
     level = top;
     while (level > 0 && !self->head->next[level]) --level;
     self->level = level;
@@ -5130,7 +5132,7 @@ void XB_CDECL nglInitFontManager() {
     title_global<uint32_t>(0x009028d0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(manager));
     *reinterpret_cast<uint32_t*>(nglCreateSysFont() + 0x28) |= 2;
     NglHashedName name;
-    title_function<uint8_t* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(&name, "nglSysFont");  // HashStr_Init
+    own_function<uint8_t* XB_THISCALL(NglHashedName*, const char*)>(&HashStr_Init)(&name, "nglSysFont");  // HashStr_Init
     using Find = uint8_t* XB_THISCALL(NglResourceManager*, const NglHashedName*);
     uint8_t* font = manager_slot<Find>(font_manager(), 2)(font_manager(), &name);
     uint8_t*& sys_font = title_global<uint8_t*>(0x009028d4);
@@ -5181,7 +5183,7 @@ uint32_t& word_at(uint32_t address, uint32_t offset) {
 uint32_t hash_map_find(uint32_t map, uint32_t name) {
     uint32_t key[8];
     for (int i = 0; i < 8; ++i) key[i] = word_at(name, i * 4);
-    return title_function<uint32_t XB_THISCALL(uint32_t, const uint32_t*)>(0x00093f10)(map, key);
+    return own_function<uint32_t XB_THISCALL(uint32_t, const uint32_t*)>(&HashStrMap_Find)(map, key);
 }
 
 uint32_t vtable_slot(uint32_t object, int slot) { return word_at(word_at(object, 0), slot * 4); }
@@ -5385,7 +5387,7 @@ uint8_t* XB_CDECL nglCreateMeshFromFile(const uint32_t* name, uint32_t data, con
     texture_word(reinterpret_cast<NglTexture*>(file), 0x128) = 0;
     texture_word(reinterpret_cast<NglTexture*>(file), 0x12c) = 0;
     using ParseMesh = uint8_t XB_CDECL(const uint32_t*, uint8_t*, const char*);
-    if (title_function<ParseMesh>(0x00067950)(name, file, extension)) return file;  // nglParseMesh
+    if (own_function<ParseMesh>(&nglParseMesh)(name, file, extension)) return file;  // nglParseMesh
     title_free(address_of(file));
     return nullptr;
 }
@@ -5474,7 +5476,7 @@ template <bool (XB_THISCALL* Remove)(NglSkipList*, const uint32_t*)>
 void clear_skip_list(NglSkipList* self) {
     if (!self->head) return;
     while (NglSkipListNode* first = self->head->next[0]) Remove(self, first->key);
-    title_function<void XB_CDECL(void*)>(0x000939b0)(self->head);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self->head);  // Mem_AlignedFree
     self->head = nullptr;
 }
 
@@ -5484,7 +5486,7 @@ template <void (XB_THISCALL* Clear)(NglSkipList*)>
 uint8_t* delete_manager(uint8_t* self, uint32_t flags, uint32_t base_vtable) {
     Clear(reinterpret_cast<NglSkipList*>(self + 4));
     *reinterpret_cast<uint32_t*>(self) = base_vtable;
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self);  // Mem_AlignedFree
     return self;
 }
 
@@ -5517,7 +5519,7 @@ uint8_t* XB_THISCALL nglMeshFileCache_DeletingDtor(uint8_t* self, uint32_t flags
 }
 
 NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out) {
-    return title_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(out, "nglEmpty");
+    return own_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(&HashStr_Init)(out, "nglEmpty");
 }
 
 void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section) {
@@ -5525,8 +5527,8 @@ void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section) {
     uint32_t* buffers = reinterpret_cast<uint32_t*>(section + 0x34);
     if (!buffers[1]) return;
     title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffers[0]);  // D3DResource_BlockUntilNotBusy
-    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[0]);    // Mem_AlignedFree
-    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[1]);    // Mem_AlignedFree
+    own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffers[0]);    // Mem_AlignedFree
+    own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffers[1]);    // Mem_AlignedFree
     buffers[0] = 0;
     buffers[1] = 0;
     buffers[2] = 0;
@@ -5656,7 +5658,7 @@ bool XB_THISCALL NalManager_SkipListRemoveKey8(NglSkipList* self, const uint32_t
 }
 
 void XB_CDECL nglDrawSingleQuadFrame() {
-    title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+    own_function<void XB_CDECL()>(&nglBeginFrame)();  // nglBeginFrame
     uint8_t* scene = reinterpret_cast<uint8_t*>(current_scene());
     *reinterpret_cast<uint32_t*>(scene + 0x360) = 0;
     scene = reinterpret_cast<uint8_t*>(current_scene());
@@ -5670,7 +5672,7 @@ void XB_CDECL nglDrawSingleQuadFrame() {
     const float width = static_cast<float>(nglGetScreenWidth());
     nglSetQuadRect(&quad, 0.0f, 0.0f, width, height);
     nglListAddQuad(&quad);
-    title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+    own_function<void XB_CDECL()>(&nglEndFrame)();  // nglEndFrame
 }
 
 void XB_CDECL nglDrawQuad(NglQuad* quad) {
@@ -5888,7 +5890,7 @@ namespace {
 void init_frame_buffer_record(uint32_t record, const char* name, uint32_t kind, uint32_t format, uint32_t link) {
     title_global<uint32_t>(record + 0x28) |= 6;
     uint32_t hashed[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
     std::memcpy(&title_global<uint32_t>(record + 0x54), hashed, sizeof(hashed));
     title_global<uint32_t>(record + 0x04) = kind;
     title_global<uint32_t>(record + 0x18) = 1;
@@ -5983,7 +5985,7 @@ void XB_CDECL nglSetFrameMemorySize(uint32_t kind, uint32_t size, uint8_t reallo
         if (total == title_global<uint32_t>(0x00903c3c) || !reallocate) {
             make = false;
         } else {
-            title_function<void XB_CDECL(uint32_t)>(0x000939b0)(block);  // Mem_AlignedFree
+            own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(block);  // Mem_AlignedFree
             block = 0;
         }
     }
@@ -6011,7 +6013,7 @@ void XB_CDECL nglSetFrameMemorySize(uint32_t kind, uint32_t size, uint8_t reallo
     uint32_t& physical = title_global<uint32_t>(0x00903c20);
     if (physical) {
         if (physical_total == title_global<uint32_t>(0x00903c24) || !reallocate) return;
-        title_function<void XB_CDECL(uint32_t)>(0x000939b0)(physical);  // Mem_AlignedFree
+        own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(physical);  // Mem_AlignedFree
         physical = 0;
     }
     if (!physical_total || !bytes) return;
@@ -6083,7 +6085,7 @@ void XB_CDECL nglSelectVideoMode(const uint32_t* modes, uint32_t count) {
         }
         if (!name) continue;
         uint32_t hashed[8];
-        title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+        own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
         NglVideoMode mode;
         nglVideoMode_Init(&mode, 0x280, height, progressive, widescreen, field0a, hashed[0], hashed[1], hashed[2],
                           hashed[3], hashed[4], hashed[5], hashed[6], hashed[7], index);
@@ -6140,8 +6142,8 @@ uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path) {
         title_function<WriteFile>(0x001e8017)(file, row, texture->width * 4, &written, nullptr);
     }
     title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
-    title_function<void XB_CDECL(NglTexture*)>(0x0006a860)(texture);  // nglTexture_Unlock (the argument is pushed)
-    if (allocated) title_function<void XB_CDECL(void*)>(0x000939b0)(row);  // Mem_AlignedFree
+    own_function<void XB_CDECL(NglTexture*)>(&nglTexture_Unlock)(texture);  // nglTexture_Unlock (the argument is pushed)
+    if (allocated) own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(row);  // Mem_AlignedFree
     return 1;
 }
 
@@ -6260,8 +6262,8 @@ void XB_CDECL nglEndFrame() {
     nglFlushDebugLineBatch();
     alignas(16) float sample[4] = {0.0f, 0.0f, title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
     xb::set_vertex_constant(0, sample);  // SetVertexShaderConstant1Fast
-    if (title_global<uint8_t>(0x00902c00)) title_function<void XB_CDECL()>(0x00064780)();  // nglDrawFpsCounter
-    if (title_global<uint8_t>(0x00902c01)) title_function<void XB_CDECL()>(0x0006bb50)();  // nglDrawFrameTimeBar
+    if (title_global<uint8_t>(0x00902c00)) own_function<void XB_CDECL()>(&nglDrawFpsCounter)();  // nglDrawFpsCounter
+    if (title_global<uint8_t>(0x00902c01)) own_function<void XB_CDECL()>(&nglDrawFrameTimeBar)();  // nglDrawFrameTimeBar
     // Frame statistics in seconds: CPU time since nglBeginFrame (0x00902be4), the render
     // (0x00902be0), two accumulated intervals (0x00902b84/88), the GPU wait (0x00902bd8), the
     // whole frame (0x00902bd4), vertical blanks per frame (0x00902bdc) and the fps (0x00902bc8).
@@ -6273,7 +6275,7 @@ void XB_CDECL nglEndFrame() {
     current_scene() = root_scene();
     // By its title address: the shader Draws read a never-set constant lane that the title walker
     // leaves a return address in (stale stack; see nglRenderTranslucentList).
-    title_function<void XB_CDECL()>(0x00074330)();  // nglRenderSceneTree
+    own_function<void XB_CDECL()>(&nglRenderSceneTree)();  // nglRenderSceneTree
     title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003eb9c0)(1, 0x00064580, 0);  // InsertCallback(nglVBlankCallback)
     nglFreeFogTextures();
     elapsed = title_clock() - global64(0x00902bb0);

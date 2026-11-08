@@ -33,7 +33,7 @@ using Resize = void XB_THISCALL(DynArray*, uint32_t, uint32_t);
 
 // The inlined element access: &data[i], the array resized to (i + 1, i + 4) first when i >= count.
 inline uint32_t* element_at(DynArray* array, uint32_t i) {
-    if (i >= array->size) title_function<Resize>(0x00015a90)(array, i + 1, i + 4);  // DynArray_Resize
+    if (i >= array->size) own_function<Resize>(&DynArray_Resize)(array, i + 1, i + 4);  // DynArray_Resize
     return &array->data[i];
 }
 
@@ -73,13 +73,13 @@ inline uint32_t hash_of(const ScriptString* string) {
 // with DynArray_ResizeInt (n + 1, n + 4) first when n is past the count.
 inline int32_t level_int(uint32_t offset, uint32_t n) {
     DynArray* const array = pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset);
-    if (n >= array->size) title_function<Resize>(0x0017b9a0)(array, n + 1, n + 4);  // DynArray_ResizeInt
+    if (n >= array->size) own_function<Resize>(&DynArray_ResizeInt)(array, n + 1, n + 4);  // DynArray_ResizeInt
     return static_cast<int32_t>(array->data[n]);
 }
 // Element n of the level object's int array at `offset`, grown like level_int first.
 inline uint32_t* level_int_at(uint32_t offset, uint32_t n) {
     DynArray* const array = pointer<DynArray>(title_global<uint32_t>(0x00922ef8) + offset);
-    if (n >= array->size) title_function<Resize>(0x0017b9a0)(array, n + 1, n + 4);  // DynArray_ResizeInt
+    if (n >= array->size) own_function<Resize>(&DynArray_ResizeInt)(array, n + 1, n + 4);  // DynArray_ResizeInt
     return &array->data[n];
 }
 // The "fallback" cvar compared with "1"; the result is not used.
@@ -182,7 +182,7 @@ void XB_CDECL BroScr_WaitUntilTeamNotTouching(uint32_t trigger, ScriptString tea
     bool clear;
     do {
         clear = true;
-        title_function<Resize>(0x00015a90)(&ai, 0, 0);  // DynArray_Resize
+        own_function<Resize>(&DynArray_Resize)(&ai, 0, 0);  // DynArray_Resize
         slot<GetAI>(0x009223d0)(&ai, &team);            // GScr_GetAI
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ai.size); ++i) {
             if (static_cast<uint8_t>(slot<EntPair>(0x00922530)(*element_at(&ai, i), trigger))) {  // GScr_IsTouching
@@ -282,11 +282,11 @@ void XB_CDECL BroScr_FallbackerSetup(uint32_t /*unused*/, uint32_t n, uint32_t g
             join = has_int_key(*element_at(&ai, i), 0x1aa720d8) && group != undefined_int() &&
                    *int_slot(*element_at(&ai, i), 0x1aa720d8) == group;
         if (join)
-            title_function<StartThread>(0x001e4b70)(0, 0, 0, 0, 0x001bea50, *element_at(&ai, i), &n,
+            own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, 0x001bea50, *element_at(&ai, i), &n,
                                                     pointer<uint32_t>(0x00922ea0), pointer<ScriptString>(0x00922e90));
         // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
     }
-    title_function<Resize>(0x00015a90)(&ai, 0, 0);  // DynArray_Resize
+    own_function<Resize>(&DynArray_Resize)(&ai, 0, 0);  // DynArray_Resize
     const float half = static_cast<float>(level_int(0x6c, n)) * title_global<float>(0x0083eb24);  // 0.5
     for (;;) {
         const int32_t above = static_cast<float>(level_int(0x6c, n)) > half ? 1 : 0;
@@ -529,7 +529,7 @@ void XB_CDECL BroScr_FallbackSpawnerThink(uint32_t spawner, uint32_t group, uint
             if (slot<EntTest>(0x00922210)(ai)) {
                 ScriptString kind;
                 scr_string_from(&kind, 0x00826558);  // "is spawner"
-                title_function<StartThread>(0x001e4b70)(0, 0, 0, 0, 0x001bea50, ai, &group, &node, &kind);
+                own_function<StartThread>(&Scr_StartThread_ent_i_pathnode_str_3_entry)(0, 0, 0, 0, 0x001bea50, ai, &group, &node, &kind);
                 // Scr_StartThread_ent_i_pathnode_str_3(BroScr_FallbackerJoinFallback)
                 scr_release(&kind);
                 continue;

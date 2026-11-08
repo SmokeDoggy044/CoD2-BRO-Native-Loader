@@ -8,6 +8,8 @@
 #include "qcommon_fs.h"
 #include "sv.h"
 #include "title_data.h"
+#include "g_script.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -386,7 +388,7 @@ void XB_REGS3 XB_CDECL PathNode_ParseScriptKeys(uint8_t* world, uint32_t, uint32
             // "script_waittill", "script_chain", "script_door"
             const uint32_t fn = import(0x814);
             uint32_t text = 0;
-            title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&text, value);  // ScriptString_FromCString
+            own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&text, value);  // ScriptString_FromCString
             title_function<SetString>(fn)(id, hash, text);
         }
     }
@@ -805,11 +807,11 @@ void XB_THISCALL G_FriendlyChainNode(uint8_t* ent, uint8_t* world, const ScriptS
         do {
             uint8_t* const nodes = ptr(word_at(path_block(world, b), 0x10));
             if (ScriptString_EqualsString(reinterpret_cast<const ScriptString*>(nodes + offset + 0x30), name))
-                title_function<Error>(0x00248af0)(reinterpret_cast<const char*>(ptr(0x00833980)), text());  // G_Error
+                own_function<Error>(&G_Error_entry)(reinterpret_cast<const char*>(ptr(0x00833980)), text());  // G_Error
             offset += 0x80;
         } while (--left);
     }
-    title_function<Error>(0x00248af0)(reinterpret_cast<const char*>(ptr(0x00833954)), text());  // G_Error
+    own_function<Error>(&G_Error_entry)(reinterpret_cast<const char*>(ptr(0x00833954)), text());  // G_Error
 }
 
 namespace {
@@ -972,7 +974,7 @@ uint8_t XB_STDCALL Path_RelocateNodeBlock(uint8_t* world, uint32_t index) {
         for (const uint32_t field : kStringFields) {
             const uint32_t offset = word_at(node, field);
             if (offset)
-                title_function<FromCString>(0x0011eb50)(  // ScriptString_FromCString
+                own_function<FromCString>(&ScriptString_FromCString)(  // ScriptString_FromCString
                     &word_at(node, field), reinterpret_cast<const char*>(ptr(word_at(block, 0x24) + offset - 1)));
         }
     }

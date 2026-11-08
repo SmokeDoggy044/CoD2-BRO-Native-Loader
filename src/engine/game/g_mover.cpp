@@ -24,6 +24,8 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
+#include "g_pathnode.h"
+#include "script_string.h"
 
 // 0x002545e0 (phys list): a script mover trajectory's next phase - EAX, ECX, EDX = vectors,
 // XMM1 = the first phase time, cdecl (trajectory, speed, word).
@@ -757,7 +759,7 @@ void XB_CDECL RespawnItem(uint8_t* ent) {
     const uint32_t team = word_at(ent, 0x2f8);
     if (team && team + 6 && *reinterpret_cast<const char*>(static_cast<uintptr_t>(team + 6))) {
         if (!word_at(ent, 0x380))
-            title_function<int32_t XB_CDECL(const char*)>(0x00248af0)(
+            own_function<int32_t XB_CDECL(const char*)>(&G_Error_entry)(
                 reinterpret_cast<const char*>(uintptr_t{0x0083b6f0}));  // G_Error "RespawnItem: bad teammaster"
         uint8_t* const master = pointer_at(ent, 0x380);
         int32_t count = 0;
@@ -1084,7 +1086,7 @@ void XB_CDECL SP_func_door_rotating(uint8_t* ent) {
     const long double y = field<float>(ent, 0x394);
     const long double z = field<float>(ent, 0x398);
     if (platform_x87_sqrt_ext((x * x + y * y) + z * z) > platform_x87_ld(one)) {
-        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x0083afd0));  // G_Error
+        own_function<void XB_CDECL(const char*)>(&G_Error_entry)(&title_global<const char>(0x0083afd0));  // G_Error
         field<float>(ent, 0x398) = 0.0f;
         field<float>(ent, 0x390) = 0.0f;
         field<float>(ent, 0x394) = title_global<float>(0x0083eb20);
@@ -1201,9 +1203,9 @@ void XB_CDECL G_VehiclePopOut(uint8_t* player) {
     using Break = void XB_CDECL(int32_t, const char*, const char*);
     const char* const text = reinterpret_cast<const char*>(uintptr_t{name});
     if (tag < 0) title_function<Break>(0x002938f0)(1, &title_global<const char>(0x00839f70), text);  // __break
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002b7900)(player);  // G_EntUnlink
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&G_EntUnlink)(player);  // G_EntUnlink
     alignas(16) float matrix[16];
-    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(vehicle, tag, matrix);  // G_DObjGetWorldTagMatrix
+    own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(vehicle, tag, matrix);  // G_DObjGetWorldTagMatrix
     TeleportPlayer(player, 0, matrix + 12);
     const TitleRegs regs{0, 0, name, address_of(player), 0, 0};
     const uint32_t args[3] = {address_of(vehicle), 0x0082eec0, 0x0082eec0};
@@ -1302,7 +1304,7 @@ void XB_CDECL turret_controller(uint8_t* ent) {
         const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c));
         if (!obj) continue;
         const int32_t bone = DObj_GetTagIndex(obj, hashes[i]);
-        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, angles, bone, 0);
+        if (bone >= 0) own_function<SetBoneRotation>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, angles, bone, 0);
     }
     alignas(16) float single[3];
     single[1] = angles[1];
@@ -1310,14 +1312,14 @@ void XB_CDECL turret_controller(uint8_t* ent) {
     single[2] = 0.0f;
     if (const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c))) {
         const int32_t bone = DObj_GetTagIndex(obj, animated_y);
-        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, single, bone, 0);
+        if (bone >= 0) own_function<SetBoneRotation>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, single, bone, 0);
     }
     single[0] = angles[0];
     single[1] = 0.0f;
     single[2] = 0.0f;
     if (const DObj* const obj = reinterpret_cast<const DObj*>(pointer_at(ent, 0x22c))) {
         const int32_t bone = DObj_GetTagIndex(obj, animated_p);
-        if (bone >= 0) title_function<SetBoneRotation>(0x002de420)(ent, 0x0082eec0, single, bone, 0);
+        if (bone >= 0) own_function<SetBoneRotation>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, single, bone, 0);
     }
 }
 
@@ -1334,7 +1336,7 @@ uint32_t XB_CDECL Turret_CanTargetPoint(uint8_t* ent, const float* point, float*
         const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(obj), hash);
         if (tag < 0) return 0;
         alignas(16) float m[16];
-        title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+        own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, tag, m);  // G_DObjGetWorldTagMatrix
         dir[0] = point[0] - m[12];
         dir[1] = point[1] - m[13];
         dir[2] = point[2] - m[14];
@@ -1382,7 +1384,7 @@ uint32_t XB_REGS3 XB_CDECL G_GetFlashTagMatrix(int32_t index, uint32_t, uint8_t*
     const int32_t tag = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ad5c + static_cast<uint32_t>(index) * 4));
     if (tag < 0) return 0;
     alignas(16) float m[16];
-    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+    own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, tag, m);  // G_DObjGetWorldTagMatrix
     float aim[3];
     aim[1] = field<float>(ent, 0x154) + field<float>(ent, 0x94);
     aim[2] = field<float>(ent, 0x158);
@@ -1432,7 +1434,7 @@ void XB_CDECL SP_script_model(uint32_t entry, uint8_t* ent, uint32_t edi) {
     // brush model (+6) solid (contents 1, spawn flag 1); linked; +0x2a4 bit 0x20000. Spawn flag
     // 1 also sets 0x3000 and, outside the path editor flag 0x0095bf0c, cuts the paths it
     // blocks. +0x348 = 2.
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     InitScriptMover(ent);
     word_at(ent, 0xd4) |= 0x10;
     word_at(ent, 0x134) = 0x2080;
@@ -1460,7 +1462,7 @@ void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door) {
     if (!(word_at(door, 0x2a4) & 0x1000)) return;
     const uint8_t state = door[0x298];
     if (state == 8 || (state == 7 && word_at(door, 0x3b4))) {
-        title_function<void XB_STDCALL(uint32_t, uint8_t*)>(0x002e8ef0)(title_global<uint32_t>(0x0095f4f4),
+        own_function<void XB_STDCALL(uint32_t, uint8_t*)>(&Path_DisconnectPathsForEntity_entry)(title_global<uint32_t>(0x0095f4f4),
                                                                        door);  // Path_DisconnectPathsForEntity
         return;
     }
@@ -1637,7 +1639,7 @@ uint8_t* spawn_in_context(uint32_t context) {
 
 // The classname script string from a global (ScriptString_Assign) and its name hash (+0x260).
 void set_classname(uint8_t* ent, uint32_t name) {
-    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011d600)(address_of(ent + 0x25c), name);  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint32_t, uint32_t)>(&ScriptString_Assign_entry)(address_of(ent + 0x25c), name);  // ScriptString_Assign
     const uint32_t text = word_at(ent, 0x25c);
     word_at(ent, 0x260) = Com_HashKeyNoCase(0, text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr);
 }
@@ -1720,7 +1722,7 @@ uint8_t* XB_REGS3 XB_CDECL fire_grenadeCooked(const float* origin, uint32_t, uin
     word_at(ent, 0x3c) = 0;
     word_at(ent, 0x40) = 0;
     if (*reinterpret_cast<const char*>(uintptr_t{word_at(def, 0x738)})) set_grenade_model(ent, def);
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     return ent;
 }
 
@@ -1783,7 +1785,7 @@ uint8_t* XB_REGS3 XB_CDECL fire_grenade(uint32_t weapon, uint8_t* owner, const f
     word_at(ent, 0x154) = word_at(ent, 0x48);
     word_at(ent, 0x158) = word_at(ent, 0x4c);
     set_grenade_model(ent, def);
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     return ent;
 }
 
@@ -1932,7 +1934,7 @@ void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon) {
     word_at(ent, 0xd4) = 0x80;
     ent[0] = 0xa;
     word_at(ent, 0x2a4) |= 0x8000;
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     const float side = title_global<float>(0x0083f180);
     field<float>(ent, 0xe0) = side;
     field<float>(ent, 0xe4) = side;
@@ -1970,7 +1972,7 @@ uint32_t XB_CDECL Turret_GetTargetAimPoint(uint8_t* ent, uint8_t* sentient, floa
     const int32_t index = DObj_GetTagIndex(obj, tag);
     if (index < 0) return 0;
     alignas(16) float m[16];  // origin row at +0x30
-    title_function<uint32_t XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, index, m);  // G_DObjGetWorldTagMatrix
+    own_function<uint32_t XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, index, m);  // G_DObjGetWorldTagMatrix
     if (word_at(sentient, 0x30) == 1) return 0;
     const float delta[3] = {eye[0] - m[12], eye[1] - m[13], eye[2] - m[14]};
     uint8_t* const info = pointer_at(ent, 0x24c);
@@ -2164,7 +2166,7 @@ void mover_crush(uint8_t* target, uint8_t* mover, uint32_t damage) {
 }
 
 void free_blocker(uint8_t* other) {
-    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(other, 0);  // G_FreeEntity
+    own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_FreeEntity)(other, 0);  // G_FreeEntity
 }
 
 }  // namespace
@@ -2265,7 +2267,7 @@ void XB_CDECL Reached_BinaryMover(uint8_t* ent) {
         if (team_master()) SV_AdjustAreaPortalState(ent, 0, 0);
         return;
     default:
-        title_function<void XB_CDECL(uint32_t)>(0x00248af0)(0x0083b084);  // G_Error "bad moverState"
+        own_function<void XB_CDECL(uint32_t)>(&G_Error_entry)(0x0083b084);  // G_Error "bad moverState"
         return;
     }
 }
@@ -3546,7 +3548,7 @@ uint32_t XB_CDECL Turret_AimAtTarget(uint8_t* ent, uint32_t aiming, int32_t conv
     const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(uintptr_t{obj}), hash);
     if (tag < 0) return 0;
     alignas(16) float matrix[16];
-    title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, matrix);  // G_DObjGetWorldTagMatrix
+    own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, tag, matrix);  // G_DObjGetWorldTagMatrix
     float dir[3] = {point[0] - matrix[12], point[1] - matrix[13], point[2] - matrix[14]};
     float lo = vectopitch(dir);
     uint8_t* const target = pointer_at(sentient, 0);
@@ -3611,7 +3613,7 @@ uint32_t XB_CDECL Pickup_Health(uint8_t* other, uint8_t* ent) {
     }
     field<int32_t>(client, 0x100) = field<int32_t>(other, 0x350);
     const uint32_t handle = word_at(other, 0x224);
-    const char* const text = title_function<const char* XB_CDECL(uint32_t, int32_t)>(0x002a93d0)(0x0083b71c, quantity);  // va
+    const char* const text = own_function<const char* XB_CDECL(uint32_t, int32_t)>(&va_entry)(0x0083b71c, quantity);  // va
     SV_GameSendServerCommand(text, handle);
     Scr_Notify(ent, title_global<uint32_t>(0x0097a818));  // "trigger"
     const TitleRegs regs{0, 0, address_of(ent), 0, address_of(ent), address_of(other)};
@@ -4179,7 +4181,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
         if (Com_BitCheck(0, weapon, held)) {
             const uint32_t name = *reinterpret_cast<const uint32_t*>(weapon_def(static_cast<uint32_t>(weapon)) + 0xc);
             const uint32_t number = word_at(other, 0x224);
-            SV_GameSendServerCommand(title_function<const char* XB_CDECL(uint32_t, uint32_t)>(0x002a93d0)(0x0083b6c8, name),
+            SV_GameSendServerCommand(own_function<const char* XB_CDECL(uint32_t, uint32_t)>(&va_entry)(0x0083b6c8, name),
                                      number);  // va
             return;
         }
@@ -4193,7 +4195,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
         default: return;
         }
         const uint32_t number = word_at(other, 0x224);
-        SV_GameSendServerCommand(title_function<const char* XB_CDECL(uint32_t)>(0x002a93d0)(message), number);  // va
+        SV_GameSendServerCommand(own_function<const char* XB_CDECL(uint32_t)>(&va_entry)(message), number);  // va
         return;
     }
     int32_t respawn;
@@ -4244,7 +4246,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
         word_at(ent, 0x32c) = 0;
     }
     if (respawn == -1) {
-        title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+        own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_FreeEntity)(ent, 0);  // G_FreeEntity
         return;
     }
     SV_LinkEntity(ent);
@@ -4769,7 +4771,7 @@ void XB_REGS1 XB_CDECL TryDoor(uint8_t* door, uint8_t* activator) {
     }
     uint8_t* const target = pointer_at(door, 0x380);
     uint8_t* mover = door;
-    if (target && !title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(door + 0x2f8) &&
+    if (target && !own_function<uint8_t XB_THISCALL(uint8_t*)>(&ScriptString_IsEmpty)(door + 0x2f8) &&
         door != target) {  // ScriptString_IsEmpty
         target[0x297] = 1;
         if (locked)
@@ -6672,11 +6674,11 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
     using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
     if (field<uint32_t>(pointer_at(ent, 0x23c), 0xc0) & 0x6000) {
         if (keyboard == 0) {
-            title_function<CvarSet>(0x0029c030)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
+            own_function<CvarSet>(&Cvar_Set2)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
                                                  reinterpret_cast<const char*>(uintptr_t{0x0082e058}), 1);  // "1"
         }
     } else if (keyboard != 0) {
-        title_function<CvarSet>(0x0029c030)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
+        own_function<CvarSet>(&Cvar_Set2)(reinterpret_cast<const char*>(uintptr_t{0x00834300}),
                                              reinterpret_cast<const char*>(uintptr_t{0x0082e098}), 1);  // "0"
     }
     {
@@ -6856,7 +6858,7 @@ void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret)
         if (obj == nullptr) continue;
         const int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(kHashes[i]));
         if (bone < 0) continue;
-        title_function<SetBoneRotation>(0x002de420)(turret, reinterpret_cast<const float*>(uintptr_t{0x0082eec0}), angles,
+        own_function<SetBoneRotation>(&G_DObjSetBoneRotation_entry)(turret, reinterpret_cast<const float*>(uintptr_t{0x0082eec0}), angles,
                                                     bone, 0);  // G_DObjSetBoneRotation
     }
 }
@@ -7435,9 +7437,9 @@ int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, ui
         return (word_at(client, 0x3f0 + (static_cast<int32_t>(w) >> 5) * 4) & (1u << (w & 0x1f))) != 0;
     };
     const auto send = [&](const char* text) { SV_GameSendServerCommand(text, word_at(other, 0x224)); };
-    const auto va1 = [](uint32_t format) { return title_function<const char* XB_CDECL(uint32_t)>(0x002a93d0)(format); };
+    const auto va1 = [](uint32_t format) { return own_function<const char* XB_CDECL(uint32_t)>(&va_entry)(format); };
     const auto va2 = [](uint32_t format, uint32_t a) {
-        return title_function<const char* XB_CDECL(uint32_t, uint32_t)>(0x002a93d0)(format, a);
+        return own_function<const char* XB_CDECL(uint32_t, uint32_t)>(&va_entry)(format, a);
     };
     if (holds(static_cast<uint32_t>(weapon))) {
         ammo = ammo + clip;

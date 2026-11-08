@@ -6,6 +6,8 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "qcommon_core.h"
+#include "shaders.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -81,7 +83,7 @@ void XB_THISCALL NAL_AnimState_Destroy(AnimState* state) {
     uint8_t* group = groups(clip);
     for (int32_t i = 0; i < group_count(clip); ++i, group += 0x30) channel_state(group, 13, &cursor);
     if (state->owned) {
-        title_function<void XB_CDECL(uint8_t*)>(0x000939b0)(state->data);  // Mem_AlignedFree
+        own_function<void XB_CDECL(uint8_t*)>(&Mem_AlignedFree)(state->data);  // Mem_AlignedFree
         return;
     }
     const uint32_t data = address_of(state->data);
@@ -803,7 +805,7 @@ void object_call(uint8_t* object, uint32_t slot) {
 // by the type name at `type` + 0x28, then its record + 0x20 -> `offset`.
 uint32_t class_vtable(uint32_t type, uint32_t offset) {
     using Find = uint8_t* XB_THISCALL(uint32_t, uint32_t);
-    const uint8_t* entry = title_function<Find>(0x00093f10)(0x00903fe0, type + 0x28);  // HashStrMap_Find
+    const uint8_t* entry = own_function<Find>(&HashStrMap_Find)(0x00903fe0, type + 0x28);  // HashStrMap_Find
     const uint8_t* record = *reinterpret_cast<uint8_t* const*>(entry + 0x20);
     return *reinterpret_cast<const uint32_t*>(record + offset);
 }
@@ -854,7 +856,7 @@ uint32_t XB_CDECL NAL_AnimFile_Fixup(uint8_t* file) {
         clips += static_cast<uint32_t>(reinterpret_cast<uintptr_t>(file));
         fix_clips(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(clips)), skeletons, true);
     }
-    title_function<FreeFn>(0x000939b0)(skeletons);  // Mem_AlignedFree
+    own_function<FreeFn>(&Mem_AlignedFree)(skeletons);  // Mem_AlignedFree
     *reinterpret_cast<uint32_t*>(file + 4) |= 8;
     return 1;
 }
@@ -873,7 +875,7 @@ uint32_t XB_CDECL NAL_GroupedAnimFile_Fixup(uint8_t* file) {
             fix_clips(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(clips)), skeletons, false);
         }
     }
-    title_function<FreeFn>(0x000939b0)(skeletons);  // Mem_AlignedFree
+    own_function<FreeFn>(&Mem_AlignedFree)(skeletons);  // Mem_AlignedFree
     return 1;
 }
 
@@ -943,7 +945,7 @@ void resolve_group_classes(uint8_t* clip, uint32_t count_at, uint32_t records_at
     using Find = uint8_t* XB_THISCALL(uint32_t, uint32_t);
     for (int32_t i = 0; i < *reinterpret_cast<int32_t*>(clip + count_at); ++i) {
         const uint32_t record = *reinterpret_cast<uint32_t*>(clip + records_at) + 0x30 * i;
-        const uint8_t* entry = title_function<Find>(0x00093f10)(0x00903ff4, record);  // HashStrMap_Find
+        const uint8_t* entry = own_function<Find>(&HashStrMap_Find)(0x00903ff4, record);  // HashStrMap_Find
         *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(record) + 0x20) = *reinterpret_cast<const uint32_t*>(entry + 0x20);
     }
 }
@@ -1042,7 +1044,7 @@ uint32_t channel_map_bucket(uint32_t target, uint32_t source) { return (((target
 uint8_t* XB_THISCALL NAL_AnimTrackBase_DeletingDtor(uint8_t* track, uint32_t flags) {
     word_of(track, 0) = 0x007c3250;
     --word_of(pointer<uint8_t>(word_of(track, 0x10)), 0x3c);
-    if (flags & 1) title_function<FreeFn>(0x000939b0)(track);  // Mem_AlignedFree
+    if (flags & 1) own_function<FreeFn>(&Mem_AlignedFree)(track);  // Mem_AlignedFree
     return track;
 }
 
@@ -1058,7 +1060,7 @@ void XB_THISCALL NAL_AnimTrack_Dtor(uint8_t* track) {
                 previous[1] = node[1];
             else
                 channel_maps()[bucket] = node[1];
-            title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(track, 0x2c)));  // Mem_AlignedFree
+            own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(word_of(track, 0x2c)));  // Mem_AlignedFree
         }
         break;
     }
@@ -1069,7 +1071,7 @@ void XB_THISCALL NAL_AnimTrack_Dtor(uint8_t* track) {
 
 uint8_t* XB_THISCALL NAL_AnimTrack_DeletingDtor(uint8_t* track, uint32_t flags) {
     NAL_AnimTrack_Dtor(track);
-    if (flags & 1) title_function<FreeFn>(0x000939b0)(track);  // Mem_AlignedFree
+    if (flags & 1) own_function<FreeFn>(&Mem_AlignedFree)(track);  // Mem_AlignedFree
     return track;
 }
 
@@ -1187,8 +1189,8 @@ void XB_THISCALL NAL_GenericAnim_Unload(uint8_t* clip) {
 
 uint32_t XB_THISCALL NAL_ChannelClass_Register(const uint8_t* entry) {
     alignas(4) uint8_t name[0x20];
-    title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x00011060)(name, word_of(entry, 8));  // HashStr_Init
-    return title_function<uint32_t XB_THISCALL(uint32_t, uint8_t*, uint32_t)>(0x00093c70)(0x00903ff4, name,
+    own_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(&HashStr_Init)(name, word_of(entry, 8));  // HashStr_Init
+    return own_function<uint32_t XB_THISCALL(uint32_t, uint8_t*, uint32_t)>(&ShaderCache_FindOrAdd)(0x00903ff4, name,
                                                                                     word_of(entry, 0xc));  // map insert
 }
 
@@ -1320,13 +1322,13 @@ void XB_THISCALL NAL_AnimPlayer_Dtor(uint8_t* player) {
         method_call(word_of(node, 0), 3);
         if (const uint32_t track = word_of(node, 8))
             title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
-        title_function<FreeFn>(0x000939b0)(node);  // Mem_AlignedFree
+        own_function<FreeFn>(&Mem_AlignedFree)(node);  // Mem_AlignedFree
     }
 }
 
 uint8_t* XB_THISCALL NAL_AnimPlayer_DeletingDtor(uint8_t* player, uint32_t flags) {
     NAL_AnimPlayer_Dtor(player);
-    if (flags & 1) title_function<FreeFn>(0x000939b0)(player);  // Mem_AlignedFree
+    if (flags & 1) own_function<FreeFn>(&Mem_AlignedFree)(player);  // Mem_AlignedFree
     return player;
 }
 
@@ -1341,17 +1343,17 @@ void XB_THISCALL NAL_StreamedAnim_Dtor(uint8_t* player) {
             method_call(clip, 2);
         }
         if (const uint32_t sink = word_of(node, 0)) method_call(sink, 3);
-        title_function<FreeFn>(0x000939b0)(node);  // Mem_AlignedFree
+        own_function<FreeFn>(&Mem_AlignedFree)(node);  // Mem_AlignedFree
     }
-    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 0x38)));
-    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 0x48)));
-    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 4)));
+    own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(word_of(player, 0x38)));
+    own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(word_of(player, 0x48)));
+    own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(word_of(player, 4)));
     NAL_AnimPlayer_Dtor(player);
 }
 
 uint8_t* XB_THISCALL NAL_StreamedAnim_DeletingDtor(uint8_t* player, uint32_t flags) {
     NAL_StreamedAnim_Dtor(player);
-    if (flags & 1) title_function<FreeFn>(0x000939b0)(player);  // Mem_AlignedFree
+    if (flags & 1) own_function<FreeFn>(&Mem_AlignedFree)(player);  // Mem_AlignedFree
     return player;
 }
 
@@ -1466,7 +1468,7 @@ void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player) {
         position = word_of(player, 0x5c);
         buffer = player[0x79];
     } else {
-        if (title_function<Status>(0x000c9db0)(word_of(player, 0x6c)) == 4) return;
+        if (own_function<Status>(&File_GetRequestStatus)(word_of(player, 0x6c)) == 4) return;
         position = word_of(player, 0x5c) + word_of(player, 0x68);
         word_of(player, 0x5c) = position;
         buffer = player[0x79] ^ 1;
@@ -1478,7 +1480,7 @@ void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player) {
         word_of(player, 0x50 + buffer * 4) = position - word_of(player, 0x3c);
         const uint32_t length = word_of(player, 0x44) - word_of(player, 0x3c);
         word_of(player, 0x68) = length;
-        word_of(player, 0x6c) = title_function<Queue>(0x000caed0)(
+        word_of(player, 0x6c) = own_function<Queue>(&File_QueueRequest)(
             word_of(player, 0x28), word_of(player, 0x58) + word_of(player, 0x5c),
             word_of(player, 0x48 + player[0x79] * 4) + word_of(player, 0x3c), length);  // File_QueueRequest
         return;
@@ -1488,7 +1490,7 @@ void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player) {
     word_of(player, 0x5c) = 0;
     word_of(player, 0x50 + buffer * 4) = 0;
     word_of(player, 0x68) = word_of(player, 0x44);
-    word_of(player, 0x6c) = title_function<Queue>(0x000caed0)(word_of(player, 0x28), word_of(player, 0x58),
+    word_of(player, 0x6c) = own_function<Queue>(&File_QueueRequest)(word_of(player, 0x28), word_of(player, 0x58),
                                                               word_of(player, 0x48 + player[0x79] * 4),
                                                               word_of(player, 0x44));  // File_QueueRequest
 }
@@ -1561,13 +1563,13 @@ void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt) {
 namespace {
 
 // The file-request helpers the streamed player uses (title code, cdecl).
-uint32_t file_status(uint32_t request) { return title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9db0)(request); }
+uint32_t file_status(uint32_t request) { return own_function<uint32_t XB_CDECL(uint32_t)>(&File_GetRequestStatus)(request); }
 void file_progress(uint32_t request, uint32_t* out) {
-    title_function<uint32_t* XB_CDECL(uint32_t, uint32_t*)>(0x000c9ea0)(request, out);
+    own_function<uint32_t* XB_CDECL(uint32_t, uint32_t*)>(&File_GetRequestProgress)(request, out);
 }
-void file_pump() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+void file_pump() { own_function<void XB_CDECL()>(&File_PumpRequests)(); }  // File_PumpRequests
 uint32_t file_queue(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t length) {
-    return title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x000caed0)(file, offset, buffer,
+    return own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(&File_QueueRequest)(file, offset, buffer,
                                                                                           length);  // File_QueueRequest
 }
 
@@ -1584,8 +1586,8 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
     switch (field(0x1c)) {
     case 0: {
         // The header: one aligned read of 0x50 bytes.
-        const uint32_t id = title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9390)(field(0x28));
-        title_function<uint32_t XB_CDECL(uint32_t, uint32_t*)>(0x000c9940)(id, local);
+        const uint32_t id = own_function<uint32_t XB_CDECL(uint32_t)>(&File_GetDeviceBit)(field(0x28));
+        own_function<uint32_t XB_CDECL(uint32_t, uint32_t*)>(&File_GetDeviceInfoForBit)(id, local);
         uint32_t alignment = local[0] <= local[1] ? local[1] : local[0];
         if (alignment < local[2]) alignment = local[2];
         const uint32_t size = (alignment + 0x4f) & ~(alignment - 1);
@@ -1609,7 +1611,7 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
         const uint32_t size = (static_cast<uint32_t>(header) + alignment + 3) & ~(alignment - 1);
         uint8_t* grown = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
         std::memcpy(grown, pointer<uint8_t>(field(0x2c)), field(0x30));
-        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
         const uint32_t done = field(0x30);
         field(0x2c) = address_of(grown);
         const uint32_t request = file_queue(field(0x28), field(0x58) + done, address_of(grown) + done, size - done);
@@ -1641,7 +1643,7 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
         field(0x48) = buffers;
         field(0x50) = 0;
         std::memcpy(pointer<void>(buffer(player[0x78])), pointer<void>(field(0x2c)), field(0x30));
-        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        own_function<FreeFn>(&Mem_AlignedFree)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
         const uint32_t done = field(0x30);
         const uint32_t length = field(0x44) - done;
         field(0x5c) = done;
@@ -1739,7 +1741,7 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
             }
             // Looping: read the file's data from the start again.
             if (field(0x5c) && field(0x6c) != 0xffffffff) {
-                title_function<void XB_CDECL(uint32_t)>(0x000ca0e0)(field(0x6c));  // File_AbortRequest
+                own_function<void XB_CDECL(uint32_t)>(&File_AbortRequest)(field(0x6c));  // File_AbortRequest
                 if (file_status(field(0x6c)) == 4) {
                     do file_pump();
                     while (file_status(field(0x6c)) == 4);
@@ -1799,13 +1801,13 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
 void XB_STDCALL NAL_GenericAnim_DestroyState(AnimState* state) {
     if (!state) return;
     NAL_AnimState_Destroy(state);
-    title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(state);  // Mem_AlignedFree
 }
 
 uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags) {
     NAL_AnimState_Destroy(reinterpret_cast<AnimState*>(self + 0xc8));
     *reinterpret_cast<uint32_t*>(self) = 0x007c2370;
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self);  // Mem_AlignedFree
     return self;
 }
 
@@ -1829,8 +1831,8 @@ uint32_t XB_CDECL Anim_InitManagers(uint32_t config) {
         }
         title_global<uint32_t>(m[0]) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(manager));
     }
-    title_function<void XB_THISCALL(uint32_t)>(0x00094070)(0x00903fe0);  // ShaderCache_Init
-    title_function<void XB_THISCALL(uint32_t)>(0x00094070)(0x00903ff4);
+    own_function<void XB_THISCALL(uint32_t)>(&ShaderCache_Init)(0x00903fe0);  // ShaderCache_Init
+    own_function<void XB_THISCALL(uint32_t)>(&ShaderCache_Init)(0x00903ff4);
     NAL_InitRegisteredTypes();
     if (!config) {
         title_global<uint32_t>(0x008bb128) = 0x100000;
@@ -1968,7 +1970,7 @@ void XB_CDECL StaticInit_AnimHashStrings() {
     // entry, +8 the name hash, +0x28/+0x2c the class words of 0x00903f98/0x00903fdc), pushed
     // on the class list 0x00909840.
     uint32_t name[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(name, 0x007c2dcc);  // HashStr_Init, "generic"
+    own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(&HashStr_Init)(name, 0x007c2dcc);  // HashStr_Init, "generic"
     title_global<uint32_t>(0x00903fb0) = title_global<uint32_t>(0x00909840);
     for (uint32_t i = 0; i < 8; ++i) (&title_global<uint32_t>(0x00903fb4))[i] = name[i];
     const uint32_t clip_class = title_global<uint32_t>(0x00903f98);

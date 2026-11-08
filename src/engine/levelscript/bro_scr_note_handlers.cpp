@@ -11,6 +11,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_actor_threads.h"
 
 namespace game {
 
@@ -184,7 +185,7 @@ void XB_CDECL BroScr_PlayStanceTransitionAnim(uint32_t ent, uint32_t anim, float
 }
 
 void XB_CDECL BroScr_HeadLookMainLoop_Thunk(uint32_t ent) {
-    title_function<void XB_CDECL(uint32_t)>(0x0019f0d0)(ent);  // BroScr_HeadLookMainLoop
+    own_function<void XB_CDECL(uint32_t)>(&BroScr_HeadLookMainLoop)(ent);  // BroScr_HeadLookMainLoop
 }
 
 void XB_CDECL FUN_001ac9f0(uint32_t ent) {
@@ -306,7 +307,7 @@ void XB_CDECL BroScr_DropWeapon(uint32_t ent) {
         if (entity_handle_is_valid(weapon))
             title_function<BeginThreadFunctor1>(0x0011b4d0)(0, 0, 0, 0, 0x00184090, weapon);  // BroScr_DeleteAfter300
     }
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001ad3f0)(ent, 0x0036b1a5);  // BroScr_PutGunInHand
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(ent, 0x0036b1a5);  // BroScr_PutGunInHand
 }
 
 ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, uint32_t notify, uint32_t callback,

@@ -13,6 +13,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -69,7 +70,7 @@ inline void thread_array(uint32_t owner, uint32_t body, uint32_t a, const DynArr
         functor[3] = 0;
         functor[4] = 0;
         functor[5] = 0;
-        title_function<void XB_THISCALL(uint32_t*, const DynArray*)>(0x0045c270)(&functor[3], array);  // DynArray_Assign4_PROLOGUE
+        own_function<void XB_THISCALL(uint32_t*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&functor[3], array);  // DynArray_Assign4_PROLOGUE
     }
     create_thread(owner, functor);
 }

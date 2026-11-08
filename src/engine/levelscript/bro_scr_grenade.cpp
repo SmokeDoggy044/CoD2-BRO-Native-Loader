@@ -6,6 +6,8 @@
 #include "g_scr_runtime.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_ai_anim_threads.h"
+#include "bro_scr_note_handlers.h"
 
 namespace game {
 
@@ -64,7 +66,7 @@ void zero_if_undefined(ScrVec3* offset) {
 void battle_chatter(uint32_t ent, uint32_t text) {
     ScriptString line;
     scr_string_from(&line, text);
-    title_function<void XB_CDECL(uint32_t, ScriptString)>(0x001c70a0)(ent, line);
+    own_function<void XB_CDECL(uint32_t, ScriptString)>(&BroScr_BattleChatter)(ent, line);
 }
 
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
@@ -157,7 +159,7 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget_2(uint32_t ent, ScrVec3 target, float 
     ScriptString none;
     ScriptString_Copy(&none, &title_global<ScriptString>(0x00922e90));
     ScriptString result;
-    title_function<HandleNoteTracks>(0x001ada20)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
+    own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
     ScriptString_Release(&result);
 }
 
@@ -220,7 +222,7 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget(uint32_t ent, ScrVec3 target, uint32_t
     ScriptString none;
     ScriptString_Copy(&none, &title_global<ScriptString>(0x00922e90));
     ScriptString result;
-    title_function<HandleNoteTracks>(0x001ada20)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
+    own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
     ScriptString_Release(&result);
 }
 

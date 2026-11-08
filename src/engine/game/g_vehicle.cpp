@@ -23,6 +23,7 @@
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "ragdoll.h"
 
 namespace game {
 
@@ -92,7 +93,7 @@ uint32_t XB_CDECL Vehicle_FindDefIndex(uint32_t eax, const char* name) {
 
 void XB_CDECL Vehicle_FreeDefs() {
     for (int32_t i = 0; i < vehicle_def_count(); ++i)
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(address_of(vehicle_def(i)));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(address_of(vehicle_def(i)));  // Z_Free
     vehicle_def_count() = 0;
 }
 
@@ -559,7 +560,7 @@ void XB_CDECL Vehicle_Controller(uint8_t* ent) {
     // barrel pitch, each when the vehicle has the tag.
     float angles[6] = {at<float>(vehicle, 0x280), 0.0f, at<float>(vehicle, 0x288), 0.0f, 0.0f, 0.0f};
     if (at<int32_t>(vehicle, 0x2bc) >= 0)
-        title_function<SetBoneAngles>(0x002de420)(ent, 0x0082eec0, angles, at<uint32_t>(vehicle, 0x2bc), 0);
+        own_function<SetBoneAngles>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, angles, at<uint32_t>(vehicle, 0x2bc), 0);
     angles[1] = at<float>(vehicle, 0x294);
     angles[0] = 0.0f;
     angles[2] = 0.0f;
@@ -567,9 +568,9 @@ void XB_CDECL Vehicle_Controller(uint8_t* ent) {
     angles[4] = 0.0f;
     angles[5] = 0.0f;
     if (at<int32_t>(vehicle, 0x2c0) >= 0)
-        title_function<SetBoneAngles>(0x002de420)(ent, 0x0082eec0, angles, at<uint32_t>(vehicle, 0x2c0), 0);
+        own_function<SetBoneAngles>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, angles, at<uint32_t>(vehicle, 0x2c0), 0);
     if (at<int32_t>(vehicle, 0x2c4) >= 0)
-        title_function<SetBoneAngles>(0x002de420)(ent, 0x0082eec0, angles + 3, at<uint32_t>(vehicle, 0x2c4), 0);
+        own_function<SetBoneAngles>(&G_DObjSetBoneRotation_entry)(ent, 0x0082eec0, angles + 3, at<uint32_t>(vehicle, 0x2c4), 0);
 }
 
 void XB_CDECL Vehicle_Die(uint8_t* self, uint32_t, const uint8_t* attacker, uint32_t, uint32_t, uint32_t, uint32_t,
@@ -774,7 +775,7 @@ uint32_t XB_CDECL Vehicle_UpdateTurret(uint8_t* ent, int32_t elapsed) {
     at<uint32_t>(vehicle, 0x184) = 0;
     if (!at<uint32_t>(vehicle, 0x2fc)) return 0;
     if (vehicle[0x19c]) return vehicle[0x19c];
-    return title_function<uint32_t XB_CDECL(uint8_t*)>(0x00270560)(ent);  // Vehicle_FireTurretWeapon
+    return own_function<uint32_t XB_CDECL(uint8_t*)>(&Vehicle_FireTurretWeapon_entry)(ent);  // Vehicle_FireTurretWeapon
 }
 
 PLATFORM_ASM_ENTRY(Player_UpdateTurretUse_entry,
@@ -837,9 +838,9 @@ PLATFORM_ASM_ENTRY(VehiclePathState_Dtor_entry,
 void XB_CDECL VehiclePathState_Dtor(uint8_t* state) {
     using Release = void XB_THISCALL(uint8_t*);
     for (uint8_t* entry = state + 0x78; entry != state - 8; entry -= 0x40) {
-        title_function<Release>(0x0011d640)(entry + 0x10);  // ScriptString_Release
-        title_function<Release>(0x0011d640)(entry + 4);
-        title_function<Release>(0x0011d640)(entry);
+        own_function<Release>(&ScriptString_Release_entry)(entry + 0x10);  // ScriptString_Release
+        own_function<Release>(&ScriptString_Release_entry)(entry + 4);
+        own_function<Release>(&ScriptString_Release_entry)(entry);
     }
 }
 
@@ -854,7 +855,7 @@ void XB_THISCALL VehiclePhys_RebuildPendingBody(uint8_t* vehicle) {
     at<uint32_t>(vehicle, 0x450) = flags;
     at<uint32_t>(vehicle, 0x450) = cleared;
     const bool copy_matrix = (cleared >> 2) & 1;
-    title_function<void XB_STDCALL(uint8_t*)>(0x0022d650)(vehicle);
+    own_function<void XB_STDCALL(uint8_t*)>(&VehiclePhys_CreateBody)(vehicle);
     if (!copy_matrix) return;
     uint32_t* const to = at<uint32_t*>(at<uint8_t*>(vehicle, 0x444), 8);
     for (uint32_t i = 0; i < 16; ++i) to[i] = at<uint32_t>(vehicle, 0x460 + i * 4);
@@ -866,8 +867,8 @@ namespace {
 // +0x2c = the vector at 0x008db094, +0x38 = 0; bit fields +0x3c: bits 28-29 cleared, the low 28 set.
 void path_node_reset(uint8_t* node) {
     using Clear = void XB_THISCALL(uint8_t*);
-    title_function<Clear>(0x0011d660)(node);  // ScriptString_Clear
-    title_function<Clear>(0x0011d660)(node + 4);
+    own_function<Clear>(&ScriptString_Clear)(node);  // ScriptString_Clear
+    own_function<Clear>(&ScriptString_Clear)(node + 4);
     const uint32_t bits = at<uint32_t>(node, 0x3c) & 0xcfffffffu;
     at<float>(node, 8) = title_global<float>(0x0083eb34);
     at<float>(node, 0xc) = title_global<float>(0x0083eb34);
@@ -918,7 +919,7 @@ void XB_STDCALL VehiclePhys_CreateBody(uint8_t* vehicle) {
     const uint32_t flags = at<uint32_t>(vehicle, 0x450) & ~1u;
     at<uint32_t>(vehicle, 0x450) = flags;
     at<uint32_t>(vehicle, 0x450) = flags | 4;
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002257f0)(vehicle);
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&Vehicle_RestoreTagMatrices)(vehicle);
     const float* const bounds = at<float*>(at<uint8_t*>(at<uint8_t*>(vehicle, 0x440), 0x22c), 0x38);
     const float half = title_global<float>(0x0083eb24);
     float centre[4];
@@ -949,7 +950,7 @@ void XB_STDCALL VehiclePhys_CreateBody(uint8_t* vehicle) {
     at<uint32_t>(body, 0x48) = 0;
     std::memcpy(body + 0x70, frame, sizeof(frame));
     at<uint8_t*>(at<uint8_t*>(vehicle, 0x444), 0x48) = vehicle;
-    title_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x0022a590)(vehicle, at<uint32_t>(vehicle, 0x420), 1);
+    own_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(&VehiclePhys_SetupFromDef)(vehicle, at<uint32_t>(vehicle, 0x420), 1);
 }
 
 // EAX vehicle: each of its eight tag matrices (+0x220, 0x40 each) whose bone index (+0 + 4 i) is set goes
@@ -1200,8 +1201,8 @@ PLATFORM_ASM_ENTRY(VehNode_CopyToPathNode_entry,
 
 uint32_t XB_CDECL VehNode_CopyToPathNode(uint8_t* dst, const uint8_t* src) {
     using Assign = void XB_THISCALL(uint8_t*, const uint8_t*);
-    title_function<Assign>(0x0011d600)(dst, src);          // ScriptString_Assign
-    title_function<Assign>(0x0011d600)(dst + 4, src + 4);  // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(dst, src);          // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(dst + 4, src + 4);  // ScriptString_Assign
     uint32_t bits = at<uint32_t>(dst, 0x3c);
     bits ^= ((static_cast<uint32_t>(static_cast<int32_t>(at<uint32_t>(src, 0x3c) << 2) >> 2)) ^ bits) & 0x30000000u;
     at<uint32_t>(dst, 0x3c) = bits;
@@ -1388,9 +1389,9 @@ uint8_t* XB_CDECL VehNode_AllocSlot(uint8_t* pool) {
         using FromRep = void XB_THISCALL(uint8_t*, uint32_t);
         for (uint32_t i = 0; i < 0x80; ++i, node += 0x40) {
             if (!node) continue;
-            title_function<FromRep>(0x0011d5d0)(node, 0);         // ScriptString_FromRep
-            title_function<FromRep>(0x0011d5d0)(node + 4, 0);     // ScriptString_FromRep
-            title_function<FromRep>(0x0011d5d0)(node + 0x10, 0);  // ScriptString_FromRep
+            own_function<FromRep>(&ScriptString_FromRep)(node, 0);         // ScriptString_FromRep
+            own_function<FromRep>(&ScriptString_FromRep)(node + 4, 0);     // ScriptString_FromRep
+            own_function<FromRep>(&ScriptString_FromRep)(node + 0x10, 0);  // ScriptString_FromRep
         }
         ++at<int16_t>(pool, 2);
         at<int16_t>(pool, 4) = 0;
@@ -1409,11 +1410,11 @@ uint32_t XB_STDCALL VehNodePool_Free(uint8_t* pool) {
     for (int32_t i = 0; i < at<int16_t>(pool, 2); ++i) {
         uint8_t* node = at<uint8_t*>(pool, 8 + static_cast<uint32_t>(i) * 4);
         for (uint32_t k = 0; k < 0x80; ++k, node += 0x40) {
-            title_function<Release>(0x0011d640)(node + 0x10);  // ScriptString_Release
-            title_function<Release>(0x0011d640)(node + 4);     // ScriptString_Release
-            title_function<Release>(0x0011d640)(node);         // ScriptString_Release
+            own_function<Release>(&ScriptString_Release_entry)(node + 0x10);  // ScriptString_Release
+            own_function<Release>(&ScriptString_Release_entry)(node + 4);     // ScriptString_Release
+            own_function<Release>(&ScriptString_Release_entry)(node);         // ScriptString_Release
         }
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(at<uint32_t>(pool, 8 + static_cast<uint32_t>(i) * 4));  // Z_Free
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(at<uint32_t>(pool, 8 + static_cast<uint32_t>(i) * 4));  // Z_Free
     }
     at<uint16_t>(pool, 0) = 0;
     at<uint16_t>(pool, 2) = 0;
@@ -1579,7 +1580,7 @@ uint32_t XB_CDECL Vehicle_ResetCachedBounds() {
 
 void XB_REGS1 XB_CDECL Player_UpdateLookAtActorInfo(uint8_t* ent) {
     using Va = const char* XB_CDECL(const char*, ...);
-    const auto va_title = title_function<Va>(0x002a93d0);  // va
+    const auto va_title = own_function<Va>(&va_entry);  // va
     const char* const fmt_s = pointer<const char>(0x0082ddd4);  // "%s"
     const uint8_t* const actor = at<uint8_t*>(at<uint8_t*>(ent, 0x23c), 0x5f4);
     const uint8_t* const info = actor ? at<uint8_t*>(actor, 0x240) : nullptr;
@@ -1837,7 +1838,7 @@ uint32_t XB_CDECL VehNode_LinkAll() {
         }
         for (int16_t j = 0; j < title_global<int32_t>(0x0094d4d8); ++j) {
             if (i == j) continue;
-            if (title_function<Equals>(0x0011d820)(node, veh_node(j) + 4)) {  // ScriptString_EqualsString
+            if (own_function<Equals>(&ScriptString_EqualsString)(node, veh_node(j) + 4)) {  // ScriptString_EqualsString
                 const uint32_t bits = at<uint32_t>(node, 0x3c);
                 at<uint32_t>(node, 0x3c) = bits ^ (((static_cast<uint32_t>(static_cast<int32_t>(j)) << 14) ^ bits) & 0x0fffc000u);
                 break;
@@ -2112,7 +2113,7 @@ void XB_CDECL Player_Touch(uint8_t* self, uint8_t* other) {
         if (dy * dy + dx * dx >= title_global<float>(0x0083eb94)) return;
         vehicle_call_ebx(0x002048c0, at<uint32_t>(other, 0x244), at<uint32_t>(self, 0x244), 0);  // Sentient_TakeNodeClaim
     }
-    const int32_t enemy = title_function<int32_t XB_CDECL(int32_t)>(0x000123d0)(at<int32_t>(at<uint8_t*>(self, 0x244), 4));  // Sentient_EnemyTeam
+    const int32_t enemy = own_function<int32_t XB_CDECL(int32_t)>(&Sentient_EnemyTeam)(at<int32_t>(at<uint8_t*>(self, 0x244), 4));  // Sentient_EnemyTeam
     const int32_t team = at<int32_t>(at<uint8_t*>(other, 0x244), 4);
     if ((1u << (team & 31)) & ~(1u << (enemy & 31))) at<uint8_t*>(actor, 0x1390) = self;
 }
@@ -2475,8 +2476,8 @@ void XB_CDECL Vehicle_EnterPlayer(uint8_t* ent, uint8_t* player) {
     const uint8_t* const def = vehicle_def(at<int16_t>(vehicle, 0x178));
     using TagMatrix = void XB_CDECL(uint8_t*, int32_t, float*);
     alignas(16) float seat[16], gun[16];
-    title_function<TagMatrix>(0x002e3780)(ent, at<int32_t>(vehicle, 0x2b0), seat);  // G_DObjGetWorldTagMatrix
-    title_function<TagMatrix>(0x002e3780)(ent, at<int32_t>(vehicle, 0x2c4), gun);
+    own_function<TagMatrix>(&G_DObjGetWorldTagMatrix)(ent, at<int32_t>(vehicle, 0x2b0), seat);  // G_DObjGetWorldTagMatrix
+    own_function<TagMatrix>(&G_DObjGetWorldTagMatrix)(ent, at<int32_t>(vehicle, 0x2c4), gun);
     float angles[3];
     MatrixToAngles(angles, 0, gun);
     angles[2] = 0.0f;
@@ -2548,7 +2549,7 @@ void XB_CDECL Vehicle_UpdateTurretBones(uint8_t* ent) {
         title_global<uint32_t>(0x0098ebc4) = guard;
         title_global<uint32_t>(0x0098ebb8) = Com_HashKeyNoCase(0, pointer<const char>(0x00838a28));  // tag_barrel
     }
-    const auto set_bone = title_function<SetBoneAngles>(0x002de420);  // G_DObjSetBoneRotation
+    const auto set_bone = own_function<SetBoneAngles>(&G_DObjSetBoneRotation_entry);  // G_DObjSetBoneRotation
     int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ebc0));
     if (bone >= 0) set_bone(ent, nullptr, body, bone, 1);
     if (at<const DObj*>(ent, 0x22c)) {
@@ -2582,7 +2583,7 @@ uint8_t* alloc_candidate_list(const uint8_t* ent, uint32_t size) {
     if (slot == -1) slot = at<int32_t>(contexts, 0x34);
     if (slot != -1) {
         uint8_t* const context = slot >= 0 && slot < 0x63 ? at<uint8_t*>(contexts, 0x38 + static_cast<uint32_t>(slot) * 4) : nullptr;
-        p = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x0028c0f0)(context, 0x10, size);  // MemContext_Alloc_r
+        p = own_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x10, size);  // MemContext_Alloc_r
     }
     if (!p) p = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
                 title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, size)));  // Heap_AllocAligned
@@ -2630,7 +2631,7 @@ void XB_CDECL Vehicle_SetupEntity(uint32_t def_index, uint8_t* ent, uint8_t* veh
     for (uint32_t k = 0; k < 4; ++k) at<uint32_t>(ent, 0x440 + k * 4) = at<uint32_t>(ent, 0x430 + k * 4) ^ 0x80000000u;
     if (!at<uint32_t>(ent, 0x450)) at<uint8_t*>(ent, 0x450) = alloc_candidate_list(ent, 0x1010);  // triangles
     if (!at<uint32_t>(ent, 0x454)) at<uint8_t*>(ent, 0x454) = alloc_candidate_list(ent, 0x810);   // brushes
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     // Bounds from the model (+0x38 of the DObj: mins +0, maxs +0x10), else -FLT_MAX.
     const uint8_t* const bounds = at<uint8_t*>(at<uint8_t*>(ent, 0x22c), 0x38);
     for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ent, 0xe0 + k * 4) = bounds ? at<uint32_t>(bounds, k * 4) : 0xff7fffffu;
@@ -2762,7 +2763,7 @@ uint8_t* XB_CDECL Weapon_SpawnClusterGrenades(uint8_t* owner, const uint8_t* sou
         at_pos[1] = static_cast<float>(static_cast<int32_t>(d * fy + origin[1]));
         at_pos[2] = static_cast<float>(static_cast<int32_t>(d * up + origin[2]));
         using Fire = uint8_t* XB_REGS3 XB_CDECL(const float*, uint32_t, uint8_t*, int32_t);
-        grenade = title_function<Fire>(0x0025e450)(at_pos, 0, owner, fuse);  // fire_grenadeCooked
+        grenade = own_function<Fire>(&fire_grenadeCooked)(at_pos, 0, owner, fuse);  // fire_grenadeCooked
         fuse += extra[i];
     }
     return grenade;
@@ -2777,7 +2778,7 @@ void XB_CDECL Vehicle_ExitPlayer(uint8_t* player) {
     uint8_t* const ent = entity_from_handle(at<uint32_t>(player, 0x1a0));
     at<uint8_t>(at<uint8_t*>(ent, 0x248), 0x238) = 0;
     const uint8_t* const def = vehicle_def(at<int16_t>(at<uint8_t*>(ent, 0x248), 0x178));
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002b7900)(player);  // G_EntUnlink
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&G_EntUnlink)(player);  // G_EntUnlink
     // The exit point: tag_detach (vehicle +0x2b4), else the origin raised by the def's +0x1b8.
     float exit[3];
     const int32_t tag = at<int32_t>(at<uint8_t*>(ent, 0x248), 0x2b4);
@@ -2787,7 +2788,7 @@ void XB_CDECL Vehicle_ExitPlayer(uint8_t* player) {
         exit[2] = at<float>(def, 0x1b8) + at<float>(ent, 0x148);
     } else {
         alignas(16) float matrix[16];
-        title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, tag, matrix);  // G_DObjGetWorldTagMatrix
+        own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, tag, matrix);  // G_DObjGetWorldTagMatrix
         exit[0] = matrix[12];
         exit[1] = matrix[13];
         exit[2] = matrix[14];
@@ -2889,7 +2890,7 @@ void XB_CDECL Weapon_FireClusterAtTrace(uint8_t* fire, uint8_t* owner, uint32_t 
     alignas(16) uint8_t trace[0x40];
     const uint32_t pass = at<uint32_t>(at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224);
     using Trace = void XB_CDECL(uint8_t*, const float*, const float*, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<Trace>(0x002600c0)(trace, start, end, pass, 0x280e031, 0x008da6f0, 0);  // G_LocationalTrace
+    own_function<Trace>(&G_LocationalTrace_entry)(trace, start, end, pass, 0x280e031, 0x008da6f0, 0);  // G_LocationalTrace
     const uint8_t* const def = at<uint8_t*>(fire, 0x3c);
     if (!(title_global<float>(0x0083eb20) > at<float>(trace, 0x20)) || (at<uint8_t>(trace, 0x24) & 4)) {
         Add_Ammo(owner, at<uint32_t>(def, 0), 1, 0);  // nothing hit in range (or sky): the round back
@@ -3647,7 +3648,7 @@ void XB_CDECL Vehicle_FreePhysics(uint8_t* ent, uint32_t entry_esp) {
     at<uint32_t>(ent, 0x14) = 0;
     at<uint32_t>(ent, 0x38) = 0;
     for (const uint32_t offset : std::array<uint32_t, 4>{0x38u, 0x78u, 0x3cu, 0x7cu})
-        title_function<Clear>(0x0011d660)(at<uint8_t*>(ent, 0x248) + offset);  // ScriptString_Clear
+        own_function<Clear>(&ScriptString_Clear)(at<uint8_t*>(ent, 0x248) + offset);  // ScriptString_Clear
     at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x170) = 0;
     at<uint32_t>(ent, 0x248) = 0;
 }

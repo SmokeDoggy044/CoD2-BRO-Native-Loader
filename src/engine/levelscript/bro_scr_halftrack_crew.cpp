@@ -10,6 +10,7 @@
 #include "scr_access.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -28,7 +29,7 @@ inline DynArray* found_array(uint32_t ent, uint32_t key) {
     if (!value) {
         const uint32_t empty[3] = {0, 0, 0};
         using SetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t, const uint32_t*);
-        value = title_function<SetArray>(0x0045cc80)(table, key, empty);  // ScriptKeyTable_SetArray
+        value = own_function<SetArray>(&ScriptKeyTable_SetArray)(table, key, empty);  // ScriptKeyTable_SetArray
     }
     return pointer<DynArray>(*value);
 }

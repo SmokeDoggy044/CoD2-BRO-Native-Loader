@@ -10,6 +10,9 @@
 #include "scr_access.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_level_threads_2.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -30,11 +33,11 @@ inline uint32_t level_handle() {
 inline int32_t map_int(uint32_t offset, const uint32_t* key) {
     const uint32_t map = level() + offset;
     uint32_t it;
-    title_function<Find>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+    own_function<Find>(&HashMap_Find)(map, &it, key);  // HashMap_Find
     if (it == pointer<uint32_t>(map)[2]) {
         const uint32_t pair[2] = {*key, undefined_int()};
         uint32_t inserted;
-        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        it = *own_function<Find>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
     }
     return static_cast<int32_t>(pointer<uint32_t>(it)[3]);
 }
@@ -75,7 +78,7 @@ inline float type_delay(const uint32_t* type) {
     return static_cast<float>(static_cast<int32_t>(random_range(static_cast<float>(high), static_cast<float>(low))));
 }
 inline void shell_with_defaults(uint32_t ent, uint32_t type) {
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0015c390)(ent, type);  // BroScr_PlayShellIncoming
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PlayShellIncoming)(ent, type);  // BroScr_PlayShellIncoming
     if (entity_handle_is_valid(ent)) {
         const uint32_t u = undefined_float();
         BroScr_MortarThinkWithDefaults(ent, u, u, u, u, u, u, type);
@@ -99,7 +102,7 @@ void XB_CDECL BroScr_MortarGroupShuffledLoop(uint32_t, DynArray group, uint32_t 
     }
     for (;;) {
         Scr_Wait(as_float(0x3dcccccd));  // 0.1
-        title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, &group);  // DynArray_Assign4
+        own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, &group);  // DynArray_Assign4
         if (map_int(0x71c, &type) > 0 &&
             slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(map_int(0x71c, &type)) + 1 > 0) {  // Scr_RandomInt
             DynArray_Shuffle(&copy);

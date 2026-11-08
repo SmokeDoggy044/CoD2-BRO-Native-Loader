@@ -7,6 +7,13 @@
 #include "qcommon_core.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "bro_scr_exploder.h"
+#include "bro_scr_squad.h"
+#include "g_scr_runtime.h"
+#include "g_script.h"
+#include "levels_twins.h"
+#include "scr_field.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -20,7 +27,7 @@ uint32_t level_word() {
 }
 
 void free_array(const DynArray* array) {
-    if (array->data) title_function<void XB_CDECL(void*)>(0x002f5e10)(array->data);  // Scr_Free
+    if (array->data) own_function<void XB_CDECL(void*)>(&Scr_Free)(array->data);  // Scr_Free
 }
 
 void* alloc(uint32_t bytes) { return scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(bytes); }  // ScrIface_Alloc
@@ -40,13 +47,13 @@ void XB_CDECL BroScr_StartMortarGroupNearEnt(uint32_t ent, DynArray ents, float 
     if (i == title_global<uint32_t>(0x00922ec0)) i = 1;       // g_scrUndefinedInt
     for (uint32_t n = 0; static_cast<int32_t>(n) < static_cast<int32_t>(ents.size); ++n) {
         if (n >= ents.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&ents), n + 1, n + 4);
-        title_function<void XB_CDECL(uint32_t)>(0x00149f60)(ents.data[n]);  // BroScr_MortarEntInit
+        own_function<void XB_CDECL(uint32_t)>(&BroScr_MortarEntInit)(ents.data[n]);  // BroScr_MortarEntInit
     }
     const uint32_t level = level_word();
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                           const DynArray*, const float*, const float*, const uint32_t*,
                                           const uint32_t*, const uint32_t*, const DynArray*);
-    title_function<StartThread>(0x0017cc10)(0, 0, 0, 0, 0x00171530, level, &ent, &ents, &f1, &f2, &handle, &w, &i,
+    own_function<StartThread>(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry)(0, 0, 0, 0, 0x00171530, level, &ent, &ents, &f1, &f2, &handle, &w, &i,
                                             &extra);  // Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr(BroScr_MortarGroupNearEntLoop)
     free_array(&ents);
     free_array(&extra);
@@ -118,7 +125,7 @@ void XB_CDECL BroScr_MortarThinkWithDefaults(uint32_t ent, uint32_t radius, uint
     o = scr_slot<GetOrigin>(0x00922b20)(buffer2, ent);
     const ScrVec3 pos{{o[0], o[1], o[2]}};
     using Think = void XB_CDECL(uint32_t, ScrVec3, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<Think>(0x0016e760)(ent, pos, a4, a5, a6, type);  // BroScr_MortarThink
+    own_function<Think>(&BroScr_MortarThink)(ent, pos, a4, a5, a6, type);  // BroScr_MortarThink
 }
 
 namespace {
@@ -177,7 +184,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     duration = mortar_value(duration, 0x554, &type, 0x0083eba8);
     radius = mortar_value(radius, 0x51c, &type, 0x0081ddd0);
     ScriptString fx;
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&fx, 0);  // ScriptString_FromRep(null)
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&fx, 0);  // ScriptString_FromRep(null)
     uint32_t target = 0;
     {
         ScriptString temp;
@@ -191,15 +198,15 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     }
     using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
     bool defined;
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x001917a0)(&defined, ent);  // ScrField_he5d3774f_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_he5d3774f_IsDefined)(&defined, ent);  // ScrField_he5d3774f_IsDefined
     if (defined) {
-        title_function<Assign>(0x0011d600)(&fx, title_function<ScriptString* XB_CDECL(uint32_t)>(0x00191770)(ent));  // ScrField_he5d3774f
+        own_function<Assign>(&ScriptString_Assign_entry)(&fx, own_function<ScriptString* XB_CDECL(uint32_t)>(ScrField_he5d3774f)(ent));  // ScrField_he5d3774f
     } else if (type != title_global<uint32_t>(0x00922eb4)) {  // g_scrUndefinedHandle
         using Index = ScriptString* XB_THISCALL(uint32_t, const uint32_t*);
-        title_function<Assign>(0x0011d600)(&fx, title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x488, &type));
+        own_function<Assign>(&ScriptString_Assign_entry)(&fx, title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x488, &type));
     } else {
         ScriptString* fallback = &title_global<ScriptString>(title_global<uint32_t>(0x00922ee0) + 0x6e8);
-        if (fallback->rep) title_function<Assign>(0x0011d600)(&fx, fallback);
+        if (fallback->rep) own_function<Assign>(&ScriptString_Assign_entry)(&fx, fallback);
     }
     if (fx.rep == nullptr) {
         // Scr_StartThread_ent_vec_str_vec_f_3(.., BroScr_WaitForNotifyOrTimeoutCall_4, level entity,
@@ -211,7 +218,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
         const uint32_t time = title_global<uint32_t>(0x0083ec9c);  // 3.0
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScrVec3*,
                                               ScriptString*, const uint32_t*, const uint32_t*);
-        title_function<StartThread>(0x0017b1e0)(0, 0, 0, 0, 0x001310b0, level, &origin, &text, red, &time);
+        own_function<StartThread>(&Scr_StartThread_ent_vec_str_vec_f_3_entry)(0, 0, 0, 0, 0x001310b0, level, &origin, &text, red, &time);
         scr_release(&text);
     } else if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(target)) {  // Scr_EntityHandleIsValid
         using GetOrigin = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
@@ -239,12 +246,12 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
         scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(level_entity(), 0x7652bc7c);  // Scr_QueueNotify
     }
     // Deletes the ents of array field 0x05c4ceb7 when field 0xb2f8556f is set.
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x0012ebd0)(&defined, ent);  // ScrField_hb2f8556f_IsDefined
-    if (defined && *title_function<uint8_t* XB_CDECL(uint32_t)>(0x0012eb80)(ent)) {
-        title_function<bool* XB_CDECL(bool*, uint32_t)>(0x00146db0)(&defined, ent);  // ScrField_h05c4ceb7_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_hb2f8556f_IsDefined)(&defined, ent);  // ScrField_hb2f8556f_IsDefined
+    if (defined && *own_function<uint8_t* XB_CDECL(uint32_t)>(&ScrField_hb2f8556f_entry)(ent)) {
+        own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_h05c4ceb7_IsDefined)(&defined, ent);  // ScrField_h05c4ceb7_IsDefined
         if (defined) {
             using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
-            const auto array = [ent]() { return title_function<GetArray>(0x0045cd50)(BroScr_ScriptObjectOrEmpty(ent), 0x05c4ceb7); };
+            const auto array = [ent]() { return own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(ent), 0x05c4ceb7); };
             const auto at = [&array](uint32_t i) {
                 uint32_t* a = array();
                 if (i >= a[2]) DynArray_Resize(reinterpret_cast<uint8_t*>(a), i + 1, i + 4);
@@ -268,13 +275,13 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     const uint32_t vehicle = ent;
     const uint32_t entry = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&ent)) - 4;
     ent = entry - 0x7c;
-    title_function<bool* XB_CDECL(bool*, uint32_t)>(0x0018f450)(reinterpret_cast<bool*>(&ent), vehicle);  // ScrField_script_exploder_IsDefined
+    own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_script_exploder_IsDefined)(reinterpret_cast<bool*>(&ent), vehicle);  // ScrField_script_exploder_IsDefined
     if (*reinterpret_cast<bool*>(&ent)) {
         const uint32_t level = level_entity();
         ent = entry - 0x7c;
-        const uint32_t exploder = *title_function<uint32_t* XB_CDECL(uint32_t)>(0x0018f410)(vehicle);  // ScrField_script_exploder
+        const uint32_t exploder = *own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_script_exploder)(vehicle);  // ScrField_script_exploder
         ent = entry - 0x80;
-        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001a9bf0)(level, exploder);  // BroScr_Exploder
+        own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_Exploder)(level, exploder);  // BroScr_Exploder
     }
     uint32_t* functor = static_cast<uint32_t*>(scr_slot<void* XB_CDECL(uint32_t)>(0x00922928)(0xc));  // ScrIface_Alloc
     if (functor) {

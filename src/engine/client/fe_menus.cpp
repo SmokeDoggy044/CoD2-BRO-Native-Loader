@@ -8,6 +8,8 @@
 #include "qcommon.h"
 #include "title_data.h"
 #include "ui_menu.h"
+#include "movie.h"
+#include "qcommon_core.h"
 
 // Calls a title function with EAX, EBX, ECX, EDX, ESI and EDI from `regs` and `count` stack words (args[0] pushed
 // last); returns its EAX. ESP comes back from EBP, so cdecl and stdcall callees both fit.
@@ -116,7 +118,7 @@ constexpr uint32_t kZeroFloat = 0x00000000;
 constexpr uint32_t kOneFloat = 0x3f800000;
 void set_alpha(uint8_t* text, uint32_t alpha) { call(text, 0x7c, alpha); }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 // Panel_FreeElements (EAX) and Panel_Draw (ESI; EDI = the menu).
 void panel_free_elements(uint8_t* panel) {
@@ -622,7 +624,7 @@ void XB_THISCALL InGameLiveOptionsMenu_Draw(uint8_t* menu) {
         call(title_global<uint8_t*>(0x0095f454), 8);
         Subtitle_Draw();
         uint8_t* const texture =
-            title_function<uint8_t* XB_THISCALL(uint8_t*)>(0x000cf100)(title_global<uint8_t*>(0x0095f454));
+            own_function<uint8_t* XB_THISCALL(uint8_t*)>(&Movie_GetFrameTexture)(title_global<uint8_t*>(0x0095f454));
         uint8_t* const quad = title_global<uint8_t*>(0x0095f458);
         field<uint8_t*>(quad, 0x60) = texture;
         nglListAddQuad(reinterpret_cast<const NglQuad*>(quad));

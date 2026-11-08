@@ -22,6 +22,14 @@ F* title_function(uint32_t address) {
     return reinterpret_cast<F*>(platform_opaque_address(address));  // a call stays a call
 }
 
+// A call into our own C for a function that also has an original address (tools/own_calls.py): F is
+// the signature the call site used for the original, `function` the symbol the hook table registers
+// for that address, so the call keeps its convention and becomes a direct call.
+template <typename F, typename G>
+F* own_function(G* function) {
+    return reinterpret_cast<F*>(function);
+}
+
 // Register inputs for title_call_at_regs.
 struct TitleRegs {
     uint32_t eax, ebx, ecx, edx, esi, edi;

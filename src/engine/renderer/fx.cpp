@@ -15,6 +15,10 @@
 #include "snd.h"
 #include "stream.h"
 #include "title_data.h"
+#include "cgame.h"
+#include "g_utils.h"
+#include "movie.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -39,7 +43,7 @@ FxEffect* XB_CDECL FX_AllocEffect() {
 void XB_CDECL FX_InitEffectPool() {
     FxEffect*& pool = title_global<FxEffect*>(0x0095f6e4);
     if (pool) return;
-    uint32_t* block = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(4 + 0xf0 * sizeof(FxEffect));  // Heap_Alloc16
+    uint32_t* block = own_function<uint32_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(4 + 0xf0 * sizeof(FxEffect));  // Heap_Alloc16
     FxEffect* effects = nullptr;
     if (block) {
         block[0] = 0xf0;
@@ -174,7 +178,7 @@ void XB_CDECL FX_FreeFinishedEffects() {
             light[0xc] = 0;
         } else {
             *entry = nullptr;
-            title_function<void XB_CDECL(void*)>(0x000428d0)(light);  // Z_Free
+            own_function<void XB_CDECL(void*)>(&Z_Free)(light);  // Z_Free
             freed = true;
         }
     }
@@ -291,7 +295,7 @@ void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id) {
         if (*reinterpret_cast<const uint32_t*>(item + 0x4c) != id) continue;
         if (item) {
             FX_FreeEffectComponents(reinterpret_cast<uint32_t*>(item));
-            title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5bc),
+            own_function<void XB_THISCALL(uint32_t, void*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f5bc),
                                                                           item);  // SmallHeap_Free
         }
         list->items[i] = reinterpret_cast<uint8_t*>(words[list->count]);
@@ -303,8 +307,8 @@ void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id) {
 void XB_CDECL FX_StopEffect(uint8_t* effect, uint32_t immediate) {
     if (!effect) return;
     if (immediate) *reinterpret_cast<uint16_t*>(effect + 0x4e) |= 4;
-    title_function<void XB_THISCALL(uint8_t*)>(0x00094ad0)(effect);
-    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x0009b770)(title_global<uint32_t>(0x00909994) + 8, effect);
+    own_function<void XB_THISCALL(uint8_t*)>(&FxSystem_Destroy)(effect);
+    own_function<void XB_THISCALL(uint32_t, uint8_t*)>(&apsMemoryPool_Free)(title_global<uint32_t>(0x00909994) + 8, effect);
 }
 
 PLATFORM_ASM_ENTRY(FX_PlayEffectAt_entry,
@@ -314,13 +318,13 @@ PLATFORM_ASM_ENTRY(FX_PlayEffectAt_entry,
 
 uint32_t XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
     alignas(16) float matrix[16];
-    title_function<void XB_CDECL(float*)>(0x0001c140)(matrix);  // Matrix_Identity
+    own_function<void XB_CDECL(float*)>(&Matrix_Identity)(matrix);  // Matrix_Identity
     // Row 3 = the origin, with x again in its w lane.
     matrix[12] = origin[0];
     matrix[13] = origin[1];
     matrix[14] = origin[2];
     matrix[15] = origin[0];
-    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+    return own_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(&FX_SpawnEffect)(
         effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
 }
 
@@ -508,16 +512,16 @@ void XB_CDECL FX_ClearEffects() {
     PtrVector_Resize_call(&effect_list(), 0);
     PtrVector_Resize_call(&draw_list(), 0);
     using Free = void XB_CDECL(void*);
-    if (effect_list().data) title_function<Free>(0x000939b0)(effect_list().data);  // Mem_AlignedFree
+    if (effect_list().data) own_function<Free>(&Mem_AlignedFree)(effect_list().data);  // Mem_AlignedFree
     effect_list() = PtrVector{};
-    if (draw_list().data) title_function<Free>(0x000939b0)(draw_list().data);  // Mem_AlignedFree
+    if (draw_list().data) own_function<Free>(&Mem_AlignedFree)(draw_list().data);  // Mem_AlignedFree
     draw_list() = PtrVector{};
 }
 
 void XB_CDECL FX_FreeAllEffectLights() {
     uint8_t** const end = effect_lights().data + effect_lights().count;
     for (uint8_t** entry = effect_lights().data; entry != end; ++entry) {
-        if (*entry) title_function<void XB_CDECL(void*)>(0x000428d0)(*entry);  // Z_Free
+        if (*entry) own_function<void XB_CDECL(void*)>(&Z_Free)(*entry);  // Z_Free
     }
     PtrVector_Resize_call(&effect_lights(), 0);
 }
@@ -533,7 +537,7 @@ void XB_CDECL FX_FreeAllEffects(FxIdList* instances) {
         uint8_t* item = instances->items[0];
         if (item) {
             FX_FreeEffectComponents(reinterpret_cast<uint32_t*>(item));
-            title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5bc),
+            own_function<void XB_THISCALL(uint32_t, void*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f5bc),
                                                                           item);  // SmallHeap_Free
         }
         instances->items[0] = reinterpret_cast<uint8_t*>(words[instances->count]);
@@ -1413,7 +1417,7 @@ void XB_CDECL FX_DrawEffects() {
         uint8_t* const system_object = reinterpret_cast<uint8_t*>(uintptr_t{system});
         if (!system || FxSystem_IsFinished(system_object)) {
             *it = nullptr;
-            title_function<void XB_THISCALL(FxEffect*)>(0x00029560)(effect);  // FX_ReleaseEffectHandle
+            own_function<void XB_THISCALL(FxEffect*)>(&FX_ReleaseEffectHandle)(effect);  // FX_ReleaseEffectHandle
             FX_PushFreeEffect(effect);
             freed = true;
             continue;
@@ -1459,7 +1463,7 @@ void XB_CDECL FX_DrawEffects() {
                     const float roll = angles[2] * pi / half_turn;
                     alignas(16) const float radians[4] = {roll, angles[0] * pi / half_turn,
                                                           angles[1] * pi / half_turn, roll};
-                    title_function<void XB_REGS3 XB_CDECL(const float*, uint32_t, const float*, float*)>(0x0029ff50)(
+                    own_function<void XB_REGS3 XB_CDECL(const float*, uint32_t, const float*, float*)>(&FX_AnglesToMatrix)(
                         origin, 0, radians, matrix);  // FX_AnglesToMatrix
                 }
                 place = matrix;
@@ -1471,13 +1475,13 @@ void XB_CDECL FX_DrawEffects() {
             const int32_t seed = effect->unknown18;
             using Update = void XB_THISCALL(uint32_t, uint32_t);
             if (seed == -1) {
-                title_function<Update>(0x00094c60)(system, clock_bits);  // FxSystem_Update
+                own_function<Update>(&FxSystem_Update)(system, clock_bits);  // FxSystem_Update
             } else {
                 // Repeatable randomness per effect id.
                 title_global<int32_t>(0x008bb764) = seed;
                 title_global<uint32_t>(0x00909948) = 1;
                 title_global<uint32_t>(0x0090993c) = 0;  // FxRandom_Reset (0x0009b9c0)
-                title_function<Update>(0x00094c60)(system, clock_bits);
+                own_function<Update>(&FxSystem_Update)(system, clock_bits);
                 title_global<uint32_t>(0x0090993c) = title_global<uint32_t>(0x00909f04);  // FxRandom_Restore (0x0009bec0)
                 title_global<int32_t>(0x008bb764) = -1;
                 title_global<uint32_t>(0x00909948) = 0;
@@ -1517,7 +1521,7 @@ uint32_t XB_REGS1 XB_CDECL FX_PlayBoltedEffect(const float* origin, uint32_t eff
         matrix[row * 4 + 2] = src[2];
         matrix[row * 4 + 3] = src[0];
     }
-    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+    return own_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(&FX_SpawnEffect)(
         effect, matrix, entity, owner, bone, bone != 0);  // FX_SpawnEffect
 }
 
@@ -1534,7 +1538,7 @@ uint32_t* XB_CDECL FX_ParseEffectTexture(uint32_t* stream, uint32_t* out) {
     const auto hash_name = [&]() {
         Stream_ReadString(stream, name, &length, 0x7f);
         name[static_cast<uint8_t>(length)] = 0;
-        return title_function<char* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+        return own_function<char* XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
     };
     switch (Stream_ReadInt(stream)) {
     case 0:
@@ -1816,7 +1820,7 @@ uint32_t untracked(F call) {
 }
 
 void apsLog(const char* format, uint32_t a = 0, uint32_t b = 0) {
-    title_function<void XB_CDECL(uint32_t, int32_t, const char*, ...)>(0x0009d000)(  // apsLog_Printf
+    own_function<void XB_CDECL(uint32_t, int32_t, const char*, ...)>(&apsLog_Printf)(  // apsLog_Printf
         title_global<uint32_t>(0x00909908), 1, format, a, b);
 }
 
@@ -1997,7 +2001,7 @@ uint32_t XB_THISCALL apsGroup_Create(uint8_t* emitter, uint32_t capacity, uint32
         apsLog("apsGroup : failed to create particles");
         return 0;
     }
-    title_function<void XB_CDECL(float*)>(0x0001c140)(&at<float>(emitter, 0x10));  // Matrix_Identity
+    own_function<void XB_CDECL(float*)>(&Matrix_Identity)(&at<float>(emitter, 0x10));  // Matrix_Identity
     at<float>(emitter, 0xb0) = 0.0f;
     at<float>(emitter, 0xb4) = 0.0f;
     at<float>(emitter, 0xb8) = 0.0f;
@@ -2019,7 +2023,7 @@ uint32_t XB_THISCALL apsEffect_Init(uint8_t* system, uint8_t* definition, float 
     at<float>(system, 0x44) = 0.0f;
     at<uint8_t*>(system, 0x48) = definition;
     at<uint16_t>(system, 0x4e) = 0;
-    title_function<void XB_CDECL(float*)>(0x0001c140)(reinterpret_cast<float*>(system));  // Matrix_Identity
+    own_function<void XB_CDECL(float*)>(&Matrix_Identity)(reinterpret_cast<float*>(system));  // Matrix_Identity
     uint8_t* def = pointer_at(system, 0x48);
     int32_t emitters = at<int16_t>(def, 0x56);
     ApsArray* const emitter_array = &at<ApsArray>(system, 0x54);
@@ -3819,7 +3823,7 @@ void XB_CDECL FX_CollectTriggers(uint32_t* list, uint32_t zones, const char* pre
     // its low byte cleared.
     using Lookup = void XB_REGS2 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, const char*, uint32_t, uint32_t*);
     const auto lookup = [](uint32_t zone_set, uint32_t* slot, const char* key) {
-        title_function<Lookup>(0x0002bf80)(0, zone_set, title_global<uint32_t>(0x0095f5a8), slot, key,
+        own_function<Lookup>(&ZoneStringMap_Lookup)(0, zone_set, title_global<uint32_t>(0x0095f5a8), slot, key,
                                            *slot & ~0xffu, nullptr);
     };
     const auto add = [list](uint32_t table) {
@@ -3972,7 +3976,7 @@ uint8_t* XB_CDECL ShakeRumbleRecord_Init(uint8_t* record, float fade_out, uint32
     ScriptString_Copy(own, name);
     const ScriptStringRep* rep = own->rep;
     record[0x2c] = rep && rep->text[0] ? 1 : 0;  // the original also tests rep + 6 for null
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(name);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(name);  // ScriptString_Release
     return record;
 }
 
@@ -3983,7 +3987,7 @@ uint32_t* XB_THISCALL ShakeRumble_Start(const uint8_t* desc, uint8_t* manager, u
         const uint8_t* c = desc + 4 + channel * 0x20;  // {start, strength, hold, fade out, fade in, name}
         const float* cf = reinterpret_cast<const float*>(c);
         if (!(cf[1] > 0.0f)) continue;
-        uint8_t* record = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+        uint8_t* record = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(
             title_global<uint32_t>(0x0095f5c8), 0x30, 0);  // SmallHeap_Alloc
         if (record) {
             ScriptString name{nullptr};
@@ -4010,7 +4014,7 @@ PLATFORM_ASM_ENTRY(ShakeRumbleDesc_Init_entry,
 
 uint8_t* XB_CDECL ShakeRumbleDesc_Init(uint8_t* desc) {
     for (int channel = 0; channel < 2; ++channel)
-        title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011d5d0)(desc + 0x18 + channel * 0x20, 0);  // ScriptString_FromRep
+        own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&ScriptString_FromRep)(desc + 0x18 + channel * 0x20, 0);  // ScriptString_FromRep
     float* f = reinterpret_cast<float*>(desc);
     desc[0] = 0;
     f[1] = 0.0f;
@@ -4031,7 +4035,7 @@ uint8_t* XB_CDECL ShakeRumbleDesc_Init(uint8_t* desc) {
 
 void XB_REGS1 XB_CDECL ShakeRumbleDesc_Destroy(uint8_t* desc) {
     for (int channel = 1; channel >= 0; --channel)
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(desc + 0x18 + channel * 0x20);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(desc + 0x18 + channel * 0x20);  // ScriptString_Release
 }
 
 void XB_THISCALL FxShakeRumbleComponent_Update(uint8_t* component, float delta) {
@@ -4139,7 +4143,7 @@ uint32_t XB_REGS3 XB_CDECL FX_PlayEffectWithAxis(const float* axis, uint32_t, co
         matrix[row * 4 + 2] = src[2];
         matrix[row * 4 + 3] = src[0];
     }
-    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+    return own_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(&FX_SpawnEffect)(
         effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
 }
 
@@ -4157,9 +4161,9 @@ void XB_THISCALL FxParticleComponent_Update(uint8_t* component, float delta) {
     // 0x00971804 placement {origin, +0x10 direction} or null, 0x0097180c tag name, 0x00971828
     // tag index (-1: by name), 0x0097182c/0x00971838 flags, 0x00971830 effect, 0x00971834.
     using SpawnEffect = uint32_t XB_CDECL(uint32_t, const float*, uint32_t, uint32_t, uint32_t, uint32_t);
-    const auto spawn = title_function<SpawnEffect>(0x0023c040);
+    const auto spawn = own_function<SpawnEffect>(&FX_SpawnEffect);
     const auto entity_of = [](uint32_t address) {
-        return title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t)>(0x00013860)(address);  // G_EntHandleToEnt
+        return own_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t)>(&G_EntHandleToEnt)(address);  // G_EntHandleToEnt
     };
     float* f = reinterpret_cast<float*>(component);
     uint16_t& flags = *reinterpret_cast<uint16_t*>(component + 0x2a);
@@ -4318,7 +4322,7 @@ uint32_t XB_STDCALL FX_AddLightComponents(uint32_t, const uint8_t* source, uint3
             const uint32_t flags = ParamChoice_GetFlags(choice);
             const float delay = choice_float(choice, 0x10);
             if (!light_slot) continue;
-            uint8_t* component = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+            uint8_t* component = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(
                 title_global<uint32_t>(0x0095f5cc), 0x30, 0);  // SmallHeap_Alloc
             if (component) {
                 const uint32_t entity = *reinterpret_cast<const uint32_t*>(source + 0x1f0);
@@ -4339,7 +4343,7 @@ uint32_t XB_STDCALL FX_AddLightComponents(uint32_t, const uint8_t* source, uint3
                 uint8_t* light = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
                 if (light) light[0xc] = 0;
                 light_slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(light));
-                title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x002462b0)(light, entity);
+                own_function<void XB_STDCALL(uint8_t*, uint32_t)>(&FX_GetEntityTagOrigin)(light, entity);
                 PtrVector_PushBack_call(&effect_lights(), reinterpret_cast<uint8_t* const*>(&light_slot));
                 w[11] = light_slot;
             }
@@ -4398,7 +4402,7 @@ uint32_t XB_STDCALL FX_AddShakeRumbleComponents(uint32_t, const uint8_t* source,
             const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{choices[1 + i]});
             const uint32_t* name_value = ParamChoice_GetValue(choice, 0xf);
             uint8_t hashed[0x20];
-            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x00011060)(  // HashStr_Init (result unused)
+            own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&HashStr_Init)(  // HashStr_Init (result unused)
                 hashed, name_value ? *name_value : title_global<uint32_t>(0x008d5a74));
             const float delay = choice_float_or(choice, 0x10, 0.0f);
             const uint32_t flags = ParamChoice_GetFlags(choice);
@@ -4426,7 +4430,7 @@ uint32_t XB_STDCALL FX_AddShakeRumbleComponents(uint32_t, const uint8_t* source,
             if (minimum > p3c) p3c_clamped = minimum;
             const uint32_t* name17 = ParamChoice_GetValue(choice, 0x17);
             const uint32_t rumble_name = name17 ? *name17 : 0;
-            uint8_t* component = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+            uint8_t* component = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(
                 title_global<uint32_t>(0x0095f5cc), 0x68, 0);  // SmallHeap_Alloc
             if (component) {
                 uint32_t* w = reinterpret_cast<uint32_t*>(component);
@@ -4581,7 +4585,7 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
             }
         }
         using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
-        const auto assign = title_function<Assign>(0x0011d600);  // ScriptString_Assign
+        const auto assign = own_function<Assign>(&ScriptString_Assign_entry);  // ScriptString_Assign
         if (!skip && !have_choices) {
             resolve();
             if (lists[0] == 0) {
@@ -4625,16 +4629,16 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
                 int32_t stem_length = 0;
                 stem[0x7f] = 0;
                 stem[0] = 0;
-                title_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(0x00044500)(  // Path_BaseName
+                own_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(&Path_BaseName)(  // Path_BaseName
                     stem, &stem_length, file, static_cast<uint8_t>(file[0x7f]), 1);
                 stem[0x7f] = static_cast<char>(stem_length);
                 char name[0x80];
                 int32_t name_length = 0;
-                title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+                own_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(&FixedStr_Copy)(  // FixedStr_Copy
                     name, &name_length, 0x7f, stem, static_cast<uint8_t>(stem_length));
                 name[0x7f] = static_cast<char>(name_length);
                 uint8_t hashed[0x20];
-                title_function<void XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+                own_function<void XB_THISCALL(uint8_t*, const char*)>(&HashStr_Init)(hashed, name);  // HashStr_Init
                 title_global<uint32_t>(0x00971830) = Stream_FindEffect_call(
                     hashed, title_global<uint32_t>(0x0095f630), *reinterpret_cast<const uint32_t*>(title_global<const uint8_t*>(0x0095f638) + 0x34), 0);
                 title_global<uint32_t>(0x00971804) =
@@ -4645,14 +4649,14 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
                 title_global<uint8_t>(0x0097182c) = source[0x20c] & 1;
                 const uint32_t* tag_value = ParamChoice_GetValue(choice, 0x17);
                 uint8_t tag[0x20];
-                title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x00011060)(  // HashStr_Init
+                own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&HashStr_Init)(  // HashStr_Init
                     tag, tag_value ? *tag_value : title_global<uint32_t>(0x008d5a74));
                 std::memcpy(&title_global<uint8_t>(0x00971808), tag, 0x20);
                 title_global<uint32_t>(0x00971828) = *reinterpret_cast<const uint32_t*>(source + 0x204);
                 title_global<uint32_t>(0x00971834) = (source[0x20c] >> 1) & 1;
                 const uint8_t* attach = choice_byte(choice, 0x18);
                 title_global<uint8_t>(0x00971838) = attach ? *attach : 0;
-                uint8_t* component = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+                uint8_t* component = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(
                     title_global<uint32_t>(0x0095f5cc), 0x30, 0);  // SmallHeap_Alloc
                 if (!component) continue;
                 uint32_t* w = reinterpret_cast<uint32_t*>(component);
@@ -4707,7 +4711,7 @@ using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, ui
                                                  const float*, const float*, uint32_t, uint32_t, uint32_t, uint32_t);
 
 uint8_t* sound_handle_resolve(uint32_t* handle) {
-    return title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(0x00013890)(handle);  // SoundHandle_Resolve
+    return own_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(&SoundHandle_Resolve)(handle);  // SoundHandle_Resolve
 }
 
 }  // namespace
@@ -4729,8 +4733,8 @@ void XB_CDECL FxSoundComponent_Update(uint8_t* component, float delta, uint32_t 
     if (!handle_object(w[3], 0x0097a968)) return;
     uint32_t* handle = &w[25];  // +0x64
     const uint32_t table = title_global<uint32_t>(0x0095f4c4);
-    const auto play = title_function<PlayAlias>(0x002c30a0);   // S_PlaySoundAlias
-    const auto play2 = title_function<PlayAlias>(0x002c3120);  // S_PlaySoundAlias2
+    const auto play = own_function<PlayAlias>(&S_PlaySoundAlias);   // S_PlaySoundAlias
+    const auto play2 = own_function<PlayAlias>(&S_PlaySoundAlias2);  // S_PlaySoundAlias2
     // The original pushes EBX with the flag (bit 3 of +0x2a) in its low byte over the high byte
     // of +0x2a and its caller's upper half.
     const auto flag_word = [&](uint16_t bits) { return (ebx & 0xffff0000u) | (bits & 0xff00u) | ((bits >> 3) & 1); };
@@ -4780,7 +4784,7 @@ void XB_CDECL FxSoundComponent_Update(uint8_t* component, float delta, uint32_t 
         f[22] = value;  // +0x58
         const uint32_t alias = w[26];
         if (alias == 0xffffffffu) return fail();
-        const float volume = title_function<float XB_CDECL(uint32_t, uint32_t, float)>(0x000c59b0)(alias, 0, 1.0f);  // SndVoice_GetParam
+        const float volume = own_function<float XB_CDECL(uint32_t, uint32_t, float)>(&SndVoice_GetParam)(alias, 0, 1.0f);  // SndVoice_GetParam
         if (volume == title_global<float>(0x0083eafc)) return fail();
         const uint16_t bits = flags;
         const float* source;
@@ -4803,7 +4807,7 @@ void XB_CDECL FxSoundComponent_Update(uint8_t* component, float delta, uint32_t 
             }
         } else {
             FX_LimitSoundComponents(title_global<uint32_t*>(0x0095f5b4), w[1],
-                                    title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(0x00013860)(&w[3]),  // G_EntHandleToEnt
+                                    own_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(&G_EntHandleToEnt)(&w[3]),  // G_EntHandleToEnt
                                     *reinterpret_cast<const uint16_t*>(component + 0x5e));
             const uint16_t bits2 = flags;
             const bool placed = (bits2 >> 6) & 1;
@@ -4925,7 +4929,7 @@ uint8_t* sound_component_create(uint8_t* component, uint32_t name) {
     component[0x2a] |= 4;
     *reinterpret_cast<uint16_t*>(component + 0x5e) = static_cast<uint16_t>(title_global<uint32_t>(0x0096d918));
     w[1] = title_global<uint32_t>(0x0096d924);
-    w[26] = title_function<uint32_t XB_CDECL(uint32_t)>(0x000c5810)(name);  // S_FindSoundByHash
+    w[26] = own_function<uint32_t XB_CDECL(uint32_t)>(&S_FindSoundByHash)(name);  // S_FindSoundByHash
     uint8_t* entity = handle_object(title_global<uint32_t>(0x0096d8ec), 0x0097a968);
     uint32_t* sound_ids = reinterpret_cast<uint32_t*>(entity + 0x3c4);
     if (sound_ids[0] && !sound_ids[1]) sound_ids[1] = w[1];
@@ -4968,7 +4972,7 @@ uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* sourc
         return 0;
     }
     using Alloc = uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t);
-    const auto alloc = title_function<Alloc>(0x00044850);  // SmallHeap_Alloc
+    const auto alloc = own_function<Alloc>(&SmallHeap_Alloc);  // SmallHeap_Alloc
     const auto append = [out](uint8_t* component) {
         if (static_cast<int32_t>(out[0]) < 0x10) out[1 + out[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(component));
     };
@@ -4976,7 +4980,7 @@ uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* sourc
     const uint32_t flags0 = *reinterpret_cast<const uint32_t*>(source);
     if ((flags0 & 1) && *reinterpret_cast<const int32_t*>(source + 0x1b4) == 3 && ((flags0 >> 6) & 1) &&
         !title_global<uint8_t>(0x0095f5b0)) {
-        const uint32_t key = title_function<uint32_t XB_REGS1 XB_CDECL(const uint8_t*)>(0x0001d830)(source + 0x134);  // HashStr_Hash
+        const uint32_t key = own_function<uint32_t XB_REGS1 XB_CDECL(const uint8_t*)>(&HashStr_Hash)(source + 0x134);  // HashStr_Hash
         const uint32_t alias = ZoneAliasList_NextVariant(title_global<const uint32_t*>(0x0095f5ac), key);
         if (alias) {
             title_global<float>(0x0096d904) = title_global<float>(0x0083eb34);  // -1
@@ -5076,7 +5080,7 @@ uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* sourc
             }
         }
         using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
-        const auto assign = title_function<Assign>(0x0011d600);  // ScriptString_Assign
+        const auto assign = own_function<Assign>(&ScriptString_Assign_entry);  // ScriptString_Assign
         if (!skip && !have_choices) {
             resolve();
             if (lists[0] == 0) {
@@ -5121,8 +5125,8 @@ uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* sourc
                 title_global<uint32_t>(0x0096d91c) = (source[0x20c] >> 1) & 1;
                 using BaseName = void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t);
                 using Copy = void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t);
-                const auto base_name = title_function<BaseName>(0x00044500);  // Path_BaseName
-                const auto fixed_copy = title_function<Copy>(0x00044370);     // FixedStr_Copy
+                const auto base_name = own_function<BaseName>(&Path_BaseName);  // Path_BaseName
+                const auto fixed_copy = own_function<Copy>(&FixedStr_Copy);     // FixedStr_Copy
                 // The sound name (its stack address goes to 0x0096d8f8) and, the same again,
                 // the name hashed into 0x0096d924.
                 char stem[0x40];
@@ -5232,15 +5236,15 @@ void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity) {
 }
 
 uint32_t XB_CDECL FX_ResetParticleSystem() {
-    title_function<void XB_CDECL()>(0x0009bd80)();
-    return title_function<uint32_t XB_CDECL()>(0x000950b0)();
+    own_function<void XB_CDECL()>(&FxPools_ResetGlobalStats)();
+    return own_function<uint32_t XB_CDECL()>(&FxSystemPool_Refresh)();
 }
 
 namespace {
 
 // The small-block heap (0x0095f5cc) the components come from: SmallHeap_Free (0x00044910).
 void component_free(void* block) {
-    title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5cc), block);
+    own_function<void XB_THISCALL(uint32_t, void*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f5cc), block);
 }
 
 // A component's base destructor: the base vtable (0x00837624), entity handle +4 cleared.
@@ -5351,7 +5355,7 @@ void XB_THISCALL FxView_Reset(float* view) {
 int32_t XB_THISCALL FxSystem_FindEmitterByName(const uint8_t* system, const char* name) {
     const uint8_t* definition = *reinterpret_cast<uint8_t* const*>(system + 0x48);
     uint32_t hash[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hash, name);  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hash, name);  // HashStr_Init
     return FxSystemDef_FindEmitterByHash(definition, hash);
 }
 
@@ -5462,9 +5466,9 @@ void XB_CDECL FxMem_Free(int32_t context, uint32_t block) {
     if (FxPools_ReleaseGlobal(static_cast<int32_t>(block))) return;
     if (context != -1) {
         using Free = uint8_t XB_THISCALL(uint32_t, uint32_t);
-        if (title_function<Free>(0x0028bfc0)(context_heap(context), block)) return;  // MemContext_Free_r
+        if (own_function<Free>(&MemContext_Free_r)(context_heap(context), block)) return;  // MemContext_Free_r
     }
-    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00042e30)(title_global<uint32_t>(0x0095f6d8), block);  // Heap_FreeIn2
+    own_function<void XB_THISCALL(uint32_t, uint32_t)>(&Heap_FreeIn2)(title_global<uint32_t>(0x0095f6d8), block);  // Heap_FreeIn2
 }
 
 PLATFORM_ASM_ENTRY(FxMem_Alloc_entry,
@@ -5478,10 +5482,10 @@ uint32_t XB_CDECL FxMem_Alloc(int32_t context, uint32_t size, uint32_t alignment
     uint32_t block = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(apsAlloc(static_cast<int32_t>(size), alignment)));
     if (block) return block;
     if (context != -1) {
-        block = title_function<Alloc>(0x0028c0f0)(context_heap(context), alignment, size);  // MemContext_Alloc_r
+        block = own_function<Alloc>(&MemContext_Alloc_r)(context_heap(context), alignment, size);  // MemContext_Alloc_r
         if (block) return block;
     }
-    return title_function<Alloc>(0x00042de0)(title_global<uint32_t>(0x0095f6d8), size, alignment);  // Heap_AllocFromHeap
+    return own_function<Alloc>(&Heap_AllocFromHeap)(title_global<uint32_t>(0x0095f6d8), size, alignment);  // Heap_AllocFromHeap
 }
 
 void XB_STDCALL FX_GetEntityTagOrigin(float* out, uint32_t handle) {
@@ -5508,7 +5512,7 @@ void XB_STDCALL FX_GetEntityTagOrigin(float* out, uint32_t handle) {
         const uint32_t model = *reinterpret_cast<const uint32_t*>(entity + 0x22c);
         if (model) {
             using WorldTag = uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint8_t*, float*);
-            found = title_function<WorldTag>(0x00284d00)(tag, 0, model, entity, matrix);  // CG_DObjGetWorldTagMatrix
+            found = own_function<WorldTag>(&CG_DObjGetWorldTagMatrix)(tag, 0, model, entity, matrix);  // CG_DObjGetWorldTagMatrix
         }
     }
     if (found) {
@@ -5538,7 +5542,7 @@ uint8_t XB_CDECL FX_EffectComponentsFinished(const uint8_t* effect) {
 void XB_THISCALL FxShakeRumbleComponent_Stop(uint8_t* component) {
     uint32_t& rumble = *reinterpret_cast<uint32_t*>(component + 0x60);
     if (rumble) {
-        title_function<void XB_REGS1 XB_STDCALL(uint32_t, uint32_t)>(0x00298ca0)(  // Rumble_Stop
+        own_function<void XB_REGS1 XB_STDCALL(uint32_t, uint32_t)>(&Rumble_Stop)(  // Rumble_Stop
             title_global<uint32_t>(0x0095f5c4), rumble);
         rumble = 0;
     }
@@ -5568,9 +5572,9 @@ void XB_THISCALL FxSoundComponent_Resume(uint8_t* component) {
     const int32_t voice = *reinterpret_cast<const int32_t*>(SoundHandle_Resolve(handle));
     if (voice == -1 || SndVoice_GetState(voice) != 3) return;
     const int32_t again = *reinterpret_cast<const int32_t*>(SoundHandle_Resolve(handle));
-    if (again != -1) title_function<void XB_CDECL(int32_t)>(0x000c3ff0)(again);  // SndVoice_Play
+    if (again != -1) own_function<void XB_CDECL(int32_t)>(&SndVoice_Play)(again);  // SndVoice_Play
     const uint32_t subtitle = *reinterpret_cast<const uint32_t*>(component + 0x60);
-    if (subtitle) title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t)>(0x0032f650)(subtitle, 0);  // Subtitle_Start
+    if (subtitle) own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t)>(&Subtitle_Start)(subtitle, 0);  // Subtitle_Start
 }
 
 PLATFORM_ASM_ENTRY(FxSoundComponent_Dtor_entry,

@@ -8,6 +8,7 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -152,7 +153,7 @@ uint32_t XB_CDECL BroScr_BuildDroneSplinesForEntArrays(uint32_t* args) {
             uint32_t block[5];
             ScriptString_Copy(reinterpret_cast<ScriptString*>(&block[4]), name);
             block[1] = block[2] = block[3] = 0;
-            title_function<void XB_THISCALL(uint32_t*, const DynArray*)>(0x0045c270)(&block[1], &drones);  // DynArray_Assign4
+            own_function<void XB_THISCALL(uint32_t*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&block[1], &drones);  // DynArray_Assign4
             block[0] = *level_ent;
             BroScr_BuildDroneSplines(block);
         }

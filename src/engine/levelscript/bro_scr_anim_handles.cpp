@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "title_data.h"
+#include "bro_scr_cover_turret.h"
 
 namespace game {
 
@@ -71,7 +72,7 @@ uint32_t call_table(Table* table, bool hash_in_eax, uint32_t anim, uint32_t out,
 
 uint32_t XB_CDECL BroScr_AnimHandle_GetSet(uint32_t set, uint32_t anim, uint32_t* out, uint32_t value) {
     using GetSet = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t*, uint32_t);
-    if (title_function<GetSet>(0x0018b090)(set, anim, out, value)) return 1;  // BroScr_BAnimHandle_GetSet
+    if (own_function<GetSet>(&BroScr_BAnimHandle_GetSet)(set, anim, out, value)) return 1;  // BroScr_BAnimHandle_GetSet
     bool hash_in_eax = false;
     Table* const table = table_for(set, &hash_in_eax);
     if (!table) return 0;
@@ -79,7 +80,7 @@ uint32_t XB_CDECL BroScr_AnimHandle_GetSet(uint32_t set, uint32_t anim, uint32_t
 }
 
 uint32_t XB_CDECL BroScr_AnimHandle_Lookup(uint32_t set, uint32_t anim) {
-    if (const uint32_t handle = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x0018b0f0)(set, anim))
+    if (const uint32_t handle = own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&BroScr_BAnimHandle_Lookup)(set, anim))
         return handle;  // BroScr_BAnimHandle_Lookup
     bool hash_in_eax = false;
     Table* const table = table_for(set, &hash_in_eax);
@@ -90,8 +91,8 @@ uint32_t XB_CDECL BroScr_AnimHandle_Lookup(uint32_t set, uint32_t anim) {
 
 uint32_t XB_CDECL BroScr_ReturnTrue_2() {
     using ReturnTrue = uint32_t XB_CDECL();
-    title_function<ReturnTrue>(0x0018b0e0)();
-    const uint32_t second = title_function<ReturnTrue>(0x0018b0e0)();  // BroScr_ReturnTrue
+    own_function<ReturnTrue>(&BroScr_ReturnTrue)();
+    const uint32_t second = own_function<ReturnTrue>(&BroScr_ReturnTrue)();  // BroScr_ReturnTrue
     return (second & 0xffffff00u) | ((second & 0xff) != 0 ? 1u : 0u);
 }
 

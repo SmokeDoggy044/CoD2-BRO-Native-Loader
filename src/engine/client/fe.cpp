@@ -9,6 +9,7 @@
 #include "script_string.h"
 #include "snd.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -88,7 +89,7 @@ void free_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, uin
     const int32_t file = field<int32_t>(menu, file_offset);
     if (clear_texture) field<uint32_t>(menu, texture_offset) = 0;
     if (file != -1) {
-        title_function<void XB_CDECL(int32_t)>(0x000cac90)(file);  // File_Close
+        own_function<void XB_CDECL(int32_t)>(&File_Close)(file);  // File_Close
         if (void* const buffer = field<void*>(menu, buffer_offset)) Mem_AlignedFree(buffer);
     }
     field<uint32_t>(menu, buffer_offset) = 0;
@@ -477,7 +478,7 @@ uint8_t* XB_CDECL UIMenu_Init(uint8_t* menu, int32_t count, uint8_t* owner, uint
     field<uint32_t>(menu, 0) = 0x0082a628;  // vtable
     field<uint32_t>(menu, 0x2c) = 0;
     field<uint32_t>(menu, 4) =
-        title_function<uint32_t XB_CDECL(uint32_t)>(0x00042c30)(uint32_t(count) * 4);  // Heap_Alloc16
+        own_function<uint32_t XB_CDECL(uint32_t)>(&Heap_Alloc16)(uint32_t(count) * 4);  // Heap_Alloc16
     for (int32_t i = 0; i < count; ++i) field<uint32_t*>(menu, 4)[i] = 0;
     field<uint32_t>(menu, 0xc) = a2;
     field<uint32_t>(menu, 0x10) = a3;
@@ -522,7 +523,7 @@ uint8_t* XB_CDECL UIText_Init(uint8_t* text, int32_t kind, const char* string, u
     field<uint32_t>(text, 0x50) = 0;
     ScriptString_FromRep(reinterpret_cast<ScriptString*>(text + 0x54), nullptr);
     field<int32_t>(text, 0x18) = kind;
-    title_function<Assign>(0x0011dd20)(text + 0x1c, string);  // ScriptString_AssignCString
+    own_function<Assign>(&ScriptString_AssignCString)(text + 0x1c, string);  // ScriptString_AssignCString
     field<uint32_t>(text, 0x2c) = x;
     field<uint32_t>(text, 0x30) = y;
     field<uint32_t>(text, 0x34) = 0;
@@ -545,7 +546,7 @@ uint8_t* XB_CDECL UIText_Init(uint8_t* text, int32_t kind, const char* string, u
     field<int32_t>(text, 0x58) = -1;
     field<uint32_t>(text, 0x4c) = 0;
     field<uint32_t>(text, 0x50) = a10;
-    title_function<Assign>(0x0011dd20)(text + 0x54, text_at(0x0082dfeb));  // ""
+    own_function<Assign>(&ScriptString_AssignCString)(text + 0x54, text_at(0x0082dfeb));  // ""
     const uint8_t flags = uint8_t(a9 | a8 | 4);
     field<uint32_t>(text, 0x14) = 0;
     text[0x5c] = text[0x53] ? uint8_t(flags | 1) : flags;
@@ -604,7 +605,7 @@ uint8_t* XB_CDECL Panel_FindText(const char* name, uint8_t* panel) {
             *method<const uint32_t* XB_THISCALL(uint8_t*, uint32_t*)>(item, 0x9c)(item, &name_string);
         const char* text = rep ? text_at(rep + 6) : nullptr;
         const bool differs = !same_text(text, name);
-        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&name_string);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&name_string);  // ScriptString_Release
         if (!differs) return field<uint8_t**>(panel, 0xc)[i];
     }
     return nullptr;
@@ -676,7 +677,7 @@ void XB_CDECL UIMenu_FreeItems(uint8_t* menu) {
         if (item) method<FlagMethod>(item, 0)(item, 1);  // deleting destructor
         field<uint8_t**>(menu, 4)[i] = nullptr;
     }
-    title_function<void XB_CDECL(void*)>(0x000428d0)(field<void*>(menu, 4));  // Z_Free
+    own_function<void XB_CDECL(void*)>(&Z_Free)(field<void*>(menu, 4));  // Z_Free
     const uint32_t handle = field<uint32_t>(menu, 0x2c);
     const uint32_t slot = handle & 0xfff;
     const auto live = [&] { return slot < 0x200 && (handle >> 12) == title_global<uint32_t>(0x00962864 + slot * 8); };
@@ -743,7 +744,7 @@ void XB_CDECL UI_PlayTypeSound() {
     using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t,
                                                      uint32_t, const float*, const float*, uint32_t, uint32_t,
                                                      uint32_t, uint32_t);
-    title_function<PlayAlias>(0x002c30a0)(uint32_t(alias), address_of(&handle), table, &handle, 0, 0, 0, axis, origin,
+    own_function<PlayAlias>(&S_PlaySoundAlias)(uint32_t(alias), address_of(&handle), table, &handle, 0, 0, 0, axis, origin,
                                           0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000);  // S_PlaySoundAlias
 }
 
@@ -1145,7 +1146,7 @@ PLATFORM_ASM_ENTRY(ui_ptrvector_push,
                    "ret")
 
 void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
-void z_free(void* pointer) { title_function<void XB_CDECL(void*)>(0x000428d0)(pointer); }
+void z_free(void* pointer) { own_function<void XB_CDECL(void*)>(&Z_Free)(pointer); }
 
 uint32_t quad_count(uint8_t* picture) { return field<uint32_t>(picture, 0x28); }
 uint8_t* picture_quad(uint8_t* picture, uint32_t i) { return field<uint8_t**>(picture, 0x20)[i]; }
@@ -1240,7 +1241,7 @@ void XB_CDECL UIPicture_Dtor(uint8_t* picture) {
     for (int32_t i = 0; i < field<int32_t>(picture, 0x28); ++i) z_free(picture_quad(picture, uint32_t(i)));
     ui_ptrvector_resize(picture + 0x20, 0);
     z_free(field<void*>(picture, 0x2c));
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(picture + 0x3c);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(picture + 0x3c);  // ScriptString_Release
     if (field<uint8_t*>(picture, 0x20)) {
         Mem_AlignedFree(field<uint8_t*>(picture, 0x20));
         field<uint8_t*>(picture, 0x20) = nullptr;
@@ -1253,7 +1254,7 @@ void XB_THISCALL UIPicture_CopyFrom(uint8_t* picture, uint8_t* source) {
     field<uint32_t>(picture, 8) = field<uint32_t>(source, 8);
     field<uint32_t>(picture, 0xc) = field<uint32_t>(source, 0xc);
     picture[0x10] = source[0x10];
-    title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(picture + 0x3c, source + 0x3c);  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint8_t*, uint8_t*)>(&ScriptString_Assign_entry)(picture + 0x3c, source + 0x3c);  // ScriptString_Assign
     field<uint32_t>(picture, 0x30) = field<uint32_t>(source, 0x30);
     field<uint32_t>(picture, 0x34) = field<uint32_t>(source, 0x34);
     field<uint32_t>(picture, 0x38) = field<uint32_t>(source, 0x38);
@@ -1292,7 +1293,7 @@ uint8_t* XB_CDECL UIPicture_Init(uint8_t* picture, const char* name) {
     field<uint32_t>(picture, 0x28) = 0;
     ScriptString* const string = reinterpret_cast<ScriptString*>(picture + 0x3c);
     ScriptString_FromRep(string, nullptr);
-    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(string, name);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(ScriptString*, const char*)>(&ScriptString_AssignCString)(string, name);  // ScriptString_AssignCString
     field<float>(picture, 0x14) = 0.0f;
     field<float>(picture, 0x18) = 0.0f;
     field<uint32_t>(picture, 0x2c) = 0;
@@ -1359,9 +1360,9 @@ void* XB_CDECL UI_FindLocalizedTexture(const char* name) {
                                                                           name);  // _sprintf "%s%s"
     using HashInit = uint8_t* XB_THISCALL(uint8_t*, const char*);
     alignas(4) uint8_t hash[0x20];
-    title_function<HashInit>(0x00011060)(hash, text);  // HashStr_Init
+    own_function<HashInit>(&HashStr_Init)(hash, text);  // HashStr_Init
     if (void* const texture = nglFindTexture(reinterpret_cast<const char*>(hash))) return texture;
-    title_function<HashInit>(0x00011060)(hash, name);
+    own_function<HashInit>(&HashStr_Init)(hash, name);
     return nglFindTexture(reinterpret_cast<const char*>(hash));
 }
 
@@ -1499,8 +1500,8 @@ void XB_THISCALL UIPicture_AddQuad(uint8_t* picture, const float* points, const 
     float uvs[12] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, one, 0.0f, one, one, 0.0f};
     uint8_t* quad = new_quad();
     // 0x003173e0 (quad in EAX, points in ECX; UVs, colours, depth on the stack): fills the quad.
-    title_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const float*, const float*, const uint32_t*,
-                                            uint32_t)>(0x003173e0)(quad, 0, points, uvs, colors,
+    own_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const float*, const float*, const uint32_t*,
+                                            uint32_t)>(&UIQuad_Fill)(quad, 0, points, uvs, colors,
                                                                    field<uint32_t>(picture, 8));
     ui_ptrvector_push(picture + 0x20, &quad);
     if (texture && *texture) {
@@ -1549,7 +1550,7 @@ uint32_t read_u32(const uint8_t* data, uint32_t* offset) {
     return uint32_t(data[o]) | uint32_t(data[o + 1]) << 8 | uint32_t(data[o + 2]) << 16 | uint32_t(data[o + 3]) << 24;
 }
 
-void* heap_alloc16(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c30)(size); }
+void* heap_alloc16(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Heap_Alloc16)(size); }
 
 }  // namespace
 
@@ -1644,8 +1645,8 @@ void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, 
         uint8_t* quad = new_quad();
         uint32_t depth_bits;
         std::memcpy(&depth_bits, &depth, 4);
-        title_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const uint32_t*, const uint32_t*, const uint32_t*,
-                                                uint32_t)>(0x003173e0)(quad, 0, screen, quad_uvs, quad_colors,
+        own_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const uint32_t*, const uint32_t*, const uint32_t*,
+                                                uint32_t)>(&UIQuad_Fill)(quad, 0, screen, quad_uvs, quad_colors,
                                                                        depth_bits);
         for (int32_t k = 0; k < 12; ++k) field<uint32_t>(quad, uint32_t(k) * 4) = base[k];
         ui_ptrvector_push(picture + 0x20, &quad);
@@ -1673,7 +1674,7 @@ void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, 
 namespace {
 
 void script_string_release(uint8_t* string) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(string);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(string);  // ScriptString_Release
 }
 
 // The font of a text kind (ui_fonts 0x0095f8d4; none for kinds 7 and 8).
@@ -1794,7 +1795,7 @@ void XB_CDECL UIText_Dtor(uint8_t* text) {
     field<uint32_t>(text, 0) = 0x0082a450;  // UIText vtable
     if (field<uint8_t*>(text, 0x80)) {
         // vector deleting destructor of the lines (count at -4; 3 = destroy each, free the block)
-        title_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(0x00012480)(field<uint8_t*>(text, 0x80), 3);
+        own_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(&UITextLine_VectorDeletingDtor)(field<uint8_t*>(text, 0x80), 3);
         field<uint32_t>(text, 0x80) = 0;
     }
     text_base_dtor(text);
@@ -1888,7 +1889,7 @@ uint8_t* XB_THISCALL UITextLine_Construct(uint8_t* line) {
     field<uint32_t>(line, 8) = word;
     field<uint32_t>(line, 0xc) = word;
     ScriptString_FromRep(reinterpret_cast<ScriptString*>(line + 0x14), nullptr);
-    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(line + 0x14, text_at(0x0082dfeb));  // ""
+    own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(line + 0x14, text_at(0x0082dfeb));  // ""
     field<uint32_t>(line, 4) = 0;
     field<uint32_t>(line, 8) = 0;
     field<uint32_t>(line, 0xc) = 0;
@@ -1941,10 +1942,10 @@ void XB_THISCALL UITextBase_CopyFrom(uint8_t* text, uint8_t* source) {
         field<uint32_t>(text, 0x14) = 0;
     }
     field<uint32_t>(text, 0x18) = field<uint32_t>(source, 0x18);
-    title_function<Assign>(0x0011d600)(text + 0x1c, source + 0x1c);  // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(text + 0x1c, source + 0x1c);  // ScriptString_Assign
     for (uint32_t offset = 0x20; offset < 0x50; offset += 4) field<uint32_t>(text, offset) = field<uint32_t>(source, offset);
     field<uint32_t>(text, 0x50) = field<uint32_t>(source, 0x50);
-    title_function<Assign>(0x0011d600)(text + 0x54, source + 0x54);
+    own_function<Assign>(&ScriptString_Assign_entry)(text + 0x54, source + 0x54);
     text[0x5c] = source[0x5c];
     field<uint32_t>(text, 0x58) = field<uint32_t>(source, 0x58);
 }
@@ -2014,7 +2015,7 @@ uint32_t play_highlight_sound() {
     using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t,
                                                      uint32_t, const float*, const float*, uint32_t, uint32_t,
                                                      uint32_t, uint32_t);
-    const uint32_t result = address_of(title_function<PlayAlias>(0x002c30a0)(
+    const uint32_t result = address_of(own_function<PlayAlias>(&S_PlaySoundAlias)(
         uint32_t(alias), address_of(&handle), table, &handle, 0, 1, 0, axis, origin, 0xbf800000, 0xbf800000,
         0xbf800000, 0xbf800000));  // S_PlaySoundAlias
     return result | 0xffff;
@@ -2184,13 +2185,13 @@ namespace {
 using Str = ScriptString;
 
 Str* str_substring(Str* self, Str* out, int32_t start, int32_t length) {
-    return title_function<Str* XB_THISCALL(Str*, Str*, int32_t, int32_t)>(0x0011e290)(self, out, start, length);
+    return own_function<Str* XB_THISCALL(Str*, Str*, int32_t, int32_t)>(&ScriptString_Substring)(self, out, start, length);
 }
 void str_assign(Str* self, const Str* other) {
-    title_function<void XB_THISCALL(Str*, const Str*)>(0x0011d600)(self, other);
+    own_function<void XB_THISCALL(Str*, const Str*)>(&ScriptString_Assign_entry)(self, other);
 }
 void str_assign_text(Str* self, const char* text) {
-    title_function<void XB_THISCALL(Str*, const char*)>(0x0011dd20)(self, text);
+    own_function<void XB_THISCALL(Str*, const char*)>(&ScriptString_AssignCString)(self, text);
 }
 void str_release(Str* self) { script_string_release(reinterpret_cast<uint8_t*>(self)); }
 const char* str_text(const Str* self) { return self->rep ? self->rep->text : nullptr; }
@@ -2215,7 +2216,7 @@ int32_t translate_button_token(const char* text, const char** out) {
 // 0x0030f950 (kind in EAX, text in EDX): the width of the text in the kind's font at (scale, scale), x87; the
 // constant 0x0083eafc for no text or kind 8.
 long double text_width(int32_t kind, const char* text, float scale) {
-    return title_function<long double XB_REGS2 XB_CDECL(int32_t, const char*, float)>(0x0030f950)(kind, text, scale);
+    return own_function<long double XB_REGS2 XB_CDECL(int32_t, const char*, float)>(&UI_GetTextWidth)(kind, text, scale);
 }
 
 // 0x00315cd0 (block in EAX, out in ESI; colour on the stack): the colour faded towards the block's (16 bytes at
@@ -2264,8 +2265,8 @@ uint32_t XB_STDCALL UITextLine_LayoutTokens(uint8_t* line, float scale, float bu
         Str rest, prefix, joined, all;
         str_substring(text, &rest, consumed + start, int32_t(str_length(text)) - consumed - start);
         str_substring(text, &prefix, 0, start);
-        title_function<Str* XB_CDECL(Str*, const Str*, const char*)>(0x0011eec0)(&joined, &prefix, glyph);  // ConcatCString
-        title_function<Str* XB_CDECL(Str*, const Str*, const Str*)>(0x0011e340)(&all, &joined, &rest);  // Concat
+        own_function<Str* XB_CDECL(Str*, const Str*, const char*)>(&ScriptString_ConcatCString)(&joined, &prefix, glyph);  // ConcatCString
+        own_function<Str* XB_CDECL(Str*, const Str*, const Str*)>(&ScriptString_Concat)(&all, &joined, &rest);  // Concat
         str_assign(text, &all);
         str_release(&all);
         str_release(&joined);
@@ -2353,7 +2354,7 @@ float XB_CDECL UIText_MeasureWord(const char* word, int32_t kind, float scale, f
     if (!word[0]) return 0.0f;
     float width = 0.0f;
     Str text;
-    title_function<void XB_THISCALL(Str*, const char*)>(0x0011eb50)(&text, word);  // ScriptString_FromCString
+    own_function<void XB_THISCALL(Str*, const char*)>(&ScriptString_FromCString)(&text, word);  // ScriptString_FromCString
     int32_t pos = 0;
     const char* glyph = nullptr;
     for (;;) {
@@ -2505,10 +2506,10 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
     float line_width = 0.0f;
     float measured = 0.0f;
     Str line;
-    title_function<StrFn>(0x0011eb50)(&line, text_at(0x0082dfeb));  // ScriptString_FromCString("")
+    own_function<StrFn>(&ScriptString_FromCString)(&line, text_at(0x0082dfeb));  // ScriptString_FromCString("")
     auto trim = [&]() {
-        title_function<StrFn>(0x0011ed20)(&line, text_at(0x0082e09c));  // TrimLeftChars(" \n\t\r")
-        title_function<StrFn>(0x0011edf0)(&line, text_at(0x0082e09c));  // TrimRightChars
+        own_function<StrFn>(&ScriptString_TrimLeftChars)(&line, text_at(0x0082e09c));  // TrimLeftChars(" \n\t\r")
+        own_function<StrFn>(&ScriptString_TrimRightChars)(&line, text_at(0x0082e09c));  // TrimRightChars
     };
     auto store_line = [&]() {
         UITextLine_Init(field<uint8_t*>(text, 0x80) + count * 0x20, str_text(&line), field<int32_t>(text, 0x18),
@@ -2564,7 +2565,7 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
                 str_assign_text(&line, word);
                 ++count;
             } else {
-                title_function<StrFn>(0x0011ebc0)(&line, word);  // ScriptString_AppendCString
+                own_function<StrFn>(&ScriptString_AppendCString)(&line, word);  // ScriptString_AppendCString
                 line_width = measured;
             }
             if (!string[pos]) {
@@ -2587,7 +2588,7 @@ void XB_THISCALL UIText_SetWrappedText(uint8_t* text, uint32_t string, int32_t w
     Str* const source = reinterpret_cast<Str*>(&string);
     field<uint32_t>(text, 0x78) = UIText_WrapLines(text, str_text(source), width, 0);
     if (field<uint8_t*>(text, 0x80))
-        title_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(0x00012480)(field<uint8_t*>(text, 0x80), 3);
+        own_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(&UITextLine_VectorDeletingDtor)(field<uint8_t*>(text, 0x80), 3);
     const int32_t n = field<int32_t>(text, 0x78);
     uint8_t* lines = nullptr;
     if (uint8_t* const block = static_cast<uint8_t*>(heap_alloc16(uint32_t(n) * 0x20 + 4))) {
@@ -3465,7 +3466,7 @@ void XB_CDECL FE_ApplyControlSettings(uint8_t* menu) {
     const float one = title_global<float>(0x0083eb20);
     if (level >= one) level = one;
     const float rest = one - level;
-    title_function<void XB_CDECL(float)>(0x000c6490)(one - rest * rest);  // S_SetMasterVolume
+    own_function<void XB_CDECL(float)>(&S_SetMasterVolume)(one - rest * rest);  // S_SetMasterVolume
     const uint8_t inverted = menu[0xbe];
     title_global<uint8_t>(0x008dce71) = inverted;
     if (uint8_t* const pitch = title_global<uint8_t*>(0x00929c0c)) {  // m_pitch

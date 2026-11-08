@@ -6,6 +6,8 @@
 #include "g_script.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_ai_anim.h"
+#include "bro_scr_ai_look.h"
 
 namespace game {
 
@@ -101,7 +103,7 @@ void delete_attached(uint32_t ent, uint32_t gun) {
     if (!handle_field_defined(ScrField_h4225d5c5_IsDefined, ent)) return;
     slot<void XB_CDECL(uint32_t)>(0x00922540)(*BroScr_FieldHandleSlot(ent, 0x4225d5c5));  // GScr_Delete
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d94)(ent, 1);                           // ScrActor_SetInt_1378
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x001ad3f0)(ent, gun);               // BroScr_PutGunInHand
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(ent, gun);               // BroScr_PutGunInHand
 }
 
 // The cleared turret fields: 0, or the word at 0x00922e84 (re-read for each).
@@ -509,7 +511,7 @@ void XB_CDECL BroScr_AnimNotetrack_Alert(uint32_t ent, uint32_t target, int32_t 
     if (static_cast<uint32_t>(ms) == title_global<uint32_t>(0x00922ec0)) ms = 0x2710;
     const float time = static_cast<float>(ms);
     using LookAt = void XB_CDECL(uint32_t, uint32_t, float, uint32_t, uint32_t, uint32_t);
-    title_function<LookAt>(0x001a0940)(ent, target, time, 0x06279a34, 0, 0);  // BroScr_LookAtEntity
+    own_function<LookAt>(&BroScr_LookAtEntity)(ent, target, time, 0x06279a34, 0, 0);  // BroScr_LookAtEntity
 }
 
 void XB_CDECL BroScr_AnimNotetrack_DeleteAttached(uint32_t ent) { delete_attached(ent, 0x003798b4); }

@@ -15,6 +15,16 @@
 #include "shaders.h"
 #include "sv.h"
 #include "title_data.h"
+#include "g_pathnode.h"
+#include "g_scr_runtime.h"
+#include "g_utils.h"
+#include "g_vehicle.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
+#include "scr_field.h"
+#include "snd.h"
+#include "tr_main.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -94,13 +104,13 @@ void XB_THISCALL Stream_ReadString(uint32_t* stream, char* out, int32_t* length,
 void XB_THISCALL MemStream_Destroy(MemStream* stream) {
     stream->vtable = 0x007bad98;
     if (stream->flag && stream->data)
-        title_function<void XB_CDECL(const uint8_t*)>(0x000428d0)(stream->data);  // Z_Free
+        own_function<void XB_CDECL(const uint8_t*)>(&Z_Free)(stream->data);  // Z_Free
     stream->vtable = 0x007bad80;
 }
 
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags) {
     MemStream_Destroy(stream);
-    if (flags & 1) title_function<void XB_CDECL(MemStream*)>(0x000428d0)(stream);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(MemStream*)>(&Z_Free)(stream);  // Z_Free
     return stream;
 }
 
@@ -151,7 +161,7 @@ namespace {
 // The zone's name maps: a UintMap at +offset (hash -> index), the count at +8 and the
 // entries (8 bytes each, the value at +4) at +0xc after it.
 uint32_t zone_map_lookup(uint32_t offset, uint32_t hash, const char* name, const uint8_t* zone) {
-    if (!hash && name) hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(name);  // HashStr_Hash
+    if (!hash && name) hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&HashStr_Hash)(name);  // HashStr_Hash
     const uint32_t* index =
         UintMap_Find(reinterpret_cast<const uint32_t*>(zone + offset), &hash);
     if (!index || *index == 0xffffffff) return 0;
@@ -209,9 +219,9 @@ uint32_t XB_CDECL MemContext_Push(uint8_t* context, uint32_t id) {
     }
     if (!listed && context_word(context, 0x18)) {
         const uint32_t found =
-            title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(context, id);  // MemContext_FindById
+            own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_FindById)(context, id);  // MemContext_FindById
         if (!found) return 0;
-        return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028bc50)(context, found);  // Pak_PushZoneIds_r
+        return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&Pak_PushZoneIds_r)(context, found);  // Pak_PushZoneIds_r
     }
     const uint32_t old = count;
     if (static_cast<int32_t>(count) < 0x80) ids[count++] = id;
@@ -274,7 +284,7 @@ uint32_t XB_CDECL Stream_ListSearchZones(uint32_t zone, uint32_t* out) {
         return old;
     }
     uint32_t seen[4] = {};
-    title_function<void XB_THISCALL(uint8_t*, uint32_t, uint32_t*, uint32_t*)>(0x0028f850)(  // Stream_CollectSearchZones_r
+    own_function<void XB_THISCALL(uint8_t*, uint32_t, uint32_t*, uint32_t*)>(&Stream_CollectSearchZones_r)(  // Stream_CollectSearchZones_r
         context, zone, out, seen);
     context = global_context();
     for (uint32_t offset = 0x28; offset <= 0x2c; offset += 4) {
@@ -490,7 +500,7 @@ uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* 
     title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(short_name, name, 0x1f);  // _strncpy
     short_name[0x1f] = 0;
     using FindFont = int32_t XB_REGS1 XB_STDCALL(const char*, uint32_t);
-    const int32_t index = title_function<FindFont>(0x0030f2b0)(short_name, 1);  // R_FindFont
+    const int32_t index = own_function<FindFont>(&R_FindFont)(short_name, 1);  // R_FindFont
     if (index != 8) {
         title_global<uint32_t>(0x0095f8d4 + index * 4) = address_of(font);
         title_global<uint8_t>(0x0095f90c + index) = 1;
@@ -517,7 +527,7 @@ uint32_t XB_CDECL Stream_LoadFdf(char* name, uint8_t* data, uint32_t, uint32_t z
 }
 
 uint32_t XB_CDECL Stream_LoadStb(char*, uint8_t* data, uint32_t, uint32_t zone) {
-    return title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(0x002963f0)(  // StringTable_Load
+    return own_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(&StringTable_Load)(  // StringTable_Load
         title_global<uint32_t>(0x0095f5d8), data, zone);
 }
 
@@ -561,7 +571,7 @@ uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name, uint32_t 
     const uint32_t zone = *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + id * 4});
     uint32_t hash = *reinterpret_cast<const uint32_t*>(uintptr_t{name});
     if (!hash)
-        hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(  // HashStr_Hash
+        hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&HashStr_Hash)(  // HashStr_Hash
             reinterpret_cast<const char*>(uintptr_t{name + 4}));
     const uint32_t* index = UintMap_Find(reinterpret_cast<const uint32_t*>(uintptr_t{zone + map_offset}), &hash);
     volatile uint32_t* slot = nullptr;
@@ -723,7 +733,7 @@ uint32_t XB_CDECL Stream_LoadXbskel(char*, uint8_t* data, uint32_t, uint32_t con
         loading = 1;
         MemContext_Push(global_context(), context_id);
     }
-    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*)>(0x0008e130)(data);
+    const uint32_t result = own_function<uint32_t XB_CDECL(uint8_t*)>(&NAL_Skeleton_Register)(data);
     if (context_id == 0xffffffff) return result;
     loading = saved;
     title_global<uint8_t>(0x0095f5d1) = 0;
@@ -742,7 +752,7 @@ uint32_t XB_CDECL Stream_LoadXbanim(char* name, uint8_t* data, uint32_t, uint32_
     ++title_global<uint32_t>(0x008d508c);
     uint32_t hashed[8];
     Stream_HashFileName(name, hashed);
-    uint32_t result = title_function<uint32_t XB_CDECL(const uint32_t*, uint8_t*)>(0x0008dbb0)(hashed, data);
+    uint32_t result = own_function<uint32_t XB_CDECL(const uint32_t*, uint8_t*)>(&NAL_AnimFile_Register)(hashed, data);
     if (context_id != 0xffffffff) {
         title_global<uint8_t>(0x0095f5d1) = 0;
         loading = saved;
@@ -752,7 +762,7 @@ uint32_t XB_CDECL Stream_LoadXbanim(char* name, uint8_t* data, uint32_t, uint32_
 }
 
 uint32_t XB_CDECL Stream_LoadZbb(char*, uint8_t* data, uint32_t, uint32_t zone) {
-    return title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(0x00291610)(  // Stream_ParseZbb
+    return own_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(&Stream_ParseZbb)(  // Stream_ParseZbb
         title_global<uint32_t>(0x0095f640), data, zone);
 }
 
@@ -815,7 +825,7 @@ uint32_t XB_CDECL Stream_LoadTexture(char* name, uint8_t* data, uint32_t size, u
     uint32_t& once = title_global<uint32_t>(0x0098bcb8);
     if (!(once & 1)) {
         once |= 1;
-        title_function<void XB_THISCALL(uint32_t, const char*)>(0x00011060)(0x0098bc98, "fogramp");  // HashStr_Init
+        own_function<void XB_THISCALL(uint32_t, const char*)>(&HashStr_Init)(0x0098bc98, "fogramp");  // HashStr_Init
     }
     uint32_t result = address_of(nglLoadTexture(reinterpret_cast<const uint8_t*>(hashed), kind, data, size));
     if (context_id != 0xffffffff) {
@@ -837,12 +847,12 @@ char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag) {
     int32_t stem_length;
     *reinterpret_cast<uint16_t*>(stem + 0x1fe) = 0;
     stem[0] = 0;
-    title_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(0x00044500)(  // Path_BaseName
+    own_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(&Path_BaseName)(  // Path_BaseName
         stem, &stem_length, src, *reinterpret_cast<const uint16_t*>(src + 0x1fe), flag);
     const uint16_t length = static_cast<uint16_t>(stem_length);
     *reinterpret_cast<uint16_t*>(stem + 0x1fe) = length;
     int32_t copied;
-    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+    own_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(&FixedStr_Copy)(  // FixedStr_Copy
         dst, &copied, 0x1fe, stem, length);
     *reinterpret_cast<uint16_t*>(dst + 0x1fe) = static_cast<uint16_t>(copied);
     return dst;
@@ -856,13 +866,13 @@ PLATFORM_ASM_ENTRY(Stream_HashFileName_entry,
 uint32_t* XB_CDECL Stream_HashFileName(const char* name, uint32_t* out) {
     char text[0x200];
     int32_t length = 0;
-    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*)>(0x000442e0)(text, &length, 0x1fe,
+    own_function<void XB_CDECL(char*, int32_t*, int32_t, const char*)>(&Q_strncpyLen)(text, &length, 0x1fe,
                                                                                      name);  // Q_strncpyLen
     *reinterpret_cast<uint16_t*>(text + 0x1fe) = static_cast<uint16_t>(length);
     char base[0x200];
     FixedStr512_BaseName(text, base, 1);
     uint32_t hashed[8];
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, base);  // HashStr_Init
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, base);  // HashStr_Init
     for (int i = 0; i < 8; ++i) out[i] = hashed[i];
     return out;
 }
@@ -1478,7 +1488,7 @@ void XB_REGS3 XB_CDECL Stream_ReleaseEffects(const uint8_t* streams, uint32_t, u
         uint8_t* const effect = static_cast<uint8_t*>(as_pointer(zone_entry_value(zone, 0xd0, 0xd4, i)));
         if (effect) {
             FxEffectDef_Release(effect);
-            title_function<void XB_CDECL(void*)>(0x000428d0)(effect);  // Z_Free
+            own_function<void XB_CDECL(void*)>(&Z_Free)(effect);  // Z_Free
         }
         zone_entry_value(zone, 0xd0, 0xd4, i) = 0;
     }
@@ -1641,9 +1651,9 @@ PLATFORM_ASM_ENTRY(Stream_AddFreeBlock_entry,
 
 uint32_t XB_CDECL Stream_AddFreeBlock(uint32_t start, uint8_t* context, uint32_t size) {
     if (size <= 0x2000 || word_at<int32_t>(context, 0x8c) >= 0xb) return 0;
-    const uint32_t heap = title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(  // SmallHeap_Alloc
+    const uint32_t heap = own_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(  // SmallHeap_Alloc
         title_global<uint32_t>(0x0095f628), 0x494, 0);
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00042470)(  // Heap_Init
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(&Heap_Init)(  // Heap_Init
         heap, (start + 0x1f) & ~0x1fu, start + size, 0);
     const int32_t count = word_at<int32_t>(context, 0x8c);
     if (count < 0xc) {
@@ -1722,7 +1732,7 @@ void XB_CDECL ZoneManagers_Destruct(uint8_t* self) {
 
 uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags) {
     ZoneManagers_Destruct(self);
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000428d0)(self);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
 
@@ -1731,14 +1741,14 @@ uint8_t* XB_THISCALL ZoneGraph_DeletingDtor(uint8_t* self, uint32_t flags) {
     Cmd_RemoveCommand(&title_global<const char>(0x00838320));  // "ZoneGraph"
     word_at<uint32_t>(self, 0) = 0x00838308;
     ResourceManager_Destruct(self);
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000428d0)(self);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
 
 uint8_t* XB_THISCALL ZoneGraphBase_DeletingDtor(uint8_t* self, uint32_t flags) {
     word_at<uint32_t>(self, 0) = 0x00838308;
     ResourceManager_Destruct(self);
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000428d0)(self);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
 
@@ -1918,10 +1928,10 @@ void XB_CDECL Stream_RelocatePathData(const char* name, uint8_t* data, uint8_t* 
     for (int32_t i = 0; i < word_at<int32_t>(word_at<uint8_t*>(blocks, 0x194), 0xc); ++i)
         word_at<uint32_t>(word_at<uint8_t*>(data, 0x28), uint32_t(i) * 8) += address_of(data);
     const int32_t index =
-        title_function<int32_t XB_STDCALL(uint8_t*, const char*)>(0x002c0c50)(blocks, text);  // Path_FindZoneBlockIndex
+        own_function<int32_t XB_STDCALL(uint8_t*, const char*)>(&Path_FindZoneBlockIndex)(blocks, text);  // Path_FindZoneBlockIndex
     if (index < 0 || word_at<uint32_t>(data, 0) != 2) return;
     word_at<uint32_t>(blocks, 8 + uint32_t(index) * 4) = address_of(data);
-    title_function<void XB_STDCALL(uint8_t*, int32_t)>(0x002c09e0)(blocks, index);  // Path_RelocateNodeBlock
+    own_function<void XB_STDCALL(uint8_t*, int32_t)>(&Path_RelocateNodeBlock)(blocks, index);  // Path_RelocateNodeBlock
 }
 
 void XB_CDECL Stream_LoadZpth(char* name, uint8_t* data, uint32_t, uint32_t) {
@@ -1954,7 +1964,7 @@ void XB_CDECL CodNote_FreeForZone(uint32_t zone) {
         node = next;
         next = word_at<uint8_t*>(next, 0);
         if (word_at<uint32_t>(current, 0x24) == zone)
-            title_function<void XB_CDECL(uint8_t*)>(0x002be860)(current);  // CodNote_Free
+            own_function<void XB_CDECL(uint8_t*)>(&CodNote_Free)(current);  // CodNote_Free
     } while (next);
 }
 
@@ -1964,7 +1974,7 @@ namespace {
 
 void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
 
-void z_free(uint32_t block) { title_function<void XB_CDECL(uint32_t)>(0x000428d0)(block); }
+void z_free(uint32_t block) { own_function<void XB_CDECL(uint32_t)>(&Z_Free)(block); }
 
 // The memory context of zone `id` on the global context (+0x38 + id * 4), none outside 0..0x62.
 uint8_t* zone_context(int32_t id) {
@@ -1973,11 +1983,11 @@ uint8_t* zone_context(int32_t id) {
 }
 
 uint8_t memcontext_free(uint8_t* context, uint32_t block) {
-    return title_function<uint8_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028bfc0)(context, block);  // MemContext_Free_r
+    return own_function<uint8_t XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_Free_r)(context, block);  // MemContext_Free_r
 }
 
 uint32_t memcontext_alloc(uint8_t* context, uint32_t align, uint32_t size) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x0028c0f0)(context, align,
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, align,
                                                                                           size);  // MemContext_Alloc_r
 }
 
@@ -1989,9 +1999,9 @@ void free_zone_block(uint32_t id, uint32_t block) {
 
 // Heap 0's 0x1000-aligned block of `size` bytes; Sys_DebugBreak when out of memory.
 uint8_t* bank_alloc(uint32_t size) {
-    const uint32_t heap = title_function<uint32_t XB_CDECL(uint32_t)>(0x00042ac0)(0);  // Heap_SelectByIndex
+    const uint32_t heap = own_function<uint32_t XB_CDECL(uint32_t)>(&Heap_SelectByIndex)(0);  // Heap_SelectByIndex
     uint8_t* const block = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x1000, size);
-    title_function<void XB_CDECL(uint32_t)>(0x00042ca0)(heap);  // Heap_SetCurrent
+    own_function<void XB_CDECL(uint32_t)>(&Heap_SetCurrent)(heap);  // Heap_SetCurrent
     if (!block) {
         char text[0x80];
         title_function<int XB_CDECL(char*, const char*, uint32_t)>(0x001ee901)(text, title_text(0x0083844c), size);
@@ -2051,13 +2061,13 @@ uint32_t XB_CDECL Stream_LoadXmpb(char*, uint8_t* data, uint32_t, uint32_t zone)
     const uint32_t table = title_global<uint32_t>(0x0095f6b0);  // rm_xmpb
     relocate_pack(data, 0x18);
     const uint32_t result =
-        title_function<uint32_t XB_STDCALL(uint8_t*, uint32_t)>(0x00241d00)(data, zone);  // Stream_ResolveXmpbSkeletons
+        own_function<uint32_t XB_STDCALL(uint8_t*, uint32_t)>(&Stream_ResolveXmpbSkeletons)(data, zone);  // Stream_ResolveXmpbSkeletons
     title_global<uint32_t>(table + 4 + zone * 4) = address_of(data);
     return result;
 }
 
 uint32_t XB_CDECL Stream_LoadFli(char*, uint8_t* data, uint32_t, uint32_t) {
-    return title_function<uint32_t XB_REGS3 XB_CDECL(uint8_t*, uint32_t, uint8_t*)>(0x0028cbd0)(  // Pak_ParseFli
+    return own_function<uint32_t XB_REGS3 XB_CDECL(uint8_t*, uint32_t, uint8_t*)>(&Pak_ParseFli)(  // Pak_ParseFli
         data, 0, global_context());
 }
 
@@ -2085,7 +2095,7 @@ PLATFORM_ASM_ENTRY(ZoneRecord_GetContext_entry,
 
 uint32_t XB_CDECL ZoneRecord_GetContext(uint8_t* record) {
     if (!word_at<uint32_t>(record, 0x78))
-        word_at<uint32_t>(record, 0x78) = title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(
+        word_at<uint32_t>(record, 0x78) = own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_FindById)(
             global_context(), word_at<uint32_t>(record, 0x74));  // MemContext_FindById
     return word_at<uint32_t>(record, 0x78);
 }
@@ -2174,7 +2184,7 @@ uint32_t small_heap_create(uint32_t size, uint32_t per_page) {
     config.count = 1;
     const uint32_t heap = title_function<uint32_t XB_CDECL(uint32_t)>(0x00042c10)(0x3c);  // Z_Malloc
     if (!heap) return 0;
-    return title_function<uint32_t XB_THISCALL(uint32_t, SmallHeapConfig*, uint32_t, uint32_t)>(0x00044770)(
+    return own_function<uint32_t XB_THISCALL(uint32_t, SmallHeapConfig*, uint32_t, uint32_t)>(&SmallHeap_Init)(
         heap, &config, 1, 0);  // SmallHeap_Init
 }
 
@@ -2203,8 +2213,8 @@ uint32_t XB_STDCALL Stream_RemoveFreeBlocks(uint8_t* context) {
             heaps = n - 1;
             break;
         }
-        title_function<void XB_CDECL(uint32_t)>(0x00042560)(heap);
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f628),
+        own_function<void XB_CDECL(uint32_t)>(&Heap_DetachRegion)(heap);
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f628),
                                                                          heap);  // SmallHeap_Free
         result = count;
     }
@@ -2261,7 +2271,7 @@ void XB_STDCALL Stream_ReleaseAnims(uint8_t* streams, uint32_t id) {
             for (uint32_t data = word_at<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{file}), 0x34); data;) {
                 const uint32_t* const object = word_at<const uint32_t*>(streams, 0x2c);
                 title_function<void XB_THISCALL(const uint32_t*, uint32_t)>(vtable_slot(object, 4))(object, data);
-                title_function<void XB_CDECL(uint32_t)>(0x002c4ae0)(data);  // AnimData_Purge
+                own_function<void XB_CDECL(uint32_t)>(&AnimData_Purge)(data);  // AnimData_Purge
                 data = word_at<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{data}), 4);
             }
             NAL_AnimFile_Release(file);
@@ -2336,7 +2346,7 @@ uint32_t XB_REGS1 XB_CDECL Stream_GetLoadHandler(const char* extension) {
         {0xf61820cc, 0x002907f0},  // Xbskel
     };
     uint32_t hashed[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, extension);  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed, extension);  // HashStr_Init
     for (const auto& handler : kHandlers)
         if (handler[0] == hashed[0]) return handler[1];
     return 0;
@@ -2504,7 +2514,7 @@ void XB_THISCALL Stream_CollectSearchZones_r(uint8_t* system, uint32_t id, uint3
     append_id(out, id);
     set_bit(seen, id);
     if (!word_at<uint32_t>(system, 0x18)) return;
-    uint8_t* const context = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(system, id);
+    uint8_t* const context = own_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_FindById)(system, id);
     if (!context) return;
     if (word_at<uint32_t>(context, 0x44)) {
         for (uint32_t i = 0; i < 0x63; ++i) {
@@ -2569,7 +2579,7 @@ uint32_t XB_STDCALL Stream_ResolveXmpbSkeletons(uint8_t* list, uint32_t zone) {
         uint8_t* const model = word_at<uint8_t**>(list, 0x14)[wrap_index(i, word_at<uint32_t>(list, 0x10))];
         if (word_at<const char*>(model, 0x34)) {
             uint32_t hashed[8];
-            title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed,
+            own_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(hashed,
                                                                                    word_at<const char*>(model, 0x34));
             word_at<uint32_t>(model, 0x38) = Stream_FindSkel(0, title_global<uint32_t>(0x0095f630), zone, hashed, 0);
         }
@@ -2578,7 +2588,7 @@ uint32_t XB_STDCALL Stream_ResolveXmpbSkeletons(uint8_t* list, uint32_t zone) {
                 word_at<const char*>(word_at<uint8_t*>(model, 0x14), wrap_index(j, word_at<uint32_t>(model, 0x10)) * 12);
             uint32_t hash = 0;
             if (name) {
-                hash = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(name);  // ScrIface_HashStringNoCase
+                hash = own_function<uint32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(name);  // ScrIface_HashStringNoCase
                 char text[0x20];
                 int32_t length = 0;
                 Q_strncpyLen(text, &length, 0x1f, name);
@@ -2588,7 +2598,7 @@ uint32_t XB_STDCALL Stream_ResolveXmpbSkeletons(uint8_t* list, uint32_t zone) {
                     char text[0x20];
                 } key = {};
                 int32_t key_length = 0;
-                title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+                own_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(&FixedStr_Copy)(  // FixedStr_Copy
                     key.text, &key_length, 0x1f, text, static_cast<uint8_t>(length));
                 key.hash = hash;
                 key.text[0x1f] = static_cast<char>(key_length);
@@ -2599,7 +2609,7 @@ uint32_t XB_STDCALL Stream_ResolveXmpbSkeletons(uint8_t* list, uint32_t zone) {
             const uint32_t other = word_at<uint32_t*>(model, 0x24)[wrap_index(j, word_at<uint32_t>(model, 0x20))];
             if (!other) continue;
             uint32_t hashed[8];
-            title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(hashed, other);  // HashStr_Init
+            own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(&HashStr_Init)(hashed, other);  // HashStr_Init
             const uint32_t found = Stream_FindInZones(0, 0, hashed, title_global<uint32_t>(0x0095f630), zone, 0);
             word_at<uint32_t*>(model, 0x2c)[wrap_index(j, word_at<uint32_t>(model, 0x28))] = found;
         }
@@ -2704,7 +2714,7 @@ void XB_THISCALL Zone_RemoveActive(uint8_t* self, uint32_t zone) {
         for (uint32_t k = 0; k < 4; ++k)
             word_at<uint32_t>(box, 0x440 + k * 4) = word_at<uint32_t>(box, 0x430 + k * 4) ^ 0x80000000u;
     }
-    title_function<void XB_CDECL()>(0x0024f5f0)();  // Vehicle_ResetCachedBounds
+    own_function<void XB_CDECL()>(&Vehicle_ResetCachedBounds)();  // Vehicle_ResetCachedBounds
     for (uint32_t record = 0x0094d95c; record < 0x0095029c; record += 0x84) title_global<uint32_t>(record) = 0;
 }
 
@@ -2724,7 +2734,7 @@ uint8_t XB_REGS3 XB_STDCALL Stream_FindZoneRawFile(const char* name, uint8_t* st
     uint8_t* const zone = word_at<uint8_t*>(streams, 0x5c + id * 4);
     if (!zone) return 0;
     uint32_t hash = 0;
-    if (name) hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(name);  // HashStr_Hash
+    if (name) hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&HashStr_Hash)(name);  // HashStr_Hash
     const uint32_t* const slot = raw_file_slot(zone, hash);
     if (!slot) return 0;
     *data = word_at<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{*slot}), 0);
@@ -2755,7 +2765,7 @@ uint32_t* XB_CDECL Stream_AddZoneRawFile(const char* name, uint32_t id, uint8_t*
     record[1] = size;
     record[0] = data;
     uint8_t* const zone = word_at<uint8_t*>(streams, 0x5c + id * 4);
-    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(text);  // HashStr_Hash
+    const uint32_t hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&HashStr_Hash)(text);  // HashStr_Hash
     uint32_t* slot = raw_file_slot(zone, hash);
     volatile uint32_t* const target = slot;  // a name not in the map writes through null, as the original
     *target = address_of(record);
@@ -2786,7 +2796,7 @@ void XB_CDECL Stream_SetupZoneHeaps(uint8_t* record) {
         }
         if (word_at<uint32_t>(record, 0x8c) == 0xc) break;
     }
-    const uint8_t* const context = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(
+    const uint8_t* const context = own_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_FindById)(
         global_context(), word_at<uint32_t>(record, 0x74));  // MemContext_FindById
     // The children's contexts (+0x20 list, count +0x1c, zone id +0x28): null outside 0..0x62, read as the original.
     auto child_context = [context](uint32_t i) {
@@ -2845,7 +2855,7 @@ void XB_CDECL SoundBank_AddPart(const uint32_t* hashed, uint8_t* table, uint32_t
     const int32_t n = word_at<int32_t>(table, 8);
     if (n >= 0x10) return;
     word_at<int32_t>(table, 8) = n + 1;
-    title_function<void XB_REGS3 XB_CDECL(uint8_t*, uint32_t, const uint32_t*)>(0x0001f740)(  // copies 0x84 bytes
+    own_function<void XB_REGS3 XB_CDECL(uint8_t*, uint32_t, const uint32_t*)>(&SoundBankSlot_Copy)(  // copies 0x84 bytes
         table + 0xc + uint32_t(n) * 0x84, 0, bank);
 }
 
@@ -2875,15 +2885,15 @@ uint32_t queue_load(uint8_t* system, uint32_t eax, uint32_t name, const uint32_t
 }
 
 uint32_t release_cell_meshes(uint32_t id) {
-    return title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x00290fe0)(  // Pak_ReleaseCellMeshesForZone
+    return own_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(&Pak_ReleaseCellMeshesForZone)(  // Pak_ReleaseCellMeshesForZone
         title_global<uint32_t>(0x0095f640), id);
 }
 
 void cancel_request(uint8_t* record) {
-    title_function<void XB_STDCALL(uint8_t*)>(0x0028f2f0)(record);  // StreamRequest_Cancel
+    own_function<void XB_STDCALL(uint8_t*)>(&StreamRequest_Cancel)(record);  // StreamRequest_Cancel
 }
 
-void update_load(uint8_t* record) { title_function<void XB_STDCALL(uint8_t*)>(0x002926c0)(record); }  // Stream_UpdateLoad
+void update_load(uint8_t* record) { own_function<void XB_STDCALL(uint8_t*)>(&Stream_UpdateLoad_entry)(record); }  // Stream_UpdateLoad
 
 uint8_t* record_slot(uint8_t* system, uint32_t id) { return word_at<uint8_t*>(system, 0x38 + id * 4); }
 
@@ -2891,7 +2901,7 @@ uint8_t* record_slot(uint8_t* system, uint32_t id) { return word_at<uint8_t*>(sy
 
 void XB_REGS1 XB_CDECL Stream_Update(uint8_t* system) {
     title_global<uint8_t>(0x00902b76) = 1;
-    title_function<void XB_REGS2 XB_CDECL(uint32_t, uint8_t*)>(0x0028e180)(0, system);  // Pak_UpdateLoadProgress
+    own_function<void XB_REGS2 XB_CDECL(uint32_t, uint8_t*)>(&Pak_UpdateLoadProgress)(0, system);  // Pak_UpdateLoadProgress
     uint8_t* node = word_at<uint8_t*>(system, 0x368);
     uint8_t* next = node ? word_at<uint8_t*>(node, 0) : nullptr;
     if (node != system + 0x36c && next) {
@@ -2926,7 +2936,7 @@ void XB_REGS1 XB_CDECL Stream_Update(uint8_t* system) {
 void XB_REGS1 XB_CDECL Stream_ScheduleZones(uint8_t* system) {
     ++title_global<uint32_t>(0x008d9d38);
     uint8_t* const next = find_next_zone_to_load(system);
-    uint8_t* const unload = title_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(0x0028e3e0)(system);  // Pak_FindZoneToUnload
+    uint8_t* const unload = own_function<uint8_t* XB_REGS1 XB_CDECL(uint8_t*)>(&Pak_FindZoneToUnload)(system);  // Pak_FindZoneToUnload
     const float max = title_global<float>(0x0082eed0);  // FLT_MAX
     const float unload_priority = unload ? Zone_UpdatePriority(unload) : max;
     const float next_priority = next ? Zone_UpdatePriority(next) : max;
@@ -2987,7 +2997,7 @@ void XB_REGS1 XB_CDECL Stream_UpdateZoneSwap(uint8_t* system) {
     }
     const uint32_t slot = word_at<uint32_t>(system, 0x20);
     word_at<uint32_t>(system, 0x354) = 0;
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x00291090)(  // Pak_LoadCellMeshesForZone
+    own_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(&Pak_LoadCellMeshesForZone)(  // Pak_LoadCellMeshesForZone
         title_global<uint32_t>(0x0095f640), slot);
     word_at<uint32_t>(system, 0x10) = 2;
     word_at<uint32_t>(system, 0x20) = 0xffffffff;
@@ -3024,7 +3034,7 @@ void XB_CDECL Stream_RetireRequest(uint8_t* system) {
     word_at<uint32_t>(system, 0x20) = 0xffffffff;
     word_at<uint32_t>(system, 0x24) = 0;
     StreamRequest_Destroy(record);
-    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f624),
+    own_function<void XB_THISCALL(uint32_t, uint8_t*)>(&SmallHeap_Free)(title_global<uint32_t>(0x0095f624),
                                                                     record);  // SmallHeap_Free
 }
 
@@ -3058,7 +3068,7 @@ void XB_REGS1 XB_CDECL Stream_UpdateUnload(uint8_t* record) {
         break;
     case 6:
         Stream_FreeZoneMemory(record);
-        title_function<void XB_CDECL(uint32_t)>(0x002fb420)(  // Scr_NotifyUnloaded
+        own_function<void XB_CDECL(uint32_t)>(&Scr_NotifyUnloaded)(  // Scr_NotifyUnloaded
             word_at<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{ZoneRecord_GetContext(record)}), 4));
         break;
     default:
@@ -3091,7 +3101,7 @@ void XB_REGS1 XB_CDECL StreamRequest_Destroy(uint8_t* record) {
     }
     const uint32_t count = word_at<uint32_t>(record, 0x8c);
     for (uint32_t i = 0; i < count; ++i)
-        title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(  // SmallHeap_Free
+        own_function<void XB_THISCALL(uint32_t, uint32_t)>(&SmallHeap_Free)(  // SmallHeap_Free
             title_global<uint32_t>(0x0095f628), word_at<uint32_t>(record, 0x90 + i * 4));
 }
 
@@ -3226,7 +3236,7 @@ PLATFORM_ASM_ENTRY(StreamRequest_OpenFile_entry,
 uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record) {
     word_at<uint32_t>(record, 0x84) = title_global<uint32_t>(0x0095f608);
     title_global<uint8_t>(0x0095f610) = 1;
-    const int32_t file = title_function<int32_t XB_CDECL(uint32_t, const char*, uint32_t*)>(0x000c9d60)(  // File_OpenReadEx
+    const int32_t file = own_function<int32_t XB_CDECL(uint32_t, const char*, uint32_t*)>(&File_OpenReadEx)(  // File_OpenReadEx
         title_global<uint32_t>(0x0095f6f4), reinterpret_cast<const char*>(record + 8), &word_at<uint32_t>(record, 0x4c));
     word_at<int32_t>(record, 0x50) = file;
     if (file == -1) {
@@ -3235,12 +3245,11 @@ uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record) {
         title_global<uint8_t>(0x0095f610) = 0;
         return uint32_t(file);
     }
-    const uint32_t request = title_function<uint32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
-        0x000cae70)(file, 0, word_at<uint32_t>(record, 0x84), title_global<uint32_t>(0x0095f60c),
+    const uint32_t request = own_function<uint32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&File_QueueRequestEx)(file, 0, word_at<uint32_t>(record, 0x84), title_global<uint32_t>(0x0095f60c),
                     0x00291940);  // File_QueueRequestEx
     word_at<uint32_t>(record, 0x88) = request;
     const uint32_t result =
-        title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x000c9df0)(request, 0);  // File_SetRequestPriority
+        own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&File_SetRequestPriority)(request, 0);  // File_SetRequestPriority
     title_global<uint32_t>(0x0095f738) = 0;
     title_global<float>(0x0095f740) = 0.0f;
     word_at<uint32_t>(record, 0xe0) = 0;
@@ -3252,10 +3261,10 @@ uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record) {
 
 namespace {
 
-void file_pump() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+void file_pump() { own_function<void XB_CDECL()>(&File_PumpRequests)(); }  // File_PumpRequests
 
 int32_t file_status(int32_t request) {
-    return title_function<int32_t XB_CDECL(int32_t)>(0x000c9db0)(request);  // File_GetRequestStatus
+    return own_function<int32_t XB_CDECL(int32_t)>(&File_GetRequestStatus)(request);  // File_GetRequestStatus
 }
 
 uint8_t* load_progress() { return &title_global<uint8_t>(0x0095f738); }
@@ -3278,7 +3287,7 @@ bool has_slots(const uint8_t* bits) {
 
 // The image moved out of the shared read buffer into its own Heap_Alloc16 block (+0x84 = +0x7c = it).
 uint8_t* keep_image(uint8_t* record) {
-    uint8_t* const copy = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(  // Heap_Alloc16
+    uint8_t* const copy = own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(  // Heap_Alloc16
         word_at<uint32_t>(word_at<uint8_t*>(record, 0x7c), 0x10));
     Stream_UnrelocateZone(word_at<uint8_t*>(record, 0x7c));
     const uint8_t* const image = word_at<uint8_t*>(record, 0x7c);
@@ -3314,7 +3323,7 @@ void XB_STDCALL StreamRequest_Cancel(uint8_t* record) {
     file_pump();
     const int32_t file = word_at<int32_t>(record, 0x50);
     if (file != -1) {
-        title_function<void XB_CDECL(int32_t)>(0x000cac20)(file);  // File_AbortRequestsForFile
+        own_function<void XB_CDECL(int32_t)>(&File_AbortRequestsForFile)(file);  // File_AbortRequestsForFile
         word_at<int32_t>(record, 0x88) = -1;
     }
     if (word_at<uint8_t*>(record, 0x7c)) {
@@ -3332,7 +3341,7 @@ void XB_STDCALL StreamRequest_Cancel(uint8_t* record) {
     Stream_RelocateZone(0, copy, 1);
     title_global<uint8_t>(0x0095f610) = 0;
     file_pump();
-    title_function<int32_t XB_CDECL(int32_t)>(0x000cac90)(word_at<int32_t>(record, 0x50));  // File_Close
+    own_function<int32_t XB_CDECL(int32_t)>(&File_Close)(word_at<int32_t>(record, 0x50));  // File_Close
     word_at<int32_t>(record, 0x50) = -1;
     word_at<uint32_t>(record, 0xdc) = 0;
 }
@@ -3368,11 +3377,10 @@ void XB_CDECL Stream_PollChunkReads(uint8_t* record) {
         uint8_t* const item = group_item(current_group(record), uint32_t(i));
         if (word_at<int32_t>(item, 0x10) == -1 && !(item[0xc] & 4) && word_at<uint32_t>(item, 4)) {
             const uint32_t size = (word_at<uint32_t>(item, 4) + 0x7fff) & 0xffff8000;
-            const int32_t request = title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
-                0x000cae70)(word_at<int32_t>(record, 0x50), word_at<uint32_t>(item, 0), word_at<uint32_t>(item, 0x14),
+            const int32_t request = own_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&File_QueueRequestEx)(word_at<int32_t>(record, 0x50), word_at<uint32_t>(item, 0), word_at<uint32_t>(item, 0x14),
                             size, 0x00291940);  // File_QueueRequestEx
             word_at<int32_t>(item, 0x10) = request;
-            title_function<uint32_t XB_CDECL(int32_t, uint32_t)>(0x000c9df0)(request, 0);  // File_SetRequestPriority
+            own_function<uint32_t XB_CDECL(int32_t, uint32_t)>(&File_SetRequestPriority)(request, 0);  // File_SetRequestPriority
             ++pending;
             title_global<float>(0x0095f740) = 0.0f;
             title_global<uint32_t>(0x0095f738) = 0;
@@ -3392,7 +3400,7 @@ uint8_t XB_REGS1 XB_CDECL Stream_IsChunkReady(uint8_t* record) {
     const uint32_t needed = word_at<uint32_t>(record, 0xd8) - word_at<uint32_t>(item, 0x14) + word_at<uint32_t>(entry, 8);
     // File_GetRequestProgress writes {bytes read, time}, or nothing for an unknown request (tests zero the dead stack).
     uint32_t progress[2] = {};
-    title_function<void XB_CDECL(int32_t, uint32_t*)>(0x000c9ea0)(request, progress);
+    own_function<void XB_CDECL(int32_t, uint32_t*)>(&File_GetRequestProgress)(request, progress);
     if (progress[0] >= needed) return 1;
     Stream_SetLoadProgress(0, int32_t(progress[0]), load_progress());
     return 0;
@@ -3410,24 +3418,22 @@ uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t k
     using FileExists = int32_t XB_CDECL(uint32_t, const char*);
     const uint32_t device = title_global<uint32_t>(0x0095f6f4);
     const char* file = name;
-    if (!title_function<FileExists>(0x000cae10)(device, name)) {  // File_Exists
+    if (!own_function<FileExists>(&File_Exists)(device, name)) {  // File_Exists
         bool found = false;
         const uint8_t* const pak = word_at<const uint8_t*>(system, 0x18);
         if (pak) {
             file = reinterpret_cast<const char*>(pak + 8);  // the original's EBX after StringMap_Find
             const uint32_t* const index = Stream_StringMapFind_call(pak + 8, &name);
             if (index && word_at<const uint32_t*>(pak, 0x14)[wrap_index(*index, word_at<uint32_t>(pak, 0x10))]) {
-                const uint8_t* const zone = title_function<uint8_t* XB_REGS3 XB_CDECL(uint8_t*, uint32_t, const char*)>(
-                    0x0028fad0)(system, 0, name);  // Pak_FindZone
+                const uint8_t* const zone = own_function<uint8_t* XB_REGS3 XB_CDECL(uint8_t*, uint32_t, const char*)>(&Pak_FindZone)(system, 0, name);  // Pak_FindZone
                 file = word_at<const char*>(zone, 8);
-                found = title_function<FileExists>(0x000cae10)(device, file) != 0;
+                found = own_function<FileExists>(&File_Exists)(device, file) != 0;
             }
         }
         if (!found) title_function<void XB_CDECL(uint32_t)>(0x0033aa20)(0x0095f8d0);  // UI_ShowDamagedDiscScreen
     }
     const uint32_t id = word_at<uint32_t>(system, 0x1c);
-    uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(
-        0x00044850)(title_global<uint32_t>(0x0095f624), 0xe4, 0)});  // SmallHeap_Alloc
+    uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{own_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(title_global<uint32_t>(0x0095f624), 0xe4, 0)});  // SmallHeap_Alloc
     if (record) record = StreamRequest_Init(record, file, kind, id, block);
     word_at<uint8_t*>(record, 0) = system + 0x36c;  // a failed allocation writes through null, as the original
     uint8_t* const last = word_at<uint8_t*>(system, 0x370);
@@ -3491,7 +3497,7 @@ uint32_t XB_STDCALL Stream_ParseZbb(uint8_t* manager, uint8_t* data, uint32_t zo
     alignas(16) uint32_t local[8] = {};
     std::memcpy(local, data + 0x28, 16);
     Stream_SetViewPosition(manager, word_at<uint32_t>(data, 0x24), reinterpret_cast<const float*>(local), 0);
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(local, title_text(0x008330c0));  // HashStr_Init
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(local, title_text(0x008330c0));  // HashStr_Init
     uint8_t* const system = global_context();
     uint8_t* node = word_at<uint8_t*>(system, 0x368);
     uint8_t* next = node ? word_at<uint8_t*>(node, 0) : nullptr;
@@ -3607,11 +3613,11 @@ int32_t title_strncmp(const void* a, uint32_t b, uint32_t count) {
 }
 
 uint32_t find_context(uint32_t id) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(global_context(), id);  // MemContext_FindById
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&MemContext_FindById)(global_context(), id);  // MemContext_FindById
 }
 
 void hash_name(uint32_t* out, const char* text) {
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, text);  // HashStr_Init
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&HashStr_Init)(out, text);  // HashStr_Init
 }
 
 // A sound file's language from its name: .en. 0, .de. 1, .fr. 2, .es. 3, .it. 4, else 5.
@@ -3662,7 +3668,7 @@ void register_groups(uint8_t* record) {
                     std::memcpy(bank, first, sizeof(bank));
                 }
             }
-            title_function<void XB_STDCALL(uint32_t, const uint32_t*, uint32_t)>(0x002ce8f0)(  // S_LoadSoundBank
+            own_function<void XB_STDCALL(uint32_t, const uint32_t*, uint32_t)>(&S_LoadSoundBank)(  // S_LoadSoundBank
                 title_global<uint32_t>(0x0095f4c0), bank, 1);
         } else if (!title_strncmp(group, 0x00838474, 8)) {  // VIDEO
             if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
@@ -3761,7 +3767,7 @@ void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
     word_at<int32_t>(record, 0x50) = -1;
     word_at<uint32_t>(record, 0xdc) = 0;
     if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
-    title_function<void XB_CDECL(uint32_t)>(0x002fb480)(word_at<uint32_t>(word_at<uint8_t*>(record, 0x78), 4));  // Scr_NotifyLoaded
+    own_function<void XB_CDECL(uint32_t)>(&Scr_NotifyLoaded)(word_at<uint32_t>(word_at<uint8_t*>(record, 0x78), 4));  // Scr_NotifyLoaded
     register_groups(record);
     if (has_slots(record + 0x64))
         StreamMem_MoveSlots(0, reinterpret_cast<uint32_t*>(record + 0x64), title_global<uint32_t*>(0x0095f62c), -1);

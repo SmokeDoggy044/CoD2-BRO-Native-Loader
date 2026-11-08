@@ -47,7 +47,7 @@ void sin_cos(float angle, float* first, float* second) {
 
 float clamp(float angle) {
     float out;
-    return *title_function<float* XB_CDECL(float*, float, bool)>(0x001844a0)(&out, angle, false);  // BroScr_AngleClamp
+    return *own_function<float* XB_CDECL(float*, float, bool)>(&BroScr_AngleClamp)(&out, angle, false);  // BroScr_AngleClamp
 }
 
 }  // namespace

@@ -10,6 +10,8 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "fx_cmd.h"
+#include "qcommon_fs.h"
 
 // Calls `function` on the current stack with all six registers from `regs` and `count`
 // stack words (args[0] pushed last, popped again here); returns its EAX.
@@ -481,7 +483,7 @@ void XB_REGS1 XB_CDECL CG_FireWeaponEmpty(const uint8_t* cent, int32_t event) {
     }
     const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
     const uint32_t sound = *reinterpret_cast<const uint32_t*>(def + 8);
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002a62d0)(sound, event == 0xa6 ? 4 : 3);  // FXCmd_PlayWeaponSound
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&FXCmd_PlayWeaponSound_entry)(sound, event == 0xa6 ? 4 : 3);  // FXCmd_PlayWeaponSound
 }
 
 uint8_t* XB_REGS2 XB_CDECL RefEntity_Clear(uint32_t, uint8_t* record) {
@@ -519,7 +521,7 @@ uint8_t* XB_CDECL CG_GetEntityRefEntity(uint8_t* cent) {
         uint32_t context = 0;
         if (client >= 0 && client < 0x63)
             context = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x38 + client * 4);
-        memory = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(context, 0x10,
+        memory = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x10,
                                                                                             0x100);  // MemContext_Alloc_r
     }
     if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x100);  // Heap_AllocAligned
@@ -543,7 +545,7 @@ uint32_t XB_CDECL CG_DObjGetTagMatrix(uint32_t tag, DObj* obj, float* out) {
     const int32_t index = DObj_GetTagIndex(obj, tag);
     if (index < 0) return 0;
     if (!obj->bone_matrices) {
-        title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(  // Z_MallocDebug
+        own_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(&Z_MallocDebug)(  // Z_MallocDebug
             obj->bone_count * 0x40u + 0x30, &title_global<char>(0x0083534c), &title_global<char>(0x00835354), 0x21c);
         DObj_CreateSkeleton(obj);
     }
@@ -964,7 +966,7 @@ void XB_REGS3 XB_CDECL CG_DamageFeedback(int32_t yaw_byte, uint32_t, int32_t pit
         ShakeRumble_Start(desc, reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(manager)), &id, g(0x0083eb20));
     }
     for (int m = 1; m >= 0; --m)
-        title_function<void XB_THISCALL(void*)>(0x0011d640)(desc + 0x18 + m * 0x20);  // ScriptString_Release
+        own_function<void XB_THISCALL(void*)>(&ScriptString_Release_entry)(desc + 0x18 + m * 0x20);  // ScriptString_Release
 }
 
 void XB_CDECL CG_TransitionSnapshot() {
@@ -1012,7 +1014,7 @@ void XB_CDECL CG_Item(uint8_t* cent) {
     const uint32_t index = at<uint16_t>(cent, 6);
     const uint8_t* item = &title_global<uint8_t>(0x0096bd10 + index * 0x34);
     if (!title_global<uint8_t>(0x00949a98 + index * 8)) {
-        title_function<void XB_CDECL(uint32_t)>(0x00285d50)(at<uint16_t>(cent, 6));  // CG_RegisterItemVisuals
+        own_function<void XB_CDECL(uint32_t)>(&CG_RegisterItemVisuals)(at<uint16_t>(cent, 6));  // CG_RegisterItemVisuals
         return;
     }
     const uint32_t obj = at<uint32_t>(cent, 0x22c);
@@ -1141,7 +1143,7 @@ uint32_t XB_CDECL CG_GetEntityEyePosition(float* out, uint32_t handle, const cha
         const int32_t bone = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ebd4));
         if (bone >= 0) {
             alignas(16) float m[16];
-            title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(cent, bone, m);  // G_DObjGetWorldTagMatrix
+            own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(cent, bone, m);  // G_DObjGetWorldTagMatrix
             out[0] = m[12];
             out[1] = m[13];
             out[2] = m[14];
@@ -1282,7 +1284,7 @@ void XB_CDECL CG_SetViewHandsModel(const char* name) {
         int32_t i = 0;
         while (current[i] == name[i] && current[i]) ++i;
         if (current[i] != name[i])
-            title_function<void XB_CDECL(int32_t, const char*)>(0x00283120)(weapon, name);
+            own_function<void XB_CDECL(int32_t, const char*)>(&CG_CreateViewWeaponDObj_entry)(weapon, name);
     }
 }
 
@@ -1342,7 +1344,7 @@ uint8_t* XB_CDECL CG_ReadNextSnapshot() {
     const int32_t latest = title_global<int32_t>(0x00971a9c);
     if (latest > processed + 1000) CG_Printf(&title_global<char>(0x00838ac4), latest, processed);
     const auto va_int = [](int32_t v) {
-        return title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(&title_global<char>(0x0082ded4), v);
+        return own_function<const char* XB_CDECL(const char*, int32_t)>(&va_entry)(&title_global<char>(0x0082ded4), v);
     };
     const auto set_vm = [](uint32_t vm, const char* value) {
         TitleRegs regs{};
@@ -1731,7 +1733,7 @@ void XB_CDECL CG_CalcLinkedViewOrigin() {
     const DObj* obj = at<DObj*>(ent, 0x22c);
     const int32_t bone = obj ? DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ebdc)) : -1;
     if (obj && bone >= 0)
-        title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, bone, m);  // G_DObjGetWorldTagMatrix
+        own_function<void XB_CDECL(uint8_t*, int32_t, float*)>(&G_DObjGetWorldTagMatrix)(ent, bone, m);  // G_DObjGetWorldTagMatrix
     else
         title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<char>(0x00838a04));  // __break
     title_global<float>(0x00972bf4) = g(0x00972bf4) + at<float>(ent, 0x94);

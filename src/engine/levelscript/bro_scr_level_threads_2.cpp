@@ -18,6 +18,9 @@
 #include "scr_field_instances.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -51,14 +54,14 @@ inline uint32_t& level_field(uint32_t offset) {
 inline uint8_t* level_flag(uint32_t key) {
     const uint32_t map = level() + 0x32c;
     uint32_t pair[2];
-    title_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &pair[0], &key);  // HashMap_Find
+    own_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(&HashMap_Find)(map, &pair[0], &key);  // HashMap_Find
     uint32_t node = pair[0];
     if (node == *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(map + 8))) {  // end
         pair[0] = key;
         pair[1] = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool
         uint32_t result[2];
         using Insert = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
-        node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert
+        node = *own_function<Insert>(&HashMap_Insert_PROLOGUE_2)(map, result, pair);  // HashMap_Insert
     }
     return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node + 0xc));
 }
@@ -68,14 +71,14 @@ inline uint8_t* level_flag(uint32_t key) {
 inline uint32_t* level_map_int(uint32_t offset, const uint32_t* key) {
     const uint32_t map = level() + offset;
     uint32_t pair[2];
-    title_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &pair[0], key);  // HashMap_Find
+    own_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(&HashMap_Find)(map, &pair[0], key);  // HashMap_Find
     uint32_t node = pair[0];
     if (node == *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(map + 8))) {  // end
         pair[0] = *key;
         pair[1] = undefined_int();
         uint32_t result[2];
         using Insert = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
-        node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert
+        node = *own_function<Insert>(&HashMap_Insert_PROLOGUE_2)(map, result, pair);  // HashMap_Insert
     }
     return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(node + 0xc));
 }
@@ -325,8 +328,8 @@ void XB_CDECL BroScr_MinefieldKill(uint32_t ent, uint32_t trigger) {
             uint32_t buffer[3];
             const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
             uint32_t origin[3] = {o[0], o[1], o[2]};
-            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
-                                             uint32_t*)>(0x0017b150)(0, 0, 0, 0, 0x001823a0, *handle, text,
+            own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*,
+                                             uint32_t*)>(&Scr_StartThreadFunctorN_entry)(0, 0, 0, 0, 0x001823a0, *handle, text,
                                                                      origin);  // Scr_StartThreadFunctorN(BroScr_PlaySoundOnTempOrigin_4)
             ScriptString_Release(&sound);
         }
@@ -481,7 +484,7 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
     ScriptString_FromCString(&default_text, pointer<const char>(0x00825150));  // "^1...Using default tree burst animation..."
     {
         ScriptString got;
-        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+        own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
             &model, ScrCall_ScrEnt_GetModel(&tree, &got));  // ScriptString_Assign
         ScriptString_Release(&got);
     }
@@ -977,7 +980,7 @@ void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, Respawne
                 ScriptString_Release(&name);
                 ScriptString_Release(&group);
             }
-            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, RespawnerAttributes*)>(0x0017b410)(
+            own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, RespawnerAttributes*)>(&Scr_StartThread_ent_RespawnerAttributes_entry)(
                 0, 0, 0, 0, 0x00132f40, guy, &attribs);  // Scr_StartThread_ent_RespawnerAttributes(BroScr_RespawnerApplyAttribs)
             bool targeted;
             {
@@ -1000,7 +1003,7 @@ void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, Respawne
                     const uint32_t i = static_cast<uint32_t>(random_int(static_cast<int32_t>(nodes.size)));
                     slot<void XB_CDECL(uint32_t, float)>(0x00922df4)(guy, 32.0f);  // ScrSentient_SetFloat_18
                     const uint32_t* const node =
-                        title_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(0x0045ceb0)(&nodes, i);  // DynArray_AtInt0
+                        own_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(&DynArray_AtInt0)(&nodes, i);  // DynArray_AtInt0
                     title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                                      const ScriptString*)>(0x004b0ae0)(
                         0, 0, 0, 0, 0x0013b880, guy, node, &mode);  // Scr_StartThread_ent_pathnode_str_ORAN(BroScr_FollowNodeChain)
@@ -1070,14 +1073,14 @@ void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t, ScriptString group, ScriptS
             slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c1c)(manager, copy);  // ScrEnt_SetGroupname (releases its copy)
             ScriptString_Release(&text);
         }
-        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+        own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
             title_function<GetString>(0x00458da0)(ent_script_object(manager), 0xdfe2186c), &group);  // ScriptString_Assign(ScriptKeyTable_GetString)
         *bool_slot(manager, 0x18b0887b) = 0;
         slot<EntHash>(0x00922188)(manager, 0x0c34930d);  // Scr_EndOn
-        title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(
-            title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(ent_script_object(manager), 0xc548bcb7),
+        own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(
+            own_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(&ScriptKeyTable_GetArray)(ent_script_object(manager), 0xc548bcb7),
             &list);  // DynArray_Assign4(ScriptKeyTable_GetArray)
-        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(
+        own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
             title_function<GetString>(0x00458da0)(ent_script_object(manager), 0x22cb4cdd), &name);  // ScriptString_Assign(ScriptKeyTable_GetString)
         *int_slot(manager, 0xa8ce4655) = list.size;
     }
@@ -1103,7 +1106,7 @@ void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t, ScriptString group, ScriptS
                 } while (pick == undefined_int());
             }
             const uint32_t spawner = element(&list, pick);
-            title_function<StartRespawner>(0x0017b370)(0, 0, 0, 0, 0x0015c510, spawner, &manager, &attribs, &limit,
+            own_function<StartRespawner>(&Scr_StartThread_ent_ent_RespawnerAttributes_i_str_entry)(0, 0, 0, 0, 0x0015c510, spawner, &manager, &attribs, &limit,
                                                        &mode);  // Scr_StartThread_ent_ent_RespawnerAttributes_i_str(BroScr_RespawnerThink_2)
             if (static_cast<int32_t>(*level_map_int(0x35c, Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&group)))) !=
                 max_alive)

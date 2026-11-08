@@ -7,6 +7,8 @@
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "movie.h"
+#include "qcommon_core.h"
 
 // As fe_menus.cpp: the entries move the C frame below a gap and hand the C version the entry ESP; every title call
 // then runs where the original's would (the text setters keep a stack buffer's address in a heap record). 192 KB
@@ -131,7 +133,7 @@ void set_hidden(uint8_t* menu, int32_t index, uint32_t hide) { call(item(menu, i
 // The selected item's grid neighbour (+0x08 up, +0x0a down, +0x0c left, +0x0e right).
 int16_t& neighbour(uint8_t* menu, int32_t index, uint32_t offset) { return field<int16_t>(item(menu, index), offset); }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 // The dialog manager (0x0095f900) and its current dialog (+0x04 [+0x0c != 0]).
 uint8_t* dialog_mgr() { return title_global<uint8_t*>(0x0095f900); }
@@ -465,7 +467,7 @@ void XB_THISCALL CreateProfileMenu_Draw(uint8_t* menu) {
         call(title_global<uint8_t*>(0x0095f454), 8);
         Subtitle_Draw();
         uint8_t* const texture =
-            title_function<uint8_t* XB_THISCALL(uint8_t*)>(0x000cf100)(title_global<uint8_t*>(0x0095f454));
+            own_function<uint8_t* XB_THISCALL(uint8_t*)>(&Movie_GetFrameTexture)(title_global<uint8_t*>(0x0095f454));
         uint8_t* const quad = title_global<uint8_t*>(0x0095f458);
         field<uint8_t*>(quad, 0x60) = texture;
         nglListAddQuad(reinterpret_cast<const NglQuad*>(quad));

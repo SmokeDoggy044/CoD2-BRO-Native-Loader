@@ -7,6 +7,7 @@
 #include "g_scr_runtime.h"
 #include "scr_field.h"
 #include "title_data.h"
+#include "bro_scr_note_handlers.h"
 
 namespace game {
 
@@ -169,7 +170,7 @@ void XB_CDECL BroScr_AnimNoteTracksThread(uint32_t ent, uint32_t anim) {
     // The original writes the result into its first argument's slot.
     ScriptString result;
     using HandleNoteTracks = ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, ScriptString);
-    title_function<HandleNoteTracks>(0x001ada20)(&result, ent, anim, 0, none);  // BroScr_HandleNoteTracks
+    own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, anim, 0, none);  // BroScr_HandleNoteTracks
     ScriptString_Release(&result);
 }
 

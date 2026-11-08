@@ -6,6 +6,7 @@
 #include "scr_access.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -84,11 +85,11 @@ void XB_CDECL BroScr_AnimCmd_SetFlaggedAnimKnobAll(uint32_t a1, uint32_t, uint32
 
 void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent) {
     uint32_t hash;
-    title_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(0x0011d8b0)(&hash, &name);  // Scr_HashScriptString
+    own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(&hash, &name);  // Scr_HashScriptString
     alignas(4) uint8_t copy[0x30];
     HashMap_CopyCtor_3(reinterpret_cast<HashMap*>(copy),
                        reinterpret_cast<const HashMap*>(title_global<uint32_t>(0x00922ee0) + 0x408));
-    title_function<void XB_THISCALL(uint8_t*)>(0x00462320)(copy);  // HashMap_Dtor_PROLOGUE_15
+    own_function<void XB_THISCALL(uint8_t*)>(&HashMap_Dtor_PROLOGUE_15)(copy);  // HashMap_Dtor_PROLOGUE_15
     auto list = [&hash]() {
         return HashMap_Index_4(reinterpret_cast<HashMap*>(title_global<uint32_t>(0x00922ee0) + 0x408), &hash);
     };
@@ -135,14 +136,14 @@ DynArray* anim_weights(DynArray* guys, uint32_t* key) {
     const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guys->data, &animname);
     uint32_t hash;
     Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
-    void* map = title_function<void* XB_THISCALL(uint32_t, const uint32_t*)>(0x00180020)(title_global<uint32_t>(0x00922ee0) + 0x5dc, &hash);
-    DynArray* weights = title_function<DynArray* XB_THISCALL(void*, uint32_t*)>(0x0017edf0)(map, key);
+    void* map = own_function<void* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_5)(title_global<uint32_t>(0x00922ee0) + 0x5dc, &hash);
+    DynArray* weights = own_function<DynArray* XB_THISCALL(void*, uint32_t*)>(&HashMap_Index_2)(map, key);
     scr_release(&animname);
     return weights;
 }
 
 uint32_t* weight_at(DynArray* weights, uint32_t i) {
-    if (i >= weights->size) title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(0x0017b9a0)(weights, i + 1, i + 4);  // DynArray_ResizeInt
+    if (i >= weights->size) own_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(&DynArray_ResizeInt)(weights, i + 1, i + 4);  // DynArray_ResizeInt
     return weights->data + i;
 }
 
@@ -156,7 +157,7 @@ uint32_t* XB_CDECL BroScr_AnimLoopPickIndex(uint32_t* out, DynArray guys, uint32
         const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guys.data, &animname);
         uint32_t hash;
         Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
-        count = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00464380)(
+        count = own_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_10)(
             title_global<uint32_t>(0x00922ee0) + 0x744, &hash)[3];  // HashMap_Index_10: the set's anims
         scr_release(&animname);
     }
@@ -190,7 +191,7 @@ uint32_t* XB_CDECL BroScr_AnimLoopPickIndex(uint32_t* out, DynArray guys, uint32
         }
     }
     *out = result;
-    if (guys.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(guys.data);  // Scr_Free
+    if (guys.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(guys.data);  // Scr_Free
     return out;
 }
 
@@ -248,14 +249,14 @@ void place_guys(uint32_t ent, DynArray* guys, uint32_t* key, ScriptString* tag, 
         const ScriptString* name = ScrCall_ScrEnt_GetAnimname(guy_at(guys, i), &animname);
         uint32_t hash;
         Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name));
-        uint32_t* map = title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x004641e0)(
+        uint32_t* map = own_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(&HashMap_Index_PROLOGUE_8)(
             title_global<uint32_t>(0x00922ee0) + 0x19c, &hash);  // HashMap_Index_8
         uint32_t it;
-        title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+        own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(&HashMap_Find)(map, &it, key);  // HashMap_Find
         if (it == map[2]) {
             const uint32_t pair[2] = {*key, 0};
             uint32_t inserted;
-            it = *title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+            it = *own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*)>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
         }
         const uint32_t local = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(it))[3];
         scr_slot<void XB_CDECL(uint32_t*, const ScrVec3*, const ScrVec3*, uint32_t)>(0x009223fc)(offset.v, &origin, &angles,
@@ -266,7 +267,7 @@ void place_guys(uint32_t ent, DynArray* guys, uint32_t* key, ScriptString* tag, 
         else
             scr_slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(*guy_at(guys, i), offset);  // ScrEnt_SetOrigin
     }
-    if (guys->data) title_function<void XB_CDECL(void*)>(0x002f5e10)(guys->data);  // Scr_Free
+    if (guys->data) own_function<void XB_CDECL(void*)>(&Scr_Free)(guys->data);  // Scr_Free
     scr_release(tag);
 }
 

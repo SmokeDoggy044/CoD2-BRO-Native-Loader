@@ -1037,7 +1037,7 @@ uint32_t XB_CDECL PM_ProneUndoBlockedMove_body(const float* origin, const float*
     if (!(at<uint8_t>(ps, 0x2c) & 1)) return 1;
     using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*, uint8_t*,
                                                       uint8_t*, uint32_t, uint32_t);
-    const uint32_t r = title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
+    const uint32_t r = own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
                                                                   at<uint32_t>(ps, 0x450), ps + 0x4d8, ps + 0x4dc,
                                                                   ps + 0x4e0, at<uint32_t>(pm, 0x138), 0x42700000u);
     if (r) return r;
@@ -1478,7 +1478,7 @@ uint32_t XB_CDECL PM_CheckProneYaw_body(uint8_t* ps, float yaw, uint32_t arg) {
     std::memcpy(&h_word, &height, 4);
     using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*, uint8_t*,
                                                       uint8_t*, uint32_t, uint32_t);
-    return title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, x_word, ps + 0x4d8,
+    return own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, x_word, ps + 0x4d8,
                                                       ps + 0x4dc, ps + 0x4e0, arg, h_word);
 }
 
@@ -1615,7 +1615,7 @@ void XB_CDECL PM_UpdateAdsState() {
     if (!prone && at<uint32_t>(ps, 0x60)) {
         using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*,
                                                           uint8_t*, uint8_t*, uint32_t, uint32_t);
-        prone = title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, at<uint32_t>(ps, 0xa0),
+        prone = own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, at<uint32_t>(ps, 0xa0),
                                                            ps + 0x4d8, ps + 0x4dc, ps + 0x4e0, at<uint32_t>(pm, 0x138),
                                                            0x42700000u) != 0;
     }
@@ -2494,7 +2494,7 @@ void XB_CDECL PM_UpdateProneTilt() {
     if (!at<uint32_t>(ps, 0x60)) {
         using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint8_t*,
                                                           uint8_t*, uint8_t*, uint32_t, uint32_t);
-        const uint32_t r = title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
+        const uint32_t r = own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
                                                                       at<uint32_t>(ps, 0x450), ps + 0x4d8, ps + 0x4dc,
                                                                       ps + 0x4e0, at<uint32_t>(pm, 0x138), 0x42700000u);
         uint8_t* const p = pm_global();
@@ -2636,7 +2636,7 @@ void XB_CDECL PM_DetectLadder() {
         }
         if (!hit && !found) return;
     }
-    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
+    own_function<PlayerTrace>(&PM_PlayerTrace)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
                                            at<uint32_t>(pm, 0x5c));
     if (!trace_hit_ladder(trace)) return;
     uint8_t* const p = pm_global();
@@ -2652,7 +2652,7 @@ void XB_CDECL PM_DetectLadder() {
     end[1] = n1 * dist + at<float>(pm_ps_ref(p), 4);
     end[2] = n2 * dist + at<float>(pm_ps_ref(p), 8);
     q = pm_ps_ref(p);
-    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(q, 0), mins, maxs, end, at<uint32_t>(q, 0x7c),
+    own_function<PlayerTrace>(&PM_PlayerTrace)(trace, &at<float>(q, 0), mins, maxs, end, at<uint32_t>(q, 0x7c),
                                            at<uint32_t>(p, 0x5c));
     if (trace_hit_ladder(trace)) at<uint32_t>(pm_ps_ref(pm_global()), 0x2c) |= 0x10;
 }
@@ -2688,7 +2688,7 @@ void XB_CDECL PM_PeriodicContentsEvent() {
     maxs[0] = at<float>(pm, 0x110) * k;
     maxs[1] = at<float>(pm, 0x114) * k;
     maxs[2] = at<float>(pm, 0x118) * title_global<float>(0x0083ec18);  // 0.9
-    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, &at<float>(ps, 0), at<uint32_t>(ps, 0x7c),
+    own_function<PlayerTrace>(&PM_PlayerTrace)(trace, &at<float>(ps, 0), mins, maxs, &at<float>(ps, 0), at<uint32_t>(ps, 0x7c),
                                            2);
     if (!trace[0x3d]) return;
     uint8_t* const p = pm_global();
@@ -2717,7 +2717,7 @@ void player_trace_cached(uint8_t* results, const float* start, const float* mins
     // By title address: the C SV_CapsuleTrace leaves other dead-stack words (0x804fff2c / 0x81e23c5c) in tests.
     using CapsuleTrace = void XB_CDECL(uint32_t, uint32_t, uint8_t*, const float*, const float*, const float*,
                                        const float*, uint32_t, uint32_t);
-    title_function<CapsuleTrace>(0x002e95b0)(address_of(lists->triangles), address_of(lists->brushes), results, start,
+    own_function<CapsuleTrace>(&SV_CapsuleTrace)(address_of(lists->triangles), address_of(lists->brushes), results, start,
                                              mins, maxs, end, pass, mask);
 }
 
@@ -2805,7 +2805,7 @@ void XB_CDECL PM_GroundTrace() {
     };
     const auto trace_down = [&](uint32_t m) {
         uint8_t* const p = pm_global();
-        title_function<PlayerTrace>(0x002ea190)(trace, start, &at<float>(p, 0x100), &at<float>(p, 0x110), end,
+        own_function<PlayerTrace>(&PM_PlayerTrace)(trace, start, &at<float>(p, 0x100), &at<float>(p, 0x110), end,
                                                at<uint32_t>(pm_ps_ref(p), 0x7c), m);  // PM_PlayerTrace
     };
     const auto leave_ground = [](uint8_t* ps, uint32_t plane) {
@@ -2916,7 +2916,7 @@ void XB_REGS2 XB_CDECL PM_FootstepEvent(int32_t old_cycle, uint32_t allowed, int
     if (eight > maxs[2]) maxs[2] = eight;
     const float reach = title_global<float>(0x0083f1c0);  // 31
     for (uint32_t i = 0; i < 3; ++i) end[i] = at<float>(ps, i * 4) - at<float>(ps, 0x64 + i * 4) * reach;
-    title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
+    own_function<PlayerTrace>(&PM_PlayerTrace)(trace, &at<float>(ps, 0), mins, maxs, end, at<uint32_t>(ps, 0x7c),
                                            at<uint32_t>(pm, 0x5c) & 0xfdfeffffu);  // PM_PlayerTrace
     uint32_t type = static_cast<uint32_t>(at<int32_t>(trace, 0x24) >> 0x14) & 0x1f;
     if (at<float>(trace, 0x20) == title_global<float>(0x0083eb20) || !type) type = 0xd;
@@ -3594,7 +3594,7 @@ void XB_CDECL PM_AirMove() {
             backoff = backoff / title_global<float>(0x0083f1bc);
         for (uint32_t i = 0; i < 3; ++i) at<float>(p, 0x10 + i * 4) = at<float>(p, 0x10 + i * 4) - n[i] * backoff;
     }
-    title_function<void XB_CDECL(uint32_t)>(0x002ec330)(1);  // PM_StepSlideMove
+    own_function<void XB_CDECL(uint32_t)>(&PM_StepSlideMove)(1);  // PM_StepSlideMove
     PM_SetMovementDir();
     G_SeparateFromSolids();
 }
@@ -3635,7 +3635,7 @@ void XB_CDECL Pmove(uint8_t* pm, uint32_t arg) {
             msec = 0x29a;
         }
         at<int32_t>(pm, 4) = time + msec;
-        title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002f1590)(pm, arg);  // PmoveSingle
+        own_function<void XB_CDECL(uint8_t*, uint32_t)>(&PmoveSingle)(pm, arg);  // PmoveSingle
         if (at<uint8_t>(pm_ps_ref(pm), 0x2c) & 8) pm[0x1a] = 0x14;
     }
     Player_RecordEyeHistory(pm_ps_ref(pm));
@@ -3771,9 +3771,9 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
         static_cast<float>(title_global<int32_t>(0x0095ffa8)) * title_global<float>(0x0083eb4c);  // 0.001
     ps = pm_ps_ref(pm);
     title_global<uint8_t*>(0x00960020) = defs[at<int32_t>(ps, 0x80)];
-    title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002bba50)(at<uint32_t>(ps, 0x80));
+    own_function<void XB_REGS1 XB_CDECL(uint32_t)>(&PM_UpdateAimSpread)(at<uint32_t>(ps, 0x80));
     using ViewAngles = void XB_REGS1 XB_CDECL(uint8_t*, uint8_t*, uint8_t*, uint32_t);
-    title_function<ViewAngles>(0x002e5530)(pm_ps_ref(pm), pm + 4, pm + 0x30, at<uint32_t>(pm, 0x138));  // PM_UpdateViewAngles
+    own_function<ViewAngles>(&PM_UpdateViewAngles)(pm_ps_ref(pm), pm + 4, pm + 0x30, at<uint32_t>(pm, 0x138));  // PM_UpdateViewAngles
     uint8_t* const p = pm_global();
     uint32_t axis_args[2] = {address_of(pm_ps_ref(p) + 0x9c), 0x0095ff80};
     AnglesToAxis(axis_args, &title_global<float>(0x0095ff8c), &title_global<float>(0x0095ff98));
@@ -3801,7 +3801,7 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
         PM_UpdateAdsState();
         PM_UpdateButtonFlag80();
         PM_UpdateSprintFlag();
-        title_function<Void>(0x002ef090)();  // PM_CheckDuck
+        own_function<Void>(&PM_CheckDuck)();  // PM_CheckDuck
         PM_DropTimers();
         PM_UpdateStaminaMeter();
         if (!no_weapon) PM_Weapon();
@@ -3829,7 +3829,7 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
         PM_UpdateAdsState();
         PM_UpdateButtonFlag80();
         PM_UpdateSprintFlag();
-        title_function<Void>(0x002ef090)();  // PM_CheckDuck
+        own_function<Void>(&PM_CheckDuck)();  // PM_CheckDuck
         pm_drop_time(pm_global());
         PM_UpdateStaminaMeter();
         PM_UpdateAimDownSightFrac();
@@ -3837,7 +3837,7 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
         return;
     }
     title_global<uint32_t>(0x0096001c) = pm[0x121];
-    title_function<Void>(0x002ef090)();  // PM_CheckDuck
+    own_function<Void>(&PM_CheckDuck)();  // PM_CheckDuck
     PM_GroundTrace();
     PM_UpdateAdsState();
     PM_UpdateButtonFlag80();
@@ -3849,9 +3849,9 @@ void XB_CDECL PmoveSingle(uint8_t* pm, uint32_t arg) {
     pm_drop_time(q);
     PM_UpdateStaminaMeter();
     if (at<uint8_t>(pm_ps_ref(q), 0x2c) & 0x10)
-        title_function<Void>(0x002eea00)();  // PM_LadderMove
+        own_function<Void>(&PM_LadderMove)();  // PM_LadderMove
     else if (title_global<uint32_t>(0x0095ffac))
-        title_function<Void>(0x002efbe0)();  // PM_WalkMove
+        own_function<Void>(&PM_WalkMove)();  // PM_WalkMove
     else if (title_global<uint8_t>(0x008fef48))
         PM_AirMove();
     PM_GroundTrace();
@@ -4125,7 +4125,7 @@ void XB_CDECL PM_ViewHeightAdjust() {
                 at<float>(p, 0x10) = dir[0] * speed;
                 at<float>(pm_ps_ref(pm), 0x14) = dir[1] * speed;
                 at<float>(pm_ps_ref(pm), 0x18) = dir[2] * speed;
-                title_function<void XB_CDECL(uint32_t)>(0x002ec330)(1);  // PM_StepSlideMove
+                own_function<void XB_CDECL(uint32_t)>(&PM_StepSlideMove)(1);  // PM_StepSlideMove
                 uint8_t* const q = pm_ps_ref(pm_global());
                 for (uint32_t i = 0; i < 3; ++i) at<float>(q, 0x10 + i * 4) = saved[i];
                 at<float>(q, 0xbc) = height;
@@ -4337,7 +4337,7 @@ void XB_CDECL PM_LadderMove() {
         at<float>(pm_ps_ref(pm), 0x10) = at<float>(pm_ps_ref(pm), 0x64) * push + at<float>(pm_ps_ref(pm), 0x10);
         at<float>(pm_ps_ref(pm), 0x14) = at<float>(pm_ps_ref(pm), 0x68) * push + at<float>(pm_ps_ref(pm), 0x14);
     }
-    title_function<void XB_CDECL(uint32_t)>(0x002ec330)(0);  // PM_StepSlideMove
+    own_function<void XB_CDECL(uint32_t)>(&PM_StepSlideMove)(0);  // PM_StepSlideMove
     uint8_t* const ps = pm_ps_ref(pm_global());
     const float half = title_global<float>(0x0083eb60);  // 180
     const float yaw = ((vectoyaw(&at<float>(ps, 0x64)) + half) - at<float>(ps, 0xa0)) * title_global<float>(0x0083ebd8);
@@ -4415,7 +4415,7 @@ uint32_t XB_CDECL PM_SlideMove(uint32_t gravity) {
         ps = pm_ps_ref(pm);
         alignas(16) float end[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // PM_PlayerTrace loads it with MOVAPS; w never set (0 in tests)
         for (uint32_t i = 0; i < 3; ++i) end[i] = at<float>(ps, 0x10 + i * 4) * time_left + at<float>(ps, i * 4);
-        title_function<PlayerTrace>(0x002ea190)(trace, &at<float>(ps, 0), &at<float>(pm, 0x100), &at<float>(pm, 0x110), end,
+        own_function<PlayerTrace>(&PM_PlayerTrace)(trace, &at<float>(ps, 0), &at<float>(pm, 0x100), &at<float>(pm, 0x110), end,
                                                at<uint32_t>(ps, 0x7c), at<uint32_t>(pm, 0x5c));  // PM_PlayerTrace
         if (trace[0x3c]) {
             at<float>(pm_ps_ref(pm_global()), 0x18) = zero;
@@ -4626,7 +4626,7 @@ void XB_CDECL PM_StepSlideMove(uint32_t gravity) {
     const float dy = down_o[1] - start_o[1];
     using Trace = void XB_CDECL(uint8_t*, const float*, const float*, const float*, const float*, uint32_t, uint32_t);
     const auto player_trace = [&trace](uint8_t* p, const float* start, const float* end) {
-        title_function<Trace>(0x002ea190)(trace, start, &at<float>(p, 0x100), &at<float>(p, 0x110), end,
+        own_function<Trace>(&PM_PlayerTrace)(trace, start, &at<float>(p, 0x100), &at<float>(p, 0x110), end,
                                           at<uint32_t>(pm_ps_ref(p), 0x7c), at<uint32_t>(p, 0x5c));  // PM_PlayerTrace
     };
     if (bumped) {
@@ -4944,7 +4944,7 @@ void XB_CDECL PM_WalkMove() {
     }
     const uint8_t* const p = pm_ps_ref(pm);
     if (!(at<float>(p, 0x10) == zero) || !(at<float>(p, 0x14) == zero))
-        title_function<void XB_CDECL(uint32_t)>(0x002ec330)(0);  // PM_StepSlideMove
+        own_function<void XB_CDECL(uint32_t)>(&PM_StepSlideMove)(0);  // PM_StepSlideMove
     PM_SetMovementDir();
     G_SeparateFromSolids();
 }
@@ -5112,7 +5112,7 @@ void XB_CDECL PM_CheckDuck() {
             uint8_t* p = pm_ps_ref(pm);
             if (at<uint8_t>(p, 0x2c) & 1) goto set_prone;
             if (at<uint32_t>(p, 0x60) && !pm[0x121]) {
-                const uint32_t r = title_function<CheckProneFeet>(0x002dc6f0)(
+                const uint32_t r = own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(
                     0, at<uint32_t>(p, 0x7c), p, 0x41f00000u, at<uint32_t>(p, 0xa0), p + 0x4d8, p + 0x4dc, p + 0x4e0,
                     at<uint32_t>(pm, 0x138), 0x42700000u);
                 pm = pm_global();
@@ -5174,7 +5174,7 @@ view_height:
                 at<uint32_t>(ps, 0xa8) = at<uint32_t>(ps, 0x424);
             } else {
                 if (title_global<int32_t>(0x00950bcc) == 2) {
-                    title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
+                    own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u,
                                                                at<uint32_t>(ps, 0xa0), nullptr, nullptr, nullptr,
                                                                at<uint32_t>(pm, 0x138), 0x42700000u);
                     pm = pm_global();
@@ -5964,7 +5964,7 @@ PLATFORM_ASM_ENTRY(pmva_check_prone_yaw,
 uint32_t pmva_feet_fit(uint8_t* ps, uint32_t yaw_bits, uint32_t trace) {
     using CheckProneFeet = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t,
                                                       uint32_t, uint32_t, uint32_t);
-    return title_function<CheckProneFeet>(0x002dc6f0)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, yaw_bits, 0, 0, 0, trace,
+    return own_function<CheckProneFeet>(&BG_CheckProneFeet_entry)(0, at<uint32_t>(ps, 0x7c), ps, 0x41f00000u, yaw_bits, 0, 0, 0, trace,
                                                       0x42340000u);
 }
 
@@ -6167,7 +6167,7 @@ void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, cons
         }
     }
     using StickyAim = void XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint8_t*, const uint8_t*, const uint8_t*);
-    title_function<StickyAim>(0x002db7d0)(0, 0, ps, cmd, old);  // PM_UpdateStickyAim
+    own_function<StickyAim>(&PM_UpdateStickyAim)(0, 0, ps, cmd, old);  // PM_UpdateStickyAim
     const int32_t type = at<int32_t>(ps, 0x24);
     if (type != 3 && type != 2) {
         const TitleRegs regs{address_of(cmd), 0, 0, 0, address_of(cmd), address_of(ps)};
@@ -6309,7 +6309,7 @@ void XB_REGS3 XB_CDECL PM_UpdateStickyAim(uint32_t, uint32_t, uint8_t* ps, const
             }
             if (draw) {
                 using Va = const char* XB_CDECL(const char*, double);
-                const char* const text = title_function<Va>(0x002a93d0)(&title_global<char>(0x00836890), frac);  // "%.2f"
+                const char* const text = own_function<Va>(&va_entry)(&title_global<char>(0x00836890), frac);  // "%.2f"
                 DebugDraw_AddString(&title_global<float>(0x0082eb9c), &at<float>(best, 0x140), from_bits(0x3f333333u),  // 0.7
                                     text, 1);
             }

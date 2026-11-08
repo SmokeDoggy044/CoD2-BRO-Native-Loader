@@ -5,13 +5,17 @@
 #include "qcommon_fs.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "bro_scr_level.h"
+#include "g_scr_runtime.h"
+#include "g_script.h"
+#include "levels_twins.h"
 
 namespace game {
 
 namespace {
 
 uint32_t* hash_string(uint32_t* out, const ScriptString* string) {
-    return title_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(0x0011d8b0)(out, string);  // Scr_HashScriptString
+    return own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(out, string);  // Scr_HashScriptString
 }
 
 // The word at +4 of a level object (null object: read through address 0, as the original).
@@ -27,14 +31,14 @@ void XB_CDECL BroScr_FlagSet(ScriptString name) {
     const uint32_t* key = hash_string(&hash, &name);
     const uint32_t map = title_global<uint32_t>(0x00922ee0) + 0x32c;
     uint32_t pair[2];  // the found iterator, then the inserted (key, value) pair
-    title_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(0x0045e6d0)(map, &pair[0], key);  // HashMap_Find
+    own_function<void XB_THISCALL(uint32_t, uint32_t*, const uint32_t*)>(&HashMap_Find)(map, &pair[0], key);  // HashMap_Find
     uint32_t node = pair[0];
     if (node == *reinterpret_cast<uint32_t*>(map + 8)) {  // end
         pair[0] = *key;
         pair[1] = title_global<uint8_t>(0x00922ed0);  // g_scrUndefinedBool (bytes 1-3 never written: 0)
         uint32_t result[2];
         using Insert = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
-        node = *title_function<Insert>(0x004608a0)(map, result, pair);  // HashMap_Insert
+        node = *own_function<Insert>(&HashMap_Insert_PROLOGUE_2)(map, result, pair);  // HashMap_Insert
     }
     *reinterpret_cast<uint8_t*>(node + 0xc) = 1;
     const uint32_t level = object_word(title_global<uint32_t>(0x00922ee0));
@@ -51,8 +55,8 @@ uint32_t* XB_CDECL BroScr_GetUseGearCvar(uint32_t* out) {
 void XB_CDECL BroScr_FriendlyFireMissionFail() {
     if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x009222dc)(0x00825b50) == 1) return;  // GScr_GetCvarInt("ff_off")
     using EndOn = void XB_CDECL(uint32_t, uint32_t);
-    title_function<EndOn>(0x0011d930)(title_global<uint32_t>(0x009236dc), 0x00831f60);  // Scr_EndOnString(player, "death")
-    title_function<EndOn>(0x0011d930)(object_word(title_global<uint32_t>(0x00922ef8)), 0x008242e4);  // "mine death"
+    own_function<EndOn>(&Scr_EndOnString)(title_global<uint32_t>(0x009236dc), 0x00831f60);  // Scr_EndOnString(player, "death")
+    own_function<EndOn>(&Scr_EndOnString)(object_word(title_global<uint32_t>(0x00922ef8)), 0x008242e4);  // "mine death"
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(object_word(title_global<uint32_t>(0x00922ef8)),
                                                             0xa264707f);  // Scr_QueueNotify
     uint8_t* const object = reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x00922ef8));
@@ -143,7 +147,7 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
             // Spawners (spawnflags bit 0) among the targets: BroScr_TriggerSpawnerThink(trigger, &spawner),
             // ending on 0xe2a210cf.
             DynArray targets = {nullptr, 0, 0};
-            title_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(0x0011f5d0)(
+            own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(
                 ScrCall_ScrEnt_GetTarget(&trigger, &target), 0x0d786b4c, &targets, 0);  // Scr_GetEntArray
             scr_release(&target);
             const auto at = [&targets](uint32_t i) {
@@ -155,7 +159,7 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
                 using BeginThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
                 title_function<BeginThread>(0x0078a980)(0, 0, 0, ent, 0xe2a210cf, 0x00130c80, ent, at(i));  // Scr_BeginThread_ent_ent
             }
-            if (targets.data) title_function<void XB_CDECL(void*)>(0x002f5e10)(targets.data);  // Scr_Free
+            if (targets.data) own_function<void XB_CDECL(void*)>(&Scr_Free)(targets.data);  // Scr_Free
         }
     }
     static const uint32_t kFieldThreads[8][2] = {
@@ -215,7 +219,7 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
         level_thread(0x001bf200);  // BroScr_FriendlyMg42TriggerThink
     } else if (name_is(0x00824de4)) {  // "context"
         trigger = stack_word;
-        title_function<void XB_CDECL(uint32_t)>(0x00154100)(ent);  // BroScr_SetupWallHopTrigger
+        own_function<void XB_CDECL(uint32_t)>(&BroScr_SetupWallHopTrigger_entry)(ent);  // BroScr_SetupWallHopTrigger
     }
 }
 

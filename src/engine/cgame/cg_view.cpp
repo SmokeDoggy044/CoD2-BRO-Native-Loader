@@ -12,6 +12,8 @@
 #include "qcommon.h"
 #include "title_data.h"
 #include "xanim.h"
+#include "qcommon_fs.h"
+#include "snd.h"
 
 namespace game {
 
@@ -1359,7 +1361,7 @@ void XB_CDECL CG_StopShellShockSound() {
     // 0x000c72f0), its flag 0x00973a54 cleared and both looping channels (handles
     // 0x00973a68/0x00973a6c) stopped. With the second handle 0 the original stops the first
     // channel a second time (its register still holds it).
-    title_function<void XB_CDECL()>(0x000c53b0)();
+    own_function<void XB_CDECL()>(&S_ClearVoiceAttenuation)();
     uint32_t preset[12] = {0xfffffc18, 0xffffff9c, 0, 0, 0, 0xfffff5d6, 0, 200, 0, 0, 0, 0};
     reinterpret_cast<float*>(preset)[2] = 0.0f;
     reinterpret_cast<float*>(preset)[3] = g(0x0083ec58);
@@ -1369,7 +1371,7 @@ void XB_CDECL CG_StopShellShockSound() {
     reinterpret_cast<float*>(preset)[9] = g(0x0083eb90);
     reinterpret_cast<float*>(preset)[10] = g(0x0083eb90);
     reinterpret_cast<float*>(preset)[11] = g(0x0083ec28);
-    title_function<void XB_CDECL(const uint32_t*)>(0x000c72f0)(preset);
+    own_function<void XB_CDECL(const uint32_t*)>(&SndSys_EmptyStub)(preset);
     if (title_global<uint32_t>(0x00973a54)) title_global<uint32_t>(0x00973a54) = 0;
     uint32_t channel = 0;
     const uint32_t first = title_global<uint32_t>(0x00973a68);
@@ -2147,7 +2149,7 @@ float XB_CDECL CameraShake_NoiseSample(float* channel) {
     const uint32_t* const octaves = reinterpret_cast<const uint32_t*>(channel + 1);
     for (uint32_t i = 1; i <= *octaves; ++i) {
         const float x = platform_x87_mul(static_cast<float>(static_cast<int32_t>(i)), t);
-        if (!gi(0x0095f560)) title_function<void XB_CDECL()>(0x002a7da0)();  // Noise_Init
+        if (!gi(0x0095f560)) own_function<void XB_CDECL()>(&Noise_Init)();  // Noise_Init
         const float v = x + g(0x0083ed4c);                                 // 4096
         const int32_t n = static_cast<int32_t>(v);
         const uint32_t index = static_cast<uint32_t>(n) & 0xff;
@@ -2222,8 +2224,8 @@ float* XB_THISCALL CameraShake_Evaluate(uint8_t* manager, float* view) {
         alignas(16) float q[4] = {};
         alignas(16) float m[4] = {};
         alignas(16) float matrix[16] = {};
-        title_function<void XB_REGS3 XB_CDECL(uint32_t, const float*, float*)>(0x002c90c0)(0, offset, q);  // Quat_FromRotationVector
-        title_function<uint32_t XB_REGS3 XB_STDCALL(const float*, uint32_t, float*, float*)>(0x002ae350)(view, 0, m, m);  // Mat44_ToQuatTranslation
+        own_function<void XB_REGS3 XB_CDECL(uint32_t, const float*, float*)>(&Quat_FromRotationVector)(0, offset, q);  // Quat_FromRotationVector
+        own_function<uint32_t XB_REGS3 XB_STDCALL(const float*, uint32_t, float*, float*)>(&Mat44_ToQuatTranslation)(view, 0, m, m);  // Mat44_ToQuatTranslation
         const float r1 = q[3] * m[3] - m[0] * q[0] + q[2] * m[2] + q[1] * m[1];
         const float r2 = q[2] * m[1] + q[3] * m[0] + q[0] * m[3] - m[2] * q[1];
         const float r3 = m[1] * q[3] + m[2] * q[0] + q[1] * m[3] - q[2] * m[0];
@@ -2232,7 +2234,7 @@ float* XB_THISCALL CameraShake_Evaluate(uint8_t* manager, float* view) {
         m[0] = r2;
         m[1] = r3;
         m[2] = r0;
-        title_function<uint32_t XB_REGS3 XB_STDCALL(uint32_t, uint32_t, float*, const float*)>(0x002bdc80)(0, 0, matrix, m);  // Quat_ToMat44
+        own_function<uint32_t XB_REGS3 XB_STDCALL(uint32_t, uint32_t, float*, const float*)>(&Quat_ToMat44)(0, 0, matrix, m);  // Quat_ToMat44
         for (uint32_t i = 12; i < 16; ++i) matrix[i] = view[i];
         for (uint32_t i = 0; i < 16; ++i) view[i] = matrix[i];
     }
@@ -2575,7 +2577,7 @@ void XB_CDECL CG_CalcVehicleViewAngles() {
     if (tag < 0) return;
     alignas(16) float tag_matrix[16];
     using TagMatrixFn = void XB_CDECL(uint8_t*, int32_t, float*);
-    title_function<TagMatrixFn>(0x002e3780)(cent, tag, tag_matrix);  // G_DObjGetWorldTagMatrix
+    own_function<TagMatrixFn>(&G_DObjGetWorldTagMatrix)(cent, tag, tag_matrix);  // G_DObjGetWorldTagMatrix
     float a[9];
     for (int r = 0; r < 3; ++r)
         for (int c = 0; c < 3; ++c) a[r * 3 + c] = tag_matrix[r * 4 + c];
@@ -2600,7 +2602,7 @@ void XB_CDECL CG_CalcVehicleViewAngles() {
     matrix_multiply(m, a, turn);
     matrix_transpose(a, m);
     float c[9];
-    title_function<void XB_REGS1 XB_CDECL(const float*, float*)>(0x002a45b0)(&title_global<float>(0x009725ec), c);  // AnglesToAxisLeft2
+    own_function<void XB_REGS1 XB_CDECL(const float*, float*)>(&AnglesToAxisLeft2)(&title_global<float>(0x009725ec), c);  // AnglesToAxisLeft2
     float view[9];
     matrix_multiply(c, turn, view);
     float angles[3];
@@ -2719,10 +2721,10 @@ uint32_t XB_CDECL CG_CalcViewValues() {
     CG_CalcLinkedViewOrigin();
     if (!title_global<uint8_t>(0x00935538)) {
         if (gi(0x00972548))
-            title_function<void XB_CDECL()>(0x002873e0)();  // CG_OffsetThirdPersonView
+            own_function<void XB_CDECL()>(&CG_OffsetThirdPersonView_entry)();  // CG_OffsetThirdPersonView
         else if (gi(0x009481e4) && gi(0x00972a38) == 2 && (title_global<uint32_t>(0x00972610) & 0x100000) &&
                  gi(0x009729b8))
-            title_function<void XB_CDECL()>(0x00286da0)();  // CG_OffsetAltTankCamView
+            own_function<void XB_CDECL()>(&CG_OffsetAltTankCamView_entry)();  // CG_OffsetAltTankCamView
         else
             CG_OffsetFirstPersonView();
     }

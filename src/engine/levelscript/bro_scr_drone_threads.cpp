@@ -13,6 +13,9 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_level_threads.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -44,7 +47,7 @@ inline uint32_t animname_hash(uint32_t* ent) {
 }
 // The anim array of set `key` for the animname `hash` (level + 0x744, HashMap_Index_10 then HashMap_Index).
 inline DynArray* anim_set(const uint32_t* hash, const uint32_t* key) {
-    return title_function<ArrayIndex>(0x004612f0)(title_function<Index>(0x00464380)(level() + 0x744, hash), key);
+    return own_function<ArrayIndex>(&HashMap_Index_PROLOGUE)(own_function<Index>(&HashMap_Index_PROLOGUE_10)(level() + 0x744, hash), key);
 }
 // The rate array of set `key` (level + 0x2a8, the KASSPASS-section maps).
 inline DynArray* rate_set(const uint32_t* hash, const uint32_t* key) {
@@ -83,7 +86,7 @@ inline void attach_gun_inline(uint32_t drone) {
 inline void fling_gun(uint32_t* drone, ScriptString* gun, const uint32_t* direction, uint32_t level_handle) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*,
                                     const uint32_t*);
-    title_function<Start>(0x0017ae80)(0, 0, 0, 0, 0x0012f6c0, level_handle, drone, gun, direction);
+    own_function<Start>(&Scr_StartThread_ent_ent_str_vec_entry)(0, 0, 0, 0, 0x0012f6c0, level_handle, drone, gun, direction);
 }
 inline const uint32_t* level_handle_ptr() {
     const uint32_t object = level();
@@ -146,11 +149,11 @@ void XB_CDECL BroScr_DroneAnimLoop(uint32_t drone) {
             using Find = uint32_t* XB_THISCALL(uint32_t, uint32_t*, const uint32_t*);
             const uint32_t map = level() + 0x7c8;
             uint32_t it;
-            title_function<Find>(0x0045e6d0)(map, &it, &hash);  // HashMap_Find
+            own_function<Find>(&HashMap_Find)(map, &it, &hash);  // HashMap_Find
             if (it == pointer<uint32_t>(map)[2]) {
                 const uint32_t pair[2] = {hash, undefined_int()};
                 uint32_t inserted;
-                it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+                it = *own_function<Find>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
             }
             root = pointer<uint32_t>(it)[3];
         }
@@ -246,7 +249,7 @@ void XB_CDECL BroScr_DroneMain(uint32_t drone, uint32_t hide, uint32_t explode) 
         slot<void XB_CDECL(uint32_t, uint32_t, ScrVec3*, ScrVec3*, uint32_t)>(0x009224c0)(drone, 0x0632ef00, &origin,
                                                                                          &angles, anim);  // GScr_AnimScriptedNoNotify
     }
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00135630)(drone, 0x0632ef00,
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_WaitTillFinished)(drone, 0x0632ef00,
                                                                            0x000199a4);  // BroScr_WaitTillFinished
     // The trace result: fraction, position, an int, normal, surface name.
     struct Trace {
@@ -439,14 +442,14 @@ void XB_CDECL BroScr_DronePathSpawnLoop(uint32_t spawner, uint32_t path, ScriptS
         for (int32_t i = 0; i < static_cast<int32_t>(n); ++i) {
             ScriptString copy;
             ScriptString_Copy(&copy, &type);
-            title_function<SpawnOne>(0x00170200)(spawner, path, copy, p7, p8, p9);  // BroScr_DronePathSpawnOne
+            own_function<SpawnOne>(&BroScr_DronePathSpawnOne)(spawner, path, copy, p7, p8, p9);  // BroScr_DronePathSpawnOne
             random_delay(delay_min, delay_max, 0x40400000);  // else 3 s
         }
     } else {
         for (;;) {
             ScriptString copy;
             ScriptString_Copy(&copy, &type);
-            title_function<SpawnOne>(0x00170200)(spawner, path, copy, p7, p8, p9);  // BroScr_DronePathSpawnOne
+            own_function<SpawnOne>(&BroScr_DronePathSpawnOne)(spawner, path, copy, p7, p8, p9);  // BroScr_DronePathSpawnOne
             random_delay(delay_min, delay_max, 0x40400000);
         }
     }
@@ -548,7 +551,7 @@ void XB_CDECL BroScr_SpawnEventDrones(uint32_t, ScriptString name, ScriptString 
         uint32_t zero = 0;
         using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, DynArray*, ScriptString*,
                                         uint32_t*, uint32_t*, uint32_t*, uint8_t*);
-        title_function<Start>(0x0045ddc0)(0, 0, 0, 0, 0x00173710, *handle, &paths, &type, &zero, &min, &max,
+        own_function<Start>(&Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE_entry)(0, 0, 0, 0, 0x00173710, *handle, &paths, &type, &zero, &min, &max,
                                           &staggered);  // Scr_StartThread_ent_arrent_str_i_f_f_b(BroScr_DronePathsStartAllCall_6)
         if (paths.data) Scr_Free(paths.data);
     } else {

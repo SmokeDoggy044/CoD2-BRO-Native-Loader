@@ -28,6 +28,7 @@
 #include "sv.h"
 #include "tr_main.h"
 #include "title_data.h"
+#include "phys.h"
 
 namespace game {
 
@@ -214,7 +215,7 @@ void XB_CDECL G_FreeFieldStrings(const uint32_t* fields, uint8_t* object) {
         if (field[1] != 0x10) continue;
         uint32_t* slot = reinterpret_cast<uint32_t*>(object + field[0]);
         if (!*slot) continue;
-        title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(*slot);  // ScriptStringRep_Release
+        own_function<void XB_THISCALL(uint32_t)>(&ScriptStringRep_Release)(*slot);  // ScriptStringRep_Release
         *slot = 0;
     }
 }
@@ -394,7 +395,7 @@ uint8_t* XB_CDECL Vehicle_FindCollmap(const char* name) {
 }
 
 uint8_t* XB_CDECL Vehicle_FromEntityHandle(uint32_t handle) {
-    const auto va = title_function<const char* XB_CDECL(const char*)>(0x002a93d0);
+    const auto va = own_function<const char* XB_CDECL(const char*)>(&va_entry);
     const uint32_t index = handle & 0xfff;
     uint8_t* ent = nullptr;
     if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
@@ -493,7 +494,7 @@ uint8_t* XB_REGS1 XB_CDECL G_TestEntityPosition(const uint8_t* ent, const float*
 uint32_t actor_anim_tree(const uint8_t* actor) {
     uint8_t* ent = *reinterpret_cast<uint8_t* const*>(actor);
     if (!word_at(ent, 0x254)) {
-        const uint32_t tree = title_function<uint32_t XB_CDECL(uint8_t*, uint32_t)>(0x002c4a00)(  // AnimTree_Create
+        const uint32_t tree = own_function<uint32_t XB_CDECL(uint8_t*, uint32_t)>(&AnimTree_Create)(  // AnimTree_Create
             ent, title_global<uint32_t>(0x00987a90));
         word_at(*reinterpret_cast<uint8_t* const*>(actor), 0x254) = tree;
     }
@@ -735,7 +736,7 @@ void XB_CDECL Use_trigger_use(uint8_t* self, const uint8_t* other) {
 char* XB_REGS1 XB_CDECL G_AddSpawnVarToken(const char* token) {
     const uint32_t length = uint32_t(std::strlen(token));
     if (int32_t(title_global<uint32_t>(0x00985624) + length + 1) > 0x800)
-        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x00839d74));  // G_Error
+        own_function<void XB_CDECL(const char*)>(&G_Error_entry)(&title_global<const char>(0x00839d74));  // G_Error
     char* const copy = &title_global<char>(0x00985628 + title_global<uint32_t>(0x00985624));
     std::memcpy(copy, token, length + 1);
     title_global<uint32_t>(0x00985624) += length + 1;
@@ -1333,14 +1334,14 @@ uint32_t XB_CDECL G_EntityArray_FindByStringField(uint32_t field, uint32_t* args
     for (; at != end; at += 4) {
         const uint32_t ent = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at));
         if (!ent) continue;
-        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(temp, ent + field);  // ScriptString_Assign
+        own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Assign_entry)(temp, ent + field);  // ScriptString_Assign
         const uint32_t rep = args[0];
         if (!rep || !(rep + 6) || !*reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(rep + 6))) continue;
         if (ScriptString_EqualsString(temp, key)) break;
     }
     *result = at;
-    title_function<StringOp>(0x0011d640)(temp);  // ScriptString_Release
-    title_function<StringOp>(0x0011d640)(key);   // ScriptString_Release
+    own_function<StringOp>(&ScriptString_Release_entry)(temp);  // ScriptString_Release
+    own_function<StringOp>(&ScriptString_Release_entry)(key);   // ScriptString_Release
     return ent_address(result);
 }
 
@@ -1728,7 +1729,7 @@ void XB_CDECL G_SetEntityAnimTree(uint8_t* anims, uint8_t* ent) {
         if (!old) return;
         ent_field<uint32_t>(ent, 0x254) = 0;
     }
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     if (!old) return;
     const uint32_t count = title_global<uint32_t>(0x00987070);
     title_global<uint32_t>(0x00987074 + count * 4) = address_word(old);
@@ -1912,7 +1913,7 @@ void XB_STDCALL ShakeRumble_StartByName(uint32_t id_slot, float second) {
     *reinterpret_cast<float*>(desc + 0x30) = second;
     if (manager) ShakeRumble_Start(desc, manager, &id_slot, 1.0f);
     for (uint32_t i = 2; i-- > 0;)
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(desc + 0x18 + i * 0x20);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(desc + 0x18 + i * 0x20);  // ScriptString_Release
 }
 
 uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state) {
@@ -1947,7 +1948,7 @@ void XB_CDECL G_FreeEntity(uint8_t* ent) {
     int32_t context = static_cast<int32_t>(word_at(ent, 0x220));
     title_global<uint8_t>(0x008d50d4) = 1;
     if (context == -1) context = static_cast<int32_t>(word_at(title_global<uint8_t*>(0x0095f638), 0x34));
-    title_function<void XB_THISCALL(uint8_t*)>(0x002eda30)(ent);  // G_FreeEntityContents
+    own_function<void XB_THISCALL(uint8_t*)>(&G_FreeEntityContents_entry)(ent);  // G_FreeEntityContents
     word_at(ent, 0x224) = 0;
     if (context != -1) {
         uint8_t* const heap = context >= 0 && context < 0x63
@@ -2121,7 +2122,7 @@ int32_t XB_CDECL G_FindConfigstringIndex(int32_t max, const char* name, int32_t 
     }
     if (!create) {
         if (error)
-            title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0)(  // va (the error call is gone)
+            own_function<const char* XB_CDECL(const char*, ...)>(&va_entry)(  // va (the error call is gone)
                 reinterpret_cast<const char*>(uintptr_t{0x0083289c}), error, name);  // "%s \"%s\" not precached"
         return 0;
     }
@@ -2265,13 +2266,13 @@ float* XB_REGS3 XB_STDCALL G_DObjGetBoneMatrix(const uint8_t* ent, uint32_t, uin
 
 uint8_t* XB_REGS1 XB_STDCALL G_InitGentity(uint8_t* ent, int32_t context) {
     using FromRep = void XB_THISCALL(uint8_t*, uint32_t);
-    const auto from_rep = title_function<FromRep>(0x0011d5d0);  // ScriptString_FromRep
-    const auto clear = title_function<void XB_THISCALL(uint8_t*)>(0x0011d660);  // ScriptString_Clear
+    const auto from_rep = own_function<FromRep>(&ScriptString_FromRep);  // ScriptString_FromRep
+    const auto clear = own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear);  // ScriptString_Clear
     auto zero_words = [&](uint32_t begin, uint32_t end) {
         for (uint32_t f = begin; f < end; f += 4) word_at(ent, f) = 0;
     };
     EntityState_Clear(ent);
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002ceb50)(ent + 0xd0);  // FUN_002ceb50 (physics state)
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&Phys_InitBodyState)(ent + 0xd0);  // FUN_002ceb50 (physics state)
     word_at(ent, 0x220) = static_cast<uint32_t>(context);
     word_at(ent, 0x224) = 0;
     word_at(ent, 0x228) = 0xffffffff;
@@ -2330,7 +2331,7 @@ uint8_t* XB_REGS1 XB_STDCALL G_InitGentity(uint8_t* ent, int32_t context) {
     }
     G_UpdateEntityStringHashes(ent);
     uint32_t* const classname = &word_at(ent, 0x25c);
-    title_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(0x0011d600)(  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(&ScriptString_Assign_entry)(  // ScriptString_Assign
         classname, &title_global<uint32_t>(0x00984ba4));
     const uint32_t name = *classname;
     word_at(ent, 0x260) = Com_HashKeyNoCase(0, name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr);
@@ -2544,7 +2545,7 @@ uint8_t* XB_CDECL G_TempEntity(const uint32_t* origin, uint32_t event) {
     uint8_t* const ent = alloc_entity_in_current_context();
     uint32_t* const classname = &word_at(ent, 0x25c);
     ent[0] = static_cast<uint8_t>(static_cast<uint8_t>(event) + 0x11);  // eType = event + 0x11
-    title_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(0x0011d600)(  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(&ScriptString_Assign_entry)(  // ScriptString_Assign
         classname, &title_global<uint32_t>(0x00984c50));
     const uint32_t name = *classname;
     word_at(ent, 0x260) = Com_HashKeyNoCase(0, name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr);
@@ -2600,7 +2601,7 @@ uint32_t XB_REGS1 XB_CDECL G_EntLinkTo(uint8_t* parent, uint8_t* ent, const char
     } else {
         // The offset: the inverse of the entity's matrix in the tag's parent frame.
         float parent_matrix[12];
-        title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*)>(0x002df3e0)(ent, parent_matrix);  // G_GetTagParentMatrix
+        own_function<void XB_REGS1 XB_CDECL(uint8_t*, float*)>(&G_GetTagParentMatrix)(ent, parent_matrix);  // G_GetTagParentMatrix
         MatrixInverse43(reinterpret_cast<float*>(link + 0x40), 0, parent_matrix);
     }
     if (word_at(ent, 0x23c)) {
@@ -2679,7 +2680,7 @@ float& float_at(uint8_t* base, uint32_t offset) { return *reinterpret_cast<float
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
 void get_tag_parent_matrix(uint8_t* ent, float* out) {
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*)>(0x002df3e0)(ent, out);  // G_GetTagParentMatrix
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*, float*)>(&G_GetTagParentMatrix)(ent, out);  // G_GetTagParentMatrix
 }
 
 }  // namespace
@@ -2925,7 +2926,7 @@ void XB_CDECL G_DObjUpdate(uint8_t* ent) {
     ModelEntry models[8];
     for (ModelEntry& entry : models) {
         entry.model = 0;
-        title_function<StringOp>(0x0011d5d0)(&entry.tag, 0);  // ScriptString_FromRep
+        own_function<StringOp>(&ScriptString_FromRep)(&entry.tag, 0);  // ScriptString_FromRep
         entry.zero = 0;
     }
     uint8_t* const old_obj = ptr_at(ent, 0x22c);
@@ -2962,7 +2963,7 @@ void XB_CDECL G_DObjUpdate(uint8_t* ent) {
                 tree = 0;
         }
         models[0].model = address_of(model);
-        title_function<StringOp>(0x0011e0f0)(&models[0].tag, 0);  // ScrCall_sprintf
+        own_function<StringOp>(&ScrCall_sprintf)(&models[0].tag, 0);  // ScrCall_sprintf
         models[0].ignore_collision = 0;
         uint32_t count = 1;
         // The attached models (+0x3d8 model, +0x3dc tag; +0x299 bit = ignore collision).
@@ -2970,7 +2971,7 @@ void XB_CDECL G_DObjUpdate(uint8_t* ent) {
             const uint32_t attached = word_at(ent, 0x3d8 + i * 8);
             if (!attached) continue;
             models[count].model = attached;
-            title_function<void XB_THISCALL(uint32_t*, uint8_t*)>(0x0011d600)(&models[count].tag,
+            own_function<void XB_THISCALL(uint32_t*, uint8_t*)>(&ScriptString_Assign_entry)(&models[count].tag,
                                                                              ent + 0x3dc + i * 8);  // ScriptString_Assign
             models[count].ignore_collision = (ent[0x299] & static_cast<uint8_t>(1u << i)) ? 1 : 0;
             ++count;
@@ -3012,13 +3013,13 @@ void XB_CDECL G_DObjUpdate(uint8_t* ent) {
             child = next;
         }
     }
-    for (uint32_t i = 8; i-- > 0;) title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&models[i].tag);  // ScriptString_Release
+    for (uint32_t i = 8; i-- > 0;) own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&models[i].tag);  // ScriptString_Release
 }
 
 void XB_CDECL G_EntDetachAll(uint8_t* ent) {
     for (uint32_t i = 0; i < 7; ++i) {
         word_at(ent, 0x3d8 + i * 8) = 0;
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(ent + 0x3dc + i * 8);  // ScriptString_Clear
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear)(ent + 0x3dc + i * 8);  // ScriptString_Clear
     }
     ent[0x299] = 0;
     G_DObjUpdate(ent);
@@ -3041,13 +3042,13 @@ uint32_t XB_CDECL G_EntDetach(uint8_t* ent, const char* model, const char* tag) 
         if (!title_function<Stricmp>(0x001f1443)(name, model)) break;
     }
     if (slot == 7) return 0;
-    const auto clear = title_function<void XB_THISCALL(uint8_t*)>(0x0011d660);  // ScriptString_Clear
+    const auto clear = own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear);  // ScriptString_Clear
     word_at(ent, 0x3d8 + slot * 8) = 0;
     clear(ent + 0x3dc + slot * 8);
     // The later slots move down one, their ignore-collision bits with them.
     for (; slot < 6; ++slot) {
         word_at(ent, 0x3d8 + slot * 8) = word_at(ent, 0x3e0 + slot * 8);
-        title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(ent + 0x3dc + slot * 8,
+        own_function<void XB_THISCALL(uint8_t*, uint8_t*)>(&ScriptString_Assign_entry)(ent + 0x3dc + slot * 8,
                                                                         ent + 0x3e4 + slot * 8);  // ScriptString_Assign
         const uint8_t bits = ent[0x299];
         const uint8_t bit = static_cast<uint8_t>(1u << slot);
@@ -3088,7 +3089,7 @@ uint32_t XB_CDECL G_EntAttach(uint8_t* ent, int32_t context, const char* model, 
     Q_strncpyLen(name, reinterpret_cast<int32_t*>(&local), 0x1f, tag);
     name[0x1f] = static_cast<char>(local);
     title_function<char* XB_CDECL(char*)>(0x001fa3b2)(name);  // _strlwr
-    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(ent + 0x3dc + slot * 8,
+    own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(ent + 0x3dc + slot * 8,
                                                                        name);  // ScriptString_AssignCString
     if (ignore_collision) ent[0x299] |= static_cast<uint8_t>(1u << slot);
     G_DObjUpdate(ent);
@@ -3216,8 +3217,8 @@ PLATFORM_ASM_ENTRY(G_SetObjectiveString_entry,
 void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint32_t send_update) {
     using StringOp = void XB_THISCALL(uint32_t*, uint32_t);
     uint32_t state;
-    title_function<StringOp>(0x0011d5d0)(&state, 0);  // ScriptString_FromRep
-    const auto release = [&state] { title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&state); };
+    own_function<StringOp>(&ScriptString_FromRep)(&state, 0);  // ScriptString_FromRep
+    const auto release = [&state] { own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&state); };
     if (index < 0 || index >= 0x10) {
         uint32_t args[3] = {0x00831b38, static_cast<uint32_t>(index), 0xf};  // "index %i is an illegal objective index..."
         va(args);
@@ -3266,7 +3267,7 @@ void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint
         return;
     }
     static const uint32_t kStates[6] = {0x00984b08, 0x00984ac4, 0x00984b74, 0x00984b04, 0x00984ae0, 0x00984b48};
-    title_function<StringOp>(0x0011d600)(&state, kStates[number]);  // ScriptString_Assign
+    own_function<StringOp>(&ScriptString_Assign_entry)(&state, kStates[number]);  // ScriptString_Assign
     if (static_cast<uint8_t>(send_update))
         G_SendObjectiveUpdate(reinterpret_cast<const ScriptString*>(&state), static_cast<uint32_t>(index));
     release();
@@ -3299,7 +3300,7 @@ PLATFORM_ASM_ENTRY(G_FreeEntityContents_entry,
                    "ret")
 
 void XB_CDECL G_FreeEntityContents(uint8_t* ent, uint32_t entry_esp) {
-    const auto release = title_function<void XB_THISCALL(uint8_t*)>(0x0011d640);  // ScriptString_Release
+    const auto release = own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry);  // ScriptString_Release
     if (word_at(ent, 0x2a4) & 0x1000) Path_ConnectPathsForEntity(ent, title_global<uint8_t*>(0x0095f4f4));
     ActorBlockList_RemoveEntity(reinterpret_cast<uint8_t*>(uintptr_t{0x0098aa90}), address_of(ent));
     if (uint8_t* const mem = reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x3d4)})) {
@@ -3467,7 +3468,7 @@ uint8_t* XB_CDECL G_GetCachedTagMatrix(uint32_t handle, const ScriptString* tag)
     G_DObjGetWorldTagMatrix(ent, static_cast<uint32_t>(bone), matrix);
     title_global<int32_t>(0x00986020) = title_global<int32_t>(0x0098540c);  // level_time
     title_global<uint32_t>(0x00986024) = handle;
-    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(cached_tag, tag);  // ScriptString_Assign
+    own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(cached_tag, tag);  // ScriptString_Assign
     return reinterpret_cast<uint8_t*>(matrix);
 }
 
@@ -3480,7 +3481,7 @@ uint32_t find_ents_by(uint32_t* out, uint32_t offset, uint32_t value) {
     alignas(16) uint8_t scratch[0x460] = {};
     G_InitGentity(scratch, -1);
     const uint32_t count = G_FindEntsByField(out, offset, value);
-    title_function<void XB_THISCALL(uint8_t*)>(0x002eda30)(scratch);  // G_FreeEntityContents
+    own_function<void XB_THISCALL(uint8_t*)>(&G_FreeEntityContents_entry)(scratch);  // G_FreeEntityContents
     return count;
 }
 

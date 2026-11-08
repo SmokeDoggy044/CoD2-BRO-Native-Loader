@@ -25,6 +25,15 @@
 #include "stream.h"
 #include "title_data.h"
 #include "unzip.h"
+#include "g_client.h"
+#include "g_main.h"
+#include "g_mover.h"
+#include "nal_anim.h"
+#include "ngl.h"
+#include "phys.h"
+#include "r_init.h"
+#include "scr_field.h"
+#include "shaders.h"
 
 namespace game {
 
@@ -1462,7 +1471,7 @@ const char* cmd_arg(int32_t argc, int32_t index) {
 }
 
 void cvar_set2(const char* name, const char* value) {
-    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 0);  // Cvar_Set2
+    own_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(&Cvar_Set2)(name, value, 0);  // Cvar_Set2
 }
 
 }  // namespace
@@ -2714,7 +2723,7 @@ PLATFORM_ASM_ENTRY(Bounds_AddPoints8_entry,
                    "ret")
 
 void XB_CDECL Bounds_AddPoints8(const float* m, const float* box, float* bounds) {
-    const auto add_point = title_function<void XB_REGS3 XB_CDECL(float*, uint32_t, const float*)>(0x00029380);
+    const auto add_point = own_function<void XB_REGS3 XB_CDECL(float*, uint32_t, const float*)>(&Bounds_AddPointSimd);
     for (int32_t i = 0; i < 8; ++i) {
         const float x = (i & 4) ? box[0] : box[4];
         const float y = (i & 2) ? box[1] : box[5];
@@ -2941,7 +2950,7 @@ PLATFORM_ASM_ENTRY(Loc_GetString_entry,
 
 const char* XB_CDECL Loc_GetString(const char* key) {
     if (!key) return key;
-    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(key);  // Loc_HashKey
+    const uint32_t hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&Loc_HashKey)(key);  // Loc_HashKey
     const uint8_t* entry = Zone_FindByHash(title_global<const uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
     if (!entry) return key;
     const char* text = reinterpret_cast<const char*>(uintptr_t{*reinterpret_cast<const uint32_t*>(entry + 8)});
@@ -2989,7 +2998,7 @@ PLATFORM_ASM_ENTRY(Com_RunAndTimeServerPacket_entry,
 
 uint32_t XB_CDECL Com_RunAndTimeServerPacket(uint32_t entry, uint32_t msg, const uint32_t* from, uint32_t ebx,
                                              uint32_t edi) {
-    const auto sys_milliseconds = title_function<uint32_t XB_CDECL()>(0x002b1ca0);
+    const auto sys_milliseconds = own_function<uint32_t XB_CDECL()>(&Sys_Milliseconds);
     uint8_t* speeds = title_global<uint8_t*>(0x009403e8);  // com_speeds
     if (pk<uint32_t>(speeds, 0x20)) sys_milliseconds();
     const uint32_t words[5] = {from[0], from[1], from[2], from[3], from[4]};
@@ -3093,7 +3102,7 @@ void XB_CDECL Com_InitNodeRing() {
     title_global<float>(0x00965d04) = 0.0f;
     title_global<uint16_t>(0x00965d08) = 0;
     title_global<uint16_t>(0x00965d0a) = 0;
-    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(&title_global<uint8_t>(0x00965ce8),
+    own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(&title_global<uint8_t>(0x00965ce8),
                                                                        tstr(0x00832b28));  // "end"
 }
 
@@ -3103,7 +3112,7 @@ namespace {
 void clear_ring_name() {
     const uint32_t text = title_global<uint32_t>(0x00965ce8);
     if (text && text + 6 && *reinterpret_cast<const char*>(uintptr_t{text + 6}))
-        title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(&title_global<uint8_t>(0x00965ce8));  // ScriptString_Clear
+        own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear)(&title_global<uint8_t>(0x00965ce8));  // ScriptString_Clear
 }
 
 }  // namespace
@@ -3134,8 +3143,7 @@ PLATFORM_ASM_ENTRY(FS_AddGameDirectories_entry,
                    "ret")
 
 void XB_CDECL FS_AddGameDirectories(uint32_t path, uint32_t dir) {
-    const auto add = title_function<void XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t)>(
-        0x0029cb60);  // FS_AddGameDirectory (ECX + 3 stack words)
+    const auto add = own_function<void XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t)>(&FS_AddGameDirectory);  // FS_AddGameDirectory (ECX + 3 stack words)
     for (int32_t i = 0xd; i >= 0; --i) add(0, 0, path, dir, 1, i);
     add(0, 0, path, dir, 0, 0);
 }
@@ -3145,7 +3153,7 @@ void XB_CDECL Loc_Init() {
     const int32_t language = pk<int32_t>(title_global<uint8_t*>(0x0093f7fc), 0x20);
     title_global<uint32_t>(0x0093e750) = language >= 8 && language <= 0xc ? 1 : 0;
     Cvar_Set2(tstr(0x00833484), const_cast<char*>(tstr(0x0082e058)), 1);  // cl_languagesavailable "1"
-    title_function<void XB_CDECL()>(0x002ca5e0)();     // Loc_ClearStrings
+    own_function<void XB_CDECL()>(&Loc_ClearStrings)();     // Loc_ClearStrings
 }
 
 namespace {
@@ -3206,7 +3214,7 @@ PLATFORM_ASM_ENTRY(Loc_TranslateString_entry,
                    "ret")
 
 uint32_t XB_CDECL Loc_TranslateString(const char* key, char* out, const char* context, int32_t mode) {
-    const auto va_ = title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0);
+    const auto va_ = own_function<const char* XB_CDECL(const char*, ...)>(&va_entry);
     const uint8_t* translate = title_global<const uint8_t*>(0x00929b4c);  // cl_languagetranslate
     const char* text = key;
     if (translate && pk<uint32_t>(const_cast<uint8_t*>(translate), 0x20) && key[0] && key[1]) text = Loc_GetString(key);
@@ -3232,7 +3240,7 @@ uint32_t XB_CDECL Loc_TranslateString(const char* key, char* out, const char* co
 }
 
 uint8_t XB_REGS1 XB_CDECL IntHashMap_EraseByString(const char* name) {
-    const int32_t hash = title_function<int32_t XB_CDECL(const char*)>(0x002f5470)(name);  // ScrIface_HashStringNoCase
+    const int32_t hash = own_function<int32_t XB_CDECL(const char*)>(&ScrIface_HashStringNoCase)(name);  // ScrIface_HashStringNoCase
     uint32_t node = 0;
     IntHashMap_Find(&node, &hash, &title_global<uint8_t>(0x0095fe00));
     if (node == title_global<uint32_t>(0x0095fe08)) return 0;
@@ -3729,11 +3737,11 @@ void XB_CDECL Cmd_ExecuteString(const char* text) {
     using VmCall = uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t);
     uint8_t* const cg_cvar = cvar_ptr(0x00947704);
     if (cg_cvar && pk<int32_t>(cg_cvar, 0x20) && title_global<uint8_t*>(0x0093f7f8)) {
-        if (title_function<VmCall>(0x002a84e0)(0, title_global<uint8_t*>(0x0093f7f8), 2)) return;  // VM_Call(cgvm, 2)
+        if (own_function<VmCall>(&VM_Call_entry)(0, title_global<uint8_t*>(0x0093f7f8), 2)) return;  // VM_Call(cgvm, 2)
     }
     uint8_t* const sv_running = cvar_ptr(0x0093fcf0);  // com_sv_running
     if (sv_running && pk<int32_t>(sv_running, 0x20) && title_global<int32_t>(0x00964cd4) == 2) {
-        if (title_function<VmCall>(0x002a84e0)(0, title_global<uint8_t*>(0x0095f50c), 0xc)) return;  // VM_Call(gvm, 12)
+        if (own_function<VmCall>(&VM_Call_entry)(0, title_global<uint8_t*>(0x0095f50c), 0xc)) return;  // VM_Call(gvm, 12)
     }
     const char* first = tstr(0x0082dfeb);
     if (argc) {
@@ -3871,20 +3879,20 @@ const char* XB_REGS1 XB_CDECL Loc_TrimQuotedValue(const char* text) {
         title_global<char>(0x0098bcc0) = 0;
         title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379990);  // _atexit
     }
-    title_function<AssignN>(0x00015920)(kStr, tstr(0x0082dfeb), 0);
+    own_function<AssignN>(&std_string_AssignN)(kStr, tstr(0x0082dfeb), 0);
     while (*text == ' ' || *text == '\t') ++text;
     if (*text == '"') ++text;
-    title_function<AssignN>(0x00015920)(kStr, text, static_cast<uint32_t>(std::strlen(text)));
+    own_function<AssignN>(&std_string_AssignN)(kStr, text, static_cast<uint32_t>(std::strlen(text)));
     if (*text) {
         for (;;) {
             const char* const s = c_str();
             const uint32_t n = static_cast<uint32_t>(std::strlen(s));
             const char last = s[n - 1];
             if (last == ' ' || last == '\t') {
-                title_function<Erase>(0x00015110)(kStr, n - 1, 1);  // std_string_Erase
+                own_function<Erase>(&std_string_Erase)(kStr, n - 1, 1);  // std_string_Erase
                 continue;
             }
-            if (last == '"') title_function<Erase>(0x00015110)(kStr, n - 1, 1);
+            if (last == '"') own_function<Erase>(&std_string_Erase)(kStr, n - 1, 1);
             break;
         }
     }
@@ -3922,15 +3930,15 @@ void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists) {
         clear_tree(state + 0x98, 0x00020610);  // std_set_string_EraseSubtree
     }
     pk<uint32_t>(state, 0) = 0;
-    title_function<AssignN>(0x00015920)(state + 4, tstr(0x0082dfeb), 0);
-    return title_function<AssignN>(0x00015920)(state + 0x20, tstr(0x0082dfeb), 0);
+    own_function<AssignN>(&std_string_AssignN)(state + 4, tstr(0x0082dfeb), 0);
+    return own_function<AssignN>(&std_string_AssignN)(state + 0x20, tstr(0x0082dfeb), 0);
 }
 
 uint8_t XB_CDECL Save_HasEnoughFreeSpace() {
     uint32_t free_bytes[2] = {0, 0};
-    const int32_t status = title_function<int32_t XB_CDECL(uint32_t*)>(0x000d1b40)(free_bytes);  // Save_GetFreeSpace
-    const int32_t clusters = title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
-    const auto cluster_size = title_function<int32_t XB_CDECL()>(0x000d1ec0);               // Save_GetClusterSize
+    const int32_t status = own_function<int32_t XB_CDECL(uint32_t*)>(&Save_GetFreeSpace)(free_bytes);  // Save_GetFreeSpace
+    const int32_t clusters = own_function<int32_t XB_CDECL(int32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
+    const auto cluster_size = own_function<int32_t XB_CDECL()>(&Save_GetClusterSize);               // Save_GetClusterSize
     const int32_t partial = clusters * 4 + cluster_size() * 2;
     const int32_t size = cluster_size();
     const int32_t bytes = size + partial + size * 4;
@@ -4153,7 +4161,7 @@ int32_t XB_CDECL Com_EventLoop() {
 }
 
 void XB_CDECL Com_Frame() {
-    title_function<void XB_STDCALL(uint32_t)>(0x0021bae0)(0x0098aa90);  // Actor_UpdateBlockingPairs
+    own_function<void XB_STDCALL(uint32_t)>(&Actor_UpdateBlockingPairs_entry)(0x0098aa90);  // Actor_UpdateBlockingPairs
     if (title_global<uint8_t>(0x008d50dd)) {
         // The pause screen: 0x008d50dc set = waiting to resume.
         if (!title_global<uint8_t>(0x008d50dc)) {
@@ -4169,7 +4177,7 @@ void XB_CDECL Com_Frame() {
                 }
                 S_UpdateChannels(title_global<uint8_t*>(0x0095f4c4));
                 S_CheckWaveBankNotifies(title_global<uint8_t*>(0x0095f4c0));  // rm_soundBanks
-                title_function<void XB_CDECL()>(0x000ca690)();                // File_PumpRequests
+                own_function<void XB_CDECL()>(&File_PumpRequests)();                // File_PumpRequests
                 return;
             }
         } else if (title_global<uint8_t>(0x0095f538)) {
@@ -4209,7 +4217,7 @@ void XB_CDECL Com_Frame() {
         raw_msec = time - last;
     } while (raw_msec < min_msec);
     last_time = time;
-    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (its entry needs the real ESP)
+    own_function<void XB_CDECL()>(&Cbuf_Execute_entry)();  // Cbuf_Execute (its entry needs the real ESP)
     if (cvar_int(0x0093fcbc)) Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e098)), 1);  // cl_paused "0"
     int32_t msec = Com_ModifyMsec(0, 0, raw_msec);
     if (cvar_int(0x009403e8)) sys_milliseconds();
@@ -4222,8 +4230,8 @@ void XB_CDECL Com_Frame() {
     title_global<float>(0x008ddaa4) = thousand / frame_msec;
     title_global<float>(0x008ddaa0) = seconds;
     title_global<float>(0x008ddaa8) = title_global<float>(0x008ddaa8) + seconds;
-    title_function<void XB_CDECL()>(0x0029ed00)();  // Scr_PruneEntityWaitLists
-    title_function<void XB_CDECL()>(0x00251f90)();  // G_ProcessCheckpointTriggers
+    own_function<void XB_CDECL()>(&Scr_PruneEntityWaitLists)();  // Scr_PruneEntityWaitLists
+    own_function<void XB_CDECL()>(&G_ProcessCheckpointTriggers)();  // G_ProcessCheckpointTriggers
     title_global<float>(0x0092708c) =
         static_cast<float>(static_cast<double>(msec) * title_global<double>(0x0083ef88) + title_global<float>(0x0092708c));
     if (title_global<uint32_t>(0x0095f474) && title_global<float>(0x0092708c) > title_global<float>(0x00926e24))
@@ -4242,7 +4250,7 @@ void XB_CDECL Com_Frame() {
     }
     if (cvar_int(0x009403e8)) sys_milliseconds();
     Com_EventLoop();
-    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
+    own_function<void XB_CDECL()>(&Cbuf_Execute_entry)();  // Cbuf_Execute
     if (cvar_int(0x009403e8)) sys_milliseconds();
     {
         const TitleRegs regs{static_cast<uint32_t>(raw_msec), static_cast<uint32_t>(raw_msec), 0, 0,
@@ -4360,7 +4368,7 @@ char** XB_CDECL FS_ListFilteredFiles(const char* path, const char* extension, co
         FS_BuildOSPath(reinterpret_cast<const char*>(dir + 0x80), 0, reinterpret_cast<const char*>(dir), path, netpath, 0);
         int32_t count = 0;
         using SysListFiles = char** XB_REGS3 XB_CDECL(uint32_t, const char*, const char*, const char*, int32_t*, int32_t);
-        char** const files = title_function<SysListFiles>(0x00223bf0)(0, filter, extension, netpath, &count, is_dir_filter);
+        char** const files = own_function<SysListFiles>(&Sys_ListFiles)(0, filter, extension, netpath, &count, is_dir_filter);
         for (int32_t i = 0; i < count; ++i) nfiles = FS_AddFileToList(files[i], list, nfiles);
         if (files) {
             for (char** f = files; *f; ++f) Z_Free(reinterpret_cast<uint8_t*>(*f));
@@ -4485,7 +4493,7 @@ void XB_THISCALL std_vector_InsertN4(Vector4* vector, uint32_t* where, uint32_t 
     const uint32_t capacity = first ? ptr_count4(first, vector->end) : 0;
     if (!count) return;
     const auto size = [vector, first] { return first ? ptr_count4(first, vector->last) : 0; };
-    if (0x3fffffff - size() < count) title_function<void XB_THISCALL(Vector4*)>(0x0017ce30)(vector);  // std_vector_Xlen
+    if (0x3fffffff - size() < count) own_function<void XB_THISCALL(Vector4*)>(&std_vector_Xlen)(vector);  // std_vector_Xlen
     if (capacity < size() + count) {
         uint32_t new_capacity = 0x3fffffff - capacity / 2 < capacity ? 0 : capacity + capacity / 2;
         if (new_capacity < size() + count) new_capacity = size() + count;
@@ -4533,7 +4541,7 @@ uint8_t XB_THISCALL std_vector_Buy4(Vector4* vector, uint32_t count) {
     vector->last = nullptr;
     vector->end = nullptr;
     if (!count) return 0;
-    if (count > 0x3fffffff) title_function<void XB_THISCALL(Vector4*)>(0x0017ce30)(vector);  // std_vector_Xlen
+    if (count > 0x3fffffff) own_function<void XB_THISCALL(Vector4*)>(&std_vector_Xlen)(vector);  // std_vector_Xlen
     uint32_t* const data = Scr_Alloc(count << 2, 4);
     vector->end = data + count;
     vector->first = data;
@@ -5185,17 +5193,17 @@ void dynarray_shuffle(DynArray* array, uint32_t resize) {
 // 28-byte record assignment: words copied, the two script strings assigned.
 void record28_assign(uint8_t* dest, uint8_t* source) {
     pk<uint32_t>(dest, 0) = pk<uint32_t>(source, 0);
-    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 4, source + 4);  // ScriptString_Assign
+    own_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(&ScriptString_Assign_entry)(dest + 4, source + 4);  // ScriptString_Assign
     pk<uint32_t>(dest, 8) = pk<uint32_t>(source, 8);
-    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 0xc, source + 0xc);
+    own_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(&ScriptString_Assign_entry)(dest + 0xc, source + 0xc);
     pk<uint32_t>(dest, 0x10) = pk<uint32_t>(source, 0x10);
     pk<uint32_t>(dest, 0x14) = pk<uint32_t>(source, 0x14);
     pk<uint32_t>(dest, 0x18) = pk<uint32_t>(source, 0x18);
 }
 
 void record28_release(uint8_t* record) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 0xc);  // ScriptString_Release
-    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 4);
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(record + 0xc);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Release_entry)(record + 4);
 }
 
 constexpr uint32_t kRecord28Ctor = 0x0045bcd0;
@@ -5242,11 +5250,11 @@ void XB_CDECL DynArray_ShuffleString(DynArray* array) {
         const uint32_t j = static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(
             title_global<uint32_t>(0x0092222c))(static_cast<int32_t>(array->size)));  // Scr_RandomInt
         uint32_t temp = 0;
-        title_function<void XB_THISCALL(uint32_t*, uint8_t*)>(0x0011d5e0)(&temp, at(i));  // ScriptString_Copy
+        own_function<void XB_THISCALL(uint32_t*, uint8_t*)>(&ScriptString_Copy)(&temp, at(i));  // ScriptString_Copy
         uint8_t* const other = at(j);
-        title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(at(i), other);  // ScriptString_Assign
-        title_function<void XB_THISCALL(uint8_t*, uint32_t*)>(0x0011d600)(at(j), &temp);
-        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&temp);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint8_t*, uint8_t*)>(&ScriptString_Assign_entry)(at(i), other);  // ScriptString_Assign
+        own_function<void XB_THISCALL(uint8_t*, uint32_t*)>(&ScriptString_Assign_entry)(at(j), &temp);
+        own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&temp);  // ScriptString_Release
     }
 }
 
@@ -5588,14 +5596,14 @@ void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent) {
     ScriptString name{};
     ScriptString value{};
     using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
-    ScriptString* const name_ref = title_function<FromCString>(0x0011eb50)(&name, id);
-    ScriptString* const value_ref = title_function<FromCString>(0x0011eb50)(&value, response);
+    ScriptString* const name_ref = own_function<FromCString>(&ScriptString_FromCString)(&name, id);
+    ScriptString* const value_ref = own_function<FromCString>(&ScriptString_FromCString)(&value, response);
     TitleRegs regs{};
     regs.ebx = u32(ent);
     const uint32_t args[3] = {title_global<uint32_t>(0x0097a71c), u32(value_ref), u32(name_ref)};  // "menuresponse"
     qc_call_regs(0x00029000, &regs, 3, args);  // G_NotifyWithTwoStrings (ent in EBX)
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&value);  // ScriptString_Release
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&name);
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&value);  // ScriptString_Release
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&name);
 }
 
 void XB_CDECL Cmd_JumpToNode_f(uint8_t* ent) {
@@ -5671,7 +5679,7 @@ void XB_CDECL Cmd_Kill_f(uint8_t* ent) {
     pk<int32_t>(client, 0x100) = 0;
     using PlayerDie = void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t, int32_t, uint32_t, uint32_t, uint32_t,
                                     uint32_t);
-    title_function<PlayerDie>(0x00269450)(ent, ent, ent, 100000, 0x15, 0, 0, 0, 0);  // player_die
+    own_function<PlayerDie>(&player_die)(ent, ent, ent, 100000, 0x15, 0, 0, 0, 0);  // player_die
 }
 
 void XB_CDECL Cmd_Give_f(uint8_t* ent) {
@@ -5684,8 +5692,8 @@ void XB_CDECL Cmd_Give_f(uint8_t* ent) {
         return;
     }
     using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
-    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
-    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    const int32_t amount = title_atol(own_function<ConcatArgs>(&game::ConcatArgs)(0, 0, 2));
+    const char* const name = own_function<ConcatArgs>(&game::ConcatArgs)(0, 0, 1);
     if (!name || !std::strlen(name)) return;
     Q_stricmpn(name, tstr(0x0083bd34), 99999);  // "all" (the result is not used)
     int32_t health;
@@ -5707,15 +5715,15 @@ void XB_CDECL Cmd_Give_f(uint8_t* ent) {
     };
     if (amount) {
         const int32_t current = pk<int32_t>(pk_ptr(ent, 0x23c), 0x80);
-        if (current) title_function<AddAmmo>(0x0024e7a0)(ent, current, amount, 1);
+        if (current) own_function<AddAmmo>(&Add_Ammo)(ent, current, amount, 1);
     } else {
         for (int32_t weapon = 1; weapon <= last_weapon; ++weapon)
-            if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, 998, 1);
+            if (has_weapon(weapon)) own_function<AddAmmo>(&Add_Ammo)(ent, weapon, 998, 1);
     }
     if (Q_stricmpn(name, tstr(0x0083bd24), 7) || !amount) return;  // "allammo"
     const int32_t last = title_global<int32_t>(0x0095f4d4);
     for (int32_t weapon = 1; weapon <= last; ++weapon)
-        if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, amount, 1);
+        if (has_weapon(weapon)) own_function<AddAmmo>(&Add_Ammo)(ent, weapon, amount, 1);
 }
 
 // Cmd_Activate_f (ent in ESI): every title callee gets the original's registers (use/touch callbacks and the
@@ -5770,7 +5778,7 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
         return 1;
     }
     if (!pk<uint32_t>(target, 0x25c)) return 1;
-    if (title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(target + 0x25c)) return 1;  // ScriptString_IsEmpty
+    if (own_function<uint8_t XB_THISCALL(uint8_t*)>(&ScriptString_IsEmpty)(target + 0x25c)) return 1;  // ScriptString_IsEmpty
     const uint32_t classname = pk<uint32_t>(target, 0x260);
     if (classname == title_global<uint32_t>(0x0097a6dc) || classname == title_global<uint32_t>(0x0097a6e0)) {
         regs.eax = u32(target);
@@ -5895,7 +5903,7 @@ void XB_CDECL Com_InitSmallHeap() {
                                              0x0095f598, 0x0095f5bc, 0x0095f5c8, 0x0095f520, 0x0095f498};
     for (uint32_t address : kHeapPointers) title_global<uint32_t>(address) = u32(heap);
     Stream_InitSmallHeaps();
-    title_function<void XB_CDECL()>(0x002f67a0)();  // ScrThread_InitDataHeap
+    own_function<void XB_CDECL()>(&ScrThread_InitDataHeap)();  // ScrThread_InitDataHeap
 }
 
 // --- Localized strings: map 0x0095fee8 (head 0x0095feec, size 0x0095fef0) of name -> {text +0x28, alternate
@@ -6363,7 +6371,7 @@ void XB_THISCALL RcString_Reserve(uint8_t** holder, int32_t size, uint8_t keep) 
         pk<int32_t>(rc, 0xc) = rem ? size - rem + 20 : size;
     }
     char* const text = reinterpret_cast<char*>(
-        title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(pk<uint32_t>(*holder, 0xc)));  // Heap_Alloc16
+        own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(pk<uint32_t>(*holder, 0xc)));  // Heap_Alloc16
     if (had_buffer && keep) std::strcpy(text, reinterpret_cast<const char*>(pk_ptr(*holder, 8)));
     if (pk_ptr(*holder, 8)) Z_Free(pk_ptr(*holder, 8));
     pk<uint32_t>(*holder, 8) = u32(text);
@@ -6470,8 +6478,8 @@ void XB_CDECL Cmd_Take_f(uint8_t* ent) {
         return;
     }
     using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
-    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
-    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    const int32_t amount = title_atol(own_function<ConcatArgs>(&game::ConcatArgs)(0, 0, 2));
+    const char* const name = own_function<ConcatArgs>(&game::ConcatArgs)(0, 0, 1);
     if (!name || !std::strlen(name)) return;
     // ps +0x80 current weapon, +0x110 ammo per ammo index, +0x280 clip per clip index; weapon def +0x598 ammo
     // index, +0x5a0 clip index.
@@ -6598,13 +6606,13 @@ uint8_t XB_CDECL Save_ProfilesDirExists() {
 }
 
 int32_t XB_CDECL Save_GetBlocksNeeded() {
-    const int32_t clusters = title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
-    const auto cluster_size = title_function<int32_t XB_CDECL()>(0x000d1ec0);               // Save_GetClusterSize
+    const int32_t clusters = own_function<int32_t XB_CDECL(int32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
+    const auto cluster_size = own_function<int32_t XB_CDECL()>(&Save_GetClusterSize);               // Save_GetClusterSize
     int32_t needed = clusters * 4 + cluster_size() * 2;
     const int32_t size = cluster_size();
     needed = needed + size * 4 + size;
     uint32_t free_bytes[2] = {0, 0};
-    title_function<int32_t XB_CDECL(uint32_t*)>(0x000d1b40)(free_bytes);  // Save_GetFreeSpace
+    own_function<int32_t XB_CDECL(uint32_t*)>(&Save_GetFreeSpace)(free_bytes);  // Save_GetFreeSpace
     const int32_t bytes = needed - static_cast<int32_t>(free_bytes[0]);
     const int32_t blocks = static_cast<int32_t>(
         BytesToBlocks(static_cast<uint32_t>(bytes), static_cast<uint32_t>(bytes >> 31)));
@@ -6619,7 +6627,7 @@ void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self) {
     uint8_t* const request = self + 4;
     SaveRequest_SetFileName(request, tstr(0x0082aaec));  // "Profiles"
     const uint32_t clusters = static_cast<uint32_t>(
-        title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400));  // Save_ClustersForSize
+        own_function<int32_t XB_CDECL(int32_t)>(&Save_ClustersForSize)(0x400));  // Save_ClustersForSize
     uint32_t prefix = 0;
     uint32_t dir = 0;
     script_string_from(&prefix, reinterpret_cast<const char*>(static_cast<uintptr_t>(Save_GetData())));
@@ -7048,32 +7056,32 @@ void XB_CDECL Sys_Main() {
     regs.eax = u32(live);
     qc_call_regs(0x00224920, &regs, 0, nullptr);  // LiveMgr_Construct (EAX)
     title_function<void XB_CDECL(uint8_t*)>(0x002221b0)(frame + 0x2c);  // Sys_ReadLaunchInfo
-    title_function<void XB_CDECL(int32_t)>(0x00042ac0)(0);               // Heap_SelectByIndex
+    own_function<void XB_CDECL(int32_t)>(&Heap_SelectByIndex)(0);               // Heap_SelectByIndex
     FS_InitPackBuffers();
-    title_function<void XB_CDECL()>(0x000ce070)();  // SndSys_InitDevice
+    own_function<void XB_CDECL()>(&SndSys_InitDevice)();  // SndSys_InitDevice
     Sys_Milliseconds();
     title_function<void XB_CDECL()>(0x00094160)();  // FxShaderClass_Create
-    title_function<void XB_CDECL()>(0x00045790)();  // nglInitShaders
-    const auto frame_memory = title_function<void XB_CDECL(int32_t, uint32_t, int32_t)>(0x000778b0);  // nglSetFrameMemorySize
+    own_function<void XB_CDECL()>(&nglInitShaders)();  // nglInitShaders
+    const auto frame_memory = own_function<void XB_CDECL(int32_t, uint32_t, int32_t)>(&nglSetFrameMemorySize);  // nglSetFrameMemorySize
     frame_memory(0, 0xc0000, 1);
     frame_memory(1, 0x8000, 1);
     frame_memory(3, 0x20000, 1);
     frame_memory(2, 0x10000, 1);
     frame_memory(4, 0x80000, 1);
-    const auto vblank = title_function<void XB_CDECL(int32_t)>(0x000645c0);  // nglSetVBlankMode
+    const auto vblank = own_function<void XB_CDECL(int32_t)>(&nglSetVBlankMode);  // nglSetVBlankMode
     vblank(2);
     uint32_t* const mode = reinterpret_cast<uint32_t*>(frame + 0x10);
     mode[0] = 2;
     mode[1] = 0;
-    title_function<void XB_CDECL(uint32_t*, int32_t)>(0x000649e0)(mode, 2);  // nglSelectVideoMode
+    own_function<void XB_CDECL(uint32_t*, int32_t)>(&nglSelectVideoMode)(mode, 2);  // nglSelectVideoMode
     Cvar_Set2(tstr(0x00839874), const_cast<char*>(tstr(title_global<uint8_t>(0x00902899) ? 0x0082e058 : 0x0082e098)),
               1);  // cg_widescreen "1" / "0"
-    title_function<void XB_CDECL()>(0x00064bc0)();  // nglInit
-    title_function<void XB_CDECL()>(0x002982d0)();  // SCR_InitLoadingSpinner
+    own_function<void XB_CDECL()>(&nglInit)();  // nglInit
+    own_function<void XB_CDECL()>(&SCR_InitLoadingSpinner)();  // SCR_InitLoadingSpinner
     regs = TitleRegs{};
     regs.ebx = 1;
     qc_call_regs(0x00298170, &regs, 0, nullptr);  // SCR_UpdateLoadingIcon_2 (BL = 1)
-    title_function<void XB_CDECL(int32_t, uint32_t, uint32_t)>(0x00094610)(0, 0x2000000, 0xfa0);  // FX_InitSystem
+    own_function<void XB_CDECL(int32_t, uint32_t, uint32_t)>(&FX_InitSystem)(0, 0x2000000, 0xfa0);  // FX_InitSystem
     regs = TitleRegs{};
     regs.eax = 0x80000;
     regs.ebx = 0;
@@ -7084,12 +7092,12 @@ void XB_CDECL Sys_Main() {
         pk<uint32_t>(allocator, 0) = 0x008376c4;  // HeapAllocator vtable
         uint8_t* const memory = Z_Malloc(0x100000);
         pk<uint32_t>(allocator, 4) = u32(memory);
-        title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t)>(0x00042470)(  // Heap_Init
+        own_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t)>(&Heap_Init)(  // Heap_Init
             allocator + 8, memory, memory + 0x100000, 0);
     }
-    title_function<void XB_CDECL(uint8_t*)>(0x0007bac0)(allocator);  // Anim_InitManagers
+    own_function<void XB_CDECL(uint8_t*)>(&Anim_InitManagers)(allocator);  // Anim_InitManagers
     Sys_InitHeaps();
-    title_function<void XB_CDECL(uint8_t*)>(0x002a7490)(frame + 0x2c);  // Com_Init(launch data)
+    own_function<void XB_CDECL(uint8_t*)>(&Com_Init)(frame + 0x2c);  // Com_Init(launch data)
     title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7767)(0x00223130);  // SetUnhandledExceptionFilter
     const uint32_t device = title_global<uint32_t>(0x00902874);
     uint8_t* stream = Z_Malloc(8);
@@ -7150,7 +7158,7 @@ void XB_CDECL Sys_Main() {
             set_input(pk<uint32_t>(live, 0x14), input, 0);
             clear_input(pk<uint32_t>(live, 0x14));
         }
-        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0005e650)(0x00224970, 0);  // nglSetPreSwapCallback(Live_Render)
+        own_function<void XB_CDECL(uint32_t, uint32_t)>(&nglSetPreSwapCallback)(0x00224970, 0);  // nglSetPreSwapCallback(Live_Render)
         Com_Frame();
     }
 }
@@ -7209,19 +7217,19 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     title_global<uint32_t>(0x0095f588) = 0;
     title_global<uint32_t>(0x0095f58c) = 0;
     title_global<uint8_t*>(0x00940358) = Cvar_Get(tstr(0x008340d0), tstr(0x0082e098), 0x48);  // sv_cheats "0"
-    title_function<void XB_CDECL()>(0x002a23b0)();  // Cvar_Init
+    own_function<void XB_CDECL()>(&Cvar_Init)();  // Cvar_Init
     boot_call(0x002938a0, u32(launch));            // Com_ParseCommandLine (EAX)
-    title_function<void XB_CDECL()>(0x002b0140)();  // Swap_Init
+    own_function<void XB_CDECL()>(&Swap_Init)();  // Swap_Init
     title_global<uint32_t>(0x00935328) = 0x0092bf90;  // cmd_text {data, 0x2000, 0}
     title_global<uint32_t>(0x0093532c) = 0x2000;
     title_global<uint32_t>(0x00935330) = 0;
     title_global<uint32_t>(0x00929c10) = 0x00929ce0;
     title_global<uint32_t>(0x00929c14) = 0x2000;
     title_global<uint32_t>(0x00929c18) = 0;
-    title_function<void XB_CDECL()>(0x002d1460)();  // Cmd_Init
+    own_function<void XB_CDECL()>(&Cmd_Init)();  // Cmd_Init
     Com_StartupVariable(nullptr);
     Com_StartupVariable(tstr(0x00837ce4));  // "developer"
-    const auto add_command = title_function<void XB_CDECL(const char*, uint32_t)>(0x002ba5c0);  // Cmd_AddCommand
+    const auto add_command = own_function<void XB_CDECL(const char*, uint32_t)>(&Cmd_AddCommand);  // Cmd_AddCommand
     add_command(tstr(0x0083453c), 0x002c1c20);  // bind
     add_command(tstr(0x00834534), 0x002c1db0);  // unbind
     add_command(tstr(0x00834528), 0x002c1d60);  // unbindall
@@ -7230,17 +7238,17 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     const uint32_t keep = 0;
     boot_call(0x002c5ac0, 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
     Loc_Init();
-    title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate
     boot_construct(0x0095f480, 4, 0x11f0, 0x00330640, 'D');  // ProfileSave_Construct
     boot_construct(0x0095f638, 4, 0x57c, 0x00290020);        // Pak_Init
     boot_construct(0x0095f62c, 4, 0x2c, 0x002909d0);         // Stream_InitBanks
     boot_construct(0x0095f630, 4, 0x1e8, 0x0028ec30);        // ResourceManager_Construct
-    title_function<void XB_CDECL()>(0x000239c0)();           // ResourceManager_CreateLgrid
-    title_function<void XB_CDECL()>(0x00023900)();           // ResourceManager_CreateModels
-    title_function<void XB_CDECL()>(0x00023960)();           // ResourceManager_CreateXmpb
-    title_function<void XB_CDECL()>(0x00023f90)();           // ResourceManager_CreateAitb
+    own_function<void XB_CDECL()>(&ResourceManager_CreateLgrid)();           // ResourceManager_CreateLgrid
+    own_function<void XB_CDECL()>(&ResourceManager_CreateModels)();           // ResourceManager_CreateModels
+    own_function<void XB_CDECL()>(&ResourceManager_CreateXmpb)();           // ResourceManager_CreateXmpb
+    own_function<void XB_CDECL()>(&ResourceManager_CreateAitb)();           // ResourceManager_CreateAitb
     boot_construct(0x0095f4c4, 4, 0x601c, 0x002bda60);       // SoundManager_Ctor
-    title_function<void XB_CDECL()>(0x00023ed0)();           // ResourceManager_CreateSoundBanks
+    own_function<void XB_CDECL()>(&ResourceManager_CreateSoundBanks)();           // ResourceManager_CreateSoundBanks
     title_global<uint8_t*>(0x0095f4c8) = boot_alloc(4, 4);
     uint8_t* const fade = boot_alloc(4, 0x20);
     if (fade) {
@@ -7256,22 +7264,22 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     }
     title_global<uint8_t*>(0x0095f4cc) = fade;
     boot_construct(0x0095f640, 0x10, 0x1e0, 0x0028f620);  // ZoneGraph_Init
-    title_function<void XB_CDECL()>(0x00023ff0)();        // ResourceManager_CreateDb
+    own_function<void XB_CDECL()>(&ResourceManager_CreateDb)();        // ResourceManager_CreateDb
     boot_construct(0x0095f5b4, 0x10, 0x8e30, 0x0029fbd0); // FXCmdQueue_Ctor
-    title_function<void XB_CDECL()>(0x00023f30)();        // ResourceManager_CreateDlg
-    title_function<void XB_CDECL()>(0x00023a20)();        // ResourceManager_CreateLevel
+    own_function<void XB_CDECL()>(&ResourceManager_CreateDlg)();        // ResourceManager_CreateDlg
+    own_function<void XB_CDECL()>(&ResourceManager_CreateLevel)();        // ResourceManager_CreateLevel
     boot_construct(0x0095f4f8, 4, 0x1a8, 0x002c03e0);     // SceneFX_Init -> scn_zoneScenes
-    title_function<void XB_CDECL()>(0x00024050)();        // ResourceManager_CreateCfgstr
+    own_function<void XB_CDECL()>(&ResourceManager_CreateCfgstr)();        // ResourceManager_CreateCfgstr
     boot_construct(0x0095f4f4, 4, 0x198, 0x002b1190, 'd'); // g_pathNodeBlocks (EDX)
-    title_function<void XB_CDECL()>(0x00023e70)();        // ResourceManager_CreateLocStrings
+    own_function<void XB_CDECL()>(&ResourceManager_CreateLocStrings)();        // ResourceManager_CreateLocStrings
     title_global<uint8_t*>(0x0095f5e0) = boot_alloc(1, 0x800);
     boot_construct(0x0095f4e0, 4, 0x598, 0x002cdca0);     // Checkpoint_Init
     boot_construct(0x0095f564, 4, 0x184, 0x002b6fc0, 'a'); // SpgManager_Construct (EAX) -> rm_spg
-    title_function<void XB_CDECL()>(0x00234450)();        // Phys_Init
+    own_function<void XB_CDECL()>(&Phys_Init)();        // Phys_Init
     boot_construct(0x0095f4fc, 4, 0x328, 0x002d8a10);     // CM_WorldTrees_Construct
     boot_construct(0x0095f500, 0x10, 0x1e0, 0x002d0d60, 'b');  // CM_WorldTreeManager_Construct (EBX)
-    title_function<void XB_CDECL()>(0x00023d80)();        // ResourceManager_CreateAnimTrees
-    title_function<void XB_CDECL()>(0x00024260)();        // ShakeRumble_CreateManager
+    own_function<void XB_CDECL()>(&ResourceManager_CreateAnimTrees)();        // ResourceManager_CreateAnimTrees
+    own_function<void XB_CDECL()>(&ShakeRumble_CreateManager)();        // ShakeRumble_CreateManager
     title_global<uint8_t>(0x00940178) = 0;
     title_global<uint8_t*>(0x0095f674) = Cvar_Get(tstr(0x0083be30), tstr(0x0082e098), 0x100);  // statusbar
     boot_call(0x00337050, 0, 0, 0, 0, 0x0095f8d0);  // FE_CreateMenus (g_uiRoot in ESI)
@@ -7289,7 +7297,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0x00299780;
     const uint32_t load_args[6] = {0, 0x00837cd4, 0, 0, 0, 0};  // "sp\global.cod", a zero float block
     boot_call(0x00292d10, title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
-    const uint32_t pad = title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    const uint32_t pad = own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate
     boot_call(0x00055e70, pad, 0, pad);                                      // IN_PadUpdate (ECX)
     // The "Animation" zone of the pak's zone map (+0x18: map at +8, count +0x10, zones +0x14).
     uint8_t* const zones = pk_ptr(title_global<uint8_t*>(0x0095f638), 0x18);
@@ -7316,13 +7324,13 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     boot_call(0x0023b360, 0, 0, 0, 0, 0x00988770);  // R_InitDebugMeshes (ESI)
     pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0;
     boot_call(0x002ce9c0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f4c0));  // S_WaitForWaveBanks (rm_soundBanks)
-    title_function<void XB_CDECL()>(0x0029fe70)();  // Com_InitJournaling
+    own_function<void XB_CDECL()>(&Com_InitJournaling)();  // Com_InitJournaling
     boot_cbuf_append(0x00837cb4, 0x12);  // "exec language.cfg\n"
     boot_cbuf_append(0x00837ca4, 0xd);   // "exec bro.cfg\n"
     boot_cbuf_append(0x00837c90, 0x12);  // "exec autoexec.cfg\n"
-    if (title_function<int32_t XB_CDECL()>(0x002999e0)())  // Com_SafeMode
+    if (own_function<int32_t XB_CDECL()>(&Com_SafeMode)())  // Com_SafeMode
         boot_call(0x002aabb0, 0x00837c7c);                // Cbuf_AddText("exec safemode.cfg\n")
-    title_function<void XB_CDECL()>(0x002c62b0)();         // Cbuf_Execute
+    own_function<void XB_CDECL()>(&Cbuf_Execute_entry)();         // Cbuf_Execute
     boot_call(0x00332e20, 0, 0, 0, 0, 0, 0x008dce30);      // CL_ApplyProfileSettings (profile in EDI)
     Com_StartupVariable(nullptr);
     if (title_global<uint32_t>(0x0095f580) != title_global<uint32_t>(0x0095f578)) {
@@ -7360,18 +7368,18 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"
     const uint32_t value_args[2] = {0x0083ca9c, 0x3f800000};  // sys_cpuid 1.0
     boot_call(0x0029fdd0, set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue
-    title_function<void XB_CDECL()>(0x002be180)();  // IN_InitCvars
-    title_function<void XB_CDECL()>(0x002c0ce0)();  // Netchan_Init
-    title_function<void XB_CDECL()>(0x002a8410)();  // Com_InitNodeRing
+    own_function<void XB_CDECL()>(&IN_InitCvars)();  // IN_InitCvars
+    own_function<void XB_CDECL()>(&Netchan_Init)();  // Netchan_Init
+    own_function<void XB_CDECL()>(&Com_InitNodeRing)();  // Com_InitNodeRing
     Com_Memset(&title_global<uint8_t>(0x00927c38), 0, 0x1a4);  // vmTable
-    title_function<void XB_CDECL()>(0x002f48e0)();  // SV_Init
-    title_function<void XB_CDECL()>(0x002f20a0)();  // CL_Init
+    own_function<void XB_CDECL()>(&SV_Init)();  // SV_Init
+    own_function<void XB_CDECL()>(&CL_Init)();  // CL_Init
     boot_call(0x0032cf50, 0, 0, 0, 0, 0x008dce30);  // Profile_SetDefaults (ESI)
     boot_call(0x00332e20, 0, 0, 0, 0, 0x008dce30, 0x008dce30);  // CL_ApplyProfileSettings (EDI)
-    title_global<int32_t>(0x00947710) = title_function<int32_t XB_CDECL()>(0x0029c6b0)();  // com_frameTime
-    title_function<void XB_CDECL()>(0x002970c0)();  // Com_AddStartupCommands
+    title_global<int32_t>(0x00947710) = own_function<int32_t XB_CDECL()>(&Com_Milliseconds)();  // com_frameTime
+    own_function<void XB_CDECL()>(&Com_AddStartupCommands)();  // Com_AddStartupCommands
     Cvar_Set2(tstr(0x00835238), const_cast<char*>(tstr(0x0082e058)), 1);  // r_uiFullScreen "1"
-    title_function<void XB_CDECL()>(0x002f0a50)();  // CL_StartHunkUsers
+    own_function<void XB_CDECL()>(&CL_StartHunkUsers)();  // CL_StartHunkUsers
     Cvar_Set2(tstr(0x00837c48), const_cast<char*>(tstr(0x0082e098)), 1);  // com_statmon "0"
     title_global<uint32_t>(0x00947b04) = 1;
 }
@@ -7484,7 +7492,7 @@ void XB_CDECL SV_MapRestartInternal_f() {
     TitleRegs regs{};
     regs.edi = u32(game);
     qc_call_regs(0x002cdbc0, &regs, 0, nullptr);  // G_ClearCheckpoint (EDI)
-    title_function<void XB_STDCALL(uint32_t)>(0x002fc2a0)(0x008dd1d8);
+    own_function<void XB_STDCALL(uint32_t)>(&Scr_AbortAllThreads)(0x008dd1d8);
     title_global<uint8_t>(0x0095f508) = 1;
 }
 

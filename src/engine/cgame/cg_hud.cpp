@@ -12,6 +12,9 @@
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "pmove.h"
+#include "qcommon_core.h"
+#include "script_string.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -171,7 +174,7 @@ void XB_CDECL HudCompGrenadeCook_Dtor(uint8_t* self) {
 
 namespace {
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 // The deleting destructors' shared body: the class vtable, its owned UI elements deleted in
 // order, the base vtable 0x008286fc, then Z_Free with flag bit 0. Returns this.
@@ -225,7 +228,7 @@ uint8_t* XB_THISCALL HudCompHint_DeletingDtor(uint8_t* self, uint32_t flags) {
 }
 
 uint8_t* XB_THISCALL HudManager_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x00319f20)(self);  // HudManager_Dtor
+    own_function<void XB_THISCALL(uint8_t*)>(&HudManager_Dtor)(self);  // HudManager_Dtor
     if (flags & 1) z_free(self);
     return self;
 }
@@ -725,7 +728,7 @@ void XB_THISCALL HudCompCompass_Update(uint8_t* self, uint32_t) {
         title_call_regs(0x003180a0, 0, me, 0);  // HudCompCompass_UpdateNeedle (ESI)
         title_call_regs(0x00339830, me, 0, 0);  // HudCompCompass_UpdateActorMarkers (EAX)
         if (title_global<int32_t>(0x0094d7d4) == 1)
-            title_function<void XB_STDCALL(uint8_t*)>(0x00337b70)(self);  // HudCompCompass_UpdateFiringEnemies
+            own_function<void XB_STDCALL(uint8_t*)>(&HudCompCompass_UpdateFiringEnemies)(self);  // HudCompCompass_UpdateFiringEnemies
         title_call_regs(0x00339450, me, 0, 0);  // HudCompCompass_UpdateTankMarkers (EAX)
     }
     title_call_regs(0x003379b0, me, 0, 0);  // HudCompCompass_UpdateObjectives (EAX)
@@ -1124,7 +1127,7 @@ uint8_t* XB_CDECL HudManager_Create(uint8_t* self) {
     field<uint32_t>(self, 0x44) = 0;
     using Alloc16 = uint8_t* XB_CDECL(uint32_t);
     for (uint32_t offset = 0x48; offset <= 0x50; offset += 4) {
-        uint8_t* const text = title_function<Alloc16>(0x00042c30)(8);  // Heap_Alloc16
+        uint8_t* const text = own_function<Alloc16>(&Heap_Alloc16)(8);  // Heap_Alloc16
         field<uint8_t*>(self, offset) = text;
         text[0] = 0;
     }
@@ -1376,7 +1379,7 @@ void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t) {
     uint8_t* const def = defs[weapon];
     if (field<int32_t>(def, 0x98) == 5) return;
     using ReserveFn = int32_t XB_REGS1 XB_CDECL(int32_t, uint8_t*);
-    const int32_t total = title_function<ReserveFn>(0x002b4fd0)(weapon, &title_global<uint8_t>(0x00972550));
+    const int32_t total = own_function<ReserveFn>(&BG_GetTotalReserveAmmo_entry)(weapon, &title_global<uint8_t>(0x00972550));
     field<int32_t>(self, 0x18) = total;
     field<int32_t>(self, 0x14) = -1;
     uint8_t* const def2 = title_global<uint8_t* const*>(0x0095f4d8)[weapon];
@@ -1427,11 +1430,11 @@ void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t) {
     if (!visible(self) || !object_at(self, 0xc)) return;
     uint32_t handle = 0;
     float fraction = 0.0f;
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&handle, hud_text(0x0082dd9c));  // ScriptString_FromCString
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&handle, hud_text(0x0082dd9c));  // ScriptString_FromCString
     using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
     const uint32_t entity = title_function<FindFn>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x84))(
         &handle, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
-    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&handle);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&handle);  // ScriptString_Release
     if (entity) {
         handle = entity;
         if (field<float>(self, 0x18) == gf(0x0083eb34)) {  // -1: not seen yet
@@ -1523,12 +1526,12 @@ void XB_THISCALL HudCompTankShells_Update(uint8_t* self, uint32_t) {
     // While visible with pictures: the player tank's ("player_tank") shell state (game import +0x798).
     if (!visible(self) || !object_at(self, 8)) return;
     uint32_t name = 0;
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&name, hud_text(0x0082dd9c));  // ScriptString_FromCString
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&name, hud_text(0x0082dd9c));  // ScriptString_FromCString
     uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
     using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
     const uint32_t entity =
         title_function<FindFn>(field<uint32_t>(import, 0x84))(&name, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
-    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&name);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&name);  // ScriptString_Release
     if (!entity) return;
     using StateFn = uint32_t XB_CDECL(uint32_t);
     field<uint8_t>(self, 0x10) =

@@ -6,6 +6,8 @@
 #include "qcommon.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
+#include "qcommon_core.h"
+#include "r_init.h"
 
 namespace game {
 
@@ -43,7 +45,7 @@ void init_class(uint32_t singleton, uint32_t vtable, uint32_t mask, uint8_t bit)
 }
 
 NglHashedName* hashed_name(NglHashedName* out, const char* name) {
-    return title_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(out, name);
+    return own_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(&HashStr_Init)(out, name);
 }
 
 // A section's draw-list node in scene memory (16-byte aligned; some classes make it
@@ -342,7 +344,7 @@ void XB_CDECL cdOcean_Toggle() { toggle(0x00901e8d, 0x04); }
 
 void XB_CDECL cdOcean_Init() {
     init_class(0x00901f40, 0x007b6638, 0x00901e8d, 0x04);
-    title_function<void XB_CDECL()>(0x00044eb0)();
+    own_function<void XB_CDECL()>(&cdOcean_ResetWaveSets)();
 }
 
 namespace {
@@ -2145,7 +2147,7 @@ void XB_THISCALL cdSimpleInstance_ShrinkList(CdSimpleInstanceList* self) {
     const uint32_t size = static_cast<uint32_t>(self->count) << 7;
     auto* records = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x10, 0));
     std::memcpy(records, self->records, static_cast<uint32_t>(self->count) << 7);
-    title_function<void XB_CDECL(void*)>(0x000939b0)(self->records);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self->records);  // Mem_AlignedFree
     self->records = records;
 }
 
@@ -2296,7 +2298,7 @@ uint32_t** XB_THISCALL cdBackground_NewVertexIter(const void* mesh, uint32_t** o
 void XB_CDECL cdSimpleInstance_Init() {}
 
 void XB_THISCALL cdSimpleInstance_FreeList(CdSimpleInstanceList* self) {
-    title_function<void XB_CDECL(void*)>(0x000939b0)(self->records);  // Mem_AlignedFree
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self->records);  // Mem_AlignedFree
 }
 
 void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out) {
@@ -2331,10 +2333,10 @@ void XB_CDECL nglInitShaders() {
     // nglAssembleVertexShader are variadic formats), then every shader class's Init.
     using AssemblePixel = void XB_CDECL(uint32_t, uint32_t, ...);
     using AssembleVertex = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, ...);
-    title_function<AssemblePixel>(0x00076120)(0x00901e70, 0x007b38c8);
-    title_function<AssemblePixel>(0x00076120)(0x00901e74, 0x007b37b0);
-    title_function<AssemblePixel>(0x00076120)(0x00901e78, 0x007b3760);
-    title_function<AssembleVertex>(0x00076220)(0x008979a0, 0x00901e84, 1, 0x007b3710);
+    own_function<AssemblePixel>(&nglAssemblePixelShader_entry)(0x00901e70, 0x007b38c8);
+    own_function<AssemblePixel>(&nglAssemblePixelShader_entry)(0x00901e74, 0x007b37b0);
+    own_function<AssemblePixel>(&nglAssemblePixelShader_entry)(0x00901e78, 0x007b3760);
+    own_function<AssembleVertex>(&nglAssembleVertexShader_entry)(0x008979a0, 0x00901e84, 1, 0x007b3710);
     cdSky_Init();
     cdBackground_Init();
     cdWorld_Init();

@@ -5,6 +5,8 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "bro_scr_anim_scenes.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -20,7 +22,7 @@ ScriptString copy_string(const ScriptString* source) {
 // ScriptString_FromRep(0) (0x0011d5d0): the empty string.
 ScriptString empty_string() {
     ScriptString empty;
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&empty, 0);
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&empty, 0);
     return empty;
 }
 ScriptString level_empty_string() { return copy_string(&title_global<ScriptString>(0x00922e90)); }
@@ -32,17 +34,17 @@ using Scene8 = void XB_CDECL(uint32_t, uint32_t, uint32_t, ScriptString, uint32_
 
 void anim_loop_at_ent(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5, uint32_t p6, uint32_t p7,
                       uint32_t p8) {
-    title_function<Scene8>(0x00178080)(ent, guys, a3, anime, p5, p6, p7, p8);  // BroScr_AnimLoopAtEnt
+    own_function<Scene8>(&BroScr_AnimLoopAtEnt)(ent, guys, a3, anime, p5, p6, p7, p8);  // BroScr_AnimLoopAtEnt
 }
 void anim_loop_at_node(uint32_t node, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5, uint32_t p6, uint32_t p7) {
-    title_function<Scene8>(0x00178280)(node, guys, a3, anime, p5, p6, p7, 0);  // BroScr_AnimLoopAtNode(.., false)
+    own_function<Scene8>(&BroScr_AnimLoopAtNode)(node, guys, a3, anime, p5, p6, p7, 0);  // BroScr_AnimLoopAtNode(.., false)
 }
 void anim_single_at_node(uint32_t node, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5, uint32_t p6,
                          uint32_t p7) {
-    title_function<Scene7>(0x001784c0)(node, guys, a3, anime, p5, p6, p7);  // BroScr_AnimSingleAtNode
+    own_function<Scene7>(&BroScr_AnimSingleAtNode)(node, guys, a3, anime, p5, p6, p7);  // BroScr_AnimSingleAtNode
 }
 void anim_single_at_ent(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5, uint32_t p6) {
-    title_function<Scene7>(0x00178710)(ent, guys, a3, anime, p5, p6, 0);  // BroScr_AnimSingleAtEnt(.., false)
+    own_function<Scene7>(&BroScr_AnimSingleAtEnt)(ent, guys, a3, anime, p5, p6, 0);  // BroScr_AnimSingleAtEnt(.., false)
 }
 
 // A one-element array {guy} (DynArray_Resize(1, 4)).
@@ -84,7 +86,7 @@ void XB_CDECL BroScr_AnimSingleSoloAtNode_3(uint32_t node, uint32_t guy, uint32_
     DynArray guys;
     one_guy(&guys, guy);
     using Scene6 = void XB_CDECL(uint32_t, uint32_t, uint32_t, ScriptString, uint32_t, uint32_t);
-    title_function<Scene6>(0x00178b00)(node, address_of(&guys), a3, copy_string(&anime), a5, a6);  // BroScr_AnimSingleAtNode_2
+    own_function<Scene6>(&BroScr_AnimSingleAtNode_2)(node, address_of(&guys), a3, copy_string(&anime), a5, a6);  // BroScr_AnimSingleAtNode_2
     free_guys(&guys);
     scr_release(&anime);
 }
@@ -93,7 +95,7 @@ void XB_CDECL BroScr_AnimLoopSoloAtNode(uint32_t node, uint32_t guy, uint32_t a3
                                         uint32_t a6, uint32_t a7) {
     DynArray guys;
     one_guy(&guys, guy);
-    title_function<Scene7>(0x001797d0)(node, address_of(&guys), a3, copy_string(&anime), a5, a6, a7);  // BroScr_AnimLoopAtNode_2
+    own_function<Scene7>(&BroScr_AnimLoopAtNode_2)(node, address_of(&guys), a3, copy_string(&anime), a5, a6, a7);  // BroScr_AnimLoopAtNode_2
     free_guys(&guys);
     scr_release(&anime);
 }

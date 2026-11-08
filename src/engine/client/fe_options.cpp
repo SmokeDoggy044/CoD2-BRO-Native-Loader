@@ -12,6 +12,7 @@
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -41,7 +42,7 @@ void call(uint8_t* object, uint32_t offset, uint32_t a, uint32_t b) {
     method<PairMethod>(object, offset)(object, a, b);
 }
 
-void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
 
 uint8_t* menu_item(uint8_t* menu, int32_t index) { return field<uint8_t**>(menu, 4)[index]; }
 int32_t selection(uint8_t* menu) { return field<int16_t>(menu, 0x22); }
@@ -103,7 +104,7 @@ void advanced_label_colors(uint8_t* menu) {
 
 // 0x0031ee10 (bar in EAX; menu, value on the stack, ret 8): a slider bar's quads and the volume it sets.
 void set_slider(uint8_t* bar, uint8_t* menu, int32_t value) {
-    title_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint8_t*, int32_t)>(0x0031ee10)(bar, menu, value);
+    own_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint8_t*, int32_t)>(&AdvancedOptionsMenu_SetSliderBar)(bar, menu, value);
 }
 
 // A slider value moved by one (right: up) and clamped to 0..50; the sound +0x14 unless clamped.
@@ -141,10 +142,10 @@ void advanced_set_sliders(uint8_t* menu) {
     set_slider(field<uint8_t*>(menu, 0x94), menu, field<int32_t>(menu, 0xac));
 }
 
-void controller_bar_a(uint8_t* menu) { title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x0031e9d0)(menu); }
-void controller_bar_b(uint8_t* menu) { title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x0031e810)(menu); }
+void controller_bar_a(uint8_t* menu) { own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&ControllerConfigMenu_UpdateSliderA)(menu); }
+void controller_bar_b(uint8_t* menu) { own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&ControllerConfigMenu_UpdateSliderB)(menu); }
 void controls_update_text(uint8_t* menu) {
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x00335d60)(menu);  // FE_ControlsUpdateText
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&FE_ControlsUpdateText_entry)(menu);  // FE_ControlsUpdateText
 }
 
 }  // namespace

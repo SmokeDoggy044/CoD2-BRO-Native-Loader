@@ -10,6 +10,7 @@
 #include "qcommon_core.h"
 #include "ragdoll.h"
 #include "title_data.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -32,7 +33,7 @@ void free_aligned_global(uint32_t address) {
 }
 
 void release_script_string(uint32_t address) {
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(address);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(address);  // ScriptString_Release
 }
 
 void at_exit(uint32_t function) { title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(function); }  // _atexit

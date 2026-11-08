@@ -67,7 +67,7 @@ int32_t huft_build_call(uint32_t* b, uint32_t* m, uint32_t n, uint32_t s, const 
                         InflateHuft** t, InflateHuft* hp, uint32_t* hn, uint32_t* v) {
     using HuftBuild = int32_t XB_REGS3 XB_CDECL(uint32_t*, uint32_t, uint32_t*, uint32_t, uint32_t, const uint32_t*,
                                                 const uint32_t*, InflateHuft**, InflateHuft*, uint32_t*, uint32_t*);
-    return title_function<HuftBuild>(0x0005d190)(m, 0, b, n, s, d, e, t, hp, hn, v);
+    return own_function<HuftBuild>(&huft_build_entry)(m, 0, b, n, s, d, e, t, hp, hn, v);
 }
 
 // inflate_mask (the low n bits) in the title's .data: indexed as the original does, so an

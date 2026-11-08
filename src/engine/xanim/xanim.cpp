@@ -11,6 +11,8 @@
 #include "stream.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "qcommon_core.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -518,7 +520,7 @@ void XB_REGS1 XB_CDECL AnimTree_ActivateParents(uint32_t index, uint32_t blend_t
         float time;
         std::memcpy(&time, &blend_time, 4);
         uint8_t* info = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
-            title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(0x002c3ed0)(index, tree)));  // AnimTree_AllocInfo
+            own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(&AnimTree_AllocInfo)(index, tree)));  // AnimTree_AllocInfo
         float goal, rate;
         if (!index) {
             goal = title_global<float>(0x0083eb20);
@@ -630,8 +632,8 @@ void free_notetracks(uint8_t* node) {
     const uint32_t notes = *reinterpret_cast<const uint32_t*>(node + 0x28);
     const int32_t count = *reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(notes - 4));
     for (int32_t k = count - 1; k >= 0; --k)
-        title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(notes + k * 12);  // ScriptString_Release
-    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(notes - 4);               // Z_Free
+        own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(notes + k * 12);  // ScriptString_Release
+    own_function<void XB_CDECL(uint32_t)>(&Z_Free)(notes - 4);               // Z_Free
     *reinterpret_cast<uint32_t*>(node + 0x28) = 0;
 }
 
@@ -703,7 +705,7 @@ uint8_t* XB_CDECL AnimTree_Create(const uint8_t* owner, uint8_t* anims) {
     if (context != -1) {
         const uint32_t memory =
             context >= 0 && context < 0x63 ? *reinterpret_cast<const uint32_t*>(system + 0x38 + context * 4) : 0;
-        tree = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(memory, 0x10, size);  // MemContext_Alloc_r
+        tree = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(memory, 0x10, size);  // MemContext_Alloc_r
     }
     if (!tree) tree = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, size);  // Heap_AllocAligned
     Com_Memset(tree, 0, size);
@@ -742,7 +744,7 @@ float abs_difference(float a, float b) {
 
 uint8_t* alloc_info(uint32_t index, uint8_t* tree) {
     return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
-        title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(0x002c3ed0)(index, tree)));  // AnimTree_AllocInfo
+        own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*)>(&AnimTree_AllocInfo)(index, tree)));  // AnimTree_AllocInfo
 }
 
 }  // namespace
@@ -1346,7 +1348,7 @@ void XB_CDECL AnimTree_Setup(uint32_t entry, uint32_t keep) {
     uint8_t* anims = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(table + 4) +
                                                                        (entry < entries ? entry : 0) * 12));
     uint32_t name[8];
-    title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(name, u32_ref(anims, 0));  // HashStr_Init
+    own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(&HashStr_Init)(name, u32_ref(anims, 0));  // HashStr_Init
     for (uint32_t i = 0; i < u32_ref(anims, 4); ++i) {
         uint8_t* node = anim_node(anims, i);
         const uint32_t announce = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x858));
@@ -1646,11 +1648,11 @@ namespace {
 // The two samplers by title address (asm entries; the root-delta getters copy out only the
 // direction and position, so the depth they run at does not show).
 void sample_call(uint8_t* node, float* out, uint32_t time) {
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t)>(0x002e4570)(node, out, time);  // AnimTree_SampleRootTransform
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t)>(&AnimTree_SampleRootTransform_entry)(node, out, time);  // AnimTree_SampleRootTransform
 }
 
 void sample_between_call(uint8_t* node, float* out, uint32_t from, uint32_t to) {
-    title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t, uint32_t)>(0x002e4650)(node, out, from, to);  // AnimTree_SampleRootTransformBetween
+    own_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t, uint32_t)>(&AnimTree_SampleRootTransformBetween_entry)(node, out, from, to);  // AnimTree_SampleRootTransformBetween
 }
 
 }  // namespace
@@ -1809,11 +1811,11 @@ uint32_t note_hash(const char* text) {
 }
 
 uint32_t* hash_str_init(uint32_t* out, uint32_t text) {
-    return title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(out, text);  // HashStr_Init
+    return own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(&HashStr_Init)(out, text);  // HashStr_Init
 }
 
 void assign_cstring(uint32_t* note, const char* text) {
-    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011dd20)(note, text);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_AssignCString)(note, text);  // ScriptString_AssignCString
 }
 
 }  // namespace
@@ -1855,7 +1857,7 @@ void XB_CDECL XAnim_BuildNotetracks(uint8_t* node) {
             text = end;
         }
         const uint32_t records = *reinterpret_cast<const uint32_t*>(data + 4) + 2;
-        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(records * 12 + 4);  // Heap_Alloc16
+        uint32_t* memory = own_function<uint32_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(records * 12 + 4);  // Heap_Alloc16
         if (memory) {
             memory[0] = records;
             note = memory + 1;
@@ -1874,7 +1876,7 @@ void XB_CDECL XAnim_BuildNotetracks(uint8_t* node) {
             }
         }
     } else {
-        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(0x1c);  // Heap_Alloc16
+        uint32_t* memory = own_function<uint32_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(0x1c);  // Heap_Alloc16
         if (memory) {
             memory[0] = 2;
             note = memory + 1;
@@ -1888,7 +1890,7 @@ void XB_CDECL XAnim_BuildNotetracks(uint8_t* node) {
     note[2] = title_global<uint32_t>(0x0083eb20);
     note += 3;
     if (const uint32_t rep = note[0]) {
-        title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(rep);  // ScriptStringRep_Release
+        own_function<void XB_THISCALL(uint32_t)>(&ScriptStringRep_Release)(rep);  // ScriptStringRep_Release
         note[0] = 0;
     }
     note[1] = 0;
@@ -2049,7 +2051,7 @@ void XB_CDECL AnimTree_GetTreeRootDelta(uint8_t* tree, uint32_t index, float* di
     title_global<uint8_t>(0x00929cc8) = 1;
     title_global<uint32_t>(0x0092980c) = 1;
     alignas(16) float transform[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
-    title_function<void XB_CDECL(uint8_t*, uint32_t, float*, uint32_t, uint32_t)>(0x002e67d0)(tree, index, transform, 1,
+    own_function<void XB_CDECL(uint8_t*, uint32_t, float*, uint32_t, uint32_t)>(&AnimTree_CalcRootDelta_r_entry)(tree, index, transform, 1,
                                                                                             0);  // AnimTree_CalcRootDelta_r
     alignas(16) float axis[16];
     Quat_ToMat33(axis, transform);
@@ -2101,7 +2103,7 @@ void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t 
             step = 0.0f;
         }
         const uint32_t name = clip ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip + 0xc)) : 0x00832aec;  // "<unknown>"
-        text = title_function<VaFn>(0x002a93d0)(0x00832ac8, name, x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)),
+        text = own_function<VaFn>(&va_entry)(0x00832ac8, name, x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)),
                                                 x87_widen(info_float(info, 0x10)), x87_widen(info_float(info, 0x14)), x87_widen(step));
     } else {
         const uint32_t entries = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
@@ -2112,11 +2114,11 @@ void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t 
         const uint32_t names = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x870));
         const uint32_t name = title_function<uint32_t XB_CDECL(uint32_t)>(names)(handle);
         if (timed)
-            text = title_function<VaFn>(0x002a93d0)(name ? 0x00832aac : 0x00832a90, name ? name : index,
+            text = own_function<VaFn>(&va_entry)(name ? 0x00832aac : 0x00832a90, name ? name : index,
                                                     x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)),
                                                     x87_widen(info_float(info, 0x10)), x87_widen(info_float(info, 0x14)));
         else
-            text = title_function<VaFn>(0x002a93d0)(name ? 0x00832a80 : 0x00832a70, name ? name : index,
+            text = own_function<VaFn>(&va_entry)(name ? 0x00832a80 : 0x00832a70, name ? name : index,
                                                     x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)));
     }
     const float color[4] = {one, one, one, one};
@@ -2129,15 +2131,15 @@ void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t 
 void XB_CDECL AtExit_ReleaseScriptStrings_965ce0() {
     // The 1024 script strings (4 bytes each) below 0x00965ce0, last first.
     for (uint32_t i = 1; i <= 0x400; ++i)
-        title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00965ce0 - i * 4);  // ScriptString_Release
+        own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(0x00965ce0 - i * 4);  // ScriptString_Release
 }
 
 void XB_CDECL AtExit_ReleaseScriptString_965ce8() {
-    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00965ce8);  // ScriptString_Release
+    own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(0x00965ce8);  // ScriptString_Release
 }
 
 void XB_CDECL AtExit_HashStrMap_903ff4() {
-    title_function<void XB_THISCALL(uint32_t)>(0x00094010)(0x00903ff4);  // HashStrMap_Clear
+    own_function<void XB_THISCALL(uint32_t)>(&HashStrMap_Clear)(0x00903ff4);  // HashStrMap_Clear
 }
 
 }  // namespace game

@@ -13,6 +13,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_templates.h"
 
 // A cdecl title call with two stack words returning on the x87 (left in ST0); *ecx_out = the ECX
 // the callee leaves (a bool-field accessor called next builds a missing field's word from it).
@@ -256,7 +257,7 @@ uint32_t* XB_CDECL BroScr_FlakFindTargets(uint32_t* out, uint32_t gun) {
         const int32_t whole = static_cast<int32_t>(height);  // cvttss2si
         if (!(static_cast<float>(whole) > title_global<float>(0x008cd170))) continue;
         using At = uint32_t* XB_THISCALL(DynArray*, uint32_t);
-        found = *title_function<At>(0x0045cb70)(&group, i);  // DynArray_At
+        found = *own_function<At>(&DynArray_At_PROLOGUE)(&group, i);  // DynArray_At
         best = dot;
     }
     *out = found;

@@ -5,6 +5,7 @@
 #include "dobj.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -31,8 +32,8 @@ uint32_t arg(uint32_t entry, uint32_t n) { return *reinterpret_cast<const uint32
 
 void script_assign(uint8_t* cmd, ScriptString* temp) {
     using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
-    title_function<Assign>(0x0011d600)(reinterpret_cast<ScriptString*>(cmd + 0x1fc), temp);  // ScriptString_Assign
-    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(temp);                     // ScriptString_Release
+    own_function<Assign>(&ScriptString_Assign_entry)(reinterpret_cast<ScriptString*>(cmd + 0x1fc), temp);  // ScriptString_Assign
+    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(temp);                     // ScriptString_Release
 }
 
 // The command's script string (+0x1fc) = the default one, through a temporary at `temp`.
@@ -43,7 +44,7 @@ void script_default(uint8_t* cmd, ScriptString* temp) {
 
 // The command's script string = `text`.
 void script_text(uint8_t* cmd, ScriptString* temp, const char* text) {
-    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(temp, text);  // ScriptString_FromCString
+    own_function<void XB_THISCALL(ScriptString*, const char*)>(&ScriptString_FromCString)(temp, text);  // ScriptString_FromCString
     script_assign(cmd, temp);
 }
 
@@ -115,7 +116,7 @@ uint8_t* XB_CDECL FxSpawnCmd_Copy(uint8_t* dst, const uint8_t* src) {
     word(dst, 0x1f4) = word(src, 0x1f4);
     word(dst, 0x1f8) = word(src, 0x1f8);
     using Assign = void XB_THISCALL(uint8_t*, const uint8_t*);
-    title_function<Assign>(0x0011d600)(dst + 0x1fc, src + 0x1fc);  // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(dst + 0x1fc, src + 0x1fc);  // ScriptString_Assign
     word(dst, 0x200) = word(src, 0x200);
     word(dst, 0x204) = word(src, 0x204);
     word(dst, 0x208) = word(src, 0x208);
@@ -221,7 +222,7 @@ uint32_t XB_CDECL FXCmd_Commit_body(uint8_t* list) {
     uint32_t& instances = word(list, 0);
     if (instances == 0x200) return 0;
     using HeapAlloc = uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t);
-    uint8_t* effect = title_function<HeapAlloc>(0x00044850)(title_global<uint32_t>(0x0095f5bc), 0x54, 0);  // SmallHeap_Alloc
+    uint8_t* effect = own_function<HeapAlloc>(&SmallHeap_Alloc)(title_global<uint32_t>(0x0095f5bc), 0x54, 0);  // SmallHeap_Alloc
     if (effect) effect = FxInstance_Init(effect, 0, word(current, 0x1f4));
     // A failed allocation reads address 0x4c, as the original does.
     const uint32_t id_address = address_of(effect) + 0x4c;

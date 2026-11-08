@@ -8,6 +8,7 @@
 #include "script_string.h"
 #include "xanim.h"
 #include "title_data.h"
+#include "qcommon_core.h"
 
 namespace game {
 
@@ -461,7 +462,7 @@ PLATFORM_ASM_ENTRY(anim_find_channel_call,
                    "ret")
 
 uint32_t* hash_str(uint32_t* out, uint32_t text) {
-    return title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(out, text);  // HashStr_Init
+    return own_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(&HashStr_Init)(out, text);  // HashStr_Init
 }
 
 }  // namespace
@@ -635,11 +636,11 @@ void XB_THISCALL AnimScript_Destroy(uint8_t* self) {
     if (const uint32_t notes = word(s + 0x30)) {
         const int32_t count = *ptr<int32_t>(notes - 4);
         for (int32_t k = count - 1; k >= 0; --k)
-            title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(notes + k * 12);  // ScriptString_Release
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(notes - 4);               // Z_Free
+            own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(notes + k * 12);  // ScriptString_Release
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(notes - 4);               // Z_Free
     }
     word(s + 0x30) = 0;
-    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(s);  // Z_Free
+    own_function<void XB_CDECL(uint32_t)>(&Z_Free)(s);  // Z_Free
 }
 
 
@@ -659,7 +660,7 @@ uint32_t script_note_hash(const char* text) {
 }
 
 void assign_note(uint32_t note, const char* text) {
-    title_function<void XB_THISCALL(uint32_t, const char*)>(0x0011dd20)(note, text);  // ScriptString_AssignCString
+    own_function<void XB_THISCALL(uint32_t, const char*)>(&ScriptString_AssignCString)(note, text);  // ScriptString_AssignCString
 }
 
 }  // namespace
@@ -678,8 +679,8 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
     if (const uint32_t notes = word(s + 0x30)) {
         const int32_t count = *ptr<int32_t>(notes - 4);
         for (int32_t k = count - 1; k >= 0; --k)
-            title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(notes + k * 12);  // ScriptString_Release
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(notes - 4);               // Z_Free
+            own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(notes + k * 12);  // ScriptString_Release
+        own_function<void XB_CDECL(uint32_t)>(&Z_Free)(notes - 4);               // Z_Free
     }
     word(s + 0x30) = 0;
     uint32_t cursor[4] = {0, 0, 0, 0};
@@ -708,7 +709,7 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
             text = end;
         }
         const uint32_t records = *reinterpret_cast<const uint32_t*>(data + 4) + 2;
-        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(records * 12 + 4);  // Heap_Alloc16
+        uint32_t* memory = own_function<uint32_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(records * 12 + 4);  // Heap_Alloc16
         if (memory) {
             memory[0] = records;
             note = addr(memory + 1);
@@ -726,7 +727,7 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
             }
         }
     } else {
-        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(0x1c);  // Heap_Alloc16
+        uint32_t* memory = own_function<uint32_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(0x1c);  // Heap_Alloc16
         if (memory) {
             memory[0] = 2;
             note = addr(memory + 1);
@@ -744,7 +745,7 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
     word(note + 8) = title_global<uint32_t>(0x0083eb20);  // 1.0f
     note += 12;
     if (const uint32_t rep = word(note)) {
-        title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(rep);  // ScriptStringRep_Release
+        own_function<void XB_THISCALL(uint32_t)>(&ScriptStringRep_Release)(rep);  // ScriptStringRep_Release
         word(note) = 0;
     }
     word(note + 4) = 0;
@@ -752,7 +753,7 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
     uint8_t* track = nullptr;
     uint8_t* skeleton = ptr<uint8_t>(word(addr(clip) + 0x30));
     if (uint8_t* memory = static_cast<uint8_t*>(Mem_AlignedAlloc(0x30, 4, 0)))
-        track = title_function<uint8_t* XB_THISCALL(uint8_t*, uint8_t*, uint8_t*)>(0x00087dd0)(memory, clip,
+        track = own_function<uint8_t* XB_THISCALL(uint8_t*, uint8_t*, uint8_t*)>(&NAL_AnimTrack_Construct)(memory, clip,
                                                                                              skeleton);  // NAL_AnimTrack_Construct
     title_global<uint8_t>(0x0095f5d1) = 0;
     title_global<uint8_t>(0x0095f5d0) = saved;

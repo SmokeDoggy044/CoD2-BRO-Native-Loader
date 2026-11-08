@@ -12,6 +12,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
 
 namespace game {
 
@@ -178,7 +180,7 @@ void XB_CDECL BroScr_StukaBombImpact(uint32_t bomb, uint32_t plane, uint32_t del
 namespace {
 
 inline DynArray* plane_bombs(uint32_t plane) {
-    return title_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x0045cd50)(ent_script_object(plane),
+    return own_function<DynArray* XB_THISCALL(ScriptKeyTable*, uint32_t)>(&ScriptKeyTable_GetArray)(ent_script_object(plane),
                                                                                        0x0030b1c2);  // ScriptKeyTable_GetArray
 }
 inline uint32_t bomb_at(uint32_t plane, uint32_t i) {
@@ -229,7 +231,7 @@ void XB_CDECL BroScr_PlaneDropBomb(uint32_t plane, uint32_t count, uint32_t inte
         if (static_cast<uint8_t>(whistle)) {
             ScriptString sound;
             scr_string_from(&sound, 0x007f765c);  // "Bomb_Whistle"
-            const uint32_t bomb = *title_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(0x0045cb70)(
+            const uint32_t bomb = *own_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(&DynArray_At_PROLOGUE)(
                 static_cast<DynArray*>(ScrField_bomb(plane)), i);  // DynArray_At
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(bomb, &sound, 0, 0,
                                                                                                   0);  // GScr_PlaySound

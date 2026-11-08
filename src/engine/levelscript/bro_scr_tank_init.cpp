@@ -4,6 +4,9 @@
 #include "bro_scr_util.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "bro_scr_vehicle.h"
+#include "levels_twins.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -38,7 +41,7 @@ void start_stun_thread(uint32_t vehicle) {
 void normalize_team(uint32_t vehicle, uint32_t text) {
     ScriptString team;
     scr_string_from(&team, text);
-    title_function<void XB_CDECL(uint32_t, ScriptString)>(0x00123470)(vehicle, team);  // BroScr_NormalizeTeamName
+    own_function<void XB_CDECL(uint32_t, ScriptString)>(&BroScr_NormalizeTeamName)(vehicle, team);  // BroScr_NormalizeTeamName
 }
 
 void use_anim_tree(uint32_t vehicle, uint32_t tree) {
@@ -88,8 +91,8 @@ void init_finish(uint32_t vehicle, uint32_t* slot, uint32_t smoke) {
         if (smoke)
             scr_string_from(&fx, smoke);
         else
-            title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5e0)(&fx, 0x00922e90);  // ScriptString_Copy(empty)
-        title_function<void XB_CDECL(uint32_t, ScriptString)>(0x0015d170)(vehicle, fx);  // BroScr_SetWheelSmokeFx
+            own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Copy)(&fx, 0x00922e90);  // ScriptString_Copy(empty)
+        own_function<void XB_CDECL(uint32_t, ScriptString)>(&BroScr_SetWheelSmokeFx)(vehicle, fx);  // BroScr_SetWheelSmokeFx
     }
     start_thread(vehicle, 0x001655f0);  // BroScr_SpawnWheelOrigins
 }
@@ -98,7 +101,7 @@ void init_finish(uint32_t vehicle, uint32_t* slot, uint32_t smoke) {
 // `fallback` when null).
 void gunner_at_gunhull(uint32_t vehicle, ScriptString* weapon, uint32_t fallback) {
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*);
-    const auto start = title_function<StartThread>(0x0045a7c0);
+    const auto start = own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry);
     if (weapon->rep) {
         start(0, 0, 0, 0, 0x00157ae0, vehicle, weapon);
     } else {
@@ -114,7 +117,7 @@ void gunner_at_gunhull(uint32_t vehicle, ScriptString* weapon, uint32_t fallback
 void gunner_think(uint32_t vehicle, ScriptString* weapon, ScriptString* tag) {
     using StartThread =
         uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
-    const auto start = title_function<StartThread>(0x0045aff0);
+    const auto start = own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry);
     if (weapon->rep) {
         start(0, 0, 0, 0, 0x00153420, vehicle, weapon, tag);
     } else {

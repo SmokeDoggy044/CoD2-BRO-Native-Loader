@@ -6,6 +6,7 @@
 #include "scr_access.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "bro_scr_banim_handles.h"
 
 namespace game {
 
@@ -83,7 +84,7 @@ void XB_CDECL BroScr_EmptyFunc_77() {}
 uint32_t XB_CDECL BroScr_BAnimHandle_GetSet(uint32_t table, uint32_t hash, uint32_t* out, uint32_t value) {
     if (table == 0x00371ab2) return BroScr_BAnimHandles_mg42(out, value, hash);
     if (table == 0x3b8fe918)  // BroScr_BAnimHandles_generic_human (EAX hash, EDX value, ECX out)
-        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x00184c60)(hash, value, out);
+        return own_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t*)>(&BroScr_BAnimHandles_generic_human)(hash, value, out);
     return 0;
 }
 
@@ -94,7 +95,7 @@ uint8_t XB_CDECL BroScr_ReturnTrue() { return 1; }
 uint32_t XB_CDECL BroScr_BAnimHandle_Lookup(uint32_t table, uint32_t hash) {
     if (table == 0x00371ab2) return BroScr_BAnimHandles_mg42(&table, 0, hash);
     if (table == 0x3b8fe918)
-        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x00184c60)(hash, 0, &table);
+        return own_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t*)>(&BroScr_BAnimHandles_generic_human)(hash, 0, &table);
     return 0;
 }
 

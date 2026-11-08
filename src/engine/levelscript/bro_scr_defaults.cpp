@@ -2,6 +2,13 @@
 
 #include "bro_scr_common.h"
 #include "title_data.h"
+#include "bro_scr_fx.h"
+#include "bro_scr_mortar.h"
+#include "bro_scr_vehicle.h"
+#include "g_scr_runtime.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -14,24 +21,24 @@ uint32_t undefined_int() { return title_global<uint32_t>(0x00922ec0); }     // g
 
 ScriptString copy_string(const ScriptString* from) {
     ScriptString copy;
-    title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d5e0)(&copy, from);  // ScriptString_Copy
+    own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Copy)(&copy, from);  // ScriptString_Copy
     return copy;
 }
 
 DynArray copy_array(const DynArray* from) {
     DynArray copy{nullptr, 0, 0};
-    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, from);  // DynArray_Assign4
+    own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, from);  // DynArray_Assign4
     return copy;
 }
 
 // The by-value array argument's block (Scr_Free when set).
 void free_array(const DynArray* array) {
-    if (array->data) title_function<void XB_CDECL(void*)>(0x002f5e10)(array->data);  // Scr_Free
+    if (array->data) own_function<void XB_CDECL(void*)>(&Scr_Free)(array->data);  // Scr_Free
 }
 
 uint32_t hash_string(const ScriptString* string) {
     uint32_t out;
-    return *title_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(0x0011d8b0)(&out, string);  // Scr_HashScriptString
+    return *own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(&out, string);  // Scr_HashScriptString
 }
 
 // Default-argument wrapper of the SetWheelSmokeFx calls: the copy of the level's map at +0x57c is
@@ -40,8 +47,8 @@ uint32_t hash_string(const ScriptString* string) {
 // or "day").
 void wheel_smoke(const uint32_t* ent, bool day) {
     alignas(4) uint8_t map[0x28];
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x00460d40)(map, title_global<uint32_t>(0x00922ee0) + 0x57c);  // HashMap_CopyCtor
-    title_function<void XB_THISCALL(uint8_t*)>(0x0045ebe0)(map);  // HashMap_Dtor
+    own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&HashMap_CopyCtor_PROLOGUE_6)(map, title_global<uint32_t>(0x00922ee0) + 0x57c);  // HashMap_CopyCtor
+    own_function<void XB_THISCALL(uint8_t*)>(&HashMap_Dtor_PROLOGUE)(map);  // HashMap_Dtor
     uint32_t key = 0x438c482f;
     using Index = uint32_t* XB_THISCALL(uint32_t, uint32_t*);
     if (*title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x57c, &key) != 0) return;  // HashMap_Index
@@ -52,34 +59,34 @@ void wheel_smoke(const uint32_t* ent, bool day) {
         fx = copy_string(&title_global<ScriptString>(0x00922e90));
     }
     const uint32_t target = ent ? *ent : title_global<uint32_t>(0x00922e84);
-    title_function<void XB_CDECL(uint32_t, ScriptString)>(0x0015d170)(target, fx);  // BroScr_SetWheelSmokeFx
+    own_function<void XB_CDECL(uint32_t, ScriptString)>(&BroScr_SetWheelSmokeFx)(target, fx);  // BroScr_SetWheelSmokeFx
 }
 
 void spawn_loop_sound(const uint32_t (&w)[12]) {
     using F = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                             uint32_t, uint32_t, uint32_t);
-    title_function<F>(0x001653b0)(w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8], w[9], w[10], w[11]);  // BroScr_SpawnLoopSoundOrigin
+    own_function<F>(&BroScr_SpawnLoopSoundOrigin)(w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8], w[9], w[10], w[11]);  // BroScr_SpawnLoopSoundOrigin
 }
 
 void drone_vehicle_riders(uint32_t vehicle, uint32_t a1, ScriptString* name, const uint32_t (&w)[7]) {
     const ScriptString copy = copy_string(name);
     using F = void XB_CDECL(uint32_t, uint32_t, ScriptString, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                             uint32_t);
-    title_function<F>(0x0016dae0)(vehicle, a1, copy, w[0], w[1], w[2], w[3], w[4], w[5], w[6]);  // BroScr_DroneVehicleRiders
+    own_function<F>(&BroScr_DroneVehicleRiders)(vehicle, a1, copy, w[0], w[1], w[2], w[3], w[4], w[5], w[6]);  // BroScr_DroneVehicleRiders
     scr_release(name);
 }
 
 void mortar_loops(uint32_t ent, DynArray* ents, uint32_t a4, uint32_t a5, uint32_t w6, uint32_t w7) {
     const DynArray copy = copy_array(ents);
     using F = void XB_CDECL(uint32_t, DynArray, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<F>(0x001728b0)(ent, copy, a4, a5, w6, w7, 0);  // BroScr_StartMortarLoopsNearPlayer
+    own_function<F>(&BroScr_StartMortarLoopsNearPlayer)(ent, copy, a4, a5, w6, w7, 0);  // BroScr_StartMortarLoopsNearPlayer
     free_array(ents);
 }
 
 void mortar_group(uint32_t ent, DynArray* ents, uint32_t f1, uint32_t f2, uint32_t handle, uint32_t w, uint32_t i) {
     const DynArray copy = copy_array(ents);
     using F = void XB_CDECL(uint32_t, DynArray, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, DynArray);
-    title_function<F>(0x00173040)(ent, copy, f1, f2, handle, w, i, DynArray{nullptr, 0, 0});  // BroScr_StartMortarGroupNearEnt
+    own_function<F>(&BroScr_StartMortarGroupNearEnt)(ent, copy, f1, f2, handle, w, i, DynArray{nullptr, 0, 0});  // BroScr_StartMortarGroupNearEnt
     free_array(ents);
 }
 
@@ -90,7 +97,7 @@ uint32_t* XB_CDECL BroScr_SpawnFlakvierlingCall(uint32_t* out, ScriptString name
     const uint32_t undefined = title_global<uint32_t>(0x00922ebc);
     const ScriptString copy = copy_string(&name);
     using F = void XB_CDECL(uint32_t*, ScriptString, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<F>(0x00157e60)(out, copy, a2, a3, a4, a5, a6, undefined, undefined);  // BroScr_SpawnFlakvierling
+    own_function<F>(&BroScr_SpawnFlakvierling)(out, copy, a2, a3, a4, a5, a6, undefined, undefined);  // BroScr_SpawnFlakvierling
     scr_release(&name);
     return out;
 }
@@ -98,7 +105,7 @@ uint32_t* XB_CDECL BroScr_SpawnFlakvierlingCall(uint32_t* out, ScriptString name
 void XB_CDECL BroScr_VehicleSpawnRiderByNameCall(ScriptString name, uint32_t a1) {
     const uint32_t undefined = title_global<uint32_t>(0x00922ebc);
     const ScriptString copy = copy_string(&name);
-    title_function<void XB_CDECL(ScriptString, uint32_t, uint32_t)>(0x0015ab50)(copy, a1, undefined);  // BroScr_VehicleSpawnRiderByName
+    own_function<void XB_CDECL(ScriptString, uint32_t, uint32_t)>(&BroScr_VehicleSpawnRiderByName)(copy, a1, undefined);  // BroScr_VehicleSpawnRiderByName
     scr_release(&name);
 }
 
@@ -150,7 +157,7 @@ void XB_CDECL BroScr_DroneVehicleRidersCall_3(uint32_t vehicle, uint32_t a1, Scr
 void XB_CDECL BroScr_MortarThinkWithDefaultsCall(uint32_t ent, uint32_t a1) {
     const uint32_t f = undefined_float();
     using F = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<F>(0x0016fa40)(ent, f, f, f, f, f, f, a1);  // BroScr_MortarThinkWithDefaults
+    own_function<F>(&BroScr_MortarThinkWithDefaults)(ent, f, f, f, f, f, f, a1);  // BroScr_MortarThinkWithDefaults
 }
 
 void XB_CDECL BroScr_StartMortarLoopsNearPlayerCall_1(uint32_t ent, DynArray ents, uint32_t a4, uint32_t a5) {

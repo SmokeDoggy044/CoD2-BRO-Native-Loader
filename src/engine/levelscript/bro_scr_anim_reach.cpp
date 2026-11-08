@@ -9,6 +9,8 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -44,7 +46,7 @@ inline uint32_t* guy_at(DynArray* guys, uint32_t i) {
 // DynArray copy-assign (0x0045c270, thiscall) into a zeroed by-value argument.
 inline DynArray copy_array(const DynArray* source) {
     DynArray copy = {0, 0, 0};
-    title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0045c270)(&copy, source);  // DynArray_Assign4
+    own_function<void XB_THISCALL(DynArray*, const DynArray*)>(&DynArray_Assign4_PROLOGUE)(&copy, source);  // DynArray_Assign4
     return copy;
 }
 inline void end_on(uint32_t ent, uint32_t hash) { slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, hash); }  // Scr_EndOn
@@ -56,15 +58,15 @@ inline uint32_t anim_of(const uint32_t* guy, const uint32_t* key, ScriptString* 
     uint32_t hash;
     using Index = uint32_t* XB_THISCALL(uint32_t, const uint32_t*);
     using Find = uint32_t* XB_THISCALL(uint32_t*, uint32_t*, const uint32_t*);
-    uint32_t* const map = title_function<Index>(0x004641e0)(
+    uint32_t* const map = own_function<Index>(&HashMap_Index_PROLOGUE_8)(
         title_global<uint32_t>(0x00922ee0) + 0x19c,
         Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)));  // HashMap_Index_8
     uint32_t it;
-    title_function<Find>(0x0045e6d0)(map, &it, key);  // HashMap_Find
+    own_function<Find>(&HashMap_Find)(map, &it, key);  // HashMap_Find
     if (it == map[2]) {
         const uint32_t pair[2] = {*key, 0};
         uint32_t inserted;
-        it = *title_function<Find>(0x004608a0)(map, &inserted, pair);  // HashMap_Insert
+        it = *own_function<Find>(&HashMap_Insert_PROLOGUE_2)(map, &inserted, pair);  // HashMap_Insert
     }
     return pointer<uint32_t>(it)[3];
 }

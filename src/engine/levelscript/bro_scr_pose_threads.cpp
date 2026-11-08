@@ -5,6 +5,7 @@
 #include "scr_field.h"
 #include "scr_field_instances.h"
 #include "title_data.h"
+#include "bro_scr_note_handlers.h"
 
 namespace game {
 
@@ -29,10 +30,10 @@ inline bool moving_any(uint32_t ent) {
 }
 
 using EntFn = void XB_CDECL(uint32_t);
-inline void stand_combat_walk(uint32_t ent) { title_function<EntFn>(0x001acf80)(ent); }  // BroScr_StandCombatWalk (agent-b list)
-inline void stand_combat_run(uint32_t ent) { title_function<EntFn>(0x001acd90)(ent); }   // BroScr_StandCombatRun (agent-b list)
-inline void crouch_run(uint32_t ent) { title_function<EntFn>(0x001ad1f0)(ent); }         // BroScr_CrouchRun (agent-b list)
-inline void crouch_walk_loop(uint32_t ent) { title_function<EntFn>(0x001ad330)(ent); }   // BroScr_CrouchWalkLoop (agent-b list)
+inline void stand_combat_walk(uint32_t ent) { own_function<EntFn>(&BroScr_StandCombatWalk)(ent); }  // BroScr_StandCombatWalk (agent-b list)
+inline void stand_combat_run(uint32_t ent) { own_function<EntFn>(&BroScr_StandCombatRun)(ent); }   // BroScr_StandCombatRun (agent-b list)
+inline void crouch_run(uint32_t ent) { own_function<EntFn>(&BroScr_CrouchRun)(ent); }         // BroScr_CrouchRun (agent-b list)
+inline void crouch_walk_loop(uint32_t ent) { own_function<EntFn>(&BroScr_CrouchWalkLoop)(ent); }   // BroScr_CrouchWalkLoop (agent-b list)
 
 }  // namespace
 

@@ -170,16 +170,16 @@ void XB_CDECL BroScr_SetDirectionBlendWeights(uint32_t, float yaw) {
 
 uint32_t* XB_CDECL BroScr_GetPlayerStanceOffset(uint32_t* out) {
     ScriptString stance;
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d5d0)(&stance, 0);  // ScriptString_FromRep
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&stance, 0);  // ScriptString_FromRep
     scr_slot<void XB_CDECL(uint32_t, ScriptString*)>(0x00922600)(title_global<uint32_t>(0x009236dc), &stance);  // GScr_GetStance
     using Equals = bool XB_CDECL(const ScriptString*, uint32_t);
     uint32_t z;
-    if (title_function<Equals>(0x0011d7c0)(&stance, 0x008367fc)) {  // "prone"
+    if (own_function<Equals>(&ScriptString_Equals)(&stance, 0x008367fc)) {  // "prone"
         out[0] = 0;
         out[1] = 0;
         z = 0x40a00000;  // 5
     } else {
-        const bool crouch = title_function<Equals>(0x0011d7c0)(&stance, 0x0083ae7c);  // "crouch"
+        const bool crouch = own_function<Equals>(&ScriptString_Equals)(&stance, 0x0083ae7c);  // "crouch"
         out[1] = 0;
         out[0] = 0;
         z = crouch ? 0x41c80000 : 0x42480000;  // 25 : 50

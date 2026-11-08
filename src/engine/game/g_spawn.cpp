@@ -153,7 +153,7 @@ void XB_CDECL Actor_CopySpawnerFields(uint8_t* spawner, uint8_t* actor) {
                     word_at(actor, offset + 8) = word_at(spawner, offset + 8);
                     break;
                 case 14:  // script string
-                    title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(actor + offset,
+                    own_function<void XB_THISCALL(uint8_t*, uint8_t*)>(&ScriptString_Assign_entry)(actor + offset,
                                                                                     spawner + offset);  // ScriptString_Assign
                     break;
                 default:
@@ -173,7 +173,7 @@ void XB_CDECL SP_info_player_start(uint8_t* ent) {
     // Becomes an info_player_deathmatch (classname 0x00984b70 and its hash), thinks in 200 ms
     // (think 5).
     ScriptString* const classname = reinterpret_cast<ScriptString*>(ent + 0x25c);
-    title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(classname, 0x00984b70);  // ScriptString_Assign
+    own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_Assign_entry)(classname, 0x00984b70);  // ScriptString_Assign
     const uint32_t rep = word_at(ent, 0x25c);
     word_at(ent, 0x260) = Com_HashKeyNoCase(0, rep ? reinterpret_cast<const char*>(static_cast<uintptr_t>(rep + 6)) : nullptr);
     word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 200;
@@ -209,7 +209,7 @@ void XB_CDECL SP_skyportal(uint8_t* ent) {
     given += G_SpawnInt(title_global<uint32_t>(0x0098bc88), &fog_near, 0);
     given += G_SpawnInt(title_global<uint32_t>(0x0098bc84), &fog_far, 300);
     const float* const origin = reinterpret_cast<const float*>(ent + 0x140);
-    const char* const text = title_function<char* XB_CDECL(const char*, ...)>(0x002a93d0)(
+    const char* const text = own_function<char* XB_CDECL(const char*, ...)>(&va_entry)(
         reinterpret_cast<const char*>(uintptr_t{0x0083aef4}), static_cast<double>(origin[0]),
         static_cast<double>(origin[1]), static_cast<double>(origin[2]), static_cast<double>(fov), given,
         static_cast<double>(color[0]), static_cast<double>(color[1]), static_cast<double>(color[2]), fog_near,
@@ -323,7 +323,7 @@ void XB_CDECL SP_trigger_friendlychain(uint8_t* ent) {
     word_at(ent, 0x338) = 5;
     const uint32_t target = word_at(ent, 0x26c);
     if (!target || !(target + 6) || !*reinterpret_cast<const char*>(static_cast<uintptr_t>(target + 6)))
-        title_function<int32_t XB_CDECL(const char*)>(0x00248af0)(reinterpret_cast<const char*>(
+        own_function<int32_t XB_CDECL(const char*)>(&G_Error_entry)(reinterpret_cast<const char*>(
             uintptr_t{0x00839cc0}));  // G_Error "trigger_friendlychain must target a friendly chain node"
     InitTrigger(ent);
     G_TriggerContentsFromSpawnflags(ent);
@@ -451,7 +451,7 @@ uint32_t XB_CDECL G_CallSpawn(uint8_t* ent) {
     const char* const classname = text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr;
     if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
             classname, &title_global<const char>(0x00839dc8), 6) == 0) {               // "weapon"
-        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x00839d98));  // G_Error
+        own_function<void XB_CDECL(const char*)>(&G_Error_entry)(&title_global<const char>(0x00839d98));  // G_Error
         return 0;
     }
     if (!title_global<uint32_t>(0x0096bd48)) return 0;
@@ -501,7 +501,7 @@ void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item) {
     const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
     G_RegisterWeapon(0, 0, static_cast<uint32_t>(static_cast<int32_t>(address - 0x0096bd10) / 0x34), 0);
     word_at(ent, 0x3b0) = address;
-    title_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(0x002d7c60)(
+    own_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(&G_SetModel)(
         -1, ent, *reinterpret_cast<const uint32_t*>(item + 0xc));  // G_SetModel
     const int32_t count = static_cast<int32_t>(num_spawn_vars());
     for (int32_t i = 0; i < count; ++i) {
@@ -527,7 +527,7 @@ void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item) {
     word_at(ent, 0x338) = 7;
     ent[0] = 2;
     *reinterpret_cast<uint16_t*>(ent + 6) = static_cast<uint16_t>(index);
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     word_at(ent, 0x33c) = 8;
     word_at(ent, 0x2a4) |= 0x8000;
     const bool later = title_global<uint32_t>(0x0098541c) != 0;
@@ -586,7 +586,7 @@ uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_i
     const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
     ent[0] = 2;
     *reinterpret_cast<uint16_t*>(ent + 6) = static_cast<uint16_t>(static_cast<int32_t>(address - 0x0096bd10) / 0x34);
-    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x0011dd20)(
+    own_function<void XB_THISCALL(uint32_t, uint32_t)>(&ScriptString_AssignCString)(
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent + 0x25c)),
         *reinterpret_cast<const uint32_t*>(item + 4));  // ScriptString_AssignCString
     const uint32_t text = word_at(ent, 0x25c);
@@ -606,9 +606,9 @@ uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_i
     word_at(ent, 0xd4) |= 0x200;
     word_at(ent, 0x1a0) = *reinterpret_cast<const uint32_t*>(
         uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f534) + 4}) + 0x224});
-    title_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(0x002d7c60)(
+    own_function<void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t)>(&G_SetModel)(
         model_index, ent, *reinterpret_cast<const uint32_t*>(item + 0xc));  // G_SetModel
-    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    own_function<void XB_CDECL(uint8_t*)>(&G_DObjUpdate)(ent);  // G_DObjUpdate
     word_at(ent, 0x338) = 7;
     const uint32_t* const from = reinterpret_cast<const uint32_t*>(origin);
     word_at(ent, 0x20) = from[0];
@@ -711,7 +711,7 @@ void XB_CDECL ClientDisconnect(uint32_t handle) {
         ent = title_global<uint8_t*>(0x0097a968 + index * 8);
     uint8_t* const client = item_pointer(ent, 0x23c);
     if (word_at(client, 0x520) == 2) TossClientItems(ent);
-    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+    own_function<void XB_CDECL(uint8_t*, uint32_t)>(&G_FreeEntity)(ent, 0);  // G_FreeEntity
     word_at(client, 0x520) = 0;
 }
 
@@ -746,7 +746,7 @@ void XB_REGS1 XB_CDECL SP_worldspawn(uint8_t* spawn) {
     uint8_t* const world = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 8);
     using Assign = void XB_THISCALL(uint32_t*, const uint32_t*);
     uint32_t* const classname = reinterpret_cast<uint32_t*>(world + 0x25c);
-    title_function<Assign>(0x0011d600)(classname, &title_global<uint32_t>(0x00984c88));  // ScriptString_Assign
+    own_function<Assign>(&ScriptString_Assign_entry)(classname, &title_global<uint32_t>(0x00984c88));  // ScriptString_Assign
     const uint32_t name = *classname;
     *reinterpret_cast<uint32_t*>(world + 0x260) =
         Com_HashKeyNoCase(0, name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr);
@@ -1052,7 +1052,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
     for (uint32_t i = 0; i < 3; ++i) {
         static const uint32_t kNames[3] = {0, 4, 0x10};
         const char* const text = *reinterpret_cast<const char* const*>(spawn + i * 4);
-        if (text != nullptr) title_function<AssignCString>(0x0011dd20)(node + kNames[i], text);
+        if (text != nullptr) own_function<AssignCString>(&ScriptString_AssignCString)(node + kNames[i], text);
     }
     const uint32_t flags = field<uint32_t>(node, 0x3c);
     field<uint32_t>(node, 0x14) = *reinterpret_cast<const uint32_t*>(spawn + 0xc);
@@ -1100,7 +1100,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
             title_function<SetInt>(field<uint32_t>(import, 0x83c))(index, hash, number);
         } else if (is(key, 0x008335c8) || is(key, 0x008335bc)) {  // "script_uniquename", "groupname"
             uint32_t name = 0;  // the script string handed over by value (the callee releases it)
-            title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&name, value);  // ScriptString_FromCString
+            own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&name, value);  // ScriptString_FromCString
             title_function<SetName>(field<uint32_t>(import, 0x834))(index, hash, name);
         } else {
             char warning[0x400];
@@ -1234,7 +1234,7 @@ uint32_t XB_CDECL Drop_Weapon(uint8_t* ent, uint32_t weapon, const char* tag) {
             alignas(16) float end[4] = {matrix[12], matrix[13], matrix[14], matrix[12]};
             alignas(16) float trace[0x20] = {};
             using Trace = void XB_CDECL(float*, const float*, const float*, const float*, const float*, uint32_t, uint32_t);
-            title_function<Trace>(0x002601a0)(trace, start, reinterpret_cast<const float*>(drop + 0xe0),
+            own_function<Trace>(&G_TraceCapsule)(trace, start, reinterpret_cast<const float*>(drop + 0xe0),
                                               reinterpret_cast<const float*>(drop + 0xf0), end,
                                               field<uint32_t>(ent, 0x224), 0x411);  // G_TraceCapsule
             for (uint32_t i = 0; i < 3; ++i) {
@@ -1387,10 +1387,10 @@ void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent) {
         case 14: {
             uint32_t handle;
             const uint32_t text = *reinterpret_cast<const uint32_t*>(spawn + f.from);
-            const uint32_t made = title_function<uint32_t XB_THISCALL(uint32_t*, uint32_t)>(0x0011eb50)(
+            const uint32_t made = own_function<uint32_t XB_THISCALL(uint32_t*, uint32_t)>(&ScriptString_FromCString)(
                 &handle, text);  // ScriptString_FromCString
-            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011d600)(ent + f.to, made);  // ScriptString_Assign
-            title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&handle);  // ScriptString_Release
+            own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&ScriptString_Assign_entry)(ent + f.to, made);  // ScriptString_Assign
+            own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&handle);  // ScriptString_Release
             break;
         }
         case 12: {
