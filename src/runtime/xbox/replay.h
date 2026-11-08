@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <string>
 
 namespace xbox::replay {
 
@@ -34,7 +35,15 @@ struct Config {
     // from it is logged (differing entities) and written to reference_dump_dir like dump_frame. Empty = no.
     std::filesystem::path reference;
     std::filesystem::path reference_dump_dir;
+    // Record: written at the start of the file, so a replay runs with the same settings ('O': the settings.ini
+    // text the run used, 'A': its command line, one argument per line).
+    std::string settings_text;
+    std::string command_line;
 };
+
+// A recording's settings.ini text and command line (Config::settings_text / command_line); false if the file is no
+// recording of this format. The loader uses the settings in place of the player's settings.ini when replaying.
+bool read_recorded_settings(const std::filesystem::path& file, std::string& settings_text, std::string& command_line);
 
 // False (logged) if the file cannot be opened or is not a recording.
 bool start(const Config& config);
@@ -49,6 +58,17 @@ int64_t clock(int64_t real);
 uint32_t value(char tag, uint32_t real);
 // A block of bytes (pad state, pointer state): recorded from `data`, or overwritten with the recorded block.
 void bytes(char tag, void* data, size_t size);
+
+// The calling thread is the title's main thread of an active recording or replay (its reads go to the file).
+bool on_stream();
+// The title's main thread (bound), whether or not a recording or replay still runs on it.
+bool main_thread();
+
+// For values that need more than "hand back the recorded one" (a wait that has to wait for the recorded outcome):
+// replay only - the next recorded value of this tag in this frame, false if there is none (the caller then acts
+// live). Record with value() as usual.
+bool recorded(char tag, uint32_t& v);
+bool replaying();
 
 // Ends a recording (flushed, closed) or a replay (its report; exits if exit_at_end). Before a reboot.
 void stop();

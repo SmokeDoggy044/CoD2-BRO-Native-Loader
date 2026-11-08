@@ -8,7 +8,9 @@
 #include "sound_engine.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <deque>
 #include <iterator>
 #include <memory>
@@ -17,6 +19,7 @@
 #include "dispatcher.h"
 #include "kernel.h"
 #include "log.h"
+#include "replay.h"
 #include "test_mode.h"
 #include "types.h"
 
@@ -122,6 +125,20 @@ public:
 
     std::mutex callbacks_mutex;
     std::deque<Callback> callbacks;
+
+    // Record/replay: packets the mixer finished, held until the main thread's do_work (see release_held).
+    struct Held {
+        VoiceImpl* voice;
+        Packet packet;
+        uint32_t status, played;
+        uint32_t key() const { return packet.status ? to_xbox_ptr(packet.status) : packet.completion; }
+    };
+    std::mutex held_mutex;
+    std::condition_variable held_signal;
+    std::deque<Held> held;
+    void hold(VoiceImpl& v, const Packet& packet, uint32_t status, uint32_t played);
+    void finish_held(const Held& h);
+    void release_held();
 
 private:
     // The output, or none in a test process: there voices only keep their state.
@@ -300,6 +317,12 @@ VoiceId Engine::create_voice(const VoiceDesc& desc, const Format* format) {
     auto* v = new VoiceImpl(desc);
     v->header = {vtable, kMagicVoice, v};
     v->voice.on_packet_done = [v](const Packet& packet, uint32_t status) { g.packet_done(*v, packet, status); };
+    if (xbox::replay::active())
+        v->voice.take_finished = [v](const Packet& packet, uint32_t status, uint32_t played) {
+            if (xbox::replay::main_thread()) return false;  // a flush or stop: in the title's order already
+            g.hold(*v, packet, status, played);
+            return true;
+        };
     if (desc.buffer_bytes) {
         v->own_data.assign(desc.buffer_bytes, 0);
         v->voice.set_buffer_data(v->own_data.data(), desc.buffer_bytes);
@@ -432,6 +455,12 @@ VoiceStatus Engine::status(VoiceId id) {
         s.starved = v.voice.starved();
         s.accepts_packets = v.voice.queued_packets() < std::max<uint32_t>(v.desc.max_packets, 1);
     });
+    if (!xbox::replay::on_stream()) return s;
+    // Record/replay: whether a voice still plays changes with the mixer's timing.
+    const uint32_t bits = xbox::replay::value(
+        'S', uint32_t{s.playing} | uint32_t{s.paused} << 1 | uint32_t{s.looping} << 2 | uint32_t{s.starved} << 3 |
+                 uint32_t{s.accepts_packets} << 4);
+    s.playing = bits & 1, s.paused = bits & 2, s.looping = bits & 4, s.starved = bits & 8, s.accepts_packets = bits & 16;
     return s;
 }
 
@@ -540,8 +569,60 @@ void Engine::set_headphones(bool enabled) {
     if (Output* o = out()) o->set_hrtf(enabled);
 }
 
+// Record/replay: when the mixer finishes a packet, the title's main thread would see its status words change at
+// any moment (and run its callback or see its event at the next do_work), so a replay could take another path. Held
+// instead: do_work (main thread) writes them, and the recording lists which ones ('k' count, 'K' each packet's
+// status word address or completion); a replay writes exactly those, waiting for the mixer when it is behind.
+void Engine::hold(VoiceImpl& v, const Packet& packet, uint32_t status, uint32_t played) {
+    {
+        std::lock_guard lock(held_mutex);
+        held.push_back({&v, packet, status, played});
+    }
+    held_signal.notify_all();
+}
+
+void Engine::finish_held(const Held& h) {
+    if (h.packet.completed) *h.packet.completed = h.played;
+    if (h.packet.status) *h.packet.status = h.status;
+    packet_done(*h.voice, h.packet, h.status);
+}
+
+void Engine::release_held() {
+    uint32_t count = 0;
+    if (xbox::replay::recorded('k', count)) {
+        for (uint32_t i = 0; i < count; ++i) {
+            uint32_t key = 0;
+            if (!xbox::replay::recorded('K', key)) break;
+            std::unique_lock lock(held_mutex);
+            const auto match = [&] { return std::find_if(held.begin(), held.end(), [&](const Held& h) { return h.key() == key; }); };
+            auto it = match();
+            if (it == held.end() &&
+                !held_signal.wait_for(lock, std::chrono::seconds(10), [&] { return (it = match()) != held.end(); })) {
+                LOG_WARN("replay", "the recording finished packet %08x here; the mixer did not within 10 s", key);
+                continue;
+            }
+            const Held h = *it;
+            held.erase(it);
+            lock.unlock();
+            finish_held(h);
+        }
+        return;
+    }
+    std::deque<Held> due;
+    {
+        std::lock_guard lock(held_mutex);
+        due.swap(held);
+    }
+    xbox::replay::value('k', static_cast<uint32_t>(due.size()));
+    for (const Held& h : due) {
+        xbox::replay::value('K', h.key());
+        finish_held(h);
+    }
+}
+
 // The APU interrupt would have run these.
 void Engine::do_work() {
+    if (xbox::replay::active() && xbox::replay::main_thread()) release_held();
     std::deque<Callback> due;
     {
         Guard lock(callbacks_mutex, TestLock::Callbacks);

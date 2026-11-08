@@ -1,6 +1,7 @@
 // Dispatcher objects, waits, timers, DPCs and IRQL. See dispatcher.h.
 
 #include "dispatcher.h"
+#include "replay.h"
 
 #include <algorithm>
 #include <chrono>
@@ -131,8 +132,48 @@ bool deliver_user_apcs(std::unique_lock<std::mutex>& lock, XbPtr thread) {
 }
 
 // Waits for `objects` (none = just sleep until the timeout).
+uint32_t wait_objects_live(std::span<XbDispatcherHeader* const> objects, bool wait_all, const int64_t* timeout,
+                           bool alertable);
+
+// Record/replay: a wait with a timeout on the title's main thread ends by another thread's timing (a file or sound
+// completion, a loading thread's event). The recording keeps its result; a replay hands back a timeout at once, or
+// waits (without the timeout) for the object that was signaled in the recording. A replay that waits more than
+// kReplayWaitLimit for it gives up and waits live.
+constexpr auto kReplayWaitLimit = std::chrono::seconds(10);
+
 uint32_t wait_objects(std::span<XbDispatcherHeader* const> objects, bool wait_all, const int64_t* timeout,
                       bool alertable = false) {
+    if (!timeout || objects.empty() || !replay::on_stream())
+        return wait_objects_live(objects, wait_all, timeout, alertable);
+    uint32_t outcome = 0;
+    if (!replay::replaying() || !replay::recorded('W', outcome))
+        return replay::value('W', wait_objects_live(objects, wait_all, timeout, alertable));
+    if (outcome == kStatusTimeout) return kStatusTimeout;
+    const size_t index = outcome - kStatusSuccess;
+    if (outcome == kStatusUserApc || index >= objects.size()) return wait_objects_live(objects, wait_all, timeout, alertable);
+    const XbPtr thread = current_kthread();
+    const auto limit = Clock::now() + kReplayWaitLimit;
+    std::unique_lock lock(g_lock);
+    for (;;) {
+        if (wait_all ? std::all_of(objects.begin(), objects.end(), [&](auto* o) { return is_signaled(*o, thread); })
+                     : is_signaled(*objects[index], thread)) {
+            if (wait_all)
+                for (XbDispatcherHeader* o : objects) satisfy(*o, thread);
+            else
+                satisfy(*objects[index], thread);
+            return outcome;
+        }
+        if (Clock::now() >= limit) break;
+        g_signaled.wait_until(lock, limit);
+    }
+    lock.unlock();
+    LOG_WARN("replay", "a wait the recording saw end (%08x) did not end within %lld s; waiting live", outcome,
+             static_cast<long long>(kReplayWaitLimit.count()));
+    return wait_objects_live(objects, wait_all, timeout, alertable);
+}
+
+uint32_t wait_objects_live(std::span<XbDispatcherHeader* const> objects, bool wait_all, const int64_t* timeout,
+                           bool alertable) {
     std::optional<Clock::time_point> deadline;
     if (timeout) deadline = deadline_from(*timeout);
     const XbPtr thread = current_kthread();

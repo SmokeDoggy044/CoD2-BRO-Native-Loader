@@ -1,6 +1,8 @@
 // Route-B loader: runs the original default.xbe natively on 32-bit x86 (Linux or
 // Windows), with the Xbox kernel and the SDK libraries replaced by our own code.
 
+#include <sstream>
+#include <fstream>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -742,7 +744,29 @@ int loader_main(int argc, char** argv) {
     bool comparing = false;
     for (int i = 1; i < argc; ++i)
         comparing |= option_name(argv[i]) == "--compare" || option_name(argv[i]) == "--compare-all";
-    const platform::Settings settings = comparing ? platform::Settings{} : platform::load_settings();
+    // Record/replay: a recording keeps the settings.ini text and command line it ran with, and a replay uses that
+    // text in place of the player's settings.ini (which may have changed since, and is another file under Wine).
+    std::string replay_file, settings_text, recorded_command_line;
+    bool replaying = false;
+    for (int i = 1; i + 1 < argc; ++i)
+        if (option_name(argv[i]) == "--record" || option_name(argv[i]) == "--replay") {
+            replaying = option_name(argv[i]) == "--replay";
+            replay_file = argv[i + 1];
+        }
+    if (replaying) {
+        if (!xbox::replay::read_recorded_settings(replay_file, settings_text, recorded_command_line)) {
+            std::fprintf(stderr, "%s is not a recording of this build's format (record it again)\n", replay_file.c_str());
+            return 2;
+        }
+    } else if (!replay_file.empty() && !comparing) {
+        std::ifstream file(platform::settings_path(), std::ios::binary);
+        std::ostringstream text;
+        text << file.rdbuf();
+        settings_text = text.str();
+    }
+    const platform::Settings settings = comparing ? platform::Settings{}
+                                        : replaying ? platform::Settings::parse(settings_text)
+                                                    : platform::load_settings();
     std::vector<std::string> merged = settings.as_args();
     merged.insert(merged.begin(), argv[0]);
     merged.insert(merged.end(), argv + 1, argv + argc);
@@ -754,6 +778,14 @@ int loader_main(int argc, char** argv) {
             std::fprintf(stderr, "(options include %s)\n", platform::settings_path().string().c_str());
         return 2;
     }
+    parsed->replay.settings_text = settings_text;
+    for (int i = 0; i < argc; ++i) parsed->replay.command_line += std::string(argv[i]) + "\n";
+    if (replaying)
+        LOG_INFO("replay", "using the recording's settings.ini; it was recorded with: %s", [&] {
+            std::string line = recorded_command_line;
+            std::replace(line.begin(), line.end(), '\n', ' ');
+            return line;
+        }().c_str());
     if (!parsed->pc_patches.value_or(!parsed->compare)) {
         // PC features off: the presentation is the Xbox's too (4:3 without the EEPROM
         // widescreen flag, the game's own fonts and button icons, 640x480, its texture filtering), unless

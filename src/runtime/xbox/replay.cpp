@@ -14,9 +14,11 @@ namespace {
 
 // File: "XBREPLAY" + u32 version, then records [tag u8][size u16][payload].
 constexpr char kMagic[8] = {'X', 'B', 'R', 'E', 'P', 'L', 'A', 'Y'};
-constexpr uint32_t kVersion = 3;
+constexpr uint32_t kVersion = 4;  // 4: timed waits (W), voice status (S), finished packets (k, K)
 constexpr char kClockTag = 'C';
 constexpr char kFrameTag = 'F';
+constexpr char kSettingsTag = 'O';     // record start: settings.ini text
+constexpr char kCommandLineTag = 'A';  // record start: command line
 constexpr char kEntityHashesTag = 'E';  // per entity (u32 each), just before its frame's 'F'
 
 // Game state (CoD BRO campaign): level locals, and the entity table (count at +0x2aac, pointers at +0x2ab0) whose
@@ -51,7 +53,7 @@ uint32_t g_checked = 0;
 uint32_t g_mismatches = 0;
 uint32_t g_first_mismatch = 0;
 
-bool on_stream() { return g_file && t_bound && !(g_config.mode == Mode::Replay && g_live); }
+bool on_stream_impl() { return g_file && t_bound && !(g_config.mode == Mode::Replay && g_live); }
 
 struct ReferenceFrame {
     FrameRecord record;
@@ -138,6 +140,7 @@ bool load_frame() {
         if (std::fread(&tag, 1, 1, g_file) != 1 || std::fread(&length, 2, 1, g_file) != 1) return false;
         std::vector<uint8_t> payload(length);
         if (std::fread(payload.data(), 1, length, g_file) != length) return false;
+        if (static_cast<char>(tag) == kSettingsTag || static_cast<char>(tag) == kCommandLineTag) continue;
         if (static_cast<char>(tag) == kFrameTag && length == sizeof(FrameRecord)) {
             std::memcpy(&g_recorded_frame, payload.data(), sizeof(FrameRecord));
             g_have_frame = true;
@@ -280,6 +283,28 @@ void finish() {
 
 }  // namespace
 
+bool read_recorded_settings(const std::filesystem::path& file, std::string& settings_text, std::string& command_line) {
+    std::FILE* f = std::fopen(file.string().c_str(), "rb");
+    if (!f) return false;
+    char magic[8];
+    uint32_t version = 0;
+    bool ok = std::fread(magic, 1, 8, f) == 8 && std::memcmp(magic, kMagic, 8) == 0 && std::fread(&version, 4, 1, f) == 1 &&
+              version == kVersion;
+    for (int n = 0; ok && n < 2; ++n) {
+        uint8_t tag = 0;
+        uint16_t length = 0;
+        std::string text;
+        ok = std::fread(&tag, 1, 1, f) == 1 && std::fread(&length, 2, 1, f) == 1;
+        if (ok) text.resize(length);
+        ok = ok && std::fread(text.data(), 1, length, f) == length;
+        if (ok && tag == kSettingsTag) settings_text = std::move(text);
+        else if (ok && tag == kCommandLineTag) command_line = std::move(text);
+        else ok = false;
+    }
+    std::fclose(f);
+    return ok;
+}
+
 bool start(const Config& config) {
     g_config = config;
     if (config.mode == Mode::Off) return true;
@@ -294,6 +319,8 @@ bool start(const Config& config) {
     if (record) {
         std::fwrite(kMagic, 1, sizeof(kMagic), g_file);
         std::fwrite(&kVersion, 4, 1, g_file);
+        write_record(kSettingsTag, config.settings_text.data(), std::min<size_t>(config.settings_text.size(), 0xffff));
+        write_record(kCommandLineTag, config.command_line.data(), std::min<size_t>(config.command_line.size(), 0xffff));
         g_live = false;
         LOG_INFO("replay", "recording to %s", config.file.string().c_str());
         return true;
@@ -344,8 +371,19 @@ void bind_current_thread() { t_bound = true; }
 
 bool active() { return g_config.mode != Mode::Off; }
 
+bool on_stream() { return on_stream_impl(); }
+
+bool main_thread() { return t_bound; }
+
+bool replaying() { return g_config.mode == Mode::Replay; }
+
+bool recorded(char tag, uint32_t& v) {
+    if (!on_stream() || g_config.mode != Mode::Replay) return false;
+    return take(tag, &v, sizeof(v));
+}
+
 int64_t clock(int64_t real) {
-    if (!on_stream()) return real;
+    if (!on_stream_impl()) return real;
     if (g_config.mode == Mode::Record) {
         write_record(kClockTag, &real, sizeof(real));
         return real;
@@ -360,7 +398,7 @@ int64_t clock(int64_t real) {
 }
 
 uint32_t value(char tag, uint32_t real) {
-    if (!on_stream()) return real;
+    if (!on_stream_impl()) return real;
     if (g_config.mode == Mode::Record) {
         write_record(tag, &real, sizeof(real));
         return real;
@@ -371,7 +409,7 @@ uint32_t value(char tag, uint32_t real) {
 }
 
 void bytes(char tag, void* data, size_t size) {
-    if (!on_stream()) return;
+    if (!on_stream_impl()) return;
     if (g_config.mode == Mode::Record) {
         write_record(tag, data, size);
         return;

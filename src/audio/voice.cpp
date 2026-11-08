@@ -115,6 +115,7 @@ void Voice::flush() {
 }
 
 void Voice::finish_packet(Packet& packet, uint32_t status, uint32_t played) {
+    if (take_finished && take_finished(packet, status, played)) return;
     if (packet.completed) *packet.completed = played;
     if (packet.status) *packet.status = status;
     if (on_packet_done) on_packet_done(packet, status);

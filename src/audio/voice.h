@@ -71,6 +71,9 @@ public:
     // Called (from render, with the voice locked - keep it short) when a packet
     // completes or is flushed, after its status words are written.
     std::function<void(const Packet& packet, uint32_t status)> on_packet_done;
+    // Record/replay: when set and it returns true, the owner takes the finished packet over (writes its status words
+    // later, at a point of the title's main thread) and finish_packet does nothing more.
+    std::function<bool(const Packet& packet, uint32_t status, uint32_t played)> take_finished;
 
 private:
     void finish_packet(Packet& packet, uint32_t status, uint32_t played);
