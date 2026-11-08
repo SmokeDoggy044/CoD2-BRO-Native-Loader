@@ -9,8 +9,7 @@ see tools/sort_unnamed.py - then address ranges); library-named functions that
 nothing else sorts go to "mslib".
 Writes tools/data/progress.csv (one row per function) and prints a summary.
 
-usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
-  --readme       also rewrite README.md's progress summary (progress markers) and docs/progress.md
+usage: tools/progress.py [--module NAME [--state STATE]]
   --module NAME  list that module's functions not rewritten yet (address, name, state)
   --state STATE  only those in one state (unnamed, named, decompiled, untested, ...)
 
@@ -76,7 +75,6 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--module")
     ap.add_argument("--state")
-    ap.add_argument("--readme", action="store_true")
     args = ap.parse_args()
 
     syms = {}
@@ -187,129 +185,8 @@ def main():
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
     named = sum(1 for r in rows if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
-    total = len(rows)  # library functions in .text stay counted
+    total = len(rows)  # library functions in .text stay counted (user decision 2026-10-18)
     print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
-    if args.readme:
-        excluded = sum(1 for a in syms if next((s for s, lo, hi in secs if lo <= a < hi), None) in EXCLUDED)
-        write_readme(rows, excluded)
-
-
-# README "By part of the game" rows: label -> progress.py modules
-PARTS = [  # one row per module (modules are pushed one at a time)
-    ("Renderer (scenes, materials, shaders, models, effects)", {"renderer"}),
-    ("Game logic (entities, AI, weapons, physics, level-script runtime)", {"game"}),
-    ("Animation (animation trees, the animation codec)", {"xanim"}),
-    ("Client game (HUD, view, effects on screen)", {"cgame"}),
-    ("Engine core (memory, files, settings, commands, containers, math)", {"qcommon"}),
-    ("Client and menus", {"client"}),
-    ("Server", {"server"}),
-    ("Collision", {"collision"}),
-    ("Compression (zlib)", {"zlib"}),
-    ("Script engine (script VM, entity bindings, built-in script functions)", {"script"}),
-    ("Level-script helpers in the engine code", {"levelscript"}),
-    ("Sound", {"sound"}),
-    ("Streaming (asset loading, zones)", {"streaming"}),
-    ("Online (Xbox Live glue)", {"online"}),
-    ("Microsoft library code built into the game (replaced, not rewritten)", {"mslib", "crt"}),
-]
-
-
-# README mission-scripts table: XBE level section -> mission
-MISSIONS = [("PROLOGUE", "sp/prologue"), ("ORAN", "sp/oran"), ("TUNISIA", "sp/tunisia"),
-            ("KASSPASS", "sp/kasspass"), ("KASSRINE", "sp/kassrine"), ("LIBEATOR", "sp/liberatr"),
-            ("GELA", "sp/gela"), ("PIANLUPO", "sp/piano"), ("TROINA", "sp/troina"),
-            ("OMAHEACH", "sp/omaha"), ("MONS1", "sp/mons"), ("EILEDORF", "sp/eilndrf"),
-            ("BUCHHOLZ", "sp/buchholz"), ("DRAGEETH", "sp/dragonth")]
-
-
-def replace_block(s, name, lines):
-    a = s.index("\n", s.index(f"<!-- {name}:start")) + 1
-    b = s.index(f"<!-- {name}:end -->")
-    return s[:a] + "\n".join(lines) + "\n" + s[b:]
-
-
-def write_readme(rows, excluded):
-    import datetime
-    n = lambda x: f"{x:,}"
-    named_ = lambda rs: sum(1 for r in rs if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
-    done_ = lambda rs: sum(1 for r in rs if r[4] in REWRITTEN)
-    text = [r for r in rows if r[2] == ".text"]
-    levels = [r for r in rows if r[2] == "levels"]
-    nlevels = len({r[3] for r in levels})
-    out = [f"*As of {datetime.date.today().isoformat()}. The numbers come from `tools/progress.py`, which tracks every",
-           "function of the game.*", "",
-           "| | Functions | Named | Rewritten | Left to rewrite |", "|---|---:|---:|---:|---:|"]
-    for label, rs in ((f"Engine and game code (`.text`)", text), (f"Mission scripts ({nlevels} level sections)", levels)):
-        out.append(f"| {label} | {n(len(rs))} | {n(named_(rs))} | {n(done_(rs))} | {n(len(rs) - done_(rs))} |")
-    out.append(f"| **Total** | **{n(len(rows))}** | **{n(named_(rows))}** | **{n(done_(rows))}** | **{n(len(rows) - done_(rows))}** |")
-    globals_ = set()
-    for f in ("manual_names.csv", "cvar_globals.csv"):
-        globals_ |= {int(r["address"], 16) for r in csv.DictReader(open(DATA / f)) if r["kind"] == "data"}
-    out += ["", "**Named** means we know what the function does and it has a proper name.",
-            "**Rewritten** means it has been turned into C++ and passed the in-game comparison",
-            f"(below), or, for {n(sum(1 for r in rows if r[4] == 'offline'))} functions the campaign never runs, "
-            "the same comparison offline on random inputs.",
-            "**Set aside** functions will not be tested, by decision: dead code nothing calls, start-up",
-            "and exit code, debug and developer tools, and code that only talks to the Xbox hardware or",
-            "its files (these are in C++ already). The Xbox Live code is set aside without being",
-            "rewritten: the service is gone. Our own engine replaces all of this.",
-            f"We've also named {n(len(globals_))} of the game's global variables.", "",
-            "## By part of the game", "",
-            "| Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |",
-            "|---|---:|---:|---:|---:|---:|---:|"]
-    assigned = set()
-    for label, mods in PARTS + [("Not sorted into a part yet", None)]:
-        if mods is None:
-            rs = [r for r in text if r[3] not in assigned]
-        else:
-            assigned |= mods
-            rs = [r for r in text if r[3] in mods]
-        c = collections.Counter(r[4] for r in rs)
-        waiting = c["untested"] + c["inconclusive"] + c["mismatched"]
-        out.append(f"| {label} | {n(len(rs))} | {n(done_(rs))} | {n(waiting)} | {n(c['set-aside'])} | {n(c['named'])} | {n(c['unnamed'])} |")
-    ms = [r for r in text if r[3] in ("mslib", "crt")]
-    lib = sum(1 for r in ms if r[4] == "library")
-    out += ["", f"The Microsoft library row is Microsoft's own code that was built into the game (the C",
-            "runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType",
-            f"font rasteriser). We recognise {n(lib)} of these functions by comparing their bytes with",
-            "the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the",
-            "same blocks. They still count towards the total."]
-    lv = ["Each mission has its own section of code: its level scripts (the objectives, enemy",
-          f"waves, scripted events and dialogue) compiled down to machine code. All {n(len(levels))}",
-          "of these functions were generated by the game's script compiler. They keep running as the",
-          "original code from your own disc: our engine gives them everything they expect from it",
-          "([level_boundary.md](formats/level_boundary.md)).", "",
-          "| Section | Mission | Functions | Named | Rewritten |", "|---|---|---:|---:|---:|"]
-    for sec, mission in MISSIONS:
-        rs = [r for r in levels if r[3] == sec.lower()]
-        lv.append(f"| {sec} | `{mission}` | {n(len(rs))} | {n(named_(rs))} | {n(done_(rs))} |")
-    exc = [f"The game also contains about {n(round(excluded, -1))} functions from Microsoft's Xbox libraries",
-           "that are not counted at all: Direct3D, DirectSound, Xbox Live and networking, and a few",
-           "others. They talk directly to the Xbox's hardware and online services, so a rewritten",
-           "version could do nothing useful on a PC; our own graphics, sound, input and networking",
-           "take their place. They are not part of the game itself either: every Xbox game was built",
-           "with these same libraries."]
-    today = datetime.date.today().isoformat()
-    page = ["# Progress", "",
-            f"*Generated by `tools/progress.py --readme` on {today}. It tracks every function of the game.*", ""]
-    page += out[3:] + ["", "## The mission scripts", ""] + lv + ["", "## What isn't counted", ""] + exc + [
-            "", "The totals can still grow a little as more functions turn up during the analysis."]
-    (ROOT / "docs" / "progress.md").write_text("\n".join(page).replace(" comparison\n(below), or,", " comparison,\nor,") + "\n")
-
-    engine = [r for r in text if r[3] not in ("mslib", "crt")]
-    pc = lambda a, b: f"{round(100 * a / b)}%" if b else "-"
-    summary = [f"*As of {today}. Full numbers per part of the game: [docs/progress.md](docs/progress.md).*", "",
-               "| | Functions | Rewritten in C++ | Status |", "|---|---:|---:|---|",
-               f"| **Engine** (renderer, sound, script engine, game logic, menus, ...) | {n(len(engine))} | "
-               f"{n(done_(engine))} | {pc(done_(engine), len(engine))} rewritten |",
-               f"| **Mission scripts** ({nlevels} missions) | {n(len(levels))} | {n(done_(levels))} | "
-               "run from your disc |",
-               f"| **Microsoft libraries** built into the game | {n(len(ms))} | - | being replaced by our own code |"]
-    readme = ROOT / "README.md"
-    s = readme.read_text()
-    s = replace_block(s, "progress", summary)
-    readme.write_text(s)
-    print("README.md progress summary and docs/progress.md updated")
 
 
 if __name__ == "__main__":

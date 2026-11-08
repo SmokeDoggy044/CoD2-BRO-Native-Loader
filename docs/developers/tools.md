@@ -38,8 +38,7 @@
   code are recorded and compared too, so drawing code can be tested. Results go to
   `tools/data/functions.csv`. See [comparison-harness.md](comparison-harness.md).
 - **`tools/progress.py`**, which tracks every function's state (unnamed, named,
-  decompiled, tested, rewritten) by part of the game, and lists what's left. With
-  `--readme` it updates the README's summary and [docs/progress.md](../progress.md).
+  decompiled, tested, rewritten) by part of the game, and lists what's left.
 - **`tools/levelreach.py`** and **`tools/untested_by_level.py`**: which missions can
   reach a function, and which functions nothing reaches at all.
 - **`tools/smoke_test.sh`**, a quick unattended play-through run after every batch

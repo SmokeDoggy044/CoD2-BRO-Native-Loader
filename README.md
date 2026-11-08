@@ -9,7 +9,7 @@
 [![Playable release](https://img.shields.io/github/v/release/SmokeDoggy044/CoD2-BRO-Native-Loader?label=playable%20release)](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases)
 ![Made with AI](https://img.shields.io/badge/made%20with-AI-8A2BE2)
 
-[Play](#play) · [Features](#features) · [Progress](#progress) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
+[Play](#play) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
 
 </div>
 
@@ -59,23 +59,13 @@ repository is where the engine is rewritten; its first release will replace that
 
 Every enhancement stays optional, so the original look and sound are always one switch away.
 
-## Progress
+## Status
 
-<!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-11-07. Full numbers per part of the game: [docs/progress.md](docs/progress.md).*
-
-| | Functions | Rewritten in C++ | Status |
-|---|---:|---:|---|
-| **Engine** (renderer, sound, script engine, game logic, menus, ...) | 9,231 | 6,993 | 76% rewritten |
-| **Mission scripts** (14 missions) | 5,325 | 101 | run from your disc |
-| **Microsoft libraries** built into the game | 2,082 | - | being replaced by our own code |
-<!-- progress:end -->
-
-Every rewritten function is checked against the original game while it runs: both
-versions start from exactly the same state, and their results are compared down to the
-last byte. Each part of the game switches over to our code once its functions have passed;
-a function no test has reached yet keeps running the original until one does. Every part
-of the engine has switched over, apart from Microsoft's libraries.
+The engine is nearly fully rewritten, and most of it already runs as our own code in
+development builds. Every rewritten function is checked against the original while the
+game runs, and only replaces it once both behave exactly the same. Next comes the custom
+engine itself: the rewritten code assembled into a game of its own, with the planned
+features built in. Its first release will replace the current one.
 
 ## How it works
 
