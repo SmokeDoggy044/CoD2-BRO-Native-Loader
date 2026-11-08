@@ -417,6 +417,17 @@ void bytes(char tag, void* data, size_t size) {
     take(tag, data, size);
 }
 
+std::string screenshot_path() {
+    if (g_config.mode == Mode::Off || !t_bound) return {};
+    const auto& frames = g_config.shot_frames;
+    if (!std::binary_search(frames.begin(), frames.end(), g_frame)) return {};
+    std::error_code ec;
+    std::filesystem::create_directories(g_config.shot_dir, ec);
+    const std::string path = (g_config.shot_dir / ("shot_" + std::to_string(g_frame) + ".bmp")).string();
+    LOG_INFO("replay", "frame %u: picture to %s", g_frame, path.c_str());
+    return path;
+}
+
 void frame() {
     if (g_config.mode == Mode::Off) return;
     if (!t_bound) {

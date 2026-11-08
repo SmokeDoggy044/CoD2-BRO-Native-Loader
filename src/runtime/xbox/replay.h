@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace xbox::replay {
 
@@ -26,6 +27,10 @@ struct Config {
     // (frame_<n>_level.bin, _clients.bin, _entities.bin), for tools/replay_diff.py. 0 = never.
     uint32_t dump_frame = 0;
     std::filesystem::path dump_dir;
+    // Both modes: at these presented frames (sorted), save the picture as shot_dir/shot_<n>.bmp - fixed capture
+    // points: the same frames of one recording, compared between builds or back ends. Empty = none.
+    std::vector<uint32_t> shot_frames;
+    std::filesystem::path shot_dir;
     // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed).
     bool exit_at_end = true;
     // Replay: also write this run's own state records ('E' + 'F', the recording's format) to this file, so runs in
@@ -75,5 +80,8 @@ void stop();
 
 // Once per presented frame (main thread): the state hash.
 void frame();
+
+// After frame(): where to save this frame's picture (Config::shot_frames), empty if not wanted.
+std::string screenshot_path();
 
 }  // namespace xbox::replay

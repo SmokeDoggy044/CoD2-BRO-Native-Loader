@@ -224,6 +224,7 @@ void print_usage(const char* program) {
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
+        "  --replay-shots N,N.. DIR  with --record/--replay: pictures of those frames to DIR (shot_<n>.bmp)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
         "  --diag DIR [S]   diagnostics while playing: DIR/log.txt, a screenshot every S seconds\n"
         "                   (default 10); F12 marks a problem: screenshot, a note typed while the\n"
@@ -363,6 +364,24 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.replay.reference_dump_dir = fs::path(argv[++i]);
         } else if (arg == "--replay-continue") {
             options.replay.exit_at_end = false;
+        } else if (arg == "--replay-shots") {
+            if (i + 2 >= argc) {
+                std::fprintf(stderr, "--replay-shots needs frame numbers (1,2,...) and a folder\n");
+                return std::nullopt;
+            }
+            std::string list = argv[++i];
+            for (size_t p = 0; p <= list.size();) {
+                const size_t comma = std::min(list.find(',', p), list.size());
+                const long n = std::atol(list.substr(p, comma - p).c_str());
+                if (n < 1) {
+                    std::fprintf(stderr, "--replay-shots: frame numbers start at 1 (got \"%s\")\n", list.c_str());
+                    return std::nullopt;
+                }
+                options.replay.shot_frames.push_back(static_cast<uint32_t>(n));
+                p = comma + 1;
+            }
+            std::sort(options.replay.shot_frames.begin(), options.replay.shot_frames.end());
+            options.replay.shot_dir = fs::path(argv[++i]);
         } else if (arg == "--replay-dump") {
             if (i + 2 >= argc || (options.replay.dump_frame = static_cast<uint32_t>(std::atoi(argv[++i]))) < 1) {
                 std::fprintf(stderr, "--replay-dump needs a frame number and a folder\n");
@@ -670,7 +689,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
             ++i;  // dropped with its value
             continue;
         }
-        if (name == "--replay-dump" || name == "--replay-reference") {  // a recording covers one boot
+        if (name == "--replay-dump" || name == "--replay-reference" || name == "--replay-shots") {  // a recording covers one boot
             i += 2;
             continue;
         }
@@ -1004,7 +1023,10 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;
-    if (options->replay.mode != xbox::replay::Mode::Off) d3d_config.frame_presented = &xbox::replay::frame;
+    if (options->replay.mode != xbox::replay::Mode::Off) {
+        d3d_config.frame_presented = &xbox::replay::frame;
+        if (!options->replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
+    }
     if (options->diag_dir) {
         d3d_config.diag_dir = options->diag_dir->string();
         d3d_config.diag_seconds = options->diag_seconds;

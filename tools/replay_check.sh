@@ -6,6 +6,8 @@
 # usage: tools/replay_check.sh RECORDING SAVES MISSION OUT_DIR [NAME=LOADER ...]
 #   SAVES: a copy of the save folder as it was when the recording started (never the real one)
 #   default builds: release, debug (Linux) and windows (MinGW release under Wine, build/wine_wrap.sh)
+#   SHOTS=600,1800,... (environment): each build also saves those frames' pictures to OUT_DIR/<name>.shots/
+#   (--replay-shots), and tools/shot_compare.py compares them with the first build's
 # Result: one line per build; OUT_DIR/<name>.txt holds each run's log.
 set -u
 rec=${1:?usage: $0 RECORDING SAVES MISSION OUT_DIR [NAME=LOADER ...]}
@@ -40,7 +42,8 @@ run() {
     local name=$1 loader=$2 data="$out/$1.data"
     rm -rf "$data" && cp -a "$saves" "$data"
     timeout -s INT -k 15 "$seconds" "$loader" --data "$data" --silent --level "$mission" \
-        --replay "$rec" --replay-continue > "$out/$name.txt" 2>&1
+        --replay "$rec" --replay-continue ${SHOTS:+--replay-shots "$SHOTS" "$out/$name.shots"} \
+        > "$out/$name.txt" 2>&1
     echo $? > "$out/$name.exit"
     rm -rf "$data"
 }
@@ -61,3 +64,11 @@ for b in "${builds[@]}"; do
     printf '%-10s %-8s %s%s\n' "$name" "$(cat "$out/$name.exit")" "$result" "${crash:+; then CRASH: $crash}"
     rm -f "$out/$name.exit"
 done
+if [ -n "${SHOTS:-}" ]; then
+    first=${builds[0]%%=*}
+    for b in "${builds[@]:1}"; do
+        name=${b%%=*}
+        echo "pictures, $first vs $name:"
+        python3 -I "$port/tools/shot_compare.py" "$out/$first.shots" "$out/$name.shots"
+    done
+fi

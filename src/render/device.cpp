@@ -550,6 +550,10 @@ uint32_t present_frame() {
         const std::string path = g.config.screenshot_dir + "/frame_" + std::to_string(g.swap_count) + ".bmp";
         g.backend->save_back_buffer(path.c_str());
     }
+    if (g.config.frame_screenshot) {
+        const std::string path = g.config.frame_screenshot();
+        if (!path.empty()) g.backend->save_back_buffer(path.c_str());
+    }
     g.backend->present();
     if (!g.backend->pump_events()) {
         LOG_INFO("render", "window closed");
