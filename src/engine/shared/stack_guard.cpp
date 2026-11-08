@@ -16,6 +16,7 @@ namespace game {
 void stack_guard_enter(uint32_t) {}
 void stack_guard_leave(uint32_t) {}
 void stack_guard_restore(uint32_t, uint32_t) {}
+void stack_guard_range(uint32_t* begin, uint32_t* end) { *begin = *end = 0; }
 
 #else
 
@@ -122,6 +123,13 @@ void stack_guard_restore(uint32_t dst, uint32_t size) {
         if (dst < e.ctop && dst + size > e.floor) report("restore over a live C frame", e, dst);
         note_margin(e, dst);
     }
+}
+
+void stack_guard_range(uint32_t* begin, uint32_t* end) {
+    *begin = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&t_live[0]));
+    *end = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&t_live[kMax]));
+    const auto depth = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&t_depth));
+    if (depth == *end) *end += 4;  // t_depth right after the table (else it shows as its own run)
 }
 
 #endif

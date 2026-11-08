@@ -194,6 +194,7 @@ struct Report {
     uint32_t pass_calls;    // pass-through calls made
     uint32_t dirty_count;
     uint32_t scan_pages;  // pages the dirty scan read from pagemap
+    uint32_t switched;    // ended at xbcmp_switch_landing (Config::switch_return_word)
     // CLOCK_MONOTONIC ns: process started, maps read, bits cleared, function returned,
     // dirty pages collected (0 where not reached).
     uint64_t t_entered, t_mapped, t_cleared, t_landed, t_collected;
@@ -285,10 +286,12 @@ extern char __start_xbcmp_text[];
 extern char __stop_xbcmp_text[];
 void xbcmp_entry();
 void xbcmp_landing();
+void xbcmp_switch_landing();
 void xbcmp_test_jump();
 [[noreturn]] void xbcmp_resume(const Context* context);
 [[noreturn]] void xbcmp_dispatch(EntryFrame* frame);
 [[noreturn]] void xbcmp_child_finish();
+[[noreturn]] void xbcmp_child_finish_switch();
 void xbcmp_pass_return();
 void xbcmp_pass_done(uint32_t* frame);
 }
@@ -366,6 +369,24 @@ xbcmp_landing:
     fxsave xbcmp_child
     cld
     call xbcmp_child_finish
+    ud2
+
+    .globl xbcmp_switch_landing
+xbcmp_switch_landing:
+    movl %eax, xbcmp_child+512
+    movl %ecx, xbcmp_child+516
+    movl %edx, xbcmp_child+520
+    movl %ebx, xbcmp_child+524
+    movl %esp, xbcmp_child+528
+    movl %ebp, xbcmp_child+532
+    movl %esi, xbcmp_child+536
+    movl %edi, xbcmp_child+540
+    movl xbcmp_child_stack_top, %esp
+    pushfl
+    popl xbcmp_child+544
+    fxsave xbcmp_child
+    cld
+    call xbcmp_child_finish_switch
     ud2
 
     .globl xbcmp_pass_return
@@ -988,6 +1009,12 @@ extern "C" [[noreturn]] XBCMP_CODE void xbcmp_child_finish() {
     child_send(c);
 }
 
+// The tested call suspended its script thread (Config::switch_return_word): as a return.
+extern "C" [[noreturn]] XBCMP_CODE void xbcmp_child_finish_switch() {
+    xbcmp_child.report.switched = 1;
+    xbcmp_child_finish();
+}
+
 [[noreturn]] XBCMP_CODE void child_run(ChildArea& c) {
     for (uint32_t i = 0; i < c.protect_count; ++i)
         sys3(SYS_mprotect, c.protect[i].begin, c.protect[i].end - c.protect[i].begin, c.protect[i].protection);
@@ -1560,6 +1587,10 @@ bool install_file_guard(const ChildArea& c) {
     // XBCMP_POKE: title words both sides get before the test (not counted as written).
     for (uint32_t i = 0; i < g_poke_count; ++i)
         *reinterpret_cast<uint32_t*>(uintptr_t{g_pokes[i][0]}) = g_pokes[i][1];
+    // A suspend of the caller's script thread returns here instead of to the scheduler.
+    if (g_config.switch_return_word)
+        *reinterpret_cast<uint32_t*>(uintptr_t{g_config.switch_return_word}) =
+            addr(reinterpret_cast<const void*>(&xbcmp_switch_landing));
     std::memcpy(&c.start, &context, sizeof(Context));
     xbcmp_test_target = run_original || g_original_twice ? hook.address : hook.code;
     c.start.target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&xbcmp_test_jump));
@@ -1888,6 +1919,11 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
     std::vector<Skip> skips = t_runtime_skips;
     skips.push_back({limit ? limit : entry.esp - std::min<uint32_t>(entry.esp, 0x10000),
                      entry.esp + 4 + hook.function->arg_bytes});
+    if ((a.report.switched || b.report.switched) && g_config.switch_ranges) {
+        std::vector<std::pair<uint32_t, uint32_t>> ranges;
+        g_config.switch_ranges(ranges);
+        for (const auto& [begin, end] : ranges) skips.push_back({begin, end});
+    }
     const auto skipped = [&](uint32_t address) {
         for (const Skip& skip : skips)
             if (skip.contains(address)) return true;
@@ -2079,7 +2115,11 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
         verdict.add(Outcome::Inconclusive, "pages not received");
         return verdict;
     }
-    compare_registers(hook, entry, a.result, b.result, verdict);
+    if (a.report.switched != b.report.switched)
+        verdict.add(Outcome::Mismatched, std::string("script thread switch on the ") +
+                                             (a.report.switched ? "original's" : "new version's") + " side only");
+    else
+        compare_registers(hook, entry, a.result, b.result, verdict);
     // With file calls a different call explains the rest (the host heap the exports use differs
     // then): it comes first.
     const bool files = a.report.pass_calls || b.report.pass_calls;
@@ -2320,7 +2360,7 @@ void release_slot(Collector& collector) {
 // In the game: forks the coordinator for a test of this call. False if none started.
 bool start_test(Collector& collector, Hook& hook, uint64_t call, const Context& entry) {
     if (t_runtime_skips.empty()) t_runtime_skips = thread_runtime_block();
-    const uint32_t stack_limit = g_config.stack_limit ? g_config.stack_limit() : 0;
+    const uint32_t stack_limit = g_config.stack_limit ? g_config.stack_limit(entry.esp) : 0;
     int verdict[2];
     if (pipe2(verdict, O_CLOEXEC)) return false;
     const uint64_t t_call = now_ns();

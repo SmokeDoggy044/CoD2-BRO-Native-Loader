@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "g_scr_runtime.h"
+#include "stack_guard.h"
 #include "title_data.h"
 #include "vmem.h"
 
@@ -190,6 +191,23 @@ bool scr_fiber_stack(uint32_t* limit, uint32_t* base) {
     *limit = g_running->limit;
     *base = g_running->top + 16;
     return true;
+}
+
+void scr_fiber_switch_ranges(std::vector<std::pair<uint32_t, uint32_t>>& out) {
+    const auto word = [&](uint32_t at) { out.push_back({at, at + 4}); };
+    if (g_running) word(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_running->esp)));
+    word(game_floor_word());
+    uint32_t tib = 0;
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+    __asm__ volatile("movl %%fs:0x18, %0" : "=r"(tib));  // the TIB's self pointer
+#endif
+    if (tib) {
+        word(tib);         // FS:[0], the SEH chain
+        word(tib + 0x14);  // the frame limit (platform_set_title_frame_limit)
+    }
+    uint32_t begin = 0, end = 0;
+    stack_guard_range(&begin, &end);
+    if (begin < end) out.push_back({begin, end});
 }
 
 void scr_fiber_note_wait(uint8_t* thread, uint32_t frame) {

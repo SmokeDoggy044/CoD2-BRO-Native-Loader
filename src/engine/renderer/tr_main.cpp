@@ -1996,6 +1996,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) {
     platform_set_title_frame_limit(previous ? previous - kFloorMargin : 0);
 }
 
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_word() {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&t_host_floor));
+}
+
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_swap(uint32_t floor) {
     const uint32_t previous = t_host_floor;
     t_host_floor = floor;

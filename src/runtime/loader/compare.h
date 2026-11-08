@@ -104,9 +104,20 @@ struct Config {
     // Host code pages the test processes may run as well (begin, end): generated
     // trampolines whose calls into the host are recorded SDK calls (the RDTSC ones).
     std::vector<std::pair<uint32_t, uint32_t>> host_code;
-    // Lowest address of the calling thread's stack, or 0 if unknown. The stack below
-    // the caller's frame is scratch space and is not compared.
-    uint32_t (*stack_limit)() = nullptr;
+    // Lowest address of the stack that holds `esp` (the caller's), or 0 if unknown. The
+    // stack below the caller's frame is scratch space and is not compared.
+    uint32_t (*stack_limit)(uint32_t esp) = nullptr;
+    // Script thread switches (CoD BRO: a wait suspends the script thread and returns to the
+    // scheduler through Scr_RestoreContext, which returns to the address in this title word).
+    // Test processes put a second landing there, so a call that suspends its thread ends the
+    // test at the switch: both sides' registers are then the scheduler's, and memory is
+    // compared as after a return. 0 = none.
+    uint32_t switch_return_word = 0;
+    // Memory (begin, end) a suspend fills from the waiting frames - their ESP, host state that
+    // follows the C frames' depth - and the scheduler overwrites when it resumes or switches
+    // back: not compared in a test that switched. Called in the coordinator (a copy of the
+    // game at the call).
+    void (*switch_ranges)(std::vector<std::pair<uint32_t, uint32_t>>& out) = nullptr;
     // A title address with its symbol, for reports (null: hex only).
     std::string (*describe)(uint32_t address) = nullptr;
     // CSV with per-function counts, merged into on flush(); empty = none.

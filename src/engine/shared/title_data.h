@@ -47,6 +47,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor);
 extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous);
 // Swaps this thread's floor for another stack's (a script fiber switch, scr_fiber.cpp); returns the old one.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_swap(uint32_t floor);
+// This thread's floor word (host TLS), for the compare harness (scr_fiber_switch_ranges).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_word();
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
 // Its scratch (the saved registers, game_body_esp's call) sits 64 KB below the gap, where only
 // our C runs: not just below the entry, where some C rebuilds the original's frame and reads words

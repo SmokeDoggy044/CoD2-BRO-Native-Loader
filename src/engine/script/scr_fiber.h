@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
+#include <vector>
 
 #include "compiler.h"
 
@@ -24,6 +26,12 @@ namespace game {
 
 // The running fiber's stack range, for the crash handler's backtrace (false on the scheduler's stack).
 bool scr_fiber_stack(uint32_t* limit, uint32_t* base);
+
+// Host and thread words a script thread switch leaves describing the suspended frames, which the scheduler
+// overwrites when it switches back (run() below): the fiber's wait ESP, this thread's gap-entry floor, FS:[0]
+// and FS:[0x14], the stack guard's table. The compare harness skips them after a test that ended at the
+// switch (loader::compare::Config::switch_ranges): they follow the C frames' depth.
+void scr_fiber_switch_ranges(std::vector<std::pair<uint32_t, uint32_t>>& out);
 
 // Scr_SaveThreadLocals' new body: the current thread's wait ESP (`frame`) is kept with its fiber.
 void scr_fiber_note_wait(uint8_t* thread, uint32_t frame);

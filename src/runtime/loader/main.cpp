@@ -42,6 +42,7 @@
 #include "paths.h"
 #include "program.h"
 #include "script.h"
+#include "scr_fiber.h"
 #include "settings.h"
 #include "shader_dump.h"
 #include "kapf.h"
@@ -957,10 +958,23 @@ int loader_main(int argc, char** argv) {
     compare.multiplayer = title->id == loader::TitleId::Multiplayer;
     compare.image_begin = image.base();
     compare.image_end = image.base() + image.size();
-    compare.stack_limit = [] {
+    compare.stack_limit = [](uint32_t esp) {
+        // A script thread's own stack (scr_fiber.cpp), else the title thread's.
+        uint32_t limit = 0, base = 0;
+        if (game::scr_fiber_stack(&limit, &base) && esp >= limit && esp < base) return limit;
         const loader::ThreadEnv* env = loader::current_thread_env();
         return env ? env->stack_limit : 0u;
     };
+    if (title->id != loader::TitleId::Multiplayer) {
+        // Scr_RestoreContext (0x002f5660) returns to the scheduler through the context at 0x0092709c; a
+        // suspend keeps its ESP in a title word (Scr_SuspendWaitTime/Frames/Till: 0x00922ed4/d8/dc) and in the
+        // fiber (Scr_SaveThreadLocals).
+        compare.switch_return_word = 0x009270c0;
+        compare.switch_ranges = [](std::vector<std::pair<uint32_t, uint32_t>>& out) {
+            out.push_back({0x00922ed4, 0x00922ee0});
+            game::scr_fiber_switch_ranges(out);
+        };
+    }
     compare.describe = loader::describe_address;
     if (options->compare_all) compare.enough_matches = 0;
     if (options->compare) compare.sdk_calls = loader::recorded_sdk_calls();
