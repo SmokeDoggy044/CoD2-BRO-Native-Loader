@@ -1295,8 +1295,7 @@ uint32_t XB_CDECL CG_CalcFov() {
 extern "C" PLATFORM_HIDDEN float XB_CDECL cg_vectoyaw(const float* v);
 PLATFORM_ASM_ENTRY(cg_vectoyaw,
                    "movl 4(%esp), %ecx\n"
-                   "movl $0x002a1830, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(vectoyaw_entry)
                    "subl $4, %esp\n"
                    "movss %xmm0, (%esp)\n"
                    "flds (%esp)\n"

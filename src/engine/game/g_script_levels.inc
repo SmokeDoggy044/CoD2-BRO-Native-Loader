@@ -5,32 +5,32 @@
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_vec_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_vec_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_vec_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x1c, 0x00459dc0, 4, 4));
+    return create_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor3_ent_vec_str_PROLOGUE_Ctor), 4, 4));
 }
 
 // 0x0045e0c0, copy of Scr_StartThreadFunctorN
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_arrent_i_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_arrent_i_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_arrent_i_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x1c, 0x0045d340, 4, 4));
+    return create_thread(args, construct_functor(args, 0x1c, own_address(&AeThreadFunctor3_ent_arrent_i_PROLOGUE_Ctor), 4, 4));
 }
 // 0x0045b190, copy of Scr_StartThread_ent_str_i_str_2
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_f_f_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_f_f_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_f_f_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x18, 0x004599c0, 4, 5));
+    return create_thread(args, construct_functor(args, 0x18, own_address(&AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor), 4, 5));
 }
 
 // 0x0045b220, copy of Scr_StartThread_ent_ent_str_vec
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_vec_f_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_vec_f_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_vec_f_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x00459a70, 4, 5));
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor4_ent_vec_f_str_PROLOGUE_Ctor), 4, 5));
 }
 
 // 0x0045def0, copy of Scr_StartThread_ent_ent_str_vec
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_arrent_hash_hash_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_arrent_hash_hash_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_arrent_hash_hash_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x0045d1c0, 4, 5));
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor4_ent_arrent_hash_hash_PROLOGUE_Ctor), 4, 5));
 }

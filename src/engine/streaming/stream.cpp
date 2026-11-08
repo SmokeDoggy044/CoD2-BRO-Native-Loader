@@ -369,8 +369,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_CollectLoadedZoneIds_call(uint32_t*
 PLATFORM_ASM_ENTRY(Pak_CollectLoadedZoneIds_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
-                   "movl $0x0028ccf0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Pak_CollectLoadedZoneIds_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -692,8 +691,7 @@ PLATFORM_ASM_ENTRY(Xmb_Register_call,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x0023cfb0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Stream_ResolveXmbParts_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -702,8 +700,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_InitAfterLoad_call(uint32_t bl
 PLATFORM_ASM_ENTRY(Path_InitAfterLoad_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
-                   "movl $0x002c0b80, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Path_InitAfterLoad_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -1309,8 +1306,7 @@ PLATFORM_ASM_ENTRY(Stream_StringMapFind_call,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x000249a0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(StringMap_Find_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -2504,8 +2500,7 @@ PLATFORM_ASM_ENTRY(MemContext_AllocOrHeap16_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %eax\n"
                    "movl 12(%esp), %esi\n"
-                   "movl $0x0001b960, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(MemContext_AllocOrHeap16_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -2569,8 +2564,7 @@ PLATFORM_ASM_ENTRY(HashMap_Insert_call,
                    "movl 8(%esp), %esi\n"
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"
-                   "movl $0x000148b0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(HashMap_Insert_entry)
                    "popl %esi\n"
                    "ret")
 

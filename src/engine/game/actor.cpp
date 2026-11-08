@@ -3185,7 +3185,7 @@ uint8_t* find_nearest_node_in_list(const float* position, uint8_t* node, uint32_
     uint32_t value = blocks;
     __asm__ volatile("pushl %%ebx\n\tmovl %%eax, %%ebx\n\tcall *%%esi\n\tpopl %%ebx"
                      : "+a"(value), "+c"(position), "+d"(node)
-                     : "S"(uintptr_t{0x002b0820})
+                     : "S"(own_address(&Path_FindNearestNodeInList_entry))
                      : "memory", "cc");
     return reinterpret_cast<uint8_t*>(uintptr_t{value});
 }
@@ -3195,16 +3195,16 @@ void release_claims_by(uint8_t* sentient, uint32_t blocks) {
     uint32_t value = uint32_t(uintptr_t(sentient)), word = blocks, scratch = 0;
     __asm__ volatile("pushl %%ebx\n\tmovl %%eax, %%ebx\n\tpushl %%edx\n\tcall *%%esi\n\tpopl %%ebx"
                      : "+a"(value), "+d"(word), "+c"(scratch)
-                     : "S"(uintptr_t{0x002b0600})
+                     : "S"(own_address(&PathNode_ReleaseClaimsBy_entry))
                      : "memory", "cc");
 }
 
 // Path_TrimAtGoal (0x00200e90): EAX path, EDX goal, XMM4 radius, one stack float (ret 4).
 uint32_t trim_at_goal(uint8_t* path, const float* goal, const float* radius, uint32_t limit) {
     uint32_t value = uint32_t(uintptr_t(path)), word = uint32_t(uintptr_t(goal)), scratch = limit;
-    __asm__ volatile("movss (%%esi), %%xmm4\n\tpushl %%ecx\n\tmovl $0x00200e90, %%ecx\n\tcall *%%ecx"
+    __asm__ volatile("movss (%%esi), %%xmm4\n\tpushl %%ecx\n\tmovl %%edi, %%ecx\n\tcall *%%ecx"
                      : "+a"(value), "+d"(word), "+c"(scratch)
-                     : "S"(radius)
+                     : "S"(radius), "D"(own_address(&Path_TrimAtGoal_entry))
                      : "memory", "cc", "xmm4");
     return value;
 }
@@ -4054,7 +4054,7 @@ void path_node_set_claim(uint8_t* sentient, uint8_t* node) {
     uint32_t eax = uint32_t(uintptr_t(sentient));
     __asm__ volatile("call *%2"
                      : "+a"(eax)
-                     : "S"(node), "D"(uintptr_t{0x002cabf0})
+                     : "S"(node), "D"(own_address(&PathNode_SetClaim_entry))
                      : "ecx", "edx", "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
 }
 
@@ -4338,7 +4338,7 @@ void XB_CDECL Scr_ProcessAnimNotifies(uint8_t* list) {
             uint32_t eax = uint32_t(uintptr_t(current));
             __asm__ volatile("call *%1"
                              : "+a"(eax)
-                             : "r"(uintptr_t{0x00203280})  // Scr_DispatchAnimNotetrack
+                             : "r"(own_address(&Scr_DispatchAnimNotetrack_entry))  // Scr_DispatchAnimNotetrack
                              : "ecx", "edx", "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6",
                                "xmm7");
         }
@@ -5085,7 +5085,7 @@ uint32_t XB_CDECL Actor_UpdateAnimScript(uint8_t* actor) {
         uint32_t edi = field<uint32_t>(actor, 0);
         __asm__ volatile("call *%1"
                          : "+D"(edi)
-                         : "r"(uintptr_t{0x0025b4d0})  // G_DObjAdvanceAnimsUntilDone
+                         : "r"(own_address(&G_DObjAdvanceAnimsUntilDone_entry))  // G_DObjAdvanceAnimsUntilDone
                          : "eax", "ecx", "edx", "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
                            "xmm6", "xmm7");
     }

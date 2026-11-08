@@ -1155,7 +1155,6 @@ inline uint32_t* element_at(DynArray* array, uint32_t i, uint32_t reserve) {
 }
 
 constexpr uint32_t kReserveString = 0x0045c2e0;  // DynArray_ReserveString_PROLOGUE
-constexpr uint32_t kResize4 = 0x0045cad0;        // DynArray_Resize4_PROLOGUE
 constexpr uint32_t kReserveInt0 = 0x0045d480;    // DynArray_ReserveInt0_PROLOGUE
 
 // A script string array's strings released, then its block freed.
@@ -1197,10 +1196,10 @@ void XB_CDECL BroScr_SetupPlayerWeapons() {
         slot<void XB_CDECL(uint32_t, const uint32_t*, uint32_t*)>(0x00922860)(player(), s,
                                                                              weapon);  // GScr_PlayerGetWeaponSlotWeapon
         s = element_at(&slots, i, kReserveString);
-        uint32_t* const a = element_at(&ammo, i, kResize4);
+        uint32_t* const a = element_at(&ammo, i, own_address(&DynArray_Resize4));
         *a = slot<SlotCall>(0x00922868)(player(), s);  // GScr_PlayerGetWeaponSlotAmmo
         s = element_at(&slots, i, kReserveString);
-        uint32_t* const c = element_at(&clip, i, kResize4);
+        uint32_t* const c = element_at(&clip, i, own_address(&DynArray_Resize4));
         *c = slot<SlotCall>(0x00922870)(player(), s);  // GScr_PlayerGetWeaponSlotClipAmmo
     }
     slot<Ent>(0x009227d0)(player());  // GScr_PlayerTakeAllWeapons
@@ -1209,10 +1208,10 @@ void XB_CDECL BroScr_SetupPlayerWeapons() {
         uint32_t* const weapon = element_at(&weapons, i, kReserveString);
         const uint32_t* s = element_at(&slots, i, kReserveString);
         slot<void XB_CDECL(uint32_t, const uint32_t*, uint32_t*)>(0x00922864)(player(), s, weapon);  // GScr_CheckWeaponSlot
-        const uint32_t* const a = element_at(&ammo, i, kResize4);
+        const uint32_t* const a = element_at(&ammo, i, own_address(&DynArray_Resize4));
         s = element_at(&slots, i, kReserveString);
         slot<SlotSet>(0x0092286c)(player(), s, *a);  // GScr_PlayerSetWeaponSlotAmmo
-        const uint32_t* const c = element_at(&clip, i, kResize4);
+        const uint32_t* const c = element_at(&clip, i, own_address(&DynArray_Resize4));
         s = element_at(&slots, i, kReserveString);
         slot<SlotSet>(0x00922874)(player(), s, *c);  // GScr_PlayerSetWeaponSlotClipAmmo
     }

@@ -1058,8 +1058,7 @@ PLATFORM_ASM_ENTRY(dobj_bounds_add_points8,
                    "movl 12(%esp), %esi\n"
                    "movl 16(%esp), %edi\n"
                    "pushl 20(%esp)\n"
-                   "movl $0x0023c400, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Bounds_AddPoints8_entry)
                    "addl $4, %esp\n"
                    "popl %edi\n"
                    "popl %esi\n"
@@ -1236,8 +1235,7 @@ PLATFORM_ASM_ENTRY(EntHandleTable_Alloc_call,
                    "pushl %ebx\n"
                    "movl 8(%esp), %eax\n"
                    "movl 12(%esp), %ebx\n"
-                   "movl $0x00027f30, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(EntHandleTable_Alloc_entry)
                    "popl %ebx\n"
                    "ret")
 

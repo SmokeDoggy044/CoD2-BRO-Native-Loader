@@ -2869,8 +2869,7 @@ PLATFORM_ASM_ENTRY(qfs_StringMap_Find,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x000249a0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(StringMap_Find_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -3172,8 +3171,7 @@ PLATFORM_ASM_ENTRY(qfs_HashMap_Insert,
                    "movl 8(%esp), %esi\n"
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"
-                   "movl $0x000148b0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(HashMap_Insert_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -3185,8 +3183,7 @@ PLATFORM_ASM_ENTRY(qfs_IntHashMap_Erase,
                    "movl 12(%esp), %edi\n"
                    "movl 16(%esp), %ebx\n"
                    "pushl 20(%esp)\n"
-                   "movl $0x00014af0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(IntHashMap_Erase_entry)
                    "popl %edi\n"
                    "popl %ebx\n"
                    "ret")
@@ -4656,15 +4653,15 @@ HashMap* hash_map_copy_ctor(HashMap* map, const HashMap* source, const HashMapIn
 }
 
 // buy_head, clear, insert_range, resize, construct_n, copy_from
-constexpr HashMapInstance kHashMap1{0x0017bc80, 0x0045f3a0, 0x0017e210, 0x0017ddd0, 0x0017e190, 0x0017e460};
-constexpr HashMapInstance kHashMap2{0x0078ae80, 0x0045ca00, 0x0017e2c0, 0x0078c630, 0, 0x0017e570};
-constexpr HashMapInstance kHashMap3{0x0045ca80, 0x00461490, 0x0017f4e0, 0x0017e370, 0, 0x0017f750};
-constexpr HashMapInstance kHashMap4{0x0017bc80, 0x00462260, 0x0017f860, 0x0017ddd0, 0, 0x001800f0};
-constexpr HashMapInstance kHashMap5{0x0017bc80, 0x004622e0, 0x0017f910, 0x0017ddd0, 0, 0x00180200};
+const HashMapInstance kHashMap1{own_address(&std_list_BuyHead), own_address(&std_list_ClearDestroy_PROLOGUE_3), own_address(&std_list_InsertRange), own_address(&std_vector_Resize4_5), own_address(&std_vector_ConstructN4_3), own_address(&HashMap_CopyFrom)};
+const HashMapInstance kHashMap2{0x0078ae80, own_address(&std_list_Clear_2_PROLOGUE), own_address(&std_list_InsertRange_2), 0x0078c630, 0, own_address(&HashMap_CopyFrom_2)};
+const HashMapInstance kHashMap3{0x0045ca80, own_address(&std_list_Clear_PROLOGUE), own_address(&std_list_InsertRange_3), own_address(&std_vector_Resize4_6), 0, own_address(&HashMap_CopyFrom_3)};
+const HashMapInstance kHashMap4{own_address(&std_list_BuyHead), own_address(&std_list_ClearDestroy_PROLOGUE_8), own_address(&std_list_InsertRange_4), own_address(&std_vector_Resize4_5), 0, own_address(&HashMap_CopyFrom_4)};
+const HashMapInstance kHashMap5{own_address(&std_list_BuyHead), own_address(&std_list_ClearDestroy_PROLOGUE_9), own_address(&std_list_InsertRange_5), own_address(&std_vector_Resize4_5), 0, own_address(&HashMap_CopyFrom_5)};
 // HashMap_Ctor/_2/_3 only: the head allocator and the bucket vector constructor.
-constexpr HashMapInstance kHashMapCtor1{0x0017bc80, 0, 0, 0, 0x0017e190, 0};
-constexpr HashMapInstance kHashMapCtor2{0x0017bc80, 0, 0, 0, 0x0017e090, 0};
-constexpr HashMapInstance kHashMapCtor3{0x0017bc80, 0, 0, 0, 0x0017e110, 0};
+const HashMapInstance kHashMapCtor1{own_address(&std_list_BuyHead), 0, 0, 0, own_address(&std_vector_ConstructN4_3), 0};
+const HashMapInstance kHashMapCtor2{own_address(&std_list_BuyHead), 0, 0, 0, own_address(&std_vector_ConstructN4), 0};
+const HashMapInstance kHashMapCtor3{own_address(&std_list_BuyHead), 0, 0, 0, own_address(&std_vector_ConstructN4_2), 0};
 
 void vector_construct_n4(Vector4* vector, uint32_t count, const uint32_t* value) {
     if (!std_vector_Buy4(vector, count)) return;
@@ -5382,7 +5379,7 @@ namespace {
 }
 
 // buy_head, clear, insert_range, resize, construct_n, copy_from
-constexpr HashMapInstance kHashMap6{0x0045ca60, 0x0045ca00, 0x001e67d0, 0x0045f250, 0, 0x001e6880};
+const HashMapInstance kHashMap6{0x0045ca60, own_address(&std_list_Clear_2_PROLOGUE), own_address(&std_list_InsertRange_6), own_address(&std_vector_Resize4_5), 0, own_address(&HashMap_CopyFrom_6)};
 
 }  // namespace
 
@@ -5936,8 +5933,6 @@ uint8_t* loc_tree_find(uint32_t find, uint8_t* tree, const char* text, uint8_t**
 }
 
 constexpr uint32_t kLocMap = 0x0095fee8;
-constexpr uint32_t kMapStringFind = 0x0001f2e0;  // std_map_string_Find
-constexpr uint32_t kSetStringFind = 0x0001f500;  // std_set_string_Find
 
 const char* std_string_c_str(uint8_t* text) {
     return pk<uint32_t>(text, 0x18) >= 0x10 ? reinterpret_cast<const char*>(pk_ptr(text, 4))
@@ -5948,13 +5943,13 @@ const char* std_string_c_str(uint8_t* text) {
 
 uint32_t XB_REGS2 XB_CDECL Loc_FindEntryValue(uint32_t, const char* name) {
     uint8_t* node = nullptr;
-    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    loc_tree_find(own_address(&std_map_string_Find_entry), &title_global<uint8_t>(kLocMap), name, &node);
     return node == title_global<uint8_t*>(kLocMap + 4) ? 0 : pk<uint32_t>(node, 0x60);
 }
 
 const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t, const char* name, int32_t alternate) {
     uint8_t* node = nullptr;
-    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    loc_tree_find(own_address(&std_map_string_Find_entry), &title_global<uint8_t>(kLocMap), name, &node);
     if (node == title_global<uint8_t*>(kLocMap + 4)) return nullptr;
     if (alternate && title_global<uint32_t>(0x0095fef4)) return std_string_c_str(node + 0x44);
     return std_string_c_str(node + 0x28);
@@ -5962,7 +5957,7 @@ const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t, const char* name, in
 
 uint32_t XB_REGS2 XB_STDCALL Loc_FindFlagBit(uint32_t, const char* name, uint8_t* state) {
     uint8_t* node = nullptr;  // the original uses its argument slot
-    loc_tree_find(kSetStringFind, state + 0x98, name, &node);
+    loc_tree_find(own_address(&std_set_string_Find_entry), state + 0x98, name, &node);
     return node == pk_ptr(state, 0x9c) ? 0 : pk<uint32_t>(node, 0x28);
 }
 
@@ -6098,7 +6093,7 @@ int32_t crt_stricmp(const char* a, const char* b) {
 
 void XB_THISCALL Loc_AddStringEntry(const char* key, uint8_t* state, const char* text, int32_t own_language) {
     uint8_t* node = nullptr;  // the original uses the state argument's slot
-    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, key), &node);
+    loc_tree_find(own_address(&std_map_string_Find_entry), state + 0x78, loc_scoped_name(state, key), &node);
     if (node == pk_ptr(state, 0x7c)) return;
     uint8_t* const value = node + 0x28;
     if (!own_language && !pk<uint32_t>(state, 0x74)) {
@@ -6125,7 +6120,7 @@ void XB_THISCALL Loc_AddStringEntry(const char* key, uint8_t* state, const char*
 
 void XB_STDCALL Loc_BeginReference(uint8_t* state, const char* name) {
     uint8_t* node = nullptr;  // the original uses the state argument's slot
-    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    loc_tree_find(own_address(&std_map_string_Find_entry), state + 0x78, loc_scoped_name(state, name), &node);
     if (node == pk_ptr(state, 0x7c)) {
         // A new entry: {string, string, int 0} copied in through operator[].
         LocTempString entry_text;
@@ -6166,7 +6161,7 @@ uint8_t* XB_REGS1 XB_STDCALL Loc_RegisterFlag(const char* flag, uint8_t* state, 
         key.tidy();
     }
     uint8_t* node = nullptr;  // the original uses the name argument's slot
-    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    loc_tree_find(own_address(&std_map_string_Find_entry), state + 0x78, loc_scoped_name(state, name), &node);
     if (node != pk_ptr(state, 0x7c)) pk<uint32_t>(node, 0x60) |= bit;
     return node;
 }

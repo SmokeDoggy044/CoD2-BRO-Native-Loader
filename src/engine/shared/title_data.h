@@ -5,6 +5,7 @@
 // campaign-only (multiplayer address 0) until the globals are ours (route C).
 
 #include <cstdint>
+#include <type_traits>
 
 #include "compiler.h"
 
@@ -28,6 +29,16 @@ F* title_function(uint32_t address) {
 template <typename F, typename G>
 F* own_function(G* function) {
     return reinterpret_cast<F*>(function);
+}
+
+// For templates whose argument names a callee: an original address (no C yet) or our own C's symbol
+// (tools/own_calls.py rewrites `<0xADDR>` to `<&Name>` once the C exists).
+template <typename F, auto Target>
+F* target_function() {
+    if constexpr (std::is_integral_v<decltype(Target)>)
+        return title_function<F>(Target);
+    else
+        return own_function<F>(Target);
 }
 
 // Our own C's address for a helper that takes the function as a 32-bit address (call-with-registers

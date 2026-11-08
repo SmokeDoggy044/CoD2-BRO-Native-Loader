@@ -3,7 +3,7 @@
 
 // 0x0045ea30, copy of std_list_BuyNodeKeyArray_2
 uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_PROLOGUE(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_key_array(next, prev, value, 0x0045d530);  // DynArray_Assign4_PROLOGUE_3
+    return list_buy_node_key_array(next, prev, value, own_address(&DynArray_Assign4_PROLOGUE_3));  // DynArray_Assign4_PROLOGUE_3
 }
 
 // 0x0045ead0, copy of std_list_IncSize
@@ -11,338 +11,338 @@ uint32_t XB_THISCALL std_list_IncSize_PROLOGUE(uint8_t* list, uint32_t count) { 
 
 // 0x00460400, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ead0, 0x0045d3b0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_PROLOGUE), 0x0045d3b0);
 }
 
 // 0x00460650, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ead0, 0x0045d3b0);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_PROLOGUE), 0x0045d3b0);
 }
 
 // 0x004608a0, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_2(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ead0, 0x0045caa0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_PROLOGUE), 0x0045caa0);
 }
 
 // 0x00460af0, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_3(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045efb0, 0x0045ea30);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize_2), own_address(&std_list_BuyNodeKeyArray_PROLOGUE));
 }
 
 // 0x004612f0, copy of HashMap_Index_2
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE(HashMap* map, const uint32_t* key) {
-    return hash_map_index_array(map, key, hash_map_find_node, 0x0045d530, 0x00460af0, 0);
+    return hash_map_index_array(map, key, hash_map_find_node, own_address(&DynArray_Assign4_PROLOGUE_3), own_address(&HashMap_Insert_PROLOGUE_3), 0);
 }
 
 // 0x00461510, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x0045ff30);  // HashMap_CopyCtor_PROLOGUE
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_PROLOGUE));  // HashMap_CopyCtor_PROLOGUE
 }
 
 // 0x004615a0, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_2(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460020);  // HashMap_CopyCtor_PROLOGUE_2
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_6));  // HashMap_CopyCtor_PROLOGUE_2
 }
 
 // 0x00461630, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_3(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460110);  // HashMap_CopyCtor_PROLOGUE_3
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_6));  // HashMap_CopyCtor_PROLOGUE_3
 }
 
 // 0x004616c0, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460200);  // HashMap_CopyCtor_PROLOGUE_4
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_6));  // HashMap_CopyCtor_PROLOGUE_4
 }
 
 // 0x00461750, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_5(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x004602f0);  // HashMap_CopyCtor_PROLOGUE_5
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_6));  // HashMap_CopyCtor_PROLOGUE_5
 }
 
 // 0x00461840, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_6(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460d40);  // HashMap_CopyCtor_PROLOGUE_6
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_PROLOGUE_6));  // HashMap_CopyCtor_PROLOGUE_6
 }
 
 // 0x004618d0, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_7(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460e20);  // HashMap_CopyCtor_PROLOGUE_8
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_6));  // HashMap_CopyCtor_PROLOGUE_8
 }
 
 // 0x00461960, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_8(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460db0);  // HashMap_CopyCtor_PROLOGUE_7
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_PROLOGUE_7));  // HashMap_CopyCtor_PROLOGUE_7
 }
 
 // 0x004619f0, copy of std_list_BuyNodeHashMap
 uint8_t* XB_STDCALL std_list_BuyNodeHashMap_PROLOGUE_9(uint8_t* next, uint8_t* prev, const uint32_t* value) {
-    return list_buy_node_hash_map(next, prev, value, 0x00460e90);  // HashMap_CopyCtor_PROLOGUE_9
+    return list_buy_node_hash_map(next, prev, value, own_address(&HashMap_CopyCtor_PROLOGUE_9));  // HashMap_CopyCtor_PROLOGUE_9
 }
 
 // 0x00462570, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE_2(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x00461510);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE));
 }
 
 // 0x004627c0, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE_3(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x004615a0);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_2));
 }
 
 // 0x00462a10, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE_4(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x00461630);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_3));
 }
 
 // 0x00462c60, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE_5(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x004616c0);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_4));
 }
 
 // 0x00462eb0, copy of HashMap_Insert_11
 uint8_t* XB_THISCALL HashMap_Insert_11_PROLOGUE_6(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<int32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x00461750);
+    return hash_map_insert<int32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_5));
 }
 
 // 0x00463270, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_4(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x00461840);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_6));
 }
 
 // 0x004634c0, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_5(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x004618d0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_7));
 }
 
 // 0x00463710, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_6(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x00461960);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_8));
 }
 
 // 0x004639e0, copy of HashMap_Insert_2
 uint8_t* XB_THISCALL HashMap_Insert_PROLOGUE_7(HashMap* map, uint8_t* out, const uint32_t* value) {
-    return hash_map_insert<uint32_t>(map, out, value, 0x0045f250, 0x0045ef10, 0x004619f0);
+    return hash_map_insert<uint32_t>(map, out, value, own_address(&std_vector_Resize4_5), own_address(&std_list_IncSize), own_address(&std_list_BuyNodeHashMap_PROLOGUE_9));
 }
 
 // 0x00464110, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_7(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045f8b0, 0x00460d40, 0x00463270, 0x0045ebe0);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE), own_address(&HashMap_CopyCtor_PROLOGUE_6), own_address(&HashMap_Insert_PROLOGUE_4), own_address(&HashMap_Dtor_PROLOGUE));
 }
 
 // 0x004641e0, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_8(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045fc30, 0x00460e20, 0x004634c0, 0x0045ec50);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_8), own_address(&HashMap_CopyCtor_6), own_address(&HashMap_Insert_PROLOGUE_5), own_address(&HashMap_Dtor_PROLOGUE_2));
 }
 
 // 0x004642b0, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_9(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045fbb0, 0x00460db0, 0x00463710, 0x0045ebe0);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_7), own_address(&HashMap_CopyCtor_PROLOGUE_7), own_address(&HashMap_Insert_PROLOGUE_6), own_address(&HashMap_Dtor_PROLOGUE));
 }
 
 // 0x00464380, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_10(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045fcb0, 0x00460e90, 0x004639e0, 0x00460f10);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor), own_address(&HashMap_CopyCtor_PROLOGUE_9), own_address(&HashMap_Insert_PROLOGUE_7), own_address(&HashMap_Dtor_PROLOGUE_6));
 }
 // 0x0045f8b0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045f9b0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_3(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045fa30, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_4(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045fb30, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_6(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045fbb0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_7(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045fc30, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_8(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045feb0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_10(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x0045ffa0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_11(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00460090, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_12(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00460180, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_13(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00460270, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_14(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca60, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00461c30, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_15(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00461cb0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_16(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00461d30, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_17(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00461fe0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_18(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00462060, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_19(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x004620e0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_20(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00462160, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_21(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x004621e0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_22(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00462390, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_23(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00463100, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_24(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00463180, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_25(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00463960, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_26(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00464c00, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_27(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00464c80, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_28(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00465310, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_29(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x00465790, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_30(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 
 // 0x004658a0, copy of HashMap_Ctor
 HashMap* XB_THISCALL HashMap_Ctor_PROLOGUE_31(HashMap* map, const uint8_t* traits, uint32_t) {
-    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, 0x0045f2c0, 0});
+    return hash_map_ctor(map, traits, HashMapInstance{0x0045ca80, 0, 0, 0, own_address(&std_vector_ConstructN4), 0});
 }
 // 0x0045f650, copy of HashMap_CopyFrom
-void XB_THISCALL HashMap_CopyFrom_PROLOGUE(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, 0x0045e540, 0x0045f3e0, 0x0045f250, 0, 0}); }
+void XB_THISCALL HashMap_CopyFrom_PROLOGUE(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, own_address(&std_list_ClearDestroy_PROLOGUE), own_address(&std_list_InsertRange_PROLOGUE), own_address(&std_vector_Resize4_5), 0, 0}); }
 
 // 0x0045fd30, copy of HashMap_CopyFrom
-void XB_THISCALL HashMap_CopyFrom_PROLOGUE_3(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, 0x0045f3a0, 0x0045f540, 0x0045f250, 0, 0}); }
+void XB_THISCALL HashMap_CopyFrom_PROLOGUE_3(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, HashMapInstance{0, own_address(&std_list_ClearDestroy_PROLOGUE_3), own_address(&std_list_InsertRange_PROLOGUE_3), own_address(&std_vector_Resize4_5), 0, 0}); }
 
 // 0x0045ff30, copy of HashMap_CopyCtor
 HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE(HashMap* map, const HashMap* source) {
-    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, own_address(&HashMap_CopyFrom_PROLOGUE)});
 }
 
 // 0x00460d40, copy of HashMap_CopyCtor
 HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_6(HashMap* map, const HashMap* source) {
-    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, own_address(&HashMap_CopyFrom_PROLOGUE)});
 }
 
 // 0x00460db0, copy of HashMap_CopyCtor
 HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_7(HashMap* map, const HashMap* source) {
-    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, 0x0045f650});
+    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca60, 0, 0, 0, 0, own_address(&HashMap_CopyFrom_PROLOGUE)});
 }
 
 // 0x00460e90, copy of HashMap_CopyCtor
 HashMap* XB_THISCALL HashMap_CopyCtor_PROLOGUE_9(HashMap* map, const HashMap* source) {
-    return hash_map_copy_ctor(map, source, HashMapInstance{0x0045ca40, 0, 0, 0, 0, 0x0045fd30});
+    return hash_map_copy_ctor(map, source, HashMapInstance{own_address(&std_list_BuyHead), 0, 0, 0, 0, own_address(&HashMap_CopyFrom_PROLOGUE_3)});
 }
 // 0x00463d00, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_2(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045feb0, 0x0045ff30, 0x00462570, 0x0045f0a0, hash_map_find_node_signed);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_10), own_address(&HashMap_CopyCtor_PROLOGUE), own_address(&HashMap_Insert_11_PROLOGUE_2), own_address(&HashMap_Dtor_PROLOGUE_3), hash_map_find_node_signed);
 }
 
 // 0x00463dd0, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_3(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x0045ffa0, 0x00460020, 0x004627c0, 0x0045f1a0, hash_map_find_node_signed);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_11), own_address(&HashMap_CopyCtor_6), own_address(&HashMap_Insert_11_PROLOGUE_3), own_address(&HashMap_Dtor_PROLOGUE_4), hash_map_find_node_signed);
 }
 
 // 0x00463ea0, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_4(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x00460090, 0x00460110, 0x00462a10, 0x0045f1a0, hash_map_find_node_signed);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_12), own_address(&HashMap_CopyCtor_6), own_address(&HashMap_Insert_11_PROLOGUE_4), own_address(&HashMap_Dtor_PROLOGUE_4), hash_map_find_node_signed);
 }
 
 // 0x00463f70, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_5(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x00460180, 0x00460200, 0x00462c60, 0x0045f1a0, hash_map_find_node_signed);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_13), own_address(&HashMap_CopyCtor_6), own_address(&HashMap_Insert_11_PROLOGUE_5), own_address(&HashMap_Dtor_PROLOGUE_4), hash_map_find_node_signed);
 }
 
 // 0x00464040, copy of HashMap_Index_4
 uint8_t* XB_THISCALL HashMap_Index_PROLOGUE_6(HashMap* map, const uint32_t* key) {
-    return hash_map_index_map(map, key, 0x00460270, 0x004602f0, 0x00462eb0, 0x0045f1a0, hash_map_find_node_signed);
+    return hash_map_index_map(map, key, own_address(&HashMap_Ctor_PROLOGUE_14), own_address(&HashMap_CopyCtor_6), own_address(&HashMap_Insert_11_PROLOGUE_6), own_address(&HashMap_Dtor_PROLOGUE_4), hash_map_find_node_signed);
 }
 // 0x0045f3e0, copy of std_list_InsertRange_2
 void XB_THISCALL std_list_InsertRange_PROLOGUE(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0045d3b0, 0x0045ead0);  // BUCHHOLZ copies
+    list_insert_range(list, where, first, last, 0x0045d3b0, own_address(&std_list_IncSize_PROLOGUE));  // BUCHHOLZ copies
 }
 
 // 0x0045f540, copy of std_list_InsertRange_2
 void XB_THISCALL std_list_InsertRange_PROLOGUE_3(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
-    list_insert_range(list, where, first, last, 0x0045ea30, 0x0045efb0);  // BUCHHOLZ copies
+    list_insert_range(list, where, first, last, own_address(&std_list_BuyNodeKeyArray_PROLOGUE), own_address(&std_list_IncSize_2));  // BUCHHOLZ copies
 }
 // 0x0045c270, copy of DynArray_Assign4
 void XB_THISCALL DynArray_Assign4_PROLOGUE(DynArray* array, const DynArray* source) {
-    dyn_array_assign4(array, source, 0x0001b6d0);  // DynArray_AllocInt_FillUndefined
+    dyn_array_assign4(array, source, own_address(&DynArray_AllocIntsZeroed_2));  // DynArray_AllocInt_FillUndefined
 }
 
 // 0x0045c5b0, copy of DynArray_Assign4

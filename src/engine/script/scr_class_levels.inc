@@ -8,7 +8,7 @@ void XB_THISCALL WaitTilOutputInst2_i_ent_PROLOGUE_Dtor(uint8_t* self) {
 
 // 0x0045bda0, copy of ScrWad_Anim_DeletingDtor
 uint8_t* XB_THISCALL WaitTilOutputInst2_i_ent_PROLOGUE_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_function<void XB_THISCALL(uint8_t*)>(0x00458fc0)(self);  // WaitTilOutputInst2_i_ent_PROLOGUE_Dtor
+    own_function<void XB_THISCALL(uint8_t*)>(&WaitTilOutputInst2_i_ent_PROLOGUE_Dtor)(self);  // WaitTilOutputInst2_i_ent_PROLOGUE_Dtor
     if (flags & 1) scr_free(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)));
     return self;
 }
@@ -32,7 +32,7 @@ uint8_t* XB_THISCALL AeThreadFunctor2_ent_str_PROLOGUE_Ctor(uint8_t* self, uint3
     put(self, 0x4, a1);
     put(self, 0x0, 0x007f4a40);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // FUN_0052ba50
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // FUN_0052ba50
     return self;
 }
 
@@ -41,7 +41,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_f_f_PROLOGUE_Ctor(uint8_t* self, u
     put(self, 0x4, a1);
     put(self, 0x0, 0x007f4b60);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
     put(self, 0x10, word(a4, 0));
     put(self, 0x14, word(a5, 0));
     return self;

@@ -5956,8 +5956,7 @@ PLATFORM_ASM_ENTRY(pmva_check_prone_yaw,
                    "movl 4(%esp), %eax\n"
                    "movss 8(%esp), %xmm0\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x002e2e40, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(PM_CheckProneYaw_entry)
                    "addl $4, %esp\n"
                    "ret")
 

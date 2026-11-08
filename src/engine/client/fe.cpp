@@ -1138,8 +1138,7 @@ PLATFORM_ASM_ENTRY(ui_ptrvector_resize,
                    "pushl %esi\n"
                    "movl 12(%esp), %esi\n"
                    "movl 16(%esp), %ebx\n"
-                   "movl $0x00013970, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(PtrVector_Resize_entry)
                    "popl %esi\n"
                    "popl %ebx\n"
                    "ret")
@@ -1149,8 +1148,7 @@ PLATFORM_ASM_ENTRY(ui_ptrvector_push,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x000138c0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(PtrVector_PushBack_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -2735,11 +2733,6 @@ struct Frame {
 };
 
 constexpr uint32_t kSprintf = 0x001ee901;
-constexpr uint32_t kFileOpenRead = 0x000c9d40, kFileGetSize = 0x000c9d10, kFileReadAt = 0x000caff0;
-constexpr uint32_t kFileClose = 0x000cac90;
-constexpr uint32_t kMemAlignedAlloc = 0x00093950, kMemAlignedFree = 0x000939b0;
-constexpr uint32_t kHashStrInit = 0x00011060, kNglLoadTexture = 0x000635a0, kNglSetQuadTexture = 0x0005de20;
-constexpr uint32_t kNglResetDeviceBindings = 0x00064660, kNglReleaseTexture = 0x00063630;
 
 // The image fields of a menu: file handle, buffer, texture.
 struct ImageFields {
@@ -2749,12 +2742,12 @@ struct ImageFields {
 // The inline free of the character / collector's-edition images (frame: one push below sub esp,0x40).
 void free_image_inline(Frame& f, uint8_t* menu, const ImageFields& image, const uint32_t (&rets)[4]) {
     if (!field<uint32_t>(menu, image.buffer)) return;
-    f.call(0x44, rets[0], kNglResetDeviceBindings);
-    if (const uint32_t texture = field<uint32_t>(menu, image.texture)) f.call(0x44, rets[1], kNglReleaseTexture, texture);
+    f.call(0x44, rets[0], own_address(&nglResetDeviceBindings));
+    if (const uint32_t texture = field<uint32_t>(menu, image.texture)) f.call(0x44, rets[1], own_address(&nglReleaseTexture), texture);
     const int32_t file = field<int32_t>(menu, image.file);
     if (file != -1) {
-        f.call(0x44, rets[2], kFileClose, file);
-        if (const uint32_t buffer = field<uint32_t>(menu, image.buffer)) f.call(0x44, rets[3], kMemAlignedFree, buffer);
+        f.call(0x44, rets[2], own_address(&File_Close), file);
+        if (const uint32_t buffer = field<uint32_t>(menu, image.buffer)) f.call(0x44, rets[3], own_address(&Mem_AlignedFree), buffer);
     }
     field<uint32_t>(menu, image.buffer) = 0;
 }
@@ -2773,7 +2766,7 @@ struct LoadDepths {
 
 bool load_image_file(Frame& f, uint8_t* menu, const ImageFields& image, uint32_t name, const LoadDepths& d,
                      uint32_t hash_name, uint32_t quad, const LoadRets& rets) {
-    const int32_t file = int32_t(f.call(d.open, rets.open, kFileOpenRead, title_global<uint32_t>(0x0095f6f4), name));
+    const int32_t file = int32_t(f.call(d.open, rets.open, own_address(&File_OpenRead), title_global<uint32_t>(0x0095f6f4), name));
     field<int32_t>(menu, image.file) = file;
     if (file == -1) return false;
     uint32_t depth = d.base;
@@ -2785,20 +2778,20 @@ bool load_image_file(Frame& f, uint8_t* menu, const ImageFields& image, uint32_t
         depth += 4;
         f.word(depth) = f.regs.edi;
     }
-    const uint32_t size = f.call(depth, rets.size, kFileGetSize, file);
+    const uint32_t size = f.call(depth, rets.size, own_address(&File_GetSize), file);
     const uint32_t aligned = (size + 0x7fff) & 0xffff8000u;
     f.regs.ebx = size;
     f.regs.edi = aligned;
-    const uint32_t buffer = f.call(depth + 4, rets.alloc, kMemAlignedAlloc, aligned, 0x80, 0x30000);
+    const uint32_t buffer = f.call(depth + 4, rets.alloc, own_address(&Mem_AlignedAlloc), aligned, 0x80, 0x30000);
     field<uint32_t>(menu, image.buffer) = buffer;
-    f.call(depth + 0x10, rets.read, kFileReadAt, field<int32_t>(menu, image.file), 0, buffer, aligned);
+    f.call(depth + 0x10, rets.read, own_address(&File_ReadAt), field<int32_t>(menu, image.file), 0, buffer, aligned);
     const uint32_t hash = f.entry - 0x20;
     f.regs.ecx = hash;
-    f.call(d.hash, rets.hash, kHashStrInit, hash_name);
+    f.call(d.hash, rets.hash, own_address(&HashStr_Init), hash_name);
     const uint32_t texture =
-        f.call(d.hash, rets.load, kNglLoadTexture, hash, 0, field<uint32_t>(menu, image.buffer), size);
+        f.call(d.hash, rets.load, own_address(&nglLoadTexture), hash, 0, field<uint32_t>(menu, image.buffer), size);
     field<uint32_t>(menu, image.texture) = texture;
-    f.call(d.quad, rets.quad, kNglSetQuadTexture, menu + quad, texture);
+    f.call(d.quad, rets.quad, own_address(&nglSetQuadTexture), menu + quad, texture);
     return true;
 }
 
@@ -3080,7 +3073,6 @@ uint32_t XB_CDECL FE_BonusCELoadImage(const FrameIn* in, uint32_t entry_esp) {
 
 namespace {
 
-constexpr uint32_t kSumMissionStats = 0x00312e30;  // Profile_SumMissionStats (stdcall: stats, out)
 constexpr uint32_t kBonusLocked = 0x0082bb8c;      // "BONUS_LOCKED"
 
 // The locked items' text: BONUS_LOCKED on every item whose vtable +0x24 says locked.
@@ -3110,7 +3102,7 @@ uint32_t XB_CDECL FE_BonusCharacterLabel(const FrameIn* in, uint32_t entry_esp) 
     f.word(0x54) = in->edi;  // push edi
     f.regs.edi = in->eax;
     int32_t* const counts = f.local<int32_t>(0x48);
-    f.call(0x54, 0x0031d897, kSumMissionStats, 0x0095f924, counts);
+    f.call(0x54, 0x0031d897, own_address(&Profile_SumMissionStats), 0x0095f924, counts);
     const int32_t reached = counts[16];  // the characters reached
     f.regs.ebx = uint32_t(reached);
     for (uint32_t i = 0; i < 7; ++i) {
@@ -3136,7 +3128,7 @@ uint32_t XB_CDECL FE_BonusVehicleCategoryLabel(const FrameIn* in, uint32_t entry
     f.word(0x94) = in->edi;  // push edi
     int32_t* const counts = f.local<int32_t>(0x90);  // per category unlocked: vehicles at 10..15
     int32_t* const best = f.local<int32_t>(0x48);
-    f.call(0x94, 0x0031c5e6, kSumMissionStats, 0x0095f924, counts);
+    f.call(0x94, 0x0031c5e6, own_address(&Profile_SumMissionStats), 0x0095f924, counts);
     f.regs.eax = address_of(best);
     f.call(0x94, 0x0031c5ef, own_address(&Profile_CopyBonusBests));  // the stored bests (EAX = out)
     for (uint32_t i = 0; i < 6; ++i) {
@@ -3183,7 +3175,7 @@ uint32_t XB_CDECL FE_BonusWeaponCategoryLabel(const FrameIn* in, uint32_t entry_
     f.regs.edi = in->eax;
     int32_t* const unlocked = f.local<int32_t>(0x90);  // weapons at 0..9
     int32_t* const best = f.local<int32_t>(0x48);
-    f.call(0x98, 0x0031d269, kSumMissionStats, 0x0095f924, unlocked);
+    f.call(0x98, 0x0031d269, own_address(&Profile_SumMissionStats), 0x0095f924, unlocked);
     f.regs.eax = address_of(best);
     f.call(0x98, 0x0031d272, own_address(&Profile_CopyBonusBests));  // the stored bests (EAX = out)
     for (uint32_t i = 0; i < 10; ++i) {
@@ -3268,12 +3260,12 @@ uint32_t XB_CDECL SpecialMaterialsMenu_PlayMovie(const FrameIn* in, uint32_t ent
     f.call(0x4, 0x0033306c, own_address(&S_StopSoundHandle_entry));  // S_StopSoundHandle (ESI = the handle)
     f.call(0x4, 0x00333071, own_address(&SndSys_Update));  // SndSys_Update
     f.call(0x4, 0x00333078, own_address(&Movie_Stop), 1);  // Movie_Stop
-    f.call(0x4, 0x00333080, kNglResetDeviceBindings);
-    if (const uint32_t texture = field<uint32_t>(menu, 0x64)) f.call(0x4, 0x0033308d, kNglReleaseTexture, texture);
+    f.call(0x4, 0x00333080, own_address(&nglResetDeviceBindings));
+    if (const uint32_t texture = field<uint32_t>(menu, 0x64)) f.call(0x4, 0x0033308d, own_address(&nglReleaseTexture), texture);
     const int32_t file = field<int32_t>(menu, 0x5c);
     if (file != -1) {
-        f.call(0x4, 0x0033309e, kFileClose, file);
-        if (const uint32_t buffer = field<uint32_t>(menu, 0x60)) f.call(0x4, 0x003330ae, kMemAlignedFree, buffer);
+        f.call(0x4, 0x0033309e, own_address(&File_Close), file);
+        if (const uint32_t buffer = field<uint32_t>(menu, 0x60)) f.call(0x4, 0x003330ae, own_address(&Mem_AlignedFree), buffer);
     }
     f.regs.esi = stack_word(entry_esp + 4);  // the movie name
     field<uint32_t>(menu, 0x60) = 0;
@@ -3388,41 +3380,40 @@ uint32_t XB_CDECL FE_LoadTheatreBackground(const FrameIn* in, uint32_t entry_esp
     title_global<uint8_t>(0x008d50dd) = 0;
     const uint32_t folder = language <= 3 ? kFolders[language] : 0x0082d014;
     const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
-    constexpr uint32_t kVa = 0x002a93d0;
     uint32_t name;
     if (chapter > 0 && chapter < 9) {
         if (chapter <= 5)
-            name = f.call(0x8c, 0x0031ffa6, kVa, 0x0082cfd4, folder);  // textures\%s\africa.dds
+            name = f.call(0x8c, 0x0031ffa6, own_address(&va_entry), 0x0082cfd4, folder);  // textures\%s\africa.dds
         else
-            name = f.call(0x8c, 0x0031ffba, kVa, 0x0082cfbc, folder);  // textures\%s\sicily.dds
+            name = f.call(0x8c, 0x0031ffba, own_address(&va_entry), 0x0082cfbc, folder);  // textures\%s\sicily.dds
     } else {
-        name = f.call(0x8c, 0x0031ffcf, kVa, 0x0082cfec, folder);  // textures\%s\europe.dds
+        name = f.call(0x8c, 0x0031ffcf, own_address(&va_entry), 0x0082cfec, folder);  // textures\%s\europe.dds
     }
-    const int32_t file = int32_t(f.call(0x94, 0x0031ffdb, kFileOpenRead, title_global<uint32_t>(0x0095f6f4), name));
+    const int32_t file = int32_t(f.call(0x94, 0x0031ffdb, own_address(&File_OpenRead), title_global<uint32_t>(0x0095f6f4), name));
     if (file == -1) return uint32_t(file);
     f.regs.ebx = uint32_t(file);
     f.word(0x90) = in->ebp;  // push ebp
     f.word(0x94) = in->edi;  // push edi
-    const uint32_t size = f.call(0x94, 0x0031fff1, kFileGetSize, file);
+    const uint32_t size = f.call(0x94, 0x0031fff1, own_address(&File_GetSize), file);
     const uint32_t aligned = (size + 0x7fff) & 0xffff8000u;
     f.regs.edi = size;
     f.regs.esi = aligned;
-    const uint32_t buffer = f.call(0x98, 0x0032000f, kMemAlignedAlloc, aligned, 0x80, 0x30000);
-    f.call(0xa4, 0x0032001b, kFileReadAt, file, 0, buffer, aligned);
+    const uint32_t buffer = f.call(0x98, 0x0032000f, own_address(&Mem_AlignedAlloc), aligned, 0x80, 0x30000);
+    f.call(0xa4, 0x0032001b, own_address(&File_ReadAt), file, 0, buffer, aligned);
     const uint32_t hash = f.entry - 0x84;
     f.regs.ecx = hash;
-    f.call(0x94, 0x0032002c, kHashStrInit, 0x0082cfb4);  // "texLoad"
-    const uint32_t texture = f.call(0x94, 0x0032003a, kNglLoadTexture, hash, 0, buffer, size);
+    f.call(0x94, 0x0032002c, own_address(&HashStr_Init), 0x0082cfb4);  // "texLoad"
+    const uint32_t texture = f.call(0x94, 0x0032003a, own_address(&nglLoadTexture), hash, 0, buffer, size);
     f.regs.esi = texture;
     const uint32_t quad = f.entry - 0x64;
     f.call(0xa4, 0x00320046, own_address(&nglInitQuad), quad);                                // nglInitQuad
     f.call(0xa8, 0x0032005e, own_address(&nglSetQuadRect), quad, 0, 0, 0x44200000, 0x43f00000);  // nglSetQuadRect 640 x 480
-    f.call(0xbc, 0x00320069, kNglSetQuadTexture, quad, texture);
+    f.call(0xbc, 0x00320069, own_address(&nglSetQuadTexture), quad, texture);
     f.call(0xc4, 0x00320078, own_address(&nglSetQuadZ), quad, 0x43960000);  // nglSetQuadZ 300
     // two frames with the picture
     for (uint32_t frames = 2; frames; --frames) {
         f.regs.edi = frames;
-        f.call(0x94, 0x00320085, kNglResetDeviceBindings);
+        f.call(0x94, 0x00320085, own_address(&nglResetDeviceBindings));
         f.call(0x94, 0x0032008a, own_address(&nglBeginFrame));        // nglBeginFrame
         f.call(0x94, 0x0032008f, own_address(&nglSetClearFlags), 0xf3);  // nglSetClearFlags
         f.call(0x98, 0x0032009b, own_address(&nglSetSceneDepthEnable), 0);     // nglSetSceneDepthEnable
@@ -3430,10 +3421,10 @@ uint32_t XB_CDECL FE_LoadTheatreBackground(const FrameIn* in, uint32_t entry_esp
         f.call(0x94, 0x003200ad, own_address(&nglEndFrame));        // nglEndFrame
     }
     f.regs.edi = 0;
-    f.call(0x94, 0x003200b5, kNglResetDeviceBindings);
-    f.call(0x94, 0x003200bb, kNglReleaseTexture, texture);
-    f.call(0x98, 0x003200c1, kFileClose, file);
-    return f.call(0x9c, 0x003200c7, kMemAlignedFree, buffer);
+    f.call(0x94, 0x003200b5, own_address(&nglResetDeviceBindings));
+    f.call(0x94, 0x003200bb, own_address(&nglReleaseTexture), texture);
+    f.call(0x98, 0x003200c1, own_address(&File_Close), file);
+    return f.call(0x9c, 0x003200c7, own_address(&Mem_AlignedFree), buffer);
 }
 
 namespace {
@@ -3442,7 +3433,7 @@ namespace {
 void set_handle_volume(uint32_t handle, float volume) {
     __asm__ volatile("movss %1, %%xmm0\n\tcall *%2"
                      : "+a"(handle)
-                     : "m"(volume), "r"(uintptr_t{0x002bd140})
+                     : "m"(volume), "r"(own_address(&S_SetHandleVolume_entry))
                      : "ecx", "edx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory");
 }
 
@@ -3452,8 +3443,7 @@ void set_handle_volume(uint32_t handle, float volume) {
 // points at its stack copy. The entry calls it between the two halves.
 PLATFORM_ASM_ENTRY(FE_ApplyControlSettings_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(FE_ApplyControlSettings) "addl $4, %esp\n"
-                   "movl $0x002c62b0, %eax\n"
-                   "call *%eax\n"  // Cbuf_Execute
+                   PLATFORM_ASM_CALL(Cbuf_Execute_entry)  // Cbuf_Execute
                    "pushl %esi\n" PLATFORM_ASM_CALL(FE_ApplyControlSettings_Finish) "addl $4, %esp\n"
                    "ret")
 
@@ -3670,8 +3660,8 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
             const uint32_t fallback = title_global<uint32_t>(0x009026f8);  // ngl_defaultTexture
             result = fallback;
             if (top != fallback && bottom != fallback) {
-                f.call(0x28, 0x00336a9f, kNglSetQuadTexture, menu + 0x20, top);
-                result = f.call(0x30, 0x00336aac, kNglSetQuadTexture, menu + 0x84, bottom);
+                f.call(0x28, 0x00336a9f, own_address(&nglSetQuadTexture), menu + 0x20, top);
+                result = f.call(0x30, 0x00336aac, own_address(&nglSetQuadTexture), menu + 0x84, bottom);
                 menu[0xe8] = 1;
             }
         }
@@ -3867,7 +3857,7 @@ uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
             const uint32_t quad = f.entry - 0x64;
             for (uint32_t frames = 2; frames; --frames) {
                 f.regs.esi = frames;
-                f.call(0x70, 0x0032d985, kNglResetDeviceBindings);
+                f.call(0x70, 0x0032d985, own_address(&nglResetDeviceBindings));
                 f.call(0x70, 0x0032d98a, own_address(&nglBeginFrame));  // nglBeginFrame
                 f.call(0x70, 0x0032d994, own_address(&nglInitQuad), quad);  // nglInitQuad
                 const int32_t height = int32_t(f.call(0x74, 0x0032d999, own_address(&nglGetScreenHeight)));  // nglGetScreenHeight

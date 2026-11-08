@@ -137,9 +137,9 @@ constexpr uint32_t kPanzerIV = 0x007f499c;
 constexpr uint32_t kDay = 0x007ff364;
 
 // TankInitHealth, VehicleExplodeSound, TankTurretFireLoopRecoil_3.
-constexpr Spec kAlliesRecoil3 = {kAllies, kPanzerIV, 0x00152970, 0x00145ac0, 0x001287e0, true};
+const Spec kAlliesRecoil3 = {kAllies, kPanzerIV, own_address(&BroScr_TankInitHealth), own_address(&BroScr_VehicleExplodeSound), own_address(&BroScr_TankTurretFireLoopRecoil_3), true};
 // TankDefaultHealthThink, VehicleInit_M13, TankTurretFireLoopRecoil.
-constexpr Spec kAxisM13 = {kAxis, kPanzerIV, 0x001506d0, 0x00142d50, 0x00127d30, true};
+const Spec kAxisM13 = {kAxis, kPanzerIV, own_address(&BroScr_TankDefaultHealthThink), own_address(&BroScr_VehicleInit_M13), own_address(&BroScr_TankTurretFireLoopRecoil), true};
 
 Spec without_dead_stop(Spec spec) {
     spec.dead_stop = false;

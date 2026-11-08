@@ -236,8 +236,6 @@ inline uint32_t* variant_at(DynArray* array, uint32_t i, uint32_t reserve) {
     if (i >= array->size) title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(reserve)(array, i + 1, i + 4);
     return &array->data[i];
 }
-constexpr uint32_t kIntIndex = 0x00464380;     // HashMap_Index_10
-constexpr uint32_t kIntArray = 0x004612f0;     // HashMap_Index
 constexpr uint32_t kStringIndex = 0x0078e280;  // HashMap_Index_BUCHHOLZ
 constexpr uint32_t kStringArray = 0x0078d350;
 constexpr uint32_t kReserveInt = 0x0045d480;     // DynArray_ReserveInt0
@@ -549,14 +547,14 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
             bool test;
             {
                 ScriptString animname;
-                test = *variant_at(variant_array(0x5b0, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                test = *variant_at(variant_array(0x5b0, own_address(&HashMap_Index_PROLOGUE_10), own_address(&HashMap_Index_PROLOGUE), element_at(guys, i - 1), &anime, &animname), pick,
                                    kReserveInt) != 0;
                 scr_release(&animname);
             }
             if (test) {
                 has_face = true;
                 ScriptString animname;
-                face = *variant_at(variant_array(0x5b0, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                face = *variant_at(variant_array(0x5b0, own_address(&HashMap_Index_PROLOGUE_10), own_address(&HashMap_Index_PROLOGUE), element_at(guys, i - 1), &anime, &animname), pick,
                                    kReserveInt);
                 scr_release(&animname);
             }
@@ -577,7 +575,7 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
             }
             {
                 ScriptString animname;
-                test = *variant_at(variant_array(0x744, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick,
+                test = *variant_at(variant_array(0x744, own_address(&HashMap_Index_PROLOGUE_10), own_address(&HashMap_Index_PROLOGUE), element_at(guys, i - 1), &anime, &animname), pick,
                                    kReserveInt) != 0;
                 scr_release(&animname);
             }
@@ -601,7 +599,7 @@ void XB_CDECL BroScr_AnimLoopGuys(const uint32_t* ref, uint32_t guys_word, uint3
                 {
                     ScriptString animname;
                     const uint32_t anim = *variant_at(
-                        variant_array(0x744, kIntIndex, kIntArray, element_at(guys, i - 1), &anime, &animname), pick, kReserveInt);
+                        variant_array(0x744, own_address(&HashMap_Index_PROLOGUE_10), own_address(&HashMap_Index_PROLOGUE), element_at(guys, i - 1), &anime, &animname), pick, kReserveInt);
                     slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t)>(0x009224c0)(
                         *element_at(guys, i - 1), 0x7c70a61e, origin.v, angles.v, anim);  // GScr_AnimScriptedNoNotify
                     scr_release(&animname);

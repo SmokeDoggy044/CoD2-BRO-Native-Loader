@@ -832,8 +832,7 @@ PLATFORM_ASM_ENTRY(hud_veh_tank_info,
                    "movl 16(%esp), %edi\n"
                    "movl 20(%esp), %esi\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x0024db50, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Veh_GetEntTankInfo_entry)
                    "addl $4, %esp\n"
                    "popl %edi\n"
                    "popl %esi\n"

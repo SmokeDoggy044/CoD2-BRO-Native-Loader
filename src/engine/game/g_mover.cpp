@@ -47,8 +47,7 @@ PLATFORM_ASM_ENTRY(ent_mover_step,
                    "movl 20(%esp), %eax\n"
                    "movl 24(%esp), %ecx\n"
                    "movl 28(%esp), %edx\n"
-                   "movl $0x002545e0, %ebx\n"
-                   "call *%ebx\n"
+                   PLATFORM_ASM_CALL(ScriptMover_NextTrajectoryPhase_entry)
                    "addl $12, %esp\n"
                    "popl %ebx\n"
                    "ret")

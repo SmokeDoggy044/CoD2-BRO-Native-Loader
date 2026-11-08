@@ -48,9 +48,7 @@ constexpr int32_t Z_BUF_ERROR = -5;
 constexpr int32_t Z_VERSION_ERROR = -6;
 
 constexpr uint32_t kZlibVersion = 0x007baddc;  // "1.1.4"
-constexpr uint32_t kZcalloc = 0x0005af00;
 constexpr uint32_t kZcfree = 0x0005af20;
-constexpr uint32_t kAdler32 = 0x0005ada0;
 constexpr uint32_t MANY = 1440;
 
 // ZALLOC / ZFREE through the stream's title callbacks.
@@ -262,7 +260,7 @@ int32_t XB_CDECL inflateInit2_(ZStream* z, int32_t w, const char* version, int32
     if (z == nullptr) return Z_STREAM_ERROR;
     z->msg = nullptr;
     if (z->zalloc == 0) {
-        z->zalloc = kZcalloc;
+        z->zalloc = own_address(&zcalloc);
         z->opaque = 0;
     }
     if (z->zfree == 0) z->zfree = kZcfree;
@@ -280,7 +278,7 @@ int32_t XB_CDECL inflateInit2_(ZStream* z, int32_t w, const char* version, int32
     }
     static_cast<InflateState*>(z->state)->wbits = static_cast<uint32_t>(w);
     InflateBlocksState* blocks = inflate_blocks_new(
-        z, static_cast<InflateState*>(z->state)->nowrap ? 0 : kAdler32, uint32_t{1} << w);
+        z, static_cast<InflateState*>(z->state)->nowrap ? 0 : own_address(&adler32), uint32_t{1} << w);
     static_cast<InflateState*>(z->state)->blocks = blocks;
     if (static_cast<InflateState*>(z->state)->blocks == nullptr) {
         inflateEnd(z);
@@ -1744,7 +1742,7 @@ int32_t XB_CDECL deflateInit2_(ZStream* strm, int32_t level_in, int32_t method, 
     if (strm == nullptr) return Z_STREAM_ERROR;
     strm->msg = nullptr;
     if (strm->zalloc == 0) {
-        strm->zalloc = kZcalloc;
+        strm->zalloc = own_address(&zcalloc);
         strm->opaque = 0;
     }
     if (strm->zfree == 0) strm->zfree = kZcfree;

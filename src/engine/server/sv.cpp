@@ -1329,7 +1329,7 @@ void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent) {
             uint32_t c, d;
             __asm__ volatile("pushl %%ebx\n\tmovl %%edx, %%ebx\n\tcall *%%esi\n\tpopl %%ebx"
                              : "=a"(model), "=c"(c), "=d"(d)
-                             : "a"(index), "c"(map), "d"(title_global<uint32_t>(0x0095f500)), "S"(uintptr_t{0x002afb10})
+                             : "a"(index), "c"(map), "d"(title_global<uint32_t>(0x0095f500)), "S"(own_address(&CM_FindInlineModel_entry))
                              : "memory", "cc");
         }
     }
@@ -1816,7 +1816,7 @@ void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, co
         __asm__ volatile("pushl %%ebx\n\tmovl %%edx, %%ebx\n\tpushl 16(%%esi)\n\tpushl 12(%%esi)\n\tpushl 8(%%esi)\n\t"
                          "pushl 4(%%esi)\n\tpushl (%%esi)\n\tcall *%%edi\n\taddl $20, %%esp\n\tpopl %%ebx"
                          : "=a"(a), "=c"(c), "=d"(d)
-                         : "a"(maxs), "c"(mins), "d"(start), "S"(args), "D"(uintptr_t{0x002e20e0})
+                         : "a"(maxs), "c"(mins), "d"(start), "S"(args), "D"(own_address(&CM_CandidateCapsuleTrace_entry))
                          : "memory", "cc");
     }
     const float fraction = field<float>(trace, 0x20);
@@ -2144,7 +2144,6 @@ using VmCall4 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t
 using VmCall5 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 using VmCall6 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                           uint32_t);
-constexpr uint32_t kVmCall = 0x002a84e0;
 uint8_t* gvm() { return title_global<uint8_t*>(0x0095f50c); }
 void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Malloc's free
 uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
@@ -2228,11 +2227,11 @@ void XB_CDECL SV_GameRestartFrame(uint32_t entry_esp, uint32_t flag, uint32_t eb
     const uint32_t time = title_global<uint32_t>(0x00964cd0);
     const uint32_t frame[3] = {8, flag, time};
     const TitleRegs regs = {1, ebx, flag, word(gvm()), esi, edi};
-    title_call_at_regs(entry_esp, kVmCall, &regs, 3, frame);
+    title_call_at_regs(entry_esp, own_address(&VM_Call_entry), &regs, 3, frame);
     const TitleRegs regs2 = {1, ebx, flag, word(gvm()), esi, edi};
     title_global<uint32_t>(0x0095f510) = 0;
     const uint32_t check[4] = {0x13, 8, flag, time};
-    title_global<uint32_t>(0x0092f094) = title_call_at_regs(entry_esp, kVmCall, &regs2, 4, check);
+    title_global<uint32_t>(0x0092f094) = title_call_at_regs(entry_esp, own_address(&VM_Call_entry), &regs2, 4, check);
 }
 void XB_CDECL SV_ClearWorld() {
     const uint8_t* cm = title_global<uint8_t*>(0x0095f6b8);
@@ -2416,13 +2415,13 @@ uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uin
     title_global<uint8_t*>(0x00965ce0) = copy;
     const uint32_t shutdown[6] = {1, savegame, word(copy), 0, size, size};  // Com_Memset's and Z_Malloc's words below
     const TitleRegs vm_regs = {copied, word(copy), copied & 3, word(gvm()), word(source) + copied, word(copy) + copied};
-    title_call_at_regs(top, kVmCall, &vm_regs, 6, shutdown);
+    title_call_at_regs(top, own_address(&VM_Call_entry), &vm_regs, 6, shutdown);
     const uint32_t sv0 = title_global<uint32_t>(0x00964cd0);
     const TitleRegs ms_regs = {0, word(copy), sv0, 0, word(source) + copied, word(copy) + copied};
     const uint32_t time = title_call_at_regs(top - 0xc, own_address(&Com_Milliseconds), &ms_regs, 0, nullptr);  // Com_Milliseconds
     const uint32_t init[5] = {0, time, 1, savegame, sv0};
     const TitleRegs init_regs = {time, word(copy), sv0, word(gvm()), word(source) + copied, word(copy) + copied};
-    const uint32_t result = title_call_at_regs(top, kVmCall, &init_regs, 5, init);
+    const uint32_t result = title_call_at_regs(top, own_address(&VM_Call_entry), &init_regs, 5, init);
     field<uint32_t>(title_global<uint8_t*>(0x00927e8c), 0x164) = 0;
     return result;
 }
@@ -2520,7 +2519,7 @@ void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t e
     const uint32_t time = title_call_at_regs(entry_esp - 0xc, own_address(&Com_Milliseconds), &ms_regs, 0, nullptr);  // Com_Milliseconds
     const uint32_t init[5] = {0, time, 0, savegame, sv0};
     const TitleRegs init_regs = {time, ebx, savegame, word(gvm()), esi, edi};
-    title_call_at_regs(entry_esp, kVmCall, &init_regs, 5, init);
+    title_call_at_regs(entry_esp, own_address(&VM_Call_entry), &init_regs, 5, init);
     field<uint32_t>(title_global<uint8_t*>(0x00927e8c), 0x164) = 0;
 }
 
@@ -2622,7 +2621,7 @@ void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t fir
     const uint32_t current = field<uint32_t>(ent, 0x224);
     const uint32_t begin[3] = {3, current, number};  // + ClientConnect's word
     const TitleRegs vm_regs = {0, savegame, 0, word(gvm()), current, word(client)};
-    title_call_at_regs(top, kVmCall, &vm_regs, 3, begin);
+    title_call_at_regs(top, own_address(&VM_Call_entry), &vm_regs, 3, begin);
     if (first && savegame) return;
     (void)esi;
     const uint32_t msec = 0x32;
@@ -2632,7 +2631,7 @@ void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t fir
     title_global<uint32_t>(0x0095f510) = 1;
     const uint32_t spawn[2] = {7, savegame};
     const TitleRegs spawn_regs = {0, savegame, 0, word(gvm()), 1, word(client)};
-    title_call_at_regs(top, kVmCall, &spawn_regs, 2, spawn);
+    title_call_at_regs(top, own_address(&VM_Call_entry), &spawn_regs, 2, spawn);
     bump_packet_count();
     title_global<uint32_t>(0x0095f510) = 1;
     const TitleRegs frame_regs = {0, savegame, 0, 0, 1, word(client)};
@@ -2706,7 +2705,7 @@ uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t 
     if (title_global<uint32_t>(0x00927e8c)) {
         const uint32_t command = 0x15;
         const TitleRegs vm_regs = {0, blocks, 0, word(gvm()), savegame, word(client)};
-        title_call_at_regs(top, kVmCall, &vm_regs, 1, &command);
+        title_call_at_regs(top, own_address(&VM_Call_entry), &vm_regs, 1, &command);
         const TitleRegs send_regs = {0, title_global<uint32_t>(0x00927e8c), 0, 0, savegame, word(client)};
         title_call_at_regs(top, own_address(&SV_SendClientMessages_entry), &send_regs, 0, nullptr);  // SV_SendClientMessages
         title_global<uint32_t>(0x0092f548) = 0;
@@ -2878,9 +2877,6 @@ struct SpawnFrame {
     }
 };
 
-constexpr uint32_t kVa = 0x002a93d0, kCvarSet = 0x0029c030, kCvarGet = 0x0029c2d0, kScreen = 0x002f1e60;
-constexpr uint32_t kVmCallAt = 0x002a84e0, kStreamUpdate = 0x00292c20, kHashInit = 0x00011060;
-constexpr uint32_t kRunFrame = 0x00274660, kInfoStrings = 0x002c4e50, kRefresh = 0x002d55d0;
 
 // The loading progress after each stage: front end (0x0095f8fc) +4's dots panel (+0x14, ESI) before chapter 1,
 // else the bar of chapters 1-5 (+0xc), 6-8 (+0x10) or later (+8) with the fraction pushed; then SCR_UpdateScreen.
@@ -2901,7 +2897,7 @@ void spawn_progress(SpawnFrame& f, uint32_t fraction, const uint32_t (&returns)[
         f.eax = SpawnFrame::at(panels + slot);
         f.call(0, function, ret, fraction);
     }
-    f.call(0, kScreen, returns[4]);
+    f.call(0, own_address(&SCR_UpdateScreen_entry), returns[4]);
 }
 
 void spawn_frame_counter(uint32_t reset) {
@@ -2918,19 +2914,19 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.ebx = entry_ebx;
     f.esi = entry_esi;
     f.edi = name;
-    f.call(0, kVa, 0x002f315d, 0x00835224, name);
+    f.call(0, own_address(&va_entry), 0x002f315d, 0x00835224, name);
     f.call(2, own_address(&Com_ReadHunkUsage), 0x002f3163, f.eax);  // Com_ReadHunkUsage
     f.eax = title_global<uint32_t>(0x00940284);  // fs_debug
     f.ecx = at(f.eax + 0x20);
-    if (f.ecx == 2) f.call(0, kCvarSet, 0x002f3184, 0x00832c80, 0x0082e098, 1);
-    f.call(0, kCvarGet, 0x002f3198, 0x00834458, 0x0082e098, 0x21);
+    if (f.ecx == 2) f.call(0, own_address(&Cvar_Set2), 0x002f3184, 0x00832c80, 0x0082e098, 1);
+    f.call(0, own_address(&Cvar_Get), 0x002f3198, 0x00834458, 0x0082e098, 0x21);
     f.ecx = at(f.eax + 0x20);
     f.eax = title_global<uint32_t>(0x0098f2c8);
     f.esi = 0;
     title_global<uint32_t>(0x008db11c) = f.ecx;
     title_global<uint8_t>(0x0093ef68) = 0;
     title_global<uint32_t>(0x00929c00) = 0;
-    if (!f.eax) title_global<uint32_t>(0x0098f2c8) = f.call(0, kCvarGet, 0x002f31cd, 0x00832fec, 0x0082e058, 0x64);
+    if (!f.eax) title_global<uint32_t>(0x0098f2c8) = f.call(0, own_address(&Cvar_Get), 0x002f31cd, 0x00832fec, 0x0082e058, 0x64);
     f.call(0, own_address(&CL_MapLoading), 0x002f31da);  // CL_MapLoading
     f.call(0, own_address(&CL_ShutdownCGame), 0x002f31df);  // CL_ShutdownCGame
     f.call(0, own_address(&CL_ApplyFrontEndReturnState_entry), 0x002f31e4);  // CL_ApplyFrontEndReturnState
@@ -2939,7 +2935,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.edx = title_global<uint32_t>(0x0095f50c);  // gvm
     title_global<uint32_t>(0x0092be80) = 0;
     if (f.edx) {
-        f.call(0, kVmCallAt, 0x002f320b, 1, 0);  // GAME_SHUTDOWN
+        f.call(0, own_address(&VM_Call_entry), 0x002f320b, 1, 0);  // GAME_SHUTDOWN
         f.edx = title_global<uint32_t>(0x0095f50c);
         f.call(2, own_address(&Com_Memset), 0x002f321d, f.edx, 0, 0x8c);  // Com_Memset
         title_global<uint32_t>(0x0095f514) = 0;
@@ -2965,20 +2961,20 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     }
     title_global<uint32_t>(0x0092f548) = 0;
     title_global<uint32_t>(0x00964cd4) = 1;
-    f.call(0, kCvarSet, 0x002f32a8, 0x0082ca00, 0x0082e058, 1);  // cl_paused 0
+    f.call(0, own_address(&Cvar_Set2), 0x002f32a8, 0x0082ca00, 0x0082e058, 1);  // cl_paused 0
     title_global<uint32_t>(0x00927e94) = 0;
-    f.call(3, kCvarSet, 0x002f32be, 0x008344c8, 0x0082c874, 1);
-    f.call(6, kCvarSet, 0x002f32ca, 0x00835230, name, 1);
+    f.call(3, own_address(&Cvar_Set2), 0x002f32be, 0x008344c8, 0x0082c874, 1);
+    f.call(6, own_address(&Cvar_Set2), 0x002f32ca, 0x00835230, name, 1);
     const uint32_t frame_time = title_global<uint32_t>(0x00947710);  // com_frameTime
     title_global<uint32_t>(0x00964cd8) = frame_time;
     title_global<uint32_t>(0x00964cdc) = frame_time;
     f.eax = frame_time;
-    f.call(9, kVa, 0x002f32e4, 0x0082ded4, frame_time);
-    f.call(11, kCvarSet, 0x002f32f0, 0x008340dc, f.eax, 1);
+    f.call(9, own_address(&va_entry), 0x002f32e4, 0x0082ded4, frame_time);
+    f.call(11, own_address(&Cvar_Set2), 0x002f32f0, 0x008340dc, f.eax, 1);
     f.call(14, own_address(&CL_StartHunkUsers), 0x002f32f5);  // CL_StartHunkUsers
-    f.call(14, kCvarSet, 0x002f3305, 0x00835238, 0x0082e098, 1);
-    f.call(0, kScreen, 0x002f330d);
-    f.call(0, kCvarSet, 0x002f331d, 0x0082ca00, 0x0082e058, 1);
+    f.call(14, own_address(&Cvar_Set2), 0x002f3305, 0x00835238, 0x0082e098, 1);
+    f.call(0, own_address(&SCR_UpdateScreen_entry), 0x002f330d);
+    f.call(0, own_address(&Cvar_Set2), 0x002f331d, 0x0082ca00, 0x0082e058, 1);
     f.call(3, own_address(&Cvar_FindVar), 0x002f3327, 0x00832cb8);  // Cvar_FindVar
     if (!f.eax || field<float>(reinterpret_cast<uint8_t*>(uintptr_t{f.eax}), 0x1c) == 0.0f) {
         f.call(0, own_address(&Com_ResetNodeRing), 0x002f3345);
@@ -3000,7 +2996,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.ecx = f.esi;
         f.call(0, own_address(&ScriptString_AssignCString), 0x002f33ac, 0x0082dfeb);  // ScriptString_AssignCString(configstring, "")
     }
-    f.call(0, kScreen, 0x002f33bc);
+    f.call(0, own_address(&SCR_UpdateScreen_entry), 0x002f33bc);
     f.eax = title_global<uint32_t>(0x0095f6b8);  // cm
     f.ebx = 0;
     if (f.eax) {
@@ -3012,7 +3008,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         title_global<uint8_t>(f.esi) = 0;
         do {
             f.eax = f.edi;
-            f.call(0, kStreamUpdate, 0x002f33f7);
+            f.call(0, own_address(&Stream_Update), 0x002f33f7);
         } while (!title_global<uint8_t>(f.esi));
         f.ecx = title_global<uint32_t>(0x0095f6e4);
         title_global<uint32_t>(0x0095f6b8) = 0;
@@ -3080,7 +3076,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.eax = name;
     f.ecx = title_global<uint32_t>(0x0082e298);
     f.edx = title_global<uint32_t>(0x0082e29c);
-    f.call(0, kVa, 0x002f3552, 0x00832c78, name);  // the map's load sound alias
+    f.call(0, own_address(&va_entry), 0x002f3552, 0x00832c78, name);  // the map's load sound alias
     if (f.eax) {
         f.call(0, own_address(&S_FindSoundByHash), 0x002f355f, f.eax);  // S_FindSoundByHash
         if (f.eax == 0xffffffff) {
@@ -3104,7 +3100,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     for (uint32_t bit = 0; bit < 8; ++bit) {
         if (!(title_global<uint8_t>(map + 0x24) & (1u << bit))) continue;
         f.ecx = frame + 0x10;
-        f.call(0, kHashInit, kBanks[bit][1], kBanks[bit][0]);
+        f.call(0, own_address(&HashStr_Init), kBanks[bit][1], kBanks[bit][0]);
         f.ecx = title_global<uint32_t>(0x0095f4c0);  // rm_soundBanks
         f.eax = f.edx = frame + 0x10;
         f.call(0, own_address(&S_LoadSoundBank), kBanks[bit][2], f.ecx, frame + 0x10, 1);  // S_LoadSoundBank
@@ -3113,7 +3109,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.call(0, own_address(&Stream_StartRequest), 0x002f36ef, map);  // Stream_StartRequest
     at(frame - 4) = 0;
     f.ecx = name;
-    f.call(1, kVa, 0x002f36ff, 0x00832c18, name);  // "/cod/data/game/uo/maps/%s.bsp"
+    f.call(1, own_address(&va_entry), 0x002f36ff, 0x00832c18, name);  // "/cod/data/game/uo/maps/%s.bsp"
     f.call(0, own_address(&CM_LoadMap), 0x002f3707, 0);          // CM_LoadMap
     f.eax = f.edi = title_global<uint32_t>(0x0095f638);
     f.esi = f.eax + 0x14;
@@ -3121,14 +3117,14 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     title_global<uint8_t>(f.eax + 0x360) = 0;
     do {
         f.eax = f.edi;
-        f.call(0, kStreamUpdate, 0x002f3727);
+        f.call(0, own_address(&Stream_Update), 0x002f3727);
     } while (!title_global<uint8_t>(f.esi));
     f.edi = title_global<uint32_t>(0x0095f4c0);
     f.call(0, own_address(&S_WaitForWaveBanks_entry), 0x002f3737);  // S_WaitForWaveBanks
     f.edi = at(map + 0x28);
     f.esi = title_global<uint32_t>(0x0095f638);
     f.call(0, own_address(&MemContext_Push_entry), 0x002f3745);  // MemContext_Push
-    f.call(0, kScreen, 0x002f374a);
+    f.call(0, own_address(&SCR_UpdateScreen_entry), 0x002f374a);
     f.edx = savegame;
     f.call(0, own_address(&SV_InitGameProgs_entry), 0x002f3753, savegame);  // SV_InitGameProgs
     f.eax = title_global<uint32_t>(0x0095f638);
@@ -3145,28 +3141,28 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     for (uint32_t skill = 0; skill < 3; ++skill) {
         if (skill == 1) f.edi = 1;
         if (title_global<uint32_t>(0x008dce50) != skill) continue;
-        f.call(0, kCvarSet, kSkills[skill].set_return, 0x00832ff8, kSkills[skill].value, 1);
-        f.call(3, kVa, kSkills[skill].va_return, 0x008325b8, skill);
-        f.call(5, kCvarSet, kSkills[skill].cvar_return, 0x00832fec, f.eax, 1);
+        f.call(0, own_address(&Cvar_Set2), kSkills[skill].set_return, 0x00832ff8, kSkills[skill].value, 1);
+        f.call(3, own_address(&va_entry), kSkills[skill].va_return, 0x008325b8, skill);
+        f.call(5, own_address(&Cvar_Set2), kSkills[skill].cvar_return, 0x00832fec, f.eax, 1);
         f.ecx = title_global<uint32_t>(0x0093f800);
         f.eax = at(f.ecx + 0x20);
         if (!f.eax) continue;
-        f.call(0, kVa, kSkills[skill].reload_va, 0x008325b8, 2);
-        f.call(2, kCvarSet, kSkills[skill].reload_set, 0x0082c89c, f.eax, 1);  // g_reloading
+        f.call(0, own_address(&va_entry), kSkills[skill].reload_va, 0x008325b8, 2);
+        f.call(2, own_address(&Cvar_Set2), kSkills[skill].reload_set, 0x0082c89c, f.eax, 1);  // g_reloading
     }
     f.ebx = 0;
     spawn_progress(f, 0x3f59999a, {0x002f38a9, 0x002f38c5, 0x002f38dd, 0x002f38f0, 0x002f38f5});  // 0.85
     title_global<uint32_t>(0x0092f094) = 0;
     for (f.esi = 5; f.esi; --f.esi) {
-        f.call(0, kInfoStrings, 0x002f3907, 0x32);
+        f.call(0, own_address(&SV_UpdateInfoConfigstrings), 0x002f3907, 0x32);
         spawn_frame_counter(1);
         title_global<uint32_t>(0x0095f510) = 1;
-        f.call(0, kRunFrame, 0x002f392a, 0x32);  // G_RunFrame(50)
+        f.call(0, own_address(&G_RunFrame_entry), 0x002f392a, 0x32);  // G_RunFrame(50)
         title_global<uint32_t>(0x0095f510) = 0;
     }
     spawn_progress(f, 0x3f733333, {0x002f394f, 0x002f396c, 0x002f3984, 0x002f3996, 0x002f399b});  // 0.95
-    f.call(0, kCvarSet, 0x002f39ab, 0x008340c8, 0x0082dfeb, 1);
-    f.call(3, kCvarSet, 0x002f39bb, 0x008340bc, 0x0082dfeb, 1);
+    f.call(0, own_address(&Cvar_Set2), 0x002f39ab, 0x008340c8, 0x0082dfeb, 1);
+    f.call(3, own_address(&Cvar_Set2), 0x002f39bb, 0x008340bc, 0x0082dfeb, 1);
     // The serverinfo (flag 8) and systeminfo (flag 4) strings from the cvar list (next at +0x24).
     title_global<uint8_t>(0x0093fd78) = 0;
     for (f.esi = title_global<uint32_t>(0x0093fcec); f.esi; f.esi = at(f.esi + 0x24)) {
@@ -3192,7 +3188,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.call(0, own_address(&SV_SetConfigstring), 0x002f3a62, 0, 0x0093f818);  // SV_SetConfigstring(CS_SYSTEMINFO)
     f.ecx = title_global<uint32_t>(0x009403ec) & ~4u;
     title_global<uint32_t>(0x009403ec) = f.ecx;
-    f.call(2, kCvarSet, 0x002f3a81, 0x0082bc68, 0x0082e058, 1);  // cg_norender 0
+    f.call(2, own_address(&Cvar_Set2), 0x002f3a81, 0x0082bc68, 0x0082e058, 1);  // cg_norender 0
     spawn_progress(f, 0x3f800000, {0x002f3a9e, 0x002f3abb, 0x002f3ad2, 0x002f3ae5, 0x002f3aea});  // 1.0
     // The path nodes' script keys, then their anim scripts (blocks +0x194: count +0xc; slots from +8).
     const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
@@ -3228,20 +3224,20 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.edx = title_global<uint32_t>(0x0095f50c);
     at(f.edi + 0x168) = 0xffffffff;
     f.esi = at(f.esi + 0x224);
-    f.call(1, kVmCallAt, 0x002f3bdb, 3, f.esi);  // GAME_CLIENT_BEGIN
-    f.call(3, kInfoStrings, 0x002f3be2, 0x32);
+    f.call(1, own_address(&VM_Call_entry), 0x002f3bdb, 3, f.esi);  // GAME_CLIENT_BEGIN
+    f.call(3, own_address(&SV_UpdateInfoConfigstrings), 0x002f3be2, 0x32);
     spawn_frame_counter(1);
     f.ebx = 1;
     f.edx = title_global<uint32_t>(0x0095f50c);
     title_global<uint32_t>(0x0095f510) = 1;
-    f.call(0, kVmCallAt, 0x002f3c14, 7, savegame);
+    f.call(0, own_address(&VM_Call_entry), 0x002f3c14, 7, savegame);
     spawn_frame_counter(1);
     title_global<uint32_t>(0x0095f510) = 1;
-    f.call(0, kRunFrame, 0x002f3c37, 0x32);
+    f.call(0, own_address(&G_RunFrame_entry), 0x002f3c37, 0x32);
     f.eax = at(f.edi + 0x6b4);
     title_global<uint32_t>(0x0095f510) = 0;
     at(f.edi + 0x2c) = f.eax;
-    f.call(1, kRefresh, 0x002f3c54, 0x00964ce0);  // CL_RefreshConfigstrings
+    f.call(1, own_address(&CL_RefreshConfigstrings), 0x002f3c54, 0x00964ce0);  // CL_RefreshConfigstrings
     f.call(0, own_address(&CL_InitCGame), 0x002f3c5c);            // CL_InitCGame
     spawn_progress(f, 0x3f733333, {0x002f3c76, 0x002f3c92, 0x002f3caa, 0x002f3cbd, 0x002f3cc2});
     spawn_frame_counter(1);
@@ -3249,13 +3245,13 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.ecx = savegame;
     f.edx = title_global<uint32_t>(0x0095f50c);
     title_global<uint32_t>(0x0095f510) = 1;
-    f.call(0, kVmCallAt, 0x002f3ced, 8, savegame, f.eax);
+    f.call(0, own_address(&VM_Call_entry), 0x002f3ced, 8, savegame, f.eax);
     f.edx = title_global<uint32_t>(0x0095f50c);
     title_global<uint32_t>(0x0095f510) = 0;
-    title_global<uint32_t>(0x0092f094) = f.call(3, kVmCallAt, 0x002f3d04, 0x13);
+    title_global<uint32_t>(0x0092f094) = f.call(3, own_address(&VM_Call_entry), 0x002f3d04, 0x13);
     if (title_global<uint32_t>(0x00927e8c)) {
         f.edx = title_global<uint32_t>(0x0095f50c);
-        f.call(0, kVmCallAt, 0x002f3d22, 0x15);
+        f.call(0, own_address(&VM_Call_entry), 0x002f3d22, 0x15);
         f.ebx = title_global<uint32_t>(0x00927e8c);
         f.call(0, own_address(&SV_SendClientMessages_entry), 0x002f3d30);  // SV_SendClientMessages
         title_global<uint32_t>(0x0092f548) = 0;
@@ -3264,12 +3260,12 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.call(0, own_address(&Com_EventLoop), 0x002f3d44);  // Com_EventLoop
     f.edx = at(f.edi + 0x6b4);
     at(f.edi + 0x2c) = f.edx;
-    f.call(0, kRefresh, 0x002f3d57, 0x00964ce0);
+    f.call(0, own_address(&CL_RefreshConfigstrings), 0x002f3d57, 0x00964ce0);
     // Wait until the map's own sound bank is loaded.
     f.esi = title_global<uint32_t>(0x0095f4c0);
     f.eax = name;
     f.ecx = frame + 0x50;
-    f.call(0, kHashInit, 0x002f3d6d, name);
+    f.call(0, own_address(&HashStr_Init), 0x002f3d6d, name);
     f.ecx = frame + 0x50;
     f.eax = f.esi;
     f.call(0, own_address(&SndBankList_IsLoaded), 0x002f3d79, frame + 0x50);  // SndBankList_IsLoaded
@@ -3285,7 +3281,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     title_global<uint32_t>(0x0092bdf0) = 2;
     title_global<uint32_t>(0x009606b0) = checksum;
     title_global<uint32_t>(0x009606b4) = checksum;
-    f.call(0, kCvarSet, 0x002f3dc0, 0x0082ca00, 0x0082e058, f.ebx);
+    f.call(0, own_address(&Cvar_Set2), 0x002f3dc0, 0x0082ca00, 0x0082e058, f.ebx);
     f.edx = title_global<uint32_t>(0x0095f638);
     title_global<uint32_t>(0x00964cd4) = 2;
     return f.call(0, own_address(&MemContext_Pop_entry), 0x002f3dd4);  // MemContext_Pop

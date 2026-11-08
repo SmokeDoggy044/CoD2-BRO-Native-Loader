@@ -249,8 +249,7 @@ PLATFORM_ASM_ENTRY(thread_handle_alloc_call,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
                    "movl $0x008dd208, %eax\n"
-                   "movl $0x000147e0, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(ScrThread_AllocHandle_entry)
                    "popl %ebx\n"
                    "ret")
 

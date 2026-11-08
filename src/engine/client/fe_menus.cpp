@@ -230,9 +230,9 @@ struct LoadingLayout {
     uint32_t hidden_offset;   // the text Draw hides
     uint32_t show_missions;   // shows the missions up to EAX + 1 (EDI = menu, BL = 1)
 };
-constexpr LoadingLayout kLoading9 = {0x2a, 5, 0xf4, 0x10c, 0xf0, 0x00313610};
-constexpr LoadingLayout kLoadingAfrica = {0x30, 5, 0x10c, 0x124, 0x108, 0x00313360};
-constexpr LoadingLayout kLoadingSicily = {0x13, 3, 0x98, 0xa8, 0x94, 0x00313120};
+const LoadingLayout kLoading9 = {0x2a, 5, 0xf4, 0x10c, 0xf0, own_address(&LoadingMenu_ShowMissions_entry)};
+const LoadingLayout kLoadingAfrica = {0x30, 5, 0x10c, 0x124, 0x108, own_address(&LoadAfricaMenu_ShowMissions_entry)};
+const LoadingLayout kLoadingSicily = {0x13, 3, 0x98, 0xa8, 0x94, own_address(&LoadSicilyMenu_ShowMissions_entry)};
 
 // The loading screens' mission progress (0x00313120.. / 0x00313240..): static colours (guard bit, then the colour
 // word 4 bytes below), the chapter texts' range and the front-end state that redraws the screen.
@@ -247,11 +247,11 @@ struct LoadingProgress {
     int32_t redraw_state;     // the front end's state (+0xc) that redraws twice after a step
     uint32_t returns[4];      // SetProgress's call sites: ShowMissions (reset, step), SCR_UpdateScreen x2
 };
-constexpr LoadingProgress kProgress9 = {0x0098b830, 0x0098b838, 9, 0xf4, 5, true, 0x00313610, 2,
+const LoadingProgress kProgress9 = {0x0098b830, 0x0098b838, 9, 0xf4, 5, true, own_address(&LoadingMenu_ShowMissions_entry), 2,
                                         {0x00313840, 0x0031386c, 0x0031387d, 0x00313882}};
-constexpr LoadingProgress kProgressAfrica = {0x0098b820, 0x0098b828, 1, 0x10c, 5, true, 0x00313360, 3,
+const LoadingProgress kProgressAfrica = {0x0098b820, 0x0098b828, 1, 0x10c, 5, true, own_address(&LoadAfricaMenu_ShowMissions_entry), 3,
                                              {0x00313586, 0x003135b2, 0x003135c3, 0x003135c8}};
-constexpr LoadingProgress kProgressSicily = {0x0098b810, 0x0098b818, 6, 0x98, 3, false, 0x00313120, 4,
+const LoadingProgress kProgressSicily = {0x0098b810, 0x0098b818, 6, 0x98, 3, false, own_address(&LoadSicilyMenu_ShowMissions_entry), 4,
                                              {0x003132d2, 0x003132fe, 0x0031330f, 0x00313314}};
 
 // A function-local static colour: set once (guard bit 1), the word below the guard.
@@ -682,19 +682,19 @@ FE_GAP_ENTRY(MissionSuccessFailMenu_ShowRetryDialog_entry, "pushl 4(%edx)\n", Mi
 
 void XB_CDECL MissionSuccessFailMenu_ShowRetryDialog(uint8_t* menu, uint32_t entry_esp) {
     constexpr uint32_t kYes = 0x0082c8b8, kNo = 0x0082c8a8;  // MEM_DIALOG_YES / _NO
-    constexpr uint32_t kOnRetryYes = 0x0032d340, kOnNo = 0x0030cf90;
+    constexpr uint32_t kOnNo = 0x0030cf90;
     AtTop at(entry_esp - 12);  // three pushes
     if (title_global<uint8_t>(0x008dd1cf) == 1) {
         show_dialog(0x0082c8c8);  // MEM_QUIT_WARNING
-        add_button_inline(kYes, kOnRetryYes);
+        add_button_inline(kYes, own_address(&MissionSuccessFailMenu_OnRetryYes));
         add_button_inline(kNo, kOnNo);
     } else if (field<uint32_t>(menu, 0x58) == 0) {
         show_dialog(0x0082abcc);       // MEM_SAVE_QUIT
         add_button(kYes, own_address(&MissionSuccessFailMenu_ReloadCheckpoint));  // MissionSuccessFailMenu_ReloadCheckpoint
-        add_button(kNo, kOnRetryYes);
+        add_button(kNo, own_address(&MissionSuccessFailMenu_OnRetryYes));
     } else {
         show_dialog(0x0082c8c8);  // MEM_QUIT_WARNING
-        add_button(kYes, kOnRetryYes);
+        add_button(kYes, own_address(&MissionSuccessFailMenu_OnRetryYes));
         add_button(kNo, kOnNo);
     }
     select_no();

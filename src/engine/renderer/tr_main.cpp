@@ -3038,8 +3038,7 @@ PLATFORM_ASM_ENTRY(RE_ParseButtonToken_call,
                    "pushl 20(%esp)\n"
                    "pushl 20(%esp)\n"
                    "pushl 20(%esp)\n"
-                   "movl $0x00296350, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(RE_ParseButtonToken_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -3439,8 +3438,7 @@ PLATFORM_ASM_ENTRY(Stream_FindMeshFile_call,
                    "pushl $0\n"
                    "pushl 24(%esp)\n"
                    "pushl 24(%esp)\n"
-                   "movl $0x00290400, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Stream_FindMeshFile_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -3504,8 +3502,7 @@ PLATFORM_ASM_ENTRY(StringMap_Find_call,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x000249a0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(StringMap_Find_entry)
                    "popl %ebx\n"
                    "ret")
 

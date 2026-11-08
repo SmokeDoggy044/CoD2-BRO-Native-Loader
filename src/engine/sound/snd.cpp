@@ -62,8 +62,7 @@ PLATFORM_ASM_ENTRY(S_StartAliasVoice2_call,
                    "movl 52(%esp), %ebx\n"
                    "movl 56(%esp), %esi\n"
                    "movl 60(%esp), %edi\n"
-                   "movl $0x002bd770, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(S_StartAliasVoice2_entry)
                    "popl %edi\n"
                    "popl %esi\n"
                    "popl %ebx\n"
@@ -1689,8 +1688,7 @@ extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL snd_handle_table_alloc(uint8_t* ta
 PLATFORM_ASM_ENTRY(snd_handle_table_alloc, "pushl %ebx\n"
                                            "movl 8(%esp), %eax\n"
                                            "movl 12(%esp), %ebx\n"
-                                           "movl $0x0001ee70, %ecx\n"
-                                           "call *%ecx\n"
+                                           PLATFORM_ASM_CALL(HandleTable512_Alloc_entry)
                                            "popl %ebx\n"
                                            "ret")
 

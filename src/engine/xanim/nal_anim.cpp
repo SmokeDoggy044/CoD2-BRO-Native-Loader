@@ -24,8 +24,7 @@ PLATFORM_ASM_ENTRY(anim_memcontext_pop,
                    "pushl %edi\n"
                    "movl 8(%esp), %edx\n"
                    "movl 12(%esp), %edi\n"
-                   "movl $0x0028c690, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(MemContext_Pop_entry)
                    "popl %edi\n"
                    "ret")
 

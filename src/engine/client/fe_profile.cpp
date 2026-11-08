@@ -42,20 +42,6 @@ constexpr uint32_t kReturnToMain = 0x0082aec0;   // "MEM_RETURN_TO_MAIN"
 constexpr uint32_t kProfileName = 0x0082b1bc;    // "profileName"
 
 // Title functions called at their addresses.
-constexpr uint32_t kUI_ShowDialog = 0x003319e0;
-constexpr uint32_t kUI_DialogAddButton = 0x00012320;
-constexpr uint32_t kUI_DialogLayoutButtons = 0x00012390;
-constexpr uint32_t kDialog_LayoutButtons = 0x0031f4b0;
-constexpr uint32_t kDialogMgr_CloseDialog = 0x0031f6e0;
-constexpr uint32_t kPanel_FindText = 0x003215c0;
-constexpr uint32_t kProfileSave_PrepareRequest = 0x0031acf0;
-constexpr uint32_t kSave_BeginRead = 0x000d26f0;
-constexpr uint32_t kSave_SetPort = 0x000d0c90;
-constexpr uint32_t kSave_GetFreeSpace = 0x000d1b40;
-constexpr uint32_t kSave_ProfilesDirExists = 0x0030c300;
-constexpr uint32_t kSave_Update = 0x000d24a0;
-constexpr uint32_t kUIMenu_Update = 0x00314ba0;
-constexpr uint32_t kFE_ProfileSelect = 0x00338710;
 
 // The save manager (g_saves) and the profile globals.
 uint8_t* saves() { return title_global<uint8_t*>(0x0095f480); }
@@ -153,12 +139,12 @@ uint8_t* in_game_screen(uint32_t offset) {
 // UI_ShowDialog with no OK / YES-NO buttons, title "" and the game kept running.
 void show_dialog(uint32_t name) {
     const uint32_t args[5] = {address_of(dialog_mgr()), 0, 0, kEmptyString, 1};
-    title_call(kUI_ShowDialog, eax_regs(name), 5, args);
+    title_call(own_address(&UI_ShowDialog_entry), eax_regs(name), 5, args);
 }
 // UI_DialogAddButton by its title address.
 void add_button(uint32_t label, uint32_t handler) {
     const uint32_t args[2] = {label, handler};
-    title_call(kUI_DialogAddButton, eax_regs(address_of(dialog_mgr())), 2, args);
+    title_call(own_address(&UI_DialogAddButton), eax_regs(address_of(dialog_mgr())), 2, args);
 }
 // UI_DialogAddButton inlined: the next button's label (+0x30), handler and shown (+0x20 (0)).
 void add_button_inline(uint32_t label, uint32_t handler) {
@@ -178,12 +164,12 @@ uint32_t layout_buttons() {
     TitleRegs regs{};
     regs.eax = (address_of(dialog_mgr()) & ~0xffu) | 1;
     regs.edi = address_of(current_dialog());
-    return title_call(kDialog_LayoutButtons, regs);
+    return title_call(own_address(&Dialog_LayoutButtons_entry), regs);
 }
 // UI_DialogLayoutButtons (EAX = the manager, flag 1).
 void layout_buttons_mgr() {
     const uint32_t one[1] = {1};
-    title_call(kUI_DialogLayoutButtons, eax_regs(address_of(dialog_mgr())), 1, one);
+    title_call(own_address(&UI_DialogLayoutButtons), eax_regs(address_of(dialog_mgr())), 1, one);
 }
 // A one-button dialog (OK and the like).
 uint32_t one_button_dialog(uint32_t name, uint32_t label, uint32_t handler) {
@@ -220,7 +206,7 @@ uint8_t* find_text(uint8_t* panel, uint32_t name) {
     TitleRegs regs{};
     regs.ebx = name;
     const uint32_t args[1] = {address_of(panel)};
-    return reinterpret_cast<uint8_t*>(uintptr_t{title_call(kPanel_FindText, regs, 1, args)});
+    return reinterpret_cast<uint8_t*>(uintptr_t{title_call(own_address(&Panel_FindText_entry), regs, 1, args)});
 }
 
 // The play time (seconds +0x44, minutes +0x48, hours +0x4c, days +0x50 of a slot record) in seconds.
@@ -274,9 +260,9 @@ void start_profile_load(uint32_t entry_esp) {
     TitleRegs regs{};
     regs.eax = address_of(s);
     regs.esi = address_of(s);
-    title_call(kProfileSave_PrepareRequest, regs);
+    title_call(own_address(&ProfileSave_PrepareRequest_entry), regs);
     const uint32_t args[1] = {address_of(s + 4)};
-    title_call(kSave_BeginRead, regs, 1, args);
+    title_call(own_address(&Save_BeginRead), regs, 1, args);
 }
 
 void unformatted_dialog(uint32_t yes_handler, uint32_t no_handler, uint32_t entry_esp) {
@@ -295,19 +281,19 @@ bool read_free_space(uint8_t* menu, uint32_t entry_esp, uint32_t clear_a, uint32
     TitleRegs regs = esi_regs(menu);
     regs.eax = address_of(saves());
     AtTop at(entry_esp - 0x24);
-    title_call(kProfileSave_PrepareRequest, regs);
+    title_call(own_address(&ProfileSave_PrepareRequest_entry), regs);
     menu[clear_a] = 0;
     menu[clear_b] = 0;
     menu[clear_c] = 0;
     const uint32_t port[1] = {8};
     regs = esi_regs(menu);
-    title_call(kSave_SetPort, regs, 1, port);
+    title_call(own_address(&Save_SetPort), regs, 1, port);
     menu[clear_d] = 0;
     const uint32_t block[1] = {entry_esp - 0x20};
     int32_t result;
     {
         AtTop below(entry_esp - 0x28);  // the port argument still pushed
-        result = static_cast<int32_t>(title_call(kSave_GetFreeSpace, regs, 1, block));
+        result = static_cast<int32_t>(title_call(own_address(&Save_GetFreeSpace), regs, 1, block));
     }
     return result == -2 || (result == 0 && stack_word(entry_esp - 8) == 0);
 }
@@ -961,7 +947,7 @@ void XB_CDECL AutosaveMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint
             title_call(own_address(&AutosaveMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
         }
         field<int32_t>(menu, 0x44) = 1;
-        tail_call(entry_esp, kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
+        tail_call(entry_esp, own_address(&DialogMgr_CloseDialog), eax_regs(address_of(dialog_mgr())));
         return;
     }
     AtTop at(entry_esp - 8);
@@ -995,7 +981,7 @@ void XB_CDECL ProfileMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint8
             title_call(own_address(&ProfileMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
         }
         field<int32_t>(menu, 0x48) = 1;
-        tail_call(entry_esp, kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
+        tail_call(entry_esp, own_address(&DialogMgr_CloseDialog), eax_regs(address_of(dialog_mgr())));
         return;
     }
     AtTop at(entry_esp - 4);  // push ebx
@@ -1066,10 +1052,10 @@ void XB_CDECL ProfileMenu_StartLoad(uint32_t entry_esp) {
     TitleRegs regs{};
     regs.eax = address_of(s);
     regs.esi = address_of(s);
-    title_call(kProfileSave_PrepareRequest, regs);
+    title_call(own_address(&ProfileSave_PrepareRequest_entry), regs);
     regs.esi = address_of(s + 4);
     const uint32_t args[1] = {address_of(s + 4)};
-    if (title_call(kSave_BeginRead, regs, 1, args) != 0) return;
+    if (title_call(own_address(&Save_BeginRead), regs, 1, args) != 0) return;
     show_dialog(0x0082adf4);  // MEM_XBOX_LOAD_WARNING
     layout_buttons();
 }
@@ -1113,7 +1099,7 @@ void XB_CDECL AutosaveMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
         }
         if (mode != 1) return;
     } else {
-        if (title_call(kSave_ProfilesDirExists, regs) & 0xff) {
+        if (title_call(own_address(&Save_ProfilesDirExists), regs) & 0xff) {
             title_call(own_address(&AutosaveMenu_StartProfileLoad_entry), regs);  // AutosaveMenu_StartProfileLoad
             return;
         }
@@ -1147,7 +1133,7 @@ void XB_CDECL ProfileMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
         if (mode != 1) return;
     } else {
         if (!title_global<uint8_t>(0x008dd1d0) && !(title_call(own_address(&MemDlg_CheckFreeSpace2), regs) & 0xff)) return;  // CheckFreeSpace2
-        if (title_call(kSave_ProfilesDirExists, regs) & 0xff) {
+        if (title_call(own_address(&Save_ProfilesDirExists), regs) & 0xff) {
             title_call(own_address(&ProfileMenu_StartProfileLoad_entry), regs);  // ProfileMenu_StartProfileLoad
             return;
         }
@@ -1157,7 +1143,7 @@ void XB_CDECL ProfileMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
             TitleRegs select = regs;
             select.eax = field<uint32_t>(menu, 0x50);
             const uint32_t args[1] = {address_of(menu)};
-            title_call(kFE_ProfileSelect, select, 1, args);
+            title_call(own_address(&FE_ProfileSelect_entry), select, 1, args);
             return;
         }
         mode = field<int32_t>(menu, 0x4c);
@@ -1194,7 +1180,7 @@ uint32_t XB_CDECL AutosaveMenu_SelectSlot(int32_t slot, uint8_t* menu, uint32_t 
 void XB_CDECL AutosaveMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp) {
     AtTop at(entry_esp - 4);  // push esi
     const TitleRegs regs = esi_regs(menu);
-    title_call(kSave_Update, regs);
+    title_call(own_address(&Save_Update), regs);
     if (menu[0x84]) {
         menu[0x84] = 0;
         title_call(own_address(&AutosaveMenu_ShowNoSaveDialog_entry), eax_regs(address_of(menu)));  // AutosaveMenu_ShowNoSaveDialog
@@ -1217,7 +1203,7 @@ void XB_CDECL AutosaveMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp
     update.ecx = address_of(menu);
     update.esi = address_of(menu);
     const uint32_t args[1] = {dt};
-    title_call(kUIMenu_Update, update, 1, args);
+    title_call(own_address(&UIMenu_Update), update, 1, args);
 }
 
 namespace {
@@ -1235,7 +1221,7 @@ void XB_CDECL ProfileMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp)
     AtTop at(entry_esp - 4);  // push esi
     const TitleRegs regs = esi_regs(menu);
     title_call(own_address(&SCR_LoadingPump), regs);  // SCR_LoadingPump
-    title_call(kSave_Update, regs);
+    title_call(own_address(&Save_Update), regs);
     uint32_t help = 0x0082c37c;  // FEMENU_OP_HELPBAR
     if (field<int32_t>(menu, 0x4c) == 0 && menu[(selection(menu) + 9) * 0xc] != 1) help = 0x0082b10c;
     call(field<uint8_t*>(menu, 0x40), 0x6c, help);  // FEMENU_LOAD_HELPBAR_XBOX otherwise
@@ -1267,7 +1253,7 @@ void XB_CDECL ProfileMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp)
     update.ecx = address_of(menu);
     update.esi = address_of(menu);
     const uint32_t args[1] = {dt};
-    title_call(kUIMenu_Update, update, 1, args);
+    title_call(own_address(&UIMenu_Update), update, 1, args);
 }
 
 void XB_CDECL AutosaveMenu_ShowFormatSuccessDialog(uint32_t entry_esp) {
@@ -1332,7 +1318,7 @@ void XB_CDECL AutosaveMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
     TitleRegs regs = esi_regs(menu);
     regs.ebx = address_of(menu);
     title_call(own_address(&AutosaveMenu_UpdateSlotTexts_entry), regs);
-    title_call(kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
+    title_call(own_address(&DialogMgr_CloseDialog), eax_regs(address_of(dialog_mgr())));
     uint8_t* const screen = in_game_screen(0x1c);
     if (!title_global<uint8_t>(0x008dcf10)) {
         field<int32_t>(screen, 0x44) = 1;
@@ -1362,7 +1348,7 @@ void XB_CDECL ProfileMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
         regs.eax = field<uint32_t>(menu, 0x50);
         regs.edi = address_of(menu);
         const uint32_t args[1] = {address_of(menu)};
-        title_call(kFE_ProfileSelect, regs, 1, args);
+        title_call(own_address(&FE_ProfileSelect_entry), regs, 1, args);
         return;
     }
     AtTop at(entry_esp - 0x14);  // push ecx, edi, ebx, ebp, esi
@@ -1418,7 +1404,7 @@ void XB_CDECL ProfileMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
         layout_buttons();
         return;
     }
-    title_call(kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
+    title_call(own_address(&DialogMgr_CloseDialog), eax_regs(address_of(dialog_mgr())));
     field<int32_t>(front_end_screen(0x3c), 0x48) = 1;
 }
 

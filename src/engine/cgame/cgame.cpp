@@ -717,8 +717,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL cg_cvar_update(uint32_t vm_cvar);
 PLATFORM_ASM_ENTRY(cg_cvar_update,
                    "pushl %ebx\n"
                    "movl 8(%esp), %ebx\n"
-                   "movl $0x00296ec0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Cvar_Update_entry)
                    "popl %ebx\n"
                    "ret")
 

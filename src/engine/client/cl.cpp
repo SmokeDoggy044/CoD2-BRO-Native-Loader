@@ -1944,8 +1944,7 @@ void XB_CDECL Key_Unbind_f() {
 // text (0x00927f50) points at its stack copy, so the entry jumps there too (as CL_ApplyProfileSettings).
 PLATFORM_ASM_ENTRY(CL_ExecControllerConfig_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(CL_ExecControllerConfig) "addl $4, %esp\n"
-                   "pushl $0x002c62b0\n"  // Cbuf_Execute
-                   "ret")
+                   "jmp " PLATFORM_ASM_SYMBOL(Cbuf_Execute_entry))  // Cbuf_Execute
 
 void XB_CDECL CL_ExecControllerConfig(int32_t style) {
     Cvar_SetValue(&title_global<const char>(0x0082e084), static_cast<float>(style));  // cg_controllerconfig
@@ -3262,7 +3261,7 @@ namespace {
 void set_handle_volume(uint32_t handle, float volume) {
     __asm__ volatile("movss %1, %%xmm0\n\tcall *%2"
                      : "+a"(handle)
-                     : "m"(volume), "r"(uintptr_t{0x002bd140})
+                     : "m"(volume), "r"(own_address(&S_SetHandleVolume_entry))
                      : "ecx", "edx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory");
 }
 
@@ -3272,8 +3271,7 @@ void set_handle_volume(uint32_t handle, float volume) {
 // commands it executes lie (cmd's current text, 0x00927f50, points there): the entry jumps there
 // too. C callers call Cbuf_Execute after CL_ApplyProfileSettings themselves.
 PLATFORM_ASM_ENTRY(CL_ApplyProfileSettings_entry, "pushl %edi\n" PLATFORM_ASM_CALL(CL_ApplyProfileSettings) "addl $4, %esp\n"
-                                                  "pushl $0x002c62b0\n"  // Cbuf_Execute
-                                                  "ret")
+                                                  "jmp " PLATFORM_ASM_SYMBOL(Cbuf_Execute_entry))  // Cbuf_Execute
 
 void XB_CDECL CL_ApplyProfileSettings(uint8_t* profile) {
     static constexpr int32_t kAttenuation[4] = {1, 2, 4, 3};

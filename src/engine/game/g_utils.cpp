@@ -38,8 +38,7 @@ PLATFORM_ASM_ENTRY(vectoangles_call,
                    "pushl %edi\n"
                    "movl 12(%esp), %esi\n"
                    "movl 16(%esp), %edi\n"
-                   "movl $0x002a0850, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(vectoangles_entry)
                    "popl %edi\n"
                    "popl %esi\n"
                    "ret")
@@ -139,8 +138,7 @@ PLATFORM_ASM_ENTRY(sv_trace_call,
                    "pushl 48(%esp)\n"
                    "pushl 48(%esp)\n"
                    "pushl 48(%esp)\n"
-                   "movl $0x002e9af0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(SV_Trace_entry)
                    "addl $44, %esp\n"
                    "popl %ebx\n"
                    "ret")
@@ -367,8 +365,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL phys_body_clear_call(uint8_t* body);
 PLATFORM_ASM_ENTRY(phys_body_clear_call,
                    "pushl %edi\n"
                    "movl 8(%esp), %edi\n"
-                   "movl $0x002492f0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(PhysBody_Clear_entry)
                    "popl %edi\n"
                    "ret")
 
@@ -1038,8 +1035,7 @@ PLATFORM_ASM_ENTRY(actor_get_prone_blend_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
                    "movl 12(%esp), %ecx\n"
-                   "movl $0x002ad770, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Actor_GetProneBlend_entry)
                    "movd %xmm0, %eax\n"
                    "popl %esi\n"
                    "ret")

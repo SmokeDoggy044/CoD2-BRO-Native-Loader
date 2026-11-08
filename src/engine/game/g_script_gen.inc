@@ -45,14 +45,14 @@ uint32_t XB_CDECL Scr_StartThread_ent_ent_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_str_f_f_b_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_str_f_f_b_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_str_f_f_b_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x004590d0, 4, 7));  // AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Ctor), 4, 7));  // AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Ctor
 }
 
 // 0x0045a7c0
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x10, 0x004591e0, 4, 3));  // AeThreadFunctor2_ent_str_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x10, own_address(&AeThreadFunctor2_ent_str_PROLOGUE_Ctor), 4, 3));  // AeThreadFunctor2_ent_str_PROLOGUE_Ctor
 }
 
 // 0x0045a850
@@ -99,7 +99,7 @@ uint32_t XB_CDECL Scr_StartThread_ent_ent_hash_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_hash_str_ent_ent_b_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_hash_str_ent_ent_b_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_hash_str_ent_ent_b_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x24, 0x004592d0, 4, 8));  // AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x24, own_address(&AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_Ctor), 4, 8));  // AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_Ctor
 }
 
 // 0x0045aad0
@@ -130,7 +130,7 @@ uint32_t XB_CDECL Scr_StartThread_ent_i_i_b_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_f_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_f_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_f_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x14, 0x00459440, 4, 4));  // AeThreadFunctor3_ent_str_f_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x14, own_address(&AeThreadFunctor3_ent_str_f_PROLOGUE_Ctor), 4, 4));  // AeThreadFunctor3_ent_str_f_PROLOGUE_Ctor
 }
 
 // 0x0045ad10
@@ -177,14 +177,14 @@ uint32_t XB_CDECL Scr_StartThread_ent_pathnode_vec_hash_PROLOGUE(const uint32_t*
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_str_i_str_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_str_i_str_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_str_i_str_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x20, 0x00459680, 4, 7));  // AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x20, own_address(&AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Ctor), 4, 7));  // AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Ctor
 }
 
 // 0x0045aff0
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_str_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x14, 0x004597c0, 4, 4));  // AeThreadFunctor3_ent_str_str_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x14, own_address(&AeThreadFunctor3_ent_str_str_PROLOGUE_Ctor), 4, 4));  // AeThreadFunctor3_ent_str_str_PROLOGUE_Ctor
 }
 
 // 0x0045b080
@@ -199,7 +199,7 @@ uint32_t XB_CDECL Scr_StartThread_ent_vec_f_f_b_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_vec_f_str_f_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_vec_f_str_f_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_vec_f_str_f_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x24, 0x004598e0, 4, 6));  // AeThreadFunctor5_ent_vec_f_str_f_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x24, own_address(&AeThreadFunctor5_ent_vec_f_str_f_PROLOGUE_Ctor), 4, 6));  // AeThreadFunctor5_ent_vec_f_str_f_PROLOGUE_Ctor
 }
 
 // 0x0045b350
@@ -214,7 +214,7 @@ uint32_t XB_CDECL Scr_StartThread_ent_hash_i_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x14, 0x00459b70, 4, 4));  // AeThreadFunctor3_ent_ent_str_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x14, own_address(&AeThreadFunctor3_ent_ent_str_PROLOGUE_Ctor), 4, 4));  // AeThreadFunctor3_ent_ent_str_PROLOGUE_Ctor
 }
 
 // 0x0045b440
@@ -285,7 +285,7 @@ uint32_t XB_CDECL Scr_StartThread_ent_b_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_b_str_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_b_str_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_b_str_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x14, 0x00459e90, 4, 4));  // AeThreadFunctor3_ent_b_str_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x14, own_address(&AeThreadFunctor3_ent_b_str_PROLOGUE_Ctor), 4, 4));  // AeThreadFunctor3_ent_b_str_PROLOGUE_Ctor
 }
 
 // 0x0045b8f0
@@ -300,21 +300,21 @@ uint32_t XB_CDECL Scr_StartThread_ent_i_f_f_i_i_i_PROLOGUE(const uint32_t* args)
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_vec_vec_vec_vec_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_vec_vec_vec_vec_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_ent_vec_vec_vec_vec_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x40, 0x00459f60, 4, 7));  // AeThreadFunctor6_ent_ent_vec_vec_vec_vec_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x40, own_address(&AeThreadFunctor6_ent_ent_vec_vec_vec_vec_PROLOGUE_Ctor), 4, 7));  // AeThreadFunctor6_ent_ent_vec_vec_vec_vec_PROLOGUE_Ctor
 }
 
 // 0x0045b9e0
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_vec_hash_f_f_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_hash_vec_vec_hash_f_f_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_vec_hash_f_f_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x34, 0x0045a070, 4, 8));  // AeThreadFunctor7_ent_hash_vec_vec_hash_f_f_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x34, own_address(&AeThreadFunctor7_ent_hash_vec_vec_hash_f_f_PROLOGUE_Ctor), 4, 8));  // AeThreadFunctor7_ent_hash_vec_vec_hash_f_f_PROLOGUE_Ctor
 }
 
 // 0x0045ba50
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_i_i_f_f_f_f_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_hash_vec_i_i_f_f_f_f_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_i_i_f_f_f_f_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x34, 0x0045a140, 4, 10));  // AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x34, own_address(&AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_PROLOGUE_Ctor), 4, 10));  // AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_PROLOGUE_Ctor
 }
 
 // 0x0045bac0
@@ -345,19 +345,19 @@ uint32_t XB_CDECL Scr_StartThread_ent_i_ent_PROLOGUE(const uint32_t* args) {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_arrent_str_i_f_f_b_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x2c, 0x0045d090, 4, 8));  // AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x2c, own_address(&AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Ctor), 4, 8));  // AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Ctor
 }
 
 // 0x0045de60
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_arrent_vec_i_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_arrent_vec_i_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_arrent_vec_i_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x28, 0x0045d130, 4, 5));  // AeThreadFunctor4_ent_arrent_vec_i_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x28, own_address(&AeThreadFunctor4_ent_arrent_vec_i_PROLOGUE_Ctor), 4, 5));  // AeThreadFunctor4_ent_arrent_vec_i_PROLOGUE_Ctor
 }
 
 // 0x0045e030
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_arrvehiclenode_f_f_hash_PROLOGUE(const uint32_t* args);
 SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_arrvehiclenode_f_f_hash_PROLOGUE)
 uint32_t XB_CDECL Scr_StartThread_ent_arrvehiclenode_f_f_hash_PROLOGUE(const uint32_t* args) {
-    return create_thread(args, construct_functor(args, 0x24, 0x0045d2c0, 4, 6));  // AeThreadFunctor5_ent_arrvehiclenode_f_f_hash_PROLOGUE_Ctor
+    return create_thread(args, construct_functor(args, 0x24, own_address(&AeThreadFunctor5_ent_arrvehiclenode_f_f_hash_PROLOGUE_Ctor), 4, 6));  // AeThreadFunctor5_ent_arrvehiclenode_f_f_hash_PROLOGUE_Ctor
 }

@@ -20,6 +20,7 @@ Run tools/levelsdup.py first. Rerun-safe: rows already in kFunctions are skipped
 import argparse
 import csv
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -322,3 +323,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    if "--dry-run" not in sys.argv:
+        # own engine host 0.2: the output reaches our C by symbol where it exists (tools/own_calls.py)
+        for own_pass in ([], ["--values"]):
+            subprocess.run([sys.executable, str(Path(__file__).with_name("own_calls.py")), *own_pass, "--generated",
+                            "--only", "_levels.inc"], check=True)

@@ -54,8 +54,7 @@ PLATFORM_ASM_ENTRY(anim_notify_with_string_call,
                    "movl 12(%esp), %edx\n"
                    "pushl %eax\n"
                    "pushl %edx\n"
-                   "movl $0x00022df0, %ecx\n"
-                   "call *%ecx\n"
+                   PLATFORM_ASM_CALL(Scr_NotifyWithString_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -444,8 +443,7 @@ PLATFORM_ASM_ENTRY(xanim_memcontext_pop,
                    "pushl %edi\n"
                    "movl 8(%esp), %edx\n"
                    "movl 12(%esp), %edi\n"
-                   "movl $0x0028c690, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(MemContext_Pop_entry)
                    "popl %edi\n"
                    "ret")
 
@@ -856,17 +854,6 @@ namespace game {
 
 namespace {
 
-// MemContextScope_Enter (0x0028fcc0): flag in AL, context in ECX, the scope {context, saved
-// 0x0095f5d0} on the stack (callee pops 4); pushes the context unless it is -1.
-extern "C" PLATFORM_HIDDEN void XB_CDECL xanim_scope_enter(uint32_t flag, int32_t context, uint32_t* scope);
-PLATFORM_ASM_ENTRY(xanim_scope_enter,
-                   "movl 4(%esp), %eax\n"
-                   "movl 8(%esp), %ecx\n"
-                   "pushl 12(%esp)\n"
-                   "movl $0x0028fcc0, %edx\n"
-                   "call *%edx\n"
-                   "ret")
-
 void build_notetracks(uint8_t* node) { XAnim_BuildNotetracks(node); }
 
 uint32_t& u32_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint32_t*>(p + offset); }
@@ -905,7 +892,7 @@ uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree) {
     else
         build_notetracks(node);
     uint32_t scope[2] = {0, 0};
-    xanim_scope_enter(1, static_cast<int32_t>(u32_ref(tree, 0x10)), scope);
+    MemContextScope_Enter(1, 0, static_cast<int32_t>(u32_ref(tree, 0x10)), reinterpret_cast<uint8_t*>(scope));
     uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
     uint8_t* skeleton = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
     uint8_t* track = static_cast<uint8_t*>(Mem_AlignedAlloc(0x30, 4, 0));

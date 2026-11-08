@@ -6,14 +6,12 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "fx.h"
 
 namespace game {
 
 namespace {
 
-constexpr uint32_t kAlloc = 0x002a5a40;   // FXCmd_Alloc
-constexpr uint32_t kCommit = 0x00298e90;  // FXCmd_Commit
-constexpr uint32_t kFlushSpawnQueue = 0x002a5940;
 constexpr uint32_t kDefaultScriptString = 0x00971908;
 
 uint32_t& word(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint32_t*>(p + offset); }
@@ -59,7 +57,7 @@ struct Builder {
         : top(top_), list(title_global<uint8_t*>(0x0095f5b4)) {
         const TitleRegs regs{address_of(entity), address_of(list), 0, 0, address_of(list), 0};
         const uint32_t args[2] = {address_of(entity), static_cast<uint32_t>(handle)};
-        title_call_at_regs(top, kAlloc, &regs, 2, args);
+        title_call_at_regs(top, own_address(&FXCmd_Alloc_entry), &regs, 2, args);
         cmd = title_global<uint8_t*>(address_of(list) + 0x8d20);
     }
     void kind(uint32_t value) const {
@@ -95,7 +93,7 @@ struct Builder {
     }
     uint32_t commit() const {
         const TitleRegs regs{0, address_of(list), 0, 0, address_of(list), 0};
-        return title_call_at_regs(top, kCommit, &regs, 0, nullptr);
+        return title_call_at_regs(top, own_address(&FXCmd_Commit_entry), &regs, 0, nullptr);
     }
 };
 
@@ -171,7 +169,7 @@ uint8_t* XB_CDECL FXCmd_Alloc_body(uint32_t entry, uint8_t* list, const uint8_t*
     }
     if (count >= 0x40) {
         const TitleRegs regs{address_of(list), address_of(list), 0, 0, address_of(list), 0};
-        title_call_at_regs(entry - 8, kFlushSpawnQueue, &regs, 0, nullptr);
+        title_call_at_regs(entry - 8, own_address(&FX_FlushSpawnQueue_entry), &regs, 0, nullptr);
     }
     uint8_t* const slot = queue_slot(list, static_cast<uint32_t>(count));
     word(slot, 0x8) = 0;

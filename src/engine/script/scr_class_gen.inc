@@ -53,8 +53,8 @@ uint8_t* XB_THISCALL AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Ctor(uint8_t* s
     put(self, 0x4, a1);
     put(self, 0x0, 0x7f4a34);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     put(self, 0x14, word(a5, 0));
     put(self, 0x18, word(a6, 0));
     self[0x1c] = byte_at(a7);
@@ -66,8 +66,8 @@ static void build_AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Invoke(uint8_t* ar
     put(args, 0x14, byte_of(self, 0x1c));
     put(args, 0x10, word_at(self, 0x18));
     put(args, 0xc, word_at(self, 0x14));
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -78,7 +78,7 @@ void XB_THISCALL AeThreadFunctor6_ent_str_str_f_f_b_PROLOGUE_Invoke(uint8_t* sel
 
 // 0x00459240
 static void build_AeThreadFunctor2_ent_str_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -119,7 +119,7 @@ uint8_t* XB_THISCALL AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_Ctor(u
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a4, 0));
-    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x14, a5);  // ScriptString_Copy
     put(self, 0x18, word(a6, 0));
     put(self, 0x1c, word(a7, 0));
     self[0x20] = byte_at(a8);
@@ -131,7 +131,7 @@ static void build_AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_Invoke(uint8_t* ar
     put(args, 0x18, byte_of(self, 0x20));
     put(args, 0x14, word_at(self, 0x1c));
     put(args, 0x10, word_at(self, 0x18));
-    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xc, address(self + 0x14));  // ScriptString_Copy
     put(args, 0x8, word_at(self, 0x10));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x0, word_at(self, 0x8));
@@ -177,7 +177,7 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_f_PROLOGUE_Ctor(uint8_t* self, uin
     put(self, 0x4, a1);
     put(self, 0x0, 0x7f4ad0);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
     put(self, 0x10, word(a4, 0));
     return self;
 }
@@ -185,7 +185,7 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_f_PROLOGUE_Ctor(uint8_t* self, uin
 // 0x004594b0
 static void build_AeThreadFunctor3_ent_str_f_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
     put(args, 0x8, word_at(self, 0x10));
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -293,21 +293,21 @@ uint8_t* XB_THISCALL AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Ctor(uint8_
     put(self, 0x4, a1);
     put(self, 0x0, 0x7f4b30);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     put(self, 0x14, word(a5, 0));
-    construct(0x0011d5e0, self + 0x18, a6);  // ScriptString_Copy
-    construct(0x0011d5e0, self + 0x1c, a7);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x18, a6);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x1c, a7);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459720
 static void build_AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x14, address(self + 0x1c));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x14, address(self + 0x1c));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x10, address(self + 0x18));  // ScriptString_Copy
     put(args, 0xc, word_at(self, 0x14));
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -321,15 +321,15 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_str_PROLOGUE_Ctor(uint8_t* self, u
     put(self, 0x4, a1);
     put(self, 0x0, 0x7f4b3c);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459830
 static void build_AeThreadFunctor3_ent_str_str_PROLOGUE_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -363,7 +363,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_f_str_f_PROLOGUE_Ctor(uint8_t* sel
     put(self, 0x10, word(a3, 0x4));
     put(self, 0x14, word(a3, 0x8));
     put(self, 0x18, word(a4, 0));
-    construct(0x0011d5e0, self + 0x1c, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x1c, a5);  // ScriptString_Copy
     put(self, 0x20, word(a6, 0));
     return self;
 }
@@ -371,7 +371,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_f_str_f_PROLOGUE_Ctor(uint8_t* sel
 // 0x00459970
 static void build_AeThreadFunctor5_ent_vec_f_str_f_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
     put(args, 0x18, word_at(self, 0x20));
-    construct_arg(0x0011d5e0, args + 0x14, address(self + 0x1c));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x14, address(self + 0x1c));  // ScriptString_Copy
     put(args, 0x10, word_at(self, 0x18));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -393,13 +393,13 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_vec_f_str_PROLOGUE_Ctor(uint8_t* self,
     put(self, 0x10, word(a3, 0x4));
     put(self, 0x14, word(a3, 0x8));
     put(self, 0x18, word(a4, 0));
-    construct(0x0011d5e0, self + 0x1c, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x1c, a5);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459af0
 static void build_AeThreadFunctor4_ent_vec_f_str_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x14, address(self + 0x1c));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x14, address(self + 0x1c));  // ScriptString_Copy
     put(args, 0x10, word_at(self, 0x18));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -432,13 +432,13 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_ent_str_PROLOGUE_Ctor(uint8_t* self, u
     put(self, 0x0, 0x7f4b9c);
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459be0
 static void build_AeThreadFunctor3_ent_ent_str_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
@@ -555,13 +555,13 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_vec_str_PROLOGUE_Ctor(uint8_t* self, u
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a3, 0x4));
     put(self, 0x14, word(a3, 0x8));
-    construct(0x0011d5e0, self + 0x18, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x18, a4);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459e40
 static void build_AeThreadFunctor3_ent_vec_str_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x10, address(self + 0x18));  // ScriptString_Copy
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
     put(args, 0xc, word_at(self, 0x14));
@@ -579,13 +579,13 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_b_str_PROLOGUE_Ctor(uint8_t* self, uin
     put(self, 0x0, 0x7f4c38);
     put(self, 0x8, word(a2, 0));
     self[0xc] = byte_at(a3);
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     return self;
 }
 
 // 0x00459f00
 static void build_AeThreadFunctor3_ent_b_str_Invoke(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
     put(args, 0x4, byte_of(self, 0xc));
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
@@ -737,8 +737,8 @@ uint8_t* XB_THISCALL AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Ctor(uint8
     put(self, 0xc, 0);
     put(self, 0x10, 0);
     put(self, 0x14, 0);
-    construct(0x0045c270, self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
-    construct(0x0011d5e0, self + 0x18, a4);  // ScriptString_Copy
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&ScriptString_Copy), self + 0x18, a4);  // ScriptString_Copy
     put(self, 0x1c, word(a5, 0));
     put(self, 0x20, word(a6, 0));
     put(self, 0x24, word(a7, 0));
@@ -754,7 +754,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_arrent_vec_i_PROLOGUE_Ctor(uint8_t* se
     put(self, 0xc, 0);
     put(self, 0x10, 0);
     put(self, 0x14, 0);
-    construct(0x0045c270, self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
     put(self, 0x18, word(a4, 0));
     put(self, 0x1c, word(a4, 0x4));
     put(self, 0x20, word(a4, 0x8));
@@ -770,7 +770,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_arrent_hash_hash_PROLOGUE_Ctor(uint8_t
     put(self, 0xc, 0);
     put(self, 0x10, 0);
     put(self, 0x14, 0);
-    construct(0x0045c270, self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
     put(self, 0x18, word(a4, 0));
     put(self, 0x1c, word(a5, 0));
     return self;
@@ -798,7 +798,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_arrvehiclenode_f_f_hash_PROLOGUE_Ctor(
     put(self, 0xc, 0);
     put(self, 0x10, 0);
     put(self, 0x14, 0);
-    construct(0x0045c5b0, self + 0xc, a3);  // DynArray_Assign4_PROLOGUE_2
+    construct(own_address(&DynArray_Assign4_PROLOGUE_2), self + 0xc, a3);  // DynArray_Assign4_PROLOGUE_2
     put(self, 0x18, word(a4, 0));
     put(self, 0x1c, word(a5, 0));
     put(self, 0x20, word(a6, 0));
@@ -813,7 +813,7 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_arrent_i_PROLOGUE_Ctor(uint8_t* self, 
     put(self, 0xc, 0);
     put(self, 0x10, 0);
     put(self, 0x14, 0);
-    construct(0x0045c270, self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0xc, a3);  // DynArray_Assign4_PROLOGUE
     put(self, 0x18, word(a4, 0));
     return self;
 }
@@ -824,11 +824,11 @@ static void build_AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Invoke(uint8_
     put(args, 0x1c, word_at(self, 0x24));
     put(args, 0x18, word_at(self, 0x20));
     put(args, 0x14, word_at(self, 0x1c));
-    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x10, address(self + 0x18));  // ScriptString_Copy
     put(args, 0x4, 0x0u);
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
-    construct_arg(0x0045c270, args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -846,7 +846,7 @@ static void build_AeThreadFunctor4_ent_arrent_vec_i_Invoke(uint8_t* args, uint8_
     put(args, 0x4, 0x0u);
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
-    construct_arg(0x0045c270, args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -862,7 +862,7 @@ static void build_AeThreadFunctor4_ent_arrent_hash_hash_Invoke(uint8_t* args, ui
     put(args, 0x4, 0x0u);
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
-    construct_arg(0x0045c270, args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -895,7 +895,7 @@ static void build_AeThreadFunctor5_ent_arrvehiclenode_f_f_hash_Invoke(uint8_t* a
     put(args, 0x4, 0x0u);
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
-    construct_arg(0x0045c5b0, args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE_2
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE_2), args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE_2
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);
@@ -910,7 +910,7 @@ static void build_AeThreadFunctor3_ent_arrent_i_Invoke(uint8_t* args, uint8_t* s
     put(args, 0x4, 0x0u);
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
-    construct_arg(0x0045c270, args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x4, address(self + 0xc));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     regs->eax = address(args + 0x0);
     regs->ecx = word_at(self, 0x8);

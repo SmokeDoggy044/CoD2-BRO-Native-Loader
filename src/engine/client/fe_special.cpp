@@ -101,8 +101,6 @@ Calls after_push_esi(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_e
     return c;
 }
 
-constexpr uint32_t kConceptLoadImage = 0x0031a490;  // FE_BonusCELoadImage (menu in EAX)
-constexpr uint32_t kMainLoadImage = 0x0031a900;     // FE_BonusCEMainLoadImage (menu in EAX)
 
 // The concept menu's current item of a category (1-based).
 int32_t& concept_item(uint8_t* menu, int32_t category) {
@@ -121,7 +119,7 @@ void concept_move(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_esp,
     const int32_t row = selection(menu);
     if (row == old) return;
     if (concept_item(menu, row) == 0) concept_item(menu, row) = 1;
-    c.run_eax(kConceptLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCELoadImage_entry), address_of(menu));
 }
 
 // The materials menu's OnDown / OnUp: `push esi; push edi` (EDI = the old row); the image when the row changed.
@@ -132,7 +130,7 @@ void materials_move(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_es
     c.regs.edi = uint32_t(old);
     c.method(menu, slot);
     if (selection(menu) == old) return;
-    c.run_eax(kMainLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCEMainLoadImage_entry), address_of(menu));
 }
 
 void init_menu(uint8_t* menu, int32_t rows, uint8_t* owner) { UIMenu_Init(menu, rows, owner, 0x140, 0xf0, 8, 0); }
@@ -579,7 +577,7 @@ void XB_CDECL SpecialConceptMenu_OnA(uint8_t* menu, uint32_t ebx, uint32_t edi, 
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     c.method(field<uint8_t*>(menu, 0x38), 0x6c, 0x0082b854);  // "BONUS_HELPBAR_BACK_ONLY"
     menu[0x40] = 1;
-    c.run_eax(kConceptLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCELoadImage_entry), address_of(menu));
 }
 
 // The image reload (vtable +0x10, FE_BonusCELoadImage: stack buffers handed to title code) is tail-called at the
@@ -621,8 +619,7 @@ uint32_t XB_CDECL SpecialConceptMenu_NextItem(int32_t direction, uint32_t, uint8
 PLATFORM_ASM_ENTRY(SpecialConceptMenu_LeaveFullScreen_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(SpecialConceptMenu_LeaveFullScreen) "addl $4, %esp\n"
                    "movl %esi, %eax\n"
-                   "pushl $0x0031a490\n"
-                   "ret")
+                   "jmp " PLATFORM_ASM_SYMBOL(FE_BonusCELoadImage_entry))
 
 void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu) {
     call(field<uint8_t*>(menu, 0x38), 0x6c, 0x0082b618);  // "BONUS_HELPBAR_FULLSCREEN"
@@ -634,7 +631,7 @@ void XB_CDECL SpecialConceptMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t e
     if (menu[0x40]) return;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     c.run_eax(own_address(&SpecialConceptMenu_NextItem_entry), 1);  // the category's next item (ECX / ESI = the menu)
-    c.run_eax(kConceptLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCELoadImage_entry), address_of(menu));
 }
 
 void XB_CDECL SpecialConceptMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
@@ -644,7 +641,7 @@ void XB_CDECL SpecialConceptMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t ed
         --concept_item(menu, selection(menu));
         c.method(menu, 0x10);
     }
-    c.run_eax(kConceptLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCELoadImage_entry), address_of(menu));
 }
 
 void XB_CDECL SpecialConceptMenu_OnDown(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
@@ -663,7 +660,7 @@ void XB_CDECL SpecialConceptMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, u
     c.method(menu, 0x88, 0, 1);
     menu[0x40] = 0;
     c.run(own_address(&FE_BonusArtCategoryLabel_entry));  // FE_BonusArtCategoryLabel (menu in ESI)
-    c.run_eax(kConceptLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCELoadImage_entry), address_of(menu));
     // pop esi; jmp UIMenu_RestoreSelection: the callee returns to our caller.
     TitleRegs regs{};
     regs.ebx = ebx;
@@ -688,7 +685,7 @@ void XB_CDECL SpecialMaterialsMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t
     if (item >= 2) return;
     field<int32_t>(menu, 0x48) = item + 1;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
-    c.run_eax(kMainLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCEMainLoadImage_entry), address_of(menu));
     c.method(menu, 0x10);
 }
 
@@ -698,7 +695,7 @@ void XB_CDECL SpecialMaterialsMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t 
     if (item <= 0) return;
     field<int32_t>(menu, 0x48) = item - 1;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
-    c.run_eax(kMainLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCEMainLoadImage_entry), address_of(menu));
     c.method(menu, 0x10);
 }
 

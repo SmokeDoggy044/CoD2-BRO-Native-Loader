@@ -108,9 +108,9 @@ struct ImageClass {
     uint32_t full_screen;
     bool moves_help_bar;  // vehicles / concepts move the help bar (+0x70)
 };
-constexpr ImageClass kWeapons{0x0030db60, 0x0031cd50, 0xac, false};   // FE_BonusWeapon*
-constexpr ImageClass kVehicles{0x0030db00, 0x0031bf70, 0x88, true};   // FE_BonusVehicle*
-constexpr ImageClass kConcepts{0x0030daa0, 0x0031b730, 0xc0, true};   // FE_BonusConcept*
+const ImageClass kWeapons{own_address(&FE_BonusWeaponFreeImage_entry), own_address(&FE_BonusWeaponLoadImage_entry), 0xac, false};   // FE_BonusWeapon*
+const ImageClass kVehicles{own_address(&FE_BonusVehicleFreeImage_entry), own_address(&FE_BonusVehicleLoadImage_entry), 0x88, true};   // FE_BonusVehicle*
+const ImageClass kConcepts{own_address(&FE_BonusConceptFreeImage_entry), own_address(&FE_BonusConceptLoadImage_entry), 0xc0, true};   // FE_BonusConcept*
 
 constexpr uint32_t kHelpFullScreen = 0x0082b618;  // "BONUS_HELPBAR_FULLSCREEN"
 constexpr uint32_t kHelpBackOnly = 0x0082b854;    // "BONUS_HELPBAR_BACK_ONLY"
@@ -259,9 +259,6 @@ void move_and_load(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_esp
     c.run_eax(load_image, address_of(menu));
 }
 
-constexpr uint32_t kCharacterLoadImage = 0x0031d5b0;  // FE_BonusCharacterLoadImage
-constexpr uint32_t kMainLoadImage = 0x0031d9d0;       // FE_BonusMainLoadImage
-constexpr uint32_t kRestoreSelection = 0x00314b20;    // UIMenu_RestoreSelection
 
 // Row 0 selected again (+0x22 = 0, then +0x88 (0, 1)).
 void select_row0(const Calls& c, uint8_t* menu) {
@@ -276,7 +273,7 @@ void restore_selection_tail(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t 
     regs.ecx = address_of(menu);
     regs.esi = esi;
     regs.edi = edi;
-    tail_jump(entry_esp, kRestoreSelection, regs);
+    tail_jump(entry_esp, own_address(&UIMenu_RestoreSelection), regs);
 }
 
 void init_menu(uint8_t* menu, int32_t rows, uint8_t* owner) { UIMenu_Init(menu, rows, owner, 0x140, 0xf0, 8, 0); }
@@ -858,11 +855,11 @@ void XB_CDECL BonusCharactersMenu_OnDown(uint8_t* menu, uint32_t ebx, uint32_t, 
     const int32_t count = row + 1;
     if (reached < count) reached = count;
     c.run(own_address(&BonusCharactersMenu_UpdateNewFlags_entry));  // the character labels (menu in EDI)
-    c.run_eax(kCharacterLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCharacterLoadImage_entry), address_of(menu));
 }
 
 void XB_CDECL BonusCharactersMenu_OnUp(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
-    move_and_load(menu, ebx, edi, entry_esp, 0xb0, kCharacterLoadImage);
+    move_and_load(menu, ebx, edi, entry_esp, 0xb0, own_address(&FE_BonusCharacterLoadImage_entry));
 }
 
 void XB_CDECL BonusCharactersMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t esi,
@@ -875,7 +872,7 @@ void XB_CDECL BonusCharactersMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, 
     int32_t& reached = title_global<int32_t>(0x008dced0);
     if (reached < 1) reached = 1;
     c.run_eax(own_address(&FE_BonusCharacterLabel_entry), address_of(menu));  // FE_BonusCharacterLabel
-    c.run_eax(kCharacterLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusCharacterLoadImage_entry), address_of(menu));
     restore_selection_tail(menu, ebx, edi, esi, entry_esp);
 }
 
@@ -887,11 +884,11 @@ BONUS_HANDLER_ENTRY(BonusMaterialsMenu_OnRight)
 BONUS_HANDLER_ENTRY(BonusMaterialsMenu_OnLeft)
 
 void XB_CDECL BonusMaterialsMenu_OnDown(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
-    move_and_load(menu, ebx, edi, entry_esp, 0xb4, kMainLoadImage);
+    move_and_load(menu, ebx, edi, entry_esp, 0xb4, own_address(&FE_BonusMainLoadImage_entry));
 }
 
 void XB_CDECL BonusMaterialsMenu_OnUp(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
-    move_and_load(menu, ebx, edi, entry_esp, 0xb0, kMainLoadImage);
+    move_and_load(menu, ebx, edi, entry_esp, 0xb0, own_address(&FE_BonusMainLoadImage_entry));
 }
 
 void XB_CDECL BonusMaterialsMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
@@ -901,7 +898,7 @@ void XB_CDECL BonusMaterialsMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t e
     field<int32_t>(menu, 0x7c) = next;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     c.method(menu, 0x10);
-    c.run_eax(kMainLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
     int32_t best = title_global<int32_t>(0x008dcf0c);
     const int32_t item = field<int32_t>(menu, 0x7c);
     if (int32_t(uint32_t(best) - 1) < item) {
@@ -918,7 +915,7 @@ void XB_CDECL BonusMaterialsMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t ed
     field<int32_t>(menu, 0x7c) = item - 1;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     c.method(menu, 0x10);
-    c.run_eax(kMainLoadImage, address_of(menu));
+    c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
 }
 
 BONUS_GAP_ENTRY(BonusMaterialsMenu_HandleSelect_entry, BonusMaterialsMenu_HandleSelect, "pushl %eax\n", "24", "ret")

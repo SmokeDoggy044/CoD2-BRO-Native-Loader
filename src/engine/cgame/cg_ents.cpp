@@ -1108,8 +1108,7 @@ PLATFORM_ASM_ENTRY(cg_add_lean,
                    "pushl 24(%esp)\n"
                    "pushl 24(%esp)\n"
                    "pushl 24(%esp)\n"
-                   "movl $0x002d9cc0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(AddLeanToPosition_entry)
                    "addl $12, %esp\n"
                    "popl %esi\n"
                    "ret")

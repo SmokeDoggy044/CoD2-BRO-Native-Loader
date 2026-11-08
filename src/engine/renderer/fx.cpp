@@ -8,6 +8,7 @@
 #include "fx_load.h"
 #include "lanes.h"
 #include "ngl.h"
+#include "ngl_debug.h"
 #include "param_set.h"
 #include "qcommon.h"
 #include "qcommon_fs.h"
@@ -345,8 +346,7 @@ PLATFORM_ASM_ENTRY(PtrVector_Resize_call,
                    "pushl %esi\n"
                    "movl 12(%esp), %esi\n"
                    "movl 16(%esp), %ebx\n"
-                   "movl $0x00013970, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(PtrVector_Resize_entry)
                    "popl %esi\n"
                    "popl %ebx\n"
                    "ret")
@@ -356,8 +356,7 @@ PLATFORM_ASM_ENTRY(PtrVector_PushBack_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x000138c0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(PtrVector_PushBack_entry)
                    "popl %esi\n"
                    "ret")
 
@@ -565,26 +564,8 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DObjEnsureSkeleton_call(uint8_t* obj
 PLATFORM_ASM_ENTRY(CG_DObjEnsureSkeleton_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
-                   "movl $0x0027f860, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(CG_DObjEnsureSkeleton_entry)
                    "popl %esi\n"
-                   "ret")
-
-// DebugDraw_AddLine (0x002b2f20): end point in EAX, the rest cdecl.
-extern "C" PLATFORM_HIDDEN void XB_CDECL DebugDraw_AddLine_call(const float* end, const float* start,
-                                                               const float* color, uint32_t a, uint32_t b,
-                                                               uint32_t c, uint32_t d);
-PLATFORM_ASM_ENTRY(DebugDraw_AddLine_call,
-                   "movl 4(%esp), %eax\n"
-                   "pushl 28(%esp)\n"
-                   "pushl 28(%esp)\n"
-                   "pushl 28(%esp)\n"
-                   "pushl 28(%esp)\n"
-                   "pushl 28(%esp)\n"
-                   "pushl 28(%esp)\n"
-                   "movl $0x002b2f20, %ecx\n"
-                   "call *%ecx\n"
-                   "addl $24, %esp\n"
                    "ret")
 
 }  // namespace
@@ -654,7 +635,7 @@ uint8_t XB_CDECL FX_GetBoltMatrix(float* out, uint32_t handle, int32_t bone) {
         const float length = static_cast<float>(cvar_integer());
         const float end[3] = {out[3 + a * 3] * length + out[0], out[4 + a * 3] * length + out[1],
                               out[5 + a * 3] * length + out[2]};
-        DebugDraw_AddLine_call(end, out, reinterpret_cast<const float*>(uintptr_t{kColors[a]}), 1, 0, 0, 0);
+        DebugDraw_AddLine(end, out, reinterpret_cast<const float*>(uintptr_t{kColors[a]}), 1, 0, 0, 0);
     }
     return 1;
 }
@@ -4485,8 +4466,7 @@ PLATFORM_ASM_ENTRY(Stream_FindEffect_call,
                    "pushl $0\n"
                    "pushl 24(%esp)\n"
                    "pushl 24(%esp)\n"
-                   "movl $0x00290150, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Stream_FindEffect_entry)
                    "popl %ebx\n"
                    "ret")
 
@@ -4700,8 +4680,7 @@ PLATFORM_ASM_ENTRY(Scr_Notify_call,
                    "pushl %esi\n"
                    "movl 8(%esp), %esi\n"
                    "pushl 12(%esp)\n"
-                   "movl $0x002b75c0, %eax\n"
-                   "call *%eax\n"
+                   PLATFORM_ASM_CALL(Scr_Notify_entry)
                    "popl %esi\n"
                    "ret")
 
