@@ -7,6 +7,7 @@
 #include "sv.h"
 #include "title_data.h"
 #include "script_string.h"
+#include "scr_field.h"
 
 namespace game {
 
@@ -1034,7 +1035,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrPathNode_CopyType_c(uint32_t ent
     TitleRegs regs{};
     regs.ecx = ecx;
     const uint32_t args[1] = {out};
-    title_call_at_regs(entry_esp - 8, 0x001811e0, &regs, 1, args);
+    title_call_at_regs(entry_esp - 8, own_address(ScrPathNodeField_type_Copy), &regs, 1, args);
     return out;
 }
 

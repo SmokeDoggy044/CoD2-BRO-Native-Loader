@@ -278,7 +278,7 @@ void XB_CDECL BroScr_StopRespawning(uint32_t spawner, uint32_t owner) {
     bool defined;
     if (valid(owner)) {
         // The ECX that ScrField_h5f01d656_IsDefined leaves, low byte = its result (the bool slot's word).
-        const uint32_t ecx = bro_squad_call2_ecx(0x0012b730, address_of(&defined), owner);
+        const uint32_t ecx = bro_squad_call2_ecx(own_address(ScrField_h5f01d656_IsDefined), address_of(&defined), owner);
         if (defined) {
             if (*reinterpret_cast<uint8_t*>(ScrField_h18b0887b(spawner, (ecx & 0xffffff00u) | 1))) return;
             *reinterpret_cast<uint8_t*>(ScrField_h18b0887b(spawner, 0)) = 1;
@@ -304,7 +304,7 @@ void XB_CDECL BroScr_StopRespawning(uint32_t spawner, uint32_t owner) {
             return;
         }
     }
-    const uint32_t ecx = bro_squad_call2_ecx(0x0012b730, address_of(&defined), spawner);
+    const uint32_t ecx = bro_squad_call2_ecx(own_address(ScrField_h5f01d656_IsDefined), address_of(&defined), spawner);
     if (!defined) return;
     if (*reinterpret_cast<uint8_t*>(ScrField_h18b0887b(spawner, (ecx & 0xffffff00u) | 1))) return;
     *reinterpret_cast<uint8_t*>(ScrField_h18b0887b(spawner, 0)) = 1;

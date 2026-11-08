@@ -10,6 +10,15 @@
 #include "snd.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "fe_bonus.h"
+#include "fe_options.h"
+#include "fe_profile.h"
+#include "fe_setup.h"
+#include "movie.h"
+#include "qcommon_fs.h"
+#include "tr_main.h"
+#include "ui_menu.h"
+#include "ui_panel.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -619,7 +628,7 @@ uint8_t* XB_REGS1 XB_STDCALL Panel_FindPicture(uint8_t* list, const char* name) 
         if (same_text(rep ? text_at(rep + 6) : nullptr, name)) return pictures[i];
     }
     return reinterpret_cast<uint8_t*>(
-        uintptr_t{title_call_regs(0x00320170, 0, 0, 0x0095f8d0)});  // Panel_GetDefaultPicture (EDI)
+        uintptr_t{title_call_regs(own_address(&Panel_GetDefaultPicture_entry), 0, 0, 0x0095f8d0)});  // Panel_GetDefaultPicture (EDI)
 }
 
 void XB_REGS3 XB_STDCALL Panel_SetPictureVisibleByName(const char* name, uint32_t, uint8_t* list, uint32_t visible) {
@@ -1506,7 +1515,7 @@ void XB_THISCALL UIPicture_AddQuad(uint8_t* picture, const float* points, const 
     ui_ptrvector_push(picture + 0x20, &quad);
     if (texture && *texture) {
         // 0x00322b30 (name in ESI): the texture, the language-prefixed one first.
-        const uint32_t found = title_call_regs(0x00322b30, 0, address_of(texture), 0);
+        const uint32_t found = title_call_regs(own_address(&UI_FindLocalizedTexture_entry), 0, address_of(texture), 0);
         method<void XB_THISCALL(uint8_t*, uint32_t)>(picture, 0x68)(picture, found);
     }
     set_centre_from_bounds(picture);
@@ -1603,7 +1612,7 @@ void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, 
     const uint16_t* triangle = indices;
     for (int32_t i = 0; i < triangles; ++i, triangle += 3) {
         // Two triangles sharing an edge (0x003101d0: EDI = this triangle, the next one's index) make one quad.
-        if (i + 1 < triangles && ui_call_edi3(0x003101d0, uint32_t(i), address_of(indices), uint32_t(i + 1),
+        if (i + 1 < triangles && ui_call_edi3(own_address(&Panel_TrianglePairToQuad_entry), uint32_t(i), address_of(indices), uint32_t(i + 1),
                                               address_of(corners)) == 2) {
             ++i;
             triangle += 3;
@@ -2210,7 +2219,7 @@ const uint8_t* button_font() { return title_global<const uint8_t*>(0x0095f8dc); 
 // 0x00315620 (text in EDI, out in ESI): the length of the button token ("~select", ...) at `text` and its glyph
 // string in *out; 0 (out not written) without a '~'.
 int32_t translate_button_token(const char* text, const char** out) {
-    return int32_t(title_call_regs(0x00315620, 0, address_of(out), address_of(text)));
+    return int32_t(title_call_regs(own_address(&UI_TranslateButtonToken_entry), 0, address_of(out), address_of(text)));
 }
 
 // 0x0030f950 (kind in EAX, text in EDX): the width of the text in the kind's font at (scale, scale), x87; the
@@ -2224,7 +2233,7 @@ long double text_width(int32_t kind, const char* text, float scale) {
 uint32_t text_fade_colour(uint8_t* text, uint32_t colour) {
     uint32_t out = 0;
     const uint32_t result =
-        ui_call_eax_esi(0x00315cd0, field<uint32_t>(text, 0x14), address_of(&out), colour);
+        ui_call_eax_esi(own_address(&UIText_FadeColour_entry), field<uint32_t>(text, 0x14), address_of(&out), colour);
     return *reinterpret_cast<uint32_t*>(uintptr_t{result});
 }
 
@@ -2816,7 +2825,7 @@ void set_vehicle_or_weapon_text(Frame& f, uint8_t* menu, uint32_t items, uint32_
     f.call(0x68, rets[2], kSprintf, text, info_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
     set_wrapped_at(f, 0x68, rets[3], field<uint8_t*>(menu, 0x44), text);
     int32_t* const counts = f.local<int32_t>(0x48);
-    f.call(0x68, rets[4], 0x00312e30, 0x0095f924, counts);  // Profile_SumMissionStats
+    f.call(0x68, rets[4], own_address(&Profile_SumMissionStats), 0x0095f924, counts);  // Profile_SumMissionStats
     index = field<int16_t>(menu, 0x22);
     const int32_t count = uint32_t(index) < categories ? counts[first_count + uint32_t(index)] : 0;
     f.call(0x68, rets[5], kSprintf, text, 0x0082bb5c, field<int32_t>(menu, items + uint32_t(index) * 4), count);
@@ -2870,7 +2879,7 @@ uint32_t XB_CDECL FE_BonusCharacterLoadImage(const FrameIn* in, uint32_t entry_e
     f.regs.esi = in->eax;
     constexpr ImageFields kImage{0x74, 0x78, 0x7c};
     free_image_inline(f, menu, kImage, {0x0031d5c2, 0x0031d5cf, 0x0031d5e0, 0x0031d5f0});
-    f.call(0x44, 0x0031d5ff, 0x0030dbc0);  // FE_BonusCharacterSetText
+    f.call(0x44, 0x0031d5ff, own_address(&FE_BonusCharacterSetText_entry));  // FE_BonusCharacterSetText
     const uint32_t name = f.entry - 0x40;
     f.call(0x44, 0x0031d614, kSprintf, name, 0x0082b7d0, field<int16_t>(menu, 0x22) + 1);  // bonus\char\char%i.dds
     load_image_file(f, menu, kImage, name, {0x50, 0x44, 2, 0x4c, 0x5c}, 0x0082b7c8, 0x80,  // "texchar"
@@ -2904,7 +2913,7 @@ uint32_t XB_CDECL FE_BonusMainLoadImage(const FrameIn* in, uint32_t entry_esp) {
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
     f.word(0x44) = in->esi;  // push esi
     f.regs.esi = in->eax;
-    if (field<uint32_t>(menu, 0x8c)) f.call(0x44, 0x0031d9e5, 0x0030dcc0);  // FE_BonusMainFreeImage
+    if (field<uint32_t>(menu, 0x8c)) f.call(0x44, 0x0031d9e5, own_address(&FE_BonusMainFreeImage_entry));  // FE_BonusMainFreeImage
     const uint32_t name = f.entry - 0x40;
     if (field<int16_t>(menu, 0x22) == 1) {
         // the movie row: its item's picture (bonus\main\mov%i.dds), the language's own for the first ones
@@ -3015,12 +3024,12 @@ uint32_t XB_CDECL FE_BonusCELoadImage(const FrameIn* in, uint32_t entry_esp) {
     f.word(0x48) = in->esi;  // push esi
     f.word(0x4c) = in->edi;  // push edi
     f.regs.esi = in->eax;
-    if (field<uint32_t>(menu, 0x48)) f.call(0x4c, 0x0031a4a4, 0x0030c010);  // FE_BonusCEFreeImage
-    f.call(0x4c, 0x0031a4a9, 0x0030bf90);                                     // FE_BonusCESetText
+    if (field<uint32_t>(menu, 0x48)) f.call(0x4c, 0x0031a4a4, own_address(&FE_BonusCEFreeImage_entry));  // FE_BonusCEFreeImage
+    f.call(0x4c, 0x0031a4a9, own_address(&FE_BonusCESetText_entry));                                     // FE_BonusCESetText
     f.regs.edx = in->eax;
-    const int32_t group = int32_t(f.call(0x4c, 0x0031a4b0, 0x0030be60));  // the item's group (EDX = menu)
+    const int32_t group = int32_t(f.call(0x4c, 0x0031a4b0, own_address(&FE_BonusCEItemGroup_entry)));  // the item's group (EDX = menu)
     f.regs.ebx = uint32_t(group);
-    const int32_t item = int32_t(f.call(0x4c, 0x0031a4b7, 0x0030bd30));  // the item within it (0: one picture)
+    const int32_t item = int32_t(f.call(0x4c, 0x0031a4b7, own_address(&FE_BonusCEItemIndex)));  // the item within it (0: one picture)
     // the folder / file prefixes and the folder number of the category (+0x22)
     uint32_t folder, prefix;  // "%s%i\%s%i"
     int32_t number = 1;
@@ -3113,7 +3122,7 @@ uint32_t XB_CDECL FE_BonusCharacterLabel(const FrameIn* in, uint32_t entry_esp) 
     for (uint32_t i = 0; i < 7; ++i)
         f.method(0x54, 0x0031d8d0 + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
     set_locked_texts(f, menu, 7, 0x54, 0x0031d93d, 0x0031d951);
-    f.call(0x54, 0x0031d95e, 0x0031d6b0);  // the character texts (EDI = menu)
+    f.call(0x54, 0x0031d95e, own_address(&BonusCharactersMenu_UpdateNewFlags_entry));  // the character texts (EDI = menu)
     field<uint32_t>(menu, 0x3c) = title_global<uint32_t>(0x0083eb20);  // 1.0
     menu[0x40] = 0;
     return 0;
@@ -3129,7 +3138,7 @@ uint32_t XB_CDECL FE_BonusVehicleCategoryLabel(const FrameIn* in, uint32_t entry
     int32_t* const best = f.local<int32_t>(0x48);
     f.call(0x94, 0x0031c5e6, kSumMissionStats, 0x0095f924, counts);
     f.regs.eax = address_of(best);
-    f.call(0x94, 0x0031c5ef, 0x00312d60);  // the stored bests (EAX = out)
+    f.call(0x94, 0x0031c5ef, own_address(&Profile_CopyBonusBests));  // the stored bests (EAX = out)
     for (uint32_t i = 0; i < 6; ++i) {
         f.regs.edi = i * 4;
         f.method(0x94, 0x0031c5fe, menu_item(menu, i), 0x20, 0);
@@ -3158,7 +3167,7 @@ uint32_t XB_CDECL FE_BonusVehicleCategoryLabel(const FrameIn* in, uint32_t entry
     for (uint32_t i = 0; i < 6; ++i)
         f.method(0x94, 0x0031c70e + i * 0x10, menu_item(menu, kTexts[i].item), 0x30, kTexts[i].text);
     set_locked_texts(f, menu, 6, 0x94, 0x0031c76b, 0x0031c77f);
-    f.call(0x94, 0x0031c78d, 0x0031c0e0, menu);  // the category texts (stdcall menu)
+    f.call(0x94, 0x0031c78d, own_address(&BonusVehiclesMenu_UpdateNewFlags), menu);  // the category texts (stdcall menu)
     field<uint32_t>(menu, 0x48) = title_global<uint32_t>(0x0083eb20);  // 1.0
     menu[0x4c] = 0;
     return 0;
@@ -3176,7 +3185,7 @@ uint32_t XB_CDECL FE_BonusWeaponCategoryLabel(const FrameIn* in, uint32_t entry_
     int32_t* const best = f.local<int32_t>(0x48);
     f.call(0x98, 0x0031d269, kSumMissionStats, 0x0095f924, unlocked);
     f.regs.eax = address_of(best);
-    f.call(0x98, 0x0031d272, 0x00312d60);  // the stored bests (EAX = out)
+    f.call(0x98, 0x0031d272, own_address(&Profile_CopyBonusBests));  // the stored bests (EAX = out)
     for (uint32_t i = 0; i < 10; ++i) {
         f.regs.esi = i * 4;
         f.method(0x98, 0x0031d281, menu_item(menu, i), 0x20, 0);
@@ -3196,7 +3205,7 @@ uint32_t XB_CDECL FE_BonusWeaponCategoryLabel(const FrameIn* in, uint32_t entry_
     for (uint32_t i = 0; i < 10; ++i)  // SMG, RIFLE, HMG, PISTOL, GRENADE, ASSAULT, SNIPER, CREW_SERVED, ...
         f.method(0x98, 0x0031d439 + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
     set_locked_texts(f, menu, 10, 0x98, 0x0031d4db, 0x0031d4ef);
-    f.call(0x98, 0x0031d4fc, 0x0031ceb0);  // the category texts (EDI = menu)
+    f.call(0x98, 0x0031d4fc, own_address(&BonusWeaponsMenu_UpdateNewFlags_entry));  // the category texts (EDI = menu)
     field<uint32_t>(menu, 0x48) = title_global<uint32_t>(0x0083eb20);  // 1.0
     menu[0x4c] = 0;
     return 0;
@@ -3240,7 +3249,7 @@ uint32_t XB_CDECL FE_BonusMenuLabel(const FrameIn* in, uint32_t entry_esp) {
                                            0x0082bbb8, 0x0082bba8, 0x0082bb9c};  // CREDITS .. ARTS
     for (uint32_t i = 0; i < 6; ++i) f.method(0x10, 0x0031deea + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
     set_locked_texts(f, menu, 6, 0xc, 0x0031df4b, 0x0031df5f);
-    f.call(0xc, 0x0031df6c, 0x0031db10);  // EDI = menu
+    f.call(0xc, 0x0031df6c, own_address(&BonusMaterialsMenu_UpdateNewFlags_entry));  // EDI = menu
     const uint16_t saved = field<uint16_t>(menu, 0x80);
     menu[0x3c] = 0;
     field<uint32_t>(menu, 0x40) = title_global<uint32_t>(0x0083eb20);  // 1.0
@@ -3256,9 +3265,9 @@ uint32_t XB_CDECL SpecialMaterialsMenu_PlayMovie(const FrameIn* in, uint32_t ent
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->edi});
     f.word(0x4) = in->esi;  // push esi
     f.regs.esi = title_global<uint32_t>(0x0095f4cc);
-    f.call(0x4, 0x0033306c, 0x002c8bc0);  // S_StopSoundHandle (ESI = the handle)
-    f.call(0x4, 0x00333071, 0x000c3700);  // SndSys_Update
-    f.call(0x4, 0x00333078, 0x00316320, 1);  // Movie_Stop
+    f.call(0x4, 0x0033306c, own_address(&S_StopSoundHandle_entry));  // S_StopSoundHandle (ESI = the handle)
+    f.call(0x4, 0x00333071, own_address(&SndSys_Update));  // SndSys_Update
+    f.call(0x4, 0x00333078, own_address(&Movie_Stop), 1);  // Movie_Stop
     f.call(0x4, 0x00333080, kNglResetDeviceBindings);
     if (const uint32_t texture = field<uint32_t>(menu, 0x64)) f.call(0x4, 0x0033308d, kNglReleaseTexture, texture);
     const int32_t file = field<int32_t>(menu, 0x5c);
@@ -3270,11 +3279,11 @@ uint32_t XB_CDECL SpecialMaterialsMenu_PlayMovie(const FrameIn* in, uint32_t ent
     field<uint32_t>(menu, 0x60) = 0;
     menu[0x3c] = 1;
     title_global<uint8_t>(0x008dce8d) = 1;
-    f.call(0x4, 0x003330d1, 0x00332230, 0x0082dfeb);  // CL_PlayMovie (ESI = name; "" pushed)
+    f.call(0x4, 0x003330d1, own_address(&CL_PlayMovie_entry), 0x0082dfeb);  // CL_PlayMovie (ESI = name; "" pushed)
     field<int32_t>(menu, 0x44) = 5;
     menu[0x3c] = 0;
     f.regs.eax = in->edi;
-    return f.call(0x4, 0x003330e6, 0x0031a900);  // FE_BonusCEMainLoadImage
+    return f.call(0x4, 0x003330e6, own_address(&FE_BonusCEMainLoadImage_entry));  // FE_BonusCEMainLoadImage
 }
 
 FE_FRAME_ENTRY(SpecialMaterialsMenu_HandleSelect, "ret")
@@ -3287,7 +3296,7 @@ uint32_t XB_CDECL SpecialMaterialsMenu_HandleSelect(const FrameIn* in, uint32_t 
     if (menu[0x3c]) return in->eax;  // a movie is playing
     const uint32_t index = in->eax;
     field<int32_t>(menu, 0x40) = field<int16_t>(menu, 0x22);
-    auto play = [&](uint32_t ret, uint32_t name) { return f.call(0x4, ret, 0x00333060, name); };  // SpecialMaterialsMenu_PlayMovie
+    auto play = [&](uint32_t ret, uint32_t name) { return f.call(0x4, ret, own_address(&SpecialMaterialsMenu_PlayMovie_entry), name); };  // SpecialMaterialsMenu_PlayMovie
     switch (index) {
         case 0:
             return play(0x00333117, 0x0082a998);  // "Bringing"
@@ -3320,18 +3329,18 @@ uint32_t XB_CDECL FE_ProfileSelect(const FrameIn* in, uint32_t entry_esp) {
     f.word(0x3ac) = in->esi;  // push esi
     f.regs.esi = in->eax;
     menu[0x34] = 0;
-    const uint32_t room = f.call(0x3ac, 0x0033872a, 0x00335460);  // MemDlg_CheckFreeSpace2
+    const uint32_t room = f.call(0x3ac, 0x0033872a, own_address(&MemDlg_CheckFreeSpace2));  // MemDlg_CheckFreeSpace2
     if (!uint8_t(room)) return room;
     field<int32_t>(title_global<uint8_t*>(0x0095f480), 0x11ec) = slot;
     f.word(0x3b0) = in->edi;  // push edi
     if (menu[0x6c + slot * 12]) {  // an empty slot: confirm the overwrite (NO selected)
         uint8_t* const dialogs = title_global<uint8_t*>(0x0095f900);
         f.regs.eax = 0x0082ae6c;  // MEM_XBOX_OVERWRITE_CONFIRM
-        f.call(0x3b0, 0x003387b0, 0x003319e0, dialogs, 0, 0, 0x0082dfeb, 1);  // UI_ShowDialog
+        f.call(0x3b0, 0x003387b0, own_address(&UI_ShowDialog_entry), dialogs, 0, 0, 0x0082dfeb, 1);  // UI_ShowDialog
         f.regs.eax = title_global<uint32_t>(0x0095f900);
-        f.call(0x3b0, 0x003387c4, 0x00012320, 0x0082c8b8, 0x00334c70);  // UI_DialogAddButton: MEM_DIALOG_YES
+        f.call(0x3b0, 0x003387c4, own_address(&UI_DialogAddButton), 0x0082c8b8, 0x00334c70);  // UI_DialogAddButton: MEM_DIALOG_YES
         f.regs.eax = title_global<uint32_t>(0x0095f900);
-        f.call(0x3b0, 0x003387d8, 0x00012320, 0x0082c8a8, 0x0030d2f0);  // MEM_DIALOG_NO
+        f.call(0x3b0, 0x003387d8, own_address(&UI_DialogAddButton), 0x0082c8a8, 0x0030d2f0);  // MEM_DIALOG_NO
         uint8_t* mgr = title_global<uint8_t*>(0x0095f900);
         uint8_t* dialog = field<uint8_t**>(mgr, 4)[field<uint32_t>(mgr, 0xc) ? 1 : 0];
         field<int16_t>(dialog, 0x22) = 1;
@@ -3343,7 +3352,7 @@ uint32_t XB_CDECL FE_ProfileSelect(const FrameIn* in, uint32_t entry_esp) {
         f.regs.edx = field<uint32_t>(mgr, 4);
         f.regs.esi = field<uint32_t>(mgr, 0xc);
         f.regs.edi = address_of(dialog);
-        return f.call(0x3b0, 0x00338813, 0x0031f4b0);  // Dialog_LayoutButtons
+        return f.call(0x3b0, 0x00338813, own_address(&Dialog_LayoutButtons_entry));  // Dialog_LayoutButtons
     }
     menu[0x54] = 0;
     if (field<int32_t>(menu, 0x4c) == 3) {  // the default profile's settings applied
@@ -3351,14 +3360,14 @@ uint32_t XB_CDECL FE_ProfileSelect(const FrameIn* in, uint32_t entry_esp) {
         profile[0] = 0;
         field<int32_t>(profile, 0xe8) = -1;
         f.regs.esi = address_of(profile);
-        f.call(0x3b0, 0x0033876c, 0x0032cf50);  // Profile_SetDefaults (ESI)
+        f.call(0x3b0, 0x0033876c, own_address(&Profile_SetDefaults_entry));  // Profile_SetDefaults (ESI)
         f.regs.eax = 0x008dce30;
         f.regs.ecx = address_of(profile);
-        f.regs.edi = f.call(0x3b0, 0x0033877a, 0x00311f90);  // profile copy (EAX = 0x008dce30, ECX = source)
-        f.call(0x3b0, 0x00338781, 0x00332e20);               // CL_ApplyProfileSettings (EDI)
+        f.regs.edi = f.call(0x3b0, 0x0033877a, own_address(&Profile_CopySettings));  // profile copy (EAX = 0x008dce30, ECX = source)
+        f.call(0x3b0, 0x00338781, own_address(&CL_ApplyProfileSettings_entry));               // CL_ApplyProfileSettings (EDI)
     }
     f.regs.esi = address_of(menu);
-    return f.call(0x3b0, 0x00338788, 0x00334b70);  // ProfileMenu_ShowSaveWarning (ESI = menu)
+    return f.call(0x3b0, 0x00338788, own_address(&ProfileMenu_ShowSaveWarning_entry));  // ProfileMenu_ShowSaveWarning (ESI = menu)
 }
 
 FE_FRAME_ENTRY(FE_LoadTheatreBackground, "ret")
@@ -3406,19 +3415,19 @@ uint32_t XB_CDECL FE_LoadTheatreBackground(const FrameIn* in, uint32_t entry_esp
     const uint32_t texture = f.call(0x94, 0x0032003a, kNglLoadTexture, hash, 0, buffer, size);
     f.regs.esi = texture;
     const uint32_t quad = f.entry - 0x64;
-    f.call(0xa4, 0x00320046, 0x0005ddb0, quad);                                // nglInitQuad
-    f.call(0xa8, 0x0032005e, 0x0005ded0, quad, 0, 0, 0x44200000, 0x43f00000);  // nglSetQuadRect 640 x 480
+    f.call(0xa4, 0x00320046, own_address(&nglInitQuad), quad);                                // nglInitQuad
+    f.call(0xa8, 0x0032005e, own_address(&nglSetQuadRect), quad, 0, 0, 0x44200000, 0x43f00000);  // nglSetQuadRect 640 x 480
     f.call(0xbc, 0x00320069, kNglSetQuadTexture, quad, texture);
-    f.call(0xc4, 0x00320078, 0x0005df20, quad, 0x43960000);  // nglSetQuadZ 300
+    f.call(0xc4, 0x00320078, own_address(&nglSetQuadZ), quad, 0x43960000);  // nglSetQuadZ 300
     // two frames with the picture
     for (uint32_t frames = 2; frames; --frames) {
         f.regs.edi = frames;
         f.call(0x94, 0x00320085, kNglResetDeviceBindings);
-        f.call(0x94, 0x0032008a, 0x00064690);        // nglBeginFrame
-        f.call(0x94, 0x0032008f, 0x0005e430, 0xf3);  // nglSetClearFlags
-        f.call(0x98, 0x0032009b, 0x0005e490, 0);     // nglSetSceneDepthEnable
-        f.call(0x9c, 0x003200a5, 0x0005e270, quad);  // nglListAddQuad
-        f.call(0x94, 0x003200ad, 0x00064ec0);        // nglEndFrame
+        f.call(0x94, 0x0032008a, own_address(&nglBeginFrame));        // nglBeginFrame
+        f.call(0x94, 0x0032008f, own_address(&nglSetClearFlags), 0xf3);  // nglSetClearFlags
+        f.call(0x98, 0x0032009b, own_address(&nglSetSceneDepthEnable), 0);     // nglSetSceneDepthEnable
+        f.call(0x9c, 0x003200a5, own_address(&nglListAddQuad), quad);  // nglListAddQuad
+        f.call(0x94, 0x003200ad, own_address(&nglEndFrame));        // nglEndFrame
     }
     f.regs.edi = 0;
     f.call(0x94, 0x003200b5, kNglResetDeviceBindings);
@@ -3521,9 +3530,9 @@ uint32_t XB_CDECL FE_ControlsUpdateText(const FrameIn* in, uint32_t entry_esp) {
     if (style <= 3) f.method(0x10, kStyles[style][1], field<uint8_t*>(menu, 0x44), 0x78, kStyles[style][0]);
     f.word(0x14) = in->ebp;  // push ebp
     f.regs.esi = in->eax;
-    f.call(0x14, 0x00335db2, 0x0030e080);  // ControllerConfigMenu_UpdateLabelColors (ESI = menu)
+    f.call(0x14, 0x00335db2, own_address(&ControllerConfigMenu_UpdateLabelColors_entry));  // ControllerConfigMenu_UpdateLabelColors (ESI = menu)
     f.regs.esi = field<uint32_t>(menu, 0xc0);
-    f.call(0x14, 0x00335dbd, 0x00331030);  // CL_ExecControllerConfig (ESI = style)
+    f.call(0x14, 0x00335dbd, own_address(&CL_ExecControllerConfig_entry));  // CL_ExecControllerConfig (ESI = style)
     // each command's key name: {item, key}
     static constexpr uint32_t kKeys[16][2] = {{0x68, 0x0d}, {0x6c, 0x1b}, {0x70, 0xd4}, {0x74, 0xd5}, {0x78, 0xd3},
                                               {0x7c, 0xd6}, {0x80, 0xd7}, {0x84, 0xd9}, {0x88, 0xdb}, {0x8c, 0xd8},
@@ -3538,7 +3547,7 @@ uint32_t XB_CDECL FE_ControlsUpdateText(const FrameIn* in, uint32_t entry_esp) {
     for (uint32_t i = 0; i < 16; ++i) {
         uint8_t* const item = field<uint8_t*>(menu, kKeys[i][0]);
         f.regs.edi = kKeys[i][1];
-        const uint32_t name = f.call(0x14, kKeyRets[i][0], 0x0030e0f0);  // FE_CommandDisplayName (EDI = key)
+        const uint32_t name = f.call(0x14, kKeyRets[i][0], own_address(&FE_CommandDisplayName_entry));  // FE_CommandDisplayName (EDI = key)
         f.method(0x14, kKeyRets[i][1], item, 0x6c, name);
     }
     // the fixed ones: PAUSE, OBJECTIVES, MOVE, LOOK
@@ -3610,16 +3619,16 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
                 f.call(0x28, 0x003368b7, kSprintf, name, 0x0082cb50, user + 0x10);  // "%S"
                 f.word(0x28) = user + 0x10;
                 f.regs.esi = 0x0082cb3c;  // FEMENU_SIGNED_IN_AS
-                const uint32_t localized = f.call(0x24, 0x003368c9, 0x0029d5f0, name);  // Loc_GetString
+                const uint32_t localized = f.call(0x24, 0x003368c9, own_address(&Loc_GetString_entry), name);  // Loc_GetString
                 f.regs.ecx = f.entry - 0x14;
-                const uint32_t string = f.call(0x2c, 0x003368d3, 0x0011eb50, localized);  // ScriptString_FromCString
-                f.call(0x2c, 0x003368de, 0x0011eec0, f.entry - 0x18, string);            // ScriptString_ConcatCString
+                const uint32_t string = f.call(0x2c, 0x003368d3, own_address(&ScriptString_FromCString), localized);  // ScriptString_FromCString
+                f.call(0x2c, 0x003368de, own_address(&ScriptString_ConcatCString), f.entry - 0x18, string);            // ScriptString_ConcatCString
                 f.regs.ecx = f.entry - 0x14;
-                f.call(0x24, 0x003368ea, 0x0011d640);  // ScriptString_Release
+                f.call(0x24, 0x003368ea, own_address(&ScriptString_Release_entry));  // ScriptString_Release
                 const uint32_t joined = f.word(0x18);
                 f.method(0x24, 0x00336905, title_global<uint8_t*>(0x0095f478), 0x78, joined ? joined + 6 : 0);
                 f.regs.ecx = f.entry - 0x18;
-                f.call(0x24, 0x0033690e, 0x0011d640);  // ScriptString_Release
+                f.call(0x24, 0x0033690e, own_address(&ScriptString_Release_entry));  // ScriptString_Release
             }
         }
     }
@@ -3632,7 +3641,7 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
             const int32_t language = title_global<int32_t>(0x0095f5dc);
             title_global<uint32_t>(0x0095f460) = title_global<uint32_t>(0x0083ec28);  // 5000.0
             f.regs.esi = language == 2 ? 0x0082cb30 : language == 3 ? 0x0082cb24 : language == 4 ? 0x0082cb18 : 0x0082cb10;
-            f.call(0x24, 0x003369ac, 0x00332230, 0x0082dfeb);  // CL_PlayMovie (ESI = name)
+            f.call(0x24, 0x003369ac, own_address(&CL_PlayMovie_entry), 0x0082dfeb);  // CL_PlayMovie (ESI = name)
             title_global<float>(0x0095f460) = 0.0f;
             static constexpr uint32_t kMovies[3][2] = {
                 {0x0082cb08, 0x003369d9}, {0x0082cafc, 0x003369fb}, {0x0082cbd8, 0x00336a1d}};  // ATVI, Treyarch
@@ -3640,10 +3649,10 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
                 if (title_global<uint8_t>(0x0095f91c)) break;
                 f.regs.esi = movie[0];
                 title_global<uint8_t>(0x0095f46d) = 1;
-                f.call(0x24, movie[1], 0x00332230, 0x0082dfeb);
+                f.call(0x24, movie[1], own_address(&CL_PlayMovie_entry), 0x0082dfeb);
             }
             f.regs.eax = title_global<uint32_t>(0x0095f4cc);
-            result = f.call(0x24, 0x00336a2f, 0x002ce520, 0x0082cbe0);  // Music_Play (EAX = the handle)
+            result = f.call(0x24, 0x00336a2f, own_address(&Music_Play), 0x0082cbe0);  // Music_Play (EAX = the handle)
         }
     } else {
         const int32_t selected = field<int32_t>(menu, 0xc);
@@ -3654,10 +3663,10 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
         if (!menu[0xe8]) {
             f.word(0x28) = in->ebp;  // push ebp
             f.regs.edx = 0x0082caec;
-            const uint32_t top = f.call(0x28, 0x00336a7a, 0x0023ec30);  // RE_RegisterShader "main_back_top"
+            const uint32_t top = f.call(0x28, 0x00336a7a, own_address(&RE_RegisterShader));  // RE_RegisterShader "main_back_top"
             f.regs.esi = top;
             f.regs.edx = 0x0082cad8;
-            const uint32_t bottom = f.call(0x28, 0x00336a86, 0x0023ec30);  // "main_back_bottom"
+            const uint32_t bottom = f.call(0x28, 0x00336a86, own_address(&RE_RegisterShader));  // "main_back_bottom"
             const uint32_t fallback = title_global<uint32_t>(0x009026f8);  // ngl_defaultTexture
             result = fallback;
             if (top != fallback && bottom != fallback) {
@@ -3707,7 +3716,7 @@ uint32_t XB_CDECL ChapterMenu_Draw(const FrameIn* in, uint32_t entry_esp) {
     if (!title_global<uint8_t>(0x0095f91e)) {
         if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) {
             f.regs.esi = address_of(panel);
-            f.call(0x24, 0x0031b02d, 0x00310010);  // Panel_Draw (ESI = panel)
+            f.call(0x24, 0x0031b02d, own_address(&Panel_Draw_entry));  // Panel_Draw (ESI = panel)
         }
         if (uint8_t* const picture = field<uint8_t*>(menu, 0x18c)) {
             f.method(0x24, 0x0031b04b, picture, 0x8c, 0x43a00000, 0x43700000);  // placed at (320, 240)
@@ -3718,17 +3727,17 @@ uint32_t XB_CDECL ChapterMenu_Draw(const FrameIn* in, uint32_t entry_esp) {
     if (!title_global<uint8_t>(0x0095f916)) {
         if (uint8_t* const movie = title_global<uint8_t*>(0x0095f454)) {
             f.method(0x24, 0x0031b07c, movie, 0x8);
-            f.call(0x24, 0x0031b081, 0x0030fca0);  // Subtitle_Draw
+            f.call(0x24, 0x0031b081, own_address(&Subtitle_Draw));  // Subtitle_Draw
             f.regs.ecx = title_global<uint32_t>(0x0095f454);
-            const uint32_t texture = f.call(0x24, 0x0031b08c, 0x000cf100);  // Movie_GetFrameTexture (ECX)
+            const uint32_t texture = f.call(0x24, 0x0031b08c, own_address(&Movie_GetFrameTexture));  // Movie_GetFrameTexture (ECX)
             uint8_t* const quad = title_global<uint8_t*>(0x0095f458);
             field<uint32_t>(quad, 0x60) = texture;
-            result = f.call(0x24, 0x0031b09b, 0x0005e270, quad);  // nglListAddQuad
+            result = f.call(0x24, 0x0031b09b, own_address(&nglListAddQuad), quad);  // nglListAddQuad
         }
     }
     if (!title_global<uint8_t>(0x0095f91e)) {
         f.regs.ecx = in->ecx;
-        result = f.call(0x24, 0x0031b0ae, 0x00314c30);  // UIMenu_Draw
+        result = f.call(0x24, 0x0031b0ae, own_address(&UIMenu_Draw));  // UIMenu_Draw
     }
     return result;
 }
@@ -3742,7 +3751,7 @@ uint32_t XB_CDECL FE_CheckStartupStorage(const FrameIn* in, uint32_t entry_esp) 
     f.word(0x48) = in->edi;  // push edi
     title_global<uint8_t>(0x008d50dd) = 0;
     f.regs.eax = title_global<uint32_t>(0x0095f480);
-    f.call(0x48, 0x003346f6, 0x0031acf0);  // ProfileSave_PrepareRequest (EAX)
+    f.call(0x48, 0x003346f6, own_address(&ProfileSave_PrepareRequest_entry));  // ProfileSave_PrepareRequest (EAX)
     // a zeroed block copied over the free-space block
     uint32_t* const zeros = f.local<uint32_t>(0x40);
     uint32_t* const block = f.local<uint32_t>(0x20);
@@ -3752,7 +3761,7 @@ uint32_t XB_CDECL FE_CheckStartupStorage(const FrameIn* in, uint32_t entry_esp) 
     f.regs.ecx = 0;
     f.regs.esi = address_of(zeros + 8);
     f.regs.edi = address_of(block + 8);
-    f.call(0x48, 0x0033472e, 0x000d0c90, 8);  // Save_SetPort
+    f.call(0x48, 0x0033472e, own_address(&Save_SetPort), 8);  // Save_SetPort
     f.regs.ecx = address_of(block);
     using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
     const uint32_t args[1] = {address_of(block)};
@@ -3765,22 +3774,22 @@ uint32_t XB_CDECL FE_CheckStartupStorage(const FrameIn* in, uint32_t entry_esp) 
     // the "present" word: EDX's upper bytes, the low byte block +0x18 != 0
     const uint32_t present = (uint32_t(space >> 32) & ~0xffu) | (block[6] != 0 ? 1 : 0);
     f.regs.edx = present;
-    uint32_t result = f.call(0x48, 0x0033474a, 0x003345d0, present);  // MemDlg_CheckSaveDevice (EAX = device)
+    uint32_t result = f.call(0x48, 0x0033474a, own_address(&MemDlg_CheckSaveDevice), present);  // MemDlg_CheckSaveDevice (EAX = device)
     f.regs.esi = in->esi;
     f.regs.edi = in->edi;
     if (!uint8_t(result)) {
         f.regs.eax = title_global<uint32_t>(0x0095f900);
-        f.call(0x40, 0x0033475a, 0x0031f6e0);  // DialogMgr_CloseDialog (EAX)
+        f.call(0x40, 0x0033475a, own_address(&DialogMgr_CloseDialog));  // DialogMgr_CloseDialog (EAX)
         result = f.method(0x40, 0x00334767, title_global<uint8_t*>(0x0095f8f8), 0xc, 0);
     }
     f.regs.eax = (result & ~0xffu) | (block[6] != 0 ? 1 : 0);
     f.regs.ecx = menu;
     f.regs.edx = block[6];
-    result = f.call(0x40, 0x00334779, 0x003344e0);  // MemDlg_CheckFreeSpace (AL, ECX = menu)
+    result = f.call(0x40, 0x00334779, own_address(&MemDlg_CheckFreeSpace));  // MemDlg_CheckFreeSpace (AL, ECX = menu)
     if (uint8_t(result)) {
         title_global<uint8_t*>(0x0095f480)[0x11e4] = 0;
         f.regs.eax = title_global<uint32_t>(0x0095f900);
-        f.call(0x40, 0x0033478f, 0x0031f6e0);
+        f.call(0x40, 0x0033478f, own_address(&DialogMgr_CloseDialog));
         result = f.method(0x40, 0x003347a1, title_global<uint8_t*>(0x0095f8f8), 0xc, 0);
     }
     return result;
@@ -3810,7 +3819,7 @@ uint32_t XB_CDECL FE_LiberatorCreateCrossIcons(const FrameIn* in, uint32_t entry
         uint8_t* picture = nullptr;
         if (block) {
             f.regs.esi = block;
-            picture = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0x44, cross[4], 0x00317050, cross[0])});  // UIPicture_Init
+            picture = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0x44, cross[4], own_address(&UIPicture_Init_entry), cross[0])});  // UIPicture_Init
         }
         field<uint8_t*>(owner, cross[2]) = picture;
         f.regs.edx = field<uint32_t>(picture, 0);
@@ -3849,31 +3858,31 @@ uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
                     uint32_t bits;
                     std::memcpy(&bits, &volume, 4);
                     f.regs.esi = address_of(channel);
-                    f.call(0x70, 0x0032d961, 0x000c44f0, voice, 0, bits);  // SndVoice_SetParam
+                    f.call(0x70, 0x0032d961, own_address(&SndVoice_SetParam), voice, 0, bits);  // SndVoice_SetParam
                     field<float>(channel, 0x10) = *f.local<float>(0x68);
                 }
             }
-            f.call(0x70, 0x0032d97a, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
+            f.call(0x70, 0x0032d97a, own_address(&S_UpdateChannels), title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
             // two frames of the black quad at the fade alpha (0x008d2088 << 24)
             const uint32_t quad = f.entry - 0x64;
             for (uint32_t frames = 2; frames; --frames) {
                 f.regs.esi = frames;
                 f.call(0x70, 0x0032d985, kNglResetDeviceBindings);
-                f.call(0x70, 0x0032d98a, 0x00064690);  // nglBeginFrame
-                f.call(0x70, 0x0032d994, 0x0005ddb0, quad);  // nglInitQuad
-                const int32_t height = int32_t(f.call(0x74, 0x0032d999, 0x00064650));  // nglGetScreenHeight
+                f.call(0x70, 0x0032d98a, own_address(&nglBeginFrame));  // nglBeginFrame
+                f.call(0x70, 0x0032d994, own_address(&nglInitQuad), quad);  // nglInitQuad
+                const int32_t height = int32_t(f.call(0x74, 0x0032d999, own_address(&nglGetScreenHeight)));  // nglGetScreenHeight
                 const float h = static_cast<float>(height);
                 std::memcpy(f.local(0x74), &h, 4);
-                const int32_t width = int32_t(f.call(0x74, 0x0032d9a7, 0x00064640));  // nglGetScreenWidth
+                const int32_t width = int32_t(f.call(0x74, 0x0032d9a7, own_address(&nglGetScreenWidth)));  // nglGetScreenWidth
                 const float w = static_cast<float>(width);
                 uint32_t wb, hb;
                 std::memcpy(&wb, &w, 4);
                 std::memcpy(&hb, &h, 4);
-                f.call(0x70, 0x0032d9bf, 0x0005ded0, quad, 0, 0, wb, hb);  // nglSetQuadRect
-                f.call(0x84, 0x0032d9d2, 0x0005deb0, quad, title_global<uint32_t>(0x008d2088) << 24);  // nglSetQuadColor
-                f.call(0x8c, 0x0032d9e0, 0x0005de40, quad, 2, 0);  // nglSetQuadBlend
-                f.call(0x98, 0x0032d9ea, 0x0005e270, quad);        // nglListAddQuad
-                f.call(0x70, 0x0032d9f2, 0x00064ec0);              // nglEndFrame
+                f.call(0x70, 0x0032d9bf, own_address(&nglSetQuadRect), quad, 0, 0, wb, hb);  // nglSetQuadRect
+                f.call(0x84, 0x0032d9d2, own_address(&nglSetQuadColor), quad, title_global<uint32_t>(0x008d2088) << 24);  // nglSetQuadColor
+                f.call(0x8c, 0x0032d9e0, own_address(&nglSetQuadBlend), quad, 2, 0);  // nglSetQuadBlend
+                f.call(0x98, 0x0032d9ea, own_address(&nglListAddQuad), quad);        // nglListAddQuad
+                f.call(0x70, 0x0032d9f2, own_address(&nglEndFrame));              // nglEndFrame
             }
             duration = title_global<float>(0x008d2090);
             if (!(duration > elapsed)) break;
@@ -3883,10 +3892,10 @@ uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
     }
     f.word(0x70) = in->ebx;  // push ebx
     f.regs.ebx = title_global<uint32_t>(0x0095f4c4);
-    f.call(0x70, 0x0032da15, 0x002c8d60);                                 // S_StopAllSounds (EBX)
-    const uint32_t mode = f.call(0x70, 0x0032da1a, 0x000c34f0);           // Snd_GetSpeakerMode
-    f.call(0x70, 0x0032da20, 0x000c3500, mode);                           // S_SetMasterAttenuation
-    return f.call(0x70, 0x0032da2f, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
+    f.call(0x70, 0x0032da15, own_address(&S_StopAllSounds_entry));                                 // S_StopAllSounds (EBX)
+    const uint32_t mode = f.call(0x70, 0x0032da1a, own_address(&Snd_GetSpeakerMode));           // Snd_GetSpeakerMode
+    f.call(0x70, 0x0032da20, own_address(&S_SetMasterAttenuation), mode);                           // S_SetMasterAttenuation
+    return f.call(0x70, 0x0032da2f, own_address(&S_UpdateChannels), title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
 }
 
 FE_FRAME_ENTRY(FE_LoadPanel, "ret")
@@ -3908,10 +3917,10 @@ uint32_t XB_CDECL FE_LoadPanel(const FrameIn* in, uint32_t entry_esp) {
     f.regs.ebx = name;
     f.regs.esi = data;
     f.regs.edi = address_of(panel);
-    f.call(0xc, 0x00339432, 0x00337380, name);  // Panel_Load (ESI = data, EDI = panel)
+    f.call(0xc, 0x00339432, own_address(&Panel_Load_entry), name);  // Panel_Load (ESI = data, EDI = panel)
     f.regs.eax = address_of(panel);
     f.regs.edx = name;
-    return f.call(0xc, 0x00339440, 0x0032a910, 0x0095f8d0);  // FE_SetupPanel (EAX = panel, EDX = name; g_uiRoot)
+    return f.call(0xc, 0x00339440, own_address(&FE_SetupPanel_entry), 0x0095f8d0);  // FE_SetupPanel (EAX = panel, EDX = name; g_uiRoot)
 }
 
 FE_FRAME_ENTRY(FE_CreateMenus, "ret")
@@ -3923,7 +3932,7 @@ uint32_t XB_CDECL FE_CreateMenus(const FrameIn* in, uint32_t entry_esp) {
     uint8_t* front_end = nullptr;
     if (block) {
         f.regs.eax = block;
-        front_end = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0, 0x00337067, 0x00336ad0, block)});  // FrontEndMenu_Construct
+        front_end = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0, 0x00337067, own_address(&FrontEndMenu_Construct), block)});  // FrontEndMenu_Construct
     }
     field<uint8_t*>(owner, 0x28) = front_end;
     if (!title_global<uint8_t>(0x0095ee01)) {
@@ -3941,7 +3950,7 @@ uint32_t XB_CDECL FE_CreateMenus(const FrameIn* in, uint32_t entry_esp) {
     uint32_t result = 0;
     if (dialogs) {
         f.regs.eax = dialogs;
-        result = f.call(0, 0x003370be, 0x00331cb0);  // DialogMgr_Construct (EAX)
+        result = f.call(0, 0x003370be, own_address(&DialogMgr_Construct));  // DialogMgr_Construct (EAX)
     }
     field<uint32_t>(owner, 0x30) = result;
     return result;
@@ -3964,7 +3973,7 @@ uint32_t XB_CDECL FE_DifficultyMenu_Init(const FrameIn* in, uint32_t entry_esp) 
         uint8_t* const panel = field<uint8_t*>(menu, 0x34);
         f.regs.esi = address_of(panel);
         f.regs.eax = address_of(panel);
-        const uint32_t picture = f.call(0x18, 0x00338da2, 0x00321650, name);  // Panel_FindPicture (EAX = list)
+        const uint32_t picture = f.call(0x18, 0x00338da2, own_address(&Panel_FindPicture), name);  // Panel_FindPicture (EAX = list)
         const uint32_t* const pictures = field<uint32_t*>(panel, 0);
         const uint32_t count = field<uint32_t>(panel, 8);
         int32_t index = -1;
@@ -3976,18 +3985,18 @@ uint32_t XB_CDECL FE_DifficultyMenu_Init(const FrameIn* in, uint32_t entry_esp) 
         f.method(0x18, 0x00338dc8, reinterpret_cast<uint8_t*>(uintptr_t{pictures[index]}), 0x34, 0);
     }
     f.regs.ecx = in->ecx;
-    f.call(0x18, 0x00338dd5, 0x00314b20);  // UIMenu_RestoreSelection
+    f.call(0x18, 0x00338dd5, own_address(&UIMenu_RestoreSelection));  // UIMenu_RestoreSelection
     f.regs.esi = in->esi;
     f.regs.ebx = 1;
     if (!title_global<uint8_t>(0x0095f91a)) {
         // the propaganda movie behind the menu, full screen
-        if (uint8_t(f.call(0x14, 0x00338dee, 0x00332030, 0x0082cacc))) {  // Movie_Open "Propgnda"
-            f.call(0x14, 0x00338e0e, 0x0005ded0, title_global<uint32_t>(0x0095f458), 0, 0, 0x44200000, 0x43f00000);
+        if (uint8_t(f.call(0x14, 0x00338dee, own_address(&Movie_Open), 0x0082cacc))) {  // Movie_Open "Propgnda"
+            f.call(0x14, 0x00338e0e, own_address(&nglSetQuadRect), title_global<uint32_t>(0x0095f458), 0, 0, 0x44200000, 0x43f00000);
             title_global<uint8_t>(0x0095f91a) = 1;
         }
     }
     field<int32_t>(menu, 0x50) = 1;
-    const uint32_t result = f.call(0x14, 0x00338e20, 0x00325d60, 1);  // FE_SetDifficultyPicture (EDI = menu)
+    const uint32_t result = f.call(0x14, 0x00338e20, own_address(&FE_SetDifficultyPicture_entry), 1);  // FE_SetDifficultyPicture (EDI = menu)
     field<int16_t>(menu, 0x22) = 1;
     return result;
 }

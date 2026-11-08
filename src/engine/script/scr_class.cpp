@@ -2,6 +2,9 @@
 
 #include "title_data.h"
 #include "g_scr_runtime.h"
+#include "levels_templates.h"
+#include "levels_twins.h"
+#include "script_string.h"
 
 namespace game {
 
@@ -20,7 +23,7 @@ void member(uint32_t function, uint8_t* self, uint32_t offset) {
     title_function<void XB_THISCALL(uint8_t*)>(function)(self + offset);
 }
 
-void release(uint8_t* self, uint32_t offset) { member(0x0011d640, self, offset); }  // ScriptString_Release
+void release(uint8_t* self, uint32_t offset) { member(own_address(&ScriptString_Release_entry), self, offset); }  // ScriptString_Release
 
 void free_member(uint8_t* self, uint32_t offset) {
     if (const uint32_t block = word_at(self, offset)) scr_free(block);
@@ -32,7 +35,7 @@ void release_strings(uint8_t* self, uint32_t offset) {
     const uint32_t data = word_at(self, offset);
     if (!data) return;
     const uint32_t end = data + word_at(self, offset + 8) * 4u;
-    for (uint32_t p = data; p != end; p += 4) member(0x0011d640, reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(p)), 0);
+    for (uint32_t p = data; p != end; p += 4) member(own_address(&ScriptString_Release_entry), reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(p)), 0);
     scr_free(word_at(self, offset));
 }
 
@@ -64,87 +67,87 @@ void XB_THISCALL ScrClass_007f5f4c_Dtor(uint8_t* self) {
 
 void XB_THISCALL ScrClass_007f8af8_Dtor(uint8_t* self) {
     set_vtable(self, 0x007f8af8);
-    member(0x00461b50, self, 0x1d8);  // HashMap_Dtor_PROLOGUE_8
+    member(own_address(&HashMap_Dtor_PROLOGUE_8), self, 0x1d8);  // HashMap_Dtor_PROLOGUE_8
     release(self, 0x1c8);
     release(self, 0x1c4);
-    member(0x00461b50, self, 0x19c);  // HashMap_Dtor_PROLOGUE_8
-    member(0x00465720, self, 0x160);  // HashMap_Dtor_PROLOGUE_24
-    member(0x00461ae0, self, 0x124);  // HashMap_Dtor_PROLOGUE_7
-    member(0x0045ec50, self, 0xfc);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_8), self, 0x19c);  // HashMap_Dtor_PROLOGUE_8
+    member(own_address(&HashMap_Dtor_PROLOGUE_24), self, 0x160);  // HashMap_Dtor_PROLOGUE_24
+    member(own_address(&HashMap_Dtor_PROLOGUE_7), self, 0x124);  // HashMap_Dtor_PROLOGUE_7
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0xfc);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0xe4);
     free_member(self, 0xd0);
-    member(0x00460f10, self, 0xa4);  // HashMap_Dtor_PROLOGUE_6
+    member(own_address(&HashMap_Dtor_PROLOGUE_6), self, 0xa4);  // HashMap_Dtor_PROLOGUE_6
     free_member(self, 0x98);
     free_member(self, 0x8c);
     free_member(self, 0x78);
     free_member(self, 0x6c);
     release(self, 0x64);
     free_member(self, 0x50);
-    member(0x0045ebe0, self, 0x28);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x28);  // HashMap_Dtor_PROLOGUE
     release_strings(self, 0x18);
     free_member(self, 0xc);
 }
 
 void XB_THISCALL ScrClass_007f8b00_Dtor(uint8_t* self) {
     set_vtable(self, 0x007f8b00);
-    member(0x00461bc0, self, 0x814);  // HashMap_Dtor_PROLOGUE_9
+    member(own_address(&HashMap_Dtor_PROLOGUE_9), self, 0x814);  // HashMap_Dtor_PROLOGUE_9
     release(self, 0x810);
     free_member(self, 0x7fc);
-    member(0x0045ec50, self, 0x7c8);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x7a0);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x7c8);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x7a0);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x790);
     free_member(self, 0x784);
     free_member(self, 0x770);
-    member(0x00463200, self, 0x744);  // HashMap_Dtor_PROLOGUE_18
-    member(0x0045ec50, self, 0x71c);  // HashMap_Dtor_PROLOGUE_2
-    member(0x00465830, self, 0x6f0);  // HashMap_Dtor_PROLOGUE_25
+    member(own_address(&HashMap_Dtor_PROLOGUE_18), self, 0x744);  // HashMap_Dtor_PROLOGUE_18
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x71c);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_25), self, 0x6f0);  // HashMap_Dtor_PROLOGUE_25
     release(self, 0x6e8);
-    member(0x0045ebe0, self, 0x6bc);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x6bc);  // HashMap_Dtor_PROLOGUE
     release(self, 0x6b8);
-    member(0x0045ec50, self, 0x690);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x690);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x684);
-    member(0x0045ec50, self, 0x65c);  // HashMap_Dtor_PROLOGUE_2
-    member(0x00464b70, self, 0x634);  // HashMap_Dtor_PROLOGUE_22
-    member(0x0045ebe0, self, 0x604);  // HashMap_Dtor_PROLOGUE
-    member(0x00464b00, self, 0x5dc);  // HashMap_Dtor_PROLOGUE_21
-    member(0x00463200, self, 0x5b0);  // HashMap_Dtor_PROLOGUE_18
-    member(0x0045ebe0, self, 0x57c);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x554);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x65c);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_22), self, 0x634);  // HashMap_Dtor_PROLOGUE_22
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x604);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_21), self, 0x5dc);  // HashMap_Dtor_PROLOGUE_21
+    member(own_address(&HashMap_Dtor_PROLOGUE_18), self, 0x5b0);  // HashMap_Dtor_PROLOGUE_18
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x57c);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x554);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x548);
-    member(0x0045ec50, self, 0x51c);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x51c);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x50c);
     free_member(self, 0x4f8);
     free_member(self, 0x4ec);
     free_member(self, 0x4e0);
-    member(0x0045ec50, self, 0x4b4);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x4b4);  // HashMap_Dtor_PROLOGUE_2
     release(self, 0x4b0);
-    member(0x0045ebe0, self, 0x488);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x488);  // HashMap_Dtor_PROLOGUE
     release(self, 0x480);
-    member(0x0045ebe0, self, 0x458);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x430);  // HashMap_Dtor_PROLOGUE_2
-    member(0x00462320, self, 0x408);  // HashMap_Dtor_PROLOGUE_15
-    member(0x0045ec50, self, 0x3e0);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x3b4);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ebe0, self, 0x388);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x35c);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x458);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x430);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_15), self, 0x408);  // HashMap_Dtor_PROLOGUE_15
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x3e0);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x3b4);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x388);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x35c);  // HashMap_Dtor_PROLOGUE_2
     release(self, 0x358);
-    member(0x0045ec50, self, 0x32c);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x2e8);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x32c);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x2e8);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x2d4);
-    member(0x004652a0, self, 0x2a8);  // HashMap_Dtor_PROLOGUE_23
-    member(0x00461bc0, self, 0x274);  // HashMap_Dtor_PROLOGUE_9
+    member(own_address(&HashMap_Dtor_PROLOGUE_23), self, 0x2a8);  // HashMap_Dtor_PROLOGUE_23
+    member(own_address(&HashMap_Dtor_PROLOGUE_9), self, 0x274);  // HashMap_Dtor_PROLOGUE_9
     release(self, 0x264);
-    member(0x0045ebe0, self, 0x238);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x208);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0011ab50, self, 0x0);  // ScrClass_007f8af8_Dtor
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x238);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x208);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&ScrClass_007f8af8_Dtor), self, 0x0);  // ScrClass_007f8af8_Dtor
 }
 
 void XB_THISCALL ScrClass_007f8b08_Dtor(uint8_t* self) {
     set_vtable(self, 0x007f8b08);
-    member(0x0045ec50, self, 0x898);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x898);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x880);
     free_member(self, 0x874);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_007fceb4_Dtor(uint8_t* self) {
@@ -164,7 +167,7 @@ void XB_THISCALL ScrClass_007fceb4_Dtor(uint8_t* self) {
     free_blocks(self, 0x8a0);
     member(0x004b1da0, self, 0x860);  // HashMap_Dtor_ORAN
     free_member(self, 0x840);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_007ff7d4_Dtor(uint8_t* self) {
@@ -177,7 +180,7 @@ void XB_THISCALL ScrClass_007ff7d4_Dtor(uint8_t* self) {
     free_member(self, 0x878);
     free_member(self, 0x85c);
     free_member(self, 0x84c);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00802298_Dtor(uint8_t* self) {
@@ -191,7 +194,7 @@ void XB_THISCALL ScrClass_00802298_Dtor(uint8_t* self) {
     free_member(self, 0x960);
     member(0x0052eac0, self, 0x934);  // HashMap_Dtor_KASSPASS_2
     release(self, 0x928);
-    member(0x0045ec50, self, 0x8f8);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8f8);  // HashMap_Dtor_PROLOGUE_2
     member(0x0052dfd0, self, 0x8c8);  // HashMap_Dtor_KASSPASS
     free_member(self, 0x8b0);
     free_member(self, 0x89c);
@@ -199,7 +202,7 @@ void XB_THISCALL ScrClass_00802298_Dtor(uint8_t* self) {
     free_member(self, 0x870);
     free_member(self, 0x860);
     free_member(self, 0x850);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00804cfc_Dtor(uint8_t* self) {
@@ -207,7 +210,7 @@ void XB_THISCALL ScrClass_00804cfc_Dtor(uint8_t* self) {
     free_member(self, 0x8cc);
     free_member(self, 0x8b0);
     free_member(self, 0x884);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_0080873c_Dtor(uint8_t* self) {
@@ -278,7 +281,7 @@ void XB_THISCALL ScrClass_0080873c_Dtor(uint8_t* self) {
     free_member(self, 0x864);
     release_strings(self, 0x84c);
     free_member(self, 0x840);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_0080ddf8_Dtor(uint8_t* self) {
@@ -288,7 +291,7 @@ void XB_THISCALL ScrClass_0080ddf8_Dtor(uint8_t* self) {
     free_member(self, 0x880);
     free_member(self, 0x870);
     free_member(self, 0x84c);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_008134a4_Dtor(uint8_t* self) {
@@ -296,19 +299,19 @@ void XB_THISCALL ScrClass_008134a4_Dtor(uint8_t* self) {
     release_strings(self, 0x97c);
     free_member(self, 0x968);
     free_member(self, 0x924);
-    member(0x0045ebe0, self, 0x8f4);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x8c0);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x8f4);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8c0);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x8a4);
     free_member(self, 0x898);
     release(self, 0x88c);
     free_member(self, 0x874);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00815830_Dtor(uint8_t* self) {
     set_vtable(self, 0x00815830);
     free_member(self, 0x930);
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00819a34_Dtor(uint8_t* self) {
@@ -321,20 +324,20 @@ void XB_THISCALL ScrClass_00819a34_Dtor(uint8_t* self) {
     free_member(self, 0x9f8);
     free_member(self, 0x9d8);
     free_member(self, 0x9cc);
-    member(0x0045ebe0, self, 0x984);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x984);  // HashMap_Dtor_PROLOGUE
     free_member(self, 0x978);
-    member(0x0045ec50, self, 0x938);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x910);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x938);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x910);  // HashMap_Dtor_PROLOGUE_2
     release(self, 0x908);
     release(self, 0x904);
-    member(0x0045ec50, self, 0x8dc);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8dc);  // HashMap_Dtor_PROLOGUE_2
     free_member(self, 0x8d0);
     free_member(self, 0x8c4);
     release(self, 0x8b4);
     free_member(self, 0x8a4);
     free_member(self, 0x884);
-    member(0x0045ec50, self, 0x858);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x858);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_0081d404_Dtor(uint8_t* self) {
@@ -342,19 +345,19 @@ void XB_THISCALL ScrClass_0081d404_Dtor(uint8_t* self) {
     free_member(self, 0xa64);
     free_member(self, 0x9a4);
     free_member(self, 0x964);
-    member(0x0045ec50, self, 0x8e0);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ebe0, self, 0x8b4);  // HashMap_Dtor_PROLOGUE
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8e0);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x8b4);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00820538_Dtor(uint8_t* self) {
     set_vtable(self, 0x00820538);
     release(self, 0x95c);
-    member(0x0045ebe0, self, 0x910);  // HashMap_Dtor_PROLOGUE
-    member(0x0045ec50, self, 0x8d4);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x8a0);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0045ec50, self, 0x858);  // HashMap_Dtor_PROLOGUE_2
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x910);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8d4);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x8a0);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&HashMap_Dtor_PROLOGUE_2), self, 0x858);  // HashMap_Dtor_PROLOGUE_2
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00821f34_Dtor(uint8_t* self) {
@@ -362,18 +365,18 @@ void XB_THISCALL ScrClass_00821f34_Dtor(uint8_t* self) {
     member(0x0078d830, self, 0x968);  // HashMap_Dtor_BUCHHOLZ_2
     member(0x0078d910, self, 0x938);  // HashMap_Dtor_BUCHHOLZ_4
     free_member(self, 0x91c);
-    member(0x0045f1a0, self, 0x8d8);  // HashMap_Dtor_PROLOGUE_4
-    member(0x00464b70, self, 0x8a8);  // HashMap_Dtor_PROLOGUE_22
-    member(0x0045fe40, self, 0x87c);  // HashMap_Dtor_PROLOGUE_5
+    member(own_address(&HashMap_Dtor_PROLOGUE_4), self, 0x8d8);  // HashMap_Dtor_PROLOGUE_4
+    member(own_address(&HashMap_Dtor_PROLOGUE_22), self, 0x8a8);  // HashMap_Dtor_PROLOGUE_22
+    member(own_address(&HashMap_Dtor_PROLOGUE_5), self, 0x87c);  // HashMap_Dtor_PROLOGUE_5
     member(0x0078d8a0, self, 0x840);  // HashMap_Dtor_BUCHHOLZ_3
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_00823508_Dtor(uint8_t* self) {
     set_vtable(self, 0x00823508);
     free_member(self, 0x8fc);
-    member(0x0045ebe0, self, 0x8ac);  // HashMap_Dtor_PROLOGUE
-    member(0x0011ad40, self, 0x0);  // ScrClass_007f8b00_Dtor
+    member(own_address(&HashMap_Dtor_PROLOGUE), self, 0x8ac);  // HashMap_Dtor_PROLOGUE
+    member(own_address(&ScrClass_007f8b00_Dtor), self, 0x0);  // ScrClass_007f8b00_Dtor
 }
 
 void XB_THISCALL ScrClass_007f5f9c_Dtor(uint8_t* self) {
@@ -538,7 +541,7 @@ uint8_t* XB_THISCALL AeThreadFunctor3_ent_str_vec_Ctor(uint8_t* self, uint32_t a
     put(self, 0x4, a1);
     put(self, 0x0, 0x82447c);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
     put(self, 0x10, word(a4, 0));
     put(self, 0x14, word(a4, 0x4));
     put(self, 0x18, word(a4, 0x8));
@@ -554,7 +557,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_ent_arrent_Ctor(uint8_t* self, uin
     put(self, 0x14, 0);
     put(self, 0x18, 0);
     put(self, 0x1c, 0);
-    construct(0x0045c270, self + 0x14, a5);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0x14, a5);  // DynArray_Assign4_PROLOGUE
     return self;
 }
 
@@ -563,7 +566,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_ent_str_vec_Ctor(uint8_t* self, uint32
     put(self, 0x0, 0x824440);
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     put(self, 0x14, word(a5, 0));
     put(self, 0x18, word(a5, 0x4));
     put(self, 0x1c, word(a5, 0x8));
@@ -576,7 +579,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Ctor(uint8_t* self, uin
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a4, 0));
-    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x14, a5);  // ScriptString_Copy
     return self;
 }
 
@@ -584,7 +587,7 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Ctor(uint8_t* self, uint
     put(self, 0x4, a1);
     put(self, 0x0, 0x825c20);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
     put(self, 0x10, word(a4, 0));
     put(self, 0x14, word(a5, 0));
     return self;
@@ -594,9 +597,9 @@ uint8_t* XB_THISCALL AeThreadFunctor4_ent_str_i_str_Ctor(uint8_t* self, uint32_t
     put(self, 0x4, a1);
     put(self, 0x0, 0x8244d0);
     put(self, 0x8, word(a2, 0));
-    construct(0x0011d5e0, self + 0xc, a3);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xc, a3);  // ScriptString_Copy
     put(self, 0x10, word(a4, 0));
-    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x14, a5);  // ScriptString_Copy
     return self;
 }
 
@@ -606,7 +609,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Ctor(uint8_t* self, uint32
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a4, 0));
-    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x14, a5);  // ScriptString_Copy
     self[0x18] = byte_at(a6);
     return self;
 }
@@ -618,7 +621,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor(uin
     put(self, 0xc, word(a3, 0));
     construct(0x0052ba50, self + 0x10, a4);  // FUN_0052ba50
     put(self, 0xf0, word(a5, 0));
-    construct(0x0011d5e0, self + 0xf4, a6);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0xf4, a6);  // ScriptString_Copy
     return self;
 }
 
@@ -627,7 +630,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_ent_str_ent_ent_Ctor(uint8_t* self, ui
     put(self, 0x0, 0x825bc0);
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     put(self, 0x14, word(a5, 0));
     put(self, 0x18, word(a6, 0));
     return self;
@@ -655,7 +658,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_ent_vec_str_vec_f_Ctor(uint8_t* self, uint
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a3, 0x4));
     put(self, 0x14, word(a3, 0x8));
-    construct(0x0011d5e0, self + 0x18, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x18, a4);  // ScriptString_Copy
     put(self, 0x1c, word(a5, 0));
     put(self, 0x20, word(a5, 0x4));
     put(self, 0x24, word(a5, 0x8));
@@ -687,7 +690,7 @@ uint8_t* XB_THISCALL AeThreadFunctor5_vt00825c50_Ctor(uint8_t* self, uint32_t a1
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a4, 0));
     put(self, 0x14, word(a5, 0));
-    construct(0x0011d5e0, self + 0x18, a6);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x18, a6);  // ScriptString_Copy
     return self;
 }
 
@@ -697,7 +700,7 @@ uint8_t* XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor(uint8_t* self, u
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
     put(self, 0x10, word(a4, 0));
-    construct(0x0011d5e0, self + 0x14, a5);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x14, a5);  // ScriptString_Copy
     put(self, 0x18, word(a6, 0));
     put(self, 0x1c, word(a7, 0));
     return self;
@@ -723,10 +726,10 @@ uint8_t* XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor(uint8_t* 
     put(self, 0x0, 0x825c14);
     put(self, 0x8, word(a2, 0));
     put(self, 0xc, word(a3, 0));
-    construct(0x0011d5e0, self + 0x10, a4);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x10, a4);  // ScriptString_Copy
     put(self, 0x14, word(a5, 0));
     put(self, 0x18, word(a6, 0));
-    construct(0x0011d5e0, self + 0x1c, a7);  // ScriptString_Copy
+    construct(own_address(&ScriptString_Copy), self + 0x1c, a7);  // ScriptString_Copy
     put(self, 0x20, word(a8, 0));
     self[0x24] = byte_at(a9);
     return self;
@@ -740,7 +743,7 @@ uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(ui
     put(self, 0x10, 0);
     put(self, 0x14, 0);
     put(self, 0x18, 0);
-    construct(0x0045c270, self + 0x10, a4);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0x10, a4);  // DynArray_Assign4_PROLOGUE
     put(self, 0x1c, word(a5, 0));
     put(self, 0x20, word(a6, 0));
     put(self, 0x24, word(a7, 0));
@@ -749,7 +752,7 @@ uint8_t* XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Ctor(ui
     put(self, 0x30, 0);
     put(self, 0x34, 0);
     put(self, 0x38, 0);
-    construct(0x0045c270, self + 0x30, a10);  // DynArray_Assign4_PROLOGUE
+    construct(own_address(&DynArray_Assign4_PROLOGUE), self + 0x30, a10);  // DynArray_Assign4_PROLOGUE
     return self;
 }
 
@@ -838,7 +841,7 @@ static void build_AeThreadFunctor3_ent_hash_hash(uint8_t* args, uint8_t* self, B
 void XB_THISCALL AeThreadFunctor3_ent_hash_hash_Invoke(uint8_t* self) { call_body(self, 0xc, &build_AeThreadFunctor3_ent_hash_hash); }
 
 static void build_AeThreadFunctor3_ent_str_vec(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x8, word_at(self, 0x10));
     put(args, 0xc, word_at(self, 0x14));
@@ -894,7 +897,7 @@ static void build_AeThreadFunctor4_ent_ent_ent_arrent(uint8_t* args, uint8_t* se
     put(args, 0xc, 0x0u);
     put(args, 0x10, 0x0u);
     put(args, 0x14, 0x0u);
-    construct_arg(0x0045c270, args + 0xc, address(self + 0x14));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0xc, address(self + 0x14));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -920,7 +923,7 @@ static void build_AeThreadFunctor4_ent_ent_i_vec(uint8_t* args, uint8_t* self, B
 void XB_THISCALL AeThreadFunctor4_ent_ent_i_vec_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor4_ent_ent_i_vec); }
 
 static void build_AeThreadFunctor4_ent_ent_str_vec(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0xc, word_at(self, 0x14));
@@ -958,7 +961,7 @@ static void build_AeThreadFunctor4_ent_hash_i_f(uint8_t* args, uint8_t* self, Bo
 void XB_THISCALL AeThreadFunctor4_ent_hash_i_f_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_hash_i_f); }
 
 static void build_AeThreadFunctor4_ent_i_pathnode_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xc, address(self + 0x14));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -970,7 +973,7 @@ static void build_AeThreadFunctor4_ent_i_pathnode_str(uint8_t* args, uint8_t* se
 void XB_THISCALL AeThreadFunctor4_ent_i_pathnode_str_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_i_pathnode_str); }
 
 static void build_AeThreadFunctor4_ent_str_hash_hash(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x8, word_at(self, 0x10));
     put(args, 0xc, word_at(self, 0x14));
@@ -982,8 +985,8 @@ static void build_AeThreadFunctor4_ent_str_hash_hash(uint8_t* args, uint8_t* sel
 void XB_THISCALL AeThreadFunctor4_ent_str_hash_hash_Invoke(uint8_t* self) { call_body(self, 0x10, &build_AeThreadFunctor4_ent_str_hash_hash); }
 
 static void build_AeThreadFunctor4_ent_str_i_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x4, address(self + 0xc));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x4, address(self + 0xc));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x8, word_at(self, 0x10));
     regs->eax = address(args + 0x0);
@@ -1007,7 +1010,7 @@ static void build_AeThreadFunctor5_ent_ent_hash_ent_hash(uint8_t* args, uint8_t*
 void XB_THISCALL AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_ent_hash_ent_hash); }
 
 static void build_AeThreadFunctor5_ent_ent_i_str_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xc, address(self + 0x14));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -1020,7 +1023,7 @@ static void build_AeThreadFunctor5_ent_ent_i_str_b(uint8_t* args, uint8_t* self,
 void XB_THISCALL AeThreadFunctor5_ent_ent_i_str_b_Invoke(uint8_t* self) { call_body(self, 0x14, &build_AeThreadFunctor5_ent_ent_i_str_b); }
 
 static void build_AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0xec, address(self + 0xf4));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xec, address(self + 0xf4));  // ScriptString_Copy
     construct_arg(0x0052ba50, args + 0x8, address(self + 0x10));  // FUN_0052ba50 (RespawnerAttributes copy)
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
@@ -1033,7 +1036,7 @@ static void build_AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str(uint8_t* ar
 void XB_THISCALL AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke(uint8_t* self) { call_body(self, 0xf0, &build_AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str); }
 
 static void build_AeThreadFunctor5_ent_ent_str_ent_ent(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0xc, word_at(self, 0x14));
@@ -1076,7 +1079,7 @@ static void build_AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f(uint8_t*
 void XB_THISCALL AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f); }
 
 static void build_AeThreadFunctor5_ent_vec_str_vec_f(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x10, address(self + 0x18));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -1112,7 +1115,7 @@ static void build_AeThreadFunctor5_ent_vec_vec_vec_i(uint8_t* args, uint8_t* sel
 void XB_THISCALL AeThreadFunctor5_ent_vec_vec_vec_i_Invoke(uint8_t* self) { call_body(self, 0x2c, &build_AeThreadFunctor5_ent_vec_vec_vec_i); }
 
 static void build_AeThreadFunctor5_vt00825c50(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x10, address(self + 0x18));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x10, address(self + 0x18));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -1139,7 +1142,7 @@ static void build_AeThreadFunctor6_ent_hash_f_i_f_f(uint8_t* args, uint8_t* self
 void XB_THISCALL AeThreadFunctor6_ent_hash_f_i_f_f_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor6_ent_hash_f_i_f_f); }
 
 static void build_AeThreadFunctor6_ent_hash_i_str_i_ent(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0xc, address(self + 0x14));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0xc, address(self + 0x14));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x8, word_at(self, 0x10));
@@ -1218,8 +1221,8 @@ static void build_AeThreadFunctor7_ent_hash_vec_hash_f_hash_f(uint8_t* args, uin
 void XB_THISCALL AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke(uint8_t* self) { call_body(self, 0x24, &build_AeThreadFunctor7_ent_hash_vec_hash_f_hash_f); }
 
 static void build_AeThreadFunctor8_ent_anim_str_f_hash_str_f_b(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0011d5e0, args + 0x14, address(self + 0x1c));  // ScriptString_Copy
-    construct_arg(0x0011d5e0, args + 0x8, address(self + 0x10));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x14, address(self + 0x1c));  // ScriptString_Copy
+    construct_arg(own_address(&ScriptString_Copy), args + 0x8, address(self + 0x10));  // ScriptString_Copy
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0xc, word_at(self, 0x14));
@@ -1237,11 +1240,11 @@ static void build_AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr(uint8_t* a
     put(args, 0x28, 0x0u);
     put(args, 0x2c, 0x0u);
     put(args, 0x30, 0x0u);
-    construct_arg(0x0045c270, args + 0x28, address(self + 0x30));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x28, address(self + 0x30));  // DynArray_Assign4_PROLOGUE
     put(args, 0x8, 0x0u);
     put(args, 0xc, 0x0u);
     put(args, 0x10, 0x0u);
-    construct_arg(0x0045c270, args + 0x8, address(self + 0x10));  // DynArray_Assign4_PROLOGUE
+    construct_arg(own_address(&DynArray_Assign4_PROLOGUE), args + 0x8, address(self + 0x10));  // DynArray_Assign4_PROLOGUE
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x4, word_at(self, 0xc));
     put(args, 0x14, word_at(self, 0x1c));

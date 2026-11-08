@@ -30,6 +30,13 @@ F* own_function(G* function) {
     return reinterpret_cast<F*>(function);
 }
 
+// Our own C's address for a helper that takes the function as a 32-bit address (call-with-registers
+// helpers, title_call_at*): what the hook jump at the original address would reach (tools/own_calls.py).
+template <typename G>
+uint32_t own_address(G* function) {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function));
+}
+
 // Register inputs for title_call_at_regs.
 struct TitleRegs {
     uint32_t eax, ebx, ecx, edx, esi, edi;

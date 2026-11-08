@@ -577,7 +577,7 @@ uint32_t XB_CDECL FXCmd_Type2AtOrigin(uint32_t entry, uint8_t* entity, uint32_t 
     word(transform, 0x20) = value;
     const TitleRegs regs{address_of(entity), ebx, value, address_of(transform), esi, edi};
     const uint32_t args[1] = {address_of(transform)};
-    return title_call_at_regs(address_of(transform), 0x002a6ab0, &regs, 1, args);  // FXCmd_Type2AtTransform
+    return title_call_at_regs(address_of(transform), own_address(&FXCmd_Type2AtTransform_entry), &regs, 1, args);  // FXCmd_Type2AtTransform
 }
 
 }  // namespace game

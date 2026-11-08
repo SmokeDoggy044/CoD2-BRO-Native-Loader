@@ -9,6 +9,13 @@
 #include "xanim.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "dobj.h"
+#include "g_scr_runtime.h"
+#include "nal_math.h"
+#include "nal_pose.h"
+#include "qcommon_fs.h"
+#include "stream.h"
+#include "sv.h"
 
 namespace game {
 
@@ -129,22 +136,22 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
     if (self[0x28] & 1) {
         // The camera: the skeleton named "camera" from the stream, its root into 0x00960040.
         const uint32_t name_arg[] = {0x00832a58};
-        f.call(0x0001e195, 0x00011060, TitleRegs{saved, ebx, record, 0, esi, edi}, 1, name_arg);  // HashStr_Init
+        f.call(0x0001e195, own_address(&HashStr_Init), TitleRegs{saved, ebx, record, 0, esi, edi}, 1, name_arg);  // HashStr_Init
         const uint32_t zone = word(title_global<uint32_t>(0x0095f638) + 0x2c);
         const uint32_t streams = title_global<uint32_t>(0x0095f630);
         const uint32_t find_args[] = {streams, zone, record, self_a & ~0xffu};
-        const uint32_t found = f.call(0x0001e1bf, 0x002901f0, TitleRegs{zone & ~0xffu, ebx, record, streams, esi, edi}, 4,
+        const uint32_t found = f.call(0x0001e1bf, own_address(&Stream_FindSkel_entry), TitleRegs{zone & ~0xffu, ebx, record, streams, esi, edi}, 4,
                                       find_args);  // Stream_FindSkel
         const uint32_t clip = found && word(found) == generic ? found : 0;
         const uint32_t init_args[] = {clip, 0};
-        f.call(0x0001e1df, 0x00087ad0, TitleRegs{found, ebx, state, 0, clip, edi}, 2, init_args);  // NAL_AnimState_Init
+        f.call(0x0001e1df, own_address(&NAL_AnimState_Init), TitleRegs{found, ebx, state, 0, clip, edi}, 2, init_args);  // NAL_AnimState_Init
         const uint32_t sample_args[] = {time, previous, state, clip + 0xc8, 0};
         f.call(0x0001e1fd, sample, TitleRegs{time, ebx, track_a, vtable, clip + 0xc8, edi}, 5, sample_args);
         title_global<uint8_t>(0x00935538) = 1;
         const uint32_t root_args[] = {state, 0x00960040};
-        f.call(0x0001e217, 0x00086d30, TitleRegs{0, ebx, word(state), 0, clip + 0xc8, edi}, 2,
+        f.call(0x0001e217, own_address(&NAL_GenericAnim_GetRootTransform), TitleRegs{0, ebx, word(state), 0, clip + 0xc8, edi}, 2,
                root_args);  // NAL_GenericAnim_GetRootTransform
-        f.call(0x0001eb17, 0x00086da0, TitleRegs{0, ebx, state, 0, clip + 0xc8, edi}, 0, nullptr);  // NAL_AnimState_Destroy
+        f.call(0x0001eb17, own_address(&NAL_AnimState_Destroy), TitleRegs{0, ebx, state, 0, clip + 0xc8, edi}, 0, nullptr);  // NAL_AnimState_Destroy
         title_global<uint8_t>(0x0095f5d1) = 0;
         title_global<uint8_t>(0x0095f5d0) = saved;
         return;
@@ -176,7 +183,7 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
         if (clip && word(clip) != generic) clip = 0;
     }
     const uint32_t from_args[] = {clip + 0xc8, 1};
-    f.call(0x0001e31e, 0x00087bb0, TitleRegs{clip, clip + 0xc8, state, 0, ent, dobj}, 2,
+    f.call(0x0001e31e, own_address(&NAL_AnimState_InitFrom), TitleRegs{clip, clip + 0xc8, state, 0, ent, dobj}, 2,
            from_args);  // NAL_AnimState_InitFrom
 
     if (!dobj) {
@@ -193,7 +200,7 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
                 const uint32_t matrices = bones + d[0x60 + i] * 0x40 + 0x30;
                 const uint32_t model = word(dobj + 0x38 + i * 4);
                 const uint32_t calc_args[] = {model, matrices, attach};
-                f.call(0x0001e37e, 0x0023df00, TitleRegs{static_cast<uint32_t>(i), reg_ebx, matrices, model, ent, dobj}, 3,
+                f.call(0x0001e37e, own_address(&XModel_CalcSkeleton), TitleRegs{static_cast<uint32_t>(i), reg_ebx, matrices, model, ent, dobj}, 3,
                        calc_args);  // XModel_CalcSkeleton
                 continue;
             }
@@ -238,7 +245,7 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
                     }
                     if (apply) {
                         const uint32_t temp_args[] = {clip, 0};
-                        f.call(0x0001e496, 0x00087ad0, TitleRegs{weights, self_a, temp, 0, ent, dobj}, 2,
+                        f.call(0x0001e496, own_address(&NAL_AnimState_Init), TitleRegs{weights, self_a, temp, 0, ent, dobj}, 2,
                                temp_args);  // NAL_AnimState_Init
                         AnimWeights_SetAll(ptr<uint8_t>(word(self_a + 0xc8)), factor);
                         word(f.s - 4) = 0x0001e4a7;
@@ -246,22 +253,22 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
                         if (word(self_a + 0xa8)) {
                             const uint32_t w = word(self_a + 0xc8);
                             const uint32_t ref_args[] = {w};
-                            flt(f.call(0x0001e4c3, 0x00023150, TitleRegs{self_a + 0xa8, self_a, word(self_a + 0xa8), w, ent, dobj},
+                            flt(f.call(0x0001e4c3, own_address(&AnimWeightRef_GetA), TitleRegs{self_a + 0xa8, self_a, word(self_a + 0xa8), w, ent, dobj},
                                        1, ref_args)) = one;
                         }
                         if (word(self_a + 0xb8)) {
                             const uint32_t w = word(self_a + 0xc8);
                             const uint32_t ref_args[] = {w};
-                            flt(f.call(0x0001e4eb, 0x00023180, TitleRegs{self_a + 0xb8, self_a, w, 0, ent, dobj}, 1,
+                            flt(f.call(0x0001e4eb, own_address(&AnimWeightRef_GetB), TitleRegs{self_a + 0xb8, self_a, w, 0, ent, dobj}, 1,
                                        ref_args)) = one;
                         }
                         const uint32_t blend_args[] = {temp, word(dobj + 0x68), state};
-                        f.call(0x0001e513, 0x000879a0, TitleRegs{word(dobj + 0x68), self_a, word(self_a + 0xc8), state, ent, dobj},
+                        f.call(0x0001e513, own_address(&NAL_AnimState_BlendWeighted), TitleRegs{word(dobj + 0x68), self_a, word(self_a + 0xc8), state, ent, dobj},
                                3, blend_args);  // NAL_AnimState_BlendWeighted
                         const uint32_t copy_args[] = {temp};
-                        f.call(0x0001e524, 0x00086e50, TitleRegs{0, self_a, state, temp, ent, dobj}, 1,
+                        f.call(0x0001e524, own_address(&NAL_AnimState_Copy), TitleRegs{0, self_a, state, temp, ent, dobj}, 1,
                                copy_args);  // NAL_AnimState_Copy
-                        f.call(0x0001e530, 0x00086da0, TitleRegs{0, self_a, temp, 0, ent, dobj}, 0,
+                        f.call(0x0001e530, own_address(&NAL_AnimState_Destroy), TitleRegs{0, self_a, temp, 0, ent, dobj}, 0,
                                nullptr);  // NAL_AnimState_Destroy
                     }
                 }
@@ -277,13 +284,13 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
                 const uint32_t attach = parent == 0xff ? 0 : bones + parent * 0x40 + 0x30;
                 const uint32_t matrices = bones + d[0x60] * 0x40 + 0x30;
                 const uint32_t pose_args[] = {state, matrices, range};
-                f.call(0x0001e5d5, 0x000886f0, TitleRegs{state, attach, word(state), matrices, ent, dobj}, 3,
+                f.call(0x0001e5d5, own_address(&NAL_GenericAnim_EvaluatePose), TitleRegs{state, attach, word(state), matrices, ent, dobj}, 3,
                        pose_args);  // NAL_GenericAnim_EvaluatePose
                 reg_ebx = attach;
                 if (attach) {
                     const uint32_t model = word(dobj + 0x38);
                     const uint32_t transform_args[] = {model, matrices, attach};
-                    f.call(0x0001e5f3, 0x00242540, TitleRegs{matrices, attach, model, bones, ent, dobj}, 3,
+                    f.call(0x0001e5f3, own_address(&XModel_TransformBones), TitleRegs{matrices, attach, model, bones, ent, dobj}, 3,
                            transform_args);  // XModel_TransformBones
                 }
             }
@@ -292,7 +299,7 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
 
     // Root motion moves the entity.
     const uint32_t root_args[] = {state, record};
-    f.call(0x0001e63d, 0x00086d30, TitleRegs{record, 0, word(state), 0, ent, dobj}, 2,
+    f.call(0x0001e63d, own_address(&NAL_GenericAnim_GetRootTransform), TitleRegs{record, 0, word(state), 0, ent, dobj}, 2,
            root_args);  // NAL_GenericAnim_GetRootTransform
     const float one = title_global<float>(0x0083eb20);
     float* const m = ptr<float>(local);
@@ -301,14 +308,14 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
     float origin[3];
     if ((word(word(track_a + 0x10) + 0x34) >> 1) & 1) {
         // The clip has root motion: it is the entity's placement.
-        f.call(0x0001e9ad, 0x0001cbe0, TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
+        f.call(0x0001e9ad, own_address(&QuatTrans_ToMat44), TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
         origin[0] = flt(record + 0x10);
         origin[1] = flt(record + 0x14);
         origin[2] = flt(record + 0x18);
-        f.call(0x0001e9ed, 0x002a26a0, TitleRegs{angles, 0, root, 0, ent, dobj}, 0, nullptr);  // MatrixToAngles
+        f.call(0x0001e9ed, own_address(&MatrixToAngles), TitleRegs{angles, 0, root, 0, ent, dobj}, 0, nullptr);  // MatrixToAngles
     } else if (const uint32_t link = word(ent + 0x3cc)) {
         // Tag-linked: the root moves the link's local matrix (4x3 at +0x10).
-        f.call(0x0001e672, 0x0001cbe0, TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
+        f.call(0x0001e672, own_address(&QuatTrans_ToMat44), TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
         m[11] = 0.0f;
         m[7] = 0.0f;
         m[3] = 0.0f;
@@ -316,25 +323,25 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
         const int rows[12] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14};
         for (int k = 0; k < 12; ++k) m[rows[k]] = flt(link + 0x10 + k * 4);
         const uint32_t mul_args[] = {product, root};
-        f.call(0x0001e73b, 0x0001c5b0, TitleRegs{product, 0, local, root, ent, link}, 2,
+        f.call(0x0001e73b, own_address(&Mat44_MultiplyInPlace), TitleRegs{product, 0, local, root, ent, link}, 2,
                mul_args);  // Mat44_MultiplyInPlace
         for (int k = 0; k < 12; ++k) flt(word(ent + 0x3cc) + 0x10 + k * 4) = m[rows[k]];
         const uint32_t parent_args[] = {local};
         const uint32_t current = word(ent + 0x3cc);
-        f.call(0x0001e80d, 0x002df3e0, TitleRegs{ent, 0, current, current, ent, link}, 1,
+        f.call(0x0001e80d, own_address(&G_GetTagParentMatrix), TitleRegs{ent, 0, current, current, ent, link}, 1,
                parent_args);  // G_GetTagParentMatrix
         const uint32_t multiply_args[] = {word(ent + 0x3cc) + 0x10};
-        f.call(0x0001e827, 0x002954a0, TitleRegs{local, 0, word(ent + 0x3cc) + 0x10, product, ent, link}, 1, multiply_args,
+        f.call(0x0001e827, own_address(&MatrixMultiply43_entry), TitleRegs{local, 0, word(ent + 0x3cc) + 0x10, product, ent, link}, 1, multiply_args,
                1);  // MatrixMultiply43
         origin[0] = p[9];
         origin[1] = p[10];
         origin[2] = p[11];
-        f.call(0x0001e865, 0x002a27f0, TitleRegs{angles, 0, product, product, ent, link}, 0, nullptr);  // AxisToAngles
+        f.call(0x0001e865, own_address(&AxisToAngles), TitleRegs{angles, 0, product, product, ent, link}, 0, nullptr);  // AxisToAngles
     } else {
         // The delta applied to the entity's current axis and origin.
-        f.call(0x0001e86f, 0x0001cbe0, TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
+        f.call(0x0001e86f, own_address(&QuatTrans_ToMat44), TitleRegs{root, 0, record, 0, ent, dobj}, 0, nullptr);  // QuatTrans_ToMat44
         const uint32_t axis_args[] = {product};
-        f.call(0x0001e882, 0x002a4610, TitleRegs{ent + 0x150, 0, 0, product, ent, dobj}, 1,
+        f.call(0x0001e882, own_address(&AnglesToAxisLeft), TitleRegs{ent + 0x150, 0, 0, product, ent, dobj}, 1,
                axis_args);  // AnglesToAxisLeft
         m[11] = 0.0f;
         m[7] = 0.0f;
@@ -353,11 +360,11 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
         m[13] = flt(ent + 0x144);
         m[14] = flt(ent + 0x148);
         const uint32_t mul_args[] = {product, local};
-        f.call(0x0001e978, 0x0001c5b0, TitleRegs{local, 0, root, 0, ent, dobj}, 2, mul_args);  // Mat44_MultiplyInPlace
+        f.call(0x0001e978, own_address(&Mat44_MultiplyInPlace), TitleRegs{local, 0, root, 0, ent, dobj}, 2, mul_args);  // Mat44_MultiplyInPlace
         origin[0] = r[12];
         origin[1] = r[13];
         origin[2] = r[14];
-        f.call(0x0001e9ed, 0x002a26a0, TitleRegs{angles, 0, root, 0, ent, dobj}, 0, nullptr);  // MatrixToAngles
+        f.call(0x0001e9ed, own_address(&MatrixToAngles), TitleRegs{angles, 0, root, 0, ent, dobj}, 0, nullptr);  // MatrixToAngles
     }
     const float* const a = ptr<float>(angles);
     const float ax = a[0], ay = a[1], az = a[2];
@@ -385,13 +392,13 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
     flt(ent + 0x150) = ax;
     flt(ent + 0x154) = ay;
     flt(ent + 0x158) = az;
-    f.call(0x0001eaa2, 0x002d7fe0, TitleRegs{angles, 0, 0, 0, ent, ent}, 0, nullptr);  // SV_LinkEntity
+    f.call(0x0001eaa2, own_address(&SV_LinkEntity_entry), TitleRegs{angles, 0, 0, 0, ent, ent}, 0, nullptr);  // SV_LinkEntity
     if (!((word(word(track_a + 0x10) + 0x34) >> 1) & 1)) {
         // Entities linked to this one follow it.
         uint32_t linked = word(ent + 0x3d0);
         while (linked) {
             const uint32_t next = word(word(linked + 0x3cc) + 4);
-            f.call(0x0001eace, 0x002e6490, TitleRegs{linked, 0, 0, word(linked + 0x3cc), ent, next}, 0,
+            f.call(0x0001eace, own_address(&G_GeneralLink), TitleRegs{linked, 0, 0, word(linked + 0x3cc), ent, next}, 0,
                    nullptr);  // G_GeneralLink
             linked = next;
         }
@@ -402,11 +409,11 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
         const float at = flt(note + 4);
         if (time_f >= at && at >= previous_f) {
             const uint32_t notify_args[] = {word(note)};
-            f.call(0x0001eb04, 0x002b75c0, TitleRegs{f.s - 4, 0, word(note), 0, ent, note}, 1, notify_args);  // Scr_Notify
+            f.call(0x0001eb04, own_address(&Scr_Notify_entry), TitleRegs{f.s - 4, 0, word(note), 0, ent, note}, 1, notify_args);  // Scr_Notify
         }
         note += 12;
     }
-    f.call(0x0001eb17, 0x00086da0, TitleRegs{0, 0, state, 0, ent, note}, 0, nullptr);  // NAL_AnimState_Destroy
+    f.call(0x0001eb17, own_address(&NAL_AnimState_Destroy), TitleRegs{0, 0, state, 0, ent, note}, 0, nullptr);  // NAL_AnimState_Destroy
     title_global<uint8_t>(0x0095f5d1) = 0;
     title_global<uint8_t>(0x0095f5d0) = saved;
 }
@@ -565,7 +572,7 @@ uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t k
     word(s + 0xd0) = blend_out;
     const uint32_t name_a = addr(name);
     const uint32_t camera_text[] = {0x00832a58};  // "camera"
-    const uint32_t hash = f.call(0x0001dc94, 0x00011060, TitleRegs{name[5], s, b, name[7], name_a, edi}, 1,
+    const uint32_t hash = f.call(0x0001dc94, own_address(&HashStr_Init), TitleRegs{name[5], s, b, name[7], name_a, edi}, 1,
                                  camera_text);  // HashStr_Init
     uint32_t i = 0;
     while (i < 8 && name[i] == word(hash + i * 4)) ++i;
@@ -574,10 +581,10 @@ uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t k
         word(s + 0x2c) = 0;
         return self;
     }
-    const uint32_t key = f.call(0x0001dccf, 0x00292fe0, TitleRegs{hash - name_a, s, name_a + i * 4, s + 0xc, name[i], edi},
+    const uint32_t key = f.call(0x0001dccf, own_address(&Com_HashKeyNoCase), TitleRegs{hash - name_a, s, name_a + i * 4, s + 0xc, name[i], edi},
                                 0, nullptr);  // Com_HashKeyNoCase
     const uint32_t key_arg[] = {key};
-    const uint32_t ent = f.call(0x0001dcdf, 0x0024d700, TitleRegs{key, s, name_a + i * 4, s + 0xc, 0x0097a8c0, 0x288}, 1,
+    const uint32_t ent = f.call(0x0001dcdf, own_address(&G_FindEntityByIntField_entry), TitleRegs{key, s, name_a + i * 4, s + 0xc, 0x0097a8c0, 0x288}, 1,
                                 key_arg);  // G_FindEntityByIntField
     word(entry + 4) = ent;  // kept in the blend-out argument slot
     if (!ent) return self;
@@ -591,7 +598,7 @@ uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t k
         if (word(word(ent + 0x22c) + 0x68)) {
             const auto hash_at = [&](uint32_t ret, uint32_t buffer, uint32_t text, uint32_t edi_now) {
                 const uint32_t args[] = {text};
-                f.call(ret, 0x00011060, TitleRegs{0, s, buffer, 0, generic, edi_now}, 1, args);  // HashStr_Init
+                f.call(ret, own_address(&HashStr_Init), TitleRegs{0, s, buffer, 0, generic, edi_now}, 1, args);  // HashStr_Init
             };
             const auto find = [&](uint32_t ret, uint32_t function, uint32_t out, uint32_t bone, uint32_t type,
                                   uint32_t eax) {
@@ -600,21 +607,21 @@ uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t k
             };
             hash_at(0x0001dd55, a, 0x00832a4c, ent);  // "Trajectory"
             hash_at(0x0001dd63, b, 0x00832b10, ent);  // "fakeroot"
-            find(0x0001dd79, 0x00022eb0, s + 0xa8, b, a, word(ent + 0x22c));  // NAL_Clip_FindPosOriChannel
+            find(0x0001dd79, own_address(&NAL_Clip_FindPosOriChannel_entry), s + 0xa8, b, a, word(ent + 0x22c));  // NAL_Clip_FindPosOriChannel
             if (!word(s + 0xa8)) {
                 hash_at(0x0001dd8b, b, 0x00832a4c, s + 0xa8);  // "Trajectory"
                 hash_at(0x0001dd99, a, 0x00832b04, s + 0xa8);  // "tag_origin"
-                find(0x0001dda9, 0x00022eb0, s + 0xa8, a, b, b);  // NAL_Clip_FindPosOriChannel
+                find(0x0001dda9, own_address(&NAL_Clip_FindPosOriChannel_entry), s + 0xa8, a, b, b);  // NAL_Clip_FindPosOriChannel
             }
             hash_at(0x0001ddb7, b, 0x00832a40, s + 0xa8);  // "Position"
             hash_at(0x0001ddc5, a, 0x00832a30, s + 0xa8);  // "Bip01 Pelvis"
-            find(0x0001dddb, 0x00023000, s + 0xb8, a, b, s + 0xb8);  // NAL_Clip_FindFloat3Channel
+            find(0x0001dddb, own_address(&NAL_Clip_FindFloat3Channel_entry), s + 0xb8, a, b, s + 0xb8);  // NAL_Clip_FindFloat3Channel
             const uint32_t size[] = {0xc};
             const uint32_t memory =
                 f.call(0x0001dde2, 0x00042c10, TitleRegs{s + 0xb8, s, 0, 0, generic, s + 0xa8}, 1, size);  // Z_Malloc
             uint32_t weights = 0;
             if (memory)
-                weights = f.call(0x0001ddf4, 0x0001cd80, TitleRegs{generic, s, memory, 0, memory, s + 0xa8}, 0,
+                weights = f.call(0x0001ddf4, own_address(&AnimWeights_Construct_entry), TitleRegs{generic, s, memory, 0, memory, s + 0xa8}, 0,
                                  nullptr);  // AnimWeights_Construct
             word(s + 0xc8) = weights;
         }

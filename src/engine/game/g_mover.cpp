@@ -26,6 +26,13 @@
 #include "xanim.h"
 #include "g_pathnode.h"
 #include "script_string.h"
+#include "cl.h"
+#include "fx_cmd.h"
+#include "g_combat.h"
+#include "g_scr_builtins.h"
+#include "nal_math.h"
+#include "ngl.h"
+#include "stream.h"
 
 // 0x002545e0 (phys list): a script mover trajectory's next phase - EAX, ECX, EDX = vectors,
 // XMM1 = the first phase time, cdecl (trajectory, speed, word).
@@ -473,7 +480,7 @@ void XB_CDECL G_SimulateGrenadeBounce(uint8_t* trajectory, const uint8_t* trace,
     alignas(16) float velocity[3] = {};
     {
         const TitleRegs regs{static_cast<uint32_t>(time), 0, address_of(position), 0, 0, address_of(trajectory)};
-        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+        g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     }
     BG_EvaluateTrajectoryDelta(0, time, velocity, trajectory);
     const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
@@ -526,7 +533,7 @@ void XB_CDECL Reached_ScriptMover(uint8_t* ent) {
     // roll wrapped to -180..180) and notifies "rotatedone".
     const auto evaluate = [](uint8_t* trajectory, uint8_t* result) {
         const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(result), 0, 0, address_of(trajectory)};
-        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+        g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     };
     if (word_at(ent, 0x14) &&
         field<int32_t>(ent, 0x1c) + field<int32_t>(ent, 0x18) <= title_global<int32_t>(0x0098540c)) {
@@ -649,7 +656,7 @@ void XB_CDECL InitMover(uint8_t* ent) {
         if (noise != title_global<uint32_t>(0x00985424 + i * 8)) continue;
         const TitleRegs regs{0, 0x40, 0, 0, 0, 0};
         const uint32_t args[4] = {title_global<uint32_t>(0x00985428 + i * 8), 0xa0, 1, 0};
-        ent[1] = static_cast<uint8_t>(g_ent_call(0x002c39a0, &regs, 4, args));  // G_FindConfigstringIndex (EBX 0x40)
+        ent[1] = static_cast<uint8_t>(g_ent_call(own_address(&G_FindConfigstringIndex_entry), &regs, 4, args));  // G_FindConfigstringIndex (EBX 0x40)
         guard = title_global<uint32_t>(0x0098e450);
         break;
     }
@@ -1001,7 +1008,7 @@ void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* 
     const int32_t hit_time = static_cast<int32_t>(elapsed) + previous;
     {
         const TitleRegs regs{static_cast<uint32_t>(hit_time), 0, address_of(angles), 0, 0, address_of(ent + 0x38)};
-        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+        g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     }
     const float to_short = title_global<float>(0x0083ebd8);    // 65536 / 360
     const float from_short = title_global<float>(0x0083ebd4);  // 360 / 65536
@@ -1209,7 +1216,7 @@ void XB_CDECL G_VehiclePopOut(uint8_t* player) {
     TeleportPlayer(player, 0, matrix + 12);
     const TitleRegs regs{0, 0, name, address_of(player), 0, 0};
     const uint32_t args[3] = {address_of(vehicle), 0x0082eec0, 0x0082eec0};
-    if (!g_ent_call(0x002e44b0, &regs, 3, args))  // G_EntLinkToWithOffset
+    if (!g_ent_call(own_address(&G_EntLinkToWithOffset), &regs, 3, args))  // G_EntLinkToWithOffset
         title_function<Break>(0x002938f0)(1, &title_global<const char>(0x00839f3c), text);  // __break
 }
 
@@ -1450,7 +1457,7 @@ void XB_CDECL SP_script_model(uint32_t entry, uint8_t* ent, uint32_t edi) {
         if (!title_global<uint32_t>(0x0095bf0c)) {
             const TitleRegs regs{title_global<uint32_t>(0x0095f4f4), 0, 0, 0, address_of(ent), edi};
             const uint32_t args[2] = {title_global<uint32_t>(0x0095f4f4), address_of(ent)};
-            title_call_at_regs(entry - 4, 0x002e8ef0, &regs, 2, args);  // Path_DisconnectPathsForEntity
+            title_call_at_regs(entry - 4, own_address(&Path_DisconnectPathsForEntity_entry), &regs, 2, args);  // Path_DisconnectPathsForEntity
         }
     }
     word_at(ent, 0x348) = 2;
@@ -1467,7 +1474,7 @@ void XB_REGS1 XB_CDECL Door_UpdatePaths(uint8_t* door) {
         return;
     }
     const TitleRegs regs{address_of(door), 0, 0, 0, title_global<uint32_t>(0x0095f4f4), 0};
-    g_ent_call(0x002c5ef0, &regs, 0, nullptr);  // Path_ConnectPathsForEntity
+    g_ent_call(own_address(&Path_ConnectPathsForEntity_entry), &regs, 0, nullptr);  // Path_ConnectPathsForEntity
 }
 
 void XB_REGS3 XB_CDECL SetMoverState(int32_t time, uint32_t state, uint8_t* ent) {
@@ -1587,7 +1594,7 @@ void XB_REGS3 XB_CDECL SetMoverState(int32_t time, uint32_t state, uint8_t* ent)
     }
     {
         const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
-        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+        g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     }
     if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
     Door_UpdatePaths(ent);
@@ -1613,7 +1620,7 @@ void XB_CDECL Door_StartRotate(uint8_t* ent) {
     word_at(ent, 0x38) = 0;
     {
         const TitleRegs regs{title_global<uint32_t>(0x0098540c), 0, address_of(ent + 0x140), 0, 0, address_of(ent + 0x14)};
-        g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+        g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     }
     if (!(ent[0xd4] & 1) || word_at(ent, 0x134)) SV_LinkEntity(ent);
     Door_UpdatePaths(ent);
@@ -1634,7 +1641,7 @@ uint32_t entity_context(uint8_t* ent) {
 
 uint8_t* spawn_in_context(uint32_t context) {
     const TitleRegs regs{context, 0, 0, 0, 0, 0};
-    return reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &regs, 0, nullptr)});  // G_Spawn
+    return reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&G_Spawn), &regs, 0, nullptr)});  // G_Spawn
 }
 
 // The classname script string from a global (ScriptString_Assign) and its name hash (+0x260).
@@ -2107,7 +2114,7 @@ uint32_t XB_CDECL G_FindUnstuckPosition(uint32_t entry, uint8_t* ent, uint32_t e
     auto trace = [&](uint32_t to, uint32_t ret) {
         const TitleRegs regs{results, start, word_at(ent, 0x2a8), to, self, maxs};
         const uint32_t args[11] = {results, mins, maxs, to, word_at(ent, 0x224), word_at(ent, 0x2a8), 1, 0, 0, 0, 0};
-        title_call_at_regs(frame, 0x002e9af0, &regs, 11, args);  // SV_Trace
+        title_call_at_regs(frame, own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace
         word(frame - 0x30) = ret;
         return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(results))[0x3d] != 0;
     };
@@ -2162,7 +2169,7 @@ void mover_crush(uint8_t* target, uint8_t* mover, uint32_t damage) {
     const TitleRegs regs{0, 0, 0, 0, 0, 0};
     const uint32_t args[9] = {address_of(target), address_of(mover), address_of(mover), 0, damage, 0, 0x10, 0,
                               0xffffffffu};
-    g_ent_call(0x00250340, &regs, 9, args);  // G_Damage
+    g_ent_call(own_address(&G_Damage_entry), &regs, 9, args);  // G_Damage
 }
 
 void free_blocker(uint8_t* other) {
@@ -2349,7 +2356,7 @@ uint32_t XB_CDECL Artillery_Incoming(uint8_t* ent) {
     word_at(ent, 0x32c) = 9;
     const TitleRegs regs{word_at(ent, 0x328), 0, address_of(ent), 0, 0, 0};
     const uint32_t args[4] = {0x0083b140, 0, 0xffffffffu, 0};
-    return g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
+    return g_ent_call(own_address(&FXCmd_PlaySoundAlias_entry), &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
 }
 namespace {
 
@@ -2424,14 +2431,14 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
         {
             const TitleRegs regs{self_ent, self_ent, frame + 0x10, static_cast<uint32_t>(age), address_of(actor),
                                  address_of(turret)};
-            call_at(frame, 0x00262f1a, 0x002066e0, regs, 0, nullptr);  // Sentient_EyeOrigin
+            call_at(frame, 0x00262f1a, own_address(&Sentient_EyeOrigin), regs, 0, nullptr);  // Sentient_EyeOrigin
         }
         stack_at(frame + 0x10) = stack_at(frame + 0x30);
         stack_at(frame + 0x14) = stack_at(frame + 0x34);
         stack_at(frame + 0x18) = stack_at(frame + 0x38);
         const TitleRegs regs{frame + 0x24, self_ent, frame + 0x10, frame + 0x30, address_of(actor), address_of(turret)};
         const uint32_t args[5] = {address_of(turret), self_ent, frame + 0x30, frame + 0x10, frame + 0x24};
-        const uint32_t aimed = call_at(frame, 0x00262f54, 0x0025f310, regs, 5, args);  // Turret_GetTargetAimPoint
+        const uint32_t aimed = call_at(frame, 0x00262f54, own_address(&Turret_GetTargetAimPoint), regs, 5, args);  // Turret_GetTargetAimPoint
         stack_at(frame + 0x30) = stack_at(frame + 0x10);
         stack_at(frame + 0x34) = stack_at(frame + 0x14);
         stack_at(frame + 0x38) = stack_at(frame + 0x18);
@@ -2439,7 +2446,7 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
     } else {
         const TitleRegs regs{address_of(memory), self_ent, address_of(enemy_ent), address_of(info), frame + 0x24,
                              address_of(turret + 0x150)};
-        call_at(frame, 0x00262f9f, 0x00013c60, regs, 0, nullptr);  // AnglesToForward
+        call_at(frame, 0x00262f9f, own_address(&AnglesToForward_entry), regs, 0, nullptr);  // AnglesToForward
         const float dot = stack_float(frame + 0x2c) * stack_float(frame + 0x18) +
                           stack_float(frame + 0x28) * stack_float(frame + 0x14) +
                           stack_float(frame + 0x24) * stack_float(frame + 0x10);
@@ -2451,7 +2458,7 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
     {
         const TitleRegs regs{matrix, self_ent, ecx, 0, weapon_tag, address_of(turret)};
         const uint32_t args[1] = {matrix};
-        if (!call_at(frame, 0x00263013, 0x002e6420, regs, 1, args)) return 0;  // G_DObjTryGetTagMatrix
+        if (!call_at(frame, 0x00263013, own_address(&G_DObjTryGetTagMatrix_entry), regs, 1, args)) return 0;  // G_DObjTryGetTagMatrix
     }
     stack_at(frame + 0x30) = stack_at(matrix + 0x30);
     stack_at(frame + 0x34) = stack_at(matrix + 0x34);
@@ -2461,7 +2468,7 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
     {
         const TitleRegs regs{matrix, self_ent, ecx, 0, aim_tag, address_of(turret)};
         const uint32_t args[1] = {matrix};
-        found = call_at(frame, 0x00263077, 0x002e6420, regs, 1, args);  // G_DObjTryGetTagMatrix
+        found = call_at(frame, 0x00263077, own_address(&G_DObjTryGetTagMatrix_entry), regs, 1, args);  // G_DObjTryGetTagMatrix
         if (!found) return 0;
     }
     stack_at(frame + 0x38) = stack_at(matrix + 0x38);
@@ -2469,14 +2476,14 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
     stack_float(frame + 0x28) = stack_float(frame + 0x34) - stack_float(matrix + 0x34);
     {
         const TitleRegs regs{found, self_ent, 0, 0, frame + 0x24, address_of(turret)};
-        call_at(frame, 0x002630c9, 0x00297700, regs, 0, nullptr);  // Vec2Normalize
+        call_at(frame, 0x002630c9, own_address(&Vec2Normalize_entry), regs, 0, nullptr);  // Vec2Normalize
     }
     const float side = title_global<float>(0x0083ee38);
     stack_float(frame + 0x30) = stack_float(frame + 0x24) * side + stack_float(frame + 0x30);
     stack_float(frame + 0x34) = stack_float(frame + 0x28) * side + stack_float(frame + 0x34);
     {
         const TitleRegs regs{self_ent, self_ent, 0, 0, frame + 0x50, address_of(turret)};
-        call_at(frame, 0x00263108, 0x00207d40, regs, 0, nullptr);  // Sentient_EyeOrigin_2
+        call_at(frame, 0x00263108, own_address(&Sentient_EyeOrigin_2_entry), regs, 0, nullptr);  // Sentient_EyeOrigin_2
     }
     for (uint32_t i = 0; i < 16; i += 4) {
         stack_at(frame + 0x40 + i) = title_global<uint32_t>(0x0082e290 + i);  // (0, 0, 0, 1)
@@ -2487,7 +2494,7 @@ uint32_t XB_CDECL Actor_TurretCanTargetEnemy(uint32_t entry, uint8_t* turret, ui
     const uint32_t actor_num = word_at(pointer_at(actor, 0), 0x224);
     const TitleRegs regs{frame + 0x50, frame + 0x40, actor_num, actor_ent, title_global<uint32_t>(0x0082e29c), frame + 0x30};
     const uint32_t args[6] = {frame + 0x24, frame + 0x10, actor_num, word_at(enemy_ent, 0x224), 0x801003, 0};
-    call_at(frame, 0x0026317e, 0x002e9840, regs, 6, args);  // G_SightTrace
+    call_at(frame, 0x0026317e, own_address(&G_SightTrace_entry), regs, 6, args);  // G_SightTrace
     return stack_at(frame + 0x24) != 0;
 }
 
@@ -2529,7 +2536,7 @@ uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint
     const uint32_t ent = address_of(target), info_word = address_of(info);
     if (word_at(target, 0x23c)) {
         const TitleRegs regs{word_at(target, 0x23c), ent, ent, edx, info_word, edi};
-        if (call_at(frame, 0x002635e9, 0x0024bad0, regs, 0, nullptr)) return 0;  // G_ClientInVehicle
+        if (call_at(frame, 0x002635e9, own_address(&G_ClientInVehicle), regs, 0, nullptr)) return 0;  // G_ClientInVehicle
     }
     {
         float d[4];
@@ -2545,10 +2552,10 @@ uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint
         {
             const TitleRegs regs{sentient, ent, address_of(turret), frame + 0x14, info_word, edi};
             const uint32_t args[5] = {address_of(turret), sentient, frame + 0x14, frame + 0x20, frame + 0x30};
-            if (!call_at(frame, 0x00263659, 0x0025f310, regs, 5, args)) return 0;  // Turret_GetTargetAimPoint
+            if (!call_at(frame, 0x00263659, own_address(&Turret_GetTargetAimPoint), regs, 5, args)) return 0;  // Turret_GetTargetAimPoint
         }
         const TitleRegs regs{word_at(target, 0x244), ent, frame + 0x14, 0, info_word, edi};
-        call_at(frame, 0x00263673, 0x002066e0, regs, 0, nullptr);  // Sentient_EyeOrigin
+        call_at(frame, 0x00263673, own_address(&Sentient_EyeOrigin), regs, 0, nullptr);  // Sentient_EyeOrigin
         tx = stack_float(frame + 0x14);
         ty = stack_float(frame + 0x18);
         tz = stack_float(frame + 0x1c);
@@ -2556,7 +2563,7 @@ uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint
         const uint32_t origin = address_of(target + 0x140);
         const TitleRegs regs{frame + 0x30, ent, address_of(turret), frame + 0x20, info_word, origin};
         const uint32_t args[4] = {address_of(turret), origin, frame + 0x20, frame + 0x30};
-        if (!call_at(frame, 0x00263698, 0x0025ccd0, regs, 4, args)) return 0;  // Turret_CanTargetPoint
+        if (!call_at(frame, 0x00263698, own_address(&Turret_CanTargetPoint), regs, 4, args)) return 0;  // Turret_CanTargetPoint
         tx = field<float>(target, 0x140);
         ty = field<float>(target, 0x144);
         tz = field<float>(target, 0x148);
@@ -2603,7 +2610,7 @@ uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint
                 stack_float(frame + 0x10) = title_global<float>(0x0083eb20);
                 const TitleRegs regs{from, ent, address_of(cur), to, info_word, 0};
                 const uint32_t args[4] = {from, to, address_of(cur), frame + 0x10};
-                if (call_at(frame, 0x002637c1, 0x002cc0e0, regs, 4, args) & 0xff) return 0;  // CM_ClipSegmentToBrush
+                if (call_at(frame, 0x002637c1, own_address(&CM_ClipSegmentToBrush), regs, 4, args) & 0xff) return 0;  // CM_ClipSegmentToBrush
             } else {
                 stack_at(frame + 0x10) = 0;
                 const uint32_t table = word_at(cur, 0);
@@ -2624,7 +2631,7 @@ uint32_t XB_CDECL Turret_CanTargetSentient(uint32_t entry, uint8_t* turret, uint
     const uint32_t turret_num = word_at(turret, 0x224);
     const TitleRegs regs{to, frame + 0x20, turret_num, frame + 0x30, info_word, from};
     const uint32_t args[6] = {frame + 0xc, frame + 0x30, turret_num, word_at(target, 0x224), 0x801003, 0};
-    call_at(frame, 0x00263867, 0x002e9840, regs, 6, args);  // G_SightTrace
+    call_at(frame, 0x00263867, own_address(&G_SightTrace_entry), regs, 6, args);  // G_SightTrace
     const uint32_t hit = stack_at(frame + 0xc);
     word_at(info, 0x74) = title_global<uint32_t>(0x0094cba0);
     if (hit) return 0;
@@ -2659,7 +2666,7 @@ uint32_t XB_CDECL Turret_ComputeAimPoint(uint8_t* ent, uint8_t* sentient, uint32
             alignas(16) float m[16];
             const TitleRegs regs{0, 0, 0, 0, tag, address_of(ent)};
             const uint32_t args[1] = {address_of(m)};
-            if (!g_ent_call(0x002e6420, &regs, 1, args)) return 0;  // G_DObjTryGetTagMatrix
+            if (!g_ent_call(own_address(&G_DObjTryGetTagMatrix_entry), &regs, 1, args)) return 0;  // G_DObjTryGetTagMatrix
             float side[3];
             side[0] = eye[1] - m[13];
             side[1] = m[12] - eye[0];
@@ -2735,7 +2742,7 @@ void XB_CDECL Actor_EnterProne(uint8_t* actor, int32_t duration) {
                                    address_of(bounds), 0x002601a0, 0x002601e0, 1, 0x42340000};
         const TitleRegs regs{address_of(ent + 0x140), static_cast<uint32_t>(duration), 0, maxs, address_of(prone),
                              address_of(actor)};
-        word_at(actor, 0x194) = g_ent_call(0x002dcc60, &regs, 14, args);  // BG_CheckProne (G_TraceCapsule, G_Trace)
+        word_at(actor, 0x194) = g_ent_call(own_address(&BG_CheckProne_entry), &regs, 14, args);  // BG_CheckProne (G_TraceCapsule, G_Trace)
         return;
     }
     const int32_t current = static_cast<int32_t>(word_at(actor, 0x1a0));
@@ -2782,7 +2789,7 @@ uint8_t* XB_CDECL Think_SpawnNewDoorTrigger(uint8_t* ent) {
     maxs[axis] = maxs[axis] + pad;
     mins[axis] = mins[axis] - pad;
     const TitleRegs spawn_regs{0xffffffffu, 0, 0, 0, 0, 0};
-    uint8_t* const trigger = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &spawn_regs, 0, nullptr)});  // G_Spawn
+    uint8_t* const trigger = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&G_Spawn), &spawn_regs, 0, nullptr)});  // G_Spawn
     for (uint32_t i = 0; i < 3; ++i) {
         field<float>(trigger, 0xe0 + i * 4) = mins[i];
         field<float>(trigger, 0xf0 + i * 4) = maxs[i];
@@ -2835,13 +2842,13 @@ uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, 
     if (ent && field<int32_t>(ent, 0x458) < 0) {
         for (uint32_t i = 0; i < 4; ++i) stack_at(L + 0x10 + i * 4) = word_at(ent, 0x140 + i * 4);
         const TitleRegs regs{self + 0x140, 0, word_at(ent, 0x148), L + 0x10, self, edi};
-        const int32_t cell = static_cast<int32_t>(call_at(L, 0x0026567a, 0x0023cc80, regs, 0, nullptr));  // CM_CellForPoint
+        const int32_t cell = static_cast<int32_t>(call_at(L, 0x0026567a, own_address(&CM_CellForPoint), regs, 0, nullptr));  // CM_CellForPoint
         field<int32_t>(ent, 0x458) = cell;
         if (cell < 0) {
             stack_float(L + 0x18) = stack_float(L + 0x18) + title_global<float>(0x0083eb5c);  // 20
             const TitleRegs again{static_cast<uint32_t>(cell), 0, word_at(ent, 0x148), L + 0x10, self, edi};
             field<int32_t>(ent, 0x458) =
-                static_cast<int32_t>(call_at(L, 0x0026569d, 0x0023cc80, again, 0, nullptr));  // CM_CellForPoint
+                static_cast<int32_t>(call_at(L, 0x0026569d, own_address(&CM_CellForPoint), again, 0, nullptr));  // CM_CellForPoint
         }
     }
     uint32_t ecx = 0;
@@ -2871,7 +2878,7 @@ uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, 
     stack_float(end + 4) = field<float>(ent, 0x144);
     stack_float(end + 8) = field<float>(ent, 0x148) + title_global<float>(0x0083ebe8);  // 128
     const uint32_t up_args[11] = {results, 0x0097a8a0, 0x00984d00, end, pass, 0x0381c011, 1, 0, 0, 0, 0};
-    call_at(L, 0x002657c0, 0x002e9af0, TitleRegs{results, start, ecx, end, self, edi}, 11, up_args);  // SV_Trace
+    call_at(L, 0x002657c0, own_address(&SV_Trace_entry), TitleRegs{results, start, ecx, end, self, edi}, 11, up_args);  // SV_Trace
     const float z = stack_float(results + 8);
     const float x = stack_float(results);
     const float y = stack_float(results + 4);
@@ -2881,13 +2888,13 @@ uint32_t XB_CDECL Think_DropToFloor(uint32_t entry, uint32_t ebx, uint32_t esi, 
     stack_float(end) = x;
     stack_float(end + 4) = y;
     stack_float(end + 8) = z - title_global<float>(0x0083ecf4);  // 256
-    call_at(L - 0x2c, 0x00265833, 0x002e9af0, TitleRegs{pass, start, end, results, self, edi}, 11, up_args);  // SV_Trace
+    call_at(L - 0x2c, 0x00265833, own_address(&SV_Trace_entry), TitleRegs{pass, start, end, results, self, edi}, 11, up_args);  // SV_Trace
     word_at(ent, 0xc) = stack_at(results + 0x30);
     stack_float(start) = stack_float(results);
     stack_float(start + 4) = stack_float(results + 4);
     stack_float(start + 8) = stack_float(results + 8);
     const uint32_t at_args[11] = {results, 0x0097a8a0, 0x00984d00, start, pass, 0x0381c011, 1, 0, 0, 0, 0};
-    call_at(L, 0x00265894, 0x002e9af0, TitleRegs{pass, start, start, results, self, edi}, 11, at_args);  // SV_Trace
+    call_at(L, 0x00265894, own_address(&SV_Trace_entry), TitleRegs{pass, start, start, results, self, edi}, 11, at_args);  // SV_Trace
     for (uint32_t i = 0; i < 3; ++i) {
         const uint32_t v = stack_at(results + i * 4);
         word_at(ent, 0x20 + i * 4) = v;
@@ -2928,7 +2935,7 @@ uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t
     uint8_t* const sentient = pointer_at(targ, 0x244);
     if (sentient) {
         if (word_at(targ, 0x23c)) stack_at(L + 0xc) = title_global<uint32_t>(0x0083ed78);  // 8
-        call_at(L, 0x002650fe, 0x002066e0, TitleRegs{address_of(sentient), address_of(targ), L + 0x20, 0, esi, edi}, 0,
+        call_at(L, 0x002650fe, own_address(&Sentient_EyeOrigin), TitleRegs{address_of(sentient), address_of(targ), L + 0x20, 0, esi, edi}, 0,
                 nullptr);  // Sentient_EyeOrigin
         const float half = title_global<float>(0x0083eb24);
         f(L + 0x6c) = (f(L + 0x28) - field<float>(targ, 0x148)) * half;
@@ -3025,7 +3032,7 @@ uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t
         }
         const uint32_t args[11] = {L + 0xb0, L + 0x80, L + 0x70, L + 0xa0, word_at(targ, 0x224), 0x0280e091, 0, 1,
                                    0x008da6f0, 1, 0};
-        call_at(L, 0x002654b1, 0x002e9af0, TitleRegs{L + 0x70, L + 0x90, L + 0x80, L + 0xb0, point + 4, edi}, 11,
+        call_at(L, 0x002654b1, own_address(&SV_Trace_entry), TitleRegs{L + 0x70, L + 0x90, L + 0x80, L + 0xb0, point + 4, edi}, 11,
                 args);  // SV_Trace
         if (stack_at(L + 0xd0) == 0x3f800000u) return 1;  // fraction == 1.0 (FUCOMIP against the double)
     }
@@ -3077,15 +3084,15 @@ uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start
     const uint32_t defs = title_global<uint32_t>(0x0095f4d8);  // bg_weaponDefs
     uint8_t* const def = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(defs + weapon * 4)});
     uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{
-        call_at(top, 0x0026771f, 0x002d7030, TitleRegs{context, ebx, weapon, defs, dir_at, start_at}, 0, nullptr)});  // G_Spawn
+        call_at(top, 0x0026771f, own_address(&G_Spawn), TitleRegs{context, ebx, weapon, defs, dir_at, start_at}, 0, nullptr)});  // G_Spawn
     const uint32_t self = address_of(ent);
     const uint32_t name_arg[1] = {0x00984be8};
-    call_at(top, 0x00267731, 0x0011d600, TitleRegs{self, self, self + 0x25c, defs, dir_at, start_at}, 1,
+    call_at(top, 0x00267731, own_address(&ScriptString_Assign_entry), TitleRegs{self, self, self + 0x25c, defs, dir_at, start_at}, 1,
             name_arg);  // ScriptString_Assign
     const uint32_t rep = word_at(ent, 0x25c);
     const uint32_t text = rep ? rep + 6 : 0;
     word_at(ent, 0x260) =
-        call_at(top, 0x00267747, 0x00292fe0, TitleRegs{rep, self, 0, text, dir_at, start_at}, 0, nullptr);  // Com_HashKeyNoCase
+        call_at(top, 0x00267747, own_address(&Com_HashKeyNoCase), TitleRegs{rep, self, 0, text, dir_at, start_at}, 0, nullptr);  // Com_HashKeyNoCase
     const uint32_t flags = word_at(ent, 0x10);
     const float delay = fuse * title_global<float>(0x0083eb9c);  // 1000
     const float now = static_cast<float>(title_global<int32_t>(0x0098540c));
@@ -3112,7 +3119,7 @@ uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start
         field<float>(ent, 0x2c + i * 4) = static_cast<float>(field<int32_t>(def, 0x730)) * dir[i];
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = reinterpret_cast<const uint32_t*>(start)[i];
     const uint32_t angles = entry - 0xc;
-    call_at(top, 0x0026788b, 0x002a0850,
+    call_at(top, 0x0026788b, own_address(&vectoangles_entry),
             TitleRegs{word_at(ent, 0x148), self, word_at(ent, 0x140), word_at(ent, 0x144), dir_at, angles}, 0,
             nullptr);  // vectoangles
     for (uint32_t i = 0; i < 3; ++i) {
@@ -3128,20 +3135,20 @@ uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start
         model_context = word_at(title_global<uint8_t*>(0x0095f638), 0x34);
     }
     const uint32_t model_args[3] = {title_global<uint32_t>(0x0095f6ac), entry + 4, model_context};  // rm_models
-    const uint32_t handle = call_at(top, 0x0026793c, 0x00241f40,
+    const uint32_t handle = call_at(top, 0x0026793c, own_address(&R_RegisterModel),
                                     TitleRegs{word_at(def, 0x738), self, ecx, entry + 4, dir_at, angles}, 3,
                                     model_args);  // R_RegisterModel (stdcall)
     word_at(ent, 0x258) = stack_at(handle);
     uint32_t eax = handle;
     if (word_at(def, 0x98) == 6) {
         const uint32_t sound_args[2] = {word_at(def, 8), 0x2b};
-        eax = call_at(top, 0x0026795a, 0x002a62d0, TitleRegs{self, self, word_at(ent, 0x258), word_at(def, 8), dir_at, angles},
+        eax = call_at(top, 0x0026795a, own_address(&FXCmd_PlayWeaponSound_entry), TitleRegs{self, self, word_at(ent, 0x258), word_at(def, 8), dir_at, angles},
                       2, sound_args);  // FXCmd_PlayWeaponSound
         word_at(ent, 0x3b4) = eax;
     }
     const bool sound = word_at(def, 0x98) == 6;
     const uint32_t update_args[1] = {self};
-    call_at(top, 0x00267969, 0x002e8be0,
+    call_at(top, 0x00267969, own_address(&G_DObjUpdate),
             TitleRegs{eax, self, sound ? 0 : word_at(ent, 0x258), sound ? word_at(def, 8) : entry + 4, dir_at, angles}, 1,
             update_args);  // G_DObjUpdate
     return ent;
@@ -3181,7 +3188,7 @@ void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uin
             word_at(ent, 0x14 + i * 4) = 0;
             word_at(ent, 0x2c + i * 4) = 0;
         }
-        call_at(L, 0x00264be9, 0x002d7fe0, TitleRegs{word_at(ent, 0x148), ebx, word_at(ent, 0x140), word_at(ent, 0x144), esi, self},
+        call_at(L, 0x00264be9, own_address(&SV_LinkEntity_entry), TitleRegs{word_at(ent, 0x148), ebx, word_at(ent, 0x140), word_at(ent, 0x144), esi, self},
                 0, nullptr);  // SV_LinkEntity
         return;
     }
@@ -3206,7 +3213,7 @@ void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uin
     f(L + 0x14) = field<float>(ent, 0x144);
     f(L + 0x18) = field<float>(ent, 0x148) - depth;
     const uint32_t args[11] = {L + 0x80, L + 0x20, L + 0x30, L + 0x10, word_at(ent, 0x224), 0x411, 1, 0, 0, 0, 0};
-    call_at(L, 0x00264cd8, 0x002e9af0, TitleRegs{L + 0x20, origin, L + 0x80, L + 0x30, origin, self}, 11, args);  // SV_Trace
+    call_at(L, 0x00264cd8, own_address(&SV_Trace_entry), TitleRegs{L + 0x20, origin, L + 0x80, L + 0x30, origin, self}, 11, args);  // SV_Trace
     if (stack_at(L + 0xbc) & 0xff00u) {
         f(L + 0x70) = field<float>(ent, 0x140);
         f(L + 0x74) = field<float>(ent, 0x144);
@@ -3214,12 +3221,12 @@ void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uin
         f(L + 0x10) = field<float>(ent, 0x140);
         f(L + 0x14) = field<float>(ent, 0x144);
         f(L + 0x18) = field<float>(ent, 0x148) - depth;
-        call_at(L, 0x00264d86, 0x002e9af0, TitleRegs{L + 0x30, L + 0x70, L + 0x20, L + 0x80, origin, self}, 11,
+        call_at(L, 0x00264d86, own_address(&SV_Trace_entry), TitleRegs{L + 0x30, L + 0x70, L + 0x20, L + 0x80, origin, self}, 11,
                 args);  // SV_Trace
         if (stack_at(L + 0xbc) & 0xff00u) {
-            call_at(L, 0x00264d9b, 0x002b78b0, TitleRegs{origin, L + 0x70, 0, 0, origin, self}, 0, nullptr);  // vtos
+            call_at(L, 0x00264d9b, own_address(&vtos), TitleRegs{origin, L + 0x70, 0, 0, origin, self}, 0, nullptr);  // vtos
             const uint32_t free_args[2] = {self, stack_at(entry + 8)};
-            call_at(L, 0x00264da5, 0x002be420, TitleRegs{free_args[1], L + 0x70, 0, 0, origin, self}, 2,
+            call_at(L, 0x00264da5, own_address(&G_FreeEntity), TitleRegs{free_args[1], L + 0x70, 0, 0, origin, self}, 2,
                     free_args);  // G_FreeEntity
             return;
         }
@@ -3234,7 +3241,7 @@ void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uin
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = stack_at(L + 0x80 + i * 4);
     if (title_global<float>(0x0083eb20) > f(L + 0xa0)) {
         for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x64 + i * 4) = stack_at(L + 0x90 + i * 4);
-        call_at(L, 0x00264e66, 0x00013c60, TitleRegs{ground, ebx, 0, ground, L + 0x4c, self + 0x150}, 0,
+        call_at(L, 0x00264e66, own_address(&AnglesToForward_entry), TitleRegs{ground, ebx, 0, ground, L + 0x4c, self + 0x150}, 0,
                 nullptr);  // AnglesToForward
         const float fz = f(L + 0x54), ny = f(L + 0x68), fy = f(L + 0x50), nz = f(L + 0x6c), fx = f(L + 0x4c),
                     nx = f(L + 0x64);
@@ -3249,17 +3256,17 @@ void XB_CDECL FinishSpawningItem(uint32_t entry, uint32_t ebx, uint32_t esi, uin
         const float row_z = a * ny - b * nx;
         f(L + 0x50) = row_y;
         f(L + 0x54) = row_z;
-        call_at(L, 0x00264f13, 0x002a27f0, TitleRegs{L + 0x10, ebx, L + 0x4c, ground, L + 0x4c, self + 0x150}, 0,
+        call_at(L, 0x00264f13, own_address(&AxisToAngles), TitleRegs{L + 0x10, ebx, L + 0x4c, ground, L + 0x4c, self + 0x150}, 0,
                 nullptr);  // AxisToAngles
         const uint32_t item = *reinterpret_cast<const uint16_t*>(ent + 6);
         if (title_global<uint32_t>(0x0096bd34 + item * 0x34) == 1)
             f(L + 0x18) = f(L + 0x18) + title_global<float>(0x0083eb64);  // 90
-        call_at(L, 0x00264f43, 0x002b7690, TitleRegs{self, ebx, L + 0x10, ground, L + 0x4c, self + 0x150}, 0,
+        call_at(L, 0x00264f43, own_address(&G_SetAngle2), TitleRegs{self, ebx, L + 0x10, ground, L + 0x4c, self + 0x150}, 0,
                 nullptr);  // G_SetAngle2
-        call_at(L, 0x00264f4b, 0x002d7fe0, TitleRegs{self, ebx, 0, ground, L + 0x4c, self}, 0, nullptr);  // SV_LinkEntity
+        call_at(L, 0x00264f4b, own_address(&SV_LinkEntity_entry), TitleRegs{self, ebx, 0, ground, L + 0x4c, self}, 0, nullptr);  // SV_LinkEntity
         return;
     }
-    call_at(L, 0x00264f4b, 0x002d7fe0, TitleRegs{self, ebx, 0, ground, origin, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(L, 0x00264f4b, own_address(&SV_LinkEntity_entry), TitleRegs{self, ebx, 0, ground, origin, self}, 0, nullptr);  // SV_LinkEntity
 }
 
 PLATFORM_ASM_ENTRY(turret_think_init_entry,
@@ -3297,9 +3304,9 @@ void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint
             const uint32_t guard = title_global<uint32_t>(0x0098f140) | bit;
             title_global<uint32_t>(0x0098f140) = guard;
             title_global<uint32_t>(slot) =
-                call_at(L, ret_hash, 0x00292fe0, TitleRegs{bit, ebx_now, guard, text, self, edi}, 0, nullptr);  // Com_HashKeyNoCase
+                call_at(L, ret_hash, own_address(&Com_HashKeyNoCase), TitleRegs{bit, ebx_now, guard, text, self, edi}, 0, nullptr);  // Com_HashKeyNoCase
         }
-        return call_at(L, ret_tag, 0x002e3720, TitleRegs{self, ebx_now, title_global<uint32_t>(slot), 0, self, edi}, 0,
+        return call_at(L, ret_tag, own_address(&G_DObjGetTagMatrixPtr), TitleRegs{self, ebx_now, title_global<uint32_t>(slot), 0, self, edi}, 0,
                        nullptr);  // G_DObjGetTagMatrixPtr
     };
     const uint32_t aim_at = tag(1, 0x0098f13c, 0x00839a18, 0x002631fa, 0x0026320c, ebx);
@@ -3310,7 +3317,7 @@ void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint
     const float* const aim = reinterpret_cast<const float*>(uintptr_t{aim_at});
     const float* const butt = reinterpret_cast<const float*>(uintptr_t{butt_at});
     const uint32_t axis_args[2] = {self + 0x150, L + 0x24};
-    call_at(L, 0x00263274, 0x002a2af0, TitleRegs{butt_at, aim_at, title_global<uint32_t>(0x0098f138), L + 0x24, L + 0x3c, L + 0x18},
+    call_at(L, 0x00263274, own_address(&AnglesToAxis_entry), TitleRegs{butt_at, aim_at, title_global<uint32_t>(0x0098f138), L + 0x24, L + 0x3c, L + 0x18},
             2, axis_args);  // AnglesToAxis
     const float ox = field<float>(ent, 0x140), oy = field<float>(ent, 0x144), oz = field<float>(ent, 0x148);
     const float zero = 0.0f;
@@ -3339,7 +3346,7 @@ void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint
         stack_at(L + 0x14) = static_cast<uint32_t>(i);
         f(L + 0x18) = static_cast<float>(i) * title_global<float>(0x0083f1a0);  // -3
         const uint32_t pitch_args[2] = {L + 0x18, L + 0x9c};
-        call_at(L, 0x002633f1, 0x002a2af0, TitleRegs{L + 0x9c, aim_at, L + 0x18, L + 0x24, L + 0xb4, L + 0x64}, 2,
+        call_at(L, 0x002633f1, own_address(&AnglesToAxis_entry), TitleRegs{L + 0x9c, aim_at, L + 0x18, L + 0x24, L + 0xb4, L + 0x64}, 2,
                 pitch_args);  // AnglesToAxis
         const float dx = f(L + 0x54), dy = f(L + 0x58), dz = f(L + 0x5c);
         const float qx = f(L + 0xb4) * dz + (zero - f(L + 0x64)) * dy + f(L + 0x9c) * dx;
@@ -3352,7 +3359,7 @@ void XB_CDECL turret_think_init(uint32_t entry, uint32_t ebx, uint32_t esi, uint
         f(L + 0x74) = f(L + 0x40) * wz + f(L + 0x28) * wx + f(L + 0x34) * wy + f(L + 0x4c);
         f(L + 0x78) = f(L + 0x44) * wz + f(L + 0x2c) * wx + f(L + 0x38) * wy + f(L + 0x50);
         const uint32_t trace_args[7] = {L + 0xc0, L + 0x80, L + 0x70, word_at(ent, 0x224), 0x11, 0x008da6f0, 0};
-        call_at(L - 8, 0x00263570, 0x002600c0, TitleRegs{L + 0x70, aim_at, L + 0x80, L + 0xc0, L + 0xb4, L + 0x64}, 7,
+        call_at(L - 8, 0x00263570, own_address(&G_LocationalTrace_entry), TitleRegs{L + 0x70, aim_at, L + 0x80, L + 0xc0, L + 0xb4, L + 0x64}, 7,
                 trace_args);  // G_LocationalTrace
         if (title_global<float>(0x0083eb20) > f(L + 0xe0)) {
             field<float>(reinterpret_cast<uint8_t*>(uintptr_t{stack_at(L + 0x60)}), 0x3c) = f(L + 0x18);
@@ -3373,7 +3380,7 @@ uint32_t XB_CDECL Artillery_Fire(uint8_t* ent) {
     word_at(ent, 0x32c) = 0xb;
     const TitleRegs regs{now, 0, address_of(ent), next, 0, 0};
     const uint32_t args[4] = {0x0083b150, 0, 0xffffffffu, 0};
-    return g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
+    return g_ent_call(own_address(&FXCmd_PlaySoundAlias_entry), &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
 }
 
 void XB_CDECL Think_DropNamedItem(uint8_t* ent) {
@@ -3381,10 +3388,10 @@ void XB_CDECL Think_DropNamedItem(uint8_t* ent) {
     // (Drop_Item, no throw); when that fails the origin goes through vtos (result unused).
     const uint32_t rep = word_at(ent, 0x3b8);
     const TitleRegs find{0, 0, 0, 0, rep ? rep + 6 : 0, address_of(ent)};
-    const uint32_t item = g_ent_call(0x002b6a70, &find, 0, nullptr);  // BG_FindItem
+    const uint32_t item = g_ent_call(own_address(&BG_FindItem_entry), &find, 0, nullptr);  // BG_FindItem
     const TitleRegs drop{0, 0, 0, 0, address_of(ent), address_of(ent)};
     const uint32_t args[2] = {item, 0};
-    if (!g_ent_call(0x00264f60, &drop, 2, args)) vtos(&field<float>(ent, 0x140));  // Drop_Item
+    if (!g_ent_call(own_address(&Drop_Item_entry), &drop, 2, args)) vtos(&field<float>(ent, 0x140));  // Drop_Item
 }
 
 PLATFORM_ASM_ENTRY(Actor_TurretCheckNearEnemy_entry,
@@ -3423,7 +3430,7 @@ uint32_t XB_CDECL Actor_TurretCheckNearEnemy(uint32_t entry, uint8_t* actor, uin
     if (sum >= title_global<float>(0x0083eb40)) return 1;  // 65536
     const uint32_t turret = stack_at(entry + 4);
     const uint32_t args[2] = {turret, address_of(actor)};
-    return call_at(L, 0x00267ab6, 0x00262e00, TitleRegs{address_of(enemy_ent), ebx, turret, address_of(self_ent), esi, edi},
+    return call_at(L, 0x00267ab6, own_address(&Actor_TurretCanTargetEnemy_entry), TitleRegs{address_of(enemy_ent), ebx, turret, address_of(self_ent), esi, edi},
                    2, args);  // Actor_TurretCanTargetEnemy
 }
 
@@ -3466,7 +3473,7 @@ uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32
                     stack_at(L + 0x18) = 0;
                 } else {
                     const uint32_t args[3] = {self, word_at(current, 0), L + 0x1c};
-                    if (!call_at(L, 0x00267b21, 0x002635c0,
+                    if (!call_at(L, 0x00267b21, own_address(&Turret_CanTargetSentient_entry),
                                  TitleRegs{word_at(current, 0), info_at, self, L + 0x1c, static_cast<uint32_t>(now), 0}, 3,
                                  args))  // Turret_CanTargetSentient
                         stack_at(L + 0x18) = 0;
@@ -3487,10 +3494,10 @@ uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32
     uint32_t next;
     if (last > -1) {
         const uint32_t previous = sentients + static_cast<uint32_t>(static_cast<int32_t>(last)) * 0x60;
-        next = call_at(L, 0x00267b74, 0x001fa510, TitleRegs{previous, info_at, sentients, 0, mask, mask}, 0,
+        next = call_at(L, 0x00267b74, own_address(&Sentient_NextOfTeams_entry), TitleRegs{previous, info_at, sentients, 0, mask, mask}, 0,
                        nullptr);  // Sentient_NextOfTeams
     } else {
-        next = call_at(L, 0x00267b7d, 0x001fa570, TitleRegs{static_cast<uint32_t>(static_cast<int32_t>(last)), info_at, shift, 0,
+        next = call_at(L, 0x00267b7d, own_address(&Sentient_FirstOfTeams_entry), TitleRegs{static_cast<uint32_t>(static_cast<int32_t>(last)), info_at, shift, 0,
                                                             mask, 0},
                        0, nullptr);  // Sentient_FirstOfTeams
     }
@@ -3503,7 +3510,7 @@ uint32_t XB_CDECL Turret_PickSentientTarget(uint32_t entry, uint32_t ebx, uint32
         static_cast<uint16_t>(static_cast<int32_t>(next - title_global<uint32_t>(0x00985378)) / 0x60);
     if (word_at(candidate, 0x30)) return stack_at(L + 0x18);
     const uint32_t args[3] = {self, word_at(candidate, 0), L + 0x1c};
-    const uint32_t ok = call_at(L, 0x00267bbc, 0x002635c0, TitleRegs{next, self, L + 0x1c, word_at(candidate, 0), next, 0},
+    const uint32_t ok = call_at(L, 0x00267bbc, own_address(&Turret_CanTargetSentient_entry), TitleRegs{next, self, L + 0x1c, word_at(candidate, 0), next, 0},
                                 3, args);  // Turret_CanTargetSentient
     const uint32_t best = stack_at(L + 0x18);
     if (!ok) return best;
@@ -3618,7 +3625,7 @@ uint32_t XB_CDECL Pickup_Health(uint8_t* other, uint8_t* ent) {
     Scr_Notify(ent, title_global<uint32_t>(0x0097a818));  // "trigger"
     const TitleRegs regs{0, 0, address_of(ent), 0, address_of(ent), address_of(other)};
     const uint32_t args[4] = {0x0083b70c, 0, 0xffffffffu, 0};
-    g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias "HEALTH_PICKUP"
+    g_ent_call(own_address(&FXCmd_PlaySoundAlias_entry), &regs, 4, args);  // FXCmd_PlaySoundAlias "HEALTH_PICKUP"
     if (word_at(other, 0x23c)) Scr_Notify(other, title_global<uint32_t>(0x0097a758));  // "pickup"
     return 0xffffffffu;
 }
@@ -3635,7 +3642,7 @@ void XB_CDECL player_die(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, i
     const uint32_t death = title_global<uint32_t>(0x0097a684);
     const TitleRegs notify{death, address_of(attacker), number, address_of(&number), address_of(self), address_of(self)};
     const uint32_t args[2] = {death, address_of(&number)};
-    g_ent_call(0x000265a0, &notify, 2, args);  // G_NotifyWithEntity (callee pops 8)
+    g_ent_call(own_address(&G_NotifyWithEntity_entry), &notify, 2, args);  // G_NotifyWithEntity (callee pops 8)
     word_at(self, 0x374) = address_of(attacker);
     LookAtKiller(attacker, inflictor, self);
     uint8_t* const hud = pointer_at(title_global<uint8_t*>(0x0095f8f0), 0x34);  // g_hudManager
@@ -3647,7 +3654,7 @@ void XB_CDECL player_die(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, i
     word_at(client, 0x24) = word_at(client, 0x24) == 1 ? 5 : 4;
     const TitleRegs setup{mod, address_of(attacker), address_of(self), address_of(client), address_of(self), 0};
     const uint32_t setup_args[1] = {weapon};
-    g_ent_call(0x002691a0, &setup, 1, setup_args);  // G_PlayerDeathSetup
+    g_ent_call(own_address(&G_PlayerDeathSetup), &setup, 1, setup_args);  // G_PlayerDeathSetup
 }
 
 // The callees keep stack addresses in 0x00929b40 (PathNode_FindNearest under
@@ -3678,7 +3685,7 @@ void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi
     const uint32_t self = address_of(ent);
     const uint32_t first = word_at(ent, 0x244);
     const uint32_t near_args[6] = {0, 0, 0, 1, 0x42000000, 0};
-    const uint32_t found = call_at(L, 0x00269591, 0x002095c0, TitleRegs{0, self, 0, 0, esi, first}, 6,
+    const uint32_t found = call_at(L, 0x00269591, own_address(&Sentient_CachedNearestNode_entry), TitleRegs{0, self, 0, 0, esi, first}, 6,
                                    near_args);  // Sentient_CachedNearestNode (EDI sentient, callee pops)
     uint8_t* node = reinterpret_cast<uint8_t*>(uintptr_t{found});
     uint8_t* const s = pointer_at(ent, 0x244);
@@ -3704,24 +3711,24 @@ void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi
     }
     if (node == claimed) return;
     const uint32_t node_at = address_of(node);
-    if (call_at(L, 0x00269626, 0x00014480, TitleRegs{handle_at, self, address_of(claimed), 0, node_at, edi_now}, 0, nullptr) &
+    if (call_at(L, 0x00269626, own_address(&PathNode_HandleIsValid), TitleRegs{handle_at, self, address_of(claimed), 0, node_at, edi_now}, 0, nullptr) &
         0xff) {  // PathNode_HandleIsValid (EAX handle)
         uint8_t* const actor = pointer_at(pointer_at(ent, 0x23c), 0x5f4);
         bool timed = false;
         if (actor && word_at(actor, 0x240)) {
             const uint32_t other = word_at(actor, 0x244) + 0x48;
-            timed = !(call_at(L, 0x00269652, 0x00014480, TitleRegs{other, self, word_at(actor, 0x240), 0, node_at, edi_now}, 0,
+            timed = !(call_at(L, 0x00269652, own_address(&PathNode_HandleIsValid), TitleRegs{other, self, word_at(actor, 0x240), 0, node_at, edi_now}, 0,
                               nullptr) &
                       0xff);  // PathNode_HandleIsValid
         }
         const uint32_t mine = word_at(ent, 0x244) + 0x48;
-        const uint32_t old = call_at(L, timed ? 0x00269664 : 0x0026967b, 0x002ba010,
+        const uint32_t old = call_at(L, timed ? 0x00269664 : 0x0026967b, own_address(&PathNode_FromHandle2),
                                      TitleRegs{mine, self, 0, 0, node_at, edi_now}, 0, nullptr);  // PathNode_FromHandle2
         if (timed)
-            call_at(L, 0x0026966b, 0x002ba1c0, TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
+            call_at(L, 0x0026966b, own_address(&Sentient_ClaimNodeTimed), TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
                     nullptr);  // Sentient_ClaimNodeTimed (EDX)
         else
-            call_at(L, 0x00269682, 0x002ba2a0, TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
+            call_at(L, 0x00269682, own_address(&Sentient_ClearNodeClaim), TitleRegs{old, self, 0, old, node_at, edi_now}, 0,
                     nullptr);  // Sentient_ClearNodeClaim (EDX)
         field<uint16_t>(pointer_at(ent, 0x244), 0x48) = 0;
     }
@@ -3733,7 +3740,7 @@ void XB_CDECL G_UpdatePlayerNodeClaim(uint32_t entry, uint32_t ebx, uint32_t esi
         const float dy = field<float>(node, 0x48) - *reinterpret_cast<const float*>(c_ent + 0x144);
         if (range > dy * dy + dx * dx) return;
     }
-    call_at(L, 0x002696e7, 0x002cabf0, TitleRegs{word_at(ent, 0x244), self, 0, 0, node_at, edi_now}, 0,
+    call_at(L, 0x002696e7, own_address(&PathNode_SetClaim_entry), TitleRegs{word_at(ent, 0x244), self, 0, 0, node_at, edi_now}, 0,
             nullptr);  // PathNode_SetClaim (EAX sentient, ESI node)
     field<uint16_t>(pointer_at(ent, 0x244), 0x48) = field<uint16_t>(node, 0);
 }
@@ -3765,14 +3772,14 @@ void XB_CDECL G_PlayerMelee(uint32_t entry, uint8_t* ent, uint32_t esi, uint32_t
     stack_at(L + 0x5c) = def;
     const uint32_t angles = address_of(client) + 0x9c;
     const uint32_t axis_args[2] = {angles, L + 0x20};
-    call_at(L, 0x00269754, 0x002a2af0, TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x2c}, 2,
+    call_at(L, 0x00269754, own_address(&AnglesToAxis_entry), TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x2c}, 2,
             axis_args);  // AnglesToAxis
     for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x10 + i * 4) = stack_at(L + 0x44 + i * 4);
     const uint32_t ent_arg[1] = {self};
-    call_at(L - 8, 0x00269782, 0x00259090, TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x10}, 1,
+    call_at(L - 8, 0x00269782, own_address(&Player_GetViewOrigin_entry), TitleRegs{angles, self, def, L + 0x20, L + 0x38, L + 0x10}, 1,
             ent_arg);  // Player_GetViewOrigin (EDI out)
     for (uint32_t i = 0; i < 3; ++i) stack_at(L + 0x44 + i * 4) = stack_at(L + 0x10 + i * 4);
-    call_at(L - 0xc, 0x002697b0, 0x00265c10, TitleRegs{L + 0x20, self, 0, 0, L + 0x38, L + 0x10}, 1,
+    call_at(L - 0xc, 0x002697b0, own_address(&Weapon_MeleeTrace_entry), TitleRegs{L + 0x20, self, 0, 0, L + 0x38, L + 0x10}, 1,
             ent_arg);  // Weapon_MeleeTrace (EAX block)
 }
 
@@ -3798,13 +3805,13 @@ void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi,
     const uint32_t L = entry - 0xc;
     uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{edi});
     if (!title_global<uint32_t>(0x00983e28))
-        call_at(entry - 8, 0x00269cc1, 0x00251140, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_InitSpawnFuncMap
+        call_at(entry - 8, 0x00269cc1, own_address(&G_InitSpawnFuncMap), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_InitSpawnFuncMap
     stack_at(L) = esi;
     stack_at(L + 4) = word_at(ent, 0x260);
-    call_at(L, 0x00269cde, 0x000289c0, TitleRegs{L + 8, ebx, L + 4, 0, 0x00983e1c, edi}, 0, nullptr);  // UintHashMap_Find
+    call_at(L, 0x00269cde, own_address(&UintHashMap_Find_entry), TitleRegs{L + 8, ebx, L + 4, 0, 0x00983e1c, edi}, 0, nullptr);  // UintHashMap_Find
     const uint32_t found = stack_at(L + 8);
     auto hashes = [&](uint32_t ret) {
-        call_at(L, ret, 0x002fb310, TitleRegs{0, ebx, 0, 0, edi, edi}, 0, nullptr);  // G_UpdateEntityStringHashes (ESI)
+        call_at(L, ret, own_address(&G_UpdateEntityStringHashes_entry), TitleRegs{0, ebx, 0, 0, edi, edi}, 0, nullptr);  // G_UpdateEntityStringHashes (ESI)
     };
     if (found != title_global<uint32_t>(0x00983e24)) {
         const uint32_t index = title_global<uint32_t>(found + 0xc);
@@ -3818,14 +3825,14 @@ void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi,
     const uint32_t name = rep ? rep + 6 : 0;
     const uint32_t compare_args[3] = {name, 0x00839dc8, 6};
     if (!call_at(L, 0x00269d22, 0x001eeaf0, TitleRegs{name, ebx, 0, 0, 0x00983e1c, edi}, 3, compare_args)) {  // _strncmp "actor_"
-        call_at(L, 0x00269d30, 0x002106f0, TitleRegs{edi, ebx, 0, 0, 0x00983e1c, edi}, 0, nullptr);  // Actor_Spawn (EAX)
+        call_at(L, 0x00269d30, own_address(&Actor_Spawn_entry), TitleRegs{edi, ebx, 0, 0, 0x00983e1c, edi}, 0, nullptr);  // Actor_Spawn (EAX)
         hashes(0x00269d37);
         return;
     }
     if (!title_global<uint32_t>(0x0096bd48)) return;
     for (uint32_t item = 0x0096bd44;; item += 0x34) {  // bg_itemlist
         if (title_global<uint32_t>(item) == word_at(ent, 0x260)) {
-            call_at(L, 0x00269d6a, 0x0025f7c0, TitleRegs{edi, ebx, 0, 0, item, edi}, 0, nullptr);  // G_SpawnItem (EAX, ESI item)
+            call_at(L, 0x00269d6a, own_address(&G_SpawnItem_entry), TitleRegs{edi, ebx, 0, 0, item, edi}, 0, nullptr);  // G_SpawnItem (EAX, ESI item)
             hashes(0x00269d71);
             return;
         }
@@ -3847,16 +3854,16 @@ void XB_CDECL SP_script_vehicle(uint8_t* ent) {
     }
     const TitleRegs init_regs{address_of(ent), 0, 0, 0, address_of(ent), 0};
     const uint32_t init_args[2] = {value, 1};
-    g_ent_call(0x00260330, &init_regs, 2, init_args);  // Vehicle_Init
+    g_ent_call(own_address(&Vehicle_Init_entry), &init_regs, 2, init_args);  // Vehicle_Init
     uint8_t* const vehicle = pointer_at(ent, 0x248);
     const uint8_t* const def = title_global<const uint8_t*>(0x00950a28 + field<int16_t>(vehicle, 0x178) * 4);
     if (*reinterpret_cast<const int16_t*>(def + 0x20) != 2) return;
     const TitleRegs load_regs{0, 0, address_of(ent), 0, address_of(ent), address_of(vehicle) + 0xc0};
-    g_ent_call(0x0024bec0, &load_regs, 0, nullptr);  // Vehicle_LoadPhysicsState (ECX)
+    g_ent_call(own_address(&Vehicle_LoadPhysicsState), &load_regs, 0, nullptr);  // Vehicle_LoadPhysicsState (ECX)
     if (word_at(ent, 0x2a4) & 0x400000) return;
     const TitleRegs set_regs{address_of(ent), 0, 0, address_of(vehicle) + 0xe0, address_of(ent), address_of(vehicle) + 0xc0};
     const uint32_t set_args[2] = {address_of(vehicle) + 0xc0, address_of(vehicle) + 0xe0};
-    g_ent_call(0x00255220, &set_regs, 2, set_args);  // Vehicle_SetOriginAndAngles (EAX)
+    g_ent_call(own_address(&Vehicle_SetOriginAndAngles_entry), &set_regs, 2, set_args);  // Vehicle_SetOriginAndAngles (EAX)
 }
 
 // --- Radius damage, mover unsticking, turret use and auto-targeting ---
@@ -3927,7 +3934,7 @@ uint32_t XB_CDECL G_RadiusDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uin
     f(L + 0x18) = origin[2] - reach;
     f(L + 0x38) = origin[2] + reach;
     const uint32_t area_args[3] = {L + 0x50, 0x540, 0xffffffffu};
-    const int32_t count = static_cast<int32_t>(call_at(L, 0x00268f27, 0x002cc400,
+    const int32_t count = static_cast<int32_t>(call_at(L, 0x00268f27, own_address(&SV_AreaEntities),
                                                        TitleRegs{L + 0x30, origin_at, L + 0x10, 0, esi, L + 0x1550}, 3,
                                                        area_args));  // SV_AreaEntities
     stack_at(L + 0x4c) = static_cast<uint32_t>(count);
@@ -3965,7 +3972,7 @@ uint32_t XB_CDECL G_RadiusDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uin
         const float range = f(entry + 0x10) - f(entry + 0x14);
         f(L + 0x2c) = scaled * range + f(entry + 0x14);
         const uint32_t can_args[1] = {ent_at};
-        if (!call_at(L, 0x002690d0, 0x002650b0, TitleRegs{0, origin_at, 0, 0, ent_at, origin_at}, 1,
+        if (!call_at(L, 0x002690d0, own_address(&CanDamage_entry), TitleRegs{0, origin_at, 0, 0, ent_at, origin_at}, 1,
                      can_args))  // CanDamage (EDI origin)
             continue;
         if (word_at(ent, 0x29c) && ent_at != attacker && word_at(ent, 0x23c)) {
@@ -3978,7 +3985,7 @@ uint32_t XB_CDECL G_RadiusDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uin
         f(L + 0x38) = field<float>(ent, 0x148) - origin[2] + title_global<float>(0x0083ec30);  // 50
         const uint32_t damage_args[9] = {ent_at, stack_at(entry + 8), attacker, L + 0x30, static_cast<uint32_t>(damage), 9,
                                          stack_at(entry + 0x20), 0, 0xffffffffu};
-        call_at(L, 0x00269175, 0x00250340, TitleRegs{origin_at, origin_at, static_cast<uint32_t>(damage), L + 0x30, ent_at, origin_at},
+        call_at(L, 0x00269175, own_address(&G_Damage_entry), TitleRegs{origin_at, origin_at, static_cast<uint32_t>(damage), L + 0x30, ent_at, origin_at},
                 9, damage_args);  // G_Damage (EAX point)
     }
     if (count > 0) stack_at(L + 0x20) = static_cast<uint32_t>(count);
@@ -4014,7 +4021,7 @@ void XB_CDECL Mover_UnstickPlayer(uint32_t entry, uint8_t* mover, uint32_t ebx, 
     const uint32_t point = player + 0x140;
     stack_at(L + 0xc) = point;
     const uint32_t test_args[1] = {point};
-    if (call_at(L, 0x0026a164, 0x00262be0, TitleRegs{player, player, 0, 0, self, vehicle}, 1, test_args) != self)
+    if (call_at(L, 0x0026a164, own_address(&G_TestEntityPosition), TitleRegs{player, player, 0, 0, self, vehicle}, 1, test_args) != self)
         return;  // G_TestEntityPosition (EAX entity)
     const float* const now = reinterpret_cast<const float*>(uintptr_t{vehicle});
     stack_float(L + 0x20) = now[0] - title_global<float>(0x00988470);
@@ -4024,15 +4031,15 @@ void XB_CDECL Mover_UnstickPlayer(uint32_t entry, uint8_t* mover, uint32_t ebx, 
     stack_float(L + 0x14) = now[9] - title_global<float>(0x00988494);
     stack_float(L + 0x18) = now[10] - title_global<float>(0x00988498);
     const uint32_t push_args[3] = {player, self, L + 0x10};
-    if (call_at(L, 0x0026a1f0, 0x00267020, TitleRegs{L + 0x20, player, L + 0x10, 0, self, vehicle}, 3,
+    if (call_at(L, 0x0026a1f0, own_address(&G_TryPushingEntity_entry), TitleRegs{L + 0x20, player, L + 0x10, 0, self, vehicle}, 3,
                 push_args))  // G_TryPushingEntity (EAX move)
         return;
-    if (call_at(L, 0x0026a1fc, 0x00261df0, TitleRegs{0, player, L + 0x10, 0, self, vehicle}, 0,
+    if (call_at(L, 0x0026a1fc, own_address(&G_FindUnstuckPosition_entry), TitleRegs{0, player, L + 0x10, 0, self, vehicle}, 0,
                 nullptr))  // G_FindUnstuckPosition
         return;
     const uint32_t health = word_at(reinterpret_cast<uint8_t*>(uintptr_t{player}), 0x350) + 0x32;
     const uint32_t damage_args[9] = {player, self, self, 0x0082eec0, health, 0xa0, 0x11, 0, 0xffffffffu};
-    call_at(L, 0x0026a225, 0x00250340, TitleRegs{point, player, L + 0x10, health, self, vehicle}, 9,
+    call_at(L, 0x0026a225, own_address(&G_Damage_entry), TitleRegs{point, player, L + 0x10, health, self, vehicle}, 9,
             damage_args);  // G_Damage (EAX point)
 }
 
@@ -4066,11 +4073,11 @@ uint32_t XB_CDECL Actor_CanUseTurret(uint32_t entry, uint8_t* actor, uint32_t eb
     const uint32_t info = word_at(turret, 0x24c);
     if (reinterpret_cast<const uint8_t*>(uintptr_t{info})[2] & 2) {
         const uint32_t args[2] = {edi, address_of(actor)};
-        return call_at(entry, 0x0026c533, 0x00262e00, TitleRegs{info, ebx, address_of(actor), 0, esi, edi}, 2,
+        return call_at(entry, 0x0026c533, own_address(&Actor_TurretCanTargetEnemy_entry), TitleRegs{info, ebx, address_of(actor), 0, esi, edi}, 2,
                        args);  // Actor_TurretCanTargetEnemy
     }
     const uint32_t args[1] = {edi};
-    return call_at(entry, 0x0026c53d, 0x00267a50, TitleRegs{info, ebx, address_of(actor), 0, esi, edi}, 1,
+    return call_at(entry, 0x0026c53d, own_address(&Actor_TurretCheckNearEnemy_entry), TitleRegs{info, ebx, address_of(actor), 0, esi, edi}, 1,
                    args);  // Actor_TurretCheckNearEnemy (ECX actor)
 }
 
@@ -4103,7 +4110,7 @@ void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t e
     const uint32_t info = word_at(turret, 0x24c);
     auto info_word = [&](uint32_t offset) { return title_global<uint32_t>(info + offset); };
     const uint32_t pick_args[1] = {self};
-    const uint32_t picked = call_at(L, 0x0026cd85, 0x00267ac0, TitleRegs{self, info, 0, edx, esi, self}, 1,
+    const uint32_t picked = call_at(L, 0x0026cd85, own_address(&Turret_PickSentientTarget_entry), TitleRegs{self, info, 0, edx, esi, self}, 1,
                                     pick_args);  // Turret_PickSentientTarget
     const uint32_t previous = info_word(8);
     uint32_t last_esi = picked;
@@ -4111,7 +4118,7 @@ void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t e
     bool try_previous = previous != 0;
     if (picked) {
         const uint32_t aim_args[1] = {picked};
-        if (call_at(L, 0x0026cd9f, 0x00267c30, TitleRegs{picked, info, info_word(0x44), 1, picked, self}, 1,
+        if (call_at(L, 0x0026cd9f, own_address(&Turret_AimAtTarget_entry), TitleRegs{picked, info, info_word(0x44), 1, picked, self}, 1,
                     aim_args))  // Turret_AimAtTarget
             return;
         last_edx = 1;
@@ -4119,17 +4126,17 @@ void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t e
     }
     if (try_previous) {
         const uint32_t can_args[3] = {self, previous, 0};
-        if (call_at(L, 0x0026cdbb, 0x002635c0, TitleRegs{picked, info, 0, last_edx, last_esi, self}, 3,
+        if (call_at(L, 0x0026cdbb, own_address(&Turret_CanTargetSentient_entry), TitleRegs{picked, info, 0, last_edx, last_esi, self}, 3,
                     can_args)) {  // Turret_CanTargetSentient
             const uint32_t sentient = word_at(reinterpret_cast<uint8_t*>(uintptr_t{previous}), 0x244);
             uint32_t ok;
             if (sentient) {
                 const uint32_t aim_args[1] = {sentient};
-                ok = call_at(L, 0x0026cdda, 0x00267c30, TitleRegs{sentient, info, info_word(0x44), 1, last_esi, self}, 1,
+                ok = call_at(L, 0x0026cdda, own_address(&Turret_AimAtTarget_entry), TitleRegs{sentient, info, info_word(0x44), 1, last_esi, self}, 1,
                              aim_args);  // Turret_AimAtTarget
             } else {
                 const uint32_t track_args[1] = {1};
-                ok = call_at(L, 0x0026cde7, 0x0025f290, TitleRegs{self, info, previous, last_edx, last_esi, self}, 1,
+                ok = call_at(L, 0x0026cde7, own_address(&Turret_TrackTargetEnt), TitleRegs{self, info, previous, last_edx, last_esi, self}, 1,
                              track_args);  // Turret_TrackTargetEnt
             }
             if (ok) return;
@@ -4142,7 +4149,7 @@ void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t e
     if (info_now[1]) {
         const uint32_t notify = title_global<uint32_t>(0x0097a860);
         const uint32_t notify_args[1] = {notify};
-        call_at(L, 0x0026ce19, 0x002b75c0, TitleRegs{notify, address_of(info_now), 0, last_edx, self, self}, 1,
+        call_at(L, 0x0026ce19, own_address(&Scr_Notify_entry), TitleRegs{notify, address_of(info_now), 0, last_edx, self, self}, 1,
                 notify_args);  // Scr_Notify (ESI entity, "turretstatechange")
         last_esi = self;
     }
@@ -4150,7 +4157,7 @@ void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t e
     stack_at(L + 0x10) = 0;
     stack_at(L + 0x14) = 0;
     const uint32_t angle_args[2] = {self, L + 0x10};
-    call_at(L, 0x0026ce3c, 0x0024e300, TitleRegs{0, address_of(info_now), L + 0x10, 1, last_esi, self}, 2,
+    call_at(L, 0x0026ce3c, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{0, address_of(info_now), L + 0x10, 1, last_esi, self}, 2,
             angle_args);  // Turret_UpdateTargetAngles (EDX 1)
 }
 
@@ -4172,7 +4179,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
     if (word_at(ent, 0x14) == 5 && word_at(ent, 0x1a0) == word_at(other, 0x224)) return;
     const TitleRegs grab{0, address_of(ent), address_of(ent), touched, address_of(other), touched};
     const uint32_t grab_args[1] = {address_of(client)};
-    if (!g_ent_call(0x002b68f0, &grab, 1, grab_args)) {  // BG_CanItemBeGrabbed (ECX item)
+    if (!g_ent_call(own_address(&BG_CanItemBeGrabbed), &grab, 1, grab_args)) {  // BG_CanItemBeGrabbed (ECX item)
         if (touched) return;
         uint8_t* const item = pointer_at(ent, 0x3b0);
         if (word_at(item, 0x24) != 1) return;
@@ -4203,7 +4210,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
     case 1: {
         const TitleRegs regs{0, address_of(ent), 0, 0, address_of(other), touched};
         const uint32_t args[3] = {address_of(other), address_of(&event), touched};
-        respawn = static_cast<int32_t>(g_ent_call(0x002688c0, &regs, 3, args));  // Pickup_Weapon (EBX item)
+        respawn = static_cast<int32_t>(g_ent_call(own_address(&Pickup_Weapon_entry), &regs, 3, args));  // Pickup_Weapon (EBX item)
         break;
     }
     case 2: respawn = Pickup_Ammo(other, 0, ent); break;
@@ -4359,7 +4366,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
         if (!stack_at(eax + 0x254)) {
             edx = title_global<uint32_t>(0x00987a90);
             const uint32_t args[2] = {eax, edx};
-            eax = call_at(F, 0x0026d714, 0x002c4a00, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // AnimTree_Create
+            eax = call_at(F, 0x0026d714, own_address(&AnimTree_Create), TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // AnimTree_Create
             ecx = stack_at(actor);
             stack_at(ecx + 0x254) = eax;
         }
@@ -4410,7 +4417,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
                            uint32_t edx_in, uint32_t esi_in, uint32_t edi_in) {
         const uint32_t pass = stack_at(ent + 0x224);
         const uint32_t args[11] = {F + 0x120, 0x0098a560, 0x0098a550, end, pass, 0x00820011, 1, 0, 0, 0, 0};
-        call_at(F, ret, 0x002e9af0, TitleRegs{eax_in, start, ecx_in, edx_in, esi_in, edi_in}, 11, args);  // SV_Trace
+        call_at(F, ret, own_address(&SV_Trace_entry), TitleRegs{eax_in, start, ecx_in, edx_in, esi_in, edi_in}, 11, args);  // SV_Trace
     };
     float left0, left1, left2;
     if (mode == 1) {
@@ -4439,7 +4446,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
         stack_float(F + 0x70) = zero;
         {
             const uint32_t args[2] = {F + 0x70, F + 0x40};
-            call_at(F, 0x0026d92d, 0x002a2af0, TitleRegs{F + 0x70, ebx, ecx, F + 0x40, F + 0x58, F + 0x20}, 2,
+            call_at(F, 0x0026d92d, own_address(&AnglesToAxis_entry), TitleRegs{F + 0x70, ebx, ecx, F + 0x40, F + 0x58, F + 0x20}, 2,
                     args);  // AnglesToAxis (ESI up, EDI right)
         }
         uint8_t* const e = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(ent));
@@ -4481,7 +4488,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
         ecx = stack_at(trees + 4) + ecx * 12;
         {
             const uint32_t args[1] = {0x3f800000};
-            call_at(F, 0x0026da37, 0x002e6650, TitleRegs{eax, ebx, ecx, stack_at(trees + 4), F + 0x20, F + 0x90}, 1,
+            call_at(F, 0x0026da37, own_address(&AnimTree_GetRootDelta_entry), TitleRegs{eax, ebx, ecx, stack_at(trees + 4), F + 0x20, F + 0x90}, 1,
                     args);  // AnimTree_GetRootDelta (EDI direction, ESI position)
         }
         const float px = stack_float(F + 0x20), py = stack_float(F + 0x24), pz = stack_float(F + 0x28);
@@ -4497,12 +4504,12 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
             stack_float(F + 0x20 + i * 4) = v + stack_float(F + 0x64 + i * 4);
         }
         stack_float(F + 0xac) = length;
-        const float delta_yaw = xmm0_call(F - 4, 0x0026db1e, 0x002a1540,
+        const float delta_yaw = xmm0_call(F - 4, 0x0026db1e, own_address(&vectoyaw_2_entry),
                                           TitleRegs{eax, ebx, F + 0x90, edx, F + 0x20, F + 0x90}, 0, nullptr);  // vectoyaw_2
         stack_float(F + 0x34) = delta_yaw;
         {
             const uint32_t args[1] = {stack_at(F + 0x34)};
-            call_at(F - 4, 0x0026db35, 0x002a4520, TitleRegs{args[0], ebx, F + 0x90, edx, F + 0xfc, F + 0x90}, 1,
+            call_at(F - 4, 0x0026db35, own_address(&YawToAxis_entry), TitleRegs{args[0], ebx, F + 0x90, edx, F + 0xfc, F + 0x90}, 1,
                     args);  // YawToAxis (ESI axis)
         }
         // End axis = yaw axis x start axis, (z * up + y * left) + x * forward per row.
@@ -4515,7 +4522,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
                 stack_float(F + 0xb0 + i * 12 + j * 4) = v + yx * stack_float(F + 0x40 + j * 4);
             }
         }
-        call_at(F, 0x0026dd0e, 0x002a27f0, TitleRegs{F + 0x70, ebx, F + 0xb0, edx, F + 0xfc, F + 0x90}, 0,
+        call_at(F, 0x0026dd0e, own_address(&AxisToAngles), TitleRegs{F + 0x70, ebx, F + 0xb0, edx, F + 0xfc, F + 0x90}, 0,
                 nullptr);  // AxisToAngles (EAX angles, ECX axis)
         const float reach = stack_float(F + 0xac) + title_global<float>(0x0083ebe8);
         const float z = stack_float(F + 0x28);
@@ -4534,7 +4541,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
             edi = state;
             const uint32_t pass = stack_at(ent + 0x224);
             const uint32_t args[6] = {pass, 0x00820011, stack_at(F + 0x74), state + 0x54, state + 0x58, 0};
-            call_at(F, 0x0026de22, 0x00210150, TitleRegs{pass, ebx, args[2], state + 0x54, F + 0x120, edi}, 6,
+            call_at(F, 0x0026de22, own_address(&G_ComputeGroundTilt_entry), TitleRegs{pass, ebx, args[2], state + 0x54, F + 0x120, edi}, 6,
                     args);  // G_ComputeGroundTilt (ESI point)
             esi = F + 0x120;
         } else {
@@ -4546,7 +4553,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
         float length_s;
         {
             const uint32_t args[1] = {handle};
-            length_s = xmm0_call(F, 0x0026de43, 0x00250e70, TitleRegs{eax, ebx, ecx, handle, esi, edi}, 1,
+            length_s = xmm0_call(F, 0x0026de43, own_address(&AnimTree_EnsureAnimLoaded_entry), TitleRegs{eax, ebx, ecx, handle, esi, edi}, 1,
                                  args);  // AnimTree_EnsureAnimLoaded
         }
         stack_at(state + 0x5c) = one > length_s ? title_global<uint32_t>(0x0083eb34) : bits_of(zero);
@@ -4556,7 +4563,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
     } else {
         {
             const uint32_t args[2] = {angles, F + 0x40};
-            call_at(F, 0x0026de9a, 0x002a2af0, TitleRegs{F + 0x40, ebx, angles, edx, F + 0x58, F + 0x70}, 2,
+            call_at(F, 0x0026de9a, own_address(&AnglesToAxis_entry), TitleRegs{F + 0x40, ebx, angles, edx, F + 0x58, F + 0x70}, 2,
                     args);  // AnglesToAxis (ESI up, EDI right)
         }
         esi = F + 0x58;
@@ -4587,7 +4594,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
     stack_float(F + 0xe8) = stack_float(F + 0x6c);
     {
         const uint32_t args[2] = {F + 0x70, F + 0xb0};
-        call_at(F, 0x0026dfc5, 0x000262a0, TitleRegs{F + 0x70, ebx, ecx, F + 0xb0, esi, edi}, 2,
+        call_at(F, 0x0026dfc5, own_address(&Quat_FromAxis3), TitleRegs{F + 0x70, ebx, ecx, F + 0xb0, esi, edi}, 2,
                 args);  // Quat_FromAxis3
     }
     const uint32_t blending = stack_at(F + 0x3c);
@@ -4629,23 +4636,23 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
             const uint32_t info = half_at(tree + index * 2 + 0x18);
             const uint32_t args[6] = {tree, 0x3e4ccccd, 0x3f800000, 0, 0, 0};
             const TitleRegs regs{index, ebx, info * 0x30, edx, esi, edi};
-            ent_call_at_xmm5_raw(F, 0x002d7db0, &regs, 6, args, bits_of(knob));  // AnimTree_SetKnob (XMM5 goal)
+            ent_call_at_xmm5_raw(F, own_address(&AnimTree_SetKnob_entry), &regs, 6, args, bits_of(knob));  // AnimTree_SetKnob (XMM5 goal)
             stack_at(F - 0x1c) = 0x0026e114;
         }
         {
             const uint32_t w = stack_at(F + 0x3c);
             const uint32_t args[7] = {tree, w, 0x3e4ccccd, 0x3f800000, 0, 0, 0};
-            call_at(F, 0x0026e139, 0x002cf090, TitleRegs{half_at(actor + 0x210), ebx, ecx, w, esi, edi}, 7,
+            call_at(F, 0x0026e139, own_address(&AnimTree_SetGoalWeight), TitleRegs{half_at(actor + 0x210), ebx, ecx, w, esi, edi}, 7,
                     args);  // AnimTree_SetGoalWeight
         }
         if (root & 0xffff) {
             const uint32_t args[2] = {tree, 0};
-            call_at(F, 0x0026e14f, 0x002c9a90, TitleRegs{root & 0xffff, ebx, ecx, edx, esi, edi}, 2,
+            call_at(F, 0x0026e14f, own_address(&AnimTree_ClearChildGoalWeights), TitleRegs{root & 0xffff, ebx, ecx, edx, esi, edi}, 2,
                     args);  // AnimTree_ClearChildGoalWeights
         }
     } else {
         const uint32_t args[2] = {tree, 0};
-        call_at(F, 0x0026e161, 0x002c9a90, TitleRegs{root & 0xffff, ebx, tree, edx, esi, edi}, 2,
+        call_at(F, 0x0026e161, own_address(&AnimTree_ClearChildGoalWeights), TitleRegs{root & 0xffff, ebx, tree, edx, esi, edi}, 2,
                 args);  // AnimTree_ClearChildGoalWeights
         esi = tree;
     }
@@ -4653,11 +4660,11 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
     uint32_t restart;
     {
         const uint32_t args[1] = {handle};
-        restart = call_at(F, 0x0026e171, 0x00250e00, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 1, args);  // G_GetAnimFlag0
+        restart = call_at(F, 0x0026e171, own_address(&G_GetAnimFlag0), TitleRegs{eax, ebx, ecx, edx, esi, edi}, 1, args);  // G_GetAnimFlag0
     }
     {
         const uint32_t args[7] = {tree, 0x3f800000, 0, 0x3f800000, rate, 0, restart ? 0u : 1u};
-        call_at(F - 4, 0x0026e192, 0x002cf090, TitleRegs{handle & 0xffff, ebx, ecx, rate, esi, edi}, 7,
+        call_at(F - 4, 0x0026e192, own_address(&AnimTree_SetGoalWeight), TitleRegs{handle & 0xffff, ebx, ecx, rate, esi, edi}, 7,
                 args);  // AnimTree_SetGoalWeight
     }
     stack_at(ent + 0x2a4) |= 0x1000000;
@@ -4705,7 +4712,7 @@ void XB_CDECL Use_BinaryMover(uint8_t* ent, uint8_t* other, uint8_t* activator) 
         if (early || locked || !activator || !word_at(activator, 0x244)) return;
         const TitleRegs regs{0, ebx, 0, 0, self, self};
         const uint32_t args[4] = {address_of(activator), 0xc, self + 0x140, 0};
-        g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+        g_ent_call(own_address(&Actor_SendPointEvent_entry), &regs, 4, args);  // Actor_SendPointEvent
     };
     auto open_portal = [&]() {
         uint8_t* const master = pointer_at(e, 0x380);
@@ -4767,7 +4774,7 @@ void XB_REGS1 XB_CDECL TryDoor(uint8_t* door, uint8_t* activator) {
     {
         const TitleRegs regs{number, 0, address_of(&number), trigger, locked, address_of(door)};
         const uint32_t args[2] = {trigger, address_of(&number)};
-        g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity
+        g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity
     }
     uint8_t* const target = pointer_at(door, 0x380);
     uint8_t* mover = door;
@@ -4790,7 +4797,7 @@ void XB_REGS1 XB_CDECL TryDoor(uint8_t* door, uint8_t* activator) {
     if (!(word_at(door, 0x2a4) & 0x800) && !send_event) return;
     const TitleRegs regs{0, 0, 0, 0, locked, address_of(door) + 0x140};
     const uint32_t args[4] = {address_of(activator), 0xc, address_of(door) + 0x140, 0};
-    g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+    g_ent_call(own_address(&Actor_SendPointEvent_entry), &regs, 4, args);  // Actor_SendPointEvent
 }
 
 void XB_CDECL Touch_DoorTrigger(uint8_t* ent, uint8_t* other, uint32_t touched) {
@@ -4839,7 +4846,7 @@ void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t e
         const uint32_t tag = stack_at(L + 0x18);
         {
             const uint32_t args[1] = {m};
-            if (!call_at(L, 0x00270c6c, 0x0025ced0, TitleRegs{tag, b, turret, m, esi, edi}, 1, args)) {  // G_GetFlashTagMatrix
+            if (!call_at(L, 0x00270c6c, own_address(&G_GetFlashTagMatrix), TitleRegs{tag, b, turret, m, esi, edi}, 1, args)) {  // G_GetFlashTagMatrix
                 if (!(b & 0xff)) return;
                 break;
             }
@@ -4864,9 +4871,9 @@ void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t e
             b = info_word + 0x10;
             const TitleRegs regs{info_word, b, 0, 0, esi, edi};
             if (roll >= field<float>(info, 0x54))
-                call_at(L, 0x00270d1c, 0x001ff3a0, regs, 0, nullptr);  // Turret_AimDirMiss
+                call_at(L, 0x00270d1c, own_address(&Turret_AimDirMiss_entry), regs, 0, nullptr);  // Turret_AimDirMiss
             else
-                call_at(L, 0x00270d23, 0x001ff730, regs, 0, nullptr);  // Turret_AimDirHit
+                call_at(L, 0x00270d23, own_address(&Turret_AimDirHit_entry), regs, 0, nullptr);  // Turret_AimDirHit
             const float* const dir = &stack_float(L + 0x1c);
             const float z = dir[2], y = dir[1], x = dir[0];
             const float along = ((z * matrix[2]) + (y * matrix[1])) + (x * matrix[0]);
@@ -4880,12 +4887,12 @@ void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t e
         const uint32_t kind = *reinterpret_cast<const uint32_t*>(def + 0x94);
         if (!kind) {
             const uint32_t args[5] = {stack_at(L + 0x14), stack_at(L + 0x10), target, turret, 0};
-            call_at(L, 0x00270d9c, 0x002704c0, TitleRegs{m, b, target, stack_at(L + 0x10), esi, edi}, 5,
+            call_at(L, 0x00270d9c, own_address(&Weapon_FireBullet_entry), TitleRegs{m, b, target, stack_at(L + 0x10), esi, edi}, 5,
                     args);  // Weapon_FireBullet
         } else {
             esi = m;
             const uint32_t args[3] = {0, 0x40a00000, 0};  // 5.0f
-            call_at(L, 0x00270db3, 0x00269a30, TitleRegs{turret, b, kind, 0, esi, edi}, 3, args);  // Weapon_FireProjectile
+            call_at(L, 0x00270db3, own_address(&Weapon_FireProjectile_entry), TitleRegs{turret, b, kind, 0, esi, edi}, 3, args);  // Weapon_FireProjectile
         }
         const uint32_t next = stack_at(L + 0x18) + 1;
         b = (b & ~0xffu) | 1;
@@ -4893,7 +4900,7 @@ void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t e
         if (static_cast<int32_t>(next) >= 2) break;
     }
     const uint32_t args[2] = {0xad, 0};
-    call_at(L, 0x00270dde, 0x002a80b0, TitleRegs{turret, b, 0, 0, esi, edi}, 2, args);  // G_AddEvent
+    call_at(L, 0x00270dde, own_address(&G_AddEvent), TitleRegs{turret, b, 0, 0, esi, edi}, 2, args);  // G_AddEvent
 }
 
 ENT_EAX_FRAME_ENTRY(Turret_FireForUser)
@@ -4907,14 +4914,14 @@ void XB_CDECL Turret_FireForUser(uint32_t entry, uint8_t* turret, uint32_t ebx, 
     const uint32_t target = word_at(turret, 0x358);
     if (user && word_at(user, 0x23c)) {
         const uint32_t args[3] = {address_of(turret), target, 0};
-        call_at(entry, 0x002712bf, 0x00270c10, TitleRegs{esi, ebx, target, 0, esi, edi}, 3,
+        call_at(entry, 0x002712bf, own_address(&Turret_FireFromFlashTags_entry), TitleRegs{esi, ebx, target, 0, esi, edi}, 3,
                 args);  // Turret_FireFromFlashTags
         word_at(pointer_at(user, 0x23c), 0x464) = 2;
         return;
     }
     const uint32_t aim = (pointer_at(turret, 0x24c)[2] >> 6) & 1;
     const uint32_t args[3] = {address_of(turret), target, aim};
-    call_at(entry, 0x002712f4, 0x00270c10, TitleRegs{esi, ebx, target, aim, esi, edi}, 3,
+    call_at(entry, 0x002712f4, own_address(&Turret_FireFromFlashTags_entry), TitleRegs{esi, ebx, target, aim, esi, edi}, 3,
             args);  // Turret_FireFromFlashTags
 }
 
@@ -4939,7 +4946,7 @@ void XB_CDECL G_RunMover(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
     auto rest = [&]() {
         const TitleRegs regs{self, 0, 0, 0, self, edi_now};
         if (word_at(ent, 0x3cc)) {
-            call_at(L, 0x0026f80d, 0x002e6490, regs, 0, nullptr);  // G_GeneralLink
+            call_at(L, 0x0026f80d, own_address(&G_GeneralLink), regs, 0, nullptr);  // G_GeneralLink
         } else if (word_at(ent, 0x2a4) & 0x10) {
             if (!word_at(ent, 0xd0)) return;
             const uint32_t name = word_at(ent, 0x260);
@@ -4949,14 +4956,14 @@ void XB_CDECL G_RunMover(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
             return;
         } else if (word_at(ent, 0x14) || word_at(ent, 0x38)) {
             const uint32_t args[1] = {self};
-            call_at(L, 0x0026f85f, 0x0026e450, regs, 1, args);  // G_MoverTeam
+            call_at(L, 0x0026f85f, own_address(&G_MoverTeam_entry), regs, 1, args);  // G_MoverTeam
         }
-        if (word_at(ent, 0x2a4) & 0x20000000) call_at(L, 0x0026f873, 0x0024e690, regs, 0, nullptr);  // G_FloatOnWater
-        call_at(L, 0x0026f879, 0x0024ac50, regs, 1, think_args);  // G_RunThink
+        if (word_at(ent, 0x2a4) & 0x20000000) call_at(L, 0x0026f873, own_address(&G_FloatOnWater_entry), regs, 0, nullptr);  // G_FloatOnWater
+        call_at(L, 0x0026f879, own_address(&G_RunThink_entry), regs, 1, think_args);  // G_RunThink
     };
     if (!word_at(ent, 0x3d4)) return rest();
     edi_now = self;
-    call_at(L, 0x0026f6f1, 0x00255050, TitleRegs{word_at(ent, 0x3d4), 0, 0, 0, self, self}, 0,
+    call_at(L, 0x0026f6f1, own_address(&G_UpdateScriptedAnimEnd_entry), TitleRegs{word_at(ent, 0x3d4), 0, 0, 0, self, self}, 0,
             nullptr);  // G_UpdateScriptedAnimEnd
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x20 + i * 4) = word_at(ent, 0x140 + i * 4);
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x14 + i * 4) = 0;
@@ -4969,13 +4976,13 @@ void XB_CDECL G_RunMover(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
     field<float>(ent, 0x54) = 0.0f;
     field<float>(ent, 0x50) = 0.0f;
     const TitleRegs link{word_at(ent, 0x150), 0, word_at(ent, 0x154), word_at(ent, 0x158), self, self};
-    call_at(L, 0x0026f7a7, 0x002d7fe0, link, 0, nullptr);  // SV_LinkEntity
+    call_at(L, 0x0026f7a7, own_address(&SV_LinkEntity_entry), link, 0, nullptr);  // SV_LinkEntity
     if (!word_at(ent, 0x3d4)) return rest();
     word_at(ent, 0x14) = 1;
     word_at(ent, 0x38) = 1;
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x2c + i * 4) = word_at(ent, 0x140 + i * 4);
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x50 + i * 4) = word_at(ent, 0x150 + i * 4);
-    call_at(L, 0x0026f7f6, 0x0024ac50, TitleRegs{1, 0, word_at(ent, 0x154), word_at(ent, 0x158), self, self}, 1,
+    call_at(L, 0x0026f7f6, own_address(&G_RunThink_entry), TitleRegs{1, 0, word_at(ent, 0x154), word_at(ent, 0x158), self, self}, 1,
             think_args);  // G_RunThink
 }
 
@@ -5005,19 +5012,19 @@ void XB_CDECL G_RunItem(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi
     }
     const uint32_t type = word_at(ent, 0x14);
     if (type == 0 || type == 8) {
-        call_at(L, 0x0026fc9a, 0x0024ac50, TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
+        call_at(L, 0x0026fc9a, own_address(&G_RunThink_entry), TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
         return;
     }
     {
         const uint32_t args[1] = {self};
-        const uint32_t valid = call_at(L, 0x0026fb5c, 0x002ae8f0, TitleRegs{type, 0, 0, 0, self, self + 0x14}, 1, args);
+        const uint32_t valid = call_at(L, 0x0026fb5c, own_address(&G_EntityInValidCell), TitleRegs{type, 0, 0, 0, self, self + 0x14}, 1, args);
         if (!(valid & 0xff)) {  // G_EntityInValidCell
-            call_at(L, 0x0026fc9a, 0x0024ac50, TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
+            call_at(L, 0x0026fc9a, own_address(&G_RunThink_entry), TitleRegs{arg, 0, 0, 0, self, self + 0x14}, 1, think_args);  // G_RunThink
             return;
         }
     }
     const uint32_t origin = L + 0x10, trace = L + 0x20;
-    call_at(L, 0x0026fb72, 0x002d62c0, TitleRegs{title_global<uint32_t>(0x0098540c), 0, origin, 0, self, self + 0x14}, 0,
+    call_at(L, 0x0026fb72, own_address(&BG_EvaluateTrajectory_entry), TitleRegs{title_global<uint32_t>(0x0098540c), 0, origin, 0, self, self + 0x14}, 0,
             nullptr);  // BG_EvaluateTrajectory
     uint32_t mask = word_at(ent, 0x2a8);
     if (!mask) mask = 0x491;
@@ -5025,10 +5032,10 @@ void XB_CDECL G_RunItem(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi
     {
         const uint32_t args[7] = {trace, start, self + 0xe0, self + 0xf0, origin, word_at(ent, 0x1a0), mask};
         if (ent[0x10] & 0x10)
-            call_at(L, 0x0026fbb3, 0x002601a0, TitleRegs{self + 0xf0, start, self + 0xe0, trace, self, self + 0x14}, 7,
+            call_at(L, 0x0026fbb3, own_address(&G_TraceCapsule), TitleRegs{self + 0xf0, start, self + 0xe0, trace, self, self + 0x14}, 7,
                     args);  // G_TraceCapsule
         else
-            call_at(L, 0x0026fbda, 0x002601e0, TitleRegs{self + 0xe0, start, trace, self + 0xf0, self, self + 0x14}, 7,
+            call_at(L, 0x0026fbda, own_address(&G_Trace), TitleRegs{self + 0xe0, start, trace, self + 0xf0, self, self + 0x14}, 7,
                     args);  // G_Trace
     }
     field<float>(ent, 0x140) = stack_float(trace);
@@ -5036,23 +5043,23 @@ void XB_CDECL G_RunItem(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t esi
     field<float>(ent, 0x144) = stack_float(trace + 4);
     field<float>(ent, 0x148) = stack_float(trace + 8);
     if (start_solid) stack_float(trace + 0x20) = 0.0f;
-    call_at(L, 0x0026fc1b, 0x002d7fe0, TitleRegs{start_solid, start, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
-    call_at(L, 0x0026fc24, 0x0024ac50, TitleRegs{start_solid, start, 0, 0, self, arg}, 1, think_args);  // G_RunThink
+    call_at(L, 0x0026fc1b, own_address(&SV_LinkEntity_entry), TitleRegs{start_solid, start, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(L, 0x0026fc24, own_address(&G_RunThink_entry), TitleRegs{start_solid, start, 0, 0, self, arg}, 1, think_args);  // G_RunThink
     const uint32_t number = word_at(ent, 0x224);
     stack_at(L + 0xc) = number;
-    if (!call_at(L, 0x0026fc3a, 0x00013860, TitleRegs{L + 0xc, start, 0, number, self, arg}, 0, nullptr))
+    if (!call_at(L, 0x0026fc3a, own_address(&G_EntHandleToEnt), TitleRegs{L + 0xc, start, 0, number, self, arg}, 0, nullptr))
         return;  // G_EntHandleToEnt
     if (stack_float(trace + 0x20) == title_global<float>(0x0083eb20)) return;
     const uint32_t args[3] = {start, 0, 0x80000000};
     const uint32_t contents =
-        call_at(L, 0x0026fc65, 0x002e01a0, TitleRegs{L - 8, start, 0, 0, self, arg}, 3, args);  // SV_PointContents
+        call_at(L, 0x0026fc65, own_address(&SV_PointContents), TitleRegs{L - 8, start, 0, 0, self, arg}, 3, args);  // SV_PointContents
     if (contents) {
         const uint32_t free_args[2] = {self, arg};
-        call_at(L, 0x0026fc73, 0x002be420, TitleRegs{contents, start, 0, 0, self, arg}, 2, free_args);  // G_FreeEntity
+        call_at(L, 0x0026fc73, own_address(&G_FreeEntity), TitleRegs{contents, start, 0, 0, self, arg}, 2, free_args);  // G_FreeEntity
         return;
     }
     const uint32_t bounce_args[1] = {self};
-    call_at(L, 0x0026fc87, 0x0026ecf0, TitleRegs{trace, start, 0, 0, self, arg}, 1, bounce_args);  // G_BounceItem
+    call_at(L, 0x0026fc87, own_address(&G_BounceItem_entry), TitleRegs{trace, start, 0, 0, self, arg}, 1, bounce_args);  // G_BounceItem
 }
 
 ENT_EAX_FRAME_ENTRY(FireWeapon)
@@ -5076,7 +5083,7 @@ void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
     const uint32_t view = entry - 0x40;
     {
         const uint32_t args[2] = {self, view};
-        call_at(entry - 0x50, 0x00270e44, 0x0025b780, TitleRegs{def, ebx, view, weapon, esi, self}, 2,
+        call_at(entry - 0x50, 0x00270e44, own_address(&Player_GetViewOriginAndAxis), TitleRegs{def, ebx, view, weapon, esi, self}, 2,
                 args);  // Player_GetViewOriginAndAxis
     }
     uint8_t* const client = pointer_at(ent, 0x23c);
@@ -5091,7 +5098,7 @@ void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
         const uint32_t time = title_global<uint32_t>(0x0098540c);
         const uint32_t args[2] = {time, ads};
         const TitleRegs regs{time, b, address_of(client), weapon, weapon, self};
-        const uint32_t bits = actor_call_at_xmm0_raw(L, 0x002b4d80, &regs, 2, args);  // BG_GetWeaponSpread
+        const uint32_t bits = actor_call_at_xmm0_raw(L, own_address(&BG_GetWeaponSpread_entry), &regs, 2, args);  // BG_GetWeaponSpread
         stack_at(L - 0xc) = 0x00270e8c;
         std::memcpy(&base, &bits, 4);
     }
@@ -5109,25 +5116,25 @@ void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
         std::memcpy(&cone_bits, &cone, 4);
         const uint32_t range = *reinterpret_cast<const uint32_t*>(d + 0x5b8);
         const uint32_t args[5] = {self, spread_bits, range, self, cone_bits};
-        call_at(L, 0x00270ef6, 0x002704c0, TitleRegs{view, b, range, spread_bits, address_of(wd), self}, 5,
+        call_at(L, 0x00270ef6, own_address(&Weapon_FireBullet_entry), TitleRegs{view, b, range, spread_bits, address_of(wd), self}, 5,
                 args);  // Weapon_FireBullet
         return;
     }
     case 1: {
         const uint32_t args[1] = {weapon};
-        call_at(L, 0x00270f10, 0x0025ff10, TitleRegs{view, b, address_of(d), spread_bits, weapon, self}, 1,
+        call_at(L, 0x00270f10, own_address(&weapon_grenadelauncher_fire_entry), TitleRegs{view, b, address_of(d), spread_bits, weapon, self}, 1,
                 args);  // weapon_grenadelauncher_fire
         return;
     }
     case 2: {
         const uint32_t args[3] = {spread_bits, 0x41200000, 1};  // 10.0f
-        call_at(L, 0x00270f37, 0x00269a30, TitleRegs{self, b, address_of(d), spread_bits, view, self}, 3,
+        call_at(L, 0x00270f37, own_address(&Weapon_FireProjectile_entry), TitleRegs{self, b, address_of(d), spread_bits, view, self}, 3,
                 args);  // Weapon_FireProjectile
         return;
     }
     case 3: {
         const uint32_t args[2] = {self, spread_bits};
-        call_at(L, 0x00270f56, 0x00265a40, TitleRegs{kind, view, spread_bits, spread_bits, weapon, self}, 2,
+        call_at(L, 0x00270f56, own_address(&Weapon_FireClusterAtTrace_entry), TitleRegs{kind, view, spread_bits, spread_bits, weapon, self}, 2,
                 args);  // Weapon_FireClusterAtTrace
         return;
     }
@@ -5136,7 +5143,7 @@ void XB_CDECL FireWeapon(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t es
     default: {
         const uint32_t name = *reinterpret_cast<const uint32_t*>(d + 8);
         const uint32_t args[3] = {0x00839c38, kind, name};  // "Unknown weapon type %i for %s\n"
-        call_at(L, 0x00270f7a, 0x00248af0, TitleRegs{kind, b, address_of(d), name, weapon, self}, 3, args);  // G_Error
+        call_at(L, 0x00270f7a, own_address(&G_Error_entry), TitleRegs{kind, b, address_of(d), name, weapon, self}, 3, args);  // G_Error
         return;
     }
     }
@@ -5167,7 +5174,7 @@ void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
     title_global<uint32_t>(0x0095bef8) = 0x00955298;  // pushed_p = pushed
     const uint32_t origin = L + 0x40, angles = L + 0x30, move = L + 0x18, amove = L + 0x24;
     auto evaluate = [&](uint32_t ret, uint32_t part, uint32_t out, uint32_t tr) {
-        call_at(L, ret, 0x002d62c0, TitleRegs{title_global<uint32_t>(0x0098540c), self, out, 0, part, tr}, 0,
+        call_at(L, ret, own_address(&BG_EvaluateTrajectory_entry), TitleRegs{title_global<uint32_t>(0x0098540c), self, out, 0, part, tr}, 0,
                 nullptr);  // BG_EvaluateTrajectory
     };
     bool blocked = false;
@@ -5178,7 +5185,7 @@ void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
         for (uint32_t i = 0; i < 3; ++i) stack_float(move + i * 4) = stack_float(origin + i * 4) - field<float>(part, 0x140 + i * 4);
         for (uint32_t i = 0; i < 3; ++i) stack_float(amove + i * 4) = stack_float(angles + i * 4) - field<float>(part, 0x150 + i * 4);
         const uint32_t args[5] = {move, amove, L + 0x10, L + 0x1550, L + 0x50};
-        if (!call_at(L, 0x0026e55d, 0x0026b960, TitleRegs{p, self, move, L + 0x10, p, p + 0x38}, 5, args)) {  // G_MoverPush
+        if (!call_at(L, 0x0026e55d, own_address(&G_MoverPush_entry), TitleRegs{p, self, move, L + 0x10, p, p + 0x38}, 5, args)) {  // G_MoverPush
             blocked = true;
             break;
         }
@@ -5192,7 +5199,7 @@ void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
             stack_at(L + 0x14) = address_of(pushed);
             if (actor) {
                 const uint32_t a = address_of(actor);
-                call_at(L, 0x0026e5b3, 0x001fee70, TitleRegs{p, word_at(actor, 0) + 0x140, address_of(pushed), 0, a + 0x3c0, a},
+                call_at(L, 0x0026e5b3, own_address(&Path_AccumulateTrim_entry), TitleRegs{p, word_at(actor, 0) + 0x140, address_of(pushed), 0, a + 0x3c0, a},
                         0, nullptr);  // Path_AccumulateTrim
                 *reinterpret_cast<uint16_t*>(actor + 0x740) = 0;
                 *reinterpret_cast<uint16_t*>(actor + 0x742) = 0;
@@ -5239,7 +5246,7 @@ void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
             s = static_cast<int32_t>((field<float>(again, 0x14c) - stack_float(p + 0x10)) * to_short) & 0xffff;
             field<float>(again, 0x14c) = static_cast<float>(s) * to_degrees;
         }
-        call_at(L, 0x0026e76d, 0x002d7fe0, TitleRegs{0, self, 0, 0, p, address_of(pushed)}, 0, nullptr);  // SV_LinkEntity
+        call_at(L, 0x0026e76d, own_address(&SV_LinkEntity_entry), TitleRegs{0, self, 0, 0, p, address_of(pushed)}, 0, nullptr);  // SV_LinkEntity
     }
     for (uint8_t* part = ent; part; part = pointer_at(part, 0x37c)) {
         const uint32_t p = address_of(part);
@@ -5249,7 +5256,7 @@ void XB_CDECL G_MoverTeam(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
         field<int32_t>(part, 0x3c) = field<int32_t>(part, 0x3c) + step;
         evaluate(0x0026e7be, p, p + 0x140, p + 0x14);
         evaluate(0x0026e7d1, p, p + 0x150, p + 0x38);
-        call_at(L, 0x0026e7d8, 0x002d7fe0, TitleRegs{0, self, p + 0x150, 0, p, p}, 0, nullptr);  // SV_LinkEntity
+        call_at(L, 0x0026e7d8, own_address(&SV_LinkEntity_entry), TitleRegs{0, self, p + 0x150, 0, p, p}, 0, nullptr);  // SV_LinkEntity
     }
     if (!word_at(ent, 0x334)) return;
     const uint32_t args[2] = {self, stack_at(L + 0x10)};
@@ -5303,7 +5310,7 @@ uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_
             stack_float(angles) = field<float>(info, 0x3c);
             stack_float(angles + 4) = field<float>(info, 0x40);
             const uint32_t args[2] = {self, angles};
-            call_at(L, 0x0026eafb, 0x0024e300, TitleRegs{angles, ebx, address_of(actor), 0, info_word, self}, 2,
+            call_at(L, 0x0026eafb, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{angles, ebx, address_of(actor), 0, info_word, self}, 2,
                     args);  // Turret_UpdateTargetAngles
             return 1;
         }
@@ -5320,13 +5327,13 @@ uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_
         }
         if (pick) {
             const uint32_t args[2] = {self, address_of(actor)};
-            return call_at(L, 0x0026eba6, 0x0026c550, TitleRegs{enemy, ebx, address_of(actor), bits, info_word, self}, 2,
+            return call_at(L, 0x0026eba6, own_address(&Turret_UpdateTarget_entry), TitleRegs{enemy, ebx, address_of(actor), bits, info_word, self}, 2,
                            args);  // Turret_UpdateTarget
         }
         *reinterpret_cast<uint16_t*>(info + 2) = static_cast<uint16_t>(bits & 0xffef);
         if (!enemy) {
             const uint32_t args[1] = {address_of(actor)};
-            call_at(L, 0x0026ebc4, 0x001fc360, TitleRegs{0, ebx, address_of(actor), static_cast<uint32_t>(bits & 0xffef), info_word, self}, 1,
+            call_at(L, 0x0026ebc4, own_address(&Actor_ClearSentientThreatTimes), TitleRegs{0, ebx, address_of(actor), static_cast<uint32_t>(bits & 0xffef), info_word, self}, 1,
                     args);  // Actor_ClearSentientThreatTimes
         } else {
             const int32_t index = static_cast<int32_t>(enemy - title_global<uint32_t>(0x00985378)) / 0x60;  // g_sentients
@@ -5340,12 +5347,12 @@ uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_
         const uint32_t sentient = word_at(target, 0x244);
         if (!sentient) {
             const uint32_t args[1] = {aiming};
-            call_at(L, 0x0026ec5c, 0x0025f290, TitleRegs{self, address_of(target), address_of(target), aiming, info_word, self}, 1,
+            call_at(L, 0x0026ec5c, own_address(&Turret_TrackTargetEnt), TitleRegs{self, address_of(target), address_of(target), aiming, info_word, self}, 1,
                     args);  // Turret_TrackTargetEnt
             return 1;
         }
         const uint32_t args[1] = {sentient};
-        if (call_at(L, 0x0026ec73, 0x00267c30, TitleRegs{sentient, address_of(target), 0, aiming, info_word, self}, 1,
+        if (call_at(L, 0x0026ec73, own_address(&Turret_AimAtTarget_entry), TitleRegs{sentient, address_of(target), 0, aiming, info_word, self}, 1,
                     args))  // Turret_AimAtTarget
             return 1;
     }
@@ -5353,7 +5360,7 @@ uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_
         stack_float(angles) = 0.0f;
         stack_float(angles + 4) = 0.0f;
         const uint32_t args[2] = {self, angles};
-        call_at(L, 0x0026eca4, 0x0024e300, TitleRegs{0, address_of(target), angles, 1, info_word, self}, 2,
+        call_at(L, 0x0026eca4, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{0, address_of(target), angles, 1, info_word, self}, 2,
                 args);  // Turret_UpdateTargetAngles
         return 1;
     }
@@ -5363,7 +5370,7 @@ uint32_t XB_CDECL Turret_ThinkActorUser(uint32_t entry, uint8_t* turret, uint32_
     uint8_t* const state = pointer_at(turret, 0x24c);
     if (state[1]) {
         const uint32_t args[1] = {title_global<uint32_t>(0x0097a860)};  // scr_const_turretstatechange
-        call_at(L, 0x0026ecdf, 0x002b75c0, TitleRegs{state[1], address_of(state), 0, 0, self, self}, 1, args);  // Scr_Notify
+        call_at(L, 0x0026ecdf, own_address(&Scr_Notify_entry), TitleRegs{state[1], address_of(state), 0, 0, self, self}, 1, args);  // Scr_Notify
     }
     state[1] = 0;
     return 1;
@@ -5394,10 +5401,10 @@ uint32_t XB_CDECL G_SimulateGrenadePath(uint32_t entry, uint8_t* ent, uint32_t e
     stack_at(L + 0x64) = 0;
     {
         const uint32_t args[1] = {0xffffffffu};
-        call_at(L, 0x0026e839, 0x002d6ba0, TitleRegs{temp, self, 0, 0, esi, edi}, 1, args);  // G_InitGentity
+        call_at(L, 0x0026e839, own_address(&G_InitGentity), TitleRegs{temp, self, 0, 0, esi, edi}, 1, args);  // G_InitGentity
     }
     for (uint32_t i = 0; i < 9; ++i) stack_at(traj + i * 4) = word_at(ent, 0x14 + i * 4);
-    call_at(L, 0x0026e859, 0x002d62c0, TitleRegs{title_global<uint32_t>(0x0098540c), self, pos, 0, self + 0x38, traj}, 0,
+    call_at(L, 0x0026e859, own_address(&BG_EvaluateTrajectory_entry), TitleRegs{title_global<uint32_t>(0x0098540c), self, pos, 0, self + 0x38, traj}, 0,
             nullptr);  // BG_EvaluateTrajectory
     stack_at(out_time) = word_at(ent, 0x328);
     int32_t t = title_global<int32_t>(0x0098540c) + 100;
@@ -5405,17 +5412,17 @@ uint32_t XB_CDECL G_SimulateGrenadePath(uint32_t entry, uint8_t* ent, uint32_t e
     const uint32_t mask = word_at(ent, 0x2a8);
     auto missile_trace = [&](uint32_t ret) {
         const uint32_t args[3] = {trace, pos, word_at(ent, 0x1a0)};
-        call_at(L, ret, 0x00262ce0, TitleRegs{0x008da6f0, self, mask, trace, static_cast<uint32_t>(t), next}, 3,
+        call_at(L, ret, own_address(&G_MissileTrace_entry), TitleRegs{0x008da6f0, self, mask, trace, static_cast<uint32_t>(t), next}, 3,
                 args);  // G_MissileTrace
     };
     auto free_temp = [&](uint32_t ret) {
-        call_at(L, ret, 0x002eda30, TitleRegs{0, self, temp, 0, static_cast<uint32_t>(t), next}, 0,
+        call_at(L, ret, own_address(&G_FreeEntityContents_entry), TitleRegs{0, self, temp, 0, static_cast<uint32_t>(t), next}, 0,
                 nullptr);  // G_FreeEntityContents
     };
     bool stored = false;
     if (t < title_global<int32_t>(0x0098540c) + static_cast<int32_t>(duration)) {
         for (;;) {
-            call_at(L, 0x0026e88f, 0x002d62c0, TitleRegs{static_cast<uint32_t>(t), self, next, 0, static_cast<uint32_t>(t), traj},
+            call_at(L, 0x0026e88f, own_address(&BG_EvaluateTrajectory_entry), TitleRegs{static_cast<uint32_t>(t), self, next, 0, static_cast<uint32_t>(t), traj},
                     0, nullptr);  // BG_EvaluateTrajectory
             missile_trace(0x0026e8b4);
             const uint8_t solid = *reinterpret_cast<const uint8_t*>(uintptr_t{trace + 0x3d});
@@ -5461,7 +5468,7 @@ uint32_t XB_CDECL G_SimulateGrenadePath(uint32_t entry, uint8_t* ent, uint32_t e
             const int32_t hit = t - static_cast<int32_t>(fraction * title_global<float>(0x0083eb38)) - 100;
             {
                 const uint32_t args[2] = {self, static_cast<uint32_t>(hit)};
-                call_at(L, 0x0026e9f4, 0x00254a10, TitleRegs{traj, self, mask, trace, trace, next}, 2,
+                call_at(L, 0x0026e9f4, own_address(&G_SimulateGrenadeBounce_entry), TitleRegs{traj, self, mask, trace, trace, next}, 2,
                         args);  // G_SimulateGrenadeBounce
             }
             t = static_cast<int32_t>(stack_at(L + 0xc));
@@ -5513,7 +5520,7 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
     const uint32_t velocity = L + 0x10;
     {
         const uint32_t args[1] = {self + 0x14};
-        call_at(L, 0x0026ed2a, 0x002b6710, TitleRegs{self + 0x14, ebx, velocity, static_cast<uint32_t>(hit_time), trace, self},
+        call_at(L, 0x0026ed2a, own_address(&BG_EvaluateTrajectoryDelta), TitleRegs{self + 0x14, ebx, velocity, static_cast<uint32_t>(hit_time), trace, self},
                 1, args);  // BG_EvaluateTrajectoryDelta
     }
     const float vx = stack_float(velocity), vz = stack_float(velocity + 8), vy = stack_float(velocity + 4);
@@ -5543,7 +5550,7 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
         const uint32_t start = capsule ? top : self + 0x140;
         const uint32_t pass = word_at(ent, 0x224);
         const uint32_t args[11] = {trace, self + 0xe0, self + 0xf0, end, pass, 0x411, capsule, 0, 0, 0, 0};
-        call_at(L, 0x0026ee82, 0x002e9af0, TitleRegs{self + 0xe0, start, end, self + 0xf0, trace, self}, 11, args);  // SV_Trace
+        call_at(L, 0x0026ee82, own_address(&SV_Trace_entry), TitleRegs{self + 0xe0, start, end, self + 0xf0, trace, self}, 11, args);  // SV_Trace
     }
     if (!(field<float>(tr, 0x18) > 0.0f) || !(title_global<float>(0x0083ec84) > field<float>(ent, 0x34))) {
         field<float>(ent, 0x140) = field<float>(tr, 0x10) + field<float>(ent, 0x140);
@@ -5554,12 +5561,12 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
         return;
     }
     if (ent[0] == 0xd) {
-        call_at(L, 0x0026eeb6, 0x002b76e0, TitleRegs{self, ebx, trace, 0, trace, self}, 0, nullptr);  // G_SetOrigin
+        call_at(L, 0x0026eeb6, own_address(&G_SetOrigin), TitleRegs{self, ebx, trace, 0, trace, self}, 0, nullptr);  // G_SetOrigin
         word_at(ent, 0xc) = word_at(tr, 0x30);
         const uint32_t args[1] = {0};
-        call_at(L, 0x0026eec3, 0x00211db0, TitleRegs{self, ebx, word_at(tr, 0x30), 0, trace, self}, 1,
+        call_at(L, 0x0026eec3, own_address(&G_UpdateGroundTilt_entry), TitleRegs{self, ebx, word_at(tr, 0x30), 0, trace, self}, 1,
                 args);  // G_UpdateGroundTilt
-        call_at(L, 0x0026eecb, 0x002d7fe0, TitleRegs{self, ebx, 0, 0, trace, self}, 0, nullptr);  // SV_LinkEntity
+        call_at(L, 0x0026eecb, own_address(&SV_LinkEntity_entry), TitleRegs{self, ebx, 0, 0, trace, self}, 0, nullptr);  // SV_LinkEntity
         return;
     }
     const int32_t r = static_cast<int32_t>(call_at(L, 0x0026eed7, 0x001efcc0, TitleRegs{0, ebx, 0, 0, trace, self}, 0,
@@ -5567,11 +5574,11 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
     float lift = static_cast<float>(r) / title_global<float>(0x0083ebc8);
     lift = (lift + title_global<float>(0x0083eb20)) * title_global<float>(0x0083eb24);
     field<float>(tr, 8) = lift + field<float>(tr, 8);
-    call_at(L, 0x0026ef06, 0x002b76e0, TitleRegs{self, ebx, trace, 0, trace, self}, 0, nullptr);  // G_SetOrigin
+    call_at(L, 0x0026ef06, own_address(&G_SetOrigin), TitleRegs{self, ebx, trace, 0, trace, self}, 0, nullptr);  // G_SetOrigin
     word_at(ent, 0xc) = word_at(tr, 0x30);
     const uint32_t axis = L + 0x3c, normal = L + 0x54;
     for (uint32_t i = 0; i < 3; ++i) stack_at(normal + i * 4) = word_at(tr, 0x10 + i * 4);
-    call_at(L, 0x0026ef3c, 0x00013c60, TitleRegs{self, ebx, trace, 0, axis, self + 0x150}, 0, nullptr);  // AnglesToForward
+    call_at(L, 0x0026ef3c, own_address(&AnglesToForward_entry), TitleRegs{self, ebx, trace, 0, axis, self + 0x150}, 0, nullptr);  // AnglesToForward
     const float fz = stack_float(axis + 8), ny = stack_float(normal + 4), fy = stack_float(axis + 4);
     const float nz = stack_float(normal + 8), fx = stack_float(axis), nx = stack_float(normal);
     const float a0 = fz * ny - fy * nz;
@@ -5586,13 +5593,13 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
     stack_float(axis + 4) = b1;
     stack_float(axis + 8) = b2;
     const uint32_t angles = L + 0x10;
-    call_at(L, 0x0026efe9, 0x002a27f0, TitleRegs{angles, ebx, axis, 0, axis, self + 0x150}, 0, nullptr);  // AxisToAngles
+    call_at(L, 0x0026efe9, own_address(&AxisToAngles), TitleRegs{angles, ebx, axis, 0, axis, self + 0x150}, 0, nullptr);  // AxisToAngles
     const uint32_t item = *reinterpret_cast<uint16_t*>(ent + 6);
     if (title_global<uint32_t>(0x0096bd34 + item * 0x34) == 1)
         stack_float(angles + 8) = stack_float(angles + 8) + title_global<float>(0x0083eb64);  // 90
-    const uint32_t moved = call_at(L, 0x0026f019, 0x002b7690, TitleRegs{self, ebx, angles, 0, axis, self + 0x150}, 0,
+    const uint32_t moved = call_at(L, 0x0026f019, own_address(&G_SetAngle2), TitleRegs{self, ebx, angles, 0, axis, self + 0x150}, 0,
                                    nullptr);  // G_SetAngle2
-    call_at(L, 0x0026f020, 0x002d7fe0, TitleRegs{moved, ebx, 0, 0, axis, moved}, 0, nullptr);  // SV_LinkEntity
+    call_at(L, 0x0026f020, own_address(&SV_LinkEntity_entry), TitleRegs{moved, ebx, 0, 0, axis, moved}, 0, nullptr);  // SV_LinkEntity
 }
 
 namespace {
@@ -5631,7 +5638,7 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     uint8_t* const info = pointer_at(ent, 0x24c);
     const uint32_t info_word = address_of(info);
     if (word_at(ent, 0x3cc))
-        call_at(T0, 0x0026f8bd, 0x002e6490, TitleRegs{self, ebx, 0, 0, esi, info_word}, 0, nullptr);  // G_GeneralLink
+        call_at(T0, 0x0026f8bd, own_address(&G_GeneralLink), TitleRegs{self, ebx, 0, 0, esi, info_word}, 0, nullptr);  // G_GeneralLink
     const uint8_t* const def = weapon_def(ent[3]);
     const uint32_t def_word = address_of(def);
     stack_at(entry - 0x18) = ebx;
@@ -5639,7 +5646,7 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     const uint32_t system = 0x0095f5b4;
     auto free_smoke = [&](uint32_t ret) {
         const uint32_t args[1] = {word_at(info, 0x80)};
-        call_at(T, ret, 0x0029b620, TitleRegs{word_at(info, 0x80), def_word, 0, 0, title_global<uint32_t>(system), info_word}, 1,
+        call_at(T, ret, own_address(&FX_FreeEffectsById_entry), TitleRegs{word_at(info, 0x80), def_word, 0, 0, title_global<uint32_t>(system), info_word}, 1,
                 args);  // FX_FreeEffectsById
         word_at(info, 0x80) = 0;
     };
@@ -5648,15 +5655,15 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         info[0x7c] = 1;
         {
             const uint32_t args[2] = {name, 0x2a};
-            call_at(T, 0x0026f8ea, 0x002a62d0, TitleRegs{self, def_word, 0, 0, esi, info_word}, 2, args);  // FXCmd_PlayWeaponSound
+            call_at(T, 0x0026f8ea, own_address(&FXCmd_PlayWeaponSound_entry), TitleRegs{self, def_word, 0, 0, esi, info_word}, 2, args);  // FXCmd_PlayWeaponSound
         }
         {
             const uint32_t args[1] = {title_global<uint32_t>(0x0097a888)};  // scr_const_overheated
-            call_at(T, 0x0026f8fb, 0x002b75c0, TitleRegs{self, def_word, args[0], 0, self, info_word}, 1, args);  // Scr_Notify
+            call_at(T, 0x0026f8fb, own_address(&Scr_Notify_entry), TitleRegs{self, def_word, args[0], 0, self, info_word}, 1, args);  // Scr_Notify
         }
         if (word_at(info, 0x80)) {
             const uint32_t args[4] = {title_global<uint32_t>(system), word_at(info, 0x80), 0x0083b284, 0x43480000};  // 200
-            call_at(T, 0x0026f91c, 0x00296b80, TitleRegs{args[1], def_word, 0, args[0], self, info_word}, 4,
+            call_at(T, 0x0026f91c, own_address(&FXParam_Broadcast), TitleRegs{args[1], def_word, 0, args[0], self, info_word}, 4,
                     args);  // FXParam_Broadcast "EmissionRate"
         }
     } else if (info[0x7c] && title_global<float>(0x0083eb24) >= field<float>(info, 0x78)) {
@@ -5673,13 +5680,13 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         if (!word_at(info, 0x80)) {
             const uint32_t args[2] = {name, 0x29};
             word_at(info, 0x80) =
-                call_at(T, 0x0026f9af, 0x002a62d0, TitleRegs{self, def_word, 0, 0, esi, info_word}, 2, args);  // FXCmd_PlayWeaponSound
+                call_at(T, 0x0026f9af, own_address(&FXCmd_PlayWeaponSound_entry), TitleRegs{self, def_word, 0, 0, esi, info_word}, 2, args);  // FXCmd_PlayWeaponSound
         }
         const float rate = turret_emission_rate(field<float>(info, 0x78));
         uint32_t rate_bits;
         std::memcpy(&rate_bits, &rate, 4);
         const uint32_t args[4] = {title_global<uint32_t>(system), word_at(info, 0x80), 0x0083b284, rate_bits};
-        call_at(T, 0x0026f9e9, 0x00296b80, TitleRegs{0, def_word, args[1], args[0], esi, info_word}, 4,
+        call_at(T, 0x0026f9e9, own_address(&FXParam_Broadcast), TitleRegs{0, def_word, args[1], args[0], esi, info_word}, 4,
                 args);  // FXParam_Broadcast "EmissionRate"
     } else if (word_at(info, 0x80)) {
         free_smoke(0x0026fa01);
@@ -5688,17 +5695,17 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     if (user && word_at(user, 0x23c)) return;
     const uint32_t flags = *reinterpret_cast<const uint16_t*>(info + 2);
     if ((flags & 2) && !(flags & 1)) {
-        call_at(T0, 0x0026fa61, 0x0026cd70, TitleRegs{self, ebx, flags & 2, address_of(user), esi, info_word}, 0,
+        call_at(T0, 0x0026fa61, own_address(&Turret_ThinkAutoTarget_entry), TitleRegs{self, ebx, flags & 2, address_of(user), esi, info_word}, 0,
                 nullptr);  // Turret_ThinkAutoTarget
         return;
     }
     uint8_t* actor = user ? pointer_at(user, 0x240) : nullptr;
     if (actor && word_at(actor, 8) == 3 && (flags & 2)) {
         const uint32_t args[2] = {self, address_of(actor)};
-        if (call_at(T0, 0x0026fac1, 0x0026c550, TitleRegs{flags, ebx, flags & 2, address_of(user), address_of(actor), info_word},
+        if (call_at(T0, 0x0026fac1, own_address(&Turret_UpdateTarget_entry), TitleRegs{flags, ebx, flags & 2, address_of(user), address_of(actor), info_word},
                     2, args))  // Turret_UpdateTarget
             return;
-        call_at(T0, 0x0026facd, 0x00205ef0, TitleRegs{0, ebx, 0, 0, address_of(actor), info_word}, 0, nullptr);  // Actor_LeaveTurret
+        call_at(T0, 0x0026facd, own_address(&Actor_LeaveTurret_entry), TitleRegs{0, ebx, 0, 0, address_of(actor), info_word}, 0, nullptr);  // Actor_LeaveTurret
         return;
     }
     if (actor && word_at(actor, 8) != 3) actor = nullptr;
@@ -5708,16 +5715,16 @@ void XB_CDECL turret_think(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         stack_float(angles) = field<float>(pointer_at(ent, 0x24c), 0x3c);
         stack_float(angles + 4) = field<float>(pointer_at(ent, 0x24c), 0x40);
         const uint32_t args[2] = {self, angles};
-        call_at(T0, 0x0026faab, 0x0024e300, TitleRegs{angles, ebx, flags & 2, 0, actor_word, info_word}, 2,
+        call_at(T0, 0x0026faab, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{angles, ebx, flags & 2, 0, actor_word, info_word}, 2,
                 args);  // Turret_UpdateTargetAngles
         return;
     }
     const uint32_t args[1] = {actor_word};
-    if (call_at(T0, 0x0026fadc, 0x0026eab0, TitleRegs{self, ebx, flags & 2, address_of(user), actor_word, info_word}, 1,
+    if (call_at(T0, 0x0026fadc, own_address(&Turret_ThinkActorUser_entry), TitleRegs{self, ebx, flags & 2, address_of(user), actor_word, info_word}, 1,
                 args))  // Turret_ThinkActorUser
         return;
     if (actor)
-        call_at(T0, 0x0026faec, 0x00205ef0, TitleRegs{0, ebx, 0, 0, actor_word, info_word}, 0, nullptr);  // Actor_LeaveTurret
+        call_at(T0, 0x0026faec, own_address(&Actor_LeaveTurret_entry), TitleRegs{0, ebx, 0, 0, actor_word, info_word}, 0, nullptr);  // Actor_LeaveTurret
 }
 
 ENT_EAX_FRAME_ENTRY(G_RunEntity)
@@ -5755,7 +5762,7 @@ void XB_CDECL G_RunEntity(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t e
         const uint32_t event_flags = word_at(ent, 0x1a4);
         if (event_flags & 1) {
             const uint32_t free_args[2] = {self, edi};
-            call_at(T, 0x00274585, 0x002be420, TitleRegs{event_flags, ebx, 0, 0, self, edi}, 2, free_args);  // G_FreeEntity
+            call_at(T, 0x00274585, own_address(&G_FreeEntity), TitleRegs{event_flags, ebx, 0, 0, self, edi}, 2, free_args);  // G_FreeEntity
             return;
         }
         if (event_flags & 2) {
@@ -5766,29 +5773,29 @@ void XB_CDECL G_RunEntity(uint32_t entry, uint8_t* ent, uint32_t ebx, uint32_t e
         word_at(ent, 0x1a8) = 0;
     }
     if (word_at(ent, 0x3cc))
-        call_at(T, 0x002745c3, 0x002e6490, TitleRegs{self, ebx, 0, 0, self, edi}, 0, nullptr);  // G_GeneralLink
+        call_at(T, 0x002745c3, own_address(&G_GeneralLink), TitleRegs{self, ebx, 0, 0, self, edi}, 0, nullptr);  // G_GeneralLink
     const uint8_t type = ent[0];
     if (type == 3) {
         stack_at(T - 4) = ebx;
-        call_at(T - 4, 0x002745d2, 0x00273ef0, TitleRegs{type, self, 0, 0, self, edi}, 1, args);  // G_RunMissile
+        call_at(T - 4, 0x002745d2, own_address(&G_RunMissile_entry), TitleRegs{type, self, 0, 0, self, edi}, 1, args);  // G_RunMissile
         return;
     }
     if (type == 2 && word_at(ent, 0x3cc)) {
-        call_at(T, 0x002745ec, 0x0024ac50, TitleRegs{word_at(ent, 0x3cc), ebx, 0, 0, self, edi}, 1, args);  // G_RunThink
+        call_at(T, 0x002745ec, own_address(&G_RunThink_entry), TitleRegs{word_at(ent, 0x3cc), ebx, 0, 0, self, edi}, 1, args);  // G_RunThink
         return;
     }
     if (type == 2 || ent[0x294]) {
-        call_at(T, 0x00274603, 0x0026fb00, TitleRegs{self, ebx, ent[0x294], 0, self, edi}, 1, args);  // G_RunItem
+        call_at(T, 0x00274603, own_address(&G_RunItem_entry), TitleRegs{self, ebx, ent[0x294], 0, self, edi}, 1, args);  // G_RunItem
         return;
     }
     if (type == 4 || type == 7 || (type == 0xb && (word_at(ent, 0x2a4) & 0x4000000))) {
-        call_at(T, 0x00274652, 0x0026f6d0, TitleRegs{self, ebx, 0, 0, self, edi}, 1, args);  // G_RunMover
+        call_at(T, 0x00274652, own_address(&G_RunMover_entry), TitleRegs{self, ebx, 0, 0, self, edi}, 1, args);  // G_RunMover
         return;
     }
     if (type == 0 && (word_at(ent, 0x2a4) & 0x20000000))
-        call_at(T, 0x00274635, 0x0024e690, TitleRegs{type, ebx, 0, 0, self, edi}, 0, nullptr);  // G_FloatOnWater
+        call_at(T, 0x00274635, own_address(&G_FloatOnWater_entry), TitleRegs{type, ebx, 0, 0, self, edi}, 0, nullptr);  // G_FloatOnWater
     if (word_at(ent, 0x23c)) return;
-    call_at(T, 0x00274645, 0x0024ac50, TitleRegs{0, ebx, 0, 0, self, edi}, 1, args);  // G_RunThink
+    call_at(T, 0x00274645, own_address(&G_RunThink_entry), TitleRegs{0, ebx, 0, 0, self, edi}, 1, args);  // G_RunThink
 }
 
 // As ENT_EAX_FRAME_ENTRY, with the entry ECX as a last parameter.
@@ -5818,10 +5825,10 @@ void XB_CDECL Turret_UpdatePlayerFire(uint32_t entry, uint8_t* unused_eax, uint3
     const uint32_t info_word = address_of(info);
     {
         const uint32_t args[1] = {player};
-        call_at(T, 0x00271b75, 0x0026ce50, TitleRegs{ebx, ebx, 0, 0, esi, info_word}, 1,
+        call_at(T, 0x00271b75, own_address(&Turret_ClampPlayerViewAngles), TitleRegs{ebx, ebx, 0, 0, esi, info_word}, 1,
                 args);  // Turret_ClampPlayerViewAngles
     }
-    call_at(T, 0x00271b81, 0x00258a70, TitleRegs{player, ebx, 0, 0, ebx, info_word}, 0, nullptr);  // Turret_PlacePlayerBehind
+    call_at(T, 0x00271b81, own_address(&Turret_PlacePlayerBehind_entry), TitleRegs{player, ebx, 0, 0, ebx, info_word}, 0, nullptr);  // Turret_PlacePlayerBehind
     const uint8_t* const def = weapon_def(turret[3]);
     uint8_t* const p = reinterpret_cast<uint8_t*>(uintptr_t{player});
     word_at(pointer_at(p, 0x23c), 0x464) = 1;
@@ -5839,7 +5846,7 @@ void XB_CDECL Turret_UpdatePlayerFire(uint32_t entry, uint8_t* unused_eax, uint3
             title_global<float>(0x0083eb88) +
         title_global<float>(0x0095f648);
     delay = *reinterpret_cast<const int16_t*>(def + 0x5dc);
-    call_at(T, 0x00271c2c, 0x002712a0, TitleRegs{ebx, ebx, 0, 0, player, info_word}, 0, nullptr);  // Turret_FireForUser
+    call_at(T, 0x00271c2c, own_address(&Turret_FireForUser_entry), TitleRegs{ebx, ebx, 0, 0, player, info_word}, 0, nullptr);  // Turret_FireForUser
 }
 
 ENT_FULL_FRAME_ENTRY(G_SpawnFinished)
@@ -5855,20 +5862,20 @@ void XB_CDECL G_SpawnFinished(uint32_t entry, uint32_t eax, uint32_t ebx, uint32
     stack_at(entry - 4) = ecx;
     const uint32_t T = entry - 4;
     title_global<uint32_t>(0x00986018) = 1;
-    call_at(T, 0x00272770, 0x0021dfc0, TitleRegs{0, ebx, ecx, 0, esi, edi}, 0, nullptr);  // Actor_FinishSpawnAll
-    call_at(T, 0x00272775, 0x002e9120, TitleRegs{0, ebx, ecx, 0, esi, edi}, 0, nullptr);  // Path_DisconnectAllEntities
+    call_at(T, 0x00272770, own_address(&Actor_FinishSpawnAll_entry), TitleRegs{0, ebx, ecx, 0, esi, edi}, 0, nullptr);  // Actor_FinishSpawnAll
+    call_at(T, 0x00272775, own_address(&Path_DisconnectAllEntities_entry), TitleRegs{0, ebx, ecx, 0, esi, edi}, 0, nullptr);  // Path_DisconnectAllEntities
     title_global<uint32_t>(0x00985fe0) = 0;  // level_spawning
     uint8_t* const client = pointer_at(pointer_at(title_global<uint8_t*>(0x0095f534), 4), 0x23c);
     if (!word_at(client, 0x98)) {
         const uint32_t args[3] = {title_global<uint32_t>(0x0095f6ac), T, word_at(title_global<uint8_t*>(0x0095f638), 0x34)};
-        call_at(T, 0x002727b5, 0x00241f40, TitleRegs{0x0083b300, ebx, args[2], T, esi, edi}, 3,
+        call_at(T, 0x002727b5, own_address(&R_RegisterModel), TitleRegs{0x0083b300, ebx, args[2], T, esi, edi}, 3,
                 args);  // R_RegisterModel "xmodel/viewmodel_hands_us"
         word_at(pointer_at(pointer_at(title_global<uint8_t*>(0x0095f534), 4), 0x23c), 0x98) = stack_at(T);
     }
     const uint32_t changed = title_global<uint32_t>(0x00986004);
     title_global<uint32_t>(0x00986018) = 0;
     title_global<uint32_t>(0x00985414) = title_global<uint32_t>(0x0098540c);
-    if (changed) call_at(T, 0x002727f1, 0x00250010, TitleRegs{changed, ebx, 0, 0, esi, edi}, 0, nullptr);  // SaveRegisteredItems
+    if (changed) call_at(T, 0x002727f1, own_address(&SaveRegisteredItems), TitleRegs{changed, ebx, 0, 0, esi, edi}, 0, nullptr);  // SaveRegisteredItems
 }
 
 ENT_EAX_FRAME_ENTRY(ClientBegin)
@@ -5890,11 +5897,11 @@ void XB_CDECL ClientBegin(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, uin
     const uint32_t angles = L + 0xc, origin = L + 0x18;
     {
         const uint32_t args[1] = {angles};
-        call_at(L, 0x00272ee1, 0x0025b6b0, TitleRegs{origin, ebx, handle >> 12, address_of(client), index, handle}, 1,
+        call_at(L, 0x00272ee1, own_address(&SelectInitialSpawnPoint), TitleRegs{origin, ebx, handle >> 12, address_of(client), index, handle}, 1,
                 args);  // SelectInitialSpawnPoint
     }
     const uint32_t again = entity_of_handle(handle);
-    call_at(L, 0x00272f10, 0x00272800, TitleRegs{angles, again, origin, 0, index, handle >> 12}, 0, nullptr);  // ClientSpawn
+    call_at(L, 0x00272f10, own_address(&ClientSpawn_entry), TitleRegs{angles, again, origin, 0, index, handle >> 12}, 0, nullptr);  // ClientSpawn
 }
 ENT_EAX_FRAME_ENTRY(ClientEvents)
 
@@ -5941,7 +5948,7 @@ void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, 
                 const int32_t damage = static_cast<int32_t>(base * scale);
                 word_at(pointer_at(ent, 0x23c), 0x634) = static_cast<uint32_t>(time + 200);
                 const uint32_t args[9] = {self, 0, 0, 0, static_cast<uint32_t>(damage), 0, 0x14, 0, 0xffffffffu};
-                call_at(L, 0x00271657, 0x00250340, TitleRegs{0, self, word_at(ent, 0x23c), static_cast<uint32_t>(damage),
+                call_at(L, 0x00271657, own_address(&G_Damage_entry), TitleRegs{0, self, word_at(ent, 0x23c), static_cast<uint32_t>(damage),
                                                                 mask_reg, client_word},
                         9, args);  // G_Damage
             }
@@ -5949,10 +5956,10 @@ void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, 
             const uint32_t kind = static_cast<uint32_t>(event - 0x8b);
             const uint8_t which = kind <= 0x3b ? title_global<uint8_t>(0x00271830 + kind) : 4;
             if (which == 1) {
-                call_at(L, 0x0027167f, 0x00270df0, TitleRegs{self, self, 0, static_cast<uint32_t>(event), mask_reg, client_word}, 0,
+                call_at(L, 0x0027167f, own_address(&FireWeapon_entry), TitleRegs{self, self, 0, static_cast<uint32_t>(event), mask_reg, client_word}, 0,
                         nullptr);  // FireWeapon
             } else if (which == 2) {
-                call_at(L, 0x00271689, 0x00269700, TitleRegs{2, self, 0, static_cast<uint32_t>(event), mask_reg, client_word}, 0,
+                call_at(L, 0x00271689, own_address(&G_PlayerMelee_entry), TitleRegs{2, self, 0, static_cast<uint32_t>(event), mask_reg, client_word}, 0,
                         nullptr);  // G_PlayerMelee
             } else if (which == 3) {
                 uint8_t* const c = pointer_at(ent, 0x23c);
@@ -5960,7 +5967,7 @@ void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, 
                     word_at(ent, 0x350) = 0;
                     word_at(c, 0x100) = 0;
                     const uint32_t args[9] = {self, self, self, 100000, 0x15, ent[3], 0, 0, 0};
-                    call_at(L, 0x002716ce, 0x00269450, TitleRegs{address_of(c), self, ent[3], static_cast<uint32_t>(event),
+                    call_at(L, 0x002716ce, own_address(&player_die), TitleRegs{address_of(c), self, ent[3], static_cast<uint32_t>(event),
                                                                     mask_reg, client_word},
                             9, args);  // player_die
                 }
@@ -5990,7 +5997,7 @@ void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, 
                         stack_at(temp + 0xc) = x;
                         for (uint32_t k = 0; k < 4; ++k) stack_at(point + k * 4) = stack_at(temp + k * 4);
                         const uint32_t args[4] = {self, loud ? 3u : 2u, point, 0};
-                        call_at(L, 0x002717fc, 0x00214a90, TitleRegs{mask_reg, self, address_of(who), point, mask_reg, client_word}, 4,
+                        call_at(L, 0x002717fc, own_address(&Actor_SendPointEvent_entry), TitleRegs{mask_reg, self, address_of(who), point, mask_reg, client_word}, 4,
                                 args);  // Actor_SendPointEvent
                     }
                 }
@@ -6024,18 +6031,18 @@ uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     switch (command) {
     case 0: {
         const uint32_t args[3] = {a1, a2, a3};
-        return call_at(T, 0x00273d9b, 0x00273790, TitleRegs{a3, ebx, a2, a1, 0, edi}, 3, args);  // G_InitGame
+        return call_at(T, 0x00273d9b, own_address(&G_InitGame_entry), TitleRegs{a3, ebx, a2, a1, 0, edi}, 3, args);  // G_InitGame
     }
-    case 1: call1(0x00273dac, 0x002513c0, a1, 0, 0); return 0;            // G_ShutdownGame
-    case 2: return call1(0x00273dbd, 0x00251730, command, a1, 0);         // ClientConnect
-    case 3: call1(0x00273df0, 0x00272e90, command, a1, 0); return 0;      // ClientBegin
-    case 4: call1(0x00273ddf, 0x002655b0, a1, 0, 0); return 0;            // ClientDisconnect
-    case 5: call1(0x00273e01, 0x002507d0, command, 0, a1); return 0;      // ClientCommand
-    case 6: call1(0x00273dce, 0x002726b0, command, 0, a1); return 0;      // ClientThink
+    case 1: call1(0x00273dac, own_address(&G_ShutdownGame), a1, 0, 0); return 0;            // G_ShutdownGame
+    case 2: return call1(0x00273dbd, own_address(&ClientConnect), command, a1, 0);         // ClientConnect
+    case 3: call1(0x00273df0, own_address(&ClientBegin_entry), command, a1, 0); return 0;      // ClientBegin
+    case 4: call1(0x00273ddf, own_address(&ClientDisconnect), a1, 0, 0); return 0;            // ClientDisconnect
+    case 5: call1(0x00273e01, own_address(&ClientCommand), command, 0, a1); return 0;      // ClientCommand
+    case 6: call1(0x00273dce, own_address(&ClientThink_entry), command, 0, a1); return 0;      // ClientThink
     case 7:
-        call_at(T, 0x00273e0d, 0x00272760, TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // G_SpawnFinished
+        call_at(T, 0x00273e0d, own_address(&G_SpawnFinished_entry), TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // G_SpawnFinished
         return 0;
-    case 8: call1(0x00273e1b, 0x00263b80, a1, 0, 0); return 0;            // G_ReloadLevel
+    case 8: call1(0x00273e1b, own_address(&G_ReloadLevel_entry), a1, 0, 0); return 0;            // G_ReloadLevel
     case 10: {
         const uint32_t time = title_global<uint32_t>(0x0098540c);
         const uint32_t frame = title_global<uint32_t>(0x00985408) + 1;
@@ -6047,19 +6054,19 @@ uint32_t XB_CDECL G_vmMain(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     case 11:
     case 13: return 0;
     case 12:
-        return call_at(T, 0x00273e4d, 0x0024d8b0, TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // ConsoleCommand
+        return call_at(T, 0x00273e4d, own_address(&ConsoleCommand), TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // ConsoleCommand
     case 17: return title_global<uint32_t>(0x00985414);
     case 18: {
         stack_at(T - 4) = edi;
         stack_at(entry + 4) = a1;
         const uint32_t ent =
-            call_at(T - 4, 0x00273e6d, 0x00013860, TitleRegs{entry + 4, ebx, a1, 0, 0, edi}, 0, nullptr);  // G_EntHandleToEnt
-        call_at(T - 4, 0x00273e74, 0x002d7290, TitleRegs{ent, ebx, a1, 0, 0, ent}, 0, nullptr);  // SV_DObjEnsureSkeleton
+            call_at(T - 4, 0x00273e6d, own_address(&G_EntHandleToEnt), TitleRegs{entry + 4, ebx, a1, 0, 0, edi}, 0, nullptr);  // G_EntHandleToEnt
+        call_at(T - 4, 0x00273e74, own_address(&SV_DObjEnsureSkeleton_entry), TitleRegs{ent, ebx, a1, 0, 0, ent}, 0, nullptr);  // SV_DObjEnsureSkeleton
         return 0;
     }
     case 19: return title_global<uint32_t>(0x0098540c);
     case 21:
-        call_at(T, 0x00273e88, 0x002512b0, TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // G_SyncRegisteredItems
+        call_at(T, 0x00273e88, own_address(&G_SyncRegisteredItems), TitleRegs{command, ebx, 0, 0, 0, edi}, 0, nullptr);  // G_SyncRegisteredItems
         return 0;
     default: return 0xffffffffu;
     }
@@ -6081,7 +6088,7 @@ void script_mover_setup_move(uint8_t* ent, uint32_t trajectory, uint32_t current
     const uint32_t args[9] = {time, accel, decel, address_of(ent + fields[0]), address_of(ent + fields[1]),
                               address_of(ent + fields[2]), address_of(ent + fields[3]), address_of(ent + fields[4]),
                               address_of(ent + fields[5])};
-    cg_call_regs(0x00301240, &regs, args, 9);  // ScriptMover_SetupMove
+    cg_call_regs(own_address(&ScriptMover_SetupMove_entry), &regs, args, 9);  // ScriptMover_SetupMove
     SV_LinkEntity(ent);
 }
 
@@ -6100,7 +6107,7 @@ void XB_REGS1 XB_CDECL ScriptMover_RotateVelocity(uint8_t* ent, uint32_t velocit
                                address_of(ent + 0x2f4), address_of(ent + 0x388), address_of(ent + 0x310),
                                address_of(ent + 0x390), address_of(ent + 0x3a0)};
     regs.eax = time;  // EAX/ECX/EDX = the last three words loaded
-    cg_call_regs(0x00300f20, &regs, args, 10);  // ScriptMover_SetupRotateVelocity
+    cg_call_regs(own_address(&ScriptMover_SetupRotateVelocity_entry), &regs, args, 10);  // ScriptMover_SetupRotateVelocity
     SV_LinkEntity(ent);
 }
 
@@ -6137,7 +6144,7 @@ void XB_CDECL ScriptMover_MoveGravity(const uint32_t* velocity, uint8_t* ent, fl
     regs.ecx = address_of(ent + 0x140);
     regs.esi = address_of(ent);
     regs.edi = address_of(tr);
-    cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     SV_LinkEntity(ent);
 }
 
@@ -6230,7 +6237,7 @@ settle:
         regs.eax = title_global<uint32_t>(0x0098540c);
         regs.ecx = address_of(now);
         regs.edi = address_of(tr);
-        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+        cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
         word_at(tr, 0xc) = now[0];
         word_at(tr, 0x10) = now[1];
         word_at(tr, 0x14) = now[2];
@@ -6249,7 +6256,7 @@ namespace {
 // BG_EvaluateTrajectory (0x002d62c0: time in EAX, out in ECX, trajectory in EDI) by its title address.
 void evaluate_trajectory(const uint8_t* tr, int32_t time, float* out) {
     const TitleRegs regs{static_cast<uint32_t>(time), 0, address_of(out), 0, 0, address_of(tr)};
-    g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
 }
 
 // A trajectory's start (+4 level_time), duration (+8 = seconds * 1000 truncated), base (+0xc), delta (+0x18)
@@ -6523,7 +6530,7 @@ void XB_REGS1 XB_CDECL Turret_ClampPlayerViewAngles(uint8_t* turret, uint8_t* pl
         SetClientViewAngle(out, player);
     }
     const TitleRegs regs{0, 0, 0, 1, 0, address_of(turret)};
-    g_ent_call(0x00288df0, &regs, 0, nullptr);  // Turret_UpdateTurnFxAndBones (DL = 1)
+    g_ent_call(own_address(&Turret_UpdateTurnFxAndBones_entry), &regs, 0, nullptr);  // Turret_UpdateTurnFxAndBones (DL = 1)
 }
 
 namespace {
@@ -6605,7 +6612,7 @@ uint32_t XB_CDECL G_BounceMissile(const uint8_t* trace, uint8_t* ent) {
             {
                 const TitleRegs regs{0, 0, 0, 0, address_of(angles), address_of(ent)};
                 const uint32_t args[3] = {address_of(ent), address_of(trace), 1};
-                g_ent_call(0x002586f0, &regs, 3, args);  // G_BounceMissileAngles
+                g_ent_call(own_address(&G_BounceMissileAngles_entry), &regs, 3, args);  // G_BounceMissileAngles
             }
             G_SetAngle(ent, 0, angles);
             return 0;
@@ -6627,7 +6634,7 @@ uint32_t XB_CDECL G_BounceMissile(const uint8_t* trace, uint8_t* ent) {
     {
         const TitleRegs regs{0, 0, 0, 0, address_of(angles), address_of(ent)};
         const uint32_t args[3] = {address_of(ent), address_of(trace), 0};
-        g_ent_call(0x002586f0, &regs, 3, args);  // G_BounceMissileAngles
+        g_ent_call(own_address(&G_BounceMissileAngles_entry), &regs, 3, args);  // G_BounceMissileAngles
     }
     word_at(ent, 0x44) = reinterpret_cast<const uint32_t*>(angles)[0];
     word_at(ent, 0x48) = reinterpret_cast<const uint32_t*>(angles)[1];
@@ -6642,7 +6649,7 @@ uint32_t XB_CDECL G_BounceMissile(const uint8_t* trace, uint8_t* ent) {
         }
         const TitleRegs regs{hit, 0, 0, 0, 0, address_of(ent)};
         const uint32_t args[1] = {address_of(ent)};
-        g_ent_call(0x002207f0, &regs, 1, args);  // G_GrenadeLandedNotifyActors
+        g_ent_call(own_address(&G_GrenadeLandedNotifyActors_entry), &regs, 1, args);  // G_GrenadeLandedNotifyActors
     }
     if (contents != 0) return 0;
     return x87_dist3_greater(title_global<float>(0x0083eb90), field<float>(ent, 0x2c), v0, field<float>(ent, 0x30), v1,
@@ -6668,7 +6675,7 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
             turret = title_global<uint32_t>(0x0097a968 + index * 8);
         }
         const TitleRegs regs{turret, 0, index, handle >> 12, 0x6000, address_of(ent)};
-        g_ent_call(0x00272360, &regs, 0, nullptr);  // Player_UpdateTurretUse
+        g_ent_call(own_address(&Player_UpdateTurretUse_entry), &regs, 0, nullptr);  // Player_UpdateTurretUse
     }
     const uint32_t keyboard = title_global<uint32_t>(0x00954e0c);
     using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
@@ -6683,7 +6690,7 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
     }
     {
         const TitleRegs regs{0, arg, 0, 0, 0x6000, address_of(ent)};
-        g_ent_call(0x0024bb70, &regs, 0, nullptr);  // G_RunPlayerVehicleThinks
+        g_ent_call(own_address(&G_RunPlayerVehicleThinks_entry), &regs, 0, nullptr);  // G_RunPlayerVehicleThinks
     }
     client = pointer_at(ent, 0x23c);
     if (field<uint32_t>(client, 0x584) == 0 && field<uint32_t>(client, 0x588) == 0) {
@@ -6705,12 +6712,12 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
     if (field<uint32_t>(pointer_at(ent, 0x23c), 0x20) != 0 && title_global<int32_t>(0x0098540c) > 500) {
         {
             const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
-            g_ent_call(0x00263c00, &regs, 0, nullptr);  // Player_UpdateLookAtEntity
+            g_ent_call(own_address(&Player_UpdateLookAtEntity_entry), &regs, 0, nullptr);  // Player_UpdateLookAtEntity
         }
         {
             const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
             const uint32_t args[1] = {address_of(ent)};
-            g_ent_call(0x00267e10, &regs, 1, args);  // Player_UpdateCursorHints
+            g_ent_call(own_address(&Player_UpdateCursorHints_entry), &regs, 1, args);  // Player_UpdateCursorHints
         }
     }
     P_DamageFeedback(ent);
@@ -6731,7 +6738,7 @@ void XB_REGS1 XB_CDECL ClientEndFrame(uint8_t* ent, uint32_t arg) {
         if (timer != 0 && timer < 3000) {
             const TitleRegs regs{0, 0, 0, 0, 0, address_of(ent)};
             const uint32_t args[4] = {address_of(ent), 7, address_of(client), 0};
-            g_ent_call(0x00214a90, &regs, 4, args);  // Actor_SendPointEvent
+            g_ent_call(own_address(&Actor_SendPointEvent_entry), &regs, 4, args);  // Actor_SendPointEvent
         }
     }
     uint8_t* const ps = pointer_at(ent, 0x23c);
@@ -6798,7 +6805,7 @@ void XB_CDECL Turret_UpdateTurnFxAndBones(uint32_t player_turn, uint8_t* turret)
         const auto play = [&](uint32_t fx) {
             const TitleRegs regs{address_of(turret), 0, 0, 0, 0, address_of(turret)};
             const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), fx};
-            return static_cast<int32_t>(g_ent_call(0x002a5ee0, &regs, 2, args));  // FXCmd_Type8
+            return static_cast<int32_t>(g_ent_call(own_address(&FXCmd_Type8_entry), &regs, 2, args));  // FXCmd_Type8
         };
         const auto free_loop = [&]() {
             if (loop != -1) {
@@ -6898,11 +6905,11 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
         const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
         const uint32_t args[6] = {address_of(handle_entity(owner_handle)), 0x11, 0, address_of(attacker + 0x20),
                                   address_of(trace), 0};
-        g_ent_call(0x00204390, &regs, 6, args);  // Actor_SendLineEvent
+        g_ent_call(own_address(&Actor_SendLineEvent_entry), &regs, 6, args);  // Actor_SendLineEvent
     }
     const auto bounce = [&]() {
         const TitleRegs regs{address_of(trace), address_of(trace), 0, 0, 0, address_of(ent)};
-        return g_ent_call(0x00272f20, &regs, 0, nullptr);  // G_BounceMissile
+        return g_ent_call(own_address(&G_BounceMissile_entry), &regs, 0, nullptr);  // G_BounceMissile
     };
     const bool damageable = other != nullptr && field<uint32_t>(other, 0x29c) != 0;
     if (!damageable && (field<uint32_t>(ent, 0x10) & 0x3000000)) {
@@ -6929,7 +6936,7 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
                                 static_cast<uint32_t>(static_cast<int32_t>(amount)), 0, field<uint32_t>(ent, 0x368), 0,
                                 0xffffffffu};
             const TitleRegs regs{address_of(ent + 0x140), address_of(trace), 0, 0, 0, address_of(ent)};
-            g_ent_call(0x00250340, &regs, 9, args);  // G_Damage
+            g_ent_call(own_address(&G_Damage_entry), &regs, 9, args);  // G_Damage
         }
         if (*reinterpret_cast<const uint32_t*>(def + 0x748) == 0) {
             bounce();
@@ -6941,7 +6948,7 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
         const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
         const uint32_t args[5] = {address_of(by), address_of(ent + 0x140), address_of(trace), field<uint32_t>(ent, 0x358),
                                   field<uint32_t>(ent, 0x368)};
-        g_ent_call(0x0025d960, &regs, 5, args);  // G_CheckHitTriggerDamage
+        g_ent_call(own_address(&G_CheckHitTriggerDamage), &regs, 5, args);  // G_CheckHitTriggerDamage
     }
     hit_client = (hit_client != 0 || *reinterpret_cast<const uint32_t*>(trace + 0x34) != 0) ? 1 : 0;
     // DirToByte inlined: the bytedirs entry (0x008d52d8) with the largest dot product above 0.
@@ -6989,7 +6996,7 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
             const TitleRegs regs{0, address_of(start), 0, 0, 0, address_of(ent)};
             const uint32_t args[11] = {address_of(trace), address_of(box), address_of(box + 4), address_of(point),
                                        field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
-            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+            g_ent_call(own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace (start in EBX)
         }
         const uint8_t* const owner = handle_entity(field<uint32_t>(ent, 0x2b0));
         const float radius = static_cast<float>(field<int32_t>(ent, 0x364));
@@ -7005,7 +7012,7 @@ void XB_REGS1 XB_CDECL G_MissileImpact(uint8_t* ent, uint8_t* trace) {
         args[6] = address_of(other);
         args[7] = field<uint32_t>(ent, 0x36c);
         const TitleRegs regs{0, address_of(trace), 0, 0, 0, address_of(ent)};
-        g_ent_call(0x00268e60, &regs, 8, args);  // G_RadiusDamage
+        g_ent_call(own_address(&G_RadiusDamage_entry), &regs, 8, args);  // G_RadiusDamage
     }
     SV_LinkEntity(ent);
 }
@@ -7071,7 +7078,7 @@ void XB_CDECL G_ExplodeMissile(uint8_t* ent) {
         const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
         const uint32_t args[11] = {address_of(trace), address_of(box + 4), address_of(box), address_of(end),
                                    field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
-        g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        g_ent_call(own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace (start in EBX)
     }
     // DirToByte inlined: the bytedirs entry (0x008d52d8) with the largest dot product above 0.
     const float* const normal = reinterpret_cast<const float*>(trace + 0x10);
@@ -7114,7 +7121,7 @@ void XB_CDECL G_ExplodeMissile(uint8_t* ent) {
             const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
             const uint32_t args[11] = {address_of(trace), address_of(box), address_of(box + 4), address_of(up),
                                        field<uint32_t>(ent, 0x224), 0x11, 0, 0, 0, 0, 0};
-            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+            g_ent_call(own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace (start in EBX)
         }
         const float radius = static_cast<float>(field<int32_t>(ent, 0x364));
         const float low = static_cast<float>(field<int32_t>(ent, 0x360));
@@ -7129,7 +7136,7 @@ void XB_CDECL G_ExplodeMissile(uint8_t* ent) {
         args[6] = address_of(ent);
         args[7] = field<uint32_t>(ent, 0x36c);
         const TitleRegs regs{0, address_of(ent + 0x140), 0, 0, address_of(ent), address_of(ent + 0x140)};
-        g_ent_call(0x00268e60, &regs, 8, args);  // G_RadiusDamage
+        g_ent_call(own_address(&G_RadiusDamage_entry), &regs, 8, args);  // G_RadiusDamage
     }
     SV_LinkEntity(ent);
 }
@@ -7171,17 +7178,17 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         const int32_t since = now - field<int32_t>(ent, 0x2f0);
         if (since >= 0x1f4) {
             const uint32_t args[4] = {self, 8, origin, 0};
-            call_at(S, 0x00273f37, 0x00214a90, TitleRegs{0xffffffffu, self, static_cast<uint32_t>(since), origin, esi, edi}, 4,
+            call_at(S, 0x00273f37, own_address(&Actor_SendPointEvent_entry), TitleRegs{0xffffffffu, self, static_cast<uint32_t>(since), origin, esi, edi}, 4,
                     args);  // Actor_SendPointEvent
             word_at(ent, 0x2f0) = title_global<uint32_t>(0x0098540c);
         }
     } else {
         const uint32_t args[4] = {self, 9, origin, 0};
-        call_at(S, 0x00273f57, 0x00214a90, TitleRegs{0xffffffffu, self, origin, 0, esi, edi}, 4,
+        call_at(S, 0x00273f57, own_address(&Actor_SendPointEvent_entry), TitleRegs{0xffffffffu, self, origin, 0, esi, edi}, 4,
                 args);  // Actor_SendPointEvent
     }
     for (uint32_t i = 0; i < 3; ++i) stack_at(old + i * 4) = word_at(ent, 0x140 + i * 4);
-    call_at(S, 0x00273f98, 0x002d62c0,
+    call_at(S, 0x00273f98, own_address(&BG_EvaluateTrajectory_entry),
             TitleRegs{title_global<uint32_t>(0x0098540c), self, end, 0, origin, self + 0x14}, 0,
             nullptr);  // BG_EvaluateTrajectory
     {
@@ -7193,7 +7200,7 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         const float length = title_ci_sqrt(sq);
         stack_float(S + 0x10) = length;
         if (platform_x87_greater(title_global<float>(0x0083eb88), length)) {
-            call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self + 0x14}, 1, args1);  // G_RunThink
+            call_at(S, 0x002744cc, own_address(&G_RunThink_entry), TitleRegs{0, self, 0, arg, self, self + 0x14}, 1, args1);  // G_RunThink
             return;
         }
     }
@@ -7201,7 +7208,7 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
     if (lifetime != title_global<float>(0x0083eafc)) {
         const int32_t elapsed = title_global<int32_t>(0x0098540c) - field<int32_t>(ent, 0x2f0);
         if (static_cast<float>(elapsed) >= lifetime) {
-            call_at(S, 0x0027403e, 0x0024ac50, TitleRegs{static_cast<uint32_t>(elapsed), self, arg, 0, self, self + 0x14},
+            call_at(S, 0x0027403e, own_address(&G_RunThink_entry), TitleRegs{static_cast<uint32_t>(elapsed), self, arg, 0, self, self + 0x14},
                     1, args1);  // G_RunThink
             return;
         }
@@ -7214,42 +7221,42 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         bool in_air = false;
         if (platform_x87_greater(speed, title_global<float>(0x0083ee38))) {
             const uint32_t args[3] = {origin, 0, 0x20};
-            in_air = call_at(S, 0x0027407b, 0x002e01a0, TitleRegs{S - 8, self, 0, 0, origin, self + 0x14}, 3, args) ==
+            in_air = call_at(S, 0x0027407b, own_address(&SV_PointContents), TitleRegs{S - 8, self, 0, 0, origin, self + 0x14}, 3, args) ==
                      0;  // SV_PointContents
         }
         if (in_air) {
             const uint32_t args[3] = {tr, origin, owner};
-            call_at(S, 0x002740a6, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8) | 0x20, tr, origin, end}, 3,
+            call_at(S, 0x002740a6, own_address(&G_MissileTrace_entry), TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8) | 0x20, tr, origin, end}, 3,
                     args);  // G_MissileTrace
         } else {
             const uint32_t args[7] = {tr, origin, end, owner, word_at(ent, 0x2a8), 0x008da6f0, 0};
-            call_at(S, 0x002740d0, 0x002600c0, TitleRegs{tr, self, owner, end, origin, self + 0x14}, 7,
+            call_at(S, 0x002740d0, own_address(&G_LocationalTrace_entry), TitleRegs{tr, self, owner, end, origin, self + 0x14}, 7,
                     args);  // G_LocationalTrace
         }
     }
     if ((stack_at(tr + 0x24) & 0x1f00000) == 0x1400000) {
         const uint32_t dir = S + 0x14;
-        call_at(S, 0x002740f5, 0x002975c0, TitleRegs{0, self, 0x1400000, 0, self + 0x2c, dir}, 0,
+        call_at(S, 0x002740f5, own_address(&VectorNormalize2_entry), TitleRegs{0, self, 0x1400000, 0, self + 0x2c, dir}, 0,
                 nullptr);  // VectorNormalize2
         const float z = stack_float(dir + 8);
         if (0.0f > z) stack_float(dir + 8) = z * title_global<float>(0x0083eb34);
         const uint32_t targs[2] = {origin, 0xb3};
         const uint32_t tent_word =
-            call_at(S, 0x00274122, 0x002de2d0, TitleRegs{origin, self, 0x1400000, 0, self + 0x2c, dir}, 2,
+            call_at(S, 0x00274122, own_address(&G_TempEntity), TitleRegs{origin, self, 0x1400000, 0, self + 0x2c, dir}, 2,
                     targs);  // G_TempEntity
         uint8_t* const tent = reinterpret_cast<uint8_t*>(uintptr_t{tent_word});
-        const uint32_t byte1 = call_at(S - 8, 0x0027412d, 0x00295b80, TitleRegs{tent_word, self, 0, 0, tr + 0x10, tent_word},
+        const uint32_t byte1 = call_at(S - 8, 0x0027412d, own_address(&DirToByte_entry), TitleRegs{tent_word, self, 0, 0, tr + 0x10, tent_word},
                                        0, nullptr);  // DirToByte
         tent[4] = static_cast<uint8_t>(byte1);
         const uint32_t byte2 =
-            call_at(S - 8, 0x00274139, 0x00295b80, TitleRegs{byte1, self, 0, 0, dir, tent_word}, 0, nullptr);  // DirToByte
+            call_at(S - 8, 0x00274139, own_address(&DirToByte_entry), TitleRegs{byte1, self, 0, 0, dir, tent_word}, 0, nullptr);  // DirToByte
         tent[5] = static_cast<uint8_t>(byte2);
         tent[2] = static_cast<uint8_t>((static_cast<int32_t>(stack_at(tr + 0x24)) >> 20) & 0x1f);
         tent[3] = ent[3];
         word_at(tent, 8) = word_at(ent, 0x224);
         tent[3] = ent[3];
         const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
-        call_at(S - 8, 0x00274185, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], dir, end}, 3,
+        call_at(S - 8, 0x00274185, own_address(&G_MissileTrace_entry), TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], dir, end}, 3,
                 args);  // G_MissileTrace
     }
     if (word_at(ent, 0x368) == 3) {
@@ -7257,17 +7264,17 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         const uint32_t index = handle & 0xfff;
         if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
             title_global<uint32_t>(0x0097a968 + index * 8) != 0) {
-            const uint32_t hit = call_at(S, 0x002741cd, 0x00013860, TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
+            const uint32_t hit = call_at(S, 0x002741cd, own_address(&G_EntHandleToEnt), TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
                                          nullptr);  // G_EntHandleToEnt
             if (word_at(reinterpret_cast<uint8_t*>(uintptr_t{hit}), 0x2a4) & 0x80000) {
-                const uint32_t e_word = call_at(S, 0x002741e2, 0x00013860, TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
+                const uint32_t e_word = call_at(S, 0x002741e2, own_address(&G_EntHandleToEnt), TitleRegs{tr + 0x30, self, 0, 0, origin, end}, 0,
                                                 nullptr);  // G_EntHandleToEnt
                 uint8_t* const e = reinterpret_cast<uint8_t*>(uintptr_t{e_word});
                 const uint32_t contents = word_at(e, 0x134);
                 word_at(e, 0x134) = 0;
                 stack_at(S + 0xc) = contents;
                 const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
-                call_at(S, 0x0027421f, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], e_word, end}, 3,
+                call_at(S, 0x0027421f, own_address(&G_MissileTrace_entry), TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], e_word, end}, 3,
                         args);  // G_MissileTrace
                 word_at(e, 0x134) = stack_at(S + 0xc);
             }
@@ -7290,7 +7297,7 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
             stack_float(end + 4) = field<float>(ent, 0x144);
             stack_float(end + 8) = field<float>(ent, 0x148) - title_global<float>(0x0083eaf4);
             const uint32_t args[3] = {tr, origin, word_at(ent, 0x1a0)};
-            call_at(S, 0x002742fe, 0x00262ce0, TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], origin, end}, 3,
+            call_at(S, 0x002742fe, own_address(&G_MissileTrace_entry), TitleRegs{0x008da6f0, self, word_at(ent, 0x2a8), args[2], origin, end}, 3,
                     args);  // G_MissileTrace
             if (stack_float(tr + 0x20) != title_global<float>(0x0083eb20)) {
                 const float z = stack_float(tr + 8);
@@ -7303,10 +7310,10 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
             }
         }
     }
-    call_at(S, 0x0027436e, 0x002d7fe0, TitleRegs{0, self, 0, 0, origin, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(S, 0x0027436e, own_address(&SV_LinkEntity_entry), TitleRegs{0, self, 0, 0, origin, self}, 0, nullptr);  // SV_LinkEntity
     if (word_at(ent, 0x368) == 3) {
         const uint32_t args[5] = {self, old, origin, word_at(ent, 0x35c), 3};
-        call_at(S, 0x0027438c, 0x0025d7d0, TitleRegs{0, self, args[3], old, origin, self}, 5,
+        call_at(S, 0x0027438c, own_address(&G_MissileActivateDamageTriggers), TitleRegs{0, self, args[3], old, origin, self}, 5,
                 args);  // G_MissileActivateDamageTriggers
     }
     if (stack_float(tr + 0x20) == title_global<float>(0x0083eb20)) {
@@ -7318,7 +7325,7 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
         const float length = title_ci_sqrt(sq);
         stack_float(S + 0x10) = length;
         if (!(length == title_global<float>(0x0083eafc))) word_at(ent, 0xc) = 0;
-        call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+        call_at(S, 0x002744cc, own_address(&G_RunThink_entry), TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
         return;
     }
     const uint8_t surface = trace[0x24];
@@ -7330,25 +7337,25 @@ void XB_CDECL G_RunMissile(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, ui
                 title_global<uint32_t>(0x00960074 + count * 4) = word_at(ent, 0x224);
                 const uint32_t next = static_cast<uint32_t>(title_global<int32_t>(0x00960070) + 1);
                 title_global<uint32_t>(0x00960070) = next;
-                call_at(S, 0x0027445e, 0x0024ac50, TitleRegs{next, self, static_cast<uint32_t>(count), arg, self, self}, 1,
+                call_at(S, 0x0027445e, own_address(&G_RunThink_entry), TitleRegs{next, self, static_cast<uint32_t>(count), arg, self, self}, 1,
                         args1);  // G_RunThink
                 return;
             }
         }
-        call_at(S, 0x002744cc, 0x0024ac50, TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+        call_at(S, 0x002744cc, own_address(&G_RunThink_entry), TitleRegs{0, self, 0, arg, self, self}, 1, args1);  // G_RunThink
         return;
     }
     if (surface & 0x10) {
         const uint32_t args[2] = {self, arg};
-        call_at(S, 0x002743bc, 0x002be420, TitleRegs{arg, self, 0, 0, origin, self}, 2, args);  // G_FreeEntity
+        call_at(S, 0x002743bc, own_address(&G_FreeEntity), TitleRegs{arg, self, 0, 0, origin, self}, 2, args);  // G_FreeEntity
         return;
     }
     title_global<uint32_t>(0x0095f704) = self;
     const uint32_t args[1] = {tr};
-    call_at(S, 0x002743d7, 0x00273200, TitleRegs{self, self, tr, 0, origin, self}, 1, args);  // G_MissileImpact
+    call_at(S, 0x002743d7, own_address(&G_MissileImpact), TitleRegs{self, self, tr, 0, origin, self}, 1, args);  // G_MissileImpact
     title_global<uint32_t>(0x0095f704) = 0;
     if (ent[0] != 3) return;
-    call_at(S, 0x002743f9, 0x0024ac50, TitleRegs{3, self, 0, arg, self, self}, 1, args1);  // G_RunThink
+    call_at(S, 0x002743f9, own_address(&G_RunThink_entry), TitleRegs{3, self, 0, arg, self, self}, 1, args1);  // G_RunThink
 }
 
 PLATFORM_ASM_ENTRY(Pickup_Weapon_entry,
@@ -7621,7 +7628,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
     else
         stack_float(S + 0x28) = min_z + move[2];
     word_at(pusher, 0xd0) = 0;
-    call_at(S, 0x0026bc05, 0x002aacb0, TitleRegs{self + 0xd0, move_w, 0, 0, self, amove_w}, 0,
+    call_at(S, 0x0026bc05, own_address(&SV_UnlinkEntity), TitleRegs{self + 0xd0, move_w, 0, 0, self, amove_w}, 0,
             nullptr);  // SV_UnlinkEntity
     // The area parms (+0x10 mins, +0x20 maxs with the w words the frame holds, list, count, max, mask).
     for (uint32_t i = 0; i < 4; ++i) stack_at(S + 0x70 + i * 4) = stack_at(S + 0x20 + i * 4);
@@ -7632,7 +7639,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
     stack_at(S + 0x9c) = 0x600c180;
     {
         const uint32_t args[2] = {0x00935664, S + 0x60};
-        call_at(S, 0x0026bc8b, 0x002c72e0, TitleRegs{list, move_w, S + 0x60, stack_at(S + 0x1c), self, amove_w}, 2,
+        call_at(S, 0x0026bc8b, own_address(&SV_AreaEntities_r), TitleRegs{list, move_w, S + 0x60, stack_at(S + 0x1c), self, amove_w}, 2,
                 args);  // SV_AreaEntities_r
     }
     field<float>(pusher, 0x140) = move[0] + field<float>(pusher, 0x140);
@@ -7641,7 +7648,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
     field<float>(pusher, 0x150) = amove[0] + field<float>(pusher, 0x150);
     field<float>(pusher, 0x154) = field<float>(pusher, 0x154) + amove[1];
     field<float>(pusher, 0x158) = field<float>(pusher, 0x158) + amove[2];
-    call_at(S, 0x0026bd11, 0x002d7fe0, TitleRegs{0, move_w, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(S, 0x0026bd11, own_address(&SV_LinkEntity_entry), TitleRegs{0, move_w, 0, 0, self, self}, 0, nullptr);  // SV_LinkEntity
     const auto entity_of = [](uint32_t handle) -> uint32_t {
         const uint32_t index = handle & 0xfff;
         if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
@@ -7663,7 +7670,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
             if (stack_float(S + 0x44) >= field<float>(e, 0x114)) continue;
             if (stack_float(S + 0x48) >= field<float>(e, 0x118)) continue;
             const uint32_t args[1] = {e_word + 0x140};
-            take = call_at(S, 0x0026bdeb, 0x00262be0, TitleRegs{e_word, move_w, word_at(e, 0xc), e_word + 0x140,
+            take = call_at(S, 0x0026bdeb, own_address(&G_TestEntityPosition), TitleRegs{e_word, move_w, word_at(e, 0xc), e_word + 0x140,
                                                                  self, static_cast<uint32_t>(i)},
                            1, args) == self;  // G_TestEntityPosition
         }
@@ -7677,7 +7684,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
     for (int32_t i = 0; i < count; ++i) {
         const uint32_t e_word = entity_of(pushed[i]);
         word_at(reinterpret_cast<uint8_t*>(uintptr_t{e_word}), 0xd0) = 0;
-        call_at(S, 0x0026be5b, 0x002aacb0, TitleRegs{e_word + 0xd0, move_w, 0, e_word, self, static_cast<uint32_t>(i)}, 0,
+        call_at(S, 0x0026be5b, own_address(&SV_UnlinkEntity), TitleRegs{e_word + 0xd0, move_w, 0, e_word, self, static_cast<uint32_t>(i)}, 0,
                 nullptr);  // SV_UnlinkEntity
     }
     stack_at(S + 0x3c) = 0;
@@ -7704,7 +7711,7 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
         stack_at(S + 0x10) = mv[0];
         for (uint32_t k = 0; k < 4; ++k) stack_at(S + 0x50 + k * 4) = stack_at(S + 0x10 + k * 4);
         const uint32_t args[3] = {e_word, self, S + 0x40};
-        const uint32_t moved = call_at(S, 0x0026bf4a, 0x00267020, TitleRegs{S + 0x50, move_w, amove_w, am[1], self, e_word}, 3,
+        const uint32_t moved = call_at(S, 0x0026bf4a, own_address(&G_TryPushingEntity_entry), TitleRegs{S + 0x50, move_w, amove_w, am[1], self, e_word}, 3,
                                        args);  // G_TryPushingEntity
         if (moved == 0 && e[0] != 2 && e[0] != 0xd) {
             if (word_at(pusher, 0x14) != 4 && word_at(pusher, 0x38) != 4) {
@@ -7712,16 +7719,16 @@ uint32_t XB_CDECL G_MoverPush(uint32_t entry, uint8_t* pusher, uint32_t ebx, uin
                 return 0;
             }
             const uint32_t dargs[9] = {e_word, self, self, 0, 0x1869f, 0, 0x10, 0, 0xffffffffu};
-            call_at(S, 0x0026bf89, 0x00250340, TitleRegs{0, move_w, word_at(pusher, 0x14), 0, self, e_word}, 9,
+            call_at(S, 0x0026bf89, own_address(&G_Damage_entry), TitleRegs{0, move_w, word_at(pusher, 0x14), 0, self, e_word}, 9,
                     dargs);  // G_Damage
         } else {
-            call_at(S, 0x0026bf93, 0x002d7fe0, TitleRegs{moved, move_w, 0, 0, self, e_word}, 0, nullptr);  // SV_LinkEntity
+            call_at(S, 0x0026bf93, own_address(&SV_LinkEntity_entry), TitleRegs{moved, move_w, 0, 0, self, e_word}, 0, nullptr);  // SV_LinkEntity
         }
     }
     if (count > 0) stack_at(S + 0x3c) = static_cast<uint32_t>(count);
     for (int32_t i = 0; i < count; ++i) {
         const uint32_t e_word = entity_of(pushed[i]);
-        call_at(S, 0x0026bfe2, 0x002d7fe0, TitleRegs{pushed[i] & 0xfff, move_w, pushed[i] >> 12, 0, static_cast<uint32_t>(i),
+        call_at(S, 0x0026bfe2, own_address(&SV_LinkEntity_entry), TitleRegs{pushed[i] & 0xfff, move_w, pushed[i] >> 12, 0, static_cast<uint32_t>(i),
                                                      e_word},
                 0, nullptr);  // SV_LinkEntity
     }
@@ -7754,7 +7761,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     stack_at(S + 0x28) = client_w;
     stack_at(S + 0x24) = client_w + 0x520;
     word_at(client, 0x520) = 2;
-    call_at(S, 0x00272832, 0x00231670, TitleRegs{self, self, origin, 0, origin, angles}, 0,
+    call_at(S, 0x00272832, own_address(&G_FreeEntityPhysics), TitleRegs{self, self, origin, 0, origin, angles}, 0,
             nullptr);  // G_FreeEntityPhysics
     for (uint32_t i = 0; i < 3; ++i) stack_at(S + 0x2c + i * 4) = stack_at(origin + i * 4);
     const uint32_t flags = ~word_at(pointer_at(ent, 0x23c), 0xc0) & 8;
@@ -7774,7 +7781,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     stack_at(S + 0x18) = stack_at(angles + 8);
     if (ent == pointer_at(title_global<uint8_t*>(0x0095f534), 4)) {
         const uint32_t args[3] = {0x0082c538, 0x0082e058, 1};
-        call_at(S, 0x00272927, 0x0029c030, TitleRegs{word_at(ent, 0xd4), self, word_at(client, 0x580),
+        call_at(S, 0x00272927, own_address(&Cvar_Set2), TitleRegs{word_at(ent, 0xd4), self, word_at(client, 0x580),
                                                      title_global<uint32_t>(0x0095f534), S + 0x9c, client_w + 0x584},
                 3, args);  // Cvar_Set2 "cl_run" "1"
     } else {
@@ -7784,7 +7791,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     word_at(ent, 0x29c) = 1;
     {
         const uint32_t args[1] = {0x00984bcc};
-        call_at(S, 0x0027294b, 0x0011d600, TitleRegs{0, self, self + 0x25c, 0, self + 0x25c, 0}, 1,
+        call_at(S, 0x0027294b, own_address(&ScriptString_Assign_entry), TitleRegs{0, self, self + 0x25c, 0, self + 0x25c, 0}, 1,
                 args);  // ScriptString_Assign "player"
     }
     const uint32_t rep = word_at(ent, 0x25c);
@@ -7794,7 +7801,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     word_at(ent, 0x2a8) = 0x381c011;
     word_at(ent, 0x344) = 3;
     word_at(ent, 0x2a4) = 0xc000;
-    call_at(S, 0x00272992, 0x002fb310, TitleRegs{word_at(ent, 0x260), self, 0, 0, self, 0}, 0,
+    call_at(S, 0x00272992, own_address(&G_UpdateEntityStringHashes_entry), TitleRegs{word_at(ent, 0x260), self, 0, 0, self, 0}, 0,
             nullptr);  // G_UpdateEntityStringHashes
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0xe0 + i * 4) = title_global<uint32_t>(0x0097a8a0 + i * 4);
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0xf0 + i * 4) = title_global<uint32_t>(0x00984d00 + i * 4);
@@ -7852,7 +7859,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
             reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t>(0x00927e8c) + number * 0xec0 + 0x30});
         for (uint32_t i = 0; i < 0xb; ++i) reinterpret_cast<uint32_t*>(to)[i] = reinterpret_cast<const uint32_t*>(from)[i];
     }
-    call_at(S, 0x00272bf1, 0x0024ebf0,
+    call_at(S, 0x00272bf1, own_address(&SetClientViewAngle_entry),
             TitleRegs{S + 0x10, self, 0, self, title_global<uint32_t>(0x00927e8c) + number * 0xec0 + 0x30 + 0x2c,
                       address_of(pointer_at(ent, 0x23c)) + 0x524 + 0x2c},
             0,
@@ -7874,7 +7881,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
         if (!heap) {
             const uint32_t context = (zone >= 0 && zone < 0x63) ? word_at(ctx, 0x38 + static_cast<uint32_t>(zone) * 4) : 0;
             const uint32_t args[2] = {0x10, size};
-            p = call_at(S, ret_context, 0x0028c0f0, TitleRegs{context, self, context, 0, 0, 0}, 2,
+            p = call_at(S, ret_context, own_address(&MemContext_Alloc_r), TitleRegs{context, self, context, 0, 0, 0}, 2,
                         args);  // MemContext_Alloc_r
         }
         if (p == 0) {
@@ -7890,7 +7897,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     };
     allocate(0x450, 0x1010, 0x00272cb5, 0x00272cc5);
     allocate(0x454, 0x810, 0x00272d22, 0x00272d32);
-    call_at(S, 0x00272d56, 0x002d7fe0, TitleRegs{word_at(ent, 0x454), self, 0, 0, 0, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(S, 0x00272d56, own_address(&SV_LinkEntity_entry), TitleRegs{word_at(ent, 0x454), self, 0, 0, 0, self}, 0, nullptr);  // SV_LinkEntity
     client = reinterpret_cast<uint8_t*>(uintptr_t{stack_at(S + 0x28)});
     word_at(client, 0x30) = 100;
     word_at(client, 0x2c) |= 0x200;
@@ -7909,16 +7916,16 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
     const uint32_t edi_now = word_at(client, 0x2c);
     {
         const uint32_t args[1] = {word_at(ent, 0x224)};
-        call_at(S, 0x00272de2, 0x002726b0, TitleRegs{args[0], self, 0, 0, cw, edi_now}, 1, args);  // ClientThink
+        call_at(S, 0x00272de2, own_address(&ClientThink_entry), TitleRegs{args[0], self, 0, 0, cw, edi_now}, 1, args);  // ClientThink
     }
-    call_at(S, 0x00272dee, 0x002bcf90, TitleRegs{self, self, cw, 0, cw, edi_now}, 0,
+    call_at(S, 0x00272dee, own_address(&BG_PlayerStateToEntityState), TitleRegs{self, self, cw, 0, cw, edi_now}, 0,
             nullptr);  // BG_PlayerStateToEntityState
     for (uint32_t i = 0; i < 3; ++i) word_at(ent, 0x140 + i * 4) = word_at(pointer_at(ent, 0x23c), i * 4);
-    call_at(S, 0x00272e21, 0x002d7fe0, TitleRegs{word_at(ent, 0x148), self, 0, 0, cw, self}, 0, nullptr);  // SV_LinkEntity
+    call_at(S, 0x00272e21, own_address(&SV_LinkEntity_entry), TitleRegs{word_at(ent, 0x148), self, 0, 0, cw, self}, 0, nullptr);  // SV_LinkEntity
     uint32_t edi_end = self;
     if (ent == pointer_at(title_global<uint8_t*>(0x0095f534), 4)) {
         const uint32_t args[4] = {title_global<uint32_t>(0x0095f640), word_at(ent, 0x458), self + 0x140, 1};
-        call_at(S, 0x00272e47, 0x002914f0, TitleRegs{args[0], self, title_global<uint32_t>(0x0095f534), args[1], cw, self},
+        call_at(S, 0x00272e47, own_address(&Stream_SetViewPosition), TitleRegs{args[0], self, title_global<uint32_t>(0x0095f534), args[1], cw, self},
                 4, args);  // Stream_SetViewPosition
         uint8_t* const system = title_global<uint8_t*>(0x0095f638);
         const uint32_t sys = address_of(system);
@@ -7926,16 +7933,16 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
         system[0x14] = 0;
         system[0x360] = 0;
         do {
-            call_at(S, 0x00272e69, 0x00292c20, TitleRegs{stack_at(S + 0x20), self, 0, 0, cw, sys + 0x14}, 0,
+            call_at(S, 0x00272e69, own_address(&Stream_Update), TitleRegs{stack_at(S + 0x20), self, 0, 0, cw, sys + 0x14}, 0,
                     nullptr);  // Stream_Update
         } while (system[0x14] == 0);
         edi_end = sys + 0x14;
     }
     {
         const uint32_t args[1] = {title_global<uint32_t>(0x008dda9c)};
-        call_at(S, 0x00272e7c, 0x002723c0, TitleRegs{self, self, args[0], 0, cw, edi_end}, 1, args);  // ClientEndFrame
+        call_at(S, 0x00272e7c, own_address(&ClientEndFrame), TitleRegs{self, self, args[0], 0, cw, edi_end}, 1, args);  // ClientEndFrame
     }
-    call_at(S, 0x00272e88, 0x002bcf90, TitleRegs{self, self, cw, 0, cw, edi_end}, 0,
+    call_at(S, 0x00272e88, own_address(&BG_PlayerStateToEntityState), TitleRegs{self, self, cw, 0, cw, edi_end}, 0,
             nullptr);  // BG_PlayerStateToEntityState
 }
 
@@ -7966,22 +7973,22 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     if (restart) {
         const uint32_t state = title_global<uint32_t>(0x0095f534);
         const uint32_t one[1] = {state};
-        call_at(T, 0x002737b5, 0x002c3870, TitleRegs{state, ebx, 0, 0, esi, edi}, 1, one);  // G_FreeAllEntities
+        call_at(T, 0x002737b5, own_address(&G_FreeAllEntities), TitleRegs{state, ebx, 0, 0, esi, edi}, 1, one);  // G_FreeAllEntities
         edi = title_global<uint32_t>(0x0095f534);
-        call0(0x002737c0, 0x002ddea0, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_AllocWorldEntity (EDI)
+        call0(0x002737c0, own_address(&G_AllocWorldEntity_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_AllocWorldEntity (EDI)
         edi = title_global<uint32_t>(0x0095f534);
-        call0(0x002737cb, 0x002ddf10, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_AllocPlayerEntity (EDI)
+        call0(0x002737cb, own_address(&G_AllocPlayerEntity_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_AllocPlayerEntity (EDI)
         const uint32_t main = title_global<uint32_t>(0x00927090);  // g_levelScriptMain
         if (main) call0(0x002737d6, main, TitleRegs{main, ebx, 0, 0, esi, edi});
         edi = title_global<uint32_t>(0x0095f638);
         esi = edi;
         const uint32_t both[1] = {1};
-        call_at(T, 0x002737e5, 0x0028ca90, TitleRegs{0, ebx, 0, 0, esi, edi}, 1, both);  // Pak_ResetZoneDistances
+        call_at(T, 0x002737e5, own_address(&Pak_ResetZoneDistances_entry), TitleRegs{0, ebx, 0, 0, esi, edi}, 1, both);  // Pak_ResetZoneDistances
         esi = title_global<uint32_t>(0x0095f4f8);  // scn_zoneScenes
-        call0(0x002737f0, 0x002afc00, TitleRegs{0, ebx, 0, 0, esi, edi});  // Scn_ResetZoneFlags (ESI)
+        call0(0x002737f0, own_address(&Scn_ResetZoneFlags_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // Scn_ResetZoneFlags (ESI)
         const uint32_t id[1] = {stack_at(edi + 0x34)};
         const uint32_t context =
-            call_at(T, 0x002737fb, 0x0028e550, TitleRegs{id[0], ebx, edi, 0, esi, edi}, 1, id);  // MemContext_FindById
+            call_at(T, 0x002737fb, own_address(&MemContext_FindById), TitleRegs{id[0], ebx, edi, 0, esi, edi}, 1, id);  // MemContext_FindById
         if (context) {
             stack_float(context + 0x34) = 0.0f;
             ++title_global<uint32_t>(0x008d9d38);
@@ -7997,29 +8004,29 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             stack_at(vector + 8) = stack_at(checkpoint + 0x38c);
             stack_at(vector + 4) = stack_at(checkpoint + 0x388);
             stack_at(vector) = x;
-            cell = call0(0x0027386a, 0x0023cc80, TitleRegs{checkpoint, ebx, 0, vector, esi, edi});  // CM_CellForPoint
+            cell = call0(0x0027386a, own_address(&CM_CellForPoint), TitleRegs{checkpoint, ebx, 0, vector, esi, edi});  // CM_CellForPoint
         } else {
             for (uint32_t i = 0; i < 0x10; i += 4) stack_at(vector + i) = stack_at(esi + 0x1a0 + i);
             cell = stack_at(esi + 0x1c0);
         }
         const uint32_t view[4] = {esi, cell, vector, 1};
-        call_at(T, 0x002738a1, 0x002914f0, TitleRegs{cell, ebx, vector, 0, esi, edi}, 4, view);  // Stream_SetViewPosition
+        call_at(T, 0x002738a1, own_address(&Stream_SetViewPosition), TitleRegs{cell, ebx, vector, 0, esi, edi}, 4, view);  // Stream_SetViewPosition
         // Two loading frames: a cleared screen with a white quad and the loading icon.
         const uint32_t quad = T + 0x38;
         for (esi = 2; esi; --esi) {
             const TitleRegs regs{0, ebx, 0, 0, esi, edi};
-            call0(0x002738ab, 0x00064660, regs);  // nglResetDeviceBindings
-            call0(0x002738b0, 0x00064690, regs);  // nglBeginFrame
+            call0(0x002738ab, own_address(&nglResetDeviceBindings), regs);  // nglResetDeviceBindings
+            call0(0x002738b0, own_address(&nglBeginFrame), regs);  // nglBeginFrame
             const uint32_t flags[1] = {0xf3};
-            call_at(T, 0x002738ba, 0x0005e430, regs, 1, flags);  // nglSetClearFlags
+            call_at(T, 0x002738ba, own_address(&nglSetClearFlags), regs, 1, flags);  // nglSetClearFlags
             const uint32_t q[1] = {quad};
-            call_at(T - 4, 0x002738c4, 0x0005ddb0, TitleRegs{0, ebx, 0, quad, esi, edi}, 1, q);  // nglInitQuad
+            call_at(T - 4, 0x002738c4, own_address(&nglInitQuad), TitleRegs{0, ebx, 0, quad, esi, edi}, 1, q);  // nglInitQuad
             const uint32_t colour[2] = {quad, 0xffffffffu};
-            call_at(T - 8, 0x002738d0, 0x0005deb0, TitleRegs{quad, ebx, 0, 0, esi, edi}, 2, colour);  // nglSetQuadColor
-            call_at(T - 0x10, 0x002738da, 0x0005e270, TitleRegs{0, ebx, quad, 0, esi, edi}, 1, q);  // nglListAddQuad
+            call_at(T - 8, 0x002738d0, own_address(&nglSetQuadColor), TitleRegs{quad, ebx, 0, 0, esi, edi}, 2, colour);  // nglSetQuadColor
+            call_at(T - 0x10, 0x002738da, own_address(&nglListAddQuad), TitleRegs{0, ebx, quad, 0, esi, edi}, 1, q);  // nglListAddQuad
             const uint32_t full[1] = {0};
-            call_at(T - 0x14, 0x002738e1, 0x002960a0, regs, 1, full);  // SCR_UpdateLoadingIcon
-            call0(0x002738e9, 0x00064ec0, regs);  // nglEndFrame
+            call_at(T - 0x14, 0x002738e1, own_address(&SCR_UpdateLoadingIcon), regs, 1, full);  // SCR_UpdateLoadingIcon
+            call0(0x002738e9, own_address(&nglEndFrame), regs);  // nglEndFrame
         }
         // Stream until the load is done, cls_state 1 meanwhile (EBX keeps the old one).
         const uint32_t system = title_global<uint32_t>(0x0095f638);
@@ -8031,43 +8038,43 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         byte_at(esi) = 0;
         byte_at(system + 0x360) = 0;
         do {
-            call0(0x00273927, 0x00292c20, TitleRegs{edi, ebx, 0, 0, esi, edi});  // Stream_Update (EAX)
+            call0(0x00273927, own_address(&Stream_Update), TitleRegs{edi, ebx, 0, 0, esi, edi});  // Stream_Update (EAX)
         } while (!byte_at(esi));
         edi = 0;
         stack_at(title_global<uint32_t>(0x0095f638) + 0x35c) = 0;
         title_global<uint32_t>(0x0092bdf0) = ebx;
         const uint32_t blocks[1] = {title_global<uint32_t>(0x0095f4f4)};  // g_pathNodeBlocks
-        call_at(T, 0x0027394b, 0x002b0b90, TitleRegs{blocks[0], ebx, 0, 0, esi, edi}, 1,
+        call_at(T, 0x0027394b, own_address(&PathNode_ResetAllRuntimeState), TitleRegs{blocks[0], ebx, 0, 0, esi, edi}, 1,
                 blocks);  // PathNode_ResetAllRuntimeState
         const uint32_t hud = title_global<uint32_t>(0x0095f8f0);  // g_hudManager
         const uint32_t panel = stack_at(hud + 4);
         esi = title_global<uint32_t>(0x0095f5b4);
         *reinterpret_cast<uint16_t*>(static_cast<uintptr_t>(panel + 0x13d0)) = 0;
         *reinterpret_cast<uint16_t*>(static_cast<uintptr_t>(panel + 0x13d2)) = 0;
-        call0(0x0027396d, 0x0029b860, TitleRegs{panel, ebx, hud, 0, esi, edi});  // FX_FreeAllEffects (ESI)
-        const uint32_t pad = call0(0x00273972, 0x00055e40, TitleRegs{0, ebx, 0, 0, esi, edi});  // IN_PadCreate
-        call0(0x00273979, 0x00056ae0, TitleRegs{pad, ebx, pad, 0, esi, edi});                 // IN_PadStopAllRumble
+        call0(0x0027396d, own_address(&FX_FreeAllEffects_entry), TitleRegs{panel, ebx, hud, 0, esi, edi});  // FX_FreeAllEffects (ESI)
+        const uint32_t pad = call0(0x00273972, own_address(&IN_PadCreate), TitleRegs{0, ebx, 0, 0, esi, edi});  // IN_PadCreate
+        call0(0x00273979, own_address(&IN_PadStopAllRumble), TitleRegs{pad, ebx, pad, 0, esi, edi});                 // IN_PadStopAllRumble
         for (uint32_t i = 0; i < 0x7c0; i += 0x7c) title_global<uint32_t>(0x0094cc88 + i) = 0;
         const TitleRegs regs{0, ebx, 0, 0, esi, edi};
-        call0(0x00273995, 0x0023b800, regs);  // FX_InitEffectPool
-        call0(0x0027399a, 0x0023b6d0, regs);  // FX_ClearEffects
-        call0(0x0027399f, 0x00094170, regs);  // FX_ResetParticleSystem
-        call0(0x002739a4, 0x00236aa0, regs);  // FX_FreeAllEffectLights
+        call0(0x00273995, own_address(&FX_InitEffectPool), regs);  // FX_InitEffectPool
+        call0(0x0027399a, own_address(&FX_ClearEffects), regs);  // FX_ClearEffects
+        call0(0x0027399f, own_address(&FX_ResetParticleSystem), regs);  // FX_ResetParticleSystem
+        call0(0x002739a4, own_address(&FX_FreeAllEffectLights), regs);  // FX_FreeAllEffectLights
     } else {
-        call0(0x002739ab, 0x0030b960, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_LoadLevelScriptModule
+        call0(0x002739ab, own_address(&G_LoadLevelScriptModule_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_LoadLevelScriptModule
     }
     // A restored checkpoint copies its saved map (+0x350) into +0x56c.
     {
         const uint32_t checkpoint = title_global<uint32_t>(0x0095f4e0);
         if (byte_at(checkpoint) && byte_at(checkpoint + 0x390)) {
             const uint32_t source[1] = {checkpoint + 0x350};
-            call_at(T, 0x002739d4, 0x0001fdf0, TitleRegs{source[0], ebx, checkpoint + 0x56c, 0, esi, edi}, 1,
+            call_at(T, 0x002739d4, own_address(&HashMap_CopyFrom_7), TitleRegs{source[0], ebx, checkpoint + 0x56c, 0, esi, edi}, 1,
                     source);  // HashMap_CopyFrom_7
         }
     }
     uint32_t& reloaded = stack_at(T + 0x1c);
     reloaded = restart && savegame ? 1 : 0;
-    call0(0x002739f7, 0x002b0140, TitleRegs{0, ebx, 0, 0, esi, edi});  // Swap_Init
+    call0(0x002739f7, own_address(&Swap_Init), TitleRegs{0, ebx, 0, 0, esi, edi});  // Swap_Init
     // Three bytes of the level locals survive their clear; 0x00986018 is 1 until the end.
     const uint8_t kept14 = title_global<uint8_t>(0x00986014);
     const uint8_t kept16 = title_global<uint8_t>(0x00986016);
@@ -8076,7 +8083,7 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     byte_at(T + 0x16) = kept16;
     ebx = (ebx & ~0xffu) | kept15;
     esi = 0x00985370;
-    call0(0x00273a1a, 0x00026cc0, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_ClearLevelLocals (ESI)
+    call0(0x00273a1a, own_address(&G_ClearLevelLocals_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_ClearLevelLocals (ESI)
     title_global<uint8_t>(0x00986015) = kept15;
     ebx = 0;
     title_global<uint32_t>(0x00986018) = 1;
@@ -8090,10 +8097,10 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     }
     const uint32_t seed_arg[1] = {seed};
     call_at(T, 0x00273a69, 0x001efcb3, TitleRegs{seed, ebx, 0, 0, esi, edi}, 1, seed_arg);  // srand
-    const uint32_t ms = call_at(T - 4, 0x00273a6e, 0x002b1ca0, TitleRegs{0, ebx, 0, 0, esi, edi}, 0,
+    const uint32_t ms = call_at(T - 4, 0x00273a6e, own_address(&Sys_Milliseconds), TitleRegs{0, ebx, 0, 0, esi, edi}, 0,
                                 nullptr);  // Sys_Milliseconds
     const uint32_t restore[1] = {esi};
-    call_at(T - 4, 0x00273a79, 0x00254e70, TitleRegs{ms, ebx, 0, 0, esi, edi}, 1, restore);  // G_InitSkillCvars
+    call_at(T - 4, 0x00273a79, own_address(&G_InitSkillCvars), TitleRegs{ms, ebx, 0, 0, esi, edi}, 1, restore);  // G_InitSkillCvars
     title_global<uint32_t>(0x008d5a70) = ms;
     const float scale = title_global<float>(0x00950638);
     const float half = scale * title_global<float>(0x0083eb24);    // 0.5
@@ -8105,13 +8112,13 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     title_global<float>(0x0097a8a4) = neg_half;
     title_global<float>(0x0097a8a0) = neg_half;
     title_global<float>(0x00984d08) = title_global<float>(0x00950880);
-    call0(0x00273ad8, 0x002cdf00, TitleRegs{0, ebx, 0, 0, esi, edi});  // BG_InitWeapons
+    call0(0x00273ad8, own_address(&BG_InitWeapons), TitleRegs{0, ebx, 0, 0, esi, edi});  // BG_InitWeapons
     {
         const uint32_t hud = title_global<uint32_t>(0x0095f8f0);
         const uint32_t icons = stack_at(hud + 0x18);
         if (icons) {
             const uint32_t pictures[1] = {stack_at(hud + 0x44)};
-            call_at(T, 0x00273aee, 0x00323870, TitleRegs{icons, ebx, pictures[0], 0, esi, edi}, 1,
+            call_at(T, 0x00273aee, own_address(&Hud_LoadWeaponIcons), TitleRegs{icons, ebx, pictures[0], 0, esi, edi}, 1,
                     pictures);  // Hud_LoadWeaponIcons
         }
     }
@@ -8123,7 +8130,7 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         const uint32_t cfg = title_global<uint32_t>(0x0095f5d4);  // rm_cfgstr
         const uint32_t set = stack_at(title_global<uint32_t>(0x0095f638) + 0x34);
         const uint32_t args[6] = {cfg, T + 0x18, prefix, 11, callback, stack_at(T + 0x18)};
-        call_at(T, ret, 0x00024820, TitleRegs{cfg, ebx, T - 0x10, set, esi_value, edi_value}, 6,
+        call_at(T, ret, own_address(&Stream_ForEachAssetWithPrefix), TitleRegs{cfg, ebx, T - 0x10, set, esi_value, edi_value}, 6,
                 args);  // Stream_ForEachAssetWithPrefix
     };
     for_each_asset(0x00273b44, 0x0083a00c, 0x0024df70, 0x0083a00d, 0x0024df70);
@@ -8133,17 +8140,17 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     title_global<int32_t>(0x00985418) = clients < 1 ? 1 : clients > 0x10 ? 0x10 : clients;
     if (!reloaded) {
         const uint32_t reload[1] = {restart ? 1u : 0u};
-        call_at(T, 0x00273b80, 0x00251240, TitleRegs{0, ebx, 0, reload[0], esi, edi}, 1, reload);  // G_InitAnimTrees
+        call_at(T, 0x00273b80, own_address(&G_InitAnimTrees), TitleRegs{0, ebx, 0, reload[0], esi, edi}, 1, reload);  // G_InitAnimTrees
         for (uint32_t a = 0x009881c8; a < 0x00988388; a += 0x1c) title_global<uint32_t>(a) = 0;  // g_actorCorpses
     }
-    call0(0x00273ba1, 0x002557c0, TitleRegs{0, ebx, 0, 0, esi, edi});  // GScr_LoadConsts
+    call0(0x00273ba1, own_address(&GScr_LoadConsts), TitleRegs{0, ebx, 0, 0, esi, edi});  // GScr_LoadConsts
     title_global<uint32_t>(0x00985404) = esi;  // level_maxclients = 1
     esi = 0x00984d10;
-    call0(0x00273bb1, 0x00026b60, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_ClearClient (ESI)
+    call0(0x00273bb1, own_address(&G_ClearClient_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_ClearClient (ESI)
     title_global<uint32_t>(0x00985370) = esi;  // level_clients
     title_global<uint32_t>(0x00985378) = 0x00983e48;  // g_sentients
-    call0(0x00273bc6, 0x001fa480, TitleRegs{0, ebx, 0, 0, esi, edi});  // Sentient_ClearAll
-    call0(0x00273bcb, 0x001fc130, TitleRegs{0, ebx, 0, 0, esi, edi});  // Actor_ClearAll
+    call0(0x00273bc6, own_address(&Sentient_ClearAll), TitleRegs{0, ebx, 0, 0, esi, edi});  // Sentient_ClearAll
+    call0(0x00273bcb, own_address(&Actor_ClearAll), TitleRegs{0, ebx, 0, 0, esi, edi});  // Actor_ClearAll
     {
         const uint32_t ents = title_global<uint32_t>(0x0095f534) + 4;
         for (int32_t i = 0; i < title_global<int32_t>(0x00985404); ++i)
@@ -8159,29 +8166,29 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     std::memset(&title_global<uint32_t>(0x0098a570), 0, 0x140 * 4);  // g_badplaces
     edi = 0x0098aa70;
     title_global<uint32_t>(0x0094d4d8) = 0;  // g_numVehNodes
-    call0(0x00273c93, 0x0024bc70, TitleRegs{0, ebx, 0, 0, esi, edi});  // Vehicle_ResetPool
+    call0(0x00273c93, own_address(&Vehicle_ResetPool), TitleRegs{0, ebx, 0, 0, esi, edi});  // Vehicle_ResetPool
     for (uint32_t a = 0x0094d8e8; a < 0x00950228; a += 0x84) title_global<uint8_t>(a) = 0;
     title_global<uint32_t>(0x00985380) = 0x0094d8e8;
     title_global<uint32_t>(0x00985fe0) = (savegame ? 1u : 0u) + 1;  // level_spawning
     const uint32_t slots[1] = {0x20};
-    call_at(T, 0x00273cd1, 0x0024d940, TitleRegs{0, ebx, 0, 0, esi, edi}, 1, slots);  // G_SetupVehiclePool
+    call_at(T, 0x00273cd1, own_address(&G_SetupVehiclePool), TitleRegs{0, ebx, 0, 0, esi, edi}, 1, slots);  // G_SetupVehiclePool
     const uint32_t scenes[1] = {title_global<uint32_t>(0x0095f4f8)};
-    call_at(T, 0x00273cdf, 0x002ee4d0, TitleRegs{scenes[0], ebx, 0, 0, esi, edi}, 1,
+    call_at(T, 0x00273cdf, own_address(&G_SpawnEntitiesFromString_entry), TitleRegs{scenes[0], ebx, 0, 0, esi, edi}, 1,
             scenes);  // G_SpawnEntitiesFromString
     title_global<uint32_t>(0x00985fe0) = 0;
-    call0(0x00273cea, 0x0020e9a0, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_DropActorsToFloorAtInit
-    const uint32_t linked = call0(0x00273cef, 0x00251c10, TitleRegs{0, ebx, 0, 0, esi, edi});  // VehNode_LinkAll
-    call0(0x00273cf4, 0x00259d60, TitleRegs{linked, ebx, 0, 0, esi, edi});  // Vehicle_InitBrushModels
-    call0(0x00273cf9, 0x0024cbd0, TitleRegs{0, ebx, 0, 0, esi, edi});  // G_FindTeams
+    call0(0x00273cea, own_address(&G_DropActorsToFloorAtInit_entry), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_DropActorsToFloorAtInit
+    const uint32_t linked = call0(0x00273cef, own_address(&VehNode_LinkAll), TitleRegs{0, ebx, 0, 0, esi, edi});  // VehNode_LinkAll
+    call0(0x00273cf4, own_address(&Vehicle_InitBrushModels_entry), TitleRegs{linked, ebx, 0, 0, esi, edi});  // Vehicle_InitBrushModels
+    call0(0x00273cf9, own_address(&G_FindTeams), TitleRegs{0, ebx, 0, 0, esi, edi});  // G_FindTeams
     title_global<uint32_t>(0x00986004) = esi;
     title_global<uint32_t>(0x00985414) = title_global<uint32_t>(0x0098540c);  // level_time
-    call0(0x00273d10, 0x00250010, TitleRegs{0, ebx, 0, 0, esi, edi});  // SaveRegisteredItems
+    call0(0x00273d10, own_address(&SaveRegisteredItems), TitleRegs{0, ebx, 0, 0, esi, edi});  // SaveRegisteredItems
     title_global<uint32_t>(0x00986008) = esi;  // g_compassMarkersEnabled
     title_global<uint32_t>(0x00985fcc) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
     title_global<uint32_t>(0x00985fd0) = title_global<uint32_t>(0x0082eed0);
     for (uint32_t i = 0; i < 0x10; ++i) {
         const uint32_t args[2] = {i + 0x10, 0};
-        call_at(T, 0x00273d3a, 0x002bfd80, TitleRegs{0, ebx, 0, i + 0x10, i, edi}, 2, args);  // SV_SetConfigstring
+        call_at(T, 0x00273d3a, own_address(&SV_SetConfigstring), TitleRegs{0, ebx, 0, i + 0x10, i, edi}, 2, args);  // SV_SetConfigstring
     }
     title_global<uint32_t>(0x00986018) = 0;
     title_global<float>(0x00985ffc) = 0.0f;  // g_missileMaxLifetime
@@ -8248,9 +8255,9 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
     // Eyes of the actor (+0x70) and the target (+0x40), a zero box, the trace: result word +0x2c.
     auto sight_trace = [&](uint32_t eye_ret, uint32_t target_eye_ret, uint32_t trace_ret, uint32_t target,
                            uint32_t mins, uint32_t maxs, uint32_t edi_second) {
-        call_at(F, eye_ret, 0x00207d40, TitleRegs{stack_at(act + 4), ebx, 0, 0, F + 0x70, target}, 0,
+        call_at(F, eye_ret, own_address(&Sentient_EyeOrigin_2_entry), TitleRegs{stack_at(act + 4), ebx, 0, 0, F + 0x70, target}, 0,
                 nullptr);  // Sentient_EyeOrigin_2
-        call_at(F, target_eye_ret, 0x00207d40, TitleRegs{target, ebx, 0, 0, F + 0x40, edi_second}, 0,
+        call_at(F, target_eye_ret, own_address(&Sentient_EyeOrigin_2_entry), TitleRegs{target, ebx, 0, 0, F + 0x40, edi_second}, 0,
                 nullptr);  // Sentient_EyeOrigin_2
         for (uint32_t i = 0; i < 0x10; i += 4) {
             stack_at(F + 0x50 + i) = title_global<uint32_t>(0x0082e290 + i);  // {0, 0, 0, 1}
@@ -8261,7 +8268,7 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
         const uint32_t target_handle = stack_at(stack_at(target) + 0x224);
         const uint32_t args[6] = {F + 0x2c, mins, actor_handle, target_handle, 0x00801003, 0};
         const TitleRegs regs{F + 0x40, maxs, actor_handle, mins, title_global<uint32_t>(0x0082e29c), F + 0x70};
-        call_at(F, trace_ret, 0x002e9840, regs, 6, args);  // G_SightTrace
+        call_at(F, trace_ret, own_address(&G_SightTrace_entry), regs, 6, args);  // G_SightTrace
         return stack_at(F + 0x2c);
     };
     const uint32_t flags = *reinterpret_cast<uint16_t*>(static_cast<uintptr_t>(info + 2));
@@ -8269,7 +8276,7 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
         stack_at(F + 0x38) = stack_at(info + 0x3c);
         stack_at(F + 0x3c) = stack_at(info + 0x40);
         const uint32_t args[2] = {ent, F + 0x38};
-        call_at(F, 0x0026c594, 0x0024e300, TitleRegs{F + 0x38, ebx, ent, 0, info, edi}, 2,
+        call_at(F, 0x0026c594, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{F + 0x38, ebx, ent, 0, info, edi}, 2,
                 args);  // Turret_UpdateTargetAngles
         return 1;
     }
@@ -8291,7 +8298,7 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
             if (static_cast<int32_t>(stack_at(memory_of(held) + 0x1c)) <= static_cast<int32_t>(time))
                 stack_at(info + 0x4c) = 0;
         const uint32_t args[1] = {act};
-        call_at(F, 0x0026c627, 0x001fc360, TitleRegs{0, ebx, 0, 0, esi, edi}, 1, args);  // Actor_ClearSentientThreatTimes
+        call_at(F, 0x0026c627, own_address(&Actor_ClearSentientThreatTimes), TitleRegs{0, ebx, 0, 0, esi, edi}, 1, args);  // Actor_ClearSentientThreatTimes
         goto suppression;
     }
     {
@@ -8315,7 +8322,7 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
         }
         if (byte_at(memory)) {
             const uint32_t args[1] = {target};
-            const uint32_t aimed = call_at(F, 0x0026c6f8, 0x00267c30,
+            const uint32_t aimed = call_at(F, 0x0026c6f8, own_address(&Turret_AimAtTarget_entry),
                                            TitleRegs{info, ebx, stack_at(info + 0x44), 1, memory, ent}, 1,
                                            args);  // Turret_AimAtTarget
             if (aimed) {
@@ -8325,7 +8332,7 @@ uint32_t XB_CDECL Turret_UpdateTarget(uint32_t entry, uint8_t* turret, uint8_t* 
             }
         }
         if (!stack_at(F + 0x2c)) goto entity_check;
-        call_at(F, 0x0026c738, 0x00013c60, TitleRegs{stack_at(F + 0x2c), ebx, target, 0, F + 0x2c, ent + 0x150}, 0,
+        call_at(F, 0x0026c738, own_address(&AnglesToForward_entry), TitleRegs{stack_at(F + 0x2c), ebx, target, 0, F + 0x2c, ent + 0x150}, 0,
                 nullptr);  // AnglesToForward
         float dot = stack_float(F + 0x34) * stack_float(F + 0x48);
         dot = dot + stack_float(F + 0x30) * stack_float(F + 0x44);
@@ -8380,7 +8387,7 @@ check_held:
         stack_float(F + 0x2c) = 0.0f;
         stack_float(F + 0x30) = 0.0f;
         const uint32_t args[2] = {ent, F + 0x2c};
-        const uint32_t done = call_at(F, 0x0026cb12, 0x0024e300, TitleRegs{ent, ebx, 0, 1, esi, edi}, 2,
+        const uint32_t done = call_at(F, 0x0026cb12, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{ent, ebx, 0, 1, esi, edi}, 2,
                                       args);  // Turret_UpdateTargetAngles
         if (done) {
             stack_at(stack_at(F + 0x1c) + 0x1c) = 0;
@@ -8414,11 +8421,11 @@ suppression:
         stack_at(F + 0x60) = x;
         for (uint32_t i = 0; i < 0x10; i += 4) stack_at(F + 0x40 + i) = stack_at(F + 0x60 + i);
         const uint32_t args[2] = {F + 0x40, 1};
-        aim = call_at(F, 0x0026cbcc, 0x0025d1e0, TitleRegs{ent, ebx, 0, F + 0x40, m, F + 0x2c}, 2,
+        aim = call_at(F, 0x0026cbcc, own_address(&Turret_TryAimAtTarget_entry), TitleRegs{ent, ebx, 0, F + 0x40, m, F + 0x2c}, 2,
                       args);  // Turret_TryAimAtTarget
         if (aim) {
             const uint32_t turn[2] = {ent, F + 0x2c};
-            call_at(F, 0x0026cbe4, 0x0024e300, TitleRegs{F + 0x2c, ebx, ent, 1, m, F + 0x2c}, 2,
+            call_at(F, 0x0026cbe4, own_address(&Turret_UpdateTargetAngles_entry), TitleRegs{F + 0x2c, ebx, ent, 1, m, F + 0x2c}, 2,
                     turn);  // Turret_UpdateTargetAngles
             stack_at(m + 0x1c) = 0;
             if (stack_at(info + 0x4c) == stack_at(F + 0x38)) stack_at(info + 0x4c) = 0;
@@ -8439,19 +8446,19 @@ entity:
             if (!own) {
                 const uint32_t args[4] = {entity + 0x140, stack_at(act + 0x828), stack_at(act + 0x82c), 0};
                 const TitleRegs regs{act, ebx, stack_at(act + 0x82c), stack_at(act + 0x828), esi, own};
-                const uint32_t bits = actor_call_at_xmm0_raw(F, 0x0020eb50, &regs, 4, args);  // Actor_CanSeePoint
+                const uint32_t bits = actor_call_at_xmm0_raw(F, own_address(&Actor_CanSeePoint_entry), &regs, 4, args);  // Actor_CanSeePoint
                 stack_at(F - 0x14) = 0x0026cc92;
                 float seen;
                 std::memcpy(&seen, &bits, 4);
                 if (seen != title_global<float>(0x0083eafc)) {
                     const uint32_t one[1] = {1};
-                    if (call_at(F, 0x0026ccad, 0x0025f290, TitleRegs{ent, ebx, entity, 0, esi, own}, 1,
+                    if (call_at(F, 0x0026ccad, own_address(&Turret_TrackTargetEnt), TitleRegs{ent, ebx, entity, 0, esi, own}, 1,
                                 one))  // Turret_TrackTargetEnt
                         return 1;
                 }
             } else if (byte_at(memory_of(own))) {
                 const uint32_t args[1] = {own};
-                if (call_at(F, 0x0026cd15, 0x00267c30, TitleRegs{0, ebx, stack_at(info + 0x44), 1, esi, ent}, 1,
+                if (call_at(F, 0x0026cd15, own_address(&Turret_AimAtTarget_entry), TitleRegs{0, ebx, stack_at(info + 0x44), 1, esi, ent}, 1,
                             args))  // Turret_AimAtTarget
                     return 1;
             }
@@ -8466,11 +8473,11 @@ entity:
         const uint32_t state = stack_at(ent + 0x24c);
         if (byte_at(state + 1)) {
             const uint32_t args[1] = {title_global<uint32_t>(0x0097a860)};  // scr_const_turretstatechange
-            call_at(F, 0x0026cd56, 0x002b75c0, TitleRegs{0, ebx, 0, 0, ent, state}, 1, args);  // Scr_Notify
+            call_at(F, 0x0026cd56, own_address(&Scr_Notify_entry), TitleRegs{0, ebx, 0, 0, ent, state}, 1, args);  // Scr_Notify
         }
         byte_at(state + 1) = 0;
     }
-    call_at(F, 0x0026cd62, 0x0024fcc0, TitleRegs{0, ebx, 0, 0, esi, ent}, 0, nullptr);  // Turret_UpdateAimWithJitter
+    call_at(F, 0x0026cd62, own_address(&Turret_UpdateAimWithJitter_entry), TitleRegs{0, ebx, 0, 0, esi, ent}, 0, nullptr);  // Turret_UpdateAimWithJitter
     return 1;
 }
 
@@ -8490,18 +8497,18 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     stack_at(entry - 0x10) = edi;
     const uint32_t T0 = entry - 0x10, T = entry - 0x14;
     const uint32_t msec = stack_at(entry + 4);
-    call_at(T0, 0x00274669, 0x002314c0, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // Vehicle_PhysicsPreFrame
+    call_at(T0, 0x00274669, own_address(&Vehicle_PhysicsPreFrame), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // Vehicle_PhysicsPreFrame
     esi = 0x008da8e8;  // gameCvarTable (0x18 each), gameCvarTableSize 0x008dae40
     for (edi = 0; static_cast<int32_t>(edi) < title_global<int32_t>(0x008dae40); ++edi, esi += 0x18) {
         ebx = stack_at(esi);
         if (!ebx) continue;
-        call_at(T0, 0x0027468b, 0x00296ec0, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // Cvar_Update (EBX)
+        call_at(T0, 0x0027468b, own_address(&Cvar_Update_entry), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // Cvar_Update (EBX)
         const uint32_t modified = stack_at(stack_at(esi) + 4);
         if (stack_at(esi + 0x10) != modified) stack_at(esi + 0x10) = modified;
     }
     stack_at(T) = ebp;
-    call_at(T, 0x002746ab, 0x00252c10, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_CheckMissionEnd
-    call_at(T, 0x002746b0, 0x0024c9f0, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_FlushEntityListChanges
+    call_at(T, 0x002746ab, own_address(&G_CheckMissionEnd_entry), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_CheckMissionEnd
+    call_at(T, 0x002746b0, own_address(&G_FlushEntityListChanges), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_FlushEntityListChanges
     auto listed = [](uint32_t i) -> uint32_t {
         const uint32_t handle = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00984cec)))[i];
         const uint32_t index = handle & 0xfff;
@@ -8517,7 +8524,7 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         const uint32_t ent = listed(static_cast<uint32_t>(i));
         if (!ent) continue;
         ebx = ent;
-        call_at(T, 0x00274713, 0x002b8450, TitleRegs{0, ebx, ent, 0, esi, edi}, 0, nullptr);  // G_UpdateEntityLOD (ECX)
+        call_at(T, 0x00274713, own_address(&G_UpdateEntityLOD), TitleRegs{0, ebx, ent, 0, esi, edi}, 0, nullptr);  // G_UpdateEntityLOD (ECX)
         if (stack_at(ent + 0x23c)) continue;
         if (stack_at(ent + 0x2a4) & 0x10000) continue;
         edi = stack_at(ent + 0x22c);
@@ -8529,17 +8536,17 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             uint32_t bits;
             std::memcpy(&bits, &dt, 4);
             const uint32_t args[3] = {obj, bits, 1};
-            call_at(T, 0x00274770, 0x002d7f20, TitleRegs{obj, ebx, bits, 0, 0, edi}, 3,
+            call_at(T, 0x00274770, own_address(&AnimTree_AdvanceTimeForModel_entry), TitleRegs{obj, ebx, bits, 0, 0, edi}, 3,
                     args);  // AnimTree_AdvanceTimeForModel
             esi = msec;
         }
         if (const uint32_t obj = stack_at(ent + 0x22c)) {
             const uint32_t args[1] = {obj};
-            call_at(T, 0x00274787, 0x002df880, TitleRegs{obj, ebx, 0, 0, esi, edi}, 1, args);  // DObj_UpdateSkeletons
+            call_at(T, 0x00274787, own_address(&DObj_UpdateSkeletons), TitleRegs{obj, ebx, 0, 0, esi, edi}, 1, args);  // DObj_UpdateSkeletons
         }
         if (*reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(ent)) == 0xa) {
             edi = ent;
-            call_at(T, 0x0027479e, 0x00288df0, TitleRegs{0, ebx, 0, 0, esi, edi}, 0,
+            call_at(T, 0x0027479e, own_address(&Turret_UpdateTurnFxAndBones_entry), TitleRegs{0, ebx, 0, 0, esi, edi}, 0,
                     nullptr);  // Turret_UpdateTurnFxAndBones (DL 0, EDI)
         }
     }
@@ -8570,7 +8577,7 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             for (uint32_t k = 0; k < 0xc; k += 4) {
                 stack_at(stack_at(player + 0x23c) + 0x414 + k) = stack_at(player + 0xf0 + k);
             }
-            call_at(T, 0x00274903, 0x002d7fe0, TitleRegs{0, ebx, 0, 0, esi, player}, 0, nullptr);  // SV_LinkEntity (EDI)
+            call_at(T, 0x00274903, own_address(&SV_LinkEntity_entry), TitleRegs{0, ebx, 0, 0, esi, player}, 0, nullptr);  // SV_LinkEntity (EDI)
             edi = 1;
         }
     }
@@ -8588,7 +8595,7 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             stack_at(stack_at(player + 0x23c) + 0x428) = title_global<uint32_t>(0x009341c4);
         }
     }
-    call_at(T, 0x002749ae, 0x00205a70, TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_ExpireBadPlaces
+    call_at(T, 0x002749ae, own_address(&G_ExpireBadPlaces), TitleRegs{0, ebx, 0, 0, esi, edi}, 0, nullptr);  // G_ExpireBadPlaces
     // The 32 actors (0x00985384): frame time, previous origin, and angles for +0x38 == 1.
     for (uint32_t k = 0; k < 0x20; ++k) {
         const uint32_t actor = title_global<uint32_t>(0x00985384 + k * 4);
@@ -8616,23 +8623,23 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             if (link) {
                 const uint32_t outer = stack_at(stack_at(link) + 0x3cc);
                 if (outer)
-                    call_at(T, 0x00274cb7, 0x002744e0, TitleRegs{stack_at(outer), ebx, 0, 0, esi, msec}, 0,
+                    call_at(T, 0x00274cb7, own_address(&G_RunEntity_entry), TitleRegs{stack_at(outer), ebx, 0, 0, esi, msec}, 0,
                             nullptr);  // G_RunEntity
                 if (!stack_at(esi + 0x224)) continue;
-                call_at(T, 0x00274cd2, 0x002744e0, TitleRegs{stack_at(stack_at(esi + 0x3cc)), ebx, 0, 0, esi, msec}, 0,
+                call_at(T, 0x00274cd2, own_address(&G_RunEntity_entry), TitleRegs{stack_at(stack_at(esi + 0x3cc)), ebx, 0, 0, esi, msec}, 0,
                         nullptr);  // G_RunEntity
             }
             const uint32_t used = stack_at(esi + 0x224);
             title_global<uint32_t>(0x0095f52c) = 0;
             if (!used) continue;
-            call_at(T, 0x00274cf1, 0x002744e0, TitleRegs{esi, ebx, 0, 0, esi, msec}, 0, nullptr);  // G_RunEntity
+            call_at(T, 0x00274cf1, own_address(&G_RunEntity_entry), TitleRegs{esi, ebx, 0, 0, esi, msec}, 0, nullptr);  // G_RunEntity
         }
     }
     {
         const float frame_time = platform_x87_int_mul(static_cast<int32_t>(msec), seconds_scale);
         std::memcpy(&stack_at(entry - 4), &frame_time, 4);
         const uint32_t args[1] = {stack_at(entry - 4)};
-        call_at(T, 0x00274d10, 0x00233bd0, TitleRegs{0, ebx, 0, args[0], esi, msec}, 1, args);  // G_VehiclePhysicsFrame
+        call_at(T, 0x00274d10, own_address(&G_VehiclePhysicsFrame), TitleRegs{0, ebx, 0, args[0], esi, msec}, 1, args);  // G_VehiclePhysicsFrame
     }
     ebx = 1;
     if (title_global<uint32_t>(0x00985fe4)) {
@@ -8643,10 +8650,10 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         const uint32_t ent = stack_at(title_global<uint32_t>(0x0095f534) + esi * 4 + 4);
         if (!stack_at(ent + 0x244)) continue;
         const uint32_t args[1] = {msec};
-        call_at(T, 0x00274d59, 0x002723c0, TitleRegs{ent, ebx, stack_at(ent + 0x244), 0, esi, msec}, 1,
+        call_at(T, 0x00274d59, own_address(&ClientEndFrame), TitleRegs{ent, ebx, stack_at(ent + 0x244), 0, esi, msec}, 1,
                 args);  // ClientEndFrame (EAX)
     }
-    call_at(T, 0x00274d6b, 0x0024fe60, TitleRegs{0, ebx, 0, 0, esi, msec}, 0, nullptr);  // G_TrimCorpseQueue
+    call_at(T, 0x00274d6b, own_address(&G_TrimCorpseQueue), TitleRegs{0, ebx, 0, 0, esi, msec}, 0, nullptr);  // G_TrimCorpseQueue
     // The actors' frame data: +0x14 = 1, flag 0x10000 of +0x10 while +0x350 is over 1000, the origin copy +0x2c.
     for (uint32_t k = 0; k < 0x20; ++k) {
         const uint32_t actor = title_global<uint32_t>(0x00985384 + k * 4);
@@ -8663,7 +8670,7 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     {
         const uint32_t args[1] = {stack_at(entry - 4)};
         title_global<uint8_t>(0x00935538) = 0;
-        call_at(T, 0x00274fc7, 0x002be8f0, TitleRegs{0, 1, args[0], 0, 0x10000, 0xfffeffff}, 1,
+        call_at(T, 0x00274fc7, own_address(&G_ProcessCodNotes), TitleRegs{0, 1, args[0], 0, 0x10000, 0xfffeffff}, 1,
                 args);  // G_ProcessCodNotes
     }
     const uint32_t count = title_global<uint32_t>(0x00984cf4);

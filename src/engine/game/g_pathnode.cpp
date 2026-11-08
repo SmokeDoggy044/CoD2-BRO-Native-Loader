@@ -1199,7 +1199,7 @@ void XB_CDECL Path_DisconnectAllEntities(uint32_t entry) {
         const TitleRegs regs{world, 0, 0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(it)),
                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(last))};
         const uint32_t args[2] = {world, *it};
-        title_call_at_regs(entry - 8, 0x002e8ef0, &regs, 2, args);  // Path_DisconnectPathsForEntity
+        title_call_at_regs(entry - 8, own_address(&Path_DisconnectPathsForEntity_entry), &regs, 2, args);  // Path_DisconnectPathsForEntity
     }
 }
 
@@ -1247,7 +1247,7 @@ bool node_visible(uint8_t* frame, const float* origin, const uint8_t* node, uint
     *result = 0;
     const TitleRegs regs{address_of(end), address_of(frame + 0x50), 0, 0, address_of(origin), address_of(start)};
     const uint32_t args[6] = {address_of(result), address_of(frame + 0x60), 0, 0, 0x820011, 1};
-    title_call_at_regs(address_of(frame), 0x002e9840, &regs, 6, args);  // G_SightTrace
+    title_call_at_regs(address_of(frame), own_address(&G_SightTrace_entry), &regs, 6, args);  // G_SightTrace
     return !*result;
 }
 
@@ -1263,7 +1263,7 @@ uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint
                    title_global<uint32_t>(0x0095f4f4)};
     const uint32_t list_args[5] = {radius_bits, 0x42800000, address_of(list), max_nodes, type_mask};  // 64.0f high
     const int32_t count = static_cast<int32_t>(
-        title_call_at_regs(address_of(frame), 0x002b1060, &regs, 5, list_args));  // PathNode_ListInCylinder
+        title_call_at_regs(address_of(frame), own_address(&PathNode_ListInCylinder_entry), &regs, 5, list_args));  // PathNode_ListInCylinder
     word_at(frame, 0x4c) = static_cast<uint32_t>(count);
     regs.eax = static_cast<uint32_t>(count);
     regs.edi = static_cast<uint32_t>(count);
@@ -1338,7 +1338,7 @@ uint32_t XB_CDECL PathNode_FindNearestNoPlanes(uint32_t entry, int32_t* count_ou
     // PathNode_FindNearest without boundary planes.
     const TitleRegs regs{type_mask, 0, max_nodes, address_of(list), address_of(origin), 0};
     const uint32_t args[6] = {address_of(list), radius, 0, 0, 0, address_of(count_out)};
-    const uint32_t node = title_call_at_regs(entry, 0x002ea820, &regs, 6, args);  // PathNode_FindNearest
+    const uint32_t node = title_call_at_regs(entry, own_address(&PathNode_FindNearest_entry), &regs, 6, args);  // PathNode_FindNearest
     *reinterpret_cast<uint32_t*>(uintptr_t{entry - 0x1c}) = 0x002eabca;  // its return address
     return node;
 }

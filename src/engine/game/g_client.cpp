@@ -231,7 +231,7 @@ int32_t XB_REGS3 XB_CDECL Pickup_Ammo(uint8_t* other, uint32_t, uint8_t* ent) {
     uint32_t number = field<uint32_t>(other, 0x224);
     const TitleRegs regs{0, handle, 0, 0, address_of(other), address_of(ent)};
     const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address_of(&number)};
-    g_ent_call(0x000264d0, &regs, 2, args);  // G_NotifyWithEntity_2 "trigger"
+    g_ent_call(own_address(&G_NotifyWithEntity_2_entry), &regs, 2, args);  // G_NotifyWithEntity_2 "trigger"
     if (field<uint32_t>(other, 0x23c)) Scr_Notify(other, title_global<uint32_t>(0x0097a758));  // "pickup"
     return (field<uint8_t>(ent, 0x2a0) & 8) ? 0x28 : -1;
 }
@@ -291,11 +291,11 @@ void XB_CDECL ClientImpacts(uint8_t* ent, int32_t count, const uint32_t* touch) 
         number = field<uint32_t>(other, 0x224);
         const TitleRegs a{0, static_cast<uint32_t>(i), 0, 0, address_of(other), address_of(ent)};
         const uint32_t a_args[2] = {title_global<uint32_t>(0x0097a814), address_of(&number)};
-        g_ent_call(0x000265a0, &a, 2, a_args);  // G_NotifyWithEntity "touch"
+        g_ent_call(own_address(&G_NotifyWithEntity_entry), &a, 2, a_args);  // G_NotifyWithEntity "touch"
         number = field<uint32_t>(ent, 0x224);
         const TitleRegs b{0, static_cast<uint32_t>(i), 0, 0, address_of(other), address_of(other)};
         const uint32_t b_args[2] = {title_global<uint32_t>(0x0097a814), address_of(&number)};
-        g_ent_call(0x000265a0, &b, 2, b_args);
+        g_ent_call(own_address(&G_NotifyWithEntity_entry), &b, 2, b_args);
         using Touch = void XB_CDECL(uint8_t*, uint8_t*, uint32_t);
         if (field<uint32_t>(ent, 0x338))
             title_function<Touch>(title_global<uint32_t>(0x008da814 + field<uint32_t>(ent, 0x338) * 4))(ent, other, 1);
@@ -372,7 +372,7 @@ void XB_CDECL G_ClientActivateTargetActor(const uint8_t* ps) {
     field<int32_t>(client, 0x5f8) = title_global<int32_t>(0x0094d614) + now;
     const TitleRegs regs{field<uint32_t>(pointer_at(pointer_at(player, 0x23c), 0x5f4), 0x244), field<uint32_t>(player, 0x244), 0, 0,
                          0, 0};
-    g_ent_call(0x002048c0, &regs, 0, nullptr);  // Sentient_TakeNodeClaim (EAX, EBX)
+    g_ent_call(own_address(&Sentient_TakeNodeClaim_entry), &regs, 0, nullptr);  // Sentient_TakeNodeClaim (EAX, EBX)
     Scr_Notify(pointer_at(pointer_at(player, 0x23c), 0x5f4), title_global<uint32_t>(0x0097a818));  // "trigger"
 }
 

@@ -34,6 +34,11 @@
 #include "r_init.h"
 #include "scr_field.h"
 #include "shaders.h"
+#include "cg_hud.h"
+#include "cgame.h"
+#include "fe_profile.h"
+#include "g_spawn.h"
+#include "ui_menu.h"
 
 namespace game {
 
@@ -3001,7 +3006,7 @@ uint32_t XB_CDECL Com_RunAndTimeServerPacket(uint32_t entry, uint32_t msg, const
     if (pk<uint32_t>(speeds, 0x20)) sys_milliseconds();
     const uint32_t words[5] = {from[0], from[1], from[2], from[3], from[4]};
     const TitleRegs regs = {msg, ebx, entry - 0x14, from[4], u32(from), edi};
-    title_call_at_regs(entry, 0x002c9de0, &regs, 5, words);  // SV_PacketEvent
+    title_call_at_regs(entry, own_address(&SV_PacketEvent_entry), &regs, 5, words);  // SV_PacketEvent
     speeds = title_global<uint8_t*>(0x009403e8);
     if (pk<uint32_t>(speeds, 0x20)) return sys_milliseconds();
     return u32(speeds);
@@ -4134,7 +4139,7 @@ int32_t XB_CDECL Com_EventLoop() {
             if (cvar_int(0x0093fcf0)) {  // com_sv_running: Com_RunAndTimeServerPacket (from in ESI)
                 const TitleRegs regs{0, from[0], 0, 0, u32(from), u32(dst + len)};
                 const uint32_t args[1] = {u32(msg)};
-                qc_call_regs(0x002a2510, &regs, 1, args);
+                qc_call_regs(own_address(&Com_RunAndTimeServerPacket_entry), &regs, 1, args);
             } else {
                 CL_PacketEvent(from[0], from[1], from[2], from[3], from[4], msg);
             }
@@ -4151,7 +4156,7 @@ int32_t XB_CDECL Com_EventLoop() {
         uint8_t* speeds = cvar_ptr(0x009403e8);  // com_speeds
         if (pk<int32_t>(speeds, 0x20)) own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
         const TitleRegs regs{u32(msg), u32(msg), 0, 0, 0, static_cast<uint32_t>(ev.time)};
-        qc_call_regs(0x002c9de0, &regs, 5, from);  // SV_PacketEvent (msg in EAX, from by value)
+        qc_call_regs(own_address(&SV_PacketEvent_entry), &regs, 5, from);  // SV_PacketEvent (msg in EAX, from by value)
         speeds = cvar_ptr(0x009403e8);
         if (pk<int32_t>(speeds, 0x20)) own_function<int32_t XB_CDECL()>(&Sys_Milliseconds)();
     }
@@ -4240,11 +4245,11 @@ void XB_CDECL Com_Frame() {
         uint32_t step_bits;
         std::memcpy(&step_bits, &step, 4);
         const TitleRegs regs{0, static_cast<uint32_t>(raw_msec), 0, 0, 0x008dd1d8, static_cast<uint32_t>(msec)};
-        qc_call_regs(0x0030b9e0, &regs, 1, &step_bits);  // Scr_RunThreads (ESI = 0x008dd1d8)
+        qc_call_regs(own_address(&Scr_RunThreads_entry), &regs, 1, &step_bits);  // Scr_RunThreads (ESI = 0x008dd1d8)
     }
     {
         const TitleRegs regs{0, static_cast<uint32_t>(raw_msec), 0, 0, static_cast<uint32_t>(msec), static_cast<uint32_t>(msec)};
-        qc_call_regs(0x002f4400, &regs, 0, nullptr);  // SV_Frame (msec in ESI)
+        qc_call_regs(own_address(&SV_Frame_entry), &regs, 0, nullptr);  // SV_Frame (msec in ESI)
     }
     if (cvar_int(0x009403e8)) sys_milliseconds();
     Com_EventLoop();
@@ -4253,7 +4258,7 @@ void XB_CDECL Com_Frame() {
     {
         const TitleRegs regs{static_cast<uint32_t>(raw_msec), static_cast<uint32_t>(raw_msec), 0, 0,
                              static_cast<uint32_t>(msec), static_cast<uint32_t>(msec)};
-        qc_call_regs(0x002f2630, &regs, 0, nullptr);  // CL_Frame (msec in EAX)
+        qc_call_regs(own_address(&CL_Frame_entry), &regs, 0, nullptr);  // CL_Frame (msec in EAX)
     }
     if (cvar_int(0x0093fc20) || cvar_int(0x009403e8)) title_global<int32_t>(0x0098f2d0) = sys_milliseconds();
     ++title_global<int32_t>(0x00947b0c);  // com_frameNumber
@@ -5566,11 +5571,11 @@ void teleport_with_angles(uint8_t* ent, const float* origin, const float* angles
     TitleRegs regs{};
     regs.eax = u32(ent);
     regs.ecx = u32(origin);
-    qc_call_regs(0x0024eec0, &regs, 0, nullptr);
+    qc_call_regs(own_address(&TeleportPlayer), &regs, 0, nullptr);
     regs = TitleRegs{};
     regs.eax = u32(angles);
     regs.edx = u32(ent);
-    qc_call_regs(0x0024ebf0, &regs, 0, nullptr);
+    qc_call_regs(own_address(&SetClientViewAngle_entry), &regs, 0, nullptr);
     SV_LinkEntity(ent);
 }
 
@@ -5599,7 +5604,7 @@ void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent) {
     TitleRegs regs{};
     regs.ebx = u32(ent);
     const uint32_t args[3] = {title_global<uint32_t>(0x0097a71c), u32(value_ref), u32(name_ref)};  // "menuresponse"
-    qc_call_regs(0x00029000, &regs, 3, args);  // G_NotifyWithTwoStrings (ent in EBX)
+    qc_call_regs(own_address(&G_NotifyWithTwoStrings_entry), &regs, 3, args);  // G_NotifyWithTwoStrings (ent in EBX)
     own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&value);  // ScriptString_Release
     own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&name);
 }
@@ -5666,7 +5671,7 @@ void XB_CDECL Cmd_DropWeapon_f(uint8_t* ent) {
     TitleRegs regs{};
     regs.edi = u32(ent);
     const uint32_t args[2] = {ent[3], 0};
-    if (qc_call_regs(0x00268350, &regs, 2, args)) G_AddEvent(ent, 0x97, 0);  // Drop_Weapon (ent in EDI)
+    if (qc_call_regs(own_address(&Drop_Weapon_entry), &regs, 2, args)) G_AddEvent(ent, 0x97, 0);  // Drop_Weapon (ent in EDI)
 }
 
 void XB_CDECL Cmd_Kill_f(uint8_t* ent) {
@@ -5748,12 +5753,12 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
         regs.eax = u32(ent);
         regs.edi = u32(target);
         const uint32_t args[1] = {name};
-        qc_call_regs(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle (ent in EAX, notified in EDI)
+        qc_call_regs(own_address(&G_NotifyWithOwnHandle_entry), &regs, 1, args);  // G_NotifyWithOwnHandle (ent in EAX, notified in EDI)
     };
     if (pk<uint32_t>(ent, 0x2a4) & 0x100000) return 0;
     pk<uint32_t>(pk_ptr(ent, 0x23c), 0x628) = 0;
     regs.ecx = u32(ent);
-    uint8_t* const turret = reinterpret_cast<uint8_t*>(qc_call_regs(0x0024bb30, &regs, 0, nullptr));  // G_GetPlayerTurret
+    uint8_t* const turret = reinterpret_cast<uint8_t*>(qc_call_regs(own_address(&G_GetPlayerTurret), &regs, 0, nullptr));  // G_GetPlayerTurret
     if (turret) {
         call_func(kUseFuncs, turret, ent, ent);
         return 1;
@@ -5764,7 +5769,7 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
     }
     {
         const uint32_t args[1] = {u32(ent)};
-        qc_call_regs(0x00267e10, &regs, 1, args);  // Player_UpdateCursorHints
+        qc_call_regs(own_address(&Player_UpdateCursorHints_entry), &regs, 1, args);  // Player_UpdateCursorHints
     }
     uint8_t* const ps = pk_ptr(ent, 0x23c);
     regs.ebx = u32(ps);
@@ -5781,7 +5786,7 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
     if (classname == title_global<uint32_t>(0x0097a6dc) || classname == title_global<uint32_t>(0x0097a6e0)) {
         regs.eax = u32(target);
         const uint32_t args[1] = {u32(ent)};
-        qc_call_regs(0x002710e0, &regs, 1, args);  // TryDoor (door in EAX)
+        qc_call_regs(own_address(&TryDoor), &regs, 1, args);  // TryDoor (door in EAX)
         return 1;
     }
     if (classname == title_global<uint32_t>(0x0097a81c)) {  // "trigger_use"
@@ -5793,7 +5798,7 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
     case 0xe:
         regs.ecx = u32(ent);
         regs.edx = u32(target);
-        if (!qc_call_regs(0x0024dc10, &regs, 0, nullptr)) return 0;
+        if (!qc_call_regs(own_address(&G_PlayerCanUseTurret), &regs, 0, nullptr)) return 0;
         call_func(kUseFuncs, target, ent, ent);
         return 1;
     case 0x2:
@@ -6145,7 +6150,7 @@ uint8_t* XB_REGS1 XB_STDCALL Loc_RegisterFlag(const char* flag, uint8_t* state, 
         TitleRegs regs{};
         regs.eax = u32(state + 0x88);
         regs.ecx = u32(text.s);
-        qc_call_regs(0x0001f370, &regs, 0, nullptr);  // std_vector_string_PushBack (vector EAX, value ECX)
+        qc_call_regs(own_address(&std_vector_string_PushBack), &regs, 0, nullptr);  // std_vector_string_PushBack (vector EAX, value ECX)
         text.tidy();
         int32_t count = 0;
         if (pk_ptr(state, 0x8c))
@@ -6420,7 +6425,7 @@ uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t, const uint8_t* fie
         regs.ebx = u32(map + 8);
         const uint32_t key_arg = u32(&key);
         const auto found = reinterpret_cast<const char**>(
-            static_cast<uintptr_t>(qc_call_regs(0x000249a0, &regs, 1, &key_arg)));  // StringMap_Find
+            static_cast<uintptr_t>(qc_call_regs(own_address(&StringMap_Find_entry), &regs, 1, &key_arg)));  // StringMap_Find
         if (!found || !*found || !**found) continue;
         const char* const value = *found;
         const int32_t type = pk<int32_t>(const_cast<uint8_t*>(field), 8);
@@ -6516,7 +6521,7 @@ void XB_CDECL Cmd_Take_f(uint8_t* ent) {
             TitleRegs regs{};
             regs.eax = static_cast<uint32_t>(weapon);
             regs.ecx = u32(ps());
-            qc_call_regs(0x002b5530, &regs, 0, nullptr);  // BG_RemoveWeaponFromSlot
+            qc_call_regs(own_address(&BG_RemoveWeaponFromSlot_entry), &regs, 0, nullptr);  // BG_RemoveWeaponFromSlot
             ammo(weapon) = 0;
             clip(weapon) = 0;
         }
@@ -6524,7 +6529,7 @@ void XB_CDECL Cmd_Take_f(uint8_t* ent) {
             pk<int32_t>(ps(), 0x80) = 0;
             TitleRegs regs{};
             regs.esi = 0;
-            qc_call_regs(0x002cde20, &regs, 0, nullptr);  // CG_SelectWeapon(0)
+            qc_call_regs(own_address(&CG_SelectWeapon_entry), &regs, 0, nullptr);  // CG_SelectWeapon(0)
         }
         if (!all) return;
         ammo_block = true;
@@ -6698,12 +6703,12 @@ void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx, uint
         if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
         uint8_t* const page = pk_ptr(profile_menu, 4);
         const uint32_t menu = pk<uint32_t>(page, 0x3c);
-        profile_call(0x0033a2a0, u32(page), menu, u32(self), static_cast<uint32_t>(0), entry_ebx, entry_edi, 1,
+        profile_call(own_address(&ProfileMenu_OnProfilesRead_entry), u32(page), menu, u32(self), static_cast<uint32_t>(0), entry_ebx, entry_edi, 1,
                      &menu);  // ProfileMenu_OnProfilesRead (tail jump, menu in the argument slot)
         return;
     }
     uint8_t* const page = pk_ptr(title_global<uint8_t*>(0x0095f8fc), 4);
-    profile_call(0x003381c0, u32(page), u32(self), u32(title_global<uint8_t*>(0x0095f8fc)), 0,
+    profile_call(own_address(&AutosaveMenu_OnProfilesRead_entry), u32(page), u32(self), u32(title_global<uint8_t*>(0x0095f8fc)), 0,
                  pk<uint32_t>(page, 0x1c), entry_edi);  // AutosaveMenu_OnProfilesRead (menu in EBX)
 }
 
@@ -6728,19 +6733,19 @@ void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uin
         if (profile_menu) {
             if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
             uint8_t* const page = pk_ptr(profile_menu, 4);
-            profile_call_at(top, 0x0033a130, result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
+            profile_call_at(top, own_address(&ProfileMenu_OnSaveOpFailed_entry), result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
                          entry_edi);  // ProfileMenu_OnSaveOpFailed
             return;
         }
         uint8_t* const page = autosave_page();
-        profile_call_at(top, 0x00333860, result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
+        profile_call_at(top, own_address(&AutosaveMenu_OnSaveOpFailed_entry), result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
                      entry_edi);  // AutosaveMenu_OnSaveOpFailed
         return;
     }
     switch (operation) {
     case 1: {
         const uint32_t arg = u32(self);
-        profile_call_at(top, 0x0033a490, op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
+        profile_call_at(top, own_address(&ProfileSave_OnProfilesRead_entry), op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
         return;
     }
     case 2:
@@ -6749,29 +6754,29 @@ void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uin
             uint8_t* const menu = pk_ptr(pk_ptr(profile_menu, 4), 0x3c);
             const uint32_t ecx = (op & ~0xffu) | menu[0x34];
             if (menu[0x34])
-                profile_call_at(top, 0x00339fa0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+                profile_call_at(top, own_address(&ProfileMenu_ShowDeleteSuccessDialog_entry), u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
             else
-                profile_call_at(top, 0x00334fe0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
+                profile_call_at(top, own_address(&ProfileMenu_ShowSaveSuccessDialog_entry), u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
             return;
         } else {
             uint8_t* const page = autosave_page();
             uint8_t* const menu = pk_ptr(page, 0x1c);
             const uint32_t ecx = (u32(title_global<uint8_t*>(0x0095f8fc)) & ~0xffu) | menu[0x39];
             if (menu[0x39])
-                profile_call_at(top, 0x00339c70, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
+                profile_call_at(top, own_address(&AutosaveMenu_ShowDeleteSuccessDialog_entry), u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
             else
-                profile_call_at(top, 0x003339f0, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
+                profile_call_at(top, own_address(&AutosaveMenu_OnSaveSucceeded_entry), u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
             return;
         }
     case 3:
-        profile_call_at(top, 0x00339fa0, op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+        profile_call_at(top, own_address(&ProfileMenu_ShowDeleteSuccessDialog_entry), op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
         return;
     case 4:
         if (profile_menu) {
             if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
-            profile_call_at(top, 0x003388f0, u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
+            profile_call_at(top, own_address(&ProfileMenu_ShowFormatSuccessDialog_entry), u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
         } else {
-            profile_call_at(top, 0x00338100, 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
+            profile_call_at(top, own_address(&AutosaveMenu_ShowFormatSuccessDialog_entry), 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
         }
         return;
     default:
@@ -7075,12 +7080,12 @@ void XB_CDECL Sys_Main() {
     own_function<void XB_CDECL()>(&SCR_InitLoadingSpinner)();  // SCR_InitLoadingSpinner
     regs = TitleRegs{};
     regs.ebx = 1;
-    qc_call_regs(0x00298170, &regs, 0, nullptr);  // SCR_UpdateLoadingIcon_2 (BL = 1)
+    qc_call_regs(own_address(&SCR_UpdateLoadingIcon_2_entry), &regs, 0, nullptr);  // SCR_UpdateLoadingIcon_2 (BL = 1)
     own_function<void XB_CDECL(int32_t, uint32_t, uint32_t)>(&FX_InitSystem)(0, 0x2000000, 0xfa0);  // FX_InitSystem
     regs = TitleRegs{};
     regs.eax = 0x80000;
     regs.ebx = 0;
-    qc_call_regs(0x00236c80, &regs, 0, nullptr);  // Mem_InitSmallBlockPools (BL = 0, EAX)
+    qc_call_regs(own_address(&Mem_InitSmallBlockPools_entry), &regs, 0, nullptr);  // Mem_InitSmallBlockPools (BL = 0, EAX)
     vblank(2);
     uint8_t* allocator = Z_Malloc(0x49c);
     if (allocator) {
@@ -7205,15 +7210,15 @@ void boot_cbuf_append(uint32_t text, uint32_t length) {
 void XB_CDECL Com_Init(uint8_t* launch) {
     title_global<uint8_t>(0x0093fcd0) = 0;
     Com_InitSmallHeap();
-    boot_call(0x000280a0, 0, 0x40, 0, 0, 0x00984cec);  // DynArray_ReserveAligned (count EBX, array ESI)
-    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x00987a78);  // g_entityRemoveQueue
-    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x0097a640);
+    boot_call(own_address(&DynArray_ReserveAligned_entry), 0, 0x40, 0, 0, 0x00984cec);  // DynArray_ReserveAligned (count EBX, array ESI)
+    boot_call(own_address(&DynArray_ReserveAligned_entry), 0, 0x20, 0, 0, 0x00987a78);  // g_entityRemoveQueue
+    boot_call(own_address(&DynArray_ReserveAligned_entry), 0, 0x20, 0, 0, 0x0097a640);
     std::memset(&title_global<uint8_t>(0x00940400), 0, 0x600);  // com_pushedEvents
     title_global<uint32_t>(0x0095f588) = 0;
     title_global<uint32_t>(0x0095f58c) = 0;
     title_global<uint8_t*>(0x00940358) = Cvar_Get(tstr(0x008340d0), tstr(0x0082e098), 0x48);  // sv_cheats "0"
     own_function<void XB_CDECL()>(&Cvar_Init)();  // Cvar_Init
-    boot_call(0x002938a0, u32(launch));            // Com_ParseCommandLine (EAX)
+    boot_call(own_address(&Com_ParseCommandLine), u32(launch));            // Com_ParseCommandLine (EAX)
     own_function<void XB_CDECL()>(&Swap_Init)();  // Swap_Init
     title_global<uint32_t>(0x00935328) = 0x0092bf90;  // cmd_text {data, 0x2000, 0}
     title_global<uint32_t>(0x0093532c) = 0x2000;
@@ -7231,7 +7236,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     add_command(tstr(0x0083451c), 0x002b3370);  // bindlist
     FS_InitFilesystem();
     const uint32_t keep = 0;
-    boot_call(0x002c5ac0, 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
+    boot_call(own_address(&Loc_ResetStringFileState_entry), 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
     Loc_Init();
     own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate
     boot_construct(0x0095f480, 4, 0x11f0, 0x00330640, 'D');  // ProfileSave_Construct
@@ -7277,23 +7282,23 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     own_function<void XB_CDECL()>(&ShakeRumble_CreateManager)();        // ShakeRumble_CreateManager
     title_global<uint8_t>(0x00940178) = 0;
     title_global<uint8_t*>(0x0095f674) = Cvar_Get(tstr(0x0083be30), tstr(0x0082e098), 0x100);  // statusbar
-    boot_call(0x00337050, 0, 0, 0, 0, 0x0095f8d0);  // FE_CreateMenus (g_uiRoot in ESI)
+    boot_call(own_address(&FE_CreateMenus_entry), 0, 0, 0, 0, 0x0095f8d0);  // FE_CreateMenus (g_uiRoot in ESI)
     uint8_t* const screens = Z_Malloc(0x1c);
     if (screens) {
         const uint32_t arg = u32(screens);
-        title_global<uint32_t>(0x0095f8fc) = boot_call(0x00331680, 0, 0, 0, 0, 0, 0, 1, &arg);  // InGameScreens_Construct
+        title_global<uint32_t>(0x0095f8fc) = boot_call(own_address(&InGameScreens_Construct), 0, 0, 0, 0, 0, 0, 1, &arg);  // InGameScreens_Construct
     } else {
         title_global<uint32_t>(0x0095f8fc) = 0;
     }
     uint8_t* const hud = Z_Malloc(0x64);
-    title_global<uint32_t>(0x0095f8f0) = hud ? boot_call(0x0031a020, 0, 0, 0, 0, u32(hud)) : 0;  // HudManager_Create
-    boot_call(0x002ddea0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f534));
+    title_global<uint32_t>(0x0095f8f0) = hud ? boot_call(own_address(&HudManager_Create_entry), 0, 0, 0, 0, u32(hud)) : 0;  // HudManager_Create
+    boot_call(own_address(&G_AllocWorldEntity_entry), 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f534));
     // The global zone loaded at once, with 0x00299780 as the pak's callback (+0x35c) meanwhile.
     pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0x00299780;
     const uint32_t load_args[6] = {0, 0x00837cd4, 0, 0, 0, 0};  // "sp\global.cod", a zero float block
-    boot_call(0x00292d10, title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
+    boot_call(own_address(&Stream_LoadSync), title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
     const uint32_t pad = own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate
-    boot_call(0x00055e70, pad, 0, pad);                                      // IN_PadUpdate (ECX)
+    boot_call(own_address(&IN_PadUpdate), pad, 0, pad);                                      // IN_PadUpdate (ECX)
     // The "Animation" zone of the pak's zone map (+0x18: map at +8, count +0x10, zones +0x14).
     uint8_t* const zones = pk_ptr(title_global<uint8_t*>(0x0095f638), 0x18);
     uint8_t* zone = nullptr;
@@ -7301,7 +7306,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
         uint32_t key = 0x00837cc8;  // "Animation"
         const uint32_t key_arg = u32(&key);
         const auto found = reinterpret_cast<const uint32_t*>(
-            static_cast<uintptr_t>(boot_call(0x000249a0, 0, u32(zones + 8), 0, 0, 0, 0, 1, &key_arg)));  // StringMap_Find
+            static_cast<uintptr_t>(boot_call(own_address(&StringMap_Find_entry), 0, u32(zones + 8), 0, 0, 0, 0, 1, &key_arg)));  // StringMap_Find
         if (found) {
             uint32_t index = *found;
             if (index >= pk<uint32_t>(zones, 0x10)) index = 0;
@@ -7315,25 +7320,25 @@ void XB_CDECL Com_Init(uint8_t* launch) {
         title_global<uint32_t>(0x008d9d38) = frame;
     }
     const uint32_t zone_arg = u32(zone);
-    boot_call(0x00292d70, 0, 0, title_global<uint32_t>(0x0095f638), 0, 0, 0, 1, &zone_arg);  // Stream_StartRequest
-    boot_call(0x0023b360, 0, 0, 0, 0, 0x00988770);  // R_InitDebugMeshes (ESI)
+    boot_call(own_address(&Stream_StartRequest), 0, 0, title_global<uint32_t>(0x0095f638), 0, 0, 0, 1, &zone_arg);  // Stream_StartRequest
+    boot_call(own_address(&R_InitDebugMeshes_entry), 0, 0, 0, 0, 0x00988770);  // R_InitDebugMeshes (ESI)
     pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0;
-    boot_call(0x002ce9c0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f4c0));  // S_WaitForWaveBanks (rm_soundBanks)
+    boot_call(own_address(&S_WaitForWaveBanks_entry), 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f4c0));  // S_WaitForWaveBanks (rm_soundBanks)
     own_function<void XB_CDECL()>(&Com_InitJournaling)();  // Com_InitJournaling
     boot_cbuf_append(0x00837cb4, 0x12);  // "exec language.cfg\n"
     boot_cbuf_append(0x00837ca4, 0xd);   // "exec bro.cfg\n"
     boot_cbuf_append(0x00837c90, 0x12);  // "exec autoexec.cfg\n"
     if (own_function<int32_t XB_CDECL()>(&Com_SafeMode)())  // Com_SafeMode
-        boot_call(0x002aabb0, 0x00837c7c);                // Cbuf_AddText("exec safemode.cfg\n")
+        boot_call(own_address(&Cbuf_AddText), 0x00837c7c);                // Cbuf_AddText("exec safemode.cfg\n")
     own_function<void XB_CDECL()>(&Cbuf_Execute_entry)();         // Cbuf_Execute
-    boot_call(0x00332e20, 0, 0, 0, 0, 0, 0x008dce30);      // CL_ApplyProfileSettings (profile in EDI)
+    boot_call(own_address(&CL_ApplyProfileSettings_entry), 0, 0, 0, 0, 0, 0x008dce30);      // CL_ApplyProfileSettings (profile in EDI)
     Com_StartupVariable(nullptr);
     if (title_global<uint32_t>(0x0095f580) != title_global<uint32_t>(0x0095f578)) {
-        boot_call(0x00297990, title_global<uint32_t>(0x0095f580));  // FS_FreeSearchPaths (EAX)
+        boot_call(own_address(&FS_FreeSearchPaths), title_global<uint32_t>(0x0095f580));  // FS_FreeSearchPaths (EAX)
         title_global<uint32_t>(0x0095f580) = title_global<uint32_t>(0x0095f578);
     }
     if (title_global<uint32_t>(0x0095f584) != title_global<uint32_t>(0x0095f57c)) {
-        boot_call(0x00297950, title_global<uint32_t>(0x0095f584));  // FS_FreePackList (EAX)
+        boot_call(own_address(&FS_FreePackList), title_global<uint32_t>(0x0095f584));  // FS_FreePackList (EAX)
         title_global<uint32_t>(0x0095f584) = title_global<uint32_t>(0x0095f57c);
     }
     title_global<uint8_t>(0x0095f918) = title_global<uint8_t>(0x0095ee01) == 0 ? 1 : 0;
@@ -7362,15 +7367,15 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     add_command(tstr(0x00837bc8), 0x00293810);  // writedefaults
     const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"
     const uint32_t value_args[2] = {0x0083ca9c, 0x3f800000};  // sys_cpuid 1.0
-    boot_call(0x0029fdd0, set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue
+    boot_call(own_address(&Cvar_SetValue), set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue
     own_function<void XB_CDECL()>(&IN_InitCvars)();  // IN_InitCvars
     own_function<void XB_CDECL()>(&Netchan_Init)();  // Netchan_Init
     own_function<void XB_CDECL()>(&Com_InitNodeRing)();  // Com_InitNodeRing
     Com_Memset(&title_global<uint8_t>(0x00927c38), 0, 0x1a4);  // vmTable
     own_function<void XB_CDECL()>(&SV_Init)();  // SV_Init
     own_function<void XB_CDECL()>(&CL_Init)();  // CL_Init
-    boot_call(0x0032cf50, 0, 0, 0, 0, 0x008dce30);  // Profile_SetDefaults (ESI)
-    boot_call(0x00332e20, 0, 0, 0, 0, 0x008dce30, 0x008dce30);  // CL_ApplyProfileSettings (EDI)
+    boot_call(own_address(&Profile_SetDefaults_entry), 0, 0, 0, 0, 0x008dce30);  // Profile_SetDefaults (ESI)
+    boot_call(own_address(&CL_ApplyProfileSettings_entry), 0, 0, 0, 0, 0x008dce30, 0x008dce30);  // CL_ApplyProfileSettings (EDI)
     title_global<int32_t>(0x00947710) = own_function<int32_t XB_CDECL()>(&Com_Milliseconds)();  // com_frameTime
     own_function<void XB_CDECL()>(&Com_AddStartupCommands)();  // Com_AddStartupCommands
     Cvar_Set2(tstr(0x00835238), const_cast<char*>(tstr(0x0082e058)), 1);  // r_uiFullScreen "1"
@@ -7486,7 +7491,7 @@ void XB_CDECL SV_MapRestartInternal_f() {
     game[0] = 0;
     TitleRegs regs{};
     regs.edi = u32(game);
-    qc_call_regs(0x002cdbc0, &regs, 0, nullptr);  // G_ClearCheckpoint (EDI)
+    qc_call_regs(own_address(&G_ClearCheckpoint_entry), &regs, 0, nullptr);  // G_ClearCheckpoint (EDI)
     own_function<void XB_STDCALL(uint32_t)>(&Scr_AbortAllThreads)(0x008dd1d8);
     title_global<uint8_t>(0x0095f508) = 1;
 }

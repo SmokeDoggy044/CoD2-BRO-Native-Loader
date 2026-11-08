@@ -92,14 +92,14 @@ void set_help_bar(uint8_t* menu, int32_t row) {
 void gameplay_label_colors(uint8_t* menu) {
     TitleRegs regs{};
     regs.ebx = address_of(menu);
-    ui_call_regs(0x0030e390, &regs, 0, nullptr);
+    ui_call_regs(own_address(&GameplayMenu_UpdateLabelColors_entry), &regs, 0, nullptr);
 }
 
 // 0x0030e4c0 (menu in ESI): the in-game options' label colours.
 void advanced_label_colors(uint8_t* menu) {
     TitleRegs regs{};
     regs.esi = address_of(menu);
-    ui_call_regs(0x0030e4c0, &regs, 0, nullptr);
+    ui_call_regs(own_address(&AdvancedOptionsMenu_UpdateLabelColors_entry), &regs, 0, nullptr);
 }
 
 // 0x0031ee10 (bar in EAX; menu, value on the stack, ret 8): a slider bar's quads and the volume it sets.
@@ -621,13 +621,13 @@ void XB_THISCALL AdvancedOptionsMenu_ResumeGame(uint8_t* menu, uint32_t) {
     {
         TitleRegs regs{};
         regs.esi = address_of(menu);
-        ui_call_regs(0x00331340, &regs, 0, nullptr);  // FE_ApplyControlSettings (menu in ESI)
+        ui_call_regs(own_address(&FE_ApplyControlSettings_entry), &regs, 0, nullptr);  // FE_ApplyControlSettings (menu in ESI)
     }
     title_global<uint8_t>(0x0095f919) = 0;
     {
         TitleRegs regs{};
         regs.eax = title_global<uint32_t>(0x0095f4c4);
-        ui_call_regs(0x002b6ba0, &regs, 0, nullptr);  // S_ResumeAllChannels
+        ui_call_regs(own_address(&S_ResumeAllChannels), &regs, 0, nullptr);  // S_ResumeAllChannels
     }
     Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e098)),
               1);  // cl_paused "0"

@@ -2831,7 +2831,7 @@ uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Blend(uint32_t entry, int32_t count,
     do {
         const uint32_t args[] = {o, t_bits, u_bits};
         const TitleRegs regs{y, y, x, 0, o, x};
-        title_call_at_regs(top, 0x0008cc40, &regs, 3, args);  // NAL_Packed16EntropyIKSpin_Lerp
+        title_call_at_regs(top, own_address(&NAL_Packed16EntropyIKSpin_Lerp_entry), &regs, 3, args);  // NAL_Packed16EntropyIKSpin_Lerp
         *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(top - 0x10)) = 0x0008d224;
         o += 0x50;
         x += 0x50;

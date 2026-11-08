@@ -17,6 +17,7 @@
 #include "levels_twins.h"
 #include "scr_field.h"
 #include "script_string.h"
+#include "bro_scr_tank_init.h"
 
 namespace game {
 
@@ -105,11 +106,11 @@ void XB_CDECL BroScr_VehicleSpawnRiderCall_2(uint32_t vehicle, uint32_t a2, uint
 }
 
 void XB_CDECL BroScr_TankGunHull_5(uint32_t tank, ScriptString name) {
-    TankGunHull(0x00166620, tank, &name);  // BroScr_TankInit_5
+    TankGunHull(own_address(&BroScr_TankInit_5), tank, &name);  // BroScr_TankInit_5
 }
 
 void XB_CDECL BroScr_TankGunHull_3(uint32_t tank, ScriptString name) {
-    TankGunHull(0x001676f0, tank, &name);  // BroScr_TankInit_3
+    TankGunHull(own_address(&BroScr_TankInit_3), tank, &name);  // BroScr_TankInit_3
 }
 
 void XB_CDECL BroScr_PanzerIVTankInitStart(uint32_t tank) {

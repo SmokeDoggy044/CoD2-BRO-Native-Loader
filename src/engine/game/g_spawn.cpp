@@ -15,6 +15,9 @@
 #include "sv.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "g_mover.h"
+#include "shaders.h"
+#include "stream.h"
 
 namespace game {
 
@@ -302,7 +305,7 @@ void XB_CDECL SP_trigger_hurt(uint8_t* ent) {
     {
         const TitleRegs regs{0, 0x40, 0, 0, 0, 0};
         const uint32_t args[4] = {0x00839cb0, 0xa0, 1, 0};
-        ent[0x295] = static_cast<uint8_t>(g_ent_call(0x002c39a0, &regs, 4, args));  // G_FindConfigstringIndex
+        ent[0x295] = static_cast<uint8_t>(g_ent_call(own_address(&G_FindConfigstringIndex_entry), &regs, 4, args));  // G_FindConfigstringIndex
     }
     const uint32_t dmg = cached_key(0x0098e8f0, 1, 0x0098e8ec, 0x0083b060);  // "dmg"
     G_SpawnInt(dmg, &field<int32_t>(ent, 0x358), 0x32);
@@ -508,7 +511,7 @@ void XB_CDECL G_SpawnItem(uint8_t* ent, const uint8_t* item) {
         if (title_global<uint32_t>(0x0098ee50) != spawn_var_key(static_cast<uint32_t>(i))) continue;
         const TitleRegs regs{0, 0x40, 0, 0, 0, 0};
         const uint32_t args[4] = {spawn_var_value(static_cast<uint32_t>(i)), 0xa0, 1, 0};
-        ent[0x295] = static_cast<uint8_t>(g_ent_call(0x002c39a0, &regs, 4, args));  // G_FindConfigstringIndex
+        ent[0x295] = static_cast<uint8_t>(g_ent_call(own_address(&G_FindConfigstringIndex_entry), &regs, 4, args));  // G_FindConfigstringIndex
         break;
     }
     const float minus_one = title_global<float>(0x0083eb34);
@@ -580,7 +583,7 @@ uint8_t* XB_CDECL LaunchItem(uint32_t slot, const float* origin, int32_t model_i
     // bounds and contents as G_SpawnItem, owner = the level's world entity, model, touch 7, a
     // gravity trajectory (type 5) from the origin now; linked. Returns the entity.
     const TitleRegs spawn_regs{0xffffffffu, 0, 0, 0, 0, 0};
-    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002d7030, &spawn_regs, 0, nullptr)});  // G_Spawn
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&G_Spawn), &spawn_regs, 0, nullptr)});  // G_Spawn
     const uint32_t which = G_FreeFarthestDroppedItem(index, 0, slot);
     title_global<uint32_t>(0x00985e30 + ((slot << 5) + which) * 4) = word_at(ent, 0x224);
     const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
@@ -698,7 +701,7 @@ void XB_REGS1 XB_CDECL TossClientItems(uint8_t* ent) {
     if (word_at(ps, 0xc0) & 0x6000) return;
     const TitleRegs regs{0, 0, 0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent)), 0};
     const uint32_t args[2] = {0x0096bd10 + static_cast<uint32_t>(weapon) * 0x34, 0};
-    uint8_t* const dropped = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x00264f60, &regs, 2, args)});  // Drop_Item
+    uint8_t* const dropped = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&Drop_Item_entry), &regs, 2, args)});  // Drop_Item
     if (dropped) word_at(dropped, 0x328) = 0;
 }
 
@@ -761,7 +764,7 @@ uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uin
 // the original's ESP (`top`): spawn functions below keep stack addresses (the path query's list, 0x00929b40).
 void spawn_from_spawn_vars(uint32_t top, uint8_t* level, uint32_t index, uint32_t zone) {
     const TitleRegs regs{0, 0, index, addr(level), 0, 0};
-    title_call_at_regs(top, 0x002edf30, &regs, 1, &zone);
+    title_call_at_regs(top, own_address(&G_SpawnGEntityFromSpawnVars_entry), &regs, 1, &zone);
 }
 
 }  // namespace
@@ -786,13 +789,13 @@ void XB_CDECL G_SpawnEntitiesFromString(uint32_t entry, uint8_t* level) {
         if (!spawns) continue;
         if (const uint32_t world = *reinterpret_cast<uint32_t*>(spawns + 0xc)) {
             const TitleRegs regs{world, zone, 0, 0, addr(spawns), 0};
-            title_call_at_regs(top, 0x002c5e30, &regs, 0, nullptr);  // SP_worldspawn
+            title_call_at_regs(top, own_address(&SP_worldspawn), &regs, 0, nullptr);  // SP_worldspawn
         }
         for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x10); ++i)
             spawn_from_spawn_vars(top, level, i, zone);
         for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x28); ++i) {
             const TitleRegs regs{addr(level), zone, zone, i, addr(spawns), i};
-            title_call_at_regs(top, 0x002b89f0, &regs, 0, nullptr);  // G_SpawnVehicleNode
+            title_call_at_regs(top, own_address(&G_SpawnVehicleNode), &regs, 0, nullptr);  // G_SpawnVehicleNode
         }
     }
 }
@@ -818,13 +821,13 @@ void XB_CDECL Scn_SpawnZone(uint32_t entry, uint8_t* level, uint32_t zone) {
         const uint32_t index = i < *reinterpret_cast<uint32_t*>(spawns + 0x18) ? i : 0;
         const uint32_t models = *reinterpret_cast<uint32_t*>(spawns + 0x1c);
         const TitleRegs regs{0, models + index * 0xec, zone, models, addr(spawns), i};
-        title_call_at_regs(top - 4, 0x002d9970, &regs, 0, nullptr);  // Scn_AddStaticModel
+        title_call_at_regs(top - 4, own_address(&Scn_AddStaticModel_entry), &regs, 0, nullptr);  // Scn_AddStaticModel
     }
     for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(spawns + 0x20); ++i) {
         const uint32_t index = i < *reinterpret_cast<uint32_t*>(spawns + 0x20) ? i : 0;
         const TitleRegs regs{index * 0x10, 0, *reinterpret_cast<uint32_t*>(spawns + 0x24), 0, addr(spawns), i};
         const uint32_t args[2] = {zone, *reinterpret_cast<uint32_t*>(spawns + 0x24) + index * 0x10};
-        title_call_at_regs(top, 0x002d90f0, &regs, 2, args);  // Scn_AddModelInstances
+        title_call_at_regs(top, own_address(&Scn_AddModelInstances_entry), &regs, 2, args);  // Scn_AddModelInstances
     }
     const uint32_t state = title_global<uint32_t>(0x0092bdf0);  // cls_state
     if (state == 2 || state == 5) {
@@ -938,7 +941,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
         const uint32_t callback = Com_HashKeyNoCase(0, text_of(word(pair + 4)));
         const TitleRegs regs{address_of(block), 0, callback, 0, key, i};
         const uint32_t args[2] = {key, callback};
-        spawn_call_at(top, 0x002ee1e7, 0x002b6ea0, regs, 2, args);  // G_EntityAddNotifyCallback
+        spawn_call_at(top, 0x002ee1e7, own_address(&G_EntityAddNotifyCallback), regs, 2, args);  // G_EntityAddNotifyCallback
     }
     // The entity from the zone's memory context, else the aligned heap.
     int32_t context = static_cast<int32_t>(zone);
@@ -955,7 +958,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
     if (mem) {
         const TitleRegs regs{address_of(mem), 0, 0, 0, static_cast<uint32_t>(context), 0};
         const uint32_t args[1] = {static_cast<uint32_t>(context)};
-        ent = reinterpret_cast<uint8_t*>(uintptr_t{spawn_call_at(top, 0x002ee24a, 0x002d6ba0, regs, 1, args)});  // G_InitGentity
+        ent = reinterpret_cast<uint8_t*>(uintptr_t{spawn_call_at(top, 0x002ee24a, own_address(&G_InitGentity), regs, 1, args)});  // G_InitGentity
     }
     ++title_global<int32_t>(0x00985374);
     if (block) word(ent + 0x234) = address_of(block);
@@ -965,7 +968,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
     {
         const TitleRegs regs{scene, 0, address_of(spawn), 0, address_of(ent), 0};
         const uint32_t args[2] = {address_of(spawn), address_of(ent)};
-        spawn_call_at(top, 0x002ee2a0, 0x002d8a90, regs, 2, args);  // G_ApplySpawnFields
+        spawn_call_at(top, 0x002ee2a0, own_address(&G_ApplySpawnFields), regs, 2, args);  // G_ApplySpawnFields
     }
     const uint32_t classname = word(ent + 0x25c);
     word(ent + 0x260) = Com_HashKeyNoCase(0, classname ? text_of(classname + 6) : nullptr);
@@ -973,12 +976,12 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
     uint8_t* const checkpoint = title_global<uint8_t*>(0x0095f4e0);
     if (checkpoint[0x390] && checkpoint[0]) {
         const TitleRegs regs{address_of(ent), 0, address_of(checkpoint), 0, address_of(ent), 0};
-        spawn_call_at(top, 0x002ee311, 0x002c7f00, regs, 0, nullptr);  // G_ApplyCheckpointStart
+        spawn_call_at(top, 0x002ee311, own_address(&G_ApplyCheckpointStart), regs, 0, nullptr);  // G_ApplyCheckpointStart
     }
     title_global<uint8_t>(0x0095f528) = 1;
     {
         const TitleRegs regs{address_of(ent), 0, address_of(checkpoint), 0, address_of(ent), address_of(ent)};
-        spawn_call_at(top, 0x002ee31f, 0x00269cb0, regs, 0, nullptr);  // G_CallSpawnByClassname
+        spawn_call_at(top, 0x002ee31f, own_address(&G_CallSpawnByClassname_entry), regs, 0, nullptr);  // G_CallSpawnByClassname
     }
     // The trajectories start stationary at the spawned origin (+0x140) and angles (+0x150).
     word(ent + 0x20) = word(ent + 0x140);
@@ -1014,7 +1017,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
     }
     {
         const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(spawn)};
-        spawn_call_at(top, 0x002ee42c, 0x002fb310, regs, 0, nullptr);  // G_UpdateEntityStringHashes
+        spawn_call_at(top, 0x002ee42c, own_address(&G_UpdateEntityStringHashes_entry), regs, 0, nullptr);  // G_UpdateEntityStringHashes
     }
     if (auto_thread) {
         // The auto thread started through import +0x880 (name hash, entity handle, two empty words, the script's
@@ -1030,7 +1033,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
         const uint32_t key = title_global<uint32_t>(0x0097a7e4);  // scr_const_spawned
         const TitleRegs regs{key, 0, callbacks, 0, address_of(ent), address_of(spawn)};
         const uint32_t args[3] = {address_of(ent), key, 0};
-        spawn_call_at(top, 0x002ee4aa, 0x002b6de0, regs, 3, args);  // G_EntityRunNotifyCallbacks
+        spawn_call_at(top, 0x002ee4aa, own_address(&G_EntityRunNotifyCallbacks), regs, 3, args);  // G_EntityRunNotifyCallbacks
     }
     // A brush model ("sbmo..." at +0x14) gets flag 0x800000.
     const uint32_t model = word(spawn + 0x14);
@@ -1148,7 +1151,7 @@ uint32_t XB_CDECL Drop_Weapon(uint8_t* ent, uint32_t weapon, const char* tag) {
     {
         const TitleRegs regs{0, 0, 0, 0, address_of(ent), address_of(ent)};
         const uint32_t args[2] = {0x0096bd10 + weapon * 0x34, 0};
-        drop = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x00264f60, &regs, 2, args)});  // Drop_Item
+        drop = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&Drop_Item_entry), &regs, 2, args)});  // Drop_Item
     }
     def = def_of(weapon);
     const uint32_t clip_slot = *reinterpret_cast<const uint32_t*>(def + 0x5a0);
@@ -1324,7 +1327,7 @@ void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst) {
     {
         const TitleRegs regs{0, 0, address_of(inst + 0x6c), 0, 0, 0};
         const uint32_t args[4] = {address_of(model), address_of(box), address_of(box + 4), 0x0098cbd0};
-        if (g_ent_call(0x00240f70, &regs, 4, args) == 0) return;  // R_ModelBoxBounds
+        if (g_ent_call(own_address(&R_ModelBoxBounds_entry), &regs, 4, args) == 0) return;  // R_ModelBoxBounds
     }
     const float scale = field<float>(inst, 0x9c);
     field<float>(inst, 0xa0) = scale * box[0];
@@ -1471,11 +1474,11 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
         title_global<uint8_t>(0x0095f5d1) = 0;
         title_global<uint8_t>(0x0095f5d0) = 1;
         B(F + 0x2c) = saved;
-        call(F, 0x002d912d, 0x0028f6c0, TitleRegs{saved, ebx, 0, 0, esi, edi}, 0, nullptr);  // MemContext_Push
+        call(F, 0x002d912d, own_address(&MemContext_Push_entry), TitleRegs{saved, ebx, 0, 0, esi, edi}, 0, nullptr);  // MemContext_Push
     }
     {
         const uint32_t args[3] = {title_global<uint32_t>(0x0095f6ac), F + 0x1cc, zone};  // rm_models
-        const uint32_t out = call(F, 0x002d9147, 0x00241f40, TitleRegs{W(grp), ebx, F + 0x1cc, args[0], esi, edi}, 3,
+        const uint32_t out = call(F, 0x002d9147, own_address(&R_RegisterModel), TitleRegs{W(grp), ebx, F + 0x1cc, args[0], esi, edi}, 3,
                                   args);  // R_RegisterModel
         esi = W(out);
     }
@@ -1501,7 +1504,7 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
     if (W(first + 8) && static_cast<int32_t>(W(W(lod() + 8) + 0x10)) > 0x20) goto done;
     {
         const uint32_t args[2] = {model, 0x0098c3c0};
-        call(F, 0x002d91db, 0x00241ff0, TitleRegs{0, ebx, 0, 0, esi, edi}, 2, args);  // R_ModelBoneMatrices
+        call(F, 0x002d91db, own_address(&R_ModelBoneMatrices), TitleRegs{0, ebx, 0, 0, esi, edi}, 2, args);  // R_ModelBoneMatrices
     }
     W(F + 0x18) = 0;
     ebx = 0x0098c3c0;
@@ -1516,12 +1519,12 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
         if (mesh) {
             W(F + 0x14) = W(W(mesh + 0xc) + 4);
             const uint32_t alloc[3] = {0x18, 0x10, 0};
-            const uint32_t list = call(F, 0x002d9289, 0x00093950, TitleRegs{W(F + 0x14), ebx, 0, W(mesh + 0xc), esi, mesh},
+            const uint32_t list = call(F, 0x002d9289, own_address(&Mem_AlignedAlloc), TitleRegs{W(F + 0x14), ebx, 0, W(mesh + 0xc), esi, mesh},
                                        3, alloc);  // Mem_AlignedAlloc
             esi = list;
             W(F + 0x1c) = list;
             const uint32_t init[2] = {mesh, W(F + 0x14)};
-            call(F, 0x002d929f, 0x00046320, TitleRegs{list, ebx, list, 0, esi, mesh}, 2, init);  // cdSimpleInstance_InitList
+            call(F, 0x002d929f, own_address(&cdSimpleInstance_InitList), TitleRegs{list, ebx, list, 0, esi, mesh}, 2, init);  // cdSimpleInstance_InitList
             W(list + 0x14) = W(grp + 4);
             W(grp + 4) = list;
             W(F + 0x14) = 0;
@@ -1534,12 +1537,12 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
                 W(F + 0x254) = W(inst + 0x1c);
                 W(F + 0x258) = W(inst + 0x20);
                 W(F + 0x25c) = W(inst + 0x18);
-                const uint32_t light = call(F, 0x002d932b, 0x0023e510, TitleRegs{F + 0x250, ebx, F + 0x24, 0, esi, mesh},
+                const uint32_t light = call(F, 0x002d932b, own_address(&R_GetCellLighting), TitleRegs{F + 0x250, ebx, F + 0x24, 0, esi, mesh},
                                             0, nullptr);  // R_GetCellLighting
                 if (light && static_cast<int32_t>(W(F + 0x24)) >= 0) {
                     const uint32_t cell = W(F + 0x24);
                     const uint32_t args[4] = {light, F + 0x250, F + 0x2a0, F + 0x260};
-                    call(F, 0x002d9357, 0x00242730, TitleRegs{cell, ebx, cell, F + 0x250, esi, mesh}, 4,
+                    call(F, 0x002d9357, own_address(&R_SampleLightGridStatic), TitleRegs{cell, ebx, cell, F + 0x250, esi, mesh}, 4,
                          args);  // R_SampleLightGridStatic
                 } else {
                     for (uint32_t k = 0; k < 0x40; k += 4) W(F + 0x2a0 + k) = 0;
@@ -1571,11 +1574,11 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
                     Fl(F + 0x240 + k * 4) = v + r2 * c[2];
                 }
                 const uint32_t args[4] = {F + 0x210, W(inst + 0x24), F + 0x2a0, F + 0x260};
-                call(F, 0x002d990b, 0x000463c0, TitleRegs{args[1], ebx, list, F + 0x2a0, esi, mesh}, 4,
+                call(F, 0x002d990b, own_address(&cdSimpleInstance_AddInstance), TitleRegs{args[1], ebx, list, F + 0x2a0, esi, mesh}, 4,
                      args);  // cdSimpleInstance_AddInstance
             }
             esi = W(F + 0x1c);
-            call(F, 0x002d992d, 0x00046370, TitleRegs{0, ebx, esi, 0, esi, mesh}, 0, nullptr);  // cdSimpleInstance_ShrinkList
+            call(F, 0x002d992d, own_address(&cdSimpleInstance_ShrinkList), TitleRegs{0, ebx, esi, 0, esi, mesh}, 0, nullptr);  // cdSimpleInstance_ShrinkList
             esi = model;
         }
         W(F + 0x18) = bone + 1;
@@ -1585,7 +1588,7 @@ done:
     if (zone != 0xffffffffu) {
         title_global<uint8_t>(0x0095f5d0) = B(F + 0x2c);
         title_global<uint8_t>(0x0095f5d1) = 0;
-        call(F, 0x002d9965, 0x0028c690, TitleRegs{B(F + 0x2c), ebx, 0, title_global<uint32_t>(0x0095f638), esi, edi}, 0,
+        call(F, 0x002d9965, own_address(&MemContext_Pop_entry), TitleRegs{B(F + 0x2c), ebx, 0, title_global<uint32_t>(0x0095f638), esi, edi}, 0,
              nullptr);  // MemContext_Pop
     }
 }

@@ -193,7 +193,7 @@ void XB_CDECL BroScr_SetOrientFaceMotionIf(uint32_t actor, uint32_t mode) {
 }
 
 uint8_t* XB_CDECL BroScr_PathNodeHasDoor(uint8_t* out, uint32_t node) {
-    *out = node_valid(node) && node_test(0x001e4670, &node);  // ScrPathNodeField_script_door_IsSet
+    *out = node_valid(node) && node_test(own_address(&ScrPathNodeField_script_door_IsSet_entry), &node);  // ScrPathNodeField_script_door_IsSet
     return out;
 }
 
@@ -203,7 +203,7 @@ uint8_t* XB_CDECL BroScr_PathNodeHasScriptDelay(uint8_t* out, uint32_t node) {
 }
 
 uint8_t* XB_CDECL BroScr_IsChainNode(uint8_t* out, uint32_t node) {
-    *out = node_valid(node) && node_test(0x001e4640, &node);  // BroScr_NodeHasScriptChain
+    *out = node_valid(node) && node_test(own_address(&BroScr_NodeHasScriptChain_entry), &node);  // BroScr_NodeHasScriptChain
     return out;
 }
 
@@ -213,7 +213,7 @@ uint8_t* XB_CDECL BroScr_PathNodeHasScriptFallback(uint8_t* out, uint32_t node) 
 }
 
 uint8_t* XB_CDECL BroScr_NodeHasScriptWaittill(uint8_t* out, uint32_t node) {
-    *out = node_valid(node) && node_test(0x001e4610, &node);  // ScrPathNodeField_script_waittill_NonEmpty
+    *out = node_valid(node) && node_test(own_address(&ScrPathNodeField_script_waittill_NonEmpty_entry), &node);  // ScrPathNodeField_script_waittill_NonEmpty
     return out;
 }
 
@@ -478,7 +478,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BroScr_NodeHasScriptChain_c(uint32_
     TitleRegs regs{};
     regs.ecx = node;
     const uint32_t args[1] = {got};
-    title_call_at_regs(entry_esp - 8, 0x001812d0, &regs, 1, args);  // ScrPathNodeField_script_chain_Copy
+    title_call_at_regs(entry_esp - 8, own_address(ScrPathNodeField_script_chain_Copy), &regs, 1, args);  // ScrPathNodeField_script_chain_Copy
     const bool non_empty = title_global<uint32_t>(got) != 0;
     own_function<void XB_THISCALL(uint32_t)>(&ScriptString_Release_entry)(got);  // ScriptString_Release
     return non_empty;

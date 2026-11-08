@@ -16,6 +16,7 @@
 #include "qcommon_fs.h"
 #include "scr_field.h"
 #include "xanim.h"
+#include "g_utils.h"
 
 namespace game {
 
@@ -691,7 +692,7 @@ void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags, const 
         if (models && bone_name && *bone_name) {
             const TitleRegs at_hash{models, address(model), models, address(bone_name), address(obj->models),
                                     address(&infos[models].hidden) + 4};
-            const uint32_t hash = title_call_at_regs(top - 4, 0x00292fe0, &at_hash, 0, nullptr);  // Com_HashKeyNoCase
+            const uint32_t hash = title_call_at_regs(top - 4, own_address(&Com_HashKeyNoCase), &at_hash, 0, nullptr);  // Com_HashKeyNoCase
             if (hash) {
                 for (uint32_t j = 0; j < models; ++j) {
                     const XModelParts* parts = first_lod(obj->models[j])->parts;
@@ -699,7 +700,7 @@ void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags, const 
                     const TitleRegs at_find{0, hash, address(first_lod(obj->models[j])), address(parts),
                                             address(&obj->models[j]), j};
                     const int32_t bone = static_cast<int32_t>(
-                        title_call_at_regs(top - 4, 0x000291d0, &at_find, 0, nullptr));  // XModelParts_FindBoneByName
+                        title_call_at_regs(top - 4, own_address(&XModelParts_FindBoneByName_entry), &at_find, 0, nullptr));  // XModelParts_FindBoneByName
                     if (bone < 0) continue;
                     obj->attach_bones[models] = static_cast<uint8_t>((&obj->matrix_offset)[j] + bone);
                     break;
@@ -720,9 +721,9 @@ void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags, const 
     obj->bone_count = static_cast<uint8_t>(bones);
     const TitleRegs at_skeleton{0, 0, 0, 0, 0, address(&infos[models])};
     const uint32_t create_args[] = {address(obj), 0};
-    title_call_at_regs(top, 0x00240c00, &at_skeleton, 2, create_args);  // DObj_CreateSkeleton
+    title_call_at_regs(top, own_address(&DObj_CreateSkeleton), &at_skeleton, 2, create_args);  // DObj_CreateSkeleton
     const uint32_t update_args[] = {address(obj), address(obj), 0};  // its arguments are still there
-    title_call_at_regs(top, 0x002df880, &at_skeleton, 3, update_args);  // DObj_UpdateSkeletons
+    title_call_at_regs(top, own_address(&DObj_UpdateSkeletons), &at_skeleton, 3, update_args);  // DObj_UpdateSkeletons
     // The distance LOD: 0 for a model whose first LOD's surface (+0x38 of its parts) is of the
     // kind at 0x00903fdc with +0x60 == 1; else the first LOD the model has among 0-4 (-1 = none).
     const XModel* model = obj->models[0];
@@ -908,19 +909,19 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
             for (int k = 0; k < 12; ++k)
                 reinterpret_cast<float*>(*reinterpret_cast<uint8_t**>(ent + 0x3cc) + 0x10)[k] = t[rows[k]];
             alignas(16) float parent[12];
-            dobj_call_regs(0x002df3e0, addr(ent), addr(parent), 0, addr(parent));  // G_GetTagParentMatrix
+            dobj_call_regs(own_address(&G_GetTagParentMatrix), addr(ent), addr(parent), 0, addr(parent));  // G_GetTagParentMatrix
             alignas(16) float world[12];
-            dobj_call_regs(0x002954a0, addr(parent), 0, addr(world), addr(*reinterpret_cast<uint8_t**>(ent + 0x3cc) + 0x10));  // MatrixMultiply43
+            dobj_call_regs(own_address(&MatrixMultiply43_entry), addr(parent), 0, addr(world), addr(*reinterpret_cast<uint8_t**>(ent + 0x3cc) + 0x10));  // MatrixMultiply43
             origin[0] = world[9];
             origin[1] = world[10];
             origin[2] = world[11];
-            dobj_call_regs(0x002a27f0, addr(angles), addr(world), 0, 0);  // AxisToAngles
+            dobj_call_regs(own_address(&AxisToAngles), addr(angles), addr(world), 0, 0);  // AxisToAngles
         } else if (root_motion) {
             DObj_GetAnimRootTransform(record, obj);
             alignas(16) float m[16];
             QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
             std::memcpy(origin, record + 4, 12);
-            dobj_call_regs(0x002a26a0, addr(angles), addr(m), 0, 0);  // MatrixToAngles
+            dobj_call_regs(own_address(&MatrixToAngles), addr(angles), addr(m), 0, 0);  // MatrixToAngles
         } else if (accumulated) {
             // The root delta accumulated into the entity's record (+0x20), renormalized.
             DObj_GetAnimRootTransform(record, obj);
@@ -939,14 +940,14 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
             origin[0] = m[12];
             origin[1] = m[13];
             origin[2] = m[14];
-            dobj_call_regs(0x002a26a0, addr(angles), addr(m), 0, 0);  // MatrixToAngles
+            dobj_call_regs(own_address(&MatrixToAngles), addr(angles), addr(m), 0, 0);  // MatrixToAngles
         } else {
             // The delta applied to the entity's current axis and origin.
             DObj_GetAnimRootTransform(record, obj);
             alignas(16) float m[16];
             QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
             float axis[9];
-            dobj_call_regs(0x002a4610, addr(ent + 0x150), 0, 0, addr(axis));  // AnglesToAxisLeft
+            dobj_call_regs(own_address(&AnglesToAxisLeft), addr(ent + 0x150), 0, 0, addr(axis));  // AnglesToAxisLeft
             const float* position = reinterpret_cast<const float*>(ent + 0x140);
             alignas(16) float b[16] = {axis[0], axis[1], axis[2], 0.0f, axis[3], axis[4], axis[5], 0.0f,
                                        axis[6], axis[7], axis[8], 0.0f, position[0], position[1], position[2], one};
@@ -954,10 +955,10 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
             origin[0] = b[12];
             origin[1] = b[13];
             origin[2] = b[14];
-            dobj_call_regs(0x002a26a0, addr(angles), addr(b), 0, 0);  // MatrixToAngles
+            dobj_call_regs(own_address(&MatrixToAngles), addr(angles), addr(b), 0, 0);  // MatrixToAngles
         }
-        dobj_call_regs(0x002b7730, addr(ent), addr(origin), 0, 0);  // G_SetOrigin2
-        dobj_call_regs(0x002b7690, addr(ent), addr(angles), 0, 0);  // G_SetAngle2
+        dobj_call_regs(own_address(&G_SetOrigin2), addr(ent), addr(origin), 0, 0);  // G_SetOrigin2
+        dobj_call_regs(own_address(&G_SetAngle2), addr(ent), addr(angles), 0, 0);  // G_SetAngle2
     }
 }
 

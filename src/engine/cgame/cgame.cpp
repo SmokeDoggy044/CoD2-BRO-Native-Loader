@@ -22,6 +22,9 @@
 #include "pmove.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "g_scr_runtime.h"
+#include "nal_anim.h"
+#include "stream.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -837,7 +840,7 @@ int32_t XB_CDECL CG_CycleWeaponSlot(uint32_t forward, uint32_t need_ammo) {
             }
         }
         if (usable) {
-            title_call_regs(0x002cde20, 0, static_cast<uint32_t>(static_cast<int32_t>(weapon)), 0);  // CG_SelectWeapon
+            title_call_regs(own_address(&CG_SelectWeapon_entry), 0, static_cast<uint32_t>(static_cast<int32_t>(weapon)), 0);  // CG_SelectWeapon
             return 1;
         }
         slot += step;
@@ -858,7 +861,7 @@ void write_save_block(uint32_t data, uint32_t size) {
     TitleRegs regs{};
     regs.edx = title_global<uint32_t>(0x0095f50c);  // gvm
     const uint32_t args[3] = {0x14, data, size};
-    cg_call_regs(0x002a84e0, &regs, args, 3);
+    cg_call_regs(own_address(&VM_Call_entry), &regs, args, 3);
 }
 
 }  // namespace
@@ -935,14 +938,14 @@ void XB_CDECL CG_DrawHudElems() {
         regs.ecx = elems[i];
         regs.esi = static_cast<uint32_t>(count);
         regs.edi = static_cast<uint32_t>(i);
-        cg_call_regs(0x002820f0, &regs, nullptr, 0);
+        cg_call_regs(own_address(&CG_DrawHudElem_entry), &regs, nullptr, 0);
     }
 }
 
 namespace {
 
 // CG_SelectWeapon (0x002cde20, weapon in ESI).
-void select_weapon(uint32_t weapon) { title_call_regs(0x002cde20, 0, weapon, 0); }
+void select_weapon(uint32_t weapon) { title_call_regs(own_address(&CG_SelectWeapon_entry), 0, weapon, 0); }
 
 }  // namespace
 
@@ -998,7 +1001,7 @@ void XB_CDECL CG_ConfigStringCommand() {
     title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
     buffer[0xff] = 0;
     const int32_t index = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(buffer);  // _atol
-    title_call_regs(0x002867a0, static_cast<uint32_t>(index), 0, 0);
+    title_call_regs(own_address(&CG_ConfigStringModified), static_cast<uint32_t>(index), 0, 0);
 }
 
 const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* what) {
@@ -1009,7 +1012,7 @@ const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* w
     const char* result = text;
     if (loc && *reinterpret_cast<const uint32_t*>(loc + 0x20) && text[0] && text[1])
         result = reinterpret_cast<const char*>(
-            static_cast<uintptr_t>(title_call_regs(0x0029d5f0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text)), 0)));
+            static_cast<uintptr_t>(title_call_regs(own_address(&Loc_GetString_entry), 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text)), 0)));
     if (result) return result;
     char* buffer = &title_global<char>(0x0098bd20);
     if (!title_global<uint32_t>(0x00949984)) {
@@ -1272,7 +1275,7 @@ void XB_CDECL CG_ExecuteNewServerCommands(int32_t latest) {
     int32_t& sequence = title_global<int32_t>(0x00971a94);
     while (sequence < latest) {
         ++sequence;
-        if (title_call_regs(0x002d59f0, static_cast<uint32_t>(sequence), 0, 0))
+        if (title_call_regs(own_address(&CL_GetServerCommand), static_cast<uint32_t>(sequence), 0, 0))
             own_function<void XB_CDECL()>(&CG_ServerCommand)();
     }
 }
@@ -1317,7 +1320,7 @@ uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp) {
     const TitleRegs regs{};
     const uint32_t refdef[1] = {0x00972b90};
     title_call_at_regs(entry_esp, title_global<uint32_t>(0x00928524), &regs, 1, refdef);
-    title_call_at_regs(entry_esp, 0x00277c50, &regs, 0, nullptr);  // CG_DrawShellShockBlur
+    title_call_at_regs(entry_esp, own_address(&CG_DrawShellShockBlur), &regs, 0, nullptr);  // CG_DrawShellShockBlur
     return title_global<uint32_t>(0x008d9d48) ? 0x00285f80 : 0;  // CG_Draw2D
 }
 
@@ -1327,12 +1330,12 @@ void XB_CDECL CG_ParseServerinfo() {
     TitleRegs regs{};
     regs.ecx = info ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info + 6)) : 0;
     regs.edi = 0x00835230;  // "mapname"
-    const uint32_t value = cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    const uint32_t value = cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0);  // Info_ValueForKey
     regs = TitleRegs{};
     regs.esi = 0x80;
     regs.edi = 0x009758c4;
     const uint32_t args[2] = {0x00835224, value};  // "maps/%s.bsp"
-    cg_call_regs(0x002a9460, &regs, args, 2);  // Com_sprintf
+    cg_call_regs(own_address(&Com_sprintf_entry), &regs, args, 2);  // Com_sprintf
 }
 
 void XB_CDECL CG_RegisterCvars() {
@@ -1515,7 +1518,7 @@ void release_bone_names(const WeaponFrame& f, uint32_t ret, TitleRegs r) {
     for (r.edi = 4; r.edi; --r.edi) {
         r.esi -= 0x10;
         r.ecx = r.esi;
-        r.eax = f.call(ret, 0x0011d640, r);
+        r.eax = f.call(ret, own_address(&ScriptString_Release_entry), r);
     }
 }
 
@@ -1532,7 +1535,7 @@ void find_tree_clips(const WeaponFrame& f, TitleRegs& r, uint32_t table, uint32_
         r.esi = r.eax;
         wd(r.esi + 0x2c) = 0;
         const uint32_t arg = r.esi;
-        r.eax = f.call(ret, 0x0008d950, r, 1, &arg);  // NAL_FindClip
+        r.eax = f.call(ret, own_address(&NAL_FindClip), r, 1, &arg);  // NAL_FindClip
         if (r.eax) {
             r.ecx = wd(r.eax);
             if (r.ecx != wd(0x00903f98)) r.eax = 0;
@@ -1558,7 +1561,7 @@ void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, c
     r.edi = tree;
     {
         const uint32_t args[3] = {tree, 0, 0};
-        r.eax = f.call(ret[0], 0x002c3e60, r, 3, args);  // AnimTree_ClearGoalWeight_r
+        r.eax = f.call(ret[0], own_address(&AnimTree_ClearGoalWeight_r), r, 3, args);  // AnimTree_ClearGoalWeight_r
     }
     const uint16_t index = title_global<uint16_t>(tree + 0x18);
     r.eax = (r.eax & 0xffff0000u) | index;
@@ -1566,7 +1569,7 @@ void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, c
     if (!index) {
         const uint32_t arg = tree;
         r.eax = 0;
-        r.eax = f.call(ret[1], 0x002c3ed0, r, 1, &arg);  // AnimTree_AllocInfo
+        r.eax = f.call(ret[1], own_address(&AnimTree_AllocInfo), r, 1, &arg);  // AnimTree_AllocInfo
         r.ecx = r.eax;
     } else {
         r.eax = index;
@@ -1601,10 +1604,10 @@ void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, c
     title_global<uint16_t>(info) = 0;
     const uint32_t zeros[2] = {0, 0};
     r.eax = 0;
-    r.eax = f.call(ret[2], 0x002cf220, r, 1, zeros);  // AnimTree_ActivateParents
-    r.eax = f.call(ret[3], 0x002be5a0, r, 2, zeros, 1);  // AnimTree_ResetTime (ActivateParents' word still pushed)
+    r.eax = f.call(ret[2], own_address(&AnimTree_ActivateParents), r, 1, zeros);  // AnimTree_ActivateParents
+    r.eax = f.call(ret[3], own_address(&AnimTree_ResetTime), r, 2, zeros, 1);  // AnimTree_ResetTime (ActivateParents' word still pushed)
     r.edx = 0;
-    r.eax = f.call(ret[4], 0x002aebf0, r);  // AnimTree_UpdateNoteIndex
+    r.eax = f.call(ret[4], own_address(&AnimTree_UpdateNoteIndex), r);  // AnimTree_UpdateNoteIndex
 }
 
 // __break 1 when a def's anim name (def + field) is set and table entry `index` is a looping anim (+0x34 bit 0;
@@ -1623,7 +1626,7 @@ void check_not_looping(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint32_
         looping = bt(r.edi + 0x34) & 1u;
     } else {
         r.eax = wd(r.edi + 0x24);
-        if (!r.eax) r.eax = f.call(ret_load, 0x002bfb90, r);  // AnimData_EnsureLoaded
+        if (!r.eax) r.eax = f.call(ret_load, own_address(&AnimData_EnsureLoaded_entry), r);  // AnimData_EnsureLoaded
         r.edi = wd(r.edi + 0x24);
         looping = r.edi ? bt(r.edi + 0x34) & 1u : 0;
     }
@@ -1662,14 +1665,14 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     {
         const uint32_t args[3] = {r.ecx, f.s + 0x20, r.edx};
         r.eax = wd(def + 0x18);
-        r.eax = f.call(0x002833fc, 0x00241f40, r, 3, args);  // R_RegisterModel (name in EAX, ret 0xc)
+        r.eax = f.call(0x002833fc, own_address(&R_RegisterModel), r, 3, args);  // R_RegisterModel (name in EAX, ret 0xc)
     }
     r.edx = f.at(0x20);
     r.ecx = f.s + 0x38;
     f.at(0x34) = r.edx;
     {
         const uint32_t arg = 0;
-        r.eax = f.call(0x0028340e, 0x0011e0f0, r, 1, &arg);  // ScrCall_sprintf
+        r.eax = f.call(0x0028340e, own_address(&ScrCall_sprintf), r, 1, &arg);  // ScrCall_sprintf
     }
     r.eax = wd(0x0095f638);
     f.at(0x3c) = 0;
@@ -1679,14 +1682,14 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     {
         const uint32_t args[3] = {r.eax, r.edx, r.ecx};
         r.eax = wd(def + 0x14);
-        r.eax = f.call(0x0028342e, 0x00241f40, r, 3, args);  // R_RegisterModel
+        r.eax = f.call(0x0028342e, own_address(&R_RegisterModel), r, 3, args);  // R_RegisterModel
     }
     r.ecx = f.at(0x20);
     f.at(0x44) = r.ecx;
     r.ecx = f.s + 0x48;
     {
         const uint32_t arg = 0x00838914;  // "tag_weapon"
-        r.eax = f.call(0x00283444, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+        r.eax = f.call(0x00283444, own_address(&ScriptString_AssignCString), r, 1, &arg);  // ScriptString_AssignCString
     }
     r.eax = f.at(0x44);
     f.at(0x4c) = 0;
@@ -1695,7 +1698,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         r.esi = wd(r.eax + 0x20);
         r.eax = wd(r.esi + 0x38);
         if (r.eax) {
-            r.eax = f.call(0x00283464, 0x00278d80, r);  // CG_ShareWeaponTagBModels
+            r.eax = f.call(0x00283464, own_address(&CG_ShareWeaponTagBModels_entry), r);  // CG_ShareWeaponTagBModels
             title_global<uint8_t>(f.s + 0x13) = 1;
         }
     }
@@ -1708,13 +1711,13 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         const uint32_t args[4] = {f.s + 0x14, r.eax, r.ecx, 6};
         r.eax = f.s + 0x14;
         f.at(0x24) = 3;
-        r.eax = f.call(0x0028349c, 0x00243fb0, r, 4, args);  // RE_RegisterModel
+        r.eax = f.call(0x0028349c, own_address(&RE_RegisterModel), r, 4, args);  // RE_RegisterModel
         r.ecx = wd(r.eax);
         f.at(0x54) = r.ecx;
         r.edx = wd(def + 0x24);
         r.ecx = f.s + 0x58;
         const uint32_t arg = r.edx;
-        r.eax = f.call(0x002834b2, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+        r.eax = f.call(0x002834b2, own_address(&ScriptString_AssignCString), r, 1, &arg);  // ScriptString_AssignCString
         f.at(0x5c) = 0;
     }
     r.ecx = wd(def + 0x20);
@@ -1729,14 +1732,14 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         r.eax = wd(r.edx + 0x34);
         const uint32_t args[4] = {f.s + 0x14, r.ecx, r.eax, 6};
         r.eax = f.s + 0x14;
-        r.eax = f.call(0x002834f9, 0x00243fb0, r, 4, args);  // RE_RegisterModel
+        r.eax = f.call(0x002834f9, own_address(&RE_RegisterModel), r, 4, args);  // RE_RegisterModel
         r.ecx = wd(r.eax);
         r.esi <<= 4;
         f.at(0x34 + r.esi) = r.ecx;
         r.edx = wd(def + 0x28);
         r.ecx = f.s + 0x38 + r.esi;
         const uint32_t arg = r.edx;
-        r.eax = f.call(0x00283512, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+        r.eax = f.call(0x00283512, own_address(&ScriptString_AssignCString), r, 1, &arg);  // ScriptString_AssignCString
         f.at(0x3c + r.esi) = 0;
         r.esi = def;
     }
@@ -1746,7 +1749,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     {
         const uint32_t arg = r.eax;
         r.eax = wd(r.ecx + 4);
-        table = r.eax = f.call(0x00283530, 0x00026050, r, 1, &arg);  // NameTable12_FindFrom1 (table in EAX, ret 4)
+        table = r.eax = f.call(0x00283530, own_address(&NameTable12_FindFrom1), r, 1, &arg);  // NameTable12_FindFrom1 (table in EAX, ret 4)
     }
     if (!table) {
         // No anim tree: the model entries destroyed (vector_call_iterator, stdcall) and the function returns.
@@ -1768,19 +1771,19 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         r.eax = wd(r.edx + 4);
         r.ecx = f.s + 0x78;
         const uint32_t arg = r.ecx;
-        r.ebx = r.eax = f.call(0x002835db, 0x00026050, r, 1, &arg);  // NameTable12_FindFrom1
+        r.ebx = r.eax = f.call(0x002835db, own_address(&NameTable12_FindFrom1), r, 1, &arg);  // NameTable12_FindFrom1
         find_tree_clips(f, r, r.ebx, 0x00283606);
         r.esi = def;
     }
     {
         const uint32_t args[2] = {0, table};
-        r.eax = f.call(0x00283630, 0x002c4a00, r, 2, args);  // AnimTree_Create
+        r.eax = f.call(0x00283630, own_address(&AnimTree_Create), r, 2, args);  // AnimTree_Create
         f.at(0x20) = r.eax;
     }
     r.eax = (r.eax & ~0xffu) | bt(f.s + 0x13);
     if (shared) {
         const uint32_t args[2] = {0, r.ebx};
-        r.eax = f.call(0x00283647, 0x002c4a00, r, 2, args);  // AnimTree_Create
+        r.eax = f.call(0x00283647, own_address(&AnimTree_Create), r, 2, args);  // AnimTree_Create
         f.at(0x2c) = r.eax;
     }
     r.ebx = rec;
@@ -1803,7 +1806,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         if (static_cast<int32_t>(r.eax) > 0) {
             tree_entry(r, table, rate.index);
             r.eax = wd(r.edi + 0x24);
-            if (!r.eax) r.eax = f.call(rate.ret, 0x002bfb90, r);  // AnimData_EnsureLoaded
+            if (!r.eax) r.eax = f.call(rate.ret, own_address(&AnimData_EnsureLoaded_entry), r);  // AnimData_EnsureLoaded
             r.edi = wd(r.edi + 0x24);
             value = r.edi ? title_global<float>(r.edi + 0x38) : g(0x0083eb20);
             value = value * g(0x0083eb9c);
@@ -1833,7 +1836,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         const int32_t context = static_cast<int32_t>(r.eax);
         r.ecx = context >= 0 && context < 0x63 ? wd(wd(0x0095f638) + static_cast<uint32_t>(context) * 4 + 0x38) : 0;
         const uint32_t args[2] = {0x10, 0xa0};
-        r.eax = f.call(0x00283d64, 0x0028c0f0, r, 2, args);  // MemContext_Alloc_r
+        r.eax = f.call(0x00283d64, own_address(&MemContext_Alloc_r), r, 2, args);  // MemContext_Alloc_r
         heap = !r.eax;
     }
     if (heap) {
@@ -1843,7 +1846,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     r.esi = r.eax;
     if (r.esi) {
         r.eax = f.at(0x28);
-        r.esi = r.eax = f.call(0x00283d86, 0x0023aff0, r);  // DObj_Ctor
+        r.esi = r.eax = f.call(0x00283d86, own_address(&DObj_Ctor_entry), r);  // DObj_Ctor
     }
     {
         r.edx = f.at(0x24);
@@ -1851,7 +1854,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         const uint32_t args[2] = {r.edx, r.esi};
         r.ecx = 0;
         r.edx = f.s + 0x34;
-        r.eax = f.call(0x00283da1, 0x00245ff0, r, 2, args);  // DObj_Create
+        r.eax = f.call(0x00283da1, own_address(&DObj_Create_entry), r, 2, args);  // DObj_Create
     }
     wd(rec) = r.esi;
     r.esi = rec + 0x68;
@@ -1879,7 +1882,7 @@ void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, ui
         const uint32_t args[3] = {wd(0x0095f6ac), f.s + 0x14, r.ecx};
         r.ecx = wd(0x0095f6ac);
         r.edx = f.s + 0x14;
-        r.eax = f.call(0x00283def, 0x00241f40, r, 3, args);  // R_RegisterModel
+        r.eax = f.call(0x00283def, own_address(&R_RegisterModel), r, 3, args);  // R_RegisterModel
         r.edx = f.at(0x14);
         wd(rec + 0x98) = r.edx;
     }
@@ -1890,7 +1893,7 @@ void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, ui
         const uint32_t args[3] = {wd(0x0095f6ac), f.s + 0x14, r.edx};
         r.ecx = f.s + 0x14;
         r.edx = wd(0x0095f6ac);
-        r.eax = f.call(0x00283e1f, 0x00241f40, r, 3, args);  // R_RegisterModel
+        r.eax = f.call(0x00283e1f, own_address(&R_RegisterModel), r, 3, args);  // R_RegisterModel
         r.eax = f.at(0x14);
         wd(rec + 0x9c) = r.eax;
     } else {
@@ -1899,18 +1902,18 @@ void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, ui
     }
     r.ebx = f.at(0x30);
     r.edx = wd(r.ebx + 0x14);
-    r.eax = f.call(0x00283e43, 0x0023ec30, r);  // RE_RegisterShader (name in EDX)
+    r.eax = f.call(0x00283e43, own_address(&RE_RegisterShader), r);  // RE_RegisterShader (name in EDX)
     wd(rec + 0xa0) = r.eax;
     r.edx = wd(r.ebx + 0x14);
     {
         const uint32_t args[2] = {0x008388cc, r.edx};  // "%s_select"
-        r.eax = f.call(0x00283e57, 0x002a93d0, r, 2, args);  // va
+        r.eax = f.call(0x00283e57, own_address(&va_entry), r, 2, args);  // va
     }
     r.edx = r.eax;
-    r.eax = f.call(0x00283e61, 0x0023ec30, r);  // RE_RegisterShader
+    r.eax = f.call(0x00283e61, own_address(&RE_RegisterShader), r);  // RE_RegisterShader
     wd(rec + 0xa4) = r.eax;
     r.edx = wd(r.ebx + 0x18);
-    r.eax = f.call(0x00283e6f, 0x0023ec30, r);  // RE_RegisterShader
+    r.eax = f.call(0x00283e6f, own_address(&RE_RegisterShader), r);  // RE_RegisterShader
     wd(rec + 0xa8) = r.eax;
     struct Shader {
         uint32_t field, out, ret;
@@ -1922,7 +1925,7 @@ void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, ui
     for (const Shader& shader : kShaders) {
         r.edx = wd(def + shader.field);
         if (!bt(r.edx)) continue;
-        r.eax = f.call(shader.ret, 0x0023ec30, r);  // RE_RegisterShader
+        r.eax = f.call(shader.ret, own_address(&RE_RegisterShader), r);  // RE_RegisterShader
         wd(rec + shader.out) = r.eax;
     }
     struct Text {
@@ -1952,10 +1955,10 @@ void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, ui
         if (translate) {
             r.edi = wd(0x0095f5d8);
             r.esi = r.eax;
-            r.eax = f.call(text.ret_hash, 0x00024440, r);  // Loc_HashKey (text in ESI)
+            r.eax = f.call(text.ret_hash, own_address(&Loc_HashKey), r);  // Loc_HashKey (text in ESI)
             const uint32_t arg = r.eax;
             r.eax = r.edi;
-            r.eax = f.call(text.ret_find, 0x002984f0, r, 1, &arg);  // Zone_FindByHash (ret 4)
+            r.eax = f.call(text.ret_find, own_address(&Zone_FindByHash), r, 1, &arg);  // Zone_FindByHash (ret 4)
             if (r.eax) {
                 r.esi = wd(r.eax + 8);
                 if (!r.esi) r.esi = 0x008379b4;  // "NO STRING"
@@ -2021,7 +2024,7 @@ void XB_CDECL CG_RegisterWeapon(uint32_t entry_esp, uint32_t eax, uint32_t ebx, 
         r.ecx = r.esi - 8;
         f.at(0x34 + k * 0x10) = 0;
         const uint32_t arg = 0;
-        r.eax = f.call(0x002832dc, 0x0011d5d0, r, 1, &arg);  // ScriptString_FromRep
+        r.eax = f.call(0x002832dc, own_address(&ScriptString_FromRep), r, 1, &arg);  // ScriptString_FromRep
         f.at(0x40 + k * 0x10) = 0;
     }
     r.esi = f.s + 0x80;
@@ -2053,7 +2056,7 @@ void XB_CDECL CG_RegisterWeapon(uint32_t entry_esp, uint32_t eax, uint32_t ebx, 
     title_global<uint8_t>(rec + 0x85) = 1;
     f.at(0x30) = item;
     wd(rec + 0x88) = item;
-    r.eax = f.call(0x00283380, 0x00285d50, r, 1, &weapon);  // CG_RegisterItemVisuals
+    r.eax = f.call(0x00283380, own_address(&CG_RegisterItemVisuals), r, 1, &weapon);  // CG_RegisterItemVisuals
     r.edi = def;
     wd(rec + 0x80) = 0xffffffffu;
     r.ecx = wd(def + 0x14);
@@ -2323,7 +2326,7 @@ void stamp_weapon_command() {
     TitleRegs regs{};
     regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(va_int(title_global<int32_t>(0x0097253c))));
     const uint32_t args[1] = {0x0094c230};
-    cg_call_regs(0x0029fe40, &regs, args, 1);
+    cg_call_regs(own_address(&Cvar_SetByVmIndex), &regs, args, 1);
 }
 
 void cycle_command(uint32_t forward) {
@@ -2376,7 +2379,7 @@ void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index) {
         TitleRegs regs{};
         regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text));
         regs.edi = key;
-        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(0x002b8f50, &regs, nullptr, 0)));  // Info_ValueForKey
+        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0)));  // Info_ValueForKey
     };
     const auto atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
     bool clear = false;
@@ -3562,12 +3565,12 @@ void XB_CDECL CG_DrawCheckpointReached() {
         const char* text = &title_global<char>(0x00839a9c);
         TitleRegs regs{};
         regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text));
-        const uint32_t key = cg_call_regs(0x00024440, &regs, nullptr, 0);  // Loc_HashKey
+        const uint32_t key = cg_call_regs(own_address(&Loc_HashKey), &regs, nullptr, 0);  // Loc_HashKey
         regs = TitleRegs{};
         regs.eax = title_global<uint32_t>(0x0095f5d8);
         const uint32_t args[1] = {key};
         const uint8_t* entry = reinterpret_cast<const uint8_t*>(
-            static_cast<uintptr_t>(cg_call_regs(0x002984f0, &regs, args, 1)));  // Zone_FindByHash
+            static_cast<uintptr_t>(cg_call_regs(own_address(&Zone_FindByHash), &regs, args, 1)));  // Zone_FindByHash
         if (entry) {
             text = *reinterpret_cast<const char* const*>(entry + 8);
             if (!text) text = &title_global<char>(0x008379b4);
@@ -3621,7 +3624,7 @@ int32_t XB_CDECL CG_ParseInfoValueT() {
         regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
         regs.esi = regs.ecx;
         regs.edi = key;
-        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(0x002b8f50, &regs, nullptr, 0)));  // Info_ValueForKey
+        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0)));  // Info_ValueForKey
     };
     value_for(0x00838d2c);  // "n"
     return title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value_for(0x00838d28));  // _atol of "t"
@@ -3990,7 +3993,7 @@ void XB_CDECL CG_UpdateViewWeaponAnim(uint8_t* ps, uint8_t* rec) {
     regs.edi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(def));
     regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(obj));
     const uint32_t ads_args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rec))};
-    cg_call_regs(0x00280ed0, &regs, ads_args, 1);  // CG_UpdateViewWeaponAdsAnims
+    cg_call_regs(own_address(&CG_UpdateViewWeaponAdsAnims_entry), &regs, ads_args, 1);  // CG_UpdateViewWeaponAdsAnims
     const int32_t current = *reinterpret_cast<const int32_t*>(ps + 0x4ec);
     if (current == *reinterpret_cast<const int32_t*>(rec + 0x80)) return;
     static const uint8_t kAnims[24] = {0,    1,    0,   6,   7,    0x11, 0x12, 0x13, 8,    0xe, 0xd,  9,
@@ -4125,17 +4128,17 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
     if (!playing) {
         TitleRegs regs{};
         regs.ebx = title_global<uint32_t>(0x0095f4c4);
-        cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds
+        cg_call_regs(own_address(&S_StopAllSounds_entry), &regs, nullptr, 0);  // S_StopAllSounds
         own_function<void XB_STDCALL(uint32_t)>(&S_UpdateChannels)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
     }
     const char* const info = configstring(0x009606c4);
     TitleRegs regs{};
     regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
     regs.edi = 0x00838d2c;
-    cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0);  // Info_ValueForKey
     regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
     regs.edi = 0x00838d28;
-    const uint32_t value = cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    const uint32_t value = cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0);  // Info_ValueForKey
     title_function<int32_t XB_CDECL(uint32_t)>(0x001eeb81)(value);  // _atol (result unused)
     const uint32_t name = title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(0x00948388) * 0x2c);
     own_function<uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Cvar_Set2)(name, 0x0082e098, 1);  // Cvar_Set2(.., "0")
@@ -4194,7 +4197,7 @@ void XB_CDECL CG_SetInitialSnapshot(uint32_t entry_esp, uint8_t* snap, uint32_t 
     title_global<uint32_t>(0x009730c4) = 0;
     title_global<float>(0x009730bc) = g(0x0083eb20);
     const uint32_t set1[3] = {0x0082ca00, 0x0082e058, 1};
-    title_call_at_regs(top, 0x0029c030, &regs, 3, set1);  // Cvar_Set2
+    title_call_at_regs(top, own_address(&Cvar_Set2), &regs, 3, set1);  // Cvar_Set2
     const int32_t chapter = title_global<int32_t>(0x008dce48);
     title_global<uint32_t>(0x0092bdf4) = 2;
     title_global<uint8_t>(0x008d50dd) = 1;
@@ -4249,29 +4252,29 @@ void XB_CDECL CG_SetInitialSnapshot(uint32_t entry_esp, uint8_t* snap, uint32_t 
     title_global<uint32_t>(0x008d9d48) = 1;
     panel[0x54] = 0;
     const uint32_t set2[3] = {0x0082ca00, 0x0082e098, 1};  // "0"
-    title_call_at_regs(top, 0x0029c030, &regs, 3, set2);  // Cvar_Set2
+    title_call_at_regs(top, own_address(&Cvar_Set2), &regs, 3, set2);  // Cvar_Set2
     regs.eax = 0x0082bc74;
-    title_call_at_regs(top - 0xc, 0x002aabb0, &regs, 0, nullptr);  // Cbuf_AddText
+    title_call_at_regs(top - 0xc, own_address(&Cbuf_AddText), &regs, 0, nullptr);  // Cbuf_AddText
     const uint32_t set3[3] = {0x0082bc68, 0x0082e098, 1};
-    title_call_at_regs(top - 0xc, 0x0029c030, &regs, 3, set3);  // Cvar_Set2
+    title_call_at_regs(top - 0xc, own_address(&Cvar_Set2), &regs, 3, set3);  // Cvar_Set2
     title_global<uint8_t>(0x0095f919) = 0;
     uint32_t channel = title_global<uint32_t>(0x0095f4c4);
     for (uint32_t left = 0x200; left; --left, channel += 0x30) {
         regs.esi = left;
         regs.edi = channel;
         if (title_global<uint8_t>(channel + 8)) continue;
-        title_call_at_regs(top, 0x002c3400, &regs, 0, nullptr);  // S_StopChannel
+        title_call_at_regs(top, own_address(&S_StopChannel_entry), &regs, 0, nullptr);  // S_StopChannel
     }
     regs.eax = title_global<uint32_t>(0x0095f4c4);
     regs.esi = 0;
     regs.edi = channel;
-    title_call_at_regs(top, 0x002b6ba0, &regs, 0, nullptr);  // S_ResumeAllChannels
+    title_call_at_regs(top, own_address(&S_ResumeAllChannels), &regs, 0, nullptr);  // S_ResumeAllChannels
     title_global<uint32_t>(0x0092bdf4) &= ~2u;
     regs.ebx = ebx;
     regs.esi = esi;
     regs.edi = edi;
     regs.eax = title_global<uint32_t>(0x0092bdf4);
-    title_call_at_regs(entry_esp, 0x002d57c0, &regs, 0, nullptr);  // Key_ClearStates (tail jump)
+    title_call_at_regs(entry_esp, own_address(&Key_ClearStates), &regs, 0, nullptr);  // Key_ClearStates (tail jump)
 }
 
 // The map checksum's local is the original's `push ecx` slot, which the map import may leave
@@ -4478,7 +4481,7 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
         regs.esi = info + 0xc;
         regs.edi = 2 - i;
         const uint32_t zero[1] = {0};
-        title_call_at_regs(frame, 0x0011d5d0, &regs, 1, zero);  // ScriptString_FromRep
+        title_call_at_regs(frame, own_address(&ScriptString_FromRep), &regs, 1, zero);  // ScriptString_FromRep
         title_global<uint32_t>(info + 0xc) = 0;
     }
     regs.edi = 0;
@@ -4487,7 +4490,7 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
             regs.esi = at(0x18 + (i - 1) * 0x10 + 4);
             regs.ecx = regs.esi;
             regs.edi = i;
-            title_call_at_regs(frame, 0x0011d640, &regs, 0, nullptr);  // ScriptString_Release
+            title_call_at_regs(frame, own_address(&ScriptString_Release_entry), &regs, 0, nullptr);  // ScriptString_Release
         }
         return;
     }
@@ -4503,37 +4506,37 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
     title_global<uint32_t>(at(0x14)) = title_global<uint32_t>(old);
     weapon_slot = title_global<uint32_t>(rec) ? title_global<uint32_t>(title_global<uint32_t>(rec) + 0x8c) : 0;
     regs.eax = entry_esp + 4;
-    const uint32_t obj = title_call_at_regs(frame - 4, 0x000244c0, &regs, 0, nullptr);  // DObjHandle_Resolve
+    const uint32_t obj = title_call_at_regs(frame - 4, own_address(&DObjHandle_Resolve), &regs, 0, nullptr);  // DObjHandle_Resolve
     regs.edi = obj;
     const uint32_t no_trees[1] = {0};
-    title_call_at_regs(frame, 0x00240ce0, &regs, 1, no_trees);  // DObj_Free
+    title_call_at_regs(frame, own_address(&DObj_Free_entry), &regs, 1, no_trees);  // DObj_Free
     const uint32_t ctx = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34);
     regs.eax = *reinterpret_cast<const uint32_t*>(def + 0x18);
     const uint32_t model_args[3] = {title_global<uint32_t>(0x0095f6ac), at(0x10), ctx};
-    title_call_at_regs(frame, 0x00241f40, &regs, 3, model_args);  // R_RegisterModel (hands)
+    title_call_at_regs(frame, own_address(&R_RegisterModel), &regs, 3, model_args);  // R_RegisterModel (hands)
     title_global<uint32_t>(at(0x18)) = title_global<uint32_t>(at(0x10));
     regs.ecx = at(0x1c);
     const uint32_t zero[1] = {0};
-    title_call_at_regs(frame, 0x0011e0f0, &regs, 1, zero);  // ScrCall_sprintf
+    title_call_at_regs(frame, own_address(&ScrCall_sprintf), &regs, 1, zero);  // ScrCall_sprintf
     title_global<uint32_t>(at(0x20)) = 0;
     regs.eax = *reinterpret_cast<const uint32_t*>(def + 0x14);
     const uint32_t model_args2[3] = {title_global<uint32_t>(0x0095f6ac), at(0x10),
                                      *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34)};
-    title_call_at_regs(frame, 0x00241f40, &regs, 3, model_args2);  // R_RegisterModel (gun)
+    title_call_at_regs(frame, own_address(&R_RegisterModel), &regs, 3, model_args2);  // R_RegisterModel (gun)
     title_global<uint32_t>(at(0x28)) = title_global<uint32_t>(at(0x10));
     regs.ecx = at(0x2c);
     const uint32_t tag[1] = {0x00838914};  // "tag_weapon"
-    title_call_at_regs(frame, 0x0011dd20, &regs, 1, tag);  // ScriptString_AssignCString
+    title_call_at_regs(frame, own_address(&ScriptString_AssignCString), &regs, 1, tag);  // ScriptString_AssignCString
     title_global<uint32_t>(at(0x30)) = 0;
     regs.eax = entry_esp + 4;
-    const uint32_t target = title_call_at_regs(frame, 0x000244c0, &regs, 0, nullptr);  // DObjHandle_Resolve
+    const uint32_t target = title_call_at_regs(frame, own_address(&DObjHandle_Resolve), &regs, 0, nullptr);  // DObjHandle_Resolve
     regs.eax = title_global<uint32_t>(at(0x14));
     regs.ecx = 0;
     regs.edx = at(0x18);
     const uint32_t create_args[2] = {2, target};
-    title_call_at_regs(frame, 0x00245ff0, &regs, 2, create_args);  // DObj_Create
+    title_call_at_regs(frame, own_address(&DObj_Create_entry), &regs, 2, create_args);  // DObj_Create
     regs.eax = entry_esp + 4;
-    title_global<uint32_t>(rec) = title_call_at_regs(frame, 0x000244c0, &regs, 0, nullptr);  // DObjHandle_Resolve
+    title_global<uint32_t>(rec) = title_call_at_regs(frame, own_address(&DObjHandle_Resolve), &regs, 0, nullptr);  // DObjHandle_Resolve
     regs.esi = rec + 0x68;
     const uint32_t copy_args[3] = {rec + 0x68, hands, 0x17};
     title_call_at_regs(frame, 0x001eed80, &regs, 3, copy_args);  // _strncpy
@@ -4683,7 +4686,7 @@ void XB_CDECL CG_ServerCommand() {
         if (command && std::strlen(command)) {
             TitleRegs regs{};
             regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(command));
-            cg_call_regs(0x002c6140, &regs, nullptr, 0);  // Cmd_ExecuteString
+            cg_call_regs(own_address(&Cmd_ExecuteString_entry), &regs, nullptr, 0);  // Cmd_ExecuteString
             return;
         }
         own_function<void XB_CDECL()>(&Cbuf_Execute_entry)();  // Cbuf_Execute
@@ -4695,14 +4698,14 @@ void XB_CDECL CG_ServerCommand() {
         regs.esi = regs.eax;
         regs.edi = hash;
         const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(CG_Argv(1)))};
-        cg_call_regs(0x002ce520, &regs, args, 1);  // Music_Play
+        cg_call_regs(own_address(&Music_Play), &regs, args, 1);  // Music_Play
         return;
     }
     if (is(0x0094c538)) {
         TitleRegs regs{};
         regs.esi = title_global<uint32_t>(0x0095f4cc);
         regs.edi = hash;
-        cg_call_regs(0x002c8bc0, &regs, nullptr, 0);  // S_StopSoundHandle
+        cg_call_regs(own_address(&S_StopSoundHandle_entry), &regs, nullptr, 0);  // S_StopSoundHandle
     }
     if (is(0x0094c548) || is(0x0094c54c) || is(0x0094c550)) return;
     CG_Printf(&title_global<const char>(0x00838b44), buffer);  // "Unknown client game command: %s\n"
@@ -4784,7 +4787,7 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     regs.ecx = duration;
     regs.esi = duration;
     const uint32_t shock_args[1] = {params};
-    title_call_at_regs(top, 0x0027e540, &regs, 1, shock_args);  // CG_UpdateShellShock
+    title_call_at_regs(top, own_address(&CG_UpdateShellShock_entry), &regs, 1, shock_args);  // CG_UpdateShellShock
     title_global<uint32_t>(0x00972548) = title_global<uint32_t>(0x00948394);
     call(0x002880a0);  // CG_CalcViewValues
     if (!title_global<uint32_t>(0x00971a8c)) {
@@ -4792,7 +4795,7 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
         regs.esi = 0x00972bd8;
         regs.edi = top + 0x14;
         const uint32_t axis_args[2] = {0x00972bf0, 0x00972bc0};
-        title_call_at_regs(top, 0x002a2af0, &regs, 2, axis_args);  // AnglesToAxis
+        title_call_at_regs(top, own_address(&AnglesToAxis_entry), &regs, 2, axis_args);  // AnglesToAxis
         const float r1 = 0.0f - at(0x18);
         const float r2 = 0.0f - at(0x1c);
         title_global<float>(0x00972bcc) = 0.0f - at(0x14);
@@ -4803,7 +4806,7 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     call(0x0027afd0);  // CG_DrawSkyBoxPortal
     if (title_global<uint32_t>(0x008da6d4)) {
         const uint32_t ps[1] = {0x00972550};
-        title_call_at_regs(top, 0x00289540, &regs, 1, ps);  // CG_AddViewWeapon
+        title_call_at_regs(top, own_address(&CG_AddViewWeapon_entry), &regs, 1, ps);  // CG_AddViewWeapon
     }
     title_global<int32_t>(0x00972be4) = title_global<int32_t>(0x0097253c);
     const float shock = g(0x00973a58);
@@ -4837,11 +4840,11 @@ void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t ser
     for (uint32_t k = 0; k < 12; k += 4) word(0x20 + k) = word(0x50 + k);
     regs.edx = top + 0x14;
     const uint32_t origin[1] = {top + 0x14};
-    title_call_at_regs(top, 0x000c65c0, &regs, 1, origin);  // Snd_SetListenerOrigin
+    title_call_at_regs(top, own_address(&Snd_SetListenerOrigin), &regs, 1, origin);  // Snd_SetListenerOrigin
     regs.eax = top + 0x20;
     regs.ecx = top + 0x30;
     const uint32_t orientation[2] = {top + 0x30, top + 0x20};
-    title_call_at_regs(top - 4, 0x000c6640, &regs, 2, orientation);  // Snd_SetListenerOrientation
+    title_call_at_regs(top - 4, own_address(&Snd_SetListenerOrientation), &regs, 2, orientation);  // Snd_SetListenerOrientation
 }
 
 namespace {

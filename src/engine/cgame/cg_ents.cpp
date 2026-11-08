@@ -12,6 +12,9 @@
 #include "tr_main.h"
 #include "fx_cmd.h"
 #include "qcommon_fs.h"
+#include "bg_misc.h"
+#include "cm.h"
+#include "pmove.h"
 
 // Calls `function` on the current stack with all six registers from `regs` and `count`
 // stack words (args[0] pushed last, popped again here); returns its EAX.
@@ -166,11 +169,11 @@ void XB_REGS1 XB_CDECL CG_AddTracerLocalEntity(uint8_t* le) {
     regs.eax = static_cast<uint32_t>(cg_time());
     regs.edi = addr(le + 0x10);
     regs.ecx = addr(origin);
-    cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     regs = TitleRegs{};
     regs.esi = addr(le + 0x28);
     regs.edi = addr(dir);
-    cg_call_regs(0x002975c0, &regs, nullptr, 0);  // VectorNormalize2
+    cg_call_regs(own_address(&VectorNormalize2_entry), &regs, nullptr, 0);  // VectorNormalize2
     alignas(16) float end[4];
     end[0] = dir[0] * length + origin[0];
     end[1] = dir[1] * length + origin[1];
@@ -264,7 +267,7 @@ void XB_CDECL CG_CheckPlayerstateEvents(uint32_t flags, uint32_t old_flags, cons
         }
         const int32_t event = ps[1 + (i & 3)];
         cent[4] = static_cast<uint8_t>(ps[5 + (i & 3)]);
-        entity_event(0x00289790, static_cast<uint32_t>(event), cent, 1);
+        entity_event(own_address(&CG_EntityEvent_entry), static_cast<uint32_t>(event), cent, 1);
         ++title_global<int32_t>(0x00972ae4);
     }
 }
@@ -273,14 +276,14 @@ PLATFORM_ASM_ENTRY(CG_CheckEvents_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(CG_CheckEvents) "addl $4, %esp\n"
                    "ret")
 
-void XB_CDECL CG_CheckEvents(uint8_t* cent) { check_events(cent, 0x420, 0x00289790, false, 0); }
+void XB_CDECL CG_CheckEvents(uint8_t* cent) { check_events(cent, 0x420, own_address(&CG_EntityEvent_entry), false, 0); }
 
 PLATFORM_ASM_ENTRY(CG_CheckEntityPreEvents_entry,
                    "pushl %ebx\n"
                    "pushl %esi\n" PLATFORM_ASM_CALL(CG_CheckEntityPreEvents) "addl $8, %esp\n"
                    "ret")
 
-void XB_CDECL CG_CheckEntityPreEvents(uint8_t* cent, uint32_t ebx) { check_events(cent, 0x424, 0x0028a5e0, true, ebx); }
+void XB_CDECL CG_CheckEntityPreEvents(uint8_t* cent, uint32_t ebx) { check_events(cent, 0x424, own_address(&CG_EntityPreEvent_entry), true, ebx); }
 
 namespace {
 
@@ -289,7 +292,7 @@ namespace {
 uint8_t* entity_ref(uint8_t* cent) {
     TitleRegs regs{};
     regs.esi = addr(cent);
-    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(cg_call_regs(0x002be200, &regs, nullptr, 0)));
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(cg_call_regs(own_address(&CG_GetEntityRefEntity_entry), &regs, nullptr, 0)));
 }
 
 // The refEntity part (+0x80 of the render record) of the model entity types: origin (+0x3c)
@@ -427,7 +430,7 @@ void XB_CDECL CG_AdjustPositionForMover(float* out, const float* in, uint32_t mo
         regs.eax = static_cast<uint32_t>(time);
         regs.edi = addr(trajectory);
         regs.ecx = addr(result);
-        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+        cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     };
     evaluate(from_time, cent + 0x14, old_origin);
     evaluate(from_time, cent + 0x38, old_angles);
@@ -452,7 +455,7 @@ int32_t XB_CDECL CG_PointContents(const float* point, int32_t pass_entity, uint3
     TitleRegs regs{};
     regs.eax = addr(point);
     regs.ecx = 0;
-    uint32_t contents = cg_call_regs(0x002cc480, &regs, nullptr, 0);  // CM_PointContents
+    uint32_t contents = cg_call_regs(own_address(&CM_PointContents), &regs, nullptr, 0);  // CM_PointContents
     for (int32_t i = 0; i < title_global<int32_t>(0x0094af98); ++i) {
         const uint32_t handle = title_global<uint32_t>(0x00974810 + static_cast<uint32_t>(i) * 4);
         const uint32_t index = handle & 0xfff;
@@ -467,7 +470,7 @@ int32_t XB_CDECL CG_PointContents(const float* point, int32_t pass_entity, uint3
         t.ecx = static_cast<uint32_t>(pass_entity);
         t.ebx = model;
         const uint32_t args[1] = {addr(point)};
-        contents |= cg_call_regs(0x002db500, &t, args, 1);  // CM_TransformedPointContents
+        contents |= cg_call_regs(own_address(&CM_TransformedPointContents_entry), &t, args, 1);  // CM_TransformedPointContents
     }
     return static_cast<int32_t>(contents & mask);
 }
@@ -586,7 +589,7 @@ void XB_CDECL CG_CalcEntityLerpPositions(uint8_t* cent) {
         regs.eax = static_cast<uint32_t>(time);
         regs.edi = addr(trajectory);
         regs.ecx = addr(result);
-        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+        cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     };
     float* origin = &at<float>(cent, 0x60);
     if (at<int32_t>(cent, 0x14) == 1) {
@@ -627,9 +630,9 @@ void XB_CDECL CG_PlayWeaponFireSound(int32_t weapon, uint32_t alt, uint32_t sour
     regs.eax = source;
     regs.esi = source;
     const uint32_t sound_args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), alt ? 1u : 2u};
-    cg_call_regs(0x002a62d0, &regs, sound_args, 2);  // FXCmd_PlayWeaponSound
+    cg_call_regs(own_address(&FXCmd_PlayWeaponSound_entry), &regs, sound_args, 2);  // FXCmd_PlayWeaponSound
     const uint32_t kind[1] = {2};
-    cg_call_regs(0x002a5bb0, &regs, kind, 1);  // FXCmd_Type9
+    cg_call_regs(own_address(&FXCmd_Type9_entry), &regs, kind, 1);  // FXCmd_Type9
 }
 
 void XB_REGS1 XB_CDECL CG_Portal(uint8_t* cent) {
@@ -694,7 +697,7 @@ void XB_CDECL CG_UpdateFlashSound(uint8_t* cent) {
         regs.eax = hash;
         regs.ecx = at<uint32_t>(cent, 0x22c);
         const uint32_t args[2] = {addr(cent), addr(placement)};
-        found = cg_call_regs(0x00284d00, &regs, args, 2);
+        found = cg_call_regs(own_address(&CG_DObjGetWorldTagMatrix), &regs, args, 2);
     }
     if (!found) {
         alignas(16) float origin[4];
@@ -702,14 +705,14 @@ void XB_CDECL CG_UpdateFlashSound(uint8_t* cent) {
         regs.eax = static_cast<uint32_t>(cg_time());
         regs.edi = addr(cent + 0x14);
         regs.ecx = addr(origin);
-        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+        cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     }
     const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[cent[3]];
     TitleRegs regs{};
     regs.eax = addr(cent);
     regs.esi = addr(cent);
     const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), timer > 0 ? 0xbu : 0xcu};
-    cg_call_regs(0x002a62d0, &regs, args, 2);  // FXCmd_PlayWeaponSound
+    cg_call_regs(own_address(&FXCmd_PlayWeaponSound_entry), &regs, args, 2);  // FXCmd_PlayWeaponSound
 }
 
 void XB_CDECL CG_Actor(uint8_t* cent) {
@@ -774,11 +777,11 @@ void XB_CDECL CG_ClipMoveToEntities(const float* start, const float* mins, const
             regs.eax = static_cast<uint32_t>(title_global<int32_t>(0x00972544));
             regs.edi = addr(cent + 0x38);
             regs.ecx = addr(angles);
-            title_call_at_regs(frame, 0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+            title_call_at_regs(frame, own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
             regs.eax = static_cast<uint32_t>(title_global<int32_t>(0x00972544));
             regs.edi = addr(cent + 0x14);
             regs.ecx = addr(origin);
-            title_call_at_regs(frame, 0x002d62c0, &regs, 0, nullptr);
+            title_call_at_regs(frame, own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);
         } else {
             const uint32_t packed = at<uint32_t>(cent, 0xac);
             const float radius = static_cast<float>(static_cast<int32_t>(packed & 0xff));
@@ -798,7 +801,7 @@ void XB_CDECL CG_ClipMoveToEntities(const float* start, const float* mins, const
             regs.eax = addr(box_maxs);
             regs.edx = (cent[0x10] & 0x10) ? 1 : 0;
             const uint32_t args[2] = {addr(box_mins), contents};
-            model = title_call_at_regs(frame, 0x002ccc50, &regs, 2, args);  // CM_TempBoxModel
+            model = title_call_at_regs(frame, own_address(&CM_TempBoxModel), &regs, 2, args);  // CM_TempBoxModel
             origin[0] = at<float>(cent, 0x60);
             origin[1] = at<float>(cent, 0x64);
             origin[2] = at<float>(cent, 0x68);
@@ -809,7 +812,7 @@ void XB_CDECL CG_ClipMoveToEntities(const float* start, const float* mins, const
         regs.eax = addr(origin);
         regs.ecx = addr(maxs);
         const uint32_t args[8] = {addr(trace), addr(start), addr(end), addr(mins), model, mask, addr(angles), capsule ? 1u : 0u};
-        title_call_at_regs(frame, 0x002e70c0, &regs, 8, args);  // CM_TransformedBoxTrace
+        title_call_at_regs(frame, own_address(&CM_TransformedBoxTrace), &regs, 8, args);  // CM_TransformedBoxTrace
         if (trace[0x3c] || at<float>(tr, 0x20) > at<float>(trace, 0x20)) {
             at<int32_t>(trace, 0x30) = at<int32_t>(cent, 0x224);
             for (uint32_t k = 0; k < 0x40; k += 4) at<uint32_t>(tr, k) = at<uint32_t>(trace, k);
@@ -834,13 +837,13 @@ void trace_world_and_entities(uint8_t* result, const float* start, const float* 
     TitleRegs regs{};
     regs.ecx = addr(maxs);
     const uint32_t box_args[7] = {addr(trace), addr(start), addr(end), addr(mins), 0, mask, 0};
-    title_call_at_regs(frame, 0x002e5030, &regs, 7, box_args);
+    title_call_at_regs(frame, own_address(&CM_BoxTrace), &regs, 7, box_args);
     at<int32_t>(trace, 0x30) =
         at<float>(trace, 0x20) == 1.0f ? 0 : at<int32_t>(*reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 8), 0x224);
     const TitleRegs none{};
     const uint32_t clip_args[8] = {addr(start), addr(mins), addr(maxs), addr(end), static_cast<uint32_t>(skip), mask, capsule,
                                    addr(trace)};
-    title_call_at_regs(frame, 0x00286950, &none, 8, clip_args);  // CG_ClipMoveToEntities
+    title_call_at_regs(frame, own_address(&CG_ClipMoveToEntities_entry), &none, 8, clip_args);  // CG_ClipMoveToEntities
     for (uint32_t k = 0; k < 0x40; k += 4) at<uint32_t>(result, k) = at<uint32_t>(trace, k);
 }
 
@@ -1024,7 +1027,7 @@ void XB_CDECL CG_Item(uint8_t* cent) {
     TitleRegs regs{};
     regs.eax = addr(cent + 0x70);
     const uint32_t args[1] = {addr(ref + 0x14)};
-    cg_call_regs(0x002a4610, &regs, args, 1);  // AnglesToAxisLeft
+    cg_call_regs(own_address(&AnglesToAxisLeft), &regs, args, 1);  // AnglesToAxisLeft
     if (*reinterpret_cast<const int32_t*>(item + 0x24) == 1) at<float>(ref, 0x38) = g(0x0083eb20);
     for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ref, 0x3c + 4 * k) = at<uint32_t>(cent, 0x60 + 4 * k);
     for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ref, 0x48 + 4 * k) = at<uint32_t>(cent, 0x60 + 4 * k);
@@ -1199,7 +1202,7 @@ void XB_CDECL CG_BulletWhizBy(const float* end, const float* start, uint32_t han
     TitleRegs regs{};
     regs.ecx = addr(G_EntHandleToEnt(&handle_copy));
     const uint32_t args[4] = {0x00838720, 0, 0xffffffff, 0};
-    cg_call_regs(0x002a6990, &regs, args, 4);  // FXCmd_PlaySoundAlias
+    cg_call_regs(own_address(&FXCmd_PlaySoundAlias_entry), &regs, args, 4);  // FXCmd_PlaySoundAlias
 }
 
 void XB_REGS1 XB_CDECL CG_BulletTracerAndWhizBy(const char* tag, uint32_t handle, const float* end, int32_t weapon) {
@@ -1260,7 +1263,7 @@ void XB_CDECL CG_Bullet(const uint32_t* start, uint8_t* cent, int32_t weapon, co
     regs.esi = addr(cent);
     regs.edi = static_cast<uint32_t>(weapon);
     const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 0xa8), addr(transform)};
-    cg_call_regs(0x002a61f0, &regs, args, 2);  // FXCmd_Type5AtTransform
+    cg_call_regs(own_address(&FXCmd_Type5AtTransform_entry), &regs, args, 2);  // FXCmd_Type5AtTransform
     const uint8_t* turret = at<uint8_t*>(cent, 0x248);
     const char* tag = title_global<const char*>(0x008da6e0);
     if (turret) {
@@ -1350,7 +1353,7 @@ uint8_t* XB_CDECL CG_ReadNextSnapshot() {
         TitleRegs regs{};
         regs.eax = addr(value);
         const uint32_t args[1] = {vm};
-        cg_call_regs(0x0029fe40, &regs, args, 1);  // Cvar_SetByVmIndex
+        cg_call_regs(own_address(&Cvar_SetByVmIndex), &regs, args, 1);  // Cvar_SetByVmIndex
     };
     while (processed < title_global<int32_t>(0x00971a9c)) {
         uint8_t* dest = title_global<uint32_t>(0x00971aa8) == 0x00971ab0 ? &title_global<uint8_t>(0x00971ff0)
@@ -1359,7 +1362,7 @@ uint8_t* XB_CDECL CG_ReadNextSnapshot() {
         TitleRegs regs{};
         regs.ecx = static_cast<uint32_t>(processed);
         regs.edx = addr(dest);
-        if (!cg_call_regs(0x002ac510, &regs, nullptr, 0)) continue;
+        if (!cg_call_regs(own_address(&CL_GetSnapshot), &regs, nullptr, 0)) continue;
         const uint8_t* snap = title_global<uint8_t*>(0x00971aa8);
         if (snap && !title_global<int32_t>(0x00947fa4) && *reinterpret_cast<const int32_t*>(snap + 0x90)) {
             set_vm(0x00947f98, va_int(*reinterpret_cast<const int32_t*>(snap + 0x90)));
@@ -1415,9 +1418,9 @@ uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp) {
     uint8_t*& snap = title_global<uint8_t*>(0x00971aa8);
     uint8_t*& next = title_global<uint8_t*>(0x00971aac);
     if (!snap) {
-        const uint32_t first = call(0x0027c4f0, 0);  // CG_ReadNextSnapshot
-        call(0x0027e2f0, first);                     // CG_SetInitialSnapshot
-        call(0x0028aaa0, first);                     // CG_SetNextSnap
+        const uint32_t first = call(own_address(&CG_ReadNextSnapshot), 0);  // CG_ReadNextSnapshot
+        call(own_address(&CG_SetInitialSnapshot_entry), first);                     // CG_SetInitialSnapshot
+        call(own_address(&CG_SetNextSnap_entry), first);                     // CG_SetNextSnap
         return 0x0028abd0;                           // CG_TransitionSnapshot (tail jump)
     }
     const int32_t delta = at<int32_t>(next, 4) - at<int32_t>(snap, 4);
@@ -1430,13 +1433,13 @@ uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp) {
     }
     for (;;) {
         if (next == snap) {
-            uint8_t* s = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(call(0x0027c4f0, 0)));
+            uint8_t* s = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(call(own_address(&CG_ReadNextSnapshot), 0)));
             if (!s) return 0;
             if (wrapped_sub(at<int32_t>(s, 4), at<int32_t>(snap, 4)) < 0) CG_Error(&title_global<char>(0x00838a64));
-            call(0x0028aaa0, addr(s));  // CG_SetNextSnap
+            call(own_address(&CG_SetNextSnap_entry), addr(s));  // CG_SetNextSnap
         }
         if (wrapped_sub(cg_time(), at<int32_t>(snap, 4)) >= 0 && wrapped_sub(cg_time(), at<int32_t>(next, 4)) < 0) return 0;
-        call(0x0028abd0, 0);  // CG_TransitionSnapshot
+        call(own_address(&CG_TransitionSnapshot), 0);  // CG_TransitionSnapshot
     }
 }
 
@@ -1520,7 +1523,7 @@ void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int
     regs.edi = addr(es);
     const uint8_t* snap = title_global<uint8_t*>(0x00971aa8);
     if (at<int32_t>(cent, 0x224) == *reinterpret_cast<const int32_t*>(snap + 0x8c))
-        title_call_at_regs(top, 0x002766d0, &regs, 0, nullptr);  // CG_KickWeapon
+        title_call_at_regs(top, own_address(&CG_KickWeapon), &regs, 0, nullptr);  // CG_KickWeapon
     const uint8_t type = es[0];
     uint8_t* player = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4);
     uint32_t local = 0;
@@ -1538,29 +1541,29 @@ void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int
         TitleRegs fire = regs;
         fire.eax = static_cast<uint32_t>(weapon);
         fire.ecx = local;
-        title_call_at_regs(top, 0x00288dc0, &fire, 0, nullptr);  // CG_PlayWeaponFireSound
+        title_call_at_regs(top, own_address(&CG_PlayWeaponFireSound_entry), &fire, 0, nullptr);  // CG_PlayWeaponFireSound
         const uint32_t sound = *reinterpret_cast<const uint32_t*>(def + 8);
         TitleRegs call = regs;
         call.eax = addr(cent);
         if (local) {
             const uint32_t args[2] = {sound, 0x28};
-            title_call_at_regs(top, 0x002a62d0, &call, 2, args);  // FXCmd_PlayWeaponSound
+            title_call_at_regs(top, own_address(&FXCmd_PlayWeaponSound_entry), &call, 2, args);  // FXCmd_PlayWeaponSound
         }
         if (event == 0xa6) {
             if (local) {
                 const uint32_t args[5] = {addr(cent), sound, 9, 0xffffffff, static_cast<uint32_t>(tag_index)};
-                title_call_at_regs(top, 0x002a6600, &call, 5, args);  // FXCmd_PlayWeaponSoundAtBoneEx
+                title_call_at_regs(top, own_address(&FXCmd_PlayWeaponSoundAtBoneEx_entry), &call, 5, args);  // FXCmd_PlayWeaponSoundAtBoneEx
             } else {
                 const uint32_t args[4] = {addr(cent), sound, 0xa, 0xffffffff};
-                title_call_at_regs(top, 0x002a64e0, &call, 4, args);  // FXCmd_PlayWeaponSoundAtBone
+                title_call_at_regs(top, own_address(&FXCmd_PlayWeaponSoundAtBone_entry), &call, 4, args);  // FXCmd_PlayWeaponSoundAtBone
             }
         } else {
             if (local) {
                 const uint32_t args[5] = {addr(cent), sound, 7, 0, static_cast<uint32_t>(tag_index)};
-                title_call_at_regs(top, 0x002a6600, &call, 5, args);
+                title_call_at_regs(top, own_address(&FXCmd_PlayWeaponSoundAtBoneEx_entry), &call, 5, args);
             } else {
                 const uint32_t args[4] = {addr(cent), sound, 8, 1};
-                title_call_at_regs(top, 0x002a64e0, &call, 4, args);
+                title_call_at_regs(top, own_address(&FXCmd_PlayWeaponSoundAtBone_entry), &call, 4, args);
             }
         }
     }
@@ -1568,7 +1571,7 @@ void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int
         TitleRegs empty = regs;
         empty.eax = addr(cent);
         const uint32_t args[1] = {static_cast<uint32_t>(event)};
-        title_call_at_regs(top + 4, 0x002887f0, &empty, 1, args);  // CG_FireWeaponEmpty
+        title_call_at_regs(top + 4, own_address(&CG_FireWeaponEmpty), &empty, 1, args);  // CG_FireWeaponEmpty
     }
 }
 
@@ -1596,7 +1599,7 @@ void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp
     regs.edi = static_cast<uint32_t>(event);
     const auto fire = [&](uint32_t top, uint32_t index) {
         const uint32_t args[2] = {static_cast<uint32_t>(event), index};
-        title_call_at_regs(top, 0x002893b0, &regs, 2, args);  // CG_FireWeapon
+        title_call_at_regs(top, own_address(&CG_FireWeapon_entry), &regs, 2, args);  // CG_FireWeapon
     };
     switch (event) {
     case 0xa3:
@@ -1614,12 +1617,12 @@ void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp
     case 0xa7: {
         const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(title_global<const uint8_t* const*>(0x0095f4d8)[cent[3]] + 8),
                                   0xd};
-        title_call_at_regs(frame, 0x002a62d0, &regs, 2, args);  // FXCmd_PlayWeaponSound
+        title_call_at_regs(frame, own_address(&FXCmd_PlayWeaponSound_entry), &regs, 2, args);  // FXCmd_PlayWeaponSound
         break;
     }
     case 0xa8: {
         const uint32_t args[1] = {static_cast<uint32_t>(event)};
-        title_call_at_regs(frame, 0x002887f0, &regs, 1, args);  // CG_FireWeaponEmpty
+        title_call_at_regs(frame, own_address(&CG_FireWeaponEmpty), &regs, 1, args);  // CG_FireWeaponEmpty
         break;
     }
     case 0xb3: {
@@ -1637,7 +1640,7 @@ void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp
         bullet.esi = addr(cent);
         bullet.edi = cent[3];
         const uint32_t args[2] = {addr(cent + 0x140), cent[2]};
-        title_call_at_regs(frame, 0x0028a370, &bullet, 2, args);  // CG_Bullet
+        title_call_at_regs(frame, own_address(&CG_Bullet_entry), &bullet, 2, args);  // CG_Bullet
         break;
     }
     case 0xb4:
@@ -1647,7 +1650,7 @@ void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp
         tracer.ecx = cent[3];
         tracer.esi = addr(cent + 0x60);
         const uint32_t args[3] = {at<uint32_t>(cent, 8), addr(cent + 0x60), cent[3]};
-        title_call_at_regs(frame, 0x00289270, &tracer, 3, args);  // CG_BulletTracerAndWhizBy
+        title_call_at_regs(frame, own_address(&CG_BulletTracerAndWhizBy), &tracer, 3, args);  // CG_BulletTracerAndWhizBy
         break;
     }
     case 0xc4:
@@ -1674,13 +1677,13 @@ void XB_CDECL CG_InterpolatePlayerState(uint32_t grab_angles) {
         TitleRegs regs{};
         regs.eax = title_global<uint32_t>(0x009622ac);  // cl_cmdNumber
         regs.edx = addr(cmd);
-        cg_call_regs(0x002ac630, &regs, nullptr, 0);  // CL_GetUserCmd
+        cg_call_regs(own_address(&CL_GetUserCmd_entry), &regs, nullptr, 0);  // CL_GetUserCmd
         regs = TitleRegs{};
         regs.eax = 0x00972550;
         regs.ecx = addr(cmd);
         regs.edx = addr(cmd);
         const uint32_t args[3] = {addr(cmd), addr(cmd), 0x00286c60};  // CG_Trace
-        cg_call_regs(0x002e5530, &regs, args, 3);  // PM_UpdateViewAngles
+        cg_call_regs(own_address(&PM_UpdateViewAngles), &regs, args, 3);  // PM_UpdateViewAngles
     }
     if (at<int32_t>(next, 4) <= at<int32_t>(snap, 4)) return;
     const float f = static_cast<float>(cg_time() - at<int32_t>(snap, 4)) / static_cast<float>(at<int32_t>(next, 4) - at<int32_t>(snap, 4));
@@ -1723,7 +1726,7 @@ void XB_CDECL CG_CalcLinkedViewOrigin() {
     regs.eax = static_cast<uint32_t>(cg_time());
     regs.edi = addr(ent + 0x38);
     regs.ecx = 0x00972bf0;
-    cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    cg_call_regs(own_address(&BG_EvaluateTrajectory_entry), &regs, nullptr, 0);  // BG_EvaluateTrajectory
     ent = G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8));
     if (!(title_global<uint8_t>(0x0098ebe0) & 1)) {
         title_global<uint32_t>(0x0098ebe0) |= 1;

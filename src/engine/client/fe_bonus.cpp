@@ -7,6 +7,7 @@
 #include "ui_menu.h"
 #include "ui_panel.h"
 #include "qcommon_core.h"
+#include "qcommon.h"
 
 // The gap entries (see fe_menus.cpp): the C frame moves below a gap; the C version gets the menu, `extra` (pushed
 // before ECX: the next parameters), the entry EBX / EDI / ESI and the entry ESP. 192 KB gap: the image loaders'
@@ -177,7 +178,7 @@ void concepts_move(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_esp
     int32_t& item = field<int32_t>(menu, 0x8c + uint32_t(row) * 4);
     if (item == 0) item = 1;
     concepts_raise_bests(menu);
-    stdcall_menu(c, 0x00312b40, menu);
+    stdcall_menu(c, own_address(&BonusConceptsMenu_UpdateNewMarks), menu);
     c.run_eax(kConcepts.load_image, address_of(menu));
 }
 
@@ -196,8 +197,8 @@ void vehicles_step(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_esp
     Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     c.top -= 4;  // push edi
     c.regs.edi = direction;
-    c.run_eax(0x0031bc50, address_of(menu));
-    stdcall_menu(c, 0x0031c0e0, menu);
+    c.run_eax(own_address(&BonusVehiclesMenu_Step_entry), address_of(menu));
+    stdcall_menu(c, own_address(&BonusVehiclesMenu_UpdateNewFlags), menu);
     c.run_eax(kVehicles.load_image, address_of(menu));
 }
 
@@ -214,16 +215,16 @@ void vehicles_move(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t entry_esp
     int32_t& item = field<int32_t>(menu, 0x70 + uint32_t(row) * 4);
     if (item == 0) item = 1;
     vehicles_raise_bests(menu);
-    stdcall_menu(c, 0x0031c0e0, menu);
+    stdcall_menu(c, own_address(&BonusVehiclesMenu_UpdateNewFlags), menu);
     c.run_eax(kVehicles.load_image, address_of(menu));
 }
 
 // 0x0031c870 (menu in EAX, direction in EDI), then 0x0031ceb0 (menu in EDI) and the image (EDI = menu still).
 void weapons_update(Calls& c, uint8_t* menu, uint32_t direction) {
     c.regs.edi = direction;
-    c.run_eax(0x0031c870, address_of(menu));
+    c.run_eax(own_address(&BonusWeaponsMenu_Step_entry), address_of(menu));
     c.regs.edi = address_of(menu);
-    c.run(0x0031ceb0);
+    c.run(own_address(&BonusWeaponsMenu_UpdateNewFlags_entry));
     c.run_eax(kWeapons.load_image, address_of(menu));
 }
 
@@ -693,18 +694,18 @@ BONUS_HANDLER_ENTRY(BonusWeaponsMenu_OnLeave)
 
 void XB_CDECL BonusCharactersMenu_OnLeave(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
-    c.run(0x00064660);  // nglResetDeviceBindings
+    c.run(own_address(&nglResetDeviceBindings));  // nglResetDeviceBindings
     if (const uint32_t texture = field<uint32_t>(menu, 0x7c)) {
         const uint32_t args[1] = {texture};
-        c.run(0x00063630, 1, args);  // nglReleaseTexture
+        c.run(own_address(&nglReleaseTexture), 1, args);  // nglReleaseTexture
     }
     const int32_t file = field<int32_t>(menu, 0x74);
     if (file != -1) {
         const uint32_t args[1] = {uint32_t(file)};
-        c.run(0x000cac90, 1, args);  // File_Close
+        c.run(own_address(&File_Close), 1, args);  // File_Close
         if (const uint32_t buffer = field<uint32_t>(menu, 0x78)) {
             const uint32_t free_args[1] = {buffer};
-            c.run(0x000939b0, 1, free_args);  // Mem_AlignedFree
+            c.run(own_address(&Mem_AlignedFree), 1, free_args);  // Mem_AlignedFree
         }
     }
     field<uint32_t>(menu, 0x78) = 0;
@@ -712,7 +713,7 @@ void XB_CDECL BonusCharactersMenu_OnLeave(uint8_t* menu, uint32_t ebx, uint32_t 
 }
 
 void XB_CDECL BonusMaterialsMenu_OnLeave(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
-    after_push_esi(menu, ebx, edi, entry_esp).run(0x0030dcc0);  // FE_BonusMainFreeImage
+    after_push_esi(menu, ebx, edi, entry_esp).run(own_address(&FE_BonusMainFreeImage_entry));  // FE_BonusMainFreeImage
 }
 
 void XB_CDECL BonusConceptsMenu_OnLeave(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
@@ -742,8 +743,8 @@ void XB_CDECL BonusConceptsMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t ed
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
     Calls next = c;
     next.regs.eax = 1;
-    stdcall_menu(next, 0x003129e0, menu);
-    stdcall_menu(c, 0x00312b40, menu);
+    stdcall_menu(next, own_address(&BonusConceptsMenu_ChangeItem), menu);
+    stdcall_menu(c, own_address(&BonusConceptsMenu_UpdateNewMarks), menu);
     c.run_eax(kConcepts.load_image, address_of(menu));
 }
 
@@ -754,7 +755,7 @@ void XB_CDECL BonusConceptsMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t edi
         if (i == selection(menu) && item > 1) --item;
     }
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
-    stdcall_menu(c, 0x00312b40, menu);
+    stdcall_menu(c, own_address(&BonusConceptsMenu_UpdateNewMarks), menu);
     c.run_eax(kConcepts.load_image, address_of(menu));
 }
 
@@ -796,7 +797,7 @@ void XB_CDECL BonusVehiclesMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, ui
     select_row0(c, menu);
     field<int32_t>(menu, 0x70) = 1;
     menu[0x88] = 0;
-    c.run(0x0031c5d0);  // FE_BonusVehicleCategoryLabel (menu in ESI)
+    c.run(own_address(&FE_BonusVehicleCategoryLabel_entry));  // FE_BonusVehicleCategoryLabel (menu in ESI)
     c.run_eax(kVehicles.load_image, address_of(menu));
     restore_selection_tail(menu, ebx, edi, esi, entry_esp);
 }
@@ -831,7 +832,7 @@ void XB_CDECL BonusWeaponsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uin
     select_row0(c, menu);
     field<int32_t>(menu, 0x84) = 1;
     menu[0xac] = 0;
-    c.run_eax(0x0031d250, address_of(menu));  // FE_BonusWeaponCategoryLabel
+    c.run_eax(own_address(&FE_BonusWeaponCategoryLabel_entry), address_of(menu));  // FE_BonusWeaponCategoryLabel
     c.run_eax(kWeapons.load_image, address_of(menu));
     restore_selection_tail(menu, ebx, edi, esi, entry_esp);
 }
@@ -856,7 +857,7 @@ void XB_CDECL BonusCharactersMenu_OnDown(uint8_t* menu, uint32_t ebx, uint32_t, 
     int32_t& reached = title_global<int32_t>(0x008dced0);
     const int32_t count = row + 1;
     if (reached < count) reached = count;
-    c.run(0x0031d6b0);  // the character labels (menu in EDI)
+    c.run(own_address(&BonusCharactersMenu_UpdateNewFlags_entry));  // the character labels (menu in EDI)
     c.run_eax(kCharacterLoadImage, address_of(menu));
 }
 
@@ -873,7 +874,7 @@ void XB_CDECL BonusCharactersMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, 
     select_row0(c, menu);
     int32_t& reached = title_global<int32_t>(0x008dced0);
     if (reached < 1) reached = 1;
-    c.run_eax(0x0031d880, address_of(menu));  // FE_BonusCharacterLabel
+    c.run_eax(own_address(&FE_BonusCharacterLabel_entry), address_of(menu));  // FE_BonusCharacterLabel
     c.run_eax(kCharacterLoadImage, address_of(menu));
     restore_selection_tail(menu, ebx, edi, esi, entry_esp);
 }

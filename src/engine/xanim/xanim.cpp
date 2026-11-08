@@ -468,7 +468,7 @@ uint32_t XB_CDECL AnimTree_FreeInfo(uint8_t* tree, uint32_t info_arg) {
             const uint32_t system = title_global<uint32_t>(0x0095f638);
             title_global<uint8_t>(0x0095f5d1) = 0;
             title_global<uint8_t>(0x0095f5d0) = 1;
-            title_call_regs(0x0028f6c0, (track & ~0xffu) | saved, system, static_cast<uint32_t>(context));  // MemContext_Push
+            title_call_regs(own_address(&MemContext_Push_entry), (track & ~0xffu) | saved, system, static_cast<uint32_t>(context));  // MemContext_Push
         }
         if (const uint32_t object = *reinterpret_cast<const uint32_t*>(info + 0x2c)) {
             const uint32_t destroy = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
@@ -1534,17 +1534,17 @@ void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint3
     const uint32_t node_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
     uint32_t eax = u32_ref(node, 0x24);
     if (!eax)
-        eax = f.call(0x002e458a + r, 0x002bfb90, TitleRegs{0, in.ebx, in.ecx, in.edx, in.esi, node_a}, 0,
+        eax = f.call(0x002e458a + r, own_address(&AnimData_EnsureLoaded_entry), TitleRegs{0, in.ebx, in.ecx, in.edx, in.esi, node_a}, 0,
                      nullptr);  // AnimData_EnsureLoaded
     const uint32_t clip = u32_ref(node, 0x24);
     if (!clip) return;
     const uint32_t skeleton = stack_word(clip + 0x30);
     const uint32_t alloc_args[] = {0x30, 4, 0};
-    const uint32_t memory = f.call(0x002e45a3 + r, 0x00093950, TitleRegs{eax, in.ebx, in.ecx, in.edx, clip, skeleton}, 3,
+    const uint32_t memory = f.call(0x002e45a3 + r, own_address(&Mem_AlignedAlloc), TitleRegs{eax, in.ebx, in.ecx, in.edx, clip, skeleton}, 3,
                                    alloc_args);  // Mem_AlignedAlloc
     if (!memory) return;
     const uint32_t construct_args[] = {clip, skeleton};
-    const uint32_t track = f.call(0x002e45b7 + r, 0x00087dd0, TitleRegs{memory, in.ebx, memory, 0, clip, skeleton}, 2,
+    const uint32_t track = f.call(0x002e45b7 + r, own_address(&NAL_AnimTrack_Construct), TitleRegs{memory, in.ebx, memory, 0, clip, skeleton}, 2,
                                   construct_args);  // NAL_AnimTrack_Construct
     if (!track) return;
     uint32_t generic = stack_word(track + 0xc);
@@ -1554,7 +1554,7 @@ void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint3
         if (eax != title_global<uint32_t>(0x00903fdc)) generic = 0;
     }
     const uint32_t init_args[] = {generic, 0};
-    f.call(0x002e45e0 + r, 0x00087ad0, TitleRegs{eax, track, state, 0, generic, skeleton}, 2,
+    f.call(0x002e45e0 + r, own_address(&NAL_AnimState_Init), TitleRegs{eax, track, state, 0, generic, skeleton}, 2,
            init_args);  // NAL_AnimState_Init
     if (between) {
         // A step that wrapped (from > to) runs to to + 1, kept in the `to` argument slot.
@@ -1568,11 +1568,11 @@ void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint3
     }
     const uint32_t count = stack_word(generic + 0x60) - 1;
     const uint32_t sample_args[] = {time, previous, state, generic + 0xc8, count, 0};
-    const uint32_t sampled = f.call(between ? 0x002e46fe : 0x002e4600, 0x000881c0,
+    const uint32_t sampled = f.call(between ? 0x002e46fe : 0x002e4600, own_address(&NAL_AnimTrack_Sample),
                                     TitleRegs{between ? previous : time, track, track, state, generic + 0xc8, skeleton}, 6,
                                     sample_args);  // NAL_AnimTrack_Sample
     const uint32_t root_args[] = {state, root};
-    f.call(between ? 0x002e4711 : 0x002e4613, 0x00086d30,
+    f.call(between ? 0x002e4711 : 0x002e4613, own_address(&NAL_GenericAnim_GetRootTransform),
            TitleRegs{sampled, track, stack_word(state), state, generic + 0xc8, skeleton}, 2,
            root_args);  // NAL_GenericAnim_GetRootTransform
     const uint32_t out_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
@@ -1581,7 +1581,7 @@ void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint3
     // above, it held that caller's leftovers).
     stack_word(product + 0x1c) = 0;
     const uint32_t concat_args[] = {product, out_a, root};
-    const uint32_t result = f.call(between ? 0x002e4724 : 0x002e4626, 0x0001cae0,
+    const uint32_t result = f.call(between ? 0x002e4724 : 0x002e4626, own_address(&QuatTrans_Concat),
                                    TitleRegs{root, track, product, 0, generic + 0xc8, out_a}, 3,
                                    concat_args);  // QuatTrans_Concat
     platform_rep_movs(out, reinterpret_cast<const float*>(static_cast<uintptr_t>(result)), 0x20);
@@ -1589,7 +1589,7 @@ void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint3
     const uint32_t one[] = {1};
     f.call(between ? 0x002e4738 : 0x002e463a, stack_word(vtable),
            TitleRegs{result, track, track, vtable, result + 0x20, out_a + 0x20}, 1, one);  // deleting destructor
-    f.call(between ? 0x002e4741 : 0x002e4643, 0x00086da0,
+    f.call(between ? 0x002e4741 : 0x002e4643, own_address(&NAL_AnimState_Destroy),
            TitleRegs{0, track, state, 0, result + 0x20, out_a + 0x20}, 0, nullptr);  // NAL_AnimState_Destroy
 }
 
@@ -1958,11 +1958,11 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint32_t entry, uint8_t* tree, uint32_t i
             const uint32_t nodes = *reinterpret_cast<const uint32_t*>(anims + 8);
             if (title_global<uint8_t>(0x00929cc8)) {
                 const uint32_t args[] = {out_a, u32_ref(info, 0x10)};
-                f.call(0x002e6911, 0x002e4570, TitleRegs{node_a, node_a, out_a, tree_a, goal, nodes}, 2,
+                f.call(0x002e6911, own_address(&AnimTree_SampleRootTransform_entry), TitleRegs{node_a, node_a, out_a, tree_a, goal, nodes}, 2,
                        args);  // AnimTree_SampleRootTransform
             } else {
                 const uint32_t args[] = {out_a, u32_ref(info, 0x14), u32_ref(info, 0x10)};
-                f.call(0x002e692a, 0x002e4650, TitleRegs{node_a, node_a, out_a, args[2], goal, nodes}, 3,
+                f.call(0x002e692a, own_address(&AnimTree_SampleRootTransformBetween_entry), TitleRegs{node_a, node_a, out_a, args[2], goal, nodes}, 3,
                        args);  // AnimTree_SampleRootTransformBetween
             }
             return;
@@ -2013,7 +2013,7 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint32_t entry, uint8_t* tree, uint32_t i
         }
         const uint32_t node_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
         const uint32_t first_args[] = {tree_a, u16_at(node, 0x36) + static_cast<uint32_t>(indices[0]), out_a, 1, 1};
-        f.call(0x002e6be7, 0x002e67d0, TitleRegs{tree_a, static_cast<uint32_t>(n), node_a, first_args[1], goal, out_a}, 5,
+        f.call(0x002e6be7, own_address(&AnimTree_CalcRootDelta_r_entry), TitleRegs{tree_a, static_cast<uint32_t>(n), node_a, first_args[1], goal, out_a}, 5,
                first_args);  // AnimTree_CalcRootDelta_r
         for (int32_t s = 1; s < n; ++s) {
             const float t = one / (weights[s - 1] / weights[s] + one);
@@ -2021,7 +2021,7 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint32_t entry, uint8_t* tree, uint32_t i
             const float identity[7] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f};
             std::memcpy(child, identity, sizeof identity);
             const uint32_t child_args[] = {tree_a, u16_at(node, 0x36) + static_cast<uint32_t>(indices[s]), f.s + 0x60, 0, 1};
-            f.call(0x002e6ca6, 0x002e67d0,
+            f.call(0x002e6ca6, own_address(&AnimTree_CalcRootDelta_r_entry),
                    TitleRegs{tree_a, static_cast<uint32_t>(n), tree_a, child_args[1], static_cast<uint32_t>(s), out_a + 0x10},
                    5, child_args);  // AnimTree_CalcRootDelta_r
             const float keep = one - t;

@@ -91,7 +91,7 @@ PLATFORM_ASM_ENTRY(PhysRagdoll_InitState_entry,
 // Resets the ragdoll's pools: 0x00029b70 (the pools at +0..+0x4a4), two self-linked list heads
 // (+0xa50, +0x1000), the capsule pool at +0x1020 and the capsule pair pool at +0x1c60.
 uint8_t* XB_CDECL PhysRagdoll_InitState(uint8_t* ragdoll, uint32_t value) {
-    call_with_esi(0x00029b70, ragdoll);
+    call_with_esi(own_address(&PhysRagdoll_InitLinks_entry), ragdoll);
     uint8_t* head = ragdoll + 0x4b0;
     at<uint8_t*>(head, 0x5a0) = head;
     at<uint32_t>(head, 0x5a4) = 0;
@@ -164,7 +164,7 @@ void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, 
     regs.ebx = entry_ebx;
     regs.edi = addr(capsule);
     uint8_t* const world_body = reinterpret_cast<uint8_t*>(
-        static_cast<uintptr_t>(title_call_at_regs(frame, 0x000b4030, &regs, 0, nullptr)));  // PhysWorld_GetStaticBody
+        static_cast<uintptr_t>(title_call_at_regs(frame, own_address(&PhysWorld_GetStaticBody), &regs, 0, nullptr)));  // PhysWorld_GetStaticBody
     uint8_t* pair = nullptr;
     for (int32_t i = 0; i < at<int32_t>(capsule, 0x84); ++i) {
         uint8_t* const sphere = at<uint8_t*>(capsule, 0x80) + i * 0x40;
@@ -176,7 +176,7 @@ void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, 
         regs.esi = addr(sphere);
         regs.edi = addr(capsule);
         const uint32_t radius_arg[1] = {at<uint32_t>(sphere, 0x30)};
-        if (!static_cast<uint8_t>(title_call_at_regs(frame, 0x002299a0, &regs, 1, radius_arg)))  // CM_PushSphereOutOfListedObjects
+        if (!static_cast<uint8_t>(title_call_at_regs(frame, own_address(&CM_PushSphereOutOfListedObjects_entry), &regs, 1, radius_arg)))  // CM_PushSphereOutOfListedObjects
             continue;
         const Lanes d = sub(lanes(pos), lanes(pushed));
         const Lanes squared = mul(d, d);
@@ -195,7 +195,7 @@ void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, 
             regs.ecx = addr(body);
             const uint32_t args[2] = {addr(body), addr(world_body)};
             pair = reinterpret_cast<uint8_t*>(
-                static_cast<uintptr_t>(title_call_at_regs(frame, 0x000b4bc0, &regs, 2, args)));  // PhysWorld_GetBodyPair_Wrapper
+                static_cast<uintptr_t>(title_call_at_regs(frame, own_address(&PhysWorld_GetBodyPair_Wrapper_entry), &regs, 2, args)));  // PhysWorld_GetBodyPair_Wrapper
         }
         std::memcpy(normal, n.v, 12);
         const float radius = at<float>(sphere, 0x30);
@@ -215,7 +215,7 @@ void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, 
         regs.edi = frame + 0xf0;
         const uint32_t args[8] = {addr(body), addr(world_body), addr(local), addr(outside), addr(normal),
                                   at<uint32_t>(body, 0x148), 0x3f000000u, 0x45610000u};  // 0.5, 3600
-        title_call_at_regs(frame, 0x000c2de0, &regs, 8, args);  // PhysBodyPair_AddContactPoint
+        title_call_at_regs(frame, own_address(&PhysBodyPair_AddContactPoint), &regs, 8, args);  // PhysBodyPair_AddContactPoint
     }
 }
 
@@ -305,7 +305,7 @@ void XB_REGS3 XB_CDECL RagdollPhysPool_Free(uint8_t* phys, uint32_t, uint8_t* po
         RagdollPhysPool_Clear(pool);
         return;
     }
-    call_with_edi(0x00225a00, phys);  // PhysRagdoll_DestroyBodies
+    call_with_edi(own_address(&PhysRagdoll_DestroyBodies_entry), phys);  // PhysRagdoll_DestroyBodies
     pool_swap_out(pool, kRagdollPhysPool, index, slot);
 }
 
@@ -1169,7 +1169,7 @@ void XB_CDECL RagdollCapsule_CollidePair(const uint8_t* pair, uint32_t entry_esp
     regs.edi = addr(a);
     const uint32_t closest_args[7] = {addr(a) + 0xe0, addr(a) + 0xf0, at<uint32_t>(a, 0xd0), addr(b) + 0xe0,
                                       at<uint32_t>(b, 0xd0), frame + 0x20, frame + 0x30};
-    if (!static_cast<uint8_t>(title_call_at_regs(frame, 0x00227290, &regs, 7, closest_args)))  // Phys_CapsuleCapsuleClosest
+    if (!static_cast<uint8_t>(title_call_at_regs(frame, own_address(&Phys_CapsuleCapsuleClosest_entry), &regs, 7, closest_args)))  // Phys_CapsuleCapsuleClosest
         return;
     uint8_t* const body_a = at<uint8_t*>(a, 0x124);
     uint8_t* const body_b = at<uint8_t*>(b, 0x124);
@@ -1177,7 +1177,7 @@ void XB_CDECL RagdollCapsule_CollidePair(const uint8_t* pair, uint32_t entry_esp
     regs.ecx = addr(body_a);
     regs.edx = 0;
     const uint32_t pair_args[2] = {addr(body_a), addr(body_b)};
-    const uint32_t body_pair = title_call_at_regs(frame, 0x000b4bc0, &regs, 2, pair_args);  // PhysWorld_GetBodyPair_Wrapper
+    const uint32_t body_pair = title_call_at_regs(frame, own_address(&PhysWorld_GetBodyPair_Wrapper_entry), &regs, 2, pair_args);  // PhysWorld_GetBodyPair_Wrapper
     std::memcpy(f + 0x10, f + 0x30, 12);
     at<uint32_t>(f, 0xc) = body_pair;
     std::memcpy(f + 0x50, at<uint8_t*>(b, 0x124) + 0x40, 0x30);
@@ -1197,7 +1197,7 @@ void XB_CDECL RagdollCapsule_CollidePair(const uint8_t* pair, uint32_t entry_esp
     regs.esi = at<uint32_t>(a, 0x124) + 0x70;
     regs.edi = frame + 0x80;
     const uint32_t contact_args[8] = {regs.eax, regs.edx, frame + 0x30, frame + 0x20, frame + 0x10, 0, 0, 0x42c80000u};
-    title_call_at_regs(frame, 0x000c2de0, &regs, 8, contact_args);  // PhysBodyPair_AddContactPoint
+    title_call_at_regs(frame, own_address(&PhysBodyPair_AddContactPoint), &regs, 8, contact_args);  // PhysBodyPair_AddContactPoint
 }
 
 PLATFORM_ASM_ENTRY(PhysObj_GetInheritedVelocity_entry,
@@ -1517,11 +1517,11 @@ uint32_t XB_CDECL PhysRagdoll_Collide(uint8_t* set, uint32_t esi, uint32_t edi, 
     title_global<uint32_t>(0x0095f6f0) = at<uint32_t>(set, 0);
     TitleRegs regs{addr(set), addr(set), frame + 0xc, frame + 0x10, esi, edi};
     const uint32_t sphere_args[2] = {frame + 0x10, frame + 0xc};
-    title_call_at_regs(frame, 0x00229930, &regs, 2, sphere_args);  // PhysRagdoll_GetBoundingSphere
+    title_call_at_regs(frame, own_address(&PhysRagdoll_GetBoundingSphere), &regs, 2, sphere_args);  // PhysRagdoll_GetBoundingSphere
     regs.eax = at<uint32_t>(f, 0xc);
     regs.ecx = frame + 0x10;
     const uint32_t gather_args[2] = {frame + 0x10, at<uint32_t>(f, 0xc)};
-    title_call_at_regs(frame, 0x0022d7d0, &regs, 2, gather_args);  // Ragdoll_GatherCollisionGeometry
+    title_call_at_regs(frame, own_address(&Ragdoll_GatherCollisionGeometry), &regs, 2, gather_args);  // Ragdoll_GatherCollisionGeometry
     const uint32_t end = addr(set) + 0xbf0 + at<uint32_t>(set, 0xc44) * 4;
     at<uint32_t>(f, 0xc) = end;
     regs.edx = addr(set);
@@ -1530,10 +1530,10 @@ uint32_t XB_CDECL PhysRagdoll_Collide(uint8_t* set, uint32_t esi, uint32_t edi, 
         regs.eax = capsule;
         regs.esi = capsule;
         regs.edi = cursor;
-        regs.eax = title_call_at_regs(frame, 0x0002a340, &regs, 0, nullptr);  // Phys_MoveAttachedPoint
+        regs.eax = title_call_at_regs(frame, own_address(&Phys_MoveAttachedPoint), &regs, 0, nullptr);  // Phys_MoveAttachedPoint
         const uint32_t capsule_arg[1] = {capsule};
-        regs.eax = title_call_at_regs(frame, 0x0002a5d0, &regs, 1, capsule_arg);  // RagdollCapsule_UpdateWorldPoints
-        regs.eax = title_call_at_regs(frame, 0x0002a620, &regs, 1, capsule_arg);  // RagdollCapsule_CollideWorld
+        regs.eax = title_call_at_regs(frame, own_address(&RagdollCapsule_UpdateWorldPoints), &regs, 1, capsule_arg);  // RagdollCapsule_UpdateWorldPoints
+        regs.eax = title_call_at_regs(frame, own_address(&RagdollCapsule_CollideWorld_entry), &regs, 1, capsule_arg);  // RagdollCapsule_CollideWorld
     }
     const uint32_t pairs_end = addr(set) + 0xc88 + at<uint32_t>(set, 0xcc4) * 4;
     regs.edi = pairs_end;
@@ -1541,10 +1541,10 @@ uint32_t XB_CDECL PhysRagdoll_Collide(uint8_t* set, uint32_t esi, uint32_t edi, 
         const uint32_t pair_arg[1] = {*reinterpret_cast<const uint32_t*>(uintptr_t{cursor})};
         regs.ecx = pair_arg[0];
         regs.esi = cursor;
-        regs.eax = title_call_at_regs(frame, 0x00229d20, &regs, 1, pair_arg);  // RagdollCapsule_CollidePair
+        regs.eax = title_call_at_regs(frame, own_address(&RagdollCapsule_CollidePair_entry), &regs, 1, pair_arg);  // RagdollCapsule_CollidePair
     }
     regs.eax = addr(set);
-    const uint32_t result = title_call_at_regs(frame, 0x0002ab10, &regs, 0, nullptr);  // Phys_UndoAttachedPushes
+    const uint32_t result = title_call_at_regs(frame, own_address(&Phys_UndoAttachedPushes), &regs, 0, nullptr);  // Phys_UndoAttachedPushes
     title_global<uint32_t>(0x0095f6f0) = 0;
     return result;
 }
@@ -1565,7 +1565,7 @@ uint32_t XB_CDECL Ragdoll_CollideAll(uint32_t entry_esp) {
         eax = at<uint32_t>(*reinterpret_cast<uint8_t* const*>(uintptr_t{cursor}), 0x568);
         if (!eax) continue;
         const TitleRegs regs{eax, eax + 0x1010, 0, 0, cursor, end};
-        eax = title_call_at_regs(top, 0x00231770, &regs, 0, nullptr);  // PhysRagdoll_Collide
+        eax = title_call_at_regs(top, own_address(&PhysRagdoll_Collide_entry), &regs, 0, nullptr);  // PhysRagdoll_Collide
     }
     return eax;
 }
@@ -3192,7 +3192,7 @@ void XB_REGS1 XB_STDCALL VehiclePhys_ApplyDriveInputs(uint8_t* vehicle, uint32_t
     bits = flags;
     flags = 0.0f > at<float>(vehicle, 0x424) ? flags | 8u : flags & ~8u;
     bits = flags;
-    call_with_esi(0x002255d0, vehicle);  // the wheel motors
+    call_with_esi(own_address(&VehiclePhys_ApplyWheelMotors_entry), vehicle);  // the wheel motors
     if (!(at<uint8_t>(vehicle, 0x450) & 1))
         own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&VehiclePhys_ApplyWheelFriction)(vehicle);  // the wheel friction
 }
@@ -3553,26 +3553,26 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
     fr.w(4) = esi;
     fr.w(0) = edi;
     const uint32_t P = addr(phys), E = addr(ent);
-    fr.call(0x002de120, {0, E, 0, 0, esi, edi}, {E, fr.a(0x290)});  // G_GetEntityMatrix
+    fr.call(own_address(&G_GetEntityMatrix), {0, E, 0, 0, esi, edi}, {E, fr.a(0x290)});  // G_GetEntityMatrix
     at<uint8_t*>(phys, 0x1010) = ent;
     fr.w(0x1c) = 0;  // the constructor loop's counter (the 0x5a vector constructors do nothing)
     const TitleRegs early{0, E, 0, 0, fr.a(0x1e40), P};
-    fr.call(0x00225a90, early, {E, fr.a(0x7c0)});  // PhysRagdoll_SaveBoneMatrices
-    fr.call(0x00227bd0, early, {P + 0x4b0, E});  // PhysRagdoll_StoreLocalBasePose
-    fr.call(0x00240f00, early, {at<uint32_t>(ent, 0x22c)});  // DObj_CalcBasePose
-    fr.call(0x00228460, early, {E});  // Ragdoll_CacheBaseBoneFrames
-    fr.call(0x0022ebe0, early, {E});  // Ragdoll_BuildBodyDefs
-    fr.call(0x0022fb70, early, {at<uint32_t>(phys, 0x1d30)});  // Ragdoll_BuildWorldBoneFrames
-    fr.call(0x000b3360, {0, E, P, 0, fr.a(0x1e40), P}, {10u});  // PhysRagdoll_AddEmptySlots
+    fr.call(own_address(&PhysRagdoll_SaveBoneMatrices), early, {E, fr.a(0x7c0)});  // PhysRagdoll_SaveBoneMatrices
+    fr.call(own_address(&PhysRagdoll_StoreLocalBasePose), early, {P + 0x4b0, E});  // PhysRagdoll_StoreLocalBasePose
+    fr.call(own_address(&DObj_CalcBasePose), early, {at<uint32_t>(ent, 0x22c)});  // DObj_CalcBasePose
+    fr.call(own_address(&Ragdoll_CacheBaseBoneFrames), early, {E});  // Ragdoll_CacheBaseBoneFrames
+    fr.call(own_address(&Ragdoll_BuildBodyDefs), early, {E});  // Ragdoll_BuildBodyDefs
+    fr.call(own_address(&Ragdoll_BuildWorldBoneFrames), early, {at<uint32_t>(phys, 0x1d30)});  // Ragdoll_BuildWorldBoneFrames
+    fr.call(own_address(&PhysRagdoll_AddEmptySlots), {0, E, P, 0, fr.a(0x1e40), P}, {10u});  // PhysRagdoll_AddEmptySlots
 
     // Bodies: d = def + 0x60 (the bone-local point).
     for (uint32_t d = 0x009892b0; d < 0x0098a4d0; d += 0x1d0) {
         const uint8_t* const def = reinterpret_cast<const uint8_t*>(uintptr_t{d});
         const uint32_t slot_index = at<uint32_t>(def, 0x7c);
-        const uint32_t body = fr.call(0x000b3110, {0, d, P, 0, 0, P}, {slot_index});  // PhysRagdoll_AllocBody
-        fr.call(0x00226420, {d, d, slot_index, 0, body, P},
+        const uint32_t body = fr.call(own_address(&PhysRagdoll_AllocBody), {0, d, P, 0, 0, P}, {slot_index});  // PhysRagdoll_AllocBody
+        fr.call(own_address(&Ragdoll_GetBoneVelocity_entry), {d, d, slot_index, 0, body, P},
                 {at<uint32_t>(phys, 0x1d30), fr.a(0x320), fr.a(0x260)});  // Ragdoll_GetBoneVelocity
-        fr.call(0x002d6800, {E, d, at<uint32_t>(def, 0x84), 0, body, P}, {fr.a(0x290)});  // G_DObjGetWorldBoneMatrix
+        fr.call(own_address(&G_DObjGetWorldBoneMatrix), {E, d, at<uint32_t>(def, 0x84), 0, body, P}, {fr.a(0x290)});  // G_DObjGetWorldBoneMatrix
         const Lanes one = splat(title_global<float>(0x0082e140));
         fr.st(0x390, mul(lanes(&title_global<float>(0x0082e160)), one));
         fr.st(0x3a0, mul(lanes(&title_global<float>(0x0082e170)), one));
@@ -3583,7 +3583,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
         fr.st3(0xc0, fr.ld(0x320));
         fr.cp(0x50, def + 0x60, 16);
         fr.st3(0xa0, fr.ld(0x50));
-        fr.call(0x000bbea0, {0, d, body, 0, body, P},
+        fr.call(own_address(&PhysBody_Init), {0, d, body, 0, body, P},
                 {at<uint32_t>(def, 0x54), fr.a(0xa0), fr.a(0x390), fr.a(0xc0), fr.a(0x20), at<uint32_t>(def, 0x74),
                  0u});  // PhysBody_Init
         uint8_t* const b = reinterpret_cast<uint8_t*>(uintptr_t{body});
@@ -3629,15 +3629,15 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
         const uint8_t* const j = reinterpret_cast<const uint8_t*>(uintptr_t{jd});
         if (at<int32_t>(j, 0x10) == 0) continue;
         const uint32_t joint =
-            fr.call(0x000b3130, {0, jd, P, 0, P, 0}, {at<uint32_t>(j, 4), at<uint32_t>(j, 0)});  // PhysRagdoll_CreateJoint
+            fr.call(own_address(&PhysRagdoll_CreateJoint), {0, jd, P, 0, P, 0}, {at<uint32_t>(j, 4), at<uint32_t>(j, 0)});  // PhysRagdoll_CreateJoint
         fr.w(0x3c) = joint;
         const uint8_t* const bodies = at<uint8_t*>(phys, 0x28);
         const uint32_t ba = at<uint32_t>(bodies, at<uint32_t>(j, 4) * 4);
         const uint32_t bb = at<uint32_t>(bodies, at<uint32_t>(j, 0) * 4);
         fr.w(0x18) = ba;
         fr.w(0x14) = bb;
-        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 0xc), ba, bb, E}, {fr.a(0x390)});  // G_DObjGetWorldBoneMatrix
-        fr.call(0x002d6800, {E, jd, at<uint32_t>(j, 8), 0, bb, E}, {fr.a(0x290)});
+        fr.call(own_address(&G_DObjGetWorldBoneMatrix), {E, jd, at<uint32_t>(j, 0xc), ba, bb, E}, {fr.a(0x390)});  // G_DObjGetWorldBoneMatrix
+        fr.call(own_address(&G_DObjGetWorldBoneMatrix), {E, jd, at<uint32_t>(j, 8), 0, bb, E}, {fr.a(0x290)});
         const float* const body_a = reinterpret_cast<const float*>(uintptr_t{ba});
         const float* const body_b = reinterpret_cast<const float*>(uintptr_t{bb});
         fr.cp(0x3d0, j + 0x24, 16);
@@ -3658,9 +3658,9 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             const Lanes v = sub(wa, lanes(body_a + 12));
             fr.st3(0x4d0, add(add(mul(c0, v.v[0]), mul(c1, v.v[1])), mul(c2, v.v[2])));
         }
-        fr.call(0x000b74f0, {0, jd, joint, 0, joint, 0}, {fr.a(0x4d0), fr.a(0x4a0)});  // PhysJoint_SetAnchors
+        fr.call(own_address(&PhysJoint_SetAnchors), {0, jd, joint, 0, joint, 0}, {fr.a(0x4d0), fr.a(0x4a0)});  // PhysJoint_SetAnchors
         if (at<float>(j, -4) > title_global<float>(0x0083f02c))  // 1e-6
-            fr.call(0x000b7550, {0, jd, joint, 0, joint, 0}, {at<uint32_t>(j, -4)});  // PhysJoint_SetValue1A0
+            fr.call(own_address(&PhysJoint_SetValue1A0), {0, jd, joint, 0, joint, 0}, {at<uint32_t>(j, -4)});  // PhysJoint_SetValue1A0
         const int32_t type = at<int32_t>(j, 0x10);
         const auto cols_rot = [&](uint32_t rows, const Lanes& v) {
             const float* const m = fr.p(rows);
@@ -3692,7 +3692,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             fr.cpf(0x440, 0x340, 16);
             fr.cpf(0x450, 0x250, 16);
             fr.st3(0x260, fr.rot(0x310, 0x340, 0x250, fr.ld(0x660)));
-            fr.call(0x000b7ae0, {0, jd, joint, 0, bb, 0},
+            fr.call(own_address(&PhysJoint_SetupAxes10), {0, jd, joint, 0, bb, 0},
                     {fr.a(0x260), fr.a(0x320), fr.a(0x490), fr.a(0x4c0), at<uint32_t>(j, 0x14),
                      at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes10
         } else if (type == 2) {
@@ -3733,7 +3733,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             fr.st(0x650, fr.rot(0x60, 0x40, 0x90, fr.ld(0x620)));
             fr.cpf(0x52c, 0x650, 12);
             // The packed 3-word vectors: each one's fourth word is the next one's x.
-            fr.call(0x000b7d30, {0, jd, joint, 0, ba, 0},
+            fr.call(own_address(&PhysJoint_SetupAxes20), {0, jd, joint, 0, ba, 0},
                     {fr.a(0x52c), fr.a(0x538), fr.a(0x544), fr.a(0x594), at<uint32_t>(j, 0x14),
                      at<uint32_t>(j, 0x18)});  // PhysJoint_SetupAxes20
         }
@@ -3753,7 +3753,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             fr.cpf(0x1a0, 0x80, 16);
             fr.st(0x270, fr.rot(0x70, 0x50, 0x80, fr.ld(0x4b0)));
             fr.cpf(0x588, 0x270, 12);  // Vec3A_CopyXYZ
-            fr.call(0x000b7700, {0, jd, fr.w(0x3c), 0, fr.w(0x18), 0}, {fr.a(0x588), fr.w(0x24c)});  // PhysJoint_AddAngleLimit
+            fr.call(own_address(&PhysJoint_AddAngleLimit), {0, jd, fr.w(0x3c), 0, fr.w(0x18), 0}, {fr.a(0x588), fr.w(0x24c)});  // PhysJoint_AddAngleLimit
             fr.w(0x11c) = fr.w(0x11c) + 1;
             fr.w(0x14) = fr.w(0x14) + 0x10;
             fr.w(0x1c) = fr.w(0x1c) + 4;
@@ -3771,14 +3771,14 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
         const uint32_t bv = at<uint32_t>(at<uint8_t*>(phys, 0x28), id * 4);
         fr.w(0x18) = bv;
         const float* const body = reinterpret_cast<const float*>(uintptr_t{bv});
-        const uint32_t cv = fr.call(0x002263c0, {0, 0, bv, R, jd, id});  // PhysRagdoll_TakeBody
+        const uint32_t cv = fr.call(own_address(&PhysRagdoll_TakeBody_entry), {0, 0, bv, R, jd, id});  // PhysRagdoll_TakeBody
         uint8_t* const capsule = reinterpret_cast<uint8_t*>(uintptr_t{cv});
         const auto last_sphere = [&]() {
             return at<uint8_t*>(capsule, 0x80) + (at<uint32_t>(capsule, 0x84) << 6);
         };
         uint32_t radius;
         if (at<int32_t>(j, -0xa4) > 1) {
-            fr.call(0x0002aec0, {0, cv, 0, cv, jd, 0}, {fr.a(0x290)});  // RagdollCapsule_AddSphere
+            fr.call(own_address(&RagdollCapsule_AddSphere), {0, cv, 0, cv, jd, 0}, {fr.a(0x290)});  // RagdollCapsule_AddSphere
             fr.cp(0x20, j - 0x9c, 16);
             fr.cp(0x350, body, 0x30);
             fr.cols(0x350, 0x80, 0x50, 0x70);
@@ -3788,7 +3788,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             fr.st(0xc0, fr.rot(0x80, 0x50, 0x70, sub(fr.ld(0x20), lanes(body + 12))));
             std::memcpy(last_sphere() - 0x20, fr.p(0xc0), 16);
             at<uint32_t>(last_sphere(), -0x10) = at<uint32_t>(j, -0xac);
-            fr.call(0x0002aec0, {0, cv, 0, cv, bv, jd}, {fr.a(0x290)});
+            fr.call(own_address(&RagdollCapsule_AddSphere), {0, cv, 0, cv, bv, jd}, {fr.a(0x290)});
             fr.cp(0xa0, j - 0x8c, 16);
             fr.cp(0x4e0, body, 0x30);
             fr.cols(0x4e0, 0x90, 0x40, 0x60);
@@ -3799,7 +3799,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             std::memcpy(last_sphere() - 0x20, fr.p(0xb0), 16);
             radius = at<uint32_t>(j, -0xa8);
         } else {
-            fr.call(0x0002aec0, {0, cv, 0, cv, jd, id}, {fr.a(0x290)});
+            fr.call(own_address(&RagdollCapsule_AddSphere), {0, cv, 0, cv, jd, id}, {fr.a(0x290)});
             fr.st(0x160, Lanes{{0.0f, 0.0f, 0.0f, 0.0f}});
             fr.cpf(0x150, 0x160, 16);
             std::memcpy(last_sphere() - 0x20, fr.p(0x150), 16);
@@ -3807,7 +3807,7 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
         }
         at<uint32_t>(last_sphere(), -0x10) = radius;
         at<uint32_t>(capsule, 0x124) = bv;
-        fr.call(0x00229c90, {0, cv, bv, 0, jd, cv});  // PhysRagdoll_ComputeBounds
+        fr.call(own_address(&PhysRagdoll_ComputeBounds_entry), {0, cv, bv, 0, jd, cv});  // PhysRagdoll_ComputeBounds
         fr.cp(0x170, j - 0x5c, 16);
         fr.cp(0x140, j - 0x6c, 16);
         fr.cp(0x550, body, 0x30);
@@ -3836,14 +3836,14 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
             count = count + 1;
         }
         const uint32_t first =
-            fr.call(0x00224fc0, {0, 0, R, static_cast<uint32_t>(ids[0]), R, addr(pair)});  // PhysRagdoll_FindCapsuleById
-        const uint32_t second = fr.call(0x00224fc0, {0, first, R, static_cast<uint32_t>(ids[1]), R, addr(pair)});
+            fr.call(own_address(&PhysRagdoll_FindCapsuleById_entry), {0, 0, R, static_cast<uint32_t>(ids[0]), R, addr(pair)});  // PhysRagdoll_FindCapsuleById
+        const uint32_t second = fr.call(own_address(&PhysRagdoll_FindCapsuleById_entry), {0, first, R, static_cast<uint32_t>(ids[1]), R, addr(pair)});
         at<uint32_t>(pair, 0) = second;
         at<uint32_t>(pair, 4) = first;
     }
-    fr.call(0x00225a40, {0, E, 0, 0, R, 0}, {E, fr.a(0x7c0)});  // PhysRagdoll_RestoreBoneMatrices
-    fr.call(0x000b36e0, {0, E, P, 0, R, P});  // PhysRagdoll_PoseToBodies
-    fr.call(0x000b33e0, {0, E, P, 0, R, P});  // PhysRagdoll_SolveJointPositions
+    fr.call(own_address(&PhysRagdoll_RestoreBoneMatrices), {0, E, 0, 0, R, 0}, {E, fr.a(0x7c0)});  // PhysRagdoll_RestoreBoneMatrices
+    fr.call(own_address(&PhysRagdoll_PoseToBodies), {0, E, P, 0, R, P});  // PhysRagdoll_PoseToBodies
+    fr.call(own_address(&PhysRagdoll_SolveJointPositions), {0, E, P, 0, R, P});  // PhysRagdoll_SolveJointPositions
     *fr.p(0x2c) = 0.0f;
     *fr.p(0x28) = title_global<float>(0x0083ee38);  // 30
     *fr.p(0x24) = 0.0f;
@@ -3852,10 +3852,10 @@ void XB_CDECL PhysRagdoll_Build(uint8_t* phys, uint8_t* ent, uint32_t ebx, uint3
     fr.cp(0x20, ent + 0x140, 16);
     fr.st(0x270, add(fr.ld(0x20), lift));
     for (uint32_t id = 0; id < 10; ++id) {
-        const uint32_t c = fr.call(0x00224fc0, {0, E + 0x140, R, id, R, id});
-        if (c) fr.call(0x00225010, {fr.a(0x270), E + 0x140, c, id, R, id});  // PhysRagdoll_SetPivotAndMinBound
+        const uint32_t c = fr.call(own_address(&PhysRagdoll_FindCapsuleById_entry), {0, E + 0x140, R, id, R, id});
+        if (c) fr.call(own_address(&PhysRagdoll_SetPivotAndMinBound), {fr.a(0x270), E + 0x140, c, id, R, id});  // PhysRagdoll_SetPivotAndMinBound
     }
-    fr.call(0x000b38a0, {0, E + 0x140, P, 0, R, 10},
+    fr.call(own_address(&PhysRagdoll_SetBodiesField134), {0, E + 0x140, P, 0, R, 10},
             {bits_of(title_global<float>(0x008ff024) * title_global<float>(0x00989240))});  // PhysRagdoll_SetBodiesField134
 }
 

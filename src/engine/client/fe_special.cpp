@@ -633,7 +633,7 @@ void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu) {
 void XB_CDECL SpecialConceptMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
     if (menu[0x40]) return;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
-    c.run_eax(0x0031a390, 1);  // the category's next item (ECX / ESI = the menu)
+    c.run_eax(own_address(&SpecialConceptMenu_NextItem_entry), 1);  // the category's next item (ECX / ESI = the menu)
     c.run_eax(kConceptLoadImage, address_of(menu));
 }
 
@@ -662,7 +662,7 @@ void XB_CDECL SpecialConceptMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, u
     concept_item(menu, 0) = 1;
     c.method(menu, 0x88, 0, 1);
     menu[0x40] = 0;
-    c.run(0x0030c070);  // FE_BonusArtCategoryLabel (menu in ESI)
+    c.run(own_address(&FE_BonusArtCategoryLabel_entry));  // FE_BonusArtCategoryLabel (menu in ESI)
     c.run_eax(kConceptLoadImage, address_of(menu));
     // pop esi; jmp UIMenu_RestoreSelection: the callee returns to our caller.
     TitleRegs regs{};
@@ -671,7 +671,7 @@ void XB_CDECL SpecialConceptMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, u
     regs.esi = esi;
     regs.edi = edi;
     const uint32_t return_address = stack_word(entry_esp);
-    title_call_at_regs(entry_esp + 4, 0x00314b20, &regs, 0, nullptr);
+    title_call_at_regs(entry_esp + 4, own_address(&UIMenu_RestoreSelection), &regs, 0, nullptr);
     stack_word(entry_esp) = return_address;
 }
 

@@ -15,6 +15,8 @@
 #include "g_pathnode.h"
 #include "g_vehicle.h"
 #include "qcommon.h"
+#include "actor.h"
+#include "g_scr_runtime.h"
 
 namespace game {
 
@@ -60,7 +62,7 @@ uint32_t XB_REGS3 XB_CDECL G_ActorClampLethalDamage(uint32_t damage, uint32_t, c
     const uint32_t actor = *reinterpret_cast<const uint32_t*>(ent + 0x240);
     if (!actor) return 0;
     const TitleRegs regs{damage, 0, address_of(ent), 0, 0, actor};
-    return g_ent_call(0x001fd7f0, &regs, 0, nullptr);  // Actor_ClampLethalDamage (EAX, EDI)
+    return g_ent_call(own_address(&Actor_ClampLethalDamage_entry), &regs, 0, nullptr);  // Actor_ClampLethalDamage (EAX, EDI)
 }
 
 // The argument slot keeps level.time as a float (written before anything else, as the original).
@@ -139,7 +141,7 @@ void XB_CDECL G_ApplyDamage(const float* dir, uint8_t* targ, int32_t damage, uin
         const TitleRegs regs{0, 0, 0, 0, 0, 0};
         const uint32_t args[4] = {address_of(targ), title_global<uint32_t>(0x0097a67c), address_of(&value),
                                   address_of(&other)};
-        g_ent_call(0x00026670, &regs, 4, args);  // G_NotifyWithIntEntity "damage"
+        g_ent_call(own_address(&G_NotifyWithIntEntity_entry), &regs, 4, args);  // G_NotifyWithIntEntity "damage"
     }
     const int32_t health = field<int32_t>(targ, 0x350);
     if (health <= 0) {
@@ -149,7 +151,7 @@ void XB_CDECL G_ApplyDamage(const float* dir, uint8_t* targ, int32_t damage, uin
             uint32_t other = field<uint32_t>(attacker, 0x224);
             const TitleRegs regs{0, static_cast<uint32_t>(damage), 0, 0, address_of(attacker), address_of(targ)};
             const uint32_t args[2] = {title_global<uint32_t>(0x0097a684), address_of(&other)};
-            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "death"
+            g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity "death"
         }
         field<uint32_t>(targ, 0x374) = address_of(attacker);
         const uint32_t die = field<uint32_t>(targ, 0x344);
@@ -242,7 +244,7 @@ void XB_CDECL G_Damage(const float* point, uint32_t* args) {
         if (!field<uint32_t>(targ, 0x33c) || targ[0x298]) return;
         const TitleRegs regs{args[2], 0, 0, 0, 0, args[0]};
         const uint32_t notify[1] = {title_global<uint32_t>(0x0097a818)};
-        g_ent_call(0x0024f570, &regs, 1, notify);  // G_NotifyWithOwnHandle "trigger"
+        g_ent_call(own_address(&G_NotifyWithOwnHandle_entry), &regs, 1, notify);  // G_NotifyWithOwnHandle "trigger"
         using Use = void XB_CDECL(uint8_t*, uint32_t, uint32_t);
         title_function<Use>(title_global<uint32_t>(0x008da840 + field<uint32_t>(targ, 0x33c) * 4))(targ, args[1], args[2]);
         return;
@@ -251,7 +253,7 @@ void XB_CDECL G_Damage(const float* point, uint32_t* args) {
         uint32_t other = field<uint32_t>(attacker, 0x224);
         const TitleRegs regs{0, 0, 0, 0, 0, 0};
         const uint32_t notify[4] = {args[0], title_global<uint32_t>(0x0097a67c), address_of(&args[4]), address_of(&other)};
-        g_ent_call(0x00026670, &regs, 4, notify);  // G_NotifyWithIntEntity "damage"
+        g_ent_call(own_address(&G_NotifyWithIntEntity_entry), &regs, 4, notify);  // G_NotifyWithIntEntity "damage"
         return;
     }
     if (pointer_at(targ, 0x23c) && field<uint32_t>(pointer_at(targ, 0x23c), 0x584)) return;
@@ -456,7 +458,7 @@ void activate_damage_triggers(uint8_t* ent, const float* start, const float* end
             const TitleRegs regs{0, 0, 0, 0, 0, 0};
             const uint32_t args[4] = {address_of(target), title_global<uint32_t>(0x0097a67c), address_of(&damage),
                                       address_of(&attacker)};
-            g_ent_call(0x00026670, &regs, 4, args);  // G_NotifyWithIntEntity "damage"
+            g_ent_call(own_address(&G_NotifyWithIntEntity_entry), &regs, 4, args);  // G_NotifyWithIntEntity "damage"
         }
         Activate_trigger_damage(target, damage, ent, mod);
         if (!field<int32_t>(target, 0x370)) field<int32_t>(target, 0x350) = 32000;

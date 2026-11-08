@@ -17,6 +17,7 @@
 #include "qcommon.h"
 #include "sv.h"
 #include "title_data.h"
+#include "fx_cmd.h"
 
 namespace game {
 
@@ -1010,7 +1011,7 @@ uint32_t XB_CDECL BG_PlayerInTrajectoryBox_body(int32_t time, const uint8_t* ent
     // 1 when the origin lies within -36..36 (x, y) and -88..18 (z) of the entity's trajectory (+0x14) at the time.
     alignas(16) float pos[4] = {};
     const TitleRegs regs{static_cast<uint32_t>(time), 0, address_of(pos), 0, address_of(origin), address_of(ent + 0x14)};
-    g_ent_call(0x002d62c0, &regs, 0, nullptr);  // BG_EvaluateTrajectory
+    g_ent_call(own_address(&BG_EvaluateTrajectory_entry), &regs, 0, nullptr);  // BG_EvaluateTrajectory
     const float hi = title_global<float>(0x0083f01c), lo = title_global<float>(0x0083f018);  // 36, -36
     float d = origin[0] - pos[0];
     if (d > hi || lo > d) return 0;
@@ -1070,7 +1071,7 @@ void XB_REGS3 XB_CDECL PM_EnterReloadState(uint32_t, uint32_t, uint32_t start) {
     const uint8_t* const def = weapon_def_at(ent[3]);
     const TitleRegs regs{address_of(ent), 0, address_of(def), at<uint32_t>(def, 8), 0, 0};
     const uint32_t args[3] = {at<uint32_t>(def, 8), sound, 1};
-    const uint32_t id = g_ent_call(0x002a63d0, &regs, 3, args);  // FXCmd_PlayWeaponSoundLoop
+    const uint32_t id = g_ent_call(own_address(&FXCmd_PlayWeaponSoundLoop_entry), &regs, 3, args);  // FXCmd_PlayWeaponSoundLoop
     at<uint32_t>(pm_ps_ref(pm), 0x90) = id;
     uint8_t* const ps = pm_ps_ref(pm);
     const uint8_t* const cur = cur_weapon_def();
@@ -5420,7 +5421,7 @@ uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t e
     fl(0x38) = zero;
     {
         const uint32_t args[2] = {B + 0x30, B + 0x24};
-        pm_call_at(B, 0x002dc7be, 0x002a2af0, TitleRegs{B + 0x24, ebx, B + 0x30, 0, B + 0x94, B + 0x54}, 2,
+        pm_call_at(B, 0x002dc7be, own_address(&AnglesToAxis_entry), TitleRegs{B + 0x24, ebx, B + 0x30, 0, B + 0x94, B + 0x54}, 2,
                    args);  // AnglesToAxis (forward B+0x24, right B+0x54, up B+0x94)
     }
     const uint32_t org = address_of(origin);
@@ -5442,7 +5443,7 @@ uint32_t XB_CDECL BG_CheckProneFeet(uint32_t entry_esp, uint32_t eax, uint32_t e
         if ((flags >> 8) || (flags & 0xff)) fl(to + 8) = origin[2];
         if (title_global<uint32_t>(0x00950bcc)) {
             const uint32_t line[6] = {B + 0x60, 0x0082eadc, title_global<uint32_t>(0x009509a4), 1, 1, 0};
-            pm_call_at(B, line_ret, 0x002b2f20, TitleRegs{B + 0x30, org, 0, line[2], trace, mask}, 6,
+            pm_call_at(B, line_ret, own_address(&DebugDraw_AddLine), TitleRegs{B + 0x30, org, 0, line[2], trace, mask}, 6,
                        line);  // DebugDraw_AddLine
         }
     };
@@ -5597,7 +5598,7 @@ uint32_t XB_CDECL BG_CheckProne(uint32_t entry_esp, uint32_t ecx, uint32_t ebx, 
     // DebugDraw_AddLine (EAX = the first point; second point, colour, the 0x009509a4 time, 1, 1, 0).
     const auto line = [&](uint32_t ret, uint32_t first, uint32_t second, uint32_t color) {
         const uint32_t args[6] = {second, color, title_global<uint32_t>(0x009509a4), 1, 1, 0};
-        pm_call_at(B, ret, 0x002b2f20, TitleRegs{first, org, 0, args[2], B + 0x44, B + 0x60}, 6, args);
+        pm_call_at(B, ret, own_address(&DebugDraw_AddLine), TitleRegs{first, org, 0, args[2], B + 0x44, B + 0x60}, 6, args);
     };
     const auto do_trace = [&](uint32_t ret, const TitleRegs& regs, uint32_t top = 0) {
         const uint32_t args[7] = {B + 0xa0, B + 0x10, B + 0x70, B + 0x80, B + 0x20, pass, mask};
@@ -5618,7 +5619,7 @@ uint32_t XB_CDECL BG_CheckProne(uint32_t entry_esp, uint32_t ecx, uint32_t ebx, 
         fl(0x20) = zero;
         fl(0x24) = back_yaw;
         fl(0x28) = zero;
-        pm_call_at(B, 0x002dce5b, 0x002a2af0, TitleRegs{ground_check ? arg[9] : 0, org, B + 0x60, B + 0x20,
+        pm_call_at(B, 0x002dce5b, own_address(&AnglesToAxis_entry), TitleRegs{ground_check ? arg[9] : 0, org, B + 0x60, B + 0x20,
                                                         B + 0x50, B + 0x44},
                    2, args);  // AnglesToAxis (forward B+0x60, right B+0x44, up B+0x50)
     }
@@ -5988,7 +5989,7 @@ void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, cons
     // 2 / 3). 0x00950bcc draws the prone direction.
     if (at<int32_t>(ps, 0x24) >= 4) {
         const TitleRegs regs{address_of(cmd), 0, 0, 0, 0, address_of(ps)};
-        g_ent_call(0x002dc3b0, &regs, 1, &trace);  // PM_UpdateLean
+        g_ent_call(own_address(&PM_UpdateLean_entry), &regs, 1, &trace);  // PM_UpdateLean
         return;
     }
     const float scale = title_global<float>(0x0083ebd4);  // 360 / 65536
@@ -6171,7 +6172,7 @@ void XB_REGS1 XB_CDECL PM_UpdateViewAngles(uint8_t* ps, const uint8_t* cmd, cons
     const int32_t type = at<int32_t>(ps, 0x24);
     if (type != 3 && type != 2) {
         const TitleRegs regs{address_of(cmd), 0, 0, 0, address_of(cmd), address_of(ps)};
-        g_ent_call(0x002dc3b0, &regs, 1, &trace);  // PM_UpdateLean
+        g_ent_call(own_address(&PM_UpdateLean_entry), &regs, 1, &trace);  // PM_UpdateLean
     }
 }
 

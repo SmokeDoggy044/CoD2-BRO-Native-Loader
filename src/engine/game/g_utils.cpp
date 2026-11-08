@@ -29,6 +29,7 @@
 #include "tr_main.h"
 #include "title_data.h"
 #include "phys.h"
+#include "pmove.h"
 
 namespace game {
 
@@ -202,7 +203,7 @@ void XB_CDECL G_LocationalTrace(uint32_t entry, uint32_t results, uint32_t start
     }
     const TitleRegs regs = {mins, start, results, maxs, title_global<uint32_t>(0x0082e29c), edi};
     const uint32_t args[11] = {results, mins, maxs, end, pass, mask, 0, 1, a6, 1, a7};
-    title_call_at_regs(frame - 8, 0x002e9af0, &regs, 11, args);  // SV_Trace
+    title_call_at_regs(frame - 8, own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace
 }
 
 PLATFORM_ASM_ENTRY(G_FreeFieldStrings_entry,
@@ -554,7 +555,7 @@ void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* star
     const TitleRegs regs = {a6, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start)), mask, pass,
                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(results)),
                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end))};
-    title_call_at_regs(top, 0x002600c0, &regs, 7, args);  // G_LocationalTrace
+    title_call_at_regs(top, own_address(&G_LocationalTrace_entry), &regs, 7, args);  // G_LocationalTrace
     if (!results[0x3d]) return;
     if (*reinterpret_cast<const uint32_t*>(results + 0x28) & 0x800) {
         // Started inside something that does not block missiles: no hit.
@@ -1559,7 +1560,7 @@ void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t, uint32_t, const float* ori
             const uint32_t client = ent_field<uint32_t>(ent, 0x23c);
             if (!client) continue;
             const TitleRegs regs{title_global<uint32_t>(0x0098540c), address_word(other), address_word(other), 0, client, 0};
-            if (!g_ent_call(0x002d6710, &regs, 0, nullptr)) continue;
+            if (!g_ent_call(own_address(&BG_PlayerInTrajectoryBox_entry), &regs, 0, nullptr)) continue;
         } else if (!SV_ClipToEntity(other, mins, maxs, 1)) {
             continue;
         }
@@ -1568,14 +1569,14 @@ void XB_REGS3 XB_CDECL G_TouchEntitiesInBox(uint32_t, uint32_t, const float* ori
             const TitleRegs regs{number, address_word(other), address_word(&number), title_global<uint32_t>(0x0097a814),
                                  address_word(ent), address_word(other)};
             const uint32_t args[2] = {title_global<uint32_t>(0x0097a814), address_word(&number)};
-            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "touch"
+            g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity "touch"
         }
         number = ent_field<uint32_t>(other, 0x224);
         {
             const TitleRegs regs{number, address_word(other), address_word(&number), title_global<uint32_t>(0x0097a814),
                                  address_word(ent), address_word(ent)};
             const uint32_t args[2] = {title_global<uint32_t>(0x0097a814), address_word(&number)};
-            g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "touch"
+            g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity "touch"
         }
         if (ent_field<uint32_t>(other, 0x338)) run_touch(other, ent);
         if (ent_field<uint32_t>(ent, 0x240) && ent_field<uint32_t>(ent, 0x338)) run_touch(ent, other);
@@ -1649,7 +1650,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
         hi[2] = origin[2] + up;
         const TitleRegs regs{maxs, ent_word, mins, 0, esi, edi};
         const uint32_t args[3] = {list, 0x540, 0x800000};
-        count = static_cast<int32_t>(title_call_at_regs(frame, 0x002cc400, &regs, 3, args));  // SV_AreaEntities
+        count = static_cast<int32_t>(title_call_at_regs(frame, own_address(&SV_AreaEntities), &regs, 3, args));  // SV_AreaEntities
         word(frame - 0x10) = 0x0025d639;
         word(frame - 0x14) = frame_ebp;
         for (uint32_t i = 0; i < 3; ++i) lo[i] = ent_field<float>(ent, 0xe0 + i * 4) + origin[i];
@@ -1672,7 +1673,7 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
         {
             const TitleRegs regs{eax, ent_word, maxs, mins, esi, edi};
             const uint32_t args[3] = {mins, maxs, 1};
-            const uint32_t hit = title_call_at_regs(frame, 0x002e8270, &regs, 3, args);  // SV_ClipToEntity
+            const uint32_t hit = title_call_at_regs(frame, own_address(&SV_ClipToEntity_entry), &regs, 3, args);  // SV_ClipToEntity
             word(frame - 0x10) = 0x0025d743;
             word(frame - 0x14) = frame_ebp;
             if (!hit) continue;
@@ -1680,14 +1681,14 @@ uint32_t XB_CDECL G_TouchType14EntitiesInBox(uint32_t entry, uint8_t* ent, const
         {
             const TitleRegs regs{ent_word, ent_word, 0, 0, esi, esi};
             const uint32_t args[1] = {title_global<uint32_t>(touch)};
-            title_call_at_regs(frame, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            title_call_at_regs(frame, own_address(&G_NotifyWithOwnHandle_entry), &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
             word(frame - 8) = 0x0025d759;
             word(frame - 0x30) = frame_ebp;
         }
         {
             const TitleRegs regs{esi, ent_word, title_global<uint32_t>(touch), 0, esi, ent_word};
             const uint32_t args[1] = {title_global<uint32_t>(touch)};
-            title_call_at_regs(frame - 4, 0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
+            title_call_at_regs(frame - 4, own_address(&G_NotifyWithOwnHandle_entry), &regs, 1, args);  // G_NotifyWithOwnHandle "touch"
             word(frame - 0xc) = 0x0025d769;
             word(frame - 0x34) = frame_ebp;
         }
@@ -2637,7 +2638,7 @@ void XB_CDECL G_DObjCreateForEnt(uint8_t* ent, uint32_t a, uint32_t b, uint32_t 
     // DObj_Create (EAX = c, EDX = a, ECX = d; stack b, the DObj).
     TitleRegs regs{c, 0, d, a, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent))};
     const uint32_t args[2] = {b, word_at(ent, 0x22c)};
-    g_ent_call(0x00245ff0, &regs, 2, args);
+    g_ent_call(own_address(&DObj_Create_entry), &regs, 2, args);
     word_at(reinterpret_cast<uint8_t*>(uintptr_t{word_at(ent, 0x22c)}), 0x88) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
 }
 
@@ -3125,7 +3126,7 @@ void XB_CDECL G_SightTrace(uint32_t entry, const float* end, const float* start,
         const TitleRegs regs{address_of(end), address_of(maxs), address_of(start), address_of(mins), address_of(end),
                              address_of(start)};
         const uint32_t args[6] = {address_of(mins), address_of(maxs), 0, content_mask, capsule, 0};
-        *result = static_cast<int32_t>(title_call_at_regs(frame, 0x002e4c00, &regs, 6, args));  // CM_SightTrace
+        *result = static_cast<int32_t>(title_call_at_regs(frame, own_address(&CM_SightTrace), &regs, 6, args));  // CM_SightTrace
     }
     if (*result) return;
     // The entities: the server's sector tree (0x00935664), a point clip when the box is empty.
@@ -3147,7 +3148,7 @@ void XB_CDECL G_SightTrace(uint32_t entry, const float* end, const float* start,
         const TitleRegs regs{address_of(c + 0x10), address_of(maxs), address_of(c), address_of(c), pass2,
                              address_of(start)};
         const uint32_t args[6] = {address_of(c), node, 0, 0x3f800000, address_of(c), address_of(c + 0x10)};
-        *result = static_cast<int32_t>(title_call_at_regs(frame, 0x002e8350, &regs, 6, args));  // SV_SectorSightTrace_r
+        *result = static_cast<int32_t>(title_call_at_regs(frame, own_address(&SV_SectorSightTrace_r), &regs, 6, args));  // SV_SectorSightTrace_r
         return;
     }
     // Box clip: {-half, half, half + padding (0x0082e640), start + centre, end + centre (four lanes each),
@@ -3175,7 +3176,7 @@ void XB_CDECL G_SightTrace(uint32_t entry, const float* end, const float* start,
     const TitleRegs regs{address_of(c), address_of(maxs), address_of(c + 0x40), address_of(c + 0x30), address_of(end),
                          address_of(start)};
     const uint32_t args[6] = {address_of(c), node, 0, 0x3f800000, address_of(c + 0x30), address_of(c + 0x40)};
-    *result = static_cast<int32_t>(title_call_at_regs(frame, 0x002e8650, &regs, 6, args));  // SV_SectorBoxSightTrace_r
+    *result = static_cast<int32_t>(title_call_at_regs(frame, own_address(&SV_SectorBoxSightTrace_r), &regs, 6, args));  // SV_SectorBoxSightTrace_r
 }
 
 PLATFORM_ASM_ENTRY(G_SendObjectiveUpdate_entry,
@@ -3633,7 +3634,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
     };
     if (angles) {
         const uint32_t args[1] = {F + 0x80};
-        bone_call(F, 0x002de4c5, 0x002a45b0, TitleRegs{angles, ebx, ecx, F + 0x80, skeleton, model}, 1,
+        bone_call(F, 0x002de4c5, own_address(&AnglesToAxisLeft2), TitleRegs{angles, ebx, ecx, F + 0x80, skeleton, model}, 1,
                   args);  // AnglesToAxisLeft2
         // Rows of three into 4-lane rows: the fourth lanes are the words after them (+0xcc, +0x4c, +0x2c).
         copy(F + 0xc0, F + 0x80, 3);
@@ -3660,7 +3661,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
     for (uint32_t i = 0; i < 4; ++i) T[i] = bone_float(F + 0x10 + i * 4);
     {
         const uint32_t args[3] = {model, skeleton, bone};
-        bone_call(F, 0x002de6cd, 0x002d7850,
+        bone_call(F, 0x002de6cd, own_address(&XModel_CalcBoneChildrenLocal),
                   TitleRegs{offset ? offset : bone_word(0x0082e29c), ebx, bone, bone_word(F + 0x18), skeleton, model},
                   3, args);  // XModel_CalcBoneChildrenLocal
     }
@@ -3740,9 +3741,9 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
     } else {
         // Root bone: the base pose's rows read as 4 lanes through stack copies whose fourth words are
         // +0x2c, +0x3c and the offset's fourth word (+0x1c).
-        const uint32_t parts = bone_call(F, 0x002df05e, 0x00014260, TitleRegs{0xffffffffu, ebx, ecx, model, skeleton, model},
+        const uint32_t parts = bone_call(F, 0x002df05e, own_address(&XModel_GetLodParts), TitleRegs{0xffffffffu, ebx, ecx, model, skeleton, model},
                                          0, nullptr);  // XModel_GetLodParts (EAX -1, EDX model)
-        const uint32_t record = bone_call(F, 0x002df068, 0x0001edb0, TitleRegs{bone, ebx, parts, model, skeleton, model},
+        const uint32_t record = bone_call(F, 0x002df068, own_address(&Array48_GetOrFirst), TitleRegs{bone, ebx, parts, model, skeleton, model},
                                           0, nullptr);  // Array48_GetOrFirst (EAX index, ECX array)
         const uint32_t M = skeleton + bone * 0x40;
         const float* const b = &bone_float(record);
@@ -3773,7 +3774,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
         copy(M + 0x30, F + 0x60, 4);
     }
     const uint32_t args[3] = {model, skeleton, bone};
-    bone_call(F, 0x002df39e, 0x002d7310, TitleRegs{skeleton, ebx, model, bone, skeleton, model}, 3,
+    bone_call(F, 0x002df39e, own_address(&XModel_CalcBoneChildrenOrtho), TitleRegs{skeleton, ebx, model, bone, skeleton, model}, 3,
               args);  // XModel_CalcBoneChildrenOrtho
 }
 

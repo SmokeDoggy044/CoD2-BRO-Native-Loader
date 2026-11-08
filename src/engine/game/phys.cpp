@@ -891,7 +891,7 @@ uint32_t XB_CDECL PhysWorld_GetBodyPair_Wrapper(uint32_t a, uint32_t b, uint32_t
     regs.esi = entry_esi;
     regs.edi = entry_edi;
     const uint32_t args[4] = {pool, 0, a, b};
-    return title_call_at_regs(entry_esp, 0x000b62d0, &regs, 4, args);  // PhysWorld_GetBodyPair
+    return title_call_at_regs(entry_esp, own_address(&PhysWorld_GetBodyPair_entry), &regs, 4, args);  // PhysWorld_GetBodyPair
 }
 
 namespace {
@@ -1333,7 +1333,7 @@ uint32_t XB_CDECL PhysWorld_GetBodyPair(uint32_t a, uint32_t b, uint32_t entry_e
     regs.edi = entry_edi;
     const uint32_t args[1] = {tree_address + 0xc};
     const uint32_t top = entry_esp - 0x18;
-    title_call_at_regs(top, 0x000b60b0, &regs, 1, args);  // PhysPairTree_Insert
+    title_call_at_regs(top, own_address(&PhysPairTree_Insert), &regs, 1, args);  // PhysPairTree_Insert
     word(top - 8) = 0x000b6313;
     uint8_t** const slot = reinterpret_cast<uint8_t**>(at<uint8_t*>(tree, 0x14) + 0x14);
     if (!*slot) {
@@ -4317,7 +4317,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
                 f.regs.eax = args[0];
                 f.regs.edx = local;
                 f.regs.esi = it;
-                f.call(0x000bc170, 0x000be3ed, 2, args);  // PhysBody_PredictTransform
+                f.call(own_address(&PhysBody_PredictTransform), 0x000be3ed, 2, args);  // PhysBody_PredictTransform
             }
         }
     }
@@ -4335,7 +4335,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
                 f.regs.ecx = args[0];
                 f.regs.eax = local;
                 f.regs.esi = it;
-                f.call(0x000c17a0, 0x000be425, 2, args);  // PhysObject1c0_PredictTransform
+                f.call(own_address(&PhysObject1c0_PredictTransform), 0x000be425, 2, args);  // PhysObject1c0_PredictTransform
             }
         }
     }
@@ -4349,7 +4349,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
         const uint32_t args[1] = {local};
         f.regs.edx = local;
         f.regs.ecx = w;
-        f.call(0x000bd380, 0x000be467, 1, args);  // PhysWorld_BuildIslands
+        f.call(own_address(&PhysWorld_BuildIslands), 0x000be467, 1, args);  // PhysWorld_BuildIslands
     }
     profile(0x0090a88c, one, 0x000be474);
     uint8_t* const head = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(local)});
@@ -4374,7 +4374,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
         const uint32_t args[3] = {word_addr(island), at<uint32_t>(world, 8), static_cast<uint32_t>(total)};
         f.regs.eax = args[1];
         f.regs.esi = args[0];
-        f.call(0x000c2220, 0x000be4fe, 3, args);  // PhysIsland_Solve
+        f.call(own_address(&PhysIsland_Solve), 0x000be4fe, 3, args);  // PhysIsland_Solve
     }
     at<int32_t>(world, 8) = total;
     title_global<uint8_t>(0x009098cc) = 0;
@@ -4410,7 +4410,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
             f.regs.ecx = w + 0x1fc;
             f.regs.edx = at<uint32_t>(world, 0x200);
             f.regs.ebx = static_cast<uint32_t>(i);
-            f.call(0x000b5c00, 0x000be5c0, 1, args);  // PhysConstraintPool30_Free
+            f.call(own_address(&PhysConstraintPool30_Free), 0x000be5c0, 1, args);  // PhysConstraintPool30_Free
             continue;
         }
         uint32_t* const current = at<uint32_t*>(record, 0x24);
@@ -4429,7 +4429,7 @@ void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last,
         f.regs.ecx = word_addr(tree);
         f.regs.edx = word_addr(next);
         f.regs.ebx = static_cast<uint32_t>(i);
-        f.call(0x000b60b0, 0x000be604, 1, args);  // PhysPairTree_Insert
+        f.call(own_address(&PhysPairTree_Insert), 0x000be604, 1, args);  // PhysPairTree_Insert
         uint8_t* const slot = at<uint8_t*>(tree, 0x14) + 0x14;
         *reinterpret_cast<uint8_t**>(slot) = record;
         at<uint8_t*>(record, 0x2c) = slot;
@@ -4487,7 +4487,7 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
                 f.regs.eax = args[0];
                 f.regs.edx = local;
                 f.regs.edi = it;
-                f.call(0x000c0a00, 0x000be6d0, 2, args);  // PhysBody_PreStep
+                f.call(own_address(&PhysBody_PreStep), 0x000be6d0, 2, args);  // PhysBody_PreStep
             }
         }
     }
@@ -4503,7 +4503,7 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
             f.regs.ecx = args[1];
             f.regs.edx = o + 0xd0;
             f.regs.edi = it;
-            f.call(0x000bb4f0, 0x000be721, 5, args);  // Phys_AngularVelocityBetweenFrames
+            f.call(own_address(&Phys_AngularVelocityBetweenFrames), 0x000be721, 5, args);  // Phys_AngularVelocityBetweenFrames
         }
     }
     const auto each = [&](uint32_t list_offset, uint32_t count_offset, uint32_t function, uint32_t return_address,
@@ -4522,8 +4522,8 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
             f.regs.edx = f.edx_out;
         }
     };
-    each(0x254, 0x260, 0x000b93d0, 0x000be758, local);  // PhysConstraint60_ComputeTargetRate
-    each(0x2a4, 0x2b0, 0x000b9500, 0x000be78c, local);  // PhysConstraintFrame_Update
+    each(0x254, 0x260, own_address(&PhysConstraint60_ComputeTargetRate), 0x000be758, local);  // PhysConstraint60_ComputeTargetRate
+    each(0x2a4, 0x2b0, own_address(&PhysConstraintFrame_Update), 0x000be78c, local);  // PhysConstraintFrame_Update
     uint32_t edx = f.edx_out;
     for (int32_t i = 0; i < n; ++i) {
         edx = (edx & ~0xffu) | (i + 1 == n ? 1u : 0u);
@@ -4532,7 +4532,7 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
         f.regs.ecx = w;
         f.regs.edx = edx;
         f.regs.edi = static_cast<uint32_t>(i + 1);
-        f.call(0x000be390, 0x000be7b1, 2, args);  // PhysWorld_Substep
+        f.call(own_address(&PhysWorld_Substep_entry), 0x000be7b1, 2, args);  // PhysWorld_Substep
         edx = f.edx_out;
     }
     {
@@ -4546,8 +4546,8 @@ void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_eb
     }
     f.top = entry_esp - 0x14;  // EBP popped
     f.regs.ebx = 0;
-    each(0x254, 0x260, 0x000b9430, 0x000be858, local_sub);  // PhysConstraint60_SnapToTarget
-    each(0x2a4, 0x2b0, 0x000b9440, 0x000be88c, local_sub);  // PhysConstraintFrame_Restore
+    each(0x254, 0x260, own_address(&PhysConstraint60_SnapToTarget), 0x000be858, local_sub);  // PhysConstraint60_SnapToTarget
+    each(0x2a4, 0x2b0, own_address(&PhysConstraintFrame_Restore), 0x000be88c, local_sub);  // PhysConstraintFrame_Restore
 }
 
 

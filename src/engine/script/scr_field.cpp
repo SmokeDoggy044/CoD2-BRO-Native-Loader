@@ -644,7 +644,7 @@ uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity) {
     const uint32_t object = title_call_at_regs(entry_esp, 0x0011db20, &regs, 1, object_args);  // GScr_GetEntScriptObject
     regs.ecx = object ? object : kEmptyKeyTable;
     const uint32_t get_args[1] = {0x12993a44};
-    return title_call_at_regs(entry_esp, 0x001e4a20, &regs, 1, get_args);  // ScriptKeyTable_GetStruct28
+    return title_call_at_regs(entry_esp, own_address(&ScriptKeyTable_GetStruct28), &regs, 1, get_args);  // ScriptKeyTable_GetStruct28
 }
 
 bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp) {
@@ -654,7 +654,7 @@ bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp)
         // No frame: ScrVehNodeField_script_uniquename_IsNonEmpty(&node) at the entry's ESP.
         TitleRegs regs{};
         regs.ecx = entry_esp + 8;
-        defined = static_cast<uint8_t>(title_call_at_regs(entry_esp, 0x001e46a0, &regs, 0, nullptr)) != 0;
+        defined = static_cast<uint8_t>(title_call_at_regs(entry_esp, own_address(&ScrVehNodeField_script_uniquename_IsNonEmpty_entry), &regs, 0, nullptr)) != 0;
     }
     *out = defined;
     return out;

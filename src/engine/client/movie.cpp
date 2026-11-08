@@ -9,6 +9,7 @@
 #include "stream.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -491,7 +492,7 @@ uint8_t XB_REGS1 XB_CDECL Subtitle_Start(const char* name, const char* category)
             return 0;
         }
         crt_sprintf(key, &title_global<char>(0x0082d7d0), category, subtitle);  // "%s_%s"
-        text = pointer<const char>(title_call_regs(0x0029d5f0, 0, address_of(key), 0));  // Loc_GetString (ESI)
+        text = pointer<const char>(title_call_regs(own_address(&Loc_GetString_entry), 0, address_of(key), 0));  // Loc_GetString (ESI)
         if (text == key || !text) {
             line2 = 0;
             line1 = 0;

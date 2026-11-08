@@ -157,7 +157,7 @@ void XB_CDECL G_NotifyWithEntity(uint32_t entry, uint8_t* ent, uint32_t notify, 
     const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
     const TitleRegs regs = {notify, ebx, handler, block, esi, self};
     const uint32_t args[3] = {self, notify, block};
-    title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
+    title_call_at_regs(block, own_address(&G_EntityRunNotifyCallbacks), &regs, 3, args);
 }
 
 // Calls G_NotifyWithEntity at its title address where the original's call puts it (the
@@ -184,7 +184,7 @@ void XB_CDECL G_NotifyWithOwnHandle(uint32_t entry, const uint8_t* ent, uint8_t*
     const TitleRegs regs = {notify, ebx, entity_number(ent), local, esi,
                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(notified))};
     const uint32_t args[2] = {notify, local};
-    title_call_at_regs(local, 0x000265a0, &regs, 2, args);  // G_NotifyWithEntity
+    title_call_at_regs(local, own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity
 }
 
 void XB_CDECL Scr_QueueNotify(uint32_t handle, uint32_t notify) {
@@ -436,7 +436,7 @@ void XB_CDECL G_NotifyWithEntity_2(uint32_t entry, uint8_t* ent, uint32_t notify
     const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
     const TitleRegs regs = {notify, ebx, handler, block, esi, self};
     const uint32_t args[3] = {self, notify, block};
-    title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
+    title_call_at_regs(block, own_address(&G_EntityRunNotifyCallbacks), &regs, 3, args);
 }
 
 // The parameter block {other's handle, 0, value as a float, undefined float} sits at entry ESP -
@@ -487,7 +487,7 @@ void XB_CDECL G_NotifyWithIntEntity(uint32_t entry, uint8_t* ent, uint32_t notif
     const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
     const TitleRegs regs = {notify, self, handler, block, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)), 0};
     const uint32_t args[3] = {self, notify, block};
-    title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
+    title_call_at_regs(block, own_address(&G_EntityRunNotifyCallbacks), &regs, 3, args);
 }
 
 PLATFORM_ASM_ENTRY(G_NotifyWithTwoStrings_entry,
@@ -787,7 +787,7 @@ void XB_CDECL Scr_PruneEntityWaitLists() {
             next = *ptr(next);
         }
         const TitleRegs regs{0, current, 0, 0, next, list};
-        if ((g_ent_call(0x0029ac20, &regs, 0, nullptr) & 0xff) && current) {  // Scr_EntityWaitList_FreeWaits
+        if ((g_ent_call(own_address(&Scr_EntityWaitList_FreeWaits_entry), &regs, 0, nullptr) & 0xff) && current) {  // Scr_EntityWaitList_FreeWaits
             Scr_UnlinkEntityWaitList(ptr(current));
             SmallHeap_Free(title_global<uint8_t*>(0x0095f570), reinterpret_cast<uint8_t*>(ptr(current)));
         }
@@ -1229,7 +1229,7 @@ uint8_t* XB_REGS2 XB_STDCALL Scr_InitWaitRecord(uint32_t kind, uint32_t value, u
     uint8_t* reference = nullptr;
     if (block) {
         const TitleRegs regs{0, 0, 0, 0, address_of(block), title_global<uint32_t>(0x008dda2c)};
-        reference = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(0x002fdf40, &regs, 0, nullptr)});  // ScrObject_GetThreadHandle
+        reference = reinterpret_cast<uint8_t*>(uintptr_t{g_ent_call(own_address(&ScrObject_GetThreadHandle_entry), &regs, 0, nullptr)});  // ScrObject_GetThreadHandle
     }
     word_at(record, 0x1c) = address_of(reference);
     word_at(reference, 0) = address_of(list + 0x24);
@@ -1303,7 +1303,7 @@ void resume_thread(uint32_t top, uint32_t ret, uint8_t* scheduler, uint8_t* thre
     regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thread));
     regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scheduler));
     regs.edi = regs.eax;
-    title_call_at_regs(top, 0x002fe100, &regs, 0, nullptr);
+    title_call_at_regs(top, own_address(&Scr_ResumeThread_entry), &regs, 0, nullptr);
     *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = ret;
 }
 
@@ -1445,14 +1445,14 @@ void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_tim
                 const uint8_t* const running = title_global<uint8_t*>(0x0093fcf0);  // com_sv_running
                 title_global<uint32_t>(0x00929c00) = 1;
                 if (!*reinterpret_cast<const uint32_t*>(running + 0x20))
-                    title_call_at_regs(entry - 0x114, 0x002f3de0, &none, 0, nullptr);  // CheckReloadStatus (stack-sensitive)
+                    title_call_at_regs(entry - 0x114, own_address(&CheckReloadStatus_entry), &none, 0, nullptr);  // CheckReloadStatus (stack-sensitive)
             }
         }
     }
 }
 
 uint8_t* XB_THISCALL ScrWaitRecord_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_call_regs(0x002fc230, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // ScrWaitRecord_Dtor (ESI)
+    title_call_regs(own_address(&ScrWaitRecord_Dtor_entry), 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // ScrWaitRecord_Dtor (ESI)
     if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f494), self);
     return self;
 }
@@ -1937,7 +1937,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_StartAnimNotify_c(uint32_t entry_es
         regs.esi = handle;
         regs.edi = node;
         const uint32_t args[1] = {handle};
-        node = title_call_at_regs(entry_esp - 8, 0x002028a0, &regs, 1, args);  // AnimNotify_Init
+        node = title_call_at_regs(entry_esp - 8, own_address(&AnimNotify_Init_entry), &regs, 1, args);  // AnimNotify_Init
     }
     title_global<uint32_t>(node) = 0x008feba8;
     const uint32_t tail = title_global<uint32_t>(0x008febac);

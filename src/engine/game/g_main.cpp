@@ -24,6 +24,9 @@
 #include "ngl.h"
 #include "phys.h"
 #include "snd.h"
+#include "fe_menus.h"
+#include "fx.h"
+#include "ui_menu.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -165,7 +168,7 @@ void XB_REGS1 XB_CDECL G_FreeEntityPhysics(uint8_t* ent) {
         const uint32_t ragdoll = word_at(ent, 0x238);
         if (ragdoll) {
             const TitleRegs regs{word_at(ent, 0x244), 0, 0, 0, ragdoll, address(ent)};
-            g_ent_call(0x0022fb30, &regs, 0, nullptr);  // Ragdoll_FreePhysics (ESI)
+            g_ent_call(own_address(&Ragdoll_FreePhysics_entry), &regs, 0, nullptr);  // Ragdoll_FreePhysics (ESI)
         }
         return;
     }
@@ -177,14 +180,14 @@ void XB_REGS1 XB_CDECL G_FreeEntityPhysics(uint8_t* ent) {
             const uint32_t physics = word_at(vehicle, 0x300);
             if (physics) {
                 const TitleRegs regs{physics, 0, 0, 0, physics, address(ent)};
-                g_ent_call(0x00225520, &regs, 0, nullptr);  // VehiclePhys_Destroy (ESI)
+                g_ent_call(own_address(&VehiclePhys_Destroy_entry), &regs, 0, nullptr);  // VehiclePhys_Destroy (ESI)
                 word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x248))), 0x300) = 0;
             }
             return;
         }
     }
     const TitleRegs regs{address(vehicle), 0, 0, 0, 0, address(ent)};
-    g_ent_call(0x00225ae0, &regs, 0, nullptr);  // Phys_RemoveEntity (EDI)
+    g_ent_call(own_address(&Phys_RemoveEntity_entry), &regs, 0, nullptr);  // Phys_RemoveEntity (EDI)
 }
 
 void XB_CDECL G_VehiclePhysicsFrame(float frame_time) {
@@ -239,7 +242,7 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
             if (title_global<int32_t>(0x008fb484) >= 6) return;
             const TitleRegs regs{0, 0, ragdoll, 0, address(ent), body};
             const uint32_t args[1] = {ragdoll};
-            g_ent_call(0x00234380, &regs, 1, args);  // Ragdoll_StartPhysics (EBX = 0, stdcall)
+            g_ent_call(own_address(&Ragdoll_StartPhysics_entry), &regs, 1, args);  // Ragdoll_StartPhysics (EBX = 0, stdcall)
             if (word_at(ent, 0x240)) G_KillEntityOutright(word_at(ent, 0x240), 0, ent);
         }
         alignas(16) float force[4];
@@ -261,7 +264,7 @@ void XB_REGS1 XB_CDECL G_PhysicsLaunch(uint8_t* ent, const float* point, const f
         const uint32_t vehicle = word_at(ent, 0x248);
         if (word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(vehicle)), 0x300)) return;
         const TitleRegs regs{vehicle, 0, 0, 0, address(ent), 0};
-        g_ent_call(0x00234560, &regs, 0, nullptr);  // VehiclePhys_GetOrCreate (ESI)
+        g_ent_call(own_address(&VehiclePhys_GetOrCreate_entry), &regs, 0, nullptr);  // VehiclePhys_GetOrCreate (ESI)
         return;
     }
     if (!(word_at(ent, 0x2a4) & 0x400000)) {
@@ -858,12 +861,12 @@ void XB_CDECL G_ProcessCheckpointTriggers() {
                     const uint32_t name = field<uint32_t>(self, 0x26c);
                     const TitleRegs regs{name ? name + 6 : 0, title_global<uint32_t>(0x0095f4e0), 0, 0, 0, 0};
                     const uint32_t args[1] = {0};
-                    g_ent_call(0x002cd750, &regs, 1, args);  // G_SaveCheckpoint (stdcall)
+                    g_ent_call(own_address(&G_SaveCheckpoint_entry), &regs, 1, args);  // G_SaveCheckpoint (stdcall)
                 }
                 uint32_t number = field<uint32_t>(other, 0x224);
                 const TitleRegs regs{0, address(other), 0, static_cast<uint32_t>(i), address(pair), address(self)};
                 const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address(&number)};
-                g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "trigger"
+                g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);  // G_NotifyWithEntity "trigger"
             }
         }
         --count;
@@ -891,7 +894,7 @@ void XB_CDECL G_RegisterCvars() {
             v[0] = static_cast<uint32_t>(static_cast<int32_t>(cvar - 0x00940a10) / 0x2c);
             v[1] = 0xffffffffu;
             const TitleRegs regs{0, vm, 0, 0, 0, 0};
-            g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update (EBX)
+            g_ent_call(own_address(&Cvar_Update_entry), &regs, 0, nullptr);  // Cvar_Update (EBX)
         }
         const uint32_t again = title_global<uint32_t>(entry);
         if (again) title_global<uint32_t>(entry + 16) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(again + 4));
@@ -902,7 +905,7 @@ void XB_CDECL G_RegisterCvars() {
         own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Cvar_Set2)(
             title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(vm) * 0x2c), 0x0082dfeb, 1);  // Cvar_Set2 ""
         const TitleRegs regs{0, vm, 0, 0, 0, 0};
-        g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update
+        g_ent_call(own_address(&Cvar_Update_entry), &regs, 0, nullptr);  // Cvar_Update
     }
 }
 
@@ -969,7 +972,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
     };
     const auto cvar_paused = [&call](uint32_t value) {
         const uint32_t args[3] = {0x0082ca00, value, 1};
-        call(0x0029c030, TitleRegs{}, 3, args);  // Cvar_Set2("cl_paused", value, 1)
+        call(own_address(&Cvar_Set2), TitleRegs{}, 3, args);  // Cvar_Set2("cl_paused", value, 1)
     };
     const auto open_menu = [&at, &call]() {
         uint8_t* const root = title_global<uint8_t*>(0x0095f8fc);
@@ -977,12 +980,12 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
         call(word_at(at(word_at(root, 0)), 0xc), TitleRegs{0, 0, address(root), 0, 0, 0}, 1, &six);  // thiscall
     };
     const auto stop_sounds = [&call]() {
-        call(0x002c8d60, TitleRegs{0, title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0}, 0, nullptr);  // S_StopAllSounds (EBX)
-        call(0x00298b20, TitleRegs{title_global<uint32_t>(0x0095f5c4), 0, 0, 0, 0, 0}, 0, nullptr);  // rumble stop (EAX)
+        call(own_address(&S_StopAllSounds_entry), TitleRegs{0, title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0}, 0, nullptr);  // S_StopAllSounds (EBX)
+        call(own_address(&RumbleQueue_ClearAll), TitleRegs{title_global<uint32_t>(0x0095f5c4), 0, 0, 0, 0, 0}, 0, nullptr);  // rumble stop (EAX)
     };
     if (title_global<uint32_t>(0x00985eb0)) {
         title_global<uint32_t>(0x00985eb0) = 0;
-        call(0x002512d0, TitleRegs{}, 0, nullptr);  // G_StartMissionEndFade
+        call(own_address(&G_StartMissionEndFade), TitleRegs{}, 0, nullptr);  // G_StartMissionEndFade
     }
     const uint32_t kind = title_global<uint32_t>(0x0095bf9c);
     if (!kind) return;
@@ -990,7 +993,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
     if (!end_time || end_time >= title_global<int32_t>(0x0098540c)) return;
     if (!title_global<uint8_t>(0x0095f67c)) {
         const uint32_t list = 0x008dd1d8;
-        call(0x002fc2a0, TitleRegs{}, 1, &list);  // stdcall
+        call(own_address(&Scr_AbortAllThreads), TitleRegs{}, 1, &list);  // stdcall
         stop_sounds();
         title_global<uint8_t>(0x0095f509) = 1;
         title_global<uint8_t>(0x0095f67c) = 1;
@@ -1002,7 +1005,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
         cvar_paused(0x0082e058);  // "1"
         title_global<uint8_t>(0x0095f919) = 1;
         word_at(at(menu()), 0x58) = 0;
-        call(0x0030cfb0, TitleRegs{0, 0, 0, 0, menu(), 0}, 0, nullptr);  // MissionSuccessFailMenu_ClearTexts (ESI)
+        call(own_address(&MissionSuccessFailMenu_ClearTexts_entry), TitleRegs{0, 0, 0, 0, menu(), 0}, 0, nullptr);  // MissionSuccessFailMenu_ClearTexts (ESI)
         open_menu();
         uint32_t language = 0x0082d014;  // "en"
         switch (title_global<int32_t>(0x0095f5dc)) {  // g_languageIndex, case table 0x0025308c
@@ -1039,7 +1042,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
             own_function<uint32_t XB_CDECL()>(&File_PumpRequests)();  // File_PumpRequests
             {
                 const TitleRegs pad{0, 0, own_function<PadCreate>(&IN_PadCreate)(), 0, 0, 0};
-                g_ent_call(0x00055e70, &pad, 0, nullptr);  // IN_PadUpdate (ECX)
+                g_ent_call(own_address(&IN_PadUpdate), &pad, 0, nullptr);  // IN_PadUpdate (ECX)
             }
             const uint32_t controller = title_global<uint32_t>(0x008d50d8);
             const uint32_t pad = own_function<PadCreate>(&IN_PadCreate)();
@@ -1047,7 +1050,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
                 title_global<uint8_t>(0x008d50dc) = 0;
                 if (!title_global<uint32_t>(0x0095f8f4) || title_global<uint8_t>(0x0095f538)) continue;
                 const TitleRegs pause{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
-                g_ent_call(0x002b6be0, &pause, 0, nullptr);  // S_PauseAllChannels (EAX)
+                g_ent_call(own_address(&S_PauseAllChannels), &pause, 0, nullptr);  // S_PauseAllChannels (EAX)
                 own_function<void XB_STDCALL(uint32_t)>(&S_CheckWaveBankNotifies)(title_global<uint32_t>(0x0095f4c0));  // S_CheckWaveBankNotifies
                 const uint32_t paused = word_at(title_global<uint8_t*>(0x0093fcd8), 0x20);
                 title_global<uint8_t>(0x0095f539) = paused != 0;
@@ -1065,13 +1068,13 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
                         pressed_pad, pressed_controller, 0xe)))  // IN_PadButtonPressed
                     continue;
                 const TitleRegs resume{title_global<uint32_t>(0x0095f4c4), 0, 0, 0, 0, 0};
-                g_ent_call(0x002b6ba0, &resume, 0, nullptr);  // S_ResumeAllChannels (EAX)
+                g_ent_call(own_address(&S_ResumeAllChannels), &resume, 0, nullptr);  // S_ResumeAllChannels (EAX)
                 own_function<CvarSet>(&Cvar_Set2)(
                     text(0x0082ca00), text(title_global<uint8_t>(0x0095f539) ? 0x0082e058 : 0x0082e098), 1);  // cl_paused
                 title_global<uint8_t>(0x0095f538) = 0;
                 const uint32_t consume_pad = own_function<PadCreate>(&IN_PadCreate)();
                 const TitleRegs consume{0, consume_pad, 0, 0, 0, title_global<uint32_t>(0x008d50d8)};
-                g_ent_call(0x00011b80, &consume, 0, nullptr);  // IN_PadConsumeAllPressed (EDI)
+                g_ent_call(own_address(&IN_PadConsumeAllPressed_entry), &consume, 0, nullptr);  // IN_PadConsumeAllPressed (EDI)
             }
             using Set = void XB_CDECL(uint32_t);
             own_function<void XB_CDECL()>(&nglBeginFrame)();  // nglBeginFrame
@@ -1086,32 +1089,32 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
             own_function<Set>(&nglSetSceneDepthTest)(0);
             own_function<Set>(&nglSetSceneDepthEnable)(0);
             const TitleRegs ui{0, 0, 0, 0, 0x0095f8d0, 0};
-            g_ent_call(0x003153d0, &ui, 0, nullptr);         // UIRoot_DrawInGameScreens (ESI)
+            g_ent_call(own_address(&UIRoot_DrawInGameScreens_entry), &ui, 0, nullptr);         // UIRoot_DrawInGameScreens (ESI)
             own_function<void XB_CDECL()>(&nglPopScene)();  // nglPopScene
             own_function<void XB_CDECL()>(&nglEndFrame)();  // nglEndFrame
             const uint32_t dt = title_global<uint32_t>(0x008ddaa0);
-            g_ent_call(0x00315520, &ui, 1, &dt);  // UIRoot_UpdateInGameScreens (ESI, stdcall)
+            g_ent_call(own_address(&UIRoot_UpdateInGameScreens_entry), &ui, 1, &dt);  // UIRoot_UpdateInGameScreens (ESI, stdcall)
         }
     }
     if (title_global<uint32_t>(0x00985ebc)) {
-        call(0x0029b860, TitleRegs{0, 0, 0, 0, title_global<uint32_t>(0x0095f5b4), 0}, 0, nullptr);  // FX_FreeAllEffects (ESI)
+        call(own_address(&FX_FreeAllEffects_entry), TitleRegs{0, 0, 0, 0, title_global<uint32_t>(0x0095f5b4), 0}, 0, nullptr);  // FX_FreeAllEffects (ESI)
         stop_sounds();
         cvar_paused(0x0082e058);  // "1"
         title_global<uint8_t>(0x0095f919) = 1;
         word_at(at(menu()), 0x58) = 1;
         const uint32_t reason = title_global<uint32_t>(0x00985ec0);
         const uint32_t failed = reason ? reason + 6 : 0;
-        call(0x0030cfd0, TitleRegs{0, 0, 0, 0, menu(), 0}, 1, &failed);  // MissionSuccessFailMenu_SetFailedText (ESI, stdcall)
+        call(own_address(&MissionSuccessFailMenu_SetFailedText_entry), TitleRegs{0, 0, 0, 0, menu(), 0}, 1, &failed);  // MissionSuccessFailMenu_SetFailedText (ESI, stdcall)
         open_menu();
         return;
     }
     if (kind == 4) {
-        call(0x002b1eb0, TitleRegs{0x0082c894, 0, 0, 0, 0, 0}, 0, nullptr);  // Cmd_ExecuteRegisteredCommand "reboot"
+        call(own_address(&Cmd_ExecuteRegisteredCommand), TitleRegs{0x0082c894, 0, 0, 0, 0, 0}, 0, nullptr);  // Cmd_ExecuteRegisteredCommand "reboot"
     } else if (kind == 0x10) {
-        call(0x0024acb0, TitleRegs{}, 0, nullptr);  // G_EndGame
+        call(own_address(&G_EndGame), TitleRegs{}, 0, nullptr);  // G_EndGame
     } else {
         const uint32_t zero = 0;
-        call(0x002bffd0, TitleRegs{0x00838c14, 0, 0, 0, 0, 0}, 1, &zero);  // SV_GameSendServerCommand "opendeadscreen"
+        call(own_address(&SV_GameSendServerCommand), TitleRegs{0x00838c14, 0, 0, 0, 0, 0}, 1, &zero);  // SV_GameSendServerCommand "opendeadscreen"
     }
     title_global<int32_t>(0x00985e28) = 0;
 }
@@ -1220,7 +1223,7 @@ uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full) {
         HudElem_ClearAll();
         BadPlace_ClearAll();
         const TitleRegs regs{0, (ebx & ~0xffu) | 1, 0, 0, 0, 0};
-        g_ent_call(0x002e8bb0, &regs, 0, nullptr);  // G_FreeAllDObjs
+        g_ent_call(own_address(&G_FreeAllDObjs_entry), &regs, 0, nullptr);  // G_FreeAllDObjs
         AnimTree_FlushClearLists();
     }
     SV_GameSendServerCommand(reinterpret_cast<const char*>(uintptr_t{0x0083b2f0}), 0);  // "snd_fade 1 0"
@@ -1525,7 +1528,7 @@ void XB_CDECL G_LoadLevelScriptModule(uint32_t entry) {
     stack(entry - 0x10) = 0x0030b9c0;
     title_global<uint32_t>(0x00927090) = main;  // g_levelScriptMain
     const TitleRegs main_regs{main, 0, 0, 0, main, 0};
-    title_call_at_regs(entry - 4, 0x0030adb0, &main_regs, 0, nullptr);  // G_SetupLevelScriptImports
+    title_call_at_regs(entry - 4, own_address(&G_SetupLevelScriptImports), &main_regs, 0, nullptr);  // G_SetupLevelScriptImports
     stack(entry - 8) = 0x0030b9d0;
     title_call_at_regs(entry - 4, main, &main_regs, 0, nullptr);
     stack(entry - 8) = 0x0030b9d2;

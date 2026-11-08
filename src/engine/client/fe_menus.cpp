@@ -10,6 +10,8 @@
 #include "ui_menu.h"
 #include "movie.h"
 #include "qcommon_core.h"
+#include "snd.h"
+#include "ui_panel.h"
 
 // Calls a title function with EAX, EBX, ECX, EDX, ESI and EDI from `regs` and `count` stack words (args[0] pushed
 // last); returns its EAX. ESP comes back from EBP, so cdecl and stdcall callees both fit.
@@ -124,13 +126,13 @@ void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_F
 void panel_free_elements(uint8_t* panel) {
     TitleRegs regs{};
     regs.eax = address_of(panel);
-    title_call(0x00316620, regs);
+    title_call(own_address(&Panel_FreeElements), regs);
 }
 void panel_draw(uint8_t* panel, uint8_t* menu) {
     TitleRegs regs{};
     regs.esi = address_of(panel);
     regs.edi = address_of(menu);
-    title_call(0x00310010, regs);
+    title_call(own_address(&Panel_Draw_entry), regs);
 }
 
 // The destructors' shared part: the vtable, the panel +0x34 and its two aligned blocks.
@@ -174,14 +176,14 @@ void show_dialog(uint32_t name) {
     TitleRegs regs{};
     regs.eax = name;
     const uint32_t args[5] = {address_of(dialog_mgr()), 0, 0, kEmptyString, 1};
-    title_call(0x003319e0, regs, 5, args);
+    title_call(own_address(&UI_ShowDialog_entry), regs, 5, args);
 }
 // UI_DialogAddButton by its title address.
 void add_button(uint32_t label, uint32_t handler) {
     TitleRegs regs{};
     regs.eax = address_of(dialog_mgr());
     const uint32_t args[2] = {label, handler};
-    title_call(0x00012320, regs, 2, args);
+    title_call(own_address(&UI_DialogAddButton), regs, 2, args);
 }
 // UI_DialogAddButton inlined: the next button's label (+0x30), handler and shown (+0x20 (0)).
 void add_button_inline(uint32_t label, uint32_t handler) {
@@ -201,7 +203,7 @@ void layout_buttons() {
     TitleRegs regs{};
     regs.eax = (address_of(dialog_mgr()) & ~0xffu) | 1;
     regs.edi = address_of(current_dialog());
-    title_call(0x0031f4b0, regs);
+    title_call(own_address(&Dialog_LayoutButtons_entry), regs);
 }
 
 // A yes / no dialog with NO selected (the pause and Live dialogs: frame of two pushes).
@@ -313,8 +315,8 @@ void set_progress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint3
     field<int32_t>(menu, 0x44) = last;
     run(p.show_missions, uint32_t(last), p.returns[1]);
     if (field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) != p.redraw_state) return;
-    run(0x002f1e60, 0, p.returns[2]);  // SCR_UpdateScreen
-    run(0x002f1e60, 0, p.returns[3]);
+    run(own_address(&SCR_UpdateScreen_entry), 0, p.returns[2]);  // SCR_UpdateScreen
+    run(own_address(&SCR_UpdateScreen_entry), 0, p.returns[3]);
 }
 
 }  // namespace
@@ -433,7 +435,7 @@ void loading_restore_selection(uint8_t* menu, const LoadingLayout& layout, const
         AtTop at(entry_esp - 4);
         TitleRegs regs{};
         regs.ecx = address_of(menu);
-        title_call(0x00314b20, regs);  // UIMenu_RestoreSelection
+        title_call(own_address(&UIMenu_RestoreSelection), regs);  // UIMenu_RestoreSelection
     }
     menu[0x38] = 0;
     field<int32_t>(menu, 0x40) = 0;
@@ -716,9 +718,9 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
         Cvar_Set2(text_at(0x0082bc68), mutable_text_at(kZero), 1);  // cg_norender
         title_global<uint8_t>(0x0095f919) = 0;
         sound.eax = title_global<uint32_t>(0x0095f4c4);
-        title_call(0x002c8d30, sound);  // stops the idle channels
+        title_call(own_address(&S_StopUnpausedChannels), sound);  // stops the idle channels
         sound.eax = title_global<uint32_t>(0x0095f4c4);
-        title_call(0x002b6ba0, sound);              // S_ResumeAllChannels
+        title_call(own_address(&S_ResumeAllChannels), sound);              // S_ResumeAllChannels
         title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls_keyCatchers
         Key_ClearStates();
         return;
@@ -727,14 +729,14 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
         call(field<uint8_t*>(menu, 0x4c), 0x78, kEmptyString);
         menu[0x5d] = 0;
         if (index == 0)
-            title_call(0x003307a0, TitleRegs{});  // MissionSuccessFailMenu_ReloadCheckpoint
+            title_call(own_address(&MissionSuccessFailMenu_ReloadCheckpoint), TitleRegs{});  // MissionSuccessFailMenu_ReloadCheckpoint
         else if (index == 1)
-            title_call(0x0032d340, TitleRegs{});  // MissionSuccessFailMenu_OnRetryYes
+            title_call(own_address(&MissionSuccessFailMenu_OnRetryYes), TitleRegs{});  // MissionSuccessFailMenu_OnRetryYes
         return;
     }
     if (index == 2 || (index == 1 && (state == 0 || !title_global<uint8_t*>(0x0095f4e0)[0x390]))) {
         const uint32_t args[1] = {address_of(menu)};
-        title_call(0x00334070, TitleRegs{}, 1, args);  // MissionSuccessFailMenu_ShowRetryDialog
+        title_call(own_address(&MissionSuccessFailMenu_ShowRetryDialog_entry), TitleRegs{}, 1, args);  // MissionSuccessFailMenu_ShowRetryDialog
         return;
     }
     if (index == 1) {
@@ -744,14 +746,14 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
         TitleRegs regs{};
         regs.eax = address_of(dialog_mgr());
         const uint32_t one[1] = {1};
-        title_call(0x00012370, regs, 1, one);  // UI_DialogSetDefaultButton
+        title_call(own_address(&UI_DialogSetDefaultButton), regs, 1, one);  // UI_DialogSetDefaultButton
         // The tail jump to UI_DialogLayoutButtons: flag 1 in this function's argument slot, run at the entry ESP
         // (its return address is this function's).
         const uint32_t return_address = stack_word(entry_esp);
         stack_word(entry_esp + 4) = 1;
         regs.eax = address_of(dialog_mgr());
         AtTop tail(entry_esp + 4);
-        title_call(0x00012390, regs);
+        title_call(own_address(&UI_DialogLayoutButtons), regs);
         stack_word(entry_esp) = return_address;
         return;
     }
@@ -769,7 +771,7 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
         TitleRegs regs{};
         regs.esi = address_of(title_global<uint8_t*>(0x0095f8fc));
         const uint32_t args[1] = {7};
-        title_call(0x0032de50, regs, 1, args);
+        title_call(own_address(&CL_PauseIntoFrontEnd_entry), regs, 1, args);
         return;
     }
     field<int32_t>(menu, 0x58) = 2;
@@ -781,9 +783,9 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
     // 0x0030cfb0 (menu in ESI): the texts +0x40 and +0x44 set to "".
     TitleRegs regs{};
     regs.esi = address_of(menu);
-    title_call(0x0030cfb0, regs);
+    title_call(own_address(&MissionSuccessFailMenu_ClearTexts_entry), regs);
     sound.eax = title_global<uint32_t>(0x0095f4c4);
-    title_call(0x002b6ba0, sound);                               // S_ResumeAllChannels
+    title_call(own_address(&S_ResumeAllChannels), sound);                               // S_ResumeAllChannels
     Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
     Cmd_ExecuteRegisteredCommand(text_at(title_global<uint8_t*>(0x0095f4e0)[0x390] ? 0x0082abf4    // map_restart_check
                                                                                     : 0x0082abdc));  // _internal
@@ -838,7 +840,7 @@ void XB_CDECL LoadMaubeugeMenu_RestoreSelection(uint8_t* menu, uint32_t entry_es
     AtTop at(entry_esp - 4);  // push esi
     TitleRegs regs{};
     regs.ecx = address_of(menu);
-    title_call(0x00314b20, regs);  // UIMenu_RestoreSelection
+    title_call(own_address(&UIMenu_RestoreSelection), regs);  // UIMenu_RestoreSelection
     menu[0x38] = 0;
     call(field<uint8_t*>(menu, 0x58), 0x6c, kLoading);
     set_alpha(field<uint8_t*>(menu, 0x44), kOneFloat);

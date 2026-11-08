@@ -70,13 +70,13 @@ void ptrvector_resize(uint8_t* vector, uint32_t count) {
     TitleRegs regs{};
     regs.esi = address_of(vector);
     regs.ebx = count;
-    ui_call_regs(0x00013970, &regs, 0, nullptr);
+    ui_call_regs(own_address(&PtrVector_Resize_entry), &regs, 0, nullptr);
 }
 void ptrvector_push(uint8_t* vector, uint8_t* const* value) {
     TitleRegs regs{};
     regs.esi = address_of(vector);
     const uint32_t args[1] = {address_of(value)};
-    ui_call_regs(0x000138c0, &regs, 1, args);
+    ui_call_regs(own_address(&PtrVector_PushBack_entry), &regs, 1, args);
 }
 
 // Little-endian reads at data + *offset, advancing it.
@@ -103,7 +103,7 @@ void read_vec3(const uint8_t* data, uint32_t* offset, float* out) {
     regs.eax = address_of(data);
     regs.ecx = address_of(offset);
     regs.edi = address_of(out);
-    ui_call_regs(0x00316480, &regs, 0, nullptr);
+    ui_call_regs(own_address(&Panel_ReadVec3_entry), &regs, 0, nullptr);
 }
 
 float bits_float(uint32_t bits) {
@@ -476,7 +476,7 @@ void XB_REGS1 XB_STDCALL Panel_CreatePicture(uint32_t* offset, uint8_t* panel, c
         regs.eax = address_of(data);
         regs.edi = address_of(offset);
         const uint32_t args[1] = {address_of(record)};
-        ui_call_regs(0x0032c0b0, &regs, 1, args);  // the material record
+        ui_call_regs(own_address(&Panel_ReadMaterial_entry), &regs, 1, args);  // the material record
     }
     const int32_t mesh_count = read_i16(data, offset);
     for (int32_t i = 0; i < mesh_count; ++i) {
@@ -522,12 +522,12 @@ void XB_THISCALL Panel_LoadNode_r(uint8_t* panel, const uint8_t* data, uint32_t*
     regs.eax = address_of(offset);
     regs.ecx = address_of(data);
     const char* const name = reinterpret_cast<const char*>(
-        uintptr_t{ui_call_regs(0x00316530, &regs, 0, nullptr)});  // the name, made a C string in place
+        uintptr_t{ui_call_regs(own_address(&Panel_ReadCString), &regs, 0, nullptr)});  // the name, made a C string in place
     alignas(16) float local[16];
     regs = TitleRegs{};
     regs.esi = address_of(offset);
     const uint32_t args[2] = {address_of(local), address_of(data)};
-    ui_call_regs(0x00321430, &regs, 2, args);  // the node transform (four rows)
+    ui_call_regs(own_address(&Panel_ReadTransform_entry), &regs, 2, args);  // the node transform (four rows)
 
     // Each row of the parent times the node's transform; the translation row adds the node's.
     alignas(16) float out[16];

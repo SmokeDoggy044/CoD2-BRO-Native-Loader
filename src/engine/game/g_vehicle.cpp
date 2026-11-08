@@ -24,6 +24,10 @@
 #include "sv.h"
 #include "title_data.h"
 #include "ragdoll.h"
+#include "cg_ents.h"
+#include "g_combat.h"
+#include "pmove.h"
+#include "stream.h"
 
 namespace game {
 
@@ -476,7 +480,7 @@ void XB_CDECL Vehicle_PhysicsPreFrame() {
         uint8_t* ent = *item;
         std::memcpy(at<uint8_t*>(ent, 0x154) + 0x160, ent + 0x170, 0x40);
         const uint32_t body = at<uint32_t>(ent, 0x154);
-        vehicle_call(0x002ddf80, body, 0, 0, address_of(ent + 0x1b0), body + 0x1a0, 0);  // G_SetPoseFromPhysics
+        vehicle_call(own_address(&G_SetPoseFromPhysics), body, 0, 0, address_of(ent + 0x1b0), body + 0x1a0, 0);  // G_SetPoseFromPhysics
     }
 }
 
@@ -486,7 +490,7 @@ uint32_t XB_REGS3 XB_CDECL Turret_IsUsableBy(uint8_t* player, uint32_t, uint8_t*
     if (turret[0x297]) return 0;
     if (!info) return 0;
     if (!at<uint32_t>(turret, 0x29c)) return 0;
-    if (!vehicle_call(0x00254bd0, at<uint32_t>(turret, 0x29c), 0, 0, address_of(turret), address_of(player), 0)) return 0;
+    if (!vehicle_call(own_address(&Turret_IsPlayerWithinArc_entry), at<uint32_t>(turret, 0x29c), 0, 0, address_of(turret), address_of(player), 0)) return 0;
     const uint8_t* client = at<uint8_t*>(player, 0x23c);
     if (at<uint32_t>(client, 0x3c)) return 0;
     return at<uint32_t>(client, 0x60) != 0;
@@ -516,7 +520,7 @@ void XB_CDECL G_RunPlayerVehicleThinks(uint32_t ebx) {
         uint8_t* ent = entity_from_handle(handle);
         if (ent[0x297] != 2) continue;
         // The original pushes its caller's EBX as G_RunThink's argument (entity in ESI).
-        vehicle_call(0x0024ac50, 0, 0, 0, address_of(ent), static_cast<uint32_t>(i) * 0x340, ebx);  // G_RunThink
+        vehicle_call(own_address(&G_RunThink_entry), 0, 0, 0, address_of(ent), static_cast<uint32_t>(i) * 0x340, ebx);  // G_RunThink
     }
     title_global<uint32_t>(0x0095f684) = 0;
 }
@@ -535,7 +539,7 @@ uint32_t XB_CDECL Vehicle_InitBrushModels(uint32_t eax) {
             const uint8_t* collmap = Vehicle_FindCollmap(at<const char*>(at<uint8_t*>(ent, 0x258), 0x48));
             if (collmap && at<uint16_t>(collmap, 6)) {
                 at<uint16_t>(ent, 6) = at<uint16_t>(collmap, 6);
-                vehicle_call(0x002d87a0, address_of(ent), 0, 0, address_of(ent), 0, 0);  // SV_SetBrushModel
+                vehicle_call(own_address(&SV_SetBrushModel), address_of(ent), 0, 0, address_of(ent), 0, 0);  // SV_SetBrushModel
                 at<uint32_t>(ent, 0x134) = 0x800000;
                 if (at<uint32_t>(ent, 0x2a0) & 1) at<uint32_t>(ent, 0x134) = 0xa00000;
             }
@@ -549,8 +553,8 @@ uint32_t XB_CDECL Vehicle_Use(uint8_t* self, uint8_t* other) {
     const uint8_t* client = at<uint8_t*>(other, 0x23c);
     if (!client) return 0;
     if (at<uint32_t>(client, 0xc0) & 0x100000)
-        return vehicle_call(0x00260480, address_of(client), 0, 0, 0, address_of(other), 0);  // Vehicle_ExitPlayer
-    return vehicle_call(0x0025bb60, address_of(self), 0, 0, 0, address_of(other), 0);  // Vehicle_EnterPlayer
+        return vehicle_call(own_address(&Vehicle_ExitPlayer_entry), address_of(client), 0, 0, 0, address_of(other), 0);  // Vehicle_ExitPlayer
+    return vehicle_call(own_address(&Vehicle_EnterPlayer_entry), address_of(self), 0, 0, 0, address_of(other), 0);  // Vehicle_EnterPlayer
 }
 
 void XB_CDECL Vehicle_Controller(uint8_t* ent) {
@@ -579,7 +583,7 @@ void XB_CDECL Vehicle_Die(uint8_t* self, uint32_t, const uint8_t* attacker, uint
     Vehicle_StopEffects(self);
     if (const uint32_t handle = at<uint32_t>(self, 0x1a0)) {
         // The driver gets out (Vehicle_ExitPlayer, player in EDI; 0 when the handle is stale).
-        vehicle_call(0x00260480, handle & 0xfff, 0, 0, 0, address_of(entity_from_handle(handle)), 0);
+        vehicle_call(own_address(&Vehicle_ExitPlayer_entry), handle & 0xfff, 0, 0, 0, address_of(entity_from_handle(handle)), 0);
     }
     if (!attacker || !attacker[3]) return;
     const uint32_t kind = at<uint32_t>(weapon_def(attacker[3]), 0x94);
@@ -604,7 +608,7 @@ uint32_t XB_CDECL BG_InitDefaultWeapon() {
     // 0x00024820 hands EAX and EDX (the zone: the memory system's +0x34) on to
     // Stream_ListSearchZones; it pops its six arguments.
     const uint32_t args[6] = {title_global<uint32_t>(0x0095f5d4), address_of(&found), 0x00835620, length, 0x002bc7d0, found};
-    return vehicle_call_args(0x00024820, title_global<uint32_t>(0x0095f5d4), at<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34), 6, args);
+    return vehicle_call_args(own_address(&Stream_ForEachAssetWithPrefix), title_global<uint32_t>(0x0095f5d4), at<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34), 6, args);
 }
 
 PLATFORM_ASM_ENTRY(G_ReleaseTurretUser_entry,
@@ -615,9 +619,9 @@ uint8_t* XB_CDECL G_ReleaseTurretUser(uint8_t* turret) {
     const uint32_t handle = at<uint32_t>(turret, 0x1a0);
     if (uint8_t* user = entity_from_handle(handle)) {
         if (at<uint32_t>(user, 0x23c)) {
-            vehicle_call(0x0025b3f0, address_of(turret), 0, 0, 0, address_of(turret), 0);  // G_ClientStopUsingTurret
+            vehicle_call(own_address(&G_ClientStopUsingTurret), address_of(turret), 0, 0, 0, address_of(turret), 0);  // G_ClientStopUsingTurret
         } else if (const uint32_t actor = at<uint32_t>(user, 0x240)) {
-            vehicle_call(0x00205ef0, actor, 0, 0, actor, address_of(turret), 0);  // Actor_LeaveTurret
+            vehicle_call(own_address(&Actor_LeaveTurret_entry), actor, 0, 0, actor, address_of(turret), 0);  // Actor_LeaveTurret
         }
     }
     uint8_t* info = at<uint8_t*>(turret, 0x24c);
@@ -785,10 +789,10 @@ PLATFORM_ASM_ENTRY(Player_UpdateTurretUse_entry,
 void XB_CDECL Player_UpdateTurretUse(uint8_t* player) {
     uint8_t* turret = entity_from_handle(at<uint32_t>(player, 0x1a0));
     if (turret[0x297] == 1 && at<int32_t>(turret, 0x350) > 0) {
-        vehicle_call_ebx(0x00271b60, address_of(player), address_of(player), address_of(turret));
+        vehicle_call_ebx(own_address(&Turret_UpdatePlayerFire_entry), address_of(player), address_of(player), address_of(turret));
         return;
     }
-    vehicle_call(0x0025b3f0, address_of(player), 0, 0, 0, 0, 0);  // G_ClientStopUsingTurret
+    vehicle_call(own_address(&G_ClientStopUsingTurret), address_of(player), 0, 0, 0, 0, 0);  // G_ClientStopUsingTurret
 }
 
 // A path state: two int16 at +0, four words, three vec3 (+0x14, +0x20, +0x2c), then two path nodes
@@ -893,8 +897,8 @@ void XB_REGS1 XB_CDECL Vehicle_SetSwitchNodes(uint32_t node_a, uint8_t* state, u
     const uint8_t* const to = veh_node(b);
     const uint8_t* const from = veh_node(a);
     // 0x00248080 (ESI = path node, EDI = vehicle node): copies the node into the path state.
-    vehicle_call(0x00248080, 0, 0, 0, address_of(state + 0x38), address_of(from), 0);
-    vehicle_call(0x00248080, 0, 0, 0, address_of(state + 0x78), address_of(from), 0);
+    vehicle_call(own_address(&VehNode_CopyToPathNode_entry), 0, 0, 0, address_of(state + 0x38), address_of(from), 0);
+    vehicle_call(own_address(&VehNode_CopyToPathNode_entry), 0, 0, 0, address_of(state + 0x78), address_of(from), 0);
     const uint32_t index = static_cast<uint32_t>(static_cast<int32_t>(b));
     at<uint32_t>(state, 0x74) = (at<uint32_t>(state, 0x74) & ~0x3fffu) | (index & 0x3fffu);
     at<float>(state, 0x58) = at<float>(to, 0x14) - at<float>(from, 0x14);
@@ -1006,7 +1010,7 @@ void XB_STDCALL Vehicle_UpdateFromPhysics(uint8_t* record) {
     }
     uint8_t* const entity = at<uint8_t*>(record, 0x154);
     std::memcpy(entity + 0x160, m, 0x40);
-    vehicle_call(0x002ddf80, address_of(entity), 0, address_of(record) + 0x160, address_of(m + 16), address_of(entity) + 0x1a0,
+    vehicle_call(own_address(&G_SetPoseFromPhysics), address_of(entity), 0, address_of(record) + 0x160, address_of(m + 16), address_of(entity) + 0x1a0,
                  0);  // G_SetPoseFromPhysics
     for (uint32_t i = 0; i < 4; ++i) {
         const uint32_t name = title_global<uint32_t>(0x0098a490 + i * 4);
@@ -1061,7 +1065,7 @@ float* XB_CDECL VehiclePhys_GetWheelBounds(uint8_t* ent, float* wheels, float* s
     *height = at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x1c0);
     for (uint32_t i = 0; i < 4; ++i) {
         alignas(16) float buffer[4];
-        const uint32_t origin = call_eax_ecx_ebx(0x0022d580, address_of(ent), i, address_of(buffer));  // G_DObjGetTagLocalOrigin
+        const uint32_t origin = call_eax_ecx_ebx(own_address(&G_DObjGetTagLocalOrigin_entry), address_of(ent), i, address_of(buffer));  // G_DObjGetTagLocalOrigin
         std::memcpy(wheels + i * 4, pointer<float>(origin), 16);
         wheels[i * 4 + 2] = title_global<float>(0x0083ef10);  // 15
     }
@@ -1090,7 +1094,7 @@ uint8_t* XB_CDECL VehiclePhys_GetOrCreate(uint8_t* ent) {
     uint8_t* const existing = at<uint8_t*>(at<uint8_t*>(ent, 0x248), 0x300);
     if (existing) return existing;
     uint8_t* const record = VehiclePhys_AllocFromPool(0, pointer<uint8_t>(0x008fe0d0));
-    call_eax_ecx_ebx(0x00233c40, address_of(ent), 0, address_of(record));  // VehiclePhys_Init (EAX entity, EBX record)
+    call_eax_ecx_ebx(own_address(&VehiclePhys_Init_entry), address_of(ent), 0, address_of(record));  // VehiclePhys_Init (EAX entity, EBX record)
     at<uint8_t*>(at<uint8_t*>(ent, 0x248), 0x300) = record;
     return record;
 }
@@ -1607,7 +1611,7 @@ uint32_t XB_CDECL ClientThink_RunPendingTouch(uint8_t* ent) {
     if (title_global<int32_t>(0x0098540c) - at<int32_t>(client, 0x62c) <= title_global<int32_t>(0x0095bc34)) return 0;  // level.time
     at<uint32_t>(client, 0x628) = 0;
     // EDI = the touched entity (notified), as the original (0x002509a3): EDI 0 crashed G_NotifyWithEntity on weapon pickup.
-    vehicle_call(0x0024f570, address_of(ent), 0, 0, 0, address_of(other), title_global<uint32_t>(0x0097a814));  // G_NotifyWithOwnHandle(touch)
+    vehicle_call(own_address(&G_NotifyWithOwnHandle_entry), address_of(ent), 0, 0, 0, address_of(other), title_global<uint32_t>(0x0097a814));  // G_NotifyWithOwnHandle(touch)
     const uint32_t touch = at<uint32_t>(other, 0x338);
     if (!touch) return 0;
     at<uint8_t>(other, 0x297) = 1;
@@ -2106,12 +2110,12 @@ void XB_CDECL Player_Touch(uint8_t* self, uint8_t* other) {
     uint8_t* const actor = at<uint8_t*>(other, 0x240);
     if (!actor || at<uint32_t>(actor, 0x1390) || at<uint32_t>(actor, 0x7d8) || !(at<uint32_t>(actor, 0x310) & 0x2000000)) return;
     // An actor standing on its claimed node gives it up to the player standing there.
-    if (vehicle_call(0x00201d40, 0, 0, address_of(actor), 0, 0, 0)) {  // Actor_IsAtClaimedNode
+    if (vehicle_call(own_address(&Actor_IsAtClaimedNode), 0, 0, address_of(actor), 0, 0, 0)) {  // Actor_IsAtClaimedNode
         const uint8_t* const client = at<uint8_t*>(self, 0x23c);
         const float dy = at<float>(client, 0x5b4) - at<float>(self, 0x144);
         const float dx = at<float>(client, 0x5b0) - at<float>(self, 0x140);
         if (dy * dy + dx * dx >= title_global<float>(0x0083eb94)) return;
-        vehicle_call_ebx(0x002048c0, at<uint32_t>(other, 0x244), at<uint32_t>(self, 0x244), 0);  // Sentient_TakeNodeClaim
+        vehicle_call_ebx(own_address(&Sentient_TakeNodeClaim_entry), at<uint32_t>(other, 0x244), at<uint32_t>(self, 0x244), 0);  // Sentient_TakeNodeClaim
     }
     const int32_t enemy = own_function<int32_t XB_CDECL(int32_t)>(&Sentient_EnemyTeam)(at<int32_t>(at<uint8_t*>(self, 0x244), 4));  // Sentient_EnemyTeam
     const int32_t team = at<int32_t>(at<uint8_t*>(other, 0x244), 4);
@@ -2341,7 +2345,7 @@ void XB_CDECL Vehicle_UpdateWheelBones(const uint8_t* def, uint8_t* ent, uint32_
         const TitleRegs regs{address_of(origin), static_cast<uint32_t>(wheels), address_of(ent), address_of(angles),
                              static_cast<uint32_t>(i), address_of(vehicle) + 0x2dc + static_cast<uint32_t>(i) * 4};
         const uint32_t args[5] = {address_of(ent), address_of(origin), address_of(angles), bone, 0};
-        title_call_at_regs(top, 0x002de420, &regs, 5, args);  // G_DObjSetBoneRotation
+        title_call_at_regs(top, own_address(&G_DObjSetBoneRotation_entry), &regs, 5, args);  // G_DObjSetBoneRotation
     }
 }
 
@@ -2485,7 +2489,7 @@ void XB_CDECL Vehicle_EnterPlayer(uint8_t* ent, uint8_t* player) {
     SetClientViewAngle(angles, player);
     const TitleRegs regs{0, 0, 0x00838a54, address_of(player), 0, address_of(player)};  // ECX "tag_player", EDX player
     const uint32_t args[3] = {address_of(ent), 0x0082eec0, 0x0082eec0};
-    if (!g_ent_call(0x002e44b0, &regs, 3, args))  // G_EntLinkToWithOffset
+    if (!g_ent_call(own_address(&G_EntLinkToWithOffset), &regs, 3, args))  // G_EntLinkToWithOffset
         title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, pointer<const char>(0x0083a064));  // __break
     if (at<uint32_t>(vehicle, 0x1cc) == at<uint32_t>(player, 0x224)) {
         at<uint32_t>(vehicle, 0x1c8) = 0;
@@ -2715,16 +2719,16 @@ void XB_CDECL Vehicle_GroundMove(uint8_t* ent, uint32_t edi) {
     }
     const TitleRegs regs{0, address_of(ent), 0, 0, address_of(motion), edi};
     const uint32_t first[3] = {edi, 0, 0};
-    const uint32_t hit = g_ent_call(0x0025bd10, &regs, 3, first) != 0;  // Vehicle_SlideMove
+    const uint32_t hit = g_ent_call(own_address(&Vehicle_SlideMove_entry), &regs, 3, first) != 0;  // Vehicle_SlideMove
     const uint32_t second[3] = {edi, 1, hit};
-    const int32_t result = static_cast<int32_t>(g_ent_call(0x0025bd10, &regs, 3, second));
+    const int32_t result = static_cast<int32_t>(g_ent_call(own_address(&Vehicle_SlideMove_entry), &regs, 3, second));
     if (!result) {
         at<int32_t>(vehicle, 0x308) = title_global<int32_t>(0x0098540c);  // level.time
         for (uint32_t k = 0; k < 4; ++k) at<uint32_t>(vehicle, 0x310 + k * 4) = at<uint32_t>(motion, k * 4);
         for (uint32_t k = 0; k < 4; ++k) at<uint32_t>(vehicle, 0x320 + k * 4) = at<uint32_t>(motion, 0x20 + k * 4);
         return;
     }
-    if (result > 1 && static_cast<int32_t>(g_ent_call(0x0025bd10, &regs, 3, first)) > 1)
+    if (result > 1 && static_cast<int32_t>(g_ent_call(own_address(&Vehicle_SlideMove_entry), &regs, 3, first)) > 1)
         for (uint32_t k = 0; k < 4; ++k) at<uint32_t>(motion, 0x20 + k * 4) = at<uint32_t>(motion, 0x30 + k * 4);
     at<int32_t>(vehicle, 0x304) = title_global<int32_t>(0x0098540c);
 }
@@ -2825,7 +2829,7 @@ void XB_CDECL Vehicle_ExitPlayer(uint8_t* player) {
         const TitleRegs regs{0, address_of(start), 0, 0, 0, 0};
         const uint32_t args[11] = {address_of(trace), address_of(player + 0xe0), address_of(player + 0xf0), address_of(end), 0,
                                    at<uint32_t>(player, 0x2a8), 1, 0, 0, 0, 0};
-        g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+        g_ent_call(own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace (start in EBX)
         if (!at<uint8_t>(trace, 0x3c) && !at<uint8_t>(trace, 0x3d)) {  // neither start nor all solid
             for (uint32_t k = 0; k < 3; ++k) exit[k] = spot[k];
             break;
@@ -2869,7 +2873,7 @@ int32_t XB_CDECL Vehicle_PlayFxAtTag(uint8_t* ent, const float* origin, uint32_t
     std::memcpy(transform, quad_in, 16);
     const TitleRegs regs{address_of(ent), ebx, tag, frame, esi, edi};
     const uint32_t args[3] = {address_of(def), 0x21, frame};
-    const uint32_t id = title_call_at_regs(frame, 0x002a5c40, &regs, 3, args);  // FXCmd_Type8AtTag
+    const uint32_t id = title_call_at_regs(frame, own_address(&FXCmd_Type8AtTag_entry), &regs, 3, args);  // FXCmd_Type8AtTag
     return id ? static_cast<int32_t>(id) : -1;
 }
 
@@ -2970,7 +2974,7 @@ void XB_CDECL Vehicle_UpdateTurretAim(uint32_t entry_esp, uint8_t* ent, uint32_t
         const TitleRegs regs{static_cast<uint32_t>(tag), address_of(vehicle), address_of(def), F + 0xc8,
                              address_of(ent), 0};
         const uint32_t args[3] = {address_of(ent), static_cast<uint32_t>(tag), F + 0xc8};
-        title_call_at_regs(F, 0x002e3780, &regs, 3, args);  // G_DObjGetWorldTagMatrix (origin F+0xf8)
+        title_call_at_regs(F, own_address(&G_DObjGetWorldTagMatrix), &regs, 3, args);  // G_DObjGetWorldTagMatrix (origin F+0xf8)
     }
     fl(0x10) = at<float>(vehicle, 0xe0);
     fl(0x14) = at<float>(vehicle, 0xe4);
@@ -3067,7 +3071,7 @@ void XB_CDECL Vehicle_UpdateTurretAim(uint32_t entry_esp, uint8_t* ent, uint32_t
     uint32_t* const hit = &at<uint32_t>(vehicle, 0x2f4);
     const TitleRegs regs{F + 0x60, F + 0x40, F + 0x20, z2, address_of(hit), F + 0x10};
     const uint32_t args[6] = {address_of(hit), F + 0x20, at<uint32_t>(ent, 0x224), at<uint32_t>(target, 0x224), 1, 0};
-    title_call_at_regs(F, 0x002e9840, &regs, 6, args);  // G_SightTrace
+    title_call_at_regs(F, own_address(&G_SightTrace_entry), &regs, 6, args);  // G_SightTrace
     if (!*hit) Scr_Notify(ent, title_global<uint32_t>(0x0097a838));  // turret_on_vistarget
 }
 
@@ -3123,7 +3127,7 @@ void XB_CDECL Vehicle_TraceGround(uint32_t entry_esp, uint8_t* ent, uint32_t ebx
     {
         const TitleRegs regs{F + 0x30, address_of(origin), F + 0x20, pad, address_of(ent), edi};
         const uint32_t args[6] = {address_of(ent), pad, contents, F + 0x8b0, F + 0xa0, 0x0098eef0};
-        title_call_at_regs(F, 0x002529c0, &regs, 6, args);  // Vehicle_GatherCollisionCandidates
+        title_call_at_regs(F, own_address(&Vehicle_GatherCollisionCandidates_entry), &regs, 6, args);  // Vehicle_GatherCollisionCandidates
     }
     const auto capsule = [&](uint32_t top, float low, float side, float height) {
         const uint32_t mask = at<uint32_t>(ent, 0x2a8) & 0xff7fffffu;
@@ -3141,7 +3145,7 @@ void XB_CDECL Vehicle_TraceGround(uint32_t entry_esp, uint8_t* ent, uint32_t ebx
         for (uint32_t k = 0; k < 16; k += 4) wd(0x40 + k) = wd(0x10 + k);
         const TitleRegs regs{F + 0x60, address_of(origin), F + 0xa0, F + 0x8b0, address_of(ent), edi};
         const uint32_t args[9] = {F + 0x8b0, F + 0xa0, F + 0x60, F + 0x20, F + 0x50, F + 0x40, F + 0x30, pass, mask};
-        title_call_at_regs(top, 0x002e95b0, &regs, 9, args);  // SV_CapsuleTrace
+        title_call_at_regs(top, own_address(&SV_CapsuleTrace), &regs, 9, args);  // SV_CapsuleTrace
     };
     capsule(F - 0x18, title_global<float>(0x0083f19c), title_global<float>(0x0083ec84),
             title_global<float>(0x0083ee48));  // -40, 40, 80
@@ -3222,7 +3226,7 @@ void XB_CDECL Player_UpdateLookAtEntity(uint32_t entry_esp, uint8_t* ent, uint32
         {
             const TitleRegs regs{0, address_of(client), F + 0x34, title_global<uint32_t>(0x0093f7f8), address_of(ent), table};
             const uint32_t args[2] = {0x13, F + 0x34};
-            title_call_at_regs(F, 0x002a84e0, &regs, 2, args);  // VM_Call(cgvm, 0x13): the view origin
+            title_call_at_regs(F, own_address(&VM_Call_entry), &regs, 2, args);  // VM_Call(cgvm, 0x13): the view origin
         }
         const float d2r = title_global<float>(0x0083edd8);
         FastSinCos(&fl(0x2c), 0, &fl(0x28), at<float>(client, 0xa0) * d2r);
@@ -3257,7 +3261,7 @@ void XB_CDECL Player_UpdateLookAtEntity(uint32_t entry_esp, uint8_t* ent, uint32
     {
         const TitleRegs regs{F + 0x40, address_of(client), F + 0x10, F + 0x90, address_of(ent), table};
         const uint32_t args[7] = {F + 0x90, F + 0x10, F + 0x40, pass, 0x2280e001, table, 0};
-        title_call_at_regs(top, 0x002600c0, &regs, 7, args);  // G_LocationalTrace
+        title_call_at_regs(top, own_address(&G_LocationalTrace_entry), &regs, 7, args);  // G_LocationalTrace
     }
     at<float>(at<uint8_t*>(ent, 0x23c), 0x5fc) = fl(0xb0) * fl(0x20);
     const uint32_t hit = wd(0xc0);
@@ -3338,16 +3342,16 @@ void XB_CDECL Vehicle_PlayerDriveThink(uint32_t entry_esp, uint32_t esi, uint32_
             }
             const TitleRegs regs{address_of(ent), 0, 0, elapsed, address_of(vehicle), edi};
             const uint32_t args[2] = {entry_esp + 4, elapsed};
-            title_call_at_regs(top, 0x00254060, &regs, 2, args);  // Vehicle_PlayerInputToMove
+            title_call_at_regs(top, own_address(&Vehicle_PlayerInputToMove_entry), &regs, 2, args);  // Vehicle_PlayerInputToMove
         }
     }
     {
         const TitleRegs regs{0, 0, address_of(ent), 0, address_of(vehicle), edi};
-        title_call_at_regs(top, 0x00261ac0, &regs, 0, nullptr);  // Vehicle_TraceGround
+        title_call_at_regs(top, own_address(&Vehicle_TraceGround_entry), &regs, 0, nullptr);  // Vehicle_TraceGround
     }
     if (resolve(at<uint32_t>(vehicle, 0x174)) == at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4)) {
         const TitleRegs regs{address_of(ent), 0, 0, 0, address_of(vehicle), elapsed};
-        title_call_at_regs(top, 0x0025ca60, &regs, 0, nullptr);  // Vehicle_GroundMove
+        title_call_at_regs(top, own_address(&Vehicle_GroundMove_entry), &regs, 0, nullptr);  // Vehicle_GroundMove
     }
     if (!at<uint32_t>(ent, 0x1a0)) {
         const float zero = 0.0f;
@@ -3428,7 +3432,7 @@ void XB_CDECL Vehicle_UpdateEngineSound(int32_t elapsed, uint8_t* ent, uint32_t 
     const auto play = [&](uint32_t fx) {
         const TitleRegs regs{address_of(ent), address_of(ent), fx, address_of(def), 0, address_of(vehicle)};
         const uint32_t args[2] = {address_of(def), fx};
-        return title_call_at_regs(top, 0x002a5ee0, &regs, 2, args);  // FXCmd_Type8
+        return title_call_at_regs(top, own_address(&FXCmd_Type8_entry), &regs, 2, args);  // FXCmd_Type8
     };
     const auto release = [&](uint32_t offset) {
         if (at<int32_t>(vehicle, offset) != -1) FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), at<uint32_t>(vehicle, offset));
@@ -3490,7 +3494,7 @@ void XB_CDECL Turret_FireForUserOrDriver(uint8_t* turret, uint8_t* user, uint32_
             user = title_global<uint8_t*>(0x0097a968 + index * 8);
     }
     const TitleRegs regs{address_of(turret), 0, address_of(user), 0, address_of(user), edi};
-    title_call_at_regs(entry_esp - 4, 0x002712a0, &regs, 0, nullptr);  // Turret_FireForUser (EAX turret, ESI user)
+    title_call_at_regs(entry_esp - 4, own_address(&Turret_FireForUser_entry), &regs, 0, nullptr);  // Turret_FireForUser (EAX turret, ESI user)
 }
 
 // Bullet_Trace_r runs at the original's ESP with the spread end at the original's frame address (E - 0xc).
@@ -3515,7 +3519,7 @@ uint32_t XB_CDECL Bullet_Fire(uint8_t* fire, uint8_t* attacker, uint32_t entry_e
                                    : at<uint32_t>(at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224);
     const TitleRegs regs{pass, address_of(attacker), address_of(end), arg[0], 0, address_of(fire) + 0x24};
     const uint32_t args[9] = {pass, arg[0], address_of(fire) + 0x24, address_of(end), arg[2], 0, address_of(fire), pass, arg[3]};
-    return title_call_at_regs(entry_esp - 0x14, 0x0026f0a0, &regs, 9, args);  // Bullet_Trace_r
+    return title_call_at_regs(entry_esp - 0x14, own_address(&Bullet_Trace_r_entry), &regs, 9, args);  // Bullet_Trace_r
 }
 
 // EAX = fire record. Weapon_BulletTrace_r runs at the original's ESP with the spread end at the original's frame
@@ -3554,7 +3558,7 @@ uint32_t XB_CDECL Weapon_FireBullet(uint8_t* fire, uint32_t entry_esp, uint32_t 
     const TitleRegs regs{pass, static_cast<uint32_t>(damage), arg[4], address_of(end), address_of(end), address_of(fire) + 0x24};
     const uint32_t args[9] = {pass, arg[0], address_of(fire) + 0x24, address_of(end), static_cast<uint32_t>(damage), 0,
                               address_of(fire), pass, arg[4]};
-    return title_call_at_regs(entry_esp - 0x1c, 0x0026fcb0, &regs, 9, args);  // Weapon_BulletTrace_r
+    return title_call_at_regs(entry_esp - 0x1c, own_address(&Weapon_BulletTrace_r_entry), &regs, 9, args);  // Weapon_BulletTrace_r
 }
 
 // ClientThink_real runs at the original's ESP (E - 0xc; gap entry).
@@ -3581,7 +3585,7 @@ void XB_CDECL ClientThink(uint32_t entry_esp) {
     {
         const TitleRegs regs{address_of(at<uint8_t*>(ent, 0x23c)), address_of(ent), 0, 0, 0, 0};
         const uint32_t args[1] = {address_of(ent)};
-        title_call_at_regs(entry_esp - 0xc, 0x00271c30, &regs, 1, args);  // ClientThink_real
+        title_call_at_regs(entry_esp - 0xc, own_address(&ClientThink_real_entry), &regs, 1, args);  // ClientThink_real
     }
     if (!(at<float>(at<uint8_t*>(ent, 0x23c), 0x4c) == title_global<float>(0x0083eafc)))
         G_UpdatePlayerHeadEnt(ent);
@@ -3620,7 +3624,7 @@ void XB_CDECL Vehicle_FreePhysics(uint8_t* ent, uint32_t entry_esp) {
     at<uint32_t>(ent, 0x350) = 0;
     {
         const TitleRegs regs{0, address_of(ent), 0, 0, address_of(ent), address_of(phys)};
-        title_call_at_regs(entry_esp - 8, 0x00266650, &regs, 0, nullptr);  // Vehicle_UpdateEngineSound
+        title_call_at_regs(entry_esp - 8, own_address(&Vehicle_UpdateEngineSound_entry), &regs, 0, nullptr);  // Vehicle_UpdateEngineSound
     }
     for (const uint32_t offset : std::array<uint32_t, 2>{0x204u, 0x208u}) {
         const uint32_t handle = at<uint32_t>(at<uint8_t*>(ent, 0x248), offset);
@@ -3631,7 +3635,7 @@ void XB_CDECL Vehicle_FreePhysics(uint8_t* ent, uint32_t entry_esp) {
             linked = title_global<uint8_t*>(0x0097a968 + index * 8);
         const TitleRegs regs{index, 0, handle >> 12, address_of(linked), address_of(ent), address_of(phys)};
         const uint32_t args[2] = {address_of(linked), 0};
-        title_call_at_regs(entry_esp - 8, 0x002be420, &regs, 2, args);  // G_FreeEntity
+        title_call_at_regs(entry_esp - 8, own_address(&G_FreeEntity), &regs, 2, args);  // G_FreeEntity
     }
     at<uint32_t>(ent, 0x32c) = 0;
     at<uint32_t>(ent, 0x340) = 0;
@@ -3688,7 +3692,7 @@ void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi) {
                          const uint32_t* args = nullptr) {
         return title_call_at_regs(top, function, &regs, count, args);
     };
-    call(E - 0x10, 0x0024bec0, TitleRegs{0, ent_w, ent_w, 0, def_w, edi});  // Vehicle_LoadPhysicsState (ECX)
+    call(E - 0x10, own_address(&Vehicle_LoadPhysicsState), TitleRegs{0, ent_w, ent_w, 0, def_w, edi});  // Vehicle_LoadPhysicsState (ECX)
     std::memset(pointer<void>(0x00988570), 0, 0x50);
     edi = 0x009885c0;
     const auto resolve = [](uint32_t handle) -> uint8_t* {
@@ -3701,7 +3705,7 @@ void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi) {
         at<uint32_t>(vehicle, 0x174) = handle;
         if (at<int32_t>(resolve(handle), 0x350) <= 0) {
             edi = address_of(resolve(at<uint32_t>(ent, 0x1a0)));
-            call(E - 0x10, 0x00260480, TitleRegs{0, ent_w, 0, 0, def_w, edi});  // Vehicle_ExitPlayer (EDI driver)
+            call(E - 0x10, own_address(&Vehicle_ExitPlayer_entry), TitleRegs{0, ent_w, 0, 0, def_w, edi});  // Vehicle_ExitPlayer (EDI driver)
         }
     } else if (at<int32_t>(ent, 0x350) > 0) {
         at<uint32_t>(vehicle, 0x174) = 0;
@@ -3710,51 +3714,51 @@ void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi) {
         const uint8_t mode = at<uint8_t>(ent, 0x297);
         if (mode == 1) {
             const uint32_t args[1] = {ent_w};
-            call(E - 0x10, 0x00252530, TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, edi}, 1, args);  // Vehicle_MoveAlongPath
+            call(E - 0x10, own_address(&Vehicle_MoveAlongPath_entry), TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, edi}, 1, args);  // Vehicle_MoveAlongPath
         } else if (mode == 2) {
             const uint32_t args[2] = {ent_w, elapsed_w};
-            call(E - 0x10, 0x002664a0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 2, args);  // Vehicle_PlayerDriveThink
+            call(E - 0x10, own_address(&Vehicle_PlayerDriveThink_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 2, args);  // Vehicle_PlayerDriveThink
         }
     }
     edi = def_w;
     const int16_t type = at<int16_t>(def, 0x20);
     if (type == 1 || type == 2) {
         const uint32_t args[1] = {ent_w};
-        const bool valid = uint8_t(call(E - 0x10, 0x002ae8f0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 1, args));  // G_EntityInValidCell
+        const bool valid = uint8_t(call(E - 0x10, own_address(&G_EntityInValidCell), TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 1, args));  // G_EntityInValidCell
         bool stop = !valid;
         if (valid) {
             if (!at<uint32_t>(at<uint8_t*>(ent, 0x248), 0x300)) {
                 const uint32_t pargs[3] = {ent_w, 1, elapsed_w};
-                call(E - 0x10, 0x0026a3c0, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 3, pargs);  // Vehicle_UpdatePhysics
+                call(E - 0x10, own_address(&Vehicle_UpdatePhysics_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, edi}, 3, pargs);  // Vehicle_UpdatePhysics
             } else {
-                call(E - 0x10, 0x0025b8a0, TitleRegs{0, ent_w, def_w, 0, elapsed_w, edi}, 1, args);  // Vehicle_UpdateWheelBones
+                call(E - 0x10, own_address(&Vehicle_UpdateWheelBones_entry), TitleRegs{0, ent_w, def_w, 0, elapsed_w, edi}, 1, args);  // Vehicle_UpdateWheelBones
                 stop = true;
             }
         }
-        if (stop) call(E - 0x10, 0x002511c0, TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, edi});  // Vehicle_StopEffects
+        if (stop) call(E - 0x10, own_address(&Vehicle_StopEffects), TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, edi});  // Vehicle_StopEffects
     }
     if (at<int16_t>(def, 0x20) != 5 && at<uint8_t>(ent, 0x297) == 1)
-        call(E - 0x10, 0x0025d050, TitleRegs{0, ent_w, 0, 0, elapsed_w, edi});  // the clip-entity update (EBX)
+        call(E - 0x10, own_address(&Vehicle_ResetOnVehicleOverlap_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, edi});  // the clip-entity update (EBX)
     if (!(at<uint32_t>(ent, 0x2a4) & 0x400000)) {
         const uint32_t args[2] = {address_of(vehicle) + 0xc0, address_of(vehicle) + 0xe0};
-        call(E - 0x10, 0x00255220, TitleRegs{ent_w, ent_w, address_of(vehicle) + 0xe0, 0, elapsed_w, edi}, 2,
+        call(E - 0x10, own_address(&Vehicle_SetOriginAndAngles_entry), TitleRegs{ent_w, ent_w, address_of(vehicle) + 0xe0, 0, elapsed_w, edi}, 2,
              args);  // Vehicle_SetOriginAndAngles
     }
     {
         const uint32_t args[2] = {ent_w, 0};
-        call(E - 0x10, 0x0025d230, TitleRegs{0, ent_w, ent_w + 0x140, 0, elapsed_w, edi}, 2, args);  // G_TouchEntitiesInBox
+        call(E - 0x10, own_address(&G_TouchEntitiesInBox), TitleRegs{0, ent_w, ent_w + 0x140, 0, elapsed_w, edi}, 2, args);  // G_TouchEntitiesInBox
     }
     at<uint32_t>(vehicle, 0x1ac) = 0;
-    call(E - 0x10, 0x0025c8d0, TitleRegs{0, ent_w, 0, 0, elapsed_w, ent_w});  // Vehicle_UpdateTurretBones (EDI)
+    call(E - 0x10, own_address(&Vehicle_UpdateTurretBones_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, ent_w});  // Vehicle_UpdateTurretBones (EDI)
     const uint32_t pair[2] = {ent_w, elapsed_w};
     if (at<uint8_t>(ent, 0x297) == 2 || at<uint32_t>(pointer<uint8_t>(arg[0]), 0x3c))
-        call(E - 0xc, 0x00260810, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_FireTurret
+        call(E - 0xc, own_address(&Vehicle_FireTurret_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_FireTurret
     {
         const uint32_t args[1] = {ent_w};
-        call(E - 0xc, 0x00260b60, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurretAim
+        call(E - 0xc, own_address(&Vehicle_UpdateTurretAim_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurretAim
     }
-    call(E - 0x10, 0x00270f90, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTurret
-    call(E - 0x18, 0x00266b30, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateOverheat
+    call(E - 0x10, own_address(&Vehicle_UpdateTurret), TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTurret
+    call(E - 0x18, own_address(&Vehicle_UpdateOverheat_entry), TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateOverheat
     uint8_t* const v = at<uint8_t*>(ent, 0x248);
     const float zero = 0.0f;
     if (at<float>(v, 0x1f0) > zero) {
@@ -3773,10 +3777,10 @@ void XB_CDECL Vehicle_Think(uint32_t entry_esp, uint32_t edi) {
     }
     {
         const uint32_t args[1] = {elapsed_w};
-        call(E - 0xc, 0x0024bd40, TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurnRateAndWheelAngle
+        call(E - 0xc, own_address(&Vehicle_UpdateTurnRateAndWheelAngle), TitleRegs{ent_w, ent_w, 0, 0, elapsed_w, caller_edi}, 1, args);  // Vehicle_UpdateTurnRateAndWheelAngle
     }
-    call(E - 0x10, 0x00253ed0, TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTreadScroll
-    call(E - 0xc, 0x00266650, TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, caller_edi});  // Vehicle_UpdateEngineSound
+    call(E - 0x10, own_address(&Vehicle_UpdateTreadScroll), TitleRegs{0, ent_w, 0, 0, elapsed_w, caller_edi}, 2, pair);  // Vehicle_UpdateTreadScroll
+    call(E - 0xc, own_address(&Vehicle_UpdateEngineSound_entry), TitleRegs{elapsed_w, ent_w, 0, 0, elapsed_w, caller_edi});  // Vehicle_UpdateEngineSound
     at<int32_t>(ent, 0xa4) = static_cast<int32_t>(at<float>(pointer<uint8_t>(arg[0]), 0x64) * title_global<float>(0x0083eb9c));
     at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 1;
 }
@@ -3845,7 +3849,7 @@ uint8_t* fire_spread_projectile(uint8_t* owner, const float* fire, uint32_t E) {
     const uint32_t fuse = *pointer<uint32_t>(E + 8);
     const TitleRegs regs{address_of(dir), 0, address_of(start), 0, address_of(fire), address_of(owner)};
     const uint32_t args[2] = {address_of(owner), fuse};
-    return pointer<uint8_t>(title_call_at_regs(E - 0x28, 0x00267660, &regs, 2, args));  // fire_projectile
+    return pointer<uint8_t>(title_call_at_regs(E - 0x28, own_address(&fire_projectile_entry), &regs, 2, args));  // fire_projectile
 }
 
 // The owner's client velocity (+0x10) pushed back 64 units along the forward axis.
@@ -3949,7 +3953,7 @@ void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint
     {
         const TitleRegs regs{F + 0x40, address_of(other), F + 0x30, 0, address_of(self), address_of(vehicle) + 0xe0};
         const uint32_t args[3] = {address_of(other), address_of(self), F + 0x30};
-        pushed = title_call_at_regs(F, 0x00267020, &regs, 3, args);  // G_TryPushingEntity
+        pushed = title_call_at_regs(F, own_address(&G_TryPushingEntity_entry), &regs, 3, args);  // G_TryPushingEntity
     }
     uint32_t damage = 999999, dflags = 0x20;
     if (pushed) {
@@ -3981,7 +3985,7 @@ void XB_CDECL Vehicle_Touch(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint
     const uint32_t point = address_of(other) + 0x140;
     const TitleRegs regs{point, address_of(other), 0, 0, address_of(self), point};
     const uint32_t args[9] = {address_of(other), address_of(self), attacker, F + 0x20, damage, dflags, 0x10, 0, 0xffffffffu};
-    title_call_at_regs(F, 0x00250340, &regs, 9, args);  // G_Damage
+    title_call_at_regs(F, own_address(&G_Damage_entry), &regs, 9, args);  // G_Damage
 }
 
 // The candidate lists (B+0x210, B+0xa20) and the trace blocks are the original's frame: their addresses reach the
@@ -4632,7 +4636,7 @@ void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, 
     const auto tag_matrix = [&](int32_t bone, uint32_t ebx_now) {
         const TitleRegs regs{static_cast<uint32_t>(bone), ebx_now, 0, F + 0x40, ent_w, address_of(origin)};
         const uint32_t args[3] = {ent_w, static_cast<uint32_t>(bone), F + 0x40};
-        title_call_at_regs(F, 0x002e3780, &regs, 3, args);  // G_DObjGetWorldTagMatrix
+        title_call_at_regs(F, own_address(&G_DObjGetWorldTagMatrix), &regs, 3, args);  // G_DObjGetWorldTagMatrix
     };
     for (uint32_t i = 0; i < 6; ++i) {
         wd(0x1c) = address_of(vehicle) + 0x21c + i * 4;
@@ -4696,13 +4700,13 @@ void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, 
         if (step) {
             const uint32_t args[3] = {ent_w, 0, title_global<uint32_t>(0x008dda9c)};
             const TitleRegs regs{0, 0, 0, args[2], ent_w, address_of(origin)};
-            title_call_at_regs(F, 0x0026a3c0, &regs, 3, args);  // Vehicle_UpdatePhysics
+            title_call_at_regs(F, own_address(&Vehicle_UpdatePhysics_entry), &regs, 3, args);  // Vehicle_UpdatePhysics
         }
     }
     {
         const uint32_t args[2] = {address_of(origin), address_of(origin) + 0x20};
         const TitleRegs regs{ent_w, address_of(origin) + 0x20, 0, 0, ent_w, address_of(origin)};
-        title_call_at_regs(F, 0x00255220, &regs, 2, args);  // Vehicle_SetOriginAndAngles
+        title_call_at_regs(F, own_address(&Vehicle_SetOriginAndAngles_entry), &regs, 2, args);  // Vehicle_SetOriginAndAngles
     }
     for (uint32_t k = 0; k < 3; ++k) {
         at<uint32_t>(origin, 0x10 + k * 4) = at<uint32_t>(origin, k * 4);
@@ -4711,7 +4715,7 @@ void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, 
     {
         const uint32_t args[2] = {ent_w, 0};
         const TitleRegs regs{0, address_of(origin) + 0x20, ent_w + 0x140, 0, ent_w, address_of(origin)};
-        title_call_at_regs(F - 8, 0x0025d230, &regs, 2, args);  // G_TouchEntitiesInBox
+        title_call_at_regs(F - 8, own_address(&G_TouchEntitiesInBox), &regs, 2, args);  // G_TouchEntitiesInBox
     }
     at<uint32_t>(ent, 0x32c) = 0x18;
     at<int32_t>(ent, 0x328) = title_global<int32_t>(0x0098540c) + 1;
@@ -4959,24 +4963,24 @@ void XB_CDECL Vehicle_UpdateOverheat(uint32_t entry_esp, uint32_t ebx, uint32_t 
     const auto free_smoke = [&](uint32_t ret) {
         esi = title_global<uint32_t>(list);
         const uint32_t args[1] = {at<uint32_t>(vehicle, 0x1a0)};
-        veh_call_at(T, ret, 0x0029b620, TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 1, args);  // FX_FreeEffectsById
+        veh_call_at(T, ret, own_address(&FX_FreeEffectsById_entry), TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 1, args);  // FX_FreeEffectsById
         at<uint32_t>(vehicle, 0x1a0) = 0;
     };
     if (at<float>(vehicle, 0x198) >= title_global<float>(0x0083eb20)) {
         at<uint8_t>(vehicle, 0x19c) = 1;
         {
             const uint32_t args[2] = {name, 0x2a};
-            veh_call_at(T, 0x00266b84, 0x002a62d0, TitleRegs{ent_w, def_w, name, 0, esi, veh_w}, 2,
+            veh_call_at(T, 0x00266b84, own_address(&FXCmd_PlayWeaponSound_entry), TitleRegs{ent_w, def_w, name, 0, esi, veh_w}, 2,
                         args);  // FXCmd_PlayWeaponSound
         }
         esi = ent_w;
         {
             const uint32_t args[1] = {title_global<uint32_t>(0x0097a888)};  // "overheated"
-            veh_call_at(T, 0x00266b95, 0x002b75c0, TitleRegs{0, def_w, 0, args[0], esi, veh_w}, 1, args);  // Scr_Notify
+            veh_call_at(T, 0x00266b95, own_address(&Scr_Notify_entry), TitleRegs{0, def_w, 0, args[0], esi, veh_w}, 1, args);  // Scr_Notify
         }
         if (const uint32_t id = at<uint32_t>(vehicle, 0x1a0)) {
             const uint32_t args[4] = {title_global<uint32_t>(list), id, 0x0083b284, 0x43480000};  // EmissionRate, 200
-            veh_call_at(T, 0x00266bb5, 0x00296b80, TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 4,
+            veh_call_at(T, 0x00266bb5, own_address(&FXParam_Broadcast), TitleRegs{args[0], def_w, 0, 0, esi, veh_w}, 4,
                         args);  // FXParam_Broadcast
         }
     } else if (at<uint8_t>(vehicle, 0x19c) && title_global<float>(0x0083eb24) >= at<float>(vehicle, 0x198)) {
@@ -4993,7 +4997,7 @@ void XB_CDECL Vehicle_UpdateOverheat(uint32_t entry_esp, uint32_t ebx, uint32_t 
     if (at<float>(vehicle, 0x198) > title_global<float>(0x0083ec24)) {
         if (!at<uint32_t>(vehicle, 0x1a0)) {
             const uint32_t args[2] = {name, 0x29};
-            at<uint32_t>(vehicle, 0x1a0) = veh_call_at(T, 0x00266c5d, 0x002a62d0,
+            at<uint32_t>(vehicle, 0x1a0) = veh_call_at(T, 0x00266c5d, own_address(&FXCmd_PlayWeaponSound_entry),
                                                        TitleRegs{ent_w, def_w, name, 0, esi, veh_w}, 2,
                                                        args);  // FXCmd_PlayWeaponSound
         }
@@ -5001,7 +5005,7 @@ void XB_CDECL Vehicle_UpdateOverheat(uint32_t entry_esp, uint32_t ebx, uint32_t 
         uint32_t rate_w;
         std::memcpy(&rate_w, &rate, 4);
         const uint32_t args[4] = {title_global<uint32_t>(list), at<uint32_t>(vehicle, 0x1a0), 0x0083b284, rate_w};
-        veh_call_at(T, 0x00266c99, 0x00296b80, TitleRegs{args[0], def_w, name, args[1], esi, veh_w}, 4,
+        veh_call_at(T, 0x00266c99, own_address(&FXParam_Broadcast), TitleRegs{args[0], def_w, name, args[1], esi, veh_w}, 4,
                     args);  // FXParam_Broadcast
         return;
     }
@@ -5074,7 +5078,7 @@ void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
         }
         if (notify) {
             const uint32_t args[1] = {title_global<uint32_t>(0x0097a830)};  // "turret_fire"
-            veh_call_at(B, 0x0026095c, 0x002b75c0, TitleRegs{0, veh_w, 0, args[0], ent_w, client_w}, 1, args);  // Scr_Notify
+            veh_call_at(B, 0x0026095c, own_address(&Scr_Notify_entry), TitleRegs{0, veh_w, 0, args[0], ent_w, client_w}, 1, args);  // Scr_Notify
         }
     }
     at<uint32_t>(vehicle, 0x1c8) = 1;
@@ -5085,7 +5089,7 @@ void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
     }
     {
         const uint32_t args[3] = {ent_w, at<uint32_t>(vehicle, 0x2cc), B + 0x40};
-        veh_call_at(B, 0x00260998, 0x002e3780, TitleRegs{args[1], veh_w, 0, B + 0x40, ent_w, client_w}, 3,
+        veh_call_at(B, 0x00260998, own_address(&G_DObjGetWorldTagMatrix), TitleRegs{args[1], veh_w, 0, B + 0x40, ent_w, client_w}, 3,
                     args);  // G_DObjGetWorldTagMatrix
     }
     if (at<int32_t>(vehicle, 0x2c4) < 0) {
@@ -5095,13 +5099,13 @@ void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
     }
     {
         const uint32_t args[3] = {ent_w, at<uint32_t>(vehicle, 0x2c4), B + 0x40};
-        veh_call_at(B, 0x002609c6, 0x002e3780, TitleRegs{args[1], veh_w, B + 0x40, args[1], ent_w, client_w}, 3,
+        veh_call_at(B, 0x002609c6, own_address(&G_DObjGetWorldTagMatrix), TitleRegs{args[1], veh_w, B + 0x40, args[1], ent_w, client_w}, 3,
                     args);  // G_DObjGetWorldTagMatrix
     }
-    veh_call_at(B, 0x002609d8, 0x00013c60, TitleRegs{0, veh_w, 0, 0, B + 0x20, client_w + 0x9c});  // AnglesToForward
+    veh_call_at(B, 0x002609d8, own_address(&AnglesToForward_entry), TitleRegs{0, veh_w, 0, 0, B + 0x20, client_w + 0x9c});  // AnglesToForward
     if (wd(0x10) == at<uint32_t>(title_global<uint8_t*>(0x0095f534), 4)) {
         const uint32_t args[2] = {0x13, B + 0x14};
-        veh_call_at(B, 0x002609f8, 0x002a84e0, TitleRegs{0, veh_w, wd(0x10), title_global<uint32_t>(0x0093f7f8), B + 0x20,
+        veh_call_at(B, 0x002609f8, own_address(&VM_Call_entry), TitleRegs{0, veh_w, wd(0x10), title_global<uint32_t>(0x0093f7f8), B + 0x20,
                                                          client_w + 0x9c},
                     2, args);  // VM_Call(cgvm, 0x13): the view origin
     } else {
@@ -5119,7 +5123,7 @@ void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
     bool valid;
     {
         const uint32_t args[1] = {ent_w};
-        valid = static_cast<uint8_t>(veh_call_at(B, 0x00260a7a, 0x002ae8f0, TitleRegs{0, veh_w, 0, 0, ent_w, client_w + 0x9c}, 1,
+        valid = static_cast<uint8_t>(veh_call_at(B, 0x00260a7a, own_address(&G_EntityInValidCell), TitleRegs{0, veh_w, 0, 0, ent_w, client_w + 0x9c}, 1,
                                                  args)) != 0;  // G_EntityInValidCell
     }
     if (!valid) {
@@ -5137,7 +5141,7 @@ void XB_CDECL Vehicle_FireTurret(uint32_t entry_esp, uint32_t ebx, uint32_t esi,
     fl(0x2c) = sx;
     {
         const uint32_t args[7] = {B + 0x40, B + 0x20, B + 0x30, at<uint32_t>(ent, 0x1a0), 0x0280e091, 0x008da6f0, 0};
-        veh_call_at(B, 0x00260aff, 0x002600c0, TitleRegs{B + 0x40, veh_w, B + 0x30, B + 0x20, ent_w, client_w + 0x9c}, 7,
+        veh_call_at(B, 0x00260aff, own_address(&G_LocationalTrace_entry), TitleRegs{B + 0x40, veh_w, B + 0x30, B + 0x20, ent_w, client_w + 0x9c}, 7,
                     args);  // G_LocationalTrace
     }
     if (title_global<float>(0x0083eb20) > fl(0x60)) {
@@ -5185,7 +5189,7 @@ void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_
     if (tag < 0) tag = at<int32_t>(vehicle, 0x2cc);
     {
         const uint32_t args[3] = {ent_w, static_cast<uint32_t>(tag), B + 0x80};
-        veh_call_at(B, 0x002705ba, 0x002e3780, TitleRegs{args[1], veh_w, B + 0x80, at<uint32_t>(def, 0x5dc), def_w, ent_w}, 3,
+        veh_call_at(B, 0x002705ba, own_address(&G_DObjGetWorldTagMatrix), TitleRegs{args[1], veh_w, B + 0x80, at<uint32_t>(def, 0x5dc), def_w, ent_w}, 3,
                     args);  // G_DObjGetWorldTagMatrix
     }
     const float ox = fl(0xb0), oy = fl(0xb4), oz = fl(0xb8);
@@ -5201,9 +5205,9 @@ void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_
         fl(0x60) = at<float>(vehicle, 0x1d0) - ox;
         fl(0x64) = at<float>(vehicle, 0x1d4) - oy;
         fl(0x68) = at<float>(vehicle, 0x1d8) - oz;
-        veh_call_at(B, 0x0027067f, 0x00297770, TitleRegs{0, veh_w, 0, 0, B + 0x60, ent_w});  // VectorNormalize
-        veh_call_at(B, 0x0027068f, 0x002a0850, TitleRegs{0, veh_w, 0, 0, B + 0x80, B + 0x74});  // vectoangles (tag forward)
-        veh_call_at(B, 0x0027069c, 0x002a0850, TitleRegs{0, veh_w, 0, 0, B + 0x60, B + 0x24});  // vectoangles (aim)
+        veh_call_at(B, 0x0027067f, own_address(&VectorNormalize_entry), TitleRegs{0, veh_w, 0, 0, B + 0x60, ent_w});  // VectorNormalize
+        veh_call_at(B, 0x0027068f, own_address(&vectoangles_entry), TitleRegs{0, veh_w, 0, 0, B + 0x80, B + 0x74});  // vectoangles (tag forward)
+        veh_call_at(B, 0x0027069c, own_address(&vectoangles_entry), TitleRegs{0, veh_w, 0, 0, B + 0x60, B + 0x24});  // vectoangles (aim)
         // Both angle sets as vec4 temporaries (fourth word = x); the difference, then the clamped turn.
         const float ax = fl(0x24), ay = fl(0x28), az = fl(0x2c);
         const float tx = fl(0x74), ty = fl(0x78), tz = fl(0x7c);
@@ -5221,7 +5225,7 @@ void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_
         fl(0xdc) = tx;
         {
             const uint32_t args[1] = {B + 0x24};
-            veh_call_at(B, 0x00270724, 0x0029a060, TitleRegs{0, veh_w, 0, B + 0x24, B + 0xc0, B + 0x10}, 1,
+            veh_call_at(B, 0x00270724, own_address(&AnglesNormalize180_entry), TitleRegs{0, veh_w, 0, B + 0x24, B + 0xc0, B + 0x10}, 1,
                         args);  // AnglesNormalize180 (aim - forward)
         }
         const float low = title_global<float>(0x0083ed10), high = title_global<float>(0x0083eb98);  // -10, 10
@@ -5245,10 +5249,10 @@ void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_
         fl(0xcc) = dx;
         {
             const uint32_t args[1] = {B + 0x74};
-            veh_call_at(B, 0x002707b7, 0x0029a060, TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0xc0, B + 0xd0}, 1,
+            veh_call_at(B, 0x002707b7, own_address(&AnglesNormalize180_entry), TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0xc0, B + 0xd0}, 1,
                         args);  // AnglesNormalize180 (forward + turn)
         }
-        veh_call_at(B, 0x002707c7, 0x00013c60, TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0x60, B + 0x74});  // AnglesToForward
+        veh_call_at(B, 0x002707c7, own_address(&AnglesToForward_entry), TitleRegs{B + 0x74, veh_w, 0, B + 0x24, B + 0x60, B + 0x74});  // AnglesToForward
     } else {
         fl(0x60) = fl(0x80);
         fl(0x64) = fl(0x84);
@@ -5275,19 +5279,19 @@ void XB_CDECL Vehicle_FireTurretWeapon(uint32_t entry_esp, uint32_t ebx, uint32_
     }
     if (at<uint32_t>(pointer<uint8_t>(wd(0x6c)), 0x94)) {
         const uint32_t args[3] = {0, 0x41200000, 1};  // speed 10
-        veh_call_at(B, 0x00270980, 0x00269a30, TitleRegs{ent_w, veh_w, wd(0x6c), 0, B + 0x30, ent_w}, 3,
+        veh_call_at(B, 0x00270980, own_address(&Weapon_FireProjectile_entry), TitleRegs{ent_w, veh_w, wd(0x6c), 0, B + 0x30, ent_w}, 3,
                     args);  // Weapon_FireProjectile
         return;
     }
     {
         const uint32_t spread = at<uint32_t>(def, 0x5b8);
         const uint32_t args[5] = {ent_w, title_global<uint32_t>(0x008feff0), spread, ent_w, 0};
-        veh_call_at(B, 0x0027092a, 0x002704c0, TitleRegs{B + 0x30, veh_w, wd(0x6c), spread, def_w, ent_w}, 5,
+        veh_call_at(B, 0x0027092a, own_address(&Weapon_FireBullet_entry), TitleRegs{B + 0x30, veh_w, wd(0x6c), spread, def_w, ent_w}, 5,
                     args);  // Weapon_FireBullet
     }
     {
         const uint32_t args[2] = {0xa4, 0};
-        veh_call_at(B - 0x14, 0x0027093a, 0x002893b0, TitleRegs{ent_w, veh_w, ent_w, 0, def_w, ent_w}, 2,
+        veh_call_at(B - 0x14, 0x0027093a, own_address(&CG_FireWeapon_entry), TitleRegs{ent_w, veh_w, ent_w, 0, def_w, ent_w}, 2,
                     args);  // CG_FireWeapon
     }
     at<float>(vehicle, 0x198) =
@@ -5354,7 +5358,7 @@ void XB_CDECL Player_UpdateCursorHints(uint32_t entry_esp, uint32_t ebx, uint32_
     int32_t count;
     {
         const uint32_t args[2] = {address_of(ent), B + 0x44};
-        count = static_cast<int32_t>(veh_call_at(B, 0x00267f22, 0x00264060,
+        count = static_cast<int32_t>(veh_call_at(B, 0x00267f22, own_address(&Player_GetUseList_entry),
                                                  TitleRegs{address_of(client), address_of(ps), B + 0x44, 0,
                                                            static_cast<uint32_t>(weapon_class), 0},
                                                  2, args));  // Player_GetUseList
@@ -5522,7 +5526,7 @@ float side_offset(uint32_t B, uint32_t v_off, const float* fire, const uint8_t* 
     u[2] = zero;
     TitleRegs r = regs;
     r.esi = B + 0x18;
-    veh_call_at(B, ret, 0x00297770, r);  // VectorNormalize
+    veh_call_at(B, ret, own_address(&VectorNormalize_entry), r);  // VectorNormalize
     const float d = (u[2] * v[2] + u[1] * v[1]) + u[0] * v[0];
     uint32_t bits;
     std::memcpy(&bits, &d, 4);
@@ -5582,7 +5586,7 @@ void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uin
         put_point4(B + 0xc0, start);
         {
             const uint32_t args[7] = {B + 0x30, B + 0xc0, B + 0x100, pass, 0x0280e031, table, arg[8]};
-            veh_call_at(B, 0x0026f18f, 0x002600c0, TitleRegs{B + 0x30, start_w, B + 0x100, B + 0xc0, fire_w, end_w}, 7,
+            veh_call_at(B, 0x0026f18f, own_address(&G_LocationalTrace_entry), TitleRegs{B + 0x30, start_w, B + 0x100, B + 0xc0, fire_w, end_w}, 7,
                         args);  // G_LocationalTrace
         }
         wd(0x14) = address_of(entity_of_handle(wd(0x60)));
@@ -5591,7 +5595,7 @@ void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uin
             fl(0x24) = end[0] - start[0];
             fl(0x28) = end[1] - start[1];
             fl(0x2c) = end[2] - start[2];
-            veh_call_at(B, 0x0026f20f, 0x00297770, TitleRegs{wd(0x14), start_w, wd(0x60), wd(0x60) >> 12, B + 0x24, end_w});  // VectorNormalize
+            veh_call_at(B, 0x0026f20f, own_address(&VectorNormalize_entry), TitleRegs{wd(0x14), start_w, wd(0x60), wd(0x60) >> 12, B + 0x24, end_w});  // VectorNormalize
             reflect_about(&fl(0x24), &fl(0x40));
             bool tracer = (wd(0x54) & 4) != 0;
             if (!tracer) {
@@ -5608,13 +5612,13 @@ void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uin
             }
             if (!tracer) {
                 const uint32_t args[2] = {B + 0x30, static_cast<uint32_t>((static_cast<int32_t>(wd(0x54)) >> 20) & 0x1f)};
-                veh_call_at(B, 0x0026f2ff, 0x0028a370, TitleRegs{B + 0x40, start_w, att_w, B + 0x30, fire_w, weapon}, 2,
+                veh_call_at(B, 0x0026f2ff, own_address(&CG_Bullet_entry), TitleRegs{B + 0x40, start_w, att_w, B + 0x30, fire_w, weapon}, 2,
                             args);  // CG_Bullet
             } else {
                 put_point4(B + 0xb0, start);
                 put_point4(B + 0xf0, start);
                 const uint32_t args[2] = {B + 0xf0, B + 0x30};
-                veh_call_at(B, 0x0026f3ea, 0x0027ab40, TitleRegs{B + 0xf0, start_w, address_of(def), B + 0x30, weapon, end_w}, 2,
+                veh_call_at(B, 0x0026f3ea, own_address(&CG_MaybeSpawnTracer_entry), TitleRegs{B + 0xf0, start_w, address_of(def), B + 0x30, weapon, end_w}, 2,
                             args);  // CG_MaybeSpawnTracer
             }
         } else {
@@ -5623,14 +5627,14 @@ void XB_CDECL Bullet_Trace_r(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uin
             put_point4(B + 0x90, start);
             put_point4(B + 0xe0, start);
             const uint32_t args[2] = {B + 0xe0, B + 0xd0};
-            veh_call_at(B, 0x0026f3ea, 0x0027ab40, TitleRegs{B + 0xe0, start_w, address_of(def), B + 0xd0, weapon, end_w}, 2,
+            veh_call_at(B, 0x0026f3ea, own_address(&CG_MaybeSpawnTracer_entry), TitleRegs{B + 0xe0, start_w, address_of(def), B + 0xd0, weapon, end_w}, 2,
                         args);  // CG_MaybeSpawnTracer
         }
         if (!(at<uint8_t>(pointer<uint8_t>(B), 0x58) & 0x10)) break;
         fl(0x18) = end[0] - start[0];
         fl(0x1c) = end[1] - start[1];
         fl(0x20) = end[2] - start[2];
-        veh_call_at(B, 0x0026f430, 0x00297770, TitleRegs{0, start_w, 0, 0, B + 0x18, end_w});  // VectorNormalize
+        veh_call_at(B, 0x0026f430, own_address(&VectorNormalize_entry), TitleRegs{0, start_w, 0, 0, B + 0x18, end_w});  // VectorNormalize
         penetrate_start(start, &fl(0x18), &fl(0x40), &fl(0x30));
         *pointer<float>(E + 0x24) = 0.0f;
         arg[5] = arg[5] + 1;
@@ -5726,7 +5730,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
         put_point4(B + 0x110, start);
         {
             const uint32_t args[7] = {B + 0x40, B + 0x110, B + 0x150, pass, 0x0280e031, table, arg[8]};
-            veh_call_bp(E - 4, B, 0x0026fdc3, 0x002600c0, TitleRegs{B + 0x150, start_w, B + 0x110, B + 0x40, end_w, edi_now}, 7,
+            veh_call_bp(E - 4, B, 0x0026fdc3, own_address(&G_LocationalTrace_entry), TitleRegs{B + 0x150, start_w, B + 0x110, B + 0x40, end_w, edi_now}, 7,
                         args);  // G_LocationalTrace
         }
         edi_now = att_w;
@@ -5742,7 +5746,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             put_point4(B + 0x170, start);
             {
                 const uint32_t args[4] = {att_w, 0xa, B + 0x170, 0};
-                veh_call_bp(E - 4, B, 0x0026fe6f, 0x00214a90, TitleRegs{enemy, start_w, B + 0x170, 0, enemy, att_w}, 4,
+                veh_call_bp(E - 4, B, 0x0026fe6f, own_address(&Actor_SendPointEvent_entry), TitleRegs{enemy, start_w, B + 0x170, 0, enemy, att_w}, 4,
                             args);  // Actor_SendPointEvent
             }
             uint32_t mask = enemy;
@@ -5752,14 +5756,14 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                 mask = (1u << (static_cast<uint32_t>(at<int32_t>(at<uint8_t*>(attacker, 0x244), 4)) & 31)) | enemy;
             }
             const uint32_t args[6] = {att_w, 0x10, mask, start_w, B + 0x40, 0};
-            veh_call_bp(E - 4, B, 0x0026fea5, 0x00204390, TitleRegs{eax_now, start_w, 0, mask, enemy, att_w}, 6,
+            veh_call_bp(E - 4, B, 0x0026fea5, own_address(&Actor_SendLineEvent_entry), TitleRegs{eax_now, start_w, 0, mask, enemy, att_w}, 6,
                         args);  // Actor_SendLineEvent
         }
         put_point4(B + 0xe0, start);
         put_point4(B + 0x160, start);
         {
             const uint32_t args[5] = {att_w, B + 0x160, B + 0x40, arg[4], wd(0x3c)};
-            veh_call_bp(E - 4, B, 0x0026ff06, 0x0025d960, TitleRegs{B + 0x40, start_w, B + 0x160, arg[4], end_w, att_w}, 5,
+            veh_call_bp(E - 4, B, 0x0026ff06, own_address(&G_CheckHitTriggerDamage), TitleRegs{B + 0x40, start_w, B + 0x160, arg[4], end_w, att_w}, 5,
                         args);  // G_CheckHitTriggerDamage
         }
         wd(0x24) = address_of(entity_of_handle(wd(0x70)));
@@ -5768,7 +5772,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             fl(0x28) = end[0] - start[0];
             fl(0x2c) = end[1] - start[1];
             fl(0x30) = end[2] - start[2];
-            veh_call_bp(E - 4, B, 0x0026ff89, 0x00297770, TitleRegs{wd(0x24), start_w, wd(0x70), wd(0x70) >> 12, B + 0x28, att_w});  // VectorNormalize
+            veh_call_bp(E - 4, B, 0x0026ff89, own_address(&VectorNormalize_entry), TitleRegs{wd(0x24), start_w, wd(0x70), wd(0x70) >> 12, B + 0x28, att_w});  // VectorNormalize
             reflect_about(&fl(0x28), &fl(0x50));
             bool tracer = (at<uint8_t>(pointer<uint8_t>(B), 0x64) & 4) != 0;
             bool impact = true;
@@ -5784,7 +5788,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                         if (!flesh_check && squad && !wd(0x64)) flesh_check = true;
                         if (flesh_check) {
                             const uint32_t in_vehicle = veh_call_at(
-                                B, 0x00270052, 0x0024bad0, TitleRegs{squad, start_w, address_of(hit), 0, address_of(hit), att_w});  // G_ClientInVehicle
+                                B, 0x00270052, own_address(&G_ClientInVehicle), TitleRegs{squad, start_w, address_of(hit), 0, address_of(hit), att_w});  // G_ClientInVehicle
                             if (in_vehicle || !at<uint32_t>(hit, 0x29c)) {
                                 impact = false;
                             } else {
@@ -5795,11 +5799,11 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                     }
                 }
                 if (!tracer && impact) {
-                    uint32_t shooter = veh_call_bp(E - 4, B, 0x00270086, 0x00013860,
+                    uint32_t shooter = veh_call_bp(E - 4, B, 0x00270086, own_address(&G_EntHandleToEnt),
                                                    TitleRegs{E + 4, start_w, 0, 0, wd(0x24), att_w});  // G_EntHandleToEnt
                     if (!shooter) shooter = att_w;
                     const uint32_t args[2] = {B + 0x40, static_cast<uint32_t>((static_cast<int32_t>(wd(0x64)) >> 20) & 0x1f)};
-                    veh_call_bp(E - 4, B, 0x002700ae, 0x0028a370, TitleRegs{B + 0x50, start_w, shooter, 0, wd(0x24), weapon}, 2,
+                    veh_call_bp(E - 4, B, 0x002700ae, own_address(&CG_Bullet_entry), TitleRegs{B + 0x50, start_w, shooter, 0, wd(0x24), weapon}, 2,
                                 args);  // CG_Bullet
                 }
             }
@@ -5807,7 +5811,7 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
                 put_point4(B + 0x80, start);
                 put_point4(B + 0x140, start);
                 const uint32_t args[2] = {B + 0x140, B + 0x40};
-                veh_call_bp(E - 4, B, 0x002701af, 0x0027ab40, TitleRegs{B + 0x40, start_w, B + 0x140, address_of(def), weapon, att_w}, 2,
+                veh_call_bp(E - 4, B, 0x002701af, own_address(&CG_MaybeSpawnTracer_entry), TitleRegs{B + 0x40, start_w, B + 0x140, address_of(def), weapon, att_w}, 2,
                             args);  // CG_MaybeSpawnTracer
             }
         } else {
@@ -5816,14 +5820,14 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             put_point4(B + 0xb0, start);
             put_point4(B + 0x130, start);
             const uint32_t args[2] = {B + 0x130, B + 0x120};
-            veh_call_bp(E - 4, B, 0x002701af, 0x0027ab40, TitleRegs{at<uint32_t>(fire, 0x3c), start_w, B + 0x120, B + 0x130, weapon, att_w}, 2,
+            veh_call_bp(E - 4, B, 0x002701af, own_address(&CG_MaybeSpawnTracer_entry), TitleRegs{at<uint32_t>(fire, 0x3c), start_w, B + 0x120, B + 0x130, weapon, att_w}, 2,
                         args);  // CG_MaybeSpawnTracer
         }
         if (!(at<uint8_t>(pointer<uint8_t>(B), 0x68) & 0x10)) break;
         fl(0x18) = end[0] - start[0];
         fl(0x1c) = end[1] - start[1];
         fl(0x20) = end[2] - start[2];
-        veh_call_bp(E - 4, B, 0x002701fb, 0x00297770, TitleRegs{end_w, start_w, 0, 0, B + 0x18, att_w});  // VectorNormalize
+        veh_call_bp(E - 4, B, 0x002701fb, own_address(&VectorNormalize_entry), TitleRegs{end_w, start_w, 0, 0, B + 0x18, att_w});  // VectorNormalize
         penetrate_start(start, &fl(0x18), &fl(0x50), &fl(0x40));
         *pointer<float>(E + 0x24) = 0.0f;
         arg[5] = arg[5] + 1;
@@ -5862,13 +5866,13 @@ void XB_CDECL Weapon_BulletTrace_r(uint32_t entry_esp, uint32_t ebx, uint32_t es
             return;
         }
         const uint32_t args[3] = {pass, B + 0x40, at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0)};
-        veh_call_bp(E - 4, B, 0x00270413, 0x00289270, TitleRegs{title_global<uint32_t>(0x008da6e0), fire_w, B + 0x40, pass, address_of(hit), att_w}, 3,
+        veh_call_bp(E - 4, B, 0x00270413, own_address(&CG_BulletTracerAndWhizBy), TitleRegs{title_global<uint32_t>(0x008da6e0), fire_w, B + 0x40, pass, address_of(hit), att_w}, 3,
                     args);  // CG_BulletTracerAndWhizBy
     }
     {
         const uint32_t weapon = at<uint32_t>(at<uint8_t*>(fire, 0x3c), 0);
         const uint32_t args[9] = {address_of(hit), att_w, att_w, fire_w, arg[4], wd(0x38), wd(0x3c), wd(0x78), weapon};
-        veh_call_bp(E - 4, B, 0x00270441, 0x00250340, TitleRegs{B + 0x40, fire_w, wd(0x38), arg[4], address_of(hit), att_w}, 9,
+        veh_call_bp(E - 4, B, 0x00270441, own_address(&G_Damage_entry), TitleRegs{B + 0x40, fire_w, wd(0x38), arg[4], address_of(hit), att_w}, 9,
                     args);  // G_Damage
     }
     if (!at<uint32_t>(hit, 0x244) || !(wd(0x38) & 0x40)) return;
@@ -5910,7 +5914,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     wd(0) = edi;
     uint8_t* const ent = pointer<uint8_t>(*pointer<uint32_t>(E + 4));
     const uint32_t ent_w = address_of(ent);
-    veh_call_at(B, 0x00271c48, 0x000261d0, TitleRegs{B + 0x40, ebx, 0, 0, esi, edi});  // BlockTail80_Clear
+    veh_call_at(B, 0x00271c48, own_address(&BlockTail80_Clear), TitleRegs{B + 0x40, ebx, 0, 0, esi, edi});  // BlockTail80_Clear
     uint8_t* const client = at<uint8_t*>(ent, 0x23c);
     const uint32_t cl_w = address_of(client);
     if (at<int32_t>(client, 0x520) != 2) return;
@@ -5930,12 +5934,12 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     int32_t step = title_global<int32_t>(0x00948ae4);  // pmove_msec
     if (step < 8) {
         const uint32_t args[3] = {0x008392f0, 0x00839454, 1};  // "pmove_msec", "8"
-        veh_call_at(B, 0x00271cd7, 0x0029c030, TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
+        veh_call_at(B, 0x00271cd7, own_address(&Cvar_Set2), TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
                     args);  // Cvar_Set2
         step = title_global<int32_t>(0x00948ae4);
     } else if (step > 0x21) {
         const uint32_t args[3] = {0x008392f0, 0x00838ca4, 1};  // "pmove_msec", "33"
-        veh_call_at(B, 0x00271cd7, 0x0029c030, TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
+        veh_call_at(B, 0x00271cd7, own_address(&Cvar_Set2), TitleRegs{0, cl_w, static_cast<uint32_t>(step), 0, cmd_w, ent_w}, 3,
                     args);  // Cvar_Set2
         step = title_global<int32_t>(0x00948ae4);
     }
@@ -5977,7 +5981,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     bool valid;
     {
         const uint32_t args[1] = {ent_w};
-        valid = static_cast<uint8_t>(veh_call_at(B, 0x00271e67, 0x002ae8f0,
+        valid = static_cast<uint8_t>(veh_call_at(B, 0x00271e67, own_address(&G_EntityInValidCell),
                                                  TitleRegs{at<uint32_t>(client, 0), cl_w, 0, at<uint32_t>(client, 8), fixed, ent_w},
                                                  1, args)) != 0;  // G_EntityInValidCell
     }
@@ -5997,7 +6001,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
         for (uint32_t k = 0; k < 0x10; k += 4) wd(0x30 + k) = at<uint32_t>(ps, k);
         {
             const uint32_t args[1] = {0};
-            veh_call_at(B, 0x00271ef3, 0x002f1c80, TitleRegs{wd(0x40), cl_w, at<uint32_t>(ps, 8), at<uint32_t>(ps, 0xc), B + 0x40, ent_w}, 1,
+            veh_call_at(B, 0x00271ef3, own_address(&Pmove_entry), TitleRegs{wd(0x40), cl_w, at<uint32_t>(ps, 8), at<uint32_t>(ps, 0xc), B + 0x40, ent_w}, 1,
                         args);  // Pmove
         }
         const uint8_t* const after = pointer<uint8_t>(wd(0x40));
@@ -6010,7 +6014,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
             (void)same3;
             if (same0 && same1 && same2) {
                 const uint32_t args[2] = {B + 0x40, 0x4171999a};
-                veh_call_at(B, 0x00271f42, 0x002e2f50, TitleRegs{0, cl_w, B + 0x40, wd(0x2c), B + 0x40, ent_w}, 2,
+                veh_call_at(B, 0x00271f42, own_address(&G_PushCapsuleOutOfSolids), TitleRegs{0, cl_w, B + 0x40, wd(0x2c), B + 0x40, ent_w}, 2,
                             args);  // G_PushCapsuleOutOfSolids
             }
         }
@@ -6052,7 +6056,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     if (at<uint32_t>(c4, 0xc4) != old_sequence) at<int32_t>(ent, 0x1a8) = title_global<int32_t>(0x0098540c);
     {
         const uint32_t args[1] = {at<uint32_t>(c4, 0x20)};
-        veh_call_at(B, 0x002720d3, 0x002bcdf0, TitleRegs{ent_w, cl_w, address_of(c4), args[0], old_sequence, ent_w}, 1,
+        veh_call_at(B, 0x002720d3, own_address(&BG_PlayerStateToEntityStateExtraPolate), TitleRegs{ent_w, cl_w, address_of(c4), args[0], old_sequence, ent_w}, 1,
                     args);  // BG_PlayerStateToEntityStateExtraPolate
     }
     at<uint32_t>(ent, 0x140) = at<uint32_t>(ent, 0x20);
@@ -6067,12 +6071,12 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     uint32_t eax_now;
     {
         const uint32_t args[1] = {ent_w};
-        eax_now = veh_call_at(B - 4, 0x0027215c, 0x00271590, TitleRegs{old_sequence, cl_w, 0, at<uint32_t>(ent, 0x28), old_sequence, ent_w},
+        eax_now = veh_call_at(B - 4, 0x0027215c, own_address(&ClientEvents_entry), TitleRegs{old_sequence, cl_w, 0, at<uint32_t>(ent, 0x28), old_sequence, ent_w},
                               1, args);  // ClientEvents
     }
     // EAX after ClientEvents is dead (SV_LinkEntity loads EAX before reading it); passed on as the original's
     // only so Compare inputs match - a Replaced ClientEvents leaves whatever its C left there.
-    veh_call_at(B, 0x00272164, 0x002d7fe0, TitleRegs{eax_now, cl_w, 0, 0, old_sequence, ent_w});  // SV_LinkEntity
+    veh_call_at(B, 0x00272164, own_address(&SV_LinkEntity_entry), TitleRegs{eax_now, cl_w, 0, 0, old_sequence, ent_w});  // SV_LinkEntity
     if (at<float>(client, 0) != at<float>(client, 0x5b0) || at<float>(client, 4) != at<float>(client, 0x5b4) ||
         at<float>(client, 8) != at<float>(client, 0x5b8))
         at<uint8_t>(at<uint8_t*>(ent, 0x244), 0x5a) = 0;
@@ -6081,7 +6085,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
         if (!at<uint32_t>(c, 0x584) && !at<uint32_t>(c, 0x588) && at<int32_t>(c, 0x24) < 4 &&
             title_global<int32_t>(0x0092bdf0) != 5) {  // cls_state
             const uint32_t args[1] = {ent_w};
-            veh_call_at(B, 0x002721dc, 0x00207780, TitleRegs{address_of(c), cl_w, 0, 0, address_of(c), ent_w}, 1,
+            veh_call_at(B, 0x002721dc, own_address(&G_TouchTriggers_entry), TitleRegs{address_of(c), cl_w, 0, 0, address_of(c), ent_w}, 1,
                         args);  // G_TouchTriggers
         }
     }
@@ -6096,7 +6100,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     at<uint32_t>(ent, 0x154) = yaw;
     {
         const uint32_t args[3] = {ent_w, wd(0xbc), B + 0xc0};
-        veh_call_at(B, 0x00272252, 0x00250bf0, TitleRegs{B + 0xc0, cl_w, wd(0xbc), yaw, old_sequence, ent_w}, 3,
+        veh_call_at(B, 0x00272252, own_address(&ClientImpacts), TitleRegs{B + 0xc0, cl_w, wd(0xbc), yaw, old_sequence, ent_w}, 3,
                     args);  // ClientImpacts
     }
     if (title_global<int32_t>(0x0098540c) >= at<int32_t>(client, 0x624) + 500)
@@ -6119,20 +6123,20 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
     uint32_t esi_now = old_sequence;
     if (at<uint8_t>(client, 0x59c) & 0x40) {
         esi_now = ent_w;
-        veh_call_at(B, 0x00272310, 0x00271300, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, ent_w, ent_w});  // Cmd_Activate_f
+        veh_call_at(B, 0x00272310, own_address(&Cmd_Activate_f_entry), TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, ent_w, ent_w});  // Cmd_Activate_f
     }
     if (at<uint8_t>(client, 0x594) & 0x40) {
         const uint32_t args[1] = {ent_w};
-        veh_call_at(B, 0x0027231f, 0x00250960, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
+        veh_call_at(B, 0x0027231f, own_address(&ClientThink_RunPendingTouch), TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
                     args);  // ClientThink_RunPendingTouch
     }
     if (at<int32_t>(client, 0x24) >= 4) {
         if (title_global<int32_t>(0x0098540c) > at<int32_t>(client, 0x5e8))
-            veh_call_at(B, 0x0027233b, 0x002518a0, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, title_global<uint32_t>(0x0098540c), 0, esi_now, ent_w});  // ClientDeathReload
+            veh_call_at(B, 0x0027233b, own_address(&ClientDeathReload), TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, title_global<uint32_t>(0x0098540c), 0, esi_now, ent_w});  // ClientDeathReload
         return;
     }
     const uint32_t args[1] = {ent_w};
-    veh_call_at(B, 0x00272348, 0x00269570, TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
+    veh_call_at(B, 0x00272348, own_address(&G_UpdatePlayerNodeClaim_entry), TitleRegs{at<uint32_t>(cmd, 0x28), cl_w, 0, 0, esi_now, ent_w}, 1,
                 args);  // G_UpdatePlayerNodeClaim
 }
 
@@ -6209,13 +6213,13 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
         const float a = at<float>(client, 0xa0) * d2r;
         uint32_t w;
         std::memcpy(&w, &a, 4);
-        veh_call_at(B, 0x002640c7, 0x000110f0, TitleRegs{B + 0x18, 0, B + 0xc, 0, cl_w, ent_w}, 1, &w);  // FastSinCos (yaw)
+        veh_call_at(B, 0x002640c7, own_address(&FastSinCos), TitleRegs{B + 0x18, 0, B + 0xc, 0, cl_w, ent_w}, 1, &w);  // FastSinCos (yaw)
     }
     {
         const float a = at<float>(client, 0x9c) * d2r;
         uint32_t w;
         std::memcpy(&w, &a, 4);
-        veh_call_at(B, 0x002640e9, 0x000110f0, TitleRegs{B + 0x10, 0, B + 0x20, 0, cl_w, ent_w}, 1, &w);  // FastSinCos (pitch)
+        veh_call_at(B, 0x002640e9, own_address(&FastSinCos), TitleRegs{B + 0x10, 0, B + 0x20, 0, cl_w, ent_w}, 1, &w);  // FastSinCos (pitch)
     }
     const float zero = 0.0f;
     const float ox = at<float>(ent, 0x140), oy = at<float>(ent, 0x144);
@@ -6237,7 +6241,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
     int32_t count;
     {
         const uint32_t args[3] = {B + 0x170, 0x540, 0x00204000};
-        count = static_cast<int32_t>(veh_call_at(B - 4, 0x002641e1, 0x002cc400, TitleRegs{B + 0x60, 0, B + 0x80, 0, cl_w, ent_w}, 3,
+        count = static_cast<int32_t>(veh_call_at(B - 4, 0x002641e1, own_address(&SV_AreaEntities), TitleRegs{B + 0x60, 0, B + 0x80, 0, cl_w, ent_w}, 3,
                                                  args));  // SV_AreaEntities
     }
     wd(0x20) = static_cast<uint32_t>(count);
@@ -6306,7 +6310,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
         }
         if (e[0] == 2) {
             const uint32_t args[1] = {cl_w};
-            const uint32_t ok = veh_call_at(B, 0x00264466, 0x002b68f0, TitleRegs{0, slot, address_of(e), 0, static_cast<uint32_t>(i), address_of(e)}, 1,
+            const uint32_t ok = veh_call_at(B, 0x00264466, own_address(&BG_CanItemBeGrabbed), TitleRegs{0, slot, address_of(e), 0, static_cast<uint32_t>(i), address_of(e)}, 1,
                                             args);  // BG_CanItemBeGrabbed
             if (!ok) {
                 *pointer<float>(slot) = *pointer<float>(slot) + title_global<float>(0x0083f010);  // 10000
@@ -6343,7 +6347,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 if (at<uint32_t>(e, 0x22c)) {
                     if (aim) {
                         const uint32_t args[1] = {aim};
-                        bone = static_cast<int32_t>(veh_call_at(B, 0x002645cb, 0x0023a440,
+                        bone = static_cast<int32_t>(veh_call_at(B, 0x002645cb, own_address(&DObj_GetBoneIndex),
                                                                 TitleRegs{at<uint32_t>(e, 0x22c), 1, aim, 0, address_of(e), entry}, 1,
                                                                 args));  // DObj_GetBoneIndex
                     }
@@ -6352,7 +6356,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 }
                 if (bone >= 0) {
                     const uint32_t args[3] = {address_of(e), static_cast<uint32_t>(bone), B + 0xf0};
-                    veh_call_at(B, 0x00264641, 0x002e3780, TitleRegs{static_cast<uint32_t>(bone), 1, 0, B + 0xf0, address_of(e), entry}, 3,
+                    veh_call_at(B, 0x00264641, own_address(&G_DObjGetWorldTagMatrix), TitleRegs{static_cast<uint32_t>(bone), 1, 0, B + 0xf0, address_of(e), entry}, 3,
                                 args);  // G_DObjGetWorldTagMatrix
                     fl(0x40) = fl(0x120);
                     fl(0x44) = fl(0x124);
@@ -6384,13 +6388,13 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
                     const float a = at<float>(e, 0x94) * d2r;
                     uint32_t w;
                     std::memcpy(&w, &a, 4);
-                    veh_call_at(B, 0x0026476e, 0x000110f0, TitleRegs{B + 0x98, 1, B + 0x9c, 0, address_of(e), entry}, 1, &w);  // FastSinCos
+                    veh_call_at(B, 0x0026476e, own_address(&FastSinCos), TitleRegs{B + 0x98, 1, B + 0x9c, 0, address_of(e), entry}, 1, &w);  // FastSinCos
                 }
                 {
                     const float a = zero * d2r;
                     uint32_t w;
                     std::memcpy(&w, &a, 4);
-                    veh_call_at(B, 0x00264791, 0x000110f0, TitleRegs{B + 0xa4, 1, B + 0xa8, 0, address_of(e), entry}, 1, &w);  // FastSinCos
+                    veh_call_at(B, 0x00264791, own_address(&FastSinCos), TitleRegs{B + 0xa4, 1, B + 0xa8, 0, address_of(e), entry}, 1, &w);  // FastSinCos
                 }
                 const float c = fl(0xa8);
                 const float uy = c * fl(0x98);
@@ -6461,7 +6465,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
                 }
                 {
                     const uint32_t args[11] = {B + 0x130, B + 0x60, B + 0x80, B + 0x40, at<uint32_t>(cl, 0x7c), 0x00200011, 0, 0, 0, 0, 0};
-                    veh_call_at(B, 0x00264ab8, 0x002e9af0, TitleRegs{B + 0x130, B + 0xc0, B + 0x80, B + 0x60, address_of(e), title_global<uint32_t>(0x0082e29c)}, 11,
+                    veh_call_at(B, 0x00264ab8, own_address(&SV_Trace_entry), TitleRegs{B + 0x130, B + 0xc0, B + 0x80, B + 0x60, address_of(e), title_global<uint32_t>(0x0082e29c)}, 11,
                                 args);  // SV_Trace (EBX = the eye)
                 }
                 const uint8_t* const hit = entity_of_handle(wd(0x160));
@@ -6532,7 +6536,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     };
     const auto trace = [&](uint32_t start, uint32_t end, uint32_t ret) {
         const uint32_t args[7] = {B + 0x50, start, end, at<uint32_t>(ent, 0x224), 0x0280e031, 0x008da6f0, 0};
-        veh_call_at(B, ret, 0x002600c0, TitleRegs{B + 0x50, ent_w, start, end, fire_w, edi}, 7, args);  // G_LocationalTrace
+        veh_call_at(B, ret, own_address(&G_LocationalTrace_entry), TitleRegs{B + 0x50, ent_w, start, end, fire_w, edi}, 7, args);  // G_LocationalTrace
     };
     if (!at<uint32_t>(ent, 0x23c)) {
         put4(0x10, ex, ey, ez);
@@ -6558,7 +6562,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
         int32_t count;
         {
             const uint32_t args[3] = {B + 0xc0, 0x80, 0x0200c000};
-            count = static_cast<int32_t>(veh_call_at(B, 0x00265e2a, 0x002cc400, TitleRegs{B + 0xb0, ent_w, B + 0xa0, 0, fire_w, edi}, 3,
+            count = static_cast<int32_t>(veh_call_at(B, 0x00265e2a, own_address(&SV_AreaEntities), TitleRegs{B + 0xb0, ent_w, B + 0xa0, 0, fire_w, edi}, 3,
                                                      args));  // SV_AreaEntities
         }
         wd(0x90) = static_cast<uint32_t>(count);
@@ -6618,7 +6622,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     wd(0x4c) = damage;
     {
         const uint32_t args[5] = {ent_w, B + 0x30, B + 0x50, damage, 7};
-        veh_call_at(B, 0x00265fdb, 0x0025d960, TitleRegs{damage, ent_w, B + 0x50, B + 0x30, fire_w, edi}, 5,
+        veh_call_at(B, 0x00265fdb, own_address(&G_CheckHitTriggerDamage), TitleRegs{damage, ent_w, B + 0x50, B + 0x30, fire_w, edi}, 5,
                     args);  // G_CheckHitTriggerDamage
     }
     if (by(0x74) & 0x10) return;
@@ -6630,7 +6634,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     {
         const uint32_t event = (!at<uint32_t>(hit, 0x23c) && !at<uint32_t>(hit, 0x240)) ? 0xac : 0xab;
         const uint32_t args[2] = {B + 0x50, event};
-        temp = pointer<uint8_t>(veh_call_at(B, 0x00266139, 0x002de2d0, TitleRegs{B + 0x50, ent_w, B + 0x50, 0, fire_w, hit_w}, 2,
+        temp = pointer<uint8_t>(veh_call_at(B, 0x00266139, own_address(&G_TempEntity), TitleRegs{B + 0x50, ent_w, B + 0x50, 0, fire_w, hit_w}, 2,
                                             args));  // G_TempEntity
     }
     at<uint32_t>(temp, 8) = wd(0x80);
@@ -6657,7 +6661,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
         wd(0x2c) = at<uint32_t>(ent, 0x224);
         wd(0x4c) = 0;
         const uint32_t args[4] = {hit_w, title_global<uint32_t>(0x0097a67c), B + 0x4c, B + 0x2c};  // "damage"
-        veh_call_at(B, 0x0026621a, 0x00026670, TitleRegs{B + 0x2c, ent_w, B + 0x4c, args[1], fire_w, hit_w}, 4,
+        veh_call_at(B, 0x0026621a, own_address(&G_NotifyWithIntEntity_entry), TitleRegs{B + 0x2c, ent_w, B + 0x4c, args[1], fire_w, hit_w}, 4,
                     args);  // G_NotifyWithIntEntity
         return;
     }
@@ -6665,12 +6669,12 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     {
         const uint32_t amount = wd(0x4c) + static_cast<uint32_t>(r % 5);
         const uint32_t args[9] = {hit_w, ent_w, ent_w, fire_w, amount, 0, 7, wd(0x88), 0xffffffffu};
-        veh_call_at(B, 0x00266250, 0x00250340, TitleRegs{B + 0x50, ent_w, 5, wd(0x88), fire_w, hit_w}, 9, args);  // G_Damage
+        veh_call_at(B, 0x00266250, own_address(&G_Damage_entry), TitleRegs{B + 0x50, ent_w, 5, wd(0x88), fire_w, hit_w}, 9, args);  // G_Damage
     }
     if (hit != at<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4)) return;
     {
         const uint32_t args[1] = {0x00831f70};  // "default"
-        veh_call_at(B, 0x00266271, 0x0011eb50, TitleRegs{0, ent_w, B + 0x2c, 0, fire_w, hit_w}, 1, args);  // ScriptString_FromCString
+        veh_call_at(B, 0x00266271, own_address(&ScriptString_FromCString), TitleRegs{0, ent_w, B + 0x2c, 0, fire_w, hit_w}, 1, args);  // ScriptString_FromCString
     }
     {
         const uint32_t function = at<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x4e4);
@@ -6678,7 +6682,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
         veh_call_at(B, 0x0026628e, function, TitleRegs{args[0], ent_w, B + 0x2c, title_global<uint32_t>(0x0095f49c), fire_w, hit_w}, 3,
                     args);  // the rumble by name
     }
-    veh_call_at(B, 0x0026629a, 0x0011d640, TitleRegs{0, ent_w, B + 0x2c, 0, fire_w, hit_w});  // ScriptString_Release
+    veh_call_at(B, 0x0026629a, own_address(&ScriptString_Release_entry), TitleRegs{0, ent_w, B + 0x2c, 0, fire_w, hit_w});  // ScriptString_Release
     {
         const uint8_t* const owner = at<uint8_t*>(at<uint8_t*>(hit, 0x244), 0);
         fl(0x10) = at<float>(owner, 0x140);
@@ -6689,7 +6693,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     }
     uint8_t* const manager = title_global<uint8_t*>(0x0095f5c4);  // shakeRumbleMgr
     if (!manager) return;
-    veh_call_at(B, 0x00266300, 0x000146a0, TitleRegs{0, ent_w, 0, 0, B + 0x50, at<uint32_t>(hit, 0x244)});  // ShakeRumbleDesc_Init
+    veh_call_at(B, 0x00266300, own_address(&ShakeRumbleDesc_Init_entry), TitleRegs{0, ent_w, 0, 0, B + 0x50, at<uint32_t>(hit, 0x244)});  // ShakeRumbleDesc_Init
     by(0x50) = 1;
     by(0x70) = 1;
     const float zero = 0.0f;
@@ -6703,10 +6707,10 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
     fl(0x84) = zero;
     {
         const uint32_t args[3] = {address_of(manager), B + 0x4c, 0x3f800000};
-        veh_call_at(B, 0x0026637e, 0x0029b1f0, TitleRegs{1, ent_w, B + 0x50, 0, B + 0x50, at<uint32_t>(hit, 0x244)}, 3,
+        veh_call_at(B, 0x0026637e, own_address(&ShakeRumble_Start), TitleRegs{1, ent_w, B + 0x50, 0, B + 0x50, at<uint32_t>(hit, 0x244)}, 3,
                     args);  // ShakeRumble_Start
     }
-    veh_call_at(B, 0x00266385, 0x00014710, TitleRegs{B + 0x50, ent_w, 0, 0, B + 0x50, at<uint32_t>(hit, 0x244)});  // ShakeRumbleDesc_Destroy
+    veh_call_at(B, 0x00266385, own_address(&ShakeRumbleDesc_Destroy), TitleRegs{B + 0x50, ent_w, 0, 0, B + 0x50, at<uint32_t>(hit, 0x244)});  // ShakeRumbleDesc_Destroy
 }
 
 namespace {
@@ -6870,7 +6874,7 @@ uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, u
         const TitleRegs regs{address_of(motion), address_of(ent), address_of(motion), address_of(motion), address_of(def), 0};
         const uint32_t args[6] = {address_of(ent), 0x43480000u, at<uint32_t>(ent, 0x2a8), address_of(triangles),
                                   address_of(brushes), 0x0098e960};  // pad 200
-        g_ent_call(0x002529c0, &regs, 6, args);  // Vehicle_GatherCollisionCandidates
+        g_ent_call(own_address(&Vehicle_GatherCollisionCandidates_entry), &regs, 6, args);  // Vehicle_GatherCollisionCandidates
     }
     alignas(16) float m[16];
     G_DObjGetWorldTagMatrix(ent, at<uint32_t>(vehicle, 0x2bc), m);
@@ -6913,7 +6917,7 @@ uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, u
                                  static_cast<uint32_t>(i)};
             const uint32_t args[7] = {address_of(ent), address_of(triangles), address_of(brushes), 0x0098e960,
                                       address_of(point), r_bits, address_of(out)};
-            hit = g_ent_call(0x00259df0, &regs, 7, args) & 0xff;  // Vehicle_ClipAgainstEntities
+            hit = g_ent_call(own_address(&Vehicle_ClipAgainstEntities), &regs, 7, args) & 0xff;  // Vehicle_ClipAgainstEntities
         }
         float add = 0.0f;
         if (hit) {
@@ -6957,7 +6961,7 @@ uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, u
     alignas(16) float n[4];
     {
         const TitleRegs regs{0, address_of(ent), 0, 0, address_of(vel), address_of(n)};
-        g_ent_call(0x002975c0, &regs, 0, nullptr);  // VectorNormalize2 (ESI in, EDI out)
+        g_ent_call(own_address(&VectorNormalize2_entry), &regs, 0, nullptr);  // VectorNormalize2 (ESI in, EDI out)
     }
     float f = title_global<float>(0x0083eb20) - ((n[2] * push[2] + n[1] * push[1]) + n[0] * push[0]);
     if (0.0f > f)
@@ -6972,7 +6976,7 @@ uint32_t XB_CDECL Vehicle_SlideMove(uint8_t* ent, int32_t msec, uint32_t move, u
         std::memcpy(&f_bits, &f, 4);
         const TitleRegs regs{0, address_of(ent), 0, 0, address_of(vehicle), 0};
         const uint32_t args[5] = {address_of(ent), address_of(direction), f_bits, 0, 0};
-        g_ent_call(0x0025a400, &regs, 5, args);  // Vehicle_ApplyPush
+        g_ent_call(own_address(&Vehicle_ApplyPush), &regs, 5, args);  // Vehicle_ApplyPush
     }
     at<uint32_t>(vehicle, 0x330) = 1;
     return hits;
@@ -7035,7 +7039,7 @@ uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t
             const TitleRegs regs{0, address_of(origin), 0, 0, 0, 0};
             const uint32_t args[11] = {address_of(trace), address_of(def + 0x1a0), address_of(def + 0x1b0), address_of(end),
                                        at<uint32_t>(ent, 0x224), at<uint32_t>(ent, 0x2a8), 1, 0, 0, 0, 0};
-            g_ent_call(0x002e9af0, &regs, 11, args);  // SV_Trace (start in EBX)
+            g_ent_call(own_address(&SV_Trace_entry), &regs, 11, args);  // SV_Trace (start in EBX)
         }
         if (at<uint8_t>(trace, 0x3c)) {  // all solid
             vel[2] = 0.0f;

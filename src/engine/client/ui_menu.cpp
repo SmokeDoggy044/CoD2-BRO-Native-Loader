@@ -293,7 +293,7 @@ void XB_REGS1 XB_STDCALL UI_DialogSetDefaultButton(uint8_t* mgr, int16_t index) 
 
 void XB_REGS1 XB_STDCALL UI_DialogLayoutButtons(uint8_t* mgr, uint8_t flag) {
     uint8_t* const dialog = dialog_of(mgr);
-    title_call_regs(0x0031f4b0, (address_of(mgr) & ~0xffu) | flag, 0, address_of(dialog));  // Dialog_LayoutButtons
+    title_call_regs(own_address(&Dialog_LayoutButtons_entry), (address_of(mgr) & ~0xffu) | flag, 0, address_of(dialog));  // Dialog_LayoutButtons
 }
 
 // --- Menus ---
@@ -673,14 +673,14 @@ void XB_CDECL UIScreenMgr_SetActiveScreen(uint32_t entry, uint8_t* mgr, int32_t 
         const uint32_t name[1] = {0x0082cbf0};  // "UI_Highlight"
         regs.ecx = 0;
         regs.ebx = 0;
-        const uint32_t alias = title_call_at_regs(top, 0x000c5810, &regs, 1, name);  // S_FindSoundByHash
+        const uint32_t alias = title_call_at_regs(top, own_address(&S_FindSoundByHash), &regs, 1, name);  // S_FindSoundByHash
         if (alias != 0xffffffffu) {
             const uint32_t args[10] = {address_of(handle), 0, 1, 0, address_of(axis), address_of(origin),
                                        0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000};
             regs.eax = alias;
             regs.ecx = *handle;
             regs.edx = address_of(axis);
-            title_call_at_regs(top, 0x002c30a0, &regs, 10, args);  // S_PlaySoundAlias
+            title_call_at_regs(top, own_address(&S_PlaySoundAlias), &regs, 10, args);  // S_PlaySoundAlias
         }
     }
     method_at(mgr, 0x18, 0, nullptr);
@@ -1136,11 +1136,11 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
     const char* text = name;
     if (name) {
         f.regs.eax = address_of(name);
-        const uint32_t hash = f.call(0x003319fc, 0x00024440);  // Loc_HashKey
+        const uint32_t hash = f.call(0x003319fc, own_address(&Loc_HashKey));  // Loc_HashKey
         f.regs.eax = f.regs.ebx;
         const uint32_t hash_args[1] = {hash};
         const uint8_t* const entry_rec =
-            reinterpret_cast<const uint8_t*>(uintptr_t{f.call(0x00331a04, 0x002984f0, 1, hash_args)});  // Zone_FindByHash
+            reinterpret_cast<const uint8_t*>(uintptr_t{f.call(0x00331a04, own_address(&Zone_FindByHash), 1, hash_args)});  // Zone_FindByHash
         if (entry_rec) {
             text = field<const char*>(const_cast<uint8_t*>(entry_rec), 8);
             if (!text) text = text_at(0x008379b4);  // "NO STRING"
@@ -1173,14 +1173,14 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
     f.regs.esi = field<uint32_t>(mgr, 0x1c);
     const uint32_t set_args[2] = {*reinterpret_cast<uint32_t*>(uintptr_t{f.body - 8}),
                                   *reinterpret_cast<uint32_t*>(uintptr_t{f.body - 4})};
-    f.call(rets[3], 0x00313f20, 2, set_args);  // UIDialog_SetText (takes both copies)
+    f.call(rets[3], own_address(&UIDialog_SetText_entry), 2, set_args);  // UIDialog_SetText (takes both copies)
     uint8_t* const dialog = dialog_of(mgr);
     f.regs.edi = address_of(dialog);
     f.copy(rets[4], 0, heading);
     f.copy(0x00331b04, 4, message);
     const uint32_t dialog_args[2] = {*reinterpret_cast<uint32_t*>(uintptr_t{f.body - 8}),
                                      *reinterpret_cast<uint32_t*>(uintptr_t{f.body - 4})};
-    f.call(0x00331b09, 0x0030e6f0, 2, dialog_args);
+    f.call(0x00331b09, own_address(&UIDialog_Init_entry), 2, dialog_args);
     if (ok || yes_no) {
         if (ok) {
             f.button(dialog_of(mgr), 0x0082c9ec, 0x00313dc0, 0x00331b34, 0x00331b4f);  // "INGAME_DIALOG_OK"
@@ -1193,7 +1193,7 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
         f.regs.ecx = field<uint32_t>(mgr, 0xc) != 0;
         f.regs.edx = field<uint32_t>(mgr, 4);
         f.regs.edi = address_of(layout);
-        f.call(0x00331c08, 0x0031f4b0);  // Dialog_LayoutButtons
+        f.call(0x00331c08, own_address(&Dialog_LayoutButtons_entry));  // Dialog_LayoutButtons
     }
     f.method(0x00331c11, heading, 0x0011d640);  // ScriptString_Release
     f.method(0x00331c1a, message, 0x0011d640);
@@ -1247,7 +1247,7 @@ void XB_CDECL Dialog_LayoutButtons(uint8_t vertical, uint8_t* dialog) {
     regs.eax = dialog[0x59];
     regs.esi = address_of(root_overlay());
     const uint32_t args[1] = {vertical ? field<uint32_t>(dialog, 0x34) : 1u};
-    ui_call_regs(0x00313e40, &regs, 1, args);  // the overlay's layout for the button count
+    ui_call_regs(own_address(&DialogOverlay_LayoutTexts_entry), &regs, 1, args);  // the overlay's layout for the button count
     for (int32_t i = 0; i < field<int32_t>(dialog, 0x34); ++i) call(menu_item(dialog, i), 0x4c, 0);
     if (vertical) {
         for (int32_t i = 0; i < field<int32_t>(dialog, 0x34); ++i) {
@@ -1342,7 +1342,7 @@ void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay) {
         TitleRegs regs{};
         regs.edi = address_of(expanded);
         const uint32_t args[1] = {field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{entry - 0x18}), 0)};
-        title_call_at_regs(top, 0x0030f4d0, &regs, 1, args);  // ScriptString_ExpandNewlines (out in EDI)
+        title_call_at_regs(top, own_address(&ScriptString_ExpandNewlines_entry), &regs, 1, args);  // ScriptString_ExpandNewlines (out in EDI)
     }
     {
         const uint32_t args[3] = {string_copy(expanded), 0x118, 0xbf800000};  // width 280, -1.0
@@ -1380,7 +1380,7 @@ void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay) {
     int32_t heading_lines = 0;
     {
         const uint32_t args[2] = {address_of(heading), 0x0082dfeb};  // ""
-        if (!(call_at(top, 0x0011d7c0, 0, 2, args) & 0xff)) {  // ScriptString_Equals
+        if (!(call_at(top, own_address(&ScriptString_Equals), 0, 2, args) & 0xff)) {  // ScriptString_Equals
             heading_lines = int32_t(method_at(top, field<uint8_t*>(overlay, 0x28), 0xc4)) + 1;
         }
     }
@@ -1401,9 +1401,9 @@ void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay) {
     const uint32_t flag[1] = {0x40};
     method_at(top, field<uint8_t*>(overlay, 0x2c), 0x50, 1, flag);
     method_at(top, field<uint8_t*>(overlay, 0x28), 0x50, 1, flag);
-    call_at(top, 0x0011d640, address_of(expanded), 0, nullptr);  // ScriptString_Release
-    call_at(top, 0x0011d640, address_of(text), 0, nullptr);
-    call_at(top, 0x0011d640, address_of(heading), 0, nullptr);
+    call_at(top, own_address(&ScriptString_Release_entry), address_of(expanded), 0, nullptr);  // ScriptString_Release
+    call_at(top, own_address(&ScriptString_Release_entry), address_of(text), 0, nullptr);
+    call_at(top, own_address(&ScriptString_Release_entry), address_of(heading), 0, nullptr);
 }
 
 void XB_THISCALL UIDialog_Draw(uint8_t* dialog) {
@@ -1517,7 +1517,7 @@ void XB_THISCALL DialogMgr_Update(uint8_t* mgr, uint32_t dt) {
     TitleRegs regs{};
     regs.esi = address_of(field<uint8_t*>(mgr, 0x1c));
     const uint32_t args[1] = {dt};
-    ui_call_regs(0x0032df90, &regs, 1, args);  // the overlay's fade (CL_UpdatePauseOverlay)
+    ui_call_regs(own_address(&CL_UpdatePauseOverlay_entry), &regs, 1, args);  // the overlay's fade (CL_UpdatePauseOverlay)
     call(mgr, 0x20, title_global<uint32_t>(0x0095f8f8) ? 1 : 4);
 }
 
@@ -1554,7 +1554,7 @@ void XB_REGS1 XB_CDECL DialogMgr_CloseDialog(uint8_t* mgr) {
         TitleRegs regs{};
         regs.esi = field<uint32_t>(mgr, 0x1c);
         const uint32_t args[2] = {text, heading};
-        ui_call_regs(0x00313f20, &regs, 2, args);  // UIDialog_SetText (overlay in ESI)
+        ui_call_regs(own_address(&UIDialog_SetText_entry), &regs, 2, args);  // UIDialog_SetText (overlay in ESI)
     }
     uint8_t* const dialog = dialog_of(mgr);
     Dialog_LayoutButtons(dialog[0x58], dialog);
@@ -1565,7 +1565,7 @@ void XB_REGS1 XB_CDECL DialogMgr_DrawOverlay(uint8_t* overlay) {
     {
         TitleRegs regs{};
         regs.esi = address_of(overlay);
-        ui_call_regs(0x003141c0, &regs, 0, nullptr);  // DialogMgr_DrawBackground
+        ui_call_regs(own_address(&DialogMgr_DrawBackground_entry), &regs, 0, nullptr);  // DialogMgr_DrawBackground
     }
     if (!((overlay[0x44] >> 2) & 1)) {
         nglPushScene(0);

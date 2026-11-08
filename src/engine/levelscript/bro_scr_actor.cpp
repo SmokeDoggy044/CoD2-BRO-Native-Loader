@@ -57,7 +57,7 @@ uint32_t call_at(uint32_t top, uint32_t ret, uint32_t function, uint32_t count, 
 // BroScr_GetNodeAtPosition(out = the caller's argument slot E+8, actor) at the caller's ESP.
 uint32_t node_at(uint32_t top, uint32_t ret, uint32_t entry_esp, uint32_t actor) {
     const uint32_t args[2] = {entry_esp + 8, actor};
-    call_at(top, ret, 0x00184230, 2, args);
+    call_at(top, ret, own_address(&BroScr_GetNodeAtPosition_entry), 2, args);
     return at<uint32_t>(entry_esp + 8);
 }
 

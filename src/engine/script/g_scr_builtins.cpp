@@ -3217,7 +3217,7 @@ uint32_t XB_CDECL GScr_UseBy(uint32_t handle, uint32_t other_handle) {
     uint32_t number = field<uint32_t>(other, 0x224);
     const TitleRegs regs{number, 0, word_of(&number), title_global<uint32_t>(0x0097a818), word_of(other), word_of(ent)};
     const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), word_of(&number)};  // scr_const_trigger
-    g_ent_call(0x000265a0, &regs, 2, args);
+    g_ent_call(own_address(&G_NotifyWithEntity_entry), &regs, 2, args);
     if (const uint32_t use = field<uint32_t>(ent, 0x33c))
         title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*)>(title_global<uint32_t>(0x008da840 + use * 4))(
             ent, other, other);  // entityUseFuncs

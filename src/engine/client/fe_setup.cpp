@@ -2,6 +2,7 @@
 
 #include "fe_pc.h"
 #include "fe_setup_internal.h"
+#include "ui_panel.h"
 
 namespace game {
 
@@ -750,7 +751,7 @@ uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t ent
     auto game = [] { return field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4); };
     if (same_name(name, 0x0082cf9c, 0x16) && !special) {
         regs.esi = field<uint32_t>(front(), 4);
-        const uint32_t result = title_call_at_regs(entry - 12, 0x00328f70, &regs, 0, nullptr);  // FE_SetupMainMenu
+        const uint32_t result = title_call_at_regs(entry - 12, own_address(&FE_SetupMainMenu_entry), &regs, 0, nullptr);  // FE_SetupMainMenu
         stack_word(entry - 16) = 0x0032a940;
         return result;
     }
@@ -774,7 +775,7 @@ uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t ent
         if (i == 12) {  // the special edition main menu
             if (!same_name(name, 0x0082ce1c, 0x1e) || special != 1) continue;
             regs.esi = field<uint32_t>(front(), 4);
-            const uint32_t result = title_call_at_regs(top, 0x00328f70, &regs, 0, nullptr);
+            const uint32_t result = title_call_at_regs(top, own_address(&FE_SetupMainMenu_entry), &regs, 0, nullptr);
             stack_word(top - 4) = 0x0032ab8d;
             return result;
         }
@@ -807,7 +808,7 @@ uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t ent
     if (!panel) return 0;
     regs.esi = address_of(panel);
     const uint32_t args[1] = {1};
-    const uint32_t result = title_call_at_regs(top, 0x000121d0, &regs, 1, args);  // Panel_DeletingDtor
+    const uint32_t result = title_call_at_regs(top, own_address(&Panel_DeletingDtor_entry), &regs, 1, args);  // Panel_DeletingDtor
     stack_word(top - 8) = 0x0032af04;
     return result;
 }

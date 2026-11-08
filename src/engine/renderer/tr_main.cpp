@@ -16,6 +16,7 @@
 #include "g_script.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
+#include "cg_ents.h"
 
 namespace game {
 
@@ -2276,7 +2277,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
         if (flags & 0x200000) {
             R_SetDefaultLighting();
         } else if (entity) {
-            const uint32_t ref = title_call_regs(0x002be200, 0, address_of(entity), 0);  // CG_GetEntityRefEntity
+            const uint32_t ref = title_call_regs(own_address(&CG_GetEntityRefEntity_entry), 0, address_of(entity), 0);  // CG_GetEntityRefEntity
             R_SetupEntityLighting(reinterpret_cast<REntityLighting*>(ref + 8), origin);
         } else {
             int32_t cell;
@@ -2738,7 +2739,7 @@ void XB_CDECL RE_RenderScene(uint32_t entry, const uint8_t* refdef) {
     const TitleRegs regs{0, top + 0x10, 0, 0, 0, 0};
     // By its title address: R_RenderView is ours in the game (the hook), the original in
     // tests, where ours still mismatches on stale-stack lanes.
-    title_call_at_regs(top, 0x00247350, &regs, 0, nullptr);  // R_RenderView
+    title_call_at_regs(top, own_address(&R_RenderView_entry), &regs, 0, nullptr);  // R_RenderView
     title_global<uint32_t>(0x0095e6bc) = title_global<uint32_t>(0x0095e628);
     title_global<uint32_t>(0x0095e6f4) = title_global<uint32_t>(0x0095e738);
 }
@@ -3818,7 +3819,7 @@ void XB_CDECL R_AddSimpleInstancesToScene(uint32_t top, const uint8_t* table) {
             uint32_t eax = group * 16;
             while (list) {
                 const TitleRegs regs{eax, i, list, 0, list, object_word};
-                eax = title_call_at_regs(top, 0x00046560, &regs, 0, nullptr);  // cdSimpleInstance_AddListToScene
+                eax = title_call_at_regs(top, own_address(&cdSimpleInstance_AddListToScene_entry), &regs, 0, nullptr);  // cdSimpleInstance_AddListToScene
                 // What the original's call leaves there: its return address and its EBP (the slot pointer).
                 *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = 0x002a8d77;
                 *reinterpret_cast<uint32_t*>(uintptr_t{top - 8}) =

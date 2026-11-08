@@ -1632,7 +1632,7 @@ void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t del
     for (uint32_t i = 0; i < list->count; ++i) {
         uint8_t* item = list->items[i];
         const uint32_t item_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
-        at.call(0x0029b8f0, TitleRegs{list->count, item_address, delta, 0, 0, list_address}, delta);  // FX_UpdateEffect
+        at.call(own_address(&FX_UpdateEffect_entry), TitleRegs{list->count, item_address, delta, 0, 0, list_address}, delta);  // FX_UpdateEffect
         item = list->items[i];
         if ((*reinterpret_cast<const uint32_t*>(item + 0x50) >> 1) & 1) continue;
         if (*reinterpret_cast<const uint32_t*>(item)) continue;
@@ -1641,7 +1641,7 @@ void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t del
             at.call_ours(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&FX_FreeEffectComponents)),
                          TitleRegs{0, freed, 0, 0, 0, list_address}, freed);
             const uint32_t heap = title_global<uint32_t>(0x0095f5bc);
-            at.call(0x00044910, TitleRegs{0, freed, heap, 0, 0, list_address}, freed);  // SmallHeap_Free
+            at.call(own_address(&SmallHeap_Free), TitleRegs{0, freed, heap, 0, 0, list_address}, freed);  // SmallHeap_Free
         }
         list->items[i] = reinterpret_cast<uint8_t*>(words[list->count]);
         if (list->count) --list->count;
@@ -1650,7 +1650,7 @@ void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t del
     uint32_t& queued = *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(list) + 0x910);
     for (uint32_t i = 0; i < queued; ++i) {
         const uint32_t spawn = list_address + 0x920 + i * 0x210;
-        at.call(0x002a5810, TitleRegs{queued, spawn, 0, 0, i, list_address}, spawn);  // FX_SpawnQueuedEffect
+        at.call(own_address(&FX_SpawnQueuedEffect_entry), TitleRegs{queued, spawn, 0, 0, i, list_address}, spawn);  // FX_SpawnQueuedEffect
     }
     queued = 0;
 }

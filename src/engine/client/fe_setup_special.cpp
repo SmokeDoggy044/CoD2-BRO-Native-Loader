@@ -3,6 +3,7 @@
 #include "fe_setup_internal.h"
 #include "ngl.h"
 #include "cg_hud.h"
+#include "fe.h"
 
 namespace game {
 
@@ -116,7 +117,7 @@ void XB_CDECL FE_SetupLiberatorMenu(uint8_t* menu, uint8_t* panel, uint32_t entr
     regs.ebx = address_of(hud);
     regs.edi = field<uint32_t>(hud, 0x20);
     regs.esi = address_of(field<uint8_t*>(menu, 8));
-    title_call_at_regs(top, 0x003175b0, &regs, 0, nullptr);  // FE_LiberatorCreateCrossIcons
+    title_call_at_regs(top, own_address(&FE_LiberatorCreateCrossIcons_entry), &regs, 0, nullptr);  // FE_LiberatorCreateCrossIcons
     const uint32_t args[1] = {regs.esi};
     method_at(top, regs, field<uint8_t*>(hud, 0x1c), 4, 1, args);
 }

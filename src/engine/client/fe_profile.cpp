@@ -9,6 +9,7 @@
 #include "ui_panel.h"
 #include "movie.h"
 #include "qcommon_core.h"
+#include "qcommon_fs.h"
 
 // As fe_menus.cpp: the entries move the C frame below a gap and hand the C version the entry ESP; every title call
 // then runs where the original's would (the text setters keep a stack buffer's address in a heap record). 192 KB
@@ -198,7 +199,7 @@ void menu_dtor(uint8_t* menu, uint32_t vtable, uint32_t panel_offset, uint32_t o
     if (panel) {
         TitleRegs regs{};
         regs.eax = address_of(panel);
-        title_call(0x00316620, regs);  // Panel_FreeElements
+        title_call(own_address(&Panel_FreeElements), regs);  // Panel_FreeElements
         if (field<void*>(panel, 0xc)) {
             Mem_AlignedFree(field<void*>(panel, 0xc));
             field<void*>(panel, 0xc) = nullptr;
@@ -252,7 +253,7 @@ uint32_t save_warning(uint8_t* menu, uint32_t flag, int32_t slot, uint32_t split
     // The slot re-read: +0x4c (autosave) / the selection +0x22 (profile menu).
     const uint32_t init_args[2] = {static_cast<uint32_t>(flag == 0x50 ? field<int32_t>(menu, 0x4c) : selection(menu)),
                                    0};
-    title_call(0x0030c4d0, regs, 2, init_args);  // SaveSlot_Init
+    title_call(own_address(&SaveSlot_Init_entry), regs, 2, init_args);  // SaveSlot_Init
     show_dialog(menu[flag] ? 0x0082ae24 : 0x0082ae0c);  // MEM_XBOX_OVERWRITE_WARNING / MEM_XBOX_SAVE_WARNING
     return layout_buttons();
 }
@@ -459,7 +460,7 @@ void XB_THISCALL CreateProfileMenu_Draw(uint8_t* menu) {
         TitleRegs regs{};
         regs.esi = address_of(panel);
         regs.edi = address_of(menu);
-        title_call(0x00310010, regs);  // Panel_Draw
+        title_call(own_address(&Panel_Draw_entry), regs);  // Panel_Draw
         UIMenu_Draw(menu);
     }
     if (uint8_t* const owned = field<uint8_t*>(menu, 0x3c)) call(owned, 0x3c);
@@ -747,11 +748,11 @@ void XB_CDECL CreateProfileMenu_Activate(uint8_t* menu, uint32_t entry_esp) {
         AtTop at(entry_esp - 12);
         TitleRegs regs = esi_regs(menu);
         regs.ecx = address_of(menu);
-        title_call(0x0030d530, regs);  // CreateProfileMenu_BuildKeyboard
+        title_call(own_address(&CreateProfileMenu_BuildKeyboard_entry), regs);  // CreateProfileMenu_BuildKeyboard
         regs = TitleRegs{};
         regs.ecx = address_of(menu);
         regs.esi = address_of(menu);
-        title_call(0x00314b20, regs);  // UIMenu_RestoreSelection
+        title_call(own_address(&UIMenu_RestoreSelection), regs);  // UIMenu_RestoreSelection
         menu[0x198] = 0;
         call(find_text(field<uint8_t*>(menu, 0x38), kProfileName), 0x6c, 0x0082b1b8);  // "_"
         call(menu, 0x88, 10, 1);
@@ -767,9 +768,9 @@ void XB_CDECL CreateProfileMenu_Activate(uint8_t* menu, uint32_t entry_esp) {
     if (title_global<uint8_t>(0x0095f91a)) return;
     AtTop at(entry_esp - 4);  // pop esi, pop ebx
     const uint32_t name[1] = {0x0082cacc};  // "Propgnda"
-    if (!(title_call(0x00332030, TitleRegs{}, 1, name) & 0xff)) return;  // Movie_Open
+    if (!(title_call(own_address(&Movie_Open), TitleRegs{}, 1, name) & 0xff)) return;  // Movie_Open
     const uint32_t rect[5] = {address_of(title_global<uint8_t*>(0x0095f458)), 0, 0, 0x44200000, 0x43f00000};
-    title_call(0x0005ded0, TitleRegs{}, 5, rect);  // nglSetQuadRect (0, 0) - (640, 480)
+    title_call(own_address(&nglSetQuadRect), TitleRegs{}, 5, rect);  // nglSetQuadRect (0, 0) - (640, 480)
     title_global<uint8_t>(0x0095f91a) = 1;
 }
 
@@ -835,18 +836,18 @@ void XB_CDECL CreateProfileMenu_Finish(uint8_t* menu, uint32_t entry_esp) {
     {
         AtTop at(entry_esp);
         const uint32_t clear[1] = {0};
-        title_call(0x00316320, TitleRegs{}, 1, clear);  // Movie_Stop
+        title_call(own_address(&Movie_Stop), TitleRegs{}, 1, clear);  // Movie_Stop
     }
     uint32_t opened;
     {
         AtTop at(entry_esp - 4);  // Movie_Stop's argument still pushed
         const uint32_t name[1] = {0x0082cacc};      // "Propgnda"
-        opened = title_call(0x00332030, TitleRegs{}, 1, name);  // Movie_Open
+        opened = title_call(own_address(&Movie_Open), TitleRegs{}, 1, name);  // Movie_Open
     }
     AtTop at(entry_esp);
     if (opened & 0xff) {
         const uint32_t rect[5] = {address_of(title_global<uint8_t*>(0x0095f458)), 0, 0, 0x44200000, 0x43f00000};
-        title_call(0x0005ded0, TitleRegs{}, 5, rect);  // nglSetQuadRect (0, 0) - (640, 480)
+        title_call(own_address(&nglSetQuadRect), TitleRegs{}, 5, rect);  // nglSetQuadRect (0, 0) - (640, 480)
         title_global<uint8_t>(0x0095f91a) = 1;
     }
     if (title_global<uint8_t>(0x008dd1cf) == 1) {
@@ -864,19 +865,19 @@ void XB_CDECL CreateProfileMenu_Finish(uint8_t* menu, uint32_t entry_esp) {
 
 void XB_CDECL CreateProfileMenu_HandleSelect(uint8_t* menu, int32_t index, uint32_t entry_esp) {
     AtTop at(entry_esp - 4);  // push esi
-    title_call(0x0032d660, esi_regs(menu));  // UI_PlayTypeSound
+    title_call(own_address(&UI_PlayTypeSound), esi_regs(menu));  // UI_PlayTypeSound
     TitleRegs regs = esi_regs(menu);
     regs.eax = static_cast<uint32_t>(index);
     if (index <= 0x23) {
-        title_call(0x00325980, regs);  // AddChar
+        title_call(own_address(&CreateProfileMenu_AddChar_entry), regs);  // AddChar
         return;
     }
     regs.ecx = static_cast<uint32_t>(index - 0x24);
     switch (index) {
-        case 0x24: title_call(0x003258c0, regs); break;  // Backspace
-        case 0x25: title_call(0x0030d4c0, regs); break;  // ToggleCase
-        case 0x26: title_call(0x00325980, regs); break;  // AddChar (space)
-        case 0x27: title_call(0x00338b70, regs); break;  // Finish
+        case 0x24: title_call(own_address(&CreateProfileMenu_Backspace_entry), regs); break;  // Backspace
+        case 0x25: title_call(own_address(&CreateProfileMenu_ToggleCase_entry), regs); break;  // ToggleCase
+        case 0x26: title_call(own_address(&CreateProfileMenu_AddChar_entry), regs); break;  // AddChar (space)
+        case 0x27: title_call(own_address(&CreateProfileMenu_Finish_entry), regs); break;  // Finish
         default: break;
     }
 }
@@ -951,13 +952,13 @@ void XB_CDECL AutosaveMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint
     title_global<uint8_t>(0x008d50dd) = 1;
     const int32_t state = field<int32_t>(menu, 0x44);
     if (error == -12 || (error == -11 && state == 2)) {
-        tail_call(entry_esp, 0x003337c0, eax_regs(address_of(menu)));  // AutosaveMenu_ShowCorruptDialog
+        tail_call(entry_esp, own_address(&AutosaveMenu_ShowCorruptDialog_entry), eax_regs(address_of(menu)));  // AutosaveMenu_ShowCorruptDialog
         return;
     }
     if (state != 2 && operation != 4) {
         {
             AtTop at(entry_esp - 4);
-            title_call(0x0030cf70, eax_regs(address_of(menu)));
+            title_call(own_address(&AutosaveMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
         }
         field<int32_t>(menu, 0x44) = 1;
         tail_call(entry_esp, kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
@@ -985,13 +986,13 @@ void XB_CDECL ProfileMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint8
     title_global<uint8_t>(0x008d50dd) = 1;
     const int32_t state = field<int32_t>(menu, 0x48);
     if (error == -12 || error == -1 || (error == -11 && state == 2)) {
-        tail_call(entry_esp, 0x00334f40, eax_regs(address_of(menu)));  // ProfileMenu_ShowCorruptDialog
+        tail_call(entry_esp, own_address(&ProfileMenu_ShowCorruptDialog_entry), eax_regs(address_of(menu)));  // ProfileMenu_ShowCorruptDialog
         return;
     }
     if (state != 2 && operation != 4) {
         {
             AtTop at(entry_esp - 4);
-            title_call(0x00312850, eax_regs(address_of(menu)));
+            title_call(own_address(&ProfileMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
         }
         field<int32_t>(menu, 0x48) = 1;
         tail_call(entry_esp, kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
@@ -1038,7 +1039,7 @@ void XB_CDECL ProfileMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint8
 void XB_CDECL AutosaveMenu_OnSaveSucceeded(uint8_t* menu, uint32_t entry_esp) {
     if (!menu[0x36]) {
         title_global<uint8_t>(0x0095ee08) = field<int32_t>(in_game_screen(0x1c), 0x48) == 4 ? 1 : 0;
-        tail_call(entry_esp, 0x002b1eb0, eax_regs(0x0082c894));  // Cmd_ExecuteRegisteredCommand("reboot")
+        tail_call(entry_esp, own_address(&Cmd_ExecuteRegisteredCommand), eax_regs(0x0082c894));  // Cmd_ExecuteRegisteredCommand("reboot")
         return;
     }
     const uint32_t name = menu[0x50] ? 0x0082aff0 : 0x0082afdc;  // MEM_OVERWRITE_SUCCESS / MEM_SAVE_SUCCESS
@@ -1080,7 +1081,7 @@ void XB_CDECL ProfileMenu_ShowNoSaveDataDialog(uint32_t entry_esp) {
 
 void XB_CDECL ProfileMenu_ConfirmLoad(uint8_t* menu, uint32_t entry_esp) {
     if (field<int32_t>(menu, 0x4c) == 1) {
-        tail_call(entry_esp, 0x00334b10, eax_regs(address_of(menu)));  // ProfileMenu_StartLoad
+        tail_call(entry_esp, own_address(&ProfileMenu_StartLoad_entry), eax_regs(address_of(menu)));  // ProfileMenu_StartLoad
         return;
     }
     AtTop at(entry_esp - 8);
@@ -1103,28 +1104,28 @@ void XB_CDECL AutosaveMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
     int32_t mode = field<int32_t>(menu, 0x48);
     if (unformatted) {
         if (mode == 2) {
-            title_call(0x00333d00, regs);  // AutosaveMenu_ShowNoSaveDataDialog
+            title_call(own_address(&AutosaveMenu_ShowNoSaveDataDialog_entry), regs);  // AutosaveMenu_ShowNoSaveDataDialog
             return;
         }
         if (mode == 0) {
-            title_call(0x00333c10, regs);  // AutosaveMenu_ShowUnformattedDialog
+            title_call(own_address(&AutosaveMenu_ShowUnformattedDialog_entry), regs);  // AutosaveMenu_ShowUnformattedDialog
             return;
         }
         if (mode != 1) return;
     } else {
         if (title_call(kSave_ProfilesDirExists, regs) & 0xff) {
-            title_call(0x00333bb0, regs);  // AutosaveMenu_StartProfileLoad
+            title_call(own_address(&AutosaveMenu_StartProfileLoad_entry), regs);  // AutosaveMenu_StartProfileLoad
             return;
         }
         mode = field<int32_t>(menu, 0x48);
         if (mode == 2) {
             menu[0x38] = 1;
-            title_call(0x00333d00, regs);  // AutosaveMenu_ShowNoSaveDataDialog
+            title_call(own_address(&AutosaveMenu_ShowNoSaveDataDialog_entry), regs);  // AutosaveMenu_ShowNoSaveDataDialog
             return;
         }
         if (mode != 1 && mode != 0) return;
     }
-    title_call(0x0030cf70, eax_regs(address_of(menu)));
+    title_call(own_address(&AutosaveMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
     field<int32_t>(menu, 0x44) = 1;
 }
 
@@ -1135,19 +1136,19 @@ void XB_CDECL ProfileMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
     int32_t mode = field<int32_t>(menu, 0x4c);
     if (unformatted) {
         if (mode == 2) {
-            title_call(0x003352d0, regs);
+            title_call(own_address(&ProfileMenu_ShowNoSaveDataDialog_entry), regs);
             return;
         }
         if (mode == 0 || mode == 3) {
             menu[0x37] = 1;
-            title_call(0x003351e0, regs);  // ProfileMenu_ShowUnformattedDialog
+            title_call(own_address(&ProfileMenu_ShowUnformattedDialog_entry), regs);  // ProfileMenu_ShowUnformattedDialog
             return;
         }
         if (mode != 1) return;
     } else {
-        if (!title_global<uint8_t>(0x008dd1d0) && !(title_call(0x00335460, regs) & 0xff)) return;  // CheckFreeSpace2
+        if (!title_global<uint8_t>(0x008dd1d0) && !(title_call(own_address(&MemDlg_CheckFreeSpace2), regs) & 0xff)) return;  // CheckFreeSpace2
         if (title_call(kSave_ProfilesDirExists, regs) & 0xff) {
-            title_call(0x00335180, regs);  // ProfileMenu_StartProfileLoad
+            title_call(own_address(&ProfileMenu_StartProfileLoad_entry), regs);  // ProfileMenu_StartProfileLoad
             return;
         }
         menu[0x39] = 0;
@@ -1161,12 +1162,12 @@ void XB_CDECL ProfileMenu_CheckStorage(uint8_t* menu, uint32_t entry_esp) {
         }
         mode = field<int32_t>(menu, 0x4c);
         if (mode == 2) {
-            title_call(0x003352d0, regs);
+            title_call(own_address(&ProfileMenu_ShowNoSaveDataDialog_entry), regs);
             return;
         }
         if (mode != 0 && mode != 3 && mode != 1) return;
     }
-    title_call(0x00312850, eax_regs(address_of(menu)));
+    title_call(own_address(&ProfileMenu_MarkSlotsEmpty_entry), eax_regs(address_of(menu)));
     field<int32_t>(menu, 0x48) = 1;
 }
 
@@ -1174,13 +1175,13 @@ uint32_t XB_CDECL AutosaveMenu_SelectSlot(int32_t slot, uint8_t* menu, uint32_t 
     AtTop at(entry_esp - 8);
     TitleRegs regs = esi_regs(menu);
     regs.edi = static_cast<uint32_t>(slot);
-    const uint32_t room = title_call(0x00333e20, regs);  // MemDlg_CheckFreeSpace3
+    const uint32_t room = title_call(own_address(&MemDlg_CheckFreeSpace3), regs);  // MemDlg_CheckFreeSpace3
     if (!(room & 0xff)) return room;
     field<int32_t>(saves(), 0x11ec) = slot;
     field<int32_t>(menu, 0x4c) = slot;
     if (!menu[0x36] && !menu[0x37]) {
         menu[0x50] = 0;
-        return title_call(0x003334b0, regs);  // AutosaveMenu_ShowSaveWarning
+        return title_call(own_address(&AutosaveMenu_ShowSaveWarning_entry), regs);  // AutosaveMenu_ShowSaveWarning
     }
     menu[0x50] = 1;
     show_dialog(0x0082ae6c);  // MEM_XBOX_OVERWRITE_CONFIRM
@@ -1196,7 +1197,7 @@ void XB_CDECL AutosaveMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp
     title_call(kSave_Update, regs);
     if (menu[0x84]) {
         menu[0x84] = 0;
-        title_call(0x00333640, eax_regs(address_of(menu)));  // AutosaveMenu_ShowNoSaveDialog
+        title_call(own_address(&AutosaveMenu_ShowNoSaveDialog_entry), eax_regs(address_of(menu)));  // AutosaveMenu_ShowNoSaveDialog
     }
     if (menu[0x85]) {
         const uint8_t no_data = menu[0x38];
@@ -1205,7 +1206,7 @@ void XB_CDECL AutosaveMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp
         if (no_data || state == 1) {
             call(menu, 0x40);
         } else if (state == 2) {
-            title_call(0x00333ee0, regs);  // AutosaveMenu_CheckStorage
+            title_call(own_address(&AutosaveMenu_CheckStorage_entry), regs);  // AutosaveMenu_CheckStorage
         } else {
             const int32_t mode = field<int32_t>(menu, 0x48);
             if (mode == 0 || mode == 2) call(menu, 0x40);
@@ -1233,7 +1234,7 @@ bool profiles_read_due(uint32_t now_word, uint32_t stamp_word) {
 void XB_CDECL ProfileMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp) {
     AtTop at(entry_esp - 4);  // push esi
     const TitleRegs regs = esi_regs(menu);
-    title_call(0x00331fb0, regs);  // SCR_LoadingPump
+    title_call(own_address(&SCR_LoadingPump), regs);  // SCR_LoadingPump
     title_call(kSave_Update, regs);
     uint32_t help = 0x0082c37c;  // FEMENU_OP_HELPBAR
     if (field<int32_t>(menu, 0x4c) == 0 && menu[(selection(menu) + 9) * 0xc] != 1) help = 0x0082b10c;
@@ -1242,11 +1243,11 @@ void XB_CDECL ProfileMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp)
         menu[0x97] = 0;
     } else if (menu[0x97] && profiles_read_due(now_bits(), field<uint32_t>(menu, 0x98))) {
         const uint32_t args[1] = {address_of(menu)};
-        title_call(0x0033a2a0, regs, 1, args);  // ProfileMenu_OnProfilesRead
+        title_call(own_address(&ProfileMenu_OnProfilesRead_entry), regs, 1, args);  // ProfileMenu_OnProfilesRead
     }
     if (menu[0x95]) {
         menu[0x95] = 0;
-        title_call(0x00334ca0, eax_regs(address_of(menu)));  // ProfileMenu_ShowSaveErrorDialog
+        title_call(own_address(&ProfileMenu_ShowSaveErrorDialog_entry), eax_regs(address_of(menu)));  // ProfileMenu_ShowSaveErrorDialog
     }
     if (menu[0x96]) {
         const uint8_t unformatted = menu[0x37];
@@ -1255,7 +1256,7 @@ void XB_CDECL ProfileMenu_Update(uint8_t* menu, uint32_t dt, uint32_t entry_esp)
         if (unformatted || state == 1) {
             call(menu, 0x40);
         } else if (state == 2) {
-            title_call(0x00338960, regs);  // ProfileMenu_CheckStorage
+            title_call(own_address(&ProfileMenu_CheckStorage_entry), regs);  // ProfileMenu_CheckStorage
         } else {
             const int32_t mode = field<int32_t>(menu, 0x4c);
             if (mode == 0 || mode == 2 || mode == 1) call(menu, 0x40);
@@ -1290,7 +1291,7 @@ void XB_CDECL AutosaveMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
         regs.eax = field<uint32_t>(menu, 0x4c);
         regs.ecx = address_of(menu);
         regs.ebx = address_of(menu);
-        tail_call(entry_esp, 0x00337f00, regs);  // AutosaveMenu_SelectSlot
+        tail_call(entry_esp, own_address(&AutosaveMenu_SelectSlot_entry), regs);  // AutosaveMenu_SelectSlot
         return;
     }
     title_global<uint8_t>(0x008d50dd) = 1;
@@ -1310,7 +1311,7 @@ void XB_CDECL AutosaveMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
                 field<uint8_t*>(row, 0) = profile;
                 TitleRegs regs = eax_regs(address_of(profile));
                 regs.ebx = address_of(menu);
-                field<uint32_t>(row, 4) = title_call(0x0030cd70, regs);  // FE_FormatPlayTime
+                field<uint32_t>(row, 4) = title_call(own_address(&FE_FormatPlayTime), regs);  // FE_FormatPlayTime
                 row[8] = 0;
                 session_start_bits() = now_bits();
                 continue;
@@ -1330,7 +1331,7 @@ void XB_CDECL AutosaveMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
     }
     TitleRegs regs = esi_regs(menu);
     regs.ebx = address_of(menu);
-    title_call(0x0030ccb0, regs);
+    title_call(own_address(&AutosaveMenu_UpdateSlotTexts_entry), regs);
     title_call(kDialogMgr_CloseDialog, eax_regs(address_of(dialog_mgr())));
     uint8_t* const screen = in_game_screen(0x1c);
     if (!title_global<uint8_t>(0x008dcf10)) {
@@ -1342,7 +1343,7 @@ void XB_CDECL AutosaveMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
     select.eax = title_global<uint32_t>(0x008dce40);
     select.ecx = address_of(menu);
     select.ebx = address_of(menu);
-    tail_call(entry_esp, 0x00337f00, select);  // AutosaveMenu_SelectSlot
+    tail_call(entry_esp, own_address(&AutosaveMenu_SelectSlot_entry), select);  // AutosaveMenu_SelectSlot
 }
 
 void XB_CDECL ProfileMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
@@ -1376,20 +1377,20 @@ void XB_CDECL ProfileMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
                 regs.esi = address_of(profile);
                 regs.edi = address_of(menu);
                 regs.ebx = static_cast<uint32_t>(i);
-                field<uint32_t>(row, 4) = title_call(0x0030d0b0, regs);  // FE_FormatPlayTime2
+                field<uint32_t>(row, 4) = title_call(own_address(&FE_FormatPlayTime2), regs);  // FE_FormatPlayTime2
                 row[8] = 0;
                 session_start_bits() = now_bits();
                 if (field<int32_t>(menu, 0x48) == 2 && i == field<int32_t>(menu, 0x50)) {
                     regs.eax = 0x008dce30;
                     regs.ecx = address_of(profile);
-                    const uint32_t copy = title_call(0x00312130, regs);  // Profile_Copy
+                    const uint32_t copy = title_call(own_address(&Profile_Copy), regs);  // Profile_Copy
                     title_global<uint8_t>(0x008dcf10) = 1;
                     title_global<int32_t>(0x008dce40) = i;
                     regs.eax = copy;
                     regs.edi = copy;
-                    title_call(0x00332e20, regs);  // CL_ApplyProfileSettings
+                    title_call(own_address(&CL_ApplyProfileSettings_entry), regs);  // CL_ApplyProfileSettings
                     regs.esi = copy;
-                    title_call(0x003304f0, regs);  // Profile_ApplySkill
+                    title_call(own_address(&Profile_ApplySkill_entry), regs);  // Profile_ApplySkill
                 }
                 continue;
             }
@@ -1404,11 +1405,11 @@ void XB_CDECL ProfileMenu_OnProfilesRead(uint8_t* menu, uint32_t entry_esp) {
         for (int32_t i = 0; i < 4; ++i)
             if (menu[0x6c + i * 0xc] == 0) empty = false;
         if (empty) {
-            title_call(0x003352d0, regs);
+            title_call(own_address(&ProfileMenu_ShowNoSaveDataDialog_entry), regs);
             return;
         }
     }
-    title_call(0x00312690, regs);  // FE_SaveSlotsUpdateText
+    title_call(own_address(&FE_SaveSlotsUpdateText_entry), regs);  // FE_SaveSlotsUpdateText
     const int32_t mode = field<int32_t>(menu, 0x4c);
     if (field<int32_t>(menu, 0x48) != 0 && (mode == 1 || mode == 2)) {
         menu[0x38] = 1;

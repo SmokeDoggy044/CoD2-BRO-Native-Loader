@@ -12,6 +12,7 @@
 #include "bro_scr_mortar_loops.h"
 #include "bro_scr_stuka_bomb.h"
 #include "levels_twins.h"
+#include "bro_scr_anim_reach.h"
 
 namespace game {
 
@@ -79,12 +80,12 @@ void drone_paths_start_all(uint32_t function, uint32_t a1, DynArray* paths, Scri
 }  // namespace
 
 void XB_CDECL BroScr_AnimReachCall(uint32_t ent, uint32_t guy, uint32_t a3, ScriptString anime, uint32_t a5, uint32_t a6) {
-    anim_reach(0x0016ce40, ent, guy, a3, &anime, a5, a6);
+    anim_reach(own_address(&BroScr_AnimReach), ent, guy, a3, &anime, a5, a6);
     scr_release(&anime);
 }
 
 void XB_CDECL BroScr_AnimReachEntCall(uint32_t ent, uint32_t guy, uint32_t a3, ScriptString anime, uint32_t a5, uint32_t a6) {
-    anim_reach(0x0016cf80, ent, guy, a3, &anime, a5, a6);
+    anim_reach(own_address(&BroScr_AnimReachEnt), ent, guy, a3, &anime, a5, a6);
     scr_release(&anime);
 }
 
@@ -186,36 +187,36 @@ void XB_CDECL BroScr_MortarGroupShuffledLoopCall_4(uint32_t ent, DynArray group,
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_1(uint32_t a1, DynArray paths, ScriptString name) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(),
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(),
                           undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_2(uint32_t a1, DynArray paths, ScriptString name, uint32_t p11) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(), p11);
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(), p11);
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_3(uint32_t a1, DynArray paths, ScriptString name, uint32_t p6) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, p6, word_ea4(), word_ea4(), word_ea4(), word_ea4(),
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, p6, word_ea4(), word_ea4(), word_ea4(), word_ea4(),
                           undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_4(uint32_t a1, DynArray paths, ScriptString name, uint32_t p6, uint32_t p11) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, p6, word_ea4(), word_ea4(), word_ea4(), word_ea4(), p11);
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, p6, word_ea4(), word_ea4(), word_ea4(), word_ea4(), p11);
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_5(uint32_t a1, DynArray paths, ScriptString name, uint32_t p6, uint32_t p7,
                                               uint32_t p8) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), undefined_bool_word());
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathsStartAllCall_6(uint32_t a1, DynArray paths, ScriptString name, uint32_t p6, uint32_t p7,
                                               uint32_t p8, uint32_t p11) {
-    drone_paths_start_all(0x00171f80, a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), p11);
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAll), a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), p11);
 }
 
 void XB_CDECL BroScr_DronePathsStartAllStaggeredCall(uint32_t a1, DynArray paths, ScriptString name, uint32_t p6,
                                                      uint32_t p7, uint32_t p8, uint32_t p11) {
-    drone_paths_start_all(0x00172150, a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), p11);
+    drone_paths_start_all(own_address(&BroScr_DronePathsStartAllStaggered), a1, &paths, &name, p6, p7, p8, word_ea4(), word_ea4(), p11);
 }
 
 }  // namespace game

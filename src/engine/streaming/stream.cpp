@@ -25,6 +25,7 @@
 #include "snd.h"
 #include "tr_main.h"
 #include "xanim.h"
+#include "g_spawn.h"
 
 namespace game {
 
@@ -790,11 +791,11 @@ uint32_t XB_CDECL Stream_LoadBpe(uint32_t entry, char* name, uint8_t* data, uint
         title_global<uint8_t>(0x0095f5d1) = 0;
         loading = 1;
         const TitleRegs push{0, 0, 0, 0, address_of(global_context()), context_id};
-        title_call_at_regs(entry - 0x14, 0x0028f6c0, &push, 0, nullptr);  // MemContext_Push
+        title_call_at_regs(entry - 0x14, own_address(&MemContext_Push_entry), &push, 0, nullptr);  // MemContext_Push
     }
     const TitleRegs load{size, context_id, address_of(data), 0, 0, context_id};
     const uint32_t args[2] = {title_global<uint32_t>(0x0095f630), address_of(name)};
-    const uint32_t result = title_call_at_regs(entry - 0x10, 0x00291140, &load, 2, args);  // FX_LoadEffectFromStream
+    const uint32_t result = title_call_at_regs(entry - 0x10, own_address(&FX_LoadEffectFromStream_entry), &load, 2, args);  // FX_LoadEffectFromStream
     if (context_id == 0xffffffff) return result;
     loading = saved;
     title_global<uint8_t>(0x0095f5d1) = 0;
@@ -897,7 +898,7 @@ void set_zone_distance(uint32_t zone, float distance) {
     TitleRegs regs{};
     regs.ecx = title_global<uint32_t>(0x0095f638);
     const uint32_t args[3] = {zone, bits_of(distance), 0};
-    cg_call_regs(0x0028ca10, &regs, args, 3);
+    cg_call_regs(own_address(&Zone_SetDistance_r), &regs, args, 3);
 }
 
 bool connect_paths() {
@@ -1003,7 +1004,7 @@ void XB_STDCALL Stream_UpdateZoneDistances(uint8_t* manager) {
     TitleRegs reset{};
     reset.esi = title_global<uint32_t>(0x0095f638);
     const uint32_t zero = 0;
-    cg_call_regs(0x0028ca90, &reset, &zero, 1);  // Pak_ResetZoneDistances (stream system in ESI)
+    cg_call_regs(own_address(&Pak_ResetZoneDistances_entry), &reset, &zero, 1);  // Pak_ResetZoneDistances (stream system in ESI)
     for (int32_t index = word_at<int32_t>(manager, 0x1cc); index != -1;
          index = word_at<int32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4), 0x3c)) {
         const uint8_t* const selector = word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4);
@@ -2036,7 +2037,7 @@ uint32_t XB_CDECL Stream_ParseScn(uint8_t* data, uint8_t* table, uint32_t zone, 
         word_at<uint8_t*>(list, 4)[wrap_index(i, word_at<uint32_t>(list, 0))] = 0;
     const TitleRegs regs{word_at<uint32_t>(list, 0), address_of(table), 0, 0, address_of(list), zone};
     const uint32_t args[2] = {address_of(table), zone};
-    const uint32_t result = title_call_at_regs(entry - 4, 0x002ee550, &regs, 2, args);  // Scn_SpawnZone
+    const uint32_t result = title_call_at_regs(entry - 4, own_address(&Scn_SpawnZone_entry), &regs, 2, args);  // Scn_SpawnZone
     if (word_at<uint32_t>(list, 0)) word_at<uint32_t>(table, 0x194) = address_of(list);
     return result;
 }
@@ -2054,7 +2055,7 @@ PLATFORM_ASM_ENTRY(Stream_LoadScn_entry,
 
 uint32_t XB_CDECL Stream_LoadScn(uint32_t entry, uint8_t* data, uint32_t zone) {
     const TitleRegs regs{address_of(data), title_global<uint32_t>(0x0095f4f8), 0, 0, 0, zone};
-    return title_call_at_regs(entry - 8, 0x002ee600, &regs, 0, nullptr);  // Stream_ParseScn
+    return title_call_at_regs(entry - 8, own_address(&Stream_ParseScn_entry), &regs, 0, nullptr);  // Stream_ParseScn
 }
 
 uint32_t XB_CDECL Stream_LoadXmpb(char*, uint8_t* data, uint32_t, uint32_t zone) {
@@ -2874,14 +2875,14 @@ PLATFORM_ASM_ENTRY(call_with_ebx,
                    "ret")
 
 uint8_t* find_next_zone_to_load(uint8_t* system) {
-    return reinterpret_cast<uint8_t*>(uintptr_t{call_with_ebx(0x0028e460, address_of(system))});  // Pak_FindNextZoneToLoad
+    return reinterpret_cast<uint8_t*>(uintptr_t{call_with_ebx(own_address(&Pak_FindNextZoneToLoad_entry), address_of(system))});  // Pak_FindNextZoneToLoad
 }
 
 // Stream_QueueLoad (0x002920c0): EAX and EDI (system), the name word and a 16-byte block on the stack (ret 0x14).
 uint32_t queue_load(uint8_t* system, uint32_t eax, uint32_t name, const uint32_t* block, uint32_t esi) {
     const TitleRegs regs{eax, 0, 0, 0, esi, address_of(system)};
     const uint32_t args[5] = {name, block[0], block[1], block[2], block[3]};
-    return cg_call_regs(0x002920c0, &regs, args, 5);
+    return cg_call_regs(own_address(&Stream_QueueLoad_entry), &regs, args, 5);
 }
 
 uint32_t release_cell_meshes(uint32_t id) {
@@ -3715,17 +3716,17 @@ uint32_t load_call(uint32_t top, uint32_t ret, uint32_t function, const TitleReg
 void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
     const uint32_t top = entry - 0xfc;
     const uint32_t rec = address_of(record);
-    load_call(top, 0x002926d5, 0x000ca690, TitleRegs{});  // File_PumpRequests
+    load_call(top, 0x002926d5, own_address(&File_PumpRequests), TitleRegs{});  // File_PumpRequests
     const uint32_t state = word_at<uint32_t>(record, 0xe0);
     uint32_t done = title_global<uint32_t>(0x0095f614);
     title_global<uint32_t>(0x0095f614) = 0;
     if (state == 0) {
         // The image header read: relocated in the shared buffer, then the items' buffers set up.
         const uint32_t request = word_at<uint32_t>(record, 0x88);
-        const uint32_t status = load_call(top, 0x00292b75, 0x000c9db0, TitleRegs{request, 0, 0, 0, 0, done}, 1,
+        const uint32_t status = load_call(top, 0x00292b75, own_address(&File_GetRequestStatus), TitleRegs{request, 0, 0, 0, 0, done}, 1,
                                           &request);  // File_GetRequestStatus
         if (status != 0xffffffff) return;
-        load_call(top, 0x00292b90, 0x00024e40, TitleRegs{status, 0, 0x0095f738, 0x8000, 0, done});  // Stream_SetLoadProgress
+        load_call(top, 0x00292b90, own_address(&Stream_SetLoadProgress), TitleRegs{status, 0, 0x0095f738, 0x8000, 0, done});  // Stream_SetLoadProgress
         const float zero = 0.0f;
         title_global<float>(0x0095f744) = (zero - title_global<float>(0x0095f740)) + title_global<float>(0x0095f744);
         title_global<float>(0x0095f740) = zero;
@@ -3734,9 +3735,9 @@ void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
         const uint32_t image = word_at<uint32_t>(record, 0x84);
         word_at<uint32_t>(record, 0x7c) = image;
         const uint32_t skip = 0;
-        load_call(top, 0x00292bdd, 0x00024c10, TitleRegs{0, 0, 0, image, 0, done}, 1, &skip);  // Stream_RelocateZone
+        load_call(top, 0x00292bdd, own_address(&Stream_RelocateZone), TitleRegs{0, 0, 0, image, 0, done}, 1, &skip);  // Stream_RelocateZone
         word_at<int32_t>(record, 0x88) = -1;
-        load_call(top, 0x00292bed, 0x00291b00, TitleRegs{0, 0, 0, 0, 0, done}, 1, &rec);  // Stream_BeginZoneLoad
+        load_call(top, 0x00292bed, own_address(&Stream_BeginZoneLoad), TitleRegs{0, 0, 0, 0, 0, done}, 1, &rec);  // Stream_BeginZoneLoad
         return;
     }
     const uint32_t frame = entry - 0x100;
@@ -3744,18 +3745,18 @@ void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
         // Each ready entry handed to its file type's load handler, until 0x008fef6c files' worth this frame.
         uint32_t name = 0, size = 0;
         while (done < title_global<uint32_t>(0x008fef6c)) {
-            if (!uint8_t(load_call(frame, 0x00292af7, 0x00292220, TitleRegs{rec, name, 0, 0, size, done})))
+            if (!uint8_t(load_call(frame, 0x00292af7, own_address(&Stream_IsChunkReady), TitleRegs{rec, name, 0, 0, size, done})))
                 return;  // Stream_IsChunkReady
             const uint8_t* const item =
                 word_at<uint8_t*>(current_group(record), 0x14) + word_at<uint32_t>(record, 0xd4) * 0x14;
             name = word_at<uint32_t>(item, 0);
             size = word_at<uint32_t>(item, 8);
-            done += load_call(frame, 0x00292b28, 0x0028d920, TitleRegs{name, name, 0, 0, size, done});  // Stream_GetFileType
+            done += load_call(frame, 0x00292b28, own_address(&Stream_GetFileType), TitleRegs{name, name, 0, 0, size, done});  // Stream_GetFileType
             const uint32_t args[3] = {word_at<uint32_t>(record, 0xd8), size, word_at<uint32_t>(record, 0x74)};
-            const uint32_t popped = load_call(frame, 0x00292b3d, 0x00292650, TitleRegs{rec, name, 0, 0, size, done}, 3,
+            const uint32_t popped = load_call(frame, 0x00292b3d, own_address(&Stream_RunLoadHandler_entry), TitleRegs{rec, name, 0, 0, size, done}, 3,
                                               args);  // Stream_RunLoadHandler
             ++word_at<uint32_t>(record, 0xd4);
-            load_call(frame, 0x00292b4a, 0x0028c240, TitleRegs{popped, name, rec, 0, size, done});  // Stream_SeekNextItem
+            load_call(frame, 0x00292b4a, own_address(&Stream_SeekNextItem), TitleRegs{popped, name, rec, 0, size, done});  // Stream_SeekNextItem
             if (!word_at<uint32_t>(record, 0xd8)) return;
         }
         return;
@@ -3763,7 +3764,7 @@ void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
     if (state != 3) return;
     // All entries loaded: the file closed, the script told, the later groups registered, the image kept.
     const uint32_t file = word_at<uint32_t>(record, 0x50);
-    load_call(frame, 0x0029270b, 0x000cac90, TitleRegs{file, 0, 0, 0, 0, done}, 1, &file);  // File_Close
+    load_call(frame, 0x0029270b, own_address(&File_Close), TitleRegs{file, 0, 0, 0, 0, done}, 1, &file);  // File_Close
     word_at<int32_t>(record, 0x50) = -1;
     word_at<uint32_t>(record, 0xdc) = 0;
     if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));

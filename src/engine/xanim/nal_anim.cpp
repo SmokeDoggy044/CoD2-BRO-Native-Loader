@@ -8,6 +8,7 @@
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "shaders.h"
+#include "stream.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -685,7 +686,7 @@ uint8_t XB_CDECL AnimTree_CalcPose_r(uint32_t index, AnimState* dst, const AnimS
             const uint32_t system = title_global<uint32_t>(0x0095f638);
             title_global<uint8_t>(0x0095f5d1) = 0;
             title_global<uint8_t>(0x0095f5d0) = 1;
-            title_call_regs(0x0028f6c0, (static_cast<uint32_t>(context) & ~0xffu) | saved, system,
+            title_call_regs(own_address(&MemContext_Push_entry), (static_cast<uint32_t>(context) & ~0xffu) | saved, system,
                             static_cast<uint32_t>(context));  // MemContext_Push
             tree = current_tree();
         }
@@ -770,7 +771,7 @@ AnimState* XB_REGS1 XB_CDECL Anim_CreateClipState(int32_t context, uint8_t* clip
         const uint32_t system = title_global<uint32_t>(0x0095f638);
         title_global<uint8_t>(0x0095f5d1) = 0;
         title_global<uint8_t>(0x0095f5d0) = 1;
-        title_call_regs(0x0028f6c0, (static_cast<uint32_t>(context) & ~0xffu) | saved, system,
+        title_call_regs(own_address(&MemContext_Push_entry), (static_cast<uint32_t>(context) & ~0xffu) | saved, system,
                         static_cast<uint32_t>(context));  // MemContext_Push
     }
     AnimState* state = static_cast<AnimState*>(Mem_AlignedAlloc(0x10, 4, 0));

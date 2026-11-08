@@ -23,6 +23,9 @@
 #include "tr_main.h"
 #include "xanim.h"
 #include "g_scr_builtins.h"
+#include "fx_cmd.h"
+#include "g_pathnode.h"
+#include "pmove.h"
 
 // title_call_at_regs for callees with an ST0 result (left on the x87 stack; asm entry at the end of the file).
 extern "C" PLATFORM_HIDDEN float XB_CDECL gscr_call_at_st0(uint32_t top, uint32_t function, const game::TitleRegs* regs,
@@ -299,7 +302,7 @@ void angles_to_axis_at(uint32_t top, uint32_t ret, uint32_t angles, uint32_t for
     regs.edi = right;
     regs.esi = up;
     const uint32_t args[2] = {angles, forward};
-    call_at(top, ret, 0x002a2af0, regs, 2, args);  // AnglesToAxis
+    call_at(top, ret, own_address(&AnglesToAxis_entry), regs, 2, args);  // AnglesToAxis
 }
 
 }  // namespace
@@ -309,7 +312,7 @@ float XB_CDECL GScr_GetAngleDelta_c(uint32_t entry_esp) {
     const uint32_t anim = at<uint32_t>(F + 4);
     const uint32_t dir = F - 0x14, pos = F - 0xc;
     const uint32_t args[2] = {at<uint32_t>(F + 8), at<uint32_t>(F + 0xc)};
-    call_at(F - 0x1c, 0x00303f71, 0x002e6710, anim_regs(anim, dir, pos), 2, args);  // AnimTree_GetRootDeltaBetween
+    call_at(F - 0x1c, 0x00303f71, own_address(&AnimTree_GetRootDeltaBetween_entry), anim_regs(anim, dir, pos), 2, args);  // AnimTree_GetRootDeltaBetween
     at<float>(F + 4) = vectoyaw_2(&at<float>(dir));  // kept in the first argument slot, then FLD
     return at<float>(F + 4);
 }
@@ -318,7 +321,7 @@ void XB_CDECL GScr_GetMoveDelta_c(uint32_t entry_esp) {
     const uint32_t F = entry_esp;
     const uint32_t anim = at<uint32_t>(F + 8);
     const uint32_t args[2] = {at<uint32_t>(F + 0xc), at<uint32_t>(F + 0x10)};
-    call_at(F - 0x10, 0x00303fd1, 0x002e6710, anim_regs(anim, F - 8, at<uint32_t>(F + 4)), 2,
+    call_at(F - 0x10, 0x00303fd1, own_address(&AnimTree_GetRootDeltaBetween_entry), anim_regs(anim, F - 8, at<uint32_t>(F + 4)), 2,
             args);  // AnimTree_GetRootDeltaBetween
 }
 
@@ -334,9 +337,9 @@ void XB_CDECL GScr_GetAnimWorldMoveDelta_c(uint32_t entry_esp) {
     axis[4] = 0.0f - right[1];
     axis[5] = 0.0f - right[2];
     const uint32_t time0[1] = {0};
-    call_at(F - 0x64, 0x00304065, 0x002e6650, anim_regs(anim, F - 0x54, F - 0x3c), 1, time0);  // AnimTree_GetRootDelta
+    call_at(F - 0x64, 0x00304065, own_address(&AnimTree_GetRootDelta_entry), anim_regs(anim, F - 0x54, F - 0x3c), 1, time0);  // AnimTree_GetRootDelta
     const uint32_t time1[1] = {0x3f800000};  // 1.0
-    call_at(F - 0x64, 0x00304098, 0x002e6650, anim_regs(anim, F - 0x54, F - 0x48), 1, time1);  // AnimTree_GetRootDelta
+    call_at(F - 0x64, 0x00304098, own_address(&AnimTree_GetRootDelta_entry), anim_regs(anim, F - 0x54, F - 0x48), 1, time1);  // AnimTree_GetRootDelta
     const float* const at0 = &at<float>(F - 0x3c);
     const float* const at1 = &at<float>(F - 0x48);
     const float dx = at1[0] - at0[0];
@@ -352,7 +355,7 @@ void XB_CDECL GScr_GetAnimStartAngles_c(uint32_t entry_esp) {
     // Frame: forward F-0x8c, -right F-0x80, up F-0x74, direction F-0x5c, position / right F-0x54, the turned
     // axis F-0x48.
     const uint32_t time0[1] = {0};
-    call_at(F - 0x98, 0x0030418f, 0x002e6650, anim_regs(anim, F - 0x5c, F - 0x54), 1, time0);  // AnimTree_GetRootDelta
+    call_at(F - 0x98, 0x0030418f, own_address(&AnimTree_GetRootDelta_entry), anim_regs(anim, F - 0x5c, F - 0x54), 1, time0);  // AnimTree_GetRootDelta
     angles_to_axis_at(F - 0x9c, 0x003041a9, at<uint32_t>(F + 0xc), F - 0x8c, F - 0x54, F - 0x74);
     const float zero = 0.0f;
     float* const f = &at<float>(F - 0x8c);
@@ -390,7 +393,7 @@ void XB_CDECL GScr_TransformLocalOffset_c(uint32_t entry_esp) {
     const uint32_t anim = at<uint32_t>(F + 0x10);
     // Frame: right / direction F-0x48, position F-0x3c, forward F-0x30, up F-0x18, the origin's copy F-0xc.
     const uint32_t time0[1] = {0};
-    call_at(F - 0x50, 0x003043f9, 0x002e6650, anim_regs(anim, F - 0x48, F - 0x3c), 1, time0);  // AnimTree_GetRootDelta
+    call_at(F - 0x50, 0x003043f9, own_address(&AnimTree_GetRootDelta_entry), anim_regs(anim, F - 0x48, F - 0x3c), 1, time0);  // AnimTree_GetRootDelta
     float* const o = &at<float>(F - 0xc);
     o[0] = origin[0];
     o[1] = origin[1];
@@ -421,7 +424,7 @@ void XB_CDECL GScr_DisconnectPaths_c(uint32_t entry_esp) {
     regs.ecx = field<uint32_t>(ent, 0x2a4);
     regs.edx = handle >> 12;
     const uint32_t args[2] = {title_global<uint32_t>(0x0095f4f4), addr(ent)};
-    call_at(entry_esp, 0x0030456f, 0x002e8ef0, regs, 2, args);  // Path_DisconnectPathsForEntity (callee pops 8)
+    call_at(entry_esp, 0x0030456f, own_address(&Path_DisconnectPathsForEntity_entry), regs, 2, args);  // Path_DisconnectPathsForEntity (callee pops 8)
 }
 
 namespace {
@@ -516,7 +519,7 @@ uint8_t XB_CDECL GScr_IsTouching_c(uint32_t entry_esp) {
     regs.edx = addr(amin);
     regs.esi = addr(b);
     const uint32_t args[3] = {addr(amin), addr(amax), (flags & 0x200) ? 1u : 0u};
-    return call_at(A - 0x30, 0x00304871, 0x002e8270, regs, 3, args) != 0;  // SV_ClipToEntity
+    return call_at(A - 0x30, 0x00304871, own_address(&SV_ClipToEntity_entry), regs, 3, args) != 0;  // SV_ClipToEntity
 }
 
 void XB_CDECL GScr_SetModelNoFlag(uint32_t handle, const ScriptString* name) {
@@ -669,7 +672,7 @@ uint8_t XB_CDECL GScr_ActorMayMoveToPoint_c(uint32_t entry_esp) {
     regs.esi = title_global<uint32_t>(0x0097a96c + (handle & 0xfff) * 8);
     const uint32_t args[14] = {handle, addr(origin), title_global<uint32_t>(0x0098a550), 0x41c00000, at<uint32_t>(F + 0xc),
                                0, 0, 0, 1, addr(bounds), 0x002601a0, 0x002601e0, 1, 0x42700000};
-    return call_at(A - 0x30, 0x0030554c, 0x002dcc60, regs, 14, args) != 0;  // BG_CheckProne (G_TraceCapsule, G_Trace)
+    return call_at(A - 0x30, 0x0030554c, own_address(&BG_CheckProne_entry), regs, 14, args) != 0;  // BG_CheckProne (G_TraceCapsule, G_Trace)
 }
 
 void XB_CDECL GScr_ActorGrabGrenade(uint32_t handle) {
@@ -716,7 +719,7 @@ int32_t play_sound_alias(uint32_t F, bool looped, bool check_pending, uint32_t r
     regs.esi = addr(ent);
     regs.edi = addr(alias);
     const uint32_t args[4] = {addr(text), looped ? 1u : 0u, 0xffffffffu, at<uint32_t>(F + 0x14)};
-    return static_cast<int32_t>(call_at(F - 8, ret, 0x002a6990, regs, 4, args));  // FXCmd_PlaySoundAlias
+    return static_cast<int32_t>(call_at(F - 8, ret, own_address(&FXCmd_PlaySoundAlias_entry), regs, 4, args));  // FXCmd_PlaySoundAlias
 }
 
 uint64_t tail_jump(uint32_t target, uint32_t value) { return (static_cast<uint64_t>(value) << 32) | target; }
@@ -767,7 +770,7 @@ int32_t XB_CDECL GScr_PlaySoundMode7_c(uint32_t entry_esp) {
     regs.ecx = at<uint32_t>(F + 0xc);
     regs.edx = addr(text);
     const uint32_t args[3] = {addr(ent), addr(text), at<uint32_t>(F + 0xc)};
-    return static_cast<int32_t>(call_at(F, 0x00305dd5, 0x002a6880, regs, 3, args));  // FXCmd_PlaySoundAliasMode7
+    return static_cast<int32_t>(call_at(F, 0x00305dd5, own_address(&FXCmd_PlaySoundAliasMode7_entry), regs, 3, args));  // FXCmd_PlaySoundAliasMode7
 }
 
 int32_t XB_CDECL GScr_PlayLoopSound_c(uint32_t entry_esp) { return play_sound_alias(entry_esp, true, false, 0x00305e55); }
@@ -788,7 +791,7 @@ int32_t XB_CDECL GScr_PlaySoundAtPosition_c(uint32_t entry_esp) {
     regs.esi = addr(ent);
     regs.edi = addr(alias);
     const uint32_t args[4] = {addr(ent), addr(text), at<uint32_t>(F + 0xc), 0};
-    return static_cast<int32_t>(call_at(F - 8, 0x00305eec, 0x002a6740, regs, 4, args));  // FXCmd_PlaySoundAliasAtPoint
+    return static_cast<int32_t>(call_at(F - 8, 0x00305eec, own_address(&FXCmd_PlaySoundAliasAtPoint_entry), regs, 4, args));  // FXCmd_PlaySoundAliasAtPoint
 }
 
 int32_t XB_CDECL GScr_PlaySound_c(uint32_t entry_esp) { return play_sound_alias(entry_esp, false, true, 0x00305f7f); }
@@ -854,7 +857,7 @@ uint32_t XB_CDECL GScr_ActorUpdateNearestNode_c(uint32_t entry_esp) {
     regs.esi = addr(actor);
     regs.edi = field<uint32_t>(actor, 4);
     const uint32_t args[6] = {0, 0, 0, 0, 0x43400000, 0};  // radius 192
-    const uint32_t node = call_at(F - 8, 0x003062ee, 0x002095c0, regs, 6, args);  // Sentient_CachedNearestNode
+    const uint32_t node = call_at(F - 8, 0x003062ee, own_address(&Sentient_CachedNearestNode_entry), regs, 6, args);  // Sentient_CachedNearestNode
     field<uint32_t>(actor, 0x7e0) = node;
     return node ? title_global<uint16_t>(node) : 0;
 }
@@ -874,17 +877,17 @@ uint32_t XB_CDECL GScr_ActorNodeCanSeeEnemyNode_c(uint32_t entry_esp) {
     regs.ecx = handle >> 12;
     regs.edx = handle_generation(handle);
     regs.edi = addr(sentient);
-    const uint32_t own = call_at(F - 0xc, 0x0030636f, 0x002095c0, regs, 6, args);  // Sentient_CachedNearestNode
+    const uint32_t own = call_at(F - 0xc, 0x0030636f, own_address(&Sentient_CachedNearestNode_entry), regs, 6, args);  // Sentient_CachedNearestNode
     regs.eax = field<uint32_t>(actor, 4);
     regs.esi = own;
     regs.edi = field<uint32_t>(field<uint8_t*>(actor, 4), 0x3c);
-    const uint32_t theirs = call_at(F - 0xc, 0x0030638b, 0x002095c0, regs, 6, args);  // Sentient_CachedNearestNode
+    const uint32_t theirs = call_at(F - 0xc, 0x0030638b, own_address(&Sentient_CachedNearestNode_entry), regs, 6, args);  // Sentient_CachedNearestNode
     if (!own || !theirs) return 0;
     if (own == theirs) return 1;
     regs.eax = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
     regs.ecx = own;
     const uint32_t other[1] = {theirs};
-    return (call_at(F - 0xc, 0x003063a4, 0x002b0d10, regs, 1, other) & 0xff) ? 1 : 0;  // PathNode_CanSee
+    return (call_at(F - 0xc, 0x003063a4, own_address(&PathNode_CanSee_entry), regs, 1, other) & 0xff) ? 1 : 0;  // PathNode_CanSee
 }
 
 uint32_t XB_CDECL GScr_DropWeapon(uint32_t handle, const ScriptString* weapon, uint32_t side, float speed) {
@@ -935,7 +938,7 @@ uint32_t XB_CDECL GScr_ActorGetNearestNode_c(uint32_t entry_esp) {
     regs.eax = sentient;
     regs.ecx = at<uint32_t>(F + 0xc);
     const uint32_t args[5] = {sentient, 0, 0, at<uint32_t>(F + 8), at<uint32_t>(F + 0xc)};
-    const uint32_t node = call_at(F - 4, 0x00306da1, 0x00209700, regs, 5, args);  // Actor_FindNearestNode
+    const uint32_t node = call_at(F - 4, 0x00306da1, own_address(&Actor_FindNearestNode_entry), regs, 5, args);  // Actor_FindNearestNode
     return node ? title_global<uint16_t>(node) : 0;
 }
 
@@ -952,7 +955,7 @@ uint32_t XB_CDECL GScr_ActorCanShootWithOffset_c(uint32_t entry_esp) {
     regs.eax = addr(muzzle);
     regs.edi = addr(actor);
     const uint32_t muzzle_args[2] = {addr(muzzle), 0};
-    if (!call_at(F - 0x1c, 0x00306e0f, 0x00206080, regs, 2, muzzle_args)) return 0;  // Actor_GetMuzzleInfo
+    if (!call_at(F - 0x1c, 0x00306e0f, own_address(&Actor_GetMuzzleInfo_entry), regs, 2, muzzle_args)) return 0;  // Actor_GetMuzzleInfo
     const float* const offset = at<const float*>(F + 0xc);
     float* const start = &at<float>(F - 0xc);
     start[0] = add(offset[0], muzzle[0]);
@@ -966,7 +969,7 @@ uint32_t XB_CDECL GScr_ActorCanShootWithOffset_c(uint32_t entry_esp) {
     regs.ecx = at<uint32_t>(F + 8);
     regs.edx = at<uint32_t>(F - 8);
     const uint32_t shot_args[1] = {addr(actor)};
-    const uint32_t clear = call_at(F - 0x1c, 0x00306e7e, 0x0020a140, regs, 1, shot_args);  // Actor_IsShotClear
+    const uint32_t clear = call_at(F - 0x1c, 0x00306e7e, own_address(&Actor_IsShotClear_entry), regs, 1, shot_args);  // Actor_IsShotClear
     title_global<uint32_t>(0x0095f704) = 0;
     return clear;
 }
@@ -1004,7 +1007,7 @@ void XB_CDECL GScr_RadiusDamageFromEntity_c(uint32_t entry_esp) {
     regs.edx = at<uint32_t>(F + 8);
     const uint32_t args[8] = {at<uint32_t>(F + 8), ent, ent, at<uint32_t>(F + 0x10), at<uint32_t>(F + 0x14),
                               at<uint32_t>(F + 0xc), 0, 0x17};
-    call_at(F, 0x00306fb4, 0x00268e60, regs, 8, args);  // G_RadiusDamage
+    call_at(F, 0x00306fb4, own_address(&G_RadiusDamage_entry), regs, 8, args);  // G_RadiusDamage
     title_global<uint32_t>(0x0098600c) = 0;
 }
 
@@ -1018,7 +1021,7 @@ void XB_CDECL GScr_RadiusDamage_c(uint32_t entry_esp) {
     regs.edx = at<uint32_t>(F + 0xc);
     const uint32_t args[8] = {at<uint32_t>(F + 4), world, world, at<uint32_t>(F + 0xc), at<uint32_t>(F + 0x10),
                               at<uint32_t>(F + 8), 0, 0x17};
-    call_at(F, 0x00307002, 0x00268e60, regs, 8, args);  // G_RadiusDamage
+    call_at(F, 0x00307002, own_address(&G_RadiusDamage_entry), regs, 8, args);  // G_RadiusDamage
     title_global<uint32_t>(0x0098600c) = 0;
 }
 
@@ -1144,7 +1147,7 @@ void XB_CDECL GScr_Vehicle_Kill_c(uint32_t entry_esp) {
     TitleRegs regs{};
     regs.eax = field<uint32_t>(ent, 0x248);
     regs.esi = addr(ent);
-    call_at(F - 8, 0x0030704c, 0x0026a230, regs, 0, nullptr);  // Vehicle_FreePhysics (ESI = entity)
+    call_at(F - 8, 0x0030704c, own_address(&Vehicle_FreePhysics_entry), regs, 0, nullptr);  // Vehicle_FreePhysics (ESI = entity)
     ent[0] = 0xf;
     ScriptString* const classname = reinterpret_cast<ScriptString*>(ent + 0x25c);
     ScriptString_Assign(classname, &title_global<ScriptString>(0x00984c04));
@@ -1204,7 +1207,7 @@ void XB_CDECL GScr_Vehicle_AttachPath_c(uint32_t entry_esp) {
         regs.esi = field<uint32_t>(ent, 0x22c) ? title_global<uint32_t>(0x0098870c) : addr(vehicle);  // the last tag name
         regs.edi = 0x00988710;
         const uint32_t args[3] = {addr(ent), 0, title_global<uint32_t>(0x008dda9c)};
-        call_at(A - 0x60, 0x00307207, 0x0026a3c0, regs, 3, args);  // Vehicle_UpdatePhysics
+        call_at(A - 0x60, 0x00307207, own_address(&Vehicle_UpdatePhysics_entry), regs, 3, args);  // Vehicle_UpdatePhysics
     }
     set_origin();
 }
@@ -1221,7 +1224,7 @@ uint8_t XB_CDECL GScr_ActorCanUseTurret_c(uint32_t entry_esp) {
     regs.ecx = addr(actor);
     regs.edx = handle >> 12;
     regs.edi = addr(turret);
-    return call_at(F - 4, 0x003072bf, 0x0026c4d0, regs, 0, nullptr) != 0;  // Actor_CanUseTurret (ECX, EDI)
+    return call_at(F - 4, 0x003072bf, own_address(&Actor_CanUseTurret_entry), regs, 0, nullptr) != 0;  // Actor_CanUseTurret (ECX, EDI)
 }
 
 uint32_t XB_CDECL GScr_ActorCanShoot_c(uint32_t entry_esp) {
@@ -1236,7 +1239,7 @@ uint32_t XB_CDECL GScr_ActorCanShoot_c(uint32_t entry_esp) {
     regs.ecx = end;
     regs.edx = handle;
     const uint32_t args[3] = {handle, end, F - 0xc};
-    return call_at(F - 0xc, 0x003072fb, 0x00306db0, regs, 3, args);  // GScr_ActorCanShootWithOffset
+    return call_at(F - 0xc, 0x003072fb, own_address(&GScr_ActorCanShootWithOffset_entry), regs, 3, args);  // GScr_ActorCanShootWithOffset
 }
 
 void XB_CDECL GScr_ActorMelee_c(uint32_t entry_esp) {
@@ -1249,7 +1252,7 @@ void XB_CDECL GScr_ActorMelee_c(uint32_t entry_esp) {
     regs.eax = addr(actor);
     regs.ecx = field<uint32_t>(actor, 0);
     regs.edx = handle_generation(handle);
-    call_at(F, 0x00307342, 0x0020fd20, regs, 0, nullptr);  // Actor_MeleeAttack (EAX = actor)
+    call_at(F, 0x00307342, own_address(&Actor_MeleeAttack_entry), regs, 0, nullptr);  // Actor_MeleeAttack (EAX = actor)
     title_global<uint32_t>(0x0095f704) = 0;
 }
 
@@ -1275,27 +1278,27 @@ void XB_CDECL GScr_MagicGrenade_c(uint32_t entry_esp) {
     regs.edi = end;
     {
         const uint32_t args[2] = {start, aim};
-        call_at(F - 0x28, 0x003073cc, 0x001ff110, regs, 2, args);  // G_GrenadeThrowPoints (EDI, EBX, ESI; ret 8)
+        call_at(F - 0x28, 0x003073cc, own_address(&G_GrenadeThrowPoints_entry), regs, 2, args);  // G_GrenadeThrowPoints (EDI, EBX, ESI; ret 8)
     }
     const uint32_t actor_arg[1] = {addr(actor)};
     regs.eax = start;
     regs.ebx = start;
     regs.ecx = velocity;
     regs.edx = aim;
-    uint32_t ok = call_at(F - 0x28, 0x003073de, 0x0020fb40, regs, 1, actor_arg);  // Actor_GrenadeThrow_MinEnergy
+    uint32_t ok = call_at(F - 0x28, 0x003073de, own_address(&Actor_GrenadeThrow_MinEnergy_entry), regs, 1, actor_arg);  // Actor_GrenadeThrow_MinEnergy
     if (!ok) {
         regs.eax = start;
         regs.ecx = aim;
         regs.edx = velocity;
         regs.esi = 0;
-        ok = call_at(F - 0x28, 0x003073f4, 0x0020fc20, regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime (low)
+        ok = call_at(F - 0x28, 0x003073f4, own_address(&Actor_GrenadeThrow_ByTime_entry), regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime (low)
     }
     if (!ok) {
         regs.eax = start;
         regs.ecx = aim;
         regs.edx = velocity;
         regs.esi = 1;
-        ok = call_at(F - 0x28, 0x0030740d, 0x0020fc20, regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime (high)
+        ok = call_at(F - 0x28, 0x0030740d, own_address(&Actor_GrenadeThrow_ByTime_entry), regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime (high)
     }
     if (!ok) {
         regs.eax = 0;
@@ -1304,7 +1307,7 @@ void XB_CDECL GScr_MagicGrenade_c(uint32_t entry_esp) {
         regs.esi = start;
         regs.edi = aim;
         const uint32_t args[2] = {addr(actor), velocity};
-        ok = call_at(F - 0x28, 0x00307422, 0x0020f860, regs, 2, args);  // Actor_GrenadeThrow_Fallback
+        ok = call_at(F - 0x28, 0x00307422, own_address(&Actor_GrenadeThrow_Fallback_entry), regs, 2, args);  // Actor_GrenadeThrow_Fallback
         if (!ok) return;
     }
     const int32_t fuse = static_cast<int32_t>(mul(at<float>(F + 0x10), title_global<float>(0x0083eb9c)));  // 1000
@@ -1319,7 +1322,7 @@ void XB_CDECL GScr_MagicGrenadeDefaultFuse_c(uint32_t entry_esp) {
     regs.ecx = at<uint32_t>(F + 8);
     regs.edx = at<uint32_t>(F + 4);
     const uint32_t args[4] = {at<uint32_t>(F + 4), at<uint32_t>(F + 8), at<uint32_t>(F + 0xc), 0x40a00000};  // 5 s
-    call_at(F, 0x00307cb9, 0x00307350, regs, 4, args);  // GScr_MagicGrenade
+    call_at(F, 0x00307cb9, own_address(&GScr_MagicGrenade_entry), regs, 4, args);  // GScr_MagicGrenade
 }
 
 void XB_CDECL GScr_AnimScripted_c(uint32_t entry_esp) {
@@ -1349,9 +1352,9 @@ void XB_CDECL GScr_AnimScripted_c(uint32_t entry_esp) {
         regs.eax = tree;
         regs.ebx = addr(ent);
         regs.esi = addr(actor);
-        call_at(F - 0x14, 0x003074ec, 0x00201af0, regs, 0, nullptr);  // Actor_AbortAnimScript (ESI)
+        call_at(F - 0x14, 0x003074ec, own_address(&Actor_AbortAnimScript_entry), regs, 0, nullptr);  // Actor_AbortAnimScript (ESI)
         regs.edi = 0xa;
-        call_at(F - 0x14, 0x003074f6, 0x00202770, regs, 0, nullptr);  // Actor_PushState (ESI, EDI = 10)
+        call_at(F - 0x14, 0x003074f6, own_address(&Actor_PushState_entry), regs, 0, nullptr);  // Actor_PushState (ESI, EDI = 10)
     }
     if (at<uint16_t>(F + 6) == 0)
         anim = own_function<uint32_t XB_REGS1 XB_CDECL(uint32_t)>(&AnimTree_RootHandle)(tree);  // the tree's root anim
@@ -1366,7 +1369,7 @@ void XB_CDECL GScr_AnimScripted_c(uint32_t entry_esp) {
     regs.edi = actor ? 0xa : 0;
     const uint32_t args[7] = {addr(ent), at<uint32_t>(F + 0xc), at<uint32_t>(F + 0x10), at<uint32_t>(F + 0x14), anim,
                               at<uint32_t>(F + 8), mode};
-    call_at(F - 0x18, 0x0030753b, 0x0026d680, regs, 7, args);  // G_AnimScriptedStart
+    call_at(F - 0x18, 0x0030753b, own_address(&G_AnimScriptedStart_entry), regs, 7, args);  // G_AnimScriptedStart
 }
 
 void XB_CDECL GScr_AnimScriptedFlag0_c(uint32_t entry_esp) {
@@ -1378,7 +1381,7 @@ void XB_CDECL GScr_AnimScriptedFlag0_c(uint32_t entry_esp) {
     uint32_t args[8];
     for (uint32_t i = 0; i < 7; ++i) args[i] = at<uint32_t>(F + 4 + i * 4);
     args[7] = 0;  // an eighth word GScr_AnimScripted never reads
-    call_at(F, 0x00307cea, 0x00307460, regs, 8, args);  // GScr_AnimScripted
+    call_at(F, 0x00307cea, own_address(&GScr_AnimScripted_entry), regs, 8, args);  // GScr_AnimScripted
 }
 
 void XB_CDECL GScr_AnimScriptedNoNotify_c(uint32_t entry_esp) {
@@ -1395,7 +1398,7 @@ void XB_CDECL GScr_AnimScriptedNoNotify_c(uint32_t entry_esp) {
         regs.edx = at<uint32_t>(F + 8);
         const uint32_t args[8] = {at<uint32_t>(F + 4), at<uint32_t>(F + 8), at<uint32_t>(F + 0xc), at<uint32_t>(F + 0x10),
                                   anim, F - 4, anim & 0xffff0000u, 1};
-        call_at(F - 4, 0x00307d30, 0x00307460, regs, 8, args);  // GScr_AnimScripted
+        call_at(F - 4, 0x00307d30, own_address(&GScr_AnimScripted_entry), regs, 8, args);  // GScr_AnimScripted
     }
     ScriptString_Release(empty);
 }
@@ -1414,7 +1417,7 @@ uint8_t XB_CDECL GScr_ActorUseTurret_c(uint32_t entry_esp) {
     regs.edx = handle >> 12;
     regs.esi = addr(actor);
     regs.edi = addr(turret);
-    const uint32_t ok = call_at(F - 8, 0x003076fd, 0x0026c4d0, regs, 0, nullptr);  // Actor_CanUseTurret
+    const uint32_t ok = call_at(F - 8, 0x003076fd, own_address(&Actor_CanUseTurret_entry), regs, 0, nullptr);  // Actor_CanUseTurret
     if (!ok) {
         field<uint32_t>(actor, 0x136c) = 0;
         return 0;
@@ -1447,7 +1450,7 @@ void XB_CDECL GScr_ActorThrowGrenade_c(uint32_t entry_esp) {
         regs.esi = addr(actor);
         regs.edi = addr(ent + 0x140);
         const uint32_t args[7] = {addr(actor), addr(ent + 0x140), addr(actor + 0x1338), at<uint32_t>(F - 0x34), pos, vel, 1};
-        if (!call_at(F - 0x24, 0x003077d3, 0x002117c0, regs, 7, args)) {  // Actor_CheckGrenadeThrow (ret 0x1c)
+        if (!call_at(F - 0x24, 0x003077d3, own_address(&Actor_CheckGrenadeThrow_entry), regs, 7, args)) {  // Actor_CheckGrenadeThrow (ret 0x1c)
             copy3(&at<uint32_t>(pos), actor + 0x132c);
             copy3(&at<uint32_t>(vel), actor + 0x1344);
         }
@@ -1526,7 +1529,7 @@ void XB_CDECL GScr_CheckGrenadeThrow_c(uint32_t entry_esp) {
             if (ScriptString_EqualsString(method, &title_global<ScriptString>(0x00984b90))) {
                 regs.ecx = addr(out);
                 regs.edx = F - 0x18;
-                result = call_at(F - 0x38, 0x00307b0f, 0x0020fb40, regs, 1, actor_arg);  // Actor_GrenadeThrow_MinEnergy
+                result = call_at(F - 0x38, 0x00307b0f, own_address(&Actor_GrenadeThrow_MinEnergy_entry), regs, 1, actor_arg);  // Actor_GrenadeThrow_MinEnergy
             } else {
                 int32_t high = -1;
                 if (ScriptString_EqualsString(method, &title_global<ScriptString>(0x00984b94)))
@@ -1537,7 +1540,7 @@ void XB_CDECL GScr_CheckGrenadeThrow_c(uint32_t entry_esp) {
                     regs.ecx = F - 0x18;
                     regs.edx = addr(out);
                     regs.esi = static_cast<uint32_t>(high);
-                    result = call_at(F - 0x38, 0x00307bb9, 0x0020fc20, regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime
+                    result = call_at(F - 0x38, 0x00307bb9, own_address(&Actor_GrenadeThrow_ByTime_entry), regs, 1, actor_arg);  // Actor_GrenadeThrow_ByTime
                 } else {
                     // "checkGrenadeThrow: method must be 'min energy', 'min time', or 'max time' - value %s"
                     own_function<const char* XB_CDECL(const char*, const char*)>(&va_entry)(title_text(0x0083d068),
@@ -1550,7 +1553,7 @@ void XB_CDECL GScr_CheckGrenadeThrow_c(uint32_t entry_esp) {
                 regs.esi = addr(start);
                 regs.edi = F - 0x18;
                 const uint32_t args[2] = {addr(actor), addr(out)};
-                result = call_at(F - 0x38, 0x00307b2a, 0x0020f860, regs, 2, args);  // Actor_GrenadeThrow_Fallback
+                result = call_at(F - 0x38, 0x00307b2a, own_address(&Actor_GrenadeThrow_Fallback_entry), regs, 2, args);  // Actor_GrenadeThrow_Fallback
             }
             ScriptString_Release(method);
         }
@@ -1581,7 +1584,7 @@ void XB_CDECL GScr_SetGoalEntity_c(uint32_t entry_esp) {
     regs.edx = addr(ent);
     regs.esi = addr(sentient);
     const uint32_t args[2] = {addr(sentient), addr(goal)};
-    call_at(F - 4, 0x00307c80, 0x00210c00, regs, 2, args);  // Sentient_SetGoalEntity (ret 8)
+    call_at(F - 4, 0x00307c80, own_address(&Sentient_SetGoalEntity_entry), regs, 2, args);  // Sentient_SetGoalEntity (ret 8)
     field<uint32_t>(sentient, 0x20) = title_global<uint32_t>(0x0083eb34);  // -1
     title_global<uint32_t>(0x0095f704) = 0;
 }
@@ -1644,13 +1647,13 @@ float XB_CDECL GScr_ActorCanSee_c(uint32_t entry_esp) {
         regs.ecx = static_cast<uint32_t>(ms);
         regs.edx = handle >> 12;
         const uint32_t args[1] = {static_cast<uint32_t>(ms)};
-        bits = call_at_xmm0(F - 8, 0x00307f65, 0x00212190, regs, 1, args);  // Actor_UpdateVisibilityIfStale
+        bits = call_at_xmm0(F - 8, 0x00307f65, own_address(&Actor_UpdateVisibilityIfStale_entry), regs, 1, args);  // Actor_UpdateVisibilityIfStale
     } else {
         regs.eax = addr(actor);
         regs.ecx = handle >> 12;
         regs.edx = field<uint32_t>(actor, 0x82c);
         const uint32_t args[2] = {field<uint32_t>(actor, 0x828), field<uint32_t>(actor, 0x82c)};
-        bits = call_at_xmm0(F - 8, 0x00307f87, 0x00210d10, regs, 2, args);  // Actor_UpdateVisibility
+        bits = call_at_xmm0(F - 8, 0x00307f87, own_address(&Actor_UpdateVisibility_entry), regs, 2, args);  // Actor_UpdateVisibility
     }
     at<uint32_t>(F + 4) = bits;
     return at<float>(F + 4);
@@ -1717,7 +1720,7 @@ float enemy_visibility(uint32_t F, bool default_age, uint32_t ret) {
     regs.ecx = age;
     regs.esi = addr(actor);
     const uint32_t args[1] = {age};
-    at<uint32_t>(F + 4) = call_at_xmm0(F - 4, ret, 0x00212190, regs, 1, args);  // Actor_UpdateVisibilityIfStale
+    at<uint32_t>(F + 4) = call_at_xmm0(F - 4, ret, own_address(&Actor_UpdateVisibilityIfStale_entry), regs, 1, args);  // Actor_UpdateVisibilityIfStale
     return at<float>(F + 4);
 }
 
@@ -1732,7 +1735,7 @@ void actor_shoot(uint32_t F, uint32_t scale, uint32_t point, uint32_t edx, uint3
     regs.ecx = field<uint32_t>(actor, 0);
     regs.edx = edx;
     const uint32_t args[4] = {addr(actor), scale, point, 1};
-    call_at(F, ret, 0x00219390, regs, 4, args);  // Actor_ShootWeapon
+    call_at(F, ret, own_address(&Actor_ShootWeapon_entry), regs, 4, args);  // Actor_ShootWeapon
     title_global<uint32_t>(0x0095f704) = 0;
 }
 
@@ -1771,7 +1774,7 @@ uint32_t spawn_named(uint32_t F, bool force, uint32_t ret) {
     regs.ecx = F + 4;
     regs.esi = addr(ent);
     const uint32_t args[4] = {addr(ent), F + 4, force ? 1u : 0u, static_cast<uint32_t>(context)};
-    const uint32_t actor = call_at(F - 4, ret, 0x0021ceb0, regs, 4, args);  // Actor_SpawnFromSpawner
+    const uint32_t actor = call_at(F - 4, ret, own_address(&Actor_SpawnFromSpawner_entry), regs, 4, args);  // Actor_SpawnFromSpawner
     if (!actor) {
         ScriptString_Release(name);
         return 0;
@@ -1815,7 +1818,7 @@ float XB_CDECL GScr_ActorCanSeeDefaultAge_c(uint32_t entry_esp) {
     regs.ecx = handle;
     regs.edx = handle >> 12;
     const uint32_t args[3] = {handle, at<uint32_t>(F + 8), float_bits(age)};
-    return call_at_st0(F, 0x00308141, 0x00307ed0, regs, 3, args);  // GScr_ActorCanSee
+    return call_at_st0(F, 0x00308141, own_address(&GScr_ActorCanSee_entry), regs, 3, args);  // GScr_ActorCanSee
 }
 
 void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp) {
@@ -1934,17 +1937,17 @@ void XB_CDECL GScr_Vehicle_FireWeapon_c(uint32_t entry_esp) {
             regs.eax = S + 0x48;
             regs.esi = esi;
             const uint32_t args[5] = {addr(ent), 0x3f800000, field<uint32_t>(fire_def, 0x5b8), addr(ent), 0};
-            call_at(S, 0x0030862a, 0x002704c0, regs, 5, args);  // Weapon_FireBullet
+            call_at(S, 0x0030862a, own_address(&Weapon_FireBullet_entry), regs, 5, args);  // Weapon_FireBullet
         } else {
             esi = S + 0x48;
             regs.eax = addr(ent);
             regs.esi = esi;
             if (ent[0x297] != 2) {
                 const uint32_t args[3] = {0, 0x41200000, 1};
-                call_at(S, 0x0030864c, 0x00269a30, regs, 3, args);  // Weapon_FireProjectile (10 degrees)
+                call_at(S, 0x0030864c, own_address(&Weapon_FireProjectile_entry), regs, 3, args);  // Weapon_FireProjectile (10 degrees)
             } else {
                 const uint32_t args[2] = {0, 0x41200000};
-                call_at(S, 0x0030865d, 0x002697c0, regs, 2, args);  // Vehicle_FireSpreadProjectile
+                call_at(S, 0x0030865d, own_address(&Vehicle_FireSpreadProjectile_entry), regs, 2, args);  // Vehicle_FireSpreadProjectile
             }
         }
         at<uint32_t>(S + 0x10) += 4;
@@ -2011,7 +2014,7 @@ void XB_CDECL GScr_MagicBullet_c(uint32_t entry_esp) {
     regs.esi = addr(start);
     regs.edi = addr(wdef);
     const uint32_t args[5] = {regs.ecx, 0, regs.edx, 0, 0};
-    call_at(S, 0x0030888e, 0x002704c0, regs, 5, args);  // Weapon_FireBullet (world entity)
+    call_at(S, 0x0030888e, own_address(&Weapon_FireBullet_entry), regs, 5, args);  // Weapon_FireBullet (world entity)
     G_TempEntity(reinterpret_cast<const uint32_t*>(start), 0xa3)[3] = static_cast<uint8_t>(index);
 }
 
@@ -2078,7 +2081,7 @@ uint32_t XB_CDECL GScr_ActorFindBetterCover_c(uint32_t entry_esp) {
     regs.eax = addr(actor);
     regs.ecx = 1;
     regs.edx = state;
-    const uint32_t result = call_at(F, 0x00308ca9, 0x0021d590, regs, 0, nullptr);  // Actor_Cover_FindBetterCover
+    const uint32_t result = call_at(F, 0x00308ca9, own_address(&Actor_Cover_FindBetterCover_entry), regs, 0, nullptr);  // Actor_Cover_FindBetterCover
     title_global<uint32_t>(0x0095f704) = 0;
     return result;
 }
@@ -2102,15 +2105,15 @@ void XB_CDECL GScr_ActorApplyAnimMove_c(uint32_t entry_esp) {
     regs.esi = addr(actor);
     regs.edi = addr(ent);
     const uint32_t move_args[2] = {addr(actor), title_global<uint32_t>(0x008dda9c)};
-    call_at(F - 8, 0x00308f88, 0x0021dc80, regs, 2, move_args);  // Actor_MoveByAnimMode (ret 8)
+    call_at(F - 8, 0x00308f88, own_address(&Actor_MoveByAnimMode_entry), regs, 2, move_args);  // Actor_MoveByAnimMode (ret 8)
     const uint32_t apply_args[1] = {addr(actor)};
-    call_at(F - 8, 0x00308f8e, 0x0021be30, regs, 1, apply_args);  // Actor_ApplyMove (ret 4)
+    call_at(F - 8, 0x00308f8e, own_address(&Actor_ApplyMove_entry), regs, 1, apply_args);  // Actor_ApplyMove (ret 4)
     if (const uint8_t* const obj = field<uint8_t*>(ent, 0x22c))
         AnimTree_BlendWeightsForModel(obj, title_global<float>(0x008ddaa0));
 }
 
-uint32_t XB_CDECL GScr_ForceSpawn_c(uint32_t entry_esp) { return spawn_unnamed(entry_esp, 0x00308cc0, 0x00308fd1); }
-uint32_t XB_CDECL GScr_DoSpawn_c(uint32_t entry_esp) { return spawn_unnamed(entry_esp, 0x00308df0, 0x00309011); }
+uint32_t XB_CDECL GScr_ForceSpawn_c(uint32_t entry_esp) { return spawn_unnamed(entry_esp, own_address(&GScr_ForceSpawnNamed_entry), 0x00308fd1); }
+uint32_t XB_CDECL GScr_DoSpawn_c(uint32_t entry_esp) { return spawn_unnamed(entry_esp, own_address(&GScr_DoSpawnNamed_entry), 0x00309011); }
 
 uint32_t XB_CDECL GScr_LocationalTraceSurface_c(uint32_t entry_esp) {
     // (out, start, end, hit-box contents, pass handle): GScr_TraceSurfaceType's record from a locational trace
@@ -2200,7 +2203,7 @@ uint32_t XB_CDECL GScr_LocationalTraceSurface_c(uint32_t entry_esp) {
         regs.esi = addr(start);
         regs.edi = addr(end);
         const uint32_t args[7] = {S + 0x890, S + 0x80, S + 0x40, S + 0x10, S + 0x30, regs.ebx, mask};
-        call_at(S - 0x14, 0x00305978, 0x002e9440, regs, 7, args);  // SV_LocationalTrace
+        call_at(S - 0x14, 0x00305978, own_address(&SV_LocationalTrace_entry), regs, 7, args);  // SV_LocationalTrace
     } else if (path == kLocational) {
         put(S + 0x30, end4);
         put(S + 0x10, start4);
@@ -2221,7 +2224,7 @@ uint32_t XB_CDECL GScr_LocationalTraceSurface_c(uint32_t entry_esp) {
             ret = 0x00305ae9;
         }
         const uint32_t args[7] = {S + 0x40, S + 0x10, S + 0x30, regs.ebx, mask, 0x008da6f0, 0};
-        call_at(S, ret, 0x002600c0, regs, 7, args);  // G_LocationalTrace
+        call_at(S, ret, own_address(&G_LocationalTrace_entry), regs, 7, args);  // G_LocationalTrace
     } else {
         // No trace: a hit at start (fraction 0), normal up, no surface.
         put(S + 0x10, start4);
@@ -2323,12 +2326,12 @@ uint8_t XB_CDECL GScr_ActorTryTeleport_c(uint32_t entry_esp) {
             regs.esi = addr(player);
             regs.edi = handle;
             const uint32_t point_args[3] = {S + 0x10, player_handle, handle};
-            if (call_at(S, 0x00306522, 0x00209fc0, regs, 3, point_args) && !ignore_sight)  // Actor_CanSeePointFromBounds
+            if (call_at(S, 0x00306522, own_address(&Actor_CanSeePointFromBounds_entry), regs, 3, point_args) && !ignore_sight)  // Actor_CanSeePointFromBounds
                 return 0;
             regs.ecx = 0;
             regs.esi = player_handle;
             const uint32_t origin_args[3] = {addr(ent + 0x140), player_handle, handle};
-            if (call_at(S, 0x0030654c, 0x00209fc0, regs, 3, origin_args) && !ignore_sight) return 0;
+            if (call_at(S, 0x0030654c, own_address(&Actor_CanSeePointFromBounds_entry), regs, 3, origin_args) && !ignore_sight) return 0;
             if (at<float>(S + 0x30) > title_global<float>(0x0083ee50))  // 16384
                 field<uint32_t>(ent, 0x10) ^= 8;
         } else if (field<int16_t>(actor, 0x740) > 0 && field<uint32_t>(actor, 0x798)) {
@@ -2463,7 +2466,7 @@ uint8_t XB_CDECL GScr_ActorIsSafeMovePoint_c(uint32_t entry_esp) {
     regs.edi = addr(point);
     const uint32_t trace_args[11] = {S + 0x70, S + 0x60, S + 0x10, S + 0x40, handle,
                                      field<uint32_t>(actor, 0x310) | 0x6000, 0, 0, 0, 0, 0};
-    call_at(S, 0x00306a3a, 0x002e9af0, regs, 11, trace_args);  // SV_Trace
+    call_at(S, 0x00306a3a, own_address(&SV_Trace_entry), regs, 11, trace_args);  // SV_Trace
     if (at<uint8_t>(S + 0xac)) {
         debug_line(&at<float>(S + 0x34), &at<float>(S + 0x24), 0x0082ebdc);  // bottom to top
         return 0;
@@ -2480,7 +2483,7 @@ uint8_t XB_CDECL GScr_ActorIsSafeMovePoint_c(uint32_t entry_esp) {
     regs.edx = handle;
     regs.esi = addr(actor);
     const uint32_t path_args[5] = {addr(point), 0, handle, path_mask, S + 0x34};
-    const uint32_t clear = call_at(S, 0x00306ae8, 0x0020c040, regs, 5, path_args);  // Path_TraceAhead (ret 0x14)
+    const uint32_t clear = call_at(S, 0x00306ae8, own_address(&Path_TraceAhead_entry), regs, 5, path_args);  // Path_TraceAhead (ret 0x14)
     title_global<uint32_t>(0x0095f704) = 0;
     if (!clear) {
         debug_line(point, &at<float>(S + 0x24), 0x0082ebec);

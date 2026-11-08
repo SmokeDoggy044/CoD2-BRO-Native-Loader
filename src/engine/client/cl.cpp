@@ -21,6 +21,9 @@
 #include "title_data.h"
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
+#include "fx.h"
+#include "g_utils.h"
+#include "ui_menu.h"
 
 namespace game {
 
@@ -390,7 +393,7 @@ uint32_t XB_CDECL CL_PacketEvent(uint32_t from0, uint32_t from1, uint32_t from2,
     TitleRegs regs{};
     regs.eax = 0x00933608;
     regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(msg));
-    const uint32_t accepted = cg_call_regs(0x002b13b0, &regs, nullptr, 0);  // Netchan_Process
+    const uint32_t accepted = cg_call_regs(own_address(&Netchan_Process_entry), &regs, nullptr, 0);  // Netchan_Process
     if (!accepted) return accepted;
     title_global<uint32_t>(0x009315fc) = *field<uint32_t*>(msg, 4);  // clc.serverMessageSequence
     title_global<uint32_t>(0x0092f5f0) = title_global<uint32_t>(0x0092be98);
@@ -1313,12 +1316,12 @@ void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t 
             title_global<uint8_t>(0x0095f919) = 1;
             TitleRegs regs{};
             regs.esi = title_global<uint32_t>(0x0095f8fc);
-            cg_call_regs(0x0032dde0, &regs, nullptr, 0);  // CL_TogglePause
+            cg_call_regs(own_address(&CL_TogglePause_entry), &regs, nullptr, 0);  // CL_TogglePause
             title_global<uint32_t>(0x00934330) &= 3;     // keys[K_ESCAPE].repeats = 0
         } else if (state == 3 || state == 4) {
             TitleRegs regs{};
             regs.ebx = title_global<uint32_t>(0x0095f4c4);
-            cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds
+            cg_call_regs(own_address(&S_StopAllSounds_entry), &regs, nullptr, 0);  // S_StopAllSounds
         }
         return;
     }
@@ -1369,7 +1372,7 @@ namespace {
 void stop_all_sounds() {
     TitleRegs regs{};
     regs.ebx = title_global<uint32_t>(0x0095f4c4);
-    cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds (sound system in EBX)
+    cg_call_regs(own_address(&S_StopAllSounds_entry), &regs, nullptr, 0);  // S_StopAllSounds (sound system in EBX)
 }
 
 void stop_all_channels() {
@@ -1435,8 +1438,8 @@ void call_at(uint32_t top, uint32_t function, const TitleRegs& regs, const Args&
 
 void draw_mission_overlays(uint32_t top) {
     const TitleRegs regs = {0, 0, 0, 0, kMissionHud, 0};
-    if (title_global<uint8_t>(0x0095f919)) call_at(top, 0x003153d0, regs);
-    if (title_global<uint8_t>(0x0095f918)) call_at(top, 0x00315440, regs);
+    if (title_global<uint8_t>(0x0095f919)) call_at(top, own_address(&UIRoot_DrawInGameScreens_entry), regs);
+    if (title_global<uint8_t>(0x0095f918)) call_at(top, own_address(&UIRoot_DrawFrontEnd_entry), regs);
 }
 
 uint32_t float_bits(float value) {
@@ -1467,7 +1470,7 @@ void SCR_DrawScreenField(uint32_t entry) {
     switch (state) {
     case 0:
         title_global<uint32_t>(0x0092bdf4) = 2;  // KEYCATCH_UI
-        call_at(top, 0x000c53b0, {});
+        call_at(top, own_address(&S_ClearVoiceAttenuation), {});
         Cvar_Set2(&title_global<const char>(0x0082c89c), const_cast<char*>(&title_global<const char>(0x0082e098)),
                   1);  // g_reloading 0
         break;
@@ -1475,7 +1478,7 @@ void SCR_DrawScreenField(uint32_t entry) {
         draw_mission_overlays(top);
         break;
     case 2:
-        call_at(top, 0x0028b340, {0, 0, title_global<uint32_t>(0x009606b0), 0, 0, 0},
+        call_at(top, own_address(&CG_DrawActiveFrame_entry), {0, 0, title_global<uint32_t>(0x009606b0), 0, 0, 0},
                 Args{{0, 0, title_global<uint32_t>(0x0092be94)}, 3});  // CG_DrawActiveFrame
         break;
     default:
@@ -1534,9 +1537,9 @@ void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
     }
     const uint32_t time = float_bits(seconds);
     if (title_global<uint8_t>(0x0095f918)) {
-        call_at(top, 0x00315560, {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
+        call_at(top, own_address(&UIRoot_UpdateFrontEnd_entry), {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
     } else if (title_global<uint8_t>(0x0095f919)) {
-        call_at(top, 0x00315520, {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
+        call_at(top, own_address(&UIRoot_UpdateInGameScreens_entry), {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
     } else {
         const uint32_t hud = title_global<uint32_t>(0x0095f8f0);  // g_hudManager, vtable +0xc
         call_at(top, field<uint32_t>(title_global<uint8_t*>(hud), 0xc), {0, 0, hud, 0, 0, 0}, Args{{time}, 1});
@@ -1581,9 +1584,9 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
         regs.ecx = title_global<uint32_t>(0x0093fcf0);
         regs.ebx = title_global<uint32_t>(0x0095f4c4);
         regs.esi = uint32_t(msec);
-        call_at(top, 0x002c8d60, regs);  // S_StopAllSounds (sound system in EBX)
+        call_at(top, own_address(&S_StopAllSounds_entry), regs);  // S_StopAllSounds (sound system in EBX)
         catchers = 2;                    // KEYCATCH_UI
-        call_at(top, 0x000c53b0, regs);  // S_ClearVoiceAttenuation
+        call_at(top, own_address(&S_ClearVoiceAttenuation), regs);  // S_ClearVoiceAttenuation
         Cvar_Set2(&title_global<const char>(0x0082c89c), const_cast<char*>(&title_global<const char>(0x0082e098)),
                   1);  // g_reloading 0
     }
@@ -1593,7 +1596,7 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
             regs.eax = uint32_t(avidemo);
             regs.ebx = avidemo > 0 ? 0x00834494 : 0x0083447c;  // "screenshot silent\n" / "screenshotjpeg silent\n"
             regs.esi = uint32_t(msec);
-            call_at(top, 0x002c6140, regs);  // Cmd_ExecuteString (text in EBX)
+            call_at(top, own_address(&Cmd_ExecuteString_entry), regs);  // Cmd_ExecuteString (text in EBX)
         }
         const int32_t fps = cvar_integer(0x009284e0);
         const uint32_t sign = uint32_t(fps >> 31);
@@ -1609,8 +1612,8 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
         bool commands = true;
         if (cvar_integer(0x0093fcf0) && cvar_integer(0x0093fcd8) == 1) commands = false;
         if (commands) {
-            call_at(top, 0x002cd450, regs);  // CL_CreateNewCommands
-            if (state != 3 && state != 4) call_at(top, 0x002b37e0, regs);  // CL_WritePacket
+            call_at(top, own_address(&CL_CreateNewCommands), regs);  // CL_CreateNewCommands
+            if (state != 3 && state != 4) call_at(top, own_address(&CL_WritePacket), regs);  // CL_WritePacket
         }
         if (state == 2) {
             if (!title_global<int32_t>(0x00960160)) {  // cl.snap.valid
@@ -1630,11 +1633,11 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
     const float seconds = float(paused ? 0 : msec) * title_global<float>(0x0083eb4c);
     const uint32_t time = float_bits(seconds);
     title_global<uint32_t>(top + 0xc) = time;
-    call_at(top, 0x000ca690, regs);  // File_PumpRequests
+    call_at(top, own_address(&File_PumpRequests), regs);  // File_PumpRequests
     const uint32_t sound = title_global<uint32_t>(0x0095f4c4);
-    call_at(top, 0x002c8c20, regs, Args{{sound}, 1});  // S_UpdateChannels
+    call_at(top, own_address(&S_UpdateChannels), regs, Args{{sound}, 1});  // S_UpdateChannels
     const uint32_t banks = title_global<uint32_t>(0x0095f4c0);
-    call_at(top, 0x002c8f60, regs, Args{{banks}, 1});  // S_CheckWaveBankNotifies
+    call_at(top, own_address(&S_CheckWaveBankNotifies), regs, Args{{banks}, 1});  // S_CheckWaveBankNotifies
     if (title_global<uint32_t>(0x0095e608)) {
         const uint8_t* const player = field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4);
         const uint32_t origin = top + 0x10;
@@ -1642,23 +1645,23 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
         TitleRegs at_cell = regs;
         at_cell.eax = origin;
         at_cell.edx = origin;
-        const uint32_t cell = title_call_at_regs(top, 0x0023cc80, &at_cell, 2, Args{{origin, 0}, 2}.words);  // CM_CellForPoint
+        const uint32_t cell = title_call_at_regs(top, own_address(&CM_CellForPoint), &at_cell, 2, Args{{origin, 0}, 2}.words);  // CM_CellForPoint
         const uint32_t stream = title_global<uint32_t>(0x0095f640);
         const uint32_t view[4] = {stream, cell, origin, 0};
-        title_call_at_regs(top, 0x002914f0, &regs, 4, view);  // Stream_SetViewPosition
+        title_call_at_regs(top, own_address(&Stream_SetViewPosition), &regs, 4, view);  // Stream_SetViewPosition
     }
     regs.esi = time;
     regs.eax = title_global<uint32_t>(0x0095f638);
-    call_at(top, 0x00292c20, regs);  // Stream_Update
+    call_at(top, own_address(&Stream_Update), regs);  // Stream_Update
     regs.eax = title_global<uint32_t>(0x0095f4cc);
-    call_at(top, 0x002c8830, regs, Args{{time}, 1});  // S_UpdateCrossfade
+    call_at(top, own_address(&S_UpdateCrossfade), regs, Args{{time}, 1});  // S_UpdateCrossfade
     regs.eax = title_global<uint32_t>(0x0095f5b4);
-    call_at(top, 0x002a5980, regs, Args{{time}, 1});  // FX_UpdateEffects
-    call_at(top, 0x00298810, regs, Args{{title_global<uint32_t>(0x0095f5c4), time}, 2});  // CL_UpdateRumble
+    call_at(top, own_address(&FX_UpdateEffects_entry), regs, Args{{time}, 1});  // FX_UpdateEffects
+    call_at(top, own_address(&CL_UpdateRumble), regs, Args{{title_global<uint32_t>(0x0095f5c4), time}, 2});  // CL_UpdateRumble
     regs.eax = title_global<uint32_t>(0x0095f4f8);
-    call_at(top, 0x002ea4f0, regs, Args{{regs.eax, time}, 2});  // S_UpdateAmbientEmitters
+    call_at(top, own_address(&S_UpdateAmbientEmitters), regs, Args{{regs.eax, time}, 2});  // S_UpdateAmbientEmitters
     regs.eax = 0x0097a8c0;
-    call_at(top, 0x0024b140, regs);  // G_EntityList_Compact
+    call_at(top, own_address(&G_EntityList_Compact), regs);  // G_EntityList_Compact
     ++title_global<int32_t>(0x0092be8c);  // cls.framecount
 }
 
@@ -2818,7 +2821,7 @@ uint8_t* XB_CDECL CL_LoadFrontEndZone() {
         TitleRegs regs{};
         regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(map + 8));
         const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key))};
-        auto* const found = reinterpret_cast<uint32_t*>(uintptr_t{cg_call_regs(0x000249a0, &regs, args, 1)});  // StringMap_Find
+        auto* const found = reinterpret_cast<uint32_t*>(uintptr_t{cg_call_regs(own_address(&StringMap_Find_entry), &regs, args, 1)});  // StringMap_Find
         if (found) {
             uint32_t index = *found;
             if (index >= field<uint32_t>(map, 0x10)) index = 0;
@@ -3063,7 +3066,7 @@ struct ReturnStateCalls {
     }
     void cl_paused_1(uint32_t top, uint32_t ret, uint32_t eax) const {
         static constexpr uint32_t kArgs[3] = {0x0082ca00, 0x0082e058, 1};  // "cl_paused", "1"
-        call(top, 0x0029c030, ret, eax, 0, 0, 3, kArgs);                   // Cvar_Set2
+        call(top, own_address(&Cvar_Set2), ret, eax, 0, 0, 3, kArgs);                   // Cvar_Set2
     }
 };
 
@@ -3076,7 +3079,7 @@ void open_front_end(ReturnStateCalls& c, uint32_t top, uint32_t mode, bool call,
     const uint32_t args[1] = {mode};
     if (call) {
         c.esi = fe;
-        c.call(top, 0x0032de50, ret0, chapter, 0, 0, 1, args);  // CL_PauseIntoFrontEnd
+        c.call(top, own_address(&CL_PauseIntoFrontEnd_entry), ret0, chapter, 0, 0, 1, args);  // CL_PauseIntoFrontEnd
         return;
     }
     c.esi = fe;
@@ -3111,11 +3114,11 @@ void XB_CDECL CL_ApplyFrontEndReturnStateAt(uint32_t entry, uint32_t ebx, uint32
     if (title_global<uint8_t>(0x0095ee01)) {
         *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = edi;  // push edi
         c.edi = 0x008dce30;
-        c.call(top - 4, 0x00332e20, 0x002f077e, title_global<uint8_t>(0x0095ee01));  // CL_ApplyProfileSettings
+        c.call(top - 4, own_address(&CL_ApplyProfileSettings_entry), 0x002f077e, title_global<uint8_t>(0x0095ee01));  // CL_ApplyProfileSettings
         c.edi = edi;
-        if (!title_global<int32_t>(0x008dce50)) c.call(top, 0x002c5200, 0x002f078d);       // SV_SetSkillHard
-        if (title_global<int32_t>(0x008dce50) == 1) c.call(top, 0x002c51a0, 0x002f079a);   // SV_SetSkillMedium
-        if (title_global<int32_t>(0x008dce50) == 2) c.call(top, 0x002c5140, 0x002f07a8);   // SV_SetSkillEasy
+        if (!title_global<int32_t>(0x008dce50)) c.call(top, own_address(&SV_SetSkillHard), 0x002f078d);       // SV_SetSkillHard
+        if (title_global<int32_t>(0x008dce50) == 1) c.call(top, own_address(&SV_SetSkillMedium), 0x002f079a);   // SV_SetSkillMedium
+        if (title_global<int32_t>(0x008dce50) == 2) c.call(top, own_address(&SV_SetSkillEasy), 0x002f07a8);   // SV_SetSkillEasy
         const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
         const uint32_t eax = static_cast<uint32_t>(chapter);
         if (chapter <= 0)
@@ -3124,7 +3127,7 @@ void XB_CDECL CL_ApplyFrontEndReturnStateAt(uint32_t entry, uint32_t ebx, uint32
             open_front_end(c, top, 3, false, eax, 0x002f07f6, 0x002f0802, true);
         else
             open_front_end(c, top, chapter <= 8 ? 4 : 2, true, eax, 0x002f0814);
-        c.call(top, 0x0031ff30, 0x002f081e, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
+        c.call(top, own_address(&FE_LoadTheatreBackground_entry), 0x002f081e, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
     }
     if (!title_global<uint8_t>(0x0095f918)) return;
     const uint32_t overlay = title_global<uint32_t>(0x0095f8f8);
@@ -3143,11 +3146,11 @@ void XB_CDECL CL_ApplyFrontEndReturnStateAt(uint32_t entry, uint32_t ebx, uint32
         open_front_end(c, top, 5, false, eax, 0x002f0879, 0x002f0885, true);
     else
         open_front_end(c, top, chapter <= 5 ? 3 : chapter <= 8 ? 4 : 2, true, eax, 0x002f08a6);
-    c.call(top, 0x0031ff30, 0x002f08b0, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
+    c.call(top, own_address(&FE_LoadTheatreBackground_entry), 0x002f08b0, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
     uint8_t* const zone = title_global<uint8_t*>(0x0095f4f0);
     field<uint32_t>(zone, 0x34) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
     c.ebx = field<uint32_t>(zone, 0x28);
-    c.call(top, 0x00292cb0, 0x002f08cf, title_global<uint32_t>(0x0095f638));  // Stream_WaitForLoad
+    c.call(top, own_address(&Stream_WaitForLoad_entry), 0x002f08cf, title_global<uint32_t>(0x0095f638));  // Stream_WaitForLoad
 }
 
 void XB_CDECL CL_ApplyFrontEndReturnState() { own_function<void XB_CDECL()>(&CL_ApplyFrontEndReturnState_entry)(); }
@@ -3167,7 +3170,7 @@ void XB_CDECL CL_UpdatePauseOverlay(uint8_t* menu, float dt) {
         if (!(field<uint8_t>(pause, 0x20) & 1)) {
             TitleRegs regs{};
             regs.eax = title_global<uint32_t>(0x0095f4c4);
-            cg_call_regs(0x002b6ba0, &regs, nullptr, 0);  // S_ResumeAllChannels
+            cg_call_regs(own_address(&S_ResumeAllChannels), &regs, nullptr, 0);  // S_ResumeAllChannels
             Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e098)),
                       1);  // cl_paused 0
         }

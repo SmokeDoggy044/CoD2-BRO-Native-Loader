@@ -234,7 +234,7 @@ uint8_t* XB_THISCALL HudManager_DeletingDtor(uint8_t* self, uint32_t flags) {
 }
 
 uint8_t* XB_THISCALL HudCompCompass_DeletingDtor(uint8_t* self, uint32_t flags) {
-    title_call_regs(0x00318380, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // HudCompCompass_Dtor (ESI)
+    title_call_regs(own_address(&HudCompCompass_Dtor_entry), 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // HudCompCompass_Dtor (ESI)
     if (flags & 1) z_free(self);
     return self;
 }
@@ -725,13 +725,13 @@ void XB_THISCALL HudCompCompass_Update(uint8_t* self, uint32_t) {
     if (!visible(self)) return;
     const uint32_t me = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self));
     if (!field<uint8_t>(self, 0x3c)) {
-        title_call_regs(0x003180a0, 0, me, 0);  // HudCompCompass_UpdateNeedle (ESI)
-        title_call_regs(0x00339830, me, 0, 0);  // HudCompCompass_UpdateActorMarkers (EAX)
+        title_call_regs(own_address(&HudCompCompass_UpdateNeedle_entry), 0, me, 0);  // HudCompCompass_UpdateNeedle (ESI)
+        title_call_regs(own_address(&HudCompCompass_UpdateActorMarkers_entry), me, 0, 0);  // HudCompCompass_UpdateActorMarkers (EAX)
         if (title_global<int32_t>(0x0094d7d4) == 1)
             own_function<void XB_STDCALL(uint8_t*)>(&HudCompCompass_UpdateFiringEnemies)(self);  // HudCompCompass_UpdateFiringEnemies
-        title_call_regs(0x00339450, me, 0, 0);  // HudCompCompass_UpdateTankMarkers (EAX)
+        title_call_regs(own_address(&HudCompCompass_UpdateTankMarkers_entry), me, 0, 0);  // HudCompCompass_UpdateTankMarkers (EAX)
     }
-    title_call_regs(0x003379b0, me, 0, 0);  // HudCompCompass_UpdateObjectives (EAX)
+    title_call_regs(own_address(&HudCompCompass_UpdateObjectives), me, 0, 0);  // HudCompCompass_UpdateObjectives (EAX)
 }
 
 void XB_REGS1 XB_CDECL HudCompCompass_UpdateObjectives(uint8_t* compass) {
@@ -1239,7 +1239,7 @@ void XB_CDECL HudText_SetStringByHash(uint8_t* self, uint32_t hash, uint32_t ent
     find.ecx = 0;
     const uint32_t find_args[1] = {hash};
     uint8_t* const entry = reinterpret_cast<uint8_t*>(
-        uintptr_t{title_call_at_regs(entry_esp, 0x002984f0, &find, 1, find_args)});  // Zone_FindByHash
+        uintptr_t{title_call_at_regs(entry_esp, own_address(&Zone_FindByHash), &find, 1, find_args)});  // Zone_FindByHash
     uint32_t string = 0;
     if (entry) {
         string = field<uint32_t>(entry, 8);

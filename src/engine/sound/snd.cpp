@@ -22,6 +22,7 @@
 #include "ui_menu.h"
 #include "ui_panel.h"
 #include "fx_cmd.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -396,7 +397,7 @@ void XB_REGS1 XB_STDCALL S_UpdateCrossfade(uint8_t* fade, float time) {
         if (fading_in_first && SoundHandle_Resolve(second)) {  // state 2: stop the faded-out channel
             TitleRegs regs{};
             regs.edi = uint32_t(uintptr_t(SoundHandle_Resolve(second)));
-            cg_call_regs(0x002c3400, &regs, nullptr, 0);  // S_StopChannel (channel in EDI)
+            cg_call_regs(own_address(&S_StopChannel_entry), &regs, nullptr, 0);  // S_StopChannel (channel in EDI)
             *second = 0;
         }
     }
@@ -1863,7 +1864,7 @@ void XB_CDECL S_OpenWaveBank(const char* path, uint8_t* bank, uint32_t index, ui
     TitleRegs regs{};
     regs.eax = title_global<uint32_t>(0x0095f638);
     const uint32_t one = 0x3f800000;
-    cg_call_regs(0x0028bd30, &regs, &one, 1);  // Pak_ReportProgress (EAX, 1.0; ret 4)
+    cg_call_regs(own_address(&Pak_ReportProgress), &regs, &one, 1);  // Pak_ReportProgress (EAX, 1.0; ret 4)
 }
 
 void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait) {
@@ -2544,7 +2545,7 @@ void XB_CDECL SoundMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, ui
         TitleRegs regs{};
         regs.esi = uint32_t(uintptr_t(panel));
         regs.edi = uint32_t(uintptr_t(menu));
-        ui_call_regs(0x00310010, &regs, 0, nullptr);  // Panel_Draw
+        ui_call_regs(own_address(&Panel_Draw_entry), &regs, 0, nullptr);  // Panel_Draw
     }
     set_help_bar_at(menu, entry_esp, esi, edi, {0x0031e734, 0x0031e740}, 1);
     menu_call(menu_field<uint8_t*>(menu, 0x38), 0x3c);

@@ -20,6 +20,11 @@
 #include "phys.h"
 #include "qcommon_core.h"
 #include "script_string.h"
+#include "g_client.h"
+#include "g_mover.h"
+#include "g_pathnode.h"
+#include "g_vehicle.h"
+#include "stream.h"
 
 namespace game {
 
@@ -291,7 +296,7 @@ void XB_CDECL SV_RunGameFrame(uint32_t top, int32_t time, uint32_t ebx, uint32_t
     title_global<uint32_t>(0x0095f510) = 1;
     const TitleRegs regs = {1, ebx, 0, 0, esi, edi};
     const uint32_t arg = static_cast<uint32_t>(time);
-    title_call_at_regs(top, 0x00274660, &regs, 1, &arg);  // G_RunFrame
+    title_call_at_regs(top, own_address(&G_RunFrame_entry), &regs, 1, &arg);  // G_RunFrame
     title_global<uint32_t>(0x0095f510) = 0;
 }
 
@@ -1192,7 +1197,7 @@ void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
     for (uint32_t i = 0; i < 0x40; i += 4) at(trace + i) = 0;
     const TitleRegs box_regs = {0, start, maxs, end, maxs, mins};
     const uint32_t box_args[7] = {trace, start, end, mins, 0, content_mask, capsule_flag};
-    title_call_at_regs(frame, 0x002e5030, &box_regs, 7, box_args);  // CM_BoxTrace
+    title_call_at_regs(frame, own_address(&CM_BoxTrace), &box_regs, 7, box_args);  // CM_BoxTrace
     after_call(0x1c, 0x002e9b35);
     const float fraction = *vec(trace + 0x20);
     at(trace + 0x30) =
@@ -1202,7 +1207,7 @@ void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
     if (at(ebp + 0x2c)) {  // the static-model flag
         const TitleRegs regs = {start, start, end, trace, maxs, mins};
         const uint32_t args[3] = {trace, end, content_mask};
-        title_call_at_regs(frame, 0x002db3e0, &regs, 3, args);  // SV_TraceStaticModels
+        title_call_at_regs(frame, own_address(&SV_TraceStaticModels), &regs, 3, args);  // SV_TraceStaticModels
         after_call(0xc, 0x002e9b93);
         if (*vec(trace + 0x20) == 0.0f) return finish(trace);
     }
@@ -1217,7 +1222,7 @@ void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
         if (!table) return 0;
         const TitleRegs regs = {ebp + 0x18, start, table, title_global<uint32_t>(0x0097a96c + index * 8),
                                 frame + 0x110, edi};
-        const uint32_t ent = title_call_at_regs(frame, 0x00013860, &regs, 0, nullptr);
+        const uint32_t ent = title_call_at_regs(frame, own_address(&G_EntHandleToEnt), &regs, 0, nullptr);
         at(frame - 4) = edi == frame + 0x90 ? 0x002e9cab : 0x002e9d4b;
         return field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{ent}), 0x1a0);
     };
@@ -1236,7 +1241,7 @@ void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
         at(clip + 0x64) = owner_of(frame + 0x90);
         const TitleRegs regs = {clip, start, at(clip + 0x40), clip, frame + 0x110, frame + 0x90};
         const uint32_t args[6] = {clip, 0x00935664, 0, at(clip + 0x40), clip, clip + 0x10};
-        title_call_at_regs(frame, 0x002e84d0, &regs, 6, args);  // SV_PointTraceToEntities_r
+        title_call_at_regs(frame, own_address(&SV_PointTraceToEntities_r), &regs, 6, args);  // SV_PointTraceToEntities_r
         after_call(0x18, 0x002e9cd6);
         return finish(clip + 0x20);
     }
@@ -1268,7 +1273,7 @@ void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
     std::memcpy(vec(frame + 0x10), vec(end), 16);
     const TitleRegs regs = {at(clip + 0x70), start, clip, clip + 0x30, end, frame + 0xc0};
     const uint32_t args[6] = {clip, 0x00935664, 0, at(clip + 0x70), clip + 0x30, clip + 0x40};
-    title_call_at_regs(frame, 0x002e88d0, &regs, 6, args);  // SV_ClipMoveToEntities_r
+    title_call_at_regs(frame, own_address(&SV_ClipMoveToEntities_r), &regs, 6, args);  // SV_ClipMoveToEntities_r
     after_call(0x18, 0x002e9e7c);
     const float hit = *vec(clip + 0x70);
     if (*vec(trace + 0x20) > hit) {  // the fraction after the static models
@@ -1361,7 +1366,7 @@ void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, ui
     const uint32_t from[6] = {type, ip, ipx1, ipx2, port_word, 0x008341e4};  // "disconnect"
     if (field<int32_t>(msg, 0xc) >= 4 && *field<int32_t*>(msg, 4) == -1) {
         const TitleRegs regs = {msg_word, ebx, 0, 0, esi, edi};
-        title_call_at_regs(top, 0x002b8200, &regs, 5, from);  // SV_ConnectionlessPacket
+        title_call_at_regs(top, own_address(&SV_ConnectionlessPacket), &regs, 5, from);  // SV_ConnectionlessPacket
         return;
     }
     if (!++title_global<int32_t>(0x0093fc28)) title_global<int32_t>(0x0093fc28) = 1;
@@ -1397,15 +1402,15 @@ void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, ui
         if (field<uint16_t>(client, 0x6aa) != port) field<uint16_t>(client, 0x6aa) = port;
         const uint32_t client_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(client));
         const TitleRegs chan_regs = {client_word + 0x690, msg_word, 0, 0, ipx2, edi};
-        if (title_call_at_regs(top, 0x002b13b0, &chan_regs, 0, nullptr)) {  // Netchan_Process
+        if (title_call_at_regs(top, own_address(&Netchan_Process_entry), &chan_regs, 0, nullptr)) {  // Netchan_Process
             const TitleRegs exec_regs = {0, msg_word, 0, 0, ipx2, edi};
-            title_call_at_regs(top, 0x002c4fe0, &exec_regs, 1, &client_word);
+            title_call_at_regs(top, own_address(&SV_ExecuteClientMessage_entry), &exec_regs, 1, &client_word);
         }
         title_global<uint32_t>(0x0095f510) = 0;
         return;
     }
     const TitleRegs regs = {1, ebx, 0, port_word, esi, edi};
-    title_call_at_regs(top, 0x002ba530, &regs, 6, from);  // NET_OutOfBandPrint
+    title_call_at_regs(top, own_address(&NET_OutOfBandPrint_entry), &regs, 6, from);  // NET_OutOfBandPrint
     title_global<uint32_t>(0x0095f510) = 0;
 }
 
@@ -1429,7 +1434,7 @@ void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t
     if (field<uint32_t>(killserver, 0x20)) {
         const TitleRegs regs = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(killserver)), ebx,
                                 field<uint32_t>(killserver, 0x20), edx, msec, 0};
-        title_call_at_regs(top, 0x002a6e00, &regs, 0, nullptr);  // SV_Shutdown
+        title_call_at_regs(top, own_address(&SV_Shutdown), &regs, 0, nullptr);  // SV_Shutdown
         Cvar_Set2(title_text(0x00832bf0), const_cast<char*>(title_text(0x0082e098)), 1);  // "sv_killserver", "0"
         return;
     }
@@ -1441,32 +1446,32 @@ void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t
             const TitleRegs regs = {paused, ebx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
                                                      title_global<uint8_t*>(0x0093fcf0))),
                                     paused, msec, 0};
-            if (title_call_at_regs(top, 0x002f3de0, &regs, 0, nullptr)) {  // CheckReloadStatus
+            if (title_call_at_regs(top, own_address(&CheckReloadStatus_entry), &regs, 0, nullptr)) {  // CheckReloadStatus
                 title_global<uint32_t>(0x0092be90) = 0;
                 title_global<uint32_t>(0x0092be94) = 0;
                 return;
             }
             if (!title_global<uint32_t>(0x0092f548)) {
                 const TitleRegs info_regs = {0, ebx, 0, 0, msec, 0};
-                title_call_at_regs(top, 0x002c4e50, &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
+                title_call_at_regs(top, own_address(&SV_UpdateInfoConfigstrings), &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
                 title_global<uint32_t>(0x0092f548) = 1;
             }
             const uint32_t command = 0x13;
             const TitleRegs vm_regs = {0, ebx, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
                                                       title_global<uint8_t*>(0x0095f50c))),
                                        msec, 0};
-            const int32_t limit = static_cast<int32_t>(title_call_at_regs(top, 0x002a84e0, &vm_regs, 1, &command));
+            const int32_t limit = static_cast<int32_t>(title_call_at_regs(top, own_address(&VM_Call_entry), &vm_regs, 1, &command));
             title_global<int32_t>(0x0092f094) = limit;
             if (limit > 0x70000000 ||
                 title_global<int32_t>(0x00927e94) >= 0x7ffffffe - title_global<int32_t>(0x00927e90)) {
                 const TitleRegs regs2 = {0, ebx, 0, 0, msec, 0};
-                title_call_at_regs(top, 0x002a6e00, &regs2, 0, nullptr);  // SV_Shutdown
+                title_call_at_regs(top, own_address(&SV_Shutdown), &regs2, 0, nullptr);  // SV_Shutdown
                 Cbuf_AddText(title_text(0x00832b88));  // "vstr nextmap\n"
                 return;
             }
             const TitleRegs run_regs = {0, ebx, 0, 0, msec, 0};
-            title_call_at_regs(top, 0x002f2e40, &run_regs, 1, &msec);  // SV_RunGameFrame
-            title_call_at_regs(top, 0x002e6d80, &run_regs, 0, nullptr);
+            title_call_at_regs(top, own_address(&SV_RunGameFrame_entry), &run_regs, 1, &msec);  // SV_RunGameFrame
+            title_call_at_regs(top, own_address(&SV_SendMessages), &run_regs, 0, nullptr);
         }
     }
     title_global<uint32_t>(0x0092be94) = 0;
@@ -1661,7 +1666,7 @@ void XB_CDECL SV_UserMove(uint32_t entry_esp, uint32_t delta, uint8_t* msg, uint
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(title_global<uint8_t*>(0x0095f50c))),
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cmds[i] + 0x2c)),
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(client + 0x5c))};
-        title_call_at_regs(entry_esp - 0x5c0, 0x002a84e0, &regs, 2, args);  // VM_Call
+        title_call_at_regs(entry_esp - 0x5c0, own_address(&VM_Call_entry), &regs, 2, args);  // VM_Call
     }
 }
 
@@ -1704,17 +1709,17 @@ void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t
     const int32_t server_id = field<int32_t>(client, 0x28);
     if (server_id == title_global<int32_t>(0x00964cd8)) {
         const TitleRegs regs = {0, msg_word, 0, 0, client_word, edi};
-        title_call_at_regs(top, 0x002a8610, &regs, 0, nullptr);
+        title_call_at_regs(top, own_address(&SV_ClearAcknowledgedCommands_entry), &regs, 0, nullptr);
         int32_t op;
         for (;;) {
             op = msg_read_op(msg);
             if (op == 3 || op != 2) break;
             const TitleRegs command_regs = {msg_word, msg_word, client_word, 0, client_word, edi};
-            if (!title_call_at_regs(top, 0x002c0040, &command_regs, 0, nullptr)) return;  // client command
+            if (!title_call_at_regs(top, own_address(&SV_ClientCommand), &command_regs, 0, nullptr)) return;  // client command
         }
         if (op == 0 || op == 1) {
             const TitleRegs move_regs = {op == 0 ? 1u : 0u, msg_word, msg_word, 0, client_word, edi};
-            title_call_at_regs(top, 0x002b8560, &move_regs, 1, &client_word);  // user move (delta for op 0)
+            title_call_at_regs(top, own_address(&SV_UserMove_entry), &move_regs, 1, &client_word);  // user move (delta for op 0)
         }
         return;
     }
@@ -1866,7 +1871,7 @@ void XB_CDECL SV_LocationalTrace(uint32_t frame, uint32_t ebp, uint32_t entry_es
     for (uint32_t i = 0; i < 0x40; i += 4) at(trace + i) = 0;
     const TitleRegs world_regs = {end, end, arg0, trace, entry_esi, trace + 0x40};
     const uint32_t world_args[5] = {arg0, arg1, trace, start, mask};
-    title_call_at_regs(frame, 0x002d4a60, &world_regs, 5, world_args);  // the world part (end in EAX)
+    title_call_at_regs(frame, own_address(&CM_CandidateRayTrace), &world_regs, 5, world_args);  // the world part (end in EAX)
     after_call(0x14, 0x002e9481);
     float fraction;
     std::memcpy(&fraction, &at(trace + 0x20), 4);
@@ -1898,7 +1903,7 @@ void XB_CDECL SV_LocationalTrace(uint32_t frame, uint32_t ebp, uint32_t entry_es
         const uint32_t hit = at(clip + 0x40);
         const TitleRegs regs = {hit, end, clip, 0, esi, edi};
         const uint32_t args[6] = {clip, 0x00935664, 0, hit, clip, clip + 0x10};
-        title_call_at_regs(frame, 0x002e84d0, &regs, 6, args);  // SV_PointTraceToEntities_r
+        title_call_at_regs(frame, own_address(&SV_PointTraceToEntities_r), &regs, 6, args);  // SV_PointTraceToEntities_r
         after_call(0x18, 0x002e958a);
         from = clip + 0x20;
     }
@@ -2150,7 +2155,7 @@ void bump_packet_count() {
 uint32_t word(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 void std_list_clear(uint8_t* list, uint8_t* owner) {  // 0x00015810 (list in ESI)
     const TitleRegs regs = {0, 0, 0, 0, word(list), word(owner)};
-    cg_call_regs(0x00015810, &regs, nullptr, 0);
+    cg_call_regs(own_address(&std_list_Clear_entry), &regs, nullptr, 0);
 }
 
 }  // namespace
@@ -2288,7 +2293,7 @@ void XB_REGS1 XB_CDECL SV_ConnectionlessPacket(uint8_t* msg, uint32_t type, uint
     MSG_ReadLong(msg);
     const TitleRegs line_regs = {0, 0, 0, 0, 0, word(msg)};
     // 0x002aa480 (msg in EDI; Q3's MSG_ReadStringLine, its own buffer 0x0098b3c8)
-    Cmd_TokenizeString(reinterpret_cast<const char*>(uintptr_t{cg_call_regs(0x002aa480, &line_regs, nullptr, 0)}), 0);
+    Cmd_TokenizeString(reinterpret_cast<const char*>(uintptr_t{cg_call_regs(own_address(&MSG_ReadStringLine_entry), &line_regs, nullptr, 0)}), 0);
     const char* command = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)  // cmd_argv[0]
                                                              : title_text(0x0082dfeb);                // ""
     own_function<AdrToString>(&NET_AdrToString_entry)(type, ip, ipx1, ipx2, port_word);  // NET_AdrToString
@@ -2403,7 +2408,7 @@ uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uin
     uint8_t* copy = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(top, 0x00042c10, &malloc_regs, 1, &size)});
     const uint32_t memset_args[3] = {word(copy), 0, size};
     const TitleRegs memset_regs = {word(copy), word(copy), 0, 0, size, edi};
-    title_call_at_regs(top - 4, 0x002971a0, &memset_regs, 3, memset_args);  // Com_Memset
+    title_call_at_regs(top - 4, own_address(&Com_Memset), &memset_regs, 3, memset_args);  // Com_Memset
     const uint8_t* source = title_global<uint8_t*>(0x00965ce0);
     const uint32_t copied = title_global<uint32_t>(0x00965ce4);
     std::memcpy(copy, source, copied);
@@ -2413,7 +2418,7 @@ uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uin
     title_call_at_regs(top, kVmCall, &vm_regs, 6, shutdown);
     const uint32_t sv0 = title_global<uint32_t>(0x00964cd0);
     const TitleRegs ms_regs = {0, word(copy), sv0, 0, word(source) + copied, word(copy) + copied};
-    const uint32_t time = title_call_at_regs(top - 0xc, 0x0029c6b0, &ms_regs, 0, nullptr);  // Com_Milliseconds
+    const uint32_t time = title_call_at_regs(top - 0xc, own_address(&Com_Milliseconds), &ms_regs, 0, nullptr);  // Com_Milliseconds
     const uint32_t init[5] = {0, time, 1, savegame, sv0};
     const TitleRegs init_regs = {time, word(copy), sv0, word(gvm()), word(source) + copied, word(copy) + copied};
     const uint32_t result = title_call_at_regs(top, kVmCall, &init_regs, 5, init);
@@ -2468,7 +2473,7 @@ void XB_CDECL SV_ConnectLocalClient(uint32_t type, uint32_t ip, uint32_t ipx1, u
     uint8_t* const client = title_global<uint8_t*>(0x00927e8c);
     std::memset(client, 0, 0xec0);
     const TitleRegs regs = {0, 0, 0, 0, word(client), title_global<uint32_t>(0x0095f534)};
-    cg_call_regs(0x002ddf10, &regs, nullptr, 0);  // G_AllocPlayerEntity (EDI)
+    cg_call_regs(own_address(&G_AllocPlayerEntity_entry), &regs, nullptr, 0);  // G_AllocPlayerEntity (EDI)
     field<uint32_t>(client, 0x164) = field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4), 0x224);
     uint8_t* const chan = client + 0x690;
     std::memset(chan, 0, 0x830);
@@ -2501,7 +2506,7 @@ PLATFORM_ASM_ENTRY(SV_InitGameProgs_entry,
 void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi) {
     const uint32_t create[2] = {0x00832df0, 0x002a8750};  // "game", SV_GameSystemCalls
     const TitleRegs regs = {0, ebx, 0, 0, esi, edi};
-    uint8_t* vm = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(entry_esp, 0x002f2b80, &regs, 2, create)});  // VM_Create
+    uint8_t* vm = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(entry_esp, own_address(&VM_Create), &regs, 2, create)});  // VM_Create
     title_global<uint8_t*>(0x0095f50c) = vm;
     if (!vm) {
         const uint32_t args[2] = {0, 0x00832dd4};
@@ -2511,7 +2516,7 @@ void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t e
     title_global<uint32_t>(0x00965ce4) = 0;
     title_global<uint32_t>(0x00965ce0) = 0;
     const TitleRegs ms_regs = {sv0, ebx, savegame, 0, esi, edi};
-    const uint32_t time = title_call_at_regs(entry_esp - 0xc, 0x0029c6b0, &ms_regs, 0, nullptr);  // Com_Milliseconds
+    const uint32_t time = title_call_at_regs(entry_esp - 0xc, own_address(&Com_Milliseconds), &ms_regs, 0, nullptr);  // Com_Milliseconds
     const uint32_t init[5] = {0, time, 0, savegame, sv0};
     const TitleRegs init_regs = {time, ebx, savegame, word(gvm()), esi, edi};
     title_call_at_regs(entry_esp, kVmCall, &init_regs, 5, init);
@@ -2611,7 +2616,7 @@ void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t fir
     field<uint32_t>(client, 0x164) = field<uint32_t>(ent, 0x224);
     const uint32_t number = field<uint32_t>(ent, 0x224);
     const TitleRegs regs = {number, savegame, 0, 0, word(ent), word(client)};
-    title_call_at_regs(top, 0x00251730, &regs, 1, &number);  // ClientConnect
+    title_call_at_regs(top, own_address(&ClientConnect), &regs, 1, &number);  // ClientConnect
     field<int32_t>(client, 0x168) = -1;
     const uint32_t current = field<uint32_t>(ent, 0x224);
     const uint32_t begin[3] = {3, current, number};  // + ClientConnect's word
@@ -2621,7 +2626,7 @@ void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t fir
     (void)esi;
     const uint32_t msec = 0x32;
     const TitleRegs info_regs = {0, savegame, 0, 0, current, word(client)};
-    title_call_at_regs(top, 0x002c4e50, &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
+    title_call_at_regs(top, own_address(&SV_UpdateInfoConfigstrings), &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
     bump_packet_count();
     title_global<uint32_t>(0x0095f510) = 1;
     const uint32_t spawn[2] = {7, savegame};
@@ -2630,7 +2635,7 @@ void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t fir
     bump_packet_count();
     title_global<uint32_t>(0x0095f510) = 1;
     const TitleRegs frame_regs = {0, savegame, 0, 0, 1, word(client)};
-    title_call_at_regs(top, 0x00274660, &frame_regs, 1, &msec);  // G_RunFrame
+    title_call_at_regs(top, own_address(&G_RunFrame_entry), &frame_regs, 1, &msec);  // G_RunFrame
     title_global<uint32_t>(0x0095f510) = 0;
 }
 // The game-side callees run at the original's ESPs (entry - 0x24, its frame and four saved registers), by title
@@ -2654,7 +2659,7 @@ uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t 
     const uint32_t top = entry_esp - 0x24;
     const TitleRegs entry_regs = {0, ebx, 0, 0, esi, edi};
     const uint32_t lock = 0x00988520;
-    title_call_at_regs(top, 0x00249010, &entry_regs, 1, &lock);
+    title_call_at_regs(top, own_address(&VehNodePool_Free), &entry_regs, 1, &lock);
     const int32_t frame_time = title_global<int32_t>(0x00947710);  // com_frameTime
     title_global<uint8_t>(0x0093ef68) = 0;
     title_global<uint32_t>(0x00929c00) = 0;
@@ -2664,7 +2669,7 @@ uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t 
     title_global<uint32_t>(0x00964cd4) = 1;
     Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e058)), 1);  // "cl_paused", "1"
     const uint32_t one = 1;
-    if (title_call_at_regs(top - 0xc, 0x002c4f50, &entry_regs, 1, &one)) return 0;  // SV_RestartGameProgs
+    if (title_call_at_regs(top - 0xc, own_address(&SV_RestartGameProgs_entry), &entry_regs, 1, &one)) return 0;  // SV_RestartGameProgs
     CL_ClearState();
     title_global<uint32_t>(0x00964cdc) = title_global<uint32_t>(0x00964cd8);
     const uint32_t time = title_global<uint32_t>(0x00947710);
@@ -2676,39 +2681,39 @@ uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t 
     own_function<void XB_CDECL()>(&Netchan_Init)();  // Netchan_Init
     const uint32_t loopback[5] = {2, 0, 0, 0, 0};
     const TitleRegs connect_regs = {0, 2, 0, 0, 0, 0};
-    title_call_at_regs(top - 0x14, 0x002e03a0, &connect_regs, 5, loopback);  // SV_ConnectLocalClient
-    title_call_at_regs(top - 0x14, 0x002c1b80, &connect_regs, 5, loopback);  // CL_ResetLocalConnection
+    title_call_at_regs(top - 0x14, own_address(&SV_ConnectLocalClient), &connect_regs, 5, loopback);  // SV_ConnectLocalClient
+    title_call_at_regs(top - 0x14, own_address(&CL_ResetLocalConnection), &connect_regs, 5, loopback);  // CL_ResetLocalConnection
     title_global<uint32_t>(0x0092f094) = 0;
     if (!savegame) Cvar_Set2(title_text(0x0082bc68), const_cast<char*>(title_text(0x0082e058)), 1);  // "cg_norender"
     const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
     const TitleRegs path_regs = {0, 2, 0, 0, savegame, blocks};
-    title_call_at_regs(top, 0x002b99f0, &path_regs, 0, nullptr);  // PathNode_ParseAllScriptKeys
-    title_call_at_regs(top, 0x002c5ff0, &path_regs, 0, nullptr);  // PathNode_ResolveAllAnimScripts
+    title_call_at_regs(top, own_address(&PathNode_ParseAllScriptKeys_entry), &path_regs, 0, nullptr);  // PathNode_ParseAllScriptKeys
+    title_call_at_regs(top, own_address(&PathNode_ResolveAllAnimScripts_entry), &path_regs, 0, nullptr);  // PathNode_ResolveAllAnimScripts
     if (title_global<uint32_t>(0x0095bf0c)) {
         const TitleRegs regs = {0, blocks, blocks, 0, savegame, blocks};
-        title_call_at_regs(top, 0x002b9870, &regs, 0, nullptr);  // Path_ResetLinkList2048
+        title_call_at_regs(top, own_address(&Path_ResetLinkList2048), &regs, 0, nullptr);  // Path_ResetLinkList2048
     }
     uint8_t* const client = title_global<uint8_t*>(0x00927e8c);
     title_global<uint8_t>(0x00986015) = 1;
     title_global<uint8_t>(0x00986016) = 1;
     const uint32_t restart[2] = {1, savegame};
     const TitleRegs client_regs = {0, blocks, 0, 0, savegame, word(client)};
-    title_call_at_regs(top, 0x002f2e70, &client_regs, 2, restart);  // SV_RestartClient
-    title_call_at_regs(top, 0x002ac450, &client_regs, 0, nullptr);  // CL_ClearConfigstrings
+    title_call_at_regs(top, own_address(&SV_RestartClient_entry), &client_regs, 2, restart);  // SV_RestartClient
+    title_call_at_regs(top, own_address(&CL_ClearConfigstrings), &client_regs, 0, nullptr);  // CL_ClearConfigstrings
     const TitleRegs frame_regs = {0, blocks, savegame, 0, savegame, word(client)};
-    title_call_at_regs(top, 0x002a86e0, &frame_regs, 0, nullptr);  // SV_GameRestartFrame
+    title_call_at_regs(top, own_address(&SV_GameRestartFrame_entry), &frame_regs, 0, nullptr);  // SV_GameRestartFrame
     if (title_global<uint32_t>(0x00927e8c)) {
         const uint32_t command = 0x15;
         const TitleRegs vm_regs = {0, blocks, 0, word(gvm()), savegame, word(client)};
         title_call_at_regs(top, kVmCall, &vm_regs, 1, &command);
         const TitleRegs send_regs = {0, title_global<uint32_t>(0x00927e8c), 0, 0, savegame, word(client)};
-        title_call_at_regs(top, 0x002e4750, &send_regs, 0, nullptr);  // SV_SendClientMessages
+        title_call_at_regs(top, own_address(&SV_SendClientMessages_entry), &send_regs, 0, nullptr);  // SV_SendClientMessages
         title_global<uint32_t>(0x0092f548) = 0;
     }
     field<uint32_t>(client, 0x2c) = field<uint32_t>(client, 0x6b4);
     const uint32_t strings = 0x00964ce0;
     const TitleRegs refresh_regs = {0, blocks, 0, 0, savegame, word(client)};
-    title_call_at_regs(top, 0x002d55d0, &refresh_regs, 1, &strings);  // CL_RefreshConfigstrings
+    title_call_at_regs(top, own_address(&CL_RefreshConfigstrings), &refresh_regs, 1, &strings);  // CL_RefreshConfigstrings
     const uint32_t limit = title_global<uint32_t>(0x0092f094);
     title_global<uint32_t>(0x0092bdf0) = 2;  // cls.state
     title_global<uint32_t>(0x009606b0) = limit;
@@ -2781,7 +2786,7 @@ uint32_t XB_CDECL CheckReloadStatus(uint32_t entry_esp, uint32_t esi, uint32_t e
     if (title_global<uint32_t>(0x00929c00)) {  // a restart is pending
         const uint32_t zero = 0;
         const TitleRegs regs = {eax, 0, 0, 0, esi, edi};
-        title_call_at_regs(top, 0x002f2f50, &regs, 1, &zero);  // SV_MapRestart
+        title_call_at_regs(top, own_address(&SV_MapRestart_entry), &regs, 1, &zero);  // SV_MapRestart
         return 1;
     }
     if (!pending[0]) return 0;
@@ -2805,7 +2810,7 @@ uint32_t XB_CDECL CheckReloadStatus(uint32_t entry_esp, uint32_t esi, uint32_t e
         const uint32_t one = 1;
         const TitleRegs regs = {0, title_global<uint32_t>(0x0095f4c4), 0, 0, word(save) + 5 + length,
                                 top + 0x98 + length};
-        if (title_call_at_regs(top, 0x002f2f50, &regs, 1, &one)) return 1;  // SV_MapRestart
+        if (title_call_at_regs(top, own_address(&SV_MapRestart_entry), &regs, 1, &one)) return 1;  // SV_MapRestart
     }
     const uint8_t* const cheats = Cvar_FindVar(title_text(0x008340d0));  // "sv_cheats"
     const uint32_t args[2] = {cheats && field<uint32_t>(const_cast<uint8_t*>(cheats), 0x20) ? 0x00832f98u : 0x00832f8cu,
@@ -2887,7 +2892,7 @@ void spawn_progress(SpawnFrame& f, uint32_t fraction, const uint32_t (&returns)[
     f.edx = panels;
     if (chapter <= 0) {
         f.esi = SpawnFrame::at(panels + 0x14);
-        f.call(0, 0x0033ac10, returns[0]);  // SCR_UpdateLoadingDots
+        f.call(0, own_address(&SCR_UpdateLoadingDots_entry), returns[0]);  // SCR_UpdateLoadingDots
     } else {
         uint32_t function = 0x00313790, slot = 8, ret = returns[3];
         if (chapter <= 5) function = 0x003134e0, slot = 0xc, ret = returns[1];
@@ -2913,7 +2918,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.esi = entry_esi;
     f.edi = name;
     f.call(0, kVa, 0x002f315d, 0x00835224, name);
-    f.call(2, 0x002c9fe0, 0x002f3163, f.eax);  // Com_ReadHunkUsage
+    f.call(2, own_address(&Com_ReadHunkUsage), 0x002f3163, f.eax);  // Com_ReadHunkUsage
     f.eax = title_global<uint32_t>(0x00940284);  // fs_debug
     f.ecx = at(f.eax + 0x20);
     if (f.ecx == 2) f.call(0, kCvarSet, 0x002f3184, 0x00832c80, 0x0082e098, 1);
@@ -2925,9 +2930,9 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     title_global<uint8_t>(0x0093ef68) = 0;
     title_global<uint32_t>(0x00929c00) = 0;
     if (!f.eax) title_global<uint32_t>(0x0098f2c8) = f.call(0, kCvarGet, 0x002f31cd, 0x00832fec, 0x0082e058, 0x64);
-    f.call(0, 0x002f2890, 0x002f31da);  // CL_MapLoading
-    f.call(0, 0x002b4910, 0x002f31df);  // CL_ShutdownCGame
-    f.call(0, 0x002f0750, 0x002f31e4);  // CL_ApplyFrontEndReturnState
+    f.call(0, own_address(&CL_MapLoading), 0x002f31da);  // CL_MapLoading
+    f.call(0, own_address(&CL_ShutdownCGame), 0x002f31df);  // CL_ShutdownCGame
+    f.call(0, own_address(&CL_ApplyFrontEndReturnState_entry), 0x002f31e4);  // CL_ApplyFrontEndReturnState
     f.eax = title_global<uint32_t>(0x009284e8);  // re's first slot
     if (f.eax) f.call(0, f.eax, 0x002f31f0, 0);
     f.edx = title_global<uint32_t>(0x0095f50c);  // gvm
@@ -2935,25 +2940,25 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     if (f.edx) {
         f.call(0, kVmCallAt, 0x002f320b, 1, 0);  // GAME_SHUTDOWN
         f.edx = title_global<uint32_t>(0x0095f50c);
-        f.call(2, 0x002971a0, 0x002f321d, f.edx, 0, 0x8c);  // Com_Memset
+        f.call(2, own_address(&Com_Memset), 0x002f321d, f.edx, 0, 0x8c);  // Com_Memset
         title_global<uint32_t>(0x0095f514) = 0;
         title_global<uint32_t>(0x0095f50c) = 0;
     }
-    f.call(0, 0x002b82d0, 0x002f3231);  // SV_ClearServer
+    f.call(0, own_address(&SV_ClearServer), 0x002f3231);  // SV_ClearServer
     f.ebx = 1;
-    f.call(0, 0x0029a5c0, 0x002f323c, 1);  // FS_Shutdown
-    f.call(1, 0x002b1ca0, 0x002f3241);     // Sys_Milliseconds
+    f.call(0, own_address(&FS_Shutdown), 0x002f323c, 1);  // FS_Shutdown
+    f.call(1, own_address(&Sys_Milliseconds), 0x002f3241);     // Sys_Milliseconds
     f.call(1, 0x001efcb3, 0x002f3247, f.eax);  // srand
-    f.call(2, 0x002a3370, 0x002f324d, 0);      // FS_Restart
+    f.call(2, own_address(&FS_Restart), 0x002f324d, 0);      // FS_Restart
     f.eax = title_global<uint32_t>(0x0095f580);
     f.ecx = title_global<uint32_t>(0x0095f578);
     if (f.eax != f.ecx) {
-        f.call(0, 0x00297990, 0x002f3264);  // FS_FreeSearchPaths
+        f.call(0, own_address(&FS_FreeSearchPaths), 0x002f3264);  // FS_FreeSearchPaths
         title_global<uint32_t>(0x0095f580) = title_global<uint32_t>(0x0095f578);
     }
     f.eax = title_global<uint32_t>(0x0095f584);
     if (f.eax != title_global<uint32_t>(0x0095f57c)) {
-        f.call(0, 0x00297950, 0x002f3280);  // FS_FreePackList
+        f.call(0, own_address(&FS_FreePackList), 0x002f3280);  // FS_FreePackList
         f.ecx = title_global<uint32_t>(0x0095f57c);
         title_global<uint32_t>(0x0095f584) = f.ecx;
     }
@@ -2969,39 +2974,39 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.eax = frame_time;
     f.call(9, kVa, 0x002f32e4, 0x0082ded4, frame_time);
     f.call(11, kCvarSet, 0x002f32f0, 0x008340dc, f.eax, 1);
-    f.call(14, 0x002f0a50, 0x002f32f5);  // CL_StartHunkUsers
+    f.call(14, own_address(&CL_StartHunkUsers), 0x002f32f5);  // CL_StartHunkUsers
     f.call(14, kCvarSet, 0x002f3305, 0x00835238, 0x0082e098, 1);
     f.call(0, kScreen, 0x002f330d);
     f.call(0, kCvarSet, 0x002f331d, 0x0082ca00, 0x0082e058, 1);
-    f.call(3, 0x00299710, 0x002f3327, 0x00832cb8);  // Cvar_FindVar
+    f.call(3, own_address(&Cvar_FindVar), 0x002f3327, 0x00832cb8);  // Cvar_FindVar
     if (!f.eax || field<float>(reinterpret_cast<uint8_t*>(uintptr_t{f.eax}), 0x1c) == 0.0f) {
-        f.call(0, 0x0029c570, 0x002f3345);
-        f.call(0, 0x002c4ed0, 0x002f334a);  // SV_AllocServerStatic
+        f.call(0, own_address(&Com_ResetNodeRing), 0x002f3345);
+        f.call(0, own_address(&SV_AllocServerStatic), 0x002f334a);  // SV_AllocServerStatic
     } else {
         title_global<uint32_t>(0x0095f590) = 1;
     }
-    f.call(0, 0x002c0ce0, 0x002f3357);  // Netchan_Init
+    f.call(0, own_address(&Netchan_Init), 0x002f3357);  // Netchan_Init
     // The local address {NA_LOOPBACK 2, 0, 0, 0, 0} by value, twice.
     f.esi = f.edi = f.ebx = 0;
     f.eax = 2;
     f.edx = frame - 0x14;
     at(frame + 0x10) = 0;
-    f.call(0, 0x002e03a0, 0x002f337e, 2, 0, 0, 0, 0);  // SV_ConnectLocalClient
+    f.call(0, own_address(&SV_ConnectLocalClient), 0x002f337e, 2, 0, 0, 0, 0);  // SV_ConnectLocalClient
     f.eax = 2;
     f.ecx = frame - 0x14;
-    f.call(0, 0x002c1b80, 0x002f3398, 2, 0, 0, 0, 0);  // CL_ResetLocalConnection
+    f.call(0, own_address(&CL_ResetLocalConnection), 0x002f3398, 2, 0, 0, 0, 0);  // CL_ResetLocalConnection
     for (f.esi = 0x00964ce0; f.esi < 0x00965ce0; f.esi += 4) {
         f.ecx = f.esi;
-        f.call(0, 0x0011dd20, 0x002f33ac, 0x0082dfeb);  // ScriptString_AssignCString(configstring, "")
+        f.call(0, own_address(&ScriptString_AssignCString), 0x002f33ac, 0x0082dfeb);  // ScriptString_AssignCString(configstring, "")
     }
     f.call(0, kScreen, 0x002f33bc);
     f.eax = title_global<uint32_t>(0x0095f6b8);  // cm
     f.ebx = 0;
     if (f.eax) {
         f.esi = title_global<uint32_t>(0x0095f5b4);
-        f.call(0, 0x0029b860, 0x002f33d6);  // FX_FreeAllEffects
+        f.call(0, own_address(&FX_FreeAllEffects_entry), 0x002f33d6);  // FX_FreeAllEffects
         f.esi = f.edi = title_global<uint32_t>(0x0095f638);
-        f.call(0, 0x0028ca90, 0x002f33e5, 1);  // Pak_ResetZoneDistances
+        f.call(0, own_address(&Pak_ResetZoneDistances_entry), 0x002f33e5, 1);  // Pak_ResetZoneDistances
         f.esi += 0x14;
         title_global<uint8_t>(f.esi) = 0;
         do {
@@ -3020,10 +3025,10 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
                 for (f.edi = f.eax; f.edi; --f.edi) {
                     f.esi -= 0x1c;
                     f.ecx = f.esi;
-                    f.call(0, 0x00029560, 0x002f342f);  // FX_ReleaseEffectHandle
+                    f.call(0, own_address(&FX_ReleaseEffectHandle), 0x002f342f);  // FX_ReleaseEffectHandle
                 }
             }
-            f.call(0, 0x000428d0, 0x002f3438, f.ebx);  // Z_Free
+            f.call(0, own_address(&Z_Free), 0x002f3438, f.ebx);  // Z_Free
             title_global<uint32_t>(0x0095f6e4) = 0;
             f.ebx = 0;
         }
@@ -3052,7 +3057,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.edx = frame + 0xc;
         f.ebx = f.esi + 8;
         at(frame + 0xc) = name;
-        f.call(0, 0x000249a0, 0x002f34b6, frame + 0xc);  // StringMap_Find
+        f.call(0, own_address(&StringMap_Find_entry), 0x002f34b6, frame + 0xc);  // StringMap_Find
         if (f.eax) {
             uint32_t index = at(f.eax);
             if (index >= at(f.esi + 0x10)) index = 0;
@@ -3076,12 +3081,12 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.edx = title_global<uint32_t>(0x0082e29c);
     f.call(0, kVa, 0x002f3552, 0x00832c78, name);  // the map's load sound alias
     if (f.eax) {
-        f.call(0, 0x000c5810, 0x002f355f, f.eax);  // S_FindSoundByHash
+        f.call(0, own_address(&S_FindSoundByHash), 0x002f355f, f.eax);  // S_FindSoundByHash
         if (f.eax == 0xffffffff) {
             f.eax = 0;
         } else {
             f.ecx = f.esi;
-            f.call(0, 0x002c30a0, 0x002f359a, frame + 0xc, 0, 1, 0, frame + 0x10, frame + 0x40, 0xbf800000,
+            f.call(0, own_address(&S_PlaySoundAlias), 0x002f359a, frame + 0xc, 0, 1, 0, frame + 0x10, frame + 0x40, 0xbf800000,
                    0xbf800000, 0xbf800000, 0xbf800000);  // S_PlaySoundAlias (-1 x4)
             f.eax = at(frame + 0xc);
         }
@@ -3101,14 +3106,14 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.call(0, kHashInit, kBanks[bit][1], kBanks[bit][0]);
         f.ecx = title_global<uint32_t>(0x0095f4c0);  // rm_soundBanks
         f.eax = f.edx = frame + 0x10;
-        f.call(0, 0x002ce8f0, kBanks[bit][2], f.ecx, frame + 0x10, 1);  // S_LoadSoundBank
+        f.call(0, own_address(&S_LoadSoundBank), kBanks[bit][2], f.ecx, frame + 0x10, 1);  // S_LoadSoundBank
     }
     f.ecx = title_global<uint32_t>(0x0095f638);
-    f.call(0, 0x00292d70, 0x002f36ef, map);  // Stream_StartRequest
+    f.call(0, own_address(&Stream_StartRequest), 0x002f36ef, map);  // Stream_StartRequest
     at(frame - 4) = 0;
     f.ecx = name;
     f.call(1, kVa, 0x002f36ff, 0x00832c18, name);  // "/cod/data/game/uo/maps/%s.bsp"
-    f.call(0, 0x002c1ae0, 0x002f3707, 0);          // CM_LoadMap
+    f.call(0, own_address(&CM_LoadMap), 0x002f3707, 0);          // CM_LoadMap
     f.eax = f.edi = title_global<uint32_t>(0x0095f638);
     f.esi = f.eax + 0x14;
     title_global<uint8_t>(f.esi) = 0;
@@ -3118,17 +3123,17 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.call(0, kStreamUpdate, 0x002f3727);
     } while (!title_global<uint8_t>(f.esi));
     f.edi = title_global<uint32_t>(0x0095f4c0);
-    f.call(0, 0x002ce9c0, 0x002f3737);  // S_WaitForWaveBanks
+    f.call(0, own_address(&S_WaitForWaveBanks_entry), 0x002f3737);  // S_WaitForWaveBanks
     f.edi = at(map + 0x28);
     f.esi = title_global<uint32_t>(0x0095f638);
-    f.call(0, 0x0028f6c0, 0x002f3745);  // MemContext_Push
+    f.call(0, own_address(&MemContext_Push_entry), 0x002f3745);  // MemContext_Push
     f.call(0, kScreen, 0x002f374a);
     f.edx = savegame;
-    f.call(0, 0x002f2d30, 0x002f3753, savegame);  // SV_InitGameProgs
+    f.call(0, own_address(&SV_InitGameProgs_entry), 0x002f3753, savegame);  // SV_InitGameProgs
     f.eax = title_global<uint32_t>(0x0095f638);
     at(f.eax + 0x35c) = 0;
     f.edi = 0x008dce30;
-    f.call(0, 0x00332e20, 0x002f376f);  // CL_ApplyProfileSettings
+    f.call(0, own_address(&CL_ApplyProfileSettings_entry), 0x002f376f);  // CL_ApplyProfileSettings
     // The difficulty (0x008dce50: 0, 1, 2) into its cvars, the reload cvar 2 when 0x0093f800 is set.
     struct Skill {
         uint32_t value, set_return, va_return, cvar_return, reload_va, reload_set;
@@ -3167,7 +3172,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         if (!(title_global<uint8_t>(f.esi + 0x10) & 8)) continue;
         f.edx = at(f.esi + 4);
         f.eax = at(f.esi);
-        f.call(0, 0x002afdb0, 0x002f39e6, 0x0093fd78, f.edx);  // Info_SetValueForKey_Big
+        f.call(0, own_address(&Info_SetValueForKey_Big), 0x002f39e6, 0x0093fd78, f.edx);  // Info_SetValueForKey_Big
     }
     f.eax = frame + 0x70;
     f.call(0, 0x001eed80, 0x002f3a04, frame + 0x70, 0x0093fd78, 0x3ff);  // _strncpy
@@ -3175,15 +3180,15 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     title_global<uint8_t>(frame + 0x46f) = 0;
     f.eax = title_global<uint32_t>(0x009403ec);
     f.ecx = frame + 0x70;
-    f.call(3, 0x002bfd80, 0x002f3a24, 1, frame + 0x70);  // SV_SetConfigstring(CS_SERVERINFO)
+    f.call(3, own_address(&SV_SetConfigstring), 0x002f3a24, 1, frame + 0x70);  // SV_SetConfigstring(CS_SERVERINFO)
     title_global<uint8_t>(0x0093f818) = 0;
     for (f.esi = title_global<uint32_t>(0x0093fcec); f.esi; f.esi = at(f.esi + 0x24)) {
         if (!(title_global<uint8_t>(f.esi + 0x10) & 4)) continue;
         f.eax = at(f.esi + 4);
         f.ecx = at(f.esi);
-        f.call(0, 0x002aff40, 0x002f3a4d, 0x0093f818);  // Info_SetValueForKey
+        f.call(0, own_address(&Info_SetValueForKey), 0x002f3a4d, 0x0093f818);  // Info_SetValueForKey
     }
-    f.call(0, 0x002bfd80, 0x002f3a62, 0, 0x0093f818);  // SV_SetConfigstring(CS_SYSTEMINFO)
+    f.call(0, own_address(&SV_SetConfigstring), 0x002f3a62, 0, 0x0093f818);  // SV_SetConfigstring(CS_SYSTEMINFO)
     f.ecx = title_global<uint32_t>(0x009403ec) & ~4u;
     title_global<uint32_t>(0x009403ec) = f.ecx;
     f.call(2, kCvarSet, 0x002f3a81, 0x0082bc68, 0x0082e058, 1);  // cg_norender 0
@@ -3207,7 +3212,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     }
     if (title_global<uint32_t>(0x0095bf0c)) {
         f.ecx = blocks;
-        f.call(0, 0x002b9870, 0x002f3b72);  // Path_ResetLinkList2048
+        f.call(0, own_address(&Path_ResetLinkList2048), 0x002f3b72);  // Path_ResetLinkList2048
     }
     // The local client (svs 0x00927e8c) and its player entity (client 0 of 0x0095f534's list).
     f.edi = title_global<uint32_t>(0x00927e8c);
@@ -3218,7 +3223,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.esi = at(f.ecx + 4);
     f.eax = at(f.esi + 0x224);
     at(f.edi + 0x164) = f.eax;
-    f.call(0, 0x00251730, 0x002f3bbd, f.eax);  // ClientConnect
+    f.call(0, own_address(&ClientConnect), 0x002f3bbd, f.eax);  // ClientConnect
     f.edx = title_global<uint32_t>(0x0095f50c);
     at(f.edi + 0x168) = 0xffffffff;
     f.esi = at(f.esi + 0x224);
@@ -3236,7 +3241,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     title_global<uint32_t>(0x0095f510) = 0;
     at(f.edi + 0x2c) = f.eax;
     f.call(1, kRefresh, 0x002f3c54, 0x00964ce0);  // CL_RefreshConfigstrings
-    f.call(0, 0x002f2db0, 0x002f3c5c);            // CL_InitCGame
+    f.call(0, own_address(&CL_InitCGame), 0x002f3c5c);            // CL_InitCGame
     spawn_progress(f, 0x3f733333, {0x002f3c76, 0x002f3c92, 0x002f3caa, 0x002f3cbd, 0x002f3cc2});
     spawn_frame_counter(1);
     f.eax = title_global<uint32_t>(0x00964cd0);
@@ -3251,11 +3256,11 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.edx = title_global<uint32_t>(0x0095f50c);
         f.call(0, kVmCallAt, 0x002f3d22, 0x15);
         f.ebx = title_global<uint32_t>(0x00927e8c);
-        f.call(0, 0x002e4750, 0x002f3d30);  // SV_SendClientMessages
+        f.call(0, own_address(&SV_SendClientMessages_entry), 0x002f3d30);  // SV_SendClientMessages
         title_global<uint32_t>(0x0092f548) = 0;
         f.ebx = 1;
     }
-    f.call(0, 0x002a40f0, 0x002f3d44);  // Com_EventLoop
+    f.call(0, own_address(&Com_EventLoop), 0x002f3d44);  // Com_EventLoop
     f.edx = at(f.edi + 0x6b4);
     at(f.edi + 0x2c) = f.edx;
     f.call(0, kRefresh, 0x002f3d57, 0x00964ce0);
@@ -3266,12 +3271,12 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.call(0, kHashInit, 0x002f3d6d, name);
     f.ecx = frame + 0x50;
     f.eax = f.esi;
-    f.call(0, 0x002bdbd0, 0x002f3d79, frame + 0x50);  // SndBankList_IsLoaded
+    f.call(0, own_address(&SndBankList_IsLoaded), 0x002f3d79, frame + 0x50);  // SndBankList_IsLoaded
     while (!(f.eax & 0xff)) {
-        f.call(0, 0x002c8f60, 0x002f3d86, f.esi);  // S_CheckWaveBankNotifies
+        f.call(0, own_address(&S_CheckWaveBankNotifies), 0x002f3d86, f.esi);  // S_CheckWaveBankNotifies
         f.edx = frame + 0x50;
         f.eax = f.esi;
-        f.call(0, 0x002bdbd0, 0x002f3d92, frame + 0x50);
+        f.call(0, own_address(&SndBankList_IsLoaded), 0x002f3d92, frame + 0x50);
     }
     const uint32_t checksum = title_global<uint32_t>(0x0092f094);
     f.eax = checksum;
@@ -3282,7 +3287,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.call(0, kCvarSet, 0x002f3dc0, 0x0082ca00, 0x0082e058, f.ebx);
     f.edx = title_global<uint32_t>(0x0095f638);
     title_global<uint32_t>(0x00964cd4) = 2;
-    return f.call(0, 0x0028c690, 0x002f3dd4);  // MemContext_Pop
+    return f.call(0, own_address(&MemContext_Pop_entry), 0x002f3dd4);  // MemContext_Pop
 }
 
 void XB_CDECL SV_Map_f() {
