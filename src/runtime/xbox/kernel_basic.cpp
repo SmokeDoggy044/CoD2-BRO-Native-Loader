@@ -22,6 +22,7 @@
 #include "kernel_internal.h"
 #include "kernel_memory.h"
 #include "log.h"
+#include "replay.h"
 #include "types.h"
 
 namespace xbox {
@@ -119,7 +120,7 @@ int64_t XB_STDCALL KeQueryPerformanceCounter() {
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                         std::chrono::steady_clock::now() - g_start)
                         .count();
-    return static_cast<int64_t>(static_cast<long double>(ns) * kPerformanceFrequency / 1e9L);
+    return replay::clock(static_cast<int64_t>(static_cast<long double>(ns) * kPerformanceFrequency / 1e9L));
 }
 
 int64_t XB_STDCALL KeQueryPerformanceFrequency() { return kPerformanceFrequency; }
@@ -408,7 +409,7 @@ bool kernel_init(const KernelConfig& config) {
 int64_t cpu_time_stamp_counter() {
     const auto ns =
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - g_start).count();
-    return ns / 15 * 11 + ns % 15 * 11 / 15;
+    return replay::clock(ns / 15 * 11 + ns % 15 * 11 / 15);
 }
 
 }  // namespace xbox

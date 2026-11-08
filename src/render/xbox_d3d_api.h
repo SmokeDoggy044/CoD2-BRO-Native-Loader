@@ -37,6 +37,7 @@ struct D3DConfig {
     uint32_t diag_seconds = 10;
     void (*pause_audio)(bool paused) = nullptr;  // while a mark's note is typed
     void (*log_audio)() = nullptr;               // at a mark: what is playing
+    void (*frame_presented)() = nullptr;         // each presented frame, before the screenshot (record/replay)
     // When the window or device cannot be created (logged): the loader tells the
     // player and ends the process. Null: CreateDevice returns an error to the title.
     void (*device_failed)() = nullptr;

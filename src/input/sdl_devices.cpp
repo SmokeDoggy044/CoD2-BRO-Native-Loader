@@ -16,6 +16,7 @@
 
 #include "float_env.h"
 #include "log.h"
+#include "replay.h"
 
 namespace input {
 
@@ -331,7 +332,8 @@ bool in_menu() { return menu_mode(); }
 
 void set_menu_pointer() { g_menu_until_ms = now_ms() + kMenuLingerMs; }
 
-PointerState take_pointer() {
+namespace {
+PointerState take_live_pointer() {
     platform::HostFloatEnv host_env;
     PointerState pointer;
     {
@@ -360,6 +362,14 @@ PointerState take_pointer() {
     return pointer;
 }
 
+}  // namespace
+
+PointerState take_pointer() {
+    PointerState pointer = take_live_pointer();
+    xbox::replay::bytes('M', &pointer, sizeof(pointer));
+    return pointer;
+}
+
 void tap(const PadState& buttons) {
     constexpr int64_t kTapMs = 100;  // a few frames even at 30 fps
     std::lock_guard lock(g_tap_mutex);
@@ -372,6 +382,10 @@ void take_mouse_motion(float& dx, float& dy) {
     dx = g_blocked.load() ? 0.0f : g_mouse_dx;
     dy = g_blocked.load() ? 0.0f : g_mouse_dy;
     g_mouse_dx = g_mouse_dy = 0.0f;
+    float motion[2] = {dx, dy};
+    xbox::replay::bytes('m', motion, sizeof(motion));
+    dx = motion[0];
+    dy = motion[1];
 }
 
 void set_game_input_blocked(bool blocked) {

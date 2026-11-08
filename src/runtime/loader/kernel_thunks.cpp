@@ -1,3 +1,4 @@
+#include "replay.h"
 #include "kernel_thunks.h"
 #include "seh.h"
 
@@ -79,6 +80,8 @@ void xbox_thread_main(ThreadStart start) {
         return;
     }
     t_thread_object = start.object;
+    // The first thread the entry point starts is the title's main thread (record/replay follows only its reads).
+    if (start.object->id() == 1) xbox::replay::bind_current_thread();
     start.object->wait_until_resumed();
     LOG_DEBUG("thread", "thread %u starts at %08x", start.object->id(),
               start.system_routine ? start.system_routine : start.start_routine);

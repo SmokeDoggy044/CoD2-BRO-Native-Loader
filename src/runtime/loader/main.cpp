@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "replay.h"
 #include "bindings.h"
 #include "compare.h"
 #include "crash.h"
@@ -93,6 +94,7 @@ struct Options {
     bool graphics_enhanced = true;               // --graphics
     render::GraphicsFeatures graphics_features;  // --graphics-features
     std::string press_script;
+    xbox::replay::Config replay;  // --record / --replay / --replay-dump
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
     std::string bindings_error;  // a word of --keys it did not know (logged; the rest applies)
@@ -211,6 +213,11 @@ void print_usage(const char* program) {
         "  --press LIST     scripted presses on port 0, e.g. start@20,a@25.5,back@80+4 (seconds after\n"
         "                   start, +S holds the button S seconds;\n"
         "                   buttons: a b x y black white lt rt start back up down left right ls rs)\n"
+        "  --record FILE    developer: write every clock and input read of the game's main thread\n"
+        "                   and a game-state hash per frame to FILE (until the next reboot)\n"
+        "  --replay FILE    developer: play FILE back and report the first frame whose state differs;\n"
+        "                   exits at its end (0 = every frame matched, 3 = some differed)\n"
+        "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
         "  --diag DIR [S]   diagnostics while playing: DIR/log.txt, a screenshot every S seconds\n"
         "                   (default 10); F12 marks a problem: screenshot, a note typed while the\n"
@@ -328,6 +335,19 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.screenshot_dir = fs::path(argv[++i]);
+        } else if (arg == "--record" || arg == "--replay") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "%s needs a file\n", arg.c_str());
+                return std::nullopt;
+            }
+            options.replay.mode = arg == "--record" ? xbox::replay::Mode::Record : xbox::replay::Mode::Replay;
+            options.replay.file = fs::path(argv[++i]);
+        } else if (arg == "--replay-dump") {
+            if (i + 2 >= argc || (options.replay.dump_frame = static_cast<uint32_t>(std::atoi(argv[++i]))) < 1) {
+                std::fprintf(stderr, "--replay-dump needs a frame number and a folder\n");
+                return std::nullopt;
+            }
+            options.replay.dump_dir = fs::path(argv[++i]);
         } else if (arg == "--press") {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--press needs a list of button@seconds\n");
@@ -614,6 +634,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
         }
     }
     loader::compare::flush();
+    xbox::replay::stop();  // a recording or replay covers one boot
     const int fd = loader::os::pass_launch_data(launch_data_page);
     if (fd < 0) {
         LOG_ERROR("loader", "reboot: cannot pass the launch data");
@@ -623,8 +644,13 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     for (size_t i = 1; i < g_args.size(); ++i) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
-            name == "--level" || name == "--exec" || name == "--force" || name == "--multiplayer" || (name == "--symbols" && !same_title)) {
+            name == "--level" || name == "--exec" || name == "--force" || name == "--multiplayer" || (name == "--symbols" && !same_title) ||
+            name == "--record" || name == "--replay") {
             ++i;  // dropped with its value
+            continue;
+        }
+        if (name == "--replay-dump") {  // a recording covers one boot
+            i += 2;
             continue;
         }
         args.push_back(g_args[i]);
@@ -927,6 +953,7 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;
+    if (options->replay.mode != xbox::replay::Mode::Off) d3d_config.frame_presented = &xbox::replay::frame;
     if (options->diag_dir) {
         d3d_config.diag_dir = options->diag_dir->string();
         d3d_config.diag_seconds = options->diag_seconds;
@@ -950,6 +977,7 @@ int loader_main(int argc, char** argv) {
     render::configure(d3d_config);
     input::configure({loader::title_address(title->gamepad_type, "(gamepad device type)")});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
+    if (!xbox::replay::start(options->replay)) return 1;
     if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
         return startup_failed(std::string(title->symbol_file) + " is missing or damaged");

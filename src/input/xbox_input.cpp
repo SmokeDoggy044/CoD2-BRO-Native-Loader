@@ -10,6 +10,7 @@
 #include "dispatcher.h"
 #include "log.h"
 #include "objects.h"
+#include "replay.h"
 #include "script.h"
 
 namespace input {
@@ -65,7 +66,7 @@ void XB_STDCALL XInitDevices(uint32_t /*prealloc_count*/, XbPtr /*prealloc_types
 // Bitmask of connected ports; resets the changes XGetDeviceChanges reports.
 uint32_t XB_STDCALL XGetDevices(XbPtr type) {
     if (!is_gamepad(type)) return 0;
-    const uint32_t ports = connected_ports();
+    const uint32_t ports = xbox::replay::value('D', connected_ports());
     g_reported_ports = ports;
     return ports;
 }
@@ -75,7 +76,7 @@ uint32_t XB_STDCALL XGetDevices(XbPtr type) {
 uint32_t XB_STDCALL XGetDeviceChanges(XbPtr type, XbPtr insertions, XbPtr removals) {
     uint32_t inserted = 0, removed = 0;
     if (is_gamepad(type)) {
-        const uint32_t ports = connected_ports();
+        const uint32_t ports = xbox::replay::value('D', connected_ports());
         const uint32_t before = g_reported_ports.exchange(ports);
         inserted = ports & ~before;
         removed = before & ~ports;
@@ -89,7 +90,7 @@ uint32_t XB_STDCALL XGetDeviceChanges(XbPtr type, XbPtr insertions, XbPtr remova
 uint32_t XB_STDCALL XPeekDevices(XbPtr type, XbPtr insertions, XbPtr removals) {
     uint32_t inserted = 0, removed = 0;
     if (is_gamepad(type)) {
-        const uint32_t ports = connected_ports();
+        const uint32_t ports = xbox::replay::value('D', connected_ports());
         inserted = ports & ~g_reported_ports;
         removed = g_reported_ports & ~ports;
     }
@@ -101,7 +102,7 @@ uint32_t XB_STDCALL XPeekDevices(XbPtr type, XbPtr insertions, XbPtr removals) {
 // --- Gamepads ---------------------------------------------------------------------------
 
 XbPtr XB_STDCALL XInputOpen(XbPtr type, uint32_t port, uint32_t /*slot*/, XbPtr /*polling*/) {
-    if (!is_gamepad(type) || port >= kPortCount || !(connected_ports() & (1u << port))) return 0;
+    if (!is_gamepad(type) || port >= kPortCount || !(xbox::replay::value('D', connected_ports()) & (1u << port))) return 0;
     return kHandleBase + port;
 }
 
@@ -109,7 +110,7 @@ void XB_STDCALL XInputClose(XbPtr /*handle*/) {}
 
 // XINPUT_CAPABILITIES: subtype, then the controls the device has (all of them).
 uint32_t XB_STDCALL XInputGetCapabilities(XbPtr handle, XbPtr capabilities) {
-    if (!(connected_ports() & (1u << handle_port(handle)))) return kErrorDeviceNotConnected;
+    if (!(xbox::replay::value('D', connected_ports()) & (1u << handle_port(handle)))) return kErrorDeviceNotConnected;
     auto* bytes = from_xbox_ptr<uint8_t>(capabilities);
     bytes[0] = 1;  // XINPUT_DEVSUBTYPE_GC_GAMEPAD
     return kErrorSuccess;
@@ -118,8 +119,10 @@ uint32_t XB_STDCALL XInputGetCapabilities(XbPtr handle, XbPtr capabilities) {
 uint32_t XB_STDCALL XInputGetState(XbPtr handle, XbPtr state) {
     PadState pad;
     const uint32_t port = handle_port(handle);
-    if (!read_port(port, pad)) return kErrorDeviceNotConnected;
-    if (port == 0) apply_script(pad);
+    const bool connected = read_port(port, pad);
+    if (connected && port == 0) apply_script(pad);
+    if (!xbox::replay::value('P', connected)) return kErrorDeviceNotConnected;
+    xbox::replay::bytes('p', &pad, sizeof(pad));
     auto* s = from_xbox_ptr<XbInputState>(state);
     s->packet_number = ++g_packet;
     s->gamepad.buttons = pad.buttons;

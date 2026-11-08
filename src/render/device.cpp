@@ -545,6 +545,7 @@ uint32_t present_frame() {
         g.backend->set_notice(g.notice);
     }
     g_frames_shown.store(true, std::memory_order_relaxed);
+    if (g.config.frame_presented) g.config.frame_presented();
     if (g.config.screenshot_interval && g.swap_count % g.config.screenshot_interval == 0) {
         const std::string path = g.config.screenshot_dir + "/frame_" + std::to_string(g.swap_count) + ".bmp";
         g.backend->save_back_buffer(path.c_str());
