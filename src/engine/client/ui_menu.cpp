@@ -639,15 +639,14 @@ void XB_THISCALL UIScreenMgr_LayoutAll(uint8_t* mgr) {
 // frame addresses: S_PlaySoundAlias keeps their addresses (host sound state differed in the stack address byte).
 PLATFORM_ASM_ENTRY(UIScreenMgr_SetActiveScreen_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
-                   GAME_GAP_ESP("0x20000")
                    "pushl 4(%ebp)\n"
                    "pushl %ecx\n"
-                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIScreenMgr_SetActiveScreen) "leal -0x20004(%ebp), %esp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIScreenMgr_SetActiveScreen) "addl $12, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret $4")
 
 void XB_CDECL UIScreenMgr_SetActiveScreen(uint32_t entry, uint8_t* mgr, int32_t index) {
@@ -1323,17 +1322,17 @@ uint32_t method_at(uint32_t top, uint8_t* object, uint32_t offset, uint32_t coun
 // The callees run at the original's stack positions (a title callee keeps a stack address in the heap at
 // 0x100006a8): the C frame sits below a gap; the expanded text and the colour word are the original's locals at
 // entry - 4 / entry - 8, the by-value strings its argument slots.
-// EBP is saved below the gap: the original's expanded text lives at entry - 4.
+// EBP is saved below the gap (after GAME_GAP_ESP, which respects the floor): the original's expanded text
+// lives at entry - 4.
 PLATFORM_ASM_ENTRY(UIDialog_SetText_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
-                   GAME_GAP_ESP("0x20000")
                    "pushl %esi\n"
-                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIDialog_SetText) "leal -0x20004(%ebp), %esp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIDialog_SetText) "addl $8, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret $8")
 
 void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay) {

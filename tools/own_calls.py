@@ -285,9 +285,9 @@ KEEP_CALLEES = re.compile(r"\b(Heap_CreateFromZone|sample_root)\s*\([^()]*$")
 
 
 # functions whose C is not ready to run live yet: their addresses stay original (status in
-# docs/developers/own-engine-host.md). SV_Map_f: its C calls SV_SpawnServer's C (inconclusive), which
-# crashes live (a callee at the original's position overwrites the body's return address, 2026-11-07).
-KEEP_NAMES = {"SV_Map_f"}
+# docs/developers/own-engine-host.md). Empty since 2026-11-08 (SV_Map_f: the crash was
+# UIScreenMgr_SetActiveScreen_entry pushing EBP below its gap before the floor check).
+KEEP_NAMES: set[str] = set()
 
 
 # ---- pass 3 (--values): addresses of our C used as values (slot tables, comparators, thread entries) ---

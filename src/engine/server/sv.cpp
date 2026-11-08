@@ -347,7 +347,7 @@ void XB_CDECL SV_AddOperatorCommands() {
     static const uint32_t kCommands[][2] = {
         {0x0082abdc, own_address(&SV_MapRestartInternal_f)}, {0x0082c874, 0x002cfba0}, {0x0082abf4, 0x002c00b0}, {0x00832f1c, 0x002c0100},
         {0x00832f10, 0x002a8870}, {0x00832f08, 0x002a8840}, {0x0082c894, 0x002cfa40}, {0x0082c51c, 0x002cf920},
-        {0x00832f00, 0x002f3f40}, {0x00832efc, 0x002f3f40}, {0x00832fa8, 0x002f3f40}, {0x00832ef0, own_address(&SV_LoadGame_f)},
+        {0x00832f00, own_address(&SV_Map_f)}, {0x00832efc, own_address(&SV_Map_f)}, {0x00832fa8, own_address(&SV_Map_f)}, {0x00832ef0, own_address(&SV_LoadGame_f)},
         {0x00832edc, own_address(&SV_LoadLastSave_f)}, {0x00832ec8, 0x002c5130}, {0x00832eb8, own_address(&SV_SetSkillHard)}, {0x00832ea4, own_address(&SV_SetSkillMedium)},
         {0x00832e94, own_address(&SV_SetSkillEasy)}, {0x00832e88, 0x002a8880}, {0x00832e7c, 0x002af760},
     };
