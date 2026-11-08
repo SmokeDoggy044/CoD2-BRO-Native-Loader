@@ -10803,7 +10803,7 @@ address,name,section,module,state,tested,matched
 003134e0,LoadAfricaMenu_SetProgress,.text,client,replaced,131,118
 00313610,LoadingMenu_ShowMissions,.text,client,replaced,8,8
 00313790,LoadingMenu_SetProgress,.text,client,replaced,18,18
-00313900,ScreenMenu_ToggleAspect,.text,client,untested,0,0
+00313900,ScreenMenu_ToggleAspect,.text,client,replaced,0,0
 003139f0,GameplayMenu_ToggleOption,.text,client,inconclusive,8,0
 00313bc0,AdvancedOptionsMenu_OnDown,.text,client,replaced,24,24
 00313c00,AdvancedOptionsMenu_OnUp,.text,client,replaced,9,9
