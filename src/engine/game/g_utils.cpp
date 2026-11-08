@@ -2390,7 +2390,7 @@ void XB_REGS3 XB_CDECL G_SetModel(int32_t context, uint8_t* ent, const char* nam
     auto follow = [](uint8_t* p, uint32_t offset) { return reinterpret_cast<uint8_t*>(uintptr_t{word_at(p, offset)}); };
     uint8_t* const node = follow(follow(follow(mesh, 0xc), 4), 4);
     uint8_t* const object = follow(node, 4);
-    uint32_t name_hash[5];
+    uint32_t name_hash[8];  // a hashed name, {hash, name[0x1c]} (HashStr_Init); 5 words overran the frame on Windows
     using NameOf = const uint32_t* XB_THISCALL(uint8_t*, uint32_t*);
     const uint32_t* const hashed =
         title_function<NameOf>(word_at(follow(object, 0), 4))(object, name_hash);  // vtable slot 1: the name hash
