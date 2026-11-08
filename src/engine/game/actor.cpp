@@ -17967,7 +17967,7 @@ uint32_t XB_CDECL Actor_Lmg_Think(uint32_t entry, uint32_t eax, uint32_t ebx, ui
             has_yaw = field<float>(field<const uint8_t*>(actor, 4), 0x20) != title_global<float>(0x0083eb34) ? 1 : 0;  // -1
         }
         if (field<uint32_t>(actor, 0x28) != 0x2be) exposed_schedule(actor, 0x2be);
-        call_at(F, 0x0021f4c2, 0x00203de0, TitleRegs{0x2be, ebx, ecx, edx, 0x00987bb8, has_yaw}, 0,
+        call_at(F, 0x0021f4c2, 0x00203de0, TitleRegs{a, ebx, ecx, edx, 0x00987bb8, has_yaw}, 0,
                 nullptr);  // Actor_AnimStationary (g_animScript_stop)
         if (has_yaw) {
             field<uint32_t>(actor, 0x12c) = 5;

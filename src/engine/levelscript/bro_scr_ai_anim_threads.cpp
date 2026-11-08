@@ -2744,7 +2744,7 @@ uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent) {
         scr_release(&team);
         uint32_t type;
         if (allies || *BroScr_GetWeaponType(&type, ent) == 0xe5aa1ee7) {
-            *out = 0;
+            *reinterpret_cast<uint32_t*>(out) = 0;  // the original writes the whole word
             return out;
         }
     }
@@ -2805,7 +2805,7 @@ uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent) {
         at<int32_t>(anim_object(), 0x38) = tries;
         if (anims.data) Scr_Free(anims.data);
     }
-    *out = static_cast<uint8_t>(stepped);
+    *reinterpret_cast<uint32_t*>(out) = stepped;  // a whole word, as the original
     return out;
 }
 
@@ -2830,12 +2830,12 @@ inline void corner_wait(uint32_t range) {
     Scr_Wait(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922230)(range) +
                                 title_global<float>(0x0083eba8)));  // Scr_RandomFloat(range) + 2
 }
-// GScr_ActorSetOrientMode(ent, "face angle", yaw (+ the float at `add` when set), 0).
-inline void corner_orient(uint32_t ent, uint32_t yaw, uint32_t add) {
+// GScr_ActorSetOrientMode(ent, "face angle", yaw (+ the float at `add` when set, - with `sub`), 0).
+inline void corner_orient(uint32_t ent, uint32_t yaw, uint32_t add, bool sub = false) {
     ScriptString mode;
     scr_string_from(&mode, 0x0083adfc);  // "face angle"
     float angle = as_float(yaw);
-    if (add) angle = static_cast<float>(angle + title_global<float>(add));
+    if (add) angle = static_cast<float>(sub ? angle - title_global<float>(add) : angle + title_global<float>(add));
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(ent, &mode, bits(angle), 0);
     scr_release(&mode);
 }
@@ -2843,8 +2843,9 @@ inline void corner_orient(uint32_t ent, uint32_t yaw, uint32_t add) {
 // The corner run-to-alert scripts (eight copies that differ in their anims and small details; each
 // variant is a traits struct): early_set = anim_idleset / anim_special set before the first orient;
 // yaw_add = the first orient's added float (0: the yaw as given); reorient_casual / _alert / _pick =
-// an orient to yaw + 0x83eb64 before the casual pick / before the alertness test of the casual
-// branch / after it; pose_rate, aim_rate = the alert pose / the aim loop at the field rate (else 1);
+// an orient to yaw + 0x83eb64 (90; yaw - 90 with reorient_sub: CornerBRun2AlertLeft) before the casual
+// pick / before the alertness test of the casual branch / after it; pose_rate, aim_rate = the alert pose /
+// the aim loop at the field rate (else 1);
 // wait_pose / wait_aim = Scr_RandomFloat ranges; aim_or_look = half the time the look anim instead of
 // the aim sequence; back_notify = the attack-to-casual play's.
 template <class c>
@@ -2870,7 +2871,7 @@ inline void corner_run_to_alert(uint32_t ent, uint32_t yaw) {
     BroScr_TryReload(ent, title_global<uint32_t>(0x0083eb24), title_global<uint32_t>(c::reload));
     // A missing 0x602384d4 word: the undefined bool under stale stack bytes in the original; 0 here.
     if (*reinterpret_cast<uint8_t*>(key_slot(ent, 0x602384d4, title_global<uint8_t>(0x00922ed0)))) {  // casual
-        if (c::reorient_casual) corner_orient(ent, yaw, 0x0083eb64);
+        if (c::reorient_casual) corner_orient(ent, yaw, 0x0083eb64, c::reorient_sub);
         if (random_int(100) < 90)
             corner_play(ent, 0x9a7145f5, c::casual_idle);
         else
@@ -2906,13 +2907,13 @@ inline void corner_run_to_alert(uint32_t ent, uint32_t yaw) {
         }
         return;
     }
-    if (c::reorient_alert) corner_orient(ent, yaw, 0x0083eb64);
+    if (c::reorient_alert) corner_orient(ent, yaw, 0x0083eb64, c::reorient_sub);
     if (*ScrField_anim_alertness(ent) != 0xc028584c || ran) {
         corner_play(ent, c::back_notify, c::attack2casual);
         handle_note_tracks(ent, c::back_notify);
         *ScrField_anim_alertness(ent) = 0xc028584c;
     }
-    if (c::reorient_pick) corner_orient(ent, yaw, 0x0083eb64);
+    if (c::reorient_pick) corner_orient(ent, yaw, 0x0083eb64, c::reorient_sub);
     const int32_t r = random_int(100);
     if (r < 60)
         corner_play(ent, c::casual_notify, c::casual_idle);
@@ -2936,6 +2937,7 @@ struct kCornerRun2AlertRight {
     static const bool reorient_casual = false;
     static const bool reorient_alert = false;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = true;
@@ -2966,6 +2968,7 @@ struct kCornerBRun2AlertRight {
     static const bool reorient_casual = true;
     static const bool reorient_alert = true;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = true;
@@ -2996,6 +2999,7 @@ struct kCornerCrouchRun2AlertRight {
     static const bool reorient_casual = false;
     static const bool reorient_alert = false;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = false;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = false;
@@ -3026,6 +3030,7 @@ struct kCornerBCrouchRun2AlertRight {
     static const bool reorient_casual = true;
     static const bool reorient_alert = false;
     static const bool reorient_pick = true;
+    static const bool reorient_sub = false;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = true;
@@ -3056,6 +3061,7 @@ struct kCornerRun2AlertLeft {
     static const bool reorient_casual = false;
     static const bool reorient_alert = false;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = false;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = true;
@@ -3086,6 +3092,7 @@ struct kCornerBRun2AlertLeft {
     static const bool reorient_casual = true;
     static const bool reorient_alert = true;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = true;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k4;
     static const bool aim_or_look = true;
@@ -3116,6 +3123,7 @@ struct kCornerCrouchRun2AlertLeft {
     static const bool reorient_casual = false;
     static const bool reorient_alert = false;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k3;
     static const bool aim_or_look = false;
@@ -3146,6 +3154,7 @@ struct kCornerBCrouchRun2AlertLeft {
     static const bool reorient_casual = false;
     static const bool reorient_alert = false;
     static const bool reorient_pick = false;
+    static const bool reorient_sub = false;
     static const bool pose_rate = true;
     static const uint32_t wait_pose = k1;
     static const bool aim_or_look = false;
@@ -6420,12 +6429,12 @@ void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason) {
                 scr_release(&team);
             }
             if (step) {
-                uint8_t stepped;
-                BroScr_StandShootSideStep(&stepped, ent);
+                uint32_t stepped;  // the callee writes a whole word
+                BroScr_StandShootSideStep(reinterpret_cast<uint8_t*>(&stepped), ent);
             }
             ranged_cover_shoot(ent);
         } else {
-            // The original tests the whole word its byte result sits in (stale upper bytes: 0 here).
+            // The original tests the whole word (the callee writes all of it).
             uint32_t stepped = 0;
             if (!*reinterpret_cast<uint32_t*>(BroScr_StandShootSideStep(reinterpret_cast<uint8_t*>(&stepped), ent))) {
                 title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0, 0x00385d90);
@@ -6518,7 +6527,7 @@ void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent) {
                 }
                 uint32_t can;
                 if (*BroScr_CheckCanShoot(&can, ent, title_global<uint32_t>(0x00922ebc))) {
-                    // The original tests the whole word its byte result sits in (stale upper bytes: 0 here).
+                    // The original tests the whole word (the callee writes all of it).
                     uint32_t shot = 0;
                     cover_shoot(reinterpret_cast<uint8_t*>(&shot), ent);
                     ++at<int32_t>(anim_object(), 0x190);

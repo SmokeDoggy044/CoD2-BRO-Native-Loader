@@ -355,7 +355,8 @@ void XB_CDECL BroScr_StopProneIdle(uint32_t ent);
 uint8_t* XB_CDECL BroScr_BalconyStumbleDeath(uint8_t* out, uint32_t ent);
 // 0x001cd080: an axis (not allied, not 0xe5aa1ee7 weapon) standing actor tries a shooting side step
 // (jump / walk / run left / right, element anim object +0x38): a safe point it can shoot from plays
-// it (flag 0xf519d3c8) with a delayed rechamber; +0x38 = the failed tries. True when it stepped.
+// it (flag 0xf519d3c8) with a delayed rechamber; +0x38 = the failed tries. *out (a whole word) = 1 when it
+// stepped, else 0.
 uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent);
 
 // 0x001cf8b0 .. 0x001d3210: the corner run-to-alert scripts (corner A / B, stand / crouch, right /

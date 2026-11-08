@@ -5,7 +5,9 @@ Those rows reach a script wait; their C was written and scored (vc71match --thre
 kFunctions until script threads had stacks of their own (scr_fiber.cpp, 11-07) and the harness could end a test
 at a thread switch (Config::switch_return_word). Per row: the code target is NAME_entry when an asm entry of that
 name exists (PLATFORM_ASM_ENTRY, *_ARGS_ENTRY), else NAME; the stack bytes come from the original's code as
-tools/scaffold.py reads them (highest stack argument read, or ret N); the result kind from our C declaration's
+tools/scaffold.py reads them (highest stack argument read, or ret N) - too few when the original only writes an
+argument slot (MSVC reuses them as locals): 11-07 260 rows were raised to the C declaration's parameter sizes
+(a sizeof probe compiled with functions.cpp's flags), which the compare then skips as the callee's; the result kind from our C declaration's
 return type (void None, bool/uint8_t Al, float St0, 64-bit EdxEax, else Eax), from the original's code when the
 declaration is not found. Rows without C (no declaration, no entry) are listed and skipped. Each registered row
 leaves set_aside.csv and gets a functions.csv zero row.
