@@ -4763,6 +4763,10 @@ uint8_t XB_CDECL Path_TraceGatherCandidates(uint8_t* cache, const float* box_a, 
             field<float>(cache, 0x430 + i * 4) = low[i] - pad;
             field<float>(cache, 0x440 + i * 4) = high[i] + pad;
         }
+        // Lane 3 is never read; from the caller's 3-float points it is host stack garbage that differs every run
+        // (record/replay). Stored as 0, as in Vehicle_GatherCollisionCandidates.
+        field<float>(cache, 0x43c) = 0.0f;
+        field<float>(cache, 0x44c) = 0.0f;
         CM_GatherBoxCandidates(reinterpret_cast<const float*>(cache + 0x430), field<uint8_t*>(cache, 0x450),
                                field<uint8_t*>(cache, 0x454), reinterpret_cast<const float*>(cache + 0x440));
     }
@@ -10033,6 +10037,7 @@ void XB_CDECL ActorMove_CheckGround(uint32_t entry, uint32_t ebx, uint32_t esi, 
             for (int i = 0; i < 4; ++i) cached_min[i] = grown_min[i];
             for (int i = 0; i < 4; ++i) grown_max[i] = hi[i] + title_global<float>(0x0098f180 + i * 4);
             for (int i = 0; i < 4; ++i) cached_max[i] = grown_max[i];
+            cached_min[3] = cached_max[3] = 0.0f;  // lane 3: never read, 0 instead of host garbage (record/replay)
             const uint32_t args[3] = {addr_of(cached_min), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454)};
             call_at(F, 0x0020ab0f, own_address(&CM_GatherBoxCandidates_entry),
                     TitleRegs{addr_of(cached_min), addr_of(ent), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454),
@@ -10887,6 +10892,7 @@ uint32_t XB_CDECL ActorMove_SlideMove(uint32_t entry, uint32_t ebx, uint32_t esi
                 for (int i = 0; i < 4; ++i) cached_min[i] = grown_min[i];
                 for (int i = 0; i < 4; ++i) grown_max[i] = hi[i] + title_global<float>(0x0098f1a0 + i * 4);
                 for (int i = 0; i < 4; ++i) cached_max[i] = grown_max[i];
+            cached_min[3] = cached_max[3] = 0.0f;  // lane 3: never read, 0 instead of host garbage (record/replay)
                 const uint32_t args[3] = {addr_of(cached_min), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454)};
                 call_at(F, 0x0020b2ef, own_address(&CM_GatherBoxCandidates_entry),
                         TitleRegs{addr_of(cached_max), addr_of(m), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454),

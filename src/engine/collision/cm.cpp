@@ -2734,8 +2734,12 @@ uint8_t XB_CDECL G_RayTraceCachedCandidates(const uint8_t* entity, float radius,
     float* cache_lo = reinterpret_cast<float*>(record + 0x430);
     float* cache_hi = reinterpret_cast<float*>(record + 0x440);
     if (!inside_xyz(sub(lanes(cache_lo), lo), sub(hi, lanes(cache_hi)))) {
-        std::memcpy(cache_lo, lo.v, 16);
-        std::memcpy(cache_hi, hi.v, 16);
+        // Lane 3 is never read; from the caller's 3-float points it would be host stack garbage that differs
+        // every run (record/replay). Stored as 0, as in Vehicle_GatherCollisionCandidates.
+        Lanes keep_lo = lo, keep_hi = hi;
+        keep_lo.v[3] = keep_hi.v[3] = 0.0f;
+        std::memcpy(cache_lo, keep_lo.v, 16);
+        std::memcpy(cache_hi, keep_hi.v, 16);
         CM_GatherBoxCandidates(cache_lo, *reinterpret_cast<uint8_t* const*>(record + 0x450),
                                *reinterpret_cast<uint8_t* const*>(record + 0x454), cache_hi);
     }
@@ -2955,8 +2959,12 @@ uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius) {
     float* cache_lo = reinterpret_cast<float*>(record + 0x430);
     float* cache_hi = reinterpret_cast<float*>(record + 0x440);
     if (!inside_xyz(sub(lanes(cache_lo), lo), sub(hi, lanes(cache_hi)))) {
-        std::memcpy(cache_lo, lo.v, 16);
-        std::memcpy(cache_hi, hi.v, 16);
+        // Lane 3 is never read; from the caller's 3-float points it would be host stack garbage that differs
+        // every run (record/replay). Stored as 0, as in Vehicle_GatherCollisionCandidates.
+        Lanes keep_lo = lo, keep_hi = hi;
+        keep_lo.v[3] = keep_hi.v[3] = 0.0f;
+        std::memcpy(cache_lo, keep_lo.v, 16);
+        std::memcpy(cache_hi, keep_hi.v, 16);
         CM_GatherBoxCandidates(cache_lo, *reinterpret_cast<uint8_t* const*>(record + 0x450),
                                *reinterpret_cast<uint8_t* const*>(record + 0x454), cache_hi);
     }

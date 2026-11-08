@@ -2177,9 +2177,12 @@ uint32_t XB_CDECL GScr_LocationalTraceSurface_c(uint32_t entry_esp) {
                     title_global<uint32_t>(0x0098f160 + i * 4) = title_global<uint32_t>(0x0083ec30);  // 50
             }
             alignas(16) float box[4];
+            // Lane 3 is never read; stored as 0 (host stack garbage otherwise, see Vehicle_GatherCollisionCandidates).
             platform_subps(box, lo, margin);
+            box[3] = 0.0f;
             std::memcpy(&field<float>(ent, 0x430), box, 16);
             platform_addps(box, hi, margin);
+            box[3] = 0.0f;
             std::memcpy(&field<float>(ent, 0x440), box, 16);
             CM_GatherBoxCandidates(&field<float>(ent, 0x430), field<uint8_t*>(ent, 0x450), field<uint8_t*>(ent, 0x454),
                                    &field<float>(ent, 0x440));
