@@ -5960,4 +5960,20 @@ int32_t XB_CDECL Save_AsyncReadCallback() {
 
 #include "qcommon_core_levels.inc"
 
+// 0x0001b9a0: a bare `ret` - the no-op entry of 90 vtables / callback tables and of the render callback list
+// (0x00988784, SceneFX / RenderEnts setup).
+void XB_CDECL NullCallback() {}
+
+// 0x00028400 (ECX): frees a value's buffer (+0x14; +0x14..+0x1c zeroed), clears its list (+4) and frees the
+// list's head node (+8).
+void XB_THISCALL ListVectorValue_Dtor(uint8_t* value) {
+    if (uint8_t* const buffer = pointer_at<uint8_t>(value, 0x14)) Z_Free(buffer);
+    word_at(value, 0x14) = 0;
+    word_at(value, 0x18) = 0;
+    word_at(value, 0x1c) = 0;
+    std_list_Clear_2(value + 4);
+    Z_Free(pointer_at<uint8_t>(value, 8));
+    word_at(value, 8) = 0;
+}
+
 }  // namespace game

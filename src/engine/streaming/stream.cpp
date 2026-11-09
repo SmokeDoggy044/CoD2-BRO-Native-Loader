@@ -1770,7 +1770,7 @@ uint8_t* XB_CDECL ZoneGraph_Init(uint8_t* self) {
     word_at<uint32_t>(self, 0x1d0) = 0;
     const int32_t callbacks = title_global<int32_t>(0x00988780);
     if (callbacks < 0x20) {
-        title_global<uint32_t>(0x00988784 + uint32_t(callbacks) * 4) = 0x0001b9a0;
+        title_global<uint32_t>(0x00988784 + uint32_t(callbacks) * 4) = own_address(&NullCallback);
         ++title_global<int32_t>(0x00988780);
     }
     word_at<uint32_t>(self, 0x190) = 0;

@@ -1607,7 +1607,7 @@ uint32_t XB_CDECL ClientThink_RunPendingTouch(uint8_t* ent) {
     if (!handle) return 0;
     uint8_t* const other = entity_from_handle(handle);
     if (!other) return 0;
-    if (!vehicle_call(0x00248e10, address_of(other), 0, 0, 0, 0, 0)) return 0;  // FUN_00248e10
+    if (!vehicle_call(own_address(&G_EntityWeaponRecordFlag), address_of(other), 0, 0, 0, 0, 0)) return 0;  // FUN_00248e10
     if (title_global<int32_t>(0x0098540c) - at<int32_t>(client, 0x62c) <= title_global<int32_t>(0x0095bc34)) return 0;  // level.time
     at<uint32_t>(client, 0x628) = 0;
     // EDI = the touched entity (notified), as the original (0x002509a3): EDI 0 crashed G_NotifyWithEntity on weapon pickup.
@@ -7148,6 +7148,14 @@ uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t
         vel[2] = primal[2];
     }
     return !hit_other && bump != 0;
+}
+
+// 0x00248e10 (EAX: entity): 1 when the entity is of type 2 and its weapon record (+0x3b0, into the 0x34-byte
+// records at 0x0096bd10) has +0x24 == 1, else 0.
+uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent) {
+    if (ent[0] != 2) return 0;
+    const int32_t index = (static_cast<int32_t>(at<uint32_t>(ent, 0x3b0)) - 0x0096bd10) / 0x34;
+    return title_global<uint32_t>(0x0096bd34 + static_cast<uint32_t>(index * 0x34)) == 1 ? 1 : 0;
 }
 
 }  // namespace game

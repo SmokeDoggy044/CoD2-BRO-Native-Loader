@@ -41,6 +41,7 @@
 #include "bro_scr_level_threads_2.h"
 #include "bro_scr_thread_misc.h"
 #include "bro_scr_wait_notify.h"
+#include "scr_class.h"
 
 namespace game {
 
@@ -1662,7 +1663,7 @@ void XB_CDECL BroScr_TankSpawnerThink(uint32_t self, uint32_t tank) {
             functor[0] = 0x008245b4;
             functor[1] = own_address(&BroScr_SpawnTankDeadGuys);  // BroScr_SpawnTankDeadGuys
             functor[2] = self;
-            title_function<void XB_THISCALL(uint32_t*, const void*)>(0x0017ad50)(&functor[3], &guys);  // copy of the table
+            own_function<void XB_THISCALL(uint32_t*, const void*)>(&Record54_Copy)(&functor[3], &guys);  // copy of the table
             functor[0x18] = i;
             functor[0x19] = tank;
             functor[0x1a] = origin.v[0];

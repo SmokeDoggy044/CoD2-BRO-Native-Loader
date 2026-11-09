@@ -126,4 +126,7 @@ void XB_THISCALL AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke(uint8_t* se
 void XB_THISCALL AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke(uint8_t* self);  // 0x0017ca40
 void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self);  // 0x0017a620
 
+// 0x0017ad50: copy of a 0x54-byte record (thiscall: dest, source); returns dest.
+uint32_t* XB_THISCALL Record54_Copy(uint32_t* dest, const uint32_t* source);
+
 }  // namespace game

@@ -1985,7 +1985,7 @@ uint8_t* XB_CDECL Pak_Init(uint8_t* pak) {
     }
     const int32_t count = title_global<int32_t>(0x00988780);
     if (count < 0x20) {
-        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(count) * 4) = 0x0001b9a0;
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(count) * 4) = own_address(&NullCallback);
         ++title_global<int32_t>(0x00988780);
     }
     return pak;
@@ -5799,7 +5799,7 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
         return 1;
     case 0x2:
         regs.eax = u32(target);
-        if (qc_call_regs(0x00248e10, &regs, 0, nullptr)) {
+        if (qc_call_regs(own_address(&G_EntityWeaponRecordFlag), &regs, 0, nullptr)) {
             pk<uint32_t>(ps, 0x628) = pk<uint32_t>(target, 0x224);
             pk<uint32_t>(pk_ptr(ent, 0x23c), 0x62c) = title_global<uint32_t>(0x0098540c);  // level.time
             return 0;

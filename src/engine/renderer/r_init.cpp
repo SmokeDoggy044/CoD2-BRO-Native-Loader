@@ -118,7 +118,7 @@ uint8_t* XB_CDECL SceneFX_Init(uint8_t* self) {
     field<uint8_t>(self, 0x1a4) = 0;
     uint32_t& count = title_global<uint32_t>(0x00988780);
     if (static_cast<int32_t>(count) < 0x20) {
-        title_global<uint32_t>(0x00988784 + count * 4) = 0x0001b9a0;
+        title_global<uint32_t>(0x00988784 + count * 4) = own_address(&NullCallback);
         ++count;
     }
     Cmd_AddCommand("SceneFX", 0x002afcb0);

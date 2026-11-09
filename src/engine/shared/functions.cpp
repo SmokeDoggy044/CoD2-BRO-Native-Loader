@@ -925,6 +925,11 @@ const Function kFunctions[] = {
     {"Heap_GetCurrent", 0x00042860, 0, code(&Heap_GetCurrent), 0, Result::Eax, Status::Replaced},
     {"Heap_FreeFromOwner", 0x00042870, 0, code(&Heap_FreeFromOwner), 8, Result::Al, Status::Replaced},
     {"Z_Free", 0x000428d0, 0, code(&Z_Free), 4, Result::None, Status::Replaced},
+    {"NullCallback", 0x0001b9a0, 0, code(&NullCallback), 0, Result::None, Status::Compare},
+    {"ListVectorValue_Dtor", 0x00028400, 0, code(&ListVectorValue_Dtor), 0, Result::None, Status::Compare},
+    {"Record54_Copy", 0x0017ad50, 0, code(&Record54_Copy), 4, Result::Eax, Status::Compare},
+    {"ThreadHandleList_EndAll", 0x0029aba0, 0, code(&ThreadHandleList_EndAll), 0, Result::Eax, Status::Compare},
+    {"G_EntityWeaponRecordFlag", 0x00248e10, 0, code(&G_EntityWeaponRecordFlag), 0, Result::Eax, Status::Compare},
     {"Heap_SelectByIndex", 0x00042ac0, 0, code(&Heap_SelectByIndex), 4, Result::Eax, Status::Replaced},
     {"Heap_AllocAligned", 0x00042af0, 0, code(&Heap_AllocAligned), 8, Result::Eax, Status::Compare},
     {"Z_MallocDebug", 0x00042c20, 0, code(&Z_MallocDebug), 4, Result::Eax, Status::Replaced},
@@ -9500,7 +9505,7 @@ const Function kFunctions[] = {
     {"HashMap_CopyCtor_PROLOGUE_4", 0x00460200, 0, code(&HashMap_CopyCtor_6), 4, Result::Eax, Status::Compare},  // twin of HashMap_CopyCtor_6
     {"HashMap_Ctor_PROLOGUE_14", 0x00460270, 0, code(&HashMap_Ctor_PROLOGUE_14), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     {"HashMap_CopyCtor_PROLOGUE_5", 0x004602f0, 0, code(&HashMap_CopyCtor_6), 4, Result::Eax, Status::Compare},  // twin of HashMap_CopyCtor_6
-    {"ListNode_DestroyValue_PROLOGUE_6", 0x00460360, 0, code(&ListNode_DestroyValue_PROLOGUE_6), 0, Result::Eax, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
+    {"ListNode_DestroyValue_PROLOGUE_6", 0x00460360, 0, code(&ListNode_DestroyValue_PROLOGUE_6), 0, Result::None, Status::Compare},  // near twin of ListNode_DestroyValue_PROLOGUE
     {"HashMap_Insert_PROLOGUE", 0x00460400, 0, code(&HashMap_Insert_PROLOGUE), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2
     {"HashMap_Insert_11_PROLOGUE", 0x00460650, 0, code(&HashMap_Insert_11_PROLOGUE), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_11
     {"HashMap_Insert_PROLOGUE_2", 0x004608a0, 0, code(&HashMap_Insert_PROLOGUE_2), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Insert_2

@@ -1156,7 +1156,7 @@ static void build_AeThreadFunctor6_ent_hash_i_str_i_ent(uint8_t* args, uint8_t* 
 void XB_THISCALL AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke(uint8_t* self) { call_body(self, 0x18, &build_AeThreadFunctor6_ent_hash_i_str_i_ent); }
 
 static void build_AeThreadFunctor6_vt008245b4(uint8_t* args, uint8_t* self, BodyRegs* regs) {
-    construct_arg(0x0017ad50, args + 0x4, address(self + 0xc));  // FUN_0017ad50
+    construct_arg(own_address(&Record54_Copy), args + 0x4, address(self + 0xc));  // FUN_0017ad50
     put(args, 0x0, word_at(self, 0x8));
     put(args, 0x58, word_at(self, 0x60));
     put(args, 0x5c, word_at(self, 0x64));
@@ -1279,5 +1279,14 @@ void XB_THISCALL AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke(uint8_t* self
 #include "scr_class_levels.inc"
 
 #include "scr_class_gen.inc"
+
+// 0x0017ad50 (ECX dest; source on the stack, ret 4): copies a 0x54-byte record word by word (the thread
+// functors' 0x54-byte bound argument); returns dest.
+uint32_t* XB_THISCALL Record54_Copy(uint32_t* dest, const uint32_t* source) {
+    dest[0] = source[0];
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 5; ++j) dest[1 + i * 5 + j] = source[1 + i * 5 + j];
+    return dest;
+}
 
 }  // namespace game

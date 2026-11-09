@@ -456,4 +456,7 @@ extern "C" void Vehicle_SlideMove_entry(void);
 // 0x002611e0 (dead): Q3's PM_SlideMove for a vehicle's motion (ent, gravity flag, msec).
 uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t msec);
 
+// 0x00248e10 (EAX): entity type 2 whose weapon record (+0x3b0, 0x34-byte records at 0x0096bd10) has +0x24 == 1.
+uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent);
+
 }  // namespace game

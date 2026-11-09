@@ -1998,4 +1998,29 @@ namespace game {
 
 #include "g_scr_runtime_levels.inc"
 
+// 0x0029aba0 (ECX: an owner with a thread-handle list, head +0x20, end +0x24): each listed script thread
+// that is still alive (slots 0x008dd228 {thread, generation}, 8-bit index) is marked to end (flags +0x10 |= 8,
+// then 0x40, then 4). Nodes {next, -, handle}; the last node (next 0) is the list's end. Returns the last node
+// reached (the head when there is nothing to do).
+uint32_t XB_THISCALL ThreadHandleList_EndAll(uint8_t* owner) {
+    uint32_t node = *reinterpret_cast<const uint32_t*>(owner + 0x20);
+    uint32_t next = node ? *reinterpret_cast<const uint32_t*>(uintptr_t{node}) : 0;
+    if (node == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner + 0x24)) || !next) return node;
+    for (;;) {
+        const uint32_t handle = reinterpret_cast<const uint32_t*>(uintptr_t{node})[2];
+        const uint32_t index = handle & 0xff;
+        if (index < 0x100 && (handle >> 8) == title_global<uint32_t>(0x008dd22c + index * 8)) {
+            if (const uint32_t thread = title_global<uint32_t>(0x008dd228 + index * 8)) {
+                uint32_t& flags = *reinterpret_cast<uint32_t*>(uintptr_t{thread + 0x10});
+                flags |= 8;
+                flags |= 0x40;
+                flags |= 4;
+            }
+        }
+        node = next;
+        next = *reinterpret_cast<const uint32_t*>(uintptr_t{node});
+        if (!next) return node;
+    }
+}
+
 }  // namespace game

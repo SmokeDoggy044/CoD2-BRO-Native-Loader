@@ -292,4 +292,7 @@ void XB_CDECL AtExit_FreeList_95fdf0();
 void XB_CDECL AtExit_ScrFree_922e90();
 void XB_CDECL AtExit_ScriptKeyTable();
 
+// 0x0029aba0: marks every live script thread in an owner's handle list (+0x20) to end; returns the last node.
+uint32_t XB_THISCALL ThreadHandleList_EndAll(uint8_t* owner);
+
 }  // namespace game

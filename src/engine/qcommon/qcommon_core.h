@@ -828,4 +828,9 @@ uint32_t XB_CDECL Save_BeginDelete(const char* name);          // 0x000d1c40
 int32_t XB_CDECL Save_AsyncWriteCallback();                    // 0x000d1ef0 (stored in 0x00920eb0)
 int32_t XB_CDECL Save_AsyncReadCallback();                     // 0x000d1f90 (stored in 0x00920eb0)
 
+// 0x0001b9a0: no-op callback (a bare ret).
+void XB_CDECL NullCallback();
+// 0x00028400: a list + buffer value's destructor (ListNode_DestroyValue_* of the level hash maps).
+void XB_THISCALL ListVectorValue_Dtor(uint8_t* value);
+
 }  // namespace game
