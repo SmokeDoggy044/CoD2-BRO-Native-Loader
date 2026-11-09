@@ -73,6 +73,9 @@ What we do: `tools/replay_check.sh bug.rep SAVES MISSION OUT` (Linux release, de
 `SHOTS=...` adds pictures of chosen frames), or one build with `--replay bug.rep --replay-continue` and `--data` on a
 copy of the saves to watch it or attach gdb. The replay logs the first frame that differs from the recording.
 
+Reference recordings (one per level, with their save copy) are kept locally in `recordings/` (gitignored, see
+its README.md).
+
 `tools/profile_edit.py [SAVE_DIR]` lists the profiles (name, chapters unlocked, play time, signature);
 `--unlock-all FILE` unlocks every chapter and bonus (what the chapter-select cheat does: hold both triggers,
 Up Up Down Down Left Left Right Right X Right X Right X) and re-signs the file. Use it on a run's `--data` copy
