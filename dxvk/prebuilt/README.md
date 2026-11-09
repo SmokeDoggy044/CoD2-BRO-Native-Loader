@@ -9,7 +9,9 @@ packaging/dxvk/fetch-prebuilt.sh build/deps/dxvk # or anywhere else
 ```
 
 The script downloads DXVK's v2.7.1 release assets from GitHub and stages them
-in this layout:
+in this layout. The native Steam Runtime archive contains both 32- and 64-bit
+libraries, so the script uses `readelf` (binutils) to select only the i386 ELF
+files; the Windows archive's `x32/d3d9.dll` is PE32:
 
 ```
 linux/include/dxvk/            d3d9.h and friends (MinGW-style headers)
