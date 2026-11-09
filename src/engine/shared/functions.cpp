@@ -3596,6 +3596,7 @@ const Function kFunctions[] = {
     {"BroScr_VehicleHealth2500Init", 0x00151200, 0, code(&BroScr_VehicleHealth2500Init), 4, Result::None, Status::Compare},
     {"BroScr_VehicleRandomHealthInit_3", 0x00151230, 0, code(&BroScr_VehicleRandomHealthInit_3), 4, Result::None, Status::Compare},
     {"BroScr_PanzerIVSetDifficultyHealth", 0x00151270, 0, code(&BroScr_PanzerIVSetDifficultyHealth), 4, Result::None, Status::Compare},
+    {"FollowEnt_Worker", 0x00151370, 0, code(&FollowEnt_Worker), 8, Result::Eax, Status::Compare},
     {"BroScr_RemoveAllFollowers", 0x00151bb0, 0, code(&BroScr_RemoveAllFollowers), 4, Result::None, Status::Compare},
     {"BroScr_WaitForFollowersCall", 0x00151c90, 0, code(&BroScr_WaitForFollowersCall), 4, Result::None, Status::Compare},
     {"BroScr_FollowLagThink", 0x00151cd0, 0, code(&BroScr_FollowLagThink), 4, Result::None, Status::Compare},

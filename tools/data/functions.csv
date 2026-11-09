@@ -3542,6 +3542,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00151200,BroScr_VehicleHealth2500Init,compare,0,0,0,0,0,0,""
 00151230,BroScr_VehicleRandomHealthInit_3,compare,0,0,0,0,0,0,""
 00151270,BroScr_PanzerIVSetDifficultyHealth,compare,0,0,0,0,0,0,""
+00151370,FollowEnt_Worker,compare,0,0,0,0,0,0,""
 00151bb0,BroScr_RemoveAllFollowers,compare,0,0,0,0,0,0,""
 00151c90,BroScr_WaitForFollowersCall,compare,0,0,0,0,0,0,""
 00151cd0,BroScr_FollowLagThink,compare,0,0,0,0,0,0,""

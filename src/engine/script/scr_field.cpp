@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "bg_misc.h"
+#include "bro_scr_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -555,7 +556,7 @@ uint32_t XB_CDECL ScrField_follow_ent(uint32_t entity, uint32_t arg, uint32_t ta
         slot = set_value(table, 0xd952b5cf, &none);
     }
     *slot = target;
-    return title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00151370)(entity, arg);
+    return own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&FollowEnt_Worker)(entity, arg);  // FollowEnt_Worker
 }
 
 uint32_t* XB_CDECL ScrField_h80658b23_SetTrue(uint32_t entity) {

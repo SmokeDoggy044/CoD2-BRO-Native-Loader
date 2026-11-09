@@ -57,6 +57,13 @@ void XB_CDECL BroScr_PanzerIVStartThreads(uint32_t ent);
 // 0x001569c0: handle field 0xd952b5cf = `target`, field 0x5cd3d8b8 = `count`, then
 // FollowEnt_Worker(ent, a1).
 void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, uint32_t count);
+// 0x00151370: builds `ent`'s follow path (key 0xaeae4e0b) from its target chain: spacing (16 when
+// undefined or below 16) into fields 0xea4a313a / 0x96f9883f (spacing - 1), follow_ent_pos 0 when
+// undefined, bool 0x217d7784 set; the path starts at ent's origin, each chain node adds points every
+// `spacing` units towards it (the node deleted); then every point is dropped to the ground
+// (BroScr_TraceGroundPos_2) and offset sideways (BroScr_FollowPathOffsetPoint). The spacing is
+// written back to its argument slot. Returns 0 (ScriptString_Release's result without a target).
+uint32_t XB_CDECL FollowEnt_Worker(uint32_t ent, int32_t spacing);
 // 0x00167340: ScrEnt_SetHealth(ent, health; 600 when undefined), then threads on
 // BroScr_VehicleDeath_Sdkfz222, BroScr_SpawnWheelOrigins and BroScr_SmokeWhenHalfHealth.
 void XB_CDECL BroScr_Sdkfz222Init(uint32_t ent, uint32_t health);
