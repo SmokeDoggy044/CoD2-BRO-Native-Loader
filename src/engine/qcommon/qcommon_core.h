@@ -488,6 +488,11 @@ extern "C" void FileDevice_Poll_entry(void);
 int32_t XB_CDECL File_PickNextRequest(const uint8_t* device);
 // 0x000ca380 (request in EAX; device): starts the request on the idle device (FileDevice_IssueIo); 5 when
 // the device is busy, else IssueIo's result (nonzero: the request failed, state 6).
+// 0x000cb780: a device transfer's aligned offset and length; 0 direct, 1 through the bounce buffer, -1 impossible.
+int32_t XB_CDECL FileDevice_AlignTransfer(const uint8_t* device, const uint32_t* io, uint32_t file_size, uint32_t* offset_out,
+                                          uint32_t* length_out);
+// 0x000cb8d0: starts an I/O block on a device (driver function 0); 0 = started or done, else an error code.
+uint32_t XB_CDECL FileDevice_IssueIo(uint8_t* device, uint32_t* io);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL File_StartDeviceRequest(int32_t handle, uint8_t* device);
 extern "C" void File_StartDeviceRequest_entry(void);
 // 0x000ca500: polls every device and starts the next request on each idle one; 1 while one is busy.

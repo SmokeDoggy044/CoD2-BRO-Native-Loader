@@ -15,7 +15,6 @@ c_call,0002c442,FUN_0002c442,mslib,unnamed,src/engine/qcommon/qcommon_fs.cpp
 c_call,00042460,Sys_DebugBreak,qcommon,set-aside,src/engine/game/g_main.cpp src/engine/game/g_scr_runtime.cpp src/engine/game/g_utils.cpp src/engine/game/ragdoll.cpp src/engine/levelscript/bro_scr_brofunc.cpp src/engine/qcommon/param_set.cpp src/eng
 c_call,00093a10,Sys_GetStackBounds,qcommon,set-aside,src/engine/xanim/nal_anim.cpp
 c_call,000b8990,FUN_000b8990,unassigned,unnamed,src/engine/game/phys.cpp
-c_call,000cb8d0,FileDevice_IssueIo,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d13c0,Save_FirstPort,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d1500,Save_CalculateSignature,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d35a9,UIX::CLiveEngine_SetInput,mslib,library,src/engine/qcommon/qcommon_fs.cpp
@@ -1216,7 +1215,6 @@ orig_call,0008ee40,NAL_ClipSetPlayer_Create,xanim,set-aside,reached
 orig_call,0008ee80,NAL_ClipSetPlayer_Update,xanim,set-aside,reached
 orig_call,0008f0d0,NAL_ClipSetPlayer_Init,xanim,set-aside,reached
 orig_call,00094100,AlignedAllocator_DeletingDtor,unassigned,named,reached
-orig_call,000cb780,FileDevice_AlignTransfer,qcommon,set-aside,reached
 orig_call,000cb9b0,FileDevice_OnIoComplete,qcommon,set-aside,reached
 orig_call,000cba40,FileXapi_Open,qcommon,set-aside,reached
 orig_call,000cbb00,FileXapi_GetSizeAndSortKey,qcommon,set-aside,reached

@@ -2833,8 +2833,8 @@ address,name,section,module,state,tested,matched
 000cb580,HandlePool_Free,.text,qcommon,replaced,100,100
 000cb5e0,HandlePool_First,.text,qcommon,replaced,751,751
 000cb600,HandlePool_Next,.text,qcommon,replaced,628,628
-000cb780,FileDevice_AlignTransfer,.text,qcommon,set-aside,0,0
-000cb8d0,FileDevice_IssueIo,.text,qcommon,set-aside,0,0
+000cb780,FileDevice_AlignTransfer,.text,qcommon,replaced,0,0
+000cb8d0,FileDevice_IssueIo,.text,qcommon,replaced,0,0
 000cb9b0,FileDevice_OnIoComplete,.text,qcommon,set-aside,0,0
 000cba40,FileXapi_Open,.text,qcommon,set-aside,0,0
 000cbb00,FileXapi_GetSizeAndSortKey,.text,qcommon,set-aside,0,0

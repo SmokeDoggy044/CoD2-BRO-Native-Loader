@@ -2517,6 +2517,8 @@ const Function kFunctions[] = {
     {"FileDevice_Poll", 0x000ca150, 0, code(&FileDevice_Poll_entry), 0, Result::Eax, Status::Replaced},
     {"File_PickNextRequest", 0x000ca250, 0, code(&File_PickNextRequest), 0, Result::Eax, Status::Replaced},
     {"File_StartDeviceRequest", 0x000ca380, 0, code(&File_StartDeviceRequest_entry), 0, Result::None, Status::Replaced},
+    {"FileDevice_AlignTransfer", 0x000cb780, 0, code(&FileDevice_AlignTransfer), 20, Result::Eax, Status::Replaced},
+    {"FileDevice_IssueIo", 0x000cb8d0, 0, code(&FileDevice_IssueIo), 8, Result::Eax, Status::Replaced},
     {"File_PumpDevices", 0x000ca500, 0, code(&File_PumpDevices), 0, Result::Eax, Status::Replaced},
     {"File_PumpRequests", 0x000ca690, 0, code(&File_PumpRequests), 0, Result::None, Status::Compare},
     {"File_GetNativeHandle", 0x000ca910, 0, code(&File_GetNativeHandle), 0, Result::Eax, Status::Replaced},

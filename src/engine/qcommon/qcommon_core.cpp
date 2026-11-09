@@ -4263,6 +4263,75 @@ PLATFORM_ASM_ENTRY(File_StartDeviceRequest_entry,
                    "pushl %eax\n" PLATFORM_ASM_CALL(File_StartDeviceRequest) "addl $8, %esp\n"
                    "ret")
 
+int32_t XB_CDECL FileDevice_AlignTransfer(const uint8_t* device, const uint32_t* io, uint32_t file_size, uint32_t* offset_out,
+                                          uint32_t* length_out) {
+    // The device's limits (+0x14): {buffer alignment, sector size, offset alignment, largest transfer}. The
+    // transfer covers io's range {position +4, buffer +0x10, size +0x14} from the offset rounded down, whole
+    // sectors, at most the largest transfer; a read also stops at the file's end (sectors, from that offset).
+    // Returns 0 = straight into io's buffer, 1 = through the device's bounce buffer, -1 = not possible: mode 1
+    // (device +4) takes only aligned transfers, mode 3 always bounces, 2 and 4 bounce when anything is unaligned.
+    const uint32_t* const limits = reinterpret_cast<const uint32_t*>(uintptr_t{word_at(device, 0x14)});
+    const uint32_t position = io[1], buffer = io[4], size = io[5];
+    *offset_out = 0;
+    *length_out = 0;
+    if (!size) return 0;
+    const uint32_t sector = limits[1];
+    const uint32_t aligned_buffer = (buffer + limits[0] - 1) & ~(limits[0] - 1);
+    const uint32_t offset = position & ~(limits[2] - 1);
+    uint32_t length = (size + sector - offset + position - 1) & ~(sector - 1);
+    const uint32_t file_end = (file_size + sector - 1) & ~(sector - 1);
+    if (length > limits[3]) length = limits[3];
+    if (io[6] == 0) {  // read
+        if (position >= file_size) return 0;
+        if (length + offset > file_end) length = file_end - offset;
+        length = (length + sector - 1) & ~(sector - 1);
+    }
+    *offset_out = offset;
+    *length_out = length;
+    const uint32_t mode = *reinterpret_cast<const uint32_t*>(uintptr_t{word_at(device, 4)});
+    if (mode < 1 || mode > 4) return -1;
+    if (mode == 3) return 1;
+    const bool unaligned = buffer != aligned_buffer || (size & (sector - 1)) || position != offset;
+    if (mode == 1) return unaligned ? -1 : 0;
+    return unaligned ? 1 : 0;
+}
+
+uint32_t XB_CDECL FileDevice_IssueIo(uint8_t* device, uint32_t* io) {
+    // Starts io {file size, position, driver data, -, buffer, size, op} on the device: a read (op 0) through
+    // FileDevice_AlignTransfer (3 when it cannot be done; nothing to read = done at once, state 2), a write
+    // (op 1) as given; another op is 8. The driver's first function (device +0x10) gets (device, driver data,
+    // op, offset, buffer, length); on success the device keeps a copy of io (+0x24) and is busy (state +0x40 = 1).
+    uint32_t bounce, offset, length;
+    if (io[6] == 1) {
+        bounce = 0;
+        offset = io[1];
+        length = io[5];
+    } else if (io[6] == 0) {
+        const int32_t aligned = FileDevice_AlignTransfer(device, io, io[0], &offset, &length);
+        if (aligned == -1) return 3;
+        if (!length) {
+            std::memcpy(device + 0x24, io, 0x1c);
+            word_at(device, 0x1c) = 0;
+            word_at(device, 0x40) = 2;
+            return 0;
+        }
+        bounce = static_cast<uint32_t>(aligned);
+    } else {
+        return 8;
+    }
+    word_at(device, 0x44) = bounce;
+    word_at(device, 0x18) = offset;
+    word_at(device, 0x20) = length;
+    const uint32_t buffer = bounce ? reinterpret_cast<const uint32_t*>(uintptr_t{word_at(device, 0x14)})[4] : io[4];
+    const uint32_t driver = *reinterpret_cast<const uint32_t*>(uintptr_t{word_at(device, 0x10)});
+    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(driver)(
+        device, io[2], io[6], offset, buffer, length);
+    if (result) return result;
+    std::memcpy(device + 0x24, io, 0x1c);
+    word_at(device, 0x40) = 1;
+    return 0;
+}
+
 uint32_t XB_CDECL File_StartDeviceRequest(int32_t handle, uint8_t* device) {
     // Builds the I/O block {file size, position (+0), driver data, request, +0x24, bytes left (+0x28), +4},
     // each past the bytes done (+0x34), for the rest of the request (an alias maps the offset into its file: base +4, chunk +0xc, stride +0x10)
@@ -4294,7 +4363,7 @@ uint32_t XB_CDECL File_StartDeviceRequest(int32_t handle, uint8_t* device) {
         io[2] = addr32(File_GetDriverData(static_cast<int32_t>(word_at(record, 8))));
     }
     word_at(request, 0x2c) = 1;
-    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*, uint32_t*)>(0x000cb8d0)(device, io);  // FileDevice_IssueIo
+    const uint32_t result = FileDevice_IssueIo(device, io);
     if (result) word_at(request, 0x2c) = 6;
     return result;
 }
