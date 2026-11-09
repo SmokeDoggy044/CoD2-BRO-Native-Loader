@@ -69,12 +69,13 @@ What the player does:
    command line, so the player's later changes do not matter. Size: ~9 MB per minute of play (mostly per-entity
    state hashes, which do not compress).
 
-What we do: `tools/replay_check.sh bug.rep SAVES MISSION OUT` (Linux release, debug, Windows under Wine at once;
+What we do: `SAVES=copy tools/replay_check.sh bug.rep OUT` (Linux release, debug, Windows under Wine at once;
+the mission comes from the recording;
 `SHOTS=...` adds pictures of chosen frames), or one build with `--replay bug.rep --replay-continue` and `--data` on a
 copy of the saves to watch it or attach gdb. The replay logs the first frame that differs from the recording.
 
-Reference recordings (one per level, with their save copy) are kept locally in `recordings/` (gitignored, see
-its README.md).
+Reference recordings (one per level, `<name>.rep` + `<name>.saves/`) are kept locally in `recordings/`
+(gitignored, see its README.md); `tools/replay_all.sh OUT` checks them all in every build, one line per recording.
 
 `tools/profile_edit.py [SAVE_DIR]` lists the profiles (name, chapters unlocked, play time, signature);
 `--unlock-all FILE` unlocks every chapter and bonus (what the chapter-select cheat does: hold both triggers,
