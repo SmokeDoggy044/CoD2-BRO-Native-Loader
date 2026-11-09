@@ -53,6 +53,10 @@ void XB_CDECL AtExit_g_entityRemoveQueue();
 void XB_CDECL AtExit_FreeAligned_97a640();
 // 0x00379bb0.
 void XB_CDECL AtExit_984ac0();
+// 0x00027770 (block in ESI): the destructor of the 136 constant script strings GScr_LoadConsts fills
+// (0x00984ac0..0x00984cdc): ScriptString_Release on each, the last first.
+extern "C" PLATFORM_HIDDEN void XB_CDECL GScr_ConstStrings_Dtor(uint8_t* strings);
+extern "C" void GScr_ConstStrings_Dtor_entry(void);
 // 0x00379bc0.
 void XB_CDECL AtExit_9883b0();
 // 0x00379bd0.
