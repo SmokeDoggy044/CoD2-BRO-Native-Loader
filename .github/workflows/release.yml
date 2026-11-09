@@ -1,0 +1,279 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a GitHub Release from this commit (otherwise just build)
+        type: boolean
+        default: false
+      tag:
+        description: Release tag; leave empty to use v<project version>
+        type: string
+        default: ''
+
+# Build jobs only need to read the repository. The publish job requests write
+# access separately, so fork PRs never receive a writable token.
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux i686 release archive
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:25.04
+      options: --user root
+    steps:
+      - name: Install 32-bit build dependencies
+        run: |
+          set -euo pipefail
+          dpkg --add-architecture i386
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl git cmake ninja-build pkg-config python3 \
+            gcc-multilib g++-multilib binutils \
+            libsdl3-dev:i386 libopenal-dev:i386 libvulkan-dev:i386 \
+            libwayland-dev:i386 libxkbcommon-dev:i386 libx11-dev:i386 \
+            tar zip unzip xz-utils file
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Stage the official DXVK 2.7.1 binaries
+        run: ./packaging/dxvk/fetch-prebuilt.sh "$PWD/build/deps/dxvk"
+
+      - name: Configure the Linux release
+        run: |
+          set -euo pipefail
+          sdl3_config="$(find /usr/lib/i386-linux-gnu -name SDL3Config.cmake -print -quit)"
+          if [ -z "$sdl3_config" ]; then
+            echo "libsdl3-dev:i386 did not provide SDL3Config.cmake" >&2
+            exit 1
+          fi
+          openal_config="$(find /usr/lib/i386-linux-gnu -name OpenALConfig.cmake -print -quit || true)"
+          args=(
+            -DCOD_BRO_BUILD_TESTS=OFF
+            -DCOD_BRO_DXVK_PREBUILT_DIR="$PWD/build/deps/dxvk"
+            -DSDL3_DIR="$(dirname "$sdl3_config")"
+            -DCMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu
+          )
+          if [ -n "$openal_config" ]; then
+            args+=("-DOpenAL_DIR=$(dirname "$openal_config")")
+          fi
+          cmake --preset linux-loader-release "${args[@]}"
+
+      - name: Build
+        run: cmake --build --preset linux-loader-release --parallel 2
+
+      - name: Package
+        run: cpack --preset linux-loader-release
+
+      - name: Check the Linux archive
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(build/linux-loader-release/package/cod_bro-*-linux.tar.gz)
+          if [ "${#archives[@]}" -ne 1 ] || [ ! -s "${archives[0]}" ]; then
+            echo "Expected exactly one non-empty Linux release archive" >&2
+            exit 1
+          fi
+          archive="${archives[0]}"
+          tar -tzf "$archive" > linux-archive.txt
+          for required in \
+            cod_bro_launcher cod_bro_loader README.txt cod_bro.png \
+            cod_bro.desktop install-linux-icon.sh lib/libcod_bro_game.so \
+            lib/libdxvk_d3d9.so.0 LICENSES/BUNDLED.txt; do
+            if ! grep -qE "/${required//\./\\.}$" linux-archive.txt; then
+              echo "Linux archive is missing $required" >&2
+              exit 1
+            fi
+          done
+          echo "Verified $(basename "$archive") ($(wc -c < "$archive") bytes)"
+
+      - name: Upload the Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: cod_bro-package-linux
+          path: build/linux-loader-release/package/cod_bro-*-linux.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows i686 cross-release archive
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:25.04
+      options: --user root
+    steps:
+      - name: Install MinGW-w64 build dependencies
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl git cmake ninja-build pkg-config python3 \
+            mingw-w64 binutils \
+            tar zip unzip xz-utils file
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Stage the official DXVK 2.7.1 binaries
+        run: ./packaging/dxvk/fetch-prebuilt.sh "$PWD/build/deps/dxvk"
+
+      - name: Configure the Windows release
+        run: |
+          set -euo pipefail
+          cmake --preset windows-mingw-release \
+            -DCOD_BRO_BUILD_TESTS=OFF \
+            -DCOD_BRO_DXVK_PREBUILT_DIR="$PWD/build/deps/dxvk"
+
+      - name: Build
+        run: cmake --build --preset windows-mingw-release --parallel 2
+
+      - name: Package
+        run: cpack --preset windows-mingw-release
+
+      - name: Check the Windows archive
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          archives=(build/windows-mingw-release/package/cod_bro-*-windows.zip)
+          if [ "${#archives[@]}" -ne 1 ] || [ ! -s "${archives[0]}" ]; then
+            echo "Expected exactly one non-empty Windows release archive" >&2
+            exit 1
+          fi
+          archive="${archives[0]}"
+          unzip -Z1 "$archive" > windows-archive.txt
+          for required in \
+            cod_bro_launcher.exe cod_bro_loader.exe cod_bro_loader_core.dll \
+            OpenAL32.dll dxvk/d3d9.dll cod_bro.ico README.txt \
+            LICENSES/BUNDLED.txt; do
+            if ! grep -qE "/${required//\./\\.}$" windows-archive.txt; then
+              echo "Windows archive is missing $required" >&2
+              exit 1
+            fi
+          done
+          echo "Verified $(basename "$archive") ($(wc -c < "$archive") bytes)"
+
+      - name: Upload the Windows archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: cod_bro-package-windows
+          path: build/windows-mingw-release/package/cod_bro-*-windows.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish)
+    needs:
+      - linux
+      - windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download the release archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cod_bro-package-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Validate the tag and write SHA256SUMS.txt
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^project(cod_bro_port VERSION \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\) LANGUAGES.*/\1/p' CMakeLists.txt)"
+          if [ -z "$version" ]; then
+            echo "Could not read project(VERSION) from CMakeLists.txt" >&2
+            exit 1
+          fi
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ]; then
+            if [ "$EVENT_NAME" = push ]; then
+              tag="$REF_NAME"
+            else
+              tag="v$version"
+            fi
+          fi
+          if [[ ! "$tag" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Release tag '$tag' must be v<major>.<minor>.<patch>" >&2
+            exit 1
+          fi
+          if [ "${BASH_REMATCH[1]}" != "$version" ]; then
+            echo "Tag $tag does not match CMake project version $version" >&2
+            exit 1
+          fi
+          linux_archive="release-assets/cod_bro-$version-linux.tar.gz"
+          windows_archive="release-assets/cod_bro-$version-windows.zip"
+          for asset in "$linux_archive" "$windows_archive"; do
+            if [ ! -s "$asset" ]; then
+              echo "Missing or empty release asset: $asset" >&2
+              exit 1
+            fi
+          done
+          (
+            cd release-assets
+            sha256sum "cod_bro-$version-linux.tar.gz" "cod_bro-$version-windows.zip" > SHA256SUMS.txt
+          )
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release assets"
+            echo
+            echo "- Tag: \`$tag\`"
+            echo "- Version: \`$version\`"
+            echo "- \`cod_bro-$version-linux.tar.gz\`"
+            echo "- \`cod_bro-$version-windows.zip\`"
+            echo "- \`SHA256SUMS.txt\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          assets=(
+            "release-assets/cod_bro-$VERSION-linux.tar.gz"
+            "release-assets/cod_bro-$VERSION-windows.zip"
+            release-assets/SHA256SUMS.txt
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Updating release $TAG"
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            echo "Creating release $TAG at $COMMIT_SHA"
+            gh release create "$TAG" "${assets[@]}" \
+              --target "$COMMIT_SHA" \
+              --title "Call of Duty 2: Big Red One $VERSION" \
+              --generate-notes
+          fi

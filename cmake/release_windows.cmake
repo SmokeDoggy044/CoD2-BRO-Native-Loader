@@ -2,14 +2,15 @@
 # windows-mingw-release presets): `cmake --install` / `cpack` lay out
 #
 #   cod_bro_launcher.exe, cod_bro_loader.exe (stub) + cod_bro_loader_core.dll,
-#   OpenAL32.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
+#   OpenAL32.dll, cod_bro.ico, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   dxvk/d3d9.dll             DXVK (Direct3D 9 on Vulkan); the game falls back to the
 #                             system's d3d9.dll without it or without Vulkan
 #   assets/README.md          the player copies the game dump here
 #   LICENSES/                 the port's notes plus every bundled component's license
 #
 # The GCC runtime and SDL3 are linked in; OpenAL Soft stays a DLL (LGPL: replaceable).
-# DXVK comes from packaging/windows-dxvk/build.sh (run it once before the release).
+# DXVK is the official prebuilt 32-bit d3d9.dll staged by
+# packaging/dxvk/fetch-prebuilt.sh: no source build, no podman/meson/glslang.
 
 install(TARGETS cod_bro_loader cod_bro_loader_core cod_bro_launcher OpenAL RUNTIME DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
@@ -19,12 +20,14 @@ install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
 install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 
-set(dxvk_dir "${PROJECT_SOURCE_DIR}/build/windows-dxvk/out")
-if(NOT EXISTS "${dxvk_dir}/d3d9.dll")
-    message(FATAL_ERROR "release: no DXVK for Windows; run packaging/windows-dxvk/build.sh first")
+set(dxvk_dir "${COD_BRO_DXVK_PREBUILT_DIR}")
+if(NOT EXISTS "${dxvk_dir}/windows/d3d9.dll")
+    message(FATAL_ERROR "release: no prebuilt DXVK at ${dxvk_dir}/windows/d3d9.dll")
 endif()
 file(STRINGS "${dxvk_dir}/VERSION" dxvk_version)
-install(FILES "${dxvk_dir}/d3d9.dll" DESTINATION dxvk)
+install(FILES "${dxvk_dir}/windows/d3d9.dll" DESTINATION dxvk)
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/cod_bro.ico" DESTINATION .)
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/mods/README.txt" DESTINATION mods)
 # Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
 
@@ -60,13 +63,14 @@ set(bundled_licenses
     "${openal_dir}/BSD-3Clause|OpenAL-Soft-BSD-3-Clause|OpenAL Soft, BSD-3-Clause parts|"
     "${openal_dir}/LICENSE-pffft|OpenAL-Soft-pffft|OpenAL Soft, pffft|"
     "${openal_fmt_license}|fmt|fmt (built into OpenAL32.dll)|https://github.com/fmtlib/fmt"
-    "${dxvk_dir}/licenses/DXVK.txt|DXVK|DXVK ${dxvk_version} (dxvk/d3d9.dll, built with -mstackrealign)|https://github.com/doitsujin/dxvk"
-    "${dxvk_dir}/licenses/libdisplay-info.txt|libdisplay-info|libdisplay-info (built into dxvk/d3d9.dll)|https://gitlab.freedesktop.org/emersion/libdisplay-info"
+    "${dxvk_dir}/LICENSES/DXVK.txt|DXVK|DXVK ${dxvk_version} (prebuilt dxvk/d3d9.dll)|https://github.com/doitsujin/dxvk"
+    "${dxvk_dir}/LICENSES/libdisplay-info.txt|libdisplay-info|libdisplay-info (built into dxvk/d3d9.dll)|https://gitlab.freedesktop.org/emersion/libdisplay-info"
+    "${PROJECT_SOURCE_DIR}/modding/stb/LICENSE|stb-modding|stb_image / stb_image_write (F4 Modding window)|https://github.com/nothings/stb"
     "/usr/share/licenses/mingw32-libgcc/COPYING3|GCC-runtime-GPL-3.0|GCC runtime (libgcc and libstdc++, linked in): GPL-3.0|https://gcc.gnu.org"
     "/usr/share/licenses/mingw32-libgcc/COPYING.RUNTIME|GCC-runtime-exception|GCC runtime: runtime library exception|"
     "/usr/share/licenses/mingw32-winpthreads/COPYING|mingw-w64-winpthreads|mingw-w64 winpthreads (linked in)|https://www.mingw-w64.org"
     "/usr/share/licenses/mingw32-crt/COPYING|mingw-w64-runtime|mingw-w64 runtime (startup code, linked in)|https://www.mingw-w64.org")
-set(bundled_text "Components bundled in this release (libraries linked into the programs,\nOpenAL32.dll and dxvk/d3d9.dll).\n\n")
+set(bundled_text "Components bundled in this release (libraries linked into the programs,\nOpenAL32.dll and dxvk/d3d9.dll).\nDXVK is an official prebuilt binary, not compiled from source. Discord Rich\nPresence is implemented in the loader and launcher themselves (local IPC only).\n\n")
 foreach(entry ${bundled_licenses})
     string(REPLACE "|" ";" fields "${entry}|")  # the trailing | keeps an empty source
     list(GET fields 0 file)

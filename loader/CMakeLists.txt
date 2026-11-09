@@ -25,7 +25,7 @@ if(WIN32)
     add_library(cod_bro_loader_core SHARED ${loader_sources} compare_win32.cpp crash_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
     cod_bro_windows_resources(cod_bro_loader_core "Call of Duty 2: Big Red One native loader - core" LIBRARY)
-    target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render text xbox platform shell32 user32 winmm)
+    target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render text xbox platform modding discord_rpc shell32 user32 winmm)
     set(loader_core cod_bro_loader_core)
 
     add_executable(cod_bro_loader win32_stub.c)
@@ -41,7 +41,7 @@ if(WIN32)
     add_dependencies(cod_bro_loader cod_bro_loader_core)
 else()
     add_executable(cod_bro_loader ${loader_sources} compare_linux.cpp crash_posix.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
-    target_link_libraries(cod_bro_loader PRIVATE game_code audio input online render text xbox platform)
+    target_link_libraries(cod_bro_loader PRIVATE game_code audio input online render text xbox platform modding discord_rpc)
     set(loader_core cod_bro_loader)
     # Code that runs in the harness's test processes must not call anything the
     # compiler adds (stack checks, memcpy for loops).

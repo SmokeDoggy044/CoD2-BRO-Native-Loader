@@ -52,9 +52,10 @@ scale per slot (the title's linear textures), c26 fog colour.
   GfxDevice draws, freeing our depth targets before shutdown).
 
 **R3 - shaders, 2026-10-30.** Every shader program the renderer sets up is HLSL of our own in
-render/shaders (126 files: 44 vertex programs, 82 register-combiner setups; manifest.csv says which
-C function sets each up), compiled at build time with vkd3d-shader (`vkd3d-compiler`, required;
-render/CMakeLists.txt) and embedded; `GfxDevice::create_title_shader(stage, key)` makes one.
+render/shaders; manifest.csv says which C function sets each up. The 166 SM3 bytecode files in
+render/shaders/prebuilt/ (and three post passes in render/post/prebuilt/) are compiled ahead of
+time and embedded, so a release needs no `vkd3d-compiler`; see [shader-prebuilt.md](shader-prebuilt.md)
+for the HLSL-to-DXBC recipe. `GfxDevice::create_title_shader(stage, key)` makes one.
 - Key: the title data naming the program: the microcode blob or D3DPIXELSHADERDEF address the
   shader class's Init passes, or for the four screen-space shaders assembled at boot the address
   of their source text. All 126 are set up at boot (the same set in missions 4 and 6).

@@ -5,6 +5,9 @@
 !/assets/README.md
 # DXVK writes <exe>_d3d9.log into the working folder.
 *.log
+# Official DXVK binaries/headers are fetched at build time, not committed.
+/dxvk/prebuilt/linux/
+/dxvk/prebuilt/windows/
 # Playtest diagnostics (--diag DIR) kept in the port folder.
 /diag*/
 tools/data/default_xbe_matchdata.tsv

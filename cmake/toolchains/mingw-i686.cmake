@@ -23,4 +23,9 @@ set(CMAKE_CXX_FLAGS_INIT "-faligned-new=8")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-static")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-static")
 
-set(CMAKE_CROSSCOMPILING_EMULATOR wine)
+# Run cross-built tests under Wine when it is installed. Release/CI builds do
+# not need an emulator, and configuring must work on hosts without Wine.
+find_program(COD_BRO_WINE NAMES wine)
+if(COD_BRO_WINE)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${COD_BRO_WINE}")
+endif()

@@ -56,6 +56,25 @@ public domain, github.com/nothings/stb) for sharper text; on Windows also SDL3
 (zlib) and OpenAL Soft (LGPL-2.0-or-later). Releases include their license texts
 and those of every other bundled library (`LICENSES/BUNDLED.txt` in an archive).
 
+## Bundled in this fork
+
+| Files | License | Text |
+|---|---|---|
+| `modding/stb/stb_image.h`, `stb_image_write.h` (nothings/stb, commit `2c980bb`) | MIT or public domain | `modding/stb/LICENSE` |
+| official DXVK 2.7.1 32-bit binaries fetched by `packaging/dxvk/fetch-prebuilt.sh` and bundled in releases (including libdisplay-info) | zlib / MIT | `dxvk/prebuilt/LICENSES/DXVK.txt`, `dxvk/prebuilt/LICENSES/libdisplay-info.txt` |
+| SDL3 3.2.10 (system library on Linux, built in on Windows) | zlib | `LICENSES/SDL3-zlib.txt` |
+| OpenAL Soft (shared library, replaceable) | LGPL-2.1-or-later | `LICENSES/OpenAL-Soft-LGPL.txt` (also `LGPL-2.1-or-later.txt`) |
+
+The application icon in `packaging/icons/` is derived from the game's cover art
+supplied for this fork. It is used only to identify the executables/windows;
+all rights to the artwork and trademarks remain with their owners. It is not
+game data and is not loaded by the game itself.
+
+The Discord RPC code in `discord/` is entirely original and part of the port's
+own GPL-2.0-or-later code; it implements Discord's local IPC protocol without
+linking or bundling any Discord library. The `modding/` sources are likewise
+original; only the stb headers above are third-party.
+
 ## Not in this repository
 
 Call of Duty 2: Big Red One and its files (XBE, assets) belong to their owners and

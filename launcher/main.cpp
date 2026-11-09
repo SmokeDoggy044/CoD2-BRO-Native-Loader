@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -16,6 +17,8 @@
 #include <vector>
 
 #include "bindings.h"
+#include "display_backends.h"
+#include "rich_presence.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -27,6 +30,7 @@
 #include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
+#include "window_icon.h"
 #include "settings.h"
 #include "update_check.h"
 #include "updater.h"
@@ -34,6 +38,36 @@
 namespace fs = std::filesystem;
 
 namespace {
+
+// The launcher's presence: the game takes it over with the map when it starts.
+discord::Status launcher_status() {
+    return {"Call of Duty 2: Big Red One", "In the launcher", "Configuring the game"};
+}
+
+// SDL3's Wayland backend has no software window surface, so on compositors without
+// a usable EGL/GLES driver SDL_CreateRenderer(window, nullptr) fails with
+// "Couldn't find matching render driver". Try the software renderer first (this
+// is a simple 2D UI), then the accelerated ones, then SDL's own choice and every
+// built-in driver. A failed attempt can leave a window surface behind, which
+// blocks the next one, so clear it between tries.
+SDL_Renderer* create_renderer(SDL_Window* window) {
+    if (!window) return nullptr;
+    const auto try_name = [window](const char* name) -> SDL_Renderer* {
+        if (SDL_WindowHasSurface(window)) SDL_DestroyWindowSurface(window);
+        return SDL_CreateRenderer(window, name);
+    };
+    static const char* const preferred[] = {"software", "opengles2", "opengl", "vulkan"};
+    for (const char* name : preferred) {
+        if (SDL_Renderer* r = try_name(name)) return r;
+    }
+    if (SDL_Renderer* r = try_name(nullptr)) return r;
+    for (int i = 0, n = SDL_GetNumRenderDrivers(); i < n; ++i) {
+        if (const char* name = SDL_GetRenderDriver(i)) {
+            if (SDL_Renderer* r = try_name(name)) return r;
+        }
+    }
+    return nullptr;
+}
 
 // The game's defaults (Options in loader/main.cpp); only other values are saved, so
 // a changed default still reaches players who never touched that setting.
@@ -65,6 +99,9 @@ struct Choices {
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
     // Launcher only: saved as "false" (which the game skips) when off.
     bool check_updates = true;
+    // Shared with the game: saves as "on"/"off" (a key in settings.ini becomes a
+    // command-line option, so "false" would be skipped and default back to on).
+    bool discord_rpc = true;
 };
 
 // The width over the height of an aspect setting ("W:H"), or 0 if it is not one.
@@ -115,6 +152,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
+    if (auto v = settings.get("discord-rpc")) c.discord_rpc = *v != "off";
     return c;
 }
 
@@ -153,6 +191,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");
+    put("discord-rpc", c.discord_rpc == d.discord_rpc, c.discord_rpc ? "on" : "off");
 }
 
 fs::path asset_dir(const Choices& c) { return c.assets.empty() ? platform::default_asset_dir() : fs::path(c.assets); }
@@ -290,6 +329,13 @@ private:
         game_files();
         ImGui::SeparatorText("Language");
         language();
+        ImGui::SeparatorText("Discord");
+        if (ImGui::Checkbox("Discord Rich Presence", &choices_.discord_rpc)) {
+            if (choices_.discord_rpc) discord::init(discord::kAppId, "launcher", launcher_status);
+            else discord::shutdown();
+        }
+        help_marker("Shows on Discord that you are in the launcher, and in the game the map you are "
+                    "playing. Needs the Discord desktop app; nothing is sent over the internet.");
         updates();
     }
 
@@ -787,6 +833,14 @@ private:
 }  // namespace
 
 int main(int, char**) {
+    platform::prefer_display_backends();  // X11 and Wayland both linked; pick the session's
+    if (const auto rpc = platform::load_settings().get("discord-rpc"); !rpc || *rpc != "off")
+        discord::init(discord::kAppId, "launcher", launcher_status);
+    // The IPC worker is a joinable std::thread: make sure it is joined on every
+    // exit path, including an early return below (otherwise ~std::thread calls
+    // std::terminate and the launcher aborts with "terminate called without an
+    // active exception"). shutdown() is idempotent.
+    std::atexit([] { discord::shutdown(); });
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         LOG_ERROR("launcher", "SDL: %s", SDL_GetError());
         return 1;
@@ -796,12 +850,35 @@ int main(int, char**) {
     int height = static_cast<int>(440 * ui_scale);
     if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
         height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
-    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale), height,
-                                          SDL_WINDOW_HIGH_PIXEL_DENSITY);
-    SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
+    const auto make_window = [&]() {
+        SDL_Window* created = SDL_CreateWindow("Call of Duty 2: Big Red One",
+                                               static_cast<int>(560 * ui_scale), height,
+                                               SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        platform::set_window_icon(created);
+        return created;
+    };
+    SDL_Window* window = make_window();
+    SDL_Renderer* renderer = create_renderer(window);
     if (!renderer) {
-        LOG_ERROR("launcher", "window: %s", SDL_GetError());
-        return 1;
+        const std::string error = SDL_GetError();
+        // Last resort for a pure-Wayland compositor with no software framebuffer
+        // and no EGL: restart SDL video on X11 (XWayland) and try once more.
+        const char* display = std::getenv("DISPLAY");
+        if (display && *display) {
+            LOG_WARN("launcher", "render driver: %s; retrying with the X11 backend", error.c_str());
+            SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "x11");
+            if (window) SDL_DestroyWindow(window);
+            SDL_Quit();
+            if (SDL_Init(SDL_INIT_VIDEO)) {
+                window = make_window();
+                renderer = create_renderer(window);
+            }
+        }
+        if (!renderer) {
+            LOG_ERROR("launcher", "window: %s", SDL_GetError());
+            SDL_Quit();
+            return 1;
+        }
     }
     SDL_SetRenderVSync(renderer, 1);
 
@@ -839,6 +916,7 @@ int main(int, char**) {
         SDL_RenderPresent(renderer);
     }
 
+    discord::shutdown();  // clears the launcher's presence before the game sets its own
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

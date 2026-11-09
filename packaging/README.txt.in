@@ -22,11 +22,31 @@ Then start cod_bro_launcher. It shows whether the game files are found, lets
 you use another folder instead, sets the options below, and starts the game.
 (cod_bro_loader starts the game directly with the saved settings.)
 
+On Linux, run ./install-linux-icon.sh once to put the supplied icon and a
+"Call of Duty 2: Big Red One" entry in your desktop's applications menu. On
+Windows the icon is already embedded in cod_bro_launcher.exe and
+cod_bro_loader.exe.
+
 
 Requirements
 ------------
 
 @COD_BRO_README_REQUIREMENTS@
+
+
+If the launcher window will not open
+-----------------------------------
+
+On some Wayland compositors SDL3 has no software framebuffer and no usable EGL,
+so the launcher's 2D renderer cannot be created ("Couldn't find matching render
+driver"). The launcher prefers X11 when DISPLAY is available (X11 works on a
+native X11 session and through XWayland), tries every available render driver,
+and retries with the X11 backend if all fail. You can force one yourself:
+
+  SDL_VIDEO_DRIVER=x11 ./cod_bro_launcher        X11 / XWayland
+  COD_BRO_VIDEO_DRIVER=x11 ./cod_bro_launcher   the same, our own override
+  SDL_VIDEO_DRIVER=wayland ./cod_bro_launcher   native Wayland
+  SDL_RENDER_DRIVER=software ./cod_bro_launcher force the 2D software renderer
 
 
 Controls
@@ -42,10 +62,56 @@ Gamepads use their Xbox layout. Keyboard and mouse:
   left Shift     sprint               Q / E          lean
   wheel / 1      next weapon          Tab (hold)     objectives / scores
   Escape         pause                F10            free the mouse
+  F4             Modding window (PNG textures, WAV sounds, hands/weapons/anims)
 
 Menus: point with the mouse and click (right click goes back, the wheel
 moves), or arrow keys, Return selects, Backspace goes back. In a level, click
 the window to capture the mouse; Alt+Tab or F10 frees it.
+
+
+Modding (F4)
+------------
+
+Press F4 in a level to open the Modding window. It has three tabs:
+
+  Textures:   Extract writes every DDS picture the game has loaded as PNG into
+              <user data>/mods/textures/. Replace reads those PNGs back and
+              swaps them into the running game immediately (any size is resized).
+  Audio:      Extract writes the game's wave banks and loose sounds as 16-bit
+              PCM WAV into <user data>/mods/audio/ with audio.csv (hash, kind,
+              channels, rate, exact byte length). Replace converts edited WAVs
+              back to the original encoding and writes patched copies into
+              <user data>/mods/overrides/. Restart or reload the level to hear
+              them; delete a file there to restore the original sound.
+  Animations: Extract exports ALL player view-hands, EVERY weapon model and
+              EVERY animation (.xbmesh/.xbcell/.xbmorph/.xmb/.xbanim/.xbsanim/
+              .xbskel) from the .cod packs into <user data>/mods/animations/:
+                viewhands/         first-person hands models
+                weapons/<weapon>/  one folder per weapon (models + animations)
+                animations/        every other NAL clip
+                models/ skeletons/ everything else
+              animations.csv records each asset's pack, byte offset, exact size,
+              content hash and group. Replace patches edited SAME-LENGTH files
+              into copies of the game files in <user data>/mods/overrides/;
+              restart or reload the level to see them. These are the game's
+              original Xbox formats, not glTF/FBX - no data is converted.
+
+All three tabs show extraction and replacement progress while they work.
+Original files in assets/ are never changed. <user data> is
+~/.local/share/cod_bro on Linux (or $XDG_DATA_HOME/cod_bro) and
+%APPDATA%\cod_bro on Windows.
+
+
+Discord Rich Presence
+---------------------
+
+Discord RPC is on by default and can be switched off in the launcher's General
+tab, with --discord-rpc off, or with COD_BRO_DISCORD_RPC=0. It uses Discord's
+local IPC only: no account token or network access. The launcher shows "In the
+launcher"; in game it shows "Playing Call of Duty 2: Big Red One" with only the
+map name (no mission number), or "Multiplayer - System Link" when no map is
+loaded. App ID: 1567972853180010607.
+Discord must be running; otherwise the game just silently skips it.
 
 
 Multiplayer
@@ -83,7 +149,7 @@ Licenses
 --------
 
 The port is free software under the GNU General Public License, version 2 or
-later; its source code is on GitHub (SmokeDoggy044/CoD2-BRO-Native-Loader). The
+later; its source code is on GitHub (monsef64/CoD2-Bro-Modded). The
 bundled libraries have their own licenses: see LICENSES/. The fonts in fonts/
 (used by the launcher's "Sharper text" option) are free fonts under the SIL Open
 Font License; their licenses are in fonts/licenses/. Call of Duty 2: Big Red

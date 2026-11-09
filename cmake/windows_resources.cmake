@@ -1,5 +1,5 @@
-# Windows version information for the port's own files (cmake/windows/version.rc.in): product
-# name, version, description - and for programs an "asInvoker" manifest. Files without them are
+# Windows version information, manifest and application icon for the port's own
+# files (cmake/windows/version.rc.in): product name, version, description. Files without them are
 # flagged more often by antivirus heuristics (0.2.0's launcher: Gen:Variant.Babar on VirusTotal).
 #   cod_bro_windows_resources(<target> "<description>" PROGRAM|LIBRARY)
 function(cod_bro_windows_resources target description kind)
@@ -17,6 +17,10 @@ function(cod_bro_windows_resources target description kind)
         set(RES_FILE_TYPE "VFT_DLL")
         set(RES_MANIFEST "")
     endif()
+    # windres accepts forward slashes in the resource path on both native
+    # Windows and the MinGW cross-build.
+    file(TO_CMAKE_PATH "${PROJECT_SOURCE_DIR}/packaging/icons/cod_bro.ico" icon_path)
+    set(RES_ICON "1 ICON \"${icon_path}\"")
     set(rc "${CMAKE_CURRENT_BINARY_DIR}/${target}_version.rc")
     configure_file("${PROJECT_SOURCE_DIR}/cmake/windows/version.rc.in" "${rc}" @ONLY)
     target_sources(${target} PRIVATE "${rc}")

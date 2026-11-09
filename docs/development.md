@@ -20,7 +20,11 @@ how releases are made. For what the project is and how to play, see the
 | `text/` | Sharper text and keyboard button prompts: the game's packs and font tables, font atlases and button icons drawn again with stb_truetype | Kept, portable |
 | `fonts/` | Free stand-in fonts for sharper text (SIL OFL) | Kept |
 | `launcher/` | `cod_bro_launcher`: settings, key bindings, game-file setup and updates (Dear ImGui, fetched by CMake) | Kept, portable |
-| `tests/` | Kernel-layer, audio, settings, release map, key binding and shader tests; the comparison harness's own test; offline tests of rewritten functions | Kept |
+| `modding/` | F4 Modding window: DDS/PNG and wave-bank/WAV extraction + replacement (vendored stb_image), plus `animation.cpp` for Xbox model/animation export (`viewhands/`, `weapons/<name>/`, `animations/`) and same-length KAPF override patching | Kept, portable |
+| `discord/` | Discord Rich Presence over Discord's local IPC (no library) | Kept, portable |
+| `dxvk/prebuilt/` | DXVK 2.7.1 version/license texts; official 32-bit binaries are fetched by `packaging/dxvk/fetch-prebuilt.sh` (gitignored) | Staged |
+| `packaging/icons/`, `platform/window_icon.*` | Supplied application icon: Windows `.ico`, Linux PNG/`.desktop` and baked-in SDL window pixels | Kept |
+| `tests/` | Kernel-layer, audio, settings, release map, key binding and shader tests; `animation_test` builds a synthetic KAPF pack; the comparison harness's own test; offline tests of rewritten functions | Kept |
 | `assets/` | Where players put the game files (only its README is in git) | Kept |
 | `tools/` | Ghidra scripts, the progress tracker, comparison and naming helpers, kernel export generator, feature sweep | Kept |
 | `tools/data/` | Symbol files, release-map signatures, function names with their evidence, comparison results, per-function progress | Kept |
@@ -42,12 +46,32 @@ kernel exports).
 
 Fedora packages for the 32-bit native loader build:
 
-    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler
+    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 SDL3-devel.i686 openal-soft-devel.i686
 
 Then:
 
     cmake --preset linux-loader && cmake --build --preset linux-loader
     ./build/linux-loader/bin/cod_bro_loader               # --help lists the options
+
+DXVK is not compiled from source. Run `packaging/dxvk/fetch-prebuilt.sh` once to
+download DXVK 2.7.1's official 32-bit Steam Runtime sniper build
+(`linux/lib/libdxvk_d3d9.so.0` plus headers in `linux/include/dxvk`) and the
+Windows `windows/d3d9.dll` into `dxvk/prebuilt/` (gitignored). Pass another
+destination plus `-DCOD_BRO_DXVK_PREBUILT_DIR=<dir>` to CMake to use it.
+`cmake/dxvk_prebuilt.cmake` links the Linux library directly and falls back to
+an installed `dxvk-d3d9.pc` when no staged copy is present. Debian's 32-bit
+development packages needed here are, e.g.:
+
+    sudo dpkg --add-architecture i386 && sudo apt update
+    sudo apt install g++-multilib libsdl3-dev:i386 libopenal-dev:i386 \
+        libvulkan-dev:i386 libwayland-dev:i386 libxkbcommon-dev:i386 \
+        libx11-dev:i386
+
+X11 and Wayland client libraries are linked in explicitly on Linux. SDL3 prefers
+X11 when `DISPLAY` is set (it works on a native X11 session and through XWayland,
+and SDL3's Wayland backend has no software window surface for the launcher's 2D
+renderer), with Wayland as fallback; `SDL_VIDEO_DRIVER` or `COD_BRO_VIDEO_DRIVER`
+overrides it.
 
 The `linux` and `windows` presets build only the portable code (`cod_bro`), to keep
 both platforms compiling from the start. Linux needs `openal-soft-devel`; on Windows
@@ -94,7 +118,7 @@ launcher writes them), `--aim-assist on|off`, `--fps 60|30`, `--late-frames
 show|wait`, `--fov DEG` (also the in-game PC menu: the `` ` `` key), `--level N`
 (start a mission directly), `--multiplayer` (start multiplayer), `--net-port N`
 (System Link UDP ports N..N+3), `--diag DIR` (playtesting, see
-[docs/playtesting.md](playtesting.md)), `--debug`/`--trace`. Playtests and
+[docs/playtesting.md](playtesting.md)), `--debug`/`--trace`, `--discord-rpc on|off` (Discord Rich Presence). Playtests and
 performance checks use the optimized `linux-loader-release` build (`linux-loader` is
 a Debug build, several times slower in heavy scenes).
 
@@ -102,7 +126,10 @@ The default keyboard layout is in `input/devices.h`, the bindings in
 `input/bindings.h`: WASD, mouse look, Tab shows the objectives while held, Escape
 pauses. The menus take the mouse (point, click, right click = back, wheel = up/down;
 `install_menu_pointer` in `loader/patches.cpp`). In a level, click the window to
-capture the mouse; F10 or Alt+Tab frees it.
+capture the mouse; F10 or Alt+Tab frees it. F4 opens the Modding window (PNG
+texture, WAV sound and Xbox model/animation extraction/replacement; its
+Animations tab exports all view hands, all weapon models and all NAL clips;
+see README.md).
 
 Profiling (Linux and Windows): `--profile auto[,SECONDS]` (or `XB_PROFILE`; the
 launcher's "Measure performance") samples every thread for SECONDS each time a second
@@ -163,7 +190,8 @@ builds and runs several missions at once and prints one line per function. Detai
   audio test mixes on an OpenAL loopback device, so neither needs game files or a
   sound card.
 - Settings, the update check, key bindings, the release map, the D3D9 shader
-  translator and the virtual LAN.
+  translator, the virtual LAN, and `animation_test` (scan/Extract/Replace on a
+  synthetic `.cod` pack with hands, weapon and animation entries).
 - `compare_test`: the comparison harness itself, against a stand-in library.
 - `nal_entropy_test` and `leaf_test`: rewritten functions against the original
   code from `default.xbe`, on generated inputs (skipped without the game files;
@@ -178,11 +206,13 @@ They need a 32-bit build because `xbox/` stores the title's pointers as 32-bit
 
 This builds the release in the Steam Runtime 3 "sniper" SDK container (podman;
 Debian 11, glibc 2.31), so it runs on distributions since about 2020 (glibc 2.30+,
-checked on a bare 32-bit Debian 11). SDL3, OpenAL Soft and DXVK are built from
-source there (`packaging/sniper/inside.sh`, versions at its top), with
-`-mstackrealign` like our code: title threads call into them with 4-byte stack
-alignment. Everything is cached in `build/sniper/`; changing the script or
-`cmake/toolchains/sniper-i686.cmake` rebuilds the libraries.
+checked on a bare 32-bit Debian 11). SDL3 and OpenAL Soft are built from source
+there (`packaging/sniper/inside.sh`, versions at its top), with `-mstackrealign`
+like our code: title threads call into them with 4-byte stack alignment. DXVK is
+an official prebuilt 32-bit binary staged by
+`packaging/dxvk/fetch-prebuilt.sh`. Everything is cached in `build/sniper/`;
+changing the script or `cmake/toolchains/sniper-i686.cmake` rebuilds the
+libraries.
 
 The archive holds `cod_bro_launcher`, `cod_bro_loader`, the symbol and signature
 files, the rewritten game code (`lib/libcod_bro_game.so`), an empty `assets/` (with
@@ -196,12 +226,29 @@ machine's own libraries instead; it only runs on systems as new as this one.
 
 Windows (cross-built here with MinGW-w64, `cmake/release_windows.cmake`):
 
-    packaging/windows-dxvk/build.sh        # once: DXVK's d3d9.dll (podman, Fedora container)
+    packaging/dxvk/fetch-prebuilt.sh      # once: official DXVK 2.7.1 binaries
     cmake --preset windows-mingw-release && cmake --build --preset windows-mingw-release
     cpack --preset windows-mingw-release   # build/windows-mingw-release/package/cod_bro-<version>-windows.zip
 
 The zip holds the launcher, the loader stub and `cod_bro_loader_core.dll` (with the
 rewritten game code linked in), `OpenAL32.dll` (the only DLL; SDL3 and the GCC
-runtime are linked in), the symbol and signature files, `dxvk/d3d9.dll`, `assets/`,
-the README and `LICENSES/`. DXVK sits in its own folder so that only the loader
-picks it, and the system's `d3d9.dll` stays reachable as the fallback.
+runtime are linked in), the symbol and signature files, `dxvk/d3d9.dll`,
+`cod_bro.ico`, `assets/`, the README and `LICENSES/`. DXVK sits in its own folder
+so that only the loader picks it, and the system's `d3d9.dll` stays reachable as
+the fallback. Both Windows executables embed the supplied icon; the Linux
+archive contains `cod_bro.png`, `cod_bro.desktop` and `install-linux-icon.sh`.
+
+## GitHub Actions
+
+`.github/workflows/release.yml` runs the same CMake/CPack release builds in
+Ubuntu 25.04 containers on pushes and pull requests. The Linux job installs
+the i386 development packages; the Windows job cross-builds with MinGW-w64.
+Both fetch DXVK into `build/deps/dxvk`, pass it as
+`COD_BRO_DXVK_PREBUILT_DIR`, build with `COD_BRO_BUILD_TESTS=OFF` and upload
+their `cod_bro-<version>-linux.tar.gz` / `cod_bro-<version>-windows.zip` as
+workflow artifacts.
+
+On a `v<major>.<minor>.<patch>` tag, or a manual dispatch with `publish`
+enabled, a final job checks that the tag matches `project(VERSION)`, writes
+`SHA256SUMS.txt` and publishes all three files in a GitHub Release. Releases
+need `contents: write`; ordinary branch and PR runs only compile and package.

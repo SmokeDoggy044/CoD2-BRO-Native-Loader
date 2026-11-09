@@ -77,7 +77,12 @@ struct BackendConfig {
     // Null: no menu.
     bool (*pc_menu)() = nullptr;
     void (*pc_menu_shown)(bool open) = nullptr;
-    std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
+    // The separate "Modding" window (F4): texture/audio extraction and replacement.
+    // It shares the PC menu's ImGui context and input blocking; either window keeps
+    // the game's input blocked while it is open. Null: no Modding menu.
+    bool (*modding_menu)() = nullptr;
+    void (*modding_menu_shown)(bool open) = nullptr;
+    std::string menu_font;  // a TTF for the menus; empty: Dear ImGui's own
     // Anisotropic filtering for mipmapped textures the title filters linearly (PC
     // option; the Xbox titles rarely used it). 1 = the title's own filters.
     uint32_t anisotropy = 1;

@@ -1,5 +1,5 @@
-// Version information (and for programs, a manifest) of a Windows file of the port:
-// cmake/windows_resources.cmake configures it per target.
+// Version information, application icon and (for programs) a manifest of a
+// Windows file of the port: cmake/windows_resources.cmake configures it per target.
 #include <winver.h>
 
 VS_VERSION_INFO VERSIONINFO
@@ -32,3 +32,4 @@ BEGIN
     END
 END
 @RES_MANIFEST@
+@RES_ICON@

@@ -1,6 +1,7 @@
 # The player release (route B, 32-bit Linux): `cmake --install` / `cpack` lay out
 #
 #   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
+#   cod_bro.png, cod_bro.desktop, install-linux-icon.sh   Linux desktop icon
 #   lib/libcod_bro_game.so     the decompiled game code
 #   assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
@@ -27,6 +28,15 @@ install(TARGETS ${release_programs}
     RUNTIME DESTINATION .)
 # The decompiled code is a shared library in Linux loader builds (game/code).
 install(TARGETS game_code LIBRARY DESTINATION lib)
+# DXVK is a prebuilt 32-bit dxvk-native library (no source build). Install both
+# names: the executable asks for the SONAME, developers may link against the .so.
+if(COD_BRO_DXVK_PREBUILT)
+    install(FILES "${COD_BRO_DXVK_PREBUILT_DIR}/linux/lib/libdxvk_d3d9.so.0"
+                  "${COD_BRO_DXVK_PREBUILT_DIR}/linux/lib/libdxvk_d3d9.so" DESTINATION lib)
+    install(FILES "${COD_BRO_DXVK_PREBUILT_DIR}/LICENSES/DXVK.txt" DESTINATION LICENSES/bundled)
+    install(FILES "${COD_BRO_DXVK_PREBUILT_DIR}/LICENSES/libdisplay-info.txt" DESTINATION LICENSES/bundled)
+endif()
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/mods/README.txt" DESTINATION mods)
 install(RUNTIME_DEPENDENCY_SET release_libraries
     DESTINATION lib
     DIRECTORIES ${COD_BRO_RELEASE_DEPS}/lib /usr/lib/i386-linux-gnu /usr/lib /lib
@@ -46,6 +56,15 @@ install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 # Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
+# Linux has no icon embedded in an ELF executable: ship the icon and a desktop
+# template, plus a helper that installs an absolute-Exec copy into the user's
+# menu. The unpacked archive is relocatable, so a system share/applications
+# entry with a relative Exec path would be broken.
+configure_file("${PROJECT_SOURCE_DIR}/packaging/cod_bro.desktop.in"
+               "${CMAKE_BINARY_DIR}/cod_bro.desktop" @ONLY)
+install(FILES "${CMAKE_BINARY_DIR}/cod_bro.desktop" DESTINATION .)
+install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/cod_bro.png" DESTINATION .)
+install(PROGRAMS "${PROJECT_SOURCE_DIR}/packaging/install-linux-icon.sh" DESTINATION .)
 
 # Oldest glibc that runs the release: the newest GLIBC_ symbol version the shipped
 # binaries use, found after install (see release_glibc.cmake). The README gets it
@@ -62,7 +81,7 @@ FetchContent_GetProperties(imgui SOURCE_DIR imgui_source_dir)
 install(FILES "${imgui_source_dir}/LICENSE.txt" DESTINATION LICENSES/bundled RENAME Dear-ImGui.txt)
 FetchContent_GetProperties(stb SOURCE_DIR stb_source_dir)
 install(FILES "${stb_source_dir}/LICENSE" DESTINATION LICENSES/bundled RENAME stb.txt)
-set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
+set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype, stb_image and stb_image_write (built into the loader's Modding window)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nDXVK 2.7.1 (prebuilt 32-bit dxvk-native, lib/libdxvk_d3d9.so.0) and libdisplay-info\n  license: LICENSES/bundled/DXVK.txt, LICENSES/bundled/libdisplay-info.txt\n  source:  https://github.com/doitsujin/dxvk (official Steam Runtime sniper build)\nDiscord Rich Presence: the loader/launcher speak Discord's local IPC themselves; no library.\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
 if(COD_BRO_RELEASE_DEPS)
     file(GLOB dep_licenses "${COD_BRO_RELEASE_DEPS}/licenses/*.txt")
     list(FILTER dep_licenses EXCLUDE REGEX "/BUNDLED\\.txt$")
@@ -71,19 +90,15 @@ if(COD_BRO_RELEASE_DEPS)
     file(WRITE "${CMAKE_BINARY_DIR}/BUNDLED.txt" "${bundled_text}${imgui_note}")
 else()
     # package|file name|title|license file|source
+    # package|name|title|license file|source (package empty: these ship in the tree)
     set(bundled_licenses
-        "SDL3|SDL3|SDL3|/usr/share/licenses/SDL3/LICENSE.txt|https://github.com/libsdl-org/SDL"
-        "dxvk-native|DXVK|DXVK (dxvk-native)|/usr/share/licenses/dxvk-native/LICENSE|https://github.com/doitsujin/dxvk"
-        "openal-soft|OpenAL-Soft|OpenAL Soft|/usr/share/licenses/openal-soft/COPYING|https://github.com/kcat/openal-soft"
-        "openal-soft|OpenAL-Soft-BSD-3-Clause|OpenAL Soft, BSD-3-Clause parts|/usr/share/licenses/openal-soft/BSD-3Clause|"
-        "openal-soft|OpenAL-Soft-pffft|OpenAL Soft, pffft|/usr/share/licenses/openal-soft/LICENSE-pffft|"
-        "fmt|fmt|fmt|/usr/share/licenses/fmt/LICENSE|https://github.com/fmtlib/fmt"
-        "libdisplay-info|libdisplay-info|libdisplay-info|/usr/share/licenses/libdisplay-info/LICENSE|https://gitlab.freedesktop.org/emersion/libdisplay-info"
-        "libstdc++|GCC-runtime-GPL-3.0|GCC runtime (libstdc++, libgcc_s): GPL-3.0|/usr/share/licenses/libgcc/COPYING3|https://gcc.gnu.org"
-        "libstdc++|GCC-runtime-exception|GCC runtime (libstdc++, libgcc_s): runtime library exception|/usr/share/licenses/libgcc/COPYING.RUNTIME|")
-    set(bundled_text "Libraries bundled in lib/ (and Dear ImGui, built into cod_bro_launcher and cod_bro_loader).\n")
-    string(APPEND bundled_text "Versions are the Fedora packages the release was built with; their sources\n")
-    string(APPEND bundled_text "are at the upstream links and https://src.fedoraproject.org/rpms/<package>.\n")
+        "|SDL3|SDL3 3.2.10 (system/shared library)|${PROJECT_SOURCE_DIR}/LICENSES/SDL3-zlib.txt|https://github.com/libsdl-org/SDL"
+        "|OpenAL-Soft|OpenAL Soft (LGPL-2.1-or-later, replaceable)|${PROJECT_SOURCE_DIR}/LICENSES/OpenAL-Soft-LGPL.txt|https://github.com/kcat/openal-soft"
+        "|DXVK|DXVK 2.7.1 (prebuilt 32-bit dxvk-native)|${COD_BRO_DXVK_PREBUILT_DIR}/LICENSES/DXVK.txt|https://github.com/doitsujin/dxvk"
+        "|libdisplay-info|libdisplay-info (built into DXVK)|${COD_BRO_DXVK_PREBUILT_DIR}/LICENSES/libdisplay-info.txt|https://gitlab.freedesktop.org/emersion/libdisplay-info"
+        "|stb-modding|stb_image / stb_image_write (Modding window)|${PROJECT_SOURCE_DIR}/modding/stb/LICENSE|https://github.com/nothings/stb")
+    set(bundled_text "Components bundled in this release (libraries in lib/, Dear ImGui, DXVK, stb).\n")
+    string(APPEND bundled_text "DXVK is shipped as an official prebuilt binary; it is not compiled from source.\n")
     string(APPEND bundled_text "OpenAL Soft is LGPL: lib/libopenal.so.1 can be replaced with any compatible build.\n\n")
     foreach(entry ${bundled_licenses})
         string(REPLACE "|" ";" fields "${entry}")

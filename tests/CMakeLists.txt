@@ -18,6 +18,13 @@ add_executable(update_check_test update_check_test.cpp)
 target_link_libraries(update_check_test PRIVATE launcher_update)
 add_test(NAME update_check_test COMMAND update_check_test)
 
+# F4 -> Animations: scan, Extract and Replace on a synthetic KAPF game dump.
+add_executable(animation_test animation_test.cpp)
+target_include_directories(animation_test PRIVATE ${PROJECT_SOURCE_DIR}/modding)
+target_link_libraries(animation_test PRIVATE modding)
+add_test(NAME animation_test COMMAND animation_test)
+set_tests_properties(animation_test PROPERTIES TIMEOUT 60)
+
 # Keyboard and mouse bindings (input/bindings.h).
 add_executable(bindings_test bindings_test.cpp)
 target_link_libraries(bindings_test PRIVATE input_bindings SDL3::SDL3)

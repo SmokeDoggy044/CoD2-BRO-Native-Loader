@@ -1,6 +1,7 @@
 #include "paths.h"
 
 #include <cstdlib>
+#include <string>
 #include <system_error>
 
 #include "log.h"
@@ -23,6 +24,12 @@ bool has_assets(const fs::path& dir) {
         if (entry.path().filename() != "README.md") return true;
     }
     return false;
+}
+
+std::string lowercase(std::string text) {
+    for (char& c : text)
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    return text;
 }
 
 }  // namespace
@@ -54,6 +61,35 @@ fs::path default_asset_dir() { return executable_dir() / "assets"; }
 bool has_game_files(const fs::path& dir) {
     std::error_code ec;
     return fs::is_regular_file(dir / "default.xbe", ec) && fs::is_directory(dir / "media", ec);
+}
+
+std::optional<fs::path> asset_override_path(const fs::path& relative) {
+    const fs::path root = user_data_dir() / "mods" / "overrides";
+    std::error_code ec;
+    if (!fs::is_directory(root, ec) || relative.empty()) return std::nullopt;
+    fs::path current = root;
+    for (const auto& component : relative) {
+        const std::string name = component.generic_string();
+        if (name.empty() || name == "." || name == ".." || name == "/") continue;
+        const fs::path exact = current / component;
+        if (fs::exists(fs::symlink_status(exact, ec))) {
+            current = exact;
+            continue;
+        }
+        const std::string lower = lowercase(name);
+        bool found = false;
+        for (fs::directory_iterator it(current, ec), end; it != end; it.increment(ec)) {
+            if (ec) { ec.clear(); break; }
+            if (lowercase(it->path().filename().generic_string()) == lower) {
+                current = it->path();
+                found = true;
+                break;
+            }
+        }
+        if (!found) return std::nullopt;
+    }
+    if (fs::is_regular_file(current, ec)) return current;
+    return std::nullopt;
 }
 
 std::optional<fs::path> resolve_asset_root(const std::optional<fs::path>& cli_override) {

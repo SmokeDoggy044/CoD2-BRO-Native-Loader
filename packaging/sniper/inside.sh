@@ -6,7 +6,7 @@
 #                D-Bus... directly; SDL's own build loads them at run time (the
 #                player's system copies), so only SDL itself is bundled
 #   OpenAL Soft  from source (sniper has 1.19; the port needs 1.22+)
-#   DXVK         from source (dxvk-native, d3d9 only; libdisplay-info built in)
+#   DXVK         prebuilt (dxvk-native d3d9 from DXVK's official sniper build)
 #
 # C++ is linked with a static libstdc++ (GCC 14's is newer than the system's).
 # Everything is built with -mstackrealign: title threads call into these libraries
@@ -71,39 +71,27 @@ fi
 cp "$src/openal-soft-$OPENAL_VERSION"/fmt-*/LICENSE "$licenses/fmt.txt"
 
 # --- DXVK (native, d3d9) ---------------------------------------------------------
-if [ ! -f "$deps/.dxvk-$DXVK_VERSION-$recipe" ]; then
-    fetch dxvk-$DXVK_VERSION https://github.com/doitsujin/dxvk.git v$DXVK_VERSION
-    cat > "$root/dxvk-cross.txt" <<'EOF'
-[binaries]
-c = 'gcc-14'
-cpp = 'g++-14'
-ar = 'ar'
-strip = 'strip'
-pkgconfig = 'i686-linux-gnu-pkg-config'
-
-[built-in options]
-c_args = ['-m32', '-mstackrealign']
-cpp_args = ['-m32', '-mstackrealign']
-c_link_args = ['-m32', '-static-libgcc']
-cpp_link_args = ['-m32', '-static-libstdc++', '-static-libgcc']
-
-[host_machine]
-system = 'linux'
-cpu_family = 'x86'
-cpu = 'i686'
-endian = 'little'
+# Prebuilt: DXVK's official Steam Runtime sniper build of the 32-bit dxvk-native
+# d3d9 library (staged by packaging/dxvk/fetch-prebuilt.sh). Nothing is
+# compiled from source here; the official binaries are already built with
+# -mstackrealign for the title's 4-byte stacks.
+prebuilt=${COD_BRO_DXVK_DIR:-/port/dxvk/prebuilt}
+test -f "$prebuilt/linux/lib/libdxvk_d3d9.so.0" || { echo "missing prebuilt DXVK" >&2; exit 1; }
+mkdir -p "$deps/lib" "$deps/include" "$deps/lib/pkgconfig"
+cp -f "$prebuilt/linux/lib/libdxvk_d3d9.so" "$prebuilt/linux/lib/libdxvk_d3d9.so.0" "$deps/lib/"
+cp -rf "$prebuilt/linux/include/dxvk" "$deps/include/"
+cat > "$deps/lib/pkgconfig/dxvk-d3d9.pc" <<EOF
+prefix=$deps
+includedir=\${prefix}/include/dxvk
+libdir=\${prefix}/lib
+Name: dxvk-d3d9
+Description: DXVK 2.7.1 native D3D9 (prebuilt)
+Version: $DXVK_VERSION
+Libs: -L\${libdir} -ldxvk_d3d9
+Cflags: -I\${includedir}
 EOF
-    rm -rf "$root/dxvk-build"
-    meson setup "$root/dxvk-build" "$src/dxvk-$DXVK_VERSION" \
-        --cross-file "$root/dxvk-cross.txt" --buildtype release --strip \
-        --prefix "$deps" --libdir lib \
-        -Denable_d3d9=true -Denable_d3d8=false -Denable_d3d10=false -Denable_d3d11=false -Denable_dxgi=false
-    ninja -C "$root/dxvk-build" -j "$jobs"
-    ninja -C "$root/dxvk-build" install
-    cp "$src/dxvk-$DXVK_VERSION/LICENSE" "$licenses/DXVK.txt"
-    cp "$src/dxvk-$DXVK_VERSION/subprojects/libdisplay-info/LICENSE" "$licenses/libdisplay-info.txt"
-    touch "$deps/.dxvk-$DXVK_VERSION-$recipe"
-fi
+cp "$prebuilt/LICENSES/DXVK.txt" "$licenses/DXVK.txt"
+cp "$prebuilt/LICENSES/libdisplay-info.txt" "$licenses/libdisplay-info.txt"
 
 cat > "$licenses/BUNDLED.txt" <<EOF
 Libraries bundled in lib/ (and Dear ImGui, built into cod_bro_launcher). Built in

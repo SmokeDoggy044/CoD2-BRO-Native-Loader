@@ -203,10 +203,12 @@ gfx_d3d9.cpp), on the current path's device and targets so converted and unconve
 clean. Also fixed: the Windows build's link clash of the decompiled MatrixMultiply with SDL3's (the C is now
 MatrixMultiply3x3). Full ctest not run on it.
 
-**R3 done 2026-10-30: the title's 126 shader programs are HLSL of our own** (render/shaders, tools/shader_hlsl.py from a
-`--dump-shaders` run), compiled with vkd3d-compiler at build time; tests/title_shader_test: all 126 draw the same pixels as
-the Xbox path's translation. Details in [own-renderer.md](own-renderer.md). Next: R4, the renderer C onto GfxDevice one
-draw path at a time (text and quads first), screenshot diffs against the current path.
+**R3 done 2026-10-30: the title's shader programs are HLSL of our own** (render/shaders, tools/shader_hlsl.py from a
+`--dump-shaders` run). Since 0.2.2 the 166 SM3 bytecode files are prebuilt in render/shaders/prebuilt/ (plus three in
+render/post/prebuilt/), so a release needs no HLSL compiler; [shader-prebuilt.md](shader-prebuilt.md) has the regeneration
+recipe. tests/title_shader_test compared the original 126 against the Xbox path's translation. Details in
+[own-renderer.md](own-renderer.md). Next: R4, the renderer C onto GfxDevice one draw path at a time (text and quads first),
+screenshot diffs against the current path.
 
 **R4a done 2026-10-30: the renderer C records its state in our own terms** (game/code/ngl_gfx.cpp, `game::xb` wrappers
 around the 160 state-setting Xbox calls); `XB_GFX_VERIFY=1` finds no difference from the Xbox path's state in missions
@@ -2062,7 +2064,10 @@ Next candidates:
     boxes on startup failures, crashes and uncaught C++ exceptions. Untested:
     non-ASCII paths (narrow strings use the ANSI code page).
   - Mission 6+ playtests; death/mission-failed screens and dialogs in widescreen.
-  - Launcher: a .desktop file / icon for Linux desktops.
+  - ~~Launcher: a .desktop file / icon for Linux desktops.~~ Done (0.2.2): the
+    supplied icon is embedded in Windows PE resources and baked into
+    `platform/window_icon.cpp` for SDL windows on both platforms; Linux releases
+    ship `cod_bro.png`, a `.desktop` template and `install-linux-icon.sh`.
 - Mission 6 (Gela) slowdown (2026-10-17): ~20 fps for ~13 s in the opening
   landing-craft cutscene, only in the Debug build (`linux-loader`, -O0) that the
   playtests used: the title's render thread was CPU-bound in our unoptimized draw
@@ -2122,7 +2127,8 @@ Next candidates:
   and starts the game; the game starts it when it finds no game files.
 - Release (2026-10-16): `packaging/sniper/build.sh` (README, Releasing) builds
   cod_bro-0.1.0-linux.tar.gz in the Steam Runtime sniper SDK: glibc 2.30+, bundles
-  SDL3/OpenAL Soft/DXVK built from source. Checked: starts on bare 32-bit Debian
+  SDL3/OpenAL Soft built from source and, since 0.2.2, the official prebuilt
+  DXVK 2.7.1 binary. Checked: starts on bare 32-bit Debian
   11; plays on Fedora with its own libraries (mission 1, same frames as the dev
   build). Sound confirmed by the user.
 - Missions 1-5 played through or started clean under `--diag` (see

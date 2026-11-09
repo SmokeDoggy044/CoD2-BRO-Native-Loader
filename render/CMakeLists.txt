@@ -26,12 +26,36 @@ add_library(render STATIC
 )
 target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# The title's shaders as HLSL of our own (shaders/*.hlsl, tools/shader_hlsl.py), compiled with
-# vkd3d-shader (Fedora: vkd3d-compiler) and embedded (title_shaders.h).
+# The title's shaders are HLSL of our own (shaders/*.hlsl, tools/shader_hlsl.py).
+# shaders/prebuilt/ holds their SM3 bytecode, already compiled with vkd3d-shader's
+# HLSL front end. Shipping the bytecode means a build needs no HLSL compiler at all
+# (Debian's vkd3d-compiler 1.2, for example, has no HLSL support). If a prebuilt
+# file is missing we fall back to compiling that HLSL with vkd3d-compiler.
 find_program(VKD3D_COMPILER vkd3d-compiler)
-if(NOT VKD3D_COMPILER)
-    message(FATAL_ERROR "vkd3d-compiler not found (Fedora: dnf install vkd3d-compiler; Debian/Ubuntu: vkd3d-compiler)")
-endif()
+
+function(cod_bro_shader name hlsl profile prebuilt_dir work_dir out_dir extra_dep)
+    set(binary "${CMAKE_CURRENT_BINARY_DIR}/${out_dir}/${name}.d3dbc")
+    set(prebuilt "${CMAKE_CURRENT_SOURCE_DIR}/${prebuilt_dir}/${name}.d3dbc")
+    if(EXISTS "${prebuilt}")
+        add_custom_command(OUTPUT ${binary}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${out_dir}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${prebuilt}" "${binary}"
+            DEPENDS "${prebuilt}"
+            VERBATIM)
+    else()
+        if(NOT VKD3D_COMPILER)
+            message(FATAL_ERROR "No prebuilt shader ${prebuilt} and no vkd3d-compiler with HLSL support")
+        endif()
+        add_custom_command(OUTPUT ${binary}
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${out_dir}"
+            COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
+            DEPENDS ${hlsl} ${extra_dep}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${work_dir}
+            VERBATIM)
+    endif()
+    set(COD_BRO_SHADER_BINARY "${binary}" PARENT_SCOPE)
+endfunction()
+
 file(GLOB title_shader_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.hlsl)
 set(title_shader_binaries "")
 foreach(hlsl ${title_shader_sources})
@@ -41,20 +65,18 @@ foreach(hlsl ${title_shader_sources})
     else()
         set(profile ps_3_0)
     endif()
-    set(binary ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.d3dbc)
-    add_custom_command(OUTPUT ${binary}
-                       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
-                       COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
-                       DEPENDS ${hlsl} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/nv2a.hlsli
-                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/shaders  # for #include
-                       VERBATIM)
-    list(APPEND title_shader_binaries ${binary})
+    cod_bro_shader(${name} ${hlsl} ${profile} shaders/prebuilt shaders shaders
+                   ${CMAKE_CURRENT_SOURCE_DIR}/shaders/nv2a.hlsli)
+    list(APPEND title_shader_binaries ${COD_BRO_SHADER_BINARY})
 endforeach()
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
                    COMMAND ${CMAKE_COMMAND} -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
                            "-DINPUTS=${title_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    DEPENDS ${title_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    VERBATIM)
+# The embedded shader table is a large array of byte literals; -O3 on that one
+# file costs a lot of memory on 32-bit hosts and gains nothing.
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp PROPERTIES COMPILE_OPTIONS "-O1")
 target_link_libraries(render PUBLIC xbox platform imgui_dx9 texture_formats)
 
 # D3D9 from DXVK (dxvk-native) on Linux. Fedora: dxvk-native-devel, plus its .i686
@@ -64,9 +86,8 @@ target_link_libraries(render PUBLIC xbox platform imgui_dx9 texture_formats)
 if(WIN32)
     target_link_libraries(render PRIVATE SDL3::SDL3)
 else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DXVK_D3D9 REQUIRED IMPORTED_TARGET dxvk-d3d9)
-    target_link_libraries(render PRIVATE SDL3::SDL3 PkgConfig::DXVK_D3D9)
+    # DXVK is prebuilt (cmake/dxvk_prebuilt.cmake): no meson/glslang build here.
+    target_link_libraries(render PRIVATE SDL3::SDL3 cod_bro_dxvk)
 endif()
 
 # The post passes (enhanced graphics: post/*.hlsl; vs_3_0 for post_vs, ps_3_0 for the rest).
@@ -79,14 +100,8 @@ foreach(hlsl ${post_shader_sources})
     else()
         set(profile ps_3_0)
     endif()
-    set(binary ${CMAKE_CURRENT_BINARY_DIR}/post/${name}.d3dbc)
-    add_custom_command(OUTPUT ${binary}
-                       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/post
-                       COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
-                       DEPENDS ${hlsl}
-                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/post
-                       VERBATIM)
-    list(APPEND post_shader_binaries ${binary})
+    cod_bro_shader(${name} ${hlsl} ${profile} post/prebuilt post post "")
+    list(APPEND post_shader_binaries ${COD_BRO_SHADER_BINARY})
 endforeach()
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
                    COMMAND ${CMAKE_COMMAND} -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp

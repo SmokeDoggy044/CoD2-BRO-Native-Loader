@@ -28,4 +28,10 @@ bool has_game_files(const std::filesystem::path& dir);
 // Windows. Never inside the assets, which are read-only like the disc.
 std::filesystem::path user_data_dir();
 
+// A modded copy of a read-only game file: <user data>/mods/overrides/<relative
+// path under the disc root>. The Modding window's Audio -> Replace writes these;
+// the Xbox file system opens them in place of the originals. Nullopt when there is
+// no override (the common case). Matching is case-insensitive per component.
+std::optional<std::filesystem::path> asset_override_path(const std::filesystem::path& relative);
+
 }  // namespace platform

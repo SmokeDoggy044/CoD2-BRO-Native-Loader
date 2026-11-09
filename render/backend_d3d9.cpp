@@ -29,6 +29,7 @@
 #include "gfx_d3d9.h"
 #include "log.h"
 #include "paths.h"
+#include "window_icon.h"
 
 namespace render {
 
@@ -134,6 +135,7 @@ public:
             LOG_ERROR("render", "window: %s", SDL_GetError());
             return false;
         }
+        platform::set_window_icon(window_);
         if (config.fullscreen) {
             SDL_SetWindowFullscreen(window_, true);  // borderless, at the desktop's mode
             SDL_SyncWindow(window_);
@@ -222,6 +224,8 @@ public:
         notice_ = std::make_unique<D3D9Overlay>(device_);
         pc_menu_ = config.pc_menu;
         pc_menu_shown_ = config.pc_menu_shown;
+        modding_menu_ = config.modding_menu;
+        modding_menu_shown_ = config.modding_menu_shown;
         menu_font_ = config.menu_font;
         LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u",
                  config.width, config.height, static_cast<double>(draw_config.render_scale_x()),
@@ -406,7 +410,7 @@ public:
             const int scale = std::max(1, static_cast<int>(area_height) / 320);
             notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(area_height) * 7 / 10,
                           scale, static_cast<int>(area_width));
-            if (menu_open_) draw_menu(swap_chain);
+            if (menu_open_ || modding_open_) draw_menu(swap_chain);
             swap_chain->Release();
         }
         device_->Present(&area, nullptr, nullptr, nullptr);
@@ -508,12 +512,23 @@ public:
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return false;
-            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && pc_menu_ &&
-                (event.key.scancode == SDL_SCANCODE_GRAVE || (menu_open_ && event.key.scancode == SDL_SCANCODE_ESCAPE))) {
-                set_menu_open(!menu_open_);
-                continue;
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat) {
+                // F4 is the Modding window's key (the PC settings menu keeps ` ~).
+                if (modding_menu_ && event.key.scancode == SDL_SCANCODE_F4) {
+                    set_modding_open(!modding_open_);
+                    continue;
+                }
+                if (pc_menu_ && event.key.scancode == SDL_SCANCODE_GRAVE) {
+                    set_menu_open(!menu_open_);
+                    continue;
+                }
+                if (event.key.scancode == SDL_SCANCODE_ESCAPE && (menu_open_ || modding_open_)) {
+                    if (modding_open_) set_modding_open(false);
+                    if (menu_open_) set_menu_open(false);
+                    continue;
+                }
             }
-            if (menu_open_) ImGui_ImplSDL3_ProcessEvent(&event);
+            if (menu_open_ || modding_open_) ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12 && !event.key.repeat)
                 mark_requested_ = true;
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
@@ -574,26 +589,48 @@ private:
         ImGui::GetStyle().ScaleAllSizes(size / 16.0f);
         // InitForD3D asserts outside Windows (DXVK is D3D9 there too); both only set up SDL input.
         if (!ImGui_ImplSDL3_InitForOther(window_) || !ImGui_ImplDX9_Init(device_)) {
-            LOG_ERROR("render", "the PC menu cannot start (Dear ImGui)");
+            LOG_ERROR("render", "the PC/Modding menus cannot start (Dear ImGui)");
             ImGui::DestroyContext();
             pc_menu_ = nullptr;
+            modding_menu_ = nullptr;
             return false;
         }
         menu_ready_ = true;
         return true;
     }
 
-    void set_menu_open(bool open) {
-        if (open == menu_open_ || (open && !menu_ready_ && !init_menu())) return;
-        menu_open_ = open;
-        if (pc_menu_shown_) pc_menu_shown_(open);  // the game's input first, so it does not take the mouse
-        if (open) {
+    bool any_menu_open() const { return menu_open_ || modding_open_; }
+
+    // Input blocking and mouse capture belong to "any ImGui window is open", not to
+    // one window: closing the PC menu must not give the title its input back while
+    // the Modding window is still up (and pc_menu_shown(false) saves settings).
+    void sync_menu_state(bool before, bool after) {
+        if (before == after) return;
+        if (pc_menu_shown_) pc_menu_shown_(after);  // the game's input first, so it does not take the mouse
+        if (after) {
             menu_recapture_ = SDL_GetWindowRelativeMouseMode(window_);
             SDL_SetWindowRelativeMouseMode(window_, false);
         } else if (menu_recapture_) {
             SDL_SetWindowRelativeMouseMode(window_, true);
+            menu_recapture_ = false;
         }
+    }
+
+    void set_menu_open(bool open) {
+        if (open == menu_open_ || (open && !menu_ready_ && !init_menu())) return;
+        const bool before = any_menu_open();
+        menu_open_ = open;
+        sync_menu_state(before, any_menu_open());
         LOG_INFO("render", "PC menu %s", open ? "opened" : "closed");
+    }
+
+    void set_modding_open(bool open) {
+        if (open == modding_open_ || (open && !menu_ready_ && !init_menu())) return;
+        const bool before = any_menu_open();
+        modding_open_ = open;
+        if (modding_menu_shown_) modding_menu_shown_(open);
+        sync_menu_state(before, any_menu_open());
+        LOG_INFO("render", "Modding menu %s (F4)", open ? "opened" : "closed");
     }
 
     // Draws the menu on `target` (the swap chain's back buffer), at the window's size.
@@ -601,7 +638,9 @@ private:
         ImGui_ImplDX9_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        const bool keep = pc_menu_();
+        bool keep_pc = true, keep_modding = true;
+        if (menu_open_ && pc_menu_) keep_pc = pc_menu_();
+        if (modding_open_ && modding_menu_) keep_modding = modding_menu_();
         ImGui::Render();
         IDirect3DSurface9 *old_target = nullptr, *old_depth = nullptr;
         device_->GetRenderTarget(0, &old_target);
@@ -615,7 +654,8 @@ private:
         device_->SetDepthStencilSurface(old_depth);
         release(old_target);
         release(old_depth);
-        if (!keep) set_menu_open(false);
+        if (!keep_pc && menu_open_) set_menu_open(false);
+        if (!keep_modding && modding_open_) set_modding_open(false);
     }
 
     // Copies the title's back buffer to `dest` through the gamma ramp. False (the
@@ -739,10 +779,13 @@ private:
     bool closed_ = false;
     bool (*pc_menu_)() = nullptr;               // BackendConfig::pc_menu
     void (*pc_menu_shown_)(bool) = nullptr;      // BackendConfig::pc_menu_shown
+    bool (*modding_menu_)() = nullptr;           // BackendConfig::modding_menu
+    void (*modding_menu_shown_)(bool) = nullptr; // BackendConfig::modding_menu_shown
     std::string menu_font_;
     bool menu_ready_ = false;      // Dear ImGui is set up
     bool menu_open_ = false;
-    bool menu_recapture_ = false;  // the mouse was captured when the menu opened
+    bool modding_open_ = false;    // the F4 window
+    bool menu_recapture_ = false;  // the mouse was captured when a menu opened
     std::unique_ptr<D3D9Overlay> overlay_;
     std::vector<std::string> overlay_lines_;
     std::unique_ptr<D3D9Overlay> notice_;  // its own, so neither redraws its text every frame

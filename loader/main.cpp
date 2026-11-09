@@ -2,7 +2,9 @@
 // Windows), with the Xbox kernel and the SDK libraries replaced by our own code.
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -21,6 +23,9 @@
 #include "bindings.h"
 #include "compare.h"
 #include "crash.h"
+#include "display_backends.h"
+#include "modding.h"
+#include "rich_presence.h"
 #include "diag_summary.h"
 #include "functions.h"
 #include "gfx_device.h"
@@ -104,6 +109,7 @@ struct Options {
     std::string exec_text;       // --exec
     std::vector<loader::TitlePatchConfig::ForcedCall> forced_calls;  // --force
     bool multiplayer = false;    // start codmp_xboxf.xbe
+    bool discord_rpc = true;     // --discord-rpc on|off (settings.ini: discord-rpc)
     bool compare = false;        // test decompiled functions against the originals
     bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
@@ -124,6 +130,43 @@ fs::path g_xbe;  // the running XBE
 std::optional<fs::path> g_diag_dir;
 fs::path g_log_path;           // this run's log file
 bool g_tell_player = false;    // error boxes (not in scripted runs)
+
+// Discord presence: the map the client has loaded, without the campaign's
+// mission number. The title keeps "maps/<map>.bsp" at cl.mapname (0x009616b8,
+// game/code/cl.cpp); reading it is safe once the Xbox memory is mapped
+// (kernel_init below).
+std::string current_map_name() {
+    constexpr uintptr_t kClMapname = 0x009616b8;
+    const auto* text = reinterpret_cast<const volatile char*>(kClMapname);
+    std::string map;
+    for (size_t i = 0; i < 0x80; ++i) {
+        const char c = text[i];
+        if (!c) break;
+        if (!std::isprint(static_cast<unsigned char>(c))) return {};
+        map += c;
+    }
+    if (map.rfind("maps/", 0) == 0) map.erase(0, 5);
+    if (map.size() > 4 && map.compare(map.size() - 4, 4, ".bsp") == 0) map.resize(map.size() - 4);
+    if (map.empty() || map == "maps/" || map.size() > 64) return {};
+    return map;
+}
+
+discord::Status game_presence(bool multiplayer) {
+    discord::Status status;
+    status.details = "Playing Call of Duty 2: Big Red One";
+    const std::string map = current_map_name();
+    const int32_t level = loader::campaign_level();
+    // Discord's second line is state + " - " + context. Keep context empty so
+    // a loaded map is shown on its own, with no "Mission N" prefix or suffix.
+    if (multiplayer) {
+        status.state = map.empty() ? "Multiplayer - System Link" : map;
+    } else if (!map.empty() || level >= 0) {
+        status.state = map.empty() ? "Single-player campaign" : map;
+    } else {
+        status.state = "In the menus";
+    }
+    return status;
+}
 
 // What went wrong, for a player without a console (a message box on Windows).
 void tell_player(const std::string& what) {
@@ -234,6 +277,7 @@ void print_usage(const char* program) {
         "                   port's changes were not all found in it (testing: expect crashes)\n"
         "  --write-signatures FILE  write the supported XBE's function signatures, for\n"
         "                   finding its addresses in other releases (tools/data), and exit\n"
+        "  --discord-rpc on|off  show Discord Rich Presence (default on; also in settings.ini)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
         "  --exec \"CMDS\"    console commands/cvars, e.g. \"r_showtris 1; god\", run once the\n"
         "                   level is active (testing; first boot only)\n"
@@ -562,6 +606,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.pc_patches = value == "on";
+        } else if (arg == "--discord-rpc") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--discord-rpc needs on or off\n");
+                return std::nullopt;
+            }
+            options.discord_rpc = value == "on";
         } else if (arg == "--debug") {
             options.log_level = platform::LogLevel::Debug;
         } else if (arg == "--trace") {
@@ -690,6 +741,7 @@ bool start_launcher_for_assets(int argc, char** argv) {
 }  // namespace
 
 int loader_main(int argc, char** argv) {
+    platform::prefer_display_backends();  // X11 and Wayland are both linked: pick the session's
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
     // player chose in the launcher.
@@ -784,6 +836,8 @@ int loader_main(int argc, char** argv) {
         return 1;
     }
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
+    modding::configure(*assets);  // F4 Modding: PNG/WAV + hands/weapon/animation export and replacement
+    std::atexit([] { modding::shutdown(); });
 
     static loader::XbeImage image;
     const fs::path xbe = options->xbe.value_or(*assets / (options->multiplayer ? "codmp_xboxf.xbe" : "default.xbe"));
@@ -858,6 +912,12 @@ int loader_main(int argc, char** argv) {
     loader::os::release_reserved_ranges();
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
+    if (options->discord_rpc) {
+        const bool multiplayer = options->multiplayer;
+        if (discord::init(discord::kAppId, "game", [multiplayer] { return game_presence(multiplayer); }))
+            LOG_INFO("loader", "Discord Rich Presence started (app %s)", discord::kAppId);
+        std::atexit([] { discord::shutdown(); });
+    }
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     if (!options->bindings_error.empty())
@@ -905,14 +965,17 @@ int loader_main(int argc, char** argv) {
         options->sharp_text && text::prepare_sharp_text(*assets, platform::executable_dir() / "fonts") > 0;
     const bool key_prompts = options->button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller &&
                              text::prepare_key_prompts(*assets, platform::executable_dir() / "fonts") > 0;
-    if (sharp_text || key_prompts)
-        d3d_config.backend.replace_texture = [sharp_text, key_prompts](uint64_t content, float render_scale) {
-            std::shared_ptr<const render::TextureReplacement> replacement;
-            if (key_prompts) replacement = text::key_prompt_replacement(content, render_scale);
-            if (!replacement && sharp_text) replacement = text::sharp_text_replacement(content, render_scale);
-            return replacement;
-        };
-    if (key_prompts) d3d_config.backend.replacement_version = &text::key_prompt_version;
+    // Player PNG mods first: they are looked up by the same content hash the
+    // sharper-font/button-icon replacements use. Then the built-in PC features.
+    d3d_config.backend.replace_texture = [sharp_text, key_prompts](uint64_t content, float render_scale) {
+        std::shared_ptr<const render::TextureReplacement> replacement = modding::texture_replacement(content, render_scale);
+        if (!replacement && key_prompts) replacement = text::key_prompt_replacement(content, render_scale);
+        if (!replacement && sharp_text) replacement = text::sharp_text_replacement(content, render_scale);
+        return replacement;
+    };
+    d3d_config.backend.replacement_version = [key_prompts](uint64_t content) {
+        return (key_prompts ? text::key_prompt_version(content) : 0u) + modding::texture_version();
+    };
     if (options->widescreen) {
         d3d_config.backend.display_aspect = aspect;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
@@ -920,6 +983,8 @@ int loader_main(int argc, char** argv) {
     }
     d3d_config.backend.pc_menu = &loader::pc_menu;
     d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    d3d_config.backend.modding_menu = &modding::menu;
+    d3d_config.backend.modding_menu_shown = &modding::shown;
     d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks

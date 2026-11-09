@@ -29,6 +29,7 @@
 #include "kernel_internal.h"
 #include "log.h"
 #include "objects.h"
+#include "paths.h"
 #include "types.h"
 
 namespace fs = std::filesystem;
@@ -313,6 +314,17 @@ Resolved resolve(const std::string& name) {
     }
     result.exists = true;
     result.directory = fs::is_directory(result.host, error);
+    // Modding: a patched copy of a disc file (mods/overrides/) wins over the
+    // original. Only asset-like files are checked, and only on the read-only disc
+    // device: saves and the cache drive are never redirected.
+    if (!result.directory && result.device->read_only) {
+        const fs::path relative = result.host.lexically_relative(result.device->root);
+        const std::string extension = lowercase(relative.extension().generic_string());
+        if (extension == ".wbk" || extension == ".wav" || extension == ".cod" || extension == ".dds" ||
+            extension == ".ff") {
+            if (const auto override = platform::asset_override_path(relative)) result.host = *override;
+        }
+    }
     return result;
 }
 

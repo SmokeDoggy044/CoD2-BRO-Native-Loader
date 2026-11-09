@@ -1,0 +1,13 @@
+# Template bundled in the relocatable Linux archive. Run
+# ./install-linux-icon.sh to install a copy with an absolute Exec path in the
+# current user's applications menu.
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Call of Duty 2: Big Red One
+GenericName=Game launcher
+Comment=Native loader for the original Xbox version
+Exec=./cod_bro_launcher
+Icon=cod_bro
+Terminal=false
+Categories=Game;ActionGame;

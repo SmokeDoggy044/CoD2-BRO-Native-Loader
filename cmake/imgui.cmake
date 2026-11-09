@@ -23,7 +23,7 @@ target_link_libraries(imgui_sdlrenderer PUBLIC imgui)
 add_library(imgui_dx9 STATIC ${imgui_SOURCE_DIR}/backends/imgui_impl_dx9.cpp)
 target_link_libraries(imgui_dx9 PUBLIC imgui)
 if(NOT WIN32)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(DXVK_D3D9 REQUIRED IMPORTED_TARGET dxvk-d3d9)
-    target_link_libraries(imgui_dx9 PRIVATE PkgConfig::DXVK_D3D9)
+    # Prebuilt DXVK headers/libraries (cmake/dxvk_prebuilt.cmake), or the system's
+    # dxvk-native via pkg-config.
+    target_link_libraries(imgui_dx9 PRIVATE cod_bro_dxvk)
 endif()
