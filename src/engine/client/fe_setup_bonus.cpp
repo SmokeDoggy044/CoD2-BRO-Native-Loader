@@ -155,7 +155,7 @@ void XB_CDECL FE_SetupBonusConceptsMenu(uint8_t* menu, uint8_t* panel, uint32_t 
     add_items(top, regs, menu, 0x34, kNames, 13);
     // Item i's text BONUS_BONUS_LEVEL_<i+1> (+0x30 with the original's stack buffer: the setter keeps its
     // address), then New_Stamp_<i+1> to +0x48 + i * 4, hidden.
-    auto sprintf = title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901);
+    const auto sprintf = &title_sprintf;
     char* const buffer = reinterpret_cast<char*>(uintptr_t{top + 0x14});
     for (int32_t i = 1; i <= 13; ++i) {
         sprintf(buffer, text_at(0x0082b3b0), i);

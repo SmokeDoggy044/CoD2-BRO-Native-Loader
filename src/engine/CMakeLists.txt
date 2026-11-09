@@ -89,6 +89,7 @@ set(game_code_sources
     client/fe_setup_special.cpp
     client/fe_special.cpp
     shared/functions.cpp
+    shared/title_crt.cpp
     renderer/fx.cpp
     renderer/fx_cmd.cpp
     renderer/fx_load.cpp

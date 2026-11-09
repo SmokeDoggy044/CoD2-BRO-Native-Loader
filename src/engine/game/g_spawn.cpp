@@ -13,6 +13,7 @@
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "g_mover.h"
@@ -397,7 +398,7 @@ void XB_CDECL SP_trigger_use(uint8_t* ent) {
                     1, &title_global<const char>(0x00832d34), index + 0x273);  // __break
             const uint32_t stored = title_global<uint32_t>(0x009656ac + static_cast<uint32_t>(index) * 4);
             char current[0x100];
-            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+            title_strncpy(  // _strncpy
                 current, stored ? reinterpret_cast<const char*>(uintptr_t{stored + 6}) : nullptr, 0xff);
             current[0xff] = 0;
             if (!current[0]) {
@@ -415,7 +416,7 @@ void XB_CDECL SP_trigger_use(uint8_t* ent) {
                 1, &title_global<const char>(0x0083af50), index);  // __break
     }
     const char* arc_text = find_spawn_value(cached_key(0x0098e434, 4, 0x0098e428, 0x0083af48));  // "harc"
-    const int32_t arc = arc_text ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(arc_text) : 0;  // _atol
+    const int32_t arc = arc_text ? title_atol(arc_text) : 0;  // _atol
     const float degrees = platform_x87_int_to_float(arc);
     const float half_arc = static_cast<float>(platform_x87_ld(degrees) * title_global<float>(0x0083eb24) *
                                               title_global<float>(0x0083ed00) / title_global<float>(0x0083eb60));
@@ -1078,7 +1079,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
         const char* const key = pairs[pair * 2];
         const char* const value = pairs[pair * 2 + 1];
         const uint32_t hash = HashStr_Hash(key);
-        const int32_t number = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value);  // _atol
+        const int32_t number = title_atol(value);  // _atol
         const float real = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);         // atof
         int32_t index = -1;
         for (int32_t n = 0; n < title_global<int32_t>(0x0094d4d8); ++n) {  // g_numVehNodes
@@ -1107,7 +1108,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
             title_function<SetName>(field<uint32_t>(import, 0x834))(index, hash, name);
         } else {
             char warning[0x400];
-            title_function<int32_t XB_CDECL(char*, const char*, const char*, const char*)>(0x001ee901)(
+            title_sprintf(
                 warning, reinterpret_cast<const char*>(uintptr_t{0x00833584}), key, value);  // _sprintf
         }
     }
@@ -1401,7 +1402,7 @@ void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent) {
             if (name == nullptr) break;
             if (name[0] == '*') {
                 *reinterpret_cast<uint16_t*>(ent + 6) =
-                    static_cast<uint16_t>(title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(name + 1));  // atol
+                    static_cast<uint16_t>(title_atol(name + 1));  // atol
                 break;
             }
             uint32_t tag;
@@ -1416,7 +1417,7 @@ void XB_STDCALL G_ApplySpawnFields(const uint8_t* spawn, uint8_t* ent) {
                 if (tag != 0x6f6d6273) break;  // "sbmo"
             }
             *reinterpret_cast<uint16_t*>(ent + 6) =
-                static_cast<uint16_t>(title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(name + 7));  // atol
+                static_cast<uint16_t>(title_atol(name + 7));  // atol
             break;
         }
         default: break;

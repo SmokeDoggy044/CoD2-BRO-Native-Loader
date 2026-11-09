@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "title_crt.h"
 #include "replay.h"
 #include "bindings.h"
 #include "compare.h"
@@ -110,6 +111,7 @@ struct Options {
     std::vector<loader::TitlePatchConfig::ForcedCall> forced_calls;  // --force
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
+    bool check_crt = false;      // --check-crt: our CRT vs the title's on a table, then exit
     bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
     std::set<std::string> given;     // options named on the command line or in settings.ini
@@ -224,6 +226,7 @@ void print_usage(const char* program) {
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
+        "  --check-crt          our CRT (src/engine/shared/title_crt.h) against the title's on a table, then exit\n"
         "  --replay-shots N,N.. DIR  with --record/--replay: pictures of those frames to DIR (shot_<n>.bmp)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
         "  --diag DIR [S]   diagnostics while playing: DIR/log.txt, a screenshot every S seconds\n"
@@ -613,6 +616,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.audio_device = argv[++i];
+        } else if (arg == "--check-crt") {
+            options.check_crt = true;
         } else if (arg == "--compare" || arg == "--compare-all") {
             options.compare = true;
             options.compare_all |= arg == "--compare-all";
@@ -1023,7 +1028,17 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;
-    if (options->replay.mode != xbox::replay::Mode::Off) {
+    if (options->check_crt) {
+        // On the title's main thread at its first frame: the title's CRT is initialized by then.
+        d3d_config.frame_presented = [] {
+            std::string report;
+            const int32_t differences = game::check_title_crt(report);
+            if (!report.empty()) LOG_WARN("crt", "\n%s", report.c_str());
+            LOG_INFO("crt", "check: %d difference(s)", differences);
+            std::fflush(nullptr);
+            std::_Exit(differences ? 3 : 0);
+        };
+    } else if (options->replay.mode != xbox::replay::Mode::Off) {
         d3d_config.frame_presented = &xbox::replay::frame;
         if (!options->replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }

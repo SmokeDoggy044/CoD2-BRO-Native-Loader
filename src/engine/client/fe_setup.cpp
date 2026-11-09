@@ -122,7 +122,7 @@ void XB_CDECL FE_SetupDifficultyMenu(uint8_t* menu, uint8_t* panel, uint32_t ent
     // Hide difficulty0..2.
     for (int32_t i = 0; i < 3; ++i) {
         char name[16];
-        title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(name, text_at(0x0082b24c), i);
+        title_sprintf(name, text_at(0x0082b24c), i);
         hide_picture(field<uint8_t*>(menu, 0x34), name);
     }
     static constexpr uint32_t kNames[3] = {0x0082b244, 0x0082b23c, 0x0082b234};  // easy / medium / hard
@@ -149,7 +149,7 @@ void XB_CDECL FE_SetupCreateProfileMenu(uint8_t* menu, uint8_t* panel, uint32_t 
     // The 40 keyboard keys: text%i to +0xe4, shadow%i (picture) to +0x44.
     for (int32_t i = 1; i <= 40; ++i) {
         char name[16];
-        auto sprintf = title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901);
+        const auto sprintf = &title_sprintf;
         sprintf(name, text_at(0x0082b1a8), i);
         field<uint8_t*>(menu, 0xe4 + uint32_t(i - 1) * 4) = Panel_FindText(name, field<uint8_t*>(menu, 0x38));
         sprintf(name, text_at(0x0082b19c), i);
@@ -318,7 +318,7 @@ void XB_CDECL FE_SetupMainMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp
     const int32_t count = special ? 5 : 4;
     for (int32_t i = 0; i < count; ++i) {
         char name[16];
-        title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(name, text_at(0x0082c42c), i + 1);
+        title_sprintf(name, text_at(0x0082c42c), i + 1);
         hide_picture(field<uint8_t*>(menu, 0x38), name);
     }
 }

@@ -15,6 +15,7 @@
 #include "g_script.h"
 #include "g_scr_runtime.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 
@@ -3257,7 +3258,7 @@ void XB_THISCALL Ragdoll_DrawJointDebug(uint8_t* joint, uint32_t mode) {
             color[0] = active ? one : 0.0f;
             color[2] = active ? 0.0f : one;
             char text[76];
-            title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(
+            title_sprintf(
                 text, reinterpret_cast<const char*>(uintptr_t{0x008325b8}), title_acos_degrees(at<float>(cone, 0x10)));
             R_DrawTextWithShadow(color, text, x, 0x1ba, 0.0f, one);
             x += 0x28;

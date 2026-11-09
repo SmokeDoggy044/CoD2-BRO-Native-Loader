@@ -8,6 +8,7 @@
 #include "qcommon.h"
 #include "script_string.h"
 #include "snd.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "fe_bonus.h"
@@ -50,8 +51,8 @@ void set_text(uint8_t* item, uint32_t offset, const char* text) { method<TextMet
 
 uint8_t* menu_item(uint8_t* menu, uint32_t index) { return field<uint8_t**>(menu, 4)[index]; }
 
-int32_t title_sprintf(char* out, uint32_t format, int32_t a, int32_t b = 0) {
-    return title_function<int32_t XB_CDECL(char*, const char*, int32_t, int32_t)>(0x001ee901)(out, text_at(format),
+int32_t sprintf_text(char* out, uint32_t format, int32_t a, int32_t b = 0) {
+    return title_sprintf(out, text_at(format),
                                                                                              a, b);  // _sprintf
 }
 
@@ -185,7 +186,7 @@ void XB_CDECL FE_BonusCESetText(uint8_t* menu) {
     static constexpr int32_t kCounts[6] = {0x26, 0xf, 0xf, 3, 9, 0xb};
     const int32_t index = field<int16_t>(menu, 0x22);
     char text[0x20];
-    title_sprintf(text, 0x0082bb5c, field<int32_t>(menu, 0x130 + uint32_t(index) * 4),
+    sprintf_text(text, 0x0082bb5c, field<int32_t>(menu, 0x130 + uint32_t(index) * 4),
                   uint32_t(index) <= 5 ? kCounts[index] : 0);  // "%i / %i"
     set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
 }
@@ -400,7 +401,7 @@ void XB_CDECL FE_BonusConceptSetText(uint8_t* menu) {
     const int32_t index = field<int16_t>(menu, 0x22);
     const uint32_t count = unlocked_level_word(index + 1);
     char text[0x20];
-    title_sprintf(text, 0x0082bb5c, field<int32_t>(menu, 0x8c + uint32_t(index) * 4), int32_t(count));  // "%i / %i"
+    sprintf_text(text, 0x0082bb5c, field<int32_t>(menu, 0x8c + uint32_t(index) * 4), int32_t(count));  // "%i / %i"
     set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
 }
 
@@ -461,7 +462,7 @@ void XB_CDECL FE_BonusLevelLabel(uint8_t* menu) {
         if (!value) method<FlagMethod>(menu_item(menu, i), 0x20)(menu_item(menu, i), 1);
         if (value > best && best > 0) field<int32_t>(menu, 0x8c + i * 4) = best + 1;
         char text[0x20];
-        title_sprintf(text, 0x0082b3b0, n);  // BONUS_BONUS_LEVEL_%i
+        sprintf_text(text, 0x0082b3b0, n);  // BONUS_BONUS_LEVEL_%i
         set_text(menu_item(menu, i), 0x30, text);
         uint8_t* const item = menu_item(menu, i);
         if (method<uint8_t XB_THISCALL(uint8_t*)>(item, 0x24)(item) == 1)
@@ -654,7 +655,7 @@ PLATFORM_ASM_ENTRY(FE_SetDifficultyPicture_entry,
 void XB_CDECL FE_SetDifficultyPicture(uint8_t* menu, int32_t selection) {
     for (int32_t i = 0; i < 3; ++i) {
         char name[0xc];
-        title_sprintf(name, 0x0082b24c, i);  // difficulty%i
+        sprintf_text(name, 0x0082b24c, i);  // difficulty%i
         uint8_t* const list = field<uint8_t*>(menu, 0x34);
         uint8_t* const picture = Panel_FindPicture(list, name);
         uint8_t** const pictures = field<uint8_t**>(list, 0);
@@ -1363,7 +1364,7 @@ void* XB_CDECL UI_FindLocalizedTexture(const char* name) {
     const uint32_t language = title_global<uint32_t>(0x0095f5dc) - 1;  // g_languageIndex
     const uint32_t prefix = language <= 3 ? kPrefixes[language] : 0x0082dfeb;  // ""
     char text[0x100];
-    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(text, text_at(0x0082d800), text_at(prefix),
+    title_sprintf(text, text_at(0x0082d800), text_at(prefix),
                                                                           name);  // _sprintf "%s%s"
     using HashInit = uint8_t* XB_THISCALL(uint8_t*, const char*);
     alignas(4) uint8_t hash[0x20];
@@ -2531,7 +2532,7 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
                 from, text_at(0x0082d280));  // _strcspn(" -\n\r")
             pos += n;
             const char separator = string[pos];
-            title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(word, from, n);  // _strncpy
+            title_strncpy(word, from, n);  // _strncpy
             word[n] = 0;
             bool newline = false;
             if (separator) {
@@ -2556,7 +2557,7 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
             if (title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x001eeaf0)(
                     word, text_at(0x0082d27c), 2) == 0) {  // _strncmp(word, "\f[", 2): a kind change
                 field<int32_t>(text, 0x18) =
-                    title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(word + 2);  // _atol
+                    title_atol(word + 2);  // _atol
                 for (int32_t k = 0;; ++k) {
                     word[k] = word[k + 4];
                     if (!word[k]) break;

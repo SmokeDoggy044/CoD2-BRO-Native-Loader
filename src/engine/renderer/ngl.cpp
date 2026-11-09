@@ -10,6 +10,7 @@
 #include "shaders.h"
 #include "gfx_device.h"
 #include "ngl_gfx.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
@@ -4473,7 +4474,7 @@ NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t h
     if (!texture) return nullptr;
     std::memset(texture, 0, 0x74);
     char text[0x80];
-    title_function<int XB_CDECL(char*, const char*, uint32_t)>(0x001ee901)(  // _sprintf
+    title_sprintf(  // _sprintf
         text, "created texture %d", title_global<uint32_t>(0x00902e3c)++);
     *reinterpret_cast<uint32_t*>(texture) = 1;
     uint8_t hashed[0x20];
@@ -4831,7 +4832,7 @@ int32_t XB_THISCALL nglTextCursor_NextToken(NglTextCursor* self, char* out, int3
     while (self->cursor - self->begin < self->length && !isspace(*self->cursor)) ++self->cursor;
     int32_t length = static_cast<int32_t>(self->cursor - start);
     if (length >= size - 1) length = size - 1;
-    title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(out, start, length);  // _strncpy
+    title_strncpy(out, start, length);  // _strncpy
     out[length] = 0;
     return length;
 }
@@ -4857,7 +4858,7 @@ bool XB_CDECL nglLoadAnimatedTextureList(NglTexture* texture, const char* text, 
                 int32_t repeat = 1;
                 char number[0x40];
                 if (nglTextCursor_NextToken(&cursor, number, 0x20)) {
-                    const int32_t value = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(number);  // _atol
+                    const int32_t value = title_atol(number);  // _atol
                     repeat = value <= 0 ? 0 : value;
                 }
                 const int32_t total = repeat + count;
@@ -6157,11 +6158,11 @@ uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name) {
     char path[0x400];
     using Sprintf = int32_t XB_CDECL(char*, const char*, ...);
     if (name) {
-        title_function<Sprintf>(0x001ee901)(path, &title_global<char>(0x007be534), name);  // "D:\%s.tga"
+        title_sprintf(path, &title_global<char>(0x007be534), name);  // "D:\%s.tga"
     } else {
         uint32_t& counter = title_global<uint32_t>(0x008a2ec0);
         const uint32_t number = counter++;
-        title_function<Sprintf>(0x001ee901)(path, &title_global<char>(0x007be520), number);  // "D:\savetex%4.4d.tga"
+        title_sprintf(path, &title_global<char>(0x007be520), number);  // "D:\savetex%4.4d.tga"
     }
     return nglWriteTGA(texture, path);
 }
@@ -6172,7 +6173,7 @@ uint8_t XB_CDECL nglSaveScreenshot(const char* name) {
     uint32_t& counter = title_global<uint32_t>(0x00902748);
     const uint32_t number = counter++;
     char* buffer = &title_global<char>(0x00902708);
-    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(buffer, &title_global<char>(0x007bc90c),
+    title_sprintf(buffer, &title_global<char>(0x007bc90c),
                                                                            number);  // "screenshot%4.4d"
     return nglSaveTextureTGA(front, buffer);
 }

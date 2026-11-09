@@ -1,6 +1,7 @@
 #include "bro_scr_brofunc.h"
 
 #include "qcommon.h"
+#include "title_crt.h"
 #include "title_data.h"
 
 namespace game {
@@ -19,7 +20,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BroFunc_Find_c(const char* name, ui
     }
     if (static_cast<uint8_t>(report)) {
         char message[0x80];
-        title_function<int XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+        title_sprintf(
             message, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00832320)), name);  // _sprintf, dropped
     }
     return 0;

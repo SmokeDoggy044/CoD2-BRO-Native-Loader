@@ -26,7 +26,7 @@ uint8_t* copy_text_into(uint8_t* source, uint32_t* local) {
 }
 
 int sprintf_title(char* out, uint32_t format, int32_t value) {
-    return title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(out, text_at(format), value);
+    return title_sprintf(out, text_at(format), value);
 }
 
 constexpr uint32_t kEmpty = 0x0082dfeb;  // ""

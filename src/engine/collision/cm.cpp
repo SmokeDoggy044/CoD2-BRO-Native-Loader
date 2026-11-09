@@ -9,6 +9,7 @@
 #include "r_init.h"
 #include "sv.h"
 #include "tr_main.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -269,7 +270,7 @@ void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
         title_function<void XB_CDECL(uint32_t, const char*)>(0x002938f0)(  // __break
             1, reinterpret_cast<const char*>(uintptr_t{0x00833f64}));  // "CM_LoadMap: NULL name"
     char copy[0x80];
-    title_function<Strncpy>(0x001eed80)(copy, name, 0x7f);
+    title_strncpy(copy, name, 0x7f);
     copy[0x7f] = 0;
     title_global<uint8_t*>(0x00928360) = own_function<CvarGet>(&Cvar_Get)(  // Cvar_Get
         reinterpret_cast<const char*>(uintptr_t{0x00833f58}), reinterpret_cast<const char*>(uintptr_t{0x0082e098}),
@@ -278,7 +279,7 @@ void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
         reinterpret_cast<const char*>(uintptr_t{0x00833f44}), reinterpret_cast<const char*>(uintptr_t{0x0082e058}),
         0x201);  // "cm_playerCurveClip", "1"
     if (client_load) return;
-    title_function<Strncpy>(0x001eed80)(reinterpret_cast<char*>(uintptr_t{0x009355d8}), copy, 0x7f);
+    title_strncpy(reinterpret_cast<char*>(uintptr_t{0x009355d8}), copy, 0x7f);
     title_global<char>(0x00935657) = 0;
 }
 

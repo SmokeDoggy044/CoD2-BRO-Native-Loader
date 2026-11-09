@@ -21,6 +21,7 @@
 #include "qcommon_fs.h"
 #include "pmove.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
@@ -1916,7 +1917,7 @@ void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon) {
     if (!word_at(ent, 0x350)) word_at(ent, 0x350) = 100;
     {
         const char* const value = turret_key(0x40, 0x0098ee28, 0x00836254);  // "damage"
-        field<int32_t>(ent, 0x358) = value ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value) : 0;  // _atol
+        field<int32_t>(ent, 0x358) = value ? title_atol(value) : 0;  // _atol
         if (!value) word_at(ent, 0x358) = word_at(def, 0x5b8);
         if (field<int32_t>(ent, 0x358) < 0) word_at(ent, 0x358) = 0;
     }

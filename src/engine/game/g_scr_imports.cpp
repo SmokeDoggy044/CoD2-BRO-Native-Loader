@@ -2,6 +2,7 @@
 
 #include "title_data.h"
 #include "actor.h"
+#include "g_main.h"
 #include "g_scr_builtins.h"
 #include "g_scr_builtins2.h"
 #include "g_scr_math.h"
@@ -12,6 +13,7 @@
 #include "scr_access.h"
 #include "scr_field.h"
 #include "shaders.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -643,9 +645,9 @@ const ImportSlot kLevelImports[] = {
     {0x00c, own_address(&GScr_SendGameMessageBold)},  // GScr_SendGameMessageBold
     {0x010, own_address(&GScr_Print3D)},  // GScr_Print3D
     {0x014, own_address(&GScr_DebugLine)},  // GScr_DebugLine
-    {0x018, 0x001ee901},  // _sprintf
+    {0x018, own_address(&title_sprintf)},  // _sprintf (our CRT)
     {0x01c, 0x001ef4d0},  // LIBCMT::_strcpy
-    {0x020, 0x001eed80},  // _strncpy
+    {0x020, own_address(&title_strncpy)},  // _strncpy (our CRT)
     {0x034, own_address(&Scr_SaveThreadLocals)},  // Scr_SaveThreadLocals
     {0x038, own_address(&GScr_EmptyStub14)},  // GScr_EmptyStub14
     {0x03c, 0x002fddb0},  // Scr_WaitRecord15
@@ -734,7 +736,7 @@ const ImportSlot kLevelImports[] = {
     {0x300, own_address(&GScr_ChangeLevel)},  // GScr_ChangeLevel
     {0x304, own_address(&GScr_Earthquake)},  // GScr_Earthquake
     {0x308, own_address(&GScr_SetCompassMarkersEnabled)},  // GScr_SetCompassMarkersEnabled
-    {0x30c, 0x002fd890},  // G_SetupVehiclePool_Thunk
+    {0x30c, own_address(&G_SetupVehiclePool)},  // G_SetupVehiclePool_Thunk: a jmp to it
     {0x2d0, own_address(&GScr_SetMissileMaxLifetime)},  // GScr_SetMissileMaxLifetime
     {0x314, own_address(&GScr_RandomTracer)},  // GScr_RandomTracer
     {0x318, own_address(&GScr_MagicBullet_entry)},  // GScr_MagicBullet
@@ -772,7 +774,7 @@ const ImportSlot kLevelImports[] = {
     {0x7e8, own_address(&ScrIface_Alloc)},  // ScrIface_Alloc
     {0x7ec, own_address(&ScrIface_SmallFree)},  // ScrIface_SmallFree
     {0x7f0, 0x001ef6a0},  // memset2
-    {0x8a0, 0x001eeb81},  // _atol
+    {0x8a0, own_address(&title_atol)},  // _atol (our CRT)
     {0x89c, own_address(&ScrIface_atof)},  // ScrIface_atof
     {0x7f4, own_address(&GScr_ReturnFalse509)},  // GScr_ReturnFalse509
     {0x7f8, own_address(&GScr_ReturnFalse510)},  // GScr_ReturnFalse510

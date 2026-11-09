@@ -7,6 +7,7 @@
 #include "snd.h"
 #include "sound_device.h"
 #include "stream.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -56,7 +57,7 @@ uint32_t dsound_get_status(void* buffer) {
 
 // The title CRT.
 char* crt_strncpy(char* dst, const char* src, uint32_t n) {
-    return title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(dst, src, n);
+    return title_strncpy(dst, src, n);
 }
 char* crt_strupr(char* text) { return title_function<char* XB_CDECL(char*)>(0x001fa3d5)(text); }
 char* crt_strtok(char* text, const char* delimiters) {
@@ -65,7 +66,7 @@ char* crt_strtok(char* text, const char* delimiters) {
 float crt_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
 template <typename... Args>
 int32_t crt_sprintf(char* buffer, const char* format, Args... args) {
-    return title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(buffer, format, args...);
+    return title_sprintf(buffer, format, args...);
 }
 
 }  // namespace

@@ -7,6 +7,7 @@
 
 #include "fe.h"
 #include "fe_setup.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_panel.h"
 
@@ -160,7 +161,7 @@ inline void setup_loading(uint8_t* menu, uint8_t* panel, int32_t first, int32_t 
     field<uint8_t*>(menu, 0x34) = panel;
     for (int32_t i = 0; i < count; ++i) {
         char name[16];
-        title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(name, text_at(kNumberFormat),
+        title_sprintf(name, text_at(kNumberFormat),
                                                                               first + i);  // _sprintf
         field<uint8_t*>(menu, 0x48 + uint32_t(i) * 4) = Panel_FindPicture(field<uint8_t*>(menu, 0x34), name);
     }

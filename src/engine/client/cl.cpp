@@ -18,6 +18,7 @@
 #include "stream.h"
 #include "sv.h"
 #include "tr_main.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
@@ -75,7 +76,6 @@ T& field(uint8_t* base, uint32_t offset) {
     return *reinterpret_cast<T*>(base + offset);
 }
 
-int32_t title_atol(const char* text) { return title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(text); }
 
 uint32_t cmd_argc() { return title_global<uint32_t>(0x00934248); }
 const char* cmd_argv(uint32_t index) { return title_global<const char*>(0x0092df90 + 4 * index); }
@@ -374,7 +374,7 @@ float* XB_CDECL SCR_AdjustFrom640(float* x, float* y, float* w, float* h) {
 char* XB_CDECL CL_AddReliableCommand(const char* text) {
     const int32_t sequence = ++title_global<int32_t>(0x0092f5f4);  // clc.reliableSequence
     char* const slot = &title_global<char>(0x0092f5fc) + (sequence & 63) * 128;
-    char* const result = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(slot, text, 127);
+    char* const result = title_strncpy(slot, text, 127);
     slot[127] = 0;
     return result;  // _strncpy's
 }
@@ -476,7 +476,7 @@ uint8_t* XB_REGS1 XB_CDECL CL_ParseServerMessage(uint8_t* msg) {
             if (command_sequence >= seq) continue;
             command_sequence = seq;
             char* const slot = &title_global<char>(0x00931608) + (seq & 63) * 128;  // clc.serverCommands
-            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(slot, s, 127);  // _strncpy
+            title_strncpy(slot, s, 127);  // _strncpy
             slot[127] = 0;
         } else {
             break_error(0x00834020, cmd);  // "Illegible server message %d"
@@ -1112,7 +1112,7 @@ void XB_CDECL Key_GetKeyNameForCommand(uint8_t* item) {
             char* name = field<char*>(item, command.field);
             if (name[0] || !binding || Q_stricmpn(binding, &title_global<const char>(command.command), 99999)) continue;
             const char* key = Key_KeynumToString(k, 1);
-            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(name, key, 7);  // _strncpy
+            title_strncpy(name, key, 7);  // _strncpy
             name[7] = 0;
             break;
         }
@@ -1409,7 +1409,7 @@ void XB_CDECL CL_MapLoading() {
         CL_ClearState();
         title_global<int32_t>(0x0092bdf0) = 0;  // CA_UNINITIALIZED
     }
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+    title_strncpy(
         &title_global<char>(0x0092be00), &title_global<const char>(0x008344bc), 0x7f);  // servername "localhost"
     title_global<char>(0x0092be7f) = 0;
     title_global<int32_t>(0x0092bdf0) = 1;
@@ -1530,7 +1530,7 @@ void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
                                                0x0082bcb8, 0x0082bcac, 0x0082bca0, 0x0082bc90};
         if (level > 13) return;
         char* const cmd = reinterpret_cast<char*>(uintptr_t{top + 0xc});  // the original's local buffer
-        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+        title_sprintf(
             cmd, &title_global<const char>(0x00833fe0), &title_global<const char>(kMaps[level]));  // "spmap %s"
         level = -1;
         Cmd_ExecuteRegisteredCommand(cmd);
@@ -1814,7 +1814,7 @@ const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t
     using Compare = int32_t XB_CDECL(const char*, const char*);
     using CompareN = int32_t XB_CDECL(const char*, const char*, uint32_t);
     if (title_function<CompareN>(0x001f1486)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
-        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+        title_sprintf(
             out, &title_global<const char>(0x0082ddd4), name + 2);  // sprintf "%s"
         return out;
     }
@@ -2674,7 +2674,7 @@ void XB_CDECL Key_Bind_f() {
         if (i != argc - 1) std::strcat(command, " ");
     }
     if (title_global<uint8_t>(0x008dce70) && std::strstr(command, &title_global<const char>(0x0082dfa8)))  // "+speed"
-        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+        title_sprintf(
             command, &title_global<const char>(0x0082ddd4), &title_global<const char>(0x0082dfb0));  // "toggle cl_run"
     if (key == -1) return;
     const char*& binding = title_global<const char*>(0x0093425c + 8 * static_cast<uint32_t>(key));
@@ -3641,7 +3641,7 @@ void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key) {
         if (title_global<int32_t>(0x0092bdf0) != 2 && line[0] != '\\' && line[0] != '/') {
             // Not in a level: run it as a command (a backslash put in front).
             char copy[0x100];
-            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(copy, line, 0xff);  // _strncpy
+            title_strncpy(copy, line, 0xff);  // _strncpy
             copy[0xff] = 0;
             const uint32_t args[2] = {0x00834578, uint32_t(reinterpret_cast<uintptr_t>(copy))};  // "\\%s"
             Com_sprintf(line, 0x100, args);

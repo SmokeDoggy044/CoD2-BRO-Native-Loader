@@ -9,6 +9,7 @@
 #include "qcommon.h"
 #include "stream.h"
 #include "ngl.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -1395,8 +1396,6 @@ void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t) {
     }
     char buffer[0x20];
     buffer[0] = 0;
-    using SprintfFn = int32_t XB_CDECL(char*, const char*, ...);
-    SprintfFn* const title_sprintf = title_function<SprintfFn>(0x001ee901);
     uint8_t* const clip_text = object_at(self, 0xc);
     if (show_clip) {
         title_sprintf(buffer, hud_text(0x0082ded8), field<int32_t>(self, 0x14));  // "%2i"

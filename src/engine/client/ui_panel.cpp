@@ -6,6 +6,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "script_string.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "qcommon_core.h"
@@ -559,7 +560,7 @@ PLATFORM_ASM_ENTRY(Panel_Load_entry,
 
 uint8_t XB_CDECL Panel_Load(const uint8_t* data, uint8_t* panel, const char* name) {
     if (!data) return 0;
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(reinterpret_cast<char*>(panel + 0x1d),
+    title_strncpy(reinterpret_cast<char*>(panel + 0x1d),
                                                                            name, 0x40);  // _strncpy
     const float s = title_global<float>(0x0082e140);
     alignas(16) float matrix[16];

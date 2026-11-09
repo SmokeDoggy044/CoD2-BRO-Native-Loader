@@ -10,6 +10,7 @@
 #include "nal_math.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "xanim.h"
 #include "qcommon_fs.h"
@@ -525,7 +526,7 @@ void XB_CDECL CG_ReadShellShockCvars(uint8_t* out) {
     i32(0x1c) = cvar_ms_min1(0x0094c680);
     i32(0x60) = cvar_ms_min1(0x0094b038);
     i32(0x64) = cvar_ms(0x0094ae80);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         reinterpret_cast<char*>(out + 0x24), &title_global<char>(0x0094c2d0), 0xf);
     out[0x33] = 0;
     f32(0x20) = clamp01(g(0x00948d20));
@@ -1596,7 +1597,7 @@ void XB_CDECL CG_DrawSkyBoxPortal() {
         title_global<float>(0x00972bb0) = atof(token());
         title_global<float>(0x00972bb4) = atof(token());
         title_global<float>(0x00972bb8) = atof(token());
-        title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(token());  // _atol (unused)
+        title_atol(token());  // _atol (unused)
         const float fov_x = CG_GetViewFov();
         using ext = long double;
         const float x = static_cast<float>(platform_x87_ld(gi(0x00972b98)) /

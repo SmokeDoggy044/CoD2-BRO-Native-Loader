@@ -14,6 +14,7 @@
 #include "r_init.h"
 #include "shaders.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_pathnode.h"
 #include "g_scr_runtime.h"
@@ -498,7 +499,7 @@ uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* 
     *reinterpret_cast<uint32_t*>(uintptr_t{ZoneFontMap_Lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1),
                                                                 zone)}) = address_of(font);
     char short_name[0x20];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(short_name, name, 0x1f);  // _strncpy
+    title_strncpy(short_name, name, 0x1f);  // _strncpy
     short_name[0x1f] = 0;
     using FindFont = int32_t XB_REGS1 XB_STDCALL(const char*, uint32_t);
     const int32_t index = own_function<FindFont>(&R_FindFont)(short_name, 1);  // R_FindFont
@@ -1877,12 +1878,12 @@ void XB_CDECL Stream_LoadBtr(char* name, uint8_t* data, uint32_t, uint32_t) {
     title_global<uint32_t>(0x0095e394) = 1;
     title_global<uint32_t>(0x0095e608) = 0;
     using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
-    title_function<Strncpy>(0x001eed80)(title_text(0x00988bd8), name, 0x7f);  // _strncpy
+    title_strncpy(title_text(0x00988bd8), name, 0x7f);  // _strncpy
     title_global<char>(0x00988c57) = 0;
     const char* base = title_text(0x00988bd8);
     for (const char* p = title_text(0x00988bd8); *p; ++p)
         if (*p == '/') base = p + 1;
-    title_function<Strncpy>(0x001eed80)(title_text(0x00988c58), base, 0x7f);  // _strncpy
+    title_strncpy(title_text(0x00988c58), base, 0x7f);  // _strncpy
     title_global<char>(0x00988cd7) = 0;
     char* p = title_text(0x00988c58);
     while (*p && *p != '.') {
@@ -2002,7 +2003,7 @@ uint8_t* bank_alloc(uint32_t size) {
     own_function<void XB_CDECL(uint32_t)>(&Heap_SetCurrent)(heap);  // Heap_SetCurrent
     if (!block) {
         char text[0x80];
-        title_function<int XB_CDECL(char*, const char*, uint32_t)>(0x001ee901)(text, title_text(0x0083844c), size);
+        title_sprintf(text, title_text(0x0083844c), size);
         debug_break();
     }
     return block;
@@ -2134,7 +2135,7 @@ uint32_t* XB_CDECL Stream_InitBanks(uint32_t* banks) {
     banks[9] = 0;
     uint32_t count = 0x21;
     char text[0x80];
-    title_function<int XB_CDECL(char*, const char*, uint32_t)>(0x001ee901)(text, title_text(0x008325b8), count);
+    title_sprintf(text, title_text(0x008325b8), count);
     const uint8_t* cvar = Cvar_Get(title_text(0x00838440), text, 0x10);  // num_banks
     if (cvar && word_at<uint32_t>(cvar, 0x20)) count = word_at<uint32_t>(cvar, 0x20);
     cvar = Cvar_Get(title_text(0x00833a4c), title_text(0x0082e098), 0);  // g_connectpaths

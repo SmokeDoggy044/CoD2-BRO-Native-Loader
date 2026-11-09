@@ -6,6 +6,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "ngl_gfx.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 
@@ -107,13 +108,13 @@ void XB_CDECL nglDrawFpsCounter() {
         const auto u = [](uint32_t address) { return title_global<uint32_t>(address); };
         // The format has one %d more (ALLOCS COUNT) than arguments: it prints the
         // never-written word above them, zero in tests.
-        title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(  // _sprintf
+        title_sprintf(  // _sprintf
             text, &title_global<const char>(0x007bcc58), &title_global<const char>(0x007bcd68), f(0x00902c60),
             f(0x00902c6c), f(0x00902c70), f(0x00902c7c), f(0x00902c78), f(0x00902c1c), f(0x00902c20), u(0x00902c84),
             u(0x00902c80), u(0x00902c88), u(0x00902c10), u(0x009025ac), u(0x00902c14), u(0x00903c44), u(0x00902c18),
             u(0x00903c1c), free_memory, 0u);
     } else {
-        title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(  // _sprintf
+        title_sprintf(  // _sprintf
             text, &title_global<const char>(0x007bcc40), static_cast<double>(title_global<float>(0x00902c60)),
             static_cast<double>(title_global<float>(0x00902c6c)));
     }
@@ -581,7 +582,7 @@ void XB_CDECL DebugDraw_AddString(const float* color, const float* origin, float
     words[5] = c[2];
     words[6] = c[3];
     std::memcpy(record + 0x1c, &scale, 4);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         reinterpret_cast<char*>(record + 0x20), text, 0x5f);
     record[0x7f] = 0;
     words[0x80 / 4] = 0;

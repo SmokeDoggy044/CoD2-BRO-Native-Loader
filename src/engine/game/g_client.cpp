@@ -10,6 +10,7 @@
 #include "g_vehicle.h"
 #include "qcommon_fs.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_script.h"
 #include "qcommon.h"
@@ -250,7 +251,7 @@ void XB_CDECL ClientCommand(uint32_t handle) {
     const char* const arg0 = title_global<uint32_t>(0x00934248) ? reinterpret_cast<const char*>(static_cast<uintptr_t>(
                                                                       title_global<uint32_t>(0x0092df90)))
                                                                 : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(command, arg0, 0x3fd);  // _strncpy
+    title_strncpy(command, arg0, 0x3fd);  // _strncpy
     command[0x3fd] = 0;
     using Stricmpn = int32_t XB_CDECL(const char*, const char*, int32_t);
     for (uint32_t i = 0; i < 0x12; ++i) {

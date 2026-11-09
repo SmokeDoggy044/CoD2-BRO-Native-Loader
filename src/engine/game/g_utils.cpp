@@ -27,6 +27,7 @@
 #include "stream.h"
 #include "sv.h"
 #include "tr_main.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "phys.h"
 #include "pmove.h"
@@ -432,7 +433,7 @@ uint32_t XB_CDECL G_SpawnInt(uint32_t key, int32_t* out, int32_t fallback) {
     const int32_t count = title_global<int32_t>(0x00985420);  // level_numSpawnVars
     for (int32_t i = 0; i < count; ++i) {
         if (title_global<uint32_t>(0x00985424 + i * 8) != key) continue;  // level_spawnVars {key, value}
-        *out = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(  // _atol
+        *out = title_atol(  // _atol
             title_global<const char*>(0x00985428 + i * 8));
         return 1;
     }
@@ -3232,7 +3233,7 @@ void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint
     }
     const uint32_t value = title_global<uint32_t>(0x00964ce0 + static_cast<uint32_t>(slot) * 4);
     char info[0x100];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+    title_strncpy(
         info, value ? reinterpret_cast<const char*>(uintptr_t{value + 6}) : nullptr, 0xff);  // strncpy
     info[0xff] = 0;
     const uint32_t rep = *reinterpret_cast<const uint32_t*>(text);
@@ -3261,7 +3262,7 @@ void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint
     // The state from the "state" key (0..5) picks one of the six state names.
     const char* const state_text = Info_ValueForKey(info, reinterpret_cast<const char*>(uintptr_t{0x00831b30}));
     const uint32_t number =
-        *state_text ? static_cast<uint32_t>(title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(state_text)) : 0;
+        *state_text ? static_cast<uint32_t>(title_atol(state_text)) : 0;
     if (number > 5) {
         release();
         return;

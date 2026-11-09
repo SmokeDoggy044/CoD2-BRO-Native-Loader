@@ -17,6 +17,7 @@
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "scr_fiber.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "levels_twins.h"
 #include "cgame.h"
@@ -1689,7 +1690,7 @@ uint8_t* XB_CDECL VM_Create(const char* module, uint32_t system_calls) {
     }
     if (free == 3) title_function<Break>(0x002938f0)(0, reinterpret_cast<const char*>(uintptr_t{0x00832b30}));
     uint8_t* const vm = &title_global<uint8_t>(0x00927c38 + free * 0x8c);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(reinterpret_cast<char*>(vm + 4), module,
+    title_strncpy(reinterpret_cast<char*>(vm + 4), module,
                                                                              0x7f);  // _strncpy
     vm[4 + 0x7f] = 0;
     *reinterpret_cast<uint32_t*>(vm) = system_calls;

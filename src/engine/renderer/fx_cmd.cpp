@@ -4,6 +4,7 @@
 
 #include "dobj.h"
 #include "script_string.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "fx.h"
@@ -78,7 +79,7 @@ struct Builder {
     // 127 characters of `name` (strncpy, zero padded) at +offset, 128 bytes.
     void name(uint32_t offset, const char* text) const {
         char buffer[0x80];
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0x7f);  // _strncpy
+        title_strncpy(buffer, text, 0x7f);  // _strncpy
         buffer[0x7f] = 0;
         std::memcpy(cmd + offset, buffer, sizeof buffer);
     }

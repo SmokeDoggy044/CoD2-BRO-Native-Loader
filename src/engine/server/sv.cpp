@@ -12,6 +12,7 @@
 #include "qcommon_fs.h"
 #include "r_init.h"
 #include "snd.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "g_utils.h"
@@ -2325,7 +2326,7 @@ char* XB_CDECL SV_GetConfigstring(int32_t index, int32_t size, char* buffer) {
     if (index < 0 || index >= 0x400)
         title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(kBreak)(1, title_text(0x00832d34), index);
     const char* text = title_global<const char*>(0x00964ce0 + static_cast<uint32_t>(index) * 4);
-    char* result = title_function<Strncpy>(0x001eed80)(buffer, text ? text + 6 : nullptr, size - 1);  // _strncpy
+    char* result = title_strncpy(buffer, text ? text + 6 : nullptr, size - 1);  // _strncpy
     buffer[size - 1] = 0;
     return result;
 }
@@ -2428,7 +2429,7 @@ uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uin
 void XB_REGS1 XB_CDECL SV_CheckAutosave(char* name) {
     char map[0x80];
     if (const uint8_t* cvar = Cvar_FindVar(title_text(0x00835230))) {  // "mapname"
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+        title_strncpy(
             map, *reinterpret_cast<const char* const*>(cvar + 4), 0x7f);  // _strncpy
         map[0x7f] = 0;
     } else {
@@ -2740,12 +2741,12 @@ uint32_t XB_CDECL SV_LoadGame_f() {
     }
     char* const name = &title_global<char>(0x0093ef68);
     const char* arg = title_global<uint32_t>(0x00934248) > 1 ? title_global<const char*>(0x0092df94) : title_text(0x0082dfeb);
-    title_function<Strncpy>(0x001eed80)(name, arg, 0x7f);
+    title_strncpy(name, arg, 0x7f);
     name[0x7f] = 0;
     if (!name[0]) return 0;
     if (std::strncmp(name, title_text(0x00832fd0), 5) && std::strncmp(name, title_text(0x00832fc8), 5)) {  // "save/", "save\"
         const uint32_t va_args[2] = {0x00832fc0, word(name)};  // "save/%s"
-        title_function<Strncpy>(0x001eed80)(name, va(va_args), 0x7f);
+        title_strncpy(name, va(va_args), 0x7f);
         name[0x7f] = 0;
     }
     const char* dot = strstr_(name, title_text(0x0082d700));  // "."
@@ -3365,7 +3366,7 @@ void XB_CDECL SV_Map_f() {
     const char* command = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90) : title_text(0x0082dfeb);
     if (!Q_stricmpn(command, title_text(0x00832fb0), 2)) command += 2;  // "sp"
     if (command) Q_stricmpn(command, title_text(0x00832fa8), 99999);  // result unused
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(spawn, map, 0x7f);  // _strncpy
+    title_strncpy(spawn, map, 0x7f);  // _strncpy
     spawn[0x7f] = 0;
     if (uint8_t* record = title_global<uint8_t*>(0x0095f8f8)) field<int32_t>(record, 0xc) = -1;
     own_function<void XB_CDECL(const char*, uint32_t)>(&SV_SpawnServer_entry)(spawn, savegame);  // SV_SpawnServer

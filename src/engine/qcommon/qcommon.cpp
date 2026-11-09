@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_utils.h"
 #include "qcommon_core.h"
@@ -877,7 +878,7 @@ void XB_CDECL Com_PushEvent(const uint32_t* event) {
 void XB_CDECL Cmd_Wait_f() {
     int32_t& wait = title_global<int32_t>(0x00929bfc);  // cmd_wait
     if (title_global<int32_t>(0x00934248) == 2)
-        wait = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(title_global<const char*>(0x0092df94));  // atol
+        wait = title_atol(title_global<const char*>(0x0092df94));  // atol
     else
         wait = 1;
 }
@@ -1651,7 +1652,6 @@ using ZFreeFn = void XB_CDECL(void*);
 
 // The title CRT's atof (double in ST0, stored as a float) and atol.
 float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
-int32_t title_atol(const char* text) { return title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(text); }
 
 void check_cvar_name(const char* name) {
     using Strchr = char* XB_CDECL(const char*, int32_t);

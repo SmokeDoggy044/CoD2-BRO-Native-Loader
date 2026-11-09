@@ -7,6 +7,7 @@
 #include "qcommon.h"
 #include "qcommon_fs.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_script.h"
 #include "script_string.h"
@@ -373,7 +374,7 @@ void XB_REGS3 XB_CDECL PathNode_ParseScriptKeys(uint8_t* world, uint32_t, uint32
                 hash = static_cast<uint32_t>(static_cast<int32_t>(c)) ^ ((hash >> 27) | (hash << 5));
             }
         }
-        const int32_t number = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value);  // _atol
+        const int32_t number = title_atol(value);  // _atol
         const float real = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);       // atof
         using SetInt = void XB_CDECL(uint32_t, uint32_t, int32_t);
         using SetFloat = void XB_CDECL(uint32_t, uint32_t, float);
@@ -926,7 +927,7 @@ void XB_REGS3 XB_CDECL PathNode_ResolveAnimScripts(uint8_t* world, uint32_t, uin
             if (f < 0x34)
                 function = title_global<uint32_t>(0x00927174 + f * 8);
             else
-                title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(  // _sprintf
+                title_sprintf(  // _sprintf
                     text, reinterpret_cast<const char*>(ptr(0x00832320)), string);   // "BroFunc: %s, NOT FOUND"
             word_at(node, 0x40) = function;
         }

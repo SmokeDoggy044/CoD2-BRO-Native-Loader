@@ -9,6 +9,7 @@
 #include "script_string.h"
 #include "snd.h"
 #include "stream.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "ui_panel.h"
@@ -905,7 +906,7 @@ namespace {
 // A 31-character copy of the name (the title's _strncpy) looked up with R_FindFont.
 int32_t find_font(const char* name) {
     char copy[32];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(copy, name, 0x1f);  // _strncpy
+    title_strncpy(copy, name, 0x1f);  // _strncpy
     copy[31] = 0;
     return R_FindFont(copy, 1);
 }
@@ -2203,7 +2204,7 @@ void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
     const char* const first = localized(text_at(0x0082aabc));   // "MEM_ERROR_NOT_ENOUGH_BLOCKS1"
     const char* const second = localized(text_at(0x0082aa9c));  // "MEM_ERROR_NOT_ENOUGH_BLOCKS2"
     const int32_t blocks = own_function<int32_t XB_CDECL()>(&Save_GetBlocksNeeded)();  // Save_GetBlocksNeeded
-    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(out, text_at(0x0082b1c8), first, blocks,
+    title_sprintf(out, text_at(0x0082b1c8), first, blocks,
                                                                           second);  // _sprintf "%s %d %s"
 }
 
@@ -2305,9 +2306,9 @@ uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
     title_global<uint8_t>(0x008d50dd) = 0;
     uint8_t* const record = saves + slot * 0x3cc;
     const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
-    title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x28c), version, 0x19);  // "9-21-05(CE)"
+    title_strncpy(reinterpret_cast<char*>(record + 0x28c), version, 0x19);  // "9-21-05(CE)"
     const char* const data = own_function<const char* XB_CDECL()>(&Save_GetData)();  // Save_GetData
-    title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x64c), data, 0xc);
+    title_strncpy(reinterpret_cast<char*>(record + 0x64c), data, 0xc);
     saves[slot + 0x11e7] = 1;
     if (!keep) Profile_StoreToSaveSlot(saves);
     fill_write_buffer(saves, slot, record + 0x28c);
@@ -2327,9 +2328,9 @@ void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
     for (; slot < 4; ++slot) {
         uint8_t* const record = saves + 0x28c + slot * 0x3cc;
         const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
-        title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record), version, 0x19);
+        title_strncpy(reinterpret_cast<char*>(record), version, 0x19);
         const char* const data = own_function<const char* XB_CDECL()>(&Save_GetData)();  // Save_GetData
-        title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x3c0), data, 0xc);
+        title_strncpy(reinterpret_cast<char*>(record + 0x3c0), data, 0xc);
         saves[slot + 0x11e7] = 1;
         profile[0] = 0;
         platform_rep_movs(record + 0x1c, profile, 0x3a4);

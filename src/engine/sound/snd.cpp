@@ -18,6 +18,7 @@
 #include "snd_env.h"
 #include "r_init.h"
 #include "sound_device.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -496,7 +497,7 @@ uint8_t* XB_CDECL SndGroup_FindByName(const char* name) {
     emitter_word<int32_t>(group, 4) = -1;
     emitter_word<float>(group, 8) = title_global<float>(0x0083eb20);
     emitter_word<float>(group, 0xc) = title_global<float>(0x0083eb20);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(reinterpret_cast<char*>(group + 0x108), name,
+    title_strncpy(reinterpret_cast<char*>(group + 0x108), name,
                                                                           0x20);  // _strncpy
     return group;
 }

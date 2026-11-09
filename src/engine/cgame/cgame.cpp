@@ -16,6 +16,7 @@
 #include "qcommon.h"
 #include "script_string.h"
 #include "snd.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
@@ -118,7 +119,7 @@ char* XB_REGS1 XB_CDECL CG_Argv(uint32_t arg) {
                            ? title_global<const char*>(0x0092df90 + arg * 4)  // cmd_argv
                            : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
     char* buffer = &title_global<char>(0x0098b958);  // cg_argvBuffer
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
+    title_strncpy(buffer, text, 0xff);  // _strncpy
     buffer[0xff] = 0;
     return buffer;
 }
@@ -305,7 +306,7 @@ void XB_CDECL CG_BuildSolidList() {
 void XB_CDECL CG_Fade_f() {
     // Q3's "fade r g b a seconds": the colour words are parsed and dropped.
     if (title_global<uint32_t>(0x00934248) < 6) return;  // cmd_argc
-    const auto atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
+    const auto atol = title_atol;
     for (uint32_t arg = 1; arg < 4; ++arg) atol(CG_Argv(arg));
     const int32_t alpha = atol(CG_Argv(4));
     const int32_t duration = atol(CG_Argv(5)) * 1000;
@@ -897,7 +898,7 @@ uint32_t XB_CDECL CG_ConsoleCommand() {
                            ? title_global<const char*>(0x0092df90)  // cmd_argv[0]
                            : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
     char* buffer = &title_global<char>(0x0098b958);  // cg_argvBuffer
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
+    title_strncpy(buffer, text, 0xff);  // _strncpy
     buffer[0xff] = 0;
     const uint32_t* commands = &title_global<uint32_t>(0x0082f420);
     for (uint32_t i = 0; commands[i * 2]; ++i) {
@@ -986,7 +987,7 @@ void XB_CDECL CG_Weapon_f() {
     if (name && *name) weapon = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, name)) & 0xff;
     if (!weapon) {
         weapon = static_cast<uint32_t>(
-            title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(CG_Argv(1)));  // _atol
+            title_atol(CG_Argv(1)));  // _atol
         if (!weapon) return;
     }
     select_weapon(weapon);
@@ -998,9 +999,9 @@ void XB_CDECL CG_ConfigStringCommand() {
                            ? title_global<const char*>(0x0092df94)  // cmd_argv[1]
                            : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
     char* buffer = &title_global<char>(0x0098b958);  // cg_argvBuffer
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
+    title_strncpy(buffer, text, 0xff);  // _strncpy
     buffer[0xff] = 0;
-    const int32_t index = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(buffer);  // _atol
+    const int32_t index = title_atol(buffer);  // _atol
     title_call_regs(own_address(&CG_ConfigStringModified), static_cast<uint32_t>(index), 0, 0);
 }
 
@@ -1396,7 +1397,7 @@ void XB_REGS1 XB_CDECL CG_CenterPrint(int32_t priority, const char* text, float 
     const char* localized = own_function<const char* XB_CDECL(const char*, const char*, uint32_t)>(&SEH_LocalizeTextMessage)(  // SEH_LocalizeTextMessage
         text, &title_global<char>(0x00839a8c), 0);
     char* print = &title_global<char>(0x00972c7c);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(print, localized, 0x1ff);  // _strncpy
+    title_strncpy(print, localized, 0x1ff);  // _strncpy
     title_global<int32_t>(0x00972e80) = priority;
     print[0x1ff] = 0;
     const uint8_t* p = reinterpret_cast<const uint8_t*>(print);
@@ -2346,7 +2347,7 @@ void XB_CDECL CG_WeaponSlot_f() {
     if (!weapon_command_allowed(0x100000)) return;
     stamp_weapon_command();
     int32_t slot = static_cast<int32_t>(CG_WeaponSlotFromName(CG_Argv(1)));
-    if (!slot) slot = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(CG_Argv(1));  // _atol
+    if (!slot) slot = title_atol(CG_Argv(1));  // _atol
     if (slot <= 0 || slot >= 7) return;
     const int32_t weapon = title_global<int8_t>(0x00972948 + slot);
     if (weapon && CG_HasWeapon(0, weapon)) select_weapon(static_cast<uint32_t>(weapon));
@@ -2381,7 +2382,7 @@ void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index) {
         regs.edi = key;
         return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0)));  // Info_ValueForKey
     };
-    const auto atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
+    const auto atol = title_atol;
     bool clear = false;
     if (!*text) {
         state = 0;
@@ -2407,7 +2408,7 @@ void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index) {
     if (!*v) {
         objective[0x18] = 0;
     } else {
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        title_strncpy(  // _strncpy
             reinterpret_cast<char*>(objective + 0x18), v, 0x7f);
         objective[0x18 + 0x7f] = 0;
     }
@@ -3491,7 +3492,7 @@ void XB_CDECL CG_ShellShockSave_f() {
         return;
     }
     char name[0x80];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(name, title_global<const char*>(0x0092df94), 0x7f);
+    title_strncpy(name, title_global<const char*>(0x0092df94), 0x7f);
     name[0x7f] = 0;
     CG_ShellShock_SaveParams(name);
 }
@@ -3502,7 +3503,7 @@ void XB_CDECL CG_ShellShockLoad_f() {
         return;
     }
     char name[0x80];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(name, title_global<const char*>(0x0092df94), 0x7f);
+    title_strncpy(name, title_global<const char*>(0x0092df94), 0x7f);
     name[0x7f] = 0;
     CG_ShellShock_LoadParams(name);
 }
@@ -3513,7 +3514,7 @@ void XB_CDECL CG_ShellShock_f() {
     const uint32_t argc = title_global<uint32_t>(0x00934248);
     char text[0x100];
     if (argc == 3) {
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, title_global<const char*>(0x0092df98), 0xff);
+        title_strncpy(text, title_global<const char*>(0x0092df98), 0xff);
         text[0xff] = 0;
         if (!CG_ShellShock_LoadParams(text)) return;
     } else if (argc != 2) {
@@ -3522,7 +3523,7 @@ void XB_CDECL CG_ShellShock_f() {
     }
     const char* arg = title_global<uint32_t>(0x00934248) > 1 ? title_global<const char*>(0x0092df94)
                                                               : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, arg, 0xff);
+    title_strncpy(text, arg, 0xff);
     text[0xff] = 0;
     using ext = long double;
     const float seconds = static_cast<float>(title_function<ext XB_CDECL(const char*)>(0x001ef056)(text) *  // atof
@@ -3627,7 +3628,7 @@ int32_t XB_CDECL CG_ParseInfoValueT() {
         return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0)));  // Info_ValueForKey
     };
     value_for(0x00838d2c);  // "n"
-    return title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value_for(0x00838d28));  // _atol of "t"
+    return title_atol(value_for(0x00838d28));  // _atol of "t"
 }
 
 void XB_CDECL CG_ParseConfigStringFloat9() {
@@ -4139,7 +4140,7 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
     regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
     regs.edi = 0x00838d28;
     const uint32_t value = cg_call_regs(own_address(&Info_ValueForKey_entry), &regs, nullptr, 0);  // Info_ValueForKey
-    title_function<int32_t XB_CDECL(uint32_t)>(0x001eeb81)(value);  // _atol (result unused)
+    title_atol(reinterpret_cast<const char*>(static_cast<uintptr_t>(value)));  // _atol (result unused)
     const uint32_t name = title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(0x00948388) * 0x2c);
     own_function<uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t)>(&Cvar_Set2)(name, 0x0082e098, 1);  // Cvar_Set2(.., "0")
     cg_cvar_update(0x00948388);
@@ -4626,7 +4627,7 @@ void XB_CDECL CG_ServerCommand() {
     const char* const first = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)
                                                                   : &title_global<const char>(0x0082dfeb);
     char* const buffer = &title_global<char>(0x0098b958);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, first, 0xff);  // _strncpy
+    title_strncpy(buffer, first, 0xff);  // _strncpy
     buffer[0xff] = 0;
     if (!buffer[0]) return;
     const uint32_t hash = Com_HashKeyNoCase(0, buffer);
@@ -4652,8 +4653,8 @@ void XB_CDECL CG_ServerCommand() {
         return;
     }
     if (is(0x0094c540)) {
-        const int32_t duration = title_function<AtolFn>(0x001eeb81)(CG_Argv(3));
-        const int32_t start = title_function<AtolFn>(0x001eeb81)(CG_Argv(2));
+        const int32_t duration = title_atol(CG_Argv(3));
+        const int32_t start = title_atol(CG_Argv(2));
         const float alpha = title_function<AtofFn>(0x001ef056)(CG_Argv(1));
         const int32_t alpha255 = static_cast<int32_t>(
             static_cast<int64_t>(platform_x87_ld(alpha) * platform_x87_ld(g(0x0083eb8c))));

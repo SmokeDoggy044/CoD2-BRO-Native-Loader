@@ -30,6 +30,7 @@
 #include "snd.h"
 #include "stream.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "xanim.h"
@@ -660,7 +661,7 @@ uint8_t XB_CDECL GScr_CopyStringFromEngine(uint32_t id, char* buf, uint32_t size
     if (!text) return 0;
     uint32_t count = static_cast<uint32_t>(std::strlen(text));
     if (count > size - 1) count = size - 1;
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buf, text, count);  // _strncpy
+    title_strncpy(buf, text, count);  // _strncpy
     buf[count] = 0;
     return 1;
 }
@@ -2052,7 +2053,7 @@ void XB_CDECL GScr_EnableLinkTo(uint32_t handle) {
         const uint8_t type = field<uint8_t>(ent, 0);
         const char* const type_name = type < 0x11 ? title_text(title_global<uint32_t>(0x008d5090 + type * 4))
                                                   : title_text(0x00832838);  // "WARNING !! Entity Type Unknown ..."
-        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(  // _sprintf
+        title_sprintf(  // _sprintf
             message, title_text(0x00832248), type_name);  // "entity %s:does not support enableLinkTo"
     }
     const uint32_t flags = field<uint32_t>(ent, 0x2a4);
@@ -2187,7 +2188,7 @@ ScriptString* weapon_classname(ScriptString* out, uint32_t id) {
 // The level change request: 0x00985eb0 = 1, the map name into 0x00985ecc (255 bytes, terminated), 0x00985eb8 = 1.
 void request_level_change(const ScriptString* name) {
     title_global<uint32_t>(0x00985eb0) = 1;
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         &title_global<char>(0x00985ecc), script_text(name), 0xff);
     title_global<uint8_t>(0x00985fcb) = 0;
     title_global<uint32_t>(0x00985eb8) = 1;
@@ -2312,7 +2313,7 @@ void XB_CDECL GScr_MissionSuccess(const ScriptString* name) {
     title_global<uint32_t>(0x00985eb8) = 1;
     title_global<uint32_t>(0x00985ebc) = 0;
     title_global<uint32_t>(0x00985eb0) = 1;
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         &title_global<char>(0x00985ecc), script_text(name), 0xff);
     title_global<uint8_t>(0x00985fcb) = 0;
 }
@@ -2347,7 +2348,7 @@ namespace {
 
 // The objective's config string (index + 16; 0x00964ce0, text +6) copied into a 256-byte buffer.
 void objective_info(int32_t configstring, char* info) {
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         info, script_text(&title_global<ScriptString>(0x00964ce0 + configstring * 4)), 0xff);
     info[0xff] = 0;
 }
@@ -2384,7 +2385,7 @@ void XB_CDECL GScr_ObjectiveToggleRing(int32_t index) {
     char info[0x100];
     objective_info(configstring, info);
     const char* const ring = Info_ValueForKey(info, title_text(0x00831a24));  // "ring"
-    const int32_t value = *ring ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(ring) : 0;  // _atol
+    const int32_t value = *ring ? title_atol(ring) : 0;  // _atol
     const char* const text = own_function<const char* XB_CDECL(const char*, int32_t)>(&va_entry)(  // va
         title_text(0x0082ded4), value == 0 ? 1 : 0);  // "%i"
     Info_SetValueForKey(text, 0, title_text(0x00831a24), info);
@@ -2414,7 +2415,7 @@ void XB_CDECL GScr_ObjectiveDelete(int32_t index) {
     // The original copies 3 characters into its argument slot and then empties it.
     const int32_t configstring = index + 0x10;
     char info[4];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         info, script_text(&title_global<ScriptString>(0x00964ce0 + configstring * 4)), 3);
     info[3] = 0;
     info[0] = 0;
@@ -2859,7 +2860,7 @@ const char* localized_text(uint32_t hash) {
 // The *IntText objective builtins: "%d" of the number, checked (alphanumeric or '_' when longer than one
 // character; a message per bad character).
 void int_text(char* buf, int32_t number) {
-    title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(buf, title_text(0x008325b8), number);
+    title_sprintf(buf, title_text(0x008325b8), number);
     const int32_t length = static_cast<int32_t>(std::strlen(buf));
     if (length <= 1) return;
     for (int32_t i = 0; i < length; ++i) {
@@ -2885,7 +2886,7 @@ uint32_t XB_CDECL GScr_GetCvar(ScriptString* out, const char* name) {
     if (!cvar) {
         buf[0] = 0;
     } else {
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+        title_strncpy(  // _strncpy
             buf, field<const char*>(const_cast<uint8_t*>(cvar), 4), 0x7f);
         buf[0x7f] = 0;
     }
@@ -2921,7 +2922,7 @@ void XB_CDECL GScr_ObjectiveCurrent(int32_t index) {
         char info[0x100];
         objective_slot_info(slot, info);
         const char* const state = Info_ValueForKey(info, title_text(0x00831b30));  // "state"
-        const int32_t value = *state ? title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(state) : 0;  // _atol
+        const int32_t value = *state ? title_atol(state) : 0;  // _atol
         if (slot - 0x10 == index) {
             if (value == 4) continue;
             set_objective_state_key(info, 4);
@@ -3265,7 +3266,7 @@ void set_cvar_text(const char* name, char* value) {
 // "gm" / "gmb": the text plus a newline as a game message to everyone.
 void send_game_message(uint32_t command, const char* text) {
     char buf[0x2000];
-    title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(buf, title_text(0x008325cc), text);  // "%s\n"
+    title_sprintf(buf, title_text(0x008325cc), text);  // "%s\n"
     SV_GameSendServerCommand(title_va(0x008325c4, title_text(command), static_cast<const char*>(buf)), 0);  // "%s \"%s\""
 }
 
@@ -3332,7 +3333,7 @@ void XB_CDECL GScr_MusicStop() { S_StopSoundHandle(title_global<uint32_t*>(0x009
 
 void XB_CDECL GScr_SetCvarFloat(const char* name, float value) {
     char buf[0x400];
-    title_function<int32_t XB_CDECL(char*, const char*, double)>(0x001ee901)(buf, title_text(0x008325b4),
+    title_sprintf(buf, title_text(0x008325b4),
                                                                              x87_widen(value));  // "%f"
     quote_copy(buf);
     set_cvar_text(name, buf);
@@ -3340,7 +3341,7 @@ void XB_CDECL GScr_SetCvarFloat(const char* name, float value) {
 
 void XB_CDECL GScr_SetCvarInt(const char* name, int32_t value) {
     char buf[0x400];
-    title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(buf, title_text(0x008325b8), value);  // "%d"
+    title_sprintf(buf, title_text(0x008325b8), value);  // "%d"
     quote_copy(buf);
     set_cvar_text(name, buf);
 }
@@ -3963,7 +3964,7 @@ void link_message(uint8_t* ent) {
     char buf[0x100];
     const uint8_t type = ent[0];
     const uint32_t name = type < 0x11 ? title_global<uint32_t>(0x008d5090 + type * 4u) : 0x00832838;  // entityTypeNames
-    title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(buf, title_text(0x00832284),
+    title_sprintf(buf, title_text(0x00832284),
                                                                                  title_text(name));
 }
 

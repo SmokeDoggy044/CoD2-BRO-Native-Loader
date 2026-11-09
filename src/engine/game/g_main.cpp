@@ -17,6 +17,7 @@
 #include "ragdoll.h"
 #include "script_string.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "xanim.h"
 #include "cl.h"
@@ -379,7 +380,7 @@ void XB_CDECL G_InitAnimScripts() {
             }
         }
         if (!found && slot.warn)
-            title_function<int XB_CDECL(char*, const char*, ...)>(0x001ee901)(
+            title_sprintf(
                 message, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00832320)), name);  // _sprintf
         title_global<uint32_t>(slot.target) = function;
     }
@@ -529,7 +530,7 @@ char* XB_THISCALL ConcatArgs(int32_t start) {
     int32_t length = 0;
     for (int32_t i = start; i < count; ++i) {
         char arg[0x100];
-        title_function<StrncpyFn>(0x001eed80)(arg, command_arg(static_cast<uint32_t>(i)), 0xff);  // _strncpy
+        title_strncpy(arg, command_arg(static_cast<uint32_t>(i)), 0xff);  // _strncpy
         arg[0xff] = 0;
         const int32_t size = static_cast<int32_t>(std::strlen(arg));
         if (size + length >= 0xff) break;
@@ -544,7 +545,7 @@ char* XB_THISCALL ConcatArgs(int32_t start) {
 uint32_t XB_CDECL ConsoleCommand() {
     // The game's console commands ("entitylist", "listvehicles") are accepted and do nothing.
     char cmd[0x80];
-    title_function<StrncpyFn>(0x001eed80)(cmd, command_arg(0), 0x7f);  // _strncpy
+    title_strncpy(cmd, command_arg(0), 0x7f);  // _strncpy
     cmd[0x7f] = 0;
     if (!Q_stricmpn(cmd, reinterpret_cast<const char*>(uintptr_t{0x00839d08}), 99999)) return 1;
     return Q_stricmpn(cmd, reinterpret_cast<const char*>(uintptr_t{0x00839cf8}), 99999) == 0;
@@ -636,7 +637,7 @@ uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text) {
             title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
                 1, reinterpret_cast<const char*>(uintptr_t{0x00832d34}), i + 0x273);  // __break
         const uint32_t cs = title_global<uint32_t>(0x009656ac + i * 4);
-        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+        title_strncpy(
             buffer, cs ? reinterpret_cast<const char*>(static_cast<uintptr_t>(cs + 6)) : nullptr, 0xff);  // _strncpy
         buffer[0xff] = 0;
         if (!buffer[0]) {

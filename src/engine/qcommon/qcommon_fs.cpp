@@ -23,6 +23,7 @@
 #include "sv.h"
 #include "tr_main.h"
 #include "stream.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "unzip.h"
 #include "g_client.h"
@@ -589,10 +590,10 @@ constexpr uint32_t kPrintString = 0x00831d5c;  // "print \"%s\""
 void XB_CDECL Cmd_SetSpawnPt_f() {
     if (title_global<int32_t>(0x00934248) != 2) return;  // cmd_argc
     char text[0x80];
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+    title_strncpy(  // _strncpy
         text, title_global<const char*>(0x0092df94), 0x7f);
     text[0x7f] = 0;
-    title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(text);  // _atol; the value is unused
+    title_atol(text);  // _atol; the value is unused
 }
 
 void XB_CDECL Cmd_UFO_f(uint8_t* ent) {
@@ -2285,7 +2286,7 @@ uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line) {
     const char* newline = strchr_(*cursor, '\n');
     if (newline) {
         const int32_t length = static_cast<int32_t>(newline - *cursor);
-        title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(line, *cursor, length);  // _strncpy
+        title_strncpy(line, *cursor, length);  // _strncpy
         line[length] = 0;
         *cursor += length;
         while (**cursor) {
@@ -3322,7 +3323,7 @@ using CrtStrstr = const char* XB_CDECL(const char*, const char*);
 
 void fs_break(int32_t level, uint32_t message) { title_function<BreakV>(kBreak)(level, tstr(message)); }
 void* crt_fopen(const char* path, uint32_t mode) { return title_function<CrtFopen>(0x001effb3)(path, tstr(mode)); }
-void crt_strncpy(char* dst, const char* src, uint32_t n) { title_function<CrtStrncpy>(0x001eed80)(dst, src, n); }
+void crt_strncpy(char* dst, const char* src, uint32_t n) { title_strncpy(dst, src, n); }
 const char* crt_strstr(const char* s, uint32_t sub) { return title_function<CrtStrstr>(0x001efb10)(s, tstr(sub)); }
 uint8_t* cvar_ptr(uint32_t global) { return title_global<uint8_t*>(global); }
 int32_t cvar_int(uint32_t global) { return pk<int32_t>(cvar_ptr(global), 0x20); }
@@ -3668,7 +3669,7 @@ int32_t XB_CDECL FS_ReadFile(const char* qpath, void** buffer) {
             buf[len] = 0;
             return len;
         }
-        title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(path, tstr(0x00837f28), qpath);  // "config\\%s"
+        title_sprintf(path, tstr(0x00837f28), qpath);  // "config\\%s"
         name = path;
     }
     int32_t h;
@@ -5545,14 +5546,8 @@ namespace {
 
 constexpr uint32_t kCmdArgc = 0x00934248;
 constexpr uint32_t kCmdArgv = 0x0092df90;  // char* [], argv[0] first
-constexpr uint32_t kStrncpy = 0x001eed80;
-constexpr uint32_t kAtol = 0x001eeb81;
 constexpr uint32_t kAtof = 0x001ef056;  // returns a double in ST0; stored as a float
 
-void title_strncpy(char* dest, const char* source, uint32_t count) {
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(kStrncpy)(dest, source, count);
-}
-int32_t title_atol(const char* text) { return title_function<int32_t XB_CDECL(const char*)>(kAtol)(text); }
 float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(kAtof)(text); }
 
 const char* cmd_argv(uint32_t index) { return title_global<const char*>(kCmdArgv + index * 4); }
@@ -5980,7 +5975,7 @@ PLATFORM_ASM_ENTRY(Loc_PopSemicolonToken_entry,
 char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text) {
     if (!std::strlen(std_string_c_str(text))) return nullptr;
     char* const token = &title_global<char>(0x0098bb78);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(token, std_string_c_str(text), 0x7f);
+    title_strncpy(token, std_string_c_str(text), 0x7f);
     title_global<char>(0x0098bbf7) = 0;
     char* const semicolon = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(token, ';');  // strchr
     if (semicolon) {
@@ -6035,7 +6030,6 @@ void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_
         for (char** name = list; *name; ++name) Z_Free(reinterpret_cast<uint8_t*>(*name));
         Z_Free(reinterpret_cast<uint8_t*>(list));
     };
-    const auto title_sprintf = title_function<int32_t XB_CDECL(char*, const char*, const char*, const char*)>(0x001ee901);
     char path[0x80];
     int32_t ndirs = 0;
     char** const dirs = FS_ListFilteredFiles(dir, tstr(0x0082d70c), nullptr, &ndirs);  // "/"
@@ -6175,7 +6169,7 @@ const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
     if (!line) return nullptr;
     char* cursor = line;  // the original advances its argument slot
     if (Loc_MatchKeyword(tstr(0x008333a0), &cursor)) {  // "VERSION"
-        const int32_t version = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(  // _atol
+        const int32_t version = title_atol(  // _atol
             Loc_TrimQuotedValue(cursor));
         if (version == 1) return nullptr;
         const uint32_t args[3] = {0x00833370, static_cast<uint32_t>(version), 1};  // "Unexpected version number"
@@ -7450,14 +7444,14 @@ int32_t XB_REGS1 XB_CDECL Nfl_PrintError(const char* text) {
 
 uint32_t XB_REGS3 XB_CDECL Loc_FindScopedEntryValue(const char* name, uint32_t, const char* prefix) {
     char scoped[0x100];
-    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(scoped, tstr(0x0082d7d0), prefix, name);
+    title_sprintf(scoped, tstr(0x0082d7d0), prefix, name);
     return Loc_FindEntryValue(0, scoped);  // "%s_%s"
 }
 
 const char* XB_REGS3 XB_CDECL Loc_FindScopedStringEntry(const char* name, uint32_t, const char* prefix,
                                                         int32_t alternate) {
     char scoped[0x100];
-    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(scoped, tstr(0x0082d7d0), prefix, name);
+    title_sprintf(scoped, tstr(0x0082d7d0), prefix, name);
     return Loc_FindStringEntry(0, scoped, alternate);  // "%s_%s"
 }
 

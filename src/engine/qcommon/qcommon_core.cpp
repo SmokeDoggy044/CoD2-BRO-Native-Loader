@@ -10,6 +10,7 @@
 #include "qcommon_fs.h"
 #include "r_init.h"
 #include "snd.h"
+#include "title_crt.h"
 #include "title_data.h"
 
 namespace game {
@@ -130,7 +131,7 @@ uint32_t* XB_THISCALL HashStr_Init(uint32_t* hashed, const char* name) {
         hashed[0] = ((h >> 27) | (h << 5)) ^ static_cast<uint32_t>(c);
     }
     char* const text = reinterpret_cast<char*>(hashed + 1);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, name, 0x1b);  // _strncpy
+    title_strncpy(text, name, 0x1b);  // _strncpy
     title_function<char* XB_CDECL(char*)>(0x001fa3b2)(text);  // _strlwr
     return hashed;
 }

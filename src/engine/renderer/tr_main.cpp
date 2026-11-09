@@ -10,6 +10,7 @@
 #include "stack_guard.h"
 #include "stream.h"
 #include "ngl_gfx.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "cg_view.h"
 #include "cl.h"
@@ -3053,7 +3054,7 @@ PLATFORM_ASM_ENTRY(RE_ParseButtonToken_entry,
 uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint32_t table, const char* text, const char** next,
                                      const char** icon) {
     const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
-    const auto strncpy = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80);
+    const auto strncpy = title_strncpy;
     if (text) {
         const char* open = strchr(text, '{');
         if (open) {
@@ -3462,7 +3463,7 @@ void XB_CDECL R_LoadCellMeshes(uint32_t cell_index, uint32_t release) {
     const uint8_t* entry =
         field<const uint8_t**>(level, 0x20)[cell_index < field<uint32_t>(level, 0x1c) ? cell_index : 0];
     const uint32_t zone = field<uint32_t>(field<const uint8_t*>(field<const uint8_t*>(entry, 0x2c), 0x24), 0x28);
-    const auto sprintf = title_function<int XB_CDECL(char*, const char*, ...)>(0x001ee901);
+    const auto sprintf = &title_sprintf;
     const char* map = &title_global<char>(0x00988c58);
     char name[0xf0];
     uint8_t hashed[0x20];

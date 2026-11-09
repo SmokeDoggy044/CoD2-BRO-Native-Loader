@@ -9,6 +9,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "snd.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -705,7 +706,7 @@ void XB_CDECL OptionsMenu_SetCheckmarks(uint8_t* menu, int32_t selected) {
     const int32_t count = (title_global<uint8_t>(0x0095e7f8) ? 1 : 0) + 4;
     for (int32_t i = 0; i < count; ++i) {
         char name[0xc];
-        title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(
+        title_sprintf(
             name, reinterpret_cast<const char*>(uintptr_t{0x0082c42c}), i + 1);  // _sprintf "check0%i"
         uint8_t* const list = field<uint8_t*>(menu, 0x38);
         uint8_t* const picture = Panel_FindPicture(list, name);
