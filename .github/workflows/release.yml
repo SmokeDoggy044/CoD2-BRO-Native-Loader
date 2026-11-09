@@ -23,6 +23,12 @@ on:
 permissions:
   contents: read
 
+# Several build steps use Bash arrays/parameter expansion. GitHub's Linux default
+# shell is `sh`, so select Bash for every run step (including inside containers).
+defaults:
+  run:
+    shell: bash
+
 jobs:
   linux:
     name: Linux i686 release archive
@@ -55,17 +61,20 @@ jobs:
       - name: Configure the Linux release
         run: |
           set -euo pipefail
-          sdl3_config="$(find /usr/lib/i386-linux-gnu -name SDL3Config.cmake -print -quit)"
+          sdl3_config="$(find /usr/lib/i386-linux-gnu /usr/lib /lib \
+            -name SDL3Config.cmake -print -quit 2>/dev/null || true)"
           if [ -z "$sdl3_config" ]; then
             echo "libsdl3-dev:i386 did not provide SDL3Config.cmake" >&2
             exit 1
           fi
-          openal_config="$(find /usr/lib/i386-linux-gnu -name OpenALConfig.cmake -print -quit || true)"
+          openal_config="$(find /usr/lib/i386-linux-gnu /usr/lib /lib \
+            -name OpenALConfig.cmake -print -quit 2>/dev/null || true)"
           args=(
             -DCOD_BRO_BUILD_TESTS=OFF
             -DCOD_BRO_DXVK_PREBUILT_DIR="$PWD/build/deps/dxvk"
             -DSDL3_DIR="$(dirname "$sdl3_config")"
             -DCMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu
+            -DCMAKE_LIBRARY_ARCHITECTURE=i386-linux-gnu
           )
           if [ -n "$openal_config" ]; then
             args+=("-DOpenAL_DIR=$(dirname "$openal_config")")
