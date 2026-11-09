@@ -426,7 +426,7 @@ address,name,section,module,state,tested,matched
 0001b8f0,HashStr_Equals,.text,qcommon,replaced,104,104
 0001b930,nglAllocSceneMemory,.text,renderer,replaced,291,291
 0001b960,MemContext_AllocOrHeap16,.text,qcommon,replaced,87,87
-0001b9a0,FUN_0001b9a0,.text,unassigned,untested,0,0
+0001b9a0,NullCallback,.text,unassigned,untested,0,0
 0001b9e0,PhysShape_SupportInFrame,.text,game,untested,0,0
 0001bb60,PhysShape_IntersectInFrame,.text,game,untested,0,0
 0001bdc0,CM_TriMesh_Dtor,.text,collision,replaced,20,20
@@ -695,7 +695,7 @@ address,name,section,module,state,tested,matched
 00026cc0,G_ClearLevelLocals,.text,game,replaced,116,116
 00026fc0,FUN_00026fc0,.text,unassigned,unnamed,0,0
 000270e0,FUN_000270e0,.text,unassigned,unnamed,0,0
-00027770,FUN_00027770,.text,unassigned,unnamed,0,0
+00027770,GScr_ConstStrings_Dtor,.text,script,untested,0,0
 00027cf0,FUN_00027cf0,.text,unassigned,unnamed,0,0
 00027d30,VehiclePathState_Dtor,.text,game,replaced,18813,18813
 00027d60,DebugDraw_MakeTriangle,.text,renderer,replaced,0,0
@@ -707,7 +707,7 @@ address,name,section,module,state,tested,matched
 000280f0,DynArray_PushBackAligned,.text,qcommon,replaced,14,14
 00028160,DebugDraw_QueueLine,.text,renderer,replaced,0,0
 000282b0,DebugDraw_QueueTriangle,.text,renderer,replaced,0,0
-00028400,FUN_00028400,.text,unassigned,untested,0,0
+00028400,ListVectorValue_Dtor,.text,unassigned,untested,0,0
 00028440,WaitTilOutputInst1_ent_DeletingDtor,.text,script,replaced,4770,4770
 00028470,DynArray_ResizeAligned,.text,qcommon,replaced,324,324
 00028530,DynArray_AllocAlignedZeroed,.text,qcommon,replaced,82,82
@@ -5079,7 +5079,7 @@ address,name,section,module,state,tested,matched
 00151200,BroScr_VehicleHealth2500Init,.text,levelscript,untested,0,0
 00151230,BroScr_VehicleRandomHealthInit_3,.text,levelscript,untested,0,0
 00151270,BroScr_PanzerIVSetDifficultyHealth,.text,levelscript,untested,0,0
-00151370,FollowEnt_Worker,.text,unassigned,named,0,0
+00151370,FollowEnt_Worker,.text,unassigned,untested,0,0
 00151bb0,BroScr_RemoveAllFollowers,.text,levelscript,untested,0,0
 00151c90,BroScr_WaitForFollowersCall,.text,levelscript,untested,0,0
 00151cd0,BroScr_FollowLagThink,.text,levelscript,untested,0,0
@@ -5396,7 +5396,7 @@ address,name,section,module,state,tested,matched
 0017ac00,DynArray_AllocInt_FillUndefined,.text,qcommon,replaced,1,1
 0017ac40,DynArray_AllocBool_FillUndefined,.text,qcommon,replaced,0,0
 0017ac70,BroScr_TankSpawnerSlots_Init,.text,levelscript,replaced,0,0
-0017ad50,FUN_0017ad50,.text,unassigned,untested,0,0
+0017ad50,Record54_Copy,.text,unassigned,untested,0,0
 0017ada0,Scr_StartThread_ent_ent_hash_ent_hash,.text,game,set-aside,0,0
 0017ae10,Scr_StartThread_ent_f_f_b,.text,game,set-aside,0,0
 0017ae80,Scr_StartThread_ent_ent_str_vec,.text,game,matched,4,4
@@ -6691,7 +6691,7 @@ address,name,section,module,state,tested,matched
 001bc040,ScrField_fallback_IsDefined,.text,script,replaced,6,6
 001bc0b0,ScrField_h1791f035,.text,script,replaced,6,6
 001bc0e0,ScrField_h1791f035_IsDefined,.text,script,replaced,6,6
-001bc150,FUN_001bc150,.text,unassigned,unnamed,0,0
+001bc150,BroScr_JoinHangarChain,.text,levelscript,untested,0,0
 001bc7c0,BroScr_HangarChainAIThink,.text,levelscript,untested,0,0
 001be170,BroScr_MgUserGoToNode,.text,levelscript,matched,6,6
 001be660,BroScr_GrenadeThrowTrigger,.text,levelscript,untested,0,0
@@ -8290,7 +8290,7 @@ address,name,section,module,state,tested,matched
 00248af0,G_Error,.text,game,replaced,0,0
 00248db0,Cmd_NglStats_f,.text,qcommon,set-aside,0,0
 00248dd0,Q_CleanStrLower,.text,qcommon,replaced,0,0
-00248e10,FUN_00248e10,.text,unassigned,untested,0,0
+00248e10,G_EntityWeaponRecordFlag,.text,game,untested,0,0
 00248ee0,G_GetTouchTypeFlag,.text,game,replaced,28287,28287
 00248f70,VehNode_AllocSlot,.text,game,replaced,17,17
 00249010,VehNodePool_Free,.text,game,matched,1,1
@@ -9138,7 +9138,7 @@ address,name,section,module,state,tested,matched
 0029a8b0,FS_Seek,.text,qcommon,replaced,0,0
 0029aac0,FS_Printf,.text,qcommon,replaced,6,6
 0029ab20,FS_IsCfgMenuOrDatFile,.text,qcommon,replaced,0,0
-0029aba0,FUN_0029aba0,.text,unassigned,matched,71,71
+0029aba0,ThreadHandleList_EndAll,.text,unassigned,matched,71,71
 0029ac20,Scr_EntityWaitList_FreeWaits,.text,game,replaced,400,400
 0029acb0,EntNotifyCallbacks_CallByKey,.text,script,replaced,380,380
 0029ae90,FxShakeRumbleComponent_Stop,.text,renderer,replaced,0,0

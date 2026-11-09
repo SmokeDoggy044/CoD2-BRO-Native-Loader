@@ -426,7 +426,7 @@
 0001b8f0 HashStr_Equals
 0001b930 nglAllocSceneMemory
 0001b960 MemContext_AllocOrHeap16
-0001b9a0 FUN_0001b9a0
+0001b9a0 NullCallback
 0001b9e0 PhysShape_SupportInFrame
 0001bb60 PhysShape_IntersectInFrame
 0001bdc0 CM_TriMesh_Dtor
@@ -695,7 +695,7 @@
 00026cc0 G_ClearLevelLocals
 00026fc0 FUN_00026fc0
 000270e0 FUN_000270e0
-00027770 FUN_00027770
+00027770 GScr_ConstStrings_Dtor
 00027cf0 FUN_00027cf0
 00027d30 VehiclePathState_Dtor
 00027d60 DebugDraw_MakeTriangle
@@ -707,7 +707,7 @@
 000280f0 DynArray_PushBackAligned
 00028160 DebugDraw_QueueLine
 000282b0 DebugDraw_QueueTriangle
-00028400 FUN_00028400
+00028400 ListVectorValue_Dtor
 00028440 WaitTilOutputInst1_ent_DeletingDtor
 00028470 DynArray_ResizeAligned
 00028530 DynArray_AllocAlignedZeroed
@@ -5396,7 +5396,7 @@
 0017ac00 DynArray_AllocInt_FillUndefined
 0017ac40 DynArray_AllocBool_FillUndefined
 0017ac70 BroScr_TankSpawnerSlots_Init
-0017ad50 FUN_0017ad50
+0017ad50 Record54_Copy
 0017ada0 Scr_StartThread_ent_ent_hash_ent_hash
 0017ae10 Scr_StartThread_ent_f_f_b
 0017ae80 Scr_StartThread_ent_ent_str_vec
@@ -6691,7 +6691,7 @@
 001bc040 ScrField_fallback_IsDefined
 001bc0b0 ScrField_h1791f035
 001bc0e0 ScrField_h1791f035_IsDefined
-001bc150 FUN_001bc150
+001bc150 BroScr_JoinHangarChain
 001bc7c0 BroScr_HangarChainAIThink
 001be170 BroScr_MgUserGoToNode
 001be660 BroScr_GrenadeThrowTrigger
@@ -8290,7 +8290,7 @@
 00248af0 G_Error
 00248db0 Cmd_NglStats_f
 00248dd0 Q_CleanStrLower
-00248e10 FUN_00248e10
+00248e10 G_EntityWeaponRecordFlag
 00248ee0 G_GetTouchTypeFlag
 00248f70 VehNode_AllocSlot
 00249010 VehNodePool_Free
@@ -9138,7 +9138,7 @@
 0029a8b0 FS_Seek
 0029aac0 FS_Printf
 0029ab20 FS_IsCfgMenuOrDatFile
-0029aba0 FUN_0029aba0
+0029aba0 ThreadHandleList_EndAll
 0029ac20 Scr_EntityWaitList_FreeWaits
 0029acb0 EntNotifyCallbacks_CallByKey
 0029ae90 FxShakeRumbleComponent_Stop
