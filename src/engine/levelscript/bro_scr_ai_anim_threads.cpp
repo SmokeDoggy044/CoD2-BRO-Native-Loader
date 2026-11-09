@@ -10,6 +10,7 @@
 #include "bro_scr_ai_common.h"
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
+#include "bro_scr_chain_threads.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_note_handlers.h"
 #include "bro_scr_notify_threads.h"
@@ -4853,7 +4854,7 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
     if (field_defined(ScrField_h227464a0_IsDefined, ent)) set_word(0x00922b94, ent, *int_slot(ent, 0x227464a0));  // ScrEnt_SetHealth
     if (field_defined(ScrField_script_battle_IsDefined, ent) && *int_slot(ent, 0x026e8e55))
         title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011b4d0)(
-            0, 0, 0, 0, 0x001bc150, ent);  // Scr_BeginThreadFunctor1(FUN_001bc150)
+            0, 0, 0, 0, own_address(&BroScr_JoinHangarChain), ent);  // Scr_BeginThreadFunctor1(BroScr_JoinHangarChain)
     if (field_defined(ScrField_hb61a7388_IsDefined, ent)) {
         set_word(0x0092268c, ent, title_global<uint32_t>(0x009236dc));  // GScr_SetGoalEntity(the player)
     } else if (!field_defined(ScrField_h4b1fafe5_IsDefined, ent)) {

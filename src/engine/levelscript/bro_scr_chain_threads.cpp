@@ -1,5 +1,6 @@
 #include "bro_scr_chain_threads.h"
 
+#include "bro_scr_actor_threads.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_common.h"
 #include "g_scr_runtime.h"
@@ -427,6 +428,82 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
     queue_notify(level_handle(), 0x492f14bc);
     scr_release(&movers);
     scr_release(&chains);
+}
+
+namespace {
+
+// GetTeam(ent) == text; the team string released before the test.
+inline bool team_is(uint32_t ent, uint32_t text) {
+    ScriptString team;
+    const bool equal = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(text));
+    scr_release(&team);
+    return equal;
+}
+// The level list's entry whose targetname (0x99ca82d7) is `ent`'s target (the last match), else `found`.
+inline uint32_t chain_by_target(uint32_t ent, uint32_t offset, uint32_t found) {
+    for (uint32_t i = 0; static_cast<int32_t>(i) < count_of(level_array(offset)); ++i) {
+        ScriptString target;
+        const ScriptString* const wanted = ScrCall_ScrEnt_GetTarget(&ent, &target);
+        const uint32_t chain = *element_at(level_array(offset), i);
+        const bool equal = ScriptString_EqualsString(
+            wanted, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(  // ScriptKeyTable_GetString
+                        ent_script_object(chain), 0x99ca82d7));
+        scr_release(&target);
+        if (equal) found = *element_at(level_array(offset), i);
+    }
+    return found;
+}
+// The level list's entry with the fewest AI (array 0x8969d6d6; the first of equals, below `fewest`).
+inline uint32_t chain_with_fewest(uint32_t offset, uint32_t found, int32_t fewest) {
+    for (uint32_t i = 0; static_cast<int32_t>(i) < count_of(level_array(offset)); ++i) {
+        const int32_t count = count_of(get_array(*element_at(level_array(offset), i), kAI));
+        if (count < fewest) {
+            found = *element_at(level_array(offset), i);
+            fewest = count;
+        }
+    }
+    return found;
+}
+// Scr_CreateThread of a {0x007f4a28, function, ent, chain} functor on `ent`.
+inline void start_on_chain(uint32_t function, uint32_t ent, uint32_t chain) {
+    uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
+    if (functor) {
+        functor[0] = 0x007f4a28;
+        functor[1] = function;
+        functor[2] = ent;
+        functor[3] = chain;
+    }
+    slot<CreateThread>(0x0092216c)(0, 0, 0, ent, functor, 0);  // Scr_CreateThread
+}
+
+}  // namespace
+
+void XB_CDECL BroScr_JoinHangarChain(uint32_t ent) {
+    uint32_t chain = 0;
+    bool has_target;
+    {
+        ScriptString target;
+        has_target = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
+        scr_release(&target);
+    }
+    if (has_target) {
+        // The chain named by the AI's target: allies among the movers (+0x8c), others among the owners (+0x98).
+        if (team_is(ent, 0x00832084))  // "allies"
+            chain = chain_by_target(ent, 0x8c, chain);
+        else
+            chain = chain_by_target(ent, 0x98, chain);
+    } else if (team_is(ent, 0x00832084)) {  // "allies"
+        start_on(own_address(&BroScr_SetGoalRadius64UntilNotify), ent);  // BroScr_SetGoalRadius64UntilNotify
+        Scr_WaitTill(level_handle(), 0x1b179a21);
+        chain = chain_with_fewest(0x8c, chain, 1000);
+    } else if (team_is(ent, 0x0083208c)) {  // "axis"
+        slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922df4)(ent, 0x42800000);  // ScrSentient_SetFloat_18 (goal radius 64)
+        chain = chain_with_fewest(0x98, chain, 1000);
+    }
+    if (!entity_handle_is_valid(chain)) return;
+    DynArray_PushBack(reinterpret_cast<uint8_t*>(get_array(chain, kAI)), &ent);
+    if (team_is(ent, 0x00832084)) start_on_chain(own_address(&BroScr_GoToChainNode), ent, chain);  // "allies"
+    if (team_is(ent, 0x0083208c)) start_on_chain(own_address(&BroScr_FriendlyChainThink), ent, chain);  // "axis"
 }
 
 }  // namespace game
