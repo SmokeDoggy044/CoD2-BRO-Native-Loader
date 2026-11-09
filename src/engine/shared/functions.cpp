@@ -5191,6 +5191,7 @@ const Function kFunctions[] = {
     {"ScrField_fallback_IsDefined", 0x001bc040, 0, code(ScrField_fallback_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_h1791f035", 0x001bc0b0, 0, code(ScrField_h1791f035), 4, Result::Eax, Status::Replaced},
     {"ScrField_h1791f035_IsDefined", 0x001bc0e0, 0, code(ScrField_h1791f035_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_JoinHangarChain", 0x001bc150, 0, code(&BroScr_JoinHangarChain), 4, Result::None, Status::Compare},
     {"BroScr_HangarChainAIThink", 0x001bc7c0, 0, code(&BroScr_HangarChainAIThink), 4, Result::None, Status::Compare},
     {"BroScr_MgUserGoToNode", 0x001be170, 0, code(&BroScr_MgUserGoToNode), 4, Result::None, Status::Compare},
     {"BroScr_GrenadeThrowTrigger", 0x001be660, 0, code(&BroScr_GrenadeThrowTrigger), 8, Result::None, Status::Compare},

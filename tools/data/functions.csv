@@ -5138,6 +5138,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001bc040,ScrField_fallback_IsDefined,replaced,0,6,6,0,0,0,""
 001bc0b0,ScrField_h1791f035,replaced,0,6,6,0,0,0,""
 001bc0e0,ScrField_h1791f035_IsDefined,replaced,0,6,6,0,0,0,""
+001bc150,BroScr_JoinHangarChain,compare,0,0,0,0,0,0,""
 001bc7c0,BroScr_HangarChainAIThink,compare,0,0,0,0,0,0,""
 001be170,BroScr_MgUserGoToNode,compare,34,6,6,0,0,0,""
 001be660,BroScr_GrenadeThrowTrigger,compare,0,0,0,0,0,0,""

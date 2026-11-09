@@ -37,4 +37,13 @@ void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent);
 // 0x492f14bc. Releases both strings.
 void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString chains);
 
+// 0x001bc150 (Scr_BeginThreadFunctor1 target, for AI with script_battle): picks a hangar chain for AI
+// `ent` - with a target, the level list entry whose targetname (0x99ca82d7) matches it (allies: the
+// movers at level +0x8c, others: the chain owners at +0x98); without one, allies start a
+// BroScr_SetGoalRadius64UntilNotify thread, wait for the level's 0x1b179a21 and take the mover with
+// the fewest AI (array 0x8969d6d6), axis get goal radius 64 and take the owner with the fewest AI. A
+// valid chain gets `ent` in its AI array and a BroScr_GoToChainNode (allies) / BroScr_FriendlyChainThink
+// (axis) thread. Name ours.
+void XB_CDECL BroScr_JoinHangarChain(uint32_t ent);
+
 }  // namespace game
