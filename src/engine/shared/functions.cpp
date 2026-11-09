@@ -830,6 +830,7 @@ const Function kFunctions[] = {
     {"G_ClearClientPersistant", 0x00026ae0, 0, code(&G_ClearClientPersistant), 0, Result::Eax, Status::Replaced},
     {"G_ClearClient", 0x00026b60, 0, code(&G_ClearClient_entry), 0, Result::Eax, Status::Replaced},
     {"G_ClearLevelLocals", 0x00026cc0, 0, code(&G_ClearLevelLocals_entry), 0, Result::None, Status::Replaced},
+    {"GScr_ConstStrings_Dtor", 0x00027770, 0, code(&GScr_ConstStrings_Dtor_entry), 0, Result::None, Status::Compare},
     {"VehiclePathState_Dtor", 0x00027d30, 0, code(&VehiclePathState_Dtor_entry), 0, Result::None, Status::Replaced},
     {"DebugDraw_MakeTriangle", 0x00027d60, 0, code(&DebugDraw_MakeTriangle), 8, Result::Eax, Status::Replaced},
     {"Vehicle_CopyPathState", 0x00027dc0, 0, code(&Vehicle_CopyPathState_entry), 0, Result::Eax, Status::Replaced},

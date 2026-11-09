@@ -147,10 +147,22 @@ void XB_CDECL AtExit_FreeAligned_984cec() { free_aligned_global(0x00984cec); }
 void XB_CDECL AtExit_g_entityRemoveQueue() { free_aligned_global(0x00987a78); }
 void XB_CDECL AtExit_FreeAligned_97a640() { free_aligned_global(0x0097a640); }
 
+PLATFORM_ASM_ENTRY(GScr_ConstStrings_Dtor_entry, "pushl %esi\n" PLATFORM_ASM_CALL(GScr_ConstStrings_Dtor) "addl $4, %esp\n"
+                                                "ret")
+
+void XB_CDECL GScr_ConstStrings_Dtor(uint8_t* strings) {
+    // Members +0x21c down to +0 (the last one a tail jump).
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(strings));
+    for (uint32_t offset = 0x220; offset != 0;) {
+        offset -= 4;
+        release_script_string(base + offset);
+    }
+}
+
 void XB_CDECL AtExit_984ac0() {
     TitleRegs regs{};
     regs.esi = 0x00984ac0;
-    cg_call_regs(0x00027770, &regs, nullptr, 0);  // FUN_00027770 (object in ESI)
+    cg_call_regs(own_address(&GScr_ConstStrings_Dtor_entry), &regs, nullptr, 0);  // GScr_ConstStrings_Dtor
 }
 
 void XB_CDECL AtExit_9883b0() { VehiclePathState_Dtor(&title_global<uint8_t>(0x009883b0)); }  // tail jump
