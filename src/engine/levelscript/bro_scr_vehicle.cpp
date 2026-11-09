@@ -183,7 +183,7 @@ void XB_CDECL BroScr_PanzerIVStartThreads(uint32_t ent) {
 void XB_CDECL BroScr_StartFollowEnt(uint32_t ent, uint32_t a1, uint32_t target, uint32_t count) {
     *BroScr_FieldHandleSlot(ent, 0xd952b5cf) = target;
     *BroScr_FieldSlot(ent, 0x5cd3d8b8) = count;
-    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x00151370)(ent, a1);  // FollowEnt_Worker
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&FollowEnt_Worker)(ent, a1);  // FollowEnt_Worker
 }
 
 void XB_CDECL BroScr_Sdkfz222Init(uint32_t ent, uint32_t health) {
@@ -930,6 +930,131 @@ void XB_CDECL BroScr_PlaneSpawnWingTurrets_P47(uint32_t plane, uint32_t bombs) {
     // BroScr_WingTurretDamageWatch_2, P47PlaneCrash, VehicleFollowPathToEnd_2, EmptyFunc_4, EmptyFunc_5
     static const WingTurrets kSpec = {{own_address(&BroScr_WingTurretDamageWatch_2), own_address(&BroScr_P47PlaneCrash), own_address(&BroScr_VehicleFollowPathToEnd_2), 0x00121940, 0x00121950}, 0x00824e80, 0x00824d78, true};
     plane_wing_turrets(&plane, &bombs, kSpec);  // "P47_WING_TURRET", "v_p47_guns"
+}
+
+namespace {
+
+// The follow path (24-byte elements: point, offset point) under key 0xaeae4e0b, set to an empty
+// array when missing (ScriptKeyTable_SetArray_3; the original inlines it in its loops).
+DynArray* follow_path_or_add(uint32_t ent) {
+    ScriptKeyTable* const table = BroScr_ScriptObjectOrEmpty(ent);
+    uint32_t* value = ScriptKeyTable_Find(table, 0xaeae4e0b);
+    if (!value) {
+        const uint32_t empty[3] = {0, 0, 0};
+        value = ScriptKeyTable_SetArray_3(table, 0xaeae4e0b, empty);
+    }
+    return reinterpret_cast<DynArray*>(static_cast<uintptr_t>(*value));
+}
+
+DynArray* follow_path_get(uint32_t ent) {
+    return reinterpret_cast<DynArray*>(
+        static_cast<uintptr_t>(ScriptKeyTable_GetOrAddArray_3(BroScr_ScriptObjectOrEmpty(ent), 0xaeae4e0b)));
+}
+
+// The point of the path's last element (no check for an empty path, as in the original).
+const uint32_t* last_point(DynArray* path) { return path->data + path->size * 6 - 6; }
+
+uint32_t* origin_of(uint32_t* buffer, uint32_t ent) {
+    return scr_slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
+}
+
+using GetEntArray = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
+
+}  // namespace
+
+uint32_t XB_CDECL FollowEnt_Worker(uint32_t ent, int32_t spacing) {
+    ScriptString temp;
+    const bool none = ScrCall_ScrEnt_GetTarget(&ent, &temp)->rep == nullptr;
+    ScriptStringRep* const released = ScriptString_Release(&temp);
+    if (none) return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(released));
+    const uint32_t undefined = title_global<uint32_t>(0x00922ec0);  // g_scrUndefinedInt
+    if (static_cast<uint32_t>(spacing) == undefined || spacing < 16) spacing = 16;
+    bool defined;
+    if (!*ScrField_follow_ent_pos_IsDefined(&defined, ent)) *ScrField_follow_ent_pos(ent) = 0;
+    *BroScr_FieldSlot(ent, 0xea4a313a) = static_cast<uint32_t>(spacing);
+    *BroScr_FieldSlot(ent, 0x96f9883f) = static_cast<uint32_t>(spacing - 1);
+    // ScrField_h217d7784 (a bool field; a missing word's upper bytes are the caller's stale ECX).
+    {
+        ScriptKeyTable* const table = BroScr_ScriptObjectOrEmpty(ent);
+        uint32_t* flag = ScriptKeyTable_Find(table, 0x217d7784);
+        if (!flag) flag = ScriptKeyTable_Set(table, 0x217d7784, title_global<uint8_t>(0x00922ed0));
+        *reinterpret_cast<uint8_t*>(flag) = 1;
+    }
+
+    // The path starts with the entity's own origin (point and offset point).
+    uint32_t buffer[3];
+    const uint32_t* o = origin_of(buffer, ent);
+    const uint32_t start[3] = {o[0], o[1], o[2]};
+    uint32_t* const first = DynArray_At24(follow_path_get(ent), 0);
+    first[0] = start[0];
+    first[1] = start[1];
+    first[2] = start[2];
+    first[3] = start[0];
+    first[4] = start[1];
+    first[5] = start[2];
+
+    // Walk the target chain (GScr_GetEntArray by targetname), adding a point every `spacing`
+    // units towards each node, deleting the nodes.
+    uint32_t node = scr_slot<GetEntArray>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&ent, &temp), 0x0d786b4c, 0, 0, 0);
+    ScriptString_Release(&temp);
+    while (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(node)) {  // Scr_EntityHandleIsValid
+        DynArray* path = follow_path_or_add(ent);
+        o = origin_of(buffer, node);
+        const uint32_t at[3] = {o[0], o[1], o[2]};
+        const long double gap = scr_slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(at, last_point(path));  // Scr_Distance (ST0)
+        const int32_t distance = static_cast<int32_t>(static_cast<int64_t>(gap));  // _ftol
+        if (distance > spacing) {
+            int32_t steps = distance / spacing;
+            if (distance % spacing == 0) --steps;
+            const uint32_t* const from = last_point(follow_path_get(ent));
+            float p[3] = {as_float(from[0]), as_float(from[1]), as_float(from[2])};
+            o = origin_of(buffer, node);
+            const uint32_t delta[3] = {as_bits(as_float(o[0]) - p[0]), as_bits(as_float(o[1]) - p[1]),
+                                       as_bits(as_float(o[2]) - p[2])};
+            const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
+            uint32_t n[3] = {lane, lane, lane};
+            scr_slot<void XB_CDECL(uint32_t*, const uint32_t*)>(0x00922280)(n, delta);  // Scr_VectorNormalize
+            const float s = static_cast<float>(spacing);
+            const float sz = platform_mulss(as_float(n[2]), s);
+            const float sy = platform_mulss(as_float(n[1]), s);
+            const float sx = platform_mulss(s, as_float(n[0]));
+            for (int32_t i = 0; i < steps; ++i) {
+                p[0] = platform_addss(p[0], sx);
+                p[1] = platform_addss(p[1], sy);
+                p[2] = platform_addss(p[2], sz);
+                const uint32_t element[6] = {as_bits(p[0]), as_bits(p[1]), as_bits(p[2]),
+                                             as_bits(p[0]), as_bits(p[1]), as_bits(p[2])};
+                DynArray_PushBack24(follow_path_or_add(ent), element);
+            }
+        }
+        uint32_t current = node;
+        node = title_global<uint32_t>(0x00922e84);
+        const bool more = ScrCall_ScrEnt_GetTarget(&current, &temp)->rep != nullptr;
+        ScriptString_Release(&temp);
+        if (more) {
+            node = scr_slot<GetEntArray>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&current, &temp), 0x0d786b4c, 0, 0, 0);
+            ScriptString_Release(&temp);
+        }
+        scr_slot<void XB_CDECL(uint32_t)>(0x00922540)(current);  // GScr_Delete
+    }
+
+    // Each point dropped to the ground (BroScr_TraceGroundPos_2), then its random side offset.
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(follow_path_or_add(ent)->size); ++i) {
+        const uint32_t* const point = DynArray_At24(follow_path_or_add(ent), i);
+        ScrVec3 at = {{point[0], point[1], point[2]}};
+        uint32_t ground_buffer[3];
+        const uint32_t* const g = BroScr_TraceGroundPos_2(ground_buffer, at);
+        const uint32_t ground[3] = {g[0], g[1], g[2]};
+        uint32_t* const element = DynArray_At24(follow_path_or_add(ent), i);
+        element[0] = ground[0];
+        element[1] = ground[1];
+        element[2] = ground[2];
+        element[3] = ground[0];
+        element[4] = ground[1];
+        element[5] = ground[2];
+        BroScr_FollowPathOffsetPoint(ent, static_cast<int32_t>(i));
+    }
+    return 0;
 }
 
 }  // namespace game
