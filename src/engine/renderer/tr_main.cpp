@@ -2994,7 +2994,7 @@ PLATFORM_ASM_ENTRY(R_InitDebugMeshes_entry,
                    "ret")
 
 void XB_CDECL R_InitDebugMeshes(uint32_t* out) {
-    auto* material = static_cast<uint32_t*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0x18));  // Z_Malloc
+    auto* material = static_cast<uint32_t*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0x18));  // Z_Malloc
     out[3] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material ? cdDebug_InitMaterial(material) : nullptr));
     static const char* const kMeshes[3] = {"dbgsphr", "dbgcyl", "dbghemi"};
     for (int i = 0; i < 3; ++i) {

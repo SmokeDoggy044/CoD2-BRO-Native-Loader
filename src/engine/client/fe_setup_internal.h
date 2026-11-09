@@ -10,6 +10,7 @@
 #include "title_crt.h"
 #include "title_data.h"
 #include "ui_panel.h"
+#include "qcommon_core.h"
 
 // The functions that call a text setter (UIText vtable +0x6c, the item text +0x30, the menu's add item +4) run
 // those calls at the original's ESP: the entry moves the C frame below a gap and hands the C version the entry ESP
@@ -40,7 +41,7 @@ inline uint32_t bits(float value) {
     return out;
 }
 
-inline uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+inline uint8_t* z_malloc(uint32_t size) { return own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 
 // A title object's vtable slot (byte offset).
 template <typename F>

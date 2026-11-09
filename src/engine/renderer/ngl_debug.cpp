@@ -503,16 +503,16 @@ void XB_REGS1 XB_CDECL DebugDraw_AddLine(const float* end, const float* start, c
     float*& fades = title_global<float*>(0x0092bf84);
     if (!lines) {
         using Alloc = uint8_t* XB_CDECL(uint32_t);
-        uint8_t* block = title_function<Alloc>(0x00042c10)(0xb000);  // Z_Malloc
+        uint8_t* block = own_function<Alloc>(&Z_Malloc)(0xb000);  // Z_Malloc
         Com_Memset(block, 0, 0xb000);
         lines = block;
-        block = title_function<Alloc>(0x00042c10)(max);
+        block = own_function<Alloc>(&Z_Malloc)(max);
         Com_Memset(block, 0, max);
         groups = block;
-        block = title_function<Alloc>(0x00042c10)(max << 2);
+        block = own_function<Alloc>(&Z_Malloc)(max << 2);
         Com_Memset(block, 0, max << 2);
         durations = reinterpret_cast<int32_t*>(block);
-        block = title_function<Alloc>(0x00042c10)(max << 2);
+        block = own_function<Alloc>(&Z_Malloc)(max << 2);
         Com_Memset(block, 0, max << 2);
         fades = reinterpret_cast<float*>(block);
         count = 0;
@@ -562,10 +562,10 @@ void XB_CDECL DebugDraw_AddString(const float* color, const float* origin, float
     uint8_t*& groups = title_global<uint8_t*>(0x0092bf6c);
     if (!strings) {
         using Alloc = uint8_t* XB_CDECL(uint32_t);
-        uint8_t* block = title_function<Alloc>(0x00042c10)(0x8400);  // Z_Malloc
+        uint8_t* block = own_function<Alloc>(&Z_Malloc)(0x8400);  // Z_Malloc
         Com_Memset(block, 0, 0x8400);
         strings = block;
-        block = title_function<Alloc>(0x00042c10)(max);
+        block = own_function<Alloc>(&Z_Malloc)(max);
         Com_Memset(block, 0, max);
         groups = block;
         count = 0;

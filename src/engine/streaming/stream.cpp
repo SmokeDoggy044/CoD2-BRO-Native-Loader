@@ -1999,7 +1999,7 @@ void free_zone_block(uint32_t id, uint32_t block) {
 // Heap 0's 0x1000-aligned block of `size` bytes; Sys_DebugBreak when out of memory.
 uint8_t* bank_alloc(uint32_t size) {
     const uint32_t heap = own_function<uint32_t XB_CDECL(uint32_t)>(&Heap_SelectByIndex)(0);  // Heap_SelectByIndex
-    uint8_t* const block = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x1000, size);
+    uint8_t* const block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x1000, size);
     own_function<void XB_CDECL(uint32_t)>(&Heap_SetCurrent)(heap);  // Heap_SetCurrent
     if (!block) {
         char text[0x80];
@@ -2181,7 +2181,7 @@ uint32_t small_heap_create(uint32_t size, uint32_t per_page) {
     config.entries[0][1] = 4;
     config.entries[0][2] = per_page;
     config.count = 1;
-    const uint32_t heap = title_function<uint32_t XB_CDECL(uint32_t)>(0x00042c10)(0x3c);  // Z_Malloc
+    const uint32_t heap = own_function<uint32_t XB_CDECL(uint32_t)>(&Z_Malloc)(0x3c);  // Z_Malloc
     if (!heap) return 0;
     return own_function<uint32_t XB_THISCALL(uint32_t, SmallHeapConfig*, uint32_t, uint32_t)>(&SmallHeap_Init)(
         heap, &config, 1, 0);  // SmallHeap_Init
@@ -2758,7 +2758,7 @@ uint32_t* XB_CDECL Stream_AddZoneRawFile(const char* name, uint32_t id, uint8_t*
     uint32_t* record = nullptr;
     if (id != 0xffffffff)
         record = reinterpret_cast<uint32_t*>(uintptr_t{memcontext_alloc(zone_context(int32_t(id)), 0x10, 8)});
-    if (!record) record = title_function<uint32_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 8);  // Heap_AllocAligned
+    if (!record) record = own_function<uint32_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 8);  // Heap_AllocAligned
     record[1] = size;
     record[0] = data;
     uint8_t* const zone = word_at<uint8_t*>(streams, 0x5c + id * 4);

@@ -1842,7 +1842,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     }
     if (heap) {
         const uint32_t args[2] = {0x10, 0xa0};
-        r.eax = f.call(0x00283d74, 0x00042c50, r, 2, args);  // Heap_AllocAligned
+        r.eax = f.call(0x00283d74, own_address(&Heap_AllocAligned), r, 2, args);  // Heap_AllocAligned
     }
     r.esi = r.eax;
     if (r.esi) {
@@ -3459,7 +3459,7 @@ uint32_t XB_REGS1 XB_CDECL CG_ShellShock_LoadParams(const char* name) {
         CG_Printf(&title_global<char>(0x00838b18), path);
         return 0;
     }
-    char* text = title_function<char* XB_CDECL(int32_t)>(0x00042c10)(length + 1);  // Z_Malloc
+    char* text = own_function<char* XB_CDECL(int32_t)>(&Z_Malloc)(length + 1);  // Z_Malloc
     own_function<void XB_CDECL(void*, int32_t, int32_t)>(&Com_Memset)(text, 0, length + 1);  // Com_Memset
     own_function<int32_t XB_CDECL(void*, int32_t, int32_t)>(&FS_Read)(text, length, file);  // FS_Read
     text[length] = 0;

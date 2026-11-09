@@ -954,7 +954,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
                                   : nullptr;
         mem = MemContext_Alloc_r(heap, 0x10, 0x460);
     }
-    if (!mem) mem = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x460);  // Heap_AllocAligned
+    if (!mem) mem = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 0x460);  // Heap_AllocAligned
     uint8_t* ent = nullptr;
     if (mem) {
         const TitleRegs regs{address_of(mem), 0, 0, 0, static_cast<uint32_t>(context), 0};

@@ -4321,7 +4321,7 @@ uint32_t XB_STDCALL FX_AddLightComponents(uint32_t, const uint8_t* source, uint3
                 w[1] = 0;
                 *reinterpret_cast<uint16_t*>(component + 0x2a) = 0;
                 w[0] = 0x008376fc;
-                uint8_t* light = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
+                uint8_t* light = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0x10);  // Z_Malloc
                 if (light) light[0xc] = 0;
                 light_slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(light));
                 own_function<void XB_STDCALL(uint8_t*, uint32_t)>(&FX_GetEntityTagOrigin)(light, entity);

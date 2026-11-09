@@ -2122,7 +2122,7 @@ SysEvent* XB_CDECL Com_GetRealEvent(SysEvent* out) {
         if (FS_Read(&ev, 0x18, file) != 0x18) error(0, read_error);
         if (ev.ptr_length) {
             const int32_t length = ev.ptr_length;
-            uint8_t* buffer = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(length);  // Z_Malloc
+            uint8_t* buffer = own_function<uint8_t* XB_CDECL(int32_t)>(&Z_Malloc)(length);  // Z_Malloc
             Com_Memset(buffer, 0, static_cast<uint32_t>(length));
             ev.ptr = buffer;
             if (FS_Read(buffer, ev.ptr_length, title_global<int32_t>(0x0093fce0)) != ev.ptr_length) error(0, read_error);
@@ -3417,7 +3417,7 @@ void XB_REGS3 XB_CDECL FS_CopyFile(char* to, uint32_t, const char* from) {
     crt_fseek(f, 0, 2);
     const int32_t len = crt_ftell(f);
     crt_fseek(f, 0, 0);
-    uint8_t* buf = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(len);  // Z_Malloc
+    uint8_t* buf = own_function<uint8_t* XB_CDECL(int32_t)>(&Z_Malloc)(len);  // Z_Malloc
     if (crt_fread(buf, 1, static_cast<uint32_t>(len), f) != len) fs_break(0, 0x00838060);
     crt_fclose(f);
     if (!FS_CreatePath(to)) {
@@ -3458,7 +3458,7 @@ void XB_REGS3 XB_CDECL FS_AddGameDirectory(uint32_t, uint32_t, const char* dir, 
         crt_strncpy(&title_global<char>(kFsGamedir), gamedir, 0x7f);
         title_global<char>(kFsGamedir + 0x7f) = 0;
     }
-    const auto z_malloc = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10);
+    const auto z_malloc = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc);
     uint8_t* const sp = z_malloc(0x14);
     Com_Memset(sp, 0, 0x14);
     char* const d = reinterpret_cast<char*>(z_malloc(0x100));
@@ -4383,7 +4383,7 @@ char** XB_CDECL FS_ListFilteredFiles(const char* path, const char* extension, co
     *numfiles = nfiles;
     if (!nfiles) return nullptr;
     const uint32_t bytes = static_cast<uint32_t>(nfiles * 4 + 4);
-    char** const result = title_function<char** XB_CDECL(uint32_t)>(0x00042c10)(bytes);  // Z_Malloc
+    char** const result = own_function<char** XB_CDECL(uint32_t)>(&Z_Malloc)(bytes);  // Z_Malloc
     Com_Memset(reinterpret_cast<uint8_t*>(result), 0, bytes);
     for (int32_t i = 0; i < nfiles; ++i) result[i] = list[i];
     result[nfiles] = nullptr;
@@ -5170,8 +5170,8 @@ void dynarray_assign_hash_map(DynArray* array, const DynArray* source, const Has
     array->capacity = source->capacity;
 }
 
-const HashMapArrayInstance kHashMapArray1{own_address(&HashMap_Ctor_PROLOGUE), own_address(&HashMap_Dtor_PROLOGUE), 0x0011aa90, own_address(&HashMap_CopyFrom_PROLOGUE), &DynArray_AllocHashMap};
-const HashMapArrayInstance kHashMapArray2{own_address(&HashMap_Ctor_PROLOGUE_8), own_address(&HashMap_Dtor_PROLOGUE_2), 0x0045f220, own_address(&HashMap_CopyFrom_6), &DynArray_AllocHashMap_2};
+const HashMapArrayInstance kHashMapArray1{own_address(&HashMap_Ctor_PROLOGUE), own_address(&HashMap_Dtor_PROLOGUE), own_address(&HashMap_Dtor_PROLOGUE), own_address(&HashMap_CopyFrom_PROLOGUE), &DynArray_AllocHashMap};
+const HashMapArrayInstance kHashMapArray2{own_address(&HashMap_Ctor_PROLOGUE_8), own_address(&HashMap_Dtor_PROLOGUE_2), own_address(&HashMap_Dtor_PROLOGUE_2), own_address(&HashMap_CopyFrom_6), &DynArray_AllocHashMap_2};
 
 // Shuffle: element i swaps with element Scr_RandomInt(size), each access through At (resize thiscall
 // (index + 1, index + 4) when index >= size).
@@ -6325,7 +6325,7 @@ namespace {
 
 // RcString: {length, references beyond the first, text (Heap_Alloc16), capacity}, 0x10 bytes from Z_Malloc.
 uint8_t* rc_string_new() {
-    uint8_t* const rc = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
+    uint8_t* const rc = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0x10);  // Z_Malloc
     if (!rc) return nullptr;
     pk<uint32_t>(rc, 0) = 0;
     pk<uint32_t>(rc, 4) = 0;
@@ -6377,7 +6377,7 @@ void XB_CDECL Com_ReadHunkUsage(const char* map_name) {
     int32_t f = 0;
     const int32_t length = FS_FOpenFileByMode(tstr(0x00832ca8), &f, 0);  // "hunkusage.dat"
     if (length >= 0) {
-        uint8_t* const buffer = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(length + 1);  // Z_Malloc
+        uint8_t* const buffer = own_function<uint8_t* XB_CDECL(int32_t)>(&Z_Malloc)(length + 1);  // Z_Malloc
         Com_Memset(buffer, 0, static_cast<uint32_t>(length + 1));
         std::memset(buffer, 0, static_cast<uint32_t>(length + 1));
         FS_Read(buffer, length, f);
@@ -6634,7 +6634,7 @@ void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self) {
         uint8_t*& buffer = pk<uint8_t*>(self, 0x11c0 + i * 4);
         if (!buffer)
             buffer = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
-                title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, clusters)));  // Heap_AllocAligned
+                own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x20, clusters)));  // Heap_AllocAligned
         std::memset(buffer, 0, clusters);
         const uint32_t args[2] = {u32(script_string_text(dir)), static_cast<uint32_t>(i)};
         const char* const name = i > 0 ? ShortString_Printf(numbered, tstr(0x0082aae4), const_cast<uint32_t*>(args))  // "%s%d"
@@ -7053,7 +7053,7 @@ void XB_CDECL Sys_Main() {
     FS_InitPackBuffers();
     own_function<void XB_CDECL()>(&SndSys_InitDevice)();  // SndSys_InitDevice
     Sys_Milliseconds();
-    title_function<void XB_CDECL()>(0x00094160)();  // FxShaderClass_Create
+    own_function<void XB_CDECL()>(&FxShaderClass_Create)();  // FxShaderClass_Create
     own_function<void XB_CDECL()>(&nglInitShaders)();  // nglInitShaders
     const auto frame_memory = own_function<void XB_CDECL(int32_t, uint32_t, int32_t)>(&nglSetFrameMemorySize);  // nglSetFrameMemorySize
     frame_memory(0, 0xc0000, 1);
@@ -7174,7 +7174,7 @@ uint32_t boot_call(uint32_t function, uint32_t eax = 0, uint32_t ebx = 0, uint32
 // Heap_AllocAligned (0x00042c60: alignment, size).
 uint8_t* boot_alloc(uint32_t alignment, uint32_t size) {
     return reinterpret_cast<uint8_t*>(
-        static_cast<uintptr_t>(title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c60)(alignment, size)));
+        static_cast<uintptr_t>(own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(alignment, size)));
 }
 
 // A manager constructed in a Heap_AllocAligned block (object in `reg`: 'a' EAX, 'b' EBX, 'd' EDX, 'D' EDI, else

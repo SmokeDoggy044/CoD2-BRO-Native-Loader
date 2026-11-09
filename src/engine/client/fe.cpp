@@ -1153,7 +1153,7 @@ PLATFORM_ASM_ENTRY(ui_ptrvector_push,
                    "popl %esi\n"
                    "ret")
 
-void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+void* z_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 void z_free(void* pointer) { own_function<void XB_CDECL(void*)>(&Z_Free)(pointer); }
 
 uint32_t quad_count(uint8_t* picture) { return field<uint32_t>(picture, 0x28); }
@@ -3806,7 +3806,7 @@ uint32_t XB_CDECL FE_LiberatorCreateCrossIcons(const FrameIn* in, uint32_t entry
         {0x0082d828, 0x0082d818, 0xc, 0x0031768e, 0x003176a1, 0x003176c5}};  // ace_cross: ironcrossgold
     uint32_t result = 0;
     for (const auto& cross : kCrosses) {
-        const uint32_t block = f.call(0x44, cross[3], 0x00042c10, 0x40);  // Z_Malloc
+        const uint32_t block = f.call(0x44, cross[3], own_address(&Z_Malloc), 0x40);  // Z_Malloc
         uint8_t* picture = nullptr;
         if (block) {
             f.regs.esi = block;
@@ -3898,7 +3898,7 @@ uint32_t XB_CDECL FE_LoadPanel(const FrameIn* in, uint32_t entry_esp) {
     f.word(0xc) = in->edi;  // push edi
     const uint32_t name = stack_word(entry_esp + 4);
     const uint32_t data = stack_word(entry_esp + 8);
-    uint8_t* const panel = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0xc, 0x003393fa, 0x00042c10, 0x60)});  // Z_Malloc
+    uint8_t* const panel = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0xc, 0x003393fa, own_address(&Z_Malloc), 0x60)});  // Z_Malloc
     if (panel) {
         for (uint32_t i = 0; i < 6; ++i) field<uint32_t>(panel, i * 4) = 0;
         field<int32_t>(panel, 0x18) = -1;
@@ -3919,7 +3919,7 @@ FE_FRAME_ENTRY(FE_CreateMenus, "ret")
 uint32_t XB_CDECL FE_CreateMenus(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const owner = reinterpret_cast<uint8_t*>(uintptr_t{in->esi});
-    const uint32_t block = f.call(0, 0x0033705a, 0x00042c10, 0xf8);  // Z_Malloc
+    const uint32_t block = f.call(0, 0x0033705a, own_address(&Z_Malloc), 0xf8);  // Z_Malloc
     uint8_t* front_end = nullptr;
     if (block) {
         f.regs.eax = block;
@@ -3937,7 +3937,7 @@ uint32_t XB_CDECL FE_CreateMenus(const FrameIn* in, uint32_t entry_esp) {
             f.method(0, 0x003370ab, front_end, 0xc, 1);
         }
     }
-    const uint32_t dialogs = f.call(0, 0x003370b2, 0x00042c10, 0x24);  // Z_Malloc
+    const uint32_t dialogs = f.call(0, 0x003370b2, own_address(&Z_Malloc), 0x24);  // Z_Malloc
     uint32_t result = 0;
     if (dialogs) {
         f.regs.eax = dialogs;

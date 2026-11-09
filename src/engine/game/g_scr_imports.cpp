@@ -753,7 +753,7 @@ const ImportSlot kLevelImports[] = {
     {0x344, own_address(&GScr_BadPlace_Cylinder)},  // GScr_BadPlace_Cylinder
     {0x348, own_address(&GScr_BadPlace_Arc)},  // GScr_BadPlace_Arc
     {0x34c, own_address(&GScr_NewHudElem)},  // GScr_NewHudElem
-    {0x350, 0x002ff590},  // Actor_FreeAllCorpses
+    {0x350, own_address(&Actor_FreeAllCorpses)},  // Actor_FreeAllCorpses
     {0x7a4, own_address(&GScr_SetHudVisible)},  // GScr_SetHudVisible
     {0x7a8, own_address(&GScr_HudSetText)},  // GScr_HudSetText
     {0x7ac, own_address(&GScr_HudSetShader)},  // GScr_HudSetShader

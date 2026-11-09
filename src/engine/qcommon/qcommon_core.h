@@ -395,6 +395,10 @@ uint32_t XB_CDECL Mem_GetWCPoolStart();
 // aligned), heap 2 over the write-combined one, heap 1 over the debug pool (chained from heap 0);
 // heap 0 current. Returns 1.
 uint32_t XB_CDECL Heap_InitDefaultHeaps();
+// 0x00043fb0: the physical and write-combined pools (XPhysicalAlloc); returns the write-combined pool's end.
+uint32_t XB_CDECL Mem_AllocPhysicalPools();
+// 0x00044160: formats into 512 bytes; fprintf to `stream` when given, else OutputDebugStringA (returns 0).
+int32_t XB_CDECL Mem_DebugPrintf(uint32_t stream, const char* format, ...);
 
 // 0x00043350 (heap in EAX): dlmalloc's sysmalloc over Heap_Sbrk (no mmap): grows the top by whole pages
 // (+0x45c), merging with the old top when contiguous, else fencing the old top (5, 5) and freeing it;

@@ -59,6 +59,32 @@ def table():
     out = {}
     for m in ENTRY.finditer(TABLE.read_text()):
         out[int(m.group(2), 16)] = (m.group(3), m.group(4))
+    while thunks := jmp_thunks(out):  # a thunk to a thunk resolves on the next round
+        out.update(thunks)
+    return out
+
+
+def jmp_thunks(tab):
+    """Functions (progress.csv rows) without C whose whole body is `jmp Target` (E9 rel32, the compiler's
+    incremental-link style thunks: Z_Malloc 0x00042c10 -> Z_Malloc): calls through them reach Target, so they
+    are rewritten to Target's C like a call to Target itself (2026-11-08)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import csv
+    import struct
+    import fnpack
+    image = fnpack.Image()
+    out = {}
+    with open(fnpack.DATA / "progress.csv", newline="") as f:
+        for r in csv.DictReader(f):
+            a = int(r["address"], 16)
+            if a in tab:
+                continue
+            code = image.read(a, 5)
+            if not code or code[0] != 0xE9:
+                continue
+            target = (a + 5 + struct.unpack("<i", code[1:5])[0]) & 0xFFFFFFFF
+            if target in tab:
+                out[a] = tab[target]
     return out
 
 

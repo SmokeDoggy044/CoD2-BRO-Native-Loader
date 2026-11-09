@@ -759,10 +759,10 @@ void add_command(uint32_t list, const char* name, uint32_t function) {
     uint32_t*& head = title_global<uint32_t*>(list);
     for (uint32_t* cmd = head; cmd; cmd = reinterpret_cast<uint32_t*>(uintptr_t{cmd[0]}))
         if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{cmd[1]}))) return;
-    uint32_t* cmd = static_cast<uint32_t*>(title_function<ZMalloc>(0x00042c10)(0xc));  // Z_Malloc
+    uint32_t* cmd = static_cast<uint32_t*>(own_function<ZMalloc>(&Z_Malloc)(0xc));  // Z_Malloc
     Com_Memset(reinterpret_cast<uint8_t*>(cmd), 0, 0xc);
     const uint32_t size = static_cast<uint32_t>(std::strlen(name)) + 1;
-    char* copy = static_cast<char*>(title_function<ZMalloc>(0x00042c10)(size));
+    char* copy = static_cast<char*>(own_function<ZMalloc>(&Z_Malloc)(size));
     Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, size);
     std::memcpy(copy, name, size);
     cmd[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
@@ -1124,7 +1124,7 @@ int32_t XB_CDECL FS_AddFileToList(const char* name, char** list, int32_t count) 
     for (int32_t i = 0; i < count; ++i)
         if (name && list[i] && !Q_stricmpn(name, list[i], 99999)) return count;
     const uint32_t size = static_cast<uint32_t>(std::strlen(name)) + 1;
-    char* copy = static_cast<char*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size));  // Z_Malloc
+    char* copy = static_cast<char*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size));  // Z_Malloc
     Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, size);
     std::memcpy(copy, name, size);
     list[count] = copy;
@@ -1278,7 +1278,7 @@ PLATFORM_ASM_ENTRY(CopyString_entry,
 
 char* XB_CDECL CopyString(const char* text) {
     const uint32_t size = static_cast<uint32_t>(std::strlen(text)) + 1;
-    char* copy = static_cast<char*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size));  // Z_Malloc
+    char* copy = static_cast<char*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size));  // Z_Malloc
     Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, size);
     std::memcpy(copy, text, size);
     return copy;

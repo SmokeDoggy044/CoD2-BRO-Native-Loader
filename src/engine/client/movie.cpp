@@ -37,9 +37,9 @@ uint32_t* movie_slots() { return &title_global<uint32_t>(0x0095fd18); }
 void*& audio_buffer() { return title_global<void*>(0x00920850); }  // movie_audioBuffer
 
 void free_aligned(void* p) { Mem_AlignedFree(p); }
-void operator_delete(void* p) { title_function<void XB_CDECL(void*)>(0x00011050)(p); }  // Z_Free (0x00011050)
+void operator_delete(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free (0x00011050)
 void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }            // Z_Free
-void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+void* z_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 
 // The movie sound runs on our device (SndSys_InitDevice made the buffer there); Movie_DecodeFrame's C stays on the
 // DirectSound calls while it is Compare (the voice id is the same either way).

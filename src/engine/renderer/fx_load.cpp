@@ -1154,7 +1154,7 @@ PLATFORM_ASM_ENTRY(FX_LoadEffectFile_entry,
 
 uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t zone) {
     using HeapAlloc = uint8_t* XB_CDECL(uint32_t, uint32_t);
-    uint8_t* memory = title_function<HeapAlloc>(0x00042c60)(0x10, 0xd0);  // Heap_AllocAligned
+    uint8_t* memory = own_function<HeapAlloc>(&Heap_AllocAligned)(0x10, 0xd0);  // Heap_AllocAligned
     uint8_t* effect = memory ? FxEffect_Init(memory, name) : nullptr;
     Stream_ReadInt(stream);
     const float version = Stream_ReadFloat(stream);
@@ -1196,7 +1196,7 @@ uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t
         uint8_t* renderer = FX_CreateRenderer(nullptr, &renderer_id, list);
         at<int32_t>(renderer, 8) = particle_limit;
         free_list(list);
-        uint8_t* memory_list = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0xc);  // Z_Malloc
+        uint8_t* memory_list = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0xc);  // Z_Malloc
         uint8_t* elements = memory_list ? FxElementList_Init(memory_list) : nullptr;
         const uint32_t actions = Stream_ReadInt(stream);
         for (uint32_t k = 0; k < actions; ++k) {
@@ -2546,7 +2546,7 @@ void XB_CDECL FX_InitParticleLibrary() {
 
 uint8_t* XB_THISCALL FxAction_DeletingDtor(uint8_t* self, uint32_t flags) {
     FxAction_Destroy(self);
-    if (flags & 1) title_function<void XB_CDECL(void*)>(0x00011050)(self);  // Z_Free
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
 

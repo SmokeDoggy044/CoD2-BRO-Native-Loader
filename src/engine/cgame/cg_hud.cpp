@@ -1018,7 +1018,7 @@ void XB_CDECL HudCompCompass_UpdateNeedle(uint8_t* compass) {
 
 namespace {
 
-void* hud_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }  // Z_Malloc
+void* hud_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }  // Z_Malloc
 const char* hud_text(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
 
 // A component allocation: vtable, visible byte, the listed dwords cleared.

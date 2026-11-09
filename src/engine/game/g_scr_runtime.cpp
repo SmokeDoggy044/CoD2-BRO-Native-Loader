@@ -1813,7 +1813,7 @@ void XB_CDECL ScrThread_InitDataHeap() {
         config.pools[config.count][2] = 0x4b0;
         ++config.count;
     }
-    uint8_t* heap = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x3c);  // Z_Malloc
+    uint8_t* heap = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0x3c);  // Z_Malloc
     if (!heap) {
         title_global<uint32_t>(0x0095f490) = 0;
         return;
@@ -1932,7 +1932,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_StartAnimNotify_c(uint32_t entry_es
     const uint32_t name = title_global<uint32_t>(entry_esp + 8);
     if (!wait_entity(handle)) return;
     uint32_t node = static_cast<uint32_t>(
-        reinterpret_cast<uintptr_t>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0x20)));  // Z_Malloc
+        reinterpret_cast<uintptr_t>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0x20)));  // Z_Malloc
     if (node) {
         TitleRegs regs{};
         regs.ecx = name;

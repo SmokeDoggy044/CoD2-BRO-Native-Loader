@@ -57,7 +57,7 @@ void call(uint8_t* object, uint32_t offset, uint32_t a, uint32_t b) {
 }
 
 void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Free
-uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+uint8_t* z_malloc(uint32_t size) { return own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 uint8_t* heap_alloc16(uint32_t size) {
     return own_function<uint8_t* XB_CDECL(uint32_t)>(&Heap_Alloc16)(size);  // Heap_Alloc16
 }

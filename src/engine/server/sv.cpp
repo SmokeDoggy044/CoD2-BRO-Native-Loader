@@ -101,7 +101,7 @@ void XB_REGS3 XB_CDECL SV_AdjustAreaPortalState(const uint8_t* ent, uint32_t, ui
 void XB_CDECL SV_AllocServerStatic() {
     if (title_global<uint32_t>(0x00927e84))
         title_function<Break>(kBreak)(0, title_text(0x00832cf0));  // "SV_AllocServerStatic: called while running"
-    void* svs = title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0xec0);  // Z_Malloc
+    void* svs = own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0xec0);  // Z_Malloc
     Com_Memset(static_cast<uint8_t*>(svs), 0, 0xec0);
     title_global<void*>(0x00927e8c) = svs;
     if (!svs) title_function<Break>(kBreak)(0, title_text(0x00832cc4));  // "SV_AllocServerStatic: out of memory"
@@ -2147,7 +2147,7 @@ using VmCall6 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t
                                           uint32_t);
 uint8_t* gvm() { return title_global<uint8_t*>(0x0095f50c); }
 void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }  // Z_Malloc's free
-uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+uint8_t* z_malloc(uint32_t size) { return own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 void script_string_release(void* s) { own_function<void XB_THISCALL(void*)>(&ScriptString_Release_entry)(s); }
 // The packet counter SV_PacketEvent also bumps (never 0).
 void bump_packet_count() {
@@ -2406,7 +2406,7 @@ uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uin
     const uint32_t size = title_global<uint32_t>(0x00965ce4);
     (void)esi;  // ESI holds the size by the first call
     const TitleRegs malloc_regs = {size, ebx, 0, 0, size, edi};
-    uint8_t* copy = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(top, 0x00042c10, &malloc_regs, 1, &size)});
+    uint8_t* copy = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(top, own_address(&Z_Malloc), &malloc_regs, 1, &size)});
     const uint32_t memset_args[3] = {word(copy), 0, size};
     const TitleRegs memset_regs = {word(copy), word(copy), 0, 0, size, edi};
     title_call_at_regs(top - 4, own_address(&Com_Memset), &memset_regs, 3, memset_args);  // Com_Memset

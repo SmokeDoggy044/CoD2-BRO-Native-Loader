@@ -949,6 +949,8 @@ const Function kFunctions[] = {
     {"Mem_GetDebugPoolStart", 0x000440a0, 0, code(&Mem_GetDebugPoolStart), 0, Result::Eax, Status::Replaced},
     {"Mem_GetWCPoolEnd", 0x000440c0, 0, code(&Mem_GetWCPoolEnd), 0, Result::Eax, Status::Replaced},
     {"Mem_GetWCPoolStart", 0x000440e0, 0, code(&Mem_GetWCPoolStart), 0, Result::Eax, Status::Replaced},
+    {"Mem_AllocPhysicalPools", 0x00043fb0, 0, code(&Mem_AllocPhysicalPools), 0, Result::Eax, Status::Replaced},
+    {"Mem_DebugPrintf", 0x00044160, 0, code(&Mem_DebugPrintf), 8, Result::Eax, Status::Replaced},
     {"Q_stricmpn", 0x000441c0, 0, code(&Q_stricmpn), 12, Result::Eax, Status::Replaced},
     {"Str_EqualN", 0x000442a0, 0, code(&Str_EqualN), 0, Result::Al, Status::Replaced},
     {"Q_strncpyLen", 0x000442e0, 0, code(&Q_strncpyLen), 16, Result::None, Status::Replaced},

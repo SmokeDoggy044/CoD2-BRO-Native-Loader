@@ -618,7 +618,7 @@ uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t k
             find(0x0001dddb, own_address(&NAL_Clip_FindFloat3Channel_entry), s + 0xb8, a, b, s + 0xb8);  // NAL_Clip_FindFloat3Channel
             const uint32_t size[] = {0xc};
             const uint32_t memory =
-                f.call(0x0001dde2, 0x00042c10, TitleRegs{s + 0xb8, s, 0, 0, generic, s + 0xa8}, 1, size);  // Z_Malloc
+                f.call(0x0001dde2, own_address(&Z_Malloc), TitleRegs{s + 0xb8, s, 0, 0, generic, s + 0xa8}, 1, size);  // Z_Malloc
             uint32_t weights = 0;
             if (memory)
                 weights = f.call(0x0001ddf4, own_address(&AnimWeights_Construct_entry), TitleRegs{generic, s, memory, 0, memory, s + 0xa8}, 0,

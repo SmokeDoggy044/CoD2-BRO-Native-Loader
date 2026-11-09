@@ -15,6 +15,7 @@
 #include "bg_misc.h"
 #include "cm.h"
 #include "pmove.h"
+#include "qcommon_core.h"
 
 // Calls `function` on the current stack with all six registers from `regs` and `count`
 // stack words (args[0] pushed last, popped again here); returns its EAX.
@@ -529,7 +530,7 @@ uint8_t* XB_CDECL CG_GetEntityRefEntity(uint8_t* cent) {
         memory = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x10,
                                                                                             0x100);  // MemContext_Alloc_r
     }
-    if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x100);  // Heap_AllocAligned
+    if (!memory) memory = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 0x100);  // Heap_AllocAligned
     if (!memory) {
         record = nullptr;
         return record;

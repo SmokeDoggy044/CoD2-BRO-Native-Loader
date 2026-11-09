@@ -1,5 +1,4 @@
 kind,address,name,module,state,detail
-c_call,00011050,Z_Free,qcommon,set-aside,src/engine/client/movie.cpp src/engine/renderer/fx_load.cpp
 c_call,00011220,Live_GetCurrentUser,online,set-aside,src/engine/client/fe.cpp
 c_call,00011240,eh_vector_constructor_iterator,crt,named,src/engine/client/fe.cpp src/engine/game/g_spawn.cpp src/engine/game/g_utils.cpp src/engine/game/g_vehicle.cpp src/engine/game/ragdoll.cpp src/engine/renderer/fx.cpp src/engine/renderer/ngl.cpp src/en
 c_call,00011280,vector_call_iterator,crt,named,src/engine/cgame/cgame.cpp src/engine/renderer/r_static_init.cpp
@@ -14,32 +13,14 @@ c_call,00028400,FUN_00028400,unassigned,unnamed,src/engine/levels/levels_templat
 c_call,000299c0,EntHandleTable_ReportFull,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,0002c442,FUN_0002c442,mslib,unnamed,src/engine/qcommon/qcommon_fs.cpp
 c_call,00042460,Sys_DebugBreak,qcommon,set-aside,src/engine/game/g_main.cpp src/engine/game/g_scr_runtime.cpp src/engine/game/g_utils.cpp src/engine/game/ragdoll.cpp src/engine/levelscript/bro_scr_brofunc.cpp src/engine/qcommon/param_set.cpp src/eng
-c_call,00042c10,Z_Malloc,qcommon,set-aside,src/engine/cgame/cg_hud.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/client/fe.cpp src/engine/client/fe_setup_internal.h src/engine/client/movie.cpp src/engine/client/ui_menu.cpp
-c_call,00042c50,Heap_AllocAligned,qcommon,set-aside,src/engine/cgame/cg_ents.cpp src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/game/g_mover.cpp src/engine/game/g_spawn.cpp src/engine/game/g_vehicle.cpp src/engine/qcommon/qcommon_fs.cp
-c_call,00042c60,Heap_AllocAligned,qcommon,set-aside,src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/fx_load.cpp
-c_call,00043fb0,Mem_AllocPhysicalPools,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
-c_call,00044160,Mem_DebugPrintf,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
-c_call,00055e70,IN_PadUpdate,client,set-aside,src/engine/client/movie.cpp src/engine/game/g_main.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,00056ae0,IN_PadStopAllRumble,client,set-aside,src/engine/game/g_mover.cpp
-c_call,000572f0,unzSetCurrentFileInfoPosition,zlib,set-aside,src/engine/collision/cm.cpp
-c_call,00057bd0,unzOpenCurrentFile,zlib,set-aside,src/engine/collision/cm.cpp
-c_call,0005af00,zcalloc,zlib,set-aside,src/engine/zlib/zlib.cpp
-c_call,0005d190,huft_build,zlib,set-aside,src/engine/zlib/zlib.cpp
-c_call,00066af0,Mem_AlignedAlloc,qcommon,set-aside,src/engine/renderer/ngl.cpp
-c_call,0008cc40,NAL_Packed16EntropyIKSpin_Lerp,xanim,set-aside,src/engine/xanim/nal_codec.cpp
 c_call,00093a10,Sys_GetStackBounds,qcommon,set-aside,src/engine/xanim/nal_anim.cpp
-c_call,00094160,FxShaderClass_Create,renderer,library,src/engine/qcommon/qcommon_fs.cpp
-c_call,000b4190,Phys_CreateWorld,game,library,src/engine/game/phys.cpp
 c_call,000b8990,FUN_000b8990,unassigned,unnamed,src/engine/game/phys.cpp
-c_call,000c3830,Mem_AlignedFree,qcommon,set-aside,src/engine/sound/snd.cpp
-c_call,000c4140,SndVoice_Free,sound,library,src/engine/sound/snd.cpp
 c_call,000cb8d0,FileDevice_IssueIo,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d13c0,Save_FirstPort,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d1500,Save_CalculateSignature,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,000d35a9,UIX::CLiveEngine_SetInput,mslib,library,src/engine/qcommon/qcommon_fs.cpp
 c_call,000d35c2,UIX::LiveEngine_ClearInput,mslib,library,src/engine/qcommon/qcommon_fs.cpp
 c_call,0011a910,Scr_StartThreadFunctor1,game,set-aside,src/engine/levels/levels_prologue_b.cpp src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_drone_threads.cpp src/engine/leve
-c_call,0011aa90,HashMap_Dtor_PROLOGUE,qcommon,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,0011b4d0,Scr_BeginThreadFunctor1,game,set-aside,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_note_handlers.cpp src/engine/levelscript/bro_scr_traverse.cpp
 c_call,0011d950,Scr_SuspendWaitTime,game,set-aside,src/engine/game/g_scr_runtime.cpp
 c_call,0011d990,Scr_SuspendWaitFrames,game,set-aside,src/engine/game/g_scr_runtime.cpp
@@ -92,7 +73,8 @@ c_call,001e6f2a,XAPILIB::XGetLanguage,mslib,library,src/engine/qcommon/qcommon_f
 c_call,001e7062,XAPILIB::FileTimeToSystemTime,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001e75b4,XAPILIB::FileTimeToLocalFileTime,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001e75df,XAPILIB::XGetVideoStandard,mslib,library,src/engine/renderer/ngl.cpp src/engine/sound/snd.cpp
-c_call,001e763a,XAPILIB::XPhysicalAlloc,mslib,library,src/engine/qcommon/qcommon.cpp src/engine/sound/snd.cpp
+c_call,001e7608,XAPILIB::OutputDebugStringA,mslib,library,src/engine/qcommon/qcommon_core.cpp
+c_call,001e763a,XAPILIB::XPhysicalAlloc,mslib,library,src/engine/qcommon/qcommon.cpp src/engine/qcommon/qcommon_core.cpp src/engine/sound/snd.cpp
 c_call,001e76aa,XAPILIB::XPhysicalProtect,mslib,library,src/engine/renderer/ngl.cpp src/engine/streaming/stream.cpp
 c_call,001e76ba,XAPILIB::XPhysicalFree,mslib,library,src/engine/qcommon/qcommon.cpp src/engine/renderer/ngl.cpp
 c_call,001e7767,XAPILIB::SetUnhandledExceptionFilter,mslib,library,src/engine/qcommon/qcommon_fs.cpp
@@ -100,7 +82,7 @@ c_call,001e7896,XAPILIB::CreateThread,mslib,library,src/engine/qcommon/qcommon_c
 c_call,001e79ad,XAPILIB::FindFirstFileA,mslib,library,src/engine/qcommon/qcommon_fs.cpp
 c_call,001e7aba,XAPILIB::FindNextFileA,mslib,library,src/engine/qcommon/qcommon_fs.cpp
 c_call,001e7b0b,XAPILIB::CloseHandle,mslib,library,src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/ngl.cpp
-c_call,001e7c35,XAPILIB::GlobalMemoryStatus,mslib,library,src/engine/renderer/ngl.cpp
+c_call,001e7c35,XAPILIB::GlobalMemoryStatus,mslib,library,src/engine/qcommon/qcommon_core.cpp src/engine/renderer/ngl.cpp
 c_call,001e7c84,XAPILIB::GetLastError,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001e7cf1,XAPILIB::GetOverlappedResult,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001e7d56,XAPILIB::CreateFileA,mslib,library,src/engine/qcommon/qcommon_core.cpp src/engine/renderer/ngl.cpp
@@ -132,15 +114,15 @@ c_call,001e9cc8,XAPILIB::XGetDiskClusterSizeA,mslib,library,src/engine/qcommon/q
 c_call,001e9d67,XAPILIB::XGetDiskSectorSizeA,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001ea047,XAPILIB::XGetDisplayBlocks,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001ed6ca,XAPILIB::QueryPerformanceCounter,mslib,library,src/engine/client/cl.cpp src/engine/client/fe.cpp src/engine/game/actor.cpp src/engine/game/g_scr_runtime.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/ngl.cpp
-c_call,001ee901,_sprintf,mslib,library,src/engine/cgame/cg_hud.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/client/fe.cpp src/engine/client/fe_options.cpp src/engine/client/fe_setup.cpp src/engine/client/fe_setup_bonu
+c_call,001ee901,_sprintf,mslib,library,src/engine/cgame/cgame.cpp src/engine/client/fe.cpp src/engine/renderer/r_init.cpp src/engine/shared/title_crt.cpp
 c_call,001ee960,_strncat,mslib,library,src/engine/client/movie.cpp
 c_call,001eea95,_vsprintf,mslib,library,src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/game/g_script.cpp src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/fx.cpp src/engine/renderer/fx
 c_call,001eeaf0,_strncmp,mslib,library,src/engine/client/fe.cpp src/engine/game/g_mover.cpp src/engine/game/g_spawn.cpp src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/ngl.cpp src/engine/streaming/
-c_call,001eeb81,_atol,mslib,library,src/engine/cgame/cg_view.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/client/fe.cpp src/engine/game/g_mover.cpp src/engine/game/g_pathnode.cpp src/engine/game/g_scr_imports.cpp s
+c_call,001eeb81,_atol,mslib,library,src/engine/shared/title_crt.cpp
 c_call,001eebff,__snprintf,mslib,library,src/engine/qcommon/qcommon.cpp
 c_call,001eed36,_atexit,mslib,library,src/engine/game/g_scr_runtime.cpp src/engine/game/g_static.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,001eed48,tolower,crt,named,src/engine/client/cl.cpp src/engine/game/pmove.cpp src/engine/qcommon/qcommon.cpp src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/script/scr_field.cpp
-c_call,001eed80,_strncpy,mslib,library,src/engine/cgame/cg_view.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/client/fe.cpp src/engine/client/movie.cpp src/engine/client/ui_menu.cpp src/engine/client/ui_panel.cpp src/e
+c_call,001eed80,_strncpy,mslib,library,src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/qcommon/qcommon.cpp src/engine/server/sv.cpp src/engine/shared/title_crt.cpp
 c_call,001eeea4,LIBCMT::_strtok,mslib,library,src/engine/client/movie.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,001eef49,_isalpha,mslib,library,src/engine/qcommon/qcommon_core.cpp src/engine/script/g_scr_builtins.cpp src/engine/script/scr_field.cpp
 c_call,001eef77,_isdigit,mslib,library,src/engine/game/actor.cpp
@@ -172,6 +154,7 @@ c_call,001f0790,_fclose,mslib,library,src/engine/qcommon/qcommon_fs.cpp src/engi
 c_call,001f07e1,sscanf,crt,named,src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/game/g_main.cpp src/engine/game/g_spawn.cpp
 c_call,001f0a40,__controlfp,mslib,library,src/engine/game/phys.cpp src/engine/renderer/r_init.cpp
 c_call,001f0ac5,_errno,crt,named,src/engine/qcommon/qcommon_core.cpp
+c_call,001f0b4a,FID_conflict:_fwprintf,mslib,library,src/engine/qcommon/qcommon_core.cpp
 c_call,001f0bf4,_ftol,crt,named,src/engine/game/ragdoll.cpp
 c_call,001f0c69,LIBCMT::_free,mslib,library,src/engine/zlib/unzip.cpp
 c_call,001f0d14,_malloc,mslib,library,src/engine/zlib/unzip.cpp src/engine/zlib/zlib.cpp
@@ -201,35 +184,19 @@ c_call,00224920,LiveMgr_Construct,online,set-aside,src/engine/qcommon/qcommon_fs
 c_call,00224970,Live_Render,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,00224a50,Live_Init,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,00248e10,FUN_00248e10,unassigned,unnamed,src/engine/game/g_vehicle.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,00290e30,Stream_LoadDdsmp,streaming,set-aside,src/engine/streaming/stream.cpp
-c_call,00292d10,Stream_LoadSync,streaming,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,002938f0,__break,mslib,library,src/engine/cgame/cg_ents.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/collision/cm.cpp src/engine/game/actor.cpp src/engine/game/g_main.cpp src/engine/game/g_mover.cpp src/engine
 c_call,0029aba0,FUN_0029aba0,unassigned,unnamed,src/engine/game/actor.cpp
-c_call,0029d4a0,FS_FileExists,qcommon,set-aside,src/engine/client/cl.cpp
-c_call,0029fcc0,Cvar_Reset_f,qcommon,set-aside,src/engine/qcommon/qcommon.cpp
-c_call,002aa870,Cmd_List_f,qcommon,set-aside,src/engine/qcommon/qcommon.cpp
-c_call,002aaad0,Cmd_Echo_f,qcommon,set-aside,src/engine/qcommon/qcommon.cpp
-c_call,002ac450,CL_ClearConfigstrings,client,set-aside,src/engine/server/sv.cpp
-c_call,002b1eb0,Cmd_ExecuteRegisteredCommand,qcommon,set-aside,src/engine/client/fe_profile.cpp src/engine/game/g_main.cpp
 c_call,002b2790,BrushModel_CopyBounds,unassigned,named,src/engine/script/g_scr_builtins.cpp src/engine/server/sv.cpp
 c_call,002bda60,SoundManager_Ctor,sound,set-aside,src/engine/qcommon/qcommon_fs.cpp
-c_call,002c4310,AnimTree_DebugDraw_r,xanim,set-aside,src/engine/renderer/dobj.cpp
 c_call,002cf920,Cmd_LaunchMultiplayer_f,qcommon,set-aside,src/engine/server/sv.cpp
 c_call,002cfa40,Cmd_RelaunchTitle_f,qcommon,set-aside,src/engine/server/sv.cpp
-c_call,002f2db0,CL_InitCGame,client,set-aside,src/engine/server/sv.cpp
 c_call,002f4bb0,Sys_DebugBreak,qcommon,library,src/engine/game/g_scr_imports.cpp
 c_call,002f4bc0,Sys_DebugBreak,qcommon,library,src/engine/game/g_scr_imports.cpp
 c_call,002f5120,ScrIface_HashKeyNoCase,script,set-aside,src/engine/game/g_scr_imports.cpp
-c_call,002fd890,G_SetupVehiclePool_Thunk,game,set-aside,src/engine/game/g_scr_imports.cpp
 c_call,002fddb0,Scr_WaitRecord15,game,named,src/engine/game/g_scr_imports.cpp
 c_call,002fde40,Scr_WaitRecord16,game,named,src/engine/game/g_scr_imports.cpp
-c_call,002ff590,Actor_FreeAllCorpses,game,library,src/engine/game/g_scr_imports.cpp
 c_call,00300850,Scr_WaitRecord17,game,named,src/engine/game/g_scr_imports.cpp
-c_call,0030c4d0,SaveSlot_Init,client,set-aside,src/engine/client/fe_profile.cpp
 c_call,0030cf90,MissionSuccessFailMenu_DialogReturnTrue,client,set-aside,src/engine/client/fe_menus.cpp
-c_call,0030daa0,FE_BonusConceptFreeImage,client,set-aside,src/engine/client/fe.cpp src/engine/client/fe_bonus.cpp
-c_call,0030db00,FE_BonusVehicleFreeImage,client,set-aside,src/engine/client/fe.cpp src/engine/client/fe_bonus.cpp
-c_call,0030db60,FE_BonusWeaponFreeImage,client,set-aside,src/engine/client/fe.cpp src/engine/client/fe_bonus.cpp
 c_call,0030f190,FUN_0030f190,unassigned,unnamed,src/engine/game/g_main.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,00312870,Live_CheckGameInvite,online,set-aside,src/engine/client/ui_menu.cpp
 c_call,0033aa20,UI_ShowDamagedDiscScreen,client,set-aside,src/engine/streaming/stream.cpp
@@ -251,6 +218,7 @@ c_call,0039894e,XONLINE,XONLINE,sdk,src/engine/levelscript/bro_scr_actor_threads
 c_call,00398ae8,XONLINE,XONLINE,sdk,src/engine/levels/levels_prologue_events.cpp
 c_call,003a09eb,XNET,XNET,sdk,src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_ai_anim.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_ai_look.cpp src/engine/lev
 c_call,003a3184,XNET,XNET,sdk,src/engine/levelscript/bro_scr_thread_misc.cpp
+c_call,003ac000,D3DX,D3DX,sdk,src/engine/qcommon/qcommon_core.cpp
 c_call,003acbbc,D3DX,D3DX,sdk,src/engine/renderer/ngl.cpp
 c_call,003b984d,D3DX,D3DX,sdk,src/engine/levelscript/bro_scr_arrays.cpp
 c_call,003bda2e,D3DX,D3DX,sdk,src/engine/levelscript/bro_scr_level_threads.cpp
@@ -384,19 +352,15 @@ c_call,00416fcc,XGRPH,XGRPH,sdk,src/engine/levelscript/bro_scr_level_threads_2.c
 c_call,0041853c,XGRPH,XGRPH,sdk,src/engine/levelscript/bro_scr_ai_anim_threads.cpp
 c_call,0041a260,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,0041a800,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,0041aa00,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,0041b800,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_a.cpp
-c_call,0041be80,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0041d4a0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00420740,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_a.cpp
 c_call,004230e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00424a00,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,004256b0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,00431720,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00432c90,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00435c30,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00437bb0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0043d4f0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0044a8d0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0044e120,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_bodies_a.cpp src/engine/levels/levels_prologue_events.cpp
 c_call,0044fde0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
@@ -417,42 +381,21 @@ c_call,00458ef0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events
 c_call,00458f20,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00458f30,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,00458f60,PROLOGUE,PROLOGUE,level,src/engine/script/script_string.cpp
-c_call,00458fc0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_levels.inc
 c_call,00458fd0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,004590d0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,004591e0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script.cpp src/engine/game/g_script_gen.inc
-c_call,004592d0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,00459440,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,00459680,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,004597c0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,004598e0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,004599c0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_levels.inc
-c_call,00459a70,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_levels.inc
-c_call,00459b70,PROLOGUE,PROLOGUE,level,src/engine/game/g_script.cpp src/engine/game/g_script_gen.inc
-c_call,00459dc0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_levels.inc
-c_call,00459e90,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,00459f60,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045a070,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045a140,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045a370,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp
 c_call,0045a410,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_core.cpp src/engine/script/script_string_levels.inc
 c_call,0045a450,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045a540,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_actor_threads.cpp
 c_call,0045a620,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_friendly_threads.cpp src/engine/levelscript/bro_scr_level_threads_2.cpp src/engine/levelscript/bro_scr_notetrack.cpp src/engine/levelscript/bro_scr_wait_misc.cpp
 c_call,0045a680,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_entity_threads.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/levelscript/bro_scr_notify_threads.cpp
 c_call,0045a6d0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_arrays.cpp src/engine/levelscript/bro_scr_chain_threads.cpp src/engine/levelscript/bro_scr_friendly_threads.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engi
-c_call,0045a7c0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_level.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/levelscript/bro_scr_notetrack.cpp src/engine/levelscri
 c_call,0045a850,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045a920,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045a970,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_drone_threads.cpp src/engine/levelscript/bro_scr_drones.cpp
 c_call,0045aad0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp
 c_call,0045ad90,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_flak88.cpp
-c_call,0045aff0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/levelscript/bro_scr_tank_init.cpp
 c_call,0045b2b0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp
-c_call,0045b3b0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_level_threads.cpp src/engine/levelscript/bro_scr_vehicle.cpp src/engine/levelscript/bro_scr_vehicle_riders.cpp
 c_call,0045b440,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,0045b670,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp src/engine/levelscript/bro_scr_level_threads.cpp
-c_call,0045b780,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_gibs.cpp
 c_call,0045b810,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_battle_threads.cpp src/engine/levelscript/bro_scr_drone_threads.cpp
 c_call,0045bc10,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045bc20,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
@@ -463,12 +406,10 @@ c_call,0045bf10,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_levels.inc
 c_call,0045bfd0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_levels.inc
 c_call,0045c120,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
 c_call,0045c1a0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
-c_call,0045c270,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_anim_reach.cpp src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levels
+c_call,0045c270,PROLOGUE,PROLOGUE,level,src/engine/script/script_string_levels.inc
 c_call,0045c2e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levelscript/bro_scr_arrays.cpp src/engine/level
 c_call,0045c410,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_drone.cpp src/engine/levelscript/bro_scr_drones.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/script/scr_
 c_call,0045c4a0,PROLOGUE,PROLOGUE,level,src/engine/game/g_scr_runtime.cpp src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,0045c550,PROLOGUE,PROLOGUE,level,src/engine/game/g_scr_runtime.cpp
-c_call,0045c5b0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_gen.inc
 c_call,0045c6b0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/script_string.cpp
 c_call,0045c740,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/script_string.cpp
 c_call,0045c7c0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/script_string.cpp
@@ -476,91 +417,24 @@ c_call,0045c860,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_level
 c_call,0045c8e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/script_string.cpp
 c_call,0045c950,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045c9c0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_drone.cpp src/engine/levelscript/bro_scr_level_threads.cpp
-c_call,0045ca00,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,0045ca40,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045ca60,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045ca80,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045caa0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045cad0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,0045cb70,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_flak.cpp src/engine/levelscript/bro_scr_stuka_bomb.cpp src/engine/levelscript/bro_scr_vehicle.cpp src/engine/levelscri
-c_call,0045cc80,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_chain_threads.cpp src/engine/levelscript/bro_scr_exploder.cpp src/engine/levelscript/bro_scr_halftrack_crew.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engi
-c_call,0045cd50,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levelscript/bro_scr_array.cpp src/engine/levelsc
+c_call,0045cad0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
+c_call,0045cc80,PROLOGUE,PROLOGUE,level,src/engine/script/script_string_levels.inc
 c_call,0045cde0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_level_threads.cpp src/engine/levelscript/bro_scr_path_mover.cpp src/engine/
-c_call,0045ceb0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_friendly_threads.cpp src/engine/levelscript/bro_scr_level_threads_2.cpp
 c_call,0045cf40,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_level_threads.cpp
-c_call,0045cfd0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045d030,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045d090,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045d130,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045d1c0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_levels.inc
-c_call,0045d2c0,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_gen.inc
-c_call,0045d340,PROLOGUE,PROLOGUE,level,src/engine/game/g_script_levels.inc
 c_call,0045d3b0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045d480,PROLOGUE,PROLOGUE,level,src/engine/game/g_scr_runtime.cpp src/engine/levels/levels_prologue_events.cpp src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/b
-c_call,0045d530,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
 c_call,0045d5f0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/script_string.cpp
-c_call,0045ddc0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_a.cpp src/engine/levelscript/bro_scr_drone_threads.cpp
-c_call,0045e150,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045e1b0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045e210,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045e270,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045e2d0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045e330,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045e380,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_levels.inc
 c_call,0045e3e0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class_levels.inc
 c_call,0045e4f0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,0045e540,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045e600,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
 c_call,0045e660,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp
-c_call,0045e6d0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_anim.cpp src/engine/leve
 c_call,0045e770,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
 c_call,0045e7b0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc
-c_call,0045ea30,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045ead0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045ebe0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_defaults.cpp src/engine/levelscript/bro_scr_fx_threads.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_
-c_call,0045ec50,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc src/engine/script/scr_class.
-c_call,0045ef10,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045efb0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f0a0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f110,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,0045f1a0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc src/engine/script/scr_class.cpp
-c_call,0045f220,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
-c_call,0045f250,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f2c0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f340,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,0045f350,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,0045f3a0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f3e0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f540,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f5f0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,0045f600,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,0045f650,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045f760,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
-c_call,0045f8b0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045fbb0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045fc30,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045fcb0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045fd30,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045fe40,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/script/scr_class.cpp
-c_call,0045feb0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045ff30,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,0045ffa0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460020,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460090,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460110,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460180,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460200,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460270,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004602f0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460360,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
 c_call,00460370,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
-c_call,004608a0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_anim.cpp src/engine/levelscript/bro_scr_anim_reach.cpp src/engine/lev
-c_call,00460af0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460d40,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_defaults.cpp src/engine/levelscript/bro_scr_fx_threads.cpp src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460db0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460e20,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460e90,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00460f10,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp src/engine/qcommon/qcommon_fs_levels.inc src/engine/script/scr_class.cpp
 c_call,00460f80,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_level_threads_2.cpp src/engine/levelscript/bro_scr_mortar_loops.cpp
 c_call,00461030,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_vehicle_riders.cpp
 c_call,004610d0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
@@ -568,88 +442,20 @@ c_call,004610e0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs.cpp
 c_call,00461120,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_a.cpp src/engine/levels/levels_prologue_b.cpp src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro
 c_call,004611e0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_level_threads_2.cpp
 c_call,00461230,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_events.cpp src/engine/levelscript/bro_scr_drones.cpp
-c_call,004612f0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levelscript/bro_scr_drone_threads.cpp
-c_call,004613c0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461400,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461450,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461490,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
 c_call,004614d0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,004614e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,004614f0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461510,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004615a0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00461630,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004616c0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00461750,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00461840,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004618d0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00461960,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004619f0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00461aa0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461ae0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00461b50,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00461bc0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00461db0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc
-c_call,00461e20,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461e90,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461f00,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461f70,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00461fe0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc
-c_call,00462060,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,004620e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00462160,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,004621e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00462260,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,004622e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
-c_call,00462320,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_anim.cpp src/engine/script/scr_class.cpp
-c_call,00462430,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00462490,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00462500,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00462570,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004627c0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00462a10,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00462c60,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00462eb0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00463100,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00463180,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00463200,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00463270,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004634c0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00463710,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,004639e0,PROLOGUE,PROLOGUE,level,src/engine/qcommon/qcommon_fs_levels.inc
-c_call,00463c30,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00463c70,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,00464110,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_anim_scenes.cpp
-c_call,004641e0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_anim.cpp src/engine/levelscript/bro_scr_anim_reach.cpp src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/level
-c_call,004642b0,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_drones.cpp
-c_call,00464380,PROLOGUE,PROLOGUE,level,src/engine/levelscript/bro_scr_anim.cpp src/engine/levelscript/bro_scr_anim_scenes.cpp src/engine/levelscript/bro_scr_drone_threads.cpp
-c_call,00464a20,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc src/engine/qcommon/qcommon_fs.cpp
 c_call,00464a90,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates.cpp src/engine/levels/levels_templates_levels.inc
-c_call,00464b00,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00464b70,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00464d00,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,00464dc0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464e60,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464ea0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464ed0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464f20,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464f50,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00464f90,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,00464fc0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,00465080,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00465120,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00465160,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00465190,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,004651e0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00465210,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
 c_call,00465250,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_prologue_b.cpp
-c_call,004652a0,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00465650,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00465670,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00465680,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,004656c0,PROLOGUE,PROLOGUE,level,src/engine/levels/levels_templates_levels.inc
-c_call,00465720,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
-c_call,00465830,PROLOGUE,PROLOGUE,level,src/engine/script/scr_class.cpp
 c_call,004af780,ORAN,ORAN,level,src/engine/game/g_script.cpp
 c_call,004afb70,ORAN,ORAN,level,src/engine/levelscript/bro_scr_array.cpp
 c_call,004b08e0,ORAN,ORAN,level,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_friendly_threads.cpp src/engine/levelscript/bro_scr_traverse.cpp
@@ -1205,6 +1011,7 @@ data_code,0003f7bf,FUN_0003f7bf,mslib,unnamed,.data:008dcd2c
 data_code,00248db0,Cmd_NglStats_f,qcommon,set-aside,.data:008ddae4
 data_code,0024d240,Cmd_Invinc_f,qcommon,set-aside,.data:008ddb94
 orig_call,00011040,Z_Malloc,qcommon,set-aside,reached
+orig_call,00011050,Z_Free,qcommon,set-aside,reached
 orig_call,000130d0,BonusWeaponsMenu_OnBack,client,set-aside,reached
 orig_call,00013170,BonusVehiclesMenu_OnBack,client,set-aside,reached
 orig_call,00013200,BonusConceptsMenu_OnBack,client,set-aside,reached
@@ -1385,26 +1192,17 @@ orig_call,00040792,FUN_00040792,mslib,unnamed,reached
 orig_call,000407b9,FUN_000407b9,mslib,unnamed,reached
 orig_call,000407e4,FUN_000407e4,mslib,unnamed,reached
 orig_call,000422b1,XGRAPHICS::fsc_InitializeBitMasks,mslib,library,reached
-orig_call,00056c20,unzlocal_SearchCentralDir,zlib,set-aside,reached
-orig_call,00056e10,unzlocal_GetCurrentFileInfoInternal,zlib,set-aside,reached
-orig_call,00057260,unzGoToNextFile,zlib,set-aside,reached
-orig_call,00057470,unzlocal_CheckCurrentFileCoherencyHeader,zlib,set-aside,reached
-orig_call,000578f0,unzCloseCurrentFile,zlib,set-aside,reached
-orig_call,00057e60,inflateReset,zlib,set-aside,reached
-orig_call,00057eb0,inflateEnd,zlib,set-aside,reached
-orig_call,00057f00,inflateInit2_,zlib,set-aside,reached
+orig_call,00042c10,Z_Malloc,qcommon,set-aside,reached
+orig_call,00055e70,IN_PadUpdate,client,set-aside,reached
+orig_call,00056ae0,IN_PadStopAllRumble,client,set-aside,reached
 orig_call,00058e80,longest_match,zlib,set-aside,reached
 orig_call,00058ff0,fill_window,zlib,set-aside,reached
 orig_call,00059180,deflate_stored,zlib,set-aside,reached
 orig_call,00059390,deflate_fast,zlib,set-aside,reached
 orig_call,00059700,deflate_slow,zlib,set-aside,reached
-orig_call,0005a010,inflate_blocks_reset,zlib,set-aside,reached
-orig_call,0005a090,inflate_blocks_new,zlib,set-aside,reached
-orig_call,0005acc0,inflate_blocks_free,zlib,set-aside,reached
 orig_call,0005b2c0,scan_tree,zlib,set-aside,reached
 orig_call,0005c510,build_bl_tree,zlib,set-aside,reached
 orig_call,0005c820,_tr_flush_block,zlib,set-aside,reached
-orig_call,0005d170,inflate_codes_free,zlib,set-aside,reached
 orig_call,0007bd20,NAL_GenericAnim_DestroyState,xanim,set-aside,reached
 orig_call,0007bd40,NAL_GenericAnim_DeletingDtor,xanim,set-aside,reached
 orig_call,0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,xanim,set-aside,reached
@@ -2440,6 +2238,7 @@ orig_call,00118530,XVOICE::_ipps_cFftFwd_Step_R2_32fc,mslib,library,reached
 orig_call,00118970,XVOICE::_ipps_cFftInv_Step_R2_32fc,mslib,library,reached
 orig_call,00119610,XVOICE::_ownippsMax_32f,mslib,library,reached
 orig_call,001199d0,XVOICE::_NuRand,mslib,library,reached
+orig_call,0011aa90,HashMap_Dtor_PROLOGUE,qcommon,set-aside,reached
 orig_call,0011e570,Scr_WaitTill,game,named,reached
 orig_call,0011e750,Scr_WaitTillString,game,named,reached
 orig_call,00120010,BroScr_EmptyFunc_7,levelscript,set-aside,reached
@@ -2459,7 +2258,6 @@ orig_call,001e70cd,XAPILIB::SystemTimeToFileTime,mslib,library,reached
 orig_call,001e7179,XAPILIB::RtlpCutoverTimeToSystemTime,mslib,library,reached
 orig_call,001e7383,XAPILIB::GetTimeZoneInformation,mslib,library,reached
 orig_call,001e74df,XAPILIB::XapipGetTimeZoneBias,mslib,library,reached
-orig_call,001e7608,XAPILIB::OutputDebugStringA,mslib,library,reached
 orig_call,001e767d,XAPILIB::XPhysicalAllocEx,mslib,library,reached
 orig_call,001e76c0,XAPILIB::XQueryMemoryProtect,mslib,library,reached
 orig_call,001e76fe,XAPILIB::RaiseException,mslib,library,reached
@@ -2573,7 +2371,6 @@ orig_call,001f0a0e,__control87,mslib,library,reached
 orig_call,001f0a56,_swprintf,mslib,library,reached
 orig_call,001f0ace,FUN_001f0ace,mslib,unnamed,reached
 orig_call,001f0ad7,__dosmaperr,mslib,library,reached
-orig_call,001f0b4a,FID_conflict:_fwprintf,mslib,library,reached
 orig_call,001f0b9e,FUN_001f0b9e,mslib,unnamed,reached
 orig_call,001f0ba8,LIBCMT::__cfltcvt_init,mslib,library,reached
 orig_call,001f0be0,LIBCMT::__fpmath,mslib,library,reached
@@ -2822,9 +2619,13 @@ orig_call,00248db0,Cmd_NglStats_f,qcommon,set-aside,reached
 orig_call,0024d240,Cmd_Invinc_f,qcommon,set-aside,reached
 orig_call,0028e6e0,Stream_AddClipSetToZone,streaming,set-aside,reached
 orig_call,002931c0,FUN_002931c0,unassigned,unnamed,reached
+orig_call,002b1eb0,Cmd_ExecuteRegisteredCommand,qcommon,set-aside,reached
 orig_call,002f4d70,ScrField_SetNone,script,set-aside,reached
 orig_call,002f4ef0,Sys_DebugBreak,qcommon,library,reached
 orig_call,002f5660,Scr_RestoreContext,game,named,reached
+orig_call,0030daa0,FE_BonusConceptFreeImage,client,set-aside,reached
+orig_call,0030db00,FE_BonusVehicleFreeImage,client,set-aside,reached
+orig_call,0030db60,FE_BonusWeaponFreeImage,client,set-aside,reached
 orig_call,0030f210,Loc_InitLanguageFromDashboard,qcommon,set-aside,reached
 orig_call,0032c190,UIWorldPicture_UpdateScreenPos,client,set-aside,reached
 orig_call,0033a750,UI_ShowDiscErrorScreen,client,set-aside,reached

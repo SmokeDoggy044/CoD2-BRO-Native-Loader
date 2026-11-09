@@ -4384,7 +4384,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
     eax = stack_at(ent + 0x3d4);
     if (!eax) {
         const uint32_t args[2] = {0x10, 0x60};
-        eax = call_at(F, 0x0026d73e, 0x00042c50, TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // Heap_AllocAligned
+        eax = call_at(F, 0x0026d73e, own_address(&Heap_AllocAligned), TitleRegs{eax, ebx, ecx, edx, esi, edi}, 2, args);  // Heap_AllocAligned
         stack_at(ent + 0x3d4) = eax;
     }
     const uint32_t state = eax;
@@ -7891,7 +7891,7 @@ void XB_CDECL ClientSpawn(uint32_t entry, uint32_t angles, uint32_t ebx, uint32_
         }
         if (p == 0) {
             const uint32_t args[2] = {0x10, size};
-            p = call_at(S, ret_heap, 0x00042c50, TitleRegs{0, self, 0, 0, 0, 0}, 2, args);  // Heap_AllocAligned
+            p = call_at(S, ret_heap, own_address(&Heap_AllocAligned), TitleRegs{0, self, 0, 0, 0, 0}, 2, args);  // Heap_AllocAligned
         }
         if (p != 0) {
             uint8_t* const block = reinterpret_cast<uint8_t*>(uintptr_t{p});

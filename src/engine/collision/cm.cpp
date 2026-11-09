@@ -4766,7 +4766,7 @@ namespace {
 using Break = void XB_CDECL(uint32_t, const char*, ...);
 void cm_break(uint32_t level, uint32_t text) { title_function<Break>(0x002938f0)(level, ptr<const char>(text)); }
 
-void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }  // Z_Malloc
+void* z_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }  // Z_Malloc
 
 void com_memcpy(void* dst, const void* src, uint32_t size) {
     own_function<void XB_CDECL(void*, const void*, uint32_t)>(&Com_MemcpyPrefetch)(dst, src, size);  // Com_MemcpyPrefetch

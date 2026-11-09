@@ -62,7 +62,7 @@ void call(uint8_t* object, uint32_t offset, uint32_t a) {
     method<void XB_THISCALL(uint8_t*, uint32_t)>(object, offset)(object, a);
 }
 
-void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+void* z_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(size); }
 void z_free(void* p) { own_function<void XB_CDECL(void*)>(&Z_Free)(p); }
 
 // PtrVector (data, capacity, count): Resize (0x00013970: vector in ESI, count in EBX), PushBack (0x000138c0: vector

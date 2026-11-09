@@ -537,7 +537,7 @@ void XB_CDECL DObj_CreateSkeleton(DObj* obj) {
         memory = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x20,
                                                                                             size);  // MemContext_Alloc_r
     }
-    if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, size);  // Heap_AllocAligned
+    if (!memory) memory = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x20, size);  // Heap_AllocAligned
     obj->bone_matrices = memory;
     auto* header = reinterpret_cast<uint32_t*>(memory);
     for (int i = 0; i < 12; ++i) header[i] = 0;

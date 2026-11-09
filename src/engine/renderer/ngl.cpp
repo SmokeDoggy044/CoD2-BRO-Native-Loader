@@ -4090,7 +4090,7 @@ void XB_CDECL nglMeshBuilder_Begin(uint32_t flags, uint32_t section_count, uint3
     // +0x10 material count, +0x14 materials.
     using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
     uint32_t& allocator = title_global<uint32_t>(0x00902928);
-    allocator = (flags & 0x40000) ? own_address(&nglAllocFrameGpu) : 0x00066af0;
+    allocator = (flags & 0x40000) ? own_address(&nglAllocFrameGpu) : own_address(&Mem_AlignedAlloc);
     uint32_t* mesh = reinterpret_cast<uint32_t*>(title_function<Alloc>(allocator)(0x40, 0x10, 0));
     std::memset(mesh, 0, 0x40);
     mesh[1] = flags | 0x20000;
@@ -6388,7 +6388,7 @@ namespace {
 // Both writer clones: the base vtable first, then the class's own.
 uint32_t* clone_writer(const uint32_t* self, uint32_t base_vtable, uint32_t vtable) {
     using Alloc = uint32_t XB_CDECL(uint32_t);
-    uint32_t* copy = reinterpret_cast<uint32_t*>(uintptr_t{title_function<Alloc>(0x00042c10)(0xc)});  // Z_Malloc
+    uint32_t* copy = reinterpret_cast<uint32_t*>(uintptr_t{own_function<Alloc>(&Z_Malloc)(0xc)});  // Z_Malloc
     if (!copy) return nullptr;
     copy[0] = base_vtable;
     copy[1] = self[1];

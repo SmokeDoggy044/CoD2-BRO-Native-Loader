@@ -26,7 +26,7 @@ uint32_t class_id(uint32_t singleton) { return title_global<NglShaderClass*>(sin
 // The base class constructor: the new object goes onto the class list. Null when
 // Z_Malloc fails (the singleton is then null too).
 NglShaderClass* new_class(uint32_t singleton) {
-    void* memory = title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(sizeof(NglShaderClass));  // Z_Malloc
+    void* memory = own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(sizeof(NglShaderClass));  // Z_Malloc
     auto* self = static_cast<NglShaderClass*>(memory);
     title_global<NglShaderClass*>(singleton) = self;
     if (!self) return nullptr;
@@ -2232,7 +2232,7 @@ namespace {
 // (Z_Malloc) whose vtable is set to the base iterator's first, then to the class's own; null
 // when the allocation fails.
 uint32_t* clone_vertex_iter(const uint32_t* self, uint32_t base_vtable, uint32_t vtable) {
-    uint32_t* copy = static_cast<uint32_t*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0xc));  // Z_Malloc
+    uint32_t* copy = static_cast<uint32_t*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0xc));  // Z_Malloc
     if (!copy) return nullptr;
     copy[0] = base_vtable;
     copy[1] = self[1];

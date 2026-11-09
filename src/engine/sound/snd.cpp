@@ -531,7 +531,7 @@ void XB_CDECL S_StopChannel(uint8_t* channel) {
         Snd_GetAliasName(emitter_word<uint32_t>(channel, 4));  // result unused
         SoundHandle_Free(&title_global<uint8_t>(0x00962820), emitter_word<uint32_t>(channel, 0x24));
         emitter_word<uint32_t>(channel, 0x24) = 0;
-        title_function<Free>(0x000c4140)(emitter_word<int32_t>(channel, 0));  // SndVoice_Free (thunk)
+        own_function<Free>(&SndVoice_Free)(emitter_word<int32_t>(channel, 0));  // SndVoice_Free (thunk)
         own_function<Free>(&SndVoice_Free)(emitter_word<int32_t>(channel, 0));  // SndVoice_Free
         emitter_word<int32_t>(channel, 0) = -1;
     }
@@ -923,7 +923,7 @@ uint32_t XB_CDECL SndBank_Free(uint32_t key) {
             snd_at<uint32_t>(snd_at<uint8_t*>(slot, 0x18), 0x88) = 0;
             snd_at<uint8_t*>(slot, 0x18)[0x8c] = 1;
             snd_at<uint32_t>(snd_at<uint8_t*>(slot, 0x18), 8) &= ~2u;
-            title_function<void XB_CDECL(uint8_t*)>(0x000c3830)(snd_at<uint8_t*>(slot, 0x18));  // Mem_AlignedFree
+            own_function<void XB_CDECL(uint8_t*)>(&Mem_AlignedFree)(snd_at<uint8_t*>(slot, 0x18));  // Mem_AlignedFree
             snd_at<uint8_t*>(slot, 0x18) = nullptr;
         }
     }
@@ -1016,7 +1016,7 @@ int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
                 r[0] = 4;
             } else {
                 if (!shared) own_function<void XB_CDECL(int32_t)>(&SndMem_Free)(r[8]);
-                title_function<void XB_CDECL(int32_t)>(0x000c3830)(r[6]);  // Mem_AlignedFree
+                own_function<void XB_CDECL(int32_t)>(&Mem_AlignedFree)(r[6]);  // Mem_AlignedFree
                 r[6] = 0;
                 r[8] = 0;
                 r[0] = -4;

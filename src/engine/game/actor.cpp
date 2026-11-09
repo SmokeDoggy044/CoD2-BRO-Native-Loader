@@ -1128,7 +1128,7 @@ uint8_t* XB_REGS1 XB_CDECL Actor_Alloc(int32_t context) {
         // MemContext_Alloc_r (0x0028c0f0): context in ECX, alignment and size, callee pops.
         actor = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(memory, 0x10, 0x1400);
     }
-    if (!actor) actor = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x1400);  // Heap_AllocAligned
+    if (!actor) actor = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 0x1400);  // Heap_AllocAligned
     if (!actor) return nullptr;
     for (uint32_t i = 0; i < 0x500; ++i) field<uint32_t>(actor, i * 4) = 0;
     field<uint16_t>(actor, 0x1382) = 0xffff;
@@ -5692,7 +5692,7 @@ void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t 
             esi_now = object;
             frame_call(g, own_address(&ScriptString_Release_entry), 0x002034de, {0, 0, g + 0x18, 0, object, choice}, 0, nullptr);  // ScriptString_Release
             const uint32_t size[1] = {0x20};
-            const uint32_t block = frame_call(g, 0x00042c10, 0x002034e5, {0, 0, 0, 0, object, choice}, 1, size);  // Z_Malloc
+            const uint32_t block = frame_call(g, own_address(&Z_Malloc), 0x002034e5, {0, 0, 0, 0, object, choice}, 1, size);  // Z_Malloc
             uint32_t added = 0;
             if (block) {
                 const uint32_t init[1] = {object};
@@ -17131,7 +17131,7 @@ uint32_t XB_CDECL Actor_InitStateMachine(uint32_t entry, uint32_t, uint32_t ebx,
             p = call_at(F, ctx_ret, own_address(&MemContext_Alloc_r), TitleRegs{ctx, 0, ctx, edx, a, e}, 2, args);  // MemContext_Alloc_r
         }
         if (!p) {
-            p = call_at(F, heap_ret, 0x00042c50, TitleRegs{0, 0, addr_of(g), edx, a, e}, 2, args);  // Heap_AllocAligned
+            p = call_at(F, heap_ret, own_address(&Heap_AllocAligned), TitleRegs{0, 0, addr_of(g), edx, a, e}, 2, args);  // Heap_AllocAligned
             if (!p) return 0;
         }
         uint8_t* const block = reinterpret_cast<uint8_t*>(uintptr_t{p});

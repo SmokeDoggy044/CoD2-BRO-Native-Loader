@@ -1,3 +1,5 @@
+#include <cstdarg>
+
 #include "qcommon_core.h"
 
 #include <cstring>
@@ -1678,11 +1680,46 @@ uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t a
     return result;
 }
 
+uint32_t XB_CDECL Mem_AllocPhysicalPools() {
+    // The physical pool (0x232b000 bytes, read/write) and the write-combined one (0x3ac000, read/write +
+    // write-combine), anywhere in physical memory, page aligned; no debug pool (start/end -1, size 0). The
+    // memory status it asks for first is not used.
+    uint32_t status[8];
+    title_function<void XB_STDCALL(uint32_t*)>(0x001e7c35)(status);  // GlobalMemoryStatus
+    const auto physical_alloc = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a);  // XPhysicalAlloc
+    title_global<uint32_t>(0x00901afc) = 0xffffffffu;  // debug pool start
+    title_global<uint32_t>(0x00901b00) = 0xffffffffu;  // debug pool end
+    title_global<uint32_t>(0x00901b04) = 0;            // debug pool size
+    title_global<uint32_t>(0x00901af8) = 0x0232b000;   // physPoolSize
+    const uint32_t physical = physical_alloc(0x0232b000, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
+    title_global<uint32_t>(0x00901af0) = physical;
+    title_global<uint32_t>(0x00901af4) = physical + title_global<uint32_t>(0x00901af8);
+    title_global<uint32_t>(0x00901b10) = 0x003ac000;  // wcPoolSize
+    const uint32_t write_combined = physical_alloc(0x003ac000, 0xffffffffu, 0x1000, 0x404);  // + PAGE_WRITECOMBINE
+    title_global<uint32_t>(0x00901b08) = write_combined;
+    const uint32_t end = write_combined + title_global<uint32_t>(0x00901b10);
+    title_global<uint32_t>(0x00901b0c) = end;
+    return end;
+}
+
+int32_t XB_CDECL Mem_DebugPrintf(uint32_t stream, const char* format, ...) {
+    // To the stream when given (fprintf "%s"), else the debugger (OutputDebugStringA).
+    char text[0x200];
+    va_list args;
+    va_start(args, format);
+    title_vsprintf(text, format, args);
+    va_end(args);
+    if (stream)
+        return title_function<int32_t XB_CDECL(uint32_t, const char*, const char*)>(0x001f0b4a)(stream, reinterpret_cast<const char*>(uintptr_t{0x0082ddd4}), text);  // fprintf
+    title_function<void XB_STDCALL(const char*)>(0x001e7608)(text);  // OutputDebugStringA
+    return 0;
+}
+
 namespace {
 
-// The pool getters: Mem_AllocPhysicalPools (0x00043fb0, XPhysicalAlloc) when the value is still 0.
+// The pool getters: Mem_AllocPhysicalPools when the value is still 0.
 uint32_t pool_value(uint32_t address) {
-    if (!title_global<uint32_t>(address)) title_function<void XB_CDECL()>(0x00043fb0)();
+    if (!title_global<uint32_t>(address)) Mem_AllocPhysicalPools();
     return title_global<uint32_t>(address);
 }
 
@@ -1715,8 +1752,7 @@ uint32_t XB_CDECL Heap_InitDefaultHeaps() {
         const uint32_t debug_start = title_global<uint32_t>(0x00901ae0);
         if (debug_start < debug_end) {
             Heap_Init(heap_ptr(0x008ffacc), debug_start, debug_end, 0);
-            title_function<void XB_CDECL(uint32_t, uint32_t, ...)>(0x00044160)(  // Mem_DebugPrintf
-                0, 0x007b324c, title_global<uint32_t>(0x008fff50));             // "create debug heap size=%i\n"
+            Mem_DebugPrintf(0, reinterpret_cast<const char*>(uintptr_t{0x007b324c}), title_global<uint32_t>(0x008fff50));  // "create debug heap size=%i\n"
         }
         title_global<uint32_t>(0x008ffac8) = 0x008ffacc;
     }

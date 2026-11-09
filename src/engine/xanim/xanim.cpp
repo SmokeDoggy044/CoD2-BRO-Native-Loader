@@ -705,7 +705,7 @@ uint8_t* XB_CDECL AnimTree_Create(const uint8_t* owner, uint8_t* anims) {
             context >= 0 && context < 0x63 ? *reinterpret_cast<const uint32_t*>(system + 0x38 + context * 4) : 0;
         tree = own_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&MemContext_Alloc_r)(memory, 0x10, size);  // MemContext_Alloc_r
     }
-    if (!tree) tree = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, size);  // Heap_AllocAligned
+    if (!tree) tree = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, size);  // Heap_AllocAligned
     Com_Memset(tree, 0, size);
     *reinterpret_cast<uint32_t*>(tree + 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(anims));
     *reinterpret_cast<int32_t*>(tree + 0x10) = context;

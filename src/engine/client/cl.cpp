@@ -2107,7 +2107,7 @@ uint8_t* XB_THISCALL IN_PadInit(uint8_t* pads) {
 uint8_t* XB_CDECL IN_PadCreate() {
     uint8_t*& pads = title_global<uint8_t*>(0x00902564);
     if (pads) return pads;
-    uint8_t* memory = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x18);  // Z_Malloc
+    uint8_t* memory = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0x18);  // Z_Malloc
     pads = memory ? IN_PadInit(memory) : nullptr;
     return pads;
 }
@@ -3375,7 +3375,7 @@ void XB_CDECL SCR_DrawLoadingScreen() {
     nglSetQuadColor(&quad, 0xff000000);
     nglSetQuadZ(&quad, 300.0f);
     const char* const text = localized(&title_global<const char>(0x0082d018));  // "INGAME_TWO_YEARS"
-    uint8_t* object = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x60);  // Z_Malloc
+    uint8_t* object = own_function<uint8_t* XB_CDECL(uint32_t)>(&Z_Malloc)(0x60);  // Z_Malloc
     if (object) object = UIText_Init(object, 3, text, 0, 0, 0, 7, 0x3fd9999a, 0x10, 0, 0xffd2cfb2);  // 1.7, colour
     auto method = [object](uint32_t slot) { return field<uint32_t>(field<uint8_t*>(object, 0), slot); };
     const long double width = title_function<long double XB_THISCALL(uint8_t*)>(method(0xd0))(object);

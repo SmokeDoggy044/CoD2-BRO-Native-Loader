@@ -6035,7 +6035,7 @@ void XB_CDECL Phys_Init() {
     PhysWorldParams_Init(reinterpret_cast<uint8_t*>(params));
     const uint32_t values[12] = {0x5a, 5, 0x96, 0x60, 1, 0, 1, 5, 0x36, 0, 0, 0x12c};
     for (uint32_t i = 0; i < 12; ++i) params[i] = values[i];
-    title_function<void XB_CDECL(uint32_t*)>(0x000b4190)(params);  // Phys_CreateWorld
+    own_function<void XB_CDECL(uint32_t*)>(&Phys_CreateWorld)(params);  // Phys_CreateWorld
     PhysWorld_SetParams14(4, 4, 0x4138f5c3u);
     PhysWorld_SetParams20(4, 8, 0x43908000u);
     PhysWorld_SetField2C(0x430d9c29u);

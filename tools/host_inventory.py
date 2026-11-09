@@ -202,12 +202,16 @@ def main():
 
     # level slots that point at code without C
     slot_orig = []
+    imports = (ROOT / "src/engine/game/g_scr_imports.cpp").read_text()
+    own_slots = {int(m.group(1), 16) for m in re.finditer(r"\{(0x[0-9a-f]+), own_address\(", imports)}
     bpath = ROOT / "docs/formats/level_boundary.csv"
     if bpath.exists():
         with open(bpath, newline="") as f:
             for r in csv.DictReader(f):
                 if r["kind"] == "slot" and re.fullmatch(r"[0-9a-f]{8}", r["detail"] or ""):
                     a = int(r["detail"], 16)
+                    if int(r["address"]) * 4 in own_slots:  # our import table stores our C there (2026-11-08)
+                        continue
                     if stays_original(a):
                         slot_orig.append((a, prog[a][0], prog[a][1], prog[a][2]))
 

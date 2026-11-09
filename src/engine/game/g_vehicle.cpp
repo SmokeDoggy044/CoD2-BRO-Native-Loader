@@ -108,7 +108,7 @@ PLATFORM_ASM_ENTRY(BG_AllocWeaponDef_entry,
                    "ret")
 
 uint8_t* XB_CDECL BG_AllocWeaponDef(uint32_t index, const uint32_t* fields, int32_t count) {
-    uint8_t* def = static_cast<uint8_t*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0x870));  // Z_Malloc
+    uint8_t* def = static_cast<uint8_t*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0x870));  // Z_Malloc
     if (def) {
         at<uint32_t>(def, 0xac) = 0;
         at<uint32_t>(def, 0x1b0) = 0;
@@ -1386,7 +1386,7 @@ PLATFORM_ASM_ENTRY(VehNode_AllocSlot_entry,
 
 uint8_t* XB_CDECL VehNode_AllocSlot(uint8_t* pool) {
     if (!at<int16_t>(pool, 2) || at<int16_t>(pool, 4) >= 0x80) {
-        const uint32_t block = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x2000);  // Heap_AllocAligned
+        const uint32_t block = own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 0x2000);  // Heap_AllocAligned
         at<uint32_t>(pool, 8 + static_cast<uint32_t>(at<int16_t>(pool, 2)) * 4) = block;
         uint8_t* node = at<uint8_t*>(pool, 8 + static_cast<uint32_t>(at<int16_t>(pool, 2)) * 4);
         std::memset(node, 0, 0x40);  // only the first node's bytes
@@ -2595,7 +2595,7 @@ uint8_t* alloc_candidate_list(const uint8_t* ent, uint32_t size) {
         p = own_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(&MemContext_Alloc_r)(context, 0x10, size);  // MemContext_Alloc_r
     }
     if (!p) p = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
-                title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, size)));  // Heap_AllocAligned
+                own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, size)));  // Heap_AllocAligned
     if (!p) return nullptr;
     at<uint8_t*>(p, size - 0x10) = p;
     at<uint32_t>(p, size - 0xc) = 0;
