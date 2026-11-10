@@ -2418,7 +2418,7 @@ void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index) {
         origin[1] = 0.0f;
         origin[0] = 0.0f;
     } else {
-        title_function<int32_t XB_CDECL(const char*, const char*, float*, float*, float*)>(0x001f07e1)(  // sscanf
+        title_sscanf(  // sscanf
             v, &title_global<char>(0x00838c70), origin, origin + 1, origin + 2);
     }
     const int32_t old_ring = *reinterpret_cast<int32_t*>(objective + 0x14);
@@ -2544,7 +2544,7 @@ void XB_CDECL CG_DrawStatusLabel() {
     if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(name, &title_global<char>(0x00832430)))  // __stricmp "none"
         return;
     const uint8_t* value_text = title_global<const uint8_t*>(0x009606f0);
-    float value = static_cast<float>(title_function<double XB_CDECL(const char*)>(0x001ef056)(  // atof
+    float value = static_cast<float>(title_atof(  // atof
         value_text ? reinterpret_cast<const char*>(value_text + 6) : nullptr));
     const float one = g(0x0083eb20);
     if (value > one)
@@ -3526,7 +3526,7 @@ void XB_CDECL CG_ShellShock_f() {
     title_strncpy(text, arg, 0xff);
     text[0xff] = 0;
     using ext = long double;
-    const float seconds = static_cast<float>(title_function<ext XB_CDECL(const char*)>(0x001ef056)(text) *  // atof
+    const float seconds = static_cast<float>(title_atof(text) *  // atof
                                              platform_x87_ld(g(0x0083eb9c)));
     CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44));
     title_global<int32_t>(0x00973a70) = title_global<int32_t>(0x0097253c);
@@ -3633,13 +3633,13 @@ int32_t XB_CDECL CG_ParseInfoValueT() {
 
 void XB_CDECL CG_ParseConfigStringFloat9() {
     // Configstring 9 as a float handed to the import 0x00928520.
-    const float value = title_function<float XB_CDECL(const char*)>(0x001ef056)(configstring_text(0x009606dc));  // atof
+    const float value = title_atof_float(configstring_text(0x009606dc));  // atof
     title_function<void XB_CDECL(float)>(title_global<uint32_t>(0x00928520))(value);
 }
 
 void XB_CDECL CG_ParseConfigStringFloat11() {
     // Configstring 11 as a float into 0x009730a4.
-    title_global<float>(0x009730a4) = title_function<float XB_CDECL(const char*)>(0x001ef056)(configstring_text(0x009606e4));  // atof
+    title_global<float>(0x009730a4) = title_atof_float(configstring_text(0x009606e4));  // atof
 }
 
 // --- Push batch 2 ---
@@ -4117,11 +4117,11 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
         const uint8_t* const string = title_global<const uint8_t*>(address);
         return string ? reinterpret_cast<const char*>(string + 6) : nullptr;
     };
-    const float first = title_function<AtofFn>(0x001ef056)(configstring(0x009606dc));
+    const float first = title_atof_float(configstring(0x009606dc));
     uint32_t first_bits;
     std::memcpy(&first_bits, &first, 4);
     title_function<void XB_CDECL(uint32_t)>(title_global<uint32_t>(0x00928520))(first_bits);
-    title_global<float>(0x009730a4) = title_function<AtofFn>(0x001ef056)(configstring(0x009606e4));
+    title_global<float>(0x009730a4) = title_atof_float(configstring(0x009606e4));
     const uint32_t handle = title_global<uint32_t>(0x009600f4);
     const uint32_t index = handle & 0xfff;
     const bool playing = index < 0x200 && (handle >> 12) == title_global<uint32_t>(0x00962864 + index * 8) &&
@@ -4609,7 +4609,7 @@ void XB_REGS1 XB_CDECL CG_ConfigStringModified(int32_t index) {
         *dest++ = c;
     } while (c);
     float values[4];
-    title_function<int32_t XB_CDECL(const char*, const char*, ...)>(0x001f07e1)(
+    title_sscanf(
         buffer, &title_global<const char>(0x00838c64), &values[1], &values[2], &values[3], &values[0]);  // sscanf
 }
 
@@ -4646,7 +4646,7 @@ void XB_CDECL CG_ServerCommand() {
         return;
     }
     if (is(0x0094c53c)) {
-        const float scale = title_function<AtofFn>(0x001ef056)(CG_Argv(1));
+        const float scale = title_atof_float(CG_Argv(1));
         uint32_t bits;
         std::memcpy(&bits, &scale, 4);
         own_function<void XB_CDECL(uint32_t)>(&Snd_SetVoiceVolumeScale)(bits);  // Snd_SetVoiceVolumeScale
@@ -4655,7 +4655,7 @@ void XB_CDECL CG_ServerCommand() {
     if (is(0x0094c540)) {
         const int32_t duration = title_atol(CG_Argv(3));
         const int32_t start = title_atol(CG_Argv(2));
-        const float alpha = title_function<AtofFn>(0x001ef056)(CG_Argv(1));
+        const float alpha = title_atof_float(CG_Argv(1));
         const int32_t alpha255 = static_cast<int32_t>(
             static_cast<int64_t>(platform_x87_ld(alpha) * platform_x87_ld(g(0x0083eb8c))));
         CG_SetFade(duration, 0, start, alpha255);

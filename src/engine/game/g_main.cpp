@@ -835,7 +835,7 @@ void XB_CDECL G_SetFog(const char* fog) {
     float v[7];  // as the original's frame: v[0] first, v[1] second, v[2] third
     title_global<float>(0x00985fcc) = title_global<float>(0x0082eed0);
     title_global<float>(0x00985fd0) = title_global<float>(0x0082eed0);
-    const int32_t n = title_function<int32_t XB_CDECL(const char*, const char*, ...)>(0x001f07e1)(
+    const int32_t n = title_sscanf(
         fog, reinterpret_cast<const char*>(uintptr_t{0x0083bd38}), &v[0], &v[1], &v[2], &v[3], &v[4], &v[5],
         &v[6]);  // sscanf "%f %f %f %f %f %f %f"
     if (n != 7) return;

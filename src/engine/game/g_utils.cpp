@@ -453,7 +453,7 @@ uint32_t XB_CDECL G_SpawnFloat(uint32_t key, float fallback, float* out) {
         if (title_global<uint32_t>(0x00985424 + i * 8) != key) continue;
         // atof (0x001ef056) leaves a double in ST0; declared float, so the store rounds as the
         // original's FSTP DWORD does.
-        *out = title_function<float XB_CDECL(const char*)>(0x001ef056)(title_global<const char*>(0x00985428 + i * 8));
+        *out = title_atof_float(title_global<const char*>(0x00985428 + i * 8));
         return 1;
     }
     *out = fallback;

@@ -128,7 +128,7 @@ uint32_t* XB_THISCALL HashStr_Init(uint32_t* hashed, const char* name) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const char* p = name; *p; ++p) {
         int32_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(c)) c = title_function<CharFn>(0x001eed48)(*p);  // _isalpha, tolower
+        if (title_function<CharFn>(0x001eef49)(c)) c = title_tolower(*p);  // _isalpha, tolower
         const uint32_t h = hashed[0];
         hashed[0] = ((h >> 27) | (h << 5)) ^ static_cast<uint32_t>(c);
     }
@@ -2965,7 +2965,7 @@ uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const char* p = text; *p; ++p) {
         int8_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<int8_t>(title_function<CharFn>(0x001eed48)(*p));  // _isalpha, tolower
+        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<int8_t>(title_tolower(*p));  // _isalpha, tolower
         hash = ((hash >> 27) | (hash << 5)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
     }
     return hash;
@@ -5171,7 +5171,7 @@ uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const uint8_t* p = reinterpret_cast<const uint8_t*>(text); *p; ++p) {
         uint8_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<uint8_t>(title_function<CharFn>(0x001eed48)(*p));  // _isalpha, tolower
+        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<uint8_t>(title_tolower(*p));  // _isalpha, tolower
         hash = ((hash >> 27) | (hash << 5)) ^ c;
     }
     return hash;

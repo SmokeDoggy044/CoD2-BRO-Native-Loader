@@ -854,7 +854,7 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
     float* bones = &title_global<float>(0x0098dc20);
     if (!(guards & 1)) {
         guards |= 1;
-        title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(bones, 0x40, 0x20,
+        title_vector_construct(bones, 0x40, 0x20,
                                                                                       0x0001b920);
     }
     own_function<void XB_CDECL(const XModel*, float*)>(&R_ModelBoneMatrices)(xmodel, bones);

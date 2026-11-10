@@ -86,6 +86,7 @@ struct pm_scan_arg {
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <string_view>
 #include <thread>
@@ -1052,6 +1053,11 @@ struct Hook {
 };
 
 Config g_config;
+// Our C's entry -> the function's original address. Since the C reaches our own C by symbol
+// (tools/own_calls.py, --values), it stores code addresses as own_address(&X) where the original
+// stores X's title address (thread bodies, callbacks): the same value for the comparison.
+// Several functions can share one C body (the empty level-script functions), hence pairs.
+std::set<std::pair<uint32_t, uint32_t>> g_own_to_title;
 std::vector<std::unique_ptr<Hook>> g_hooks;
 std::vector<const Function*> g_replaced;
 std::mutex g_stats;  // counts and the results file
@@ -1929,6 +1935,17 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
             if (skip.contains(address)) return true;
         return false;
     };
+    // A word where one side holds our C's address of a function and the other its original address.
+    const auto same_function = [](const uint8_t* x, const uint8_t* y, uint32_t word) {
+        if (word + 4 > kPage) return false;
+        uint32_t p, q;
+        std::memcpy(&p, x + word, 4);
+        std::memcpy(&q, y + word, 4);
+        const auto own_is = [](uint32_t own, uint32_t title) {
+            return g_own_to_title.count({own, title}) != 0;
+        };
+        return own_is(p, q) || own_is(q, p);
+    };
     // XBCMP_SHOW=N lists N runs of differences per report (default 6).
     static const int show = [] {
         const char* value = std::getenv("XBCMP_SHOW");
@@ -1946,10 +1963,14 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
                 ++offset;
                 continue;
             }
+            if (same_function(x, y, offset & ~3u)) {
+                offset = (offset & ~3u) + 4;
+                continue;
+            }
             // A run of differences (gaps under 4 bytes joined).
             uint32_t end = offset + 1;
             for (uint32_t gap = 0; end < kPage && gap < 4; ++end) {
-                if (x[end] != y[end] && !skipped(base + end))
+                if (x[end] != y[end] && !skipped(base + end) && !same_function(x, y, end & ~3u))
                     gap = 0;
                 else
                     ++gap;
@@ -2540,6 +2561,11 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
 
 void install(std::span<const game::Function> functions, const Config& config) {
     g_config = config;
+    for (const Function& f : functions) {
+        const uint32_t title = config.multiplayer ? f.multiplayer : f.campaign;
+        if (f.code && title)
+            g_own_to_title.emplace(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f.code)), title);
+    }
     // The protection pass below walks these in address order.
     std::erase_if(g_config.host_code, [](const auto& range) { return range.first >= range.second; });
     std::sort(g_config.host_code.begin(), g_config.host_code.end());

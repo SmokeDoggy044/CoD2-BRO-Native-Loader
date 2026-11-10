@@ -114,7 +114,7 @@ uint32_t XB_CDECL G_SpawnVector(uint32_t key, float* out, const uint32_t* fallba
     for (int32_t i = 0; i < count; ++i) {
         if (key == spawn_var_key(i)) {
             const char* const value = reinterpret_cast<const char*>(static_cast<uintptr_t>(spawn_var_value(i)));
-            title_function<int XB_CDECL(const char*, const char*, ...)>(0x001f07e1)(
+            title_sscanf(
                 value, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00838c70)), out, out + 1,
                 out + 2);  // sscanf "%f %f %f"
             return 1;
@@ -426,7 +426,7 @@ void XB_CDECL SP_trigger_use(uint8_t* ent) {
         field<float>(ent, 0x94) = 0.0f;
         return;
     }
-    field<float>(ent, 0x94) = title_function<float XB_CDECL(const char*)>(0x001ef056)(angle_text);  // atof
+    field<float>(ent, 0x94) = title_atof_float(angle_text);  // atof
 }
 
 PLATFORM_ASM_ENTRY(G_CallSpawn_entry,
@@ -1080,7 +1080,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
         const char* const value = pairs[pair * 2 + 1];
         const uint32_t hash = HashStr_Hash(key);
         const int32_t number = title_atol(value);  // _atol
-        const float real = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);         // atof
+        const float real = title_atof_float(value);         // atof
         int32_t index = -1;
         for (int32_t n = 0; n < title_global<int32_t>(0x0094d4d8); ++n) {  // g_numVehNodes
             if (title_global<uint8_t*>(0x0095c228 + n * 4) == node) {       // g_vehNodes
@@ -1319,7 +1319,7 @@ void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst) {
     uint32_t& guard = title_global<uint32_t>(0x0098dbd0);
     if (!(guard & 1)) {
         guard |= 1;
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00011240)(0x0098cbd0, 0x40, 0x40,
+        title_vector_construct(0x0098cbd0, 0x40, 0x40,
                                                                                          0x0001b920);  // eh_vector_constructor_iterator
     }
     if (bones > 0x40) return;

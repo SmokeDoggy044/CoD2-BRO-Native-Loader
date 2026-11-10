@@ -15,6 +15,7 @@
 #include "script_string.h"
 #include "snd.h"
 #include "stream.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "cgame.h"
 #include "g_utils.h"
@@ -49,7 +50,7 @@ void XB_CDECL FX_InitEffectPool() {
     if (block) {
         block[0] = 0xf0;
         effects = reinterpret_cast<FxEffect*>(block + 1);
-        title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(  // eh_vector_constructor_iterator
+        title_vector_construct(  // eh_vector_constructor_iterator
             effects, sizeof(FxEffect), 0xf0, 0x00029650);
     }
     pool = effects;

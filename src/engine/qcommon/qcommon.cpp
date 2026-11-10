@@ -221,7 +221,7 @@ PLATFORM_ASM_ENTRY(Q_strlwr_entry,
 
 char* XB_CDECL Q_strlwr(char* text) {
     for (char* p = text; *p; ++p)
-        *p = static_cast<char>(title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(*p));  // tolower
+        *p = static_cast<char>(title_tolower(*p));  // tolower
     return text;
 }
 
@@ -636,7 +636,7 @@ int32_t XB_REGS2 XB_CDECL FS_FilenameCompare(const char* s1, const char* s2) {
 uint32_t XB_REGS1 XB_CDECL FS_HashFileName(const char* name, int32_t hash_size) {
     uint32_t sum = 0;
     for (int32_t i = 0; name[i]; ++i) {
-        int32_t letter = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(name[i]);  // tolower
+        int32_t letter = title_tolower(name[i]);  // tolower
         if (letter == '.') break;
         if (letter == '\\') letter = '/';
         sum += static_cast<uint32_t>(letter) * static_cast<uint32_t>(i + 119);
@@ -1267,7 +1267,7 @@ int32_t XB_REGS1 XB_CDECL generateHashValue(const char* name) {
     if (!name) title_function<Break>(kBreak)(1, title_pointer<const char>(0x00837b5c));  // "null name in generateHashValue"
     uint32_t hash = 0;
     for (int32_t i = 0; name[i]; ++i)
-        hash += static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(name[i])) *  // tolower
+        hash += static_cast<uint32_t>(title_tolower(name[i])) *  // tolower
                 static_cast<uint32_t>(i + 119);
     return static_cast<int32_t>(hash & 0xff);
 }
@@ -1651,7 +1651,6 @@ T& cvar_field(uint8_t* var, uint32_t offset) {
 using ZFreeFn = void XB_CDECL(void*);
 
 // The title CRT's atof (double in ST0, stored as a float) and atol.
-float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
 
 void check_cvar_name(const char* name) {
     using Strchr = char* XB_CDECL(const char*, int32_t);
@@ -1715,7 +1714,7 @@ uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force) {
     ++cvar_field<int32_t>(var, 0x18);
     own_function<ZFreeFn>(&Z_Free)(cvar_field<void*>(var, 4));
     cvar_field<char*>(var, 4) = CopyString(value);
-    cvar_field<float>(var, 0x1c) = title_atof(cvar_field<const char*>(var, 4));
+    cvar_field<float>(var, 0x1c) = title_atof_float(cvar_field<const char*>(var, 4));
     cvar_field<int32_t>(var, 0x20) = title_atol(cvar_field<const char*>(var, 4));
     return var;
 }
@@ -1756,7 +1755,7 @@ uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags) 
     cvar_field<char*>(var, 4) = CopyString(value);
     cvar_field<uint32_t>(var, 0x14) = 1;
     cvar_field<uint32_t>(var, 0x18) = 1;
-    cvar_field<float>(var, 0x1c) = title_atof(cvar_field<const char*>(var, 4));
+    cvar_field<float>(var, 0x1c) = title_atof_float(cvar_field<const char*>(var, 4));
     cvar_field<int32_t>(var, 0x20) = title_atol(cvar_field<const char*>(var, 4));
     cvar_field<char*>(var, 8) = CopyString(value);
     uint8_t** prev = title_pointer<uint8_t*>(0x0093fcec);  // cvar_vars

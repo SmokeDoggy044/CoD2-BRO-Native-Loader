@@ -639,7 +639,7 @@ void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t
                               mul(lanes(inverse + 8), m[r].v[2]));
             }
             alignas(16) float block[12];
-            title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(  // eh_vector_constructor_iterator
+            title_vector_construct(  // eh_vector_constructor_iterator
                 block, 0x10, 3, 0x0001b920);
             std::memcpy(block, rows, 48);
             std::memcpy(out + i * 16, block, 48);

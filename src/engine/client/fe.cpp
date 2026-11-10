@@ -2340,7 +2340,7 @@ uint32_t XB_CDECL UITextLine_Init(uint8_t* line, const char* string, int32_t kin
     if (marks > 0) {
         void* const block = heap_alloc16(uint32_t(marks) * 4);
         if (block)
-            title_function<void XB_STDCALL(void*, uint32_t, int32_t, uint32_t)>(0x00011240)(
+            title_vector_construct(
                 block, 4, marks, 0x00011750);  // eh_vector_constructor_iterator
         field<void*>(line, 0x18) = block;
         return UITextLine_LayoutTokens(line, scale, button_scale);

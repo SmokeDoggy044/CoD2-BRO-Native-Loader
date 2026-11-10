@@ -63,7 +63,7 @@ char* crt_strupr(char* text) { return title_function<char* XB_CDECL(char*)>(0x00
 char* crt_strtok(char* text, const char* delimiters) {
     return title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4)(text, delimiters);
 }
-float crt_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
+float crt_atof(const char* text) { return title_atof_float(text); }
 template <typename... Args>
 int32_t crt_sprintf(char* buffer, const char* format, Args... args) {
     return title_sprintf(buffer, format, args...);

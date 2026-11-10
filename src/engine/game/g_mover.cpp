@@ -1841,7 +1841,7 @@ const char* turret_key(uint32_t bit, uint32_t slot, uint32_t text) {
 void turret_float(uint8_t* out, uint32_t bit, uint32_t slot, uint32_t text, const uint8_t* def, uint32_t offset) {
     const char* const value = turret_key(bit, slot, text);
     if (value) {
-        *reinterpret_cast<float*>(out) = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);  // atof
+        *reinterpret_cast<float*>(out) = title_atof_float(value);  // atof
         return;
     }
     *reinterpret_cast<float*>(out) = 0.0f;
@@ -1900,7 +1900,7 @@ void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon) {
     if (0.0f > field<float>(info, 0x34)) field<float>(info, 0x34) = 0.0f;
     {
         const char* const value = turret_key(0x10, 0x0098ee30, 0x0083b194);  // "convergencetime"
-        float time = value ? title_function<float XB_CDECL(const char*)>(0x001ef056)(value)  // atof
+        float time = value ? title_atof_float(value)  // atof
                            : *reinterpret_cast<const float*>(def + 0x830);
         if (0.0f > time) time = 0.0f;
         const float ms = time * title_global<float>(0x0083eb9c) + title_global<float>(0x0083eb24);
@@ -1908,7 +1908,7 @@ void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon) {
     }
     {
         const char* const value = turret_key(0x20, 0x0098ee2c, 0x0083b188);  // "maxrange"
-        const float range = value ? title_function<float XB_CDECL(const char*)>(0x001ef056)(value)  // atof
+        const float range = value ? title_atof_float(value)  // atof
                                   : *reinterpret_cast<const float*>(def + 0x834);
         const float squared = range * range;
         field<float>(info, 0x48) = range > 0.0f ? squared : title_global<float>(0x0082eed0);
@@ -1924,7 +1924,7 @@ void XB_CDECL Turret_ParseInfo(uint8_t* ent, const char* weapon) {
     {
         const char* const value = turret_key(0x80, 0x0098ee24, 0x00835898);  // "accuracy"
         const float one = title_global<float>(0x0083eb20);
-        field<float>(info, 0x54) = value ? title_function<float XB_CDECL(const char*)>(0x001ef056)(value) : one;  // atof
+        field<float>(info, 0x54) = value ? title_atof_float(value) : one;  // atof
         if (!value) word_at(info, 0x54) = word_at(def, 0x824);
         if (0.0f > field<float>(info, 0x54)) {
             field<float>(info, 0x54) = 0.0f;

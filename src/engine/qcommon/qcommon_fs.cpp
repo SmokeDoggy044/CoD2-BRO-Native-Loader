@@ -2977,7 +2977,7 @@ void XB_THISCALL Pak_PushZoneIds_r(uint8_t* pak, uint8_t* zone) {
 }
 
 void XB_REGS3 XB_CDECL Q_CleanStrLower(char* dst, uint32_t, const char* src) {
-    const auto tolower_ = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48);  // tolower
+    const auto tolower_ = title_tolower;  // tolower
     while (*src) {
         if (*src == 0x1b) {
             src += 2;
@@ -3255,7 +3255,7 @@ uint8_t XB_REGS1 XB_CDECL IntHashMap_EraseByString(const char* name) {
 
 void XB_CDECL Com_Freeze_f() {
     if (title_global<int32_t>(0x00934248) != 2) return;  // cmd_argc
-    const float seconds = title_function<float XB_CDECL(const char*)>(0x001ef056)(
+    const float seconds = title_atof_float(
         reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x0092df94)}));  // atof(argv[1])
     const int32_t start = Com_Milliseconds();
     for (;;) {
@@ -5546,9 +5546,7 @@ namespace {
 
 constexpr uint32_t kCmdArgc = 0x00934248;
 constexpr uint32_t kCmdArgv = 0x0092df90;  // char* [], argv[0] first
-constexpr uint32_t kAtof = 0x001ef056;  // returns a double in ST0; stored as a float
 
-float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(kAtof)(text); }
 
 const char* cmd_argv(uint32_t index) { return title_global<const char*>(kCmdArgv + index * 4); }
 
@@ -5652,12 +5650,12 @@ void XB_CDECL Cmd_SetViewpos_f(uint8_t* ent) {
         const char* const arg = i < title_global<uint32_t>(kCmdArgc) ? cmd_argv(i) : tstr(0x0082dfeb);
         title_strncpy(text, arg, 0x7f);
         text[0x7f] = 0;
-        origin[i - 1] = title_atof(text);
+        origin[i - 1] = title_atof_float(text);
     }
     const char* const yaw = title_global<uint32_t>(kCmdArgc) > 4 ? cmd_argv(4) : tstr(0x0082dfeb);
     title_strncpy(text, yaw, 0x7f);
     text[0x7f] = 0;
-    angles[1] = title_atof(text);
+    angles[1] = title_atof_float(text);
     teleport_with_angles(ent, origin, angles);
 }
 
@@ -6452,10 +6450,10 @@ uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t, const uint8_t* fie
             pk<int32_t>(dest, 0) = title_atol(value) ? 1 : 0;
             break;
         case 6:  // atof's double stored as float
-            pk<float>(dest, 0) = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);
+            pk<float>(dest, 0) = title_atof_float(value);
             break;
         case 7: {  // seconds -> milliseconds: FMUL by 1000.0f on the x87, _ftol
-            const long double seconds = title_function<long double XB_CDECL(const char*)>(0x001ef056)(value);
+            const long double seconds = title_atof(value);
             pk<int32_t>(dest, 0) = static_cast<int32_t>(static_cast<int64_t>(seconds * title_global<float>(0x0083eb9c)));
             break;
         }

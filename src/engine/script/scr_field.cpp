@@ -7,6 +7,7 @@
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "g_scr_runtime.h"
 #include "levels_twins.h"
@@ -662,7 +663,7 @@ bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp)
 }
 
 long double XB_CDECL ScrIface_atof(const char* text) {
-    return title_function<long double XB_CDECL(const char*)>(0x001ef056)(text);
+    return title_atof(text);
 }
 
 void XB_CDECL ScrIface_SmallFree(uint8_t* mem) { SmallHeap_Free(title_global<uint8_t*>(0x00947700), mem); }
@@ -682,7 +683,7 @@ uint32_t XB_CDECL ScrIface_HashStringNoCase(const char* text) {
     for (; *text; ++text) {
         int8_t c = static_cast<int8_t>(*text);
         if (title_function<CharFn>(0x001eef49)(c))  // _isalpha
-            c = static_cast<int8_t>(title_function<CharFn>(0x001eed48)(c));  // tolower
+            c = static_cast<int8_t>(title_tolower(c));  // tolower
         hash = ((hash << 5) | (hash >> 27)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
     }
     return hash;

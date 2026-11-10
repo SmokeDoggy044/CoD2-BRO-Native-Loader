@@ -16,6 +16,7 @@
 #include "fx.h"
 #include "qcommon.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "fx_cmd.h"
 
@@ -689,7 +690,7 @@ using ToLower = int32_t XB_CDECL(int32_t);
 using Break7 = void XB_CDECL(int32_t, const char*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 void lowercase_in_place(char* text) {
-    for (; *text; ++text) *text = static_cast<char>(title_function<ToLower>(0x001eed48)(static_cast<int8_t>(*text)));  // tolower
+    for (; *text; ++text) *text = static_cast<char>(title_tolower(static_cast<int8_t>(*text)));  // tolower
 }
 
 // The name tables behind the clip/ammo/shared-cap indices: per weapon its name (def +name_offset, lowercased in

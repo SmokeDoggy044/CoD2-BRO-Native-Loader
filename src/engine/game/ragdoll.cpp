@@ -1097,8 +1097,8 @@ PLATFORM_ASM_ENTRY(RagdollFrames_Construct_entry,
 // constructed (eh_vector_constructor_iterator, constructor 0x0001b920); +0 and +0x568 cleared.
 uint8_t* XB_CDECL RagdollFrames_Construct(uint8_t* object) {
     using VectorConstruct = void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t);
-    for (uint32_t i = 0; i < 10; ++i) title_function<VectorConstruct>(0x00011240)(object + 0x10 + i * 0x40, 0x10, 3, 0x0001b920);
-    for (uint32_t i = 0; i < 10; ++i) title_function<VectorConstruct>(0x00011240)(object + 0x290 + i * 0x40, 0x10, 3, 0x0001b920);
+    for (uint32_t i = 0; i < 10; ++i) title_vector_construct(object + 0x10 + i * 0x40, 0x10, 3, 0x0001b920);
+    for (uint32_t i = 0; i < 10; ++i) title_vector_construct(object + 0x290 + i * 0x40, 0x10, 3, 0x0001b920);
     at<uint32_t>(object, 0) = 0;
     at<uint32_t>(object, 0x568) = 0;
     return object;

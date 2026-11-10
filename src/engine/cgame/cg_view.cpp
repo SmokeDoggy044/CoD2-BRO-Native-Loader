@@ -1593,7 +1593,7 @@ void XB_CDECL CG_DrawSkyBoxPortal() {
             if (!t || !*t) CG_Error(&title_global<char>(0x008389cc));
             return t;
         };
-        const auto atof = title_function<float XB_CDECL(const char*)>(0x001ef056);
+        const auto atof = title_atof_float;
         title_global<float>(0x00972bb0) = atof(token());
         title_global<float>(0x00972bb4) = atof(token());
         title_global<float>(0x00972bb8) = atof(token());

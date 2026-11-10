@@ -7,6 +7,7 @@
 #include "qcommon.h"
 #include "script_string.h"
 #include "xanim.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "dobj.h"
@@ -738,7 +739,7 @@ uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip_arg)
         if (memory) {
             memory[0] = 2;
             note = addr(memory + 1);
-            title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00011240)(note, 0xc, 2,
+            title_vector_construct(note, 0xc, 2,
                                                                                             0x0001dc00);  // eh_vector_constructor_iterator
         }
         word(s + 0x30) = note;

@@ -773,7 +773,7 @@ const ImportSlot kLevelImports[] = {
     {0x7e4, own_address(&ScrIface_Free)},  // ScrIface_Free
     {0x7e8, own_address(&ScrIface_Alloc)},  // ScrIface_Alloc
     {0x7ec, own_address(&ScrIface_SmallFree)},  // ScrIface_SmallFree
-    {0x7f0, 0x001ef6a0},  // memset2
+    {0x7f0, own_address(&title_memset)},  // memset2 (our CRT)
     {0x8a0, own_address(&title_atol)},  // _atol (our CRT)
     {0x89c, own_address(&ScrIface_atof)},  // ScrIface_atof
     {0x7f4, own_address(&GScr_ReturnFalse509)},  // GScr_ReturnFalse509

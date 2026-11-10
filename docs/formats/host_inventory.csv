@@ -1,15 +1,12 @@
 kind,address,name,module,state,detail
 c_call,00011220,Live_GetCurrentUser,online,set-aside,src/engine/client/fe.cpp
-c_call,00011240,eh_vector_constructor_iterator,crt,named,src/engine/client/fe.cpp src/engine/game/g_spawn.cpp src/engine/game/g_utils.cpp src/engine/game/g_vehicle.cpp src/engine/game/ragdoll.cpp src/engine/renderer/fx.cpp src/engine/renderer/ngl.cpp src/en
-c_call,00011280,vector_call_iterator,crt,named,src/engine/cgame/cgame.cpp src/engine/renderer/r_static_init.cpp
+c_call,00011240,eh_vector_constructor_iterator,crt,named,src/engine/game/g_spawn.cpp src/engine/game/g_utils.cpp
+c_call,00011280,vector_call_iterator,crt,named,src/engine/cgame/cgame.cpp
 c_call,000176b0,ScrEnt_SetInt_370,script,named,src/engine/game/g_scr_imports.cpp
 c_call,00017710,ScrEnt_GetInt_370,script,named,src/engine/game/g_scr_imports.cpp
-c_call,0001b9a0,FUN_0001b9a0,unassigned,unnamed,src/engine/qcommon/qcommon_fs.cpp src/engine/streaming/stream.cpp
 c_call,0001d930,LocStrings_Ctor,unassigned,named,src/engine/qcommon/qcommon_fs.cpp
 c_call,0001d9d0,LocStrings_Dtor,unassigned,named,src/engine/qcommon/qcommon_fs.cpp
 c_call,0001fa20,HandleTable512_ReportFull,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
-c_call,00027770,FUN_00027770,unassigned,unnamed,src/engine/game/g_static.cpp
-c_call,00028400,FUN_00028400,unassigned,unnamed,src/engine/levels/levels_templates_levels.inc
 c_call,000299c0,EntHandleTable_ReportFull,qcommon,set-aside,src/engine/qcommon/qcommon_core.cpp
 c_call,0002c442,FUN_0002c442,mslib,unnamed,src/engine/qcommon/qcommon_fs.cpp
 c_call,00042460,Sys_DebugBreak,qcommon,set-aside,src/engine/game/g_main.cpp src/engine/game/g_scr_runtime.cpp src/engine/game/g_utils.cpp src/engine/game/ragdoll.cpp src/engine/levelscript/bro_scr_brofunc.cpp src/engine/qcommon/param_set.cpp src/eng
@@ -36,8 +33,6 @@ c_call,00121940,BroScr_EmptyFunc_4,levelscript,set-aside,src/engine/levelscript/
 c_call,00121950,BroScr_EmptyFunc_5,levelscript,set-aside,src/engine/levelscript/bro_scr_vehicle.cpp
 c_call,00122230,BroScr_EmptyFunc_31,levelscript,set-aside,src/engine/levelscript/bro_scr_level_threads.cpp
 c_call,0012ff00,BroScr_GetEntSecondsSince_h05903940,levelscript,set-aside,src/engine/levelscript/bro_scr_level.cpp
-c_call,00151370,FollowEnt_Worker,unassigned,named,src/engine/levelscript/bro_scr_vehicle.cpp src/engine/script/scr_field.cpp
-c_call,0017ad50,FUN_0017ad50,unassigned,unnamed,src/engine/levelscript/bro_scr_level_threads.cpp src/engine/script/scr_class.cpp
 c_call,0017ada0,Scr_StartThread_ent_ent_hash_ent_hash,game,set-aside,src/engine/levelscript/bro_scr_anim_scenes.cpp
 c_call,0017ae10,Scr_StartThread_ent_f_f_b,game,set-aside,src/engine/levelscript/bro_scr_drones.cpp
 c_call,0017afa0,Scr_CallThread_ent_ent_str,game,set-aside,src/engine/levelscript/bro_scr_ai_anim_threads.cpp src/engine/levelscript/bro_scr_level_threads.cpp
@@ -48,7 +43,6 @@ c_call,0017b2f0,Scr_StartThread_ent_ent_f_i_i_i_f,game,set-aside,src/engine/leve
 c_call,0017b5c0,Scr_StartThread_ent_vec_b_3,game,set-aside,src/engine/levelscript/bro_scr_level_threads_2.cpp
 c_call,0018df30,BroScr_SetDirectionalMoveAnims,levelscript,set-aside,src/engine/levelscript/bro_scr_actor_threads.cpp
 c_call,001a00c0,BroScr_SetPoseMovement,levelscript,set-aside,src/engine/levelscript/bro_scr_actor_threads.cpp src/engine/levelscript/bro_scr_ai_anim.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp
-c_call,001bc150,FUN_001bc150,unassigned,unnamed,src/engine/levelscript/bro_scr_ai_anim_threads.cpp
 c_call,001c2aa0,FUN_001c2aa0,unassigned,unnamed,src/engine/levelscript/bro_scr_ai_anim.cpp src/engine/levelscript/bro_scr_ai_anim_threads.cpp
 c_call,001e4c00,Scr_CallThread_vt00825be4_2,game,set-aside,src/engine/levelscript/bro_scr_ai_anim_threads.cpp
 c_call,001e4c80,Scr_CallThread_ent_f_ent_3,game,set-aside,src/engine/levelscript/bro_scr_actor_threads.cpp
@@ -120,7 +114,7 @@ c_call,001eeaf0,_strncmp,mslib,library,src/engine/client/fe.cpp src/engine/game/
 c_call,001eeb81,_atol,mslib,library,src/engine/shared/title_crt.cpp
 c_call,001eebff,__snprintf,mslib,library,src/engine/qcommon/qcommon.cpp
 c_call,001eed36,_atexit,mslib,library,src/engine/game/g_scr_runtime.cpp src/engine/game/g_static.cpp src/engine/qcommon/qcommon_fs.cpp
-c_call,001eed48,tolower,crt,named,src/engine/client/cl.cpp src/engine/game/pmove.cpp src/engine/qcommon/qcommon.cpp src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/script/scr_field.cpp
+c_call,001eed48,tolower,crt,named,src/engine/shared/title_crt.cpp
 c_call,001eed80,_strncpy,mslib,library,src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/qcommon/qcommon.cpp src/engine/server/sv.cpp src/engine/shared/title_crt.cpp
 c_call,001eeea4,LIBCMT::_strtok,mslib,library,src/engine/client/movie.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,001eef49,_isalpha,mslib,library,src/engine/qcommon/qcommon_core.cpp src/engine/script/g_scr_builtins.cpp src/engine/script/scr_field.cpp
@@ -128,12 +122,11 @@ c_call,001eef77,_isdigit,mslib,library,src/engine/game/actor.cpp
 c_call,001eefa0,_isspace,mslib,library,src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/ngl.cpp
 c_call,001eefc9,_isalnum,mslib,library,src/engine/client/cl.cpp src/engine/script/g_scr_builtins.cpp
 c_call,001ef010,_strcspn,mslib,library,src/engine/client/fe.cpp
-c_call,001ef056,atof,crt,named,src/engine/cgame/cg_view.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/client/movie.cpp src/engine/game/g_mover.cpp src/engine/game/g_pathnode.cpp src/engine/game/g_spawn.cpp src/
+c_call,001ef056,atof,crt,named,src/engine/shared/title_crt.cpp
 c_call,001ef0c0,_memmove,mslib,library,src/engine/game/actor.cpp src/engine/qcommon/qcommon_core.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,001ef3fd,__ceil_default,mslib,library,src/engine/script/g_scr_builtins2.cpp
 c_call,001ef4d0,LIBCMT::_strcpy,mslib,library,src/engine/game/g_scr_imports.cpp
 c_call,001ef5e0,_strchr,mslib,library,src/engine/game/g_utils.cpp src/engine/qcommon/qcommon.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/renderer/ngl.cpp src/engine/renderer/tr_main.cpp src/engine/script/g_scr_builtins.cpp src/engine
-c_call,001ef6a0,memset2,crt,named,src/engine/game/g_scr_imports.cpp
 c_call,001ef880,_qsort,mslib,library,src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/game/g_pathnode.cpp src/engine/game/g_vehicle.cpp src/engine/sound/snd.cpp
 c_call,001efb10,_strstr,mslib,library,src/engine/game/actor.cpp src/engine/game/g_mover.cpp src/engine/qcommon/qcommon.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/server/sv.cpp src/engine/streaming/stream.cpp src/engine/xanim/xanim.c
 c_call,001efba0,_memchr,mslib,library,src/engine/qcommon/qcommon_core.cpp
@@ -150,7 +143,7 @@ c_call,001f047d,FID_conflict:_fread,mslib,library,src/engine/qcommon/qcommon_fs.
 c_call,001f062b,_ftell,mslib,library,src/engine/qcommon/qcommon_fs.cpp src/engine/zlib/unzip.cpp
 c_call,001f06fb,_fseek,mslib,library,src/engine/collision/cm.cpp src/engine/qcommon/qcommon_fs.cpp src/engine/zlib/unzip.cpp
 c_call,001f0790,_fclose,mslib,library,src/engine/qcommon/qcommon_fs.cpp src/engine/zlib/unzip.cpp
-c_call,001f07e1,sscanf,crt,named,src/engine/cgame/cgame.cpp src/engine/game/actor.cpp src/engine/game/g_main.cpp src/engine/game/g_spawn.cpp
+c_call,001f07e1,sscanf,crt,named,src/engine/game/actor.cpp src/engine/shared/title_crt.cpp
 c_call,001f0a40,__controlfp,mslib,library,src/engine/game/phys.cpp src/engine/renderer/r_init.cpp
 c_call,001f0ac5,_errno,crt,named,src/engine/qcommon/qcommon_core.cpp
 c_call,001f0b4a,FID_conflict:_fwprintf,mslib,library,src/engine/qcommon/qcommon_core.cpp
@@ -182,9 +175,7 @@ c_call,00223730,Live_Frame,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,00224920,LiveMgr_Construct,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,00224970,Live_Render,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,00224a50,Live_Init,online,set-aside,src/engine/qcommon/qcommon_fs.cpp
-c_call,00248e10,FUN_00248e10,unassigned,unnamed,src/engine/game/g_vehicle.cpp src/engine/qcommon/qcommon_fs.cpp
 c_call,002938f0,__break,mslib,library,src/engine/cgame/cg_ents.cpp src/engine/cgame/cgame.cpp src/engine/client/cl.cpp src/engine/collision/cm.cpp src/engine/game/actor.cpp src/engine/game/g_main.cpp src/engine/game/g_mover.cpp src/engine
-c_call,0029aba0,FUN_0029aba0,unassigned,unnamed,src/engine/game/actor.cpp
 c_call,002b2790,BrushModel_CopyBounds,unassigned,named,src/engine/script/g_scr_builtins.cpp src/engine/server/sv.cpp
 c_call,002bda60,SoundManager_Ctor,sound,set-aside,src/engine/qcommon/qcommon_fs.cpp
 c_call,002cf920,Cmd_LaunchMultiplayer_f,qcommon,set-aside,src/engine/server/sv.cpp
@@ -548,14 +539,10 @@ data_code,00059700,deflate_slow,zlib,set-aside,.rdata:007bb2e0
 data_code,00059700,deflate_slow,zlib,set-aside,.rdata:007bb2ec
 data_code,00059700,deflate_slow,zlib,set-aside,.rdata:007bb2f8
 data_code,00059700,deflate_slow,zlib,set-aside,.rdata:007bb304
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007bdf54
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:007bdf68
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:007c19d4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007c2370
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007c23b0
 data_code,0007bd40,NAL_GenericAnim_DeletingDtor,xanim,set-aside,.rdata:007c23b4
 data_code,0007bd20,NAL_GenericAnim_DestroyState,xanim,set-aside,.rdata:007c23e0
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007c23ec
 data_code,0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,xanim,set-aside,.rdata:007c26ac
 data_code,0007fa70,NAL_EntropyFloat4_DecodeFrames,xanim,set-aside,.rdata:007c27d8
 data_code,00080a00,NAL_Packed8EntropyFloat4_Evaluate,xanim,set-aside,.rdata:007c284c
@@ -563,12 +550,9 @@ data_code,00084f30,NAL_Packed8Quat_Evaluate,xanim,set-aside,.rdata:007c29ec
 data_code,00085240,NAL_EntropyPosOri_DecodeFrames,xanim,set-aside,.rdata:007c2b18
 data_code,000857b0,NAL_EntropyTrajPosOri_DecodeFrames,xanim,set-aside,.rdata:007c2be8
 data_code,00083720,NAL_Packed16EntropyIKSpin_Evaluate,xanim,set-aside,.rdata:007c2c5c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007c3c68
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007c4168
 data_code,0008ee80,NAL_ClipSetPlayer_Update,xanim,set-aside,.rdata:007c416c
 data_code,00094100,AlignedAllocator_DeletingDtor,unassigned,named,.rdata:007c4d90
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:007c6708
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:007cc6c0
 data_code,000d3655,FUN_000d3655,mslib,unnamed,.rdata:007cfe98
 data_code,000d2d1d,UIX::CScreen_CreateScreen,mslib,library,.rdata:007cfe9c
 data_code,0002e3ae,FUN_0002e3ae,mslib,unnamed,.rdata:007cfea0
@@ -715,83 +699,14 @@ data_code,001f7394,FUN_001f7394,mslib,unnamed,.rdata:00828240
 data_code,001f83cf,FUN_001f83cf,mslib,unnamed,.rdata:008282d0
 data_code,001f9064,FUN_001f9064,mslib,unnamed,.rdata:00828670
 data_code,001f9348,FUN_001f9348,mslib,unnamed,.rdata:00828688
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828708
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:00828714
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828734
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828744
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828884
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828894
 data_code,000130d0,BonusWeaponsMenu_OnBack,client,set-aside,.rdata:008288cc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082894c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082895c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828a14
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828a24
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828adc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828aec
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828ba4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828bb4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828c6c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828c7c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828d34
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828d44
 data_code,0032c190,UIWorldPicture_UpdateScreenPos,client,set-aside,.rdata:00828ec4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828eec
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828efc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828fb4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00828fc4
 data_code,00013250,BonusConceptsMenu_OnA,client,set-aside,.rdata:00828ff8
 data_code,00013200,BonusConceptsMenu_OnBack,client,set-aside,.rdata:00828ffc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008290cc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008290d0
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082919c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008291ac
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082929c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008292ac
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829364
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829374
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082942c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082943c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008294f4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829504
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008295bc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008295cc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829684
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829688
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829744
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829754
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082980c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082981c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008299a0
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:008299a8
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829a0c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829a1c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829ad4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829ae4
 data_code,00013170,BonusVehiclesMenu_OnBack,client,set-aside,.rdata:00829b1c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829b9c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829bac
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829c64
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829c74
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829d74
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829e2c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829e38
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829e3c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829ef4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829f04
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829fbc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00829fcc
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a084
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a094
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a14c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a15c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a214
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a224
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a3a4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a3b4
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:0082a540
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a654
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a724
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0082a734
 data_code,001fd2a0,Actor_DefaultSlot5,game,set-aside,.rdata:00830c60
 data_code,001fb330,Actor_DefaultPain,game,set-aside,.rdata:00830c8c
 data_code,001fd2a0,Actor_DefaultSlot5,game,set-aside,.rdata:00830ca8
@@ -823,41 +738,27 @@ data_code,0003b206,XGRAPHICS::itrp_RoundToGrid,mslib,library,.rdata:0083132c
 data_code,0003b2e7,XGRAPHICS::itrp_RoundOff,mslib,library,.rdata:00831334
 data_code,0003b152,XGRAPHICS::itrp_RoundDownToGridSP,mslib,library,.rdata:00831344
 data_code,0003b30c,XGRAPHICS::itrp_RoundOffSP,mslib,library,.rdata:00831354
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008325ec
 data_code,0001ec40,FUN_0001ec40,unassigned,unnamed,.rdata:00832614
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:0083262c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083263c
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00832680
 data_code,00022ba0,FUN_00022ba0,unassigned,unnamed,.rdata:008326d4
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:008326d8
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:008326dc
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:008326e4
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083270c
 data_code,0001ce00,FUN_0001ce00,unassigned,unnamed,.rdata:0083275c
 data_code,0001c2d0,FUN_0001c2d0,unassigned,unnamed,.rdata:00832778
 data_code,0001d8f0,FUN_0001d8f0,unassigned,unnamed,.rdata:00832788
 data_code,00223730,Live_Frame,online,set-aside,.rdata:00836970
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008375f0
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:008376dc
 data_code,00022bb0,EmptyVFunc_Ret8,qcommon,set-aside,.rdata:00837704
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:00837708
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083770c
 data_code,00025dd0,ZoneClipSetManager_Add,streaming,set-aside,.rdata:00838124
 data_code,0002bb20,FUN_0002bb20,unassigned,set-aside,.rdata:0083c720
 data_code,00222c20,LiveMgr_SetVoiceEnabled,online,set-aside,.rdata:0083c73c
 data_code,002220e0,LiveMgr_SetInput,online,set-aside,.rdata:0083c750
 data_code,00223730,Live_Frame,online,set-aside,.rdata:0083c754
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c780
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c784
 data_code,00222c20,LiveMgr_SetVoiceEnabled,online,set-aside,.rdata:0083c78c
 data_code,0002bce0,LiveMgr_DeletingDtor,online,set-aside,.rdata:0083c7d8
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c7fc
 data_code,00222750,XboxLiveMenu_Draw,client,set-aside,.rdata:0083c808
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c80c
 data_code,0002bd30,InGameLiveOptionsMenu_DeletingDtor,client,set-aside,.rdata:0083c8e0
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c8fc
 data_code,002226e0,InGameLiveOptionsMenu_Draw,client,set-aside,.rdata:0083c908
-data_code,0001b9a0,FUN_0001b9a0,unassigned,unnamed,.rdata:0083c90c
 data_code,0002cf67,FUN_0002cf67,mslib,unnamed,.rdata:0083ea1c
 data_code,0002d1e9,FUN_0002d1e9,mslib,unnamed,.rdata:0083ea20
 data_code,0002d546,FUN_0002d546,mslib,unnamed,.rdata:0083ea24

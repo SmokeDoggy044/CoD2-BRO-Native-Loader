@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "qcommon.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "script_string.h"
@@ -26,7 +27,7 @@ void release_script_string_arrays(uint32_t end, uint32_t stride, int32_t count) 
     uint32_t array = end;
     for (int32_t i = 0; i < count; ++i) {
         array -= stride;
-        title_function<Iterator>(0x00011280)(array, 4, 15, own_address(&ScriptString_Release_entry));  // ScriptString_Release
+        title_vector_destruct(array, 4, 15, own_address(&ScriptString_Release_entry));  // ScriptString_Release
     }
 }
 

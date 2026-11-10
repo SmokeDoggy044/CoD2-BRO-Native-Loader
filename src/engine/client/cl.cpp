@@ -2665,7 +2665,7 @@ void XB_CDECL Key_Bind_f() {
     const char* const name = argc > 1 ? cmd_argv(1) : &title_global<const char>(0x0082dfeb);
     int32_t key = Key_StringToKeynum(name);
     if (key == -1) return;
-    key = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(key);  // tolower
+    key = title_tolower(key);  // tolower
     if (argc == 2) return;  // (the binding is printed in Q3)
     char command[0x400];
     command[0] = 0;
@@ -2885,7 +2885,6 @@ void XB_CDECL SCR_InitLoadingSpinner() {
 
 namespace {
 
-float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
 
 int32_t title_stricmp(const char* a, const char* b) {
     return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
@@ -2919,12 +2918,12 @@ void XB_CDECL CL_CubemapShot_f() {
     if (count == 10) {  // water: two vectors, the six faces written by re function 0x00928564
         if (title_stricmp(Cmd_Argv(3), &title_global<const char>(0x00833fb8))) return;
         alignas(16) float first[3], second[3];
-        first[0] = title_atof(Cmd_Argv(4));
-        first[1] = title_atof(Cmd_Argv(5));
-        first[2] = title_atof(Cmd_Argv(6));
-        second[0] = title_atof(Cmd_Argv(7));
-        second[1] = title_atof(Cmd_Argv(8));
-        second[2] = title_atof(Cmd_Argv(9));
+        first[0] = title_atof_float(Cmd_Argv(4));
+        first[1] = title_atof_float(Cmd_Argv(5));
+        first[2] = title_atof_float(Cmd_Argv(6));
+        second[0] = title_atof_float(Cmd_Argv(7));
+        second[1] = title_atof_float(Cmd_Argv(8));
+        second[2] = title_atof_float(Cmd_Argv(9));
         int32_t face = 1;
         for (uint32_t slot = 0x008fef20; slot <= 0x008fef34; slot += 4, ++face) {
             using Write = void XB_CDECL(const char*, int32_t, int32_t, const float*, const float*);
@@ -2935,8 +2934,8 @@ void XB_CDECL CL_CubemapShot_f() {
     }
     if (count == 6) {  // fresnel: both values at least 1
         if (title_stricmp(Cmd_Argv(3), &title_global<const char>(0x00833fa0))) return;
-        fresnel[0] = title_atof(Cmd_Argv(4));
-        fresnel[1] = title_atof(Cmd_Argv(5));
+        fresnel[0] = title_atof_float(Cmd_Argv(4));
+        fresnel[1] = title_atof_float(Cmd_Argv(5));
         if (platform_x87_greater(1.0f, fresnel[0])) return;
         if (1.0f > fresnel[1]) return;
     } else if (count != 3) {
@@ -3618,9 +3617,9 @@ void XB_REGS1 XB_CDECL Field_KeyDownEvent(uint8_t* f, int32_t key) {
             while (cursor > 0 && alnum(cursor - 1)) cursor = cursor - 1;
         }
         if (cursor < field<int32_t>(f, 4)) field<int32_t>(f, 4) = cursor;
-    } else if (key == 0xa5 || (title_function<CharFn>(0x001eed48)(key) == 'a' && ctrl)) {  // home, ctrl-a
+    } else if (key == 0xa5 || (title_tolower(key) == 'a' && ctrl)) {  // home, ctrl-a
         cursor = 0;
-    } else if (key == 0xa6 || (title_function<CharFn>(0x001eed48)(key) == 'e' && ctrl)) {  // end, ctrl-e
+    } else if (key == 0xa6 || (title_tolower(key) == 'e' && ctrl)) {  // end, ctrl-e
         cursor = length;
     } else if (key == 0xa1) {  // insert
         title_global<int32_t>(0x0092858c) = title_global<int32_t>(0x0092858c) == 0;

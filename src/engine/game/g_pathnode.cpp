@@ -375,7 +375,7 @@ void XB_REGS3 XB_CDECL PathNode_ParseScriptKeys(uint8_t* world, uint32_t, uint32
             }
         }
         const int32_t number = title_atol(value);  // _atol
-        const float real = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);       // atof
+        const float real = title_atof_float(value);       // atof
         using SetInt = void XB_CDECL(uint32_t, uint32_t, int32_t);
         using SetFloat = void XB_CDECL(uint32_t, uint32_t, float);
         using SetString = void XB_CDECL(uint32_t, uint32_t, uint32_t);

@@ -2634,7 +2634,7 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
     if (!(guards & 1)) {
         guards |= 1;
         for (int i = 0; i < 64; ++i)
-            title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(matrices + i * 12, 0x10, 3,
+            title_vector_construct(matrices + i * 12, 0x10, 3,
                                                                                           0x0001b920);
     }
     const float* mesh_bones = *reinterpret_cast<float* const*>(node->mesh + 0x14);
