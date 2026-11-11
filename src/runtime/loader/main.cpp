@@ -128,6 +128,7 @@ struct Options {
     bool replay_at_switch = false;  // --replay-at-switch: the recording/replay begins at the first in-process restart
     bool own_main = false;       // --own-main: our Sys_Main C instead of the original (own engine host, 0.3)
     std::optional<fs::path> text_trap_list, text_trap_out;  // --text-trap LIST OUT
+    std::optional<fs::path> text_clear_out;                 // --text-clear OUT
     bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
     std::set<std::string> given;     // options named on the command line or in settings.ini
@@ -273,6 +274,8 @@ void print_usage(const char* program) {
         "  --own-main       developer: start the game at our Sys_Main C (own engine host, step 0.3)\n"
         "  --text-trap LIST OUT  developer: log every original function from LIST (tools/text_trap_list.py)\n"
         "                   the first time it runs, with its caller, to OUT (Linux)\n"
+        "  --text-clear OUT developer: original non-level code bytes become INT3 except our hooks; code that\n"
+        "                   still runs is logged to OUT with its caller and put back by function (Linux)\n"
         "  --check-crt          our CRT (src/engine/shared/title_crt.h) against the title's on a table, then exit\n"
         "  --replay-shots N,N.. DIR  with --record/--replay: pictures of those frames to DIR (shot_<n>.bmp)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
@@ -681,6 +684,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
             options.text_trap_list = argv[++i];
             options.text_trap_out = argv[++i];
+        } else if (arg == "--text-clear") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--text-clear needs an output file\n");
+                return std::nullopt;
+            }
+            options.text_clear_out = argv[++i];
         } else if (arg == "--compare" || arg == "--compare-all") {
             options.compare = true;
             options.compare_all |= arg == "--compare-all";
@@ -962,6 +971,7 @@ int loader_main(int argc, char** argv) {
         aspect = 16.0f / 9.0f;
     }
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
+    if (options->text_clear_out) loader::snapshot_code_sections(image);
     // A release has the data files next to the loader; builds use the source tree's.
     auto data_file = [](const char* name) {
         const fs::path next_to_loader = platform::executable_dir() / name;
@@ -1243,6 +1253,7 @@ int loader_main(int argc, char** argv) {
     }
     if (options->text_trap_list && !loader::install_text_trap(*options->text_trap_list, *options->text_trap_out))
         return 1;
+    if (options->text_clear_out && !loader::install_text_clear(*options->text_clear_out, data_file("code_section_data.txt"))) return 1;
 
     // In-process restarts (own engine host 5b) put the title's memory back to this point.
     ImageSnapshot image_snapshot;
@@ -1251,6 +1262,7 @@ int loader_main(int argc, char** argv) {
         image_snapshot.take(image);
         xbox::snapshot_memory();
     }
+    if (options->text_clear_out) loader::text_clear_protect();
 
     LOG_INFO("loader", "starting title at %08x", image.entry_point());
     // Four zero dwords stand in for arguments in case the entry point reads any.

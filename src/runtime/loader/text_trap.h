@@ -14,4 +14,16 @@ namespace loader {
 // file cannot be opened.
 bool install_text_trap(const std::filesystem::path& list, const std::filesystem::path& out);
 
+// The host's own check (step 0.3): every original byte of the non-level code sections (.text, XONLINE, XNET, D3DX,
+// DSOUND, D3D, XGRPH, XPP) becomes INT3, except what our hooks wrote and the data in KEEP_LIST
+// (tools/data/code_section_data.txt, tools/text_clear_keep.py: constants the linker merged into those sections). `snapshot_code_sections` keeps the original
+// bytes; call it right after the image is mapped. `install_text_clear` (after every hook) clears the rest; when
+// cleared code runs, the trap logs "address caller" to OUT, puts back the original bytes from there to the next
+// 16-byte boundary after INT3 padding (one function) and lets it run on. Linux only.
+class XbeImage;
+void snapshot_code_sections(const XbeImage& image);
+bool install_text_clear(const std::filesystem::path& out, const std::filesystem::path& keep_list);
+// XB_CLEAR_NOACCESS=SECTION (debugging): takes that section's access away; call after the restart snapshot.
+void text_clear_protect();
+
 }  // namespace loader
