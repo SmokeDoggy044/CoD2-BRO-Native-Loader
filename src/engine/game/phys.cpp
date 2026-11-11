@@ -2086,7 +2086,7 @@ Lanes yzx(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
 void set_frame_axes(uint8_t* joint) {
     alignas(16) float t[4];
     const float* const p =
-        title_function<float* XB_CDECL(float*, const float*)>(0x000b8990)(t, reinterpret_cast<float*>(joint + 0xa0));
+        Vec3A_Perpendicular(t, reinterpret_cast<float*>(joint + 0xa0));
     std::memcpy(joint + 0xc0, p, 16);
     const Lanes v = lanes(reinterpret_cast<const float*>(joint + 0xc0));
     const Lanes u = lanes(reinterpret_cast<const float*>(joint + 0xa0));
@@ -3136,7 +3136,7 @@ void XB_THISCALL PhysHinge_Setup(uint8_t* hinge, const float* anchor_a, const fl
     copy_words(reinterpret_cast<float*>(hinge + 0x70), Vec3A_NormalizeDup(n, reference));
     alignas(16) float perp[4];
     copy_words(reinterpret_cast<float*>(hinge + 0x50),
-               title_function<float* XB_CDECL(float*, const float*)>(0x000b8990)(perp, reinterpret_cast<float*>(hinge + 0x30)));
+               Vec3A_Perpendicular(perp, reinterpret_cast<float*>(hinge + 0x30)));
     store4(reinterpret_cast<float*>(hinge + 0x60), cross_lanes(lanes(reinterpret_cast<float*>(hinge + 0x30)),
                                                                lanes(reinterpret_cast<float*>(hinge + 0x50))));
     const float angles[2] = {angle_lo, angle_hi};

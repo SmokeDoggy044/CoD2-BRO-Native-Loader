@@ -2582,7 +2582,7 @@ address,name,section,module,state,tested,matched
 000b8200,PhysJoint_AddContacts,.text,game,replaced,327,327
 000b8810,PhysContact_ComputeBias,.text,game,replaced,114,114
 000b88c0,Vec3A_NormalizeDup,.text,qcommon,replaced,49,49
-000b8990,FUN_000b8990,.text,unassigned,unnamed,0,0
+000b8990,FUN_000b8990,.text,unassigned,untested,0,0
 000b8ba0,PhysBody_Translate,.text,game,replaced,4,4
 000b8c00,PhysContact140_SetBias,.text,game,replaced,256,256
 000b8cb0,PhysWorld_AddContact140,.text,game,replaced,297,297
@@ -8946,7 +8946,7 @@ address,name,section,module,state,tested,matched
 0028e3e0,Pak_FindZoneToUnload,.text,qcommon,replaced,196,196
 0028e460,Pak_FindNextZoneToLoad,.text,qcommon,replaced,155,155
 0028e550,MemContext_FindById,.text,qcommon,replaced,235,235
-0028e610,FUN_0028e610,.text,unassigned,unnamed,0,0
+0028e610,FUN_0028e610,.text,unassigned,untested,0,0
 0028e690,Stream_AddSkelToZone,.text,streaming,replaced,157,157
 0028e6e0,Stream_AddClipSetToZone,.text,streaming,set-aside,0,0
 0028e740,Stream_AddClipToZone,.text,streaming,replaced,151,151
@@ -9456,7 +9456,7 @@ address,name,section,module,state,tested,matched
 002b2200,CM_FloodAreaConnections,.text,collision,replaced,0,0
 002b2260,WindingArea,.text,collision,set-aside,0,0
 002b2340,WindingPlane,.text,collision,set-aside,0,0
-002b2790,BrushModel_CopyBounds,.text,unassigned,named,0,0
+002b2790,BrushModel_CopyBounds,.text,unassigned,untested,0,0
 002b2880,CL_CubemapShot_f,.text,client,replaced,6,6
 002b2c60,SCR_DrawSmallChar,.text,client,replaced,0,0
 002b2e80,DebugDraw_Shutdown,.text,renderer,replaced,0,0
@@ -9637,7 +9637,7 @@ address,name,section,module,state,tested,matched
 002bd4e0,SoundRef_SetSource,.text,sound,replaced,100,100
 002bd520,S_StartAliasVoice,.text,sound,replaced,2306,2306
 002bd770,S_StartAliasVoice2,.text,sound,replaced,130,130
-002bda60,SoundManager_Ctor,.text,sound,set-aside,0,0
+002bda60,SoundManager_Ctor,.text,sound,replaced,0,0
 002bdbd0,SndBankList_IsLoaded,.text,sound,replaced,102,102
 002bdc80,Quat_ToMat44,.text,qcommon,replaced,1,1
 002bde90,ShakeRumble_StartByName,.text,game,untested,0,0
@@ -10121,7 +10121,7 @@ address,name,section,module,state,tested,matched
 002f50f0,GScr_SetFogPassAlpha,.text,script,replaced,2,2
 002f5100,GScr_SetFogPassStep,.text,script,replaced,4,4
 002f5110,GScr_SetFogPassFinalAlpha,.text,script,replaced,3,3
-002f5120,ScrIface_HashKeyNoCase,.text,script,set-aside,0,0
+002f5120,ScrIface_HashKeyNoCase,.text,script,replaced,0,0
 002f5140,GScr_SetHudVisible,.text,script,replaced,7,7
 002f5190,GScr_EmptyStub221,.text,script,replaced,0,0
 002f51a0,GScr_EmptyStub220,.text,script,replaced,0,0

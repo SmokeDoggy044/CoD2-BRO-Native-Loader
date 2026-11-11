@@ -804,12 +804,19 @@ const Function kFunctions[] = {
     {"ZoneClipSetManager_Destruct", 0x00025a40, 0, code(&ZoneClipSetManager_Destruct), 4, Result::Eax, Status::Replaced},
     {"ZoneAnimManager_Destruct", 0x00025a90, 0, code(&ZoneAnimManager_Destruct), 4, Result::Eax, Status::Replaced},
     {"ZoneSkelManager_Destruct", 0x00025ae0, 0, code(&ZoneSkelManager_Destruct), 4, Result::Eax, Status::Replaced},
+    {"ZoneTextureManager_Find", 0x00025b10, 0, code(&ZoneTextureManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneTextureManager_Add", 0x00025b50, 0, code(&ZoneTextureManager_Add), 4, Result::Eax, Status::Replaced},
+    {"ZoneMeshFileManager_Find", 0x00025bb0, 0, code(&ZoneMeshFileManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneMeshFileManager_Add", 0x00025bf0, 0, code(&ZoneMeshFileManager_Add), 4, Result::Eax, Status::Replaced},
+    {"ZoneMeshManager_Find", 0x00025c50, 0, code(&ZoneMeshManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneMeshManager_Add", 0x00025c90, 0, code(&ZoneMeshManager_Add), 4, Result::Eax, Status::Replaced},
+    {"ZoneClipManager_Find", 0x00025cf0, 0, code(&ZoneClipManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneClipManager_Add", 0x00025d30, 0, code(&ZoneClipManager_Add), 4, Result::Eax, Status::Replaced},
+    {"ZoneClipSetManager_Find", 0x00025d90, 0, code(&ZoneClipSetManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneClipSetManager_Add", 0x00025dd0, 0, code(&ZoneClipSetManager_Add), 4, Result::Eax, Status::Compare},
+    {"ZoneAnimManager_Find", 0x00025e30, 0, code(&ZoneAnimManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneAnimManager_Add", 0x00025e70, 0, code(&ZoneAnimManager_Add), 4, Result::Eax, Status::Replaced},
+    {"ZoneSkelManager_Find", 0x00025ed0, 0, code(&ZoneSkelManager_Find), 4, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 2)
     {"ZoneSkelManager_Add", 0x00025f10, 0, code(&ZoneSkelManager_Add), 4, Result::Eax, Status::Replaced},
     {"UintMap_Find", 0x000231f0, 0, code(&UintMap_Find), 8, Result::Eax, Status::Replaced},
     {"NAL_SkipActiveChannelBlocks", 0x00023390, 0, code(&NAL_SkipActiveChannelBlocks_entry), 0, Result::Eax, Status::Replaced},
@@ -2549,6 +2556,7 @@ const Function kFunctions[] = {
     {"PhysJoint_AddContacts", 0x000b8200, 0, code(&PhysJoint_AddContacts), 8, Result::None, Status::Replaced},
     {"PhysContact_ComputeBias", 0x000b8810, 0, code(&PhysContact_ComputeBias), 8, Result::None, Status::Replaced},
     {"Vec3A_NormalizeDup", 0x000b88c0, 0, code(&Vec3A_NormalizeDup), 8, Result::Eax, Status::Replaced},
+    {"Vec3A_Perpendicular", 0x000b8990, 0, code(&Vec3A_Perpendicular), 8, Result::Eax, Status::Compare},  // was FUN_000b8990
     {"PhysBody_Translate", 0x000b8ba0, 0, code(&PhysBody_Translate), 8, Result::None, Status::Replaced},
     {"PhysContact140_SetBias", 0x000b8c00, 0, code(&PhysContact140_SetBias), 4, Result::None, Status::Replaced},
     {"PhysWorld_AddContact140", 0x000b8cb0, 0, code(&PhysWorld_AddContact140), 24, Result::None, Status::Replaced},
@@ -6902,6 +6910,13 @@ const Function kFunctions[] = {
     {"Pak_PushZoneIds_r", 0x0028bc50, 0, code(&Pak_PushZoneIds_r), 4, Result::None, Status::Replaced},
     {"Pak_ReportProgress", 0x0028bd30, 0, code(&Pak_ReportProgress), 4, Result::None, Status::Compare},
     {"Pak_Clear", 0x0028bdb0, 0, code(&Pak_Clear), 0, Result::None, Status::Replaced},
+    {"ZoneSkelManager_ClassName", 0x0028be30, 0, code(&ZoneSkelManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneAnimManager_ClassName", 0x0028be40, 0, code(&ZoneAnimManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneClipSetManager_ClassName", 0x0028be50, 0, code(&ZoneClipSetManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneClipManager_ClassName", 0x0028be60, 0, code(&ZoneClipManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneMeshManager_ClassName", 0x0028be70, 0, code(&ZoneMeshManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneMeshFileManager_ClassName", 0x0028be80, 0, code(&ZoneMeshFileManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
+    {"ZoneTextureManager_ClassName", 0x0028be90, 0, code(&ZoneTextureManager_ClassName), 0, Result::Eax, Status::Compare},  // no Ghidra function (vtable slot 1)
     {"Stream_LoadSpace", 0x0028bea0, 0, code(&Stream_LoadSpace), 16, Result::None, Status::Replaced},
     {"Stream_Alloc", 0x0028beb0, 0, code(&Stream_Alloc_entry), 0, Result::Eax, Status::Replaced},
     {"MemContext_Free_r", 0x0028bfc0, 0, code(&MemContext_Free_r), 4, Result::Al, Status::Replaced},
@@ -6945,6 +6960,7 @@ const Function kFunctions[] = {
     {"Pak_FindZoneToUnload", 0x0028e3e0, 0, code(&Pak_FindZoneToUnload), 0, Result::Eax, Status::Replaced},
     {"Pak_FindNextZoneToLoad", 0x0028e460, 0, code(&Pak_FindNextZoneToLoad_entry), 0, Result::Eax, Status::Replaced},
     {"MemContext_FindById", 0x0028e550, 0, code(&MemContext_FindById), 4, Result::Eax, Status::Replaced},
+    {"Stream_FindMap98Loaded", 0x0028e610, 0, code(&Stream_FindMap98Loaded_entry), 8, Result::Eax, Status::Compare},  // was FUN_0028e610
     {"Stream_AddSkelToZone", 0x0028e690, 0, code(&Stream_AddSkelToZone_entry), 4, Result::Eax, Status::Replaced},
     {"Stream_AddClipSetToZone", 0x0028e6e0, 0, code(&Stream_AddClipSetToZone_entry), 4, Result::Eax, Status::Compare},
     {"Stream_AddClipToZone", 0x0028e740, 0, code(&Stream_AddClipToZone_entry), 4, Result::Eax, Status::Replaced},
@@ -7663,6 +7679,7 @@ const Function kFunctions[] = {
     {"CM_FloodAreaConnections", 0x002b2200, 0, code(&CM_FloodAreaConnections), 0, Result::None, Status::Replaced},
     {"WindingArea", 0x002b2260, 0, code(&WindingArea_entry), 0, Result::Xmm0, Status::Compare},
     {"WindingPlane", 0x002b2340, 0, code(&WindingPlane_entry), 4, Result::None, Status::Compare},
+    {"BrushModel_CopyBounds", 0x002b2790, 0, code(&BrushModel_CopyBounds), 0, Result::None, Status::Compare},
     {"CL_CubemapShot_f", 0x002b2880, 0, code(&CL_CubemapShot_f), 0, Result::None, Status::Replaced},
     {"SCR_DrawSmallChar", 0x002b2c60, 0, code(&SCR_DrawSmallChar_entry), 8, Result::None, Status::Replaced},
     {"DebugDraw_Shutdown", 0x002b2e80, 0, code(&DebugDraw_Shutdown), 0, Result::Eax, Status::Replaced},
@@ -7842,6 +7859,7 @@ const Function kFunctions[] = {
     {"SoundRef_SetSource", 0x002bd4e0, 0, code(&SoundRef_SetSource), 0, Result::None, Status::Replaced},
     {"S_StartAliasVoice", 0x002bd520, 0, code(&S_StartAliasVoice_entry), 32, Result::None, Status::Replaced},
     {"S_StartAliasVoice2", 0x002bd770, 0, code(&S_StartAliasVoice2_entry), 32, Result::None, Status::Replaced},
+    {"SoundManager_Ctor", 0x002bda60, 0, code(&SoundManager_Ctor_entry), 0, Result::Eax, Status::Replaced},  // boot: replays check it
     {"SndBankList_IsLoaded", 0x002bdbd0, 0, code(&SndBankList_IsLoaded), 4, Result::Al, Status::Replaced},
     {"Quat_ToMat44", 0x002bdc80, 0, code(&Quat_ToMat44), 4, Result::None, Status::Replaced},
     {"ShakeRumble_StartByName", 0x002bde90, 0, code(&ShakeRumble_StartByName), 24, Result::None, Status::Compare},
@@ -8315,6 +8333,7 @@ const Function kFunctions[] = {
     {"GScr_SetFogPassAlpha", 0x002f50f0, 0, code(&GScr_SetFogPassAlpha), 4, Result::None, Status::Replaced},
     {"GScr_SetFogPassStep", 0x002f5100, 0, code(&GScr_SetFogPassStep), 4, Result::None, Status::Replaced},
     {"GScr_SetFogPassFinalAlpha", 0x002f5110, 0, code(&GScr_SetFogPassFinalAlpha), 4, Result::None, Status::Replaced},
+    {"ScrIface_HashKeyNoCase", 0x002f5120, 0, code(&ScrIface_HashKeyNoCase), 4, Result::Eax, Status::Replaced},  // jmp in the first 5 bytes: not compared
     {"GScr_SetHudVisible", 0x002f5140, 0, code(&GScr_SetHudVisible), 4, Result::None, Status::Replaced},
     {"GScr_EmptyStub221", 0x002f5190, 0, code(&GScr_EmptyStub221), 0, Result::None, Status::Replaced},
     {"GScr_EmptyStub220", 0x002f51a0, 0, code(&GScr_EmptyStub220), 0, Result::None, Status::Replaced},

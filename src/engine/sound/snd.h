@@ -447,6 +447,16 @@ void XB_CDECL SndBank_Relocate(uint8_t* request);
 // headers); group 0 and mix state volumes 1, listener cleared with forward (0,0,1) / up (0,1,0) at mix +0xc0;
 // SndSys_InitDirectSound, then (tail jump) SndSys_Update.
 uint32_t XB_CDECL SndSys_Init(uint32_t arena);
+// 0x002bda60 (object in ESI; Com_Init's 0x0095f4c4, 0x601c bytes): 512 channel records of 0x30 (handles +0/+4 -1,
+// +8 0, +9 1, +0xc/+0x10/+0x1c 1.0, +0x14 50, +0x18 1500, +0x20/+0x24/+0x28/+0x2c 0; +0xa/+0xb left), NullCallback
+// (0x0001b9a0) appended to the 32-slot list 0x00988780 when there is room, +0x6004 = 0x200 voices, +0x6008 = 1,
+// SndVoice_AllocPools(+0x6004) bytes from Z_Malloc into +0x6000 and SndSys_Init on them, master attenuation 2,
+// master volume 1.0, voice attenuation cleared; the default I3DL2 listener (room -1000, room HF -100, rolloff 0,
+// decay 1.49 s, HF ratio 0.83, reflections -2602 / 0.007 s, reverb 200 / 0.011 s, diffusion and density 100,
+// HF reference 5000) goes to SndSys_EmptyStub (0x000c72f0, a bare RET: not called here); +0x6014 = -1,
+// +0x6018 = 1.0. Returns the object.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL SoundManager_Ctor(uint8_t* self);
+extern "C" void SoundManager_Ctor_entry(void);
 // 0x000c7490: DirectSoundCreate into 0x00911540, the effects image 0x008bed18 (0x008bfd68 = 0x1050 bytes; reverb
 // index -1, crosstalk 0), distance factor 1 (deferred), headphones off, full HRTF, 7.5 MB of uncached physical memory
 // for SndMem_Init, SndSys_CreateVoiceBuffers(1, 1, 1, 1, 7, 36, 7, 36); DSOUND word 0x003e45f4 = 0; returns 1.

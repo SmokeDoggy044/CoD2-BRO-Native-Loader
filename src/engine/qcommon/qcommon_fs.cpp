@@ -7305,7 +7305,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     own_function<void XB_CDECL()>(&ResourceManager_CreateModels)();           // ResourceManager_CreateModels
     own_function<void XB_CDECL()>(&ResourceManager_CreateXmpb)();           // ResourceManager_CreateXmpb
     own_function<void XB_CDECL()>(&ResourceManager_CreateAitb)();           // ResourceManager_CreateAitb
-    boot_construct(0x0095f4c4, 4, 0x601c, 0x002bda60);       // SoundManager_Ctor
+    boot_construct(0x0095f4c4, 4, 0x601c, own_address(&SoundManager_Ctor_entry));  // SoundManager_Ctor
     own_function<void XB_CDECL()>(&ResourceManager_CreateSoundBanks)();           // ResourceManager_CreateSoundBanks
     title_global<uint8_t*>(0x0095f4c8) = boot_alloc(4, 4);
     uint8_t* const fade = boot_alloc(4, 0x20);

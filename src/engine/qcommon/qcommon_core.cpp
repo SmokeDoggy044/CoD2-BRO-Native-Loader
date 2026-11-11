@@ -814,6 +814,35 @@ float* XB_CDECL Vec3A_NormalizeDup(float* out, const float* v) {
     return normalize_lanes(out, v, 0x007cd630, 0x007cd640, 0x007cd670);
 }
 
+float* XB_CDECL Vec3A_Perpendicular(float* out, const float* v) {
+    const Lanes in = lanes(v);
+    // SHUFPS 0xd8 / 0xc6 / 0xe1 of v, times the sign masks.
+    const Lanes swizzled[3] = {{{in.v[0], in.v[2], in.v[1], in.v[3]}},
+                               {{in.v[2], in.v[1], in.v[0], in.v[3]}},
+                               {{in.v[1], in.v[0], in.v[2], in.v[3]}}};
+    static constexpr uint32_t kMasks[3] = {0x007cd7e0, 0x007cd7f0, 0x007cd800};
+    Lanes axis{};
+    float length = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+        axis = mul(swizzled[i], lanes(&title_global<float>(kMasks[i])));
+        const Lanes squares = mul(axis, axis);
+        platform_keep(squares);
+        const float l2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+        length = l2;
+        if (!(l2 == 0.0f || l2 != l2)) {  // UCOMISS + JNE: NaN keeps l2 too
+            const float r = platform_rsqrt_estimate(l2);
+            const float x = l2 * r;
+            length = ((title_global<float>(0x007cd630) - x * r) * x) * title_global<float>(0x007cd640);  // 3, 0.5
+        }
+        if (!(title_global<float>(0x0083ed50) > length)) break;  // COMISS + JBE: NaN stops too
+    }
+    Lanes result;
+    const Lanes l = splat(length);
+    platform_divps(result.v, axis.v, l.v);
+    store4(out, result);
+    return out;
+}
+
 float* XB_CDECL Vec3_Scale(float* out, float x, float y, float z, float s) {
     const float rx = x * s;
     const float ry = y * s;

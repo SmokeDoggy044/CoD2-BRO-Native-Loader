@@ -226,6 +226,10 @@ void XB_CDECL Mem_SetAllocatorHooks(const uint32_t* hooks);
 float* XB_CDECL Vec3A_Normalize(float* out, const float* v);
 // 0x000b88c0: the same with an unaligned load of v (constants at 0x007cd5f0..0x007cd670).
 float* XB_CDECL Vec3A_NormalizeDup(float* out, const float* v);
+// 0x000b8990: out = a unit vector perpendicular to v (aligned, 4 lanes): the first of (0, z, -y, 0), (-z, 0, x, 0),
+// (y, -x, 0, 0) (lane products with 0x007cd7e0/7f0/800) whose length (rsqrt estimate + Newton step; 0 or NaN length
+// squared kept as the length) is not below 0.0001 (0x0083ed50), else the third; DIVPS by the splat length. Returns out.
+float* XB_CDECL Vec3A_Perpendicular(float* out, const float* v);
 // 0x0011fd80: out = (x, y, z) * s. Returns out. No callers, no stored pointer (dead).
 float* XB_CDECL Vec3_Scale(float* out, float x, float y, float z, float s);
 // 0x0002a230: grows sphere A (center_a aligned, *radius_a) to hold sphere B (center_b, radius_b):

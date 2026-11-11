@@ -3013,6 +3013,50 @@ void setup_slot_buffer(uint8_t* slot, uint8_t& kind, uint8_t kind_code, bool is_
 
 }  // namespace
 
+PLATFORM_ASM_ENTRY(SoundManager_Ctor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SoundManager_Ctor) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL SoundManager_Ctor(uint8_t* self) {
+    const float one = title_global<float>(0x0083eb20);
+    const float min_distance = title_global<float>(0x0083ec30);
+    const float max_distance = title_global<float>(0x0083edb0);
+    for (uint32_t i = 0; i < 0x200; ++i) {
+        uint8_t* const r = self + i * 0x30;
+        snd_at<uint32_t>(r, 0x20) = 0;
+        snd_at<uint32_t>(r, 0x24) = 0;
+        snd_at<uint32_t>(r, 0x2c) = 0;
+        snd_at<uint32_t>(r, 0) = 0xffffffff;
+        snd_at<uint32_t>(r, 4) = 0xffffffff;
+        snd_at<uint8_t>(r, 8) = 0;
+        snd_at<uint8_t>(r, 9) = 1;
+        snd_at<float>(r, 0xc) = one;
+        snd_at<float>(r, 0x10) = one;
+        snd_at<float>(r, 0x14) = min_distance;
+        snd_at<float>(r, 0x18) = max_distance;
+        snd_at<float>(r, 0x1c) = one;
+        snd_at<uint32_t>(r, 0x28) = 0;
+    }
+    int32_t& callbacks = title_global<int32_t>(0x00988780);
+    if (callbacks < 0x20) {
+        title_global<uint32_t>(0x00988784 + callbacks * 4) = own_address(&NullCallback);  // NullCallback
+        ++callbacks;
+    }
+    snd_at<uint32_t>(self, 0x6004) = 0x200;
+    snd_at<uint32_t>(self, 0x6008) = 1;
+    const uint32_t bytes = SndVoice_AllocPools(reinterpret_cast<const uint32_t*>(self + 0x6004));
+    uint8_t* const arena = Z_Malloc(bytes);
+    snd_at<uint32_t>(self, 0x6000) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena));
+    SndSys_Init(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena)));
+    S_SetMasterAttenuation(2);
+    S_SetMasterVolume(0x3f800000u);
+    S_ClearVoiceAttenuation();
+    // The default I3DL2 listener went to SndSys_EmptyStub (a bare RET) here.
+    snd_at<uint32_t>(self, 0x6014) = 0xffffffff;
+    snd_at<float>(self, 0x6018) = one;
+    return self;
+}
+
 uint32_t XB_CDECL SndSys_Init(uint32_t arena) {
     uint32_t& base = title_global<uint32_t>(0x0090a890);
     if (base) return base;

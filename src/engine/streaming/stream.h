@@ -331,6 +331,34 @@ extern "C" void Stream_AddClipSetToZone_entry(void);
 // 0x00025d30 / 0x00025dd0: ZoneTextureManager_Add's pattern with Stream_AddClipToZone / Stream_AddClipSetToZone.
 uint32_t XB_THISCALL ZoneClipManager_Add(const uint8_t* self, uint32_t object);
 uint32_t XB_THISCALL ZoneClipSetManager_Add(const uint8_t* self, uint32_t object);
+// Slot 2 of the zone managers' vtables (thiscall, key on the stack, ret 4; no Ghidra functions): the wrapped manager's
+// Find (+4, its slot 2) when there is one and it finds the key, else the stream system's search over every zone (-1)
+// with active 1 - Stream_FindTexture (name) at 0x00025b10, Stream_FindMeshFile 0x00025bb0, Stream_FindInZones (mesh)
+// 0x00025c50, Stream_FindMap98Loaded (clip) 0x00025cf0, Stream_FindMapA8 (clip set) 0x00025d90, Stream_FindAnim
+// 0x00025e30, Stream_FindSkel 0x00025ed0. The searches' last word is the key's own stack slot with its low byte
+// cleared (unread).
+uint32_t XB_THISCALL ZoneTextureManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneMeshFileManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneMeshManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneClipManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneClipSetManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneAnimManager_Find(const uint8_t* self, uint32_t key);
+uint32_t XB_THISCALL ZoneSkelManager_Find(const uint8_t* self, uint32_t key);
+// Slot 1 (0x0028be30..0x0028be90, 16 bytes apart; no Ghidra functions): the class name - "cdSkeletonDirectory",
+// "cdAnimFileDirectory" (anims), "cdSceneAnimDirectory" (clip sets), "cdAnimDirectory" (clips), "cdMeshDirectory",
+// "cdMeshFileDirectory", "cdTextureDirectory".
+const char* XB_CDECL ZoneSkelManager_ClassName();
+const char* XB_CDECL ZoneAnimManager_ClassName();
+const char* XB_CDECL ZoneClipSetManager_ClassName();
+const char* XB_CDECL ZoneClipManager_ClassName();
+const char* XB_CDECL ZoneMeshManager_ClassName();
+const char* XB_CDECL ZoneMeshFileManager_ClassName();
+const char* XB_CDECL ZoneTextureManager_ClassName();
+// 0x0028e610 (hashed name in EBX; streams, an unread word; ret 8): the clip map (+0x98) of the loaded zones
+// (Pak_CollectLoadedZoneIds) in list order; the found entry's value, else 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindMap98Loaded(const uint32_t* hashed, uint32_t streams,
+                                                                    uint32_t unused);
+extern "C" void Stream_FindMap98Loaded_entry(void);
 
 // Zone releases (stream system, zone id): each entry of one of the zone's maps (zone = system +0x5c + id * 4) released
 // and cleared. 0x0028cef0 (system in EAX, id in ECX): fonts (+0x20 count, +0x24 entries; nglReleaseFont).

@@ -171,6 +171,9 @@ extern "C" void SV_PointTraceToEntity_entry(void);
 // == 2, client state 1), "cs %i %s" or for 0xe8+ characters "bcs0/1/2 %i %s" chunks of 0xe7.
 void XB_CDECL SV_SetConfigstring(int32_t index, const char* value);
 
+// 0x002b2790 (maxs in EAX, model in EDX, mins in ECX): the brush model's mins (+0x10) and maxs (+0x20), four words
+// each; without a model both get the four words at 0x0082e290.
+void XB_REGS3 XB_CDECL BrushModel_CopyBounds(float* maxs, uint32_t model, float* mins);
 // 0x002d87a0 (gentity in EAX): Q3's SV_SetBrushModel - the inline model of the entity's clip map (+0x220, -1 = the
 // default from 0x0095f638 +0x34) through the title's 0x002afb10 (0x1fe / 0x1ff: 0x0095f504; 0: none), its bounds
 // into +0xe0 / +0xf0 (0x002b2790), +0xdc model, contents -1, SV_LinkEntity.

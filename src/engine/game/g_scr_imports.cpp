@@ -780,7 +780,7 @@ const ImportSlot kLevelImports[] = {
     {0x7f4, own_address(&GScr_ReturnFalse509)},  // GScr_ReturnFalse509
     {0x7f8, own_address(&GScr_ReturnFalse510)},  // GScr_ReturnFalse510
     {0x7fc, own_address(&GScr_ReturnFalse511)},  // GScr_ReturnFalse511
-    {0x8a4, 0x002f5120},  // ScrIface_HashKeyNoCase
+    {0x8a4, own_address(&ScrIface_HashKeyNoCase)},  // ScrIface_HashKeyNoCase
     {0x378, own_address(&GScr_EmptyStub222)},  // GScr_EmptyStub222
     {0x37c, own_address(&GScr_EmptyStub223)},  // GScr_EmptyStub223
     {0x354, own_address(&GScr_FindZone)},  // GScr_FindZone

@@ -3866,9 +3866,8 @@ void XB_CDECL GScr_SwapEntField_dc(uint32_t handle_a, uint32_t handle_b) {
     const uint32_t model = field<uint32_t>(b, 0xdc);
     field<uint32_t>(b, 0xdc) = field<uint32_t>(a, 0xdc);
     field<uint32_t>(a, 0xdc) = model;
-    using CopyBounds = void XB_REGS3 XB_CDECL(uint8_t* maxs, uint32_t model, uint8_t* mins);
-    title_function<CopyBounds>(0x002b2790)(a + 0xf0, field<uint32_t>(a, 0xdc), a + 0xe0);  // BrushModel_CopyBounds
-    title_function<CopyBounds>(0x002b2790)(b + 0xf0, field<uint32_t>(b, 0xdc), b + 0xe0);
+    BrushModel_CopyBounds(reinterpret_cast<float*>(a + 0xf0), field<uint32_t>(a, 0xdc), reinterpret_cast<float*>(a + 0xe0));
+    BrushModel_CopyBounds(reinterpret_cast<float*>(b + 0xf0), field<uint32_t>(b, 0xdc), reinterpret_cast<float*>(b + 0xe0));
     field<float>(a, 0x12c) = 0.0f;
     field<float>(b, 0x12c) = 0.0f;
     SV_LinkEntity(a);

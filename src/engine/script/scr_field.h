@@ -237,6 +237,8 @@ extern "C" void ScrField_h12993a44_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity);
 
 // The script runtime's engine interface (pointers handed to the runtime).
+// 0x002f5120: Com_HashKeyNoCase of `text` (the original moves it into EDX and jumps; 5 bytes too short to compare).
+uint32_t XB_CDECL ScrIface_HashKeyNoCase(const char* text);
 // 0x002f5340: the title CRT's atof (x87 result).
 long double XB_CDECL ScrIface_atof(const char* text);
 // 0x002f5400: SmallHeap_Free on com_smallHeap (0x00947700).

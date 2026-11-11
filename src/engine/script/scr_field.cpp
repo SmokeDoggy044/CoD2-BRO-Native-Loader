@@ -663,6 +663,10 @@ bool* XB_CDECL ScrVehNodeField_script_uniquename_IsDefined_c(uint32_t entry_esp)
     return out;
 }
 
+uint32_t XB_CDECL ScrIface_HashKeyNoCase(const char* text) {
+    return Com_HashKeyNoCase(0, text);
+}
+
 long double XB_CDECL ScrIface_atof(const char* text) {
     return title_atof(text);
 }

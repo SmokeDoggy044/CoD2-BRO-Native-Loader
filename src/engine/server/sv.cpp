@@ -1317,6 +1317,15 @@ void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
     }
 }
 
+void XB_REGS3 XB_CDECL BrushModel_CopyBounds(float* maxs, uint32_t model, float* mins) {
+    const uint32_t* lo = model ? reinterpret_cast<const uint32_t*>(model + 0x10) : &title_global<uint32_t>(0x0082e290);
+    const uint32_t* hi = model ? reinterpret_cast<const uint32_t*>(model + 0x20) : &title_global<uint32_t>(0x0082e290);
+    uint32_t* mn = reinterpret_cast<uint32_t*>(mins);
+    uint32_t* mx = reinterpret_cast<uint32_t*>(maxs);
+    for (int i = 0; i < 4; ++i) mn[i] = lo[i];
+    for (int i = 0; i < 4; ++i) mx[i] = hi[i];
+}
+
 void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent) {
     uint32_t map = field<uint32_t>(ent, 0x220);
     if (map == 0xffffffff) map = field<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34);
@@ -1334,8 +1343,7 @@ void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent) {
                              : "memory", "cc");
         }
     }
-    title_function<void XB_REGS3 XB_CDECL(float*, uint32_t, float*)>(0x002b2790)(  // the model's bounds
-        reinterpret_cast<float*>(ent + 0xf0), model, reinterpret_cast<float*>(ent + 0xe0));
+    BrushModel_CopyBounds(reinterpret_cast<float*>(ent + 0xf0), model, reinterpret_cast<float*>(ent + 0xe0));
     field<uint32_t>(ent, 0xdc) = model;
     field<uint32_t>(ent, 0x134) = 0xffffffff;
     SV_LinkEntity(ent);

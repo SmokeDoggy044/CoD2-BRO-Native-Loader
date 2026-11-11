@@ -412,6 +412,20 @@ uint32_t XB_CDECL Stream_FindMapA8(const uint32_t* hashed, uint32_t streams, uin
     return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), a8_lookup);
 }
 
+PLATFORM_ASM_ENTRY(Stream_FindMap98Loaded_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_FindMap98Loaded) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL Stream_FindMap98Loaded(const uint32_t* hashed, uint32_t streams, uint32_t) {
+    uint32_t list[0x21];
+    list[0] = 0;
+    Pak_CollectLoadedZoneIds_call(list);
+    return search_list(streams, list, list[0], hashed,
+                       [](uint32_t hash, const char* key, const uint8_t* z) { return ZoneMap98_Lookup(hash, key, z); });
+}
+
 STREAM_FIND_EBX_ENTRY(Stream_FindEffect)
 uint32_t XB_CDECL Stream_FindEffect(const uint32_t* hashed, uint32_t streams, uint32_t zone, uint32_t active,
                                     uint32_t) {
@@ -660,6 +674,73 @@ uint32_t XB_THISCALL ZoneAnimManager_Add(const uint8_t* self, uint32_t object) {
 uint32_t XB_THISCALL ZoneSkelManager_Add(const uint8_t* self, uint32_t object) {
     return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddSkelToZone(o, streams()); });
 }
+
+namespace {
+
+// Zone*Manager_Find: the wrapped manager's slot 2 first, then the stream search.
+uint32_t zone_manager_find(const uint8_t* self, uint32_t key, uint32_t (*find)(uint32_t key, uint32_t junk)) {
+    const uint32_t inner = *reinterpret_cast<const uint32_t*>(self + 4);
+    if (inner) {
+        const uint32_t found = title_function<uint32_t XB_THISCALL(uint32_t, uint32_t)>(
+            *reinterpret_cast<const uint32_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{inner}) + 8}))(
+            inner, key);
+        if (found) return found;
+    }
+    return find(key, key & 0xffffff00u);
+}
+
+const uint32_t* hashed_key(uint32_t key) { return reinterpret_cast<const uint32_t*>(uintptr_t{key}); }
+
+}  // namespace
+
+uint32_t XB_THISCALL ZoneTextureManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindTexture(streams(), 0xffffffff, reinterpret_cast<const char*>(uintptr_t{k}), 1, junk);
+    });
+}
+
+uint32_t XB_THISCALL ZoneMeshFileManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindMeshFile(hashed_key(k), streams(), 0xffffffff, 1, junk);
+    });
+}
+
+uint32_t XB_THISCALL ZoneMeshManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindInZones(1, 0, hashed_key(k), streams(), 0xffffffff, junk);
+    });
+}
+
+uint32_t XB_THISCALL ZoneClipManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key,
+                             [](uint32_t k, uint32_t junk) { return Stream_FindMap98Loaded(hashed_key(k), streams(), junk); });
+}
+
+uint32_t XB_THISCALL ZoneClipSetManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindMapA8(hashed_key(k), streams(), 0xffffffff, 1, junk);
+    });
+}
+
+uint32_t XB_THISCALL ZoneAnimManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindAnim(hashed_key(k), streams(), 0xffffffff, 1, junk);
+    });
+}
+
+uint32_t XB_THISCALL ZoneSkelManager_Find(const uint8_t* self, uint32_t key) {
+    return zone_manager_find(self, key, [](uint32_t k, uint32_t junk) {
+        return Stream_FindSkel(1, streams(), 0xffffffff, hashed_key(k), junk);
+    });
+}
+
+const char* XB_CDECL ZoneSkelManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x008383ac}); }
+const char* XB_CDECL ZoneAnimManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x008383c0}); }
+const char* XB_CDECL ZoneClipSetManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x008383d4}); }
+const char* XB_CDECL ZoneClipManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x008383ec}); }
+const char* XB_CDECL ZoneMeshManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x008383fc}); }
+const char* XB_CDECL ZoneMeshFileManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x0083840c}); }
+const char* XB_CDECL ZoneTextureManager_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x00838420}); }
 
 uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file) {
     return add_to_zone(streams, file, file, 0x38, false);
