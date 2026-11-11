@@ -45,6 +45,7 @@
 #include "levels_templates.h"
 #include "levels_twins.h"
 #include "title_xapi.h"
+#include "title_stdio.h"
 
 namespace game {
 
@@ -1326,17 +1327,17 @@ using FileOp = int32_t XB_CDECL(void*);
 using FileSeek = int32_t XB_CDECL(void*, int32_t, int32_t);
 
 int32_t crt_fread(void* buffer, uint32_t size, uint32_t count, void* file) {
-    return title_function<FileRw>(0x001f019a)(buffer, size, count, file);
+    return own_function<FileRw>(&title_fread)(buffer, size, count, file);
 }
 int32_t crt_fwrite(const void* buffer, uint32_t size, uint32_t count, void* file) {
     return title_function<FileRw>(0x001f047d)(const_cast<void*>(buffer), size, count, file);
 }
-int32_t crt_fflush(void* file) { return title_function<FileOp>(0x001efefe)(file); }
-int32_t crt_ftell(void* file) { return title_function<FileOp>(0x001f062b)(file); }
+int32_t crt_fflush(void* file) { return own_function<FileOp>(&title_fflush)(file); }
+int32_t crt_ftell(void* file) { return own_function<FileOp>(&title_ftell)(file); }
 int32_t crt_fseek(void* file, int32_t offset, int32_t origin) {
-    return title_function<FileSeek>(0x001f06fb)(file, offset, origin);
+    return own_function<FileSeek>(&title_fseek)(file, offset, origin);
 }
-int32_t crt_fclose(void* file) { return title_function<FileOp>(0x001f0790)(file); }
+int32_t crt_fclose(void* file) { return own_function<FileOp>(&title_fclose)(file); }
 
 }  // namespace
 
@@ -2147,10 +2148,10 @@ uint32_t XB_CDECL FS_FileExists(const char* name) {
                    reinterpret_cast<const char*>(uintptr_t{pk<uint32_t>(
                        reinterpret_cast<uint8_t*>(uintptr_t{title_global<uint32_t>(0x00947798)}), 4)}),  // fs_homepath
                    name, path, 0);
-    void* f = title_function<void* XB_CDECL(const char*, const char*)>(0x001effb3)(
+    void* f = own_function<void* XB_CDECL(const char*, const char*)>(&title_fopen)(
         path, reinterpret_cast<const char*>(uintptr_t{0x00838080}));  // _fopen "rb"
     if (!f) return 0;
-    title_function<int32_t XB_CDECL(void*)>(0x001f0790)(f);  // _fclose
+    own_function<int32_t XB_CDECL(void*)>(&title_fclose)(f);  // _fclose
     return 1;
 }
 
@@ -3323,7 +3324,7 @@ using CrtStrncpy = char* XB_CDECL(char*, const char*, uint32_t);
 using CrtStrstr = const char* XB_CDECL(const char*, const char*);
 
 void fs_break(int32_t level, uint32_t message) { title_function<BreakV>(kBreak)(level, tstr(message)); }
-void* crt_fopen(const char* path, uint32_t mode) { return title_function<CrtFopen>(0x001effb3)(path, tstr(mode)); }
+void* crt_fopen(const char* path, uint32_t mode) { return own_function<CrtFopen>(&title_fopen)(path, tstr(mode)); }
 void crt_strncpy(char* dst, const char* src, uint32_t n) { title_strncpy(dst, src, n); }
 const char* crt_strstr(const char* s, uint32_t sub) { return title_function<CrtStrstr>(0x001efb10)(s, tstr(sub)); }
 uint8_t* cvar_ptr(uint32_t global) { return title_global<uint8_t*>(global); }

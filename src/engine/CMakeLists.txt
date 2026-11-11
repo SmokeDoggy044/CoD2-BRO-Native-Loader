@@ -90,6 +90,7 @@ set(game_code_sources
     client/fe_special.cpp
     shared/functions.cpp
     shared/title_crt.cpp
+    shared/title_stdio.cpp
     shared/title_xapi.cpp
     renderer/fx.cpp
     renderer/fx_cmd.cpp
