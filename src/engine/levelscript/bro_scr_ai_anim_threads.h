@@ -58,7 +58,7 @@ void XB_CDECL BroScr_WoundedWalk(uint32_t ent, ScriptString unused);
 void XB_CDECL BroScr_AimToAlert(uint32_t ent);
 // 0x001bf8b0: keeps aiming at `point`: standing / crouched shoot + aim knobs, weapon aim anims, aim
 // params (anim object +0x3c..+0x50) and the blend time; prone the three prone shoot knobs and a
-// BroScr_TurnToEnemy_2 call thread (0xf378e0c7, 0) with time 0.25. Waits the time clamped to
+// BroScr_TurnToEnemy_2 call thread (no callback, ends on 0xf378e0c7) with time 0.25. Waits the time clamped to
 // min..max when positive, notifies 0xf378e0c7 and clears the Shoot anim.
 void XB_CDECL Bro_aim__keep_aiming(uint32_t ent, ScrVec3 point, float min_time, float max_time);
 // 0x001bfc50 / 0x001bfd80: desired pose crouch then prone / stand, applied (BroScr_ApplyDesiredAnimPose),

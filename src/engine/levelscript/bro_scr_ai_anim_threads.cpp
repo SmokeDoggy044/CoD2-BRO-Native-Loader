@@ -689,10 +689,10 @@ void XB_CDECL Bro_aim__keep_aiming(uint32_t ent, ScrVec3 point, float min_time, 
         slot<Knob6>(0x009225d8)(ent, title_global<uint32_t>(0x008cf1a4), 0x3f800000, 0x3e4ccccd, 0, 0);  // g_anim_prone_shoot_left
         slot<Knob6>(0x009225d8)(ent, title_global<uint32_t>(0x008cf1b0), 0x3f800000, 0x3e4ccccd, 0, 0);  // g_anim_prone_shoot_right
         slot<Knob6>(0x009225d8)(ent, title_global<uint32_t>(0x008cf1bc), 0x3f800000, 0x3e4ccccd, 0, 0);  // g_anim_prone_shoot_straight
-        const uint32_t notify = 0xf378e0c7;
-        const uint32_t zero = 0;
-        title_function<CallEntHashI>(0x001e4c00)(0, 0, 0, 0, own_address(&BroScr_TurnToEnemy_2), ent, &notify,
-                                                 &zero);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
+        const uint32_t no_callback = 0;
+        const uint32_t end = 0xf378e0c7;
+        title_function<CallEntHashI>(0x001e4c00)(0, 0, 0, 0, own_address(&BroScr_TurnToEnemy_2), ent, &no_callback,
+                                                 &end);  // Scr_CallThread_vt00825be4_2(BroScr_TurnToEnemy_2)
     }
     // Clamped to min_time..max_time (each step as a script bool converted to float), then waited when positive.
     const int32_t below = min_time > time ? 1 : 0;
