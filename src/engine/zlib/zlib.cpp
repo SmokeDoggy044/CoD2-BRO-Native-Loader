@@ -34,6 +34,7 @@
 #include <cstring>
 
 #include "title_data.h"
+#include "title_heap.h"
 
 namespace game {
 
@@ -463,7 +464,7 @@ uint32_t XB_CDECL adler32(uint32_t adler, const uint8_t* buf, uint32_t len) {
 }
 
 void* XB_CDECL zcalloc(uint32_t /*opaque*/, uint32_t items, uint32_t size) {
-    return title_function<void* XB_CDECL(uint32_t)>(0x001f0d14)(items * size);  // _malloc
+    return own_function<void* XB_CDECL(uint32_t)>(&title_crt_malloc)(items * size);  // _malloc
 }
 
 // ---- infblock.c ----------------------------------------------------------------------

@@ -16,6 +16,7 @@
 #include "qcommon_core.h"
 #include "xgraphics.h"
 #include "title_xapi.h"
+#include "title_heap.h"
 
 namespace game {
 
@@ -3025,7 +3026,7 @@ void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
         own_function<void XB_STDCALL(uint32_t)>(&XPhysicalFree)(memory);  // XPhysicalFree
         return;
     }
-    title_function<Free>(0x001f113a)(memory);  // _aligned_free
+    own_function<Free>(&title_crt_aligned_free)(memory);  // _aligned_free
 }
 
 void XB_CDECL nglFreePalette(uint32_t* palette) {

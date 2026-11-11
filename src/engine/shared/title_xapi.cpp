@@ -172,6 +172,15 @@ uint32_t XB_STDCALL XPhysicalAlloc(uint32_t size, uint32_t address, uint32_t ali
     return result;
 }
 
+uint32_t XB_STDCALL XPhysicalAllocEx(uint32_t size, uint32_t lowest, uint32_t highest, uint32_t alignment,
+                                     uint32_t protect) {
+    const uint32_t result =
+        kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(kMmAllocateContiguousMemoryEx)(
+            size, lowest, highest, alignment, protect);
+    if (!result) SetLastError(8);  // ERROR_NOT_ENOUGH_MEMORY
+    return result;
+}
+
 void XB_STDCALL XPhysicalFree(uint32_t address) {
     kernel<void XB_STDCALL(uint32_t)>(kMmFreeContiguousMemory)(address);
 }

@@ -13,6 +13,7 @@
 
 #include "title_data.h"
 #include "title_stdio.h"
+#include "title_heap.h"
 
 namespace game {
 
@@ -43,8 +44,8 @@ uint32_t title_fread(void* buf, uint32_t size, uint32_t count, void* f) {
     return own_function<uint32_t XB_CDECL(void*, uint32_t, uint32_t, void*)>(&game::title_fread)(buf, size, count, f);
 }
 int32_t title_fclose(void* f) { return own_function<int32_t XB_CDECL(void*)>(&game::title_fclose)(f); }
-void* title_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x001f0d14)(size); }
-void title_free(void* p) { title_function<void XB_CDECL(void*)>(0x001f0c69)(p); }
+void* title_malloc(uint32_t size) { return own_function<void* XB_CDECL(uint32_t)>(&title_crt_malloc)(size); }
+void title_free(void* p) { own_function<void XB_CDECL(void*)>(&title_crt_free)(p); }
 
 // Quake 3's unzlocal_getShort/getLong: fread into one stack word whatever the result, so a
 // failed read keeps the word's last value (a short read only its low half); shorts are

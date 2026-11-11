@@ -32,6 +32,8 @@ uint32_t XB_STDCALL XGetLaunchInfo(uint32_t* type, uint8_t* data);  // 0x001e6e7
 // --- Memory ---
 uint32_t XB_STDCALL XPhysicalAlloc(uint32_t size, uint32_t address, uint32_t alignment, uint32_t protect);  // 0x001e763a
 void XB_STDCALL XPhysicalFree(uint32_t address);                                     // 0x001e76ba
+uint32_t XB_STDCALL XPhysicalAllocEx(uint32_t size, uint32_t lowest, uint32_t highest, uint32_t alignment,
+                                     uint32_t protect);  // 0x001e767d
 void XB_STDCALL XPhysicalProtect(uint32_t address, uint32_t size, uint32_t protect);  // 0x001e76aa
 uint32_t XB_STDCALL XQueryMemoryProtect(uint32_t address);                            // 0x001e76c0
 void XB_STDCALL GlobalMemoryStatus(uint32_t* status);                                 // 0x001e7c35

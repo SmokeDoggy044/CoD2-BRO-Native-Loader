@@ -138,6 +138,7 @@
 #include "snd.h"
 #include "stream.h"
 #include "sv.h"
+#include "title_heap.h"
 #include "title_stdio.h"
 #include "title_xapi.h"
 #include "title_crt.h"
@@ -1003,6 +1004,7 @@ const Function kFunctions[] = {
     {"XGetLanguage", 0x001e6f2a, 0, code(&XGetLanguage), 0, Result::Eax, Status::Compare},
     {"XGetVideoStandard", 0x001e75df, 0, code(&XGetVideoStandard), 0, Result::Eax, Status::Compare},
     {"XPhysicalAlloc", 0x001e763a, 0, code(&XPhysicalAlloc), 16, Result::Eax, Status::Compare},
+    {"XPhysicalAllocEx", 0x001e767d, 0, code(&XPhysicalAllocEx), 20, Result::Eax, Status::Compare},
     {"XPhysicalProtect", 0x001e76aa, 0, code(&XPhysicalProtect), 12, Result::None, Status::Compare},
     {"XPhysicalFree", 0x001e76ba, 0, code(&XPhysicalFree), 4, Result::None, Status::Compare},
     {"XQueryMemoryProtect", 0x001e76c0, 0, code(&XQueryMemoryProtect), 4, Result::Eax, Status::Compare},
@@ -1038,6 +1040,20 @@ const Function kFunctions[] = {
     {"WaitForSingleObjectEx", 0x001e8615, 0, code(&WaitForSingleObjectEx), 12, Result::Eax, Status::Compare},
     {"SleepEx", 0x001e8659, 0, code(&SleepEx), 8, Result::Eax, Status::Compare},
     {"WaitForSingleObject", 0x001e86ab, 0, code(&WaitForSingleObject), 8, Result::Eax, Status::Compare},
+    {"XMemAlloc", 0x001ea11f, 0, code(&XMemAlloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"XMemFree", 0x001ea1bf, 0, code(&XMemFree), 8, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
+    {"HeapCreate", 0x001ea1d9, 0, code(&HeapCreate), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"HeapDestroy", 0x001ea228, 0, code(&HeapDestroy), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"HeapFree", 0x001ea244, 0, code(&HeapFree), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"GetProcessHeap", 0x001ea25b, 0, code(&GetProcessHeap), 0, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"LocalAlloc", 0x001ea261, 0, code(&LocalAlloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"LocalFree", 0x001ea27e, 0, code(&LocalFree), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlDestroyHeap", 0x001eb5e4, 0, code(&RtlDestroyHeap), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlSizeHeap", 0x001eba71, 0, code(&RtlSizeHeap), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlCreateHeap", 0x001ebfef, 0, code(&RtlCreateHeap), 24, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlAllocateHeap", 0x001ec413, 0, code(&RtlAllocateHeap), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlFreeHeap", 0x001ecb8e, 0, code(&RtlFreeHeap), 12, Result::Al, Status::Replaced},  // our heap (title_heap.cpp)
+    {"RtlReAllocateHeap", 0x001ecd82, 0, code(&RtlReAllocateHeap), 16, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"QueryPerformanceCounter", 0x001ed6ca, 0, code(&QueryPerformanceCounter), 4, Result::Eax, Status::Compare},
     {"XapiFormatObjectAttributes", 0x001edf88, 0, code(&XapiFormatObjectAttributes), 12, Result::Eax, Status::Compare},
     {"XapiFormatTimeOut", 0x001edfb0, 0, code(&XapiFormatTimeOut), 8, Result::Eax, Status::Compare},
@@ -1055,12 +1071,21 @@ const Function kFunctions[] = {
     {"fseek", 0x001f06fb, 0, code(&title_fseek), 12, Result::Eax, Status::Compare},
     {"_fclose_lk", 0x001f0744, 0, code(&title_fclose_lk), 4, Result::Eax, Status::Compare},
     {"fclose", 0x001f0790, 0, code(&title_fclose), 4, Result::Eax, Status::Compare},
+    {"_free", 0x001f0c69, 0, code(&title_crt_free), 4, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
+    {"__heap_alloc", 0x001f0cc1, 0, code(&title_crt_heap_alloc), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"__nh_malloc", 0x001f0ce8, 0, code(&title_crt_nh_malloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"_malloc", 0x001f0d14, 0, code(&title_crt_malloc), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"__CIacos", 0x001f0ff4, 0, code(&title_CIacos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__aligned_offset_malloc", 0x001f10bf, 0, code(&title_crt_aligned_offset_malloc), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"__aligned_free", 0x001f113a, 0, code(&title_crt_aligned_free), 4, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
+    {"__aligned_malloc", 0x001f114f, 0, code(&title_crt_aligned_malloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"__CIpow", 0x001f1a6c, 0, code(&title_CIpow), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"_lock_file", 0x001f187f, 0, code(&title_lock_file), 4, Result::None, Status::Compare},
     {"_lock_file2", 0x001f18ae, 0, code(&title_lock_file2), 8, Result::None, Status::Compare},
     {"_unlock_file", 0x001f18d1, 0, code(&title_unlock_file), 4, Result::None, Status::Compare},
     {"_unlock_file2", 0x001f1900, 0, code(&title_unlock_file2), 8, Result::None, Status::Compare},
+    {"_realloc", 0x001f1c7d, 0, code(&title_crt_realloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"__msize", 0x001f32ad, 0, code(&title_crt_msize), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"_openfile", 0x001f431e, 0, code(&title_openfile), 16, Result::Eax, Status::Compare},
     {"_getstream", 0x001f4486, 0, code(&title_getstream), 0, Result::Eax, Status::Compare},
     {"_freebuf", 0x001f45a8, 0, code(&title_freebuf), 4, Result::None, Status::Compare},
@@ -1071,6 +1096,7 @@ const Function kFunctions[] = {
     {"_lseek", 0x001f4fb5, 0, code(&title_lseek), 12, Result::Eax, Status::Compare},
     {"_close_lk", 0x001f5060, 0, code(&title_close_lk), 4, Result::Eax, Status::Compare},
     {"_close", 0x001f50e1, 0, code(&title_close), 4, Result::Eax, Status::Compare},
+    {"_calloc", 0x001f72cc, 0, code(&title_crt_calloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"_getbuf", 0x001f80e4, 0, code(&title_getbuf), 4, Result::None, Status::Compare},
     {"_set_osfhnd", 0x001f8d5f, 0, code(&title_set_osfhnd), 8, Result::Eax, Status::Compare},
     {"_free_osfhnd", 0x001f8da5, 0, code(&title_free_osfhnd), 4, Result::Eax, Status::Compare},

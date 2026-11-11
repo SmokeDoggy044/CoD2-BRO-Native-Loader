@@ -12,6 +12,7 @@
 #include <string>
 
 #include "title_data.h"
+#include "title_heap.h"
 
 // ---- x87 intrinsics (title_crt.h) ----
 // Frame of every entry: 0(%esp) the argument as a double (then the result's trip through a double), 8 the caller's
@@ -2156,6 +2157,85 @@ int32_t check_title_crt(std::string& report) {
         failures += static_cast<int32_t>(x87_failures);
         add_line(report, "x87 intrinsics: %u argument(s) x 5 control words x 5 functions, fmod pairs x 3, %u difference(s)",
                  static_cast<uint32_t>(args.size()), x87_failures);
+    }
+    // Our heap (title_heap.h): 30,000 random allocations, frees and reallocations (sizes 0..64 KB, a few 2 MB; at most 1,500 live);
+    // every live block keeps its own fill byte, is 16-byte aligned, reports its size and does not overlap others.
+    {
+        struct Live {
+            uint32_t block, size;
+            uint8_t fill;
+        };
+        std::vector<Live> live;
+        uint32_t seed = 4242, heap_failures = 0;
+        const auto rnd = [&seed] { return seed = seed * 1664525u + 1013904223u, seed >> 8; };
+        const auto bytes = [](uint32_t a) { return reinterpret_cast<uint8_t*>(uintptr_t{a}); };
+        const auto intact = [&](const Live& l) {
+            for (uint32_t i = 0; i < l.size; i += 1 + l.size / 64)
+                if (bytes(l.block)[i] != l.fill) return false;
+            return l.size == 0 || bytes(l.block)[l.size - 1] == l.fill;
+        };
+        uint32_t in_use0, blocks0, reserved0;
+        title_heap_stats(in_use0, blocks0, reserved0);
+        for (int32_t op = 0; op < 30000 && heap_failures < 10; ++op) {
+            const uint32_t r = rnd() % 10;
+            if ((r < 4 && live.size() < 1500) || live.empty()) {
+                const uint32_t size = rnd() % 3000 == 0 ? 0x200000 + rnd() % 999 : rnd() % 15 == 0 ? rnd() % 65536 : rnd() % 300;
+                Live l{title_heap_alloc(size, rnd() & 1), size, static_cast<uint8_t>(rnd())};
+                if (!l.block || (l.block & 15) || title_heap_size(l.block) != size) {
+                    add_line(report, "heap: alloc(%u) gave %08x size %u", size, l.block, l.block ? title_heap_size(l.block) : 0);
+                    ++heap_failures;
+                    continue;
+                }
+                std::memset(bytes(l.block), l.fill, size);
+                live.push_back(l);
+            } else {
+                const size_t i = rnd() % live.size();
+                Live& l = live[i];
+                if (!intact(l)) {
+                    add_line(report, "heap: block %08x (%u bytes) overwritten", l.block, l.size);
+                    ++heap_failures;
+                }
+                if (r < 8) {
+                    title_heap_free(l.block);
+                    live[i] = live.back();
+                    live.pop_back();
+                } else {
+                    const uint32_t size = rnd() % 3 == 0 ? rnd() % 65536 : rnd() % 400;
+                    const uint32_t moved = RtlReAllocateHeap(0, 0, l.block, size);
+                    if (!moved || (moved & 15) || title_heap_size(moved) != size) {
+                        add_line(report, "heap: realloc(%08x, %u) gave %08x", l.block, size, moved);
+                        ++heap_failures;
+                        continue;
+                    }
+                    const uint32_t kept = l.size < size ? l.size : size;
+                    for (uint32_t k = 0; k < kept; k += 1 + kept / 64)
+                        if (bytes(moved)[k] != l.fill) {
+                            add_line(report, "heap: realloc lost the contents of %08x", l.block);
+                            ++heap_failures;
+                            break;
+                        }
+                    l.block = moved;
+                    l.size = size;
+                    std::memset(bytes(moved), l.fill, size);
+                }
+            }
+        }
+        for (const Live& l : live) {
+            if (!intact(l) && heap_failures < 10) {
+                add_line(report, "heap: block %08x (%u bytes) overwritten at the end", l.block, l.size);
+                ++heap_failures;
+            }
+            title_heap_free(l.block);
+        }
+        uint32_t in_use, blocks, reserved;
+        title_heap_stats(in_use, blocks, reserved);
+        if (in_use != in_use0 || blocks != blocks0) {
+            add_line(report, "heap: %u bytes in %u blocks before, %u in %u after", in_use0, blocks0, in_use, blocks);
+            ++heap_failures;
+        }
+        failures += static_cast<int32_t>(heap_failures);
+        add_line(report, "heap: 30000 operations, %u difference(s); %u bytes in %u blocks in use, %u KB in segments",
+                 heap_failures, in_use, blocks, reserved / 1024);
     }
     return failures;
 }
