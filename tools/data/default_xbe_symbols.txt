@@ -2837,7 +2837,11 @@
 000cb8d0 FileDevice_IssueIo
 000cb9b0 FileDevice_OnIoComplete
 000cba40 FileXapi_Open
+000cbae0 FileXapi_Close
 000cbb00 FileXapi_GetSizeAndSortKey
+000cbb30 FileXapi_GetNativeHandle
+000cbb50 FileDeviceXapi_IoComplete
+000cbb70 FileDeviceXapi_Issue
 000cbbe0 FileDeviceXapi_Cancel
 000cbc00 FileDeviceXapi_Poll
 000cbc10 Movie_Construct
