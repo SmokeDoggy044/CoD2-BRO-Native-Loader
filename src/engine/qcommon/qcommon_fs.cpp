@@ -1169,11 +1169,8 @@ using CharClass = int32_t XB_CDECL(int32_t);
 using StrICmp = int32_t XB_CDECL(const char*, const char*);
 using StrNICmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
 
-constexpr uint32_t kStrStr = 0x001efb10;
 constexpr uint32_t kStrRChr = 0x001efd40;
-constexpr uint32_t kIsSpace = 0x001eefa0;
 constexpr uint32_t kToUpper = 0x001efd6d;
-constexpr uint32_t kStrICmp = 0x001f1443;
 constexpr uint32_t kStrNICmp = 0x001f1486;
 
 void copy_string(char* dest, const char* src) {
@@ -1190,7 +1187,7 @@ void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line) {
     const char* const comment = &title_global<const char>(0x008333ac);  // "//"
     char* start = line;
     int32_t quotes = 0;
-    char* found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+    char* found = const_cast<char*>(own_function<StrStr>(&title_strstr)(start, comment));
     if (!found) return;
     for (;;) {
         const int32_t length = static_cast<int32_t>(found - start);
@@ -1198,14 +1195,14 @@ void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line) {
             if (start[i] == '"') ++quotes;
         if (!(quotes & 1)) break;
         start = found + 1;
-        found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+        found = const_cast<char*>(own_function<StrStr>(&title_strstr)(start, comment));
         if (!found) return;
     }
     *found = 0;
     if (!*start) return;
     int32_t i = static_cast<int32_t>(std::strlen(start)) - 1;
     while (i >= 0) {
-        if (!title_function<CharClass>(kIsSpace)(static_cast<signed char>(start[i]))) return;
+        if (!own_function<CharClass>(&title_isspace)(static_cast<signed char>(start[i]))) return;
         --i;
         start[i + 1] = 0;
     }
@@ -1292,7 +1289,7 @@ const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int3
 
 int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext) {
     if (*ext == '.') ++ext;
-    if (!title_function<StrICmp>(kStrICmp)(ext, &title_global<const char>(0x00837fc0))) return 1;  // "cfg"
+    if (!own_function<StrICmp>(&title_stricmp)(ext, &title_global<const char>(0x00837fc0))) return 1;  // "cfg"
     if (!ext) return 0;
     if (!Q_stricmpn(ext, &title_global<const char>(0x00837fb8), 99999)) return 1;  // "menu"
     return Q_stricmpn(ext, &title_global<const char>(0x00837fb4), 99999) ? 0 : 1;  // "dat"
@@ -1751,7 +1748,7 @@ const float* XB_REGS3 XB_CDECL Mat43_UntransformPoint(const float* m, uint32_t, 
 }
 
 float* XB_CDECL RandomPointInUnitCircle(float* x, float* y) {
-    const auto rand = title_function<int32_t XB_CDECL()>(0x001efcc0);  // _rand
+    const auto rand = own_function<int32_t XB_CDECL()>(&title_rand);  // _rand
     const float range = title_global<float>(0x0083ebc8);                // 32768
     const float angle = (static_cast<float>(rand()) / range) * title_global<float>(0x0083ebcc);
     const float radius = static_cast<float>(rand()) / range;
@@ -1856,7 +1853,7 @@ PLATFORM_ASM_ENTRY(Pak_AssignZoneIdsByName_entry,
                    "ret")
 
 void XB_CDECL Pak_AssignZoneIdsByName(uint8_t* pak) {
-    const auto strstr_ = title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10);  // _strstr
+    const auto strstr_ = own_function<const char* XB_CDECL(const char*, const char*)>(&title_strstr);  // _strstr
     uint8_t* next;
     uint8_t* node = loaded_first(pak, &next);
     while (next) {
@@ -2230,7 +2227,7 @@ int32_t XB_CDECL NET_OutOfBandPrint(uint32_t sock, const uint32_t* args) {
     // args: the address (5 words), the format, then the variable arguments (MSVC va_list = their address).
     char text[0x800];
     text[0] = text[1] = text[2] = text[3] = static_cast<char>(0xff);
-    title_function<int32_t XB_CDECL(char*, const char*, const void*)>(0x001eea95)(  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, const void*)>(&title_vsprintf)(  // _vsprintf
         text + 4, reinterpret_cast<const char*>(uintptr_t{args[5]}), args + 6);
     const int32_t length = static_cast<int32_t>(std::strlen(text));
     uint8_t* loopback = loopback_of(sock);
@@ -2281,7 +2278,7 @@ PLATFORM_ASM_ENTRY(Loc_ReadLine_entry,
                    "ret $4")
 
 uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line) {
-    const auto strchr_ = title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0);  // _strchr
+    const auto strchr_ = own_function<const char* XB_CDECL(const char*, int32_t)>(&title_strchr);  // _strchr
     if (!**cursor) return 0;
     const char* newline = strchr_(*cursor, '\n');
     if (newline) {
@@ -2306,7 +2303,7 @@ uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line) {
     if (!line[0]) return 1;
     int32_t i = static_cast<int32_t>(std::strlen(line)) - 1;
     while (i >= 0) {
-        if (!title_function<int32_t XB_CDECL(int32_t)>(0x001eefa0)(line[i])) break;  // _isspace
+        if (!own_function<int32_t XB_CDECL(int32_t)>(&title_isspace)(line[i])) break;  // _isspace
         --i;
         line[i + 1] = 0;
     }
@@ -2365,7 +2362,7 @@ PLATFORM_ASM_ENTRY(Save_CheckVersion_entry,
 
 uint8_t XB_CDECL Save_CheckVersion(const char* header) {
     const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00 : 0x0082aaf8});
-    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(header, date, 0x19))  // _strncmp
+    if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(header, date, 0x19))  // _strncmp
         return 0;
     const char* a = header + 0x3c0;
     const char* b = reinterpret_cast<const char*>(uintptr_t{Save_GetData()});
@@ -2458,7 +2455,7 @@ void XB_THISCALL DynArray_Push52(DynArray* array, const uint32_t* value) {
 }
 
 void XB_REGS3 XB_CDECL Pak_ParseFli(uint8_t* fli, uint32_t, uint8_t* pak) {
-    const auto strstr_ = title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10);  // _strstr
+    const auto strstr_ = own_function<const char* XB_CDECL(const char*, const char*)>(&title_strstr);  // _strstr
     const auto get_language = title_function<uint32_t XB_STDCALL()>(0x001e6f2a);           // XGetLanguage
     pk<uint32_t>(pak, 0x18) = u32(fli);
     uint8_t* table = fli + pk<uint32_t>(fli, 0x18);
@@ -2690,7 +2687,7 @@ void XB_CDECL vectoangles_ToOut(const float* v, float* out) {
 
 void XB_CDECL Noise_Init() {
     if (title_global<uint32_t>(0x0095f560)) return;
-    const auto rand_ = title_function<int32_t XB_CDECL()>(0x001efcc0);  // _rand
+    const auto rand_ = own_function<int32_t XB_CDECL()>(&title_rand);  // _rand
     title_global<uint32_t>(0x0095f560) = 1;
     int32_t* perm = &title_global<int32_t>(0x0093e758);
     float* grad = &title_global<float>(0x0093eff0);
@@ -3324,7 +3321,7 @@ using CrtStrstr = const char* XB_CDECL(const char*, const char*);
 void fs_break(int32_t level, uint32_t message) { title_function<BreakV>(kBreak)(level, tstr(message)); }
 void* crt_fopen(const char* path, uint32_t mode) { return title_function<CrtFopen>(0x001effb3)(path, tstr(mode)); }
 void crt_strncpy(char* dst, const char* src, uint32_t n) { title_strncpy(dst, src, n); }
-const char* crt_strstr(const char* s, uint32_t sub) { return title_function<CrtStrstr>(0x001efb10)(s, tstr(sub)); }
+const char* crt_strstr(const char* s, uint32_t sub) { return own_function<CrtStrstr>(&title_strstr)(s, tstr(sub)); }
 uint8_t* cvar_ptr(uint32_t global) { return title_global<uint8_t*>(global); }
 int32_t cvar_int(uint32_t global) { return pk<int32_t>(cvar_ptr(global), 0x20); }
 const char* cvar_str(uint32_t global) { return reinterpret_cast<const char*>(pk_ptr(cvar_ptr(global), 4)); }
@@ -3344,7 +3341,7 @@ void XB_CDECL FS_Printf(int32_t f, const char* format, ...) {
     char text[0x1000];
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     FS_Write(text, static_cast<int32_t>(std::strlen(text)), f);
 }
@@ -3862,7 +3859,7 @@ void XB_CDECL Com_ParseError(const char* format, ...) {
     char text[0x7d00];
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     uint8_t* const parse = title_global<uint8_t*>(0x008d4ca0);  // current parse info: +0x80 line, +0x9c file name
     title_function<BreakV>(kBreak)(1, tstr(0x008338b0), parse + 0x9c, pk<int32_t>(parse, 0x80), text);
@@ -5859,7 +5856,7 @@ void XB_CDECL Com_PrintfStub(const char* format, ...) {
     va_start(args, format);
     uint32_t list = u32(args);
     va_end(args);
-    title_function<int32_t XB_CDECL(char*, const char*, uint32_t)>(0x001eea95)(buffer, format, list);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, uint32_t)>(&title_vsprintf)(buffer, format, list);  // _vsprintf
 }
 
 void XB_CDECL FS_InitPackBuffers() {
@@ -5975,7 +5972,7 @@ char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text) {
     char* const token = &title_global<char>(0x0098bb78);
     title_strncpy(token, std_string_c_str(text), 0x7f);
     title_global<char>(0x0098bbf7) = 0;
-    char* const semicolon = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(token, ';');  // strchr
+    char* const semicolon = own_function<char* XB_CDECL(const char*, int32_t)>(&title_strchr)(token, ';');  // strchr
     if (semicolon) {
         *semicolon = 0;
         std_string_Erase(text, 0, static_cast<uint32_t>(semicolon - token) + 1);
@@ -6012,11 +6009,11 @@ void XB_CDECL Loc_BeginStringFile(const char* path, uint8_t* state, uint32_t val
     char name[0x80];
     const char* const base = COM_SkipPath(0, Loc_StripFileExtension(path));
     std::strcpy(name, base);
-    title_function<char* XB_CDECL(char*)>(0x001fa3d5)(name);  // _strupr
+    own_function<char* XB_CDECL(char*)>(&title_strupr)(name);  // _strupr
     std_string_AssignN(state + 0x3c, name, static_cast<uint32_t>(std::strlen(name)));
     const char* const dir = COM_SkipPath(0, Com_DirName(path));
     std_string_AssignN(state + 0x58, dir, static_cast<uint32_t>(std::strlen(dir)));
-    const int32_t differs = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+    const int32_t differs = own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // _stricmp
         std_string_c_str(state + 0x58), tstr(0x00833518));
     pk<uint32_t>(state, 0x74) = differs ? 0 : 1;
     pk<uint32_t>(state, 0x84) = value;
@@ -6078,7 +6075,7 @@ char* loc_scoped_name(uint8_t* state, const char* name) {
 }
 
 int32_t crt_stricmp(const char* a, const char* b) {
-    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
+    return own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(a, b);
 }
 
 }  // namespace
@@ -6180,7 +6177,7 @@ const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
         Loc_BeginReference(state, Loc_TrimQuotedValue(cursor));
         return nullptr;
     }
-    const auto strtok = title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4);
+    const auto strtok = own_function<char* XB_CDECL(char*, const char*)>(&title_strtok);
     if (Loc_MatchKeyword(tstr(0x00833340), &cursor)) {  // "FLAGS"
         const char* const reference = std_string_c_str(state + 4);
         if (!*reference) return tstr(0x00833314);  // "Error parsing file: Unexpected "FLAGS""
@@ -6188,7 +6185,7 @@ const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
         std::memset(buf, 0, sizeof(buf));
         crt_strncpy(buf, cursor, 0x3ff);
         for (char* flag = strtok(buf, tstr(0x0083333c)); flag; flag = strtok(nullptr, tstr(0x0083333c))) {  // " \t"
-            title_function<char* XB_CDECL(char*)>(0x001fa3d5)(flag);  // _strupr
+            own_function<char* XB_CDECL(char*)>(&title_strupr)(flag);  // _strupr
             Loc_RegisterFlag(flag, state, reference);
         }
         return nullptr;
@@ -6997,7 +6994,7 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
     uint8_t* const header = pk_ptr(zone, 0x7c);
     for (uint32_t i = 0; i < pk<uint32_t>(header, 0xc); ++i) {
         uint8_t* const section = pk_ptr(header, 8) + i * 0x18;
-        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+        if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(  // _strncmp
                 reinterpret_cast<const char*>(section), tstr(0x008379ac), 6))  // "STRING"
             continue;
         const auto has = [](uint8_t* record, uint32_t suffix) {

@@ -8,6 +8,7 @@
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "r_init.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -1881,7 +1882,7 @@ int32_t XB_THISCALL ShaderCache_RandomLevel(ShaderCache* self) {
         if (pair == 0) ++level;
         self->random_bits = bits >> 2;
         if (--self->bits_left == 0) {
-            self->random_bits = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+            self->random_bits = own_function<int32_t XB_CDECL()>(&title_rand)();  // rand
             self->bits_left = 7;
         }
     } while (pair == 0);
@@ -1895,7 +1896,7 @@ void XB_THISCALL ShaderCache_Init(ShaderCache* self) {
     *end = static_cast<ShaderCacheNode*>(Mem_AlignedAlloc(0x2c, 4, 0));
     auto* key = reinterpret_cast<uint32_t*>(*end);
     for (int i = 0; i < 8; ++i) key[i] = 0xffffffff;
-    self->random_bits = static_cast<int32_t>(title_function<uint32_t XB_CDECL()>(0x001efcc0)());  // _rand
+    self->random_bits = static_cast<int32_t>(own_function<uint32_t XB_CDECL()>(&title_rand)());  // _rand
     self->bits_left = 7;
     self->level = 0;
     self->head = static_cast<ShaderCacheNode*>(Mem_AlignedAlloc(0x6c, 4, 0));
@@ -2406,7 +2407,7 @@ void XB_CDECL nglToggleShaderByName(const char* name) {
     int32_t length = 0;
     Q_strncpyLen(buffer, &length, 0x1f, name);
     const uint8_t length8 = static_cast<uint8_t>(length);
-    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(buffer);  // _strlwr
+    own_function<char* XB_CDECL(char*)>(&title_strlwr)(buffer);  // _strlwr
     for (const Entry& entry : kEntries) {
         if (Str_EqualN(buffer, length8, reinterpret_cast<const char*>(uintptr_t{entry.name}), -1)) {
             entry.toggle();

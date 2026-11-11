@@ -3205,7 +3205,7 @@ int32_t title_acos_degrees(float x) {
     int32_t result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfmuls 0x0083eb60\n\tfmuls 0x0083f0ec\n\tcall *%3"
                      : "=a"(result)
-                     : "m"(x), "r"(uintptr_t{0x001f0ff4}), "r"(uintptr_t{0x001f0bf4})
+                     : "m"(x), "r"(uintptr_t{0x001f0ff4}), "r"(own_address(&title_ftol_entry))
                      : "ecx", "edx", "st", "memory");
     return result;
 }

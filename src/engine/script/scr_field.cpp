@@ -682,7 +682,7 @@ uint32_t XB_CDECL ScrIface_HashStringNoCase(const char* text) {
     uint32_t hash = 0;
     for (; *text; ++text) {
         int8_t c = static_cast<int8_t>(*text);
-        if (title_function<CharFn>(0x001eef49)(c))  // _isalpha
+        if (own_function<CharFn>(&title_isalpha)(c))  // _isalpha
             c = static_cast<int8_t>(title_tolower(c));  // tolower
         hash = ((hash << 5) | (hash >> 27)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
     }

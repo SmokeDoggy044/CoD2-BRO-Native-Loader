@@ -818,7 +818,7 @@ uint32_t XB_CDECL Stream_LoadTexture(char* name, uint8_t* data, uint32_t size, u
         loading = 1;
         MemContext_Push(global_context(), context_id);
     }
-    if (!title_function<int XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(name, "no_", 3))  // _strncmp
+    if (!own_function<int XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(name, "no_", 3))  // _strncmp
         name[0] = 'p';
     uint32_t hashed[8];
     Stream_HashFileName(name, hashed);
@@ -1558,7 +1558,7 @@ uint32_t* XB_REGS2 XB_STDCALL Stream_ForEachAssetWithPrefix(uint32_t, uint32_t z
             const uint8_t* const asset =
                 word_at<const uint8_t* const*>(zone, 0x14)[wrap_index(j, word_at<uint32_t>(zone, 0x10))];
             const char* const name = word_at<const char*>(asset, 0);
-            if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+            if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(  // _strncmp
                     name, prefix, length) != 0)
                 continue;
             title_function<void XB_CDECL(const char*, const uint8_t*)>(callback)(
@@ -2479,7 +2479,7 @@ uint32_t XB_REGS1 XB_CDECL Stream_GetFileType(const char* name) {
         }
     }
     for (const auto& type : kTypes)
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(p, title_text(type[0])))  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(p, title_text(type[0])))  // __stricmp
             return type[1];
     debug_break();
     return 0;
@@ -3606,7 +3606,7 @@ void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record) {
 namespace {
 
 int32_t title_strncmp(const void* a, uint32_t b, uint32_t count) {
-    return title_function<int32_t XB_CDECL(const void*, const char*, uint32_t)>(0x001eeaf0)(a, title_text(b), count);
+    return own_function<int32_t XB_CDECL(const void*, const char*, uint32_t)>(&title_strncmp)(a, title_text(b), count);
 }
 
 uint32_t find_context(uint32_t id) {
@@ -3621,7 +3621,7 @@ void hash_name(uint32_t* out, const char* text) {
 uint32_t sound_language(const char* name) {
     static const uint32_t kTags[] = {0x008379a4, 0x00837994, 0x0083799c, 0x0083798c, 0x00837984};
     for (uint32_t i = 0; i < 5; ++i)
-        if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(name, title_text(kTags[i])))  // _strstr
+        if (own_function<const char* XB_CDECL(const char*, const char*)>(&title_strstr)(name, title_text(kTags[i])))  // _strstr
             return i;
     return 5;
 }

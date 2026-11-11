@@ -469,7 +469,7 @@ int32_t XB_CDECL S_FindSoundByHash(const char* name) {
         if (title_global<uint32_t>(base + 4) != 3) continue;
         const uint8_t* const bank = title_global<uint8_t*>(base + 0x18);
         const uint8_t* const entries = emitter_word<uint8_t*>(bank, 0x44);
-        const auto* const found = static_cast<const uint8_t*>(title_function<Search>(0x001f123f)(
+        const auto* const found = static_cast<const uint8_t*>(own_function<Search>(&title_bsearch)(
             &key, entries, emitter_word<uint32_t>(bank, 0x40), 0x28, title_function<Compare>(0x000c5790)));  // _bsearch
         if (!found) continue;
         const int32_t index = int32_t(found - entries) / 40;
@@ -619,7 +619,7 @@ void XB_CDECL SndHw_ReleaseSlot(uint32_t slot) {
 }
 
 uint32_t XB_CDECL Snd_UpdateTime() {
-    const int32_t ticks = title_function<int32_t XB_CDECL()>(0x001f12cb)();  // _clock
+    const int32_t ticks = own_function<int32_t XB_CDECL()>(&title_crt_clock)();  // _clock
     const uint32_t now = uint32_t(uint64_t(int64_t(ticks) * 1000) / 1000);
     title_global<uint32_t>(0x0092082c) = now;
     return now;
@@ -955,7 +955,7 @@ void XB_CDECL SndBank_UpdateLoads() {
             uint8_t* bank = title_global<uint8_t*>(0x0090a92c);
             snd_at<uint8_t*>(slot, 0x18) = bank;
             snd_at<uint32_t>(slot, 4) = 3;
-            title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(0x001ef880)(  // qsort
+            own_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(&title_qsort)(  // qsort
                 snd_at<void*>(bank, 0x44), snd_at<uint32_t>(bank, 0x40), 0x28, 0x000c5790);
         } else if (result < 0) {
             snd_at<uint32_t>(slot, 4) = 3;
@@ -1312,7 +1312,7 @@ int32_t XB_CDECL SndBank_FindSound(const char* name, const uint8_t* bank) {
     using Compare = int32_t XB_CDECL(const void*, const void*);
     using Search = void* XB_CDECL(const void*, const void*, uint32_t, uint32_t, Compare*);
     const uint32_t key = name ? uint32_t(uintptr_t(name)) : 0x0082dfebu;
-    const auto* const found = static_cast<const uint8_t*>(title_function<Search>(0x001f123f)(
+    const auto* const found = static_cast<const uint8_t*>(own_function<Search>(&title_bsearch)(
         &key, emitter_word<uint8_t*>(bank, 0x44), emitter_word<uint32_t>(bank, 0x40), 0x28,
         title_function<Compare>(0x000c5790)));  // _bsearch
     if (!found) return -1;
@@ -1613,8 +1613,8 @@ void start_alias_voice(bool queue_only, uint32_t eax, uint8_t* channel, uint32_t
     const char* group = SndBank_GetEntryGroupName(alias);
     if (uintptr_t(group) < 0x10000) group = reinterpret_cast<const char*>(uintptr_t{0x0083755c});
     // Both results are unused (a stripped debug check).
-    if (title_function<Stricmp>(0x001f1443)(group, reinterpret_cast<const char*>(uintptr_t{0x0083755c})))
-        title_function<Stricmp>(0x001f1443)(group, reinterpret_cast<const char*>(uintptr_t{0x00837554}));
+    if (own_function<Stricmp>(&title_stricmp)(group, reinterpret_cast<const char*>(uintptr_t{0x0083755c})))
+        own_function<Stricmp>(&title_stricmp)(group, reinterpret_cast<const char*>(uintptr_t{0x00837554}));
     emitter_word<float>(channel, 0x1c) = title_global<float>(0x0083eb20);
     const uint32_t v0 = param_or_default(volume, alias, 0, 1.0f);
     if (emitter_word<int32_t>(channel, 0) != -1) {

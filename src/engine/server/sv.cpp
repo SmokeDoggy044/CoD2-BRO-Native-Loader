@@ -192,7 +192,7 @@ PLATFORM_ASM_ENTRY(SV_SendServerCommand_entry,
 
 void XB_CDECL SV_SendServerCommand(uint8_t* client, const uint32_t* args) {
     char message[0x800];
-    title_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(0x001eea95)(  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(&title_vsprintf)(  // _vsprintf
         message, reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
     if (!client) {
         client = title_global<uint8_t*>(0x00927e8c);
@@ -2734,7 +2734,7 @@ uint32_t XB_CDECL SV_LoadLastSave_f() {
 uint32_t XB_CDECL SV_LoadGame_f() {
     using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
     using Strstr = char* XB_CDECL(const char*, const char*);
-    Strstr* const strstr_ = title_function<Strstr>(0x001efb10);
+    Strstr* const strstr_ = own_function<Strstr>(&title_strstr);
     if (const uint32_t reloading = field<uint32_t>(title_global<uint8_t*>(0x0093f800), 0x20)) {
         if (reloading != 0x20) return reloading;
         Cvar_Set2(title_text(0x0082c89c), const_cast<char*>(title_text(0x0082e098)), 1);  // "g_reloading", "0"
@@ -2946,7 +2946,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
     f.ebx = 1;
     f.call(0, own_address(&FS_Shutdown), 0x002f323c, 1);  // FS_Shutdown
     f.call(1, own_address(&Sys_Milliseconds), 0x002f3241);     // Sys_Milliseconds
-    f.call(1, 0x001efcb3, 0x002f3247, f.eax);  // srand
+    f.call(1, own_address(&title_srand), 0x002f3247, f.eax);  // srand
     f.call(2, own_address(&FS_Restart), 0x002f324d, 0);      // FS_Restart
     f.eax = title_global<uint32_t>(0x0095f580);
     f.ecx = title_global<uint32_t>(0x0095f578);
@@ -3173,7 +3173,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
         f.call(0, own_address(&Info_SetValueForKey_Big), 0x002f39e6, 0x0093fd78, f.edx);  // Info_SetValueForKey_Big
     }
     f.eax = frame + 0x70;
-    f.call(0, 0x001eed80, 0x002f3a04, frame + 0x70, 0x0093fd78, 0x3ff);  // _strncpy
+    f.call(0, own_address(&title_strncpy), 0x002f3a04, frame + 0x70, 0x0093fd78, 0x3ff);  // _strncpy
     title_global<uint32_t>(0x009403ec) &= ~8u;  // cvar_modifiedFlags
     title_global<uint8_t>(frame + 0x46f) = 0;
     f.eax = title_global<uint32_t>(0x009403ec);
@@ -3330,7 +3330,7 @@ void XB_CDECL SV_Map_f() {
     }
     if (current > title_global<int32_t>(0x008dce44)) title_global<int32_t>(0x008dce44) = current;  // g_chaptersUnlocked
     using Strstr = char* XB_CDECL(const char*, const char*);
-    const uint32_t savegame = title_function<Strstr>(0x001efb10)(map, title_text(0x00832fd8)) ? 1 : 0;  // ".svg"
+    const uint32_t savegame = own_function<Strstr>(&title_strstr)(map, title_text(0x00832fd8)) ? 1 : 0;  // ".svg"
     char spawn[0x80];
     if (savegame) {
         char path[0x80];

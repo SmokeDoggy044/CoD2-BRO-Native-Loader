@@ -166,6 +166,9 @@ def main():
                 stats["no C"] += 1
                 return m.group(0)
             amp, name = tab[a]
+            if name in KEEP_ADDRESS:
+                stats["kept (KEEP_ADDRESS)"] += 1
+                return m.group(0)
             base = name.split("::")[-1]
             line = text[text.rfind("\n", 0, m.start()) + 1:m.start()]
             if re.search(rf"\b{re.escape(base)}\b", m.group(1)) or re.search(rf"\b{re.escape(base)}\s*=\s*$", line):
@@ -346,6 +349,12 @@ KEEP_CALLEES = re.compile(r"\b(Heap_CreateFromZone|sample_root)\s*\([^()]*$")
 KEEP_NAMES: set[str] = set()
 
 
+# CRT functions whose state the title's own CRT also uses (title_crt.h): our C reaches them through the original
+# address on purpose, so loader runs keep one state (the title's per-thread data: rand seed, errno, strtok position;
+# its onexit table) and --own-main / the host, where the address jumps to ours, keep one too.
+KEEP_ADDRESS = {"title_getptd", "title_atexit"}
+
+
 # ---- pass 3 (--values): addresses of our C used as values (slot tables, comparators, thread entries) ---
 def values_pass(args):
     tab = table()
@@ -394,7 +403,7 @@ def values_pass(args):
                     stats["skipped (compare/data)"] += 1
                     return m.group(0)
                 amp, name = tab[a]
-                if name in KEEP_NAMES:
+                if name in KEEP_NAMES | KEEP_ADDRESS:
                     stats["kept (KEEP_NAMES)"] += 1
                     return m.group(0)
                 base = name.split("::")[-1]
@@ -453,7 +462,7 @@ def consts_pass(args):
         if a not in tab:
             return None
         amp, name = tab[a]
-        if name in KEEP_NAMES:
+        if name in KEEP_NAMES | KEEP_ADDRESS:
             stats["kept (KEEP_NAMES)"] += 1
             return None
         base = name.split("::")[-1]

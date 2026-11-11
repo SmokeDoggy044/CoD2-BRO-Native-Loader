@@ -10,6 +10,7 @@
 #include "qcommon_core.h"
 #include "shaders.h"
 #include "tr_main.h"
+#include "title_crt.h"
 #include "xgraphics.h"
 
 namespace game {
@@ -209,7 +210,7 @@ uint32_t XB_CDECL nglAssemblePixelShader_body(uint32_t entry, uint32_t ebx, uint
     const uint32_t body = frame + 0x1000;
     const uint32_t print_args[] = {body, args[1], entry + 12};
     const TitleRegs print_regs{entry + 12, ebx, args[1], body, esi, edi};
-    title_call_at_regs(frame, kVsprintf, &print_regs, 3, print_args);
+    title_call_at_regs(frame, own_address(&title_vsprintf), &print_regs, 3, print_args);
     char* const source = reinterpret_cast<char*>(uintptr_t{frame + 4});
     std::strcpy(source, "xps.1.1\n");
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));
@@ -246,12 +247,12 @@ uint32_t XB_CDECL nglAssembleVertexShader_body(uint32_t entry, uint32_t ebx, uin
     } else {
         const uint32_t sprint_args[] = {fixup, 0x007bf69c};
         const TitleRegs sprint_regs{fixup, bx, 0, 0, esi, edi};
-        title_call_at_regs(frame - 12, kSprintf, &sprint_regs, 2, sprint_args);
+        title_call_at_regs(frame - 12, own_address(&title_sprintf), &sprint_regs, 2, sprint_args);
     }
     const uint32_t body = frame + 0x1090;
     const uint32_t print_args[] = {body, args[3], entry + 0x14};
     const TitleRegs print_regs{body, bx, entry + 0x14, args[3], esi, edi};
-    title_call_at_regs(frame - 12, kVsprintf, &print_regs, 3, print_args);
+    title_call_at_regs(frame - 12, own_address(&title_vsprintf), &print_regs, 3, print_args);
     char* const source = reinterpret_cast<char*>(uintptr_t{frame + 0x90});
     std::strcpy(source, "xvs.1.1\n#pragma screenspace\n");
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));

@@ -1373,7 +1373,7 @@ void XB_CDECL AnimTree_ProcessNotetracks(uint8_t* info, const uint8_t* node) {
         const uint32_t first = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(notes));
         if (first && first + 6 && *reinterpret_cast<const char*>(static_cast<uintptr_t>(first + 6))) {
             const char* text = reinterpret_cast<const char*>(static_cast<uintptr_t>(first ? first + 6 : 0));
-            if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(text, &title_global<char>(0x00832af8))) {  // strstr
+            if (own_function<const char* XB_CDECL(const char*, const char*)>(&title_strstr)(text, &title_global<char>(0x00832af8))) {  // strstr
                 title_global<uint32_t>(0x0095f51c) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f534) + 4));
                 weapsound = 1;
             }

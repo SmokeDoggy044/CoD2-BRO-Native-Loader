@@ -3635,7 +3635,7 @@ void XB_CDECL ParamChoiceList_PickPerGroup(uint32_t* list) {
             if (done[k >> 5] & (1u << (k & 0x1f))) continue;
             const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{all[1 + k]});
             const char* name = choice_group(choice);
-            if (!name || title_function<Stricmp>(0x001f1443)(name, group) != 0) continue;
+            if (!name || own_function<Stricmp>(&title_stricmp)(name, group) != 0) continue;
             done[k >> 5] |= 1u << (k & 0x1f);
             if (static_cast<int32_t>(members[0]) < 0x40) members[1 + members[0]++] = all[1 + k];
         }
@@ -3733,12 +3733,12 @@ void XB_CDECL CameraShake_InitSlot(int32_t type, uint8_t* slot, float duration) 
     while (*reinterpret_cast<const int16_t*>(def) != type) def += 0x20;
     using Rand = int32_t XB_CDECL();
     auto put = [slot](uint32_t offset, const void* value) { std::memcpy(slot + offset, value, 4); };
-    const float phase0 = static_cast<float>(title_function<Rand>(0x001efcc0)() % 0x4000);
+    const float phase0 = static_cast<float>(own_function<Rand>(&title_rand)() % 0x4000);
     put(0xc, &phase0);
     *reinterpret_cast<uint32_t*>(slot + 0x10) = 2;
     put(0x18, def + 0xc);
     put(0x14, def + 8);
-    const float phase1 = static_cast<float>(title_function<Rand>(0x001efcc0)() % 0x4000);
+    const float phase1 = static_cast<float>(own_function<Rand>(&title_rand)() % 0x4000);
     put(0x1c, &phase1);
     *reinterpret_cast<uint32_t*>(slot + 0x20) = 2;
     put(0x24, def + 8);
@@ -3758,7 +3758,7 @@ uint8_t* XB_CDECL FXTriggerTable_Find(const uint8_t* table, const char* name) {
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(table + 0x24); ++i) {
         uint8_t* entry = *reinterpret_cast<uint8_t* const*>(table + 0x20) + i * 0x34;
-        if (title_function<Stricmp>(0x001f1443)(reinterpret_cast<const char*>(entry), name) == 0) return entry;
+        if (own_function<Stricmp>(&title_stricmp)(reinterpret_cast<const char*>(entry), name) == 0) return entry;
     }
     return nullptr;
 }
@@ -3773,7 +3773,7 @@ PLATFORM_ASM_ENTRY(FixedStr32_Format_entry,
 char* XB_CDECL FixedStr32_Format(char* out, const char* format, va_list args) {
     out[0x1f] = 0;
     out[0] = 0;
-    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(out, format, args);  // _vsprintf
+    own_function<int XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(out, format, args);  // _vsprintf
     uint32_t length = 0;
     while (out[length]) ++length;
     out[0x1f] = static_cast<char>(length);

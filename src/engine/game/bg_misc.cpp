@@ -5,6 +5,7 @@
 #include "cm.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -576,8 +577,8 @@ void XB_CDECL Bullet_RandomSpreadFixed(float* end, const uint8_t* fire, float sp
     const float radius = platform_x87_mul(bg_tan_degrees(spread, pi, half_turn), range);
     const float scale = title_global<float>(0x0083ebc8);  // 32768
     using Rand = int32_t XB_CDECL();
-    const float angle = static_cast<float>(title_function<Rand>(0x001efcc0)()) / scale * title_global<float>(0x0083ebcc);
-    const float distance = static_cast<float>(title_function<Rand>(0x001efcc0)()) / scale;
+    const float angle = static_cast<float>(own_function<Rand>(&title_rand)()) / scale * title_global<float>(0x0083ebcc);
+    const float distance = static_cast<float>(own_function<Rand>(&title_rand)()) / scale;
     float sine, cosine;
     FastSinCos(&sine, 0, &cosine, angle * pi / half_turn);
     const float u = cosine * distance * radius;

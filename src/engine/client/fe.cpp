@@ -262,7 +262,7 @@ const char* XB_CDECL FE_CommandDisplayName(int32_t key) {
     }
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     for (const auto& entry : kNames)
-        if (!title_function<Stricmp>(0x001f1443)(binding, text_at(entry.command))) return text_at(entry.name);
+        if (!own_function<Stricmp>(&title_stricmp)(binding, text_at(entry.command))) return text_at(entry.name);
     if (key == 13) return text_at(0x0082bfe8);
     return text_at(key == 27 ? 0x0082bfd0 : 0x0082bdd8);  // FEMENU_NA
 }
@@ -2528,7 +2528,7 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
         char word[0x100];
         do {
             const char* const from = string + pos;
-            const int32_t n = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001ef010)(
+            const int32_t n = own_function<int32_t XB_CDECL(const char*, const char*)>(&title_strcspn)(
                 from, text_at(0x0082d280));  // _strcspn(" -\n\r")
             pos += n;
             const char separator = string[pos];
@@ -2554,7 +2554,7 @@ uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t 
                 str_assign_text(&line, text_at(0x0082dfeb));
                 ++count;
             }
-            if (title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x001eeaf0)(
+            if (own_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(&title_strncmp)(
                     word, text_at(0x0082d27c), 2) == 0) {  // _strncmp(word, "\f[", 2): a kind change
                 field<int32_t>(text, 0x18) =
                     title_atol(word + 2);  // _atol
@@ -2733,7 +2733,6 @@ struct Frame {
     }
 };
 
-constexpr uint32_t kSprintf = 0x001ee901;
 
 // The image fields of a menu: file handle, buffer, texture.
 struct ImageFields {
@@ -2813,16 +2812,16 @@ void set_vehicle_or_weapon_text(Frame& f, uint8_t* menu, uint32_t items, uint32_
                                 uint32_t first_count, uint32_t categories, const uint32_t (&rets)[7]) {
     const uint32_t text = f.entry - 0x68;
     int32_t index = field<int16_t>(menu, 0x22);
-    f.call(0x68, rets[0], kSprintf, text, name_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
+    f.call(0x68, rets[0], own_address(&title_sprintf), text, name_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
     f.method(0x68, rets[1], field<uint8_t*>(menu, 0x3c), 0x6c, text);
     index = field<int16_t>(menu, 0x22);
-    f.call(0x68, rets[2], kSprintf, text, info_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
+    f.call(0x68, rets[2], own_address(&title_sprintf), text, info_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
     set_wrapped_at(f, 0x68, rets[3], field<uint8_t*>(menu, 0x44), text);
     int32_t* const counts = f.local<int32_t>(0x48);
     f.call(0x68, rets[4], own_address(&Profile_SumMissionStats), 0x0095f924, counts);  // Profile_SumMissionStats
     index = field<int16_t>(menu, 0x22);
     const int32_t count = uint32_t(index) < categories ? counts[first_count + uint32_t(index)] : 0;
-    f.call(0x68, rets[5], kSprintf, text, 0x0082bb5c, field<int32_t>(menu, items + uint32_t(index) * 4), count);
+    f.call(0x68, rets[5], own_address(&title_sprintf), text, 0x0082bb5c, field<int32_t>(menu, items + uint32_t(index) * 4), count);
     f.method(0x68, rets[6], field<uint8_t*>(menu, 0x40), 0x6c, text);
 }
 
@@ -2834,11 +2833,11 @@ uint32_t XB_CDECL FE_BonusCharacterSetText(const FrameIn* in, uint32_t entry_esp
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->esi});
     const uint32_t text = f.entry - 0x20;
-    f.call(0x20, 0x0030dbd8, kSprintf, text, 0x0082b7b4, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_NAME
+    f.call(0x20, 0x0030dbd8, own_address(&title_sprintf), text, 0x0082b7b4, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_NAME
     f.method(0x20, 0x0030dbe7, field<uint8_t*>(menu, 0x68), 0x6c, text);
-    f.call(0x20, 0x0030dbfc, kSprintf, text, 0x0082b7a0, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_STATS
+    f.call(0x20, 0x0030dbfc, own_address(&title_sprintf), text, 0x0082b7a0, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_STATS
     set_wrapped_at(f, 0x20, 0x0030dc19, field<uint8_t*>(menu, 0x6c), text);
-    f.call(0x20, 0x0030dc2e, kSprintf, text, 0x0082b78c, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_BIO
+    f.call(0x20, 0x0030dc2e, own_address(&title_sprintf), text, 0x0082b78c, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_BIO
     return f.method(0x20, 0x0030dc4b, field<uint8_t*>(menu, 0x70), 0x140, text, 0x12c, 0xbf800000u);
 }
 
@@ -2875,7 +2874,7 @@ uint32_t XB_CDECL FE_BonusCharacterLoadImage(const FrameIn* in, uint32_t entry_e
     free_image_inline(f, menu, kImage, {0x0031d5c2, 0x0031d5cf, 0x0031d5e0, 0x0031d5f0});
     f.call(0x44, 0x0031d5ff, own_address(&FE_BonusCharacterSetText_entry));  // FE_BonusCharacterSetText
     const uint32_t name = f.entry - 0x40;
-    f.call(0x44, 0x0031d614, kSprintf, name, 0x0082b7d0, field<int16_t>(menu, 0x22) + 1);  // bonus\char\char%i.dds
+    f.call(0x44, 0x0031d614, own_address(&title_sprintf), name, 0x0082b7d0, field<int16_t>(menu, 0x22) + 1);  // bonus\char\char%i.dds
     load_image_file(f, menu, kImage, name, {0x50, 0x44, 2, 0x4c, 0x5c}, 0x0082b7c8, 0x80,  // "texchar"
                     {0x0031d624, 0x0031d637, 0x0031d655, 0x0031d665, 0x0031d676, 0x0031d687, 0x0031d697});
     return 0;
@@ -2892,9 +2891,9 @@ uint32_t XB_CDECL FE_BonusCEMainLoadImage(const FrameIn* in, uint32_t entry_esp)
     free_image_inline(f, menu, kImage, {0x0031a912, 0x0031a91f, 0x0031a930, 0x0031a940});
     const uint32_t name = f.entry - 0x40;
     if (field<int16_t>(menu, 0x22) == 2)
-        f.call(0x44, 0x0031a96a, kSprintf, name, 0x0082a950, 3, field<int32_t>(menu, 0x48) + 1);  // ce_%i_%i.dds
+        f.call(0x44, 0x0031a96a, own_address(&title_sprintf), name, 0x0082a950, 3, field<int32_t>(menu, 0x48) + 1);  // ce_%i_%i.dds
     else
-        f.call(0x44, 0x0031a983, kSprintf, name, 0x0082a938, field<int16_t>(menu, 0x22) + 1);  // ce_%i.dds
+        f.call(0x44, 0x0031a983, own_address(&title_sprintf), name, 0x0082a938, field<int16_t>(menu, 0x22) + 1);  // ce_%i.dds
     load_image_file(f, menu, kImage, name, {0x44, 0x44, 2, 0x4c, 0x5c}, name, 0x68,
                     {0x0031a997, 0x0031a9aa, 0x0031a9c8, 0x0031a9d8, 0x0031a9e9, 0x0031a9fa, 0x0031aa07});
     return 0;
@@ -2922,9 +2921,9 @@ uint32_t XB_CDECL FE_BonusMainLoadImage(const FrameIn* in, uint32_t entry_esp) {
             else if (n == 2)
                 n = 1;
         }
-        f.call(0x44, 0x0031da69, kSprintf, name, 0x0082b9dc, n);
+        f.call(0x44, 0x0031da69, own_address(&title_sprintf), name, 0x0082b9dc, n);
     } else {
-        f.call(0x44, 0x0031da69, kSprintf, name, 0x0082b9c4, field<int16_t>(menu, 0x22) + 1);  // tex%i.dds
+        f.call(0x44, 0x0031da69, own_address(&title_sprintf), name, 0x0082b9c4, field<int16_t>(menu, 0x22) + 1);  // tex%i.dds
     }
     load_image_file(f, menu, ImageFields{0x88, 0x8c, 0x90}, name, {0x44, 0x44, 2, 0x4c, 0x5c}, 0x0082b9bc, 0x94,  // "texMain"
                     {0x0031da7c, 0x0031da92, 0x0031dab0, 0x0031dac6, 0x0031dad7, 0x0031daeb, 0x0031dafe});
@@ -2956,7 +2955,7 @@ void load_category_image(const FrameIn* in, uint32_t entry_esp, const CategoryIm
     const bool full = menu[c.full_screen] != 0;
     f.regs.ebx = (f.regs.ebx & ~0xffu) | menu[c.full_screen];
     const uint32_t name = f.entry - 0x40;
-    f.call(0x48, c.rets[2], kSprintf, name, full ? c.format_full : c.format, c.folder(menu, index + 1), index + 1,
+    f.call(0x48, c.rets[2], own_address(&title_sprintf), name, full ? c.format_full : c.format, c.folder(menu, index + 1), index + 1,
            field<int32_t>(menu, c.items + uint32_t(index) * 4));
     const LoadRets rets{c.rets[3], c.rets[4], c.rets[5], c.rets[6], full ? c.rets[7] : c.rets[8], c.rets[9],
                         full ? c.rets[10] : c.rets[11]};
@@ -3058,10 +3057,10 @@ uint32_t XB_CDECL FE_BonusCELoadImage(const FrameIn* in, uint32_t entry_esp) {
     const bool full = menu[0x40] != 0;
     const uint32_t name = f.entry - 0x40;
     if (item)
-        f.call(0x4c, full ? 0x0031a58b : 0x0031a5b8, kSprintf, name, full ? 0x0082a82c : 0x0082a7f8, folder, number,
+        f.call(0x4c, full ? 0x0031a58b : 0x0031a5b8, own_address(&title_sprintf), name, full ? 0x0082a82c : 0x0082a7f8, folder, number,
                prefix, group, item);  // bonus_ce\%s%i\%s%i_%i(f).dds
     else
-        f.call(0x4c, 0x0031a5d0, kSprintf, name, full ? 0x0082a814 : 0x0082a7e0, folder, number, prefix,
+        f.call(0x4c, 0x0031a5d0, own_address(&title_sprintf), name, full ? 0x0082a814 : 0x0082a7e0, folder, number, prefix,
                group);  // bonus_ce\%s%i\%s%i(f).dds
     f.regs.eax = uint32_t(item);
     f.regs.edi = prefix;
@@ -3607,7 +3606,7 @@ uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
                 f.regs.ecx = address_of(mgr);
                 const uint32_t user = f.call(0x24, 0x003368a4, 0x00011220);  // Live_GetCurrentUser
                 const uint32_t name = f.entry - 0x10;
-                f.call(0x28, 0x003368b7, kSprintf, name, 0x0082cb50, user + 0x10);  // "%S"
+                f.call(0x28, 0x003368b7, own_address(&title_sprintf), name, 0x0082cb50, user + 0x10);  // "%S"
                 f.word(0x28) = user + 0x10;
                 f.regs.esi = 0x0082cb3c;  // FEMENU_SIGNED_IN_AS
                 const uint32_t localized = f.call(0x24, 0x003368c9, own_address(&Loc_GetString_entry), name);  // Loc_GetString
@@ -3691,9 +3690,9 @@ uint32_t XB_CDECL ChapterMenu_Draw(const FrameIn* in, uint32_t entry_esp) {
         f.regs.esi = address_of(menu + 0x154 + i * 4);
         const int32_t current = field<int32_t>(menu, 0x190);
         if (i >= current - 2 && i <= current + 2) {
-            f.call(0x24, 0x0031afa7, kSprintf, text, 0x0082ab74, i + 1);  // FEMENU_QUOTE_%i
+            f.call(0x24, 0x0031afa7, own_address(&title_sprintf), text, 0x0082ab74, i + 1);  // FEMENU_QUOTE_%i
             f.method(0x24, 0x0031afbd, menu_item(menu, uint32_t(i)), 0x30, text);
-            f.call(0x24, 0x0031afcd, kSprintf, text, 0x0082ab60, i);  // FEMENU_CHAPTER_%i
+            f.call(0x24, 0x0031afcd, own_address(&title_sprintf), text, 0x0082ab60, i);  // FEMENU_CHAPTER_%i
             f.method(0x24, 0x0031afdd, field<uint8_t*>(menu, 0x11c + uint32_t(i) * 4), 0x6c, text);
         } else {
             f.method(0x24, 0x0031aff2, menu_item(menu, uint32_t(i)), 0x34, kEmpty);
@@ -3960,7 +3959,7 @@ uint32_t XB_CDECL FE_DifficultyMenu_Init(const FrameIn* in, uint32_t entry_esp) 
     // the pictures difficulty0-2 hidden
     for (int32_t i = 0; i < 3; ++i) {
         f.regs.ebx = uint32_t(i);
-        f.call(0x18, 0x00338d90, kSprintf, name, 0x0082b24c, i);  // difficulty%i
+        f.call(0x18, 0x00338d90, own_address(&title_sprintf), name, 0x0082b24c, i);  // difficulty%i
         uint8_t* const panel = field<uint8_t*>(menu, 0x34);
         f.regs.esi = address_of(panel);
         f.regs.eax = address_of(panel);

@@ -8,6 +8,7 @@
 #include "title_data.h"
 #include "script_string.h"
 #include "scr_field.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -1173,7 +1174,7 @@ void XB_CDECL ScrSentient_SetTeamFromString(uint8_t* object, uint32_t, const Scr
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     static const uint32_t kNames[3] = {0x0083208c, 0x00832084, 0x00831f14};  // axis, allies, neutral
     for (uint32_t team = 1; team <= 3; ++team) {
-        if (title_function<Stricmp>(0x001f1443)(string_text(value),
+        if (own_function<Stricmp>(&title_stricmp)(string_text(value),
                                                  reinterpret_cast<const char*>(uintptr_t{kNames[team - 1]})))
             continue;
         if (word_at(object, 4) != team) *reinterpret_cast<uint32_t*>(object + 4) = team;

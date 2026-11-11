@@ -957,7 +957,7 @@ void XB_CDECL CG_ShakeCamera() {
     }
     if (g(0x009730a0) > scale) scale = g(0x009730a0);
     const auto random = [] {
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         return (static_cast<float>(r) * g(0x0083ecf8) - g(0x0083eb20));
     };
     if (scale <= 0.0f) {
@@ -2144,7 +2144,7 @@ float XB_CDECL CameraShake_NoiseSample(float* channel) {
     // channel[0] (a random start in 0..16383 once out of range) + time * frequency [2], summed over
     // the octave count [1] (frequency doubling, amplitude halving), times the amplitude [3].
     if (0.0f > channel[0] || channel[0] > g(0x0083ee50))  // 16384
-        channel[0] = static_cast<float>(title_function<int32_t XB_CDECL()>(0x001efcc0)() % 16384);  // rand
+        channel[0] = static_cast<float>(own_function<int32_t XB_CDECL()>(&title_rand)() % 16384);  // rand
     const float t = static_cast<float>(gi(0x0097253c)) * g(0x0083eb4c) * channel[2] + channel[0];
     float sum = 0.0f;
     float amplitude = g(0x0083eb20);

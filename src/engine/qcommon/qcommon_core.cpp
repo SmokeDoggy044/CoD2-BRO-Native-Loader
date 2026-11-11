@@ -128,13 +128,13 @@ uint32_t* XB_THISCALL HashStr_Init(uint32_t* hashed, const char* name) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const char* p = name; *p; ++p) {
         int32_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(c)) c = title_tolower(*p);  // _isalpha, tolower
+        if (own_function<CharFn>(&title_isalpha)(c)) c = title_tolower(*p);  // _isalpha, tolower
         const uint32_t h = hashed[0];
         hashed[0] = ((h >> 27) | (h << 5)) ^ static_cast<uint32_t>(c);
     }
     char* const text = reinterpret_cast<char*>(hashed + 1);
     title_strncpy(text, name, 0x1b);  // _strncpy
-    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(text);  // _strlwr
+    own_function<char* XB_CDECL(char*)>(&title_strlwr)(text);  // _strlwr
     return hashed;
 }
 
@@ -1775,7 +1775,7 @@ uint32_t large_bin_index(uint32_t size) {
     return 0x7e;
 }
 
-void set_errno_nomem() { *title_function<int32_t* XB_CDECL()>(0x001f0ac5)() = 12; }  // _errno, ENOMEM
+void set_errno_nomem() { *own_function<int32_t* XB_CDECL()>(&title_errno)() = 12; }  // _errno, ENOMEM
 
 // Splits nb bytes off victim (size bytes); the rest becomes the only unsorted chunk.
 uint8_t* split_to_unsorted(uint8_t* heap, uint8_t* victim, uint32_t size, uint32_t nb, bool last_remainder) {
@@ -2518,7 +2518,7 @@ namespace {
 char* printf_with_length(char* buffer, uint32_t last, const char* format, void* args) {
     buffer[last] = 0;
     buffer[0] = 0;
-    title_function<int32_t XB_CDECL(char*, const char*, void*)>(0x001eea95)(buffer, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, void*)>(&title_vsprintf)(buffer, format, args);  // _vsprintf
     buffer[last] = static_cast<char>(std::strlen(buffer));
     return buffer;
 }
@@ -2965,7 +2965,7 @@ uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const char* p = text; *p; ++p) {
         int8_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<int8_t>(title_tolower(*p));  // _isalpha, tolower
+        if (own_function<CharFn>(&title_isalpha)(*p)) c = static_cast<int8_t>(title_tolower(*p));  // _isalpha, tolower
         hash = ((hash >> 27) | (hash << 5)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
     }
     return hash;
@@ -5171,7 +5171,7 @@ uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text) {
     using CharFn = int32_t XB_CDECL(int32_t);
     for (const uint8_t* p = reinterpret_cast<const uint8_t*>(text); *p; ++p) {
         uint8_t c = *p;
-        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<uint8_t>(title_tolower(*p));  // _isalpha, tolower
+        if (own_function<CharFn>(&title_isalpha)(*p)) c = static_cast<uint8_t>(title_tolower(*p));  // _isalpha, tolower
         hash = ((hash >> 27) | (hash << 5)) ^ c;
     }
     return hash;
@@ -5190,9 +5190,9 @@ uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name) 
     if (!map[0]) return nullptr;
     do {
         const char* const key = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
-        if (!title_function<StrICmp>(0x001f1443)(key, *name)) return dword_ptr(map[1]) + index * 2 + 1;  // _stricmp
+        if (!own_function<StrICmp>(&title_stricmp)(key, *name)) return dword_ptr(map[1]) + index * 2 + 1;  // _stricmp
         const char* const again = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
-        index = title_function<StrICmp>(0x001f1443)(again, *name) >= 0 ? index * 2 + 1 : index * 2 + 2;
+        index = own_function<StrICmp>(&title_stricmp)(again, *name) >= 0 ? index * 2 + 1 : index * 2 + 2;
         if (index >= map[0]) break;
         const uint32_t* const entry = dword_ptr(map[1]) + index * 2;
         const uint32_t* const empty = reinterpret_cast<const uint32_t*>(Map_EmptyKey(8));
@@ -5768,7 +5768,7 @@ uint8_t XB_CDECL Save_Update() {
             &length);  // Save_CalculateSignature
         const char* const stored = reinterpret_cast<const char*>(
             uintptr_t{title_global<uint32_t>(0x00920ae8) + title_global<uint32_t>(0x00920aec) - 0x20});
-        if (title_function<int32_t XB_CDECL(const char*, const uint8_t*, uint32_t)>(0x001eeaf0)(stored, signature,
+        if (own_function<int32_t XB_CDECL(const char*, const uint8_t*, uint32_t)>(&title_strncmp)(stored, signature,
                                                                                                length)) {  // _strncmp
             Save_SetLastResult(0xfffffff4u);
             save_abort_unmount_first();

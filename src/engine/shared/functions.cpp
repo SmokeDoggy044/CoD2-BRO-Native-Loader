@@ -138,6 +138,7 @@
 #include "snd.h"
 #include "stream.h"
 #include "sv.h"
+#include "title_crt.h"
 #include "tr_main.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -9641,6 +9642,46 @@ const Function kFunctions[] = {
     {"std_list_Dtor_PROLOGUE_18", 0x00465810, 0, code(&std_list_Dtor_PROLOGUE_18), 0, Result::None, Status::Compare},  // near twin of std_list_Dtor_PROLOGUE
     {"HashMap_Dtor_PROLOGUE_25", 0x00465830, 0, code(&HashMap_Dtor_PROLOGUE_25), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_31", 0x004658a0, 0, code(&HashMap_Ctor_PROLOGUE_31), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
+    // Our CRT (title_crt.h), at the title CRT's addresses: --own-main installs them.
+    {"eh_vector_constructor_iterator", 0x00011240, 0, code(&title_vector_constructor_iterator), 16, Result::None, Status::Compare},
+    {"vector_call_iterator", 0x00011280, 0, code(&title_vector_destructor_iterator), 16, Result::None, Status::Compare},
+    {"_sprintf", 0x001ee901, 0, code(&title_sprintf), 8, Result::Eax, Status::Compare},
+    {"_vsprintf", 0x001eea95, 0, code(&title_vsprintf), 12, Result::Eax, Status::Compare},
+    {"_strncmp", 0x001eeaf0, 0, code(&title_strncmp), 12, Result::Eax, Status::Compare},
+    {"_atol", 0x001eeb81, 0, code(&title_atol), 4, Result::Eax, Status::Compare},
+    {"_atexit", 0x001eed36, 0, code(&title_atexit), 4, Result::Eax, Status::Compare},
+    {"_tolower", 0x001eed48, 0, code(&title_tolower), 4, Result::Eax, Status::Compare},
+    {"_strncpy", 0x001eed80, 0, code(&title_strncpy), 12, Result::Eax, Status::Compare},
+    {"_strtok", 0x001eeea4, 0, code(&title_strtok), 8, Result::Eax, Status::Compare},
+    {"_isalpha", 0x001eef49, 0, code(&title_isalpha), 4, Result::Eax, Status::Compare},
+    {"_isdigit", 0x001eef77, 0, code(&title_isdigit), 4, Result::Eax, Status::Compare},
+    {"_isspace", 0x001eefa0, 0, code(&title_isspace), 4, Result::Eax, Status::Compare},
+    {"_isalnum", 0x001eefc9, 0, code(&title_isalnum), 4, Result::Eax, Status::Compare},
+    {"_strcspn", 0x001ef010, 0, code(&title_strcspn), 8, Result::Eax, Status::Compare},
+    {"_atof", 0x001ef056, 0, code(&title_atof), 4, Result::St0, Status::Compare},
+    {"_strchr", 0x001ef5e0, 0, code(&title_strchr), 8, Result::Eax, Status::Compare},
+    {"_memset", 0x001ef6a0, 0, code(&title_memset), 12, Result::Eax, Status::Compare},
+    {"_qsort", 0x001ef880, 0, code(&title_qsort), 16, Result::None, Status::Compare},
+    {"_strstr", 0x001efb10, 0, code(&title_strstr), 8, Result::Eax, Status::Compare},
+    {"_srand", 0x001efcb3, 0, code(&title_srand), 4, Result::None, Status::Compare},
+    {"_rand", 0x001efcc0, 0, code(&title_rand), 0, Result::Eax, Status::Compare},
+    {"_vsnprintf", 0x001efce2, 0, code(&title_vsnprintf), 16, Result::Eax, Status::Compare},
+    {"_sscanf", 0x001f07e1, 0, code(&title_sscanf), 8, Result::Eax, Status::Compare},
+    {"_errno", 0x001f0ac5, 0, code(&title_errno), 0, Result::Eax, Status::Compare},
+    {"_ftol", 0x001f0bf4, 0, code(&title_ftol_entry), 0, Result::EdxEax, Status::Compare},
+    {"_strtol", 0x001f0ecf, 0, code(&title_strtol), 12, Result::Eax, Status::Compare},
+    {"_allmul", 0x001f1170, 0, code(&title_allmul), 16, Result::EdxEax, Status::Compare},
+    {"_aulldiv", 0x001f11b0, 0, code(&title_aulldiv), 16, Result::EdxEax, Status::Compare},
+    {"_bsearch", 0x001f123f, 0, code(&title_bsearch), 20, Result::Eax, Status::Compare},
+    {"_clock", 0x001f12cb, 0, code(&title_crt_clock), 0, Result::Eax, Status::Compare},
+    {"_stricmp", 0x001f1443, 0, code(&title_stricmp), 8, Result::Eax, Status::Compare},
+    {"_alldiv", 0x001f1580, 0, code(&title_alldiv), 16, Result::EdxEax, Status::Compare},
+    {"eh_vector_destructor_iterator", 0x001f2399, 0, code(&title_eh_vector_destruct), 16, Result::None, Status::Compare},
+    {"_allshr", 0x001f2590, 0, code(&title_allshr_entry), 0, Result::EdxEax, Status::Compare},
+    {"eh_vector_constructor_iterator_seh", 0x001f289d, 0, code(&title_eh_vector_construct), 20, Result::None, Status::Compare},
+    {"_getptd", 0x001f3327, 0, code(&title_getptd), 0, Result::Eax, Status::Compare},
+    {"_strlwr", 0x001fa3b2, 0, code(&title_strlwr), 4, Result::Eax, Status::Compare},
+    {"_strupr", 0x001fa3d5, 0, code(&title_strupr), 4, Result::Eax, Status::Compare},
 };
 
 }  // namespace

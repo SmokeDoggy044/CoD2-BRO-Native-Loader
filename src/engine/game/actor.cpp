@@ -33,6 +33,7 @@
 #include "pmove.h"
 #include "ragdoll.h"
 #include "stream.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -1644,9 +1645,9 @@ int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent) {
             const char* name = script_name + 6;
             using StrStr = const char* XB_CDECL(const char*, const char*);
             using StrICmp = int32_t XB_CDECL(const char*, const char*);
-            if (const char* sep = title_function<StrStr>(0x001efb10)(name, &title_global<const char>(0x0082d6e4))) name = sep + 1;
+            if (const char* sep = own_function<StrStr>(&title_strstr)(name, &title_global<const char>(0x0082d6e4))) name = sep + 1;
             for (const char* const* main = &title_global<const char* const>(0x008db468); *main; ++main) {
-                if (title_function<StrICmp>(0x001f1443)(*main, name) == 0) {
+                if (own_function<StrICmp>(&title_stricmp)(*main, name) == 0) {
                     priority = 5000;
                     break;
                 }
@@ -3294,7 +3295,7 @@ void XB_CDECL Actor_GatherCoverCandidates(uint32_t entry, uint8_t* actor, uint32
     {
         const uint32_t args[4] = {list_address, uint32_t(count), 8, 0x001fbe60};
         const TitleRegs regs = {0, self, list_address, 0, uint32_t(uintptr_t(entry_word)), uint32_t(count)};
-        title_call_at_regs(frame, 0x001ef880, &regs, 4, args);  // qsort
+        title_call_at_regs(frame, own_address(&title_qsort), &regs, 4, args);  // qsort
         returned_to(frame - 0x14, 0x001fff3a);
     }
     if (uint32_t(count) > 10) count = 10;
@@ -3643,7 +3644,7 @@ namespace {
 
 // ((rand / 32768) * 2 - 1) * scale: a random factor in [-scale, scale).
 float random_spread(float scale) {
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
     return ((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8) -
             title_global<float>(0x0083eb20)) *
            scale;
@@ -5325,7 +5326,7 @@ void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor) {
         if (*weapon) index = uint8_t(BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, weapon)));
         field<uint32_t>(actor, 0x131c) = index;
     }
-    const uint32_t pick = uint32_t(title_function<int32_t XB_CDECL()>(0x001efcc0)()) % field<uint32_t>(spawn, 0x28);  // _rand
+    const uint32_t pick = uint32_t(own_function<int32_t XB_CDECL()>(&title_rand)()) % field<uint32_t>(spawn, 0x28);  // _rand
     const uint32_t model = pick < field<uint32_t>(spawn, 0x28) ? pick : 0;
     using SetModel = void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t);
     own_function<SetModel>(&G_SetModel)(-1, ent, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), model * 8));  // G_SetModel
@@ -5424,7 +5425,7 @@ void XB_CDECL AnimNotify_PlayNext(uint32_t entry, uint8_t* node, uint32_t ebx, u
     auto add_string = [&](uint32_t text, uint32_t id, uint32_t ret_copy, uint32_t ret_add) {
         const uint32_t copy_args[3] = {f + 0x2c, text, 0x7f};
         const uint32_t copied =
-            frame_call(f, 0x001eed80, ret_copy, {f + 0x2c, 0, 0, 0, self, edi}, 3, copy_args);  // _strncpy
+            frame_call(f, own_address(&title_strncpy), ret_copy, {f + 0x2c, 0, 0, 0, self, edi}, 3, copy_args);  // _strncpy
         title_global<uint8_t>(f + 0xab) = 0;
         const uint32_t add_args[3] = {id, f + 0x2c, 1};
         frame_call(f, own_address(&ParamSet_AddString), ret_add, {copied, 0, f + 0x2c, f + 0x2b8, self, edi}, 3, add_args);  // ParamSet_AddString
@@ -5646,7 +5647,7 @@ void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t 
         title_global<uint8_t>(g + 0x504) = 0;
         frame_word(g + 0x708) = 0;
         const uint32_t args[3] = {g + 0x20, field<uint32_t>(node, 0xc), 0x7f};
-        const uint32_t copied = frame_call(g, 0x001eed80, 0x002033e6, {0, flags, args[1], g + 0x20, 0, self}, 3, args);  // _strncpy
+        const uint32_t copied = frame_call(g, own_address(&title_strncpy), 0x002033e6, {0, flags, args[1], g + 0x20, 0, self}, 3, args);  // _strncpy
         title_global<uint8_t>(g + 0x9f) = 0;
         const uint32_t add[3] = {2, g + 0x20, 1};
         frame_call(g, own_address(&ParamSet_AddString), 0x00203406, {copied, flags, 0, g + 0x2ac, 0, self}, 3, add);  // ParamSet_AddString
@@ -6064,7 +6065,7 @@ float ci_sqrt(float x) {
     return result;
 }
 
-int32_t shot_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }  // _rand
+int32_t shot_rand() { return own_function<int32_t XB_CDECL()>(&title_rand)(); }  // _rand
 
 // The shot's sideways axis: the unit direction from the muzzle (+0x24) to `eye` crossed with
 // the aim (+0x18), normalized (vectors of length 0 kept as they are). `dir` gets the first.
@@ -11950,7 +11951,7 @@ uint32_t XB_CDECL Actor_Grenade_FindThrowbackVelocity(uint32_t entry, const floa
     title_global<float>(0x0095ee10) = start[0];
     title_global<float>(0x0095ee14) = start[1];
     title_global<float>(0x0095ee18) = start[2];
-    title_function<void XB_CDECL(void*, int32_t, uint32_t, uint32_t)>(0x001ef880)(
+    own_function<void XB_CDECL(void*, int32_t, uint32_t, uint32_t)>(&title_qsort)(
         &title_global<uint8_t>(0x0095ee20), title_global<int32_t>(0x00985fd4), 12, 0x001fb290);  // qsort
     float g = title_global<float>(0x0094d450);
     for (int32_t i = 0; i < title_global<int32_t>(0x00985fd4); ++i) {
@@ -12380,7 +12381,7 @@ uint32_t XB_CDECL Actor_RollHit(uint32_t entry, uint8_t* actor, uint32_t esi, ui
     chance = chance * scale;
     *stack_vec(entry + 4) = chance;
     field<float>(actor, 0xe4) = chance;
-    const int32_t r = static_cast<int32_t>(call_at(B, 0x00211d7e, 0x001efcc0, TitleRegs{}, 0, nullptr));  // _rand
+    const int32_t r = static_cast<int32_t>(call_at(B, 0x00211d7e, own_address(&title_rand), TitleRegs{}, 0, nullptr));  // _rand
     const float draw = static_cast<float>(r) * title_global<float>(0x0083ebe0);
     return chance > draw ? 1 : 0;
 }
@@ -13018,7 +13019,7 @@ void XB_CDECL Actor_UpdateSight(uint32_t entry, uint32_t esi, uint32_t edi, uint
         } while (s);
         if (n > 1) {
             const uint32_t args[4] = {B + 0x28, uint32_t(n), 8, 0x001fa990};
-            call_at(B - 4, 0x0021373b, 0x001ef880, TitleRegs{B + 0x28, addr_of(own), 0, 0, mask, mask}, 4, args);  // _qsort
+            call_at(B - 4, 0x0021373b, own_address(&title_qsort), TitleRegs{B + 0x28, addr_of(own), 0, 0, mask, mask}, 4, args);  // _qsort
         }
     }
     const uint32_t mark = field<uint32_t>(actor, 0xfc);
@@ -13229,7 +13230,7 @@ void notice_grenade(uint32_t entry, uint8_t* grenade, uint8_t* actor, uint32_t e
     if (field<uint32_t>(actor, 0x1310)) return;
     const uint32_t g = addr_of(grenade);
     const uint32_t me = addr_of(actor);
-    const int32_t r = static_cast<int32_t>(call_at(B, 0x00213e19, 0x001efcc0, TitleRegs{g, me, 0, 0, g, edi}, 0,
+    const int32_t r = static_cast<int32_t>(call_at(B, 0x00213e19, own_address(&title_rand), TitleRegs{g, me, 0, 0, g, edi}, 0,
                                                    nullptr));  // _rand
     const float chance = field<float>(actor, 0x130c) * title_global<float>(0x0083f258);  // 32767
     if (static_cast<float>(r) > chance) return;
@@ -14525,12 +14526,12 @@ uint32_t XB_CDECL Actor_SetGoalFromString(uint32_t entry, uint32_t eax, uint32_t
     bool coords = c == '-' || c == '.';
     if (!coords) {
         const uint32_t arg[1] = {uint32_t(int32_t(c))};
-        coords = call_at(frame, 0x0021c5f5, 0x001eef77, TitleRegs{uint32_t(int32_t(c)), ebx, ecx, edx, text, key}, 1,
+        coords = call_at(frame, 0x0021c5f5, own_address(&title_isdigit), TitleRegs{uint32_t(int32_t(c)), ebx, ecx, edx, text, key}, 1,
                          arg) != 0;  // _isdigit
     }
     if (coords) {
         const uint32_t args[5] = {text, 0x00838c70, frame + 0x14, frame + 0x18, frame + 0x1c};  // "%f %f %f"
-        if (call_at(frame, 0x0021c6ad, 0x001f07e1, TitleRegs{frame + 0x1c, ebx, frame + 0x18, frame + 0x14, text, key}, 5,
+        if (call_at(frame, 0x0021c6ad, own_address(&title_sscanf), TitleRegs{frame + 0x1c, ebx, frame + 0x18, frame + 0x14, text, key}, 5,
                     args) != 3)  // sscanf
             return 0;
         stack_word(frame + 0x28) = stack_word(frame + 0x1c);
@@ -18160,7 +18161,7 @@ uint32_t XB_CDECL Actor_Exposed_ReacquireSidestep(uint32_t entry, uint32_t eax, 
         origin[1] = field<float>(me, 0x144);
         origin[2] = field<float>(me, 0x148);
     }
-    const uint32_t first = call_at(F, 0x0021fd26, 0x001efcc0, TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr) & 1;  // _rand
+    const uint32_t first = call_at(F, 0x0021fd26, own_address(&title_rand), TitleRegs{a, ebx, ecx, edx, a, a}, 0, nullptr) & 1;  // _rand
     float* const point = stack_vec(entry - 0x24);
     point[2] = eye[2];
     float* const step = stack_vec(entry - 0x50);
@@ -19878,7 +19879,7 @@ uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t, uint32_t ebx, 
         inv = one / f(4);
     } else {
         const auto random = [&](uint32_t ret) {
-            const int32_t r = int32_t(call_at(F, ret, 0x001efcc0, TitleRegs{0, ebx, ecx, edx, a + 0x290, edi}, 0,
+            const int32_t r = int32_t(call_at(F, ret, own_address(&title_rand), TitleRegs{0, ebx, ecx, edx, a + 0x290, edi}, 0,
                                               nullptr));  // _rand
             return (float(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8) - one;
         };

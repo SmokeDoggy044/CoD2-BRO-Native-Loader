@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -670,8 +671,8 @@ void XB_CDECL ScriptKeyTable_Delete(ScriptKeyTable* table) {
     own_function<void XB_CDECL(void*)>(&Scr_Free)(table);  // Scr_Free
 }
 
-static uint32_t title_strchr(const char* chars, int32_t c) {
-    return title_function<uint32_t XB_CDECL(const char*, int32_t)>(0x001ef5e0)(chars, c);  // CRT strchr
+static bool in_chars(const char* chars, int32_t c) {
+    return title_strchr(chars, c) != nullptr;  // CRT strchr
 }
 
 // Replaces the string with `piece` (made in the caller's argument slot) and destroys the
@@ -697,7 +698,7 @@ ScriptString* XB_THISCALL ScriptString_TrimLeftChars(ScriptString* self, const c
     for (;;) {
         const ScriptStringRep* rep = self->rep;
         if (!rep) break;
-        if (start >= rep->length || !title_strchr(set, rep->text[start])) break;
+        if (start >= rep->length || !in_chars(set, rep->text[start])) break;
         ++start;
     }
     const uint32_t length = self->rep ? self->rep->length : 0u;
@@ -714,7 +715,7 @@ ScriptString* XB_THISCALL ScriptString_TrimRightChars(ScriptString* self, const 
     while (length) {
         const uintptr_t text = text_address(self->rep);
         const char c = *reinterpret_cast<const char*>(text + length - 1);
-        if (!title_strchr(set, c)) break;
+        if (!in_chars(set, c)) break;
         --length;
     }
     ScriptString* const piece = reinterpret_cast<ScriptString*>(&chars);

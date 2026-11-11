@@ -415,7 +415,7 @@ uint32_t weapon_slot(const ScriptString* name) {
     const char* const text = script_text(name);
     uint32_t slot = 0;
     for (uint32_t i = 0; i < 7; ++i) {
-        if (title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+        if (own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // _stricmp
                 text, title_text(title_global<uint32_t>(0x008d23a8 + i * 4))) == 0) {
             slot = i;
             break;
@@ -1681,7 +1681,7 @@ void XB_CDECL GScr_SetSpawnerTeam(uint32_t handle, const ScriptString* team) {
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     const uint32_t names[] = {0x0083208c, 0x00832084, 0x00831f14};  // "axis", "allies", "neutral"
     for (uint32_t i = 0; i < 3; ++i) {
-        if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(names[i])) == 0) {
+        if (own_function<Stricmp>(&title_stricmp)(script_text(team), title_text(names[i])) == 0) {
             field<uint32_t>(ent, 0x3b4) = i + 1;
             return;
         }
@@ -1881,9 +1881,9 @@ void XB_CDECL GScr_Turret_SetTeam(uint32_t handle, const ScriptString* team) {
     uint8_t* const turret = turret_or_message(ent);
     if (!turret) return;
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
-    if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(0x0083208c)) == 0) {  // "axis"
+    if (own_function<Stricmp>(&title_stricmp)(script_text(team), title_text(0x0083208c)) == 0) {  // "axis"
         field<uint32_t>(turret, 0x64) = 1;
-    } else if (title_function<Stricmp>(0x001f1443)(script_text(team), title_text(0x00832084)) == 0) {  // "allies"
+    } else if (own_function<Stricmp>(&title_stricmp)(script_text(team), title_text(0x00832084)) == 0) {  // "allies"
         field<uint32_t>(turret, 0x64) = 2;
     } else {
         // The string's rep pointer, not its text.
@@ -2043,7 +2043,7 @@ void XB_CDECL GScr_EnableLinkTo(uint32_t handle) {
     bool supported = false;
     if (field<uint8_t>(ent, 0) == 0 && field<uint8_t>(ent, 0x294) == 0) {
         supported = (!field<uint32_t>(ent, 0x328) && !field<uint32_t>(ent, 0x32c)) ||
-                    title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+                    own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // _stricmp
                         script_text(reinterpret_cast<const ScriptString*>(ent + 0x25c)),
                         title_text(0x00832270)) == 0;  // "trigger_multiple"
     }
@@ -2864,13 +2864,13 @@ void int_text(char* buf, int32_t number) {
     const int32_t length = static_cast<int32_t>(std::strlen(buf));
     if (length <= 1) return;
     for (int32_t i = 0; i < length; ++i) {
-        if (!title_function<int32_t XB_CDECL(int32_t)>(0x001eefc9)(buf[i]) && buf[i] != '_')  // _isalnum
+        if (!own_function<int32_t XB_CDECL(int32_t)>(&title_isalnum)(buf[i]) && buf[i] != '_')  // _isalnum
             title_va(0x00831b80, static_cast<const char*>(buf));  // "Illegal localized string reference: %s ..."
     }
 }
 
 bool has_strchr(const char* text, int32_t c) {
-    return title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(text, c) != nullptr;  // _strchr
+    return own_function<const char* XB_CDECL(const char*, int32_t)>(&title_strchr)(text, c) != nullptr;  // _strchr
 }
 
 // The 31 high characters objective strings may hold (built on the stack per character by the original).
@@ -3060,7 +3060,7 @@ void XB_CDECL GScr_ObjectiveAdd(int32_t index, const ScriptString* state_name, c
         const int32_t length = static_cast<int32_t>(string_length(text));
         // Escape characters are reported up to the first letter.
         for (int32_t i = 0; i < length; ++i) {
-            if (title_function<int32_t XB_CDECL(int32_t)>(0x001eef49)(text_of(text)[i])) break;  // _isalpha
+            if (own_function<int32_t XB_CDECL(int32_t)>(&title_isalpha)(text_of(text)[i])) break;  // _isalpha
             if (text_of(text)[i] == 0x14 || text_of(text)[i] == 0x15)
                 title_va(0x00831b04, static_cast<int32_t>(text_of(text)[i]));
         }
@@ -3308,7 +3308,7 @@ void XB_CDECL GScr_RandomTracer(const float* to, const float* from) {
         const uint32_t kind = field<uint32_t>(const_cast<uint8_t*>(def), 0xa8);
         if (kind == 3 || kind == 4) scale = title_global<float>(0x0083ed28);
     }
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)() & 0x1f;  // rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)() & 0x1f;  // rand
     if (scale * title_global<float>(0x0083eeac) > static_cast<float>(r)) CG_SpawnTracer(start, 0, end, 0);
 }
 
