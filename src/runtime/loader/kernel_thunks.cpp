@@ -154,6 +154,24 @@ uint32_t XB_STDCALL NtResumeThread(xbox::Handle handle, uint32_t* previous_suspe
     return xbox::kStatusSuccess;
 }
 
+}  // namespace
+
+// A title thread for our C (game::TitleHost::start_thread): the same FS block, stack and TLS block as a kernel
+// thread, but no kernel handle - our own object table keeps the thread's handle.
+bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine, uint32_t context,
+                        uint32_t* thread_id) {
+    ThreadEnv* env = create_thread_env(stack_size, tls_size);
+    if (!env) return false;
+    auto object = std::make_shared<xbox::ThreadObject>(g_next_thread_id++, xbox::to_xbox_ptr(env->kthread));
+    if (thread_id) *thread_id = object->id();
+    LOG_DEBUG("thread", "title thread (routine=%08x context=%08x stack=%x tls=%x) -> id %u", routine, context,
+              stack_size, tls_size, object->id());
+    std::thread(xbox_thread_main, ThreadStart{env, object, routine, context, 0}).detach();
+    return true;
+}
+
+namespace {
+
 const xbox::KernelImpl kLoaderImpls[] = {
     {"NtResumeThread", reinterpret_cast<void*>(&NtResumeThread)},
     {"PsCreateSystemThread", reinterpret_cast<void*>(&PsCreateSystemThread)},

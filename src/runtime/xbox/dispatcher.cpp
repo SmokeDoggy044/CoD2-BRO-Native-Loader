@@ -533,13 +533,19 @@ const KernelImpl kDispatcherImpls[] = {
 
 }  // namespace
 
+ForeignObjects g_foreign;
+
+void set_foreign_objects(const ForeignObjects& objects) { g_foreign = objects; }
+
 void set_event_handle(Handle event, int32_t state) {
     if (!event) return;
+    if (g_foreign.owns && g_foreign.owns(event)) return g_foreign.set_event(event, state);
     const std::shared_ptr<Object> object = lookup_handle(event);
     if (object && object->body()) signal_object(*from_xbox_ptr<XbDispatcherHeader>(object->body()), state);
 }
 
 void queue_user_apc(XbPtr thread, XbPtr routine, uint32_t argument1, uint32_t argument2, uint32_t argument3) {
+    if (g_foreign.queue_apc && thread == current_kthread()) return g_foreign.queue_apc(routine, argument1, argument2, argument3);
     std::lock_guard lock(g_lock);
     g_user_apcs[thread].push_back({routine, {argument1, argument2, argument3}});
     g_signaled.notify_all();  // an alertable waiter may be the target

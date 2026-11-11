@@ -30,6 +30,16 @@ void set_event_handle(Handle event, int32_t state = 1);
 // during its next alertable user-mode wait, which then returns STATUS_USER_APC.
 void queue_user_apc(XbPtr thread, XbPtr routine, uint32_t argument1, uint32_t argument2, uint32_t argument3);
 
+// Objects the kernel does not own (own engine host 5c: our C's own events and completion queue under --own-main):
+// set_event_handle on a handle `owns` accepts goes to `set_event`, and a user APC for the calling thread to
+// `queue_apc` (the I/O our kernel completes inside the call queues it to the caller).
+struct ForeignObjects {
+    bool (*owns)(Handle handle) = nullptr;
+    void (*set_event)(Handle handle, int32_t state) = nullptr;
+    void (*queue_apc)(XbPtr routine, uint32_t argument1, uint32_t argument2, uint32_t argument3) = nullptr;
+};
+void set_foreign_objects(const ForeignObjects& objects);
+
 // Raises the calling thread's IRQL (e.g. to kDispatchLevel, which excludes DPCs and
 // threads that raised theirs) and returns the old level, like KfRaiseIrql. For host
 // code calling title callbacks that the Xbox runs at DPC level (vertical blank).

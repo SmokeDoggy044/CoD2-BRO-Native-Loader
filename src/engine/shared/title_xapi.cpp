@@ -3,6 +3,8 @@
 #include <cstring>
 
 #include "title_data.h"
+#include "title_host.h"
+#include "title_objects.h"
 
 namespace game {
 
@@ -242,6 +244,11 @@ int32_t* XB_STDCALL XapiFormatTimeOut(int32_t* timeout, uint32_t ms) {
 }
 
 uint32_t XB_STDCALL SleepEx(uint32_t ms, uint32_t alertable) {
+    if (native_platform()) {
+        // Our own sleep: WAIT_IO_COMPLETION when queued completion routines ran.
+        const uint32_t status = objects::wait(nullptr, 0, false, ms == 0xffffffff ? nullptr : &ms, alertable & 0xff);
+        return status == 0xc0 ? 0xc0 : 0;
+    }
     // KeDelayExecutionThread(UserMode, alertable, timeout), repeated while alerted; WAIT_IO_COMPLETION (0xc0, the
     // same number as STATUS_USER_APC) when an APC ran, else 0. INFINITE waits the longest relative time.
     int32_t interval[2];
@@ -262,7 +269,8 @@ uint32_t XB_STDCALL SleepEx(uint32_t ms, uint32_t alertable) {
 // --- Handles, files, directories ----------------------------------------------------------------------------------
 
 uint32_t XB_STDCALL CloseHandle(uint32_t handle) {
-    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t)>(kNtClose)(handle);
+    const uint32_t status =
+        objects::is_ours(handle) ? objects::close(handle) : kernel<uint32_t XB_STDCALL(uint32_t)>(kNtClose)(handle);
     if (static_cast<int32_t>(status) >= 0) return 1;
     XapiSetLastNTError(status);
     return 0;
@@ -718,6 +726,14 @@ uint32_t XB_STDCALL GetOverlappedResult(uint32_t handle, uint32_t* overlapped, u
 // --- Synchronization ----------------------------------------------------------------------------------------------
 
 uint32_t XB_STDCALL WaitForSingleObjectEx(uint32_t handle, uint32_t ms, uint32_t alertable) {
+    if (objects::is_ours(handle)) {
+        const uint32_t status = objects::wait(&handle, 1, false, ms == 0xffffffff ? nullptr : &ms, alertable & 0xff);
+        if (static_cast<int32_t>(status) < 0) {
+            XapiSetLastNTError(status);
+            return 0xffffffff;  // WAIT_FAILED
+        }
+        return status;
+    }
     int32_t interval[2];
     int32_t* const timeout = XapiFormatTimeOut(interval, ms);
     uint32_t status;
@@ -735,14 +751,18 @@ uint32_t XB_STDCALL WaitForSingleObjectEx(uint32_t handle, uint32_t ms, uint32_t
 uint32_t XB_STDCALL WaitForSingleObject(uint32_t handle, uint32_t ms) { return WaitForSingleObjectEx(handle, ms, 0); }
 
 uint32_t XB_STDCALL SetEvent(uint32_t handle) {
-    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(kNtSetEvent)(handle, nullptr);
+    const uint32_t status = objects::is_ours(handle)
+                                ? objects::set_event(handle, true)
+                                : kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(kNtSetEvent)(handle, nullptr);
     if (static_cast<int32_t>(status) >= 0) return 1;
     XapiSetLastNTError(status);
     return 0;
 }
 
 uint32_t XB_STDCALL ReleaseMutex(uint32_t handle) {
-    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(kNtReleaseMutant)(handle, nullptr);
+    const uint32_t status = objects::is_ours(handle)
+                                ? objects::release_mutex(handle)
+                                : kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(kNtReleaseMutant)(handle, nullptr);
     if (static_cast<int32_t>(status) >= 0) return 1;
     XapiSetLastNTError(status);
     return 0;
@@ -767,6 +787,11 @@ uint32_t XB_STDCALL CreateEventA(uint32_t security, uint32_t manual_reset, uint3
     // NotificationEvent (0) for manual reset, else SynchronizationEvent (1); ERROR_ALREADY_EXISTS for an existing
     // named one (STATUS_OBJECT_NAME_EXISTS 0x40000000), else last error 0. 0 on failure.
     (void)security;
+    if (native_platform()) {
+        // Our own event; the game names none (a name would only matter between processes).
+        SetLastError(0);
+        return objects::create_event(manual_reset != 0, initial_state != 0);
+    }
     uint32_t attributes[3];
     uint32_t text[2];
     uint32_t* const object = name ? XapiFormatObjectAttributes(attributes, text, name) : nullptr;
@@ -783,6 +808,10 @@ uint32_t XB_STDCALL CreateEventA(uint32_t security, uint32_t manual_reset, uint3
 
 uint32_t XB_STDCALL CreateMutexA(uint32_t security, uint32_t initial_owner, const char* name) {
     (void)security;
+    if (native_platform()) {
+        SetLastError(0);
+        return objects::create_mutex((initial_owner & 0xff) != 0);
+    }
     uint32_t attributes[3];
     uint32_t text[2];
     uint32_t* const object = name ? XapiFormatObjectAttributes(attributes, text, name) : nullptr;
@@ -799,6 +828,9 @@ uint32_t XB_STDCALL CreateMutexA(uint32_t security, uint32_t initial_owner, cons
 
 // --- Threads ------------------------------------------------------------------------------------------------------
 
+// XapiThreadStartup's work around the routine (TLS block, notify routines); its result.
+uint32_t xapi_thread_body(uint32_t start, uint32_t parameter);
+
 uint32_t XB_STDCALL CreateThread(uint32_t attributes, uint32_t stack_size, uint32_t start, uint32_t parameter,
                                  uint32_t flags, uint32_t* thread_id) {
     // A kernel thread that starts in XapiThreadStartup (TLS, CRT notifications) with the XBE's default stack
@@ -807,6 +839,14 @@ uint32_t XB_STDCALL CreateThread(uint32_t attributes, uint32_t stack_size, uint3
     // thread was not created on a thread without XAPI TLS).
     (void)attributes;
     const uint32_t stack = stack_size ? stack_size : title_global<uint32_t>(0x00010130);
+    if (native_platform() && !(flags & 4)) {
+        // Our own thread (the game starts none suspended); its handle is signaled when the routine returns.
+        const uint32_t handle =
+            objects::create_thread(stack, title_global<uint32_t>(0x0098f668), &xapi_thread_body, start, parameter,
+                                   thread_id);
+        if (!handle) SetLastError(8);  // ERROR_NOT_ENOUGH_MEMORY
+        return handle;
+    }
     uint32_t* const handle = &stack_size;
     const uint32_t status =
         kernel<uint32_t XB_STDCALL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t, uint32_t,
@@ -839,7 +879,7 @@ void XB_STDCALL XapiCallThreadNotifyRoutines(uint32_t create) {
     kernel<void XB_STDCALL(uint32_t)>(kRtlLeaveCriticalSection)(kLock);
 }
 
-void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter) {
+uint32_t xapi_thread_body(uint32_t start, uint32_t parameter) {
     // The thread's TLS block (KTHREAD +0x28): its first word points past itself to the copy of the title's TLS
     // template (directory 0x0082740c: raw data begin, end, ..., zero fill +0x10). Then the notify routines (the
     // CRT's per-thread data), the start routine, the routines again, and the thread ends with its result. The
@@ -857,7 +897,11 @@ void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter) {
     XapiCallThreadNotifyRoutines(1);
     const uint32_t result = title_function<uint32_t XB_STDCALL(uint32_t)>(start)(parameter);
     XapiCallThreadNotifyRoutines(0);
-    kernel<void XB_STDCALL(uint32_t)>(kPsTerminateSystemThread)(result);
+    return result;
+}
+
+void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter) {
+    kernel<void XB_STDCALL(uint32_t)>(kPsTerminateSystemThread)(xapi_thread_body(start, parameter));
 }
 
 // --- Threads, debugger -------------------------------------------------------------------------------------------

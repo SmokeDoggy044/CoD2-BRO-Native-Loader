@@ -34,6 +34,9 @@
 #include "ngl_gfx.h"
 #include "snd.h"
 #include "title_xapi.h"
+#include "title_host.h"
+#include "title_objects.h"
+#include "dispatcher.h"
 #include "snd_env.h"
 #include "kernel.h"
 #include "kernel_memory.h"
@@ -1029,6 +1032,26 @@ int loader_main(int argc, char** argv) {
     if (options->shader_dump_dir) loader::start_shader_dump(*options->shader_dump_dir);
     game::set_title_clock(&loader::title_rdtsc);
     game::set_title_fs_map(&loader::title_fs_offset);  // our XAPI QueryPerformanceCounter's clock
+    {
+        // What our C asks of its host (title_host.h); under --own-main it uses its own objects, not the kernel's.
+        game::TitleHost host;
+        host.start_thread = &loader::start_title_thread;
+        host.replay_on_stream = [] { return xbox::replay::on_stream(); };
+        host.replay_replaying = [] { return xbox::replay::replaying(); };
+        host.replay_recorded = [](char tag, uint32_t* value) { return xbox::replay::recorded(tag, *value); };
+        host.replay_value = [](char tag, uint32_t real) { return xbox::replay::value(tag, real); };
+        game::set_title_host(host);
+        if (options->own_main) {
+            game::set_native_platform(true);
+            xbox::ForeignObjects foreign;
+            foreign.owns = [](xbox::Handle handle) { return game::objects::is_ours(handle); };
+            foreign.set_event = [](xbox::Handle handle, int32_t state) { game::objects::set_event(handle, state != 0); };
+            foreign.queue_apc = [](xbox::XbPtr routine, uint32_t a1, uint32_t a2, uint32_t a3) {
+                game::objects::queue_apc(routine, a1, a2, a3);
+            };
+            xbox::set_foreign_objects(foreign);
+        }
+    }
     game::set_gfx_device(&render::gfx_device, &render::open_gfx_device);
     render::set_gfx_state_probe(&game::ngl_gfx_state);  // XB_GFX_VERIFY        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;

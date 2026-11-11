@@ -16,4 +16,9 @@ void install_kernel_thunks(XbeImage& image);
 // preloaded sections), for the Xbox memory budget.
 int32_t initial_image_pages(const XbeImage& image);
 
+// A title thread without a kernel handle (game::TitleHost::start_thread): runs the stdcall routine(context) on a
+// stack of `stack_size` bytes with the title's FS block and a `tls_size` TLS block.
+bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine, uint32_t context,
+                        uint32_t* thread_id);
+
 }  // namespace loader

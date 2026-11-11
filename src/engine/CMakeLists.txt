@@ -97,6 +97,7 @@ set(game_code_sources
     shared/title_start.cpp
     shared/title_stdio.cpp
     shared/title_xapi.cpp
+    shared/title_objects.cpp
     shared/title_xapi_check.cpp
     shared/title_savegame.cpp
     shared/title_savegame_check.cpp
