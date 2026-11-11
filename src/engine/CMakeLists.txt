@@ -137,6 +137,7 @@ set(game_code_sources
     script/scr_field.cpp
     script/script_string.cpp
     renderer/shaders.cpp
+    renderer/xgraphics.cpp
     sound/snd.cpp
     sound/snd_env.cpp
     script/scr_fiber.cpp
