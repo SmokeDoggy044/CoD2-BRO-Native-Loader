@@ -7,6 +7,7 @@
 #include "qcommon_fs.h"
 #include "title_data.h"
 #include "title_crt.h"
+#include "title_eh.h"
 
 namespace game {
 
@@ -603,7 +604,7 @@ uint32_t* XB_THISCALL ScriptKeyTable_Set(ScriptKeyTable* self, uint32_t key, uin
         title_global<uint32_t XB_CDECL (*)()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
         uint8_t* const object = reinterpret_cast<uint8_t*>(&value);
         object[0] = static_cast<uint8_t>(value);
-        title_function<void XB_STDCALL(void*, uint32_t)>(0x001f2302)(object, 0x0088ac80);  // _CxxThrowException
+        own_function<void XB_STDCALL(void*, uint32_t)>(&title_CxxThrowException)(object, 0x0088ac80);  // _CxxThrowException
     }
     const uint32_t count = self->count;
     if (count) {

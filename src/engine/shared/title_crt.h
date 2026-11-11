@@ -124,6 +124,16 @@ void XB_STDCALL title_eh_vector_destruct(void* array, uint32_t size, int32_t cou
 void XB_STDCALL title_eh_vector_construct(void* array, uint32_t size, int32_t count, uint32_t function,
                                           uint32_t destructor);
 
+// 0x001f1486 _strnicmp (__ascii_strnicmp: 'A'..'Z' folded, -1/0/1) / 0x001eebff _snprintf.
+int32_t XB_CDECL title_strnicmp(const char* a, const char* b, uint32_t count);
+int32_t XB_CDECL title_snprintf(char* out, uint32_t count, const char* format, ...);
+// 0x001f0a40 _controlfp / 0x001f0a0e _control87: the x87 control word through VC's abstract bits (_EM_*, _RC_*,
+// _PC_*, _IC_*); _controlfp never changes the denormal mask. Returns the new abstract word.
+uint32_t XB_CDECL title_control87(uint32_t value, uint32_t mask);
+uint32_t XB_CDECL title_controlfp(uint32_t value, uint32_t mask);
+// 0x001f0fb0 _chkstk (EAX = frame size): touches each 4 KB page downwards and moves ESP.
+extern "C" void title_chkstk_entry(void);
+
 // Runs ours and the original on the check table; one report line per difference, returns how many.
 int32_t check_title_crt(std::string& report);
 

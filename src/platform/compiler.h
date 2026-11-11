@@ -197,6 +197,15 @@ inline uint32_t platform_seh_head() {
 inline void platform_set_seh_head(uint32_t head) {
     __asm__ volatile("movl %0, %%fs:0" : : "r"(head) : "memory");
 }
+// The x87 control word (the title CRT's _control87).
+inline uint16_t platform_x87_control_word() {
+    uint16_t word;
+    __asm__ volatile("fnstcw %0" : "=m"(word));
+    return word;
+}
+inline void platform_set_x87_control_word(uint16_t word) {
+    __asm__ volatile("fldcw %0" : : "m"(word));
+}
 // Any FS-relative word of a title thread (the CRT's thread data lookup reads the KTHREAD at FS:[0x28] and the TLS
 // array at FS:[0x04] the way the title's _getptd did).
 inline uint32_t platform_fs_word(uint32_t offset) {

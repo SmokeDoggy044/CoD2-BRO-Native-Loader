@@ -928,7 +928,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
             auto_thread = word(pair + 4);
             continue;
         }
-        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(text_of(word(pair)),
+        if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(text_of(word(pair)),
                                                                                          text_of(0x00833524), 3))
             continue;  // __strnicmp "on_"
         if (!block) {

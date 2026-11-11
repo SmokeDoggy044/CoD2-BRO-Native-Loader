@@ -3290,7 +3290,7 @@ uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_eb
 
 void XB_CDECL SV_Map_f() {
     using Strnicmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
-    Strnicmp* const strnicmp_ = title_function<Strnicmp>(0x001f1486);  // __strnicmp
+    Strnicmp* const strnicmp_ = own_function<Strnicmp>(&title_strnicmp);  // __strnicmp
     const char* arg = title_text(0x0082dfeb);  // ""
     if (title_global<uint32_t>(0x00934248) > 1) {  // cmd_argc
         arg = title_global<const char*>(0x0092df94);

@@ -486,7 +486,7 @@ uint8_t* XB_CDECL SndGroup_FindByName(const char* name) {
     int32_t n = count;
     for (int32_t i = 0; i < n; ++i) {
         uint8_t* const group = &title_global<uint8_t>(0x008bd8f0 + uint32_t(i) * 0x128);
-        if (title_function<Compare>(0x001f1486)(name, reinterpret_cast<const char*>(group + 0x108), 0x20) == 0)  // __strnicmp
+        if (own_function<Compare>(&title_strnicmp)(name, reinterpret_cast<const char*>(group + 0x108), 0x20) == 0)  // __strnicmp
             return group;
         n = count;
     }

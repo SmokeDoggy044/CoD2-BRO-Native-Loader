@@ -844,6 +844,76 @@ int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base) {
     return static_cast<int32_t>(negative ? 0u - value : value);
 }
 
+int32_t XB_CDECL title_strnicmp(const char* a, const char* b, uint32_t count) {
+    // __locale_changed stays 0: __ascii_strnicmp. Stops at the first terminator of either string.
+    uint8_t x = 0, y = 0;
+    for (; count; --count) {
+        x = static_cast<uint8_t>(*a++);
+        y = static_cast<uint8_t>(*b++);
+        if (!x || !y) break;
+        if (x >= 'A' && x <= 'Z') x += 0x20;
+        if (y >= 'A' && y <= 'Z') y += 0x20;
+        if (x != y) break;
+    }
+    if (!count || x == y) return 0;
+    return x < y ? -1 : 1;
+}
+
+int32_t XB_CDECL title_snprintf(char* out, uint32_t count, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    const int32_t n = title_vsnprintf(out, count, format, args);
+    va_end(args);
+    return n;
+}
+
+namespace {
+uint32_t abstract_cw(uint32_t cw) {  // __abstract_cw
+    uint32_t a = 0;
+    if (cw & 0x01) a |= 0x10;
+    if (cw & 0x04) a |= 0x08;
+    if (cw & 0x08) a |= 0x04;
+    if (cw & 0x10) a |= 0x02;
+    if (cw & 0x20) a |= 0x01;
+    if (cw & 0x02) a |= 0x80000;
+    switch (cw & 0xc00) {
+        case 0x400: a |= 0x100; break;
+        case 0x800: a |= 0x200; break;
+        case 0xc00: a |= 0x300; break;
+        default: break;
+    }
+    if (!(cw & 0x300)) a |= 0x20000;
+    else if ((cw & 0x300) == 0x200) a |= 0x10000;
+    if (cw & 0x1000) a |= 0x40000;
+    return a;
+}
+
+uint32_t hardware_cw(uint32_t a) {  // __hw_cw
+    uint32_t cw = 0;
+    if (a & 0x10) cw |= 0x01;
+    if (a & 0x08) cw |= 0x04;
+    if (a & 0x04) cw |= 0x08;
+    if (a & 0x02) cw |= 0x10;
+    if (a & 0x01) cw |= 0x20;
+    if (a & 0x80000) cw |= 0x02;
+    cw |= (a & 0x300) << 2;  // _RC_DOWN 0x100 -> 0x400, _RC_UP 0x200 -> 0x800, _RC_CHOP -> 0xc00
+    if (!(a & 0x30000)) cw |= 0x300;
+    else if ((a & 0x30000) == 0x10000) cw |= 0x200;
+    if (a & 0x40000) cw |= 0x1000;
+    return cw;
+}
+}  // namespace
+
+uint32_t XB_CDECL title_control87(uint32_t value, uint32_t mask) {
+    const uint32_t a = (abstract_cw(platform_x87_control_word()) & ~mask) | (value & mask);
+    platform_set_x87_control_word(static_cast<uint16_t>(hardware_cw(a)));
+    return a;
+}
+
+uint32_t XB_CDECL title_controlfp(uint32_t value, uint32_t mask) {
+    return title_control87(value, mask & 0xfff7ffff);
+}
+
 // ---- sorting and searching ----
 
 namespace {
@@ -1006,6 +1076,35 @@ uint64_t XB_STDCALL title_aulldiv(uint64_t a, uint64_t b) {
 
 // The register-convention helpers, as the title's (they only move bits; the x87 rounding of _ftol is the
 // thread's own mode, as in the original).
+PLATFORM_ASM_ENTRY(title_chkstk_entry,
+                   "testl %eax, %eax\n"
+                   "je 3f\n"
+                   "cmpl $0x1000, %eax\n"
+                   "jae 1f\n"
+                   "negl %eax\n"
+                   "addl %esp, %eax\n"
+                   "addl $4, %eax\n"
+                   "testl %eax, (%eax)\n"
+                   "xchgl %eax, %esp\n"
+                   "movl (%eax), %eax\n"
+                   "pushl %eax\n"
+                   "ret\n"
+                   "1: pushl %ecx\n"
+                   "leal 8(%esp), %ecx\n"
+                   "2: subl $0x1000, %ecx\n"
+                   "subl $0x1000, %eax\n"
+                   "testl %eax, (%ecx)\n"
+                   "cmpl $0x1000, %eax\n"
+                   "jae 2b\n"
+                   "subl %eax, %ecx\n"
+                   "movl %esp, %eax\n"
+                   "testl %eax, (%ecx)\n"
+                   "movl %ecx, %esp\n"
+                   "movl (%eax), %ecx\n"
+                   "movl 4(%eax), %eax\n"
+                   "pushl %eax\n"
+                   "3: ret")
+
 PLATFORM_ASM_ENTRY(title_allshr_entry,
                    "cmpb $0x40, %cl\n"
                    "jae 2f\n"
@@ -1284,6 +1383,37 @@ int32_t check_title_crt(std::string& report) {
                 add_line(report, "strstr/strcspn \"%s\" \"%s\" differ", u, v);
             }
         }
+    const auto orig_strnicmp = title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486);
+    for (const char* u : words)
+        for (const char* v : words)
+            for (uint32_t n : {0u, 1u, 2u, 3u, 5u, 100u})
+                if (orig_strnicmp(u, v, n) != title_strnicmp(u, v, n)) {
+                    ++failures;
+                    add_line(report, "strnicmp \"%s\" \"%s\" %u: title %d, ours %d", u, v, n, orig_strnicmp(u, v, n),
+                             title_strnicmp(u, v, n));
+                }
+    const auto orig_controlfp = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x001f0a40);
+    const auto orig_control87 = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x001f0a0e);
+    const uint16_t saved_cw = platform_x87_control_word();
+    // Every exception stays masked (an unmasked one with its sticky flag set would trap at the next x87 op).
+    for (uint16_t start : {uint16_t{0x027f}, uint16_t{0x037f}, uint16_t{0x007f}, uint16_t{0x0f7f}, uint16_t{0x1e7f},
+                           uint16_t{0x017f}, uint16_t{0x0b3f}})
+        for (uint32_t value : {0x8001fu, 0x9001fu, 0x8031fu, 0x8011fu, 0x8021fu, 0xa001fu, 0xb001fu, 0xc001fu, 0xffffffffu})
+            for (uint32_t mask : {0u, 0x8001fu, 0x300u, 0x30000u, 0x40000u, 0xfff7ffffu, 0xffffffffu})
+                for (int which = 0; which < 2; ++which) {
+                    platform_set_x87_control_word(start);
+                    const uint32_t ra = which ? orig_control87(value, mask) : orig_controlfp(value, mask);
+                    const uint16_t ca = platform_x87_control_word();
+                    platform_set_x87_control_word(start);
+                    const uint32_t rb = which ? title_control87(value, mask) : title_controlfp(value, mask);
+                    const uint16_t cb = platform_x87_control_word();
+                    if (ra != rb || ca != cb) {
+                        ++failures;
+                        add_line(report, "control%s %04x (%x, %x): title %x cw %04x, ours %x cw %04x",
+                                 which ? "87" : "fp", start, value, mask, ra, ca, rb, cb);
+                    }
+                }
+    platform_set_x87_control_word(saved_cw);
     const auto orig_strchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0);
     for (const char* u : words)
         for (int32_t c : {0, int32_t{'a'}, int32_t{'b'}, int32_t{'c'}, int32_t{'A'}, 0x80, -128, 0x180, 0xff, -1, int32_t{' '}})

@@ -946,7 +946,7 @@ int32_t XB_CDECL Cvar_WriteNamedValues(const char* const* names, int32_t count, 
     for (int32_t i = 0; i < count; ++i) {
         const uint8_t* var = own_function<const uint8_t* XB_CDECL(const char*)>(&Cvar_FindVar)(names[i]);  // Cvar_FindVar
         const char* value = var ? *reinterpret_cast<const char* const*>(var + 4) : title_pointer<const char>(0x0082dfeb);
-        const int32_t written = title_function<Snprintf>(0x001eebff)(  // _snprintf
+        const int32_t written = own_function<Snprintf>(&title_snprintf)(  // _snprintf
             buffer, size, title_pointer<const char>(0x00834544), names[i], value);  // "%s \"%s\"\n"
         if (written < 0) return 0;
         buffer += written;

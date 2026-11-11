@@ -1813,7 +1813,7 @@ uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen) {
 const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t, char* out) {
     using Compare = int32_t XB_CDECL(const char*, const char*);
     using CompareN = int32_t XB_CDECL(const char*, const char*, uint32_t);
-    if (title_function<CompareN>(0x001f1486)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
+    if (own_function<CompareN>(&title_strnicmp)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
         title_sprintf(
             out, &title_global<const char>(0x0082ddd4), name + 2);  // sprintf "%s"
         return out;
@@ -3645,8 +3645,8 @@ void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key) {
         using Strnicmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
         if (line[0] == '\\' || line[0] == '/') {
             Cbuf_AddText(line + 1);
-        } else if (title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x0082ac38), 4) &&  // "quit"
-                   title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x00834570), 4)) {  // "kill"
+        } else if (own_function<Strnicmp>(&title_strnicmp)(line, &title_global<char>(0x0082ac38), 4) &&  // "quit"
+                   own_function<Strnicmp>(&title_strnicmp)(line, &title_global<char>(0x00834570), 4)) {  // "kill"
             Cbuf_AddText(line);
         } else {
             if (!line[0]) return;

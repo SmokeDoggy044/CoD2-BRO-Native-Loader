@@ -44,6 +44,7 @@
 #include "g_pathnode.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "title_eh.h"
 
 namespace game {
 
@@ -1171,7 +1172,6 @@ using StrNICmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
 
 constexpr uint32_t kStrRChr = 0x001efd40;
 constexpr uint32_t kToUpper = 0x001efd6d;
-constexpr uint32_t kStrNICmp = 0x001f1486;
 
 void copy_string(char* dest, const char* src) {
     char c;
@@ -1214,7 +1214,7 @@ PLATFORM_ASM_ENTRY(Loc_MatchKeyword_entry,
                    "ret")
 
 int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor) {
-    if (title_function<StrNICmp>(kStrNICmp)(keyword, *cursor, static_cast<uint32_t>(std::strlen(keyword))))
+    if (own_function<StrNICmp>(&title_strnicmp)(keyword, *cursor, static_cast<uint32_t>(std::strlen(keyword))))
         return 0;
     char* p = *cursor + std::strlen(keyword);
     for (;;) {
@@ -4727,7 +4727,7 @@ namespace {
     std_string_AssignN(text, tstr(message), length);
     std_exception_CtorString(error, text);
     pk<uint32_t>(error, 0) = 0x007f7784;  // std::length_error vtable
-    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, 0x00895af4);  // _CxxThrowException
+    own_function<void XB_STDCALL(uint8_t*, uint32_t)>(&title_CxxThrowException)(error, 0x00895af4);  // _CxxThrowException
     for (;;) {
     }
 }
@@ -5371,7 +5371,7 @@ namespace {
     std_string_CtorCStr(text, tstr(message));
     std_exception_CtorString(error, text);
     pk<uint32_t>(error, 0) = vtable;
-    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, throw_info);  // _CxxThrowException
+    own_function<void XB_STDCALL(uint8_t*, uint32_t)>(&title_CxxThrowException)(error, throw_info);  // _CxxThrowException
     for (;;) {
     }
 }
@@ -6195,7 +6195,7 @@ const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
         return nullptr;
     }
     const char* text = cursor;
-    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tstr(0x00833300), text, 5)) {
+    if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(tstr(0x00833300), text, 5)) {
         const uint32_t args[2] = {0x00833288, u32(text)};  // "Unknown keyword at linestart"
         return va(args);
     }

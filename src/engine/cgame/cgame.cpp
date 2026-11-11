@@ -540,7 +540,7 @@ int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model) {
             shared = model_slot(i);
     if (!shared) return static_cast<int32_t>(word(0x10));
     for (int32_t i = 0; i < static_cast<int32_t>(word(0x10)); ++i)
-        if (!title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tag_name(i), tag_b, 5) &&
+        if (!own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(tag_name(i), tag_b, 5) &&
             !model_slot(i))
             model_slot(i) = shared;
     return static_cast<int32_t>(word(0x10));

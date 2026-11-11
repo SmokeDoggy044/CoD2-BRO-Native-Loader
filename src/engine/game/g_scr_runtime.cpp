@@ -22,6 +22,7 @@
 #include "levels_twins.h"
 #include "cgame.h"
 #include "g_mover.h"
+#include "title_eh.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -533,7 +534,7 @@ namespace {
 void wait_done(uint32_t first_argument) {
     if (!title_global<uint8_t>(0x00922164)) return;
     uint8_t object = static_cast<uint8_t>(first_argument);
-    title_function<void XB_STDCALL(void*, uint32_t)>(0x001f2302)(&object, 0x0088ac80);  // _CxxThrowException
+    own_function<void XB_STDCALL(void*, uint32_t)>(&title_CxxThrowException)(&object, 0x0088ac80);  // _CxxThrowException
 }
 
 void suspend(uint32_t function) { title_function<void XB_CDECL()>(function)(); }

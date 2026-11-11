@@ -14,6 +14,7 @@
 #include "snd.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_eh.h"
 
 namespace game {
 
@@ -3188,7 +3189,7 @@ void tree_throw_invalid_iterator() {
     string_init_empty(error + 0xc);
     std_string_AssignSubstr(error + 0xc, message, 0, 0xffffffffu);
     word_at(error, 0) = 0x00832778;
-    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, 0x00895b68);  // _CxxThrowException
+    own_function<void XB_STDCALL(uint8_t*, uint32_t)>(&title_CxxThrowException)(error, 0x00895b68);  // _CxxThrowException
 }
 
 // Red-black tree erase(where) (VC7.1 _Tree::erase): unlinks the node, rebalances, destroys the value

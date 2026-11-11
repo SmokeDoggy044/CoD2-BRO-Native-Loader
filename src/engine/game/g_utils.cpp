@@ -3028,7 +3028,7 @@ void XB_CDECL G_EntDetachAll(uint8_t* ent) {
 uint32_t XB_CDECL G_EntDetach(uint8_t* ent, const char* model, const char* tag) {
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     if (!tag || !*tag) return 0;
-    if (!title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(
+    if (!own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(
             model, reinterpret_cast<const char*>(uintptr_t{0x00832870}), 7))  // _strnicmp "xmodel/"
         model += 7;
     uint32_t slot = 0;
