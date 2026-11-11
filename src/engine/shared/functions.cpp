@@ -1002,7 +1002,15 @@ const Function kFunctions[] = {
     {"Scr_CallThread_ent_hash_hash_f_5", 0x001e55c0, 0, code(&Scr_CallThread_ent_hash_hash_f_5_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"XGetLaunchInfo", 0x001e6e7f, 0, code(&XGetLaunchInfo), 8, Result::Eax, Status::Compare},
     {"XGetLanguage", 0x001e6f2a, 0, code(&XGetLanguage), 0, Result::Eax, Status::Compare},
+    {"XapipQueryTimeZoneInformation", 0x001e6fb0, 0, code(&XapipQueryTimeZoneInformation), 8, Result::Eax, Status::Compare},
+    {"FileTimeToSystemTime", 0x001e7062, 0, code(&FileTimeToSystemTime), 8, Result::Eax, Status::Compare},
+    {"SystemTimeToFileTime", 0x001e70cd, 0, code(&SystemTimeToFileTime), 8, Result::Eax, Status::Compare},
+    {"RtlpCutoverTimeToSystemTime", 0x001e7179, 0, code(&RtlpCutoverTimeToSystemTime), 16, Result::Al, Status::Compare},
+    {"GetTimeZoneInformation", 0x001e7383, 0, code(&GetTimeZoneInformation), 4, Result::Eax, Status::Compare},
+    {"XapipGetTimeZoneBias", 0x001e74df, 0, code(&XapipGetTimeZoneBias), 4, Result::None, Status::Compare},
+    {"FileTimeToLocalFileTime", 0x001e75b4, 0, code(&FileTimeToLocalFileTime), 8, Result::Eax, Status::Compare},
     {"XGetVideoStandard", 0x001e75df, 0, code(&XGetVideoStandard), 0, Result::Eax, Status::Compare},
+    {"OutputDebugStringA", 0x001e7608, 0, code(&OutputDebugStringA), 4, Result::None, Status::Replaced},  // the original's int 0x2d faults under the loader (title_xapi.cpp)
     {"XPhysicalAlloc", 0x001e763a, 0, code(&XPhysicalAlloc), 16, Result::Eax, Status::Compare},
     {"XPhysicalAllocEx", 0x001e767d, 0, code(&XPhysicalAllocEx), 20, Result::Eax, Status::Compare},
     {"XPhysicalProtect", 0x001e76aa, 0, code(&XPhysicalProtect), 12, Result::None, Status::Compare},
@@ -1012,6 +1020,8 @@ const Function kFunctions[] = {
     {"SetUnhandledExceptionFilter", 0x001e7767, 0, code(&SetUnhandledExceptionFilter), 4, Result::Eax, Status::Compare},
     {"XapiThreadStartup", 0x001e77fe, 0, code(&XapiThreadStartup), 8, Result::None, Status::Compare},
     {"CreateThread", 0x001e7896, 0, code(&CreateThread), 24, Result::Eax, Status::Compare},
+    {"GetCurrentThreadId", 0x001e7904, 0, code(&GetCurrentThreadId), 0, Result::Eax, Status::Compare},
+    {"GetSystemTimeAsFileTime", 0x001e7911, 0, code(&GetSystemTimeAsFileTime), 4, Result::None, Status::Replaced},  // a jmp into KeQuerySystemTime: nothing to compare
     {"XapiDirectoryInformationToFindData", 0x001e7941, 0, code(&XapiDirectoryInformationToFindData), 8, Result::None, Status::Compare},
     {"FindFirstFileA", 0x001e79ad, 0, code(&FindFirstFileA), 8, Result::Eax, Status::Compare},
     {"FindNextFileA", 0x001e7aba, 0, code(&FindNextFileA), 8, Result::Eax, Status::Compare},
@@ -1040,6 +1050,13 @@ const Function kFunctions[] = {
     {"WaitForSingleObjectEx", 0x001e8615, 0, code(&WaitForSingleObjectEx), 12, Result::Eax, Status::Compare},
     {"SleepEx", 0x001e8659, 0, code(&SleepEx), 8, Result::Eax, Status::Compare},
     {"WaitForSingleObject", 0x001e86ab, 0, code(&WaitForSingleObject), 8, Result::Eax, Status::Compare},
+    {"CancelIo", 0x001e86f2, 0, code(&CancelIo), 4, Result::Eax, Status::Replaced},  // the original's IDE-queue walk faults on our kernel's zero IdexChannelObject
+    {"UTF8ToUnicode", 0x001e9496, 0, code(&UTF8ToUnicode), 16, Result::Eax, Status::Compare},
+    {"MultiByteToWideChar", 0x001e96a4, 0, code(&MultiByteToWideChar), 24, Result::Eax, Status::Compare},
+    {"GetDiskFreeSpaceExA", 0x001e9827, 0, code(&GetDiskFreeSpaceExA), 16, Result::Eax, Status::Compare},
+    {"XGetDiskClusterSizeA", 0x001e9cc8, 0, code(&XGetDiskClusterSizeA), 4, Result::Eax, Status::Compare},
+    {"XGetDiskSectorSizeA", 0x001e9d67, 0, code(&XGetDiskSectorSizeA), 4, Result::Eax, Status::Compare},
+    {"DeleteFileA", 0x001e9e84, 0, code(&DeleteFileA), 4, Result::Eax, Status::Replaced},  // deletes a file: not compared (--check-crt runs both)
     {"XMemAlloc", 0x001ea11f, 0, code(&XMemAlloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"XMemFree", 0x001ea1bf, 0, code(&XMemFree), 8, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
     {"HeapCreate", 0x001ea1d9, 0, code(&HeapCreate), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
@@ -1055,6 +1072,7 @@ const Function kFunctions[] = {
     {"RtlFreeHeap", 0x001ecb8e, 0, code(&RtlFreeHeap), 12, Result::Al, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlReAllocateHeap", 0x001ecd82, 0, code(&RtlReAllocateHeap), 16, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"QueryPerformanceCounter", 0x001ed6ca, 0, code(&QueryPerformanceCounter), 4, Result::Eax, Status::Compare},
+    {"XQueryValue", 0x001ed6ef, 0, code(&XQueryValue), 20, Result::Eax, Status::Compare},
     {"XapiFormatObjectAttributes", 0x001edf88, 0, code(&XapiFormatObjectAttributes), 12, Result::Eax, Status::Compare},
     {"XapiFormatTimeOut", 0x001edfb0, 0, code(&XapiFormatTimeOut), 8, Result::Eax, Status::Compare},
     {"XGetAVPack", 0x001edfde, 0, code(&XGetAVPack), 0, Result::Eax, Status::Compare},

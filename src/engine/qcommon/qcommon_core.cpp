@@ -1713,7 +1713,7 @@ int32_t XB_CDECL Mem_DebugPrintf(uint32_t stream, const char* format, ...) {
     va_end(args);
     if (stream)
         return title_function<int32_t XB_CDECL(uint32_t, const char*, const char*)>(0x001f0b4a)(stream, reinterpret_cast<const char*>(uintptr_t{0x0082ddd4}), text);  // fprintf
-    title_function<void XB_STDCALL(const char*)>(0x001e7608)(text);  // OutputDebugStringA
+    own_function<void XB_STDCALL(const char*)>(&OutputDebugStringA)(text);  // OutputDebugStringA
     return 0;
 }
 
@@ -4678,7 +4678,7 @@ uint32_t XB_CDECL FileDeviceXapi_Issue(uint8_t* device, const uint32_t* data, ui
 
 uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle) {
     // XAPI file device ops 0x008bfeac slot 1: CancelIo on the native handle; 0 once cancelled.
-    return title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e86f2)(*handle) ? 0 : 1;  // CancelIo
+    return own_function<uint32_t XB_STDCALL(uint32_t)>(&CancelIo)(*handle) ? 0 : 1;  // CancelIo
 }
 
 uint32_t XB_CDECL FileDeviceXapi_Poll() {
@@ -4781,8 +4781,8 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
             title_function<uint32_t XB_STDCALL(const uint8_t*)>(0x001ea047)(find + 0x140);  // XGetDisplayBlocks
         uint32_t local_time[2];
         uint16_t date[8];  // SYSTEMTIME
-        title_function<uint32_t XB_STDCALL(const uint8_t*, uint32_t*)>(0x001e75b4)(find + 0x14, local_time);  // FileTimeToLocalFileTime
-        title_function<uint32_t XB_STDCALL(const uint32_t*, uint16_t*)>(0x001e7062)(local_time, date);  // FileTimeToSystemTime
+        own_function<uint32_t XB_STDCALL(const uint8_t*, uint32_t*)>(&FileTimeToLocalFileTime)(find + 0x14, local_time);  // FileTimeToLocalFileTime
+        own_function<uint32_t XB_STDCALL(const uint32_t*, uint16_t*)>(&FileTimeToSystemTime)(local_time, date);  // FileTimeToSystemTime
         entry[0x44] = static_cast<uint8_t>(date[6]);
         entry[0x47] = static_cast<uint8_t>(date[3]);
         entry[0x45] = static_cast<uint8_t>(date[5]);
@@ -5548,11 +5548,11 @@ const char* save_drive_root() {
 }
 
 uint32_t save_sector_size() {
-    return title_function<uint32_t XB_STDCALL(const char*)>(0x001e9d67)(save_drive_root());  // XGetDiskSectorSizeA
+    return own_function<uint32_t XB_STDCALL(const char*)>(&XGetDiskSectorSizeA)(save_drive_root());  // XGetDiskSectorSizeA
 }
 
 uint32_t save_cluster_size() {
-    return title_function<uint32_t XB_STDCALL(const char*)>(0x001e9cc8)(save_drive_root());  // XGetDiskClusterSizeA
+    return own_function<uint32_t XB_STDCALL(const char*)>(&XGetDiskClusterSizeA)(save_drive_root());  // XGetDiskClusterSizeA
 }
 
 // listener->vtable[0](state) (thiscall, callee pops).
@@ -5653,7 +5653,7 @@ int32_t XB_CDECL Save_CreateSaveGame(const char* name) {
     // XCreateSaveGame(drive, wide name, OPEN_ALWAYS, 0, path out 0x00920da8, 0x103), error translated.
     uint16_t wide[0x40];
     wide[0] = 0;
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(0x001e96a4)(
+    own_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(&MultiByteToWideChar)(
         0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
     const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*, uint32_t, uint32_t, char*,
                                                             uint32_t)>(0x001e8fbc)(
@@ -5689,7 +5689,7 @@ uint32_t XB_CDECL Save_GetFreeSpace(uint32_t* out) {
     }
     uint32_t space[6];
     const char* const root = save_drive_root();
-    if (!title_function<int32_t XB_STDCALL(const char*, uint32_t*, uint32_t*, uint32_t*)>(0x001e9827)(
+    if (!own_function<int32_t XB_STDCALL(const char*, uint32_t*, uint32_t*, uint32_t*)>(&GetDiskFreeSpaceExA)(
             root, space, space + 2, space + 4)) {  // GetDiskFreeSpaceExA
         Save_SetLastResult(0xffffffffu);
         Save_UnmountDevice();
@@ -5967,7 +5967,7 @@ int32_t XB_CDECL Save_DeleteSaveGame(const char* name) {
     // XDeleteSaveGame(drive, wide name), the error translated as Save_TranslateError does.
     uint16_t wide[0x40];
     wide[0] = 0;
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(0x001e96a4)(
+    own_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(&MultiByteToWideChar)(
         0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
     const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*)>(0x001e921f)(
         save_drive_root(), wide);  // XDeleteSaveGame

@@ -1026,7 +1026,8 @@ int loader_main(int argc, char** argv) {
         LOG_INFO("audio", "volumes: %s", volumes.c_str());
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
     if (options->shader_dump_dir) loader::start_shader_dump(*options->shader_dump_dir);
-    game::set_title_clock(&loader::title_rdtsc);  // our XAPI QueryPerformanceCounter's clock
+    game::set_title_clock(&loader::title_rdtsc);
+    game::set_title_fs_map(&loader::title_fs_offset);  // our XAPI QueryPerformanceCounter's clock
     game::set_gfx_device(&render::gfx_device, &render::open_gfx_device);
     render::set_gfx_state_probe(&game::ngl_gfx_state);  // XB_GFX_VERIFY        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;
@@ -1063,7 +1064,7 @@ int loader_main(int argc, char** argv) {
         // On the title's main thread at its first frame: the title's CRT is initialized by then.
         d3d_config.frame_presented = [] {
             std::string report;
-            const int32_t differences = game::check_title_crt(report);
+            const int32_t differences = game::check_title_crt(report) + game::check_title_xapi(report);
             if (!report.empty()) LOG_WARN("crt", "\n%s", report.c_str());
             LOG_INFO("crt", "check: %d difference(s)", differences);
             std::fflush(nullptr);

@@ -46,6 +46,8 @@ void detail::leave_xbox_stack(ThreadEnv&) {}
 
 NtTib& xbox_tib() { return current_thread_env()->kpcr->tib; }
 
+uint32_t title_fs_offset(uint32_t kpcr_offset) { return kpcr_offset; }
+
 uint8_t* current_irql_location() {
     ThreadEnv* env = current_thread_env();
     return env ? &env->kpcr->irql : nullptr;

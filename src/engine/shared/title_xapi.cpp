@@ -9,6 +9,7 @@ namespace game {
 namespace {
 
 TitleClock* g_title_clock = nullptr;
+TitleFsMap* g_title_fs_map = nullptr;
 
 // A kernel export through the title's kernel thunk table: the slot holds the export's address (a function) or the
 // address of the exported variable (data exports).
@@ -55,6 +56,11 @@ constexpr uint32_t kNtReleaseMutant = 0x007b3180;
 constexpr uint32_t kNtWaitForSingleObjectEx = 0x007b3184;
 constexpr uint32_t kKeDelayExecutionThread = 0x007b3188;
 constexpr uint32_t kHalBootSMCVideoMode = 0x007b31d4;
+constexpr uint32_t kKeQuerySystemTime = 0x007b3080;
+constexpr uint32_t kRtlTimeFieldsToTime = 0x007b30f0;
+constexpr uint32_t kRtlTimeToTimeFields = 0x007b30f4;
+constexpr uint32_t kNtQueryVolumeInformationFile = 0x007b3160;
+constexpr uint32_t kRtlAnsiStringToUnicodeString = 0x007b31b0;
 
 uint32_t addr(const void* p) {
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
@@ -71,7 +77,7 @@ bool query_setting(uint32_t index, uint32_t* value) {
 // The calling thread's XAPI block (TLS slot *0x009268b0 of the array FS:[4] finds).
 uint8_t* xapi_thread_block() {
     const uint32_t index = title_global<uint32_t>(0x009268b0);
-    const uint32_t tls = platform_fs_word(4);
+    const uint32_t tls = title_fs_word(4);
     return reinterpret_cast<uint8_t*>(uintptr_t{reinterpret_cast<const uint32_t*>(uintptr_t{tls})[index]});
 }
 
@@ -93,6 +99,12 @@ struct AnsiString {
 }  // namespace
 
 void set_title_clock(TitleClock* clock) { g_title_clock = clock; }
+
+void set_title_fs_map(TitleFsMap* map) { g_title_fs_map = map; }
+
+uint32_t title_fs_word(uint32_t kpcr_offset) {
+    return platform_fs_word(g_title_fs_map ? g_title_fs_map(kpcr_offset) : kpcr_offset);
+}
 
 // --- Errors -----------------------------------------------------------------------------------------------------
 
@@ -802,8 +814,8 @@ uint32_t XB_STDCALL CreateThread(uint32_t attributes, uint32_t stack_size, uint3
             handle, 0, stack, title_global<uint32_t>(0x0098f668), thread_id, start, parameter,
             (flags >> 2) & 0xffffff01u, 0, own_address(&XapiThreadStartup));
     if (static_cast<int32_t>(status) < 0) {
-        const uint32_t irql = platform_fs_word(0x24) & 0xff;
-        const uint32_t kthread = platform_fs_word(0x28);
+        const uint32_t irql = title_fs_word(0x24) & 0xff;
+        const uint32_t kthread = title_fs_word(0x28);
         if (irql < 2 && *reinterpret_cast<const uint32_t*>(uintptr_t{kthread + 0x28}) != 0) {
             XapiSetLastNTError(status);
             return 0;
@@ -833,7 +845,7 @@ void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter) {
     // CRT's per-thread data), the start routine, the routines again, and the thread ends with its result. The
     // original wraps this in an SEH frame whose filter is UnhandledExceptionFilter; the loader's crash handler takes
     // that part (no title thread raises exceptions it does not handle itself).
-    const uint32_t kthread = platform_fs_word(0x28);
+    const uint32_t kthread = title_fs_word(0x28);
     const uint32_t tls = *reinterpret_cast<const uint32_t*>(uintptr_t{kthread + 0x28});
     uint8_t* const data = reinterpret_cast<uint8_t*>(uintptr_t{tls + 4});
     *reinterpret_cast<uint32_t*>(uintptr_t{tls}) = tls + 4;
@@ -846,6 +858,431 @@ void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter) {
     const uint32_t result = title_function<uint32_t XB_STDCALL(uint32_t)>(start)(parameter);
     XapiCallThreadNotifyRoutines(0);
     kernel<void XB_STDCALL(uint32_t)>(kPsTerminateSystemThread)(result);
+}
+
+// --- Threads, debugger -------------------------------------------------------------------------------------------
+
+uint32_t XB_STDCALL GetCurrentThreadId() {
+    // The current ETHREAD's UniqueThread (+0x12c); FS:[0x28] is the KPCR's current thread.
+    return *reinterpret_cast<const uint32_t*>(uintptr_t{title_fs_word(0x28) + 0x12c});
+}
+
+void XB_STDCALL OutputDebugStringA(const char*) {
+    // The original raises the debug-print service (int 0x2d, BREAKPOINT_PRINT) with the string's ANSI_STRING; a
+    // retail kernel without a debugger drops it, and under the loader that interrupt is a fault. Nothing to print to.
+}
+
+// --- Time --------------------------------------------------------------------------------------------------------
+
+void XB_STDCALL GetSystemTimeAsFileTime(uint32_t* time) {
+    // The original is a jump straight into KeQuerySystemTime.
+    kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(time);
+}
+
+uint32_t XB_STDCALL FileTimeToSystemTime(const uint32_t* file_time, uint16_t* system_time) {
+    // TIME_FIELDS (Year, Month, Day, Hour, Minute, Second, Milliseconds, Weekday) into SYSTEMTIME (Year, Month,
+    // DayOfWeek, Day, Hour, Minute, Second, Milliseconds).
+    uint32_t time[2] = {file_time[0], file_time[1]};
+    uint16_t fields[8];
+    kernel<void XB_STDCALL(uint32_t*, uint16_t*)>(kRtlTimeToTimeFields)(time, fields);
+    system_time[0] = fields[0];
+    system_time[1] = fields[1];
+    system_time[3] = fields[2];
+    system_time[2] = fields[7];
+    system_time[4] = fields[3];
+    system_time[5] = fields[4];
+    system_time[6] = fields[5];
+    system_time[7] = fields[6];
+    return 1;
+}
+
+uint32_t XB_STDCALL SystemTimeToFileTime(const uint16_t* system_time, uint32_t* file_time) {
+    // SYSTEMTIME into TIME_FIELDS (the weekday is not copied: RtlTimeFieldsToTime ignores it); a time the kernel
+    // refuses sets STATUS_INVALID_PARAMETER.
+    uint16_t fields[8];
+    fields[0] = system_time[0];
+    fields[1] = system_time[1];
+    fields[2] = system_time[3];
+    fields[3] = system_time[4];
+    fields[4] = system_time[5];
+    fields[5] = system_time[6];
+    fields[6] = system_time[7];
+    uint32_t time[2];
+    if (!kernel<uint8_t XB_STDCALL(uint16_t*, uint32_t*)>(kRtlTimeFieldsToTime)(fields, time)) {
+        XapiSetLastNTError(0xc000000d);
+        return 0;
+    }
+    file_time[0] = time[0];
+    file_time[1] = time[1];
+    return 1;
+}
+
+uint32_t XB_STDCALL XQueryValue(uint32_t index, uint32_t* type, void* value, uint32_t size, uint32_t* result_size) {
+    // ExQueryNonVolatileSetting through the title's jump stub, its status as a DOS error (0 = success).
+    const uint32_t status =
+        kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, void*, uint32_t, uint32_t*)>(kExQueryNonVolatileSetting)(
+            index, type, value, size, result_size);
+    return kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
+}
+
+namespace {
+
+int64_t file_time64(const uint32_t* time) {
+    return static_cast<int64_t>((static_cast<uint64_t>(time[1]) << 32) | time[0]);
+}
+
+// Minutes (a 32-bit product, as the original's imul) to 100 ns units.
+int64_t minutes_to_time(int32_t minutes) {
+    return static_cast<int64_t>(static_cast<int32_t>(static_cast<uint32_t>(minutes) * 60u)) * 10000000;
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL XapipQueryTimeZoneInformation(uint8_t* info, uint32_t* daylight_on) {
+    // All the user settings (index 0xff, 0x100 bytes); TIME_ZONE_INFORMATION from them: bias +4, standard/daylight
+    // names +8/+0xc (4 characters each), dates +0x18/+0x1c (month, day, day of week, hour), biases +0x28/+0x2c;
+    // the misc flags +0x58 bit 1 = daylight saving off (daylight_on gets the inverse).
+    uint32_t type;
+    uint8_t settings[0x100];
+    const uint32_t error = XQueryValue(0xff, &type, settings, 0x100, nullptr);
+    if (error != 0) return error;
+    std::memcpy(info, settings + 4, 4);
+    const auto name = [](const uint8_t* text, uint8_t* out) {
+        uint16_t* const wide = reinterpret_cast<uint16_t*>(out);
+        for (int i = 0; i < 4; ++i) wide[i] = text[i];
+        wide[4] = 0;
+    };
+    const auto date = [](const uint8_t* packed, uint8_t* out) {
+        uint16_t* const st = reinterpret_cast<uint16_t*>(out);
+        std::memset(st, 0, 16);
+        st[1] = packed[0];
+        st[3] = packed[1];
+        st[2] = packed[2];
+        st[4] = packed[3];
+    };
+    name(settings + 8, info + 0x4);
+    name(settings + 0xc, info + 0x58);
+    date(settings + 0x18, info + 0x44);
+    date(settings + 0x1c, info + 0x98);
+    std::memcpy(info + 0x54, settings + 0x28, 4);
+    std::memcpy(info + 0xa8, settings + 0x2c, 4);
+    if (daylight_on) {
+        uint32_t flags;
+        std::memcpy(&flags, settings + 0x58, 4);
+        *daylight_on = ~(flags >> 1) & 1;
+    }
+    return 0;
+}
+
+uint8_t XB_STDCALL RtlpCutoverTimeToSystemTime(const uint16_t* cutover, uint32_t* out, const uint32_t* now,
+                                               uint8_t this_year) {
+    // A time-zone change date: absolute (year set) or "the Nth <weekday> of <month>" (year 0, day = week 1..5,
+    // 5 = the last one). For the relative form the year is this one, or (this_year false) the next occurrence
+    // after now.
+    uint16_t current[8];
+    FileTimeToSystemTime(now, current);
+    if (cutover[0] != 0) {
+        if (!SystemTimeToFileTime(cutover, out)) return 0;
+        return file_time64(out) >= file_time64(now) ? 1 : 0;
+    }
+    const uint16_t week = cutover[3];
+    if (static_cast<int16_t>(week) > 5 || week == 0) return 0;
+    const uint16_t weekday = cutover[2];
+    const uint16_t month = cutover[1];
+    bool same_month = false;
+    uint16_t year = current[0];
+    if (!this_year) {
+        if (static_cast<int16_t>(month) < static_cast<int32_t>(current[1])) {
+            year = static_cast<uint16_t>(current[0] + 1);
+        } else if (static_cast<int16_t>(month) == static_cast<int32_t>(current[1])) {
+            same_month = true;
+        }
+    }
+    const auto& rtl_to_time = kernel<uint8_t XB_STDCALL(uint16_t*, uint32_t*)>(kRtlTimeFieldsToTime);
+    const auto& rtl_to_fields = kernel<void XB_STDCALL(uint32_t*, uint16_t*)>(kRtlTimeToTimeFields);
+    uint16_t fields[8];
+    const auto first_of_month = [&] {
+        fields[0] = year;
+        fields[1] = month;
+        fields[2] = 1;
+        fields[3] = cutover[4];
+        fields[4] = cutover[5];
+        fields[5] = cutover[6];
+        fields[6] = cutover[7];
+        fields[7] = 0;
+    };
+    first_of_month();
+    uint32_t time[2];
+    if (!rtl_to_time(fields, time)) return 0;
+    for (;;) {
+        // The first <weekday> of the month, then week - 1 more weeks while the day stays in the month.
+        uint16_t found[8];
+        rtl_to_fields(time, found);
+        if (static_cast<int16_t>(found[7]) > static_cast<int16_t>(weekday)) {
+            fields[2] = static_cast<uint16_t>(fields[2] + weekday - found[7] + 7);
+        } else if (static_cast<int16_t>(found[7]) < static_cast<int16_t>(weekday)) {
+            fields[2] = static_cast<uint16_t>(fields[2] + weekday - found[7]);
+        }
+        uint16_t day = fields[2];
+        for (uint16_t n = 1; static_cast<int16_t>(n) < static_cast<int16_t>(week); ++n) {
+            fields[2] = static_cast<uint16_t>(fields[2] + 7);
+            if (!rtl_to_time(fields, time)) break;
+            rtl_to_fields(time, found);
+            day = found[2];
+        }
+        fields[2] = day;
+        if (!rtl_to_time(fields, time)) return 0;
+        if (same_month) {
+            const int32_t this_day = static_cast<int16_t>(fields[2]);
+            const bool passed = this_day < current[3] ||
+                                (this_day == current[3] && file_time64(time) < file_time64(now));
+            if (passed) {
+                ++year;
+                first_of_month();
+                same_month = false;
+                if (!rtl_to_time(fields, time)) return 0;
+                continue;
+            }
+        }
+        out[0] = time[0];
+        out[1] = time[1];
+        return 1;
+    }
+}
+
+uint32_t XB_STDCALL GetTimeZoneInformation(uint8_t* info) {
+    // 0 unknown (no daylight dates), 1 standard, 2 daylight time now, -1 when the settings cannot be read.
+    uint32_t daylight_on = 0;
+    const uint32_t error = XapipQueryTimeZoneInformation(info, &daylight_on);
+    if (error != 0) {
+        SetLastError(error);
+        return 0xffffffff;
+    }
+    if (daylight_on == 0) {
+        std::memset(info + 0x54, 0, 4);
+        std::memset(info + 0x44, 0, 16);
+        std::memset(info + 0xa8, 0, 4);
+        std::memset(info + 0x98, 0, 16);
+        std::memset(info + 0x58, 0, 0x40);
+    }
+    uint32_t now[2];
+    kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(now);
+    const auto word = [&](uint32_t offset) { return *reinterpret_cast<const uint16_t*>(info + offset); };
+    const auto dword = [&](uint32_t offset) { return *reinterpret_cast<const int32_t*>(info + offset); };
+    if (word(0x46) == 0 || word(0x9a) == 0) return 0;
+    uint32_t standard[2], daylight[2];
+    if (!RtlpCutoverTimeToSystemTime(reinterpret_cast<const uint16_t*>(info + 0x44), standard, now, 1)) return 0;
+    if (!RtlpCutoverTimeToSystemTime(reinterpret_cast<const uint16_t*>(info + 0x98), daylight, now, 1)) return 0;
+    const int64_t bias = minutes_to_time(dword(0));
+    const int64_t daylight_utc = static_cast<int64_t>(static_cast<uint64_t>(bias) +
+                                                      static_cast<uint64_t>(minutes_to_time(dword(0x54))) +
+                                                      static_cast<uint64_t>(file_time64(daylight)));
+    const int64_t standard_utc = static_cast<int64_t>(static_cast<uint64_t>(bias) +
+                                                      static_cast<uint64_t>(minutes_to_time(dword(0xa8))) +
+                                                      static_cast<uint64_t>(file_time64(standard)));
+    const int64_t t = file_time64(now);
+    if (daylight_utc < standard_utc) return (t >= daylight_utc && t < standard_utc) ? 2 : 1;
+    return (t < standard_utc || t >= daylight_utc) ? 2 : 1;
+}
+
+void XB_STDCALL XapipGetTimeZoneBias(uint32_t* bias) {
+    // The bias in effect now (with the standard or daylight bias added), in 100 ns units; 0 when unreadable.
+    uint8_t info[0xac];
+    int32_t minutes = 0;
+    switch (GetTimeZoneInformation(info)) {
+        case 0: std::memcpy(&minutes, info, 4); break;
+        case 1: minutes = *reinterpret_cast<const int32_t*>(info) + *reinterpret_cast<const int32_t*>(info + 0x54); break;
+        case 2: minutes = *reinterpret_cast<const int32_t*>(info) + *reinterpret_cast<const int32_t*>(info + 0xa8); break;
+        default: break;
+    }
+    const int64_t value = minutes_to_time(minutes);
+    bias[0] = static_cast<uint32_t>(value);
+    bias[1] = static_cast<uint32_t>(static_cast<uint64_t>(value) >> 32);
+}
+
+uint32_t XB_STDCALL FileTimeToLocalFileTime(const uint32_t* file_time, uint32_t* local_time) {
+    uint32_t bias[2];
+    XapipGetTimeZoneBias(bias);
+    const uint64_t value = static_cast<uint64_t>(file_time64(file_time)) - static_cast<uint64_t>(file_time64(bias));
+    local_time[0] = static_cast<uint32_t>(value);
+    local_time[1] = static_cast<uint32_t>(value >> 32);
+    return 1;
+}
+
+// --- Files and disks ----------------------------------------------------------------------------------------------
+
+uint32_t XB_STDCALL DeleteFileA(const char* path) {
+    // Open for DELETE (sharing read/write/delete, non-directory, synchronous) and set FileDispositionInformation.
+    AnsiString name;
+    kernel<void XB_STDCALL(AnsiString*, const char*)>(kRtlInitAnsiString)(&name, path);
+    ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
+    uint32_t handle;
+    uint32_t io_status[2];
+    uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t*, uint32_t, ObjectAttributes*, uint32_t*, uint32_t, uint32_t)>(
+        kNtOpenFile)(&handle, 0x10000, &attributes, io_status, 7, 0x4040);
+    if (static_cast<int32_t>(status) < 0) {
+        XapiSetLastNTError(status);
+        return 0;
+    }
+    uint8_t delete_file = 1;
+    status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, void*, uint32_t, uint32_t)>(kNtSetInformationFile)(
+        handle, io_status, &delete_file, 1, 0xd);
+    kernel<uint32_t XB_STDCALL(uint32_t)>(kNtClose)(handle);
+    if (static_cast<int32_t>(status) < 0) {
+        XapiSetLastNTError(status);
+        return 0;
+    }
+    return 1;
+}
+
+namespace {
+
+// FILE_FS_SIZE_INFORMATION of the volume holding path (opened as a directory); false with the error set (a missing
+// file becomes "path not found", as in the originals).
+bool volume_size(const char* path, uint32_t* info) {
+    AnsiString name;
+    kernel<void XB_STDCALL(AnsiString*, const char*)>(kRtlInitAnsiString)(&name, path);
+    ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
+    uint32_t handle;
+    uint32_t io_status[2];
+    uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t*, uint32_t, ObjectAttributes*, uint32_t*, uint32_t, uint32_t)>(
+        kNtOpenFile)(&handle, 0x100001, &attributes, io_status, 3, 0x800021);
+    if (static_cast<int32_t>(status) < 0) {
+        XapiSetLastNTError(status);
+        if (GetLastError() == 2) SetLastError(3);
+        return false;
+    }
+    status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t)>(
+        kNtQueryVolumeInformationFile)(handle, io_status, info, 0x18, 3);
+    kernel<uint32_t XB_STDCALL(uint32_t)>(kNtClose)(handle);
+    if (static_cast<int32_t>(status) < 0) {
+        XapiSetLastNTError(status);
+        return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL XGetDiskSectorSizeA(const char* path) {
+    uint32_t info[6];
+    return volume_size(path, info) ? info[5] : 0;
+}
+
+uint32_t XB_STDCALL XGetDiskClusterSizeA(const char* path) {
+    uint32_t info[6];
+    return volume_size(path, info) ? info[4] * info[5] : 0;
+}
+
+uint32_t XB_STDCALL GetDiskFreeSpaceExA(const char* path, uint32_t* free_to_caller, uint32_t* total, uint32_t* free) {
+    uint32_t info[6];
+    if (!volume_size(path, info)) return 0;
+    const uint64_t cluster = static_cast<uint32_t>(info[4] * info[5]);
+    const uint64_t free_bytes = file_time64(info + 2) * cluster;
+    const uint64_t total_bytes = file_time64(info) * cluster;
+    const auto put = [](uint32_t* out, uint64_t value) {
+        if (!out) return;
+        out[0] = static_cast<uint32_t>(value);
+        out[1] = static_cast<uint32_t>(value >> 32);
+    };
+    put(free_to_caller, free_bytes);
+    put(total, total_bytes);
+    put(free, free_bytes);
+    return 1;
+}
+
+uint32_t XB_STDCALL CancelIo(uint32_t handle) {
+    // The original references the file object, then (at DPC level) moves the IDE channel's queued requests for it
+    // to a list a DPC cancels. Our kernel completes every request inside the call, so nothing is ever queued (and
+    // its IdexChannelObject is a zero block the original's list walk would fault on).
+    uint32_t object;
+    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*)>(kObReferenceObjectByHandle)(
+        handle, title_global<uint32_t>(kIoFileObjectType), &object);
+    if (static_cast<int32_t>(status) < 0) {
+        XapiSetLastNTError(status);
+        return 0;
+    }
+    kernel<void XB_FASTCALL(uint32_t)>(kObfDereferenceObject)(object);
+    return 1;
+}
+
+// --- Strings ------------------------------------------------------------------------------------------------------
+
+int32_t XB_STDCALL UTF8ToUnicode(const char* source, int32_t length, uint16_t* out, int32_t out_size) {
+    // ConvertUTF8toUTF16 with the title's tables (trailing bytes 0x008cfd28, offsets 0x008cfd10, constants from
+    // 0x008cfe28): length -1 = through the terminator; out_size 0 only counts. Characters past out_size are counted
+    // but not written; a short buffer then fails with ERROR_INSUFFICIENT_BUFFER. A sequence running past the
+    // input ends the conversion.
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(source);
+    if (length == -1) length = static_cast<int32_t>(std::strlen(source)) + 1;
+    int32_t written = 0;
+    const auto put = [&](uint16_t unit) {
+        ++written;
+        if (written <= out_size) *out++ = unit;
+    };
+    for (int32_t index = 0; index < length;) {
+        const uint8_t first = *p;
+        const uint32_t extra = static_cast<uint16_t>(static_cast<int8_t>(title_global<uint8_t>(0x008cfd28 + first)));
+        if (static_cast<int32_t>(extra + (p - reinterpret_cast<const uint8_t*>(source))) > length) break;
+        uint32_t ch = 0;
+        if (extra <= 5) {
+            for (uint32_t i = extra; i > 0; --i) {
+                ch += *p++;
+                ++index;
+                ch <<= 6;
+            }
+            ch += *p++;
+            ++index;
+        }
+        ch -= title_global<uint32_t>(0x008cfd10 + extra * 4);
+        if (ch <= title_global<uint32_t>(0x008cfe2c)) {
+            put(static_cast<uint16_t>(ch));
+        } else if (ch > title_global<uint32_t>(0x008cfe30)) {
+            put(title_global<uint16_t>(0x008cfe28));
+        } else {
+            ch -= title_global<uint32_t>(0x008cfe38);
+            put(static_cast<uint16_t>((ch >> (title_global<uint32_t>(0x008cfe34) & 31)) + title_global<uint32_t>(0x008cfe40)));
+            put(static_cast<uint16_t>((ch & title_global<uint32_t>(0x008cfe3c)) + title_global<uint32_t>(0x008cfe44)));
+        }
+    }
+    if (out_size != 0 && out_size < written) {
+        SetLastError(0x7a);
+        return 0;
+    }
+    return written;
+}
+
+int32_t XB_STDCALL MultiByteToWideChar(uint32_t code_page, uint32_t, const char* source, int32_t length,
+                                       uint16_t* out, int32_t out_size) {
+    // UTF-7 refused, UTF-8 by UTF8ToUnicode, anything else as ANSI through the kernel. The ANSI count is the length
+    // plus one even when the length is given (the terminator's slot), cut to 16 bits.
+    if (code_page == 0xfde8) {
+        SetLastError(0x57);
+        return 0;
+    }
+    if (code_page == 0xfde9) return UTF8ToUnicode(source, length, out, out_size);
+    uint32_t count = length == -1 ? static_cast<uint32_t>(std::strlen(source)) : static_cast<uint32_t>(length);
+    ++count;
+    const uint16_t needed = static_cast<uint16_t>(count);
+    if (out_size == 0) return needed;
+    if (out_size < needed) {
+        SetLastError(0x7a);
+        return 0;
+    }
+    AnsiString ansi;
+    ansi.length = static_cast<uint16_t>(count - 1);
+    ansi.maximum = static_cast<uint16_t>(count);
+    ansi.buffer = addr(source);
+    struct {
+        uint16_t length;
+        uint16_t maximum;
+        uint32_t buffer;
+    } unicode{static_cast<uint16_t>((count - 1) * 2), static_cast<uint16_t>(out_size * 2), addr(out)};
+    const uint32_t status = kernel<uint32_t XB_STDCALL(void*, AnsiString*, uint8_t)>(kRtlAnsiStringToUnicodeString)(
+        &unicode, &ansi, 0);
+    if (static_cast<int32_t>(status) >= 0) return needed;
+    SetLastError(kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status));
+    return 0;
 }
 
 }  // namespace game

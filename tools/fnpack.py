@@ -332,8 +332,41 @@ def hook_problem(rows, va):
     return None
 
 
+KERNEL_THUNKS = (0x007b2fe0, 0x007b3240)  # the XBE's kernel import table (after the loader's fix-up: ordinals)
+
+
+def kernel_ordinals():
+    names = {}
+    path = Path(__file__).resolve().parent / "data" / "xboxkrnl_ordinals.txt"
+    for line in path.read_text().splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            names[int(parts[0])] = parts[1]
+    return names
+
+
+KERNEL_NAMES = None
+IMAGE = None
+
+
+def kernel_import(va):
+    """Kernel export name for an import slot (the slot holds 0x80000000 | ordinal in the file)."""
+    global KERNEL_NAMES
+    if IMAGE is None or not KERNEL_THUNKS[0] <= va < KERNEL_THUNKS[1]:
+        return None
+    raw = IMAGE.read(va, 4)
+    if len(raw) != 4:
+        return None
+    word, = struct.unpack("<I", raw)
+    if not word & 0x80000000:
+        return None
+    if KERNEL_NAMES is None:
+        KERNEL_NAMES = kernel_ordinals()
+    return "krnl:" + KERNEL_NAMES.get(word & 0xffff, f"#{word & 0xffff}")
+
+
 def name_of(functions, data, va):
-    return functions.get(va) or data.get(va)
+    return functions.get(va) or data.get(va) or kernel_import(va)
 
 
 def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, asm_dir, no_asm):
@@ -418,7 +451,7 @@ def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, a
             notes.add(f"{len(unnamed)} unnamed callee(s): name them first (naming.md)")
     if globals_:
         def fmt_global(a):
-            label = data.get(a) or functions.get(a)
+            label = data.get(a) or functions.get(a) or kernel_import(a)
             if label:
                 return f"{label}@{a:08x}"
             if globals_[a] == ".rdata":  # unnamed constants: show the value
@@ -496,6 +529,8 @@ def main():
             except ValueError:
                 sys.exit(f"{item}: no such symbol")
     image = Image()
+    global IMAGE
+    IMAGE = image
     CALLERS.update(image.code_refs(targets))
     global POPS
     POPS = pops_reader(image, sorted(functions))

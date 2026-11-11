@@ -7,6 +7,7 @@
 // originals' calls. Registered as Compare rows at the original addresses (src/engine/shared/functions.cpp).
 
 #include <cstdint>
+#include <string>
 
 #include "compiler.h"
 
@@ -16,6 +17,13 @@ namespace game {
 // record/replay records per main-thread read and the compare harness stands in for. Set before the title starts.
 using TitleClock = int64_t XB_CDECL();
 void set_title_clock(TitleClock* clock);
+
+// A word of the title thread's FS block at a KPCR offset (FS:[4] TLS array, FS:[0x28] current KTHREAD, ...), read
+// where the title's own code reads it: the loader maps the offset (on Windows some KPCR fields live in TEB TLS
+// slots, see loader::title_fs_offset).
+using TitleFsMap = uint32_t(uint32_t);
+void set_title_fs_map(TitleFsMap* map);
+uint32_t title_fs_word(uint32_t kpcr_offset);
 
 // --- Errors (the thread's XAPI block: TLS slot *0x009268b0, +8 = last error) ---
 uint32_t XB_STDCALL GetLastError();                       // 0x001e7c84
@@ -85,5 +93,34 @@ uint32_t XB_STDCALL CreateThread(uint32_t attributes, uint32_t stack_size, uint3
                                  uint32_t flags, uint32_t* thread_id);  // 0x001e7896
 void XB_STDCALL XapiThreadStartup(uint32_t start, uint32_t parameter);  // 0x001e77fe
 void XB_STDCALL XapiCallThreadNotifyRoutines(uint32_t create);          // 0x001e76c6
+
+// Threads, debugger, time
+uint32_t XB_STDCALL GetCurrentThreadId();                                        // 0x001e7904
+void XB_STDCALL OutputDebugStringA(const char* text);                            // 0x001e7608
+void XB_STDCALL GetSystemTimeAsFileTime(uint32_t* time);                         // 0x001e7911
+uint32_t XB_STDCALL FileTimeToSystemTime(const uint32_t* file_time, uint16_t* system_time);  // 0x001e7062
+uint32_t XB_STDCALL SystemTimeToFileTime(const uint16_t* system_time, uint32_t* file_time);  // 0x001e70cd
+uint32_t XB_STDCALL XQueryValue(uint32_t index, uint32_t* type, void* value, uint32_t size,
+                                uint32_t* result_size);                          // 0x001ed6ef
+uint32_t XB_STDCALL XapipQueryTimeZoneInformation(uint8_t* info, uint32_t* daylight_on);  // 0x001e6fb0
+uint8_t XB_STDCALL RtlpCutoverTimeToSystemTime(const uint16_t* cutover, uint32_t* out, const uint32_t* now,
+                                               uint8_t this_year);               // 0x001e7179
+uint32_t XB_STDCALL GetTimeZoneInformation(uint8_t* info);                       // 0x001e7383
+void XB_STDCALL XapipGetTimeZoneBias(uint32_t* bias);                            // 0x001e74df
+uint32_t XB_STDCALL FileTimeToLocalFileTime(const uint32_t* file_time, uint32_t* local_time);  // 0x001e75b4
+
+// Files, disks, strings
+uint32_t XB_STDCALL DeleteFileA(const char* path);                               // 0x001e9e84
+uint32_t XB_STDCALL XGetDiskSectorSizeA(const char* path);                       // 0x001e9d67
+uint32_t XB_STDCALL XGetDiskClusterSizeA(const char* path);                      // 0x001e9cc8
+uint32_t XB_STDCALL GetDiskFreeSpaceExA(const char* path, uint32_t* free_to_caller, uint32_t* total,
+                                        uint32_t* free);                         // 0x001e9827
+uint32_t XB_STDCALL CancelIo(uint32_t handle);                                   // 0x001e86f2
+int32_t XB_STDCALL UTF8ToUnicode(const char* source, int32_t length, uint16_t* out, int32_t out_size);  // 0x001e9496
+int32_t XB_STDCALL MultiByteToWideChar(uint32_t code_page, uint32_t flags, const char* source, int32_t length,
+                                       uint16_t* out, int32_t out_size);         // 0x001e96a4
+
+// --check-crt: the functions above against the title's (title_xapi_check.cpp); the number of differences.
+int32_t check_title_xapi(std::string& report);
 
 }  // namespace game

@@ -14,6 +14,7 @@
 #include "title_data.h"
 #include "title_heap.h"
 #include "title_stdio.h"
+#include "title_xapi.h"
 
 // ---- x87 intrinsics (title_crt.h) ----
 // Frame of every entry: 0(%esp) the argument as a double (then the result's trip through a double), 8 the caller's
@@ -1077,16 +1078,16 @@ TitleThreadData* XB_CDECL title_getptd() {
     // (FS:[0x04][_tls_index] + 0xC), every other thread shares the one at 0x0098f9e0 - so threads without TLS share
     // one rand seed, as in the title. A missing block is ours (the title's CRT start-up made the first thread's).
     uint32_t slot = 0x0098f9e0;
-    if (title_global<uint32_t>(platform_fs_word(0x28) + 0x28)) {
+    if (title_global<uint32_t>(title_fs_word(0x28) + 0x28)) {
         const uint32_t index = title_global<uint32_t>(0x009268b0);
-        slot = title_global<uint32_t>(platform_fs_word(0x04) + index * 4) + 0xc;
+        slot = title_global<uint32_t>(title_fs_word(0x04) + index * 4) + 0xc;
     }
     uint32_t& pointer = title_global<uint32_t>(slot);
     if (!pointer) {  // as _getptd's first call on a thread: calloc'ed, seed 1, the "C" locale's info
         auto* data = new TitleThreadData{};
         data->mbcinfo = 0x008d1ad0;
         data->rand_seed = 1;
-        data->thread_id = title_function<uint32_t XB_STDCALL()>(0x001e7904)();  // GetCurrentThreadId
+        data->thread_id = GetCurrentThreadId();
         data->handle = 0xffffffffu;
         pointer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
     }
@@ -1559,7 +1560,7 @@ int32_t XB_CDECL title_atexit(uint32_t function) {
 
 int32_t XB_CDECL title_crt_clock() {
     uint32_t now[2] = {};
-    title_function<void XB_STDCALL(uint32_t*)>(0x001e7911)(now);  // GetSystemTimeAsFileTime
+    GetSystemTimeAsFileTime(now);
     const uint64_t time = (uint64_t{now[1]} << 32 | now[0]) - title_global<uint64_t>(kCrtStartTime);
     return static_cast<int32_t>(time / 10000);
 }

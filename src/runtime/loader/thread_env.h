@@ -75,6 +75,11 @@ NtTib& xbox_tib();
 // kernel mirrors the IRQL there.
 uint8_t* current_irql_location();
 
+// Where title code finds the KPCR word at `kpcr_offset` through FS: the same offset on Linux; on Windows the TEB
+// TLS slot the patched title code reads for the fields the TEB has something else at (Prcb, Irql, CurrentThread,
+// +0x58). Given to our C (game::set_title_fs_map), which reads FS the way the title does.
+uint32_t title_fs_offset(uint32_t kpcr_offset);
+
 class XbeImage;
 
 // Windows: FS is the TEB, whose fields past the NT_TIB differ from the KPCR's, so

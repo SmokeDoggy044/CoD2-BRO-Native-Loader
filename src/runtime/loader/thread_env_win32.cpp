@@ -95,6 +95,12 @@ void detail::leave_xbox_stack(ThreadEnv& env) {
 
 NtTib& xbox_tib() { return *reinterpret_cast<NtTib*>(NtCurrentTeb()); }
 
+uint32_t title_fs_offset(uint32_t kpcr_offset) {
+    const int field = field_index(kpcr_offset);
+    if (field < 0 || !allocate_slots()) return kpcr_offset;
+    return slot_offset(static_cast<size_t>(field));
+}
+
 uint8_t* current_irql_location() {
     if (!current_thread_env() || !g_slots_ready) return nullptr;
     return reinterpret_cast<uint8_t*>(NtCurrentTeb()) + slot_offset(kIrqlField);
