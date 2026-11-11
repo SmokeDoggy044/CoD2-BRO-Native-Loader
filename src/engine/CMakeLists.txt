@@ -94,6 +94,7 @@ set(game_code_sources
     shared/static_init.cpp
     shared/static_init_generated.cpp
     shared/title_heap.cpp
+    shared/title_start.cpp
     shared/title_stdio.cpp
     shared/title_xapi.cpp
     shared/title_xapi_check.cpp
