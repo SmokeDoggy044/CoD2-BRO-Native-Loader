@@ -17,6 +17,7 @@
 #include "scr_field.h"
 #include "xanim.h"
 #include "g_utils.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -492,7 +493,7 @@ int32_t XB_CDECL XModelParts_FindBone(const char* name, const XModelParts* parts
     if (!name) return -1;
     for (uint32_t i = 0; i < parts->bone_count; ++i) {
         const char* text = parts->bones[i].text;
-        if (text && title_function<int XB_CDECL(const char*, const char*)>(0x001f1443)(text, name) == 0)  // _stricmp
+        if (text && own_function<int XB_CDECL(const char*, const char*)>(&title_stricmp)(text, name) == 0)  // _stricmp
             return static_cast<int32_t>(i);
     }
     return -1;

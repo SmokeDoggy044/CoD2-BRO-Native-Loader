@@ -290,7 +290,7 @@ void XB_CDECL Turret_UpdateAimWithJitter(uint8_t* ent) {
     // turret turns toward it (AI turn rates).
     uint8_t* const info = pointer_at(ent, 0x24c);
     if (title_global<int32_t>(0x0098540c) > field<int32_t>(info, 0x1c) + 0x1194) {
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         field<int32_t>(info, 0x1c) = title_global<int32_t>(0x0098540c) - r % 3000;
         field<float>(info, 0x68) = static_cast<float>(r % 12) - title_global<float>(0x0083ecd0);  // 6
         field<float>(info, 0x6c) = static_cast<float>(r % 40) - title_global<float>(0x0083eb5c);  // 20
@@ -771,7 +771,7 @@ void XB_CDECL RespawnItem(uint8_t* ent) {
         uint8_t* const master = pointer_at(ent, 0x380);
         int32_t count = 0;
         for (uint8_t* e = master; e; e = pointer_at(e, 0x37c)) ++count;
-        int32_t choice = title_function<int32_t XB_CDECL()>(0x001efcc0)() % count;  // _rand
+        int32_t choice = own_function<int32_t XB_CDECL()>(&title_rand)() % count;  // _rand
         ent = master;
         for (; choice > 0; --choice) ent = pointer_at(ent, 0x37c);
     }
@@ -1029,7 +1029,7 @@ void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* 
             word_at(ent, 0x4c) = reinterpret_cast<const uint32_t*>(angles)[2];
             field<int32_t>(ent, 0x3c) = hit_time;
             const bool reverse = title_global<float>(0x0083ee48) > off;
-            const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
             float speed = ((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083066c) +
                            title_global<float>(0x0083f008)) *
                           field<float>(ent, 0x50);
@@ -1056,7 +1056,7 @@ void XB_CDECL G_BounceMissileAngles(float* angles, uint8_t* ent, const uint8_t* 
         return;
     }
     if (keep_spin) return;
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
     const float value = (static_cast<float>((r & 0x7f) - 0x3f) + field<float>(ent, 0x50)) * to_short;
     field<float>(ent, 0x50) = static_cast<float>(static_cast<int32_t>(value) & 0xffff) * from_short;
 }
@@ -2209,7 +2209,7 @@ void XB_CDECL Blocked_Door(uint8_t* ent, uint8_t* other) {
             if (other[0] == 4) {
                 const uint32_t name = word_at(other, 0x25c);
                 const char* const text = name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr;
-                if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(
+                if (own_function<const char* XB_CDECL(const char*, const char*)>(&title_strstr)(
                         text, reinterpret_cast<const char*>(uintptr_t{0x0083b06c}))) {  // _strstr "chair"
                     mover_crush(other, ent, 99999);
                     return;
@@ -3824,7 +3824,7 @@ void XB_CDECL G_CallSpawnByClassname(uint32_t entry, uint32_t ebx, uint32_t esi,
     const uint32_t rep = word_at(ent, 0x25c);
     const uint32_t name = rep ? rep + 6 : 0;
     const uint32_t compare_args[3] = {name, 0x00839dc8, 6};
-    if (!call_at(L, 0x00269d22, 0x001eeaf0, TitleRegs{name, ebx, 0, 0, 0x00983e1c, edi}, 3, compare_args)) {  // _strncmp "actor_"
+    if (!call_at(L, 0x00269d22, own_address(&title_strncmp), TitleRegs{name, ebx, 0, 0, 0x00983e1c, edi}, 3, compare_args)) {  // _strncmp "actor_"
         call_at(L, 0x00269d30, own_address(&Actor_Spawn_entry), TitleRegs{edi, ebx, 0, 0, 0x00983e1c, edi}, 0, nullptr);  // Actor_Spawn (EAX)
         hashes(0x00269d37);
         return;
@@ -4233,7 +4233,7 @@ void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched) {
     const float zero = 0.0f;
     if (field<float>(ent, 0x384) != zero) respawn = static_cast<int32_t>(field<float>(ent, 0x384));
     if (field<float>(ent, 0x388) != zero) {
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         float spread = static_cast<float>(r) * title_global<float>(0x0083ecf8);
         spread = spread - title_global<float>(0x0083eb20);
         spread = spread * field<float>(ent, 0x388);
@@ -4864,7 +4864,7 @@ void XB_CDECL Turret_FireFromFlashTags(uint32_t entry, uint8_t* user, uint32_t e
             else
                 info[2] &= 0x7f;
             const int32_t r = static_cast<int32_t>(
-                call_at(L, 0x00270cfd, 0x001efcc0, TitleRegs{info_word, info_word + 0x10, 0, 0, esi, edi}, 0, nullptr));  // _rand
+                call_at(L, 0x00270cfd, own_address(&title_rand), TitleRegs{info_word, info_word + 0x10, 0, 0, esi, edi}, 0, nullptr));  // _rand
             const float roll = static_cast<float>(r) * title_global<float>(0x0083ebe0);
             esi = m;
             edi = L + 0x1c;
@@ -5569,7 +5569,7 @@ void XB_CDECL G_BounceItem(uint32_t entry, uint8_t* tr, uint32_t ebx, uint32_t e
         call_at(L, 0x0026eecb, own_address(&SV_LinkEntity_entry), TitleRegs{self, ebx, 0, 0, trace, self}, 0, nullptr);  // SV_LinkEntity
         return;
     }
-    const int32_t r = static_cast<int32_t>(call_at(L, 0x0026eed7, 0x001efcc0, TitleRegs{0, ebx, 0, 0, trace, self}, 0,
+    const int32_t r = static_cast<int32_t>(call_at(L, 0x0026eed7, own_address(&title_rand), TitleRegs{0, ebx, 0, 0, trace, self}, 0,
                                                    nullptr));  // _rand
     float lift = static_cast<float>(r) / title_global<float>(0x0083ebc8);
     lift = (lift + title_global<float>(0x0083eb20)) * title_global<float>(0x0083eb24);
@@ -7398,7 +7398,7 @@ int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, ui
             const int32_t low = hi < lo ? hi : lo;
             if (high == 0 && low == 0) {
                 const int32_t clip = title_global<int32_t>(0x00935338 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4);
-                const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+                const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // rand
                 float f = static_cast<float>(r) * title_global<float>(0x0083ebe0) + title_global<float>(0x0083eb20);
                 f = f * static_cast<float>(clip - 1);
                 const float half = title_global<float>(0x0083eb24);
@@ -7411,7 +7411,7 @@ int32_t XB_CDECL Pickup_Weapon(uint8_t* ent, uint8_t* other, uint32_t* event, ui
                 if (high != 0 && high == low) {
                     value = low;
                 } else {
-                    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+                    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // rand
                     value = r % (high - low) + low;
                 }
                 field<int32_t>(ent, 0x370) = value;
@@ -8101,7 +8101,7 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         edi = 0x00988388;  // REP STOSD's end
     }
     const uint32_t seed_arg[1] = {seed};
-    call_at(T, 0x00273a69, 0x001efcb3, TitleRegs{seed, ebx, 0, 0, esi, edi}, 1, seed_arg);  // srand
+    call_at(T, 0x00273a69, own_address(&title_srand), TitleRegs{seed, ebx, 0, 0, esi, edi}, 1, seed_arg);  // srand
     const uint32_t ms = call_at(T - 4, 0x00273a6e, own_address(&Sys_Milliseconds), TitleRegs{0, ebx, 0, 0, esi, edi}, 0,
                                 nullptr);  // Sys_Milliseconds
     const uint32_t restore[1] = {esi};

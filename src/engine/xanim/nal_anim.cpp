@@ -9,6 +9,7 @@
 #include "qcommon_core.h"
 #include "shaders.h"
 #include "stream.h"
+#include "title_crt.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -1825,7 +1826,7 @@ uint32_t XB_CDECL Anim_InitManagers(uint32_t config) {
         auto* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
         if (manager) {
             manager[0] = m[1];
-            manager[1] = static_cast<uint32_t>(title_function<int32_t XB_CDECL()>(0x001efcc0)());  // rand
+            manager[1] = static_cast<uint32_t>(own_function<int32_t XB_CDECL()>(&title_rand)());  // rand
             manager[2] = 7;
             manager[3] = 0;
         }

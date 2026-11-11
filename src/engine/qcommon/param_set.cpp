@@ -4,6 +4,7 @@
 
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -187,7 +188,7 @@ const uint8_t* record_of(const ParamSet* set, uint32_t id) {
 }
 
 int32_t Stricmp(const char* a, const char* b) {
-    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);  // _stricmp
+    return own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(a, b);  // _stricmp
 }
 
 // MSVC's inline strcmp: 0, or -1/1 by the first differing byte (unsigned).

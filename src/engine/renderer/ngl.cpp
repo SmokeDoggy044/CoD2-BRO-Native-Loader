@@ -3133,7 +3133,7 @@ void XB_CDECL nglListAddTextf(const uint8_t* font, float x, float y, float z, ui
     char text[0x400];
     va_list args;
     va_start(args, format);
-    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     nglListAddText(font, text, x, y, z, color, scale_x, scale_y);
 }
@@ -3931,7 +3931,7 @@ void XB_CDECL nglGetTextExtentf(const uint8_t* font, int32_t* width, int32_t* he
     char text[0x400];
     va_list args;
     va_start(args, format);
-    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     nglGetTextExtent(font, text, width, height, 1.0f, 1.0f);
 }
@@ -3941,7 +3941,7 @@ void XB_CDECL nglGetTextSizef(const uint8_t* font, int32_t* width, int32_t* heig
     char text[0x400];
     va_list args;
     va_start(args, format);
-    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     nglGetTextExtent(font, text, width, height, scale_x, scale_y);
 }
@@ -4269,7 +4269,7 @@ int32_t XB_REGS2 XB_CDECL nglFontParseKeyInt(const char* key, char** cursor, int
         while (i < length && text[i] && text[i] == key[i]) ++i;
         if (i == length) {
             *cursor += length;
-            return title_function<int32_t XB_CDECL(const char*, char**, int32_t)>(0x001f0ecf)(*cursor, cursor, base);  // _strtol
+            return own_function<int32_t XB_CDECL(const char*, char**, int32_t)>(&title_strtol)(*cursor, cursor, base);  // _strtol
         }
         ++*cursor;
     }
@@ -4352,7 +4352,7 @@ uint32_t XB_CDECL nglParseFontFile(NglFont* font, char* text) {
     using Strtol = int32_t XB_CDECL(const char*, char**, int32_t);
     for (int32_t i = 0; i < font->glyph_count; ++i) {
         while (*text && (*text < '0' || *text > '9')) ++text;
-        const int32_t code = title_function<Strtol>(0x001f0ecf)(text, &text, 10);  // _strtol
+        const int32_t code = own_function<Strtol>(&title_strtol)(text, &text, 10);  // _strtol
         NglFontGlyph* glyph = font->glyphs + (code - font->first_glyph);
         glyph->x = nglFontParseKeyInt("x", &text, 10);
         glyph->y = nglFontParseKeyInt("y", &text, 10);
@@ -4406,7 +4406,7 @@ uint8_t XB_CDECL nglParseDDSPalette(uint32_t, uint8_t* texture) {
     header = data;
     entries = data + 0x10;
     using Strncmp = int32_t XB_CDECL(const void*, const char*, uint32_t);
-    if (title_function<Strncmp>(0x001eeaf0)(data, "DDSP", 4) || *reinterpret_cast<uint32_t*>(data + 4) != 1)
+    if (own_function<Strncmp>(&title_strncmp)(data, "DDSP", 4) || *reinterpret_cast<uint32_t*>(data + 4) != 1)
         return 0;
     const uint16_t& count = *reinterpret_cast<uint16_t*>(data + 8);
     palettes = static_cast<uint32_t*>(Mem_AlignedAlloc(count * 4u, 4, 0));
@@ -4532,7 +4532,7 @@ void XB_CDECL nglInitTextureManager() {
         uint32_t* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
         if (!manager) return 0;
         manager[0] = vtable;
-        manager[1] = static_cast<uint32_t>(title_function<int XB_CDECL()>(0x001efcc0)());  // _rand
+        manager[1] = static_cast<uint32_t>(own_function<int XB_CDECL()>(&title_rand)());  // _rand
         manager[2] = 7;
         manager[3] = 0;
         return reinterpret_cast<uintptr_t>(manager);
@@ -4615,7 +4615,7 @@ int32_t XB_THISCALL nglSkipList_RandomLevel(NglSkipList* self) {
         if (pair == 0) ++level;
         self->random_bits = bits >> 2;
         if (--self->bits_left == 0) {
-            self->random_bits = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+            self->random_bits = own_function<int32_t XB_CDECL()>(&title_rand)();  // rand
             self->bits_left = 7;
         }
     } while (pair == 0);
@@ -4827,7 +4827,7 @@ bool XB_CDECL nglLoadDDSTexture(NglTexture* texture, uint8_t* dds) {
 }
 
 int32_t XB_THISCALL nglTextCursor_NextToken(NglTextCursor* self, char* out, int32_t size) {
-    const auto isspace = title_function<int XB_CDECL(int)>(0x001eefa0);  // _isspace
+    const auto isspace = own_function<int XB_CDECL(int)>(&title_isspace);  // _isspace
     while (self->cursor - self->begin < self->length && isspace(*self->cursor) && *self->cursor != '\n')
         ++self->cursor;
     const char* start = self->cursor;
@@ -4851,7 +4851,7 @@ bool XB_CDECL nglLoadAnimatedTextureList(NglTexture* texture, const char* text, 
         do {
             char token[0x20];
             if (nglTextCursor_NextToken(&cursor, token, 0x1f)) {
-                char* dot = title_function<char* XB_CDECL(const char*, int)>(0x001ef5e0)(token, '.');  // _strchr
+                char* dot = own_function<char* XB_CDECL(const char*, int)>(&title_strchr)(token, '.');  // _strchr
                 if (dot) *dot = 0;
                 uint8_t hashed[0x20];
                 std::memcpy(name,
@@ -4997,7 +4997,7 @@ void XB_CDECL nglInitMeshFileCache() {
         return;
     }
     cache[0] = 0x007c1284;                                          // vtable
-    cache[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    cache[1] = own_function<uint32_t XB_CDECL()>(&title_rand)();  // _rand
     cache[2] = 7;
     cache[3] = 0;
     title_global<uint32_t>(0x00903d40) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cache));
@@ -5128,7 +5128,7 @@ void XB_CDECL nglInitFontManager() {
     auto* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
     if (manager) {
         manager[0] = 0x007bd0f8;                                          // vtable
-        manager[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        manager[1] = own_function<uint32_t XB_CDECL()>(&title_rand)();  // _rand
         manager[2] = 7;
         manager[3] = 0;
     }
@@ -5165,7 +5165,7 @@ void XB_CDECL nglInitMeshManagers() {
         auto* object = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
         if (object) {
             object[0] = manager[1];
-            object[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            object[1] = own_function<uint32_t XB_CDECL()>(&title_rand)();  // _rand
             object[2] = 7;
             object[3] = 0;
         }
@@ -5275,7 +5275,7 @@ bool XB_CDECL nglParseMesh(const uint32_t* name, uint8_t* file, const char* exte
     texture_word(reinterpret_cast<NglTexture*>(file), 0x134) = header;
     texture_word(reinterpret_cast<NglTexture*>(file), 0x144) = 0xffffffff;
     using Strncmp = int XB_CDECL(const char*, const char*, uint32_t);
-    if (title_function<Strncmp>(0x001eeaf0)(reinterpret_cast<const char*>(uintptr_t{header}),
+    if (own_function<Strncmp>(&title_strncmp)(reinterpret_cast<const char*>(uintptr_t{header}),
                                             reinterpret_cast<const char*>(uintptr_t{0x007be06c}), 4) ||  // "XBXM"
         word_at(header, 4) != 0x601 || !word_at(header, 8))
         return false;
@@ -5818,7 +5818,7 @@ uint8_t XB_CDECL nglReadFile(const char* name, uint32_t* out, uint32_t alignment
     // The data prefix (0x008bb660) goes in front unless the name starts with it.
     const char* prefix = &title_global<char>(0x008bb660);
     char path[0x200];
-    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(name, prefix,
+    if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(name, prefix,
                                                                                        std::strlen(prefix)))
         std::strcpy(path, prefix);
     else
@@ -6102,7 +6102,7 @@ void XB_CDECL nglDumpPrintf(uint32_t file, const char* format, ...) {
     char text[0x1000];
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     if (!file) return;
     uint32_t written;

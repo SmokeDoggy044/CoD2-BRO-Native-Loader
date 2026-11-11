@@ -90,7 +90,7 @@ uint32_t XB_CDECL Vehicle_FindDefIndex(uint32_t eax, const char* name) {
     // AX = the index or -1; the rest of EAX is what the last _stricmp (or the caller) left.
     if (!name || !*name) return eax | 0xffff;
     for (int16_t i = 0; i < vehicle_def_count(); ++i) {
-        eax = static_cast<uint32_t>(title_function<StrICmp>(0x001f1443)(name, reinterpret_cast<const char*>(vehicle_def(i))));  // _stricmp
+        eax = static_cast<uint32_t>(own_function<StrICmp>(&title_stricmp)(name, reinterpret_cast<const char*>(vehicle_def(i))));  // _stricmp
         if (eax == 0) return static_cast<uint16_t>(i);
     }
     return eax | 0xffff;
@@ -2749,7 +2749,7 @@ uint8_t* XB_CDECL Weapon_SpawnClusterGrenades(uint8_t* owner, const uint8_t* sou
         uint32_t seed = title_global<uint32_t>(0x008d5a70) * 0x343fd + 0x269ec3;
         title_global<uint32_t>(0x008d5a70) = seed;
         yaw[i] = static_cast<int32_t>((seed >> 17) * 0x168) >> 15;
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         const float range = static_cast<float>(at<int32_t>(def, 0x750));
         dist[i] = static_cast<int32_t>((((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8)) -
                                         title_global<float>(0x0083eb20)) * range);
@@ -2912,7 +2912,7 @@ void XB_CDECL Weapon_FireClusterAtTrace(uint8_t* fire, uint8_t* owner, uint32_t 
     angles[1] = static_cast<float>(static_cast<int32_t>((seed >> 17) * 0x168) >> 15);
     float forward[3];
     AnglesToForward(angles, forward);
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
     const float range = static_cast<float>(at<int32_t>(at<uint8_t*>(fire, 0x3c), 0x750)) * title_global<float>(0x0083eca0);
     const float d = static_cast<float>(static_cast<int32_t>(
         (((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8)) - title_global<float>(0x0083eb20)) * range));
@@ -3826,9 +3826,9 @@ uint8_t* fire_spread_projectile(uint8_t* owner, const float* fire, uint32_t E) {
     *slot = title_ci_tan_degrees(*slot);
     const float radius = *slot * title_global<float>(0x0083ebb8);  // 16
     *pointer<float>(E - 0x1c) = radius;
-    *slot = (static_cast<float>(title_function<Rand>(0x001efcc0)()) / title_global<float>(0x0083ebc8)) *
+    *slot = (static_cast<float>(own_function<Rand>(&title_rand)()) / title_global<float>(0x0083ebc8)) *
             title_global<float>(0x0083ebcc);  // 0..360
-    const float fraction = static_cast<float>(title_function<Rand>(0x001efcc0)()) / title_global<float>(0x0083ebc8);
+    const float fraction = static_cast<float>(own_function<Rand>(&title_rand)()) / title_global<float>(0x0083ebc8);
     *pointer<float>(E - 0x24) = fraction;
     FastSinCos(pointer<float>(E - 0x20), 0, slot, (*slot * title_global<float>(0x0083ed00)) / title_global<float>(0x0083eb60));
     const float c = (*slot * fraction) * radius;
@@ -4820,7 +4820,7 @@ int32_t XB_REGS3 XB_STDCALL VehicleNode_FindByKey(uint32_t all, uint32_t, const 
         {0x00833a38, 0x0c},  // "lookahead"
         {0x00833ab0, 0x10},  // "script_noteworthy"
     };
-    const auto stricmp = title_function<StrICmp>(0x001f1443);  // _stricmp
+    const auto stricmp = own_function<StrICmp>(&title_stricmp);  // _stricmp
     uint32_t field = 0;
     bool known = false;
     for (uint32_t k = 0; k < 7; ++k) {
@@ -6042,7 +6042,7 @@ void XB_CDECL ClientThink_real(uint32_t entry_esp, uint32_t ebx, uint32_t esi, u
                 if (platform_x87_greater(title_global<float>(0x0083ef08), speed)) {  // 200
                     const auto random = [&](uint32_t ret, uint32_t esi_now) {
                         const int32_t r = static_cast<int32_t>(
-                            veh_call_at(B, ret, 0x001efcc0, TitleRegs{0, cl_w, 0, 0, esi_now, ent_w}));  // rand
+                            veh_call_at(B, ret, own_address(&title_rand), TitleRegs{0, cl_w, 0, 0, esi_now, ent_w}));  // rand
                         return ((static_cast<float>(r) / title_global<float>(0x0083ebc8)) * title_global<float>(0x0083eba8) -
                                 title_global<float>(0x0083eb20)) *
                                title_global<float>(0x0083eb90);
@@ -6330,7 +6330,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
     }
     const auto sort = [&](uint32_t n, uint32_t ret) {
         const uint32_t args[4] = {list_w, n, 8, 0x00248aa0};
-        veh_call_at(B, ret, 0x001ef880, TitleRegs{0, 0, 0, 0, n, 0}, 4, args);  // qsort
+        veh_call_at(B, ret, own_address(&title_qsort), TitleRegs{0, 0, 0, 0, n, 0}, 4, args);  // qsort
     };
     sort(wd(0x1c), 0x002644bf);
     const int32_t usable = static_cast<int32_t>(wd(0x1c) - wd(0x14));
@@ -6671,7 +6671,7 @@ void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx,
                     args);  // G_NotifyWithIntEntity
         return;
     }
-    const int32_t r = static_cast<int32_t>(veh_call_at(B, 0x00266226, 0x001efcc0, TitleRegs{0, ent_w, 0, 0, fire_w, hit_w}));  // rand
+    const int32_t r = static_cast<int32_t>(veh_call_at(B, 0x00266226, own_address(&title_rand), TitleRegs{0, ent_w, 0, 0, fire_w, hit_w}));  // rand
     {
         const uint32_t amount = wd(0x4c) + static_cast<uint32_t>(r % 5);
         const uint32_t args[9] = {hit_w, ent_w, ent_w, fire_w, amount, 0, 7, wd(0x88), 0xffffffffu};

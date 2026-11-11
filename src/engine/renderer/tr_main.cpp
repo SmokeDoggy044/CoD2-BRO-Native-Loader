@@ -3053,7 +3053,7 @@ PLATFORM_ASM_ENTRY(RE_ParseButtonToken_entry,
 
 uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint32_t table, const char* text, const char** next,
                                      const char** icon) {
-    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const auto strchr = own_function<const char* XB_CDECL(const char*, int)>(&title_strchr);
     const auto strncpy = title_strncpy;
     if (text) {
         const char* open = strchr(text, '{');
@@ -3118,7 +3118,7 @@ void XB_CDECL RE_DrawTextExt(float x, float y, uint32_t font_name, float scale, 
     const uint8_t* font = title_function<FindFont>(title_global<uint32_t>(0x0095e6b4))(font_name, size);
     if (!font) return;
     int32_t width, height;
-    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const auto strchr = own_function<const char* XB_CDECL(const char*, int)>(&title_strchr);
     const char* open = strchr(text, '{');
     if (!open || !strchr(open, '}')) {
         draw_text_run(font, text, x, y, title_global<float>(0x008db12c) * scale, color, &width, &height);
@@ -3177,7 +3177,7 @@ int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extensio
             break;
         }
     }
-    const auto stricmp = title_function<int XB_CDECL(const char*, const char*)>(0x001f1443);  // _stricmp
+    const auto stricmp = own_function<int XB_CDECL(const char*, const char*)>(&title_stricmp);  // _stricmp
     for (int32_t i = 0; i < 7; ++i)
         if (stricmp(key, &title_global<char>(0x0095f7e8 + i * 0x20)) == 0) return i;
     return 8;
@@ -3193,7 +3193,7 @@ int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale)
     const uint8_t* font =
         title_function<FindFont>(title_global<uint32_t>(0x0095e6b4))(font_name, title_global<float>(0x008db12c) * scale);
     int32_t width, height;
-    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const auto strchr = own_function<const char* XB_CDECL(const char*, int)>(&title_strchr);
     const char* open = strchr(text, '{');
     if (!open || !strchr(open, '}')) {
         const float s = title_global<float>(0x008db12c) * scale;

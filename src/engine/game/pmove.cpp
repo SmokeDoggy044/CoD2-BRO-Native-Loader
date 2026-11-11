@@ -385,7 +385,7 @@ void XB_CDECL BG_SetupAltWeaponIndices() {
             int32_t alt = 1;
             for (; alt <= last(); ++alt) {
                 const uint8_t* const other = weapon_def_at(alt);
-                if (title_function<StrICmp>(0x001f1443)(at<const char*>(def, 0x714), at<const char*>(other, 8))) continue;
+                if (own_function<StrICmp>(&title_stricmp)(at<const char*>(def, 0x714), at<const char*>(other, 8))) continue;
                 at<int32_t>(def, 0x718) = alt;
                 if (at<uint32_t>(def, 0x9c) != at<uint32_t>(other, 0x9c))
                     title_function<Break>(0x002938f0)(1, pointer<const char>(0x00835510), at<uint32_t>(def, 8), at<uint32_t>(other, 8));

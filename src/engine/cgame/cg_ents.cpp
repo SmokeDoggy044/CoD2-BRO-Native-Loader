@@ -16,6 +16,7 @@
 #include "cm.h"
 #include "pmove.h"
 #include "qcommon_core.h"
+#include "title_crt.h"
 
 // Calls `function` on the current stack with all six registers from `regs` and `count`
 // stack words (args[0] pushed last, popped again here); returns its EAX.
@@ -64,7 +65,6 @@ T& at(void* base, uint32_t offset) {
     return *reinterpret_cast<T*>(static_cast<uint8_t*>(base) + offset);
 }
 
-int32_t title_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }
 
 // The title CRT's __CIsqrt of an x87 value, stored as float.
 float title_ci_sqrt_ext(long double x) {
@@ -928,7 +928,7 @@ void XB_REGS3 XB_CDECL CG_DamageFeedback(int32_t yaw_byte, uint32_t, int32_t pit
         uint8_t* slot = &title_global<uint8_t>(0x00972f00 + oldest * 12);
         at<int32_t>(slot, 0) = *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x00971aa8) + 4);
         at<uint32_t>(slot, 4) = title_global<uint32_t>(0x0094bffc);
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         const float jitter = (static_cast<float>(r) / g(0x0083ebc8) - g(0x0083eb24)) * g(0x0083eb5c) + yaw;
         at<float>(slot, 8) = static_cast<float>(static_cast<int32_t>(jitter * g(0x0083ebd8)) & 0xffff) * g(0x0083ebd4);
     }
@@ -1449,7 +1449,7 @@ namespace {
 
 // A random value between the weapon definition's floats lo and hi (0x00972acc).
 float weapon_random(uint32_t lo, uint32_t hi) {
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
     const uint8_t* def = title_global<const uint8_t*>(0x00972acc);
     const float low = *reinterpret_cast<const float*>(def + lo);
     return (*reinterpret_cast<const float*>(def + hi) - low) * (static_cast<float>(r) * g(0x0083ebe0)) + low;

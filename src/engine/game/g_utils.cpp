@@ -388,7 +388,7 @@ uint8_t* XB_CDECL Vehicle_FindCollmap(const char* name) {
         if (!ent || word_at(ent, 0x260) != title_global<uint32_t>(0x0097a798)) continue;  // script_vehicle_collmap
         const uint8_t* rep = *reinterpret_cast<const uint8_t* const*>(ent + 0x264);
         const char* text = rep ? reinterpret_cast<const char*>(rep + 6) : nullptr;
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(text, name)) return ent;  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(text, name)) return ent;  // __stricmp
     }
     return nullptr;
 }
@@ -465,7 +465,7 @@ uint8_t* XB_CDECL G_FindAnimTreeByName(const char* name) {
     const uint32_t* list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
     for (uint32_t i = 1; i < list[0]; ++i) {
         uint8_t* record = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(list[1])) + (i < list[0] ? i : 0) * 12;
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // __stricmp
                 *reinterpret_cast<const char* const*>(record), name))
             return record;
     }
@@ -581,7 +581,6 @@ float title_tan_degrees(float degrees, float pi, float half_turn) {
     return result;
 }
 
-int32_t title_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }
 
 }  // namespace
 
@@ -1017,7 +1016,7 @@ void XB_CDECL multi_trigger(uint32_t activator, uint8_t* ent) {
     if (wait > title_global<float>(0x0083eafc)) {
         // Wait again: next think in (wait + random * spread) seconds.
         word_at(ent, 0x32c) = 0x12;
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         const int32_t now = title_global<int32_t>(0x0098540c);                 // level.time
         float f = static_cast<float>(r) * title_global<float>(0x0083ecf8);
         f = f - title_global<float>(0x0083eb20);
@@ -2119,7 +2118,7 @@ int32_t XB_CDECL G_FindConfigstringIndex(int32_t max, const char* name, int32_t 
         const uint32_t string = title_global<uint32_t>(0x00964ce0 + (base + i) * 4);  // configstrings
         const char* const text = string ? reinterpret_cast<const char*>(uintptr_t{string + 6}) : nullptr;
         if (!*text) break;
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(text, name)) return i;  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(text, name)) return i;  // __stricmp
     }
     if (!create) {
         if (error)
@@ -2402,7 +2401,7 @@ void XB_REGS3 XB_CDECL G_SetModel(int32_t context, uint8_t* ent, const char* nam
     // A cdChar skin with 15 variants: a random one (1..count-1) in the entity's render record (+0xee).
     uint8_t* const skin = follow(node, 0x1c);
     if (word_at(skin, 4) != 0xf) return;
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
     const uint8_t variant =
         static_cast<uint8_t>(static_cast<uint32_t>(r >> 2) % (word_at(skin, 0x4c) - 1) + 1);
     CG_GetEntityRefEntity(ent)[0xee] = variant;
@@ -3029,7 +3028,7 @@ void XB_CDECL G_EntDetachAll(uint8_t* ent) {
 uint32_t XB_CDECL G_EntDetach(uint8_t* ent, const char* model, const char* tag) {
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     if (!tag || !*tag) return 0;
-    if (!title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(
+    if (!own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(
             model, reinterpret_cast<const char*>(uintptr_t{0x00832870}), 7))  // _strnicmp "xmodel/"
         model += 7;
     uint32_t slot = 0;
@@ -3038,9 +3037,9 @@ uint32_t XB_CDECL G_EntDetach(uint8_t* ent, const char* model, const char* tag) 
         if (!string || string + 6 == 0) continue;
         const char* const text = reinterpret_cast<const char*>(uintptr_t{string + 6});
         if (!*text || !word_at(ent, 0x3d8 + slot * 8)) continue;
-        if (title_function<Stricmp>(0x001f1443)(text, tag)) continue;  // _stricmp
+        if (own_function<Stricmp>(&title_stricmp)(text, tag)) continue;  // _stricmp
         const char* const name = reinterpret_cast<const char*>(uintptr_t{word_at(ptr_at(ent, 0x3d8 + slot * 8), 0x48)});
-        if (!title_function<Stricmp>(0x001f1443)(name, model)) break;
+        if (!own_function<Stricmp>(&title_stricmp)(name, model)) break;
     }
     if (slot == 7) return 0;
     const auto clear = own_function<void XB_THISCALL(uint8_t*)>(&ScriptString_Clear);  // ScriptString_Clear
@@ -3089,7 +3088,7 @@ uint32_t XB_CDECL G_EntAttach(uint8_t* ent, int32_t context, const char* model, 
     char name[0x20];
     Q_strncpyLen(name, reinterpret_cast<int32_t*>(&local), 0x1f, tag);
     name[0x1f] = static_cast<char>(local);
-    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(name);  // _strlwr
+    own_function<char* XB_CDECL(char*)>(&title_strlwr)(name);  // _strlwr
     own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(ent + 0x3dc + slot * 8,
                                                                        name);  // ScriptString_AssignCString
     if (ignore_collision) ent[0x299] |= static_cast<uint8_t>(1u << slot);
@@ -3250,7 +3249,7 @@ void XB_CDECL G_SetObjectiveString(int32_t index, const ScriptString* text, uint
         release();
         return;
     }
-    const auto strchr = title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0);
+    const auto strchr = own_function<const char* XB_CDECL(const char*, int32_t)>(&title_strchr);
     if (strchr(string, '"') || strchr(string, ';') || strchr(string, '\\')) {
         uint32_t args[2] = {0x00831a80, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(string))};
         va(args);  // "Objective strings can not have a ", a ;, or a \ in them..."
@@ -3723,7 +3722,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
         }
         {
             const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
-            bone_call(F, 0x002dee29, 0x00011240, TitleRegs{record, P, F + 0x80, record, skeleton, skeleton}, 4,
+            bone_call(F, 0x002dee29, own_address(&title_vector_constructor_iterator), TitleRegs{record, P, F + 0x80, record, skeleton, skeleton}, 4,
                       args);  // eh_vector_constructor_iterator (no-op constructor)
         }
         for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = rows[i];
@@ -3754,7 +3753,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
         bone_word(F + 0xbc) = M;
         {
             const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
-            bone_call(F, 0x002df22d, 0x00011240, TitleRegs{record, record, F + 0x80, record, skeleton, M}, 4,
+            bone_call(F, 0x002df22d, own_address(&title_vector_constructor_iterator), TitleRegs{record, record, F + 0x80, record, skeleton, M}, 4,
                       args);  // eh_vector_constructor_iterator (no-op constructor)
         }
         for (uint32_t i = 0; i < 12; ++i) bone_float(F + 0x80 + i * 4) = rows[i];
@@ -3806,7 +3805,7 @@ void XB_CDECL Spg_FindRandomVariant(const uint8_t* table, uint32_t* out, uint32_
             if (data[0] == 1) {
                 const int32_t count = data[1];
                 if (count != 0) {
-                    const int32_t pick = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+                    const int32_t pick = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
                     int32_t r = pick % count;
                     if (data[2] != -1 && r == data[2]) r = (r + 1) % count;
                     data[2] = r;

@@ -499,7 +499,7 @@ uint32_t XB_CDECL SelectRandomDeathmatchSpawnPoint() {
         ++count;
     }
     if (!count) return found[1];
-    const int32_t pick = title_function<int32_t XB_CDECL()>(0x001efcc0)() % count;  // _rand
+    const int32_t pick = own_function<int32_t XB_CDECL()>(&title_rand)() % count;  // _rand
     return spots[pick];
 }
 

@@ -28,7 +28,7 @@ void XB_CDECL PathNodeTree_ReservoirPickDeepest(uint32_t* count, const uint8_t* 
             *reinterpret_cast<const int16_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{*best}) + 0x5e);
         if (depth == best_depth) {
             ++*count;
-            const uint32_t r = static_cast<uint32_t>(title_function<int32_t XB_CDECL()>(0x001efcc0)());  // _rand
+            const uint32_t r = static_cast<uint32_t>(own_function<int32_t XB_CDECL()>(&title_rand)());  // _rand
             if (static_cast<int32_t>(r * *count) <= 0x7fff) *best = node_word;
             return;
         }
@@ -356,7 +356,7 @@ void XB_REGS1 XB_STDCALL PathNodeBlock_ResetLinkState(uint8_t* world, uint32_t i
 
 void XB_REGS3 XB_CDECL PathNode_ParseScriptKeys(uint8_t* world, uint32_t, uint32_t index) {
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
-    const auto stricmp = title_function<Stricmp>(0x001f1443);  // _stricmp
+    const auto stricmp = own_function<Stricmp>(&title_stricmp);  // _stricmp
     auto is = [&](const char* key, uint32_t text) { return stricmp(key, reinterpret_cast<const char*>(ptr(text))) == 0; };
     auto import = [](uint32_t slot) { return word_at(ptr(title_global<uint32_t>(0x0095f49c)), slot); };
     uint8_t* const block = path_block(world, index);
@@ -583,7 +583,7 @@ uint8_t* XB_REGS1 XB_STDCALL PathNodeTree_PickAvailableInSubtree(uint8_t* root, 
             const int16_t best_depth = static_cast<int16_t>(depth_of(best));
             if (depth == best_depth) {
                 ++picks;
-                const uint32_t r = static_cast<uint32_t>(title_function<int32_t XB_CDECL()>(0x001efcc0)());  // _rand
+                const uint32_t r = static_cast<uint32_t>(own_function<int32_t XB_CDECL()>(&title_rand)());  // _rand
                 if (static_cast<int32_t>(r * picks) > 0x7fff) continue;
             } else if (depth < best_depth) {
                 continue;
@@ -700,7 +700,7 @@ int32_t XB_REGS1 XB_STDCALL PathNode_FindByKey(const ScriptString* key, uint8_t*
         {0x00833a8c, 0x2c},  // "spawnflags"
         {0x00833a84, 0x28},  // "type"
     };
-    const auto stricmp = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443);  // _stricmp
+    const auto stricmp = own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp);  // _stricmp
     uint32_t field = 0;
     bool known = false;
     for (uint32_t k = 0; k < 9; ++k) {
@@ -1269,7 +1269,7 @@ uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint
     regs.eax = static_cast<uint32_t>(count);
     regs.edi = static_cast<uint32_t>(count);
     const uint32_t sort_args[4] = {address_of(list), static_cast<uint32_t>(count), 8, 0x002aa110};
-    title_call_at_regs(address_of(frame), 0x001ef880, &regs, 4, sort_args);  // qsort by distance
+    title_call_at_regs(address_of(frame), own_address(&title_qsort), &regs, 4, sort_args);  // qsort by distance
     // The actor box (g_actorMins/Maxs; mins z raised by 0x0083eed0); the fourth lanes are never set (zero in tests).
     const float* const actor_mins = &title_global<float>(0x0098a560);
     const float* const actor_maxs = &title_global<float>(0x0098a550);

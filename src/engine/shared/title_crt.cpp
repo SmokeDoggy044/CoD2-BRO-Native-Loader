@@ -172,7 +172,9 @@ std::string narrow_from_utf16(const uint16_t* text, int precision) {
 
 }  // namespace
 
-int32_t title_vsprintf(char* out, const char* format, va_list args) {
+namespace {
+// VC7.1's _output: the whole formatted text (the callers below place it).
+std::string format_text(const char* format, va_list args) {
     std::string result;
     for (const char* p = format; *p;) {
         if (*p != '%') {
@@ -296,8 +298,33 @@ int32_t title_vsprintf(char* out, const char* format, va_list args) {
             break;
         }
     }
+    return result;
+}
+}  // namespace
+
+int32_t XB_CDECL title_vsprintf(char* out, const char* format, va_list args) {
+    const std::string result = format_text(format, args);
     std::memcpy(out, result.c_str(), result.size() + 1);
     return static_cast<int32_t>(result.size());
+}
+
+int32_t XB_CDECL title_vsnprintf(char* out, uint32_t count, const char* format, va_list args) {
+    // A string FILE with _cnt = count: each character first decrements the (int) count and is stored if it is still
+    // >= 0, else the result becomes -1; then the terminator the same way. So 0x80000000 is not "no room": it wraps to
+    // 0x7fffffff and takes everything. Not modelled: counts above 0x80000000 (the counter wraps to positive after the
+    // first character, and the title's _output then goes on after the -1); no caller passes one. No buffer: only
+    // counts.
+    const std::string result = format_text(format, args);
+    const auto length = static_cast<uint32_t>(result.size());
+    if (!out) return static_cast<int32_t>(length);
+    const auto fits = [count](uint32_t used) { return static_cast<int32_t>(count - used) >= 0; };
+    bool failed = false;
+    for (uint32_t i = 0; i < length; ++i) {
+        if (fits(i + 1)) out[i] = result[i];
+        else failed = true;
+    }
+    if (fits(length + 1)) out[length] = 0;
+    return failed ? -1 : static_cast<int32_t>(length);
 }
 
 int32_t XB_CDECL title_sprintf(char* out, const char* format, ...) {
@@ -613,6 +640,567 @@ void XB_STDCALL title_vector_destruct(void* array, uint32_t size, int32_t count,
     }
 }
 
+// ---- per-thread data ----
+
+namespace {
+constexpr uint32_t kGetptd = 0x001f3327;
+constexpr uint32_t kPctype = 0x008d1650;        // const uint16_t* _pctype
+constexpr uint32_t kCrtStartTime = 0x00926a58;  // ___inittime's start FILETIME
+}  // namespace
+
+TitleThreadData* XB_CDECL title_getptd() {
+    // The title's lookup: a thread with TLS data (KTHREAD at FS:[0x28], +0x28) keeps its pointer in its TLS block
+    // (FS:[0x04][_tls_index] + 0xC), every other thread shares the one at 0x0098f9e0 - so threads without TLS share
+    // one rand seed, as in the title. A missing block is ours (the title's CRT start-up made the first thread's).
+    uint32_t slot = 0x0098f9e0;
+    if (title_global<uint32_t>(platform_fs_word(0x28) + 0x28)) {
+        const uint32_t index = title_global<uint32_t>(0x009268b0);
+        slot = title_global<uint32_t>(platform_fs_word(0x04) + index * 4) + 0xc;
+    }
+    uint32_t& pointer = title_global<uint32_t>(slot);
+    if (!pointer) {  // as _getptd's first call on a thread: calloc'ed, seed 1, the "C" locale's info
+        auto* data = new TitleThreadData{};
+        data->mbcinfo = 0x008d1ad0;
+        data->rand_seed = 1;
+        data->thread_id = title_function<uint32_t XB_STDCALL()>(0x001e7904)();  // GetCurrentThreadId
+        data->handle = 0xffffffffu;
+        pointer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
+    }
+    return reinterpret_cast<TitleThreadData*>(static_cast<uintptr_t>(pointer));
+}
+
+TitleThreadData* title_thread_data() {
+    return title_function<TitleThreadData* XB_CDECL()>(kGetptd)();
+}
+
+void XB_CDECL title_srand(uint32_t seed) {
+    title_thread_data()->rand_seed = seed;
+}
+
+int32_t XB_CDECL title_rand() {
+    TitleThreadData* data = title_thread_data();
+    data->rand_seed = data->rand_seed * 0x343fdu + 0x269ec3u;
+    return static_cast<int32_t>((data->rand_seed >> 16) & 0x7fff);
+}
+
+int32_t* XB_CDECL title_errno() {
+    return &title_thread_data()->error;
+}
+
+// ---- strings and ctype ----
+
+namespace {
+uint16_t ctype_flags(int32_t c) {
+    const uint32_t table = title_global<uint32_t>(kPctype);
+    return title_global<uint16_t>(table + static_cast<uint32_t>(c) * 2);
+}
+}  // namespace
+
+int32_t XB_CDECL title_isalpha(int32_t c) { return ctype_flags(c) & 0x103; }
+int32_t XB_CDECL title_isdigit(int32_t c) { return ctype_flags(c) & 0x4; }
+int32_t XB_CDECL title_isspace(int32_t c) { return ctype_flags(c) & 0x8; }
+int32_t XB_CDECL title_isalnum(int32_t c) { return ctype_flags(c) & 0x107; }
+
+int32_t XB_CDECL title_strncmp(const char* a, const char* b, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) {
+        const auto x = static_cast<uint8_t>(a[i]), y = static_cast<uint8_t>(b[i]);
+        if (x != y) return x < y ? -1 : 1;
+        if (!x) break;
+    }
+    return 0;
+}
+
+namespace {
+struct CharSet {  // the 256-bit maps strtok / strcspn build
+    uint8_t bits[32] = {};
+    void add(uint8_t c) { bits[c >> 3] |= static_cast<uint8_t>(1u << (c & 7)); }
+    bool has(uint8_t c) const { return bits[c >> 3] & (1u << (c & 7)); }
+};
+}  // namespace
+
+char* XB_CDECL title_strtok(char* text, const char* delimiters) {
+    TitleThreadData* data = title_thread_data();
+    CharSet set;
+    const char* d = delimiters;
+    do set.add(static_cast<uint8_t>(*d)); while (*d++);  // the terminator is in the set too
+    char* p = text ? text : reinterpret_cast<char*>(static_cast<uintptr_t>(data->token));
+    while (set.has(static_cast<uint8_t>(*p)) && *p) ++p;  // skip leading delimiters
+    char* const start = p;
+    for (; *p; ++p)
+        if (set.has(static_cast<uint8_t>(*p))) {
+            *p++ = 0;
+            break;
+        }
+    data->token = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
+    return start == p ? nullptr : start;
+}
+
+uint32_t XB_CDECL title_strcspn(const char* text, const char* reject) {
+    CharSet set;
+    for (const char* r = reject; *r; ++r) set.add(static_cast<uint8_t>(*r));
+    uint32_t n = 0;
+    while (text[n] && !set.has(static_cast<uint8_t>(text[n]))) ++n;
+    return n;
+}
+
+char* XB_CDECL title_strchr(const char* text, int32_t c) {
+    const char wanted = static_cast<char>(c);
+    for (;; ++text) {
+        if (*text == wanted) return const_cast<char*>(text);
+        if (!*text) return nullptr;
+    }
+}
+
+char* XB_CDECL title_strstr(const char* text, const char* part) {
+    if (!*part) return const_cast<char*>(text);
+    for (; *text; ++text) {
+        const char *a = text, *b = part;
+        while (*a && *a == *b) ++a, ++b;
+        if (!*b) return const_cast<char*>(text);
+    }
+    return nullptr;
+}
+
+int32_t XB_CDECL title_stricmp(const char* a, const char* b) {
+    // __locale_changed (0x00926d1c) stays 0: __ascii_stricmp, which folds only 'A'..'Z'.
+    for (;;) {
+        auto x = static_cast<uint8_t>(*a++), y = static_cast<uint8_t>(*b++);
+        if (x != y) {
+            if (static_cast<uint8_t>(x - 'A') < 26) x += 0x20;
+            if (static_cast<uint8_t>(y - 'A') < 26) y += 0x20;
+            if (x != y) return x < y ? -1 : 1;
+        }
+        if (!x) return 0;
+    }
+}
+
+char* XB_CDECL title_strlwr(char* text) {
+    for (char* p = text; *p; ++p)
+        if (*p >= 'A' && *p <= 'Z') *p = static_cast<char>(*p + 0x20);
+    return text;
+}
+
+char* XB_CDECL title_strupr(char* text) {
+    for (char* p = text; *p; ++p)
+        if (*p >= 'a' && *p <= 'z') *p = static_cast<char>(*p - 0x20);
+    return text;
+}
+
+int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base) {
+    // VC7.1's strtoxl with the signed flag: whitespace by _pctype bit 8, then [+-], base 0 picks 8/10/16 from the
+    // prefix, overflow sets errno ERANGE (34) and returns LONG_MAX / LONG_MIN; no digits: 0 and *end = text.
+    const char* p = text;
+    uint8_t c = static_cast<uint8_t>(*p++);
+    while (ctype_flags(c) & 0x8) c = static_cast<uint8_t>(*p++);
+    bool negative = false;
+    if (c == '-') {
+        negative = true;
+        c = static_cast<uint8_t>(*p++);
+    } else if (c == '+') {
+        c = static_cast<uint8_t>(*p++);
+    }
+    if (base < 0 || base == 1 || base > 36) {
+        if (end) *end = const_cast<char*>(text);
+        return 0;
+    }
+    if (base == 0) {
+        if (c != '0') base = 10;
+        else if (*p == 'x' || *p == 'X') base = 16;
+        else base = 8;
+    }
+    if (base == 16 && c == '0' && (*p == 'x' || *p == 'X')) {
+        ++p;
+        c = static_cast<uint8_t>(*p++);
+    }
+    const uint32_t limit = 0xffffffffu / static_cast<uint32_t>(base), limit_digit = 0xffffffffu % static_cast<uint32_t>(base);
+    uint32_t value = 0;
+    bool any = false, overflow = false;
+    for (;; c = static_cast<uint8_t>(*p++)) {
+        const uint16_t flags = ctype_flags(c);
+        uint32_t digit;
+        if (flags & 0x4) {
+            digit = static_cast<uint32_t>(static_cast<int8_t>(c) - '0');
+        } else if (flags & 0x103) {
+            const int32_t upper = (c >= 'a' && c <= 'z') ? c - 0x20 : static_cast<int8_t>(c);
+            digit = static_cast<uint32_t>(upper - 'A' + 10);
+        } else {
+            break;
+        }
+        if (digit >= static_cast<uint32_t>(base)) break;
+        any = true;
+        if (value < limit || (value == limit && digit <= limit_digit)) value = value * static_cast<uint32_t>(base) + digit;
+        else overflow = true;
+    }
+    --p;
+    if (!any) {
+        if (end) *end = const_cast<char*>(text);
+        return 0;
+    }
+    if (overflow || (negative && value > 0x80000000u) || (!negative && value > 0x7fffffffu)) {
+        *title_errno() = 34;
+        value = negative ? 0x80000000u : 0x7fffffffu;
+    }
+    if (end) *end = const_cast<char*>(p);
+    return static_cast<int32_t>(negative ? 0u - value : value);
+}
+
+int32_t XB_CDECL title_strnicmp(const char* a, const char* b, uint32_t count) {
+    // __locale_changed stays 0: __ascii_strnicmp. Stops at the first terminator of either string.
+    uint8_t x = 0, y = 0;
+    for (; count; --count) {
+        x = static_cast<uint8_t>(*a++);
+        y = static_cast<uint8_t>(*b++);
+        if (!x || !y) break;
+        if (x >= 'A' && x <= 'Z') x += 0x20;
+        if (y >= 'A' && y <= 'Z') y += 0x20;
+        if (x != y) break;
+    }
+    if (!count || x == y) return 0;
+    return x < y ? -1 : 1;
+}
+
+int32_t XB_CDECL title_snprintf(char* out, uint32_t count, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    const int32_t n = title_vsnprintf(out, count, format, args);
+    va_end(args);
+    return n;
+}
+
+namespace {
+uint32_t abstract_cw(uint32_t cw) {  // __abstract_cw
+    uint32_t a = 0;
+    if (cw & 0x01) a |= 0x10;
+    if (cw & 0x04) a |= 0x08;
+    if (cw & 0x08) a |= 0x04;
+    if (cw & 0x10) a |= 0x02;
+    if (cw & 0x20) a |= 0x01;
+    if (cw & 0x02) a |= 0x80000;
+    switch (cw & 0xc00) {
+        case 0x400: a |= 0x100; break;
+        case 0x800: a |= 0x200; break;
+        case 0xc00: a |= 0x300; break;
+        default: break;
+    }
+    if (!(cw & 0x300)) a |= 0x20000;
+    else if ((cw & 0x300) == 0x200) a |= 0x10000;
+    if (cw & 0x1000) a |= 0x40000;
+    return a;
+}
+
+uint32_t hardware_cw(uint32_t a) {  // __hw_cw
+    uint32_t cw = 0;
+    if (a & 0x10) cw |= 0x01;
+    if (a & 0x08) cw |= 0x04;
+    if (a & 0x04) cw |= 0x08;
+    if (a & 0x02) cw |= 0x10;
+    if (a & 0x01) cw |= 0x20;
+    if (a & 0x80000) cw |= 0x02;
+    cw |= (a & 0x300) << 2;  // _RC_DOWN 0x100 -> 0x400, _RC_UP 0x200 -> 0x800, _RC_CHOP -> 0xc00
+    if (!(a & 0x30000)) cw |= 0x300;
+    else if ((a & 0x30000) == 0x10000) cw |= 0x200;
+    if (a & 0x40000) cw |= 0x1000;
+    return cw;
+}
+}  // namespace
+
+uint32_t XB_CDECL title_control87(uint32_t value, uint32_t mask) {
+    const uint32_t a = (abstract_cw(platform_x87_control_word()) & ~mask) | (value & mask);
+    platform_set_x87_control_word(static_cast<uint16_t>(hardware_cw(a)));
+    return a;
+}
+
+uint32_t XB_CDECL title_controlfp(uint32_t value, uint32_t mask) {
+    return title_control87(value, mask & 0xfff7ffff);
+}
+
+// ---- sorting and searching ----
+
+namespace {
+using CompareFn = int32_t XB_CDECL(const void*, const void*);
+
+void swap_bytes(char* a, char* b, uint32_t width) {
+    if (a == b) return;
+    for (uint32_t i = 0; i < width; ++i) std::swap(a[i], b[i]);
+}
+
+void short_sort(char* lo, char* hi, uint32_t width, CompareFn* compare) {
+    while (hi > lo) {
+        char* max = lo;
+        for (char* p = lo + width; p <= hi; p += width)
+            if (compare(p, max) > 0) max = p;
+        swap_bytes(max, hi, width);
+        hi -= width;
+    }
+}
+}  // namespace
+
+void XB_CDECL title_qsort(void* base, uint32_t count, uint32_t width, uint32_t compare_address) {
+    if (count < 2 || width == 0) return;
+    CompareFn* const compare = title_function<CompareFn>(compare_address);
+    char* lo_stack[30];
+    char* hi_stack[30];
+    int32_t depth = 0;
+    char* lo = static_cast<char*>(base);
+    char* hi = lo + width * (count - 1);
+    for (;;) {
+        const uint32_t size = static_cast<uint32_t>(hi - lo) / width + 1;
+        if (size <= 8) {
+            short_sort(lo, hi, width, compare);
+        } else {
+            char* mid = lo + (size / 2) * width;
+            if (compare(lo, mid) > 0) swap_bytes(lo, mid, width);
+            if (compare(lo, hi) > 0) swap_bytes(lo, hi, width);
+            if (compare(mid, hi) > 0) swap_bytes(mid, hi, width);
+            char* lo_guy = lo;
+            char* hi_guy = hi;
+            for (;;) {
+                if (mid > lo_guy) {
+                    do lo_guy += width;
+                    while (lo_guy < mid && compare(lo_guy, mid) <= 0);
+                }
+                if (mid <= lo_guy) {
+                    do lo_guy += width;
+                    while (lo_guy <= hi && compare(lo_guy, mid) <= 0);
+                }
+                do hi_guy -= width;
+                while (hi_guy > mid && compare(hi_guy, mid) > 0);
+                if (hi_guy < lo_guy) break;
+                swap_bytes(lo_guy, hi_guy, width);
+                if (mid == hi_guy) mid = lo_guy;
+            }
+            hi_guy += width;
+            if (mid < hi_guy) {
+                do hi_guy -= width;
+                while (hi_guy > mid && compare(hi_guy, mid) == 0);
+            }
+            if (mid >= hi_guy) {
+                do hi_guy -= width;
+                while (hi_guy > lo && compare(hi_guy, mid) == 0);
+            }
+            if (hi_guy - lo >= hi - lo_guy) {
+                if (lo < hi_guy) {
+                    lo_stack[depth] = lo;
+                    hi_stack[depth++] = hi_guy;
+                }
+                if (lo_guy < hi) {
+                    lo = lo_guy;
+                    continue;
+                }
+            } else {
+                if (lo_guy < hi) {
+                    lo_stack[depth] = lo_guy;
+                    hi_stack[depth++] = hi;
+                }
+                if (lo < hi_guy) {
+                    hi = hi_guy;
+                    continue;
+                }
+            }
+        }
+        if (--depth < 0) return;
+        lo = lo_stack[depth];
+        hi = hi_stack[depth];
+    }
+}
+
+void* XB_CDECL title_bsearch(const void* key, const void* base, uint32_t count, uint32_t width,
+                             uint32_t compare_address) {
+    CompareFn* const compare = title_function<CompareFn>(compare_address);
+    const char* lo = static_cast<const char*>(base);
+    const char* hi = lo + (count - 1) * width;
+    while (lo <= hi) {
+        const uint32_t half = count / 2;
+        if (half) {
+            const uint32_t step = (count & 1) ? half : half - 1;
+            const char* mid = lo + step * width;
+            const int32_t result = compare(key, mid);
+            if (!result) return const_cast<char*>(mid);
+            if (result < 0) {
+                hi = mid - width;
+                count = step;
+            } else {
+                lo = mid + width;
+                count = half;
+            }
+        } else if (count) {
+            return compare(key, lo) ? nullptr : const_cast<char*>(lo);
+        } else {
+            break;
+        }
+    }
+    return nullptr;
+}
+
+// ---- start-up / time ----
+
+namespace {
+std::vector<uint32_t>& at_exit_list() {
+    static std::vector<uint32_t> list;
+    return list;
+}
+}  // namespace
+
+int32_t XB_CDECL title_atexit(uint32_t function) {
+    at_exit_list().push_back(function);
+    return 0;
+}
+
+int32_t XB_CDECL title_crt_clock() {
+    uint32_t now[2] = {};
+    title_function<void XB_STDCALL(uint32_t*)>(0x001e7911)(now);  // GetSystemTimeAsFileTime
+    const uint64_t time = (uint64_t{now[1]} << 32 | now[0]) - title_global<uint64_t>(kCrtStartTime);
+    return static_cast<int32_t>(time / 10000);
+}
+
+// ---- 64-bit helpers ----
+
+int64_t XB_STDCALL title_allmul(int64_t a, int64_t b) {
+    return static_cast<int64_t>(static_cast<uint64_t>(a) * static_cast<uint64_t>(b));
+}
+
+int64_t XB_STDCALL title_alldiv(int64_t a, int64_t b) {
+    // Unsigned division of the magnitudes, then the sign (INT64_MIN / -1 stays INT64_MIN, no trap).
+    const bool negative = (a < 0) != (b < 0);
+    const uint64_t x = a < 0 ? 0 - static_cast<uint64_t>(a) : static_cast<uint64_t>(a);
+    const uint64_t y = b < 0 ? 0 - static_cast<uint64_t>(b) : static_cast<uint64_t>(b);
+    const uint64_t q = x / y;
+    return static_cast<int64_t>(negative ? 0 - q : q);
+}
+
+uint64_t XB_STDCALL title_aulldiv(uint64_t a, uint64_t b) {
+    return a / b;
+}
+
+}  // namespace game
+
+// The register-convention helpers, as the title's (they only move bits; the x87 rounding of _ftol is the
+// thread's own mode, as in the original).
+PLATFORM_ASM_ENTRY(title_chkstk_entry,
+                   "testl %eax, %eax\n"
+                   "je 3f\n"
+                   "cmpl $0x1000, %eax\n"
+                   "jae 1f\n"
+                   "negl %eax\n"
+                   "addl %esp, %eax\n"
+                   "addl $4, %eax\n"
+                   "testl %eax, (%eax)\n"
+                   "xchgl %eax, %esp\n"
+                   "movl (%eax), %eax\n"
+                   "pushl %eax\n"
+                   "ret\n"
+                   "1: pushl %ecx\n"
+                   "leal 8(%esp), %ecx\n"
+                   "2: subl $0x1000, %ecx\n"
+                   "subl $0x1000, %eax\n"
+                   "testl %eax, (%ecx)\n"
+                   "cmpl $0x1000, %eax\n"
+                   "jae 2b\n"
+                   "subl %eax, %ecx\n"
+                   "movl %esp, %eax\n"
+                   "testl %eax, (%ecx)\n"
+                   "movl %ecx, %esp\n"
+                   "movl (%eax), %ecx\n"
+                   "movl 4(%eax), %eax\n"
+                   "pushl %eax\n"
+                   "3: ret")
+
+PLATFORM_ASM_ENTRY(title_allshr_entry,
+                   "cmpb $0x40, %cl\n"
+                   "jae 2f\n"
+                   "cmpb $0x20, %cl\n"
+                   "jae 1f\n"
+                   "shrdl %cl, %edx, %eax\n"
+                   "sarl %cl, %edx\n"
+                   "ret\n"
+                   "1: movl %edx, %eax\n"
+                   "sarl $31, %edx\n"
+                   "andb $31, %cl\n"
+                   "sarl %cl, %eax\n"
+                   "ret\n"
+                   "2: sarl $31, %edx\n"
+                   "movl %edx, %eax\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(title_ftol_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "subl $0x20, %esp\n"
+                   "andl $0xfffffff0, %esp\n"
+                   "fld %st(0)\n"
+                   "fsts 0x18(%esp)\n"
+                   "fistpll 0x10(%esp)\n"
+                   "fildll 0x10(%esp)\n"
+                   "movl 0x18(%esp), %edx\n"
+                   "movl 0x10(%esp), %eax\n"
+                   "testl %eax, %eax\n"
+                   "je 3f\n"
+                   "1: .byte 0xde, 0xe9\n"  // fsubp st(1), st: x - rounded
+                   "testl %edx, %edx\n"
+                   "jns 2f\n"
+                   "fstps (%esp)\n"
+                   "movl (%esp), %ecx\n"
+                   "xorl $0x80000000, %ecx\n"
+                   "addl $0x7fffffff, %ecx\n"
+                   "adcl $0, %eax\n"
+                   "movl 0x14(%esp), %edx\n"
+                   "adcl $0, %edx\n"
+                   "jmp 4f\n"
+                   "2: fstps (%esp)\n"
+                   "movl (%esp), %ecx\n"
+                   "addl $0x7fffffff, %ecx\n"
+                   "sbbl $0, %eax\n"
+                   "movl 0x14(%esp), %edx\n"
+                   "sbbl $0, %edx\n"
+                   "jmp 4f\n"
+                   "3: movl 0x14(%esp), %edx\n"
+                   "testl $0x7fffffff, %edx\n"
+                   "jne 1b\n"
+                   "fstps 0x18(%esp)\n"
+                   "fstps 0x18(%esp)\n"
+                   "4: leave\n"
+                   "ret")
+
+namespace game {
+
+// ---- eh vector iterators ----
+
+void XB_STDCALL title_vector_constructor_iterator(void* array, uint32_t size, int32_t count, uint32_t function) {
+    title_vector_construct(array, size, count, function);
+}
+
+void XB_STDCALL title_vector_destructor_iterator(void* array, uint32_t size, int32_t count, uint32_t function) {
+    title_vector_destruct(array, size, count, function);
+}
+
+void XB_STDCALL title_eh_vector_destruct(void* array, uint32_t size, int32_t count, uint32_t function) {
+    title_vector_destruct(array, size, count, function);
+}
+
+void XB_STDCALL title_eh_vector_construct(void* array, uint32_t size, int32_t count, uint32_t function, uint32_t) {
+    auto* p = static_cast<uint8_t*>(array);
+    for (int32_t i = 0; i < count; ++i, p += size) title_function<void XB_THISCALL(void*)>(function)(p);
+}
+
+}  // namespace game
+
+// Calls for the check: _ftol with `value` in ST0, _allshr with EDX:EAX = value and CL = shift (cdecl, EDX:EAX back).
+extern "C" int64_t crt_check_call_ftol(double value, uint32_t function);
+extern "C" int64_t crt_check_call_shift(int64_t value, uint32_t shift, uint32_t function);
+PLATFORM_ASM_ENTRY(crt_check_call_ftol,
+                   "fldl 4(%esp)\n"
+                   "call *12(%esp)\n"
+                   "fstp %st(0)\n"
+                   "ret")
+PLATFORM_ASM_ENTRY(crt_check_call_shift,
+                   "movl 4(%esp), %eax\n"
+                   "movl 8(%esp), %edx\n"
+                   "movl 12(%esp), %ecx\n"
+                   "call *16(%esp)\n"
+                   "ret")
+
+namespace game {
+
 namespace {
 void add_line(std::string& report, const char* format, ...) {
     char line[1400];
@@ -753,6 +1341,229 @@ int32_t check_title_crt(std::string& report) {
             ++failures;
             add_line(report, "sscanf \"%s\": title %d (%g %g %g), ours %d (%g %g %g)", text, na, fa[0], fa[1], fa[2], nb,
                      fb[0], fb[1], fb[2]);
+        }
+    }
+
+    // rand: the same sequence after the same seed (both through the title's per-thread data here).
+    const auto orig_srand = title_function<void XB_CDECL(uint32_t)>(0x001efcb3);
+    const auto orig_rand = title_function<int32_t XB_CDECL()>(0x001efcc0);
+    for (uint32_t seed : {0u, 1u, 12345u, 0xdeadbeefu}) {
+        int32_t x[64], y[64];
+        orig_srand(seed);
+        for (int32_t& v : x) v = orig_rand();
+        title_srand(seed);
+        for (int32_t& v : y) v = title_rand();
+        if (std::memcmp(x, y, sizeof x)) {
+            ++failures;
+            add_line(report, "rand after srand(%u): sequences differ", seed);
+        }
+    }
+
+    // strings
+    static const char* const words[] = {"", "a", "A", "abc", "ABC", "abd", "ab", "abcd", "Zebra", "zebra", "_x", "[x",
+                                        "\x80" "a", "\xff", "a\x80", "Hello World", "hello world", "hello"};
+    const auto orig_stricmp = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443);
+    const auto orig_strncmp = title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0);
+    const auto orig_strstr = title_function<char* XB_CDECL(const char*, const char*)>(0x001efb10);
+    const auto orig_strcspn = title_function<uint32_t XB_CDECL(const char*, const char*)>(0x001ef010);
+    for (const char* u : words)
+        for (const char* v : words) {
+            if (orig_stricmp(u, v) != title_stricmp(u, v)) {
+                ++failures;
+                add_line(report, "stricmp \"%s\" \"%s\": title %d, ours %d", u, v, orig_stricmp(u, v), title_stricmp(u, v));
+            }
+            for (uint32_t n : {0u, 1u, 2u, 3u, 100u})
+                if (orig_strncmp(u, v, n) != title_strncmp(u, v, n)) {
+                    ++failures;
+                    add_line(report, "strncmp \"%s\" \"%s\" %u: title %d, ours %d", u, v, n, orig_strncmp(u, v, n),
+                             title_strncmp(u, v, n));
+                }
+            if (orig_strstr(u, v) != title_strstr(u, v) || orig_strcspn(u, v) != title_strcspn(u, v)) {
+                ++failures;
+                add_line(report, "strstr/strcspn \"%s\" \"%s\" differ", u, v);
+            }
+        }
+    const auto orig_strnicmp = title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486);
+    for (const char* u : words)
+        for (const char* v : words)
+            for (uint32_t n : {0u, 1u, 2u, 3u, 5u, 100u})
+                if (orig_strnicmp(u, v, n) != title_strnicmp(u, v, n)) {
+                    ++failures;
+                    add_line(report, "strnicmp \"%s\" \"%s\" %u: title %d, ours %d", u, v, n, orig_strnicmp(u, v, n),
+                             title_strnicmp(u, v, n));
+                }
+    const auto orig_controlfp = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x001f0a40);
+    const auto orig_control87 = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x001f0a0e);
+    const uint16_t saved_cw = platform_x87_control_word();
+    // Every exception stays masked (an unmasked one with its sticky flag set would trap at the next x87 op).
+    for (uint16_t start : {uint16_t{0x027f}, uint16_t{0x037f}, uint16_t{0x007f}, uint16_t{0x0f7f}, uint16_t{0x1e7f},
+                           uint16_t{0x017f}, uint16_t{0x0b3f}})
+        for (uint32_t value : {0x8001fu, 0x9001fu, 0x8031fu, 0x8011fu, 0x8021fu, 0xa001fu, 0xb001fu, 0xc001fu, 0xffffffffu})
+            for (uint32_t mask : {0u, 0x8001fu, 0x300u, 0x30000u, 0x40000u, 0xfff7ffffu, 0xffffffffu})
+                for (int which = 0; which < 2; ++which) {
+                    platform_set_x87_control_word(start);
+                    const uint32_t ra = which ? orig_control87(value, mask) : orig_controlfp(value, mask);
+                    const uint16_t ca = platform_x87_control_word();
+                    platform_set_x87_control_word(start);
+                    const uint32_t rb = which ? title_control87(value, mask) : title_controlfp(value, mask);
+                    const uint16_t cb = platform_x87_control_word();
+                    if (ra != rb || ca != cb) {
+                        ++failures;
+                        add_line(report, "control%s %04x (%x, %x): title %x cw %04x, ours %x cw %04x",
+                                 which ? "87" : "fp", start, value, mask, ra, ca, rb, cb);
+                    }
+                }
+    platform_set_x87_control_word(saved_cw);
+    const auto orig_strchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0);
+    for (const char* u : words)
+        for (int32_t c : {0, int32_t{'a'}, int32_t{'b'}, int32_t{'c'}, int32_t{'A'}, 0x80, -128, 0x180, 0xff, -1, int32_t{' '}})
+            if (orig_strchr(u, c) != title_strchr(u, c)) {
+                ++failures;
+                add_line(report, "strchr \"%s\" %d differs", u, c);
+            }
+    const auto orig_strlwr = title_function<char* XB_CDECL(char*)>(0x001fa3b2);
+    const auto orig_strupr = title_function<char* XB_CDECL(char*)>(0x001fa3d5);
+    for (const char* u : words) {
+        std::strcpy(a, u);
+        std::strcpy(b, u);
+        if (orig_strlwr(a) != a || title_strlwr(b) != b || std::strcmp(a, b) ||
+            (orig_strupr(a), title_strupr(b), std::strcmp(a, b))) {
+            ++failures;
+            add_line(report, "strlwr/strupr \"%s\" differ", u);
+        }
+    }
+    const auto orig_strtok = title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4);
+    for (const char* text : {"a b  c", "  lead", "trail  ", "", "   ", "one", ",a,,b,", "x\ny z"}) {
+        std::strcpy(a, text);
+        std::strcpy(b, text);
+        std::string ta, tb;
+        for (char* t = orig_strtok(a, " ,\n"); t; t = orig_strtok(nullptr, " ,\n")) ta += std::to_string(t - a) + ":" + t + "|";
+        for (char* t = title_strtok(b, " ,\n"); t; t = title_strtok(nullptr, " ,\n")) tb += std::to_string(t - b) + ":" + t + "|";
+        if (ta != tb || std::memcmp(a, b, std::strlen(text) + 1)) {
+            ++failures;
+            add_line(report, "strtok \"%s\": title %s, ours %s", text, ta.c_str(), tb.c_str());
+        }
+    }
+    const auto orig_strtol = title_function<int32_t XB_CDECL(const char*, char**, int32_t)>(0x001f0ecf);
+    const auto orig_errno = title_function<int32_t* XB_CDECL()>(0x001f0ac5);
+    for (const char* text : {"0", "42", "-42", " +7x", "0x1F", "0X", "0x", "017", "08", "z", "Zz", "2147483647",
+                             "2147483648", "-2147483648", "-2147483649", "99999999999", "\t\n 12", "- 1", "", "ffffffff"})
+        for (int32_t base : {0, 2, 8, 10, 16, 36, 1, 37, -1}) {
+            char *ea = nullptr, *eb = nullptr;
+            *orig_errno() = 0;
+            const int32_t x = orig_strtol(text, &ea, base);
+            const int32_t errno_a = *orig_errno();
+            *orig_errno() = 0;
+            const int32_t y = title_strtol(text, &eb, base);
+            if (x != y || ea != eb || errno_a != *orig_errno()) {
+                ++failures;
+                add_line(report, "strtol \"%s\" base %d: title %d (+%d, errno %d), ours %d (+%d, errno %d)", text, base, x,
+                         int(ea - text), errno_a, y, int(eb - text), *orig_errno());
+            }
+        }
+    const auto orig_isalpha = title_function<int32_t XB_CDECL(int32_t)>(0x001eef49);
+    const auto orig_isdigit = title_function<int32_t XB_CDECL(int32_t)>(0x001eef77);
+    const auto orig_isspace = title_function<int32_t XB_CDECL(int32_t)>(0x001eefa0);
+    const auto orig_isalnum = title_function<int32_t XB_CDECL(int32_t)>(0x001eefc9);
+    for (int32_t c = -128; c < 256; ++c)
+        if (orig_isalpha(c) != title_isalpha(c) || orig_isdigit(c) != title_isdigit(c) ||
+            orig_isspace(c) != title_isspace(c) || orig_isalnum(c) != title_isalnum(c)) {
+            ++failures;
+            add_line(report, "ctype %d differs", c);
+        }
+
+    // vsnprintf: fits, exactly fills, too long, no room
+    const auto orig_snprintf = [](char* out, uint32_t count, const char* format, ...) {
+        va_list args;
+        va_start(args, format);
+        const int32_t n = title_function<int32_t XB_CDECL(char*, uint32_t, const char*, va_list)>(0x001efce2)(
+            out, count, format, args);
+        va_end(args);
+        return n;
+    };
+    const auto our_snprintf = [](char* out, uint32_t count, const char* format, ...) {
+        va_list args;
+        va_start(args, format);
+        const int32_t n = title_vsnprintf(out, count, format, args);
+        va_end(args);
+        return n;
+    };
+    for (uint32_t count : {0u, 1u, 5u, 9u, 10u, 11u, 64u, 0x80000000u}) {
+        std::memset(a, 0x55, 80);
+        std::memset(b, 0x55, 80);
+        const uint32_t room = count > 64 ? 64 : count;  // the buffers hold 80; the text is 10 characters
+        const int32_t na = orig_snprintf(a, room == 64 ? count : room, "%s-%d", "abcd", 12345);
+        const int32_t nb = our_snprintf(b, room == 64 ? count : room, "%s-%d", "abcd", 12345);
+        if (na != nb || std::memcmp(a, b, 80)) {
+            ++failures;
+            add_line(report, "vsnprintf count %u: title %d, ours %d", count, na, nb);
+        }
+    }
+
+    // qsort: the order equal keys end up in (keys 0..6, 300 records, the record's index in the low bits)
+    struct Record {
+        int32_t key, index;
+    };
+    static const auto by_key = +[](const void* x, const void* y) XB_CDECL -> int32_t {
+        return static_cast<const Record*>(x)->key - static_cast<const Record*>(y)->key;
+    };
+    const uint32_t compare_address = own_address(by_key);
+    const auto orig_qsort = title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(0x001ef880);
+    const auto orig_bsearch =
+        title_function<void* XB_CDECL(const void*, const void*, uint32_t, uint32_t, uint32_t)>(0x001f123f);
+    for (uint32_t count : {0u, 1u, 2u, 7u, 8u, 9u, 10u, 31u, 300u}) {
+        std::vector<Record> x(count), y;
+        uint32_t r = count * 7919u + 1;
+        for (uint32_t i = 0; i < count; ++i) {
+            r = r * 1103515245u + 12345u;
+            x[i] = {static_cast<int32_t>((r >> 16) % 7), static_cast<int32_t>(i)};
+        }
+        y = x;
+        orig_qsort(x.data(), count, sizeof(Record), compare_address);
+        title_qsort(y.data(), count, sizeof(Record), compare_address);
+        if (count && std::memcmp(x.data(), y.data(), count * sizeof(Record))) {
+            ++failures;
+            add_line(report, "qsort %u records: orders differ", count);
+        }
+        for (int32_t key = -1; key <= 7; ++key) {
+            const Record wanted{key, 0};
+            if (orig_bsearch(&wanted, x.data(), count, sizeof(Record), compare_address) !=
+                title_bsearch(&wanted, x.data(), count, sizeof(Record), compare_address)) {
+                ++failures;
+                add_line(report, "bsearch key %d in %u records differs", key, count);
+            }
+        }
+    }
+
+    // 64-bit helpers and _ftol (the thread's x87 mode, as the title's callers run it)
+    const auto orig_allmul = title_function<int64_t XB_STDCALL(int64_t, int64_t)>(0x001f1170);
+    const auto orig_alldiv = title_function<int64_t XB_STDCALL(int64_t, int64_t)>(0x001f1580);
+    const auto orig_aulldiv = title_function<uint64_t XB_STDCALL(uint64_t, uint64_t)>(0x001f11b0);
+    for (int64_t u : {int64_t{0}, int64_t{1}, int64_t{-1}, int64_t{7}, int64_t{-7}, int64_t{0x123456789abLL},
+                      int64_t{-0x123456789abLL}, INT64_MIN, INT64_MAX, int64_t{10000}})
+        for (int64_t v : {int64_t{1}, int64_t{-1}, int64_t{3}, int64_t{-3}, int64_t{10000}, int64_t{0x100000000LL},
+                          int64_t{-0x7fffffffffLL}, INT64_MIN}) {
+            if (orig_allmul(u, v) != title_allmul(u, v) || orig_alldiv(u, v) != title_alldiv(u, v) ||
+                orig_aulldiv(static_cast<uint64_t>(u), static_cast<uint64_t>(v)) !=
+                    title_aulldiv(static_cast<uint64_t>(u), static_cast<uint64_t>(v))) {
+                ++failures;
+                add_line(report, "allmul/alldiv/aulldiv %lld, %lld differ", static_cast<long long>(u),
+                         static_cast<long long>(v));
+            }
+            for (uint32_t shift : {0u, 1u, 31u, 32u, 33u, 63u, 64u, 200u})
+                if (crt_check_call_shift(u, shift, 0x001f2590) !=
+                    crt_check_call_shift(u, shift, own_address(&title_allshr_entry))) {
+                    ++failures;
+                    add_line(report, "allshr %lld >> %u differs", static_cast<long long>(u), shift);
+                }
+        }
+    for (double v : {0.0, -0.0, 0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 0.99999999, -0.99999999, 1e10, -1e10, 4294967296.75,
+                     -4294967296.75, 2147483647.5, -2147483648.5, 3e18, -3e18, 1e19, 1e30, 123.456, -123.456,
+                     std::nan(""), HUGE_VAL, -HUGE_VAL, 9007199254740993.0, double{0.1f}, 16777217.0}) {
+        const int64_t x = crt_check_call_ftol(v, 0x001f0bf4), y = crt_check_call_ftol(v, own_address(&title_ftol_entry));
+        if (x != y) {
+            ++failures;
+            add_line(report, "ftol %.17g: title %lld, ours %lld", v, static_cast<long long>(x), static_cast<long long>(y));
         }
     }
     return failures;

@@ -59,9 +59,9 @@ uint32_t dsound_get_status(void* buffer) {
 char* crt_strncpy(char* dst, const char* src, uint32_t n) {
     return title_strncpy(dst, src, n);
 }
-char* crt_strupr(char* text) { return title_function<char* XB_CDECL(char*)>(0x001fa3d5)(text); }
+char* crt_strupr(char* text) { return own_function<char* XB_CDECL(char*)>(&title_strupr)(text); }
 char* crt_strtok(char* text, const char* delimiters) {
-    return title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4)(text, delimiters);
+    return own_function<char* XB_CDECL(char*, const char*)>(&title_strtok)(text, delimiters);
 }
 float crt_atof(const char* text) { return title_atof_float(text); }
 template <typename... Args>

@@ -17,6 +17,7 @@
 #include "qcommon.h"
 #include "actor.h"
 #include "g_scr_runtime.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -76,7 +77,7 @@ void XB_CDECL Pain_Func4(uint32_t* args) {
     const float now = static_cast<float>(title_global<int32_t>(0x0098540c));  // level.time
     std::memcpy(&args[0], &now, sizeof now);
     const bool keep_origin = (ent[0x2a0] & 4) != 0;
-    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)() % 1000;  // _rand
+    const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)() % 1000;  // _rand
     float limit = static_cast<float>(r) + *reinterpret_cast<const float*>(ent + 0x38c);
     limit = limit + *reinterpret_cast<const float*>(ent + 0x384);
     limit = limit + title_global<float>(0x0083ebec);
@@ -357,7 +358,7 @@ void XB_CDECL Activate_trigger_damage(uint8_t* self, int32_t damage, uint8_t* at
     if (field<uint32_t>(self, 0x32c) != 0x1c) {
         if (field<float>(self, 0x384) > title_global<float>(0x0083eafc)) {
             field<uint32_t>(self, 0x32c) = 0x12;
-            const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
             const int32_t now = title_global<int32_t>(0x0098540c);
             float t = static_cast<float>(r) * title_global<float>(0x0083ecf8) - title_global<float>(0x0083eb20);
             t = t * field<float>(self, 0x388) + field<float>(self, 0x384);

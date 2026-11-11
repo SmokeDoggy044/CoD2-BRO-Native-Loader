@@ -13,6 +13,7 @@
 #include "bro_scr_vehicle_health.h"
 #include "levels_twins.h"
 #include "scr_class.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -474,7 +475,7 @@ PLATFORM_ASM_ENTRY(G_Error_entry,
 int32_t XB_CDECL G_Error(const uint32_t* args) {
     // The message is formatted and dropped (the error call is compiled out).
     char text[0x400];
-    return title_function<int32_t XB_CDECL(char*, const char*, const void*)>(0x001eea95)(  // _vsprintf
+    return own_function<int32_t XB_CDECL(char*, const char*, const void*)>(&title_vsprintf)(  // _vsprintf
         text, pointer<const char>(args[0]), &args[1]);
 }
 
@@ -614,8 +615,8 @@ uint32_t XB_CDECL G_FindLevelScriptModule(const char* name) {
         {0x0082bca0, 0x0078a010}};
     using StrICmp = int32_t XB_CDECL(const char*, const char*);
     for (const auto& module : modules)
-        if (!title_function<StrICmp>(0x001f1443)(name, pointer<const char>(module[0]))) return module[1];
-    return title_function<StrICmp>(0x001f1443)(name, pointer<const char>(0x0082bc90)) ? 0 : 0x007a8ae0;
+        if (!own_function<StrICmp>(&title_stricmp)(name, pointer<const char>(module[0]))) return module[1];
+    return own_function<StrICmp>(&title_stricmp)(name, pointer<const char>(0x0082bc90)) ? 0 : 0x007a8ae0;
 }
 
 PLATFORM_ASM_ENTRY(G_SetMovedir_entry,

@@ -187,6 +187,25 @@ inline uint32_t platform_title_frame_word() {
 inline void platform_set_title_frame_word(uint32_t word) {
     __asm__ volatile("movl %0, %%fs:0x14" : : "r"(word) : "memory");
 }
+// FS:[0], the title thread's exception registration chain (NT_TIB.ExceptionList), for our C++ exception handling
+// (src/engine/shared/title_eh.cpp), which links its own frames like the title's CRT did.
+inline uint32_t platform_seh_head() {
+    uint32_t head;
+    __asm__ volatile("movl %%fs:0, %0" : "=r"(head));
+    return head;
+}
+inline void platform_set_seh_head(uint32_t head) {
+    __asm__ volatile("movl %0, %%fs:0" : : "r"(head) : "memory");
+}
+// The x87 control word (the title CRT's _control87).
+inline uint16_t platform_x87_control_word() {
+    uint16_t word;
+    __asm__ volatile("fnstcw %0" : "=m"(word));
+    return word;
+}
+inline void platform_set_x87_control_word(uint16_t word) {
+    __asm__ volatile("fldcw %0" : : "m"(word));
+}
 inline void platform_set_title_frame_limit(uint32_t limit) {
     platform_set_title_frame_word((limit & ~1u) | (platform_title_frame_word() & 1u));
 }

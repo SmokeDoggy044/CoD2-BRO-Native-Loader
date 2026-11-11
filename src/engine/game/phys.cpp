@@ -8,6 +8,7 @@
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "title_data.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -6028,8 +6029,8 @@ void XB_STDCALL PhysParts_WriteBoneMatrices(uint8_t* owner) {
 
 void XB_CDECL Phys_Init() {
     using ControlFp = uint32_t XB_CDECL(uint32_t, uint32_t);
-    title_function<ControlFp>(0x001f0a40)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
-    title_function<ControlFp>(0x001f0a40)(0x20000, 0x30000);  // 24-bit precision
+    own_function<ControlFp>(&title_controlfp)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
+    own_function<ControlFp>(&title_controlfp)(0x20000, 0x30000);  // 24-bit precision
     platform_mxcsr_or(0x6000);                                // SSE: round toward zero
     uint32_t params[12];
     PhysWorldParams_Init(reinterpret_cast<uint8_t*>(params));

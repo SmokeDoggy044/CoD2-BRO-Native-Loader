@@ -551,7 +551,7 @@ PLATFORM_ASM_ENTRY(CL_RefPrintf_entry,
 
 void XB_CDECL CL_RefPrintf(const char* format, const uint32_t* args) {
     char text[0x1000];
-    title_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(&title_vsprintf)(text, format, args);  // _vsprintf
 }
 
 uint8_t* XB_CDECL CL_InitInput() {
@@ -1814,13 +1814,13 @@ uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen) {
 const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t, char* out) {
     using Compare = int32_t XB_CDECL(const char*, const char*);
     using CompareN = int32_t XB_CDECL(const char*, const char*, uint32_t);
-    if (title_function<CompareN>(0x001f1486)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
+    if (own_function<CompareN>(&title_strnicmp)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
         title_sprintf(
             out, &title_global<const char>(0x0082ddd4), name + 2);  // sprintf "%s"
         return out;
     }
     for (uint32_t i = 0; i < 0x13; ++i) {
-        if (title_function<Compare>(0x001f1443)(name, title_global<const char*>(0x008d5a98 + i * 8)) == 0)  // __stricmp
+        if (own_function<Compare>(&title_stricmp)(name, title_global<const char*>(0x008d5a98 + i * 8)) == 0)  // __stricmp
             return title_global<const char*>(0x008d5a9c + i * 8);
     }
     return nullptr;
@@ -2887,10 +2887,6 @@ void XB_CDECL SCR_InitLoadingSpinner() {
 namespace {
 
 
-int32_t title_stricmp(const char* a, const char* b) {
-    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
-}
-
 const char* cube_face_path(const char* name, uint32_t face_slot) {
     return own_function<const char* XB_CDECL(const char*, const char*, const char*)>(&va_entry)(
         &title_global<const char>(0x00833fa8), name, title_global<const char*>(face_slot));  // va("env/%s%s.tga")
@@ -3586,7 +3582,7 @@ void XB_REGS1 XB_CDECL Field_KeyDownEvent(uint8_t* f, int32_t key) {
     const int32_t length = static_cast<int32_t>(std::strlen(text));
     const bool ctrl = (title_global<uint8_t>(0x00934750) & 3) != 0;
     auto alnum = [&](int32_t at) {
-        return title_function<CharFn>(0x001eefc9)(static_cast<int8_t>(text[at])) != 0;  // _isalnum
+        return own_function<CharFn>(&title_isalnum)(static_cast<int8_t>(text[at])) != 0;  // _isalnum
     };
     if ((key == 0xa1 || key == 0xc0) && (title_global<uint8_t>(0x00934758) & 3)) {  // shift-insert: no paste
         Field_AdjustScroll(f);
@@ -3650,8 +3646,8 @@ void XB_REGS1 XB_CDECL Console_KeyDownEvent(int32_t key) {
         using Strnicmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
         if (line[0] == '\\' || line[0] == '/') {
             Cbuf_AddText(line + 1);
-        } else if (title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x0082ac38), 4) &&  // "quit"
-                   title_function<Strnicmp>(0x001f1486)(line, &title_global<char>(0x00834570), 4)) {  // "kill"
+        } else if (own_function<Strnicmp>(&title_strnicmp)(line, &title_global<char>(0x0082ac38), 4) &&  // "quit"
+                   own_function<Strnicmp>(&title_strnicmp)(line, &title_global<char>(0x00834570), 4)) {  // "kill"
             Cbuf_AddText(line);
         } else {
             if (!line[0]) return;

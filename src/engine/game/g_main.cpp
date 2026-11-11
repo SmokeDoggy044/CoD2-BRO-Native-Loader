@@ -1262,7 +1262,7 @@ void XB_CDECL G_RestorePlayerHealth(const uint8_t* saved) {
 }
 
 void XB_REGS3 XB_CDECL G_ApplyCheckpointStart(uint8_t* ent, uint32_t, uint8_t* checkpoint) {
-    const auto stricmp = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443);  // __stricmp
+    const auto stricmp = own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp);  // __stricmp
     auto text_of = [](uint32_t string) { return string ? reinterpret_cast<const char*>(uintptr_t{string + 6}) : nullptr; };
     // Only for the level the checkpoint was saved in (+0x55c against the map name 0x00988c58).
     if (stricmp(text_of(word_at(checkpoint, 0x55c)), reinterpret_cast<const char*>(uintptr_t{0x00988c58}))) return;

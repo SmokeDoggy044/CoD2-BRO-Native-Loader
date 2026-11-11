@@ -453,7 +453,7 @@ uint32_t XB_CDECL G_CallSpawn(uint8_t* ent) {
     }
     const uint32_t text = word_at(ent, 0x25c);
     const char* const classname = text ? reinterpret_cast<const char*>(uintptr_t{text + 6}) : nullptr;
-    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+    if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(  // _strncmp
             classname, &title_global<const char>(0x00839dc8), 6) == 0) {               // "weapon"
         own_function<void XB_CDECL(const char*)>(&G_Error_entry)(&title_global<const char>(0x00839d98));  // G_Error
         return 0;
@@ -672,7 +672,7 @@ uint8_t* XB_CDECL Drop_Item(uint8_t* ent, uint32_t still, const uint8_t* item, f
         const float speed = title_global<float>(0x0083ebf0);
         velocity[0] = cosine0 * cosine * speed;
         velocity[1] = cosine0 * sine * speed;
-        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t r = own_function<int32_t XB_CDECL()>(&title_rand)();  // _rand
         const float up = down * speed;
         velocity[2] = (static_cast<float>(r) * title_global<float>(0x0083ecf8) - title_global<float>(0x0083eb20)) *
                           title_global<float>(0x0083ec30) +
@@ -857,7 +857,7 @@ uint32_t spawn_call_at(uint32_t top, uint32_t ret, uint32_t function, const Titl
 const char* text_of(uint32_t p) { return reinterpret_cast<const char*>(uintptr_t{p}); }
 
 int32_t spawn_stricmp(uint32_t a, uint32_t b) {
-    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(text_of(a), text_of(b));  // __stricmp
+    return own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(text_of(a), text_of(b));  // __stricmp
 }
 
 }  // namespace
@@ -928,7 +928,7 @@ void XB_CDECL G_SpawnGEntityFromSpawnVars(uint32_t entry, uint8_t* level, uint32
             auto_thread = word(pair + 4);
             continue;
         }
-        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(text_of(word(pair)),
+        if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(text_of(word(pair)),
                                                                                          text_of(0x00833524), 3))
             continue;  // __strnicmp "on_"
         if (!block) {
@@ -1070,7 +1070,7 @@ void XB_REGS3 XB_CDECL G_SpawnVehicleNode(uint8_t* spawns, uint32_t item, uint32
     field<uint32_t>(node, 0xc) = *reinterpret_cast<const uint32_t*>(spawn + 0x28);
     using Stricmp = int32_t XB_CDECL(const char*, const char*);
     const auto is = [](const char* key, uint32_t name) {
-        return title_function<Stricmp>(0x001f1443)(key, reinterpret_cast<const char*>(uintptr_t{name})) == 0;
+        return own_function<Stricmp>(&title_stricmp)(key, reinterpret_cast<const char*>(uintptr_t{name})) == 0;
     };
     for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(spawn + 0x30); ++i) {
         const uint32_t count = *reinterpret_cast<const uint32_t*>(spawn + 0x30);
@@ -1140,7 +1140,7 @@ uint32_t XB_CDECL Drop_Weapon(uint8_t* ent, uint32_t weapon, const char* tag) {
     // traced from the entity's centre (capsule, mask 0x411); then the entity's angles and a
     // random spin (type 2, (50, 40, 60) * [-1, 1)).
     using Rand = int32_t XB_CDECL();
-    const auto rand_ = [] { return title_function<Rand>(0x001efcc0)(); };
+    const auto rand_ = [] { return own_function<Rand>(&title_rand)(); };
     const auto def_of = [](uint32_t w) {
         return reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t*>(0x0095f4d8)[w]});
     };
@@ -1490,7 +1490,7 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
         uint32_t matrix = 0x0098c3c0;
         for (uint32_t n = 0x20; n; --n, matrix += 0x40) {
             const uint32_t args[4] = {matrix, 0x10, 3, 0x0001b920};
-            call(F, 0x002d9174, 0x00011240, TitleRegs{0, matrix, 0, 0, esi, n}, 4,
+            call(F, 0x002d9174, own_address(&title_vector_constructor_iterator), TitleRegs{0, matrix, 0, 0, esi, n}, 4,
                  args);  // eh_vector_constructor_iterator
         }
         edi = zone;

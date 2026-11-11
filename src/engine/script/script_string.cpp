@@ -6,6 +6,8 @@
 #include "g_scr_runtime.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "title_crt.h"
+#include "title_eh.h"
 
 namespace game {
 
@@ -602,7 +604,7 @@ uint32_t* XB_THISCALL ScriptKeyTable_Set(ScriptKeyTable* self, uint32_t key, uin
         title_global<uint32_t XB_CDECL (*)()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
         uint8_t* const object = reinterpret_cast<uint8_t*>(&value);
         object[0] = static_cast<uint8_t>(value);
-        title_function<void XB_STDCALL(void*, uint32_t)>(0x001f2302)(object, 0x0088ac80);  // _CxxThrowException
+        own_function<void XB_STDCALL(void*, uint32_t)>(&title_CxxThrowException)(object, 0x0088ac80);  // _CxxThrowException
     }
     const uint32_t count = self->count;
     if (count) {
@@ -670,8 +672,8 @@ void XB_CDECL ScriptKeyTable_Delete(ScriptKeyTable* table) {
     own_function<void XB_CDECL(void*)>(&Scr_Free)(table);  // Scr_Free
 }
 
-static uint32_t title_strchr(const char* chars, int32_t c) {
-    return title_function<uint32_t XB_CDECL(const char*, int32_t)>(0x001ef5e0)(chars, c);  // CRT strchr
+static bool in_chars(const char* chars, int32_t c) {
+    return title_strchr(chars, c) != nullptr;  // CRT strchr
 }
 
 // Replaces the string with `piece` (made in the caller's argument slot) and destroys the
@@ -697,7 +699,7 @@ ScriptString* XB_THISCALL ScriptString_TrimLeftChars(ScriptString* self, const c
     for (;;) {
         const ScriptStringRep* rep = self->rep;
         if (!rep) break;
-        if (start >= rep->length || !title_strchr(set, rep->text[start])) break;
+        if (start >= rep->length || !in_chars(set, rep->text[start])) break;
         ++start;
     }
     const uint32_t length = self->rep ? self->rep->length : 0u;
@@ -714,7 +716,7 @@ ScriptString* XB_THISCALL ScriptString_TrimRightChars(ScriptString* self, const 
     while (length) {
         const uintptr_t text = text_address(self->rep);
         const char c = *reinterpret_cast<const char*>(text + length - 1);
-        if (!title_strchr(set, c)) break;
+        if (!in_chars(set, c)) break;
         --length;
     }
     ScriptString* const piece = reinterpret_cast<ScriptString*>(&chars);

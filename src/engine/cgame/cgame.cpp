@@ -70,7 +70,7 @@ void XB_CDECL CG_Printf(const char* format, ...) {
     char text[0x400];
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
 }
 
@@ -80,7 +80,7 @@ PLATFORM_ASM_ENTRY(CG_WeaponSlotFromName_entry,
 
 uint32_t XB_CDECL CG_WeaponSlotFromName(const char* name) {
     for (uint32_t slot = 0; slot < 7; ++slot)
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // __stricmp
                 name, title_global<const char*>(0x008d23a8 + slot * 4)))
             return slot;
     return 0;
@@ -90,7 +90,7 @@ void XB_CDECL CG_Error(const char* format, ...) {
     char text[0x400];
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(text, format, args);  // _vsprintf
     va_end(args);
     title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, text);  // Com_Error
 }
@@ -536,11 +536,11 @@ int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model) {
     const char* const tag_b = reinterpret_cast<const char*>(uintptr_t{0x0083898c});
     uint32_t shared = 0;
     for (int32_t i = 0; i < static_cast<int32_t>(word(0x10)); ++i)
-        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(tag_name(i), tag_b))  // __stricmp
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(tag_name(i), tag_b))  // __stricmp
             shared = model_slot(i);
     if (!shared) return static_cast<int32_t>(word(0x10));
     for (int32_t i = 0; i < static_cast<int32_t>(word(0x10)); ++i)
-        if (!title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tag_name(i), tag_b, 5) &&
+        if (!own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strnicmp)(tag_name(i), tag_b, 5) &&
             !model_slot(i))
             model_slot(i) = shared;
     return static_cast<int32_t>(word(0x10));
@@ -932,7 +932,7 @@ void XB_CDECL CG_DrawHudElems() {
     int32_t count = 0;
     for (uint32_t elem = 0x0094cc88; elem < 0x0094d448; elem += 0x7c)
         if (title_global<uint32_t>(elem)) elems[count++] = elem;
-    title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(0x001ef880)(elems, static_cast<uint32_t>(count), 4,
+    own_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(&title_qsort)(elems, static_cast<uint32_t>(count), 4,
                                                                                  0x00275ab0);  // _qsort
     for (int32_t i = 0; i < count; ++i) {
         TitleRegs regs{};
@@ -1756,7 +1756,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         // No anim tree: the model entries destroyed (vector_call_iterator, stdcall) and the function returns.
         r.edx = f.s + 0x34;
         const uint32_t args[4] = {f.s + 0x34, 0x10, 4, 0x0001ec00};
-        f.call(0x00283549, 0x00011280, r, 4, args);
+        f.call(0x00283549, own_address(&title_vector_destructor_iterator), r, 4, args);
         return false;
     }
     find_tree_clips(f, r, table, 0x00283580);
@@ -1767,7 +1767,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
         r.edx = wd(def + 8);
         const uint32_t args[4] = {f.s + 0x78, 0x0082d800, r.edx, 0x0083890c};  // "%s%s", name, "_arms"
         r.eax = f.s + 0x78;
-        r.eax = f.call(0x002835c5, 0x001ee901, r, 4, args);  // _sprintf
+        r.eax = f.call(0x002835c5, own_address(&title_sprintf), r, 4, args);  // _sprintf
         r.edx = wd(0x0095f524);
         r.eax = wd(r.edx + 4);
         r.ecx = f.s + 0x78;
@@ -1863,7 +1863,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     r.ecx = wd(def + 0x18);
     {
         const uint32_t args[3] = {rec + 0x68, r.ecx, 0x17};
-        r.eax = f.call(0x00283dba, 0x001eed80, r, 3, args, 2);  // _strncpy (DObj_Create's words still pushed)
+        r.eax = f.call(0x00283dba, own_address(&title_strncpy), r, 3, args, 2);  // _strncpy (DObj_Create's words still pushed)
     }
     r.edi = def;
     title_global<uint8_t>(rec + 0x7f) = 0;
@@ -2541,7 +2541,7 @@ void XB_CDECL CG_DrawStatusLabel() {
     if (!label) return;
     const char* name = reinterpret_cast<const char*>(label + 6);
     if (!*name) return;
-    if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(name, &title_global<char>(0x00832430)))  // __stricmp "none"
+    if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(name, &title_global<char>(0x00832430)))  // __stricmp "none"
         return;
     const uint8_t* value_text = title_global<const uint8_t*>(0x009606f0);
     float value = static_cast<float>(title_atof(  // atof
@@ -3397,7 +3397,7 @@ uint32_t XB_CDECL CG_ShellShock_ParseParams(uint32_t* args) {
         if (!*token) break;
         if (count > 0) {
             int32_t i = 0;
-            while (title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(token, names[i])) {  // __stricmp
+            while (own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(token, names[i])) {  // __stricmp
                 if (++i >= count) break;
             }
             if (i < count) {
@@ -4501,7 +4501,7 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
     const uint32_t old = title_global<uint32_t>(rec);
     const uint32_t destroy[4] = {at(0x18), 0x10, 2, 0x0001ec00};
     if (!old || !**reinterpret_cast<const char* const*>(def + 0x14)) {
-        title_call_at_regs(frame, 0x00011280, &regs, 4, destroy);  // vector_call_iterator (destructors)
+        title_call_at_regs(frame, own_address(&title_vector_destructor_iterator), &regs, 4, destroy);  // vector_call_iterator (destructors)
         return;
     }
     title_global<uint32_t>(at(0x14)) = title_global<uint32_t>(old);
@@ -4540,9 +4540,9 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
     title_global<uint32_t>(rec) = title_call_at_regs(frame, own_address(&DObjHandle_Resolve), &regs, 0, nullptr);  // DObjHandle_Resolve
     regs.esi = rec + 0x68;
     const uint32_t copy_args[3] = {rec + 0x68, hands, 0x17};
-    title_call_at_regs(frame, 0x001eed80, &regs, 3, copy_args);  // _strncpy
+    title_call_at_regs(frame, own_address(&title_strncpy), &regs, 3, copy_args);  // _strncpy
     title_global<uint8_t>(rec + 0x68 + 0x17) = 0;
-    title_call_at_regs(frame, 0x00011280, &regs, 4, destroy);  // vector_call_iterator (destructors)
+    title_call_at_regs(frame, own_address(&title_vector_destructor_iterator), &regs, 4, destroy);  // vector_call_iterator (destructors)
 }
 
 void XB_REGS1 XB_CDECL CG_ConfigStringModified(int32_t index) {

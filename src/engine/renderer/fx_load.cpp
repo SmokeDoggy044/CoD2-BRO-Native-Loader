@@ -10,6 +10,7 @@
 #include "ngl_gfx.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -1545,7 +1546,7 @@ void XB_CDECL apsLog_Printf(int32_t* log, uint32_t code, const char* format, ...
     at<uint32_t>(entry, 0) = code;
     va_list args;
     va_start(args, format);
-    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(
+    own_function<int32_t XB_CDECL(char*, const char*, va_list)>(&title_vsprintf)(
         reinterpret_cast<char*>(static_cast<uintptr_t>(log[1])) + index * 0x104 + 4, format, args);  // _vsprintf
     va_end(args);
 }

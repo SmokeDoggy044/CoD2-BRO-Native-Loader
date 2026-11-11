@@ -189,9 +189,7 @@ T* title_pointer(uint32_t address) {
 using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
 using Break = void XB_CDECL(uint32_t, const char*);
 using Vsnprintf = int32_t XB_CDECL(char*, uint32_t, const char*, const uint32_t*);
-constexpr uint32_t kStrncpy = 0x001eed80;
 constexpr uint32_t kBreak = 0x002938f0;
-constexpr uint32_t kVsnprintf = 0x001efce2;
 
 // The title CRT's __CIfmod (0x0033acda): x in ST1, y in ST0, fmod(x, y) left in ST0.
 long double title_ci_fmod(long double x, long double y) {
@@ -211,7 +209,7 @@ char* XB_REGS2 XB_CDECL Q_strcat(int32_t size, char* dest, const char* src) {
         title_function<Break>(kBreak)(0, title_pointer<const char>(0x0083385c));  // "Q_strcat: already overflowed"
     char* end = dest + length;
     const int32_t left = size - length;
-    char* result = title_function<Strncpy>(kStrncpy)(end, src, static_cast<uint32_t>(left - 1));
+    char* result = own_function<Strncpy>(&title_strncpy)(end, src, static_cast<uint32_t>(left - 1));
     end[left - 1] = 0;
     return result;
 }
@@ -261,7 +259,7 @@ void XB_REGS1 XB_CDECL COM_DefaultExtension(char* path, int32_t max_size, const 
         }
     }
     char old_path[0x80];
-    title_function<Strncpy>(kStrncpy)(old_path, path, 0x7f);
+    own_function<Strncpy>(&title_strncpy)(old_path, path, 0x7f);
     old_path[0x7f] = 0;
     const uint32_t args[3] = {0x0082d800, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(old_path)),  // "%s%s"
                               static_cast<uint32_t>(reinterpret_cast<uintptr_t>(extension))};
@@ -275,7 +273,7 @@ PLATFORM_ASM_ENTRY(va_entry,
 
 char* XB_CDECL va(const uint32_t* args) {
     char* staging = title_pointer<char>(0x0092f148);
-    const int32_t length = title_function<Vsnprintf>(kVsnprintf)(
+    const int32_t length = own_function<Vsnprintf>(&title_vsnprintf)(
         staging, 0x400, reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
     staging[0x3ff] = 0;
     if (length < 0 || length >= 0x400)
@@ -297,7 +295,7 @@ PLATFORM_ASM_ENTRY(Com_sprintf_entry,
                    "ret")
 
 int32_t XB_CDECL Com_sprintf(char* dest, int32_t size, const uint32_t* args) {
-    const int32_t result = title_function<Vsnprintf>(kVsnprintf)(
+    const int32_t result = own_function<Vsnprintf>(&title_vsnprintf)(
         dest, static_cast<uint32_t>(size), reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
     dest[size - 1] = 0;
     return result;
@@ -343,7 +341,7 @@ PLATFORM_ASM_ENTRY(Cmd_ArgsBuffer_entry,
                    "ret")
 
 char* XB_CDECL Cmd_ArgsBuffer(char* buffer, int32_t size) {
-    char* result = title_function<Strncpy>(kStrncpy)(buffer, Cmd_ArgsFrom(1), static_cast<uint32_t>(size - 1));
+    char* result = own_function<Strncpy>(&title_strncpy)(buffer, Cmd_ArgsFrom(1), static_cast<uint32_t>(size - 1));
     buffer[size - 1] = 0;
     return result;
 }
@@ -433,7 +431,7 @@ void XB_CDECL Cvar_Update(uint8_t* vm_cvar) {
         title_function<void XB_CDECL(uint32_t, const char*, const char*, uint32_t, uint32_t)>(kBreak)(
             1, title_pointer<const char>(0x00837a98), string, static_cast<uint32_t>(std::strlen(string)), 0x80);
     char* dst = reinterpret_cast<char*>(vm_cvar + 0x10);
-    title_function<Strncpy>(kStrncpy)(dst, *reinterpret_cast<const char**>(cv + 4), 0x7f);
+    own_function<Strncpy>(&title_strncpy)(dst, *reinterpret_cast<const char**>(cv + 4), 0x7f);
     dst[0x7f] = 0;
     std::memcpy(vm_cvar + 8, cv + 0x1c, 4);
     std::memcpy(vm_cvar + 0xc, cv + 0x20, 4);
@@ -451,7 +449,7 @@ void XB_CDECL Com_BeginParseSession(const char* name) {
     *reinterpret_cast<uint32_t*>(info + 0x88) = 1;
     *reinterpret_cast<uint32_t*>(info + 0x8c) = 0;
     char* dst = reinterpret_cast<char*>(info + 0x9c);
-    title_function<Strncpy>(kStrncpy)(dst, name, 0x7f);
+    own_function<Strncpy>(&title_strncpy)(dst, name, 0x7f);
     dst[0x7f] = 0;
 }
 
@@ -604,8 +602,8 @@ PLATFORM_ASM_ENTRY(FS_CreatePath_entry,
 
 int32_t XB_CDECL FS_CreatePath(char* path) {
     using Strstr = char* XB_CDECL(const char*, const char*);
-    if (title_function<Strstr>(0x001efb10)(path, title_pointer<const char>(0x008380a4))) return 1;  // ".."
-    if (title_function<Strstr>(0x001efb10)(path, title_pointer<const char>(0x008380a0))) return 1;  // "::"
+    if (own_function<Strstr>(&title_strstr)(path, title_pointer<const char>(0x008380a4))) return 1;  // ".."
+    if (own_function<Strstr>(&title_strstr)(path, title_pointer<const char>(0x008380a0))) return 1;  // "::"
     for (char* p = path + 1; *p; ++p)
         if (*p == '\\') *p = '\\';
     return 0;
@@ -706,7 +704,7 @@ namespace {
 
 void info_remove_key(char* info, const char* key, uint32_t message) {
     if (std::strlen(info) >= 0x400) title_function<Break>(kBreak)(1, title_pointer<const char>(message));
-    if (title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(key, '\\')) return;  // strchr
+    if (own_function<char* XB_CDECL(const char*, int32_t)>(&title_strchr)(key, '\\')) return;  // strchr
     char pkey[0x400];
     char value[0x400];
     char* s = info;
@@ -949,7 +947,7 @@ int32_t XB_CDECL Cvar_WriteNamedValues(const char* const* names, int32_t count, 
     for (int32_t i = 0; i < count; ++i) {
         const uint8_t* var = own_function<const uint8_t* XB_CDECL(const char*)>(&Cvar_FindVar)(names[i]);  // Cvar_FindVar
         const char* value = var ? *reinterpret_cast<const char* const*>(var + 4) : title_pointer<const char>(0x0082dfeb);
-        const int32_t written = title_function<Snprintf>(0x001eebff)(  // _snprintf
+        const int32_t written = own_function<Snprintf>(&title_snprintf)(  // _snprintf
             buffer, size, title_pointer<const char>(0x00834544), names[i], value);  // "%s \"%s\"\n"
         if (written < 0) return 0;
         buffer += written;
@@ -1056,11 +1054,11 @@ void XB_REGS3 XB_CDECL Info_SetValueForKey(const char* value, uint32_t, const ch
         cleaned[length++] = c;
     }
     cleaned[length] = 0;
-    if (title_function<Strchr>(0x001ef5e0)(key, '\\'))
+    if (own_function<Strchr>(&title_strchr)(key, '\\'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x00833784), key, value);
-    if (title_function<Strchr>(0x001ef5e0)(key, ';'))
+    if (own_function<Strchr>(&title_strchr)(key, ';'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083374c), key, value);
-    if (title_function<Strchr>(0x001ef5e0)(key, '"'))
+    if (own_function<Strchr>(&title_strchr)(key, '"'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083371c), key, value);
     Info_RemoveKey(info, key);
     if (!cleaned[0]) return;
@@ -1228,11 +1226,11 @@ void XB_REGS1 XB_CDECL Info_SetValueForKey_Big(const char* key, char* info, cons
         cleaned[length++] = c;
     }
     cleaned[length] = 0;
-    if (title_function<Strchr>(0x001ef5e0)(key, '\\'))
+    if (own_function<Strchr>(&title_strchr)(key, '\\'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x00833784), key, value);
-    if (title_function<Strchr>(0x001ef5e0)(key, ';'))
+    if (own_function<Strchr>(&title_strchr)(key, ';'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083374c), key, value);
-    if (title_function<Strchr>(0x001ef5e0)(key, '"'))
+    if (own_function<Strchr>(&title_strchr)(key, '"'))
         title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083371c), key, value);
     Info_RemoveKey_Big(info, key);
     if (!cleaned[0]) return;
@@ -1655,8 +1653,8 @@ using ZFreeFn = void XB_CDECL(void*);
 
 void check_cvar_name(const char* name) {
     using Strchr = char* XB_CDECL(const char*, int32_t);
-    if (name && !title_function<Strchr>(0x001ef5e0)(name, '\\') && !title_function<Strchr>(0x001ef5e0)(name, '"') &&
-        !title_function<Strchr>(0x001ef5e0)(name, ';'))
+    if (name && !own_function<Strchr>(&title_strchr)(name, '\\') && !own_function<Strchr>(&title_strchr)(name, '"') &&
+        !own_function<Strchr>(&title_strchr)(name, ';'))
         return;
     const uint32_t args[2] = {0x00837b20, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name))};  // "invalid cvar name string: %s"
     title_function<void XB_CDECL(uint32_t, const char*)>(kBreak)(0, va(args));
@@ -1761,7 +1759,7 @@ uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags) 
     cvar_field<char*>(var, 8) = CopyString(value);
     uint8_t** prev = title_pointer<uint8_t*>(0x0093fcec);  // cvar_vars
     while (*prev) {
-        if (title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+        if (own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(  // _stricmp
                 cvar_field<const char*>(var, 0), cvar_field<const char*>(*prev, 0)) < 0)
             break;
         prev = &cvar_field<uint8_t*>(*prev, 0x24);
