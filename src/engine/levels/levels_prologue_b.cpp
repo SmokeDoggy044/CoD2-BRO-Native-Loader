@@ -13,6 +13,7 @@
 #include "title_data.h"
 #include "levels_prologue_a.h"
 #include "levels_templates.h"
+#include "g_script.h"
 
 namespace game {
 
@@ -148,7 +149,7 @@ void XB_CDECL Bro_prologue__Vehicle_TankDeath(uint32_t ent) {
     uint32_t origin[3] = {o[0], o[1], o[2]};
     title_function<StartThread>(0x0045b440)(0, 0, 0, 0, 0x004256b0, *owner, origin, &radius,
                                             &scratch);  // Scr_StartThread_ent_vec_f_f_PROLOGUE
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, 0x0041a800, tank);  // Scr_StartThreadFunctor1
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, 0x0041a800, tank);  // Scr_StartThreadFunctor1
 }
 
 uint32_t* XB_CDECL BroLvl_prologue_LineBloomfieldWaitForThe(uint32_t* out) {

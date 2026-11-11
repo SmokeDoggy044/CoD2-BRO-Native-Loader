@@ -13,6 +13,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "bro_scr_actor.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -46,7 +47,7 @@ uint32_t actor_weapon(uint32_t actor) { return slot<uint32_t XB_CDECL(uint32_t)>
 
 // The entity's script key table (ScrCall_GScr_GetEntScriptObject), the shared empty one without.
 ScriptKeyTable* ent_script_object(uint32_t ent) {
-    ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     return table ? table : pointer<ScriptKeyTable>(0x00922e94);
 }
 

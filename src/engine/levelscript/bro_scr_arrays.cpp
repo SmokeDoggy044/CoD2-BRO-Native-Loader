@@ -13,6 +13,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "bro_scr_notify_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -135,7 +136,7 @@ void XB_CDECL BroScr_KillSpawners(uint32_t group) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
         const uint32_t spawner = *element(&spawners, i);
         if (!entity_handle_is_valid(spawner)) continue;
-        ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(spawner);
+        ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(spawner);
         if (!table) continue;
         const uint32_t* const found = ScriptKeyTable_Find(table, 0x460bf109);
         const uint32_t value = found ? *found : undefined_int();
@@ -247,7 +248,7 @@ void friendly_chain_triggers(DynArray* triggers) {
 // The trigger's script_chain string (key 0x8007a3d3) equals `chain`.
 bool chain_is(uint32_t trigger, const ScriptString* chain) {
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
-    ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(trigger);
+    ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(trigger);
     if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
     return ScriptString_EqualsString(title_function<GetString>(0x00458da0)(table, 0x8007a3d3), chain);
 }
@@ -617,7 +618,7 @@ void XB_CDECL BroScr_DeleteTeamEntsWithKeyValue(ScriptString value) {
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i) {
             const uint32_t ent = *element(&ents, i);
             if (!entity_handle_is_valid(ent)) continue;
-            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
             if (!table) continue;
             const uint32_t* const found = ScriptKeyTable_Find(table, 0x8109a0a9);
             if ((found ? *found : undefined_int()) == undefined_int()) continue;

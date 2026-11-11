@@ -24,6 +24,7 @@
 #include "bro_scr_level_threads_2.h"
 #include "bro_scr_vehicle_riders.h"
 #include "bro_scr_wait_notify.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -169,7 +170,7 @@ namespace {
 // Scr_StartThreadFunctor1 (0x0011a910): four zero words, the function, the entity.
 void start_thread1(uint32_t function, uint32_t ent) {
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, function, ent);
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, function, ent);
 }
 
 }  // namespace
@@ -312,7 +313,7 @@ ScriptString* XB_CDECL BroScr_TreadFxSurfaceThink(ScriptString* out, uint32_t ve
 namespace {
 
 uint32_t script_object(uint32_t ent) {
-    const uint32_t table = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(ent);  // ScrCall_GScr_GetEntScriptObject
+    const uint32_t table = own_function<uint32_t XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);  // ScrCall_GScr_GetEntScriptObject
     return table ? table : 0x00922e94;  // g_scrEmptyKeyTable
 }
 
@@ -809,7 +810,7 @@ void XB_CDECL BroScr_SetupFlak88s() {
         } else if (flak_type_is(*ent_at(&guns, i), 0x008251e0)) {  // "player_only": the HUD thread, and the setup ends
             const uint32_t gun = *own_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(&DynArray_At_PROLOGUE)(&guns, i);  // DynArray_At
             const uint32_t args[6] = {0, 0, 0, 0, own_address(&BroScr_TankShellReadyHud), gun};  // BroScr_TankShellReadyHud
-            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+            own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
                 args[0], args[1], args[2], args[3], args[4], args[5]);  // Scr_StartThreadFunctor1
             break;
         }

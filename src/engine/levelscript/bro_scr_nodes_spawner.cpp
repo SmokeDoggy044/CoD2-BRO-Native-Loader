@@ -12,6 +12,8 @@
 #include "bro_scr_actor.h"
 #include "scr_access.h"
 #include "bro_scr_mission.h"
+#include "g_script.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -47,7 +49,7 @@ void get_ent_var(uint32_t ent, uint32_t key, uint32_t callback) {
 
 // The entity's script key table (ScrCall_GScr_GetEntScriptObject), the shared empty one without.
 ScriptKeyTable* ent_script_object(uint32_t ent) {
-    ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     return table ? table : pointer<ScriptKeyTable>(0x00922e94);
 }
 
@@ -60,7 +62,7 @@ uint32_t level_handle() {
 // Friendly-fire mission failure (BroScr_FriendlyFireMissionFail 0x00181f70) as a new thread on the level.
 void start_friendly_fire_fail() {
     const uint32_t handle = level_handle();
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
         0, 0, 0, 0, own_address(&BroScr_FriendlyFireMissionFail), handle);  // Scr_StartThreadFunctor1
 }
 

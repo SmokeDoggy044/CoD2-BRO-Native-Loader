@@ -5,6 +5,7 @@
 #include "bro_scr_cover_turret.h"
 #include "g_scr_runtime.h"
 #include "title_data.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -423,11 +424,11 @@ void XB_CDECL Bro__window_gmi__new_window_break(uint32_t ent) {
 
 void XB_CDECL BroScr_ShowContextTextBriefly() {
     using GetObject = uint32_t XB_CDECL(uint32_t);
-    uint32_t object = title_function<GetObject>(0x0011db20)(pointer<uint32_t>(title_global<uint32_t>(0x00922ee0))[1]);  // GScr_GetEntScriptObject
+    uint32_t object = own_function<GetObject>(&ScrCall_GScr_GetEntScriptObject)(pointer<uint32_t>(title_global<uint32_t>(0x00922ee0))[1]);  // GScr_GetEntScriptObject
     // The original stores a byte into a stack word whose upper bytes are stale (ECX at entry).
     ScriptKeyTable_Set(object ? pointer<ScriptKeyTable>(object) : &title_global<ScriptKeyTable>(0x00922e94), 0xddfa2c42, 1);
     Scr_Wait(8.0f);
-    object = title_function<GetObject>(0x0011db20)(pointer<uint32_t>(title_global<uint32_t>(0x00922ee0))[1]);
+    object = own_function<GetObject>(&ScrCall_GScr_GetEntScriptObject)(pointer<uint32_t>(title_global<uint32_t>(0x00922ee0))[1]);
     ScriptKeyTable_Set(object ? pointer<ScriptKeyTable>(object) : &title_global<ScriptKeyTable>(0x00922e94), 0xddfa2c42, 0);
 }
 

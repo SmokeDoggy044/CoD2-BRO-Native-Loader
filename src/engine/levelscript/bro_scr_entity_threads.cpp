@@ -11,6 +11,7 @@
 #include "g_script.h"
 #include "bro_scr_anim.h"
 #include "bro_scr_notify_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -171,7 +172,7 @@ void use_30cal_tree(uint32_t turret) {
 }
 // The last user: the key removed, the anim tree cleared.
 void clear_30cal_tree(uint32_t turret) {
-    title_function<void XB_THISCALL(const uint32_t*, uint32_t)>(0x0011eb30)(&turret, 0xabc1df0a);  // key removed
+    own_function<void XB_THISCALL(const uint32_t*, uint32_t)>(&ScrCall_GScr_GetEntScriptObject_2)(&turret, 0xabc1df0a);  // key removed
     slot<EntFn>(0x009225f4)(turret);  // GScr_ClearAnimTree
 }
 

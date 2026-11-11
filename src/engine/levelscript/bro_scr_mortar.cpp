@@ -17,6 +17,7 @@
 #include "bro_scr_drones.h"
 #include "bro_scr_mortar_loops.h"
 #include "bro_scr_thread_misc.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -267,7 +268,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     }
     if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(ent)) {
         if (ScriptKeyTable* table = reinterpret_cast<ScriptKeyTable*>(static_cast<uintptr_t>(
-                title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(ent)))) {  // ScrCall_GScr_GetEntScriptObject
+                own_function<uint32_t XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent)))) {  // ScrCall_GScr_GetEntScriptObject
             const uint32_t* value = ScriptKeyTable_Find(table, 0x28667a5b);
             if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(value ? *value : 0))
                 scr_slot<void XB_CDECL(uint32_t)>(0x00922564)(*key_value(ent, 0x28667a5b));  // GScr_ClearEntFlag400

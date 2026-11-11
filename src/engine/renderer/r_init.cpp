@@ -175,8 +175,6 @@ uint32_t XB_REGS2 GetRefAPI(const uint32_t* imports, uint32_t version) {
 namespace {
 
 // _vsprintf / _sprintf run at the original's ESP (the frame below holds the formatted text).
-constexpr uint32_t kVsprintf = 0x001eea95;
-constexpr uint32_t kSprintf = 0x001ee901;
 
 // Assembles the text at `source` (XGAssembleShader, flags 0x20000); the compiled buffer pointer lands in
 // the word at `top`.
@@ -391,8 +389,8 @@ void XB_CDECL nglAllocFrameMemory() {
 
 void XB_CDECL nglInit() {
     using ControlFp = uint32_t XB_CDECL(uint32_t, uint32_t);
-    title_function<ControlFp>(0x001f0a40)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
-    title_function<ControlFp>(0x001f0a40)(0x20000, 0x30000);  // 24-bit precision
+    own_function<ControlFp>(&title_controlfp)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
+    own_function<ControlFp>(&title_controlfp)(0x20000, 0x30000);  // 24-bit precision
     platform_mxcsr_or(0x6000);                                // SSE: round toward zero
     title_global<uint32_t>(0x00902870) = own_function<uint32_t XB_STDCALL(uint32_t)>(&D3D_ReturnOne)(0);
     title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e9d70)(  // D3D_SetPushBufferSize

@@ -17,6 +17,7 @@
 #include "bro_scr_actor_threads.h"
 #include "bro_scr_exploder.h"
 #include "bro_scr_friendly_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -95,7 +96,7 @@ inline void check_fallback_cvar() {
 // table: false; nothing added).
 inline bool has_int_key(uint32_t ent, uint32_t key) {
     if (!entity_handle_is_valid(ent)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     if (!table) return false;
     const uint32_t* const value = ScriptKeyTable_Find(table, key);
     return (value ? *value : undefined_int()) != undefined_int();
@@ -522,7 +523,7 @@ void XB_CDECL BroScr_FallbackSpawnerThink(uint32_t spawner, uint32_t group, uint
             // Unless its 0xc0bb2676 is set: wait for "finished spawning".
             bool done = false;
             if (entity_handle_is_valid(ai)) {
-                if (ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ai)) {
+                if (ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ai)) {
                     const uint32_t* const value = ScriptKeyTable_Find(table, 0xc0bb2676);
                     const uint8_t undefined = title_global<uint8_t>(0x00922ed0);
                     done = (value ? static_cast<uint8_t>(*value) : undefined) != undefined;

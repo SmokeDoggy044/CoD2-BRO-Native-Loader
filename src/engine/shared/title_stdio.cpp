@@ -4,6 +4,7 @@
 
 #include "title_data.h"
 #include "title_xapi.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -31,7 +32,6 @@ constexpr uint32_t kMtInitLockNum = 0x001f3eae; // _mtinitlocknum(n)
 constexpr uint32_t kInitCritSec = 0x001f8c7d;   // __crtInitCritSecAndSpinCount(section, spin)
 constexpr uint32_t kMalloc = 0x001f0d14;
 constexpr uint32_t kFree = 0x001f0c69;
-constexpr uint32_t kErrno = 0x001f0ac5;    // _errno()
 constexpr uint32_t kDosErrno = 0x001f0ace; // __doserrno()
 constexpr uint32_t kDosMapErr = 0x001f0ad7;
 constexpr uint32_t kWrite = 0x001f41b9;    // _write(fh, buffer, count)
@@ -71,7 +71,7 @@ void leave_crit_sec(uint32_t section) {
 }
 uint32_t crt_malloc(uint32_t size) { return title_function<uint32_t XB_CDECL(uint32_t)>(kMalloc)(size); }
 void crt_free(uint32_t block) { title_function<void XB_CDECL(uint32_t)>(kFree)(block); }
-int32_t& crt_errno() { return *title_function<int32_t* XB_CDECL()>(kErrno)(); }
+int32_t& crt_errno() { return *own_function<int32_t* XB_CDECL()>(&title_errno)(); }
 uint32_t& crt_doserrno() { return *title_function<uint32_t* XB_CDECL()>(kDosErrno)(); }
 void dosmaperr(uint32_t error) { title_function<void XB_CDECL(uint32_t)>(kDosMapErr)(error); }
 

@@ -429,6 +429,9 @@ void XB_THISCALL SmallHeap_Destroy(uint8_t* heap);
 // 0x00044850 (heap in ECX): a free block of the first pool whose limit (int16) fits the size's low 16 bits,
 // counting the peak; else (no_pool, +0x39) Heap_AllocAligned(16, size) unless +0x3a (null).
 uint8_t* XB_THISCALL SmallHeap_Alloc(uint8_t* heap, uint32_t size, uint32_t no_pool);
+// 0x000445d0 (was FUN_000445d0; heap in ECX): true when no pool (count +0, pointers from +4) has a free block left
+// (pool +0x24, the free list, null everywhere).
+uint8_t XB_THISCALL SmallHeap_AllPoolsExhausted(const uint8_t* heap);
 // 0x00044910 (heap in ECX): back on the free list of the pool whose block range holds mem, else Z_Free.
 void XB_THISCALL SmallHeap_Free(uint8_t* heap, uint8_t* mem);
 

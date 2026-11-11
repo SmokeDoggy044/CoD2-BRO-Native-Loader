@@ -2206,6 +2206,13 @@ uint32_t XB_CDECL GScr_GetEntScriptObject(uint32_t handle) {
     return field<uint32_t>(ent, 0x428);
 }
 
+uint32_t XB_CDECL ScrCall_GScr_GetEntScriptObject(uint32_t handle) { return GScr_GetEntScriptObject(handle); }
+
+void XB_THISCALL ScrCall_GScr_GetEntScriptObject_2(const uint32_t* handle, uint32_t key) {
+    if (const uint32_t table = GScr_GetEntScriptObject(*handle))
+        ScriptKeyTable_Remove(reinterpret_cast<ScriptKeyTable*>(uintptr_t{table}), key);
+}
+
 int32_t XB_CDECL GScr_GetPlayerHandle() {
     return field<int32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4), 0x224);
 }

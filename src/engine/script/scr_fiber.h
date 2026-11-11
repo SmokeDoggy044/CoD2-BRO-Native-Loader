@@ -39,7 +39,27 @@ void scr_fiber_note_wait(uint8_t* thread, uint32_t frame);
 // Scr_DestroyThreadContents: the thread record goes away, its fiber back to the pool.
 void scr_fiber_release(uint8_t* thread);
 
+// 0x002fddb0 / 0x002fde40 / 0x00300850 (import slots 15-17; never return): the current thread waits on a new
+// record - a time (g_scrWaitTime bits, vtable 0x00831824), a frame count (0x00831808), or a notify: on
+// `wait_object` (0x0083181c), else on entity handle `object` (a stale handle ends the thread) with a timeout
+// (ScrWaitTimeoutRecord_Init), plain (0x00831800) or with argument words (Scr_InitWaitRecord4) - then switches
+// back to the scheduler (Scr_RestoreContext).
+[[noreturn]] void XB_CDECL Scr_WaitRecord15(uint32_t seconds_bits);
+[[noreturn]] void XB_CDECL Scr_WaitRecord16(uint32_t frames);
+[[noreturn]] void XB_CDECL Scr_WaitRecord17(uint32_t object, uint32_t wait_object, uint32_t notify, uint32_t a,
+                                            uint32_t b, uint32_t c, uint32_t flag, uint32_t timeout_bits);
+
 }  // namespace game
+
+// 0x0011d950 / 0x0011d990 / 0x0011d9d0 (no arguments; asm): the current script thread waits on the time, frame
+// count or notify in the title's wait words (0x00922124, 0x00922128, 0x00922130..), returning when it resumes.
+extern "C" void Scr_SuspendWaitTime(void);
+extern "C" void Scr_SuspendWaitFrames(void);
+extern "C" void Scr_SuspendWaitTill(void);
+// 0x001fa400 (context object in ECX; asm): runs the new script thread's context (vtable slot 1) inside catch (...).
+extern "C" void Scr_ThreadEntry(void);
+// 0x002f5660 (asm, never returns): resumes the context at `context` (the scheduler's: 0x0092709c).
+extern "C" [[noreturn]] void XB_CDECL Scr_RestoreContext(uint32_t context);
 
 // 0x002fe100 (thread in EAX, scheduler in ESI; Scr_RunThreads x3): runs a new thread from its start
 // (Scr_ThreadEntry 0x001fa400 with ECX = its context object +0xc) or resumes a woken one (+0x10 bits 1 and

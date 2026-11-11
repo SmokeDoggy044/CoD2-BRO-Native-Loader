@@ -269,7 +269,7 @@ void XB_CDECL BroScr_StartLoopingFx() {
         uint32_t* const element = BroScr_ArrayElement(array, i);
         uint32_t sound;
         hash_of(&sound, sound_name);
-        title_function<StartThread>(0x0017b050)(0, 0, 0, 0, own_address(&BroScr_FxCreationSoundThink), *element, &sound, to, &h2, &f1, &h1,
+        own_function<StartThread>(&Scr_StartThread_ent_hash_vec_hash_f_hash_f_entry)(0, 0, 0, 0, own_address(&BroScr_FxCreationSoundThink), *element, &sound, to, &h2, &f1, &h1,
                                                 &f2);  // Scr_StartThread_ent_hash_vec_hash_f_hash_f(BroScr_FxCreationSoundThink)
     }
     if (ents.data) Scr_Free(ents.data);

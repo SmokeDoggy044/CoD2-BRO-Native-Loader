@@ -531,6 +531,9 @@ uint32_t XB_STDCALL NAL_CodNote_DecodeBlock(const uint32_t* context, uint32_t, u
 // 0x00023390 (context in EDI): the same block skip (behind 0x00022ba0).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context);
 extern "C" void NAL_SkipActiveChannelBlocks_entry(void);
+// 0x00022ba0 (a virtual function, pointer at 0x008326d4; stdcall, 6 arguments): NAL_SkipActiveChannelBlocks(context).
+uint32_t XB_STDCALL NAL_SkipActiveChannelBlocks_VFunc(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                      uint32_t);
 
 // 0x0008cc40 (a in ECX, b in EAX; out, t, 1 - t): the blend of two 0x50-byte IK-spin
 // records into out by their IK weights (+0x3c): spin quaternions (+0, +0x10) slerped and

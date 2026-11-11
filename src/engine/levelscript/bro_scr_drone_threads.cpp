@@ -323,7 +323,7 @@ inline void blow_up(uint32_t* drone, bool call) {
     else
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221dc)(*drone, level() + 0x6e8, 0, 0,
                                                                                          0);  // GScr_PlaySound
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
         0, 0, 0, 0, own_address(&BroScr_StukaStartNearbyDrones), *drone);  // Scr_StartThreadFunctor1(BroScr_StukaStartNearbyDrones)
 }
 // A BroScr_DroneMain(drone, *hide, *explode) thread (Scr_StartThread_ent_b_b).

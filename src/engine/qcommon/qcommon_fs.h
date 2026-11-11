@@ -836,6 +836,11 @@ uint8_t* XB_THISCALL HashMap_Index_9(HashMap* map, const uint32_t* key);
 // 0x00376750: static init: constructs the localized-string tables at 0x0095fe70 (0x0001d930, object in
 // ESI) and registers AtExit_LocStrings.
 void XB_CDECL StaticInit_LocStrings();
+// 0x0001d930 (object in ESI): the localized-string state's constructor: four empty std::strings (+0x8, +0x24, +0x40,
+// +0x5c: capacity 15, size 0), an empty std::map<string> (head +0x7c, +0x80 size) and std::set<string> (head +0x9c,
+// +0xa0 size), +0x8c..+0x94 zero, then Loc_ResetStringFileState(this, 0). Returns the object.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL LocStrings_Ctor(uint8_t* self);
+extern "C" void LocStrings_Ctor_entry(void);
 // 0x00379950: atexit: destroys the localized-string tables (0x0001d9d0).
 void XB_CDECL AtExit_LocStrings();
 
@@ -1051,8 +1056,12 @@ extern "C" void ProfileSave_OnSaveOpComplete_entry(void);
 // substituted into the previous "%s"; one of two rotating 256-byte buffers (0x0098bf58), null when a lookup fails.
 char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int32_t mode);
 // 0x002ff3e0: small-block heap 0x0095f4a4 (pools 0x20 x 30000, 0x40 x 2000, 0x80 x 100) and the zone heap
-// 0x0095f4a0 (Heap_CreateFromZone); shutdown callback 0x002fd6e0 registered. Boot only (Sys_Main).
+// 0x0095f4a0 (Heap_CreateFromZone); callback SmallHeap_DrawExhaustedWarning registered in the list at 0x00988784
+// (32 slots, count 0x00988780; the 11-07 notes called it a shutdown list, it runs during play). Boot only (Sys_Main).
 void XB_CDECL Sys_InitHeaps();
+// 0x002fd6e0 (a gap function: Ghidra had none): "Broc Pool empty" in red at (20, 20) when every pool of the small
+// heap 0x0095f4a4 is used up (SmallHeap_AllPoolsExhausted).
+void XB_CDECL SmallHeap_DrawExhaustedWarning();
 // 0x002cede0 (m in ECX, 16-aligned rows of four): Gram-Schmidt by cross products (packed SSE, every lane).
 void XB_THISCALL Matrix_Orthonormalize(float* m);
 // 0x002a2c80 (dir in EAX, point in EBX): Q3's RotatePointAroundVector (degrees).

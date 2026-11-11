@@ -12,6 +12,7 @@
 #include "g_scr_runtime.h"
 #include "levels_twins.h"
 #include "script_string.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -24,7 +25,7 @@ constexpr uint32_t kUndefinedVectorLane = 0x00922eb8;
 
 // The entity's script object (its field table), or null.
 ScriptKeyTable* script_object(uint32_t entity) {
-    const uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(entity);  // GScr_GetEntScriptObject
+    const uint32_t object = own_function<uint32_t XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(entity);  // GScr_GetEntScriptObject
     return reinterpret_cast<ScriptKeyTable*>(static_cast<uintptr_t>(object));
 }
 
@@ -643,7 +644,7 @@ uint32_t XB_CDECL ScrField_h12993a44_c(uint32_t entry_esp, uint32_t entity) {
     // No frame in the original: both calls run with their argument at entry ESP - 4.
     TitleRegs regs{};
     const uint32_t object_args[1] = {entity};
-    const uint32_t object = title_call_at_regs(entry_esp, 0x0011db20, &regs, 1, object_args);  // GScr_GetEntScriptObject
+    const uint32_t object = title_call_at_regs(entry_esp, own_address(&ScrCall_GScr_GetEntScriptObject), &regs, 1, object_args);  // GScr_GetEntScriptObject
     regs.ecx = object ? object : kEmptyKeyTable;
     const uint32_t get_args[1] = {0x12993a44};
     return title_call_at_regs(entry_esp, own_address(&ScriptKeyTable_GetStruct28), &regs, 1, get_args);  // ScriptKeyTable_GetStruct28

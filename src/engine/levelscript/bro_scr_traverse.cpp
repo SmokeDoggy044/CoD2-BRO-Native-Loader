@@ -12,6 +12,7 @@
 #include "bro_scr_note_handlers.h"
 #include "bro_scr_actor_threads.h"
 #include "bro_scr_notify_threads.h"
+#include "g_script.h"
 
 namespace game {
 
@@ -210,7 +211,7 @@ uint32_t stairs_anim(uint32_t ent, uint32_t armed, uint32_t unarmed) {
 }
 
 void begin_functor_thread(uint32_t body_address, uint32_t ent) {
-    title_function<BeginThreadFunctor1>(0x0011b4d0)(1, 0, 0, 0, body_address, ent);  // Scr_BeginThreadFunctor1
+    own_function<BeginThreadFunctor1>(&Scr_BeginThreadFunctor1_entry)(1, 0, 0, 0, body_address, ent);  // Scr_BeginThreadFunctor1
 }
 
 }  // namespace
@@ -437,7 +438,7 @@ void XB_CDECL BroScr_TraverseDiveWall(uint32_t ent) {
     note_tracks(ent, 0xaa613677);
     set_move_keys(ent, 0x0001c6ce, 0xc028584c);
     blend_back(ent, body());
-    title_function<CallEnt6Anims>(0x001e53e0)(
+    own_function<CallEnt6Anims>(&Scr_CallThread_ent_anim_anim_anim_anim_anim_anim_entry)(
         0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsLoop), ent, pointer<const uint32_t>(0x008ce70c), pointer<const uint32_t>(0x008ce700),
         pointer<const uint32_t>(0x008ce73c), pointer<const uint32_t>(0x008ce748), pointer<const uint32_t>(0x008ce730),
         pointer<const uint32_t>(0x008ce724));  // BroScr_DirectionalMoveAnimsLoop(crouchrun_loop forward, back, left, right, forwardright, forwardleft)

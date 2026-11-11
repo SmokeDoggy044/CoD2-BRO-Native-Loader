@@ -12,8 +12,8 @@ namespace game {
 // The Scr_StartThread_* wrappers (cdecl a1..a6 plus one pointer per functor field): a
 // functor {vtable, a5, a6, *a7, ...} from ScrIface_Alloc (0 when it fails), then
 // Scr_CreateThread(a2, a3, a4, a6, functor, a1). The entries hand the C versions the
-// argument block. Not registered: the indirect CALL to ScrIface_Alloc sits at byte 2
-// (unhookable for the compare harness); they are ready for Replaced.
+// argument block. Replaced without a comparison (2026-11-11): the indirect CALL to ScrIface_Alloc
+// sits at byte 2 (the compare harness cannot hook them); replays check them.
 // 0x0011a910: no fields (vtable 0x007f5ba0).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThreadFunctor1(const uint32_t* args);
 extern "C" void Scr_StartThreadFunctor1_entry(void);
@@ -44,7 +44,7 @@ extern "C" void Scr_StartThread_ent_ent_str_vec_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_i_str_b_2(const uint32_t* args);
 extern "C" void Scr_StartThread_ent_ent_i_str_b_2_entry(void);
 // 0x0017afa0: constructor 0x00459b70 (4 words), Scr_BeginThread + Scr_WaitFrames(0) in a script
-// thread (switches the thread away: not registered).
+// thread (switches the thread away: Replaced without a comparison).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_ent_str(const uint32_t* args);
 extern "C" void Scr_CallThread_ent_ent_str_entry(void);
 // 0x0017b050 (unhookable): constructor 0x0017a550 (8 words).
@@ -57,7 +57,7 @@ extern "C" void Scr_StartThreadFunctorN_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_vec_str_vec_f_3(const uint32_t* args);
 extern "C" void Scr_StartThread_ent_vec_str_vec_f_3_entry(void);
 // "call" = the Scr_CallThread_* kind: Scr_BeginThread, then Scr_WaitFrames(0) in a script thread
-// (switches the thread away: not registered).
+// (switches the thread away: Replaced without a comparison, checked by replays).
 // 0x0017b370: constructor 0x0017a870 (6 words).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_RespawnerAttributes_i_str(const uint32_t* args);
 extern "C" void Scr_StartThread_ent_ent_RespawnerAttributes_i_str_entry(void);
@@ -136,13 +136,10 @@ extern "C" void Scr_CallThread_ent_f_hash_hash_hash_i_2_entry(void);
 // 0x001e55c0: call; fields 4, 4, 4 (unhookable).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_hash_f_5(const uint32_t* args);
 extern "C" void Scr_CallThread_ent_hash_hash_f_5_entry(void);
-// 0x001fa400 (functor in ECX; Scr_ResumeThread on the thread's own stack): runs vtable slot 1 inside a
-// try/catch. Not registered (the script thread body switches away).
-uint32_t XB_THISCALL Scr_ThreadEntry(uint32_t* functor);
 // 0x0011f5d0: empties the dynamic array (a3) and appends GScr_GetEntArray(a1, a2, buffer, 0x400, a4).
 void XB_CDECL Scr_GetEntArray(uint32_t a1, uint32_t a2, uint8_t* array, uint32_t a4);
 // 0x0011fac0 (thread start pointer, immediates at 0x00177e45/0x00177f75): Scr_EndOn(object, name),
-// waits for "death" on the thread (switches away: not registered), then Scr_QueueNotify(object, name).
+// waits for "death" on the thread (switches away: Replaced without a comparison), then Scr_QueueNotify(object, name).
 void XB_CDECL Scr_NotifyAfterDeath(uint32_t object, uint32_t thread, uint32_t name);
 // 0x00135fb0: releases a2's a4 script strings and frees the block (when a2 is set), then releases
 // the by-value string in the a5 slot. a1 and a3 are not read.
@@ -158,8 +155,8 @@ uint32_t XB_CDECL BroScr_PanzerIVUseAnimTree(uint32_t ent);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args);
 extern "C" void Scr_BeginThreadEndOnFunctor1_entry(void);
 // 0x0011b4d0: Scr_BeginThread(a2, a3, a4, a6, functor {0x007f5ba0, a5, a6}, a1), then
-// Scr_WaitFrames(0) when called from a script thread; returns the thread. Not registered either
-// (same unhookable prologue).
+// Scr_WaitFrames(0) when called from a script thread; returns the thread. Replaced without a
+// comparison (same prologue the harness cannot hook).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_BeginThreadFunctor1(const uint32_t* args);
 extern "C" void Scr_BeginThreadFunctor1_entry(void);
 // 0x0011c170 (entity in ECX): the entity's script object (0x0011db20 of its first word), or the

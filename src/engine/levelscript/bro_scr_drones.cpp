@@ -256,7 +256,7 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
         std::memcpy(&path, &delay_max, 4);
         if (delay_max != undefined) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, float*, float*, uint32_t*);
-            title_function<StartThread>(0x0017ae10)(0, 0, 0, 0, own_address(&BroScr_DroneMainDelayed), drone, &delay_min, &delay_max, &flag);  // Scr_StartThread_ent_f_f_b(BroScr_DroneMainDelayed)
+            own_function<StartThread>(&Scr_StartThread_ent_f_f_b_entry)(0, 0, 0, 0, own_address(&BroScr_DroneMainDelayed), drone, &delay_min, &delay_max, &flag);  // Scr_StartThread_ent_f_f_b(BroScr_DroneMainDelayed)
         }
     }
     scr_release(&type);

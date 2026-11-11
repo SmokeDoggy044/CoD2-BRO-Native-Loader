@@ -27,6 +27,7 @@
 #include "bro_scr_anim.h"
 #include "bro_scr_arrays.h"
 #include "bro_scr_stubs.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -110,7 +111,7 @@ void XB_CDECL BroScr_WoundedWalkLoop(uint32_t ent) {
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922dc4)(
             ent, value == 0x06088a8c || value == 0x068698d3 ? 0xc1165808 : 0x070b89a4);  // ScrActor_SetInt_184
     }
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x003a09eb);  // BroScr_SetPoseMovement
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0x070b89a4, 0x003a09eb);  // BroScr_SetPoseMovement
     slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225d8)(
         ent, title_global<uint32_t>(0x008cf780), 0x3f800000, 0x3dcccccd, 0x3f800000, 0);  // GScr_SetAnimKnob(wounded_walk_loop)
     Scr_Wait(as_float(0x41200000));  // 10
@@ -336,7 +337,7 @@ inline void mg42_anim_tree(uint32_t* ent, uint32_t gunner, bool put_gun) {
         return;
     }
     if (put_gun) BroScr_PutGunInHand(gunner, 0x07151174);
-    title_function<void XB_THISCALL(uint32_t*, uint32_t)>(0x0011eb30)(ent, 0xabc1df0a);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
+    own_function<void XB_THISCALL(uint32_t*, uint32_t)>(&ScrCall_GScr_GetEntScriptObject_2)(ent, 0xabc1df0a);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
     slot<void XB_CDECL(uint32_t)>(0x009225f4)(*ent);  // GScr_ClearAnimTree
 }
 using SetMoveAnims = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
@@ -347,7 +348,7 @@ inline void replace_thread(uint32_t ent, uint32_t key) {
     *kept = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
 }
 inline void move_anims(uint32_t ent, const uint32_t* a, uint32_t visible) {
-    title_function<SetMoveAnims>(0x0018df30)(ent, a[0], a[1], a[2], a[3], a[4], a[5], title_global<uint32_t>(0x0083eca0),
+    own_function<SetMoveAnims>(&BroScr_SetDirectionalMoveAnims)(ent, a[0], a[1], a[2], a[3], a[4], a[5], title_global<uint32_t>(0x0083eca0),
                                             visible);  // BroScr_SetDirectionalMoveAnims(.., 0.2, visible)
 }
 inline uint32_t visible_model(uint32_t ent) {
@@ -419,7 +420,7 @@ void XB_CDECL BroScr_DirectionalMoveAnimsLoop(uint32_t ent, uint32_t a2, uint32_
     replace_thread(ent, 0xf8b8e073);
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*,
                                    uint32_t*, uint32_t*, uint32_t*, uint32_t*);
-    title_function<Call>(0x001e53e0)(0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsOnNotify), ent, &a2, &a3, &a4, &a5, &a6,
+    own_function<Call>(&Scr_CallThread_ent_anim_anim_anim_anim_anim_anim_entry)(0, 0, 0, 0, own_address(&BroScr_DirectionalMoveAnimsOnNotify), ent, &a2, &a3, &a4, &a5, &a6,
                                      &a7);  // Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(OnNotify)
     const uint32_t anims[6] = {a2, a3, a4, a5, a6, a7};
     move_anims(ent, anims, 1);
@@ -456,7 +457,7 @@ void XB_CDECL BroScr_ProneAimFaceDefault(uint32_t ent, float time, uint32_t end,
 }
 
 void XB_CDECL BroScr_PlayStepSounds(uint32_t ent) {
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x0001c6ce);  // BroScr_SetPoseMovement
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0x070b89a4, 0x0001c6ce);  // BroScr_SetPoseMovement
     *handle_slot(ent, 0x0ccee5c1) = 0x0001c6ce;
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922dc4)(ent, 0x070b89a4);  // ScrActor_SetInt_184
     step_sound(ent, 0x00825b98);  // "misc_step1"
@@ -669,7 +670,7 @@ void XB_CDECL BroScr_UpdateOrientToEntity(uint32_t ent, uint32_t target) {
 }
 
 void XB_CDECL BroScr_ShuffleForwardAnim(uint32_t ent) {
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0x070b89a4, 0x00385d90);  // BroScr_SetPoseMovement
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0x070b89a4, 0x00385d90);  // BroScr_SetPoseMovement
     if (*handle_slot(ent, 0xbfc60f36) != 0x0036b1a5 && *handle_slot(ent, 0xbfc60f36) == 0x77) *handle_slot(ent, 0xbfc60f36) = 0x61;
     const uint32_t anim = *handle_slot(ent, 0xbfc60f36) == 0x61 ? title_global<uint32_t>(0x008cf408)   // stand_alerta_shuffle_forward
                                                                 : title_global<uint32_t>(0x008cf42c);  // stand_alertb_shuffle_forward
@@ -700,7 +701,7 @@ void XB_CDECL BroScr_TurretManualTargetThink(uint32_t gunner, uint32_t turret) {
         Scr_WaitTillString(turret, pointer<const char>(0x00825fe0));  // "StartFiring"
         bool manual = false;
         if (entity_handle_is_valid(turret)) {
-            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(turret);
+            ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(turret);
             if (table) {
                 const uint32_t* const value = ScriptKeyTable_Find(table, 0xcf1e52a5);  // manual_target
                 manual = entity_handle_is_valid(value ? *value : 0) != 0;
@@ -877,7 +878,7 @@ void XB_CDECL BroScr_HeadLookThink(uint32_t ent, uint32_t notify_type) {
         // The eye-to-target line (stripped debug thread BroScr_EmptyFunc_68).
         if (notify_type != undefined_handle() && notify_type == 0xa3c65328) {
             int32_t two = 2;
-            title_function<CallThreadVec3I>(0x001e52f0)(0, 0, 0, 0, own_address(&BroScr_Stub_Ret), ent, eye, aim, pointer<const uint32_t>(0x008ccaa0),
+            own_function<CallThreadVec3I>(&Scr_CallThread_ent_vec_vec_vec_i_entry)(0, 0, 0, 0, own_address(&BroScr_Stub_Ret), ent, eye, aim, pointer<const uint32_t>(0x008ccaa0),
                                                         &two);  // Scr_CallThread_ent_vec_vec_vec_i
         } else {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x34);  // ScrIface_Alloc
@@ -1167,7 +1168,7 @@ void XB_CDECL BroScr_FloodSpawnerTriggerThink(uint32_t ent) {
     if (entity_handle_is_valid(ent)) {
         bool defined = false;
         if (entity_handle_is_valid(ent)) {
-            if (ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent)) {
+            if (ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent)) {
                 const uint32_t* const value = ScriptKeyTable_Find(table, 0xa7ad4a18);
                 defined = (value ? *value : undefined_int()) != undefined_int();
             }
@@ -1469,7 +1470,7 @@ void XB_CDECL BroScr_IncrementTriggerThink(uint32_t trigger) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i) {
                 const uint32_t ent = *element(&ents, i);
                 if (!entity_handle_is_valid(ent)) continue;
-                ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+                ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
                 if (!table) continue;
                 const uint32_t* const found = ScriptKeyTable_Find(table, 0x8bbf13fe);
                 if ((found ? *found : undefined_int()) == undefined_int()) continue;
@@ -1512,7 +1513,7 @@ void XB_CDECL BroScr_MgGetNewUser(uint32_t ent, uint32_t owner) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(turrets.size); ++i) {
         const uint32_t turret = *element(&turrets, i);
         if (!entity_handle_is_valid(turret)) continue;
-        ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(turret);
+        ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(turret);
         if (!table) continue;
         const uint32_t* const found = ScriptKeyTable_Find(table, 0xec070be6);
         if ((found ? *found : undefined_int()) == undefined_int()) continue;
@@ -1629,7 +1630,7 @@ inline void turret_fire_state(ScriptString* state, uint32_t ent, uint32_t fire, 
 }
 // The burst: a `change` call thread (ent, time, turret), then the wait for 0xeb04625e.
 inline void turret_burst(uint32_t ent, uint32_t change, float time, const uint32_t* turret) {
-    title_function<CallThreadTime>(0x001e4c80)(0, 0, 0, 0, change, ent, &time, turret);  // Scr_CallThread_ent_f_ent_3
+    own_function<CallThreadTime>(&Scr_CallThread_ent_f_ent_3_entry)(0, 0, 0, 0, change, ent, &time, turret);  // Scr_CallThread_ent_f_ent_3
     Scr_WaitTill(*turret, 0xeb04625e);
 }
 // The next burst: (delay_min + RandomFloat(delay_range)) s from now, in ms.
@@ -1773,11 +1774,11 @@ inline ScriptString* key_string(uint32_t ent, uint32_t key) {
                                                                                             key);  // ScriptKeyTable_GetString
 }
 inline void remove_key(uint32_t* ent, uint32_t key) {
-    title_function<void XB_THISCALL(uint32_t*, uint32_t)>(0x0011eb30)(ent, key);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
+    own_function<void XB_THISCALL(uint32_t*, uint32_t)>(&ScrCall_GScr_GetEntScriptObject_2)(ent, key);  // ScrCall_GScr_GetEntScriptObject_2: removes the key
 }
 inline bool int_defined(uint32_t ent, uint32_t key) {
     if (!entity_handle_is_valid(ent)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     if (!table) return false;
     const uint32_t* const found = ScriptKeyTable_Find(table, key);
     return (found ? *found : undefined_int()) != undefined_int();
@@ -1794,7 +1795,7 @@ inline void copy_tag(uint32_t get, uint32_t set, uint32_t ent, ScriptString* tag
 }
 inline void tumble(uint32_t ent, uint32_t piece) {
     ScrVec3 v = get_vec(0x00922cd8, ent);  // ScrActor_GetVec_234
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(0x001e4f00)(
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*)>(&Scr_CallThread_ent_vec_entry)(
         0, 0, 0, 0, own_address(&BroScr_RandomTumble), piece, v.v);  // Scr_CallThread_ent_vec(BroScr_RandomTumble)
 }
 using AttachSlot = void XB_CDECL(uint32_t, ScriptString*, ScriptString*);

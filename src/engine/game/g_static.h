@@ -9,6 +9,25 @@
 
 namespace game {
 
+// Constructors the static initializers call (C since 2026-11-11, 0.3 host), each returning the object:
+// 0x00023ad0 (thiscall): 15 empty script strings (+0..+0x38), the first word of 15 0x104-byte records from +0x3c zero,
+// +0xf98 zero.
+uint8_t* XB_THISCALL StaticObj_ScriptStrings15_Ctor(uint8_t* self);
+// 0x00026fc0 (object in ESI): 0x40 word pairs at +0xb4, +0xac0..+0xb3c zero, empty script strings +0xb50 and +0xcb8,
+// +0xcb4 zero, the first two words of 0x100 16-byte entries from +0xcfc zero.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_985370_Ctor(uint8_t* self);
+extern "C" void StaticObj_985370_Ctor_entry(void);
+// 0x000270e0 (object in ESI): 136 empty script strings (+0..+0x21c).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_984ac0_Ctor(uint8_t* self);
+extern "C" void StaticObj_984ac0_Ctor_entry(void);
+// 0x00027cf0 (object in EBX): empty script strings at +0x38, +0x3c, +0x48 and the same 0x40 further.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_9883b0_Ctor(uint8_t* self);
+extern "C" void StaticObj_9883b0_Ctor_entry(void);
+// 0x001e4700 (thiscall): word 0 zero, words +4..+0x54 = g_scrUndefinedInt (0x00922ec0).
+uint8_t* XB_THISCALL ScrUndefinedInts21_Ctor(uint8_t* self);
+// 0x00014c80 (thiscall; an atexit destructor): releases the script string at +0xc, base vtable 0x007f48c4.
+void XB_THISCALL ScrStringHolder_Dtor(uint8_t* self);
+
 // 0x003731e0.
 void XB_CDECL StaticInit_HandleTable_8dda2c();
 // 0x00373380.

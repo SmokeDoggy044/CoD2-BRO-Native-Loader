@@ -416,7 +416,7 @@ void XB_CDECL BroScr_SetupFriendlyFireMissionFail(uint32_t self, uint32_t ent, u
             if ((*ScrField_h7599373d_IsDefined(&defined, ent) && *ScrField_h7599373d(ent) == 1) ||
                 *reinterpret_cast<int32_t*>(level_object() + 0xdc) < 4) {
                 using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-                title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_FriendlyFireMissionFail), self);  // Scr_StartThreadFunctor1(BroScr_FriendlyFireMissionFail)
+                own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, own_address(&BroScr_FriendlyFireMissionFail), self);  // Scr_StartThreadFunctor1(BroScr_FriendlyFireMissionFail)
             } else {
                 *reinterpret_cast<uint32_t*>(level_object() + 0xf4) = 0;
                 *reinterpret_cast<uint32_t*>(level_object() + 0xdc) = 0;
@@ -528,7 +528,7 @@ void XB_CDECL BroScr_GoToBalconyNode(uint32_t ent, uint32_t node) {
         bool defined;
         if (*ScrField_h73623f0d_IsDefined(&defined, ent) && *ScrField_h73623f0d(ent) != 0) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-            title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_SetAIFlagsUntilNotify), ent);  // Scr_StartThreadFunctor1(BroScr_SetAIFlagsUntilNotify)
+            own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, own_address(&BroScr_SetAIFlagsUntilNotify), ent);  // Scr_StartThreadFunctor1(BroScr_SetAIFlagsUntilNotify)
         }
     }
     {

@@ -471,7 +471,7 @@ void XB_CDECL BroScr_StoneBreakTriggerThink(uint32_t trigger) {
         const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, other);  // ScrEnt_GetOrigin
         uint32_t origin[3] = {o[0], o[1], o[2]};
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint8_t*);
-        title_function<StartThread>(0x0017b5c0)(0, 0, 0, 0, own_address(&BroScr_SpawnStoneGibs), element(&stones, i - 1), origin,
+        own_function<StartThread>(&Scr_StartThread_ent_vec_b_3_entry)(0, 0, 0, 0, own_address(&BroScr_SpawnStoneGibs), element(&stones, i - 1), origin,
                                                 &light);  // Scr_StartThread_ent_vec_b_3(BroScr_SpawnStoneGibs)
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete

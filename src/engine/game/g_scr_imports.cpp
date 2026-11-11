@@ -7,6 +7,7 @@
 #include "g_scr_builtins2.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
+#include "scr_fiber.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
 #include "qcommon_fs.h"
@@ -650,12 +651,12 @@ const ImportSlot kLevelImports[] = {
     {0x020, own_address(&title_strncpy)},  // _strncpy (our CRT)
     {0x034, own_address(&Scr_SaveThreadLocals)},  // Scr_SaveThreadLocals
     {0x038, own_address(&GScr_EmptyStub14)},  // GScr_EmptyStub14
-    {0x03c, 0x002fddb0},  // Scr_WaitRecord15
-    {0x040, 0x002fde40},  // Scr_WaitRecord16
+    {0x03c, own_address(&Scr_WaitRecord15)},  // Scr_WaitRecord15
+    {0x040, own_address(&Scr_WaitRecord16)},  // Scr_WaitRecord16
     {0x02c, own_address(&Scr_CreateThread)},  // Scr_CreateThread
     {0x028, own_address(&Scr_BeginThread)},  // Scr_BeginThread
     {0x030, own_address(&Scr_BeginThreadEndOn)},  // Scr_BeginThreadEndOn
-    {0x044, 0x00300850},  // Scr_WaitRecord17
+    {0x044, own_address(&Scr_WaitRecord17)},  // Scr_WaitRecord17
     {0x048, own_address(&Scr_EndOn)},  // Scr_EndOn
     {0x04c, own_address(&Scr_InThread)},  // Scr_InThread
     {0x050, own_address(&Scr_ThreadHandleIsValid)},  // Scr_ThreadHandleIsValid

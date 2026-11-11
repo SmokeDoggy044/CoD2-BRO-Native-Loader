@@ -8,6 +8,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "bro_scr_mortar_loops.h"
+#include "g_script.h"
 
 namespace game {
 
@@ -77,7 +78,7 @@ void XB_CDECL BroScr_PathMoverRun(uint32_t, uint32_t ent, uint32_t type, int32_t
     *reinterpret_cast<uint8_t*>(key_slot(ent, 0xac835695, title_global<uint8_t>(0x00922ed0))) = 0;
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, float*,
                                     uint32_t*, uint32_t*, uint32_t*);
-    title_function<Start>(0x0017b270)(0, 0, 0, 0, own_address(&BroScr_RandomMortarsAroundEnt), ent, &type, &time, &count, &min,
+    own_function<Start>(&Scr_StartThread_ent_hash_f_i_f_f_2_entry)(0, 0, 0, 0, own_address(&BroScr_RandomMortarsAroundEnt), ent, &type, &time, &count, &min,
                                       &max);  // Scr_StartThread_ent_hash_f_i_f_f_2(BroScr_RandomMortarsAroundEnt)
     for (uint32_t n = 1; static_cast<int32_t>(n) < static_cast<int32_t>(points(ent)->size); ++n) {
         const uint32_t* const from = point_at(points(ent), n - 1);

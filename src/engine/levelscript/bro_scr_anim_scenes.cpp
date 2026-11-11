@@ -21,6 +21,8 @@
 #include "bro_scr_entity_threads.h"
 #include "bro_scr_wait_misc.h"
 #include "bro_scr_wait_notify.h"
+#include "g_script.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -415,7 +417,7 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
                 scr_release(&animname);
             }
             const uint32_t notify = 0xce00786e;
-            title_function<StartThread>(0x0017ada0)(0, 0, 0, 0, own_address(&BroScr_AnimNotetrackCommands), ent, element_at(guys, i - 1), &notify, &tag_ent,
+            own_function<StartThread>(&Scr_StartThread_ent_ent_hash_ent_hash_entry)(0, 0, 0, 0, own_address(&BroScr_AnimNotetrackCommands), ent, element_at(guys, i - 1), &notify, &tag_ent,
                                                     &anime);  // Scr_StartThread_ent_ent_hash_ent_hash(BroScr_AnimNotetrackCommands)
             const uint32_t guy = *element_at(guys, i - 1);
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
@@ -456,12 +458,12 @@ void XB_CDECL BroScr_AnimSingleGuys(uint32_t ent, uint32_t guys_word, uint32_t a
     uint32_t waiter = 0;
     if (last_anim != -1) {
         waiter = spawn_scene_origin();
-        notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // Scr_NotifyAfterDeath
+        notify_thread(own_address(&Scr_NotifyAfterDeath), waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // Scr_NotifyAfterDeath
         notify_thread(own_address(&BroScr_NotifyAfterSingleAnim), waiter, element_at(guys, static_cast<uint32_t>(last_anim)), anime);  // BroScr_NotifyAfterSingleAnim
         Scr_WaitTill(waiter, anime);
     } else if (last_face != -1) {
         waiter = spawn_scene_origin();
-        notify_thread(0x0011fac0, waiter, element_at(guys, static_cast<uint32_t>(last_face)), anime);  // Scr_NotifyAfterDeath
+        notify_thread(own_address(&Scr_NotifyAfterDeath), waiter, element_at(guys, static_cast<uint32_t>(last_face)), anime);  // Scr_NotifyAfterDeath
         notify_thread(own_address(&BroScr_NotifyAfterWaitTill_56caf2eb), waiter, element_at(guys, static_cast<uint32_t>(last_face)),
                       anime);  // BroScr_NotifyAfterWaitTill_56caf2eb
         Scr_WaitTill(waiter, anime);
@@ -897,7 +899,7 @@ void XB_CDECL BroScr_WaitAnimSoloFinished(uint32_t node, uint32_t guy, uint32_t 
     const int32_t start = get_time();
     for (;;) {
         if (!entity_handle_is_valid(node)) break;
-        ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(node);  // ScrCall_GScr_GetEntScriptObject
+        ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(node);  // ScrCall_GScr_GetEntScriptObject
         if (!table) break;
         const uint8_t* const value = reinterpret_cast<const uint8_t*>(ScriptKeyTable_Find(table, 0xdedbf624));
         const uint8_t undefined = title_global<uint8_t>(0x00922ed0);

@@ -17,6 +17,7 @@
 #include "bro_scr_arrays.h"
 #include "bro_scr_entity_threads.h"
 #include "bro_scr_notify_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -67,7 +68,7 @@ bool defined(IsDefined is_defined, uint32_t ent) {
 }
 
 void start_thread_functor1(uint32_t function, uint32_t ent) {
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
         0, 0, 0, 0, function, ent);  // Scr_StartThreadFunctor1
 }
 
@@ -87,7 +88,7 @@ void XB_CDECL BroScr_Exploder(uint32_t, int32_t number) {
         if (!entity_handle_is_valid(*element(&ents, i))) continue;
         const uint32_t ent = *element(&ents, i);
         if (!entity_handle_is_valid(ent)) continue;
-        ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+        ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
         if (!table) continue;
         const uint32_t* const found = ScriptKeyTable_Find(table, 0xf3b8dce5);
         if ((found ? *found : undefined_int()) == undefined_int()) continue;
@@ -145,7 +146,7 @@ void XB_CDECL BroScr_ExploderIfSet(uint32_t self, ScriptString number) {
 void XB_CDECL BroScr_BuildTargetChain(uint32_t owner, uint32_t start) {
     uint32_t current = start;
     do {
-        ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(owner);
+        ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(owner);
         if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
         uint32_t* chain = ScriptKeyTable_Find(table, 0x0605894e);
         if (!chain) {
@@ -206,7 +207,7 @@ void XB_CDECL BroScr_SetFriendlyWaveTrigger(uint32_t, uint32_t trigger) {
 
 void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32_t node, ScriptString name) {
     auto table = [](uint32_t e) {
-        ScriptKeyTable* t = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(e);
+        ScriptKeyTable* t = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(e);
         return t ? t : pointer<ScriptKeyTable>(0x00922e94);
     };
     auto int_at = [](DynArray* array, uint32_t i) {
@@ -370,7 +371,7 @@ void XB_CDECL BroScr_DropHealth(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_SpawnGlobalAmbient(ScriptString name) {
-    ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(
+    ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(
         *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00922ef8) + 4));
     if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
     title_function<void XB_THISCALL(ScriptKeyTable*, uint32_t, const ScriptString*)>(0x00458d40)(table, 0x9c1519ac,

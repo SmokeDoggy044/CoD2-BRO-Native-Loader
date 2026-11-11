@@ -42,6 +42,7 @@
 #include "bro_scr_thread_misc.h"
 #include "bro_scr_wait_notify.h"
 #include "scr_class.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -991,7 +992,7 @@ namespace {
 
 inline void plane_crash_think(uint32_t ent, uint32_t explode_sounds_thread) {
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, explode_sounds_thread, ent);  // Scr_StartThreadFunctor1
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, explode_sounds_thread, ent);  // Scr_StartThreadFunctor1
     plane_crash_move(ent, 0x007e5bf0, 0xe6f61fa4);  // 64
 }
 
@@ -1123,7 +1124,7 @@ void XB_CDECL BroScr_SmokeWhenHalfHealth(uint32_t ent) {
     for (;;) {
         if (health(ent) < half) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-            title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_EngineSmokeTrail), ent);  // Scr_StartThreadFunctor1(BroScr_EngineSmokeTrail)
+            own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, own_address(&BroScr_EngineSmokeTrail), ent);  // Scr_StartThreadFunctor1(BroScr_EngineSmokeTrail)
             slot<EntHash>(0x009221a4)(ent, 0xc4e110dd);  // Scr_QueueNotify
         }
         Scr_Wait(float_bits(0x3f000000));  // 0.5
@@ -1768,7 +1769,7 @@ void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mo
         const uint32_t panzer_thread = title_global<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x318);
         if (panzer_thread) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-            title_function<StartThread>(0x0011a910)(0, 0, 0, 0, panzer_thread, self);  // Scr_StartThreadFunctor1
+            own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, panzer_thread, self);  // Scr_StartThreadFunctor1
         }
     }
     bool no_last_goal = false;
@@ -1977,7 +1978,7 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
                 const uint32_t spot = spots.data[i];
                 bool taken = false;
                 if (entity_handle_is_valid(spot)) {
-                    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(spot);
+                    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(spot);
                     if (table) {
                         const uint32_t* const value = ScriptKeyTable_Find(table, 0xda24dbe7);
                         taken = entity_handle_is_valid(value ? *value : 0) != 0;
@@ -4674,7 +4675,7 @@ void XB_CDECL BroScr_VehicleRiderWait(uint32_t vehicle, uint32_t rider, ScriptSt
     using Call = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*);
     slot<EntHash>(0x00922188)(rider, kDeath);     // Scr_EndOn
     slot<EntHash>(0x00922188)(rider, 0xa0e65a8e);  // Scr_EndOn
-    title_function<Call>(0x0017afa0)(0, 0, 0, 0, own_address(&BroScr_VehicleRiderMount), vehicle, &rider, &tag);  // Scr_CallThread_ent_ent_str(BroScr_VehicleRiderMount)
+    own_function<Call>(&Scr_CallThread_ent_ent_str_entry)(0, 0, 0, 0, own_address(&BroScr_VehicleRiderMount), vehicle, &rider, &tag);  // Scr_CallThread_ent_ent_str(BroScr_VehicleRiderMount)
     if (string_is(&tag, 0x007fa47c)) rider_fire_loop(vehicle, rider, &tag, 0x008cd38c);  // "tag_gunner", g_anim_flakpanzer_gunner_fire_a
     if (string_is(&tag, 0x007fc0bc)) rider_fire_loop(vehicle, rider, &tag, 0x008cd398);  // "tag_passenger1", g_anim_flakpanzer_leftloader_fire_b
     if (string_is(&tag, 0x007f5c08)) rider_fire_loop(vehicle, rider, &tag, 0x008cd3a4);  // "tag_passenger2", g_anim_flakpanzer_rightloader_fire_a
@@ -4758,7 +4759,7 @@ void XB_CDECL BroScr_FollowLagThink(uint32_t ent) {
     // 0x9aec9c1a) updated, notify 0x14559f8c on a change; 0.25 s steps.
     for (;;) {
         if (entity_handle_is_valid(ent)) {
-            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
             if (table) {
                 const uint32_t* const path = ScriptKeyTable_Find(table, 0xd952b5cf);
                 if (entity_handle_is_valid(path ? *path : 0)) {
@@ -4818,7 +4819,7 @@ void XB_CDECL BroScr_FollowEntInit(uint32_t leader, uint32_t follower) {
         if (index == static_cast<int32_t>(pointer<DynArray>(path_positions(leader))->size - 1)) {
             queue_notify(leader, 0xcc07a20a);
             queue_notify(leader, 0xa3122ec6);
-            title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+            own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
                 0, 0, 0, 0, own_address(&BroScr_RemoveAllFollowers), leader);  // Scr_StartThreadFunctor1(BroScr_RemoveAllFollowers)
         }
     }
@@ -4837,7 +4838,7 @@ void XB_CDECL BroScr_VehicleDeadStop(uint32_t ent) {
     for (;;) {
         for (;;) {
             if (!entity_handle_is_valid(ent)) break;
-            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
             if (!table) break;
             const uint32_t* const value = ScriptKeyTable_Find(table, 0x147beb00);
             const uint32_t undefined = undefined_int();
@@ -4994,7 +4995,7 @@ void XB_CDECL BroScr_TankHullGunnerThink(uint32_t ent, ScriptString weapon, Scri
                 continue;
             }
             if (entity_handle_is_valid(ent)) {
-                ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+                ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
                 if (table) {
                     const uint32_t* const value = ScriptKeyTable_Find(table, 0xde065107);
                     const uint32_t undefined = undefined_int();
@@ -5268,7 +5269,7 @@ void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerA
     // BroScr_RespawnerCountDeath thread; 0.5 s steps.
     for (;;) {
         if (entity_handle_is_valid(ent)) {
-            ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+            ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
             if (table) {
                 const uint32_t* const value = ScriptKeyTable_Find(table, 0x78063481);
                 const uint32_t undefined = undefined_int();
@@ -5739,7 +5740,7 @@ inline bool script_true(bool condition) {
 // empty one) and the key's handle (0 when missing) valid.
 inline bool flak_target_defined(uint32_t flak) {
     if (!entity_handle_is_valid(flak)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(flak);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(flak);
     if (!table) return false;
     const uint32_t* const target = ScriptKeyTable_Find(table, 0x0d60fb3d);
     return entity_handle_is_valid(target ? *target : 0) != 0;
@@ -5899,7 +5900,7 @@ void XB_CDECL BroScr_SetFlakManned(uint32_t flak, bool manned) {
     queue_notify(flak, 0xca4175b9);
     if (manned) {
         Scr_WaitFrames(0);
-        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+        own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
             0, 0, 0, 0, own_address(&BroScr_FlakAutomatedThink), flak);  // Scr_StartThreadFunctor1(BroScr_FlakAutomatedThink)
     } else {
         BroScr_ReleaseGunners(flak);
@@ -5911,7 +5912,7 @@ void XB_CDECL BroScr_SetFlakAutomated(uint32_t flak, bool automated) {
         *reinterpret_cast<uint8_t*>(ScrField_automated(flak, 0)) = 1;
         queue_notify(flak, 0xca4175b9);
         Scr_WaitFrames(0);
-        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+        own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
             0, 0, 0, 0, own_address(&BroScr_FlakAutomatedThink), flak);  // Scr_StartThreadFunctor1(BroScr_FlakAutomatedThink)
     } else {
         *reinterpret_cast<uint8_t*>(ScrField_automated(flak, 0)) = 0;

@@ -9,6 +9,7 @@
 #include "compiler.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "g_scr_builtins.h"
 
 namespace game::bro_ai {
 
@@ -52,7 +53,7 @@ inline void queue_notify(uint32_t ent, uint32_t hash) {
 
 // The entity's script key table (ScrCall_GScr_GetEntScriptObject), the shared empty one without.
 inline ScriptKeyTable* ent_script_object(uint32_t ent) {
-    ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     return table ? table : pointer<ScriptKeyTable>(0x00922e94);
 }
 

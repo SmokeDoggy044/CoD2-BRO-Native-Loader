@@ -1,6 +1,7 @@
 #include "g_static.h"
 
 #include <cstring>
+#include <initializer_list>
 
 #include "cg_ents.h"
 #include "g_utils.h"
@@ -189,3 +190,62 @@ void XB_CDECL StaticInit_List_8feba0() {
 }
 
 }  // namespace game
+
+PLATFORM_ASM_ENTRY(StaticObj_985370_Ctor_entry, "pushl %esi\n" PLATFORM_ASM_CALL(StaticObj_985370_Ctor) "addl $4, %esp\n ret")
+PLATFORM_ASM_ENTRY(StaticObj_984ac0_Ctor_entry, "pushl %esi\n" PLATFORM_ASM_CALL(StaticObj_984ac0_Ctor) "addl $4, %esp\n ret")
+PLATFORM_ASM_ENTRY(StaticObj_9883b0_Ctor_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(StaticObj_9883b0_Ctor) "addl $4, %esp\n ret")
+
+namespace game {
+
+namespace {
+void empty_string(uint8_t* self, uint32_t at) { ScriptString_FromRep(reinterpret_cast<ScriptString*>(self + at), nullptr); }
+uint32_t& word32(uint8_t* self, uint32_t at) { return *reinterpret_cast<uint32_t*>(self + at); }
+}  // namespace
+
+uint8_t* XB_THISCALL StaticObj_ScriptStrings15_Ctor(uint8_t* self) {
+    for (uint32_t i = 0; i < 15; ++i) empty_string(self, i * 4);
+    for (uint32_t i = 0; i < 15; ++i) word32(self, 0x3c + i * 0x104) = 0;
+    word32(self, 0xf98) = 0;
+    return self;
+}
+
+uint8_t* XB_THISCALL ScrUndefinedInts21_Ctor(uint8_t* self) {
+    word32(self, 0) = 0;
+    for (uint32_t at = 4; at <= 0x54; at += 4) word32(self, at) = title_global<uint32_t>(0x00922ec0);  // g_scrUndefinedInt
+    return self;
+}
+
+void XB_THISCALL ScrStringHolder_Dtor(uint8_t* self) {
+    ScriptString_Release(reinterpret_cast<ScriptString*>(self + 0xc));
+    word32(self, 0) = 0x007f48c4;
+}
+
+}  // namespace game
+
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_985370_Ctor(uint8_t* self) {
+    using namespace game;
+    for (uint32_t i = 0; i < 0x40; ++i) {
+        word32(self, 0xb4 + i * 8) = 0;
+        word32(self, 0xb8 + i * 8) = 0;
+    }
+    for (uint32_t at = 0xac0; at <= 0xb3c; at += 4) word32(self, at) = 0;
+    empty_string(self, 0xb50);
+    word32(self, 0xcb4) = 0;
+    empty_string(self, 0xcb8);
+    for (uint32_t i = 0; i < 0x100; ++i) {
+        word32(self, 0xcfc + i * 0x10) = 0;
+        word32(self, 0xd00 + i * 0x10) = 0;
+    }
+    return self;
+}
+
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_984ac0_Ctor(uint8_t* self) {
+    for (uint32_t i = 0; i < 136; ++i) game::empty_string(self, i * 4);
+    return self;
+}
+
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StaticObj_9883b0_Ctor(uint8_t* self) {
+    for (uint32_t i = 0; i < 2; ++i)
+        for (const uint32_t at : {0x38u, 0x3cu, 0x48u}) game::empty_string(self, at + i * 0x40);
+    return self;
+}

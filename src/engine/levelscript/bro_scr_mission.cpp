@@ -203,7 +203,7 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
     const auto functor1 = [&trigger, ent, stack_word](uint32_t function) {
         trigger = stack_word;
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-        title_function<StartThread>(0x0011a910)(0, 0, 0, 0, function, ent);  // Scr_StartThreadFunctor1
+        own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, function, ent);  // Scr_StartThreadFunctor1
     };
     const auto level_thread = [&trigger](uint32_t function) {
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);

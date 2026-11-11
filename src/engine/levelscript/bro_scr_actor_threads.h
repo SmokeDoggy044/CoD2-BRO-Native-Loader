@@ -94,8 +94,8 @@ void XB_CDECL BroScr_Mg42AnimTree_3(uint32_t ent, uint32_t gunner);
 // MG42 fire anim (actor int +0x1370, knob 1 / 0.2 / 1) and BroScr_Mg42ShootLoop_3(ent, turret);
 // then the stand MG42 aim anim the same way. BroScr_AnimScript_TurretCall_5's first callback.
 void XB_CDECL BroScr_Mg42AnimThenShootLoop_3(uint32_t ent, uint32_t turret);
-// 0x0018df30 (unhookable: GScr_EmptyStub220 is called at +4, inside the first 5 bytes; not
-// registered): the directional move weights for the actor's motion yaw
+// 0x0018df30 (GScr_EmptyStub220 is called at +4, inside the first 5 bytes: the harness cannot compare
+// it; Replaced): the directional move weights for the actor's motion yaw
 // (BroScr_ComputeMoveDirectionWeights), then GScr_SetAnim(ent, anim, weight, blend, 1.0, 0) for the
 // forward, back, second side (index 4) and first side (index 3) anims and the two diagonals when set; between
 // GScr_EmptyStub220/221(5). The last argument (the callers' visible-model flag) is unused.

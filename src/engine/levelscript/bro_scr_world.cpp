@@ -119,7 +119,7 @@ void XB_CDECL BroScr_TreeBurstInit() {
     const uint32_t field = object ? object + 4 : 0;
     const uint32_t value = *reinterpret_cast<volatile uint32_t*>(field);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<StartThread>(0x0011a910)(0, 0, 0, 0, own_address(&BroScr_SetupTreeBursts), value);  // Scr_StartThreadFunctor1(BroScr_SetupTreeBursts)
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, own_address(&BroScr_SetupTreeBursts), value);  // Scr_StartThreadFunctor1(BroScr_SetupTreeBursts)
 }
 
 void XB_CDECL BroScr_GetWindowBreaks() { threads_on_targetname(0x00824414, false, 0, 0, own_address(&BroScr_WindowBreakThink)); }  // "window_break", BroScr_WindowBreakThink

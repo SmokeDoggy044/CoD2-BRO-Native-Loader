@@ -10,6 +10,7 @@
 #include "title_data.h"
 #include "bro_scr_arrays.h"
 #include "levels_twins.h"
+#include "g_scr_builtins.h"
 
 // A cdecl title call with two stack words that returns the ECX the callee leaves: the bool-field
 // accessors (ScrField_BoolSlot) build a missing field's word from their caller's ECX.
@@ -237,7 +238,7 @@ void XB_CDECL BroScr_SetRandomGoalNode(uint32_t ent) {
     using Reserve = void XB_THISCALL(DynArray*, uint32_t, uint32_t);
     if (nodes.size == 0) {
         const uint32_t self = ent;
-        title_function<void XB_THISCALL(const uint32_t*, uint32_t)>(0x0011eb30)(&self, 0x05374cc6);  // field removed
+        own_function<void XB_THISCALL(const uint32_t*, uint32_t)>(&ScrCall_GScr_GetEntScriptObject_2)(&self, 0x05374cc6);  // field removed
     } else {
         const uint32_t index = slot<uint32_t XB_CDECL(uint32_t)>(0x0092222c)(nodes.size);  // Scr_RandomInt
         if (index >= nodes.size) title_function<Reserve>(0x0045d480)(&nodes, index + 1, index + 4);  // DynArray_ReserveInt0

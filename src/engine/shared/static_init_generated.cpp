@@ -7,6 +7,17 @@
 
 #include "static_init.h"
 #include "title_data.h"
+#include "cl.h"
+#include "fe.h"
+#include "g_utils.h"
+#include "phys.h"
+#include "qcommon.h"
+#include "qcommon_core.h"
+#include "ragdoll.h"
+#include "script_string.h"
+#include "title_crt.h"
+#include "ui_menu.h"
+#include "g_static.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL qc_call_regs(uint32_t function, const game::TitleRegs* regs,
                                                           uint32_t count, const uint32_t* args);
@@ -643,7 +654,7 @@ void si_003784b0() {
 void si_003784c0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x902ac0u);
-    eax = call_regs(0x00093c00, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&HashStrMap_Ctor), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379da0u);
     return;
 }
@@ -651,7 +662,7 @@ void si_003784c0() {
 void si_003784e0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x902ad4u);
-    eax = call_regs(0x00093c00, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&HashStrMap_Ctor), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379db0u);
     return;
 }
@@ -872,7 +883,7 @@ void si_00378730() {
 void si_00378750() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x903fe0u);
-    eax = call_regs(0x00093c00, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&HashStrMap_Ctor), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379dc0u);
     return;
 }
@@ -880,7 +891,7 @@ void si_00378750() {
 void si_00378770() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x903ff4u);
-    eax = call_regs(0x00093c00, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&HashStrMap_Ctor), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379dd0u);
     return;
 }
@@ -1708,7 +1719,7 @@ void si_003792d0() {
     title_global<float>(0x923254) = xmm[0];
     title_global<float>(0x923258) = xmm[0];
     ecx = static_cast<uint32_t>(0x92325cu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1727,7 +1738,7 @@ void si_00379330() {
     title_global<float>(0x9235e4) = xmm[0];
     title_global<float>(0x9235e8) = xmm[0];
     ecx = static_cast<uint32_t>(0x9235ecu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1746,7 +1757,7 @@ void si_00379390() {
     title_global<float>(0x9234b4) = xmm[0];
     title_global<float>(0x9234b8) = xmm[0];
     ecx = static_cast<uint32_t>(0x9234bcu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1765,7 +1776,7 @@ void si_003793f0() {
     title_global<float>(0x92341c) = xmm[0];
     title_global<float>(0x923420) = xmm[0];
     ecx = static_cast<uint32_t>(0x923424u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1784,7 +1795,7 @@ void si_00379450() {
     title_global<float>(0x923384) = xmm[0];
     title_global<float>(0x923388) = xmm[0];
     ecx = static_cast<uint32_t>(0x92338cu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1803,7 +1814,7 @@ void si_003794b0() {
     title_global<float>(0x9231bc) = xmm[0];
     title_global<float>(0x9231c0) = xmm[0];
     ecx = static_cast<uint32_t>(0x9231c4u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1822,7 +1833,7 @@ void si_00379510() {
     title_global<float>(0x9232ec) = xmm[0];
     title_global<float>(0x9232f0) = xmm[0];
     ecx = static_cast<uint32_t>(0x9232f4u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1848,7 +1859,7 @@ void si_00379580() {
     title_global<float>(0x923124) = xmm[0];
     title_global<float>(0x923128) = xmm[0];
     ecx = static_cast<uint32_t>(0x92312cu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1867,7 +1878,7 @@ void si_003795e0() {
     title_global<float>(0x922ff4) = xmm[0];
     title_global<float>(0x922ff8) = xmm[0];
     ecx = static_cast<uint32_t>(0x922ffcu);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1886,7 +1897,7 @@ void si_00379640() {
     title_global<float>(0x92308c) = xmm[0];
     title_global<float>(0x923090) = xmm[0];
     ecx = static_cast<uint32_t>(0x923094u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1905,7 +1916,7 @@ void si_003796a0() {
     title_global<float>(0x92373c) = xmm[0];
     title_global<float>(0x923740) = xmm[0];
     ecx = static_cast<uint32_t>(0x923744u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1924,7 +1935,7 @@ void si_00379700() {
     title_global<float>(0x922f3c) = xmm[0];
     title_global<float>(0x922f40) = xmm[0];
     ecx = static_cast<uint32_t>(0x922f44u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1943,7 +1954,7 @@ void si_00379760() {
     title_global<float>(0x92367c) = xmm[0];
     title_global<float>(0x923680) = xmm[0];
     ecx = static_cast<uint32_t>(0x923684u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -1962,7 +1973,7 @@ void si_003797c0() {
     title_global<float>(0x92354c) = xmm[0];
     title_global<float>(0x923550) = xmm[0];
     ecx = static_cast<uint32_t>(0x923554u);
-    call_regs(0x001e4700, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&ScrUndefinedInts21_Ctor), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -2050,7 +2061,7 @@ void si_00372d90() {
 void si_00372da0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x8dce30u);
-    eax = call_regs(0x0032cf50, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Profile_SetDefaults_entry), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -2071,7 +2082,7 @@ void si_00372dc0() {
 void si_00372dd0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x82dda8u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x95f8c8) = static_cast<uint32_t>(eax);
     return;
 }
@@ -2079,7 +2090,7 @@ void si_00372dd0() {
 void si_00372ed0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x95f8d0u);
-    eax = call_regs(0x00331e90, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&UIRoot_Construct_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379890u);
     return;
 }
@@ -2124,7 +2135,7 @@ void si_003731d0() {
 void si_00373200() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x8325dcu);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x95fdfc) = static_cast<uint32_t>(eax);
     return;
 }
@@ -2204,7 +2215,7 @@ void si_00376440() {
 void si_00376450() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x960160u);
-    eax = call_regs(0x0001d1b0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&ClientActive_Ctor_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379900u);
     return;
 }
@@ -2236,7 +2247,7 @@ void si_00376780() {
     edi = static_cast<uint32_t>(0x400u);
 L_00376790:
     ecx = static_cast<uint32_t>(esi);
-    eax = call_regs(0x0011d5d0, {eax, ebx, ecx, edx, esi, edi}, {0x0u});
+    eax = call_regs(own_address(&ScriptString_FromRep), {eax, ebx, ecx, edx, esi, edi}, {0x0u});
     esi += 0x4u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00376790;
@@ -2260,7 +2271,7 @@ L_00376840:
 void si_00376850() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x965ce8u);
-    eax = call_regs(0x0011d5d0, {eax, ebx, ecx, edx, esi, edi}, {0x0u});
+    eax = call_regs(own_address(&ScriptString_FromRep), {eax, ebx, ecx, edx, esi, edi}, {0x0u});
     eax = static_init_atexit(0x379a30u);
     return;
 }
@@ -2339,7 +2350,7 @@ void si_00376a30() {
     edi = static_cast<uint32_t>(0x2u);
 L_00376a40:
     ecx = static_cast<uint32_t>(esi);
-    eax = call_regs(0x00023ad0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&StaticObj_ScriptStrings15_Ctor), {eax, ebx, ecx, edx, esi, edi});
     esi += 0xf9cu; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00376a40;
@@ -2353,7 +2364,7 @@ void si_00376a60() {
     esi = static_cast<uint32_t>(0x971840u);
     edi = static_cast<uint32_t>(0x2u);
 L_00376a70:
-    eax = call_regs(0x00011240, {eax, ebx, ecx, edx, esi, edi}, {esi, 0x4u, 0xfu, 0x11270u});
+    eax = call_regs(own_address(&title_vector_constructor_iterator), {eax, ebx, ecx, edx, esi, edi}, {esi, 0x4u, 0xfu, 0x11270u});
     esi += 0x60u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00376a70;
@@ -2368,7 +2379,7 @@ void si_00376aa0() {
     edi = static_cast<uint32_t>(0x2u);
 L_00376ab0:
     ecx = static_cast<uint32_t>(esi);
-    eax = call_regs(0x00023ad0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&StaticObj_ScriptStrings15_Ctor), {eax, ebx, ecx, edx, esi, edi});
     esi += 0xf9cu; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00376ab0;
@@ -2382,7 +2393,7 @@ void si_00376ad0() {
     esi = static_cast<uint32_t>(0x971910u);
     edi = static_cast<uint32_t>(0x2u);
 L_00376ae0:
-    eax = call_regs(0x00011240, {eax, ebx, ecx, edx, esi, edi}, {esi, 0x4u, 0xfu, 0x11270u});
+    eax = call_regs(own_address(&title_vector_constructor_iterator), {eax, ebx, ecx, edx, esi, edi}, {esi, 0x4u, 0xfu, 0x11270u});
     esi += 0x60u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00376ae0;
@@ -2393,7 +2404,7 @@ L_00376ae0:
 void si_00376b10() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x971908u);
-    eax = call_regs(0x0011d5d0, {eax, ebx, ecx, edx, esi, edi}, {0x0u});
+    eax = call_regs(own_address(&ScriptString_FromRep), {eax, ebx, ecx, edx, esi, edi}, {0x0u});
     eax = static_init_atexit(0x379b10u);
     return;
 }
@@ -2529,7 +2540,7 @@ L_00376d10:
 void si_00376d20() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ecx = static_cast<uint32_t>(0x975810u);
-    eax = call_regs(0x0011d5d0, {eax, ebx, ecx, edx, esi, edi}, {0x0u});
+    eax = call_regs(own_address(&ScriptString_FromRep), {eax, ebx, ecx, edx, esi, edi}, {0x0u});
     eax = static_init_atexit(0x379b20u);
     return;
 }
@@ -2537,7 +2548,7 @@ void si_00376d20() {
 void si_00376d40() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     eax = static_cast<uint32_t>(0x9746d0u);
-    call_regs(0x000261d0, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&BlockTail80_Clear), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -2590,7 +2601,7 @@ void si_00376de0() {
 void si_00376df0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     eax = static_cast<uint32_t>(0x981370u);
-    call_regs(0x00028040, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&G_EntityList_Init), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -2676,7 +2687,7 @@ void si_00376f10() {
 void si_00377100() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x985370u);
-    eax = call_regs(0x00026fc0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&StaticObj_985370_Ctor_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379b30u);
     return;
 }
@@ -2719,7 +2730,7 @@ void si_00377170() {
 void si_00377180() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x833ad8u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x9883a0) = static_cast<uint32_t>(eax);
     return;
 }
@@ -2727,7 +2738,7 @@ void si_00377180() {
 void si_00377190() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x984ac0u);
-    eax = call_regs(0x000270e0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&StaticObj_984ac0_Ctor_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379bb0u);
     return;
 }
@@ -2748,22 +2759,22 @@ L_003771c0:
 void si_003771d0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x83a444u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a42cu);
     title_global<uint32_t>(0x9886f8) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a418u);
     title_global<uint32_t>(0x9886fc) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a400u);
     title_global<uint32_t>(0x988700) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a3e8u);
     title_global<uint32_t>(0x988704) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a3d0u);
     title_global<uint32_t>(0x988708) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x98870c) = static_cast<uint32_t>(eax);
     return;
 }
@@ -2771,16 +2782,16 @@ void si_003771d0() {
 void si_00377230() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x8389c0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x8389b0u);
     title_global<uint32_t>(0x9886e8) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x8389a4u);
     title_global<uint32_t>(0x9886ec) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x838994u);
     title_global<uint32_t>(0x9886f0) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x9886f4) = static_cast<uint32_t>(eax);
     return;
 }
@@ -2788,7 +2799,7 @@ void si_00377230() {
 void si_00377270() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     ebx = static_cast<uint32_t>(0x9883b0u);
-    eax = call_regs(0x00027cf0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&StaticObj_9883b0_Ctor_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379bc0u);
     return;
 }
@@ -2808,131 +2819,131 @@ void si_00377320() {
 void si_00377330() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x8353a4u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839dd0u);
     title_global<uint32_t>(0x9885e0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9885e4) = static_cast<uint32_t>(0x24f000u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83acf0u);
     title_global<uint32_t>(0x9885e8) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9885ec) = static_cast<uint32_t>(0x24fe00u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839ddcu);
     title_global<uint32_t>(0x9885f0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9885f4) = static_cast<uint32_t>(0x24e620u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839df0u);
     title_global<uint32_t>(0x9885f8) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9885fc) = static_cast<uint32_t>(0x24e5b0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ad54u);
     title_global<uint32_t>(0x988600) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988604) = static_cast<uint32_t>(0x202a70u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e04u);
     title_global<uint32_t>(0x988608) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98860c) = static_cast<uint32_t>(0x25b0a0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ad30u);
     title_global<uint32_t>(0x988610) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988614) = static_cast<uint32_t>(0x25af90u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e10u);
     title_global<uint32_t>(0x988618) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98861c) = static_cast<uint32_t>(0x25aec0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e20u);
     title_global<uint32_t>(0x988620) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988624) = static_cast<uint32_t>(0x25ad50u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e30u);
     title_global<uint32_t>(0x988628) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98862c) = static_cast<uint32_t>(0x25abe0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ad40u);
     title_global<uint32_t>(0x988630) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988634) = static_cast<uint32_t>(0x24fe00u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83aa4cu);
     title_global<uint32_t>(0x988638) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98863c) = static_cast<uint32_t>(0x25a960u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x832270u);
     title_global<uint32_t>(0x988640) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988644) = static_cast<uint32_t>(0x257de0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e3cu);
     title_global<uint32_t>(0x988648) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98864c) = static_cast<uint32_t>(0x259530u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e54u);
     title_global<uint32_t>(0x988650) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988654) = static_cast<uint32_t>(0x2594e0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e64u);
     title_global<uint32_t>(0x988658) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98865c) = static_cast<uint32_t>(0x2593f0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83aa3cu);
     title_global<uint32_t>(0x988660) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988664) = static_cast<uint32_t>(0x2593b0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83aa2cu);
     title_global<uint32_t>(0x988668) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98866c) = static_cast<uint32_t>(0x259260u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83aa1cu);
     title_global<uint32_t>(0x988670) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988674) = static_cast<uint32_t>(0x259230u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x988678) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98867c) = static_cast<uint32_t>(0x2591e0u);
     edx = static_cast<uint32_t>(0x83b07cu);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e74u);
     title_global<uint32_t>(0x988680) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988684) = static_cast<uint32_t>(0x24fdf0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e80u);
     title_global<uint32_t>(0x988688) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98868c) = static_cast<uint32_t>(0x24fde0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e8cu);
     title_global<uint32_t>(0x988690) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x988694) = static_cast<uint32_t>(0x262d70u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839e98u);
     title_global<uint32_t>(0x988698) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x98869c) = static_cast<uint32_t>(0x262d70u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x839ea8u);
     title_global<uint32_t>(0x9886a0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886a4) = static_cast<uint32_t>(0x24f9a0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83abbcu);
     title_global<uint32_t>(0x9886a8) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886ac) = static_cast<uint32_t>(0x24fdd0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83aba8u);
     title_global<uint32_t>(0x9886b0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886b4) = static_cast<uint32_t>(0x2489f0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ab98u);
     title_global<uint32_t>(0x9886b8) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886bc) = static_cast<uint32_t>(0x2555d0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ab88u);
     title_global<uint32_t>(0x9886c0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886c4) = static_cast<uint32_t>(0x25deb0u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ab78u);
     title_global<uint32_t>(0x9886c8) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886cc) = static_cast<uint32_t>(0x255580u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83ab48u);
     title_global<uint32_t>(0x9886d0) = static_cast<uint32_t>(eax);
     title_global<uint32_t>(0x9886d4) = static_cast<uint32_t>(0x269d80u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x9886d8) = static_cast<uint32_t>(eax);
     eax = 0;
     title_global<uint32_t>(0x9886dc) = static_cast<uint32_t>(0x2485f0u);
@@ -3079,7 +3090,7 @@ void si_003778c0() {
 void si_003778d0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x8dfde0u);
-    eax = call_regs(0x0002b5f0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&RagdollPool_Clear_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379cd0u);
     return;
 }
@@ -3087,7 +3098,7 @@ void si_003778d0() {
 void si_003778f0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     esi = static_cast<uint32_t>(0x8f0470u);
-    eax = call_regs(0x0002b740, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&RagdollPhysPool_Clear_entry), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379ce0u);
     return;
 }
@@ -3095,7 +3106,7 @@ void si_003778f0() {
 void si_00377910() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x8fb490u);
-    eax = call_regs(0x0002b7f0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&PhysObjPool_Reset), {eax, ebx, ecx, edx, esi, edi});
     eax = static_init_atexit(0x379cf0u);
     return;
 }
@@ -3106,7 +3117,7 @@ void si_00377930() {
     esi = static_cast<uint32_t>(0x988d30u);
     edi = static_cast<uint32_t>(0xau);
 L_00377940:
-    eax = call_regs(0x00011240, {eax, ebx, ecx, edx, esi, edi}, {esi, 0x10u, 0x3u, 0x1b920u});
+    eax = call_regs(own_address(&title_vector_constructor_iterator), {eax, ebx, ecx, edx, esi, edi}, {esi, 0x10u, 0x3u, 0x1b920u});
     esi += 0x40u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00377940;
@@ -3119,7 +3130,7 @@ void si_00377960() {
     esi = static_cast<uint32_t>(0x988fb0u);
     edi = static_cast<uint32_t>(0xau);
 L_00377970:
-    eax = call_regs(0x00011240, {eax, ebx, ecx, edx, esi, edi}, {esi, 0x10u, 0x3u, 0x1b920u});
+    eax = call_regs(own_address(&title_vector_constructor_iterator), {eax, ebx, ecx, edx, esi, edi}, {esi, 0x10u, 0x3u, 0x1b920u});
     esi += 0x40u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00377970;
@@ -3153,22 +3164,22 @@ void si_003779c0() {
 void si_003779d0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x83a444u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a42cu);
     title_global<uint32_t>(0x98a490) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a418u);
     title_global<uint32_t>(0x98a494) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a400u);
     title_global<uint32_t>(0x98a498) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a3e8u);
     title_global<uint32_t>(0x98a49c) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     edx = static_cast<uint32_t>(0x83a3d0u);
     title_global<uint32_t>(0x98a4a0) = static_cast<uint32_t>(eax);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x98a4a4) = static_cast<uint32_t>(eax);
     return;
 }
@@ -3269,7 +3280,7 @@ void si_00377c40() {
     edi = static_cast<uint32_t>(0x20u);
 L_00377c50:
     ecx = static_cast<uint32_t>(esi);
-    eax = call_regs(0x0011d5d0, {eax, ebx, ecx, edx, esi, edi}, {0x0u});
+    eax = call_regs(own_address(&ScriptString_FromRep), {eax, ebx, ecx, edx, esi, edi}, {0x0u});
     esi += 0x28u; zf = esi == 0;
     edi -= 1; zf = edi == 0;
     if (!zf) goto L_00377c50;
@@ -3323,7 +3334,7 @@ void si_00377d70() {
 void si_00377d80() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     edx = static_cast<uint32_t>(0x82dda8u);
-    eax = call_regs(0x00292fe0, {eax, ebx, ecx, edx, esi, edi});
+    eax = call_regs(own_address(&Com_HashKeyNoCase), {eax, ebx, ecx, edx, esi, edi});
     title_global<uint32_t>(0x98a4d4) = static_cast<uint32_t>(eax);
     return;
 }

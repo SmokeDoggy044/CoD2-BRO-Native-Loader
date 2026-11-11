@@ -15,6 +15,7 @@
 #include "bro_scr_actor_threads.h"
 #include "bro_scr_notify_threads.h"
 #include "bro_scr_pose_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -30,7 +31,7 @@ void drop_bad_parameter() {
 
 // ScrCall_GScr_GetEntScriptObject_2 (0x0011eb30, set aside): removes `key` from *ent's table.
 void remove_key(const uint32_t* ent, uint32_t key) {
-    title_function<void XB_THISCALL(const uint32_t*, uint32_t)>(0x0011eb30)(ent, key);
+    own_function<void XB_THISCALL(const uint32_t*, uint32_t)>(&ScrCall_GScr_GetEntScriptObject_2)(ent, key);
 }
 
 bool stance_allowed(uint32_t actor, uint32_t pose) {
@@ -482,7 +483,7 @@ void XB_CDECL BroScr_AnimScript_GrenadeRecover(uint32_t ent) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
     BroScr_InitAnimScript(ent, 0x5f32132f);
     BroScr_ApplyDesiredAnimPose(ent);
-    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x001a00c0)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
+    own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922e2c)(ent, 0);  // ScrSentient_SetInt_38
 }
 
@@ -663,7 +664,7 @@ void XB_CDECL BroScr_ReattachAlliesGuns() {
     };
     // Whether the entity's field 0xa1763cc1 (a string) is set.
     auto has_field = [](uint32_t ent) {
-        ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+        ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
         if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
         ScriptString copy;
         const bool set = static_cast<ScriptString*>(ScrField_ha1763cc1_Copy(reinterpret_cast<uint8_t*>(table) + 0xc, &copy))

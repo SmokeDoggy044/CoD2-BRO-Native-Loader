@@ -10,6 +10,7 @@
 #include "bro_scr_ai_look.h"
 #include "bro_scr_wait_notify.h"
 #include "script_string.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -90,7 +91,7 @@ uint32_t float_bits(float f) {
 }
 
 ScriptKeyTable* script_object_or_empty(uint32_t ent) {
-    const uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(ent);  // GScr_GetEntScriptObject
+    const uint32_t object = own_function<uint32_t XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);  // GScr_GetEntScriptObject
     if (object) return pointer<ScriptKeyTable>(object);
     return &title_global<ScriptKeyTable>(0x00922e94);
 }

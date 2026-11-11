@@ -15,6 +15,7 @@
 #include "levels_twins.h"
 #include "bro_scr_friendly_threads.h"
 #include "bro_scr_notify_threads.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -77,7 +78,7 @@ inline int32_t count_of(const DynArray* array) { return static_cast<int32_t>(arr
 // The inlined int field test: a valid entity with a script object whose value differs from the undefined int.
 inline bool int_defined(uint32_t ent, uint32_t key) {
     if (!entity_handle_is_valid(ent)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ent);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
     if (!table) return false;
     const uint32_t* const value = ScriptKeyTable_Find(table, key);
     return (value ? *value : undefined_int()) != undefined_int();

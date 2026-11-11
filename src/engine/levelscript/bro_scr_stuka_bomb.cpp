@@ -191,7 +191,7 @@ inline uint32_t bomb_at(uint32_t plane, uint32_t i) {
     return bombs->data[i];
 }
 inline void start_functor1(uint32_t function, uint32_t ent) {
-    title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0011a910)(
+    own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&Scr_StartThreadFunctor1_entry)(
         0, 0, 0, 0, function, ent);  // Scr_StartThreadFunctor1
 }
 
@@ -247,7 +247,7 @@ void XB_CDECL BroScr_PlaneDropBomb(uint32_t plane, uint32_t count, uint32_t inte
             using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*,
                                             uint32_t*, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
             const uint32_t bomb = bomb_at(plane, i);
-            title_function<Start>(0x0017b2f0)(0, 0, 0, 0, own_address(&BroScr_StukaBombImpact), bomb, &plane, &delay, &range, &max_damage,
+            own_function<Start>(&Scr_StartThread_ent_ent_f_i_i_i_f_entry)(0, 0, 0, 0, own_address(&BroScr_StukaBombImpact), bomb, &plane, &delay, &range, &max_damage,
                                               &min_damage, &height);  // Scr_StartThread_ent_ent_f_i_i_i_f(StukaBombImpact)
         }
         uint32_t pause = interval;

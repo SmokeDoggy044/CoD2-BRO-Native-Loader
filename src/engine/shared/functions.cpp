@@ -329,6 +329,7 @@ const Function kFunctions[] = {
     {"WaitTilOutputInst2_CopyArgs", 0x00014b90, 0, code(&WaitTilOutputInst2_CopyArgs), 4, Result::Eax, Status::Compare},
     {"EntBits_IterNext", 0x00014bd0, 0, code(&EntBits_IterNext_entry), 0, Result::None, Status::Replaced},
     {"WaitTilOutputInst1_str_DeletingDtor", 0x00014c50, 0, code(&WaitTilOutputInst1_str_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"ScrStringHolder_Dtor", 0x00014c80, 0, code(&ScrStringHolder_Dtor), 0, Result::None, Status::Replaced},  // static object destructor (atexit)
     {"EntBits_Invert", 0x00014ca0, 0, code(&EntBits_Invert), 0, Result::Eax, Status::Replaced},
     {"std_string_AssignSubstr", 0x00014ce0, 0, code(&std_string_AssignSubstr), 12, Result::None, Status::Replaced},
     {"ScrThread_HandlesExhausted", 0x00014dd0, 0, code(&ScrThread_HandlesExhausted_entry), 0, Result::None, Status::Compare},
@@ -616,6 +617,7 @@ const Function kFunctions[] = {
     {"HashStr_Hash", 0x0001d830, 0, code(&HashStr_Hash), 0, Result::Eax, Status::Replaced},
     {"SceneFX_DeletingDtor", 0x0001d880, 0, code(&SceneFX_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"CM_WorldTreeManager_DeletingDtor", 0x0001d8b0, 0, code(&CM_WorldTreeManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"LocStrings_Ctor", 0x0001d930, 0, code(&LocStrings_Ctor_entry), 0, Result::Eax, Status::Replaced},  // static object constructor
     {"LocEntry_Dtor", 0x0001daf0, 0, code(&LocEntry_Dtor_entry), 0, Result::None, Status::Replaced},
     {"Anim_CreateClipState", 0x0001db80, 0, code(&Anim_CreateClipState), 4, Result::Eax, Status::Replaced},
     {"AnimScript_Construct", 0x0001dc10, 0, code(&AnimScript_Construct_entry), 4, Result::Eax, Status::Replaced},
@@ -717,6 +719,7 @@ const Function kFunctions[] = {
     {"NAL_CodNote_SkipBlock", 0x00022a00, 0, code(&NAL_CodNote_SkipBlock), 16, Result::Eax, Status::Replaced},
     {"NAL_CodNote_DecodeFrames", 0x00022a60, 0, code(&NAL_CodNote_DecodeFrames), 28, Result::Eax, Status::Replaced},
     {"NAL_CodNote_DecodeBlock", 0x00022ac0, 0, code(&NAL_CodNote_DecodeBlock), 20, Result::Eax, Status::Replaced},
+    {"NAL_SkipActiveChannelBlocks_VFunc", 0x00022ba0, 0, code(&NAL_SkipActiveChannelBlocks_VFunc), 24, Result::Eax, Status::Replaced},  // virtual function, was FUN_00022ba0
     {"NAL_Clip_FindChannelByName", 0x00022be0, 0, code(&NAL_Clip_FindChannelByName_entry), 12, Result::None, Status::Replaced},
     {"NAL_Clip_FindChannelData", 0x00022d10, 0, code(&NAL_Clip_FindChannelData_entry), 4, Result::Eax, Status::Replaced},
     {"Scr_NotifyWithString", 0x00022df0, 0, code(&Scr_NotifyWithString_entry), 8, Result::None, Status::Replaced},
@@ -740,6 +743,7 @@ const Function kFunctions[] = {
     {"ResourceManager_CreateLgrid", 0x000239c0, 0, code(&ResourceManager_CreateLgrid), 0, Result::None, Status::Replaced},
     {"ResourceManager_CreateLevel", 0x00023a20, 0, code(&ResourceManager_CreateLevel), 0, Result::None, Status::Replaced},
     {"FXCmd_InitPlacement", 0x00023a70, 0, code(&FXCmd_InitPlacement), 0, Result::Eax, Status::Replaced},
+    {"StaticObj_ScriptStrings15_Ctor", 0x00023ad0, 0, code(&StaticObj_ScriptStrings15_Ctor), 0, Result::Eax, Status::Replaced},  // static object constructor, was FUN_00023ad0
     {"FXCmd_RecordCtor", 0x00023cf0, 0, code(&FXCmd_RecordCtor), 0, Result::Eax, Status::Replaced},
     {"ResourceManager_CreateAnimTrees", 0x00023d80, 0, code(&ResourceManager_CreateAnimTrees), 0, Result::None, Status::Replaced},
     {"PakRender_Shutdown", 0x00023e00, 0, code(&PakRender_Shutdown), 0, Result::None, Status::Replaced},
@@ -835,7 +839,10 @@ const Function kFunctions[] = {
     {"G_ClearClientPersistant", 0x00026ae0, 0, code(&G_ClearClientPersistant), 0, Result::Eax, Status::Replaced},
     {"G_ClearClient", 0x00026b60, 0, code(&G_ClearClient_entry), 0, Result::Eax, Status::Replaced},
     {"G_ClearLevelLocals", 0x00026cc0, 0, code(&G_ClearLevelLocals_entry), 0, Result::None, Status::Replaced},
+    {"StaticObj_985370_Ctor", 0x00026fc0, 0, code(&StaticObj_985370_Ctor_entry), 0, Result::Eax, Status::Replaced},  // static object constructor, was FUN_00026fc0
+    {"StaticObj_984ac0_Ctor", 0x000270e0, 0, code(&StaticObj_984ac0_Ctor_entry), 0, Result::Eax, Status::Replaced},  // static object constructor, was FUN_000270e0
     {"GScr_ConstStrings_Dtor", 0x00027770, 0, code(&GScr_ConstStrings_Dtor_entry), 0, Result::None, Status::Compare},
+    {"StaticObj_9883b0_Ctor", 0x00027cf0, 0, code(&StaticObj_9883b0_Ctor_entry), 0, Result::Eax, Status::Replaced},  // static object constructor, was FUN_00027cf0
     {"VehiclePathState_Dtor", 0x00027d30, 0, code(&VehiclePathState_Dtor_entry), 0, Result::None, Status::Replaced},
     {"DebugDraw_MakeTriangle", 0x00027d60, 0, code(&DebugDraw_MakeTriangle), 8, Result::Eax, Status::Replaced},
     {"Vehicle_CopyPathState", 0x00027dc0, 0, code(&Vehicle_CopyPathState_entry), 0, Result::Eax, Status::Replaced},
@@ -933,6 +940,7 @@ const Function kFunctions[] = {
     {"Z_Free", 0x000428d0, 0, code(&Z_Free), 4, Result::None, Status::Replaced},
     {"NullCallback", 0x0001b9a0, 0, code(&NullCallback), 0, Result::None, Status::Compare},
     {"ListVectorValue_Dtor", 0x00028400, 0, code(&ListVectorValue_Dtor), 0, Result::None, Status::Compare},
+    {"SmallHeap_AllPoolsExhausted", 0x000445d0, 0, code(&SmallHeap_AllPoolsExhausted), 0, Result::Eax, Status::Replaced},  // was FUN_000445d0
     {"Sys_GetStackBounds", 0x00093a10, 0, code(&Sys_GetStackBounds_entry), 0, Result::None, Status::Compare},
     {"FileDevice_OnIoComplete", 0x000cb9b0, 0, code(&FileDevice_OnIoComplete), 12, Result::None, Status::Compare},
     {"FileXapi_Open", 0x000cba40, 0, code(&FileXapi_Open), 16, Result::Eax, Status::Compare},
@@ -942,7 +950,55 @@ const Function kFunctions[] = {
     {"FileDeviceXapi_IoComplete", 0x000cbb50, 0, code(&FileDeviceXapi_IoComplete), 12, Result::None, Status::Compare},
     {"FileDeviceXapi_Issue", 0x000cbb70, 0, code(&FileDeviceXapi_Issue), 24, Result::Eax, Status::Compare},
     {"Save_FirstPort", 0x000d13c0, 0, code(&Save_FirstPort), 0, Result::Eax, Status::Compare},
+    {"Scr_StartThreadFunctor1", 0x0011a910, 0, code(&Scr_StartThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_BeginThreadFunctor1", 0x0011b4d0, 0, code(&Scr_BeginThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_WaitTillScriptString", 0x0011b830, 0, code(&Scr_WaitTillScriptString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_SuspendWaitTime", 0x0011d950, 0, code(&Scr_SuspendWaitTime), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_SuspendWaitFrames", 0x0011d990, 0, code(&Scr_SuspendWaitFrames), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_SuspendWaitTill", 0x0011d9d0, 0, code(&Scr_SuspendWaitTill), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"ScrCall_GScr_GetEntScriptObject", 0x0011db20, 0, code(&ScrCall_GScr_GetEntScriptObject), 4, Result::Eax, Status::Replaced},  // import-slot thunk
+    {"Scr_WaitExact", 0x0011e4b0, 0, code(&Scr_WaitExact), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_Wait", 0x0011e4f0, 0, code(&Scr_Wait), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitFrames", 0x0011e540, 0, code(&Scr_WaitFrames), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitTill", 0x0011e570, 0, code(&Scr_WaitTill), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitTillTimeout", 0x0011e5e0, 0, code(&Scr_WaitTillTimeout), 12, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitTillArgs", 0x0011e650, 0, code(&Scr_WaitTillArgs), 20, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitTillArgsNoFlag", 0x0011e6d0, 0, code(&Scr_WaitTillArgsNoFlag), 20, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitTillString", 0x0011e750, 0, code(&Scr_WaitTillString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitOnObject", 0x0011e780, 0, code(&Scr_WaitOnObject), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitOnObjectNoFlag", 0x0011e7c0, 0, code(&Scr_WaitOnObjectNoFlag), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"ScrCall_GScr_GetEntScriptObject_2", 0x0011eb30, 0, code(&ScrCall_GScr_GetEntScriptObject_2), 4, Result::None, Status::Replaced},  // removes a script key
+    {"Scr_NotifyAfterDeath", 0x0011fac0, 0, code(&Scr_NotifyAfterDeath), 12, Result::None, Status::Replaced},  // script thread switch (not compared)
     {"Record54_Copy", 0x0017ad50, 0, code(&Record54_Copy), 4, Result::Eax, Status::Compare},
+    {"Scr_StartThread_ent_ent_hash_ent_hash", 0x0017ada0, 0, code(&Scr_StartThread_ent_ent_hash_ent_hash_entry), 40, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_f_f_b", 0x0017ae10, 0, code(&Scr_StartThread_ent_f_f_b_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_ent_str", 0x0017afa0, 0, code(&Scr_CallThread_ent_ent_str_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_hash_vec_hash_f_hash_f", 0x0017b050, 0, code(&Scr_StartThread_ent_hash_vec_hash_f_hash_f_entry), 48, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2", 0x0017b0c0, 0, code(&Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2_entry), 56, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_hash_f_i_f_f_2", 0x0017b270, 0, code(&Scr_StartThread_ent_hash_f_i_f_f_2_entry), 44, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_ent_f_i_i_i_f", 0x0017b2f0, 0, code(&Scr_StartThread_ent_ent_f_i_i_i_f_entry), 48, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_StartThread_ent_vec_b_3", 0x0017b5c0, 0, code(&Scr_StartThread_ent_vec_b_3_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"BroScr_SetDirectionalMoveAnims", 0x0018df30, 0, code(&BroScr_SetDirectionalMoveAnims), 36, Result::None, Status::Replaced},  // call inside the first 5 bytes (not compared)
+    {"BroScr_SetPoseMovement", 0x001a00c0, 0, code(&BroScr_SetPoseMovement), 12, Result::None, Status::Replaced},  // call inside the first 5 bytes (not compared)
+    {"ScrUndefinedInts21_Ctor", 0x001e4700, 0, code(&ScrUndefinedInts21_Ctor), 0, Result::Eax, Status::Replaced},  // static object constructor, was FUN_001e4700
+    {"Scr_CallThread_vt00825be4_2", 0x001e4c00, 0, code(&Scr_CallThread_vt00825be4_2_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_f_ent_3", 0x001e4c80, 0, code(&Scr_CallThread_ent_f_ent_3_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_hash_i_str_i_ent", 0x001e4d00, 0, code(&Scr_CallThread_ent_hash_i_str_i_ent_entry), 44, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_hash_f_4", 0x001e4dc0, 0, code(&Scr_CallThread_ent_hash_f_4_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_vec_f_str_i_ent_i", 0x001e4e40, 0, code(&Scr_CallThread_ent_vec_f_str_i_ent_i_entry), 48, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_vec", 0x001e4f00, 0, code(&Scr_CallThread_ent_vec_entry), 28, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_f_f_5", 0x001e4f80, 0, code(&Scr_CallThread_ent_f_f_5_entry), 32, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2", 0x001e5000, 0, code(&Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2_entry), 40, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_hash_i_f_2", 0x001e5080, 0, code(&Scr_CallThread_ent_hash_i_f_2_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_anim_str_f_hash_str_f_b", 0x001e5100, 0, code(&Scr_CallThread_ent_anim_str_f_hash_str_f_b_entry), 52, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_str_hash_hash_3", 0x001e51c0, 0, code(&Scr_CallThread_ent_str_hash_hash_3_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_f_hash_hash_4", 0x001e5270, 0, code(&Scr_CallThread_ent_f_hash_hash_4_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_vec_vec_vec_i", 0x001e52f0, 0, code(&Scr_CallThread_ent_vec_vec_vec_i_entry), 40, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_f", 0x001e5370, 0, code(&Scr_CallThread_ent_f_entry), 28, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_anim_anim_anim_anim_anim_anim", 0x001e53e0, 0, code(&Scr_CallThread_ent_anim_anim_anim_anim_anim_anim_entry), 48, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_vt00825c50", 0x001e5480, 0, code(&Scr_CallThread_vt00825c50_entry), 40, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_f_hash_hash_hash_i_2", 0x001e5530, 0, code(&Scr_CallThread_ent_f_hash_hash_hash_i_2_entry), 44, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_CallThread_ent_hash_hash_f_5", 0x001e55c0, 0, code(&Scr_CallThread_ent_hash_hash_f_5_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"XGetLaunchInfo", 0x001e6e7f, 0, code(&XGetLaunchInfo), 8, Result::Eax, Status::Compare},
     {"XGetLanguage", 0x001e6f2a, 0, code(&XGetLanguage), 0, Result::Eax, Status::Compare},
     {"XGetVideoStandard", 0x001e75df, 0, code(&XGetVideoStandard), 0, Result::Eax, Status::Compare},
@@ -8194,6 +8250,7 @@ const Function kFunctions[] = {
     {"ScrIface_Free", 0x002f5440, 0, code(&ScrIface_Free), 4, Result::None, Status::Replaced},
     {"ScrIface_HashStringNoCase", 0x002f5470, 0, code(&ScrIface_HashStringNoCase), 4, Result::Eax, Status::Replaced},
     {"G_FindLevelScriptModule", 0x002f54c0, 0, code(&G_FindLevelScriptModule_entry), 0, Result::Eax, Status::Replaced},
+    {"Scr_RestoreContext", 0x002f5660, 0, code(&Scr_RestoreContext), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"G_FindAnimTreeByName", 0x002f5790, 0, code(&G_FindAnimTreeByName), 4, Result::Eax, Status::Replaced},
     {"GScr_GetPersistentVector", 0x002f5830, 0, code(&GScr_GetPersistentVector), 8, Result::Eax, Status::Replaced},
     {"GScr_GetPersistentFloat", 0x002f58d0, 0, code(&GScr_GetPersistentFloat), 4, Result::St0, Status::Replaced},
@@ -8476,6 +8533,7 @@ const Function kFunctions[] = {
     {"GScr_CheckScriptAnimTreeCvars", 0x002fd570, 0, code(&GScr_CheckScriptAnimTreeCvars), 0, Result::Eax, Status::Compare},
     {"GScr_IsSoundPlaying", 0x002fd630, 0, code(&GScr_IsSoundPlaying), 4, Result::Al, Status::Replaced},
     {"Vehicle_CountActive", 0x002fd650, 0, code(&Vehicle_CountActive), 0, Result::Eax, Status::Replaced},
+    {"SmallHeap_DrawExhaustedWarning", 0x002fd6e0, 0, code(&SmallHeap_DrawExhaustedWarning), 0, Result::None, Status::Replaced},  // gap function (no Ghidra entry)
     {"GScr_GetLocalizedString", 0x002fd740, 0, code(&GScr_GetLocalizedString), 8, Result::Eax, Status::Replaced},
     {"GScr_HudSetTimer7", 0x002fd770, 0, code(&GScr_HudSetTimer7), 8, Result::None, Status::Compare},
     {"GScr_HudSetTimer6", 0x002fd790, 0, code(&GScr_HudSetTimer6), 8, Result::None, Status::Compare},
@@ -8493,6 +8551,8 @@ const Function kFunctions[] = {
     {"Scr_GetCurrentThreadHandle", 0x002fdbf0, 0, code(&Scr_GetCurrentThreadHandle), 0, Result::Eax, Status::Replaced},
     {"Scr_BeginThread", 0x002fdc40, 0, code(&Scr_BeginThread), 24, Result::Eax, Status::Replaced},
     {"Scr_CreateThread", 0x002fdd00, 0, code(&Scr_CreateThread), 24, Result::Eax, Status::Replaced},
+    {"Scr_WaitRecord15", 0x002fddb0, 0, code(&Scr_WaitRecord15), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"Scr_WaitRecord16", 0x002fde40, 0, code(&Scr_WaitRecord16), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"IntHashMap_EraseByString", 0x002fdef0, 0, code(&IntHashMap_EraseByString), 0, Result::Al, Status::Replaced},
     {"ScrObject_GetThreadHandle", 0x002fdf40, 0, code(&ScrObject_GetThreadHandle_entry), 0, Result::Eax, Status::Replaced},
     {"Scr_FreeThread", 0x002fdf90, 0, code(&Scr_FreeThread), 0, Result::None, Status::Replaced},
@@ -8555,6 +8615,7 @@ const Function kFunctions[] = {
     {"GScr_AmbientPlay", 0x00300750, 0, code(&GScr_AmbientPlay), 8, Result::None, Status::Compare},
     {"GScr_MusicPlay", 0x00300780, 0, code(&GScr_MusicPlay), 4, Result::None, Status::Replaced},
     {"Scr_EndOn", 0x003007b0, 0, code(&Scr_EndOn), 8, Result::None, Status::Replaced},
+    {"Scr_WaitRecord17", 0x00300850, 0, code(&Scr_WaitRecord17), 32, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_BeginThreadEndOn", 0x00300a40, 0, code(&Scr_BeginThreadEndOn), 28, Result::Eax, Status::Replaced},
     {"NameMap_Insert", 0x00300b30, 0, code(&NameMap_Insert), 8, Result::None, Status::Replaced},
     {"GScr_ObjectiveStringByHash", 0x00300ba0, 0, code(&GScr_ObjectiveStringByHash), 8, Result::None, Status::Compare},

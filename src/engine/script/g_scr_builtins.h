@@ -492,6 +492,10 @@ void XB_CDECL GScr_EmptyStub38();
 // 0x002fb230: the entity's script object +0x428, created on first use by the callback at +0x804 of the object
 // at 0x0095f49c (called with 0, 0) when there is one; 0 when stale.
 uint32_t XB_CDECL GScr_GetEntScriptObject(uint32_t handle);
+// 0x0011db20 (jmp through import slot 0x009229e8): GScr_GetEntScriptObject.
+uint32_t XB_CDECL ScrCall_GScr_GetEntScriptObject(uint32_t handle);
+// 0x0011eb30 (entity handle pointer in ECX, pops 4): removes `key` from the entity's script key table, if it has one.
+void XB_THISCALL ScrCall_GScr_GetEntScriptObject_2(const uint32_t* handle, uint32_t key);
 // 0x002fb290, 0x002fb2a0: the number (+0x224) of level entity +4 (the player) / +8 of the record at 0x0095f534.
 int32_t XB_CDECL GScr_GetPlayerHandle();
 int32_t XB_CDECL GScr_GetLevelEnt8Handle();

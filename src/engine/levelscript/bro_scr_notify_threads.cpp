@@ -7,6 +7,7 @@
 #include "scr_field.h"
 #include "title_data.h"
 #include "bro_scr_anim.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -703,7 +704,7 @@ void fallback_clear_goal_loop(uint32_t ai) {
     Scr_EndOnString(ai, pointer<const char>(0x00825d3c));  // "fallback_clear_death"
     for (;;) {
         if (entity_handle_is_valid(ai)) {
-            if (ScriptKeyTable* table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(ai))
+            if (ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ai))
                 ScriptKeyTable_Find(table, 0xa33a251d);  // read, unused (the debug draw was compiled out)
         }
         Scr_Wait(0.05f);

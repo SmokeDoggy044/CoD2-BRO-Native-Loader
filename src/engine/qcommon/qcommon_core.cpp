@@ -2183,6 +2183,14 @@ void XB_THISCALL SmallHeap_Destroy(uint8_t* heap) {
     }
 }
 
+uint8_t XB_THISCALL SmallHeap_AllPoolsExhausted(const uint8_t* heap) {
+    const int32_t count = *reinterpret_cast<const int32_t*>(heap);
+    const uint32_t* const pools = reinterpret_cast<const uint32_t*>(heap + 4);
+    for (int32_t i = 0; i < count; ++i)
+        if (*reinterpret_cast<const uint32_t*>(uintptr_t{pools[i]} + 0x24)) return 0;
+    return 1;
+}
+
 uint8_t* XB_THISCALL SmallHeap_Alloc(uint8_t* heap, uint32_t size, uint32_t no_pool) {
     if (!static_cast<uint8_t>(no_pool) && !heap[0x39]) {
         for (int32_t i = 0; i < static_cast<int32_t>(word_at(heap, 0x24)); ++i) {

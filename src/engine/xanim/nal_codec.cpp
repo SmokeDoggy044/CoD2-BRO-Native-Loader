@@ -2638,6 +2638,11 @@ PLATFORM_ASM_ENTRY(NAL_SkipActiveChannelBlocks_entry,
 
 uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context) { return skip_sized_blocks(context); }
 
+uint32_t XB_STDCALL NAL_SkipActiveChannelBlocks_VFunc(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                      uint32_t) {
+    return NAL_SkipActiveChannelBlocks(context);
+}
+
 uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
     *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 0xf) & ~uintptr_t{0xf});
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {

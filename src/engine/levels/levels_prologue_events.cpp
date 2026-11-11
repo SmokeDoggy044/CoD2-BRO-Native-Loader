@@ -14,6 +14,7 @@
 #include "bro_scr_tank_init.h"
 #include "levels_prologue_bodies_a.h"
 #include "levels_templates.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -36,7 +37,6 @@ using Spawn = uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t);
 using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
 using GetNode = uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t);
 
-constexpr uint32_t kStartFunctor1 = 0x0011a910;  // Scr_StartThreadFunctor1
 constexpr uint32_t kStartEntF = 0x0045a920;      // Scr_StartThread_ent_f_PROLOGUE
 
 void create_thread(uint32_t ent, uint32_t* functor) {
@@ -213,7 +213,7 @@ void types(uint32_t* a, uint32_t* b, uint32_t* c, uint32_t* d, uint32_t va, uint
 // 0x0b74e4e8 holds a value other than the undefined int; false for an invalid handle / no script object.
 bool tank_firing_defined(uint32_t tank) {
     if (!entity_handle_is_valid(tank)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(tank);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(tank);
     if (!table) return false;
     const uint32_t undefined = undefined_int();
     const uint32_t* const value = ScriptKeyTable_Find(table, 0x0b74e4e8);
@@ -224,7 +224,7 @@ bool tank_firing_defined(uint32_t tank) {
 // (ScriptKeyTable_GetArrayCopy) has storage; the copy is freed.
 bool tank_targets_defined(uint32_t tank) {
     if (!entity_handle_is_valid(tank)) return false;
-    ScriptKeyTable* const table = title_function<ScriptKeyTable* XB_CDECL(uint32_t)>(0x0011db20)(tank);
+    ScriptKeyTable* const table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(tank);
     if (!table) return false;
     uint32_t copy[3];
     const uint32_t* const array = ScriptKeyTable_GetArrayCopy(table, copy, 0xfe9bb316);
@@ -654,9 +654,9 @@ void XB_CDECL Bro_prologue__Event4_Plane_Crash_Distance(uint32_t self) {
     const uint32_t* const owner = level_ent();
     scratch = title_global<uint32_t>(0x007f4d90);  // 11.1
     title_function<StartThread>(kStartEntF)(0, 0, 0, 0, own_address(&BroLvl_prologue_FriendlyChainThink), *owner, &scratch);  // BroLvl_prologue_FriendlyChainThink
-    title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00424a00, *level_ent());  // FUN_00424a00
-    title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00435c30, *level_ent());  // BroLvl_prologue_Event4Flak
-    title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, 0x00452b90, *level_ent());
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, 0x00424a00, *level_ent());  // FUN_00424a00
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, 0x00435c30, *level_ent());  // BroLvl_prologue_Event4Flak
+    own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, 0x00452b90, *level_ent());
 }
 
 void XB_CDECL BroLvl_prologue_StartFromCheckpoint() {
@@ -703,7 +703,7 @@ void XB_CDECL BroLvl_prologue_StartFromCheckpoint() {
         *pointer<uint32_t>(level() + 0x844) = 0x4e43dfd6;
         body = 0x0044fde0;
     }
-    if (body) title_function<StartThread>(kStartFunctor1)(0, 0, 0, 0, body, pointer<uint32_t>(level())[1]);
+    if (body) own_function<StartThread>(&Scr_StartThreadFunctor1_entry)(0, 0, 0, 0, body, pointer<uint32_t>(level())[1]);
     slot<void XB_CDECL()>(0x00922324)();  // GScr_RestorePlayerLoadout
 }
 

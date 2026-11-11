@@ -14,6 +14,7 @@
 #include "levels_twins.h"
 #include "scr_class.h"
 #include "title_crt.h"
+#include "g_scr_builtins.h"
 
 namespace game {
 
@@ -111,7 +112,7 @@ uint32_t create_thread(const uint32_t* args, uint32_t* functor, uint32_t create 
 uint32_t call_thread(const uint32_t* args, uint32_t* functor) {
     const uint32_t thread = create_thread(args, functor, 0x00922168);
     if (static_cast<uint8_t>(title_function<uint32_t XB_CDECL()>(title_global<uint32_t>(0x0092218c))()))  // Scr_InThread
-        title_function<void XB_CDECL(uint32_t)>(0x0011e540)(0);  // Scr_WaitFrames
+        own_function<void XB_CDECL(uint32_t)>(&Scr_WaitFrames)(0);  // Scr_WaitFrames
     return thread;
 }
 
@@ -342,12 +343,6 @@ uint32_t XB_CDECL Scr_CallThread_ent_hash_hash_f_5(const uint32_t* args) {
     return call_thread(args, make_functor(args, 0x18, 0x00825c68, fields, 3));
 }
 
-// Runs a script thread's functor (vtable slot 1, thiscall) inside the original's try/catch; a
-// caught exception ends the thread (the catch block resumes after the call). EAX = the slot's result.
-uint32_t XB_THISCALL Scr_ThreadEntry(uint32_t* functor) {
-    return title_function<uint32_t XB_THISCALL(uint32_t*)>(pointer<uint32_t>(functor[0])[1])(functor);
-}
-
 void XB_CDECL Scr_GetEntArray(uint32_t a1, uint32_t a2, uint8_t* array, uint32_t a4) {
     // GScr_GetEntArray fills up to 0x400 entities; the array is emptied and gets them appended.
     uint32_t ents[0x400];
@@ -463,7 +458,7 @@ uint32_t XB_CDECL Scr_BeginThreadFunctor1(const uint32_t* args) {
     const uint32_t thread = title_function<BeginThread>(title_global<uint32_t>(0x00922168))(args[1], args[2], args[3],
                                                                                            args[5], functor, args[0]);
     if (static_cast<uint8_t>(title_function<uint32_t XB_CDECL()>(title_global<uint32_t>(0x0092218c))()))  // Scr_InThread
-        title_function<void XB_CDECL(uint32_t)>(0x0011e540)(0);  // Scr_WaitFrames
+        own_function<void XB_CDECL(uint32_t)>(&Scr_WaitFrames)(0);  // Scr_WaitFrames
     return thread;
 }
 
@@ -700,7 +695,7 @@ void XB_CDECL G_RunThink(uint32_t entry_esp, uint8_t* ent, uint32_t arg, uint32_
 }
 
 uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity) {
-    const uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(entity[0]);  // GScr_GetEntScriptObject
+    const uint32_t object = own_function<uint32_t XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(entity[0]);  // GScr_GetEntScriptObject
     return object ? object : 0x00922e94;
 }
 

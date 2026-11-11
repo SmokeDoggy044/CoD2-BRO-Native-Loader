@@ -123,7 +123,7 @@ void XB_THISCALL HashMap_Dtor_PROLOGUE_5(uint8_t* map) {
 
 // 0x00460360, copy of ListNode_DestroyValue_PROLOGUE
 uint32_t XB_THISCALL ListNode_DestroyValue_PROLOGUE_6(uint8_t* node) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*)>(0x00028400)(node + 0xc);  // FUN_00028400
+    return own_function<uint32_t XB_THISCALL(uint8_t*)>(&ListVectorValue_Dtor)(node + 0xc);  // FUN_00028400
 }
 
 // 0x00460f10, copy of HashMap_Dtor_PROLOGUE

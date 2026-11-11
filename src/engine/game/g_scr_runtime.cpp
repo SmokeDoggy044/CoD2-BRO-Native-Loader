@@ -525,8 +525,8 @@ void XB_CDECL G_NotifyWithTwoStrings(uint8_t* ent, uint32_t notify, const Script
         own_function<NotifyHandler>(&G_EntityRunNotifyCallbacks)(handlers, ent, notify, nullptr);
 }
 
-// The script wait family (not registered: the waits suspend the script thread - Scr_Suspend*
-// save the thread's stack and registers and switch away - so a test process cannot run them).
+// The script wait family (Replaced, never compared: the waits suspend the script thread through
+// scr_fiber.cpp's Scr_Suspend*, so a test process cannot run them to their end).
 
 namespace {
 
@@ -538,7 +538,6 @@ void wait_done(uint32_t first_argument) {
     own_function<void XB_STDCALL(void*, uint32_t)>(&title_CxxThrowException)(&object, 0x0088ac80);  // _CxxThrowException
 }
 
-void suspend(uint32_t function) { title_function<void XB_CDECL()>(function)(); }
 
 // The wait-till record (0x00922130 notify, 0x00922134 object, 0x00922e6c, 0x00922120 /
 // 0x0092212c / 0x00922e60 arguments, 0x00922e5c flag, 0x00922138 timeout), then
@@ -552,7 +551,7 @@ void wait_till(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_
     title_global<uint32_t>(0x00922e60) = c;
     title_global<uint8_t>(0x00922e5c) = flag;
     title_global<float>(0x00922138) = timeout;
-    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+    Scr_SuspendWaitTill();
 }
 
 }  // namespace
@@ -563,7 +562,7 @@ void XB_CDECL Scr_WaitExact(float seconds) {
     uint32_t bits;
     std::memcpy(&bits, &seconds, 4);
     title_global<uint32_t>(0x00922124) = bits;  // g_scrWaitTime
-    suspend(0x0011d950);                        // Scr_SuspendWaitTime
+    Scr_SuspendWaitTime();
     wait_done(bits);
 }
 
@@ -572,7 +571,7 @@ void XB_CDECL Scr_Wait(float seconds) {
     const float longest = seconds * from_bits(0x3f866666);
     title_global<float>(0x00922124) =
         title_function<float XB_CDECL(float, float)>(title_global<uint32_t>(0x00922238))(seconds, longest);
-    suspend(0x0011d950);  // Scr_SuspendWaitTime
+    Scr_SuspendWaitTime();
     uint32_t bits;
     std::memcpy(&bits, &seconds, 4);
     wait_done(bits);
@@ -580,7 +579,7 @@ void XB_CDECL Scr_Wait(float seconds) {
 
 void XB_CDECL Scr_WaitFrames(uint32_t frames) {
     title_global<uint32_t>(0x00922128) = frames;
-    suspend(0x0011d990);  // Scr_SuspendWaitFrames
+    Scr_SuspendWaitFrames();
     wait_done(frames);
 }
 
@@ -613,14 +612,14 @@ void XB_CDECL Scr_WaitTillString(uint32_t object, const char* name) {
 void XB_CDECL Scr_WaitOnObject(uint32_t object) {
     title_global<uint32_t>(0x00922e6c) = object;
     title_global<uint32_t>(0x00922130) = 1;
-    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+    Scr_SuspendWaitTill();
     wait_done(object);
 }
 
 void XB_CDECL Scr_WaitOnObjectNoFlag(uint32_t object) {
     title_global<uint32_t>(0x00922e6c) = object;
     title_global<uint32_t>(0x00922130) = 0;
-    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+    Scr_SuspendWaitTill();
     wait_done(object);
 }
 

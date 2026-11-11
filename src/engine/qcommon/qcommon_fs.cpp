@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <cstring>
+#include <initializer_list>
 
 #include "cl.h"
 #include "cg_view.h"
@@ -5076,10 +5077,32 @@ uint8_t* XB_THISCALL HashMap_Index_9(HashMap* map, const uint32_t* key) {
 
 // --- Localized-string tables (0x0095fe70) ---
 
+PLATFORM_ASM_ENTRY(LocStrings_Ctor_entry, "pushl %esi\n" PLATFORM_ASM_CALL(LocStrings_Ctor) "addl $4, %esp\n ret")
+
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL LocStrings_Ctor(uint8_t* self) {
+    for (const uint32_t at : {0x8u, 0x24u, 0x40u, 0x5cu}) {  // std::string: buffer, size +0x10, capacity +0x14
+        *reinterpret_cast<uint32_t*>(self + at + 0x14) = 15;
+        *reinterpret_cast<uint32_t*>(self + at + 0x10) = 0;
+        self[at] = 0;
+    }
+    uint8_t* const map = std_map_string_BuyHead();
+    *reinterpret_cast<uint8_t**>(self + 0x7c) = map;
+    map[0x65] = 1;  // the head node is "nil"
+    for (const uint32_t link : {4u, 0u, 8u}) *reinterpret_cast<uint8_t**>(map + link) = map;
+    for (const uint32_t at : {0x80u, 0x8cu, 0x90u, 0x94u}) *reinterpret_cast<uint32_t*>(self + at) = 0;
+    uint8_t* const set = std_set_string_BuyHead();
+    *reinterpret_cast<uint8_t**>(self + 0x9c) = set;
+    set[0x2d] = 1;
+    for (const uint32_t link : {4u, 0u, 8u}) *reinterpret_cast<uint8_t**>(set + link) = set;
+    *reinterpret_cast<uint32_t*>(self + 0xa0) = 0;
+    Loc_ResetStringFileState(self, 0);
+    return self;
+}
+
 void XB_CDECL StaticInit_LocStrings() {
     TitleRegs regs{};
     regs.esi = 0x0095fe70;
-    qc_call_regs(0x0001d930, &regs, 0, nullptr);  // constructor (object in ESI)
+    qc_call_regs(own_address(&LocStrings_Ctor_entry), &regs, 0, nullptr);  // constructor (object in ESI)
     title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(own_address(&AtExit_LocStrings));  // _atexit(AtExit_LocStrings)
 }
 
@@ -6864,6 +6887,13 @@ char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int
     return out;
 }
 
+void XB_CDECL SmallHeap_DrawExhaustedWarning() {
+    const uint8_t* const heap = title_global<uint8_t*>(0x0095f4a4);
+    if (!heap || !SmallHeap_AllPoolsExhausted(heap)) return;
+    const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f};
+    R_DrawTextWithShadow(red, reinterpret_cast<const char*>(uintptr_t{0x0083234c}), 0x14, 0x14, 0.0f, 1.0f);  // "Broc Pool empty"
+}
+
 void XB_CDECL Sys_InitHeaps() {
     // {count, 16 x {size, align, count}}: pools of 0x20 / 0x40 / 0x80 bytes.
     uint32_t config[1 + 16 * 3];
@@ -6886,10 +6916,10 @@ void XB_CDECL Sys_InitHeaps() {
     title_global<uint8_t*>(0x0095f4a4) = small ? SmallHeap_Init(small, config, 0, 1) : nullptr;
     uint8_t* heap = Z_Malloc(0x494);
     title_global<uint8_t*>(0x0095f4a0) = heap ? Heap_CreateFromZone(heap, 0x0004b000) : nullptr;
-    // One of 32 shutdown callbacks (0x00988784, count 0x00988780).
+    // One of 32 callbacks (0x00988784, count 0x00988780).
     const int32_t n = title_global<int32_t>(0x00988780);
     if (n < 32) {
-        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(n) * 4) = 0x002fd6e0;
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(n) * 4) = own_address(&SmallHeap_DrawExhaustedWarning);
         ++title_global<int32_t>(0x00988780);
     }
 }
