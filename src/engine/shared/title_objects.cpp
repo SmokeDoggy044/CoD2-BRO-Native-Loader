@@ -42,7 +42,7 @@ constexpr uint32_t kStatusMutantNotOwned = 0xc0000046;
 
 using Clock = std::chrono::steady_clock;
 
-enum class Kind { Event, Mutex, Thread };
+enum class Kind { Event, Mutex, Thread, Payload };
 
 struct Object {
     Kind kind;
@@ -52,6 +52,7 @@ struct Object {
     std::thread::id owner;
     uint32_t count = 0;
     uint32_t exit_code = 0;  // threads
+    std::shared_ptr<Payload> payload;
 };
 
 struct Apc {
@@ -209,6 +210,22 @@ uint32_t create_event(bool manual_reset, bool initial_state) {
     o->manual_reset = manual_reset;
     o->signaled = initial_state;
     return insert(std::move(o));
+}
+
+uint32_t create_payload(std::shared_ptr<Payload> payload) {
+    auto o = std::make_shared<Object>();
+    o->kind = Kind::Payload;
+    o->signaled = true;  // its I/O completes inside the call
+    o->payload = std::move(payload);
+    return insert(std::move(o));
+}
+
+std::shared_ptr<Payload> payload(uint32_t handle) {
+    if (!is_ours(handle)) return nullptr;
+    State& s = state();
+    std::lock_guard guard(s.lock);
+    const auto o = find(s, handle);
+    return o ? o->payload : nullptr;
 }
 
 uint32_t create_mutex(bool initially_owned) {

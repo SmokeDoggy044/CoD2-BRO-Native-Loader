@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 namespace game::objects {
 
@@ -21,6 +22,18 @@ constexpr uint32_t kFirstHandle = 0x7e000000;
 bool is_ours(uint32_t handle);
 
 uint32_t create_event(bool manual_reset, bool initial_state);
+
+// Other objects behind our handles (files, searches: title_files.cpp): always signaled, closed like the rest.
+struct Payload {
+    virtual ~Payload() = default;
+};
+uint32_t create_payload(std::shared_ptr<Payload> payload);
+// The payload behind `handle`, null for other handles.
+std::shared_ptr<Payload> payload(uint32_t handle);
+template <typename T>
+std::shared_ptr<T> payload_as(uint32_t handle) {
+    return std::dynamic_pointer_cast<T>(payload(handle));
+}
 uint32_t create_mutex(bool initially_owned);
 
 // A thread running `body(routine, context)` (XAPI's start-up around the title's routine); its handle is signaled

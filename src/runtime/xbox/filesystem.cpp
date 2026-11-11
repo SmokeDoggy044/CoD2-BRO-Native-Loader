@@ -918,6 +918,8 @@ fs::path host_file_path(std::string_view xbox_path) {
 }
 
 std::shared_ptr<platform::File> host_file(Handle handle) {
+    if (const ForeignObjects& foreign = foreign_objects(); foreign.owns && foreign.owns(handle))
+        return foreign.host_file ? foreign.host_file(handle) : nullptr;
     const auto object = lookup_handle_as<FileObject>(handle);
     return object ? object->file : nullptr;
 }

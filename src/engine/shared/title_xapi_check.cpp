@@ -2,6 +2,7 @@
 // reached only by save games and the save list's dates, which no recording covers.
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -9,6 +10,7 @@
 #include "title_data.h"
 #include "title_savegame.h"
 #include "title_stdio.h"
+#include "title_host.h"
 #include "title_xapi.h"
 
 namespace game {
@@ -208,15 +210,20 @@ int32_t check_title_xapi(std::string& report) {
             SetLastError(0);
             const uint32_t sa = orig_sector(path);
             const uint32_t ea = GetLastError();
+            // XB_CHECK_NATIVE_FILES=1: ours on the native files (title_files.cpp), the title's on the kernel.
+            const bool native_ours = std::getenv("XB_CHECK_NATIVE_FILES") != nullptr;
+            const uint32_t ca = orig_cluster(path);
+            uint32_t fa[6] = {1, 2, 3, 4, 5, 6}, fb[6] = {1, 2, 3, 4, 5, 6};
+            const uint32_t ra = orig_free(path, fa, fa + 2, fa + 4);
+            const uint32_t na = orig_free(path, nullptr, nullptr, nullptr);
+            set_native_platform(native_ours);
             SetLastError(0);
             const uint32_t sb = XGetDiskSectorSizeA(path);
             const uint32_t eb = GetLastError();
-            const uint32_t ca = orig_cluster(path), cb = XGetDiskClusterSizeA(path);
-            uint32_t fa[6] = {1, 2, 3, 4, 5, 6}, fb[6] = {1, 2, 3, 4, 5, 6};
-            const uint32_t ra = orig_free(path, fa, fa + 2, fa + 4);
+            const uint32_t cb = XGetDiskClusterSizeA(path);
             const uint32_t rb = GetDiskFreeSpaceExA(path, fb, fb + 2, fb + 4);
-            const uint32_t na = orig_free(path, nullptr, nullptr, nullptr);
             const uint32_t nb = GetDiskFreeSpaceExA(path, nullptr, nullptr, nullptr);
+            set_native_platform(false);
             if (sa != sb || ea != eb || ca != cb || ra != rb || na != nb || std::memcmp(fa, fb, sizeof fa) != 0) {
                 ++differences;
                 add_line(report, "disk %s: title sector %u (%u) cluster %u free %u, ours sector %u (%u) cluster %u free %u",

@@ -45,18 +45,6 @@ constexpr uint32_t kThreadDetachHook = 0x008d1380;
 
 uint32_t& word(uint32_t address) { return title_global<uint32_t>(address); }
 
-// INTERIM until 5c (native files): our file calls still go through the loader's kernel, which knows paths by Xbox
-// drive letter, so the letters XapiInitProcess made are made here too - D: = the disc (the title's ANSI_STRINGs
-// 0x008cfee0 -> 0x008cfee8, kernel IoCreateSymbolicLink at import slot 0x007b3000), T:/U: = the title's save
-// folders (XapiSetupPerTitleDriveLetters, still the title's), Z: = the cache (XMountUtilityDrive, the loader's).
-// 5c maps title paths to host folders in one place and this goes.
-void map_drive_letters() {
-    using Link = uint32_t XB_STDCALL(uint32_t, uint32_t);
-    (*reinterpret_cast<Link* const*>(uintptr_t{0x007b3000}))(0x008cfee0, 0x008cfee8);
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001edba4)(word(0x00010184 + 8), 0x00010190);
-    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e9b66)(0);
-}
-
 // The CRT's thread notify routine (0x001f8400): a new thread gets nothing (its per-thread data comes with the first
 // _getptd), an ending one frees its per-thread data.
 void XB_STDCALL crt_thread_notify(uint32_t create) {
@@ -144,7 +132,6 @@ void init_code_page() {
 
 uint32_t XB_STDCALL title_main_thread(uint32_t) {
     word(kProcessHeap) = RtlCreateHeap(2, 0, 0x100000, 0x1000, 0, 0);
-    map_drive_letters();
     // _rtinit
     init_threads();
     init_lowio();

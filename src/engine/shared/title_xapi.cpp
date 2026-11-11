@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "title_data.h"
+#include "title_files.h"
 #include "title_host.h"
 #include "title_objects.h"
 
@@ -114,8 +115,36 @@ uint32_t XB_STDCALL GetLastError() { return *reinterpret_cast<uint32_t*>(xapi_th
 
 void XB_STDCALL SetLastError(uint32_t error) { *reinterpret_cast<uint32_t*>(xapi_thread_block() + 8) = error; }
 
+namespace {
+
+// RtlNtStatusToDosError for the statuses our native C produces (title_objects.cpp), without the kernel.
+uint32_t native_dos_error(uint32_t status) {
+    switch (status) {
+    case 0x00000000: return 0;
+    case 0x00000102: return 0x102;  // WAIT_TIMEOUT
+    case 0x00000103: return 0x3e5;  // ERROR_IO_PENDING
+    case 0xc0000008: return 6;      // ERROR_INVALID_HANDLE
+    case 0xc000000d: return 0x57;   // ERROR_INVALID_PARAMETER
+    case 0xc0000011: return 0x26;   // ERROR_HANDLE_EOF
+    case 0xc0000024: return 6;      // object type mismatch -> ERROR_INVALID_HANDLE
+    case 0xc0000046: return 0x120;  // ERROR_NOT_OWNER
+    default: break;
+    }
+    if ((status & 0x3fff0000) == 0x00070000) return status & 0xffff;  // FACILITY_WIN32
+    return 0x13d;  // ERROR_MR_MID_NOT_FOUND
+}
+
+// A failed native file call: its Win32 error as the last error.
+uint32_t fail_with(uint32_t error, uint32_t result) {
+    SetLastError(error);
+    return result;
+}
+
+}  // namespace
+
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status) {
-    const uint32_t error = kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
+    const uint32_t error = native_platform() ? native_dos_error(status)
+                                             : kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
     SetLastError(error);
     return error;
 }
@@ -300,7 +329,34 @@ void XB_STDCALL XapiDirectoryInformationToFindData(const uint8_t* info, uint8_t*
     find[0x130] = 0;
 }
 
+namespace {
+
+// A native search entry as WIN32_FIND_DATAA (as XapiDirectoryInformationToFindData fills it).
+void native_find_data(const files::Entry& entry, uint8_t* find) {
+    const auto put = [&](uint32_t offset, uint32_t w) { std::memcpy(find + offset, &w, 4); };
+    put(0x00, entry.attributes);
+    for (uint32_t time = 0x04; time < 0x1c; time += 8) {
+        put(time, static_cast<uint32_t>(entry.write_time));
+        put(time + 4, static_cast<uint32_t>(entry.write_time >> 32));
+    }
+    put(0x1c, static_cast<uint32_t>(entry.size >> 32));
+    put(0x20, static_cast<uint32_t>(entry.size));
+    const size_t length = std::min<size_t>(entry.name.size(), 0x103);
+    std::memcpy(find + 0x2c, entry.name.data(), length);
+    find[0x2c + length] = 0;
+    find[0x130] = 0;
+}
+
+}  // namespace
+
 uint32_t XB_STDCALL FindFirstFileA(const char* path, uint8_t* find) {
+    if (native_platform()) {
+        uint32_t handle;
+        files::Entry entry;
+        if (const uint32_t error = files::find_first(path, &handle, &entry)) return fail_with(error, 0xffffffff);
+        native_find_data(entry, find);
+        return handle;
+    }
     // Splits "dir\mask" at the last backslash, opens the directory (relative to the object root) and asks for the
     // first entry matching the mask ("*.*" = all). The handle goes to the path argument's slot, as in the original.
     AnsiString name;
@@ -344,6 +400,12 @@ uint32_t XB_STDCALL FindFirstFileA(const char* path, uint8_t* find) {
 }
 
 uint32_t XB_STDCALL FindNextFileA(uint32_t handle, uint8_t* find) {
+    if (objects::is_ours(handle)) {
+        files::Entry entry;
+        if (const uint32_t error = files::find_next(handle, &entry)) return fail_with(error, 0);
+        native_find_data(entry, find);
+        return 1;
+    }
     uint32_t io_status[2];
     uint8_t info[0x148];
     const uint32_t status =
@@ -359,6 +421,13 @@ uint32_t XB_STDCALL FindNextFileA(uint32_t handle, uint8_t* find) {
 }
 
 uint32_t XB_STDCALL GetFileSizeEx(uint32_t handle, uint32_t* size) {
+    if (objects::is_ours(handle)) {
+        uint64_t bytes;
+        if (const uint32_t error = files::size(handle, &bytes)) return fail_with(error, 0);
+        size[0] = static_cast<uint32_t>(bytes);
+        size[1] = static_cast<uint32_t>(bytes >> 32);
+        return 1;
+    }
     // FileNetworkOpenInformation (0x22, 0x38 bytes): end of file at +0x28.
     uint32_t io_status[2];
     uint32_t info[0x38 / 4];
@@ -385,10 +454,69 @@ uint32_t XB_STDCALL GetFileSize(uint32_t handle, uint32_t* high) {
     return size[0];
 }
 
+namespace {
+
+// The status block's status for a native transfer: END_OF_FILE, or a FACILITY_WIN32 status carrying the error.
+uint32_t native_io_status(uint32_t error) {
+    if (error == files::kErrorHandleEof) return 0xc0000011;
+    return error ? 0xc0070000 | error : 0;
+}
+
+uint64_t overlapped_offset(const uint32_t* overlapped) {
+    return (uint64_t{overlapped[3]} << 32) | overlapped[2];
+}
+
+// ReadFileEx/WriteFileEx on our files: done inside the call; the OVERLAPPED's first two words get the status and
+// the byte count, and the completion routine (error, bytes, OVERLAPPED) runs at the thread's next alertable wait,
+// also after a read at the end of the file (then FALSE, ERROR_HANDLE_EOF), as the kernel path did.
+uint32_t native_transfer_ex(bool writing, uint32_t handle, void* buffer, uint32_t size, uint32_t* overlapped,
+                            uint32_t completion) {
+    const uint64_t offset = overlapped_offset(overlapped);
+    uint32_t done = 0;
+    const uint32_t error = writing ? files::write(handle, buffer, size, &offset, &done)
+                                   : files::read(handle, buffer, size, &offset, &done);
+    if (error == files::kErrorInvalidHandle || error == 1) return fail_with(error, 0);
+    overlapped[0] = native_io_status(error);
+    overlapped[1] = done;
+    objects::queue_apc(completion, error, done, addr(overlapped));
+    return error ? fail_with(error, 0) : 1;
+}
+
+// ReadFile/WriteFile on our files. With an OVERLAPPED: done inside the call, its status block filled and its event
+// set, but reported as pending (FALSE, ERROR_IO_PENDING) like the console's drivers - the save reader treats TRUE
+// on an overlapped read as the end of the file. A read at the end of the file: FALSE, ERROR_HANDLE_EOF (overlapped)
+// or TRUE with 0 bytes.
+uint32_t native_transfer(bool writing, uint32_t handle, void* buffer, uint32_t size, uint32_t* done,
+                         uint32_t* overlapped) {
+    if (done) *done = 0;
+    uint32_t count = 0;
+    if (overlapped) {
+        const uint64_t offset = overlapped_offset(overlapped);
+        overlapped[0] = 0x103;
+        const uint32_t error = writing ? files::write(handle, buffer, size, &offset, &count)
+                                       : files::read(handle, buffer, size, &offset, &count);
+        if (error == files::kErrorInvalidHandle || error == 1) return fail_with(error, 0);
+        overlapped[0] = native_io_status(error);
+        overlapped[1] = count;
+        if (const uint32_t event = overlapped[4] & ~1u) objects::set_event(event, true);
+        return fail_with(error ? error : 0x3e5, 0);
+    }
+    const uint32_t error = writing ? files::write(handle, buffer, size, nullptr, &count)
+                                   : files::read(handle, buffer, size, nullptr, &count);
+    if (!error || (!writing && error == files::kErrorHandleEof)) {
+        *done = count;
+        return 1;
+    }
+    return fail_with(error, 0);
+}
+
+}  // namespace
+
 uint32_t XB_STDCALL ReadFileEx(uint32_t handle, void* buffer, uint32_t size, uint32_t* overlapped,
                                uint32_t completion) {
     // NtReadFile at the OVERLAPPED's offset (+8), its first two words the status block; the completion routine runs
     // as an APC through the kernel's NtUserIoApcDispatcher.
+    if (objects::is_ours(handle)) return native_transfer_ex(false, handle, buffer, size, overlapped, completion);
     uint32_t offset[2] = {overlapped[2], overlapped[3]};
     const uint32_t status =
         kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, void*, uint32_t, uint32_t*)>(
@@ -403,6 +531,8 @@ uint32_t XB_STDCALL ReadFileEx(uint32_t handle, void* buffer, uint32_t size, uin
 
 uint32_t XB_STDCALL WriteFileEx(uint32_t handle, const void* buffer, uint32_t size, uint32_t* overlapped,
                                 uint32_t completion) {
+    if (objects::is_ours(handle))
+        return native_transfer_ex(true, handle, const_cast<void*>(buffer), size, overlapped, completion);
     uint32_t offset[2] = {overlapped[2], overlapped[3]};
     const uint32_t status =
         kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, const void*, uint32_t, uint32_t*)>(
@@ -420,6 +550,10 @@ uint32_t XB_STDCALL XGetFilePhysicalSortKey(uint32_t handle) {
     // for a directory, flag bit 0), GDFX (DVD) its first sector (+0). -1 on failure; other file systems fail with
     // STATUS_INVALID_PARAMETER. The file object takes the handle argument's slot, as in the original.
     uint32_t key = 0xffffffff;
+    if (objects::is_ours(handle)) {
+        if (const uint32_t error = files::sort_key(handle, &key)) return fail_with(error, 0xffffffff);
+        return key;
+    }
     uint32_t* const object = &handle;
     uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*)>(kObReferenceObjectByHandle)(
         handle, title_global<uint32_t>(kIoFileObjectType), object);
@@ -474,6 +608,20 @@ uint32_t XB_STDCALL CreateFileA(const char* path, uint32_t access, uint32_t shar
         XapiSetLastNTError(0xc000000d);  // STATUS_INVALID_PARAMETER
         return 0xffffffff;
     }
+    if (native_platform()) {
+        files::OpenRequest request;
+        request.write = access & 0x40000000;
+        request.disposition = disposition;
+        request.directory = flags & 0x2000000;
+        request.overlapped = flags & 0x40000000;
+        request.delete_on_close = flags & 0x4000000;
+        uint32_t handle;
+        bool existed;
+        if (const uint32_t error = files::open(path, request, &handle, &existed))
+            return fail_with(error == files::kErrorAlreadyExists ? files::kErrorFileExists : error, 0xffffffff);
+        SetLastError(existed && (disposition == 2 || disposition == 4) ? files::kErrorAlreadyExists : 0);
+        return handle;
+    }
     AnsiString name;
     kernel<void XB_STDCALL(AnsiString*, const char*)>(kRtlInitAnsiString)(&name, path);
     const bool trailing_backslash = name.length > 1 && path[name.length - 1] == '\\';
@@ -521,6 +669,7 @@ uint32_t XB_STDCALL ReadFile(uint32_t handle, void* buffer, uint32_t size, uint3
     // With an OVERLAPPED {status block, offset +8, event +0x10}: started at its offset, the status block marked
     // pending; completion through its event, or an APC with the OVERLAPPED unless the event's low bit is set.
     // Pending reports ERROR_IO_PENDING. Synchronous: waits on the handle; the end of the file reads 0 bytes.
+    if (objects::is_ours(handle)) return native_transfer(false, handle, buffer, size, read, overlapped);
     if (read) *read = 0;
     if (overlapped) {
         uint32_t offset[2] = {overlapped[2], overlapped[3]};
@@ -563,6 +712,8 @@ uint32_t XB_STDCALL ReadFile(uint32_t handle, void* buffer, uint32_t size, uint3
 
 uint32_t XB_STDCALL WriteFile(uint32_t handle, const void* buffer, uint32_t size, uint32_t* written,
                               uint32_t* overlapped) {
+    if (objects::is_ours(handle))
+        return native_transfer(true, handle, const_cast<void*>(buffer), size, written, overlapped);
     if (written) *written = 0;
     if (overlapped) {
         uint32_t offset[2] = {overlapped[2], overlapped[3]};
@@ -607,7 +758,13 @@ bool seek_target(uint32_t handle, uint32_t method, uint32_t distance_low, uint32
     const uint64_t distance = (uint64_t{distance_high} << 32) | distance_low;
     uint32_t io_status[2];
     uint64_t base = 0;
-    if (method == 0) {
+    if (objects::is_ours(handle)) {
+        const uint32_t error = method == 0 ? 0 : method == 2 ? files::size(handle, &base) : files::position(handle, &base);
+        if (error) {
+            SetLastError(error);
+            return false;
+        }
+    } else if (method == 0) {
         base = 0;
     } else if (method == 2) {
         uint32_t info[0x38 / 4];
@@ -632,6 +789,13 @@ bool seek_target(uint32_t handle, uint32_t method, uint32_t distance_low, uint32
     return true;
 }
 
+// Our file's position as an NTSTATUS for the seek functions' error path (a FACILITY_WIN32 status carries the
+// Win32 error through XapiSetLastNTError).
+uint32_t native_set_position(uint32_t handle, const uint32_t* position) {
+    const uint32_t error = files::set_position(handle, (uint64_t{position[1]} << 32) | position[0]);
+    return error ? 0xc0070000 | error : 0;
+}
+
 }  // namespace
 
 uint32_t XB_STDCALL SetFilePointer(uint32_t handle, uint32_t distance, uint32_t* distance_high, uint32_t method) {
@@ -650,8 +814,11 @@ uint32_t XB_STDCALL SetFilePointer(uint32_t handle, uint32_t distance, uint32_t*
         return 0xffffffff;
     }
     uint32_t io_status[2];
-    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t)>(
-        kNtSetInformationFile)(handle, io_status, position, 8, 0xe);
+    const uint32_t status =
+        objects::is_ours(handle)
+            ? native_set_position(handle, position)
+            : kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t)>(kNtSetInformationFile)(
+                  handle, io_status, position, 8, 0xe);
     if (static_cast<int32_t>(status) < 0) {
         XapiSetLastNTError(status);
         if (distance_high) *distance_high = 0xffffffff;
@@ -671,8 +838,11 @@ uint32_t XB_STDCALL SetFilePointerEx(uint32_t handle, uint32_t distance, uint32_
         return 0;
     }
     uint32_t io_status[2];
-    const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t)>(
-        kNtSetInformationFile)(handle, io_status, target, 8, 0xe);
+    const uint32_t status =
+        objects::is_ours(handle)
+            ? native_set_position(handle, target)
+            : kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t)>(kNtSetInformationFile)(
+                  handle, io_status, target, 8, 0xe);
     if (static_cast<int32_t>(status) < 0) {
         XapiSetLastNTError(status);
         return 0;
@@ -686,6 +856,10 @@ uint32_t XB_STDCALL SetFilePointerEx(uint32_t handle, uint32_t distance, uint32_
 
 uint32_t XB_STDCALL SetEndOfFile(uint32_t handle) {
     // End of file (FileEndOfFileInformation 0x14) and allocation (0x13) at the current position.
+    if (objects::is_ours(handle)) {
+        if (const uint32_t error = files::set_end(handle)) return fail_with(error, 0);
+        return 1;
+    }
     using Info = uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t);
     uint32_t io_status[2];
     uint32_t position[2];
@@ -1157,6 +1331,10 @@ uint32_t XB_STDCALL FileTimeToLocalFileTime(const uint32_t* file_time, uint32_t*
 
 uint32_t XB_STDCALL DeleteFileA(const char* path) {
     // Open for DELETE (sharing read/write/delete, non-directory, synchronous) and set FileDispositionInformation.
+    if (native_platform()) {
+        if (const uint32_t error = files::remove_file(path)) return fail_with(error, 0);
+        return 1;
+    }
     AnsiString name;
     kernel<void XB_STDCALL(AnsiString*, const char*)>(kRtlInitAnsiString)(&name, path);
     ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
@@ -1184,6 +1362,20 @@ namespace {
 // FILE_FS_SIZE_INFORMATION of the volume holding path (opened as a directory); false with the error set (a missing
 // file becomes "path not found", as in the originals).
 bool volume_size(const char* path, uint32_t* info) {
+    if (native_platform()) {
+        files::Volume volume;
+        if (uint32_t error = files::volume(path, &volume)) {
+            SetLastError(error == files::kErrorFileNotFound ? files::kErrorPathNotFound : error);
+            return false;
+        }
+        info[0] = static_cast<uint32_t>(volume.total_clusters);
+        info[1] = static_cast<uint32_t>(volume.total_clusters >> 32);
+        info[2] = static_cast<uint32_t>(volume.free_clusters);
+        info[3] = static_cast<uint32_t>(volume.free_clusters >> 32);
+        info[4] = volume.sectors_per_cluster;
+        info[5] = volume.bytes_per_sector;
+        return true;
+    }
     AnsiString name;
     kernel<void XB_STDCALL(AnsiString*, const char*)>(kRtlInitAnsiString)(&name, path);
     ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
@@ -1239,6 +1431,7 @@ uint32_t XB_STDCALL CancelIo(uint32_t handle) {
     // The original references the file object, then (at DPC level) moves the IDE channel's queued requests for it
     // to a list a DPC cancels. Our kernel completes every request inside the call, so nothing is ever queued (and
     // its IdexChannelObject is a zero block the original's list walk would fault on).
+    if (objects::is_ours(handle)) return files::is_file(handle) ? 1 : fail_with(files::kErrorInvalidHandle, 0);
     uint32_t object;
     const uint32_t status = kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*)>(kObReferenceObjectByHandle)(
         handle, title_global<uint32_t>(kIoFileObjectType), &object);

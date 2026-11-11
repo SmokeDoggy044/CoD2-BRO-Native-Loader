@@ -536,6 +536,7 @@ const KernelImpl kDispatcherImpls[] = {
 ForeignObjects g_foreign;
 
 void set_foreign_objects(const ForeignObjects& objects) { g_foreign = objects; }
+const ForeignObjects& foreign_objects() { return g_foreign; }
 
 void set_event_handle(Handle event, int32_t state) {
     if (!event) return;

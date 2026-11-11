@@ -35,6 +35,7 @@
 #include "snd.h"
 #include "title_xapi.h"
 #include "title_host.h"
+#include "title_files.h"
 #include "title_objects.h"
 #include "dispatcher.h"
 #include "snd_env.h"
@@ -1041,6 +1042,8 @@ int loader_main(int argc, char** argv) {
         host.replay_recorded = [](char tag, uint32_t* value) { return xbox::replay::recorded(tag, *value); };
         host.replay_value = [](char tag, uint32_t real) { return xbox::replay::value(tag, real); };
         game::set_title_host(host);
+        // The title's folders for our native files (--own-main; --check-crt compares them with the kernel's).
+        game::files::set_folders(*assets, options->data.value_or(platform::user_data_dir()));
         if (options->own_main) {
             game::set_native_platform(true);
             xbox::ForeignObjects foreign;
@@ -1049,6 +1052,7 @@ int loader_main(int argc, char** argv) {
             foreign.queue_apc = [](xbox::XbPtr routine, uint32_t a1, uint32_t a2, uint32_t a3) {
                 game::objects::queue_apc(routine, a1, a2, a3);
             };
+            foreign.host_file = [](xbox::Handle handle) { return game::files::host_file(handle); };
             xbox::set_foreign_objects(foreign);
         }
     }

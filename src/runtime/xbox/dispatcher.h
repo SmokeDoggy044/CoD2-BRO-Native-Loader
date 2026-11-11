@@ -12,8 +12,14 @@
 // Here a kernel thread expires timers and runs DPCs while holding a global lock, and
 // raising to DISPATCH_LEVEL takes the same lock.
 
+#include <memory>
+
 #include "objects.h"
 #include "types.h"
+
+namespace platform {
+class File;
+}
 
 namespace xbox {
 
@@ -37,8 +43,11 @@ struct ForeignObjects {
     bool (*owns)(Handle handle) = nullptr;
     void (*set_event)(Handle handle, int32_t state) = nullptr;
     void (*queue_apc)(XbPtr routine, uint32_t argument1, uint32_t argument2, uint32_t argument3) = nullptr;
+    // The host file behind one of its file handles (host_file, for XFileCreateMediaObjectAsync).
+    std::shared_ptr<platform::File> (*host_file)(Handle handle) = nullptr;
 };
 void set_foreign_objects(const ForeignObjects& objects);
+const ForeignObjects& foreign_objects();
 
 // Raises the calling thread's IRQL (e.g. to kDispatchLevel, which excludes DPCs and
 // threads that raised theirs) and returns the old level, like KfRaiseIrql. For host

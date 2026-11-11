@@ -1,9 +1,14 @@
 #include "title_savegame.h"
 
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_files.h"
+#include "title_host.h"
+#include "title_objects.h"
 #include "title_heap.h"
 #include "title_xapi.h"
 
@@ -395,6 +400,11 @@ void XB_STDCALL XapiTouchDirectoryTimestamp(const char* path) {
     // The directory's last write time = now (FileBasicInformation, other times and attributes 0 = unchanged).
     const uint32_t file = CreateFileA(path, 0xc0000000, 3, 0, 3, 0x2000000, 0);
     if (file == 0xffffffff) return;
+    if (objects::is_ours(file)) {
+        files::touch(file);
+        CloseHandle(file);
+        return;
+    }
     uint32_t basic[10] = {};
     kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(basic + 4);
     uint32_t io_status[2];
@@ -430,11 +440,24 @@ uint32_t XB_STDCALL XCreateSaveGame(const char* root, const uint16_t* name, uint
         if (disposition == 1 || verify) return error;
     } else {
         title_strcpy(directory + length, kMetaFile);
+        uint32_t handle;
+        if (native_platform()) {
+            // The same request without the kernel: read/write, overwrite or create; the error is not the last error.
+            files::OpenRequest request;
+            request.write = true;
+            request.disposition = 2;
+            bool existed;
+            const uint32_t error = files::open(directory, request, &handle, &existed);
+            directory[length] = 0;
+            if (error) {
+                RemoveDirectoryA(directory);
+                return error;
+            }
+        } else {
         CountedString meta_name;
         init_ansi(&meta_name, directory);
         ObjectAttributes attributes{0xfffffffd, addr(&meta_name), 0x40};
         uint32_t allocation[2] = {1, 0};
-        uint32_t handle;
         uint32_t io_status[2];
         // GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE, system attribute, no sharing, FILE_OVERWRITE_IF,
         // non-directory + synchronous I/O.
@@ -447,6 +470,7 @@ uint32_t XB_STDCALL XCreateSaveGame(const char* root, const uint16_t* name, uint
             const uint32_t error = dos_error(status);  // not set as the last error
             RemoveDirectoryA(directory);
             return error;
+        }
         }
         uint16_t text[0x98];
         title_snwprintf(text, 0x98, (flags & 1) ? kMetaFormatNoCopy : kMetaFormat, 0xfeffu, addr(kNameKey),
@@ -489,6 +513,7 @@ uint32_t XB_STDCALL XDeleteSaveGame(const char* root, const uint16_t* name) {
     if (error) return error;
     path[end + 1] = 0;
     path[end] = '\\';
+    if (native_platform()) return files::remove_tree(path);
     return dos_error(XapiNukeDirectory(path, 0));
 }
 
@@ -600,8 +625,60 @@ uint32_t XB_STDCALL XapiGetDirectoryDisplayBlocks(uint32_t directory, uint32_t* 
     return status;
 }
 
+namespace {
+
+// XapiGetDirectoryDisplayBlocks over our files (by path): the same sum in the same order. A failure below stops
+// the count like the original's.
+uint32_t native_directory_blocks(const std::string& directory, uint32_t* blocks) {
+    std::vector<files::Entry> entries;
+    uint32_t error = files::list(directory.c_str(), &entries);
+    if (error) return error;
+    uint32_t count = 0;
+    for (const files::Entry& entry : entries) {
+        ++count;
+        if (entry.attributes & 0x10) {
+            error = native_directory_blocks(directory + "\\" + entry.name, blocks);
+        } else {
+            if (entry.size >> 32) {
+                *blocks = kMaxBlocks;
+                break;
+            }
+            const uint32_t n = blocks_of(static_cast<uint32_t>(entry.size));
+            if (n < kMaxBlocks) *blocks += n;
+        }
+        if (*blocks >= kMaxBlocks) {
+            *blocks = kMaxBlocks;
+            break;
+        }
+        if (error) break;
+    }
+    *blocks += blocks_of(count ? count << 6 : 1);
+    if (*blocks >= kMaxBlocks) *blocks = kMaxBlocks;
+    return error;
+}
+
+}  // namespace
+
 uint32_t XB_STDCALL XGetDisplayBlocks(const char* path) {
     // A file's size or a directory's contents in 16 KB blocks; 0 with the last error on failure.
+    if (native_platform()) {
+        files::Entry entry;
+        uint32_t error = files::stat(path, &entry);
+        if (!error) {
+            if (!(entry.attributes & 0x10)) {
+                if (entry.size >> 32) return kMaxBlocks;
+                const uint32_t blocks = blocks_of(static_cast<uint32_t>(entry.size));
+                return blocks > kMaxBlocks ? kMaxBlocks : blocks;
+            }
+            uint32_t blocks = 0;
+            std::string directory(path);
+            while (directory.size() > 3 && directory.back() == '\\') directory.pop_back();
+            error = native_directory_blocks(directory, &blocks);
+            if (!error) return blocks;
+        }
+        SetLastError(error);
+        return 0;
+    }
     CountedString name;
     init_ansi(&name, path);
     ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
@@ -706,6 +783,13 @@ char* XB_STDCALL lstrcpynA(char* dest, const char* source, uint32_t count) {
 }
 
 uint32_t XB_STDCALL CreateDirectoryA(const char* path, uint32_t) {
+    if (native_platform()) {
+        if (const uint32_t error = files::make_directory(path)) {
+            SetLastError(error);
+            return 0;
+        }
+        return 1;
+    }
     CountedString name;
     init_ansi(&name, path);
     ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};
@@ -726,6 +810,13 @@ uint32_t XB_STDCALL CreateDirectoryA(const char* path, uint32_t) {
 }
 
 uint32_t XB_STDCALL RemoveDirectoryA(const char* path) {
+    if (native_platform()) {
+        if (const uint32_t error = files::remove_directory(path)) {
+            SetLastError(error);
+            return 0;
+        }
+        return 1;
+    }
     CountedString name;
     init_ansi(&name, path);
     ObjectAttributes attributes{0xfffffffd, addr(&name), 0x40};

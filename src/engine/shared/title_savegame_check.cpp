@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -12,6 +13,7 @@
 #include "title_data.h"
 #include "title_savegame.h"
 #include "title_stdio.h"
+#include "title_host.h"
 #include "title_xapi.h"
 
 namespace game {
@@ -381,7 +383,9 @@ int32_t check_title_savegame(std::string& report) {
         const auto orig_create = title_function<uint32_t XB_STDCALL(const char*, uint32_t)>(0x001ed5d0);
         const auto orig_remove = title_function<uint32_t XB_STDCALL(const char*)>(0x001ed63c);
         uint32_t differences = 0;
+        const bool native_ours = std::getenv("XB_CHECK_NATIVE_FILES") != nullptr;  // see the save games below
         for (int side = 0; side < 2; ++side) {
+            set_native_platform(side == 1 && native_ours);
             const auto create = side ? &CreateDirectoryA : orig_create;
             const auto remove = side ? &RemoveDirectoryA : orig_remove;
             uint32_t r[7], e[7];
@@ -409,6 +413,7 @@ int32_t check_title_savegame(std::string& report) {
                     add_line(report, "directories step %d: title %u (%u), ours %u (%u)", k, first[k], first[7 + k], r[k], e[k]);
             }
         }
+        set_native_platform(false);
         failures += static_cast<int32_t>(differences);
         add_line(report, "Create/RemoveDirectoryA: 6 steps, %u difference(s)", differences);
     }
@@ -440,7 +445,12 @@ int32_t check_title_savegame(std::string& report) {
         std::vector<std::vector<uint8_t>> finds[2];
         std::vector<uint32_t> blocks[2], deletes[2];
         uint32_t enum_result[2][2] = {};
+        // XB_CHECK_NATIVE_FILES=1: ours on the native files (title_files.cpp, as under --own-main), the title's on
+        // the kernel - the same folders, so each side also reads what the other left (the real save folder too).
+        const bool native_ours = std::getenv("XB_CHECK_NATIVE_FILES") != nullptr;
+        if (native_ours) add_line(report, "save games: ours on the native files");
         for (int side = 0; side < 2; ++side) {
+            set_native_platform(side == 1 && native_ours);
             const auto create = side ? &XCreateSaveGame : orig_create;
             const auto erase = side ? &XDeleteSaveGame : orig_delete;
             const auto first = side ? &XFindFirstSaveGame : orig_first;
@@ -548,6 +558,7 @@ int32_t check_title_savegame(std::string& report) {
             RemoveDirectoryA("T:\\svchk\\NOMETA");
             DeleteFileA("T:\\svchk\\plain.bin");
         }
+        set_native_platform(false);
         for (uint32_t i = 0; i < states[0].size() && i < states[1].size(); ++i) {
             const SaveState& a = states[0][i];
             const SaveState& b = states[1][i];

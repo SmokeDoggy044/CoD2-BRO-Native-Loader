@@ -97,6 +97,7 @@ set(game_code_sources
     shared/title_start.cpp
     shared/title_stdio.cpp
     shared/title_xapi.cpp
+    shared/title_files.cpp
     shared/title_objects.cpp
     shared/title_xapi_check.cpp
     shared/title_savegame.cpp
@@ -173,8 +174,10 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # memory_order operators, initializer_list) are weak out-of-line copies, and without this they
     # bind to the loader's copies - host code to the harness ("called host code").
     target_link_options(game_code PRIVATE -Wl,-Bsymbolic-functions)
-    # Script thread stacks (scr_fiber.cpp): platform's page allocator, built into this library.
-    target_sources(game_code PRIVATE ${PROJECT_SOURCE_DIR}/src/platform/vmem_posix.cpp)
+    # Script thread stacks (scr_fiber.cpp) and the title's files (title_files.cpp): platform's page allocator and
+    # host files, built into this library.
+    target_sources(game_code PRIVATE ${PROJECT_SOURCE_DIR}/src/platform/vmem_posix.cpp
+                                     ${PROJECT_SOURCE_DIR}/src/platform/file_posix.cpp)
 else()
     add_library(game_code STATIC ${game_code_sources})
     target_link_libraries(game_code PRIVATE platform)
