@@ -1076,6 +1076,7 @@ const Function kFunctions[] = {
     {"__nh_malloc", 0x001f0ce8, 0, code(&title_crt_nh_malloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"_malloc", 0x001f0d14, 0, code(&title_crt_malloc), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"__CIacos", 0x001f0ff4, 0, code(&title_CIacos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CIasin", 0x001f1d6c, 0, code(&title_CIasin), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"__aligned_offset_malloc", 0x001f10bf, 0, code(&title_crt_aligned_offset_malloc), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"__aligned_free", 0x001f113a, 0, code(&title_crt_aligned_free), 4, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
     {"__aligned_malloc", 0x001f114f, 0, code(&title_crt_aligned_malloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
@@ -1096,6 +1097,21 @@ const Function kFunctions[] = {
     {"_lseek", 0x001f4fb5, 0, code(&title_lseek), 12, Result::Eax, Status::Compare},
     {"_close_lk", 0x001f5060, 0, code(&title_close_lk), 4, Result::Eax, Status::Compare},
     {"_close", 0x001f50e1, 0, code(&title_close), 4, Result::Eax, Status::Compare},
+    {"_write_lk", 0x001f402e, 0, code(&title_write_lk), 12, Result::Eax, Status::Compare},
+    {"_write", 0x001f41b9, 0, code(&title_write), 12, Result::Eax, Status::Compare},
+    {"_lseeki64_lk", 0x001f8cde, 0, code(&title_lseeki64_lk), 16, Result::EdxEax, Status::Compare},
+    {"_isatty", 0x001f8128, 0, code(&title_isatty), 4, Result::Eax, Status::Compare},
+    {"__doserrno", 0x001f0ace, 0, code(&title_doserrno), 0, Result::Eax, Status::Compare},
+    {"_dosmaperr", 0x001f0ad7, 0, code(&title_dosmaperr), 4, Result::None, Status::Compare},
+    {"_flsbuf", 0x001f294f, 0, code(&title_flsbuf), 8, Result::Eax, Status::Compare},
+    {"_fwrite_lk", 0x001f0366, 0, code(&title_fwrite_lk), 16, Result::Eax, Status::Compare},
+    {"_fwrite", 0x001f047d, 0, code(&title_fwrite), 16, Result::Eax, Status::Compare},
+    {"_mtinitlocks", 0x001f3e2a, 0, code(&title_mtinitlocks), 0, Result::Eax, Status::Replaced},  // lock table: replays check
+    {"_mtinitlocknum", 0x001f3eae, 0, code(&title_mtinitlocknum), 4, Result::Eax, Status::Replaced},
+    {"_lock", 0x001f3f4e, 0, code(&title_lock), 4, Result::None, Status::Replaced},
+    {"_unlock", 0x001f3e9c, 0, code(&title_unlock), 4, Result::None, Status::Replaced},
+    {"__crtInitCritSecAndSpinCount", 0x001f8c7d, 0, code(&title_crt_init_crit_sec_and_spin_count), 8, Result::Eax, Status::Replaced},
+    {"__crtInitCritSecNoSpinCount", 0x001f8c6d, 0, code(&title_crt_init_crit_sec_no_spin_count), 8, Result::Eax, Status::Replaced},
     {"_calloc", 0x001f72cc, 0, code(&title_crt_calloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"_getbuf", 0x001f80e4, 0, code(&title_getbuf), 4, Result::None, Status::Compare},
     {"_set_osfhnd", 0x001f8d5f, 0, code(&title_set_osfhnd), 8, Result::Eax, Status::Compare},
@@ -9863,6 +9879,16 @@ const Function kFunctions[] = {
     {"_errno", 0x001f0ac5, 0, code(&title_errno), 0, Result::Eax, Status::Compare},
     {"_ftol", 0x001f0bf4, 0, code(&title_ftol_entry), 0, Result::EdxEax, Status::Compare},
     {"_strtol", 0x001f0ecf, 0, code(&title_strtol), 12, Result::Eax, Status::Compare},
+    {"_strtoul", 0x001f0ee6, 0, code(&title_strtoul), 12, Result::Eax, Status::Compare},
+    {"_strtod", 0x001f0efd, 0, code(&title_strtod), 8, Result::St0, Status::Compare},
+    {"_toupper", 0x001efd6d, 0, code(&title_toupper), 4, Result::Eax, Status::Compare},
+    {"_strncat", 0x001ee960, 0, code(&title_strncat), 12, Result::Eax, Status::Compare},
+    {"_strrchr", 0x001efd40, 0, code(&title_strrchr), 8, Result::Eax, Status::Compare},
+    {"_memchr", 0x001efba0, 0, code(&title_memchr), 12, Result::Eax, Status::Compare},
+    {"_memmove", 0x001ef0c0, 0, code(&title_memmove), 12, Result::Eax, Status::Compare},
+    {"_strcpy", 0x001ef4d0, 0, code(&title_strcpy), 8, Result::Eax, Status::Compare},
+    {"_wcslen", 0x001f1343, 0, code(&title_wcslen), 4, Result::Eax, Status::Compare},
+    {"__ceil_default", 0x001ef3fd, 0, code(&title_ceil), 8, Result::St0, Status::Compare},
     {"_allmul", 0x001f1170, 0, code(&title_allmul), 16, Result::EdxEax, Status::Compare},
     {"_aulldiv", 0x001f11b0, 0, code(&title_aulldiv), 16, Result::EdxEax, Status::Compare},
     {"_bsearch", 0x001f123f, 0, code(&title_bsearch), 20, Result::Eax, Status::Compare},

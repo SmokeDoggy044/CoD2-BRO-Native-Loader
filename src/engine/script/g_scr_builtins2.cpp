@@ -95,7 +95,7 @@ using AxisBuiltin = void XB_REGS3 XB_CDECL(uint32_t eax, uint32_t edx, uint32_t 
 
 // The bad places' duration: ceil(seconds * 1000) with the product on the x87 (FSTP QWORD).
 double ceil_ms(float seconds) {
-    return title_function<double XB_CDECL(double)>(0x001ef3fd)(  // __ceil_default
+    return own_function<double XB_CDECL(double)>(&title_ceil)(  // __ceil_default
         platform_x87_mul_double(seconds, title_global<float>(0x0083eb9c)));
 }
 

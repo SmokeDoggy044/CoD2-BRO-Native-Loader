@@ -782,7 +782,7 @@ void XB_CDECL Path_DropPassedPoints(uint32_t count, uint8_t* path) {
     field<int16_t>(path, 0x386) = static_cast<int16_t>(field<int16_t>(path, 0x386) - dropped);
     if (field<int16_t>(path, 0x386) < 0) field<int16_t>(path, 0x386) = 0;
     if (start > 1) {
-        title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0)(  // _memmove
+        own_function<void* XB_CDECL(void*, const void*, uint32_t)>(&title_memmove)(  // _memmove
             path, path + count * 0x1c, static_cast<uint32_t>(end * 0x1c));
     } else {
         for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(path, i) = field<uint32_t>(path, 0x3cc + i);

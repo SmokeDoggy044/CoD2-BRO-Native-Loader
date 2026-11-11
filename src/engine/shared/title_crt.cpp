@@ -13,6 +13,7 @@
 
 #include "title_data.h"
 #include "title_heap.h"
+#include "title_stdio.h"
 
 // ---- x87 intrinsics (title_crt.h) ----
 // Frame of every entry: 0(%esp) the argument as a double (then the result's trip through a double), 8 the caller's
@@ -63,6 +64,20 @@ PLATFORM_ASM_ENTRY(title_CIsqrt,
                    "2: ja 4f\n testl $0xfffff, %eax\n jnz 4f\n cmpl $0, (%esp)\n jnz 4f\n"
                    "fstp %st(0)\n testl $0x80000000, %eax\n jz 3f\n fldpi\n jmp .Lx87_exit\n"
                    "3: fldz\n jmp .Lx87_exit\n"
+                   "4: fstp %st(0)\n fldt 0x008d19ac\n jmp .Lx87_error\n"
+                   "5: " TITLE_X87_SPECIAL("")
+                   // __CIasin (0x001f1d6c): |x| < 1: atan2(x, sqrt((1 + x) * (1 - x))); x = +-1: +-pi/2 (80-bit at
+                   // 0x008d19b6); |x| > 1 or infinite: the indefinite, EDOM.
+                   ".globl " PLATFORM_ASM_SYMBOL(title_CIasin) "\n" PLATFORM_ASM_SYMBOL(title_CIasin) ":\n"
+                   TITLE_X87_PROLOGUE
+                   "je 5f\n"
+                   "cmpw $0x27f, 8(%esp)\n je 1f\n"
+                   "movw 8(%esp), %cx\n andw $0x300, %cx\n orw $0x7f, %cx\n movw %cx, 10(%esp)\n fldcw 10(%esp)\n"
+                   "1: cmpl $0x3ff00000, %edx\n jae 2f\n"
+                   "fld1\n fadd %st(1), %st\n fld1\n fsub %st(2), %st\n fmulp %st, %st(1)\n fsqrt\n fpatan\n"
+                   "jmp .Lx87_exit\n"
+                   "2: ja 4f\n testl $0xfffff, %eax\n jnz 4f\n cmpl $0, (%esp)\n jnz 4f\n"
+                   "fstp %st(0)\n fldt 0x008d19b6\n testl $0x80000000, %eax\n jz .Lx87_exit\n fchs\n jmp .Lx87_exit\n"
                    "4: fstp %st(0)\n fldt 0x008d19ac\n jmp .Lx87_error\n"
                    "5: " TITLE_X87_SPECIAL("")
                    TITLE_X87_TRIG(title_CIsin, "fsin", "")
@@ -120,6 +135,19 @@ PLATFORM_ASM_ENTRY(title_CIfmod,
                    "cmpl $0, 0x00926a4c\n jne 1f\n cmpl $0, 24(%esp)\n je 1f\n"
                    "fstpl (%esp)\n" PLATFORM_ASM_CALL(title_x87_domain_error) "fldl (%esp)\n"
                    "1: fldcw 8(%esp)\n addl $28, %esp\n ret")
+
+// __ceil_default (0x001ef3fd): the control word from 0x008d11f0 (__ctrlfp with mask 0xffff: rounding up), frndint
+// on the double, the caller's word back. Infinite: x. NaN: errno EDOM, a quiet NaN (a signaling one through
+// x + 0.0f, which also sets the invalid flag); not ported: __except1's unmasked responses (inexact with PM unmasked,
+// invalid unmasked - the title masks all). Frame: 0 the result, 8 the caller's word, 10 the loaded one.
+PLATFORM_ASM_ENTRY(title_ceil,
+                   "subl $12, %esp\n fnstcw 8(%esp)\n movw 0x008d11f0, %ax\n movw %ax, 10(%esp)\n fldcw 10(%esp)\n"
+                   "movl 20(%esp), %eax\n andl $0x7ff00000, %eax\n cmpl $0x7ff00000, %eax\n je 2f\n"
+                   "fldl 16(%esp)\n frndint\n fstpl (%esp)\n fldl (%esp)\n"
+                   "1: fldcw 8(%esp)\n addl $12, %esp\n ret\n"
+                   "2: testl $0xfffff, 20(%esp)\n jnz 3f\n cmpl $0, 16(%esp)\n jnz 3f\n fldl 16(%esp)\n jmp 1b\n"
+                   "3: fldl 16(%esp)\n testl $0x80000, 20(%esp)\n jnz 4f\n fadds 0x0083eb10\n"
+                   "4: fstpl (%esp)\n" PLATFORM_ASM_CALL(title_x87_domain_error) "fldl (%esp)\n jmp 1b")
 
 #undef TITLE_X87_TRIG
 #undef TITLE_X87_SPECIAL
@@ -942,6 +970,13 @@ double parse_double(const std::string& text) {
     std::memcpy(&v, &bits, sizeof v);
     return v;
 }
+bool strtod_nonzero(const std::string& number) {  // any nonzero digit before the exponent
+    for (char c : number) {
+        if (c == 'e') break;
+        if (c >= '1' && c <= '9') return true;
+    }
+    return false;
+}
 float parse_single(const std::string& text) {  // VC's _atoflt: straight to float, one rounding
     const uint32_t bits = static_cast<uint32_t>(vc_round(text, 24, 127, true));
     float v;
@@ -1175,9 +1210,11 @@ char* XB_CDECL title_strupr(char* text) {
     return text;
 }
 
-int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base) {
-    // VC7.1's strtoxl with the signed flag: whitespace by _pctype bit 8, then [+-], base 0 picks 8/10/16 from the
-    // prefix, overflow sets errno ERANGE (34) and returns LONG_MAX / LONG_MIN; no digits: 0 and *end = text.
+namespace {
+// VC7.1's strtoxl (0x001f0d26): whitespace by _pctype bit 8, then [+-], base 0 picks 8/10/16 from the prefix; no
+// digits: 0 and *end = text. Signed (strtol): overflow sets errno ERANGE (34) and returns LONG_MAX / LONG_MIN.
+// Unsigned (strtoul): overflow gives ULONG_MAX + ERANGE, a '-' negates the value without a range check.
+uint32_t strtoxl(const char* text, char** end, int32_t base, bool is_unsigned) {
     const char* p = text;
     uint8_t c = static_cast<uint8_t>(*p++);
     while (ctype_flags(c) & 0x8) c = static_cast<uint8_t>(*p++);
@@ -1225,12 +1262,97 @@ int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base) {
         if (end) *end = const_cast<char*>(text);
         return 0;
     }
-    if (overflow || (negative && value > 0x80000000u) || (!negative && value > 0x7fffffffu)) {
+    if (is_unsigned) {
+        if (overflow) {
+            *title_errno() = 34;
+            value = 0xffffffffu;
+        }
+    } else if (overflow || (negative && value > 0x80000000u) || (!negative && value > 0x7fffffffu)) {
         *title_errno() = 34;
         value = negative ? 0x80000000u : 0x7fffffffu;
     }
     if (end) *end = const_cast<char*>(p);
-    return static_cast<int32_t>(negative ? 0u - value : value);
+    return negative ? 0u - value : value;
+}
+}  // namespace
+
+int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base) {
+    return static_cast<int32_t>(strtoxl(text, end, base, false));
+}
+
+uint32_t XB_CDECL title_strtoul(const char* text, char** end, int32_t base) { return strtoxl(text, end, base, true); }
+
+// strtod (0x001f0efd): whitespace by _pctype bit 8, then __fltin2 with atof's grammar. No number: 0, *end = text.
+// Overflow: +-HUGE_VAL, underflow (a nonzero number rounding below the smallest normal): 0; both errno ERANGE.
+double XB_CDECL title_strtod(const char* text, char** end) {
+    const char* p = text;
+    while (ctype_flags(static_cast<uint8_t>(*p)) & 0x8) ++p;
+    size_t used;
+    const std::string number = float_prefix(p, &used, "eEdD", false);
+    if (!used) {
+        if (end) *end = const_cast<char*>(text);
+        return 0.0;
+    }
+    if (end) *end = const_cast<char*>(p + used);
+    const double v = parse_double(number);
+    uint64_t bits;
+    std::memcpy(&bits, &v, sizeof bits);
+    const uint32_t exponent = static_cast<uint32_t>(bits >> 52) & 0x7ff;
+    if (exponent == 0x7ff) {
+        *title_errno() = 34;
+        return *p == '-' ? -HUGE_VAL : HUGE_VAL;
+    }
+    if (exponent == 0 && strtod_nonzero(number)) {
+        *title_errno() = 34;
+        return 0.0;
+    }
+    return v;
+}
+
+int32_t XB_CDECL title_toupper(int32_t c) { return ctype_flags(c) & 0x2 ? c - 0x20 : c; }
+
+char* XB_CDECL title_strncat(char* dest, const char* source, uint32_t count) {
+    if (!count) return dest;
+    char* d = dest + std::strlen(dest);
+    for (; count; --count) {
+        if (!(*d++ = *source++)) return dest;
+    }
+    *d = 0;
+    return dest;
+}
+
+char* XB_CDECL title_strrchr(const char* text, int32_t c) {
+    const char wanted = static_cast<char>(c);
+    const char* found = nullptr;
+    for (;; ++text) {
+        if (*text == wanted) found = text;
+        if (!*text) return const_cast<char*>(found);
+    }
+}
+
+void* XB_CDECL title_memchr(const void* buffer, int32_t c, uint32_t count) {
+    const auto* p = static_cast<const uint8_t*>(buffer);
+    for (; count; --count, ++p)
+        if (*p == static_cast<uint8_t>(c)) return const_cast<uint8_t*>(p);
+    return nullptr;
+}
+
+void* XB_CDECL title_memmove(void* dest, const void* source, uint32_t count) {
+    std::memmove(dest, source, count);
+    return dest;
+}
+
+char* XB_CDECL title_strcpy(char* dest, const char* source) {
+    char* d = dest;
+    while ((*d++ = *source++) != 0) {
+    }
+    return dest;
+}
+
+uint32_t XB_CDECL title_wcslen(const uint16_t* text) {
+    const uint16_t* p = text;
+    while (*p) ++p;
+    return static_cast<uint32_t>(p - text);
 }
 
 int32_t XB_CDECL title_strnicmp(const char* a, const char* b, uint32_t count) {
@@ -1850,6 +1972,143 @@ int32_t check_title_crt(std::string& report) {
                          int(ea - text), errno_a, y, int(eb - text), *orig_errno());
             }
         }
+    const auto orig_strtoul = title_function<uint32_t XB_CDECL(const char*, char**, int32_t)>(0x001f0ee6);
+    for (const char* text : {"0", "42", "-42", " +7x", "0x1F", "ffffffff", "FFFFFFFF0", "4294967295", "4294967296",
+                             "-1", "-4294967295", "-4294967296", "99999999999", "\t\n 12", "- 1", "", "z", "0x"})
+        for (int32_t base : {0, 2, 8, 10, 16, 36, 1, 37}) {
+            char *ea = nullptr, *eb = nullptr;
+            *orig_errno() = 0;
+            const uint32_t x = orig_strtoul(text, &ea, base);
+            const int32_t errno_a = *orig_errno();
+            *orig_errno() = 0;
+            const uint32_t y = title_strtoul(text, &eb, base);
+            if (x != y || ea != eb || errno_a != *orig_errno()) {
+                ++failures;
+                add_line(report, "strtoul \"%s\" base %d: title %u (+%d, errno %d), ours %u (+%d, errno %d)", text, base,
+                         x, int(ea - text), errno_a, y, int(eb - text), *orig_errno());
+            }
+        }
+    const auto orig_strtod = title_function<double XB_CDECL(const char*, char**)>(0x001f0efd);
+    for (const char* text : {"0", "1", "-1", "+2.5x", " \t\n0.35", "1e10", "1E-5", "1d3", "1D+2", "1e", "1e+", ".5", "5.",
+                             ".", "-.", "inf", "nan", "--1", "", "  ", "0.1", "1e23", "1e308", "1.8e308", "-1e400",
+                             "2.2250738585072014e-308", "2.2250738585072011e-308", "4.9e-324", "2.4e-324", "1e-400",
+                             "-1e-400", "0e-400", "0.0", "-0", "000123.456000", "12 34", "1.5,2.5", "3.25)"}) {
+        char *ea = nullptr, *eb = nullptr;
+        *orig_errno() = 0;
+        const double x = orig_strtod(text, &ea);
+        const int32_t errno_a = *orig_errno();
+        *orig_errno() = 0;
+        const double y = title_strtod(text, &eb);
+        if (std::memcmp(&x, &y, sizeof x) || ea != eb || errno_a != *orig_errno()) {
+            ++failures;
+            add_line(report, "strtod \"%s\": title %.17g (+%d, errno %d), ours %.17g (+%d, errno %d)", text, x,
+                     int(ea - text), errno_a, y, int(eb - text), *orig_errno());
+        }
+    }
+    {
+        const auto orig_toupper = title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d);
+        for (int32_t c = -1; c < 256; ++c)
+            if (orig_toupper(c) != title_toupper(c)) {
+                ++failures;
+                add_line(report, "toupper %d: title %d, ours %d", c, orig_toupper(c), title_toupper(c));
+            }
+        const auto orig_strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+        const auto orig_memchr = title_function<void* XB_CDECL(const void*, int32_t, uint32_t)>(0x001efba0);
+        const auto orig_wcslen = title_function<uint32_t XB_CDECL(const uint16_t*)>(0x001f1343);
+        const auto orig_strncat = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001ee960);
+        const auto orig_strcpy = title_function<char* XB_CDECL(char*, const char*)>(0x001ef4d0);
+        const auto orig_memmove = title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0);
+        for (const char* u : words) {
+            for (int32_t c : {0, int32_t{'a'}, int32_t{'b'}, int32_t{'/'}, int32_t{'.'}, 0x80, -128, 0x161, -1})
+                if (orig_strrchr(u, c) != title_strrchr(u, c)) {
+                    ++failures;
+                    add_line(report, "strrchr \"%s\" %d differs", u, c);
+                }
+            const uint32_t length = static_cast<uint32_t>(std::strlen(u));
+            for (int32_t c : {0, int32_t{'a'}, int32_t{'b'}, 0x80, -128, 0x161})
+                for (uint32_t n : {0u, 1u, length, length + 1})
+                    if (orig_memchr(u, c, n) != title_memchr(u, c, n)) {
+                        ++failures;
+                        add_line(report, "memchr \"%s\" %d %u differs", u, c, n);
+                    }
+            uint16_t wide[64] = {};
+            for (uint32_t k = 0; k < length && k < 63; ++k) wide[k] = static_cast<uint8_t>(u[k]) | 0x100u * (k & 1);
+            if (orig_wcslen(wide) != title_wcslen(wide)) {
+                ++failures;
+                add_line(report, "wcslen \"%s\" differs", u);
+            }
+            for (const char* v : words)
+                for (uint32_t n : {0u, 1u, 2u, 3u, 4u, 5u, 7u, 8u, 9u, 100u}) {
+                    // offsets 0..3 on both sides for the word loops' alignment paths
+                    for (uint32_t shift = 0; shift < 4; ++shift) {
+                        char da[300], db[300], sa[300];
+                        std::memset(da, 0x5a, sizeof da), std::memset(db, 0x5a, sizeof db);
+                        std::strcpy(da + shift, u), std::strcpy(db + shift, u);
+                        std::strcpy(sa + (3 - shift), v);
+                        char* ra = orig_strncat(da + shift, sa + (3 - shift), n);
+                        char* rb = title_strncat(db + shift, sa + (3 - shift), n);
+                        if (ra - da != rb - db || std::memcmp(da, db, sizeof da)) {
+                            ++failures;
+                            add_line(report, "strncat \"%s\" \"%s\" %u shift %u differs", u, v, n, shift);
+                        }
+                    }
+                }
+            char ca[300], cb[300];
+            std::memset(ca, 0x5a, sizeof ca), std::memset(cb, 0x5a, sizeof cb);
+            if (orig_strcpy(ca + 1, u) != ca + 1 || title_strcpy(cb + 1, u) != cb + 1 || std::memcmp(ca, cb, sizeof ca)) {
+                ++failures;
+                add_line(report, "strcpy \"%s\" differs", u);
+            }
+        }
+        for (uint32_t from : {0u, 1u, 3u, 8u, 17u})
+            for (uint32_t to : {0u, 2u, 5u, 8u, 20u})
+                for (uint32_t n : {0u, 1u, 7u, 33u, 100u}) {
+                    uint8_t ma[160], mb[160];
+                    for (uint32_t k = 0; k < sizeof ma; ++k) ma[k] = mb[k] = static_cast<uint8_t>(k * 7 + 1);
+                    if (orig_memmove(ma + to, ma + from, n) != ma + to || title_memmove(mb + to, mb + from, n) != mb + to ||
+                        std::memcmp(ma, mb, sizeof ma)) {
+                        ++failures;
+                        add_line(report, "memmove %u -> %u, %u differs", from, to, n);
+                    }
+                }
+    }
+    {
+        // ceil: result bits, errno and the control word after, under several callers' words.
+        const auto orig_ceil = title_function<double XB_CDECL(double)>(0x001ef3fd);
+        const auto ours_ceil = own_function<double XB_CDECL(double)>(&title_ceil);
+        const uint16_t saved = platform_x87_control_word();
+        std::vector<double> values = {0.0, -0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.0000001, -2.9999, 1e15 + 0.5,
+                                      4503599627370495.5, 9007199254740993.0, 1e300, -1e300, 4.9e-324, -4.9e-324,
+                                      HUGE_VAL, -HUGE_VAL, std::nan(""), -std::nan("")};
+        uint64_t snan_bits = 0x7ff0000000000001ull;
+        double snan;
+        std::memcpy(&snan, &snan_bits, sizeof snan);
+        values.push_back(snan);
+        uint32_t seed = 4242;
+        for (int32_t i = 0; i < 200; ++i) {
+            seed = seed * 1664525u + 1013904223u;
+            values.push_back((static_cast<int32_t>(seed) / 65536.0) * (i < 100 ? 0.01 : 100.0));
+        }
+        for (const uint16_t cw : {uint16_t{0x027f}, uint16_t{0x007f}, uint16_t{0x037f}, uint16_t{0x0c7f}})
+            for (const double v : values) {
+                platform_set_x87_control_word(cw);
+                *title_errno() = 0;
+                const double a = orig_ceil(v);
+                const uint16_t ca = platform_x87_control_word();
+                const int32_t ea = *title_errno();
+                platform_set_x87_control_word(cw);
+                *title_errno() = 0;
+                const double b = ours_ceil(v);
+                const uint16_t cb = platform_x87_control_word();
+                const int32_t eb = *title_errno();
+                if (std::memcmp(&a, &b, sizeof a) || ca != cb || ea != eb) {
+                    ++failures;
+                    add_line(report, "ceil %.17g cw %04x: title %.17g cw %04x errno %d, ours %.17g cw %04x errno %d", v, cw,
+                             a, ca, ea, b, cb, eb);
+                }
+            }
+        platform_set_x87_control_word(saved);
+    }
     const auto orig_isalpha = title_function<int32_t XB_CDECL(int32_t)>(0x001eef49);
     const auto orig_isdigit = title_function<int32_t XB_CDECL(int32_t)>(0x001eef77);
     const auto orig_isspace = title_function<int32_t XB_CDECL(int32_t)>(0x001eefa0);
@@ -1861,6 +2120,62 @@ int32_t check_title_crt(std::string& report) {
             add_line(report, "ctype %d differs", c);
         }
 
+    {
+        // fwrite / _fwrite_lk / _flsbuf / _write(_lk): the same writes through the title's fwrite into one file and
+        // ours into another, binary and text mode; return values and the stream's state after each, then the bytes.
+        uint8_t data[0x3000];
+        for (uint32_t k = 0; k < sizeof data; ++k) data[k] = static_cast<uint8_t>(k % 3 == 2 ? '\n' : 'a' + k % 26);
+        data[0x3ff] = '\n';  // an LF at the staging buffer's last byte
+        const struct {
+            uint32_t size, count;
+        } writes[] = {{1, 1}, {7, 1}, {1, 0}, {0, 5}, {3, 5}, {0x1000 - 30, 1}, {1, 40}, {5000, 1}, {4, 0x801},
+                      {0x2001, 1}, {13, 17}, {0x1000, 1}, {1, 1}};
+        const auto orig_fwrite = title_function<uint32_t XB_CDECL(const void*, uint32_t, uint32_t, TitleFile*)>(0x001f047d);
+        for (const char* mode : {"wb", "w"}) {
+            const char* const names[2] = {"T:\\crtcheck_a.bin", "T:\\crtcheck_b.bin"};
+            TitleFile* a = title_fopen(names[0], mode);
+            TitleFile* b = title_fopen(names[1], mode);
+            if (!a || !b) {
+                ++failures;
+                add_line(report, "fwrite check: fopen %s failed", mode);
+                if (a) title_fclose(a);
+                if (b) title_fclose(b);
+                break;
+            }
+            uint32_t offset = 0;
+            for (const auto& w : writes) {
+                const uint32_t ra = orig_fwrite(data + offset % 0x100, w.size, w.count, a);
+                const uint32_t rb = title_fwrite(data + offset % 0x100, w.size, w.count, b);
+                offset += 37;
+                if (ra != rb || a->cnt != b->cnt || a->ptr - a->base != b->ptr - b->base || a->flag != b->flag ||
+                    a->bufsiz != b->bufsiz) {
+                    ++failures;
+                    add_line(report, "fwrite %s %u x %u: title %u cnt %d pos %u flag %x, ours %u cnt %d pos %u flag %x",
+                             mode, w.size, w.count, ra, a->cnt, a->ptr - a->base, a->flag, rb, b->cnt, b->ptr - b->base,
+                             b->flag);
+                }
+            }
+            title_fclose(a);
+            title_fclose(b);
+            std::vector<uint8_t> contents[2];
+            for (int i = 0; i < 2; ++i) {
+                TitleFile* f = title_fopen(names[i], "rb");
+                if (!f) continue;
+                uint8_t chunk[0x1000];
+                for (uint32_t n; (n = title_fread(chunk, 1, sizeof chunk, f)) != 0;) contents[i].insert(contents[i].end(), chunk, chunk + n);
+                title_fclose(f);
+            }
+            for (const char* name : names)  // XAPI DeleteFileA (the title's; T: may be the player's real folder)
+                title_function<uint32_t XB_STDCALL(const char*)>(0x001e9e84)(name);
+            if (contents[0].empty() || contents[0] != contents[1]) {
+                ++failures;
+                add_line(report, "fwrite %s: files differ (%u / %u bytes)", mode, static_cast<uint32_t>(contents[0].size()),
+                         static_cast<uint32_t>(contents[1].size()));
+            } else {
+                add_line(report, "fwrite %s: %u bytes written alike", mode, static_cast<uint32_t>(contents[0].size()));
+            }
+        }
+    }
     // vsnprintf: fits, exactly fills, too long, no room
     const auto orig_snprintf = [](char* out, uint32_t count, const char* format, ...) {
         va_list args;
@@ -2013,7 +2328,8 @@ int32_t check_title_crt(std::string& report) {
                               {"sin", 0x0033ae60, &title_CIsin},
                               {"cos", 0x0033adb0, &title_CIcos},
                               {"tan", 0x0033af10, &title_CItan},
-                              {"acos", 0x001f0ff4, &title_CIacos}};
+                              {"acos", 0x001f0ff4, &title_CIacos},
+                              {"asin", 0x001f1d6c, &title_CIasin}};
         uint32_t x87_failures = 0;
         for (const Pair& pair : pairs) {
             for (const uint32_t cw : {0x007fu, 0x027fu, 0x037fu, 0x0c7fu, 0x087fu}) {
@@ -2155,8 +2471,8 @@ int32_t check_title_crt(std::string& report) {
         }
         *title_errno() = 0;
         failures += static_cast<int32_t>(x87_failures);
-        add_line(report, "x87 intrinsics: %u argument(s) x 5 control words x 5 functions, fmod pairs x 3, %u difference(s)",
-                 static_cast<uint32_t>(args.size()), x87_failures);
+        add_line(report, "x87 intrinsics: %u argument(s) x 5 control words x %u functions, fmod pairs x 3, %u difference(s)",
+                 static_cast<uint32_t>(args.size()), static_cast<uint32_t>(std::size(pairs)), x87_failures);
     }
     // Our heap (title_heap.h): 30,000 random allocations, frees and reallocations (sizes 0..64 KB, a few 2 MB; at most 1,500 live);
     // every live block keeps its own fill byte, is 16-byte aligned, reports its size and does not overlap others.

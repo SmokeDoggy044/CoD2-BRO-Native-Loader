@@ -4,8 +4,7 @@
 // own engine host: streams (fopen, fread, ftell, fseek, fclose, fflush) and the low-level handles under them
 // (_sopen, _read, _lseek, _close, the handle table), on the title's own data - the stream table (_iob 0x008d13a0,
 // __piob 0x0098f9f0), the handle table (__pioinfo 0x0098f8e0), their locks and buffers from the title's heap - so
-// original code that still shares a stream (fwrite, fprintf) sees the same state. Pieces of the CRT core they use
-// (the lock table, malloc/free, errno, _write) are still the title's and called at their addresses.
+// original code that still shares a stream (printf, fprintf) sees the same state; the CRT's lock table is ours too.
 // Registered as Compare rows at the original addresses (src/engine/shared/functions.cpp).
 
 #include <cstdint>
@@ -65,5 +64,24 @@ int32_t XB_CDECL title_lseek_lk(int32_t fh, int32_t offset, int32_t origin);  //
 int32_t XB_CDECL title_lseek(int32_t fh, int32_t offset, int32_t origin);     // 0x001f4fb5
 int32_t XB_CDECL title_close_lk(int32_t fh);  // 0x001f5060
 int32_t XB_CDECL title_close(int32_t fh);     // 0x001f50e1
+int32_t XB_CDECL title_write_lk(int32_t fh, const void* buffer, uint32_t count);  // 0x001f402e
+int32_t XB_CDECL title_write(int32_t fh, const void* buffer, uint32_t count);     // 0x001f41b9
+int64_t XB_CDECL title_lseeki64_lk(int32_t fh, int64_t offset, int32_t origin);   // 0x001f8cde
+int32_t XB_CDECL title_isatty(int32_t fh);                                        // 0x001f8128
+uint32_t* XB_CDECL title_doserrno();               // 0x001f0ace
+void XB_CDECL title_dosmaperr(uint32_t error);     // 0x001f0ad7
+
+// --- The lock table (_locktable 0x008d1790) ---
+int32_t XB_CDECL title_mtinitlocks();          // 0x001f3e2a
+int32_t XB_CDECL title_mtinitlocknum(int32_t n);  // 0x001f3eae
+void XB_CDECL title_lock(int32_t n);           // 0x001f3f4e
+void XB_CDECL title_unlock(int32_t n);         // 0x001f3e9c
+int32_t XB_CDECL title_crt_init_crit_sec_and_spin_count(uint32_t section, uint32_t spin);  // 0x001f8c7d
+int32_t XB_STDCALL title_crt_init_crit_sec_no_spin_count(uint32_t section, uint32_t spin);  // 0x001f8c6d
+
+// --- The write side ---
+int32_t XB_CDECL title_flsbuf(int32_t ch, TitleFile* file);  // 0x001f294f
+uint32_t XB_CDECL title_fwrite_lk(const void* buffer, uint32_t size, uint32_t count, TitleFile* file);  // 0x001f0366
+uint32_t XB_CDECL title_fwrite(const void* buffer, uint32_t size, uint32_t count, TitleFile* file);     // 0x001f047d
 
 }  // namespace game

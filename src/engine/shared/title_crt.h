@@ -90,6 +90,15 @@ int32_t XB_CDECL title_stricmp(const char* a, const char* b);                 //
 char* XB_CDECL title_strlwr(char* text);                                      // 0x001fa3b2
 char* XB_CDECL title_strupr(char* text);                                      // 0x001fa3d5
 int32_t XB_CDECL title_strtol(const char* text, char** end, int32_t base);    // 0x001f0ecf
+uint32_t XB_CDECL title_strtoul(const char* text, char** end, int32_t base);  // 0x001f0ee6
+double XB_CDECL title_strtod(const char* text, char** end);                    // 0x001f0efd
+int32_t XB_CDECL title_toupper(int32_t c);                                     // 0x001efd6d ("C" locale)
+char* XB_CDECL title_strncat(char* dest, const char* source, uint32_t count);  // 0x001ee960
+char* XB_CDECL title_strrchr(const char* text, int32_t c);                    // 0x001efd40
+void* XB_CDECL title_memchr(const void* buffer, int32_t c, uint32_t count);    // 0x001efba0
+void* XB_CDECL title_memmove(void* dest, const void* source, uint32_t count);  // 0x001ef0c0
+char* XB_CDECL title_strcpy(char* dest, const char* source);                  // 0x001ef4d0
+uint32_t XB_CDECL title_wcslen(const uint16_t* text);                         // 0x001f1343
 // ctype through the title's _pctype table (0x008d1650; callers pass sign-extended chars, which index before it):
 // the flag bits, not 0/1.
 int32_t XB_CDECL title_isalpha(int32_t c);  // 0x001eef49 & 0x103
@@ -151,6 +160,10 @@ extern "C" void title_CIcos(void);
 extern "C" void title_CItan(void);
 // 0x001f0ff4 __CIacos.
 extern "C" void title_CIacos(void);
+// 0x001f1d6c __CIasin (same frame as __CIacos).
+extern "C" void title_CIasin(void);
+// 0x001ef3fd __ceil_default: double XB_CDECL(double), x87 (frndint under the CRT's round-up control word).
+extern "C" void title_ceil(void);
 // 0x0033acda __CIfmod (x in ST(1), y in ST(0); both popped, the result pushed): see title_crt.cpp for its classes.
 extern "C" void title_CIfmod(void);
 // 0x001f1a6c __CIpow (x in ST(1), y in ST(0)): see title_crt.cpp; bit-exact with its overflow / underflow / domain

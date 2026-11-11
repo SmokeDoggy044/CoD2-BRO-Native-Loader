@@ -647,7 +647,7 @@ const ImportSlot kLevelImports[] = {
     {0x010, own_address(&GScr_Print3D)},  // GScr_Print3D
     {0x014, own_address(&GScr_DebugLine)},  // GScr_DebugLine
     {0x018, own_address(&title_sprintf)},  // _sprintf (our CRT)
-    {0x01c, 0x001ef4d0},  // LIBCMT::_strcpy
+    {0x01c, own_address(&title_strcpy)},  // LIBCMT::_strcpy
     {0x020, own_address(&title_strncpy)},  // _strncpy (our CRT)
     {0x034, own_address(&Scr_SaveThreadLocals)},  // Scr_SaveThreadLocals
     {0x038, own_address(&GScr_EmptyStub14)},  // GScr_EmptyStub14

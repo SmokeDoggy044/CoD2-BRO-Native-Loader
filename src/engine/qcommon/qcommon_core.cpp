@@ -4773,7 +4773,7 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
     uint8_t* entry = entries;
     do {
         const uint16_t* const name = reinterpret_cast<const uint16_t*>(find + 0x244);
-        const uint32_t length = title_function<uint32_t XB_CDECL(const uint16_t*)>(0x001f1343)(name);  // _wcslen
+        const uint32_t length = own_function<uint32_t XB_CDECL(const uint16_t*)>(&title_wcslen)(name);  // _wcslen
         title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const uint16_t*, uint32_t, uint8_t*, uint32_t, uint32_t,
                                           uint32_t)>(0x001e975f)(0, 0, name, length + 1, entry, 0x40, 0,
                                                                  0);  // WideCharToMultiByte
@@ -4861,7 +4861,7 @@ uint8_t* XB_THISCALL std_string_Erase(uint8_t* self, uint32_t pos, uint32_t coun
     if (tail < count) count = tail;
     if (count) {
         uint8_t* const data = string_buffer(self);
-        title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0)(data + pos, data + pos + count,
+        own_function<void* XB_CDECL(void*, const void*, uint32_t)>(&title_memmove)(data + pos, data + pos + count,
                                                                                 tail - count);  // _memmove
         word_at(self, 0x14) = word_at(self, 0x14) - count;
         string_buffer(self)[word_at(self, 0x14)] = 0;
@@ -4934,7 +4934,7 @@ uint32_t XB_REGS1 XB_STDCALL std_string_Find(uint32_t pos, const uint8_t* self, 
     const uint8_t* at = data + pos;
     using Memchr = const uint8_t* XB_CDECL(const uint8_t*, int32_t, uint32_t);
     const uint8_t* found;
-    while ((found = title_function<Memchr>(0x001efba0)(at, static_cast<signed char>(text[0]), left)) != nullptr) {  // _memchr
+    while ((found = own_function<Memchr>(&title_memchr)(at, static_cast<signed char>(text[0]), left)) != nullptr) {  // _memchr
         uint32_t same = 0;
         while (same < count && found[same] == static_cast<uint8_t>(text[same])) ++same;
         if (same == count) {

@@ -1060,7 +1060,7 @@ const char* XB_CDECL Key_KeynumToString(int32_t keynum, uint32_t translate) {
         return title_global<const char*>(0x008d3858 + 4 * keynum);
     char* const tinystr = &title_global<char>(0x0098b5c8);
     if (keynum > ' ' && keynum < 0x7f && keynum != '"') {  // printable: the character itself
-        tinystr[0] = static_cast<char>(title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d)(keynum));  // _toupper
+        tinystr[0] = static_cast<char>(own_function<int32_t XB_CDECL(int32_t)>(&title_toupper)(keynum));  // _toupper
         tinystr[1] = 0;
         if (keynum != ';' || translate) return tinystr;
     }
@@ -1353,7 +1353,7 @@ void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t 
     if (key < 0xc8 || key == -1 || key < 0 || key > 0xff) return;
     char* const name = &title_global<char>(0x0098b5c8);
     if (key > ' ' && key < 0x7f && key != '"') {
-        name[0] = char(title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d)(key));  // toupper
+        name[0] = char(own_function<int32_t XB_CDECL(int32_t)>(&title_toupper)(key));  // toupper
         name[1] = 0;
         if (key != ';') return;
     }

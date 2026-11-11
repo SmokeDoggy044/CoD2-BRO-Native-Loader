@@ -3506,17 +3506,17 @@ uint32_t XB_CDECL nglBuildTextGlyphs(const uint8_t* font, NglTextRun** runs, flo
         // Control codes, then a run from the first other character.
         while (c >= 1 && c <= 32) {
             if (c == 1) {
-                const uint32_t v = title_function<StrToUl>(0x001f0ee6)(p + 1, &p, 16);  // strtoul
+                const uint32_t v = own_function<StrToUl>(&title_strtoul)(p + 1, &p, 16);  // strtoul
                 ++p;
                 color = (v << 24) | (v >> 8);
             } else if (c == 2) {
-                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);  // strtod
+                scale_x = own_function<StrToD>(&title_strtod)(p + 1, &p);  // strtod
                 ++p;
                 scale_y = scale_x;
                 if (scale_y > line_scale) line_scale = scale_y;
             } else if (c == 3) {
-                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);
-                scale_y = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                scale_x = own_function<StrToD>(&title_strtod)(p + 1, &p);
+                scale_y = own_function<StrToD>(&title_strtod)(p + 1, &p);
                 ++p;
                 if (scale_y > line_scale) line_scale = scale_y;
             } else if (c == 9) {
@@ -3774,18 +3774,18 @@ void XB_CDECL nglGetTextExtent(const uint8_t* font, const char* text, int32_t* w
             const uint8_t c = static_cast<uint8_t>(*p++);
             switch (c) {
             case 1:  // colour: no size
-                title_function<StrToUl>(0x001f0ee6)(p + 1, &p, 16);  // strtoul
+                own_function<StrToUl>(&title_strtoul)(p + 1, &p, 16);  // strtoul
                 ++p;
                 break;
             case 2:
-                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);  // strtod
+                scale_x = own_function<StrToD>(&title_strtod)(p + 1, &p);  // strtod
                 ++p;
                 scale_y = scale_x;
                 if (scale_x > line_scale) line_scale = scale_x;
                 break;
             case 3:
-                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);
-                scale_y = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                scale_x = own_function<StrToD>(&title_strtod)(p + 1, &p);
+                scale_y = own_function<StrToD>(&title_strtod)(p + 1, &p);
                 ++p;
                 if (scale_y > line_scale) line_scale = scale_y;
                 break;

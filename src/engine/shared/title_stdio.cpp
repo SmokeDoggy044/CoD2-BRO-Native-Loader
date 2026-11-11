@@ -26,14 +26,13 @@ constexpr uint32_t kCommode = 0x00926d44;
 constexpr uint32_t kFmode = 0x00926d48;
 constexpr uint32_t kUmask = 0x00926a64;
 
-// The CRT core, still the title's.
-constexpr uint32_t kLock = 0x001f3f4e;          // _lock(n)
-constexpr uint32_t kUnlock = 0x001f3e9c;        // _unlock(n)
-constexpr uint32_t kMtInitLockNum = 0x001f3eae; // _mtinitlocknum(n)
-constexpr uint32_t kInitCritSec = 0x001f8c7d;   // __crtInitCritSecAndSpinCount(section, spin)
-constexpr uint32_t kDosErrno = 0x001f0ace; // __doserrno()
-constexpr uint32_t kDosMapErr = 0x001f0ad7;
-constexpr uint32_t kWrite = 0x001f41b9;    // _write(fh, buffer, count)
+// The lock table _locktable (36 x {CRITICAL_SECTION*, kind: 1 = preallocated}); the preallocated sections
+// (0x1c bytes each); __pfnInitCritSecAndSpinCount; _amsg_exit (fatal, still the title's).
+constexpr uint32_t kLockTable = 0x008d1790;
+constexpr uint32_t kPreallocatedLocks = 0x00926a90;
+constexpr uint32_t kInitCritSecFn = 0x00926d40;
+constexpr uint32_t kAmsgExit = 0x001f3537;
+constexpr uint32_t kRtlInitializeCriticalSection = 0x007b31d0;
 constexpr uint32_t kChsizeLk = 0x001f9bd1; // _chsize_lk(fh, size)
 constexpr uint32_t kCommit = 0x001f4264;   // _commit(fh)
 constexpr uint32_t kFlsall = 0x001efe29;   // flsall(mode)
@@ -56,12 +55,10 @@ T* at(uint32_t address) {
     return reinterpret_cast<T*>(uintptr_t{address});
 }
 
-void crt_lock(int32_t n) { title_function<void XB_CDECL(int32_t)>(kLock)(n); }
-void crt_unlock(int32_t n) { title_function<void XB_CDECL(int32_t)>(kUnlock)(n); }
-int32_t mtinitlocknum(int32_t n) { return title_function<int32_t XB_CDECL(int32_t)>(kMtInitLockNum)(n); }
-int32_t init_crit_sec(uint32_t section) {
-    return title_function<int32_t XB_CDECL(uint32_t, uint32_t)>(kInitCritSec)(section, 0xfa0);
-}
+void crt_lock(int32_t n) { title_lock(n); }
+void crt_unlock(int32_t n) { title_unlock(n); }
+int32_t init_crit_sec(uint32_t section) { return title_crt_init_crit_sec_and_spin_count(section, 0xfa0); }
+uint32_t& lock_entry(int32_t n) { return title_global<uint32_t>(kLockTable + static_cast<uint32_t>(n) * 8); }
 void enter_crit_sec(uint32_t section) {
     title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlEnterCriticalSection))(section);
 }
@@ -71,8 +68,8 @@ void leave_crit_sec(uint32_t section) {
 uint32_t crt_malloc(uint32_t size) { return own_function<uint32_t XB_CDECL(uint32_t)>(&title_crt_malloc)(size); }
 void crt_free(uint32_t block) { own_function<void XB_CDECL(uint32_t)>(&title_crt_free)(block); }
 int32_t& crt_errno() { return *own_function<int32_t* XB_CDECL()>(&title_errno)(); }
-uint32_t& crt_doserrno() { return *title_function<uint32_t* XB_CDECL()>(kDosErrno)(); }
-void dosmaperr(uint32_t error) { title_function<void XB_CDECL(uint32_t)>(kDosMapErr)(error); }
+uint32_t& crt_doserrno() { return *own_function<uint32_t* XB_CDECL()>(&title_doserrno)(); }
+void dosmaperr(uint32_t error) { own_function<void XB_CDECL(uint32_t)>(&title_dosmaperr)(error); }
 
 uint32_t* piob() { return at<uint32_t>(title_global<uint32_t>(kPiob)); }
 
@@ -137,7 +134,7 @@ TitleFile* XB_CDECL title_getstream() {
         uint32_t* const slots = piob();
         if (slots[i]) {
             if (at<TitleFile>(slots[i])->flag & 0x83) continue;
-            if (i > 2 && i < 0x14 && !mtinitlocknum(i + 0x10)) break;
+            if (i > 2 && i < 0x14 && !title_mtinitlocknum(i + 0x10)) break;
             title_lock_file2(i, at<TitleFile>(piob()[i]));
             TitleFile* const file = at<TitleFile>(piob()[i]);
             if (!(file->flag & 0x83)) {
@@ -347,8 +344,8 @@ int32_t XB_CDECL title_flush(TitleFile* file) {
     if ((file->flag & 3) == kIoWrt && (file->flag & (kIoMyBuf | kIoYourBuf))) {
         const int32_t count = static_cast<int32_t>(file->ptr - file->base);
         if (count > 0) {
-            if (title_function<int32_t XB_CDECL(int32_t, uint32_t, int32_t)>(kWrite)(file->file, file->base, count) ==
-                count) {
+            if (title_write(file->file, reinterpret_cast<const void*>(uintptr_t{file->base}),
+                            static_cast<uint32_t>(count)) == count) {
                 if (file->flag & kIoRw) file->flag &= ~kIoWrt;
             } else {
                 file->flag |= kIoErr;
@@ -554,7 +551,7 @@ int32_t XB_CDECL title_alloc_osfhnd() {
     // The first ioinfo that is not open, locked (its lock created on first use), under the handle table lock (0xb);
     // a new block of 32 when all are taken. -1 when there is none.
     int32_t fh = -1;
-    if (!mtinitlocknum(0xb)) return -1;
+    if (!title_mtinitlocknum(0xb)) return -1;
     crt_lock(0xb);
     for (int32_t i = 0; i < 0x40; ++i) {
         const uint32_t block = title_global<uint32_t>(kPioinfo + i * 4);
@@ -895,5 +892,272 @@ int32_t XB_CDECL title_close(int32_t fh) {
     title_unlock_fhandle(fh);
     return result;
 }
+
+// --- Errors and the write side (2026-11-11) --------------------------------------------------------------------------
+
+uint32_t* XB_CDECL title_doserrno() { return &title_thread_data()->dos_error; }
+
+void XB_CDECL title_dosmaperr(uint32_t error) {
+    // _doserrno = the OS error; errno from the CRT's 45-entry table {os error, errno} at 0x008d1208, else EACCES for
+    // ERROR_WRITE_PROTECT..ERROR_SHARING_BUFFER_EXCEEDED (0x13..0x24), ENOEXEC for 0xbc..0xca, EINVAL otherwise.
+    TitleThreadData* const data = title_thread_data();
+    data->dos_error = error;
+    for (uint32_t i = 0; i < 0x2d; ++i)
+        if (title_global<uint32_t>(0x008d1208 + i * 8) == error) {
+            data->error = static_cast<int32_t>(title_global<uint32_t>(0x008d120c + i * 8));
+            return;
+        }
+    if (error >= 0x13 && error <= 0x24) data->error = 13;
+    else if (error >= 0xbc && error <= 0xca) data->error = 8;
+    else data->error = 22;
+}
+
+int32_t XB_CDECL title_isatty(int32_t fh) {
+    if (static_cast<uint32_t>(fh) >= title_global<uint32_t>(kNhandle)) return 0;
+    return static_cast<int8_t>(osfile(fh)) & kFDev;
+}
+
+int64_t XB_CDECL title_lseeki64_lk(int32_t fh, int64_t offset, int32_t origin) {
+    const uint32_t os_handle = title_get_osfhandle(fh);
+    if (os_handle == 0xffffffff) {
+        crt_errno() = 9;
+        return -1;
+    }
+    uint32_t high = static_cast<uint32_t>(static_cast<uint64_t>(offset) >> 32);
+    const uint32_t low = SetFilePointer(os_handle, static_cast<uint32_t>(offset), &high, static_cast<uint32_t>(origin));
+    if (low == 0xffffffff) {
+        const uint32_t error = GetLastError();
+        if (error) {
+            dosmaperr(error);
+            return -1;
+        }
+    }
+    osfile(fh) &= ~kFEofFlag;
+    return static_cast<int64_t>(uint64_t{high} << 32 | low);
+}
+
+int32_t XB_CDECL title_write_lk(int32_t fh, const void* buffer, uint32_t count) {
+    // WriteFile; append handles seek to the end first; text mode writes LF as CR LF through a 1 KB staging buffer
+    // (the result counts the caller's bytes). Nothing written: -1 with EBADF for ERROR_ACCESS_DENIED, the mapped
+    // error for others, ENOSPC without an error - except a device whose first byte is CTRL-Z (0).
+    if (count == 0) return 0;
+    if (osfile(fh) & kFAppend) title_lseeki64_lk(fh, 0, 2);
+    const auto* const in = static_cast<const uint8_t*>(buffer);
+    uint32_t written = 0, added_crs = 0, error = 0;
+    if (osfile(fh) & kFText) {
+        uint32_t used = 0;  // caller bytes taken so far
+        while (used < count) {
+            uint8_t staging[0x404];  // an LF at 0x3ff takes it to 0x401
+            uint32_t n = 0;
+            while (used < count && n < 0x400) {
+                const uint8_t c = in[used++];
+                if (c == '\n') {
+                    ++added_crs;
+                    staging[n++] = '\r';
+                }
+                staging[n++] = c;
+            }
+            uint32_t done = 0;
+            if (!WriteFile(osfhnd(fh), staging, n, &done, nullptr)) {
+                error = GetLastError();
+                break;
+            }
+            written += done;
+            if (static_cast<int32_t>(done) < static_cast<int32_t>(n)) break;
+        }
+    } else {
+        uint32_t done = 0;
+        if (WriteFile(osfhnd(fh), buffer, count, &done, nullptr)) written = done;
+        else error = GetLastError();
+    }
+    if (written) return static_cast<int32_t>(written - added_crs);
+    if (error) {
+        if (error == 5) {  // ERROR_ACCESS_DENIED
+            crt_errno() = 9;
+            crt_doserrno() = 5;
+        } else {
+            dosmaperr(error);
+        }
+        return -1;
+    }
+    if ((osfile(fh) & kFDev) && in[0] == 0x1a) return 0;
+    crt_errno() = 28;  // ENOSPC
+    crt_doserrno() = 0;
+    return -1;
+}
+
+int32_t XB_CDECL title_write(int32_t fh, const void* buffer, uint32_t count) {
+    if (!handle_open(fh)) {
+        bad_handle();
+        return -1;
+    }
+    title_lock_fhandle(fh);
+    int32_t result;
+    if (osfile(fh) & kFOpen) {
+        result = title_write_lk(fh, buffer, count);
+    } else {
+        bad_handle();
+        result = -1;
+    }
+    title_unlock_fhandle(fh);
+    return result;
+}
+
+int32_t XB_CDECL title_flsbuf(int32_t ch, TitleFile* file) {
+    // putc's slow path: the character into a fresh buffer (one is allocated unless stdout/stderr is a device) and
+    // the old contents written, or straight out for an unbuffered stream. The character (0..255), or -1 with _IOERR.
+    uint32_t flag = file->flag;
+    const int32_t fh = file->file;
+    if (!(flag & (kIoWrt | kIoRw)) || (flag & kIoStrg)) {
+        file->flag = flag | kIoErr;
+        return -1;
+    }
+    if (flag & kIoRead) {
+        file->cnt = 0;
+        if (!(flag & kIoEof)) {
+            file->flag = flag | kIoErr;
+            return -1;
+        }
+        file->ptr = file->base;
+        file->flag = flag & ~kIoRead;
+    }
+    file->flag = (file->flag | kIoWrt) & ~kIoEof;
+    file->cnt = 0;
+    int32_t written = 0, wanted;
+    if (!(file->flag & (kIoMyBuf | kIoNbf | kIoYourBuf)) &&
+        !((addr(file) == kIob + 0x20 || addr(file) == kIob + 0x40) && title_isatty(fh)))
+        title_getbuf(file);
+    const uint8_t c = static_cast<uint8_t>(ch);
+    if (file->flag & (kIoMyBuf | kIoYourBuf)) {
+        wanted = static_cast<int32_t>(file->ptr - file->base);
+        file->ptr = file->base + 1;
+        file->cnt = file->bufsiz - 1;
+        if (wanted > 0) {
+            written = title_write(fh, reinterpret_cast<const void*>(uintptr_t{file->base}), static_cast<uint32_t>(wanted));
+        } else {
+            const uint8_t* info = fh == -1 ? at<uint8_t>(kBadIoinfo) : ioinfo(fh);
+            if (info[4] & kFAppend) title_lseek(fh, 0, 2);
+        }
+        *at<uint8_t>(file->base) = c;
+    } else {
+        wanted = 1;
+        written = title_write(fh, &c, 1);
+    }
+    if (written != wanted) {
+        file->flag |= kIoErr;
+        return -1;
+    }
+    return c;
+}
+
+uint32_t XB_CDECL title_fwrite_lk(const void* buffer, uint32_t size, uint32_t count, TitleFile* file) {
+    // Fills the stream's buffer; whole buffer-sized blocks (all of it when unbuffered) go straight to _write after a
+    // flush; a remainder smaller than the buffer goes through _flsbuf one byte, then the buffer again. Returns the
+    // number of whole items written.
+    const uint32_t total = size * count;
+    if (total == 0) return 0;
+    const auto* data = static_cast<const uint8_t*>(buffer);
+    uint32_t left = total;
+    uint32_t block = (file->flag & (kIoMyBuf | kIoNbf | kIoYourBuf)) ? static_cast<uint32_t>(file->bufsiz) : 0x1000;
+    while (left) {
+        if ((file->flag & (kIoMyBuf | kIoYourBuf)) && file->cnt) {
+            const uint32_t n = left < static_cast<uint32_t>(file->cnt) ? left : static_cast<uint32_t>(file->cnt);
+            std::memcpy(at<uint8_t>(file->ptr), data, n);
+            left -= n;
+            file->cnt -= static_cast<int32_t>(n);
+            file->ptr += n;
+            data += n;
+        } else if (left >= block) {
+            if ((file->flag & (kIoMyBuf | kIoYourBuf)) && title_flush(file)) return (total - left) / size;
+            const uint32_t n = block ? left - left % block : left;
+            const int32_t done = title_write(file->file, data, n);
+            if (done == -1) {
+                file->flag |= kIoErr;
+                return (total - left) / size;
+            }
+            left -= static_cast<uint32_t>(done);
+            data += done;
+            if (static_cast<uint32_t>(done) < n) {
+                file->flag |= kIoErr;
+                return (total - left) / size;
+            }
+        } else {
+            if (title_flsbuf(static_cast<int8_t>(*data), file) == -1) return (total - left) / size;
+            ++data;
+            --left;
+            block = file->bufsiz > 0 ? static_cast<uint32_t>(file->bufsiz) : 1;
+        }
+    }
+    return count;
+}
+
+uint32_t XB_CDECL title_fwrite(const void* buffer, uint32_t size, uint32_t count, TitleFile* file) {
+    title_lock_file(file);
+    const uint32_t result = title_fwrite_lk(buffer, size, count, file);
+    title_unlock_file(file);
+    return result;
+}
+
+// --- The lock table (2026-11-11) -------------------------------------------------------------------------------------
+
+int32_t XB_STDCALL title_crt_init_crit_sec_no_spin_count(uint32_t section, uint32_t) {
+    title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlInitializeCriticalSection))(section);
+    return 1;
+}
+
+int32_t XB_CDECL title_crt_init_crit_sec_and_spin_count(uint32_t section, uint32_t spin) {
+    // Through __pfnInitCritSecAndSpinCount, set to the no-spin-count version on first use (the SEH frame turning a
+    // STATUS_NO_MEMORY exception into 0 + ERROR_NOT_ENOUGH_MEMORY is not ported: our Rtl call does not raise).
+    uint32_t& fn = title_global<uint32_t>(kInitCritSecFn);
+    if (!fn) fn = own_address(&title_crt_init_crit_sec_no_spin_count);
+    return title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(fn)(section, spin);
+}
+
+int32_t XB_CDECL title_mtinitlocks() {
+    // The preallocated locks (kind 1) get the static sections in order; 0 when one fails (its entry cleared).
+    uint32_t next = kPreallocatedLocks;
+    for (int32_t n = 0; n < 0x24; ++n) {
+        if (title_global<uint32_t>(kLockTable + static_cast<uint32_t>(n) * 8 + 4) != 1) continue;
+        lock_entry(n) = next;
+        next += 0x1c;
+        if (!init_crit_sec(lock_entry(n))) {
+            lock_entry(n) = 0;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int32_t XB_CDECL title_mtinitlocknum(int32_t n) {
+    // A lock made on first use: a 0x1c-byte section from malloc, set up under lock 10 (_LOCKTAB_LOCK); a section
+    // another thread made first wins and ours is freed. 0 (errno ENOMEM) when malloc or the set-up fails.
+    if (lock_entry(n)) return 1;
+    const uint32_t section = crt_malloc(0x1c);
+    if (!section) {
+        crt_errno() = 12;
+        return 0;
+    }
+    crt_lock(10);
+    if (!lock_entry(n)) {
+        if (!init_crit_sec(section)) {
+            crt_free(section);
+            crt_errno() = 12;
+            crt_unlock(10);
+            return 0;
+        }
+        lock_entry(n) = section;
+    } else {
+        crt_free(section);
+    }
+    crt_unlock(10);
+    return 1;
+}
+
+void XB_CDECL title_lock(int32_t n) {
+    if (!lock_entry(n) && !title_mtinitlocknum(n)) title_function<void XB_CDECL(int32_t)>(kAmsgExit)(0x11);  // _RT_LOCK
+    enter_crit_sec(lock_entry(n));
+}
+
+void XB_CDECL title_unlock(int32_t n) { leave_crit_sec(lock_entry(n)); }
 
 }  // namespace game

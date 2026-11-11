@@ -1173,8 +1173,6 @@ using CharClass = int32_t XB_CDECL(int32_t);
 using StrICmp = int32_t XB_CDECL(const char*, const char*);
 using StrNICmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
 
-constexpr uint32_t kStrRChr = 0x001efd40;
-constexpr uint32_t kToUpper = 0x001efd6d;
 
 void copy_string(char* dest, const char* src) {
     char c;
@@ -1231,9 +1229,9 @@ int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor) {
 char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name) {
     char* const buffer = &title_global<char>(0x0098b220);
     copy_string(buffer, name);
-    char* const dot = title_function<StrRChr>(kStrRChr)(buffer, '.');
-    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
-    char* const slash = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    char* const dot = own_function<StrRChr>(&title_strrchr)(buffer, '.');
+    char* const backslash = own_function<StrRChr>(&title_strrchr)(buffer, '\\');
+    char* const slash = own_function<StrRChr>(&title_strrchr)(buffer, '/');
     if (dot && (!backslash || dot > backslash) && (!slash || dot > slash)) *dot = 0;
     return buffer;
 }
@@ -1241,8 +1239,8 @@ char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name) {
 char* XB_REGS1 XB_CDECL Com_DirName(const char* path) {
     char* const buffer = &title_global<char>(0x0098b2a0);
     copy_string(buffer, path);
-    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
-    char* last = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    char* const backslash = own_function<StrRChr>(&title_strrchr)(buffer, '\\');
+    char* last = own_function<StrRChr>(&title_strrchr)(buffer, '/');
     if (backslash > last) last = backslash;
     if (last) *last = 0;
     return buffer;
@@ -1281,8 +1279,8 @@ const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int3
             if (casesensitive) {
                 if (str1[j] != str2[j]) break;
             } else {
-                const int32_t a = title_function<CharClass>(kToUpper)(static_cast<signed char>(str1[j]));
-                if (a != title_function<CharClass>(kToUpper)(static_cast<signed char>(str2[j]))) break;
+                const int32_t a = own_function<CharClass>(&title_toupper)(static_cast<signed char>(str1[j]));
+                if (a != own_function<CharClass>(&title_toupper)(static_cast<signed char>(str2[j]))) break;
             }
         }
         if (!str2[j]) return str1;
@@ -1328,7 +1326,7 @@ int32_t crt_fread(void* buffer, uint32_t size, uint32_t count, void* file) {
     return own_function<FileRw>(&title_fread)(buffer, size, count, file);
 }
 int32_t crt_fwrite(const void* buffer, uint32_t size, uint32_t count, void* file) {
-    return title_function<FileRw>(0x001f047d)(const_cast<void*>(buffer), size, count, file);
+    return own_function<FileRw>(&title_fwrite)(const_cast<void*>(buffer), size, count, file);
 }
 int32_t crt_fflush(void* file) { return own_function<FileOp>(&title_fflush)(file); }
 int32_t crt_ftell(void* file) { return own_function<FileOp>(&title_ftell)(file); }
@@ -2530,7 +2528,7 @@ uint8_t* XB_REGS1 XB_CDECL Pak_FindZoneToUnload(uint8_t* pak) {
 }
 
 int32_t XB_REGS1 XB_CDECL Com_Filter(const char* filter, const char* name, int32_t casesensitive) {
-    const auto toupper_ = title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d);  // LIBCMT::_toupper
+    const auto toupper_ = own_function<int32_t XB_CDECL(int32_t)>(&title_toupper);  // LIBCMT::_toupper
     char buf[0x84];
     while (*filter) {
         if (*filter == '*') {
@@ -3782,7 +3780,7 @@ void cbuf_take_line(char* line, uint32_t data_global, uint32_t size_global) {
         ++i;
         size -= i;
         title_global<int32_t>(size_global) = size;
-        title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0)(data, data + i,
+        own_function<void* XB_CDECL(void*, const void*, uint32_t)>(&title_memmove)(data, data + i,
                                                                                static_cast<uint32_t>(size));  // _memmove
     }
 }
@@ -6302,7 +6300,7 @@ const char* XB_CDECL Loc_LoadStringFileOrSte(const char* path, uint32_t value) {
     char name[0x80];
     crt_strncpy(name, path, 0x7f);
     name[0x7f] = 0;
-    char* const dot = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40)(name, '.');  // strrchr
+    char* const dot = own_function<char* XB_CDECL(const char*, int32_t)>(&title_strrchr)(name, '.');  // strrchr
     if (!dot || std::strlen(dot) != 4) return nullptr;
     std::memcpy(dot, tstr(0x00833224), 5);  // ".ste"
     return Loc_LoadStringFile(0, 0, name, value, 1);
@@ -6316,7 +6314,7 @@ const char* XB_CDECL Loc_LoadStrings(const char* language, uint32_t value) {
     title_global<int32_t>(0x00929cd8) = 0;
     std_string_AssignN(list.s, tstr(0x0082dfeb), 0);
     Loc_LoadStringDir_r(tstr(0x00833200), tstr(0x00833210), list.s);  // ".str", "localizedstrings"
-    const auto strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+    const auto strrchr = own_function<char* XB_CDECL(const char*, int32_t)>(&title_strrchr);
     char* const dir = &title_global<char>(0x0098b2a0);
     char* const base = &title_global<char>(0x0098b1a0);
     for (char* path = Loc_PopSemicolonToken(list.s); path && !result; path = Loc_PopSemicolonToken(list.s)) {
@@ -7592,7 +7590,7 @@ int32_t XB_CDECL Loc_ListLanguages() {
     pk<uint32_t>(head, 8) = u32(head);
     pk<uint32_t>(tree, 8) = 0;
     uint32_t out[2] = {};  // iterator / insert result
-    const auto strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+    const auto strrchr = own_function<char* XB_CDECL(const char*, int32_t)>(&title_strrchr);
     char* const dir = &title_global<char>(0x0098b2a0);
     char* const base = &title_global<char>(0x0098b1a0);
     for (char* path = Loc_PopSemicolonToken(list.s); path; path = Loc_PopSemicolonToken(list.s)) {

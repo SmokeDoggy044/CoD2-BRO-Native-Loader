@@ -586,7 +586,7 @@ uint8_t XB_CDECL Movie_Open(const char* name) {
     char* end = path;
     while (*end) ++end;
     platform_rep_movs(end, name, length + 1);
-    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001ee960)(path, &title_global<char>(0x0082d7e8), 7);  // _strncat ".xbv"
+    own_function<char* XB_CDECL(char*, const char*, uint32_t)>(&title_strncat)(path, &title_global<char>(0x0082d7e8), 7);  // _strncat ".xbv"
     void* memory = z_malloc(0x2248);
     if (!memory) {
         the_movie() = nullptr;
