@@ -198,6 +198,18 @@ inline void platform_set_title_frame_limit(uint32_t) {}
 inline void platform_set_title_on_fiber(bool) {}
 #endif
 
+// A word of the title thread's FS block (the Xbox KPCR the loader's thread_env provides), read the way the title's
+// XAPI does: FS:[4] finds the thread's TLS array, FS:[0x28] is the current KTHREAD. Title threads only.
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+inline uint32_t platform_fs_word(uint32_t offset) {
+    uint32_t word;
+    __asm__ volatile("movl %%fs:(%1), %0" : "=r"(word) : "r"(offset));
+    return word;
+}
+#else
+inline uint32_t platform_fs_word(uint32_t) { return 0; }
+#endif
+
 // The x87 FSIN/FCOS the title uses, rounded by the caller's precision control and
 // stored as float like the title does. Other builds use the C library (route C).
 #if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))

@@ -20,6 +20,7 @@
 #include "tr_main.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "title_xapi.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -3824,7 +3825,7 @@ FE_FRAME_ENTRY(FE_FadeOut, "ret")
 uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     // the RDTSC start time (unused) through XAPI QueryPerformanceCounter: the loader patches both sites alike
-    f.call(0x6c, 0x0032d898, 0x001ed6ca, f.entry - 0x6c);
+    f.call(0x6c, 0x0032d898, own_address(&QueryPerformanceCounter), f.entry - 0x6c);
     float& elapsed = *f.local<float>(0x6c);
     float t = 0.0f;
     float duration = title_global<float>(0x008d2090);

@@ -44,6 +44,8 @@
 #include "g_pathnode.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "title_xapi.h"
+#include "title_stdio.h"
 
 namespace game {
 
@@ -425,7 +427,7 @@ int32_t XB_REGS1 XB_CDECL FS_DirectoryHasFiles(const char* path) {
     uint8_t data[0x140] = {};  // WIN32_FIND_DATAA: attributes +0, cFileName +0x2c
     const uint32_t args[2] = {0x0083cac8, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(path))};  // "%s\*"
     Com_sprintf(mask, 0x80, args);
-    const uint32_t handle = title_function<FindFirst>(0x001e79ad)(mask, data);
+    const uint32_t handle = own_function<FindFirst>(&FindFirstFileA)(mask, data);
     if (handle == 0xffffffff) return 0;
     do {
         if (!(data[0] & 0x10)) return 1;  // a file
@@ -434,8 +436,8 @@ int32_t XB_REGS1 XB_CDECL FS_DirectoryHasFiles(const char* path) {
             Q_stricmpn(name, &title_global<const char>(0x008380a4), 99999) &&     // ".."
             Q_stricmpn(name, &title_global<const char>(0x0083cac4), 99999))       // "CVS"
             return 1;
-    } while (title_function<FindNext>(0x001e7aba)(handle, data));
-    title_function<Close>(0x001e7b0b)(handle);
+    } while (own_function<FindNext>(&FindNextFileA)(handle, data));
+    own_function<Close>(&CloseHandle)(handle);
     return 0;
 }
 
@@ -1325,17 +1327,17 @@ using FileOp = int32_t XB_CDECL(void*);
 using FileSeek = int32_t XB_CDECL(void*, int32_t, int32_t);
 
 int32_t crt_fread(void* buffer, uint32_t size, uint32_t count, void* file) {
-    return title_function<FileRw>(0x001f019a)(buffer, size, count, file);
+    return own_function<FileRw>(&title_fread)(buffer, size, count, file);
 }
 int32_t crt_fwrite(const void* buffer, uint32_t size, uint32_t count, void* file) {
     return title_function<FileRw>(0x001f047d)(const_cast<void*>(buffer), size, count, file);
 }
-int32_t crt_fflush(void* file) { return title_function<FileOp>(0x001efefe)(file); }
-int32_t crt_ftell(void* file) { return title_function<FileOp>(0x001f062b)(file); }
+int32_t crt_fflush(void* file) { return own_function<FileOp>(&title_fflush)(file); }
+int32_t crt_ftell(void* file) { return own_function<FileOp>(&title_ftell)(file); }
 int32_t crt_fseek(void* file, int32_t offset, int32_t origin) {
-    return title_function<FileSeek>(0x001f06fb)(file, offset, origin);
+    return own_function<FileSeek>(&title_fseek)(file, offset, origin);
 }
-int32_t crt_fclose(void* file) { return title_function<FileOp>(0x001f0790)(file); }
+int32_t crt_fclose(void* file) { return own_function<FileOp>(&title_fclose)(file); }
 
 }  // namespace
 
@@ -2146,10 +2148,10 @@ uint32_t XB_CDECL FS_FileExists(const char* name) {
                    reinterpret_cast<const char*>(uintptr_t{pk<uint32_t>(
                        reinterpret_cast<uint8_t*>(uintptr_t{title_global<uint32_t>(0x00947798)}), 4)}),  // fs_homepath
                    name, path, 0);
-    void* f = title_function<void* XB_CDECL(const char*, const char*)>(0x001effb3)(
+    void* f = own_function<void* XB_CDECL(const char*, const char*)>(&title_fopen)(
         path, reinterpret_cast<const char*>(uintptr_t{0x00838080}));  // _fopen "rb"
     if (!f) return 0;
-    title_function<int32_t XB_CDECL(void*)>(0x001f0790)(f);  // _fclose
+    own_function<int32_t XB_CDECL(void*)>(&title_fclose)(f);  // _fclose
     return 1;
 }
 
@@ -2459,7 +2461,7 @@ void XB_THISCALL DynArray_Push52(DynArray* array, const uint32_t* value) {
 
 void XB_REGS3 XB_CDECL Pak_ParseFli(uint8_t* fli, uint32_t, uint8_t* pak) {
     const auto strstr_ = title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10);  // _strstr
-    const auto get_language = title_function<uint32_t XB_STDCALL()>(0x001e6f2a);           // XGetLanguage
+    const auto get_language = own_function<uint32_t XB_STDCALL()>(&XGetLanguage);           // XGetLanguage
     pk<uint32_t>(pak, 0x18) = u32(fli);
     uint8_t* table = fli + pk<uint32_t>(fli, 0x18);
     pk<uint32_t>(fli, 0x18) = u32(table);
@@ -3322,7 +3324,7 @@ using CrtStrncpy = char* XB_CDECL(char*, const char*, uint32_t);
 using CrtStrstr = const char* XB_CDECL(const char*, const char*);
 
 void fs_break(int32_t level, uint32_t message) { title_function<BreakV>(kBreak)(level, tstr(message)); }
-void* crt_fopen(const char* path, uint32_t mode) { return title_function<CrtFopen>(0x001effb3)(path, tstr(mode)); }
+void* crt_fopen(const char* path, uint32_t mode) { return own_function<CrtFopen>(&title_fopen)(path, tstr(mode)); }
 void crt_strncpy(char* dst, const char* src, uint32_t n) { title_strncpy(dst, src, n); }
 const char* crt_strstr(const char* s, uint32_t sub) { return title_function<CrtStrstr>(0x001efb10)(s, tstr(sub)); }
 uint8_t* cvar_ptr(uint32_t global) { return title_global<uint8_t*>(global); }
@@ -5406,9 +5408,6 @@ namespace {
 using FindFirst = uint32_t XB_STDCALL(const char*, uint8_t*);
 using FindNext = int32_t XB_STDCALL(uint32_t, uint8_t*);
 using CloseHandleFn = int32_t XB_STDCALL(uint32_t);
-constexpr uint32_t kFindFirstFile = 0x001e79ad;
-constexpr uint32_t kFindNextFile = 0x001e7aba;
-constexpr uint32_t kCloseHandle = 0x001e7b0b;
 
 bool is_dot_or_cvs(const char* name) {
     return !Q_stricmpn(name, tstr(0x0082d700), 99999) ||  // "."
@@ -5443,7 +5442,7 @@ void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* su
         Com_sprintf(search, 0x80, args);
     }
     uint8_t data[0x140] = {};  // WIN32_FIND_DATAA: attributes +0, cFileName +0x2c
-    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    const uint32_t handle = own_function<FindFirst>(&FindFirstFileA)(search, data);
     if (handle == 0xffffffff) return;
     const char* const name = reinterpret_cast<const char*>(data + 0x2c);
     do {
@@ -5460,8 +5459,8 @@ void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* su
         if (!Com_FilterPath(filename, filter, 0)) continue;
         list[*numfiles] = CopyString(filename);
         ++*numfiles;
-    } while (title_function<FindNext>(kFindNextFile)(handle, data));
-    title_function<CloseHandleFn>(kCloseHandle)(handle);
+    } while (own_function<FindNext>(&FindNextFileA)(handle, data));
+    own_function<CloseHandleFn>(&CloseHandle)(handle);
 }
 
 char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char* extension, const char* directory,
@@ -5487,7 +5486,7 @@ char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char*
     Com_sprintf(search, 0x80, args);
     uint8_t data[0x140] = {};
     int32_t nfiles = 0;
-    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    const uint32_t handle = own_function<FindFirst>(&FindFirstFileA)(search, data);
     if (handle == 0xffffffff) {
         *numfiles = 0;
         return nullptr;
@@ -5499,9 +5498,9 @@ char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char*
         if (subdir && is_dot_or_cvs(name)) continue;
         list[nfiles] = CopyString(name);
         if (++nfiles == 0xfff) break;
-    } while (title_function<FindNext>(kFindNextFile)(handle, data));
+    } while (own_function<FindNext>(&FindNextFileA)(handle, data));
     list[nfiles] = nullptr;
-    title_function<CloseHandleFn>(kCloseHandle)(handle);
+    own_function<CloseHandleFn>(&CloseHandle)(handle);
     *numfiles = nfiles;
     if (!nfiles) return nullptr;
     return copy_file_list(list, nfiles);
@@ -5829,7 +5828,7 @@ int32_t XB_CDECL Sys_Milliseconds() {
     // QueryPerformanceCounter (0x001ed6ca).
     const auto clock = [] {
         uint32_t counter[2] = {0, 0};
-        title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+        own_function<uint32_t XB_STDCALL(uint32_t*)>(&QueryPerformanceCounter)(counter);
         return (uint64_t{counter[1]} << 32) | counter[0];
     };
     uint32_t& base_low = title_global<uint32_t>(0x0098b7f8);
@@ -7093,6 +7092,40 @@ void live_mgr_construct(uint8_t* m) {
 
 }  // namespace
 
+uint32_t XB_CDECL Sys_ReadLaunchInfo(char* command_line) {
+    // The chapters' maps ("+devmap prologue" .. "+devmap dragons_teeth") in .rdata.
+    static constexpr uint32_t kChapterCommands[14] = {0x0083cbd4, 0x0083cbc4, 0x0083cbb4, 0x0083cb9c, 0x0083cb88,
+                                                      0x0083cb74, 0x0083cb64, 0x0083cb50, 0x0083cb40, 0x0083cb2c,
+                                                      0x0083cb1c, 0x0083cb08, 0x0083caf4, 0x0083cadc};
+    uint32_t type;
+    uint8_t data[0xc00];
+    title_global<uint8_t>(0x0095ee01) = 0;
+    title_global<uint8_t>(0x0095ee09) = 0;
+    title_global<uint8_t>(0x008dd1cf) = 0;
+    if (XGetLaunchInfo(&type, data)) return 0;
+    // printf("Launch type : %d (dashboard=%d, debugger=%d)\n", ...)
+    title_function<int32_t XB_CDECL(const char*, uint32_t, uint32_t, uint32_t)>(0x001efc4d)(
+        &title_global<const char>(0x0083cbe8), type, 2, 3);
+    command_line[0] = 0;
+    if (type == 3) {  // LDT_FROM_DEBUGGER_CMDLINE
+        std::strcpy(command_line, reinterpret_cast<const char*>(data));
+        return 0;
+    }
+    if (type != 0) return 0;  // LDT_TITLE only
+    std::memcpy(&title_global<uint8_t>(0x008dce30), data, 0x3a4);
+    if (title_global<uint8_t>(0x008dd1cc)) {
+        title_global<uint8_t>(0x0095ee09) = 1;
+        title_global<uint8_t>(0x008dd1cc) = 0;
+        return 0;
+    }
+    const uint32_t chapter = title_global<uint32_t>(0x008dce48);  // g_currentChapter
+    if (chapter <= 13) std::strcpy(command_line, &title_global<const char>(kChapterCommands[chapter]));
+    title_global<uint8_t>(0x0095ee01) = 1;
+    title_global<uint8_t>(0x0095ee09) = 1;
+    title_global<uint8_t>(0x008dd1cc) = 0;
+    return 0;
+}
+
 void XB_CDECL Sys_Main() {
     // The XAPI main (mainXapiStartup): allocator hooks, launch data, devices, renderer, effects, heaps, Com_Init,
     // the Live UI (UIXLayout.uix), then the frame loop forever. Its frame (0x4618 bytes) holds the hooks (+0x14),
@@ -7105,7 +7138,7 @@ void XB_CDECL Sys_Main() {
     Mem_SetAllocatorHooks(hooks);
     live_mgr_construct(live);  // LiveMgr_Construct (EAX)
     TitleRegs regs{};
-    title_function<void XB_CDECL(uint8_t*)>(0x002221b0)(frame + 0x2c);  // Sys_ReadLaunchInfo
+    own_function<void XB_CDECL(uint8_t*)>(&Sys_ReadLaunchInfo)(frame + 0x2c);  // Sys_ReadLaunchInfo
     own_function<void XB_CDECL(int32_t)>(&Heap_SelectByIndex)(0);               // Heap_SelectByIndex
     FS_InitPackBuffers();
     own_function<void XB_CDECL()>(&SndSys_InitDevice)();  // SndSys_InitDevice

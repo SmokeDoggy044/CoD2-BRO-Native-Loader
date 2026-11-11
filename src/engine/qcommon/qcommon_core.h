@@ -516,6 +516,33 @@ int32_t XB_CDECL File_CreateDevice(const uint32_t* desc);
 void XB_CDECL File_AbortRequestsForDevice(uint32_t device);
 // 0x000cac00: aborts a device record's requests and frees it. Dead.
 void XB_CDECL File_DestroyDevice(uint32_t device);
+// 0x00093a10: sys_stackBase / sys_stackEnd: the 64 KB block of the caller's stack and the end of the read/write
+// blocks above it (the entry passes the original's first local).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sys_GetStackBounds(uint32_t local);
+extern "C" void Sys_GetStackBounds_entry(void);
+// 0x000d13c0: the first memory unit port Save_SetDriveNames names (0; 3 bytes, so callers reach this C directly).
+int32_t XB_CDECL Save_FirstPort();
+// The XAPI file driver (0x008bfe94 file ops +8 open, +0xc close, +0x10 size, +0x14 native handle; 0x008bfeac device
+// ops: issue, cancel, poll). `data` is the open file's driver word: its XAPI handle.
+// 0x000cba40: an overlapped CreateFileA(path) from mode bits (1 read, 2 write - also the sharing -, 4 create, sized
+// to `size` and rewound, 8 buffered): 0, or 1 when it cannot be opened.
+uint32_t XB_CDECL FileXapi_Open(uint32_t* data, const char* path, uint32_t mode, uint32_t size);
+// 0x000cbae0: CloseHandle; 0 when closed.
+uint32_t XB_CDECL FileXapi_Close(const uint32_t* data);
+// 0x000cbb00: info = {physical sort key, file size}; 0.
+uint32_t XB_CDECL FileXapi_GetSizeAndSortKey(const uint32_t* data, uint32_t* info);
+// 0x000cbb30: the native handle for the file thread: *native = data (the driver data block itself), *info = 4; 0.
+uint32_t XB_CDECL FileXapi_GetNativeHandle(uint32_t data, uint32_t* native, uint32_t* info);
+// 0x000cb9b0: an XAPI transfer of `device`'s current request finished (`bytes`, Win32 `error`): state +0x40 1
+// (reading) -> 2 done (bounced reads copy their part out of the aligned buffer) or 5 failed; 3 (cancelling) -> 4.
+void XB_CDECL FileDevice_OnIoComplete(uint8_t* device, uint32_t bytes, uint32_t error);
+// 0x000cbb50: the ReadFileEx/WriteFileEx completion routine: FileDevice_OnIoComplete for the device in flight
+// (0x00920844).
+void XB_STDCALL FileDeviceXapi_IoComplete(uint32_t error, uint32_t bytes, uint32_t overlapped);
+// 0x000cbb70: XAPI device op issue: an overlapped read (op 0) or write (op 1) of `size` bytes at file offset `offset`
+// through the device's OVERLAPPED (0x00920830); 0 when started, 1 when it failed.
+uint32_t XB_CDECL FileDeviceXapi_Issue(uint8_t* device, const uint32_t* data, uint32_t op, uint32_t offset,
+                                       void* buffer, uint32_t size);
 // 0x000cbbe0: XAPI device op cancel: CancelIo(*handle); 0 when cancelled.
 uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle);
 // 0x000cbc00: XAPI device op poll: alertable SleepEx(0); 0.

@@ -12,6 +12,7 @@
 #include "unzip.h"
 
 #include "title_data.h"
+#include "title_stdio.h"
 
 namespace game {
 
@@ -35,13 +36,13 @@ constexpr uint32_t kZlibVersion = 0x007baddc;  // "1.1.4"
 
 // The title CRT's stdio and heap.
 int32_t title_fseek(void* f, int32_t offset, int32_t origin) {
-    return title_function<int32_t XB_CDECL(void*, int32_t, int32_t)>(0x001f06fb)(f, offset, origin);
+    return own_function<int32_t XB_CDECL(void*, int32_t, int32_t)>(&game::title_fseek)(f, offset, origin);
 }
-uint32_t title_ftell(void* f) { return title_function<uint32_t XB_CDECL(void*)>(0x001f062b)(f); }
+uint32_t title_ftell(void* f) { return own_function<uint32_t XB_CDECL(void*)>(&game::title_ftell)(f); }
 uint32_t title_fread(void* buf, uint32_t size, uint32_t count, void* f) {
-    return title_function<uint32_t XB_CDECL(void*, uint32_t, uint32_t, void*)>(0x001f019a)(buf, size, count, f);
+    return own_function<uint32_t XB_CDECL(void*, uint32_t, uint32_t, void*)>(&game::title_fread)(buf, size, count, f);
 }
-int32_t title_fclose(void* f) { return title_function<int32_t XB_CDECL(void*)>(0x001f0790)(f); }
+int32_t title_fclose(void* f) { return own_function<int32_t XB_CDECL(void*)>(&game::title_fclose)(f); }
 void* title_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x001f0d14)(size); }
 void title_free(void* p) { title_function<void XB_CDECL(void*)>(0x001f0c69)(p); }
 

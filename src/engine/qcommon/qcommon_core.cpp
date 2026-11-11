@@ -14,6 +14,7 @@
 #include "snd.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -1158,7 +1159,7 @@ uint8_t* XB_THISCALL SaveRequest_Init(uint8_t* request, const char* name) {
 
 void XB_CDECL Save_SetDriveNames(const char* names) {
     using Port = int32_t XB_CDECL();
-    int32_t port = title_function<Port>(0x000d13c0)();  // Save_FirstPort (0)
+    int32_t port = own_function<Port>(&Save_FirstPort)();  // Save_FirstPort (0)
     for (; port <= Save_LastPort(); ++port)
         copy_string(&title_global<char>(0x00920860) + port * 0x40, names + port * 0x40);
 }
@@ -1170,7 +1171,7 @@ void close_save_handles() {
     title_global<uint32_t>(0x00920eb0) = 0;
     const uint32_t file = title_global<uint32_t>(0x00920eac);
     if (file) {
-        title_function<Close>(0x001e7b0b)(file);  // CloseHandle
+        own_function<Close>(&CloseHandle)(file);  // CloseHandle
         title_global<uint32_t>(0x00920eac) = 0;
     }
 }
@@ -1182,7 +1183,7 @@ void XB_CDECL Save_CloseFileHandles() {
     close_save_handles();
     const uint32_t find = title_global<uint32_t>(0x00920da0);
     if (find) {
-        title_function<Close>(0x001e7b0b)(find);
+        own_function<Close>(&CloseHandle)(find);
         title_global<uint32_t>(0x00920da0) = 0;
     }
 }
@@ -1191,7 +1192,7 @@ void XB_CDECL Save_CloseDevice() {
     using Close = uint32_t XB_STDCALL(uint32_t);
     close_save_handles();
     const uint32_t find = title_global<uint32_t>(0x00920da0);
-    if (find) title_function<Close>(0x001e7b0b)(find);
+    if (find) own_function<Close>(&CloseHandle)(find);
     title_global<uint8_t>(0x00920da8) = 0;
     title_global<uint32_t>(0x00920da0) = 0;
     for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;  // overlapped
@@ -1232,7 +1233,7 @@ int32_t XB_CDECL Save_PortToDevice(int32_t port, uint32_t* controller, uint32_t*
 
 void XB_CDECL File_UnlockMutex() {
     if (title_global<int32_t>(0x008bfd80) == 1)
-        title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e85f5)(title_global<uint32_t>(0x00920784));  // ReleaseMutex
+        own_function<uint32_t XB_STDCALL(uint32_t)>(&ReleaseMutex)(title_global<uint32_t>(0x00920784));  // ReleaseMutex
 }
 
 int32_t XB_REGS3 XB_CDECL File_FindDeviceForBit(uint32_t, uint32_t, uint32_t bit) {
@@ -1685,8 +1686,8 @@ uint32_t XB_CDECL Mem_AllocPhysicalPools() {
     // write-combine), anywhere in physical memory, page aligned; no debug pool (start/end -1, size 0). The
     // memory status it asks for first is not used.
     uint32_t status[8];
-    title_function<void XB_STDCALL(uint32_t*)>(0x001e7c35)(status);  // GlobalMemoryStatus
-    const auto physical_alloc = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a);  // XPhysicalAlloc
+    own_function<void XB_STDCALL(uint32_t*)>(&GlobalMemoryStatus)(status);  // GlobalMemoryStatus
+    const auto physical_alloc = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc);  // XPhysicalAlloc
     title_global<uint32_t>(0x00901afc) = 0xffffffffu;  // debug pool start
     title_global<uint32_t>(0x00901b00) = 0xffffffffu;  // debug pool end
     title_global<uint32_t>(0x00901b04) = 0;            // debug pool size
@@ -2229,11 +2230,11 @@ constexpr uint32_t kDevicePool = 0x009207c0;
 bool file_threaded() { return title_global<int32_t>(0x008bfd80) == 1; }
 
 void file_lock() {
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e86ab)(title_global<uint32_t>(0x00920784),  // WaitForSingleObject
+    own_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(&WaitForSingleObject)(title_global<uint32_t>(0x00920784),  // WaitForSingleObject
                                                                        0xffffffffu);
 }
 
-void file_release() { title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e85f5)(title_global<uint32_t>(0x00920784)); }  // ReleaseMutex
+void file_release() { own_function<uint32_t XB_STDCALL(uint32_t)>(&ReleaseMutex)(title_global<uint32_t>(0x00920784)); }  // ReleaseMutex
 
 uint8_t* file_record(int32_t handle) {
     const int32_t index = HandlePool_Resolve(pool_at(kFilePool), handle);
@@ -2351,7 +2352,7 @@ int32_t XB_CDECL File_QueueRead(const uint32_t* desc) {
     word_at(request, 0x34) = 0;
     if (file_threaded()) {
         file_release();
-        if (file_threaded()) title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e857d)(title_global<uint32_t>(0x00920788));  // SetEvent
+        if (file_threaded()) own_function<uint32_t XB_STDCALL(uint32_t)>(&SetEvent)(title_global<uint32_t>(0x00920788));  // SetEvent
     }
     return handle;
 }
@@ -4534,7 +4535,7 @@ void XB_CDECL FileDevice_ResetAborted() {
         }
         word_at(device, 0x40) = 0;
         if (file_threaded())
-            title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e857d)(title_global<uint32_t>(0x00920788));  // SetEvent
+            own_function<uint32_t XB_STDCALL(uint32_t)>(&SetEvent)(title_global<uint32_t>(0x00920788));  // SetEvent
     }
     if (file_threaded()) file_release();
 }
@@ -4564,6 +4565,108 @@ void XB_CDECL File_DestroyDevice(uint32_t device) {
     HandlePool_Free(&title_global<uint8_t>(kDevicePool), static_cast<int32_t>(device));
 }
 
+int32_t XB_CDECL Save_FirstPort() { return 0; }
+
+// The original's first local (entry ESP - 4) gives the stack's 64 KB block.
+PLATFORM_ASM_ENTRY(Sys_GetStackBounds_entry,
+                   "leal -4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Sys_GetStackBounds) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Sys_GetStackBounds(uint32_t local) {
+    // sys_stackBase (0x009098f0) = the 64 KB block of the caller's stack; sys_stackEnd (0x009098f4) = the first block
+    // above it that is not read/write (PAGE_READWRITE 4), walking up from the base itself.
+    const uint32_t base = local & 0xffff0000;
+    title_global<uint32_t>(0x009098f0) = base;
+    uint32_t& end = title_global<uint32_t>(0x009098f4);
+    end = base;
+    if (!(XQueryMemoryProtect(base) & 4)) return;
+    do {
+        end += 0x10000;
+    } while (XQueryMemoryProtect(end) & 4);
+}
+
+
+uint32_t XB_CDECL FileXapi_Open(uint32_t* data, const char* path, uint32_t mode, uint32_t size) {
+    // GENERIC_READ (mode 1) / GENERIC_WRITE (2), shared the same way; CREATE_ALWAYS (4) or OPEN_EXISTING;
+    // FILE_FLAG_OVERLAPPED, plus FILE_FLAG_NO_BUFFERING unless buffered (8).
+    const uint32_t flags = ((~(mode << 28)) & 0x20000000) | 0x40000000;
+    const uint32_t disposition = ((~(mode >> 2)) & 1) | 2;
+    const uint32_t access = ((mode & 2) | (mode << 2)) << 29;
+    const uint32_t handle = CreateFileA(path, access, mode & 3, 0, disposition, flags, 0);
+    if (handle == 0xffffffff) {
+        GetLastError();
+        return 1;
+    }
+    if (mode & 4) {
+        SetFilePointerEx(handle, size, 0, nullptr, 0);
+        SetEndOfFile(handle);
+        SetFilePointer(handle, 0, nullptr, 0);
+    }
+    *data = handle;
+    return 0;
+}
+
+uint32_t XB_CDECL FileXapi_Close(const uint32_t* data) { return CloseHandle(*data) ? 0 : 1; }
+
+uint32_t XB_CDECL FileXapi_GetSizeAndSortKey(const uint32_t* data, uint32_t* info) {
+    info[1] = GetFileSize(*data, nullptr);
+    info[0] = XGetFilePhysicalSortKey(*data);
+    return 0;
+}
+
+uint32_t XB_CDECL FileXapi_GetNativeHandle(uint32_t data, uint32_t* native, uint32_t* info) {
+    *native = data;
+    *info = 4;
+    return 0;
+}
+
+void XB_CDECL FileDevice_OnIoComplete(uint8_t* device, uint32_t bytes, uint32_t error) {
+    // Device: state +0x40, transfer done +0x1c, bounce buffer (+0x44 set): request +0x14 (its buffer +0x10), the
+    // aligned start +0x18 and the wanted offset +0x28, destination +0x34, wanted size +0x38.
+    uint32_t& state = word_at(device, 0x40);
+    if (state == 3) {
+        state = 4;
+        return;
+    }
+    if (state != 1) return;
+    if (error) {
+        state = 5;
+        return;
+    }
+    if (!word_at(device, 0x44)) {
+        word_at(device, 0x1c) = bytes;
+        state = 2;
+        return;
+    }
+    const uint32_t skip = word_at(device, 0x28) - word_at(device, 0x18);
+    uint32_t count = bytes - skip;
+    if (count > word_at(device, 0x38)) count = word_at(device, 0x38);
+    const uint8_t* const source =
+        reinterpret_cast<const uint8_t*>(uintptr_t{word_at(pointer_at<uint8_t>(device, 0x14), 0x10)}) + skip;
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{word_at(device, 0x34)}), source, count);
+    word_at(device, 0x1c) = count;
+    state = 2;
+}
+
+void XB_STDCALL FileDeviceXapi_IoComplete(uint32_t error, uint32_t bytes, uint32_t overlapped) {
+    (void)overlapped;
+    FileDevice_OnIoComplete(title_global<uint8_t*>(0x00920844), bytes, error);
+}
+
+uint32_t XB_CDECL FileDeviceXapi_Issue(uint8_t* device, const uint32_t* data, uint32_t op, uint32_t offset,
+                                       void* buffer, uint32_t size) {
+    // One transfer at a time: the device and the OVERLAPPED {status block, offset} are globals.
+    title_global<uint8_t*>(0x00920844) = device;
+    title_global<uint32_t>(0x00920838) = offset;
+    title_global<uint32_t>(0x0092083c) = 0;
+    uint32_t* const overlapped = &title_global<uint32_t>(0x00920830);
+    const uint32_t completion = own_address(&FileDeviceXapi_IoComplete);
+    const uint32_t started = op == 1 ? WriteFileEx(*data, buffer, size, overlapped, completion)
+                                     : ReadFileEx(*data, buffer, size, overlapped, completion);
+    return started == 0 ? 1 : 0;
+}
+
 uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle) {
     // XAPI file device ops 0x008bfeac slot 1: CancelIo on the native handle; 0 once cancelled.
     return title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e86f2)(*handle) ? 0 : 1;  // CancelIo
@@ -4571,7 +4674,7 @@ uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle) {
 
 uint32_t XB_CDECL FileDeviceXapi_Poll() {
     // XAPI file device ops slot 2: an alertable SleepEx(0) runs the read completion routines; never busy.
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e8659)(0, 1);  // SleepEx
+    own_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(&SleepEx)(0, 1);  // SleepEx
     return 0;
 }
 
@@ -4591,11 +4694,11 @@ void XB_CDECL File_InitSystem(uint8_t* memory) {
     title_global<int32_t>(0x008bfd6c) = device;
     if (!file_threaded()) return;
     title_global<uint32_t>(0x00920784) =
-        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e859d)(0, 0, 0);  // CreateMutexA
+        own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(&CreateMutexA)(0, 0, 0);  // CreateMutexA
     title_global<uint32_t>(0x00920788) =
-        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 0, 0, 0);  // CreateEventA
-    title_global<uint32_t>(0x00920780) = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
-                                                                          uint32_t)>(0x001e7896)(0, 0x2000, 0x000ca620, 0, 0,
+        own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&CreateEventA)(0, 0, 0, 0);  // CreateEventA
+    title_global<uint32_t>(0x00920780) = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                                          uint32_t)>(&CreateThread)(0, 0x2000, 0x000ca620, 0, 0,
                                                                                                  0);  // CreateThread
 }
 
@@ -5556,8 +5659,8 @@ int32_t XB_CDECL Save_OpenFile(const char* name, uint32_t access) {
     copy_string(path, &title_global<char>(0x00920da8));
     std::strcat(path, &title_global<char>(0x00832f60));  // "\\"
     std::strcat(path, name);
-    const uint32_t file = title_function<uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t,
-                                                             uint32_t, uint32_t)>(0x001e7d56)(
+    const uint32_t file = own_function<uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                             uint32_t, uint32_t)>(&CreateFileA)(
         path, access, 0, 0, 4, 0x60000080, 0);  // CreateFileA
     title_global<uint32_t>(0x00920eac) = file;
     return file != 0xffffffffu ? 0 : -1;
@@ -5623,15 +5726,15 @@ int32_t XB_CDECL Save_StartAsyncWrite() {
     title_global<uint32_t>(0x00920da0) = 0;
     for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
     title_global<uint32_t>(0x00920da0) =
-        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 1, 0, 0);  // CreateEventA
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8171)(
+        own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&CreateEventA)(0, 1, 0, 0);  // CreateEventA
+    own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&SetFilePointer)(
         title_global<uint32_t>(0x00920eac), Save_GetBufferSize(), 0, 0);  // SetFilePointer
-    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e80ed)(title_global<uint32_t>(0x00920eac));  // SetEndOfFile
+    own_function<uint32_t XB_STDCALL(uint32_t)>(&SetEndOfFile)(title_global<uint32_t>(0x00920eac));  // SetEndOfFile
     const uint32_t sector = save_sector_size();
     const uint32_t buffer = Save_GetBuffer();
-    if (!title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8017)(
+    if (!own_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&WriteFile)(
             title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) &&  // WriteFile
-        title_function<uint32_t XB_STDCALL()>(0x001e7c84)() != 0x3e5) {           // GetLastError
+        own_function<uint32_t XB_STDCALL()>(&GetLastError)() != 0x3e5) {           // GetLastError
         Save_CloseDevice();
         return -1;
     }
@@ -5644,12 +5747,12 @@ int32_t XB_CDECL Save_StartAsyncRead() {
     title_global<uint32_t>(0x00920da0) = 0;
     for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
     title_global<uint32_t>(0x00920da0) =
-        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 1, 0, 0);  // CreateEventA
+        own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&CreateEventA)(0, 1, 0, 0);  // CreateEventA
     const uint32_t sector = save_sector_size();
     const uint32_t buffer = Save_GetBuffer();
-    if (!title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e7f2a)(
+    if (!own_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&ReadFile)(
             title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) &&  // ReadFile
-        title_function<uint32_t XB_STDCALL()>(0x001e7c84)() == 0x26) {            // GetLastError
+        own_function<uint32_t XB_STDCALL()>(&GetLastError)() == 0x26) {            // GetLastError
         Save_CloseFileHandles();
     }
     return 0;
@@ -5898,11 +6001,11 @@ uint32_t XB_CDECL Save_BeginDelete(const char* name) {
 namespace {
 
 uint32_t save_overlapped_result(uint32_t* transferred) {
-    return title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*, uint32_t)>(0x001e7cf1)(
+    return own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*, uint32_t)>(&GetOverlappedResult)(
         title_global<uint32_t>(0x00920eac), 0x00920d90, transferred, 0);  // GetOverlappedResult
 }
 
-uint32_t save_last_error() { return title_function<uint32_t XB_STDCALL()>(0x001e7c84)(); }  // GetLastError
+uint32_t save_last_error() { return own_function<uint32_t XB_STDCALL()>(&GetLastError)(); }  // GetLastError
 
 }  // namespace
 
@@ -5918,7 +6021,7 @@ int32_t XB_CDECL Save_AsyncWriteCallback() {
     }
     const uint32_t sector = save_sector_size();
     const uint32_t buffer = Save_GetBuffer() + title_global<uint32_t>(0x00920d98);
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8017)(
+    own_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&WriteFile)(
         title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90);  // WriteFile
     return -17;
 }
@@ -5933,7 +6036,7 @@ int32_t XB_CDECL Save_AsyncReadCallback() {
         return 0;
     }
     title_global<uint32_t>(0x00920d98) += transferred;
-    const uint32_t size = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e84e1)(
+    const uint32_t size = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(&GetFileSize)(
         title_global<uint32_t>(0x00920eac), 0);  // GetFileSize
     if (size == Save_GetBufferSize()) {
         const uint32_t end = save_sector_size() + title_global<uint32_t>(0x00920d98);
@@ -5945,7 +6048,7 @@ int32_t XB_CDECL Save_AsyncReadCallback() {
         } else {
             const uint32_t sector = save_sector_size();
             const uint32_t buffer = Save_GetBuffer() + title_global<uint32_t>(0x00920d98);
-            if (title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e7f2a)(
+            if (own_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&ReadFile)(
                     title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) ||  // ReadFile
                 save_last_error() == 0x26) {
                 Save_CloseFileHandles();

@@ -14,6 +14,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "unzip.h"
+#include "title_stdio.h"
 
 namespace game {
 
@@ -5080,7 +5081,7 @@ int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint
             }
         }
     } else {
-        title_function<int32_t XB_CDECL(uint32_t, int32_t, int32_t)>(0x001f06fb)(title_global<uint32_t>(handle), skip, 1);  // fseek
+        own_function<int32_t XB_CDECL(uint32_t, int32_t, int32_t)>(&title_fseek)(title_global<uint32_t>(handle), skip, 1);  // fseek
     }
     void* block = own_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(&Z_MallocDebug)(  // Z_MallocDebug
         length, ptr<const char>(0x0083534c), ptr<const char>(0x00833f0c), 0xed);

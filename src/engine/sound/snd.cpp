@@ -24,6 +24,7 @@
 #include "ui_panel.h"
 #include "fx_cmd.h"
 #include "qcommon_fs.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -3057,7 +3058,7 @@ uint32_t XB_CDECL SndSys_InitDirectSound() {
     // the DSP image 0x008bed18 (no I3DL2 reverb in it), set the distance factor 1 (doppler only) and full HRTF.
     device().open();
     device().set_headphones(false);
-    const uint32_t memory = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a)(
+    const uint32_t memory = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc)(
         0x780000, 0xffffffffu, 0, 0x204);  // XPhysicalAlloc: 7.5 MB, any address, PAGE_READWRITE | PAGE_NOCACHE
     SndMem_Init(memory, 0x780000);
     own_function<void XB_CDECL(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t)>(&SndSys_CreateVoiceBuffers_entry)(
@@ -3208,7 +3209,7 @@ uint8_t XB_CDECL SndSys_InitDevice() {
     device().set_buffer_data(buffer, title_global<const uint8_t*>(0x00920848), 0x12000);
     device().set_play_region(buffer, 0, 0x12000);
     device().set_loop_region(buffer, 0, 0);  // all
-    if (title_function<uint32_t XB_STDCALL()>(0x001e75df)() == 3) Movie_SetDropLateFrames(1);  // XGetVideoStandard: PAL-I
+    if (own_function<uint32_t XB_STDCALL()>(&XGetVideoStandard)() == 3) Movie_SetDropLateFrames(1);  // XGetVideoStandard: PAL-I
     return 1;
 }
 

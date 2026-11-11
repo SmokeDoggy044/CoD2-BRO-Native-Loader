@@ -8,6 +8,7 @@
 #include "g_utils.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -18,7 +19,7 @@ void* XB_CDECL Mem_AlignedAlloc(uint32_t size, uint32_t alignment, uint32_t flag
         return title_function<Alloc>(allocator)(size, alignment, flags);
     if (flags & 0x30000) {
         const uint32_t protect = (flags & 0x20000) ? 0x404 : 0x4;  // PAGE_READWRITE (| WRITECOMBINE)
-        return title_function<void* XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a)(
+        return own_function<void* XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc)(
             size, 0xffffffff, alignment, protect);  // XPhysicalAlloc
     }
     return title_function<void* XB_CDECL(uint32_t, uint32_t)>(0x001f114f)(size, alignment);  // _aligned_malloc
@@ -805,7 +806,7 @@ void XB_CDECL Mem_AlignedFree(void* pointer) {
         return;
     }
     if (static_cast<int32_t>(reinterpret_cast<uintptr_t>(pointer)) < 0)
-        title_function<void XB_STDCALL(void*)>(0x001e76ba)(pointer);  // XPhysicalFree
+        own_function<void XB_STDCALL(void*)>(&XPhysicalFree)(pointer);  // XPhysicalFree
     else
         title_function<Free>(0x001f113a)(pointer);  // _aligned_free
 }

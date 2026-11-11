@@ -92,6 +92,8 @@ set(game_code_sources
     shared/title_crt.cpp
     shared/static_init.cpp
     shared/static_init_generated.cpp
+    shared/title_stdio.cpp
+    shared/title_xapi.cpp
     renderer/fx.cpp
     renderer/fx_cmd.cpp
     renderer/fx_load.cpp

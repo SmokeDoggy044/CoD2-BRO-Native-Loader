@@ -22,6 +22,7 @@
 #include "levels_twins.h"
 #include "cgame.h"
 #include "g_mover.h"
+#include "title_xapi.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -1312,7 +1313,7 @@ void resume_thread(uint32_t top, uint32_t ret, uint8_t* scheduler, uint8_t* thre
 // The title clock (RDTSC at a patched site) through XAPI QueryPerformanceCounter.
 void read_clock(uint32_t low, uint32_t high) {
     uint32_t counter[2] = {0, 0};
-    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    own_function<uint32_t XB_STDCALL(uint32_t*)>(&QueryPerformanceCounter)(counter);
     title_global<uint32_t>(low) = counter[0];
     title_global<uint32_t>(high) = counter[1];
 }
