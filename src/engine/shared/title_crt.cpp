@@ -1110,7 +1110,7 @@ void add_line(std::string& report, const char* format, ...) {
 
 int32_t check_title_crt(std::string& report) {
     int32_t failures = 0;
-    const auto orig_sprintf = own_function<int32_t XB_CDECL(char*, const char*, ...)>(&title_sprintf);
+    const auto orig_sprintf = title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901);
     char a[512], b[512];
     auto compare = [&](const char* what, int32_t na, int32_t nb) {
         if (na == nb && !std::strcmp(a, b)) return;
@@ -1147,7 +1147,7 @@ int32_t check_title_crt(std::string& report) {
     CHECK_SPRINTF("%s(%d) - %i: %.3f", "level", 3, 4, 0.5);
 #undef CHECK_SPRINTF
 
-    const auto orig_atol = own_function<int32_t XB_CDECL(const char*)>(&title_atol);
+    const auto orig_atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
     for (const char* text : {"0", "42", "-42", "+7", "  \t\n12x", "abc", "", "2147483647", "2147483648", "-2147483649",
                              "99999999999", "- 5", "007", "12 34", "\v\f\r-3"}) {
         const int32_t x = orig_atol(text), y = title_atol(text);
@@ -1157,7 +1157,7 @@ int32_t check_title_crt(std::string& report) {
         }
     }
 
-    const auto orig_strncpy = own_function<char* XB_CDECL(char*, const char*, uint32_t)>(&title_strncpy);
+    const auto orig_strncpy = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80);
     for (uint32_t count : {0u, 1u, 3u, 5u, 6u, 12u}) {
         std::memset(a, 0x55, 16);
         std::memset(b, 0x55, 16);
@@ -1168,14 +1168,14 @@ int32_t check_title_crt(std::string& report) {
         }
     }
 
-    const auto orig_tolower = own_function<int32_t XB_CDECL(int32_t)>(&title_tolower);
+    const auto orig_tolower = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48);
     for (int32_t c = -1; c < 256; ++c)
         if (orig_tolower(c) != title_tolower(c)) {
             ++failures;
             add_line(report, "tolower %d: title %d, ours %d", c, orig_tolower(c), title_tolower(c));
         }
 
-    const auto orig_atof = own_function<double XB_CDECL(const char*)>(&title_atof);
+    const auto orig_atof = title_function<double XB_CDECL(const char*)>(0x001ef056);
     auto check_atof = [&](const char* text) {
         const double x = orig_atof(text), y = title_atof(text);
         if (std::memcmp(&x, &y, sizeof x)) {
@@ -1191,7 +1191,7 @@ int32_t check_title_crt(std::string& report) {
           "1.00000000000000011102230246251565404236316680908203125", "0.000000000000000000000000000001", "3.14159265358979",
           "100.0", "-0", "-0.0", "1e0005", "0.30000000000000004", "4294967296.5", "\xa0" "1"})
         check_atof(text);
-    const auto orig_sscanf = own_function<int32_t XB_CDECL(const char*, const char*, ...)>(&title_sscanf);
+    const auto orig_sscanf = title_function<int32_t XB_CDECL(const char*, const char*, ...)>(0x001f07e1);
     uint32_t seed = 12345, random_failures = 0, hard_differences = 0;
     for (int i = 0; i < 20000; ++i) {
         seed = seed * 1103515245u + 12345u;
