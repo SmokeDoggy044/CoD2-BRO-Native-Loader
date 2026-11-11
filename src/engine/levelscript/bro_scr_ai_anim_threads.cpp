@@ -4704,13 +4704,12 @@ using namespace bro_ai;
 
 
 void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString name) {
-    (void)spawner;
     if (field_defined(ScrField_hc07c63aa_IsDefined, ent)) create_entity_thread(own_address(&BroScr_SetIdlePoseByAllowedStance), ent);  // BroScr_SetIdlePoseByAllowedStance
     if (field_defined(ScrField_h95b9edc3_IsDefined, ent)) create_entity_thread(own_address(&BroScr_Stub_Ret), ent);  // BroScr_EmptyFunc_40
     {
         uint32_t hash;
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221bc)(
-            ent, 0xce270885, *Scr_HashName(&hash, pointer<const char>(0x007ff4e0)));  // GScr_SetEntVar("_spawner_gmi::tanksquish")
+            spawner, 0xce270885, *Scr_HashName(&hash, pointer<const char>(0x007ff4e0)));  // GScr_SetEntVar("_spawner_gmi::tanksquish") on the spawner
     }
     Scr_Wait(as_float(0x3d4ccccd));  // 0.05
     // `fixed`: the actor keeps its radius and goal (field 0x4a3b5a6c == 1, the special spawner names,

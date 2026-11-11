@@ -429,7 +429,7 @@ void XB_CDECL BroScr_StopAtCornerStandLeft(uint32_t ent, uint32_t yaw, ScriptStr
 void XB_CDECL BroScr_StopAtCornerCrouchLeft(uint32_t ent, uint32_t yaw, ScriptString unused);
 
 // 0x001e0c90: a spawned actor's setup from its spawner fields: threads for the idle-pose / 0x95b9edc3
-// fields, the tank-squish var, a 0.05 s wait, the "auto*" spawner's targetname, the special spawner
+// fields, the tank-squish var (on `spawner`), a 0.05 s wait, the "auto*" spawner's targetname, the special spawner
 // names (fixed radius / goal), team grenade awareness by g_gameskill, the field defaults (awareness,
 // suppression, accuracy, sight range, radius, health, grenades, pacifist, ...), the Stavro rank name,
 // drop-health and battle threads, then the goal (the player, shrinking radius) or the balcony node.
