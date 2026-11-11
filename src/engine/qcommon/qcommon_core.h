@@ -331,6 +331,7 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL File_RequestStateToStatus(uint32_t s
 extern "C" void File_RequestStateToStatus_entry(void);
 // 0x000c9910: each device's shutdown callback (vtable +4, slot +8), last device first.
 void XB_CDECL File_ShutdownDevices();
+void XB_CDECL Cmd_RelaunchTitle_f();  // 0x002cfa40
 // 0x000c9940: out = the device info words (+0x14: [+8], [0], [+4]) of the device for `bit`; returns
 // out, or 0 when there is none.
 uint32_t* XB_CDECL File_GetDeviceInfoForBit(uint32_t bit, uint32_t* out);

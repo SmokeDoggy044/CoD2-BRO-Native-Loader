@@ -40,6 +40,7 @@ uint32_t XB_STDCALL XGetVideoFlags();     // 0x001e7ee1
 uint32_t XB_STDCALL XGetAVPack();         // 0x001edfde
 uint32_t XB_STDCALL XGetLanguage();       // 0x001e6f2a
 uint32_t XB_STDCALL XGetLaunchInfo(uint32_t* type, uint8_t* data);  // 0x001e6e7f
+uint32_t XB_STDCALL XLaunchNewImageA(const char* path, const uint8_t* data);  // 0x001e6d5c
 
 // --- Memory ---
 uint32_t XB_STDCALL XPhysicalAlloc(uint32_t size, uint32_t address, uint32_t alignment, uint32_t protect);  // 0x001e763a

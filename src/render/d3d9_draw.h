@@ -31,6 +31,10 @@ public:
     // target cannot be created (draws then go nowhere).
     bool set_render_target(const SurfaceDesc& color, const SurfaceDesc* depth);
     void forget_render_target(uint32_t data);
+    // An in-process title restart: every texture and render target made from title memory (the memory is new).
+    void forget_title_resources();
+    // Then the restarted title's back buffer and depth buffer (data 0: none), drawn into from now on.
+    void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth);
     // The surface drawn into for `data` (null if none yet).
     IDirect3DSurface9* target_surface(uint32_t data);
     IDirect3DTexture9* target_texture(uint32_t data);

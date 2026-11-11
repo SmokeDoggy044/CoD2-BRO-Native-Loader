@@ -80,6 +80,11 @@ constexpr uint32_t kLaunchDataPageSize = 0x1000;
 
 // Returns false if the memory layout cannot be set up.
 bool kernel_init(const KernelConfig& config);
+// The LaunchDataPage a new title reads (contiguous memory, as kernel_init places it); empty: none. For an in-process
+// restart (own engine host 5b), after the title's memory was restored. False when no memory is left.
+bool place_launch_data_page(std::span<const uint8_t> page);
+// The LaunchDataPage export's word (the page's address, 0 = none): our XGetLaunchInfo takes it from here natively.
+uint32_t& launch_data_page_word();
 bool kernel_trace_enabled();
 uint32_t current_kthread();
 const KernelConfig& kernel_config();

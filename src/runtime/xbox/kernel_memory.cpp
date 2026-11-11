@@ -624,4 +624,100 @@ XbPtr title_reserve(uint32_t bytes) {
     return base;
 }
 
+// --- In-process restart (own engine host 5b) ------------------------------------------------------------------
+
+namespace {
+
+struct MemorySnapshot {
+    uint32_t image_pages = 0, contiguous_pages = 0, virtual_committed_pages = 0, virtual_reserved_pages = 0,
+             stack_pages = 0;
+    std::vector<PageState> page_state;
+    std::vector<uint16_t> page_protect;
+    std::map<uint32_t, Reservation> reservations;
+    std::map<uint32_t, uint32_t> contiguous;
+    std::vector<uint16_t> contiguous_protect;
+    struct Run {
+        uint32_t address;
+        uint16_t protect;
+        std::vector<uint8_t> bytes;
+    };
+    std::vector<Run> runs;  // committed pages with one protection each, and their contents
+};
+
+MemorySnapshot& g_snapshot = immortal<MemorySnapshot>();
+
+// Committed runs of equal protection over `pages` pages from `base`: committed(i), protect(i).
+template <typename Committed, typename Protect>
+void save_runs(uint32_t base, uint32_t pages, Committed committed, Protect protect) {
+    for (uint32_t i = 0; i < pages;) {
+        if (!committed(i)) {
+            ++i;
+            continue;
+        }
+        const uint16_t value = protect(i);
+        uint32_t end = i + 1;
+        while (end < pages && committed(end) && protect(end) == value) ++end;
+        const auto* bytes = static_cast<const uint8_t*>(host(base + i * kPage));
+        g_snapshot.runs.push_back({base + i * kPage, value, std::vector<uint8_t>(bytes, bytes + (end - i) * kPage)});
+        i = end;
+    }
+}
+
+}  // namespace
+
+void snapshot_memory() {
+    std::lock_guard lock(g_memory.mutex);
+    MemoryState& m = g_memory;
+    MemorySnapshot& s = g_snapshot;
+    s = MemorySnapshot{};
+    s.image_pages = m.image_pages;
+    s.contiguous_pages = m.contiguous_pages;
+    s.virtual_committed_pages = m.virtual_committed_pages;
+    s.virtual_reserved_pages = m.virtual_reserved_pages;
+    s.stack_pages = m.stack_pages;
+    s.page_state = m.page_state;
+    s.page_protect = m.page_protect;
+    s.reservations = m.reservations;
+    s.contiguous = m.contiguous;
+    s.contiguous_protect = m.contiguous_protect;
+    save_runs(
+        m.config.virtual_base, static_cast<uint32_t>(m.page_state.size()),
+        [&](uint32_t i) { return m.page_state[i] == PageState::Committed; }, [&](uint32_t i) { return m.page_protect[i]; });
+    for (const auto& [first, count] : m.contiguous)
+        save_runs(
+            m.config.contiguous_base + first * kPage, count, [](uint32_t) { return true; },
+            [&, first = first](uint32_t i) { return m.contiguous_protect[first + i]; });
+}
+
+void restore_memory() {
+    std::lock_guard lock(g_memory.mutex);
+    MemoryState& m = g_memory;
+    const MemorySnapshot& s = g_snapshot;
+    // Everything back to reserved (contents discarded), then the snapshot's pages committed with their bytes.
+    platform::vmem::decommit(host(m.config.virtual_base), m.config.virtual_end - m.config.virtual_base);
+    platform::vmem::decommit(host(m.config.contiguous_base), m.config.physical_bytes);
+    for (const MemorySnapshot::Run& run : s.runs) {
+        Protection protection = Protection::ReadWrite;
+        to_protection(run.protect, protection);
+        const auto size = static_cast<uint32_t>(run.bytes.size());
+        if (!platform::vmem::commit(host(run.address), size, Protection::ReadWrite)) {
+            LOG_ERROR("memory", "restart: cannot commit %08x+%x again", run.address, size);
+            continue;
+        }
+        std::memcpy(host(run.address), run.bytes.data(), size);
+        if (protection != Protection::ReadWrite) platform::vmem::protect(host(run.address), size, protection);
+    }
+    m.image_pages = s.image_pages;
+    m.contiguous_pages = s.contiguous_pages;
+    m.virtual_committed_pages = s.virtual_committed_pages;
+    m.virtual_reserved_pages = s.virtual_reserved_pages;
+    m.stack_pages = s.stack_pages;
+    m.page_state = s.page_state;
+    m.page_protect = s.page_protect;
+    m.reservations = s.reservations;
+    m.contiguous = s.contiguous;
+    m.contiguous_protect = s.contiguous_protect;
+    LOG_INFO("memory", "restart: title memory as at its start (%zu runs)", s.runs.size());
+}
+
 }  // namespace xbox

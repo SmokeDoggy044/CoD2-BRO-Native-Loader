@@ -483,4 +483,6 @@ audio::ReverbTuning SndEnv_Tuning() {
     return g_tuning;
 }
 
+void SndEnv_Reset() { g_state = State(); }
+
 }  // namespace game

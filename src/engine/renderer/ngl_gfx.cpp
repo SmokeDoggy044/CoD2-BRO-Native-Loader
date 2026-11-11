@@ -44,20 +44,22 @@ struct Recorded {
     std::unordered_map<uint32_t, uint32_t> keys;  // shader program -> key
 };
 
+Recorded fresh_recorded() {
+    Recorded init;
+    init.render_states[kRsFrontFace] = 0x900;  // D3D's defaults
+    init.render_states[kRsCullMode] = 0x901;
+    init.render_states[kRsFillMode] = 0x1B02;
+    init.render_states[kRsZEnable] = 1;
+    for (auto& stage : init.stage_states) {
+        stage[kTssAddressU] = stage[kTssAddressV] = stage[kTssAddressW] = 1;
+        stage[kTssMagFilter] = stage[kTssMinFilter] = 1;
+        stage[kTssMaxAnisotropy] = 1;
+    }
+    return init;
+}
+
 Recorded& recorded() {
-    static Recorded r = [] {
-        Recorded init;
-        init.render_states[kRsFrontFace] = 0x900;  // D3D's defaults
-        init.render_states[kRsCullMode] = 0x901;
-        init.render_states[kRsFillMode] = 0x1B02;
-        init.render_states[kRsZEnable] = 1;
-        for (auto& stage : init.stage_states) {
-            stage[kTssAddressU] = stage[kTssAddressV] = stage[kTssAddressW] = 1;
-            stage[kTssMagFilter] = stage[kTssMinFilter] = 1;
-            stage[kTssMaxAnisotropy] = 1;
-        }
-        return init;
-    }();
+    static Recorded r = fresh_recorded();
     return r;
 }
 
@@ -215,8 +217,13 @@ struct DeviceObjects {
     std::vector<uint8_t> decoded;                         // a level for update_texture
 };
 
-DeviceObjects& objects(render::GfxDevice* device) {
+DeviceObjects& device_objects() {
     static DeviceObjects o;
+    return o;
+}
+
+DeviceObjects& objects(render::GfxDevice* device) {
+    DeviceObjects& o = device_objects();
     if (o.device != device) {
         o = DeviceObjects();
         o.device = device;
@@ -783,4 +790,20 @@ void set_pixel_constants(uint32_t reg, const float* values, uint32_t count) {
 }
 
 }  // namespace xb
+void ngl_gfx_restart_title() {
+    // Everything here came from title memory, which the restart replaces: our device objects go, the recorded
+    // state is D3D's defaults again (the window and its device stay).
+    DeviceObjects& o = device_objects();
+    if (o.device) {
+        for (auto& [key, texture] : o.textures)
+            if (texture.own) o.device->destroy_texture(texture.own);
+        for (auto& [key, target] : o.targets) o.device->destroy_target(target);  // colour_targets: the same ids
+        for (auto& [key, shader] : o.vertex_shaders) o.device->destroy_shader(shader);
+        for (auto& [key, shader] : o.pixel_shaders) o.device->destroy_shader(shader);
+    }
+    o = DeviceObjects();
+    recorded() = fresh_recorded();
+    g_frame = 0;
+}
+
 }  // namespace game

@@ -50,6 +50,11 @@ struct D3DConfig {
 // Call before the title creates its device.
 void configure(const D3DConfig& config);
 
+// An in-process title restart (own engine host 5b), before the title's memory is reset: the vertical blank stops
+// calling the title, everything made from title memory is forgotten, and the device is closed so the next title
+// opens it again - on the same window and back end, with frame buffers from the (reset) title memory again.
+void restart_title();
+
 // Frames shown in the last whole second (0 before the first), and frames shown so
 // far. Any thread (the profiler's automatic start reads them).
 uint32_t frames_last_second();

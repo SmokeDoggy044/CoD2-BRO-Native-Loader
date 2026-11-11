@@ -318,6 +318,17 @@ uint32_t wait(const uint32_t* handles, size_t count, bool wait_all, const uint32
 
 void queue_apc(uint32_t routine, uint32_t a1, uint32_t a2, uint32_t a3) { t_apcs.push_back({routine, {a1, a2, a3}}); }
 
+void reset() {
+    State& s = state();
+    std::unordered_map<uint32_t, std::shared_ptr<Object>> closed;
+    {
+        std::lock_guard lock(s.lock);
+        closed.swap(s.handles);
+        s.next = kFirstHandle;
+    }
+    t_apcs.clear();
+}
+
 // --- Critical sections ------------------------------------------------------------------------------------------
 
 namespace {

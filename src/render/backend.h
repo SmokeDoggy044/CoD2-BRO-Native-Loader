@@ -134,6 +134,10 @@ public:
     // The CPU writes the memory of a render target other than the back buffer: textures
     // there read the memory again instead of what was drawn.
     virtual void forget_render_target(uint32_t data) = 0;
+    // An in-process title restart (own engine host 5b): everything made from title memory goes (the window stays).
+    virtual void forget_title_resources() {}
+    // ... and the restarted title's frame buffers (its memory), in place of the first ones.
+    virtual void set_frame_buffers(const SurfaceDesc& /*back*/, const SurfaceDesc& /*depth*/) {}
 
     // Clears the whole current render target / depth buffer. color is A8R8G8B8.
     virtual void clear(uint32_t flags, uint32_t color, float depth, uint32_t stencil) = 0;

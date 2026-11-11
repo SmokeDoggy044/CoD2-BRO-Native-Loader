@@ -1,9 +1,11 @@
 #include "title_xapi.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "civil_time.h"
 
+#include "title_crt.h"
 #include "title_data.h"
 #include "title_files.h"
 #include "title_host.h"
@@ -275,7 +277,7 @@ uint32_t XB_STDCALL XGetLanguage() {
 uint32_t XB_STDCALL XGetLaunchInfo(uint32_t* type, uint8_t* data) {
     // The LaunchDataPage {type, title id, ..., +0x400: 3 KB of data} the previous title left: only its own title's
     // (or a dashboard/debugger launch, types 2 and 3). Copied out and freed; ERROR_NOT_FOUND (0x490) without one.
-    uint32_t& page_word = kernel_data<uint32_t>(kLaunchDataPage);
+    uint32_t& page_word = native_platform() ? *title_host().launch_data_page : kernel_data<uint32_t>(kLaunchDataPage);
     const uint32_t* page = reinterpret_cast<const uint32_t*>(uintptr_t{page_word});
     if (!page) return 0x490;
     const uint32_t kind = page[0];
@@ -287,8 +289,34 @@ uint32_t XB_STDCALL XGetLaunchInfo(uint32_t* type, uint8_t* data) {
     std::memcpy(data, reinterpret_cast<const uint8_t*>(page) + 0x400, 0xc00);
     const uint32_t freed = page_word;
     page_word = 0;
-    kernel<void XB_STDCALL(uint32_t)>(kMmFreeContiguousMemory)(freed);
+    if (native_platform()) title_host().free_contiguous(freed);
+    else kernel<void XB_STDCALL(uint32_t)>(kMmFreeContiguousMemory)(freed);
     return 0;
+}
+
+uint32_t XB_STDCALL XLaunchNewImageA(const char* path, const uint8_t* data) {
+    // A launch hook (XONLINE's, 0x00897908..0x00897910) takes over when set; the loader clears the table.
+    for (uint32_t slot = 0x00897908; slot < 0x00897910; slot += 4)
+        if (const uint32_t hook = title_global<uint32_t>(slot))
+            return title_function<uint32_t XB_STDCALL(const char*, const uint8_t*, uint32_t, uint32_t)>(hook)(
+                path, data, 1, 0);
+    // Natively, this title again ("d:\default.xbe"): the page XWriteTitleInfoNoReboot writes - type 0 (-1 without
+    // data), title id, "<D: device>;<file>", the data at +0x400 - and the host restarts the title in this process.
+    // (The original also saves the D: mapping in the page for the next title's drive letters; our start has none.)
+    const bool same_title = path && (path[0] == 'd' || path[0] == 'D') && path[1] == ':' && path[2] == '\\' &&
+                            title_stricmp(path + 3, "default.xbe") == 0;
+    if (native_platform() && same_title && title_host().relaunch) {
+        uint8_t page[0x1000] = {};
+        const uint32_t type = data ? 0 : 0xffffffffu;
+        const uint32_t certificate = title_global<uint32_t>(0x00010118);
+        std::memcpy(page, &type, 4);
+        std::memcpy(page + 4, reinterpret_cast<const void*>(uintptr_t{certificate + 8}), 4);
+        if (data) std::memcpy(page + 0x400, data, 0xc00);
+        std::snprintf(reinterpret_cast<char*>(page + 8), 0x208, "\\Device\\Cdrom0;%s", path + 3);
+        title_host().relaunch(page);
+    }
+    return title_function<uint32_t XB_STDCALL(const char*, const uint8_t*, uint32_t, uint32_t)>(0x001ea85a)(path, data,
+                                                                                                       0, 0);
 }
 
 // --- Memory -------------------------------------------------------------------------------------------------------

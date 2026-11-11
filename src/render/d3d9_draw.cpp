@@ -392,6 +392,24 @@ void D3D9Draw::forget_render_target(uint32_t data) {
     caches_->targets.erase(it);
 }
 
+void D3D9Draw::forget_title_resources() {
+    // The back buffer and depth buffer too: the restarted title's are new memory (set_frame_buffers).
+    device_->SetDepthStencilSurface(nullptr);
+    for (auto& [key, target] : caches_->targets) caches_->release_target(target);
+    caches_->targets.clear();
+    for (auto& [key, depth] : caches_->depths) release(depth.surface);
+    caches_->depths.clear();
+    for (auto& [key, texture] : caches_->textures) release(texture.texture);
+    caches_->textures.clear();
+    target_data_ = 0;
+    target_ok_ = has_depth_ = false;
+}
+
+void D3D9Draw::set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) {
+    depth_data_ = depth.data;
+    set_render_target(back, depth_data_ ? &depth : nullptr);
+}
+
 IDirect3DSurface9* D3D9Draw::target_surface(uint32_t data) {
     auto it = caches_->targets.find(data);
     return it == caches_->targets.end() ? nullptr : it->second.surface;

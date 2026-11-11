@@ -19,6 +19,8 @@ public:
     virtual ~D3D9GfxDevice() = default;
     // Called once a frame was presented.
     virtual void end_frame() = 0;
+    // An in-process title restart: the back buffer and depth buffer targets now stand for this memory.
+    virtual void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) = 0;
 };
 
 // `config`: the back buffer and the device's depth buffer.

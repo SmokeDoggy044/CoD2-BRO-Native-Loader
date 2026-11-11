@@ -445,6 +445,20 @@ void XB_CDECL Scr_WaitRecord17(uint32_t object, uint32_t wait_object, uint32_t n
     wait_and_switch(record);
 }
 
+void scr_fiber_reset() {
+    auto drop = [](Fiber* fiber) {
+        platform::vmem::release(fiber->reservation, kStackSize + kGuardSize);
+        delete fiber;
+    };
+    for (auto& [thread, fiber] : g_fibers) drop(fiber);
+    for (Fiber* fiber : g_free) drop(fiber);
+    g_fibers.clear();
+    g_free.clear();
+    g_running = nullptr;
+    g_ended = false;
+    g_live = g_peak = g_created = 0;
+}
+
 }  // namespace game
 
 // Scr_SaveThreadLocals (import slot 13) is not called: the suspend keeps the frame with the fiber itself.

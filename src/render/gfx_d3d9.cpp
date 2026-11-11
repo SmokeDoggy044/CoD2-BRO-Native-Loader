@@ -518,6 +518,17 @@ public:
         return texture_id;
     }
 
+    void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) override {
+        Target& b = targets_[back_buffer_];
+        b.desc = back;
+        b.texture[0] = b.texture[1] = 0;
+        if (depth_buffer_) {
+            Target& d = targets_[depth_buffer_];
+            d.desc = depth;
+            d.texture[0] = d.texture[1] = 0;
+        }
+    }
+
     TargetId back_buffer() override { return back_buffer_; }
     TargetId depth_buffer() override { return depth_buffer_; }
 

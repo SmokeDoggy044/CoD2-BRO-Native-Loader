@@ -29,6 +29,8 @@ const render::GfxState* ngl_gfx_state();
 bool ngl_gfx_own_draws();
 // After each frame is shown (nglEndFrame).
 void ngl_gfx_end_frame();
+// An in-process title restart (own engine host 5b): our device objects and recorded state as before the first frame.
+void ngl_gfx_restart_title();
 
 // Draws `count` vertices of `stride` bytes from caller memory with the recorded state on our
 // device; the layout is the selected vertex declaration's. False when it cannot (logged once per

@@ -474,6 +474,9 @@ extern "C" void SndSys_CreateVoiceBuffers_entry(void);
 // bytes looping over a zeroed 4 KB-aligned block 0x00920848); PAL-I video (XGetVideoStandard 3) sets
 // Movie_SetDropLateFrames(1). False when DirectSoundCreate or CreateSoundBuffer fails.
 uint8_t XB_CDECL SndSys_InitDevice();
+// An in-process title restart (own engine host 5b): our additions' state (ambience ids, occlusion, extra voice
+// slots, the heard environment) as before the first level.
+void Snd_RestartTitle();
 
 // 0x002ce370 (crossfade in EAX, alias name in EDX; fade time on the stack, ret 4; nothing while 0x0096d968 is set
 // or without a name): the ambient alias on a free channel of 0x0095f4c4 (S_PlaySoundAlias: origin 0x0082e290,

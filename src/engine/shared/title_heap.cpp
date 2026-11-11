@@ -1,6 +1,8 @@
 #include "title_heap.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <iterator>
 #include <cstring>
 #include <mutex>
 
@@ -386,6 +388,14 @@ uint32_t XB_CDECL title_crt_aligned_malloc(uint32_t size, uint32_t alignment) {
 
 void XB_CDECL title_crt_aligned_free(uint32_t block) {
     if (block) title_crt_free(word((block & ~3u) - 4));
+}
+
+void title_heap_reset() {
+    Heap& h = heap();
+    std::lock_guard lock(h.lock);
+    std::fill(std::begin(h.bins), std::end(h.bins), 0u);
+    h.in_use = h.blocks = h.reserved = 0;
+    h.process_heap = 0;
 }
 
 }  // namespace game

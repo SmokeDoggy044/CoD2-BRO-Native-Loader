@@ -307,6 +307,12 @@ public:
     }
 
     void forget_render_target(uint32_t data) override { draw_->forget_render_target(data); }
+    void forget_title_resources() override { draw_->forget_title_resources(); }
+    void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) override {
+        back_buffer_data_ = back.data;
+        draw_->set_frame_buffers(back, depth);
+        if (gfx_) gfx_->set_frame_buffers(back, depth);
+    }
 
     void clear(uint32_t flags, uint32_t color, float depth, uint32_t stencil) override {
         DWORD d3d_flags = 0;

@@ -39,6 +39,7 @@
 #include "title_objects.h"
 #include "dispatcher.h"
 #include "snd_env.h"
+#include "sound_engine.h"
 #include "kernel.h"
 #include "civil_time.h"
 #include "kernel_memory.h"
@@ -124,6 +125,7 @@ struct Options {
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
     bool check_crt = false;      // --check-crt: our CRT vs the title's on a table, then exit
+    bool replay_at_switch = false;  // --replay-at-switch: the recording/replay begins at the first in-process restart
     bool own_main = false;       // --own-main: our Sys_Main C instead of the original (own engine host, 0.3)
     std::optional<fs::path> text_trap_list, text_trap_out;  // --text-trap LIST OUT
     bool compare_all = false;    // ... settled ones too
@@ -161,6 +163,31 @@ loader::ImageBytes image_bytes(const loader::XbeImage& image) {
         bytes.sections.push_back({image.section_name(*section), section->virtual_addr, section->virtual_size});
     return bytes;
 }
+
+// The title's writable image memory (headers, writable sections - .data, the SDK data, the per-level sections) as
+// it was before the entry ran, for in-process restarts (own engine host 5b; reference counts of loaded sections
+// live in the headers).
+struct ImageSnapshot {
+    struct Range {
+        uint32_t address;
+        std::vector<uint8_t> bytes;
+    };
+    std::vector<Range> ranges;
+
+    void take(const loader::XbeImage& image) {
+        auto add = [&](uint32_t address, uint32_t size) {
+            const auto* bytes = reinterpret_cast<const uint8_t*>(uintptr_t{address});
+            ranges.push_back({address, std::vector<uint8_t>(bytes, bytes + size)});
+        };
+        add(image.base(), image.header().size_of_headers);
+        for (const loader::XbeSectionHeader* section : image.sections())
+            if (section->flags & loader::kSectionWritable) add(section->virtual_addr, section->virtual_size);
+    }
+    void restore() const {
+        for (const Range& range : ranges)
+            std::memcpy(reinterpret_cast<void*>(uintptr_t{range.address}), range.bytes.data(), range.bytes.size());
+    }
+};
 
 int startup_failed(const std::string& what) {
     tell_player("The game could not start: " + what + ".");
@@ -235,6 +262,8 @@ void print_usage(const char* program) {
         "                   and a game-state hash per frame to FILE (until the next reboot)\n"
         "  --replay FILE    developer: play FILE back and report the first frame whose state differs;\n"
         "                   exits at its end (0 = every frame matched, 3 = some differed)\n"
+        "  --replay-at-switch  with --record/--replay and --own-main: start at the first level switch (the\n"
+        "                   title restarting in this process), not at the start\n"
         "  --replay-hashes FILE  with --replay: this run's own state hashes, for tools/replay_compare.py\n"
         "  --replay-reference FILE DIR  with --replay: compare with another run's hashes (a recording or\n"
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
@@ -370,6 +399,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
             options.replay.mode = arg == "--record" ? xbox::replay::Mode::Record : xbox::replay::Mode::Replay;
             options.replay.file = fs::path(argv[++i]);
+        } else if (arg == "--replay-at-switch") {
+            options.replay_at_switch = true;
         } else if (arg == "--replay-hashes") {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--replay-hashes needs a file\n");
@@ -1054,6 +1085,8 @@ int loader_main(int argc, char** argv) {
             *reserved = statistics.reserved_bytes;
         };
         host.reserve = &xbox::title_reserve;
+        host.relaunch = [](const uint8_t* page) { loader::request_title_restart(page, xbox::kLaunchDataPageSize); };
+        host.launch_data_page = &xbox::launch_data_page_word();
         host.language = options->language;
         host.widescreen = options->widescreen;
         game::set_title_host(host);
@@ -1141,7 +1174,7 @@ int loader_main(int argc, char** argv) {
     render::configure(d3d_config);
     input::configure({loader::title_address(title->gamepad_type, "(gamepad device type)")});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
-    if (!xbox::replay::start(options->replay)) return 1;
+    if (!options->replay_at_switch && !xbox::replay::start(options->replay)) return 1;
     if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
         return startup_failed(std::string(title->symbol_file) + " is missing or damaged");
@@ -1211,10 +1244,41 @@ int loader_main(int argc, char** argv) {
     if (options->text_trap_list && !loader::install_text_trap(*options->text_trap_list, *options->text_trap_out))
         return 1;
 
+    // In-process restarts (own engine host 5b) put the title's memory back to this point.
+    ImageSnapshot image_snapshot;
+    bool replay_pending = options->replay_at_switch && options->replay.mode != xbox::replay::Mode::Off;
+    if (options->own_main) {
+        image_snapshot.take(image);
+        xbox::snapshot_memory();
+    }
+
     LOG_INFO("loader", "starting title at %08x", image.entry_point());
     // Four zero dwords stand in for arguments in case the entry point reads any.
     const uint32_t args[4] = {};
     loader::run_on_xbox_stack(image.entry_point(), *env, args);
+    while (options->own_main) {
+        // The title switches levels by launching itself again (XLaunchNewImageA): here in this process, on the same
+        // window and devices, once its main thread has ended.
+        const std::vector<uint8_t> page = loader::wait_for_title_restart();
+        LOG_INFO("loader", "restart: the title starts again in this process");
+        if (options->diag_dir)
+            if (std::FILE* file = std::fopen((*options->diag_dir / "launch_data.bin").string().c_str(), "wb")) {
+                std::fwrite(page.data(), 1, page.size(), file);
+                std::fclose(file);
+            }
+        loader::compare::flush();
+        xbox::replay::stop();  // a recording or replay covers one start
+        render::restart_title();
+        audio::forget_title_voices();
+        game::title_restart_reset();
+        image_snapshot.restore();
+        xbox::restore_memory();
+        loader::reset_thread_ids();
+        if (!xbox::place_launch_data_page(page)) LOG_ERROR("loader", "restart: no memory for the launch data");
+        if (std::exchange(replay_pending, false) && !xbox::replay::start(options->replay)) return 1;
+        LOG_INFO("loader", "starting title at %08x", image.entry_point());
+        loader::run_on_xbox_stack(image.entry_point(), *env, args);
+    }
     // The entry point only starts the title's main thread and returns. Park this
     // thread; the process lives on until the title quits. It must not exit: once the
     // initial thread is gone, Linux no longer resolves /proc/self/exe, which DXVK

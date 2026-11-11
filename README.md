@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 75% of the functions have a name, and 7,548 have been
+It's early days: about 75% of the functions have a name, and 7,550 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,317 | 9,408 | 7,405 | 3,912 |
+| Engine and game code (`.text`) | 11,317 | 9,409 | 7,407 | 3,910 |
 | Mission scripts (14 level sections) | 5,325 | 3,131 | 143 | 5,182 |
-| **Total** | **16,642** | **12,539** | **7,548** | **9,094** |
+| **Total** | **16,642** | **12,540** | **7,550** | **9,092** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -50,7 +50,7 @@ We've also named 2,667 of the game's global variables.
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,648 | 1,404 | 229 | 11 | 1 | 0 |
 | Animation (animation trees, the animation codec) | 285 | 257 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 300 | 294 | 0 | 6 | 0 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 1,017 | 882 | 65 | 66 | 0 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 1,017 | 883 | 65 | 65 | 0 | 0 |
 | Client and menus | 770 | 623 | 105 | 42 | 0 | 0 |
 | Server | 81 | 72 | 9 | 0 | 0 | 0 |
 | Collision | 109 | 94 | 0 | 15 | 0 | 0 |
@@ -60,12 +60,12 @@ We've also named 2,667 of the game's global variables.
 | Sound | 145 | 130 | 1 | 13 | 0 | 0 |
 | Streaming (asset loading, zones) | 161 | 152 | 0 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
-| Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 42 | 198 | 0 | 1 | 459 |
+| Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 43 | 198 | 0 | 1 | 459 |
 | Not sorted into a part yet | 59 | 13 | 7 | 7 | 2 | 30 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType
-font rasteriser). We recognise 1,384 of these functions by comparing their bytes with
+font rasteriser). We recognise 1,383 of these functions by comparing their bytes with
 the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the
 same blocks. They still count towards the total.
 <!-- progress:end -->

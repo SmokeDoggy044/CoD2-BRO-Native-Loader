@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 namespace loader {
 
@@ -20,5 +21,12 @@ int32_t initial_image_pages(const XbeImage& image);
 // stack of `stack_size` bytes with the title's FS block and a `tls_size` TLS block.
 bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine, uint32_t context,
                         uint32_t* thread_id);
+
+// In-process restart (own engine host 5b, game::TitleHost::relaunch): the calling title thread hands over the next
+// LaunchDataPage and ends; the loader's start thread, blocked in wait_for_title_restart, gets the page once that
+// thread is gone. reset_thread_ids: the next title thread is id 1 again (the main thread, as at a fresh start).
+[[noreturn]] void request_title_restart(const uint8_t* page, uint32_t size);
+std::vector<uint8_t> wait_for_title_restart();
+void reset_thread_ids();
 
 }  // namespace loader

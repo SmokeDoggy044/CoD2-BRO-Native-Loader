@@ -2,11 +2,15 @@
 
 #include <cstring>
 
+#include "ngl_gfx.h"
 #include "qcommon_fs.h"
+#include "scr_fiber.h"
+#include "snd.h"
 #include "static_init.h"
 #include "title_crt.h"
 #include "title_data.h"
 #include "title_heap.h"
+#include "title_objects.h"
 #include "title_stdio.h"
 #include "title_xapi.h"
 
@@ -150,6 +154,14 @@ uint32_t XB_STDCALL title_main_thread(uint32_t) {
     run_static_initializers();
     Sys_Main();
     return 0;  // not reached: the title quits from its main loop
+}
+
+void title_restart_reset() {
+    objects::reset();
+    title_heap_reset();
+    scr_fiber_reset();
+    Snd_RestartTitle();
+    ngl_gfx_restart_title();
 }
 
 void XB_CDECL title_start() {

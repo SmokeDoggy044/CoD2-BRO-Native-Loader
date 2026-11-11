@@ -39,6 +39,9 @@ void scr_fiber_note_wait(uint8_t* thread, uint32_t frame);
 // Scr_DestroyThreadContents: the thread record goes away, its fiber back to the pool.
 void scr_fiber_release(uint8_t* thread);
 
+// An in-process title restart (own engine host 5b): every script thread stack goes; the next title makes new ones.
+void scr_fiber_reset();
+
 // 0x002fddb0 / 0x002fde40 / 0x00300850 (import slots 15-17; never return): the current thread waits on a new
 // record - a time (g_scrWaitTime bits, vtable 0x00831824), a frame count (0x00831808), or a notify: on
 // `wait_object` (0x0083181c), else on entity handle `object` (a stale handle ends the thread) with a timeout

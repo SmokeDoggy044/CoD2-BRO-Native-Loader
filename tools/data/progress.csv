@@ -7012,7 +7012,7 @@ address,name,section,module,state,tested,matched
 001e6d4a,xboxkrnl.exe::XcSHAFinal,.text,mslib,library,0,0
 001e6d50,xboxkrnl.exe::XcSHAUpdate,.text,mslib,library,0,0
 001e6d56,xboxkrnl.exe::XcSHAInit,.text,mslib,library,0,0
-001e6d5c,XAPILIB::XLaunchNewImageA,.text,mslib,library,0,0
+001e6d5c,XAPILIB::XLaunchNewImageA,.text,mslib,replaced,0,0
 001e6d9e,XAPILIB::XWriteTitleInfoNoReboot,.text,mslib,library,0,0
 001e6e7f,XAPILIB::XGetLaunchInfo,.text,mslib,untested,0,0
 001e6ee3,XAPILIB::XWriteTitleInfoAndRebootA,.text,mslib,library,0,0
@@ -9855,7 +9855,7 @@ address,name,section,module,state,tested,matched
 002cf580,AnimTree_AdvanceTime_r,.text,xanim,replaced,1670,1670
 002cf830,SV_ClipHandleForEntity,.text,server,replaced,1051,1051
 002cf920,Cmd_LaunchMultiplayer_f,.text,qcommon,set-aside,0,0
-002cfa40,Cmd_RelaunchTitle_f,.text,qcommon,set-aside,0,0
+002cfa40,Cmd_RelaunchTitle_f,.text,qcommon,replaced,0,0
 002cfc20,SV_MapRestartInternal_f,.text,server,replaced,6,6
 002cfc70,Loc_ListStringFiles,.text,qcommon,replaced,0,0
 002cfcb0,Loc_ListLanguages,.text,qcommon,replaced,0,0

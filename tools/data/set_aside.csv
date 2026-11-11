@@ -406,7 +406,6 @@ address,name,kind,reason
 00379950,AtExit_LocStrings,exit,"atexit handler; the title never exits (qcommon push 8)"
 00224b60,Sys_Main,boot,"entry point, never returns; C kept, not in kFunctions (qcommon push 8)"
 002cf920,Cmd_LaunchMultiplayer_f,host,"Xbox relaunch via XLaunchNewImage (+XOnlineSaveLogonState, D3D PersistDisplay); our own engine replaces it; no C (qcommon push 8)"
-002cfa40,Cmd_RelaunchTitle_f,host,"Xbox relaunch via XLaunchNewImage (+XOnlineSaveLogonState, D3D PersistDisplay); our own engine replaces it; no C (qcommon push 8)"
 002221b0,Sys_ReadLaunchInfo,host,"XGetLaunchInfo: receiving side of the Xbox relaunch (+devmap table); our own engine replaces it; no C (qcommon push 8)"
 0028bbd0,ZoneGraph_SetViewPosition,dead,"no CALL/JMP, no immediate or pointer bytes in any section; C kept (qcommon push 9)"
 0028bbf0,ZoneGraph_SetZbbValue,dead,"no CALL/JMP, no immediate or pointer bytes in any section; C kept (qcommon push 9)"

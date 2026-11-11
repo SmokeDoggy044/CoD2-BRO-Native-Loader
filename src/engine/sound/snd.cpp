@@ -3211,8 +3211,10 @@ namespace {
 // slots (as the original, all but the last), whatever has been added.
 constexpr uint32_t kEnhanced3dVoices = 192;
 
+bool g_enhanced_slots_added = false;
+
 void add_enhanced_slots() {
-    static bool added = false;
+    bool& added = g_enhanced_slots_added;
     if (added || !g_original_slots) return;  // added, or not set up yet
     added = true;
     uint32_t& slot_count = title_global<uint32_t>(0x008bed00);
@@ -3312,6 +3314,15 @@ void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name) {
     if (voice == -1) return;
     SndVoice_SetParam(voice, 0, float_bits(emitter_word<float>(channel, 0x1c) * volume));
     emitter_word<float>(channel, 0x10) = volume;
+}
+
+void Snd_RestartTitle() {
+    for (auto& sound : g_ambience_sounds) sound = 0;
+    for (Occlusion& o : g_occlusion) o = Occlusion();
+    g_occlusion_next = 0;
+    g_original_slots = 0;
+    g_enhanced_slots_added = false;
+    SndEnv_Reset();
 }
 
 }  // namespace game

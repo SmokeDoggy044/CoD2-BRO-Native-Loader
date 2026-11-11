@@ -30,6 +30,8 @@ void SndEnv_DescribeOcclusion(const float listener[3], const float source[3], ch
 // The player's adjustments (settings.ini "reverb", the PC menu); any thread, applied from the
 // next probe on.
 void SndEnv_SetTuning(const audio::ReverbTuning& tuning);
+// An in-process title restart (own engine host 5b): no environment heard yet.
+void SndEnv_Reset();
 audio::ReverbTuning SndEnv_Tuning();
 
 }  // namespace game

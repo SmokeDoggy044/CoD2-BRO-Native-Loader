@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "actor.h"
+#include "cl.h"
 #include "g_scr_runtime.h"
 #include "lanes.h"
 #include "ngl.h"
@@ -1342,6 +1343,54 @@ void XB_CDECL File_ShutdownDevices() {
         const uint32_t callback = word_at(pointer_at<const uint8_t>(device, 4), 8);
         if (callback) reinterpret_cast<Shutdown*>(uintptr_t{callback})(device);
     }
+}
+
+// "reboot": the title moves to the next mission by launching itself again with the campaign state as launch data
+// (the chapter, clamped to the last one once the campaign is through, and the chapters unlocked; with Xbox Live
+// signed in also its logon state). Our XLaunchNewImageA restarts the title in this process (own engine host 5b).
+void XB_CDECL Cmd_RelaunchTitle_f() {
+    int32_t& chapter = title_global<int32_t>(0x008dce48);   // g_currentChapter
+    int32_t& unlocked = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
+    uint8_t& finished = title_global<uint8_t>(0x0095ee08);  // the campaign was completed
+    if (chapter >= 14) {
+        if (!finished) finished = 1;
+        chapter = 13;
+        title_global<uint8_t>(0x008dce54) = 1;
+        title_global<uint8_t>(0x008dce55) = 1;
+    }
+    if (unlocked < chapter) unlocked = chapter;
+    if (unlocked >= 14) unlocked = 13;
+    const uint8_t* const live = title_global<const uint8_t*>(0x0095f6fc);  // g_liveMgr
+    const uint32_t state = word_at(live, 4);
+    title_global<uint32_t>(0x008dd128) = state;
+    if (state == 2) {  // signed in to Xbox Live (never here: the port has no Live)
+        const uint32_t user = word_at(live, 0x4470) == 1 ? 0 : word_at(live, 0x44d0);
+        title_global<uint8_t>(0x008dd1cd) = live[user * 0xfe8 + 0x6c] & 1;
+        std::memset(&title_global<uint8_t>(0x008dcf1c), 0, 0x81 * 4);
+        uint8_t saved = 0;
+        if (word_at(live, 4) == 2) {
+            title_function<void XB_STDCALL(uint32_t)>(0x00379ec6)(0x008dcf1c);  // XOnlineSaveLogonState
+            saved = title_function<uint32_t XB_CDECL()>(0x00221450)() == 0;   // Live_EmptyStub
+        }
+        title_global<uint8_t>(0x008dd120) = saved;
+        title_global<uint32_t>(0x008dd124) = word_at(live, 0x4470);
+    } else if (state == 0) {
+        title_global<uint32_t>(0x008dd12c) = word_at(live, 0x446c);
+    }
+    if (finished) title_global<uint8_t>(0x008dd1cc) = 1;
+    // The launch data: 0xe9 words of campaign state (the original leaves the rest of its 0xc04-byte buffer as it
+    // found the stack; XGetLaunchInfo hands the next title 0xc00 bytes).
+    uint8_t data[0xc04] = {};
+    std::memcpy(data, &title_global<uint8_t>(0x008dce30), 0xe9 * 4);
+    char path[0x40];
+    title_snprintf(path, sizeof(path), &title_global<const char>(0x0082ddd4),  // "%s"
+                   &title_global<const char>(0x00832f7c));                      // "d:\\default.xbe"
+    nglShutdown();
+    File_ShutdownDevices();
+    title_global<uint32_t>(0x0095f63c) = 0;
+    SCR_DrawLaunchLoadingScreen(0x96);
+    title_function<void XB_STDCALL()>(0x003e6720)();  // D3DDevice_PersistDisplay
+    XLaunchNewImageA(path, data);
 }
 
 uint32_t* XB_CDECL File_GetDeviceInfoForBit(uint32_t bit, uint32_t* out) {

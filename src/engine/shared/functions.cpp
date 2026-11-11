@@ -1009,6 +1009,7 @@ const Function kFunctions[] = {
     {"Scr_CallThread_ent_f_hash_hash_hash_i_2", 0x001e5530, 0, code(&Scr_CallThread_ent_f_hash_hash_hash_i_2_entry), 44, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_CallThread_ent_hash_hash_f_5", 0x001e55c0, 0, code(&Scr_CallThread_ent_hash_hash_f_5_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"XGetLaunchInfo", 0x001e6e7f, 0, code(&XGetLaunchInfo), 8, Result::Eax, Status::Compare},
+    {"XLaunchNewImageA", 0x001e6d5c, 0, code(&XLaunchNewImageA), 8, Result::Eax, Status::Replaced},
     {"XGetLanguage", 0x001e6f2a, 0, code(&XGetLanguage), 0, Result::Eax, Status::Compare},
     {"XapipQueryTimeZoneInformation", 0x001e6fb0, 0, code(&XapipQueryTimeZoneInformation), 8, Result::Eax, Status::Compare},
     {"FileTimeToSystemTime", 0x001e7062, 0, code(&FileTimeToSystemTime), 8, Result::Eax, Status::Compare},
@@ -2762,6 +2763,7 @@ const Function kFunctions[] = {
     {"File_LayoutMemory", 0x000c9530, 0, code(&File_LayoutMemory_entry), 0, Result::Eax, Status::Replaced},
     {"File_Configure", 0x000c9880, 0, code(&File_Configure), 0, Result::Eax, Status::Replaced},
     {"File_ShutdownDevices", 0x000c9910, 0, code(&File_ShutdownDevices), 0, Result::None, Status::Replaced},
+    {"Cmd_RelaunchTitle_f", 0x002cfa40, 0, code(&Cmd_RelaunchTitle_f), 0, Result::None, Status::Replaced},
     {"File_GetDeviceInfoForBit", 0x000c9940, 0, code(&File_GetDeviceInfoForBit), 8, Result::Eax, Status::Replaced},
     {"File_SetDevicePriority", 0x000c9980, 0, code(&File_SetDevicePriority), 8, Result::None, Status::Replaced},
     {"File_Open", 0x000c9aa0, 0, code(&File_Open), 16, Result::Eax, Status::Replaced},

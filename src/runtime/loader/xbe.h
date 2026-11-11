@@ -62,6 +62,7 @@ struct XbeSectionHeader {
 };
 static_assert(sizeof(XbeSectionHeader) == 56);
 
+constexpr uint32_t kSectionWritable = 0x1;
 constexpr uint32_t kSectionPreload = 0x2;
 
 struct XbeTlsDirectory {

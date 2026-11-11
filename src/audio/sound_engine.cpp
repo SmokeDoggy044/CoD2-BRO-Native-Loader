@@ -152,6 +152,7 @@ private:
     float distance_gain(const VoiceImpl& v);
     void update(VoiceImpl& v);
     friend void audio::set_enhanced(bool enhanced);
+    friend void audio::forget_title_voices();
     friend void audio::set_enhanced_features(const EnhancedFeatures& features);
     friend void audio::log_voices(void (*)(const float*, const float*, char*, size_t));
     friend void audio::set_category_volumes(const CategoryVolumes& volumes);
@@ -777,6 +778,26 @@ void set_category_volumes(const CategoryVolumes& volumes) {
 CategoryVolumes category_volumes() {
     Guard lock(g.mutex, TestLock::State);
     return g.volumes;
+}
+
+void forget_title_voices() {
+    {
+        Guard lock(g.mutex, TestLock::State);
+        for (VoiceImpl* v : g.voices) {
+            v->synch_play = v->synch_resume = false;
+            v->voice.stop();
+            g.sync(*v);
+            v->refs = 0;
+            v->callback = v->context = 0;
+            v->header.magic = 0;  // find() no longer knows the id
+        }
+    }
+    {
+        std::lock_guard lock(g.callbacks_mutex);
+        g.callbacks.clear();
+    }
+    std::lock_guard lock(g.held_mutex);
+    g.held.clear();
 }
 
 void set_paused(bool paused) {

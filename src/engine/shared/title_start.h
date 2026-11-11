@@ -18,4 +18,9 @@ void XB_CDECL title_start();
 // The title's main thread: heap, CRT state, static initializers, Sys_Main.
 uint32_t XB_STDCALL title_main_thread(uint32_t parameter);
 
+// An in-process restart (own engine host 5b), after the title's threads ended and before its memory is reset: what
+// our C keeps outside title memory goes back to its state before the first start (handles, heap, script stacks,
+// sound and renderer additions). The host then resets title memory and runs the entry again.
+void title_restart_reset();
+
 }  // namespace game

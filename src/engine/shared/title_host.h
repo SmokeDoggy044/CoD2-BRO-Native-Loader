@@ -38,6 +38,14 @@ struct TitleHost {
     void (*memory_statistics)(uint32_t* total_pages, uint32_t* available_pages, uint32_t* reserved_bytes) = nullptr;
     uint32_t (*reserve)(uint32_t bytes) = nullptr;
 
+    // An in-process restart (own engine host 5b): the title ends here and starts again in this process with `page`
+    // (0x1000 bytes) as its LaunchDataPage, on the same window and devices. Called on the title's main thread;
+    // does not return.
+    void (*relaunch)(const uint8_t* page) = nullptr;
+    // The LaunchDataPage the previous title left (its address in contiguous memory, 0 = none); XGetLaunchInfo takes
+    // it and frees it with free_contiguous.
+    uint32_t* launch_data_page = nullptr;
+
     // What the player chose (launcher/command line): the title's language number (XC_LANGUAGE: 1 English, ...)
     // and a 16:9 picture.
     uint32_t language = 1;

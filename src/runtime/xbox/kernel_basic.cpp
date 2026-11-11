@@ -339,13 +339,18 @@ bool kernel_init(const KernelConfig& config) {
     std::thread(tick_thread).detach();
     settings_init(config);
     if (!memory_init(config.memory) || !filesystem_init(config)) return false;
-    if (!config.launch_data_page.empty()) {
-        // The new title reads it with XGetLaunchInfo, which frees it.
-        LaunchDataPage = allocate_contiguous(kLaunchDataPageSize, kLaunchDataPageSize);
-        if (!LaunchDataPage) return false;
-        std::memcpy(from_xbox_ptr<void>(LaunchDataPage), config.launch_data_page.data(),
-                    std::min<size_t>(config.launch_data_page.size(), kLaunchDataPageSize));
-    }
+    return place_launch_data_page(config.launch_data_page);
+}
+
+uint32_t& launch_data_page_word() { return LaunchDataPage; }
+
+bool place_launch_data_page(std::span<const uint8_t> page) {
+    LaunchDataPage = 0;
+    if (page.empty()) return true;
+    // The new title reads it with XGetLaunchInfo, which frees it.
+    LaunchDataPage = allocate_contiguous(kLaunchDataPageSize, kLaunchDataPageSize);
+    if (!LaunchDataPage) return false;
+    std::memcpy(from_xbox_ptr<void>(LaunchDataPage), page.data(), std::min<size_t>(page.size(), kLaunchDataPageSize));
     return true;
 }
 

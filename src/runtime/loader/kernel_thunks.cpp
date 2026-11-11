@@ -5,7 +5,9 @@
 #include <array>
 #include <atomic>
 #include <cstdio>
+#include <condition_variable>
 #include <cstring>
+#include <mutex>
 #include <memory>
 #include <span>
 #include <string>
@@ -65,6 +67,17 @@ uint32_t XB_STDCALL XeUnloadSection(XbeSectionHeader* section) {
 thread_local std::shared_ptr<xbox::ThreadObject> t_thread_object;
 std::atomic<uint32_t> g_next_thread_id{1};
 
+// request_title_restart -> wait_for_title_restart.
+struct Restart {
+    std::mutex mutex;
+    std::condition_variable changed;
+    std::vector<uint8_t> page;
+    bool requested = false;  // the requesting thread is leaving the title
+    bool ready = false;      // ... and has left it
+};
+Restart& g_restart = *new Restart;
+thread_local bool t_restarting = false;
+
 struct ThreadStart {
     ThreadEnv* env;
     std::shared_ptr<xbox::ThreadObject> object;
@@ -101,6 +114,11 @@ void xbox_thread_main(ThreadStart start) {
     if (end == XboxThreadEnd::Returned) start.object->mark_terminated(kStatusSuccess);
     LOG_DEBUG("thread", "thread %u ended, status %08x", start.object->id(), start.object->exit_status());
     t_thread_object.reset();
+    if (t_restarting) {
+        std::lock_guard lock(g_restart.mutex);
+        g_restart.ready = true;
+        g_restart.changed.notify_all();
+    }
 }
 
 // BOOLEAN arguments arrive in 4-byte stack slots; only the low byte is defined.
@@ -169,6 +187,25 @@ bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine
     std::thread(xbox_thread_main, ThreadStart{env, object, routine, context, 0}).detach();
     return true;
 }
+
+void request_title_restart(const uint8_t* page, uint32_t size) {
+    {
+        std::lock_guard lock(g_restart.mutex);
+        g_restart.page.assign(page, page + size);
+        g_restart.requested = true;
+    }
+    t_restarting = true;
+    exit_xbox_thread();  // back to xbox_thread_main, which tells the start thread
+}
+
+std::vector<uint8_t> wait_for_title_restart() {
+    std::unique_lock lock(g_restart.mutex);
+    g_restart.changed.wait(lock, [] { return g_restart.ready; });
+    g_restart.ready = g_restart.requested = false;
+    return std::move(g_restart.page);
+}
+
+void reset_thread_ids() { g_next_thread_id = 1; }
 
 namespace {
 

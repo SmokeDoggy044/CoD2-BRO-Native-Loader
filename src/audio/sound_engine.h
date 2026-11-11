@@ -53,6 +53,10 @@ EnhancedFeatures enhanced_features();
 void set_category_volumes(const CategoryVolumes& volumes);
 CategoryVolumes category_volumes();
 
+// An in-process title restart (own engine host 5b), before the title's memory is reset: every voice stops for
+// good (its id no longer valid), nothing queued for the title is delivered. The output device stays open.
+void forget_title_voices();
+
 // Pauses or resumes all sound output (diagnostics: while the title is frozen).
 void set_paused(bool paused);
 

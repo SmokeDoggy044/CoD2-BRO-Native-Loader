@@ -20,6 +20,8 @@ void title_heap_free(uint32_t block);
 uint32_t title_heap_size(uint32_t block);  // the size asked for; 0xffffffff if not a block of ours
 // Totals for the check / diagnostics: bytes in use (asked sizes), blocks in use, bytes in segments.
 void title_heap_stats(uint32_t& in_use, uint32_t& blocks, uint32_t& reserved);
+// An in-process title restart (own engine host 5b): no blocks, no segments (the title's memory is reset with it).
+void title_heap_reset();
 
 // XAPILIB (Rtl / kernel32-style).
 uint32_t XB_STDCALL RtlAllocateHeap(uint32_t heap, uint32_t flags, uint32_t size);                // 0x001ec413

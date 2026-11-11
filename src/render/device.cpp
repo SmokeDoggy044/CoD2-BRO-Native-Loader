@@ -60,6 +60,8 @@ struct State {
     std::condition_variable vblank_done_changed;
     uint32_t vblank_done = 0;  // vertical blanks whose callback has run (vertical_blanks_done)
     XbDisplayMode display_mode{};  // from CreateDevice's parameters
+    bool device_open = false;        // CreateDevice ran (restart_title closes it again)
+    uint32_t frame_size[2] = {};     // the frame buffers' (the back end's window was made for it)
     std::mutex notice_mutex;  // show_notice may come from any title thread
     std::vector<std::string> notice;
     std::chrono::steady_clock::time_point notice_until;
@@ -164,7 +166,7 @@ void vblank_thread(double hz) {
 // for none, `flags` the title's D3DPRESENT flags.
 bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format, uint32_t depth_format,
                    uint32_t flags, XbPtr* out_device) {
-    if (g.device) {
+    if (g.device_open) {
         LOG_ERROR("render", "CreateDevice called twice");
         return false;
     }
@@ -178,14 +180,26 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
             create_surface(depth_format, backend_config.width, backend_config.height, depth_format == kFmtD16 ? 2 : 4);
     backend_config.back_buffer = surface_desc(g.back_buffer);
     backend_config.depth_stencil = surface_desc(g.depth_stencil);
-    platform::HostFloatEnv float_env;
-    g.backend = create_d3d9_backend(backend_config);
-    if (!g.backend) {
-        if (g.config.device_failed) g.config.device_failed();
-        return false;
+    const bool reopen = g.backend != nullptr;  // after restart_title: the same window and back end
+    if (reopen) {
+        if (backend_config.width != g.frame_size[0] || backend_config.height != g.frame_size[1])
+            LOG_ERROR("render", "the restarted title asks for %ux%u frame buffers, the window has %ux%u",
+                      backend_config.width, backend_config.height, g.frame_size[0], g.frame_size[1]);
+        platform::HostFloatEnv float_env;
+        g.backend->set_frame_buffers(backend_config.back_buffer, backend_config.depth_stencil);
+    } else {
+        platform::HostFloatEnv float_env;
+        g.backend = create_d3d9_backend(backend_config);
+        if (!g.backend) {
+            if (g.config.device_failed) g.config.device_failed();
+            return false;
+        }
+        g.device = new uint8_t[kDeviceSize]{};
+        g.vblank_data = new XbVBlankData{};
     }
-
-    g.device = new uint8_t[kDeviceSize]{};
+    g.frame_size[0] = backend_config.width;
+    g.frame_size[1] = backend_config.height;
+    g.device_open = true;
     // Always progressive here: no interlaced or field modes.
     g.display_mode = {backend_config.width, backend_config.height, 60,
                       (flags & (kPresentFlagWidescreen | kPresentFlag10x11PixelAspect)) | kPresentFlagProgressive,
@@ -193,11 +207,11 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
     device_field<XbPtr>(kDeviceBackBuffer) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceRenderTarget) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceDepthStencil) = to_xbox_ptr(g.depth_stencil);
-    g.vblank_data = new XbVBlankData{};
     reset_draw_state(g.depth_stencil != nullptr);
 
     if (g.config.device_pointer) *from_xbox_ptr<XbPtr>(g.config.device_pointer) = to_xbox_ptr(g.device);
     *out_device = to_xbox_ptr(g.device);
+    if (reopen) return true;  // its vertical blank thread runs on
     const double display_hz = g.backend->refresh_rate();
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
     LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz * g.config.vblank_speed, display_hz);
@@ -652,6 +666,31 @@ void resource_destroyed(XbPtr /*resource*/) {}
 Backend* backend() { return g.backend.get(); }
 
 uint32_t show_frame() { return present_frame(); }
+
+void restart_title() {
+    if (!g.device_open) return;
+    // No more title calls from the vertical blank: wait until a callback that may be running has returned.
+    g.vblank_callback = 0;
+    {
+        std::unique_lock lock(g.vblank_done_mutex);
+        const uint32_t until = g.vblank_done + 2;
+        g.vblank_done_changed.wait(lock, [&] { return g.vblank_done >= until; });
+    }
+    {
+        platform::HostFloatEnv float_env;
+        g.backend->forget_title_resources();
+    }
+    delete g.back_buffer;
+    delete g.depth_stencil;
+    g.back_buffer = g.depth_stencil = nullptr;
+    std::memset(g.device, 0, kDeviceSize);
+    *g.vblank_data = XbVBlankData{};
+    g.fence = g.swap_count = 0;
+    g.vblank_count = 0;
+    g.back_buffer_written = false;
+    g.device_open = false;
+    LOG_INFO("render", "title restart: device closed, window kept");
+}
 
 GfxDevice* open_gfx_device(const DisplayDesc& desc, uint32_t* xbox_device) {
     uint32_t depth = 0;
