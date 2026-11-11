@@ -40,6 +40,7 @@
 #include "dispatcher.h"
 #include "snd_env.h"
 #include "kernel.h"
+#include "civil_time.h"
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
 #include "hooks.h"
@@ -1041,6 +1042,20 @@ int loader_main(int argc, char** argv) {
         host.replay_replaying = [] { return xbox::replay::replaying(); };
         host.replay_recorded = [](char tag, uint32_t* value) { return xbox::replay::recorded(tag, *value); };
         host.replay_value = [](char tag, uint32_t real) { return xbox::replay::value(tag, real); };
+        host.system_time = [] { return platform::system_time_now(); };
+        host.allocate_contiguous = &xbox::title_allocate_contiguous;
+        host.free_contiguous = &xbox::title_free_contiguous;
+        host.protect = &xbox::title_protect;
+        host.protection = &xbox::title_protection;
+        host.memory_statistics = [](uint32_t* total, uint32_t* available, uint32_t* reserved) {
+            const xbox::TitleMemoryStatistics statistics = xbox::title_memory_statistics();
+            *total = statistics.total_pages;
+            *available = statistics.available_pages;
+            *reserved = statistics.reserved_bytes;
+        };
+        host.reserve = &xbox::title_reserve;
+        host.language = options->language;
+        host.widescreen = options->widescreen;
         game::set_title_host(host);
         // The title's folders for our native files (--own-main; --check-crt compares them with the kernel's).
         game::files::set_folders(*assets, options->data.value_or(platform::user_data_dir()));

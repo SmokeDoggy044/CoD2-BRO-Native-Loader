@@ -1,6 +1,7 @@
 #include "title_objects.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -14,6 +15,7 @@
 
 #include "title_data.h"
 #include "title_host.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -315,6 +317,73 @@ uint32_t wait(const uint32_t* handles, size_t count, bool wait_all, const uint32
 }
 
 void queue_apc(uint32_t routine, uint32_t a1, uint32_t a2, uint32_t a3) { t_apcs.push_back({routine, {a1, a2, a3}}); }
+
+// --- Critical sections ------------------------------------------------------------------------------------------
+
+namespace {
+
+struct CriticalSection {  // RTL_CRITICAL_SECTION
+    uint8_t type, absolute, size, inserted;  // DISPATCHER_HEADER of a synchronization event
+    int32_t signal_state;
+    uint32_t wait_list_flink, wait_list_blink;
+    int32_t lock_count;  // -1 = free
+    int32_t recursion_count;
+    uint32_t owning_thread;  // KTHREAD
+};
+static_assert(sizeof(CriticalSection) == 0x1c);
+
+CriticalSection& section_at(uint32_t section) { return *reinterpret_cast<CriticalSection*>(uintptr_t{section}); }
+
+}  // namespace
+
+void initialize_critical_section(uint32_t section) {
+    CriticalSection& cs = section_at(section);
+    cs.type = 1;  // SynchronizationEvent
+    cs.absolute = 0;
+    cs.size = 4;  // the header's size in dwords
+    cs.inserted = 0;
+    cs.signal_state = 0;
+    cs.wait_list_flink = section + 8;  // an empty wait list points at itself
+    cs.wait_list_blink = section + 8;
+    cs.lock_count = -1;
+    cs.recursion_count = 0;
+    cs.owning_thread = 0;
+}
+
+void enter_critical_section(uint32_t section) {
+    CriticalSection& cs = section_at(section);
+    const uint32_t thread = title_fs_word(0x28);
+    if (std::atomic_ref<int32_t>(cs.lock_count).fetch_add(1) != -1) {
+        // Held already; only the owner itself can see its own id here.
+        if (std::atomic_ref<uint32_t>(cs.owning_thread).load(std::memory_order_relaxed) == thread) {
+            ++cs.recursion_count;
+            return;
+        }
+        std::atomic_ref<int32_t> state(cs.signal_state);  // auto-reset: take the signal
+        for (;;) {
+            int32_t current = state.load();
+            if (current > 0 && state.compare_exchange_weak(current, 0)) break;
+            if (current <= 0) state.wait(current);
+        }
+    }
+    std::atomic_ref<uint32_t>(cs.owning_thread).store(thread, std::memory_order_relaxed);
+    cs.recursion_count = 1;
+}
+
+void leave_critical_section(uint32_t section) {
+    CriticalSection& cs = section_at(section);
+    if (--cs.recursion_count != 0) {
+        std::atomic_ref<int32_t>(cs.lock_count).fetch_sub(1);
+        return;
+    }
+    std::atomic_ref<uint32_t>(cs.owning_thread).store(0, std::memory_order_relaxed);
+    // Still >= 0 afterwards: someone waits - hand the section over.
+    if (std::atomic_ref<int32_t>(cs.lock_count).fetch_sub(1) - 1 >= 0) {
+        std::atomic_ref<int32_t> state(cs.signal_state);
+        state.store(1);
+        state.notify_one();
+    }
+}
 
 }  // namespace objects
 

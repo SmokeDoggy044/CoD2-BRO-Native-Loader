@@ -54,4 +54,12 @@ uint32_t wait(const uint32_t* handles, size_t count, bool wait_all, const uint32
 // A completion routine for the calling thread: runs as routine(a1, a2, a3) (stdcall) at its next alertable wait.
 void queue_apc(uint32_t routine, uint32_t a1, uint32_t a2, uint32_t a3);
 
+// Critical sections on the title's RTL_CRITICAL_SECTION (0x1c bytes at `section`), which its x86 code enters too:
+// the kernel's protocol - LockCount counts the owner plus waiters (-1 free), RecursionCount, OwningThread (the
+// owner's KTHREAD, FS:[0x28]), and contended threads wait on the embedded auto-reset event's SignalState as a
+// futex (std::atomic_ref), so ours and the kernel's work on the same sections side by side.
+void initialize_critical_section(uint32_t section);
+void enter_critical_section(uint32_t section);
+void leave_critical_section(uint32_t section);
+
 }  // namespace game::objects

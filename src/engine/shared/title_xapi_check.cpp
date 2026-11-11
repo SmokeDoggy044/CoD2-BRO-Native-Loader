@@ -44,6 +44,10 @@ struct Random {
 int32_t check_title_xapi(std::string& report) {
     int32_t failures = 0;
     Random random;
+    // XB_CHECK_NATIVE_FILES=1: ours on the native platform layer (--own-main: our files, settings, clock,
+    // calendar, string conversion), the title's on the kernel.
+    const bool native = std::getenv("XB_CHECK_NATIVE_FILES") != nullptr;
+    set_native_platform(native);
 
     // Threads
     if (title_function<uint32_t XB_STDCALL()>(0x001e7904)() != GetCurrentThreadId()) {
@@ -207,16 +211,15 @@ int32_t check_title_xapi(std::string& report) {
         const auto orig_free = title_function<uint32_t XB_STDCALL(const char*, uint32_t*, uint32_t*, uint32_t*)>(0x001e9827);
         uint32_t differences = 0;
         for (const char* path : {"T:\\", "U:\\", "D:\\", "Z:\\", "T:\\no_such_dir\\", "Q:\\", "E:\\", "D:\\nope\\x\\"}) {
+            set_native_platform(false);  // the title's on the kernel (its code reaches our C rows too)
             SetLastError(0);
             const uint32_t sa = orig_sector(path);
             const uint32_t ea = GetLastError();
-            // XB_CHECK_NATIVE_FILES=1: ours on the native files (title_files.cpp), the title's on the kernel.
-            const bool native_ours = std::getenv("XB_CHECK_NATIVE_FILES") != nullptr;
             const uint32_t ca = orig_cluster(path);
             uint32_t fa[6] = {1, 2, 3, 4, 5, 6}, fb[6] = {1, 2, 3, 4, 5, 6};
             const uint32_t ra = orig_free(path, fa, fa + 2, fa + 4);
             const uint32_t na = orig_free(path, nullptr, nullptr, nullptr);
-            set_native_platform(native_ours);
+            set_native_platform(native);
             SetLastError(0);
             const uint32_t sb = XGetDiskSectorSizeA(path);
             const uint32_t eb = GetLastError();
@@ -230,6 +233,7 @@ int32_t check_title_xapi(std::string& report) {
                          path, sa, ea, ca, ra, sb, eb, cb, rb);
             }
         }
+        set_native_platform(native);
         failures += static_cast<int32_t>(differences);
         add_line(report, "disk sizes: 8 paths, %u difference(s)", differences);
     }
@@ -301,6 +305,7 @@ int32_t check_title_xapi(std::string& report) {
         failures += static_cast<int32_t>(differences);
         add_line(report, "UTF8ToUnicode/MultiByteToWideChar: 4000 strings, %u difference(s)", differences);
     }
+    set_native_platform(false);
     failures += check_title_savegame(report);
     return failures;
 }

@@ -24,4 +24,17 @@ bool charge_image_pages(int32_t pages);
 XbPtr allocate_contiguous(uint32_t bytes, uint32_t alignment);
 void free_contiguous(XbPtr address);
 
+// Our own C's platform layer (game::TitleHost under --own-main): title memory from the same allocator and budget as
+// the kernel exports, so addresses stay what the plain loader hands out (replays compare state across both).
+XbPtr title_allocate_contiguous(uint32_t bytes, uint32_t lowest, uint32_t highest, uint32_t alignment,
+                                uint32_t protect);
+void title_free_contiguous(XbPtr address);
+void title_protect(XbPtr address, uint32_t bytes, uint32_t protect);
+uint32_t title_protection(XbPtr address);
+struct TitleMemoryStatistics {
+    uint32_t total_pages, available_pages, reserved_bytes;
+};
+TitleMemoryStatistics title_memory_statistics();
+XbPtr title_reserve(uint32_t bytes);  // reserved and committed, read/write
+
 }  // namespace xbox

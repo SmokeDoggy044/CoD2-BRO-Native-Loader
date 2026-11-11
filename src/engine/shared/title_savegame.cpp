@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "sha1.h"
+
 #include "title_crt.h"
 #include "title_data.h"
 #include "title_files.h"
@@ -28,10 +30,6 @@ constexpr uint32_t kNtCreateFile = 0x007b3004;
 constexpr uint32_t kRtlInitAnsiString = 0x007b3008;
 constexpr uint32_t kNtClose = 0x007b3014;
 constexpr uint32_t kNtOpenFile = 0x007b3018;
-constexpr uint32_t kXboxHDKey = 0x007b302c;
-constexpr uint32_t kXcSHAFinal = 0x007b3048;
-constexpr uint32_t kXcSHAUpdate = 0x007b304c;
-constexpr uint32_t kXcSHAInit = 0x007b3050;
 constexpr uint32_t kNtSetInformationFile = 0x007b3054;
 constexpr uint32_t kKeQuerySystemTime = 0x007b3080;
 constexpr uint32_t kNtQueryDirectoryFile = 0x007b3144;
@@ -99,16 +97,21 @@ uint32_t query_directory(uint32_t handle, uint32_t* io_status, uint8_t* buffer, 
                                                                                          buffer, 0x146, 1, nullptr,
                                                                                          restart);
 }
-uint32_t dos_error(uint32_t status) {
-    return kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
-}
+uint32_t dos_error(uint32_t status) { return title_dos_error(status); }
 bool failed(uint32_t status) { return static_cast<int32_t>(status) < 0; }
 
-void sha_init(uint8_t* sha) { kernel<void XB_STDCALL(uint8_t*)>(kXcSHAInit)(sha); }
-void sha_update(uint8_t* sha, const uint8_t* data, uint32_t size) {
-    kernel<void XB_STDCALL(uint8_t*, const uint8_t*, uint32_t)>(kXcSHAUpdate)(sha, data, size);
+// SHA-1 in the title's A_SHA_CTX: our own (sha1.h, the same code as the kernel's XcSHA* exports).
+platform::sha1::Context& sha_context(uint8_t* sha) { return *reinterpret_cast<platform::sha1::Context*>(sha); }
+void sha_init(uint8_t* sha) { platform::sha1::init(sha_context(sha)); }
+void sha_update(uint8_t* sha, const uint8_t* data, uint32_t size) { platform::sha1::update(sha_context(sha), data, size); }
+void sha_final(uint8_t* sha, uint8_t* digest) { platform::sha1::final(sha_context(sha), digest); }
+
+// The title's signature keys (XboxSignatureKey, XboxAlternateSignatureKeys[16]): the loader has none (zero-filled
+// data exports), and saves are signed with zero keys - our own zero keys under --own-main, the same bytes.
+alignas(4) const uint8_t kZeroKeys[0x10 * 0x11] = {};
+uint32_t signature_key_address(uint32_t slot) {
+    return native_platform() ? addr(kZeroKeys) : title_global<uint32_t>(slot);
 }
-void sha_final(uint8_t* sha, uint8_t* digest) { kernel<void XB_STDCALL(uint8_t*, uint8_t*)>(kXcSHAFinal)(sha, digest); }
 
 // The XBE certificate's title id (certificate address at 0x00010118, +8).
 uint32_t certificate() { return title_global<uint32_t>(0x00010118); }
@@ -145,7 +148,7 @@ void XB_STDCALL XShaHmacComputeFinal(uint8_t* sha, const uint8_t* key, uint32_t 
 uint32_t XB_STDCALL XapiConvertSignatureToNonRoamable(uint8_t* context, const uint8_t* signature, uint8_t* out) {
     // HMAC of the signature keyed with the console's hard disk key (XboxHDKey; when it is all zero, bytes 0x36..
     // of the encrypted EEPROM section, XQueryValue 0xffff).
-    const uint8_t* key = ptr<uint8_t>(title_global<uint32_t>(kXboxHDKey));
+    const uint8_t* key = title_console_key();
     uint8_t any = 0;
     for (int32_t i = 0; i < 0x10; ++i) any |= key[i];
     uint8_t eeprom[0x100];
@@ -174,7 +177,7 @@ uint32_t XB_STDCALL XapipCalculateSaveGameSignatureBegin(uint32_t flags, uint32_
     context[0] = flags;
     uint32_t key;
     if (title_global<uint32_t>(cert + 8) == title_id) {
-        key = title_global<uint32_t>(kXboxSignatureKey);
+        key = signature_key_address(kXboxSignatureKey);
     } else {
         uint32_t i = 0;
         for (;;) {
@@ -189,7 +192,7 @@ uint32_t XB_STDCALL XapipCalculateSaveGameSignatureBegin(uint32_t flags, uint32_
             SetLastError(5);
             return 0xffffffff;
         }
-        key = title_global<uint32_t>(kXboxAlternateSignatureKeys) + i * 0x10;
+        key = signature_key_address(kXboxAlternateSignatureKeys) + i * 0x10;
     }
     context[1] = key;
     XShaHmacInitialize(ptr<uint8_t>(key), 0x10, reinterpret_cast<uint8_t*>(context + 2));

@@ -6,6 +6,7 @@
 
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "title_xapi.h"
 
 namespace game {
@@ -66,10 +67,14 @@ struct Heap {
         const uint32_t size = (need + kHeader + kSegment - 1) / kSegment * kSegment;
         // NtAllocateVirtualMemory (kernel thunk slot 0x007b314c), reserved and committed - where the title's Rtl
         // heap took its memory too, so the contiguous memory the engine allocates keeps its addresses.
+        // Under --own-main the host hands out the segment (TitleHost::reserve, the same allocator).
         uint32_t base = 0, region = size;
         using Allocate = int32_t XB_STDCALL(uint32_t*, uint32_t, uint32_t*, uint32_t, uint32_t);
-        if (title_function<Allocate>(title_global<uint32_t>(0x007b314c))(&base, 0, &region, 0x3000, 4) < 0 || !base)
-            return false;  // MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+        if (native_platform())
+            base = title_host().reserve(size);
+        else if (title_function<Allocate>(title_global<uint32_t>(0x007b314c))(&base, 0, &region, 0x3000, 4) < 0)
+            base = 0;  // MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+        if (!base) return false;
         reserved += size;
         const uint32_t end = base + size - kHeader;
         head(base) = (size - kHeader) | kPrevInUse;

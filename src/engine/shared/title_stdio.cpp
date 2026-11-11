@@ -6,6 +6,8 @@
 #include "title_xapi.h"
 #include "title_crt.h"
 #include "title_heap.h"
+#include "title_host.h"
+#include "title_objects.h"
 
 namespace game {
 
@@ -59,10 +61,13 @@ void crt_lock(int32_t n) { title_lock(n); }
 void crt_unlock(int32_t n) { title_unlock(n); }
 int32_t init_crit_sec(uint32_t section) { return title_crt_init_crit_sec_and_spin_count(section, 0xfa0); }
 uint32_t& lock_entry(int32_t n) { return title_global<uint32_t>(kLockTable + static_cast<uint32_t>(n) * 8); }
+// Our own critical sections under --own-main (title_objects.h), the kernel's otherwise.
 void enter_crit_sec(uint32_t section) {
+    if (native_platform()) return objects::enter_critical_section(section);
     title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlEnterCriticalSection))(section);
 }
 void leave_crit_sec(uint32_t section) {
+    if (native_platform()) return objects::leave_critical_section(section);
     title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlLeaveCriticalSection))(section);
 }
 uint32_t crt_malloc(uint32_t size) { return own_function<uint32_t XB_CDECL(uint32_t)>(&title_crt_malloc)(size); }
@@ -1101,7 +1106,10 @@ uint32_t XB_CDECL title_fwrite(const void* buffer, uint32_t size, uint32_t count
 // --- The lock table (2026-11-11) -------------------------------------------------------------------------------------
 
 int32_t XB_STDCALL title_crt_init_crit_sec_no_spin_count(uint32_t section, uint32_t) {
-    title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlInitializeCriticalSection))(section);
+    if (native_platform())
+        objects::initialize_critical_section(section);
+    else
+        title_function<void XB_STDCALL(uint32_t)>(title_global<uint32_t>(kRtlInitializeCriticalSection))(section);
     return 1;
 }
 

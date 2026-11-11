@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "civil_time.h"
+
 #include "title_data.h"
 #include "title_files.h"
 #include "title_host.h"
@@ -69,12 +71,88 @@ uint32_t addr(const void* p) {
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
 }
 
-// ExQueryNonVolatileSetting(index, &type, &value, 4, null) into a dword; false when it fails.
+// The console settings the title reads (XC_* values), in the 256-byte layout its code parses for the whole
+// blocks (0xff the user section with the time zone, 0xffff everything): built from what the player chose
+// (TitleHost language, widescreen) - North America, NTSC-M, UTC without daylight time, nothing else set.
+struct SettingSlot {
+    uint32_t index, type, offset, size;  // type 3 REG_BINARY, 4 REG_DWORD
+};
+constexpr SettingSlot kSettingSlots[] = {
+    {0x00, 4, 0x64, 4}, {0x01, 3, 0x68, 4}, {0x02, 4, 0x78, 4}, {0x03, 4, 0x88, 4}, {0x04, 3, 0x6c, 4},
+    {0x05, 4, 0x7c, 4}, {0x06, 4, 0x8c, 4}, {0x07, 4, 0x90, 4}, {0x08, 4, 0x94, 4}, {0x09, 4, 0x98, 4},
+    {0x0a, 4, 0x9c, 4}, {0x0b, 4, 0xa0, 4}, {0x0c, 4, 0xa4, 4}, {0x0d, 4, 0xa8, 4}, {0x0e, 4, 0xac, 4},
+    {0x0f, 4, 0xb0, 4}, {0x10, 4, 0xb4, 4}, {0x11, 4, 0xb8, 4}, {0x12, 4, 0xbc, 4}, {0xff, 3, 0x60, 0x60},
+    {0x100, 3, 0x34, 12}, {0x101, 3, 0x40, 6}, {0x102, 3, 0x48, 16}, {0x103, 4, 0x58, 4}, {0x104, 4, 0x2c, 4},
+    {0xffff, 3, 0x00, 0x100},
+};
+
+// The console's save-signing key (XboxHDKey): the one the loader always used, so the player's saves keep loading.
+constexpr uint8_t kConsoleKey[16] = {'C', 'o', 'D', '2', 'B', 'R', 'O', '-', 'p', 'o', 'r', 't', '-', 'k', 'e', 'y'};
+
+void build_settings(uint8_t* image) {
+    std::memset(image, 0, 0x100);
+    const auto put = [&](uint32_t offset, uint32_t value) { std::memcpy(image + offset, &value, 4); };
+    std::memcpy(image + 0x1c, kConsoleKey, sizeof(kConsoleKey));
+    put(0x2c, 1);  // game region North America
+    std::memcpy(image + 0x34, "000000000000", 12);
+    const uint8_t mac[6] = {0x00, 0x50, 0xf2, 0x00, 0x00, 0x01};
+    std::memcpy(image + 0x40, mac, sizeof(mac));
+    put(0x58, 0x00400100);  // AV region NTSC-M
+    put(0x90, title_host().language);
+    put(0x94, title_host().widescreen ? 0x00010000u : 0u);  // XC_VIDEO_FLAGS_WIDESCREEN in the high word
+    put(0xbc, 1);  // DVD region 1
+}
+
+// A console setting: ExQueryNonVolatileSetting's statuses (0, STATUS_OBJECT_NAME_NOT_FOUND, STATUS_BUFFER_TOO_SMALL).
+uint32_t native_setting(uint32_t index, uint32_t* type, void* value, uint32_t size, uint32_t* result_size) {
+    for (const SettingSlot& slot : kSettingSlots) {
+        if (slot.index != index) continue;
+        if (type) *type = slot.type;
+        if (result_size) *result_size = slot.size;
+        if (size < slot.size) return 0xc0000023;
+        uint8_t image[0x100];
+        build_settings(image);
+        std::memcpy(value, image + slot.offset, slot.size);
+        return 0;
+    }
+    return 0xc0000034;
+}
+
+uint32_t query_value(uint32_t index, uint32_t* type, void* value, uint32_t size, uint32_t* result_size) {
+    if (native_platform()) return native_setting(index, type, value, size, result_size);
+    return kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, void*, uint32_t, uint32_t*)>(kExQueryNonVolatileSetting)(
+        index, type, value, size, result_size);
+}
+
+// A dword setting; false when it fails.
 bool query_setting(uint32_t index, uint32_t* value) {
     uint32_t type = 0;
-    return static_cast<int32_t>(
-               kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*, uint32_t, uint32_t*)>(
-                   kExQueryNonVolatileSetting)(index, &type, value, 4, nullptr)) >= 0;
+    return static_cast<int32_t>(query_value(index, &type, value, 4, nullptr)) >= 0;
+}
+
+// Time: the host's clock and our own calendar (civil_time.h) under --own-main, the kernel's exports otherwise.
+void system_time(uint32_t* time) {
+    if (!native_platform()) return kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(time);
+    const int64_t now = title_host().system_time();
+    time[0] = static_cast<uint32_t>(static_cast<uint64_t>(now));
+    time[1] = static_cast<uint32_t>(static_cast<uint64_t>(now) >> 32);
+}
+void time_to_fields(uint32_t* time, uint16_t* fields) {
+    if (!native_platform()) return kernel<void XB_STDCALL(uint32_t*, uint16_t*)>(kRtlTimeToTimeFields)(time, fields);
+    const platform::TimeFields result =
+        platform::time_to_fields(static_cast<int64_t>(uint64_t{time[1]} << 32 | time[0]));
+    std::memcpy(fields, &result, sizeof(result));
+}
+bool fields_to_time(uint16_t* fields, uint32_t* time) {
+    if (!native_platform())
+        return kernel<uint8_t XB_STDCALL(uint16_t*, uint32_t*)>(kRtlTimeFieldsToTime)(fields, time) != 0;
+    platform::TimeFields in;
+    std::memcpy(&in, fields, sizeof(in));
+    int64_t result;
+    if (!platform::fields_to_time(in, &result)) return false;
+    time[0] = static_cast<uint32_t>(static_cast<uint64_t>(result));
+    time[1] = static_cast<uint32_t>(static_cast<uint64_t>(result) >> 32);
+    return true;
 }
 
 // The calling thread's XAPI block (TLS slot *0x009268b0 of the array FS:[4] finds).
@@ -117,19 +195,22 @@ void XB_STDCALL SetLastError(uint32_t error) { *reinterpret_cast<uint32_t*>(xapi
 
 namespace {
 
-// RtlNtStatusToDosError for the statuses our native C produces (title_objects.cpp), without the kernel.
+// NTSTATUS -> Win32 error as NT maps them (RtlNtStatusToDosError), for our native C: the statuses it produces
+// itself and the file statuses the title's code passes on.
 uint32_t native_dos_error(uint32_t status) {
-    switch (status) {
-    case 0x00000000: return 0;
-    case 0x00000102: return 0x102;  // WAIT_TIMEOUT
-    case 0x00000103: return 0x3e5;  // ERROR_IO_PENDING
-    case 0xc0000008: return 6;      // ERROR_INVALID_HANDLE
-    case 0xc000000d: return 0x57;   // ERROR_INVALID_PARAMETER
-    case 0xc0000011: return 0x26;   // ERROR_HANDLE_EOF
-    case 0xc0000024: return 6;      // object type mismatch -> ERROR_INVALID_HANDLE
-    case 0xc0000046: return 0x120;  // ERROR_NOT_OWNER
-    default: break;
-    }
+    struct Mapping {
+        uint32_t status, error;
+    };
+    static constexpr Mapping kMappings[] = {
+        {0x00000000, 0},     {0x00000102, 0x102}, {0x00000103, 0x3e5}, {0x80000005, 0xea},  {0x80000006, 0x12},
+        {0xc0000002, 1},     {0xc0000008, 6},     {0xc000000d, 0x57},  {0xc000000f, 2},     {0xc0000010, 1},
+        {0xc0000011, 0x26},  {0xc0000017, 8},     {0xc0000022, 5},     {0xc0000023, 0x7a},  {0xc0000024, 6},
+        {0xc0000033, 0x7b},  {0xc0000034, 2},     {0xc0000035, 0xb7},  {0xc0000039, 0xa1},  {0xc000003a, 3},
+        {0xc0000043, 0x20},  {0xc0000046, 0x120}, {0xc000007f, 0x70},  {0xc00000ba, 5},     {0xc0000101, 0x91},
+        {0xc0000103, 0x10b},
+    };
+    for (const Mapping& m : kMappings)
+        if (m.status == status) return m.error;
     if ((status & 0x3fff0000) == 0x00070000) return status & 0xffff;  // FACILITY_WIN32
     return 0x13d;  // ERROR_MR_MID_NOT_FOUND
 }
@@ -142,9 +223,18 @@ uint32_t fail_with(uint32_t error, uint32_t result) {
 
 }  // namespace
 
+uint32_t title_dos_error(uint32_t status) {
+    return native_platform() ? native_dos_error(status)
+                             : kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
+}
+
+const uint8_t* title_console_key() {
+    return native_platform() ? kConsoleKey
+                             : reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t>(0x007b302c)});
+}
+
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status) {
-    const uint32_t error = native_platform() ? native_dos_error(status)
-                                             : kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
+    const uint32_t error = title_dos_error(status);
     SetLastError(error);
     return error;
 }
@@ -158,7 +248,10 @@ uint32_t XB_STDCALL XGetVideoStandard() {
     return (value >> 8) & 0xff;
 }
 
-uint32_t XB_STDCALL XGetAVPack() { return kernel_data<uint32_t>(kHalBootSMCVideoMode); }
+uint32_t XB_STDCALL XGetAVPack() {
+    // The AV pack the console booted with: 0 (the loader's zero-filled HalBootSMCVideoMode) on the PC.
+    return native_platform() ? 0 : kernel_data<uint32_t>(kHalBootSMCVideoMode);
+}
 
 uint32_t XB_STDCALL XGetVideoFlags() {
     // XC_VIDEO_FLAGS (8): the flags in bits 16..22 (0x5f: widescreen, letterbox, 480p/720p/1080i, PAL60). The HD
@@ -208,31 +301,33 @@ uint32_t XB_STDCALL XPhysicalAlloc(uint32_t size, uint32_t address, uint32_t ali
         lowest = address;
         highest = size + address - 1;
     }
-    const uint32_t result =
-        kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(kMmAllocateContiguousMemoryEx)(
-            size, lowest, highest, alignment, protect);
-    if (!result) SetLastError(8);  // ERROR_NOT_ENOUGH_MEMORY
-    return result;
+    return XPhysicalAllocEx(size, lowest, highest, alignment, protect);
 }
 
 uint32_t XB_STDCALL XPhysicalAllocEx(uint32_t size, uint32_t lowest, uint32_t highest, uint32_t alignment,
                                      uint32_t protect) {
     const uint32_t result =
-        kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(kMmAllocateContiguousMemoryEx)(
-            size, lowest, highest, alignment, protect);
+        native_platform()
+            ? title_host().allocate_contiguous(size, lowest, highest, alignment, protect)
+            : kernel<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+                  kMmAllocateContiguousMemoryEx)(size, lowest, highest, alignment, protect);
     if (!result) SetLastError(8);  // ERROR_NOT_ENOUGH_MEMORY
     return result;
 }
 
 void XB_STDCALL XPhysicalFree(uint32_t address) {
+    if (native_platform()) return title_host().free_contiguous(address);
     kernel<void XB_STDCALL(uint32_t)>(kMmFreeContiguousMemory)(address);
 }
 
 void XB_STDCALL XPhysicalProtect(uint32_t address, uint32_t size, uint32_t protect) {
-    if (size) kernel<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(kMmSetAddressProtect)(address, size, protect);
+    if (!size) return;
+    if (native_platform()) return title_host().protect(address, size, protect);
+    kernel<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(kMmSetAddressProtect)(address, size, protect);
 }
 
 uint32_t XB_STDCALL XQueryMemoryProtect(uint32_t address) {
+    if (native_platform()) return title_host().protection(address);
     return kernel<uint32_t XB_STDCALL(uint32_t)>(kMmQueryAddressProtect)(address);
 }
 
@@ -241,7 +336,10 @@ void XB_STDCALL GlobalMemoryStatus(uint32_t* status) {
     // of virtual address space less the reserved bytes; memory load and page file 0.
     uint32_t stats[9];
     stats[0] = 0x24;
-    kernel<uint32_t XB_STDCALL(uint32_t*)>(kMmQueryStatistics)(stats);
+    if (native_platform())
+        title_host().memory_statistics(&stats[1], &stats[2], &stats[4]);
+    else
+        kernel<uint32_t XB_STDCALL(uint32_t*)>(kMmQueryStatistics)(stats);
     status[1] = 0;
     status[4] = 0;
     status[5] = 0;
@@ -1043,14 +1141,20 @@ void XB_STDCALL XapiCallThreadNotifyRoutines(uint32_t create) {
     // (0x008cfce8); each routine(create) may unlink itself.
     constexpr uint32_t kLock = 0x008cfce8;
     constexpr uint32_t kHead = 0x008cfd04;
-    kernel<void XB_STDCALL(uint32_t)>(kRtlEnterCriticalSection)(kLock);
+    if (native_platform())
+        objects::enter_critical_section(kLock);
+    else
+        kernel<void XB_STDCALL(uint32_t)>(kRtlEnterCriticalSection)(kLock);
     uint32_t entry = title_global<uint32_t>(kHead);
     while (entry != kHead) {
         const uint32_t* const node = reinterpret_cast<const uint32_t*>(uintptr_t{entry});
         entry = node[0];
         title_function<void XB_STDCALL(uint32_t)>(node[2])(create);
     }
-    kernel<void XB_STDCALL(uint32_t)>(kRtlLeaveCriticalSection)(kLock);
+    if (native_platform())
+        objects::leave_critical_section(kLock);
+    else
+        kernel<void XB_STDCALL(uint32_t)>(kRtlLeaveCriticalSection)(kLock);
 }
 
 uint32_t xapi_thread_body(uint32_t start, uint32_t parameter) {
@@ -1094,7 +1198,7 @@ void XB_STDCALL OutputDebugStringA(const char*) {
 
 void XB_STDCALL GetSystemTimeAsFileTime(uint32_t* time) {
     // The original is a jump straight into KeQuerySystemTime.
-    kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(time);
+    system_time(time);
 }
 
 uint32_t XB_STDCALL FileTimeToSystemTime(const uint32_t* file_time, uint16_t* system_time) {
@@ -1102,7 +1206,7 @@ uint32_t XB_STDCALL FileTimeToSystemTime(const uint32_t* file_time, uint16_t* sy
     // DayOfWeek, Day, Hour, Minute, Second, Milliseconds).
     uint32_t time[2] = {file_time[0], file_time[1]};
     uint16_t fields[8];
-    kernel<void XB_STDCALL(uint32_t*, uint16_t*)>(kRtlTimeToTimeFields)(time, fields);
+    time_to_fields(time, fields);
     system_time[0] = fields[0];
     system_time[1] = fields[1];
     system_time[3] = fields[2];
@@ -1126,7 +1230,7 @@ uint32_t XB_STDCALL SystemTimeToFileTime(const uint16_t* system_time, uint32_t* 
     fields[5] = system_time[6];
     fields[6] = system_time[7];
     uint32_t time[2];
-    if (!kernel<uint8_t XB_STDCALL(uint16_t*, uint32_t*)>(kRtlTimeFieldsToTime)(fields, time)) {
+    if (!fields_to_time(fields, time)) {
         XapiSetLastNTError(0xc000000d);
         return 0;
     }
@@ -1137,10 +1241,7 @@ uint32_t XB_STDCALL SystemTimeToFileTime(const uint16_t* system_time, uint32_t* 
 
 uint32_t XB_STDCALL XQueryValue(uint32_t index, uint32_t* type, void* value, uint32_t size, uint32_t* result_size) {
     // ExQueryNonVolatileSetting through the title's jump stub, its status as a DOS error (0 = success).
-    const uint32_t status =
-        kernel<uint32_t XB_STDCALL(uint32_t, uint32_t*, void*, uint32_t, uint32_t*)>(kExQueryNonVolatileSetting)(
-            index, type, value, size, result_size);
-    return kernel<uint32_t XB_STDCALL(uint32_t)>(kRtlNtStatusToDosError)(status);
+    return title_dos_error(query_value(index, type, value, size, result_size));
 }
 
 namespace {
@@ -1216,8 +1317,8 @@ uint8_t XB_STDCALL RtlpCutoverTimeToSystemTime(const uint16_t* cutover, uint32_t
             same_month = true;
         }
     }
-    const auto& rtl_to_time = kernel<uint8_t XB_STDCALL(uint16_t*, uint32_t*)>(kRtlTimeFieldsToTime);
-    const auto& rtl_to_fields = kernel<void XB_STDCALL(uint32_t*, uint16_t*)>(kRtlTimeToTimeFields);
+    const auto rtl_to_time = [](uint16_t* f, uint32_t* t) -> uint8_t { return fields_to_time(f, t) ? 1 : 0; };
+    const auto rtl_to_fields = [](uint32_t* t, uint16_t* f) { time_to_fields(t, f); };
     uint16_t fields[8];
     const auto first_of_month = [&] {
         fields[0] = year;
@@ -1284,7 +1385,7 @@ uint32_t XB_STDCALL GetTimeZoneInformation(uint8_t* info) {
         std::memset(info + 0x58, 0, 0x40);
     }
     uint32_t now[2];
-    kernel<void XB_STDCALL(uint32_t*)>(kKeQuerySystemTime)(now);
+    system_time(now);
     const auto word = [&](uint32_t offset) { return *reinterpret_cast<const uint16_t*>(info + offset); };
     const auto dword = [&](uint32_t offset) { return *reinterpret_cast<const int32_t*>(info + offset); };
     if (word(0x46) == 0 || word(0x9a) == 0) return 0;
@@ -1515,6 +1616,19 @@ int32_t XB_STDCALL MultiByteToWideChar(uint32_t code_page, uint32_t, const char*
         uint16_t maximum;
         uint32_t buffer;
     } unicode{static_cast<uint16_t>((count - 1) * 2), static_cast<uint16_t>(out_size * 2), addr(out)};
+    if (native_platform()) {
+        // RtlAnsiStringToUnicodeString: bytes widened (single-byte code page); without room for them and a
+        // terminator it copies what fits and fails with STATUS_BUFFER_OVERFLOW (ERROR_MORE_DATA).
+        uint32_t chars = static_cast<uint16_t>(count - 1);
+        const uint32_t capacity = static_cast<uint16_t>(out_size * 2) / 2u;
+        const bool overflow = chars + 1 > capacity;
+        if (overflow) chars = capacity ? capacity - 1 : 0;
+        for (uint32_t i = 0; i < chars; ++i) out[i] = static_cast<uint8_t>(source[i]);
+        if (chars < capacity) out[chars] = 0;
+        if (!overflow) return needed;
+        SetLastError(0xea);
+        return 0;
+    }
     const uint32_t status = kernel<uint32_t XB_STDCALL(void*, AnsiString*, uint8_t)>(kRtlAnsiStringToUnicodeString)(
         &unicode, &ansi, 0);
     if (static_cast<int32_t>(status) >= 0) return needed;

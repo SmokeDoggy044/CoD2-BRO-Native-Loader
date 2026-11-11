@@ -29,6 +29,10 @@ uint32_t title_fs_word(uint32_t kpcr_offset);
 uint32_t XB_STDCALL GetLastError();                       // 0x001e7c84
 void XB_STDCALL SetLastError(uint32_t error);             // 0x001e7cac
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status);  // 0x001e7cda: the DOS error, also returned
+// RtlNtStatusToDosError: our own table under --own-main, the kernel's otherwise.
+uint32_t title_dos_error(uint32_t status);
+// The console's save-signing key (XboxHDKey, 16 bytes): our constant under --own-main, the kernel's otherwise.
+const uint8_t* title_console_key();
 
 // --- Console settings, launch data ---
 uint32_t XB_STDCALL XGetVideoStandard();  // 0x001e75df

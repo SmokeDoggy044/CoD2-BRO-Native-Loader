@@ -597,4 +597,31 @@ XbPtr allocate_contiguous(uint32_t bytes, uint32_t alignment) {
 
 void free_contiguous(XbPtr address) { MmFreeContiguousMemory(address); }
 
+// --- Our own C's platform layer (game::TitleHost): the same allocator and budget as the exports -----------------
+
+XbPtr title_allocate_contiguous(uint32_t bytes, uint32_t lowest, uint32_t highest, uint32_t alignment,
+                                uint32_t protect) {
+    return MmAllocateContiguousMemoryEx(bytes, lowest, highest, alignment, protect);
+}
+
+void title_free_contiguous(XbPtr address) { MmFreeContiguousMemory(address); }
+
+void title_protect(XbPtr address, uint32_t bytes, uint32_t protect) { MmSetAddressProtect(address, bytes, protect); }
+
+uint32_t title_protection(XbPtr address) { return MmQueryAddressProtect(address); }
+
+TitleMemoryStatistics title_memory_statistics() {
+    XbMmStatistics statistics{};
+    statistics.length = sizeof(statistics);
+    MmQueryStatistics(&statistics);
+    return {statistics.total_physical_pages, statistics.available_pages, statistics.virtual_memory_bytes_reserved};
+}
+
+XbPtr title_reserve(uint32_t bytes) {
+    XbPtr base = 0;
+    uint32_t region = bytes;
+    if (static_cast<int32_t>(NtAllocateVirtualMemory(&base, 0, &region, 0x3000, kPageReadWrite)) < 0) return 0;
+    return base;
+}
+
 }  // namespace xbox

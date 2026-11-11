@@ -23,6 +23,25 @@ struct TitleHost {
     bool (*replay_replaying)() = nullptr;
     bool (*replay_recorded)(char tag, uint32_t* value) = nullptr;
     uint32_t (*replay_value)(char tag, uint32_t real) = nullptr;
+
+    // The current UTC time, 100 ns units since 1601 (FILETIME).
+    int64_t (*system_time)() = nullptr;
+
+    // Title memory (addresses in the title's 32-bit space). Contiguous blocks for XPhysicalAlloc (`protect` in
+    // the title's PAGE_* terms; 0 when none fits), their protection, the page budget (total and available
+    // pages, bytes reserved), and plain read/write segments for our heap (0 on failure).
+    uint32_t (*allocate_contiguous)(uint32_t bytes, uint32_t lowest, uint32_t highest, uint32_t alignment,
+                                    uint32_t protect) = nullptr;
+    void (*free_contiguous)(uint32_t address) = nullptr;
+    void (*protect)(uint32_t address, uint32_t bytes, uint32_t protect) = nullptr;
+    uint32_t (*protection)(uint32_t address) = nullptr;
+    void (*memory_statistics)(uint32_t* total_pages, uint32_t* available_pages, uint32_t* reserved_bytes) = nullptr;
+    uint32_t (*reserve)(uint32_t bytes) = nullptr;
+
+    // What the player chose (launcher/command line): the title's language number (XC_LANGUAGE: 1 English, ...)
+    // and a 16:9 picture.
+    uint32_t language = 1;
+    bool widescreen = false;
 };
 
 void set_title_host(const TitleHost& host);
