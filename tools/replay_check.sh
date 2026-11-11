@@ -12,6 +12,8 @@
 #   SHOTS=600,1800,... (environment): each build also saves those frames' pictures to OUT_DIR/<name>.shots/
 #   (--replay-shots), and tools/shot_compare.py compares them with the first build's; SHOT_MAX_SHARE (default
 #   0.05) = percent of pixels allowed to differ (Wine's back end differs on ~0.01%)
+#   SPEED=N (environment): --replay-speed N (sound and vertical blank N times faster; ~2.8x is this PC's limit on
+#   mission 2, draw calls); the runs then exit at the recording's end (no --replay-continue)
 # Result: one line per build; OUT_DIR/<name>.txt holds each run's log. Exit code 1 if any build did not match
 # every frame (or its pictures differ).
 set -u
@@ -46,8 +48,10 @@ echo "recording: $frames frames, mission $mission; each run stops after ${second
 run() {
     local name=$1 loader=$2 data="$out/$1.data"
     rm -rf "$data" && cp -a "$saves" "$data"
+    local pace=(--replay-continue)
+    [ -n "${SPEED:-}" ] && pace=(--replay-speed "$SPEED")
     timeout -s INT -k 15 "$seconds" "$loader" --data "$data" --silent "${level[@]}" \
-        --replay "$rec" --replay-continue ${SHOTS:+--replay-shots "$SHOTS" "$out/$name.shots"} \
+        --replay "$rec" "${pace[@]}" ${SHOTS:+--replay-shots "$SHOTS" "$out/$name.shots"} \
         > "$out/$name.txt" 2>&1
     echo $? > "$out/$name.exit"
     rm -rf "$data"

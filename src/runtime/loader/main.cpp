@@ -93,6 +93,7 @@ struct Options {
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
+    double replay_speed = 1;  // --replay-speed
     bool audio_enhanced = true;  // --audio
     audio::OutputConfig::Speakers speakers = audio::OutputConfig::Speakers::Auto;
     std::string audio_device;    // empty: the system's
@@ -232,6 +233,7 @@ void print_usage(const char* program) {
         "  --replay-reference FILE DIR  with --replay: compare with another run's hashes (a recording or\n"
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
+        "  --replay-speed N  with --replay: play N times faster (vertical blank and sound; no sound output)\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
         "  --own-main       developer: start the game at our Sys_Main C (own engine host, step 0.3)\n"
         "  --text-trap LIST OUT  developer: log every original function from LIST (tools/text_trap_list.py)\n"
@@ -375,6 +377,11 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
             options.replay.reference = fs::path(argv[++i]);
             options.replay.reference_dump_dir = fs::path(argv[++i]);
+        } else if (arg == "--replay-speed") {
+            if (i + 1 >= argc || (options.replay_speed = std::atof(argv[++i])) <= 0 || options.replay_speed > 64) {
+                std::fprintf(stderr, "--replay-speed needs a factor above 0 and up to 64\n");
+                return std::nullopt;
+            }
         } else if (arg == "--replay-continue") {
             options.replay.exit_at_end = false;
         } else if (arg == "--replay-shots") {
@@ -709,7 +716,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
             name == "--level" || name == "--exec" || name == "--force" || name == "--multiplayer" || (name == "--symbols" && !same_title) ||
-            name == "--record" || name == "--replay" || name == "--replay-hashes") {
+            name == "--record" || name == "--replay" || name == "--replay-hashes" || name == "--replay-speed") {
             ++i;  // dropped with its value
             continue;
         }
@@ -994,7 +1001,11 @@ int loader_main(int argc, char** argv) {
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::OutputConfig audio_config;
-    audio_config.device = options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default;
+    // A faster replay has to consume its sound faster too (the title waits for its packets): silent, at that speed.
+    const bool fast_replay = options->replay.mode == xbox::replay::Mode::Replay && options->replay_speed != 1;
+    audio_config.device = options->silent || fast_replay ? audio::OutputConfig::Device::Loopback
+                                                         : audio::OutputConfig::Device::Default;
+    if (fast_replay) audio_config.speed = options->replay_speed;
     audio_config.device_name = options->audio_device;
     audio_config.speakers = options->speakers;
     render::set_graphics(options->graphics_enhanced, options->graphics_features);
@@ -1060,6 +1071,7 @@ int loader_main(int argc, char** argv) {
         };
     } else if (options->replay.mode != xbox::replay::Mode::Off) {
         d3d_config.frame_presented = &xbox::replay::frame;
+        if (options->replay.mode == xbox::replay::Mode::Replay) d3d_config.vblank_speed = options->replay_speed;
         if (!options->replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
     if (options->diag_dir) {

@@ -32,6 +32,7 @@ struct OutputConfig {
     enum class Speakers { Auto, Stereo, Headphones, Quad, Surround51, Surround71 };
     Device device = Device::Default;  // ManualLoopback: nothing renders unless render() is called
     uint32_t rate = 48000;            // loopback rate
+    double speed = 1;                 // Loopback: rendered this many times faster than real time (--replay-speed)
     std::string device_name;          // Default: this output device (empty: the system's)
     Speakers speakers = Speakers::Auto;
     // Our improvements (resampling here; the sound device's own); false: as on the Xbox. Each
@@ -104,6 +105,7 @@ private:
     ALCcontext* context_ = nullptr;
     bool loopback_ = false;
     uint32_t rate_ = 48000;
+    double speed_ = 1;
     std::vector<std::unique_ptr<Source>> sources_;
     std::thread driver_;
     std::atomic<bool> stopping_{false};

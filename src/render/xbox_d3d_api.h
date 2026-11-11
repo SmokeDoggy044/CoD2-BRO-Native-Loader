@@ -42,6 +42,9 @@ struct D3DConfig {
     // When the window or device cannot be created (logged): the loader tells the
     // player and ends the process. Null: CreateDevice returns an error to the title.
     void (*device_failed)() = nullptr;
+    // Replays: the vertical blank runs this many times faster, so the title paces its frames faster (its clock
+    // reads come from the recording). 1 = real time.
+    double vblank_speed = 1;
 };
 
 // Call before the title creates its device.

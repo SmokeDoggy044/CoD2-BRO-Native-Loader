@@ -71,7 +71,9 @@ What the player does:
 
 What we do: `SAVES=copy tools/replay_check.sh bug.rep OUT` (Linux release, debug, Windows under Wine at once;
 the mission comes from the recording;
-`SHOTS=...` adds pictures of chosen frames), or one build with `--replay bug.rep --replay-continue` and `--data` on a
+`SHOTS=...` adds pictures of chosen frames, `SPEED=N` replays N times faster: `--replay-speed N` runs the vertical
+blank and the (silent) sound output N times faster, the title's clock reads come from the recording, so every frame
+still matches; the draw calls cap it at ~2.8x on mission 2), or one build with `--replay bug.rep --replay-continue` and `--data` on a
 copy of the saves to watch it or attach gdb. The replay logs the first frame that differs from the recording.
 
 Reference recordings (one per level, `<name>.rep` + `<name>.saves/`) are kept locally in `recordings/`

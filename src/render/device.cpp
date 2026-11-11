@@ -200,8 +200,8 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
     *out_device = to_xbox_ptr(g.device);
     const double display_hz = g.backend->refresh_rate();
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
-    LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz, display_hz);
-    std::thread(vblank_thread, vblank_hz).detach();
+    LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz * g.config.vblank_speed, display_hz);
+    std::thread(vblank_thread, vblank_hz * g.config.vblank_speed).detach();
     return true;
 }
 

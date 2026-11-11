@@ -180,6 +180,7 @@ void set_reverb_effect(ALuint effect, bool eax, const Environment& e) {
 std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     std::unique_ptr<Output> output(new Output());
     output->rate_ = config.rate;
+    output->speed_ = config.speed;
     output->speakers_ = config.speakers;
     if (config.device == OutputConfig::Device::Default && !config.device_name.empty()) {
         output->device_ = alcOpenDevice(config.device_name.c_str());
@@ -261,7 +262,7 @@ void Output::drive_loopback() {
     auto next = steady_clock::now();
     while (!stopping_) {
         if (!paused_) alcRenderSamplesSOFT(device_, scratch.data(), static_cast<ALCsizei>(kChunk));
-        next += microseconds(kChunk * 1000000 / rate_);
+        next += nanoseconds(static_cast<int64_t>(kChunk * 1e9 / rate_ / speed_));
         std::this_thread::sleep_until(next);
     }
 }
