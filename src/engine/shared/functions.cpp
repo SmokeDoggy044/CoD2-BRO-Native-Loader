@@ -139,6 +139,7 @@
 #include "stream.h"
 #include "sv.h"
 #include "title_crt.h"
+#include "title_eh.h"
 #include "tr_main.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -9643,6 +9644,9 @@ const Function kFunctions[] = {
     {"HashMap_Dtor_PROLOGUE_25", 0x00465830, 0, code(&HashMap_Dtor_PROLOGUE_25), 0, Result::None, Status::Compare},  // near twin of HashMap_Dtor_PROLOGUE
     {"HashMap_Ctor_PROLOGUE_31", 0x004658a0, 0, code(&HashMap_Ctor_PROLOGUE_31), 8, Result::Eax, Status::Compare},  // near twin of HashMap_Ctor
     // Our CRT (title_crt.h), at the title CRT's addresses: --own-main installs them.
+    {"___CxxFrameHandler", 0x001f1ec0, 0, code(&title_CxxFrameHandler_entry), 0, Result::Eax, Status::Compare},
+    {"_CxxThrowException", 0x001f2302, 0, code(&title_CxxThrowException), 8, Result::None, Status::Compare},
+    {"__EH_prolog", 0x001f2930, 0, code(&title_EH_prolog_entry), 0, Result::None, Status::Compare},
     {"eh_vector_constructor_iterator", 0x00011240, 0, code(&title_vector_constructor_iterator), 16, Result::None, Status::Compare},
     {"vector_call_iterator", 0x00011280, 0, code(&title_vector_destructor_iterator), 16, Result::None, Status::Compare},
     {"_sprintf", 0x001ee901, 0, code(&title_sprintf), 8, Result::Eax, Status::Compare},

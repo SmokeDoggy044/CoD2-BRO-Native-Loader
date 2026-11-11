@@ -3605,8 +3605,8 @@ void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record) {
 
 namespace {
 
-int32_t title_strncmp(const void* a, uint32_t b, uint32_t count) {
-    return own_function<int32_t XB_CDECL(const void*, const char*, uint32_t)>(&title_strncmp)(a, title_text(b), count);
+int32_t strncmp_text(const void* a, uint32_t b, uint32_t count) {  // _strncmp with a title string
+    return game::title_strncmp(static_cast<const char*>(a), title_text(b), count);
 }
 
 uint32_t find_context(uint32_t id) {
@@ -3633,7 +3633,7 @@ void register_groups(uint8_t* record) {
          ++g) {
         const uint8_t* const group = word_at<uint8_t*>(word_at<uint8_t*>(record, 0x7c), 8) + g * 0x18;
         uint32_t bank[8] = {};
-        if (!title_strncmp(group, 0x0083847c, 8)) {  // AUDIO
+        if (!strncmp_text(group, 0x0083847c, 8)) {  // AUDIO
             for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
                 const uint8_t* const entry = word_at<uint8_t*>(group, 0x14) + uint32_t(j) * 0x14;
                 const uint32_t language = sound_language(word_at<const char*>(entry, 0));
@@ -3667,9 +3667,9 @@ void register_groups(uint8_t* record) {
             }
             own_function<void XB_STDCALL(uint32_t, const uint32_t*, uint32_t)>(&S_LoadSoundBank)(  // S_LoadSoundBank
                 title_global<uint32_t>(0x0095f4c0), bank, 1);
-        } else if (!title_strncmp(group, 0x00838474, 8)) {  // VIDEO
+        } else if (!strncmp_text(group, 0x00838474, 8)) {  // VIDEO
             if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
-        } else if (!title_strncmp(group, 0x0083846c, 8)) {  // ANIM
+        } else if (!strncmp_text(group, 0x0083846c, 8)) {  // ANIM
             for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
                 const uint8_t* const entry = word_at<uint8_t*>(group, 0x14) + uint32_t(j) * 0x14;
                 const uint32_t data = word_at<uint32_t>(entry, 0x10) + word_at<uint32_t>(word_at<uint8_t*>(group, 0x10), 0);

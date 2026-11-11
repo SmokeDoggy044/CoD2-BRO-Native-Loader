@@ -646,21 +646,27 @@ namespace {
 constexpr uint32_t kGetptd = 0x001f3327;
 constexpr uint32_t kPctype = 0x008d1650;        // const uint16_t* _pctype
 constexpr uint32_t kCrtStartTime = 0x00926a58;  // ___inittime's start FILETIME
-PLATFORM_TLS_FIXED thread_local TitleThreadData t_thread_data;
-PLATFORM_TLS_FIXED thread_local bool t_thread_data_ready;
 }  // namespace
 
 TitleThreadData* XB_CDECL title_getptd() {
-    TitleThreadData* data = &t_thread_data;
-    if (!t_thread_data_ready) {  // as _getptd's first call on a thread: calloc'ed, seed 1, the "C" locale's info
-        t_thread_data_ready = true;
-        *data = TitleThreadData{};
+    // The title's lookup: a thread with TLS data (KTHREAD at FS:[0x28], +0x28) keeps its pointer in its TLS block
+    // (FS:[0x04][_tls_index] + 0xC), every other thread shares the one at 0x0098f9e0 - so threads without TLS share
+    // one rand seed, as in the title. A missing block is ours (the title's CRT start-up made the first thread's).
+    uint32_t slot = 0x0098f9e0;
+    if (title_global<uint32_t>(platform_fs_word(0x28) + 0x28)) {
+        const uint32_t index = title_global<uint32_t>(0x009268b0);
+        slot = title_global<uint32_t>(platform_fs_word(0x04) + index * 4) + 0xc;
+    }
+    uint32_t& pointer = title_global<uint32_t>(slot);
+    if (!pointer) {  // as _getptd's first call on a thread: calloc'ed, seed 1, the "C" locale's info
+        auto* data = new TitleThreadData{};
         data->mbcinfo = 0x008d1ad0;
         data->rand_seed = 1;
         data->thread_id = title_function<uint32_t XB_STDCALL()>(0x001e7904)();  // GetCurrentThreadId
         data->handle = 0xffffffffu;
+        pointer = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
     }
-    return data;
+    return reinterpret_cast<TitleThreadData*>(static_cast<uintptr_t>(pointer));
 }
 
 TitleThreadData* title_thread_data() {

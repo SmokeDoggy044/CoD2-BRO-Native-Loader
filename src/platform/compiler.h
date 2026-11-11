@@ -187,6 +187,23 @@ inline uint32_t platform_title_frame_word() {
 inline void platform_set_title_frame_word(uint32_t word) {
     __asm__ volatile("movl %0, %%fs:0x14" : : "r"(word) : "memory");
 }
+// FS:[0], the title thread's exception registration chain (NT_TIB.ExceptionList), for our C++ exception handling
+// (src/engine/shared/title_eh.cpp), which links its own frames like the title's CRT did.
+inline uint32_t platform_seh_head() {
+    uint32_t head;
+    __asm__ volatile("movl %%fs:0, %0" : "=r"(head));
+    return head;
+}
+inline void platform_set_seh_head(uint32_t head) {
+    __asm__ volatile("movl %0, %%fs:0" : : "r"(head) : "memory");
+}
+// Any FS-relative word of a title thread (the CRT's thread data lookup reads the KTHREAD at FS:[0x28] and the TLS
+// array at FS:[0x04] the way the title's _getptd did).
+inline uint32_t platform_fs_word(uint32_t offset) {
+    uint32_t word;
+    __asm__ volatile("movl %%fs:(%1), %0" : "=r"(word) : "r"(offset));
+    return word;
+}
 inline void platform_set_title_frame_limit(uint32_t limit) {
     platform_set_title_frame_word((limit & ~1u) | (platform_title_frame_word() & 1u));
 }
