@@ -97,6 +97,8 @@ set(game_code_sources
     shared/title_stdio.cpp
     shared/title_xapi.cpp
     shared/title_xapi_check.cpp
+    shared/title_savegame.cpp
+    shared/title_savegame_check.cpp
     renderer/fx.cpp
     renderer/fx_cmd.cpp
     renderer/fx_load.cpp

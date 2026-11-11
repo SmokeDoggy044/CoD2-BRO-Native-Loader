@@ -32,7 +32,7 @@ INCLUDE = re.compile(r'^#include "([^"]+)"', re.M)
 
 
 # Files that call originals by address on purpose: title_crt.cpp's --check-crt runs ours against the title's.
-KEEP_FILES = {"title_crt.cpp", "title_eh.cpp", "title_xapi_check.cpp"}
+KEEP_FILES = {"title_crt.cpp", "title_eh.cpp", "title_xapi_check.cpp", "title_savegame_check.cpp"}
 
 
 def engine_files(args, suffixes=(".cpp", ".h")):

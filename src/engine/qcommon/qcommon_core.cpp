@@ -16,6 +16,7 @@
 #include "title_data.h"
 #include "title_xapi.h"
 #include "title_eh.h"
+#include "title_savegame.h"
 
 namespace game {
 
@@ -4765,7 +4766,7 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
     root[0] = title_global<char>(0x008c02d4);
     uint8_t find[0x344];  // XGAME_FIND_DATA: last write +0x14, directory +0x140, name (wide) +0x244
     const uint32_t search =
-        title_function<uint32_t XB_STDCALL(const char*, uint8_t*)>(0x001e92ef)(root, find);  // XFindFirstSaveGame
+        own_function<uint32_t XB_STDCALL(const char*, uint8_t*)>(&XFindFirstSaveGame)(root, find);  // XFindFirstSaveGame
     if (search == 0xffffffffu) {
         static_cast<uint32_t>(Save_UnmountDevice());
         return 0;
@@ -4774,11 +4775,11 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
     do {
         const uint16_t* const name = reinterpret_cast<const uint16_t*>(find + 0x244);
         const uint32_t length = own_function<uint32_t XB_CDECL(const uint16_t*)>(&title_wcslen)(name);  // _wcslen
-        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const uint16_t*, uint32_t, uint8_t*, uint32_t, uint32_t,
-                                          uint32_t)>(0x001e975f)(0, 0, name, length + 1, entry, 0x40, 0,
+        own_function<int32_t XB_STDCALL(uint32_t, uint32_t, const uint16_t*, uint32_t, uint8_t*, uint32_t, uint32_t,
+                                          uint32_t)>(&WideCharToMultiByte)(0, 0, name, length + 1, entry, 0x40, 0,
                                                                  0);  // WideCharToMultiByte
         word_at(entry, 0x40) =
-            title_function<uint32_t XB_STDCALL(const uint8_t*)>(0x001ea047)(find + 0x140);  // XGetDisplayBlocks
+            own_function<uint32_t XB_STDCALL(const uint8_t*)>(&XGetDisplayBlocks)(find + 0x140);  // XGetDisplayBlocks
         uint32_t local_time[2];
         uint16_t date[8];  // SYSTEMTIME
         own_function<uint32_t XB_STDCALL(const uint8_t*, uint32_t*)>(&FileTimeToLocalFileTime)(find + 0x14, local_time);  // FileTimeToLocalFileTime
@@ -4791,8 +4792,8 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
         *reinterpret_cast<uint16_t*>(entry + 0x4a) = date[0];
         ++count;
         entry += 0x4c;
-    } while (title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(0x001e93f9)(search, find));  // XFindNextSaveGame
-    if (!title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e9440)(search)) {  // XFindClose
+    } while (own_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(&XFindNextSaveGame)(search, find));  // XFindNextSaveGame
+    if (!own_function<uint32_t XB_STDCALL(uint32_t)>(&XFindClose)(search)) {  // XFindClose
         Save_SetLastResult(0xffffffffu);
         static_cast<uint32_t>(Save_UnmountDevice());
         return 0xffffffffu;
@@ -5655,8 +5656,8 @@ int32_t XB_CDECL Save_CreateSaveGame(const char* name) {
     wide[0] = 0;
     own_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(&MultiByteToWideChar)(
         0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
-    const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*, uint32_t, uint32_t, char*,
-                                                            uint32_t)>(0x001e8fbc)(
+    const int32_t error = own_function<int32_t XB_STDCALL(const char*, const uint16_t*, uint32_t, uint32_t, char*,
+                                                            uint32_t)>(&XCreateSaveGame)(
         save_drive_root(), wide, 4, 0, &title_global<char>(0x00920da8), 0x103);  // XCreateSaveGame
     return Save_TranslateError(error);
 }
@@ -5776,10 +5777,10 @@ uint32_t XB_CDECL Save_WriteFile(const char* name, uint8_t* buffer, uint32_t siz
         uint32_t* const signature = reinterpret_cast<uint32_t*>(buffer + size - 0x20);
         if (signature) {
             uint32_t digest[5];
-            const uint32_t context = title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e8ac7)(0);  // XCalculateSignatureBegin
-            title_function<uint32_t XB_STDCALL(uint32_t, const uint8_t*, uint32_t)>(0x001e8adb)(context, buffer,
+            const uint32_t context = own_function<uint32_t XB_STDCALL(uint32_t)>(&XCalculateSignatureBegin)(0);  // XCalculateSignatureBegin
+            own_function<uint32_t XB_STDCALL(uint32_t, const uint8_t*, uint32_t)>(&XCalculateSignatureUpdate)(context, buffer,
                                                                                                size - 0x20);
-            title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x001e8b29)(context, digest);
+            own_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(&XCalculateSignatureEnd)(context, digest);
             for (uint32_t i = 0; i < 5; ++i) signature[i] = digest[i];
         }
     }
@@ -5969,7 +5970,7 @@ int32_t XB_CDECL Save_DeleteSaveGame(const char* name) {
     wide[0] = 0;
     own_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(&MultiByteToWideChar)(
         0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
-    const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*)>(0x001e921f)(
+    const int32_t error = own_function<int32_t XB_STDCALL(const char*, const uint16_t*)>(&XDeleteSaveGame)(
         save_drive_root(), wide);  // XDeleteSaveGame
     return Save_TranslateError(error);
 }

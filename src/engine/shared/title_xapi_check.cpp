@@ -7,6 +7,7 @@
 
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_savegame.h"
 #include "title_stdio.h"
 #include "title_xapi.h"
 
@@ -293,6 +294,7 @@ int32_t check_title_xapi(std::string& report) {
         failures += static_cast<int32_t>(differences);
         add_line(report, "UTF8ToUnicode/MultiByteToWideChar: 4000 strings, %u difference(s)", differences);
     }
+    failures += check_title_savegame(report);
     return failures;
 }
 

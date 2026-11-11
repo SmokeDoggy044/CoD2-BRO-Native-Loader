@@ -1356,6 +1356,190 @@ uint32_t XB_CDECL title_wcslen(const uint16_t* text) {
     return static_cast<uint32_t>(p - text);
 }
 
+uint16_t* XB_CDECL title_wcsncpy(uint16_t* dest, const uint16_t* source, uint32_t count) {
+    // Copies up to and including the terminator, then fills the rest of `count` with zeros.
+    uint16_t* d = dest;
+    if (count) {
+        for (;;) {
+            const uint16_t c = *source++;
+            *d++ = c;
+            if (!c || !--count) break;
+        }
+        if (count && --count)
+            while (count--) *d++ = 0;
+    }
+    return dest;
+}
+
+uint16_t* XB_CDECL title_wcsstr(const uint16_t* text, const uint16_t* part) {
+    if (!*part) return const_cast<uint16_t*>(text);
+    for (; *text; ++text) {
+        const uint16_t* a = text;
+        const uint16_t* b = part;
+        while (*a && *b && *a == *b) ++a, ++b;
+        if (!*b) return const_cast<uint16_t*>(text);
+    }
+    return nullptr;
+}
+
+int32_t XB_CDECL title_wcscmp(const uint16_t* a, const uint16_t* b) {
+    int32_t r;
+    while ((r = static_cast<int32_t>(*a) - static_cast<int32_t>(*b)) == 0 && *b) ++a, ++b;
+    return r < 0 ? -1 : r > 0 ? 1 : 0;
+}
+
+namespace {
+// __woutput (the wide _output): the text one call writes. It stops after the first character beyond `fits` (the
+// failed write ends _output: later conversions, %n too, do not run); the caller cuts the text to the buffer.
+std::u16string format_wide(const uint16_t* format, int64_t fits, va_list args) {
+    std::u16string out;
+    const auto pad = [&out](int32_t n, char16_t c) {
+        for (; n > 0; --n) out += c;
+    };
+    for (const uint16_t* p = format; *p && static_cast<int64_t>(out.size()) <= fits;) {
+        if (*p != '%') {
+            out += static_cast<char16_t>(*p++);
+            continue;
+        }
+        ++p;
+        std::string flags;
+        bool left = false, zero = false;
+        while (*p == '-' || *p == '+' || *p == ' ' || *p == '#' || *p == '0') {
+            left |= *p == '-';
+            zero |= *p == '0';
+            flags += static_cast<char>(*p++);
+        }
+        int32_t width = -1, precision = -1;
+        if (*p == '*') {
+            width = va_arg(args, int32_t);
+            if (width < 0) {
+                left = true;
+                flags += '-';
+                width = -width;
+            }
+            ++p;
+        } else {
+            while (*p >= '0' && *p <= '9') width = (width < 0 ? 0 : width * 10) + (*p++ - '0');
+        }
+        if (*p == '.') {
+            ++p;
+            precision = 0;
+            if (*p == '*') {
+                precision = va_arg(args, int32_t);
+                if (precision < 0) precision = -1;
+                ++p;
+            } else {
+                while (*p >= '0' && *p <= '9') precision = precision * 10 + (*p++ - '0');
+            }
+        }
+        enum { None, Short, Long, I64 } size = None;
+        std::string size_text;
+        if (*p == 'h') {
+            size = Short, size_text = "h", ++p;
+        } else if (*p == 'l' || *p == 'w') {
+            size = Long, size_text = "l", ++p;
+        } else if (p[0] == 'I' && p[1] == '6' && p[2] == '4') {
+            size = I64, size_text = "I64", p += 3;
+        } else if (p[0] == 'I' && p[1] == '3' && p[2] == '2') {
+            p += 3;
+        }
+        const uint16_t conv = *p;
+        if (!conv) break;
+        ++p;
+        // 'C' / 'S' are narrow unless a size says otherwise; 'c' / 's' narrow only with 'h'.
+        const bool narrow = (conv == 'C' || conv == 'S') ? (size == None || size == Short) : size == Short;
+        std::u16string text;
+        switch (conv) {
+        case 'c':
+        case 'C': {
+            const uint32_t v = va_arg(args, uint32_t);
+            text += narrow ? static_cast<char16_t>(static_cast<uint8_t>(v)) : static_cast<char16_t>(v);
+            break;
+        }
+        case 's':
+        case 'S': {
+            const uint32_t v = va_arg(args, uint32_t);
+            const uint32_t limit = precision < 0 ? 0x7fffffffu : static_cast<uint32_t>(precision);
+            if (narrow) {
+                const auto* s = v ? reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(v))
+                                  : reinterpret_cast<const uint8_t*>("(null)");
+                for (uint32_t i = 0; i < limit && s[i]; ++i) text += static_cast<char16_t>(s[i]);
+            } else {
+                static const uint16_t null_text[] = {'(', 'n', 'u', 'l', 'l', ')', 0};
+                const uint16_t* s = v ? reinterpret_cast<const uint16_t*>(static_cast<uintptr_t>(v)) : null_text;
+                for (uint32_t i = 0; i < limit && s[i]; ++i) text += static_cast<char16_t>(s[i]);
+            }
+            break;
+        }
+        case 'n':
+            *reinterpret_cast<int32_t*>(static_cast<uintptr_t>(va_arg(args, uint32_t))) = static_cast<int32_t>(out.size());
+            continue;
+        case 'd':
+        case 'i':
+        case 'u':
+        case 'x':
+        case 'X':
+        case 'o':
+        case 'p':
+        case 'e':
+        case 'E':
+        case 'f':
+        case 'g':
+        case 'G': {
+            // The narrow formatter's text for the same spec, widened.
+            std::string spec = "%" + flags;
+            if (width >= 0) spec += std::to_string(width);
+            if (precision >= 0) spec += "." + std::to_string(precision);
+            spec += size_text;
+            spec += static_cast<char>(conv);
+            char buf[512];
+            if (conv == 'e' || conv == 'E' || conv == 'f' || conv == 'g' || conv == 'G')
+                title_snprintf(buf, sizeof buf, spec.c_str(), va_arg(args, double));
+            else if (size == I64 && conv != 'p')
+                title_snprintf(buf, sizeof buf, spec.c_str(), va_arg(args, uint64_t));
+            else
+                title_snprintf(buf, sizeof buf, spec.c_str(), va_arg(args, uint32_t));
+            buf[sizeof buf - 1] = 0;
+            for (const char* q = buf; *q; ++q) out += static_cast<char16_t>(static_cast<uint8_t>(*q));
+            continue;
+        }
+        default:  // '%%' and unknown conversions: the character itself
+            out += static_cast<char16_t>(conv);
+            continue;
+        }
+        const int32_t padding = width - static_cast<int32_t>(text.size());
+        if (!left) pad(padding, zero ? u'0' : u' ');
+        out += text;
+        if (left) pad(padding, u' ');
+    }
+    return out;
+}
+}  // namespace
+
+int32_t XB_CDECL title_snwprintf(uint16_t* out, uint32_t count, const uint16_t* format, ...) {
+    // _cnt in bytes: a character is stored while it stays >= 0 after taking 2; the first that does not fit makes the
+    // result -1 (and _output stops). Then the two terminator bytes, one each.
+    auto room = static_cast<int32_t>(count * 2);
+    va_list args;
+    va_start(args, format);
+    const std::u16string text = format_wide(format, room >= 0 ? room / 2 : -1, args);
+    va_end(args);
+    uint16_t* p = out;
+    bool failed = false;
+    for (const char16_t c : text) {
+        room -= 2;
+        if (room < 0) {
+            failed = true;
+            break;
+        }
+        *p++ = static_cast<uint16_t>(c);
+    }
+    auto* b = reinterpret_cast<uint8_t*>(p);
+    if (--room >= 0) *b++ = 0;
+    if (--room >= 0) *b = 0;
+    return failed ? -1 : static_cast<int32_t>(text.size());
+}
+
 int32_t XB_CDECL title_strnicmp(const char* a, const char* b, uint32_t count) {
     // __locale_changed stays 0: __ascii_strnicmp. Stops at the first terminator of either string.
     uint8_t x = 0, y = 0;
@@ -2553,6 +2737,99 @@ int32_t check_title_crt(std::string& report) {
         failures += static_cast<int32_t>(heap_failures);
         add_line(report, "heap: 30000 operations, %u difference(s); %u bytes in %u blocks in use, %u KB in segments",
                  heap_failures, in_use, blocks, reserved / 1024);
+    }
+    // Wide strings: wcsncpy / wcsstr / wcscmp on random short strings over a small alphabet, _snwprintf's
+    // string and character conversions, sizes, widths, precisions and the count limit.
+    {
+        const auto orig_wcsncpy = title_function<uint16_t* XB_CDECL(uint16_t*, const uint16_t*, uint32_t)>(0x001f1397);
+        const auto orig_wcsstr = title_function<uint16_t* XB_CDECL(const uint16_t*, const uint16_t*)>(0x001f248f);
+        const auto orig_wcscmp = title_function<int32_t XB_CDECL(const uint16_t*, const uint16_t*)>(0x001f24ed);
+        const auto orig_snwprintf = title_function<int32_t XB_CDECL(uint16_t*, uint32_t, const uint16_t*, ...)>(0x001f251f);
+        uint32_t state = 0x1234567;
+        const auto next = [&state](uint32_t n) {
+            state = state * 1103515245u + 12345u;
+            return (state >> 8) % n;
+        };
+        uint32_t differences = 0;
+        for (int i = 0; i < 3000; ++i) {
+            uint16_t x[24], y[24];
+            const uint32_t nx = next(12), ny = next(5);
+            for (uint32_t k = 0; k < nx; ++k) x[k] = static_cast<uint16_t>(k % 3 == 2 ? 0xff61 + next(3) : 'a' + next(3));
+            for (uint32_t k = 0; k < ny; ++k) y[k] = static_cast<uint16_t>(k % 3 == 2 ? 0xff61 + next(3) : 'a' + next(3));
+            x[nx] = y[ny] = 0;
+            if (orig_wcsstr(x, y) != title_wcsstr(x, y) || orig_wcscmp(x, y) != title_wcscmp(x, y) ||
+                orig_wcscmp(y, x) != title_wcscmp(y, x))
+                ++differences;
+            uint16_t a[40], b[40];
+            std::memset(a, 0x77, sizeof a);
+            std::memset(b, 0x77, sizeof b);
+            const uint32_t count = next(20);
+            if (orig_wcsncpy(a + 1, x, count) != a + 1 || title_wcsncpy(b + 1, x, count) != b + 1 ||
+                std::memcmp(a, b, sizeof a) != 0)
+                ++differences;
+        }
+        static const uint16_t w_text[] = {'W', 0xe9, 'd', 0x20ac, 0};
+        static const char n_text[] = "na\xefrrow";
+        struct Case {
+            const char* format;
+            int kind;  // 0 strings + chars, 1 ints, 2 double
+        };
+        static const Case cases[] = {
+            {"%lc%ls%lc%ls%ls", 0},  {"%s|%S|%hs|%ls|%ws", 0}, {"[%8ls][%-8ls][%08ls][%.2ls][%-08.3ls]", 0},
+            {"%c%C%hc%lc%wc", 0},    {"[%5c][%-5c][%05C]", 0},  {"[%*ls][%.*hs][%*.*S]", 0},
+            {"%d %i %5u %-5x %08X %o %%", 1},                    {"%I64d %hd %lx %p %n", 1},
+            {"%f %e %10.3g %E %G", 2}, {"%z%q %5%", 0},          {"(%s)(%hs)", 0},
+        };
+        for (const Case& c : cases) {
+            uint16_t format[64];
+            uint32_t k = 0;
+            for (; c.format[k]; ++k) format[k] = static_cast<uint8_t>(c.format[k]);
+            format[k] = 0;
+            for (uint32_t count : {0u, 1u, 2u, 5u, 12u, 30u, 0x98u}) {
+                uint16_t a[0xa0], b[0xa0];
+                std::memset(a, 0x55, sizeof a);
+                std::memset(b, 0x55, sizeof b);
+                int32_t na, nb;
+                int32_t written_a = 0, written_b = 0;
+                if (c.kind == 0 && c.format[1] == 'l' && c.format[2] == 'c') {
+                    na = orig_snwprintf(a, count, format, 0xfeffu, w_text, uint32_t{'='}, w_text, w_text);
+                    nb = title_snwprintf(b, count, format, 0xfeffu, w_text, uint32_t{'='}, w_text, w_text);
+                } else if (c.kind == 0 && c.format[0] == '(') {
+                    na = orig_snwprintf(a, count, format, 0u, 0u);
+                    nb = title_snwprintf(b, count, format, 0u, 0u);
+                } else if (c.kind == 0 && c.format[2] == '*') {
+                    na = orig_snwprintf(a, count, format, -6, w_text, 3, n_text, 7, 2, n_text);
+                    nb = title_snwprintf(b, count, format, -6, w_text, 3, n_text, 7, 2, n_text);
+                } else if (c.kind == 0 && (c.format[1] == 'c' || c.format[2] == '5')) {
+                    na = orig_snwprintf(a, count, format, 0x20acu, 0x1e9u, 0x1e9u, 0x20acu, 0x41u);
+                    nb = title_snwprintf(b, count, format, 0x20acu, 0x1e9u, 0x1e9u, 0x20acu, 0x41u);
+                } else if (c.kind == 0) {
+                    na = orig_snwprintf(a, count, format, w_text, n_text, n_text, w_text, w_text);
+                    nb = title_snwprintf(b, count, format, w_text, n_text, n_text, w_text, w_text);
+                } else if (c.kind == 1 && c.format[1] == 'I') {
+                    na = orig_snwprintf(a, count, format, 0x123456789abcll, 0x18765, 0xbeefu, 0x1234u, &written_a);
+                    nb = title_snwprintf(b, count, format, 0x123456789abcll, 0x18765, 0xbeefu, 0x1234u, &written_b);
+                } else if (c.kind == 1) {
+                    na = orig_snwprintf(a, count, format, -42, 7, 99u, 0xabcu, 0xabcu, 8u);
+                    nb = title_snwprintf(b, count, format, -42, 7, 99u, 0xabcu, 0xabcu, 8u);
+                } else {
+                    na = orig_snwprintf(a, count, format, 3.25, -1234.5e10, 0.000123456, 1e300, 2.5e-7);
+                    nb = title_snwprintf(b, count, format, 3.25, -1234.5e10, 0.000123456, 1e300, 2.5e-7);
+                }
+                if (na != nb || written_a != written_b || std::memcmp(a, b, sizeof a) != 0) {
+                    if (++differences <= 8) {
+                        std::string ta, tb;
+                        for (uint32_t j = 0; j < 0x60 && a[j] && a[j] != 0x5555; ++j) ta += a[j] < 0x80 ? static_cast<char>(a[j]) : '?';
+                        for (uint32_t j = 0; j < 0x60 && b[j] && b[j] != 0x5555; ++j) tb += b[j] < 0x80 ? static_cast<char>(b[j]) : '?';
+                        add_line(report, "snwprintf \"%s\" count %u: title %d \"%s\", ours %d \"%s\"", c.format, count, na,
+                                 ta.c_str(), nb, tb.c_str());
+                    }
+                }
+            }
+        }
+        failures += static_cast<int32_t>(differences);
+        add_line(report, "wide strings: 3000 wcsstr/wcscmp/wcsncpy, %u snwprintf cases, %u difference(s)",
+                 static_cast<uint32_t>(sizeof cases / sizeof *cases) * 7, differences);
     }
     return failures;
 }

@@ -140,6 +140,7 @@
 #include "sv.h"
 #include "title_heap.h"
 #include "title_stdio.h"
+#include "title_savegame.h"
 #include "title_xapi.h"
 #include "title_crt.h"
 #include "title_eh.h"
@@ -1051,12 +1052,40 @@ const Function kFunctions[] = {
     {"SleepEx", 0x001e8659, 0, code(&SleepEx), 8, Result::Eax, Status::Compare},
     {"WaitForSingleObject", 0x001e86ab, 0, code(&WaitForSingleObject), 8, Result::Eax, Status::Compare},
     {"CancelIo", 0x001e86f2, 0, code(&CancelIo), 4, Result::Eax, Status::Replaced},  // the original's IDE-queue walk faults on our kernel's zero IdexChannelObject
+    {"XShaHmacInitialize", 0x001e87bb, 0, code(&XShaHmacInitialize), 12, Result::None, Status::Compare},
+    {"XShaHmacComputeFinal", 0x001e8822, 0, code(&XShaHmacComputeFinal), 16, Result::None, Status::Compare},
+    {"XapiConvertSignatureToNonRoamable", 0x001e8894, 0, code(&XapiConvertSignatureToNonRoamable), 12, Result::Eax, Status::Compare},
+    {"XapipCalculateSaveGameSignatureBegin", 0x001e8909, 0, code(&XapipCalculateSaveGameSignatureBegin), 8, Result::Eax, Status::Compare},
+    {"XapipCalculateSaveGameSignatureEnd", 0x001e8989, 0, code(&XapipCalculateSaveGameSignatureEnd), 8, Result::Eax, Status::Compare},
+    {"XapipCalculateContentSignatureBegin", 0x001e89eb, 0, code(&XapipCalculateContentSignatureBegin), 0, Result::Eax, Status::Compare},
+    {"FUN_001e8a21", 0x001e8a21, 0, code(&FUN_001e8a21), 12, Result::Eax, Status::Compare},
+    {"XapipCalculateContentSignatureEnd", 0x001e8a3b, 0, code(&XapipCalculateContentSignatureEnd), 8, Result::Eax, Status::Compare},
+    {"XCalculateSignatureBeginEx", 0x001e8a86, 0, code(&XCalculateSignatureBeginEx), 8, Result::Eax, Status::Compare},
+    {"XCalculateSignatureBegin", 0x001e8ac7, 0, code(&XCalculateSignatureBegin), 4, Result::Eax, Status::Compare},
+    {"XCalculateSignatureUpdate", 0x001e8adb, 0, code(&XCalculateSignatureUpdate), 12, Result::Eax, Status::Compare},
+    {"XCalculateSignatureEnd", 0x001e8b29, 0, code(&XCalculateSignatureEnd), 8, Result::Eax, Status::Compare},
+    {"HexDigitToChar", 0x001e8b6e, 0, code(&HexDigitToChar), 4, Result::Eax, Status::Compare},
+    {"XapiSaveGameHashEncode", 0x001e8b82, 0, code(&XapiSaveGameHashEncode), 12, Result::None, Status::Compare},
+    {"XapiValidateAndSkipUnicodeSignature", 0x001e8c14, 0, code(&XapiValidateAndSkipUnicodeSignature), 8, Result::Eax, Status::Compare},
+    {"XapiFindValueInMetaFile", 0x001e8c5c, 0, code(&XapiFindValueInMetaFile), 16, Result::Eax, Status::Compare},
+    {"XapiFillInSaveGameData", 0x001e8ddf, 0, code(&XapiFillInSaveGameData), 12, Result::Eax, Status::Compare},
+    {"XapiVerifyGameName", 0x001e8ee0, 0, code(&XapiVerifyGameName), 8, Result::Eax, Status::Replaced},  // creates an empty SaveMeta.xbx when missing (OPEN_ALWAYS): not compared (--check-crt checks what it leaves)
+    {"XapiTouchDirectoryTimestamp", 0x001e8f60, 0, code(&XapiTouchDirectoryTimestamp), 4, Result::None, Status::Replaced},  // sets a directory's write time: not compared (--check-crt checks what it leaves)
+    {"XCreateSaveGame", 0x001e8fbc, 0, code(&XCreateSaveGame), 24, Result::Eax, Status::Replaced},  // writes a save directory and SaveMeta.xbx: not compared (--check-crt checks what it leaves)
+    {"XDeleteSaveGame", 0x001e921f, 0, code(&XDeleteSaveGame), 8, Result::Eax, Status::Replaced},  // deletes a save directory: not compared (--check-crt checks what it leaves)
+    {"XFindFirstSaveGame", 0x001e92ef, 0, code(&XFindFirstSaveGame), 8, Result::Eax, Status::Compare},
+    {"XFindNextSaveGame", 0x001e93f9, 0, code(&XFindNextSaveGame), 8, Result::Eax, Status::Compare},
+    {"XFindClose", 0x001e9440, 0, code(&XFindClose), 4, Result::Eax, Status::Compare},
     {"UTF8ToUnicode", 0x001e9496, 0, code(&UTF8ToUnicode), 16, Result::Eax, Status::Compare},
+    {"UnicodeToUTF8", 0x001e95ec, 0, code(&UnicodeToUTF8), 16, Result::Eax, Status::Compare},
     {"MultiByteToWideChar", 0x001e96a4, 0, code(&MultiByteToWideChar), 24, Result::Eax, Status::Compare},
+    {"WideCharToMultiByte", 0x001e975f, 0, code(&WideCharToMultiByte), 32, Result::Eax, Status::Compare},
     {"GetDiskFreeSpaceExA", 0x001e9827, 0, code(&GetDiskFreeSpaceExA), 16, Result::Eax, Status::Compare},
     {"XGetDiskClusterSizeA", 0x001e9cc8, 0, code(&XGetDiskClusterSizeA), 4, Result::Eax, Status::Compare},
     {"XGetDiskSectorSizeA", 0x001e9d67, 0, code(&XGetDiskSectorSizeA), 4, Result::Eax, Status::Compare},
-    {"DeleteFileA", 0x001e9e84, 0, code(&DeleteFileA), 4, Result::Eax, Status::Replaced},  // deletes a file: not compared (--check-crt runs both)
+    {"DeleteFileA", 0x001e9e84, 0, code(&DeleteFileA), 4, Result::Eax, Status::Replaced},  // deletes a file: not compared (--check-crt checks what it leaves)
+    {"XapiGetDirectoryDisplayBlocks", 0x001e9f12, 0, code(&XapiGetDirectoryDisplayBlocks), 12, Result::Eax, Status::Compare},
+    {"XGetDisplayBlocks", 0x001ea047, 0, code(&XGetDisplayBlocks), 4, Result::Eax, Status::Compare},
     {"XMemAlloc", 0x001ea11f, 0, code(&XMemAlloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"XMemFree", 0x001ea1bf, 0, code(&XMemFree), 8, Result::None, Status::Replaced},  // our heap (title_heap.cpp)
     {"HeapCreate", 0x001ea1d9, 0, code(&HeapCreate), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
@@ -1065,17 +1094,22 @@ const Function kFunctions[] = {
     {"GetProcessHeap", 0x001ea25b, 0, code(&GetProcessHeap), 0, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"LocalAlloc", 0x001ea261, 0, code(&LocalAlloc), 8, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"LocalFree", 0x001ea27e, 0, code(&LocalFree), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"lstrcpynA", 0x001eabd6, 0, code(&lstrcpynA), 12, Result::Eax, Status::Compare},
     {"RtlDestroyHeap", 0x001eb5e4, 0, code(&RtlDestroyHeap), 4, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlSizeHeap", 0x001eba71, 0, code(&RtlSizeHeap), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlCreateHeap", 0x001ebfef, 0, code(&RtlCreateHeap), 24, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlAllocateHeap", 0x001ec413, 0, code(&RtlAllocateHeap), 12, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlFreeHeap", 0x001ecb8e, 0, code(&RtlFreeHeap), 12, Result::Al, Status::Replaced},  // our heap (title_heap.cpp)
     {"RtlReAllocateHeap", 0x001ecd82, 0, code(&RtlReAllocateHeap), 16, Result::Eax, Status::Replaced},  // our heap (title_heap.cpp)
+    {"CreateDirectoryA", 0x001ed5d0, 0, code(&CreateDirectoryA), 8, Result::Eax, Status::Replaced},  // makes a directory: not compared (--check-crt checks what it leaves)
+    {"RemoveDirectoryA", 0x001ed63c, 0, code(&RemoveDirectoryA), 4, Result::Eax, Status::Replaced},  // deletes a directory: not compared (--check-crt checks what it leaves)
     {"QueryPerformanceCounter", 0x001ed6ca, 0, code(&QueryPerformanceCounter), 4, Result::Eax, Status::Compare},
     {"XQueryValue", 0x001ed6ef, 0, code(&XQueryValue), 20, Result::Eax, Status::Compare},
     {"XapiFormatObjectAttributes", 0x001edf88, 0, code(&XapiFormatObjectAttributes), 12, Result::Eax, Status::Compare},
     {"XapiFormatTimeOut", 0x001edfb0, 0, code(&XapiFormatTimeOut), 8, Result::Eax, Status::Compare},
     {"XGetAVPack", 0x001edfde, 0, code(&XGetAVPack), 0, Result::Eax, Status::Compare},
+    {"XapiNukeDirectoryFromHandle", 0x001edfe6, 0, code(&XapiNukeDirectoryFromHandle), 8, Result::Eax, Status::Replaced},  // deletes a directory tree: not compared (--check-crt checks what it leaves)
+    {"XapiNukeDirectory", 0x001ee163, 0, code(&XapiNukeDirectory), 8, Result::Eax, Status::Replaced},  // deletes a directory tree: not compared (--check-crt checks what it leaves)
     {"_flush", 0x001efd9e, 0, code(&title_flush), 4, Result::Eax, Status::Compare},
     {"_fflush_lk", 0x001efdfb, 0, code(&title_fflush_lk), 4, Result::Eax, Status::Compare},
     {"fflush", 0x001efefe, 0, code(&title_fflush), 4, Result::Eax, Status::Compare},
@@ -9906,6 +9940,10 @@ const Function kFunctions[] = {
     {"_memmove", 0x001ef0c0, 0, code(&title_memmove), 12, Result::Eax, Status::Compare},
     {"_strcpy", 0x001ef4d0, 0, code(&title_strcpy), 8, Result::Eax, Status::Compare},
     {"_wcslen", 0x001f1343, 0, code(&title_wcslen), 4, Result::Eax, Status::Compare},
+    {"_wcsncpy", 0x001f1397, 0, code(&title_wcsncpy), 12, Result::Eax, Status::Compare},
+    {"_wcsstr", 0x001f248f, 0, code(&title_wcsstr), 8, Result::Eax, Status::Compare},
+    {"_wcscmp", 0x001f24ed, 0, code(&title_wcscmp), 8, Result::Eax, Status::Compare},
+    {"_snwprintf", 0x001f251f, 0, code(&title_snwprintf), 12, Result::Eax, Status::Compare},
     {"__ceil_default", 0x001ef3fd, 0, code(&title_ceil), 8, Result::St0, Status::Compare},
     {"_allmul", 0x001f1170, 0, code(&title_allmul), 16, Result::EdxEax, Status::Compare},
     {"_aulldiv", 0x001f11b0, 0, code(&title_aulldiv), 16, Result::EdxEax, Status::Compare},

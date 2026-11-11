@@ -99,6 +99,14 @@ void* XB_CDECL title_memchr(const void* buffer, int32_t c, uint32_t count);    /
 void* XB_CDECL title_memmove(void* dest, const void* source, uint32_t count);  // 0x001ef0c0
 char* XB_CDECL title_strcpy(char* dest, const char* source);                  // 0x001ef4d0
 uint32_t XB_CDECL title_wcslen(const uint16_t* text);                         // 0x001f1343
+// Wide strings (16-bit characters, as on the Xbox).
+uint16_t* XB_CDECL title_wcsncpy(uint16_t* dest, const uint16_t* source, uint32_t count);  // 0x001f1397 (zero fill)
+uint16_t* XB_CDECL title_wcsstr(const uint16_t* text, const uint16_t* part);              // 0x001f248f
+int32_t XB_CDECL title_wcscmp(const uint16_t* a, const uint16_t* b);                      // 0x001f24ed (-1/0/1)
+// 0x001f251f _snwprintf: at most `count` characters; a string FILE whose _cnt counts bytes (count * 2): each
+// character takes 2 and is dropped when it goes negative (result -1), then two terminator bytes the same way.
+// s/c/S/C with h/l/w sizes, width, precision, '-' and '0'; other conversions through title_snprintf, widened.
+int32_t XB_CDECL title_snwprintf(uint16_t* out, uint32_t count, const uint16_t* format, ...);
 // ctype through the title's _pctype table (0x008d1650; callers pass sign-extended chars, which index before it):
 // the flag bits, not 0/1.
 int32_t XB_CDECL title_isalpha(int32_t c);  // 0x001eef49 & 0x103
