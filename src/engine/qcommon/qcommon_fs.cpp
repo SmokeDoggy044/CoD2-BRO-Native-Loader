@@ -7033,6 +7033,66 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
 
 // ---- Push 8, batch 3: boot.
 
+namespace {
+
+// 0x0002ba90 (LiveRecord_Construct, ECX): one 0x48-byte record of the Live manager.
+void live_record_construct(uint8_t* r) {
+    for (uint32_t o = 4; o < 0x30; o += 4) pk<uint32_t>(r, o) = 0;
+    pk<uint32_t>(r, 0) = 0x0083c8c0;
+    pk<uint8_t>(r, 0x30) = 0;
+    pk<uint32_t>(r, 0x34) = 2;
+    pk<uint32_t>(r, 0x38) = 0;
+    pk<uint32_t>(r, 0x3c) = 0;
+    for (uint32_t o = 0x40; o < 0x48; ++o) pk<uint8_t>(r, o) = 0;
+}
+
+// 0x00224920 (LiveMgr_Construct, EAX) with 0x00222df0 (LiveMgrBase_Construct, ESI) inlined: only fills fields and
+// sets g_liveMgr (0x0095f6fc); the engine reads +0x446c, +0x44cb, +0x44d0 of it. The own host has no Live UI, so
+// this is all that is left of the Live manager.
+void live_mgr_construct(uint8_t* m) {
+    pk<uint32_t>(m, 0) = 0x0083c738;  // LiveMgrBase_vtable
+    for (uint32_t o = 4; o <= 0x20; o += 4) pk<uint32_t>(m, o) = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* const b = m + 0x30 + i * 0xfe8;
+        for (uint32_t o = 4; o < 0x30; o += 4) pk<uint32_t>(b, o) = 0;
+        pk<uint8_t>(b, 0x30) = 0;
+        pk<uint32_t>(b, 0x34) = 2;
+        pk<uint32_t>(b, 0x3c) = 0;
+        pk<uint32_t>(b, 0x38) = 0;
+        pk<uint32_t>(b, 0) = 0x0083c8a4;
+        pk<uint8_t>(b, 0x40) = 0;
+        pk<uint32_t>(b, 0x44) = 0;
+    }
+    for (uint32_t i = 0; i < 15; ++i) live_record_construct(m + 0x3fd0 + i * 0x48);
+    pk<uint16_t>(m, 0x4408) = 0;
+    pk<uint8_t>(m, 0x4428) = 0;
+    pk<uint32_t>(m, 0x442c) = 0;
+    pk<uint32_t>(m, 0x4434) = 0;
+    pk<uint8_t>(m, 0x4438) = 0;
+    pk<uint8_t>(m, 0x443c) = 0;
+    pk<uint32_t>(m, 0x4440) = 0;
+    for (uint32_t i = 1; i <= 3; ++i) {
+        pk<uint8_t>(m, 0x443c + i * 0xc) = 0;
+        pk<uint32_t>(m, 0x4440 + i * 0xc) = 0;
+    }
+    pk<uint32_t>(m, 0x446c) = 0;
+    pk<uint8_t>(m, 0x4474) = 0;
+    pk<uint32_t>(m, 0x4470) = 0x7fffffff;
+    pk<uint8_t>(m, 0x44cb) = 1;
+    title_global<uint8_t*>(0x0095f6fc) = m;  // g_liveMgr
+    for (uint32_t o = 0x4410; o < 0x4428; o += 4) pk<uint32_t>(m, o) = 0;
+    // LiveMgr_Construct's own fields.
+    pk<uint32_t>(m, 0x44cc) = 0;
+    pk<uint8_t>(m, 0x44d4) = 0;
+    pk<uint32_t>(m, 0x44d8) = 0;
+    pk<uint32_t>(m, 0x44f4) = 0;
+    pk<uint32_t>(m, 0) = 0x0083c788;  // LiveMgr_vtable
+    pk<uint32_t>(m, 0x44d0) = 0xffffffffu;
+    for (uint32_t o = 0x44dc; o < 0x44f4; o += 4) pk<uint32_t>(m, o) = 0;
+}
+
+}  // namespace
+
 void XB_CDECL Sys_Main() {
     // The XAPI main (mainXapiStartup): allocator hooks, launch data, devices, renderer, effects, heaps, Com_Init,
     // the Live UI (UIXLayout.uix), then the frame loop forever. Its frame (0x4618 bytes) holds the hooks (+0x14),
@@ -7043,9 +7103,8 @@ void XB_CDECL Sys_Main() {
     static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, 0x00296820, 0x00296780};
     for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
     Mem_SetAllocatorHooks(hooks);
+    live_mgr_construct(live);  // LiveMgr_Construct (EAX)
     TitleRegs regs{};
-    regs.eax = u32(live);
-    qc_call_regs(0x00224920, &regs, 0, nullptr);  // LiveMgr_Construct (EAX)
     title_function<void XB_CDECL(uint8_t*)>(0x002221b0)(frame + 0x2c);  // Sys_ReadLaunchInfo
     own_function<void XB_CDECL(int32_t)>(&Heap_SelectByIndex)(0);               // Heap_SelectByIndex
     FS_InitPackBuffers();
@@ -7089,67 +7148,17 @@ void XB_CDECL Sys_Main() {
     own_function<void XB_CDECL(uint8_t*)>(&Anim_InitManagers)(allocator);  // Anim_InitManagers
     Sys_InitHeaps();
     own_function<void XB_CDECL(uint8_t*)>(&Com_Init)(frame + 0x2c);  // Com_Init(launch data)
-    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7767)(0x00223130);  // SetUnhandledExceptionFilter
-    const uint32_t device = title_global<uint32_t>(0x00902874);
-    uint8_t* stream = Z_Malloc(8);
-    if (stream) {
-        pk<uint32_t>(stream, 0) = 0x0083c720;
-        pk<uint32_t>(stream, 4) = 0;
-    }
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x0002c442)(0x0083cc30, 0x10000, u32(stream) + 4);
-    regs = TitleRegs{};
-    regs.esi = u32(live);
-    const uint32_t init_args[3] = {device, 0x0083cc18, u32(stream)};  // "d:\media\UIXLayout.uix"
-    qc_call_regs(0x00224a50, &regs, 3, init_args);  // Live_Init (manager in ESI)
-    uint32_t ebx = regs.ebx;
-    const int32_t launch_mode = title_global<int32_t>(0x008dd128);
+    // The own engine host ends here with what the original does next for Live (set aside, gone with Live):
+    // SetUnhandledExceptionFilter (the host has its own crash handler), the UIX layout stream (0x0002c442 over
+    // "d:\media\UIXLayout.uix"), Live_Init (the Live UI engine and plug-in) and the launch-data branches for Live
+    // and system-link invitations (launch modes 1 and 2: dashboard invites). Kept: the plain start's store.
     pk<uint32_t>(frame, 0x459c) = title_global<uint32_t>(0x008dd124);
-    if (launch_mode == 2) {
-        regs = TitleRegs{};
-        regs.eax = 0x40140;
-        regs.ecx = u32(live);
-        regs.esi = u32(live);
-        const uint32_t arg = 0x008dcf1c;
-        qc_call_regs(0x00222d20, &regs, 1, &arg);
-        regs.ecx = title_global<uint32_t>(0x008dcf18);
-        regs.ebx = 1;
-        const uint32_t voice = title_global<uint8_t>(0x008dd1cd);
-        qc_call_regs(0x00221920, &regs, 1, &voice);  // Voice_InitNotifications
-        ebx = 1;
-    } else if (launch_mode == 1) {
-        regs = TitleRegs{};
-        regs.eax = 0x40140;
-        regs.esi = u32(live);
-        if (title_global<uint8_t>(0x008dd120)) {
-            regs.ecx = u32(live);
-            const uint32_t arg = 0x008dcf1c;
-            qc_call_regs(0x00222d20, &regs, 1, &arg);
-        } else {
-            regs.ebx = 0x40140;
-            qc_call_regs(0x00221fc0, &regs, 0, nullptr);
-            ebx = 0x40140;
-        }
-    } else {
-        pk<uint32_t>(title_global<uint8_t*>(0x0095f6fc), 0x446c) = title_global<uint32_t>(0x008dd12c);  // g_liveMgr
-    }
-    (void)ebx;
-    const auto set_input = title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x000d35a9);  // CLiveEngine_SetInput
-    const auto clear_input = title_function<void XB_STDCALL(uint32_t)>(0x000d35c2);               // LiveEngine_ClearInput
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f6fc), 0x446c) = title_global<uint32_t>(0x008dd12c);  // g_liveMgr
+    // The frame loop without Live: Live_Frame (0x00223730) only drives the Live UI engine, voice chat (XHV) and
+    // XOnline tasks, the pad input forwarded around it goes to the Live UI, and Live_Render (pre-swap callback)
+    // draws that UI.
     for (;;) {
         IN_Frame();
-        const uint32_t input = pk<uint32_t>(frame, 0x45fc);
-        if (title_global<uint8_t>(0x0095f538)) {
-            set_input(pk<uint32_t>(live, 0x14), input, 0);
-            clear_input(pk<uint32_t>(live, 0x14));
-        }
-        regs = TitleRegs{};
-        regs.ecx = u32(live);
-        qc_call_regs(0x00223730, &regs, 0, nullptr);  // Live_Frame
-        if (title_global<uint8_t>(0x0095f538)) {
-            set_input(pk<uint32_t>(live, 0x14), input, 0);
-            clear_input(pk<uint32_t>(live, 0x14));
-        }
-        own_function<void XB_CDECL(uint32_t, uint32_t)>(&nglSetPreSwapCallback)(0x00224970, 0);  // nglSetPreSwapCallback(Live_Render)
         Com_Frame();
     }
 }

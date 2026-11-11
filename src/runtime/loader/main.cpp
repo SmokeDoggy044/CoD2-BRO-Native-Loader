@@ -40,6 +40,7 @@
 #include "hooks.h"
 #include "qcommon_fs.h"
 #include "text_trap.h"
+#include "static_init.h"
 #include "log.h"
 #include "os.h"
 #include "patches.h"
@@ -1147,6 +1148,7 @@ int loader_main(int argc, char** argv) {
     if (options->own_main) {
         // mainXapiStartup's call (XAPI and CRT start-up stay original for now) reaches our main loop.
         loader::install_jump(0x00224b60, reinterpret_cast<const void*>(&game::Sys_Main));
+        loader::install_jump(0x001eddde, reinterpret_cast<const void*>(&game::title_cinit));  // _cinit
         LOG_INFO("loader", "own main: Sys_Main runs as C");
     }
     if (options->text_trap_list && !loader::install_text_trap(*options->text_trap_list, *options->text_trap_out))
