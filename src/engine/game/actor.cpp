@@ -33,6 +33,7 @@
 #include "pmove.h"
 #include "ragdoll.h"
 #include "stream.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -9302,7 +9303,7 @@ uint32_t XB_CDECL Sentient_RouteToGoalNodeCached(uint32_t entry, const float* go
     };
     const auto clock = []() {
         uint32_t counter[2] = {0, 0};
-        title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+        own_function<uint32_t XB_STDCALL(uint32_t*)>(&QueryPerformanceCounter)(counter);
         return Ticks{counter[0], counter[1]};
     };
     const auto first = clock();

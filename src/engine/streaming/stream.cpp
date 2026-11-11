@@ -28,6 +28,7 @@
 #include "xanim.h"
 #include "g_spawn.h"
 #include "fe.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -468,7 +469,7 @@ uint32_t XB_CDECL Stream_LoadMeshFile(const char* name, uint8_t* data, uint32_t 
     }
     uint32_t hashed[8];
     Stream_HashFileName(name, hashed);
-    title_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x001e76aa)(data, size, 0x400);  // XPhysicalProtect
+    own_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(&XPhysicalProtect)(data, size, 0x400);  // XPhysicalProtect
     const uint8_t* file = nglLoadMeshFile(hashed, address_of(data));
     uint32_t result = 0;
     for (uint32_t mesh = *reinterpret_cast<const uint32_t*>(file + 0x138); mesh;

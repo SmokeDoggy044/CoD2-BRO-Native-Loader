@@ -9,6 +9,7 @@
 #include "compare.h"
 
 #include "backend.h"
+#include "compiler.h"
 
 namespace loader {
 
@@ -105,6 +106,10 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
 // The Direct3D replacements that --compare's test processes record instead of calling
 // (state setters and draws: the title reads nothing back from them).
 std::vector<compare::SdkCall> recorded_sdk_calls();
+// The title clock the RDTSC trampolines call (the Xbox's 733 MHz TSC, recorded by record/replay); our XAPI C
+// (QueryPerformanceCounter) reads it too. A recorded SDK call (Clock) in compare tests.
+int64_t XB_CDECL title_rdtsc();
+
 // The pages of the RDTSC trampolines (begin, end; 0, 0 before install_title_patches).
 std::pair<uint32_t, uint32_t> rdtsc_trampolines();
 // The page of the scene-time --force thunk (0, 0 without "scene:" forced calls): it runs in

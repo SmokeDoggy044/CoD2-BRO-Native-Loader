@@ -1812,7 +1812,7 @@ uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags)
 }
 
 uint32_t XB_CDECL Anim_InitManagers(uint32_t config) {
-    title_function<void XB_CDECL()>(0x00093a10)();
+    own_function<void XB_CDECL()>(&Sys_GetStackBounds_entry)();
     uint32_t& users = title_global<uint32_t>(0x009098c8);
     if (users++ == 0)
         title_global<uint32_t>(0x009098d0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(0x4000, 0x10, 0)));

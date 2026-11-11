@@ -1063,6 +1063,11 @@ extern "C" void RotatePointAroundVector_entry(void);
 // slot), relocated (+0x18) and stored in tables[index + 1].
 void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index);
 
+// 0x002221b0: the command line from the launch data (out[0] = 0 without one): a debugger launch's text as it is; a
+// title launch (this title's own, after a reboot) restores its saved state block (0x008dce30, 0x3a4 bytes) and, unless
+// it only asks to resume (+0x39c), starts its chapter (+0x18, 0..13) with "+devmap <map>". Flags 0x0095ee01 (a
+// chapter was started) / 0x0095ee09 (launched by this title). Returns 0.
+uint32_t XB_CDECL Sys_ReadLaunchInfo(char* command_line);
 // 0x00224b60: the XAPI main (called by mainXapiStartup): allocator hooks, LiveMgr_Construct, Sys_ReadLaunchInfo,
 // sound/renderer/effects/heap setup, Com_Init(launch data), the Live UI, then IN_Frame / Live_Frame / Com_Frame
 // forever. Not in kFunctions: it never returns (a test could not finish). Boot only.

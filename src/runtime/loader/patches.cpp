@@ -50,6 +50,8 @@
 
 namespace loader {
 
+int64_t XB_CDECL title_rdtsc() { return xbox::cpu_time_stamp_counter(); }
+
 namespace {
 
 // XAPI 001ede5f (MP 0015a84e; unnamed in Ghidra), called during startup on retail (no debug
@@ -131,8 +133,6 @@ const RdtscSite kMultiplayerRdtscSites[] = {
     {0x002074fa, 6}, {0x00207523, 6}, {0x002095d5, 6}, {0x002095fe, 6}, {0x00223aff, 6}, {0x00223b39, 6},
     {0x0027e754, 6}, {0x0027e981, 6}, {0x00298e9a, 6}, {0x00298f22, 6}, {0x0029a925, 6}, {0x0029abea, 6},
 };
-
-int64_t XB_CDECL title_rdtsc() { return xbox::cpu_time_stamp_counter(); }
 
 void put_rel32(uint8_t* at, uint8_t opcode, const void* target) {
     const uint32_t from = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(at)) + 5;

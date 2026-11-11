@@ -25,6 +25,7 @@
 #include "fx.h"
 #include "g_utils.h"
 #include "ui_menu.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -2297,7 +2298,7 @@ namespace {
 // like the inline ones the original uses here.
 uint64_t loading_clock() {
     uint32_t counter[2] = {0, 0};
-    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    own_function<uint32_t XB_STDCALL(uint32_t*)>(&QueryPerformanceCounter)(counter);
     return (uint64_t{counter[1]} << 32) | counter[0];
 }
 

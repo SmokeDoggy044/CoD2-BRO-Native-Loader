@@ -14,6 +14,7 @@
 #include "title_data.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
+#include "title_xapi.h"
 
 namespace game {
 
@@ -2944,7 +2945,7 @@ void XB_THISCALL nglLockPalette(uint8_t* palette) {
 uint32_t XB_CDECL nglGetFreeMemory() {
     // MEMORYSTATUS, left uninitialized like the original; dwAvailPhys at +0xc.
     uint32_t status[8];
-    title_function<void XB_STDCALL(uint32_t*)>(0x001e7c35)(status);  // GlobalMemoryStatus
+    own_function<void XB_STDCALL(uint32_t*)>(&GlobalMemoryStatus)(status);  // GlobalMemoryStatus
     return status[3];
 }
 
@@ -2998,7 +2999,7 @@ void XB_CDECL nglTexture_Lock(NglTexture* texture, uint32_t flags) {
 void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect) {
     // Frees the D3D object only; the memory gets the protection `protect` when nonzero.
     title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffer[2]);  // D3DResource_BlockUntilNotBusy
-    if (protect) title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(buffer[0], buffer[1], protect);  // XPhysicalProtect
+    if (protect) own_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(&XPhysicalProtect)(buffer[0], buffer[1], protect);  // XPhysicalProtect
     own_function<void XB_CDECL(uint32_t)>(&Mem_AlignedFree)(buffer[2]);  // Mem_AlignedFree
     buffer[1] = 0;
     buffer[2] = 0;
@@ -3020,7 +3021,7 @@ void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
         return;
     }
     if (static_cast<int32_t>(memory) < 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x001e76ba)(memory);  // XPhysicalFree
+        own_function<void XB_STDCALL(uint32_t)>(&XPhysicalFree)(memory);  // XPhysicalFree
         return;
     }
     title_function<Free>(0x001f113a)(memory);  // _aligned_free
@@ -3976,7 +3977,7 @@ uint8_t XB_THISCALL nglCreateVertexBufferPhysical(uint32_t* self, uint32_t data,
     self[1] = size;
     self[2] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
     if (!self[2]) return 0;
-    if (protect) title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(data, size, protect);  // XPhysicalProtect
+    if (protect) own_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(&XPhysicalProtect)(data, size, protect);  // XPhysicalProtect
     register_vertex_buffer(self, data);
     return 1;
 }
@@ -5341,7 +5342,7 @@ bool XB_CDECL nglParseMesh(const uint32_t* name, uint8_t* file, const char* exte
                     nglCreateVertexBufferPhysical(reinterpret_cast<uint32_t*>(uintptr_t{part + 0x44}), word_at(part, 0x44),
                                                   word_at(part, 0x48), 0x404);
                     if (word_at(part, 0x38)) {
-                        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(  // XPhysicalProtect
+                        own_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(&XPhysicalProtect)(  // XPhysicalProtect
                             word_at(part, 0x38), word_at(part, 0x3c), 0x404);
                         auto* resource = static_cast<uint32_t*>(Mem_AlignedAlloc(0x18, 4, 0));
                         word_at(part, 0x34) = address_of(resource);
@@ -5823,16 +5824,16 @@ uint8_t XB_CDECL nglReadFile(const char* name, uint32_t* out, uint32_t alignment
         path[0] = 0;
     std::strcat(path, name);
     using CreateFile = uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    const uint32_t file = title_function<CreateFile>(0x001e7d56)(path, 0x80000000, 1, 0, 3, 0x08000080, 0);
+    const uint32_t file = own_function<CreateFile>(&CreateFileA)(path, 0x80000000, 1, 0, 3, 0x08000080, 0);
     if (file == 0xffffffff) return 0;
-    const uint32_t size = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x001e84e1)(file, nullptr);  // GetFileSize
+    const uint32_t size = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(&GetFileSize)(file, nullptr);  // GetFileSize
     out[1] = size;
     void* data = Mem_AlignedAlloc(size, alignment, flags);
     out[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
     uint32_t read = 0;
     using ReadFile = uint32_t XB_STDCALL(uint32_t, void*, uint32_t, uint32_t*, void*);
-    title_function<ReadFile>(0x001e7f2a)(file, data, out[1], &read, nullptr);
-    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+    own_function<ReadFile>(&game::ReadFile)(file, data, out[1], &read, nullptr);
+    own_function<uint32_t XB_STDCALL(uint32_t)>(&CloseHandle)(file);  // CloseHandle
     return 1;
 }
 
@@ -6033,8 +6034,8 @@ void XB_CDECL nglSelectVideoMode(const uint32_t* modes, uint32_t count) {
     // The first mode of the list (low byte: 0 NTSC, 1 PAL, 2 480p, 3 720p, 4 1080i) the console
     // supports (XGetVideoFlags: 1 widescreen, 2 720p, 4 1080i, 8 480p; PAL needs the PAL video
     // standard) becomes the current mode (0x00902890); the title always renders 640x480/576.
-    const uint32_t flags = title_function<uint32_t XB_STDCALL()>(0x001e7ee1)();  // XGetVideoFlags
-    const auto standard = [] { return title_function<uint32_t XB_STDCALL()>(0x001e75df)(); };  // XGetVideoStandard
+    const uint32_t flags = own_function<uint32_t XB_STDCALL()>(&XGetVideoFlags)();  // XGetVideoFlags
+    const auto standard = [] { return own_function<uint32_t XB_STDCALL()>(&XGetVideoStandard)(); };  // XGetVideoStandard
     const bool wide = flags & 1;
     for (uint32_t i = 0; i < count; ++i) {
         const char* name = nullptr;
@@ -6105,8 +6106,8 @@ void XB_CDECL nglDumpPrintf(uint32_t file, const char* format, ...) {
     if (!file) return;
     uint32_t written;
     using WriteFile = uint32_t XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t*, void*);
-    if (!title_function<WriteFile>(0x001e8017)(file, text, static_cast<uint32_t>(std::strlen(text)), &written, nullptr))
-        title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+    if (!own_function<WriteFile>(&game::WriteFile)(file, text, static_cast<uint32_t>(std::strlen(text)), &written, nullptr))
+        own_function<uint32_t XB_STDCALL(uint32_t)>(&CloseHandle)(file);  // CloseHandle
 }
 
 uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path) {
@@ -6122,10 +6123,10 @@ uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path) {
     header[0x10] = 0x20;
     using CreateFile = uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     using WriteFile = uint32_t XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t*, void*);
-    const uint32_t file = title_function<CreateFile>(0x001e7d56)(path, 0x40000000, 0, 0, 2, 0x08000080, 0);
+    const uint32_t file = own_function<CreateFile>(&CreateFileA)(path, 0x40000000, 0, 0, 2, 0x08000080, 0);
     if (file == 0xffffffff) return 0;
     uint32_t written;
-    title_function<WriteFile>(0x001e8017)(file, header, 0x12, &written, nullptr);
+    own_function<WriteFile>(&game::WriteFile)(file, header, 0x12, &written, nullptr);
     uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
     auto* row = static_cast<uint32_t*>(alloc_frame(arena, texture->width * 4, 0x10));
     bool allocated = false;
@@ -6140,9 +6141,9 @@ uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path) {
         uint32_t* out = row;
         for (int32_t x = 0; x < static_cast<int32_t>(texture->width); ++x)
             *out++ = nglTextureGetPixel(texture, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-        title_function<WriteFile>(0x001e8017)(file, row, texture->width * 4, &written, nullptr);
+        own_function<WriteFile>(&game::WriteFile)(file, row, texture->width * 4, &written, nullptr);
     }
-    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+    own_function<uint32_t XB_STDCALL(uint32_t)>(&CloseHandle)(file);  // CloseHandle
     own_function<void XB_CDECL(NglTexture*)>(&nglTexture_Unlock)(texture);  // nglTexture_Unlock (the argument is pushed)
     if (allocated) own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(row);  // Mem_AlignedFree
     return 1;
@@ -6184,7 +6185,7 @@ namespace {
 // RDTSC site the loader patches like the inline ones: in tests the same recorded title_rdtsc.
 uint64_t title_clock() {
     uint32_t counter[2] = {0, 0};
-    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    own_function<uint32_t XB_STDCALL(uint32_t*)>(&QueryPerformanceCounter)(counter);
     return (uint64_t{counter[1]} << 32) | counter[0];
 }
 
