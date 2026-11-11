@@ -9248,6 +9248,7 @@ const Function kFunctions[] = {
     {"XGSetTextureHeader", 0x003f9994, 0, code(&XGSetTextureHeader), 36, Result::Eax, Status::Compare},
     {"XGSetCubeTextureHeader", 0x003f99be, 0, code(&XGSetCubeTextureHeader), 32, Result::Eax, Status::Compare},
     {"XGSetVertexBufferHeader", 0x003f99e6, 0, code(&XGSetVertexBufferHeader), 24, Result::Eax, Status::Compare},
+    {"XGSetPaletteHeader", 0x003f99fe, 0, code(&XGSetPaletteHeader), 12, Result::Eax, Status::Compare},
     {"Swizzler_Init", 0x003f9a3e, 0, code(&Swizzler_Init), 12, Result::Eax, Status::Compare},
     {"Swizzler_SwizzleU", 0x003f9a9f, 0, code(&Swizzler_SwizzleU), 4, Result::Eax, Status::Compare},
     {"Swizzler_SwizzleV", 0x003f9ac8, 0, code(&Swizzler_SwizzleV), 4, Result::Eax, Status::Compare},

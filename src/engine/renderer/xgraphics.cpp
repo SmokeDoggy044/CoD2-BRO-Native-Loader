@@ -118,6 +118,13 @@ uint32_t XB_STDCALL XGSetVertexBufferHeader(uint32_t, uint32_t, uint32_t, uint32
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buffer));
 }
 
+uint32_t XB_STDCALL XGSetPaletteHeader(uint32_t size, uint32_t* palette, uint32_t data) {
+    palette[2] = 0;
+    palette[0] = size << 30 | 0x30001;
+    palette[1] = data;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(palette));
+}
+
 uint32_t XB_STDCALL XGBytesPerPixelFromFormat(uint32_t format) {
     return format < sizeof kBytesPerPixel ? kBytesPerPixel[format] : 0;
 }

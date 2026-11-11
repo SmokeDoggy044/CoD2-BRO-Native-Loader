@@ -369,8 +369,8 @@ void XB_CDECL nglCreateNormalCubeMap(uint32_t size) {
         uint32_t locked[2] = {};             // D3DLOCKED_RECT {pitch, bits}
         title_function<void XB_STDCALL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x003ebe50)(surface, locked, 0,
                                                                                             0);  // D3DSurface_LockRect
-        title_function<void XB_STDCALL(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
-                                       uint32_t)>(0x003fa203)(pixels, 0, 0, locked[1], size, size, 0,
+        own_function<void XB_STDCALL(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                       uint32_t)>(&XGSwizzleRect)(pixels, 0, 0, locked[1], size, size, 0,
                                                               4);  // XGSwizzleRect
         title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(surface);  // D3DResource_Release
     }
@@ -393,7 +393,7 @@ void XB_CDECL nglInit() {
     title_function<ControlFp>(0x001f0a40)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
     title_function<ControlFp>(0x001f0a40)(0x20000, 0x30000);  // 24-bit precision
     platform_mxcsr_or(0x6000);                                // SSE: round toward zero
-    title_global<uint32_t>(0x00902870) = title_function<uint32_t XB_STDCALL(uint32_t)>(0x003ebb20)(0);
+    title_global<uint32_t>(0x00902870) = own_function<uint32_t XB_STDCALL(uint32_t)>(&D3D_ReturnOne)(0);
     title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e9d70)(  // D3D_SetPushBufferSize
         title_global<uint32_t>(0x008a34d0), title_global<uint32_t>(0x008a34d4));
     if (!title_global<uint8_t>(0x0090289b)) {

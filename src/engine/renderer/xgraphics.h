@@ -36,6 +36,10 @@ uint32_t XB_STDCALL XGSetSurfaceHeader(uint32_t width, uint32_t height, uint32_t
 uint32_t XB_STDCALL XGSetVertexBufferHeader(uint32_t length, uint32_t usage, uint32_t fvf, uint32_t pool,
                                             uint32_t* buffer, uint32_t data);
 
+// 0x003f99fe: XGSetPaletteHeader(Size, pPalette, Data): Common = Size << 30 | 0x30001 (reference count
+// 1, palette), Data, Lock = 0. Returns pPalette.
+uint32_t XB_STDCALL XGSetPaletteHeader(uint32_t size, uint32_t* palette, uint32_t data);
+
 // 0x003fa187: 1, 2 or 4 bytes for formats 0..0x41 (the byte table at 0x003fa1c1), else 0.
 uint32_t XB_STDCALL XGBytesPerPixelFromFormat(uint32_t format);
 

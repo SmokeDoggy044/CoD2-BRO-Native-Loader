@@ -9059,6 +9059,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 003f9994,XGSetTextureHeader,compare,1774,339,339,0,0,0,""
 003f99be,XGSetCubeTextureHeader,compare,0,0,0,0,0,0,""
 003f99e6,XGSetVertexBufferHeader,compare,6261,119,119,0,0,0,""
+003f99fe,XGSetPaletteHeader,compare,1,1,1,0,0,0,""
 003f9a3e,Swizzler_Init,compare,30,21,21,0,0,0,""
 003f9a9f,Swizzler_SwizzleU,compare,8,0,0,0,0,0,""
 003f9ac8,Swizzler_SwizzleV,compare,8,0,0,0,0,0,""
