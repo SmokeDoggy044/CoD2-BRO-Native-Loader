@@ -1189,6 +1189,18 @@ uint32_t instruction_length(const uint8_t* code) {
     return 0;
 }
 
+// A function that returns within its first five bytes (ret / ret N): too short for a jump.
+bool ends_within_jump(uint32_t address) {
+    const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{address});
+    for (uint32_t at = 0; at < 5;) {
+        if (code[at] == 0xC3 || code[at] == 0xC2) return true;
+        const uint32_t length = instruction_length(code + at);
+        if (!length) return false;
+        at += length;
+    }
+    return false;
+}
+
 void put_rel32(uint8_t* at, uint8_t opcode, uint32_t target) {
     at[0] = opcode;
     const uint32_t relative = target - (addr(at) + 5);
@@ -2637,9 +2649,13 @@ void install(std::span<const game::Function> functions, const Config& config) {
     for (const game::Function& function : functions) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
         if (!address) continue;
-        if (function.status == game::Status::Replaced) {
+        if (function.status == game::Status::Replaced || (config.all_c && !config.enabled)) {
             if (keeps_original(function)) {
                 ++kept_original;
+                continue;
+            }
+            if (function.status != game::Status::Replaced && ends_within_jump(address)) {
+                ++kept_original;  // a 5-byte jump would overwrite the next function (1-byte stubs)
                 continue;
             }
             install_jump(address, function.code);

@@ -37,6 +37,9 @@
 #include "kernel.h"
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
+#include "hooks.h"
+#include "qcommon_fs.h"
+#include "text_trap.h"
 #include "log.h"
 #include "os.h"
 #include "patches.h"
@@ -112,6 +115,8 @@ struct Options {
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
     bool check_crt = false;      // --check-crt: our CRT vs the title's on a table, then exit
+    bool own_main = false;       // --own-main: our Sys_Main C instead of the original (own engine host, 0.3)
+    std::optional<fs::path> text_trap_list, text_trap_out;  // --text-trap LIST OUT
     bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
     std::set<std::string> given;     // options named on the command line or in settings.ini
@@ -226,6 +231,9 @@ void print_usage(const char* program) {
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
+        "  --own-main       developer: start the game at our Sys_Main C (own engine host, step 0.3)\n"
+        "  --text-trap LIST OUT  developer: log every original function from LIST (tools/text_trap_list.py)\n"
+        "                   the first time it runs, with its caller, to OUT (Linux)\n"
         "  --check-crt          our CRT (src/engine/shared/title_crt.h) against the title's on a table, then exit\n"
         "  --replay-shots N,N.. DIR  with --record/--replay: pictures of those frames to DIR (shot_<n>.bmp)\n"
         "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
@@ -618,6 +626,15 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.audio_device = argv[++i];
         } else if (arg == "--check-crt") {
             options.check_crt = true;
+        } else if (arg == "--own-main") {
+            options.own_main = true;
+        } else if (arg == "--text-trap") {
+            if (i + 2 >= argc) {
+                std::fprintf(stderr, "--text-trap needs a list and an output file\n");
+                return std::nullopt;
+            }
+            options.text_trap_list = argv[++i];
+            options.text_trap_out = argv[++i];
         } else if (arg == "--compare" || arg == "--compare-all") {
             options.compare = true;
             options.compare_all |= arg == "--compare-all";
@@ -1073,6 +1090,7 @@ int loader_main(int argc, char** argv) {
     // After the title patches and SDK replacements: they must not hook the same code.
     loader::compare::Config compare;
     compare.enabled = options->compare;
+    compare.all_c = options->own_main;
     compare.multiplayer = title->id == loader::TitleId::Multiplayer;
     compare.image_begin = image.base();
     compare.image_end = image.base() + image.size();
@@ -1125,6 +1143,14 @@ int loader_main(int argc, char** argv) {
     // null); XAPI only creates TLS for the threads it starts itself.
     loader::ThreadEnv* env = loader::create_thread_env(image.header().pe_stack_commit, 0);
     if (!env || !loader::activate_thread_env(env)) return startup_failed("cannot prepare the game's main thread");
+
+    if (options->own_main) {
+        // mainXapiStartup's call (XAPI and CRT start-up stay original for now) reaches our main loop.
+        loader::install_jump(0x00224b60, reinterpret_cast<const void*>(&game::Sys_Main));
+        LOG_INFO("loader", "own main: Sys_Main runs as C");
+    }
+    if (options->text_trap_list && !loader::install_text_trap(*options->text_trap_list, *options->text_trap_out))
+        return 1;
 
     LOG_INFO("loader", "starting title at %08x", image.entry_point());
     // Four zero dwords stand in for arguments in case the entry point reads any.

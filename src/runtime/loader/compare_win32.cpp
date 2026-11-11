@@ -15,7 +15,7 @@ void install(std::span<const game::Function> functions, const Config& config) {
     int replaced = 0, kept_original = 0;
     for (const game::Function& function : functions) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
-        if (!address || function.status != game::Status::Replaced) continue;
+        if (!address || (function.status != game::Status::Replaced && !config.all_c)) continue;
         if (keeps_original(function)) {
             ++kept_original;
             continue;

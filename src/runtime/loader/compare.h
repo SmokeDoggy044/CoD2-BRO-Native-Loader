@@ -92,6 +92,7 @@ struct SdkCall {
 struct Config {
     bool enabled = false;     // test Compare functions (otherwise their originals run untouched)
     bool multiplayer = false;  // use the functions' codmp_xboxf.xbe addresses
+    bool all_c = false;        // own engine host (--own-main): every function with C runs it, Compare too
     // The title's code, which stays executable in the test processes.
     uint32_t image_begin = 0;
     uint32_t image_end = 0;

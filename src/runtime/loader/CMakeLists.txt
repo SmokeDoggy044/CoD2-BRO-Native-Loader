@@ -22,7 +22,7 @@ if(WIN32)
     # base address that keeps the Xbox address ranges free and loads it (win32_stub.c).
     # The stub is a GUI program, so starting it from the launcher opens no console;
     # from a console, the loader attaches to it (os_win32.cpp).
-    add_library(cod_bro_loader_core SHARED ${loader_sources} compare_win32.cpp crash_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
+    add_library(cod_bro_loader_core SHARED ${loader_sources} compare_win32.cpp crash_win32.cpp text_trap_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
     cod_bro_windows_resources(cod_bro_loader_core "Call of Duty 2: Big Red One native loader - core" LIBRARY)
     target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render text xbox platform shell32 user32 winmm)
@@ -40,7 +40,7 @@ if(WIN32)
     cod_bro_windows_resources(cod_bro_loader "Call of Duty 2: Big Red One native loader" PROGRAM)
     add_dependencies(cod_bro_loader cod_bro_loader_core)
 else()
-    add_executable(cod_bro_loader ${loader_sources} compare_linux.cpp crash_posix.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
+    add_executable(cod_bro_loader ${loader_sources} compare_linux.cpp crash_posix.cpp text_trap_linux.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
     target_link_libraries(cod_bro_loader PRIVATE game_code audio input online render text xbox platform)
     set(loader_core cod_bro_loader)
     # Code that runs in the harness's test processes must not call anything the
