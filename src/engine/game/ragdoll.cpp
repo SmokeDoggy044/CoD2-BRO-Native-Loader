@@ -2435,7 +2435,7 @@ float title_ci_sqrt(long double x) {
     float result;
     __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -3205,7 +3205,7 @@ int32_t title_acos_degrees(float x) {
     int32_t result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfmuls 0x0083eb60\n\tfmuls 0x0083f0ec\n\tcall *%3"
                      : "=a"(result)
-                     : "m"(x), "r"(uintptr_t{0x001f0ff4}), "r"(own_address(&title_ftol_entry))
+                     : "m"(x), "r"(own_address(&title_CIacos)), "r"(own_address(&title_ftol_entry))
                      : "ecx", "edx", "st", "memory");
     return result;
 }

@@ -13,6 +13,138 @@
 
 #include "title_data.h"
 
+// ---- x87 intrinsics (title_crt.h) ----
+// Frame of every entry: 0(%esp) the argument as a double (then the result's trip through a double), 8 the caller's
+// control word, 10 the one loaded. Title constants: 0x008281cc the control word 0x027f, 0x008281ce 2 pi (80-bit),
+// 0x008d19ac the indefinite (80-bit), 0x008281c4 1.0 (added to quiet a signaling NaN), 0x00926a4c _fastflag.
+extern "C" PLATFORM_HIDDEN void XB_CDECL title_x87_domain_error() { *game::title_errno() = 33; }  // EDOM
+
+#define TITLE_X87_PROLOGUE                                                                                        \
+    "subl $12, %esp\n fstl (%esp)\n fnstcw 8(%esp)\n"                                                             \
+    "movl 4(%esp), %eax\n movl %eax, %edx\n andl $0x7ff00000, %edx\n cmpl $0x7ff00000, %edx\n"
+// An infinite or NaN argument (EAX = its high word): NaN -> quiet NaN, infinite -> the indefinite; EDOM.
+#define TITLE_X87_SPECIAL(inf_label)                                                                              \
+    "testl $0xfffff, %eax\n jnz 6f\n cmpl $0, (%esp)\n jnz 6f\n" inf_label                                       \
+    "fstp %st(0)\n fldt 0x008d19ac\n jmp .Lx87_error\n"                                                          \
+    "6: testl $0x80000, %eax\n jnz .Lx87_error\n faddl 0x008281c4\n jmp .Lx87_error\n"
+#define TITLE_X87_TRIG(name, op, after)                                                                           \
+    ".globl " PLATFORM_ASM_SYMBOL(name) "\n" PLATFORM_ASM_SYMBOL(name) ":\n" TITLE_X87_PROLOGUE                   \
+    "je 5f\n cmpw $0x27f, 8(%esp)\n je 1f\n fldcw 0x008281cc\n"                                                  \
+    "1: " op "\n fnstsw %ax\n sahf\n jnp 3f\n"                                                                    \
+    "fldt 0x008281ce\n fxch %st(1)\n"                                                                             \
+    "2: fprem1\n fnstsw %ax\n sahf\n jp 2b\n fstp %st(1)\n " op "\n"                                              \
+    "3: " after "jmp .Lx87_exit\n"                                                                                \
+    "5: " TITLE_X87_SPECIAL("")
+
+PLATFORM_ASM_ENTRY(title_CIsqrt,
+                   TITLE_X87_PROLOGUE
+                   "je 5f\n"
+                   "cmpw $0x27f, 8(%esp)\n je 1f\n"
+                   "movw 8(%esp), %dx\n andw $0x300, %dx\n orw $0x7f, %dx\n movw %dx, 10(%esp)\n fldcw 10(%esp)\n"
+                   "1: testl $0x80000000, %eax\n jz 2f\n"
+                   // negative: -0 stays (no fsqrt), anything else is a domain error
+                   "testl $0x7ff00000, %eax\n jnz 4f\n testl $0xfffff, %eax\n jnz 4f\n cmpl $0, (%esp)\n jnz 4f\n"
+                   "jmp .Lx87_exit\n"
+                   "2: fsqrt\n jmp .Lx87_exit\n"
+                   "4: fstp %st(0)\n fldt 0x008d19ac\n jmp .Lx87_error\n"
+                   // +infinity stays as it is
+                   "5: " TITLE_X87_SPECIAL("testl $0x80000000, %eax\n jz .Lx87_exit\n")
+                   // __CIacos: |x| < 1: atan2(sqrt((1 + x) * (1 - x)), x) at the caller's precision (fpatan is not
+                   // affected); x = 1: +0, -1: pi; |x| > 1 or infinite: the indefinite, EDOM.
+                   ".globl " PLATFORM_ASM_SYMBOL(title_CIacos) "\n" PLATFORM_ASM_SYMBOL(title_CIacos) ":\n"
+                   TITLE_X87_PROLOGUE
+                   "je 5f\n"
+                   "cmpw $0x27f, 8(%esp)\n je 1f\n"
+                   "movw 8(%esp), %cx\n andw $0x300, %cx\n orw $0x7f, %cx\n movw %cx, 10(%esp)\n fldcw 10(%esp)\n"
+                   "1: cmpl $0x3ff00000, %edx\n jae 2f\n"
+                   "fld1\n fadd %st(1), %st\n fld1\n fsub %st(2), %st\n fmulp %st, %st(1)\n fsqrt\n fxch %st(1)\n fpatan\n"
+                   "jmp .Lx87_exit\n"
+                   "2: ja 4f\n testl $0xfffff, %eax\n jnz 4f\n cmpl $0, (%esp)\n jnz 4f\n"
+                   "fstp %st(0)\n testl $0x80000000, %eax\n jz 3f\n fldpi\n jmp .Lx87_exit\n"
+                   "3: fldz\n jmp .Lx87_exit\n"
+                   "4: fstp %st(0)\n fldt 0x008d19ac\n jmp .Lx87_error\n"
+                   "5: " TITLE_X87_SPECIAL("")
+                   TITLE_X87_TRIG(title_CIsin, "fsin", "")
+                   TITLE_X87_TRIG(title_CIcos, "fcos", "")
+                   TITLE_X87_TRIG(title_CItan, "fptan", "fstp %st(0)\n")
+                   // __math_exit: an inexact result through a double when the caller's word masks precision
+                   // exceptions and is not 0x027f; the caller's word back.
+                   ".Lx87_exit:\n"
+                   "cmpl $0, 0x00926a4c\n jne .Lx87_fast\n"
+                   "cmpw $0x27f, 8(%esp)\n je .Lx87_done\n"
+                   "testw $0x20, 8(%esp)\n jz .Lx87_restore\n"
+                   "fnstsw %ax\n testw $0x20, %ax\n jz .Lx87_restore\n"
+                   "fstpl (%esp)\n fldl (%esp)\n"
+                   ".Lx87_restore:\n fldcw 8(%esp)\n"
+                   ".Lx87_done:\n addl $12, %esp\n ret\n"
+                   ".Lx87_fast:\n cmpw $0x27f, 8(%esp)\n je .Lx87_done\n jmp .Lx87_restore\n"
+                   // __startOneArgErrorHandling with a domain error: through a double, errno EDOM.
+                   ".Lx87_error:\n"
+                   "cmpl $0, 0x00926a4c\n jne .Lx87_fast\n"
+                   "fstpl (%esp)\n" PLATFORM_ASM_CALL(title_x87_domain_error) "fldl (%esp)\n"
+                   "cmpw $0x27f, 8(%esp)\n je .Lx87_done\n jmp .Lx87_restore")
+
+// __CIfmod (x in ST(1), y in ST(0)): __cintrindisp2 with fmod's table. Control word 0x133f (64-bit precision, all
+// masked) for the operation, the caller's back after. Operand classes by fxam: normal, zero (denormals too), NaN
+// (and empty / unsupported), infinite. normal/normal: fprem until done. x zero, y normal: +0. A NaN: x + y (the
+// NaN quieted), EDOM. Every other pair: the indefinite, EDOM. Errors go through a double; a plain result does not.
+// Frame: 0 double, 8 the caller's word, 10 the loaded one, 12 an 80-bit scratch, 24 the error code.
+PLATFORM_ASM_ENTRY(title_CIfmod,
+                   "subl $28, %esp\n fnstcw 8(%esp)\n movw $0x133f, 10(%esp)\n fldcw 10(%esp)\n"
+                   "movl $0, 24(%esp)\n"
+                   // ECX: y's class, EDX: x's (0 normal, 1 zero, 2 NaN/other, 3 infinite)
+                   "fxam\n fnstsw %ax\n call .Lfmod_class\n movl %edx, %ecx\n"
+                   "fxch %st(1)\n fxam\n fnstsw %ax\n fxch %st(1)\n call .Lfmod_class\n"
+                   "cmpl $2, %edx\n je 4f\n cmpl $2, %ecx\n je 3f\n"
+                   "movl %edx, %eax\n orl %ecx, %eax\n jz 1f\n"  // both normal
+                   "cmpl $1, %edx\n jne 2f\n testl %ecx, %ecx\n jnz 2f\n"  // x zero, y normal: +0
+                   "fstp %st(0)\n fstp %st(0)\n fldz\n jmp .Lfmod_exit\n"
+                   "1: fxch %st(1)\n"
+                   "5: fprem\n fnstsw %ax\n sahf\n jp 5b\n fstp %st(1)\n jmp .Lfmod_exit\n"
+                   "2: fstp %st(0)\n fstp %st(0)\n fldt 0x008d19ac\n movl $1, 24(%esp)\n jmp .Lfmod_exit\n"
+                   // y NaN (x anything but NaN): its quiet bit picks the code
+                   "3: call .Lfmod_quiet\n faddp %st, %st(1)\n jmp .Lfmod_exit\n"
+                   // x NaN: y NaN too -> y's quiet bit, then x's; else x's
+                   "4: cmpl $2, %ecx\n je 6f\n fxch %st(1)\n call .Lfmod_quiet\n faddp %st, %st(1)\n jmp .Lfmod_exit\n"
+                   "6: call .Lfmod_quiet\n cmpl $7, 24(%esp)\n jne 7f\n fxch %st(1)\n call .Lfmod_quiet\n"
+                   "7: faddp %st, %st(1)\n jmp .Lfmod_exit\n"
+                   // ST(0)'s quiet bit -> the code (7 quiet, 1 signaling); the caller's frame is 4 above
+                   ".Lfmod_quiet:\n fstpt 16(%esp)\n fldt 16(%esp)\n testb $0x40, 23(%esp)\n jz 8f\n"
+                   "movl $7, 28(%esp)\n ret\n 8: movl $1, 28(%esp)\n ret\n"
+                   // AH = the status word's high byte -> EDX = the class
+                   ".Lfmod_class:\n andb $0x45, %ah\n xorl %edx, %edx\n cmpb $0x04, %ah\n je 9f\n"
+                   "movl $1, %edx\n cmpb $0x40, %ah\n je 9f\n cmpb $0x44, %ah\n je 9f\n"
+                   "movl $3, %edx\n cmpb $0x05, %ah\n je 9f\n movl $2, %edx\n 9: ret\n"
+                   ".Lfmod_exit:\n"
+                   "cmpl $0, 0x00926a4c\n jne 1f\n cmpl $0, 24(%esp)\n je 1f\n"
+                   "fstpl (%esp)\n" PLATFORM_ASM_CALL(title_x87_domain_error) "fldl (%esp)\n"
+                   "1: fldcw 8(%esp)\n addl $28, %esp\n ret")
+
+#undef TITLE_X87_TRIG
+#undef TITLE_X87_SPECIAL
+#undef TITLE_X87_PROLOGUE
+
+// The same for a two-argument intrinsic: `in` holds x then y (80-bit each); x goes to ST(1), y to ST(0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL title_x87_check_call2(uint32_t function, const void* in, void* out, uint32_t cw);
+PLATFORM_ASM_ENTRY(title_x87_check_call2,
+                   "pushl %ebx\n subl $8, %esp\n fnstcw 4(%esp)\n"
+                   "movl 28(%esp), %eax\n movw %ax, (%esp)\n fnclex\n fldcw (%esp)\n"
+                   "movl 20(%esp), %eax\n fldt (%eax)\n fldt 10(%eax)\n"
+                   "movl 16(%esp), %eax\n call *%eax\n"
+                   "movl 24(%esp), %ecx\n fstpt (%ecx)\n fnstcw 10(%ecx)\n"
+                   "fnclex\n fldcw 4(%esp)\n addl $8, %esp\n popl %ebx\n ret")
+
+// The check's call: `function` on the 80-bit `in` under control word `cw` with clear exception flags; `out` gets
+// the 80-bit result and the control word after it (12 bytes).
+extern "C" PLATFORM_HIDDEN void XB_CDECL title_x87_check_call(uint32_t function, const void* in, void* out, uint32_t cw);
+PLATFORM_ASM_ENTRY(title_x87_check_call,
+                   "pushl %ebx\n subl $8, %esp\n fnstcw 4(%esp)\n"
+                   "movl 28(%esp), %eax\n movw %ax, (%esp)\n fnclex\n fldcw (%esp)\n"
+                   "movl 20(%esp), %eax\n fldt (%eax)\n"
+                   "movl 16(%esp), %eax\n call *%eax\n"
+                   "movl 24(%esp), %ecx\n fstpt (%ecx)\n fnstcw 10(%ecx)\n"
+                   "fnclex\n fldcw 4(%esp)\n addl $8, %esp\n popl %ebx\n ret")
+
 namespace game {
 
 namespace {
@@ -1565,6 +1697,138 @@ int32_t check_title_crt(std::string& report) {
             ++failures;
             add_line(report, "ftol %.17g: title %lld, ours %lld", v, static_cast<long long>(x), static_cast<long long>(y));
         }
+    }
+    // x87 intrinsics: the 80-bit result, the control word after it and errno, on specials, edges and random
+    // arguments under five control words (24/53/64-bit precision, chop and round-up rounding).
+    {
+        struct Ext {
+            uint64_t mantissa;
+            uint16_t exponent;  // sign in bit 15
+        };
+        const auto from_double = [](double d) {
+            uint64_t bits;
+            std::memcpy(&bits, &d, 8);
+            Ext e{0, static_cast<uint16_t>((bits >> 48) & 0x8000)};
+            const int32_t exp = static_cast<int32_t>((bits >> 52) & 0x7ff);
+            const uint64_t frac = bits & ((uint64_t{1} << 52) - 1);
+            if (exp == 0x7ff) {
+                e.exponent |= 0x7fff;
+                e.mantissa = (uint64_t{1} << 63) | (frac << 11);
+            } else if (exp == 0) {
+                if (frac) {  // a double denormal is a normal 80-bit value
+                    int32_t shift = 0;
+                    uint64_t m = frac;
+                    while (!(m & (uint64_t{1} << 52))) { m <<= 1; ++shift; }
+                    e.mantissa = m << 11;
+                    e.exponent |= static_cast<uint16_t>(16383 - 1022 - shift);
+                }
+            } else {
+                e.mantissa = (uint64_t{1} << 63) | (frac << 11);
+                e.exponent |= static_cast<uint16_t>(exp - 1023 + 16383);
+            }
+            return e;
+        };
+        std::vector<Ext> args;
+        for (double d : {0.0, -0.0, 1.0, -1.0, 0.5, -0.5, 0.3, -0.7, 0.9999999, -0.9999999, 1.0000001, 2.0, 4.0, 3.0, 1e-30, -1e-30, 4.9e-324, -4.9e-324, 1e10, 1e18,
+                         9.3e18, -9.3e18, 1e19, -1e19, 1e300, -1e300, 3.141592653589793, 1.5707963267948966,
+                         6.283185307179586, 0.7853981633974483, 100.0, 1e-8, HUGE_VAL, -HUGE_VAL, std::nan("")})
+            args.push_back(from_double(d));
+        args.push_back({0x8000000000000001ull, 0x7fff});   // signaling NaN
+        args.push_back({0xc000000000000000ull, 0xffff});   // the indefinite
+        args.push_back({0x0000000000000001ull, 0x0000});   // an 80-bit denormal
+        args.push_back({0x8000000000000000ull, 0x403e});   // 2^63
+        args.push_back({0xffffffffffffffffull, 0x403d});   // just under 2^63
+        uint32_t seed = 777;
+        for (int32_t i = 0; i < 400; ++i) {
+            seed = seed * 1664525u + 1013904223u;
+            const uint32_t hi = seed;
+            seed = seed * 1664525u + 1013904223u;
+            const uint32_t span = i < 300 ? 40 : 140;  // mostly |x| < 2^20 (game angles), some far larger
+            args.push_back({(uint64_t{hi} << 32 | seed) | (uint64_t{1} << 63),
+                            static_cast<uint16_t>((16383 - 20 + (seed >> 8) % span) | ((seed & 1) << 15))});
+        }
+        struct Pair {
+            const char* name;
+            uint32_t title;
+            void (*ours)();
+        };
+        const Pair pairs[] = {{"sqrt", 0x0033acf4, &title_CIsqrt},
+                              {"sin", 0x0033ae60, &title_CIsin},
+                              {"cos", 0x0033adb0, &title_CIcos},
+                              {"tan", 0x0033af10, &title_CItan},
+                              {"acos", 0x001f0ff4, &title_CIacos}};
+        uint32_t x87_failures = 0;
+        for (const Pair& pair : pairs) {
+            for (const uint32_t cw : {0x007fu, 0x027fu, 0x037fu, 0x0c7fu, 0x087fu}) {
+                for (const Ext& arg : args) {
+                    uint8_t in[10], a_out[12], b_out[12];
+                    std::memcpy(in, &arg.mantissa, 8);
+                    std::memcpy(in + 8, &arg.exponent, 2);
+                    *title_errno() = 0;
+                    title_x87_check_call(pair.title, in, a_out, cw);
+                    const int32_t a_errno = *title_errno();
+                    *title_errno() = 0;
+                    title_x87_check_call(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pair.ours)), in, b_out, cw);
+                    const int32_t b_errno = *title_errno();
+                    if (!std::memcmp(a_out, b_out, 12) && a_errno == b_errno) continue;
+                    if (++x87_failures <= 20) {
+                        uint64_t am, bm;
+                        uint16_t ae, be, acw, bcw;
+                        std::memcpy(&am, a_out, 8), std::memcpy(&ae, a_out + 8, 2), std::memcpy(&acw, a_out + 10, 2);
+                        std::memcpy(&bm, b_out, 8), std::memcpy(&be, b_out + 8, 2), std::memcpy(&bcw, b_out + 10, 2);
+                        add_line(report, "%s(%04x:%016llx) cw %04x: title %04x:%016llx cw %04x errno %d, ours %04x:%016llx cw %04x errno %d",
+                                 pair.name, arg.exponent, static_cast<unsigned long long>(arg.mantissa), cw, ae,
+                                 static_cast<unsigned long long>(am), acw, a_errno, be, static_cast<unsigned long long>(bm),
+                                 bcw, b_errno);
+                    }
+                }
+            }
+        }
+        // The check itself: the title's sqrt(4) is 2 and its sqrt(-1) sets EDOM (both sides agreeing proves little
+        // if neither ran).
+        {
+            const uint8_t four[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0x01, 0x40}, minus_one[10] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0xbf};
+            uint8_t out[12];
+            title_x87_check_call(0x0033acf4, four, out, 0x027f);
+            const bool two = out[7] == 0x80 && out[8] == 0x00 && out[9] == 0x40;
+            *title_errno() = 0;
+            title_x87_check_call(0x0033acf4, minus_one, out, 0x027f);
+            if (!two || *title_errno() != 33) {
+                ++x87_failures;
+                add_line(report, "x87 check broken: title sqrt(4) %s, sqrt(-1) errno %d", two ? "= 2" : "!= 2", *title_errno());
+            }
+        }
+        // fmod over pairs of the first 40 arguments plus 600 random pairs.
+        for (const uint32_t cw : {0x007fu, 0x027fu, 0x0c7fu}) {
+            const auto run = [&](const Ext& x, const Ext& y) {
+                uint8_t in[20], a_out[12], b_out[12];
+                std::memcpy(in, &x.mantissa, 8), std::memcpy(in + 8, &x.exponent, 2);
+                std::memcpy(in + 10, &y.mantissa, 8), std::memcpy(in + 18, &y.exponent, 2);
+                *title_errno() = 0;
+                title_x87_check_call2(0x0033acda, in, a_out, cw);
+                const int32_t a_errno = *title_errno();
+                *title_errno() = 0;
+                title_x87_check_call2(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_CIfmod)), in, b_out, cw);
+                if (!std::memcmp(a_out, b_out, 12) && a_errno == *title_errno()) return;
+                if (++x87_failures <= 40) {
+                    uint64_t am, bm;
+                    uint16_t ae, be;
+                    std::memcpy(&am, a_out, 8), std::memcpy(&ae, a_out + 8, 2);
+                    std::memcpy(&bm, b_out, 8), std::memcpy(&be, b_out + 8, 2);
+                    add_line(report, "fmod(%04x:%016llx, %04x:%016llx) cw %04x: title %04x:%016llx errno %d, ours %04x:%016llx errno %d",
+                             x.exponent, static_cast<unsigned long long>(x.mantissa), y.exponent,
+                             static_cast<unsigned long long>(y.mantissa), cw, ae, static_cast<unsigned long long>(am),
+                             a_errno, be, static_cast<unsigned long long>(bm), *title_errno());
+                }
+            };
+            for (size_t i = 0; i < 40 && i < args.size(); ++i)
+                for (size_t j = 0; j < 40 && j < args.size(); ++j) run(args[i], args[j]);
+            for (size_t i = 40; i + 1 < args.size(); i += 2) run(args[i], args[i + 1]);
+        }
+        *title_errno() = 0;
+        failures += static_cast<int32_t>(x87_failures);
+        add_line(report, "x87 intrinsics: %u argument(s) x 5 control words x 5 functions, fmod pairs x 3, %u difference(s)",
+                 static_cast<uint32_t>(args.size()), x87_failures);
     }
     return failures;
 }

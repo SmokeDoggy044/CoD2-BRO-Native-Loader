@@ -26,6 +26,7 @@
 #include "fx_cmd.h"
 #include "g_pathnode.h"
 #include "pmove.h"
+#include "title_crt.h"
 
 // title_call_at_regs for callees with an ST0 result (left on the x87 stack; asm entry at the end of the file).
 extern "C" PLATFORM_HIDDEN float XB_CDECL gscr_call_at_st0(uint32_t top, uint32_t function, const game::TitleRegs* regs,
@@ -79,7 +80,7 @@ float title_ci_sqrt_float(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "m"(x), "r"(own_address(&title_CIsqrt))  // __CIsqrt
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

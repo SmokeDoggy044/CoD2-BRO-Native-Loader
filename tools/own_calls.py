@@ -285,7 +285,7 @@ def helpers_pass(args):
     stats = collections.Counter()
     per_helper = collections.Counter()
     for path in sorted(ENGINE.rglob("*")):
-        if path.suffix not in (".cpp", ".h") or path == TABLE:
+        if path.suffix not in (".cpp", ".h") or path == TABLE or path.name in KEEP_FILES:
             continue
         if args.only and args.only not in str(path):
             continue

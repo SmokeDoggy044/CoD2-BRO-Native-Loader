@@ -1351,7 +1351,7 @@ float title_ci_sin_ext(long double x) {
     float result;
     __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033ae60})
+                     : "m"(x), "r"(own_address(&title_CIsin))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -1360,7 +1360,7 @@ float title_ci_sqrt_float(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

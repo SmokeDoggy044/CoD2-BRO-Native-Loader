@@ -467,7 +467,7 @@ float bg_tan_degrees(float degrees, float pi, float half_turn) {
     float result;
     __asm__ volatile("flds %1\n\tfmuls %2\n\tfdivs %3\n\tcall *%4\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(degrees), "m"(pi), "m"(half_turn), "r"(uintptr_t{0x0033af10})
+                     : "m"(degrees), "m"(pi), "m"(half_turn), "r"(own_address(&title_CItan))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

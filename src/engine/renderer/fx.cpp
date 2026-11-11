@@ -3657,9 +3657,9 @@ float title_ci_unary(uint32_t function, float x) {
     return result;
 }
 
-float title_ci_sqrt(float x) { return title_ci_unary(0x0033acf4, x); }
-float title_ci_sin(float x) { return title_ci_unary(0x0033ae60, x); }
-float title_ci_cos(float x) { return title_ci_unary(0x0033adb0, x); }
+float title_ci_sqrt(float x) { return title_ci_unary(own_address(&title_CIsqrt), x); }
+float title_ci_sin(float x) { return title_ci_unary(own_address(&title_CIsin), x); }
+float title_ci_cos(float x) { return title_ci_unary(own_address(&title_CIcos), x); }
 
 float title_ci_pow(double base, float exponent) {
     float result;

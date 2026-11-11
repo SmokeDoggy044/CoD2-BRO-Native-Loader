@@ -196,7 +196,7 @@ long double title_ci_fmod(long double x, long double y) {
     long double result;
     __asm__ volatile("call *%3"
                      : "=t"(result)
-                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "0"(y), "u"(x), "r"(own_address(&title_CIfmod))
                      : "st(1)", "eax", "ecx", "edx", "memory");
     return result;
 }

@@ -1202,7 +1202,7 @@ float title_ci_acos(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x001f0ff4})
+                     : "m"(x), "r"(own_address(&title_CIacos))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

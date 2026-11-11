@@ -3747,7 +3747,7 @@ namespace {
 // The title CRT's __CIsqrt (0x0033acf4; argument and result in ST0).
 long double title_ci_sqrt_ext(long double x) {
     long double result;
-    __asm__ volatile("call *%2" : "=t"(result) : "0"(x), "r"(uintptr_t{0x0033acf4}) : "eax", "ecx", "edx", "memory");
+    __asm__ volatile("call *%2" : "=t"(result) : "0"(x), "r"(own_address(&title_CIsqrt)) : "eax", "ecx", "edx", "memory");
     return result;
 }
 

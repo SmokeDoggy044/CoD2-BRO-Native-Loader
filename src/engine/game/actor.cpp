@@ -693,7 +693,7 @@ long double title_ci_fmod(long double x, long double y) {
     long double result;
     __asm__ volatile("call *%3"
                      : "=t"(result)
-                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "0"(y), "u"(x), "r"(own_address(&title_CIfmod))
                      : "st(1)", "eax", "ecx", "edx", "memory");
     return result;
 }
@@ -1252,7 +1252,7 @@ float title_ci_sqrt_ext(long double x) {
     float result;
     __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -6061,7 +6061,7 @@ float ci_sqrt(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -7099,8 +7099,7 @@ PLATFORM_ASM_ENTRY(ai_ci_sqrt_at, "pushl %ebp\n"
                                   "movl 12(%ebp), %ecx\n"
                                   "flds (%ecx)\n"
                                   "movl 8(%ebp), %esp\n"
-                                  "movl $0x0033acf4, %eax\n"
-                                  "call *%eax\n"
+                                  PLATFORM_ASM_CALL(title_CIsqrt)
                                   "movl %ebp, %esp\n"
                                   "movl 16(%ebp), %ecx\n"
                                   "fstps (%ecx)\n"
@@ -17333,7 +17332,7 @@ float title_ci_sqrt_float(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

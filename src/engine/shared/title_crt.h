@@ -134,6 +134,28 @@ uint32_t XB_CDECL title_controlfp(uint32_t value, uint32_t mask);
 // 0x001f0fb0 _chkstk (EAX = frame size): touches each 4 KB page downwards and moves ESP.
 extern "C" void title_chkstk_entry(void);
 
+}  // namespace game
+
+// x87 intrinsics (argument and result in ST(0); EAX, ECX, EDX clobbered), as the title's VC7.1 CRT computes them:
+// the operation runs with the control word's precision kept, rounding to nearest and every exception masked
+// (sqrt: (cw & 0x300) | 0x7f) or with 0x027f (sin/cos/tan), the caller's control word restored after. When the
+// caller's word is not 0x027f, masks precision exceptions and the inexact flag is set, the result goes through a
+// double (the CRT's error path stores and reloads it). |x| >= 2^63 is reduced with fprem1 by 2 pi for sin/cos/tan.
+// Domain errors (sqrt of a negative, an infinite angle, any NaN) give the indefinite / a quiet NaN, also through a
+// double, and errno EDOM. Not ported: unmasked exceptions (the title masks all), _set_fast_math's flag 0x00926a4c
+// (read; 0 in every run seen).
+// 0x0033acf4 __CIsqrt / 0x0033ae60 __CIsin / 0x0033adb0 __CIcos / 0x0033af10 __CItan.
+extern "C" void title_CIsqrt(void);
+extern "C" void title_CIsin(void);
+extern "C" void title_CIcos(void);
+extern "C" void title_CItan(void);
+// 0x001f0ff4 __CIacos.
+extern "C" void title_CIacos(void);
+// 0x0033acda __CIfmod (x in ST(1), y in ST(0); both popped, the result pushed): see title_crt.cpp for its classes.
+extern "C" void title_CIfmod(void);
+
+namespace game {
+
 // Runs ours and the original on the check table; one report line per difference, returns how many.
 int32_t check_title_crt(std::string& report);
 

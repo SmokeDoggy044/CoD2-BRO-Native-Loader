@@ -1135,7 +1135,7 @@ long double XB_CDECL Vec4Normalize(const float* v, float* out) {
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(platform_x87_ld(length_squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(length_squared)), "r"(own_address(&title_CIsqrt))  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     const float length = static_cast<float>(root);
     const float inverse = title_global<float>(0x0083eb20) / length;  // 1
@@ -3306,7 +3306,7 @@ float ci_sqrt_store(long double x) {
     float result;
     __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

@@ -65,7 +65,7 @@ float title_ci_cos(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033adb0})
+                     : "m"(x), "r"(own_address(&title_CIcos))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

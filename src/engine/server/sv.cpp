@@ -386,7 +386,7 @@ long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t, cons
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(platform_x87_ld(sum)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(sum)), "r"(own_address(&title_CIsqrt))  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     return static_cast<float>(root);
 }
@@ -765,7 +765,7 @@ void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t, uint8_t
     long double root;
     __asm__ volatile("call *%2"
                      : "=t"(root)
-                     : "0"(platform_x87_ld(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "0"(platform_x87_ld(squared)), "r"(own_address(&title_CIsqrt))  // __CIsqrt
                      : "eax", "ecx", "edx", "memory");
     const float length = static_cast<float>(root);
     if (x87_equal(length, 0.0f)) {
@@ -911,7 +911,7 @@ void XB_CDECL SV_PointTraceToEntity(uint8_t* sv, uint8_t* clip) {
             long double root;
             __asm__ volatile("call *%2"
                              : "=t"(root)
-                             : "0"(platform_x87_ld(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                             : "0"(platform_x87_ld(squared)), "r"(own_address(&title_CIsqrt))  // __CIsqrt
                              : "eax", "ecx", "edx", "memory");
             const float length = static_cast<float>(root);
             radius = static_cast<float>(platform_x87_ld(length) * scale);

@@ -75,7 +75,7 @@ long double title_ci_fmod(long double x, long double y) {
     long double result;
     __asm__ volatile("call *%3"
                      : "=t"(result)
-                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "0"(y), "u"(x), "r"(own_address(&title_CIfmod))
                      : "st(1)", "eax", "ecx", "edx", "memory");
     return result;
 }
@@ -436,7 +436,7 @@ uint32_t XB_CDECL Turret_IsPlayerWithinArc(const uint8_t* turret, const uint8_t*
     float aim[3] = {cosine, sine, zero};
     const float zero_sq = zero * zero;
     const float aim_sq = sine * sine + cosine * cosine + zero_sq;
-    const float aim_len = title_ci_float(0x0033acf4, aim_sq);  // __CIsqrt
+    const float aim_len = title_ci_float(own_address(&title_CIsqrt), aim_sq);  // __CIsqrt
     if (aim_len != 0.0f) {
         const float inv = title_global<float>(0x0083eb20) / aim_len;
         aim[0] = inv * cosine;
@@ -447,7 +447,7 @@ uint32_t XB_CDECL Turret_IsPlayerWithinArc(const uint8_t* turret, const uint8_t*
     const float dx = *reinterpret_cast<const float*>(turret + 0x140) - *reinterpret_cast<const float*>(player + 0x140);
     float to[3] = {dx, dy, 0.0f};
     const float to_sq = dy * dy + dx * dx + zero_sq;
-    const float to_len = title_ci_float(0x0033acf4, to_sq);
+    const float to_len = title_ci_float(own_address(&title_CIsqrt), to_sq);
     if (to_len != 0.0f) {
         const float inv = title_global<float>(0x0083eb20) / to_len;
         to[0] = inv * dx;
@@ -457,7 +457,7 @@ uint32_t XB_CDECL Turret_IsPlayerWithinArc(const uint8_t* turret, const uint8_t*
     // The dot product on the x87, stored as float.
     const float dot = static_cast<float>(platform_x87_ld(aim[2]) * to[2] + platform_x87_ld(aim[1]) * to[1] +
                                          platform_x87_ld(aim[0]) * to[0]);
-    float angle = title_ci_float(0x001f0ff4, dot);  // __CIacos
+    float angle = title_ci_float(own_address(&title_CIacos), dot);  // __CIacos
     const float pi = title_global<float>(0x0083ed00);
     if (platform_x87_greater(angle, pi) || title_global<float>(0x0083ed48) > angle) angle = pi;
     const float degrees = angle * title_global<float>(0x0083eb60) / pi;
@@ -2063,7 +2063,7 @@ uint8_t* XB_CDECL weapon_grenadelauncher_fire(const float* params, uint8_t* owne
     origin[1] = params[1] * push + params[10];
     origin[2] = params[2] * push + params[11];
     uint8_t* const ent = fire_grenade(weapon, owner, velocity, origin, 0x1388);
-    const float length = title_ci_float(0x0033acf4, velocity[2] * velocity[2] + velocity[1] * velocity[1] +
+    const float length = title_ci_float(own_address(&title_CIsqrt), velocity[2] * velocity[2] + velocity[1] * velocity[1] +
                                                          velocity[0] * velocity[0]);  // __CIsqrt
     float dir[3] = {velocity[0], velocity[1], velocity[2]};
     if (length != 0.0f) {
@@ -2946,7 +2946,7 @@ uint32_t XB_CDECL CanDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t
         f(L + 0x10) = dx;
         f(L + 0x18) = zero;
         f(L + 8) = dy * dy + dx * dx + zero * zero;
-        f(L + 8) = title_ci_float(0x0033acf4, f(L + 8));  // __CIsqrt
+        f(L + 8) = title_ci_float(own_address(&title_CIsqrt), f(L + 8));  // __CIsqrt
         uint32_t length_bits;
         std::memcpy(&length_bits, &f(L + 8), 4);
         float side_y;
@@ -3069,7 +3069,7 @@ uint8_t* XB_CDECL fire_projectile(uint32_t entry, float* dir, const float* start
     const uint32_t top = entry - 0x20;
     const uint32_t dir_at = address_of(dir), start_at = address_of(start);
     stack_float(entry - 0x10) = dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2];
-    stack_float(entry - 0x10) = title_ci_float(0x0033acf4, stack_float(entry - 0x10));  // __CIsqrt
+    stack_float(entry - 0x10) = title_ci_float(own_address(&title_CIsqrt), stack_float(entry - 0x10));  // __CIsqrt
     if (stack_at(entry - 0x10) & 0x7fffffffu) {  // FUCOMIP: NaN normalizes too
         const float inv = title_global<float>(0x0083eb20) / stack_float(entry - 0x10);
         dir[0] = dir[0] * inv;
@@ -6282,7 +6282,7 @@ float title_ci_sqrt(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }

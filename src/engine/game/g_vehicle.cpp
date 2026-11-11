@@ -54,7 +54,7 @@ float title_ci_sqrt(float x) {
     float result;
     __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "m"(x), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -64,7 +64,7 @@ long double title_ci_fmod(long double x, long double y) {
     long double result;
     __asm__ volatile("call *%3"
                      : "=t"(result)
-                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "0"(y), "u"(x), "r"(own_address(&title_CIfmod))
                      : "st(1)", "eax", "ecx", "edx", "memory");
     return result;
 }
@@ -3808,7 +3808,7 @@ float title_ci_tan_degrees(float degrees) {
     __asm__ volatile("flds %1\n\tfmuls %2\n\tfdivs %3\n\tcall *%4\n\tfstps %0"
                      : "=m"(result)
                      : "m"(degrees), "m"(title_global<float>(0x0083ed00)), "m"(title_global<float>(0x0083eb60)),
-                       "r"(uintptr_t{0x0033af10})
+                       "r"(own_address(&title_CItan))
                      : "eax", "ecx", "edx", "st", "memory");
     return result;
 }
@@ -4686,7 +4686,7 @@ void XB_CDECL Vehicle_ThinkInit(uint32_t entry_esp, uint32_t ebx, uint32_t esi, 
             __asm__ volatile("flds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\t"
                              "call *%4\n\tfstps %0"
                              : "=m"(length)
-                             : "m"(d[2]), "m"(d[1]), "m"(d[0]), "r"(uintptr_t{0x0033acf4})
+                             : "m"(d[2]), "m"(d[1]), "m"(d[0]), "r"(own_address(&title_CIsqrt))
                              : "eax", "ecx", "edx", "st", "st(1)", "memory");  // __CIsqrt
             fl(0x20) = length;
             at<float>(v, 0x1a8) = length;

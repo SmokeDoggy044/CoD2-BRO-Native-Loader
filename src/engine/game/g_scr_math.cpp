@@ -7,6 +7,7 @@
 #include "g_utils.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "title_crt.h"
 
 namespace game {
 
@@ -44,7 +45,7 @@ ext XB_CDECL Scr_Sin(float x) { return platform_x87_sin_ext(x); }
 ext XB_CDECL Scr_Tan(float x) { return platform_x87_tan_ext(x); }
 ext XB_CDECL Scr_Abs(float x) { return platform_x87_abs_ext(x); }
 ext XB_CDECL Scr_Sqrt(float x) { return platform_x87_sqrt_ext(x); }
-ext XB_CDECL Scr_Acos(float x) { return title_ci_unary_ext(0x001f0ff4, x); }  // __CIacos
+ext XB_CDECL Scr_Acos(float x) { return title_ci_unary_ext(own_address(&title_CIacos), x); }  // __CIacos
 ext XB_CDECL Scr_Asin(float x) { return title_ci_unary_ext(0x001f1d6c, x); }  // __CIasin
 ext XB_CDECL Scr_Atan(float x) { return platform_x87_atan_ext(x); }
 ext XB_CDECL Scr_Log(float x) { return platform_x87_ln_ext(x); }
@@ -70,7 +71,7 @@ void difference(const float* a, const float* b, float* d) {
 float XB_CDECL Scr_Distance(const float* a, const float* b) {
     float d[3];
     difference(a, b, d);
-    return static_cast<float>(title_ci_unary_ext(0x0033acf4, sum_of_squares(d[2], d[1], d[0])));  // __CIsqrt
+    return static_cast<float>(title_ci_unary_ext(own_address(&title_CIsqrt), sum_of_squares(d[2], d[1], d[0])));  // __CIsqrt
 }
 
 ext XB_CDECL Scr_DistanceSquared(const float* a, const float* b) {

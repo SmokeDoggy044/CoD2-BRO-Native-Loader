@@ -102,7 +102,7 @@ float title_ci_length_over(float a, float b, float divisor) {
     float length;
     __asm__ volatile("flds %2\n\tfmuls %2\n\tflds %1\n\tfmuls %1\n\tfaddp\n\tcall *%3\n\tfstps %0"
                      : "=m"(length)
-                     : "m"(a), "m"(b), "r"(uintptr_t{0x0033acf4})
+                     : "m"(a), "m"(b), "r"(own_address(&title_CIsqrt))
                      : "eax", "ecx", "edx", "st", "st(1)", "memory");
     float result;
     __asm__("flds %1\n\tfdivs %2\n\tfstps %0" : "=m"(result) : "m"(length), "m"(divisor) : "st");

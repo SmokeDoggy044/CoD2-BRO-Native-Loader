@@ -1055,6 +1055,7 @@ const Function kFunctions[] = {
     {"fseek", 0x001f06fb, 0, code(&title_fseek), 12, Result::Eax, Status::Compare},
     {"_fclose_lk", 0x001f0744, 0, code(&title_fclose_lk), 4, Result::Eax, Status::Compare},
     {"fclose", 0x001f0790, 0, code(&title_fclose), 4, Result::Eax, Status::Compare},
+    {"__CIacos", 0x001f0ff4, 0, code(&title_CIacos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"_lock_file", 0x001f187f, 0, code(&title_lock_file), 4, Result::None, Status::Compare},
     {"_lock_file2", 0x001f18ae, 0, code(&title_lock_file2), 8, Result::None, Status::Compare},
     {"_unlock_file", 0x001f18d1, 0, code(&title_unlock_file), 4, Result::None, Status::Compare},
@@ -9320,6 +9321,11 @@ const Function kFunctions[] = {
     {"ProfileSave_OnSaveOpComplete", 0x0033a530, 0, code(&ProfileSave_OnSaveOpComplete_entry), 4, Result::None, Status::Compare},
     {"ProfileMenu_Update", 0x0033a640, 0, code(&ProfileMenu_Update_entry), 4, Result::None, Status::Replaced},
     {"SCR_UpdateLoadingDots", 0x0033ac10, 0, code(&SCR_UpdateLoadingDots_entry), 0, Result::None, Status::Replaced},
+    {"__CIfmod", 0x0033acda, 0, code(&title_CIfmod), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CIsqrt", 0x0033acf4, 0, code(&title_CIsqrt), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CIcos", 0x0033adb0, 0, code(&title_CIcos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CIsin", 0x0033ae60, 0, code(&title_CIsin), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CItan", 0x0033af10, 0, code(&title_CItan), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"StaticInit_UIColors_95fd30", 0x00372ef0, 0, code(&StaticInit_UIColors_95fd30), 0, Result::None, Status::Replaced},
     {"StaticInit_HandleTable_8dda2c", 0x003731e0, 0, code(&StaticInit_HandleTable_8dda2c), 0, Result::None, Status::Replaced},
     {"StaticInit_List_95fe00", 0x00373230, 0, code(&StaticInit_List_95fe00), 0, Result::None, Status::Replaced},
