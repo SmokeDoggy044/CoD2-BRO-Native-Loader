@@ -10,6 +10,7 @@
 #include "qcommon_core.h"
 #include "shaders.h"
 #include "tr_main.h"
+#include "xgraphics.h"
 
 namespace game {
 
@@ -172,20 +173,17 @@ uint32_t XB_REGS2 GetRefAPI(const uint32_t* imports, uint32_t version) {
 
 namespace {
 
-// _vsprintf / _sprintf / XGAssembleShader (stdcall: source file name, text, length, flags,
-// constants, compiled shader, error log, listing, include callback and context, shader type)
-// run at the original's ESP: the assembler keeps addresses of the caller's text and locals in
-// globals (0x0095f734, 0x00419560).
+// _vsprintf / _sprintf run at the original's ESP (the frame below holds the formatted text).
 constexpr uint32_t kVsprintf = 0x001eea95;
 constexpr uint32_t kSprintf = 0x001ee901;
-constexpr uint32_t kXGAssembleShader = 0x004020aa;
 
-// Assembles the text at `source`; the compiled buffer pointer lands in the word at `top`.
-uint32_t assemble_at(uint32_t top, uint32_t source, const TitleRegs& entry) {
-    const uint32_t length = static_cast<uint32_t>(std::strlen(reinterpret_cast<const char*>(uintptr_t{source})));
-    const uint32_t args[] = {0x0082dfeb, source, length, 0x20000, 0, top, 0, 0, 0, 0, 0};
-    const TitleRegs regs{length, entry.ebx, top, source, entry.esi, entry.edi};
-    title_call_at_regs(top, kXGAssembleShader, &regs, 11, args);
+// Assembles the text at `source` (XGAssembleShader, flags 0x20000); the compiled buffer pointer lands in
+// the word at `top`.
+uint32_t assemble_at(uint32_t top, uint32_t source) {
+    const char* const text = reinterpret_cast<const char*>(uintptr_t{source});
+    XGAssembleShader(reinterpret_cast<const char*>(uintptr_t{0x0082dfeb}), text,
+                     static_cast<uint32_t>(std::strlen(text)), 0x20000, nullptr,
+                     reinterpret_cast<XgBuffer**>(uintptr_t{top}), nullptr, nullptr, 0, 0, nullptr);
     return *reinterpret_cast<const uint32_t*>(uintptr_t{top});
 }
 
@@ -215,7 +213,7 @@ uint32_t XB_CDECL nglAssemblePixelShader_body(uint32_t entry, uint32_t ebx, uint
     char* const source = reinterpret_cast<char*>(uintptr_t{frame + 4});
     std::strcpy(source, "xps.1.1\n");
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));
-    const uint32_t buffer = assemble_at(frame, frame + 4, TitleRegs{0, ebx, 0, 0, esi, edi});
+    const uint32_t buffer = assemble_at(frame, frame + 4);
     *reinterpret_cast<uint32_t*>(uintptr_t{args[0]}) = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
     ngl_gfx_shader_key(*reinterpret_cast<const uint32_t*>(uintptr_t{args[0]}), args[1]);
     if (const auto loaded = renderer_pc_hooks().shader_loaded)
@@ -258,7 +256,7 @@ uint32_t XB_CDECL nglAssembleVertexShader_body(uint32_t entry, uint32_t ebx, uin
     std::strcpy(source, "xvs.1.1\n#pragma screenspace\n");
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));
     if (!no_fixup) std::strcat(source, reinterpret_cast<const char*>(uintptr_t{fixup}));
-    const uint32_t buffer = assemble_at(frame, frame + 0x90, TitleRegs{0, ebx, 0, 0, esi, edi});
+    const uint32_t buffer = assemble_at(frame, frame + 0x90);
     uint32_t* const out = reinterpret_cast<uint32_t*>(uintptr_t{args[1]});
     out[0] = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
     out[1] = args[0];
@@ -371,8 +369,8 @@ void XB_CDECL nglCreateNormalCubeMap(uint32_t size) {
         uint32_t locked[2] = {};             // D3DLOCKED_RECT {pitch, bits}
         title_function<void XB_STDCALL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x003ebe50)(surface, locked, 0,
                                                                                             0);  // D3DSurface_LockRect
-        title_function<void XB_STDCALL(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
-                                       uint32_t)>(0x003fa203)(pixels, 0, 0, locked[1], size, size, 0,
+        own_function<void XB_STDCALL(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                       uint32_t)>(&XGSwizzleRect)(pixels, 0, 0, locked[1], size, size, 0,
                                                               4);  // XGSwizzleRect
         title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(surface);  // D3DResource_Release
     }
@@ -395,7 +393,7 @@ void XB_CDECL nglInit() {
     title_function<ControlFp>(0x001f0a40)(0x300, 0x300);      // __controlfp: all x87 exceptions masked
     title_function<ControlFp>(0x001f0a40)(0x20000, 0x30000);  // 24-bit precision
     platform_mxcsr_or(0x6000);                                // SSE: round toward zero
-    title_global<uint32_t>(0x00902870) = title_function<uint32_t XB_STDCALL(uint32_t)>(0x003ebb20)(0);
+    title_global<uint32_t>(0x00902870) = own_function<uint32_t XB_STDCALL(uint32_t)>(&D3D_ReturnOne)(0);
     title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e9d70)(  // D3D_SetPushBufferSize
         title_global<uint32_t>(0x008a34d0), title_global<uint32_t>(0x008a34d4));
     if (!title_global<uint8_t>(0x0090289b)) {

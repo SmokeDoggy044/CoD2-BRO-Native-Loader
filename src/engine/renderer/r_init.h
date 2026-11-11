@@ -39,7 +39,7 @@ uint32_t XB_REGS2 GetRefAPI(const uint32_t* imports, uint32_t version);
 
 // 0x00076120: "xps.1.1\n" + the formatted text, assembled with XGAssembleShader (flags
 // 0x20000); *code = the compiled buffer's data. Returns the buffer (never released).
-// cdecl (code, format, ...); the entry runs the formatting and the assembler at the original's ESP.
+// cdecl (code, format, ...); the entry runs the formatting at the original's ESP.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL nglAssemblePixelShader_body(uint32_t entry, uint32_t ebx, uint32_t esi,
                                                                     uint32_t edi);
 extern "C" void nglAssemblePixelShader_entry(void);

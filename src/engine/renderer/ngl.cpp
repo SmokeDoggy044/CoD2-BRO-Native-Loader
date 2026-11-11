@@ -14,6 +14,7 @@
 #include "title_data.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
+#include "xgraphics.h"
 
 namespace game {
 
@@ -2990,7 +2991,7 @@ void XB_CDECL nglTexture_Lock(NglTexture* texture, uint32_t flags) {
     if (texture->flags & 0x100) {
         // Swizzled: set up the swizzler (0x00902b38) for width (+0x10) x height (+0x14).
         using SwizzlerInit = void XB_THISCALL(uint32_t, uint32_t, uint32_t, uint32_t);
-        title_function<SwizzlerInit>(0x003f9a3e)(0x00902b38, *reinterpret_cast<uint32_t*>(t + 0x10),
+        own_function<SwizzlerInit>(&Swizzler_Init)(0x00902b38, *reinterpret_cast<uint32_t*>(t + 0x10),
                                                  *reinterpret_cast<uint32_t*>(t + 0x14), 0);
     }
 }
@@ -3103,8 +3104,8 @@ uint32_t XB_CDECL nglTextureGetPixel(const NglTexture* texture, uint32_t x, uint
     title_global<uint32_t>(0x00902b50) = 0;
     title_global<uint32_t>(0x00902b54) = 0;
     using Swizzle = uint32_t XB_THISCALL(uint32_t, uint32_t);
-    uint32_t v = title_function<Swizzle>(0x003f9ac8)(0x00902b38, y);  // Swizzler_SwizzleV
-    uint32_t u = title_function<Swizzle>(0x003f9a9f)(0x00902b38, x);  // Swizzler_SwizzleU
+    uint32_t v = own_function<Swizzle>(&Swizzler_SwizzleV)(0x00902b38, y);  // Swizzler_SwizzleV
+    uint32_t u = own_function<Swizzle>(&Swizzler_SwizzleU)(0x00902b38, x);  // Swizzler_SwizzleU
     const uint32_t mask_x = title_global<uint32_t>(0x00902b44), mask_y = title_global<uint32_t>(0x00902b48);
     u = (0u - ((0u - u) & mask_x)) & mask_x;
     v = (0u - ((0u - v) & mask_y)) & mask_y;
@@ -3119,7 +3120,7 @@ void XB_CDECL nglInitDepthTextureView() {
     // size fields as the back-buffer texture (0x00902d60/64) and the header.
     const uint32_t width = title_global<uint32_t>(0x00902dd8);
     using SetHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<SetHeader>(0x003f9994)(width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0, 0x00902e50,
+    own_function<SetHeader>(&XGSetTextureHeader)(width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0, 0x00902e50,
                                           title_global<uint32_t*>(0x00902dfc)[1], width * 4);  // XGSetTextureHeader
     title_global<uint32_t>(0x00902ea8) = 0x00902e50;
     title_global<uint32_t>(0x00902e88) = title_global<uint32_t>(0x00902d60);
@@ -3951,7 +3952,7 @@ using ResourceRegister = void XB_STDCALL(uint32_t, uint32_t);
 
 // The D3D vertex buffer header (self[2]) over self[0], with a reference count of 1.
 void register_vertex_buffer(uint32_t* self, uint32_t data) {
-    title_function<SetVertexBufferHeader>(0x003f99e6)(0, 0, 0, 0, self[2], 0);  // XGSetVertexBufferHeader
+    own_function<SetVertexBufferHeader>(&XGSetVertexBufferHeader)(0, 0, 0, 0, self[2], 0);  // XGSetVertexBufferHeader
     title_function<ResourceRegister>(0x003e7fd0)(self[2], data);                // D3DResource_Register
     *reinterpret_cast<uint32_t*>(self[2]) = 1;
 }
@@ -3986,18 +3987,18 @@ void XB_THISCALL nglInitTextureHeader(NglTexture* self) {
         const uint32_t surface = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x18, 4, 0));
         self->surfaces = reinterpret_cast<uint32_t*>(surface);
         using SetSurfaceHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-        title_function<SetSurfaceHeader>(0x003f9953)(self->width, self->height, self->format, surface, 0, 0);  // XGSetSurfaceHeader
+        own_function<SetSurfaceHeader>(&XGSetSurfaceHeader)(self->width, self->height, self->format, surface, 0, 0);  // XGSetSurfaceHeader
     } else if (self->flags & 0x10000000) {
         const uint32_t cube = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x14, 4, 0));
         self->d3d_texture = reinterpret_cast<uint8_t*>(cube);
         using SetCubeHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-        title_function<SetCubeHeader>(0x003f99be)(self->width, self->levels, 0, self->format, 0, cube, 0, 0);  // XGSetCubeTextureHeader
+        own_function<SetCubeHeader>(&XGSetCubeTextureHeader)(self->width, self->levels, 0, self->format, 0, cube, 0, 0);  // XGSetCubeTextureHeader
     } else {
         const uint32_t texture = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x14, 4, 0));
         self->d3d_texture = reinterpret_cast<uint8_t*>(texture);
         using SetTextureHeader =
             void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-        title_function<SetTextureHeader>(0x003f9994)(self->width, self->height, self->levels, 0, self->format, 0,
+        own_function<SetTextureHeader>(&XGSetTextureHeader)(self->width, self->height, self->levels, 0, self->format, 0,
                                                      texture, 0, 0);  // XGSetTextureHeader
     }
 }
@@ -4034,7 +4035,7 @@ void* XB_THISCALL nglAllocTextureMemory(const NglTexture* self) {
         return Mem_AlignedAlloc(size, 0x40, 0x30000);
     }
     const uint32_t bytes_per_pixel =
-        (title_function<uint32_t XB_STDCALL(uint32_t)>(0x003fa187)(self->format) << 3) >> 3;  // XGBytesPerPixelFromFormat
+        (own_function<uint32_t XB_STDCALL(uint32_t)>(&XGBytesPerPixelFromFormat)(self->format) << 3) >> 3;  // XGBytesPerPixelFromFormat
     uint32_t size = 0;
     if (flags & 0x10000000) {
         for (int face = 6; face; --face) {
@@ -4077,7 +4078,7 @@ uint32_t* XB_CDECL nglCreatePalette(uint32_t, uint32_t count, uint32_t entries) 
     }
     palette[0] = entries;
     palette[3] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003f99fe)(size, palette[3], 0);  // XGSetPaletteHeader
+    own_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(&XGSetPaletteHeader)(size, palette[3], 0);  // XGSetPaletteHeader
     title_function<ResourceRegister>(0x003e7fd0)(palette[3], palette[0]);                      // D3DResource_Register
     *reinterpret_cast<uint32_t*>(palette[3]) = 0x00030001;
     return palette;
@@ -4571,7 +4572,7 @@ void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog
     const uint32_t texture_width = title_global<uint32_t>(0x00902dd8);
     using SetTextureHeader =
         void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    title_function<SetTextureHeader>(0x003f9994)(texture_width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0,
+    own_function<SetTextureHeader>(&XGSetTextureHeader)(texture_width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0,
                                                  0x00902e50, title_global<uint32_t*>(0x00902dfc)[1],
                                                  texture_width * 4);  // XGSetTextureHeader
     title_global<uint32_t>(0x00902ea8) = 0x00902e50;
@@ -4686,13 +4687,13 @@ void XB_CDECL nglSwizzleTextureLevels(NglTexture* texture, uint32_t* data) {
         uint32_t desc[7];  // D3DSURFACE_DESC: Format, Type, Usage, Size, MultiSampleType, Width, Height
         title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(surface, desc);  // D3DSurface_GetDesc
         const uint32_t bytes_per_pixel =
-            title_function<uint32_t XB_STDCALL(uint32_t)>(0x003fa187)(desc[0]);  // XGBytesPerPixelFromFormat
+            own_function<uint32_t XB_STDCALL(uint32_t)>(&XGBytesPerPixelFromFormat)(desc[0]);  // XGBytesPerPixelFromFormat
         title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(surface);  // D3DResource_Release
         const uint32_t buffer = address_of(Mem_AlignedAlloc(desc[3] + 0x10, 4, 0));
         const uint32_t aligned = (buffer + 0xf) & ~0xfu;
         using SwizzleRect = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                             uint32_t);
-        title_function<SwizzleRect>(0x003fa203)(*data, 0, 0, aligned, desc[5], desc[6], 0,
+        own_function<SwizzleRect>(&XGSwizzleRect)(*data, 0, 0, aligned, desc[5], desc[6], 0,
                                                 bytes_per_pixel);  // XGSwizzleRect
         std::memcpy(reinterpret_cast<void*>(uintptr_t{*data}), reinterpret_cast<const void*>(uintptr_t{aligned}),
                     desc[3]);

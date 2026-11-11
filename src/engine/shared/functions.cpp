@@ -143,6 +143,7 @@
 #include "ui_panel.h"
 #include "unzip.h"
 #include "xanim.h"
+#include "xgraphics.h"
 
 namespace game {
 
@@ -9241,6 +9242,19 @@ const Function kFunctions[] = {
     {"StaticInit_Vtable_8bb768", 0x00379df0, 0, code(&StaticInit_Vtable_8bb768), 0, Result::None, Status::Replaced},
     {"AtExit_ScrFree_922e90", 0x00379e50, 0, code(&AtExit_ScrFree_922e90), 0, Result::None, Status::Compare},
     {"AtExit_ScriptKeyTable", 0x00379e70, 0, code(&AtExit_ScriptKeyTable), 0, Result::None, Status::Compare},
+    // XDK graphics helpers (xgraphics.cpp): our own code for what the renderer's C calls.
+    {"D3D_ReturnOne", 0x003ebb20, 0, code(&D3D_ReturnOne), 4, Result::Eax, Status::Compare},
+    {"XGSetSurfaceHeader", 0x003f9953, 0, code(&XGSetSurfaceHeader), 24, Result::Eax, Status::Compare},
+    {"XGSetTextureHeader", 0x003f9994, 0, code(&XGSetTextureHeader), 36, Result::Eax, Status::Compare},
+    {"XGSetCubeTextureHeader", 0x003f99be, 0, code(&XGSetCubeTextureHeader), 32, Result::Eax, Status::Compare},
+    {"XGSetVertexBufferHeader", 0x003f99e6, 0, code(&XGSetVertexBufferHeader), 24, Result::Eax, Status::Compare},
+    {"XGSetPaletteHeader", 0x003f99fe, 0, code(&XGSetPaletteHeader), 12, Result::Eax, Status::Compare},
+    {"Swizzler_Init", 0x003f9a3e, 0, code(&Swizzler_Init), 12, Result::Eax, Status::Compare},
+    {"Swizzler_SwizzleU", 0x003f9a9f, 0, code(&Swizzler_SwizzleU), 4, Result::Eax, Status::Compare},
+    {"Swizzler_SwizzleV", 0x003f9ac8, 0, code(&Swizzler_SwizzleV), 4, Result::Eax, Status::Compare},
+    {"XGBytesPerPixelFromFormat", 0x003fa187, 0, code(&XGBytesPerPixelFromFormat), 4, Result::Eax, Status::Compare},
+    {"XGSwizzleRect", 0x003fa203, 0, code(&XGSwizzleRect), 32, Result::None, Status::Compare},
+    {"XGAssembleShader", 0x004020aa, 0, code(&XGAssembleShader), 44, Result::Eax, Status::Compare},
     {"BroLvl_prologue_WaitLevelNotifyCount", 0x0041a270, 0, code(&BroLvl_prologue_WaitLevelNotifyCount), 8, Result::None, Status::Compare},
     {"BroLvl_prologue_SpawnVehicleDroneDefault", 0x0041a2f0, 0, code(&BroLvl_prologue_SpawnVehicleDroneDefault), 24, Result::Eax, Status::Compare},
     {"BroLvl_prologue_DeleteByChainOrTarget", 0x0041a600, 0, code(&BroLvl_prologue_DeleteByChainOrTarget), 12, Result::None, Status::Compare},
