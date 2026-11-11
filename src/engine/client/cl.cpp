@@ -92,7 +92,7 @@ long double title_ci_pow_of_product(float a, float b, double exponent) {
     long double result;
     __asm__ volatile("flds %1\n\tfmuls %2\n\tfldl %3\n\tcall *%4\n\tfstpt %0"
                      : "=m"(result)
-                     : "m"(a), "m"(b), "m"(exponent), "r"(uintptr_t{0x001f1a6c})
+                     : "m"(a), "m"(b), "m"(exponent), "r"(own_address(&title_CIpow))
                      : "eax", "ecx", "edx", "st", "st(1)", "memory");
     return result;
 }

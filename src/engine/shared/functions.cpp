@@ -1056,6 +1056,7 @@ const Function kFunctions[] = {
     {"_fclose_lk", 0x001f0744, 0, code(&title_fclose_lk), 4, Result::Eax, Status::Compare},
     {"fclose", 0x001f0790, 0, code(&title_fclose), 4, Result::Eax, Status::Compare},
     {"__CIacos", 0x001f0ff4, 0, code(&title_CIacos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"__CIpow", 0x001f1a6c, 0, code(&title_CIpow), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"_lock_file", 0x001f187f, 0, code(&title_lock_file), 4, Result::None, Status::Compare},
     {"_lock_file2", 0x001f18ae, 0, code(&title_lock_file2), 8, Result::None, Status::Compare},
     {"_unlock_file", 0x001f18d1, 0, code(&title_unlock_file), 4, Result::None, Status::Compare},

@@ -153,6 +153,9 @@ extern "C" void title_CItan(void);
 extern "C" void title_CIacos(void);
 // 0x0033acda __CIfmod (x in ST(1), y in ST(0); both popped, the result pushed): see title_crt.cpp for its classes.
 extern "C" void title_CIfmod(void);
+// 0x001f1a6c __CIpow (x in ST(1), y in ST(0)): see title_crt.cpp; bit-exact with its overflow / underflow / domain
+// paths, x87 status flags and errno.
+extern "C" void title_CIpow(void);
 
 namespace game {
 

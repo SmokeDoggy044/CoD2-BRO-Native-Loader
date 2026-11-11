@@ -3665,7 +3665,7 @@ float title_ci_pow(double base, float exponent) {
     float result;
     __asm__ volatile("fldl %1\n\tflds %2\n\tcall *%3\n\tfstps %0"
                      : "=m"(result)
-                     : "m"(base), "m"(exponent), "r"(uintptr_t{0x001f1a6c})
+                     : "m"(base), "m"(exponent), "r"(own_address(&title_CIpow))
                      : "eax", "ecx", "edx", "st", "st(1)", "memory");
     return result;
 }

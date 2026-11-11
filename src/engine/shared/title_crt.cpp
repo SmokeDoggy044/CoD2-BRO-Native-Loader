@@ -124,15 +124,271 @@ PLATFORM_ASM_ENTRY(title_CIfmod,
 #undef TITLE_X87_SPECIAL
 #undef TITLE_X87_PROLOGUE
 
-// The same for a two-argument intrinsic: `in` holds x then y (80-bit each); x goes to ST(1), y to ST(0).
+// ---- __CIpow (0x001f1a6c) ----
+// The x87 part (the core 0x001f1a90 with __fload_withFB, __twoToTOS, __check_range_exit and
+// __startTwoArgErrorHandling) is the title's instruction sequence below; its C helpers (__powhlp, _87except with
+// __handle_exc's masked responses, _decomp) are ported here on the doubles' bits only, so no x87 instruction of
+// ours touches the status word between the title's. Title constants by address: 0x008d1620 0.5, 0x008d19f0 +inf
+// (80-bit), 0x008281d8 DBL_MAX, 0x008281e0 DBL_MIN, 0x008281e8 / 0x008281f0 -/+1536.0, 0x008281f8 +inf,
+// 0x00828200 0.0, 0x008d1628 "pow"; status flags set by __set_statfp (0x001f3dd4) through the same instructions.
+// Not ported: _raise_exc (an exception left unmasked by the caller's control word, i.e. an inexact result with
+// PM unmasked - the title masks all; ours returns the masked response instead of raising).
+extern "C" PLATFORM_HIDDEN void XB_CDECL title_x87_set_statfp(uint32_t flags);
+PLATFORM_ASM_ENTRY(title_x87_set_statfp,
+                   "pushl %ecx\n pushl %ecx\n movb 12(%esp), %cl\n"
+                   "testb $1, %cl\n je 1f\n fldt 0x008d1778\n fistpl 12(%esp)\n fwait\n"
+                   "1: testb $8, %cl\n je 2f\n fstsw %ax\n fldt 0x008d1778\n fstpl (%esp)\n fwait\n fstsw %ax\n"
+                   "2: testb $0x10, %cl\n je 3f\n fldt 0x008d1784\n fstpl (%esp)\n fwait\n"
+                   "3: testb $4, %cl\n je 4f\n fldz\n fld1\n .byte 0xde, 0xf1\n fstp %st(0)\n fwait\n"  // fdivrp st(1), st: 1 / 0
+                   "4: testb $0x20, %cl\n je 5f\n fldpi\n fstpl (%esp)\n fwait\n"
+                   "5: popl %ecx\n popl %ecx\n ret")
+
+namespace {
+
+constexpr uint64_t kPowInf = 0x7ff0000000000000ull, kPowDblMax = 0x7fefffffffffffffull, kPowSign = 1ull << 63;
+
+uint64_t pow_bits(const void* p) {
+    uint64_t v;
+    std::memcpy(&v, p, 8);
+    return v;
+}
+bool pow_is_nan(uint64_t v) { return (v & ~kPowSign) > kPowInf; }
+bool pow_is_zero(uint64_t v) { return !(v & ~kPowSign); }
+bool pow_positive(uint64_t v) { return !(v & kPowSign) && !pow_is_zero(v) && !pow_is_nan(v); }  // fcom > 0
+bool pow_negative(uint64_t v) { return (v & kPowSign) && !pow_is_zero(v) && !pow_is_nan(v); }   // fcom < 0
+// |v| (finite) is an integer.
+bool pow_is_integer(uint64_t v) {
+    const int32_t exp = static_cast<int32_t>((v >> 52) & 0x7ff);
+    if (exp >= 1075) return true;
+    if (exp < 1023) return pow_is_zero(v);
+    return !(v & ((uint64_t{1} << (1075 - exp)) - 1));
+}
+
+// __d_inttype (0x001f739d): 0 not an integer (denormals included), 1 odd, 2 even, for a finite y.
+int32_t pow_inttype(uint64_t y) {
+    const int32_t exp = static_cast<int32_t>((y >> 52) & 0x7ff);
+    if (exp == 0 && !pow_is_zero(y)) return 0;  // _fpclass: denormal
+    if (!pow_is_integer(y)) return 0;
+    if (pow_is_zero(y) || exp >= 1076) return 2;  // y * 0.5 still an integer
+    return (y >> (1075 - exp)) & 1 ? 1 : 2;
+}
+
+// _decomp (0x001f3ce5): v = m * 2^e with |m| in [0.5, 1); 0 gives m = +0, e = 0 (NaN/inf: exponent field 0x3fe
+// put in, e = 0x401).
+uint64_t pow_decomp(uint64_t v, int32_t& e) {
+    if (pow_is_zero(v)) {
+        e = 0;
+        return 0;
+    }
+    uint64_t m = v;
+    if (!(v & 0x7ff0000000000000ull)) {  // denormal: normalized by shifting
+        e = -1021;
+        while (!(m & (uint64_t{1} << 52))) m <<= 1, --e;
+        m &= ~(uint64_t{1} << 52);
+        m &= ~kPowSign;
+        if (v & kPowSign) m |= kPowSign;
+    } else {
+        e = static_cast<int32_t>((v >> 52) & 0x7ff) - 0x3fe;
+    }
+    return (m & 0x800fffffffffffffull) | (uint64_t{0x3fe} << 52);
+}
+
+// __handle_exc (0x001f387c) with the x87 control word: masked responses; true when every flag was handled.
+// Flags: 1 overflow, 2 underflow, 4 zero divide, 8 invalid, 0x10 inexact.
+bool pow_handle_exc(uint32_t flags, uint64_t& retval, uint32_t cw) {
+    uint32_t left = flags & 0x1f;
+    if ((flags & 8) && (cw & 1)) {
+        title_x87_set_statfp(1);
+        left &= ~8u;
+    } else if ((flags & 4) && (cw & 4)) {
+        title_x87_set_statfp(4);
+        left &= ~4u;
+    } else if ((flags & 1) && (cw & 8)) {
+        title_x87_set_statfp(8);
+        const bool up = pow_positive(retval);
+        switch (cw & 0xc00) {
+            case 0x000: retval = up ? kPowInf : kPowInf | kPowSign; break;
+            case 0x400: retval = up ? kPowDblMax : kPowInf | kPowSign; break;
+            case 0x800: retval = up ? kPowInf : kPowDblMax | kPowSign; break;
+            default: retval = up ? kPowDblMax : kPowDblMax | kPowSign; break;
+        }
+        left &= ~1u;
+    } else if ((flags & 2) && (cw & 0x10)) {
+        // The value scaled by 2^1536 (__check_range_exit) back to a denormal, cut (not rounded) bit by bit.
+        bool inexact = flags & 0x10;
+        if (pow_is_zero(retval)) {
+            inexact = true;
+        } else {
+            int32_t e;
+            const uint64_t m = pow_decomp(retval, e);
+            const int32_t exp = e - 0x600;
+            if (exp < -1074) {
+                retval = m & kPowSign;  // m * 0.0
+                inexact = true;
+            } else {
+                const bool negative = pow_negative(m);
+                uint64_t bits = (m & 0x000fffffffffffffull) | (uint64_t{1} << 52);
+                for (int32_t i = -1021 - exp; i > 0; --i) {
+                    if (bits & 1) inexact = true;
+                    bits >>= 1;
+                }
+                retval = negative ? bits | kPowSign : bits;
+            }
+        }
+        if (inexact) title_x87_set_statfp(0x10);
+        left &= ~2u;
+    }
+    if ((flags & 0x10) && (cw & 0x20)) {
+        title_x87_set_statfp(0x20);
+        left &= ~0x10u;
+    }
+    return !left;
+}
+
+}  // namespace
+
+// _87except (0x001f9667) for pow: the error type's flags through __handle_exc, then errno (_matherr is the
+// title's stub returning 0): domain EDOM, singularity / overflow ERANGE. The asm loads the caller's control word
+// back (_ctrlfp) after this. exc: type, name, x, y, the result (doubles from +8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL title_pow_87except(uint32_t, uint8_t* exc, const uint16_t* cw) {
+    uint32_t type;
+    std::memcpy(&type, exc, 4);
+    uint32_t flags = 0;
+    switch (type) {
+        case 1: case 5: flags = 8; break;
+        case 2: flags = 4; break;
+        case 3: flags = 0x11; break;
+        case 4: flags = 0x12; break;
+        case 8: flags = 0x10; break;
+        case 7: type = 1; std::memcpy(exc, &type, 4); break;
+        default: break;
+    }
+    if (flags) {
+        uint64_t retval = pow_bits(exc + 0x18);
+        pow_handle_exc(flags, retval, *cw);  // not handled: _raise_exc, not ported (see above)
+        std::memcpy(exc + 0x18, &retval, 8);
+    }
+    if (type == 1) *game::title_errno() = 33;  // EDOM
+    else if (type == 2 || type == 3) *game::title_errno() = 34;  // ERANGE
+}
+
+// __powhlp (0x001f7402): x or y infinite, neither NaN. Returns 1 for |x| = 1 with y infinite (the indefinite,
+// a domain error).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_powhlp(uint32_t x_lo, uint32_t x_hi, uint32_t y_lo, uint32_t y_hi,
+                                                          uint64_t* result) {
+    const uint64_t x = uint64_t{x_hi} << 32 | x_lo, y = uint64_t{y_hi} << 32 | y_lo;
+    const uint64_t ax = x & ~kPowSign, one = 0x3ff0000000000000ull;
+    if (y == kPowInf || y == (kPowInf | kPowSign)) {
+        const bool plus = y == kPowInf;
+        if (ax == one) {
+            *result = 0xfff8000000000000ull;
+            return 1;
+        }
+        *result = (ax > one) == plus ? kPowInf : 0;
+        return 0;
+    }
+    if (x == kPowInf) {
+        *result = pow_positive(y) ? kPowInf : pow_negative(y) ? 0 : one;
+    } else if (x == (kPowInf | kPowSign)) {
+        const int32_t type = pow_inttype(y);
+        if (pow_positive(y)) *result = type == 1 ? kPowInf | kPowSign : kPowInf;
+        else if (pow_negative(y)) *result = type == 1 ? kPowSign : 0;
+        else *result = one;
+    }
+    return 0;
+}
+
+// x in ST(1), y in ST(0); both popped, x^y pushed (for x = +-0 and y != 0 the title leaves y on the stack too).
+PLATFORM_ASM_ENTRY(title_CIpow,
+                   "subl $20, %esp\n fxch %st(1)\n fstpl (%esp)\n fstl 8(%esp)\n movl 12(%esp), %eax\n"
+                   "call .Lpow_core\n addl $20, %esp\n ret\n"
+                   // core: 0 the caller's control word (ours at 2), 8 x as a double, 16 y as a double
+                   ".Lpow_core:\n movl %eax, %ecx\n pushl %eax\n fstcw (%esp)\n cmpw $0x27f, (%esp)\n je 1f\n"
+                   "call .Lpow_setcw\n"
+                   "1: andl $0x7ff00000, %ecx\n leal 8(%esp), %edx\n cmpl $0x7ff00000, %ecx\n je .Lpow_yspecial\n"
+                   "call .Lpow_fload\n je .Lpow_xspecial\n testl $0x7ff00000, %eax\n je .Lpow_xzero\n"
+                   ".Lpow_xsign:\n movb 15(%esp), %cl\n andb $0x80, %cl\n jne .Lpow_xneg\n"
+                   ".Lpow_log:\n fyl2x\n call .Lpow_two\n cmpb $1, %cl\n jne 1f\n fchs\n"
+                   "1: cmpl $0, 0x00926a4c\n jne .Lpow_exit\n movl $0x008d1628, %ecx\n movl $0x1d, %edx\n jmp .Lpow_range\n"
+                   ".Lpow_err:\n cmpl $0, 0x00926a4c\n jne .Lpow_exit\n movl $0x008d1628, %ecx\n movl $0x1d, %edx\n"
+                   "call .Lpow_error\n popl %edx\n ret\n"
+                   ".Lpow_ynan:\n leal 8(%esp), %edx\n call .Lpow_fload\n testb $8, 22(%esp)\n jne .Lpow_type1\n"
+                   "incl %ecx\n jmp .Lpow_xcheck\n"
+                   ".Lpow_type1:\n faddp\n movl $1, %eax\n jmp .Lpow_err\n"
+                   ".Lpow_xnan:\n testb $8, 14(%esp)\n jne .Lpow_type1\n"
+                   ".Lpow_type7:\n faddp\n movl $7, %eax\n jmp .Lpow_err\n"
+                   ".Lpow_xspecial:\n xorl %ecx, %ecx\n jmp .Lpow_xcheck\n"
+                   ".Lpow_yspecial:\n xorl %ecx, %ecx\n andl $0xfffff, %eax\n orl 16(%esp), %eax\n jne .Lpow_ynan\n"
+                   "leal 8(%esp), %edx\n call .Lpow_fload\n"
+                   ".Lpow_xcheck:\n movl 12(%esp), %eax\n movl %eax, %edx\n andl $0x7ff00000, %eax\n"
+                   "andl $0xfffff, %edx\n cmpl $0x7ff00000, %eax\n jne 1f\n orl 8(%esp), %edx\n jne .Lpow_xnan\n"
+                   "1: testl %ecx, %ecx\n jne .Lpow_type7\n"
+                   // __powhlp with the x87 state saved around it
+                   "subl $0x74, %esp\n movl %esp, %ecx\n pushl %ecx\n subl $16, %esp\n fstpl (%esp)\n fstpl 8(%esp)\n"
+                   "fsave 8(%ecx)\n" PLATFORM_ASM_CALL(title_powhlp)
+                   "addl $16, %esp\n popl %ecx\n frstor 8(%ecx)\n fldl (%ecx)\n addl $0x74, %esp\n"
+                   "testl %eax, %eax\n je .Lpow_exit\n movl $1, %eax\n jmp .Lpow_err\n"
+                   // x = +-0 (a denormal goes the normal way)
+                   ".Lpow_xzero:\n movl 12(%esp), %eax\n andl $0xfffff, %eax\n orl 8(%esp), %eax\n jne .Lpow_xsign\n"
+                   "fstp %st(0)\n movl 20(%esp), %eax\n andl $0x7fffffff, %eax\n orl 16(%esp), %eax\n je .Lpow_one\n"
+                   "call .Lpow_isint\n movb 15(%esp), %ch\n shrb $7, %ch\n testb $0x80, 23(%esp)\n je 2f\n"
+                   "fldt 0x008d19f0\n testb %cl, %ch\n je 1f\n fchs\n 1: movl $2, %eax\n jmp .Lpow_err\n"
+                   "2: fldz\n testb %cl, %ch\n je .Lpow_exit\n fchs\n jmp .Lpow_exit\n"
+                   ".Lpow_one:\n fstp %st(0)\n fld1\n jmp .Lpow_exit\n"
+                   // x < 0: y must be an integer; |x| ^ y, negated when y is odd
+                   ".Lpow_xneg:\n fld %st(1)\n call .Lpow_isint\n fchs\n testb %cl, %cl\n jne .Lpow_log\n"
+                   "fstp %st(0)\n fstp %st(0)\n fldt 0x008d19ac\n movl $1, %eax\n jmp .Lpow_err\n"
+                   // ST(0) an integer? CL 0 no / 1 odd / 2 even; pops ST(0)
+                   ".Lpow_isint:\n fld %st(0)\n frndint\n fcomp %st(1)\n movb $0, %cl\n fstsw %ax\n sahf\n jne 2f\n"
+                   "fmull 0x008d1620\n incb %cl\n fld %st(0)\n frndint\n fcompp\n fstsw %ax\n sahf\n jne 1f\n incb %cl\n"
+                   "1: ret\n 2: fstp %st(0)\n ret\n"
+                   // __twoToTOS: 2^ST(0)
+                   ".Lpow_two:\n fld %st(0)\n frndint\n .byte 0xdc, 0xe1\n fxch %st(1)\n fchs\n f2xm1\n fld1\n faddp\n"  // fsubr st(1), st
+                   "fscale\n fstp %st(1)\n ret\n"
+                   ".Lpow_setcw:\n movl 4(%esp), %edx\n andl $0x300, %edx\n orl $0x7f, %edx\n movw %dx, 6(%esp)\n"
+                   "fldcw 6(%esp)\n ret\n"
+                   // __fload_withFB: the double at EDX; infinite / NaN through an 80-bit copy (payload kept, ZF set)
+                   ".Lpow_fload:\n movl 4(%edx), %eax\n andl $0x7ff00000, %eax\n cmpl $0x7ff00000, %eax\n je 1f\n"
+                   "fldl (%edx)\n ret\n"
+                   "1: movl 4(%edx), %eax\n subl $10, %esp\n orl $0x7fff0000, %eax\n movl %eax, 6(%esp)\n"
+                   "movl 4(%edx), %eax\n movl (%edx), %ecx\n shldl $11, %ecx, %eax\n shll $11, %ecx\n"
+                   "movl %eax, 4(%esp)\n movl %ecx, (%esp)\n fldt (%esp)\n addl $10, %esp\n testl $0, %eax\n"
+                   "movl 4(%edx), %eax\n ret\n"
+                   ".Lpow_exit:\n cmpw $0x27f, (%esp)\n je 1f\n fldcw (%esp)\n 1: popl %edx\n ret\n"
+                   // __check_range_exit
+                   ".Lpow_range:\n subl $8, %esp\n fstl (%esp)\n movl 4(%esp), %eax\n addl $8, %esp\n"
+                   "andl $0x7ff00000, %eax\n je .Lpow_under\n cmpl $0x7ff00000, %eax\n je .Lpow_over\n"
+                   "movw (%esp), %ax\n cmpw $0x27f, %ax\n je 2f\n andw $0x20, %ax\n jne 1f\n"
+                   "fstsw %ax\n andw $0x20, %ax\n je 1f\n movl $8, %eax\n"
+                   ".Lpow_range_err:\n call .Lpow_error\n popl %edx\n ret\n"
+                   "1: fldcw (%esp)\n 2: popl %edx\n ret\n"
+                   ".Lpow_under:\n fldl 0x008281f0\n fxch %st(1)\n fscale\n fstp %st(1)\n fld %st(0)\n fabs\n"
+                   "fcompl 0x008281e0\n fstsw %ax\n sahf\n movl $4, %eax\n jae .Lpow_range_err\n fmull 0x00828200\n"
+                   "jmp .Lpow_range_err\n"
+                   ".Lpow_over:\n fldl 0x008281e8\n fxch %st(1)\n fscale\n fstp %st(1)\n fld %st(0)\n fabs\n"
+                   "fcompl 0x008281d8\n fstsw %ax\n sahf\n movl $3, %eax\n jbe .Lpow_range_err\n fmull 0x008281f8\n"
+                   "jmp .Lpow_range_err\n"
+                   // __startTwoArgErrorHandling: EAX the type, ECX the name, EDX the opcode; the exception record
+                   // on the frame, _87except, the caller's control word back, the result reloaded from its double
+                   ".Lpow_error:\n pushl %ebp\n movl %esp, %ebp\n addl $-32, %esp\n movl %eax, -32(%ebp)\n"
+                   "movl 24(%ebp), %eax\n movl %eax, -16(%ebp)\n movl 28(%ebp), %eax\n movl %eax, -12(%ebp)\n"
+                   "fstpl -8(%ebp)\n movl %ecx, -28(%ebp)\n movl 16(%ebp), %eax\n movl 20(%ebp), %ecx\n"
+                   "movl %eax, -24(%ebp)\n movl %ecx, -20(%ebp)\n"
+                   "leal 8(%ebp), %eax\n leal -32(%ebp), %ecx\n pushl %eax\n pushl %ecx\n pushl %edx\n"
+                   PLATFORM_ASM_CALL(title_pow_87except)
+                   "addl $12, %esp\n fldcw 8(%ebp)\n fldl -8(%ebp)\n cmpw $0x27f, 8(%ebp)\n je 1f\n fldcw 8(%ebp)\n"
+                   "1: leave\n ret")
+
+// The same for a two-argument intrinsic: `in` holds x then y (80-bit each); x goes to ST(1), y to ST(0). `out` also
+// gets the status word (14 bytes); the x87 stack is emptied after (pow leaves y behind for x = +-0).
 extern "C" PLATFORM_HIDDEN void XB_CDECL title_x87_check_call2(uint32_t function, const void* in, void* out, uint32_t cw);
 PLATFORM_ASM_ENTRY(title_x87_check_call2,
                    "pushl %ebx\n subl $8, %esp\n fnstcw 4(%esp)\n"
                    "movl 28(%esp), %eax\n movw %ax, (%esp)\n fnclex\n fldcw (%esp)\n"
                    "movl 20(%esp), %eax\n fldt (%eax)\n fldt 10(%eax)\n"
                    "movl 16(%esp), %eax\n call *%eax\n"
-                   "movl 24(%esp), %ecx\n fstpt (%ecx)\n fnstcw 10(%ecx)\n"
-                   "fnclex\n fldcw 4(%esp)\n addl $8, %esp\n popl %ebx\n ret")
+                   "movl 24(%esp), %ecx\n fstpt (%ecx)\n fnstcw 10(%ecx)\n fnstsw 12(%ecx)\n"
+                   "fninit\n fldcw 4(%esp)\n addl $8, %esp\n popl %ebx\n ret")
 
 // The check's call: `function` on the 80-bit `in` under control word `cw` with clear exception flags; `out` gets
 // the 80-bit result and the control word after it (12 bytes).
@@ -1801,7 +2057,7 @@ int32_t check_title_crt(std::string& report) {
         // fmod over pairs of the first 40 arguments plus 600 random pairs.
         for (const uint32_t cw : {0x007fu, 0x027fu, 0x0c7fu}) {
             const auto run = [&](const Ext& x, const Ext& y) {
-                uint8_t in[20], a_out[12], b_out[12];
+                uint8_t in[20], a_out[14], b_out[14];
                 std::memcpy(in, &x.mantissa, 8), std::memcpy(in + 8, &x.exponent, 2);
                 std::memcpy(in + 10, &y.mantissa, 8), std::memcpy(in + 18, &y.exponent, 2);
                 *title_errno() = 0;
@@ -1824,6 +2080,77 @@ int32_t check_title_crt(std::string& report) {
             for (size_t i = 0; i < 40 && i < args.size(); ++i)
                 for (size_t j = 0; j < 40 && j < args.size(); ++j) run(args[i], args[j]);
             for (size_t i = 40; i + 1 < args.size(); i += 2) run(args[i], args[i + 1]);
+        }
+        // pow: every pair of edge values (zeros, denormals, +-1, integers odd and even, halves, infinities, NaNs,
+        // exponents that overflow / underflow the double range or land in its denormals) plus 600 random pairs,
+        // under six control words; result, control word, errno and the status word's flags and stack top.
+        {
+            std::vector<Ext> edges;
+            for (double d : {0.0, -0.0, 1.0, -1.0, 2.0, -2.0, 3.0, -3.0, 0.5, -0.5, 1.5, -2.5, 10.0, 0.1, 1e-310, -1e-310,
+                             2.2250738585072014e-308, 1e300, -1e300, 1e-300, 1023.0, 1024.0, -1074.0, -1075.0, -1060.5,
+                             -1022.0, 1e10, -1e10, 9007199254740993.0, 1e19, 1.0000001, 0.9999999, 2000.0, -2000.0,
+                             HUGE_VAL, -HUGE_VAL, std::nan("")})
+                edges.push_back(from_double(d));
+            edges.push_back({0x8000000000000001ull, 0x7fff});   // signaling NaN
+            edges.push_back({0xc000000000000000ull, 0xffff});   // the indefinite
+            edges.push_back({0x0000000000000001ull, 0x0000});   // an 80-bit denormal
+            edges.push_back({0xc90fdaa22168c235ull, 0x4000});   // pi at 64 bits (not a double)
+            uint32_t pow_failures = 0;
+            for (const uint32_t cw : {0x007fu, 0x027fu, 0x037fu, 0x0c7fu, 0x087fu, 0x047fu}) {
+                const auto run = [&](const Ext& x, const Ext& y) {
+                    uint8_t in[20], a_out[14], b_out[14];
+                    std::memcpy(in, &x.mantissa, 8), std::memcpy(in + 8, &x.exponent, 2);
+                    std::memcpy(in + 10, &y.mantissa, 8), std::memcpy(in + 18, &y.exponent, 2);
+                    *title_errno() = 0;
+                    title_x87_check_call2(0x001f1a6c, in, a_out, cw);
+                    const int32_t a_errno = *title_errno();
+                    *title_errno() = 0;
+                    title_x87_check_call2(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_CIpow)), in, b_out, cw);
+                    uint16_t asw, bsw;
+                    std::memcpy(&asw, a_out + 12, 2), std::memcpy(&bsw, b_out + 12, 2);
+                    if (!std::memcmp(a_out, b_out, 12) && a_errno == *title_errno() && (asw & 0x387f) == (bsw & 0x387f)) return;
+                    if (++pow_failures <= 40) {
+                        uint64_t am, bm;
+                        uint16_t ae, be;
+                        std::memcpy(&am, a_out, 8), std::memcpy(&ae, a_out + 8, 2);
+                        std::memcpy(&bm, b_out, 8), std::memcpy(&be, b_out + 8, 2);
+                        add_line(report, "pow(%04x:%016llx, %04x:%016llx) cw %04x: title %04x:%016llx errno %d sw %04x, ours %04x:%016llx errno %d sw %04x",
+                                 x.exponent, static_cast<unsigned long long>(x.mantissa), y.exponent,
+                                 static_cast<unsigned long long>(y.mantissa), cw, ae, static_cast<unsigned long long>(am),
+                                 a_errno, asw, be, static_cast<unsigned long long>(bm), *title_errno(), bsw);
+                    }
+                };
+                for (const Ext& x : edges)
+                    for (const Ext& y : edges) run(x, y);
+                for (size_t i = 40; i + 1 < args.size(); i += 2) {
+                    Ext y = args[i + 1];
+                    y.exponent = static_cast<uint16_t>((y.exponent & 0x8000) | (16383 - 4 + (y.exponent & 0xf)));  // |y| < 2^12
+                    run(args[i], y);
+                    Ext x = args[i];
+                    x.exponent &= 0x7fff;
+                    run(x, y);
+                }
+            }
+            // The check itself: the title's entry still its own (jmp short, not a hook), pow(2, 10) = 1024 and
+            // pow(2, 2000) overflowing with ERANGE.
+            {
+                const uint8_t two_ten[20] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0x00, 0x40, 0, 0, 0, 0, 0, 0, 0, 0xa0, 0x02, 0x40};
+                const uint8_t two_2000[20] = {0, 0, 0, 0, 0, 0, 0, 0x80, 0x00, 0x40, 0, 0, 0, 0, 0, 0, 0, 0xfa, 0x09, 0x40};
+                uint8_t out[14];
+                title_x87_check_call2(0x001f1a6c, two_ten, out, 0x027f);
+                const bool ok_1024 = out[7] == 0x80 && out[8] == 0x09 && out[9] == 0x40 && !out[6];
+                *title_errno() = 0;
+                title_x87_check_call2(0x001f1a6c, two_2000, out, 0x027f);
+                const bool unhooked = title_global<uint8_t>(0x001f1a6c) == 0xeb;
+                if (!ok_1024 || *title_errno() != 34 || !unhooked) {
+                    ++pow_failures;
+                    add_line(report, "pow check broken: title pow(2, 10) %s, pow(2, 2000) errno %d, entry %s",
+                             ok_1024 ? "= 1024" : "!= 1024", *title_errno(), unhooked ? "original" : "hooked");
+                }
+            }
+            x87_failures += pow_failures;
+            add_line(report, "pow: %u edge values squared + 400 random pairs x 6 control words, %u difference(s)",
+                     static_cast<uint32_t>(edges.size()), pow_failures);
         }
         *title_errno() = 0;
         failures += static_cast<int32_t>(x87_failures);
