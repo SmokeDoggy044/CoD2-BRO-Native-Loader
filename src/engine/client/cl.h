@@ -99,6 +99,9 @@ uint32_t XB_CDECL CL_PacketEvent(uint32_t from0, uint32_t from1, uint32_t from2,
 // stored in cl.configstrings[index] (script strings at 0x009606b8, text at +6; ScriptString_AssignCString), and
 // index 1 (system info) runs CL_SystemInfoChanged.
 void XB_CDECL CL_ConfigstringModified();
+// 0x0027ab20 (index in EAX; called from 0x0032fd80): cl.configstrings[index]'s text (+6), null outside 0-0x3ff or
+// for an unset string.
+const char* XB_REGS1 XB_CDECL CL_GetConfigStringText(int32_t index);
 // 0x002cce00: Q3's CL_SystemInfoChanged - cl.serverId from "sv_serverid" of the system info (0x009606bc + 6, null
 // when unset), Cvar_SetCheatState unless "sv_cheats", then the four pak keys looked up for nothing (they rotate
 // Info_ValueForKey's buffers); returns the last lookup.

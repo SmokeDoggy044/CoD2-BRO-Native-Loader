@@ -3325,7 +3325,7 @@ uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record) {
         return uint32_t(file);
     }
     const uint32_t request = own_function<uint32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&File_QueueRequestEx)(file, 0, word_at<uint32_t>(record, 0x84), title_global<uint32_t>(0x0095f60c),
-                    0x00291940);  // File_QueueRequestEx
+                    own_address(&Stream_OnReadError));  // File_QueueRequestEx
     word_at<uint32_t>(record, 0x88) = request;
     const uint32_t result =
         own_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(&File_SetRequestPriority)(request, 0);  // File_SetRequestPriority
@@ -3457,7 +3457,7 @@ void XB_CDECL Stream_PollChunkReads(uint8_t* record) {
         if (word_at<int32_t>(item, 0x10) == -1 && !(item[0xc] & 4) && word_at<uint32_t>(item, 4)) {
             const uint32_t size = (word_at<uint32_t>(item, 4) + 0x7fff) & 0xffff8000;
             const int32_t request = own_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(&File_QueueRequestEx)(word_at<int32_t>(record, 0x50), word_at<uint32_t>(item, 0), word_at<uint32_t>(item, 0x14),
-                            size, 0x00291940);  // File_QueueRequestEx
+                            size, own_address(&Stream_OnReadError));  // File_QueueRequestEx
             word_at<int32_t>(item, 0x10) = request;
             own_function<uint32_t XB_CDECL(int32_t, uint32_t)>(&File_SetRequestPriority)(request, 0);  // File_SetRequestPriority
             ++pending;
@@ -3492,6 +3492,10 @@ PLATFORM_ASM_ENTRY(Stream_QueueLoad_entry,
                    "pushl %eax\n"
                    "pushl %edi\n" PLATFORM_ASM_CALL(Stream_QueueLoad) "addl $16, %esp\n"
                    "ret $0x14")
+
+void XB_CDECL Stream_OnReadError(int32_t error) {
+    if (error == 3) title_function<void XB_CDECL(uint32_t)>(0x0033aa20)(0x0095f8d0);  // UI_ShowDamagedDiscScreen
+}
 
 uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t kind, const uint32_t* block) {
     using FileExists = int32_t XB_CDECL(uint32_t, const char*);

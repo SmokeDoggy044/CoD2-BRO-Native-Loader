@@ -789,6 +789,13 @@ void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align) {
         element[0x10] = flags | 0x80;
 }
 
+void XB_THISCALL UIElement_SetVisible(uint8_t* element, uint32_t on) {
+    if (uint8_t(on))
+        element[0x10] = uint8_t(element[0x10] | 4);
+    else
+        element[0x10] = uint8_t(element[0x10] & 0xfb);
+}
+
 namespace {
 
 // _ftol(delta * t + base) on the x87 (FILD, FMUL DWORD, FIADD, chopping FISTP through 64 bits).
@@ -1205,6 +1212,42 @@ long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture) {
     const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
     const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
     return platform_x87_ld(max[1]) - min[1];
+}
+
+void XB_THISCALL UIPicture_Rotate(uint8_t* picture, uint32_t angle, uint32_t absolute) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t)>(picture, 0x48)(
+        picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), angle, absolute);
+}
+
+void XB_THISCALL UIPicture_SetUniformScale(uint8_t* picture, uint32_t scale, uint32_t absolute) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(picture, 0x50)(
+        picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), scale, scale, absolute);
+}
+
+void XB_THISCALL UIPicture_SetScale(uint8_t* picture, uint32_t sx, uint32_t sy, uint32_t absolute) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(picture, 0x50)(
+        picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), sx, sy, absolute);
+}
+
+void XB_THISCALL UIPicture_SetPosition(uint8_t* picture, float x, float y) {
+    const float dy = y - field<float>(picture, 0x18);
+    const float dx = x - field<float>(picture, 0x14);
+    method<void XB_THISCALL(uint8_t*, float, float)>(picture, 0xb8)(picture, dx, dy);
+}
+
+uint8_t* XB_THISCALL UIPicture_GetColor(uint8_t* picture, uint8_t* out) {
+    const uint32_t colour = field<uint32_t>(field<uint8_t**>(picture, 0x20)[0], 0x50);
+    out[1] = uint8_t(colour >> 8);
+    out[0] = uint8_t(colour);
+    out[2] = uint8_t(colour >> 16);
+    out[3] = uint8_t(colour >> 24);
+    return out;
+}
+
+uint8_t* XB_THISCALL UIPicture_DeletingDtor(uint8_t* picture, uint32_t flags) {
+    UIPicture_Dtor(picture);
+    if (flags & 1) z_free(picture);
+    return picture;
 }
 
 void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x1, float y1) {
@@ -1759,6 +1802,19 @@ uint8_t* XB_THISCALL UITextBase_DeletingDtor(uint8_t* text, uint32_t flags) {
     text_base_dtor(text);
     if (flags & 1) z_free(text);
     return text;
+}
+
+void XB_THISCALL UITextBase_SetFlag2(uint8_t* text, uint32_t on) { text_set_flags(text, 2, on); }
+
+void XB_THISCALL UITextBase_SetAlpha(uint8_t* text, float alpha) {
+    text[0x53] = uint8_t(platform_x87_mul_ftol(alpha, g(0x0083eb8c)));  // 255
+}
+
+void XB_THISCALL UITextBase_SetFlags(uint8_t* text, uint32_t mask, uint32_t on) {
+    if (uint8_t(on))
+        text[0x5c] = uint8_t(text[0x5c] | uint8_t(mask));
+    else
+        text[0x5c] = uint8_t(text[0x5c] & uint8_t(~mask));
 }
 
 void XB_THISCALL UITextBase_SetHorzAlign(uint8_t* text, int32_t align) {

@@ -2953,6 +2953,13 @@ PLATFORM_ASM_ENTRY(Loc_GetString_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(Loc_GetString) "addl $4, %esp\n"
                    "ret")
 
+const char* XB_REGS1 XB_CDECL Loc_FindTextByHash(uint32_t hash) {
+    const uint8_t* const entry = Zone_FindByHash(title_global<const uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
+    if (!entry) return nullptr;
+    const char* const text = *reinterpret_cast<const char* const*>(entry + 8);
+    return text ? text : *reinterpret_cast<const char* const*>(entry + 0xc);
+}
+
 const char* XB_CDECL Loc_GetString(const char* key) {
     if (!key) return key;
     const uint32_t hash = own_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(&Loc_HashKey)(key);  // Loc_HashKey

@@ -5,6 +5,7 @@
 #include "cl.h"
 #include "fe.h"
 #include "fe_pc.h"
+#include "movie.h"
 #include "ngl.h"
 #include "script_string.h"
 #include "snd.h"
@@ -2196,6 +2197,47 @@ void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu) {
 
 // Three TitleMenu vtable slots (0x00829838/3c/50); the stack argument is ignored.
 void XB_THISCALL TitleMenu_OnAccept(uint8_t* menu, uint32_t) { TitleMenu_Accept(menu); }
+
+void XB_THISCALL TitleMenu_Draw(uint8_t* menu) {
+    if (title_global<uint8_t>(0x0095f91b) != 1 || title_global<uint8_t>(0x0095f91e)) return;
+    if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+}
+
+void XB_THISCALL TitleMenu_StopAttractMovie(uint8_t* menu) {
+    field<uint32_t>(menu, 0x40) = 0;
+    field<uint32_t>(menu, 0x38) = title_global<uint32_t>(0x008ddaa8);
+    menu[0x3c] = 0;
+    Movie_Stop(1);
+}
+
+void XB_THISCALL UIScreenMgr_DrawActiveScreen(uint8_t* mgr) {
+    const int32_t index = field<int32_t>(mgr, 0xc);
+    if (index < 0) return;
+    call(field<uint8_t**>(mgr, 4)[index], 0x28);
+}
+
+uint32_t* XB_THISCALL UIMenuItem_GetTextColor(uint8_t* item, uint32_t* out) {
+    uint8_t* const text = field<uint8_t*>(item, 0x10);
+    method<GetColorMethod>(text, 0xb4)(text, out);
+    return out;
+}
+
+void XB_THISCALL UIMenuItem_SetHighlight(uint8_t* item, uint32_t on) {
+    item[0x16] = uint8_t(on);
+    call(item, 0x94);
+}
+
+void XB_THISCALL UIMenuItem_SetSelected(uint8_t* item, uint32_t on, uint32_t arg) {
+    item[0x15] = uint8_t(on);
+    call(item, 0x94);
+    if (item[0x15]) call(item, 0x98, arg);
+}
+
+uint32_t* XB_THISCALL UIMenuItem_ColorWithAlpha(uint8_t*, uint32_t* out, uint32_t colour, uint32_t alpha) {
+    colour = (colour & 0x00ffffffu) | (uint32_t(uint8_t(alpha)) << 24);  // the original writes the argument slot
+    *out = colour;
+    return out;
+}
 
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
     own_function<uint32_t XB_CDECL(uint32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize

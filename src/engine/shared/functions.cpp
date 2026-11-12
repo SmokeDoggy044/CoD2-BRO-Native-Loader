@@ -171,21 +171,32 @@ const Function kFunctions[] = {
     {"ScriptString_IsEmpty", 0x00011200, 0, code(&ScriptString_IsEmpty), 0, Result::Al, Status::Replaced},
     {"UIElement_SetDepth", 0x000112f0, 0, code(&UIElement_SetDepth), 4, Result::None, Status::Replaced},
     {"UIElement_GetDepth", 0x00011300, 0, code(&UIElement_GetDepth), 0, Result::St0, Status::Replaced},
+    {"UIElement_SetVisible", 0x00011340, 0, code(&UIElement_SetVisible), 4, Result::None, Status::Compare},  // was FUN_00011340 (gap)
+    {"UITextBase_SetFlag2", 0x00011380, 0, code(&UITextBase_SetFlag2), 4, Result::None, Status::Compare},  // was FUN_00011380 (gap)
     {"UITextBase_SetUniformScale", 0x000113f0, 0, code(&UITextBase_SetUniformScale), 4, Result::None, Status::Replaced},
     {"UITextBase_SetScale", 0x00011430, 0, code(&UITextBase_SetScale), 8, Result::None, Status::Replaced},
     {"UITextBase_MoveBy", 0x000114c0, 0, code(&UITextBase_MoveBy), 8, Result::None, Status::Replaced},
     {"UITextBase_SetPosition", 0x00011540, 0, code(&UITextBase_SetPosition), 8, Result::None, Status::Replaced},
+    {"UITextBase_SetAlpha", 0x000115a0, 0, code(&UITextBase_SetAlpha), 4, Result::None, Status::Compare},  // was FUN_000115a0 (gap)
     {"UITextBase_GetName", 0x000115d0, 0, code(&UITextBase_GetName), 4, Result::Eax, Status::Replaced},
     {"UITextBase_GetText", 0x000115f0, 0, code(&UITextBase_GetText), 4, Result::Eax, Status::Replaced},
+    {"UITextBase_SetFlags", 0x000116b0, 0, code(&UITextBase_SetFlags), 8, Result::None, Status::Compare},  // was FUN_000116b0 (gap)
     {"UITextBase_DeletingDtor", 0x00011700, 0, code(&UITextBase_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIText_SetHorzAlign", 0x000117a0, 0, code(&UIText_SetHorzAlign), 4, Result::None, Status::Compare},
     {"UIText_SetVertAlign", 0x000117e0, 0, code(&UIText_SetVertAlign), 4, Result::None, Status::Replaced},
     {"UIText_SetUniformScale", 0x00011820, 0, code(&UIText_SetUniformScale), 4, Result::None, Status::Replaced},
     {"UIText_SetScale", 0x00011870, 0, code(&UIText_SetScale), 8, Result::None, Status::Compare},
+    {"UIPicture_Rotate", 0x00011920, 0, code(&UIPicture_Rotate), 8, Result::None, Status::Compare},  // was FUN_00011920 (gap)
+    {"UIPicture_SetUniformScale", 0x00011940, 0, code(&UIPicture_SetUniformScale), 8, Result::None, Status::Compare},  // was FUN_00011940 (gap)
+    {"UIPicture_SetScale", 0x00011960, 0, code(&UIPicture_SetScale), 12, Result::None, Status::Compare},  // was FUN_00011960 (gap)
+    {"UIPicture_SetPosition", 0x000119d0, 0, code(&UIPicture_SetPosition), 8, Result::None, Status::Compare},  // was FUN_000119d0 (gap)
+    {"UIPicture_GetColor", 0x00011a60, 0, code(&UIPicture_GetColor), 4, Result::Eax, Status::Compare},  // was FUN_00011a60 (gap)
     {"UIPicture_GetWidth", 0x00011a90, 0, code(&UIPicture_GetWidth), 0, Result::St0, Status::Replaced},
     {"UIPicture_GetHeight", 0x00011ac0, 0, code(&UIPicture_GetHeight), 0, Result::St0, Status::Replaced},
+    {"UIPicture_DeletingDtor", 0x00011b60, 0, code(&UIPicture_DeletingDtor), 4, Result::Eax, Status::Replaced},  // was FUN_00011b60 (gap); call inside the first 5 bytes (not compared)
     {"IN_PadConsumeAllPressed", 0x00011b80, 0, code(&IN_PadConsumeAllPressed_entry), 0, Result::None, Status::Replaced},
     {"UIMenuItem_Ctor", 0x00011ba0, 0, code(&UIMenuItem_Ctor_entry), 4, Result::Eax, Status::Replaced},
+    {"UIMenuItem_GetTextColor", 0x00011e30, 0, code(&UIMenuItem_GetTextColor), 4, Result::Eax, Status::Compare},  // was FUN_00011e30 (gap)
     {"UIMenuItem_DeletingDtor", 0x00011e70, 0, code(&UIMenuItem_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIScreenMgr_DeletingDtor", 0x00011f90, 0, code(&UIScreenMgr_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"HudComponent_SetVisible", 0x00011fc0, 0, code(&HudComponent_SetVisible), 4, Result::None, Status::Compare},
@@ -194,6 +205,7 @@ const Function kFunctions[] = {
     {"HudCompGrenades_DeletingDtor", 0x00012050, 0, code(&HudCompGrenades_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"HudCompWeaponName_DeletingDtor", 0x000120a0, 0, code(&HudCompWeaponName_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"HudCompHint_DeletingDtor", 0x000120e0, 0, code(&HudCompHint_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"HudCompMeter_SetWidescreen", 0x00012120, 0, code(&HudCompMeter_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00012120 (gap)
     {"UIRootMenu_Dtor", 0x00012140, 0, code(&UIRootMenu_Dtor), 0, Result::None, Status::Replaced},
     {"UIRootMenu_DeletingDtor", 0x000121b0, 0, code(&UIRootMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"Panel_DeletingDtor", 0x000121d0, 0, code(&Panel_DeletingDtor_entry), 4, Result::Eax, Status::Replaced},
@@ -1182,6 +1194,8 @@ const Function kFunctions[] = {
     {"_alloc_osfhnd", 0x001f8ef1, 0, code(&title_alloc_osfhnd), 0, Result::Eax, Status::Compare},
     {"_sopen", 0x001f9303, 0, code(&title_sopen), 16, Result::Eax, Status::Compare},
     {"Sys_ReadLaunchInfo", 0x002221b0, 0, code(&Sys_ReadLaunchInfo), 4, Result::Eax, Status::Compare},
+    {"CL_GetConfigStringText", 0x0027ab20, 0, code(&CL_GetConfigStringText), 0, Result::Eax, Status::Compare},  // was FUN_0027ab20 (gap)
+    {"Stream_OnReadError", 0x00291940, 0, code(&Stream_OnReadError), 4, Result::None, Status::Compare},  // was FUN_00291940 (gap)
     {"ThreadHandleList_EndAll", 0x0029aba0, 0, code(&ThreadHandleList_EndAll), 0, Result::Eax, Status::Compare},
     {"G_EntityWeaponRecordFlag", 0x00248e10, 0, code(&G_EntityWeaponRecordFlag), 0, Result::Eax, Status::Compare},
     {"Heap_SelectByIndex", 0x00042ac0, 0, code(&Heap_SelectByIndex), 4, Result::Eax, Status::Replaced},
@@ -2763,6 +2777,7 @@ const Function kFunctions[] = {
     {"File_LayoutMemory", 0x000c9530, 0, code(&File_LayoutMemory_entry), 0, Result::Eax, Status::Replaced},
     {"File_Configure", 0x000c9880, 0, code(&File_Configure), 0, Result::Eax, Status::Replaced},
     {"File_ShutdownDevices", 0x000c9910, 0, code(&File_ShutdownDevices), 0, Result::None, Status::Replaced},
+    {"Loc_FindTextByHash", 0x0029ad80, 0, code(&Loc_FindTextByHash), 0, Result::Eax, Status::Compare},  // was FUN_0029ad80 (gap)
     {"Cmd_RelaunchTitle_f", 0x002cfa40, 0, code(&Cmd_RelaunchTitle_f), 0, Result::None, Status::Replaced},
     {"File_GetDeviceInfoForBit", 0x000c9940, 0, code(&File_GetDeviceInfoForBit), 8, Result::Eax, Status::Replaced},
     {"File_SetDevicePriority", 0x000c9980, 0, code(&File_SetDevicePriority), 8, Result::None, Status::Replaced},
@@ -8945,6 +8960,8 @@ const Function kFunctions[] = {
     {"UIMenu_SelectFirst", 0x0030ef50, 0, code(&UIMenu_SelectFirst), 0, Result::None, Status::Replaced},
     {"UIMenu_SetItemsLayer", 0x0030ef90, 0, code(&UIMenu_SetItemsLayer), 8, Result::None, Status::Replaced},
     {"UIMenu_SetItemsScale", 0x0030efd0, 0, code(&UIMenu_SetItemsScale), 4, Result::None, Status::Replaced},
+    {"UIMenuItem_SetHighlight", 0x0030f090, 0, code(&UIMenuItem_SetHighlight), 4, Result::None, Status::Compare},  // was FUN_0030f090 (gap)
+    {"UIMenuItem_SetSelected", 0x0030f0b0, 0, code(&UIMenuItem_SetSelected), 8, Result::None, Status::Compare},  // was FUN_0030f0b0 (gap)
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Replaced},
     {"UIFontTable_SetByName", 0x0030f380, 0, code(&UIFontTable_SetByName_entry), 0, Result::None, Status::Replaced},
     {"Loc_AppendLanguageSuffix", 0x0030f3f0, 0, code(&Loc_AppendLanguageSuffix), 0, Result::None, Status::Replaced},
@@ -8993,6 +9010,7 @@ const Function kFunctions[] = {
     {"HudCompStance_Draw", 0x003116c0, 0, code(&HudCompStance_Draw), 0, Result::None, Status::Replaced},
     {"HudCompStance_Update", 0x003116f0, 0, code(&HudCompStance_Update), 4, Result::None, Status::Replaced},
     {"HudManager_SetWidescreen", 0x00311800, 0, code(&HudManager_SetWidescreen_entry), 4, Result::None, Status::Replaced},
+    {"HudManager_DrawHint", 0x00311ab0, 0, code(&HudManager_DrawHint), 0, Result::None, Status::Compare},  // was FUN_00311ab0 (gap)
     {"HudManager_Detach", 0x00311ae0, 0, code(&HudManager_Detach), 4, Result::None, Status::Replaced},
     {"Profile_CopySettings", 0x00311f90, 0, code(&Profile_CopySettings), 0, Result::Eax, Status::Compare},
     {"Profile_Copy", 0x00312130, 0, code(&Profile_Copy), 0, Result::Eax, Status::Replaced},
@@ -9023,11 +9041,13 @@ const Function kFunctions[] = {
     {"PauseMenu_OnDown", 0x00313c80, 0, code(&PauseMenu_OnDown), 4, Result::None, Status::Replaced},
     {"PauseMenu_OnUp", 0x00313cb0, 0, code(&PauseMenu_OnUp), 4, Result::None, Status::Replaced},
     {"InGameScreens_Update", 0x00313ce0, 0, code(&InGameScreens_Update_entry), 4, Result::None, Status::Replaced},
+    {"UIScreenMgr_DrawActiveScreen", 0x00313d10, 0, code(&UIScreenMgr_DrawActiveScreen), 0, Result::None, Status::Compare},  // was FUN_00313d10 (gap)
     {"DialogOverlay_LayoutTexts", 0x00313e40, 0, code(&DialogOverlay_LayoutTexts_entry), 4, Result::None, Status::Replaced},
     {"UIDialog_SetText", 0x00313f20, 0, code(&UIDialog_SetText_entry), 8, Result::None, Status::Replaced},
     {"DialogMgr_DrawBackground", 0x003141c0, 0, code(&DialogMgr_DrawBackground_entry), 0, Result::None, Status::Replaced},
     {"DialogMgr_DrawOverlay", 0x00314340, 0, code(&DialogMgr_DrawOverlay), 0, Result::None, Status::Replaced},
     {"TitleMenu_Accept", 0x00314550, 0, code(&TitleMenu_Accept), 0, Result::None, Status::Compare},
+    {"TitleMenu_Draw", 0x003145c0, 0, code(&TitleMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_003145c0 (gap)
     {"UIScreenMgr_ReadStickDirections", 0x00314750, 0, code(&UIScreenMgr_ReadStickDirections), 0, Result::None, Status::Replaced},
     {"UIScreenMgr_Dtor", 0x00314790, 0, code(&UIScreenMgr_Dtor), 0, Result::None, Status::Replaced},
     {"UIScreenMgr_Init", 0x003147d0, 0, code(&UIScreenMgr_Init_entry), 4, Result::Eax, Status::Replaced},
@@ -9043,6 +9063,7 @@ const Function kFunctions[] = {
     {"UIMenu_SelectPrev", 0x00314f40, 0, code(&UIMenu_SelectPrev), 0, Result::None, Status::Replaced},
     {"UIMenu_SelectNext", 0x00315080, 0, code(&UIMenu_SelectNext), 0, Result::None, Status::Replaced},
     {"UIMenu_Init", 0x00315210, 0, code(&UIMenu_Init_entry), 20, Result::Eax, Status::Replaced},
+    {"UIMenuItem_ColorWithAlpha", 0x00315310, 0, code(&UIMenuItem_ColorWithAlpha), 12, Result::Eax, Status::Compare},  // was FUN_00315310 (gap)
     {"UI_SetFontByName", 0x00315360, 0, code(&UI_SetFontByName_entry), 0, Result::None, Status::Replaced},
     {"UIRoot_DrawInGameScreens", 0x003153d0, 0, code(&UIRoot_DrawInGameScreens_entry), 0, Result::None, Status::Replaced},
     {"UIRoot_DrawFrontEnd", 0x00315440, 0, code(&UIRoot_DrawFrontEnd_entry), 0, Result::None, Status::Replaced},
@@ -9077,6 +9098,7 @@ const Function kFunctions[] = {
     {"UIQuad_SetVertexColor", 0x00317350, 0, code(&UIQuad_SetVertexColor), 4, Result::None, Status::Replaced},
     {"UIQuad_Fill", 0x003173e0, 0, code(&UIQuad_Fill), 12, Result::None, Status::Replaced},
     {"HudCompIconCount_SetWidescreen", 0x00317550, 0, code(&HudCompIconCount_SetWidescreen), 8, Result::None, Status::Replaced},
+    {"HudCompIconCount_SetVisible", 0x00317590, 0, code(&HudCompIconCount_SetVisible), 4, Result::None, Status::Compare},  // was FUN_00317590 (gap)
     {"FE_LiberatorCreateCrossIcons", 0x003175b0, 0, code(&FE_LiberatorCreateCrossIcons_entry), 0, Result::None, Status::Replaced},
     {"HudManager_SetComponentColor", 0x00317ac0, 0, code(&HudManager_SetComponentColor_entry), 0, Result::None, Status::Replaced},
     {"HudCompMeter_Ctor", 0x00317bd0, 0, code(&HudCompMeter_Ctor), 0, Result::Eax, Status::Replaced},
@@ -9088,8 +9110,10 @@ const Function kFunctions[] = {
     {"HudCompCompass_UpdateNeedle", 0x003180a0, 0, code(&HudCompCompass_UpdateNeedle_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Dtor", 0x00318380, 0, code(&HudCompCompass_Dtor_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Ctor", 0x00318400, 0, code(&HudCompCompass_Ctor), 0, Result::Eax, Status::Replaced},
+    {"HudCompTankIcon_SetWidescreen", 0x003184a0, 0, code(&HudCompTankIcon_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_003184a0 (gap)
     {"HudCompTankShells_SetWidescreen", 0x00318750, 0, code(&HudCompTankShells_SetWidescreen), 8, Result::None, Status::Compare},
     {"HudCompTankShells_Update", 0x00318780, 0, code(&HudCompTankShells_Update), 4, Result::None, Status::Compare},
+    {"HudCompTankHealth_SetWidescreen", 0x00318810, 0, code(&HudCompTankHealth_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00318810 (gap)
     {"HudCompTankHealth_Update", 0x00318840, 0, code(&HudCompTankHealth_Update), 4, Result::None, Status::Replaced},
     {"HudCompWeaponName_Setup", 0x00318b30, 0, code(&HudCompWeaponName_Setup), 4, Result::None, Status::Replaced},
     {"HudCompWeaponName_Ctor", 0x00318bf0, 0, code(&HudCompWeaponName_Ctor_entry), 0, Result::Eax, Status::Replaced},
@@ -9196,6 +9220,7 @@ const Function kFunctions[] = {
     {"DialogMgr_CloseDialog", 0x0031f6e0, 0, code(&DialogMgr_CloseDialog), 0, Result::None, Status::Replaced},
     {"DialogMgr_OnButtonUp", 0x0031f770, 0, code(&DialogMgr_OnButtonUp), 8, Result::None, Status::Replaced},
     {"DialogMgr_Draw", 0x0031f890, 0, code(&DialogMgr_Draw), 0, Result::None, Status::Replaced},
+    {"TitleMenu_StopAttractMovie", 0x0031f900, 0, code(&TitleMenu_StopAttractMovie), 0, Result::None, Status::Compare},  // was FUN_0031f900 (gap)
     {"UITextTable_Draw", 0x0031f920, 0, code(&UITextTable_Draw), 0, Result::None, Status::Compare},
     {"UIScreenMgr_HandleInput", 0x0031fc10, 0, code(&UIScreenMgr_HandleInput), 0, Result::None, Status::Replaced},
     {"UIMenuItem_UpdateColor", 0x0031fd80, 0, code(&UIMenuItem_UpdateColor), 0, Result::None, Status::Replaced},

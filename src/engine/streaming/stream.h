@@ -721,5 +721,8 @@ void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // 0x0028bea0 Space (load handler, returned by Stream_GetLoadHandler at 0x0029260c): a bare RET
 // (four INT3s of padding follow, so it is hookable).
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x00291940 (a callback, no direct caller): error 3 shows the damaged-disc screen (UI_ShowDamagedDiscScreen with
+// g_uiRoot; it does not return).
+void XB_CDECL Stream_OnReadError(int32_t error);
 
 }  // namespace game
