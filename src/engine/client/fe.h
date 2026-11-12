@@ -238,6 +238,11 @@ void XB_THISCALL UIPicture_RotateInPlace(uint8_t* picture, uint32_t angle, uint3
 // 0x00011940 / 0x00011960: scale about the centre (vtable +0x50: x, y, sx, sy, absolute).
 void XB_THISCALL UIPicture_SetUniformScale(uint8_t* picture, uint32_t scale, uint32_t absolute);
 void XB_THISCALL UIPicture_SetScale(uint8_t* picture, uint32_t sx, uint32_t sy, uint32_t absolute);
+// Gap functions (m5 recording, 11-12). 0x00316a90 (UIPicture vtable +0x60): the quad scale +0x34/+0x38 set (0 means
+// 1), every quad (+0x20, count +0x28) placed again at +0x14/+0x18 with it, the child +0x2c's +0x18/+0x1c scaled by
+// the ratio new / old; +0x30 = 0. 0x000119a0 (+0x64): the same with one scale for both.
+void XB_THISCALL UIPicture_SetQuadScale(uint8_t* picture, float sx, float sy);
+void XB_THISCALL UIPicture_SetQuadScaleUniform(uint8_t* picture, uint32_t scale);
 // 0x000119d0: move by (x - centre x, y - centre y) through vtable +0xb8.
 void XB_THISCALL UIPicture_SetPosition(uint8_t* picture, float x, float y);
 // 0x00011a60: out = the first quad's colour (+0x50) bytes. Returns out.

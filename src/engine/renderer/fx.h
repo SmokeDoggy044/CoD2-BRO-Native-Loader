@@ -871,6 +871,9 @@ void XB_THISCALL FxParticleComponent_ScaleParam(uint8_t* component, const char* 
 // owner (+0xc) is gone and flag 1 of +0x10 does not keep it, when a delay (flag 1 of +0x2a) has run out (+0x1c <= 0),
 // without a system, when a delay is still pending (FxComponent_DelayDone 0: not done) or the system finished.
 uint32_t XB_THISCALL FxParticleComponent_IsDone(const uint8_t* component);
+// 0x00024230 (vtable 0x008375e0 +0x14, gap, m5 recording 11-12): FxSystem_Prewarm on the definition's (+0x2c)
+// system (+4) when there is one.
+void XB_THISCALL FxParticleComponent_Prewarm(uint8_t* component, float time);
 // 0x0029aef0 (shake/rumble): not done while its sound (+0x64) has +0x3c or its rumble (+0x60) is active.
 uint32_t XB_THISCALL FxShakeRumbleComponent_IsDone(const uint8_t* component);
 // 0x0029d740 (sound): the owner and delay checks as the particle's; flag 0x20 of +0x2a keeps it; done when the

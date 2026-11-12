@@ -2362,4 +2362,179 @@ void XB_THISCALL HudCompHint_Update(uint8_t* self, uint32_t) {
     field<uint8_t>(self, 0x224) = 0;
 }
 
+// ---- HudCompMeter draw / update (gap functions found by the m3/m5 recordings, 11-12) ----
+
+namespace {
+
+using MeterPlaceMethod = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);  // vtable +0x8c (x, y bits)
+
+// The target picture `slot` (+0x6c + slot * 4) shown, placed, drawn and hidden again.
+void draw_target_at(uint8_t* self, uint32_t slot, uint32_t x_bits, float y) {
+    uint8_t* const picture = object_at(self, 0x6c + slot * 4);
+    method<WordMethod>(picture, 0x34)(picture, 1);
+    uint32_t y_bits;
+    std::memcpy(&y_bits, &y, 4);
+    uint8_t* const again = object_at(self, 0x6c + slot * 4);
+    method<MeterPlaceMethod>(again, 0x8c)(again, x_bits, y_bits);
+    draw(object_at(self, 0x6c + slot * 4));
+    uint8_t* const last = object_at(self, 0x6c + slot * 4);
+    method<WordMethod>(last, 0x34)(last, 0);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(HudCompMeter_DrawTargetGrid_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HudCompMeter_DrawTargetGrid) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL HudCompMeter_DrawTargetGrid(uint8_t* self, int32_t index, uint32_t slot) {
+    if (index >= 12) return;
+    const int32_t column = index / 4 + 1;
+    const int32_t corner = index % 4;
+    float x = field<float>(self, 0x84 + static_cast<uint32_t>(column) * 4);
+    float y = field<float>(self, 0x94 + static_cast<uint32_t>(column) * 4);
+    const float step = gf(0x0083eb5c);
+    const float dx = title_global<int32_t>(0x00948f64) != 0 ? gf(0x0083ec78) : step;  // widescreen
+    if (corner == 0 || corner == 2)
+        x = x - dx;
+    else
+        x = x + dx;
+    if (corner < 2)
+        y = y - step;
+    else
+        y = y + step;
+    uint32_t x_bits;
+    std::memcpy(&x_bits, &x, 4);
+    draw_target_at(self, slot, x_bits, y);
+}
+
+PLATFORM_ASM_ENTRY(HudCompMeter_DrawTargetRow_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HudCompMeter_DrawTargetRow) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL HudCompMeter_DrawTargetRow(uint8_t* self, int32_t index, uint32_t slot) {
+    if (index > 2) index = 2;
+    const int32_t count = field<int32_t>(self, 0xe4);
+    float y = field<float>(self, 0x94);
+    if (count == 3) {
+        const int32_t offset = index == 0 ? -22 : (index != 1 ? 20 : 0) - 2;
+        y = static_cast<float>(offset) + y;
+    }
+    if (count == 2) y = static_cast<float>((index != 0 ? 30 : 0) - 15) + y;
+    draw_target_at(self, slot, field<uint32_t>(self, 0x84), y);
+}
+
+void XB_THISCALL HudCompMeter_Draw(uint8_t* self) {
+    if (!visible(self) || !object_at(self, 8)) return;
+    const uint8_t second = field<uint8_t>(self, 0xe0);
+    uint8_t* const led1 = Panel_FindPicture(object_at(self, 8), hud_text(0x0082daf4));  // "led1"
+    method<WordMethod>(led1, 0x34)(led1, second ? 0u : 1u);
+    uint8_t* const led2 = Panel_FindPicture(object_at(self, 8), hud_text(0x0082daec));  // "led2"
+    method<WordMethod>(led2, 0x34)(led2, second ? 1u : 0u);
+    Panel_Draw(object_at(self, 8));
+    if (field<int32_t>(self, 0xe4) > 3) field<int32_t>(self, 0xe4) = 3;
+    for (int32_t i = 0; i < field<int32_t>(self, 0xe4); ++i)
+        HudCompMeter_DrawTargetRow(self, i, field<uint32_t>(self, 0xa4 + static_cast<uint32_t>(i) * 4));
+    for (int32_t i = 0; i < field<int32_t>(self, 0xe8); ++i)
+        HudCompMeter_DrawTargetGrid(self, i, field<uint32_t>(self, 0xb0 + static_cast<uint32_t>(i) * 4));
+    if (title_global<int32_t>(0x00948f64) == 0) return;  // widescreen
+    UI_DrawPillarboxBars(self);
+    // background04 / 03 / 05 / 2: x (+0x9c) to +0x84.., y (+0xa0) to +0x94.. (as FE_SetupLiberatorMenu)
+    static constexpr uint32_t kBackgrounds[4] = {0x0082dadc, 0x0082dacc, 0x0082dabc, 0x0082dab0};
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* const picture = Panel_FindPicture(object_at(self, 8), hud_text(kBackgrounds[i]));
+        field<float>(self, 0x84 + i * 4) = static_cast<float>(method<GetMethod>(picture, 0x9c)(picture));
+        field<float>(self, 0x94 + i * 4) = static_cast<float>(method<GetMethod>(picture, 0xa0)(picture));
+    }
+}
+
+void XB_THISCALL HudCompMeter_Update(uint8_t* self, float dt) {
+    if (!visible(self) || !object_at(self, 8)) return;
+    float& timer = field<float>(self, 0xec);
+    if (timer == 0.0f) {
+        uint8_t* const led1 = Panel_FindPicture(object_at(self, 8), hud_text(0x0082daf4));  // "led1"
+        method<WordMethod>(led1, 0x7c)(led1, 0x3f800000u);                                  // alpha 1
+        return;
+    }
+    if (timer > 0.0f) timer = timer - dt;
+    if (0.0f > timer) {
+        timer = 0.0f;
+        return;
+    }
+    // led1 blinks while the timer runs: alpha from the time left in four double-precision bands (x87).
+    const long double t = platform_x87_ld(timer);
+    const long double c1 = title_global<double>(0x0083ed38), c2 = title_global<double>(0x0083eeb8);
+    const long double c3 = title_global<double>(0x0083eb10), c4 = title_global<double>(0x0083ecb0);
+    long double alpha;
+    if (c1 >= t && t > c2)
+        alpha = (t - c2) + (t - c2);
+    else if (c2 >= t && t > c3)
+        alpha = c3 - (t - c3);
+    else if (c3 >= t && t > c4)
+        alpha = (t - c4) + (t - c4);
+    else
+        alpha = c3 - (t + t);
+    const float alpha_f = static_cast<float>(alpha);
+    uint32_t alpha_bits;
+    std::memcpy(&alpha_bits, &alpha_f, 4);
+    uint8_t* const led1 = Panel_FindPicture(object_at(self, 8), hud_text(0x0082daf4));  // "led1"
+    method<WordMethod>(led1, 0x7c)(led1, alpha_bits);
+}
+
+void XB_THISCALL HudCompBomberMap_Setup(uint8_t* self, uint8_t* panel) {
+    // "background05gfd" to +0x30; the ten gun positions lchin/rchin/lwing/rwing/lwaist/rwaist/lbomb/rbomb/ltail/rtail
+    // to +0x08..+0x2c, each coloured 0xff00ff00 (vtable +0x70); "ballobj"/"bombobj"/"chinobj"/"tailobj" hidden.
+    field<uint8_t*>(self, 0x30) = Panel_FindPicture(panel, hud_text(0x0082d8f4));
+    for (uint32_t i = 0; i < 10; ++i)
+        field<uint8_t*>(self, 8 + i * 4) = Panel_FindPicture(panel, hud_text(0x0082d8ec - i * 8));
+    for (uint32_t i = 0; i < 10; ++i)
+        if (uint8_t* const gun = object_at(self, 8 + i * 4)) method<WordMethod>(gun, 0x70)(gun, 0xff00ff00u);
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* const hidden = Panel_FindPicture(panel, hud_text(0x0082d89c - i * 8));
+        method<WordMethod>(hidden, 0x34)(hidden, 0);
+    }
+    uint8_t* const chin = object_at(self, 8);
+    field<float>(self, 0x58) = static_cast<float>(method<GetMethod>(chin, 0x9c)(chin));
+    uint8_t* const chin2 = object_at(self, 8);
+    field<float>(self, 0x5c) = static_cast<float>(method<GetMethod>(chin2, 0xa0)(chin2));
+    field<float>(self, 0x48) = gf(0x0083eeb4);
+    field<float>(self, 0x50) = gf(0x0083eeb0);
+    field<float>(self, 0x4c) = 0.0f;
+    // "Obj_Head" / "Obj_Middle" / "Obj_Tail" (32-unit quads "objective") to +0x34..+0x3c, "Obj_Ring" (64, "objective_ring")
+    // to +0x40.
+    QuadSetup q;
+    quad_setup(q, gf(0x0083eeac));  // 32
+    static constexpr uint32_t kNames[3] = {0x0082d878, 0x0082d86c, 0x0082d860};
+    for (uint32_t i = 0; i < 3; ++i) {
+        uint8_t* p = static_cast<uint8_t*>(hud_malloc(0x40));
+        p = p ? UIPicture_Init(p, hud_text(kNames[i])) : nullptr;
+        field<uint8_t*>(self, 0x34 + i * 4) = p;
+        method<QuadMethod>(p, 0x3c)(p, q.corners, q.colors, 7, 0, hud_text(0x0082dc78));
+    }
+    QuadSetup ring;
+    quad_setup(ring, gf(0x00830c1c));  // 64
+    uint8_t* p = static_cast<uint8_t*>(hud_malloc(0x40));
+    p = p ? UIPicture_Init(p, hud_text(0x0082d854)) : nullptr;
+    field<uint8_t*>(self, 0x40) = p;
+    method<QuadMethod>(p, 0x3c)(p, ring.corners, q.colors, 7, 0, hud_text(0x0082dc58));
+    // Placed at the chin gun: head above by +0x48, middle by +0x4c, tail below by +0x50; all four hidden (+0x7c (0)).
+    using PlaceMethod = void XB_THISCALL(uint8_t*, uint32_t, float);
+    uint8_t* const head = object_at(self, 0x34);
+    method<PlaceMethod>(head, 0x8c)(head, field<uint32_t>(self, 0x58), field<float>(self, 0x5c) - field<float>(self, 0x48));
+    uint8_t* const middle = object_at(self, 0x38);
+    method<PlaceMethod>(middle, 0x8c)(middle, field<uint32_t>(self, 0x58), field<float>(self, 0x5c) - field<float>(self, 0x4c));
+    uint8_t* const tail = object_at(self, 0x3c);
+    method<PlaceMethod>(tail, 0x8c)(tail, field<uint32_t>(self, 0x58), field<float>(self, 0x5c) + field<float>(self, 0x50));
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* const object = object_at(self, 0x34 + i * 4);
+        method<WordMethod>(object, 0x7c)(object, 0);
+    }
+    field<int32_t>(self, 0x44) = -1;
+    field<float>(self, 0x54) = 0.0f;
+}
+
 }  // namespace game

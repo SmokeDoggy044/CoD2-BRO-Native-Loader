@@ -1974,7 +1974,7 @@ void XB_CDECL cdSimpleAlpha_RegisterMaterialType() { register_material_type(0x00
 void XB_CDECL cdPropeller_RegisterMaterialType() { register_material_type(0x007b4f7c, own_address(&cdPropellerVertexIter_Ctor)); }
 void XB_CDECL cdDecal_RegisterMaterialType() { register_material_type(0x007b524c, own_address(&cdDecalVertexIter_Ctor)); }
 void XB_CDECL cdChar_RegisterMaterialType() { register_material_type(0x008329a0, own_address(&cdCharVertexIter_Ctor)); }
-void XB_CDECL cdPrelit_RegisterMaterialType() { register_material_type(0x007b57ec, 0x0004c680); }
+void XB_CDECL cdPrelit_RegisterMaterialType() { register_material_type(0x007b57ec, own_address(&cdPrelitVertexIter_Ctor)); }
 void XB_CDECL cdAirplaneMetal_RegisterMaterialType() { register_material_type(0x007b5abc, own_address(&cdAirplaneMetalVertexIter_Ctor)); }
 void XB_CDECL cdSimpleUVAnim_RegisterMaterialType() { register_material_type(0x007b5d9c, own_address(&cdSimpleUVAnimVertexIter_Ctor)); }
 void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x007b607c, own_address(&cdSimplePrelitVertexIter_Ctor)); }

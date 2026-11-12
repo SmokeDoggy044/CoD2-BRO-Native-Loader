@@ -207,6 +207,7 @@ const Function kFunctions[] = {
     {"UIPicture_RotateInPlace", 0x00011920, 0, code(&UIPicture_RotateInPlace), 8, Result::None, Status::Compare},  // was FUN_00011920 (gap)
     {"UIPicture_SetUniformScale", 0x00011940, 0, code(&UIPicture_SetUniformScale), 8, Result::None, Status::Compare},  // was FUN_00011940 (gap)
     {"UIPicture_SetScale", 0x00011960, 0, code(&UIPicture_SetScale), 12, Result::None, Status::Compare},  // was FUN_00011960 (gap)
+    {"UIPicture_SetQuadScaleUniform", 0x000119a0, 0, code(&UIPicture_SetQuadScaleUniform), 4, Result::None, Status::Compare},  // was FUN_000119a0 (gap)
     {"UIPicture_SetPosition", 0x000119d0, 0, code(&UIPicture_SetPosition), 8, Result::None, Status::Compare},  // was FUN_000119d0 (gap)
     {"UIPicture_GetColor", 0x00011a60, 0, code(&UIPicture_GetColor), 4, Result::Eax, Status::Compare},  // was FUN_00011a60 (gap)
     {"UIPicture_GetWidth", 0x00011a90, 0, code(&UIPicture_GetWidth), 0, Result::St0, Status::Replaced},
@@ -821,6 +822,7 @@ const Function kFunctions[] = {
     {"ResourceManager_CreateDb", 0x00023ff0, 0, code(&ResourceManager_CreateDb), 0, Result::None, Status::Replaced},
     {"ResourceManager_CreateCfgstr", 0x00024050, 0, code(&ResourceManager_CreateCfgstr), 0, Result::None, Status::Replaced},
     {"FxSystem_Prewarm", 0x000240b0, 0, code(&FxSystem_Prewarm_entry), 4, Result::None, Status::Replaced},
+    {"FxParticleComponent_Prewarm", 0x00024230, 0, code(&FxParticleComponent_Prewarm), 4, Result::None, Status::Compare},  // was FUN_00024230 (gap)
     {"FxComponent_DelayDone", 0x00024200, 0, code(&FxComponent_DelayDone), 0, Result::Eax, Status::Replaced},
     {"ShakeRumble_CreateManager", 0x00024260, 0, code(&ShakeRumble_CreateManager), 0, Result::None, Status::Replaced},
     {"DlgManager_DeletingDtor", 0x000242c0, 0, code(&DlgManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -1036,6 +1038,7 @@ const Function kFunctions[] = {
     {"cdDecalVertexIter_Ctor", 0x0004b840, 0, code(&cdDecalVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004b840 (gap)
     {"cdCharVertexIter_Ctor", 0x0004bf60, 0, code(&cdCharVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004bf60 (gap)
     {"cdAirplaneMetalVertexIter_Ctor", 0x0004cbb0, 0, code(&cdAirplaneMetalVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004cbb0 (gap)
+    {"cdPrelitVertexIter_Ctor", 0x0004c680, 0, code(&cdPrelitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004c680 (gap)
     {"cdSimpleUVAnimVertexIter_Ctor", 0x0004d880, 0, code(&cdSimpleUVAnimVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004d880 (gap)
     {"cdSimplePrelitVertexIter_Ctor", 0x0004df50, 0, code(&cdSimplePrelitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004df50 (gap)
     {"cdSimpleVertexIter_Ctor", 0x0004e6b0, 0, code(&cdSimpleVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004e6b0 (gap)
@@ -1074,6 +1077,7 @@ const Function kFunctions[] = {
     {"apsTypeTag_AFIO", 0x000a48d0, 0, code(&apsTypeTag_AFIO), 0, Result::Eax, Status::Compare},  // was FUN_000a48d0 (gap)
     {"apsTypeTag_RFIO", 0x000a48e0, 0, code(&apsTypeTag_RFIO), 0, Result::Eax, Status::Compare},  // was FUN_000a48e0 (gap)
     {"apsTypeTag_LnSc", 0x000a48f0, 0, code(&apsTypeTag_LnSc), 0, Result::Eax, Status::Compare},  // was FUN_000a48f0 (gap)
+    {"apsTypeTag_MFxV", 0x000a4990, 0, code(&apsTypeTag_MFxV), 0, Result::Eax, Status::Compare},  // was FUN_000a4990 (gap)
     {"apsTypeTag_ExSc", 0x000a4900, 0, code(&apsTypeTag_ExSc), 0, Result::Eax, Status::Compare},  // was FUN_000a4900 (gap)
     {"apsTypeTag_LScW", 0x000a4910, 0, code(&apsTypeTag_LScW), 0, Result::Eax, Status::Compare},  // was FUN_000a4910 (gap)
     {"apsTypeTag_LScH", 0x000a4930, 0, code(&apsTypeTag_LScH), 0, Result::Eax, Status::Compare},  // was FUN_000a4930 (gap)
@@ -2521,6 +2525,9 @@ const Function kFunctions[] = {
     {"FxOpdd_AddToList", 0x0009e560, 0, code(&FxOpdd_AddToList), 24, Result::Eax, Status::Replaced},
     {"FxOp_SetVector", 0x0009e630, 0, code(&FxOp_SetVector), 4, Result::None, Status::Compare},  // was FUN_0009e630 (gap)
     {"FxOpdd_GetType", 0x0009e650, 0, code(&FxOpdd_GetType), 0, Result::Eax, Status::Compare},  // gap: the second entry inside FUN_0009e630 (vtable 0x007c7328)
+    {"FxOp1dd_GetType", 0x0009e7c0, 0, code(&FxOp1dd_GetType), 0, Result::Eax, Status::Compare},  // gap: FxOp vtable 0x007c75a0 slot 2
+    {"FxOp9d5_GetType", 0x0009e900, 0, code(&FxOp9d5_GetType), 0, Result::Eax, Status::Compare},  // gap: FxOp vtable 0x007c7820 slot 2
+    {"FxOpGrid_GetType", 0x0009ee90, 0, code(&FxOpGrid_GetType), 0, Result::Eax, Status::Compare},  // gap: FxOp vtable 0x007c8220 slot 2
     {"FxOp_IsVectorZero", 0x0009e660, 0, code(&FxOp_IsVectorZero), 0, Result::Eax, Status::Compare},  // was FUN_0009e660 (gap)
     {"FxOp1dd_InitShaders", 0x0009e690, 0, code(&FxOp1dd_InitShaders), 0, Result::None, Status::Replaced},
     {"FxOp1dd_Init", 0x0009e6c0, 0, code(&FxOp1dd_Init), 4, Result::Eax, Status::Replaced},
@@ -3226,6 +3233,7 @@ const Function kFunctions[] = {
     {"ScrCall_GScr_GetPersistentVector", 0x0011b390, 0, code(&ScrCall_GScr_GetPersistentVector), 8, Result::Eax, Status::Compare},
     {"ScrCall_GScr_ShakeRumbleNamed", 0x0011b3d0, 0, code(&ScrCall_GScr_ShakeRumbleNamed), 16, Result::None, Status::Replaced},
     {"ScrCall_GScr_GetZoneAtPoint", 0x0011b430, 0, code(&ScrCall_GScr_GetZoneAtPoint), 4, Result::Eax, Status::Compare},
+    {"ScrCall_GScr_ZoneSetField34AndWait", 0x0011b450, 0, code(&ScrCall_GScr_ZoneSetField34AndWait), 4, Result::None, Status::Replaced},  // was FUN_0011b450 (gap); script thread switch (Scr_WaitOnObject)
     {"Scr_IntToFloat", 0x0011b470, 0, code(&Scr_IntToFloat), 4, Result::St0, Status::Replaced},
     {"ScrCall_GScr_PlaySoundWithNotify_2", 0x0011b4b0, 0, code(&ScrCall_GScr_PlaySoundWithNotify_2), 8, Result::Eax, Status::Compare},
     {"oran_wad_Level_DeletingDtor", 0x0011b550, 0, code(&oran_wad_Level_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -3241,6 +3249,7 @@ const Function kFunctions[] = {
     {"ScriptString_ToInt", 0x0011ba80, 0, code(&ScriptString_ToInt), 8, Result::Eax, Status::Compare},
     {"BroScr_SpawnerGroupParams_Init", 0x0011bac0, 0, code(&BroScr_SpawnerGroupParams_Init), 0, Result::Eax, Status::Replaced},
     {"BroScr_GetMap_h4fcdc42e", 0x0011bdc0, 0, code(&BroScr_GetMap_h4fcdc42e), 4, Result::Eax, Status::Replaced},
+    {"BroScr_MapSlot_h4fcdc42e", 0x0011d0d0, 0, code(&BroScr_MapSlot_h4fcdc42e), 4, Result::Eax, Status::Compare},  // was FUN_0011d0d0 (gap)
     {"kasserine_pass_wad_Level_DeletingDtor", 0x0011bdf0, 0, code(&kasserine_pass_wad_Level_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ScrClass_00802298_Dtor", 0x0011be10, 0, code(&ScrClass_00802298_Dtor), 0, Result::None, Status::Replaced},
     {"ScrCall_GScr_AmbientPlay", 0x0011bff0, 0, code(&ScrCall_GScr_AmbientPlay), 4, Result::Eax, Status::Compare},
@@ -8883,6 +8892,7 @@ const Function kFunctions[] = {
     {"ScrWaitRecord_Check", 0x002fc1b0, 0, code(&ScrWaitRecord_Check), 4, Result::Eax, Status::Replaced},
     {"ScrWaitRecord_Dtor", 0x002fc230, 0, code(&ScrWaitRecord_Dtor_entry), 0, Result::None, Status::Replaced},
     {"Scr_AbortAllThreads", 0x002fc2a0, 0, code(&Scr_AbortAllThreads), 4, Result::None, Status::Replaced},
+    {"SV_MapRestartCheck_f", 0x002c00b0, 0, code(&SV_MapRestartCheck_f), 0, Result::None, Status::Compare},  // was FUN_002c00b0 (gap)
     {"Scr_HasEndOnRecord", 0x002fc3c0, 0, code(&Scr_HasEndOnRecord_entry), 0, Result::Al, Status::Replaced},
     {"Scr_UpdateThreadWaits", 0x002fc440, 0, code(&Scr_UpdateThreadWaits_entry), 0, Result::None, Status::Replaced},
     {"Scr_DestroyThreadContents", 0x002fc540, 0, code(&Scr_DestroyThreadContents_entry), 0, Result::None, Status::Replaced},
@@ -9246,11 +9256,14 @@ const Function kFunctions[] = {
     {"UIQuad_SetCornerUVs", 0x003104f0, 0, code(&UIQuad_SetCornerUVs), 0, Result::None, Status::Replaced},
     {"UIQuad_SetVertexUVs", 0x00310520, 0, code(&UIQuad_SetVertexUVs), 4, Result::None, Status::Replaced},
     {"UIQuad_PlaceScaled", 0x00310560, 0, code(&UIQuad_PlaceScaled_entry), 16, Result::None, Status::Replaced},
+    {"UIPicture_SetQuadScale", 0x00316a90, 0, code(&UIPicture_SetQuadScale), 8, Result::None, Status::Compare},  // was FUN_00316a90 (gap)
     {"UIQuad_SetWipe", 0x00310820, 0, code(&UIQuad_SetWipe_entry), 16, Result::None, Status::Replaced},
     {"HudCompIconCount_Draw", 0x00310b80, 0, code(&HudCompIconCount_Draw), 0, Result::None, Status::Replaced},
     {"HudCompBomberMap_SetVisible", 0x00310cc0, 0, code(&HudCompBomberMap_SetVisible), 4, Result::None, Status::Compare},  // was FUN_00310cc0 (gap)
     {"HudCompBomberMap_Draw", 0x00310d60, 0, code(&HudCompBomberMap_Draw), 0, Result::None, Status::Replaced},
     {"UI_DrawPillarboxBars", 0x00310e10, 0, code(&UI_DrawPillarboxBars), 4, Result::None, Status::Compare},
+    {"HudCompMeter_DrawTargetGrid", 0x00310ea0, 0, code(&HudCompMeter_DrawTargetGrid_entry), 0, Result::None, Status::Compare},  // was FUN_00310ea0 (gap: register arguments)
+    {"HudCompMeter_DrawTargetRow", 0x00310f70, 0, code(&HudCompMeter_DrawTargetRow_entry), 0, Result::None, Status::Compare},  // was FUN_00310f70 (gap: register arguments)
     {"HudCompMeter_SetCount", 0x00311090, 0, code(&HudCompMeter_SetCount), 4, Result::None, Status::Replaced},
     {"HudCompHint_Draw", 0x003110e0, 0, code(&HudCompHint_Draw), 0, Result::None, Status::Replaced},
     {"HudCompCompass_UpdateMarkerPulse", 0x003111a0, 0, code(&HudCompCompass_UpdateMarkerPulse_entry), 0, Result::None, Status::Replaced},
@@ -9538,6 +9551,9 @@ const Function kFunctions[] = {
     {"Hud_LoadWeaponIcons", 0x00323870, 0, code(&Hud_LoadWeaponIcons), 4, Result::None, Status::Replaced},
     {"HudCompHint_Setup", 0x00323970, 0, code(&HudCompHint_Setup), 4, Result::None, Status::Compare},  // was FUN_00323970 (gap)
     {"HudCompCompass_Setup", 0x00323a70, 0, code(&HudCompCompass_Setup), 4, Result::None, Status::Compare},  // was FUN_00323a70 (gap)
+    {"HudCompBomberMap_Setup", 0x00322d30, 0, code(&HudCompBomberMap_Setup), 4, Result::None, Status::Compare},  // was FUN_00322d30 (gap)
+    {"HudCompMeter_Draw", 0x00323550, 0, code(&HudCompMeter_Draw), 0, Result::None, Status::Compare},  // was FUN_00323550 (gap)
+    {"HudCompMeter_Update", 0x00323730, 0, code(&HudCompMeter_Update), 4, Result::None, Status::Compare},  // was FUN_00323730 (gap)
     {"HudCompTankIcon_Setup", 0x00323fa0, 0, code(&HudCompTankIcon_Setup), 4, Result::None, Status::Replaced},
     {"HudCompTankReticle_Setup", 0x00324140, 0, code(&HudCompTankReticle_Setup), 4, Result::None, Status::Compare},  // was FUN_00324140 (gap)
     {"HudCompTankShells_Setup", 0x003242b0, 0, code(&HudCompTankShells_Setup), 4, Result::None, Status::Compare},
@@ -9592,6 +9608,7 @@ const Function kFunctions[] = {
     {"UIText_WrapLines", 0x0032b0d0, 0, code(&UIText_WrapLines), 16, Result::Eax, Status::Replaced},
     {"UIText_SetWrappedText", 0x0032b420, 0, code(&UIText_SetWrappedText), 12, Result::None, Status::Replaced},
     {"UIText_SetWrappedString", 0x0032b760, 0, code(&UIText_SetWrappedString_entry), 12, Result::None, Status::Compare},  // was FUN_0032b760 (gap)
+    {"UIText_SetText", 0x0032b830, 0, code(&UIText_SetText_entry), 4, Result::None, Status::Compare},  // gap
     {"UIText_AllocLines", 0x0032b940, 0, code(&UIText_AllocLines), 4, Result::None, Status::Replaced},
     {"UIText_GetTextHeight", 0x0032ba80, 0, code(&UIText_GetTextHeight), 0, Result::St0, Status::Compare},
     {"UIText_DrawLines", 0x0032bab0, 0, code(&UIText_DrawLines), 8, Result::None, Status::Replaced},

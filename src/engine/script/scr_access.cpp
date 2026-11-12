@@ -932,6 +932,11 @@ uint32_t XB_CDECL ScrCall_GScr_GetZoneAtPoint(const uint32_t* point) {
     return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0092249c)(point[0], point[1], point[2]);
 }
 
+void XB_CDECL ScrCall_GScr_ZoneSetField34AndWait(uint32_t zone) {
+    builtin<void XB_CDECL(uint32_t, uint32_t)>(0x009224a4)(zone, 0);  // GScr_ZoneSetField34 (zone, 0.0)
+    Scr_WaitOnObject(zone);
+}
+
 uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify_2(const uint32_t* ent, uint32_t sound) {
     return builtin<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x0092220c)(*ent, sound, 0, 0);
 }

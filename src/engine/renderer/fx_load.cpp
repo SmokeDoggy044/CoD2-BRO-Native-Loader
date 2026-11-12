@@ -1773,6 +1773,9 @@ void XB_THISCALL FxOp_SetVector(uint8_t* op, const uint32_t* vector) {
 }
 
 uint32_t XB_CDECL FxOpdd_GetType() { return 0x43526374; }
+uint32_t XB_CDECL FxOp1dd_GetType() { return 0x63555672; }
+uint32_t XB_CDECL FxOp9d5_GetType() { return 0x55565265; }
+uint32_t XB_CDECL FxOpGrid_GetType() { return 0x55564152; }
 
 namespace {
 

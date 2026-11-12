@@ -85,3 +85,6 @@ address,name
 002b5e80,WeaponDef_SetStringField
 002f5620,ScrWaitFramesRecord_Check
 002f6400,ScrWaitTimeRecord_Check
+0009e7c0,FxOp1dd_GetType
+0009e900,FxOp9d5_GetType
+0009ee90,FxOpGrid_GetType

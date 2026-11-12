@@ -46,6 +46,20 @@ uint8_t* XB_REGS1 XB_CDECL HudCompMeter_Ctor(uint8_t* self);
 // 0x00311090 (this in EAX): with an owner (+8), pair i shows its first picture (+0xc + i * 8)
 // for i < count and its second (+0x10 + i * 8) otherwise (vtable +0x34 = set visible).
 void XB_REGS1 XB_STDCALL HudCompMeter_SetCount(uint8_t* self, uint32_t count);
+// Gap functions (m3/m5 recordings, 11-12). 0x00310f70 / 0x00310ea0 (this in ESI, index in ECX, target picture slot
+// in EDI): the target picture +0x6c + slot * 4 shown, placed (+0x8c (x, y)), drawn and hidden - in a row under
+// background04 (index 0..2, spread by the count +0xe4) / in the grid around backgrounds 03/05/2 (index 0..11, four
+// corners each; the x step wider on widescreen).
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompMeter_DrawTargetRow(uint8_t* self, int32_t index, uint32_t slot);
+extern "C" void HudCompMeter_DrawTargetRow_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompMeter_DrawTargetGrid(uint8_t* self, int32_t index, uint32_t slot);
+extern "C" void HudCompMeter_DrawTargetGrid_entry(void);
+// 0x00323550 (vtable 0x008299b8 +0x0c): led1 / led2 from +0xe0, the panel, the row targets (+0xa4.., count +0xe4
+// clamped to 3) and grid targets (+0xb0.., count +0xe8); on widescreen the pillarbox bars and the background
+// positions read again. 0x00323730 (+0x08, dt): led1 at full alpha while the timer +0xec is 0, else the timer runs
+// down and led1 blinks (alpha from the time left).
+void XB_THISCALL HudCompMeter_Draw(uint8_t* self);
+void XB_THISCALL HudCompMeter_Update(uint8_t* self, float dt);
 // 0x00318f30 (this in EDI): deletes the six segments (+8..+0x1c) and +0x20, then the base vtable.
 extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompGrenadeCook_Dtor(uint8_t* self);
 extern "C" void HudCompGrenadeCook_Dtor_entry(void);
@@ -191,6 +205,10 @@ void XB_THISCALL HudManager_DrawHint(uint8_t* self);
 // Gap functions (11-11). 0x00310cc0 (vtable 0x0082908c +0x14): unless +0x30 is null, the ten pictures +0x08..+0x2c
 // and the objects +0x30..+0x40 shown / hidden (+0x34); the component's own +4 untouched.
 void XB_THISCALL HudCompBomberMap_SetVisible(uint8_t* self, uint32_t on);
+// 0x00322d30 (vtable 0x0082908c +0x04, panel): the gun pictures (+0x08..+0x2c, green), background +0x30, the chin
+// gun's position (+0x58/+0x5c) and the three objective markers + ring (+0x34..+0x40) built, placed and hidden;
+// +0x44 = -1, +0x54 = 0 (m5 recording, 11-12).
+void XB_THISCALL HudCompBomberMap_Setup(uint8_t* self, uint8_t* panel);
 // 0x003184d0 (vtable 0x00829164 +0x08): while visible, the "player_tank" entity's turret yaw (+0x248 -> +0x294 *
 // 0x0083edd8) as the picture +8's rotation (+0x4c (angle, 1)).
 void XB_THISCALL HudCompTankIcon_Update(uint8_t* self, uint32_t dt);

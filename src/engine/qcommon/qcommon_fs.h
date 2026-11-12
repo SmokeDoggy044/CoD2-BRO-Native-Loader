@@ -1123,6 +1123,9 @@ uint32_t XB_REGS2 XB_CDECL Loc_FindGlobalFlagBit(uint32_t unused_eax, const char
 // 0x002cfc20: "map_restart_internal": checkpoint "0" (forced), 0x0095f678/0x0095f679 cleared, the game's checkpoint
 // (0x0095f4e0) cleared (G_ClearCheckpoint), 0x002fc2a0(0x008dd1d8), restart flag 0x0095f508 = 1.
 void XB_CDECL SV_MapRestartInternal_f();
+// 0x002c00b0 ("map_restart_check", gap, m3 recording 11-12): like map_restart_internal without the checkpoint reset -
+// the game flag set, all script threads aborted, the in-game screens told 6 (vtable +0xc) with +0x18's +0x58 = 2.
+void XB_CDECL SV_MapRestartCheck_f();
 // 0x002cfc70 (list std::string in ESI): the ".str" files under `dir` ("dir/file;" each, Loc_LoadStringDir_r);
 // their count (0x00929cd8). Dead.
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Loc_ListStringFiles(const char* dir, uint8_t* list);

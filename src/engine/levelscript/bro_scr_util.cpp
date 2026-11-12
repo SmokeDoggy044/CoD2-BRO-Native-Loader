@@ -11,6 +11,8 @@
 #include "bro_scr_wait_notify.h"
 #include "script_string.h"
 #include "g_scr_builtins.h"
+#include "levels_twins.h"
+#include "qcommon_fs.h"
 
 namespace game {
 
@@ -157,6 +159,20 @@ ScriptString* XB_CDECL ScriptString_FromCStringPlusVec(ScriptString* out, const 
 uint8_t* XB_THISCALL BroScr_GetMap_h4fcdc42e(uint8_t* self, uint8_t* out) {
     title_function<void XB_THISCALL(uint8_t*, uint8_t*, uint32_t)>(0x0052f900)(self - 0x14, out, 0x4fcdc42e);
     return out;
+}
+
+uint32_t* XB_THISCALL BroScr_MapSlot_h4fcdc42e(uint8_t* self, uint32_t key) {
+    uint8_t* const map = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x004e9b30)(self - 0x14, 0x4fcdc42e);
+    uint8_t* node = nullptr;
+    own_function<uint8_t** XB_THISCALL(uint8_t*, uint8_t**, const uint32_t*)>(&HashMap_Find)(map, &node, &key);  // HashMap_Find
+    if (node == *reinterpret_cast<uint8_t**>(map + 8)) {
+        uint32_t pair[2] = {key, 0};
+        uint8_t* out[2] = {};
+        node = *reinterpret_cast<uint8_t**>(
+            own_function<uint8_t* XB_THISCALL(uint8_t*, uint8_t*, const uint32_t*)>(&HashMap_Insert_PROLOGUE_2)(  // HashMap_Insert
+                map, reinterpret_cast<uint8_t*>(out), pair));
+    }
+    return reinterpret_cast<uint32_t*>(node + 0xc);
 }
 
 uint32_t* XB_CDECL BroRuntime_SetImportCallbacks(uint32_t* block) {

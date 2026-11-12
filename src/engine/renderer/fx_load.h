@@ -319,10 +319,15 @@ uint32_t XB_THISCALL FxOp53_AddToList(const uint8_t* op, uint32_t a1, uint32_t a
                                       const uint32_t* matrix, const uint8_t* scale_source);
 // The render ops' shared slots 4 / 5 (vtables 0x007c7320, 0x007c75a0, ... 0x007c8490): whether the vector +0x10..+0x18
 // is all zero (0x0009e660; false for NaN) / the 16 bytes at `vector` into +0x10 (0x0009e630). 0x0009e650 (FxOpdd's
-// slot 2, after 0x0009e630 in Ghidra's function): the type tag 0x43526374.
+// slot 2, after 0x0009e630 in Ghidra's function): the type tag 0x43526374. Same slot of FxOp1dd (0x0009e7c0,
+// vtable 0x007c75a0): 0x63555672; FxOp9d5 (0x0009e900, 0x007c7820): 0x55565265; FxOpGrid (0x0009ee90, 0x007c8220):
+// 0x55564152.
 uint32_t XB_THISCALL FxOp_IsVectorZero(const uint8_t* op);
 void XB_THISCALL FxOp_SetVector(uint8_t* op, const uint32_t* vector);
 uint32_t XB_CDECL FxOpdd_GetType();
+uint32_t XB_CDECL FxOp1dd_GetType();
+uint32_t XB_CDECL FxOp9d5_GetType();
+uint32_t XB_CDECL FxOpGrid_GetType();
 
 // 0x0009cd30 / 0x0009e240: FxOp31 / FxOp1d5 AddToList (callee pops 0x18): like the others, the
 // first only when the op has a mesh (+0xc; else 2), with a light set (+0x84, default 0x00902e40)

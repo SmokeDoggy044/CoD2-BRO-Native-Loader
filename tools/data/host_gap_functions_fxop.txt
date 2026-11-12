@@ -1,0 +1,5 @@
+# FxOp vtable slot-2 entries inside other functions (11-12)
+0009e650
+0009e7c0
+0009e900
+0009ee90

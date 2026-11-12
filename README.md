@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 74% of the functions have a name, and 7,676 have been
+It's early days: about 76% of the functions have a name, and 7,791 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,657 | 9,436 | 7,528 | 4,129 |
-| Mission scripts (14 level sections) | 5,326 | 3,131 | 148 | 5,178 |
-| **Total** | **16,983** | **12,567** | **7,676** | **9,307** |
+| Engine and game code (`.text`) | 11,670 | 9,775 | 7,642 | 4,028 |
+| Mission scripts (14 level sections) | 5,326 | 3,131 | 149 | 5,177 |
+| **Total** | **16,996** | **12,906** | **7,791** | **9,205** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -46,22 +46,22 @@ We've also named 2,667 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,174 | 1,103 | 64 | 1 | 0 | 5 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,648 | 1,404 | 229 | 11 | 1 | 0 |
-| Animation (animation trees, the animation codec) | 287 | 259 | 0 | 28 | 0 | 0 |
-| Client game (HUD, view, effects on screen) | 300 | 294 | 0 | 6 | 0 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 1,018 | 887 | 64 | 63 | 0 | 0 |
-| Client and menus | 770 | 623 | 105 | 42 | 0 | 0 |
-| Server | 81 | 72 | 9 | 0 | 0 | 0 |
-| Collision | 109 | 94 | 0 | 15 | 0 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,197 | 1,143 | 47 | 1 | 0 | 5 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,665 | 1,409 | 241 | 11 | 1 | 0 |
+| Animation (animation trees, the animation codec) | 304 | 274 | 2 | 28 | 0 | 0 |
+| Client game (HUD, view, effects on screen) | 335 | 306 | 23 | 6 | 0 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 1,057 | 917 | 75 | 61 | 0 | 0 |
+| Client and menus | 852 | 667 | 143 | 42 | 0 | 0 |
+| Server | 82 | 72 | 10 | 0 | 0 | 0 |
+| Collision | 110 | 94 | 1 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 2,009 | 1,768 | 235 | 5 | 1 | 0 |
-| Level-script helpers in the engine code | 1,466 | 581 | 834 | 43 | 2 | 0 |
-| Sound | 145 | 130 | 1 | 13 | 0 | 0 |
-| Streaming (asset loading, zones) | 176 | 159 | 8 | 9 | 0 | 0 |
+| Script engine (script VM, entity bindings, built-in script functions) | 2,023 | 1,778 | 239 | 5 | 1 | 0 |
+| Level-script helpers in the engine code | 1,468 | 583 | 834 | 43 | 2 | 0 |
+| Sound | 148 | 131 | 3 | 13 | 0 | 0 |
+| Streaming (asset loading, zones) | 183 | 163 | 11 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
-| Microsoft library code built into the game (replaced, not rewritten) | 2,087 | 58 | 191 | 0 | 0 | 462 |
-| Not sorted into a part yet | 301 | 78 | 179 | 7 | 2 | 35 |
+| Microsoft library code built into the game (replaced, not rewritten) | 2,111 | 82 | 191 | 0 | 0 | 462 |
+| Not sorted into a part yet | 49 | 5 | 5 | 7 | 2 | 30 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType

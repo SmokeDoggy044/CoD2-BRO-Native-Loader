@@ -1225,6 +1225,26 @@ void XB_THISCALL UIPicture_SetUniformScale(uint8_t* picture, uint32_t scale, uin
         picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), scale, scale, absolute);
 }
 
+void XB_THISCALL UIPicture_SetQuadScaleUniform(uint8_t* picture, uint32_t scale) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(picture, 0x60)(picture, scale, scale);
+}
+
+void XB_THISCALL UIPicture_SetQuadScale(uint8_t* picture, float sx, float sy) {
+    if (sx == 0.0f) sx = title_global<float>(0x0083eb94);
+    if (sy == 0.0f) sy = title_global<float>(0x0083eb94);
+    const float rx = sx / field<float>(picture, 0x34);
+    const float ry = sy / field<float>(picture, 0x38);
+    field<float>(picture, 0x34) = sx;
+    field<float>(picture, 0x38) = sy;
+    for (uint32_t i = 0; i < field<uint32_t>(picture, 0x28); ++i)
+        UIQuad_PlaceScaled(field<uint8_t**>(picture, 0x20)[i], field<float>(picture, 0x14), field<float>(picture, 0x18), sx, sy);
+    if (uint8_t* const child = field<uint8_t*>(picture, 0x2c)) {
+        field<float>(child, 0x18) = field<float>(child, 0x18) * rx;
+        field<float>(field<uint8_t*>(picture, 0x2c), 0x1c) = field<float>(field<uint8_t*>(picture, 0x2c), 0x1c) * ry;
+    }
+    field<float>(picture, 0x30) = 0.0f;
+}
+
 void XB_THISCALL UIPicture_SetScale(uint8_t* picture, uint32_t sx, uint32_t sy, uint32_t absolute) {
     method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(picture, 0x50)(
         picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), sx, sy, absolute);

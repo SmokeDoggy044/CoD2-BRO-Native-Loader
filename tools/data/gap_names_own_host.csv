@@ -133,3 +133,16 @@ address,name
 000da10c,UIX_CPlayersFeature_Ctor
 000dc527,UIX_CVoiceMailPseudoFeature_Ctor
 003159a0,UITextBase_SetField50
+000119a0,UIPicture_SetQuadScaleUniform
+00024230,FxParticleComponent_Prewarm
+0004c680,cdPrelitVertexIter_Ctor
+000a4990,apsTypeTag_MFxV
+0011b450,ScrCall_GScr_ZoneSetField34AndWait
+0011d0d0,BroScr_MapSlot_h4fcdc42e
+002c00b0,SV_MapRestartCheck_f
+00310ea0,HudCompMeter_DrawTargetGrid
+00310f70,HudCompMeter_DrawTargetRow
+00316a90,UIPicture_SetQuadScale
+00322d30,HudCompBomberMap_Setup
+00323550,HudCompMeter_Draw
+00323730,HudCompMeter_Update

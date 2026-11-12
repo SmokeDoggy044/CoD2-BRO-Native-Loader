@@ -1513,9 +1513,18 @@ void si_00379060() {
 
 void si_00379070() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
+    bool zf = false;
     edx = 0;
     eax = 0;
-    call_regs(0x00379080, {eax, ebx, ecx, edx, esi, edi});
+    goto L_00379080;
+L_00379080:
+    ecx = (ecx & 0xffffff00u) | static_cast<uint8_t>(mem<uint8_t>(eax + 8577003u));
+    mem<uint8_t>(eax + 9571656u) = static_cast<uint8_t>(static_cast<uint8_t>(ecx));
+    eax += 1; zf = eax == 0;
+    zf = static_cast<uint8_t>(ecx) == static_cast<uint8_t>(edx);
+    if (!zf) goto L_00379080;
+    title_global<uint32_t>(0x920d40) = static_cast<uint32_t>(edx);
+    title_global<uint32_t>(0x920d44) = static_cast<uint32_t>(edx);
     return;
 }
 

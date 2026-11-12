@@ -1,0 +1,10 @@
+# m3/m5 recordings (11-12): --text-clear spots without a Ghidra function
+000119a0
+00024230
+0004c680
+000a4990
+002c00b0
+00316a90
+00322d30
+00323550
+00323730

@@ -328,6 +328,8 @@ uint32_t* XB_CDECL ScrCall_GScr_GetPersistentVector(uint32_t* out, uint32_t key)
 ScriptStringRep* XB_CDECL ScrCall_GScr_ShakeRumbleNamed(uint32_t a, uint32_t b, ScriptString name,
                                                         uint32_t c);  // 0x0011b3d0
 uint32_t XB_CDECL ScrCall_GScr_GetZoneAtPoint(const uint32_t* point);  // 0x0011b430
+// 0x0011b450 (gap, m5 recording 11-12): GScr_ZoneSetField34 (zone, 0) through its builtin slot, then waits on the zone.
+void XB_CDECL ScrCall_GScr_ZoneSetField34AndWait(uint32_t zone);
 uint32_t XB_CDECL ScrCall_GScr_PlaySoundWithNotify_2(const uint32_t* ent, uint32_t sound);  // 0x0011b4b0
 uint32_t* XB_CDECL ScrCall_GScr_GetOrigin(uint32_t* out, const uint32_t* ent);  // 0x0011ba30
 uint32_t XB_CDECL ScrCall_GScr_AmbientPlay(uint32_t sound);  // 0x0011bff0

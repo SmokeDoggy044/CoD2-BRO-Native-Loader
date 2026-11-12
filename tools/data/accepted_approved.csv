@@ -14,3 +14,4 @@ address,name,approved
 00308df0,GScr_DoSpawnNamed,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
 00308cc0,GScr_ForceSpawnNamed,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
 002e6650,AnimTree_GetRootDelta,user 2026-11-07: accepted below 100 matches (never-written w lane)
+0032b830,UIText_SetText,user 2026-11-12: accepted (host TLS byte 0b vs 01; 0 of 2 tests matched in the 11-12 batch)

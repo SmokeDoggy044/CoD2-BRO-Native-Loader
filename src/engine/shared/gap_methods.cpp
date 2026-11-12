@@ -415,6 +415,10 @@ uint32_t* XB_CDECL cdCharVertexIter_Ctor(uint32_t* iter) {
     return vertex_iter_ctor(iter, 0x007b551c);
 }
 
+uint32_t* XB_CDECL cdPrelitVertexIter_Ctor(uint32_t* iter) {
+    return vertex_iter_ctor(iter, 0x007b57f8);
+}
+
 uint32_t* XB_CDECL cdAirplaneMetalVertexIter_Ctor(uint32_t* iter) {
     return vertex_iter_ctor(iter, 0x007b5acc);
 }
@@ -489,6 +493,10 @@ uint32_t XB_CDECL apsTypeTag_AFIO() {
 
 uint32_t XB_CDECL apsTypeTag_RFIO() {
     return 0x5246494f;  // 'RFIO'
+}
+
+uint32_t XB_CDECL apsTypeTag_MFxV() {
+    return 0x4d467856;  // 'MFxV'
 }
 
 uint32_t XB_CDECL apsTypeTag_LnSc() {

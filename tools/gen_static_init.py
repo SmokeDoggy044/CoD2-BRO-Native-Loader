@@ -54,8 +54,8 @@ def body_of(address):
         if text.startswith('ret'):
             return out
         m = re.fullmatch(r'jmp (0x[0-9a-f]+)', text)
-        if m and not address <= int(m.group(1), 16) < at:
-            return out
+        if m and not address <= int(m.group(1), 16) < at and not at < int(m.group(1), 16) <= at + 16:
+            return out  # a tail jump; a short jump forward over alignment filler stays inside
     raise Manual('no end')
 
 
@@ -119,7 +119,7 @@ def translate(address):
             lines.append(f'L_{at:08x}:')
         mnem, _, rest = text.partition(' ')
         ops = [o.strip() for o in re.split(r',(?![^\[]*\])', rest)] if rest else []
-        if mnem == 'lea' and re.fullmatch(r'esp,\[esp\+0x0\]|ebx,\[ebx\+0x0\]', rest.replace(' ', '')):
+        if mnem == 'lea' and re.fullmatch(r'(esp,\[esp|ebx,\[ebx|ecx,\[ecx)\+0x0\]', rest.replace(' ', '')):
             continue  # alignment filler
         if mnem == 'push' and ops[0] in REG32 and not started:
             saved.append(ops[0])
@@ -159,8 +159,12 @@ def translate(address):
             else:
                 lines.append(f'eax = call_regs(0x{target:08x}, {{eax, ebx, ecx, edx, esi, edi}}{stack_args(pushes)});')
             pushes = []
+        elif mnem == 'cmp' and (ops[0] in REG8 or ops[0] in REG32):
+            lines.append(f'zf = {operand(ops[0])} == {operand(ops[1], size_of(ops[0]))};')
         elif mnem == 'jne' and int(ops[0], 16) in targets:
             lines.append(f'if (!zf) goto L_{int(ops[0], 16):08x};')
+        elif mnem == 'jmp' and int(ops[0], 16) in targets:
+            lines.append(f'goto L_{int(ops[0], 16):08x};')
         elif mnem == 'jmp' and int(ops[0], 16) not in targets:
             target = int(ops[0], 16)
             lines.append(f'call_regs(0x{target:08x}, {{eax, ebx, ecx, edx, esi, edi}}{stack_args(pushes)});')
@@ -284,6 +288,10 @@ const size_t kStaticInitializerCount = sizeof(kStaticInitializers) / sizeof(kSta
 }  // namespace game
 '''
     OUT.write_text(head + '\n'.join(generated) + tail)
+    # own engine host 0.2: the output reaches our C by symbol where it exists (as gen_functors.py does)
+    for own_pass in ([], ['--values'], ['--helpers']):
+        subprocess.run([sys.executable, str(Path(__file__).with_name('own_calls.py')), *own_pass, '--generated',
+                        '--only', 'static_init_generated.cpp'], check=True)
 
 
 main()

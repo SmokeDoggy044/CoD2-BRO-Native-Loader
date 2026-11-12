@@ -29,6 +29,9 @@ ScriptString* XB_CDECL ScriptString_FromCStringPlusVec(ScriptString* out, const 
 // 0x0011bdc0 (thiscall, callee pops 4): the hash map stored under key 0x4fcdc42e in the key table
 // at self - 0x14 (0x0052f900: a copy, or a new empty map when the key is missing). Returns out.
 uint8_t* XB_THISCALL BroScr_GetMap_h4fcdc42e(uint8_t* self, uint8_t* out);
+// 0x0011d0d0 (thiscall, gap, m3 recording 11-12): the value slot (node + 0xc) of `key` in the map under key
+// 0x4fcdc42e of the key table at self - 0x14 (0x004e9b30), inserted as 0 when missing.
+uint32_t* XB_THISCALL BroScr_MapSlot_h4fcdc42e(uint8_t* self, uint32_t key);
 // 0x0011f180: fills the import block's ScriptKeyTable callbacks (+4 FromPairs, +8 Delete,
 // +0xc 0x0011e800, +0x10 Clone); returns the block.
 uint32_t* XB_CDECL BroRuntime_SetImportCallbacks(uint32_t* block);

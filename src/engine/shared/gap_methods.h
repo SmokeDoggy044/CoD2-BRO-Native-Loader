@@ -112,6 +112,7 @@ uint32_t* XB_CDECL cdSimpleAlphaVertexIter_Ctor(uint32_t* iter);  // 0x0004a860
 uint32_t* XB_CDECL cdPropellerVertexIter_Ctor(uint32_t* iter);  // 0x0004b080
 uint32_t* XB_CDECL cdDecalVertexIter_Ctor(uint32_t* iter);  // 0x0004b840
 uint32_t* XB_CDECL cdCharVertexIter_Ctor(uint32_t* iter);  // 0x0004bf60
+uint32_t* XB_CDECL cdPrelitVertexIter_Ctor(uint32_t* iter);  // 0x0004c680
 uint32_t* XB_CDECL cdAirplaneMetalVertexIter_Ctor(uint32_t* iter);  // 0x0004cbb0
 uint32_t* XB_CDECL cdSimpleUVAnimVertexIter_Ctor(uint32_t* iter);  // 0x0004d880
 uint32_t* XB_CDECL cdSimplePrelitVertexIter_Ctor(uint32_t* iter);  // 0x0004df50
@@ -132,6 +133,7 @@ uint32_t XB_CDECL apsTypeTag_AlFd();  // 0x000a48c0
 uint32_t XB_CDECL apsTypeTag_AFIO();  // 0x000a48d0
 uint32_t XB_CDECL apsTypeTag_RFIO();  // 0x000a48e0
 uint32_t XB_CDECL apsTypeTag_LnSc();  // 0x000a48f0
+uint32_t XB_CDECL apsTypeTag_MFxV();  // 0x000a4990
 uint32_t XB_CDECL apsTypeTag_ExSc();  // 0x000a4900
 uint32_t XB_CDECL apsTypeTag_LScW();  // 0x000a4910
 uint32_t XB_CDECL apsTypeTag_LScH();  // 0x000a4930

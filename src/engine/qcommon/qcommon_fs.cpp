@@ -7562,6 +7562,19 @@ void XB_CDECL SV_MapRestartInternal_f() {
     title_global<uint8_t>(0x0095f508) = 1;
 }
 
+void XB_CDECL SV_MapRestartCheck_f() {
+    title_global<uint8_t>(0x0095f678) = 0;
+    title_global<uint8_t>(0x0095f679) = 0;
+    title_global<uint8_t*>(0x0095f4e0)[0] = 1;
+    own_function<void XB_STDCALL(uint32_t)>(&Scr_AbortAllThreads)(0x008dd1d8);
+    title_global<uint8_t>(0x0095f919) = 1;
+    uint8_t* const screens = title_global<uint8_t*>(0x0095f8fc);  // the in-game screens
+    *reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(*reinterpret_cast<uint8_t**>(screens + 4) + 0x18) + 0x58) = 2;
+    uint8_t* const again = title_global<uint8_t*>(0x0095f8fc);
+    title_global<uint8_t>(0x0095f508) = 1;
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(*reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(again) + 0xc))(again, 6);
+}
+
 // Loc_ListStringFiles (list in ESI; dir on the stack).
 PLATFORM_ASM_ENTRY(Loc_ListStringFiles_entry,
                    "pushl %esi\n pushl 8(%esp)\n" PLATFORM_ASM_CALL(Loc_ListStringFiles) "addl $8, %esp\n ret")

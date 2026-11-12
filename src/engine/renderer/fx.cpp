@@ -5729,6 +5729,11 @@ void XB_THISCALL FxParticleComponent_ScaleParam(uint8_t* component, const char* 
     FxSystem_SetParamFloat(const_cast<uint8_t*>(fx_system_of(component)), index, platform_x87_mul(value, scale));
 }
 
+void XB_THISCALL FxParticleComponent_Prewarm(uint8_t* component, float time) {
+    uint8_t* const system = *reinterpret_cast<uint8_t**>(*reinterpret_cast<uint8_t**>(component + 0x2c) + 4);
+    if (system) FxSystem_Prewarm(system, time);
+}
+
 uint32_t XB_THISCALL FxParticleComponent_IsDone(const uint8_t* component) {
     if (!((component[0x2a] >> 1) & 1)) return 0;
     if (!owner_alive(component) && !(component[0x10] & 1)) return 1;
