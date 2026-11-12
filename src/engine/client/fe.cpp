@@ -21,6 +21,7 @@
 #include "ui_menu.h"
 #include "ui_panel.h"
 #include "title_xapi.h"
+#include "gap_methods.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -2342,7 +2343,7 @@ uint32_t XB_CDECL UITextLine_Init(uint8_t* line, const char* string, int32_t kin
         void* const block = heap_alloc16(uint32_t(marks) * 4);
         if (block)
             title_vector_construct(
-                block, 4, marks, 0x00011750);  // eh_vector_constructor_iterator
+                block, 4, marks, own_address(&UITextLine_ElementCtor));  // eh_vector_constructor_iterator
         field<void*>(line, 0x18) = block;
         return UITextLine_LayoutTokens(line, scale, button_scale);
     }

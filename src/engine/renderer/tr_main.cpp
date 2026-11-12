@@ -20,6 +20,7 @@
 #include "cg_ents.h"
 #include "fx.h"
 #include "ui_menu.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -855,7 +856,7 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
     if (!(guards & 1)) {
         guards |= 1;
         title_vector_construct(bones, 0x40, 0x20,
-                                                                                      0x0001b920);
+                                                                                      own_address(&Object_ReturnSelf));
     }
     own_function<void XB_CDECL(const XModel*, float*)>(&R_ModelBoneMatrices)(xmodel, bones);
 
@@ -2810,7 +2811,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
         at(0, &nglPopScene);
     }
     at(0, &nglPushScene, 1, kOne);
-    static const uint32_t kOpaqueCallback[] = {0, 0x00045690, 0};
+    static const uint32_t kOpaqueCallback[] = {0, own_address(&R_RenderView_EmptyCallback), 0};
     at(1, &nglSetSceneCallback, 3, kOpaqueCallback);
     const auto cvar_integer = [](uint32_t address) {
         return *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(address) + 0x20);

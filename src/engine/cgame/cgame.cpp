@@ -27,6 +27,7 @@
 #include "nal_anim.h"
 #include "stream.h"
 #include "fe_menus.h"
+#include "gap_methods.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -1755,7 +1756,7 @@ bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint3
     if (!table) {
         // No anim tree: the model entries destroyed (vector_call_iterator, stdcall) and the function returns.
         r.edx = f.s + 0x34;
-        const uint32_t args[4] = {f.s + 0x34, 0x10, 4, 0x0001ec00};
+        const uint32_t args[4] = {f.s + 0x34, 0x10, 4, own_address(&ScriptStringAt4_Release)};
         f.call(0x00283549, own_address(&title_vector_destructor_iterator), r, 4, args);
         return false;
     }
@@ -4499,7 +4500,7 @@ void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp) {
     const uint32_t rec = 0x00975fa8 + weapon * 0xc4;
     regs.esi = rec;
     const uint32_t old = title_global<uint32_t>(rec);
-    const uint32_t destroy[4] = {at(0x18), 0x10, 2, 0x0001ec00};
+    const uint32_t destroy[4] = {at(0x18), 0x10, 2, own_address(&ScriptStringAt4_Release)};
     if (!old || !**reinterpret_cast<const char* const*>(def + 0x14)) {
         title_call_at_regs(frame, own_address(&title_vector_destructor_iterator), &regs, 4, destroy);  // vector_call_iterator (destructors)
         return;

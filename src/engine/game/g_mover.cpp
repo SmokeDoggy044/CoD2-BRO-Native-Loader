@@ -34,6 +34,7 @@
 #include "nal_math.h"
 #include "ngl.h"
 #include "stream.h"
+#include "gap_methods.h"
 
 // 0x002545e0 (phys list): a script mover trajectory's next phase - EAX, ECX, EDX = vectors,
 // XMM1 = the first phase time, cdecl (trajectory, speed, word).
@@ -8038,7 +8039,7 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         ebx = title_global<uint32_t>(0x0092bdf0);  // cls_state
         title_global<uint32_t>(0x0092bdf0) = 1;
         esi = system + 0x14;
-        stack_at(system + 0x35c) = 0x00299780;
+        stack_at(system + 0x35c) = own_address(&SCR_UpdateLoadingIconForced);
         edi = system;
         byte_at(esi) = 0;
         byte_at(system + 0x360) = 0;

@@ -19,6 +19,7 @@
 #include "g_mover.h"
 #include "shaders.h"
 #include "stream.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -1320,7 +1321,7 @@ void XB_CDECL Scn_AddStaticModel(uint32_t zone, uint8_t* inst) {
     if (!(guard & 1)) {
         guard |= 1;
         title_vector_construct(0x0098cbd0, 0x40, 0x40,
-                                                                                         0x0001b920);  // eh_vector_constructor_iterator
+                                                                                         own_address(&Object_ReturnSelf));  // eh_vector_constructor_iterator
     }
     if (bones > 0x40) return;
     float* const matrices = reinterpret_cast<float*>(uintptr_t{0x0098cbd0});
@@ -1489,7 +1490,7 @@ void XB_CDECL Scn_AddModelInstances(uint32_t entry, uint32_t zone, uint8_t* grou
         title_global<uint32_t>(0x0098cbc0) |= 1;
         uint32_t matrix = 0x0098c3c0;
         for (uint32_t n = 0x20; n; --n, matrix += 0x40) {
-            const uint32_t args[4] = {matrix, 0x10, 3, 0x0001b920};
+            const uint32_t args[4] = {matrix, 0x10, 3, own_address(&Object_ReturnSelf)};
             call(F, 0x002d9174, own_address(&title_vector_constructor_iterator), TitleRegs{0, matrix, 0, 0, esi, n}, 4,
                  args);  // eh_vector_constructor_iterator
         }

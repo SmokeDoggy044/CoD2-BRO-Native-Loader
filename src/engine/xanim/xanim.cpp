@@ -14,6 +14,7 @@
 #include "tr_main.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -1868,7 +1869,7 @@ void XB_CDECL XAnim_BuildNotetracks(uint8_t* node) {
         if (memory) {
             memory[0] = 2;
             note = memory + 1;
-            title_vector_construct(note, 0xc, 2, 0x0001dc00);  // eh_vector_constructor_iterator
+            title_vector_construct(note, 0xc, 2, own_address(&ScriptString_DefaultCtor));  // eh_vector_constructor_iterator
         }
         u32_ref(node, 0x28) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(note));
     }

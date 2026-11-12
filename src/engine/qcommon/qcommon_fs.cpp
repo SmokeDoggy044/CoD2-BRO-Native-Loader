@@ -48,6 +48,7 @@
 #include "title_xapi.h"
 #include "title_stdio.h"
 #include "title_eh.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -2766,7 +2767,7 @@ uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self) {
     pk<uint32_t>(self, 0) = 0x00832788;
     const int32_t debug = title_global<int32_t>(0x00988780);
     if (debug < 0x20) {
-        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(debug) * 4) = 0x0001d0d0;
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(debug) * 4) = own_address(&CM_DrawWorldTreesDebugCallback);
         ++title_global<int32_t>(0x00988780);
     }
     pk<uint32_t>(self, 0xc) = 0;
@@ -7352,7 +7353,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     title_global<uint32_t>(0x0095f8f0) = hud ? boot_call(own_address(&HudManager_Create_entry), 0, 0, 0, 0, u32(hud)) : 0;  // HudManager_Create
     boot_call(own_address(&G_AllocWorldEntity_entry), 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f534));
     // The global zone loaded at once, with 0x00299780 as the pak's callback (+0x35c) meanwhile.
-    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0x00299780;
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = own_address(&SCR_UpdateLoadingIconForced);
     const uint32_t load_args[6] = {0, 0x00837cd4, 0, 0, 0, 0};  // "sp\global.cod", a zero float block
     boot_call(own_address(&Stream_LoadSync), title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
     const uint32_t pad = own_function<uint32_t XB_CDECL()>(&IN_PadCreate)();  // IN_PadCreate

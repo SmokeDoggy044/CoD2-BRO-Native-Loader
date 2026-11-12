@@ -25,6 +25,7 @@
 #include "bro_scr_vehicle_riders.h"
 #include "bro_scr_wait_notify.h"
 #include "g_scr_builtins.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -923,7 +924,7 @@ void plane_wing_turrets(uint32_t* plane_slot, uint32_t* bombs_slot, const WingTu
 
 void XB_CDECL BroScr_PlaneSpawnWingTurrets_50cal(uint32_t plane, uint32_t bombs) {
     // BroScr_WingTurretDamageWatch, StukaPlaneCrash, VehicleFollowPathToEnd, StukaTakeoff, EmptyFunc_3
-    static const WingTurrets kSpec = {{own_address(&BroScr_WingTurretDamageWatch), own_address(&BroScr_StukaPlaneCrash), own_address(&BroScr_VehicleFollowPathToEnd), own_address(&BroScr_StukaTakeoff), 0x00121790}, 0x00824e6c, 0x00824e64, false};
+    static const WingTurrets kSpec = {{own_address(&BroScr_WingTurretDamageWatch), own_address(&BroScr_StukaPlaneCrash), own_address(&BroScr_VehicleFollowPathToEnd), own_address(&BroScr_StukaTakeoff), own_address(&BroScr_EmptyFunc_81)}, 0x00824e6c, 0x00824e64, false};
     plane_wing_turrets(&plane, &bombs, kSpec);  // "mg50cal_air_single", "w_50cal"
 }
 

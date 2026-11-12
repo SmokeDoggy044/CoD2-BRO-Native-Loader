@@ -26,6 +26,7 @@
 #include "g_utils.h"
 #include "ui_menu.h"
 #include "title_xapi.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -568,7 +569,7 @@ uint8_t* XB_CDECL CL_InitInput() {
         {0x00835094, own_address(&IN_StrafeUp)}, {0x00835088, own_address(&IN_MoveleftDown)}, {0x0083507c, own_address(&IN_MoveleftUp)},
         {0x00835070, own_address(&IN_MoverightDown)}, {0x00835064, own_address(&IN_MoverightUp)}, {0x0082dfa8, own_address(&IN_SpeedDown)},
         {0x0083505c, own_address(&IN_SpeedUp)}, {0x0082d6ac, own_address(&IN_Button0Down)}, {0x00835054, own_address(&IN_Button0Up)},
-        {0x0082d694, 0x002b4720}, {0x0083504c, 0x002b4710}, {0x0082dfc0, own_address(&IN_ActivateDown)},
+        {0x0082d694, own_address(&IN_MeleeDown)}, {0x0083504c, own_address(&IN_MeleeUp)}, {0x0082dfc0, own_address(&IN_ActivateDown)},
         {0x00835040, own_address(&IN_ActivateUp)}, {0x0082d640, own_address(&IN_ReloadDown)}, {0x00835038, own_address(&IN_ReloadUp)},
         {0x0082be38, own_address(&IN_LeanLeftDown)}, {0x0083502c, own_address(&IN_LeanLeftUp)}, {0x0082be5c, own_address(&IN_LeanRightDown)},
         {0x00835020, own_address(&IN_LeanRightUp)}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},

@@ -9,6 +9,7 @@
 #include "qcommon_core.h"
 #include "title_data.h"
 #include "title_crt.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -6040,12 +6041,12 @@ void XB_CDECL Phys_Init() {
     PhysWorld_SetParams14(4, 4, 0x4138f5c3u);
     PhysWorld_SetParams20(4, 8, 0x43908000u);
     PhysWorld_SetField2C(0x430d9c29u);
-    PhysWorld_SetCallbackC(0x00233c30);
+    PhysWorld_SetCallbackC(own_address(&Phys_RagdollStepCallback));
     const uint32_t callbacks[2] = {own_address(&Ragdoll_BodyToPose), own_address(&Ragdoll_PoseToBody)};  // Ragdoll_BodyToPose, Ragdoll_PoseToBody
     Phys_SetBoneCallbacks(callbacks);
     const int32_t count = title_global<int32_t>(0x00988780);
     if (count < 0x20) {
-        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(count) * 4) = 0x00225370;
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(count) * 4) = own_address(&Phys_EmptyCallback);
         ++title_global<int32_t>(0x00988780);
     }
 }

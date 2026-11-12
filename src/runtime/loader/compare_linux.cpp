@@ -1189,11 +1189,16 @@ uint32_t instruction_length(const uint8_t* code) {
     return 0;
 }
 
-// A function that returns within its first five bytes (ret / ret N): too short for a jump.
+// A function that returns within its first five bytes (ret / ret N) and is followed by something other than INT3
+// padding before byte 5: too short for a jump (it would overwrite the next function). Padding is free.
 bool ends_within_jump(uint32_t address) {
     const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{address});
     for (uint32_t at = 0; at < 5;) {
-        if (code[at] == 0xC3 || code[at] == 0xC2) return true;
+        if (code[at] == 0xC3 || code[at] == 0xC2) {
+            for (uint32_t pad = at + (code[at] == 0xC3 ? 1 : 3); pad < 5; ++pad)
+                if (code[pad] != 0xCC) return true;
+            return false;
+        }
         const uint32_t length = instruction_length(code + at);
         if (!length) return false;
         at += length;

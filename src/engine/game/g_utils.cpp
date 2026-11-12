@@ -31,6 +31,7 @@
 #include "title_data.h"
 #include "phys.h"
 #include "pmove.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -3721,7 +3722,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
             combine(p, p + 4, p + 8, v[0], v[1], v[2], rows + i * 4, 4);
         }
         {
-            const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
+            const uint32_t args[4] = {F + 0x80, 0x10, 3, own_address(&Object_ReturnSelf)};
             bone_call(F, 0x002dee29, own_address(&title_vector_constructor_iterator), TitleRegs{record, P, F + 0x80, record, skeleton, skeleton}, 4,
                       args);  // eh_vector_constructor_iterator (no-op constructor)
         }
@@ -3752,7 +3753,7 @@ void XB_CDECL G_DObjSetBoneRotation(uint32_t entry, uint32_t ebx, uint32_t esi, 
         for (uint32_t i = 0; i < 3; ++i) combine(r0, r1, r2, A[i][0], A[i][1], A[i][2], rows + i * 4, 4);
         bone_word(F + 0xbc) = M;
         {
-            const uint32_t args[4] = {F + 0x80, 0x10, 3, 0x0001b920};
+            const uint32_t args[4] = {F + 0x80, 0x10, 3, own_address(&Object_ReturnSelf)};
             bone_call(F, 0x002df22d, own_address(&title_vector_constructor_iterator), TitleRegs{record, record, F + 0x80, record, skeleton, M}, 4,
                       args);  // eh_vector_constructor_iterator (no-op constructor)
         }

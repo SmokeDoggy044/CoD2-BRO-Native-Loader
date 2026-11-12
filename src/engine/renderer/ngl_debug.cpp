@@ -9,6 +9,7 @@
 #include "title_crt.h"
 #include "title_data.h"
 #include "qcommon_core.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -640,7 +641,7 @@ void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t
             }
             alignas(16) float block[12];
             title_vector_construct(  // eh_vector_constructor_iterator
-                block, 0x10, 3, 0x0001b920);
+                block, 0x10, 3, own_address(&Object_ReturnSelf));
             std::memcpy(block, rows, 48);
             std::memcpy(out + i * 16, block, 48);
             const Lanes t = add(add(add(lanes(inverse + 12), mul(lanes(inverse), m[3].v[0])),

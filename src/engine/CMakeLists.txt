@@ -89,6 +89,7 @@ set(game_code_sources
     client/fe_setup_special.cpp
     client/fe_special.cpp
     shared/functions.cpp
+    shared/gap_methods.cpp
     shared/title_crt.cpp
     shared/title_eh.cpp
     shared/static_init.cpp

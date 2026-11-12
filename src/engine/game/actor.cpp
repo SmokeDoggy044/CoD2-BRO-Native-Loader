@@ -35,6 +35,7 @@
 #include "stream.h"
 #include "title_xapi.h"
 #include "title_crt.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -13018,7 +13019,7 @@ void XB_CDECL Actor_UpdateSight(uint32_t entry, uint32_t esi, uint32_t edi, uint
                         nullptr);  // Sentient_NextOfTeams (EAX previous, EDI mask)
         } while (s);
         if (n > 1) {
-            const uint32_t args[4] = {B + 0x28, uint32_t(n), 8, 0x001fa990};
+            const uint32_t args[4] = {B + 0x28, uint32_t(n), 8, own_address(&Actor_CompareSightEntries)};
             call_at(B - 4, 0x0021373b, own_address(&title_qsort), TitleRegs{B + 0x28, addr_of(own), 0, 0, mask, mask}, 4, args);  // _qsort
         }
     }

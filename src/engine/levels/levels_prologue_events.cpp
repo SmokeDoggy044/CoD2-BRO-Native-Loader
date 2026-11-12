@@ -15,6 +15,7 @@
 #include "levels_prologue_bodies_a.h"
 #include "levels_templates.h"
 #include "g_scr_builtins.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -334,7 +335,7 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0xd553f35a: case 0xd66dcf8c: case 0xdd7e1820: case 0xde065107: case 0xe223aad3: case 0xe2c9ccdd:
     case 0xe5f891d2: case 0xea4a313a: case 0xec070be6: case 0xec5d0f65: case 0xee367afa: case 0xee885a52:
     case 0xf3b8dce5: case 0xf56955a1: case 0xfa9a8384: case 0xfbac8485: case 0xfd6181bd:
-        types(a, b, c, d, 0x0011da60, 0x00458f30, 0x0011da70, 0x00458ec0);
+        types(a, b, c, d, own_address(&Scr_AtolThunk), 0x00458f30, 0x0011da70, 0x00458ec0);
         return;
     case 0x0038b194: case 0x00398ae8: case 0x05374cc6: case 0x0726affb: case 0x07c43e15: case 0x095a5675:
     case 0x0ca29c7f: case 0x0ccee5c1: case 0x0d60d0ae: case 0x0d60fb3d: case 0x175567a8: case 0x1de0c645:

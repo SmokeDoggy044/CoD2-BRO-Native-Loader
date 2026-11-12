@@ -17,6 +17,7 @@
 #include "xgraphics.h"
 #include "title_xapi.h"
 #include "title_heap.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -2638,7 +2639,7 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
         guards |= 1;
         for (int i = 0; i < 64; ++i)
             title_vector_construct(matrices + i * 12, 0x10, 3,
-                                                                                          0x0001b920);
+                                                                                          own_address(&Object_ReturnSelf));
     }
     const float* mesh_bones = *reinterpret_cast<float* const*>(node->mesh + 0x14);
     const uint32_t* params = node->params;

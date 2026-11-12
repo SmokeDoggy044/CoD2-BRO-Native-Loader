@@ -29,6 +29,7 @@
 #include "fx.h"
 #include "ui_menu.h"
 #include "bro_scr_brofunc.h"
+#include "gap_methods.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -1523,7 +1524,7 @@ void XB_CDECL G_LoadLevelScriptModule(uint32_t entry) {
     auto stack = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };
     title_global<uint32_t>(0x00927160) = own_address(&BroFunc_Clear);  // BroFunc_Clear
     title_global<uint32_t>(0x00927164) = own_address(&BroFunc_Register);  // BroFunc_Register
-    title_global<uint32_t>(0x009270d0) = 0x002f5130;
+    title_global<uint32_t>(0x009270d0) = own_address(&G_LevelScriptEmptyCallback);
     const TitleRegs entry_regs{module, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(memory)), 0, name, 0};
     const uint32_t args[2] = {0x0095f49c, 0x009270d0};
     const uint32_t main = title_call_at_regs(entry - 4, module, &entry_regs, 2, args);
