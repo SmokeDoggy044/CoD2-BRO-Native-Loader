@@ -21,6 +21,7 @@ void XB_THISCALL UITextBase_SetField58(uint8_t* self, uint32_t value);  // 0x000
 float XB_THISCALL UITextBase_GetFloat38(uint8_t* self);  // 0x00011610
 uint32_t XB_THISCALL UITextBase_GetField18(uint8_t* self);  // 0x00011640
 uint32_t* XB_THISCALL UITextBase_GetField50(uint8_t* self, uint32_t* out);  // 0x00011650
+void XB_THISCALL UITextBase_SetField50(uint8_t* self, uint32_t value);  // 0x003159a0
 float XB_THISCALL UITextBase_GetFloat2C(uint8_t* self);  // 0x00011690
 uint8_t XB_THISCALL UITextBase_TestFlags5C(uint8_t* self, uint32_t mask);  // 0x000116a0
 uint8_t* XB_THISCALL UITextLine_ElementCtor(uint8_t* self);  // 0x00011750

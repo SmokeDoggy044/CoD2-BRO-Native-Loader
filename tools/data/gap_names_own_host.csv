@@ -132,3 +132,4 @@ address,name
 000d7eb7,UIX_CLogonFeature_Ctor
 000da10c,UIX_CPlayersFeature_Ctor
 000dc527,UIX_CVoiceMailPseudoFeature_Ctor
+003159a0,UITextBase_SetField50

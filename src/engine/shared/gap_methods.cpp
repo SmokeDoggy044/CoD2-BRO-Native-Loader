@@ -81,6 +81,12 @@ uint32_t* XB_THISCALL UITextBase_GetField50(uint8_t* self, uint32_t* out) {
     return out;
 }
 
+// 0x003159a0 (vtable slot 36): the +0x50 word, then flag bit 3 cleared and bit 0 (changed) set.
+void XB_THISCALL UITextBase_SetField50(uint8_t* self, uint32_t value) {
+    word<uint32_t>(self, 0x50) = value;
+    self[0x5c] = static_cast<uint8_t>((self[0x5c] & 0xf7) | 1);
+}
+
 float XB_THISCALL UITextBase_GetFloat2C(uint8_t* self) {
     return word<float>(self, 0x2c);
 }

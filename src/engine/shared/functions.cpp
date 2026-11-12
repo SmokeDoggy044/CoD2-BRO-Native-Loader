@@ -9336,6 +9336,7 @@ const Function kFunctions[] = {
     {"UI_TranslateButtonToken", 0x00315620, 0, code(&UI_TranslateButtonToken_entry), 0, Result::Eax, Status::Replaced},
     {"UITextLine_Dtor", 0x003158a0, 0, code(&UITextLine_Dtor), 0, Result::None, Status::Replaced},
     {"UITextLine_Construct", 0x003158d0, 0, code(&UITextLine_Construct), 0, Result::Eax, Status::Compare},
+    {"UITextBase_SetField50", 0x003159a0, 0, code(&UITextBase_SetField50), 4, Result::None, Status::Compare},  // was FUN_003159a0 (gap)
     {"UITextBase_CopyFrom", 0x003159c0, 0, code(&UITextBase_CopyFrom), 4, Result::None, Status::Replaced},
     {"UIText_Init", 0x00315b10, 0, code(&UIText_Init_entry), 40, Result::Eax, Status::Replaced},
     {"UIText_FadeColour", 0x00315cd0, 0, code(&UIText_FadeColour_entry), 4, Result::Eax, Status::Replaced},
