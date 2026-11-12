@@ -48,6 +48,9 @@ extern "C" void NAL_Clip_FindFloat3Channel_entry(void);
 // float per channel (+0x7c). Returns the weights.
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimWeights_Construct(uint8_t* weights, uint8_t* generic);
 extern "C" void AnimWeights_Construct_entry(void);
+// 0x0001ce00 (vtable 0x00832758 slot 0): the vtable, Mem_AlignedFree of +8, Z_Free with flags bit 0. Returns the
+// weights.
+uint8_t* XB_THISCALL AnimWeights_DeletingDtor(uint8_t* weights, uint32_t flags);
 // 0x0001dc10 (this in EBX, kind in EAX, name in ECX, blend-in time in XMM0; callee pops 4):
 // the script for the entity named like `name` (or the camera), with its clip's root and
 // pelvis channels and channel weights.

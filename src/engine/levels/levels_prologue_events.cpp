@@ -380,7 +380,7 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0xe33cb884: case 0xe5d3774f: case 0xe5d3a68d: case 0xe6f61fa4: case 0xe6f61fa7: case 0xe86f599a:
     case 0xec02fc10: case 0xec05b8e0: case 0xec099bbc: case 0xec0b8919: case 0xec0bd591: case 0xec2bcfdd:
     case 0xf203df5e: case 0xf8cb7452: case 0xff7c2a57:
-        types(a, b, c, d, own_address(&ScriptString_NewRepFromCString), 0x00458e70, 0x0011dac0, 0x0045bc10);  // ScriptString_NewRepFromCString, FUN_00458e70
+        types(a, b, c, d, own_address(&ScriptString_NewRepFromCString), 0x00458e70, own_address(&ScriptString_EqualsValue), 0x0045bc10);  // ScriptString_NewRepFromCString, FUN_00458e70
         return;
     case 0x12993a44:
         types(a, b, c, d, 0, 0x0045bc20, 0, 0x0045bc80);  // FUN_0045bc20

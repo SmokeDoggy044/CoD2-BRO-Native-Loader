@@ -219,6 +219,15 @@ extern "C" void Scr_RunThreads_entry(void);
 
 // 0x000142c0: ScrWaitRecord_Dtor (ESI = self), then SmallHeap_Free on 0x0095f494 when flags & 1.
 uint8_t* XB_THISCALL ScrWaitRecord_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00013d60 (slot 0 of the wait records' base vtable 0x008317e4 and of the frame / time records): the base vtable,
+// then SmallHeap_Free on 0x0095f494 when flags & 1. Returns self.
+uint8_t* XB_THISCALL ScrWaitBase_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x002f5620 (vtable 0x00831808 slot 1, one unread word): the frame count +0x14 decremented; at 0 or below the done
+// byte +0xc set and 2 returned, else 0.
+uint32_t XB_THISCALL ScrWaitFramesRecord_Check(uint8_t* self, uint32_t unused);
+// 0x002f6400 (vtable 0x00831824 slot 1, one unread word): the time +0x14 less the frame time 0x008ddaa0; at 0 or below
+// the done byte +0xc set and 2 returned, else 0 (also for NaN).
+uint32_t XB_THISCALL ScrWaitTimeRecord_Check(uint8_t* self, uint32_t unused);
 // 0x000147e0 (EAX = handle table, EBX = out): takes the first free bit of the 256-bit set at
 // the table's start and writes the handle (generation at +0x24 + index * 8, << 8 | index).
 // None free: ScrThread_HandlesExhausted, index -1.

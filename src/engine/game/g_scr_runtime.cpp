@@ -1454,6 +1454,27 @@ void XB_CDECL Scr_RunThreads(uint32_t entry, uint8_t* scheduler, float frame_tim
     }
 }
 
+uint8_t* XB_THISCALL ScrWaitBase_DeletingDtor(uint8_t* self, uint32_t flags) {
+    *reinterpret_cast<uint32_t*>(self) = 0x008317e4;
+    if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f494), self);
+    return self;
+}
+
+uint32_t XB_THISCALL ScrWaitFramesRecord_Check(uint8_t* self, uint32_t) {
+    int32_t& frames = *reinterpret_cast<int32_t*>(self + 0x14);
+    if (--frames > 0) return 0;
+    self[0xc] = 1;
+    return 2;
+}
+
+uint32_t XB_THISCALL ScrWaitTimeRecord_Check(uint8_t* self, uint32_t) {
+    float& time = *reinterpret_cast<float*>(self + 0x14);
+    time = time - title_global<float>(0x008ddaa0);
+    if (!(time <= 0.0f)) return 0;
+    self[0xc] = 1;
+    return 2;
+}
+
 uint8_t* XB_THISCALL ScrWaitRecord_DeletingDtor(uint8_t* self, uint32_t flags) {
     title_call_regs(own_address(&ScrWaitRecord_Dtor_entry), 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self)), 0);  // ScrWaitRecord_Dtor (ESI)
     if (flags & 1) SmallHeap_Free(title_global<uint8_t*>(0x0095f494), self);

@@ -3783,6 +3783,12 @@ PLATFORM_ASM_ENTRY(Spg_FindRandomVariant_entry,
                    "pushl %edx\n" PLATFORM_ASM_CALL(Spg_FindRandomVariant) "addl $12, %esp\n"
                    "ret $4")
 
+uint32_t XB_CDECL Spg_GetRandomVariant(uint32_t key) {
+    uint32_t out[3];
+    Spg_FindRandomVariant(title_global<const uint8_t*>(0x0095f564), out, key);  // rm_spg
+    return out[0];
+}
+
 void XB_CDECL Spg_FindRandomVariant(const uint8_t* table, uint32_t* out, uint32_t key) {
     // 32 slots of 12 bytes from table + 4 (id, -1 = empty; set +8): the first set whose map (+8,
     // UintMap_Find) has `key` and whose list (+0x14, count +0x10, index >= count reads 0) holds an

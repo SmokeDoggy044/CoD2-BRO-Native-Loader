@@ -2336,7 +2336,7 @@ uint8_t* XB_REGS1 XB_CDECL SpgManager_Construct(uint8_t* self) {
         pk<int32_t>(self, 4 + i * 12) = -1;
         pk<uint32_t>(self, 12 + i * 12) = 0;
     }
-    title_global<uint32_t>(0x00909940) = 0x002ae1b0;
+    title_global<uint32_t>(0x00909940) = own_address(&Spg_GetRandomVariant);
     return self;
 }
 

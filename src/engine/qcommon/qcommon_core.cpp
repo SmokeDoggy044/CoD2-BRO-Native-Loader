@@ -2582,6 +2582,24 @@ uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
     return manager_deleting_dtor(self, 0x0083ce3c, flags);
 }
 
+void XB_THISCALL HeapAllocator_Free(uint8_t* self, uint8_t* mem, uint32_t) {
+    Heap_FreeIn(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self + 8)), mem);
+}
+
+void XB_THISCALL ResourceManager_ReleaseSlot(uint8_t* self, int32_t index) {
+    uint32_t& slot = *reinterpret_cast<uint32_t*>(self + 4 + index * 4);
+    if (!slot) return;
+    const uint32_t vtable = *reinterpret_cast<const uint32_t*>(self);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(*reinterpret_cast<const uint32_t*>(uintptr_t{vtable + 8}))(
+        self, slot);
+    slot = 0;
+}
+
+void XB_THISCALL ResourceManager_OnZoneRemoved(uint8_t* self, uint32_t zone) {
+    if (*reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f638) + 0x34}) == zone)
+        *reinterpret_cast<uint32_t*>(self + 0x194) = 0;
+}
+
 uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags) {
     uint8_t* const block = pointer_at<uint8_t>(self, 4);
     word_at(self, 0) = 0x008376c4;  // HeapAllocator vtable

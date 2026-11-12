@@ -535,6 +535,11 @@ void sample_between(const uint8_t* track, const uint8_t* own, const FramePair& p
 
 }  // namespace
 
+void XB_THISCALL NAL_AnimTrack_SampleNoFlags(uint8_t* track, float time, float previous, AnimState* dst,
+                                             const AnimState* src, int32_t min_level) {
+    NAL_AnimTrack_Sample(track, time, previous, dst, src, min_level, 0);
+}
+
 void XB_THISCALL NAL_AnimTrack_Sample(uint8_t* track, float time, float previous, AnimState* dst, const AnimState* src,
                                       int32_t min_level, uint32_t flags) {
     const uint8_t* clip = *reinterpret_cast<uint8_t* const*>(track + 0x10);
@@ -964,6 +969,11 @@ void fixup_groups(uint8_t* clip, uint32_t count_at, uint32_t records_at, uint32_
 }
 
 }  // namespace
+
+uint32_t XB_THISCALL NAL_GenericAnim_Register(uint8_t* clip) {
+    using FindOrAdd = uint32_t XB_THISCALL(uint32_t, uint8_t*, uint8_t*);
+    return own_function<FindOrAdd>(&ShaderCache_FindOrAdd)(0x00903fe0, clip + 8, clip);
+}
 
 uint32_t XB_THISCALL NAL_GenericAnim_Init(uint8_t* clip) {
     auto field = [clip](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(clip + offset); };

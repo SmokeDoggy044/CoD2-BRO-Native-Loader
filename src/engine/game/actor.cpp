@@ -3226,6 +3226,13 @@ const uint8_t* node_of(uint16_t handle) {
 // original's frame address (entry - 0x800) and every title callee runs where the original's
 // call puts it (frame E - 0x810 after `sub esp,0x804` and three pushes), with its registers
 // and its return address written back. The C frame is below a gap; EBP is saved there too.
+int32_t XB_CDECL CoverCandidate_CompareScore(const float* a, const float* b) {
+    const float d = a[1] - b[1];
+    if (0.0f > d) return -1;
+    if (d > 0.0f) return 1;
+    return 0;
+}
+
 PLATFORM_ASM_ENTRY(Actor_GatherCoverCandidates_entry,
                    "movl %esp, %edx\n"
                    GAME_GAP_ESP("0x20000")
@@ -3294,7 +3301,7 @@ void XB_CDECL Actor_GatherCoverCandidates(uint32_t entry, uint8_t* actor, uint32
         }
     }
     {
-        const uint32_t args[4] = {list_address, uint32_t(count), 8, 0x001fbe60};
+        const uint32_t args[4] = {list_address, uint32_t(count), 8, own_address(&CoverCandidate_CompareScore)};
         const TitleRegs regs = {0, self, list_address, 0, uint32_t(uintptr_t(entry_word)), uint32_t(count)};
         title_call_at_regs(frame, own_address(&title_qsort), &regs, 4, args);  // qsort
         returned_to(frame - 0x14, 0x001fff3a);

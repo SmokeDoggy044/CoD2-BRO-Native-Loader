@@ -2638,6 +2638,43 @@ PLATFORM_ASM_ENTRY(NAL_SkipActiveChannelBlocks_entry,
 
 uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context) { return skip_sized_blocks(context); }
 
+uint32_t XB_STDCALL NAL_ChannelClass_ReadCursors_VFunc(uint32_t, const uint32_t* second, const uint32_t* third) {
+    const volatile uint32_t* const a = third;
+    const volatile uint32_t* const b = second;
+    (void)*a;
+    (void)*b;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(third));
+}
+
+namespace {
+
+using CopyState = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+using SixWords = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+}  // namespace
+
+uint32_t XB_THISCALL NAL_Float3_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_Float3_CopyState)(group, dst, src);
+}
+
+uint32_t XB_THISCALL NAL_Quat_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_Quat_CopyState)(group, dst, src);
+}
+
+uint32_t XB_THISCALL NAL_PosOri_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_PosOri_CopyState)(group, dst, src);
+}
+
+uint32_t XB_THISCALL NAL_Entropy_SkipStatic_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                  uint32_t a5, uint32_t a6) {
+    return own_function<SixWords>(&NAL_Entropy_SkipStatic)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_EntropyTrajPosOri_ApplyWraps_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3,
+                                                            uint32_t a4, uint32_t a5, uint32_t a6) {
+    return own_function<SixWords>(&NAL_EntropyTrajPosOri_ApplyWraps)(a1, a2, a3, a4, a5, a6);
+}
+
 uint32_t XB_STDCALL NAL_SkipActiveChannelBlocks_VFunc(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t,
                                                       uint32_t) {
     return NAL_SkipActiveChannelBlocks(context);

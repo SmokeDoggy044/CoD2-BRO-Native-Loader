@@ -534,6 +534,20 @@ extern "C" void NAL_SkipActiveChannelBlocks_entry(void);
 // 0x00022ba0 (a virtual function, pointer at 0x008326d4; stdcall, 6 arguments): NAL_SkipActiveChannelBlocks(context).
 uint32_t XB_STDCALL NAL_SkipActiveChannelBlocks_VFunc(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t,
                                                       uint32_t);
+// 0x00022bc0 (the next slot of the same table, 0x008326e0; stdcall, 3 arguments): reads the words at the second and
+// third arguments (an emptied body) and returns the third argument.
+uint32_t XB_STDCALL NAL_ChannelClass_ReadCursors_VFunc(uint32_t, const uint32_t* second, const uint32_t* third);
+// Channel class slot wrappers (thiscall on the class, which they do not read; arguments passed on, the callee's result
+// returned): slot 14 0x0007ea50 / 0x00081f30 / 0x00082940 -> NAL_Float3_CopyState / NAL_Quat_CopyState /
+// NAL_PosOri_CopyState; slot 11 0x00081eb0 -> NAL_Entropy_SkipStatic (all six words pushed), 0x00083350 ->
+// NAL_EntropyTrajPosOri_ApplyWraps.
+uint32_t XB_THISCALL NAL_Float3_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+uint32_t XB_THISCALL NAL_Quat_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+uint32_t XB_THISCALL NAL_PosOri_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+uint32_t XB_THISCALL NAL_Entropy_SkipStatic_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                  uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_EntropyTrajPosOri_ApplyWraps_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3,
+                                                            uint32_t a4, uint32_t a5, uint32_t a6);
 
 // 0x0008cc40 (a in ECX, b in EAX; out, t, 1 - t): the blend of two 0x50-byte IK-spin
 // records into out by their IK weights (+0x3c): spin quaternions (+0, +0x10) slerped and

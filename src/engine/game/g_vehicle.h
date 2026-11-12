@@ -25,6 +25,11 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FreeDefs();
 // bg_weaponDefs[index], name "" hashed, string fields (type 0) set to "".
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL BG_AllocWeaponDef(uint32_t index, const uint32_t* fields, int32_t count);
 extern "C" void BG_AllocWeaponDef_entry(void);
+// 0x002b5e80 (the weapon def parser's string field callback): *out = text, or "" (0x0095f4dd) for an empty text.
+// Returns out for an empty text, else text.
+uint32_t XB_CDECL WeaponDef_SetStringField(const char** out, const char* text);
+// 0x00248830 (the vehicle def parser's string field callback): strcpy(dst, src). Returns src past its terminator.
+const char* XB_CDECL VehicleDef_CopyStringField(char* dst, const char* src);
 // 0x00226720 (stdcall vehicle physics record): the eight wheel bones (names 0x008db414) in
 // +0..+0x1c, each found one's base pose as a 4x4 at +0x220 + 0x40 * i. Returns 8.
 int32_t XB_STDCALL Vehicle_InitWheelTags(int32_t* vehicle);
@@ -440,6 +445,8 @@ extern "C" void ClientThink_real_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi,
                                                               uint32_t ebp);
 extern "C" void Player_GetUseList_entry(void);
+// 0x00248aa0 (Player_GetUseList's qsort comparator, {entity, score} pairs): (int)(a score - b score), truncated.
+int32_t XB_CDECL UseList_CompareScore(const float* a, const float* b);
 // 0x00265c10 (EAX fire record; cdecl ent): the melee trace, damage, impact event and rumble.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Weapon_MeleeTrace(uint32_t entry_esp, uint8_t* fire, uint32_t ebx, uint32_t esi,
                                                           uint32_t edi, uint32_t ebp);

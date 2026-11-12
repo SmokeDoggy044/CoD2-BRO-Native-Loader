@@ -590,6 +590,13 @@ uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags);
 // 0x00024400: Z_Free of the block (+4) under the HeapAllocator vtable, then the base vtable 0x0083760c and
 // Z_Free of the allocator with flags bit 0.
 uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00293020 (HeapAllocator vtable slot 2; the second argument unused): Heap_FreeIn(the heap at +8, mem).
+void XB_THISCALL HeapAllocator_Free(uint8_t* self, uint8_t* mem, uint32_t unused);
+// 0x00025200 (a slot shared by the resource managers' vtables): the object in slot `index` (+4 + index * 4), when set,
+// handed to vtable +8 (with the manager) and the slot cleared.
+void XB_THISCALL ResourceManager_ReleaseSlot(uint8_t* self, int32_t index);
+// 0x002b1170 (ResourceManager vtable slot 1): +0x194 cleared when zone is the stream system's (0x0095f638) +0x34.
+void XB_THISCALL ResourceManager_OnZoneRemoved(uint8_t* self, uint32_t zone);
 // 0x00013840: ProfileSave_Dtor (0x003124f0), then Z_Free with flags bit 0.
 uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags);
 // 0x00094120 (slot 1 of the aligned allocator table 0x007c4d90; this unused): 0 for size 0, else

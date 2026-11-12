@@ -1813,6 +1813,39 @@ void XB_CDECL ZoneManagers_Destruct(uint8_t* self) {
     ResourceManager_Destruct(self);
 }
 
+void XB_THISCALL ZoneManagers_OnZoneRemoved(uint8_t* self, uint32_t zone) {
+    const uint32_t entry = word_at<uint32_t>(self, 0x58);
+    if (entry && *reinterpret_cast<const uint32_t*>(uintptr_t{entry + 8}) == zone) word_at<uint32_t>(self, 0x58) = 0;
+}
+
+namespace {
+
+template <auto Base>
+uint32_t zone_manager_flush(uint8_t* self, uint32_t a1, uint32_t& a2, uint32_t a3) {
+    if (!self[0xa] && !self[8]) return 1;
+    self[0xa] = 0;
+    a2 = 2;  // the original writes its argument slot, then jumps
+    return target_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t), Base>()(self, a1, a2, a3);
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL ZoneTextureManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x00063330>(self, a1, a2, a3);
+}
+
+uint32_t XB_THISCALL ZoneMeshFileManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x000675e0>(self, a1, a2, a3);
+}
+
+uint32_t XB_THISCALL ZoneAnimManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x0008dc40>(self, a1, a2, a3);
+}
+
+uint32_t XB_THISCALL ZoneSkelManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x0008e270>(self, a1, a2, a3);
+}
+
 uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags) {
     ZoneManagers_Destruct(self);
     if (flags & 1) own_function<void XB_CDECL(void*)>(&Z_Free)(self);  // Z_Free

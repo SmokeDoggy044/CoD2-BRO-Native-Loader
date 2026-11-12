@@ -471,7 +471,7 @@ int32_t XB_CDECL S_FindSoundByHash(const char* name) {
         const uint8_t* const bank = title_global<uint8_t*>(base + 0x18);
         const uint8_t* const entries = emitter_word<uint8_t*>(bank, 0x44);
         const auto* const found = static_cast<const uint8_t*>(own_function<Search>(&title_bsearch)(
-            &key, entries, emitter_word<uint32_t>(bank, 0x40), 0x28, title_function<Compare>(0x000c5790)));  // _bsearch
+            &key, entries, emitter_word<uint32_t>(bank, 0x40), 0x28, own_function<Compare>(&SndBank_CompareNames)));  // _bsearch
         if (!found) continue;
         const int32_t index = int32_t(found - entries) / 40;
         if (index == -1) continue;
@@ -957,7 +957,7 @@ void XB_CDECL SndBank_UpdateLoads() {
             snd_at<uint8_t*>(slot, 0x18) = bank;
             snd_at<uint32_t>(slot, 4) = 3;
             own_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(&title_qsort)(  // qsort
-                snd_at<void*>(bank, 0x44), snd_at<uint32_t>(bank, 0x40), 0x28, 0x000c5790);
+                snd_at<void*>(bank, 0x44), snd_at<uint32_t>(bank, 0x40), 0x28, own_address(&SndBank_CompareNames));
         } else if (result < 0) {
             snd_at<uint32_t>(slot, 4) = 3;
             SndBank_Free(snd_at<uint32_t>(slot, 0));
@@ -1309,13 +1309,19 @@ PLATFORM_ASM_ENTRY(SndBank_FindSound_entry, "pushl %esi\n"
                                             "pushl %eax\n" PLATFORM_ASM_CALL(SndBank_FindSound) "addl $8, %esp\n"
                                             "ret")
 
+int32_t XB_CDECL SndBank_CompareNames(uint32_t a, uint32_t b) {
+    b = *reinterpret_cast<const uint32_t*>(uintptr_t{b});
+    a = *reinterpret_cast<const uint32_t*>(uintptr_t{a});
+    return title_stricmp(reinterpret_cast<const char*>(uintptr_t{a}), reinterpret_cast<const char*>(uintptr_t{b}));
+}
+
 int32_t XB_CDECL SndBank_FindSound(const char* name, const uint8_t* bank) {
     using Compare = int32_t XB_CDECL(const void*, const void*);
     using Search = void* XB_CDECL(const void*, const void*, uint32_t, uint32_t, Compare*);
     const uint32_t key = name ? uint32_t(uintptr_t(name)) : 0x0082dfebu;
     const auto* const found = static_cast<const uint8_t*>(own_function<Search>(&title_bsearch)(
         &key, emitter_word<uint8_t*>(bank, 0x44), emitter_word<uint32_t>(bank, 0x40), 0x28,
-        title_function<Compare>(0x000c5790)));  // _bsearch
+        own_function<Compare>(&SndBank_CompareNames)));  // _bsearch
     if (!found) return -1;
     return int32_t(found - emitter_word<uint8_t*>(bank, 0x44)) / 40;
 }
