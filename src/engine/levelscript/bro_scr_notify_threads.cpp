@@ -674,13 +674,14 @@ void gunner_fire_knob(uint32_t ai) {
 
 // Shared body of BroScr_ActorRunToEntIgnoringAll(_2); `flag` is the third argument of slot
 // 0x009226ec (1 / 0).
-void run_to_ent_ignoring_all(uint32_t ai, uint32_t target, uint32_t flag) {
+// third_flag: the third AI flag while running (0x00199120: 1, 0x00199200: 0); both ask the node slot with 1.
+void run_to_ent_ignoring_all(uint32_t ai, uint32_t target, uint32_t third_flag) {
     end_on(ai, kDeath);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
     title_function<StartThread>(0x0045a6d0)(0, 0, 0, 0, own_address(&BroScr_NotifyWhenOtherDies), target,
                                             &ai);  // Scr_StartThread_ent_ent(BroScr_NotifyWhenOtherDies)
     using SetFlags = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t);
-    slot<SetFlags>(0x009223a0)(ai, 1, 1, 1);  // GScr_SetAIFlags
+    slot<SetFlags>(0x009223a0)(ai, 1, 1, third_flag);  // GScr_SetAIFlags
     uint32_t buffer[3];
     const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, target);  // ScrEnt_GetOrigin
     const uint32_t goal[3] = {o[0], o[1], o[2]};
@@ -688,7 +689,7 @@ void run_to_ent_ignoring_all(uint32_t ai, uint32_t target, uint32_t flag) {
     wait_till(ai, 0x0032304c);
     slot<SetFlags>(0x009223a0)(ai, 0, 0, 0);
     uint32_t node = slot<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009226ec)(ai, title_global<uint32_t>(0x008cd76c),
-                                                                                      flag);
+                                                                                      1);
     if (node == 0xffffffffu) node = 0;
     slot<void XB_CDECL(uint32_t, const uint32_t*)>(0x00922688)(ai, &node);  // GScr_SetGoalPosFromNode
     queue_notify(target, 0x455955a2);

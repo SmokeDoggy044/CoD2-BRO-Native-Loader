@@ -546,6 +546,7 @@ public:
     }
 
     void clear(uint32_t flags, uint32_t color, float depth, uint32_t stencil) override {
+        if (g_skip_gpu_draws) return;
         begin_draw();  // the Xbox path's CPU writes to the back buffer first (when it has a device)
         if (!draw_.target_ok()) return;
         platform::HostFloatEnv float_env;
@@ -598,6 +599,7 @@ public:
     // --- Draws ---
 
     void draw(Primitive primitive, uint32_t first_vertex, uint32_t vertex_count) override {
+        if (g_skip_gpu_draws) return;
         platform::HostFloatEnv float_env;
         const uint32_t primitives = primitive_count(primitive, vertex_count);
         if (!primitives || !prepare(primitive)) return;
@@ -610,6 +612,7 @@ public:
     }
 
     void draw_indexed(Primitive primitive, uint32_t first_index, uint32_t index_count, int32_t base_vertex) override {
+        if (g_skip_gpu_draws) return;
         platform::HostFloatEnv float_env;
         if (primitive == Primitive::Quads) {
             static std::once_flag once;
@@ -629,6 +632,7 @@ public:
 
     void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
                    const uint16_t* indices, uint32_t index_count, uint64_t cache_key) override {
+        if (g_skip_gpu_draws) return;
         platform::HostFloatEnv float_env;
         const uint32_t primitives = primitive_count(primitive, indices ? index_count : vertex_count);
         if (!primitives || !vertices || !stride || (indices && primitive == Primitive::Quads)) return;

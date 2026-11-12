@@ -599,7 +599,8 @@ void Engine::release_held() {
             auto it = match();
             if (it == held.end() &&
                 !held_signal.wait_for(lock, std::chrono::seconds(10), [&] { return (it = match()) != held.end(); })) {
-                LOG_WARN("replay", "the recording finished packet %08x here; the mixer did not within 10 s", key);
+                LOG_WARN("replay", "frame %u: the recording finished packet %08x here; the mixer did not within 10 s",
+                         xbox::replay::frame_number(), key);
                 continue;
             }
             const Held h = *it;

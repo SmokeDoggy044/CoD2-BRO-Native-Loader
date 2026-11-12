@@ -1700,6 +1700,7 @@ const SdkAlias kMultiplayerSdkAliases[] = {
 const uint32_t kCampaignSdkKeepOriginal[] = {
     0x003ebb20,  // D3D: returns 1 (called before D3D_SetPushBufferSize)
     0x00396f5f,  // XONLINE: a static initializer (_cinit)
+    0x007abead,  // XPP: a static initializer (_cinit; a symbol since the gap functions)
 };
 const uint32_t kMultiplayerSdkKeepOriginal[] = {
     0x0031db60,  // D3D: returns 1

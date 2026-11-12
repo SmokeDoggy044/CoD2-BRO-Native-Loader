@@ -26,6 +26,8 @@ struct Config {
     // Both modes: at this presented frame, write the level locals and every entity (raw bytes) to dump_dir
     // (frame_<n>_level.bin, _clients.bin, _entities.bin), for tools/replay_diff.py. 0 = never.
     uint32_t dump_frame = 0;
+    uint32_t dump_last = 0;  // --replay-dump N-M: every frame from dump_frame to this one
+    uint32_t dump_step = 1;  // --replay-dump N-M:S: every S-th frame of that range
     std::filesystem::path dump_dir;
     // Both modes: at these presented frames (sorted), save the picture as shot_dir/shot_<n>.bmp - fixed capture
     // points: the same frames of one recording, compared between builds or back ends. Empty = none.
@@ -80,6 +82,9 @@ void stop();
 
 // Once per presented frame (main thread): the state hash.
 void frame();
+
+// The current frame number (for log lines).
+uint32_t frame_number();
 
 // After frame(): where to save this frame's picture (Config::shot_frames), empty if not wanted.
 std::string screenshot_path();

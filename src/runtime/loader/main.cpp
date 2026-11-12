@@ -101,6 +101,7 @@ struct Options {
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
     double replay_speed = 1;  // --replay-speed
+    bool replay_no_draw = false;  // --replay-no-draw
     bool audio_enhanced = true;  // --audio
     audio::OutputConfig::Speakers speakers = audio::OutputConfig::Speakers::Auto;
     std::string audio_device;    // empty: the system's
@@ -270,7 +271,9 @@ void print_usage(const char* program) {
         "                   --replay-hashes file); the first differing frame's state goes to DIR\n"
         "  --replay-continue  with --replay: keep playing live after the recording ends\n"
         "  --replay-speed N  with --replay: play N times faster (vertical blank and sound; no sound output)\n"
-        "  --replay-dump N DIR  with --record/--replay: game state of frame N to DIR (tools/replay_diff.py)\n"
+        "  --replay-no-draw  with --replay: no draws or clears on the GPU (game logic only, faster checks)\n"
+        "  --replay-dump N[-M[:S]] DIR  with --record/--replay: game state of frame N (or every [S-th] frame N..M)\n"
+        "                   to DIR (tools/replay_diff.py)\n"
         "  --own-main       developer: start the game at our Sys_Main C (own engine host, step 0.3)\n"
         "  --text-trap LIST OUT  developer: log every original function from LIST (tools/text_trap_list.py)\n"
         "                   the first time it runs, with its caller, to OUT (Linux)\n"
@@ -422,6 +425,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 std::fprintf(stderr, "--replay-speed needs a factor above 0 and up to 64\n");
                 return std::nullopt;
             }
+        } else if (arg == "--replay-no-draw") {
+            options.replay_no_draw = true;
         } else if (arg == "--replay-continue") {
             options.replay.exit_at_end = false;
         } else if (arg == "--replay-shots") {
@@ -443,6 +448,11 @@ std::optional<Options> parse_args(int argc, char** argv) {
             std::sort(options.replay.shot_frames.begin(), options.replay.shot_frames.end());
             options.replay.shot_dir = fs::path(argv[++i]);
         } else if (arg == "--replay-dump") {
+            const char* range = i + 2 < argc ? argv[i + 1] : "";
+            const char* dash = std::strchr(range, '-');
+            options.replay.dump_last = dash ? static_cast<uint32_t>(std::atoi(dash + 1)) : 0;
+            const char* colon = std::strchr(range, ':');
+            options.replay.dump_step = colon ? static_cast<uint32_t>(std::atoi(colon + 1)) : 1;
             if (i + 2 >= argc || (options.replay.dump_frame = static_cast<uint32_t>(std::atoi(argv[++i]))) < 1) {
                 std::fprintf(stderr, "--replay-dump needs a frame number and a folder\n");
                 return std::nullopt;
@@ -1159,6 +1169,7 @@ int loader_main(int argc, char** argv) {
     } else if (options->replay.mode != xbox::replay::Mode::Off) {
         d3d_config.frame_presented = &xbox::replay::frame;
         if (options->replay.mode == xbox::replay::Mode::Replay) d3d_config.vblank_speed = options->replay_speed;
+        if (options->replay.mode == xbox::replay::Mode::Replay && options->replay_no_draw) render::g_skip_gpu_draws = true;
         if (!options->replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
     if (options->diag_dir) {

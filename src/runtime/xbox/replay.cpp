@@ -428,6 +428,8 @@ std::string screenshot_path() {
     return path;
 }
 
+uint32_t frame_number() { return g_frame; }
+
 void frame() {
     if (g_config.mode == Mode::Off) return;
     if (!t_bound) {
@@ -437,7 +439,9 @@ void frame() {
         return;
     }
     ++g_frame;
-    if (g_config.dump_frame == g_frame) dump_state(g_config.dump_dir);
+    if (g_config.dump_frame && g_frame >= g_config.dump_frame && g_frame <= std::max(g_config.dump_frame, g_config.dump_last) &&
+        (g_frame - g_config.dump_frame) % std::max(1u, g_config.dump_step) == 0)
+        dump_state(g_config.dump_dir);
     if (g_live) return;
     const FrameRecord now = measure();
     if (!g_reference_done && g_frame < g_reference.size() && g_reference[g_frame].record.frame == g_frame &&

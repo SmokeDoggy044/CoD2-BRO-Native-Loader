@@ -185,8 +185,8 @@ void XB_CDECL BroScr_Mg42AnimThenShootLoop_2(uint32_t ai, uint32_t turret);
 // 0.05 s, cleared over 0.2 s / weight.
 void XB_CDECL BroScr_PainAnimByHitLocation(uint32_t actor, uint8_t force);
 // 0x00199120 / 0x00199200: ends on death; a BroScr_NotifyWhenOtherDies thread (target, ai);
-// runs to the target's origin ignoring all (AI flags 1,1,1) until the goal, then flags 0,0,0,
-// goal = the node slot 0x009226ec(ai, 0x008cd76c, 1 / 0) gives (-1 -> 0); notifies 0x455955a2.
+// runs to the target's origin ignoring all (AI flags 1,1,1 / 1,1,0) until the goal, then flags 0,0,0,
+// goal = the node slot 0x009226ec(ai, 0x008cd76c, 1) gives (-1 -> 0); notifies 0x455955a2.
 void XB_CDECL BroScr_ActorRunToEntIgnoringAll(uint32_t ai, uint32_t target);
 void XB_CDECL BroScr_ActorRunToEntIgnoringAll_2(uint32_t ai, uint32_t target);
 // 0x00199940: unless cvar mg42 is "off": key 0xc51219a9 = mg, then keeps the mg at `ent`'s origin.

@@ -24,6 +24,10 @@
 
 namespace render {
 
+// --replay-no-draw: draws and clears are not sent to the GPU (resources, state and our renderer C still run), so a
+// replay checks the game without the draw-call cost. Set once at startup.
+inline bool g_skip_gpu_draws = false;
+
 class GfxDevice;
 
 using TextureId = uint32_t;

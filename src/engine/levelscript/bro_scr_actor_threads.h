@@ -147,8 +147,8 @@ void XB_CDECL BroScr_TempEventText(uint32_t a1, uint32_t a2, uint32_t a3, uint32
 // 0x001abe30: notifies and ends on 0x1e4aecac (and both deaths); a BroScr_OrientToEntityKillWatch
 // call thread; forever: orient "face point" at the target's eye (sentients) or origin, 0.2 s.
 [[noreturn]] void XB_CDECL BroScr_UpdateOrientToEntity(uint32_t ent, uint32_t target);
-// 0x001b2ed0 (was FUN_001b2ed0): pose movement 0x070b89a4 / 0x385d90; handle 0xbfc60f36 0x77 -> 0x61
-// (unless 0x36b1a5); stand alert a (0x61) or b shuffle forward as flagged knob 0x5fa04364 on Body
+// 0x001b2ed0 (was FUN_001b2ed0): pose movement 0x070b89a4 / 0x385d90; handle 0xbfc60f36 0x77 or
+// 0x36b1a5 -> 0x61; stand alert a (0x61) or b shuffle forward as flagged knob 0x5fa04364 on Body
 // (1, 0.05, 1), then its note tracks.
 void XB_CDECL BroScr_ShuffleForwardAnim(uint32_t ent);
 // 0x001a4f40: ends on death / 0x2b740dd3; nothing while is_firing is set; else is_firing = true, a

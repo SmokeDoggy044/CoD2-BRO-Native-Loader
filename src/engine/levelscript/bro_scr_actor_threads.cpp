@@ -671,7 +671,7 @@ void XB_CDECL BroScr_UpdateOrientToEntity(uint32_t ent, uint32_t target) {
 
 void XB_CDECL BroScr_ShuffleForwardAnim(uint32_t ent) {
     own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0x070b89a4, 0x00385d90);  // BroScr_SetPoseMovement
-    if (*handle_slot(ent, 0xbfc60f36) != 0x0036b1a5 && *handle_slot(ent, 0xbfc60f36) == 0x77) *handle_slot(ent, 0xbfc60f36) = 0x61;
+    if (*handle_slot(ent, 0xbfc60f36) == 0x0036b1a5 || *handle_slot(ent, 0xbfc60f36) == 0x77) *handle_slot(ent, 0xbfc60f36) = 0x61;
     const uint32_t anim = *handle_slot(ent, 0xbfc60f36) == 0x61 ? title_global<uint32_t>(0x008cf408)   // stand_alerta_shuffle_forward
                                                                 : title_global<uint32_t>(0x008cf42c);  // stand_alertb_shuffle_forward
     slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009225e4)(
