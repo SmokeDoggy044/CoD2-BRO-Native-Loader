@@ -402,6 +402,12 @@ uint32_t XB_CDECL CL_PacketEvent(uint32_t from0, uint32_t from1, uint32_t from2,
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(CL_ParseServerMessage(msg)));
 }
 
+const char* XB_REGS1 XB_CDECL CL_GetConfigStringText(int32_t index) {
+    if (index < 0 || index >= 0x400) return nullptr;
+    const uint32_t rep = title_global<uint32_t>(0x009606b8 + 4 * uint32_t(index));  // cl.configstrings
+    return rep ? reinterpret_cast<const char*>(uintptr_t{rep + 6}) : nullptr;
+}
+
 void XB_CDECL CL_ConfigstringModified() {
     const char* const empty = &title_global<const char>(0x0082dfeb);
     const int32_t index = title_atol(cmd_argc() > 1 ? cmd_argv(1) : empty);

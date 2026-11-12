@@ -573,6 +573,9 @@ extern "C" void MemContext_AllocOrHeap_entry(void);
 // key itself if not found, "NO STRING" for an empty entry. The code at 0x0029d620 is another function.
 extern "C" PLATFORM_HIDDEN const char* XB_CDECL Loc_GetString(const char* key);
 extern "C" void Loc_GetString_entry(void);
+// 0x0029ad80 (hash in EAX; called from 0x0032fd80): the rm_locStrings entry of hash (Zone_FindByHash): its text
+// +8, or +0xc when that is null; null when not found.
+const char* XB_REGS1 XB_CDECL Loc_FindTextByHash(uint32_t hash);
 // 0x0028bc50 (thiscall, ret 4): the zone's children (+0x20, count +0x1c) first, then its id (+0x28) appended to
 // the pak's list (+0x378, count +0x374, at most 0x80).
 void XB_THISCALL Pak_PushZoneIds_r(uint8_t* pak, uint8_t* zone);

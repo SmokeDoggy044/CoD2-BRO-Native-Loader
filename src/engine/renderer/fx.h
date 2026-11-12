@@ -773,6 +773,13 @@ uint32_t XB_REGS1 XB_CDECL FxComponent_DelayDone(const uint8_t* component);
 uint8_t* XB_THISCALL FxSoundComponent_DeletingDtor(uint8_t* component, uint32_t flags);
 uint8_t* XB_THISCALL FxParticleComponent_DeletingDtor(uint8_t* component, uint32_t flags);
 uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uint32_t flags);
+// 0x000242f0 (the components' base vtable 0x00837624 slot 0): the base vtable, +4 cleared, the small-block heap
+// 0x0095f5cc with flags bit 0. Returns the component.
+uint8_t* XB_THISCALL FxComponent_DeletingDtor(uint8_t* component, uint32_t flags);
+// 0x00296940 (FxParticleComponent vtable slot 9): +0x14 = value, also +8 of the object at +0x2c when set.
+void XB_THISCALL FxParticleComponent_SetValue(uint8_t* component, uint32_t value);
+// 0x00029650 (FX_InitEffectPool's element constructor): the effect's fields zeroed, +0 / +2 (16-bit) and +0x18 -1.
+void XB_THISCALL FxEffect_Ctor(FxEffect* effect);
 // 0x00094610 (cdecl; Sys_Main passes 0, 0x2000000, 4000): the particle library's start -
 // view reset, log, particle buffers for `quads`, every render op's shaders, the heap size,
 // the settings block 0x00909910..; returns 1.

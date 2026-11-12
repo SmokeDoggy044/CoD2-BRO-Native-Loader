@@ -108,6 +108,25 @@ PLATFORM_ASM_ENTRY(BG_AllocWeaponDef_entry,
                    "pushl %ebx\n" PLATFORM_ASM_CALL(BG_AllocWeaponDef) "addl $12, %esp\n"
                    "ret")
 
+uint32_t XB_CDECL WeaponDef_SetStringField(const char** out, const char* text) {
+    if (!*text) {
+        *out = &title_global<const char>(0x0095f4dd);  // ""
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+    }
+    *out = text;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text));
+}
+
+const char* XB_CDECL VehicleDef_CopyStringField(char* dst, const char* src) {
+    char c;
+    do {
+        c = *src;
+        *dst++ = c;
+        ++src;
+    } while (c);
+    return src;
+}
+
 uint8_t* XB_CDECL BG_AllocWeaponDef(uint32_t index, const uint32_t* fields, int32_t count) {
     uint8_t* def = static_cast<uint8_t*>(own_function<void* XB_CDECL(uint32_t)>(&Z_Malloc)(0x870));  // Z_Malloc
     if (def) {
@@ -6187,6 +6206,8 @@ PLATFORM_ASM_ENTRY(Player_GetUseList_entry,
                    "popl %esp\n"
                    "ret")
 
+int32_t XB_CDECL UseList_CompareScore(const float* a, const float* b) { return static_cast<int32_t>(a[1] - b[1]); }
+
 uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
     // cdecl (ent, list of {entity, score}): usable entities around the eye (box 150 x 150 x 96; content
     // flags 0x204000): items, entities with +0x134 bit 0x200000 and sentients with +0x1374. Each within 100
@@ -6329,7 +6350,7 @@ uint32_t XB_CDECL Player_GetUseList(uint32_t entry_esp, uint32_t ebx, uint32_t e
         slot += 8;
     }
     const auto sort = [&](uint32_t n, uint32_t ret) {
-        const uint32_t args[4] = {list_w, n, 8, 0x00248aa0};
+        const uint32_t args[4] = {list_w, n, 8, own_address(&UseList_CompareScore)};
         veh_call_at(B, ret, own_address(&title_qsort), TitleRegs{0, 0, 0, 0, n, 0}, 4, args);  // qsort
     };
     sort(wd(0x1c), 0x002644bf);

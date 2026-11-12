@@ -158,6 +158,9 @@ void XB_THISCALL cdWater_AddToList(const NglShaderClass* self, NglMeshDrawNode* 
 
 void XB_CDECL cdWorldBlend_Toggle();
 void XB_CDECL cdWorldBlend_Init();
+// 0x00052700 (material class slot 5): the material's pointers +0x18 / +0x20 / +0x28 moved by delta when set.
+// Returns the material.
+const uint8_t* XB_THISCALL cdWorldBlend_Relocate(const NglShaderClass* self, uint8_t* material, uint32_t delta);
 NglHashedName* XB_THISCALL cdWorldBlend_GetName(const NglShaderClass* self, NglHashedName* out);
 void XB_THISCALL cdWorldBlend_AddToList(const NglShaderClass* self, NglMeshDrawNode* node,
                                         const NglMeshSection* section, const uint8_t* material);
@@ -347,12 +350,41 @@ void XB_THISCALL cdSimplePrelit_Register(NglShaderClass* self);
 void XB_THISCALL cdSimple_Register(NglShaderClass* self);
 void XB_THISCALL cdRiver_Register(NglShaderClass* self);
 void XB_THISCALL cdOcean_Register(NglShaderClass* self);
+// 0x0004ea30 (cdRiver / cdOcean material class slot 5): nglMaterial_Relocate4(material, delta).
+uint32_t* XB_THISCALL cdRiver_Relocate(const NglShaderClass* self, uint8_t* material, uint32_t delta);
+// 0x0004e940 (a cdOcean class slot): &the cdRiver pixel shader table 0x009020c8[(a * 2 + b) * 2 + c].
+uint32_t* XB_THISCALL cdOcean_GetPixelShader(const NglShaderClass* self, int32_t a, int32_t b, int32_t c);
 void XB_THISCALL cdWater_Register(NglShaderClass* self);
 void XB_THISCALL cdWorldBlend_Register(NglShaderClass* self);
 void XB_THISCALL cdWorldVertexLit_Register(NglShaderClass* self);
 void XB_THISCALL cdWorld_Register(NglShaderClass* self);
 void XB_THISCALL cdBackground_Register(NglShaderClass* self);
 void XB_THISCALL cdSky_Register(NglShaderClass* self);
+
+// The material types (startup registrations, cdecl, no arguments; reached through 16-byte records such as 0x00897e30
+// {vtable, 0, function, 0}): the class name (HashStr_Init) -> the function that puts the material class's vtable into a
+// loaded material (nglParseMesh, by the material's class name), added to the map 0x00902ad4 (ShaderCache_FindOrAdd).
+void XB_CDECL cdGunSight_RegisterMaterialType();  // 0x00047d80
+void XB_CDECL cdGun_RegisterMaterialType();  // 0x00048590
+void XB_CDECL cdGlass_RegisterMaterialType();  // 0x000489e0
+void XB_CDECL cdSimpleAlpha_RegisterMaterialType();  // 0x0004a870
+void XB_CDECL cdPropeller_RegisterMaterialType();  // 0x0004b090
+void XB_CDECL cdDecal_RegisterMaterialType();  // 0x0004b850
+void XB_CDECL cdChar_RegisterMaterialType();  // 0x0004bf70
+void XB_CDECL cdPrelit_RegisterMaterialType();  // 0x0004c690
+void XB_CDECL cdAirplaneMetal_RegisterMaterialType();  // 0x0004cbc0
+void XB_CDECL cdSimpleUVAnim_RegisterMaterialType();  // 0x0004d890
+void XB_CDECL cdSimplePrelit_RegisterMaterialType();  // 0x0004df60
+void XB_CDECL cdSimple_RegisterMaterialType();  // 0x0004e6c0
+void XB_CDECL cdRiver_RegisterMaterialType();  // 0x0004e9e0
+void XB_CDECL cdOcean_RegisterMaterialType();  // 0x000508b0
+void XB_CDECL cdWater_RegisterMaterialType();  // 0x000514c0
+void XB_CDECL cdWorldBlend_RegisterMaterialType();  // 0x00051ae0
+void XB_CDECL cdWorldVertexLit_RegisterMaterialType();  // 0x00052e50
+void XB_CDECL cdWorld_RegisterMaterialType();  // 0x00053410
+void XB_CDECL cdBackground_RegisterMaterialType();  // 0x000546b0
+void XB_CDECL cdSky_RegisterMaterialType();  // 0x000552e0
+void XB_CDECL cdDebug_RegisterMaterialType();  // 0x0007b920
 
 // 0x00045610 / 0x00045620: the debug view mode (0x00901e94); console toggles set it,
 // the cd* Draws pick program variants by it (== 1).

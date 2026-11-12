@@ -4950,6 +4950,16 @@ uint32_t XB_THISCALL nglVec4ToColor(const float* color) {
     return ((((a << 8) | r) << 8 | g) << 8) | b;
 }
 
+void XB_THISCALL nglMaterial_ReleaseTextureNoClear(const void*, const uint8_t* material) {
+    nglReleaseTexture(*reinterpret_cast<void* const*>(material + 0x1c));
+}
+
+uint32_t* XB_THISCALL nglCustomNode_GetKey(const uint8_t* node, uint32_t* out) {
+    out[0] = *reinterpret_cast<const uint32_t*>(node + 0x18);
+    out[1] = *reinterpret_cast<const uint32_t*>(node + 0x1c);
+    return out;
+}
+
 uint32_t* XB_THISCALL nglMaterial_Relocate4(uint8_t* material, uint32_t delta) {
     uint32_t value = 0;
     for (uint32_t offset = 0x1c; offset <= 0x34; offset += 8) {

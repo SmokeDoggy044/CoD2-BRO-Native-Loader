@@ -2337,7 +2337,7 @@ uint8_t* XB_REGS1 XB_CDECL SpgManager_Construct(uint8_t* self) {
         pk<int32_t>(self, 4 + i * 12) = -1;
         pk<uint32_t>(self, 12 + i * 12) = 0;
     }
-    title_global<uint32_t>(0x00909940) = 0x002ae1b0;
+    title_global<uint32_t>(0x00909940) = own_address(&Spg_GetRandomVariant);
     return self;
 }
 
@@ -2953,6 +2953,13 @@ uint8_t* XB_CDECL MemContext_AllocOrHeap(int32_t slot, uint8_t* pak, uint32_t al
 PLATFORM_ASM_ENTRY(Loc_GetString_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(Loc_GetString) "addl $4, %esp\n"
                    "ret")
+
+const char* XB_REGS1 XB_CDECL Loc_FindTextByHash(uint32_t hash) {
+    const uint8_t* const entry = Zone_FindByHash(title_global<const uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
+    if (!entry) return nullptr;
+    const char* const text = *reinterpret_cast<const char* const*>(entry + 8);
+    return text ? text : *reinterpret_cast<const char* const*>(entry + 0xc);
+}
 
 const char* XB_CDECL Loc_GetString(const char* key) {
     if (!key) return key;

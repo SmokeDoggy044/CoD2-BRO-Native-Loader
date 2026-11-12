@@ -541,6 +541,9 @@ void XB_REGS3 XB_CDECL BoxEntity_SetSolidity(uint8_t* ent, uint32_t unused_edx, 
 // key - three string pointers into out (zeros when none).
 extern "C" PLATFORM_HIDDEN void XB_CDECL Spg_FindRandomVariant(const uint8_t* table, uint32_t* out, uint32_t key);
 extern "C" void Spg_FindRandomVariant_entry(void);
+// 0x002ae1b0 (the callback SpgManager_Construct stores at 0x00909940): the first string of
+// Spg_FindRandomVariant(rm_spg, key).
+uint32_t XB_CDECL Spg_GetRandomVariant(uint32_t key);
 
 // 0x002df3e0 (entity in EAX, cdecl out): the linked entity's parent frame (4x3), times the link tag's matrix
 // when the link has a tag.

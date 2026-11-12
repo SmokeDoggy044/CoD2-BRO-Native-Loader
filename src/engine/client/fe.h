@@ -160,6 +160,8 @@ void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth);
 long double XB_THISCALL UIElement_GetDepth(uint8_t* element);
 // 0x0030fc20 (vtable slot): alignment bits 6-7 of the flags +0x10: 0 -> 0x40, 2 -> 0x80, else none.
 void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align);
+// 0x00011340 (vtable slot 13; slot 12 reads it): the shown bit 2 of the flags +0x10 set or cleared (argument byte).
+void XB_THISCALL UIElement_SetVisible(uint8_t* element, uint32_t on);
 // 0x00315e70: advances a fade by dt / the fade time +0x0c when vtable slot +0x30 says the element is shown; a fade in
 // stops at 1.0 (clears flags 0x30), a fade out at 0 (clears flags 0x34).
 void XB_THISCALL UIElement_UpdateFade(uint8_t* element, float dt);
@@ -231,6 +233,17 @@ extern "C" void UIQuad_ApplyMatrix_entry(void);
 // 0x00011a90 / 0x00011ac0: the bounds' width / height (x87).
 long double XB_THISCALL UIPicture_GetWidth(uint8_t* picture);
 long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture);
+// 0x00011920: rotate about the centre (vtable +0x48: x, y, angle, absolute).
+void XB_THISCALL UIPicture_Rotate(uint8_t* picture, uint32_t angle, uint32_t absolute);
+// 0x00011940 / 0x00011960: scale about the centre (vtable +0x50: x, y, sx, sy, absolute).
+void XB_THISCALL UIPicture_SetUniformScale(uint8_t* picture, uint32_t scale, uint32_t absolute);
+void XB_THISCALL UIPicture_SetScale(uint8_t* picture, uint32_t sx, uint32_t sy, uint32_t absolute);
+// 0x000119d0: move by (x - centre x, y - centre y) through vtable +0xb8.
+void XB_THISCALL UIPicture_SetPosition(uint8_t* picture, float x, float y);
+// 0x00011a60: out = the first quad's colour (+0x50) bytes. Returns out.
+uint8_t* XB_THISCALL UIPicture_GetColor(uint8_t* picture, uint8_t* out);
+// 0x00011b60: UIPicture_Dtor, then Z_Free with flags bit 0. Returns the picture.
+uint8_t* XB_THISCALL UIPicture_DeletingDtor(uint8_t* picture, uint32_t flags);
 // 0x00310110: corners (x0, y0), (x1, y0), (x0, y1), (x1, y1) through vtable +0x88.
 void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x1, float y1);
 // 0x003166a0 (picture in EDX, centre x in XMM0): every vertex x and the centre x scaled about the centre by 0.75
@@ -319,6 +332,12 @@ ScriptString* XB_THISCALL UITextBase_GetName(uint8_t* text, ScriptString* out);
 ScriptString* XB_THISCALL UITextBase_GetText(uint8_t* text, ScriptString* out);
 // 0x00011700: frees +0x14, releases the name and text, the UI element vtable; frees the text with flags bit 0.
 uint8_t* XB_THISCALL UITextBase_DeletingDtor(uint8_t* text, uint32_t flags);
+// 0x00011380: vtable +0xdc with mask 2 (the argument passed on).
+void XB_THISCALL UITextBase_SetFlag2(uint8_t* text, uint32_t on);
+// 0x000115a0: the colour's alpha byte +0x53 = _ftol(alpha * 255) (x87).
+void XB_THISCALL UITextBase_SetAlpha(uint8_t* text, float alpha);
+// 0x000116b0 (vtable +0xdc): the flag bits `mask` of +0x5c set (argument byte on) or cleared.
+void XB_THISCALL UITextBase_SetFlags(uint8_t* text, uint32_t mask, uint32_t on);
 // 0x0030fba0 / 0x0030fb60: alignment flags 0x30 / 0xc0 cleared, then set to 0x10 / 0x20 (0x40 / 0x80) when given.
 void XB_THISCALL UITextBase_SetHorzAlign(uint8_t* text, int32_t align);
 void XB_THISCALL UITextBase_SetVertAlign(uint8_t* text, int32_t align);

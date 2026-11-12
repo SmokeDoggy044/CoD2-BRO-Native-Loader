@@ -136,6 +136,12 @@ void XB_THISCALL NAL_BlockCache_FreeAll(uint32_t* cache);
 // +0xc8 = clip, +0xd0 = +0x94), resolves both group tables' classes (map 0x00903ff4) and runs each
 // group class's slot 4 (record, &cursor, &cursor) over them. Returns the second table's count.
 uint32_t XB_THISCALL NAL_GenericAnim_Init(uint8_t* clip);
+// 0x0007b970 (NAL_GenericAnim vtable slot before the deleting destructor): the clip into the map 0x00903fe0 under its
+// name (+8) (ShaderCache_FindOrAdd; its result returned).
+uint32_t XB_THISCALL NAL_GenericAnim_Register(uint8_t* clip);
+// 0x0008b4a0 (NAL_AnimTrack vtable slot 3): NAL_AnimTrack_Sample with flags 0.
+void XB_THISCALL NAL_AnimTrack_SampleNoFlags(uint8_t* track, float time, float previous, AnimState* dst,
+                                             const AnimState* src, int32_t min_level);
 
 // 0x00087cb0 (skeleton in ECX: +0 clip, +8 data; callee pops 8: out, bone index): the bone's
 // transform {quaternion, position} from its record (clip +0x74, 0x30 per bone: +0x20 flags, +0x24

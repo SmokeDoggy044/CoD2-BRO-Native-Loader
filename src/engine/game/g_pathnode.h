@@ -192,6 +192,8 @@ extern "C" void Path_DisconnectAllEntities_entry(void);
 // origin, else the first visible (G_SightTrace with the actor box) inside all planes, else the first visible of the
 // rest. 0 when none.
 // Entry: the original's frame rebuilt at its position (entry = its ESP at entry).
+// 0x002aa110 (PathNode_FindNearest's qsort comparator, {node, distance} pairs): -1 when b's distance is greater, else 1.
+int32_t XB_CDECL PathNode_CompareDistance(const float* a, const float* b);
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint32_t type_mask,
                                                                  uint32_t max_nodes, uint32_t* list, float radius,
                                                                  const float* planes, const float* plane_dists,

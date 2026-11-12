@@ -253,6 +253,9 @@ uint32_t XB_CDECL SndBank_LoadFromFile(uint32_t a, int32_t file, uint32_t b);
 // "" for null), -1 if none.
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SndBank_FindSound(const char* name, const uint8_t* bank);
 extern "C" void SndBank_FindSound_entry(void);
+// 0x000c5790 (the bank lookups' bsearch comparator): _stricmp of the names the two arguments point at (each argument
+// slot overwritten with its name first, then a tail jump).
+int32_t XB_CDECL SndBank_CompareNames(uint32_t a, uint32_t b);
 // 0x000c8090 (x in XMM0, y in XMM1, result in XMM0; only caller the uncalled 0x000c88c0): an octant approximation
 // of atan2 scaled by 0x0083eea0.
 extern "C" PLATFORM_HIDDEN float XB_CDECL Snd_ApproxAngle2D(float x, float y);

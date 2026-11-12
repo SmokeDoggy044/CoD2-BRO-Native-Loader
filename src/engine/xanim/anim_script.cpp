@@ -508,6 +508,14 @@ void XB_CDECL NAL_Clip_FindFloat3Channel(uint8_t* generic, uint32_t* out, const 
 }
 
 // (weights in ESI, generic clip in EAX).
+uint8_t* XB_THISCALL AnimWeights_DeletingDtor(uint8_t* weights, uint32_t flags) {
+    void* const block = *reinterpret_cast<void**>(weights + 8);
+    *reinterpret_cast<uint32_t*>(weights) = 0x00832758;
+    Mem_AlignedFree(block);
+    if (flags & 1) Z_Free(weights);
+    return weights;
+}
+
 PLATFORM_ASM_ENTRY(AnimWeights_Construct_entry,
                    "pushl %eax\n"
                    "pushl %esi\n" PLATFORM_ASM_CALL(AnimWeights_Construct) "addl $8, %esp\n"

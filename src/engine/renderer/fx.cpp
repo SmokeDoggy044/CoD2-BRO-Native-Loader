@@ -24,6 +24,19 @@
 
 namespace game {
 
+void XB_THISCALL FxEffect_Ctor(FxEffect* effect) {
+    effect->unknown0c = 0;
+    effect->unknown10 = 0;
+    effect->unknown16 = 0;
+    effect->unknown00 = 0xffffffffu;  // two 16-bit -1 stores
+    effect->unknown04 = 0;
+    effect->unknown0c = 0;
+    effect->unknown10 = 0;
+    effect->unknown08 = 0;
+    effect->unknown18 = -1;
+    effect->unknown16 = 0;
+}
+
 FxEffect* XB_CDECL FX_AllocEffect() {
     FxEffect* pool = title_global<FxEffect*>(0x0095f6e4);
     uint32_t& free_count = title_global<uint32_t>(0x00988810);
@@ -51,7 +64,7 @@ void XB_CDECL FX_InitEffectPool() {
         block[0] = 0xf0;
         effects = reinterpret_cast<FxEffect*>(block + 1);
         title_vector_construct(  // eh_vector_constructor_iterator
-            effects, sizeof(FxEffect), 0xf0, 0x00029650);
+            effects, sizeof(FxEffect), 0xf0, own_address(&FxEffect_Ctor));
     }
     pool = effects;
     uint32_t& free_count = title_global<uint32_t>(0x00988810);
@@ -5266,6 +5279,18 @@ uint8_t* XB_THISCALL FxSoundComponent_DeletingDtor(uint8_t* component, uint32_t 
     FxSoundComponent_Dtor(component);
     if (flags & 1) component_free(component);
     return component;
+}
+
+uint8_t* XB_THISCALL FxComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
+    component_base_dtor(component);
+    if (flags & 1) component_free(component);
+    return component;
+}
+
+void XB_THISCALL FxParticleComponent_SetValue(uint8_t* component, uint32_t value) {
+    *reinterpret_cast<uint32_t*>(component + 0x14) = value;
+    if (uint8_t* const object = *reinterpret_cast<uint8_t**>(component + 0x2c))
+        *reinterpret_cast<uint32_t*>(object + 8) = value;
 }
 
 uint8_t* XB_THISCALL FxParticleComponent_DeletingDtor(uint8_t* component, uint32_t flags) {

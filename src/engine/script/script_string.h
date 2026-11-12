@@ -73,6 +73,8 @@ void XB_THISCALL ScriptString_SetChar(ScriptString* self, uint32_t index, char c
 // 0x0011d7c0: whether `self` holds exactly `text`. False for a null `text`, and
 // for the empty string (null rep) even when `text` is "".
 bool XB_CDECL ScriptString_Equals(const ScriptString* self, const char* text);
+// 0x0011dac0 (called from level code): ScriptString_Equals on a string passed by value (its argument slot).
+bool XB_CDECL ScriptString_EqualsValue(uint32_t rep, const char* text);
 
 // 0x0011d820: whether both hold the same text. False when either is the empty
 // string (null rep), even both.

@@ -176,6 +176,17 @@ void XB_THISCALL HudCompTankShells_Draw(uint8_t* self);
 void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
 // 0x00011fc0 (no Ghidra function): the shared HUD component vtable +0x14, visible (+4) = the flag's byte.
 void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on);
+// 0x00012120: UIMeshList_ScaleXForAspect on the list +8 when set (HudCompMeter vtable 0x008299b8 +0x18).
+void XB_THISCALL HudCompMeter_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x003184a0 / 0x00318810: UIPicture_ScaleXForAspect on +8 then +0xc / +0xc then +8 (HudCompTankIcon vtable
+// 0x00829164 / HudCompTankHealth vtable 0x008299d4, +0x18).
+void XB_THISCALL HudCompTankIcon_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+void XB_THISCALL HudCompTankHealth_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x00317590 (HudCompIconCount vtable 0x00828800 +0x14): visible (+4) = the flag's byte; when set, +0x14 (byte)
+// and +0x10 cleared.
+void XB_THISCALL HudCompIconCount_SetVisible(uint8_t* self, uint32_t on);
+// 0x00311ab0 (HudManager vtable +0x18): the hint text +0x3c's vtable +0x3c (draw) while the hint timer +0x60 > -1.
+void XB_THISCALL HudManager_DrawHint(uint8_t* self);
 
 // Gap functions (11-11). 0x00310cc0 (vtable 0x0082908c +0x14): unless +0x30 is null, the ten pictures +0x08..+0x2c
 // and the objects +0x30..+0x40 shown / hidden (+0x34); the component's own +4 untouched.

@@ -105,6 +105,10 @@ void XB_THISCALL ScriptString_SetChar(ScriptString* self, uint32_t index, char c
     if (ScriptStringRep* rep = self->rep; rep && index < rep->length) rep->text[index] = c;
 }
 
+bool XB_CDECL ScriptString_EqualsValue(uint32_t rep, const char* text) {
+    return ScriptString_Equals(reinterpret_cast<const ScriptString*>(&rep), text);
+}
+
 bool XB_CDECL ScriptString_Equals(const ScriptString* self, const char* text) {
     if (!text) return false;
     const ScriptStringRep* rep = self->rep;

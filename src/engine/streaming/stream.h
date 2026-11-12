@@ -40,6 +40,8 @@ void XB_THISCALL Stream_ReadString(uint32_t* stream, char* out, int32_t* length,
 void XB_THISCALL MemStream_Destroy(MemStream* stream);
 // 0x000555f0 (vtable slot 0): MemStream_Destroy, then Z_Free of the stream with flag 1.
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags);
+// 0x00055510 (vtable 0x007bad80 slot 8): position (+0xc) >= size (+8), signed (AL).
+uint8_t XB_THISCALL MemStream_AtEnd(const MemStream* stream);
 
 // A relocation table in a loaded pack: entries[0] = bit count, entries[1..count-1] =
 // offsets of relocation chains (Pack_RelocateChain).
@@ -426,6 +428,15 @@ extern "C" void Stream_ResolveXmbParts_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ZoneManagers_Destruct(uint8_t* self);
 extern "C" void ZoneManagers_Destruct_entry(void);
 uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x0028be10 (ZoneManagers vtable slot 1): the current entry +0x58 cleared when its zone (+8) is `zone`.
+void XB_THISCALL ZoneManagers_OnZoneRemoved(uint8_t* self, uint32_t zone);
+// Slot 8 of the texture / mesh file / anim / skel zone managers (0x000253c0, 0x000254f0, 0x00025710, 0x00025850;
+// thiscall, 3 words, ret 0xc): 1 when neither +0xa nor +8 is set; else +0xa cleared, the second word set to 2 and the
+// base class's slot run (tail jump: 0x00063330, 0x000675e0, 0x0008dc40, 0x0008e270).
+uint32_t XB_THISCALL ZoneTextureManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t XB_THISCALL ZoneMeshFileManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t XB_THISCALL ZoneAnimManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t XB_THISCALL ZoneSkelManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
 // 0x000251c0 / 0x00025880 (vtable slot 0, thiscall, flags, ret 4): the zone graph (removes its "ZoneGraph" command
 // first) / its base: ResourceManager_Destruct, Z_Free when flags bit 0.
 uint8_t* XB_THISCALL ZoneGraph_DeletingDtor(uint8_t* self, uint32_t flags);
@@ -721,6 +732,9 @@ void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // 0x0028bea0 Space (load handler, returned by Stream_GetLoadHandler at 0x0029260c): a bare RET
 // (four INT3s of padding follow, so it is hookable).
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x00291940 (the stream reads' error callback, File_QueueRequestEx): error 3 shows the damaged-disc screen
+// (UI_ShowDamagedDiscScreen with g_uiRoot; it does not return).
+void XB_CDECL Stream_OnReadError(int32_t error);
 
 // 0x002c5da0 (gap function, 11-11; thiscall, ret 4): a loaded zone (+4 + zone * 4) freed: its simple instances
 // (Zone_FreeSimpleInstances), its effects by id (FX_FreeEffectsById), +0x190 / +0x194 cleared when it had +0x38 /

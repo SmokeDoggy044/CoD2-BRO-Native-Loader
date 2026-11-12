@@ -1759,6 +1759,21 @@ FX_OP_ADD_TO_LIST(FxOpGrid_AddToList, 0x007c75bc)
 FX_OP_ADD_TO_LIST(FxOp53_AddToList, 0x007c733c)
 #undef FX_OP_ADD_TO_LIST
 
+uint32_t XB_THISCALL FxOp_IsVectorZero(const uint8_t* op) {
+    const float* const v = reinterpret_cast<const float*>(op + 0x10);
+    return v[0] == 0.0f && v[1] == 0.0f && v[2] == 0.0f ? 1 : 0;
+}
+
+void XB_THISCALL FxOp_SetVector(uint8_t* op, const uint32_t* vector) {
+    uint32_t* const out = reinterpret_cast<uint32_t*>(op + 0x10);
+    out[0] = vector[0];
+    out[1] = vector[1];
+    out[2] = vector[2];
+    out[3] = vector[3];
+}
+
+uint32_t XB_CDECL FxOpdd_GetType() { return 0x43526374; }
+
 namespace {
 
 // The shared head of FxOp31/FxOp1d5's AddToList: frustum test and node; null when culled (*result

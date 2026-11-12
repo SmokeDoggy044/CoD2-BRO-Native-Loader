@@ -46,6 +46,15 @@ extern "C" void UIMenuItem_Init_entry(void);
 // 16-byte records at 0x0095fd30: normal, selected, pulse, no pulse flag), by selected / highlighted and the menu
 // flags 3-5; highlighted items at alpha 0x64.
 void XB_THISCALL UIMenuItem_UpdateColor(uint8_t* item);
+// 0x00011e30: the text's (+0x10) vtable +0xb4 colour into out. Returns out.
+uint32_t* XB_THISCALL UIMenuItem_GetTextColor(uint8_t* item, uint32_t* out);
+// 0x0030f090: the highlighted byte +0x16, then vtable +0x94 (UIMenuItem_UpdateColor).
+void XB_THISCALL UIMenuItem_SetHighlight(uint8_t* item, uint32_t on);
+// 0x0030f0b0: the selected byte +0x15, vtable +0x94; when selected vtable +0x98 with the second argument.
+void XB_THISCALL UIMenuItem_SetSelected(uint8_t* item, uint32_t on, uint32_t arg);
+// 0x00315310 (vtable +0x90; the item unused): out = colour with its top byte = alpha (written into the colour's
+// argument slot first). Returns out.
+uint32_t* XB_THISCALL UIMenuItem_ColorWithAlpha(uint8_t* item, uint32_t* out, uint32_t colour, uint32_t alpha);
 
 // 0x0032e310 (item in EBX): the "UI_Select" sound unless the item's sound (+0x24) still plays (voice states 2-5);
 // +0x28 enables it. The handle back into +0x24 (0 without the alias).
@@ -156,6 +165,8 @@ void XB_THISCALL UIScreenMgr_ReadStickDirections(uint8_t* mgr);
 // (+0x18), others by the pad's pressed / released edges: button down (+0x28) / up (+0x2c) (bit, pad), the first
 // one found only.
 void XB_THISCALL UIScreenMgr_HandleInput(uint8_t* mgr);
+// 0x00313d10: the active screen's (+0xc index into +4, none when negative) vtable +0x28 (draw).
+void XB_THISCALL UIScreenMgr_DrawActiveScreen(uint8_t* mgr);
 
 // 0x0030f9b0 (token in EAX, text in ECX): whether the text starts with the token (text capitals match the token's
 // lower case; the text's NUL ends the match early); then *out = glyph, *length = the token's length.
@@ -360,6 +371,10 @@ extern "C" void UIRoot_UpdateFrontEnd_entry(void);
 // screen 14 (0x008dd1cf == 1, 0x008dce30 clear) or 1 (0x008dd1cf == 1), else to screen 15 (its +0x94 = 0, +0x4c = 1).
 void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu);
 void XB_THISCALL TitleMenu_OnAccept(uint8_t* menu, uint32_t);
+// 0x003145c0 (vtable +0x28): Panel_Draw of the panel +0x34 while 0x0095f91b == 1 and 0x0095f91e is clear.
+void XB_THISCALL TitleMenu_Draw(uint8_t* menu);
+// 0x0031f900 (vtable +0x40): +0x40 = 0, the timer +0x38 = 0x008ddaa8, +0x3c = 0, Movie_Stop(1).
+void XB_THISCALL TitleMenu_StopAttractMovie(uint8_t* menu);
 void XB_CDECL UI_UpdateLoadingIcon();
 // 0x0032d130 (stdcall, the first argument unused): "%s %d %s" of MEM_ERROR_NOT_ENOUGH_BLOCKS1, the blocks needed
 // (0x0031ac10) and MEM_ERROR_NOT_ENOUGH_BLOCKS2 (localized) into out.

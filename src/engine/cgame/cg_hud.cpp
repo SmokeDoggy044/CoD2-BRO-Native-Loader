@@ -1549,6 +1549,32 @@ void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescr
 // 0x00011fc0: every HUD component's vtable +0x14 (set visible, +4).
 void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on) { field<uint8_t>(self, 4) = uint8_t(on); }
 
+void XB_THISCALL HudCompMeter_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    if (uint8_t* const list = object_at(self, 8)) UIMeshList_ScaleXForAspect(widescreen, list, center_x);
+}
+
+void XB_THISCALL HudCompTankIcon_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 8), center_x);
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 0xc), center_x);
+}
+
+void XB_THISCALL HudCompTankHealth_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 0xc), center_x);
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 8), center_x);
+}
+
+void XB_THISCALL HudCompIconCount_SetVisible(uint8_t* self, uint32_t on) {
+    field<uint8_t>(self, 4) = uint8_t(on);
+    if (uint8_t(on)) {
+        field<uint8_t>(self, 0x14) = 0;
+        field<uint32_t>(self, 0x10) = 0;
+    }
+}
+
+void XB_THISCALL HudManager_DrawHint(uint8_t* self) {
+    if (field<float>(self, 0x60) > gf(0x0083eb34) && object_at(self, 0x3c)) draw_text(object_at(self, 0x3c));  // -1
+}
+
 namespace {
 
 // A bar picture's first quad filled to `value` (clamped to 0..1) of its width, as

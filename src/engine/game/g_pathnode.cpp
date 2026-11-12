@@ -1254,6 +1254,8 @@ bool node_visible(uint8_t* frame, const float* origin, const uint8_t* node, uint
 
 }  // namespace
 
+int32_t XB_CDECL PathNode_CompareDistance(const float* a, const float* b) { return b[1] > a[1] ? -1 : 1; }
+
 uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint32_t type_mask, uint32_t max_nodes,
                                        uint32_t* list, float radius, const float* planes, const float* plane_dists,
                                        int32_t plane_count, int32_t* count_out) {
@@ -1268,7 +1270,7 @@ uint8_t* XB_CDECL PathNode_FindNearest(uint32_t entry, const float* origin, uint
     word_at(frame, 0x4c) = static_cast<uint32_t>(count);
     regs.eax = static_cast<uint32_t>(count);
     regs.edi = static_cast<uint32_t>(count);
-    const uint32_t sort_args[4] = {address_of(list), static_cast<uint32_t>(count), 8, 0x002aa110};
+    const uint32_t sort_args[4] = {address_of(list), static_cast<uint32_t>(count), 8, own_address(&PathNode_CompareDistance)};
     title_call_at_regs(address_of(frame), own_address(&title_qsort), &regs, 4, sort_args);  // qsort by distance
     // The actor box (g_actorMins/Maxs; mins z raised by 0x0083eed0); the fourth lanes are never set (zero in tests).
     const float* const actor_mins = &title_global<float>(0x0098a560);

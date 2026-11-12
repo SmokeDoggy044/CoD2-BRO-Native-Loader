@@ -611,6 +611,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GatherCoverCandidates(uint32_t en
                                                                      uint32_t eax, uint32_t arg1, uint32_t arg2,
                                                                      uint32_t arg3, uint32_t filter, uint32_t score);
 extern "C" void Actor_GatherCoverCandidates_entry(void);
+// 0x001fbe60 (Actor_GatherCoverCandidates' qsort comparator, {node, score} pairs): the sign of a score - b score
+// (0 for NaN).
+int32_t XB_CDECL CoverCandidate_CompareScore(const float* a, const float* b);
 // 0x00200ad0: once per level time, the node nearest to the sentient's entity (+0x4a).
 void XB_THISCALL Sentient_UpdateNearestNode(uint8_t* sentient);
 // 0x00200b50: the sentient leaves: enemy, claims and every other sentient's references dropped.
