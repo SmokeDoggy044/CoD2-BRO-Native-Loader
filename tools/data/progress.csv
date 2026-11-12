@@ -3277,7 +3277,7 @@ address,name,section,module,state,tested,matched
 000d4305,UIX::CLiveEngine_Release,.text,mslib,library,0,0
 000d433e,UIX::CLiveEngine_StartAlertFeature,.text,mslib,library,0,0
 000d4359,UIX::CPopupScreen_UpdateScreen,.text,mslib,library,0,0
-000d440b,UIX::CAlertFeature_ctor,.text,mslib,library,0,0
+000d440b,UIX::CAlertFeature_ctor,.text,mslib,untested,0,0
 000d4440,UIX::CAlertFeature_ReceiveMessage,.text,mslib,library,0,0
 000d451f,UIX::CAlertFeature_DisplayRecordedMessage,.text,mslib,library,0,0
 000d45c6,UIX::CFeatureContext_ShowVoiceMailScreen,.text,mslib,library,0,0
@@ -3327,7 +3327,7 @@ address,name,section,module,state,tested,matched
 000d5db6,UIX::LiveFriendsList_HasChanged,.text,mslib,library,0,0
 000d5dd4,UIX::LiveFriendsList_GetFriendByXUID,.text,mslib,library,0,0
 000d5e0c,UIX::CFriendsScreen_scalar_deleting_dtor,.text,mslib,library,0,0
-000d5e3c,UIX::CFriendsFeature_ctor,.text,mslib,library,0,0
+000d5e3c,UIX::CFriendsFeature_ctor,.text,mslib,untested,0,0
 000d5ea8,UIX::CFriendsList_ctor,.text,mslib,library,0,0
 000d5ed7,FUN_000d5ed7,.text,mslib,unnamed,0,0
 000d5ee8,UIX::CFriendsList_Startup,.text,mslib,library,0,0
@@ -3382,7 +3382,7 @@ address,name,section,module,state,tested,matched
 000d781a,UIX::CLogonPane_DisableGuest,.text,mslib,library,0,0
 000d7876,UIX::CLogonPane_AreOtherPanesIdle,.text,mslib,library,0,0
 000d78b9,UIX::CLogonPane_SetOtherPanesStatusTextIfWaiting,.text,mslib,library,0,0
-000d7907,UIX::CNotificationTask_ctor,.text,mslib,library,0,0
+000d7907,UIX::CNotificationTask_ctor,.text,mslib,untested,0,0
 000d7933,UIX::CLogonScreen_scalar_deleting_dtor,.text,mslib,library,0,0
 000d7959,UIX::CLogonFeature_dtor,.text,mslib,library,0,0
 000d7993,UIX::CLogonFeature_HandleLogonError,.text,mslib,library,0,0
@@ -3393,7 +3393,7 @@ address,name,section,module,state,tested,matched
 000d7d40,UIX::CLogonPane_HasOtherPaneCandidateLogonUser,.text,mslib,library,0,0
 000d7d6b,UIX::CLogonPane_GetSelectedUser,.text,mslib,library,0,0
 000d7e44,UIX::CLogonPane_Output,.text,mslib,library,0,0
-000d7eb7,UIX::CLogonFeature_ctor,.text,mslib,library,0,0
+000d7eb7,UIX::CLogonFeature_ctor,.text,mslib,untested,0,0
 000d7ef1,FUN_000d7ef1,.text,mslib,unnamed,0,0
 000d7f0d,UIX::CLogonFeature_ActivateFeature,.text,mslib,library,0,0
 000d8006,UIX::CLogonScreen_Output,.text,mslib,library,0,0
@@ -3431,7 +3431,7 @@ address,name,section,module,state,tested,matched
 000d9f2a,UIX::CPlayersScreen_SortCurrentPlayersList,.text,mslib,library,0,0
 000da057,UIX::CPlayersScreen_IsPlayerMuted,.text,mslib,library,0,0
 000da0ec,FUN_000da0ec,.text,mslib,unnamed,0,0
-000da10c,UIX::CPlayersFeature_ctor,.text,mslib,library,0,0
+000da10c,UIX::CPlayersFeature_ctor,.text,mslib,untested,0,0
 000da145,UIX::CPlayersFeature_DestroyFeature,.text,mslib,library,0,0
 000da1ea,UIX::CPlayersScreen_ctor,.text,mslib,library,0,0
 000da324,UIX::CPlayersScreen_dtor,.text,mslib,library,0,0
@@ -3469,7 +3469,7 @@ address,name,section,module,state,tested,matched
 000dc330,UIX::CVoiceMailPseudoFeature_DestroyVoiceMailScreen,.text,mslib,library,0,0
 000dc389,UIX::CVoiceMailPseudoFeature_DisplayVoiceMailScreen,.text,mslib,library,0,0
 000dc46a,UIX::CVoiceMailPseudoFeature_SetVoiceMailPlayScreenData,.text,mslib,library,0,0
-000dc527,UIX::CVoiceMailPseudoFeature_ctor,.text,mslib,library,0,0
+000dc527,UIX::CVoiceMailPseudoFeature_ctor,.text,mslib,untested,0,0
 000dc55e,UIX::CVoiceMailPseudoFeature_SetVoiceMailEngine,.text,mslib,library,0,0
 000dc599,FUN_000dc599,.text,mslib,unnamed,0,0
 000dc5ad,FUN_000dc5ad,.text,mslib,unnamed,0,0
@@ -7243,7 +7243,7 @@ address,name,section,module,state,tested,matched
 001e76ba,XAPILIB::XPhysicalFree,.text,mslib,untested,0,0
 001e76c0,XAPILIB::XQueryMemoryProtect,.text,mslib,untested,0,0
 001e76c6,XAPILIB::XapiCallThreadNotifyRoutines,.text,mslib,untested,0,0
-001e76fe,XAPILIB::RaiseException,.text,mslib,library,0,0
+001e76fe,XAPILIB::RaiseException,.text,mslib,replaced,0,0
 001e7754,XAPILIB::SwitchToThread,.text,mslib,library,0,0
 001e7767,XAPILIB::SetUnhandledExceptionFilter,.text,mslib,untested,0,0
 001e7779,XAPILIB::XRegisterThreadNotifyRoutine,.text,mslib,library,0,0

@@ -1066,6 +1066,12 @@ const Function kFunctions[] = {
     {"FileDeviceXapi_IoComplete", 0x000cbb50, 0, code(&FileDeviceXapi_IoComplete), 12, Result::None, Status::Compare},
     {"FileDeviceXapi_Issue", 0x000cbb70, 0, code(&FileDeviceXapi_Issue), 24, Result::Eax, Status::Compare},
     {"Save_FirstPort", 0x000d13c0, 0, code(&Save_FirstPort), 0, Result::Eax, Status::Compare},
+    {"UIX_CAlertFeature_Ctor", 0x000d440b, 0, code(&UIX_CAlertFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (static initializer 0x003790ab calls it)
+    {"UIX_CFriendsFeature_Ctor", 0x000d5e3c, 0, code(&UIX_CFriendsFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (static initializer 0x003790c1 calls it)
+    {"UIX_CNotificationTask_Ctor", 0x000d7907, 0, code(&UIX_CNotificationTask_Ctor), 0, Result::Eax, Status::Compare},  // gap (called from UIX_CLogonFeature_Ctor)
+    {"UIX_CLogonFeature_Ctor", 0x000d7eb7, 0, code(&UIX_CLogonFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (called from 0x003790d7)
+    {"UIX_CPlayersFeature_Ctor", 0x000da10c, 0, code(&UIX_CPlayersFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (called from 0x003790ed)
+    {"UIX_CVoiceMailPseudoFeature_Ctor", 0x000dc527, 0, code(&UIX_CVoiceMailPseudoFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (called from 0x00379103)
     {"Scr_StartThreadFunctor1", 0x0011a910, 0, code(&Scr_StartThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_BeginThreadFunctor1", 0x0011b4d0, 0, code(&Scr_BeginThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_WaitTillScriptString", 0x0011b830, 0, code(&Scr_WaitTillScriptString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
@@ -1138,6 +1144,7 @@ const Function kFunctions[] = {
     {"XPhysicalFree", 0x001e76ba, 0, code(&XPhysicalFree), 4, Result::None, Status::Compare},
     {"XQueryMemoryProtect", 0x001e76c0, 0, code(&XQueryMemoryProtect), 4, Result::Eax, Status::Compare},
     {"XapiCallThreadNotifyRoutines", 0x001e76c6, 0, code(&XapiCallThreadNotifyRoutines), 4, Result::None, Status::Compare},
+    {"RaiseException", 0x001e76fe, 0, code(&RaiseException), 16, Result::None, Status::Replaced},  // gap; does not return (exception dispatch): not compared
     {"SetUnhandledExceptionFilter", 0x001e7767, 0, code(&SetUnhandledExceptionFilter), 4, Result::Eax, Status::Compare},
     {"XapiThreadStartup", 0x001e77fe, 0, code(&XapiThreadStartup), 8, Result::None, Status::Compare},
     {"CreateThread", 0x001e7896, 0, code(&CreateThread), 24, Result::Eax, Status::Compare},
@@ -10103,6 +10110,8 @@ const Function kFunctions[] = {
     {"_getptd", 0x001f3327, 0, code(&title_getptd), 0, Result::Eax, Status::Compare},
     {"_strlwr", 0x001fa3b2, 0, code(&title_strlwr), 4, Result::Eax, Status::Compare},
     {"_strupr", 0x001fa3d5, 0, code(&title_strupr), 4, Result::Eax, Status::Compare},
+    {"XPP_StaticInit_921770", 0x007abead, 0, code(&XPP_StaticInit_921770), 0, Result::None, Status::Compare},  // gap (_cinit)
+    {"XPP_StaticInit_9217e0", 0x007abedd, 0, code(&XPP_StaticInit_9217e0), 0, Result::None, Status::Compare},  // gap (_cinit)
 };
 
 }  // namespace

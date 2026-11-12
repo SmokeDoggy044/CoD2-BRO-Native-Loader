@@ -6,6 +6,7 @@
 
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_xapi.h"
 
 // The frames our code links into FS:[0] and the funclet calls need exact register and stack control: three small
 // asm helpers (bottom). Everything here runs between title frames that a catch abandons, so nothing may own
@@ -36,7 +37,6 @@ constexpr uint32_t kCxxMagic = 0x19930520;
 constexpr uint32_t kBreakpoint = 0x80000003;
 constexpr uint32_t kUnwinding = 0x66;  // EXCEPTION_UNWINDING | EXIT_UNWIND | TARGET_UNWIND | COLLIDED_UNWIND
 constexpr uint32_t kContinueSearch = 1;
-constexpr uint32_t kRaiseException = 0x001e76fe;  // XAPI RaiseException (stdcall code, flags, count, arguments)
 constexpr uint32_t kRtlUnwindSlot = 0x007b3224;   // the kernel import RtlUnwind (stdcall frame, ip, record, value)
 
 struct EhRecord {  // EXCEPTION_RECORD with a C++ exception's three parameters
@@ -435,7 +435,7 @@ uint32_t XB_CDECL catch_node_handler(EhRecord* record, EhCatchNode* c, uint32_t,
 
 void XB_STDCALL title_CxxThrowException(void* object, uint32_t throw_info) {
     const uint32_t arguments[3] = {kCxxMagic, address_of(object), throw_info};
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, const uint32_t*)>(kRaiseException)(kCxxException, 1, 3,
+    RaiseException(kCxxException, 1, 3,
                                                                                                   arguments);
 }
 

@@ -123,3 +123,12 @@ address,name
 002b4710,IN_MeleeUp
 002b4720,IN_MeleeDown
 002f5130,G_LevelScriptEmptyCallback
+000d440b,UIX_CAlertFeature_Ctor
+001e76fe,RaiseException
+007abead,XPP_StaticInit_921770
+007abedd,XPP_StaticInit_9217e0
+000d5e3c,UIX_CFriendsFeature_Ctor
+000d7907,UIX_CNotificationTask_Ctor
+000d7eb7,UIX_CLogonFeature_Ctor
+000da10c,UIX_CPlayersFeature_Ctor
+000dc527,UIX_CVoiceMailPseudoFeature_Ctor

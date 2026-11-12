@@ -235,6 +235,20 @@ const uint8_t* title_console_key() {
                              : reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t>(0x007b302c)});
 }
 
+// 0x001e76fe: an EXCEPTION_RECORD (code, flags & EXCEPTION_NONCONTINUABLE, no chained record, this function's
+// original address, at most 15 arguments) for the kernel's RtlRaiseException (import slot 0x007b3134).
+void XB_STDCALL RaiseException(uint32_t code, uint32_t flags, uint32_t count, const uint32_t* arguments) {
+    uint32_t record[20] = {};
+    record[0] = code;
+    record[1] = flags & 1;
+    record[3] = 0x001e76fe;
+    if (arguments) {
+        record[4] = count > 15 ? 15 : count;
+        std::memcpy(record + 5, arguments, record[4] * 4);
+    }
+    title_global<void XB_STDCALL (*)(uint32_t*)>(0x007b3134)(record);
+}
+
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status) {
     const uint32_t error = title_dos_error(status);
     SetLastError(error);

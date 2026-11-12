@@ -1,6 +1,7 @@
 #include "gap_methods.h"
 
 #include <cstring>
+#include <initializer_list>
 
 #include "cl.h"
 #include "cm.h"
@@ -547,5 +548,99 @@ uint32_t XB_CDECL apsTypeTag_SpAc() {
 uint32_t XB_CDECL apsTypeTag_Traj() {
     return 0x5472616a;  // 'Traj'
 }
+
+// --- Start-up: static initializers and constructors they call ---
+
+// 0x000d440b: the UIX alert feature object the static initializers build at 0x00920ec0.
+uint8_t* XB_THISCALL UIX_CAlertFeature_Ctor(uint8_t* self) {
+    word<uint32_t>(self, 0) = 0x007cfed8;  // vtable
+    word<uint32_t>(self, 0x8) = 0;
+    word<uint32_t>(self, 0xc) = 0;
+    word<uint32_t>(self, 0x2f0) = 0;
+    word<uint32_t>(self, 0x2f4) = 0;
+    word<uint32_t>(self, 0x2f8) = 0;
+    for (uint32_t i = 0; i < 4; ++i) word<uint32_t>(self, 0x10 + i * 0xb8) = 0;
+    return self;
+}
+
+// 0x000d5e3c: the UIX friends feature object the static initializers build at 0x009211c0.
+uint8_t* XB_THISCALL UIX_CFriendsFeature_Ctor(uint8_t* self) {
+    word<uint32_t>(self, 0) = 0x007cffc0;  // vtable
+    word<uint32_t>(self, 0x30) = 0xffffffffu;
+    for (uint32_t at : {0x24u, 0x28u, 0x2cu, 0x44u, 0xb0u, 0xb8u, 0xbcu, 0xc0u}) word<uint32_t>(self, at) = 0;
+    word<uint32_t>(self, 0xb4) = 1;
+    for (uint32_t at = 0x34; at < 0x44; at += 4) word<uint32_t>(self, at) = 0;
+    word<uint32_t>(self, 0xc) = 0xffffffffu;
+    word<uint32_t>(self, 0x8) = 0;
+    for (uint32_t at = 0x58; at < 0xac; at += 4) word<uint32_t>(self, at) = 0;
+    word<uint16_t>(self, 0xac) = 0;
+    return self;
+}
+
+// 0x000d7907: a member of the logon feature (+0x234).
+uint8_t* XB_THISCALL UIX_CNotificationTask_Ctor(uint8_t* self) {
+    word<uint32_t>(self, 0x4) = 0;
+    word<uint32_t>(self, 0x8) = 0xffffffffu;
+    word<uint32_t>(self, 0) = 0x007d0034;  // vtable
+    word<uint32_t>(self, 0xc) = 3;
+    for (uint32_t at = 0x10; at < 0x30; at += 4) word<uint32_t>(self, at) = 0;
+    return self;
+}
+
+// 0x000d7eb7: the UIX logon feature object at 0x00921288.
+uint8_t* XB_THISCALL UIX_CLogonFeature_Ctor(uint8_t* self) {
+    word<uint32_t>(self, 0) = 0x007d0038;  // vtable
+    word<uint32_t>(self, 0x22c) = 0xffffffffu;
+    word<uint32_t>(self, 0x220) = 0;
+    word<uint32_t>(self, 0x224) = 0;
+    word<uint32_t>(self, 0x228) = 0;
+    word<uint32_t>(self, 0x230) = 0;
+    UIX_CNotificationTask_Ctor(self + 0x234);
+    word<uint32_t>(self, 0x264) = 0;
+    return self;
+}
+
+// 0x000da10c: the UIX players feature object at 0x009215a8.
+uint8_t* XB_THISCALL UIX_CPlayersFeature_Ctor(uint8_t* self) {
+    word<uint32_t>(self, 0) = 0x007d00c0;  // vtable
+    word<uint32_t>(self, 0x8) = 0x007d00a8;  // second vtable
+    for (uint32_t at : {0x20u, 0x24u, 0x2cu, 0x30u, 0x28u}) word<uint32_t>(self, at) = 0;
+    word<uint32_t>(self, 0x38) = 2;
+    for (uint32_t at : {0x40u, 0x44u, 0x3cu}) word<uint32_t>(self, at) = 0;
+    word<uint32_t>(self, 0x4c) = 2;
+    word<uint32_t>(self, 0x50) = 0;
+    word<uint32_t>(self, 0x54) = 0;
+    return self;
+}
+
+// 0x000dc527: the UIX voice mail object at 0x00921604.
+uint8_t* XB_THISCALL UIX_CVoiceMailPseudoFeature_Ctor(uint8_t* self) {
+    for (uint32_t at : {0xcu, 0x10u, 0x14u, 0x28u, 0x2cu}) word<uint32_t>(self, at) = 0;
+    word<uint32_t>(self, 0) = 0x007d0160;  // vtable
+    word<uint32_t>(self, 0x8) = 0x007d0144;  // second vtable
+    const uint32_t fill = title_global<uint32_t>(0x007d040c);
+    for (uint32_t at = 0x18; at < 0x28; at += 4) word<uint32_t>(self, at) = fill;
+    return self;
+}
+
+namespace {
+
+// XPP's two static arrays of 4 objects (0x1c bytes, vtable 0x007d047c, the rest zero), entries 8 bytes in.
+void xpp_init_array(uint32_t at) {
+    for (uint32_t i = 0; i < 4; ++i, at += 0x1c) {
+        title_global<uint32_t>(at - 8) = 0x007d047c;
+        title_global<uint32_t>(at - 4) = 0;
+        title_global<uint16_t>(at) = 0;
+        title_global<uint8_t>(at + 2) = 0;
+        title_global<uint8_t>(at + 3) = 0;
+        for (uint32_t k = 4; k <= 0x10; k += 4) title_global<uint32_t>(at + k) = 0;
+    }
+}
+
+}  // namespace
+
+// 0x007abead / 0x007abedd: .CRT$XC entries (_cinit).
+void XB_CDECL XPP_StaticInit_921770() { xpp_init_array(0x00921770); }
+void XB_CDECL XPP_StaticInit_9217e0() { xpp_init_array(0x009217e0); }
 
 }  // namespace game

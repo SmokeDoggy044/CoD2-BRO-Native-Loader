@@ -28,6 +28,7 @@ uint32_t title_fs_word(uint32_t kpcr_offset);
 // --- Errors (the thread's XAPI block: TLS slot *0x009268b0, +8 = last error) ---
 uint32_t XB_STDCALL GetLastError();                       // 0x001e7c84
 void XB_STDCALL SetLastError(uint32_t error);             // 0x001e7cac
+void XB_STDCALL RaiseException(uint32_t code, uint32_t flags, uint32_t count, const uint32_t* arguments);  // 0x001e76fe
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status);  // 0x001e7cda: the DOS error, also returned
 // RtlNtStatusToDosError: our own table under --own-main, the kernel's otherwise.
 uint32_t title_dos_error(uint32_t status);

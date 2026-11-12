@@ -147,4 +147,14 @@ uint32_t XB_CDECL apsTypeTag_AngT();  // 0x000a4a10
 uint32_t XB_CDECL apsTypeTag_SpAc();  // 0x000a4a90
 uint32_t XB_CDECL apsTypeTag_Traj();  // 0x000a4ab0
 
+// Start-up: static initializers and constructors they call
+uint8_t* XB_THISCALL UIX_CAlertFeature_Ctor(uint8_t* self);  // 0x000d440b
+uint8_t* XB_THISCALL UIX_CFriendsFeature_Ctor(uint8_t* self);  // 0x000d5e3c
+uint8_t* XB_THISCALL UIX_CNotificationTask_Ctor(uint8_t* self);  // 0x000d7907
+uint8_t* XB_THISCALL UIX_CLogonFeature_Ctor(uint8_t* self);  // 0x000d7eb7
+uint8_t* XB_THISCALL UIX_CPlayersFeature_Ctor(uint8_t* self);  // 0x000da10c
+uint8_t* XB_THISCALL UIX_CVoiceMailPseudoFeature_Ctor(uint8_t* self);  // 0x000dc527
+void XB_CDECL XPP_StaticInit_921770();  // 0x007abead
+void XB_CDECL XPP_StaticInit_9217e0();  // 0x007abedd
+
 }  // namespace game
