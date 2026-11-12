@@ -4,7 +4,7 @@
 #
 # usage: tools/replay_all.sh OUT_DIR [FILTER]
 #   FILTER: only recordings whose path contains it (e.g. m4/)
-#   SHOTS=... / SHOT_MAX_SHARE=... are passed on (pictures per build, see replay_check.sh)
+#   SHOTS=... / SHOT_MAX_SHARE=... / EXTRA=... are passed on (pictures per build, see replay_check.sh)
 # Result: replay_check's lines per recording, then one summary line each; OUT_DIR/<mission>_<name>/ holds the logs.
 # Exit code 1 if any recording did not match in every build.
 set -u
