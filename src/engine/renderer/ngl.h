@@ -1247,6 +1247,10 @@ uint32_t XB_THISCALL nglVec4ToColor(const float* color);
 // 0x0004ea50: material slot: the four pointers at +0x1c/+0x24/+0x2c/+0x34 moved by delta
 // when set; returns the last one.
 uint32_t* XB_THISCALL nglMaterial_Relocate4(uint8_t* material, uint32_t delta);
+// 0x0004bfc0 (cdChar / cdSky material class slot; the class unused): nglReleaseTexture of the material's +0x1c (kept).
+void XB_THISCALL nglMaterial_ReleaseTextureNoClear(const void* cls, const uint8_t* material);
+// 0x00063090 (custom draw node vtable 0x007bc6a0 slot 1): out = the node's two words +0x18. Returns out.
+uint32_t* XB_THISCALL nglCustomNode_GetKey(const uint8_t* node, uint32_t* out);
 // 0x0004eaa0: the textures named at +0x1c/+0x24/+0x2c into +0x20/+0x28/+0x30
 // (nglMaterialFindTexture), the optional one at +0x34 into +0x38 (OrDefault; the
 // default texture stored as null). Returns what OrDefault returned.

@@ -1194,8 +1194,6 @@ const Function kFunctions[] = {
     {"_alloc_osfhnd", 0x001f8ef1, 0, code(&title_alloc_osfhnd), 0, Result::Eax, Status::Compare},
     {"_sopen", 0x001f9303, 0, code(&title_sopen), 16, Result::Eax, Status::Compare},
     {"Sys_ReadLaunchInfo", 0x002221b0, 0, code(&Sys_ReadLaunchInfo), 4, Result::Eax, Status::Compare},
-    {"CL_GetConfigStringText", 0x0027ab20, 0, code(&CL_GetConfigStringText), 0, Result::Eax, Status::Compare},  // was FUN_0027ab20 (gap)
-    {"Stream_OnReadError", 0x00291940, 0, code(&Stream_OnReadError), 4, Result::None, Status::Compare},  // was FUN_00291940 (gap)
     {"ThreadHandleList_EndAll", 0x0029aba0, 0, code(&ThreadHandleList_EndAll), 0, Result::Eax, Status::Compare},
     {"G_EntityWeaponRecordFlag", 0x00248e10, 0, code(&G_EntityWeaponRecordFlag), 0, Result::Eax, Status::Compare},
     {"Heap_SelectByIndex", 0x00042ac0, 0, code(&Heap_SelectByIndex), 4, Result::Eax, Status::Replaced},
@@ -1321,6 +1319,7 @@ const Function kFunctions[] = {
     {"cdGunSight_Register", 0x00047a50, 0, code(&cdGunSight_Register), 0, Result::None, Status::Replaced},
     {"cdGunSight_Init", 0x00047ad0, 0, code(&cdGunSight_Init), 0, Result::None, Status::Replaced},
     {"cdGunSight_Draw", 0x00047b10, 0, code(&cdGunSight_Draw), 0, Result::None, Status::Replaced},
+    {"cdGunSight_RegisterMaterialType", 0x00047d80, 0, code(&cdGunSight_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_00047d80 (gap)
     {"nglStateCache_SetAlphaTestEnable", 0x00047dc0, 0, code(&nglStateCache_SetAlphaTestEnable), 4, Result::None, Status::Replaced},
     {"nglStateCache_SetAlphaFunc", 0x00047df0, 0, code(&nglStateCache_SetAlphaFunc), 4, Result::None, Status::Replaced},
     {"nglStateCache_SetAlphaRef", 0x00047e20, 0, code(&nglStateCache_SetAlphaRef), 4, Result::None, Status::Replaced},
@@ -1331,11 +1330,13 @@ const Function kFunctions[] = {
     {"cdGun_Register", 0x00048260, 0, code(&cdGun_Register), 0, Result::None, Status::Replaced},
     {"cdGun_Init", 0x000482e0, 0, code(&cdGun_Init), 0, Result::None, Status::Replaced},
     {"cdGun_Draw", 0x00048320, 0, code(&cdGun_Draw), 0, Result::None, Status::Replaced},
+    {"cdGun_RegisterMaterialType", 0x00048590, 0, code(&cdGun_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_00048590 (gap)
     {"cdGun_GetName", 0x000485c0, 0, code(&cdGun_GetName), 4, Result::Eax, Status::Replaced},
     {"nglMaterial_ReleaseTexture", 0x000485e0, 0, code(&nglMaterial_ReleaseTexture), 4, Result::None, Status::Replaced},
     {"cdGlass_Toggle", 0x00048900, 0, code(&cdGlass_Toggle), 0, Result::None, Status::Replaced},
     {"cdGlass_Register", 0x00048920, 0, code(&cdGlass_Register), 0, Result::None, Status::Replaced},
     {"cdGlass_Init", 0x00048990, 0, code(&cdGlass_Init), 0, Result::None, Status::Replaced},
+    {"cdGlass_RegisterMaterialType", 0x000489e0, 0, code(&cdGlass_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_000489e0 (gap)
     {"nglStateCache_SetSrcBlend", 0x00048fd0, 0, code(&nglStateCache_SetSrcBlend), 4, Result::None, Status::Replaced},
     {"nglStateCache_SetDestBlend", 0x00049000, 0, code(&nglStateCache_SetDestBlend), 4, Result::None, Status::Replaced},
     {"nglStateCache_SetBlendOp", 0x00049030, 0, code(&nglStateCache_SetBlendOp), 4, Result::None, Status::Replaced},
@@ -1355,6 +1356,7 @@ const Function kFunctions[] = {
     {"cdSimpleAlpha_PulseColor", 0x00049cd0, 0, code(&cdSimpleAlpha_PulseColor_entry), 20, Result::Eax, Status::Replaced},
     {"cdSimpleAlpha_Draw", 0x00049e40, 0, code(&cdSimpleAlpha_Draw), 0, Result::None, Status::Replaced},
     {"cdSimpleAlpha_AddToList", 0x0004a7e0, 0, code(&cdSimpleAlpha_AddToList), 12, Result::None, Status::Replaced},
+    {"cdSimpleAlpha_RegisterMaterialType", 0x0004a870, 0, code(&cdSimpleAlpha_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004a870 (gap)
     {"cdSimpleAlpha_InitVertexShaders", 0x0004a8a0, 0, code(&cdSimpleAlpha_InitVertexShaders), 4, Result::None, Status::Replaced},
     {"cdSimpleAlpha_InitPixelShaders", 0x0004a8e0, 0, code(&cdSimpleAlpha_InitPixelShaders), 0, Result::None, Status::Replaced},
     {"cdSimpleAlpha_InitPixelShaders2", 0x0004a910, 0, code(&cdSimpleAlpha_InitPixelShaders2), 0, Result::None, Status::Replaced},
@@ -1363,6 +1365,7 @@ const Function kFunctions[] = {
     {"cdPropeller_Register", 0x0004aca0, 0, code(&cdPropeller_Register), 0, Result::None, Status::Replaced},
     {"cdPropeller_Init", 0x0004ad20, 0, code(&cdPropeller_Init), 0, Result::None, Status::Replaced},
     {"cdPropeller_AddToList", 0x0004b000, 0, code(&cdPropeller_AddToList), 12, Result::None, Status::Replaced},
+    {"cdPropeller_RegisterMaterialType", 0x0004b090, 0, code(&cdPropeller_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004b090 (gap)
     {"cdPropeller_GetName", 0x0004b0c0, 0, code(&cdPropeller_GetName), 4, Result::Eax, Status::Replaced},
     {"cdDecal_Toggle", 0x0004b400, 0, code(&cdDecal_Toggle), 0, Result::None, Status::Replaced},
     {"cdDecal_AddToList", 0x0004b420, 0, code(&cdDecal_AddToList), 12, Result::None, Status::Replaced},
@@ -1374,11 +1377,13 @@ const Function kFunctions[] = {
     {"cdChar_Register", 0x0004bc40, 0, code(&cdChar_Register), 0, Result::None, Status::Replaced},
     {"cdChar_Init", 0x0004bcc0, 0, code(&cdChar_Init), 0, Result::None, Status::Replaced},
     {"cdChar_GetName", 0x0004bfa0, 0, code(&cdChar_GetName), 4, Result::Eax, Status::Replaced},
+    {"nglMaterial_ReleaseTextureNoClear", 0x0004bfc0, 0, code(&nglMaterial_ReleaseTextureNoClear), 4, Result::None, Status::Compare},  // was FUN_0004bfc0 (gap)
     {"cdPrelit_Toggle", 0x0004c2e0, 0, code(&cdPrelit_Toggle), 0, Result::None, Status::Replaced},
     {"cdPrelit_AddToList", 0x0004c300, 0, code(&cdPrelit_AddToList), 12, Result::None, Status::Replaced},
     {"cdPrelit_Register", 0x0004c380, 0, code(&cdPrelit_Register), 0, Result::None, Status::Replaced},
     {"cdPrelit_Init", 0x0004c410, 0, code(&cdPrelit_Init), 0, Result::None, Status::Replaced},
     {"cdPrelit_Draw", 0x0004c450, 0, code(&cdPrelit_Draw), 0, Result::None, Status::Replaced},
+    {"cdPrelit_RegisterMaterialType", 0x0004c690, 0, code(&cdPrelit_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004c690 (gap)
     {"cdPrelit_GetName", 0x0004c6c0, 0, code(&cdPrelit_GetName), 4, Result::Eax, Status::Replaced},
     {"nglMaterial_LoadBaseAndOptional", 0x0004c6e0, 0, code(&nglMaterial_LoadBaseAndOptional), 4, Result::None, Status::Replaced},
     {"nglMaterial_ReleaseBaseAndOptional", 0x0004c720, 0, code(&nglMaterial_ReleaseBaseAndOptional), 4, Result::None, Status::Replaced},
@@ -1386,6 +1391,7 @@ const Function kFunctions[] = {
     {"cdAirplaneMetal_AddToList", 0x0004ca70, 0, code(&cdAirplaneMetal_AddToList), 12, Result::None, Status::Replaced},
     {"cdAirplaneMetal_Register", 0x0004caf0, 0, code(&cdAirplaneMetal_Register), 0, Result::None, Status::Replaced},
     {"cdAirplaneMetal_Init", 0x0004cb70, 0, code(&cdAirplaneMetal_Init), 0, Result::None, Status::Replaced},
+    {"cdAirplaneMetal_RegisterMaterialType", 0x0004cbc0, 0, code(&cdAirplaneMetal_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004cbc0 (gap)
     {"cdAirplaneMetal_GetName", 0x0004d090, 0, code(&cdAirplaneMetal_GetName), 4, Result::Eax, Status::Replaced},
     {"nglMaterial_Relocate2", 0x0004d0b0, 0, code(&nglMaterial_Relocate2), 8, Result::None, Status::Replaced},
     {"cdSimpleUVAnim_Toggle", 0x0004d3e0, 0, code(&cdSimpleUVAnim_Toggle), 0, Result::None, Status::Replaced},
@@ -1398,6 +1404,7 @@ const Function kFunctions[] = {
     {"cdSimplePrelit_Register", 0x0004dca0, 0, code(&cdSimplePrelit_Register), 0, Result::None, Status::Replaced},
     {"cdSimplePrelit_Init", 0x0004dd10, 0, code(&cdSimplePrelit_Init), 0, Result::None, Status::Replaced},
     {"cdSimplePrelit_Draw", 0x0004dd50, 0, code(&cdSimplePrelit_Draw), 0, Result::None, Status::Replaced},
+    {"cdSimplePrelit_RegisterMaterialType", 0x0004df60, 0, code(&cdSimplePrelit_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004df60 (gap)
     {"cdSimplePrelit_GetName", 0x0004df90, 0, code(&cdSimplePrelit_GetName), 4, Result::Eax, Status::Replaced},
     {"nglMaterial_Relocate", 0x0004dfb0, 0, code(&nglMaterial_Relocate), 8, Result::None, Status::Replaced},
     {"cdSimple_Toggle", 0x0004e2f0, 0, code(&cdSimple_Toggle), 0, Result::None, Status::Replaced},
@@ -1405,19 +1412,26 @@ const Function kFunctions[] = {
     {"cdSimple_Register", 0x0004e390, 0, code(&cdSimple_Register), 0, Result::None, Status::Replaced},
     {"cdSimple_Init", 0x0004e410, 0, code(&cdSimple_Init), 0, Result::None, Status::Replaced},
     {"cdSimple_Draw", 0x0004e450, 0, code(&cdSimple_Draw), 0, Result::None, Status::Replaced},
+    {"cdSimple_RegisterMaterialType", 0x0004e6c0, 0, code(&cdSimple_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004e6c0 (gap)
     {"cdChar_Draw", 0x0004bd00, 0, code(&cdChar_Draw), 0, Result::None, Status::Replaced},
+    {"cdChar_RegisterMaterialType", 0x0004bf70, 0, code(&cdChar_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004bf70 (gap)
     {"cdSimpleUVAnim_GetUVParams", 0x0004d560, 0, code(&cdSimpleUVAnim_GetUVParams), 4, Result::None, Status::Replaced},
     {"cdSimpleUVAnim_Draw", 0x0004d610, 0, code(&cdSimpleUVAnim_Draw), 0, Result::None, Status::Replaced},
+    {"cdSimpleUVAnim_RegisterMaterialType", 0x0004d890, 0, code(&cdSimpleUVAnim_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004d890 (gap)
     {"cdDebug_Draw", 0x000469b0, 0, code(&cdDebug_Draw), 0, Result::None, Status::Replaced},
     {"cdDecal_Draw", 0x0004b560, 0, code(&cdDecal_Draw), 0, Result::None, Status::Replaced},
+    {"cdDecal_RegisterMaterialType", 0x0004b850, 0, code(&cdDecal_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004b850 (gap)
     {"cdRiver_Register", 0x0004e8a0, 0, code(&cdRiver_Register), 0, Result::None, Status::Replaced},
+    {"cdOcean_GetPixelShader", 0x0004e940, 0, code(&cdOcean_GetPixelShader), 12, Result::Eax, Status::Compare},  // was FUN_0004e940 (gap)
     {"cdRiver_NewVertexIter", 0x0004eb80, 0, code(&cdRiver_NewVertexIter), 4, Result::Eax, Status::Replaced},
     {"cdRiverVertexIter_Clone", 0x0004ebb0, 0, code(&cdRiverVertexIter_Clone), 0, Result::Eax, Status::Replaced},
     {"cdOcean_Register", 0x0004f2a0, 0, code(&cdOcean_Register), 0, Result::None, Status::Replaced},
     {"cdOceanVertexIter_Clone", 0x00050d80, 0, code(&cdOceanVertexIter_Clone), 0, Result::Eax, Status::Replaced},
     {"cdWater_Register", 0x00051100, 0, code(&cdWater_Register), 0, Result::None, Status::Replaced},
     {"cdWater_Draw", 0x000511c0, 0, code(&cdWater_Draw), 0, Result::None, Status::Replaced},
+    {"cdWater_RegisterMaterialType", 0x000514c0, 0, code(&cdWater_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_000514c0 (gap)
     {"cdOcean_Draw", 0x000505c0, 0, code(&cdOcean_Draw), 0, Result::None, Status::Replaced},
+    {"cdOcean_RegisterMaterialType", 0x000508b0, 0, code(&cdOcean_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_000508b0 (gap)
     {"cdPropeller_Draw", 0x0004ad60, 0, code(&cdPropeller_Draw), 0, Result::None, Status::Replaced},
     {"cdWater_NewVertexIter", 0x00051570, 0, code(&cdWater_NewVertexIter), 4, Result::Eax, Status::Replaced},
     {"cdWaterVertexIter_Clone", 0x000515a0, 0, code(&cdWaterVertexIter_Clone), 0, Result::Eax, Status::Replaced},
@@ -1438,10 +1452,12 @@ const Function kFunctions[] = {
     {"cdBackgroundVertexIter_Clone", 0x00054730, 0, code(&cdBackgroundVertexIter_Clone), 0, Result::Eax, Status::Replaced},
     {"cdSky_Register", 0x00054a20, 0, code(&cdSky_Register), 0, Result::None, Status::Replaced},
     {"cdSky_Draw", 0x00054ad0, 0, code(&cdSky_Draw), 0, Result::None, Status::Replaced},
+    {"cdSky_RegisterMaterialType", 0x000552e0, 0, code(&cdSky_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_000552e0 (gap)
     {"cdGlass_Draw", 0x00048a10, 0, code(&cdGlass_Draw), 0, Result::None, Status::Replaced},
     {"cdSkyVertexIter_Clone", 0x00055400, 0, code(&cdSkyVertexIter_Clone), 0, Result::Eax, Status::Replaced},
     {"MemStream_Init", 0x000554b0, 0, code(&MemStream_Init), 8, Result::Eax, Status::Replaced},
     {"MemStream_Destroy", 0x000554e0, 0, code(&MemStream_Destroy), 0, Result::None, Status::Replaced},
+    {"MemStream_AtEnd", 0x00055510, 0, code(&MemStream_AtEnd), 0, Result::Al, Status::Compare},  // was FUN_00055510 (gap)
     {"MemStream_Read", 0x00055590, 0, code(&MemStream_Read), 8, Result::None, Status::Replaced},
     {"MemStream_DeletingDestroy", 0x000555f0, 0, code(&MemStream_DeletingDestroy), 4, Result::Eax, Status::Replaced},
     {"Stream_ReadInt", 0x000557c0, 0, code(&Stream_ReadInt), 0, Result::Eax, Status::Replaced},
@@ -1679,7 +1695,9 @@ const Function kFunctions[] = {
     {"cdRiver_AddToList", 0x0004e810, 0, code(&cdRiver_AddToList), 12, Result::None, Status::Replaced},
     {"cdRiver_Toggle", 0x0004e880, 0, code(&cdRiver_Toggle), 0, Result::None, Status::Replaced},
     {"cdRiver_Init", 0x0004e980, 0, code(&cdRiver_Init), 0, Result::None, Status::Replaced},
+    {"cdRiver_RegisterMaterialType", 0x0004e9e0, 0, code(&cdRiver_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0004e9e0 (gap)
     {"cdOcean_GetName", 0x0004ea10, 0, code(&cdOcean_GetName), 4, Result::Eax, Status::Replaced},
+    {"cdRiver_Relocate", 0x0004ea30, 0, code(&cdRiver_Relocate), 8, Result::Eax, Status::Compare},  // was FUN_0004ea30 (gap)
     {"cdRiver_GetName", 0x0004eb60, 0, code(&cdRiver_GetName), 4, Result::Eax, Status::Replaced},
     {"cdOcean_AddToList", 0x0004eef0, 0, code(&cdOcean_AddToList), 12, Result::None, Status::Replaced},
     {"cdOcean_Toggle", 0x0004ef60, 0, code(&cdOcean_Toggle), 0, Result::None, Status::Replaced},
@@ -1698,21 +1716,25 @@ const Function kFunctions[] = {
     {"cdWorldBlend_Toggle", 0x00051870, 0, code(&cdWorldBlend_Toggle), 0, Result::None, Status::Replaced},
     {"cdWorldBlend_Init", 0x00051910, 0, code(&cdWorldBlend_Init), 0, Result::None, Status::Replaced},
     {"cdWorldBlend_AddToList", 0x00051970, 0, code(&cdWorldBlend_AddToList), 12, Result::None, Status::Replaced},
+    {"cdWorldBlend_RegisterMaterialType", 0x00051ae0, 0, code(&cdWorldBlend_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_00051ae0 (gap)
     {"cdWorldBlend_InitVertexShaders", 0x00052600, 0, code(&cdWorldBlend_InitVertexShaders), 4, Result::None, Status::Replaced},
     {"cdWorldBlend_InitVertexShaders2", 0x00052640, 0, code(&cdWorldBlend_InitVertexShaders2), 4, Result::None, Status::Replaced},
     {"cdWorldBlend_InitPixelShaders", 0x00052680, 0, code(&cdWorldBlend_InitPixelShaders), 0, Result::None, Status::Replaced},
     {"cdWorldBlend_InitPixelShaders2", 0x000526b0, 0, code(&cdWorldBlend_InitPixelShaders2), 0, Result::None, Status::Replaced},
     {"cdWorldBlend_GetName", 0x000526e0, 0, code(&cdWorldBlend_GetName), 4, Result::Eax, Status::Replaced},
+    {"cdWorldBlend_Relocate", 0x00052700, 0, code(&cdWorldBlend_Relocate), 8, Result::Eax, Status::Compare},  // was FUN_00052700 (gap)
     {"cdWorldBlend_LoadTextures", 0x00052730, 0, code(&cdWorldBlend_LoadTextures), 4, Result::None, Status::Replaced},
     {"cdWorldBlend_ReleaseTextures", 0x00052780, 0, code(&cdWorldBlend_ReleaseTextures), 4, Result::None, Status::Replaced},
     {"cdWorldVertexLit_Toggle", 0x00052af0, 0, code(&cdWorldVertexLit_Toggle), 0, Result::None, Status::Replaced},
     {"cdWorldVertexLit_AddToList", 0x00052b10, 0, code(&cdWorldVertexLit_AddToList), 12, Result::None, Status::Replaced},
     {"cdWorldVertexLit_Init", 0x00052c10, 0, code(&cdWorldVertexLit_Init), 0, Result::None, Status::Replaced},
     {"cdWorldVertexLit_Draw", 0x00052c50, 0, code(&cdWorldVertexLit_Draw), 0, Result::None, Status::Replaced},
+    {"cdWorldVertexLit_RegisterMaterialType", 0x00052e50, 0, code(&cdWorldVertexLit_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_00052e50 (gap)
     {"cdWorldVertexLit_GetName", 0x00052e80, 0, code(&cdWorldVertexLit_GetName), 4, Result::Eax, Status::Replaced},
     {"cdWorld_Toggle", 0x000531a0, 0, code(&cdWorld_Toggle), 0, Result::None, Status::Replaced},
     {"cdWorld_Init", 0x00053240, 0, code(&cdWorld_Init), 0, Result::None, Status::Replaced},
     {"cdWorld_AddToList", 0x000532a0, 0, code(&cdWorld_AddToList), 12, Result::None, Status::Replaced},
+    {"cdWorld_RegisterMaterialType", 0x00053410, 0, code(&cdWorld_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_00053410 (gap)
     {"cdWorld_InitVertexShaders", 0x00053f20, 0, code(&cdWorld_InitVertexShaders), 4, Result::None, Status::Replaced},
     {"cdWorld_InitVertexShaders2", 0x00053f60, 0, code(&cdWorld_InitVertexShaders2), 4, Result::None, Status::Replaced},
     {"cdWorld_InitPixelShaders", 0x00053fa0, 0, code(&cdWorld_InitPixelShaders), 0, Result::None, Status::Replaced},
@@ -1722,6 +1744,7 @@ const Function kFunctions[] = {
     {"cdBackground_AddToList", 0x00054360, 0, code(&cdBackground_AddToList), 12, Result::None, Status::Replaced},
     {"cdBackground_Init", 0x00054460, 0, code(&cdBackground_Init), 0, Result::None, Status::Replaced},
     {"cdBackground_Draw", 0x000544a0, 0, code(&cdBackground_Draw), 0, Result::None, Status::Replaced},
+    {"cdBackground_RegisterMaterialType", 0x000546b0, 0, code(&cdBackground_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_000546b0 (gap)
     {"cdBackground_GetName", 0x000546e0, 0, code(&cdBackground_GetName), 4, Result::Eax, Status::Replaced},
     {"cdSky_Toggle", 0x00054a00, 0, code(&cdSky_Toggle), 0, Result::None, Status::Replaced},
     {"cdSky_Init", 0x00054a90, 0, code(&cdSky_Init), 0, Result::None, Status::Replaced},
@@ -1782,6 +1805,7 @@ const Function kFunctions[] = {
     {"nglProjectPointCopy", 0x00062db0, 0, code(&nglProjectPointCopy), 8, Result::None, Status::Replaced},
     {"nglInitScene", 0x00062df0, 0, code(&nglInitScene), 8, Result::Eax, Status::Replaced},
     {"nglPushScene", 0x00062fc0, 0, code(&nglPushScene), 4, Result::Eax, Status::Replaced},
+    {"nglCustomNode_GetKey", 0x00063090, 0, code(&nglCustomNode_GetKey), 4, Result::Eax, Status::Compare},  // was FUN_00063090 (gap)
     {"nglSetTextureManager", 0x000633b0, 0, code(&nglSetTextureManager), 4, Result::None, Status::Replaced},
     {"nglGetTextureManager", 0x000633c0, 0, code(&nglGetTextureManager), 0, Result::Eax, Status::Replaced},
     {"nglAddRef", 0x00063520, 0, code(&nglAddRef), 4, Result::None, Status::Replaced},
@@ -1886,6 +1910,7 @@ const Function kFunctions[] = {
     {"nglCreateDDSPalette", 0x0007b250, 0, code(&nglCreateDDSPalette), 12, Result::Eax, Status::Replaced},
     {"nglDebugShader_GetName", 0x0007b780, 0, code(&nglDebugShader_GetName), 4, Result::Eax, Status::Replaced},
     {"nglDumpPrintf", 0x0007b810, 0, code(&nglDumpPrintf), 0, Result::None, Status::Replaced},
+    {"cdDebug_RegisterMaterialType", 0x0007b920, 0, code(&cdDebug_RegisterMaterialType), 0, Result::None, Status::Compare},  // was FUN_0007b920 (gap)
     {"Anim_InitManagers", 0x0007bac0, 0, code(&Anim_InitManagers), 0, Result::Eax, Status::Replaced},
     {"NAL_GenericAnim_DestroyState", 0x0007bd20, 0, code(&NAL_GenericAnim_DestroyState), 4, Result::None, Status::Compare},
     {"NAL_GenericAnim_DeletingDtor", 0x0007bd40, 0, code(&NAL_GenericAnim_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -2323,6 +2348,9 @@ const Function kFunctions[] = {
     {"FxOpdd_InitShaders", 0x0009e500, 0, code(&FxOpdd_InitShaders), 0, Result::None, Status::Replaced},
     {"FxOpdd_Init", 0x0009e530, 0, code(&FxOpdd_Init), 4, Result::Eax, Status::Replaced},
     {"FxOpdd_AddToList", 0x0009e560, 0, code(&FxOpdd_AddToList), 24, Result::Eax, Status::Replaced},
+    {"FxOp_SetVector", 0x0009e630, 0, code(&FxOp_SetVector), 4, Result::None, Status::Compare},  // was FUN_0009e630 (gap)
+    {"FxOpdd_GetType", 0x0009e650, 0, code(&FxOpdd_GetType), 0, Result::Eax, Status::Compare},  // gap: the second entry inside FUN_0009e630 (vtable 0x007c7328)
+    {"FxOp_IsVectorZero", 0x0009e660, 0, code(&FxOp_IsVectorZero), 0, Result::Eax, Status::Compare},  // was FUN_0009e660 (gap)
     {"FxOp1dd_InitShaders", 0x0009e690, 0, code(&FxOp1dd_InitShaders), 0, Result::None, Status::Replaced},
     {"FxOp1dd_Init", 0x0009e6c0, 0, code(&FxOp1dd_Init), 4, Result::Eax, Status::Replaced},
     {"FxOp1dd_AddToList", 0x0009e6f0, 0, code(&FxOp1dd_AddToList), 24, Result::Eax, Status::Replaced},
@@ -2777,7 +2805,6 @@ const Function kFunctions[] = {
     {"File_LayoutMemory", 0x000c9530, 0, code(&File_LayoutMemory_entry), 0, Result::Eax, Status::Replaced},
     {"File_Configure", 0x000c9880, 0, code(&File_Configure), 0, Result::Eax, Status::Replaced},
     {"File_ShutdownDevices", 0x000c9910, 0, code(&File_ShutdownDevices), 0, Result::None, Status::Replaced},
-    {"Loc_FindTextByHash", 0x0029ad80, 0, code(&Loc_FindTextByHash), 0, Result::Eax, Status::Compare},  // was FUN_0029ad80 (gap)
     {"Cmd_RelaunchTitle_f", 0x002cfa40, 0, code(&Cmd_RelaunchTitle_f), 0, Result::None, Status::Replaced},
     {"File_GetDeviceInfoForBit", 0x000c9940, 0, code(&File_GetDeviceInfoForBit), 8, Result::Eax, Status::Replaced},
     {"File_SetDevicePriority", 0x000c9980, 0, code(&File_SetDevicePriority), 8, Result::None, Status::Replaced},
@@ -6789,6 +6816,7 @@ const Function kFunctions[] = {
     {"CG_GetGrenadeAmmoCount", 0x0027a240, 0, code(&CG_GetGrenadeAmmoCount), 0, Result::Eax, Status::Replaced},
     {"CG_CalcWeaponSway", 0x0027a2b0, 0, code(&CG_CalcWeaponSway), 0, Result::None, Status::Replaced},
     {"CG_GetViewFov", 0x0027a7b0, 0, code(&CG_GetViewFov_entry), 0, Result::Xmm0, Status::Replaced},
+    {"CL_GetConfigStringText", 0x0027ab20, 0, code(&CL_GetConfigStringText), 0, Result::Eax, Status::Compare},  // was FUN_0027ab20 (gap)
     {"CG_MaybeSpawnTracer", 0x0027ab40, 0, code(&CG_MaybeSpawnTracer_entry), 8, Result::None, Status::Replaced},
     {"CG_ParseConfigStringFloat11", 0x0027abb0, 0, code(&CG_ParseConfigStringFloat11), 0, Result::None, Status::Replaced},
     {"CG_InitConsoleCommands", 0x0027acb0, 0, code(&CG_InitConsoleCommands), 0, Result::None, Status::Replaced},
@@ -7046,6 +7074,7 @@ const Function kFunctions[] = {
     {"Stream_SetViewPosition", 0x002914f0, 0, code(&Stream_SetViewPosition), 16, Result::None, Status::Replaced},
     {"Stream_RetireRequest", 0x00291850, 0, code(&Stream_RetireRequest_entry), 0, Result::None, Status::Replaced},
     {"Stream_LoadZbb", 0x00291920, 0, code(&Stream_LoadZbb), 16, Result::Eax, Status::Replaced},
+    {"Stream_OnReadError", 0x00291940, 0, code(&Stream_OnReadError), 4, Result::None, Status::Compare},  // was FUN_00291940 (gap)
     {"R_SampleLightGrid", 0x00242e90, 0, code(&R_SampleLightGrid), 12, Result::None, Status::Replaced},
     {"R_SetupEntityLighting", 0x00243770, 0, code(&R_SetupEntityLighting_entry), 0, Result::None, Status::Replaced},
     {"R_AddStaticModel", 0x002438b0, 0, code(&R_AddStaticModel), 0, Result::None, Status::Replaced},
@@ -7389,6 +7418,7 @@ const Function kFunctions[] = {
     {"FS_IsCfgMenuOrDatFile", 0x0029ab20, 0, code(&FS_IsCfgMenuOrDatFile), 0, Result::Eax, Status::Replaced},
     {"Scr_EntityWaitList_FreeWaits", 0x0029ac20, 0, code(&Scr_EntityWaitList_FreeWaits_entry), 0, Result::Eax, Status::Replaced},
     {"EntNotifyCallbacks_CallByKey", 0x0029acb0, 0, code(&EntNotifyCallbacks_CallByKey), 8, Result::Al, Status::Replaced},
+    {"Loc_FindTextByHash", 0x0029ad80, 0, code(&Loc_FindTextByHash), 0, Result::Eax, Status::Compare},  // was FUN_0029ad80 (gap)
     {"FxShakeRumbleComponent_Stop", 0x0029ae90, 0, code(&FxShakeRumbleComponent_Stop), 0, Result::None, Status::Replaced},
     {"FxComponent_GetEntityOrigin", 0x0029af30, 0, code(&FxComponent_GetEntityOrigin), 0, Result::Eax, Status::Replaced},
     {"FxSoundComponent_SetParent", 0x0029b010, 0, code(&FxSoundComponent_SetParent), 4, Result::None, Status::Replaced},

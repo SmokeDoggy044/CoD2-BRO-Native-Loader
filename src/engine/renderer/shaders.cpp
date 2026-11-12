@@ -1957,7 +1957,36 @@ void register_class(NglShaderClass* self) {
     ShaderCache_FindOrAdd(&title_global<ShaderCache>(0x00902ac0), get_name(self, &name), self);
 }
 
+// The material type map 0x00902ad4: the class name -> the material's vtable setter.
+void register_material_type(uint32_t name, uint32_t set_vtable) {
+    NglHashedName key;
+    hashed_name(&key, reinterpret_cast<const char*>(uintptr_t{name}));
+    ShaderCache_FindOrAdd(&title_global<ShaderCache>(0x00902ad4), &key, reinterpret_cast<void*>(uintptr_t{set_vtable}));
+}
+
 }  // namespace
+
+void XB_CDECL cdGunSight_RegisterMaterialType() { register_material_type(0x007b4410, 0x00047d70); }
+void XB_CDECL cdGun_RegisterMaterialType() { register_material_type(0x007b46ec, 0x00048580); }
+void XB_CDECL cdGlass_RegisterMaterialType() { register_material_type(0x007b49b4, 0x000489d0); }
+void XB_CDECL cdSimpleAlpha_RegisterMaterialType() { register_material_type(0x007b4c9c, 0x0004a860); }
+void XB_CDECL cdPropeller_RegisterMaterialType() { register_material_type(0x007b4f7c, 0x0004b080); }
+void XB_CDECL cdDecal_RegisterMaterialType() { register_material_type(0x007b524c, 0x0004b840); }
+void XB_CDECL cdChar_RegisterMaterialType() { register_material_type(0x008329a0, 0x0004bf60); }
+void XB_CDECL cdPrelit_RegisterMaterialType() { register_material_type(0x007b57ec, 0x0004c680); }
+void XB_CDECL cdAirplaneMetal_RegisterMaterialType() { register_material_type(0x007b5abc, 0x0004cbb0); }
+void XB_CDECL cdSimpleUVAnim_RegisterMaterialType() { register_material_type(0x007b5d9c, 0x0004d880); }
+void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x007b607c, 0x0004df50); }
+void XB_CDECL cdSimple_RegisterMaterialType() { register_material_type(0x007b635c, 0x0004e6b0); }
+void XB_CDECL cdRiver_RegisterMaterialType() { register_material_type(0x007b6688, 0x0004e9d0); }
+void XB_CDECL cdOcean_RegisterMaterialType() { register_material_type(0x007b665c, 0x000508a0); }
+void XB_CDECL cdWater_RegisterMaterialType() { register_material_type(0x007b6bfc, 0x000514b0); }
+void XB_CDECL cdWorldBlend_RegisterMaterialType() { register_material_type(0x007b6ecc, 0x00051ad0); }
+void XB_CDECL cdWorldVertexLit_RegisterMaterialType() { register_material_type(0x007b71bc, 0x00052e40); }
+void XB_CDECL cdWorld_RegisterMaterialType() { register_material_type(0x007b749c, 0x00053400); }
+void XB_CDECL cdBackground_RegisterMaterialType() { register_material_type(0x007b776c, 0x000546a0); }
+void XB_CDECL cdSky_RegisterMaterialType() { register_material_type(0x007b7a48, 0x000552d0); }
+void XB_CDECL cdDebug_RegisterMaterialType() { register_material_type(0x007c19e4, 0x0007b910); }
 
 void XB_THISCALL cdDebug_Register(NglShaderClass* self) {
     register_class(self);
@@ -2060,6 +2089,22 @@ void XB_THISCALL cdRiver_Register(NglShaderClass* self) {
     nglVertexShader_Init(&title_global<uint32_t>(0x009020e8), 0x00898c30, title_global<uint32_t>(0x0089d174));
     cdRiver_InitPixelShaders();
     nglPixelShader_Init(&title_global<uint32_t>(0x009020c4), title_global<uint32_t>(0x0089da08));
+}
+
+uint32_t* XB_THISCALL cdRiver_Relocate(const NglShaderClass*, uint8_t* material, uint32_t delta) {
+    return nglMaterial_Relocate4(material, delta);
+}
+
+uint32_t* XB_THISCALL cdOcean_GetPixelShader(const NglShaderClass*, int32_t a, int32_t b, int32_t c) {
+    return &title_global<uint32_t>(0x009020c8 + uint32_t(((a * 2 + b) * 2 + c) * 4));
+}
+
+const uint8_t* XB_THISCALL cdWorldBlend_Relocate(const NglShaderClass*, uint8_t* material, uint32_t delta) {
+    for (uint32_t offset = 0x18; offset <= 0x28; offset += 8) {
+        uint32_t& word = *reinterpret_cast<uint32_t*>(material + offset);
+        if (word) word += delta;
+    }
+    return material;
 }
 
 void XB_THISCALL cdOcean_Register(NglShaderClass* self) {

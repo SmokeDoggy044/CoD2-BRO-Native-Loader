@@ -112,6 +112,8 @@ void XB_THISCALL MemStream_Destroy(MemStream* stream) {
     stream->vtable = 0x007bad80;
 }
 
+uint8_t XB_THISCALL MemStream_AtEnd(const MemStream* stream) { return stream->position >= stream->size ? 1 : 0; }
+
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags) {
     MemStream_Destroy(stream);
     if (flags & 1) own_function<void XB_CDECL(MemStream*)>(&Z_Free)(stream);  // Z_Free

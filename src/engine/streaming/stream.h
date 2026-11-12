@@ -40,6 +40,8 @@ void XB_THISCALL Stream_ReadString(uint32_t* stream, char* out, int32_t* length,
 void XB_THISCALL MemStream_Destroy(MemStream* stream);
 // 0x000555f0 (vtable slot 0): MemStream_Destroy, then Z_Free of the stream with flag 1.
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags);
+// 0x00055510 (vtable 0x007bad80 slot 8): position (+0xc) >= size (+8), signed (AL).
+uint8_t XB_THISCALL MemStream_AtEnd(const MemStream* stream);
 
 // A relocation table in a loaded pack: entries[0] = bit count, entries[1..count-1] =
 // offsets of relocation chains (Pack_RelocateChain).
@@ -721,8 +723,8 @@ void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // 0x0028bea0 Space (load handler, returned by Stream_GetLoadHandler at 0x0029260c): a bare RET
 // (four INT3s of padding follow, so it is hookable).
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
-// 0x00291940 (a callback, no direct caller): error 3 shows the damaged-disc screen (UI_ShowDamagedDiscScreen with
-// g_uiRoot; it does not return).
+// 0x00291940 (the stream reads' error callback, File_QueueRequestEx): error 3 shows the damaged-disc screen
+// (UI_ShowDamagedDiscScreen with g_uiRoot; it does not return).
 void XB_CDECL Stream_OnReadError(int32_t error);
 
 }  // namespace game
