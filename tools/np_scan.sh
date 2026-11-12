@@ -6,7 +6,7 @@ run(){ O=$P/build/trap/np_${T}_$1; rm -rf $O; mkdir -p $O; cp -a recordings/m$m/
 run plain "" & run own --own-main & wait
 for f in $(ls build/trap/np_${T}_own | sed -n 's/frame_\([0-9]*\)_level.bin/\1/p' | sort -n); do
   [ -f build/trap/np_${T}_plain/frame_${f}_level.bin ] || continue
-  d=$(python3 tools/replay_diff.py build/trap/np_${T}_plain build/trap/np_${T}_own $f --limit 100000 | tail -n +2 | { if [ "${FILTER:-}" = lc ]; then grep -E '^  (level|client)|^  entity [0-9]+ \+0x(2c|30|34):'; else cat; fi; } | grep -v -E ': 8[0-3][0-9a-f]{6} \([^)]*\) / 8[0-3][0-9a-f]{6} |: address |: 00[0-9a-f]{2}0000 \([^)]*\) / 00[0-9a-f]{2}0000 ')
+  d=$(python3 tools/replay_diff.py build/trap/np_${T}_plain build/trap/np_${T}_own $f --limit 100000 | tail -n +2 | { if [ "${FILTER:-}" = lc ]; then grep -E '^  (level|client|actor)|^  entity [0-9]+ \+0x(2c|30|34):'; else cat; fi; } | grep -v -E ': 8[0-3][0-9a-f]{6} \([^)]*\) / 8[0-3][0-9a-f]{6} |: address |: 00[0-9a-f]{2}0000 \([^)]*\) / 00[0-9a-f]{2}0000 ')
   if [ -n "$d" ]; then echo "first non-pointer difference at dumped frame $f (previous dump clean)"; echo "$d" | head -${LINES_OUT:-20}; exit 0; fi
   last=$f
 done

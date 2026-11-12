@@ -4,7 +4,7 @@
 usage: tools/replay_diff.py DIR_A DIR_B FRAME [--limit N]
 
 Each DIR holds frame_<FRAME>_level.bin, _clients.bin and _entities.bin (u32 index, u32 address, 0x460 bytes per
-entity). Prints the differing 32-bit words: level locals offset, client number + offset, entity index + offset
+entity), and _actors.bin when present (u32 slot, u32 address, 0x1400 bytes per actor). Prints the differing 32-bit words: level locals offset, client number + offset, entity index + offset
 (with each side's value as hex and float), and entities that exist on one side only.
 """
 import argparse
@@ -13,6 +13,7 @@ from pathlib import Path
 
 ENTITY_SIZE = 0x460
 CLIENT_SIZE = 0x640
+ACTOR_SIZE = 0x1400
 
 
 def words(data):
@@ -31,10 +32,11 @@ def diff_block(name, a, b, out, base=0):
         out.append(f"{name}: sizes differ ({len(a)} / {len(b)} bytes)")
 
 
-def entities(path):
-    data = path.read_bytes()
+def entities(path, size=None):
+    data = path.read_bytes() if path.exists() else b""
     result = {}
-    step = 8 + ENTITY_SIZE
+    size = size or ENTITY_SIZE
+    step = 8 + size
     for at in range(0, len(data) - step + 1, step):
         index, address = struct.unpack_from("<II", data, at)
         result[index] = (address, data[at + 8 : at + step])
@@ -65,6 +67,14 @@ def main():
         if ea[index][0] != eb[index][0]:
             out.append(f"entity {index}: address {ea[index][0]:08x} / {eb[index][0]:08x}")
         diff_block(f"entity {index}", ea[index][1], eb[index][1], out)
+    # Actors (g_actors slots, 0x1400 bytes; dumps since 2026-11-12)
+    aa = entities(args.a / f"{stem}actors.bin", ACTOR_SIZE)
+    ab = entities(args.b / f"{stem}actors.bin", ACTOR_SIZE)
+    for slot in sorted(set(aa) | set(ab)):
+        if slot not in aa or slot not in ab:
+            out.append(f"actor {slot}: only in {'A' if slot in aa else 'B'}")
+            continue
+        diff_block(f"actor {slot}", aa[slot][1], ab[slot][1], out)
     print(f"{len(out)} differences" + (f", the first {args.limit}:" if len(out) > args.limit else ":"))
     for line in out[: args.limit]:
         print(" ", line)

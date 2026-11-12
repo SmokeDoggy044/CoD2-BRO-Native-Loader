@@ -33,6 +33,10 @@ constexpr uint32_t kMaxEntities = 4096;
 constexpr uintptr_t kLevelMaxClients = 0x00985404;
 constexpr size_t kClientSize = 0x640;
 constexpr uint32_t kMaxClients = 4;
+// g_actors: 32 slot pointers to 0x1400-byte actors.
+constexpr uintptr_t kActors = 0x00985384;
+constexpr uint32_t kActorSlots = 32;
+constexpr size_t kActorSize = 0x1400;
 
 struct FrameRecord {
     uint32_t frame;
@@ -265,6 +269,24 @@ void dump_state(const std::filesystem::path& dir) {
             std::fwrite(ent, 1, kEntitySize, f);
         }
         std::fclose(f);
+    }
+    // Actors (g_actors: 32 slot pointers, 0x1400 bytes each): u32 slot, u32 address, then its bytes.
+    if (std::FILE* f = std::fopen((base + "_actors.bin").c_str(), "wb")) {
+        for (uint32_t i = 0; i < kActorSlots; ++i) {
+            uint32_t actor = 0;
+            std::memcpy(&actor, title_bytes(kActors + i * 4), 4);
+            if (!actor) continue;
+            const uint32_t header[2] = {i, actor};
+            std::fwrite(header, 4, 2, f);
+            std::fwrite(title_bytes(actor), 1, kActorSize, f);
+        }
+        std::fclose(f);
+    }
+    if (std::getenv("XB_DUMP_IMAGE")) {  // developer: also the title image from 0x007b0000 (data sections) to its end
+        if (std::FILE* f = std::fopen((base + "_image.bin").c_str(), "wb")) {
+            std::fwrite(title_bytes(0x007b0000), 1, 0x009a0d80 - 0x007b0000, f);
+            std::fclose(f);
+        }
     }
     LOG_INFO("replay", "frame %u: state written to %s_*.bin", g_frame, base.c_str());
 }
