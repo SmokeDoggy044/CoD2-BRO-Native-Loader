@@ -486,4 +486,9 @@ void XB_CDECL cdOcean_ResetWaveSets();
 // 0x00093be0 (nglInit): calls vtable slot 0 of each shader class on the class list (0x00909904).
 void XB_CDECL nglShaderList_InitAll();
 
+// 0x00046d80 / 0x0007b600 (gap functions, 11-11): the shader class Register slots of FxSimpleShader (the common
+// part only) and nglDebugShader (vertex shader 0x00903d68, pixel shader 0x00903d64).
+void XB_THISCALL FxSimpleShader_Register(NglShaderClass* self);
+void XB_THISCALL nglDebugShader_Register(NglShaderClass* self);
+
 }  // namespace game

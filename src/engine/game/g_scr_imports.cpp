@@ -475,7 +475,7 @@ const ImportSlot kGameImports2[] = {
     {0x9f4, own_address(&ScrEnt_SetSpawnflags)},  // ScrEnt_SetSpawnflags
     {0x9f0, own_address(&ScrEnt_GetSpawnflags)},  // ScrEnt_GetSpawnflags
     {0x9fc, 0x00017080},
-    {0x9f8, 0x000170e0},
+    {0x9f8, own_address(&ScrEnt_GetFloat_2fc)},
     {0xa04, own_address(&ScrEnt_SetClosespeed)},  // ScrEnt_SetClosespeed
     {0xa00, own_address(&ScrEnt_GetClosespeed)},  // ScrEnt_GetClosespeed
     {0xa0c, own_address(&ScrEnt_SetTarget)},  // ScrEnt_SetTarget
@@ -488,8 +488,8 @@ const ImportSlot kGameImports2[] = {
     {0xa38, own_address(&ScrEnt_GetWait)},  // ScrEnt_GetWait
     {0xa44, own_address(&ScrEnt_SetRandom)},  // ScrEnt_SetRandom
     {0xa40, own_address(&ScrEnt_GetRandom)},  // ScrEnt_GetRandom
-    {0xa4c, 0x000176b0},
-    {0xa48, 0x00017710},
+    {0xa4c, own_address(&ScrEnt_SetInt_370)},
+    {0xa48, own_address(&ScrEnt_GetInt_370)},
     {0xa54, own_address(&ScrEnt_SetHealth)},  // ScrEnt_SetHealth
     {0xa50, own_address(&ScrEnt_GetHealth)},  // ScrEnt_GetHealth
     {0xa5c, own_address(&ScrEnt_SetDmg)},  // ScrEnt_SetDmg
@@ -501,13 +501,13 @@ const ImportSlot kGameImports2[] = {
     {0xa7c, own_address(&ScrEnt_SetDegrees)},  // ScrEnt_SetDegrees
     {0xa78, own_address(&ScrEnt_GetDegrees)},  // ScrEnt_GetDegrees
     {0xa84, 0x00017080},
-    {0xa80, 0x000170e0},
+    {0xa80, own_address(&ScrEnt_GetFloat_2fc)},
     {0xa9c, own_address(&ScrEnt_SetKey)},  // ScrEnt_SetKey
     {0xa98, own_address(&ScrEnt_GetKey)},  // ScrEnt_GetKey
     {0xaa4, own_address(&ScrEnt_SetDelay)},  // ScrEnt_SetDelay
     {0xaa0, own_address(&ScrEnt_GetDelay)},  // ScrEnt_GetDelay
-    {0xac4, 0x000176b0},
-    {0xac0, 0x00017710},
+    {0xac4, own_address(&ScrEnt_SetInt_370)},
+    {0xac0, own_address(&ScrEnt_GetInt_370)},
     {0xacc, own_address(&ScrEnt_SetSpawnitem)},  // ScrEnt_SetSpawnitem
     {0xac8, own_address(&ScrEnt_GetSpawnitem)},  // ScrEnt_GetSpawnitem
     {0xadc, own_address(&ScrEnt_SetGroupname)},  // ScrEnt_SetGroupname

@@ -3867,4 +3867,23 @@ void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record) {
     else if (state == 2)
         Stream_UpdateUnload(record);
 }
+// 0x002c5da0 (gap function, 11-11; the vtable word at 0x00832638, thiscall, ret 4).
+void XB_THISCALL ZoneTable_FreeZone(uint8_t* table, uint32_t zone) {
+    uint8_t** const entry = reinterpret_cast<uint8_t**>(table + 4 + zone * 4);
+    if (!*entry) return;
+    Zone_FreeSimpleInstances(table, zone);
+    uint8_t* const z = *entry;
+    // The zone's effects (+0x34 records of 0x60, count +0x30, id +0x50) freed.
+    for (uint32_t i = 0; i < *reinterpret_cast<uint32_t*>(z + 0x30); ++i) {
+        const uint32_t index = i < *reinterpret_cast<uint32_t*>(z + 0x30) ? i : 0;
+        const uint8_t* const records = *reinterpret_cast<uint8_t* const*>(z + 0x34);
+        FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), *reinterpret_cast<const uint32_t*>(records + index * 0x60 + 0x50));
+    }
+    if (*reinterpret_cast<uint32_t*>(z + 0x38)) *reinterpret_cast<uint32_t*>(table + 0x190) = 0;
+    if (*reinterpret_cast<uint32_t*>(z + 0x40)) *reinterpret_cast<uint32_t*>(table + 0x194) = 0;
+    *entry = nullptr;
+    R_UnlinkEntityFromCells(reinterpret_cast<const void*>(uintptr_t{zone}));
+    CM_SectorTree_UnlinkOwner_r(zone, &title_global<uint8_t>(0x00935664));
+}
+
 }  // namespace game

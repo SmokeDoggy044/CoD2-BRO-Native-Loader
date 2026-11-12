@@ -2507,4 +2507,14 @@ void XB_CDECL nglShaderList_InitAll() {
     }
 }
 
+// ---- Gap functions (no Ghidra functions before 11-11): shader class Register slots ----
+
+void XB_THISCALL FxSimpleShader_Register(NglShaderClass* self) { register_class(self); }
+
+void XB_THISCALL nglDebugShader_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00903d68), 0x008bafe0, title_global<uint32_t>(0x008baeb4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00903d64), title_global<uint32_t>(0x008bafa8));
+}
+
 }  // namespace game

@@ -534,6 +534,7 @@ void XB_CDECL ScrEnt_SetModel(uint32_t handle, ScriptString value) { set_ent_str
 ScriptString* XB_CDECL ScrEnt_GetModel(ScriptString* out, uint32_t handle) { return get_ent_string<0x258, 0x008d20fc>(out, &handle); }
 void XB_CDECL ScrEnt_SetSpawnflags(uint32_t handle, uint32_t value) { set_ent_word<0x2a0, 0x008d20ec, 1>(handle, &value); }
 uint32_t XB_CDECL ScrEnt_GetSpawnflags(uint32_t handle) { return get_ent_int<0x2a0, 0x008d20e8>(handle); }
+float XB_CDECL ScrEnt_GetFloat_2fc(uint32_t handle) { return get_ent_float<0x2fc, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetClosespeed(uint32_t handle, uint32_t bits) { set_ent_word<0x300, 0x008d20e8, 1>(handle, &bits); }
 float XB_CDECL ScrEnt_GetClosespeed(uint32_t handle) { return get_ent_float<0x300, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetTarget(uint32_t handle, ScriptString value) { set_ent_string<0x26c, 0x008d2108>(handle, &value); }
@@ -546,6 +547,8 @@ void XB_CDECL ScrEnt_SetWait(uint32_t handle, uint32_t bits) { set_ent_word<0x38
 float XB_CDECL ScrEnt_GetWait(uint32_t handle) { return get_ent_float<0x384, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetRandom(uint32_t handle, uint32_t bits) { set_ent_word<0x388, 0x008d20e8, 1>(handle, &bits); }
 float XB_CDECL ScrEnt_GetRandom(uint32_t handle) { return get_ent_float<0x388, 0x008d20e8>(handle); }
+void XB_CDECL ScrEnt_SetInt_370(uint32_t handle, uint32_t value) { set_ent_word<0x370, 0x008d20e8, 1>(handle, &value); }
+uint32_t XB_CDECL ScrEnt_GetInt_370(uint32_t handle) { return get_ent_int<0x370, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetHealth(uint32_t handle, uint32_t value) { set_ent_word<0x350, 0x008d20f4, 1>(handle, &value); }
 uint32_t XB_CDECL ScrEnt_GetHealth(uint32_t handle) { return get_ent_int<0x350, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetDmg(uint32_t handle, uint32_t value) { set_ent_word<0x358, 0x008d20e8, 1>(handle, &value); }

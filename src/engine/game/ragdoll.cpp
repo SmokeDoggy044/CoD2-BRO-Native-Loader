@@ -3950,4 +3950,11 @@ void XB_REGS1 XB_CDECL VehiclePhys_ApplyWheelFriction(uint8_t* vehicle) {
     at<float>(at<uint8_t*>(vehicle, 0x4a8), 0x68) = forward;
 }
 
+// 0x0022a0b0 (gap function, 11-11; the physics world callback 0x00233c30's tail).
+void XB_CDECL VehiclePhys_TraceAllWheels() {
+    uint8_t** const first = &title_global<uint8_t*>(0x008feb70);
+    uint8_t** const end = first + title_global<int32_t>(0x008feb9c);
+    for (uint8_t** phys = first; phys != end; ++phys) VehiclePhys_TraceWheels(*phys);
+}
+
 }  // namespace game

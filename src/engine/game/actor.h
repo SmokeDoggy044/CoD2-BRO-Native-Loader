@@ -1573,6 +1573,10 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entr
                                                                   uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Actor_MoveOutOfTheWay_entry(void);
 
+// 0x00201f60 (fastcall: actor, node; gap function 11-11): 0 for the sentient's claimed node or one nearer than
+// sqrt(0x0083ecf4) to the actor's entity, else 1 (Actor_Cover_FindBetterCover's candidate filter).
+uint32_t XB_FASTCALL Actor_CoverFilterAwayFromClaimed(const uint8_t* actor, const uint8_t* node);
+
 }  // namespace game
 
 // actor.cpp: title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).

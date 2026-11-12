@@ -529,6 +529,7 @@ ScriptString* XB_THISCALL ScriptString_AppendInt(ScriptString* self, int32_t val
 // (returns 0) / ScriptValue_DefaultRelease (does nothing).
 using ValueLookup = void XB_CDECL(uint32_t, uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 using ValueFunction = uint32_t XB_CDECL(uint32_t);
+using ValueFunction2 = uint32_t XB_CDECL(uint32_t, uint32_t);
 
 static ValueLookup* value_lookup() { return title_global<ValueLookup*>(0x00922e70); }
 
@@ -984,5 +985,23 @@ PLATFORM_ASM_ENTRY(ScriptString_ExpandNewlines_entry,
 namespace game {
 
 #include "script_string_levels.inc"
+
+// 0x0011e800 (gap function, 11-11). The table pointer's argument slot doubles as the lookup's out slot.
+uint32_t XB_CDECL ScriptKeyTable_ValueEquals(const ScriptKeyTable* table, uint32_t key, uint32_t other) {
+    const ScriptKeyTable* const t = table;
+    uint32_t i = 0;
+    while (i < t->count && t->entries[i].key != key) ++i;
+    if (i >= t->count) return i & ~0xffu;  // AL = 0
+    const uint32_t value = t->entries[i].value;
+    uint32_t* const slot = reinterpret_cast<uint32_t*>(&table);
+    ValueFunction2* equals = nullptr;
+    if (ValueLookup* lookup = value_lookup()) {
+        *slot = 0;
+        lookup(key, nullptr, nullptr, slot, nullptr);
+        if (*slot) equals = title_function<ValueFunction2>(*slot);
+    }
+    if (!equals) equals = own_function<ValueFunction2>(&Scr_ReturnFalse);  // Scr_ReturnFalse
+    return equals(value, other);
+}
 
 }  // namespace game

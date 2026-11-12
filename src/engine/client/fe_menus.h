@@ -145,5 +145,13 @@ void XB_THISCALL LoadingMenu_Draw(uint8_t* menu);
 void XB_THISCALL LoadAfricaMenu_Draw(uint8_t* menu);
 void XB_THISCALL LoadSicilyMenu_Draw(uint8_t* menu);
 void XB_THISCALL LoadMaubeugeMenu_Draw(uint8_t* menu);
+// 0x0031b120: the black quad +0x60 (nglListAddQuad) in states 1 and 2 (+0x58), the panel, the object +0x38 unless
+// state 2, +0x3c when +0x54, +0x4c (each +0x3c), then UIMenu_Draw.
+void XB_THISCALL MissionSuccessFailMenu_Draw(uint8_t* menu);
+// 0x00335b10 / 0x00335bf0 (vtable +0x60: button bit 0x40, ret 4, the pad unused): when the screen is ready (+0x38)
+// 0x009403f4 = 0, FE_FadeOut, cl_paused "0", "fade 0 0 0 0 3", cg_norender "0", 0x0095f919 = 0,
+// S_StopUnpausedChannels, S_ResumeAllChannels, key catcher bit 1 cleared, Key_ClearStates.
+void XB_THISCALL LoadMaubeugeMenu_OnContinue(uint8_t* menu, uint32_t pad);
+void XB_THISCALL LoadAfricaMenu_OnContinue(uint8_t* menu, uint32_t pad);
 
 }  // namespace game

@@ -528,4 +528,40 @@ int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime(int32_t seconds, int32_t* out_seco
 int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
                                                int32_t* out_hours, int32_t* out_days);
 
+// UI text gap functions (11-11, FE_FRAME_FUNCTION: every title call at the original's ESP).
+// 0x0030f550 (UIText vtable +0x134, ret 4): the string (up to 0x200 bytes, a stack copy) split at spaces (strtok),
+// each word localized (+0x138) and joined with spaces into 0x00926e88 (cleared first); returns it (0 for null).
+FE_FRAME_FUNCTION(UIText_LocalizeWords)
+// 0x0032b760 (UIText +0x144: ScriptString by value, width, a3; ret 0xc): the string's words localized (+0x134)
+// back into the argument, +0x74 = width, wrapped (UIText_WrapLines(width, 1)) into at most +0x7c lines (+0x78),
+// the text +0x1c = the first line's (+0x80 -> +0x14), UIText_LayoutLines, the argument released. a3 unused.
+FE_FRAME_FUNCTION(UIText_SetWrappedString)
+// 0x0032ee50 (UIText +0x140: key, width, a3; ret 0xc): +0x144 with the key's localized text (Loc_GetString); no
+// key: an empty string at width 640.
+FE_FRAME_FUNCTION(UIText_SetLocalizedWrappedText)
+// 0x0032f5b0 / 0x0032f600 (UIText / UITextBase +0x6c, ret 4): the set-text method +0x78 with the key's localized
+// text (Loc_GetString).
+FE_FRAME_FUNCTION(UIText_SetLocalizedText)
+FE_FRAME_FUNCTION(UITextBase_SetLocalizedText)
+
+// UI element / picture gap functions (11-11).
+// 0x0030fbd0 (UI element vtable +0x1c): depth clamped to 0..0x0083eb9c, then +0x24 ((layer * 1000 + depth) * k).
+void XB_THISCALL UIElement_SetDepthInLayer(uint8_t* element, float depth, int32_t layer);
+// 0x00316740 (UIPicture +0xc4): every quad's base points (x, y) = its screen vertices.
+void XB_THISCALL UIPicture_StoreBasePositions(uint8_t* picture);
+// 0x00316880 (UIPicture +0xb8): every quad's screen vertices moved (UIQuad_Translate), the centre +0x14 / +0x18 and
+// the anchor point +0x2c (when set) too.
+void XB_THISCALL UIPicture_MoveBy(uint8_t* picture, float dx, float dy);
+// 0x00316ce0 (UIPicture +0x48, ret 0x10): every quad rotated about (cx, cy) (nglRotateQuadVerts) by the angle (an
+// absolute angle less the current +0x30), +0x30 += it.
+void XB_THISCALL UIPicture_Rotate(uint8_t* picture, float cx, float cy, float angle, uint8_t absolute);
+// 0x00316dd0 (UIPicture +0x44): when shown (+0x30) every quad with +0xa4 set (nglListAddQuad).
+void XB_THISCALL UIPicture_Draw(uint8_t* picture);
+// 0x003219d0 (UIPicture +0x70): the colour (its bytes reassembled unchanged) on every quad vertex.
+void XB_THISCALL UIPicture_SetColor(uint8_t* picture, uint32_t argb);
+// 0x00321090 (UITextBase +0xd0): the text's width at its scale (x87, unsigned), as UIText_GetLineHeight.
+long double XB_THISCALL UITextBase_GetTextWidth(uint8_t* text);
+// 0x00321280 (UITextBase / UIText +0x04): UIElement_UpdateFade, then with flag 8 (+0x5c) the pulse record +0x14.
+void XB_THISCALL UITextBase_Update(uint8_t* text, float dt);
+
 }  // namespace game

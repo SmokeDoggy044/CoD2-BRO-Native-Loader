@@ -3252,4 +3252,9 @@ uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeBlock(const uint32_t* context, uint8
     return context[1];
 }
 
+// 0x00022b20 (gap function, 11-11): the channel map argument is read but does not change the result.
+uint32_t XB_STDCALL NAL_CodNote_SkipBlock5(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t) {
+    return skip_sized_blocks(context);
+}
+
 }  // namespace game

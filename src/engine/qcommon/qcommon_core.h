@@ -868,4 +868,17 @@ void XB_CDECL NullCallback();
 // 0x00028400: a list + buffer value's destructor (ListNode_DestroyValue_* of the level hash maps).
 void XB_THISCALL ListVectorValue_Dtor(uint8_t* value);
 
+// Gap functions (11-11).
+// 0x0001ee10 (table in EAX; returned): a 512-slot handle table emptied: pointers 0, generations 1, +0x1040 = 0,
+// every slot's free bit set (the 16-word bitmap at +0).
+uint32_t* XB_REGS1 XB_CDECL HandleTable512_Init(uint32_t* table);
+// 0x0001f6d0 (block in EAX; returned): 0x84 bytes cleared (the static block 0x00960070).
+uint32_t* XB_REGS1 XB_CDECL Block84_Clear(uint32_t* block);
+// 0x00293040 (vtable 0x008376c4 +0x04, ret 4): null when +0x490 + size exceeds 1 MB, else Heap_AllocAligned(16, size)
+// in the allocator's heap (+8 made current, the previous one restored).
+uint8_t* XB_THISCALL HeapAllocator_Alloc(uint8_t* allocator, uint32_t size);
+// 0x000cb680 (the file device table 0x008bfe1c's path callback): out = the root's drive ("D:\" .. "X:\" for roots
+// 0..6; nothing for a path with a drive letter) + the path, '/' turned into '\'; 0, or 4 for an unknown root.
+int32_t XB_CDECL FileDevice_BuildPath(int32_t root, const char* path, char* out);
+
 }  // namespace game

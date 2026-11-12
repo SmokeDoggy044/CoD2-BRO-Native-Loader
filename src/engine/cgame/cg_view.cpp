@@ -3145,4 +3145,19 @@ void XB_CDECL CG_EntityEvent(uint32_t entry_esp, int32_t event, uint8_t* cent, u
     }
 }
 
+// ---- Gap function (no Ghidra function before 11-11) ----
+
+uint8_t* XB_THISCALL CameraShake_Init(uint8_t* shake) {
+    // The two noise channels (+0xc, 0x10 apart): a random start in 0..16383, 3 octaves, frequency 1, amplitude 0.
+    uint8_t* channel = shake + 0xc;
+    for (int32_t i = 0; i < 2; ++i, channel += 0x10) {
+        const int32_t start = own_function<int32_t XB_CDECL()>(&title_rand)() % 0x4000;  // rand
+        *reinterpret_cast<float*>(channel) = static_cast<float>(start);
+        *reinterpret_cast<uint32_t*>(channel + 8) = title_global<uint32_t>(0x0083eb20);  // 1.0
+        *reinterpret_cast<uint32_t*>(channel + 4) = 3;
+        *reinterpret_cast<float*>(channel + 0xc) = 0.0f;
+    }
+    return shake;
+}
+
 }  // namespace game

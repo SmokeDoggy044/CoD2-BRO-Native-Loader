@@ -216,4 +216,8 @@ uint32_t XB_THISCALL ScrPtrArray_Append(uint32_t* self, const uint32_t* value); 
 extern "C" PLATFORM_HIDDEN ScriptString* XB_CDECL ScriptString_ExpandNewlines(ScriptString* out, ScriptString* value);
 extern "C" void ScriptString_ExpandNewlines_entry(void);
 
+// 0x0011e800 (gap function, 11-11): the value under `key` compared with `other` by the value type's function (lookup
+// slot 3 of g_scrValueTypeLookup; Scr_ReturnFalse without one); AL = 0 when the key is missing.
+uint32_t XB_CDECL ScriptKeyTable_ValueEquals(const ScriptKeyTable* table, uint32_t key, uint32_t other);
+
 }  // namespace game

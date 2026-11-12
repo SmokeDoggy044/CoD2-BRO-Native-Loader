@@ -1,5 +1,7 @@
 #include "bro_scr_arrays.h"
 
+#include "bro_scr_array.h"
+
 #include "bro_scr_ai_common.h"
 #include "bro_scr_nodes_spawner.h"
 #include "bro_scr_util.h"
@@ -641,6 +643,24 @@ void XB_CDECL BroScr_DeleteTeamEntsWithKeyValue(ScriptString value) {
     if (ents.data) Scr_Free(ents.data);
     ScriptString_Release(&team);
     ScriptString_Release(&value);
+}
+
+// 0x001a4540 (gap function, 11-11; called by the oran hangar / supply depot events).
+void XB_CDECL BroScr_LevelNotifyDeleteArrays_h011066c4() {
+    uint8_t* const level = title_global<uint8_t*>(0x00922ef8);  // g_levelScriptObject
+    const uint32_t ent = *reinterpret_cast<const uint32_t*>(level ? level + 4 : nullptr);
+    slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(ent, 0x011066c4);  // Scr_QueueNotify
+    title_global<uint8_t*>(0x00922ef8)[0x15c] = 0;
+    auto delete_all = [](uint32_t offset) {
+        for (uint32_t i = 0; static_cast<int32_t>(i) < *reinterpret_cast<int32_t*>(title_global<uint8_t*>(0x00922ef8) + offset + 8);
+             ++i) {
+            uint32_t* const array = reinterpret_cast<uint32_t*>(title_global<uint8_t*>(0x00922ef8) + offset);
+            slot<void XB_CDECL(uint32_t)>(0x00922540)(*BroScr_ArrayElement(array, i));  // GScr_Delete
+        }
+    };
+    delete_all(0x8c);
+    delete_all(0x98);
+    Scr_WaitFrames(0);
 }
 
 }  // namespace game

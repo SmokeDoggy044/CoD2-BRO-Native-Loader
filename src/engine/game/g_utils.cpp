@@ -2219,7 +2219,7 @@ uint8_t* XB_CDECL G_CreateCodNote(const char* name, uint32_t notify, uint32_t st
     const int32_t file = File_OpenRead(title_global<uint32_t>(0x0095f6f4), reinterpret_cast<const char*>(heap + 8));
     word_at(note, 8) = static_cast<uint32_t>(file);
     word_at(note, 0xc) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(NAL_StreamedAnim_Create(
-        static_cast<uint32_t>(file), data, size, 0, 0x002beb20,
+        static_cast<uint32_t>(file), data, size, 0, own_address(&G_AnimNote_CreateScript),
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(note + 0x1c)))));
     word_at(note, 0x10) = notify;
     word_at(note, 0x24) = static_cast<uint32_t>(context);
@@ -3918,6 +3918,44 @@ void XB_CDECL XModel_CalcBoneChildrenLocal(const uint8_t* model, float* matrices
         const Lanes v3 =
             add(add(add(lanes(inv + 12), mul(lanes(inv), t.v[0])), mul(lanes(inv + 4), t.v[1])), mul(lanes(inv + 8), t.v[2]));
         std::memcpy(b + 12, v3.v, 16);
+    }
+}
+
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL g_utils_anim_script_construct(uint8_t* block, uint32_t kind, uint32_t name,
+                                                                       const uint32_t* blend);
+
+// 0x002beb20 (gap function, 11-11; the anim notes' NAL_StreamedAnim_Create callback): a new 0xd4-byte anim script
+// (0x00042c50(16, 0xd4)) constructed (AnimScript_Construct: kind, name, the blend pair's in time and out word), or
+// null.
+PLATFORM_ASM_ENTRY(g_utils_anim_script_construct,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "movl 12(%esp), %eax\n"
+                   "movl 16(%esp), %ecx\n"
+                   "movl 20(%esp), %edx\n"
+                   "movss (%edx), %xmm0\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(AnimScript_Construct_entry) "popl %ebx\n"
+                   "ret")
+
+uint8_t* XB_CDECL G_AnimNote_CreateScript(uint32_t kind, uint32_t name, const uint32_t* blend) {
+    uint8_t* const block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(0x10, 0xd4);
+    if (!block) return nullptr;
+    return g_utils_anim_script_construct(block, kind, name, blend);
+}
+
+// 0x002c38c0 (gap function, 11-11; the vtable word at 0x00832618, thiscall, ret 4): every entity of the list 0x0097d370
+// (count 0x0097d36c) in the zone (+0x220, -1 = the paks' default +0x34) freed (0x008d50d4 = 0, G_FreeEntity).
+void XB_THISCALL G_FreeZoneEntities(void*, int32_t zone) {
+    uint8_t** const first = &title_global<uint8_t*>(0x0097d370);
+    uint8_t** const end = first + title_global<int32_t>(0x0097d36c);
+    for (uint8_t** it = first; it != end; ++it) {
+        uint8_t* const ent = *it;
+        if (!ent) continue;
+        int32_t context = *reinterpret_cast<int32_t*>(ent + 0x220);
+        if (context == -1) context = *reinterpret_cast<int32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34);
+        if (context != zone) continue;
+        title_global<uint8_t>(0x008d50d4) = 0;
+        G_FreeEntity(ent);
     }
 }
 

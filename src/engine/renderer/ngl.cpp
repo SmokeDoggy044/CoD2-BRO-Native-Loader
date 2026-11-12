@@ -6443,4 +6443,107 @@ uint32_t* XB_THISCALL nglPolyVertexWriter_Clone(const uint32_t* self) {
     return clone_writer(self, 0x0083be58, 0x0083be3c);
 }
 
+// ---- Gap functions (no Ghidra functions before 11-11) ----
+
+namespace {
+
+using ManagerUnlink = void XB_THISCALL(void*, void*);  // resource manager vtable +0x10
+void manager_unlink(void* manager, void* object) {
+    title_function<ManagerUnlink>((*reinterpret_cast<uint32_t* const*>(manager))[4])(manager, object);
+}
+
+// nglSkipList_Find over objects whose 32-byte name `name(object)` returns; returns the object. The final
+// re-compare of the node it last stopped at uses `equal` (the inline compare, or HashStr_Equals).
+template <typename Name>
+const uint32_t* skip_find(const NglSkipList* self, const uint32_t* key, Name name) {
+    const NglSkipListNode* current = self->head;
+    if (!current) return nullptr;
+    int32_t level = self->level;
+    const NglSkipListNode* node;
+    do {
+        node = current->next[level];
+        while (node) {
+            const uint32_t* other = name(node->key);
+            int i = 0;
+            while (other[i] == key[i]) {
+                if (++i >= 8) return node->key;
+            }
+            if (key[i] < other[i]) break;  // down a level
+            current = node;
+            node = current->next[level];
+        }
+    } while (--level >= 0);
+    if (node) {
+        const uint32_t* other = name(node->key);
+        for (int i = 0; other[i] == key[i];) {
+            if (++i >= 8) return node->key;
+        }
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+int32_t XB_THISCALL nglTextureManager_Release(void* manager, uint8_t* texture, int32_t mode, uint8_t force) {
+    if (!texture) return 0;
+    const uint32_t keep = (*reinterpret_cast<const uint32_t*>(texture + 0x28) >> 1) & 1;
+    if (!force && keep) return 1;
+    int32_t& references = *reinterpret_cast<int32_t*>(texture);
+    if (mode == 0) {
+        if (--references > 0) return references;
+    } else if (mode == 1 && *reinterpret_cast<const uint32_t*>(texture + 4) != 0xf) {
+        return references;
+    }
+    if (texture[0x58]) manager_unlink(manager, texture);
+    nglFreeTexture(reinterpret_cast<NglTexture*>(texture));
+    return keep ? -1 : 0;
+}
+
+int32_t XB_THISCALL nglFontManager_Release(void* manager, uint8_t* font, int32_t mode, uint8_t force) {
+    if (!font) return 0;
+    const uint32_t keep = font[0x50];
+    if (!force && keep) return 1;
+    if (mode == 0) {
+        int32_t& references = *reinterpret_cast<int32_t*>(font + 0x20);
+        if (--references > 0) return references;
+    }
+    if (font[4]) manager_unlink(manager, font);
+    nglReleaseTexture(*reinterpret_cast<void**>(font + 0x24));
+    Mem_AlignedFree(*reinterpret_cast<void**>(font + 0x4c));
+    Mem_AlignedFree(*reinterpret_cast<void**>(font + 0x28));
+    Mem_AlignedFree(font);
+    return keep ? -1 : 0;
+}
+
+const uint32_t* XB_THISCALL nglSkipList_FindTexture(const NglSkipList* self, const uint32_t* key) {
+    return skip_find(self, key, [](const uint32_t* texture) { return texture + 0x54 / 4; });
+}
+
+const uint32_t* XB_THISCALL nglSkipList_FindNamed(const NglSkipList* self, const uint32_t* key) {
+    return skip_find(self, key, [](const uint32_t* object) { return object; });
+}
+
+const uint32_t* XB_THISCALL nglSkipList_FindIndirect(const NglSkipList* self, const uint32_t* key) {
+    return skip_find(self, key,
+                     [](const uint32_t* object) { return reinterpret_cast<const uint32_t*>(uintptr_t{object[0]}); });
+}
+
+const uint32_t* XB_THISCALL nglSkipList_FindName8(const NglSkipList* self, const uint32_t* key) {
+    return skip_find(self, key, [](const uint32_t* object) { return object + 2; });
+}
+
+void XB_CDECL nglVBlankCountFrames() {
+    // Each vertical blank counts (0x009028e4); a pending frame (0x0090288c) starts once the interval (0x008a2cb0)
+    // has passed since the last start, as nglWaitFrameInterval's start.
+    ++title_global<uint32_t>(0x009028e4);
+    if (!title_global<uint8_t>(0x0090288c)) return;
+    if (title_global<uint32_t>(0x009028e4) - title_global<uint32_t>(0x00902880) < title_global<uint32_t>(0x008a2cb0))
+        return;
+    title_global<uint32_t>(0x00902888) = title_global<uint32_t>(0x00902884);
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902884) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902880) = title_global<uint32_t>(0x009028e4);
+    title_global<uint8_t>(0x0090288c) = 0;
+}
+
 }  // namespace game

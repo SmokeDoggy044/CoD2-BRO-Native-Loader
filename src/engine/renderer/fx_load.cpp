@@ -2716,4 +2716,12 @@ uint8_t* XB_THISCALL FxCircleDomain_Generate(const uint8_t* self, int32_t, float
     return plane_point(self, out, s.v[0], s.v[1]);
 }
 
+// 0x000995d0 (gap function, 11-11).
+float* XB_THISCALL FxConst_SampleN(const uint8_t* constant, int32_t count, float* out) {
+    const uint32_t* const values = reinterpret_cast<const uint32_t*>(constant + 4);
+    uint32_t* const words = reinterpret_cast<uint32_t*>(out);
+    for (int32_t i = 0; i < count; ++i) words[i] = values[i];
+    return count > 0 ? out + count : out;
+}
+
 }  // namespace game

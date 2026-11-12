@@ -459,4 +459,13 @@ uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t
 // 0x00248e10 (EAX): entity type 2 whose weapon record (+0x3b0, 0x34-byte records at 0x0096bd10) has +0x24 == 1.
 uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent);
 
+// Gap functions (11-11). 0x00249fd0 (the vehicle def parser's custom field callback: def, value, type): type 8 only
+// (else __break "Bad vehicle field type"): +0x20 = the index of the vehicle type name (0x008dae88, 6 names,
+// _stricmp), __break "Unknown vehicle type" when none matched; 1.
+int32_t XB_CDECL Vehicle_ParseTypeField(uint8_t* def, const char* value, int32_t type);
+// 0x002bc7d0 (the "WEAPONFILE" asset callback: name, info map): a new weapon def (BG_AllocWeaponDef at the next
+// index 0x0095f4d4) named and hashed, its 0x10a fields parsed (custom types up to 0xf: 0x002ad160, callback
+// 0x002b5e80); dropped (slot cleared, count back) when parsing failed.
+uint32_t XB_CDECL BG_ParseWeaponFile(const char* name, uint8_t* map);
+
 }  // namespace game

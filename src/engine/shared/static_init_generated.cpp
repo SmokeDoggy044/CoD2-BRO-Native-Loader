@@ -2201,7 +2201,7 @@ void si_00373360() {
 void si_00373370() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     eax = static_cast<uint32_t>(0x962820u);
-    call_regs(0x0001ee10, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&HandleTable512_Init), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -2279,7 +2279,7 @@ void si_00376850() {
 void si_00376870() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     eax = static_cast<uint32_t>(0x960070u);
-    call_regs(0x0001f6d0, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&Block84_Clear), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
@@ -3543,7 +3543,7 @@ const StaticInitializer kStaticInitializers[] = {
     {0x00378770, &si_00378770},
     {0x00378790, &si_00378790},
     {0x003787a0, &si_003787a0},
-    {0x003787b0, nullptr},  // MANUAL: sub esp,0xe0
+    {0x003787b0, nullptr},  // StaticInit_GenericClipVtable_903fdc
     {0x00378830, nullptr},  // StaticInit_AnimHashStrings
     {0x003788d0, &si_003788d0},
     {0x003788f0, &si_003788f0},
@@ -3687,7 +3687,7 @@ const StaticInitializer kStaticInitializers[] = {
     {0x00372db0, &si_00372db0},
     {0x00372dc0, &si_00372dc0},
     {0x00372dd0, &si_00372dd0},
-    {0x00372de0, nullptr},  // MANUAL: lea eax,[esp+0x8]
+    {0x00372de0, nullptr},  // StaticInit_FontNames_95f7e8
     {0x00372ed0, &si_00372ed0},
     {0x00372ef0, nullptr},  // StaticInit_UIColors_95fd30
     {0x00373160, &si_00373160},
@@ -3726,7 +3726,7 @@ const StaticInitializer kStaticInitializers[] = {
     {0x00376850, &si_00376850},
     {0x00376870, &si_00376870},
     {0x00376880, &si_00376880},
-    {0x003768a0, nullptr},  // MANUAL: cmp WORD PTR ds:0x8d5138,0xffff
+    {0x003768a0, nullptr},  // StaticInit_CameraShakes_964b80
     {0x00376940, &si_00376940},
     {0x00376950, &si_00376950},
     {0x00376980, &si_00376980},
@@ -3750,7 +3750,7 @@ const StaticInitializer kStaticInitializers[] = {
     {0x00376c20, &si_00376c20},
     {0x00376c50, &si_00376c50},
     {0x00376c60, &si_00376c60},
-    {0x00376c70, nullptr},  // MANUAL: sse operand DWORD PTR [edx+0xc]
+    {0x00376c70, nullptr},  // StaticInit_Records_973aa0
     {0x00376cd0, &si_00376cd0},
     {0x00376ce0, &si_00376ce0},
     {0x00376d00, &si_00376d00},

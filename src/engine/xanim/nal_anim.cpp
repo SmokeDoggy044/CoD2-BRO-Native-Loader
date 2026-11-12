@@ -1991,4 +1991,59 @@ void XB_CDECL StaticInit_Vec4_909850() {
     v[3] = title_global<uint32_t>(0x0083eb20);  // 1.0f
 }
 
+// ---- Gap functions (no Ghidra functions before 11-11) ----
+
+void XB_THISCALL NAL_GenericAnim_LayoutState(uint8_t* clip) {
+    auto word = [clip](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(clip + offset); };
+    const uint32_t alignment = word(0x4c);
+    const uint8_t* const definition = reinterpret_cast<const uint8_t*>(uintptr_t{word(0x30)});
+    const uint32_t bits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip) + 0x73) & ~3u;
+    word(0x54) = bits;
+    const int32_t words = (*reinterpret_cast<const int32_t*>(definition + 0x7c) + 31) / 32;
+    word(0x50) = (bits + static_cast<uint32_t>(words) * 4 + alignment - 1) & ~(alignment - 1);
+    word(0x5c) = (word(0x48) + word(0x50) + 3) & ~3u;
+    word(0x60) = (word(0x5c) + *reinterpret_cast<const uint32_t*>(definition + 0x60) * 4 + 3) & ~3u;
+    word(0x6c) = (word(0x60) + word(0x64) * 4 + 3) & ~3u;
+    // The offsets table +0x6c relocated to the data behind it.
+    const uint32_t base = word(0x6c) + word(0x64) * 4;
+    for (int32_t i = 0; i < static_cast<int32_t>(word(0x64)); ++i)
+        reinterpret_cast<uint32_t*>(uintptr_t{word(0x6c)})[i] += base;
+}
+
+namespace {
+
+void unlink(void* manager, void* object) {
+    title_function<void XB_THISCALL(void*, void*)>((*reinterpret_cast<uint32_t* const*>(manager))[4])(manager, object);
+}
+
+}  // namespace
+
+int32_t XB_THISCALL AnimManager_Release(void* manager, uint8_t* file, int32_t mode, uint32_t) {
+    if (!file) return 0;
+    if (mode == 0) {
+        int32_t& references = *reinterpret_cast<int32_t*>(file + 0x44);
+        if (--references > 0) return references;
+    }
+    unlink(manager, file);
+    for (uint8_t* clip = *reinterpret_cast<uint8_t**>(file + 0x34); clip; clip = *reinterpret_cast<uint8_t**>(clip + 4)) {
+        object_call(clip, 2);
+        unlink(title_global<void*>(0x00909830), clip);
+    }
+    if (!(file[4] & 4)) nglFreeFileBuffer(reinterpret_cast<uint32_t*>(file + 0x38));
+    *reinterpret_cast<uint32_t*>(file + 4) &= ~8u;
+    return 0;
+}
+
+int32_t XB_THISCALL NalManagerKey8_Release(void* manager, uint8_t* skeleton, int32_t mode, uint32_t) {
+    if (!skeleton) return 0;
+    if (mode == 0) {
+        int32_t& references = *reinterpret_cast<int32_t*>(skeleton + 0x48);
+        if (--references > 0) return references;
+    }
+    unlink(manager, skeleton);
+    object_call(skeleton, 3);
+    if (*reinterpret_cast<uint32_t*>(skeleton + 0x50)) nglFreeFileBuffer(reinterpret_cast<uint32_t*>(skeleton + 0x50));
+    return 0;
+}
+
 }  // namespace game

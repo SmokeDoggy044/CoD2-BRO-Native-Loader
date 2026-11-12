@@ -20,6 +20,8 @@
 #include "fe_options.h"
 #include "fe_profile.h"
 #include "fe_special.h"
+#include "movie.h"
+#include "qcommon.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -342,6 +344,36 @@ void XB_THISCALL UIMenu_SetItemsLayer(uint8_t* menu, uint32_t a, uint32_t b) {
 
 void XB_THISCALL UIMenu_SetItemsScale(uint8_t* menu, uint32_t a) {
     for (int32_t i = 0; i < item_count(menu); ++i) call(menu_item(menu, i), 0x5c, a);
+}
+
+void XB_THISCALL UIMenu_SetSelection(uint8_t* menu, int32_t index, uint32_t) {
+    if (menu[0x30]) return;
+    for (int16_t i = 0; i < field<int16_t>(menu, 0x26); ++i) {
+        call(menu_item(menu, i), 0x1c, i == index ? 1u : 0u, 1);
+        call(menu_item(menu, i), 0x94);
+    }
+    field<int16_t>(menu, 0x22) = int16_t(index);
+}
+
+void XB_THISCALL UIMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    if (!menu_flag(menu, 7)) return;
+    if (bit != 4 && bit != 8 && bit != 0x10 && bit != 0x20) return;
+    menu[0x32] = uint8_t(bit);
+    field<uint32_t>(menu, 0x1c) = title_global<uint32_t>(0x0083066c);  // 0.3
+}
+
+uint8_t* XB_THISCALL UIMenu_SetItem(uint8_t* menu, int32_t index, uint8_t* text, uint8_t owns) {
+    uint8_t* item = z_malloc(0x18);
+    if (item) item = UIMenuItem_Ctor(item, text, menu, owns);
+    field<uint8_t**>(menu, 4)[index] = item;
+    return item;
+}
+
+uint8_t* XB_THISCALL UIMenu_SetStringItem(uint8_t* menu, int32_t index, const char* string) {
+    uint8_t* item = z_malloc(0x18);
+    if (item) item = UIMenuItem_Init(8, item, string, menu, 1);
+    field<uint8_t**>(menu, 4)[index] = item;
+    return item;
 }
 
 void XB_THISCALL UIMenu_RestoreSelection(uint8_t* menu) {
@@ -1838,6 +1870,24 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
     return mgr;
 }
 
+uint8_t* XB_THISCALL FrontEndMenu_DeletingDtor(uint8_t* mgr, uint32_t flags) {
+    const bool movie = title_global<uint32_t>(0x0095f454) != 0;
+    field<uint32_t>(mgr, 0) = 0x0082905c;  // FrontEndMenu vtable
+    if (movie) Movie_Stop(1);
+    title_global<uint8_t>(0x0095f91a) = 0;
+    if (uint8_t* const owned = field<uint8_t*>(mgr, 0x1c)) call(owned, 0, 1);
+    UIScreenMgr_Dtor(mgr);
+    if (flags & 1) z_free(mgr);
+    return mgr;
+}
+
+void XB_THISCALL FrontEndMenu_Draw(uint8_t* mgr) {
+    if (uint8_t* const panel = title_global<uint8_t*>(0x0095f47c)) Panel_Draw(panel);
+    if (mgr[0xf4]) call(field<uint8_t*>(mgr, 0x1c), 0x3c);
+    const int32_t active = field<int32_t>(mgr, 0xc);
+    if (active >= 0) call(screen(mgr, active), 0x28);
+}
+
 uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
     UIScreenMgr_Init(mgr, 0x15, nullptr);
     field<uint32_t>(mgr, 0) = 0x0082905c;  // FrontEndMenu vtable
@@ -2338,6 +2388,19 @@ void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
     }
     own_function<void XB_CDECL(uint8_t*)>(&Save_BeginWrite)(saves + 4);  // Save_BeginWrite
     field<int32_t>(saves, 0x11e0) = slot;
+}
+
+// 0x00372de0 (a static initializer without a Ghidra function before 11-11): the seven font names as {char[31],
+// length byte} (Q_strncpyLen, max 31) at 0x0095f7e8, 0x20 apart.
+void XB_CDECL StaticInit_FontNames_95f7e8() {
+    // garamond, GemFontOne, i_button_icons_xb, arialblack_14, big, normal, impact
+    static const uint32_t kNames[7] = {0x0082d21c, 0x0082d228, 0x0082d234, 0x0082d248, 0x0082d258, 0x0082d25c, 0x0082d264};
+    int32_t length;
+    for (uint32_t i = 0; i < 7; ++i) {
+        char* const name = &title_global<char>(0x0095f7e8 + i * 0x20);
+        Q_strncpyLen(name, &length, 0x1f, text_at(kNames[i]));
+        name[0x1f] = static_cast<char>(length);
+    }
 }
 
 }  // namespace game

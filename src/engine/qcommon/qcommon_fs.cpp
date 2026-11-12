@@ -7158,7 +7158,7 @@ void XB_CDECL Sys_Main() {
     static uint8_t frame[0x4624];  // never returns: the frame lives as long as the program
     uint8_t* const live = frame + 0x12c;
     uint32_t* const hooks = reinterpret_cast<uint32_t*>(frame + 0x14);
-    static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, 0x00296820, 0x00296780};
+    static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, own_address(&MemHook_AlignedAlloc), own_address(&MemHook_AlignedFree)};
     for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
     Mem_SetAllocatorHooks(hooks);
     live_mgr_construct(live);  // LiveMgr_Construct (EAX)
@@ -7670,5 +7670,64 @@ void XB_CDECL FS_Dir_f() {
 }
 
 #include "qcommon_fs_levels.inc"
+
+// ---- The allocator hooks Sys_Main installs (+0x10 / +0x14), gap functions before 11-11 ----
+
+namespace {
+
+// The paks' current memory context slot (+0x378 + top * 4, the top = +0x374 - 1 clamped to 0), -1 = none.
+int32_t current_context_slot(const uint8_t* paks) {
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(paks + 0x374);
+    if (!count) return -1;
+    const int32_t top = static_cast<int32_t>(count) - 1;
+    return *reinterpret_cast<const int32_t*>(paks + 0x378 + (top > 0 ? top : 0) * 4);
+}
+
+}  // namespace
+
+void XB_CDECL MemHook_AlignedFree(uint8_t* block) {
+    uint8_t* const paks = title_global<uint8_t*>(0x0095f638);
+    if (!paks) {
+        Z_Free(block);
+        return;
+    }
+    if (title_global<uint32_t>(0x00909948)) {  // the effects allocator is active
+        FxMem_Free(title_global<int32_t>(0x008bb764), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block)));
+        return;
+    }
+    const int32_t slot = current_context_slot(paks);
+    if (slot == -1) {
+        Z_Free(block);
+        return;
+    }
+    uint8_t* const context = slot >= 0 && slot < 0x63 ? *reinterpret_cast<uint8_t**>(paks + 0x38 + slot * 4) : nullptr;
+    if (MemContext_Free_r(context, block)) return;
+    Z_Free(block);
+}
+
+uint8_t* XB_CDECL MemHook_AlignedAlloc(uint32_t size, uint32_t align, uint32_t flags) {
+    if (!flags) {
+        const uint32_t effects = title_global<uint32_t>(0x00909948);
+        if (title_global<uint8_t>(0x0095f5d0) || effects) {
+            if (title_global<uint8_t>(0x0095f5d1)) {
+                title_global<uint8_t>(0x0095f5d0) = 0;
+                title_global<uint8_t>(0x0095f5d1) = 0;
+            }
+            uint8_t* const paks = title_global<uint8_t*>(0x0095f638);
+            if (paks) {
+                if (effects)
+                    return reinterpret_cast<uint8_t*>(
+                        uintptr_t{FxMem_Alloc(title_global<int32_t>(0x008bb764), size, align)});
+                return MemContext_AllocOrHeap(Pak_TopZoneId(paks), paks, align, size);
+            }
+        }
+    }
+    uint32_t previous = 0;
+    if (flags) previous = Heap_SelectByIndex(flags & 0x20000 ? 2 : 0);
+    uint8_t* const block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(align, size);
+    if (previous) Heap_SetCurrent(previous);
+    // The original breaks into the debugger (INT3) when the allocation failed.
+    return block;
+}
 
 }  // namespace game

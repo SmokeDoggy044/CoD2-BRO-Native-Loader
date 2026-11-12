@@ -177,4 +177,29 @@ void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescr
 // 0x00011fc0 (no Ghidra function): the shared HUD component vtable +0x14, visible (+4) = the flag's byte.
 void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on);
 
+// Gap functions (11-11). 0x00310cc0 (vtable 0x0082908c +0x14): unless +0x30 is null, the ten pictures +0x08..+0x2c
+// and the objects +0x30..+0x40 shown / hidden (+0x34); the component's own +4 untouched.
+void XB_THISCALL HudCompBomberMap_SetVisible(uint8_t* self, uint32_t on);
+// 0x003184d0 (vtable 0x00829164 +0x08): while visible, the "player_tank" entity's turret yaw (+0x248 -> +0x294 *
+// 0x0083edd8) as the picture +8's rotation (+0x4c (angle, 1)).
+void XB_THISCALL HudCompTankIcon_Update(uint8_t* self, uint32_t dt);
+// The +0x18 widescreen slots (widescreen in the low byte, centre x): pictures scaled for the aspect
+// (UIPicture_ScaleXForAspect), texts narrowed (+0x5c (x, y)) or reset (+0x60 (y)).
+// 0x00318590: the reticle's five pictures +8..+0x18. 0x00318ae0: weapon name picture +0xc, text +8 (0.405 / 0.54).
+// 0x00318fb0: grenade pictures +8 / +0xc, count text +0x10 (0.75 / 1). 0x00319030: ammo picture +8, texts +0xc /
+// +0x10 (0.45 / 0.6), then the texts' x (+0x80) beside the picture (x87). 0x00319310: health pictures +8..+0x14,
+// then +8 and +0x14 refreshed (+0xc4).
+void XB_THISCALL HudCompTankReticle_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+void XB_THISCALL HudCompWeaponName_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+void XB_THISCALL HudCompGrenades_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+void XB_THISCALL HudCompAmmo_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+void XB_THISCALL HudCompHealth_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// The +0x04 setup slots (panel): 0x00323970 hint pictures and a three-line white copy of "Press[Use]" (+0x218);
+// 0x003242e0 tank health pictures and the bar's width +0x14; 0x00324560 health pictures and a new picture +0x14
+// copied from the bar, one deeper; 0x00324640 the seven stance pictures.
+void XB_THISCALL HudCompHint_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompTankHealth_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompHealth_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompStance_Setup(uint8_t* self, uint8_t* panel);
+
 }  // namespace game

@@ -1517,7 +1517,7 @@ void XB_CDECL SndVoice_SetSource(int32_t voice, int32_t source) {
 
 uint32_t XB_CDECL Snd_SetVoiceVolumeScale(uint32_t scale_bits) {
     title_global<uint32_t>(0x008bd768) = scale_bits;
-    return SndVoice_ForEach(title_function<void XB_CDECL(int32_t)>(0x000c5270));
+    return SndVoice_ForEach(own_function<void XB_CDECL(int32_t)>(&SndVoice_SetAttenuated));
 }
 
 uint8_t* XB_CDECL SndVoice_GetSound(int32_t voice) {
@@ -3323,6 +3323,34 @@ void Snd_RestartTitle() {
     g_original_slots = 0;
     g_enhanced_slots_added = false;
     SndEnv_Reset();
+}
+
+// 0x000c5270 (gap function, 11-11; Snd_SetVoiceVolumeScale's per-voice callback).
+void XB_CDECL SndVoice_SetAttenuated(int32_t voice) {
+    const int32_t index = HandlePool_Resolve(kVoicePool, voice);
+    if (index == -1) return;
+    uint8_t* const record = voice_record(index);
+    if (!record) return;
+    int32_t& attenuated = *reinterpret_cast<int32_t*>(record + 0xf4);
+    if (attenuated < 1) ++attenuated;
+}
+
+// 0x002cea40 (gap function, 11-11; the sound bank manager's vtable 0x008327a8 +0x04, thiscall, ret 4).
+void XB_THISCALL SoundBankManager_UnloadZone(uint8_t* manager, int32_t zone) {
+    int32_t& count = *reinterpret_cast<int32_t*>(manager + 8);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const slot = manager + 0xc + i * 0x84;
+        if (*reinterpret_cast<int32_t*>(slot + 0x20) != zone) continue;
+        S_UnloadSoundBank(manager, reinterpret_cast<const uint32_t*>(slot), 0);
+        // The last slot moves into its place.
+        if (count > 1 && i < count) {
+            const int32_t last = count - 1 > 0 ? count - 1 : 0;
+            SoundBankSlot_Copy(reinterpret_cast<uint32_t*>(slot), 0,
+                               reinterpret_cast<const uint32_t*>(manager + 0xc + last * 0x84));
+        }
+        if (count) --count;
+        --i;
+    }
 }
 
 }  // namespace game

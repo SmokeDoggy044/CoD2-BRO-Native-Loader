@@ -205,4 +205,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunThink(uint32_t entry_esp, uint8_t*
                                                     uint32_t edi);
 extern "C" void G_RunThink_entry(void);
 
+// 0x002fd680 (gap function, 11-11; entity in EAX, pair in EDI): the entity's script object +0x428 = the game
+// import +0x804's (pair[1], pair[0]) (0, 0 for no pair[0]; 0 without the import), then G_UpdateEntityStringHashes.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_InitEntScriptObject(uint8_t* ent, const uint32_t* pair);
+extern "C" void G_InitEntScriptObject_entry(void);
+
 }  // namespace game

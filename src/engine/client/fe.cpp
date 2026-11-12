@@ -4021,4 +4021,179 @@ int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_sec
     return out_seconds;
 }
 
+// ---- UI text gap functions (no Ghidra functions before 11-11): the localized / wrapped text setters ----
+// They run every title call at the original's ESP (FE_FRAME_ENTRY): 0x0030f550 keeps its strtok position (a
+// pointer into its stack buffer) in the CRT's per-thread data, and the set-text method +0x78 keeps a stack
+// buffer's address too.
+
+FE_FRAME_ENTRY(UIText_LocalizeWords, "ret $4")
+
+uint32_t XB_CDECL UIText_LocalizeWords(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    const uint32_t source = stack_word(f.entry + 4);
+    if (!source) return 0;
+    uint8_t* const text = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    char* const buffer = f.local<char>(0x200);
+    char* const out = &title_global<char>(0x00926e88);
+    constexpr uint32_t kSpace = 0x0082d6e4;  // " "
+    f.word(0x204) = in->ebx;
+    f.word(0x208) = in->edi;
+    f.call(0x208, 0x0030f57c, own_address(&title_strncpy), buffer, source, 0x200u);  // _strncpy
+    std::memset(out, 0, 0x200);
+    uint32_t token = f.call(0x214, 0x0030f599, own_address(&title_strtok), buffer, kSpace);  // _strtok
+    if (!token) return 0x00926e88;
+    f.word(0x20c) = in->esi;
+    for (;;) {
+        // each word localized (+0x138), appended; a space between words
+        const uint32_t word = f.method(0x20c, 0x0030f5ac, text, 0x138, token);
+        if (word) std::strcat(out, text_at(word));
+        token = f.call(0x20c, 0x0030f5e5, own_address(&title_strtok), 0u, kSpace);  // _strtok
+        if (!token) break;
+        std::memcpy(out + std::strlen(out), text_at(kSpace), 2);
+    }
+    return 0x00926e88;
+}
+
+FE_FRAME_ENTRY(UIText_SetWrappedString, "ret $0xc")
+
+uint32_t XB_CDECL UIText_SetWrappedString(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const text = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    uint32_t& string = stack_word(f.entry + 4);  // the ScriptString argument (its rep), owned by the callee
+    const int32_t width = static_cast<int32_t>(stack_word(f.entry + 8));
+    f.word(4) = in->esi;
+    const uint32_t words = f.method(4, 0x0032b77d, text, 0x134, string ? string + 6 : 0u);
+    ScriptString_AssignCString(reinterpret_cast<ScriptString*>(&string), text_at(words));
+    field<int32_t>(text, 0x74) = width;
+    // The width slot ends with the string's length (dead stores of +0x38 / +0x3c / a3 before it).
+    const uint32_t rep = string;
+    stack_word(f.entry + 8) = rep ? *reinterpret_cast<const uint16_t*>(uintptr_t{rep + 2}) : 0u;
+    const int32_t lines = static_cast<int32_t>(UIText_WrapLines(text, rep ? text_at(rep + 6) : nullptr, width, 1));
+    field<int32_t>(text, 0x78) = lines - 1 < field<int32_t>(text, 0x7c) ? lines : field<int32_t>(text, 0x7c);
+    const uint32_t line = field<uint32_t>(field<uint8_t*>(text, 0x80), 0x14);
+    ScriptString_AssignCString(reinterpret_cast<ScriptString*>(text + 0x1c), line ? text_at(line + 6) : nullptr);
+    UIText_LayoutLines(text);
+    ScriptString_Release(reinterpret_cast<ScriptString*>(&string));
+    return 0;
+}
+
+FE_FRAME_ENTRY(UIText_SetLocalizedWrappedText, "ret $0xc")
+
+uint32_t XB_CDECL UIText_SetLocalizedWrappedText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const text = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    const char* const key = text_at(stack_word(f.entry + 4));
+    const uint32_t a3 = stack_word(f.entry + 0xc);
+    f.word(4) = in->ebx;
+    f.word(8) = in->esi;
+    f.word(0xc) = in->edi;
+    ScriptString string{};
+    if (key) {
+        ScriptString_FromCString(&string, Loc_GetString(key));
+        return f.method(0xc, 0x0032ee9f, text, 0x144, address_of(string.rep), stack_word(f.entry + 8), a3);
+    }
+    // No key: an empty string at width 640.
+    ScriptString_FromCString(&string, nullptr);
+    return f.method(0xc, 0x0032eec2, text, 0x144, address_of(string.rep), 0x280u, a3);
+}
+
+namespace {
+
+// The +0x6c setters: the key's localized text (Loc_GetString: the key itself when not found, "NO STRING" for an
+// empty entry, null for no key) through the set-text method +0x78.
+uint32_t set_localized_text(const FrameIn* in, uint32_t entry_esp, uint32_t ret_found, uint32_t ret_null) {
+    Frame f(in, entry_esp);
+    uint8_t* const text = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    const char* const key = text_at(stack_word(f.entry + 4));
+    f.word(4) = in->ebx;
+    f.word(8) = in->esi;
+    f.word(0xc) = in->edi;
+    return f.method(0xc, key ? ret_found : ret_null, text, 0x78, Loc_GetString(key));
+}
+
+}  // namespace
+
+FE_FRAME_ENTRY(UIText_SetLocalizedText, "ret $4")
+FE_FRAME_ENTRY(UITextBase_SetLocalizedText, "ret $4")
+
+uint32_t XB_CDECL UIText_SetLocalizedText(const FrameIn* in, uint32_t entry_esp) {
+    return set_localized_text(in, entry_esp, 0x0032f5ea, 0x0032f5f8);
+}
+
+uint32_t XB_CDECL UITextBase_SetLocalizedText(const FrameIn* in, uint32_t entry_esp) {
+    return set_localized_text(in, entry_esp, 0x0032f63a, 0x0032f648);
+}
+
+// ---- UI element / picture / text-base gap functions (no Ghidra functions before 11-11) ----
+
+void XB_THISCALL UIElement_SetDepthInLayer(uint8_t* element, float depth, int32_t layer) {
+    if (0.0f > depth)
+        depth = 0.0f;
+    else if (depth > title_global<float>(0x0083eb9c))
+        depth = title_global<float>(0x0083eb9c);
+    const float value = (static_cast<float>(layer * 1000) + depth) * title_global<float>(0x0083ec68);
+    method<void XB_THISCALL(uint8_t*, float)>(element, 0x24)(element, value);
+}
+
+void XB_THISCALL UIPicture_StoreBasePositions(uint8_t* picture) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) {
+        uint8_t* const quad = picture_quad(picture, i);
+        for (uint32_t v = 0; v < 4; ++v) {
+            field<uint32_t>(quad, v * 0xc) = field<uint32_t>(quad, 0x40 + v * 0x14);
+            field<uint32_t>(quad, v * 0xc + 4) = field<uint32_t>(quad, 0x44 + v * 0x14);
+        }
+    }
+}
+
+void XB_THISCALL UIPicture_MoveBy(uint8_t* picture, float dx, float dy) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) UIQuad_Translate(picture_quad(picture, i), dx, dy);
+    field<float>(picture, 0x14) += dx;
+    field<float>(picture, 0x18) += dy;
+    if (float* const anchor = field<float*>(picture, 0x2c)) {
+        anchor[0] += dx;
+        anchor[1] += dy;
+    }
+}
+
+void XB_THISCALL UIPicture_Rotate(uint8_t* picture, float cx, float cy, float angle, uint8_t absolute) {
+    if (absolute) angle -= field<float>(picture, 0x30);
+    for (uint32_t i = 0; i < quad_count(picture); ++i)
+        nglRotateQuadVerts(screen_quad(picture_quad(picture, i)), cx, cy, angle);
+    field<float>(picture, 0x30) += angle;
+}
+
+void XB_THISCALL UIPicture_Draw(uint8_t* picture) {
+    if (!method<uint8_t XB_THISCALL(uint8_t*)>(picture, 0x30)(picture)) return;
+    for (uint32_t i = 0; i < quad_count(picture); ++i) {
+        uint8_t* const quad = picture_quad(picture, i);
+        if (quad[0xa4]) nglListAddQuad(screen_quad(quad));
+    }
+}
+
+void XB_THISCALL UIPicture_SetColor(uint8_t* picture, uint32_t argb) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i)
+        for (int32_t v = 0; v < 4; ++v) nglSetQuadVertexColor(screen_quad(picture_quad(picture, i)), v, argb);
+}
+
+long double XB_THISCALL UITextBase_GetTextWidth(uint8_t* text) {
+    const ScriptStringRep* rep = field<ScriptStringRep*>(text, 0x1c);
+    const char* string = rep ? rep->text : nullptr;
+    int32_t width = 0;
+    int32_t height = 0;
+    nglGetTextExtent(text_font(field<int32_t>(text, 0x18)), string, &width, &height, field<float>(text, 0x38),
+                     field<float>(text, 0x3c));
+    return platform_x87_unsigned_to_float(uint32_t(width));
+}
+
+void XB_THISCALL UITextBase_Update(uint8_t* text, float dt) {
+    UIElement_UpdateFade(text, dt);
+    if (!(field<uint8_t>(text, 0x5c) & 8)) return;
+    // The pulse: time +4 advanced, value +8 = sin(time / period (+0xc) * k) * amplitude (x87).
+    float* const pulse = field<float*>(text, 0x14);
+    const float t = dt + pulse[1];
+    pulse[1] = t;
+    const long double angle = platform_x87_ld(t) / pulse[3] * title_global<float>(0x0083edac);
+    pulse[2] = static_cast<float>(platform_x87_sin_mul(static_cast<float>(angle), title_global<float>(0x0083eb24)));
+}
+
 }  // namespace game

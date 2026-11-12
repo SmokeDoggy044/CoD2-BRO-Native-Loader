@@ -273,6 +273,7 @@ const Function kFunctions[] = {
     {"UIMenu_DeletingDtor", 0x00013690, 0, code(&UIMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIOptionItem_DeletingDtor", 0x000136c0, 0, code(&UIOptionItem_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"StartupStorageMenu_DeletingDtor", 0x00013720, 0, code(&StartupStorageMenu_DeletingDtor), 4, Result::Eax, Status::Compare},
+    {"FrontEndMenu_DeletingDtor", 0x00013750, 0, code(&FrontEndMenu_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_00013750 (gap)
     {"DialogMgr_DeletingDtor", 0x000137a0, 0, code(&DialogMgr_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"BonusCharactersMenu_DeletingDtor", 0x000137c0, 0, code(&BonusCharactersMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"BonusVehiclesMenu_DeletingDtor", 0x000137e0, 0, code(&BonusVehiclesMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -417,6 +418,7 @@ const Function kFunctions[] = {
     {"ScrEnt_GetModel", 0x00016f20, 0, code(&ScrEnt_GetModel), 8, Result::Eax, Status::Replaced},
     {"ScrEnt_SetSpawnflags", 0x00016fc0, 0, code(&ScrEnt_SetSpawnflags), 8, Result::None, Status::Compare},
     {"ScrEnt_GetSpawnflags", 0x00017020, 0, code(&ScrEnt_GetSpawnflags), 4, Result::Eax, Status::Replaced},
+    {"ScrEnt_GetFloat_2fc", 0x000170e0, 0, code(&ScrEnt_GetFloat_2fc), 4, Result::St0, Status::Compare},  // was FUN_000170e0 (gap)
     {"ScrEnt_SetClosespeed", 0x00017140, 0, code(&ScrEnt_SetClosespeed), 8, Result::None, Status::Compare},
     {"ScrEnt_GetClosespeed", 0x000171a0, 0, code(&ScrEnt_GetClosespeed), 4, Result::St0, Status::Compare},
     {"ScrEnt_SetTarget", 0x00017200, 0, code(&ScrEnt_SetTarget), 8, Result::None, Status::Compare},
@@ -429,6 +431,8 @@ const Function kFunctions[] = {
     {"ScrEnt_GetWait", 0x00017590, 0, code(&ScrEnt_GetWait), 4, Result::St0, Status::Replaced},
     {"ScrEnt_SetRandom", 0x000175f0, 0, code(&ScrEnt_SetRandom), 8, Result::None, Status::Compare},
     {"ScrEnt_GetRandom", 0x00017650, 0, code(&ScrEnt_GetRandom), 4, Result::St0, Status::Compare},
+    {"ScrEnt_SetInt_370", 0x000176b0, 0, code(&ScrEnt_SetInt_370), 8, Result::None, Status::Compare},  // was ScrEnt_SetInt_370 (gap)
+    {"ScrEnt_GetInt_370", 0x00017710, 0, code(&ScrEnt_GetInt_370), 4, Result::Eax, Status::Compare},  // was ScrEnt_GetInt_370 (gap)
     {"ScrEnt_SetHealth", 0x00017770, 0, code(&ScrEnt_SetHealth), 8, Result::None, Status::Replaced},
     {"ScrEnt_GetHealth", 0x000177d0, 0, code(&ScrEnt_GetHealth), 4, Result::Eax, Status::Replaced},
     {"ScrEnt_SetDmg", 0x00017830, 0, code(&ScrEnt_SetDmg), 8, Result::None, Status::Compare},
@@ -629,11 +633,13 @@ const Function kFunctions[] = {
     {"AnimTreeManager_DeletingDtor", 0x0001ebd0, 0, code(&AnimTreeManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"EntNotifyBlock_DeletingDtor", 0x0001ec10, 0, code(&EntNotifyBlock_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"IN_JoyApplyThreshold", 0x0001ec70, 0, code(&IN_JoyApplyThreshold_entry), 0, Result::Eax, Status::Replaced},
+    {"CameraShake_Init", 0x0001ecc0, 0, code(&CameraShake_Init), 0, Result::Eax, Status::Compare},  // was FUN_0001ecc0 (gap)
     {"SpgManager_DeletingDtor", 0x0001ed20, 0, code(&SpgManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"SoundBankTable_Init", 0x0001ed50, 0, code(&SoundBankTable_Init), 0, Result::None, Status::Replaced},
     {"Array48_GetOrFirst", 0x0001edb0, 0, code(&Array48_GetOrFirst), 0, Result::Eax, Status::Replaced},
     {"std_string_AssignCStr", 0x0001edd0, 0, code(&std_string_AssignCStr), 4, Result::Eax, Status::Replaced},
     {"std_string_AppendCStr", 0x0001edf0, 0, code(&std_string_AppendCStr), 4, Result::Eax, Status::Replaced},
+    {"HandleTable512_Init", 0x0001ee10, 0, code(&HandleTable512_Init), 0, Result::Eax, Status::Compare},  // was FUN_0001ee10 (gap)
     {"HandleTable512_Alloc", 0x0001ee70, 0, code(&HandleTable512_Alloc_entry), 0, Result::Eax, Status::Replaced},
     {"SoundHandle_Free", 0x0001eee0, 0, code(&SoundHandle_Free_entry), 0, Result::None, Status::Replaced},
     {"DynArray_PushBack12", 0x0001ef30, 0, code(&DynArray_PushBack12_entry), 4, Result::None, Status::Replaced},
@@ -651,6 +657,7 @@ const Function kFunctions[] = {
     {"std_set_string_Subscript", 0x0001f460, 0, code(&std_set_string_Subscript_entry), 4, Result::Eax, Status::Replaced},
     {"std_set_string_Find", 0x0001f500, 0, code(&std_set_string_Find_entry), 0, Result::Eax, Status::Replaced},
     {"std_tree_InsertUnique29", 0x0001f560, 0, code(&std_tree_InsertUnique29), 12, Result::Eax, Status::Replaced},
+    {"Block84_Clear", 0x0001f6d0, 0, code(&Block84_Clear), 0, Result::Eax, Status::Compare},  // was FUN_0001f6d0 (gap)
     {"SoundBankSlot_Copy", 0x0001f740, 0, code(&SoundBankSlot_Copy), 0, Result::None, Status::Replaced},
     {"std_map_string_DestroyValue", 0x0001f810, 0, code(&std_map_string_DestroyValue_entry), 0, Result::None, Status::Replaced},
     {"std_string_AppendNChar", 0x0001f880, 0, code(&std_string_AppendNChar_entry), 4, Result::Eax, Status::Replaced},
@@ -721,6 +728,7 @@ const Function kFunctions[] = {
     {"NAL_CodNote_SkipBlock", 0x00022a00, 0, code(&NAL_CodNote_SkipBlock), 16, Result::Eax, Status::Replaced},
     {"NAL_CodNote_DecodeFrames", 0x00022a60, 0, code(&NAL_CodNote_DecodeFrames), 28, Result::Eax, Status::Replaced},
     {"NAL_CodNote_DecodeBlock", 0x00022ac0, 0, code(&NAL_CodNote_DecodeBlock), 20, Result::Eax, Status::Replaced},
+    {"NAL_CodNote_SkipBlock5", 0x00022b20, 0, code(&NAL_CodNote_SkipBlock5), 20, Result::Eax, Status::Compare},  // was FUN_00022b20 (gap)
     {"NAL_SkipActiveChannelBlocks_VFunc", 0x00022ba0, 0, code(&NAL_SkipActiveChannelBlocks_VFunc), 24, Result::Eax, Status::Replaced},  // virtual function, was FUN_00022ba0
     {"NAL_Clip_FindChannelByName", 0x00022be0, 0, code(&NAL_Clip_FindChannelByName_entry), 12, Result::None, Status::Replaced},
     {"NAL_Clip_FindChannelData", 0x00022d10, 0, code(&NAL_Clip_FindChannelData_entry), 4, Result::Eax, Status::Replaced},
@@ -976,6 +984,7 @@ const Function kFunctions[] = {
     {"Scr_WaitTillString", 0x0011e750, 0, code(&Scr_WaitTillString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_WaitOnObject", 0x0011e780, 0, code(&Scr_WaitOnObject), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_WaitOnObjectNoFlag", 0x0011e7c0, 0, code(&Scr_WaitOnObjectNoFlag), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"ScriptKeyTable_ValueEquals", 0x0011e800, 0, code(&ScriptKeyTable_ValueEquals), 12, Result::Eax, Status::Compare},  // was FUN_0011e800 (gap)
     {"ScrCall_GScr_GetEntScriptObject_2", 0x0011eb30, 0, code(&ScrCall_GScr_GetEntScriptObject_2), 4, Result::None, Status::Replaced},  // removes a script key
     {"Scr_NotifyAfterDeath", 0x0011fac0, 0, code(&Scr_NotifyAfterDeath), 12, Result::None, Status::Replaced},  // script thread switch (not compared)
     {"Record54_Copy", 0x0017ad50, 0, code(&Record54_Copy), 4, Result::Eax, Status::Compare},
@@ -1291,6 +1300,7 @@ const Function kFunctions[] = {
     {"nglListAddTranslucent", 0x00046ca0, 0, code(&nglListAddTranslucent), 4, Result::None, Status::Replaced},
     {"nglListAddNode", 0x00046cd0, 0, code(&nglListAddNode), 4, Result::None, Status::Replaced},
     {"nglStateCache_SetFogEnable", 0x00046d50, 0, code(&nglStateCache_SetFogEnable), 4, Result::None, Status::Replaced},
+    {"FxSimpleShader_Register", 0x00046d80, 0, code(&FxSimpleShader_Register), 0, Result::None, Status::Compare},  // was FUN_00046d80 (gap)
     {"cdDebug_GetName", 0x00046dd0, 0, code(&cdDebug_GetName), 4, Result::Eax, Status::Replaced},
     {"nglNode_ViewDepth", 0x00046df0, 0, code(&nglNode_ViewDepth), 0, Result::St0, Status::Replaced},
     {"ShaderPCUV_InitMaterial", 0x00047200, 0, code(&ShaderPCUV_InitMaterial), 12, Result::Eax, Status::Replaced},
@@ -1522,11 +1532,13 @@ const Function kFunctions[] = {
     {"nglInitTextureManager", 0x00063a70, 0, code(&nglInitTextureManager), 0, Result::None, Status::Replaced},
     {"nglGenerateRenderTargetMips", 0x00063870, 0, code(&nglGenerateRenderTargetMips), 4, Result::None, Status::Replaced},
     {"nglSkipList_ClearTextures", 0x00063d60, 0, code(&nglSkipList_ClearTextures), 0, Result::None, Status::Replaced},
+    {"nglSkipList_FindTexture", 0x00063db0, 0, code(&nglSkipList_FindTexture), 4, Result::Eax, Status::Compare},  // was FUN_00063db0 (gap)
     {"nglSkipList_RandomLevel", 0x00064040, 0, code(&nglSkipList_RandomLevel), 0, Result::Eax, Status::Replaced},
     {"nglTextureManager_DeletingDtor", 0x000641a0, 0, code(&nglTextureManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"nglPaletteManager_DeletingDtor", 0x000641d0, 0, code(&nglPaletteManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"nglResetDevice", 0x00064300, 0, code(&nglResetDevice), 0, Result::None, Status::Replaced},
     {"nglWaitFrameInterval", 0x00064370, 0, code(&nglWaitFrameInterval), 0, Result::None, Status::Replaced},
+    {"nglVBlankCountFrames", 0x000643e0, 0, code(&nglVBlankCountFrames), 0, Result::None, Status::Compare},  // was FUN_000643e0 (gap)
     {"nglShutdown", 0x00064570, 0, code(&nglShutdown), 0, Result::None, Status::Replaced},
     {"nglVBlankCallback", 0x00064580, 0, code(&nglVBlankCallback), 0, Result::None, Status::Replaced},
     {"nglResetDeviceBindings", 0x00064660, 0, code(&nglResetDeviceBindings), 0, Result::None, Status::Replaced},
@@ -1538,6 +1550,7 @@ const Function kFunctions[] = {
     {"nglParseFontFile", 0x00065590, 0, code(&nglParseFontFile_entry), 4, Result::Eax, Status::Replaced},
     {"nglLoadFontFile", 0x000657b0, 0, code(&nglLoadFontFile), 8, Result::Eax, Status::Replaced},
     {"nglLoadFont", 0x000658f0, 0, code(&nglLoadFont), 8, Result::Eax, Status::Replaced},
+    {"nglFontManager_Release", 0x00065970, 0, code(&nglFontManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00065970 (gap)
     {"nglBuildTextGlyphs", 0x00065b60, 0, code(&nglBuildTextGlyphs), 36, Result::Eax, Status::Replaced},
     {"nglGetTextExtent", 0x00065f00, 0, code(&nglGetTextExtent), 24, Result::None, Status::Replaced},
     {"nglListAddText", 0x000661c0, 0, code(&nglListAddText), 32, Result::None, Status::Replaced},
@@ -1564,6 +1577,7 @@ const Function kFunctions[] = {
     {"nglEmpty_GetName", 0x00069b00, 0, code(&nglEmpty_GetName), 4, Result::Eax, Status::Replaced},
     {"nglSkipList_Clear", 0x00069c60, 0, code(&nglSkipList_Clear), 0, Result::None, Status::Replaced},
     {"nglSkipList_ClearIndirect", 0x00069ca0, 0, code(&nglSkipList_ClearIndirect), 0, Result::None, Status::Replaced},
+    {"nglSkipList_FindNamed", 0x00069ce0, 0, code(&nglSkipList_FindNamed), 4, Result::Eax, Status::Compare},  // was FUN_00069ce0 (gap)
     {"nglMeshFileManager_DeletingDtor", 0x0006a220, 0, code(&nglMeshFileManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"nglMeshManager_DeletingDtor", 0x0006a250, 0, code(&nglMeshManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"nglSection3Manager_DeletingDtor", 0x0006a280, 0, code(&nglSection3Manager_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -1613,6 +1627,7 @@ const Function kFunctions[] = {
     {"nglResourceManager_Add", 0x0007af20, 0, code(&nglResourceManager_Add), 4, Result::Eax, Status::Replaced},
     {"nglMeshFileCache_DeletingDtor", 0x0007af30, 0, code(&nglMeshFileCache_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"nglSwizzleTextureLevels", 0x0007b2a0, 0, code(&nglSwizzleTextureLevels), 8, Result::None, Status::Replaced},
+    {"nglDebugShader_Register", 0x0007b600, 0, code(&nglDebugShader_Register), 0, Result::None, Status::Compare},  // was FUN_0007b600 (gap)
     {"nglFlushDebugLineBatch", 0x0006bf70, 0, code(&nglFlushDebugLineBatch), 0, Result::None, Status::Replaced},
     {"nglFreeTexture", 0x0006ece0, 0, code(&nglFreeTexture), 4, Result::None, Status::Replaced},
     {"nglCreateTexture", 0x0006eea0, 0, code(&nglCreateTexture), 20, Result::Eax, Status::Replaced},
@@ -1768,6 +1783,7 @@ const Function kFunctions[] = {
     {"nglProjectPointCopy", 0x00062db0, 0, code(&nglProjectPointCopy), 8, Result::None, Status::Replaced},
     {"nglInitScene", 0x00062df0, 0, code(&nglInitScene), 8, Result::Eax, Status::Replaced},
     {"nglPushScene", 0x00062fc0, 0, code(&nglPushScene), 4, Result::Eax, Status::Replaced},
+    {"nglTextureManager_Release", 0x00063330, 0, code(&nglTextureManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00063330 (gap)
     {"nglSetTextureManager", 0x000633b0, 0, code(&nglSetTextureManager), 4, Result::None, Status::Replaced},
     {"nglGetTextureManager", 0x000633c0, 0, code(&nglGetTextureManager), 0, Result::Eax, Status::Replaced},
     {"nglAddRef", 0x00063520, 0, code(&nglAddRef), 4, Result::None, Status::Replaced},
@@ -1780,6 +1796,7 @@ const Function kFunctions[] = {
     {"nglTextCursor_NextToken", 0x00063b80, 0, code(&nglTextCursor_NextToken), 8, Result::Eax, Status::Replaced},
     {"nglFindMeshPreferFile", 0x000674c0, 0, code(&nglFindMeshPreferFile), 8, Result::Eax, Status::Replaced},
     {"nglSkipList_Insert", 0x00069e00, 0, code(&nglSkipList_Insert), 4, Result::Eax, Status::Replaced},
+    {"nglSkipList_FindIndirect", 0x00069f30, 0, code(&nglSkipList_FindIndirect), 4, Result::Eax, Status::Compare},  // was FUN_00069f30 (gap)
     {"nglSkipList_InsertTexture", 0x00063f10, 0, code(&nglSkipList_InsertTexture), 4, Result::Eax, Status::Replaced},
     {"nglSkipList_Remove", 0x0007ad80, 0, code(&nglSkipList_Remove), 4, Result::Al, Status::Replaced},
     {"nglSkipList_RemoveTexture", 0x00063c40, 0, code(&nglSkipList_RemoveTexture), 4, Result::Al, Status::Compare},
@@ -2014,6 +2031,7 @@ const Function kFunctions[] = {
     {"NAL_Packed16EntropyIKSpin_InitState", 0x00083ce0, 0, code(&NAL_Packed16EntropyIKSpin_InitState), 8, Result::Eax, Status::Compare},
     {"AnimManager_SkipListInsert", 0x00083db0, 0, code(&AnimManager_SkipListInsert), 4, Result::Eax, Status::Replaced},
     {"AnimManager_SkipListFind", 0x00083f70, 0, code(&AnimManager_SkipListFind), 4, Result::Eax, Status::Replaced},
+    {"nglSkipList_FindName8", 0x00084090, 0, code(&nglSkipList_FindName8), 4, Result::Eax, Status::Compare},  // was FUN_00084090 (gap)
     {"NAL_Quat_DecodeFrames", 0x00081990, 0, code(&NAL_Quat_DecodeFrames), 28, Result::Eax, Status::Compare},
     {"NAL_Quat_DecodeBlock", 0x00081a50, 0, code(&NAL_Quat_DecodeBlock), 20, Result::Eax, Status::Compare},
     {"NAL_Quat_SkipBlock", 0x00081b10, 0, code(&NAL_Quat_SkipBlock), 16, Result::Eax, Status::Replaced},
@@ -2063,6 +2081,7 @@ const Function kFunctions[] = {
     {"NAL_GenericAnim_GetRootTransform", 0x00086d30, 0, code(&NAL_GenericAnim_GetRootTransform), 8, Result::Eax, Status::Replaced},
     {"NAL_AnimState_Destroy", 0x00086da0, 0, code(&NAL_AnimState_Destroy), 0, Result::None, Status::Replaced},
     {"NAL_GenericAnim_Init", 0x00087030, 0, code(&NAL_GenericAnim_Init), 0, Result::Eax, Status::Replaced},
+    {"NAL_GenericAnim_LayoutState", 0x00087260, 0, code(&NAL_GenericAnim_LayoutState), 0, Result::None, Status::Compare},  // was FUN_00087260 (gap)
     {"NAL_Skeleton_BoneTransform", 0x00087cb0, 0, code(&NAL_Skeleton_BoneTransform), 8, Result::Eax, Status::Replaced},
     {"NAL_AnimState_Copy", 0x00086e50, 0, code(&NAL_AnimState_Copy), 4, Result::None, Status::Replaced},
     {"NAL_AnimState_CopyRange", 0x00086ec0, 0, code(&NAL_AnimState_CopyRange), 8, Result::None, Status::Replaced},
@@ -2093,12 +2112,14 @@ const Function kFunctions[] = {
     {"NAL_PtrField4", 0x0008d9a0, 0, code(&NAL_PtrField4), 4, Result::Eax, Status::Replaced},
     {"NAL_AnimFile_Fixup", 0x0008d9b0, 0, code(&NAL_AnimFile_Fixup), 4, Result::Al, Status::Replaced},
     {"NAL_AnimFile_Register", 0x0008dbb0, 0, code(&NAL_AnimFile_Register), 8, Result::Eax, Status::Replaced},
+    {"AnimManager_Release", 0x0008dc40, 0, code(&AnimManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_0008dc40 (gap)
     {"NAL_AnimFile_Release", 0x0008dcb0, 0, code(&NAL_AnimFile_Release), 4, Result::Eax, Status::Replaced},
     {"NAL_GroupedAnimFile_Fixup", 0x0008dd40, 0, code(&NAL_GroupedAnimFile_Fixup), 4, Result::Al, Status::Compare},
     {"NAL_GroupedAnimFile_ForEachClip", 0x0008de20, 0, code(&NAL_GroupedAnimFile_ForEachClip), 4, Result::None, Status::Compare},
     {"NAL_Manager828_Release", 0x0008e060, 0, code(&NAL_Manager828_Release), 4, Result::Eax, Status::Compare},
     {"NAL_FindSkeleton", 0x0008e0d0, 0, code(&NAL_FindSkeleton), 4, Result::Eax, Status::Replaced},
     {"NAL_Skeleton_Register", 0x0008e130, 0, code(&NAL_Skeleton_Register), 4, Result::Eax, Status::Replaced},
+    {"NalManagerKey8_Release", 0x0008e270, 0, code(&NalManagerKey8_Release), 12, Result::Eax, Status::Compare},  // was FUN_0008e270 (gap)
     {"NAL_Skeleton_Release", 0x0008e2c0, 0, code(&NAL_Skeleton_Release), 4, Result::Eax, Status::Replaced},
     {"NAL_AnimPlayer_DeletingDtor", 0x0008e330, 0, code(&NAL_AnimPlayer_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"NAL_StreamedAnim_DeletingDtor", 0x0008e350, 0, code(&NAL_StreamedAnim_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -2237,6 +2258,7 @@ const Function kFunctions[] = {
     {"FxRandom_Range", 0x00099290, 0, code(&FxRandom_Range), 0, Result::St0, Status::Replaced},
     {"FxRange_Within", 0x000992e0, 0, code(&FxRange_Within), 8, Result::Eax, Status::Replaced},
     {"FxConst_Within", 0x00099560, 0, code(&FxConst_Within), 8, Result::Eax, Status::Replaced},
+    {"FxConst_SampleN", 0x000995d0, 0, code(&FxConst_SampleN), 8, Result::Eax, Status::Compare},  // was FUN_000995d0 (gap)
     {"FxConstVector_Within", 0x00099640, 0, code(&FxConstVector_Within), 8, Result::Eax, Status::Replaced},
     {"FxVectorRange_Within", 0x00099c90, 0, code(&FxVectorRange_Within), 8, Result::Eax, Status::Replaced},
     {"FxRenderer_NewOp53", 0x00099ce0, 0, code(&FxRenderer_NewOp53), 0, Result::Eax, Status::Replaced},
@@ -2697,6 +2719,7 @@ const Function kFunctions[] = {
     {"SndVoice_SetSource", 0x000c4910, 0, code(&SndVoice_SetSource), 8, Result::None, Status::Compare},
     {"SndVoice_ApplyParams", 0x000c4af0, 0, code(&SndVoice_ApplyParams), 0, Result::None, Status::Replaced},
     {"SndSource_CommitDirty", 0x000c5100, 0, code(&SndSource_CommitDirty), 0, Result::None, Status::Replaced},
+    {"SndVoice_SetAttenuated", 0x000c5270, 0, code(&SndVoice_SetAttenuated), 4, Result::None, Status::Compare},  // was FUN_000c5270 (gap)
     {"SndVoice_ClearAttenuation", 0x000c52b0, 0, code(&SndVoice_ClearAttenuation), 0, Result::None, Status::Compare},
     {"Snd_SetVoiceVolumeScale", 0x000c5390, 0, code(&Snd_SetVoiceVolumeScale), 4, Result::Eax, Status::Replaced},
     {"S_ClearVoiceAttenuation", 0x000c53b0, 0, code(&S_ClearVoiceAttenuation), 0, Result::Eax, Status::Replaced},
@@ -2805,6 +2828,7 @@ const Function kFunctions[] = {
     {"HandlePool_Free", 0x000cb580, 0, code(&HandlePool_Free), 8, Result::None, Status::Replaced},
     {"HandlePool_First", 0x000cb5e0, 0, code(&HandlePool_First), 0, Result::Eax, Status::Replaced},
     {"HandlePool_Next", 0x000cb600, 0, code(&HandlePool_Next), 0, Result::Eax, Status::Replaced},
+    {"FileDevice_BuildPath", 0x000cb680, 0, code(&FileDevice_BuildPath), 12, Result::Eax, Status::Compare},  // was FUN_000cb680 (gap)
     {"FileDeviceXapi_Cancel", 0x000cbbe0, 0, code(&FileDeviceXapi_Cancel), 0, Result::Eax, Status::Compare},
     {"FileDeviceXapi_Poll", 0x000cbc00, 0, code(&FileDeviceXapi_Poll), 0, Result::Eax, Status::Replaced},
     {"Movie_Construct", 0x000cbc10, 0, code(&Movie_Construct), 0, Result::Eax, Status::Replaced},
@@ -5255,6 +5279,7 @@ const Function kFunctions[] = {
     {"ScrField_run_combatanim_IsDefined", 0x001a4440, 0, code(ScrField_run_combatanim_IsDefined), 8, Result::Eax, Status::Replaced},
     {"ScrField_h9dc74345", 0x001a44a0, 0, code(ScrField_h9dc74345), 4, Result::Eax, Status::Replaced},
     {"ScrField_h9dc74345_IsDefined", 0x001a44e0, 0, code(ScrField_h9dc74345_IsDefined), 8, Result::Eax, Status::Replaced},
+    {"BroScr_LevelNotifyDeleteArrays_h011066c4", 0x001a4540, 0, code(&BroScr_LevelNotifyDeleteArrays_h011066c4), 0, Result::None, Status::Compare},  // was FUN_001a4540 (gap)
     {"BroScr_SetRandomModel", 0x001a4620, 0, code(&BroScr_SetRandomModel), 16, Result::None, Status::Compare},
     {"BroScr_EmptyFunc_StrArray", 0x001a46c0, 0, code(&BroScr_EmptyFunc_StrArray), 12, Result::None, Status::Replaced},
     {"BroScr_RandomArrayString", 0x001a4700, 0, code(&BroScr_RandomArrayString), 16, Result::Eax, Status::Compare},
@@ -5873,6 +5898,7 @@ const Function kFunctions[] = {
     {"Actor_IsAtClaimedNode", 0x00201d40, 0, code(&Actor_IsAtClaimedNode), 0, Result::Eax, Status::Replaced},
     {"BadPlace_ClearCrossingPaths", 0x00201e00, 0, code(&BadPlace_ClearCrossingPaths), 0, Result::Eax, Status::Compare},
     {"Actor_GetGoalRadius", 0x00201e90, 0, code(&Actor_GetGoalRadius_entry), 4, Result::Xmm0, Status::Replaced},
+    {"Actor_CoverFilterAwayFromClaimed", 0x00201f60, 0, code(&Actor_CoverFilterAwayFromClaimed), 0, Result::Eax, Status::Compare},  // was FUN_00201f60 (gap)
     {"Actor_AskActorsToMoveAside", 0x00202010, 0, code(&Actor_AskActorsToMoveAside), 0, Result::Eax, Status::Replaced},
     {"Actor_ThinkStateMachine", 0x002025c0, 0, code(&Actor_ThinkStateMachine_entry), 4, Result::Eax, Status::Replaced},
     {"Actor_ForceState", 0x002026f0, 0, code(&Actor_ForceState_entry), 0, Result::None, Status::Replaced},
@@ -6192,6 +6218,7 @@ const Function kFunctions[] = {
     {"PhysRagdoll_ComputeBounds", 0x00229c90, 0, code(&PhysRagdoll_ComputeBounds_entry), 0, Result::None, Status::Replaced},
     {"RagdollCapsule_CollidePair", 0x00229d20, 0, code(&RagdollCapsule_CollidePair_entry), 4, Result::None, Status::Replaced},
     {"PhysObj_GetInheritedVelocity", 0x00229f00, 0, code(&PhysObj_GetInheritedVelocity_entry), 4, Result::None, Status::Compare},
+    {"VehiclePhys_TraceAllWheels", 0x0022a0b0, 0, code(&VehiclePhys_TraceAllWheels), 0, Result::None, Status::Compare},  // was FUN_0022a0b0 (gap)
     {"PhysParts_WriteBoneMatrices", 0x0022a0f0, 0, code(&PhysParts_WriteBoneMatrices), 4, Result::None, Status::Replaced},
     {"VehiclePhys_SetupFromDef", 0x0022a590, 0, code(&VehiclePhys_SetupFromDef), 12, Result::None, Status::Compare},
     {"RagdollBodyDef_FitToBones", 0x0022b0d0, 0, code(&RagdollBodyDef_FitToBones), 4, Result::None, Status::Replaced},
@@ -6400,6 +6427,7 @@ const Function kFunctions[] = {
     {"Vehicle_GetBodyRock", 0x00249eb0, 0, code(&Vehicle_GetBodyRock), 0, Result::None, Status::Replaced},
     {"Vehicle_ApproachProportional", 0x00249f00, 0, code(&Vehicle_ApproachProportional_entry), 8, Result::Xmm0, Status::Replaced},
     {"Vehicle_ApproachAtRate", 0x00249f60, 0, code(&Vehicle_ApproachAtRate_entry), 4, Result::Xmm0, Status::Compare},
+    {"Vehicle_ParseTypeField", 0x00249fd0, 0, code(&Vehicle_ParseTypeField), 12, Result::Eax, Status::Compare},  // was FUN_00249fd0 (gap)
     {"G_InitAnimScripts", 0x0024a070, 0, code(&G_InitAnimScripts), 0, Result::None, Status::Replaced},
     {"G_RunThink", 0x0024ac50, 0, code(&G_RunThink_entry), 4, Result::None, Status::Replaced},
     {"G_EndGame", 0x0024acb0, 0, code(&G_EndGame), 0, Result::None, Status::Replaced},
@@ -6451,6 +6479,7 @@ const Function kFunctions[] = {
     {"G_FloatOnWater", 0x0024e690, 0, code(&G_FloatOnWater_entry), 0, Result::None, Status::Replaced},
     {"Pickup_ClipsForAllWeapons", 0x0024e740, 0, code(&Pickup_ClipsForAllWeapons_entry), 0, Result::None, Status::Replaced},
     {"Add_Ammo", 0x0024e7a0, 0, code(&Add_Ammo), 12, Result::Eax, Status::Replaced},
+    {"G_ParseHitLocDamageTable", 0x0024e980, 0, code(&G_ParseHitLocDamageTable), 8, Result::None, Status::Compare},  // was FUN_0024e980 (gap)
     {"Cmd_MenuResponse_f", 0x0024ea60, 0, code(&Cmd_MenuResponse_f), 4, Result::None, Status::Replaced},
     {"SetClientViewAngle", 0x0024ebf0, 0, code(&SetClientViewAngle_entry), 0, Result::None, Status::Replaced},
     {"TeleportPlayer", 0x0024eec0, 0, code(&TeleportPlayer), 0, Result::None, Status::Replaced},
@@ -7074,6 +7103,7 @@ const Function kFunctions[] = {
     {"CG_CalcGunMoveOffset", 0x00275380, 0, code(&CG_CalcGunMoveOffset_entry), 0, Result::None, Status::Replaced},
     {"CG_StretchPicRotate", 0x002757d0, 0, code(&CG_StretchPicRotate), 36, Result::None, Status::Replaced},
     {"CG_InitLocalEntities", 0x00275a30, 0, code(&CG_InitLocalEntities), 0, Result::None, Status::Replaced},
+    {"CG_CompareHudElems", 0x00275ab0, 0, code(&CG_CompareHudElems), 8, Result::Eax, Status::Compare},  // was FUN_00275ab0 (gap)
     {"CG_FadeColor", 0x00275e50, 0, code(&CG_FadeColor), 0, Result::Eax, Status::Replaced},
     {"CG_DrawTextScaled", 0x00276060, 0, code(&CG_DrawTextScaled_entry), 20, Result::None, Status::Replaced},
     {"CG_SetFade", 0x002765b0, 0, code(&CG_SetFade), 4, Result::Eax, Status::Replaced},
@@ -7146,6 +7176,8 @@ const Function kFunctions[] = {
     {"SCR_DrawLoadingIcon", 0x00292e60, 0, code(&SCR_DrawLoadingIcon), 0, Result::None, Status::Replaced},
     {"Key_TranslateButtonName", 0x00292ee0, 0, code(&Key_TranslateButtonName), 0, Result::Eax, Status::Replaced},
     {"Com_HashKeyNoCase", 0x00292fe0, 0, code(&Com_HashKeyNoCase), 0, Result::Eax, Status::Replaced},
+    {"HeapAllocator_Alloc", 0x00293040, 0, code(&HeapAllocator_Alloc), 4, Result::Eax, Status::Compare},  // was FUN_00293040 (gap)
+    {"FxParticleComponent_ScaleParam", 0x002930c0, 0, code(&FxParticleComponent_ScaleParam), 8, Result::None, Status::Compare},  // was FUN_002930c0 (gap)
     {"Snd_CountBusyVoices", 0x00293310, 0, code(&Snd_CountBusyVoices), 0, Result::Eax, Status::Replaced},
     {"FX_EffectComponentsFinished", 0x00293410, 0, code(&FX_EffectComponentsFinished_entry), 0, Result::Al, Status::Replaced},
     {"SCR_RedrawFrontBuffer", 0x00293720, 0, code(&SCR_RedrawFrontBuffer), 0, Result::None, Status::Compare},
@@ -7297,6 +7329,8 @@ const Function kFunctions[] = {
     {"SCR_DrawLoadingText", 0x00296200, 0, code(&SCR_DrawLoadingText), 0, Result::None, Status::Replaced},
     {"RE_ParseButtonToken", 0x00296350, 0, code(&RE_ParseButtonToken_entry), 16, Result::Al, Status::Replaced},
     {"StringTable_Load", 0x002963f0, 0, code(&StringTable_Load), 12, Result::None, Status::Replaced},
+    {"MemHook_AlignedFree", 0x00296780, 0, code(&MemHook_AlignedFree), 4, Result::None, Status::Compare},  // was FUN_00296780 (gap)
+    {"MemHook_AlignedAlloc", 0x00296820, 0, code(&MemHook_AlignedAlloc), 12, Result::Eax, Status::Compare},  // was FUN_00296820 (gap)
     {"FX_RandomInOctaves", 0x002969a0, 0, code(&FX_RandomInOctaves_entry), 0, Result::Xmm0, Status::Replaced},
     {"FX_FindEffectById", 0x00296a80, 0, code(&FX_FindEffectById_entry), 0, Result::Eax, Status::Replaced},
     {"FX_StopEffectById", 0x00296ab0, 0, code(&FX_StopEffectById), 0, Result::None, Status::Replaced},
@@ -7336,6 +7370,7 @@ const Function kFunctions[] = {
     {"SCR_InitLoadingSpinner", 0x002982d0, 0, code(&SCR_InitLoadingSpinner), 0, Result::None, Status::Replaced},
     {"Zone_FindByHash", 0x002984f0, 0, code(&Zone_FindByHash), 4, Result::Eax, Status::Replaced},
     {"Stream_LoadCfgstr", 0x00298570, 0, code(&Stream_LoadCfgstr), 16, Result::Eax, Status::Replaced},
+    {"FxSoundComponent_IsState3", 0x00298750, 0, code(&FxSoundComponent_IsState3), 0, Result::Al, Status::Compare},  // was FUN_00298750 (gap)
     {"CL_UpdateRumble", 0x00298810, 0, code(&CL_UpdateRumble), 8, Result::None, Status::Replaced},
     {"RumbleQueue_ClearAll", 0x00298b20, 0, code(&RumbleQueue_ClearAll), 0, Result::None, Status::Replaced},
     {"Rumble_SetScale", 0x00298ba0, 0, code(&Rumble_SetScale_entry), 4, Result::None, Status::Replaced},
@@ -7375,6 +7410,7 @@ const Function kFunctions[] = {
     {"Scr_EntityWaitList_FreeWaits", 0x0029ac20, 0, code(&Scr_EntityWaitList_FreeWaits_entry), 0, Result::Eax, Status::Replaced},
     {"EntNotifyCallbacks_CallByKey", 0x0029acb0, 0, code(&EntNotifyCallbacks_CallByKey), 8, Result::Al, Status::Replaced},
     {"FxShakeRumbleComponent_Stop", 0x0029ae90, 0, code(&FxShakeRumbleComponent_Stop), 0, Result::None, Status::Replaced},
+    {"FxShakeRumbleComponent_IsDone", 0x0029aef0, 0, code(&FxShakeRumbleComponent_IsDone), 0, Result::Al, Status::Compare},  // was FUN_0029aef0 (gap)
     {"FxComponent_GetEntityOrigin", 0x0029af30, 0, code(&FxComponent_GetEntityOrigin), 0, Result::Eax, Status::Replaced},
     {"FxSoundComponent_SetParent", 0x0029b010, 0, code(&FxSoundComponent_SetParent), 4, Result::None, Status::Replaced},
     {"FxComponent_OwnerGone", 0x0029b0b0, 0, code(&FxComponent_OwnerGone), 0, Result::Eax, Status::Replaced},
@@ -7407,6 +7443,9 @@ const Function kFunctions[] = {
     {"Scr_UnlinkEntityWaitList", 0x0029d500, 0, code(&Scr_UnlinkEntityWaitList), 0, Result::None, Status::Replaced},
     {"Loc_GetString", 0x0029d5f0, 0, code(&Loc_GetString_entry), 0, Result::Eax, Status::Replaced},
     {"FxComponentB_IsOwnerGone", 0x0029d620, 0, code(&FxComponentB_IsOwnerGone), 0, Result::Al, Status::Compare},
+    {"FxParticleComponent_IsDone", 0x0029d650, 0, code(&FxParticleComponent_IsDone), 0, Result::Al, Status::Compare},  // was FUN_0029d650 (gap)
+    {"FxSoundComponent_Stop", 0x0029d6e0, 0, code(&FxSoundComponent_Stop), 0, Result::None, Status::Compare},  // was FUN_0029d6e0 (gap)
+    {"FxSoundComponent_IsDone", 0x0029d740, 0, code(&FxSoundComponent_IsDone), 0, Result::Al, Status::Compare},  // was FUN_0029d740 (gap)
     {"FxSoundComponent_Update", 0x0029d7c0, 0, code(&FxSoundComponent_Update_entry), 4, Result::None, Status::Replaced},
     {"FxSoundComponent_Create", 0x0029df60, 0, code(&FxSoundComponent_Create_entry), 0, Result::Eax, Status::Replaced},
     {"FX_CollectTriggers", 0x0029e1c0, 0, code(&FX_CollectTriggers_entry), 12, Result::None, Status::Replaced},
@@ -7849,6 +7888,7 @@ const Function kFunctions[] = {
     {"PM_WeaponUseAmmo", 0x002bc630, 0, code(&PM_WeaponUseAmmo), 4, Result::Eax, Status::Replaced},
     {"PM_ReloadClip", 0x002bc660, 0, code(&PM_ReloadClip), 0, Result::None, Status::Replaced},
     {"CG_GetCurrentWeaponDef", 0x002bc750, 0, code(&CG_GetCurrentWeaponDef), 0, Result::Eax, Status::Replaced},
+    {"BG_ParseWeaponFile", 0x002bc7d0, 0, code(&BG_ParseWeaponFile), 8, Result::Eax, Status::Compare},  // was FUN_002bc7d0 (gap)
     {"PM_UpdateStaminaBreathEvent", 0x002bc860, 0, code(&PM_UpdateStaminaBreathEvent), 0, Result::None, Status::Replaced},
     {"PM_AddFlagChangeEvents", 0x002bc8e0, 0, code(&PM_AddFlagChangeEvents), 0, Result::None, Status::Replaced},
     {"PM_CrashLand", 0x002bc990, 0, code(&PM_CrashLand), 0, Result::None, Status::Replaced},
@@ -7877,6 +7917,7 @@ const Function kFunctions[] = {
     {"XModel_FreeAnimStates", 0x002be7c0, 0, code(&XModel_FreeAnimStates_entry), 0, Result::None, Status::Replaced},
     {"CodNote_Free", 0x002be860, 0, code(&CodNote_Free), 4, Result::None, Status::Replaced},
     {"G_ProcessCodNotes", 0x002be8f0, 0, code(&G_ProcessCodNotes), 4, Result::None, Status::Replaced},
+    {"G_AnimNote_CreateScript", 0x002beb20, 0, code(&G_AnimNote_CreateScript), 12, Result::Eax, Status::Compare},  // was FUN_002beb20 (gap)
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Replaced},
     {"AnimTree_AdvanceTime_r_2", 0x002bf7d0, 0, code(&AnimTree_AdvanceTime_r_2_entry), 8, Result::Xmm0, Status::Replaced},
     {"AnimTree_NotifyNotetrack", 0x002bfaa0, 0, code(&AnimTree_NotifyNotetrack), 4, Result::None, Status::Replaced},
@@ -7933,6 +7974,7 @@ const Function kFunctions[] = {
     {"SoundBank_AddPart", 0x002c3500, 0, code(&SoundBank_AddPart_entry), 16, Result::None, Status::Replaced},
     {"CameraShake_ComputeOffset", 0x002c3710, 0, code(&CameraShake_ComputeOffset_entry), 4, Result::None, Status::Replaced},
     {"G_FreeAllEntities", 0x002c3870, 0, code(&G_FreeAllEntities), 4, Result::None, Status::Compare},
+    {"G_FreeZoneEntities", 0x002c38c0, 0, code(&G_FreeZoneEntities), 4, Result::None, Status::Compare},  // was FUN_002c38c0 (gap)
     {"G_EntUpdateLinkedTags", 0x002c3960, 0, code(&G_EntUpdateLinkedTags_entry), 0, Result::None, Status::Replaced},
     {"G_FindConfigstringIndex", 0x002c39a0, 0, code(&G_FindConfigstringIndex_entry), 16, Result::Eax, Status::Replaced},
     {"AnimTree_ClearNode_r", 0x002c3ae0, 0, code(&AnimTree_ClearNode_r), 8, Result::None, Status::Replaced},
@@ -7969,6 +8011,7 @@ const Function kFunctions[] = {
     {"Loc_ResetStringFileState", 0x002c5ac0, 0, code(&Loc_ResetStringFileState_entry), 4, Result::Eax, Status::Replaced},
     {"Loc_InitCvars", 0x002c5bb0, 0, code(&Loc_InitCvars), 0, Result::None, Status::Replaced},
     {"Zone_RemoveActive", 0x002c5c60, 0, code(&Zone_RemoveActive), 4, Result::None, Status::Replaced},
+    {"ZoneTable_FreeZone", 0x002c5da0, 0, code(&ZoneTable_FreeZone), 4, Result::None, Status::Compare},  // was FUN_002c5da0 (gap)
     {"SP_worldspawn", 0x002c5e30, 0, code(&SP_worldspawn), 0, Result::None, Status::Replaced},
     {"Path_ConnectPathsForEntity", 0x002c5ef0, 0, code(&Path_ConnectPathsForEntity_entry), 0, Result::None, Status::Replaced},
     {"PathNode_ResolveAllAnimScripts", 0x002c5ff0, 0, code(&PathNode_ResolveAllAnimScripts_entry), 0, Result::None, Status::Replaced},
@@ -7987,6 +8030,7 @@ const Function kFunctions[] = {
     {"CL_CharEvent", 0x002c77d0, 0, code(&CL_CharEvent_entry), 0, Result::None, Status::Compare},
     {"Field_KeyDownEvent", 0x002c78d0, 0, code(&Field_KeyDownEvent), 4, Result::None, Status::Compare},
     {"CL_CreateCmd", 0x002c7a90, 0, code(&CL_CreateCmd_entry), 0, Result::Eax, Status::Replaced},
+    {"IN_LowerStance", 0x002c7d90, 0, code(&IN_LowerStance), 0, Result::None, Status::Compare},  // was FUN_002c7d90 (gap)
     {"IN_UpDown", 0x002c7de0, 0, code(&IN_UpDown), 0, Result::None, Status::Replaced},
     {"G_ApplyCheckpointStart", 0x002c7f00, 0, code(&G_ApplyCheckpointStart), 0, Result::None, Status::Compare},
     {"BG_SetupWeaponHintStrings", 0x002c80b0, 0, code(&BG_SetupWeaponHintStrings), 0, Result::None, Status::Replaced},
@@ -8050,6 +8094,7 @@ const Function kFunctions[] = {
     {"CL_CharEventFiltered", 0x002cd090, 0, code(&CL_CharEventFiltered), 0, Result::None, Status::Compare},
     {"CL_KeyEvent", 0x002cd0c0, 0, code(&CL_KeyEvent), 4, Result::None, Status::Replaced},
     {"CL_CreateNewCommands", 0x002cd450, 0, code(&CL_CreateNewCommands), 0, Result::None, Status::Replaced},
+    {"IN_GrenadeAttackUp", 0x002cd500, 0, code(&IN_GrenadeAttackUp), 0, Result::None, Status::Compare},  // was FUN_002cd500 (gap)
     {"IN_DownUp", 0x002cd5f0, 0, code(&IN_DownUp), 0, Result::None, Status::Replaced},
     {"IN_DownDown", 0x002cd640, 0, code(&IN_DownDown), 0, Result::None, Status::Replaced},
     {"CL_ConfigstringModified", 0x002cd690, 0, code(&CL_ConfigstringModified), 0, Result::None, Status::Replaced},
@@ -8067,6 +8112,7 @@ const Function kFunctions[] = {
     {"S_OpenWaveBank", 0x002ce830, 0, code(&S_OpenWaveBank_entry), 8, Result::None, Status::Replaced},
     {"S_LoadSoundBank", 0x002ce8f0, 0, code(&S_LoadSoundBank), 12, Result::None, Status::Replaced},
     {"S_WaitForWaveBanks", 0x002ce9c0, 0, code(&S_WaitForWaveBanks_entry), 0, Result::None, Status::Compare},
+    {"SoundBankManager_UnloadZone", 0x002cea40, 0, code(&SoundBankManager_UnloadZone), 4, Result::None, Status::Compare},  // was FUN_002cea40 (gap)
     {"GScr_SetEntFlag4000000", 0x002cead0, 0, code(&GScr_SetEntFlag4000000), 4, Result::None, Status::Replaced},
     {"Phys_InitBodyState", 0x002ceb50, 0, code(&Phys_InitBodyState), 0, Result::None, Status::Replaced},
     {"AnimTree_FlushClearLists", 0x002ced30, 0, code(&AnimTree_FlushClearLists), 0, Result::None, Status::Replaced},
@@ -8115,6 +8161,7 @@ const Function kFunctions[] = {
     {"CL_InitRenderer", 0x002d5650, 0, code(&CL_InitRenderer), 0, Result::Eax, Status::Replaced},
     {"CL_PacketEvent", 0x002d5690, 0, code(&CL_PacketEvent), 24, Result::Eax, Status::Replaced},
     {"Key_ClearStates", 0x002d57c0, 0, code(&Key_ClearStates), 0, Result::None, Status::Replaced},
+    {"IN_GrenadeAttackDown", 0x002d58b0, 0, code(&IN_GrenadeAttackDown), 0, Result::None, Status::Compare},  // was FUN_002d58b0 (gap)
     {"CL_GetServerCommand", 0x002d59f0, 0, code(&CL_GetServerCommand), 0, Result::Eax, Status::Replaced},
     {"G_RestorePlayerLoadout", 0x002d5ad0, 0, code(&G_RestorePlayerLoadout), 0, Result::None, Status::Compare},
     {"PM_ActivateTargetActor", 0x002d5ba0, 0, code(&PM_ActivateTargetActor), 0, Result::Eax, Status::Replaced},
@@ -8411,6 +8458,7 @@ const Function kFunctions[] = {
     {"ScrIface_Malloc", 0x002f62d0, 0, code(&ScrIface_Malloc), 8, Result::Eax, Status::Replaced},
     {"IntHashMap_FindValue", 0x002f6320, 0, code(&IntHashMap_FindValue), 4, Result::Eax, Status::Replaced},
     {"Scr_InitWaitRecord4", 0x002f6350, 0, code(&Scr_InitWaitRecord4), 24, Result::None, Status::Replaced},
+    {"ScrZoneWaitRecord_Check", 0x002f6450, 0, code(&ScrZoneWaitRecord_Check), 4, Result::Eax, Status::Compare},  // was FUN_002f6450 (gap)
     {"ScrWaitTimeoutRecord_Init", 0x002f64f0, 0, code(&ScrWaitTimeoutRecord_Init_entry), 12, Result::Eax, Status::Replaced},
     {"Scr_RestoreThreadStack", 0x002f6600, 0, code(&Scr_RestoreThreadStack), 0, Result::None, Status::Replaced},
     {"ScrThread_AppendData", 0x002f6670, 0, code(&ScrThread_AppendData), 4, Result::Eax, Status::Replaced},
@@ -8612,6 +8660,7 @@ const Function kFunctions[] = {
     {"GScr_DebugLine", 0x002fbf20, 0, code(&GScr_DebugLine), 20, Result::None, Status::Replaced},
     {"GScr_Print3D", 0x002fbf80, 0, code(&GScr_Print3D), 20, Result::None, Status::Replaced},
     {"IntHashMap_EraseByKey", 0x002fbff0, 0, code(&IntHashMap_EraseByKey), 4, Result::Al, Status::Replaced},
+    {"ScrWaitRecord4_Check", 0x002fc030, 0, code(&ScrWaitRecord4_Check), 4, Result::Eax, Status::Compare},  // was FUN_002fc030 (gap)
     {"ScrWaitTimeoutRecord_Check", 0x002fc110, 0, code(&ScrWaitTimeoutRecord_Check), 4, Result::Eax, Status::Replaced},
     {"ScrWaitRecord_Check", 0x002fc1b0, 0, code(&ScrWaitRecord_Check), 4, Result::Eax, Status::Replaced},
     {"ScrWaitRecord_Dtor", 0x002fc230, 0, code(&ScrWaitRecord_Dtor_entry), 0, Result::None, Status::Replaced},
@@ -8650,6 +8699,7 @@ const Function kFunctions[] = {
     {"GScr_CheckScriptAnimTreeCvars", 0x002fd570, 0, code(&GScr_CheckScriptAnimTreeCvars), 0, Result::Eax, Status::Compare},
     {"GScr_IsSoundPlaying", 0x002fd630, 0, code(&GScr_IsSoundPlaying), 4, Result::Al, Status::Replaced},
     {"Vehicle_CountActive", 0x002fd650, 0, code(&Vehicle_CountActive), 0, Result::Eax, Status::Replaced},
+    {"G_InitEntScriptObject", 0x002fd680, 0, code(&G_InitEntScriptObject_entry), 0, Result::Eax, Status::Compare},  // was FUN_002fd680 (gap)
     {"SmallHeap_DrawExhaustedWarning", 0x002fd6e0, 0, code(&SmallHeap_DrawExhaustedWarning), 0, Result::None, Status::Replaced},  // gap function (no Ghidra entry)
     {"GScr_GetLocalizedString", 0x002fd740, 0, code(&GScr_GetLocalizedString), 8, Result::Eax, Status::Replaced},
     {"GScr_HudSetTimer7", 0x002fd770, 0, code(&GScr_HudSetTimer7), 8, Result::None, Status::Compare},
@@ -8945,11 +8995,13 @@ const Function kFunctions[] = {
     {"UIMenu_SelectFirst", 0x0030ef50, 0, code(&UIMenu_SelectFirst), 0, Result::None, Status::Replaced},
     {"UIMenu_SetItemsLayer", 0x0030ef90, 0, code(&UIMenu_SetItemsLayer), 8, Result::None, Status::Replaced},
     {"UIMenu_SetItemsScale", 0x0030efd0, 0, code(&UIMenu_SetItemsScale), 4, Result::None, Status::Replaced},
+    {"UIMenu_SetSelection", 0x0030f020, 0, code(&UIMenu_SetSelection), 8, Result::None, Status::Compare},  // was FUN_0030f020 (gap)
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Replaced},
     {"UIFontTable_SetByName", 0x0030f380, 0, code(&UIFontTable_SetByName_entry), 0, Result::None, Status::Replaced},
     {"Loc_AppendLanguageSuffix", 0x0030f3f0, 0, code(&Loc_AppendLanguageSuffix), 0, Result::None, Status::Replaced},
     {"UIRoot_Dtor", 0x0030f470, 0, code(&UIRoot_Dtor), 0, Result::None, Status::Replaced},
     {"ScriptString_ExpandNewlines", 0x0030f4d0, 0, code(&ScriptString_ExpandNewlines_entry), 4, Result::Eax, Status::Replaced},
+    {"UIText_LocalizeWords", 0x0030f550, 0, code(&UIText_LocalizeWords_entry), 4, Result::Eax, Status::Compare},  // was FUN_0030f550 (gap)
     {"UIText_ScrollBy", 0x0030f730, 0, code(&UIText_ScrollBy), 4, Result::None, Status::Compare},
     {"UIText_SetLineSpacing", 0x0030f880, 0, code(&UIText_SetLineSpacing), 4, Result::None, Status::Replaced},
     {"UIText_Draw", 0x0030f900, 0, code(&UIText_Draw), 0, Result::None, Status::Replaced},
@@ -8958,6 +9010,7 @@ const Function kFunctions[] = {
     {"UITextBase_ApplyAlignOffset", 0x0030fa60, 0, code(&UITextBase_ApplyAlignOffset), 12, Result::None, Status::Replaced},
     {"UITextBase_SetVertAlign", 0x0030fb60, 0, code(&UITextBase_SetVertAlign), 4, Result::None, Status::Compare},
     {"UITextBase_SetHorzAlign", 0x0030fba0, 0, code(&UITextBase_SetHorzAlign), 4, Result::None, Status::Compare},
+    {"UIElement_SetDepthInLayer", 0x0030fbd0, 0, code(&UIElement_SetDepthInLayer), 8, Result::None, Status::Compare},  // was FUN_0030fbd0 (gap)
     {"UIElement_SetAlign", 0x0030fc20, 0, code(&UIElement_SetAlign), 4, Result::None, Status::Replaced},
     {"Subtitle_Draw", 0x0030fca0, 0, code(&Subtitle_Draw), 0, Result::None, Status::Replaced},
     {"Movie_SetQuadRect", 0x0030fdc0, 0, code(&Movie_SetQuadRect), 16, Result::None, Status::Replaced},
@@ -8975,6 +9028,7 @@ const Function kFunctions[] = {
     {"UIQuad_PlaceScaled", 0x00310560, 0, code(&UIQuad_PlaceScaled_entry), 16, Result::None, Status::Replaced},
     {"UIQuad_SetWipe", 0x00310820, 0, code(&UIQuad_SetWipe_entry), 16, Result::None, Status::Replaced},
     {"HudCompIconCount_Draw", 0x00310b80, 0, code(&HudCompIconCount_Draw), 0, Result::None, Status::Replaced},
+    {"HudCompBomberMap_SetVisible", 0x00310cc0, 0, code(&HudCompBomberMap_SetVisible), 4, Result::None, Status::Compare},  // was FUN_00310cc0 (gap)
     {"HudCompBomberMap_Draw", 0x00310d60, 0, code(&HudCompBomberMap_Draw), 0, Result::None, Status::Replaced},
     {"UI_DrawPillarboxBars", 0x00310e10, 0, code(&UI_DrawPillarboxBars), 4, Result::None, Status::Compare},
     {"HudCompMeter_SetCount", 0x00311090, 0, code(&HudCompMeter_SetCount), 4, Result::None, Status::Replaced},
@@ -9027,6 +9081,7 @@ const Function kFunctions[] = {
     {"UIDialog_SetText", 0x00313f20, 0, code(&UIDialog_SetText_entry), 8, Result::None, Status::Replaced},
     {"DialogMgr_DrawBackground", 0x003141c0, 0, code(&DialogMgr_DrawBackground_entry), 0, Result::None, Status::Replaced},
     {"DialogMgr_DrawOverlay", 0x00314340, 0, code(&DialogMgr_DrawOverlay), 0, Result::None, Status::Replaced},
+    {"FrontEndMenu_Draw", 0x00314510, 0, code(&FrontEndMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_00314510 (gap)
     {"TitleMenu_Accept", 0x00314550, 0, code(&TitleMenu_Accept), 0, Result::None, Status::Compare},
     {"UIScreenMgr_ReadStickDirections", 0x00314750, 0, code(&UIScreenMgr_ReadStickDirections), 0, Result::None, Status::Replaced},
     {"UIScreenMgr_Dtor", 0x00314790, 0, code(&UIScreenMgr_Dtor), 0, Result::None, Status::Replaced},
@@ -9035,6 +9090,7 @@ const Function kFunctions[] = {
     {"UIGridMenu_MoveLeft", 0x00314920, 0, code(&UIGridMenu_MoveLeft), 0, Result::None, Status::Replaced},
     {"UIGridMenu_MoveDown", 0x00314990, 0, code(&UIGridMenu_MoveDown), 0, Result::None, Status::Replaced},
     {"UIGridMenu_MoveUp", 0x00314a00, 0, code(&UIGridMenu_MoveUp), 0, Result::None, Status::Replaced},
+    {"UIMenu_OnButtonDown", 0x00314ae0, 0, code(&UIMenu_OnButtonDown), 8, Result::None, Status::Compare},  // was FUN_00314ae0 (gap)
     {"UIMenu_RestoreSelection", 0x00314b20, 0, code(&UIMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"UIMenu_Update", 0x00314ba0, 0, code(&UIMenu_Update), 4, Result::None, Status::Replaced},
     {"UIMenu_Draw", 0x00314c30, 0, code(&UIMenu_Draw), 0, Result::None, Status::Replaced},
@@ -9042,6 +9098,7 @@ const Function kFunctions[] = {
     {"UIMenu_ScrollTo", 0x00314e70, 0, code(&UIMenu_ScrollTo), 4, Result::None, Status::Compare},
     {"UIMenu_SelectPrev", 0x00314f40, 0, code(&UIMenu_SelectPrev), 0, Result::None, Status::Replaced},
     {"UIMenu_SelectNext", 0x00315080, 0, code(&UIMenu_SelectNext), 0, Result::None, Status::Replaced},
+    {"UIMenu_SetItem", 0x003151c0, 0, code(&UIMenu_SetItem), 12, Result::Eax, Status::Compare},  // was FUN_003151c0 (gap)
     {"UIMenu_Init", 0x00315210, 0, code(&UIMenu_Init_entry), 20, Result::Eax, Status::Replaced},
     {"UI_SetFontByName", 0x00315360, 0, code(&UI_SetFontByName_entry), 0, Result::None, Status::Replaced},
     {"UIRoot_DrawInGameScreens", 0x003153d0, 0, code(&UIRoot_DrawInGameScreens_entry), 0, Result::None, Status::Replaced},
@@ -9065,9 +9122,13 @@ const Function kFunctions[] = {
     {"Panel_ReadString", 0x00316580, 0, code(&Panel_ReadString_entry), 4, Result::None, Status::Replaced},
     {"Panel_FreeElements", 0x00316620, 0, code(&Panel_FreeElements), 0, Result::None, Status::Replaced},
     {"UIPicture_ScaleXForAspect", 0x003166a0, 0, code(&UIPicture_ScaleXForAspect_entry), 0, Result::None, Status::Replaced},
+    {"UIPicture_StoreBasePositions", 0x00316740, 0, code(&UIPicture_StoreBasePositions), 0, Result::None, Status::Compare},  // was FUN_00316740 (gap)
+    {"UIPicture_MoveBy", 0x00316880, 0, code(&UIPicture_MoveBy), 8, Result::None, Status::Compare},  // was FUN_00316880 (gap)
     {"UIPicture_SetDepth", 0x003169c0, 0, code(&UIPicture_SetDepth), 4, Result::None, Status::Replaced},
     {"UIPicture_SetQuadFlags", 0x00316a10, 0, code(&UIPicture_SetQuadFlags), 4, Result::None, Status::Replaced},
     {"UIPicture_SetTexture", 0x00316a50, 0, code(&UIPicture_SetTexture), 4, Result::None, Status::Replaced},
+    {"UIPicture_Rotate", 0x00316ce0, 0, code(&UIPicture_Rotate), 16, Result::None, Status::Compare},  // was FUN_00316ce0 (gap)
+    {"UIPicture_Draw", 0x00316dd0, 0, code(&UIPicture_Draw), 0, Result::None, Status::Compare},  // was FUN_00316dd0 (gap)
     {"Color_Modulate", 0x00316e20, 0, code(&Color_Modulate), 8, Result::Eax, Status::Replaced},
     {"UIPicture_Dtor", 0x00316ec0, 0, code(&UIPicture_Dtor_entry), 0, Result::None, Status::Replaced},
     {"UIPicture_CopyFrom", 0x00316f40, 0, code(&UIPicture_CopyFrom), 4, Result::None, Status::Replaced},
@@ -9088,13 +9149,19 @@ const Function kFunctions[] = {
     {"HudCompCompass_UpdateNeedle", 0x003180a0, 0, code(&HudCompCompass_UpdateNeedle_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Dtor", 0x00318380, 0, code(&HudCompCompass_Dtor_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Ctor", 0x00318400, 0, code(&HudCompCompass_Ctor), 0, Result::Eax, Status::Replaced},
+    {"HudCompTankIcon_Update", 0x003184d0, 0, code(&HudCompTankIcon_Update), 4, Result::None, Status::Compare},  // was FUN_003184d0 (gap)
+    {"HudCompTankReticle_SetWidescreen", 0x00318590, 0, code(&HudCompTankReticle_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00318590 (gap)
     {"HudCompTankShells_SetWidescreen", 0x00318750, 0, code(&HudCompTankShells_SetWidescreen), 8, Result::None, Status::Compare},
     {"HudCompTankShells_Update", 0x00318780, 0, code(&HudCompTankShells_Update), 4, Result::None, Status::Compare},
     {"HudCompTankHealth_Update", 0x00318840, 0, code(&HudCompTankHealth_Update), 4, Result::None, Status::Replaced},
+    {"HudCompWeaponName_SetWidescreen", 0x00318ae0, 0, code(&HudCompWeaponName_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00318ae0 (gap)
     {"HudCompWeaponName_Setup", 0x00318b30, 0, code(&HudCompWeaponName_Setup), 4, Result::None, Status::Replaced},
     {"HudCompWeaponName_Ctor", 0x00318bf0, 0, code(&HudCompWeaponName_Ctor_entry), 0, Result::Eax, Status::Replaced},
     {"HudCompGrenadeCook_Dtor", 0x00318f30, 0, code(&HudCompGrenadeCook_Dtor_entry), 0, Result::None, Status::Replaced},
+    {"HudCompGrenades_SetWidescreen", 0x00318fb0, 0, code(&HudCompGrenades_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00318fb0 (gap)
+    {"HudCompAmmo_SetWidescreen", 0x00319030, 0, code(&HudCompAmmo_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00319030 (gap)
     {"HudCompAmmo_Update", 0x00319110, 0, code(&HudCompAmmo_Update), 4, Result::None, Status::Replaced},
+    {"HudCompHealth_SetWidescreen", 0x00319310, 0, code(&HudCompHealth_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00319310 (gap)
     {"HudCompHealth_Update", 0x00319370, 0, code(&HudCompHealth_Update), 4, Result::None, Status::Replaced},
     {"Key_GetKeyNameForCommand", 0x00319b40, 0, code(&Key_GetKeyNameForCommand_entry), 0, Result::None, Status::Replaced},
     {"HudManager_Layout2", 0x00319c20, 0, code(&HudManager_Layout2_entry), 0, Result::None, Status::Replaced},
@@ -9122,6 +9189,7 @@ const Function kFunctions[] = {
     {"ChapterMenu_OnRight", 0x0031ae10, 0, code(&ChapterMenu_OnRight), 4, Result::None, Status::Replaced},
     {"ChapterMenu_OnLeft", 0x0031ae90, 0, code(&ChapterMenu_OnLeft), 4, Result::None, Status::Replaced},
     {"ChapterMenu_Draw", 0x0031af60, 0, code(&ChapterMenu_Draw_entry), 0, Result::None, Status::Replaced},
+    {"MissionSuccessFailMenu_Draw", 0x0031b120, 0, code(&MissionSuccessFailMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_0031b120 (gap)
     {"CreateProfileMenu_MoveRight", 0x0031b310, 0, code(&CreateProfileMenu_MoveRight), 0, Result::None, Status::Replaced},
     {"CreateProfileMenu_MoveLeft", 0x0031b3d0, 0, code(&CreateProfileMenu_MoveLeft), 0, Result::None, Status::Replaced},
     {"CreateProfileMenu_MoveDown", 0x0031b4b0, 0, code(&CreateProfileMenu_MoveDown), 0, Result::None, Status::Replaced},
@@ -9211,7 +9279,9 @@ const Function kFunctions[] = {
     {"UITextLine_Draw", 0x00320ce0, 0, code(&UITextLine_Draw_entry), 28, Result::None, Status::Replaced},
     {"UITextLine_Init", 0x00320f20, 0, code(&UITextLine_Init_entry), 12, Result::None, Status::Replaced},
     {"UIText_GetLineHeight", 0x00321030, 0, code(&UIText_GetLineHeight), 0, Result::St0, Status::Replaced},
+    {"UITextBase_GetTextWidth", 0x00321090, 0, code(&UITextBase_GetTextWidth), 0, Result::St0, Status::Compare},  // was FUN_00321090 (gap)
     {"UITextBase_Draw", 0x00321160, 0, code(&UITextBase_Draw), 0, Result::None, Status::Replaced},
+    {"UITextBase_Update", 0x00321280, 0, code(&UITextBase_Update), 4, Result::None, Status::Compare},  // was FUN_00321280 (gap)
     {"UI_RotationZ", 0x003212f0, 0, code(&UI_RotationZ), 0, Result::None, Status::Replaced},
     {"Panel_ReadTransform", 0x00321430, 0, code(&Panel_ReadTransform_entry), 0, Result::None, Status::Replaced},
     {"Panel_FindText", 0x003215c0, 0, code(&Panel_FindText_entry), 4, Result::Eax, Status::Replaced},
@@ -9221,17 +9291,22 @@ const Function kFunctions[] = {
     {"UIWorldPicture_Construct", 0x00321830, 0, code(&UIWorldPicture_Construct), 0, Result::Eax, Status::Compare},
     {"UIPicture_SetAlpha", 0x00321890, 0, code(&UIPicture_SetAlpha), 4, Result::None, Status::Replaced},
     {"UIPicture_SetColorRGB", 0x00321940, 0, code(&UIPicture_SetColorRGB), 4, Result::None, Status::Replaced},
+    {"UIPicture_SetColor", 0x003219d0, 0, code(&UIPicture_SetColor), 4, Result::None, Status::Compare},  // was FUN_003219d0 (gap)
     {"UI_FindLocalizedTexture", 0x00322b30, 0, code(&UI_FindLocalizedTexture_entry), 0, Result::Eax, Status::Replaced},
     {"UIQuad_GetVertexMin", 0x00322bd0, 0, code(&UIQuad_GetVertexMin), 0, Result::None, Status::Replaced},
     {"UIQuad_GetVertexMax", 0x00322c70, 0, code(&UIQuad_GetVertexMax), 0, Result::None, Status::Replaced},
     {"UIQuad_SetVertexAlphaScaled", 0x00322d10, 0, code(&UIQuad_SetVertexAlphaScaled), 4, Result::None, Status::Replaced},
     {"FE_SetupLiberatorMenu", 0x00323160, 0, code(&FE_SetupLiberatorMenu_entry), 0, Result::None, Status::Replaced},
     {"Hud_LoadWeaponIcons", 0x00323870, 0, code(&Hud_LoadWeaponIcons), 4, Result::None, Status::Replaced},
+    {"HudCompHint_Setup", 0x00323970, 0, code(&HudCompHint_Setup), 4, Result::None, Status::Compare},  // was FUN_00323970 (gap)
     {"HudCompTankIcon_Setup", 0x00323fa0, 0, code(&HudCompTankIcon_Setup), 4, Result::None, Status::Replaced},
     {"HudCompTankShells_Setup", 0x003242b0, 0, code(&HudCompTankShells_Setup), 4, Result::None, Status::Compare},
+    {"HudCompTankHealth_Setup", 0x003242e0, 0, code(&HudCompTankHealth_Setup), 4, Result::None, Status::Compare},  // was FUN_003242e0 (gap)
     {"HudCompGrenadeCook_Setup", 0x00324330, 0, code(&HudCompGrenadeCook_Setup), 4, Result::None, Status::Replaced},
     {"HudCompGrenades_Setup", 0x00324480, 0, code(&HudCompGrenades_Setup), 4, Result::None, Status::Replaced},
     {"HudCompAmmo_Setup", 0x003244c0, 0, code(&HudCompAmmo_Setup), 4, Result::None, Status::Replaced},
+    {"HudCompHealth_Setup", 0x00324560, 0, code(&HudCompHealth_Setup), 4, Result::None, Status::Compare},  // was FUN_00324560 (gap)
+    {"HudCompStance_Setup", 0x00324640, 0, code(&HudCompStance_Setup), 4, Result::None, Status::Compare},  // was FUN_00324640 (gap)
     {"HudManager_Layout3", 0x003246c0, 0, code(&HudManager_Layout3), 0, Result::None, Status::Replaced},
     {"FE_SetupSpecialConceptMenu", 0x00324740, 0, code(&FE_SetupSpecialConceptMenu_entry), 0, Result::None, Status::Compare},
     {"FE_SetupSpecialMaterialsMenu", 0x00324ab0, 0, code(&FE_SetupSpecialMaterialsMenu_entry), 0, Result::None, Status::Compare},
@@ -9276,6 +9351,7 @@ const Function kFunctions[] = {
     {"UIText_SetTransform", 0x0032af10, 0, code(&UIText_SetTransform), 8, Result::None, Status::Compare},
     {"UIText_WrapLines", 0x0032b0d0, 0, code(&UIText_WrapLines), 16, Result::Eax, Status::Replaced},
     {"UIText_SetWrappedText", 0x0032b420, 0, code(&UIText_SetWrappedText), 12, Result::None, Status::Replaced},
+    {"UIText_SetWrappedString", 0x0032b760, 0, code(&UIText_SetWrappedString_entry), 12, Result::None, Status::Compare},  // was FUN_0032b760 (gap)
     {"UIText_AllocLines", 0x0032b940, 0, code(&UIText_AllocLines), 4, Result::None, Status::Replaced},
     {"UIText_GetTextHeight", 0x0032ba80, 0, code(&UIText_GetTextHeight), 0, Result::St0, Status::Compare},
     {"UIText_DrawLines", 0x0032bab0, 0, code(&UIText_DrawLines), 8, Result::None, Status::Replaced},
@@ -9311,10 +9387,14 @@ const Function kFunctions[] = {
     {"UIScreenMgr_SetActiveScreen", 0x0032e6a0, 0, code(&UIScreenMgr_SetActiveScreen_entry), 4, Result::None, Status::Replaced},
     {"UIMenu_PlaySelectSoundIfIdle", 0x0032e7a0, 0, code(&UIMenu_PlaySelectSoundIfIdle), 0, Result::None, Status::Replaced},
     {"UIMenu_PlaySelectSound", 0x0032e8f0, 0, code(&UIMenu_PlaySelectSound), 0, Result::None, Status::Replaced},
+    {"UIMenu_SetStringItem", 0x0032e9b0, 0, code(&UIMenu_SetStringItem), 8, Result::Eax, Status::Compare},  // was FUN_0032e9b0 (gap)
     {"UIMenu_FreeItems", 0x0032ea00, 0, code(&UIMenu_FreeItems_entry), 0, Result::None, Status::Replaced},
     {"UIMenu_Dtor", 0x0032eab0, 0, code(&UIMenu_Dtor), 0, Result::None, Status::Compare},
     {"SCR_DrawLoadingScreen", 0x0032eac0, 0, code(&SCR_DrawLoadingScreen), 0, Result::None, Status::Compare},
     {"SCR_DrawLaunchLoadingScreen", 0x0032ed10, 0, code(&SCR_DrawLaunchLoadingScreen), 0, Result::None, Status::Replaced},
+    {"UIText_SetLocalizedWrappedText", 0x0032ee50, 0, code(&UIText_SetLocalizedWrappedText_entry), 12, Result::None, Status::Compare},  // was FUN_0032ee50 (gap)
+    {"UIText_SetLocalizedText", 0x0032f5b0, 0, code(&UIText_SetLocalizedText_entry), 4, Result::None, Status::Compare},  // was FUN_0032f5b0 (gap)
+    {"UITextBase_SetLocalizedText", 0x0032f600, 0, code(&UITextBase_SetLocalizedText_entry), 4, Result::None, Status::Compare},  // was FUN_0032f600 (gap)
     {"Subtitle_Start", 0x0032f650, 0, code(&Subtitle_Start), 4, Result::None, Status::Replaced},
     {"UI_EulerMatrix", 0x0032f9f0, 0, code(&UI_EulerMatrix), 0, Result::None, Status::Replaced},
     {"Panel_CreatePicture", 0x0032fbd0, 0, code(&Panel_CreatePicture), 20, Result::None, Status::Replaced},
@@ -9393,6 +9473,8 @@ const Function kFunctions[] = {
     {"MemDlg_CheckFreeSpace2", 0x00335460, 0, code(&MemDlg_CheckFreeSpace2), 0, Result::Al, Status::Compare},
     {"CreateProfileMenu_Construct", 0x00335570, 0, code(&CreateProfileMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"BonusMaterialsMenu_HandleSelect", 0x00335730, 0, code(&BonusMaterialsMenu_HandleSelect_entry), 0, Result::None, Status::Compare},
+    {"LoadMaubeugeMenu_OnContinue", 0x00335b10, 0, code(&LoadMaubeugeMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335b10 (gap)
+    {"LoadAfricaMenu_OnContinue", 0x00335bf0, 0, code(&LoadAfricaMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335bf0 (gap)
     {"FE_ControlsUpdateText", 0x00335d60, 0, code(&FE_ControlsUpdateText_entry), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_ChangeValue", 0x00335fe0, 0, code(&ControllerConfigMenu_ChangeValue_entry), 0, Result::None, Status::Replaced},
     {"SinglePlayerMenu_Update", 0x00336460, 0, code(&SinglePlayerMenu_Update), 4, Result::None, Status::Replaced},
@@ -9442,6 +9524,7 @@ const Function kFunctions[] = {
     {"__CIcos", 0x0033adb0, 0, code(&title_CIcos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"__CIsin", 0x0033ae60, 0, code(&title_CIsin), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"__CItan", 0x0033af10, 0, code(&title_CItan), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
+    {"StaticInit_FontNames_95f7e8", 0x00372de0, 0, code(&StaticInit_FontNames_95f7e8), 0, Result::None, Status::Replaced},  // was FUN_00372de0 (gap) static initializer: runs before the compare harness
     {"StaticInit_UIColors_95fd30", 0x00372ef0, 0, code(&StaticInit_UIColors_95fd30), 0, Result::None, Status::Replaced},
     {"StaticInit_HandleTable_8dda2c", 0x003731e0, 0, code(&StaticInit_HandleTable_8dda2c), 0, Result::None, Status::Replaced},
     {"StaticInit_List_95fe00", 0x00373230, 0, code(&StaticInit_List_95fe00), 0, Result::None, Status::Replaced},
@@ -9456,7 +9539,9 @@ const Function kFunctions[] = {
     {"StaticInit_LocStrings", 0x00376750, 0, code(&StaticInit_LocStrings), 0, Result::None, Status::Replaced},
     {"StaticInit_Vec4_960110", 0x003767b0, 0, code(&StaticInit_Vec4_960110), 0, Result::None, Status::Replaced},
     {"StaticInit_Vec4_95ff70", 0x003767f0, 0, code(&StaticInit_Vec4_95ff70), 0, Result::None, Status::Replaced},
+    {"StaticInit_CameraShakes_964b80", 0x003768a0, 0, code(&StaticInit_CameraShakes_964b80), 0, Result::None, Status::Replaced},  // was FUN_003768a0 (gap) static initializer: runs before the compare harness
     {"StaticInit_DownVec4_9717e0", 0x003769e0, 0, code(&StaticInit_DownVec4_9717e0), 0, Result::None, Status::Replaced},
+    {"StaticInit_Records_973aa0", 0x00376c70, 0, code(&StaticInit_Records_973aa0), 0, Result::None, Status::Replaced},  // was FUN_00376c70 (gap) static initializer: runs before the compare harness
     {"StaticInit_G_EntityList", 0x00376e00, 0, code(&StaticInit_G_EntityList), 0, Result::None, Status::Replaced},
     {"StaticInit_DownVec4_984ab0", 0x00376e40, 0, code(&StaticInit_DownVec4_984ab0), 0, Result::None, Status::Compare},
     {"StaticInit_Vec4_97a8a0", 0x00376e80, 0, code(&StaticInit_Vec4_97a8a0), 0, Result::None, Status::Compare},
@@ -9470,6 +9555,7 @@ const Function kFunctions[] = {
     {"StaticInit_g_actorMins", 0x00377bc0, 0, code(&StaticInit_g_actorMins), 0, Result::None, Status::Compare},
     {"StaticInit_g_actorMaxs", 0x00377c00, 0, code(&StaticInit_g_actorMaxs), 0, Result::None, Status::Compare},
     {"StaticInit_ngl_multisampleScale", 0x003785e0, 0, code(&StaticInit_ngl_multisampleScale), 0, Result::None, Status::Replaced},
+    {"StaticInit_GenericClipVtable_903fdc", 0x003787b0, 0, code(&StaticInit_GenericClipVtable_903fdc), 0, Result::None, Status::Replaced},  // was FUN_003787b0 (gap) static initializer: runs before the compare harness
     {"StaticInit_AnimHashStrings", 0x00378830, 0, code(&StaticInit_AnimHashStrings), 0, Result::None, Status::Replaced},
     {"StaticInit_Mat44", 0x00378c10, 0, code(&StaticInit_Mat44), 0, Result::None, Status::Replaced},
     {"StaticInit_Vec4_909850", 0x00378ca0, 0, code(&StaticInit_Vec4_909850), 0, Result::None, Status::Replaced},

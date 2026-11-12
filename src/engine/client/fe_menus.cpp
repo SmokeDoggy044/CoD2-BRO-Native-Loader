@@ -853,6 +853,43 @@ void XB_THISCALL LoadingMenu_Draw(uint8_t* menu) { loading_draw(menu, kLoading9)
 void XB_THISCALL LoadAfricaMenu_Draw(uint8_t* menu) { loading_draw(menu, kLoadingAfrica); }
 void XB_THISCALL LoadSicilyMenu_Draw(uint8_t* menu) { loading_draw(menu, kLoadingSicily); }
 
+void XB_THISCALL MissionSuccessFailMenu_Draw(uint8_t* menu) {
+    const int32_t state = field<int32_t>(menu, 0x58);
+    if (state == 1 || state == 2) nglListAddQuad(reinterpret_cast<const NglQuad*>(menu + 0x60));
+    if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+    if (field<int32_t>(menu, 0x58) != 2)
+        if (uint8_t* const a = field<uint8_t*>(menu, 0x38)) call(a, 0x3c);
+    if (menu[0x54])
+        if (uint8_t* const b = field<uint8_t*>(menu, 0x3c)) call(b, 0x3c);
+    if (uint8_t* const c = field<uint8_t*>(menu, 0x4c)) call(c, 0x3c);
+    UIMenu_Draw(menu);
+}
+
+namespace {
+
+// The ready loading screen (+0x38) dismissed: fade out, unpaused, the front end's sounds back, no key catcher.
+void loading_continue(uint8_t* menu) {
+    if (!menu[0x38]) return;
+    title_global<uint8_t>(0x009403f4) = 0;
+    title_call(own_address(&FE_FadeOut_entry), TitleRegs{});
+    Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
+    Cbuf_AddText(text_at(0x0082bc74));                           // "fade 0 0 0 0 3\n"
+    Cvar_Set2(text_at(0x0082bc68), mutable_text_at(kZero), 1);  // cg_norender
+    title_global<uint8_t>(0x0095f919) = 0;
+    TitleRegs sound{};
+    sound.eax = title_global<uint32_t>(0x0095f4c4);
+    title_call(own_address(&S_StopUnpausedChannels), sound);
+    sound.eax = title_global<uint32_t>(0x0095f4c4);
+    title_call(own_address(&S_ResumeAllChannels), sound);
+    title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls_keyCatchers
+    Key_ClearStates();
+}
+
+}  // namespace
+
+void XB_THISCALL LoadMaubeugeMenu_OnContinue(uint8_t* menu, uint32_t) { loading_continue(menu); }
+void XB_THISCALL LoadAfricaMenu_OnContinue(uint8_t* menu, uint32_t) { loading_continue(menu); }
+
 void XB_THISCALL LoadMaubeugeMenu_Draw(uint8_t* menu) {
     set_alpha(field<uint8_t*>(menu, 0x50), kZeroFloat);
     if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) panel_draw(panel, menu);

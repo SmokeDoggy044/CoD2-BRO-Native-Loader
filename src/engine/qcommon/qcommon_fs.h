@@ -1136,4 +1136,13 @@ void XB_CDECL FS_TouchFile_f();
 // (Q3's FS_Dir_f with the prints stripped). No reference (dead).
 void XB_CDECL FS_Dir_f();
 
+// The allocator hooks Sys_Main installs (gap functions, 11-11). 0x00296780 (+0x14, free): Z_Free without paks
+// (0x0095f638); with the effects allocator (0x00909948) FxMem_Free in context 0x008bb764; else in the current memory
+// context (MemContext_Free_r), Z_Free when there is none or it does not hold the block.
+void XB_CDECL MemHook_AlignedFree(uint8_t* block);
+// 0x00296820 (+0x10, alloc): with flags 0 and the context flag 0x0095f5d0 (cleared with 0x0095f5d1) or the effects
+// allocator: FxMem_Alloc / MemContext_AllocOrHeap(Pak_TopZoneId); else the heap (flags: index 2 for 0x20000, else 0,
+// restored after) through 0x00042c50(align, size).
+uint8_t* XB_CDECL MemHook_AlignedAlloc(uint32_t size, uint32_t align, uint32_t flags);
+
 }  // namespace game

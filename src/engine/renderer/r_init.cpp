@@ -447,7 +447,7 @@ void XB_CDECL nglInit() {
         xb::clear(0, 0, 0xf3, 0, 1.0f, 0);                                  // D3DDevice_Clear
         xb::swap();                                                         // D3DDevice_Swap
     }
-    title_function<void XB_STDCALL(uint32_t)>(0x003e6260)(0x000643e0);  // D3DDevice_SetVerticalBlankCallback
+    title_function<void XB_STDCALL(uint32_t)>(0x003e6260)(own_address(&nglVBlankCountFrames));  // D3DDevice_SetVerticalBlankCallback
     nglInitMultisample(0x11);
     title_global<uint32_t>(0x0090286c) = title_function<uint32_t XB_STDCALL()>(0x003e68f0)();  // D3DDevice_InsertFence
     nglCreateFogTextures(0x100, 0x100, 0x100, 0x40);

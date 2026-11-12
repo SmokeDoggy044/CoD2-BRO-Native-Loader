@@ -856,4 +856,22 @@ uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane);
 extern "C" void FX_SurfacePlane_entry(void);
 
+// Effect component gap functions (11-11).
+// 0x002930c0 (particle vtable +0x08, ret 8): the named emitter's parameter (FxSystem_GetEmitterParam) times scale
+// (x87) set back (FxSystem_SetParamFloat); nothing without a system (+0x2c -> +4) or emitter.
+void XB_THISCALL FxParticleComponent_ScaleParam(uint8_t* component, const char* name, float scale);
+// The +0x18 "done" slots (1 = remove). Not done while flag 2 of +0x2a is clear. 0x0029d650 (particle): done when the
+// owner (+0xc) is gone and flag 1 of +0x10 does not keep it, when a delay (flag 1 of +0x2a) has run out (+0x1c <= 0),
+// without a system, when a delay is still pending (FxComponent_DelayDone 0: not done) or the system finished.
+uint32_t XB_THISCALL FxParticleComponent_IsDone(const uint8_t* component);
+// 0x0029aef0 (shake/rumble): not done while its sound (+0x64) has +0x3c or its rumble (+0x60) is active.
+uint32_t XB_THISCALL FxShakeRumbleComponent_IsDone(const uint8_t* component);
+// 0x0029d740 (sound): the owner and delay checks as the particle's; flag 0x20 of +0x2a keeps it; done when the
+// sound handle (+0x64) no longer resolves, else SoundRef_IsDone of its channel.
+uint8_t XB_THISCALL FxSoundComponent_IsDone(const uint8_t* component);
+// 0x0029d6e0 (sound vtable +0x10): S_StopChannel on the handle's (+0x64) live channel.
+void XB_THISCALL FxSoundComponent_Stop(const uint8_t* component);
+// 0x00298750 (sound vtable +0x28): 1 without a live channel, 0 without a voice, else voice state 3.
+uint8_t XB_THISCALL FxSoundComponent_IsState3(const uint8_t* component);
+
 }  // namespace game

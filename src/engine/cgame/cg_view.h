@@ -203,4 +203,8 @@ extern "C" void CG_AddPlayerWeapon_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_EntityEvent(uint32_t entry_esp, int32_t event, uint8_t* cent, uint32_t from_ps);
 extern "C" void CG_EntityEvent_entry(void);
 
+// 0x0001ecc0 (gap function, 11-11; the static shakes 0x00964b8c and CameraShake_NoiseSample's caller): the two
+// noise channels at +0xc / +0x1c set up: random start (rand % 16384), 3 octaves, frequency 1.0, amplitude 0.
+uint8_t* XB_THISCALL CameraShake_Init(uint8_t* shake);
+
 }  // namespace game
