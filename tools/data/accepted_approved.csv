@@ -15,3 +15,8 @@ address,name,approved
 00308cc0,GScr_ForceSpawnNamed,user 2026-11-07: accepted below 100 matches (script-thread saved stack holds our C frames)
 002e6650,AnimTree_GetRootDelta,user 2026-11-07: accepted below 100 matches (never-written w lane)
 0032b830,UIText_SetText,user 2026-11-12: accepted (host TLS byte 0b vs 01; 0 of 2 tests matched in the 11-12 batch)
+0030f550,UIText_LocalizeWords,user 2026-11-12: accepted (host TLS byte, as UIText_SetText)
+0032b760,UIText_SetWrappedString,user 2026-11-12: accepted (host TLS byte, as UIText_SetText)
+0032ee50,UIText_SetLocalizedWrappedText,user 2026-11-12: accepted (host TLS byte, as UIText_SetText)
+0032f5b0,UIText_SetLocalizedText,user 2026-11-12: accepted (host TLS byte, as UIText_SetText)
+0032f600,UITextBase_SetLocalizedText,user 2026-11-12: accepted (host TLS byte, as UIText_SetText)

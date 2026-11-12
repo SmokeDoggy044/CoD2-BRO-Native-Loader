@@ -11026,7 +11026,7 @@ address,name,section,module,state,tested,matched
 0030f3f0,Loc_AppendLanguageSuffix,.text,qcommon,replaced,63,63
 0030f470,UIRoot_Dtor,.text,client,replaced,6,6
 0030f4d0,ScriptString_ExpandNewlines,.text,script,replaced,8,8
-0030f550,UIText_LocalizeWords,.text,client,mismatched,5,0
+0030f550,UIText_LocalizeWords,.text,client,accepted,5,0
 0030f730,UIText_ScrollBy,.text,client,untested,0,0
 0030f880,UIText_SetLineSpacing,.text,client,replaced,104,104
 0030f900,UIText_Draw,.text,client,replaced,3554,3554
@@ -11399,7 +11399,7 @@ address,name,section,module,state,tested,matched
 0032af10,UIText_SetTransform,.text,client,untested,0,0
 0032b0d0,UIText_WrapLines,.text,client,replaced,107,107
 0032b420,UIText_SetWrappedText,.text,client,replaced,3,3
-0032b760,UIText_SetWrappedString,.text,client,mismatched,17,15
+0032b760,UIText_SetWrappedString,.text,client,accepted,17,15
 0032b830,UIText_SetText,.text,client,accepted,8,0
 0032b940,UIText_AllocLines,.text,client,replaced,100,100
 0032ba80,UIText_GetTextHeight,.text,client,untested,0,0
@@ -11443,10 +11443,10 @@ address,name,section,module,state,tested,matched
 0032eab0,UIMenu_Dtor,.text,client,set-aside,0,0
 0032eac0,SCR_DrawLoadingScreen,.text,client,set-aside,121,0
 0032ed10,SCR_DrawLaunchLoadingScreen,.text,client,replaced,1,1
-0032ee50,UIText_SetLocalizedWrappedText,.text,client,mismatched,20,17
+0032ee50,UIText_SetLocalizedWrappedText,.text,client,accepted,20,17
 0032eed0,UIText_ExpandButtonToken,.text,client,matched,99,99
-0032f5b0,UIText_SetLocalizedText,.text,client,mismatched,15,1
-0032f600,UITextBase_SetLocalizedText,.text,client,mismatched,15,0
+0032f5b0,UIText_SetLocalizedText,.text,client,accepted,15,1
+0032f600,UITextBase_SetLocalizedText,.text,client,accepted,15,0
 0032f650,Subtitle_Start,.text,client,replaced,112,112
 0032f9f0,UI_EulerMatrix,.text,client,replaced,0,0
 0032fbd0,Panel_CreatePicture,.text,client,replaced,107,107

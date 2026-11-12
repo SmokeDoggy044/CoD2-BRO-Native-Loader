@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 76% of the functions have a name, and 7,791 have been
+It's early days: about 76% of the functions have a name, and 7,796 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -29,9 +29,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,670 | 9,775 | 7,642 | 4,028 |
+| Engine and game code (`.text`) | 11,670 | 9,775 | 7,647 | 4,023 |
 | Mission scripts (14 level sections) | 5,326 | 3,131 | 149 | 5,177 |
-| **Total** | **16,996** | **12,906** | **7,791** | **9,205** |
+| **Total** | **16,996** | **12,906** | **7,796** | **9,200** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -51,7 +51,7 @@ We've also named 2,667 of the game's global variables.
 | Animation (animation trees, the animation codec) | 304 | 274 | 2 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 335 | 306 | 23 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,057 | 917 | 75 | 61 | 0 | 0 |
-| Client and menus | 852 | 667 | 143 | 42 | 0 | 0 |
+| Client and menus | 852 | 672 | 138 | 42 | 0 | 0 |
 | Server | 82 | 72 | 10 | 0 | 0 | 0 |
 | Collision | 110 | 94 | 1 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
