@@ -44,6 +44,7 @@
 000118c0 FUN_000118c0
 00011920 FUN_00011920
 00011940 FUN_00011940
+00011960 FUN_00011960
 000119d0 FUN_000119d0
 00011a20 FUN_00011a20
 00011a30 FUN_00011a30
@@ -731,6 +732,7 @@
 00025570 nglMeshManager_ForEachPass
 00025710 FUN_00025710
 00025750 AnimManager_ForEachPass
+00025850 FUN_00025850
 00025880 ZoneGraphBase_DeletingDtor
 000258d0 ZoneTextureManager_Destruct
 00025930 ZoneMeshFileManager_Destruct
@@ -1366,6 +1368,7 @@
 00048260 cdGun_Register
 000482e0 cdGun_Init
 00048320 cdGun_Draw
+00048580 FUN_00048580
 00048590 FUN_00048590
 000485c0 cdGun_GetName
 000485e0 nglMaterial_ReleaseTexture
@@ -1434,6 +1437,7 @@
 0004bf60 FUN_0004bf60
 0004bf70 FUN_0004bf70
 0004bfa0 cdChar_GetName
+0004bfc0 FUN_0004bfc0
 0004bfe0 cdChar_NewVertexIter
 0004c010 cdCharVertexIter_Clone
 0004c2e0 cdPrelit_Toggle
@@ -1495,11 +1499,19 @@
 0004e810 cdRiver_AddToList
 0004e880 cdRiver_Toggle
 0004e8a0 cdRiver_Register
+0004e920 FUN_0004e920
+0004e940 FUN_0004e940
+0004e960 FUN_0004e960
+0004e970 FUN_0004e970
 0004e980 cdRiver_Init
+0004e9d0 FUN_0004e9d0
 0004e9e0 FUN_0004e9e0
 0004ea10 cdOcean_GetName
+0004ea30 FUN_0004ea30
 0004ea50 nglMaterial_Relocate4
+0004ea90 FUN_0004ea90
 0004eaa0 nglMaterial_LoadThreeTexturesAndOptional
+0004eb00 FUN_0004eb00
 0004eb10 nglMaterial_ReleaseThreeTexturesAndOptional
 0004eb60 cdRiver_GetName
 0004eb80 cdRiver_NewVertexIter
@@ -1572,6 +1584,7 @@
 000543e0 cdBackground_Register
 00054460 cdBackground_Init
 000544a0 cdBackground_Draw
+000546a0 FUN_000546a0
 000546b0 FUN_000546b0
 000546e0 cdBackground_GetName
 00054700 cdBackground_NewVertexIter
@@ -2150,6 +2163,7 @@
 00086920 NAL_Packed16EntropyIKSpin_BeginChannel
 00086ae0 Mat44_InverseRigid
 00086cb0 NAL_AnimTrackBase_DeletingDtor
+00086ce0 FUN_00086ce0
 00086d30 NAL_GenericAnim_GetRootTransform
 00086da0 NAL_AnimState_Destroy
 00086e50 NAL_AnimState_Copy
@@ -2203,6 +2217,7 @@
 0008e060 NAL_Manager828_Release
 0008e0d0 NAL_FindSkeleton
 0008e130 NAL_Skeleton_Register
+0008e270 FUN_0008e270
 0008e2c0 NAL_Skeleton_Release
 0008e330 NAL_AnimPlayer_DeletingDtor
 0008e350 NAL_StreamedAnim_DeletingDtor
@@ -2356,6 +2371,7 @@
 000995d0 FUN_000995d0
 00099640 FxConstVector_Within
 000996b0 FUN_000996b0
+000999b0 FUN_000999b0
 00099c90 FxVectorRange_Within
 00099ce0 FxRenderer_NewOp53
 00099f90 FxRenderer_NewOpGrid
@@ -2569,6 +2585,7 @@
 000a4640 apsActionAngleToVelocity_Apply
 000a4880 FUN_000a4880
 000a4890 FUN_000a4890
+000a48a0 FUN_000a48a0
 000a48b0 FUN_000a48b0
 000a48c0 FUN_000a48c0
 000a48d0 FUN_000a48d0
@@ -2579,11 +2596,16 @@
 000a4930 FUN_000a4930
 000a4950 FUN_000a4950
 000a4960 FUN_000a4960
+000a4970 FUN_000a4970
 000a49a0 FUN_000a49a0
 000a49b0 FUN_000a49b0
 000a49c0 FUN_000a49c0
 000a49d0 FUN_000a49d0
+000a49f0 FUN_000a49f0
+000a4a00 FUN_000a4a00
 000a4a10 FUN_000a4a10
+000a4a90 FUN_000a4a90
+000a4ab0 FUN_000a4ab0
 000a4ac0 apsAtan2
 000a4d10 FxAction_DeletingDtor
 000a4d30 Mat44_TransformVector
@@ -4420,6 +4442,7 @@
 0011d9d0 Scr_SuspendWaitTill
 0011da40 ScrCall_ScrIface_atof
 0011da60 FUN_0011da60
+0011dac0 FUN_0011dac0
 0011daf0 ScriptValue_DefaultCopy
 0011db00 ScriptValue_DefaultRelease
 0011db10 Scr_ReturnFalse
@@ -4445,6 +4468,7 @@
 0011e750 Scr_WaitTillString
 0011e780 Scr_WaitOnObject
 0011e7c0 Scr_WaitOnObjectNoFlag
+0011e800 FUN_0011e800
 0011e870 ScriptKeyTable_CopyConstruct
 0011e910 ScriptKeyTable_Clear
 0011e980 ScriptKeyTable_Remove
@@ -8487,6 +8511,7 @@
 002488d0 Use_trigger_use
 002489f0 SP_sound_blend
 00248a30 Ent_Callback348Stub2
+00248aa0 FUN_00248aa0
 00248af0 G_Error
 00248db0 Cmd_NglStats_f
 00248dd0 Q_CleanStrLower
@@ -9325,6 +9350,7 @@
 002984f0 Zone_FindByHash
 00298570 Stream_LoadCfgstr
 002985a0 FUN_002985a0
+00298750 FUN_00298750
 00298810 CL_UpdateRumble
 00298b20 RumbleQueue_ClearAll
 00298ba0 Rumble_SetScale
@@ -9621,6 +9647,7 @@
 002adfe0 EntNotifyCallbacks_Init
 002ae040 SpgManager_Unload
 002ae080 Spg_FindRandomVariant
+002ae1b0 FUN_002ae1b0
 002ae350 Mat44_ToQuatTranslation
 002ae740 CameraShake_SetAmplitude
 002ae780 CameraShake_InitSlot
@@ -10002,6 +10029,7 @@
 002c77d0 CL_CharEvent
 002c78d0 Field_KeyDownEvent
 002c7a90 CL_CreateCmd
+002c7d90 FUN_002c7d90
 002c7de0 IN_UpDown
 002c7f00 G_ApplyCheckpointStart
 002c80b0 BG_SetupWeaponHintStrings
@@ -11485,6 +11513,7 @@
 00335460 MemDlg_CheckFreeSpace2
 00335570 CreateProfileMenu_Construct
 00335730 BonusMaterialsMenu_HandleSelect
+00335b10 FUN_00335b10
 00335bf0 FUN_00335bf0
 00335d60 FE_ControlsUpdateText
 00335fe0 ControllerConfigMenu_ChangeValue
