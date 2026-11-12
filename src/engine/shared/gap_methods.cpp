@@ -300,23 +300,23 @@ uint8_t* XB_CDECL Heap_AllocAlignedThunk(uint32_t align, uint32_t size) {
 }
 
 uint32_t XB_THISCALL nglRenderTextNode_Thunk65970(uint8_t* self, uint32_t a, uint32_t b, uint32_t c) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(0x00065970)(self, a, b, c);
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(&nglFontManager_Release)(self, a, b, c);
 }
 
 uint32_t XB_THISCALL nglResourceManager_Slot12At4(uint8_t* self, uint32_t arg) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x00063db0)(self + 4, arg);
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&nglSkipList_FindTexture)(self + 4, arg);
 }
 
 uint32_t XB_THISCALL nglMeshFileManager_Slot21At4(uint8_t* self, uint32_t arg) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x00069f30)(self + 4, arg);
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&nglSkipList_FindIndirect)(self + 4, arg);
 }
 
 uint32_t XB_THISCALL nglResourceManager_Slot11At4(uint8_t* self, uint32_t arg) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x00069ce0)(self + 4, arg);
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&nglSkipList_FindNamed)(self + 4, arg);
 }
 
 uint32_t XB_THISCALL NAL_Slot46At4(uint8_t* self, uint32_t arg) {
-    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x00084090)(self + 4, arg);
+    return own_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(&nglSkipList_FindName8)(self + 4, arg);
 }
 
 const uint32_t* XB_THISCALL nglResourceManager_InsertTextureAt4(uint8_t* self, const uint32_t* texture) {
