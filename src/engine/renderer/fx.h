@@ -856,4 +856,9 @@ uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane);
 extern "C" void FX_SurfacePlane_entry(void);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x002985a0 (vtable +8): with a live voice on the handle +0x64: "SOUND_PITCH" = param 1 * scale (SndVoice_SetParam,
+// the channel +0xc keeps it), "SOUND_VOLUME" = param 0 * scale (SoundRef_SetVolumeScale); other names nothing.
+void XB_THISCALL FxSoundComponent_ScaleParam(uint8_t* component, const char* name, float scale);
+
 }  // namespace game

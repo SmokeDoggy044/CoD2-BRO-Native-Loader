@@ -7159,4 +7159,85 @@ uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent) {
     return title_global<uint32_t>(0x0096bd34 + static_cast<uint32_t>(index * 0x34)) == 1 ? 1 : 0;
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+uint32_t XB_CDECL Vehicle_ParseDef(const char* name, uint8_t* info) {
+    const auto f = [](uint8_t* def, uint32_t offset) -> float& { return *reinterpret_cast<float*>(def + offset); };
+    const auto w = [](uint8_t* def, uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(def + offset); };
+    char message[0x80];
+    if (std::strlen(name) > 0x20)
+        title_sprintf(message, &title_global<const char>(0x0083a040), name);  // "Vehicle name too long(32max): %s"
+    uint8_t* const def = Heap_AllocAligned(0x10, 0x1d0);
+    title_global<uint8_t*>(0x00950a28 + static_cast<int32_t>(title_global<int16_t>(0x0095e228)) * 4) = def;
+    std::memset(def, 0, 0x1d0);
+    for (uint32_t i = 0;; ++i) {
+        def[i] = static_cast<uint8_t>(name[i]);
+        if (!name[i]) break;
+    }
+    if (!Info_ParseFieldsToStruct(0, &title_global<const uint8_t>(0x008daed0), def, 0x25, info, 9, 0x00249fd0,
+                                  0x00248830))
+        return 0;
+    const float scale = title_global<float>(0x0083ee64);  // 17.6
+    f(def, 0x48) = f(def, 0x48) * scale;
+    f(def, 0x60) = f(def, 0x60) * scale;
+    f(def, 0x44) = f(def, 0x44) * scale;
+    f(def, 0x194) = f(def, 0x194) * scale;
+    w(def, 0x18c) = 0;
+    *reinterpret_cast<uint16_t*>(def + 0x190) = 0;
+    if (!w(def, 0x74)) w(def, 0x74) = 0x5dc;
+    if (f(def, 0x68) == 0.0f) f(def, 0x68) = title_global<float>(0x0083ef00);  // 75
+    if (f(def, 0x70) == 0.0f) f(def, 0x70) = title_global<float>(0x0083ed04);  // 300
+    if (f(def, 0x68) > title_global<float>(0x0083eb90))                          // 100
+        title_sprintf(message, &title_global<const char>(0x0083a018), name, 100);  // "Bounds radius too big ..."
+    if (f(def, 0x6c) == 0.0f) f(def, 0x6c) = title_global<float>(0x0083ebf0);  // 150
+    const uint32_t radius = w(def, 0x68);
+    const uint32_t height = w(def, 0x6c);
+    ++title_global<int16_t>(0x0095e228);
+    const float zero = 0.0f;
+    const float low = zero - f(def, 0x68);
+    f(def, 0x1a0) = low;
+    f(def, 0x1a4) = low;
+    f(def, 0x1a8) = zero;
+    w(def, 0x1b0) = radius;
+    w(def, 0x1b4) = radius;
+    w(def, 0x1b8) = height;
+    return radius;
+}
+
+uint32_t XB_CDECL WeaponDef_ParseEnumField(uint8_t* def, const char* value, int32_t type) {
+    using Break = void XB_CDECL(int32_t, const char*, uint32_t, uint32_t);
+    static constexpr struct {
+        uint32_t names;    // name table
+        int32_t count;
+        uint32_t field;    // the index's field in the def
+        uint32_t message;  // "Unknown ... \"%s\" in \"%s\""
+    } kTables[7] = {
+        {0x008d237c, 6, 0x94, 0x00835738},   // weapon type
+        {0x008d23d0, 13, 0x98, 0x00835714},  // weapon class
+        {0x008d2404, 6, 0xa8, 0x008356f0},   // ammo type
+        {0x008d2394, 5, 0x638, 0x008356c0},  // overlay reticle
+        {0x008d23a8, 7, 0x9c, 0x0083569c},   // weapon slot
+        {0x008d23c4, 3, 0xa4, 0x00835674},   // weapon stance
+        {0x008d241c, 9, 0x73c, 0x00835648},  // projectile explosion
+    };
+    if (static_cast<uint32_t>(type - 8) > 6) {
+        title_function<Break>(0x002938f0)(1, pointer<const char>(0x0083562c), static_cast<uint32_t>(type),
+                                          at<uint32_t>(def, 8));  // __break "Bad field type %i in %s"
+        return 0;
+    }
+    const auto& table = kTables[type - 8];
+    int32_t i = 0;
+    for (; i < table.count; ++i) {
+        if (!own_function<int32_t XB_CDECL(const char*, const char*)>(&title_stricmp)(
+                value, title_global<const char*>(table.names + static_cast<uint32_t>(i) * 4))) {
+            at<int32_t>(def, table.field) = i;
+            break;
+        }
+    }
+    if (i == table.count)
+        title_function<Break>(0x002938f0)(1, pointer<const char>(table.message),
+                                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value)), at<uint32_t>(def, 8));
+    return 1;
+}
+
 }  // namespace game

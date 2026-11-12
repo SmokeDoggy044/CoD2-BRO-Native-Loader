@@ -882,6 +882,7 @@ const Function kFunctions[] = {
     {"S_PlayLocalSoundByHash", 0x00025f70, 0, code(&S_PlayLocalSoundByHash), 16, Result::Eax, Status::Replaced},
     {"NameTable12_FindFrom1", 0x00026050, 0, code(&NameTable12_FindFrom1), 4, Result::Eax, Status::Replaced},
     {"Mat44_FromRows", 0x000260d0, 0, code(&Mat44_FromRows), 16, Result::Eax, Status::Replaced},
+    {"CgState_Construct", 0x00026140, 0, code(&CgState_Construct), 0, Result::Eax, Status::Compare},  // was FUN_00026140 (gap)
     {"BlockTail80_Clear", 0x000261d0, 0, code(&BlockTail80_Clear), 0, Result::None, Status::Replaced},
     {"Quat_FromAxis3", 0x000262a0, 0, code(&Quat_FromAxis3), 8, Result::Eax, Status::Replaced},
     {"G_NotifyWithEntity_2", 0x000264d0, 0, code(&G_NotifyWithEntity_2_entry), 8, Result::None, Status::Compare},
@@ -1933,6 +1934,7 @@ const Function kFunctions[] = {
     {"nglMeshFileFirstMesh", 0x00067470, 0, code(&nglMeshFileFirstMesh), 4, Result::Eax, Status::Replaced},
     {"nglMeshNext", 0x000674b0, 0, code(&nglMeshNext), 4, Result::Eax, Status::Replaced},
     {"nglMeshFileFindMesh", 0x00067510, 0, code(&nglMeshFileFindMesh), 8, Result::Eax, Status::Replaced},
+    {"nglMeshFileManager_Release", 0x000675e0, 0, code(&nglMeshFileManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_000675e0 (gap)
     {"nglReleaseMeshFile", 0x00067720, 0, code(&nglReleaseMeshFile), 4, Result::None, Status::Replaced},
     {"nglRelocateMesh", 0x000677b0, 0, code(&nglRelocateMesh), 12, Result::None, Status::Replaced},
     {"nglSelectMeshLod", 0x00068560, 0, code(&nglSelectMeshLod), 12, Result::Eax, Status::Replaced},
@@ -2356,8 +2358,11 @@ const Function kFunctions[] = {
     {"FxRange_SampleN", 0x00099250, 0, code(&FxRange_SampleN), 8, Result::None, Status::Replaced},
     {"FxRandom_Range", 0x00099290, 0, code(&FxRandom_Range), 0, Result::St0, Status::Replaced},
     {"FxRange_Within", 0x000992e0, 0, code(&FxRange_Within), 8, Result::Eax, Status::Replaced},
+    {"FxVectorRange_SampleN", 0x00099340, 0, code(&FxVectorRange_SampleN), 8, Result::None, Status::Compare},  // was FUN_00099340 (gap)
     {"FxConst_Within", 0x00099560, 0, code(&FxConst_Within), 8, Result::Eax, Status::Replaced},
     {"FxConstVector_Within", 0x00099640, 0, code(&FxConstVector_Within), 8, Result::Eax, Status::Replaced},
+    {"FxRange_SampleCentred", 0x000996b0, 0, code(&FxRange_SampleCentred), 8, Result::None, Status::Compare},  // was FUN_000996b0 (gap)
+    {"FxVectorRange_SampleCentred", 0x000999b0, 0, code(&FxVectorRange_SampleCentred), 8, Result::None, Status::Compare},  // was FUN_000999b0 (gap)
     {"FxVectorRange_Within", 0x00099c90, 0, code(&FxVectorRange_Within), 8, Result::Eax, Status::Replaced},
     {"FxRenderer_NewOp53", 0x00099ce0, 0, code(&FxRenderer_NewOp53), 0, Result::Eax, Status::Replaced},
     {"FxRenderer_NewOpGrid", 0x00099f90, 0, code(&FxRenderer_NewOpGrid), 0, Result::Eax, Status::Replaced},
@@ -5987,6 +5992,7 @@ const Function kFunctions[] = {
     {"Actor_Cover_Pain", 0x002014a0, 0, code(&Actor_Cover_Pain), 20, Result::None, Status::Replaced},
     {"Actor_Cover_Finish", 0x002014f0, 0, code(&Actor_Cover_Finish), 0, Result::None, Status::Replaced},
     {"Actor_IsOnClaimedNode", 0x00201520, 0, code(&Actor_IsOnClaimedNode), 0, Result::Eax, Status::Replaced},
+    {"Actor_ScoreCoverNode", 0x00201640, 0, code(&Actor_ScoreCoverNode), 0, Result::St0, Status::Compare},  // was FUN_00201640 (gap)
     {"Actor_AnimCustom_Start", 0x00201990, 0, code(&Actor_AnimCustom_Start), 0, Result::Eax, Status::Compare},
     {"Actor_AnimScripted_Start", 0x002019d0, 0, code(&Actor_AnimScripted_Start), 0, Result::Eax, Status::Replaced},
     {"Actor_AnimMoveRun", 0x00201a10, 0, code(&Actor_AnimMoveRun), 4, Result::Eax, Status::Replaced},
@@ -6646,6 +6652,7 @@ const Function kFunctions[] = {
     {"Vehicle_FreeDefs", 0x00249e70, 0, code(&Vehicle_FreeDefs), 0, Result::None, Status::Replaced},
     {"G_RunPlayerVehicleThinks", 0x0024bb70, 0, code(&G_RunPlayerVehicleThinks_entry), 0, Result::None, Status::Replaced},
     {"Vehicle_CacheTags", 0x0024dc70, 0, code(&Vehicle_CacheTags), 4, Result::Eax, Status::Replaced},
+    {"Vehicle_ParseDef", 0x0024df70, 0, code(&Vehicle_ParseDef), 0, Result::Eax, Status::Compare},  // was FUN_0024df70 (gap)
     {"Turret_UpdateTargetAngles", 0x0024e300, 0, code(&Turret_UpdateTargetAngles_entry), 8, Result::Eax, Status::Replaced},
     {"Die_trigger_damage", 0x00253e30, 0, code(&Die_trigger_damage), 36, Result::None, Status::Compare},
     {"Pain_trigger_damage", 0x00253e70, 0, code(&Pain_trigger_damage), 28, Result::None, Status::Compare},
@@ -7460,6 +7467,7 @@ const Function kFunctions[] = {
     {"SCR_InitLoadingSpinner", 0x002982d0, 0, code(&SCR_InitLoadingSpinner), 0, Result::None, Status::Replaced},
     {"Zone_FindByHash", 0x002984f0, 0, code(&Zone_FindByHash), 4, Result::Eax, Status::Replaced},
     {"Stream_LoadCfgstr", 0x00298570, 0, code(&Stream_LoadCfgstr), 16, Result::Eax, Status::Replaced},
+    {"FxSoundComponent_ScaleParam", 0x002985a0, 0, code(&FxSoundComponent_ScaleParam), 8, Result::None, Status::Compare},  // was FUN_002985a0 (gap)
     {"CL_UpdateRumble", 0x00298810, 0, code(&CL_UpdateRumble), 8, Result::None, Status::Replaced},
     {"RumbleQueue_ClearAll", 0x00298b20, 0, code(&RumbleQueue_ClearAll), 0, Result::None, Status::Replaced},
     {"Rumble_SetScale", 0x00298ba0, 0, code(&Rumble_SetScale_entry), 4, Result::None, Status::Replaced},
@@ -7728,6 +7736,7 @@ const Function kFunctions[] = {
     {"BG_SetupAltWeaponIndices", 0x002acc10, 0, code(&BG_SetupAltWeaponIndices), 0, Result::None, Status::Replaced},
     {"BG_SetupWeaponItems", 0x002acdb0, 0, code(&BG_SetupWeaponItems), 0, Result::None, Status::Replaced},
     {"BG_SetupWeaponTransitionRates", 0x002acf50, 0, code(&BG_SetupWeaponTransitionRates), 0, Result::None, Status::Replaced},
+    {"WeaponDef_ParseEnumField", 0x002ad160, 0, code(&WeaponDef_ParseEnumField), 0, Result::Eax, Status::Compare},  // was FUN_002ad160 (gap)
     {"PM_UpdateSprintFlag", 0x002ad430, 0, code(&PM_UpdateSprintFlag), 0, Result::None, Status::Replaced},
     {"PM_UpdateButtonFlag80", 0x002ad520, 0, code(&PM_UpdateButtonFlag80), 0, Result::None, Status::Replaced},
     {"PM_SetProneFlag400", 0x002ad580, 0, code(&PM_SetProneFlag400), 0, Result::None, Status::Replaced},
@@ -7815,6 +7824,7 @@ const Function kFunctions[] = {
     {"CL_ScaledMilliseconds", 0x002b3250, 0, code(&CL_ScaledMilliseconds), 0, Result::Eax, Status::Replaced},
     {"CL_ForwardToServer_f", 0x002b32b0, 0, code(&CL_ForwardToServer_f), 0, Result::None, Status::Replaced},
     {"Key_Bindlist_f", 0x002b3370, 0, code(&Key_Bindlist_f), 0, Result::None, Status::Replaced},
+    {"Key_GetKey", 0x002b3450, 0, code(&Key_GetKey_entry), 0, Result::Eax, Status::Compare},  // was FUN_002b3450 (gap)
     {"Key_StringToKeynum", 0x002b3490, 0, code(&Key_StringToKeynum_entry), 0, Result::Eax, Status::Replaced},
     {"CL_ShutdownInput", 0x002b3580, 0, code(&CL_ShutdownInput), 0, Result::None, Status::Replaced},
     {"CL_WritePacket", 0x002b37e0, 0, code(&CL_WritePacket), 0, Result::Eax, Status::Replaced},
@@ -9111,6 +9121,7 @@ const Function kFunctions[] = {
     {"HudCompTankShells_Draw", 0x003113a0, 0, code(&HudCompTankShells_Draw), 0, Result::None, Status::Compare},
     {"HudCompTankHealth_Draw", 0x003113d0, 0, code(&HudCompTankHealth_Draw), 0, Result::None, Status::Replaced},
     {"HudCompWeaponName_Draw", 0x00311400, 0, code(&HudCompWeaponName_Draw), 0, Result::None, Status::Replaced},
+    {"HudCompWeaponName_Update", 0x00311430, 0, code(&HudCompWeaponName_Update), 4, Result::None, Status::Compare},  // was FUN_00311430 (gap)
     {"HudCompGrenadeCook_Draw", 0x003115b0, 0, code(&HudCompGrenadeCook_Draw), 0, Result::None, Status::Replaced},
     {"HudCompGrenades_Draw", 0x00311610, 0, code(&HudCompGrenades_Draw), 0, Result::None, Status::Replaced},
     {"HudCompAmmo_Draw", 0x00311640, 0, code(&HudCompAmmo_Draw), 0, Result::None, Status::Replaced},
@@ -9118,6 +9129,7 @@ const Function kFunctions[] = {
     {"HudCompStance_Draw", 0x003116c0, 0, code(&HudCompStance_Draw), 0, Result::None, Status::Replaced},
     {"HudCompStance_Update", 0x003116f0, 0, code(&HudCompStance_Update), 4, Result::None, Status::Replaced},
     {"HudManager_SetWidescreen", 0x00311800, 0, code(&HudManager_SetWidescreen_entry), 4, Result::None, Status::Replaced},
+    {"HudManager_Draw", 0x00311940, 0, code(&HudManager_Draw), 0, Result::None, Status::Compare},  // was FUN_00311940 (gap)
     {"HudManager_Detach", 0x00311ae0, 0, code(&HudManager_Detach), 4, Result::None, Status::Replaced},
     {"Profile_CopySettings", 0x00311f90, 0, code(&Profile_CopySettings), 0, Result::Eax, Status::Compare},
     {"Profile_Copy", 0x00312130, 0, code(&Profile_Copy), 0, Result::Eax, Status::Replaced},
@@ -9193,6 +9205,7 @@ const Function kFunctions[] = {
     {"UIPicture_SetDepth", 0x003169c0, 0, code(&UIPicture_SetDepth), 4, Result::None, Status::Replaced},
     {"UIPicture_SetQuadFlags", 0x00316a10, 0, code(&UIPicture_SetQuadFlags), 4, Result::None, Status::Replaced},
     {"UIPicture_SetTexture", 0x00316a50, 0, code(&UIPicture_SetTexture), 4, Result::None, Status::Replaced},
+    {"UIPicture_ScaleAbout", 0x00316b70, 0, code(&UIPicture_ScaleAbout), 20, Result::None, Status::Compare},  // was FUN_00316b70 (gap)
     {"Color_Modulate", 0x00316e20, 0, code(&Color_Modulate), 8, Result::Eax, Status::Replaced},
     {"UIPicture_Dtor", 0x00316ec0, 0, code(&UIPicture_Dtor_entry), 0, Result::None, Status::Replaced},
     {"UIPicture_CopyFrom", 0x00316f40, 0, code(&UIPicture_CopyFrom), 4, Result::None, Status::Replaced},
@@ -9203,8 +9216,10 @@ const Function kFunctions[] = {
     {"UIQuad_Fill", 0x003173e0, 0, code(&UIQuad_Fill), 12, Result::None, Status::Replaced},
     {"HudCompIconCount_SetWidescreen", 0x00317550, 0, code(&HudCompIconCount_SetWidescreen), 8, Result::None, Status::Replaced},
     {"FE_LiberatorCreateCrossIcons", 0x003175b0, 0, code(&FE_LiberatorCreateCrossIcons_entry), 0, Result::None, Status::Replaced},
+    {"HudCompBomberMap_SetWidescreen", 0x003176f0, 0, code(&HudCompBomberMap_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_003176f0 (gap)
     {"HudManager_SetComponentColor", 0x00317ac0, 0, code(&HudManager_SetComponentColor_entry), 0, Result::None, Status::Replaced},
     {"HudCompMeter_Ctor", 0x00317bd0, 0, code(&HudCompMeter_Ctor), 0, Result::Eax, Status::Replaced},
+    {"HudCompHint_SetWidescreen", 0x00317c10, 0, code(&HudCompHint_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00317c10 (gap)
     {"HudCompCompass_DrawTankMarkers", 0x00317d90, 0, code(&HudCompCompass_DrawTankMarkers), 0, Result::None, Status::Replaced},
     {"HudCompCompass_DrawActorMarkers", 0x00317e50, 0, code(&HudCompCompass_DrawActorMarkers_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_DrawFiringEnemies", 0x00317f00, 0, code(&HudCompCompass_DrawFiringEnemies_entry), 0, Result::None, Status::Replaced},
@@ -9213,14 +9228,18 @@ const Function kFunctions[] = {
     {"HudCompCompass_UpdateNeedle", 0x003180a0, 0, code(&HudCompCompass_UpdateNeedle_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Dtor", 0x00318380, 0, code(&HudCompCompass_Dtor_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_Ctor", 0x00318400, 0, code(&HudCompCompass_Ctor), 0, Result::Eax, Status::Replaced},
+    {"HudCompTankReticle_Update", 0x003185e0, 0, code(&HudCompTankReticle_Update), 4, Result::None, Status::Compare},  // was FUN_003185e0 (gap)
     {"HudCompTankShells_SetWidescreen", 0x00318750, 0, code(&HudCompTankShells_SetWidescreen), 8, Result::None, Status::Compare},
     {"HudCompTankShells_Update", 0x00318780, 0, code(&HudCompTankShells_Update), 4, Result::None, Status::Compare},
     {"HudCompTankHealth_Update", 0x00318840, 0, code(&HudCompTankHealth_Update), 4, Result::None, Status::Replaced},
     {"HudCompWeaponName_Setup", 0x00318b30, 0, code(&HudCompWeaponName_Setup), 4, Result::None, Status::Replaced},
     {"HudCompWeaponName_Ctor", 0x00318bf0, 0, code(&HudCompWeaponName_Ctor_entry), 0, Result::Eax, Status::Replaced},
+    {"HudCompGrenadeCook_SetWidescreen", 0x00318c90, 0, code(&HudCompGrenadeCook_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_00318c90 (gap)
+    {"HudCompGrenadeCook_Update", 0x00318df0, 0, code(&HudCompGrenadeCook_Update), 4, Result::None, Status::Compare},  // was FUN_00318df0 (gap)
     {"HudCompGrenadeCook_Dtor", 0x00318f30, 0, code(&HudCompGrenadeCook_Dtor_entry), 0, Result::None, Status::Replaced},
     {"HudCompAmmo_Update", 0x00319110, 0, code(&HudCompAmmo_Update), 4, Result::None, Status::Replaced},
     {"HudCompHealth_Update", 0x00319370, 0, code(&HudCompHealth_Update), 4, Result::None, Status::Replaced},
+    {"HudCompStance_SetWidescreen", 0x003198b0, 0, code(&HudCompStance_SetWidescreen), 8, Result::None, Status::Compare},  // was FUN_003198b0 (gap)
     {"Key_GetKeyNameForCommand", 0x00319b40, 0, code(&Key_GetKeyNameForCommand_entry), 0, Result::None, Status::Replaced},
     {"HudManager_Layout2", 0x00319c20, 0, code(&HudManager_Layout2_entry), 0, Result::None, Status::Replaced},
     {"HudManager_HideAll", 0x00319cb0, 0, code(&HudManager_HideAll_entry), 0, Result::None, Status::Replaced},
@@ -9352,7 +9371,9 @@ const Function kFunctions[] = {
     {"UIQuad_SetVertexAlphaScaled", 0x00322d10, 0, code(&UIQuad_SetVertexAlphaScaled), 4, Result::None, Status::Replaced},
     {"FE_SetupLiberatorMenu", 0x00323160, 0, code(&FE_SetupLiberatorMenu_entry), 0, Result::None, Status::Replaced},
     {"Hud_LoadWeaponIcons", 0x00323870, 0, code(&Hud_LoadWeaponIcons), 4, Result::None, Status::Replaced},
+    {"HudCompCompass_Setup", 0x00323a70, 0, code(&HudCompCompass_Setup), 4, Result::None, Status::Compare},  // was FUN_00323a70 (gap)
     {"HudCompTankIcon_Setup", 0x00323fa0, 0, code(&HudCompTankIcon_Setup), 4, Result::None, Status::Replaced},
+    {"HudCompTankReticle_Setup", 0x00324140, 0, code(&HudCompTankReticle_Setup), 4, Result::None, Status::Compare},  // was FUN_00324140 (gap)
     {"HudCompTankShells_Setup", 0x003242b0, 0, code(&HudCompTankShells_Setup), 4, Result::None, Status::Compare},
     {"HudCompGrenadeCook_Setup", 0x00324330, 0, code(&HudCompGrenadeCook_Setup), 4, Result::None, Status::Replaced},
     {"HudCompGrenades_Setup", 0x00324480, 0, code(&HudCompGrenades_Setup), 4, Result::None, Status::Replaced},
@@ -9414,12 +9435,14 @@ const Function kFunctions[] = {
     {"UIPicture_SetQuadCorners", 0x0032c770, 0, code(&UIPicture_SetQuadCorners), 8, Result::None, Status::Replaced},
     {"UIPicture_SetVertexScaledAlpha", 0x0032cad0, 0, code(&UIPicture_SetVertexScaledAlpha), 4, Result::None, Status::Replaced},
     {"UIPicture_AddQuad", 0x0032cba0, 0, code(&UIPicture_AddQuad), 20, Result::None, Status::Replaced},
+    {"HudCompGrenades_Update", 0x0032cd60, 0, code(&HudCompGrenades_Update), 4, Result::None, Status::Compare},  // was FUN_0032cd60 (gap)
     {"HudManager_SetLayoutMode", 0x0032ce80, 0, code(&HudManager_SetLayoutMode), 0, Result::None, Status::Compare},
     {"HudText_SetStringByHash", 0x0032ced0, 0, code(&HudText_SetStringByHash_entry), 0, Result::None, Status::Replaced},
     {"Profile_SetDefaults", 0x0032cf50, 0, code(&Profile_SetDefaults_entry), 0, Result::None, Status::Replaced},
     {"MemDlg_FormatNotEnoughBlocks", 0x0032d130, 0, code(&MemDlg_FormatNotEnoughBlocks), 8, Result::None, Status::Compare},
     {"SaveSlot_InitAll", 0x0032d200, 0, code(&SaveSlot_InitAll), 4, Result::None, Status::Compare},
     {"MissionSuccessFailMenu_OnRetryYes", 0x0032d340, 0, code(&MissionSuccessFailMenu_OnRetryYes), 0, Result::Al, Status::Compare},
+    {"MissionSuccessFailMenu_RestoreSelection", 0x0032d450, 0, code(&MissionSuccessFailMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_0032d450 (gap)
     {"UI_PlayTypeSound", 0x0032d660, 0, code(&UI_PlayTypeSound), 0, Result::None, Status::Replaced},
     {"DifficultyMenu_StartGame", 0x0032d800, 0, code(&DifficultyMenu_StartGame_entry), 0, Result::None, Status::Replaced},
     {"FE_FadeOut", 0x0032d890, 0, code(&FE_FadeOut_entry), 0, Result::None, Status::Replaced},
@@ -9440,9 +9463,11 @@ const Function kFunctions[] = {
     {"UIMenu_Dtor", 0x0032eab0, 0, code(&UIMenu_Dtor), 0, Result::None, Status::Compare},
     {"SCR_DrawLoadingScreen", 0x0032eac0, 0, code(&SCR_DrawLoadingScreen), 0, Result::None, Status::Compare},
     {"SCR_DrawLaunchLoadingScreen", 0x0032ed10, 0, code(&SCR_DrawLaunchLoadingScreen), 0, Result::None, Status::Replaced},
+    {"UIText_ExpandButtonToken", 0x0032eed0, 0, code(&UIText_ExpandButtonToken), 4, Result::Eax, Status::Compare},  // was FUN_0032eed0 (gap)
     {"Subtitle_Start", 0x0032f650, 0, code(&Subtitle_Start), 4, Result::None, Status::Replaced},
     {"UI_EulerMatrix", 0x0032f9f0, 0, code(&UI_EulerMatrix), 0, Result::None, Status::Replaced},
     {"Panel_CreatePicture", 0x0032fbd0, 0, code(&Panel_CreatePicture), 20, Result::None, Status::Replaced},
+    {"HudCompHint_Update", 0x0032fd80, 0, code(&HudCompHint_Update), 4, Result::None, Status::Compare},  // was FUN_0032fd80 (gap)
     {"HudManager_Setup", 0x00330350, 0, code(&HudManager_Setup), 4, Result::None, Status::Replaced},
     {"Profile_ApplySkill", 0x003304f0, 0, code(&Profile_ApplySkill_entry), 0, Result::None, Status::Replaced},
     {"SpecialConceptMenu_Construct", 0x00330560, 0, code(&SpecialConceptMenu_Construct), 0, Result::Eax, Status::Replaced},
@@ -9562,6 +9587,7 @@ const Function kFunctions[] = {
     {"ProfileSave_OnSaveOpComplete", 0x0033a530, 0, code(&ProfileSave_OnSaveOpComplete_entry), 4, Result::None, Status::Compare},
     {"ProfileMenu_Update", 0x0033a640, 0, code(&ProfileMenu_Update_entry), 4, Result::None, Status::Replaced},
     {"SCR_UpdateLoadingDots", 0x0033ac10, 0, code(&SCR_UpdateLoadingDots_entry), 0, Result::None, Status::Replaced},
+    {"LoadScreen_SetProgress", 0x0033ac80, 0, code(&LoadScreen_SetProgress_entry), 4, Result::None, Status::Compare},  // gap (Ghidra already named it)
     {"__CIfmod", 0x0033acda, 0, code(&title_CIfmod), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"__CIsqrt", 0x0033acf4, 0, code(&title_CIsqrt), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)
     {"__CIcos", 0x0033adb0, 0, code(&title_CIcos), 0, Result::St0, Status::Compare},  // our CRT (x87 intrinsic)

@@ -8139,9 +8139,9 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
         call_at(T, ret, own_address(&Stream_ForEachAssetWithPrefix), TitleRegs{cfg, ebx, T - 0x10, set, esi_value, edi_value}, 6,
                 args);  // Stream_ForEachAssetWithPrefix
     };
-    for_each_asset(0x00273b44, 0x0083a00c, 0x0024df70, 0x0083a00d, 0x0024df70);
+    for_each_asset(0x00273b44, 0x0083a00c, own_address(&Vehicle_ParseDef), 0x0083a00d, own_address(&Vehicle_ParseDef));
     esi = 1;
-    edi = 0x0024df70;
+    edi = own_address(&Vehicle_ParseDef);
     const int32_t clients = title_global<int32_t>(0x00950c5c);
     title_global<int32_t>(0x00985418) = clients < 1 ? 1 : clients > 0x10 ? 0x10 : clients;
     if (!reloaded) {

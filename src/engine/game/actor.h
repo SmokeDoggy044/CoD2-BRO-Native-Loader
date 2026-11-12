@@ -1573,6 +1573,14 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entr
                                                                   uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void Actor_MoveOutOfTheWay_entry(void);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x00201640 (node in EDX, actor in ECX; result in ST0): the cover candidates' scorer (Actor_GatherCoverCandidates):
+// a weight by the node type (+0x28: 2-4 1.0, 5-6 0.4, 7-8 0.5, 9 4, 10 3, 11 2; else FLT_MAX is the score) times
+// 0.3 for the sentient's current node (+0x50) and 9 per suppression slot whose plane the node is in front of; a
+// bias of 262144 while the node is claimed for the sentient's team (+0x14 + team * 4 after level_time) minus twice
+// the squared distance to the current node. Score = (squared distance to the actor's +0x1350 + bias) * weight (x87).
+long double XB_REGS3 XB_CDECL Actor_ScoreCoverNode(uint32_t unused_eax, const uint8_t* node, const uint8_t* actor);
+
 }  // namespace game
 
 // actor.cpp: title_call_at_regs for callees with an XMM0 result (the result's bits in EAX).

@@ -146,4 +146,19 @@ void XB_THISCALL LoadAfricaMenu_Draw(uint8_t* menu);
 void XB_THISCALL LoadSicilyMenu_Draw(uint8_t* menu);
 void XB_THISCALL LoadMaubeugeMenu_Draw(uint8_t* menu);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x0033ac80 (load progress on the stack, ret 4; CL_UpdateLoadingProgress): by the chapter (0x008dce48) the
+// loading screen's SetProgress: <= 0 the dots (SCR_UpdateLoadingDots), <= 5 Africa, <= 8 Sicily, else the
+// default screen (front end 0x0095f8fc +4: +0x14 / +0xc / +0x10 / +8). Asm: they are tail jumps into the
+// SetProgress entries, which run at the original's ESP.
+extern "C" void LoadScreen_SetProgress_entry(void);
+
+// 0x0032d450 (vtable +0x40): the HUD text (g_hudManager +0x3c) cleared and +0x60 = -1, 0x0095f470/74 cleared,
+// the label +0x48 "", +0x50 hidden, sounds stopped, rumble cleared; then the items by the state +0x58: 2 =
+// FEMENU_RELOADING; 0 = (a bonus chapter unlocked when +0x55: FEMENU_BONUS_UNLOCKED from chapter 2, 14 sets
+// 0x008dce54) FEMENU_CONTINUE_OPTION / FEMENU_QUIT; else +0x50 shown and with a checkpoint (0x0095f4e0 +0x390)
+// RESTART_FROM_CHECKPOINT / RESTART_LEVEL / QUIT (item 2 enabled 0), else RETRY / QUIT. Then UIMenu_RestoreSelection,
+// the help bar FEMENU_OP_HELPBAR_SHORT, the HUD off (0x008d9d48 = 0).
+void XB_THISCALL MissionSuccessFailMenu_RestoreSelection(uint8_t* menu);
+
 }  // namespace game

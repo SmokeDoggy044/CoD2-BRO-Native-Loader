@@ -459,4 +459,19 @@ uint32_t XB_CDECL Vehicle_PlaneSlideMove(uint8_t* ent, uint32_t gravity, int32_t
 // 0x00248e10 (EAX): entity type 2 whose weapon record (+0x3b0, 0x34-byte records at 0x0096bd10) has +0x24 == 1.
 uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x0024df70 (the vehicle file loader's callback: name, info map): a 0x1d0-byte def (Heap_AllocAligned, zeroed)
+// into g_vehicleDefs at the count, the name copied, the fields parsed (0x008daed0, 0x25 fields, 9 custom types); on
+// success distances scaled by 17.6 (+0x44, +0x48, +0x60, +0x194), +0x18c/+0x190 cleared, defaults (+0x74 1500,
+// bounds radius +0x68 75, +0x70 300, +0x6c 150), the count up and the bounds (+0x1a0.. -radius, -radius, 0; +0x1b0..
+// radius, radius, +0x6c). The over-length / too-big messages are formatted but never shown. Returns the parse
+// result 0, else the radius' bits.
+uint32_t XB_CDECL Vehicle_ParseDef(const char* name, uint8_t* info);
+
+// 0x002ad160 (the weapon file's custom field parser, Info_ParseFieldsToStruct's parse_custom): types 8-14 look the
+// value up (_stricmp) in a name table - weapon type (+0x94), class (+0x98), ammo type (+0xa8), overlay reticle
+// (+0x638), slot (+0x9c), stance (+0xa4), projectile explosion (+0x73c) - and store its index; an unknown name
+// gets a __break message ("Unknown ... in <def name +8>"), still 1. Other types: "Bad field type", 0.
+uint32_t XB_CDECL WeaponDef_ParseEnumField(uint8_t* def, const char* value, int32_t type);
+
 }  // namespace game

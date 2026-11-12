@@ -14193,7 +14193,7 @@ uint32_t XB_CDECL Actor_Grenade_FindCover(uint32_t entry, uint32_t eax, uint32_t
     stack_word(entry - 0xc) = field<uint32_t>(ent, 0x140);
     stack_word(entry - 8) = field<uint32_t>(ent, 0x144);
     stack_word(entry - 4) = field<uint32_t>(ent, 0x148);
-    const uint32_t args[5] = {entry - 0xc, 0x49100000, 0x42a00000, own_address(&Actor_Grenade_IsCoverNodeSafe_entry), 0x00201640};
+    const uint32_t args[5] = {entry - 0xc, 0x49100000, 0x42a00000, own_address(&Actor_Grenade_IsCoverNodeSafe_entry), own_address(&Actor_ScoreCoverNode)};
     call_at(entry - 0x10, 0x0021db90, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x1ffc, ecx, field<uint32_t>(ent, 0x148), edx, esi, edi}, 5,
             args);  // Actor_GatherCoverCandidates
     field<uint32_t>(field<uint8_t*>(actor, 0), 0x140) = stack_word(entry - 0xc);
@@ -14775,7 +14775,7 @@ uint32_t XB_CDECL Actor_Cover_FindBetterCover(uint32_t entry, uint32_t eax, uint
     stack_word(entry - 0x10) = edi;
     const uint16_t held = field<uint16_t>(sentient, 0x48);
     const uint32_t s = addr_of(sentient);
-    const uint32_t args[5] = {s + 0xc, field<uint32_t>(sentient, 0x18), 0x42a00000, 0x00201f60, 0x00201640};
+    const uint32_t args[5] = {s + 0xc, field<uint32_t>(sentient, 0x18), 0x42a00000, 0x00201f60, own_address(&Actor_ScoreCoverNode)};
     call_at(entry - 0x10, 0x0021d62e, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x1ffc, a, s + 0xc, edx, esi, held}, 5,
             args);  // Actor_GatherCoverCandidates
     if (field<uint32_t>(actor, 0x818)) {
@@ -15146,7 +15146,7 @@ uint32_t XB_CDECL Actor_FindNearbyCoverNode(uint32_t entry, uint32_t eax, uint32
         field<uint32_t>(actor, 0x1354) = field<uint32_t>(ent, 0x144);
         field<uint32_t>(actor, 0x1358) = field<uint32_t>(ent, 0x148);
         const uint8_t* const s = field<const uint8_t*>(actor, 4);
-        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, 0x00201640};
+        const uint32_t args[5] = {addr_of(s) + 0xc, field<uint32_t>(s, 0x18), 0x42a00000, 0, own_address(&Actor_ScoreCoverNode)};
         call_at(frame, 0x0021caa0, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x1ffc, a, field<uint32_t>(s, 0x18), field<uint32_t>(ent, 0x144),
                                                          eax, edi},
                 5, args);  // Actor_GatherCoverCandidates
@@ -20034,6 +20034,48 @@ uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t, uint32_t ebx, 
     field<uint32_t>(actor, 0x294) = field<uint32_t>(ent(), 0x144);
     field<uint32_t>(actor, 0x298) = field<uint32_t>(ent(), 0x148);
     return 1;
+}
+
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+long double XB_REGS3 XB_CDECL Actor_ScoreCoverNode(uint32_t, const uint8_t* node, const uint8_t* actor) {
+    using ext = long double;
+    float weight;
+    switch (field<int32_t>(node, 0x28)) {
+    case 2: case 3: case 4: weight = title_global<float>(0x0083eb20); break;   // 1.0
+    case 5: case 6: weight = title_global<float>(0x0083ec44); break;           // 0.4
+    case 7: case 8: weight = title_global<float>(0x0083eb24); break;           // 0.5
+    case 9: weight = title_global<float>(0x0083100c); break;                   // 4.0
+    case 10: weight = title_global<float>(0x0083ec9c); break;                  // 3.0
+    case 11: weight = title_global<float>(0x0083eba8); break;                  // 2.0
+    default: return platform_x87_ld(title_global<float>(0x0082eed0));          // FLT_MAX
+    }
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    if (field<uint16_t>(sentient, 0x50) == field<uint16_t>(node, 0)) weight = weight * title_global<float>(0x0083066c);  // 0.3
+    for (uint32_t slot = 0x12a8; slot <= 0x12f0; slot += 0x18) {  // the four suppression planes
+        if (field<int32_t>(actor, slot) <= 0) continue;
+        const float y = field<float>(node, 0x48) * field<float>(actor, slot + 0xc);
+        const float x = field<float>(node, 0x44) * field<float>(actor, slot + 8);
+        if (y + x > field<float>(actor, slot + 0x10)) weight = weight * title_global<float>(0x0083eef8);  // 9.0
+    }
+    float bias = 0.0f;
+    if (field<int32_t>(node, 0x14 + field<uint32_t>(sentient, 4) * 4) > title_global<int32_t>(0x0098540c))  // level_time
+        bias = title_global<float>(0x00830f50);  // 262144
+    if (const uint8_t* const current = path_node(field<uint16_t>(sentient, 0x50))) {
+        const float dx = field<float>(node, 0x44) - field<float>(current, 0x44);
+        const float dy = field<float>(node, 0x48) - field<float>(current, 0x48);
+        const float dz = field<float>(node, 0x4c) - field<float>(current, 0x4c);
+        float d = dz * dz;
+        d = d + dy * dy;
+        d = d + dx * dx;
+        bias = bias - d * title_global<float>(0x0083eba8);  // 2.0
+    }
+    const ext dx = platform_x87_ld(field<float>(node, 0x44)) - field<float>(actor, 0x1350);
+    const ext dy = platform_x87_ld(field<float>(node, 0x48)) - field<float>(actor, 0x1354);
+    const ext dz = platform_x87_ld(field<float>(node, 0x4c)) - field<float>(actor, 0x1358);
+    ext sum = dz * dz + dy * dy;
+    sum = sum + dx * dx;
+    return (sum + bias) * weight;
 }
 
 }  // namespace game

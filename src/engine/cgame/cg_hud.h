@@ -177,4 +177,59 @@ void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescr
 // 0x00011fc0 (no Ghidra function): the shared HUD component vtable +0x14, visible (+4) = the flag's byte.
 void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x00317c10 (vtable +0x18): the 0x84 button pictures scaled for the aspect; the text +0x218 scale (0.525, 0.7) in
+// widescreen, else 0.7.
+void XB_THISCALL HudCompHint_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x0032cd60 (vtable +8): the grenade count (CG_GetGrenadeAmmoCount, at most 999, +0x14) as "x%i" into the text
+// +0x10, the frag (+8) or stick (+0xc) grenade icon shown (+0x1c = 0 / 1); hidden (+0x18) in a vehicle, without a
+// snapshot or grenade weapon (0x0097294c) or another weapon name.
+void XB_THISCALL HudCompGrenades_Update(uint8_t* self, uint32_t dt);
+// 0x00318df0 (vtable +8): the six segments (+8..+0x1c) full alpha in 0x64ff0000, then segments 0-4 cleared as the
+// fuse left (+0x24 / +0x28) falls below 0.83 / 0.67 / 0.5 / 0.33 / 0.17; hidden (+0x2d) with a negative fuse, in a
+// vehicle or without a snapshot.
+void XB_THISCALL HudCompGrenadeCook_Update(uint8_t* self, uint32_t dt);
+
+// 0x003185e0 (vtable +8): the player tank's reload ticks: of +0x3c ticks, the current one (+0x40, from the reload
+// time left (vehicle +0x180) in steps of the weapon's reload time (+0x5dc) / ticks) fades in (+0x44), later ones
+// full, earlier ones off.
+void XB_THISCALL HudCompTankReticle_Update(uint8_t* self, uint32_t dt);
+// 0x00318c90 (vtable +0x18): UIPicture_ScaleXForAspect on the six segments and +0x20.
+void XB_THISCALL HudCompGrenadeCook_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x00324140 (vtable +4): "tank_reticle" (+8) and "tank_tic1".."4" (+0xc..), the reticle moved by (320 - x,
+// 240 - (y - height / 2)), the ticks kept at their offsets (+0x1c.. x, +0x2c.. y); +0x3c = 4 ticks.
+void XB_THISCALL HudCompTankReticle_Setup(uint8_t* self, uint8_t* panel);
+// 0x00311940 (vtable +0x14): while the HUD is on (0x008d9d48), in a pushed scene (clear flags 3): the shown
+// components (+4..+0x18, +0x30, +0x38, +0x34), the layout's extra slots (+0x5c: 1 +0x24, 2 +0x1c/+0x20, 3
+// +0x28/+0x2c) and the attached one (+0x40); then nglPopScene (tail jump).
+void XB_THISCALL HudManager_Draw(uint8_t* self);
+// 0x00311430 (vtable +8): for 1.8 s after a weapon change (0x0094c23c) and not in a vehicle: the alpha (fading in
+// the last 100 ms) on the text +8 and background +0xc; on a new weapon (def +0 vs +0x10) the name ("%s / %s" with
+// the def's +0x90 text) and the background's rect (545 - text width - 16, 365, 545, 385).
+void XB_THISCALL HudCompWeaponName_Update(uint8_t* self, uint32_t dt);
+
+// 0x003198b0 (vtable +0x18): UIPicture_ScaleXForAspect on the three stance pairs (+8..+0x1c) and +0x20.
+// (0x00319aa0 after it is a separate function, the stance constructor; HudManager_Create's C inlines it.)
+void XB_THISCALL HudCompStance_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+
+// 0x003176f0 (vtable +0x18): once set up (+0x30), UIPicture_ScaleXForAspect on the ten pictures +8..+0x2c and
+// +0x30..+0x40.
+void XB_THISCALL HudCompBomberMap_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+
+// 0x00323a70 (vtable +4): "compass", "compassneedle", "compassglass" (+8..+0x10; the glass 20 deeper), compass
+// vtable +0xc4, then the marker pictures with one quad each: friendly (+0x14) / enemy (+0x2c, tinted 0xffb40000)
+// "objective_friendly" 13 units, tank (+0x30 tinted 14.56 x 7.28, +0x18 20.8 x 10.4), objective up / down /
+// plain (+0x20/+0x24/+0x28, 32), objective ring (+0x1c, 64); +0x3c and the 25 tank markers' flags (+0xe34,
+// 0x28 apart) cleared.
+void XB_THISCALL HudCompCompass_Setup(uint8_t* self, uint8_t* panel);
+
+// 0x0032fd80 (vtable +8): the hint (0x00972eb8, a new one from the snapshot +0x48c..+0x494 unless 0x00972548;
+// time 0x00972ebc, length 0x00972ec0, string index 0x00972ec8) while its time lasts: hint <= 1 hides it, 10
+// starts 0x00972eac/eb0. Same hint as +0x220: the button (+8 + index * 4) alpha, pulse scale (mode 0x0094c834: 2 =
+// start % 1000 / 100, below 2 = (sin(cg_time / 150) + 1) * 5, doubled with +0x225) and the text alpha. A new one
+// builds the text: weapons 12..0x8b (INGAME_PICKUP_WEAPON / INGAME_SWAP_WEAPONS, button weapon + 4), ammo
+// 0x8c..0x10b (INGAME_PICKUP_AMMO), 7 the LMG mount by the aim key, a localized/config string (0x00972ec8), 8
+// INGAME_HEALTH_PICKUP; then wrapped (450) into +0x218, the button +0x21c shown with the pulse. Hidden (+0x224).
+void XB_THISCALL HudCompHint_Update(uint8_t* self, uint32_t dt);
+
 }  // namespace game

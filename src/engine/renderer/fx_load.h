@@ -439,4 +439,13 @@ uint8_t* XB_THISCALL FxSphereSurfaceDomain_Generate(const uint8_t* self, int32_t
 uint8_t* XB_THISCALL FxDiscDomain_Generate(const uint8_t* self, int32_t count, float* out);
 uint8_t* XB_THISCALL FxCircleDomain_Generate(const uint8_t* self, int32_t count, float* out);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x00099340 (vector range vtable +4): `count` samples (min +4 + i * 4, max +0x10 + i * 4), each (max - min) *
+// (unit - 1) + min with a new fx_randSeed draw (SSE, unlike FxRandom_Range).
+void XB_THISCALL FxVectorRange_SampleN(const uint8_t* range, int32_t count, float* out);
+// 0x000996b0 / 0x000999b0 (vtables 0x007c5b20 / 0x007c5b38 +4): as FxRange_SampleN / FxVectorRange_SampleN with the
+// draw u bent toward the middle: t = (1 - u) * u * 2 below 0.5, else (u - 1) * u * 2 + 1.
+void XB_THISCALL FxRange_SampleCentred(const uint8_t* range, int32_t count, float* out);
+void XB_THISCALL FxVectorRange_SampleCentred(const uint8_t* range, int32_t count, float* out);
+
 }  // namespace game

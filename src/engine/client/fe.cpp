@@ -4022,4 +4022,135 @@ int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_sec
     return out_seconds;
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+// The line buffer is the original's (entry - 0x100): its address is left in a heap word.
+FE_FRAME_ENTRY(UIText_SetText, "ret $4")
+
+uint32_t XB_CDECL UIText_SetText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const text = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    const uint32_t string = stack_word(entry_esp + 4);
+    const char* const shown = reinterpret_cast<const char*>(
+        uintptr_t{f.method(0x110, 0x0032b84c, text, 0x134, string)});  // vtable +0x134: the text to show (keeps its ESP)
+    const int32_t length = static_cast<int32_t>(std::strlen(shown));
+    int32_t lines = 1;
+    for (int32_t i = 0; i < length; ++i)
+        if (shown[i] == '\n') ++lines;
+    const int32_t capacity = field<int32_t>(text, 0x7c);
+    field<int32_t>(text, 0x78) = lines - 1 < capacity ? lines : capacity;
+    char* const line = f.local<char>(0x100);
+    int32_t pos = 0;
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i) {
+        const char* const from = shown + pos;
+        const int32_t n = own_function<int32_t XB_CDECL(const char*, const char*)>(&title_strcspn)(
+            from, text_at(0x0082d288));  // _strcspn("\n")
+        title_strncpy(line, from, static_cast<uint32_t>(n));
+        line[n] = 0;
+        pos += n + 1;
+        UITextLine_Init(field<uint8_t*>(text, 0x80) + i * 0x20, line, field<int32_t>(text, 0x18),
+                        field<float>(text, 0x38), field<float>(text, 0x64));
+    }
+    str_assign_text(reinterpret_cast<Str*>(text + 0x1c),
+                    str_text(reinterpret_cast<Str*>(field<uint8_t*>(text, 0x80) + 0x14)));
+    UIText_LayoutLines(text);
+    return address_of(text);
+}
+
+void XB_THISCALL UIPicture_ScaleAbout(uint8_t* picture, float cx, float cy, float sx, float sy, uint8_t relative) {
+    if (sx == 0.0f) sx = title_global<float>(0x0083eb94);  // 0.01
+    if (sy == 0.0f) sy = title_global<float>(0x0083eb94);
+    if (relative) {
+        sx = sx / field<float>(picture, 0x34);
+        sy = sy / field<float>(picture, 0x38);
+    }
+    for (uint32_t i = 0; i < field<uint32_t>(picture, 0x28); ++i) {
+        uint8_t* const quad = field<uint8_t**>(picture, 0x20)[i];
+        for (uint32_t v = 0; v < 4; ++v) {
+            field<float>(quad, 0x40 + v * 0x14) = (field<float>(quad, 0x40 + v * 0x14) - cx) * sx + cx;
+            field<float>(quad, 0x44 + v * 0x14) = (field<float>(quad, 0x44 + v * 0x14) - cy) * sy + cy;
+        }
+    }
+    field<float>(picture, 0x34) = field<float>(picture, 0x34) * sx;
+    field<float>(picture, 0x38) = sy * field<float>(picture, 0x38);
+    if (uint8_t* const block = field<uint8_t*>(picture, 0x2c)) {
+        field<float>(block, 0x18) = field<float>(block, 0x18) * sx;
+        field<float>(field<uint8_t*>(picture, 0x2c), 0x1c) = field<float>(field<uint8_t*>(picture, 0x2c), 0x1c) * sy;
+    }
+}
+
+namespace {
+
+// UIText_ExpandButtonToken's tables: a token, the command whose key it shows and the command tried when no key is
+// bound to it (0: none).
+struct ButtonToken {
+    uint32_t name, command, fallback;
+};
+constexpr ButtonToken kGlyphTokens[16] = {
+    {0x0082d6dc, 0x0082dfc0, 0x0082d6cc}, {0x0082d6c0, 0x0082dfc0, 0x0082d6cc},  // [USE], [ACTIVATE]
+    {0x0082d6b4, 0x0082d6ac, 0},          {0x0082d6a4, 0x0082dfa8, 0x0082dfb0},  // [ATTACK], [AIM]
+    {0x0082d69c, 0x0082d694, 0},          {0x0082d688, 0x0082d678, 0},           // [MELEE], [GRENADE]
+    {0x0082d668, 0x0082dfb0, 0},          {0x0082d65c, 0x0082d654, 0},           // [TOGGLE_AIM], [SPRINT]
+    {0x0082d648, 0x0082d640, 0x0082d6cc}, {0x0082d634, 0x0082d62c, 0},           // [RELOAD], [STANCE_UP]
+    {0x0082d61c, 0x0082d610, 0},          {0x0082d600, 0x0082d5f4, 0},           // [STANCE_DOWN], [WEAPON_SWAP]
+    {0x0082d5e8, 0x0082d5d4, 0},          {0x0082d5c4, 0x0082d5ac, 0},           // [LEAN_LEFT], [LEAN_RIGHT]
+    {0x0082d5a0, 0x0082d594, 0},          {0x0082d58c, 0x0082d578, 0},           // [SELECT], [START]
+};
+constexpr ButtonToken kPressTokens[16] = {
+    {0x0082d56c, 0x0082dfc0, 0x0082d6cc}, {0x0082d558, 0x0082dfc0, 0x0082d6cc},  // [PRESS_USE], [PRESS_ACTIVATE]
+    {0x0082d548, 0x0082d6ac, 0},          {0x0082d53c, 0x0082dfa8, 0x0082dfb0},  // [PRESS_ATTACK], [PRESS_AIM]
+    {0x0082d52c, 0x0082d694, 0},          {0x0082d51c, 0x0082d678, 0},           // [PRESS_MELEE], [PRESS_GRENADE]
+    {0x0082d508, 0x0082dfb0, 0},          {0x0082d4f8, 0x0082d654, 0},           // [PRESS_TOGGLE_AIM], [PRESS_SPRINT]
+    {0x0082d4e8, 0x0082d640, 0x0082d6cc}, {0x0082d4d4, 0x0082d62c, 0},           // [PRESS_RELOAD], [PRESS_STANCE_UP]
+    {0x0082d4c0, 0x0082d610, 0},          {0x0082d4ac, 0x0082d5f4, 0},  // [PRESS_STANCE_DOWN], [PRESS_WEAPON_SWAP]
+    {0x0082d498, 0x0082d5d4, 0},          {0x0082d484, 0x0082d5ac, 0},  // [PRESS_LEAN_LEFT], [PRESS_LEAN_RIGHT]
+    {0x0082d474, 0x0082d594, 0},          {0x0082d464, 0x0082d578, 0},  // [PRESS_SELECT], [PRESS_START]
+};
+// key -> glyph string (bit 31: a localization key instead) / localization key of the "[PRESS_...]" text
+constexpr struct {
+    int32_t key;
+    uint32_t glyph, press;
+} kButtonKeys[16] = {
+    {0xd4, 0x0082d7b4, 0x0082d3b0}, {0xd5, 0x0082d7a8, 0x0082d39c}, {0xd3, 0x0082d79c, 0x0082d388},
+    {0xd6, 0x0082d78c, 0x0082d370}, {0xd7, 0x0082d760, 0x0082d360}, {0xd9, 0x0082d77c, 0x0082d350},
+    {0xdb, 0x8082d3d0, 0x0082d33c}, {0xd8, 0x0082d758, 0x0082d32c}, {0xda, 0x0082d774, 0x0082d31c},
+    {0xdc, 0x8082d3c4, 0x0082d308}, {0x0d, 0x0082d718, 0x0082d2f4}, {0x1b, 0x0082d710, 0x0082d2e0},
+    {0x9a, 0x0082d730, 0x0082d2c8}, {0x9b, 0x0082d740, 0x0082d2b4}, {0x9c, 0x0082d724, 0x0082d2a0},
+    {0x9d, 0x0082d74c, 0x0082d28c},
+};
+
+int32_t button_token_key(const ButtonToken& token) {
+    int32_t key = Key_GetKey(text_at(token.command));
+    if (key == -1 && token.fallback) key = Key_GetKey(text_at(token.fallback));
+    return key;
+}
+
+}  // namespace
+
+const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t*, const char* token) {
+    if (!token) return nullptr;
+    for (const ButtonToken& entry : kGlyphTokens) {
+        if (std::strcmp(token, text_at(entry.name))) continue;
+        const int32_t key = button_token_key(entry);
+        for (const auto& k : kButtonKeys)
+            if (k.key == key)
+                return k.glyph & 0x80000000u ? Loc_GetString(text_at(k.glyph & 0x7fffffffu)) : text_at(k.glyph);
+        return token;
+    }
+    for (const ButtonToken& entry : kPressTokens) {
+        if (std::strcmp(token, text_at(entry.name))) continue;
+        const int32_t key = button_token_key(entry);
+        for (const auto& k : kButtonKeys)
+            if (k.key == key) return Loc_GetString(text_at(k.press));
+        return token;
+    }
+    static constexpr uint32_t kTexts[4][2] = {{0x0082d450, 0x0082d434},   // [USE_LEFT_STICK]
+                                              {0x0082d420, 0x0082d404},   // [USE_RIGHT_STICK]
+                                              {0x0082d400, 0x0082d3f0},   // ~l3
+                                              {0x0082d3ec, 0x0082d3dc}};  // ~r3
+    for (const auto& entry : kTexts)
+        if (!std::strcmp(token, text_at(entry[0]))) return Loc_GetString(text_at(entry[1]));
+    return token;
+}
+
 }  // namespace game

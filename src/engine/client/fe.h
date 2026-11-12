@@ -528,4 +528,24 @@ int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime(int32_t seconds, int32_t* out_seco
 int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
                                                int32_t* out_hours, int32_t* out_days);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x0032b830 (vtable +0x78): the string through vtable +0x134 (the shown text), split at '\n' into the lines (up to
+// the capacity +0x7c; count +0x78), each a UITextLine_Init with the kind +0x18, scale +0x38 and button scale +0x64;
+// the text +0x1c = line 0's, then UIText_LayoutLines.
+// Runs at the original's ESP (vtable +0x134 leaves a stack address in heap word 0x100005f8). No row yet: compare
+// still differs in one host TLS byte (stack guard depth, f3xxxa48: 0x0b vs 0x01).
+FE_FRAME_FUNCTION(UIText_SetText)
+
+// 0x00316b70 (UI and world picture vtable +0x50; ret 0x14): every quad vertex scaled about (cx, cy) by (sx, sy) (a
+// zero scale counts as 0.01; `relative`: divided by the current scale +0x34 / +0x38 first), the scale +0x34 / +0x38
+// and the block +0x2c's +0x18 / +0x1c multiplied by it. The centre +0x14 stays.
+void XB_THISCALL UIPicture_ScaleAbout(uint8_t* picture, float cx, float cy, float sx, float sy, uint8_t relative);
+
+// 0x0032eed0 (vtable +0x138; `text` unused): a "[ACTION]" token (exact match) as the button of the first key
+// bound to its command (Key_GetKey; [USE]/[ACTIVATE]/[RELOAD] fall back to 0x0082d6cc, [AIM] to the toggle aim
+// command): keys 0xd3-0xdc, 13, 27 and 0x9a-0x9d give a glyph string ("[PRESS_...]" tokens: the localized
+// INGAME_PRESS_* text); [USE_LEFT_STICK], [USE_RIGHT_STICK], ~l3, ~r3 give their localized texts. Anything else
+// (and an unbound or other key) returns the token itself; null gives null.
+const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t* text, const char* token);
+
 }  // namespace game

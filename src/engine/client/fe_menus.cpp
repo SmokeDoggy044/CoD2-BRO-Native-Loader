@@ -861,4 +861,92 @@ void XB_THISCALL LoadMaubeugeMenu_Draw(uint8_t* menu) {
     for (uint32_t i = 0; i < 3; ++i) call(field<uint8_t*>(menu, 0x44 + i * 4), 0x44);
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+PLATFORM_ASM_ENTRY(LoadScreen_SetProgress_entry,
+                   "movl 0x008dce48, %eax\n"  // the chapter
+                   "testl %eax, %eax\n"
+                   "jg 1f\n"
+                   "movl 0x0095f8fc, %eax\n"
+                   "movl 4(%eax), %ecx\n"
+                   "pushl %esi\n"
+                   "movl 0x14(%ecx), %esi\n" PLATFORM_ASM_CALL(SCR_UpdateLoadingDots_entry)
+                   "popl %esi\n"
+                   "ret $4\n"
+                   "1:\n"
+                   "cmpl $5, %eax\n"
+                   "jg 2f\n"
+                   "movl 0x0095f8fc, %eax\n"
+                   "movl 4(%eax), %ecx\n"
+                   "movl 0xc(%ecx), %eax\n"
+                   "jmp " PLATFORM_ASM_SYMBOL(LoadAfricaMenu_SetProgress_entry) "\n"
+                   "2:\n"
+                   "cmpl $8, %eax\n"
+                   "movl 0x0095f8fc, %eax\n"
+                   "movl 4(%eax), %ecx\n"
+                   "jg 3f\n"
+                   "movl 0x10(%ecx), %eax\n"
+                   "jmp " PLATFORM_ASM_SYMBOL(LoadSicilyMenu_SetProgress_entry) "\n"
+                   "3:\n"
+                   "movl 8(%ecx), %eax\n"
+                   "jmp " PLATFORM_ASM_SYMBOL(LoadingMenu_SetProgress_entry))
+
+void XB_THISCALL MissionSuccessFailMenu_RestoreSelection(uint8_t* menu) {
+    using Word = void XB_THISCALL(uint8_t*, uint32_t);
+    const auto call = [](uint8_t* object, uint32_t slot, uint32_t value) {
+        title_function<Word>(*reinterpret_cast<uint32_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(object)} + slot))(object, value);
+    };
+    const auto item = [menu](uint32_t i) { return reinterpret_cast<uint8_t**>(uintptr_t{*reinterpret_cast<uint32_t*>(menu + 4)})[i]; };
+    const auto field8 = [menu](uint32_t offset) { return reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(menu + offset)}); };
+    uint8_t* const hud = title_global<uint8_t*>(0x0095f8f0);  // g_hudManager
+    uint8_t* const hud_text = reinterpret_cast<uint8_t*>(uintptr_t{*reinterpret_cast<uint32_t*>(hud + 0x3c)});
+    title_global<uint32_t>(0x0095f470) = 0;
+    title_global<uint32_t>(0x0095f474) = 0;
+    call(hud_text, 0x78, 0x0082dfeb);  // ""
+    *reinterpret_cast<uint32_t*>(hud + 0x60) = title_global<uint32_t>(0x0083eb34);  // -1.0
+    menu[0x54] = 0;
+    call(field8(0x48), 0x78, 0x0082dfeb);
+    call(field8(0x50), 0x7c, 0);
+    menu[0x5d] = 0;
+    S_StopAllSounds(title_global<uint8_t*>(0x0095f4c4));
+    RumbleQueue_ClearAll(title_global<uint8_t*>(0x0095f5c4));  // shakeRumbleMgr
+    menu[0x5c] = 0;
+    const int32_t state = *reinterpret_cast<int32_t*>(menu + 0x58);
+    uint32_t enable = 1;
+    if (state == 2) {
+        call(item(0), 0x30, 0x0082ad04);  // FEMENU_RELOADING
+        call(item(1), 0x34, 0x0082dfeb);
+        call(item(2), 0x34, 0x0082dfeb);
+    } else if (state == 0) {
+        if (menu[0x55]) {
+            const int32_t chapter = ++title_global<int32_t>(0x008dce48);  // g_currentChapter
+            if (title_global<int32_t>(0x008dce44) < chapter) {         // g_chaptersUnlocked
+                if (chapter >= 14) title_global<uint8_t>(0x008dce54) = 1;
+                title_global<int32_t>(0x008dce44) = chapter;
+                if (chapter >= 2) call(field8(0x48), 0x6c, 0x0082acec);  // FEMENU_BONUS_UNLOCKED
+            }
+        }
+        menu[0x55] = 0;
+        call(item(0), 0x30, 0x0082acd4);  // FEMENU_CONTINUE_OPTION
+        call(item(1), 0x30, 0x0082acc8);  // FEMENU_QUIT
+        call(item(2), 0x34, 0x0082dfeb);
+    } else {
+        call(field8(0x50), 0x7c, 0x3f800000u);
+        if (title_global<uint8_t*>(0x0095f4e0)[0x390]) {  // a checkpoint
+            call(item(0), 0x30, 0x0082aca8);  // FEMENU_RESTART_FROM_CHECKPOINT
+            call(item(1), 0x30, 0x0082ac90);  // FEMENU_RESTART_LEVEL
+            call(item(2), 0x30, 0x0082acc8);  // FEMENU_QUIT
+            enable = 0;
+        } else {
+            call(item(0), 0x30, 0x0082ac80);  // FEMENU_RETRY
+            call(item(1), 0x30, 0x0082acc8);  // FEMENU_QUIT
+            call(item(2), 0x34, 0x0082dfeb);
+        }
+    }
+    call(item(2), 0x20, enable);
+    UIMenu_RestoreSelection(menu);
+    call(field8(0x38), 0x6c, 0x0082ac68);  // FEMENU_OP_HELPBAR_SHORT
+    title_global<uint32_t>(0x008d9d48) = 0;  // the HUD off
+}
+
 }  // namespace game

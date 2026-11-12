@@ -27,6 +27,7 @@
 #include "ui_menu.h"
 #include "title_xapi.h"
 #include "gap_methods.h"
+#include "fe_menus.h"
 
 namespace game {
 
@@ -3696,7 +3697,21 @@ void XB_CDECL CL_UpdateLoadingProgress(float progress) {
     // The pak load-progress callback SV_SpawnServer installs: the sound channels kept running, then the
     // loading screen's progress (0x0033ac80, ret 4).
     own_function<void XB_STDCALL(uint32_t)>(&S_UpdateChannels)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
-    title_function<void XB_STDCALL(float)>(0x0033ac80)(progress);
+    own_function<void XB_STDCALL(float)>(&LoadScreen_SetProgress_entry)(progress);
+}
+
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+PLATFORM_ASM_ENTRY(Key_GetKey_entry, "pushl %edi\n" PLATFORM_ASM_CALL(Key_GetKey) "addl $4, %esp\n"
+                                     "ret")
+
+int32_t XB_CDECL Key_GetKey(const char* command) {
+    if (!command) return -1;
+    for (int32_t k = 0; k < 256; ++k) {
+        const char* const binding = title_global<const char*>(0x0093425c + 8 * k);  // keys[k].binding
+        if (binding && !Q_stricmpn(command, binding, 99999)) return k;
+    }
+    return -1;
 }
 
 }  // namespace game

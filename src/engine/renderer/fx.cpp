@@ -5667,4 +5667,27 @@ void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane) {
     for (int i = 0; i < 4; ++i) plane[i] = result[i];
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+void XB_THISCALL FxSoundComponent_ScaleParam(uint8_t* component, const char* name, float scale) {
+    const uint32_t* handle = reinterpret_cast<const uint32_t*>(component + 0x64);
+    if (!SoundHandle_Resolve(handle)) return;
+    if (*reinterpret_cast<const int32_t*>(SoundHandle_Resolve(handle)) == -1) return;
+    if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{0x008379e8}))) {  // "SOUND_PITCH"
+        const float pitch = SndVoice_GetParam(*reinterpret_cast<const uint32_t*>(SoundHandle_Resolve(handle) + 4), 1, 1.0f);
+        const float value = pitch * scale;
+        uint8_t* const channel = SoundHandle_Resolve(handle);
+        const int32_t voice = *reinterpret_cast<const int32_t*>(channel);
+        if (voice == -1) return;
+        uint32_t bits;
+        std::memcpy(&bits, &value, 4);
+        SndVoice_SetParam(voice, 1, bits);
+        *reinterpret_cast<float*>(channel + 0xc) = value;
+    } else if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{0x008379d8}))) {  // "SOUND_VOLUME"
+        const float volume = SndVoice_GetParam(*reinterpret_cast<const uint32_t*>(SoundHandle_Resolve(handle) + 4), 0, 1.0f);
+        const float value = volume * scale;
+        SoundRef_SetVolumeScale(SoundHandle_Resolve(handle), value);
+    }
+}
+
 }  // namespace game

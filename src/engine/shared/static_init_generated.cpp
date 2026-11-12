@@ -19,6 +19,7 @@
 #include "ui_menu.h"
 #include "g_static.h"
 #include "gap_methods.h"
+#include "cgame.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL qc_call_regs(uint32_t function, const game::TitleRegs* regs,
                                                           uint32_t count, const uint32_t* args);
@@ -2510,7 +2511,7 @@ void si_00376c60() {
 void si_00376cd0() {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
     eax = static_cast<uint32_t>(0x971a80u);
-    call_regs(0x00026140, {eax, ebx, ecx, edx, esi, edi});
+    call_regs(own_address(&CgState_Construct), {eax, ebx, ecx, edx, esi, edi});
     return;
 }
 
