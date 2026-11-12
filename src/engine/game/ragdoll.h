@@ -299,4 +299,8 @@ extern "C" void VehiclePhys_ApplyWheelMotors_entry(void);
 // 0x002256b0: EAX vehicle: the four wheel constraints' friction +0x64/+0x68 from the def.
 void XB_REGS1 XB_CDECL VehiclePhys_ApplyWheelFriction(uint8_t* vehicle);
 
+// 0x0022a0b0 (gap function, 11-11): VehiclePhys_TraceWheels on each vehicle of the list 0x008feb70 (count
+// 0x008feb9c).
+void XB_CDECL VehiclePhys_TraceAllWheels();
+
 }  // namespace game

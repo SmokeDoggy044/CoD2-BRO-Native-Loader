@@ -608,7 +608,7 @@ uint32_t XB_CDECL BG_InitDefaultWeapon() {
     const uint32_t length = static_cast<uint32_t>(std::strlen(pointer<const char>(0x00835620)));
     // 0x00024820 hands EAX and EDX (the zone: the memory system's +0x34) on to
     // Stream_ListSearchZones; it pops its six arguments.
-    const uint32_t args[6] = {title_global<uint32_t>(0x0095f5d4), address_of(&found), 0x00835620, length, 0x002bc7d0, found};
+    const uint32_t args[6] = {title_global<uint32_t>(0x0095f5d4), address_of(&found), 0x00835620, length, own_address(&BG_ParseWeaponFile), found};
     return vehicle_call_args(own_address(&Stream_ForEachAssetWithPrefix), title_global<uint32_t>(0x0095f5d4), at<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34), 6, args);
 }
 
@@ -7157,6 +7157,42 @@ uint32_t XB_REGS1 XB_CDECL G_EntityWeaponRecordFlag(uint8_t* ent) {
     if (ent[0] != 2) return 0;
     const int32_t index = (static_cast<int32_t>(at<uint32_t>(ent, 0x3b0)) - 0x0096bd10) / 0x34;
     return title_global<uint32_t>(0x0096bd34 + static_cast<uint32_t>(index * 0x34)) == 1 ? 1 : 0;
+}
+
+// ---- Gap functions (no Ghidra functions before 11-11): vehicle / weapon file parse callbacks ----
+
+int32_t XB_CDECL Vehicle_ParseTypeField(uint8_t* def, const char* value, int32_t type) {
+    using Break = void XB_CDECL(int32_t, const char*, uintptr_t);
+    if (type != 8) {
+        title_function<Break>(0x002938f0)(1, reinterpret_cast<const char*>(uintptr_t{0x0083a178}),
+                                          static_cast<uintptr_t>(type));  // __break "Bad vehicle field type %i"
+        return 0;
+    }
+    // "** unknown **", "4 wheel", "tank", "plane", "boat", "artillery"
+    int32_t index = 0;
+    for (; index < 6; ++index) {
+        if (!title_stricmp(value, reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x008dae88 + index * 4)}))) {
+            *reinterpret_cast<uint16_t*>(def + 0x20) = static_cast<uint16_t>(index);
+            break;
+        }
+    }
+    if (index == 6)
+        title_function<Break>(0x002938f0)(1, reinterpret_cast<const char*>(uintptr_t{0x0083a194}),
+                                          reinterpret_cast<uintptr_t>(value));  // __break "Unknown vehicle type"
+    return 1;
+}
+
+uint32_t XB_CDECL BG_ParseWeaponFile(const char* name, uint8_t* map) {
+    const uint32_t index = ++title_global<uint32_t>(0x0095f4d4);
+    uint8_t* const def = BG_AllocWeaponDef(index, &title_global<uint32_t>(0x008d2440), 0x10a);
+    *reinterpret_cast<uint32_t*>(def + 8) = name[0] ? address_of(name) : 0x0095f4dd;  // "" for no name
+    *reinterpret_cast<uint32_t*>(def + 4) = Com_HashKeyNoCase(0, name);
+    const uint32_t parsed = Info_ParseFieldsToStruct(0, &title_global<uint8_t>(0x008d2440), def, 0x10a, map, 0xf,
+                                                     0x002ad160, 0x002b5e80);
+    if (parsed) return parsed;
+    // A def that did not parse is dropped again.
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f4d8) + title_global<uint32_t>(0x0095f4d4) * 4) = 0;
+    return --title_global<uint32_t>(0x0095f4d4);
 }
 
 }  // namespace game

@@ -8163,7 +8163,7 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
             stack_at(stack_at(ents + i * 4) + 0x23c) = title_global<uint32_t>(0x00985370) + i * 0x640;
     }
     if (!restart) {
-        for_each_asset(0x00273c54, 0x0083b9ac, 0x0024e980, 0x0024e980, 0x0083b9ad);  // "LOCDMGTABLE"
+        for_each_asset(0x00273c54, 0x0083b9ac, own_address(&G_ParseHitLocDamageTable), own_address(&G_ParseHitLocDamageTable), 0x0083b9ad);  // "LOCDMGTABLE"
         std::memset(&title_global<uint32_t>(0x00950230), 0, 0x100 * 4);
         title_global<uint32_t>(0x00950230) = 1;
     }
@@ -8687,6 +8687,29 @@ uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     }
     (void)count;
     return title_global<uint32_t>(0x00984cf4);
+}
+
+// 0x0024e980 (gap function, 11-11; the "LOCDMGTABLE" asset callback: name, info map).
+void XB_CDECL G_ParseHitLocDamageTable(const char* name, uint8_t* map) {
+    // The 19 hit locations (names 0x008fec40, 0x10 apart) as float fields of the multipliers 0x0094cc38 (each 1.0
+    // first); their name hashes into 0x0095c0b0. The last multiplier starts at 0.
+    uint32_t fields[19 * 3];
+    for (uint32_t i = 0; i < 19; ++i) {
+        const uint32_t location = title_global<uint32_t>(0x008fec40 + i * 0x10);
+        title_global<uint32_t>(0x0094cc38 + i * 4) = title_global<uint32_t>(0x0083eb20);  // 1.0
+        fields[i * 3] = location;
+        fields[i * 3 + 1] = i * 4;
+        fields[i * 3 + 2] = 6;  // float
+        uint32_t hash = 0;
+        if (location) hash = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{location}));
+        title_global<uint32_t>(0x0095c0b0 + i * 4) = hash;
+    }
+    title_global<float>(0x0094cc80) = 0.0f;
+    if (!Info_ParseFieldsToStruct(0, reinterpret_cast<const uint8_t*>(fields), &title_global<uint8_t>(0x0094cc38), 0x13,
+                                  map, 0, 0, 0x00248c40)) {
+        const uint32_t args[2] = {0x0083b9b8, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name))};
+        G_Error(args);  // "Error parsing hitloc damage table %s\\n"
+    }
 }
 
 }  // namespace game

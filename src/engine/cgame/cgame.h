@@ -463,4 +463,8 @@ void XB_CDECL CG_InitServerCommandHashes();
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetObjectiveMessage(const char* text);
 extern "C" void CG_SetObjectiveMessage_entry(void);
 
+// 0x00275ab0 (gap function, 11-11): CG_DrawHudElems' qsort compare of two hud element pointers by their sort value
+// +0x6c (the unset value 0x0083ebb4 as 0): -1, 1 or 0.
+int32_t XB_CDECL CG_CompareHudElems(const uint32_t* a, const uint32_t* b);
+
 }  // namespace game

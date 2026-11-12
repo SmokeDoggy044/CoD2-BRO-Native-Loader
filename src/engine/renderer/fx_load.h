@@ -439,4 +439,8 @@ uint8_t* XB_THISCALL FxSphereSurfaceDomain_Generate(const uint8_t* self, int32_t
 uint8_t* XB_THISCALL FxDiscDomain_Generate(const uint8_t* self, int32_t count, float* out);
 uint8_t* XB_THISCALL FxCircleDomain_Generate(const uint8_t* self, int32_t count, float* out);
 
+// 0x000995d0 (FxConst / FxConstVector vtable slot 1, ret 8; gap function 11-11): the constant's `count` words (+4 on)
+// copied to out; returns the end of out.
+float* XB_THISCALL FxConst_SampleN(const uint8_t* constant, int32_t count, float* out);
+
 }  // namespace game

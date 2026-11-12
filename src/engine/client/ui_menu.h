@@ -82,6 +82,16 @@ void XB_THISCALL UIMenu_SelectFirst(uint8_t* menu);
 // 0x0030ef90 / 0x0030efd0: every item's vtable +0x60 (a, b) / +0x5c (a).
 void XB_THISCALL UIMenu_SetItemsLayer(uint8_t* menu, uint32_t a, uint32_t b);
 void XB_THISCALL UIMenu_SetItemsScale(uint8_t* menu, uint32_t a);
+// 0x0030f020 (vtable +0x88, ret 8; the sound argument unused): unless locked (+0x30) every item is told (+0x1c
+// (selected, 1)) whether it is the new selection and refreshed (+0x94); the selection +0x22 = index.
+void XB_THISCALL UIMenu_SetSelection(uint8_t* menu, int32_t index, uint32_t sound);
+// 0x00314ae0 (vtable +0x80 (pad, bit), ret 8): with repeat (flag 7) a d-pad bit (4, 8, 0x10, 0x20) becomes the
+// repeat button +0x32, the repeat timer +0x1c starts at 0.3.
+void XB_THISCALL UIMenu_OnButtonDown(uint8_t* menu, uint32_t pad, uint32_t bit);
+// 0x003151c0 (vtable +0x04, ret 0xc) / 0x0032e9b0 (vtable +0x08, ret 8): item `index` = a new 0x18-byte item around
+// the text (UIMenuItem_Ctor) / of the string (UIMenuItem_Init kind 8, mode 1); null when the allocation fails.
+uint8_t* XB_THISCALL UIMenu_SetItem(uint8_t* menu, int32_t index, uint8_t* text, uint8_t owns);
+uint8_t* XB_THISCALL UIMenu_SetStringItem(uint8_t* menu, int32_t index, const char* string);
 // 0x00314b20: the selection (or the saved one) re-selected when shown, else the default (+0x34); repeat idle; then
 // scroll to it (scrolling menus) or refresh (+0x1c, flag 6).
 void XB_THISCALL UIMenu_RestoreSelection(uint8_t* menu);
@@ -303,6 +313,12 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr);
 // 0x003308a0, chapter, special materials / concept, Xbox Live; the two background quads (0, 0) - (640, 320) and
 // (0, 320) - (640, 480) at z 300; no active screen. Returns the manager.
 uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr);
+// 0x00013750 (vtable 0x0082905c +0x00): the vtable back, the background movie stopped (Movie_Stop(1)) when one
+// exists, 0x0095f91a = 0, the owned object +0x1c deleted (+0x00 (1)), UIScreenMgr_Dtor, Z_Free with flags bit 0.
+uint8_t* XB_THISCALL FrontEndMenu_DeletingDtor(uint8_t* mgr, uint32_t flags);
+// 0x00314510 (vtable +0x1c): the front-end panel 0x0095f47c (Panel_Draw), the object +0x1c (+0x3c) when +0xf4,
+// then the active screen's draw (+0x28).
+void XB_THISCALL FrontEndMenu_Draw(uint8_t* mgr);
 // 0x0030f470: deletes the objects +0x28, +0x2c, +0x30, +0x20, +0x24, +0x34.
 void XB_THISCALL UIRoot_Dtor(uint8_t* root);
 
@@ -371,5 +387,8 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32
 extern "C" void SaveSlot_Init_entry(void);
 // 0x0032d200 (stdcall): all four slots with a default profile (Profile_SetDefaults of a local), then one write.
 void XB_STDCALL SaveSlot_InitAll(uint8_t* saves);
+
+// 0x00372de0 (static initializer, no Ghidra function before 11-11): the font names at 0x0095f7e8.
+void XB_CDECL StaticInit_FontNames_95f7e8();
 
 }  // namespace game

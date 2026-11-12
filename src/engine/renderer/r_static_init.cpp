@@ -7,6 +7,8 @@
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "script_string.h"
+#include "cg_view.h"
+#include "static_init.h"
 
 namespace game {
 
@@ -87,5 +89,39 @@ void XB_CDECL AtExit_ShaderCache_902ad4() { hash_str_map_clear(0x00902ad4); }
 void XB_CDECL AtExit_NalClassMap_903fe0() { hash_str_map_clear(0x00903fe0); }
 
 void XB_CDECL StaticInit_NalConfig_8bb124() { title_global<uint32_t>(0x008bb124) = 0x0083760c; }
+
+// ---- Static initializers without Ghidra functions before 11-11 (were MANUAL in static_init_generated.cpp) ----
+
+void XB_CDECL StaticInit_CameraShakes_964b80() {
+    for (uint32_t i = 0; i < 5; ++i) CameraShake_Init(&title_global<uint8_t>(0x00964b8c + i * 0x40));
+    title_global<uint32_t>(0x00964b80) = title_global<uint32_t>(0x0083ed58);
+    title_global<uint32_t>(0x00964b84) = title_global<uint32_t>(0x0083eb20);  // 1.0
+    title_global<uint32_t>(0x00964b88) = 1;
+    // The shake types' records (0x008d5138, 0x20 apart, ended by 0xffff): +0x1c = 0x0083ed54.
+    if (title_global<uint16_t>(0x008d5138) != 0xffff) {
+        uint32_t record = 0x008d5138;
+        do {
+            title_global<uint32_t>(record + 0x1c) = title_global<uint32_t>(0x0083ed54);
+            record += 0x20;
+        } while (title_global<uint16_t>(record) != 0xffff);
+    }
+    for (uint32_t i = 0; i < 5; ++i) title_global<uint32_t>(0x00964bc8 + i * 0x40) = 0;  // none active
+    static_init_atexit(0x00379a40);
+}
+
+void XB_CDECL StaticInit_Records_973aa0() {
+    // 20 records of 0x9c bytes: +0x00..+0x20 and +0x2c..+0x88 cleared (+0x24 / +0x28 and the tail untouched).
+    for (uint32_t i = 0; i < 20; ++i) {
+        uint8_t* const record = &title_global<uint8_t>(0x00973aa0 + i * 0x9c);
+        std::memset(record, 0, 0x24);
+        std::memset(record + 0x2c, 0, 0x60);
+    }
+}
+
+void XB_CDECL StaticInit_GenericClipVtable_903fdc() {
+    // The original builds a temporary clip (vtable 0x007c23b0) on its stack and destroys its anim state, whose clip
+    // is null (NAL_AnimState_Destroy returns at once): only the class word stays.
+    title_global<uint32_t>(0x00903fdc) = 0x007c23b0;
+}
 
 }  // namespace game

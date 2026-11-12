@@ -295,4 +295,11 @@ void XB_CDECL AtExit_ScriptKeyTable();
 // 0x0029aba0: marks every live script thread in an owner's handle list (+0x20) to end; returns the last node.
 uint32_t XB_THISCALL ThreadHandleList_EndAll(uint8_t* owner);
 
+// Wait record checks (gap functions, 11-11; thiscall, pops 4). 0x002fc030 (vtable 0x008317f8 +4, the
+// Scr_InitWaitRecord4 record): a stale entity ends it (3); else for a thread waiting on keys (flag bit 7) each of the
+// four keys found in the entity's key list (+0x230) ends it (+0x2c 0) or is marked (+0x28 bit, key cleared) until
+// all four are (+0x2c 1); returns +0x10 when ended, else 0. 0x002f6450 (vtable 0x0083181c +4): the zone state wait.
+uint32_t XB_THISCALL ScrWaitRecord4_Check(uint8_t* self, uint32_t thread);
+uint32_t XB_THISCALL ScrZoneWaitRecord_Check(uint8_t* self, uint32_t thread);
+
 }  // namespace game

@@ -5667,4 +5667,89 @@ void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane) {
     for (int i = 0; i < 4; ++i) plane[i] = result[i];
 }
 
+// ---- Effect component gap functions (no Ghidra functions before 11-11) ----
+
+namespace {
+
+const uint8_t* fx_system_of(const uint8_t* component) {
+    const uint8_t* const definition = *reinterpret_cast<uint8_t* const*>(component + 0x2c);
+    return definition ? *reinterpret_cast<uint8_t* const*>(definition + 4) : nullptr;
+}
+
+// The owner entity handle (+0xc) still resolves in the entity handle table (0x0097a968, 0x540 slots).
+bool owner_alive(const uint8_t* component) {
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(component + 0xc);
+    const uint32_t index = handle & 0xfff;
+    return index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+           title_global<uint32_t>(0x0097a968 + index * 8);
+}
+
+// The component's sound channel: its handle +0x64 in the sound handle table (0x00962860, 0x200 slots), or null.
+uint8_t* sound_channel(const uint8_t* component) {
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(component + 0x64);
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x200 || (handle >> 12) != title_global<uint32_t>(0x00962864 + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x00962860 + index * 8);
+}
+
+}  // namespace
+
+void XB_THISCALL FxParticleComponent_ScaleParam(uint8_t* component, const char* name, float scale) {
+    const uint8_t* system = fx_system_of(component);
+    if (!system) return;
+    const int32_t index = FxSystem_FindEmitterByName(system, name);
+    if (index < 0) return;
+    system = fx_system_of(component);
+    const float value = FxSystem_GetEmitterParam(system, index);
+    FxSystem_SetParamFloat(const_cast<uint8_t*>(fx_system_of(component)), index, platform_x87_mul(value, scale));
+}
+
+uint32_t XB_THISCALL FxParticleComponent_IsDone(const uint8_t* component) {
+    if (!((component[0x2a] >> 1) & 1)) return 0;
+    if (!owner_alive(component) && !(component[0x10] & 1)) return 1;
+    const uint8_t delayed = component[0x2a] & 1;
+    if (delayed && 0.0f >= *reinterpret_cast<const float*>(component + 0x1c)) return 1;
+    const uint8_t* const definition = *reinterpret_cast<uint8_t* const*>(component + 0x2c);
+    if (!definition) return 1;
+    const uint8_t* const system = *reinterpret_cast<uint8_t* const*>(definition + 4);
+    if (!system) return 1;
+    if (delayed) {
+        const uint32_t done = FxComponent_DelayDone(component);
+        if (!(done & 0xff)) return done;
+    }
+    return FxSystem_IsFinished(system) != 0 ? 1 : 0;
+}
+
+uint32_t XB_THISCALL FxShakeRumbleComponent_IsDone(const uint8_t* component) {
+    if (!((component[0x2a] >> 1) & 1)) return 0;
+    const uint8_t* const sound = *reinterpret_cast<uint8_t* const*>(component + 0x64);
+    if (sound && *reinterpret_cast<const uint32_t*>(sound + 0x3c)) return 0;
+    const uint8_t active = Rumble_IsActive(0, title_global<uint8_t*>(0x0095f5c4),
+                                           *reinterpret_cast<const uint32_t*>(component + 0x60));
+    return active ? 0 : 1;
+}
+
+uint8_t XB_THISCALL FxSoundComponent_IsState3(const uint8_t* component) {
+    uint8_t* const channel = sound_channel(component);
+    if (!channel) return 1;
+    const int32_t voice = *reinterpret_cast<const int32_t*>(channel);
+    if (voice == -1) return 0;
+    return SndVoice_GetState(voice) == 3;
+}
+
+void XB_THISCALL FxSoundComponent_Stop(const uint8_t* component) {
+    if (uint8_t* const channel = sound_channel(component)) S_StopChannel(channel);
+}
+
+uint8_t XB_THISCALL FxSoundComponent_IsDone(const uint8_t* component) {
+    const uint8_t flags = component[0x2a];
+    if (!((flags >> 1) & 1)) return 0;
+    if (!owner_alive(component) && !(component[0x10] & 1)) return 1;
+    if ((component[0x2a] & 1) && 0.0f >= *reinterpret_cast<const float*>(component + 0x1c)) return 1;
+    if ((flags >> 5) & 1) return 0;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(component + 0x64);
+    if (!SoundHandle_Resolve(handle)) return 1;
+    return SoundRef_IsDone(SoundHandle_Resolve(handle));
+}
+
 }  // namespace game

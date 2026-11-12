@@ -722,4 +722,9 @@ void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // (four INT3s of padding follow, so it is hookable).
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 
+// 0x002c5da0 (gap function, 11-11; thiscall, ret 4): a loaded zone (+4 + zone * 4) freed: its simple instances
+// (Zone_FreeSimpleInstances), its effects by id (FX_FreeEffectsById), +0x190 / +0x194 cleared when it had +0x38 /
+// +0x40, the entry cleared, then unlinked from the cells and the sector tree (owner = the zone index).
+void XB_THISCALL ZoneTable_FreeZone(uint8_t* table, uint32_t zone);
+
 }  // namespace game

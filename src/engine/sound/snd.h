@@ -488,4 +488,12 @@ void XB_REGS2 XB_STDCALL S_AmbientPlay(uint8_t* fade, const char* name, uint32_t
 // base * (GetParam(0) * +0xc * master +8).
 void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name);
 
+// 0x000c5270 (gap function, 11-11): the voice's attenuation flag (record +0xf4) raised to 1 (SndVoice_ForEach
+// callback of Snd_SetVoiceVolumeScale).
+void XB_CDECL SndVoice_SetAttenuated(int32_t voice);
+
+// 0x002cea40 (gap function, 11-11): every bank slot (+0xc, 0x84 bytes, count +8) of the zone (+0x20) unloaded
+// (S_UnloadSoundBank, waiting) and replaced by the last slot.
+void XB_THISCALL SoundBankManager_UnloadZone(uint8_t* manager, int32_t zone);
+
 }  // namespace game

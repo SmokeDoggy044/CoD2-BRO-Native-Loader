@@ -81,6 +81,7 @@ void XB_CDECL ScrEnt_SetModel(uint32_t handle, ScriptString value);  // 0x00016e
 ScriptString* XB_CDECL ScrEnt_GetModel(ScriptString* out, uint32_t handle);  // 0x00016f20
 void XB_CDECL ScrEnt_SetSpawnflags(uint32_t handle, uint32_t value);  // 0x00016fc0
 uint32_t XB_CDECL ScrEnt_GetSpawnflags(uint32_t handle);  // 0x00017020
+float XB_CDECL ScrEnt_GetFloat_2fc(uint32_t handle);  // 0x000170e0 (gap)
 void XB_CDECL ScrEnt_SetClosespeed(uint32_t handle, uint32_t bits);  // 0x00017140
 float XB_CDECL ScrEnt_GetClosespeed(uint32_t handle);  // 0x000171a0
 void XB_CDECL ScrEnt_SetTarget(uint32_t handle, ScriptString value);  // 0x00017200
@@ -93,6 +94,8 @@ void XB_CDECL ScrEnt_SetWait(uint32_t handle, uint32_t bits);  // 0x00017530
 float XB_CDECL ScrEnt_GetWait(uint32_t handle);  // 0x00017590
 void XB_CDECL ScrEnt_SetRandom(uint32_t handle, uint32_t bits);  // 0x000175f0
 float XB_CDECL ScrEnt_GetRandom(uint32_t handle);  // 0x00017650
+void XB_CDECL ScrEnt_SetInt_370(uint32_t handle, uint32_t value);  // 0x000176b0 (gap)
+uint32_t XB_CDECL ScrEnt_GetInt_370(uint32_t handle);  // 0x00017710 (gap)
 void XB_CDECL ScrEnt_SetHealth(uint32_t handle, uint32_t value);  // 0x00017770
 uint32_t XB_CDECL ScrEnt_GetHealth(uint32_t handle);  // 0x000177d0
 void XB_CDECL ScrEnt_SetDmg(uint32_t handle, uint32_t value);  // 0x00017830

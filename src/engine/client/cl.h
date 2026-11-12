@@ -561,4 +561,14 @@ void XB_CDECL CL_StartHunkUsersAndPause();
 // installs - S_UpdateChannels on the sound system 0x0095f4c4, then the loading screen's SetProgress (0x0033ac80).
 void XB_CDECL CL_UpdateLoadingProgress(float progress);
 
+// Console command gap functions (11-11). 0x002c7d90 "lowerstance": unless 0x00934180 or crouch held, cl_stance
+// "1" from standing (0) / "2" from crouching (1). 0x002d58b0 "+grenadeattack": its key down; with a snapshot, not
+// in flags 0x4000 / 0x106000 and the switch delay passed: the switch time vmCvar = cg_time, the grenade weapon
+// (0x0097294c) selected -> cl_greadeButtonDown 1; else with flag 0x100000 cl_altFireButtonDown 1.
+// 0x002cd500 "-grenadeattack": its key up; with cvar 0x00927de8 also key 0x00934020 up, else with 0x0093efe8
+// cl_altFireButtonDown 0.
+void XB_CDECL IN_LowerStance();
+void XB_CDECL IN_GrenadeAttackDown();
+void XB_CDECL IN_GrenadeAttackUp();
+
 }  // namespace game

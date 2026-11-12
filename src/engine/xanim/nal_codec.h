@@ -622,4 +622,8 @@ uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeFrames(const uint32_t* context, uint
 uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
                                                   int32_t stride);
 
+// 0x00022b20 (vtable 0x008326b8 slot 5, stdcall, 5 arguments; gap function 11-11): skip_sized_blocks as
+// NAL_CodNote_SkipBlock (each active channel's sized block skipped); returns context[1].
+uint32_t XB_STDCALL NAL_CodNote_SkipBlock5(const uint32_t* context, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
+
 }  // namespace game

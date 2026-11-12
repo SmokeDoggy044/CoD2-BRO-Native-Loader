@@ -1725,4 +1725,174 @@ void XB_THISCALL HudCompBomberMap_Update(uint8_t* self, uint32_t dt_bits) {
     method<WordMethod>(object_at(self, 0x40), 0x7c)(object_at(self, 0x40), 0x3f800000u);
 }
 
+// ---- Gap functions (no Ghidra functions before 11-11): setups, widescreen and visibility slots ----
+
+namespace {
+
+using ScaleMethod = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);  // vtable +0x5c (x, y scale bits)
+using FloatSetMethod = void XB_THISCALL(uint8_t*, float);             // vtable +0x80 / +0x24
+
+void scale_for_aspect(uint32_t widescreen, uint8_t* self, uint32_t offset, float center_x) {
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, offset), center_x);
+}
+
+// The text scale (+0x5c (x, y)) narrowed for 16:9, else the plain scale (+0x60 (y)).
+void set_text_scale(uint8_t* text, bool widescreen, uint32_t x, uint32_t y) {
+    if (widescreen)
+        method<ScaleMethod>(text, 0x5c)(text, x, y);
+    else
+        method<WordMethod>(text, 0x60)(text, y);
+}
+
+}  // namespace
+
+void XB_THISCALL HudCompBomberMap_SetVisible(uint8_t* self, uint32_t on) {
+    if (!object_at(self, 0x30)) return;
+    for (uint32_t i = 0; i < 10; ++i) method<WordMethod>(object_at(self, 8 + i * 4), 0x34)(object_at(self, 8 + i * 4), on);
+    for (uint32_t offset = 0x30; offset <= 0x40; offset += 4)
+        method<WordMethod>(object_at(self, offset), 0x34)(object_at(self, offset), on);
+}
+
+void XB_THISCALL HudCompTankIcon_Update(uint8_t* self, uint32_t) {
+    if (!visible(self)) return;
+    uint32_t name = 0;
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&name, hud_text(0x0082dd9c));  // "player_tank"
+    uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+    using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t handle =
+        title_function<FindFn>(field<uint32_t>(import, 0x84))(&name, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&name);  // ScriptString_Release
+    if (!handle) return;
+    const uint32_t slot = handle & 0xfff;
+    uint8_t* entity = nullptr;
+    if (slot < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + slot * 8))
+        entity = title_global<uint8_t*>(0x0097a968 + slot * 8);
+    // The turret's yaw (entity +0x248 -> +0x294) scaled into the picture's rotation (+0x4c (angle, 1)).
+    const float angle = field<float>(field<uint8_t*>(entity, 0x248), 0x294) * gf(0x0083edd8);
+    set_rotation(object_at(self, 8), angle);
+}
+
+void XB_THISCALL HudCompTankReticle_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    for (uint32_t offset = 8; offset <= 0x18; offset += 4) scale_for_aspect(widescreen, self, offset, center_x);
+}
+
+void XB_THISCALL HudCompWeaponName_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    scale_for_aspect(widescreen, self, 0xc, center_x);
+    set_text_scale(object_at(self, 8), uint8_t(widescreen) != 0, 0x3ecf5c2au, 0x3f0a3d71u);  // 0.405, 0.54
+}
+
+void XB_THISCALL HudCompGrenades_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    scale_for_aspect(widescreen, self, 8, center_x);
+    scale_for_aspect(widescreen, self, 0xc, center_x);
+    set_text_scale(object_at(self, 0x10), uint8_t(widescreen) != 0, 0x3f400000u, 0x3f800000u);  // 0.75, 1
+}
+
+void XB_THISCALL HudCompAmmo_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    scale_for_aspect(widescreen, self, 8, center_x);
+    if (uint8_t(widescreen)) {
+        method<ScaleMethod>(object_at(self, 0xc), 0x5c)(object_at(self, 0xc), 0x3ee66667u, 0x3f19999au);  // 0.45, 0.6
+        method<ScaleMethod>(object_at(self, 0x10), 0x5c)(object_at(self, 0x10), 0x3ee66667u, 0x3f19999au);
+    } else {
+        method<WordMethod>(object_at(self, 0x10), 0x60)(object_at(self, 0x10), 0x3f19999au);
+        method<WordMethod>(object_at(self, 0xc), 0x60)(object_at(self, 0xc), 0x3f19999au);
+    }
+    // The clip text left of the picture's x (+0x9c) by width (+0xb0) * k1, the total right of it by width * k2
+    // (x87; the second product is kept as a double, the x as a double too - exact, the getters return floats).
+    uint8_t* picture = object_at(self, 8);
+    uint8_t* text = object_at(self, 0xc);
+    FloatSetMethod* set_x = method<FloatSetMethod>(text, 0x80);
+    const long double x = method<GetMethod>(picture, 0x9c)(picture);
+    const long double clip_x = x - method<GetMethod>(picture, 0xb0)(picture) *
+                                       static_cast<long double>(title_global<double>(0x0083ee10));
+    set_x(text, static_cast<float>(clip_x));
+    picture = object_at(self, 8);
+    text = object_at(self, 0x10);
+    set_x = method<FloatSetMethod>(text, 0x80);
+    const volatile double width =  // FSTP QWORD: rounded to a double
+        method<GetMethod>(picture, 0xb0)(picture) * static_cast<long double>(title_global<double>(0x0083ee08));
+    const long double total_x = method<GetMethod>(picture, 0x9c)(picture) + static_cast<long double>(width);
+    set_x(text, static_cast<float>(total_x));
+}
+
+void XB_THISCALL HudCompHealth_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    for (uint32_t offset = 8; offset <= 0x14; offset += 4) scale_for_aspect(widescreen, self, offset, center_x);
+    call(object_at(self, 8), 0xc4);
+    call(object_at(self, 0x14), 0xc4);
+}
+
+void XB_THISCALL HudCompHint_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082dc4c));   // "hint_usable"
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082dc40));     // "hint_health"
+    field<uint8_t*>(self, 0x10) = Panel_FindPicture(panel, hud_text(0x0082dc30));  // "hud_ammo2.tga"
+    field<uint8_t*>(self, 0x14) = Panel_FindPicture(panel, hud_text(0x0082dc20));  // "hint_usable_MG"
+    // A copy of the "Press[Use]" text (as HudManager_Setup's hint), three lines (+0x13c), white (+0x90).
+    uint8_t* const source = Panel_FindText(hud_text(0x0082dc14), panel);
+    uint8_t* text = static_cast<uint8_t*>(hud_malloc(0x98));
+    if (text) {
+        using PtrMethod = uint32_t* XB_THISCALL(uint8_t*, uint32_t*);
+        using FloatGet = float XB_THISCALL(uint8_t*);
+        using WordGet = uint32_t XB_THISCALL(uint8_t*);
+        uint32_t scratch = 0;
+        const uint32_t colour = *method<PtrMethod>(source, 0xb4)(source, &scratch);
+        const float scale = method<FloatGet>(source, 0xa4)(source);
+        const float y = method<FloatGet>(source, 0xcc)(source);
+        const float x = method<FloatGet>(source, 0xc8)(source);
+        const uint32_t kind = method<WordGet>(source, 0xb0)(source);
+        uint32_t xb, yb, sb;
+        std::memcpy(&xb, &x, 4);
+        std::memcpy(&yb, &y, 4);
+        std::memcpy(&sb, &scale, 4);
+        text = UIText_Construct(text, static_cast<int32_t>(kind), xb, yb, 0, 0, sb, colour, 0, 0);
+    }
+    field<uint8_t*>(self, 0x218) = text;
+    method<WordMethod>(text, 0x13c)(text, 3);
+    method<WordMethod>(object_at(self, 0x218), 0x90)(object_at(self, 0x218), 0xffffffffu);
+}
+
+void XB_THISCALL HudCompTankHealth_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082ddcc));     // "tankbar"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082ddbc));   // "tankhealthbar"
+    field<uint8_t*>(self, 0x10) = Panel_FindPicture(panel, hud_text(0x0082ddb4));  // "armor"
+    field<float>(self, 0x14) = static_cast<float>(method<GetMethod>(object_at(self, 0xc), 0xb0)(object_at(self, 0xc)));
+}
+
+void XB_THISCALL HudCompHealth_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082df1c));     // "hudhealthbar"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082df0c));   // "hudhealthback"
+    field<uint8_t*>(self, 0x10) = Panel_FindPicture(panel, hud_text(0x0082defc));  // "hudhealthcross"
+    // A new empty UI picture (the panel loader's inline constructor), a copy (+0x38) of the bar, one deeper (+0x24
+    // (+0x28 + 1)).
+    uint8_t* picture = static_cast<uint8_t*>(hud_malloc(0x40));
+    if (picture) {
+        const uint32_t one = title_global<uint32_t>(0x0083eb20);  // 1.0
+        const uint32_t zero = title_global<uint32_t>(0x00922eb8);
+        field<uint32_t>(picture, 4) = one;
+        picture[0x10] = 4;
+        field<uint32_t>(picture, 0) = 0x0082a2c0;  // UIPicture vtable
+        field<uint32_t>(picture, 0x14) = zero;
+        field<uint32_t>(picture, 0x18) = zero;
+        field<uint32_t>(picture, 0x1c) = zero;
+        field<uint32_t>(picture, 0x20) = 0;
+        field<uint32_t>(picture, 0x24) = 0;
+        field<uint32_t>(picture, 0x28) = 0;
+        ScriptString_FromRep(reinterpret_cast<ScriptString*>(picture + 0x3c), nullptr);
+        field<float>(picture, 0x30) = 0.0f;
+        field<uint32_t>(picture, 0x34) = one;
+        field<uint32_t>(picture, 0x38) = one;
+        field<uint32_t>(picture, 0x2c) = 0;
+    }
+    field<uint8_t*>(self, 0x14) = picture;
+    method<WordMethod>(picture, 0x38)(picture, field<uint32_t>(self, 8));
+    uint8_t* const copy = object_at(self, 0x14);
+    FloatSetMethod* const set_depth = method<FloatSetMethod>(copy, 0x24);
+    set_depth(copy, static_cast<float>(method<GetMethod>(copy, 0x28)(copy) + platform_x87_ld(gf(0x0083eb20))));
+}
+
+void XB_THISCALL HudCompStance_Setup(uint8_t* self, uint8_t* panel) {
+    // stance_stand, stance_stand_man, stance_crouch, stance_crouch_man, stance_prone, stance_prone_man, stance_flash
+    static const uint32_t kNames[7] = {0x0082df98, 0x0082df84, 0x0082df74, 0x0082df60,
+                                       0x0082df50, 0x0082df3c, 0x0082df2c};
+    for (uint32_t i = 0; i < 7; ++i) field<uint8_t*>(self, 8 + i * 4) = Panel_FindPicture(panel, hud_text(kNames[i]));
+}
+
 }  // namespace game

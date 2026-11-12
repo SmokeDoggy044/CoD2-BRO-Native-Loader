@@ -574,11 +574,11 @@ uint8_t* XB_CDECL CL_InitInput() {
         {0x0082be38, own_address(&IN_LeanLeftDown)}, {0x0083502c, own_address(&IN_LeanLeftUp)}, {0x0082be5c, own_address(&IN_LeanRightDown)},
         {0x00835020, own_address(&IN_LeanRightUp)}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},
         {0x0082d654, own_address(&IN_SprintDown)}, {0x00835008, own_address(&IN_SprintUp)}, {0x00835000, own_address(&IN_MLookDown)},
-        {0x00834ff8, own_address(&IN_MLookUp)}, {0x0082d610, 0x002c7d90}, {0x0082bed8, 0x002c7d40},
+        {0x00834ff8, own_address(&IN_MLookUp)}, {0x0082d610, own_address(&IN_LowerStance)}, {0x0082bed8, 0x002c7d40},
         {0x00834fe8, 0x002c7cf0}, {0x00834fdc, 0x002c7ca0}, {0x00834fd4, 0x002c7c70},
         {0x00834fc8, 0x002c7c40}, {0x00834fbc, 0x002c7bc0}, {0x00834fb0, 0x002b45f0},
         {0x0082d5ac, 0x002db660}, {0x00834f98, 0x002bb900}, {0x0082d5d4, 0x002db640},
-        {0x00834f84, 0x002bb8f0}, {0x0082d678, 0x002d58b0}, {0x00834f74, 0x002cd500},
+        {0x00834f84, 0x002bb8f0}, {0x0082d678, own_address(&IN_GrenadeAttackDown)}, {0x00834f74, own_address(&IN_GrenadeAttackUp)},
         {0x00834f64, 0x002cd4d0}, {0x00834f54, 0x002bb8c0}, {0x00834f44, 0x002bb890},
         {0x00834f34, 0x002bb870}, {0x0082d6cc, 0x002bb840}, {0x00834f24, 0x002bb820},
         {0x00834f10, 0x002abe70}, {0x00834efc, 0x002abe60},
@@ -3697,6 +3697,45 @@ void XB_CDECL CL_UpdateLoadingProgress(float progress) {
     // loading screen's progress (0x0033ac80, ret 4).
     own_function<void XB_STDCALL(uint32_t)>(&S_UpdateChannels)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
     title_function<void XB_STDCALL(float)>(0x0033ac80)(progress);
+}
+
+// ---- Console command gap functions (no Ghidra functions before 11-11) ----
+
+// "lowerstance": one stance step down (stand -> crouch -> prone) unless crouch is held.
+void XB_CDECL IN_LowerStance() {
+    if (title_global<int32_t>(0x00934180) || title_global<int32_t>(kInDownActive)) return;
+    const int32_t stance = cvar_integer(0x00927b20);
+    if (stance < 1)
+        set_stance_cvar(0x008351c0, true);  // cl_stance "1"
+    else if (stance < 2)
+        Cvar_Set2(&title_global<const char>(0x008351c0), const_cast<char*>(&title_global<const char>(0x008351bc)), 1);  // "2"
+}
+
+void XB_CDECL IN_GrenadeAttackDown() {
+    IN_KeyDown(kbutton(0x00934038));
+    if (title_global<uint32_t>(0x00971aa8) && !(title_global<uint32_t>(0x0097257c) & 0x4000) &&
+        !(title_global<uint32_t>(0x00972610) & 0x106000)) {
+        const int32_t now = title_global<int32_t>(0x0097253c);  // cg_time
+        if (now - title_global<int32_t>(0x0094c23c) >= title_global<int32_t>(0x0094abb4)) {
+            const uint32_t args[2] = {0x0082ded4, static_cast<uint32_t>(now)};  // "%i"
+            Cvar_SetByVmIndex(va(args), &title_global<uint8_t>(0x0094c230));
+            const int32_t grenade = title_global<int8_t>(0x0097294c);
+            if (grenade && CG_HasWeapon(0, grenade) && CG_SelectWeapon(grenade)) {
+                Cvar_SetValue(&title_global<const char>(0x008351a8), 1.0f);  // cl_greadeButtonDown
+                return;
+            }
+        }
+    }
+    if (title_global<uint32_t>(0x00972610) & 0x100000) Cvar_SetValue(&title_global<const char>(0x00835190), 1.0f);  // cl_altFireButtonDown
+}
+
+void XB_CDECL IN_GrenadeAttackUp() {
+    IN_KeyUp(kbutton(0x00934038));
+    if (cvar_integer(0x00927de8)) {
+        IN_KeyUp(kbutton(0x00934020));
+        return;
+    }
+    if (cvar_integer(0x0093efe8)) Cvar_SetValue(&title_global<const char>(0x00835190), 0.0f);  // cl_altFireButtonDown
 }
 
 }  // namespace game

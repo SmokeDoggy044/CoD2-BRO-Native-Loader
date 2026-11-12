@@ -551,4 +551,11 @@ void XB_REGS1 XB_CDECL G_GetTagParentMatrix(uint8_t* ent, float* out);
 // FUN_002d7850).
 void XB_CDECL XModel_CalcBoneChildrenLocal(const uint8_t* model, float* matrices, int32_t parent);
 
+// 0x002beb20 (gap function, 11-11): the anim notes' script factory (kind, name, blend pair): a new 0xd4-byte
+// AnimScript_Construct, or null.
+uint8_t* XB_CDECL G_AnimNote_CreateScript(uint32_t kind, uint32_t name, const uint32_t* blend);
+
+// 0x002c38c0 (gap function, 11-11): the entities of a zone freed (G_FreeEntity).
+void XB_THISCALL G_FreeZoneEntities(void* self, int32_t zone);
+
 }  // namespace game

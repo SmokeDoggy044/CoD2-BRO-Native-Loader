@@ -98,4 +98,8 @@ namespace game {
 // is defined and, as decimal text, equals `value`. Releases `value`.
 void XB_CDECL BroScr_DeleteTeamEntsWithKeyValue(ScriptString value);
 
+// 0x001a4540 (gap function, 11-11): notify 0x011066c4 on the level entity, level +0x15c = 0, every entity of the
+// level arrays +0x8c and +0x98 deleted (GScr_Delete), then Scr_WaitFrames(0).
+void XB_CDECL BroScr_LevelNotifyDeleteArrays_h011066c4();
+
 }  // namespace game

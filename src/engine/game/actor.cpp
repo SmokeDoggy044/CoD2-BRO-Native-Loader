@@ -14775,7 +14775,7 @@ uint32_t XB_CDECL Actor_Cover_FindBetterCover(uint32_t entry, uint32_t eax, uint
     stack_word(entry - 0x10) = edi;
     const uint16_t held = field<uint16_t>(sentient, 0x48);
     const uint32_t s = addr_of(sentient);
-    const uint32_t args[5] = {s + 0xc, field<uint32_t>(sentient, 0x18), 0x42a00000, 0x00201f60, 0x00201640};
+    const uint32_t args[5] = {s + 0xc, field<uint32_t>(sentient, 0x18), 0x42a00000, own_address(&Actor_CoverFilterAwayFromClaimed), 0x00201640};
     call_at(entry - 0x10, 0x0021d62e, own_address(&Actor_GatherCoverCandidates_entry), TitleRegs{0x1ffc, a, s + 0xc, edx, esi, held}, 5,
             args);  // Actor_GatherCoverCandidates
     if (field<uint32_t>(actor, 0x818)) {
@@ -20034,6 +20034,29 @@ uint32_t XB_CDECL Actor_MoveOutOfTheWay(uint32_t entry, uint32_t, uint32_t ebx, 
     field<uint32_t>(actor, 0x294) = field<uint32_t>(ent(), 0x144);
     field<uint32_t>(actor, 0x298) = field<uint32_t>(ent(), 0x148);
     return 1;
+}
+
+// 0x00201f60 (gap function, 11-11; Actor_Cover_FindBetterCover's candidate filter, ECX actor, EDX node).
+uint32_t XB_FASTCALL Actor_CoverFilterAwayFromClaimed(const uint8_t* actor, const uint8_t* node) {
+    // The claimed node (sentient +0x48: block index << 9 | slot; 0 / 0xffff none) of g_pathNodeBlocks.
+    const uint8_t* const sentient = *reinterpret_cast<uint8_t* const*>(actor + 4);
+    const uint16_t index = *reinterpret_cast<const uint16_t*>(sentient + 0x48);
+    const uint8_t* claimed = nullptr;
+    if (index != 0 && index != 0xffff) {
+        const uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);
+        const uint16_t block = static_cast<uint16_t>((index >> 9) - 1);
+        const uint8_t* const nodes = *reinterpret_cast<uint8_t* const*>(blocks + 8 + block * 4);
+        if (nodes) claimed = *reinterpret_cast<uint8_t* const*>(nodes + 0x10) + (index & 0x1ff) * 0x80;
+    }
+    if (node == claimed) return 0;
+    // At least sqrt(0x0083ecf4) from the entity (+0x140).
+    const uint8_t* const entity = *reinterpret_cast<uint8_t* const*>(actor);
+    auto f = [](const uint8_t* p, uint32_t offset) { return *reinterpret_cast<const float*>(p + offset); };
+    const float dz = f(entity, 0x148) - f(node, 0x4c);
+    const float dy = f(entity, 0x144) - f(node, 0x48);
+    const float dx = f(entity, 0x140) - f(node, 0x44);
+    const float distance = dz * dz + dy * dy + dx * dx;
+    return title_global<float>(0x0083ecf4) > distance ? 0 : 1;
 }
 
 }  // namespace game

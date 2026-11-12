@@ -44,4 +44,13 @@ void XB_CDECL AtExit_NalClassMap_903fe0();
 // library's default configuration, NAL_Init's fallback).
 void XB_CDECL StaticInit_NalConfig_8bb124();
 
+// Static initializers without Ghidra functions before 11-11 (MANUAL in static_init_generated.cpp until then).
+// 0x003768a0: the five camera shakes (0x00964b8c, 0x40 apart) set up (CameraShake_Init), their globals 0x00964b80..88,
+// every shake type record's +0x1c = 0x0083ed54, none active; atexit 0x00379a40.
+void XB_CDECL StaticInit_CameraShakes_964b80();
+// 0x00376c70: 20 records of 0x9c bytes at 0x00973aa0 partly cleared.
+void XB_CDECL StaticInit_Records_973aa0();
+// 0x003787b0: 0x00903fdc = 0x007c23b0.
+void XB_CDECL StaticInit_GenericClipVtable_903fdc();
+
 }  // namespace game

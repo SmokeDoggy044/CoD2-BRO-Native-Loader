@@ -2024,4 +2024,66 @@ uint32_t XB_THISCALL ThreadHandleList_EndAll(uint8_t* owner) {
     }
 }
 
+// ---- Wait record checks (gap functions, no Ghidra functions before 11-11) ----
+
+uint32_t XB_THISCALL ScrWaitRecord4_Check(uint8_t* self, uint32_t thread) {
+    const uint32_t ent = wait_entity(word_at(self, 0x14));
+    if (!ent) {
+        self[0xc] = 1;
+        return 3;
+    }
+    if ((*reinterpret_cast<const uint32_t*>(uintptr_t{thread + 0x10}) >> 7) & 1) {
+        const uint32_t list = *reinterpret_cast<const uint32_t*>(uintptr_t{ent + 0x230});
+        if (list) {
+            // Each of the four keys (+0x18..) not seen yet (bits of +0x28): any one ends the wait, or with +0x2c all.
+            for (uint32_t i = 0; i < 4; ++i) {
+                uint32_t* const key = reinterpret_cast<uint32_t*>(self + 0x18 + i * 4);
+                if (!*key) continue;
+                const uint32_t seen = word_at(self, 0x28);
+                if (seen & (1u << i)) continue;
+                if (!KeyList_Contains(list, reinterpret_cast<const uint8_t*>(uintptr_t{list}), key)) continue;
+                if (!self[0x2c]) {
+                    self[0xc] = 1;
+                    return word_at(self, 0x10);
+                }
+                *reinterpret_cast<uint32_t*>(self + 0x28) = seen | (1u << i);
+                *key = 0;
+            }
+            if ((word_at(self, 0x28) & 0xf) == 0xf) {
+                self[0xc] = 1;
+                return word_at(self, 0x10);
+            }
+        }
+    }
+    return 0;
+}
+
+uint32_t XB_THISCALL ScrZoneWaitRecord_Check(uint8_t* self, uint32_t) {
+    // Kind +0x18: 1 waits until the zone (+0x14 -> +0x28) has no context state (+0xdc == 0), 0 until it is 3; a zone
+    // of -1 or without a context ends a kind 0 wait at once.
+    const uint32_t kind = word_at(self, 0x18);
+    const uint8_t* const paks = title_global<uint8_t*>(0x0095f638);
+    auto context_of = [&]() -> const uint8_t* {
+        const int32_t zone = *reinterpret_cast<const int32_t*>(uintptr_t{word_at(self, 0x14) + 0x28});
+        if (zone == -1) return nullptr;
+        return *reinterpret_cast<uint8_t* const*>(paks + 0x38 + zone * 4);
+    };
+    bool done = false;
+    if (kind == 1) {
+        const int32_t zone = *reinterpret_cast<const int32_t*>(uintptr_t{word_at(self, 0x14) + 0x28});
+        if (zone != -1) {
+            const uint8_t* const context = context_of();
+            if (context && !*reinterpret_cast<const uint32_t*>(context + 0xdc)) done = true;
+        }
+    }
+    if (!done) {
+        if (kind != 0) return 0;
+        const int32_t zone = *reinterpret_cast<const int32_t*>(uintptr_t{word_at(self, 0x14) + 0x28});
+        const uint8_t* const context = zone == -1 ? nullptr : context_of();
+        if (context && *reinterpret_cast<const uint32_t*>(context + 0xdc) != 3) return 0;
+    }
+    self[0xc] = 1;
+    return word_at(self, 0x10);
+}
+
 }  // namespace game

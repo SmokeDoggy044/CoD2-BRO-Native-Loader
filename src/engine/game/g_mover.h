@@ -477,4 +477,9 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_RunFrame(uint32_t entry, uint8_t*
                                                         uint32_t edi, uint32_t ebp);
 extern "C" void G_RunFrame_entry(void);
 
+// 0x0024e980 (gap function, 11-11; the "LOCDMGTABLE" asset callback): the 19 hit location multipliers (0x0094cc38,
+// 1.0 each, the last 0) parsed from the info map as float fields named by 0x008fec40, their name hashes into
+// 0x0095c0b0 (Com_HashKeyNoCase); G_Error on failure.
+void XB_CDECL G_ParseHitLocDamageTable(const char* name, uint8_t* map);
+
 }  // namespace game

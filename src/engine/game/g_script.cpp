@@ -703,4 +703,23 @@ uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity) {
 
 #include "g_script_gen.inc"
 
+// 0x002fd680 (gap function, 11-11; entity in EAX, the creation pair in EDI).
+PLATFORM_ASM_ENTRY(G_InitEntScriptObject_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_InitEntScriptObject) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_InitEntScriptObject(uint8_t* ent, const uint32_t* pair) {
+    uint32_t object = 0;
+    const uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+    if (import) {
+        if (const uint32_t create = *reinterpret_cast<const uint32_t*>(import + 0x804)) {
+            using Create = uint32_t XB_CDECL(uint32_t, uint32_t);
+            object = pair[0] ? title_function<Create>(create)(pair[1], pair[0]) : title_function<Create>(create)(0, 0);
+        }
+    }
+    *reinterpret_cast<uint32_t*>(ent + 0x428) = object;
+    return G_UpdateEntityStringHashes(ent);
+}
+
 }  // namespace game

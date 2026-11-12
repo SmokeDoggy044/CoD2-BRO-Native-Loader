@@ -162,7 +162,7 @@ uint8_t* XB_THISCALL BroScr_GetMap_h4fcdc42e(uint8_t* self, uint8_t* out) {
 uint32_t* XB_CDECL BroRuntime_SetImportCallbacks(uint32_t* block) {
     block[1] = own_address(&ScriptKeyTable_FromPairs);  // ScriptKeyTable_FromPairs
     block[2] = own_address(&ScriptKeyTable_Delete);  // ScriptKeyTable_Delete
-    block[3] = 0x0011e800;
+    block[3] = own_address(&ScriptKeyTable_ValueEquals);
     block[4] = own_address(&ScriptKeyTable_Clone);  // ScriptKeyTable_Clone
     return block;
 }

@@ -243,4 +243,16 @@ void XB_CDECL StaticInit_AnimHashStrings();
 // 0x00378ca0: the identity quaternion at 0x00909850 (the default root record).
 void XB_CDECL StaticInit_Vec4_909850();
 
+// Gap functions (11-11).
+// 0x00087260 (generic clip vtable 0x007c23ac slot 17): the runtime state's sections behind the clip: +0x54 the
+// channel bits ((clip + 0x73) & ~3, definition +0x7c bits), +0x50 aligned to +0x4c, +0x5c (+0x48 bytes), +0x60
+// (definition +0x60 words), +0x6c (+0x64 words), then the +0x64 offsets at +0x6c made absolute.
+void XB_THISCALL NAL_GenericAnim_LayoutState(uint8_t* clip);
+// 0x0008dc40 / 0x0008e270 (the anim file / skeleton managers' release, reached by tail jumps; ret 0xc): mode 0
+// counts the references (+0x44 / +0x48) down and keeps a referenced one (returns the count); else unlinked (+0x10):
+// the file's clips (+0x34 list, next +4) uninitialised (slot 2) and unlinked from the clip manager 0x00909830, its
+// buffer +0x38 freed unless flag 4 of +4, flag 8 cleared / the skeleton's slot 3, buffer +0x50 freed. Returns 0.
+int32_t XB_THISCALL AnimManager_Release(void* manager, uint8_t* file, int32_t mode, uint32_t unused);
+int32_t XB_THISCALL NalManagerKey8_Release(void* manager, uint8_t* skeleton, int32_t mode, uint32_t unused);
+
 }  // namespace game

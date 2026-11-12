@@ -1465,4 +1465,21 @@ uint32_t* XB_THISCALL nglPolyVertexWriter_Clone(const uint32_t* self);
 void XB_THISCALL nglTextureManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
 void XB_THISCALL nglMeshManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
 
+// Gap functions (11-11).
+// 0x00063330 / 0x00065970 (texture / font manager vtable +0x08, ret 0xc): release (mode 0: the reference count +0 /
+// +0x20 down, kept while above 0; texture mode 1: kept unless kind +4 is 0xf) unless kept (flag 2 of +0x28 / byte
+// +0x50) without `force` (1); then unlinked (manager +0x10, when +0x58 / +4) and freed (nglFreeTexture; the font's
+// texture +0x24, buffers +0x4c, +0x28 and itself). Returns the count, 1 (kept), or -1 / 0 (kept flag / not).
+int32_t XB_THISCALL nglTextureManager_Release(void* manager, uint8_t* texture, int32_t mode, uint8_t force);
+int32_t XB_THISCALL nglFontManager_Release(void* manager, uint8_t* font, int32_t mode, uint8_t force);
+// nglSkipList_Find for other name places (each reached through a this+4 thunk): 0x00063db0 the texture's name
+// (+0x54), 0x00069ce0 the object itself (the last compare by HashStr_Equals), 0x00069f30 the name the object's
+// first word points to, 0x00084090 the name at +8. Return the object or null.
+const uint32_t* XB_THISCALL nglSkipList_FindTexture(const NglSkipList* self, const uint32_t* key);
+const uint32_t* XB_THISCALL nglSkipList_FindNamed(const NglSkipList* self, const uint32_t* key);
+const uint32_t* XB_THISCALL nglSkipList_FindIndirect(const NglSkipList* self, const uint32_t* key);
+const uint32_t* XB_THISCALL nglSkipList_FindName8(const NglSkipList* self, const uint32_t* key);
+// 0x000643e0: the vertical blank count (0x009028e4) up; a pending frame starts once the interval has passed.
+void XB_CDECL nglVBlankCountFrames();
+
 }  // namespace game

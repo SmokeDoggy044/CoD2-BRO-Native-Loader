@@ -6167,4 +6167,48 @@ void XB_THISCALL ListVectorValue_Dtor(uint8_t* value) {
     word_at(value, 8) = 0;
 }
 
+// ---- Gap functions (no Ghidra functions before 11-11) ----
+
+uint32_t* XB_REGS1 XB_CDECL HandleTable512_Init(uint32_t* table) {
+    for (int32_t i = 15; i >= 0; --i) table[i] = 0;
+    for (uint32_t i = 0; i < 0x200; ++i) {
+        table[0x10 + i * 2] = 0;      // pointer
+        table[0x10 + i * 2 + 1] = 1;  // generation
+    }
+    table[0x410] = 0;
+    for (uint32_t i = 0; i < 0x200; ++i) table[i >> 5] |= 1u << (i & 31);  // every slot free
+    return table;
+}
+
+uint32_t* XB_REGS1 XB_CDECL Block84_Clear(uint32_t* block) {
+    for (uint32_t i = 0; i < 0x21; ++i) block[i] = 0;
+    return block;
+}
+
+uint8_t* XB_THISCALL HeapAllocator_Alloc(uint8_t* allocator, uint32_t size) {
+    if (*reinterpret_cast<const uint32_t*>(allocator + 0x490) + size > 0x100000) return nullptr;
+    const uint32_t previous = Heap_SetCurrent(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(allocator + 8)));
+    uint8_t* const block = Heap_AllocAligned(0x10, size);
+    Heap_SetCurrent(previous);
+    return block;
+}
+
+int32_t XB_CDECL FileDevice_BuildPath(int32_t root, const char* path, char* out) {
+    if (title_isalpha(path[0]) && path[1] == ':') {
+        out[0] = 0;  // already absolute
+    } else {
+        // "D:\", "E:\", "S:\", "T:\", "U:\", "V:\", "X:\" (the terminator included)
+        static const char kRoots[7] = {'D', 'E', 'S', 'T', 'U', 'V', 'X'};
+        if (static_cast<uint32_t>(root) > 6) return 4;
+        out[0] = kRoots[root];
+        out[1] = ':';
+        out[2] = '\\';
+        out[3] = 0;
+    }
+    std::memcpy(out + std::strlen(out), path, std::strlen(path) + 1);
+    for (char* c = out; *c; ++c)
+        if (*c == '/') *c = '\\';
+    return 0;
+}
+
 }  // namespace game

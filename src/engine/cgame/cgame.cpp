@@ -934,7 +934,7 @@ void XB_CDECL CG_DrawHudElems() {
     for (uint32_t elem = 0x0094cc88; elem < 0x0094d448; elem += 0x7c)
         if (title_global<uint32_t>(elem)) elems[count++] = elem;
     own_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(&title_qsort)(elems, static_cast<uint32_t>(count), 4,
-                                                                                 0x00275ab0);  // _qsort
+                                                                                 own_address(&CG_CompareHudElems));  // _qsort
     for (int32_t i = 0; i < count; ++i) {
         TitleRegs regs{};
         regs.ecx = elems[i];
@@ -5125,6 +5125,20 @@ void XB_CDECL CG_SetObjectiveMessage(const char* text) {
     timer = g(0x0083ec9c);  // 3
     own_function<void XB_THISCALL(ScriptString*, const char*)>(&ScriptString_AssignCString)(&title_global<ScriptString>(0x00975810),
                                                                             text);  // ScriptString_AssignCString
+}
+
+// 0x00275ab0 (gap function, 11-11; CG_DrawHudElems' qsort compare).
+int32_t XB_CDECL CG_CompareHudElems(const uint32_t* a, const uint32_t* b) {
+    // The sort value +0x6c, the "unset" value 0x0083ebb4 counting as 0 (ucomiss equal; NaN is not).
+    float sa = *reinterpret_cast<const float*>(uintptr_t{*a + 0x6c});
+    float sb = *reinterpret_cast<const float*>(uintptr_t{*b + 0x6c});
+    const float unset = title_global<float>(0x0083ebb4);
+    if (sa == unset) sa = 0.0f;
+    if (sb == unset) sb = 0.0f;
+    const float d = sa - sb;
+    if (0.0f > d) return -1;
+    if (d > 0.0f) return 1;
+    return 0;
 }
 
 }  // namespace game
