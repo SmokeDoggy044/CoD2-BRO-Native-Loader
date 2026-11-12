@@ -9,6 +9,7 @@
 #include "qcommon_core.h"
 #include "r_init.h"
 #include "title_crt.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -1966,26 +1967,26 @@ void register_material_type(uint32_t name, uint32_t set_vtable) {
 
 }  // namespace
 
-void XB_CDECL cdGunSight_RegisterMaterialType() { register_material_type(0x007b4410, 0x00047d70); }
-void XB_CDECL cdGun_RegisterMaterialType() { register_material_type(0x007b46ec, 0x00048580); }
-void XB_CDECL cdGlass_RegisterMaterialType() { register_material_type(0x007b49b4, 0x000489d0); }
-void XB_CDECL cdSimpleAlpha_RegisterMaterialType() { register_material_type(0x007b4c9c, 0x0004a860); }
-void XB_CDECL cdPropeller_RegisterMaterialType() { register_material_type(0x007b4f7c, 0x0004b080); }
-void XB_CDECL cdDecal_RegisterMaterialType() { register_material_type(0x007b524c, 0x0004b840); }
-void XB_CDECL cdChar_RegisterMaterialType() { register_material_type(0x008329a0, 0x0004bf60); }
+void XB_CDECL cdGunSight_RegisterMaterialType() { register_material_type(0x007b4410, own_address(&cdGunSightVertexIter_Ctor)); }
+void XB_CDECL cdGun_RegisterMaterialType() { register_material_type(0x007b46ec, own_address(&cdGunVertexIter_Ctor)); }
+void XB_CDECL cdGlass_RegisterMaterialType() { register_material_type(0x007b49b4, own_address(&cdGlassVertexIter_Ctor)); }
+void XB_CDECL cdSimpleAlpha_RegisterMaterialType() { register_material_type(0x007b4c9c, own_address(&cdSimpleAlphaVertexIter_Ctor)); }
+void XB_CDECL cdPropeller_RegisterMaterialType() { register_material_type(0x007b4f7c, own_address(&cdPropellerVertexIter_Ctor)); }
+void XB_CDECL cdDecal_RegisterMaterialType() { register_material_type(0x007b524c, own_address(&cdDecalVertexIter_Ctor)); }
+void XB_CDECL cdChar_RegisterMaterialType() { register_material_type(0x008329a0, own_address(&cdCharVertexIter_Ctor)); }
 void XB_CDECL cdPrelit_RegisterMaterialType() { register_material_type(0x007b57ec, 0x0004c680); }
-void XB_CDECL cdAirplaneMetal_RegisterMaterialType() { register_material_type(0x007b5abc, 0x0004cbb0); }
-void XB_CDECL cdSimpleUVAnim_RegisterMaterialType() { register_material_type(0x007b5d9c, 0x0004d880); }
-void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x007b607c, 0x0004df50); }
-void XB_CDECL cdSimple_RegisterMaterialType() { register_material_type(0x007b635c, 0x0004e6b0); }
-void XB_CDECL cdRiver_RegisterMaterialType() { register_material_type(0x007b6688, 0x0004e9d0); }
+void XB_CDECL cdAirplaneMetal_RegisterMaterialType() { register_material_type(0x007b5abc, own_address(&cdAirplaneMetalVertexIter_Ctor)); }
+void XB_CDECL cdSimpleUVAnim_RegisterMaterialType() { register_material_type(0x007b5d9c, own_address(&cdSimpleUVAnimVertexIter_Ctor)); }
+void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x007b607c, own_address(&cdSimplePrelitVertexIter_Ctor)); }
+void XB_CDECL cdSimple_RegisterMaterialType() { register_material_type(0x007b635c, own_address(&cdSimpleVertexIter_Ctor)); }
+void XB_CDECL cdRiver_RegisterMaterialType() { register_material_type(0x007b6688, own_address(&cdRiverVertexIter_Ctor)); }
 void XB_CDECL cdOcean_RegisterMaterialType() { register_material_type(0x007b665c, 0x000508a0); }
 void XB_CDECL cdWater_RegisterMaterialType() { register_material_type(0x007b6bfc, 0x000514b0); }
-void XB_CDECL cdWorldBlend_RegisterMaterialType() { register_material_type(0x007b6ecc, 0x00051ad0); }
+void XB_CDECL cdWorldBlend_RegisterMaterialType() { register_material_type(0x007b6ecc, own_address(&cdWorldBlendVertexIter_Ctor)); }
 void XB_CDECL cdWorldVertexLit_RegisterMaterialType() { register_material_type(0x007b71bc, 0x00052e40); }
-void XB_CDECL cdWorld_RegisterMaterialType() { register_material_type(0x007b749c, 0x00053400); }
-void XB_CDECL cdBackground_RegisterMaterialType() { register_material_type(0x007b776c, 0x000546a0); }
-void XB_CDECL cdSky_RegisterMaterialType() { register_material_type(0x007b7a48, 0x000552d0); }
+void XB_CDECL cdWorld_RegisterMaterialType() { register_material_type(0x007b749c, own_address(&cdWorldVertexIter_Ctor)); }
+void XB_CDECL cdBackground_RegisterMaterialType() { register_material_type(0x007b776c, own_address(&cdBackgroundVertexIter_Ctor)); }
+void XB_CDECL cdSky_RegisterMaterialType() { register_material_type(0x007b7a48, own_address(&cdSkyVertexIter_Ctor)); }
 void XB_CDECL cdDebug_RegisterMaterialType() { register_material_type(0x007c19e4, 0x0007b910); }
 
 void XB_THISCALL cdDebug_Register(NglShaderClass* self) {

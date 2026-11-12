@@ -1215,7 +1215,7 @@ long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture) {
     return platform_x87_ld(max[1]) - min[1];
 }
 
-void XB_THISCALL UIPicture_Rotate(uint8_t* picture, uint32_t angle, uint32_t absolute) {
+void XB_THISCALL UIPicture_RotateInPlace(uint8_t* picture, uint32_t angle, uint32_t absolute) {
     method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t)>(picture, 0x48)(
         picture, field<uint32_t>(picture, 0x14), field<uint32_t>(picture, 0x18), angle, absolute);
 }

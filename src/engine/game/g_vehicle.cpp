@@ -7209,7 +7209,7 @@ uint32_t XB_CDECL BG_ParseWeaponFile(const char* name, uint8_t* map) {
     *reinterpret_cast<uint32_t*>(def + 8) = name[0] ? address_of(name) : 0x0095f4dd;  // "" for no name
     *reinterpret_cast<uint32_t*>(def + 4) = Com_HashKeyNoCase(0, name);
     const uint32_t parsed = Info_ParseFieldsToStruct(0, &title_global<uint8_t>(0x008d2440), def, 0x10a, map, 0xf,
-                                                     0x002ad160, 0x002b5e80);
+                                                     0x002ad160, own_address(&WeaponDef_SetStringField));
     if (parsed) return parsed;
     // A def that did not parse is dropped again.
     title_global<uint32_t>(title_global<uint32_t>(0x0095f4d8) + title_global<uint32_t>(0x0095f4d4) * 4) = 0;

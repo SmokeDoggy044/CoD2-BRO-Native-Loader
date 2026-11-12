@@ -204,7 +204,7 @@ const Function kFunctions[] = {
     {"UIElement_GetFloat14", 0x00011a20, 0, code(&UIElement_GetFloat14), 0, Result::St0, Status::Compare},  // was FUN_00011a20 (gap)
     {"UIElement_GetFloat18", 0x00011a30, 0, code(&UIElement_GetFloat18), 0, Result::St0, Status::Compare},  // was FUN_00011a30 (gap)
     {"UIElement_GetFloat30", 0x00011a50, 0, code(&UIElement_GetFloat30), 0, Result::St0, Status::Compare},  // was FUN_00011a50 (gap)
-    {"UIPicture_Rotate", 0x00011920, 0, code(&UIPicture_Rotate), 8, Result::None, Status::Compare},  // was FUN_00011920 (gap)
+    {"UIPicture_RotateInPlace", 0x00011920, 0, code(&UIPicture_RotateInPlace), 8, Result::None, Status::Compare},  // was FUN_00011920 (gap)
     {"UIPicture_SetUniformScale", 0x00011940, 0, code(&UIPicture_SetUniformScale), 8, Result::None, Status::Compare},  // was FUN_00011940 (gap)
     {"UIPicture_SetScale", 0x00011960, 0, code(&UIPicture_SetScale), 12, Result::None, Status::Compare},  // was FUN_00011960 (gap)
     {"UIPicture_SetPosition", 0x000119d0, 0, code(&UIPicture_SetPosition), 8, Result::None, Status::Compare},  // was FUN_000119d0 (gap)

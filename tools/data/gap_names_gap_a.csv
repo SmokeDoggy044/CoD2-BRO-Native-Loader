@@ -3,7 +3,7 @@ address,name
 00011380,UITextBase_SetFlag2
 000115a0,UITextBase_SetAlpha
 000116b0,UITextBase_SetFlags
-00011920,UIPicture_Rotate
+00011920,UIPicture_RotateInPlace
 00011940,UIPicture_SetUniformScale
 00011960,UIPicture_SetScale
 000119d0,UIPicture_SetPosition

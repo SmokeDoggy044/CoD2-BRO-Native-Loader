@@ -234,7 +234,7 @@ extern "C" void UIQuad_ApplyMatrix_entry(void);
 long double XB_THISCALL UIPicture_GetWidth(uint8_t* picture);
 long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture);
 // 0x00011920: rotate about the centre (vtable +0x48: x, y, angle, absolute).
-void XB_THISCALL UIPicture_Rotate(uint8_t* picture, uint32_t angle, uint32_t absolute);
+void XB_THISCALL UIPicture_RotateInPlace(uint8_t* picture, uint32_t angle, uint32_t absolute);
 // 0x00011940 / 0x00011960: scale about the centre (vtable +0x50: x, y, sx, sy, absolute).
 void XB_THISCALL UIPicture_SetUniformScale(uint8_t* picture, uint32_t scale, uint32_t absolute);
 void XB_THISCALL UIPicture_SetScale(uint8_t* picture, uint32_t sx, uint32_t sy, uint32_t absolute);
