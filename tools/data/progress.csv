@@ -205,7 +205,7 @@ address,name,section,module,state,tested,matched
 000146a0,ShakeRumbleDesc_Init,.text,game,replaced,103,103
 00014710,ShakeRumbleDesc_Destroy,.text,game,replaced,129,129
 00014730,EntBits_IterBegin,.text,game,replaced,3,3
-00014750,FUN_00014750,.text,unassigned,unnamed,0,0
+00014750,FUN_00014750,.text,unassigned,untested,0,0
 00014780,HandleTable256_Init,.text,qcommon,replaced,0,0
 000147e0,ScrThread_AllocHandle,.text,script,replaced,1816,1816
 00014850,HandleTable256_Free,.text,qcommon,replaced,130,130
@@ -8218,7 +8218,7 @@ address,name,section,module,state,tested,matched
 002221b0,Sys_ReadLaunchInfo,.text,qcommon,set-aside,0,0
 002226e0,InGameLiveOptionsMenu_Draw,.text,client,set-aside,0,0
 00222750,XboxLiveMenu_Draw,.text,client,set-aside,0,0
-002227f0,FUN_002227f0,.text,unassigned,unnamed,0,0
+002227f0,FUN_002227f0,.text,unassigned,untested,0,0
 002228e0,Live_PollNotifications,.text,online,set-aside,0,0
 002229d0,FUN_002229d0,.text,unassigned,set-aside,0,0
 00222aa0,Voice_RegisterLocalTalkers,.text,sound,set-aside,0,0

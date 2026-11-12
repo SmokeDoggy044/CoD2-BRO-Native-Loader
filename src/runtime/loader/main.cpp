@@ -45,6 +45,7 @@
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
 #include "hooks.h"
+#include "host_image.h"
 #include "qcommon_fs.h"
 #include "text_trap.h"
 #include "static_init.h"
@@ -128,6 +129,7 @@ struct Options {
     bool check_crt = false;      // --check-crt: our CRT vs the title's on a table, then exit
     bool replay_at_switch = false;  // --replay-at-switch: the recording/replay begins at the first in-process restart
     bool own_main = false;       // --own-main: our Sys_Main C instead of the original (own engine host, 0.3)
+    bool host = false;           // --host: --own-main without original engine code or kernel (host_image.h)
     std::optional<fs::path> text_trap_list, text_trap_out;  // --text-trap LIST OUT
     std::optional<fs::path> text_clear_out;                 // --text-clear OUT
     bool compare_all = false;    // ... settled ones too
@@ -275,6 +277,7 @@ void print_usage(const char* program) {
         "  --replay-dump N[-M[:S]] DIR  with --record/--replay: game state of frame N (or every [S-th] frame N..M)\n"
         "                   to DIR (tools/replay_diff.py)\n"
         "  --own-main       developer: start the game at our Sys_Main C (own engine host, step 0.3)\n"
+        "  --host           developer: --own-main with the original engine code (INT3) and the kernel exports gone\n"
         "  --text-trap LIST OUT  developer: log every original function from LIST (tools/text_trap_list.py)\n"
         "                   the first time it runs, with its caller, to OUT (Linux)\n"
         "  --text-clear OUT developer: original non-level code bytes become INT3 except our hooks; code that\n"
@@ -687,6 +690,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.check_crt = true;
         } else if (arg == "--own-main") {
             options.own_main = true;
+        } else if (arg == "--host") {
+            options.own_main = options.host = true;
         } else if (arg == "--text-trap") {
             if (i + 2 >= argc) {
                 std::fprintf(stderr, "--text-trap needs a list and an output file\n");
@@ -987,6 +992,9 @@ int loader_main(int argc, char** argv) {
         const fs::path next_to_loader = platform::executable_dir() / name;
         return fs::exists(next_to_loader) ? next_to_loader : fs::path(COD_BRO_SYMBOLS_DIR) / name;
     };
+    if (options->host && !loader::clear_code_sections(image, {data_file("code_section_data.txt"),
+                                                              data_file("level_eh_code.txt")}))
+        return startup_failed("cannot prepare the host image");
     const bool other_build = image.code_fingerprint() != title->code_fingerprint;
     bool release_map_ready = false;
     if (other_build) {
@@ -1044,7 +1052,7 @@ int loader_main(int argc, char** argv) {
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
-    loader::install_kernel_thunks(image);
+    loader::install_kernel_thunks(image, options->host);
     if (!options->bindings_error.empty())
         LOG_WARN("input", "keys setting: %s (ignored; the rest applies)", options->bindings_error.c_str());
     if (const std::string keys = input::format_bindings(options->bindings); !keys.empty())
@@ -1109,6 +1117,11 @@ int loader_main(int argc, char** argv) {
         host.launch_data_page = &xbox::launch_data_page_word();
         host.language = options->language;
         host.widescreen = options->widescreen;
+        host.seh_chain_end = [] {
+            const loader::ThreadEnv* env = loader::current_thread_env();
+            return env ? env->seh_chain_end : 0xFFFFFFFFu;
+        };
+        host.fatal = &loader::fatal_with_backtrace;
         game::set_title_host(host);
         // The title's folders for our native files (--own-main; --check-crt compares them with the kernel's).
         game::files::set_folders(*assets, options->data.value_or(platform::user_data_dir()));
@@ -1264,7 +1277,7 @@ int loader_main(int argc, char** argv) {
     }
     if (options->text_trap_list && !loader::install_text_trap(*options->text_trap_list, *options->text_trap_out))
         return 1;
-    if (options->text_clear_out && !loader::install_text_clear(*options->text_clear_out, data_file("code_section_data.txt"))) return 1;
+    if (options->text_clear_out && !loader::install_text_clear(*options->text_clear_out, {data_file("code_section_data.txt"), data_file("level_eh_code.txt")})) return 1;
 
     // In-process restarts (own engine host 5b) put the title's memory back to this point.
     ImageSnapshot image_snapshot;

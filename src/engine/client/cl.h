@@ -24,6 +24,9 @@ struct ClientPcHooks {
     void (XB_CDECL* screen_poll)(uint32_t manager) = nullptr;
     // At UITextBase_Draw's entry (the widget): which items were drawn, for the menu pointer.
     void (XB_CDECL* text_drawn)(uint32_t widget) = nullptr;
+    // CL_Frame's SCR_UpdateScreen call goes here instead when set (a title-callable address that keeps the
+    // registers and ends in SCR_UpdateScreen): the loader's --level/--exec/--force thunk. 0 = SCR_UpdateScreen.
+    uint32_t screen_update_call = 0;
 };
 ClientPcHooks& client_pc_hooks();
 

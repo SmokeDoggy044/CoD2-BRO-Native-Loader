@@ -50,6 +50,13 @@ struct TitleHost {
     // and a 16:9 picture.
     uint32_t language = 1;
     bool widescreen = false;
+
+    // Where the calling title thread's exception chain (FS:[0]) ends: 0xFFFFFFFF, or on Windows the host thread's
+    // own first record (title_seh.cpp stops there). Null = 0xFFFFFFFF.
+    uint32_t (*seh_chain_end)() = nullptr;
+    // An unrecoverable error in title code (an unhandled exception): report with a backtrace from `eip`/`ebp` and
+    // end the process. Null = print and abort.
+    [[noreturn]] void (*fatal)(const char* message, uint32_t eip, uint32_t ebp) = nullptr;
 };
 
 void set_title_host(const TitleHost& host);

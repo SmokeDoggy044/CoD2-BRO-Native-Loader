@@ -157,6 +157,7 @@ uint8_t* XB_THISCALL UIX_CNotificationTask_Ctor(uint8_t* self);  // 0x000d7907
 uint8_t* XB_THISCALL UIX_CLogonFeature_Ctor(uint8_t* self);  // 0x000d7eb7
 uint8_t* XB_THISCALL UIX_CPlayersFeature_Ctor(uint8_t* self);  // 0x000da10c
 uint8_t* XB_THISCALL UIX_CVoiceMailPseudoFeature_Ctor(uint8_t* self);  // 0x000dc527
+void XB_THISCALL StdString_Tidy(uint8_t* self);  // 0x00014750
 void XB_CDECL XPP_StaticInit_921770();  // 0x007abead
 void XB_CDECL XPP_StaticInit_9217e0();  // 0x007abedd
 

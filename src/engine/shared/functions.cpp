@@ -377,6 +377,7 @@ const Function kFunctions[] = {
     {"WaitTilOutputInst2_CopyArgs", 0x00014b90, 0, code(&WaitTilOutputInst2_CopyArgs), 4, Result::Eax, Status::Compare},
     {"EntBits_IterNext", 0x00014bd0, 0, code(&EntBits_IterNext_entry), 0, Result::None, Status::Replaced},
     {"WaitTilOutputInst1_str_DeletingDtor", 0x00014c50, 0, code(&WaitTilOutputInst1_str_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"StdString_Tidy", 0x00014750, 0, code(&StdString_Tidy), 0, Result::None, Status::Compare},  // was FUN_00014750 (level EH funclets)
     {"ScrStringHolder_Dtor", 0x00014c80, 0, code(&ScrStringHolder_Dtor), 0, Result::None, Status::Replaced},  // static object destructor (atexit)
     {"EntBits_Invert", 0x00014ca0, 0, code(&EntBits_Invert), 0, Result::Eax, Status::Replaced},
     {"std_string_AssignSubstr", 0x00014ce0, 0, code(&std_string_AssignSubstr), 12, Result::None, Status::Replaced},
@@ -1338,6 +1339,7 @@ const Function kFunctions[] = {
     {"_sopen", 0x001f9303, 0, code(&title_sopen), 16, Result::Eax, Status::Compare},
     {"Actor_CompareSightEntries", 0x001fa990, 0, code(&Actor_CompareSightEntries), 8, Result::Eax, Status::Compare},  // was FUN_001fa990 (gap)
     {"Sys_ReadLaunchInfo", 0x002221b0, 0, code(&Sys_ReadLaunchInfo), 4, Result::Eax, Status::Compare},
+    {"LiveMgr_PadInput", 0x002227f0, 0, code(&LiveMgr_PadInput), 8, Result::Al, Status::Compare},  // was FUN_002227f0 (gap)
     {"Phys_EmptyCallback", 0x00225370, 0, code(&Phys_EmptyCallback), 0, Result::None, Status::Compare},  // was FUN_00225370 (gap)
     {"Phys_RagdollStepCallback", 0x00233c30, 0, code(&Phys_RagdollStepCallback), 0, Result::None, Status::Replaced},  // was FUN_00233c30 (gap); call in the first 5 bytes, then a tail jump: not compared
     {"nglPolyVertexWriter_Nop4", 0x00236550, 0, code(&nglPolyVertexWriter_Nop4), 4, Result::None, Status::Compare},  // was FUN_00236550 (gap)

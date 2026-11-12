@@ -542,6 +542,10 @@ void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
     if (g_start_level >= 0 || !g_exec_text.empty() || !g_forced_calls.empty()) return;
     // The call returns into this thunk; later frames run the original call again (--compare tests of CL_Frame
     // would otherwise reach host code on every frame).
+    if (game::client_pc_hooks().screen_update_call) {
+        game::client_pc_hooks().screen_update_call = 0;
+        return;
+    }
     put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{g_start_sites.call_client_frame}), 0xE8,
               reinterpret_cast<const void*>(uintptr_t{g_start_sites.client_frame}));
 }
@@ -550,10 +554,12 @@ void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
 void install_client_frame_hook(int32_t level, const std::string& exec_text,
                                const std::vector<TitlePatchConfig::ForcedCall>& forced_calls) {
     if (level < 0 && exec_text.empty() && forced_calls.empty()) return;
+    // CL_Frame as C (0x002f2630): its call goes through client_pc_hooks(), the original code is not patched.
+    const bool c_frame = client_c(0x002f2630);
     auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_start_sites.call_client_frame});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
-    if (site[0] != 0xE8 || g_start_sites.call_client_frame + 5 + relative != g_start_sites.client_frame) {
+    if (!c_frame && (site[0] != 0xE8 || g_start_sites.call_client_frame + 5 + relative != g_start_sites.client_frame)) {
         LOG_WARN("patches", "%08x: not the call to the client frame; --level/--exec ignored",
                  g_start_sites.call_client_frame);
         return;
@@ -570,7 +576,10 @@ void install_client_frame_hook(int32_t level, const std::string& exec_text,
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
     put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_start_sites.client_frame}));
-    put_rel32(site, 0xE8, thunk);
+    if (c_frame)
+        game::client_pc_hooks().screen_update_call = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thunk));
+    else
+        put_rel32(site, 0xE8, thunk);
     g_start_level = level;
     g_exec_text = exec_text;
     g_forced_calls = forced_calls;

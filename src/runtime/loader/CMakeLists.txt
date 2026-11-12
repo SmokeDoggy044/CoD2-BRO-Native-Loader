@@ -4,6 +4,7 @@ set(loader_sources
     crash.cpp
     diag_summary.cpp
     hooks.cpp
+    host_image.cpp
     kernel_thunks.cpp
     main.cpp
     patches.cpp

@@ -92,6 +92,7 @@ set(game_code_sources
     shared/gap_methods.cpp
     shared/title_crt.cpp
     shared/title_eh.cpp
+    shared/title_seh.cpp
     shared/static_init.cpp
     shared/static_init_generated.cpp
     shared/title_heap.cpp

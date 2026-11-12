@@ -6,6 +6,7 @@
 
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_seh.h"
 #include "title_xapi.h"
 
 // The frames our code links into FS:[0] and the funclet calls need exact register and stack control: three small
@@ -37,7 +38,6 @@ constexpr uint32_t kCxxMagic = 0x19930520;
 constexpr uint32_t kBreakpoint = 0x80000003;
 constexpr uint32_t kUnwinding = 0x66;  // EXCEPTION_UNWINDING | EXIT_UNWIND | TARGET_UNWIND | COLLIDED_UNWIND
 constexpr uint32_t kContinueSearch = 1;
-constexpr uint32_t kRtlUnwindSlot = 0x007b3224;   // the kernel import RtlUnwind (stdcall frame, ip, record, value)
 
 struct EhRecord {  // EXCEPTION_RECORD with a C++ exception's three parameters
     uint32_t code, flags, record, address, count;
@@ -127,8 +127,7 @@ const char* type_name(uint32_t type) { return at<const char>(type + 8); }
 void unwind_nested_frames(uint32_t node, EhRecord* record) {
     // RtlUnwind to `node`: every newer frame's handler runs with the unwinding flag (their destructors) and leaves
     // the chain, which then starts at `node`. Then the flag goes again: the search for this exception continues.
-    title_function<void XB_STDCALL(uint32_t, uint32_t, EhRecord*, uint32_t)>(title_global<uint32_t>(kRtlUnwindSlot))(
-        node, 0, record, 0);
+    title_RtlUnwind(node, 0, address_of(record), 0);
     record->flags &= ~2u;
 }
 
@@ -415,8 +414,7 @@ uint32_t XB_CDECL catch_node_handler(EhRecord* record, EhCatchNode* c, uint32_t,
     // A rethrow leaves the catch block: frames newer than this one unwind, the function goes back to the state
     // around the try block's catch, and the catch ends without a continuation (the search for the exception it
     // caught goes on outside).
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(title_global<uint32_t>(kRtlUnwindSlot))(
-        address_of(c), 0, 0, 0);
+    title_RtlUnwind(address_of(c), 0, 0, 0);
     int32_t state = c->node->state;
     const auto* map = at<const TryEntry>(c->info->try_map);
     for (uint32_t i = 0; i < c->info->try_count; ++i)

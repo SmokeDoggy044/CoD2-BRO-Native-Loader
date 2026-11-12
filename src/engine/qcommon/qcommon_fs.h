@@ -1080,6 +1080,10 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
 // it only asks to resume (+0x39c), starts its chapter (+0x18, 0..13) with "+devmap <map>". Flags 0x0095ee01 (a
 // chapter was started) / 0x0095ee09 (launched by this title). Returns 0.
 uint32_t XB_CDECL Sys_ReadLaunchInfo(char* command_line);
+// 0x002227f0 (LiveMgr vtable 0x0083c788 slot 6, IN_PadUpdate per pad): the Live UI takes the pad's input (nonzero)
+// while it is up (+8) and the pad is its owner (+0x44d0, -1 = any) - LiveMgr_SetInput 0x002220e0 decides, by
+// address (the own host has no Live UI: +8 stays 0). Returns AL.
+uint8_t XB_THISCALL LiveMgr_PadInput(uint8_t* self, int32_t port, uint8_t* state);
 // 0x00224b60: the XAPI main (called by mainXapiStartup): allocator hooks, LiveMgr_Construct, Sys_ReadLaunchInfo,
 // sound/renderer/effects/heap setup, Com_Init(launch data), the Live UI, then IN_Frame / Live_Frame / Com_Frame
 // forever. Not in kFunctions: it never returns (a test could not finish). Boot only.

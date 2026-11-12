@@ -10,6 +10,7 @@
 #include "title_files.h"
 #include "title_host.h"
 #include "title_objects.h"
+#include "title_seh.h"
 
 namespace game {
 
@@ -236,7 +237,8 @@ const uint8_t* title_console_key() {
 }
 
 // 0x001e76fe: an EXCEPTION_RECORD (code, flags & EXCEPTION_NONCONTINUABLE, no chained record, this function's
-// original address, at most 15 arguments) for the kernel's RtlRaiseException (import slot 0x007b3134).
+// original address, at most 15 arguments) for RtlRaiseException (title_seh.cpp; the kernel import slot 0x007b3134
+// pointed there too).
 void XB_STDCALL RaiseException(uint32_t code, uint32_t flags, uint32_t count, const uint32_t* arguments) {
     uint32_t record[20] = {};
     record[0] = code;
@@ -246,7 +248,7 @@ void XB_STDCALL RaiseException(uint32_t code, uint32_t flags, uint32_t count, co
         record[4] = count > 15 ? 15 : count;
         std::memcpy(record + 5, arguments, record[4] * 4);
     }
-    title_global<void XB_STDCALL (*)(uint32_t*)>(0x007b3134)(record);
+    title_RtlRaiseException(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(record)));
 }
 
 uint32_t XB_STDCALL XapiSetLastNTError(uint32_t status) {

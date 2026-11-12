@@ -61,7 +61,7 @@ We've also named 2,667 of the game's global variables.
 | Streaming (asset loading, zones) | 183 | 163 | 11 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,111 | 82 | 191 | 0 | 0 | 462 |
-| Not sorted into a part yet | 49 | 5 | 5 | 7 | 2 | 30 |
+| Not sorted into a part yet | 49 | 5 | 7 | 7 | 2 | 28 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType

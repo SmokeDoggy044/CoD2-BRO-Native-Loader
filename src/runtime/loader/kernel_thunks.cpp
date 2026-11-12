@@ -3,6 +3,8 @@
 #include "seh.h"
 
 #include <array>
+#include <chrono>
+#include <cstdlib>
 #include <atomic>
 #include <cstdio>
 #include <condition_variable>
@@ -20,6 +22,7 @@
 #include "kernel.h"
 #include "kernel_memory.h"
 #include "log.h"
+#include "vmem.h"
 #include "objects.h"
 #include "thread_env.h"
 #include "xbe.h"
@@ -257,6 +260,62 @@ void* zero_block() {
     return blocks.back().get();
 }
 
+// XB_KERNEL_COUNT=FILE (developer): every function import goes through a stub that counts its calls and keeps
+// its last caller; FILE is rewritten every 2 s with "name calls last_caller". Shows which kernel exports our C
+// and the remaining original code still use (own engine host, 0.3).
+struct CountSlot {
+    uint32_t calls;
+    uint32_t last_caller;
+    uint32_t target;
+    const char* name;
+};
+
+void install_counting(uint32_t* first, const char* file) {
+    size_t n = 0;
+    while (first[n]) ++n;
+    auto* slots = new CountSlot[n]{};
+    constexpr size_t kStub = 3 + 5 + 7 + 6;
+    const size_t code_size = (n * kStub + 0xfff) & ~size_t{0xfff};
+    auto* code = static_cast<uint8_t*>(platform::vmem::reserve(0, code_size));
+    if (!code || !platform::vmem::commit(code, code_size, platform::vmem::Protection::ReadWriteExecute)) return;
+    auto put32 = [](uint8_t*& at, uintptr_t value) {
+        const uint32_t v = static_cast<uint32_t>(value);
+        std::memcpy(at, &v, 4);
+        at += 4;
+    };
+    for (size_t i = 0; i < n; ++i) {
+        // The table holds addresses now; the name comes from the implementation below.
+        slots[i].target = first[i];
+        slots[i].name = "?";
+        uint8_t* at = code + i * kStub;
+        *at++ = 0x8b; *at++ = 0x04; *at++ = 0x24;                // mov eax, [esp]
+        *at++ = 0xa3; put32(at, reinterpret_cast<uintptr_t>(&slots[i].last_caller));   // mov [last], eax
+        *at++ = 0xf0; *at++ = 0xff; *at++ = 0x05; put32(at, reinterpret_cast<uintptr_t>(&slots[i].calls));  // lock inc
+        *at++ = 0xff; *at++ = 0x25; put32(at, reinterpret_cast<uintptr_t>(&slots[i].target));  // jmp [target]
+    }
+    for (std::span<const xbox::KernelImpl> impls :
+         {std::span<const xbox::KernelImpl>(kLoaderImpls), seh_impls(), xbox::kernel_impls()})
+        for (const auto& impl : impls)
+            for (size_t i = 0; i < n; ++i)
+                if (slots[i].target == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(impl.address)))
+                    slots[i].name = impl.name;
+    for (size_t i = 0; i < n; ++i)
+        if (std::strcmp(slots[i].name, "?") != 0)  // data exports and stubs stay as they are
+            first[i] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(code + i * kStub));
+    std::thread([slots, n, path = std::string(file)] {
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            if (std::FILE* out = std::fopen(path.c_str(), "w")) {
+                for (size_t i = 0; i < n; ++i)
+                    if (slots[i].calls)
+                        std::fprintf(out, "%s %u %08x\n", slots[i].name, slots[i].calls, slots[i].last_caller);
+                std::fclose(out);
+            }
+        }
+    }).detach();
+    LOG_INFO("kernel", "counting kernel calls into %s", file);
+}
+
 }  // namespace
 
 int32_t initial_image_pages(const XbeImage& image) {
@@ -266,7 +325,7 @@ int32_t initial_image_pages(const XbeImage& image) {
     return pages;
 }
 
-void install_kernel_thunks(XbeImage& image) {
+void install_kernel_thunks(XbeImage& image, bool host) {
     g_image = &image;
     auto* entry = reinterpret_cast<uint32_t*>(uintptr_t{image.kernel_thunk_table()});
     int implemented = 0, zeroed = 0, stubbed = 0;
@@ -283,7 +342,7 @@ void install_kernel_thunks(XbeImage& image) {
             *entry = 0;
             continue;
         }
-        void* target = find_impl(exp->name);
+        void* target = host ? nullptr : find_impl(exp->name);
         if (target) {
             ++implemented;
         } else if (exp->kind == xbox::ExportKind::Data) {
@@ -301,6 +360,8 @@ void install_kernel_thunks(XbeImage& image) {
     LOG_INFO("kernel", "%d imports: %d implemented, %d zero-filled data, %d not yet implemented",
              implemented + zeroed + stubbed, implemented, zeroed, stubbed);
     LOG_DEBUG("kernel", "not yet implemented: %s", missing.c_str());
+    if (const char* count = std::getenv("XB_KERNEL_COUNT"); count && *count)
+        install_counting(reinterpret_cast<uint32_t*>(uintptr_t{image.kernel_thunk_table()}), count);
 }
 
 }  // namespace loader

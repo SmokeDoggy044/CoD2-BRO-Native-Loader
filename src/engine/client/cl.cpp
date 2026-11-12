@@ -1633,8 +1633,9 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
             title_global<uint32_t>(0x009606b4) = server_time;
         }
     }
-    // The loader's --level hook replaces this call's target (src/runtime/loader/patches.cpp kCallClientFrame).
-    const uint32_t screen = 0x002f27a9 + title_global<uint32_t>(0x002f27a5);
+    // The loader's --level hook takes this call (src/runtime/loader/patches.cpp install_client_frame_hook).
+    const uint32_t hooked = client_pc_hooks().screen_update_call;
+    const uint32_t screen = hooked ? hooked : own_address(&SCR_UpdateScreen_entry);
     regs.eax = uint32_t(state);
     call_at(top, screen, regs);  // SCR_UpdateScreen
     const int32_t paused = cvar_integer(0x0093fcd8);  // cl_paused

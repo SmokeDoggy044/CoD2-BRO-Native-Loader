@@ -5,6 +5,7 @@
 # still run (union of both, OUT/spots.txt), and - with BASELINE_OUT - whether the dumps are byte-identical
 # to the baseline's and which spots went away / are new.
 # Runs are serialized across worktrees with flock on cod_bro/wt/compare.lock.
+# HOST=1: --host instead (no original engine code from the start, no kernel; any original code that runs = crash).
 set -u
 loader=$(readlink -f "$1"); out=$(readlink -m "$2"); base=${3:+$(readlink -m "$3")}
 rec=/mnt/ms1/Projects/Decomps/Xbox/cod_bro/decomp/recordings
@@ -12,7 +13,8 @@ lock=/mnt/ms1/Projects/Decomps/Xbox/cod_bro/wt/compare.lock
 rm -rf "$out"; mkdir -p "$out"
 run() {  # name level recording frame seconds
     local d=$out/$1; mkdir -p "$d/dump"; cp -a "$rec/$1/$3.saves" "$d/data"
-    flock "$lock" timeout -s INT -k 15 "$5" "$loader" --own-main --text-clear "$d/clear.txt" --data "$d/data" \
+    local mode=(--own-main --text-clear "$d/clear.txt"); [ -n "${HOST:-}" ] && mode=(--host)
+    flock "$lock" timeout -s INT -k 15 "$5" "$loader" "${mode[@]}" --data "$d/data" \
         --silent --level "$2" --replay-speed 8 --replay-no-draw --replay "$rec/$1/$3.rep" \
         --replay-dump "$4" "$d/dump" > "$d/log.txt" 2>&1
     local rc=$?

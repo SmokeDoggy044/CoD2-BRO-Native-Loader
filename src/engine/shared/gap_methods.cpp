@@ -653,6 +653,15 @@ void xpp_init_array(uint32_t at) {
 
 }  // namespace
 
+// 0x00014750: the string's _Tidy (std::basic_string<char>: buffer at +4 when capacity +0x18 is 16 or more, size
+// +0x14): frees a heap buffer, back to the empty in-place string. Reached from level EH unwind funclets.
+void XB_THISCALL StdString_Tidy(uint8_t* self) {
+    if (word<uint32_t>(self, 0x18) >= 0x10) Z_Free(word<uint8_t*>(self, 4));
+    word<uint32_t>(self, 0x18) = 0xf;
+    word<uint32_t>(self, 0x14) = 0;
+    self[4] = 0;
+}
+
 // 0x007abead / 0x007abedd: .CRT$XC entries (_cinit).
 void XB_CDECL XPP_StaticInit_921770() { xpp_init_array(0x00921770); }
 void XB_CDECL XPP_StaticInit_9217e0() { xpp_init_array(0x009217e0); }

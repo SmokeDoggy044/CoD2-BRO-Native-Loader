@@ -7125,6 +7125,13 @@ void live_mgr_construct(uint8_t* m) {
 
 }  // namespace
 
+uint8_t XB_THISCALL LiveMgr_PadInput(uint8_t* self, int32_t port, uint8_t* state) {
+    if (!pk<uint32_t>(self, 8)) return 0;
+    const int32_t owner = static_cast<int32_t>(pk<uint32_t>(self, 0x44d0));
+    if (port != owner && owner != -1) return 0;
+    return title_function<uint8_t XB_THISCALL(uint8_t*, int32_t, uint8_t*)>(0x002220e0)(self, port, state);
+}
+
 uint32_t XB_CDECL Sys_ReadLaunchInfo(char* command_line) {
     // The chapters' maps ("+devmap prologue" .. "+devmap dragons_teeth") in .rdata.
     static constexpr uint32_t kChapterCommands[14] = {0x0083cbd4, 0x0083cbc4, 0x0083cbb4, 0x0083cb9c, 0x0083cb88,

@@ -200,7 +200,7 @@ void snapshot_code_sections(const XbeImage& image) {
     }
 }
 
-bool install_text_clear(const std::filesystem::path& out, const std::filesystem::path& keep_list) {
+bool install_text_clear(const std::filesystem::path& out, const std::vector<std::filesystem::path>& keep_lists) {
     if (g_code.empty()) {
         LOG_ERROR("trap", "--text-clear: no code sections were saved");
         return false;
@@ -212,7 +212,7 @@ bool install_text_clear(const std::filesystem::path& out, const std::filesystem:
     }
     // Data inside the code sections (merged constants the levels and our C read): kept as it is.
     std::vector<std::pair<uint32_t, uint32_t>> data;
-    {
+    for (const std::filesystem::path& keep_list : keep_lists) {
         std::ifstream in(keep_list);
         if (!in) {
             LOG_ERROR("trap", "cannot read %s", keep_list.string().c_str());
