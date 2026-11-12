@@ -881,4 +881,9 @@ void XB_THISCALL FxSoundComponent_Stop(const uint8_t* component);
 // 0x00298750 (sound vtable +0x28): 1 without a live channel, 0 without a voice, else voice state 3.
 uint8_t XB_THISCALL FxSoundComponent_IsState3(const uint8_t* component);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x002985a0 (vtable +8): with a live voice on the handle +0x64: "SOUND_PITCH" = param 1 * scale (SndVoice_SetParam,
+// the channel +0xc keeps it), "SOUND_VOLUME" = param 0 * scale (SoundRef_SetVolumeScale); other names nothing.
+void XB_THISCALL FxSoundComponent_ScaleParam(uint8_t* component, const char* name, float scale);
+
 }  // namespace game

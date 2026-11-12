@@ -2739,4 +2739,49 @@ float* XB_THISCALL FxConst_SampleN(const uint8_t* constant, int32_t count, float
     return count > 0 ? out + count : out;
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+namespace {
+
+// fx_randSeed's next draw as a float in [1, 2).
+float fx_draw_unit() {
+    uint32_t& seed = title_global<uint32_t>(0x00909f6c);  // fx_randSeed
+    seed = (0x3039u - seed * 0x3e39b193u) & 0x7fffffffu;
+    const uint32_t bits = (seed >> 8) | 0x3f800000u;
+    float unit;
+    std::memcpy(&unit, &bits, 4);
+    return unit;
+}
+
+void fx_sample_centred(const uint8_t* range, int32_t count, float* out, uint32_t max_offset) {
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float two = title_global<float>(0x0083eba8);
+    for (int32_t i = 0; i < count; ++i) {
+        const float u = fx_draw_unit() - one;
+        const float t = half > u ? (one - u) * u * two : (u - one) * u * two + one;
+        const float low = at<float>(range, 4 + static_cast<uint32_t>(i) * 4);
+        out[i] = (at<float>(range, max_offset + static_cast<uint32_t>(i) * 4) - low) * t + low;
+    }
+}
+
+}  // namespace
+
+void XB_THISCALL FxVectorRange_SampleN(const uint8_t* range, int32_t count, float* out) {
+    const float one = title_global<float>(0x0083eb20);
+    for (int32_t i = 0; i < count; ++i) {
+        const float low = at<float>(range, 4 + static_cast<uint32_t>(i) * 4);
+        const float span = at<float>(range, 0x10 + static_cast<uint32_t>(i) * 4) - low;
+        out[i] = span * (fx_draw_unit() - one) + low;
+    }
+}
+
+void XB_THISCALL FxRange_SampleCentred(const uint8_t* range, int32_t count, float* out) {
+    fx_sample_centred(range, count, out, 8);
+}
+
+void XB_THISCALL FxVectorRange_SampleCentred(const uint8_t* range, int32_t count, float* out) {
+    fx_sample_centred(range, count, out, 0x10);
+}
+
 }  // namespace game

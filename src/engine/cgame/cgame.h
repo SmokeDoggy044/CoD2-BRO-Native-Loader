@@ -467,4 +467,9 @@ extern "C" void CG_SetObjectiveMessage_entry(void);
 // +0x6c (the unset value 0x0083ebb4 as 0): -1, 1 or 0.
 int32_t XB_CDECL CG_CompareHudElems(const uint32_t* a, const uint32_t* b);
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x00026140 (cg in EAX; the static initializer 0x00376cd0 for cg 0x00971a80): the constructor's 24 cleared
+// words (+4, +0xa0, ... +0x1fec). Returns cg (EAX untouched).
+uint8_t* XB_REGS1 XB_CDECL CgState_Construct(uint8_t* cg);
+
 }  // namespace game

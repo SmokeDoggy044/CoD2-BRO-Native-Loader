@@ -574,4 +574,10 @@ void XB_CDECL IN_LowerStance();
 void XB_CDECL IN_GrenadeAttackDown();
 void XB_CDECL IN_GrenadeAttackUp();
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x002b3450 (command in EDI): Q3's Key_GetKey - the first key whose binding equals the command (Q_stricmpn), -1
+// when none or the command is null.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Key_GetKey(const char* command);
+extern "C" void Key_GetKey_entry(void);
+
 }  // namespace game

@@ -5141,4 +5141,14 @@ int32_t XB_CDECL CG_CompareHudElems(const uint32_t* a, const uint32_t* b) {
     return 0;
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+uint8_t* XB_REGS1 XB_CDECL CgState_Construct(uint8_t* cg) {
+    static const uint32_t kCleared[24] = {0x4,   0xa0,  0xbc,  0xd8,  0x4a8, 0x500, 0x504, 0x544,
+                                          0x5e0, 0x5fc, 0x618, 0x9e8, 0xa40, 0xa44, 0xa84, 0xb30,
+                                          0xb4c, 0xb68, 0xf38, 0xf90, 0xf94, 0xfd4, 0x1fe8, 0x1fec};
+    for (uint32_t offset : kCleared) *reinterpret_cast<uint32_t*>(cg + offset) = 0;
+    return cg;
+}
+
 }  // namespace game

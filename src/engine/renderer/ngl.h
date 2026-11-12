@@ -1486,4 +1486,13 @@ const uint32_t* XB_THISCALL nglSkipList_FindName8(const NglSkipList* self, const
 // 0x000643e0: the vertical blank count (0x009028e4) up; a pending frame starts once the interval has passed.
 void XB_CDECL nglVBlankCountFrames();
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+// 0x000675e0 (the mesh file manager's release; ZoneMeshFileManager's tail-jumps here): unless forced, the file's
+// count +0x120 down (returned while nonzero); a file used this frame or the last (+0x144) flushes the GPU first
+// (vertex input cleared, textures unbound, BlockUntilIdle); then removed from the manager when registered (+4,
+// slot 4), its meshes (+0x138, next +0x38: section buffers freed, removed from the mesh manager), the +0x13c
+// records (next +0xc: removed from their owner +4) and the +0x140 records (next +0x10, manager 0x00902a88), its
+// file buffer (+0x124, unless +0x130) and the file itself freed. Returns 0.
+uint32_t XB_THISCALL nglMeshFileManager_Release(uint8_t* manager, uint8_t* file, uint32_t force, uint32_t unused);
+
 }  // namespace game

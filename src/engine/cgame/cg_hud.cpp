@@ -4,9 +4,11 @@
 
 #include "actor.h"
 #include "cl.h"
+#include "cgame.h"
 #include "fe.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "qcommon_fs.h"
 #include "stream.h"
 #include "ngl.h"
 #include "title_crt.h"
@@ -1919,6 +1921,445 @@ void XB_THISCALL HudCompStance_Setup(uint8_t* self, uint8_t* panel) {
     static const uint32_t kNames[7] = {0x0082df98, 0x0082df84, 0x0082df74, 0x0082df60,
                                        0x0082df50, 0x0082df3c, 0x0082df2c};
     for (uint32_t i = 0; i < 7; ++i) field<uint8_t*>(self, 8 + i * 4) = Panel_FindPicture(panel, hud_text(kNames[i]));
+}
+
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+void XB_THISCALL HudCompHint_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    // the 0x84 button pictures (UIPicture_ScaleXForAspect inlined), then the text's scale
+    for (uint32_t i = 0; i < 0x84; ++i)
+        if (uint8_t* const picture = object_at(self, 8 + i * 4)) UIPicture_ScaleXForAspect(widescreen, picture, center_x);
+    uint8_t* const text = object_at(self, 0x218);
+    if (uint8_t(widescreen))
+        method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(text, 0x5c)(text, 0x3f066666u, 0x3f333333u);  // 0.525, 0.7
+    else
+        method<WordMethod>(text, 0x60)(text, 0x3f333333u);  // 0.7
+}
+
+void XB_THISCALL HudCompGrenades_Update(uint8_t* self, uint32_t) {
+    if (!visible(self)) return;
+    if ((title_global<uint32_t>(0x00972610) & 0x100000) || !title_global<uint8_t*>(0x00971aa8)) {  // in a vehicle, cg_snap
+        field<uint8_t>(self, 0x18) = 1;
+        return;
+    }
+    const int32_t weapon = title_global<int8_t>(0x0097294c);  // the grenade weapon
+    if (!weapon) {
+        field<uint8_t>(self, 0x18) = 1;
+        return;
+    }
+    const int32_t count = static_cast<int32_t>(CG_GetGrenadeAmmoCount());
+    field<int32_t>(self, 0x14) = count;
+    if (count > 999) field<int32_t>(self, 0x14) = 999;
+    const char* const name = field<const char*>(title_global<uint8_t* const*>(0x0095f4d8)[weapon], 0x578);
+    if (!std::strcmp(name, hud_text(0x0082de94))) {  // "weapon_fraggrenade"
+        method<WordMethod>(object_at(self, 8), 0x7c)(object_at(self, 8), 0x3f800000u);
+        method<WordMethod>(object_at(self, 0xc), 0x7c)(object_at(self, 0xc), 0);
+        field<uint32_t>(self, 0x1c) = 0;
+    } else if (!std::strcmp(name, hud_text(0x0082de7c))) {  // "weapon_stielhandgranate"
+        method<WordMethod>(object_at(self, 8), 0x7c)(object_at(self, 8), 0);
+        method<WordMethod>(object_at(self, 0xc), 0x7c)(object_at(self, 0xc), 0x3f800000u);
+        field<uint32_t>(self, 0x1c) = 1;
+    } else {
+        field<uint8_t>(self, 0x18) = 1;
+        return;
+    }
+    char buffer[8];  // the original's is a 4-byte slot ("x999" would reach the return address)
+    title_sprintf(buffer, hud_text(0x0082de78), field<int32_t>(self, 0x14));  // "x%i"
+    if (buffer[0])
+        method<WordMethod>(object_at(self, 0x10), 0x78)(object_at(self, 0x10),
+                                                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buffer)));
+    field<uint8_t>(self, 0x18) = 0;
+}
+
+void XB_THISCALL HudCompGrenadeCook_Update(uint8_t* self, uint32_t) {
+    if (!visible(self)) return;
+    const float zero = 0.0f;
+    if (zero > field<float>(self, 0x24) || zero > field<float>(self, 0x28) ||
+        (title_global<uint32_t>(0x00972610) & 0x100000) || !title_global<uint8_t*>(0x00971aa8)) {
+        field<uint8_t>(self, 0x2d) = 1;
+        return;
+    }
+    for (uint32_t i = 0; i < 6; ++i) method<WordMethod>(object_at(self, 8 + i * 4), 0x7c)(object_at(self, 8 + i * 4), 0x3f800000u);
+    const float left = field<float>(self, 0x24) / field<float>(self, 0x28);  // fuse left / fuse time
+    for (uint32_t i = 0; i < 6; ++i) method<WordMethod>(object_at(self, 8 + i * 4), 0x70)(object_at(self, 8 + i * 4), 0x64ff0000u);
+    // a segment goes out per sixth of the fuse (x87 compares of the float against doubles)
+    static const uint32_t kThresholds[5] = {0x0083ee00, 0x0083edf8, 0x0083ecb0, 0x0083edf0, 0x0083ede8};  // .83 .67 .5 .33 .17
+    for (uint32_t i = 0; i < 5; ++i)
+        if (title_global<double>(kThresholds[i]) > static_cast<double>(left))
+            method<WordMethod>(object_at(self, 8 + i * 4), 0x7c)(object_at(self, 8 + i * 4), 0);
+    field<uint8_t>(self, 0x2d) = 0;
+}
+
+void XB_THISCALL HudCompTankReticle_Update(uint8_t* self, uint32_t) {
+    if (!visible(self) || !object_at(self, 8)) return;
+    uint32_t handle = 0;  // the ScriptString first, then the entity handle (the original's one slot)
+    own_function<void XB_THISCALL(uint32_t*, const char*)>(&ScriptString_FromCString)(&handle, hud_text(0x0082dd9c));  // "player_tank"
+    using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t entity = title_function<FindFn>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x84))(
+        &handle, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
+    own_function<void XB_THISCALL(uint32_t*)>(&ScriptString_Release_entry)(&handle);
+    if (!entity) return;
+    handle = entity;
+    uint8_t* const ent = G_EntHandleToEnt(&handle);
+    if (!ent) return;
+    uint8_t* const vehicle = field<uint8_t*>(ent, 0x248);
+    if (!vehicle) return;
+    uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[ent[3]];
+    const int32_t ticks = field<int32_t>(self, 0x3c);
+    field<int32_t>(self, 0x40) = -1;
+    // the reload time (def +0x5dc) split into `ticks` steps; +0x180 the time left
+    const int32_t step = static_cast<int32_t>(static_cast<float>(field<int32_t>(def, 0x5dc)) / static_cast<float>(ticks));
+    if (field<int32_t>(vehicle, 0x180) > 0) field<int32_t>(self, 0x40) = ticks - field<int32_t>(vehicle, 0x180) / step - 1;
+    if (field<int32_t>(self, 0x40) < 0) return;
+    for (int32_t i = 0; i < 4; ++i) {
+        uint8_t* const tick = object_at(self, 0xc + static_cast<uint32_t>(i) * 4);
+        if (i > field<int32_t>(self, 0x40))
+            method<WordMethod>(tick, 0x78)(tick, 0x3f800000u);
+        else if (i < field<int32_t>(self, 0x40))
+            method<WordMethod>(tick, 0x78)(tick, 0);
+    }
+    const int32_t current = field<int32_t>(self, 0x40);
+    const float alpha = static_cast<float>((current - field<int32_t>(self, 0x3c) + 1) * step + field<int32_t>(vehicle, 0x180)) /
+                        static_cast<float>(step);
+    field<float>(self, 0x44) = alpha;
+    uint8_t* const tick = object_at(self, 0xc + static_cast<uint32_t>(current) * 4);
+    method<void XB_THISCALL(uint8_t*, float)>(tick, 0x78)(tick, alpha);
+}
+
+void XB_THISCALL HudCompGrenadeCook_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    // UIPicture_ScaleXForAspect inlined on the six segments and +0x20 (no null checks)
+    for (uint32_t i = 0; i < 6; ++i) UIPicture_ScaleXForAspect(widescreen, object_at(self, 8 + i * 4), center_x);
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 0x20), center_x);
+}
+
+void XB_THISCALL HudCompTankReticle_Setup(uint8_t* self, uint8_t* panel) {
+    using SetPosition = void XB_THISCALL(uint8_t*, float, float);
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082dd6c));     // "tank_reticle"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082dd60));   // "tank_tic1"
+    field<uint8_t*>(self, 0x10) = Panel_FindPicture(panel, hud_text(0x0082dd54));  // "tank_tic2"
+    field<uint8_t*>(self, 0x14) = Panel_FindPicture(panel, hud_text(0x0082dd48));  // "tank_tic3"
+    field<uint8_t*>(self, 0x18) = Panel_FindPicture(panel, hud_text(0x0082dd3c));  // "tank_tic4"
+    // the ticks' offsets from the reticle (x87; position vtable +0x9c / +0xa0)
+    uint8_t* reticle = object_at(self, 8);
+    const float rx = static_cast<float>(method<GetMethod>(reticle, 0x9c)(reticle));
+    reticle = object_at(self, 8);
+    const float ry = static_cast<float>(method<GetMethod>(reticle, 0xa0)(reticle));
+    float dx[4];
+    float dy[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* tick = object_at(self, 0xc + i * 4);
+        dx[i] = static_cast<float>(static_cast<long double>(rx) - method<GetMethod>(tick, 0x9c)(tick));
+        tick = object_at(self, 0xc + i * 4);
+        dy[i] = static_cast<float>(static_cast<long double>(ry) - method<GetMethod>(tick, 0xa0)(tick));
+    }
+    // the reticle moved by (320 - rx, 240 - (ry - height / 2)) (vtable +0xb4, +0x8c)
+    reticle = object_at(self, 8);
+    const long double half = method<GetMethod>(reticle, 0xb4)(reticle) * static_cast<long double>(gf(0x0083eb24));
+    const float shift = static_cast<float>(static_cast<long double>(gf(0x0083eed4)) - (static_cast<long double>(ry) - half));
+    reticle = object_at(self, 8);
+    const auto set_position = title_function<SetPosition>(field<uint32_t>(field<uint8_t*>(reticle, 0), 0x8c));
+    const float y = static_cast<float>(method<GetMethod>(reticle, 0xa0)(reticle) + static_cast<long double>(shift));
+    const long double x0 = method<GetMethod>(reticle, 0x9c)(reticle);
+    const float x = static_cast<float>(x0 + (static_cast<long double>(gf(0x0083ec64)) - static_cast<long double>(rx)));
+    set_position(reticle, x, y);
+    // the ticks at the same offsets from the moved reticle (+0x1c.. x, +0x2c.. y)
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* r = object_at(self, 8);
+        field<float>(self, 0x1c + i * 4) = static_cast<float>(method<GetMethod>(r, 0x9c)(r) - static_cast<long double>(dx[i]));
+        r = object_at(self, 8);
+        const float ty = static_cast<float>(method<GetMethod>(r, 0xa0)(r) - static_cast<long double>(dy[i]));
+        field<float>(self, 0x2c + i * 4) = ty;
+        uint8_t* const tick = object_at(self, 0xc + i * 4);
+        method<SetPosition>(tick, 0x8c)(tick, field<float>(self, 0x1c + i * 4), ty);
+    }
+    field<int32_t>(self, 0x3c) = 4;
+}
+
+void XB_THISCALL HudManager_Draw(uint8_t* self) {
+    if (!title_global<uint32_t>(0x008d9d48)) return;  // the HUD on
+    nglPushScene(0);
+    nglSetClearFlags(3);
+    static const uint32_t kComponents[9] = {4, 8, 0xc, 0x10, 0x14, 0x18, 0x30, 0x38, 0x34};
+    for (uint32_t offset : kComponents) {
+        uint8_t* const component = object_at(self, offset);
+        if (component && shown(component)) call(object_at(self, offset), 0xc);
+    }
+    // the layout's extra slots
+    if (field<int32_t>(self, 0x5c) == 1) call(object_at(self, 0x24), 0xc);
+    if (field<int32_t>(self, 0x5c) == 2) {
+        call(object_at(self, 0x1c), 0xc);
+        call(object_at(self, 0x20), 0xc);
+    }
+    if (field<int32_t>(self, 0x5c) == 3) {
+        if (object_at(self, 0x28)) call(object_at(self, 0x28), 0xc);
+        if (object_at(self, 0x2c)) call(object_at(self, 0x2c), 0xc);
+    }
+    if (object_at(self, 0x40)) call(object_at(self, 0x40), 0xc);  // the attached component
+    nglPopScene();
+}
+
+void XB_THISCALL HudCompWeaponName_Update(uint8_t* self, uint32_t) {
+    if (!shown(self)) return;
+    // the name shows for 1.8 s after a weapon change (0x0094c23c), fading over its last 100 ms
+    const float left = static_cast<float>(title_global<int32_t>(0x0094c23c) - title_global<int32_t>(0x0097253c) + 0x708);
+    if (0.0f > left || (title_global<uint32_t>(0x00972610) & 0x100000)) {
+        field<uint8_t>(self, 0x14) = 1;
+        return;
+    }
+    uint8_t* def = title_global<uint8_t*>(0x00972acc);
+    const int32_t weapon = title_global<int32_t>(0x00947fa4);
+    if (weapon >= 0 && weapon < title_global<int32_t>(0x0095f4d4) &&
+        (title_global<uint32_t>(0x00972940 + static_cast<uint32_t>(weapon >> 5) * 4) & (1u << (weapon & 0x1f))))
+        def = title_global<uint8_t* const*>(0x0095f4d8)[weapon];
+    if (!def || !field<uint32_t>(def, 0)) {
+        field<uint8_t>(self, 0x14) = 1;
+        return;
+    }
+    const float scaled = left * gf(0x0083eb94);  // 0.01 (computed either way: MXCSR flags)
+    platform_keep(scaled);
+    const float alpha = gf(0x0083eb90) > left ? scaled : gf(0x0083eb20);  // 100, 1.0
+    uint32_t alpha_bits;
+    std::memcpy(&alpha_bits, &alpha, 4);
+    field<uint8_t>(self, 0x14) = 0;
+    method<WordMethod>(object_at(self, 8), 0x88)(object_at(self, 8), alpha_bits);
+    method<WordMethod>(object_at(self, 0xc), 0x78)(object_at(self, 0xc), alpha_bits);
+    const uint32_t index = field<uint32_t>(def, 0);
+    if (field<uint32_t>(self, 0x10) == index) return;
+    // the names (0x00976034 + index * 0xc4: two strings) and the background fitted to the text
+    const uint32_t names = 0x00976034 + index * 0xc4;
+    const char* text;
+    if (*field<const char*>(def, 0x90))
+        text = own_function<const char* XB_CDECL(const char*, uint32_t, uint32_t)>(&va_entry)(
+            hud_text(0x0082ddd8), title_global<uint32_t>(names), title_global<uint32_t>(names + 4));  // "%s / %s"
+    else
+        text = own_function<const char* XB_CDECL(const char*, uint32_t)>(&va_entry)(hud_text(0x0082ddd4),
+                                                                                    title_global<uint32_t>(names));  // "%s"
+    method<WordMethod>(object_at(self, 8), 0x78)(object_at(self, 8), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text)));
+    uint8_t* const name = object_at(self, 8);
+    const long double width = method<GetMethod>(name, 0xd0)(name) + static_cast<long double>(gf(0x0083ebb8));  // + 16
+    uint8_t* const back = object_at(self, 0xc);
+    const float x0 = static_cast<float>(static_cast<long double>(gf(0x0083ec7c)) - width);  // 545 - width
+    uint32_t x0_bits;
+    std::memcpy(&x0_bits, &x0, 4);
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t)>(back, 0x84)(
+        back, x0_bits, 0x43b68000u, 0x44084000u, 0x43c08000u);  // 365, 545, 385
+}
+
+void XB_THISCALL HudCompStance_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    for (uint32_t i = 0; i < 6; ++i) UIPicture_ScaleXForAspect(widescreen, object_at(self, 8 + i * 4), center_x);
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 0x20), center_x);
+}
+
+void XB_THISCALL HudCompBomberMap_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    if (!object_at(self, 0x30)) return;
+    for (uint32_t offset = 8; offset <= 0x40; offset += 4)
+        UIPicture_ScaleXForAspect(widescreen, object_at(self, offset), center_x);
+}
+
+void XB_THISCALL HudCompCompass_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082dd04));     // "compass"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082dcf4));   // "compassneedle"
+    uint8_t* const glass = Panel_FindPicture(panel, hud_text(0x0082dce4));         // "compassglass"
+    field<uint8_t*>(self, 0x10) = glass;
+    const auto glass_vtable = field<uint32_t>(glass, 0);
+    const float depth = static_cast<float>(title_function<GetMethod>(title_global<uint32_t>(glass_vtable + 0x28))(glass) +
+                                           static_cast<long double>(gf(0x0083eb5c)));  // + 20
+    title_function<void XB_THISCALL(uint8_t*, float)>(title_global<uint32_t>(glass_vtable + 0x24))(object_at(self, 0x10), depth);
+    call(object_at(self, 8), 0xc4);
+    // the quads: rectangles from (0, 0), white or tinted (bytes 0, 0, 0xb4, 0xff) corners
+    const auto rect = [](float* corners, float w, float h) {
+        const float c[12] = {0.0f, 0.0f, 0.0f, w, 0.0f, 0.0f, 0.0f, h, 0.0f, w, h, 0.0f};
+        for (uint32_t i = 0; i < 12; ++i) corners[i] = c[i];
+    };
+    uint8_t white[16];
+    uint8_t tinted[16];
+    std::memset(white, 0xff, sizeof white);
+    for (uint32_t i = 0; i < 4; ++i) {
+        tinted[i * 4] = 0;
+        tinted[i * 4 + 1] = 0;
+        tinted[i * 4 + 2] = 0xb4;
+        tinted[i * 4 + 3] = 0xff;
+    }
+    float marker[12], tank_small[12], tank[12], arrow[12], ring[12];
+    rect(marker, gf(0x0083ec78), gf(0x0083ec78));        // 13
+    rect(tank, gf(0x0083eecc), gf(0x0083eec8));          // 20.8 x 10.4
+    rect(tank_small, gf(0x0083eec4), gf(0x0083eec0));    // 14.56 x 7.28
+    rect(arrow, gf(0x0083eeac), gf(0x0083eeac));         // 32
+    rect(ring, gf(0x00830c1c), gf(0x00830c1c));          // 64
+    const auto add = [self](uint32_t offset, uint32_t name, float* corners, uint8_t* colors, uint32_t texture) {
+        uint8_t* p = static_cast<uint8_t*>(hud_malloc(0x40));
+        p = p ? UIPicture_Init(p, hud_text(name)) : nullptr;
+        field<uint8_t*>(self, offset) = p;
+        method<QuadMethod>(p, 0x3c)(p, corners, colors, 7, 0, hud_text(texture));
+    };
+    add(0x14, 0x0082dcd8, marker, white, 0x0082dcc4);       // "friendly", "objective_friendly"
+    add(0x2c, 0x0082dcbc, marker, tinted, 0x0082dcc4);      // "enemy"
+    add(0x30, 0x0082dcb4, tank_small, tinted, 0x0082dcb4);  // "tank"
+    add(0x18, 0x0082dcb4, tank, white, 0x0082dcb4);
+    add(0x20, 0x0082dca4, arrow, white, 0x0082dc94);        // "objective up", "objective_up"
+    add(0x24, 0x0082dc84, arrow, white, 0x0082dc84);        // "objective_down"
+    add(0x28, 0x0082dc78, arrow, white, 0x0082dc78);        // "objective"
+    add(0x1c, 0x0082dc68, ring, white, 0x0082dc58);         // "objective ring", "objective_ring"
+    field<uint8_t>(self, 0x3c) = 0;
+    for (uint32_t i = 0; i < 25; ++i) field<uint8_t>(self, 0xe34 + i * 0x28) = 0;
+}
+
+void XB_THISCALL HudCompHint_Update(uint8_t* self, uint32_t) {
+    using PulseMethod = void XB_THISCALL(uint8_t*, float, float, uint32_t);
+    if (!shown(self)) return;
+    int32_t mode = title_global<int32_t>(0x0094c834);
+    const uint8_t* const snap = title_global<uint8_t*>(0x00971aa8);  // cg_snap
+    if (!mode || !snap) {
+        field<uint8_t>(self, 0x224) = 1;
+        return;
+    }
+    const int32_t now = title_global<int32_t>(0x0097253c);  // cg_time
+    int32_t hint, length, start;
+    if (!title_global<int32_t>(0x00972548) && field<int32_t>(const_cast<uint8_t*>(snap), 0x48c)) {
+        start = now;
+        title_global<int32_t>(0x00972ebc) = now;
+        length = title_global<int32_t>(0x0094c5f4);
+        title_global<int32_t>(0x00972ec0) = length;
+        hint = field<int32_t>(const_cast<uint8_t*>(snap), 0x48c);
+        title_global<int32_t>(0x00972eb8) = hint;
+        title_global<int32_t>(0x00972ec4) = field<int32_t>(const_cast<uint8_t*>(snap), 0x490);
+        mode = title_global<int32_t>(0x0094c834);
+        title_global<int32_t>(0x00972ec8) = field<int32_t>(const_cast<uint8_t*>(snap), 0x494);
+    } else {
+        hint = title_global<int32_t>(0x00972eb8);
+        length = title_global<int32_t>(0x00972ec0);
+        start = title_global<int32_t>(0x00972ebc);
+    }
+    if (hint >= 0) {
+        if (hint <= 1) {
+            field<uint8_t>(self, 0x224) = 1;
+            return;
+        }
+        if (hint == 10) {
+            title_global<int32_t>(0x00972eb0) = 0xfa;
+            if (!title_global<int32_t>(0x00972eac)) title_global<int32_t>(0x00972eac) = now;
+        }
+    }
+    const float left = static_cast<float>(length - now + start);
+    if (!(0.0f < left)) {
+        title_global<int32_t>(0x00972eac) = 0;
+        title_global<int32_t>(0x00972eb8) = 0;
+        field<uint8_t>(self, 0x224) = 1;
+        return;
+    }
+    float pulse = gf(0x0083eb20);  // 1.0
+    if (mode == 2)
+        pulse = static_cast<float>(start % 1000) * gf(0x0083eb94);  // 0.01
+    else if (mode < 2)
+        pulse = static_cast<float>((platform_x87_sin_ext(static_cast<long double>(now) * gf(0x0083ef9c)) + gf(0x0083eb20)) *
+                                   gf(0x0083ece8));  // sin(t / 150) + 1, * 5 (x87)
+    float alpha = gf(0x0083eb20);
+    if (gf(0x0083eb90) > left) alpha = left * gf(0x0083eb94);  // 100, 0.01
+    uint32_t alpha_bits;
+    std::memcpy(&alpha_bits, &alpha, 4);
+    const auto show_button = [self, pulse](uint32_t index_offset) {
+        const float scale = field<uint8_t>(self, 0x225) ? pulse * gf(0x0083eba8) : pulse;  // doubled
+        uint8_t* const button = object_at(self, 8 + static_cast<uint32_t>(field<int32_t>(self, index_offset)) * 4);
+        method<PulseMethod>(button, 0x58)(button, scale, pulse, 1);
+    };
+    uint8_t* const text = object_at(self, 0x218);
+    if (hint == field<int32_t>(self, 0x220)) {
+        uint8_t* const button = object_at(self, 8 + static_cast<uint32_t>(field<int32_t>(self, 0x220)) * 4);
+        method<WordMethod>(button, 0x78)(button, alpha_bits);
+        show_button(0x220);
+        method<WordMethod>(object_at(self, 0x218), 0x88)(object_at(self, 0x218), alpha_bits);
+        return;
+    }
+    // a new hint: its text
+    char buffer[0x100];
+    buffer[0] = 0;
+    uint8_t* const hud = title_global<uint8_t*>(0x0095f8f0);  // g_hudManager
+    const uint32_t hud_name = field<uint32_t>(hud, 0x48);
+    field<uint8_t>(self, 0x225) = 0;
+    const int32_t current = title_global<int32_t>(0x00972eb8);
+    const auto name_of = [](int32_t weapon) { return title_global<uint32_t>(0x00976034 + static_cast<uint32_t>(weapon) * 0xc4); };
+    const auto loc = [](uint32_t key) { return Loc_GetString(hud_text(key)); };
+    const auto pad_name = [hud]() {  // +0x4c, or +0x50 once +0x4c is set
+        const char* const first = field<const char*>(hud, 0x4c);
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first[0] ? field<const char*>(hud, 0x50) : first));
+    };
+    if (current >= 12 && current <= 0x8b) {
+        const int32_t weapon = current - 11;
+        field<int32_t>(self, 0x21c) = weapon + 4;
+        if (!object_at(self, 8 + static_cast<uint32_t>(weapon + 4) * 4)) field<int32_t>(self, 0x21c) = 1;
+        const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[weapon];
+        if (field<uint32_t>(const_cast<uint8_t*>(def), 0x6f0)) field<uint8_t>(self, 0x225) = 1;
+        if (!BG_GetFreeWeaponSlot(static_cast<uint32_t>(weapon), &title_global<uint8_t>(0x00972550))) {
+            int32_t held = title_global<int32_t>(0x009725d0);
+            const uint32_t slot = field<uint32_t>(const_cast<uint8_t*>(def), 0x9c);
+            if (field<uint32_t>(title_global<uint8_t* const*>(0x0095f4d8)[held], 0x9c) != slot)
+                held = title_global<int8_t>(0x00972948 + slot);
+            if (held == weapon) {
+                field<uint8_t>(self, 0x224) = 1;
+                return;
+            }
+            if (field<int32_t>(const_cast<uint8_t*>(def), 0x98) == 5)
+                title_sprintf(buffer, loc(0x0082dbf4), name_of(weapon));  // INGAME_PICKUP_WEAPON
+            else
+                title_sprintf(buffer, loc(0x0082dbe0), name_of(held), name_of(weapon));  // INGAME_SWAP_WEAPONS
+        } else {
+            title_sprintf(buffer, loc(0x0082dbf4), name_of(weapon));
+        }
+    } else if (current >= 0x8c && current <= 0x10b) {
+        field<int32_t>(self, 0x21c) = 2;
+        title_sprintf(buffer, loc(0x0082dbcc), name_of(title_global<int32_t>(0x00972eb8) - 0x8b));  // INGAME_PICKUP_AMMO
+    } else if (current == 7) {
+        field<int32_t>(self, 0x21c) = 3;
+        int32_t key = Key_GetKey(hud_text(0x0082dfa8));
+        if (key == -1) key = Key_GetKey(hud_text(0x0082dfb0));
+        uint32_t message;
+        if (key == 0xd7 || key == 0xd8)
+            message = 0x0082dbac;  // INGAME_XBOX_LMG_MOUNTPOINT_PULL
+        else if (key == 0xdb)
+            message = 0x0082db88;  // _CLICK_R
+        else if (key == 0xdc)
+            message = 0x0082db64;  // _CLICK_L
+        else
+            message = 0x0082db48;  // INGAME_PS2_LMG_MOUNTPOINT
+        title_sprintf(buffer, loc(message), pad_name());
+    } else if (title_global<int32_t>(0x00972ec8) != -1) {
+        field<int32_t>(self, 0x21c) = 1;
+        const char* const string = own_function<const char* XB_REGS1 XB_CDECL(int32_t)>(&Loc_FindTextByHash)(
+            title_global<int32_t>(0x00972ec8));  // the localized string by hash
+        if (string) {
+            title_sprintf(buffer, hud_text(0x0082ddd4), string);  // "%s"
+        } else {
+            const char* const config = own_function<const char* XB_REGS1 XB_CDECL(int32_t)>(&CL_GetConfigStringText)(
+                title_global<int32_t>(0x00972ec8) + 0x273);  // the config string
+            const char* plant = nullptr;
+            if (config && !std::strcmp(config, hud_text(0x0082db28)))  // "Press [USE] to plant charge."
+                plant = loc(0x0082db14);                                 // GELA_PLANT_CHARGES
+            if (plant) {
+                for (uint32_t i = 0;; ++i) {
+                    buffer[i] = plant[i];
+                    if (!plant[i]) break;
+                }
+            } else if (!config || !config[0]) {
+                buffer[0] = 0;
+            } else {
+                const char* const localized = Loc_GetString(config);
+                title_sprintf(buffer, localized ? localized : config, hud_name);
+            }
+        }
+    } else if (current == 8) {
+        field<int32_t>(self, 0x21c) = 0;
+        title_sprintf(buffer, loc(0x0082dafc), hud_name);  // INGAME_HEALTH_PICKUP
+    } else if (current == 2) {
+        field<int32_t>(self, 0x21c) = 1;
+    }
+    method<void XB_THISCALL(uint8_t*, const char*, uint32_t, uint32_t)>(text, 0x140)(text, buffer, 0x1c2, 0xbf800000u);  // 450, -1
+    if (field<int32_t>(self, 0x21c) >= 0) {
+        show_button(0x21c);
+        uint8_t* const button = object_at(self, 8 + static_cast<uint32_t>(field<int32_t>(self, 0x21c)) * 4);
+        method<WordMethod>(button, 0x78)(button, alpha_bits);
+    }
+    method<WordMethod>(object_at(self, 0x218), 0x88)(object_at(self, 0x218), alpha_bits);
+    field<uint8_t>(self, 0x224) = 0;
 }
 
 }  // namespace game

@@ -6557,4 +6557,45 @@ void XB_CDECL nglVBlankCountFrames() {
     title_global<uint8_t>(0x0090288c) = 0;
 }
 
+// --- Gap functions (no Ghidra function until 2026-11-11) ---
+
+uint32_t XB_THISCALL nglMeshFileManager_Release(uint8_t* manager, uint8_t* file, uint32_t force, uint32_t) {
+    using Remove = void XB_THISCALL(uint8_t*, uint8_t*);
+    const auto remove = [](uint8_t* owner, uint8_t* object) {
+        title_function<Remove>(reinterpret_cast<uint32_t*>(*reinterpret_cast<uintptr_t*>(owner))[4])(owner, object);
+    };
+    const auto word = [](uint8_t* base, uint32_t offset) -> uint32_t& {
+        return *reinterpret_cast<uint32_t*>(base + offset);
+    };
+    if (!file) return 0;
+    if (!force) {
+        const uint32_t count = --word(file, 0x120);
+        if (count) return count;
+    }
+    if (static_cast<int32_t>(word(file, 0x144)) + 1 >= title_global<int32_t>(0x009028e0)) {  // ngl_frameCount
+        title_global<uint32_t>(0x00903c88) = 0;
+        title_global<uint32_t>(0x00903c8c) = 0;
+        title_global<uint32_t>(0x00903c90) = 0;
+        xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
+        nglUnbindTextures();
+        title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
+    }
+    if (file[4]) remove(manager, file);
+    for (uint8_t* mesh = reinterpret_cast<uint8_t*>(uintptr_t{word(file, 0x138)}); mesh;
+         mesh = reinterpret_cast<uint8_t*>(uintptr_t{word(mesh, 0x38)})) {
+        for (uint32_t i = 0; i < word(mesh, 8); ++i)
+            nglMeshSection_FreeBuffers(reinterpret_cast<uint8_t*>(uintptr_t{word(reinterpret_cast<uint8_t*>(uintptr_t{word(mesh, 0xc)}), i * 8 + 4)}));
+        remove(title_global<uint8_t*>(0x00902a80), mesh);  // ngl_meshManager
+    }
+    for (uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{word(file, 0x13c)}); record;
+         record = reinterpret_cast<uint8_t*>(uintptr_t{word(record, 0xc)}))
+        if (uint8_t* const owner = reinterpret_cast<uint8_t*>(uintptr_t{word(record, 4)})) remove(owner, record);
+    for (uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{word(file, 0x140)}); record;
+         record = reinterpret_cast<uint8_t*>(uintptr_t{word(record, 0x10)}))
+        remove(title_global<uint8_t*>(0x00902a88), record);
+    if (!file[0x130]) nglFreeFileBuffer(reinterpret_cast<uint32_t*>(file + 0x124));
+    own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(file);
+    return 0;
+}
+
 }  // namespace game
