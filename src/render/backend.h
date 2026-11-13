@@ -36,6 +36,9 @@ struct TextureReplacement {
 struct UiNarrowing {
     float anchor = -1.0f;  // a, a fraction of the width; negative: not narrowed
     float factor = 1.0f;
+    // Full-width draws narrowed as well, the scissor not (a scope overlay keeping its shape, black drawn
+    // beyond the layout's sides).
+    bool full_width_too = false;
 };
 
 struct BackendConfig {

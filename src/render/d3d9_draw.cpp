@@ -604,6 +604,7 @@ UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, const CachedVertices* ca
         return {};
     const UiNarrowing narrowing = narrow_ui_draw_();
     if (narrowing.anchor < 0.0f || narrowing.factor >= 1.0f) return {};
+    if (narrowing.full_width_too) return narrowing;
     // Full-width quads (dimming, letterbox bars) keep covering the picture.
     const uint32_t stride = static_cast<uint32_t>(std::popcount(input.attribute_mask)) * 4;
     float left = cached ? cached->left : 0.0f, right = cached ? cached->right : 0.0f;

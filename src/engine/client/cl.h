@@ -42,6 +42,9 @@ struct ClientPcHooks {
     // Set: CG_DrawObjectives draws the objectives panel into a child scene of its own and reports it (the
     // panel is a 4:3 layout; narrowed around the HUD's left anchor).
     void (XB_CDECL* objectives_scene)(uint32_t scene) = nullptr;
+    // Set: CG_DrawAdsOverlay draws into a child scene of its own and reports it, and fills black beyond the
+    // layout's sides (the scope/binocular overlay keeps its 16:9 shape on wider pictures, black beside it).
+    void (XB_CDECL* ads_overlay_scene)(uint32_t scene) = nullptr;
     // Set: CG_GetViewFov returns this of a weapon def's own fov (+0x848: tanks, mounted guns) - widened with
     // the player's field of view.
     float (XB_CDECL* fixed_fov)(float fov) = nullptr;

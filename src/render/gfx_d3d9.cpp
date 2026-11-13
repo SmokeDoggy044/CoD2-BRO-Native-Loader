@@ -636,7 +636,7 @@ public:
         platform::HostFloatEnv float_env;
         const uint32_t primitives = primitive_count(primitive, indices ? index_count : vertex_count);
         if (!primitives || !vertices || !stride || (indices && primitive == Primitive::Quads)) return;
-        float x_range[2];
+        float x_range[4];  // x min, max, y min, max
         const bool has_range = position_range(vertices, vertex_count, stride, x_range);
         if (!prepare(primitive, has_range ? x_range : nullptr) || !create_user_buffers()) return;
         const uint32_t bytes = vertex_count * stride;
@@ -914,7 +914,8 @@ private:
     // Everything but the streams, for a draw now; false if it cannot draw.
     // The x range of input 0 (screen-space positions) of caller vertices; false if the layout has
     // no float position there.
-    bool position_range(const void* vertices, uint32_t count, uint32_t stride, float (&range)[2]) const {
+    // The positions' x range (range[0..1]) and y range (range[2..3]; 1, 0 without a y).
+    bool position_range(const void* vertices, uint32_t count, uint32_t stride, float (&range)[4]) const {
         if (layout_ == 0 || layout_ > layout_attributes_.size() || !count) return false;
         for (const VertexAttribute& a : layout_attributes_[layout_ - 1]) {
             if (a.input != 0 || a.stream != 0 || a.type < AttributeType::Float1 || a.type > AttributeType::Float4)
@@ -922,11 +923,18 @@ private:
             const auto* bytes = static_cast<const uint8_t*>(vertices) + a.offset;
             std::memcpy(&range[0], bytes, 4);
             range[1] = range[0];
+            range[2] = 1.0f, range[3] = 0.0f;
+            const bool has_y = a.type != AttributeType::Float1;
+            if (has_y) std::memcpy(&range[2], bytes + 4, 4), range[3] = range[2];
             for (uint32_t i = 1; i < count; ++i) {
                 float x;
                 std::memcpy(&x, bytes + i * stride, 4);
                 range[0] = std::min(range[0], x);
                 range[1] = std::max(range[1], x);
+                if (!has_y) continue;
+                std::memcpy(&x, bytes + i * stride + 4, 4);
+                range[2] = std::min(range[2], x);
+                range[3] = std::max(range[3], x);
             }
             return true;
         }
@@ -941,6 +949,7 @@ private:
             return {};
         const UiNarrowing n = narrow_ui_draw_();
         if (n.anchor < 0.0f || n.factor >= 1.0f) return {};
+        if (n.full_width_too) return n;
         // Full-width quads (dimming, letterbox bars) keep covering the picture.
         return x_range[0] <= 1.0f && x_range[1] >= static_cast<float>(back_width_) - 1.0f ? UiNarrowing{} : n;
     }
@@ -988,7 +997,7 @@ private:
                     static_cast<LONG>(to_surface(static_cast<float>(scissor_.right), sx, surface_width)),
                     static_cast<LONG>(to_surface(static_cast<float>(scissor_.bottom), sy, surface_height))};
         const UiNarrowing narrow = narrowing(x_range);
-        if (narrow.anchor >= 0.0f) {
+        if (narrow.anchor >= 0.0f && !narrow.full_width_too) {  // a scope overlay fills beyond its sides
             const float at = surface_width * narrow.anchor;
             clip.left = static_cast<LONG>(std::lround(at + (clip.left - at) * narrow.factor));
             clip.right = static_cast<LONG>(std::lround(at + (clip.right - at) * narrow.factor));
@@ -1010,11 +1019,33 @@ private:
         reserved[5] = 1.0f - (sy - 1.0f - 2.0f * vy) / vh;
         reserved[6] = -v.min_z / z_range;
         reserved[7] = 0.0f;
-        if (narrow.anchor >= 0.0f) {  // x' = a + (x - a) * k, a in title pixels
-            const float a = narrow.anchor * width;
-            reserved[4] += a * (1.0f - narrow.factor) * reserved[0];
-            reserved[0] *= narrow.factor;
+        // In title pixels: x' = p x + q, then clip = x' * reserved[0] + reserved[4].
+        float p = 1.0f, q = 0.0f;
+        // Full-width draws into the back buffer from title x = 0 (full-screen fades, letterbox bars, a scope
+        // overlay): that edge is half a title pixel inside the picture (pixel centres on integers). At 1x it
+        // still covers pixel 0; at a larger render scale it left a column of s/2 surface pixels open. An edge
+        // within half a pixel of the picture's goes to it (-0.5), the far end stays: a stretch of at most a
+        // pixel. The same for their top edge.
+        float py = 1.0f, qy = 0.0f;
+        const auto to_edge = [](float low, float high, float& scale, float& offset) {
+            if (!(low > -0.5f && low <= 0.5f && high > low + 1.0f)) return;
+            scale = (high + 0.5f) / (high - low);  // low -> -0.5, high -> high
+            offset = high - high * scale;
+        };
+        if (x_range && x_range[0] <= 0.5f && x_range[1] >= width - 1.0f && draw_.target_width() == back_width_ &&
+            draw_.target_height() == back_height_) {
+            to_edge(x_range[0], x_range[1], p, q);
+            to_edge(x_range[2], x_range[3], py, qy);
         }
+        reserved[5] += qy * reserved[1];
+        reserved[1] *= py;
+        if (narrow.anchor >= 0.0f) {  // x'' = a + (x' - a) * k, a in title pixels
+            const float a = narrow.anchor * width;
+            p *= narrow.factor;
+            q = a * (1.0f - narrow.factor) + q * narrow.factor;
+        }
+        reserved[4] += q * reserved[0];
+        reserved[0] *= p;
         reserved[8] = fog_.bias;
         reserved[9] = fog_.scale;
         reserved[10] = static_cast<float>(fog_.mode);

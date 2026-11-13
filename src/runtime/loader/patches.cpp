@@ -994,6 +994,11 @@ float hud_component_anchor(uint32_t scene, uint32_t frame) {
     return -1.0f;
 }
 
+// CG_DrawAdsOverlay's child scene this frame (scopes, binoculars).
+MenuScenes g_ads_scene;
+
+void XB_CDECL ads_overlay_scene(uint32_t scene) { g_ads_scene = {0, 0, scene, title<uint32_t>(g_menus.engine_frame)}; }
+
 bool is_hud_scene(uint32_t scene, uint32_t frame) {
     for (const MenuScenes& h : g_hud_scenes)
         if (h.frame == frame && (scene == h.scene || (scene >= h.begin && scene < h.end))) return true;
@@ -1009,6 +1014,7 @@ bool install_draw_2d_hook(const AspectSites& sites) {
         game::ClientPcHooks& hooks = game::client_pc_hooks();
         hooks.draw_2d_begin = &hud_render_begin<0>;
         hooks.draw_2d_end = &hud_render_end<0>;
+        if (client_c(0x00282620)) hooks.ads_overlay_scene = &ads_overlay_scene;  // CG_DrawAdsOverlay
         installed = true;
         return true;
     }
@@ -1753,6 +1759,9 @@ render::UiNarrowing in_game_menu_draw() {
         return {(outer * (1.0f - k2) + k2 * a * (1.0f - k1)) / (1.0f - k1 * k2), k1 * k2};
     }
     if (hud < 1.0f) {
+        // The scope/binocular overlay: its 16:9 shape in the middle, full-width quads included.
+        if (g_ads_scene.frame == frame && g_ads_scene.scene != 0 && scene == g_ads_scene.scene)
+            return {0.5f, hud, true};
         const float anchor = hud_component_anchor(scene, frame);
         if (anchor >= 0) return {anchor < 160.0f ? 0.0f : anchor > 480.0f ? 1.0f : 0.5f, hud};
         if (is_hud_scene(scene, frame)) return {0.5f, hud};

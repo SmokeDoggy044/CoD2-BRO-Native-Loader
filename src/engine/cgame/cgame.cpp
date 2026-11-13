@@ -2662,6 +2662,15 @@ void XB_CDECL CG_DrawAdsOverlay(float* out) {
         return;
     }
     color[3] = fraction;
+    // PC (pictures wider than 16:9): the overlay in a child scene of its own (narrowed to 16:9 as a whole).
+    const auto ads_scene = client_pc_hooks().ads_overlay_scene;
+    NglScene* const scene = ads_scene && title_global<uint32_t>(0x0090259c) ? nglPushScene(0) : nullptr;
+    if (scene) {
+        nglSetClearFlags(0);
+        nglSetSceneDepthTest(0);
+        nglSetSceneDepthEnable(0);
+        ads_scene(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scene)));
+    }
     const uint8_t* cg = title_global<const uint8_t*>(0x00972acc);
     const uint32_t client = *reinterpret_cast<const uint32_t*>(cg);
     float px, py;
@@ -2688,6 +2697,16 @@ void XB_CDECL CG_DrawAdsOverlay(float* out) {
         const float y1 = y0 + h;
         const float rh = refdef_h();
         if (rh > y1) stretch_pic(x0, y1, w, rh - y1, 0.0f, 0.0f, 1.0f, 0.0f, shader);
+        if (scene) {
+            // PC: black beyond the layout's sides, which the narrowing brings into the picture - the overlay's
+            // corner texel tinted black (the vertex colour scales the texture); three screens tall, so no edge
+            // of theirs lies in the picture.
+            float side[4] = {0.0f, 0.0f, 0.0f, fraction};
+            set_color(side);
+            stretch_pic(-rw, -rh, rw, 3.0f * rh, 0.0f, 0.0f, 0.0f, 0.0f, shader);
+            stretch_pic(rw, -rh, rw, 3.0f * rh, 0.0f, 0.0f, 0.0f, 0.0f, shader);
+            set_color(color);
+        }
     }
     cg = title_global<const uint8_t*>(0x00972acc);
     const int32_t mode = *reinterpret_cast<const int32_t*>(cg + 0x638);
@@ -2722,6 +2741,7 @@ void XB_CDECL CG_DrawAdsOverlay(float* out) {
         stretch_pic_eax(title_global<uint32_t>(0x00975c44), w * g(0x0083ed2c) + cx, y, length, 3.0f);
     }
     set_color(nullptr);
+    if (scene) nglPopScene();
     *out = 1.0f - fraction;
 }
 
