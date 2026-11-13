@@ -26,6 +26,7 @@
 #include "settings.h"
 #include "enhanced_graphics.h"
 #include "sound_engine.h"
+#include "reverb_tuning.h"
 #include "xbox_d3d_api.h"
 #include "log.h"
 

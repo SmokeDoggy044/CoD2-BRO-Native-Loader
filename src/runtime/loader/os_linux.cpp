@@ -60,4 +60,3 @@ void restart(const std::vector<std::string>& args) {
 
 }  // namespace loader::os
 
-int main(int argc, char** argv) { return loader_main(argc, argv); }

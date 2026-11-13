@@ -18,6 +18,7 @@
 
 #include "dispatcher.h"
 #include "kernel.h"
+#include "title_calls.h"
 #include "log.h"
 #include "replay.h"
 #include "test_mode.h"
@@ -656,7 +657,7 @@ void Engine::do_work() {
         Guard lock(callbacks_mutex, TestLock::Callbacks);
         due.swap(callbacks);
     }
-    const auto call_guest = xbox::kernel_config().call_guest;
+    const auto call_guest = xbox::title_calls().call_guest;
     for (const Callback& callback : due)
         if (call_guest) call_guest(callback.routine, callback.args, 3);
 }

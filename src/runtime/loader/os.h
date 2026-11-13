@@ -46,3 +46,4 @@ void show_error(const std::string& title, const std::string& text);
 
 // The loader's main (main.cpp), called by the platform's entry point.
 int loader_main(int argc, char** argv);
+int host_main(int argc, char** argv);  // cod_bro, our own engine (host_main.cpp)

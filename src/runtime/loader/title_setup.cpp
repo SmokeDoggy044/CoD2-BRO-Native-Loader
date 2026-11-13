@@ -74,11 +74,32 @@
 #include "xonline.h"
 #include "options.h"
 #include "title_setup.h"
+#include "title_calls.h"
 
 namespace loader {
 
+uint32_t current_kthread() {
+    const loader::ThreadEnv* env = loader::current_thread_env();
+    return env ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(env->kthread)) : 0;
+}
+
+void attach_kernel_thread() {
+    loader::ThreadEnv* env = loader::create_thread_env(0, 0);
+    if (!env || !loader::activate_thread_env(env)) LOG_ERROR("loader", "cannot prepare a kernel thread");
+}
+
+void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
+    loader::ThreadEnv* env = loader::current_thread_env();
+    if (!env) {
+        LOG_ERROR("loader", "call to %08x from a thread without an Xbox environment", function);
+        return;
+    }
+    loader::run_on_xbox_stack(function, *env, std::span(args, count));
+}
+
 void configure_title_services(const Options& options, const fs::path& assets, const TitleInfo& title, float aspect,
                               void (*device_failed)()) {
+    xbox::set_title_calls({&call_guest, &attach_kernel_thread});
     online::configure_network({options.net_port});
     audio::OutputConfig audio_config;
     // A faster replay has to consume its sound faster too (the title waits for its packets): silent, at that speed.

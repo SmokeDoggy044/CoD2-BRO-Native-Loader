@@ -207,7 +207,9 @@ void show_error(const std::string& title, const std::string& text) {
 
 }  // namespace loader::os
 
-extern "C" __declspec(dllexport) void cod_bro_loader_main() {
+namespace {
+
+[[noreturn]] void run_main(int (*program_main)(int, char**)) {
     // The stub is a GUI program: started from a console (cmd, PowerShell) without
     // redirection it has no output; log to that console then.
     if (GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_UNKNOWN && AttachConsole(ATTACH_PARENT_PROCESS)) {
@@ -223,5 +225,10 @@ extern "C" __declspec(dllexport) void cod_bro_loader_main() {
     for (std::string& arg : args) argv.push_back(arg.data());
     argv.push_back(nullptr);
     // exit, not a return: the stub's code is gone once the XBE is mapped.
-    std::exit(loader_main(count, argv.data()));
+    std::exit(program_main(count, argv.data()));
 }
+
+}  // namespace
+
+extern "C" __declspec(dllexport) void cod_bro_loader_main() { run_main(loader_main); }
+extern "C" __declspec(dllexport) void cod_bro_host_main() { run_main(host_main); }

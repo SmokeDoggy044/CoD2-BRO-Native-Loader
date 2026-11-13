@@ -30,6 +30,7 @@
 #include "frame_pacing.h"
 #include "gfx_device.h"
 #include "kernel_memory.h"
+#include "title_calls.h"
 #include "log.h"
 #include "nv2a.h"
 #include "xbox_d3d.h"
@@ -123,7 +124,7 @@ XbSurface* add_ref(XbSurface* surface) {
 }
 
 void call_title(uint32_t function, std::initializer_list<uint32_t> args) {
-    if (auto call_guest = xbox::kernel_config().call_guest)
+    if (auto call_guest = xbox::title_calls().call_guest)
         call_guest(function, std::data(args), static_cast<uint32_t>(args.size()));
     else
         LOG_ERROR("render", "cannot call title function %08x", function);
@@ -136,7 +137,7 @@ void call_title(uint32_t function, std::initializer_list<uint32_t> args) {
 // present, its wait came on top of the title's, and in heavy scenes frames missed
 // their vertical blank (50 ms frames in clusters, as the two clocks' phases drifted).
 void vblank_thread(double hz) {
-    if (auto attach = xbox::kernel_config().attach_kernel_thread) attach();
+    if (auto attach = xbox::title_calls().attach_thread) attach();
     using Clock = std::chrono::steady_clock;
     const auto period = std::chrono::nanoseconds(static_cast<int64_t>(1e9 / hz));
     auto next = Clock::now();

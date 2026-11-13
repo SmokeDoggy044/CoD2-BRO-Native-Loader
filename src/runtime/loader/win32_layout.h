@@ -18,4 +18,7 @@
 
 /* The loader proper and its entry point (void, does not return). */
 #define COD_BRO_LOADER_CORE_DLL L"cod_bro_loader_core.dll"
+/* cod_bro_loader.exe's; cod_bro.exe (our own engine) defines "cod_bro_host_main". */
+#ifndef COD_BRO_LOADER_CORE_ENTRY
 #define COD_BRO_LOADER_CORE_ENTRY "cod_bro_loader_main"
+#endif
