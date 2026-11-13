@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 
 #include "cg_ents.h"
@@ -287,8 +288,11 @@ void XB_CDECL CL_FinishMove(uint8_t* cmd) {
     const float scale = title_global<float>(0x0083ebd8);
     const float half = title_global<float>(0x0083eb24);
     const float* angles = &title_global<float>(0x00961798);  // cl.viewangles
-    for (uint32_t i = 0; i < 3; ++i)
-        field<int32_t>(cmd, 8 + 4 * i) = static_cast<int32_t>(angles[i] * scale + half) & 0xffff;
+    const bool round = client_pc_hooks().round_view_angles;
+    for (uint32_t i = 0; i < 3; ++i) {
+        const float units = angles[i] * scale + half;
+        field<int32_t>(cmd, 8 + 4 * i) = (round ? static_cast<int32_t>(std::floor(units)) : static_cast<int32_t>(units)) & 0xffff;
+    }
     std::memcpy(cmd + 0x18, &title_global<uint32_t>(0x00961784), 5 * sizeof(uint32_t));
     if (title_global<int32_t>(0x009622b0)) {
         cmd[4] = title_global<uint8_t>(0x009622b4);

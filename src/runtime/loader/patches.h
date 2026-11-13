@@ -70,6 +70,10 @@ struct TitlePatchConfig {
         bool scene = false;     // "scene:" prefix: from R_RenderView with the main scene open
     };
     std::vector<ForcedCall> forced_calls;
+    // Mounted guns and vehicles: CL_FinishMove rounds the view angles to the command's 16-bit units instead of
+    // truncating them (the original lifts a negative angle by one unit per command: the view drifts down-left on a
+    // mounted gun without input). Needs pc_features and CL_FinishMove as C.
+    bool mounted_gun_fix = true;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,

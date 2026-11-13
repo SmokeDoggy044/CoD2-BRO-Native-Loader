@@ -148,6 +148,37 @@ fs::path data_file(const char* name) {
     return fs::exists(next_to_loader) ? next_to_loader : fs::path(COD_BRO_SYMBOLS_DIR) / name;
 }
 
+// Options that change how the game plays (its state, not only the picture or sound): a recording keeps their
+// values as "#game NAME=VALUE" lines after its command line, and a replay takes them from there, so it plays as
+// recorded. A recording made before an option existed lacks its line and gets the original behaviour. Naming the
+// option on the replay's command line overrides the recording (A/B checks: the run then differs from it).
+void apply_game_options(Options& options, bool replaying, const std::string& recorded_command_line) {
+    struct GameOption {
+        const char* name;
+        const char* flag;
+        bool Options::* field;
+        bool original;
+    };
+    static constexpr GameOption kGameOptions[] = {
+        {"mounted_gun_fix", "--mounted-gun-fix", &Options::mounted_gun_fix, false},
+    };
+    for (const GameOption& option : kGameOptions) {
+        const std::string key = std::string("#game ") + option.name + "=";
+        if (replaying && options.given.count(option.flag)) {
+            LOG_INFO("replay", "%s %s from the command line, not as recorded", option.name,
+                     options.*option.field ? "on" : "off");
+        } else if (replaying) {
+            bool value = option.original;
+            const size_t at = recorded_command_line.find(key);
+            if (at != std::string::npos) value = recorded_command_line.compare(at + key.size(), 1, "1") == 0;
+            if (options.*option.field != value)
+                LOG_INFO("replay", "%s %s as recorded", option.name, value ? "on" : "off");
+            options.*option.field = value;
+        }
+        options.replay.command_line += key + (options.*option.field ? "1" : "0") + "\n";
+    }
+}
+
 int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
@@ -212,7 +243,9 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         unless_given("--brightness", parsed->brightness, 1.0f);
         unless_given("--audio", parsed->audio_enhanced, false);
         unless_given("--graphics", parsed->graphics_enhanced, false);
+        parsed->mounted_gun_fix = false;
     }
+    apply_game_options(*parsed, replaying, recorded_command_line);
     parsed_out = std::move(parsed);
     return 0;
 }

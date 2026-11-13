@@ -54,6 +54,10 @@ struct ClientPcHooks {
     // Set: in widescreen the tank health bar fills the narrowed bar's width, not the 4:3 width (the original's
     // fill runs past the frame's right end).
     bool bar_fill_fix = false;
+    // Set: CL_FinishMove rounds the view angles to the command's 16-bit units (floor(x + 0.5)) instead of truncating
+    // toward zero, which lifts a negative angle by one unit per command - on a mounted gun or vehicle the view is
+    // rebuilt from the packed angles every frame and drifts down-left without input (the original's behaviour).
+    bool round_view_angles = false;
 };
 ClientPcHooks& client_pc_hooks();
 

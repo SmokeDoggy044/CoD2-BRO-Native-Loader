@@ -2334,6 +2334,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         install_menu_pointer();
         // The tank health bar's fill in widescreen (the original's runs past the frame): cgame C only.
         if (client_c(0x00318840)) game::client_pc_hooks().bar_fill_fix = true;
+        // CL_FinishMove's view angle packing rounds instead of truncating: no mounted-gun drift.
+        if (config.mounted_gun_fix && client_c(0x002abb30)) game::client_pc_hooks().round_view_angles = true;
         g_button_prompts = config.button_prompts;
     } else {
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;

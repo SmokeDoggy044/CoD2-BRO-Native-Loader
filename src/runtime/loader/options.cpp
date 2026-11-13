@@ -177,6 +177,8 @@ void print_usage(const char* program) {
         "                   \"fire=mouse1 jump=space crouch=left-ctrl crouch=c\" (the launcher's\n"
         "                   Controls tab writes them; src/input/bindings.h)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
+        "  --mounted-gun-fix on|off  stops the slow down-left drift of the view on mounted guns\n"
+        "                   and vehicles without input (default on; off = as on the Xbox)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --fov DEG        field of view in degrees across a 4:3 picture (50-120, default 70\n"
         "                   as the game; campaign); also in the PC menu (` key while playing)\n"
@@ -358,6 +360,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--mounted-gun-fix") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--mounted-gun-fix needs on or off\n");
+                return std::nullopt;
+            }
+            options.mounted_gun_fix = value == "on";
         } else if (arg == "--language") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             static constexpr std::pair<std::string_view, uint32_t> kLanguages[] = {
