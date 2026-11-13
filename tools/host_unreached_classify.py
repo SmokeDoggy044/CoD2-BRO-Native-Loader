@@ -4,6 +4,8 @@
 Classes (first that applies):
   static_init  only referenced from the .CRT$XC static initializer table: replaced by static_init_generated.cpp
   set_aside    already in tools/data/set_aside.csv (its kind is printed)
+  reviewed     checked and needs no C: tools/data/unreached_reviewed.csv (verdict + reason; EH copy ctors, not a
+               pointer, not a function start, dead, Live-only vtable)
   thunk_c      a `jmp rel32` thunk whose target has a C row: needs only an alias row
   thunk        a `jmp rel32` thunk to a function without C
   c_no_row     a function with this name is defined in src/engine but has no functions.cpp row
@@ -133,6 +135,7 @@ def main():
     fsrc = (ROOT / "src/engine/shared/functions.cpp").read_text()
     rows = {int(m.group(2), 16): m.group(1) for m in re.finditer(r'\{"(\w+)", 0x([0-9a-f]{8}),', fsrc)}
     aside = {int(r["address"], 16): r for r in csv.DictReader(open(DATA / "set_aside.csv"))}
+    reviewed = {int(r["address"], 16): r for r in csv.DictReader(open(DATA / "unreached_reviewed.csv"))}
     text_lo, text_hi = next((va, va + vs) for n, va, vs, _, _ in secs if n == ".text")
 
     def word(a):
@@ -251,6 +254,8 @@ def main():
             cls, note = "static_init", "only in .CRT$XC: our generated static initializers replace it"
         elif a in aside:
             cls, note = "set_aside", aside[a]["kind"]
+        elif a in reviewed:
+            cls, note = "reviewed", reviewed[a]["verdict"] + ": " + reviewed[a]["reason"]
         elif all(at in eh for at, s, _ in r):
             owners = set().union(*(eh[at] for at, s, _ in r))
             if not owners:

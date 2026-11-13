@@ -1511,6 +1511,7 @@ const Function kFunctions[] = {
     {"XGetAVPack", 0x001edfde, 0, code(&XGetAVPack), 0, Result::Eax, Status::Compare},
     {"XapiNukeDirectoryFromHandle", 0x001edfe6, 0, code(&XapiNukeDirectoryFromHandle), 8, Result::Eax, Status::Replaced},  // deletes a directory tree: not compared (--check-crt checks what it leaves)
     {"XapiNukeDirectory", 0x001ee163, 0, code(&XapiNukeDirectory), 8, Result::Eax, Status::Replaced},  // deletes a directory tree: not compared (--check-crt checks what it leaves)
+    {"std_exception_Dtor", 0x001ef760, 0, code(&std_exception_Dtor), 0, Result::None, Status::Compare},  // LIBCMT std::exception::~exception (unreached)
     {"_flush", 0x001efd9e, 0, code(&title_flush), 4, Result::Eax, Status::Compare},
     {"_fflush_lk", 0x001efdfb, 0, code(&title_fflush_lk), 4, Result::Eax, Status::Compare},
     {"fflush", 0x001efefe, 0, code(&title_fflush), 4, Result::Eax, Status::Compare},
@@ -8959,6 +8960,8 @@ const Function kFunctions[] = {
     {"GScr_EmptyStub559", 0x002f4b80, 0, code(&GScr_EmptyStub559), 0, Result::None, Status::Replaced},
     {"GScr_EmptyStub399", 0x002f4b90, 0, code(&GScr_EmptyStub399), 0, Result::None, Status::Replaced},
     {"GScr_EmptyStub397", 0x002f4ba0, 0, code(&GScr_EmptyStub397), 0, Result::None, Status::Replaced},
+    {"Sys_DebugBreak_Thunk2", 0x002f4bb0, 0, code(&Sys_DebugBreak), 0, Result::None, Status::Compare},  // jmp thunk (g_scr_imports entry, unreached)
+    {"Sys_DebugBreak_Thunk3", 0x002f4bc0, 0, code(&Sys_DebugBreak), 0, Result::None, Status::Compare},  // jmp thunk (g_scr_imports entry, unreached)
     {"GScr_Set8db19c", 0x002f4be0, 0, code(&GScr_Set8db19c), 4, Result::None, Status::Replaced},
     {"GScr_Set8db198", 0x002f4bf0, 0, code(&GScr_Set8db198), 4, Result::None, Status::Replaced},
     {"GScr_Set8d20e0", 0x002f4c00, 0, code(&GScr_Set8d20e0), 4, Result::None, Status::Replaced},
@@ -10225,7 +10228,7 @@ const Function kFunctions[] = {
     {"PauseMenu_ShowQuitDialog", 0x00336580, 0, code(&PauseMenu_ShowQuitDialog_entry), 0, Result::None, Status::Replaced},
     {"PauseMenu_HandleSelect", 0x00336670, 0, code(&PauseMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00336670 (gap); tail jump to the in-game screens' SetActiveScreen: not compared
     {"FrontEndMenu_OnButtonDown", 0x00336710, 0, code(&FrontEndMenu_OnButtonDown), 8, Result::None, Status::Replaced},  // was FUN_00336710 (gap); SetActiveScreen through the vtable (sound): not compared
-    {"MainMenu_Update", 0x003367a0, 0, code(&MainMenu_Update_entry), 4, Result::None, Status::Replaced},
+    {"FrontEndMenu_Update", 0x003367a0, 0, code(&FrontEndMenu_Update_entry), 4, Result::None, Status::Replaced},
     {"FrontEndMenu_Construct", 0x00336ad0, 0, code(&FrontEndMenu_Construct), 4, Result::Eax, Status::Replaced},
     {"TitleMenu_Update", 0x00336fc0, 0, code(&TitleMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00336fc0 (gap)
     {"FE_CreateMenus", 0x00337050, 0, code(&FE_CreateMenus_entry), 0, Result::None, Status::Replaced},
@@ -10258,7 +10261,7 @@ const Function kFunctions[] = {
     {"GameplayMenu_RestoreSelection", 0x00339050, 0, code(&GameplayMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"OptionsMenu_RestoreSelection", 0x00339110, 0, code(&OptionsMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"SinglePlayerMenu_RestoreSelection", 0x00339170, 0, code(&SinglePlayerMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00339170 (gap)
-    {"MainMenu_UpdateMenu", 0x00339240, 0, code(&MainMenu_UpdateMenu), 4, Result::None, Status::Compare},  // was FUN_00339240 (gap)
+    {"MainMenu_Update", 0x00339240, 0, code(&MainMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00339240 (gap)
     {"MainMenu_RestoreSelection", 0x00339340, 0, code(&MainMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00339340 (gap)
     {"FE_LoadPanel", 0x003393f0, 0, code(&FE_LoadPanel_entry), 0, Result::Eax, Status::Replaced},
     {"HudCompCompass_UpdateTankMarkers", 0x00339450, 0, code(&HudCompCompass_UpdateTankMarkers_entry), 0, Result::None, Status::Replaced},

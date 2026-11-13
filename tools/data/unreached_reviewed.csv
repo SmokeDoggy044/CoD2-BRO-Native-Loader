@@ -1,0 +1,21 @@
+address,verdict,reason
+00015330,eh_copy_ctor,exception copy constructor in the EH throw tables 0x00895axx (compiler-made)
+00015370,eh_copy_ctor,exception copy constructor in the EH throw tables 0x00895axx (compiler-made)
+0001c290,eh_copy_ctor,exception copy constructor in the EH throw tables 0x00895axx (compiler-made)
+000225a0,eh_copy_ctor,exception copy constructor in the EH throw tables 0x00895axx (compiler-made)
+0036b100,eh_funclet,unwind funclets of FUN_0011fc80 (compiler-made)
+00223130,not_pointer,string bytes in .rdata ("door_to_mash_camp01"...)
+00313070,not_pointer,string bytes in .rdata; not code
+00378620,static_init,static initializer (table 0x008973e0) already in static_init_generated.cpp
+0007bb00,not_start,mid-instruction (a call starts at 0x0007bb01)
+00017fa0,not_start,tail of the function ending at 0x00017f9f
+0004bb00,dead,only "references" are operand bytes inside level instructions
+0005bb20,dead,only "references" are operand bytes inside level instructions
+0007b900,dead,only "references" are operand bytes inside level instructions
+00094180,dead,only "references" are operand bytes inside level instructions
+000a8c80,dead,only "references" are operand bytes inside level instructions
+00248c10,dead,only "references" are operand bytes inside level instructions
+0002bb80,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
+0002bc10,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
+0002bc40,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
+0002bc60,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)

@@ -3814,7 +3814,7 @@ address,name,kind,confidence,evidence
 000cac90,File_Close,function,medium,"called on the handle after the bonus images are released"
 0031ff30,FE_LoadTheatreBackground,function,medium,"loads textures\\<lang>\\europe/africa/sicily.dds by the last mission (0x008dce48: 1-5 africa, 6-8 sicily) as texLoad; from CL_ApplyFrontEndReturnState"
 003341e0,MissionSuccessFailMenu_HandleSelect,function,medium,"(2026-10-25, was PauseMenu_HandleSelect) slot 14 of 0x00828d18 = the MissionSuccessFail screen; vtable slot (no callers): resume (cl_paused 0, cg_norender 0, S_ResumeAllChannels, clears the key catcher) or the reload-checkpoint confirm dialog (MEM_DIALOG_YES/NO, FEMENU_RELOADING)"
-003367a0,MainMenu_Update,function,low,"vtable slot: Live sign-in state text (FEMENU_SIGNING_IN/SIGNIN_FAILED/PASSCODE_NEEDED/NOT_SIGNED_IN) and music_mainmenu"
+003367a0,FrontEndMenu_Update,function,low,"vtable slot: Live sign-in state text (FEMENU_SIGNING_IN/SIGNIN_FAILED/PASSCODE_NEEDED/NOT_SIGNED_IN) and music_mainmenu"
 002c7f00,G_ApplyCheckpointStart,function,low,"from G_SpawnGEntityFromSpawnVars: when the spawner's name equals 0x00988c58, sets the checkpoint cvar and moves info_player_start to its origin/angles"
 002ddf80,G_SetPoseFromPhysics,function,low,"clears the trajectory deltas, origin from entity +0x190, angles via MatrixToAngles, SV_LinkEntity; from the vehicle/physics-object updates"
 0031a490,FE_BonusCELoadImage,function,medium,"'bonus_ce\\%s%i\\%s%i_%i[f].dds' (artdir/level/liber/misc_/over_) like FE_BonusVehicleLoadImage"
@@ -12498,7 +12498,7 @@ address,name,kind,confidence,evidence
 00318f30,HudCompGrenadeCook_Dtor,function,high,"stores HudCompGrenadeCook_vtable, deletes the 6 segments and ring, back to HudComponent_vtable"
 00311350,HudCompTankReticle_Draw,function,medium,HudCompTankReticle_vtable slot 3: reticle +8 then 4 tics when cg flag 0x100000 is set and cg +0xfb8 != 1
 0098ad14,hudCompass_lastNeedleTime,data,medium,cg_time of the last HudCompCompass_UpdateNeedle step (gaps > 500 ms skip the spring)
-00011220,Live_GetCurrentUser,function,medium,"returns mgr+0x30 + idx*0xfe8 (idx = +0x44d0, 0 when +0x4470==1); MainMenu_Update prints its +0x10 wide name (""%S"") on sign-in state 2"
+00011220,Live_GetCurrentUser,function,medium,"returns mgr+0x30 + idx*0xfe8 (idx = +0x44d0, 0 when +0x4470==1); FrontEndMenu_Update prints its +0x10 wide name (""%S"") on sign-in state 2"
 00011b80,IN_PadConsumeAllPressed,function,medium,"IN_PadConsumePressed(pad, i) for i 0..15; G_CheckMissionEnd"
 000121d0,Panel_DeletingDtor,function,medium,"Panel_FreeElements, Mem_AlignedFree of [3] and [0], Z_Free(this) if flags&1; FE_SetupPanel"
 00013e30,Vec3_IsNonZero,function,medium,"returns 0 when all three floats equal the zero global 00922eb8, else 1; GScr_Vehicle_SetTurretTargetEnt (offset arg)"

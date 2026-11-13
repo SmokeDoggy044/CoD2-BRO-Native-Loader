@@ -528,7 +528,7 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL StartupStorageMenu_Update(uint8_t* m
 extern "C" void StartupStorageMenu_Update_entry(void);
 void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad);    // 0x00336710
 void XB_THISCALL TitleMenu_Update(uint8_t* menu, float dt);                            // 0x00336fc0
-void XB_THISCALL MainMenu_UpdateMenu(uint8_t* menu, float dt);                             // 0x00339240
+void XB_THISCALL MainMenu_Update(uint8_t* menu, float dt);                             // 0x00339240
 void XB_THISCALL MainMenu_RestoreSelection(uint8_t* menu);                             // 0x00339340
 
 }  // namespace game

@@ -9868,7 +9868,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00336460,SinglePlayerMenu_Update,replaced,797,89,87,0,0,2,"original called host code at 08108800 from 001e83cb XAPILIB::ReadFileEx+0x33 [.text]"
 00336490,PauseMenu_ShowRestartDialog,replaced,1,1,1,0,0,0,""
 00336580,PauseMenu_ShowQuitDialog,replaced,2,2,2,0,0,0,""
-003367a0,MainMenu_Update,replaced,8647,162,108,0,0,54,"original called host code at 08108800 from 001e83cb XAPILIB::ReadFileEx+0x33 [.text]"
+003367a0,FrontEndMenu_Update,replaced,8647,162,108,0,0,54,"original called host code at 08108800 from 001e83cb XAPILIB::ReadFileEx+0x33 [.text]"
 00336ad0,FrontEndMenu_Construct,replaced,270,8,8,0,0,0,""
 00337050,FE_CreateMenus,replaced,270,8,8,0,0,0,""
 003370d0,Panel_LoadNode_r,replaced,15225,198,198,0,0,0,""

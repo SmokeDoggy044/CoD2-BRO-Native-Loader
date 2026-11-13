@@ -2877,7 +2877,7 @@ void XB_THISCALL TitleMenu_Update(uint8_t* menu, float) {
 // +0x30 (with the panel +0x38): a finished game (0x008dce55) plays "Finale" and "credits" (0x0095f46d) and clears
 // the flags; else (once the background movie is closed) the selection is restored (+0x3c) and the movie reopened;
 // SCR_LoadingPump; 0.5 s after the idle time (+0x40) UIMenu_Update; then the checkmarks, +0x44 cleared.
-void XB_THISCALL MainMenu_UpdateMenu(uint8_t* menu, float dt) {
+void XB_THISCALL MainMenu_Update(uint8_t* menu, float dt) {
     if (!field<uint32_t>(menu, 0x38)) return;
     if (title_global<uint8_t>(0x008dce55)) {
         Movie_Stop(1);

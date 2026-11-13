@@ -522,7 +522,7 @@ FE_FRAME_FUNCTION(FE_ControlsUpdateText)
 // 0x003367a0 (menu in ECX; pad on the stack, ret 4; main menu vtable 0x0082906c slot): the sign-in text (0x0095f478)
 // by the Live state (signing in / signed in as <gamertag> / the sign-in error); the first time the start-up movies
 // (legal, ATVI, Treyarch, intro) and the music; else the selected item and the backdrop shaders.
-FE_FRAME_FUNCTION(MainMenu_Update)
+FE_FRAME_FUNCTION(FrontEndMenu_Update)
 // 0x0031af60 (vtable slot, menu in ECX): the loading screen: the quotes / chapters around +0x190, the panel, the
 // picture +0x18c at (320, 240), the help bar, the movie frame and the menu.
 FE_FRAME_FUNCTION(ChapterMenu_Draw)

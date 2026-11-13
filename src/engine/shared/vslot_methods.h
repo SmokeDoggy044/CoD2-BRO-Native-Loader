@@ -164,6 +164,7 @@ uint8_t* XB_THISCALL LevelManager_DeletingDtor(uint8_t* self, uint32_t flags);  
 void XB_STDCALL NAL_Cursor_SkipSizedBlock(uint8_t** cursor);                                  // 0x0001db70
 
 // --- std::logic_error / length_error (MSVC std::string message: buffer +0x10, size +0x20, capacity +0x24) ---
+void XB_THISCALL std_exception_Dtor(uint8_t* self);                                 // 0x001ef760
 uint8_t* XB_THISCALL std_logic_error_DeletingDtor(uint8_t* self, uint32_t flags);  // 0x0001c2d0
 const char* XB_THISCALL std_logic_error_What(const uint8_t* self);                 // 0x00013dd0
 

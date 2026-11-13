@@ -169,5 +169,5 @@ address,name
 00338820,ProfileMenu_HandleSelect
 00338a40,ProfileMenu_RestoreSelection
 00339170,SinglePlayerMenu_RestoreSelection
-00339240,MainMenu_UpdateMenu
+00339240,MainMenu_Update
 00339340,MainMenu_RestoreSelection

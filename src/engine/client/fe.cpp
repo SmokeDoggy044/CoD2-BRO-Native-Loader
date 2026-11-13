@@ -3637,9 +3637,9 @@ uint32_t XB_CDECL FE_ControlsUpdateText(const FrameIn* in, uint32_t entry_esp) {
     return result;
 }
 
-FE_FRAME_ENTRY(MainMenu_Update, "ret $4")
+FE_FRAME_ENTRY(FrontEndMenu_Update, "ret $4")
 
-uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
+uint32_t XB_CDECL FrontEndMenu_Update(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
     const uint32_t pad = stack_word(entry_esp + 4);

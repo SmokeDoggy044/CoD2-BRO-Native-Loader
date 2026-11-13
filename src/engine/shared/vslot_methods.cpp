@@ -6,6 +6,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "title_data.h"
+#include "title_heap.h"
 #include "fx.h"
 #include "fx_load.h"
 #include "r_init.h"
@@ -371,6 +372,14 @@ uint8_t* XB_THISCALL LevelManager_DeletingDtor(uint8_t* self, uint32_t flags) {
 // A channel class's block skip: the block starts with its own byte size.
 void XB_STDCALL NAL_Cursor_SkipSizedBlock(uint8_t** cursor) { *cursor += word<uint32_t>(*cursor, 0); }
 
+// --- std::exception (LIBCMT) ---
+
+// std::exception's destructor: frees the message when the exception owns it (_m_doFree).
+void XB_THISCALL std_exception_Dtor(uint8_t* self) {
+    word<uint32_t>(self, 0) = 0x00827904;  // std::exception
+    if (word<uint32_t>(self, 8) != 0) title_crt_free(word<uint32_t>(self, 4));  // _free
+}
+
 // --- std::logic_error ---
 
 uint8_t* XB_THISCALL std_logic_error_DeletingDtor(uint8_t* self, uint32_t flags) {
@@ -381,7 +390,7 @@ uint8_t* XB_THISCALL std_logic_error_DeletingDtor(uint8_t* self, uint32_t flags)
     word<uint32_t>(self, 0x24) = 0xf;
     word<uint32_t>(self, 0x20) = 0;
     self[0x10] = 0;
-    title_function<void XB_THISCALL(uint8_t*)>(0x001ef760)(self);  // std::exception's destructor (LIBCMT)
+    std_exception_Dtor(self);
     if (flags & 1) own_function<void XB_CDECL(uint8_t*)>(&Z_Free)(self);  // Z_Free
     return self;
 }
