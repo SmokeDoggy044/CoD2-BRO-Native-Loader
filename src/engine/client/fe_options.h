@@ -171,4 +171,17 @@ extern "C" void OptionsMenu_SetCheckmarks_entry(void);
 // 0x0031ec90 (+0x28): the panel, the help bar (+0x38, +0x3c), UIMenu_Draw, then the background movie.
 void XB_THISCALL OptionsMenu_Draw(uint8_t* menu);
 
+// More unreached slots: Update (+0x30) 0x00335cf0 / 0x00336340 / 0x003363c0 / 0x00336440; select / back tail jumps
+// 0x0032da70 / 0x003361c0 / 0x003310b0 (see fe_options.cpp).
+void XB_THISCALL ScreenMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL ControllerConfigMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL GameplayMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL OptionsMenu_Update(uint8_t* menu, float dt);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL GameplayMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void GameplayMenu_HandleSelect_entry(void);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL ControllerConfigMenu_OnBack(uint8_t* menu, uint32_t pad);
+extern "C" void ControllerConfigMenu_OnBack_entry(void);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL ControllerConfigMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void ControllerConfigMenu_HandleSelect_entry(void);
+
 }  // namespace game

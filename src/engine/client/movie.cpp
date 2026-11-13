@@ -936,4 +936,9 @@ void XB_CDECL Movie_ReadCallback(int32_t status, int32_t request, Movie* movie) 
     Movie_OnReadComplete(movie, status, request);
 }
 
+// 0x0030fe50 (no Ghidra function; MainMenu_Draw's tail jump): Movie_DrawFrame without its result.
+void XB_CDECL Movie_DrawFrameQuiet() {
+    Movie_DrawFrame();
+}
+
 }  // namespace game

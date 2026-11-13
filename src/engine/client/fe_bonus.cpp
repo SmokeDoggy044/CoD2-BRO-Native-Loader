@@ -1,12 +1,15 @@
 #include "fe_bonus.h"
 
+#include "cl.h"
 #include "fe.h"
 #include "movie.h"
 #include "qcommon_fs.h"
 #include "ngl.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "snd.h"
 #include "qcommon_core.h"
 #include "qcommon.h"
 
@@ -972,9 +975,8 @@ void set_word(uint8_t* object, uint32_t slot, uint32_t value) {
 // double 1.0; then falling) or falls to 0 (then rising, +rising_at); every marker (+markers_at, `count`) gets the
 // alpha (vtable +0x7c), those whose item is not new (+flags_at[i]) 0. A rising step leaves the new alpha in the dt
 // argument slot (the original's spill).
-void blink_new_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t rising_at, uint32_t markers_at,
-                       uint32_t count, uint32_t flags_at) {
-    UIMenu_Update(menu, dt);
+void blink_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t rising_at, uint32_t markers_at,
+                   uint32_t count, uint32_t flags_at) {
     if (menu[rising_at]) {
         const float alpha = dt + field<float>(menu, alpha_at);
         *static_cast<volatile float*>(&dt) = alpha;
@@ -995,6 +997,12 @@ void blink_new_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t ris
         set_word(field<uint8_t*>(menu, markers_at + i * 4), 0x7c, field<uint32_t>(menu, alpha_at));
     for (uint32_t i = 0; i < count; ++i)
         if (!menu[flags_at + i]) set_word(field<uint8_t*>(menu, markers_at + i * 4), 0x7c, 0);
+}
+
+void blink_new_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t rising_at, uint32_t markers_at,
+                       uint32_t count, uint32_t flags_at) {
+    UIMenu_Update(menu, dt);
+    blink_markers(menu, dt, alpha_at, rising_at, markers_at, count, flags_at);
 }
 
 }  // namespace
@@ -1085,6 +1093,78 @@ void XB_CDECL BonusMaterialsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, u
     c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
     c.run(own_address(&UIMenu_RestoreSelection));
     c.method(menu, 0x88, field<uint32_t>(menu, 0x80), 1);
+}
+
+
+// 0x003357b0 (+0x30): unless 0x0095f91e: UIMenu_Update; while loading (+0x3c) SCR_LoadingPump only; else the "new"
+// markers' blink (+0x40, +0x44, +0x48 x6, +0x60), the main menu music once the delay (+0x84) runs out, the help bar
+// (+0x38: play on rows 0 / 1), and on the movies row (1): the page "%i / %i" (+0x7c + 1 of +0x78) into +0x74, the
+// arrows +0x68 / +0x6c by page, the movie title into +0x70 by page (the order depends on the language and
+// 0x0095ee00: the 360 trailer and military entries drop out), the page's "new" flag (+0x61) cleared on the last
+// page; on other rows the texts and arrows cleared.
+void XB_THISCALL BonusMaterialsMenu_Update(uint8_t* menu, float dt) {
+    if (title_global<uint8_t>(0x0095f91e)) return;
+    UIMenu_Update(menu, dt);
+    if (menu[0x3c]) {
+        SCR_LoadingPump();
+        return;
+    }
+    blink_markers(menu, dt, 0x40, 0x44, 0x48, 6, 0x60);
+    int32_t& delay = field<int32_t>(menu, 0x84);
+    if (delay) --delay;
+    if (delay == 1) {
+        delay = 0;
+        Music_Play(title_global<uint8_t*>(0x0095f4cc), reinterpret_cast<const char*>(uintptr_t{0x0082cbe0}));  // "music_mainmenu"
+    }
+    const int16_t row = field<int16_t>(menu, 0x22);
+    set_word(field<uint8_t*>(menu, 0x38), 0x6c,
+             row == 1 || row == 0 ? 0x0082bb78u : 0x0082bb64u);  // BONUS_HELPBAR_PLAY / BONUS_OP_HELPBAR
+    if (field<int16_t>(menu, 0x22) != 1) {
+        set_word(field<uint8_t*>(menu, 0x70), 0x78, 0x0082dfeb);  // ""
+        set_word(field<uint8_t*>(menu, 0x74), 0x78, 0x0082dfeb);
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, 0);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, 0);
+        return;
+    }
+    if (title_global<int32_t>(0x008dcf0c) < 1) title_global<int32_t>(0x008dcf0c) = 1;
+    char page_text[8];
+    title_sprintf(page_text, reinterpret_cast<const char*>(uintptr_t{0x0082bb5c}), field<int32_t>(menu, 0x7c) + 1,
+                  field<int32_t>(menu, 0x78));  // "%i / %i"
+    set_word(field<uint8_t*>(menu, 0x74), 0x6c, address_of(page_text));
+    constexpr uint32_t kShown = 0x3f800000;  // 1.0
+    const int32_t page = field<int32_t>(menu, 0x7c);
+    if (page == 0) {
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, 0);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, field<int32_t>(menu, 0x78) > 1 ? kShown : 0);
+    } else {
+        const bool last = page == field<int32_t>(menu, 0x78) - 1;
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, kShown);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, last ? 0 : kShown);
+    }
+    // The titles by page: all six; with a language set (other than 1) or 0x0095ee00 without the 360 trailer...
+    static const uint32_t kAll[6] = {0x0082bb10, 0x0082bb00, 0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    static const uint32_t kNoMilitary[5] = {0x0082bb10, 0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    static const uint32_t kLanguage1[4] = {0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    const uint32_t* titles = kAll;
+    int32_t count = 6;
+    int32_t language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+        if (field<int32_t>(menu, 0x7c) == 4) {
+            set_word(field<uint8_t*>(menu, 0x68), 0x7c, kShown);
+            set_word(field<uint8_t*>(menu, 0x6c), 0x7c, 0);
+            language = title_global<int32_t>(0x0095f5dc);
+        }
+        if (language == 1) {
+            titles = kLanguage1;
+            count = 4;
+        } else if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+            titles = kNoMilitary;
+            count = 5;
+        }
+    }
+    const int32_t shown = field<int32_t>(menu, 0x7c);
+    if (shown >= 0 && shown < count) set_word(field<uint8_t*>(menu, 0x70), 0x6c, titles[shown]);
+    if (field<int32_t>(menu, 0x7c) + 1 == field<int32_t>(menu, 0x78)) menu[0x61] = 0;
 }
 
 }  // namespace game

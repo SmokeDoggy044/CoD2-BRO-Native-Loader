@@ -1525,4 +1525,130 @@ void XB_THISCALL CreateProfileMenu_OnDeactivate(uint8_t*, uint8_t*) {
     if (!title_global<uint8_t>(0x0095f91a)) Movie_Stop(0);
 }
 
+// 0x00333f90 (+0x40): the card flags (+0x35, +0x51, +0x39) and page (+0x44) cleared, UIMenu_RestoreSelection, the
+// saved slot (0x008dce40) selected, the storage check and slot texts (menu in ESI), the help bar
+// FEMENU_OP_HELPBAR_SHORT.
+void XB_THISCALL AutosaveMenu_RestoreSelection(uint8_t* menu) {
+    menu[0x35] = 0;
+    menu[0x51] = 0;
+    menu[0x39] = 0;
+    field<uint32_t>(menu, 0x44) = 0;
+    UIMenu_RestoreSelection(menu);
+    call(menu, 0x88, title_global<uint32_t>(0x008dce40), 1);
+    title_call(own_address(&AutosaveMenu_CheckStorage_entry), esi_regs(menu));
+    title_call(own_address(&AutosaveMenu_UpdateSlotTexts_entry), esi_regs(menu));
+    call(field<uint8_t*>(menu, 0x40), 0x6c, 0x0082ac68);  // FEMENU_OP_HELPBAR_SHORT
+}
+
+// 0x00334a20 (+0x68, ret 4): with no dialog up, outside a load (+0x4c 0) and on a used slot: the delete confirmation
+// (MEM_DELETE_CONFIRM_XBOX: YES 0x00334960, NO 0x0030d130, NO selected).
+void XB_THISCALL ProfileMenu_OnDelete(uint8_t* menu, uint32_t) {
+    if (field<int32_t>(dialog_mgr(), 0xc) >= 0) return;
+    if (field<uint32_t>(menu, 0x4c)) return;
+    if (menu[0x6c + field<int16_t>(menu, 0x22) * 0xc]) return;
+    show_dialog(0x0082addc);                  // MEM_DELETE_CONFIRM_XBOX
+    add_button(0x0082c8b8, 0x00334960);       // MEM_DIALOG_YES
+    add_button(0x0082c8a8, 0x0030d130);       // MEM_DIALOG_NO
+    select_no();
+    layout_buttons();
+}
+
+// 0x00335550 (+0x30): UIMenu_Update, SCR_LoadingPump, CreateProfileMenu_UpdateHighlight (menu in ESI).
+void XB_THISCALL CreateProfileMenu_Update(uint8_t* menu, float dt) {
+    UIMenu_Update(menu, dt);
+    SCR_LoadingPump();
+    title_call(own_address(&CreateProfileMenu_UpdateHighlight_entry), esi_regs(menu));
+}
+
+// 0x00337fd0 (+0x38): with no dialog up: +0x37 = 1, page 2, the slot (+0x4c), AutosaveMenu_SelectSlot (EAX = slot,
+// ECX = menu).
+void XB_THISCALL AutosaveMenu_HandleSelect(uint8_t* menu, int32_t index) {
+    if (field<int32_t>(dialog_mgr(), 0xc) >= 0) return;
+    menu[0x37] = 1;
+    field<int32_t>(menu, 0x44) = 2;
+    field<int32_t>(menu, 0x4c) = index;
+    TitleRegs regs = eax_regs(uint32_t(index));
+    regs.ecx = address_of(menu);
+    title_call(own_address(&AutosaveMenu_SelectSlot_entry), regs);
+}
+
+// 0x00338820 (+0x38): with no dialog up: page 2, the slot (+0x50); the select mode (+0x4c) 0 tail-jumps to
+// FE_ProfileSelect (menu as its argument); an empty slot asks ProfileMenu_ConfirmLoad (EAX); else the save screen's
+// (front end +0x38) +0x194 (0 in modes 1 / 3 or with +0x5c) and the front end's screen 14 (tail jump). Not compared.
+PLATFORM_ASM_ENTRY(ProfileMenu_HandleSelect_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(ProfileMenu_HandleSelect) "popl %ecx\n"
+                   "addl $4, %esp\n"
+                   "cmpl $1, %eax\n"
+                   "jb 1f\n"
+                   "je 2f\n"
+                   "movl 8(%ecx), %ecx\n"
+                   "movl (%ecx), %eax\n"
+                   "movl $0xe, 4(%esp)\n"
+                   "jmp *0xc(%eax)\n"
+                   "2: movl %ecx, 4(%esp)\n"
+                   "jmp " PLATFORM_ASM_SYMBOL(FE_ProfileSelect_entry) "\n"
+                   "1: ret $4")
+
+uint32_t XB_CDECL ProfileMenu_HandleSelect(uint8_t* menu, int32_t index) {
+    if (field<int32_t>(dialog_mgr(), 0xc) >= 0) return 0;
+    const int32_t mode = field<int32_t>(menu, 0x4c);
+    field<int32_t>(menu, 0x48) = 2;
+    field<int32_t>(menu, 0x50) = index;
+    if (mode == 0) return 1;  // FE_ProfileSelect
+    if (menu[0x6c + index * 0xc] == 0) {
+        title_call(own_address(&ProfileMenu_ConfirmLoad_entry), eax_regs(address_of(menu)));
+        return 0;
+    }
+    const bool plain = mode == 1 || mode == 3 || field<uint32_t>(menu, 0x5c) != 0;
+    field<uint32_t>(front_end_screen(0x38), 0x194) = plain ? 0 : 1;
+    title_global<uint8_t>(0x0095f91a) = 0;
+    return 2;  // screen 14
+}
+
+// 0x00338a40 (+0x40): the save request prepared (EAX = 0x0095f480), the flags (+0x60, +0x36, +0x38, 0x008dd1cf,
+// 0x0095f91a) cleared, Movie_Stop(1); mode 3 without +0x37 only checks the storage (page 2); a pending switch (+0x37)
+// resolves the mode (+0x5c ? 2 : 1); then UIMenu_RestoreSelection, the saved row (+0x44, also into +0x50), the title
+// text by mode (LoadProfileMenu: SWITCH / SAVE / LOAD), the storage check, slot texts, and the help bar.
+void XB_THISCALL ProfileMenu_RestoreSelection(uint8_t* menu) {
+    TitleRegs prepare = eax_regs(title_global<uint32_t>(0x0095f480));
+    prepare.esi = address_of(menu);
+    title_call(own_address(&ProfileSave_PrepareRequest_entry), prepare);
+    menu[0x60] = 0;
+    menu[0x36] = 0;
+    menu[0x38] = 0;
+    title_global<uint8_t>(0x008dd1cf) = 0;
+    title_global<uint8_t>(0x0095f91a) = 0;
+    Movie_Stop(1);
+    if (!menu[0x37]) {
+        if (field<int32_t>(menu, 0x4c) == 3) {
+            field<int32_t>(menu, 0x48) = 2;
+            title_call(own_address(&ProfileMenu_CheckStorage_entry), esi_regs(menu));
+            return;
+        }
+    } else if (field<int32_t>(menu, 0x4c) != 0) {
+        menu[0x37] = 0;
+        field<int32_t>(menu, 0x4c) = (field<uint32_t>(menu, 0x5c) != 0 ? 1 : 0) + 1;
+    }
+    field<int32_t>(menu, 0x48) = 0;
+    UIMenu_RestoreSelection(menu);
+    call(menu, 0x88, field<uint32_t>(menu, 0x44), 1);
+    const int32_t mode = field<int32_t>(menu, 0x4c);
+    field<uint32_t>(menu, 0x50) = field<uint32_t>(menu, 0x44);
+    uint32_t title = 0;
+    if (mode == 2)
+        title = 0x0082c390;  // FEMENU_SWITCH_PROFILE
+    else if (mode == 0 || mode == 3)
+        title = 0x0082c3a8;  // FEMENU_SAVE_PROFILE
+    else if (mode == 1)
+        title = 0x0082b128;  // FEMENU_LOAD_PROFILE
+    if (title) call(find_text(field<uint8_t*>(menu, 0x3c), 0x0082b13c), 0x6c, title);  // "LoadProfileMenu"
+    title_call(own_address(&ProfileMenu_CheckStorage_entry), esi_regs(menu));
+    title_call(own_address(&FE_SaveSlotsUpdateText_entry), esi_regs(menu));
+    if (field<int32_t>(menu, 0x4c) != 0 || menu[0x6c + field<int16_t>(menu, 0x22) * 0xc] == 1)
+        call(field<uint8_t*>(menu, 0x40), 0x6c, 0x0082c37c);  // FEMENU_OP_HELPBAR
+    else
+        call(field<uint8_t*>(menu, 0x40), 0x6c, 0x0082b10c);  // FEMENU_LOAD_HELPBAR_XBOX
+}
+
 }  // namespace game

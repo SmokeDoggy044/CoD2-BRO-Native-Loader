@@ -173,4 +173,11 @@ void XB_THISCALL MissionSuccessFailMenu_RestoreSelection(uint8_t* menu);
 // 0x0031f480 (+0x40): see fe_menus.cpp.
 void XB_THISCALL PauseMenu_RestoreSelection(uint8_t* menu);
 
+// Unreached slots: see fe_menus.cpp.
+void XB_THISCALL LoadingMenu_OnAccept(uint8_t* menu, uint32_t pad);
+void XB_THISCALL PauseMenu_OnBack(uint8_t* menu, uint32_t pad);
+void XB_THISCALL PauseMenu_ResumeButton(uint8_t* menu, uint32_t pad);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL PauseMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void PauseMenu_HandleSelect_entry(void);
+
 }  // namespace game

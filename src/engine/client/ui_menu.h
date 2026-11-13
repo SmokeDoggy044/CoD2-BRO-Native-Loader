@@ -447,6 +447,19 @@ void XB_CDECL StaticInit_FontNames_95f7e8();
                              "movl (%ecx), %eax\n"                                     \
                              "movl $" #screen ", 4(%esp)\n"                            \
                              "jmp *0xc(%eax)")
+// UI_MENU_TAIL_DECIDE_ARG through a screen manager held in a title global (`global`, e.g. "0x0095f8fc") instead of
+// the owner.
+#define UI_GLOBAL_TAIL_DECIDE_ARG(name, decide, global)                                                     \
+    PLATFORM_ASM_ENTRY(name, "pushl 4(%esp)\n"                                                              \
+                             "pushl %ecx\n" PLATFORM_ASM_CALL(decide) "popl %ecx\n"                         \
+                             "addl $4, %esp\n"                                                              \
+                             "testl %eax, %eax\n"                                                           \
+                             "js 1f\n"                                                                      \
+                             "movl %eax, 4(%esp)\n"                                                         \
+                             "movl " global ", %ecx\n"                                                      \
+                             "movl (%ecx), %eax\n"                                                          \
+                             "jmp *0xc(%eax)\n"                                                             \
+                             "1: ret $4")
 // 0x0030ef00 (vtable +0x08): appends a screen (+0x04[+0x14++]).
 void XB_THISCALL UIScreenMgr_AddScreen(uint8_t* mgr, uint8_t* screen);
 // UIDialog (vtable 0x00829d48): +0x34 button count, +0x44 back callback (thiscall, the dialog), +0x58 buttons side by
@@ -503,5 +516,19 @@ void XB_THISCALL TitleMenu_OnButtonDown(uint8_t* menu, uint32_t pad, uint32_t bi
 void XB_THISCALL UIDialog_Update(uint8_t* dialog, float dt);
 // 0x0031f7f0 (+0x28, ret 8): see ui_menu.cpp.
 void XB_THISCALL DialogMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad);
+
+// More unreached slots: see ui_menu.cpp.
+void XB_THISCALL UIDialog_HandleSelect(uint8_t* dialog, int32_t index);                // 0x00329fa0
+void XB_THISCALL UIRootMenu_Draw(uint8_t* menu);                                       // 0x0032d710
+uint32_t XB_THISCALL UIOptionItem_Prev(uint8_t* item);                                 // 0x0032e590
+extern "C" PLATFORM_HIDDEN void XB_CDECL DialogMgr_SetActiveScreen(uint8_t* mgr);     // 0x00331c30
+extern "C" void DialogMgr_SetActiveScreen_entry(void);
+void XB_THISCALL MainMenu_Draw(uint8_t* menu);                                         // 0x00331260
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL StartupStorageMenu_Update(uint8_t* menu, uint32_t dt_bits);  // 0x00334890
+extern "C" void StartupStorageMenu_Update_entry(void);
+void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad);    // 0x00336710
+void XB_THISCALL TitleMenu_Update(uint8_t* menu, float dt);                            // 0x00336fc0
+void XB_THISCALL MainMenu_UpdateMenu(uint8_t* menu, float dt);                             // 0x00339240
+void XB_THISCALL MainMenu_RestoreSelection(uint8_t* menu);                             // 0x00339340
 
 }  // namespace game

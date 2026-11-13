@@ -632,4 +632,7 @@ void XB_THISCALL UIText_MoveLines(uint8_t* text, float dx, float dy);
 void XB_THISCALL UIText_Rescale(uint8_t* text, float sx, uint32_t sy);
 void XB_THISCALL UITextBase_SetColorAndEffect(uint8_t* text, uint32_t color, uint32_t a, float b);
 
+// UIText +0x148 (0x0032b5c0, ret 8): see fe.cpp.
+void XB_THISCALL UIText_SetMultilineText(uint8_t* text, const char* string, uint32_t unused);
+
 }  // namespace game

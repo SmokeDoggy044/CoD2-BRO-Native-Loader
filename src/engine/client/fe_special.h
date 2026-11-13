@@ -160,4 +160,12 @@ extern "C" void ChapterMenu_HandleSelect_entry(void);
 // 0x0031b0c0 (+0x44, ret 4).
 void XB_THISCALL ChapterMenu_OnDeactivate(uint8_t* menu, uint8_t* next);
 
+// More unreached slots: see fe_special.cpp.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SinglePlayerMenu_HandleSelect(uint8_t* menu, uint32_t index);  // 0x0032db40
+extern "C" void SinglePlayerMenu_HandleSelect_entry(void);
+void XB_THISCALL SpecialMaterialsMenu_Update(uint8_t* menu, float dt);  // 0x00333190
+void XB_THISCALL DifficultyMenu_Update(uint8_t* menu, float dt);        // 0x003355c0
+void XB_THISCALL ChapterMenu_RestoreSelection(uint8_t* menu);            // 0x00337e00
+void XB_THISCALL SinglePlayerMenu_RestoreSelection(uint8_t* menu);       // 0x00339170
+
 }  // namespace game

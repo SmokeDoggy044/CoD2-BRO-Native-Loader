@@ -4571,4 +4571,35 @@ void XB_THISCALL UITextBase_SetColorAndEffect(uint8_t* text, uint32_t color, uin
     field<uint8_t*>(text, 0x14) = effect;
 }
 
+// UIText +0x148 (ret 8; the second argument unused): one line per '\n' (+0x78), the old lines deleted and as many
+// new ones allocated (+0x80, +0x7c = the count), each initialised with the text up to the first '\n' (the original
+// never advances past it: every line gets the first segment) with the kind +0x18, scale +0x38 and button scale
+// +0x64; the text +0x1c = line 0's, then UIText_LayoutLines.
+void XB_THISCALL UIText_SetMultilineText(uint8_t* text, const char* string, uint32_t) {
+    field<int32_t>(text, 0x78) = 1;
+    for (const char* p = string; *p; ++p)
+        if (*p == '\n') ++field<int32_t>(text, 0x78);
+    if (uint8_t* const old = field<uint8_t*>(text, 0x80)) UITextLine_VectorDeletingDtor(old, 3);
+    const int32_t count = field<int32_t>(text, 0x78);
+    uint8_t* lines = nullptr;
+    if (uint8_t* const block = static_cast<uint8_t*>(heap_alloc16(uint32_t(count) * 0x20 + 4))) {
+        field<int32_t>(block, 0) = count;
+        lines = block + 4;
+        for (int32_t i = 0; i < count; ++i) UITextLine_Construct(lines + uint32_t(i) * 0x20);
+    }
+    field<uint8_t*>(text, 0x80) = lines;
+    field<int32_t>(text, 0x7c) = field<int32_t>(text, 0x78);
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i) {
+        char segment[0x100];
+        const size_t length = std::strcspn(string, text_at(0x0082d288));  // "\n"
+        std::strncpy(segment, string, length);
+        segment[length] = 0;
+        UITextLine_Init(field<uint8_t*>(text, 0x80) + uint32_t(i) * 0x20, segment, field<int32_t>(text, 0x18),
+                        field<float>(text, 0x38), field<float>(text, 0x64));
+    }
+    const ScriptStringRep* const first = field<ScriptStringRep*>(field<uint8_t*>(text, 0x80), 0x14);
+    ScriptString_AssignCString(reinterpret_cast<ScriptString*>(text + 0x1c), first ? first->text : nullptr);
+    UIText_LayoutLines(text);
+}
+
 }  // namespace game

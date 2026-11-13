@@ -185,6 +185,8 @@ void XB_THISCALL BonusConceptsMenu_Update(uint8_t* menu, float dt);
 void XB_THISCALL BonusVehiclesMenu_Update(uint8_t* menu, float dt);
 void XB_THISCALL BonusWeaponsMenu_Update(uint8_t* menu, float dt);
 void XB_THISCALL BonusCharactersMenu_Update(uint8_t* menu, float dt);
+// 0x003357b0 (+0x30): see fe_bonus.cpp.
+void XB_THISCALL BonusMaterialsMenu_Update(uint8_t* menu, float dt);
 // Draw (+0x28): 0x0031bb50 / 0x0031c500 / 0x0031d1d0 / 0x0031dd90.
 void XB_THISCALL BonusConceptsMenu_Draw(uint8_t* menu);
 void XB_THISCALL BonusVehiclesMenu_Draw(uint8_t* menu);

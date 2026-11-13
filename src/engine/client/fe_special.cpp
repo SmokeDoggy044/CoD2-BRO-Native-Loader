@@ -10,6 +10,7 @@
 #include "ui_menu.h"
 #include "ui_panel.h"
 #include "movie.h"
+#include "snd.h"
 #include "qcommon_core.h"
 
 // The gap entries (see fe_bonus.cpp): the C frame moves below a gap; the C version gets the menu, the entry
@@ -828,6 +829,161 @@ void XB_THISCALL SinglePlayerMenu_Draw(uint8_t* menu) {
         draw_object(field<uint8_t*>(menu, 0x34));
     }
     Movie_DrawFrame();
+}
+
+// 0x0032db40 (+0x38): unless busy (+0x44), the item (+0x3c): 0 starts the game at the current chapter (14 -> 13; all
+// sounds and the background movie stopped, 0x0095f920 = it); 1 the chapter list (front end screen +0x34: +0x48 = 0,
+// +0x4c = 1) -> screen 13; 2 the chapter into the difficulty screen (+0x44 +0x1ac) -> screen 17; 3 / 4 the profile
+// screen (+0x3c: +0x94 = 0, +0x4c = 0 / 2) -> the front end's screen 15. Screens through tail jumps (owner, or the
+// front end: the C part's 0x100 bit). Not compared.
+PLATFORM_ASM_ENTRY(SinglePlayerMenu_HandleSelect_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(SinglePlayerMenu_HandleSelect) "popl %ecx\n"
+                   "addl $4, %esp\n"
+                   "testl %eax, %eax\n"
+                   "js 1f\n"
+                   "testl $0x100, %eax\n"
+                   "jz 2f\n"
+                   "andl $0xff, %eax\n"
+                   "movl 0x0095f8f8, %ecx\n"
+                   "jmp 3f\n"
+                   "2: movl 8(%ecx), %ecx\n"
+                   "3: movl %eax, 4(%esp)\n"
+                   "movl (%ecx), %eax\n"
+                   "jmp *0xc(%eax)\n"
+                   "1: ret $4")
+
+int32_t XB_CDECL SinglePlayerMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (menu[0x44]) return -1;
+    field<uint32_t>(menu, 0x3c) = index;
+    int32_t& chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+    const auto screen = [](uint32_t offset) {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), offset);
+    };
+    switch (index) {
+    case 0:
+        if (chapter == 0xe) chapter = 0xd;
+        S_StopAllSounds(title_global<uint8_t*>(0x0095f4c4));
+        Movie_Stop(0);
+        title_global<uint8_t>(0x0095f91a) = 0;
+        title_global<int32_t>(0x0095f920) = chapter;
+        return -1;
+    case 1:
+        field<uint32_t>(screen(0x34), 0x48) = 0;
+        screen(0x34)[0x4c] = 1;
+        return 0xd;
+    case 2:
+        field<int32_t>(screen(0x44), 0x1ac) = chapter;
+        return 0x11;
+    case 3:
+    case 4:
+        screen(0x3c)[0x94] = 0;
+        field<uint32_t>(screen(0x3c), 0x4c) = index == 3 ? 0 : 2;
+        return 0x100 | 0xf;
+    default: return -1;
+    }
+}
+
+// 0x00333190 (+0x30): unless 0x0095f91e: UIMenu_Update; while loading (+0x3c) SCR_LoadingPump only; else the main
+// menu music once the delay (+0x44) runs out, the help bar (+0x38) by row, and on the flythrough row (2) its title /
+// "n / 3" / arrows (+0x4c, +0x50, +0x54, +0x58) by page (+0x48), elsewhere cleared. The last arrow call is a tail
+// jump in the original: its value stays in the dt argument slot.
+void XB_THISCALL SpecialMaterialsMenu_Update(uint8_t* menu, float dt) {
+    if (title_global<uint8_t>(0x0095f91e)) return;
+    UIMenu_Update(menu, dt);
+    if (menu[0x3c]) {
+        SCR_LoadingPump();
+        return;
+    }
+    int32_t& delay = field<int32_t>(menu, 0x44);
+    if (delay) --delay;
+    if (delay == 1) {
+        delay = 0;
+        Music_Play(title_global<uint8_t*>(0x0095f4cc), reinterpret_cast<const char*>(uintptr_t{0x0082cbe0}));  // "music_mainmenu"
+    }
+    call(field<uint8_t*>(menu, 0x38), 0x6c,
+         field<int16_t>(menu, 0x22) == 4 ? 0x0082bb64u : 0x0082bb78u);  // BONUS_OP_HELPBAR / BONUS_HELPBAR_PLAY
+    uint8_t* const title = field<uint8_t*>(menu, 0x4c);
+    constexpr uint32_t kShown = 0x3f800000;  // 1.0
+    uint32_t last = 0;
+    if (field<int16_t>(menu, 0x22) == 2) {
+        const int32_t page = field<int32_t>(menu, 0x48);
+        static const uint32_t kTitles[3] = {0x0082aa38, 0x0082aa1c, 0x0082aa00};  // BONUS_FLYTHROUGH1..3
+        static const uint32_t kPages[3] = {0x0082aa30, 0x0082aa14, 0x0082a9f8};   // "1 / 3".."3 / 3"
+        const int32_t i = page == 0 ? 0 : page == 1 ? 1 : 2;
+        call(title, 0x6c, kTitles[i]);
+        call(field<uint8_t*>(menu, 0x50), 0x6c, kPages[i]);
+        call(field<uint8_t*>(menu, 0x54), 0x7c, i == 0 ? 0 : kShown);
+        last = i == 2 ? 0 : kShown;
+    } else {
+        call(title, 0x78, 0x0082dfeb);  // ""
+        call(field<uint8_t*>(menu, 0x50), 0x78, 0x0082dfeb);
+        call(field<uint8_t*>(menu, 0x54), 0x7c, 0);
+    }
+    *reinterpret_cast<volatile uint32_t*>(&dt) = last;
+    call(field<uint8_t*>(menu, 0x58), 0x7c, last);
+}
+
+// 0x003355c0 (+0x30): unless 0x0095f91e UIMenu_Update and the difficulty picture; a changed row (+0x50) plays the
+// move sound (+0x10); SCR_LoadingPump.
+void XB_THISCALL DifficultyMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        UIMenu_Update(menu, dt);
+        FE_SetDifficultyPicture(menu, field<int16_t>(menu, 0x22));
+    }
+    if (field<int32_t>(menu, 0x50) != field<int16_t>(menu, 0x22)) {
+        call(menu, 0x10);
+        field<int32_t>(menu, 0x50) = field<int16_t>(menu, 0x22);
+    }
+    SCR_LoadingPump();
+}
+
+namespace {
+
+// The background movie ("Propgnda") opened full screen once (0x0095f91a).
+void open_background_movie() {
+    if (title_global<uint8_t>(0x0095f91a)) return;
+    if (!Movie_Open(reinterpret_cast<const char*>(uintptr_t{0x0082cacc}))) return;
+    nglSetQuadRect(title_global<NglQuad*>(0x0095f458), 0.0f, 0.0f, 640.0f, 480.0f);
+    title_global<uint8_t>(0x0095f91a) = 1;
+}
+
+}  // namespace
+
+// 0x00337e00 (+0x40): +0x1a8 cleared, the chapter list, UIMenu_RestoreSelection, the selection = the chapter
+// (+0x1ac) with its three elements coloured 0xff282119 (+0x90), item 13's left neighbour = 12, the background movie.
+void XB_THISCALL ChapterMenu_RestoreSelection(uint8_t* menu) {
+    menu[0x1a8] = 0;
+    ChapterMenu_UpdateList(menu);
+    UIMenu_RestoreSelection(menu);
+    field<int16_t>(menu, 0x22) = static_cast<int16_t>(field<int32_t>(menu, 0x1ac));
+    static const uint32_t kElements[3] = {0xe4, 0x11c, 0x154};
+    for (uint32_t offset : kElements)
+        call(field<uint8_t*>(menu, offset + uint32_t(field<int32_t>(menu, 0x1ac)) * 4), 0x90, 0xff282119u);
+    field<int16_t>(field<uint8_t**>(menu, 4)[13], 0xc) = 0xc;
+    open_background_movie();
+}
+
+// 0x00339170 (+0x40): the idle time reset (+0x40 = 0x008ddaa8, +0x44 / +0x48 cleared); item 0 hidden without an
+// unlocked chapter (then the saved row at least 1), items 3 / 4 shown with 0x008dd1cf == 1; UIMenu_RestoreSelection,
+// the saved row (+0x3c) selected, the background movie.
+void XB_THISCALL SinglePlayerMenu_RestoreSelection(uint8_t* menu) {
+    field<uint32_t>(menu, 0x40) = title_global<uint32_t>(0x008ddaa8);
+    menu[0x44] = 0;
+    field<uint32_t>(menu, 0x48) = 0;
+    uint32_t hide = 0;
+    if (title_global<int32_t>(0x008dce44) < 0) {  // g_chaptersUnlocked
+        if (!field<uint32_t>(menu, 0x3c)) field<uint32_t>(menu, 0x3c) = 1;
+        hide = 1;
+    }
+    uint8_t** const items = field<uint8_t**>(menu, 4);
+    call(items[0], 0x20, hide);
+    const uint32_t extra = title_global<uint8_t>(0x008dd1cf) == 1 ? 1 : 0;
+    call(field<uint8_t**>(menu, 4)[3], 0x20, extra);
+    call(field<uint8_t**>(menu, 4)[4], 0x20, extra);
+    UIMenu_RestoreSelection(menu);
+    call(menu, 0x88, field<uint32_t>(menu, 0x3c), 1);
+    open_background_movie();
 }
 
 }  // namespace game

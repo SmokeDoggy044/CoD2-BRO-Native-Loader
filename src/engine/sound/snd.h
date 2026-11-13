@@ -393,6 +393,8 @@ uint32_t XB_REGS1 XB_CDECL SoundMenu_UpdateSliders(uint8_t* menu);
 // 0x0031e630 / 0x0031e6d0 (thiscall, a stack word, ret 4 through their tail jumps): back (the stored volume applied,
 // the front end's screen 3) / select (1: volume 50; 2: stored, back to screen 3).
 extern "C" PLATFORM_HIDDEN void XB_CDECL SoundMenu_OnBack(uint32_t pad);
+// 0x00335cd0 (+0x30): UIMenu_Update unless 0x0095f91e, SCR_LoadingPump.
+void XB_THISCALL SoundMenu_Update(uint8_t* menu, float dt);
 extern "C" void SoundMenu_OnBack_entry(void);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SoundMenu_HandleSelect(uint8_t* menu, uint32_t index);
 extern "C" void SoundMenu_HandleSelect_entry(void);

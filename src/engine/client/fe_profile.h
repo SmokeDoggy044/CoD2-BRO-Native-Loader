@@ -225,4 +225,13 @@ void XB_THISCALL AutosaveMenu_Draw(uint8_t* menu);
 void XB_THISCALL ProfileMenu_Draw(uint8_t* menu);
 void XB_THISCALL CreateProfileMenu_OnDeactivate(uint8_t* menu, uint8_t* next);
 
+// More unreached slots: see fe_profile.cpp.
+void XB_THISCALL AutosaveMenu_RestoreSelection(uint8_t* menu);            // 0x00333f90
+void XB_THISCALL ProfileMenu_OnDelete(uint8_t* menu, uint32_t pad);       // 0x00334a20
+void XB_THISCALL CreateProfileMenu_Update(uint8_t* menu, float dt);       // 0x00335550
+void XB_THISCALL AutosaveMenu_HandleSelect(uint8_t* menu, int32_t index); // 0x00337fd0
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ProfileMenu_HandleSelect(uint8_t* menu, int32_t index);  // 0x00338820
+extern "C" void ProfileMenu_HandleSelect_entry(void);
+void XB_THISCALL ProfileMenu_RestoreSelection(uint8_t* menu);             // 0x00338a40
+
 }  // namespace game

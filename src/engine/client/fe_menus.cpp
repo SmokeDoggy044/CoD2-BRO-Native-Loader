@@ -999,4 +999,62 @@ void XB_THISCALL PauseMenu_RestoreSelection(uint8_t* menu) {
     title_global<uint8_t*>(0x0095f6fc)[0x4474] = 1;  // g_liveMgr
 }
 
+// 0x00335c60 (+0x60, ret 4): with +0x38 set (loaded): the screen fades in (0x009403f4 cleared, FE_FadeOut), cl_paused
+// 0, "fade 0 0 0 0 3", cg_norender 0, the idle channels stopped and the paused ones resumed, the UI key catcher off.
+void XB_THISCALL LoadingMenu_OnAccept(uint8_t* menu, uint32_t) {
+    if (!menu[0x38]) return;
+    title_global<uint8_t>(0x009403f4) = 0;
+    title_call(own_address(&FE_FadeOut_entry), TitleRegs{});
+    Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
+    Cbuf_AddText(text_at(0x0082bc74));                           // "fade 0 0 0 0 3\n"
+    Cvar_Set2(text_at(0x0082bc68), mutable_text_at(kZero), 1);  // cg_norender
+    title_global<uint8_t>(0x0095f919) = 0;
+    S_StopUnpausedChannels(title_global<uint8_t*>(0x0095f4c4));
+    S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+    title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls_keyCatchers
+    Key_ClearStates();
+}
+
+// 0x0032dd30 (+0x64, ret 4): back = resume.
+void XB_THISCALL PauseMenu_OnBack(uint8_t* menu, uint32_t) {
+    S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+    Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
+    title_global<uint8_t>(0x0095f919) = 0;
+    title_global<uint8_t>(0x008dce69) = menu[0x40];
+}
+
+// 0x0032dd70 (+0x4c, ret 4): the other resume button (0x0095f919 cleared first).
+void XB_THISCALL PauseMenu_ResumeButton(uint8_t* menu, uint32_t) {
+    title_global<uint8_t>(0x0095f919) = 0;
+    S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+    Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
+    title_global<uint8_t>(0x008dce69) = menu[0x40];
+}
+
+// 0x00336670 (+0x38): 0 resume, 1 / 2 the in-game screens' (0x0095f8fc) screen 1 / 8 (tail jump), 3 / 4 the restart
+// / quit dialogs (menu in ESI). Not compared.
+UI_GLOBAL_TAIL_DECIDE_ARG(PauseMenu_HandleSelect_entry, PauseMenu_HandleSelect, "0x0095f8fc")
+
+int32_t XB_CDECL PauseMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+    switch (index) {
+    case 0:
+        title_global<uint8_t>(0x0095f919) = 0;
+        S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+        title_global<uint8_t>(0x008dce69) = menu[0x40];
+        Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
+        return -1;
+    case 1: return 1;
+    case 2: return 8;
+    case 3:
+        title_call(own_address(&PauseMenu_ShowRestartDialog_entry), regs);
+        return -1;
+    case 4:
+        title_call(own_address(&PauseMenu_ShowQuitDialog_entry), regs);
+        return -1;
+    default: return -1;
+    }
+}
+
 }  // namespace game

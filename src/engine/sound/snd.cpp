@@ -3393,4 +3393,10 @@ int32_t XB_CDECL SoundMenu_HandleSelect(uint8_t* menu, uint32_t index) {
     return 3;
 }
 
+// 0x00335cd0 (+0x30): UIMenu_Update unless 0x0095f91e, then SCR_LoadingPump.
+void XB_THISCALL SoundMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) UIMenu_Update(menu, dt);
+    SCR_LoadingPump();
+}
+
 }  // namespace game

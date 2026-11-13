@@ -9340,6 +9340,7 @@ const Function kFunctions[] = {
     {"Subtitle_Draw", 0x0030fca0, 0, code(&Subtitle_Draw), 0, Result::None, Status::Replaced},
     {"Movie_SetQuadRect", 0x0030fdc0, 0, code(&Movie_SetQuadRect), 16, Result::None, Status::Replaced},
     {"Movie_DrawFrame", 0x0030fe00, 0, code(&Movie_DrawFrame), 0, Result::Eax, Status::Replaced},
+    {"Movie_DrawFrameQuiet", 0x0030fe50, 0, code(&Movie_DrawFrameQuiet), 0, Result::None, Status::Compare},  // was FUN_0030fe50 (gap); MainMenu_Draw's tail jump target, not in the unreached list
     {"Panel_Draw", 0x00310010, 0, code(&Panel_Draw_entry), 0, Result::None, Status::Replaced},
     {"Panel_SetLayer", 0x00310070, 0, code(&Panel_SetLayer_entry), 4, Result::None, Status::Replaced},
     {"UIPicture_SetRect", 0x00310110, 0, code(&UIPicture_SetRect), 16, Result::None, Status::Replaced},
@@ -9747,6 +9748,7 @@ const Function kFunctions[] = {
     {"AdvancedOptionsMenu_RestoreSelection", 0x00329c50, 0, code(&AdvancedOptionsMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"FE_SetupAdvancedOptionsMenu", 0x00329480, 0, code(&FE_SetupAdvancedOptionsMenu_entry), 0, Result::None, Status::Replaced},
     {"FE_SetupPauseMenu", 0x00329c80, 0, code(&FE_SetupPauseMenu_entry), 0, Result::None, Status::Replaced},
+    {"UIDialog_HandleSelect", 0x00329fa0, 0, code(&UIDialog_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00329fa0 (gap)
     {"FE_SetupMemcardMenu", 0x00329fe0, 0, code(&FE_SetupMemcardMenu_entry), 0, Result::None, Status::Replaced},
     {"FE_SetupLoginStatus", 0x0032a660, 0, code(&FE_SetupLoginStatus_entry), 4, Result::None, Status::Replaced},
     {"FE_SetupPanel", 0x0032a910, 0, code(&FE_SetupPanel_entry), 4, Result::Eax, Status::Replaced},
@@ -9756,6 +9758,7 @@ const Function kFunctions[] = {
     {"UIText_SetTransform", 0x0032af10, 0, code(&UIText_SetTransform), 8, Result::None, Status::Compare},
     {"UIText_WrapLines", 0x0032b0d0, 0, code(&UIText_WrapLines), 16, Result::Eax, Status::Replaced},
     {"UIText_SetWrappedText", 0x0032b420, 0, code(&UIText_SetWrappedText), 12, Result::None, Status::Replaced},
+    {"UIText_SetMultilineText", 0x0032b5c0, 0, code(&UIText_SetMultilineText), 8, Result::None, Status::Compare},  // was FUN_0032b5c0 (gap)
     {"UIText_SetWrappedString", 0x0032b760, 0, code(&UIText_SetWrappedString_entry), 12, Result::None, Status::Compare},  // was FUN_0032b760 (gap)
     {"UIText_SetText", 0x0032b830, 0, code(&UIText_SetText_entry), 4, Result::None, Status::Compare},  // gap
     {"UIText_AllocLines", 0x0032b940, 0, code(&UIText_AllocLines), 4, Result::None, Status::Replaced},
@@ -9780,8 +9783,13 @@ const Function kFunctions[] = {
     {"MissionSuccessFailMenu_OnRetryYes", 0x0032d340, 0, code(&MissionSuccessFailMenu_OnRetryYes), 0, Result::Al, Status::Compare},
     {"MissionSuccessFailMenu_RestoreSelection", 0x0032d450, 0, code(&MissionSuccessFailMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_0032d450 (gap)
     {"UI_PlayTypeSound", 0x0032d660, 0, code(&UI_PlayTypeSound), 0, Result::None, Status::Replaced},
+    {"UIRootMenu_Draw", 0x0032d710, 0, code(&UIRootMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_0032d710 (gap)
     {"DifficultyMenu_StartGame", 0x0032d800, 0, code(&DifficultyMenu_StartGame_entry), 0, Result::None, Status::Replaced},
     {"FE_FadeOut", 0x0032d890, 0, code(&FE_FadeOut_entry), 0, Result::None, Status::Replaced},
+    {"GameplayMenu_HandleSelect", 0x0032da70, 0, code(&GameplayMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_0032da70 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"SinglePlayerMenu_HandleSelect", 0x0032db40, 0, code(&SinglePlayerMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_0032db40 (gap); tail jumps to SetActiveScreen: not compared
+    {"PauseMenu_OnBack", 0x0032dd30, 0, code(&PauseMenu_OnBack), 4, Result::None, Status::Compare},  // was FUN_0032dd30 (gap)
+    {"PauseMenu_ResumeButton", 0x0032dd70, 0, code(&PauseMenu_ResumeButton), 4, Result::None, Status::Compare},  // was FUN_0032dd70 (gap)
     {"CL_TogglePause", 0x0032dde0, 0, code(&CL_TogglePause_entry), 0, Result::None, Status::Replaced},
     {"CL_PauseIntoFrontEnd", 0x0032de50, 0, code(&CL_PauseIntoFrontEnd_entry), 4, Result::None, Status::Replaced},
     {"CL_PauseForDialog", 0x0032dec0, 0, code(&CL_PauseForDialog), 0, Result::None, Status::Replaced},
@@ -9791,6 +9799,7 @@ const Function kFunctions[] = {
     {"UITextTable_SelectPrev", 0x0032e250, 0, code(&UITextTable_SelectPrev), 0, Result::Eax, Status::Compare},
     {"UIOptionItem_PlaySelectSound", 0x0032e310, 0, code(&UIOptionItem_PlaySelectSound_entry), 0, Result::None, Status::Compare},
     {"UIOptionItem_Next", 0x0032e540, 0, code(&UIOptionItem_Next), 0, Result::None, Status::Compare},
+    {"UIOptionItem_Prev", 0x0032e590, 0, code(&UIOptionItem_Prev), 0, Result::None, Status::Compare},  // was FUN_0032e590 (gap)
     {"UIOptionItem_Dtor", 0x0032e5e0, 0, code(&UIOptionItem_Dtor), 4, Result::None, Status::Compare},
     {"UIScreenMgr_SetActiveScreen", 0x0032e6a0, 0, code(&UIScreenMgr_SetActiveScreen_entry), 4, Result::None, Status::Replaced},
     {"UIMenu_PlaySelectSoundIfIdle", 0x0032e7a0, 0, code(&UIMenu_PlaySelectSoundIfIdle), 0, Result::None, Status::Replaced},
@@ -9831,9 +9840,11 @@ const Function kFunctions[] = {
     {"SoundMenu_Construct", 0x00330f80, 0, code(&SoundMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"ScreenMenu_Construct", 0x00330fd0, 0, code(&ScreenMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"CL_ExecControllerConfig", 0x00331030, 0, code(&CL_ExecControllerConfig_entry), 0, Result::None, Status::Replaced},
+    {"ControllerConfigMenu_OnBack", 0x003310b0, 0, code(&ControllerConfigMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_003310b0 (gap); tail jump to the front end's SetActiveScreen: not compared
     {"ControllerConfigMenu_Construct", 0x003310d0, 0, code(&ControllerConfigMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"GameplayMenu_Construct", 0x00331150, 0, code(&GameplayMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"SinglePlayerMenu_Construct", 0x00331210, 0, code(&SinglePlayerMenu_Construct), 0, Result::Eax, Status::Replaced},
+    {"MainMenu_Draw", 0x00331260, 0, code(&MainMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_00331260 (gap)
     {"MainMenu_Construct", 0x003312f0, 0, code(&MainMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"FE_ApplyControlSettings", 0x00331340, 0, code(&FE_ApplyControlSettings_entry), 0, Result::None, Status::Replaced},
     {"AdvancedOptionsMenu_ResumeGame", 0x00331590, 0, code(&AdvancedOptionsMenu_ResumeGame), 4, Result::None, Status::Compare},
@@ -9841,6 +9852,7 @@ const Function kFunctions[] = {
     {"InGameScreens_Construct", 0x00331680, 0, code(&InGameScreens_Construct), 4, Result::Eax, Status::Replaced},
     {"UIDialog_Construct", 0x00331920, 0, code(&UIDialog_Construct), 0, Result::Eax, Status::Replaced},
     {"UI_ShowDialog", 0x003319e0, 0, code(&UI_ShowDialog_entry), 20, Result::None, Status::Replaced},
+    {"DialogMgr_SetActiveScreen", 0x00331c30, 0, code(&DialogMgr_SetActiveScreen_entry), 4, Result::None, Status::Replaced},  // was FUN_00331c30 (gap); tail jump to UIScreenMgr_SetActiveScreen: not compared
     {"DialogMgr_Update", 0x00331c50, 0, code(&DialogMgr_Update), 4, Result::None, Status::Replaced},
     {"DialogMgr_Construct", 0x00331cb0, 0, code(&DialogMgr_Construct), 0, Result::Eax, Status::Replaced},
     {"TitleMenu_Construct", 0x00331d80, 0, code(&TitleMenu_Construct), 0, Result::Eax, Status::Compare},
@@ -9855,6 +9867,7 @@ const Function kFunctions[] = {
     {"CL_ApplyProfileSettings", 0x00332e20, 0, code(&CL_ApplyProfileSettings_entry), 0, Result::None, Status::Replaced},
     {"SpecialMaterialsMenu_PlayMovie", 0x00333060, 0, code(&SpecialMaterialsMenu_PlayMovie_entry), 4, Result::None, Status::Compare},
     {"SpecialMaterialsMenu_HandleSelect", 0x003330f0, 0, code(&SpecialMaterialsMenu_HandleSelect_entry), 0, Result::None, Status::Compare},
+    {"SpecialMaterialsMenu_Update", 0x00333190, 0, code(&SpecialMaterialsMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00333190 (gap)
     {"ChapterMenu_Update", 0x003332f0, 0, code(&ChapterMenu_Update), 4, Result::None, Status::Replaced},
     {"ChapterMenu_Construct", 0x00333380, 0, code(&ChapterMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"AutosaveMenu_ShowSaveWarning", 0x003334b0, 0, code(&AutosaveMenu_ShowSaveWarning_entry), 0, Result::Al, Status::Compare},
@@ -9867,11 +9880,14 @@ const Function kFunctions[] = {
     {"AutosaveMenu_ShowNoSaveDataDialog", 0x00333d00, 0, code(&AutosaveMenu_ShowNoSaveDataDialog_entry), 0, Result::None, Status::Compare},
     {"MemDlg_CheckFreeSpace3", 0x00333e20, 0, code(&MemDlg_CheckFreeSpace3), 0, Result::Al, Status::Compare},
     {"AutosaveMenu_CheckStorage", 0x00333ee0, 0, code(&AutosaveMenu_CheckStorage_entry), 0, Result::None, Status::Compare},
+    {"AutosaveMenu_RestoreSelection", 0x00333f90, 0, code(&AutosaveMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00333f90 (gap)
     {"MissionSuccessFailMenu_ShowRetryDialog", 0x00334070, 0, code(&MissionSuccessFailMenu_ShowRetryDialog_entry), 4, Result::None, Status::Replaced},
     {"MissionSuccessFailMenu_HandleSelect", 0x003341e0, 0, code(&MissionSuccessFailMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},
     {"MemDlg_CheckFreeSpace", 0x003344e0, 0, code(&MemDlg_CheckFreeSpace), 0, Result::Al, Status::Compare},
     {"MemDlg_CheckSaveDevice", 0x003345d0, 0, code(&MemDlg_CheckSaveDevice), 4, Result::Al, Status::Compare},
     {"FE_CheckStartupStorage", 0x003346e0, 0, code(&FE_CheckStartupStorage_entry), 4, Result::None, Status::Compare},
+    {"StartupStorageMenu_Update", 0x00334890, 0, code(&StartupStorageMenu_Update_entry), 4, Result::None, Status::Replaced},  // was FUN_00334890 (gap); tail jump to the front end's SetActiveScreen: not compared
+    {"ProfileMenu_OnDelete", 0x00334a20, 0, code(&ProfileMenu_OnDelete), 4, Result::None, Status::Compare},  // was FUN_00334a20 (gap)
     {"ProfileMenu_StartLoad", 0x00334b10, 0, code(&ProfileMenu_StartLoad_entry), 0, Result::None, Status::Compare},
     {"ProfileMenu_ShowSaveWarning", 0x00334b70, 0, code(&ProfileMenu_ShowSaveWarning_entry), 0, Result::Al, Status::Compare},
     {"ProfileMenu_ShowSaveErrorDialog", 0x00334ca0, 0, code(&ProfileMenu_ShowSaveErrorDialog_entry), 0, Result::None, Status::Compare},
@@ -9881,8 +9897,11 @@ const Function kFunctions[] = {
     {"ProfileMenu_ShowUnformattedDialog", 0x003351e0, 0, code(&ProfileMenu_ShowUnformattedDialog_entry), 0, Result::None, Status::Compare},
     {"ProfileMenu_ShowNoSaveDataDialog", 0x003352d0, 0, code(&ProfileMenu_ShowNoSaveDataDialog_entry), 0, Result::None, Status::Compare},
     {"MemDlg_CheckFreeSpace2", 0x00335460, 0, code(&MemDlg_CheckFreeSpace2), 0, Result::Al, Status::Compare},
+    {"CreateProfileMenu_Update", 0x00335550, 0, code(&CreateProfileMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00335550 (gap)
     {"CreateProfileMenu_Construct", 0x00335570, 0, code(&CreateProfileMenu_Construct), 0, Result::Eax, Status::Replaced},
+    {"DifficultyMenu_Update", 0x003355c0, 0, code(&DifficultyMenu_Update), 4, Result::None, Status::Compare},  // was FUN_003355c0 (gap)
     {"BonusMaterialsMenu_HandleSelect", 0x00335730, 0, code(&BonusMaterialsMenu_HandleSelect_entry), 0, Result::None, Status::Compare},
+    {"BonusMaterialsMenu_Update", 0x003357b0, 0, code(&BonusMaterialsMenu_Update), 4, Result::None, Status::Compare},  // was FUN_003357b0 (gap)
     {"LoadMaubeugeMenu_OnContinue", 0x00335b10, 0, code(&LoadMaubeugeMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335b10 (gap)
     {"LoadSicilyMenu_OnContinue", 0x00335b80, 0, code(&LoadSicilyMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335b80 (gap, m6/m7)
     {"UIMenu_Slot47Nop", 0x0030f000, 0, code(&UIMenu_Slot47Nop), 0, Result::None, Status::Replaced},  // was FUN_0030f000 (gap, m6/m7); ret: too short to compare
@@ -9890,13 +9909,23 @@ const Function kFunctions[] = {
     {"UIMenu_ClearHeldDirection", 0x00314aa0, 0, code(&UIMenu_ClearHeldDirection), 8, Result::None, Status::Compare},  // was FUN_00314aa0 (gap, m6/m7)
     {"UIScreenMgr_ActiveScreenSlot33", 0x0030ec40, 0, code(&UIScreenMgr_ActiveScreenSlot33), 8, Result::None, Status::Replaced},  // was FUN_0030ec40 (gap, m6/m7); virtual call: not compared
     {"LoadAfricaMenu_OnContinue", 0x00335bf0, 0, code(&LoadAfricaMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335bf0 (gap)
+    {"LoadingMenu_OnAccept", 0x00335c60, 0, code(&LoadingMenu_OnAccept), 4, Result::None, Status::Compare},  // was FUN_00335c60 (gap)
+    {"SoundMenu_Update", 0x00335cd0, 0, code(&SoundMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00335cd0 (gap)
+    {"ScreenMenu_Update", 0x00335cf0, 0, code(&ScreenMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00335cf0 (gap)
     {"FE_ControlsUpdateText", 0x00335d60, 0, code(&FE_ControlsUpdateText_entry), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_ChangeValue", 0x00335fe0, 0, code(&ControllerConfigMenu_ChangeValue_entry), 0, Result::None, Status::Replaced},
+    {"ControllerConfigMenu_HandleSelect", 0x003361c0, 0, code(&ControllerConfigMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_003361c0 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"ControllerConfigMenu_Update", 0x00336340, 0, code(&ControllerConfigMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00336340 (gap)
+    {"GameplayMenu_Update", 0x003363c0, 0, code(&GameplayMenu_Update), 4, Result::None, Status::Compare},  // was FUN_003363c0 (gap)
+    {"OptionsMenu_Update", 0x00336440, 0, code(&OptionsMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00336440 (gap)
     {"SinglePlayerMenu_Update", 0x00336460, 0, code(&SinglePlayerMenu_Update), 4, Result::None, Status::Replaced},
     {"PauseMenu_ShowRestartDialog", 0x00336490, 0, code(&PauseMenu_ShowRestartDialog_entry), 0, Result::None, Status::Replaced},
     {"PauseMenu_ShowQuitDialog", 0x00336580, 0, code(&PauseMenu_ShowQuitDialog_entry), 0, Result::None, Status::Replaced},
+    {"PauseMenu_HandleSelect", 0x00336670, 0, code(&PauseMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00336670 (gap); tail jump to the in-game screens' SetActiveScreen: not compared
+    {"FrontEndMenu_OnButtonDown", 0x00336710, 0, code(&FrontEndMenu_OnButtonDown), 8, Result::None, Status::Replaced},  // was FUN_00336710 (gap); SetActiveScreen through the vtable (sound): not compared
     {"MainMenu_Update", 0x003367a0, 0, code(&MainMenu_Update_entry), 4, Result::None, Status::Replaced},
     {"FrontEndMenu_Construct", 0x00336ad0, 0, code(&FrontEndMenu_Construct), 4, Result::Eax, Status::Replaced},
+    {"TitleMenu_Update", 0x00336fc0, 0, code(&TitleMenu_Update), 4, Result::None, Status::Compare},  // was FUN_00336fc0 (gap)
     {"FE_CreateMenus", 0x00337050, 0, code(&FE_CreateMenus_entry), 0, Result::None, Status::Replaced},
     {"Panel_LoadNode_r", 0x003370d0, 0, code(&Panel_LoadNode_r), 12, Result::None, Status::Replaced},
     {"Panel_Load", 0x00337380, 0, code(&Panel_Load_entry), 4, Result::None, Status::Replaced},
@@ -9905,14 +9934,18 @@ const Function kFunctions[] = {
     {"HudCompCompass_PlaceMarker", 0x00337810, 0, code(&HudCompCompass_PlaceMarker_entry), 12, Result::None, Status::Replaced},
     {"HudCompCompass_UpdateObjectives", 0x003379b0, 0, code(&HudCompCompass_UpdateObjectives), 0, Result::None, Status::Replaced},
     {"HudCompCompass_UpdateFiringEnemies", 0x00337b70, 0, code(&HudCompCompass_UpdateFiringEnemies), 4, Result::None, Status::Replaced},
+    {"ChapterMenu_RestoreSelection", 0x00337e00, 0, code(&ChapterMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00337e00 (gap)
     {"AutosaveMenu_SelectSlot", 0x00337f00, 0, code(&AutosaveMenu_SelectSlot_entry), 0, Result::Al, Status::Compare},
+    {"AutosaveMenu_HandleSelect", 0x00337fd0, 0, code(&AutosaveMenu_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00337fd0 (gap)
     {"AutosaveMenu_Update", 0x00338040, 0, code(&AutosaveMenu_Update_entry), 4, Result::None, Status::Replaced},
     {"AutosaveMenu_ShowFormatSuccessDialog", 0x00338100, 0, code(&AutosaveMenu_ShowFormatSuccessDialog_entry), 0, Result::None, Status::Compare},
     {"AutosaveMenu_OnProfilesRead", 0x003381c0, 0, code(&AutosaveMenu_OnProfilesRead_entry), 0, Result::None, Status::Compare},
     {"ProfileMenu_ConfirmLoad", 0x00338610, 0, code(&ProfileMenu_ConfirmLoad_entry), 0, Result::None, Status::Compare},
     {"FE_ProfileSelect", 0x00338710, 0, code(&FE_ProfileSelect_entry), 4, Result::Eax, Status::Compare},
+    {"ProfileMenu_HandleSelect", 0x00338820, 0, code(&ProfileMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00338820 (gap); tail jumps to FE_ProfileSelect / SetActiveScreen: not compared
     {"ProfileMenu_ShowFormatSuccessDialog", 0x003388f0, 0, code(&ProfileMenu_ShowFormatSuccessDialog_entry), 0, Result::None, Status::Compare},
     {"ProfileMenu_CheckStorage", 0x00338960, 0, code(&ProfileMenu_CheckStorage_entry), 0, Result::None, Status::Compare},
+    {"ProfileMenu_RestoreSelection", 0x00338a40, 0, code(&ProfileMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00338a40 (gap)
     {"CreateProfileMenu_Finish", 0x00338b70, 0, code(&CreateProfileMenu_Finish_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_Activate", 0x00338ca0, 0, code(&CreateProfileMenu_Activate_entry), 0, Result::None, Status::Replaced},
     {"CreateProfileMenu_HandleSelect", 0x00338c40, 0, code(&CreateProfileMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},
@@ -9922,6 +9955,9 @@ const Function kFunctions[] = {
     {"ControllerConfigMenu_RestoreSelection", 0x00338f50, 0, code(&ControllerConfigMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"GameplayMenu_RestoreSelection", 0x00339050, 0, code(&GameplayMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"OptionsMenu_RestoreSelection", 0x00339110, 0, code(&OptionsMenu_RestoreSelection), 0, Result::None, Status::Replaced},
+    {"SinglePlayerMenu_RestoreSelection", 0x00339170, 0, code(&SinglePlayerMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00339170 (gap)
+    {"MainMenu_UpdateMenu", 0x00339240, 0, code(&MainMenu_UpdateMenu), 4, Result::None, Status::Compare},  // was FUN_00339240 (gap)
+    {"MainMenu_RestoreSelection", 0x00339340, 0, code(&MainMenu_RestoreSelection), 0, Result::None, Status::Compare},  // was FUN_00339340 (gap)
     {"FE_LoadPanel", 0x003393f0, 0, code(&FE_LoadPanel_entry), 0, Result::Eax, Status::Replaced},
     {"HudCompCompass_UpdateTankMarkers", 0x00339450, 0, code(&HudCompCompass_UpdateTankMarkers_entry), 0, Result::None, Status::Replaced},
     {"HudCompCompass_UpdateActorMarkers", 0x00339830, 0, code(&HudCompCompass_UpdateActorMarkers_entry), 0, Result::None, Status::Replaced},

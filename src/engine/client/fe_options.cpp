@@ -864,4 +864,138 @@ void XB_THISCALL OptionsMenu_Draw(uint8_t* menu) {
     Movie_DrawFrame();
 }
 
+namespace {
+
+// The Update slots' arrow flash: while the flash timer (+timer_at) runs for a valid row (+row_at, below `rows`), it
+// counts down by dt; at 0 the row's two arrows (+arrows_at + row * 8, +4) get the arrow colour back (+color_at,
+// vtable +0x70).
+void flash_arrows_update(uint8_t* menu, float dt, uint32_t timer_at, uint32_t row_at, int32_t rows, uint32_t color_at,
+                         uint32_t arrows_at) {
+    const float timer = field<float>(menu, timer_at);
+    if (!(timer > 0.0f)) return;
+    const int32_t row = field<int32_t>(menu, row_at);
+    if (row < 0 || row >= rows) return;
+    const float left = timer - dt;
+    field<float>(menu, timer_at) = left;
+    if (!(0.0f >= left)) return;
+    call(field<uint8_t*>(menu, arrows_at + uint32_t(row) * 8), 0x70, field<uint32_t>(menu, color_at));
+    call(field<uint8_t*>(menu, arrows_at + 4 + uint32_t(field<int32_t>(menu, row_at)) * 8), 0x70,
+         field<uint32_t>(menu, color_at));
+}
+
+}  // namespace
+
+// Update (+0x30): UIMenu_Update (ScreenMenu: twice) and the arrow flash unless 0x0095f91e; SCR_LoadingPump.
+void XB_THISCALL ScreenMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        UIMenu_Update(menu, dt);
+        UIMenu_Update(menu, dt);
+        flash_arrows_update(menu, dt, 0x54, 0x58, 1, 0x4c, 0x44);
+    }
+    SCR_LoadingPump();
+}
+
+void XB_THISCALL ControllerConfigMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        UIMenu_Update(menu, dt);
+        flash_arrows_update(menu, dt, 0xc8, 0xd0, 3, 0xc4, 0x48);
+    }
+    SCR_LoadingPump();
+}
+
+void XB_THISCALL GameplayMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        UIMenu_Update(menu, dt);
+        flash_arrows_update(menu, dt, 0x84, 0x88, 5, 0x78, 0x50);
+    }
+    SCR_LoadingPump();
+}
+
+void XB_THISCALL OptionsMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) UIMenu_Update(menu, dt);
+    SCR_LoadingPump();
+}
+
+// 0x0032da70 (+0x38): item 6 stores the five options (+0x7c..+0x80 into 0x008dce68 / 6a / 69 / 6c (int) / 70,
+// g_vehControlMode from +0x7f) and goes back to screen 3 (tail jump); item 5 resets them (0, 1, 1, 0, 0) and their
+// on / off labels (+0x3c.., not row 0 with a language set). Not compared.
+UI_MENU_TAIL_DECIDE_ARG(GameplayMenu_HandleSelect_entry, GameplayMenu_HandleSelect)
+
+int32_t XB_CDECL GameplayMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (index == 6) {
+        title_global<uint8_t>(0x008dce68) = menu[0x7c];
+        title_global<uint8_t>(0x008dce6a) = menu[0x7e];
+        title_global<uint8_t>(0x008dce69) = menu[0x7d];
+        title_global<int32_t>(0x008dce6c) = menu[0x7f];
+        title_global<uint8_t>(0x008dce70) = menu[0x80];
+        Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082e044}),  // g_vehControlMode
+                  reinterpret_cast<char*>(uintptr_t{menu[0x7f] ? 0x0082e058u : 0x0082e098u}), 1);  // "1" / "0"
+        return 3;
+    }
+    if (index != 5) return -1;
+    menu[0x7c] = 0;
+    menu[0x7e] = 1;
+    menu[0x7d] = 1;
+    menu[0x7f] = 0;
+    menu[0x80] = 0;
+    for (int32_t i = 0; i < 5; ++i) {
+        if (title_global<int32_t>(0x0095f5dc) != 0 && i == 0) continue;  // g_languageIndex
+        show_on_off(field<uint8_t*>(menu, 0x3c + uint32_t(i) * 4), menu[0x7c + i]);
+    }
+    return -1;
+}
+
+// 0x003310b0 (+0x64): the controller preset (+0xd4) applied, then the front end's screen 3 (tail jump). Not compared.
+UI_GLOBAL_TAIL_DECIDE_ARG(ControllerConfigMenu_OnBack_entry, ControllerConfigMenu_OnBack, "0x0095f8f8")
+
+int32_t XB_CDECL ControllerConfigMenu_OnBack(uint8_t* menu, uint32_t) {
+    CL_ExecControllerConfig(field<int32_t>(menu, 0xd4));
+    return 3;
+}
+
+// 0x003361c0 (+0x38): item 6 stores the settings (invert +0xcc, vibration +0xcd, sliders +0xb8 / +0xbc, preset
+// +0xc0 into 0x008dce71..7c), flips m_pitch's sign when it disagrees with invert, sets cl_sensitivityX / Y (slider *
+// 0.04), applies the preset and goes back to screen 3 (tail jump); item 5 resets them (off, on, 25, 25, 0) with
+// their labels, sliders and text. Not compared.
+UI_MENU_TAIL_DECIDE_ARG(ControllerConfigMenu_HandleSelect_entry, ControllerConfigMenu_HandleSelect)
+
+int32_t XB_CDECL ControllerConfigMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (index == 6) {
+        title_global<uint8_t>(0x008dce71) = menu[0xcc];
+        title_global<uint8_t>(0x008dce72) = menu[0xcd];
+        title_global<uint32_t>(0x008dce74) = field<uint32_t>(menu, 0xb8);
+        title_global<uint32_t>(0x008dce78) = field<uint32_t>(menu, 0xbc);
+        title_global<uint32_t>(0x008dce7c) = field<uint32_t>(menu, 0xc0);
+        uint8_t* const pitch = title_global<uint8_t*>(0x00929c0c);  // m_pitch
+        const bool flip = menu[0xcc] ? field<float>(pitch, 0x1c) > 0.0f : 0.0f > field<float>(pitch, 0x1c);
+        if (flip)
+            Cvar_SetValue(reinterpret_cast<const char*>(uintptr_t{0x0082e07c}),
+                          field<float>(pitch, 0x1c) * title_global<float>(0x0083eb34));  // m_pitch, * -1
+        const float scale = title_global<float>(0x0083ed7c);  // 0.04
+        Cvar_SetValue(reinterpret_cast<const char*>(uintptr_t{0x0082e06c}),
+                      static_cast<float>(field<int32_t>(menu, 0xb8)) * scale);  // cl_sensitivityX
+        Cvar_SetValue(reinterpret_cast<const char*>(uintptr_t{0x0082e05c}),
+                      static_cast<float>(field<int32_t>(menu, 0xbc)) * scale);  // cl_sensitivityY
+        CL_ExecControllerConfig(field<int32_t>(menu, 0xc0));
+        return 3;
+    }
+    if (index != 5) return -1;
+    uint8_t* const invert = field<uint8_t*>(menu, 0x3c);
+    menu[0xcc] = 0;
+    menu[0xcd] = 1;
+    field<int32_t>(menu, 0xb8) = 0x19;
+    field<int32_t>(menu, 0xbc) = 0x19;
+    field<int32_t>(menu, 0xc0) = 0;
+    show_on_off(invert, 0);
+    ControllerConfigMenu_UpdateLabelColors(menu);
+    show_on_off(field<uint8_t*>(menu, 0x40), menu[0xcd]);
+    ControllerConfigMenu_UpdateLabelColors(menu);
+    ControllerConfigMenu_UpdateSliderA(menu);
+    ControllerConfigMenu_UpdateSliderB(menu);
+    TitleRegs regs{};
+    regs.eax = address_of(menu);
+    ui_call_regs(own_address(&FE_ControlsUpdateText_entry), &regs, 0, nullptr);
+    return -1;
+}
+
 }  // namespace game

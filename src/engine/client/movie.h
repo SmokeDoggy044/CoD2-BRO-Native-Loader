@@ -145,6 +145,8 @@ void XB_CDECL Movie_SetQuadRect(float x0, float y0, float x1, float y1);
 // 0x0030fe00: decodes a frame (vtable[2]), draws subtitles and the frame quad; returns the
 // decoder's result, 4 while 0x0095f916 is set, -1 without a movie.
 int32_t XB_CDECL Movie_DrawFrame();
+// 0x0030fe50: the same without a result (MainMenu_Draw tail-jumps here).
+void XB_CDECL Movie_DrawFrameQuiet();
 // 0x00315f00 (name in ECX): opens the file, reads the header, allocates the buffers from stream
 // memory (0x0095f62c; block kept at 0x0095fd18), vtable[1].
 uint8_t XB_FASTCALL Movie_Load(const char* name);
