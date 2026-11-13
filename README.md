@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 76% of the functions have a name, and 7,796 have been
+It's early days: about 77% of the functions have a name, and 7,879 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -24,14 +24,14 @@ Developed with AI: see [Made with AI](#made-with-ai).
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-11-12. The numbers come from `tools/progress.py`, which tracks every
+*As of 2026-11-13. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,670 | 9,775 | 7,647 | 4,023 |
+| Engine and game code (`.text`) | 12,131 | 10,256 | 7,730 | 4,401 |
 | Mission scripts (14 level sections) | 5,326 | 3,131 | 149 | 5,177 |
-| **Total** | **16,996** | **12,906** | **7,796** | **9,200** |
+| **Total** | **17,457** | **13,387** | **7,879** | **9,578** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -46,26 +46,26 @@ We've also named 2,667 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,197 | 1,143 | 47 | 1 | 0 | 5 |
-| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,665 | 1,409 | 241 | 11 | 1 | 0 |
-| Animation (animation trees, the animation codec) | 304 | 274 | 2 | 28 | 0 | 0 |
-| Client game (HUD, view, effects on screen) | 335 | 306 | 23 | 6 | 0 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 1,057 | 917 | 75 | 61 | 0 | 0 |
-| Client and menus | 852 | 672 | 138 | 42 | 0 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,313 | 1,152 | 159 | 1 | 0 | 0 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,671 | 1,411 | 245 | 11 | 1 | 0 |
+| Animation (animation trees, the animation codec) | 386 | 276 | 82 | 28 | 0 | 0 |
+| Client game (HUD, view, effects on screen) | 337 | 308 | 23 | 6 | 0 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 1,091 | 918 | 111 | 61 | 0 | 0 |
+| Client and menus | 1,029 | 730 | 257 | 42 | 0 | 0 |
 | Server | 82 | 72 | 10 | 0 | 0 | 0 |
-| Collision | 110 | 94 | 1 | 15 | 0 | 0 |
+| Collision | 116 | 98 | 3 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 2,023 | 1,778 | 239 | 5 | 1 | 0 |
-| Level-script helpers in the engine code | 1,468 | 583 | 834 | 43 | 2 | 0 |
-| Sound | 148 | 131 | 3 | 13 | 0 | 0 |
-| Streaming (asset loading, zones) | 183 | 163 | 11 | 9 | 0 | 0 |
+| Script engine (script VM, entity bindings, built-in script functions) | 2,027 | 1,778 | 243 | 5 | 1 | 0 |
+| Level-script helpers in the engine code | 1,468 | 583 | 835 | 43 | 2 | 0 |
+| Sound | 152 | 134 | 4 | 13 | 0 | 0 |
+| Streaming (asset loading, zones) | 188 | 163 | 16 | 9 | 0 | 0 |
 | Online (Xbox Live glue) | 22 | 0 | 0 | 22 | 0 | 0 |
-| Microsoft library code built into the game (replaced, not rewritten) | 2,111 | 82 | 191 | 0 | 0 | 462 |
-| Not sorted into a part yet | 49 | 5 | 7 | 7 | 2 | 28 |
+| Microsoft library code built into the game (replaced, not rewritten) | 2,146 | 84 | 225 | 0 | 0 | 462 |
+| Not sorted into a part yet | 39 | 5 | 8 | 7 | 1 | 18 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType
-font rasteriser). We recognise 1,376 of these functions by comparing their bytes with
+font rasteriser). We recognise 1,375 of these functions by comparing their bytes with
 the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the
 same blocks. They still count towards the total.
 <!-- progress:end -->
