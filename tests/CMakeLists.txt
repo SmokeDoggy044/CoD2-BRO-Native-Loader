@@ -128,7 +128,8 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(leaf_test leaf_test.cpp)
     target_include_directories(leaf_test PRIVATE ${PROJECT_SOURCE_DIR}/src/platform)
     target_compile_definitions(leaf_test PRIVATE
-        COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe")
+        COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe"
+        COD_BRO_LEAF_KNOWN="${PROJECT_SOURCE_DIR}/tools/data/leaf_known.csv")
     target_link_libraries(leaf_test PRIVATE game_code cod_bro_options)
     add_test(NAME leaf_test COMMAND leaf_test)
     set_tests_properties(leaf_test PROPERTIES TIMEOUT 3600 SKIP_RETURN_CODE 77)

@@ -584,6 +584,21 @@ function it was on, and a fresh worker takes the dead one's place at once and ru
 first, on a clean heap: the corruption is often done by an earlier function and noticed by malloc
 later, so the victim passes there. Within one run every worker has the same arena address, so a
 function that kills a fresh worker kills all three tries and fails the test.
+**Our C calling our C (since the 0.2 call-site rewrite, triaged 2026-11-13).** Our C reaches its callees by symbol
+(tools/own_calls.py), so the stand-ins patched at title addresses no longer caught our side: 21 of 27 leaf_test failures
+were "decompiled version crashed" in our heap/CRT (jumps to unfilled kernel thunks 0x800000xx, host malloc while the brk
+heap is read-only). Now: the C row of every stand-in address jumps to the same stand-in (`redirect_our_entry`); our CRT's
+decimal parsers (_atof, _sscanf, _strtod: exact big-integer rounding on the host heap, checked bit-exact by
+--check-crt) jump to the originals on our side too (`kOriginalForOurs`); and a word where the original holds a title
+function's address and ours that row's C entry (own_address(&X)) counts as equal, as in the in-game harness. A crash
+report names where ours crashed ("at EIP symbol+off, address A"); `LEAF_BT=1` also prints the host backtrace of
+crashes outside the title data (with LEAF_REPLAY). New callees with host allocations or kernel calls show up as such
+crashes: give them a stand-in or the original the same way. Result of the triage: 27 mismatches + 6 dead workers ->
+the 3 rows classed on 11-04; also fixed ListNode_DestroyValue_PROLOGUE's row (Result::None: its EAX after
+ScriptString_Release's free is dead). Classed mismatches are listed in tools/data/leaf_known.csv (name, reason): still
+reported, they no longer fail the test; anything else does. leaf_test turns address randomization off for itself
+(personality + re-exec, as `setarch -R`): under ctest a "never finished (its workers died)" (send_all_trees, clean
+standalone) came with ASLR on; the input sequence is now the same run to run. Full ctest 11-13: 23/23 pass.
 `LEAF_ITERS=N` (default 4000), `LEAF_ONLY=a,b`, `LEAF_VERBOSE=1`
 `LEAF_REACHED=DIR` writes `DIR/<name>.reached` (the instruction addresses the traced inputs started; mark the
 missing ones against `tools/fnpack.py --asm DIR <name>` to see which branch no input takes).

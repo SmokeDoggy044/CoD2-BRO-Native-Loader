@@ -1,0 +1,4 @@
+name,reason
+G_RestorePlayerHealth,"random g_skillLevel 3+: minimum[skill] reads past the 3-entry array (the original's return address 0x002d5b8d at index 3); BRO's g_skillLevel is 0-2 (classed 11-04)"
+G_RestorePlayerLoadout,"the same out-of-range g_skillLevel through G_RestorePlayerHealth (classed 11-04)"
+VehiclePhys_AddContacts,"unreachable inputs (NaN/infinite contact data the game never builds); differences are in NaN/inf lanes (classed 11-04)"

@@ -28,10 +28,13 @@
 // LEAF_CSV=tools/data/offline.csv to record the results there (rows of other functions kept;
 // tools/progress.py reads it).
 
+#include <dlfcn.h>
+#include <execinfo.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <asm/ldt.h>
+#include <sys/personality.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -346,6 +349,13 @@ const std::pair<uint32_t, void*> kStandins[] = {
     {0x001ee901, reinterpret_cast<void*>(&standin_sprintf)},
     {0x001efce2, reinterpret_cast<void*>(&standin_vsnprintf)},
 };
+// Our CRT's decimal parsers allocate on the host heap (exact big-integer rounding), which is read-only during a call;
+// --check-crt compares them bit-exact with these originals, so our C calls the original here, as the title side does.
+const uint32_t kOriginalForOurs[] = {
+    0x001ef056,  // _atof
+    0x001f07e1,  // _sscanf
+    0x001f0efd,  // _strtod
+};
 // Function pointers in .bss the game fills at startup with fixed values (Swap_Init's little-endian
 // byte-order functions): preset in the image (leafscan's PRESETS).
 const std::pair<uint32_t, uint32_t> kPresets[] = {
@@ -528,6 +538,11 @@ void on_segv(int sig, siginfo_t* info, void* context) {
         return;
     }
     if (g_in_call) {
+        if (std::getenv("LEAF_BT") && sig == SIGSEGV && (address < g_data_lo || address >= g_data_hi)) {
+            void* frames[40];
+            const int n = backtrace(frames, 40);
+            backtrace_symbols_fd(frames, n, 2);
+        }
         if (leaf_host_stack_lo) {  // leaf_call's protection of the host stack (above)
             mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(leaf_host_stack_lo)), leaf_host_stack_hi - leaf_host_stack_lo,
                      PROT_READ | PROT_WRITE);
@@ -608,6 +623,59 @@ void protect_data(int prot) {
 
 uint8_t* data_page(uint32_t page) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(g_data_lo + page * kPage)); }
 
+
+// Classed mismatches (tools/data/leaf_known.csv: name,"reason"): reported, but they do not fail the test.
+const std::map<std::string, std::string>& known_failures() {
+    static const std::map<std::string, std::string> known = [] {
+        std::map<std::string, std::string> out;
+        FILE* file = std::fopen(COD_BRO_LEAF_KNOWN, "r");
+        if (!file) return out;
+        char line[1024];
+        while (std::fgets(line, sizeof line, file)) {
+            std::string text = line;
+            const size_t comma = text.find(',');
+            if (comma == std::string::npos || text.compare(0, comma, "name") == 0) continue;
+            std::string reason = text.substr(comma + 1);
+            while (!reason.empty() && (reason.back() == '\n' || reason.back() == '\r')) reason.pop_back();
+            if (reason.size() >= 2 && reason.front() == '"' && reason.back() == '"') reason = reason.substr(1, reason.size() - 2);
+            out.emplace(text.substr(0, comma), reason);
+        }
+        std::fclose(file);
+        return out;
+    }();
+    return known;
+}
+
+// Our C's entry -> the function's original address: our C stores own_address(&X) where the original stores X's title
+// address (thread bodies, callbacks, type tables) - the same value for the comparison, as in the in-game harness.
+std::set<std::pair<uint32_t, uint32_t>>& own_to_title() {
+    static std::set<std::pair<uint32_t, uint32_t>> pairs = [] {
+        std::set<std::pair<uint32_t, uint32_t>> out;
+        for (const game::Function& f : game::functions())
+            if (f.code && f.campaign) out.emplace(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f.code)), f.campaign);
+        return out;
+    }();
+    return pairs;
+}
+bool same_function(uint32_t original, uint32_t ours) { return own_to_title().count({ours, original}) != 0; }
+
+// Our C row for the title function at `address` (by symbol, as our C calls it) jumps to `target` instead.
+bool redirect_our_entry(uint32_t address, uint32_t target) {
+    for (const game::Function& f : game::functions()) {
+        if (f.campaign != address || !f.code) continue;
+        const auto entry = reinterpret_cast<uintptr_t>(f.code);
+        const uintptr_t page = entry & ~uintptr_t{kPage - 1};
+        if (mprotect(reinterpret_cast<void*>(page), entry + 6 - page <= kPage ? kPage : 2 * kPage,
+                     PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+            return false;
+        auto* host = reinterpret_cast<uint8_t*>(entry);
+        host[0] = 0x68;  // push target; ret
+        std::memcpy(host + 1, &target, 4);
+        host[5] = 0xc3;
+    }
+    return true;
+}
+
 bool map_image(const Xbe& xbe) {
     uint32_t hi = 0;
     for (const auto& s : xbe.sections) hi = std::max(hi, s.va + std::max(s.vsize, s.rsize));
@@ -633,7 +701,12 @@ bool map_image(const Xbe& xbe) {
         code[0] = 0x68;  // push target; ret
         std::memcpy(code + 1, &target, 4);
         code[5] = 0xc3;
+        // Our C calls our own C for these by symbol (tools/own_calls.py), not the title address: its entry jumps to
+        // the stand-in too, or the C under test reaches our heap/CRT (host malloc, kernel thunks) instead.
+        if (!redirect_our_entry(address, target)) return false;
     }
+    for (const uint32_t address : kOriginalForOurs)
+        if (!redirect_our_entry(address, address)) return false;
     for (const auto& d : kD3dStubs) {
         uint8_t* code = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(d.address));
         const uint32_t target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(d.stub));
@@ -796,6 +869,7 @@ struct Gen {
 struct Outcome {
     bool crashed = false;
     int signal = 0;
+    uint32_t crash_eip = 0, crash_address = 0;
     Ctx ctx;
     std::vector<uint8_t> arena;
     std::vector<uint8_t> heap;     // the stand-ins' heap as far as it was used
@@ -856,6 +930,8 @@ struct Runner {
         if (const int sig = sigsetjmp(g_crash_jump, 1)) {
             o.crashed = true;
             o.signal = sig;
+            o.crash_eip = g_crash_eip;
+            o.crash_address = g_crash_address;
             asm volatile("fninit");
         } else {
             g_in_call = 1;
@@ -926,13 +1002,22 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     std::string diff;
     bool only_floats = true, only_nans = true;
     auto reg = [&](const char* name, uint32_t x, uint32_t y, bool may_drift = false) {
-        if (x == y) return;
+        if (x == y || same_function(x, y)) return;
         // Drift: every difference is a close float or two NaNs (projections give both).
         if (!(may_drift && (float_close(x, y) || (is_nan(x) && is_nan(y))))) only_floats = false;
         if (!(may_drift && is_nan(x) && is_nan(y))) only_nans = false;
         if (diff.size() < 400) diff += std::string(" ") + name + " " + hex(x) + "/" + hex(y);
     };
-    if (a.crashed != b.crashed) return " decompiled version crashed (signal " + std::to_string(b.signal) + ")";
+    if (a.crashed != b.crashed) {
+        // Where ours crashed: a host address names its library symbol (a title address is original code it called).
+        std::string where = hex(b.crash_eip);
+        Dl_info info{};
+        if (b.crash_eip >= 0x01000000 && dladdr(reinterpret_cast<void*>(uintptr_t{b.crash_eip}), &info) && info.dli_sname)
+            where += std::string(" ") + info.dli_sname + "+" +
+                     hex(b.crash_eip - static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info.dli_saddr)));
+        return " decompiled version crashed (signal " + std::to_string(b.signal) + " at " + where + ", address " +
+               hex(b.crash_address) + ")";
+    }
     const Ctx &x = a.ctx, &y = b.ctx;
     switch (f.result) {
     case game::Result::Al: reg("al", x.out[0] & 0xff, y.out[0] & 0xff); break;
@@ -989,7 +1074,7 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
             uint32_t u, v;
             std::memcpy(&u, p + i, 4);
             std::memcpy(&v, q + i, 4);
-            if (u == v) continue;
+            if (u == v || same_function(u, v)) continue;
             if (!float_close(u, v) && !(is_nan(u) && is_nan(v))) only_floats = false;
             for (uint32_t k = i; k < i + 4; ++k)
                 if (p[k] != q[k] && !nan_byte(p, q, size, k)) only_nans = false;
@@ -1159,12 +1244,21 @@ bool give_fs_block() {
     return true;
 }
 
-int main() {
+int main(int, char** argv) {
+    // Without address randomization (as `setarch -R`): with it, a library can land where the arena or a replayed
+    // case's addresses go, and the input sequence changes run to run (crash-learned pointer slots).
+    if (const int current = personality(0xffffffff); current != -1 && !(current & ADDR_NO_RANDOMIZE) &&
+                                                     personality(static_cast<unsigned long>(current) | ADDR_NO_RANDOMIZE) != -1)
+        execv("/proc/self/exe", argv);  // on failure: go on randomized
     if (!give_fs_block()) {
         std::printf("leaf_test: no FS block (modify_ldt failed)\n");
         return 1;
     }
     // A replayed case needs its arena at the same address: reserved before anything else maps.
+    if (std::getenv("LEAF_BT")) {  // load the unwinder now: it allocates on first use
+        void* warm[2];
+        backtrace(warm, 2);
+    }
     const char* replay = std::getenv("LEAF_REPLAY");
     FILE* replay_file = replay ? std::fopen(replay, "rb") : nullptr;
     uint32_t replay_header[3] = {};
@@ -1417,6 +1511,10 @@ int main() {
                 std::string text = line + consumed + 1;
                 for (size_t at; (at = text.find('\x1f')) != std::string::npos;) text[at] = '\n';
                 if (!text.empty() && text.back() == '\n') text.pop_back();
+                if (failed && known_failures().count(name)) {
+                    text += "    known (tools/data/leaf_known.csv): " + known_failures().at(name) + "\n";
+                    failed = 0;
+                }
                 reports.emplace_back(index, text);
                 failures += failed;
                 if (tested) records.push_back({address, name, tested, matched, nans, mismatched, coverage});

@@ -10509,7 +10509,7 @@ const Function kFunctions[] = {
     {"AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_PROLOGUE_Ctor", 0x0045a140, 0, code(&AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_PROLOGUE_Ctor), 40, Result::Eax, Status::Compare},  // tools/gen_functors.py
     {"AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_Invoke", 0x0045a1c0, 0, code(&AeThreadFunctor9_ent_hash_vec_i_i_f_f_f_f_Invoke), 0, Result::None, Status::Compare},  // tools/gen_functors.py; kept original: script thread switch (as the engine's Invokes)
     {"AeThreadFunctor5_ent_ent_f_f_f_Invoke", 0x0045a210, 0, code(&AeThreadFunctor5_ent_ent_f_f_f_Invoke), 0, Result::None, Status::Compare},  // tools/gen_functors.py; kept original: script thread switch (as the engine's Invokes)
-    {"ListNode_DestroyValue_PROLOGUE", 0x0045a370, 0, code(&ListNode_DestroyValue_PROLOGUE), 0, Result::Eax, Status::Compare},
+    {"ListNode_DestroyValue_PROLOGUE", 0x0045a370, 0, code(&ListNode_DestroyValue_PROLOGUE), 0, Result::None, Status::Compare},  // EAX after the call is dead (callers: Scr_Free next, EH unwind)
     {"AeThreadFunctor1_ent_Invoke", 0x0045a4d0, 0, code(&AeThreadFunctor1_ent_Invoke), 0, Result::None, Status::Compare},  // tools/gen_functors.py; kept original: script thread switch (as the engine's Invokes)
     {"Scr_StartThread_ent_str_str_f_f_b_PROLOGUE", 0x0045a720, 0, code(&Scr_StartThread_ent_str_str_f_f_b_PROLOGUE_entry), 44, Result::Eax, Status::Compare},  // tools/gen_functors.py
     {"Scr_StartThread_ent_str_PROLOGUE", 0x0045a7c0, 0, code(&Scr_StartThread_ent_str_PROLOGUE_entry), 28, Result::Eax, Status::Compare},  // tools/gen_functors.py
