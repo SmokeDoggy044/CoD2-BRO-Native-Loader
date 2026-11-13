@@ -66,6 +66,10 @@ struct State {
     std::mutex notice_mutex;  // show_notice may come from any title thread
     std::vector<std::string> notice;
     std::chrono::steady_clock::time_point notice_until;
+    std::atomic<double> display_hz{0};
+    // Native pacing (pace_frame): title thread only.
+    double frame_limit = 0;
+    std::chrono::steady_clock::time_point frame_start{};
 };
 State& g = *new State;  // the vertical blank thread uses it until exit: never destroyed
 
@@ -214,6 +218,7 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
     *out_device = to_xbox_ptr(g.device);
     if (reopen) return true;  // its vertical blank thread runs on
     const double display_hz = g.backend->refresh_rate();
+    g.display_hz = display_hz;
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
     LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz * g.config.vblank_speed, display_hz);
     std::thread(vblank_thread, vblank_hz * g.config.vblank_speed).detach();
@@ -756,6 +761,33 @@ uint32_t vertical_blanks_done() {
 void wait_vertical_blank_after(uint32_t seen, uint32_t timeout_ms) {
     std::unique_lock lock(g.vblank_done_mutex);
     g.vblank_done_changed.wait_for(lock, std::chrono::milliseconds(timeout_ms), [seen] { return g.vblank_done != seen; });
+}
+
+void set_frame_limit(double fps) { g.frame_limit = fps; }
+
+double display_refresh_rate() { return g.display_hz.load(); }
+
+void pace_frame() {
+    using Clock = std::chrono::steady_clock;
+    double fps = g.frame_limit;
+    if (fps <= 0 && !g.config.backend.wait_for_display) fps = g.display_hz > 0 ? g.display_hz.load() : kVBlankHz;
+    fps *= g.config.vblank_speed;
+    if (fps <= 0) {
+        g.frame_start = {};
+        return;
+    }
+    const auto period = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / fps));
+    const Clock::time_point now = Clock::now();
+    const Clock::time_point next = g.frame_start + period;
+    if (g.frame_start == Clock::time_point{} || now >= next) {
+        g.frame_start = now;  // late (or the first frame): start now, no catching up with a burst of frames
+        return;
+    }
+    // Sleep most of the way (the scheduler may oversleep by a millisecond or so), spin the rest.
+    constexpr auto kSpin = std::chrono::microseconds(1500);
+    if (next - now > kSpin) std::this_thread::sleep_until(next - kSpin);
+    while (Clock::now() < next) std::this_thread::yield();
+    g.frame_start = next;
 }
 
 void show_notice(std::vector<std::string> lines, double seconds) {

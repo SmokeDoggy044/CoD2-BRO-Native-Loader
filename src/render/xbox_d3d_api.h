@@ -73,6 +73,16 @@ uint32_t frame_rate_target();
 uint32_t vertical_blanks_done();
 void wait_vertical_blank_after(uint32_t seen, uint32_t timeout_ms);
 
+// Native frame pacing (own engine 0.4; the title's own vertical-blank wait is off then): the title's frame end
+// calls pace_frame() right before it presents, which waits until the next frame may start. set_frame_limit(fps):
+// at most fps frames a second (a cap, or 30 while a movie plays); 0 = the display's rate - left to the display
+// when present waits for it (BackendConfig::wait_for_display), else kept by our own clock. Replays scale the rate
+// by vblank_speed. Title thread.
+void set_frame_limit(double fps);
+void pace_frame();
+// The display's refresh rate in Hz (0 before the device exists). Any thread.
+double display_refresh_rate();
+
 // Shows `lines` to the player over the game for `seconds` (first line as a heading),
 // replacing any notice shown before. Any thread.
 void show_notice(std::vector<std::string> lines, double seconds);

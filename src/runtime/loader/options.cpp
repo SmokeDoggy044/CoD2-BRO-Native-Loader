@@ -179,7 +179,9 @@ void print_usage(const char* program) {
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --mounted-gun-fix on|off  stops the slow down-left drift of the view on mounted guns\n"
         "                   and vehicles without input (default on; off = as on the Xbox)\n"
-        "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
+        "  --fps display|30|N  frame rate: the display's (default; the display paces each frame),\n"
+        "                   30 as on the Xbox, or at most N (31-1000; e.g. 60, or 144 on a 144 Hz\n"
+        "                   display without waiting for it); movies always play at 30\n"
         "  --fov DEG        field of view in degrees across a 4:3 picture (50-120, default 70\n"
         "                   as the game; campaign); also in the PC menu (` key while playing)\n"
         "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
@@ -416,11 +418,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.net_port = static_cast<uint16_t>(port);
         } else if (arg == "--fps") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
-            if (value != "30" && value != "60") {
-                std::fprintf(stderr, "--fps needs 30 or 60\n");
+            const int32_t fps = value == "display" ? 0 : std::atoi(value.c_str());
+            if (value != "display" && (fps < 30 || fps > 1000)) {
+                std::fprintf(stderr, "--fps needs display, 30 (as on the Xbox) or a limit of 31-1000\n");
                 return std::nullopt;
             }
-            options.frame_rate = std::stoi(value);
+            options.frame_rate = fps;
         } else if (arg == "--fov") {
             if (i + 1 >= argc || (options.field_of_view = std::strtof(argv[++i], nullptr)) < 50.0f ||
                 options.field_of_view > 120.0f) {

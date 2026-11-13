@@ -272,7 +272,7 @@ int loader_main(int argc, char** argv) {
 
     loader::install_crash_handler(image, symbols);
     loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"),
-                         static_cast<uint32_t>(options->frame_rate), image, symbols);
+                         static_cast<uint32_t>(options->frame_rate ? options->frame_rate : 60), image, symbols);
     loader::os::release_reserved_ranges();
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return loader::startup_failed("cannot set up the Xbox memory");

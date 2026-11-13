@@ -7,6 +7,7 @@
 #include <SDL3/SDL_main.h>  // WinMain on Windows
 
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -48,7 +49,7 @@ struct Choices {
     bool sharp_text = true;
     std::string graphics = "enhanced";  // original, enhanced
     render::GraphicsFeatures graphics_features;
-    int fps = 60;
+    int fps = 0;  // 0 = the display's rate (--fps display), 30 = as on the Xbox, else a limit
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();
@@ -96,7 +97,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("sharp-text")) c.sharp_text = *v != "off";
     if (auto v = settings.get("graphics"); v && *v == "original") c.graphics = *v;
     if (auto v = settings.get("graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
-    if (auto v = settings.get("fps")) c.fps = *v == "30" ? 30 : 60;
+    if (auto v = settings.get("fps")) c.fps = *v == "display" ? 0 : std::clamp(std::atoi(v->c_str()), 30, 1000);
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
@@ -137,7 +138,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("sharp-text", c.sharp_text == d.sharp_text, c.sharp_text ? "on" : "off");
     put("graphics", c.graphics == d.graphics, c.graphics);
     put("graphics-features", c.graphics_features == d.graphics_features, c.graphics_features.format());
-    put("fps", c.fps == d.fps, std::to_string(c.fps));
+    put("fps", c.fps == d.fps, c.fps ? std::to_string(c.fps) : "display");
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("keys", c.bindings == d.bindings, input::format_bindings(c.bindings));
@@ -445,11 +446,17 @@ private:
                      "Anisotropic x8\0" "Anisotropic x16\0");
         choices_.anisotropy = kAnisotropy[index];
 
-        int fps = choices_.fps == 60 ? 1 : 0;
-        ImGui::Combo("Frame rate", &fps, "30 fps (original)\0" "60 fps\0");
-        choices_.fps = fps == 1 ? 60 : 30;
-        help_marker("The game runs at the same speed either way; 60 fps needs about twice the "
-                    "processor and graphics time.");
+        // Display (paced by the display), 60 (our own clock), 30 (as on the Xbox); another --fps limit from
+        // settings.ini shows as a fourth entry so it is kept.
+        const bool custom = choices_.fps != 0 && choices_.fps != 60 && choices_.fps != 30;
+        const std::string custom_label = custom ? "At most " + std::to_string(choices_.fps) + " fps" : "";
+        const char* labels[] = {"Display's refresh rate", "60 fps", "30 fps (original)", custom_label.c_str()};
+        int fps = choices_.fps == 0 ? 0 : choices_.fps == 60 ? 1 : choices_.fps == 30 ? 2 : 3;
+        ImGui::Combo("Frame rate", &fps, labels, custom ? 4 : 3);
+        if (fps < 3) choices_.fps = fps == 0 ? 0 : fps == 1 ? 60 : 30;
+        help_marker("The game runs at the same speed either way. Display's refresh rate: each frame "
+                    "waits for the display (smoothest). 60 fps keeps its own clock; 30 fps is the "
+                    "Xbox's rate and needs about half the processor and graphics time.");
 
         ImGui::SliderFloat("Brightness", &choices_.brightness, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
         help_marker("1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night "

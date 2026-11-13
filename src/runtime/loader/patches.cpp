@@ -1370,10 +1370,69 @@ void install_frame_wait() {
     std::memset(site + 5, 0x90, 3);
 }
 
+// --- Native frame pacing (own engine 0.4) ------------------------------------------------
+//
+// With the renderer as C and --fps other than 30, the title's vertical-blank wait is off (its frame interval stays
+// 0, so nglWaitFrameInterval never leaves the frame pending) and our host paces instead (render::pace_frame, right
+// before the present): by the display itself (present waits for its vertical blank: one clock, not our virtual
+// vertical blank beating against the real one) or by a cap of our own (--fps N). The game takes a step per frame
+// as before (its time comes from the clock). Movies keep 30 (one movie frame per game frame): the limit is 30
+// while one plays.
+double g_native_cap = 0;          // --fps N; 0 = the display's rate
+bool g_native_title_wait = true;  // the title asked for a frame wait (mode != 0: menus and play do; 0 = none)
+uint32_t g_native_reported = 0;
+
+void native_apply_limit() {
+    const bool movie = g_movie_seen && title<uint32_t>(g_menus.engine_frame) - g_movie_frame <= 2;
+    if (movie != g_movie_pacing) {
+        g_movie_pacing = movie;
+        LOG_INFO("patches", movie ? "movie: 30 fps while it plays" : "movie over: native pacing again");
+    }
+    const double limit = movie ? 30.0 : !g_native_title_wait ? -1.0 : g_native_cap;
+    render::set_frame_limit(limit < 0 ? 0 : limit);
+    const double rate = limit > 0 ? limit : render::display_refresh_rate();
+    const uint32_t report = static_cast<uint32_t>(rate + 0.5);
+    if (report && report != g_native_reported) {
+        g_native_reported = report;
+        render::frame_rate_changed(report);
+    }
+}
+
+void XB_CDECL native_set_frame_interval(uint32_t mode) {
+    if (mode > 4) return;
+    g_native_title_wait = mode != 0;
+    title<uint32_t>(g_pacing.frame_vblanks) = 0;
+    title<uint32_t>(g_pacing.late_no_wait) = 1;
+}
+
+void XB_CDECL native_choose_frame_wait() {
+    title<uint32_t>(g_pacing.frame_vblanks) = 0;
+    native_apply_limit();
+}
+
+void XB_CDECL native_frame_wait() {
+    apply_field_of_view();
+    render::pace_frame();
+}
+
 void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
-    g_frame_vblanks = frame_rate == 60 ? 1 : 2;
+    const bool native = frame_rate != 30 && g_renderer_c;
+    if (frame_rate != 30 && !g_renderer_c) frame_rate = 60;  // the title's own renderer: its vertical blank, at 60
+    g_frame_vblanks = frame_rate == 30 ? 2 : 1;
     g_late_frames_wait = late_frames_wait;
-    if (g_renderer_c) {
+    if (native) {
+        g_native_cap = frame_rate;
+        game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+        hooks.frame_wait = &native_frame_wait;
+        hooks.set_vblank_mode = &native_set_frame_interval;
+        hooks.choose_frame_interval = &native_choose_frame_wait;
+        title<uint32_t>(g_pacing.frame_vblanks) = 0;
+        title<uint32_t>(g_pacing.late_no_wait) = 1;
+        if (frame_rate)
+            LOG_INFO("patches", "native frame pacing: at most %d fps", frame_rate);
+        else
+            LOG_INFO("patches", "native frame pacing: the display's rate");
+    } else if (g_renderer_c) {
         // The renderer runs as C: its hooks instead of patches into the original's code.
         game::RendererPcHooks& hooks = game::renderer_pc_hooks();
         hooks.frame_wait = &wait_frame_start;
@@ -1385,10 +1444,12 @@ void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
     }
     // MP sets the interval only in its intro movie player (FUN_0029ab90, mode 2, never
     // reset); before that its static 1 applies. Start at the chosen rate either way.
-    title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
-    title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
-    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)%s", frame_rate, g_frame_vblanks,
-             late_frames_wait ? "; late frames wait for the next one" : "");
+    if (!native) {
+        title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
+        title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
+        LOG_INFO("patches", "%d fps (%u vertical blanks per frame)%s", frame_rate, g_frame_vblanks,
+                 late_frames_wait ? "; late frames wait for the next one" : "");
+    }
     if (g_frame_vblanks == 2) return;
 
     auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{g_pacing.movie_next_frame_slot});

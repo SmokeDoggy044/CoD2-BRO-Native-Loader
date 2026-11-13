@@ -169,7 +169,12 @@ public:
         // Present without waiting for the display (see BackendConfig::vsync) but without
         // tearing: DXVK then uses the mailbox mode. (The system's D3D9 on Windows
         // composes windowed swap chains, which do not tear.)
-        if (config.vsync) {
+        if (config.wait_for_display) {
+            // FIFO with one frame queued: the display paces, and input is at most a frame old.
+            const char* user = std::getenv("DXVK_CONFIG");
+            set_env("DXVK_CONFIG", std::string(user ? user : "") + (user && *user ? "; " : "") + "d3d9.maxFrameLatency = 2",
+                    true);
+        } else if (config.vsync) {
             const char* user = std::getenv("DXVK_CONFIG");
             set_env("DXVK_CONFIG", std::string(user ? user : "") + (user && *user ? "; " : "") + "dxvk.tearFree = True",
                     true);
@@ -186,7 +191,7 @@ public:
         pp.hDeviceWindow = window_handle(window_);
         pp.Windowed = TRUE;
         pp.EnableAutoDepthStencil = FALSE;
-        pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+        pp.PresentationInterval = config.wait_for_display ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
 #ifdef _WIN32
         if (!open_device(config.d3d9, pp)) {
             LOG_ERROR("render", "no Direct3D 9 device: update the graphics driver%s",

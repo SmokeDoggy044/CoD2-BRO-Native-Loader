@@ -172,6 +172,11 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options.scale;
     d3d_config.backend.anisotropy = options.anisotropy;
+    // Native pacing at the display's rate (patches.cpp install_frame_rate): present waits for the display. Not in
+    // replays (they run at the recording's pace or faster, often several at once in windows that may be covered).
+    d3d_config.backend.wait_for_display = title.id == loader::TitleId::Campaign && options.frame_rate == 0 &&
+                                          options.pc_patches.value_or(!options.compare) &&
+                                          options.replay.mode != xbox::replay::Mode::Replay;
     d3d_config.backend.d3d9 = options.d3d9;
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =

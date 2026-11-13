@@ -74,7 +74,7 @@ struct Options {
     std::string bindings_error;  // a word of --keys it did not know (logged; the rest applies)
     bool aim_assist = true;
     bool mounted_gun_fix = true;  // --mounted-gun-fix (loader::TitlePatchConfig::mounted_gun_fix)
-    int32_t frame_rate = 60;
+    int32_t frame_rate = 0;  // --fps: 0 = the display's rate (loader::TitlePatchConfig::frame_rate)
     bool late_frames_wait = false;
     bool any_release = false;    // start an XBE whose build is not the supported one (testing)
     std::optional<fs::path> write_signatures;  // write the XBE's signatures there and exit

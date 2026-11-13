@@ -80,7 +80,7 @@ int host_main(int argc, char** argv) {
         LOG_WARN("host", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
     loader::install_crash_handler(image, symbols);
     loader::start_profiler(options.profile ? options.profile->c_str() : std::getenv("XB_PROFILE"),
-                           static_cast<uint32_t>(options.frame_rate), image, symbols);
+                           static_cast<uint32_t>(options.frame_rate ? options.frame_rate : 60), image, symbols);
     loader::os::release_reserved_ranges();
 
     // The title's memory: the same allocator and layout as the loader's, so replays compare across both.

@@ -87,6 +87,10 @@ struct BackendConfig {
     // No tearing. Present never waits for the display either way: the title paces
     // itself on the vertical blank (device.cpp), which runs at the display's rate.
     bool vsync = true;
+    // Native frame pacing (own engine 0.4, device.cpp pace_frame): present waits for the display's
+    // vertical blank (FIFO, at most one frame queued), so the display alone paces the frames. Overrides
+    // vsync's mailbox mode.
+    bool wait_for_display = false;
     // Which Direct3D 9 to draw with on Windows: DXVK's (dxvk/d3d9.dll next to the
     // loader, on Vulkan) or the system's. Auto tries DXVK first and falls back to the
     // system's when it cannot create a device. Linux always uses DXVK.

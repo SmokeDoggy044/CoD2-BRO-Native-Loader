@@ -39,7 +39,9 @@ struct TitlePatchConfig {
     float mouse_degrees_per_count = 0.11f;  // mouse look (PC CoD: sensitivity 5 * m_yaw 0.022)
     int32_t start_level = -1;               // >= 0: start this mission once the menus are up (testing)
     bool aim_assist = true;                 // false: no sticky aim (the view following a target)
-    int32_t frame_rate = 60;                // 60 or 30 (as on the Xbox): frames per second
+    // Frames per second: 30 = as on the Xbox (the title's vertical-blank wait); 0 = native pacing at the display's
+    // rate, N = native pacing at most N (needs the renderer as C; else the title's wait at 60).
+    int32_t frame_rate = 0;
     bool late_frames_wait = false;          // true: a late frame waits for the next vertical blank (as on the Xbox)
     // The picture's shape in the game's widescreen mode (16:9 as on the Xbox; wider is
     // experimental: the view widens, the HUD keeps its 16:9 place in the middle). 0:
