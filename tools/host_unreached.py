@@ -49,13 +49,11 @@ def ranges(path):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("xbe", nargs="?", default=str(ROOT.parent / "unpacked" / "default.xbe"))
-    ap.add_argument("--out")
-    ap.add_argument("--all", action="store_true")
-    args = ap.parse_args()
-    data = Path(args.xbe).read_bytes()
+DEFAULT_XBE = ROOT.parent / "unpacked" / "default.xbe"
+
+
+def collect(data, all_sdk=False):
+    """{target: [(referencing address, section, kind)]}, the section lookup and the symbol names."""
     secs = sections(data)
 
     def section_of(a):
@@ -88,7 +86,7 @@ def main():
         sec = section_of(a)
         if sec not in CODE or a in rows or kept(a):
             return None
-        if sec in SDK and not args.all:
+        if sec in SDK and not all_sdk:
             return None
         if a in names:
             return sec
@@ -125,6 +123,16 @@ def main():
                 t = int(t, 16)
                 if candidate(t):
                     refs[t].append((at, name, op))
+    return refs, section_of, names
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("xbe", nargs="?", default=str(DEFAULT_XBE))
+    ap.add_argument("--out")
+    ap.add_argument("--all", action="store_true")
+    args = ap.parse_args()
+    refs, section_of, names = collect(Path(args.xbe).read_bytes(), args.all)
     out = [f"# host_unreached.py: {len(refs)} functions without C reachable from data or level code"]
     for a in sorted(refs):
         r = refs[a]

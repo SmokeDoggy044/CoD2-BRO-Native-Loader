@@ -26,6 +26,7 @@
 #include "stream.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "unzip.h"
 #include "g_client.h"
 #include "g_main.h"
@@ -4198,8 +4199,12 @@ void XB_CDECL Com_Frame() {
             SCR_RedrawFrontBuffer();
             Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(title_global<uint8_t>(0x0095f539) ? 0x0082e058 : 0x0082e098)),
                       1);  // cl_paused back
-            uint8_t* const live = title_global<uint8_t*>(0x0095f6fc);  // g_liveMgr
-            title_function<void XB_THISCALL(uint8_t*)>(pk<uint32_t>(pk_ptr(live, 0), 0x1c))(live);
+            // LiveMgr slot 7 (0x00223ae0): pauses/resumes the voice port around Live_Frame. Live is not part of the
+            // own engine (no Live_Frame, no voice), so the native platform skips it.
+            if (!native_platform()) {
+                uint8_t* const live = title_global<uint8_t*>(0x0095f6fc);  // g_liveMgr
+                title_function<void XB_THISCALL(uint8_t*)>(pk<uint32_t>(pk_ptr(live, 0), 0x1c))(live);
+            }
             title_global<uint8_t>(0x0095f538) = 0;
             if (!title_global<uint8_t>(0x0095f919)) return;
             const int32_t state = pk<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc);
