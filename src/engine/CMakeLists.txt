@@ -90,6 +90,7 @@ set(game_code_sources
     client/fe_special.cpp
     shared/functions.cpp
     shared/gap_methods.cpp
+    shared/unr_methods.cpp
     shared/title_crt.cpp
     shared/title_eh.cpp
     shared/title_seh.cpp
@@ -135,6 +136,7 @@ set(game_code_sources
     xanim/nal_math.cpp
     xanim/nal_pose.cpp
     renderer/ngl.cpp
+    renderer/ngl_file_load.cpp
     renderer/ngl_debug.cpp
     renderer/ngl_gfx.cpp
     qcommon/param_set.cpp

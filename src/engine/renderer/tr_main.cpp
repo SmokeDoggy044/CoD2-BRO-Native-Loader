@@ -21,6 +21,7 @@
 #include "fx.h"
 #include "ui_menu.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -645,7 +646,7 @@ PLATFORM_ASM_ENTRY(R_AddCellEntityLink_entry,
 void XB_CDECL R_AddCellEntityLink(uint8_t* cell, const float* mins, const float* maxs, void* entity) {
     int32_t& count = title_global<int32_t>(0x0095e2d4);
     if (count >= 256) {
-        title_function<void XB_CDECL()>(0x00042460)();  // an assert that does nothing here
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // an assert that does nothing here
         return;
     }
     RCellEntityLink*& first = *reinterpret_cast<RCellEntityLink**>(cell + 0x38);
@@ -1953,7 +1954,7 @@ void XB_CDECL R_AddEntitySurfaces() {
                         reinterpret_cast<void XB_REGS1 XB_CDECL (*)(uint8_t*)>(&R_AddEntityModel_entry)(entity);
                         ++title_global<int32_t>(0x0094cb00);
                     } else if (kind == 2) {
-                        title_function<void XB_CDECL()>(0x00042460)();  // breaks into a debugger when one is attached
+                        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // breaks into a debugger when one is attached
                     } else if (kind == 3 || kind > 15) {
                         title_function<void XB_CDECL(int32_t, const char*, ...)>(title_global<uint32_t>(0x0095e634))(
                             1, reinterpret_cast<const char*>(uintptr_t{0x0083bf38}));
@@ -2877,7 +2878,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     const int32_t count = static_cast<int32_t>(table[0]);
     for (int32_t i = 0; i < count; ++i) {
         if (*reinterpret_cast<const int32_t*>(table[1] + i * 0x104) == 2) {
-            at(0, 0x00042460);  // breaks into a debugger when one is attached
+            at(0, own_address(&Sys_DebugBreak));  // breaks into a debugger when one is attached
             table = title_global<uint32_t*>(0x00909908);
         }
     }

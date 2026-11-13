@@ -15,6 +15,7 @@
 #include "scr_field.h"
 #include "shaders.h"
 #include "title_crt.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -199,8 +200,8 @@ const ImportSlot kActorImports[] = {
     {0x604, own_address(&GScr_ActorGetMotionYaw)},  // GScr_ActorGetMotionYaw
     {0x608, own_address(&ScrActor_SetInt_1370)},  // ScrActor_SetInt_1370
     {0x60c, own_address(&GScr_ActorGetTurret)},  // GScr_ActorGetTurret
-    {0x610, 0x002f4bc0},  // Sys_DebugBreak
-    {0x614, 0x002f4bb0},  // Sys_DebugBreak
+    {0x610, own_address(&Sys_DebugBreak)},  // Sys_DebugBreak
+    {0x614, own_address(&Sys_DebugBreak)},  // Sys_DebugBreak
     {0x618, own_address(&GScr_ActorTeleport)},  // GScr_ActorTeleport
     {0x61c, own_address(&GScr_ActorApplyAnimMove_entry)},  // GScr_ActorApplyAnimMove
     {0x620, own_address(&GScr_ActorAdvanceAnimTime)},  // GScr_ActorAdvanceAnimTime

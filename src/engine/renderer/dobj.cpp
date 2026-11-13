@@ -18,6 +18,7 @@
 #include "xanim.h"
 #include "g_utils.h"
 #include "title_crt.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -313,7 +314,7 @@ void XB_REGS2 DObj_SetMinLod(int32_t lod, DObj* obj) { set_nearest_lod(obj, lod,
 int32_t XB_REGS2 DObj_GetCoarsestLod(uint32_t, const DObj* obj) {
     for (int32_t i = 4; i >= 0; --i)
         if (obj->models[0]->lods[i]) return i;
-    title_function<void XB_CDECL()>(0x00042460)();  // breaks into a debugger when one is attached
+    own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // breaks into a debugger when one is attached
     return -1;
 }
 

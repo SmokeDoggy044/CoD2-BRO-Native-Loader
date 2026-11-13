@@ -18,6 +18,7 @@
 #include "title_xapi.h"
 #include "title_eh.h"
 #include "title_savegame.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -1516,7 +1517,7 @@ void chunk_unlink(uint8_t* chunk) {
 // 0x008ff638 when the system heap flag (0x008ffabc) is set, else 0.
 uint32_t system_heap() { return title_global<uint32_t>(0x008ffabc) ? 0x008ff638u : 0u; }
 
-void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
+void debug_break() { own_function<void XB_CDECL()>(&Sys_DebugBreak)(); }  // Sys_DebugBreak
 
 uint8_t* heap_ptr(uint32_t heap) { return reinterpret_cast<uint8_t*>(uintptr_t{heap}); }
 

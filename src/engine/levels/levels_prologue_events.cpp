@@ -335,7 +335,7 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0xd553f35a: case 0xd66dcf8c: case 0xdd7e1820: case 0xde065107: case 0xe223aad3: case 0xe2c9ccdd:
     case 0xe5f891d2: case 0xea4a313a: case 0xec070be6: case 0xec5d0f65: case 0xee367afa: case 0xee885a52:
     case 0xf3b8dce5: case 0xf56955a1: case 0xfa9a8384: case 0xfbac8485: case 0xfd6181bd:
-        types(a, b, c, d, own_address(&Scr_AtolThunk), 0x00458f30, 0x0011da70, 0x00458ec0);
+        types(a, b, c, d, own_address(&Scr_AtolThunk), 0x00458f30, own_address(&Scr_IntEqualsText), 0x00458ec0);
         return;
     case 0x0038b194: case 0x00398ae8: case 0x05374cc6: case 0x0726affb: case 0x07c43e15: case 0x095a5675:
     case 0x0ca29c7f: case 0x0ccee5c1: case 0x0d60d0ae: case 0x0d60fb3d: case 0x175567a8: case 0x1de0c645:
@@ -362,7 +362,7 @@ void XB_CDECL LevelScript_prologue_ValueTypeLookup(uint32_t key, uint32_t* a, ui
     case 0x93655872: case 0x98b54d9f: case 0x9a44df1e: case 0xa171373f: case 0xa22fa6ba: case 0xa3b8e90e:
     case 0xac9b3dfb: case 0xaff9c3b8: case 0xb3845cc4: case 0xb873524f: case 0xbe149b8c: case 0xc8b638d8:
     case 0xc8b639ce: case 0xce8a66f4: case 0xdf09fd77: case 0xe223c6aa: case 0xec0a1800:
-        types(a, b, c, d, own_address(&ScrCall_ScrIface_atof), 0x00458ed0, 0x0011da90, 0x00458ec0);  // ScrCall_ScrIface_atof
+        types(a, b, c, d, own_address(&ScrCall_ScrIface_atof), 0x00458ed0, own_address(&Scr_FloatEqualsText), 0x00458ec0);  // ScrCall_ScrIface_atof
         return;
     case 0x053fe992:
         types(a, b, c, d, 0, own_address(&DynArray_NewCopy_PROLOGUE_8), 0, 0x0045e660);  // FUN_0045e600, FUN_0045e660

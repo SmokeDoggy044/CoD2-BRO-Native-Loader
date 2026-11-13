@@ -109,6 +109,18 @@ bool XB_CDECL ScriptString_EqualsValue(uint32_t rep, const char* text) {
     return ScriptString_Equals(reinterpret_cast<const ScriptString*>(&rep), text);
 }
 
+uint32_t XB_CDECL Scr_IntEqualsText(int32_t value, const char* text) {
+    // SETE into AL over _atol's result: the upper bytes stay atol's.
+    const int32_t parsed = title_atol(text);
+    return (static_cast<uint32_t>(parsed) & ~0xffu) | (value == parsed ? 1u : 0u);
+}
+
+uint32_t XB_CDECL Scr_FloatEqualsText(float value, const char* text) {
+    // FUCOMIP of the float against atof's double: unordered is not equal.
+    const double parsed = title_atof(text);
+    return static_cast<double>(value) == parsed ? 1 : 0;
+}
+
 bool XB_CDECL ScriptString_Equals(const ScriptString* self, const char* text) {
     if (!text) return false;
     const ScriptStringRep* rep = self->rep;

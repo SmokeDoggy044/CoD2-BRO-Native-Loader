@@ -5,6 +5,7 @@
 #include "title_data.h"
 #include "qcommon_core.h"
 #include "title_crt.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -200,7 +201,7 @@ int32_t inline_strcmp(const char* a, const char* b) {
     }
 }
 
-void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
+void debug_break() { own_function<void XB_CDECL()>(&Sys_DebugBreak)(); }  // Sys_DebugBreak
 
 // The definition's entry for parameter `id` (entries[-1] when missing, as the original reads).
 const uint8_t* param_entry(const uint8_t* definition, uint16_t id) {

@@ -24,6 +24,7 @@
 #include "g_mover.h"
 #include "title_xapi.h"
 #include "title_eh.h"
+#include "unr_methods.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -281,7 +282,7 @@ uint32_t XB_CDECL Scr_TeamFromString(const void* name) {
     const auto equals = own_function<uint32_t XB_CDECL(const void*, uint32_t)>(&ScriptString_EqualsString);  // ScriptString_EqualsString
     for (const auto& team : kTeams)
         if (static_cast<uint8_t>(equals(name, team[0]))) return team[1];
-    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     return 0;
 }
 
@@ -1265,7 +1266,7 @@ void XB_CDECL Scr_EndOn(uint32_t handle, uint32_t notify) {
     if (!title_global<uint32_t>(0x0097a968 + index * 8)) return;
     const uint32_t main_thread = word_at(title_global<uint8_t*>(0x0095f49c), 0x898);
     uint8_t* const thread = title_global<uint8_t*>(0x008dda2c);
-    if (word_at(thread, 0x14) == main_thread) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (word_at(thread, 0x14) == main_thread) own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     if (Scr_HasEndOnRecord(thread, notify)) return;
     uint32_t* const block = small_heap_alloc(0x0095f494, 0x20);
     uint8_t* const record = block ? Scr_InitWaitRecord(3, notify, reinterpret_cast<uint8_t*>(block), handle) : nullptr;
@@ -1563,7 +1564,7 @@ void XB_CDECL ScrThread_HandlesExhausted(uint32_t* table) {
                 index, table_word(table, index * 8 + 0x20));
         }
     }
-    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
 }
 
 void XB_CDECL ScrWaitList_DeleteRange(uint8_t* node, uint32_t* first, uint32_t, uint32_t* last) {

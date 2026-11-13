@@ -89,6 +89,15 @@
 #define PLATFORM_ASM_CALL(name) "call " PLATFORM_ASM_SYMBOL(name) "\n"
 #endif
 
+// A breakpoint trap (x86 INT3) where the title has one.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__i386__) || defined(__x86_64__))
+inline void platform_debug_break() { __asm__ volatile("int3"); }
+#elif defined(_MSC_VER)
+inline void platform_debug_break() { __debugbreak(); }
+#else
+inline void platform_debug_break() {}
+#endif
+
 // Makes the compiler compute `value` although nothing reads it: the title's packed
 // SSE code computes unused lanes too, and their exception flags (MXCSR) are part of
 // what the comparison harness checks.
@@ -596,6 +605,35 @@ inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c,
             : "st");
     return static_cast<std::int32_t>(result);
 }
+// MSVC's _ftol of a * u + b * t + c computed on the x87: FILD a, FMUL u, FILD b, FMUL t, FADDP,
+// FADD c, then a chopping FISTP through 64 bits, low half.
+inline std::int32_t platform_x87_int_lerp_ftol(std::int32_t a, float u, std::int32_t b, float t, float c) {
+    std::int64_t result;
+    std::uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<std::uint16_t>(control | 0x0c00);
+    __asm__("fildl %1\n\tfmuls %2\n\tfildl %3\n\tfmuls %4\n\tfaddp %%st, %%st(1)\n\tfadds %5\n\tfldcw %6\n\t"
+            "fistpll %0\n\tfldcw %7"
+            : "=m"(result)
+            : "m"(a), "m"(u), "m"(b), "m"(t), "m"(c), "m"(chop), "m"(control)
+            : "st", "st(1)");
+    return static_cast<std::int32_t>(result);
+}
+// The same with u = one - w on the x87 (FLD w, FILD a, FLD one, FSUB ST,ST(2), FMULP, FILD b,
+// FMUL ST,ST(2), FADDP, FADD c, the chopping FISTP, FSTP ST(0)).
+inline std::int32_t platform_x87_int_blend_ftol(std::int32_t a, std::int32_t b, float w, float one, float c) {
+    std::int64_t result;
+    std::uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<std::uint16_t>(control | 0x0c00);
+    __asm__("flds %1\n\tfildl %2\n\tflds %3\n\tfsub %%st(2), %%st\n\tfmulp %%st, %%st(1)\n\tfildl %4\n\t"
+            "fmul %%st(2), %%st\n\tfaddp %%st, %%st(1)\n\tfadds %5\n\tfldcw %6\n\tfistpll %0\n\tfldcw %7\n\t"
+            "fstp %%st(0)"
+            : "=m"(result)
+            : "m"(w), "m"(a), "m"(one), "m"(b), "m"(c), "m"(chop), "m"(control)
+            : "st", "st(1)", "st(2)");
+    return static_cast<std::int32_t>(result);
+}
 // FLD/FRNDINT/FISTP: a float rounded to an integer by the caller's rounding control.
 inline std::int32_t platform_x87_round_to_int(float x) {
     std::int32_t result;
@@ -716,6 +754,13 @@ inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c,
     return static_cast<std::int32_t>(static_cast<std::int64_t>((a + b) * c * d + e));
 }
 inline std::int32_t platform_x87_round_to_int(float x) { return static_cast<std::int32_t>(std::nearbyint(x)); }
+inline std::int32_t platform_x87_int_lerp_ftol(std::int32_t a, float u, std::int32_t b, float t, float c) {
+    return static_cast<std::int32_t>(static_cast<std::int64_t>(static_cast<double>(a) * u + static_cast<double>(b) * t + c));
+}
+inline std::int32_t platform_x87_int_blend_ftol(std::int32_t a, std::int32_t b, float w, float one, float c) {
+    const double u = static_cast<double>(one) - w;
+    return static_cast<std::int32_t>(static_cast<std::int64_t>(a * u + static_cast<double>(b) * w + c));
+}
 inline float platform_x87_int_mul(std::int32_t value, float factor) { return static_cast<float>(value) * factor; }
 inline std::int32_t platform_x87_mul_ftol(float a, float b) { return static_cast<std::int32_t>(static_cast<std::int64_t>(a * b)); }
 inline void platform_rep_movs(void* dst, const void* src, std::uint32_t bytes) {

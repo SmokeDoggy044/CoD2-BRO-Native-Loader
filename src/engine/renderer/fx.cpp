@@ -21,6 +21,7 @@
 #include "g_utils.h"
 #include "movie.h"
 #include "qcommon_core.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -1573,7 +1574,7 @@ uint32_t* XB_CDECL FX_ParseEffectTexture(uint32_t* stream, uint32_t* out) {
         out[0] = 8;
         break;
     default:
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         out[1] = 0;
         out[0] = 2;
         break;
