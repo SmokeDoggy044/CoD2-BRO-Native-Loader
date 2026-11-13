@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "d3d9_draw.h"
+#include "draw_placement.h"
 #include "d3d_internal.h"
 #include "float_env.h"
 #include "enhanced_graphics.h"
@@ -917,42 +918,15 @@ private:
     // no float position there.
     // The positions' x range (range[0..1]) and y range (range[2..3]; 1, 0 without a y).
     bool position_range(const void* vertices, uint32_t count, uint32_t stride, float (&range)[4]) const {
-        if (layout_ == 0 || layout_ > layout_attributes_.size() || !count) return false;
-        for (const VertexAttribute& a : layout_attributes_[layout_ - 1]) {
-            if (a.input != 0 || a.stream != 0 || a.type < AttributeType::Float1 || a.type > AttributeType::Float4)
-                continue;
-            const auto* bytes = static_cast<const uint8_t*>(vertices) + a.offset;
-            std::memcpy(&range[0], bytes, 4);
-            range[1] = range[0];
-            range[2] = 1.0f, range[3] = 0.0f;
-            const bool has_y = a.type != AttributeType::Float1;
-            if (has_y) std::memcpy(&range[2], bytes + 4, 4), range[3] = range[2];
-            for (uint32_t i = 1; i < count; ++i) {
-                float x;
-                std::memcpy(&x, bytes + i * stride, 4);
-                range[0] = std::min(range[0], x);
-                range[1] = std::max(range[1], x);
-                if (!has_y) continue;
-                std::memcpy(&x, bytes + i * stride + 4, 4);
-                range[2] = std::min(range[2], x);
-                range[3] = std::max(range[3], x);
-            }
-            return true;
-        }
-        return false;
+        if (layout_ == 0 || layout_ > layout_attributes_.size()) return false;
+        const std::vector<VertexAttribute>& attributes = layout_attributes_[layout_ - 1];
+        return render::position_range(attributes.data(), static_cast<uint32_t>(attributes.size()), vertices, count,
+                                      stride, range);
     }
 
-    // UI laid out for a narrower shape than the picture's, drawn into the back buffer over a 3D
-    // scene: how it is narrowed (BackendConfig::narrow_ui_draw, as D3D9Draw::narrow_ui).
     UiNarrowing narrowing(const float* x_range) const {
-        if (!x_range || !narrow_ui_draw_ || draw_.frame_is_flat() || draw_.target_width() != back_width_ ||
-            draw_.target_height() != back_height_)
-            return {};
-        const UiNarrowing n = narrow_ui_draw_();
-        if (n.anchor < 0.0f || n.factor >= 1.0f) return {};
-        if (n.full_width_too) return n;
-        // Full-width quads (dimming, letterbox bars) keep covering the picture.
-        return x_range[0] <= 1.0f && x_range[1] >= static_cast<float>(back_width_) - 1.0f ? UiNarrowing{} : n;
+        return ui_narrowing(narrow_ui_draw_, x_range, draw_.frame_is_flat(),
+                            draw_.target_width() == back_width_ && draw_.target_height() == back_height_, back_width_);
     }
 
     bool prepare(Primitive primitive, const float* x_range = nullptr) {
@@ -967,89 +941,26 @@ private:
             return false;
         }
 
-        // Viewport: in title pixels, scaled to the surface.
-        const float width = static_cast<float>(draw_.target_width());
-        const float height = static_cast<float>(draw_.target_height());
-        const float surface_width = static_cast<float>(draw_.target_surface_width());
-        const float surface_height = static_cast<float>(draw_.target_surface_height());
-        const float sx = surface_width / width, sy = surface_height / height;
-        Viewport v = viewport_;
-        if (!v.width || !v.height) {
-            v.x = v.y = 0;
-            v.width = draw_.target_width();
-            v.height = draw_.target_height();
-        }
-        auto to_surface = [](float value, float scale, float limit) {
-            return static_cast<DWORD>(std::clamp(std::lround(value * scale), 0l, static_cast<long>(limit)));
-        };
-        D3DVIEWPORT9 viewport;
-        viewport.X = to_surface(static_cast<float>(v.x), sx, surface_width);
-        viewport.Y = to_surface(static_cast<float>(v.y), sy, surface_height);
-        viewport.Width = std::max<DWORD>(1, to_surface(static_cast<float>(v.x + v.width), sx, surface_width) - viewport.X);
-        viewport.Height =
-            std::max<DWORD>(1, to_surface(static_cast<float>(v.y + v.height), sy, surface_height) - viewport.Y);
-        viewport.MinZ = v.min_z;
-        viewport.MaxZ = v.max_z;
+        // Viewport, scissor and screen to clip (draw_placement.h).
+        PlacementInput in;
+        in.width = draw_.target_width();
+        in.height = draw_.target_height();
+        in.surface_width = draw_.target_surface_width();
+        in.surface_height = draw_.target_surface_height();
+        in.viewport = viewport_;
+        in.scissor = scissor_on_ ? &scissor_ : nullptr;
+        in.narrow = narrowing(x_range);
+        in.range = x_range;
+        in.full_picture = draw_.target_width() == back_width_ && draw_.target_height() == back_height_;
+        in.depth_max = draw_.depth_is_d16() ? 65535.0f : 16777215.0f;
+        const Placement place = place_draw(in);
+        const float depth_max = in.depth_max;
+        D3DVIEWPORT9 viewport{place.x, place.y, place.width, place.height, place.min_z, place.max_z};
         device_->SetViewport(&viewport);
-        RECT clip{0, 0, static_cast<LONG>(surface_width), static_cast<LONG>(surface_height)};
-        if (scissor_on_)
-            clip = {static_cast<LONG>(to_surface(static_cast<float>(scissor_.left), sx, surface_width)),
-                    static_cast<LONG>(to_surface(static_cast<float>(scissor_.top), sy, surface_height)),
-                    static_cast<LONG>(to_surface(static_cast<float>(scissor_.right), sx, surface_width)),
-                    static_cast<LONG>(to_surface(static_cast<float>(scissor_.bottom), sy, surface_height))};
-        const UiNarrowing narrow = narrowing(x_range);
-        if (narrow.anchor >= 0.0f && !narrow.full_width_too) {  // a scope overlay fills beyond its sides
-            const float at = surface_width * narrow.anchor;
-            clip.left = static_cast<LONG>(std::lround(at + (clip.left - at) * narrow.factor));
-            clip.right = static_cast<LONG>(std::lround(at + (clip.right - at) * narrow.factor));
-        }
+        const RECT clip{place.left, place.top, place.right, place.bottom};
         device_->SetScissorRect(&clip);
-
-        // Screen space (title pixels, centres on integers) -> clip space of the viewport: the
-        // title's pixel x is centred at x * s + (s - 1) / 2 on the surface (see D3D9Draw::draw).
-        const float depth_max = draw_.depth_is_d16() ? 65535.0f : 16777215.0f;
-        const float vx = static_cast<float>(viewport.X), vy = static_cast<float>(viewport.Y);
-        const float vw = static_cast<float>(viewport.Width), vh = static_cast<float>(viewport.Height);
-        const float z_range = v.max_z > v.min_z ? v.max_z - v.min_z : 1.0f;
         float* reserved = vs_constants_.data() + kGfxVsScreenToClip * 4;
-        reserved[0] = 2.0f * sx / vw;
-        reserved[1] = -2.0f * sy / vh;
-        reserved[2] = 1.0f / (depth_max * z_range);
-        reserved[3] = 0.0f;
-        reserved[4] = (sx - 1.0f - 2.0f * vx) / vw - 1.0f;
-        reserved[5] = 1.0f - (sy - 1.0f - 2.0f * vy) / vh;
-        reserved[6] = -v.min_z / z_range;
-        reserved[7] = 0.0f;
-        // In title pixels: x' = p x + q, then clip = x' * reserved[0] + reserved[4].
-        float p = 1.0f, q = 0.0f;
-        // Full-width draws into the back buffer (full-screen fades, letterbox bars, a scope overlay) whose
-        // edges lie near the picture's are extended to them. The title's quads start at x/y = 0, half a title
-        // pixel inside (pixel centres on integers): at 1x that still covers pixel 0, at a larger render scale
-        // it left s/2 surface pixels of scene showing. Some bars (the pause menu's) also stop a few pixels short
-        // of the bottom, which a TV's overscan hid. Edges within 3 title pixels go to the picture's (-0.5, and
-        // the size), a stretch of a few pixels at most.
-        float py = 1.0f, qy = 0.0f;
-        const auto to_edges = [](float low, float high, float size, float& scale, float& offset) {
-            if (!(high > low + 8.0f)) return;
-            const float new_low = low > -0.5f && low <= 3.0f ? -0.5f : low;
-            const float new_high = high >= size - 3.0f && high < size ? size : high;
-            scale = (new_high - new_low) / (high - low);
-            offset = new_low - low * scale;
-        };
-        if (x_range && x_range[0] <= 3.0f && x_range[1] >= width - 3.0f && draw_.target_width() == back_width_ &&
-            draw_.target_height() == back_height_) {
-            to_edges(x_range[0], x_range[1], width, p, q);
-            to_edges(x_range[2], x_range[3], height, py, qy);
-        }
-        reserved[5] += qy * reserved[1];
-        reserved[1] *= py;
-        if (narrow.anchor >= 0.0f) {  // x'' = a + (x' - a) * k, a in title pixels
-            const float a = narrow.anchor * width;
-            p *= narrow.factor;
-            q = a * (1.0f - narrow.factor) + q * narrow.factor;
-        }
-        reserved[4] += q * reserved[0];
-        reserved[0] *= p;
+        std::memcpy(reserved, place.screen_to_clip, sizeof(place.screen_to_clip));
         reserved[8] = fog_.bias;
         reserved[9] = fog_.scale;
         reserved[10] = static_cast<float>(fog_.mode);
@@ -1094,7 +1005,8 @@ private:
         unpack_color(fog_.color, ps_constants_.data() + kGfxPsFogColor * 4);
         for (uint32_t slot = 0; slot < 4; ++slot)
             ps_constants_[kGfxPsAlphaKill * 4 + slot] = samplers_[slot].alpha_kill ? 1.0f : 0.0f;
-        device_->SetPixelShaderConstantF(0, ps_constants_.data(), kGfxPsAlphaKill + 1);
+        ps_constants_[kGfxPsAlphaTest * 4] = static_cast<float>(Compare::Always);  // D3D9 tests itself
+        device_->SetPixelShaderConstantF(0, ps_constants_.data(), kGfxPsReserved);
 
         // Blend, depth, stencil, raster.
         const bool has_depth = draw_.has_depth();
@@ -1173,7 +1085,7 @@ private:
     Stream streams_[kGfxVertexStreams];
     BufferId index_buffer_ = 0;
     std::vector<float> vs_constants_ = std::vector<float>((kGfxVsFog + 1) * 4);
-    std::vector<float> ps_constants_ = std::vector<float>((kGfxPsAlphaKill + 1) * 4);
+    std::vector<float> ps_constants_ = std::vector<float>(kGfxPsReserved * 4);
 
     IDirect3DVertexBuffer9* user_vertices_ = nullptr;  // draw_user
     IDirect3DIndexBuffer9* user_indices_ = nullptr;

@@ -93,6 +93,26 @@ float4 c[18] : register(c0);              // c0-c7 each stage's C0, c8-c15 C1, c
 float4 texcoord_scale[8] : register(c18);  // per texture slot: texel -> normalized (linear textures)
 float4 fog_color : register(c26);
 float4 alpha_kill : register(c27);          // per stage (x-w): 1 = discard where its texture's alpha is 0
+float4 alpha_test : register(c28);          // x: BlendState::alpha_func (0 never .. 7 always), y: alpha_ref
+
+// The fixed alpha test for back ends without one (Vulkan): the output alpha in 8 bits against the
+// reference, as D3D9's. D3D9 keeps its own test and passes x = 7.
+float4 nv_alpha_test(float4 color) {
+    if (alpha_test.x != 7) {
+        // Whole numbers: a < r is a <= r - 0.5 (step functions; vkd3d's SM3 has no bool selects).
+        const float a = round(color.w * 255), r = alpha_test.y, f = alpha_test.x;
+        const float lt = step(a, r - 0.5), gt = step(r + 0.5, a), eq = 1 - lt - gt;
+        float ok = 0;
+        if (f == 1) ok = lt;
+        if (f == 2) ok = eq;
+        if (f == 3) ok = lt + eq;
+        if (f == 4) ok = gt;
+        if (f == 5) ok = 1 - eq;
+        if (f == 6) ok = gt + eq;
+        clip(ok - 0.5);
+    }
+    return color;
+}
 
 // Combiner input mappings (PS_INPUTMAPPING).
 #define unsigned_identity(x) max(x, 0)
@@ -488,7 +508,7 @@ def translate_pixel_shader(blob, key, users):
 
     abcd, efg = d["final_abcd"], d["final_efg"]
     if abcd == 0 and efg == 0:
-        lines.append("    return saturate(R0);")
+        lines.append("    return nv_alpha_test(saturate(R0));")
     else:
         lines.append("    // Final combiner: rgb = A*B + (1-A)*C + D, alpha = G; E*F and V1+R0 are inputs too.")
         fa, fb, fc, fd = (combiner_input((abcd >> shift) & 0xFF, False, 8, False, False) for shift in (24, 16, 8, 0))
@@ -512,7 +532,7 @@ def translate_pixel_shader(blob, key, users):
             rgb = f"lerp({fc}, {fb}, {fa})"
         if fd != "0":
             rgb = f"{rgb} + {fd}"
-        lines.append(f"    return saturate(float4({rgb}, {fg}));")
+        lines.append(f"    return nv_alpha_test(saturate(float4({rgb}, {fg})));")
 
     out = [f"// Pixel shader {key} ({stages} combiner stages), translated from its register combiner",
            "// setup (D3DPIXELSHADERDEF) by tools/shader_hlsl.py; generated, do not edit.", f"// Used by: {users}."]

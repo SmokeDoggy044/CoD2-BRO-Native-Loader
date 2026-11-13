@@ -24,5 +24,5 @@ float4 main(float4 v0 : COLOR0, float4 v1 : COLOR1, float4 t0 : TEXCOORD0, float
     ab.xyz = clamp((T0.www * T0.xyz), -1, 1);
     R0.xyz = ab.xyz;
     // Final combiner: rgb = A*B + (1-A)*C + D, alpha = G; E*F and V1+R0 are inputs too.
-    return saturate(float4(unsigned_identity(R0.xyz), 1));
+    return nv_alpha_test(saturate(float4(unsigned_identity(R0.xyz), 1)));
 }

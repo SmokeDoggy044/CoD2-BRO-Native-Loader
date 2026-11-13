@@ -52,6 +52,9 @@ constexpr uint32_t kGfxPsTexcoordScale = 18;  // c18..c25 per texture slot: (sx,
                                               // normalized for the title's linear textures, else 1
 constexpr uint32_t kGfxPsFogColor = 26;       // Fog::color as rgba
 constexpr uint32_t kGfxPsAlphaKill = 27;      // x..w: SamplerState::alpha_kill of slots 0-3 (1 or 0)
+constexpr uint32_t kGfxPsAlphaTest = 28;      // x: BlendState::alpha_func, y: alpha_ref (the shader's test;
+                                              // x = Always where the back end tests itself)
+constexpr uint32_t kGfxPsReserved = kGfxPsAlphaTest + 1;  // pixel constants c0..c28
 
 // --- Resources ---
 

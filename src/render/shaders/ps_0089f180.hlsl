@@ -35,5 +35,5 @@ float4 main(float4 v0 : COLOR0, float4 v1 : COLOR1, float4 t0 : TEXCOORD0, float
     ab.w = clamp((T0.w), -1, 1);
     R0.xyz = ab.xyz;
     R0.w = ab.w;
-    return saturate(R0);
+    return nv_alpha_test(saturate(R0));
 }
