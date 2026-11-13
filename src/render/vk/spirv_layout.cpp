@@ -175,4 +175,22 @@ std::vector<uint32_t> spirv_fixed_layout(const void* d3dbc, uint32_t d3dbc_bytes
     return words;
 }
 
+uint32_t spirv_input_mask(const std::vector<uint32_t>& words) {
+    constexpr uint32_t kOpTypePointer = 32, kOpVariable = 59, kStorageInput = 1;
+    std::map<uint32_t, uint32_t> pointer_storage, variable_storage, locations;
+    for (size_t i = 5; i < words.size() && (words[i] >> 16); i += words[i] >> 16) {
+        const uint32_t count = words[i] >> 16, opcode = words[i] & 0xFFFF;
+        if (opcode == kOpTypePointer && count >= 4) pointer_storage[words[i + 1]] = words[i + 2];
+        else if (opcode == kOpVariable && count >= 4) variable_storage[words[i + 2]] = words[i + 3];
+        else if (opcode == kOpDecorate && count >= 4 && words[i + 2] == kDecorationLocation)
+            locations[words[i + 1]] = words[i + 3];
+    }
+    uint32_t mask = 0;
+    for (const auto& [id, location] : locations) {
+        auto v = variable_storage.find(id);
+        if (v != variable_storage.end() && v->second == kStorageInput && location < 32) mask |= 1u << location;
+    }
+    return mask;
+}
+
 }  // namespace render::vk

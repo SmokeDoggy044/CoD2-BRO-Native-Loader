@@ -109,7 +109,7 @@ float4 nv_alpha_test(float4 color) {
         if (f == 4) ok = gt;
         if (f == 5) ok = 1 - eq;
         if (f == 6) ok = gt + eq;
-        clip(ok - 0.5);
+        clip((ok - 0.5).xxxx);  // all four: vkd3d's SPIR-V tests every component of a texkill
     }
     return color;
 }
@@ -499,7 +499,7 @@ def translate_pixel_shader(blob, key, users):
                          f"{'alpha, red' if sw == 'wx' else 'green, blue'}")
         else:
             notes.add(f"texture mode {mode} (stage {stage}) is not translated: reads zero")
-        lines.append(f"    if (alpha_kill.{COMPONENTS[stage]} != 0) clip({t}.w - 1.0 / 512);")
+        lines.append(f"    if (alpha_kill.{COMPONENTS[stage]} != 0) clip(({t}.w - 1.0 / 512).xxxx);")
     lines += ["    // R0 starts as (0, 0, 0, T0.alpha), R1 as zero.", "    float4 R0 = float4(0, 0, 0, T0.w), R1 = 0;",
               "    float4 ab = 0, cd = 0, sum = 0;"]
     stages = d["combiner_count"] & 0xFF

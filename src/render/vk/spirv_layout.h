@@ -34,4 +34,7 @@ constexpr uint32_t kVkLocationFog = 10;
 std::vector<uint32_t> spirv_fixed_layout(const void* d3dbc, uint32_t d3dbc_bytes, const void* spirv,
                                          uint32_t spirv_bytes, std::string* error);
 
+// The input locations a module reads (bit n = location n): a vertex shader's attributes.
+uint32_t spirv_input_mask(const std::vector<uint32_t>& words);
+
 }  // namespace render::vk

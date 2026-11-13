@@ -68,7 +68,7 @@ add_test(NAME d3d9_shader_test COMMAND d3d9_shader_test)
 
 # Our graphics interface on a real D3D9 device (hidden window; skipped without one).
 add_executable(gfx_device_test gfx_device_test.cpp)
-target_link_libraries(gfx_device_test PRIVATE render xbox)
+target_link_libraries(gfx_device_test PRIVATE render xbox test_shaders)
 add_test(NAME gfx_device_test COMMAND gfx_device_test)
 set_tests_properties(gfx_device_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 
@@ -83,6 +83,37 @@ add_executable(texture_decode_test texture_decode_test.cpp)
 target_include_directories(texture_decode_test PRIVATE ${PROJECT_SOURCE_DIR}/src/render)
 target_link_libraries(texture_decode_test PRIVATE texture_formats xbox)
 add_test(NAME texture_decode_test COMMAND texture_decode_test)
+
+# The graphics tests' own shaders (tests/shaders/*.hlsl: vs_3_0 for *_vs, else ps_3_0) as D3D9 tokens and
+# SPIR-V, like the title's (src/render/CMakeLists.txt); test_shaders.h finds them by name.
+file(GLOB test_shader_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.hlsl)
+set(test_shader_binaries "")
+foreach(hlsl ${test_shader_sources})
+    get_filename_component(name ${hlsl} NAME_WE)
+    if(name MATCHES "_vs$")
+        set(profile vs_3_0)
+    else()
+        set(profile ps_3_0)
+    endif()
+    set(binary ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.d3dbc)
+    add_custom_command(OUTPUT ${binary} ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.spv
+                       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
+                       COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
+                       COMMAND ${VKD3D_COMPILER} -x d3dbc -b spirv-binary -o ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.spv ${binary}
+                       DEPENDS ${hlsl} ${PROJECT_SOURCE_DIR}/src/render/shaders/nv2a.hlsli
+                       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src/render/shaders  # #include "nv2a.hlsli"
+                       VERBATIM)
+    list(APPEND test_shader_binaries ${binary})
+endforeach()
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_shaders.cpp
+                   COMMAND ${CMAKE_COMMAND} -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/test_shaders.cpp
+                           "-DINPUTS=${test_shader_binaries}" -DHEADER=test_shaders.h -DFUNCTION=test_shader
+                           -P ${PROJECT_SOURCE_DIR}/cmake/embed_named_shaders.cmake
+                   DEPENDS ${test_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_named_shaders.cmake
+                   VERBATIM)
+add_library(test_shaders STATIC ${CMAKE_CURRENT_BINARY_DIR}/test_shaders.cpp)
+target_include_directories(test_shaders PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(test_shaders PUBLIC render)
 
 # The translated title shaders against the Xbox path's translation (XB_SHADER_DUMP=a --dump-shaders
 # directory; skipped without one).

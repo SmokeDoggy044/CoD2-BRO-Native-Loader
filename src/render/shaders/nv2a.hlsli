@@ -84,7 +84,7 @@ float4 nv_alpha_test(float4 color) {
         if (f == 4) ok = gt;
         if (f == 5) ok = 1 - eq;
         if (f == 6) ok = gt + eq;
-        clip(ok - 0.5);
+        clip((ok - 0.5).xxxx);  // all four: vkd3d's SPIR-V tests every component of a texkill
     }
     return color;
 }

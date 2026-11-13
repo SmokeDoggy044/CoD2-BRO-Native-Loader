@@ -1,8 +1,8 @@
 #pragma once
 
-// GfxDevice on Vulkan (own engine 0.5). V1: render targets, clears, the back buffer and read_target; V3a:
-// textures, buffers, replacements and shader modules. Draws are counted, not drawn,
-// until V3 (docs/developers/own-engine-host.md, "0.5 plan").
+// GfxDevice on Vulkan (own engine 0.5; docs/developers/own-engine-host.md, "0.5 plan"): render targets,
+// textures, buffers, the title's shaders (SPIR-V, spirv_layout.h) and draws, with one pipeline layout of push
+// descriptors and pipelines keyed by the state Vulkan cannot set dynamically.
 
 #include <cstdint>
 #include <memory>
@@ -26,7 +26,7 @@ public:
     // in a row before this one were so.
     virtual bool frame_is_flat() const = 0;
     virtual uint32_t flat_frames_before() const = 0;
-    // Draws this frame that were not drawn (V1: all of them).
+    // Draws this frame that were not drawn.
     virtual uint32_t unsupported_draws() const = 0;
     // Called once a frame was presented.
     virtual void end_frame() = 0;

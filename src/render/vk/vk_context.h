@@ -71,6 +71,11 @@ public:
     VkSurfaceKHR surface() const { return surface_; }
     VmaAllocator allocator() const { return allocator_; }
     VkFormat depth_format() const { return depth_format_; }  // D24S8, or D32S8 where there is none
+    const VkPhysicalDeviceLimits& limits() const { return limits_; }
+    const VkPhysicalDeviceFeatures& features() const { return features_; }  // the enabled ones
+    // Changes whenever the upload space starts over (a new frame, or a flush): staged bytes from an older
+    // epoch are gone.
+    uint64_t staging_epoch() const { return staging_epoch_; }
 
     // --- Frames ---
     uint32_t frame_slot() const { return frame_; }
@@ -167,6 +172,9 @@ private:
     Image* target_color_ = nullptr;
     Image* target_depth_ = nullptr;
     bool rendering_ = false;
+    VkPhysicalDeviceLimits limits_{};
+    VkPhysicalDeviceFeatures features_{};
+    uint64_t staging_epoch_ = 1;
 };
 
 // VkResult -> its name, for logs.

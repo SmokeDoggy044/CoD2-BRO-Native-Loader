@@ -1,7 +1,8 @@
-// src/render/gfx_d3d9: our graphics interface on the D3D9 back end, drawn on a real device (DXVK on
-// Linux) in a hidden window and read back: pixel coverage of the screen -> clip mapping at render
-// scales 1 and 2, vertex attributes, textures, our own render targets, blending, quads, buffers.
-// Skipped (exit 77) where no device can be made.
+// Our graphics interface (gfx_device.h) on each back end - D3D9 (gfx_d3d9, DXVK on Linux) and Vulkan
+// (vk/gfx_vulkan) - drawn on a real device in a hidden window and read back: pixel coverage of the screen ->
+// clip mapping at render scales 1 and 2, vertex attributes, textures, our own render targets, blending,
+// quads, buffers. A back end without a device is skipped (exit 77 when neither has one);
+// COD_BRO_VK_DEVICE=llvmpipe runs the Vulkan part on the CPU.
 
 #include "test_support.h"
 
@@ -9,6 +10,7 @@
 
 #include "backend.h"
 #include "gfx_device.h"
+#include "test_shaders.h"
 #include "xbox_d3d.h"
 
 namespace {
@@ -16,49 +18,6 @@ namespace {
 using namespace render;
 
 constexpr uint32_t kWidth = 64, kHeight = 48;
-
-// Register tokens (D3D9 shader model 3).
-constexpr uint32_t reg(uint32_t type, uint32_t number) {
-    return 0x80000000u | (type & 7) << 28 | (type & 0x18) << 8 | number;
-}
-constexpr uint32_t kTemp = 0, kInput = 1, kConst = 2, kOutput = 6, kColorOut = 8, kSampler = 10;
-constexpr uint32_t dst(uint32_t type, uint32_t number, uint32_t mask = 0xF) { return reg(type, number) | mask << 16; }
-constexpr uint32_t src(uint32_t type, uint32_t number, uint32_t swizzle = 0xE4) {
-    return reg(type, number) | swizzle << 16;
-}
-constexpr uint32_t op(uint32_t code, uint32_t length) { return code | length << 24; }
-constexpr uint32_t kMov = 1, kAdd = 2, kMul = 5, kDcl = 0x1F, kTexld = 0x42, kEnd = 0xFFFF;
-constexpr uint32_t kUsageTexcoord = 0x80000005u;
-
-// v0 = screen-space position (w 1), v1 = passed on as texcoord0 (colour or texture coordinates).
-const std::vector<uint32_t> kVertexShader = {
-    0xFFFE0300,
-    op(kDcl, 2), kUsageTexcoord, dst(kInput, 0),
-    op(kDcl, 2), kUsageTexcoord | 1 << 16, dst(kInput, 1),
-    op(kDcl, 2), 0x80000000u, dst(kOutput, 0),  // position
-    op(kDcl, 2), kUsageTexcoord, dst(kOutput, 1),
-    op(kMul, 3), dst(kTemp, 0), src(kInput, 0), src(kConst, kGfxVsScreenToClip),
-    op(kAdd, 3), dst(kOutput, 0, 7), src(kTemp, 0), src(kConst, kGfxVsScreenToClip + 1),
-    op(kMov, 2), dst(kOutput, 0, 8), src(kInput, 0, 0xFF),
-    op(kMov, 2), dst(kOutput, 1), src(kInput, 1),
-    kEnd,
-};
-
-const std::vector<uint32_t> kColorShader = {
-    0xFFFF0300,
-    op(kDcl, 2), kUsageTexcoord, dst(kInput, 0),
-    op(kMov, 2), dst(kColorOut, 0), src(kInput, 0),
-    kEnd,
-};
-
-const std::vector<uint32_t> kTextureShader = {
-    0xFFFF0300,
-    op(kDcl, 2), kUsageTexcoord, dst(kInput, 0),
-    op(kDcl, 2), 0x90000000u, dst(kSampler, 0),  // 2D
-    op(kTexld, 3), dst(kTemp, 0), src(kInput, 0), src(kSampler, 0),
-    op(kMov, 2), dst(kColorOut, 0), src(kTemp, 0),
-    kEnd,
-};
 
 struct ColorVertex {
     float x, y, z, w;
@@ -93,7 +52,7 @@ struct Fixture {
     LayoutId color_layout = 0, uv_layout = 0;
     std::vector<uint32_t> pixels = std::vector<uint32_t>(kWidth * kHeight);
 
-    bool init(float render_scale) {
+    bool init(float render_scale, bool vulkan) {
         BackendConfig config;
         config.width = kWidth;
         config.height = kHeight;
@@ -101,12 +60,15 @@ struct Fixture {
         config.depth_stencil = {0x02000000, kWidth, kHeight, kFmtD24S8};
         config.render_scale = render_scale;
         config.hidden_window = true;
-        backend = create_d3d9_backend(config);
+        backend = vulkan ? create_vulkan_backend(config) : create_d3d9_backend(config);
         if (!backend || !(gfx = backend->gfx_device())) return false;
-        vs = gfx->create_shader(ShaderStage::Vertex, {kVertexShader.data(), uint32_t(kVertexShader.size() * 4)});
-        color_ps = gfx->create_shader(ShaderStage::Pixel, {kColorShader.data(), uint32_t(kColorShader.size() * 4)});
-        texture_ps =
-            gfx->create_shader(ShaderStage::Pixel, {kTextureShader.data(), uint32_t(kTextureShader.size() * 4)});
+        auto shader = [&](ShaderStage stage, const char* name) -> ShaderId {
+            const NamedShader* s = test_shader(name);
+            return s ? gfx->create_shader(stage, {s->d3d9, s->d3d9_bytes, s->spirv, s->spirv_bytes}) : 0;
+        };
+        vs = shader(ShaderStage::Vertex, "gfx_vs");
+        color_ps = shader(ShaderStage::Pixel, "gfx_color_ps");
+        texture_ps = shader(ShaderStage::Pixel, "gfx_texture_ps");
         color_layout = gfx->create_layout({kColorAttributes, 2});
         uv_layout = gfx->create_layout({kUvAttributes, 2});
         CHECK(vs && color_ps && texture_ps && color_layout && uv_layout);
@@ -241,22 +203,71 @@ void test_blend_and_buffers(Fixture& f) {
     g.destroy_buffer(ib);
 }
 
+// The fixed alpha test (D3D9's own; the shader's on Vulkan, kGfxPsAlphaTest): alpha 0x80 against
+// each compare function and references just below, at and above it.
+void test_alpha_test(Fixture& f) {
+    GfxDevice& g = *f.gfx;
+    g.set_target(g.back_buffer(), g.depth_buffer());
+    g.set_shaders(f.vs, f.color_ps);
+    g.set_layout(f.color_layout);
+    g.set_depth_stencil({});
+    const Compare funcs[] = {Compare::Never,   Compare::Less,     Compare::Equal,        Compare::LessEqual,
+                             Compare::Greater, Compare::NotEqual, Compare::GreaterEqual, Compare::Always};
+    uint32_t wrong = 0;
+    for (Compare func : funcs)
+        for (const uint8_t ref : {0x7F, 0x80, 0x81}) {
+            g.clear(kGfxClearColor, 0xFF000000, 1.0f, 0);
+            BlendState b;
+            b.alpha_test = true;
+            b.alpha_func = func;
+            b.alpha_ref = ref;
+            g.set_blend(b);
+            ColorVertex quad[4];
+            color_quad(quad, 0, 0, kWidth, kHeight, 0x80FFFFFF);
+            g.draw_user(Primitive::Quads, quad, 4, sizeof(ColorVertex), nullptr, 0);
+            CHECK(f.read(g.back_buffer()));
+            const int a = 0x80;
+            const bool pass = func == Compare::Less ? a < ref : func == Compare::Equal ? a == ref
+                              : func == Compare::LessEqual ? a <= ref : func == Compare::Greater ? a > ref
+                              : func == Compare::NotEqual ? a != ref : func == Compare::GreaterEqual ? a >= ref
+                              : func == Compare::Always;
+            const bool drawn = f.at(kWidth / 2, kHeight / 2) == 0xFFFFFFu;
+            if (drawn != pass) {
+                if (!wrong)
+                    std::printf("alpha test func %d ref %02x: %s\n", static_cast<int>(func), ref,
+                                drawn ? "drawn, should not be" : "not drawn");
+                ++wrong;
+            }
+        }
+    g.set_blend({});
+    CHECK(wrong == 0, "alpha test: %u cases wrong", wrong);
+}
+
 }  // namespace
 
 int main() {
-    for (const float scale : {1.0f, 2.0f}) {
-        Fixture f;
-        if (!f.init(scale)) {
-            if (!f.backend) {
-                std::printf("SKIP: no D3D9 device\n");
-                return 77;
+    int ran = 0;
+    for (const bool vulkan : {false, true}) {
+        const char* name = vulkan ? "Vulkan" : "D3D9";
+        for (const float scale : {1.0f, 2.0f}) {
+            Fixture f;
+            if (!f.init(scale, vulkan)) {
+                if (!f.backend) {
+                    std::printf("SKIP: no %s device\n", name);
+                    break;
+                }
+                return 1;
             }
-            return 1;
+            const int before = test::g_failures;
+            test_coverage(f, scale);
+            test_texture_and_target(f);
+            test_blend_and_buffers(f);
+            test_alpha_test(f);
+            std::printf("%s at scale %.0f: %s\n", name, double(scale), test::g_failures == before ? "ok" : "FAILED");
+            ++ran;
         }
-        test_coverage(f, scale);
-        test_texture_and_target(f);
-        test_blend_and_buffers(f);
     }
+    if (!ran) return 77;
     if (test::g_failures) return 1;
     std::printf("gfx_device_test: ok\n");
     return 0;

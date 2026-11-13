@@ -15,12 +15,12 @@ float4 main(float4 v0 : COLOR0, float4 v1 : COLOR1, float4 t0 : TEXCOORD0, float
     float4 FOG = float4(fog_color.rgb, saturate(fog));
     float4 T0 = 0, T1 = 0, T2 = 0, T3 = 0;
     T0 = tex2Dproj(s0, t0 * texcoord_scale[0]);
-    if (alpha_kill.x != 0) clip(T0.w - 1.0 / 512);
-    if (alpha_kill.y != 0) clip(T1.w - 1.0 / 512);
+    if (alpha_kill.x != 0) clip((T0.w - 1.0 / 512).xxxx);
+    if (alpha_kill.y != 0) clip((T1.w - 1.0 / 512).xxxx);
     T2 = tex2Dproj(s2, t2 * texcoord_scale[2]);
-    if (alpha_kill.z != 0) clip(T2.w - 1.0 / 512);
+    if (alpha_kill.z != 0) clip((T2.w - 1.0 / 512).xxxx);
     T3 = tex2Dproj(s3, t3 * texcoord_scale[3]);
-    if (alpha_kill.w != 0) clip(T3.w - 1.0 / 512);
+    if (alpha_kill.w != 0) clip((T3.w - 1.0 / 512).xxxx);
     // R0 starts as (0, 0, 0, T0.alpha), R1 as zero.
     float4 R0 = float4(0, 0, 0, T0.w), R1 = 0;
     float4 ab = 0, cd = 0, sum = 0;

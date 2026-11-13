@@ -1,17 +1,21 @@
-// GfxDevice on Vulkan. See gfx_vulkan.h. V1: targets, clears, the back buffer and read_target; the rest
-// is bookkeeping until V3 draws.
+// GfxDevice on Vulkan. See gfx_vulkan.h. Reference behaviour: gfx_d3d9.cpp (the D3D9 back end); shared
+// maths in draw_placement.h, the shaders' layout in spirv_layout.h.
 
 #include "gfx_vulkan.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "d3d_internal.h"
+#include "draw_placement.h"
+#include "enhanced_graphics.h"
 #include "log.h"
+#include "texture_hash.h"
 #include "spirv_layout.h"
 #include "title_shaders.h"
 
@@ -88,6 +92,98 @@ std::vector<uint32_t> half_level(const std::vector<uint32_t>& level, uint32_t wi
     return next;
 }
 
+VkCompareOp compare_op(Compare c) { return static_cast<VkCompareOp>(c); }        // same order
+VkStencilOp stencil_op(StencilOp o) { return static_cast<VkStencilOp>(o); }     // same order
+
+VkBlendFactor blend_factor(Blend b) {
+    switch (b) {
+        case Blend::Zero: return VK_BLEND_FACTOR_ZERO;
+        case Blend::One: return VK_BLEND_FACTOR_ONE;
+        case Blend::SrcColor: return VK_BLEND_FACTOR_SRC_COLOR;
+        case Blend::InvSrcColor: return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+        case Blend::SrcAlpha: return VK_BLEND_FACTOR_SRC_ALPHA;
+        case Blend::InvSrcAlpha: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        case Blend::DestAlpha: return VK_BLEND_FACTOR_DST_ALPHA;
+        case Blend::InvDestAlpha: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+        case Blend::DestColor: return VK_BLEND_FACTOR_DST_COLOR;
+        case Blend::InvDestColor: return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+        case Blend::SrcAlphaSat: return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+        case Blend::ConstantColor: return VK_BLEND_FACTOR_CONSTANT_COLOR;
+        case Blend::InvConstantColor: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+        case Blend::ConstantAlpha: return VK_BLEND_FACTOR_CONSTANT_ALPHA;
+        case Blend::InvConstantAlpha: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    }
+    return VK_BLEND_FACTOR_ONE;
+}
+
+VkBlendOp blend_op(BlendOp op) {
+    switch (op) {
+        case BlendOp::Add: return VK_BLEND_OP_ADD;
+        case BlendOp::Subtract: return VK_BLEND_OP_SUBTRACT;
+        case BlendOp::RevSubtract: return VK_BLEND_OP_REVERSE_SUBTRACT;
+        case BlendOp::Min: return VK_BLEND_OP_MIN;
+        case BlendOp::Max: return VK_BLEND_OP_MAX;
+    }
+    return VK_BLEND_OP_ADD;
+}
+
+VkFormat attribute_format(AttributeType t) {
+    switch (t) {
+        case AttributeType::Float1: return VK_FORMAT_R32_SFLOAT;
+        case AttributeType::Float2: return VK_FORMAT_R32G32_SFLOAT;
+        case AttributeType::Float3: return VK_FORMAT_R32G32B32_SFLOAT;
+        case AttributeType::Float4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case AttributeType::Color: return VK_FORMAT_B8G8R8A8_UNORM;  // D3DCOLOR: B G R A in memory
+        case AttributeType::UByte4: return VK_FORMAT_R8G8B8A8_USCALED;
+        case AttributeType::UByte4N: return VK_FORMAT_R8G8B8A8_UNORM;
+        case AttributeType::Short2: return VK_FORMAT_R16G16_SSCALED;
+        case AttributeType::Short4: return VK_FORMAT_R16G16B16A16_SSCALED;
+        case AttributeType::Short2N: return VK_FORMAT_R16G16_SNORM;
+        case AttributeType::Short4N: return VK_FORMAT_R16G16B16A16_SNORM;
+        case AttributeType::Half2: return VK_FORMAT_R16G16_SFLOAT;
+        case AttributeType::Half4: return VK_FORMAT_R16G16B16A16_SFLOAT;
+    }
+    return VK_FORMAT_R32G32B32A32_SFLOAT;
+}
+
+VkPrimitiveTopology topology(Primitive p) {
+    switch (p) {
+        case Primitive::Points: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+        case Primitive::Lines: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+        case Primitive::LineStrip: return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+        case Primitive::Triangles: case Primitive::Quads: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        case Primitive::TriangleStrip: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+        case Primitive::TriangleFan: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+    }
+    return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+}
+
+// Vertices a primitive needs at least (as D3D9: incomplete primitives are dropped).
+bool enough_vertices(Primitive p, uint32_t n) {
+    switch (p) {
+        case Primitive::Points: return n >= 1;
+        case Primitive::Lines: case Primitive::LineStrip: return n >= 2;
+        case Primitive::Quads: return n >= 4;
+        default: return n >= 3;
+    }
+}
+
+void unpack_color(uint32_t color, float* out) {
+    out[0] = ((color >> 16) & 0xFF) / 255.0f;
+    out[1] = ((color >> 8) & 0xFF) / 255.0f;
+    out[2] = (color & 0xFF) / 255.0f;
+    out[3] = (color >> 24) / 255.0f;
+}
+
+void warn_once(bool& done, const char* message) {
+    if (done) return;
+    done = true;
+    LOG_WARN("render", "gfx (Vulkan): %s", message);
+}
+
+constexpr uint32_t kQuadLimit = 16384;                   // quads per draw from the shared index buffer
+constexpr uint32_t kDefaultBinding = kGfxVertexStreams;  // (0, 0, 0, 1) for shader inputs no stream gives
+
 class Device final : public VulkanGfxDevice {
 public:
     Device(Context& context, const BackendConfig& config)
@@ -102,6 +198,14 @@ public:
         if (config.depth_stencil.data)
             depth_buffer_ = add_target(Format::D24S8, config.width, config.height, config.depth_stencil.data);
         set_target(back_buffer_, depth_buffer_);
+        narrow_ui_draw_ = config.narrow_ui_draw;
+        back_width_ = config.width;
+        back_height_ = config.height;
+        anisotropy_ = vk_.features().samplerAnisotropy
+                          ? std::min<uint32_t>(config.anisotropy,
+                                               static_cast<uint32_t>(vk_.limits().maxSamplerAnisotropy))
+                          : 1;
+        create_draw_objects();
         // A new back buffer is black, not undefined.
         clear(kGfxClearColor | kGfxClearDepth | kGfxClearStencil, 0xFF000000u, 1.0f, 0);
     }
@@ -112,6 +216,16 @@ public:
         for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
         for (auto& [id, buffer] : buffers_) release_buffer(buffer);
         for (auto& [id, shader] : shaders_) vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
+        for (auto& [id, target] : targets_) vk_.destroy_image(target.copy);
+        for (auto& [key, kept] : kept_) vk_.defer_destroy(kept.buffer.buffer, kept.buffer.allocation);
+        for (auto& [key, pipeline] : pipelines_) vk_.defer_destroy(pipeline);
+        for (auto& [key, sampler] : samplers_) vkDestroySampler(vk_.device(), sampler, nullptr);
+        vk_.destroy_image(dummy_texture_);
+        if (default_vertex_.buffer) vk_.defer_destroy(default_vertex_.buffer, default_vertex_.allocation);
+        if (quad_indices_.buffer) vk_.defer_destroy(quad_indices_.buffer, quad_indices_.allocation);
+        if (pipeline_cache_) vkDestroyPipelineCache(vk_.device(), pipeline_cache_, nullptr);
+        if (pipeline_layout_) vkDestroyPipelineLayout(vk_.device(), pipeline_layout_, nullptr);
+        if (set_layout_) vkDestroyDescriptorSetLayout(vk_.device(), set_layout_, nullptr);
     }
 
     // --- GfxDevice ---
@@ -262,7 +376,7 @@ public:
             return 0;
         }
         const ShaderId id = next_id_++;
-        shaders_[id] = {stage, module};
+        shaders_[id] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0};
         return id;
     }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
@@ -281,20 +395,51 @@ public:
         if (it == shaders_.end()) return;
         vkDestroyShaderModule(vk_.device(), it->second.module, nullptr);
         shaders_.erase(it);
+        // Pipelines made with it go too (a new shader may get the same id's module handle).
+        for (auto p = pipelines_.begin(); p != pipelines_.end();) {
+            if (p->first.vs == shader || p->first.ps == shader) {
+                vk_.defer_destroy(p->second);
+                p = pipelines_.erase(p);
+            } else {
+                ++p;
+            }
+        }
+        if (vertex_shader_ == shader) vertex_shader_ = 0;
+        if (pixel_shader_ == shader) pixel_shader_ = 0;
     }
-    LayoutId create_layout(const VertexLayout&) override { return next_id_++; }
+    LayoutId create_layout(const VertexLayout& layout) override {
+        if (layout.count > kGfxVertexInputs) return 0;
+        std::vector<VertexAttribute> attributes(layout.attributes, layout.attributes + layout.count);
+        for (const VertexAttribute& a : attributes)
+            if (a.input >= kGfxVertexInputs || a.stream >= kGfxVertexStreams) return 0;
+        layouts_.push_back(std::move(attributes));
+        return static_cast<LayoutId>(layouts_.size());
+    }
 
     TargetId create_target(const TargetDesc& desc) override {
         if (!desc.width || !desc.height || desc.format == Format::Unknown) return 0;
+        // The same title memory is the same target (as on the D3D9 back end, D3D9Draw keys targets by it): the
+        // renderer's target for the frame buffers' memory is the back buffer the picture shows.
+        if (desc.xbox_data)
+            for (auto& [id, target] : targets_)
+                if (target.xbox_data == desc.xbox_data && is_depth(target.format) == is_depth(desc.format)) {
+                    ++target.users;
+                    return id;
+                }
         return add_target(desc.format, desc.width, desc.height, desc.xbox_data);
     }
 
     void destroy_target(TargetId id) override {
         auto it = targets_.find(id);
         if (it == targets_.end() || id == back_buffer_ || id == depth_buffer_) return;
+        if (it->second.users > 1) {  // also made for the same memory by another
+            --it->second.users;
+            return;
+        }
         if (color_ == id || depth_ == id) set_target(back_buffer_, depth_buffer_);
         for (TextureId texture : it->second.texture) textures_.erase(texture);
         vk_.destroy_image(it->second.image);
+        vk_.destroy_image(it->second.copy);
         targets_.erase(it);
     }
 
@@ -304,9 +449,9 @@ public:
         TextureId& texture = it->second.texture[texel_coordinates ? 1 : 0];
         if (!texture) {
             texture = next_id_++;
-            TextureDesc desc;
-            desc.texel_coordinates = texel_coordinates;
-            textures_[texture] = {desc, id};
+            Texture& t = textures_[texture];
+            t.desc.texel_coordinates = texel_coordinates;
+            t.target = id;
         }
         return texture;
     }
@@ -370,19 +515,99 @@ public:
     void set_texture(uint32_t slot, TextureId texture) override {
         if (slot < kGfxTextureSlots) bound_textures_[slot] = texture;
     }
-    void set_sampler(uint32_t, const SamplerState&) override {}
-    void set_shaders(ShaderId, ShaderId) override {}
-    void set_constants(ShaderStage, uint32_t, const float*, uint32_t) override {}
-    void set_layout(LayoutId) override {}
+    void set_sampler(uint32_t slot, const SamplerState& state) override {
+        if (slot < kGfxTextureSlots) sampler_states_[slot] = state;
+    }
+    void set_shaders(ShaderId vertex, ShaderId pixel) override {
+        vertex_shader_ = vertex;
+        pixel_shader_ = pixel;
+    }
+    void set_constants(ShaderStage stage, uint32_t first, const float* values, uint32_t count) override {
+        auto& constants = stage == ShaderStage::Vertex ? vs_constants_ : ps_constants_;
+        const uint32_t limit = stage == ShaderStage::Vertex ? kGfxVsScreenToClip : kGfxPsTexcoordScale;
+        if (first >= limit) return;
+        count = std::min(count, limit - first);
+        std::memcpy(constants.data() + first * 4, values, count * 16);
+    }
+    void set_layout(LayoutId layout) override { layout_ = layout; }
     void set_vertex_buffer(uint32_t stream, BufferId buffer, uint32_t offset, uint32_t stride) override {
         if (stream < kGfxVertexStreams) streams_[stream] = {buffer, offset, stride};
     }
     void set_index_buffer(BufferId buffer) override { index_buffer_ = buffer; }
 
-    void draw(Primitive, uint32_t, uint32_t) override { count_draw(); }
-    void draw_indexed(Primitive, uint32_t, uint32_t, int32_t) override { count_draw(); }
-    void draw_user(Primitive, const void*, uint32_t, uint32_t, const uint16_t*, uint32_t, uint64_t) override {
-        count_draw();
+    void draw(Primitive primitive, uint32_t first_vertex, uint32_t vertex_count) override {
+        if (g_skip_gpu_draws || !enough_vertices(primitive, vertex_count)) return;
+        if (!bind_streams() || !prepare(primitive)) return;
+        if (primitive == Primitive::Quads) {
+            draw_quads(first_vertex, vertex_count);
+            return;
+        }
+        vkCmdDraw(vk_.cmd(), vertex_count, 1, first_vertex, 0);
+    }
+
+    void draw_indexed(Primitive primitive, uint32_t first_index, uint32_t index_count, int32_t base_vertex) override {
+        if (g_skip_gpu_draws || !enough_vertices(primitive, index_count)) return;
+        if (primitive == Primitive::Quads) {
+            static bool once = false;
+            warn_once(once, "indexed quads are not supported (draw them as triangles)");
+            return;
+        }
+        auto ib = buffers_.find(index_buffer_);
+        if (ib == buffers_.end() || ib->second.desc.kind == BufferKind::Vertex) return;
+        if (!bind_streams() || !prepare(primitive)) return;
+        VkBuf& b = buffer_for_draw(ib->second);
+        vkCmdBindIndexBuffer(vk_.cmd(), b.buffer, 0,
+                             ib->second.desc.kind == BufferKind::Index16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(vk_.cmd(), index_count, 1, first_index, base_vertex, 0);
+    }
+
+    // Caller vertices go into the upload space (or a kept copy, see kept_vertices). Staging can flush the
+    // frame's commands when the space is full: that drops the recorded pipeline and descriptors, so the draw
+    // is prepared again (once; the space is empty after a flush).
+    void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
+                   const uint16_t* indices, uint32_t index_count, uint64_t cache_key) override {
+        if (g_skip_gpu_draws || !vertices || !stride || !vertex_count) return;
+        if (!enough_vertices(primitive, indices ? index_count : vertex_count) || (indices && primitive == Primitive::Quads))
+            return;
+        float range[4];  // x min, max, y min, max
+        const bool has_range = layout_ && layout_ <= layouts_.size() &&
+                               position_range(layouts_[layout_ - 1].data(),
+                                              static_cast<uint32_t>(layouts_[layout_ - 1].size()), vertices,
+                                              vertex_count, stride, range);
+        const uint32_t bytes = vertex_count * stride;
+        const VkBuf* kept = kept_vertices(cache_key, vertices, bytes);
+        Staged vertex_staged, index_staged;
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            if (!prepare(primitive, has_range ? range : nullptr, true)) return;
+            const uint64_t epoch = vk_.staging_epoch();
+            if (!kept) {
+                vertex_staged = vk_.stage(bytes, 4);
+                if (!vertex_staged.memory) return;
+                std::memcpy(vertex_staged.memory, vertices, bytes);
+            }
+            if (indices) {
+                index_staged = vk_.stage(index_count * 2, 4);
+                if (!index_staged.memory) return;
+                std::memcpy(index_staged.memory, indices, index_count * 2);
+            }
+            if (vk_.staging_epoch() == epoch) break;
+            if (attempt == 1) return;
+        }
+        // Stream 0 at offset 0 of its binding: vertex indices start at 0.
+        const VkBuffer buffer = kept ? kept->buffer : vertex_staged.buffer;
+        const VkDeviceSize offset = kept ? 0 : vertex_staged.offset;
+        const VkDeviceSize stride64 = stride;
+        vkCmdBindVertexBuffers2(vk_.cmd(), 0, 1, &buffer, &offset, nullptr, &stride64);
+        if (primitive == Primitive::Quads) {
+            draw_quads(0, vertex_count);
+            return;
+        }
+        if (!indices) {
+            vkCmdDraw(vk_.cmd(), vertex_count, 1, 0, 0);
+            return;
+        }
+        vkCmdBindIndexBuffer(vk_.cmd(), index_staged.buffer, index_staged.offset, VK_INDEX_TYPE_UINT16);
+        vkCmdDrawIndexed(vk_.cmd(), index_count, 1, 0, 0, 0);
     }
 
     // The pixel centres' surface pixels (render scale), as the D3D9 back end.
@@ -478,6 +703,18 @@ public:
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
         frame_writes_depth_ = false;
         unsupported_draws_ = 0;
+        ++frame_;
+        // Kept vertices unused for a while go.
+        if (frame_ % 60 == 0)
+            for (auto it = kept_.begin(); it != kept_.end();) {
+                if (frame_ - it->second.used_frame > 300) {
+                    if (it->second.buffer.buffer)
+                        vk_.defer_destroy(it->second.buffer.buffer, it->second.buffer.allocation);
+                    it = kept_.erase(it);
+                } else {
+                    ++it;
+                }
+            }
         // The title draws its next frame into the back buffer from its own state.
         set_target(back_buffer_, depth_buffer_);
     }
@@ -492,6 +729,9 @@ public:
         for (auto& [id, target] : targets_)
             if (id != back_buffer_ && id != depth_buffer_) others.push_back(id);
         for (TargetId id : others) destroy_target(id);
+        for (auto& [key, kept] : kept_)
+            if (kept.buffer.buffer) vk_.defer_destroy(kept.buffer.buffer, kept.buffer.allocation);
+        kept_.clear();
         for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
         for (auto& [id, buffer] : buffers_) release_buffer(buffer);
         textures_.clear();
@@ -503,10 +743,42 @@ public:
     }
 
 private:
+    struct Shader {
+        ShaderStage stage;
+        VkShaderModule module;
+        uint32_t inputs;  // vertex shaders: the input locations read
+    };
+    struct PipelineKey {
+        uint32_t vs, ps, layout, topology, blend_enable, src, dst, op, write_mask, fill, color_format, depth_format,
+            bindings;
+        bool operator==(const PipelineKey& o) const { return std::memcmp(this, &o, sizeof *this) == 0; }
+    };
+    struct SamplerKey {
+        uint32_t values[5];
+        bool operator==(const SamplerKey& o) const { return std::memcmp(values, o.values, sizeof values) == 0; }
+    };
+    struct WordHash {
+        template <typename T>
+        size_t operator()(const T& key) const {
+            static_assert(sizeof(T) % 4 == 0);
+            uint32_t words[sizeof(T) / 4];
+            std::memcpy(words, &key, sizeof(T));
+            uint64_t h = 1469598103934665603ull;
+            for (uint32_t w : words) h = (h ^ w) * 1099511628211ull;
+            return static_cast<size_t>(h ^ (h >> 32));
+        }
+    };
+    struct DrawStream {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceSize offset = 0, stride = 0;
+    };
     struct Target {
         Format format = Format::BGRA8;
         uint32_t xbox_data = 0;
+        uint32_t width = 0, height = 0;  // in title pixels
+        uint32_t users = 1;              // create_target calls for this memory
         Image image;
+        Image copy;  // what was drawn, for sampling it while it is the target drawn into
         TextureId texture[2] = {0, 0};  // normalized, texel coordinates
     };
     struct Texture {
@@ -525,6 +797,12 @@ private:
         VmaAllocation allocation = nullptr;
         uint8_t* memory = nullptr;  // host-visible versions
         uint64_t used = 0;          // 1 + the frame number of the last draw reading it; 0 none
+    };
+    struct Kept {
+        VkBuf buffer;
+        uint64_t content = 0;
+        uint32_t bytes = 0;
+        uint64_t used_frame = 0;
     };
     struct Buffer {
         BufferDesc desc;
@@ -591,6 +869,8 @@ private:
         Target target;
         target.format = format;
         target.xbox_data = xbox_data;
+        target.width = width;
+        target.height = height;
         const bool depth = is_depth(format);
         // V1: every colour target is 8-bit BGRA (V3 picks per format).
         const VkFormat vk_format = depth ? vk_.depth_format() : VK_FORMAT_B8G8R8A8_UNORM;
@@ -599,14 +879,520 @@ private:
                   : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         if (!vk_.create_image(target.image, vk_format, surface_width, surface_height, usage)) return 0;
+        if (!depth && no_alpha(format)) {
+            // Sampled, a target without alpha reads alpha 1 (as D3D9's X8R8G8B8).
+            VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+            view.image = target.image.image;
+            view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            view.format = vk_format;
+            view.components.a = VK_COMPONENT_SWIZZLE_ONE;
+            view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+            vkCreateImageView(vk_.device(), &view, nullptr, &target.image.sample_view);
+        }
         const TargetId id = next_id_++;
         targets_.emplace(id, std::move(target));
         return id;
     }
 
-    void count_draw() {
-        ++unsupported_draws_;
-        if (depth_ && depth_stencil_.depth_test && depth_stencil_.depth_write) frame_writes_depth_ = true;
+    static bool no_alpha(Format f) { return f == Format::BGRX8 || f == Format::BGRX5 || f == Format::B5G6R5; }
+
+    // --- Draw objects ---
+
+    void create_draw_objects() {
+        VkDescriptorSetLayoutBinding bindings[kVkBindingCount]{};
+        for (uint32_t i = 0; i < kVkBindingCount; ++i) {
+            VkDescriptorSetLayoutBinding& b = bindings[i];
+            b.binding = i;
+            b.descriptorCount = 1;
+            b.stageFlags = i == kVkVertexConstantsBinding ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
+            b.descriptorType = i < kVkFirstImageBinding     ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                               : i < kVkFirstSamplerBinding ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+                                                            : VK_DESCRIPTOR_TYPE_SAMPLER;
+        }
+        VkDescriptorSetLayoutCreateInfo set{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        set.bindingCount = kVkBindingCount;
+        set.pBindings = bindings;
+        vkCreateDescriptorSetLayout(vk_.device(), &set, nullptr, &set_layout_);
+        VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        layout.setLayoutCount = 1;
+        layout.pSetLayouts = &set_layout_;
+        vkCreatePipelineLayout(vk_.device(), &layout, nullptr, &pipeline_layout_);
+        VkPipelineCacheCreateInfo cache{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+        vkCreatePipelineCache(vk_.device(), &cache, nullptr, &pipeline_cache_);
+
+        // An unbound texture reads opaque black.
+        TextureImageDesc dummy;
+        if (vk_.create_texture_image(dummy_texture_, dummy)) {
+            const uint32_t black = 0xFF000000u;
+            vk_.upload_level(dummy_texture_, 0, 0, &black, 4, 1, 4, 0);
+        }
+        // Shader inputs no stream gives read (0, 0, 0, 1).
+        const float defaults[4] = {0, 0, 0, 1};
+        if (create_vk_buffer(sizeof defaults, false, default_vertex_))
+            vk_.upload_buffer(default_vertex_.buffer, 0, defaults, sizeof defaults);
+        // Quads as two triangles each: v0 v1 v2, v0 v2 v3.
+        std::vector<uint16_t> quads(kQuadLimit * 6);
+        for (uint32_t q = 0; q < kQuadLimit; ++q) {
+            const auto v = static_cast<uint16_t>(q * 4);
+            const uint16_t quad[6] = {v, static_cast<uint16_t>(v + 1), static_cast<uint16_t>(v + 2), v,
+                                      static_cast<uint16_t>(v + 2), static_cast<uint16_t>(v + 3)};
+            std::memcpy(&quads[q * 6], quad, sizeof quad);
+        }
+        if (create_vk_buffer(static_cast<uint32_t>(quads.size() * 2), false, quad_indices_))
+            vk_.upload_buffer(quad_indices_.buffer, 0, quads.data(), quads.size() * 2);
+        // Vertex formats the title's layouts may use that are optional in Vulkan.
+        for (VkFormat f : {VK_FORMAT_R8G8B8A8_USCALED, VK_FORMAT_R16G16_SSCALED, VK_FORMAT_R16G16B16A16_SSCALED}) {
+            VkFormatProperties properties;
+            vkGetPhysicalDeviceFormatProperties(vk_.physical(), f, &properties);
+            if (!(properties.bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT))
+                LOG_WARN("render", "Vulkan: vertex format %d not supported (draws using it will fail)", int(f));
+        }
+    }
+
+    // --- Streams ---
+
+    VkBuf& buffer_for_draw(Buffer& b) {
+        VkBuf& v = b.desc.usage == BufferUsage::Static ? b.statik : b.versions[b.current];
+        v.used = vk_.frame_number() + 1;
+        return v;
+    }
+
+    // The bound vertex buffers of a buffer draw; false without stream 0.
+    bool bind_streams() {
+        for (uint32_t s = 0; s < kGfxVertexStreams; ++s) {
+            draw_streams_[s] = {};
+            auto it = buffers_.find(streams_[s].buffer);
+            if (it == buffers_.end() || it->second.desc.kind != BufferKind::Vertex) {
+                if (s == 0) return false;
+                continue;
+            }
+            draw_streams_[s] = {buffer_for_draw(it->second).buffer, streams_[s].offset, streams_[s].stride};
+        }
+        return true;
+    }
+
+    // draw_user's cache: the vertices of `key` from a kept copy while they stay the same (made the second
+    // time the same contents come), else null (streamed).
+    const VkBuf* kept_vertices(uint64_t key, const void* vertices, uint32_t bytes) {
+        if (!key) return nullptr;
+        const uint64_t content = hash_bytes(vertices, bytes);
+        Kept& k = kept_[key];
+        k.used_frame = frame_;
+        if (k.buffer.buffer && k.content == content && k.bytes == bytes) return &k.buffer;
+        if (k.content != content || k.bytes != bytes) {
+            k.content = content;
+            k.bytes = bytes;
+            if (k.buffer.buffer) vk_.defer_destroy(k.buffer.buffer, k.buffer.allocation);
+            k.buffer = {};
+            return nullptr;  // changed: streamed until it repeats
+        }
+        if (!create_vk_buffer(bytes, false, k.buffer)) return nullptr;
+        vk_.upload_buffer(k.buffer.buffer, 0, vertices, bytes);
+        return &k.buffer;
+    }
+
+    void draw_quads(uint32_t first_vertex, uint32_t vertex_count) {
+        if (!quad_indices_.buffer) return;
+        vkCmdBindIndexBuffer(vk_.cmd(), quad_indices_.buffer, 0, VK_INDEX_TYPE_UINT16);
+        for (uint32_t done = 0; done + 4 <= vertex_count; done += kQuadLimit * 4) {
+            const uint32_t quads = std::min(kQuadLimit, (vertex_count - done) / 4);
+            vkCmdDrawIndexed(vk_.cmd(), quads * 6, 1, 0, static_cast<int32_t>(first_vertex + done), 0);
+        }
+    }
+
+    // --- Textures and samplers for a draw ---
+
+    struct Resolved {
+        VkImageView view = VK_NULL_HANDLE;
+        float scale[2] = {1.0f, 1.0f};
+        uint32_t levels = 1;
+    };
+
+    // The view behind `id` now (layouts made ready: this may end the current rendering), its texel scale.
+    Resolved resolve_texture(TextureId id) {
+        Resolved r;
+        r.view = dummy_texture_.view;
+        auto it = textures_.find(id);
+        if (it == textures_.end()) return r;
+        Texture& t = it->second;
+        if (t.target) {
+            auto target = targets_.find(t.target);
+            if (target == targets_.end()) return r;
+            Target& tg = target->second;
+            if (t.desc.texel_coordinates) {
+                r.scale[0] = 1.0f / static_cast<float>(tg.width);
+                r.scale[1] = 1.0f / static_cast<float>(tg.height);
+            }
+            if (t.target == color_) {
+                // Being drawn into: sample a copy of what is there now (as D3D9Draw::sample_target).
+                if (!tg.copy) {
+                    TextureImageDesc desc;
+                    desc.format = tg.image.format;
+                    desc.width = tg.image.width;
+                    desc.height = tg.image.height;
+                    if (no_alpha(tg.format)) desc.components.a = VK_COMPONENT_SWIZZLE_ONE;
+                    if (!vk_.create_texture_image(tg.copy, desc)) return r;
+                }
+                vk_.transition(tg.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                vk_.transition(tg.copy, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                VkImageCopy copy{};
+                copy.srcSubresource = copy.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+                copy.extent = {tg.image.width, tg.image.height, 1};
+                vkCmdCopyImage(vk_.cmd(), tg.image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tg.copy.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+                vk_.transition(tg.copy, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                r.view = tg.copy.view;
+                return r;
+            }
+            vk_.transition(tg.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            r.view = tg.image.sample_view ? tg.image.sample_view : tg.image.view;
+            return r;
+        }
+        if (!t.image) return r;
+        if (t.desc.type != TextureType::Tex2D) {
+            static bool once = false;
+            warn_once(once, "a cube or volume texture bound for a 2D sampler (drawn without it)");
+            return r;
+        }
+        if (t.desc.texel_coordinates) {
+            r.scale[0] = 1.0f / static_cast<float>(t.desc.width);
+            r.scale[1] = 1.0f / static_cast<float>(t.desc.height);
+        }
+        if (t.image.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            vk_.transition(t.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        r.view = t.image.view;
+        r.levels = t.image.levels;
+        return r;
+    }
+
+    VkSampler sampler_for(const SamplerState& s, uint32_t levels, const GraphicsFeatures& features) {
+        auto address = [](Address a) {
+            switch (a) {
+                case Address::Wrap: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                case Address::Mirror: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+                case Address::Clamp: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+                case Address::Border: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            }
+            return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        };
+        VkSamplerCreateInfo info{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+        info.magFilter = s.mag == Filter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        info.minFilter = s.min == Filter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        info.mipmapMode = s.mip == Filter::Linear ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        info.addressModeU = address(s.u);
+        info.addressModeV = address(s.v);
+        info.addressModeW = address(s.w);
+        // D3D9's MAXMIPLEVEL is the most detailed level used; mipmaps off = that level only.
+        info.minLod = static_cast<float>(std::min(s.max_level, levels - 1));
+        info.maxLod = s.mip == Filter::None ? info.minLod + 0.25f : VK_LOD_CLAMP_NONE;
+        float bias = s.lod_bias;
+        if (levels > 1 && features.texture_detail) bias += features.lod_bias;
+        const float bias_limit = vk_.limits().maxSamplerLodBias;
+        info.mipLodBias = std::clamp(bias, -bias_limit, bias_limit);
+        if (anisotropy_ > 1 && features.anisotropic && s.min == Filter::Linear && s.mip != Filter::None &&
+            levels > 1) {
+            info.anisotropyEnable = VK_TRUE;
+            info.maxAnisotropy = static_cast<float>(std::max(std::max<uint32_t>(1, s.anisotropy), anisotropy_));
+        }
+        switch (s.border) {
+            case 0x00000000u: info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK; break;
+            case 0xFF000000u: info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK; break;
+            case 0xFFFFFFFFu: info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE; break;
+            default: {
+                static bool once = false;
+                warn_once(once, "a border colour other than black or white (the nearest of those used)");
+                info.borderColor = s.border >> 24 < 0x80        ? VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+                                   : (s.border & 0xFF) >= 0x80 ? VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE
+                                                               : VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+            }
+        }
+        SamplerKey key{};
+        key.values[0] = info.magFilter | info.minFilter << 4 | info.mipmapMode << 8 | info.addressModeU << 12 |
+                        info.addressModeV << 16 | info.addressModeW << 20 | info.anisotropyEnable << 24 |
+                        static_cast<uint32_t>(info.borderColor) << 25;
+        std::memcpy(&key.values[1], &info.minLod, 4);
+        std::memcpy(&key.values[2], &info.maxLod, 4);
+        std::memcpy(&key.values[3], &info.mipLodBias, 4);
+        std::memcpy(&key.values[4], &info.maxAnisotropy, 4);
+        auto it = samplers_.find(key);
+        if (it != samplers_.end()) return it->second;
+        VkSampler sampler = VK_NULL_HANDLE;
+        vkCreateSampler(vk_.device(), &info, nullptr, &sampler);
+        samplers_[key] = sampler;
+        return sampler;
+    }
+
+    // --- Pipelines ---
+
+    VkPipeline pipeline_for(const PipelineKey& key, const Shader& vs, const Shader& ps,
+                            const std::vector<VertexAttribute>& attributes) {
+        auto found = pipelines_.find(key);
+        if (found != pipelines_.end()) return found->second;
+        VkVertexInputBindingDescription bindings[kGfxVertexStreams + 1];
+        VkVertexInputAttributeDescription inputs[kGfxVertexInputs];
+        uint32_t binding_count = 0, input_count = 0, given = 0;
+        for (uint32_t s = 0; s <= kGfxVertexStreams; ++s)
+            if (key.bindings & (1u << s)) bindings[binding_count++] = {s, 0, VK_VERTEX_INPUT_RATE_VERTEX};
+        for (const VertexAttribute& a : attributes) {
+            if (given & (1u << a.input)) continue;
+            given |= 1u << a.input;
+            inputs[input_count++] = {a.input, a.stream, attribute_format(a.type), a.offset};
+        }
+        for (uint32_t i = 0; i < kGfxVertexInputs; ++i)
+            if ((vs.inputs & (1u << i)) && !(given & (1u << i)))
+                inputs[input_count++] = {i, kDefaultBinding, VK_FORMAT_R32G32B32A32_SFLOAT, 0};
+        VkPipelineVertexInputStateCreateInfo vertex{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+        vertex.vertexBindingDescriptionCount = binding_count;
+        vertex.pVertexBindingDescriptions = bindings;
+        vertex.vertexAttributeDescriptionCount = input_count;
+        vertex.pVertexAttributeDescriptions = inputs;
+        VkPipelineInputAssemblyStateCreateInfo assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+        assembly.topology = static_cast<VkPrimitiveTopology>(key.topology);
+        VkPipelineViewportStateCreateInfo viewport{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+        viewport.viewportCount = viewport.scissorCount = 1;
+        VkPipelineRasterizationStateCreateInfo raster{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+        raster.polygonMode = static_cast<VkPolygonMode>(key.fill);
+        raster.lineWidth = 1.0f;
+        VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        VkPipelineDepthStencilStateCreateInfo depth{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+        VkPipelineColorBlendAttachmentState attachment{};
+        attachment.blendEnable = key.blend_enable;
+        attachment.srcColorBlendFactor = attachment.srcAlphaBlendFactor = static_cast<VkBlendFactor>(key.src);
+        attachment.dstColorBlendFactor = attachment.dstAlphaBlendFactor = static_cast<VkBlendFactor>(key.dst);
+        attachment.colorBlendOp = attachment.alphaBlendOp = static_cast<VkBlendOp>(key.op);
+        attachment.colorWriteMask = key.write_mask;
+        VkPipelineColorBlendStateCreateInfo blend{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+        blend.attachmentCount = 1;
+        blend.pAttachments = &attachment;
+        const VkDynamicState dynamic_states[] = {
+            VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+            VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_CULL_MODE, VK_DYNAMIC_STATE_FRONT_FACE,
+            VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY, VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE,
+            VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE, VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP,
+            VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE, VK_DYNAMIC_STATE_STENCIL_OP, VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE,
+        };
+        VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+        dynamic.dynamicStateCount = static_cast<uint32_t>(std::size(dynamic_states));
+        dynamic.pDynamicStates = dynamic_states;
+        VkPipelineShaderStageCreateInfo stages[2]{};
+        stages[0].sType = stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+        stages[0].module = vs.module;
+        stages[0].pName = "main";
+        stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        stages[1].module = ps.module;
+        stages[1].pName = "main";
+        const VkFormat color_format = static_cast<VkFormat>(key.color_format);
+        VkPipelineRenderingCreateInfo rendering{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+        rendering.colorAttachmentCount = 1;
+        rendering.pColorAttachmentFormats = &color_format;
+        rendering.depthAttachmentFormat = static_cast<VkFormat>(key.depth_format);
+        rendering.stencilAttachmentFormat = static_cast<VkFormat>(key.depth_format);
+        VkGraphicsPipelineCreateInfo info{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+        info.pNext = &rendering;
+        info.stageCount = 2;
+        info.pStages = stages;
+        info.pVertexInputState = &vertex;
+        info.pInputAssemblyState = &assembly;
+        info.pViewportState = &viewport;
+        info.pRasterizationState = &raster;
+        info.pMultisampleState = &multisample;
+        info.pDepthStencilState = &depth;
+        info.pColorBlendState = &blend;
+        info.pDynamicState = &dynamic;
+        info.layout = pipeline_layout_;
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
+            r != VK_SUCCESS) {
+            LOG_ERROR("render", "gfx: Vulkan pipeline: %s", result_name(r));
+            pipeline = VK_NULL_HANDLE;
+        }
+        pipelines_[key] = pipeline;
+        return pipeline;
+    }
+
+    // Everything but stream 0 of draw_user and the index buffers, for a draw now; false if it cannot draw.
+    // Records the pipeline, descriptors, dynamic state and vertex buffers into the current rendering (begun
+    // here).
+    bool prepare(Primitive primitive, const float* range = nullptr, bool user = false) {
+        begin_draw();
+        auto vs = shaders_.find(vertex_shader_);
+        auto ps = shaders_.find(pixel_shader_);
+        auto color = targets_.find(color_);
+        if (vs == shaders_.end() || ps == shaders_.end() || layout_ == 0 || layout_ > layouts_.size() ||
+            color == targets_.end()) {
+            static bool once = false;
+            warn_once(once, "draw without shaders, vertex layout or target (skipped)");
+            return false;
+        }
+        const Target& target = color->second;
+        const std::vector<VertexAttribute>& attributes = layouts_[layout_ - 1];
+
+        // Viewport, scissor and screen to clip (draw_placement.h).
+        PlacementInput in;
+        in.width = target.width;
+        in.height = target.height;
+        in.surface_width = target.image.width;
+        in.surface_height = target.image.height;
+        in.viewport = viewport_;
+        in.scissor = scissor_on_ ? &scissor_ : nullptr;
+        const bool full_picture = target.width == back_width_ && target.height == back_height_;
+        in.narrow = ui_narrowing(narrow_ui_draw_, range, frame_is_flat(), full_picture, back_width_);
+        in.range = range;
+        in.full_picture = full_picture;
+        in.vulkan = true;
+        const Placement place = place_draw(in);
+        float* reserved = vs_constants_.data() + kGfxVsScreenToClip * 4;
+        std::memcpy(reserved, place.screen_to_clip, sizeof(place.screen_to_clip));
+        reserved[8] = fog_.bias;
+        reserved[9] = fog_.scale;
+        reserved[10] = static_cast<float>(fog_.mode);
+        reserved[11] = 0.0f;
+
+        // Textures (may end the current rendering: layouts, copies of the target drawn into).
+        const GraphicsFeatures features = active_graphics_features();
+        VkDescriptorImageInfo images[kGfxTextureSlots]{}, samplers[kGfxTextureSlots]{};
+        for (uint32_t slot = 0; slot < kGfxTextureSlots; ++slot) {
+            const Resolved r = resolve_texture(bound_textures_[slot]);
+            float* c = ps_constants_.data() + (kGfxPsTexcoordScale + slot) * 4;
+            c[0] = r.scale[0];
+            c[1] = r.scale[1];
+            c[2] = c[3] = 1.0f;
+            images[slot] = {VK_NULL_HANDLE, r.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            samplers[slot].sampler = sampler_for(sampler_states_[slot], r.levels, features);
+        }
+        unpack_color(fog_.color, ps_constants_.data() + kGfxPsFogColor * 4);
+        for (uint32_t slot = 0; slot < 4; ++slot)
+            ps_constants_[kGfxPsAlphaKill * 4 + slot] = sampler_states_[slot].alpha_kill ? 1.0f : 0.0f;
+        const BlendState& b = blend_;
+        ps_constants_[kGfxPsAlphaTest * 4] = static_cast<float>(b.alpha_test ? b.alpha_func : Compare::Always);
+        ps_constants_[kGfxPsAlphaTest * 4 + 1] = static_cast<float>(b.alpha_ref);
+
+        // Constants: both blocks in one piece of the upload space (one piece cannot lose the other).
+        const VkDeviceSize align = std::max<VkDeviceSize>(16, vk_.limits().minUniformBufferOffsetAlignment);
+        const VkDeviceSize vs_bytes = kVkVertexConstants * 16, ps_bytes = kVkPixelConstants * 16;
+        const VkDeviceSize ps_at = (vs_bytes + align - 1) / align * align;
+        const Staged constants = vk_.stage(ps_at + ps_bytes, align);
+        if (!constants.memory) return false;
+        std::memcpy(constants.memory, vs_constants_.data(), vs_bytes);
+        std::memcpy(static_cast<uint8_t*>(constants.memory) + ps_at, ps_constants_.data(), ps_bytes);
+
+        // The pipeline.
+        const Target* depth_target = depth_ ? &targets_[depth_] : nullptr;
+        const bool x_target = no_alpha(target.format);
+        auto dest_alpha = [&](Blend f) {  // a target without alpha has alpha 1 (D3D9)
+            if (!x_target) return f;
+            return f == Blend::DestAlpha ? Blend::One : f == Blend::InvDestAlpha ? Blend::Zero : f;
+        };
+        const VkPrimitiveTopology top = topology(primitive);
+        PipelineKey key{};
+        key.vs = vertex_shader_;
+        key.ps = pixel_shader_;
+        key.layout = layout_;
+        key.topology = top == VK_PRIMITIVE_TOPOLOGY_POINT_LIST    ? VK_PRIMITIVE_TOPOLOGY_POINT_LIST
+                       : top <= VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST
+                                                                 : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        key.blend_enable = b.enable;
+        key.src = b.enable ? blend_factor(dest_alpha(b.src)) : VK_BLEND_FACTOR_ONE;
+        key.dst = b.enable ? blend_factor(dest_alpha(b.dst)) : VK_BLEND_FACTOR_ZERO;
+        key.op = b.enable ? blend_op(b.op) : VK_BLEND_OP_ADD;
+        key.write_mask = b.write_mask & kColorAll;  // R G B A bits as Vulkan's
+        key.fill = raster_.fill == Fill::Wireframe && vk_.features().fillModeNonSolid ? VK_POLYGON_MODE_LINE
+                   : raster_.fill == Fill::Point && vk_.features().fillModeNonSolid   ? VK_POLYGON_MODE_POINT
+                                                                                      : VK_POLYGON_MODE_FILL;
+        key.color_format = target.image.format;
+        key.depth_format = depth_target ? depth_target->image.format : VK_FORMAT_UNDEFINED;
+        uint32_t given = 0;
+        for (const VertexAttribute& a : attributes) {
+            key.bindings |= 1u << a.stream;
+            given |= 1u << a.input;
+        }
+        if (vs->second.inputs & ~given) key.bindings |= 1u << kDefaultBinding;
+        if (user) key.bindings |= 1u;  // draw_user binds stream 0
+        const VkPipeline pipeline = pipeline_for(key, vs->second, ps->second, attributes);
+        if (!pipeline) return false;
+        if (raster_.flat_shading) {
+            static bool once = false;
+            warn_once(once, "flat shading is not supported yet (drawn smooth)");
+        }
+
+        // Record.
+        if (!vk_.begin_rendering()) return false;
+        VkCommandBuffer cmd = vk_.cmd();
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        VkDescriptorBufferInfo buffers[2] = {{constants.buffer, constants.offset, vs_bytes},
+                                             {constants.buffer, constants.offset + ps_at, ps_bytes}};
+        VkWriteDescriptorSet writes[kVkBindingCount]{};
+        for (uint32_t i = 0; i < kVkBindingCount; ++i) {
+            VkWriteDescriptorSet& w = writes[i];
+            w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w.dstBinding = i;
+            w.descriptorCount = 1;
+            if (i < kVkFirstImageBinding) {
+                w.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                w.pBufferInfo = &buffers[i];
+            } else if (i < kVkFirstSamplerBinding) {
+                w.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                w.pImageInfo = &images[i - kVkFirstImageBinding];
+            } else {
+                w.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                w.pImageInfo = &samplers[i - kVkFirstSamplerBinding];
+            }
+        }
+        vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, kVkBindingCount, writes);
+
+        const VkViewport viewport{static_cast<float>(place.x),     static_cast<float>(place.y),
+                                  static_cast<float>(place.width), static_cast<float>(place.height),
+                                  place.min_z,                     place.max_z};
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        VkRect2D scissor;
+        scissor.offset = {std::max(0, place.left), std::max(0, place.top)};
+        scissor.extent = {static_cast<uint32_t>(std::max(0, place.right - scissor.offset.x)),
+                          static_cast<uint32_t>(std::max(0, place.bottom - scissor.offset.y))};
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        float blend_constants[4];
+        unpack_color(b.constant, blend_constants);
+        vkCmdSetBlendConstants(cmd, blend_constants);
+        vkCmdSetPrimitiveTopology(cmd, top);
+        const RasterState& r = raster_;
+        vkCmdSetCullMode(cmd, r.cull == Cull::None ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT);
+        // Vulkan's winding is the one seen on screen (y down), as D3D9's: the dropped one is the back.
+        vkCmdSetFrontFace(cmd, r.cull == Cull::Clockwise ? VK_FRONT_FACE_COUNTER_CLOCKWISE : VK_FRONT_FACE_CLOCKWISE);
+        const bool bias = r.depth_bias != 0.0f || r.slope_bias != 0.0f;
+        vkCmdSetDepthBiasEnable(cmd, bias);
+        if (bias) vkCmdSetDepthBias(cmd, r.depth_bias, 0.0f, r.slope_bias);
+        const DepthStencilState& ds = depth_stencil_;
+        const bool has_depth = depth_target != nullptr;
+        vkCmdSetDepthTestEnable(cmd, ds.depth_test && has_depth);
+        vkCmdSetDepthWriteEnable(cmd, ds.depth_write && has_depth);
+        vkCmdSetDepthCompareOp(cmd, compare_op(ds.depth_func));
+        if (ds.depth_test && ds.depth_write && has_depth) frame_writes_depth_ = true;
+        vkCmdSetStencilTestEnable(cmd, ds.stencil && has_depth);
+        vkCmdSetStencilOp(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, stencil_op(ds.stencil_fail), stencil_op(ds.stencil_pass),
+                          stencil_op(ds.stencil_depth_fail), compare_op(ds.stencil_func));
+        vkCmdSetStencilCompareMask(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, ds.stencil_read_mask);
+        vkCmdSetStencilWriteMask(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, ds.stencil_write_mask);
+        vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, ds.stencil_ref);
+
+        // Vertex buffers: the streams (draw_user binds its stream 0 itself), the default for the rest.
+        VkBuffer vbs[kGfxVertexStreams + 1];
+        VkDeviceSize offsets[kGfxVertexStreams + 1], strides[kGfxVertexStreams + 1];
+        uint32_t first = UINT32_MAX, last = 0;
+        for (uint32_t s = 0; s <= kGfxVertexStreams; ++s) {
+            DrawStream stream = s == kDefaultBinding || user ? DrawStream{} : draw_streams_[s];
+            if (!stream.buffer) stream = {default_vertex_.buffer, 0, 0};
+            vbs[s] = stream.buffer;
+            offsets[s] = stream.offset;
+            strides[s] = stream.stride;
+            if (key.bindings & (1u << s)) first = std::min(first, s), last = s;
+        }
+        if (first != UINT32_MAX)
+            vkCmdBindVertexBuffers2(cmd, first, last - first + 1, vbs + first, offsets + first, nullptr,
+                                    strides + first);
+        return true;
     }
 
     Context& vk_;
@@ -621,11 +1407,26 @@ private:
     TextureId bound_textures_[kGfxTextureSlots] = {};
     Stream streams_[kGfxVertexStreams];
     BufferId index_buffer_ = 0;
-    struct Shader {
-        ShaderStage stage;
-        VkShaderModule module;
-    };
     std::unordered_map<ShaderId, Shader> shaders_;
+    std::vector<std::vector<VertexAttribute>> layouts_;  // LayoutId - 1
+    std::unordered_map<PipelineKey, VkPipeline, WordHash> pipelines_;
+    std::unordered_map<SamplerKey, VkSampler, WordHash> samplers_;
+    DrawStream draw_streams_[kGfxVertexStreams];
+    std::unordered_map<uint64_t, Kept> kept_;  // draw_user's cache_key
+    uint64_t frame_ = 0;
+    VkDescriptorSetLayout set_layout_ = VK_NULL_HANDLE;
+    VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
+    VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
+    Image dummy_texture_;
+    VkBuf default_vertex_, quad_indices_;
+    SamplerState sampler_states_[kGfxTextureSlots];
+    ShaderId vertex_shader_ = 0, pixel_shader_ = 0;
+    LayoutId layout_ = 0;
+    std::vector<float> vs_constants_ = std::vector<float>(kVkVertexConstants * 4);
+    std::vector<float> ps_constants_ = std::vector<float>(kVkPixelConstants * 4);
+    UiNarrowing (*narrow_ui_draw_)() = nullptr;
+    uint32_t back_width_ = 0, back_height_ = 0;
+    uint32_t anisotropy_ = 1;
     TargetId back_buffer_ = 0, depth_buffer_ = 0;
     TargetId color_ = 0, depth_ = 0;
     Viewport viewport_;

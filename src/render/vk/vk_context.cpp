@@ -178,17 +178,23 @@ bool Context::create(SDL_Window* window, bool validation) {
     features.features.fillModeNonSolid = supported.fillModeNonSolid;
     features.features.depthBiasClamp = supported.depthBiasClamp;
     features.features.textureCompressionBC = supported.textureCompressionBC;  // the title's DXT textures
+    features_ = features.features;
+    {
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(physical_, &properties);
+        limits_ = properties.limits;
+    }
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo queue{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
     queue.queueFamilyIndex = queue_family_;
     queue.queueCount = 1;
     queue.pQueuePriorities = &priority;
-    const char* device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const char* device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
     VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_info.pNext = &features;
     device_info.queueCreateInfoCount = 1;
     device_info.pQueueCreateInfos = &queue;
-    device_info.enabledExtensionCount = 1;
+    device_info.enabledExtensionCount = static_cast<uint32_t>(std::size(device_extensions));
     device_info.ppEnabledExtensionNames = device_extensions;
     if (VkResult r = vkCreateDevice(physical_, &device_info, nullptr, &device_); r != VK_SUCCESS) {
         LOG_ERROR("render", "Vulkan: no device (%s)", result_name(r));
@@ -238,6 +244,8 @@ bool Context::pick_device(bool& has_d24s8) {
             missing = "dynamic rendering / synchronization2";
         else if (!has_device_extension(device, VK_KHR_SWAPCHAIN_EXTENSION_NAME))
             missing = "a swap chain";
+        else if (!has_device_extension(device, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME))
+            missing = "push descriptors";
         uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(device, &family_count, nullptr);
         std::vector<VkQueueFamilyProperties> families(family_count);
@@ -329,6 +337,7 @@ void Context::begin_commands() {
     vkResetCommandPool(device_, frame.pool, 0);
     vkResetDescriptorPool(device_, frame.descriptors, 0);
     frame.staging_used = 0;
+    ++staging_epoch_;
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(frame.cmd, &begin);
@@ -380,6 +389,7 @@ void Context::submit_and_wait() {
     // The descriptor sets of this frame stay: commands recorded from here on are new ones.
     vkResetCommandPool(device_, frame.pool, 0);
     frame.staging_used = 0;
+    ++staging_epoch_;
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(frame.cmd, &begin);
