@@ -640,4 +640,124 @@ uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeBlock(const uint32_t* context, uint8
 // NAL_CodNote_SkipBlock (each active channel's sized block skipped); returns context[1].
 uint32_t XB_STDCALL NAL_CodNote_SkipBlock5(const uint32_t* context, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5);
 
+// ---- Unreached codec slots (2026-11-12): vtables 0x007c2480 RLE8Int1, 0x007c2418 SignalCounter, 0x007c24e8
+// EntropyFloat1, 0x007c2550 Packed8Float1, 0x007c2758.. Float4 family, 0x007c2c38 Packed16EntropyIKSpin,
+// 0x007c2a98.. position/orientation. Same conventions as the classes above (stdcall unless noted).
+// Slot 0/1: type tag / value size.
+uint32_t XB_CDECL NAL_Int1_TypeId();      // 0x0007be00: 0x00909821
+uint32_t XB_CDECL NAL_Float1_TypeId();    // 0x0007be20: 0x00909823
+uint32_t XB_CDECL NAL_Float4_TypeId();    // 0x0007be50: 0x00909825
+uint32_t XB_CDECL NAL_IKSpin_TypeId();    // 0x0007bea0: 0x00909822
+uint32_t XB_CDECL NAL_IKSpin_ValueSize(); // 0x0007beb0: 0x50
+// Cursor slots 19/23: the cursor moved 12 / 20 / 1 bytes (0x0007e190, 0x00083490, 0x000834a0).
+uint8_t** XB_STDCALL NAL_Cursor_Skip12(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Skip20(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Skip1(uint8_t** cursor);
+// 0x0007daa0 (slot 10 of the classes without static data): nothing (callee pops 16).
+void XB_STDCALL NAL_ChannelClass_NoStatic(uint32_t, uint32_t, uint32_t, uint32_t);
+// Slots 4/12/13 (group, &cursor[, -]): 0x0007c110 / 0x0007c5c0 / 0x0007c5d0 one byte per channel (Fixup and
+// FreeState return the count, InitState the cursor); 0x0007d260 / 0x0007d690 / 0x0007d6b0 four bytes and
+// 0x0007f520 / 0x0007f8d0 / 0x0007f8f0 sixteen after aligning to 4 (InitState returns the new cursor).
+uint32_t XB_STDCALL NAL_Int1_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint8_t** XB_STDCALL NAL_Int1_InitState(const uint8_t* group, uint8_t** cursor);
+uint32_t XB_STDCALL NAL_Int1_FreeState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Float1_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_Float1_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Float1_FreeState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Float4_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_Float4_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Float4_FreeState(const uint8_t* group, uint8_t** cursor);
+// Thiscall wrappers of the cdecl methods (slots 11 and 14): 0x0007c540, 0x0007c8c0, 0x0007d620, 0x0007d6e0,
+// 0x0007f920, 0x00080c30, 0x00082650 (NullCallback), 0x000828a0, 0x00082eb0, 0x00083ab0, 0x00083b90.
+void XB_THISCALL NAL_SignalCounter_SkipStatic_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                    uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_Int1_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+uint32_t XB_THISCALL NAL_Packed8Float1_SkipStatic_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                        uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_Float1_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+void XB_THISCALL NAL_Float4_CopyChannels_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+void XB_THISCALL NAL_Float3_SkipFixedBlock_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                 uint32_t a5, uint32_t a6);
+void XB_THISCALL NAL_ChannelClass_NopSlot11(const void* cls, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+void XB_THISCALL NAL_Float2_SkipFixedBlock_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                 uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_TrajPosOri_ApplyWraps_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                     uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_Packed16EntropyIKSpin_ApplyWraps_thunk(const void* cls, uint32_t a1, uint32_t a2, uint32_t a3,
+                                                                uint32_t a4, uint32_t a5, uint32_t a6);
+uint32_t XB_THISCALL NAL_Packed16EntropyIKSpin_CopyState_thunk(const void* cls, uint32_t group, uint32_t dst, uint32_t src);
+// Slot 10 (context, pose, -, offsets): 0x0007c4a0 the stream B byte into each channel with an offset (stream B one
+// byte per active channel); 0x0007d5e0 = NAL_Packed8Float1_SkipStatic; 0x000818e0 / 0x00082850 NAL_Entropy_SkipStatic
+// with 12 / 8 bytes per channel; 0x00082dc0 the trajectory's stream B values (aligned to 16, 0x20 each) unless skip.
+uint32_t XB_STDCALL NAL_SignalCounter_ApplyStatic(const uint32_t* context, uint8_t* pose, uint32_t, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed8Float1_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+uint32_t XB_STDCALL NAL_PackedEntropy12_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+uint32_t XB_STDCALL NAL_EntropyPosOri_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+uint32_t XB_STDCALL NAL_TrajPosOri_ApplyStatic(const uint32_t* context, uint8_t* pose, bool skip, const int32_t* offsets);
+// Int1 classes: 0x0007c130 / 0x0007c1d0 the RLE8Int1 BeginBlock / DecodeFrames counting stream B per active
+// channel; 0x0007c700 NAL_SignalCounter_DecodeBlock without stream B; 0x0007c810 / 0x0007c3e0 Evaluate (byte
+// values; the SignalCounter also counts stream B); 0x0007c920 one cached byte per active channel.
+uint32_t XB_STDCALL NAL_SignalCounter_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_SignalCounter_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_RLE8Int1_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, uint32_t count,
+                                             int32_t stride);
+uint32_t XB_STDCALL NAL_RLE8Int1_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                          const int32_t* offsets);
+uint32_t XB_STDCALL NAL_SignalCounter_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Int1_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// Blends (count, dst, a, b, t / &weights): 0x0008b5e0 / 0x0008b650 a below one half, else b; 0x0008b740 /
+// 0x0008b7b0 bytes a * (1 - t) + b * t + 0.5 on the x87 through _ftol; 0x0008b830 / 0x0008b950 floats.
+void XB_STDCALL NAL_SignalCounter_Blend(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b, float t);
+void XB_STDCALL NAL_SignalCounter_BlendWeighted(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b,
+                                                const float** weights);
+void XB_STDCALL NAL_RLE8Int1_Blend(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b, float t);
+void XB_STDCALL NAL_RLE8Int1_BlendWeighted(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b,
+                                           const float** weights);
+void XB_STDCALL NAL_Float1_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_Float1_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+// Float1 classes: 0x0007c970 one entropy reader (0x10 bytes) per active channel; 0x0007d020 its block skipped;
+// 0x0007d290 / 0x0007d330 the Packed8Float1 readers (stream pointers) and frames; 0x0007d500 Evaluate: the int8 at
+// the cursor * record[1] + record[0] (stream A {bias, scale}).
+uint32_t XB_STDCALL NAL_EntropyFloat1_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyFloat1_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_Packed8Float1_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t bytes);
+uint32_t XB_STDCALL NAL_Packed8Float1_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed8Float1_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets);
+// 0x0007e7f0 / 0x0007f250: the packed entropy Float3 blocks skipped (three length-prefixed streams per active
+// channel; the cursor 3 / 6 bytes on, the 16-bit one aligned to 2 first).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// Float4: 0x0007f5e0 DecodeFrames, 0x0007f6a0 DecodeBlock, 0x0007f7e0 Evaluate, 0x0007fef0 the entropy Evaluate,
+// 0x00080d00 the packed entropy cached frame (4 bytes per active channel) - the Float3 code with 16-byte values.
+uint32_t XB_STDCALL NAL_Float4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t, uint32_t,
+                                            int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Float4_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, int32_t frames,
+                                           int32_t stride);
+uint32_t XB_STDCALL NAL_Float4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                        const int32_t* offsets);
+uint32_t XB_STDCALL NAL_EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// Position/orientation: 0x00082310 BeginBlock (readers = stream pointers, 16-aligned, 0x20 per frame); the
+// trajectory class 0x000829f0 / 0x00082a90 / 0x00082b60 / 0x00082cc0 also moves stream B 0x20 per active channel.
+uint32_t XB_STDCALL NAL_PositionOrientation_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream,
+                                                       int32_t frames);
+uint32_t XB_STDCALL NAL_TrajPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames);
+uint32_t XB_STDCALL NAL_TrajPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                uint32_t, int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_TrajPosOri_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, int32_t frames,
+                                               int32_t stride);
+uint32_t XB_STDCALL NAL_TrajPosOri_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                            const int32_t* offsets);
+// 0x0008d250 (BlendWeighted slot; stdcall, 5 words): NAL_Packed16EntropyIKSpin_Blend with t from **weights per record.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_BlendWeighted(uint32_t entry, int32_t count, uint8_t* out,
+                                                                                  const uint8_t* a, const uint8_t* b,
+                                                                                  const float** weights, uint32_t ebx,
+                                                                                  uint32_t esi, uint32_t edi);
+extern "C" void NAL_Packed16EntropyIKSpin_BlendWeighted_entry(void);
+
 }  // namespace game
