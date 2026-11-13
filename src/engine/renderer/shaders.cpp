@@ -1980,7 +1980,7 @@ void XB_CDECL cdSimpleUVAnim_RegisterMaterialType() { register_material_type(0x0
 void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x007b607c, own_address(&cdSimplePrelitVertexIter_Ctor)); }
 void XB_CDECL cdSimple_RegisterMaterialType() { register_material_type(0x007b635c, own_address(&cdSimpleVertexIter_Ctor)); }
 void XB_CDECL cdRiver_RegisterMaterialType() { register_material_type(0x007b6688, own_address(&cdRiverVertexIter_Ctor)); }
-void XB_CDECL cdOcean_RegisterMaterialType() { register_material_type(0x007b665c, 0x000508a0); }
+void XB_CDECL cdOcean_RegisterMaterialType() { register_material_type(0x007b665c, own_address(&cdOceanVertexIter_Ctor)); }
 void XB_CDECL cdWater_RegisterMaterialType() { register_material_type(0x007b6bfc, 0x000514b0); }
 void XB_CDECL cdWorldBlend_RegisterMaterialType() { register_material_type(0x007b6ecc, own_address(&cdWorldBlendVertexIter_Ctor)); }
 void XB_CDECL cdWorldVertexLit_RegisterMaterialType() { register_material_type(0x007b71bc, 0x00052e40); }

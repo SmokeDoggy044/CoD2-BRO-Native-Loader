@@ -161,4 +161,20 @@ void XB_THISCALL StdString_Tidy(uint8_t* self);  // 0x00014750
 void XB_CDECL XPP_StaticInit_921770();  // 0x007abead
 void XB_CDECL XPP_StaticInit_9217e0();  // 0x007abedd
 
+void XB_THISCALL UIMenu_ForwardSelectPrev(uint8_t* self, uint32_t);  // 0x00011ef0
+void XB_THISCALL UIMenu_ForwardSelectNext(uint8_t* self, uint32_t);  // 0x00011f00
+void XB_THISCALL UIMenu_ForwardSlot46(uint8_t* self, uint32_t);  // 0x00011f50
+void XB_THISCALL UIMenu_ForwardSlot47(uint8_t* self, uint32_t);  // 0x00011f60
+void XB_THISCALL UIMenu_Slot47Nop(uint8_t* self);  // 0x0030f000
+void XB_THISCALL UIMenu_Slot46Nop(uint8_t* self);  // 0x0030f010
+void XB_THISCALL UIMenu_ClearHeldDirection(uint8_t* self, uint32_t, uint32_t direction);  // 0x00314aa0
+void XB_THISCALL UIScreenMgr_ActiveScreenSlot33(uint8_t* self, uint32_t first, uint32_t second);  // 0x0030ec40
+void XB_THISCALL ZeroWord_Ctor(uint32_t* self);  // 0x0001d0e0
+uint32_t XB_CDECL cdOcean_StateSlot2();  // 0x0004f240
+uint32_t XB_CDECL cdOcean_StateSlot4();  // 0x0004f250
+uint32_t XB_STDCALL cdOcean_StateEntry(uint32_t a, uint32_t b, uint32_t c);  // 0x0004f260
+uint32_t XB_CDECL cdOcean_ConstSlot5();  // 0x0004f280
+uint32_t XB_CDECL cdOcean_ConstSlot6();  // 0x0004f290
+uint32_t* XB_CDECL cdOceanVertexIter_Ctor(uint32_t* iter);  // 0x000508a0
+
 }  // namespace game

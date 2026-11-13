@@ -153,6 +153,7 @@ void XB_THISCALL MissionSuccessFailMenu_Draw(uint8_t* menu);
 // S_StopUnpausedChannels, S_ResumeAllChannels, key catcher bit 1 cleared, Key_ClearStates.
 void XB_THISCALL LoadMaubeugeMenu_OnContinue(uint8_t* menu, uint32_t pad);
 void XB_THISCALL LoadAfricaMenu_OnContinue(uint8_t* menu, uint32_t pad);
+void XB_THISCALL LoadSicilyMenu_OnContinue(uint8_t* menu, uint32_t pad);  // 0x00335b80
 
 // --- Gap functions (no Ghidra function until 2026-11-11) ---
 // 0x0033ac80 (load progress on the stack, ret 4; CL_UpdateLoadingProgress): by the chapter (0x008dce48) the

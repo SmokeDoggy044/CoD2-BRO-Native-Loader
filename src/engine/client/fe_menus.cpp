@@ -889,6 +889,7 @@ void loading_continue(uint8_t* menu) {
 
 void XB_THISCALL LoadMaubeugeMenu_OnContinue(uint8_t* menu, uint32_t) { loading_continue(menu); }
 void XB_THISCALL LoadAfricaMenu_OnContinue(uint8_t* menu, uint32_t) { loading_continue(menu); }
+void XB_THISCALL LoadSicilyMenu_OnContinue(uint8_t* menu, uint32_t) { loading_continue(menu); }
 
 void XB_THISCALL LoadMaubeugeMenu_Draw(uint8_t* menu) {
     set_alpha(field<uint8_t*>(menu, 0x50), kZeroFloat);

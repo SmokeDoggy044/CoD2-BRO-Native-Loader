@@ -666,4 +666,75 @@ void XB_THISCALL StdString_Tidy(uint8_t* self) {
 void XB_CDECL XPP_StaticInit_921770() { xpp_init_array(0x00921770); }
 void XB_CDECL XPP_StaticInit_9217e0() { xpp_init_array(0x009217e0); }
 
+// --- m6/m7 recordings (2026-11-12): gap functions their --text-clear runs reached ---
+
+// UIMenu vtable slots 20-23: forward to slots 44-47 (SelectPrev, SelectNext, two empty ones); the argument is unused.
+void XB_THISCALL UIMenu_ForwardSelectPrev(uint8_t* self, uint32_t) {
+    vcall<void XB_THISCALL(uint8_t*)>(self, 0xb0)(self);  // slot 44: UIMenu_SelectPrev
+}
+
+void XB_THISCALL UIMenu_ForwardSelectNext(uint8_t* self, uint32_t) {
+    vcall<void XB_THISCALL(uint8_t*)>(self, 0xb4)(self);  // slot 45: UIMenu_SelectNext
+}
+
+void XB_THISCALL UIMenu_ForwardSlot46(uint8_t* self, uint32_t) {
+    vcall<void XB_THISCALL(uint8_t*)>(self, 0xb8)(self);  // slot 46
+}
+
+void XB_THISCALL UIMenu_ForwardSlot47(uint8_t* self, uint32_t) {
+    vcall<void XB_THISCALL(uint8_t*)>(self, 0xbc)(self);  // slot 47
+}
+
+void XB_THISCALL UIMenu_Slot47Nop(uint8_t*) {}
+void XB_THISCALL UIMenu_Slot46Nop(uint8_t*) {}
+
+// Slot 33: with flag 0x80 of +0x2a, a direction (4/8/16/32) equal to the held one at +0x32 clears it.
+void XB_THISCALL UIMenu_ClearHeldDirection(uint8_t* self, uint32_t, uint32_t direction) {
+    if (!(self[0x2a] & 0x80)) return;
+    if (direction != 4 && direction != 8 && direction != 0x10 && direction != 0x20) return;
+    if (static_cast<int32_t>(direction) == static_cast<int8_t>(self[0x32])) self[0x32] = 0xff;
+}
+
+// Screen manager slot 13: the active screen's slot 33, with the two arguments swapped.
+void XB_THISCALL UIScreenMgr_ActiveScreenSlot33(uint8_t* self, uint32_t first, uint32_t second) {
+    int32_t active;
+    std::memcpy(&active, self + 0xc, 4);
+    if (active < 0) return;
+    uint8_t** screens;
+    std::memcpy(&screens, self + 0x4, 4);
+    uint8_t* const screen = screens[active];
+    if (!screen) return;
+    vcall<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(screen, 0x84)(screen, second, first);
+}
+
+// The element constructor Player_FindMountTrigger's 0x540-entry list runs (eh_vector_constructor_iterator).
+void XB_THISCALL ZeroWord_Ctor(uint32_t* self) {
+    *self = 0;
+}
+
+// cdOcean material vtable 0x007b6600 slots 2-6.
+uint32_t XB_CDECL cdOcean_StateSlot2() {
+    return 0x00902118;
+}
+
+uint32_t XB_CDECL cdOcean_StateSlot4() {
+    return 0x00902114;
+}
+
+uint32_t XB_STDCALL cdOcean_StateEntry(uint32_t a, uint32_t b, uint32_t c) {
+    return 0x009020f4 + (c + 2 * (b + 2 * a)) * 4;  // a 2x2x2 table of words
+}
+
+uint32_t XB_CDECL cdOcean_ConstSlot5() {
+    return 0xffffffa6u;
+}
+
+uint32_t XB_CDECL cdOcean_ConstSlot6() {
+    return 0xffffffa8u;
+}
+
+uint32_t* XB_CDECL cdOceanVertexIter_Ctor(uint32_t* iter) {
+    return vertex_iter_ctor(iter, 0x007b6930);
+}
+
 }  // namespace game

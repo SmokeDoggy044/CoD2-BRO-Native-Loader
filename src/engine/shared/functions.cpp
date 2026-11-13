@@ -227,6 +227,10 @@ const Function kFunctions[] = {
     {"UIMenu_RestoreSelectionVirtual", 0x00011ee0, 0, code(&UIMenu_RestoreSelectionVirtual), 4, Result::None, Status::Compare},  // was FUN_00011ee0 (gap)
     {"UIMenu_GetByte33", 0x00011f20, 0, code(&UIMenu_GetByte33), 0, Result::Al, Status::Compare},  // was FUN_00011f20 (gap)
     {"UIMenu_GetField8", 0x00011f30, 0, code(&UIMenu_GetField8), 0, Result::Eax, Status::Compare},  // was FUN_00011f30 (gap)
+    {"UIMenu_ForwardSelectPrev", 0x00011ef0, 0, code(&UIMenu_ForwardSelectPrev), 4, Result::None, Status::Replaced},  // was FUN_00011ef0 (gap, m6/m7); virtual call: not compared
+    {"UIMenu_ForwardSelectNext", 0x00011f00, 0, code(&UIMenu_ForwardSelectNext), 4, Result::None, Status::Replaced},  // was FUN_00011f00 (gap, m6/m7); virtual call: not compared
+    {"UIMenu_ForwardSlot46", 0x00011f50, 0, code(&UIMenu_ForwardSlot46), 4, Result::None, Status::Replaced},  // was FUN_00011f50 (gap, m6/m7); virtual call: not compared
+    {"UIMenu_ForwardSlot47", 0x00011f60, 0, code(&UIMenu_ForwardSlot47), 4, Result::None, Status::Replaced},  // was FUN_00011f60 (gap, m6/m7); virtual call: not compared
     {"UIElement_GetByte1A", 0x00011f80, 0, code(&UIElement_GetByte1A), 0, Result::Al, Status::Compare},  // was FUN_00011f80 (gap)
     {"UIScreenMgr_DeletingDtor", 0x00011f90, 0, code(&UIScreenMgr_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIObject_GetByte4", 0x00011fb0, 0, code(&UIObject_GetByte4), 0, Result::Al, Status::Compare},  // was FUN_00011fb0 (gap)
@@ -1040,12 +1044,19 @@ const Function kFunctions[] = {
     {"cdCharVertexIter_Ctor", 0x0004bf60, 0, code(&cdCharVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004bf60 (gap)
     {"cdAirplaneMetalVertexIter_Ctor", 0x0004cbb0, 0, code(&cdAirplaneMetalVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004cbb0 (gap)
     {"cdPrelitVertexIter_Ctor", 0x0004c680, 0, code(&cdPrelitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004c680 (gap)
+    {"ZeroWord_Ctor", 0x0001d0e0, 0, code(&ZeroWord_Ctor), 0, Result::None, Status::Compare},  // was FUN_0001d0e0 (gap, m6/m7)
     {"cdSimpleUVAnimVertexIter_Ctor", 0x0004d880, 0, code(&cdSimpleUVAnimVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004d880 (gap)
     {"cdSimplePrelitVertexIter_Ctor", 0x0004df50, 0, code(&cdSimplePrelitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004df50 (gap)
     {"cdSimpleVertexIter_Ctor", 0x0004e6b0, 0, code(&cdSimpleVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004e6b0 (gap)
     {"cdOcean_GetVertexShader", 0x0004e920, 0, code(&cdOcean_GetVertexShader), 0, Result::Eax, Status::Compare},  // was FUN_0004e920 (gap)
     {"cdOcean_ConstSlot13", 0x0004e960, 0, code(&cdOcean_ConstSlot13), 0, Result::Eax, Status::Compare},  // was FUN_0004e960 (gap)
     {"cdOcean_ConstSlot12", 0x0004e970, 0, code(&cdOcean_ConstSlot12), 0, Result::Eax, Status::Compare},  // was FUN_0004e970 (gap)
+    {"cdOcean_StateSlot2", 0x0004f240, 0, code(&cdOcean_StateSlot2), 0, Result::Eax, Status::Compare},  // was FUN_0004f240 (gap, m6/m7)
+    {"cdOcean_StateSlot4", 0x0004f250, 0, code(&cdOcean_StateSlot4), 0, Result::Eax, Status::Compare},  // was FUN_0004f250 (gap, m6/m7)
+    {"cdOcean_StateEntry", 0x0004f260, 0, code(&cdOcean_StateEntry), 12, Result::Eax, Status::Compare},  // was FUN_0004f260 (gap, m6/m7)
+    {"cdOcean_ConstSlot5", 0x0004f280, 0, code(&cdOcean_ConstSlot5), 0, Result::Eax, Status::Compare},  // was FUN_0004f280 (gap, m6/m7)
+    {"cdOcean_ConstSlot6", 0x0004f290, 0, code(&cdOcean_ConstSlot6), 0, Result::Eax, Status::Compare},  // was FUN_0004f290 (gap, m6/m7)
+    {"cdOceanVertexIter_Ctor", 0x000508a0, 0, code(&cdOceanVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_000508a0 (gap, m6/m7)
     {"cdRiverVertexIter_Ctor", 0x0004e9d0, 0, code(&cdRiverVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004e9d0 (gap)
     {"cdOcean_LoadTextures", 0x0004ea90, 0, code(&cdOcean_LoadTextures), 4, Result::Eax, Status::Compare},  // was FUN_0004ea90 (gap)
     {"cdOcean_ReleaseTextures", 0x0004eb00, 0, code(&cdOcean_ReleaseTextures), 4, Result::None, Status::Compare},  // was FUN_0004eb00 (gap)
@@ -9737,6 +9748,11 @@ const Function kFunctions[] = {
     {"CreateProfileMenu_Construct", 0x00335570, 0, code(&CreateProfileMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"BonusMaterialsMenu_HandleSelect", 0x00335730, 0, code(&BonusMaterialsMenu_HandleSelect_entry), 0, Result::None, Status::Compare},
     {"LoadMaubeugeMenu_OnContinue", 0x00335b10, 0, code(&LoadMaubeugeMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335b10 (gap)
+    {"LoadSicilyMenu_OnContinue", 0x00335b80, 0, code(&LoadSicilyMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335b80 (gap, m6/m7)
+    {"UIMenu_Slot47Nop", 0x0030f000, 0, code(&UIMenu_Slot47Nop), 0, Result::None, Status::Replaced},  // was FUN_0030f000 (gap, m6/m7); ret: too short to compare
+    {"UIMenu_Slot46Nop", 0x0030f010, 0, code(&UIMenu_Slot46Nop), 0, Result::None, Status::Replaced},  // was FUN_0030f010 (gap, m6/m7); ret: too short to compare
+    {"UIMenu_ClearHeldDirection", 0x00314aa0, 0, code(&UIMenu_ClearHeldDirection), 8, Result::None, Status::Compare},  // was FUN_00314aa0 (gap, m6/m7)
+    {"UIScreenMgr_ActiveScreenSlot33", 0x0030ec40, 0, code(&UIScreenMgr_ActiveScreenSlot33), 8, Result::None, Status::Replaced},  // was FUN_0030ec40 (gap, m6/m7); virtual call: not compared
     {"LoadAfricaMenu_OnContinue", 0x00335bf0, 0, code(&LoadAfricaMenu_OnContinue), 4, Result::None, Status::Compare},  // was FUN_00335bf0 (gap)
     {"FE_ControlsUpdateText", 0x00335d60, 0, code(&FE_ControlsUpdateText_entry), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_ChangeValue", 0x00335fe0, 0, code(&ControllerConfigMenu_ChangeValue_entry), 0, Result::None, Status::Replaced},

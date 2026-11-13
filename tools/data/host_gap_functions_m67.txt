@@ -1,0 +1,17 @@
+# m6/m7 recordings (11-12): --text-clear spots without a Ghidra function (+ 0x0004f250, unreached sibling)
+0001d0e0
+00011ef0
+00011f00
+00011f50
+00011f60
+0004f240
+0004f250
+0004f260
+0004f280
+0004f290
+000508a0
+0030ec40
+0030f000
+0030f010
+00314aa0
+00335b80

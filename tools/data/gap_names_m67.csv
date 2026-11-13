@@ -1,0 +1,17 @@
+address,name
+0001d0e0,ZeroWord_Ctor
+00011ef0,UIMenu_ForwardSelectPrev
+00011f00,UIMenu_ForwardSelectNext
+00011f50,UIMenu_ForwardSlot46
+00011f60,UIMenu_ForwardSlot47
+0004f240,cdOcean_StateSlot2
+0004f250,cdOcean_StateSlot4
+0004f260,cdOcean_StateEntry
+0004f280,cdOcean_ConstSlot5
+0004f290,cdOcean_ConstSlot6
+000508a0,cdOceanVertexIter_Ctor
+0030ec40,UIScreenMgr_ActiveScreenSlot33
+0030f000,UIMenu_Slot47Nop
+0030f010,UIMenu_Slot46Nop
+00314aa0,UIMenu_ClearHeldDirection
+00335b80,LoadSicilyMenu_OnContinue

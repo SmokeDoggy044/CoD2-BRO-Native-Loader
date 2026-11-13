@@ -29,6 +29,7 @@
 #include "g_combat.h"
 #include "pmove.h"
 #include "stream.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -1928,7 +1929,7 @@ uint32_t XB_CDECL Player_FindMountTrigger(const float* point, int32_t* out) {
     if (contents & 0x1000000) return 1;
     alignas(16) uint32_t list[0x540];
     using VectorCtor = void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t);
-    title_vector_construct(list, 4, 0x540, 0x0001d0e0);  // eh_vector_constructor_iterator
+    title_vector_construct(list, 4, 0x540, own_address(&ZeroWord_Ctor));  // eh_vector_constructor_iterator
     const float pad = title_global<float>(0x0083ebf8);  // 0.1
     alignas(16) float mins[4], maxs[4];
     mins[0] = point[0] - pad;
