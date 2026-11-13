@@ -2445,4 +2445,214 @@ void XB_CDECL StaticInit_FontNames_95f7e8() {
     }
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+void XB_THISCALL UIScreenMgr_AddScreen(uint8_t* mgr, uint8_t* screen) {
+    field<uint8_t**>(mgr, 4)[field<int32_t>(mgr, 0x14)] = screen;
+    ++field<int32_t>(mgr, 0x14);
+}
+
+void XB_THISCALL UIDialog_OnBack(uint8_t* dialog, uint32_t) {
+    if (const uint32_t callback = field<uint32_t>(dialog, 0x44))
+        title_function<void XB_THISCALL(uint8_t*)>(callback)(dialog);
+}
+
+void XB_THISCALL UIDialog_RestoreSelectionNop(uint8_t*) {}
+
+void XB_THISCALL UIDialog_OnUp(uint8_t* dialog, uint32_t) {
+    if (dialog[0x58] && field<int32_t>(dialog, 0x34) > 1) call(dialog, 0xb0);
+}
+
+void XB_THISCALL UIDialog_OnDown(uint8_t* dialog, uint32_t) {
+    if (dialog[0x58] && field<int32_t>(dialog, 0x34) > 1) call(dialog, 0xb4);
+}
+
+void XB_THISCALL UIDialog_OnLeft(uint8_t* dialog, uint32_t) {
+    if (!dialog[0x58]) call(dialog, 0xb0);
+}
+
+void XB_THISCALL UIDialog_OnRight(uint8_t* dialog, uint32_t) {
+    if (!dialog[0x58]) call(dialog, 0xb4);
+}
+
+void XB_THISCALL UIDialog_ReportChoice(uint8_t*, int32_t choice, uint32_t) {
+    uint8_t* const front_end = title_global<uint8_t*>(0x0095f8f8);
+    if (front_end) {
+        if (field<int32_t>(front_end, 0xc) != 0xf) return;
+        uint8_t* const screen = field<uint8_t*>(field<uint8_t*>(front_end, 4), 0x3c);
+        if (choice == 0) {
+            screen[0x96] = 1;
+            screen[0x61] = 0;
+        } else if (choice == 1) {
+            screen[0x95] = 1;
+            screen[0x61] = 1;
+        }
+        return;
+    }
+    uint8_t* const screen = field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0x1c);
+    if (choice == 0) {
+        screen[0x85] = 1;
+        screen[0x52] = 0;
+    } else if (choice == 1) {
+        screen[0x84] = 1;
+        screen[0x52] = 1;
+    }
+}
+
+namespace {
+
+int8_t held_direction(uint8_t* menu) { return static_cast<int8_t>(menu[0x32]); }
+
+// The held left / right (0x10 / 0x20) as the left / right handler (+0x58 / +0x5c) with pad 0.
+bool repeat_left_right(uint8_t* menu) {
+    if (held_direction(menu) == 0x20) {
+        call(menu, 0x5c, 0);
+        return true;
+    }
+    if (held_direction(menu) == 0x10) {
+        call(menu, 0x58, 0);
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(UIMenu_RepeatHeldUpDown_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(UIMenu_RepeatHeldUpDown) "popl %ecx\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "movl (%ecx), %edx\n"
+                   "jmp *(%edx,%eax)\n"
+                   "1: ret")
+
+uint32_t XB_CDECL UIMenu_RepeatHeldUpDown(uint8_t* menu) {
+    if (!menu_flag(menu, 7)) return 0;
+    if (held_direction(menu) == 4) return 0xb0;
+    if (held_direction(menu) == 8) return 0xb4;
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(UIMenu_RepeatHeldDirection_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(UIMenu_RepeatHeldDirection) "popl %ecx\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "movl (%ecx), %edx\n"
+                   "jmp *(%edx,%eax)\n"
+                   "1: ret")
+
+uint32_t XB_CDECL UIMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (!menu_flag(menu, 7)) return 0;
+    switch (held_direction(menu)) {
+    case 4: return 0xb0;     // previous
+    case 8: return 0xb4;     // next
+    case 0x10: return 0xb8;  // slot 46
+    case 0x20: return 0xbc;  // slot 47
+    default: return 0;
+    }
+}
+
+void XB_THISCALL ChapterMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (menu_flag(menu, 7)) repeat_left_right(menu);
+}
+
+void XB_THISCALL CreateProfileMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (!menu_flag(menu, 7) || repeat_left_right(menu)) return;
+    if (held_direction(menu) == 4)
+        call(menu, 0x50, 0);
+    else if (held_direction(menu) == 8)
+        call(menu, 0x54, 0);
+}
+
+void XB_THISCALL SoundMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (menu_flag(menu, 7) && field<int16_t>(menu, 0x22) == 0) repeat_left_right(menu);
+}
+
+void XB_THISCALL ControllerConfigMenu_RepeatHeldDirection(uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    if (menu_flag(menu, 7) && (row == 2 || row == 3)) repeat_left_right(menu);
+}
+
+void XB_THISCALL UIMenu_SetVertAlign(uint8_t* menu, uint32_t top, uint32_t bottom) {
+    menu[0x2b] = static_cast<uint8_t>(menu[0x2b] & 0xf3);
+    const uint16_t flags = field<uint16_t>(menu, 0x2a);
+    if (static_cast<uint8_t>(top))
+        field<uint16_t>(menu, 0x2a) = static_cast<uint16_t>(flags | 0x400);
+    else if (static_cast<uint8_t>(bottom))
+        field<uint16_t>(menu, 0x2a) = static_cast<uint16_t>(flags | 0x800);
+}
+
+UI_MENU_TAIL_SCREEN(ChapterMenu_OnBack_entry, 2)
+UI_MENU_TAIL_SCREEN(CreateProfileMenu_OnBack_entry, 0)
+
+PLATFORM_ASM_ENTRY(GameplayMenu_OnBack_entry,
+                   "movl 0x0095f8f8, %ecx\n"  // the front end
+                   "movl (%ecx), %eax\n"
+                   "movl $3, 4(%esp)\n"
+                   "jmp *0xc(%eax)")
+
+UI_MENU_TAIL_DECIDE(SinglePlayerMenu_OnBack_entry, SinglePlayerMenu_OnBack)
+
+int32_t XB_CDECL SinglePlayerMenu_OnBack(uint8_t* menu) {
+    if (menu[0x44]) return -1;
+    field<uint32_t>(menu, 0x3c) = 0;
+    return 1;
+}
+
+UI_MENU_TAIL_DECIDE(AutosaveMenu_OnBack_entry, AutosaveMenu_OnBack)
+
+int32_t XB_CDECL AutosaveMenu_OnBack(uint8_t*) {
+    return field<int32_t>(title_global<uint8_t*>(0x0095f900), 0xc) < 0 ? 6 : -1;  // no in-game screen active
+}
+
+UI_MENU_TAIL_DECIDE(ProfileMenu_OnBack_entry, ProfileMenu_OnBack)
+
+int32_t XB_CDECL ProfileMenu_OnBack(uint8_t* menu) {
+    if (field<int32_t>(title_global<uint8_t*>(0x0095f900), 0xc) >= 0) return -1;
+    title_global<uint8_t>(0x0095f91a) = 0;
+    if (menu[0x94]) return 1;
+    field<uint32_t>(menu, 0x44) = 0;
+    const uint32_t mode = field<uint32_t>(menu, 0x4c);
+    if (mode != 0 && mode != 2) return 0;
+    return field<uint32_t>(menu, 0x5c) != 0 ? 1 : 2;
+}
+
+UI_MENU_TAIL_DECIDE(MainMenu_OnBack_entry, MainMenu_OnBack)
+
+int32_t XB_CDECL MainMenu_OnBack(uint8_t* menu) {
+    if (!field<uint32_t>(menu, 0x38) || menu[0x44]) return -1;
+    const auto title_screen = [] {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x3c);
+    };
+    title_screen()[0x94] = 0;
+    field<uint32_t>(title_screen(), 0x5c) = 0;
+    field<uint32_t>(title_screen(), 0x4c) = 1;
+    return 0xf;
+}
+
+UI_MENU_TAIL_DECIDE_ARG(MainMenu_HandleSelect_entry, MainMenu_HandleSelect)
+
+int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (!field<uint32_t>(menu, 0x38) || menu[0x44]) return -1;
+    field<uint32_t>(menu, 0x3c) = index;
+    const auto screen = [](uint32_t offset) {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), offset);
+    };
+    switch (index) {
+    case 0: return 2;
+    case 1:
+        Cmd_ExecuteRegisteredCommand(&title_global<const char>(0x0082c51c));  // "load_mp_exe"
+        return -1;
+    case 2: return 3;
+    case 3:
+        field<uint32_t>(screen(0x20), 0x80) = 0;
+        return 8;
+    case 4:
+        if (!title_global<uint8_t>(0x0095e7f8)) return -1;
+        field<uint32_t>(screen(0x48), 0x40) = 0;
+        return 0x12;
+    default: return -1;
+    }
+}
+
 }  // namespace game

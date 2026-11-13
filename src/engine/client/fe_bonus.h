@@ -173,4 +173,11 @@ extern "C" void BonusCharactersMenu_UpdateNewFlags_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL BonusMaterialsMenu_UpdateNewFlags(uint8_t* menu);
 extern "C" void BonusMaterialsMenu_UpdateNewFlags_entry(void);
 
+// 0x00012ff0 (thiscall, index on the stack, ret 4): BonusMaterialsMenu_HandleSelect.
+extern "C" void BonusMaterialsMenu_OnSelect_entry(void);
+// 0x00013000 (thiscall, ret 4): back to screen 1 (manager +0x0c, tail jump) unless +0x3c. The C part: the screen,
+// -1 = stay.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL BonusMaterialsMenu_OnBack(uint8_t* menu);
+extern "C" void BonusMaterialsMenu_OnBack_entry(void);
+
 }  // namespace game

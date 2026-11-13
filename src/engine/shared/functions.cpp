@@ -171,36 +171,62 @@ const Function kFunctions[] = {
     {"FastSinCos", 0x000110f0, 0, code(&FastSinCos), 4, Result::None, Status::Replaced},
     {"ScriptString_IsEmpty", 0x00011200, 0, code(&ScriptString_IsEmpty), 0, Result::Al, Status::Replaced},
     {"ScriptString_InitEmpty", 0x00011270, 0, code(&ScriptString_InitEmpty), 0, Result::Eax, Status::Compare},  // was FUN_00011270 (gap)
+    {"UIElement_SetFlagBit1", 0x000112c0, 0, code(&UIElement_SetFlagBit1), 4, Result::None, Status::Compare},  // was FUN_000112c0 (gap)
+    {"UIElement_ClearFlagBit0", 0x000112e0, 0, code(&UIElement_ClearFlagBit0), 0, Result::None, Status::Compare},  // was FUN_000112e0 (gap)
     {"UIElement_SetDepth", 0x000112f0, 0, code(&UIElement_SetDepth), 4, Result::None, Status::Replaced},
     {"UIElement_GetDepth", 0x00011300, 0, code(&UIElement_GetDepth), 0, Result::St0, Status::Replaced},
+    {"UIElement_HasFlagBit4Or5", 0x00011310, 0, code(&UIElement_HasFlagBit4Or5), 0, Result::Eax, Status::Compare},  // was FUN_00011310 (gap)
     {"UIElement_GetFlagBit2", 0x00011330, 0, code(&UIElement_GetFlagBit2), 0, Result::Eax, Status::Compare},  // was FUN_00011330 (gap)
+    {"UIElement_DeletingDtor", 0x00011360, 0, code(&UIElement_DeletingDtor), 4, Result::Eax, Status::Replaced},  // was FUN_00011360 (gap); frees: not compared
     {"UITextBase_HasFlag2", 0x000113a0, 0, code(&UITextBase_HasFlag2), 0, Result::Al, Status::Compare},  // was FUN_000113a0 (gap)
     {"UIElement_SetVisible", 0x00011340, 0, code(&UIElement_SetVisible), 4, Result::None, Status::Compare},  // was FUN_00011340 (gap)
     {"UITextBase_SetFlag2", 0x00011380, 0, code(&UITextBase_SetFlag2), 4, Result::None, Status::Compare},  // was FUN_00011380 (gap)
+    {"UITextBase_ReturnFalse", 0x000113b0, 0, code(&UITextBase_ReturnFalse), 0, Result::Al, Status::Compare},  // was FUN_000113b0 (gap)
+    {"UITextBase_SetFont", 0x000113c0, 0, code(&UITextBase_SetFont), 4, Result::None, Status::Compare},  // was FUN_000113c0 (gap)
+    {"UITextBase_SetFlag5CBit2", 0x000113d0, 0, code(&UITextBase_SetFlag5CBit2), 4, Result::None, Status::Compare},  // was FUN_000113d0 (gap)
     {"UITextBase_SetUniformScale", 0x000113f0, 0, code(&UITextBase_SetUniformScale), 4, Result::None, Status::Replaced},
     {"UITextBase_SetScale", 0x00011430, 0, code(&UITextBase_SetScale), 8, Result::None, Status::Replaced},
+    {"UITextBase_SetOffset44", 0x00011470, 0, code(&UITextBase_SetOffset44), 8, Result::None, Status::Compare},  // was FUN_00011470 (gap)
     {"UITextBase_SetString54", 0x000114b0, 0, code(&UITextBase_SetString54), 4, Result::Eax, Status::Compare},  // was FUN_000114b0 (gap)
     {"UITextBase_MoveBy", 0x000114c0, 0, code(&UITextBase_MoveBy), 8, Result::None, Status::Replaced},
     {"UITextBase_SetString1C", 0x00011530, 0, code(&UITextBase_SetString1C), 4, Result::Eax, Status::Compare},  // was FUN_00011530 (gap)
     {"UITextBase_SetPosition", 0x00011540, 0, code(&UITextBase_SetPosition), 8, Result::None, Status::Replaced},
     {"UITextBase_SetFloat2C", 0x00011580, 0, code(&UITextBase_SetFloat2C), 4, Result::None, Status::Compare},  // was FUN_00011580 (gap)
+    {"UITextBase_SetFloat30", 0x00011590, 0, code(&UITextBase_SetFloat30), 4, Result::None, Status::Compare},  // was FUN_00011590 (gap)
     {"UITextBase_SetField58", 0x000115c0, 0, code(&UITextBase_SetField58), 4, Result::None, Status::Compare},  // was FUN_000115c0 (gap)
     {"UITextBase_GetName", 0x000115d0, 0, code(&UITextBase_GetName), 4, Result::Eax, Status::Replaced},
     {"UITextBase_GetText", 0x000115f0, 0, code(&UITextBase_GetText), 4, Result::Eax, Status::Replaced},
     {"UITextBase_GetFloat38", 0x00011610, 0, code(&UITextBase_GetFloat38), 0, Result::St0, Status::Compare},  // was FUN_00011610 (gap)
+    {"UITextBase_GetFloat3C", 0x00011620, 0, code(&UITextBase_GetFloat3C), 0, Result::St0, Status::Compare},  // was FUN_00011620 (gap)
+    {"UITextBase_GetFlag5CBit2", 0x00011630, 0, code(&UITextBase_GetFlag5CBit2), 0, Result::Eax, Status::Compare},  // was FUN_00011630 (gap)
     {"UITextBase_GetField18", 0x00011640, 0, code(&UITextBase_GetField18), 0, Result::Eax, Status::Compare},  // was FUN_00011640 (gap)
     {"UITextBase_GetField50", 0x00011650, 0, code(&UITextBase_GetField50), 4, Result::Eax, Status::Compare},  // was FUN_00011650 (gap)
+    {"UITextBase_GetFlags5C", 0x00011660, 0, code(&UITextBase_GetFlags5C), 0, Result::Eax, Status::Compare},  // was FUN_00011660 (gap)
+    {"UITextBase_GetHorzAlign", 0x00011670, 0, code(&UITextBase_GetHorzAlign), 0, Result::Eax, Status::Compare},  // was FUN_00011670 (gap)
+    {"UITextBase_GetVertAlign", 0x00011680, 0, code(&UITextBase_GetVertAlign), 0, Result::Eax, Status::Compare},  // was FUN_00011680 (gap)
     {"UITextBase_GetFloat2C", 0x00011690, 0, code(&UITextBase_GetFloat2C), 0, Result::St0, Status::Compare},  // was FUN_00011690 (gap)
     {"UITextBase_TestFlags5C", 0x000116a0, 0, code(&UITextBase_TestFlags5C), 4, Result::Al, Status::Compare},  // was FUN_000116a0 (gap)
     {"UITextBase_SetAlpha", 0x000115a0, 0, code(&UITextBase_SetAlpha), 4, Result::None, Status::Compare},  // was FUN_000115a0 (gap)
     {"UITextBase_SetFlags", 0x000116b0, 0, code(&UITextBase_SetFlags), 8, Result::None, Status::Compare},  // was FUN_000116b0 (gap)
+    {"UITextBase_GetZeroVector", 0x000116e0, 0, code(&UITextBase_GetZeroVector), 4, Result::Eax, Status::Compare},  // was FUN_000116e0 (gap)
     {"UITextBase_DeletingDtor", 0x00011700, 0, code(&UITextBase_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UITextLine_ElementCtor", 0x00011750, 0, code(&UITextLine_ElementCtor), 0, Result::Eax, Status::Compare},  // was FUN_00011750 (gap)
+    {"UIText_GetField78", 0x00011760, 0, code(&UIText_GetField78), 0, Result::Eax, Status::Compare},  // was FUN_00011760 (gap)
+    {"UIText_GetField7C", 0x00011770, 0, code(&UIText_GetField7C), 0, Result::Eax, Status::Compare},  // was FUN_00011770 (gap)
+    {"UIText_GetField74", 0x00011780, 0, code(&UIText_GetField74), 0, Result::Eax, Status::Compare},  // was FUN_00011780 (gap)
+    {"UIText_SetDefaultLineSpacing", 0x00011790, 0, code(&UIText_SetDefaultLineSpacing), 0, Result::None, Status::Compare},  // was FUN_00011790 (gap)
     {"UIText_SetHorzAlign", 0x000117a0, 0, code(&UIText_SetHorzAlign), 4, Result::None, Status::Compare},
     {"UIText_SetVertAlign", 0x000117e0, 0, code(&UIText_SetVertAlign), 4, Result::None, Status::Replaced},
     {"UIText_SetUniformScale", 0x00011820, 0, code(&UIText_SetUniformScale), 4, Result::None, Status::Replaced},
     {"UIText_SetScale", 0x00011870, 0, code(&UIText_SetScale), 8, Result::None, Status::Compare},
     {"UIText_SetFloat64", 0x000118c0, 0, code(&UIText_SetFloat64), 4, Result::None, Status::Compare},  // was FUN_000118c0 (gap)
+    {"UIText_SetField60", 0x000118d0, 0, code(&UIText_SetField60), 4, Result::None, Status::Compare},  // was FUN_000118d0 (gap)
+    {"UIText_SetField74", 0x000118e0, 0, code(&UIText_SetField74), 4, Result::None, Status::Compare},  // was FUN_000118e0 (gap)
+    {"UIText_GetFields2C30", 0x000118f0, 0, code(&UIText_GetFields2C30), 8, Result::None, Status::Compare},  // was FUN_000118f0 (gap)
+    {"UIText_SetByte96", 0x00011910, 0, code(&UIText_SetByte96), 4, Result::None, Status::Compare},  // was FUN_00011910 (gap)
+    {"UIPicture_ScaleAboutUniform", 0x00011980, 0, code(&UIPicture_ScaleAboutUniform), 16, Result::None, Status::Compare},  // was FUN_00011980 (gap)
+    {"UIPicture_SetQuadUVs", 0x000119b0, 0, code(&UIPicture_SetQuadUVs), 12, Result::None, Status::Compare},  // was FUN_000119b0 (gap)
+    {"UIElement_GetFields14_18", 0x00011a00, 0, code(&UIElement_GetFields14_18), 8, Result::None, Status::Compare},  // was FUN_00011a00 (gap)
     {"UIElement_GetFloat14", 0x00011a20, 0, code(&UIElement_GetFloat14), 0, Result::St0, Status::Compare},  // was FUN_00011a20 (gap)
     {"UIElement_GetFloat18", 0x00011a30, 0, code(&UIElement_GetFloat18), 0, Result::St0, Status::Compare},  // was FUN_00011a30 (gap)
     {"UIElement_GetFloat30", 0x00011a50, 0, code(&UIElement_GetFloat30), 0, Result::St0, Status::Compare},  // was FUN_00011a50 (gap)
@@ -212,25 +238,55 @@ const Function kFunctions[] = {
     {"UIPicture_GetColor", 0x00011a60, 0, code(&UIPicture_GetColor), 4, Result::Eax, Status::Compare},  // was FUN_00011a60 (gap)
     {"UIPicture_GetWidth", 0x00011a90, 0, code(&UIPicture_GetWidth), 0, Result::St0, Status::Replaced},
     {"UIPicture_GetHeight", 0x00011ac0, 0, code(&UIPicture_GetHeight), 0, Result::St0, Status::Replaced},
+    {"UIWorldPicture_CopyFrom", 0x00011af0, 0, code(&UIWorldPicture_CopyFrom), 4, Result::None, Status::Compare},  // was FUN_00011af0 (gap)
+    {"UIWorldPicture_SetWorldPos", 0x00011b20, 0, code(&UIWorldPicture_SetWorldPos), 12, Result::None, Status::Compare},  // was FUN_00011b20 (gap)
+    {"UIWorldPicture_GetWorldPos", 0x00011b40, 0, code(&UIWorldPicture_GetWorldPos), 4, Result::Eax, Status::Compare},  // was FUN_00011b40 (gap)
     {"UIPicture_DeletingDtor", 0x00011b60, 0, code(&UIPicture_DeletingDtor), 4, Result::Eax, Status::Replaced},  // was FUN_00011b60 (gap); call inside the first 5 bytes (not compared)
     {"IN_PadConsumeAllPressed", 0x00011b80, 0, code(&IN_PadConsumeAllPressed_entry), 0, Result::None, Status::Replaced},
     {"UIMenuItem_Ctor", 0x00011ba0, 0, code(&UIMenuItem_Ctor_entry), 4, Result::Eax, Status::Replaced},
     {"UIMenuItem_InnerSlot15", 0x00011c00, 0, code(&UIMenuItem_InnerSlot15), 0, Result::None, Status::Replaced},  // was FUN_00011c00 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot1", 0x00011c10, 0, code(&UIMenuItem_InnerSlot1), 0, Result::None, Status::Replaced},  // was FUN_00011c10 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot56Zero", 0x00011c20, 0, code(&UIMenuItem_InnerSlot56Zero), 0, Result::None, Status::Compare},  // was FUN_00011c20 (gap)
+    {"UIMenuItem_InnerSlot13", 0x00011c30, 0, code(&UIMenuItem_InnerSlot13), 0, Result::None, Status::Replaced},  // was FUN_00011c30 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_GetByte16", 0x00011c40, 0, code(&UIMenuItem_GetByte16), 0, Result::Al, Status::Compare},  // was FUN_00011c40 (gap)
+    {"UIMenuItem_InnerSlot31", 0x00011c60, 0, code(&UIMenuItem_InnerSlot31), 0, Result::None, Status::Replaced},  // was FUN_00011c60 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot27", 0x00011c70, 0, code(&UIMenuItem_InnerSlot27), 0, Result::None, Status::Replaced},  // was FUN_00011c70 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_SetText", 0x00011c80, 0, code(&UIMenuItem_SetText), 4, Result::None, Status::Compare},  // was FUN_00011c80 (gap)
     {"UIMenuItem_InnerSlot30", 0x00011cc0, 0, code(&UIMenuItem_InnerSlot30), 0, Result::None, Status::Replaced},  // was FUN_00011cc0 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot59", 0x00011cd0, 0, code(&UIMenuItem_InnerSlot59), 12, Result::None, Status::Compare},  // was FUN_00011cd0 (gap)
+    {"UIMenuItem_InnerSlot19", 0x00011d00, 0, code(&UIMenuItem_InnerSlot19), 0, Result::None, Status::Replaced},  // was FUN_00011d00 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot20", 0x00011d10, 0, code(&UIMenuItem_InnerSlot20), 0, Result::None, Status::Replaced},  // was FUN_00011d10 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot57", 0x00011d20, 0, code(&UIMenuItem_InnerSlot57), 0, Result::None, Status::Replaced},  // was FUN_00011d20 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot21", 0x00011d30, 0, code(&UIMenuItem_InnerSlot21), 0, Result::None, Status::Replaced},  // was FUN_00011d30 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot60", 0x00011d40, 0, code(&UIMenuItem_InnerSlot60), 0, Result::None, Status::Replaced},  // was FUN_00011d40 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot61", 0x00011d50, 0, code(&UIMenuItem_InnerSlot61), 0, Result::None, Status::Replaced},  // was FUN_00011d50 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_SetColorScheme", 0x00011d60, 0, code(&UIMenuItem_SetColorScheme), 4, Result::None, Status::Compare},  // was FUN_00011d60 (gap)
     {"UIMenuItem_InnerSlot24", 0x00011d80, 0, code(&UIMenuItem_InnerSlot24), 0, Result::None, Status::Replaced},  // was FUN_00011d80 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot7", 0x00011d90, 0, code(&UIMenuItem_InnerSlot7), 0, Result::None, Status::Replaced},  // was FUN_00011d90 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_GetText", 0x00011da0, 0, code(&UIMenuItem_GetText), 4, Result::Eax, Status::Compare},  // was FUN_00011da0 (gap)
+    {"UIMenuItem_InnerSlot52", 0x00011dc0, 0, code(&UIMenuItem_InnerSlot52), 0, Result::None, Status::Replaced},  // was FUN_00011dc0 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot51", 0x00011de0, 0, code(&UIMenuItem_InnerSlot51), 0, Result::None, Status::Replaced},  // was FUN_00011de0 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot49", 0x00011df0, 0, code(&UIMenuItem_InnerSlot49), 0, Result::None, Status::Replaced},  // was FUN_00011df0 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot41", 0x00011e00, 0, code(&UIMenuItem_InnerSlot41), 0, Result::None, Status::Replaced},  // was FUN_00011e00 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot42", 0x00011e10, 0, code(&UIMenuItem_InnerSlot42), 0, Result::None, Status::Replaced},  // was FUN_00011e10 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_GetColorScheme", 0x00011e20, 0, code(&UIMenuItem_GetColorScheme), 0, Result::Al, Status::Compare},  // was FUN_00011e20 (gap)
     {"UIMenuItem_GetTextColor", 0x00011e30, 0, code(&UIMenuItem_GetTextColor), 4, Result::Eax, Status::Compare},  // was FUN_00011e30 (gap)
+    {"UIMenuItem_InnerSlot10", 0x00011e50, 0, code(&UIMenuItem_InnerSlot10), 0, Result::None, Status::Replaced},  // was FUN_00011e50 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot70", 0x00011e60, 0, code(&UIMenuItem_InnerSlot70), 0, Result::None, Status::Replaced},  // was FUN_00011e60 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_DeletingDtor", 0x00011e70, 0, code(&UIMenuItem_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"UIMenu_SetPlaysMoveSound", 0x00011eb0, 0, code(&UIMenu_SetPlaysMoveSound), 4, Result::None, Status::Compare},  // was FUN_00011eb0 (gap)
+    {"UIMenu_SetLocked", 0x00011ec0, 0, code(&UIMenu_SetLocked), 4, Result::None, Status::Compare},  // was FUN_00011ec0 (gap)
+    {"UIMenu_Slot9Zero", 0x00011ed0, 0, code(&UIMenu_Slot9Zero), 0, Result::None, Status::Compare},  // was FUN_00011ed0 (gap)
     {"UIMenu_RestoreSelectionVirtual", 0x00011ee0, 0, code(&UIMenu_RestoreSelectionVirtual), 4, Result::None, Status::Compare},  // was FUN_00011ee0 (gap)
+    {"UIMenu_SetResult", 0x00011f10, 0, code(&UIMenu_SetResult), 4, Result::None, Status::Compare},  // was FUN_00011f10 (gap)
     {"UIMenu_GetByte33", 0x00011f20, 0, code(&UIMenu_GetByte33), 0, Result::Al, Status::Compare},  // was FUN_00011f20 (gap)
     {"UIMenu_GetField8", 0x00011f30, 0, code(&UIMenu_GetField8), 0, Result::Eax, Status::Compare},  // was FUN_00011f30 (gap)
     {"UIMenu_ForwardSelectPrev", 0x00011ef0, 0, code(&UIMenu_ForwardSelectPrev), 4, Result::None, Status::Replaced},  // was FUN_00011ef0 (gap, m6/m7); virtual call: not compared
     {"UIMenu_ForwardSelectNext", 0x00011f00, 0, code(&UIMenu_ForwardSelectNext), 4, Result::None, Status::Replaced},  // was FUN_00011f00 (gap, m6/m7); virtual call: not compared
+    {"UIMenu_GetFlags", 0x00011f40, 0, code(&UIMenu_GetFlags), 0, Result::Eax, Status::Compare},  // was FUN_00011f40 (gap)
     {"UIMenu_ForwardSlot46", 0x00011f50, 0, code(&UIMenu_ForwardSlot46), 4, Result::None, Status::Replaced},  // was FUN_00011f50 (gap, m6/m7); virtual call: not compared
     {"UIMenu_ForwardSlot47", 0x00011f60, 0, code(&UIMenu_ForwardSlot47), 4, Result::None, Status::Replaced},  // was FUN_00011f60 (gap, m6/m7); virtual call: not compared
+    {"UIScreenMgr_SetByte1A", 0x00011f70, 0, code(&UIScreenMgr_SetByte1A), 4, Result::None, Status::Compare},  // was FUN_00011f70 (gap)
     {"UIElement_GetByte1A", 0x00011f80, 0, code(&UIElement_GetByte1A), 0, Result::Al, Status::Compare},  // was FUN_00011f80 (gap)
     {"UIScreenMgr_DeletingDtor", 0x00011f90, 0, code(&UIScreenMgr_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIObject_GetByte4", 0x00011fb0, 0, code(&UIObject_GetByte4), 0, Result::Al, Status::Compare},  // was FUN_00011fb0 (gap)
@@ -265,12 +321,19 @@ const Function kFunctions[] = {
     {"GameplayMenu_Dtor", 0x00012640, 0, code(&GameplayMenu_Dtor), 0, Result::None, Status::Replaced},
     {"GameplayMenu_OnUp", 0x000126b0, 0, code(&GameplayMenu_OnUp), 4, Result::None, Status::Replaced},
     {"GameplayMenu_OnDown", 0x000126d0, 0, code(&GameplayMenu_OnDown), 4, Result::None, Status::Replaced},
+    {"GameplayMenu_OnLeft", 0x000126f0, 0, code(&GameplayMenu_OnLeft), 4, Result::None, Status::Compare},  // was FUN_000126f0 (gap)
+    {"GameplayMenu_OnRight", 0x00012700, 0, code(&GameplayMenu_OnRight), 4, Result::None, Status::Compare},  // was FUN_00012700 (gap)
     {"GameplayMenu_DeletingDtor", 0x00012710, 0, code(&GameplayMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ControllerConfigMenu_Dtor", 0x00012730, 0, code(&ControllerConfigMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"ControllerConfigMenu_OnLeft", 0x000127a0, 0, code(&ControllerConfigMenu_OnLeft), 4, Result::None, Status::Compare},  // was FUN_000127a0 (gap)
     {"ControllerConfigMenu_OnUp", 0x000127c0, 0, code(&ControllerConfigMenu_OnUp), 4, Result::None, Status::Replaced},
     {"ControllerConfigMenu_OnDown", 0x000127e0, 0, code(&ControllerConfigMenu_OnDown), 4, Result::None, Status::Replaced},
     {"ControllerConfigMenu_DeletingDtor", 0x00012800, 0, code(&ControllerConfigMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ScreenMenu_Dtor", 0x00012820, 0, code(&ScreenMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"ScreenMenu_OnUp", 0x00012890, 0, code(&ScreenMenu_OnUp), 4, Result::None, Status::Replaced},  // was FUN_00012890 (gap); selection move through the vtable (sound), as GameplayMenu_OnUp: not compared
+    {"ScreenMenu_OnDown", 0x000128d0, 0, code(&ScreenMenu_OnDown), 4, Result::None, Status::Replaced},  // was FUN_000128d0 (gap); selection move through the vtable (sound), as GameplayMenu_OnDown: not compared
+    {"ScreenMenu_OnLeft", 0x00012910, 0, code(&ScreenMenu_OnLeft), 4, Result::None, Status::Compare},  // was FUN_00012910 (gap)
+    {"ScreenMenu_OnRight", 0x00012920, 0, code(&ScreenMenu_OnRight), 4, Result::None, Status::Compare},  // was FUN_00012920 (gap)
     {"ScreenMenu_DeletingDtor", 0x00012930, 0, code(&ScreenMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"SoundMenu_Dtor", 0x00012950, 0, code(&SoundMenu_Dtor), 0, Result::None, Status::Replaced},
     {"SoundMenu_OnLeft", 0x000129c0, 0, code(&SoundMenu_OnLeft), 4, Result::None, Status::Replaced},
@@ -278,6 +341,7 @@ const Function kFunctions[] = {
     {"SoundMenu_DeletingDtor", 0x00012a60, 0, code(&SoundMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"OptionsMenu_Dtor", 0x00012a80, 0, code(&OptionsMenu_Dtor), 0, Result::None, Status::Replaced},
     {"OptionsMenu_Accept", 0x00012af0, 0, code(&OptionsMenu_Accept), 4, Result::None, Status::Replaced},
+    {"OptionsMenu_OnBack", 0x00012b40, 0, code(&OptionsMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00012b40 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"OptionsMenu_DeletingDtor", 0x00012b60, 0, code(&OptionsMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"PauseMenu_Dtor", 0x00012b80, 0, code(&PauseMenu_Dtor), 0, Result::None, Status::Replaced},
     {"PauseMenu_DeletingDtor", 0x00012be0, 0, code(&PauseMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -292,8 +356,11 @@ const Function kFunctions[] = {
     {"LoadMaubeugeMenu_Dtor", 0x00012e20, 0, code(&LoadMaubeugeMenu_Dtor), 0, Result::None, Status::Replaced},
     {"LoadMaubeugeMenu_DeletingDtor", 0x00012e80, 0, code(&LoadMaubeugeMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"DifficultyMenu_Dtor", 0x00012ea0, 0, code(&DifficultyMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"DifficultyMenu_HandleSelect", 0x00012f10, 0, code(&DifficultyMenu_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00012f10 (gap)
     {"DifficultyMenu_DeletingDtor", 0x00012f60, 0, code(&DifficultyMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"BonusMaterialsMenu_Dtor", 0x00012f80, 0, code(&BonusMaterialsMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"BonusMaterialsMenu_OnSelect", 0x00012ff0, 0, code(&BonusMaterialsMenu_OnSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00012ff0 (gap); call inside the first 5 bytes: not compared
+    {"BonusMaterialsMenu_OnBack", 0x00013000, 0, code(&BonusMaterialsMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00013000 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"BonusMaterialsMenu_DeletingDtor", 0x00013020, 0, code(&BonusMaterialsMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"BonusWeaponsMenu_Dtor", 0x00013050, 0, code(&BonusWeaponsMenu_Dtor), 0, Result::None, Status::Replaced},
     {"BonusWeaponsMenu_OnBack", 0x000130d0, 0, code(&BonusWeaponsMenu_OnBack_entry), 4, Result::None, Status::Compare},
@@ -312,8 +379,10 @@ const Function kFunctions[] = {
     {"ChapterMenu_Dtor", 0x00013460, 0, code(&ChapterMenu_Dtor), 0, Result::None, Status::Replaced},
     {"ChapterMenu_DeletingDtor", 0x000134c0, 0, code(&ChapterMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"SpecialMaterialsMenu_Dtor", 0x000134e0, 0, code(&SpecialMaterialsMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"SpecialMaterialsMenu_OnSelect", 0x00013550, 0, code(&SpecialMaterialsMenu_OnSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00013550 (gap); call inside the first 5 bytes: not compared
     {"SpecialMaterialsMenu_DeletingDtor", 0x00013560, 0, code(&SpecialMaterialsMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"SpecialConceptMenu_Dtor", 0x00013580, 0, code(&SpecialConceptMenu_Dtor), 0, Result::None, Status::Replaced},
+    {"SpecialConceptMenu_OnBack", 0x00013600, 0, code(&SpecialConceptMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00013600 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"SpecialConceptMenu_OnA", 0x00013630, 0, code(&SpecialConceptMenu_OnA_entry), 4, Result::None, Status::Compare},
     {"SpecialConceptMenu_DeletingDtor", 0x00013650, 0, code(&SpecialConceptMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"UIRoot_DeletingDtor", 0x00013670, 0, code(&UIRoot_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -827,6 +896,7 @@ const Function kFunctions[] = {
     {"ResourceManager_CreateDb", 0x00023ff0, 0, code(&ResourceManager_CreateDb), 0, Result::None, Status::Replaced},
     {"ResourceManager_CreateCfgstr", 0x00024050, 0, code(&ResourceManager_CreateCfgstr), 0, Result::None, Status::Replaced},
     {"FxSystem_Prewarm", 0x000240b0, 0, code(&FxSystem_Prewarm_entry), 4, Result::None, Status::Replaced},
+    {"UIMenu_SetRowSpacing", 0x000241c0, 0, code(&UIMenu_SetRowSpacing), 4, Result::None, Status::Compare},  // was FUN_000241c0 (gap)
     {"FxParticleComponent_Prewarm", 0x00024230, 0, code(&FxParticleComponent_Prewarm), 4, Result::None, Status::Compare},  // was FUN_00024230 (gap)
     {"FxComponent_DelayDone", 0x00024200, 0, code(&FxComponent_DelayDone), 0, Result::Eax, Status::Replaced},
     {"ShakeRumble_CreateManager", 0x00024260, 0, code(&ShakeRumble_CreateManager), 0, Result::None, Status::Replaced},
@@ -9198,6 +9268,7 @@ const Function kFunctions[] = {
     {"ChapterMenu_SlideStep", 0x0030c6f0, 0, code(&ChapterMenu_SlideStep_entry), 4, Result::None, Status::Replaced},
     {"ChapterMenu_UpdateList", 0x0030c9a0, 0, code(&ChapterMenu_UpdateList_entry), 0, Result::None, Status::Replaced},
     {"ChapterMenu_OnButton100", 0x0030cc20, 0, code(&ChapterMenu_OnButton100), 4, Result::None, Status::Replaced},
+    {"ChapterMenu_OnBack", 0x0030cca0, 0, code(&ChapterMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_0030cca0 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"AutosaveMenu_UpdateSlotTexts", 0x0030ccb0, 0, code(&AutosaveMenu_UpdateSlotTexts_entry), 0, Result::None, Status::Compare},
     {"FE_FormatPlayTime", 0x0030cd70, 0, code(&FE_FormatPlayTime), 0, Result::Eax, Status::Replaced},
     {"FE_SplitPlayTime2", 0x0030cdf0, 0, code(&FE_SplitPlayTime2), 16, Result::None, Status::Replaced},
@@ -9209,6 +9280,7 @@ const Function kFunctions[] = {
     {"CreateProfileMenu_UpdateHighlight", 0x0030d3e0, 0, code(&CreateProfileMenu_UpdateHighlight_entry), 0, Result::None, Status::Replaced},
     {"CreateProfileMenu_ToggleCase", 0x0030d4c0, 0, code(&CreateProfileMenu_ToggleCase_entry), 0, Result::None, Status::Replaced},
     {"CreateProfileMenu_BuildKeyboard", 0x0030d530, 0, code(&CreateProfileMenu_BuildKeyboard_entry), 0, Result::None, Status::Replaced},
+    {"CreateProfileMenu_OnBack", 0x0030da70, 0, code(&CreateProfileMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_0030da70 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"FE_BonusConceptFreeImage", 0x0030daa0, 0, code(&FE_BonusConceptFreeImage_entry), 0, Result::None, Status::Compare},
     {"FE_BonusVehicleFreeImage", 0x0030db00, 0, code(&FE_BonusVehicleFreeImage_entry), 0, Result::None, Status::Compare},
     {"FE_BonusWeaponFreeImage", 0x0030db60, 0, code(&FE_BonusWeaponFreeImage_entry), 0, Result::None, Status::Compare},
@@ -9225,13 +9297,18 @@ const Function kFunctions[] = {
     {"ControllerConfigMenu_UpdateVibrationText", 0x0030e2f0, 0, code(&ControllerConfigMenu_UpdateVibrationText), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_UpdateInvertAimText", 0x0030e320, 0, code(&ControllerConfigMenu_UpdateInvertAimText), 0, Result::None, Status::Replaced},
     {"GameplayMenu_UpdateLabelColors", 0x0030e390, 0, code(&GameplayMenu_UpdateLabelColors_entry), 0, Result::None, Status::Replaced},
+    {"GameplayMenu_OnBack", 0x0030e3f0, 0, code(&GameplayMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_0030e3f0 (gap); tail jump to the front end's SetActiveScreen: not compared
+    {"SinglePlayerMenu_OnBack", 0x0030e470, 0, code(&SinglePlayerMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_0030e470 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"AdvancedOptionsMenu_UpdateLabelColors", 0x0030e4c0, 0, code(&AdvancedOptionsMenu_UpdateLabelColors_entry), 0, Result::None, Status::Replaced},
     {"UIDialog_Init", 0x0030e6f0, 0, code(&UIDialog_Init_entry), 8, Result::None, Status::Replaced},
+    {"UIDialog_OnBack", 0x0030e760, 0, code(&UIDialog_OnBack), 4, Result::None, Status::Compare},  // was FUN_0030e760 (gap)
+    {"UIDialog_RestoreSelectionNop", 0x0030e770, 0, code(&UIDialog_RestoreSelectionNop), 0, Result::None, Status::Replaced},  // was FUN_0030e770 (gap); ret: too short to compare
     {"UI_StickDirectionHeld", 0x0030ea00, 0, code(&UI_StickDirectionHeld), 4, Result::Al, Status::Replaced},
     {"UIScreenMgr_PadBitToButton", 0x0030eb40, 0, code(&UIScreenMgr_PadBitToButton), 0, Result::Eax, Status::Replaced},
     {"UIScreenMgr_OnButtonDown", 0x0030ec70, 0, code(&UIScreenMgr_OnButtonDown), 8, Result::None, Status::Replaced},
     {"UIScreenMgr_Update", 0x0030eea0, 0, code(&UIScreenMgr_Update), 4, Result::None, Status::Replaced},
     {"UIScreenMgr_LayoutAll", 0x0030eed0, 0, code(&UIScreenMgr_LayoutAll), 0, Result::None, Status::Replaced},
+    {"UIScreenMgr_AddScreen", 0x0030ef00, 0, code(&UIScreenMgr_AddScreen), 4, Result::None, Status::Compare},  // was FUN_0030ef00 (gap)
     {"UIMenu_OnAccept", 0x0030ef20, 0, code(&UIMenu_OnAccept), 4, Result::None, Status::Replaced},
     {"UIMenu_SelectFirst", 0x0030ef50, 0, code(&UIMenu_SelectFirst), 0, Result::None, Status::Replaced},
     {"UIMenu_SetItemsLayer", 0x0030ef90, 0, code(&UIMenu_SetItemsLayer), 8, Result::None, Status::Replaced},
@@ -9245,16 +9322,21 @@ const Function kFunctions[] = {
     {"UIRoot_Dtor", 0x0030f470, 0, code(&UIRoot_Dtor), 0, Result::None, Status::Replaced},
     {"ScriptString_ExpandNewlines", 0x0030f4d0, 0, code(&ScriptString_ExpandNewlines_entry), 4, Result::Eax, Status::Replaced},
     {"UIText_LocalizeWords", 0x0030f550, 0, code(&UIText_LocalizeWords_entry), 4, Result::Eax, Status::Compare},  // was FUN_0030f550 (gap)
+    {"UIText_GetScrollFraction", 0x0030f620, 0, code(&UIText_GetScrollFraction), 0, Result::St0, Status::Compare},  // was FUN_0030f620 (gap)
+    {"UIText_StartScroll", 0x0030f6b0, 0, code(&UIText_StartScroll), 8, Result::None, Status::Compare},  // was FUN_0030f6b0 (gap)
     {"UIText_ScrollBy", 0x0030f730, 0, code(&UIText_ScrollBy), 4, Result::None, Status::Compare},
+    {"UIText_SetFont", 0x0030f830, 0, code(&UIText_SetFont), 4, Result::None, Status::Compare},  // was FUN_0030f830 (gap)
     {"UIText_SetLineSpacing", 0x0030f880, 0, code(&UIText_SetLineSpacing), 4, Result::None, Status::Replaced},
     {"UIText_Draw", 0x0030f900, 0, code(&UIText_Draw), 0, Result::None, Status::Replaced},
     {"UI_GetTextWidth", 0x0030f950, 0, code(&UI_GetTextWidth), 4, Result::St0, Status::Replaced},
     {"UI_MatchButtonToken", 0x0030f9b0, 0, code(&UI_MatchButtonToken), 12, Result::Al, Status::Replaced},
     {"UITextBase_ApplyAlignOffset", 0x0030fa60, 0, code(&UITextBase_ApplyAlignOffset), 12, Result::None, Status::Replaced},
+    {"UITextBase_ClearFlags5C_09", 0x0030fb50, 0, code(&UITextBase_ClearFlags5C_09), 0, Result::None, Status::Compare},  // was FUN_0030fb50 (gap)
     {"UITextBase_SetVertAlign", 0x0030fb60, 0, code(&UITextBase_SetVertAlign), 4, Result::None, Status::Compare},
     {"UITextBase_SetHorzAlign", 0x0030fba0, 0, code(&UITextBase_SetHorzAlign), 4, Result::None, Status::Compare},
     {"UIElement_SetDepthInLayer", 0x0030fbd0, 0, code(&UIElement_SetDepthInLayer), 8, Result::None, Status::Compare},  // was FUN_0030fbd0 (gap)
     {"UIElement_SetAlign", 0x0030fc20, 0, code(&UIElement_SetAlign), 4, Result::None, Status::Replaced},
+    {"UIElement_CopyBaseFields", 0x0030fc50, 0, code(&UIElement_CopyBaseFields), 4, Result::None, Status::Compare},  // was FUN_0030fc50 (gap)
     {"Subtitle_Draw", 0x0030fca0, 0, code(&Subtitle_Draw), 0, Result::None, Status::Replaced},
     {"Movie_SetQuadRect", 0x0030fdc0, 0, code(&Movie_SetQuadRect), 16, Result::None, Status::Replaced},
     {"Movie_DrawFrame", 0x0030fe00, 0, code(&Movie_DrawFrame), 0, Result::Eax, Status::Replaced},
@@ -9269,6 +9351,27 @@ const Function kFunctions[] = {
     {"UIQuad_SetCornerUVs", 0x003104f0, 0, code(&UIQuad_SetCornerUVs), 0, Result::None, Status::Replaced},
     {"UIQuad_SetVertexUVs", 0x00310520, 0, code(&UIQuad_SetVertexUVs), 4, Result::None, Status::Replaced},
     {"UIQuad_PlaceScaled", 0x00310560, 0, code(&UIQuad_PlaceScaled_entry), 16, Result::None, Status::Replaced},
+    {"ChapterMenu_RepeatHeldDirection", 0x00312530, 0, code(&ChapterMenu_RepeatHeldDirection), 0, Result::None, Status::Replaced},  // was FUN_00312530 (gap); left / right handlers through the vtable (sound): not compared
+    {"AutosaveMenu_OnBack", 0x00312560, 0, code(&AutosaveMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00312560 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"UIDialog_ReportChoice", 0x00312620, 0, code(&UIDialog_ReportChoice), 8, Result::None, Status::Compare},  // was FUN_00312620 (gap)
+    {"ProfileMenu_OnBack", 0x00312790, 0, code(&ProfileMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00312790 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"CreateProfileMenu_RepeatHeldDirection", 0x00312960, 0, code(&CreateProfileMenu_RepeatHeldDirection), 0, Result::None, Status::Replaced},  // was FUN_00312960 (gap); direction handlers through the vtable (sound): not compared
+    {"SoundMenu_RepeatHeldDirection", 0x003138d0, 0, code(&SoundMenu_RepeatHeldDirection), 0, Result::None, Status::Replaced},  // was FUN_003138d0 (gap); left / right handlers through the vtable (sound): not compared
+    {"ControllerConfigMenu_RepeatHeldDirection", 0x003139b0, 0, code(&ControllerConfigMenu_RepeatHeldDirection), 0, Result::None, Status::Replaced},  // was FUN_003139b0 (gap); left / right handlers through the vtable (sound): not compared
+    {"MainMenu_OnBack", 0x00313ab0, 0, code(&MainMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00313ab0 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"MainMenu_HandleSelect", 0x00313b10, 0, code(&MainMenu_HandleSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00313b10 (gap); tail jump to the manager's SetActiveScreen: not compared
+    {"UIDialog_OnRight", 0x00313d30, 0, code(&UIDialog_OnRight), 4, Result::None, Status::Replaced},  // was FUN_00313d30 (gap); selection move through the vtable (sound): not compared
+    {"UIDialog_OnLeft", 0x00313d50, 0, code(&UIDialog_OnLeft), 4, Result::None, Status::Replaced},  // was FUN_00313d50 (gap); selection move through the vtable (sound): not compared
+    {"UIDialog_OnDown", 0x00313d70, 0, code(&UIDialog_OnDown), 4, Result::None, Status::Replaced},  // was FUN_00313d70 (gap); selection move through the vtable (sound): not compared
+    {"UIDialog_OnUp", 0x00313d90, 0, code(&UIDialog_OnUp), 4, Result::None, Status::Replaced},  // was FUN_00313d90 (gap); selection move through the vtable (sound): not compared
+    {"UIMenu_RepeatHeldDirection", 0x00314830, 0, code(&UIMenu_RepeatHeldDirection_entry), 0, Result::None, Status::Replaced},  // was FUN_00314830 (gap); tail jump through the vtable: not compared
+    {"UIMenu_RepeatHeldUpDown", 0x00314a70, 0, code(&UIMenu_RepeatHeldUpDown_entry), 0, Result::None, Status::Replaced},  // was FUN_00314a70 (gap); tail jump through the vtable: not compared
+    {"UIMenu_SetVertAlign", 0x00314e30, 0, code(&UIMenu_SetVertAlign), 8, Result::None, Status::Compare},  // was FUN_00314e30 (gap)
+    {"UIText_GetMaxLineWidth", 0x003155e0, 0, code(&UIText_GetMaxLineWidth), 0, Result::St0, Status::Compare},  // was FUN_003155e0 (gap)
+    {"UIElement_SetFade", 0x00315df0, 0, code(&UIElement_SetFade), 12, Result::None, Status::Compare},  // was FUN_00315df0 (gap)
+    {"UIPicture_SetAllQuadColors", 0x003167a0, 0, code(&UIPicture_SetAllQuadColors), 4, Result::None, Status::Compare},  // was FUN_003167a0 (gap)
+    {"UIPicture_TranslateQuads", 0x003167e0, 0, code(&UIPicture_TranslateQuads), 8, Result::None, Status::Compare},  // was FUN_003167e0 (gap)
+    {"UIPicture_GetBaseCorners", 0x00316950, 0, code(&UIPicture_GetBaseCorners), 8, Result::None, Status::Compare},  // was FUN_00316950 (gap)
     {"UIPicture_SetQuadScale", 0x00316a90, 0, code(&UIPicture_SetQuadScale), 8, Result::None, Status::Compare},  // was FUN_00316a90 (gap)
     {"UIQuad_SetWipe", 0x00310820, 0, code(&UIQuad_SetWipe_entry), 16, Result::None, Status::Replaced},
     {"HudCompIconCount_Draw", 0x00310b80, 0, code(&HudCompIconCount_Draw), 0, Result::None, Status::Replaced},

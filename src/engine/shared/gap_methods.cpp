@@ -4,6 +4,7 @@
 #include <initializer_list>
 
 #include "cl.h"
+#include "fe.h"
 #include "cm.h"
 #include "nal_anim.h"
 #include "ngl.h"
@@ -176,6 +177,242 @@ uint8_t XB_THISCALL UIElement_GetByte1A(uint8_t* self) {
 
 uint8_t XB_THISCALL UIObject_GetByte4(uint8_t* self) {
     return self[0x4];
+}
+
+// --- Unreached UI slots (host_unreached 2026-11-12): UIElement / UITextBase / UIText / UIPicture ---
+
+void XB_THISCALL UIElement_SetFlagBit1(uint8_t* self, uint32_t on) {
+    if (static_cast<uint8_t>(on))
+        self[0x10] = static_cast<uint8_t>(self[0x10] | 2);
+    else
+        self[0x10] = static_cast<uint8_t>(self[0x10] & 0xfd);
+}
+
+void XB_THISCALL UIElement_ClearFlagBit0(uint8_t* self) {
+    self[0x10] = static_cast<uint8_t>(self[0x10] & 0xfe);
+}
+
+uint32_t XB_THISCALL UIElement_HasFlagBit4Or5(uint8_t* self) {
+    return (self[0x10] & 0x30) != 0 ? 1u : 0u;
+}
+
+// 0x00011360: the base element's vtable back, Z_Free when flags & 1. Frees: not compared.
+uint8_t* XB_THISCALL UIElement_DeletingDtor(uint8_t* self, uint32_t flags) {
+    word<uint32_t>(self, 0) = 0x00829244;  // UIElement vtable
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+uint8_t XB_THISCALL UITextBase_ReturnFalse(uint8_t*) {
+    return 0;
+}
+
+void XB_THISCALL UITextBase_SetFont(uint8_t* self, uint32_t value) {
+    word<uint32_t>(self, 0x18) = value;
+}
+
+void XB_THISCALL UITextBase_SetFlag5CBit2(uint8_t* self, uint32_t on) {
+    if (static_cast<uint8_t>(on))
+        self[0x5c] = static_cast<uint8_t>(self[0x5c] | 4);
+    else
+        self[0x5c] = static_cast<uint8_t>(self[0x5c] & 0xfb);
+}
+
+// (x, y, 0) into +0x44.
+void XB_THISCALL UITextBase_SetOffset44(uint8_t* self, uint32_t x, uint32_t y) {
+    word<uint32_t>(self, 0x44) = x;
+    word<uint32_t>(self, 0x48) = y;
+    word<float>(self, 0x4c) = 0.0f;
+}
+
+void XB_THISCALL UITextBase_SetFloat30(uint8_t* self, uint32_t bits) {
+    word<uint32_t>(self, 0x30) = bits;
+}
+
+float XB_THISCALL UITextBase_GetFloat3C(uint8_t* self) {
+    return word<float>(self, 0x3c);
+}
+
+uint32_t XB_THISCALL UITextBase_GetFlag5CBit2(uint8_t* self) {
+    return (self[0x5c] >> 2) & 1u;
+}
+
+int32_t XB_THISCALL UITextBase_GetFlags5C(uint8_t* self) {
+    return static_cast<int8_t>(self[0x5c]);
+}
+
+uint32_t XB_THISCALL UITextBase_GetHorzAlign(uint8_t* self) {
+    return self[0x5c] & 0x30u;
+}
+
+uint32_t XB_THISCALL UITextBase_GetVertAlign(uint8_t* self) {
+    return self[0x5c] & 0xc0u;
+}
+
+float* XB_THISCALL UITextBase_GetZeroVector(uint8_t*, float* out) {
+    out[0] = 0.0f;
+    out[1] = 0.0f;
+    out[2] = 0.0f;
+    return out;
+}
+
+uint32_t XB_THISCALL UIText_GetField78(uint8_t* self) {
+    return word<uint32_t>(self, 0x78);
+}
+
+uint32_t XB_THISCALL UIText_GetField7C(uint8_t* self) {
+    return word<uint32_t>(self, 0x7c);
+}
+
+uint32_t XB_THISCALL UIText_GetField74(uint8_t* self) {
+    return word<uint32_t>(self, 0x74);
+}
+
+void XB_THISCALL UIText_SetDefaultLineSpacing(uint8_t* self) {
+    vcall<void XB_THISCALL(uint8_t*, int32_t)>(self, 0xe4)(self, -1);  // slot 57: UIText_SetLineSpacing
+}
+
+void XB_THISCALL UIText_SetField60(uint8_t* self, uint32_t value) {
+    word<uint32_t>(self, 0x60) = value;
+}
+
+void XB_THISCALL UIText_SetField74(uint8_t* self, uint32_t value) {
+    word<uint32_t>(self, 0x74) = value;
+}
+
+void XB_THISCALL UIText_GetFields2C30(uint8_t* self, uint32_t* a, uint32_t* b) {
+    *a = word<uint32_t>(self, 0x2c);
+    *b = word<uint32_t>(self, 0x30);
+}
+
+void XB_THISCALL UIText_SetByte96(uint8_t* self, uint32_t value) {
+    self[0x96] = static_cast<uint8_t>(value);
+}
+
+// Slot 20 (UIPicture_ScaleAbout) with one scale for both axes.
+void XB_THISCALL UIPicture_ScaleAboutUniform(uint8_t* self, uint32_t cx, uint32_t cy, uint32_t scale,
+                                             uint32_t relative) {
+    vcall<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(self, 0x50)(
+        self, cx, cy, scale, scale, relative);
+}
+
+void XB_THISCALL UIPicture_SetQuadUVs(uint8_t* self, uint32_t index, const float* us, const float* vs) {
+    uint8_t* const quad = word<uint8_t**>(self, 0x20)[index];
+    UIQuad_SetVertexUVs(us, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(quad)), vs, quad);
+}
+
+void XB_THISCALL UIElement_GetFields14_18(uint8_t* self, uint32_t* a, uint32_t* b) {
+    *a = word<uint32_t>(self, 0x14);
+    *b = word<uint32_t>(self, 0x18);
+}
+
+// UIWorldPicture (vtable 0x00828df8): a picture with a world position at +0x40.
+void XB_THISCALL UIWorldPicture_CopyFrom(uint8_t* self, uint8_t* source) {
+    UIPicture_CopyFrom(self, source);
+    word<uint32_t>(self, 0x40) = word<uint32_t>(source, 0x40);
+    word<uint32_t>(self, 0x44) = word<uint32_t>(source, 0x44);
+    word<uint32_t>(self, 0x48) = word<uint32_t>(source, 0x48);
+}
+
+void XB_THISCALL UIWorldPicture_SetWorldPos(uint8_t* self, uint32_t x, uint32_t y, uint32_t z) {
+    word<uint32_t>(self, 0x40) = x;
+    word<uint32_t>(self, 0x44) = y;
+    word<uint32_t>(self, 0x48) = z;
+}
+
+uint32_t* XB_THISCALL UIWorldPicture_GetWorldPos(uint8_t* self, uint32_t* out) {
+    out[0] = word<uint32_t>(self, 0x40);
+    out[1] = word<uint32_t>(self, 0x44);
+    out[2] = word<uint32_t>(self, 0x48);
+    return out;
+}
+
+// --- Unreached UIMenuItem slots: the wrapped text (+0x10) ---
+
+void XB_THISCALL UIMenuItem_InnerSlot56Zero(uint8_t* self) {
+    uint8_t* const inner = word<uint8_t*>(self, 0x10);
+    vcall<void XB_THISCALL(uint8_t*, uint32_t)>(inner, 0xe0)(inner, 0);
+}
+
+// The string argument is the callee's: its text (rep + 6) to the wrapped text's slot 30 (SetText), then released.
+void XB_THISCALL UIMenuItem_SetText(uint8_t* self, uint32_t string) {
+    uint8_t* const inner = word<uint8_t*>(self, 0x10);
+    vcall<void XB_THISCALL(uint8_t*, uint32_t)>(inner, 0x78)(inner, string ? string + 6 : 0u);
+    ScriptString_Release(reinterpret_cast<ScriptString*>(&string));
+}
+
+// Slot 59 of the wrapped text with a 12-byte value argument.
+void XB_THISCALL UIMenuItem_InnerSlot59(uint8_t* self, uint32_t a, uint32_t b, uint32_t c) {
+    uint8_t* const inner = word<uint8_t*>(self, 0x10);
+    vcall<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(inner, 0xec)(inner, a, b, c);
+}
+
+// +0x14 then slot 37 (UIMenuItem_UpdateColor).
+void XB_THISCALL UIMenuItem_SetColorScheme(uint8_t* self, uint32_t value) {
+    self[0x14] = static_cast<uint8_t>(value);
+    vcall<void XB_THISCALL(uint8_t*)>(self, 0x94)(self);
+}
+
+uint32_t* XB_THISCALL UIMenuItem_GetText(uint8_t* self, uint32_t* out) {
+    uint8_t* const inner = word<uint8_t*>(self, 0x10);
+    vcall<void XB_THISCALL(uint8_t*, uint32_t*)>(inner, 0xa0)(inner, out);  // slot 40: UITextBase_GetText
+    return out;
+}
+
+uint8_t XB_THISCALL UIMenuItem_GetColorScheme(uint8_t* self) {
+    return self[0x14];
+}
+
+// Tail jumps to the wrapped text's virtual (stack arguments passed through): not compared.
+#define UI_MENU_ITEM_INNER_SLOT(name, offset) \
+    PLATFORM_ASM_ENTRY(name, "movl 0x10(%ecx), %ecx\n" \
+                             "movl (%ecx), %eax\n" \
+                             "jmp *" offset "(%eax)")
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot13, "0x34")   // 0x00011c30 (UIElement_SetVisible)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot31, "0x7c")   // 0x00011c60 (UIText_SetPosition)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot19, "0x4c")   // 0x00011d00 (SetHorzAlign)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot20, "0x50")   // 0x00011d10 (SetVertAlign)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot57, "0xe4")   // 0x00011d20 (UIText_SetLineSpacing)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot21, "0x54")   // 0x00011d30
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot60, "0xf0")   // 0x00011d40
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot61, "0xf4")   // 0x00011d50
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot7, "0x1c")    // 0x00011d90 (UIElement_SetDepthInLayer)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot52, "0xd0")   // 0x00011dc0
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot51, "0xcc")   // 0x00011de0 (UIElement_GetFloat30)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot49, "0xc4")   // 0x00011df0
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot42, "0xa8")   // 0x00011e10
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot10, "0x28")   // 0x00011e50 (UIElement_GetDepth)
+UI_MENU_ITEM_INNER_SLOT(UIMenuItem_InnerSlot70, "0x118")  // 0x00011e60
+#undef UI_MENU_ITEM_INNER_SLOT
+
+// --- Unreached UIMenu / UIScreenMgr slots ---
+
+void XB_THISCALL UIMenu_SetPlaysMoveSound(uint8_t* self, uint32_t value) {
+    self[0x31] = static_cast<uint8_t>(value);
+}
+
+void XB_THISCALL UIMenu_SetLocked(uint8_t* self, uint32_t value) {
+    self[0x30] = static_cast<uint8_t>(value);
+}
+
+void XB_THISCALL UIMenu_Slot9Zero(uint8_t* self) {
+    vcall<void XB_THISCALL(uint8_t*, uint32_t)>(self, 0x24)(self, 0);
+}
+
+void XB_THISCALL UIMenu_SetResult(uint8_t* self, uint32_t value) {
+    self[0x33] = static_cast<uint8_t>(value);
+}
+
+int32_t XB_THISCALL UIMenu_GetFlags(uint8_t* self) {
+    return word<int16_t>(self, 0x2a);
+}
+
+void XB_THISCALL UIMenu_SetRowSpacing(uint8_t* self, uint32_t value) {
+    word<uint32_t>(self, 0x14) = value;
+}
+
+void XB_THISCALL UIScreenMgr_SetByte1A(uint8_t* self, uint32_t value) {
+    self[0x1a] = static_cast<uint8_t>(value);
 }
 
 // --- Script strings and script helpers ---

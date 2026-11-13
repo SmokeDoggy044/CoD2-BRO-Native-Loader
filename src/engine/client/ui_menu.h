@@ -27,6 +27,26 @@
 
 namespace game {
 
+// Menu handlers that end in the screen manager's SetActiveScreen (the owner +0x08, vtable +0x0c) as a tail jump with
+// the argument slot rewritten to the screen: the callee runs at the entry ESP (its sound keeps stack addresses), so
+// their rows are Replaced (not compared). UI_MENU_TAIL_SCREEN: always `screen`. UI_MENU_TAIL_DECIDE: the cdecl C
+// part `decide(menu)` does the handler's work and returns the screen, or -1 to return (ret 4) without switching.
+#define UI_MENU_TAIL_SCREEN(name, screen)                   \
+    PLATFORM_ASM_ENTRY(name, "movl 8(%ecx), %ecx\n"          \
+                             "movl (%ecx), %eax\n"           \
+                             "movl $" #screen ", 4(%esp)\n"  \
+                             "jmp *0xc(%eax)")
+#define UI_MENU_TAIL_DECIDE(name, decide)                                         \
+    PLATFORM_ASM_ENTRY(name, "pushl %ecx\n" PLATFORM_ASM_CALL(decide) "popl %ecx\n" \
+                             "testl %eax, %eax\n"                                  \
+                             "js 1f\n"                                             \
+                             "movl %eax, 4(%esp)\n"                                \
+                             "movl 8(%ecx), %ecx\n"                                \
+                             "movl (%ecx), %eax\n"                                 \
+                             "jmp *0xc(%eax)\n"                                    \
+                             "1: ret $4")
+
+
 // 0x00011ba0 (item in ESI, text in EDI, menu in ECX; owns on the stack, ret 4): the item constructor around an
 // existing text: neighbours -1, the menu's colour scheme, the text shown (+0x40 (1)), the colour updated. Returns
 // the item.
@@ -405,5 +425,65 @@ void XB_STDCALL SaveSlot_InitAll(uint8_t* saves);
 
 // 0x00372de0 (static initializer, no Ghidra function before 11-11): the font names at 0x0095f7e8.
 void XB_CDECL StaticInit_FontNames_95f7e8();
+
+// --- Unreached slots (host_unreached 2026-11-12) ---
+// UI_MENU_TAIL_DECIDE with the handler's stack argument: `decide(menu, argument)`.
+#define UI_MENU_TAIL_DECIDE_ARG(name, decide)                                                               \
+    PLATFORM_ASM_ENTRY(name, "pushl 4(%esp)\n"                                                              \
+                             "pushl %ecx\n" PLATFORM_ASM_CALL(decide) "popl %ecx\n"                         \
+                             "addl $4, %esp\n"                                                              \
+                             "testl %eax, %eax\n"                                                           \
+                             "js 1f\n"                                                                      \
+                             "movl %eax, 4(%esp)\n"                                                         \
+                             "movl 8(%ecx), %ecx\n"                                                         \
+                             "movl (%ecx), %eax\n"                                                          \
+                             "jmp *0xc(%eax)\n"                                                             \
+                             "1: ret $4")
+// 0x0030ef00 (vtable +0x08): appends a screen (+0x04[+0x14++]).
+void XB_THISCALL UIScreenMgr_AddScreen(uint8_t* mgr, uint8_t* screen);
+// UIDialog (vtable 0x00829d48): +0x34 button count, +0x44 back callback (thiscall, the dialog), +0x58 buttons side by
+// side. 0x0030e760 (+0x64): the back callback, if any. 0x0030e770 (+0x40): ret. 0x00313d90 / 0x00313d70 (+0x50 /
+// +0x54, up / down): previous / next button (+0xb0 / +0xb4) when side by side with more than one; 0x00313d50 /
+// 0x00313d30 (+0x58 / +0x5c, left / right): the same when stacked.
+void XB_THISCALL UIDialog_OnBack(uint8_t* dialog, uint32_t pad);
+void XB_THISCALL UIDialog_RestoreSelectionNop(uint8_t* dialog);
+void XB_THISCALL UIDialog_OnUp(uint8_t* dialog, uint32_t pad);
+void XB_THISCALL UIDialog_OnDown(uint8_t* dialog, uint32_t pad);
+void XB_THISCALL UIDialog_OnLeft(uint8_t* dialog, uint32_t pad);
+void XB_THISCALL UIDialog_OnRight(uint8_t* dialog, uint32_t pad);
+// 0x00312620 (+0xc4, ret 8): the dialog's choice (0 / 1) into the waiting screen: the front end's screen 15 object
+// (+0x3c: 0 -> +0x96 = 1, +0x61 = 0; 1 -> +0x95 = 1, +0x61 = 1), or without a front end the in-game screens' +0x1c
+// (0 -> +0x85 = 1, +0x52 = 0; 1 -> +0x84 = 1, +0x52 = 1).
+void XB_THISCALL UIDialog_ReportChoice(uint8_t* dialog, int32_t choice, uint32_t unused);
+// Repeat (vtable +0xc0) with a held direction (+0x32, flag 7 of +0x2a): 0x00314a70 up / down -> +0xb0 / +0xb4 and
+// 0x00314830 all four -> +0xb0 / +0xb4 / +0xb8 / +0xbc as tail jumps (the C part returns the slot, 0 = none; not
+// compared); the others call left / right (+0x58 / +0x5c, pad 0), 0x00312960 also up / down (+0x50 / +0x54);
+// 0x003138d0 only on row 0, 0x003139b0 only on rows 2 and 3.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL UIMenu_RepeatHeldUpDown(uint8_t* menu);
+extern "C" void UIMenu_RepeatHeldUpDown_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL UIMenu_RepeatHeldDirection(uint8_t* menu);
+extern "C" void UIMenu_RepeatHeldDirection_entry(void);
+void XB_THISCALL ChapterMenu_RepeatHeldDirection(uint8_t* menu);
+void XB_THISCALL CreateProfileMenu_RepeatHeldDirection(uint8_t* menu);
+void XB_THISCALL SoundMenu_RepeatHeldDirection(uint8_t* menu);
+void XB_THISCALL ControllerConfigMenu_RepeatHeldDirection(uint8_t* menu);
+// 0x00314e30 (+0x94, ret 8): flags 10 / 11 of +0x2a cleared, then top-aligned if `top`, else bottom-aligned if
+// `bottom`.
+void XB_THISCALL UIMenu_SetVertAlign(uint8_t* menu, uint32_t top, uint32_t bottom);
+// Back (+0x64) / select (+0x38) handlers ending in SetActiveScreen (UI_MENU_TAIL_*): the C parts return the screen
+// (-1 = none).
+extern "C" void ChapterMenu_OnBack_entry(void);         // 0x0030cca0: screen 2
+extern "C" void CreateProfileMenu_OnBack_entry(void);   // 0x0030da70: screen 0
+extern "C" void GameplayMenu_OnBack_entry(void);        // 0x0030e3f0: the front end's (0x0095f8f8) screen 3
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SinglePlayerMenu_OnBack(uint8_t* menu);
+extern "C" void SinglePlayerMenu_OnBack_entry(void);    // 0x0030e470
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL AutosaveMenu_OnBack(uint8_t* menu);
+extern "C" void AutosaveMenu_OnBack_entry(void);        // 0x00312560
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL ProfileMenu_OnBack(uint8_t* menu);
+extern "C" void ProfileMenu_OnBack_entry(void);         // 0x00312790
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL MainMenu_OnBack(uint8_t* menu);
+extern "C" void MainMenu_OnBack_entry(void);            // 0x00313ab0
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void MainMenu_HandleSelect_entry(void);      // 0x00313b10
 
 }  // namespace game

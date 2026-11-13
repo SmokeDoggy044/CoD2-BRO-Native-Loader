@@ -42,6 +42,65 @@ uint32_t XB_THISCALL UIMenu_GetField8(uint8_t* self);  // 0x00011f30
 uint8_t XB_THISCALL UIElement_GetByte1A(uint8_t* self);  // 0x00011f80
 uint8_t XB_THISCALL UIObject_GetByte4(uint8_t* self);  // 0x00011fb0
 
+// Unreached UI slots (host_unreached 2026-11-12)
+void XB_THISCALL UIElement_SetFlagBit1(uint8_t* self, uint32_t on);  // 0x000112c0
+void XB_THISCALL UIElement_ClearFlagBit0(uint8_t* self);  // 0x000112e0
+uint32_t XB_THISCALL UIElement_HasFlagBit4Or5(uint8_t* self);  // 0x00011310
+uint8_t* XB_THISCALL UIElement_DeletingDtor(uint8_t* self, uint32_t flags);  // 0x00011360
+uint8_t XB_THISCALL UITextBase_ReturnFalse(uint8_t* self);  // 0x000113b0
+void XB_THISCALL UITextBase_SetFont(uint8_t* self, uint32_t value);  // 0x000113c0
+void XB_THISCALL UITextBase_SetFlag5CBit2(uint8_t* self, uint32_t on);  // 0x000113d0
+void XB_THISCALL UITextBase_SetOffset44(uint8_t* self, uint32_t x, uint32_t y);  // 0x00011470
+void XB_THISCALL UITextBase_SetFloat30(uint8_t* self, uint32_t bits);  // 0x00011590
+float XB_THISCALL UITextBase_GetFloat3C(uint8_t* self);  // 0x00011620
+uint32_t XB_THISCALL UITextBase_GetFlag5CBit2(uint8_t* self);  // 0x00011630
+int32_t XB_THISCALL UITextBase_GetFlags5C(uint8_t* self);  // 0x00011660
+uint32_t XB_THISCALL UITextBase_GetHorzAlign(uint8_t* self);  // 0x00011670
+uint32_t XB_THISCALL UITextBase_GetVertAlign(uint8_t* self);  // 0x00011680
+float* XB_THISCALL UITextBase_GetZeroVector(uint8_t* self, float* out);  // 0x000116e0
+uint32_t XB_THISCALL UIText_GetField78(uint8_t* self);  // 0x00011760
+uint32_t XB_THISCALL UIText_GetField7C(uint8_t* self);  // 0x00011770
+uint32_t XB_THISCALL UIText_GetField74(uint8_t* self);  // 0x00011780
+void XB_THISCALL UIText_SetDefaultLineSpacing(uint8_t* self);  // 0x00011790
+void XB_THISCALL UIText_SetField60(uint8_t* self, uint32_t value);  // 0x000118d0
+void XB_THISCALL UIText_SetField74(uint8_t* self, uint32_t value);  // 0x000118e0
+void XB_THISCALL UIText_GetFields2C30(uint8_t* self, uint32_t* a, uint32_t* b);  // 0x000118f0
+void XB_THISCALL UIText_SetByte96(uint8_t* self, uint32_t value);  // 0x00011910
+void XB_THISCALL UIPicture_ScaleAboutUniform(uint8_t* self, uint32_t cx, uint32_t cy, uint32_t scale,
+                                             uint32_t relative);  // 0x00011980
+void XB_THISCALL UIPicture_SetQuadUVs(uint8_t* self, uint32_t index, const float* us, const float* vs);  // 0x000119b0
+void XB_THISCALL UIElement_GetFields14_18(uint8_t* self, uint32_t* a, uint32_t* b);  // 0x00011a00
+void XB_THISCALL UIWorldPicture_CopyFrom(uint8_t* self, uint8_t* source);  // 0x00011af0
+void XB_THISCALL UIWorldPicture_SetWorldPos(uint8_t* self, uint32_t x, uint32_t y, uint32_t z);  // 0x00011b20
+uint32_t* XB_THISCALL UIWorldPicture_GetWorldPos(uint8_t* self, uint32_t* out);  // 0x00011b40
+void XB_THISCALL UIMenuItem_InnerSlot56Zero(uint8_t* self);  // 0x00011c20
+void XB_THISCALL UIMenuItem_SetText(uint8_t* self, uint32_t string);  // 0x00011c80
+void XB_THISCALL UIMenuItem_InnerSlot59(uint8_t* self, uint32_t a, uint32_t b, uint32_t c);  // 0x00011cd0
+void XB_THISCALL UIMenuItem_SetColorScheme(uint8_t* self, uint32_t value);  // 0x00011d60
+uint32_t* XB_THISCALL UIMenuItem_GetText(uint8_t* self, uint32_t* out);  // 0x00011da0
+uint8_t XB_THISCALL UIMenuItem_GetColorScheme(uint8_t* self);  // 0x00011e20
+extern "C" void UIMenuItem_InnerSlot13(void);  // 0x00011c30
+extern "C" void UIMenuItem_InnerSlot31(void);  // 0x00011c60
+extern "C" void UIMenuItem_InnerSlot19(void);  // 0x00011d00
+extern "C" void UIMenuItem_InnerSlot20(void);  // 0x00011d10
+extern "C" void UIMenuItem_InnerSlot57(void);  // 0x00011d20
+extern "C" void UIMenuItem_InnerSlot21(void);  // 0x00011d30
+extern "C" void UIMenuItem_InnerSlot60(void);  // 0x00011d40
+extern "C" void UIMenuItem_InnerSlot61(void);  // 0x00011d50
+extern "C" void UIMenuItem_InnerSlot7(void);  // 0x00011d90
+extern "C" void UIMenuItem_InnerSlot52(void);  // 0x00011dc0
+extern "C" void UIMenuItem_InnerSlot51(void);  // 0x00011de0
+extern "C" void UIMenuItem_InnerSlot49(void);  // 0x00011df0
+extern "C" void UIMenuItem_InnerSlot42(void);  // 0x00011e10
+extern "C" void UIMenuItem_InnerSlot10(void);  // 0x00011e50
+extern "C" void UIMenuItem_InnerSlot70(void);  // 0x00011e60
+void XB_THISCALL UIMenu_SetPlaysMoveSound(uint8_t* self, uint32_t value);  // 0x00011eb0
+void XB_THISCALL UIMenu_SetLocked(uint8_t* self, uint32_t value);  // 0x00011ec0
+void XB_THISCALL UIMenu_Slot9Zero(uint8_t* self);  // 0x00011ed0
+void XB_THISCALL UIMenu_SetResult(uint8_t* self, uint32_t value);  // 0x00011f10
+int32_t XB_THISCALL UIMenu_GetFlags(uint8_t* self);  // 0x00011f40
+void XB_THISCALL UIMenu_SetRowSpacing(uint8_t* self, uint32_t value);  // 0x000241c0
+void XB_THISCALL UIScreenMgr_SetByte1A(uint8_t* self, uint32_t value);  // 0x00011f70
 // Script strings and script helpers
 ScriptString* XB_THISCALL ScriptString_InitEmpty(ScriptString* self);  // 0x00011270
 ScriptString* XB_THISCALL ScriptString_DefaultCtor(ScriptString* self);  // 0x0001dc00

@@ -137,4 +137,11 @@ extern "C" void SpecialConceptMenu_NextItem_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu);
 extern "C" void SpecialConceptMenu_LeaveFullScreen_entry(void);
 
+// 0x00012f10 (ret 4): DifficultyMenu_StartGame with the selected difficulty.
+void XB_THISCALL DifficultyMenu_HandleSelect(uint8_t* menu, int32_t difficulty);
+// 0x00013550 (thiscall, index on the stack, ret 4): SpecialMaterialsMenu_HandleSelect.
+extern "C" void SpecialMaterialsMenu_OnSelect_entry(void);
+// 0x00013600 (thiscall, ret 4): leaves full screen, else back to screen 0x12 (manager +0x0c, tail jump).
+extern "C" void SpecialConceptMenu_OnBack_entry(void);
+
 }  // namespace game

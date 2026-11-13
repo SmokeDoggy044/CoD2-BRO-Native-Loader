@@ -4404,4 +4404,122 @@ const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t*, const char* token) {
     return token;
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+void XB_THISCALL UIElement_CopyBaseFields(uint8_t* element, uint8_t* source) {
+    field<uint32_t>(element, 4) = field<uint32_t>(source, 4);
+    field<uint32_t>(element, 8) = field<uint32_t>(source, 8);
+    field<uint32_t>(element, 0xc) = field<uint32_t>(source, 0xc);
+    element[0x10] = source[0x10];
+}
+
+void XB_THISCALL UIElement_SetFade(uint8_t* element, uint32_t on, uint32_t fade_in, float time) {
+    if (!static_cast<uint8_t>(on)) {
+        element[0x10] = static_cast<uint8_t>(element[0x10] & 0xcf);
+        return;
+    }
+    const uint8_t flags = element[0x10];
+    field<float>(element, 0xc) = time;
+    if (static_cast<uint8_t>(fade_in)) {
+        if (flags & 0x10) return;                    // already fading in
+        if ((flags & 4) && !(flags & 0x20)) return;  // shown and not fading out
+        element[0x10] = static_cast<uint8_t>(flags | 0x14);
+        field<float>(element, 4) = 0.0f;
+    } else {
+        if (flags & 0x20) return;  // already fading out
+        element[0x10] = static_cast<uint8_t>(flags | 0x20);
+        field<float>(element, 4) = 1.0f;
+    }
+}
+
+void XB_THISCALL UITextBase_ClearFlags5C_09(uint8_t* text) {
+    text[0x5c] = static_cast<uint8_t>(text[0x5c] & 0xf6);
+}
+
+// The scrolled share of the text (-pos / (lines * spacing - margin), the margin kept when wrapping) in [0, 1]; 0 when
+// not scrolling, 1 when the text fits.
+long double XB_THISCALL UIText_GetScrollFraction(uint8_t* text) {
+    float result = 0.0f;
+    if (text[0x94]) {
+        float total = static_cast<float>(field<int32_t>(text, 0x78)) * field<float>(text, 0x6c);
+        if (!text[0x95]) total = total - static_cast<float>(field<int32_t>(text, 0x84));
+        if (!(total > 0.0f)) return 1.0f;
+        const float share = 0.0f - field<float>(text, 0x90) / total;
+        result = share;
+        if (share > 1.0f)
+            result = 1.0f;
+        else if (0.0f > share)
+            result = 0.0f;
+    }
+    return result;
+}
+
+// Scrolling on (+0x94) with the margin and wrap flag; the position starts at the margin when wrapping, else 0, and
+// the text moves there (+0x7c); +0x8c = lines per page (margin / spacing + 1, truncated; 0 when wrapping).
+void XB_THISCALL UIText_StartScroll(uint8_t* text, int32_t margin, uint32_t wrap_word) {
+    const uint8_t wrap = static_cast<uint8_t>(wrap_word);
+    text[0x94] = 1;
+    text[0x95] = wrap;
+    field<int32_t>(text, 0x84) = margin;
+    float pos = static_cast<float>(margin);
+    platform_keep(pos);
+    if (!wrap) pos = 0.0f;
+    field<float>(text, 0x90) = pos;
+    field<uint32_t>(text, 0x88) = 0;
+    int32_t page = 0;
+    if (!wrap) page = static_cast<int32_t>(static_cast<float>(margin) / field<float>(text, 0x6c) + 1.0f);
+    field<int32_t>(text, 0x8c) = page;
+    const float y = field<float>(text, 0x30) + pos;
+    method<void XB_THISCALL(uint8_t*, uint32_t, float)>(text, 0x7c)(text, field<uint32_t>(text, 0x2c), y);
+}
+
+// The font (+0x18) into the text and each line (+0x80, 0x20 bytes each, +0x78 lines).
+void XB_THISCALL UIText_SetFont(uint8_t* text, uint32_t font) {
+    field<uint32_t>(text, 0x18) = font;
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i)
+        field<uint32_t>(field<uint8_t*>(text, 0x80), uint32_t(i) * 0x20) = field<uint32_t>(text, 0x18);
+}
+
+// The widest line (+0x10 of each, truncated), at least 0.
+long double XB_THISCALL UIText_GetMaxLineWidth(uint8_t* text) {
+    int32_t widest = 0;
+    const int32_t lines = field<int32_t>(text, 0x78);
+    for (int32_t i = 0; i < lines; ++i) {
+        const int32_t width = static_cast<int32_t>(field<float>(field<uint8_t*>(text, 0x80), uint32_t(i) * 0x20 + 0x10));
+        if (width > widest) widest = width;
+    }
+    return static_cast<long double>(widest);
+}
+
+void XB_THISCALL UIPicture_GetBaseCorners(uint8_t* picture, uint32_t* xs, uint32_t* ys) {
+    const auto quad = [&] { return field<uint8_t**>(picture, 0x20)[0]; };
+    xs[0] = field<uint32_t>(quad(), 0x40);
+    ys[0] = field<uint32_t>(quad(), 0x44);
+    xs[1] = field<uint32_t>(quad(), 0x54);
+    ys[1] = field<uint32_t>(quad(), 0x58);
+    xs[2] = field<uint32_t>(quad(), 0x68);
+    ys[2] = field<uint32_t>(quad(), 0x6c);
+    xs[3] = field<uint32_t>(quad(), 0x7c);
+    ys[3] = field<uint32_t>(quad(), 0x80);
+}
+
+// Every quad's four vertices (x, y at +0x00 / +0x0c / +0x18 / +0x24) moved by (dx, dy).
+void XB_THISCALL UIPicture_TranslateQuads(uint8_t* picture, float dx, float dy) {
+    for (uint32_t i = 0; i < field<uint32_t>(picture, 0x28); ++i) {
+        uint8_t* const quad = field<uint8_t**>(picture, 0x20)[i];
+        for (uint32_t v = 0; v < 4; ++v) {
+            field<float>(quad, v * 0xc) = field<float>(quad, v * 0xc) + dx;
+            field<float>(quad, v * 0xc + 4) = dy + field<float>(quad, v * 0xc + 4);
+        }
+    }
+}
+
+// Every quad's four vertex colours (+0x30..+0x3c).
+void XB_THISCALL UIPicture_SetAllQuadColors(uint8_t* picture, uint32_t color) {
+    for (uint32_t i = 0; i < field<uint32_t>(picture, 0x28); ++i) {
+        uint8_t* const quad = field<uint8_t**>(picture, 0x20)[i];
+        for (uint32_t v = 0; v < 4; ++v) field<uint32_t>(quad, 0x30 + v * 4) = color;
+    }
+}
+
 }  // namespace game

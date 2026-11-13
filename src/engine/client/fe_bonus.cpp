@@ -937,4 +937,21 @@ void XB_CDECL BonusMaterialsMenu_HandleSelect(uint8_t* menu, int32_t index, uint
     c.method(title_global<uint8_t*>(0x0095f8f8), 0xc, uint32_t(7 + index));  // the front end's screen 9 .. 12
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+// 0x00012ff0 (vtable +0x38): the item index (stack) into BonusMaterialsMenu_HandleSelect (EAX, menu in ECX). The call
+// is inside the first 5 bytes: not compared.
+PLATFORM_ASM_ENTRY(BonusMaterialsMenu_OnSelect_entry,
+                   "movl 4(%esp), %eax\n" PLATFORM_ASM_CALL(BonusMaterialsMenu_HandleSelect_entry)
+                   "ret $4")
+
+// 0x00013000 (vtable +0x64, also SpecialMaterialsMenu's): unless +0x3c is set, back to screen 1 through the
+// manager's +0x0c as a tail jump (the argument slot rewritten; it runs at the entry ESP: its sound keeps stack
+// addresses). Not compared.
+UI_MENU_TAIL_DECIDE(BonusMaterialsMenu_OnBack_entry, BonusMaterialsMenu_OnBack)
+
+int32_t XB_CDECL BonusMaterialsMenu_OnBack(uint8_t* menu) {
+    return menu[0x3c] ? -1 : 1;
+}
+
 }  // namespace game

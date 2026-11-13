@@ -275,6 +275,47 @@ void XB_THISCALL ControllerConfigMenu_OnDown(uint8_t* menu, uint32_t) {
     ControllerConfigMenu_UpdateLabelColors(menu);
 }
 
+// Left / right (vtable +0x58 / +0x5c): the selected row's option.
+void XB_THISCALL GameplayMenu_OnLeft(uint8_t* menu, uint32_t) {
+    GameplayMenu_ToggleOption(menu, 0);
+}
+
+void XB_THISCALL GameplayMenu_OnRight(uint8_t* menu, uint32_t) {
+    GameplayMenu_ToggleOption(menu, 1);
+}
+
+void XB_THISCALL ControllerConfigMenu_OnLeft(uint8_t* menu, uint32_t) {
+    ControllerConfigMenu_ChangeValue(menu, 0);
+}
+
+// The previous / next item, then the label +0x3c coloured like item 0.
+void XB_THISCALL ScreenMenu_OnUp(uint8_t* menu, uint32_t) {
+    call(menu, 0xb0);
+    copy_color(menu_item(menu, 0), field<uint8_t*>(menu, 0x3c));
+}
+
+void XB_THISCALL ScreenMenu_OnDown(uint8_t* menu, uint32_t) {
+    call(menu, 0xb4);
+    copy_color(menu_item(menu, 0), field<uint8_t*>(menu, 0x3c));
+}
+
+void XB_THISCALL ScreenMenu_OnLeft(uint8_t* menu, uint32_t) {
+    ScreenMenu_ToggleAspect(menu, 0);
+}
+
+void XB_THISCALL ScreenMenu_OnRight(uint8_t* menu, uint32_t) {
+    ScreenMenu_ToggleAspect(menu, 1);
+}
+
+// 0x00012b40 (vtable +0x64): +0x3c cleared, then the manager's +0x0c (SetActiveScreen 1) as a tail jump with the
+// argument slot rewritten: it runs at the entry ESP (its sound keeps stack addresses). Not compared.
+UI_MENU_TAIL_DECIDE(OptionsMenu_OnBack_entry, OptionsMenu_OnBack)
+
+int32_t XB_CDECL OptionsMenu_OnBack(uint8_t* menu) {
+    field<uint32_t>(menu, 0x3c) = 0;
+    return 1;  // the options screen
+}
+
 void XB_THISCALL AdvancedOptionsMenu_OnUp(uint8_t* menu, uint32_t) {
     const int32_t row = selection(menu);
     call(menu, 0xb0);

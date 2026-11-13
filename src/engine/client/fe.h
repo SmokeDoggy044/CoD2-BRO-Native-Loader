@@ -608,4 +608,23 @@ void XB_THISCALL UIPicture_ScaleAbout(uint8_t* picture, float cx, float cy, floa
 // (and an unbound or other key) returns the token itself; null gives null.
 const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t* text, const char* token);
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+// UIElement +0x08 / +0x20: 0x0030fc50 copies +0x04..+0x10; 0x00315df0 (on, fade_in, time; ret 0xc): off clears flags
+// 4 / 5 of +0x10; else +0x0c = time and a fade in (flags |= 0x14, +0x04 = 0; not while fading in or shown) or out
+// (flag 5, +0x04 = 1; not while fading out).
+void XB_THISCALL UIElement_CopyBaseFields(uint8_t* element, uint8_t* source);
+void XB_THISCALL UIElement_SetFade(uint8_t* element, uint32_t on, uint32_t fade_in, float time);
+// UITextBase +0x98 (0x0030fb50): flags 0 and 3 of +0x5c cleared.
+void XB_THISCALL UITextBase_ClearFlags5C_09(uint8_t* text);
+// UIText +0x12c (0x0030f620), +0x128 (0x0030f6b0, ret 8), +0x54 (0x0030f830), +0xd0 (0x003155e0).
+long double XB_THISCALL UIText_GetScrollFraction(uint8_t* text);
+void XB_THISCALL UIText_StartScroll(uint8_t* text, int32_t margin, uint32_t wrap);
+void XB_THISCALL UIText_SetFont(uint8_t* text, uint32_t font);
+long double XB_THISCALL UIText_GetMaxLineWidth(uint8_t* text);
+// UIPicture +0x94 (0x00316950, ret 8): quad 0's base corners (+0x40 + i * 0x14) into xs / ys[4]; +0xbc (0x003167e0,
+// ret 8) every quad moved by (dx, dy); +0xc0 (0x003167a0, ret 4) every quad's vertex colours.
+void XB_THISCALL UIPicture_GetBaseCorners(uint8_t* picture, uint32_t* xs, uint32_t* ys);
+void XB_THISCALL UIPicture_TranslateQuads(uint8_t* picture, float dx, float dy);
+void XB_THISCALL UIPicture_SetAllQuadColors(uint8_t* picture, uint32_t color);
+
 }  // namespace game

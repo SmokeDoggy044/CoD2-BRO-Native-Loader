@@ -707,4 +707,32 @@ void XB_CDECL SpecialMaterialsMenu_OnUp(uint8_t* menu, uint32_t ebx, uint32_t ed
     materials_move(menu, ebx, edi, entry_esp, 0xb0);
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+// 0x00012f10 (vtable +0x38): the selected difficulty starts the game.
+void XB_THISCALL DifficultyMenu_HandleSelect(uint8_t* menu, int32_t difficulty) {
+    DifficultyMenu_StartGame(difficulty, menu);
+}
+
+// 0x00013550 (vtable +0x38): the item index (stack) into SpecialMaterialsMenu_HandleSelect (EAX, menu in ECX). The
+// call is inside the first 5 bytes: not compared.
+PLATFORM_ASM_ENTRY(SpecialMaterialsMenu_OnSelect_entry,
+                   "movl 4(%esp), %eax\n" PLATFORM_ASM_CALL(SpecialMaterialsMenu_HandleSelect_entry)
+                   "ret $4")
+
+// 0x00013600 (vtable +0x64): full screen (+0x40) -> SpecialConceptMenu_LeaveFullScreen (menu in ESI); else back to
+// screen 0x12 through the manager's +0x0c as a tail jump (argument slot rewritten, runs at the entry ESP: its
+// sound keeps stack addresses). Not compared.
+PLATFORM_ASM_ENTRY(SpecialConceptMenu_OnBack_entry,
+                   "cmpb $0, 0x40(%ecx)\n"
+                   "je 1f\n"
+                   "pushl %esi\n"
+                   "movl %ecx, %esi\n" PLATFORM_ASM_CALL(SpecialConceptMenu_LeaveFullScreen_entry)
+                   "popl %esi\n"
+                   "ret $4\n"
+                   "1: movl 8(%ecx), %ecx\n"
+                   "movl (%ecx), %eax\n"
+                   "movl $0x12, 4(%esp)\n"
+                   "jmp *0xc(%eax)")
+
 }  // namespace game

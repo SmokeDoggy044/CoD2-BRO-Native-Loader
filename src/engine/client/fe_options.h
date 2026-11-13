@@ -68,6 +68,20 @@ void XB_THISCALL GameplayMenu_OnUp(uint8_t* menu, uint32_t pad);
 void XB_THISCALL GameplayMenu_OnDown(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ControllerConfigMenu_OnUp(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ControllerConfigMenu_OnDown(uint8_t* menu, uint32_t pad);
+// 0x000126f0 / 0x00012700, 0x000127a0 (ret 4, the pad unused): left / right = GameplayMenu_ToggleOption (0 / 1),
+// ControllerConfigMenu_ChangeValue (left).
+void XB_THISCALL GameplayMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL GameplayMenu_OnRight(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ControllerConfigMenu_OnLeft(uint8_t* menu, uint32_t pad);
+// 0x00012890 / 0x000128d0: previous / next item, the label +0x3c coloured like item 0; 0x00012910 / 0x00012920:
+// left / right = ScreenMenu_ToggleAspect.
+void XB_THISCALL ScreenMenu_OnUp(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnDown(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnRight(uint8_t* menu, uint32_t pad);
+// 0x00012b40 (thiscall, ret 4 through the tail jump): +0x3c cleared, back to the options screen (1).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL OptionsMenu_OnBack(uint8_t* menu);
+extern "C" void OptionsMenu_OnBack_entry(void);
 // 0x00313c00 / 0x00313bc0 (ret 4): the same with wrapping from row 0 to 11 / 11 to 0 (+0x88 (row, 1), the move sound
 // +0x10), then the label colours (0x0030e4c0, menu in ESI).
 void XB_THISCALL AdvancedOptionsMenu_OnUp(uint8_t* menu, uint32_t pad);
