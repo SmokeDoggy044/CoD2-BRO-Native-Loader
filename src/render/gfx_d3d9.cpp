@@ -1021,21 +1021,24 @@ private:
         reserved[7] = 0.0f;
         // In title pixels: x' = p x + q, then clip = x' * reserved[0] + reserved[4].
         float p = 1.0f, q = 0.0f;
-        // Full-width draws into the back buffer from title x = 0 (full-screen fades, letterbox bars, a scope
-        // overlay): that edge is half a title pixel inside the picture (pixel centres on integers). At 1x it
-        // still covers pixel 0; at a larger render scale it left a column of s/2 surface pixels open. An edge
-        // within half a pixel of the picture's goes to it (-0.5), the far end stays: a stretch of at most a
-        // pixel. The same for their top edge.
+        // Full-width draws into the back buffer (full-screen fades, letterbox bars, a scope overlay) whose
+        // edges lie near the picture's are extended to them. The title's quads start at x/y = 0, half a title
+        // pixel inside (pixel centres on integers): at 1x that still covers pixel 0, at a larger render scale
+        // it left s/2 surface pixels of scene showing. Some bars (the pause menu's) also stop a few pixels short
+        // of the bottom, which a TV's overscan hid. Edges within 3 title pixels go to the picture's (-0.5, and
+        // the size), a stretch of a few pixels at most.
         float py = 1.0f, qy = 0.0f;
-        const auto to_edge = [](float low, float high, float& scale, float& offset) {
-            if (!(low > -0.5f && low <= 0.5f && high > low + 1.0f)) return;
-            scale = (high + 0.5f) / (high - low);  // low -> -0.5, high -> high
-            offset = high - high * scale;
+        const auto to_edges = [](float low, float high, float size, float& scale, float& offset) {
+            if (!(high > low + 8.0f)) return;
+            const float new_low = low > -0.5f && low <= 3.0f ? -0.5f : low;
+            const float new_high = high >= size - 3.0f && high < size ? size : high;
+            scale = (new_high - new_low) / (high - low);
+            offset = new_low - low * scale;
         };
-        if (x_range && x_range[0] <= 0.5f && x_range[1] >= width - 1.0f && draw_.target_width() == back_width_ &&
+        if (x_range && x_range[0] <= 3.0f && x_range[1] >= width - 3.0f && draw_.target_width() == back_width_ &&
             draw_.target_height() == back_height_) {
-            to_edge(x_range[0], x_range[1], p, q);
-            to_edge(x_range[2], x_range[3], py, qy);
+            to_edges(x_range[0], x_range[1], width, p, q);
+            to_edges(x_range[2], x_range[3], height, py, qy);
         }
         reserved[5] += qy * reserved[1];
         reserved[1] *= py;

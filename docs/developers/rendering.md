@@ -113,13 +113,15 @@ fixed point and factor, only into the back buffer; draws spanning the full width
   tinted black, three screens tall) that the narrowing brings into the picture: the true shape,
   black beside it.
 
-Full-width draws into the back buffer whose left or top edge lies within half a title pixel of the
-picture's edge (letterbox bars, fades, the scope overlay) are stretched by up to a pixel so that edge
-reaches the picture's: the title's quads start at x/y = 0, half a pixel inside (pixel centres on
-integers), which at a render scale s left s/2 surface pixels of scene showing (1 px at 16:9, 2 at
-21:9; also in 0.2.2). GfxD3D9 only (our renderer); the old D3D9Draw path (multiplayer) keeps the gap.
+Full-width draws into the back buffer whose edges lie within 3 title pixels of the picture's (letterbox
+bars, fades, the scope overlay, the pause menu's bars) are stretched by a few pixels to reach them: the
+title's quads start at x/y = 0, half a pixel inside (pixel centres on integers), which at a render scale
+s left s/2 surface pixels of scene showing (1 px at 16:9, 2 at 21:9), and the pause menu's bottom bar
+stops 2.5 pixels short (a TV's overscan hid both; also in 0.2.2). GfxD3D9 only (our renderer); the old
+D3D9Draw path (multiplayer) keeps the gaps.
 
-Checked 2026-11-13 (our exe): Omaha at 21:9 (user: bars, binoculars), mission 2 at 21:9 with --fov 100 (HUD at the edges,
+Checked 2026-11-13 (our exe): Omaha at 21:9 (user: bars, binoculars), mission 4 at 32:9 (user: HUD, pause
+menu and Options, death screen pillarboxed 4:3 as a flat frame), mission 2 at 21:9 with --fov 100 (HUD at the edges,
 compass round, objectives at the left edge, pause menu); 16:9 objectives narrowed again.
 Not checked: scopes and binoculars (side bars drawn as quads would only cover the 16:9
 part), death/mission failed screens, missions 3+, 32:9 in play. 
