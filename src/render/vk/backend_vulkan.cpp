@@ -22,6 +22,7 @@
 #include "imgui_impl_vulkan.h"
 #include "log.h"
 #include "vk_context.h"
+#include "vk_post.h"
 #include "vk_shaders.h"
 
 namespace render {
@@ -42,6 +43,7 @@ public:
         if (!vk_.device()) return;
         vk_.wait_idle();
         window_.close_menu();  // its renderer needs the device
+        post_.reset();
         gfx_.reset();
         destroy_swapchain();
         for (Image* image : {&gamma_table_, &overlay_image_, &notice_image_, &upload_}) vk_.destroy_image(*image);
@@ -72,6 +74,7 @@ public:
             draw_config.render_scale = static_cast<float>(pixel_height) / height_;
         if (!create_swapchain() || !create_present_pass()) return false;
         gfx_ = vk::create_vulkan_gfx_device(vk_, draw_config);
+        post_ = std::make_unique<vk::Post>(vk_);
         if (!gfx_->back_buffer_image() || !*gfx_->back_buffer_image()) return false;
         window_.set_menu_renderer([this] { return init_menu_renderer(); }, [] { ImGui_ImplVulkan_Shutdown(); });
         LOG_INFO("render", "Vulkan device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u %s",
@@ -134,7 +137,11 @@ public:
         return ok;
     }
 
-    void finish_picture() override {}  // V4: enhanced graphics' post passes
+    void finish_picture() override {
+        // Enhanced graphics' post passes, on frames with a 3D scene (menus stay untouched).
+        std::lock_guard lock(mutex_);
+        if (!gfx_->frame_is_flat()) post_->apply(*gfx_->back_buffer_image(), active_graphics_features());
+    }
 
     void present() override {
         std::lock_guard lock(mutex_);
@@ -599,6 +606,7 @@ private:
     GameWindow window_;           // first in, last out: the device's surface needs the window
     vk::Context vk_;
     std::unique_ptr<vk::VulkanGfxDevice> gfx_;
+    std::unique_ptr<vk::Post> post_;  // enhanced graphics' post passes
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkExtent2D extent_{};
