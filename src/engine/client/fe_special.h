@@ -137,4 +137,35 @@ extern "C" void SpecialConceptMenu_NextItem_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu);
 extern "C" void SpecialConceptMenu_LeaveFullScreen_entry(void);
 
+// 0x00012f10 (ret 4): DifficultyMenu_StartGame with the selected difficulty.
+void XB_THISCALL DifficultyMenu_HandleSelect(uint8_t* menu, int32_t difficulty);
+// 0x00013550 (thiscall, index on the stack, ret 4): SpecialMaterialsMenu_HandleSelect.
+extern "C" void SpecialMaterialsMenu_OnSelect_entry(void);
+// 0x00013600 (thiscall, ret 4): leaves full screen, else back to screen 0x12 (manager +0x0c, tail jump).
+extern "C" void SpecialConceptMenu_OnBack_entry(void);
+
+// Draw (+0x28): 0x0031a860, 0x0031aae0, 0x0031b6b0, 0x0031ed50.
+void XB_THISCALL SpecialConceptMenu_Draw(uint8_t* menu);
+void XB_THISCALL SpecialMaterialsMenu_Draw(uint8_t* menu);
+void XB_THISCALL DifficultyMenu_Draw(uint8_t* menu);
+void XB_THISCALL SinglePlayerMenu_Draw(uint8_t* menu);
+// 0x0031ab60 (+0x40, gap entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SpecialMaterialsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx,
+                                                                              uint32_t edi, uint32_t esi,
+                                                                              uint32_t entry_esp);
+extern "C" void SpecialMaterialsMenu_RestoreSelection_entry(void);
+// 0x0031af10 (thiscall, index on the stack): see fe_special.cpp.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ChapterMenu_HandleSelect(uint32_t index);
+extern "C" void ChapterMenu_HandleSelect_entry(void);
+// 0x0031b0c0 (+0x44, ret 4).
+void XB_THISCALL ChapterMenu_OnDeactivate(uint8_t* menu, uint8_t* next);
+
+// More unreached slots: see fe_special.cpp.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SinglePlayerMenu_HandleSelect(uint8_t* menu, uint32_t index);  // 0x0032db40
+extern "C" void SinglePlayerMenu_HandleSelect_entry(void);
+void XB_THISCALL SpecialMaterialsMenu_Update(uint8_t* menu, float dt);  // 0x00333190
+void XB_THISCALL DifficultyMenu_Update(uint8_t* menu, float dt);        // 0x003355c0
+void XB_THISCALL ChapterMenu_RestoreSelection(uint8_t* menu);            // 0x00337e00
+void XB_THISCALL SinglePlayerMenu_RestoreSelection(uint8_t* menu);       // 0x00339170
+
 }  // namespace game

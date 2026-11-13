@@ -3360,4 +3360,44 @@ void XB_THISCALL SoundBankManager_UnloadZone(uint8_t* manager, int32_t zone) {
     }
 }
 
+
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+// 0x0031e630 (+0x64): the stored volume (0x008dce88) applied as SoundMenu_UpdateSliders does (crossfade volume,
+// +0x6018 clamped to 0..1, master volume 1 - (1 - it)^2), then the front end's screen 3 (tail jump). Not compared.
+UI_FRONT_END_TAIL_ARG(SoundMenu_OnBack_entry, SoundMenu_OnBack, 3)
+
+void XB_CDECL SoundMenu_OnBack(uint32_t) {
+    const float level = float(title_global<int32_t>(0x008dce88)) * title_global<float>(0x00830670);  // 0.02
+    S_SetHandleVolume(title_global<uint8_t*>(0x0095f4cc), float_bits(level));
+    float& volume = menu_field<float>(title_global<uint8_t*>(0x0095f4c4), 0x6018);
+    volume = level;
+    if (0.0f >= level) volume = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    if (volume >= one) volume = one;
+    const float quiet = one - volume;
+    S_SetMasterVolume(float_bits(one - quiet * quiet));
+}
+
+// 0x0031e6d0 (+0x38): item 1 resets the volume to 50 (+0x40, SoundMenu_UpdateSliders); item 2 stores it
+// (0x008dce88) and goes back to screen 3 (tail jump). Not compared.
+UI_MENU_TAIL_DECIDE_ARG(SoundMenu_HandleSelect_entry, SoundMenu_HandleSelect)
+
+int32_t XB_CDECL SoundMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (index == 1) {
+        menu_field<int32_t>(menu, 0x40) = 0x32;
+        SoundMenu_UpdateSliders(menu);
+        return -1;
+    }
+    if (index != 2) return -1;
+    title_global<int32_t>(0x008dce88) = menu_field<int32_t>(menu, 0x40);
+    return 3;
+}
+
+// 0x00335cd0 (+0x30): UIMenu_Update unless 0x0095f91e, then SCR_LoadingPump.
+void XB_THISCALL SoundMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) UIMenu_Update(menu, dt);
+    SCR_LoadingPump();
+}
+
 }  // namespace game

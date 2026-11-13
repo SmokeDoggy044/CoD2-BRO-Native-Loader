@@ -68,6 +68,20 @@ void XB_THISCALL GameplayMenu_OnUp(uint8_t* menu, uint32_t pad);
 void XB_THISCALL GameplayMenu_OnDown(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ControllerConfigMenu_OnUp(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ControllerConfigMenu_OnDown(uint8_t* menu, uint32_t pad);
+// 0x000126f0 / 0x00012700, 0x000127a0 (ret 4, the pad unused): left / right = GameplayMenu_ToggleOption (0 / 1),
+// ControllerConfigMenu_ChangeValue (left).
+void XB_THISCALL GameplayMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL GameplayMenu_OnRight(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ControllerConfigMenu_OnLeft(uint8_t* menu, uint32_t pad);
+// 0x00012890 / 0x000128d0: previous / next item, the label +0x3c coloured like item 0; 0x00012910 / 0x00012920:
+// left / right = ScreenMenu_ToggleAspect.
+void XB_THISCALL ScreenMenu_OnUp(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnDown(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ScreenMenu_OnRight(uint8_t* menu, uint32_t pad);
+// 0x00012b40 (thiscall, ret 4 through the tail jump): +0x3c cleared, back to the options screen (1).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL OptionsMenu_OnBack(uint8_t* menu);
+extern "C" void OptionsMenu_OnBack_entry(void);
 // 0x00313c00 / 0x00313bc0 (ret 4): the same with wrapping from row 0 to 11 / 11 to 0 (+0x88 (row, 1), the move sound
 // +0x10), then the label colours (0x0030e4c0, menu in ESI).
 void XB_THISCALL AdvancedOptionsMenu_OnUp(uint8_t* menu, uint32_t pad);
@@ -169,5 +183,21 @@ void XB_REGS1 XB_STDCALL AdvancedOptionsMenu_SetSliderBar(uint8_t* bar, uint8_t*
 // panel +0x38: +0x34 (shown) for the selected one only.
 extern "C" PLATFORM_HIDDEN void XB_CDECL OptionsMenu_SetCheckmarks(uint8_t* menu, int32_t selected);
 extern "C" void OptionsMenu_SetCheckmarks_entry(void);
+
+// 0x0031ec90 (+0x28): the panel, the help bar (+0x38, +0x3c), UIMenu_Draw, then the background movie.
+void XB_THISCALL OptionsMenu_Draw(uint8_t* menu);
+
+// More unreached slots: Update (+0x30) 0x00335cf0 / 0x00336340 / 0x003363c0 / 0x00336440; select / back tail jumps
+// 0x0032da70 / 0x003361c0 / 0x003310b0 (see fe_options.cpp).
+void XB_THISCALL ScreenMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL ControllerConfigMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL GameplayMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL OptionsMenu_Update(uint8_t* menu, float dt);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL GameplayMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void GameplayMenu_HandleSelect_entry(void);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL ControllerConfigMenu_OnBack(uint8_t* menu, uint32_t pad);
+extern "C" void ControllerConfigMenu_OnBack_entry(void);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL ControllerConfigMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void ControllerConfigMenu_HandleSelect_entry(void);
 
 }  // namespace game

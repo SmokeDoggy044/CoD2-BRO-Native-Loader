@@ -173,4 +173,28 @@ extern "C" void BonusCharactersMenu_UpdateNewFlags_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL BonusMaterialsMenu_UpdateNewFlags(uint8_t* menu);
 extern "C" void BonusMaterialsMenu_UpdateNewFlags_entry(void);
 
+// 0x00012ff0 (thiscall, index on the stack, ret 4): BonusMaterialsMenu_HandleSelect.
+extern "C" void BonusMaterialsMenu_OnSelect_entry(void);
+// 0x00013000 (thiscall, ret 4): back to screen 1 (manager +0x0c, tail jump) unless +0x3c. The C part: the screen,
+// -1 = stay.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL BonusMaterialsMenu_OnBack(uint8_t* menu);
+extern "C" void BonusMaterialsMenu_OnBack_entry(void);
+
+// Update (+0x30): 0x0031ba90 / 0x0031c440 / 0x0031d110 / 0x0031d760: UIMenu_Update and the "new" markers' blink.
+void XB_THISCALL BonusConceptsMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL BonusVehiclesMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL BonusWeaponsMenu_Update(uint8_t* menu, float dt);
+void XB_THISCALL BonusCharactersMenu_Update(uint8_t* menu, float dt);
+// 0x003357b0 (+0x30): see fe_bonus.cpp.
+void XB_THISCALL BonusMaterialsMenu_Update(uint8_t* menu, float dt);
+// Draw (+0x28): 0x0031bb50 / 0x0031c500 / 0x0031d1d0 / 0x0031dd90.
+void XB_THISCALL BonusConceptsMenu_Draw(uint8_t* menu);
+void XB_THISCALL BonusVehiclesMenu_Draw(uint8_t* menu);
+void XB_THISCALL BonusWeaponsMenu_Draw(uint8_t* menu);
+void XB_THISCALL BonusMaterialsMenu_Draw(uint8_t* menu);
+// 0x0031df90 (+0x40, gap entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusMaterialsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uint32_t edi,
+                                                                            uint32_t esi, uint32_t entry_esp);
+extern "C" void BonusMaterialsMenu_RestoreSelection_entry(void);
+
 }  // namespace game

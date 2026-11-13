@@ -2445,4 +2445,477 @@ void XB_CDECL StaticInit_FontNames_95f7e8() {
     }
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+void XB_THISCALL UIScreenMgr_AddScreen(uint8_t* mgr, uint8_t* screen) {
+    field<uint8_t**>(mgr, 4)[field<int32_t>(mgr, 0x14)] = screen;
+    ++field<int32_t>(mgr, 0x14);
+}
+
+void XB_THISCALL UIDialog_OnBack(uint8_t* dialog, uint32_t) {
+    if (const uint32_t callback = field<uint32_t>(dialog, 0x44))
+        title_function<void XB_THISCALL(uint8_t*)>(callback)(dialog);
+}
+
+void XB_THISCALL UIDialog_RestoreSelectionNop(uint8_t*) {}
+
+void XB_THISCALL UIDialog_OnUp(uint8_t* dialog, uint32_t) {
+    if (dialog[0x58] && field<int32_t>(dialog, 0x34) > 1) call(dialog, 0xb0);
+}
+
+void XB_THISCALL UIDialog_OnDown(uint8_t* dialog, uint32_t) {
+    if (dialog[0x58] && field<int32_t>(dialog, 0x34) > 1) call(dialog, 0xb4);
+}
+
+void XB_THISCALL UIDialog_OnLeft(uint8_t* dialog, uint32_t) {
+    if (!dialog[0x58]) call(dialog, 0xb0);
+}
+
+void XB_THISCALL UIDialog_OnRight(uint8_t* dialog, uint32_t) {
+    if (!dialog[0x58]) call(dialog, 0xb4);
+}
+
+void XB_THISCALL UIDialog_ReportChoice(uint8_t*, int32_t choice, uint32_t) {
+    uint8_t* const front_end = title_global<uint8_t*>(0x0095f8f8);
+    if (front_end) {
+        if (field<int32_t>(front_end, 0xc) != 0xf) return;
+        uint8_t* const screen = field<uint8_t*>(field<uint8_t*>(front_end, 4), 0x3c);
+        if (choice == 0) {
+            screen[0x96] = 1;
+            screen[0x61] = 0;
+        } else if (choice == 1) {
+            screen[0x95] = 1;
+            screen[0x61] = 1;
+        }
+        return;
+    }
+    uint8_t* const screen = field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0x1c);
+    if (choice == 0) {
+        screen[0x85] = 1;
+        screen[0x52] = 0;
+    } else if (choice == 1) {
+        screen[0x84] = 1;
+        screen[0x52] = 1;
+    }
+}
+
+namespace {
+
+int8_t held_direction(uint8_t* menu) { return static_cast<int8_t>(menu[0x32]); }
+
+// The held left / right (0x10 / 0x20) as the left / right handler (+0x58 / +0x5c) with pad 0.
+bool repeat_left_right(uint8_t* menu) {
+    if (held_direction(menu) == 0x20) {
+        call(menu, 0x5c, 0);
+        return true;
+    }
+    if (held_direction(menu) == 0x10) {
+        call(menu, 0x58, 0);
+        return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(UIMenu_RepeatHeldUpDown_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(UIMenu_RepeatHeldUpDown) "popl %ecx\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "movl (%ecx), %edx\n"
+                   "jmp *(%edx,%eax)\n"
+                   "1: ret")
+
+uint32_t XB_CDECL UIMenu_RepeatHeldUpDown(uint8_t* menu) {
+    if (!menu_flag(menu, 7)) return 0;
+    if (held_direction(menu) == 4) return 0xb0;
+    if (held_direction(menu) == 8) return 0xb4;
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(UIMenu_RepeatHeldDirection_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(UIMenu_RepeatHeldDirection) "popl %ecx\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "movl (%ecx), %edx\n"
+                   "jmp *(%edx,%eax)\n"
+                   "1: ret")
+
+uint32_t XB_CDECL UIMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (!menu_flag(menu, 7)) return 0;
+    switch (held_direction(menu)) {
+    case 4: return 0xb0;     // previous
+    case 8: return 0xb4;     // next
+    case 0x10: return 0xb8;  // slot 46
+    case 0x20: return 0xbc;  // slot 47
+    default: return 0;
+    }
+}
+
+void XB_THISCALL ChapterMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (menu_flag(menu, 7)) repeat_left_right(menu);
+}
+
+void XB_THISCALL CreateProfileMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (!menu_flag(menu, 7) || repeat_left_right(menu)) return;
+    if (held_direction(menu) == 4)
+        call(menu, 0x50, 0);
+    else if (held_direction(menu) == 8)
+        call(menu, 0x54, 0);
+}
+
+void XB_THISCALL SoundMenu_RepeatHeldDirection(uint8_t* menu) {
+    if (menu_flag(menu, 7) && field<int16_t>(menu, 0x22) == 0) repeat_left_right(menu);
+}
+
+void XB_THISCALL ControllerConfigMenu_RepeatHeldDirection(uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    if (menu_flag(menu, 7) && (row == 2 || row == 3)) repeat_left_right(menu);
+}
+
+void XB_THISCALL UIMenu_SetVertAlign(uint8_t* menu, uint32_t top, uint32_t bottom) {
+    menu[0x2b] = static_cast<uint8_t>(menu[0x2b] & 0xf3);
+    const uint16_t flags = field<uint16_t>(menu, 0x2a);
+    if (static_cast<uint8_t>(top))
+        field<uint16_t>(menu, 0x2a) = static_cast<uint16_t>(flags | 0x400);
+    else if (static_cast<uint8_t>(bottom))
+        field<uint16_t>(menu, 0x2a) = static_cast<uint16_t>(flags | 0x800);
+}
+
+UI_MENU_TAIL_SCREEN(ChapterMenu_OnBack_entry, 2)
+UI_MENU_TAIL_SCREEN(CreateProfileMenu_OnBack_entry, 0)
+
+PLATFORM_ASM_ENTRY(GameplayMenu_OnBack_entry,
+                   "movl 0x0095f8f8, %ecx\n"  // the front end
+                   "movl (%ecx), %eax\n"
+                   "movl $3, 4(%esp)\n"
+                   "jmp *0xc(%eax)")
+
+UI_MENU_TAIL_DECIDE(SinglePlayerMenu_OnBack_entry, SinglePlayerMenu_OnBack)
+
+int32_t XB_CDECL SinglePlayerMenu_OnBack(uint8_t* menu) {
+    if (menu[0x44]) return -1;
+    field<uint32_t>(menu, 0x3c) = 0;
+    return 1;
+}
+
+UI_MENU_TAIL_DECIDE(AutosaveMenu_OnBack_entry, AutosaveMenu_OnBack)
+
+int32_t XB_CDECL AutosaveMenu_OnBack(uint8_t*) {
+    return field<int32_t>(title_global<uint8_t*>(0x0095f900), 0xc) < 0 ? 6 : -1;  // no in-game screen active
+}
+
+UI_MENU_TAIL_DECIDE(ProfileMenu_OnBack_entry, ProfileMenu_OnBack)
+
+int32_t XB_CDECL ProfileMenu_OnBack(uint8_t* menu) {
+    if (field<int32_t>(title_global<uint8_t*>(0x0095f900), 0xc) >= 0) return -1;
+    title_global<uint8_t>(0x0095f91a) = 0;
+    if (menu[0x94]) return 1;
+    field<uint32_t>(menu, 0x44) = 0;
+    const uint32_t mode = field<uint32_t>(menu, 0x4c);
+    if (mode != 0 && mode != 2) return 0;
+    return field<uint32_t>(menu, 0x5c) != 0 ? 1 : 2;
+}
+
+UI_MENU_TAIL_DECIDE(MainMenu_OnBack_entry, MainMenu_OnBack)
+
+int32_t XB_CDECL MainMenu_OnBack(uint8_t* menu) {
+    if (!field<uint32_t>(menu, 0x38) || menu[0x44]) return -1;
+    const auto title_screen = [] {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x3c);
+    };
+    title_screen()[0x94] = 0;
+    field<uint32_t>(title_screen(), 0x5c) = 0;
+    field<uint32_t>(title_screen(), 0x4c) = 1;
+    return 0xf;
+}
+
+UI_MENU_TAIL_DECIDE_ARG(MainMenu_HandleSelect_entry, MainMenu_HandleSelect)
+
+int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index) {
+    if (!field<uint32_t>(menu, 0x38) || menu[0x44]) return -1;
+    field<uint32_t>(menu, 0x3c) = index;
+    const auto screen = [](uint32_t offset) {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), offset);
+    };
+    switch (index) {
+    case 0: return 2;
+    case 1:
+        Cmd_ExecuteRegisteredCommand(&title_global<const char>(0x0082c51c));  // "load_mp_exe"
+        return -1;
+    case 2: return 3;
+    case 3:
+        field<uint32_t>(screen(0x20), 0x80) = 0;
+        return 8;
+    case 4:
+        if (!title_global<uint8_t>(0x0095e7f8)) return -1;
+        field<uint32_t>(screen(0x48), 0x40) = 0;
+        return 0x12;
+    default: return -1;
+    }
+}
+
+namespace {
+
+// Button down (+0x80: pad, bit) of menus that also reset an idle timer (`timer_at` = the timer 0x008ddaa8 holds):
+// with flag 7 a direction (4 / 8 / 0x10 / 0x20) becomes the held one (+0x32) with the 0.3 s repeat delay (+0x1c).
+void button_down_with_timer(uint8_t* menu, uint32_t timer_at, uint32_t bit) {
+    field<uint32_t>(menu, timer_at) = title_global<uint32_t>(0x008ddaa8);
+    if (!menu_flag(menu, 7)) return;
+    if (bit != 4 && bit != 8 && bit != 0x10 && bit != 0x20) return;
+    menu[0x32] = uint8_t(bit);
+    field<uint32_t>(menu, 0x1c) = title_global<uint32_t>(0x0083066c);  // 0.3
+}
+
+}  // namespace
+
+void XB_THISCALL SinglePlayerMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    button_down_with_timer(menu, 0x40, bit);
+}
+
+void XB_THISCALL MainMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    if (field<uint32_t>(menu, 0x38)) button_down_with_timer(menu, 0x40, bit);
+}
+
+void XB_THISCALL TitleMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    button_down_with_timer(menu, 0x38, bit);
+}
+
+// UIMenu_Update, the auto-close timer (+0x54, counting down while >= 0; its callback +0x48 when it passes 0), then
+// vtable +0xa0 (3 with a front end, else 4).
+void XB_THISCALL UIDialog_Update(uint8_t* dialog, float dt) {
+    UIMenu_Update(dialog, dt);
+    const float timer = field<float>(dialog, 0x54);
+    if (timer >= 0.0f) {
+        const float left = timer - dt;
+        field<float>(dialog, 0x54) = left;
+        if (0.0f > left) {
+            if (const uint32_t callback = field<uint32_t>(dialog, 0x48)) title_function<void XB_CDECL()>(callback)();
+        }
+    }
+    call(dialog, 0xa0, title_global<uint8_t*>(0x0095f8f8) ? 3u : 4u);
+}
+
+// +0x28 (bit, pad): the waiting screen's flag cleared (front end: screen +0x3c +0x35, else the in-game screens'
+// +0x1c +0x34); unless bit 2, UIScreenMgr_OnButtonDown, then bits 4 / 8 press the active dialog's (+0x1c) button 0
+// / 1 (flag 2 of +0x44 allows it; flags 0 / 1 set, the button's +0x78 = 1.0).
+void XB_THISCALL DialogMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad) {
+    if (uint8_t* const front_end = title_global<uint8_t*>(0x0095f8f8))
+        field<uint8_t*>(field<uint8_t*>(front_end, 4), 0x3c)[0x35] = 0;
+    else
+        field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0x1c)[0x34] = 0;
+    if (bit == 2) return;
+    UIScreenMgr_OnButtonDown(mgr, bit, pad);
+    if (bit != 4 && bit != 8) return;
+    uint8_t* const dialog = field<uint8_t*>(mgr, 0x1c);
+    const uint8_t flags = dialog[0x44];
+    if (!(flags & 4)) return;
+    dialog[0x44] = static_cast<uint8_t>(flags | (bit == 4 ? 1 : 2));
+    call(field<uint8_t*>(dialog, bit == 4 ? 0 : 4), 0x78, 0x3f800000);
+}
+
+// +0x38 (index): with the in-game dialog fade (0x0095f900 +0x1c +0x40) not below 0 and a valid button, the button's
+// handler (+0x38 + index * 4, thiscall on the dialog); a true result closes the dialog.
+void XB_THISCALL UIDialog_HandleSelect(uint8_t* dialog, int32_t index) {
+    const float fade = field<float>(field<uint8_t*>(title_global<uint8_t*>(0x0095f900), 0x1c), 0x40);
+    if (!(fade >= title_global<float>(0x0083eafc))) return;  // 0
+    if (index >= field<int32_t>(dialog, 0x34)) return;
+    const uint32_t handler = field<uint32_t>(dialog, 0x38 + uint32_t(index) * 4);
+    if (title_function<uint8_t XB_THISCALL(uint8_t*)>(handler)(dialog))
+        DialogMgr_CloseDialog(title_global<uint8_t*>(0x0095f900));
+}
+
+// Draw (+0x28) with a disconnected controller (+0x38 the text): "<DISCONNECTED1> <pad + 1> <DISCONNECTED2>" (the
+// pad 0x008d50d8) with "\n" escapes expanded, wrapped at 260 into the text (+0x144), the text, the panel, the menu.
+void XB_THISCALL UIRootMenu_Draw(uint8_t* menu) {
+    if (!field<uint32_t>(menu, 0x38)) return;
+    const char* const first = localized(text_at(0x0082b1f8));   // CGAME_XBOX_CONTROLLER_DISCONNECTED1
+    const char* const second = localized(text_at(0x0082b1d4));  // CGAME_XBOX_CONTROLLER_DISCONNECTED2
+    char line[0x1f0];
+    title_sprintf(line, text_at(0x0082b1c8), first, title_global<int32_t>(0x008d50d8) + 1, second);  // "%s %d %s"
+    ScriptString argument;
+    ScriptString_FromCString(&argument, line);
+    ScriptString message;
+    ScriptString_ExpandNewlines(&message, &argument);  // releases the argument
+    ScriptString copy;
+    ScriptString_Copy(&copy, &message);
+    uint8_t* const text = field<uint8_t*>(menu, 0x38);
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(text, 0x144)(
+        text, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy.rep)), 0x104, 0xbf800000);  // takes the copy
+    call(field<uint8_t*>(menu, 0x38), 0x3c);
+    if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+    UIMenu_Draw(menu);
+    ScriptString_Release(&message);
+}
+
+// +0x9c: the previous option (wrapping to the last), the select sound, the option's text into the item text (+0x78).
+uint32_t XB_THISCALL UIOptionItem_Prev(uint8_t* item) {
+    --field<int16_t>(item, 0x18);
+    if (field<int16_t>(item, 0x18) < 0) field<int16_t>(item, 0x18) = static_cast<int16_t>(field<int16_t>(item, 0x1c) - 1);
+    UIOptionItem_PlaySelectSound(item);
+    const uint32_t rep = field<uint32_t*>(item, 0x20)[field<int16_t>(item, 0x18)];
+    uint8_t* const text = field<uint8_t*>(item, 0x10);
+    const uint32_t result =
+        method<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(text, 0x78)(text, rep ? rep + 6 : 0);  // the text
+    return result | 0xffff;
+}
+
+// 0x00331c30 (DialogMgr +0x0c): with no dialog active, the dialog screen's (+0x1c) +0x45 / +0x40 cleared; then
+// UIScreenMgr_SetActiveScreen as a tail jump (its sound keeps stack addresses). Not compared.
+PLATFORM_ASM_ENTRY(DialogMgr_SetActiveScreen_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(DialogMgr_SetActiveScreen) "popl %ecx\n"
+                   "jmp " PLATFORM_ASM_SYMBOL(UIScreenMgr_SetActiveScreen_entry))
+
+void XB_CDECL DialogMgr_SetActiveScreen(uint8_t* mgr) {
+    if (field<int32_t>(mgr, 0xc) >= 0) return;
+    uint8_t* const screen = field<uint8_t*>(mgr, 0x1c);
+    screen[0x45] = 0;
+    field<float>(screen, 0x40) = 0.0f;
+}
+
+namespace {
+
+// The background movie ("Propgnda") opened full screen once (0x0095f91a).
+void open_background_movie(bool through_quad) {
+    if (title_global<uint8_t>(0x0095f91a)) return;
+    if (!Movie_Open(text_at(0x0082cacc))) return;
+    if (through_quad)
+        nglSetQuadRect(title_global<NglQuad*>(0x0095f458), 0.0f, 0.0f, 640.0f, 480.0f);
+    else
+        Movie_SetQuadRect(0.0f, 0.0f, 640.0f, 480.0f);
+    title_global<uint8_t>(0x0095f91a) = 1;
+}
+
+}  // namespace
+
+// Draw (+0x28): unless 0x008dce55, the main menu music (when the music handle 0x0095f4cc no longer plays:
+// Music_Play "music_mainmenu"); with the panel +0x38: (0x0095f46c, not 0x0095f91e) the panel, the menu, the text
+// +0x34; then the background movie (0x0030fe50).
+void XB_THISCALL MainMenu_Draw(uint8_t* menu) {
+    if (title_global<uint8_t>(0x008dce55)) return;
+    const uint32_t handle = *title_global<uint32_t*>(0x0095f4cc);
+    const int32_t slot = int32_t(handle & 0xfff);
+    const bool playing = slot < 0x200 && (handle >> 12) == title_global<uint32_t>(0x00962864 + uint32_t(slot) * 8) &&
+                         title_global<uint32_t>(0x00962860 + uint32_t(slot) * 8) != 0;
+    if (!playing) Music_Play(title_global<uint8_t*>(0x0095f4cc), text_at(0x0082cbe0));  // "music_mainmenu"
+    uint8_t* const panel = field<uint8_t*>(menu, 0x38);
+    if (!panel) return;
+    if (title_global<uint8_t>(0x0095f46c) && !title_global<uint8_t>(0x0095f91e)) {
+        Panel_Draw(panel);
+        UIMenu_Draw(menu);
+        if (uint8_t* const text = field<uint8_t*>(menu, 0x34)) call(text, 0x3c);
+    }
+    Movie_DrawFrameQuiet();
+}
+
+// 0x00334890 (+0x30): a pending profile load (0x0095ee09) applies the profile (0x008dce30) and goes to the front
+// end's screen 1 (tail jump); else Save_Update, UIMenu_Update, FE_CheckStartupStorage unless +0x41, 0x008d50dd = 1.
+UI_GLOBAL_TAIL_DECIDE_ARG(StartupStorageMenu_Update_entry, StartupStorageMenu_Update, "0x0095f8f8")
+
+int32_t XB_CDECL StartupStorageMenu_Update(uint8_t* menu, uint32_t dt_bits) {
+    if (title_global<uint8_t>(0x0095ee09)) {
+        CL_ApplyProfileSettings(&title_global<uint8_t>(0x008dce30));
+        return 1;
+    }
+    Save_Update();
+    float dt;
+    std::memcpy(&dt, &dt_bits, sizeof dt);
+    UIMenu_Update(menu, dt);
+    if (!menu[0x41]) {
+        TitleRegs regs{};
+        regs.esi = address_of(menu);
+        const uint32_t args[1] = {address_of(menu)};
+        ui_call_regs(own_address(&FE_CheckStartupStorage_entry), &regs, 1, args);
+    }
+    title_global<uint8_t>(0x008d50dd) = 1;
+    return -1;
+}
+
+// FrontEndMenu +0x28 (bit, pad): bit 0x200 (outside Live, not on screen 0x14, on screen 15 only with its +0x48 = 1)
+// closes the dialog and, once the free space was checked (0x008dd1d0, MemDlg_CheckFreeSpace2), opens screen 0x14;
+// then UIScreenMgr_OnButtonDown.
+void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad) {
+    if (bit == 0x200 && field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 4) != 1 &&
+        field<int32_t>(mgr, 0xc) != 0x14 &&
+        (field<int32_t>(mgr, 0xc) != 0xf ||
+         field<int32_t>(field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x3c), 0x48) == 1)) {
+        DialogMgr_CloseDialog(title_global<uint8_t*>(0x0095f900));
+        bool open = true;
+        if (!title_global<uint8_t>(0x008dd1d0)) {
+            title_global<uint8_t>(0x008dd1d0) = 1;
+            open = MemDlg_CheckFreeSpace2() != 0;
+        }
+        if (open) call(mgr, 0xc, 0x14);
+    }
+    UIScreenMgr_OnButtonDown(mgr, bit, pad);
+}
+
+// +0x30: the attract countdown: +0x40 > 0 counts down; at 0 the "Attract" movie plays (+0x3c, 0x0095f46d set), the
+// main menu music restarts and +0x38 = now (0x008ddaa8); at <= 0, 30 s after +0x38 it is re-armed (5) and the music
+// handle stopped.
+void XB_THISCALL TitleMenu_Update(uint8_t* menu, float) {
+    menu[0x3c] = 0;
+    if (title_global<uint8_t>(0x0095f91e)) return;
+    const int32_t count = field<int32_t>(menu, 0x40);
+    if (count > 0) {
+        field<int32_t>(menu, 0x40) = count - 1;
+        if (count - 1 != 0) return;
+        menu[0x3c] = 1;
+        title_global<uint8_t>(0x0095f46d) = 1;
+        CL_PlayMovie(text_at(0x0082cbd8));  // "Attract"
+        Music_Play(title_global<uint8_t*>(0x0095f4cc), text_at(0x0082cbe0));  // "music_mainmenu"
+        field<uint32_t>(menu, 0x38) = title_global<uint32_t>(0x008ddaa8);
+        return;
+    }
+    const float due = field<float>(menu, 0x38) + title_global<float>(0x0083ee38);  // 30
+    if (title_global<float>(0x008ddaa8) > due) {
+        field<int32_t>(menu, 0x40) = 5;
+        S_StopSoundHandle(title_global<uint32_t*>(0x0095f4cc));
+    }
+}
+
+// +0x30 (with the panel +0x38): a finished game (0x008dce55) plays "Finale" and "credits" (0x0095f46d) and clears
+// the flags; else (once the background movie is closed) the selection is restored (+0x3c) and the movie reopened;
+// SCR_LoadingPump; 0.5 s after the idle time (+0x40) UIMenu_Update; then the checkmarks, +0x44 cleared.
+void XB_THISCALL MainMenu_UpdateMenu(uint8_t* menu, float dt) {
+    if (!field<uint32_t>(menu, 0x38)) return;
+    if (title_global<uint8_t>(0x008dce55)) {
+        Movie_Stop(1);
+        CL_PlayMovie(text_at(0x0082c530));  // "Finale"
+        title_global<uint8_t>(0x0095f46d) = 1;
+        CL_PlayMovie(text_at(0x0082c528));  // "credits"
+        title_global<uint8_t>(0x008dce55) = 0;
+        title_global<uint8_t>(0x0095f91a) = 0;
+        return;
+    }
+    if (!title_global<uint8_t>(0x0095f91a)) {
+        UIMenu_RestoreSelection(menu);
+        const int32_t row = field<int16_t>(menu, 0x22);
+        field<int32_t>(menu, 0x3c) = row;
+        call(menu, 0x88, uint32_t(row), 1);
+        open_background_movie(false);
+    }
+    SCR_LoadingPump();
+    if (title_global<uint8_t>(0x0095f91e)) return;
+    const long double idle = platform_x87_ld(title_global<float>(0x008ddaa8)) - platform_x87_ld(field<float>(menu, 0x40));
+    if (idle > platform_x87_ld(title_global<double>(0x0083ecb0))) UIMenu_Update(menu, dt);  // 0.5
+    OptionsMenu_SetCheckmarks(menu, field<int16_t>(menu, 0x22));
+    menu[0x44] = 0;
+}
+
+// +0x40: the title screen's +0x5c cleared, the profile settings applied (0x008dce30), the idle time reset; with the
+// panel +0x38: the checkmarks, UIMenu_RestoreSelection, the saved row (+0x3c) selected, the background movie.
+void XB_THISCALL MainMenu_RestoreSelection(uint8_t* menu) {
+    field<uint32_t>(field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x3c), 0x5c) = 0;
+    CL_ApplyProfileSettings(&title_global<uint8_t>(0x008dce30));
+    field<uint32_t>(menu, 0x40) = title_global<uint32_t>(0x008ddaa8);
+    menu[0x44] = 0;
+    field<uint32_t>(menu, 0x48) = 0;
+    if (!field<uint32_t>(menu, 0x38)) return;
+    OptionsMenu_SetCheckmarks(menu, field<int32_t>(menu, 0x3c));
+    UIMenu_RestoreSelection(menu);
+    call(menu, 0x88, field<uint32_t>(menu, 0x3c), 1);
+    open_background_movie(true);
+}
+
 }  // namespace game

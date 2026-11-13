@@ -1,11 +1,15 @@
 #include "fe_bonus.h"
 
+#include "cl.h"
 #include "fe.h"
+#include "movie.h"
 #include "qcommon_fs.h"
 #include "ngl.h"
+#include "title_crt.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
+#include "snd.h"
 #include "qcommon_core.h"
 #include "qcommon.h"
 
@@ -935,6 +939,232 @@ void XB_CDECL BonusMaterialsMenu_HandleSelect(uint8_t* menu, int32_t index, uint
         return;
     }
     c.method(title_global<uint8_t*>(0x0095f8f8), 0xc, uint32_t(7 + index));  // the front end's screen 9 .. 12
+}
+
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+// 0x00012ff0 (vtable +0x38): the item index (stack) into BonusMaterialsMenu_HandleSelect (EAX, menu in ECX). The call
+// is inside the first 5 bytes: not compared.
+PLATFORM_ASM_ENTRY(BonusMaterialsMenu_OnSelect_entry,
+                   "movl 4(%esp), %eax\n" PLATFORM_ASM_CALL(BonusMaterialsMenu_HandleSelect_entry)
+                   "ret $4")
+
+// 0x00013000 (vtable +0x64, also SpecialMaterialsMenu's): unless +0x3c is set, back to screen 1 through the
+// manager's +0x0c as a tail jump (the argument slot rewritten; it runs at the entry ESP: its sound keeps stack
+// addresses). Not compared.
+UI_MENU_TAIL_DECIDE(BonusMaterialsMenu_OnBack_entry, BonusMaterialsMenu_OnBack)
+
+int32_t XB_CDECL BonusMaterialsMenu_OnBack(uint8_t* menu) {
+    return menu[0x3c] ? -1 : 1;
+}
+
+
+namespace {
+
+void draw_object(uint8_t* object) {
+    if (object) title_function<void XB_THISCALL(uint8_t*)>(field<uint32_t>(field<uint8_t*>(object, 0), 0x3c))(object);
+}
+
+void add_quad(uint8_t* menu, uint32_t offset) { nglListAddQuad(reinterpret_cast<const NglQuad*>(menu + offset)); }
+
+void set_word(uint8_t* object, uint32_t slot, uint32_t value) {
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(field<uint32_t>(field<uint8_t*>(object, 0), slot))(object, value);
+}
+
+// The Update slots' "new" markers: UIMenu_Update, then the alpha (+alpha_at) rises by dt to 1 (x87 compare with the
+// double 1.0; then falling) or falls to 0 (then rising, +rising_at); every marker (+markers_at, `count`) gets the
+// alpha (vtable +0x7c), those whose item is not new (+flags_at[i]) 0. A rising step leaves the new alpha in the dt
+// argument slot (the original's spill).
+void blink_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t rising_at, uint32_t markers_at,
+                   uint32_t count, uint32_t flags_at) {
+    if (menu[rising_at]) {
+        const float alpha = dt + field<float>(menu, alpha_at);
+        *static_cast<volatile float*>(&dt) = alpha;
+        field<float>(menu, alpha_at) = alpha;
+        if (static_cast<double>(alpha) >= title_global<double>(0x0083eb10)) {
+            field<float>(menu, alpha_at) = 1.0f;
+            menu[rising_at] = 0;
+        }
+    } else {
+        const float alpha = field<float>(menu, alpha_at) - dt;
+        field<float>(menu, alpha_at) = alpha;
+        if (0.0f >= alpha) {
+            field<float>(menu, alpha_at) = 0.0f;
+            menu[rising_at] = 1;
+        }
+    }
+    for (uint32_t i = 0; i < count; ++i)
+        set_word(field<uint8_t*>(menu, markers_at + i * 4), 0x7c, field<uint32_t>(menu, alpha_at));
+    for (uint32_t i = 0; i < count; ++i)
+        if (!menu[flags_at + i]) set_word(field<uint8_t*>(menu, markers_at + i * 4), 0x7c, 0);
+}
+
+void blink_new_markers(uint8_t* menu, float& dt, uint32_t alpha_at, uint32_t rising_at, uint32_t markers_at,
+                       uint32_t count, uint32_t flags_at) {
+    UIMenu_Update(menu, dt);
+    blink_markers(menu, dt, alpha_at, rising_at, markers_at, count, flags_at);
+}
+
+}  // namespace
+
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+void XB_THISCALL BonusConceptsMenu_Update(uint8_t* menu, float dt) { blink_new_markers(menu, dt, 0x40, 0x44, 0x48, 13, 0x7c); }
+void XB_THISCALL BonusVehiclesMenu_Update(uint8_t* menu, float dt) { blink_new_markers(menu, dt, 0x48, 0x4c, 0x50, 6, 0x68); }
+void XB_THISCALL BonusWeaponsMenu_Update(uint8_t* menu, float dt) { blink_new_markers(menu, dt, 0x48, 0x4c, 0x50, 10, 0x78); }
+void XB_THISCALL BonusCharactersMenu_Update(uint8_t* menu, float dt) { blink_new_markers(menu, dt, 0x3c, 0x40, 0x44, 7, 0x60); }
+
+// Full screen (+0xc0): the two image quads and the help bar only.
+void XB_THISCALL BonusConceptsMenu_Draw(uint8_t* menu) {
+    if (!menu[0xc0]) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        add_quad(menu, 0xd0);
+        UIMenu_Draw(menu);
+        return;
+    }
+    add_quad(menu, 0x198);
+    add_quad(menu, 0x134);
+    draw_object(field<uint8_t*>(menu, 0x38));
+}
+
+// Full screen (+0x88): the object 0x0095f478's +0x88 (1.0 / 0), the front end's help bar (+0x1c) FEMENU_XBOX_LIVE's
+// text (0x0082caa4, +0x6c) or "" (+0x78).
+void XB_THISCALL BonusVehiclesMenu_Draw(uint8_t* menu) {
+    uint8_t* const object = title_global<uint8_t*>(0x0095f478);
+    if (!menu[0x88]) {
+        set_word(object, 0x88, 0x3f800000);
+        set_word(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 0x1c), 0x6c, 0x0082caa4);
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        draw_object(field<uint8_t*>(menu, 0x44));
+        draw_object(field<uint8_t*>(menu, 0x3c));
+        add_quad(menu, 0x98);
+        UIMenu_Draw(menu);
+        return;
+    }
+    set_word(object, 0x88, 0);
+    set_word(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 0x1c), 0x78, 0x0082dfeb);  // ""
+    add_quad(menu, 0x160);
+    add_quad(menu, 0xfc);
+    draw_object(field<uint8_t*>(menu, 0x38));
+}
+
+void XB_THISCALL BonusWeaponsMenu_Draw(uint8_t* menu) {
+    if (!menu[0xac]) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        draw_object(field<uint8_t*>(menu, 0x3c));
+        draw_object(field<uint8_t*>(menu, 0x44));
+        add_quad(menu, 0xbc);
+        UIMenu_Draw(menu);
+        return;
+    }
+    add_quad(menu, 0x120);
+    draw_object(field<uint8_t*>(menu, 0x38));
+}
+
+void XB_THISCALL BonusMaterialsMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        add_quad(menu, 0x94);
+        UIMenu_Draw(menu);
+    }
+    Movie_DrawFrame();
+}
+
+BONUS_PLAIN_ENTRY(BonusMaterialsMenu_RestoreSelection)
+
+// Movie_Stop(0), 0x0095f91a cleared, the two pictures +0x68 / +0x6c hidden (+0x7c 0), the texts +0x70 / +0x74 ""
+// (+0x78), FE_BonusMenuLabel and FE_BonusMainLoadImage (menu in EAX), UIMenu_RestoreSelection, then the saved row
+// (+0x80) selected with sound (+0x88).
+void XB_CDECL BonusMaterialsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t,
+                                                   uint32_t entry_esp) {
+    const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
+    const uint32_t zero[1] = {0};
+    c.run(own_address(&Movie_Stop), 1, zero);
+    title_global<uint8_t>(0x0095f91a) = 0;
+    c.method(field<uint8_t*>(menu, 0x68), 0x7c, 0);
+    c.method(field<uint8_t*>(menu, 0x6c), 0x7c, 0);
+    c.method(field<uint8_t*>(menu, 0x70), 0x78, 0x0082dfeb);
+    c.method(field<uint8_t*>(menu, 0x74), 0x78, 0x0082dfeb);
+    c.run_eax(own_address(&FE_BonusMenuLabel_entry), address_of(menu));
+    c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
+    c.run(own_address(&UIMenu_RestoreSelection));
+    c.method(menu, 0x88, field<uint32_t>(menu, 0x80), 1);
+}
+
+
+// 0x003357b0 (+0x30): unless 0x0095f91e: UIMenu_Update; while loading (+0x3c) SCR_LoadingPump only; else the "new"
+// markers' blink (+0x40, +0x44, +0x48 x6, +0x60), the main menu music once the delay (+0x84) runs out, the help bar
+// (+0x38: play on rows 0 / 1), and on the movies row (1): the page "%i / %i" (+0x7c + 1 of +0x78) into +0x74, the
+// arrows +0x68 / +0x6c by page, the movie title into +0x70 by page (the order depends on the language and
+// 0x0095ee00: the 360 trailer and military entries drop out), the page's "new" flag (+0x61) cleared on the last
+// page; on other rows the texts and arrows cleared.
+void XB_THISCALL BonusMaterialsMenu_Update(uint8_t* menu, float dt) {
+    if (title_global<uint8_t>(0x0095f91e)) return;
+    UIMenu_Update(menu, dt);
+    if (menu[0x3c]) {
+        SCR_LoadingPump();
+        return;
+    }
+    blink_markers(menu, dt, 0x40, 0x44, 0x48, 6, 0x60);
+    int32_t& delay = field<int32_t>(menu, 0x84);
+    if (delay) --delay;
+    if (delay == 1) {
+        delay = 0;
+        Music_Play(title_global<uint8_t*>(0x0095f4cc), reinterpret_cast<const char*>(uintptr_t{0x0082cbe0}));  // "music_mainmenu"
+    }
+    const int16_t row = field<int16_t>(menu, 0x22);
+    set_word(field<uint8_t*>(menu, 0x38), 0x6c,
+             row == 1 || row == 0 ? 0x0082bb78u : 0x0082bb64u);  // BONUS_HELPBAR_PLAY / BONUS_OP_HELPBAR
+    if (field<int16_t>(menu, 0x22) != 1) {
+        set_word(field<uint8_t*>(menu, 0x70), 0x78, 0x0082dfeb);  // ""
+        set_word(field<uint8_t*>(menu, 0x74), 0x78, 0x0082dfeb);
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, 0);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, 0);
+        return;
+    }
+    if (title_global<int32_t>(0x008dcf0c) < 1) title_global<int32_t>(0x008dcf0c) = 1;
+    char page_text[8];
+    title_sprintf(page_text, reinterpret_cast<const char*>(uintptr_t{0x0082bb5c}), field<int32_t>(menu, 0x7c) + 1,
+                  field<int32_t>(menu, 0x78));  // "%i / %i"
+    set_word(field<uint8_t*>(menu, 0x74), 0x6c, address_of(page_text));
+    constexpr uint32_t kShown = 0x3f800000;  // 1.0
+    const int32_t page = field<int32_t>(menu, 0x7c);
+    if (page == 0) {
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, 0);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, field<int32_t>(menu, 0x78) > 1 ? kShown : 0);
+    } else {
+        const bool last = page == field<int32_t>(menu, 0x78) - 1;
+        set_word(field<uint8_t*>(menu, 0x68), 0x7c, kShown);
+        set_word(field<uint8_t*>(menu, 0x6c), 0x7c, last ? 0 : kShown);
+    }
+    // The titles by page: all six; with a language set (other than 1) or 0x0095ee00 without the 360 trailer...
+    static const uint32_t kAll[6] = {0x0082bb10, 0x0082bb00, 0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    static const uint32_t kNoMilitary[5] = {0x0082bb10, 0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    static const uint32_t kLanguage1[4] = {0x0082bb50, 0x0082bb44, 0x0082bb34, 0x0082bb24};
+    const uint32_t* titles = kAll;
+    int32_t count = 6;
+    int32_t language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+        if (field<int32_t>(menu, 0x7c) == 4) {
+            set_word(field<uint8_t*>(menu, 0x68), 0x7c, kShown);
+            set_word(field<uint8_t*>(menu, 0x6c), 0x7c, 0);
+            language = title_global<int32_t>(0x0095f5dc);
+        }
+        if (language == 1) {
+            titles = kLanguage1;
+            count = 4;
+        } else if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+            titles = kNoMilitary;
+            count = 5;
+        }
+    }
+    const int32_t shown = field<int32_t>(menu, 0x7c);
+    if (shown >= 0 && shown < count) set_word(field<uint8_t*>(menu, 0x70), 0x6c, titles[shown]);
+    if (field<int32_t>(menu, 0x7c) + 1 == field<int32_t>(menu, 0x78)) menu[0x61] = 0;
 }
 
 }  // namespace game

@@ -390,6 +390,14 @@ uint32_t XB_THISCALL SoundMenu_RestoreSelection(uint8_t* menu);
 // quad's x edges are 0.001 apart); the crossfade 0x0095f4cc volume v (S_SetHandleVolume), the sound system's
 // 0x0095f4c4 +0x6018 = v clamped to 0..1, master volume 1 - (1 - it)^2. Returns S_SetMasterVolume's result.
 uint32_t XB_REGS1 XB_CDECL SoundMenu_UpdateSliders(uint8_t* menu);
+// 0x0031e630 / 0x0031e6d0 (thiscall, a stack word, ret 4 through their tail jumps): back (the stored volume applied,
+// the front end's screen 3) / select (1: volume 50; 2: stored, back to screen 3).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SoundMenu_OnBack(uint32_t pad);
+// 0x00335cd0 (+0x30): UIMenu_Update unless 0x0095f91e, SCR_LoadingPump.
+void XB_THISCALL SoundMenu_Update(uint8_t* menu, float dt);
+extern "C" void SoundMenu_OnBack_entry(void);
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SoundMenu_HandleSelect(uint8_t* menu, uint32_t index);
+extern "C" void SoundMenu_HandleSelect_entry(void);
 
 // 0x000c6fb0: the voice type of a format (AL): 2 for kind (+4) 6; without +5 bit 1: 5 / 6 (bit 0 set / clear);
 // 6 channels: 1; 2 channels: 7 above 24000 Hz (+0x20), else 8; otherwise 3 / 4 (bit 0 set / clear).
