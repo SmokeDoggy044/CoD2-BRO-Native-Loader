@@ -1277,11 +1277,29 @@ void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x
     method<void XB_THISCALL(uint8_t*, const float*, const float*)>(picture, 0x88)(picture, xs, ys);
 }
 
+// The original changes only XMM1/XMM2, and LTCG callers rely on that: HudCompHealth_SetWidescreen (0x00319310)
+// loads the centre into XMM0 once for four calls - with XMM0 lost, the frame, cross and red trail were narrowed
+// about another point than the green bar (offset bar, trail shrinking "from both sides" in 16:9). Our C may use
+// any XMM register, so XMM0 and XMM3-XMM7 are kept here.
 PLATFORM_ASM_ENTRY(UIPicture_ScaleXForAspect_entry,
+                   "subl $96, %esp\n"
+                   "movups %xmm0, (%esp)\n"
+                   "movups %xmm3, 16(%esp)\n"
+                   "movups %xmm4, 32(%esp)\n"
+                   "movups %xmm5, 48(%esp)\n"
+                   "movups %xmm6, 64(%esp)\n"
+                   "movups %xmm7, 80(%esp)\n"
                    "subl $4, %esp\n"
                    "movss %xmm0, (%esp)\n"
                    "pushl %edx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(UIPicture_ScaleXForAspect) "addl $12, %esp\n"
+                   "movups (%esp), %xmm0\n"
+                   "movups 16(%esp), %xmm3\n"
+                   "movups 32(%esp), %xmm4\n"
+                   "movups 48(%esp), %xmm5\n"
+                   "movups 64(%esp), %xmm6\n"
+                   "movups 80(%esp), %xmm7\n"
+                   "addl $96, %esp\n"
                    "ret")
 
 void XB_CDECL UIPicture_ScaleXForAspect(uint32_t widescreen, uint8_t* picture, float cx) {
