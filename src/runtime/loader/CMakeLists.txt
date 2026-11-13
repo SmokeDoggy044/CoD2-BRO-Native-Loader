@@ -5,10 +5,12 @@ set(loader_sources
     diag_summary.cpp
     hooks.cpp
     host_image.cpp
+    kernel_stubs.cpp
     kernel_thunks.cpp
     options.cpp
     title_setup.cpp
     title_session.cpp
+    title_threads.cpp
     patches.cpp
     pc_menu.cpp
     profiler.cpp
@@ -56,9 +58,9 @@ if(WIN32)
 else()
     # The loader's code as a library: cod_bro_loader (main.cpp) and our own engine cod_bro (host_main.cpp) share it.
     add_library(cod_bro_runtime STATIC ${loader_sources} compare_linux.cpp crash_posix.cpp text_trap_linux.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
-    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox platform)
+    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform)
     add_executable(cod_bro_loader main.cpp entry_loader_linux.cpp)
-    target_link_libraries(cod_bro_loader PRIVATE cod_bro_runtime)
+    target_link_libraries(cod_bro_loader PRIVATE cod_bro_runtime xbox)  # cod_bro: no kernel (xbox_host only)
     add_executable(cod_bro host_main.cpp entry_host_linux.cpp)
     target_link_libraries(cod_bro PRIVATE cod_bro_runtime)
     set(loader_core cod_bro_runtime)

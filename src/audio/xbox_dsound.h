@@ -7,12 +7,20 @@
 // title-addressable memory whose first field is a vtable, because titles call some
 // methods (XMediaObject's Process, GetStatus, ...) through it.
 
+#include <memory>
 #include <span>
 
 #include "kernel.h"
 #include "sound_engine.h"
 
+namespace platform { class File; }
+
 namespace audio {
+
+// The host file behind a title file handle (XFileCreateMediaObjectAsync): the loader sets the kernel's file table
+// (which forwards our native handles), cod_bro our native files (game::files::host_file). Unset: no file.
+using TitleFileLookup = std::shared_ptr<platform::File> (*)(uint32_t handle);
+void set_title_file_lookup(TitleFileLookup lookup);
 
 // The replacements, by SDK function name (as XbSymbolDatabase/Ghidra name them,
 // without the library prefix). The loader redirects each function it finds.

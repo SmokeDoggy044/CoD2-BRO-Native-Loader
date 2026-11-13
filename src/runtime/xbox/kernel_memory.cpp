@@ -720,4 +720,22 @@ void restore_memory() {
     LOG_INFO("memory", "restart: title memory as at its start (%zu runs)", s.runs.size());
 }
 
+// The kernel's LaunchDataPage export (PLAUNCH_DATA_PAGE; null means "launched from the dashboard"): here, not in
+// kernel_basic.cpp, because cod_bro (no kernel) hands it to our XGetLaunchInfo through game::TitleHost.
+namespace {
+uint32_t LaunchDataPage = 0;
+}  // namespace
+
+uint32_t& launch_data_page_word() { return LaunchDataPage; }
+
+bool place_launch_data_page(std::span<const uint8_t> page) {
+    LaunchDataPage = 0;
+    if (page.empty()) return true;
+    // The new title reads it with XGetLaunchInfo, which frees it.
+    LaunchDataPage = allocate_contiguous(kLaunchDataPageSize, kLaunchDataPageSize);
+    if (!LaunchDataPage) return false;
+    std::memcpy(from_xbox_ptr<void>(LaunchDataPage), page.data(), std::min<size_t>(page.size(), kLaunchDataPageSize));
+    return true;
+}
+
 }  // namespace xbox

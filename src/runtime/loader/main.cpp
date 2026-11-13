@@ -38,6 +38,8 @@
 #include "title_files.h"
 #include "title_objects.h"
 #include "dispatcher.h"
+#include "title_calls.h"
+#include "filesystem.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 #include "kernel.h"
@@ -275,6 +277,12 @@ int loader_main(int argc, char** argv) {
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return loader::startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
+    loader::set_kernel_links({[](bool format) { return xbox::mount_utility_drive(format); },
+                              [](const char* name) -> void* {
+                                  for (const xbox::KernelImpl& function : xbox::kernel_impls())
+                                      if (std::strcmp(function.name, name) == 0) return function.address;
+                                  return nullptr;
+                              }});
     loader::install_kernel_thunks(image, options->host);
     if (!options->bindings_error.empty())
         LOG_WARN("input", "keys setting: %s (ignored; the rest applies)", options->bindings_error.c_str());
@@ -294,6 +302,21 @@ int loader_main(int argc, char** argv) {
             "choose another Graphics setting in the launcher.");
         std::_Exit(1);
     });
+    // The kernel's objects and files: under --own-main our C makes its own handles (title_objects/title_files);
+    // kernel code that meets one of them forwards it to ours.
+    if (options->own_main) {
+        xbox::ForeignObjects foreign;
+        foreign.owns = [](xbox::Handle handle) { return game::objects::is_ours(handle); };
+        foreign.set_event = [](xbox::Handle handle, int32_t state) { game::objects::set_event(handle, state != 0); };
+        foreign.queue_apc = [](xbox::XbPtr routine, uint32_t a1, uint32_t a2, uint32_t a3) {
+            game::objects::queue_apc(routine, a1, a2, a3);
+        };
+        foreign.host_file = [](xbox::Handle handle) { return game::files::host_file(handle); };
+        xbox::set_foreign_objects(foreign);
+    }
+    audio::set_title_file_lookup([](uint32_t handle) { return xbox::host_file(handle); });
+    xbox::set_irql_calls({&xbox::raise_irql_to, &xbox::lower_irql_to});
+    xbox::set_event_signal([](uint32_t handle) { xbox::set_event_handle(handle); });
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
     if (!options->replay_at_switch && !xbox::replay::start(options->replay)) return 1;
     if (!loader::install_sdk_replacements(image, symbols, *title)) {

@@ -149,9 +149,9 @@ void vblank_thread(double hz) {
             g.vblank_data->vblank = count;
             g.vblank_data->swap = g.swap_count;
             g.vblank_data->flags = 0;
-            const uint8_t old_irql = xbox::raise_irql_to(xbox::kDispatchLevel);
+            const uint8_t old_irql = xbox::title_raise_irql(xbox::kDispatchLevel);
             call_title(callback, {to_xbox_ptr(g.vblank_data)});  // cdecl; call_guest restores ESP
-            xbox::lower_irql_to(old_irql);
+            xbox::title_lower_irql(old_irql);
         }
         {
             std::lock_guard lock(g.vblank_done_mutex);

@@ -13,7 +13,9 @@
 #include <thread>
 
 #include "compiler.h"
+#include "dispatcher.h"
 #include "kernel.h"
+#include "title_calls.h"
 
 namespace test {
 
@@ -89,6 +91,9 @@ inline void init_kernel(const std::filesystem::path& cdrom_root = {}, const std:
         std::printf("kernel_init failed\n");
         std::exit(2);
     }
+    // As the loader's main: host code signals title events and raises IRQL through the kernel.
+    xbox::set_event_signal([](uint32_t handle) { xbox::set_event_handle(handle); });
+    xbox::set_irql_calls({&xbox::raise_irql_to, &xbox::lower_irql_to});
     attach_thread();
 }
 

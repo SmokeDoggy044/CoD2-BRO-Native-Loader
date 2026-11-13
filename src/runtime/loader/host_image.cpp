@@ -14,6 +14,19 @@
 
 namespace loader {
 
+int32_t section_pages(const XbeSectionHeader& section) {
+    const uint32_t start = section.virtual_addr & ~0xFFFu;
+    const uint32_t end = (section.virtual_addr + section.virtual_size + 0xFFF) & ~0xFFFu;
+    return static_cast<int32_t>((end - start) / 0x1000);
+}
+
+int32_t initial_image_pages(const XbeImage& image) {
+    int32_t pages = static_cast<int32_t>((image.header().size_of_headers + 0xFFF) / 0x1000);
+    for (const XbeSectionHeader* section : image.sections())
+        if (section->flags & 2) pages += section_pages(*section);  // preloaded
+    return pages;
+}
+
 bool clear_code_sections(const XbeImage& image, const std::vector<std::filesystem::path>& keep_lists) {
     std::vector<std::pair<uint32_t, uint32_t>> keep;
     for (const std::filesystem::path& list : keep_lists) {

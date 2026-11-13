@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <span>
@@ -86,6 +87,7 @@ bool place_launch_data_page(std::span<const uint8_t> page);
 // The LaunchDataPage export's word (the page's address, 0 = none): our XGetLaunchInfo takes it from here natively.
 uint32_t& launch_data_page_word();
 bool kernel_trace_enabled();
+void set_kernel_trace(bool on);
 uint32_t current_kthread();
 const KernelConfig& kernel_config();
 
@@ -98,5 +100,7 @@ std::vector<XbShutdownRegistration*> shutdown_notifications();
 // QueryPerformanceFrequency reports and titles assume. The host's runs faster.
 constexpr int64_t kCpuCycleFrequency = 733333333;
 int64_t cpu_time_stamp_counter();
+// The start of the title clocks (RDTSC, KeTickCount, KeQueryPerformanceCounter): the host program's start.
+std::chrono::steady_clock::time_point clock_start();
 
 }  // namespace xbox

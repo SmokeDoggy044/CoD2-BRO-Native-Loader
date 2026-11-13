@@ -10,4 +10,4 @@ add_library(input STATIC
     xbox_input.cpp
 )
 target_include_directories(input PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(input PUBLIC xbox platform input_bindings PRIVATE SDL3::SDL3)
+target_link_libraries(input PUBLIC xbox_host platform input_bindings PRIVATE SDL3::SDL3)

@@ -36,13 +36,12 @@
 #include "title_host.h"
 #include "title_files.h"
 #include "title_objects.h"
-#include "dispatcher.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 #include "kernel.h"
 #include "civil_time.h"
 #include "kernel_memory.h"
-#include "kernel_thunks.h"
+#include "title_threads.h"
 #include "hooks.h"
 #include "host_image.h"
 #include "qcommon_fs.h"
@@ -163,14 +162,9 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         game::files::set_folders(assets, options.data.value_or(platform::user_data_dir()));
         if (options.own_main) {
             game::set_native_platform(true);
-            xbox::ForeignObjects foreign;
-            foreign.owns = [](xbox::Handle handle) { return game::objects::is_ours(handle); };
-            foreign.set_event = [](xbox::Handle handle, int32_t state) { game::objects::set_event(handle, state != 0); };
-            foreign.queue_apc = [](xbox::XbPtr routine, uint32_t a1, uint32_t a2, uint32_t a3) {
-                game::objects::queue_apc(routine, a1, a2, a3);
-            };
-            foreign.host_file = [](xbox::Handle handle) { return game::files::host_file(handle); };
-            xbox::set_foreign_objects(foreign);
+            // Our native files (the loader replaces this with the kernel's table, which forwards them).
+            audio::set_title_file_lookup([](uint32_t handle) { return game::files::host_file(handle); });
+            xbox::set_event_signal([](uint32_t handle) { game::objects::set_event(handle, true); });
         }
     }
     game::set_gfx_device(&render::gfx_device, &render::open_gfx_device);

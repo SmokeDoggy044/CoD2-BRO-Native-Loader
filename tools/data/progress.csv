@@ -11533,7 +11533,7 @@ address,name,section,module,state,tested,matched
 00336460,SinglePlayerMenu_Update,.text,client,replaced,89,87
 00336490,PauseMenu_ShowRestartDialog,.text,client,replaced,1,1
 00336580,PauseMenu_ShowQuitDialog,.text,client,replaced,2,2
-003367a0,MainMenu_Update,.text,client,replaced,162,108
+003367a0,FrontEndMenu_Update,.text,client,replaced,162,108
 00336ad0,FrontEndMenu_Construct,.text,client,replaced,8,8
 00337050,FE_CreateMenus,.text,client,replaced,8,8
 003370d0,Panel_LoadNode_r,.text,client,replaced,198,198

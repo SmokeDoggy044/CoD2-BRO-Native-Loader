@@ -78,6 +78,14 @@ struct TitlePatchConfig {
 // start_level, exec_text and forced_calls (campaign only).
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
+// Kernel pieces the patches use, set by the loader's main (cod_bro has no kernel and leaves them unset):
+// XMountUtilityDrive's replacement and the addresses of the kernel calls the compare harness records.
+struct KernelLinks {
+    uint32_t (*mount_utility_drive)(bool format) = nullptr;
+    void* (*kernel_function)(const char* name) = nullptr;
+};
+void set_kernel_links(const KernelLinks& links);
+
 // How to narrow the draw the engine is making (render::BackendConfig::narrow_ui_draw):
 // scenes an in-game menu or the objectives panel created this frame (UI laid out for
 // 4:3) and, on a picture wider than 16:9, the HUD's orthographic scenes (laid out for

@@ -304,7 +304,7 @@ void Engine::packet_done(VoiceImpl& v, const Packet& packet, uint32_t status) {
         Guard lock(callbacks_mutex, TestLock::Callbacks);
         callbacks.push_back({v.callback, {v.context, packet.completion, status}});
     } else if (packet.completion) {
-        xbox::set_event_handle(packet.completion);
+        xbox::signal_title_event(packet.completion);
     }
 }
 
@@ -862,5 +862,6 @@ Output* output() {
     Guard lock(g.mutex, TestLock::State);
     return g.output.get();
 }
+
 
 }  // namespace audio

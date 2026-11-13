@@ -30,10 +30,7 @@ namespace xbox {
 
 namespace {
 
-std::atomic<bool> g_trace{false};
 KernelConfig g_config{};
-
-const auto g_start = std::chrono::steady_clock::now();
 
 // Rate of the Xbox ACPI timer, as used by Cxbx-Reloaded. Any value works as long as
 // counter and frequency agree.
@@ -48,12 +45,11 @@ volatile uint32_t KeTickCount = 0;
 XbKrnlVersion XboxKrnlVersion = {1, 0, 5838, 1};
 XbAnsiString XeImageFileName = {};
 char g_image_file_name[128] = {};
-uint32_t LaunchDataPage = 0;  // PLAUNCH_DATA_PAGE; null means "launched from the dashboard"
 
 void tick_thread() {
     for (;;) {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - g_start);
+            std::chrono::steady_clock::now() - clock_start());
         KeTickCount = static_cast<uint32_t>(ms.count());
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -84,8 +80,8 @@ uint32_t XB_CDECL DbgPrint(const char* format, ...) {
 // the process is replaced or ends either way.
 [[noreturn]] void XB_STDCALL HalReturnToFirmware(uint32_t routine) {
     constexpr uint32_t kQuickReboot = 2;
-    if (routine == kQuickReboot && LaunchDataPage) {
-        const auto* page = from_xbox_ptr<const uint8_t>(LaunchDataPage);
+    if (routine == kQuickReboot && launch_data_page_word()) {
+        const auto* page = from_xbox_ptr<const uint8_t>(launch_data_page_word());
         // LAUNCH_DATA_HEADER: type, title id, then the launch path at +8 as
         // "<device path>;<file>" (e.g. "\Device\CdRom0;default.xbe").
         char path[520 + 1] = {};
@@ -119,7 +115,7 @@ void XB_STDCALL HalRegisterShutdownNotification(XbShutdownRegistration* registra
 
 int64_t XB_STDCALL KeQueryPerformanceCounter() {
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::steady_clock::now() - g_start)
+                        std::chrono::steady_clock::now() - clock_start())
                         .count();
     return replay::clock(static_cast<int64_t>(static_cast<long double>(ns) * kPerformanceFrequency / 1e9L));
 }
@@ -288,7 +284,7 @@ const KernelImpl kImpls[] = {
     KIMPL(RtlTimeToTimeFields),
     KIMPL(RtlUnicodeStringToAnsiString),
     KIMPL_DATA(KeTickCount),
-    KIMPL_DATA(LaunchDataPage),
+    {"LaunchDataPage", &launch_data_page_word()},
     KIMPL_DATA(XboxKrnlVersion),
     KIMPL_DATA(XeImageFileName),
 };
@@ -309,7 +305,6 @@ std::span<const KernelImpl> kernel_impls() {
     return all;
 }
 
-bool kernel_trace_enabled() { return g_trace.load(std::memory_order_relaxed); }
 
 std::vector<XbShutdownRegistration*> shutdown_notifications() {
     std::lock_guard lock(g_shutdown_mutex);
@@ -333,7 +328,7 @@ int64_t current_system_time() { return platform::system_time_now(); }
 
 bool kernel_init(const KernelConfig& config) {
     g_config = config;
-    g_trace = config.trace_calls;
+    set_kernel_trace(config.trace_calls);
     std::snprintf(g_image_file_name, sizeof(g_image_file_name), "%s", config.image_file_name);
     RtlInitAnsiString(&XeImageFileName, g_image_file_name);
     std::thread(tick_thread).detach();
@@ -342,24 +337,6 @@ bool kernel_init(const KernelConfig& config) {
     return place_launch_data_page(config.launch_data_page);
 }
 
-uint32_t& launch_data_page_word() { return LaunchDataPage; }
 
-bool place_launch_data_page(std::span<const uint8_t> page) {
-    LaunchDataPage = 0;
-    if (page.empty()) return true;
-    // The new title reads it with XGetLaunchInfo, which frees it.
-    LaunchDataPage = allocate_contiguous(kLaunchDataPageSize, kLaunchDataPageSize);
-    if (!LaunchDataPage) return false;
-    std::memcpy(from_xbox_ptr<void>(LaunchDataPage), page.data(), std::min<size_t>(page.size(), kLaunchDataPageSize));
-    return true;
-}
-
-// 733.33 MHz = 11/15 cycles per nanosecond (integer only: title threads run with the
-// title's FPU modes).
-int64_t cpu_time_stamp_counter() {
-    const auto ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - g_start).count();
-    return replay::clock(ns / 15 * 11 + ns % 15 * 11 / 15);
-}
 
 }  // namespace xbox

@@ -35,7 +35,7 @@ else()
     target_link_libraries(audio PUBLIC OpenAL::OpenAL)
 endif()
 
-target_link_libraries(audio PUBLIC xbox platform)
+target_link_libraries(audio PUBLIC xbox_host platform)
 
 # The output device list alone (the launcher).
 add_library(audio_devices STATIC output_devices.cpp)

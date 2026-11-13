@@ -42,7 +42,6 @@
 #include "kernel.h"
 #include "civil_time.h"
 #include "kernel_memory.h"
-#include "kernel_thunks.h"
 #include "hooks.h"
 #include "host_image.h"
 #include "qcommon_fs.h"

@@ -7,12 +7,19 @@
 // top of that, so nothing at setup can depend on original engine code, and code that still runs stops with a
 // backtrace (the crash handler's INT3).
 
+#include <cstdint>
 #include <filesystem>
 #include <vector>
 
 namespace loader {
 
 class XbeImage;
+struct XbeSectionHeader;
+
+// Pages a section occupies, charged to the Xbox memory budget while it is loaded.
+int32_t section_pages(const XbeSectionHeader& section);
+// Pages of the image that are in memory before the title starts (headers and preloaded sections).
+int32_t initial_image_pages(const XbeImage& image);
 
 bool clear_code_sections(const XbeImage& image, const std::vector<std::filesystem::path>& keep_lists);
 

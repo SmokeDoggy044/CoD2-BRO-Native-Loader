@@ -7,7 +7,7 @@
 
 #include "compiler.h"
 #include "devices.h"
-#include "dispatcher.h"
+#include "title_calls.h"
 #include "log.h"
 #include "objects.h"
 #include "replay.h"
@@ -139,7 +139,7 @@ uint32_t XB_STDCALL XInputSetState(XbPtr handle, XbPtr feedback) {
     auto* f = from_xbox_ptr<XbFeedback>(feedback);
     set_rumble(handle_port(handle), f->left_motor_speed, f->right_motor_speed);
     f->status = kErrorSuccess;
-    if (f->event) xbox::set_event_handle(f->event);
+    if (f->event) xbox::signal_title_event(f->event);
     return kErrorIoPending;
 }
 

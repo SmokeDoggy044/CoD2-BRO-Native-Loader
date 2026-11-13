@@ -22,7 +22,7 @@
 #include "host_image.h"
 #include "kernel.h"
 #include "kernel_memory.h"
-#include "kernel_thunks.h"
+#include "kernel_stubs.h"
 #include "log.h"
 #include "options.h"
 #include "os.h"
@@ -89,7 +89,7 @@ int host_main(int argc, char** argv) {
     if (!xbox::memory_init(memory) || !xbox::place_launch_data_page({}))
         return loader::startup_failed("cannot set up the game's memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
-    loader::install_kernel_thunks(image, true);  // fatal stubs: a kernel call is a bug
+    loader::install_fatal_kernel_thunks(image);  // a kernel call is a bug
 
     if (!options.bindings_error.empty())
         LOG_WARN("input", "keys setting: %s (ignored; the rest applies)", options.bindings_error.c_str());

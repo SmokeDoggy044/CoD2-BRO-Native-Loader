@@ -25,9 +25,9 @@
 #include <vector>
 
 #include "compiler.h"
-#include "dispatcher.h"
-#include "filesystem.h"
+#include "file.h"
 #include "log.h"
+#include "title_calls.h"
 #include "objects.h"
 #include "test_mode.h"
 #include "types.h"
@@ -669,7 +669,7 @@ uint32_t XB_STDCALL Media_Process(XbPtr self, const XbMediaPacket* input, const 
     m->position += done;
     if (output->completed_size) *from_xbox_ptr<uint32_t>(output->completed_size) = done;
     if (output->status) *from_xbox_ptr<uint32_t>(output->status) = ok ? kPacketSuccess : kFail;
-    xbox::set_event_handle(output->completion);
+    xbox::signal_title_event(output->completion);
     return ok ? kOk : kFail;
 }
 
@@ -713,9 +713,11 @@ const Vtable& media_vtable() {
     return vtable;
 }
 
+TitleFileLookup g_title_file_lookup = nullptr;
+
 uint32_t XB_STDCALL XFileCreateMediaObjectAsync(Handle file, uint32_t max_packets, XbPtr* media_object) {
     (void)max_packets;
-    std::shared_ptr<platform::File> host = xbox::host_file(file);
+    std::shared_ptr<platform::File> host = g_title_file_lookup ? g_title_file_lookup(file) : nullptr;
     if (!host) {
         if (!in_test())
             LOG_WARN("audio", "XFileCreateMediaObjectAsync: handle %08x is not an open file", file);
@@ -819,5 +821,7 @@ std::span<const xbox::KernelImpl> dsound_functions() {
     (void)registered;
     return kFunctions;
 }
+
+void set_title_file_lookup(TitleFileLookup lookup) { g_title_file_lookup = lookup; }
 
 }  // namespace audio

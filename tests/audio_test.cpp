@@ -382,6 +382,7 @@ int main() {
         std::filesystem::temp_directory_path() / ("cod_bro_audio_test_" + std::to_string(std::time(nullptr)));
     std::filesystem::create_directories(root / "disc");
     test::init_kernel(root / "disc", root / "data");
+    audio::set_title_file_lookup([](uint32_t handle) { return xbox::host_file(handle); });  // as the loader
     test_adpcm();
     test_buffer_voice();
     test_stream_voice();

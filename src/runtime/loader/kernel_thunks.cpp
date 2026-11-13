@@ -1,5 +1,8 @@
 #include "replay.h"
 #include "kernel_thunks.h"
+#include "host_image.h"
+#include "kernel_stubs.h"
+#include "title_threads.h"
 #include "seh.h"
 
 #include <array>
@@ -37,13 +40,6 @@ XbeImage* g_image = nullptr;
 
 using xbox::kStatusSuccess;
 
-// Pages a section occupies, charged to the Xbox memory budget while it is loaded.
-int32_t section_pages(const XbeSectionHeader& section) {
-    const uint32_t start = section.virtual_addr & ~0xFFFu;
-    const uint32_t end = (section.virtual_addr + section.virtual_size + 0xFFF) & ~0xFFFu;
-    return static_cast<int32_t>((end - start) / 0x1000);
-}
-
 uint32_t XB_STDCALL XeLoadSection(XbeSectionHeader* section) {
     if (section->reference_count == 0) xbox::charge_image_pages(section_pages(*section));
     g_image->load_section(*section);
@@ -68,19 +64,6 @@ uint32_t XB_STDCALL XeUnloadSection(XbeSectionHeader* section) {
 // TODO: a terminated thread's ThreadEnv and stack are never freed.
 
 thread_local std::shared_ptr<xbox::ThreadObject> t_thread_object;
-std::atomic<uint32_t> g_next_thread_id{1};
-
-// request_title_restart -> wait_for_title_restart.
-struct Restart {
-    std::mutex mutex;
-    std::condition_variable changed;
-    std::vector<uint8_t> page;
-    bool requested = false;  // the requesting thread is leaving the title
-    bool ready = false;      // ... and has left it
-};
-Restart& g_restart = *new Restart;
-thread_local bool t_restarting = false;
-
 struct ThreadStart {
     ThreadEnv* env;
     std::shared_ptr<xbox::ThreadObject> object;
@@ -117,11 +100,7 @@ void xbox_thread_main(ThreadStart start) {
     if (end == XboxThreadEnd::Returned) start.object->mark_terminated(kStatusSuccess);
     LOG_DEBUG("thread", "thread %u ended, status %08x", start.object->id(), start.object->exit_status());
     t_thread_object.reset();
-    if (t_restarting) {
-        std::lock_guard lock(g_restart.mutex);
-        g_restart.ready = true;
-        g_restart.changed.notify_all();
-    }
+    title_thread_left();
 }
 
 // BOOLEAN arguments arrive in 4-byte stack slots; only the low byte is defined.
@@ -137,7 +116,7 @@ uint32_t XB_STDCALL PsCreateSystemThreadEx(xbox::Handle* thread_handle, uint32_t
     ThreadEnv* env = create_thread_env(kernel_stack_size, tls_data_size);
     if (!env) return xbox::kStatusNoMemory;
 
-    auto object = std::make_shared<xbox::ThreadObject>(g_next_thread_id++, xbox::to_xbox_ptr(env->kthread));
+    auto object = std::make_shared<xbox::ThreadObject>(next_title_thread_id(), xbox::to_xbox_ptr(env->kthread));
     if (create_suspended & 0xFF) object->set_suspend_count(1);
     const xbox::Handle handle = xbox::insert_handle(object);
     *thread_handle = handle;
@@ -177,39 +156,6 @@ uint32_t XB_STDCALL NtResumeThread(xbox::Handle handle, uint32_t* previous_suspe
 
 }  // namespace
 
-// A title thread for our C (game::TitleHost::start_thread): the same FS block, stack and TLS block as a kernel
-// thread, but no kernel handle - our own object table keeps the thread's handle.
-bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine, uint32_t context,
-                        uint32_t* thread_id) {
-    ThreadEnv* env = create_thread_env(stack_size, tls_size);
-    if (!env) return false;
-    auto object = std::make_shared<xbox::ThreadObject>(g_next_thread_id++, xbox::to_xbox_ptr(env->kthread));
-    if (thread_id) *thread_id = object->id();
-    LOG_DEBUG("thread", "title thread (routine=%08x context=%08x stack=%x tls=%x) -> id %u", routine, context,
-              stack_size, tls_size, object->id());
-    std::thread(xbox_thread_main, ThreadStart{env, object, routine, context, 0}).detach();
-    return true;
-}
-
-void request_title_restart(const uint8_t* page, uint32_t size) {
-    {
-        std::lock_guard lock(g_restart.mutex);
-        g_restart.page.assign(page, page + size);
-        g_restart.requested = true;
-    }
-    t_restarting = true;
-    exit_xbox_thread();  // back to xbox_thread_main, which tells the start thread
-}
-
-std::vector<uint8_t> wait_for_title_restart() {
-    std::unique_lock lock(g_restart.mutex);
-    g_restart.changed.wait(lock, [] { return g_restart.ready; });
-    g_restart.ready = g_restart.requested = false;
-    return std::move(g_restart.page);
-}
-
-void reset_thread_ids() { g_next_thread_id = 1; }
-
 namespace {
 
 const xbox::KernelImpl kLoaderImpls[] = {
@@ -221,43 +167,12 @@ const xbox::KernelImpl kLoaderImpls[] = {
     {"XeUnloadSection", reinterpret_cast<void*>(&XeUnloadSection)},
 };
 
-// --- Stubs for everything else ------------------------------------------------------
-
-[[noreturn]] PLATFORM_NOINLINE void unimplemented(uint32_t ordinal, uint32_t return_address, uint32_t caller_ebp) {
-    char message[160];
-    std::snprintf(message, sizeof(message), "unimplemented kernel export #%u %s", ordinal,
-                  xbox::kernel_export_name(ordinal));
-    fatal_with_backtrace(message, return_address, caller_ebp);
-}
-
-// One distinct stub per ordinal, so the stub knows which export was called. The
-// calling convention does not matter because it never returns.
-template <uint32_t Ordinal>
-[[noreturn]] PLATFORM_NOINLINE void unimplemented_stub() {
-    const auto return_address = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-    const auto caller_ebp = *static_cast<uint32_t*>(__builtin_frame_address(0));
-    unimplemented(Ordinal, static_cast<uint32_t>(return_address), caller_ebp);
-}
-
-template <size_t... Ordinals>
-constexpr auto make_stubs(std::index_sequence<Ordinals...>) {
-    return std::array<void (*)(), sizeof...(Ordinals)>{&unimplemented_stub<Ordinals>...};
-}
-
-const auto kStubs = make_stubs(std::make_index_sequence<xbox::kMaxKernelOrdinal + 1>{});
-
 void* find_impl(const char* name) {
     for (std::span<const xbox::KernelImpl> impls :
          {std::span<const xbox::KernelImpl>(kLoaderImpls), seh_impls(), xbox::kernel_impls()})
         for (const auto& impl : impls)
             if (std::strcmp(impl.name, name) == 0) return impl.address;
     return nullptr;
-}
-
-void* zero_block() {
-    static std::vector<std::unique_ptr<uint8_t[]>> blocks;
-    blocks.push_back(std::make_unique<uint8_t[]>(4096));
-    return blocks.back().get();
 }
 
 // XB_KERNEL_COUNT=FILE (developer): every function import goes through a stub that counts its calls and keeps
@@ -318,13 +233,6 @@ void install_counting(uint32_t* first, const char* file) {
 
 }  // namespace
 
-int32_t initial_image_pages(const XbeImage& image) {
-    int32_t pages = static_cast<int32_t>((image.header().size_of_headers + 0xFFF) / 0x1000);
-    for (const XbeSectionHeader* section : image.sections())
-        if (section->flags & 2) pages += section_pages(*section);  // preloaded
-    return pages;
-}
-
 void install_kernel_thunks(XbeImage& image, bool host) {
     g_image = &image;
     auto* entry = reinterpret_cast<uint32_t*>(uintptr_t{image.kernel_thunk_table()});
@@ -346,11 +254,11 @@ void install_kernel_thunks(XbeImage& image, bool host) {
         if (target) {
             ++implemented;
         } else if (exp->kind == xbox::ExportKind::Data) {
-            target = zero_block();
+            target = kernel_zero_block();
             ++zeroed;
             LOG_DEBUG("kernel", "data export %s has no implementation, using zeros", exp->name);
         } else {
-            target = reinterpret_cast<void*>(kStubs[ordinal]);
+            target = kernel_stub(ordinal);
             ++stubbed;
             missing += missing.empty() ? "" : ", ";
             missing += exp->name;

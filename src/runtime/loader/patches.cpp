@@ -55,6 +55,8 @@ int64_t XB_CDECL title_rdtsc() { return xbox::cpu_time_stamp_counter(); }
 
 namespace {
 
+KernelLinks g_kernel_links;
+
 // XAPI 001ede5f (MP 0015a84e; unnamed in Ghidra), called during startup on retail (no debug
 // monitor): finds the kernel's INIT section through its PE header at 0x80010000
 // and rewrites GDT entry 1 (code selector 0x08) with SGDT + a direct GDT write, to
@@ -66,7 +68,7 @@ void XB_CDECL restrict_code_selector() {}
 // a table in raw disk sectors, formats it as FATX if needed and links Z: to it. The
 // cache is a host folder here, so just link it (emptying it when asked to format).
 uint32_t XB_STDCALL mount_utility_drive(uint32_t format_clean) {
-    return xbox::mount_utility_drive(format_clean & 0xFF) == 0 ? 1 : 0;
+    return g_kernel_links.mount_utility_drive && g_kernel_links.mount_utility_drive(format_clean & 0xFF) == 0 ? 1 : 0;
 }
 
 // Xbox Live sign-in (SP FUN_00221eb0 from the main menu and Xbox Live Options > Sign
@@ -2047,10 +2049,9 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         {"ExQueryNonVolatileSetting", "s x x s x", compare::SdkStandIn::Pass},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
-        uint32_t host = 0;
-        for (const xbox::KernelImpl& function : xbox::kernel_impls())
-            if (std::strcmp(function.name, call.name) == 0)
-                host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address));
+        const uint32_t host = g_kernel_links.kernel_function
+                                  ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_kernel_links.kernel_function(call.name)))
+                                  : 0;
         if (!host) LOG_WARN("patches", "%s: recorded kernel call without an implementation", call.name);
         calls.push_back({call.name, host, call.args, call.stand_in, nullptr});
     }
@@ -2209,6 +2210,8 @@ std::pair<uint32_t, uint32_t> rdtsc_trampolines() { return {g_rdtsc_pool_begin, 
 std::pair<uint32_t, uint32_t> scene_force_thunk() {
     return {g_scene_thunk, g_scene_thunk ? g_scene_thunk + 0x1000 : 0};
 }
+
+void set_kernel_links(const KernelLinks& links) { g_kernel_links = links; }
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
