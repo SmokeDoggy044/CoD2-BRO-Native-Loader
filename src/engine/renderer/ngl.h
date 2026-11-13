@@ -1269,6 +1269,10 @@ void* XB_CDECL nglFindMeshPreferFile(const uint32_t* name, const uint8_t* file);
 const uint32_t* XB_THISCALL nglSkipList_Insert(NglSkipList* self, const uint32_t* object);
 // 0x00063f10: the same for textures (name at +0x54).
 const uint32_t* XB_THISCALL nglSkipList_InsertTexture(NglSkipList* self, const uint32_t* texture);
+// 0x0006a0f0 / 0x000841b0 (unreached; the mesh managers' / NalManagerKey8's Add): the same insert on the name the
+// object's first word points to / the name at +8.
+const uint32_t* XB_THISCALL nglSkipList_InsertIndirect(NglSkipList* self, const uint32_t* object);
+const uint32_t* XB_THISCALL nglSkipList_InsertName8(NglSkipList* self, const uint32_t* object);
 // 0x0007ad80: unlinks and frees the node of this object (found by its name, then compared
 // by pointer); the list's level drops past empty top levels. False when not listed.
 bool XB_THISCALL nglSkipList_Remove(NglSkipList* self, const uint32_t* object);

@@ -1129,6 +1129,13 @@ void XB_CDECL ScrSentient_GetRef3cField(const uint8_t* object, uint32_t, uint32_
     *out = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x224));
 }
 
+// 0x002f5b40 (field table 0x008d215c, unreached): the entity's (the object's first word) +0x224.
+void XB_CDECL ScrSentient_GetEnt224Field(const uint8_t* object, uint32_t, uint32_t* out) {
+    const uint32_t ent = word_at(object, 0);
+    if (!ent) return;
+    *out = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ent + 0x224));
+}
+
 // The yaw (+0x50) as (0, yaw, 0).
 void XB_CDECL ScrPathNode_GetAnglesField(const uint8_t* node, uint32_t, uint32_t* out) {
     const uint32_t yaw = word_at(node, 0x50);

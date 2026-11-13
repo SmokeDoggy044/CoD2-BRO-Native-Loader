@@ -697,6 +697,64 @@ void XB_THISCALL AdvancedOptionsMenu_Draw(uint8_t* menu) {
     UIMenu_Draw(menu);
 }
 
+// --- AdvancedOptionsMenu slots no replay reaches ---
+
+void XB_THISCALL AdvancedOptionsMenu_ToggleLeft(uint8_t* menu, uint32_t) { AdvancedOptionsMenu_ToggleSelected(menu, 0); }
+void XB_THISCALL AdvancedOptionsMenu_ToggleRight(uint8_t* menu, uint32_t) { AdvancedOptionsMenu_ToggleSelected(menu, 1); }
+
+void XB_THISCALL AdvancedOptionsMenu_RepeatHeld(uint8_t* menu) {
+    if (!((menu[0x2a] >> 7) & 1)) return;
+    const uint16_t row = field<uint16_t>(menu, 0x22);
+    if (row != 2 && row != 3 && row != 6) return;
+    if (menu[0x32] == 0x20)
+        call(menu, 0x5c, 0);
+    else if (menu[0x32] == 0x10)
+        call(menu, 0x58, 0);
+}
+
+void XB_THISCALL AdvancedOptionsMenu_Update(uint8_t* menu, float dt) {
+    UIMenu_Update(menu, dt);
+    if (!(field<float>(menu, 0xb8) > 0.0f)) return;
+    const int32_t row = field<int32_t>(menu, 0xb0);
+    if (row < 0 || row >= 7) return;
+    field<float>(menu, 0xb8) = field<float>(menu, 0xb8) - dt;
+    if (!(field<float>(menu, 0xb8) <= 0.0f)) return;
+    call(field<uint8_t*>(menu, 0x54 + uint32_t(row) * 8), 0x70, field<uint32_t>(menu, 0xb4));
+    const int32_t again = field<int32_t>(menu, 0xb0);
+    call(field<uint8_t*>(menu, 0x58 + uint32_t(again) * 8), 0x70, field<uint32_t>(menu, 0xb4));
+}
+
+// Returns 1 when the entry still has to tail-call SetActiveScreen(0).
+uint32_t XB_CDECL AdvancedOptionsMenu_OnButton(uint8_t* menu, int32_t code) {
+    if (code == 10) {
+        own_function<void XB_CDECL(uint8_t*)>(&AdvancedOptionsMenu_ResetDefaults)(menu);
+        return 0;
+    }
+    if (code != 11) return 0;
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+    ui_call_regs(own_address(&FE_ApplyControlSettings_entry), &regs, 0, nullptr);  // FE_ApplyControlSettings (menu in ESI)
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(AdvancedOptionsMenu_OnButton_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(AdvancedOptionsMenu_OnButton) "addl $8, %esp\n"
+                   "testl %eax, %eax\n"
+                   "jnz 1f\n"
+                   "ret $4\n"
+                   "1:\n"
+                   "movl 0x0095f8fc, %ecx\n"
+                   "movl (%ecx), %eax\n"
+                   "movl $0, 4(%esp)\n"
+                   "jmp *0xc(%eax)")
+
+PLATFORM_ASM_ENTRY(AdvancedOptionsMenu_ShowFirstScreen_entry,
+                   "movl 0x0095f8fc, %ecx\n"
+                   "movl (%ecx), %eax\n"
+                   "movl $0, 4(%esp)\n"
+                   "jmp *0xc(%eax)")
+
 PLATFORM_ASM_ENTRY(OptionsMenu_SetCheckmarks_entry,
                    "pushl 4(%esp)\n"
                    "pushl %edi\n" PLATFORM_ASM_CALL(OptionsMenu_SetCheckmarks) "addl $8, %esp\n"

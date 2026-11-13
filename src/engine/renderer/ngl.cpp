@@ -5028,10 +5028,12 @@ void* XB_CDECL nglFindMeshPreferFile(const uint32_t* name, const uint8_t* file) 
 
 namespace {
 
-// nglSkipList_Insert/InsertTexture: the 32-byte name at `name_offset` in each object.
-const uint32_t* skip_list_insert(NglSkipList* self, const uint32_t* object, uint32_t name_offset) {
+// nglSkipList_Insert/InsertTexture/InsertName8: the 32-byte name at `name_offset` in each object;
+// InsertIndirect (`indirect`): the name the object's first word points to.
+const uint32_t* skip_list_insert(NglSkipList* self, const uint32_t* object, uint32_t name_offset, bool indirect = false) {
     if (!self->head) nglSkipList_InitHead(self);
-    const auto name_of = [name_offset](const uint32_t* o) {
+    const auto name_of = [name_offset, indirect](const uint32_t* o) {
+        if (indirect) return reinterpret_cast<const uint32_t*>(uintptr_t{o[0]});
         return reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(o) + name_offset);
     };
     const uint32_t* key = name_of(object);
@@ -5080,6 +5082,14 @@ const uint32_t* XB_THISCALL nglSkipList_Insert(NglSkipList* self, const uint32_t
 
 const uint32_t* XB_THISCALL nglSkipList_InsertTexture(NglSkipList* self, const uint32_t* texture) {
     return skip_list_insert(self, texture, 0x54);
+}
+
+const uint32_t* XB_THISCALL nglSkipList_InsertIndirect(NglSkipList* self, const uint32_t* object) {
+    return skip_list_insert(self, object, 0, true);
+}
+
+const uint32_t* XB_THISCALL nglSkipList_InsertName8(NglSkipList* self, const uint32_t* object) {
+    return skip_list_insert(self, object, 8);
 }
 
 namespace {

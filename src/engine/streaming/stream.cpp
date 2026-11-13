@@ -114,6 +114,18 @@ void XB_THISCALL MemStream_Destroy(MemStream* stream) {
 
 uint8_t XB_THISCALL MemStream_AtEnd(const MemStream* stream) { return stream->position >= stream->size ? 1 : 0; }
 
+MemStream* XB_THISCALL Stream_DeletingDtor(MemStream* stream, uint32_t flags) {
+    stream->vtable = 0x007bad80;
+    if (flags & 1) own_function<void XB_CDECL(MemStream*)>(&Z_Free)(stream);  // Z_Free
+    return stream;
+}
+
+uint32_t XB_THISCALL MemStream_IsEmpty(const MemStream* stream) { return stream->size == 0 ? 1 : 0; }
+
+int32_t XB_THISCALL MemStream_GetPosition(const MemStream* stream) { return stream->position; }
+
+void XB_THISCALL MemStream_SetPosition(MemStream* stream, int32_t position) { stream->position = position; }
+
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags) {
     MemStream_Destroy(stream);
     if (flags & 1) own_function<void XB_CDECL(MemStream*)>(&Z_Free)(stream);  // Z_Free
@@ -1845,6 +1857,44 @@ uint32_t XB_THISCALL ZoneAnimManager_Flush(uint8_t* self, uint32_t a1, uint32_t 
 uint32_t XB_THISCALL ZoneSkelManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
     return zone_manager_flush<0x0008e270>(self, a1, a2, a3);
 }
+
+uint32_t XB_THISCALL ZoneMeshManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x00067390>(self, a1, a2, a3);
+}
+
+uint32_t XB_THISCALL ZoneClipManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x0008d940>(self, a1, a2, a3);
+}
+
+uint32_t XB_THISCALL ZoneClipSetManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3) {
+    return zone_manager_flush<0x0008e010>(self, a1, a2, a3);
+}
+
+void* XB_THISCALL ZoneManager_NewIterator(uint8_t* self) {
+    auto* inner = reinterpret_cast<uint8_t*>(uintptr_t{word_at<uint32_t>(self, 4)});
+    using NewIterator = void* XB_THISCALL(uint8_t*);
+    return title_function<NewIterator>(title_global<uint32_t>(word_at<uint32_t>(inner, 0) + 0x14))(inner);
+}
+
+const char* XB_CDECL ManagerBase_ClassName() { return reinterpret_cast<const char*>(uintptr_t{0x00838314}); }
+
+namespace {
+
+uint8_t* delete_manager_base(uint8_t* self, uint32_t flags, uint32_t vtable) {
+    word_at<uint32_t>(self, 0) = vtable;
+    if (flags & 1) own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(self);  // Mem_AlignedFree
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL SkelManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x00838294); }
+uint8_t* XB_THISCALL TextureManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x008381cc); }
+uint8_t* XB_THISCALL MeshFileManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x00838270); }
+uint8_t* XB_THISCALL MeshManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x00838228); }
+uint8_t* XB_THISCALL ClipManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x00838160); }
+uint8_t* XB_THISCALL ClipSetManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x008380f4); }
+uint8_t* XB_THISCALL AnimManagerBase_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_manager_base(self, flags, 0x008381f0); }
 
 uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags) {
     ZoneManagers_Destruct(self);

@@ -134,6 +134,22 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL GameplayMenu_Draw(uint8_t* menu, uint32
 extern "C" void GameplayMenu_Draw_entry(void);
 // 0x0031f3e0: the texts +0x98, +0x9c (from row 10 on) and +0xa0 (+0x3c), the panel, then UIMenu_Draw.
 void XB_THISCALL AdvancedOptionsMenu_Draw(uint8_t* menu);
+// AdvancedOptionsMenu vtable (0x0082a388) slots no replay reaches:
+// 0x00012c60 / 0x00012c70 (slots 22 / 23): AdvancedOptionsMenu_ToggleSelected left / right.
+void XB_THISCALL AdvancedOptionsMenu_ToggleLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL AdvancedOptionsMenu_ToggleRight(uint8_t* menu, uint32_t pad);
+// 0x00313c40 (slot 48): while a direction is held (+0x2a bit 7) on rows 2, 3 or 6 (+0x22), +0x32 0x20 toggles right
+// (slot 23), 0x10 left (slot 22).
+void XB_THISCALL AdvancedOptionsMenu_RepeatHeld(uint8_t* menu);
+// 0x0031f370 (slot 12): UIMenu_Update, then the arrow flash (+0xb8 seconds left, row' +0xb0 in 0..6): when it runs
+// out, both arrows of the row (+0x54 / +0x58 + row' * 8) get their colour +0xb4 back (+0x70).
+void XB_THISCALL AdvancedOptionsMenu_Update(uint8_t* menu, float dt);
+// 0x00331550 (slot 14, button code): 10 resets the defaults; 11 applies the controls (FE_ApplyControlSettings) and
+// tail-calls the screen manager's SetActiveScreen(0) at the entry ESP (asm entry; its sound keeps stack addresses).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL AdvancedOptionsMenu_OnButton(uint8_t* menu, int32_t code);
+extern "C" void AdvancedOptionsMenu_OnButton_entry(void);
+// 0x0030e630 (slot 25): the screen manager's SetActiveScreen(0), tail-called at the entry ESP.
+extern "C" void AdvancedOptionsMenu_ShowFirstScreen_entry(void);
 
 // 0x00339110 / 0x00339050 / 0x00338f50: UIMenu_RestoreSelection; the background movie "Propgnda" opened full screen
 // (0x0095f91a once open); OptionsMenu: the selection +0x88 (+0x3c, 1) first; GameplayMenu: the five flags and their

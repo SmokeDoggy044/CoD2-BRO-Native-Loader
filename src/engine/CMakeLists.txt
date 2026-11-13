@@ -90,6 +90,7 @@ set(game_code_sources
     client/fe_special.cpp
     shared/functions.cpp
     shared/gap_methods.cpp
+    shared/vslot_methods.cpp
     shared/title_crt.cpp
     shared/title_eh.cpp
     shared/title_seh.cpp

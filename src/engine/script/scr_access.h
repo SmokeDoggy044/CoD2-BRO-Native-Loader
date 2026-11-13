@@ -374,6 +374,7 @@ void XB_CDECL ScrPathNode_SetAnglesField(uint8_t* node, uint32_t, const uint32_t
 void XB_CDECL ScrActor_GetString2c0Field(const uint8_t* actor, uint32_t, ScriptString* out);
 void XB_CDECL ScrSentient_SetGoalArcField(uint8_t* object, uint32_t, const float* value);
 void XB_CDECL ScrSentient_GetRef3cField(const uint8_t* object, uint32_t, uint32_t* out);
+void XB_CDECL ScrSentient_GetEnt224Field(const uint8_t* object, uint32_t, uint32_t* out);
 void XB_CDECL ScrPathNode_GetAnglesField(const uint8_t* node, uint32_t, uint32_t* out);
 void XB_CDECL ScrActor_GetRef12a0Field(const uint8_t* object, uint32_t, uint32_t* out);
 void XB_CDECL ScrActor_SetInt184Field(uint8_t* actor, uint32_t, const uint32_t* value);

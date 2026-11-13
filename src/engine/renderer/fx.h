@@ -883,6 +883,18 @@ uint8_t XB_THISCALL FxSoundComponent_IsDone(const uint8_t* component);
 void XB_THISCALL FxSoundComponent_Stop(const uint8_t* component);
 // 0x00298750 (sound vtable +0x28): 1 without a live channel, 0 without a voice, else voice state 3.
 uint8_t XB_THISCALL FxSoundComponent_IsState3(const uint8_t* component);
+// Component vtable slots 2/3/7/8 no replay reaches (unreached virtual slots, 0.3 host):
+// 0x00024250 (particle slot 3): clears the system's (+0x2c) flag 2 at +0x16; returns that byte's address.
+uint8_t* XB_THISCALL FxParticleComponent_Resume(uint8_t* component);
+// 0x00293120 / 0x00293150 (slot 7): flags +0x2a |= 3 and both timers (+0x18, +0x1c) = delay; the
+// particle one also stops its system (definition +0x2c, system +4).
+void XB_THISCALL FxParticleComponent_StopAfter(uint8_t* component, float delay);
+void XB_THISCALL FxSoundComponent_StopAfter(uint8_t* component, float delay);
+// 0x00293110 / 0x002986e0 (slot 8): particle false; sound: started (+0x2a bit 1) and its channel busy.
+uint8_t XB_THISCALL FxParticleComponent_IsBusy(const uint8_t* component);
+uint32_t XB_THISCALL FxSoundComponent_IsBusy(const uint8_t* component);
+// 0x0029aed0 (slot 2): the rumble's (+0x60) scale, when it has one.
+void XB_THISCALL FxShakeRumbleComponent_ScaleParam(uint8_t* component, const char* name, float scale);
 
 // --- Gap functions (no Ghidra function until 2026-11-11) ---
 // 0x002985a0 (vtable +8): with a live voice on the handle +0x64: "SOUND_PITCH" = param 1 * scale (SndVoice_SetParam,

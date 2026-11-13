@@ -5767,6 +5767,42 @@ uint8_t XB_THISCALL FxSoundComponent_IsState3(const uint8_t* component) {
     return SndVoice_GetState(voice) == 3;
 }
 
+uint8_t* XB_THISCALL FxParticleComponent_Resume(uint8_t* component) {
+    uint8_t* const flags = *reinterpret_cast<uint8_t**>(component + 0x2c) + 0x16;
+    *flags &= 0xfd;
+    return flags;
+}
+
+void XB_THISCALL FxParticleComponent_StopAfter(uint8_t* component, float delay) {
+    component[0x2a] |= 3;
+    *reinterpret_cast<float*>(component + 0x18) = delay;
+    *reinterpret_cast<float*>(component + 0x1c) = delay;
+    uint8_t* const definition = *reinterpret_cast<uint8_t**>(component + 0x2c);
+    if (!definition) return;
+    uint8_t* const system = *reinterpret_cast<uint8_t**>(definition + 4);
+    if (system) FxSystem_Stop(system);
+}
+
+void XB_THISCALL FxSoundComponent_StopAfter(uint8_t* component, float delay) {
+    component[0x2a] |= 3;
+    *reinterpret_cast<float*>(component + 0x18) = delay;
+    *reinterpret_cast<float*>(component + 0x1c) = delay;
+}
+
+uint8_t XB_THISCALL FxParticleComponent_IsBusy(const uint8_t*) { return 0; }
+
+uint32_t XB_THISCALL FxSoundComponent_IsBusy(const uint8_t* component) {
+    if (!((component[0x2a] >> 1) & 1)) return 0;
+    const uint8_t* const channel = sound_channel(component);
+    if (!channel) return 0;
+    return (SoundRef_IsBusy(channel) & 0xff) ? 1 : 0;
+}
+
+void XB_THISCALL FxShakeRumbleComponent_ScaleParam(uint8_t* component, const char*, float scale) {
+    const uint32_t id = *reinterpret_cast<const uint32_t*>(component + 0x60);
+    if (id) Rumble_SetScale(title_global<uint8_t*>(0x0095f5c4), id, scale);
+}
+
 void XB_THISCALL FxSoundComponent_Stop(const uint8_t* component) {
     if (uint8_t* const channel = sound_channel(component)) S_StopChannel(channel);
 }

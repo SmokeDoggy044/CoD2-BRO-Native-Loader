@@ -42,6 +42,12 @@ void XB_THISCALL MemStream_Destroy(MemStream* stream);
 MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags);
 // 0x00055510 (vtable 0x007bad80 slot 8): position (+0xc) >= size (+8), signed (AL).
 uint8_t XB_THISCALL MemStream_AtEnd(const MemStream* stream);
+// 0x00055460: the base stream's deleting destructor (vtable 0x007bad80 back, Z_Free when flags & 1).
+MemStream* XB_THISCALL Stream_DeletingDtor(MemStream* stream, uint32_t flags);
+// 0x00055530 / 0x00055550 / 0x00055560 (vtable 0x007bad98 slots 3-5): size == 0, position get/set.
+uint32_t XB_THISCALL MemStream_IsEmpty(const MemStream* stream);
+int32_t XB_THISCALL MemStream_GetPosition(const MemStream* stream);
+void XB_THISCALL MemStream_SetPosition(MemStream* stream, int32_t position);
 
 // A relocation table in a loaded pack: entries[0] = bit count, entries[1..count-1] =
 // offsets of relocation chains (Pack_RelocateChain).
@@ -437,6 +443,23 @@ uint32_t XB_THISCALL ZoneTextureManager_Flush(uint8_t* self, uint32_t a1, uint32
 uint32_t XB_THISCALL ZoneMeshFileManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
 uint32_t XB_THISCALL ZoneAnimManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
 uint32_t XB_THISCALL ZoneSkelManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+// 0x00025540 / 0x00025670 / 0x000256c0: the same shape for the mesh, clip and clip-set managers (their bases
+// 0x00067390 / 0x0008d940 / 0x0008e010 still by address: unr_c's thunk targets).
+uint32_t XB_THISCALL ZoneMeshManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t XB_THISCALL ZoneClipManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+uint32_t XB_THISCALL ZoneClipSetManager_Flush(uint8_t* self, uint32_t a1, uint32_t a2, uint32_t a3);
+// 0x000253b0 (slot 5 of every Zone*Manager): the wrapped ngl/anim manager's (+4) NewIterator.
+void* XB_THISCALL ZoneManager_NewIterator(uint8_t* self);
+// 0x00025740 (slot 1 of the manager base classes): "<Unnamed>".
+const char* XB_CDECL ManagerBase_ClassName();
+// 0x000258b0..0x00025ac0: the manager base classes' deleting destructors (vtable back, Mem_AlignedFree).
+uint8_t* XB_THISCALL SkelManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL TextureManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL MeshFileManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL MeshManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ClipManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ClipSetManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManagerBase_DeletingDtor(uint8_t* self, uint32_t flags);
 // 0x000251c0 / 0x00025880 (vtable slot 0, thiscall, flags, ret 4): the zone graph (removes its "ZoneGraph" command
 // first) / its base: ResourceManager_Destruct, Z_Free when flags bit 0.
 uint8_t* XB_THISCALL ZoneGraph_DeletingDtor(uint8_t* self, uint32_t flags);
