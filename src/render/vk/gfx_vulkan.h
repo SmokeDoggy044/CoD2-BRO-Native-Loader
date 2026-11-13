@@ -1,7 +1,7 @@
 #pragma once
 
-// GfxDevice on Vulkan (own engine 0.5). V1: render targets, clears, the back buffer and read_target are
-// real; textures, buffers, shaders and draws are kept as bookkeeping only (draws are counted, not drawn)
+// GfxDevice on Vulkan (own engine 0.5). V1: render targets, clears, the back buffer and read_target; V3a:
+// textures, buffers, replacements and shader modules. Draws are counted, not drawn,
 // until V3 (docs/developers/own-engine-host.md, "0.5 plan").
 
 #include <cstdint>

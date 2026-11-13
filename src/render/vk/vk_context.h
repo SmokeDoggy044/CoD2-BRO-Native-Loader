@@ -27,11 +27,22 @@ struct Image {
     VkImage image = VK_NULL_HANDLE;
     VmaAllocation allocation = nullptr;
     VkImageView view = VK_NULL_HANDLE;
+    VkImageView sample_view = VK_NULL_HANDLE;  // a second view for sampling (swizzled), or none
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspect = 0;
     uint32_t width = 0, height = 0;
+    uint32_t depth = 1, levels = 1, layers = 1;
     VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
     explicit operator bool() const { return image != VK_NULL_HANDLE; }
+};
+
+// A sampled image of the title's: 2D, cube (6 layers) or volume, with mip levels and a component mapping
+// (formats Vulkan has no direct match for: L8, A8, X formats).
+struct TextureImageDesc {
+    VkImageViewType view_type = VK_IMAGE_VIEW_TYPE_2D;
+    VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
+    uint32_t width = 1, height = 1, depth = 1, levels = 1;
+    VkComponentMapping components{};  // identity
 };
 
 // Where an upload's bytes went: copy from `buffer` at `offset`.
@@ -85,6 +96,13 @@ public:
     void transition(Image& image, VkImageLayout layout);
     // A one-colour 2D copy of `pixels` (`pitch` bytes per row) into the whole image.
     void upload(Image& image, const void* pixels, uint32_t pitch, uint32_t bytes_per_pixel);
+    bool create_texture_image(Image& image, const TextureImageDesc& desc);
+    // One mip level of one layer: `rows` rows of `row_bytes` (block rows for compressed formats) per slice,
+    // `pitch` / `slice_pitch` apart in `data`. Recorded in command order: draws before it see the old texels.
+    bool upload_level(Image& image, uint32_t level, uint32_t layer, const void* data, uint32_t row_bytes,
+                      uint32_t rows, uint32_t pitch, uint32_t slice_pitch);
+    // `bytes` into a device buffer at `offset` (command order; vertex/index/uniform reads after it wait).
+    bool upload_buffer(VkBuffer buffer, VkDeviceSize offset, const void* data, VkDeviceSize bytes);
     // Reads a colour image back as 4-byte pixels, `width` * `height` (submits and waits).
     bool read(Image& image, std::vector<uint32_t>& pixels);
 
@@ -100,7 +118,8 @@ public:
 
     // Destroyed once the GPU no longer uses them (kFramesInFlight frames later).
     void defer_destroy(VkBuffer buffer, VmaAllocation allocation);
-    void defer_destroy(VkImage image, VmaAllocation allocation, VkImageView view);
+    void defer_destroy(VkImage image, VmaAllocation allocation, VkImageView view,
+                       VkImageView view2 = VK_NULL_HANDLE);
     void defer_destroy(VkPipeline pipeline);
 
     void wait_idle();
@@ -110,7 +129,7 @@ private:
         uint64_t frame = 0;
         VkBuffer buffer = VK_NULL_HANDLE;
         VkImage image = VK_NULL_HANDLE;
-        VkImageView view = VK_NULL_HANDLE;
+        VkImageView view = VK_NULL_HANDLE, view2 = VK_NULL_HANDLE;
         VkPipeline pipeline = VK_NULL_HANDLE;
         VmaAllocation allocation = nullptr;
     };

@@ -20,13 +20,82 @@ namespace render::vk {
 namespace {
 
 bool is_depth(Format format) { return format == Format::D16 || format == Format::D24S8; }
+bool is_block(Format format) { return format == Format::DXT1 || format == Format::DXT3 || format == Format::DXT5; }
+
+// Bytes per row of `width` pixels (per row of 4x4 blocks for DXT), as the title's memory holds them.
+uint32_t row_bytes(Format format, uint32_t width) {
+    switch (format) {
+        case Format::BGRA8: case Format::BGRX8: return width * 4;
+        case Format::B5G6R5: case Format::BGR5A1: case Format::BGRX5: case Format::BGRA4: case Format::A8L8:
+            return width * 2;
+        case Format::L8: case Format::A8: return width;
+        case Format::DXT1: return (width + 3) / 4 * 8;
+        case Format::DXT3: case Format::DXT5: return (width + 3) / 4 * 16;
+        default: return 0;
+    }
+}
+
+// Our formats as Vulkan formats every Vulkan 1.3 device samples (BC needs textureCompressionBC), with the
+// view's component mapping giving D3D9's channels: bit layouts match D3D9's (R5G6B5, A1R5G5B5); A4R4G4B4
+// is B4G4R4A4 read with its channels moved; L8 / A8 / A8L8 are R8 / R8G8 spread out.
+VkFormat texture_format(Format format, VkComponentMapping& c) {
+    using S = VkComponentSwizzle;
+    const S r = VK_COMPONENT_SWIZZLE_R, g = VK_COMPONENT_SWIZZLE_G, b = VK_COMPONENT_SWIZZLE_B,
+            a = VK_COMPONENT_SWIZZLE_A, one = VK_COMPONENT_SWIZZLE_ONE, zero = VK_COMPONENT_SWIZZLE_ZERO;
+    c = {r, g, b, a};
+    switch (format) {
+        case Format::BGRA8: return VK_FORMAT_B8G8R8A8_UNORM;
+        case Format::BGRX8: c.a = one; return VK_FORMAT_B8G8R8A8_UNORM;
+        case Format::B5G6R5: return VK_FORMAT_R5G6B5_UNORM_PACK16;
+        case Format::BGR5A1: return VK_FORMAT_A1R5G5B5_UNORM_PACK16;
+        case Format::BGRX5: c.a = one; return VK_FORMAT_A1R5G5B5_UNORM_PACK16;
+        // A4R4G4B4 (A 15-12, R 11-8, G 7-4, B 3-0) read as B4G4R4A4 (B 15-12, G 11-8, R 7-4, A 3-0).
+        case Format::BGRA4: c = {g, r, a, b}; return VK_FORMAT_B4G4R4A4_UNORM_PACK16;
+        case Format::L8: c = {r, r, r, one}; return VK_FORMAT_R8_UNORM;
+        case Format::A8: c = {zero, zero, zero, r}; return VK_FORMAT_R8_UNORM;
+        case Format::A8L8: c = {r, r, r, g}; return VK_FORMAT_R8G8_UNORM;  // byte 0 L, byte 1 A
+        case Format::DXT1: return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+        case Format::DXT3: return VK_FORMAT_BC2_UNORM_BLOCK;
+        case Format::DXT5: return VK_FORMAT_BC3_UNORM_BLOCK;
+        default: return VK_FORMAT_UNDEFINED;
+    }
+}
+
+uint32_t full_chain(uint32_t width, uint32_t height, uint32_t depth) {
+    uint32_t size = std::max({width, height, depth}), levels = 1;
+    while (size > 1) size >>= 1, ++levels;
+    return levels;
+}
+
+// A replacement picture's levels: each a 2x2 box filter of the one before (as the D3D9 back end).
+std::vector<uint32_t> half_level(const std::vector<uint32_t>& level, uint32_t width, uint32_t height) {
+    const uint32_t w = std::max(width / 2, 1u), h = std::max(height / 2, 1u);
+    std::vector<uint32_t> next(static_cast<size_t>(w) * h, 0);
+    for (uint32_t y = 0; y < h; ++y)
+        for (uint32_t x = 0; x < w; ++x) {
+            const uint32_t x0 = std::min(x * 2, width - 1), x1 = std::min(x * 2 + 1, width - 1);
+            const uint32_t y0 = std::min(y * 2, height - 1), y1 = std::min(y * 2 + 1, height - 1);
+            const uint32_t texels[4] = {level[y0 * width + x0], level[y0 * width + x1], level[y1 * width + x0],
+                                        level[y1 * width + x1]};
+            uint32_t out = 0;
+            for (int shift = 0; shift < 32; shift += 8) {
+                uint32_t sum = 2;
+                for (uint32_t t : texels) sum += (t >> shift) & 0xFF;
+                out |= (sum / 4) << shift;
+            }
+            next[static_cast<size_t>(y) * w + x] = out;
+        }
+    return next;
+}
 
 class Device final : public VulkanGfxDevice {
 public:
     Device(Context& context, const BackendConfig& config)
         : vk_(context),
           scale_x_(config.render_scale > 0 ? config.render_scale_x() : 1.0f),
-          scale_y_(config.render_scale > 0 ? config.render_scale : 1.0f) {
+          scale_y_(config.render_scale > 0 ? config.render_scale : 1.0f),
+          replace_texture_(config.replace_texture),
+          replacement_version_(config.replacement_version) {
         back_buffer_ = add_target(Format::BGRX8, config.back_buffer.width ? config.back_buffer.width : config.width,
                                   config.back_buffer.height ? config.back_buffer.height : config.height,
                                   config.back_buffer.data);
@@ -40,6 +109,8 @@ public:
     ~Device() override {
         vk_.wait_idle();
         for (auto& [id, target] : targets_) vk_.destroy_image(target.image);
+        for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
+        for (auto& [id, buffer] : buffers_) release_buffer(buffer);
         for (auto& [id, shader] : shaders_) vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
     }
 
@@ -48,30 +119,128 @@ public:
     bool open() override { return true; }
     void present() override { show_frame(); }
 
+    // --- Textures ---
+
     TextureId create_texture(const TextureDesc& desc) override {
+        TextureImageDesc image;
+        image.format = texture_format(desc.format, image.components);
+        if (image.format == VK_FORMAT_UNDEFINED || !desc.width || !desc.height) {
+            LOG_ERROR("render", "gfx: texture format %u: no Vulkan format", static_cast<unsigned>(desc.format));
+            return 0;
+        }
+        image.view_type = desc.type == TextureType::Cube     ? VK_IMAGE_VIEW_TYPE_CUBE
+                          : desc.type == TextureType::Volume ? VK_IMAGE_VIEW_TYPE_3D
+                                                             : VK_IMAGE_VIEW_TYPE_2D;
+        image.width = desc.width;
+        image.height = desc.type == TextureType::Cube ? desc.width : desc.height;
+        image.depth = desc.type == TextureType::Volume ? std::max(1u, desc.depth) : 1;
+        const uint32_t chain = full_chain(image.width, image.height, image.depth);
+        image.levels = desc.levels ? std::min(desc.levels, chain) : chain;
+        Texture t;
+        t.desc = desc;
+        t.desc.levels = image.levels;
+        if (!vk_.create_texture_image(t.image, image)) return 0;
         const TextureId id = next_id_++;
-        textures_[id] = {desc, 0};
+        textures_.emplace(id, std::move(t));
         return id;
     }
-    bool update_texture(TextureId texture, uint32_t, uint32_t, const void*, uint32_t, uint32_t) override {
-        return textures_.count(texture) != 0;
+
+    bool update_texture(TextureId id, uint32_t level, uint32_t face, const void* data, uint32_t pitch,
+                        uint32_t slice_pitch) override {
+        auto it = textures_.find(id);
+        if (it == textures_.end() || !it->second.image || !data || g_skip_gpu_draws) return it != textures_.end();
+        Texture& t = it->second;
+        const uint32_t width = std::max(1u, t.image.width >> level);
+        const uint32_t height = std::max(1u, t.image.height >> level);
+        const uint32_t rows = is_block(t.desc.format) ? (height + 3) / 4 : height;
+        return vk_.upload_level(t.image, level, t.desc.type == TextureType::Cube ? face : 0, data,
+                                row_bytes(t.desc.format, width), rows, pitch, slice_pitch);
     }
-    void destroy_texture(TextureId texture) override { textures_.erase(texture); }
+
+    void destroy_texture(TextureId id) override {
+        auto it = textures_.find(id);
+        if (it == textures_.end()) return;
+        for (TextureId& bound : bound_textures_)
+            if (bound == id) bound = 0;
+        vk_.destroy_image(it->second.image);
+        if (it->second.replacement)
+            replacements_.erase(replacement_key(it->second.replacement, it->second.mipmaps));
+        textures_.erase(it);
+    }
+
+    // --- Buffers ---
+    // Static: device memory, written through the upload space in command order (draws recorded before a
+    // write read the old bytes, as D3D9). Dynamic: versions in host-visible memory; Discard (or Write while
+    // the GPU may still read the current one) moves to a version no queued frame reads, NoOverwrite writes
+    // into the current one.
 
     BufferId create_buffer(const BufferDesc& desc, const void* initial) override {
+        if (!desc.bytes) return 0;
+        Buffer b;
+        b.desc = desc;
+        if (desc.usage == BufferUsage::Static) {
+            if (!create_vk_buffer(desc.bytes, false, b.statik)) return 0;
+        } else {
+            b.versions.emplace_back();
+            if (!create_vk_buffer(desc.bytes, true, b.versions.back())) return 0;
+        }
         const BufferId id = next_id_++;
-        std::vector<uint8_t>& bytes = buffers_[id];
-        bytes.resize(desc.bytes);
-        if (initial) std::memcpy(bytes.data(), initial, desc.bytes);
+        buffers_.emplace(id, std::move(b));
+        if (initial) {
+            if (void* memory = map_buffer(id, 0, desc.bytes, MapMode::Write)) {
+                std::memcpy(memory, initial, desc.bytes);
+                unmap_buffer(id);
+            }
+        }
         return id;
     }
-    void* map_buffer(BufferId buffer, uint32_t offset, uint32_t bytes, MapMode) override {
-        auto it = buffers_.find(buffer);
-        if (it == buffers_.end() || static_cast<uint64_t>(offset) + bytes > it->second.size()) return nullptr;
-        return it->second.data() + offset;
+
+    void* map_buffer(BufferId id, uint32_t offset, uint32_t bytes, MapMode mode) override {
+        auto it = buffers_.find(id);
+        if (it == buffers_.end() || static_cast<uint64_t>(offset) + bytes > it->second.desc.bytes ||
+            it->second.mapped)
+            return nullptr;
+        Buffer& b = it->second;
+        b.mapped = true;
+        b.map_offset = offset;
+        b.map_bytes = bytes;
+        if (b.desc.usage == BufferUsage::Static) {
+            b.pending.resize(bytes);
+            return b.pending.data();
+        }
+        if (mode != MapMode::NoOverwrite && in_use(b.versions[b.current])) {
+            const uint32_t old = b.current;
+            b.current = free_version(b);
+            // Write keeps the bytes outside the mapped range; Discard drops them.
+            if (mode == MapMode::Write)
+                std::memcpy(b.versions[b.current].memory, b.versions[old].memory, b.desc.bytes);
+        }
+        return b.versions[b.current].memory + offset;
     }
-    void unmap_buffer(BufferId) override {}
-    void destroy_buffer(BufferId buffer) override { buffers_.erase(buffer); }
+
+    void unmap_buffer(BufferId id) override {
+        auto it = buffers_.find(id);
+        if (it == buffers_.end() || !it->second.mapped) return;
+        Buffer& b = it->second;
+        b.mapped = false;
+        if (b.desc.usage == BufferUsage::Static) {
+            if (!g_skip_gpu_draws) vk_.upload_buffer(b.statik.buffer, b.map_offset, b.pending.data(), b.map_bytes);
+            b.pending.clear();
+            b.pending.shrink_to_fit();
+        } else {
+            vmaFlushAllocation(vk_.allocator(), b.versions[b.current].allocation, b.map_offset, b.map_bytes);
+        }
+    }
+
+    void destroy_buffer(BufferId id) override {
+        auto it = buffers_.find(id);
+        if (it == buffers_.end()) return;
+        for (Stream& s : streams_)
+            if (s.buffer == id) s = {};
+        if (index_buffer_ == id) index_buffer_ = 0;
+        release_buffer(it->second);
+        buffers_.erase(it);
+    }
 
     // The SPIR-V with our fixed layout (spirv_layout.h) as a shader module; no SPIR-V (hand-made test
     // tokens) = none.
@@ -198,13 +367,17 @@ public:
     void set_depth_stencil(const DepthStencilState& state) override { depth_stencil_ = state; }
     void set_raster(const RasterState& state) override { raster_ = state; }
     void set_fog(const Fog& fog) override { fog_ = fog; }
-    void set_texture(uint32_t, TextureId) override {}
+    void set_texture(uint32_t slot, TextureId texture) override {
+        if (slot < kGfxTextureSlots) bound_textures_[slot] = texture;
+    }
     void set_sampler(uint32_t, const SamplerState&) override {}
     void set_shaders(ShaderId, ShaderId) override {}
     void set_constants(ShaderStage, uint32_t, const float*, uint32_t) override {}
     void set_layout(LayoutId) override {}
-    void set_vertex_buffer(uint32_t, BufferId, uint32_t, uint32_t) override {}
-    void set_index_buffer(BufferId) override {}
+    void set_vertex_buffer(uint32_t stream, BufferId buffer, uint32_t offset, uint32_t stride) override {
+        if (stream < kGfxVertexStreams) streams_[stream] = {buffer, offset, stride};
+    }
+    void set_index_buffer(BufferId buffer) override { index_buffer_ = buffer; }
 
     void draw(Primitive, uint32_t, uint32_t) override { count_draw(); }
     void draw_indexed(Primitive, uint32_t, uint32_t, int32_t) override { count_draw(); }
@@ -231,7 +404,51 @@ public:
         return true;
     }
 
-    TextureId replacement_texture(uint64_t, bool) override { return 0; }
+    // The PC's picture for title texture contents (BackendConfig::replace_texture): BGRA8 with a full chain of
+    // box-filtered levels when the title's has mipmaps. Same id while it stays; rebuilt when its version moves.
+    TextureId replacement_texture(uint64_t content, bool mipmaps) override {
+        if (!replace_texture_) return 0;
+        const uint64_t key = replacement_key(content, mipmaps);
+        const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
+        auto known = replacements_.find(key);
+        if (known != replacements_.end()) {
+            Texture& t = textures_[known->second.id];
+            if (known->second.version == version) return t.image ? known->second.id : 0;
+            vk_.destroy_image(t.image);
+        }
+        Replacement& r = replacements_[key];
+        r.version = version;
+        if (!r.id) {
+            r.id = next_id_++;
+            Texture& t = textures_[r.id];
+            t.replacement = content;
+            t.mipmaps = mipmaps;
+        }
+        Texture& t = textures_[r.id];
+        const std::shared_ptr<const TextureReplacement> picture = replace_texture_(content, scale_y_);
+        if (!picture || !picture->width || !picture->height ||
+            picture->pixels.size() < static_cast<size_t>(picture->width) * picture->height)
+            return 0;
+        TextureImageDesc image;
+        image.width = picture->width;
+        image.height = picture->height;
+        image.levels = mipmaps ? full_chain(image.width, image.height, 1) : 1;
+        if (!vk_.create_texture_image(t.image, image)) return 0;
+        t.desc.width = image.width;
+        t.desc.height = image.height;
+        t.desc.levels = image.levels;
+        std::vector<uint32_t> level = picture->pixels;
+        uint32_t width = image.width, height = image.height;
+        for (uint32_t i = 0; i < image.levels; ++i) {
+            if (i > 0) {
+                level = half_level(level, width, height);
+                width = std::max(width / 2, 1u);
+                height = std::max(height / 2, 1u);
+            }
+            vk_.upload_level(t.image, i, 0, level.data(), width * 4, height, width * 4, 0);
+        }
+        return r.id;
+    }
 
     // --- VulkanGfxDevice ---
 
@@ -275,8 +492,14 @@ public:
         for (auto& [id, target] : targets_)
             if (id != back_buffer_ && id != depth_buffer_) others.push_back(id);
         for (TargetId id : others) destroy_target(id);
+        for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
+        for (auto& [id, buffer] : buffers_) release_buffer(buffer);
         textures_.clear();
         buffers_.clear();
+        replacements_.clear();
+        for (TextureId& bound : bound_textures_) bound = 0;
+        for (Stream& s : streams_) s = {};
+        index_buffer_ = 0;
     }
 
 private:
@@ -288,8 +511,79 @@ private:
     };
     struct Texture {
         TextureDesc desc;
-        TargetId target = 0;  // a render target's picture
+        Image image;                // ours / a replacement's
+        TargetId target = 0;        // a render target's picture
+        uint64_t replacement = 0;   // a replacement picture, by content
+        bool mipmaps = false;
     };
+    struct Replacement {
+        TextureId id = 0;
+        uint32_t version = 0;
+    };
+    struct VkBuf {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VmaAllocation allocation = nullptr;
+        uint8_t* memory = nullptr;  // host-visible versions
+        uint64_t used = 0;          // 1 + the frame number of the last draw reading it; 0 none
+    };
+    struct Buffer {
+        BufferDesc desc;
+        VkBuf statik;                 // Static
+        std::vector<VkBuf> versions;  // Dynamic
+        uint32_t current = 0;
+        bool mapped = false;
+        uint32_t map_offset = 0, map_bytes = 0;
+        std::vector<uint8_t> pending;  // Static: the mapped bytes until unmap
+    };
+    struct Stream {
+        BufferId buffer = 0;
+        uint32_t offset = 0, stride = 0;
+    };
+
+    static uint64_t replacement_key(uint64_t content, bool mipmaps) { return content << 1 | (mipmaps ? 1 : 0); }
+
+    bool create_vk_buffer(uint32_t bytes, bool host, VkBuf& out) {
+        VkBufferCreateInfo info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        info.size = bytes;
+        info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                     (host ? 0 : VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        VmaAllocationCreateInfo memory{};
+        memory.usage = VMA_MEMORY_USAGE_AUTO;
+        if (host)
+            memory.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        VmaAllocationInfo mapped{};
+        if (vmaCreateBuffer(vk_.allocator(), &info, &memory, &out.buffer, &out.allocation, &mapped) != VK_SUCCESS) {
+            LOG_ERROR("render", "gfx: buffer of %u bytes: cannot create", bytes);
+            out = {};
+            return false;
+        }
+        out.memory = static_cast<uint8_t*>(mapped.pMappedData);
+        return true;
+    }
+
+    // A queued (or the current) frame may read it.
+    bool in_use(const VkBuf& v) const { return v.used && v.used - 1 + kFramesInFlight > vk_.frame_number(); }
+
+    uint32_t free_version(Buffer& b) {
+        for (uint32_t i = 0; i < b.versions.size(); ++i)
+            if (!in_use(b.versions[i])) return i;
+        b.versions.emplace_back();
+        if (!create_vk_buffer(b.desc.bytes, true, b.versions.back())) {
+            b.versions.pop_back();
+            return b.current;  // nothing better: overwrite (may show in a queued frame)
+        }
+        if (b.versions.size() == 16)
+            LOG_WARN("render", "gfx: a dynamic buffer of %u bytes has 16 versions (discarded per draw?)",
+                     b.desc.bytes);
+        return static_cast<uint32_t>(b.versions.size() - 1);
+    }
+
+    void release_buffer(Buffer& b) {
+        if (b.statik.buffer) vk_.defer_destroy(b.statik.buffer, b.statik.allocation);
+        for (VkBuf& v : b.versions) vk_.defer_destroy(v.buffer, v.allocation);
+        b.statik = {};
+        b.versions.clear();
+    }
 
     TargetId add_target(Format format, uint32_t width, uint32_t height, uint32_t xbox_data) {
         const uint32_t surface_width = std::max(1u, static_cast<uint32_t>(std::lround(width * scale_x_)));
@@ -320,7 +614,13 @@ private:
     uint32_t next_id_ = 1;
     std::unordered_map<TargetId, Target> targets_;
     std::unordered_map<TextureId, Texture> textures_;
-    std::unordered_map<BufferId, std::vector<uint8_t>> buffers_;
+    std::unordered_map<BufferId, Buffer> buffers_;
+    std::unordered_map<uint64_t, Replacement> replacements_;
+    decltype(BackendConfig::replace_texture) replace_texture_;
+    decltype(BackendConfig::replacement_version) replacement_version_;
+    TextureId bound_textures_[kGfxTextureSlots] = {};
+    Stream streams_[kGfxVertexStreams];
+    BufferId index_buffer_ = 0;
     struct Shader {
         ShaderStage stage;
         VkShaderModule module;

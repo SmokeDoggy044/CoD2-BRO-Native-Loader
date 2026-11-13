@@ -177,6 +177,7 @@ bool Context::create(SDL_Window* window, bool validation) {
     features.features.samplerAnisotropy = supported.samplerAnisotropy;
     features.features.fillModeNonSolid = supported.fillModeNonSolid;
     features.features.depthBiasClamp = supported.depthBiasClamp;
+    features.features.textureCompressionBC = supported.textureCompressionBC;  // the title's DXT textures
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo queue{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
     queue.queueFamilyIndex = queue_family_;
@@ -302,7 +303,9 @@ bool Context::create_frames() {
         if (vkCreateDescriptorPool(device_, &descriptors, nullptr, &frame.descriptors) != VK_SUCCESS) return false;
         VkBufferCreateInfo buffer{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
         buffer.size = kStagingBytes;
-        buffer.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        // Also read straight by draws: caller vertices and indices, shader constants.
+        buffer.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                       VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         VmaAllocationCreateInfo memory{};
         memory.usage = VMA_MEMORY_USAGE_AUTO;
         memory.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -458,7 +461,7 @@ bool Context::create_image(Image& image, VkFormat format, uint32_t width, uint32
 void Context::destroy_image(Image& image) {
     if (!image) return;
     if (target_color_ == &image || target_depth_ == &image) set_target(nullptr, nullptr);
-    defer_destroy(image.image, image.allocation, image.view);
+    defer_destroy(image.image, image.allocation, image.view, image.sample_view);
     image = {};
 }
 
@@ -495,6 +498,113 @@ void Context::upload(Image& image, const void* pixels, uint32_t pitch, uint32_t 
     copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
     copy.imageExtent = {image.width, image.height, 1};
     vkCmdCopyBufferToImage(cmd(), staged.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+}
+
+bool Context::create_texture_image(Image& image, const TextureImageDesc& desc) {
+    const bool cube = desc.view_type == VK_IMAGE_VIEW_TYPE_CUBE;
+    const bool volume = desc.view_type == VK_IMAGE_VIEW_TYPE_3D;
+    VkImageCreateInfo info{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    info.flags = cube ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
+    info.imageType = volume ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D;
+    info.format = desc.format;
+    info.extent = {desc.width, desc.height, volume ? desc.depth : 1};
+    info.mipLevels = desc.levels;
+    info.arrayLayers = cube ? 6 : 1;
+    info.samples = VK_SAMPLE_COUNT_1_BIT;
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VmaAllocationCreateInfo memory{};
+    memory.usage = VMA_MEMORY_USAGE_AUTO;
+    if (vmaCreateImage(allocator_, &info, &memory, &image.image, &image.allocation, nullptr) != VK_SUCCESS) {
+        LOG_ERROR("render", "Vulkan: cannot create a %ux%ux%u texture (format %d, %u levels)", desc.width,
+                  desc.height, desc.depth, int(desc.format), desc.levels);
+        image = {};
+        return false;
+    }
+    image.format = desc.format;
+    image.width = desc.width;
+    image.height = desc.height;
+    image.depth = volume ? desc.depth : 1;
+    image.levels = desc.levels;
+    image.layers = info.arrayLayers;
+    image.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    view.image = image.image;
+    view.viewType = desc.view_type;
+    view.format = desc.format;
+    view.components = desc.components;
+    view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, desc.levels, 0, info.arrayLayers};
+    if (vkCreateImageView(device_, &view, nullptr, &image.view) != VK_SUCCESS) {
+        vmaDestroyImage(allocator_, image.image, image.allocation);
+        image = {};
+        return false;
+    }
+    return true;
+}
+
+bool Context::upload_level(Image& image, uint32_t level, uint32_t layer, const void* data, uint32_t row_bytes,
+                           uint32_t rows, uint32_t pitch, uint32_t slice_pitch) {
+    if (!image || level >= image.levels || layer >= image.layers) return false;
+    const uint32_t width = std::max(1u, image.width >> level), height = std::max(1u, image.height >> level);
+    const uint32_t depth = std::max(1u, image.depth >> level);
+    const VkDeviceSize bytes = static_cast<VkDeviceSize>(row_bytes) * rows * depth;
+    const Staged staged = stage(bytes, 16);
+    if (!staged.memory) {
+        LOG_ERROR("render", "Vulkan: a texture level of %llu bytes does not fit the upload space",
+                  static_cast<unsigned long long>(bytes));
+        return false;
+    }
+    auto* out = static_cast<uint8_t*>(staged.memory);
+    const auto* in = static_cast<const uint8_t*>(data);
+    for (uint32_t z = 0; z < depth; ++z)
+        for (uint32_t y = 0; y < rows; ++y)
+            std::memcpy(out + (static_cast<size_t>(z) * rows + y) * row_bytes,
+                        in + static_cast<size_t>(z) * slice_pitch + static_cast<size_t>(y) * pitch, row_bytes);
+    transition(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkBufferImageCopy copy{};
+    copy.bufferOffset = staged.offset;
+    copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, layer, 1};
+    copy.imageExtent = {width, height, depth};
+    vkCmdCopyBufferToImage(cmd(), staged.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+    transition(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    return true;
+}
+
+bool Context::upload_buffer(VkBuffer buffer, VkDeviceSize offset, const void* data, VkDeviceSize bytes) {
+    // Large uploads (level geometry) go in pieces through the upload space.
+    constexpr VkDeviceSize kPiece = 4u << 20;
+    end_rendering();
+    // Draws recorded before it read the old bytes first.
+    VkMemoryBarrier2 before{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+    before.srcStageMask = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_2_COPY_BIT;
+    before.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+    before.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    VkDependencyInfo wait_reads{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    wait_reads.memoryBarrierCount = 1;
+    wait_reads.pMemoryBarriers = &before;
+    vkCmdPipelineBarrier2(cmd(), &wait_reads);
+    for (VkDeviceSize done = 0; done < bytes;) {
+        const VkDeviceSize piece = std::min(kPiece, bytes - done);
+        const Staged staged = stage(piece, 16);
+        if (!staged.memory) return false;
+        std::memcpy(staged.memory, static_cast<const uint8_t*>(data) + done, static_cast<size_t>(piece));
+        VkBufferCopy copy{staged.offset, offset + done, piece};
+        vkCmdCopyBuffer(cmd(), staged.buffer, buffer, 1, &copy);
+        done += piece;
+    }
+    VkMemoryBarrier2 barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+    barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+    barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_2_COPY_BIT;
+    barrier.dstAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_2_INDEX_READ_BIT |
+                            VK_ACCESS_2_TRANSFER_WRITE_BIT;
+    VkDependencyInfo dependency{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    dependency.memoryBarrierCount = 1;
+    dependency.pMemoryBarriers = &barrier;
+    vkCmdPipelineBarrier2(cmd(), &dependency);
+    return true;
 }
 
 bool Context::read(Image& image, std::vector<uint32_t>& pixels) {
@@ -574,12 +684,13 @@ void Context::defer_destroy(VkBuffer buffer, VmaAllocation allocation) {
     deferred_.push_back(d);
 }
 
-void Context::defer_destroy(VkImage image, VmaAllocation allocation, VkImageView view) {
+void Context::defer_destroy(VkImage image, VmaAllocation allocation, VkImageView view, VkImageView view2) {
     Deferred d;
     d.frame = frame_number_;
     d.image = image;
     d.allocation = allocation;
     d.view = view;
+    d.view2 = view2;
     deferred_.push_back(d);
 }
 
@@ -596,6 +707,7 @@ void Context::destroy_deferred(bool all) {
     for (const Deferred& d : deferred_) {
         if (!done(d)) continue;
         if (d.view) vkDestroyImageView(device_, d.view, nullptr);
+        if (d.view2) vkDestroyImageView(device_, d.view2, nullptr);
         if (d.image) vmaDestroyImage(allocator_, d.image, d.allocation);
         if (d.buffer) vmaDestroyBuffer(allocator_, d.buffer, d.allocation);
         if (d.pipeline) vkDestroyPipeline(device_, d.pipeline, nullptr);
