@@ -5,6 +5,7 @@
 #include "scr_fiber.h"
 #include "bg_misc.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 #include "vslot_methods.h"
 #include "bro_scr_actor.h"
 #include "bro_scr_actor_threads.h"
@@ -204,6 +205,7 @@ const Function kFunctions[] = {
     {"UIText_SetFloat64", 0x000118c0, 0, code(&UIText_SetFloat64), 4, Result::None, Status::Compare},  // was FUN_000118c0 (gap)
     {"UIElement_GetFloat14", 0x00011a20, 0, code(&UIElement_GetFloat14), 0, Result::St0, Status::Compare},  // was FUN_00011a20 (gap)
     {"UIElement_GetFloat18", 0x00011a30, 0, code(&UIElement_GetFloat18), 0, Result::St0, Status::Compare},  // was FUN_00011a30 (gap)
+    {"UIElement_GetOwnerField0A0", 0x00011a40, 0, code(&UIElement_GetOwnerField0A0), 0, Result::Eax, Status::Compare},  // was FUN_00011a40 (gap)
     {"UIElement_GetFloat30", 0x00011a50, 0, code(&UIElement_GetFloat30), 0, Result::St0, Status::Compare},  // was FUN_00011a50 (gap)
     {"UIPicture_RotateInPlace", 0x00011920, 0, code(&UIPicture_RotateInPlace), 8, Result::None, Status::Compare},  // was FUN_00011920 (gap)
     {"UIPicture_SetUniformScale", 0x00011940, 0, code(&UIPicture_SetUniformScale), 8, Result::None, Status::Compare},  // was FUN_00011940 (gap)
@@ -219,9 +221,11 @@ const Function kFunctions[] = {
     {"UIMenuItem_InnerSlot15", 0x00011c00, 0, code(&UIMenuItem_InnerSlot15), 0, Result::None, Status::Replaced},  // was FUN_00011c00 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot1", 0x00011c10, 0, code(&UIMenuItem_InnerSlot1), 0, Result::None, Status::Replaced},  // was FUN_00011c10 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_GetByte16", 0x00011c40, 0, code(&UIMenuItem_GetByte16), 0, Result::Al, Status::Compare},  // was FUN_00011c40 (gap)
+    {"UIMenuItem_InnerSlot8", 0x00011c50, 0, code(&UIMenuItem_InnerSlot8), 0, Result::None, Status::Replaced},  // was FUN_00011c50 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot27", 0x00011c70, 0, code(&UIMenuItem_InnerSlot27), 0, Result::None, Status::Replaced},  // was FUN_00011c70 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot30", 0x00011cc0, 0, code(&UIMenuItem_InnerSlot30), 0, Result::None, Status::Replaced},  // was FUN_00011cc0 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot24", 0x00011d80, 0, code(&UIMenuItem_InnerSlot24), 0, Result::None, Status::Replaced},  // was FUN_00011d80 (gap); tail jump to the wrapped item's virtual: not compared
+    {"UIMenuItem_InnerSlot50", 0x00011dd0, 0, code(&UIMenuItem_InnerSlot50), 0, Result::None, Status::Replaced},  // was FUN_00011dd0 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_InnerSlot41", 0x00011e00, 0, code(&UIMenuItem_InnerSlot41), 0, Result::None, Status::Replaced},  // was FUN_00011e00 (gap); tail jump to the wrapped item's virtual: not compared
     {"UIMenuItem_GetTextColor", 0x00011e30, 0, code(&UIMenuItem_GetTextColor), 4, Result::Eax, Status::Compare},  // was FUN_00011e30 (gap)
     {"UIMenuItem_DeletingDtor", 0x00011e70, 0, code(&UIMenuItem_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -669,8 +673,10 @@ const Function kFunctions[] = {
     {"Vec3_MulMat44", 0x0001c9f0, 0, code(&Vec3_MulMat44), 12, Result::Eax, Status::Replaced},
     {"QuatTrans_Concat", 0x0001cae0, 0, code(&QuatTrans_Concat), 12, Result::Eax, Status::Replaced},
     {"QuatTrans_ToMat44", 0x0001cbe0, 0, code(&QuatTrans_ToMat44), 0, Result::Eax, Status::Replaced},
+    {"NAL_GenericAnim_NewTrack", 0x0001cd40, 0, code(&NAL_GenericAnim_NewTrack), 4, Result::Eax, Status::Compare},  // was FUN_0001cd40
     {"AnimWeights_Construct", 0x0001cd80, 0, code(&AnimWeights_Construct_entry), 0, Result::Eax, Status::Compare},
     {"AnimWeights_SetAll", 0x0001cdc0, 0, code(&AnimWeights_SetAll_entry), 0, Result::Eax, Status::Replaced},
+    {"NAL_AnimState_BlendWeighted_Thunk", 0x0001cdf0, 0, code(&NAL_AnimState_BlendWeighted), 12, Result::None, Status::Compare},  // was FUN_0001cdf0 (gap); jmp thunk
     {"AnimWeights_DeletingDtor", 0x0001ce00, 0, code(&AnimWeights_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_0001ce00 (gap)
     {"CM_WorldTreeNodes_Fixup", 0x0001ce30, 0, code(&CM_WorldTreeNodes_Fixup_entry), 0, Result::None, Status::Replaced},
     {"Dcg_RelocateModel", 0x0001ced0, 0, code(&Dcg_RelocateModel_entry), 0, Result::None, Status::Replaced},
@@ -879,19 +885,33 @@ const Function kFunctions[] = {
     {"ZoneGraph_DeletingDtor", 0x000251c0, 0, code(&ZoneGraph_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ResourceManager_ReleaseSlot", 0x00025200, 0, code(&ResourceManager_ReleaseSlot), 4, Result::None, Status::Compare},  // was FUN_00025200 (gap)
     {"NalManagerKey8_ForEachPass", 0x00025230, 0, code(&NalManagerKey8_ForEachPass), 12, Result::None, Status::Replaced},
+    {"NalManagerKey8_Load_Thunk", 0x00025310, 0, code(&NalManagerKey8_Load), 4, Result::Eax, Status::Compare},  // was FUN_00025310 (gap); jmp thunk
+    {"NalManagerKey8_Release_Thunk", 0x00025320, 0, code(&NalManagerKey8_Release), 12, Result::Eax, Status::Compare},  // was FUN_00025320 (gap); jmp thunk
     {"FixedStr512_BaseName", 0x00025330, 0, code(&FixedStr512_BaseName_entry), 4, Result::Eax, Status::Replaced},
     {"EmptyVFunc_ReturnTrue4", 0x000253a0, 0, code(&EmptyVFunc_ReturnTrue4), 4, Result::Al, Status::Compare},  // was FUN_000253a0 (gap)
     {"ZoneManager_NewIterator", 0x000253b0, 0, code(&ZoneManager_NewIterator), 0, Result::Eax, Status::Compare},  // was FUN_000253b0 (gap, unreached)
     {"ZoneTextureManager_Flush", 0x000253c0, 0, code(&ZoneTextureManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_000253c0 (gap)
     {"nglTextureManager_ForEachPass", 0x000253f0, 0, code(&nglTextureManager_ForEachPass), 12, Result::None, Status::Replaced},
+    {"nglTextureManager_Load_Thunk", 0x000254d0, 0, code(&nglTextureManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_000254d0 (gap); jmp thunk
+    {"nglTextureManager_Release_Thunk", 0x000254e0, 0, code(&nglTextureManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_000254e0 (gap); jmp thunk
     {"ZoneMeshFileManager_Flush", 0x000254f0, 0, code(&ZoneMeshFileManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_000254f0 (gap)
+    {"nglMeshFileManager_Load_Thunk", 0x00025520, 0, code(&nglMeshFileManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00025520 (gap); jmp thunk
+    {"nglMeshFileManager_Release_Thunk", 0x00025530, 0, code(&nglMeshFileManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00025530 (gap); jmp thunk
     {"ZoneMeshManager_Flush", 0x00025540, 0, code(&ZoneMeshManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_00025540 (gap, unreached)
     {"nglMeshManager_ForEachPass", 0x00025570, 0, code(&nglMeshManager_ForEachPass), 12, Result::None, Status::Replaced},
+    {"nglMeshManager_Load_Thunk", 0x00025650, 0, code(&EmptyVFunc_ReturnZero4), 4, Result::Eax, Status::Compare},  // was FUN_00025650 (gap); jmp thunk
+    {"nglMeshManager_Release_Thunk", 0x00025660, 0, code(&EmptyVFunc_ReturnOne12), 12, Result::Eax, Status::Compare},  // was FUN_00025660 (gap); jmp thunk
     {"ZoneClipManager_Flush", 0x00025670, 0, code(&ZoneClipManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_00025670 (gap, unreached)
+    {"AnimManager2ce8_Load_Thunk", 0x000256a0, 0, code(&EmptyVFunc_ReturnZero4), 4, Result::Eax, Status::Compare},  // was FUN_000256a0 (gap); jmp thunk
+    {"AnimManager2ce8_Release_Thunk", 0x000256b0, 0, code(&EmptyVFunc_ReturnOne12), 12, Result::Eax, Status::Compare},  // was FUN_000256b0 (gap); jmp thunk
     {"ZoneClipSetManager_Flush", 0x000256c0, 0, code(&ZoneClipSetManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_000256c0 (gap, unreached)
+    {"AnimManager2d34_Load_Thunk", 0x000256f0, 0, code(&AnimManager2d34_Load), 4, Result::Eax, Status::Compare},  // was FUN_000256f0 (gap); jmp thunk
+    {"AnimManager2d34_Release_Thunk", 0x00025700, 0, code(&AnimManager2d34_Release), 12, Result::Eax, Status::Compare},  // was FUN_00025700 (gap); jmp thunk
     {"ZoneAnimManager_Flush", 0x00025710, 0, code(&ZoneAnimManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_00025710 (gap)
     {"ManagerBase_ClassName", 0x00025740, 0, code(&ManagerBase_ClassName), 0, Result::Eax, Status::Compare},  // was FUN_00025740 (gap, unreached)
     {"AnimManager_ForEachPass", 0x00025750, 0, code(&AnimManager_ForEachPass), 12, Result::None, Status::Replaced},
+    {"AnimManager_Load_Thunk", 0x00025830, 0, code(&AnimManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00025830 (gap); jmp thunk
+    {"AnimManager_Release_Thunk", 0x00025840, 0, code(&AnimManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00025840 (gap); jmp thunk
     {"ZoneSkelManager_Flush", 0x00025850, 0, code(&ZoneSkelManager_Flush), 12, Result::Eax, Status::Compare},  // was FUN_00025850 (gap)
     {"ZoneGraphBase_DeletingDtor", 0x00025880, 0, code(&ZoneGraphBase_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"SkelManagerBase_DeletingDtor", 0x000258b0, 0, code(&SkelManagerBase_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_000258b0 (gap, unreached)
@@ -1044,6 +1064,7 @@ const Function kFunctions[] = {
     {"VehiclePhysPool_Reset", 0x0002b8c0, 0, code(&VehiclePhysPool_Reset), 0, Result::Eax, Status::Replaced},
     {"Vec3A_CopyXYZ", 0x0002b950, 0, code(&Vec3A_CopyXYZ), 4, Result::None, Status::Replaced},
     {"Vec4_ClampToScalarRange", 0x0002b990, 0, code(&Vec4_ClampToScalarRange), 8, Result::Eax, Status::Replaced},
+    {"EmptyVFunc_ReturnZero4", 0x0002bb10, 0, code(&EmptyVFunc_ReturnZero4), 4, Result::Eax, Status::Compare},  // was FUN_0002bb10 (gap)
     {"InGameLiveOptionsMenu_DeletingDtor", 0x0002bd30, 0, code(&InGameLiveOptionsMenu_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"PathNode_Construct", 0x0002bd50, 0, code(&PathNode_Construct_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_PathEntityIsFresh", 0x0002bdc0, 0, code(&Actor_PathEntityIsFresh), 4, Result::Eax, Status::Replaced},
@@ -1051,6 +1072,7 @@ const Function kFunctions[] = {
     {"G_RestoreSavedEntityField134", 0x0002bf00, 0, code(&G_RestoreSavedEntityField134), 0, Result::None, Status::Replaced},
     {"AitbManager_DeletingDtor", 0x0002bf50, 0, code(&AitbManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ZoneStringMap_Lookup", 0x0002bf80, 0, code(&ZoneStringMap_Lookup), 20, Result::None, Status::Replaced},
+    {"Sys_DebugBreak", 0x00042460, 0, code(&Sys_DebugBreak), 0, Result::None, Status::Compare},  // unreached (host_unreached)
     {"Heap_Init", 0x00042470, 0, code(&Heap_Init), 16, Result::None, Status::Replaced},
     {"Heap_DetachRegion", 0x00042560, 0, code(&Heap_DetachRegion), 4, Result::Eax, Status::Replaced},
     {"Heap_Free", 0x00042680, 0, code(&Heap_Free), 4, Result::None, Status::Replaced},
@@ -1076,6 +1098,7 @@ const Function kFunctions[] = {
     {"cdSimpleAlphaVertexIter_Ctor", 0x0004a860, 0, code(&cdSimpleAlphaVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004a860 (gap)
     {"cdPropellerVertexIter_Ctor", 0x0004b080, 0, code(&cdPropellerVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004b080 (gap)
     {"cdDecalVertexIter_Ctor", 0x0004b840, 0, code(&cdDecalVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004b840 (gap)
+    {"cdDecal_NewMaterial", 0x0004b900, 0, code(&cdDecal_NewMaterial), 4, Result::Eax, Status::Compare},  // was FUN_0004b900 (gap)
     {"cdCharVertexIter_Ctor", 0x0004bf60, 0, code(&cdCharVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004bf60 (gap)
     {"cdAirplaneMetalVertexIter_Ctor", 0x0004cbb0, 0, code(&cdAirplaneMetalVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004cbb0 (gap)
     {"cdPrelitVertexIter_Ctor", 0x0004c680, 0, code(&cdPrelitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004c680 (gap)
@@ -1100,22 +1123,115 @@ const Function kFunctions[] = {
     {"cdBackgroundVertexIter_Ctor", 0x000546a0, 0, code(&cdBackgroundVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_000546a0 (gap)
     {"cdSkyVertexIter_Ctor", 0x000552d0, 0, code(&cdSkyVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_000552d0 (gap)
     {"Functor_Invoke", 0x00063080, 0, code(&Functor_Invoke), 0, Result::Eax, Status::Compare},  // was FUN_00063080 (gap)
+    {"nglPaletteManager_Load_Thunk", 0x00063b60, 0, code(&nglPaletteManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00063b60 (gap); jmp thunk
+    {"nglPaletteManager_Release_Thunk", 0x00063b70, 0, code(&nglPaletteManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00063b70 (gap); jmp thunk
     {"nglResourceManager_Slot12At4", 0x00063da0, 0, code(&nglResourceManager_Slot12At4), 4, Result::Eax, Status::Compare},  // was FUN_00063da0 (gap)
     {"nglResourceManager_InsertTextureAt4", 0x00063f00, 0, code(&nglResourceManager_InsertTextureAt4), 4, Result::Eax, Status::Compare},  // was FUN_00063f00 (gap)
+    {"nglFontManager_Load", 0x00065830, 0, code(&nglFontManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00065830
+    {"nglFontManager_Load_Thunk", 0x000666b0, 0, code(&nglFontManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_000666b0 (gap); jmp thunk
     {"nglRenderTextNode_Thunk65970", 0x000666c0, 0, code(&nglRenderTextNode_Thunk65970), 12, Result::Eax, Status::Compare},  // was FUN_000666c0 (gap)
+    {"nglMeshManager_Load", 0x00067380, 0, code(&EmptyVFunc_ReturnZero4), 4, Result::Eax, Status::Compare},  // was FUN_00067380; shared body
+    {"nglMeshManager_Release", 0x00067390, 0, code(&EmptyVFunc_ReturnOne12), 12, Result::Eax, Status::Compare},  // was FUN_00067390; shared body
+    {"nglMeshFileManager_Load", 0x00068280, 0, code(&nglMeshFileManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00068280
     {"nglMeshFileManager_Slot21At4", 0x00069f20, 0, code(&nglMeshFileManager_Slot21At4), 4, Result::Eax, Status::Compare},  // was FUN_00069f20 (gap)
+    {"nglResourceBase_DeletingDtor", 0x0006a060, 0, code(&nglResourceBase_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_0006a060 (gap)
+    {"nglTextureManager_Load", 0x0006b520, 0, code(&nglTextureManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_0006b520
+    {"nglProfileShaders", 0x0006bb40, 0, code(&nglProfileShaders), 0, Result::None, Status::Compare},  // was FUN_0006bb40 (gap)
     {"nglShader_DrawQuadAtC", 0x00079010, 0, code(&nglShader_DrawQuadAtC), 0, Result::None, Status::Compare},  // was FUN_00079010 (gap)
+    {"nglPaletteManager_Load", 0x00079100, 0, code(&nglPaletteManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_00079100 (gap)
+    {"nglPaletteManager_Release", 0x00079220, 0, code(&nglPaletteManager_Release), 12, Result::Eax, Status::Compare},  // was FUN_00079220 (gap)
+    {"nglMeshFileCache_Load", 0x0007a590, 0, code(&nglMeshFileCache_Load), 4, Result::Eax, Status::Compare},  // was FUN_0007a590 (gap)
+    {"nglMeshFileCache_Release", 0x0007ab90, 0, code(&nglMeshFileCache_Release), 12, Result::Eax, Status::Compare},  // was FUN_0007ab90 (gap)
+    {"nglMeshFileCache_Load_Thunk", 0x0007ad40, 0, code(&nglMeshFileCache_Load), 4, Result::Eax, Status::Compare},  // was FUN_0007ad40 (gap); jmp thunk
+    {"nglMeshFileCache_Release_Thunk", 0x0007ad50, 0, code(&nglMeshFileCache_Release), 12, Result::Eax, Status::Compare},  // was FUN_0007ad50 (gap); jmp thunk
     {"nglResourceManager_Slot11At4", 0x0007aea0, 0, code(&nglResourceManager_Slot11At4), 4, Result::Eax, Status::Compare},  // was FUN_0007aea0 (gap)
     {"nglResourceManager_RemoveAt4", 0x0007aeb0, 0, code(&nglResourceManager_RemoveAt4), 4, Result::Al, Status::Compare},  // was FUN_0007aeb0 (gap)
     {"Object_SetSecondaryVtable8bade0", 0x0007b5f0, 0, code(&Object_SetSecondaryVtable8bade0), 0, Result::Eax, Status::Compare},  // was FUN_0007b5f0 (gap)
+    {"nglDebugShader_AddToList", 0x0007b7a0, 0, code(&nglDebugShader_AddToList), 12, Result::None, Status::Compare},  // was FUN_0007b7a0 (gap)
     {"NAL_GenericAnim_IsFormat10302", 0x0007bc30, 0, code(&NAL_GenericAnim_IsFormat10302), 0, Result::Eax, Status::Compare},  // was FUN_0007bc30 (gap)
+    {"NAL_GenericAnim_GetRootTransform_Thunk", 0x0007bc70, 0, code(&NAL_GenericAnim_GetRootTransform), 8, Result::Eax, Status::Compare},  // was FUN_0007bc70 (gap); jmp thunk
+    {"NAL_GenericAnim_ExtractState_Thunk", 0x0007bc80, 0, code(&NAL_GenericAnim_ExtractState), 20, Result::None, Status::Compare},  // was FUN_0007bc80 (gap); jmp thunk
+    {"NAL_GenericAnim_NewState_Thunk", 0x0007bca0, 0, code(&NAL_GenericAnim_NewState), 0, Result::Eax, Status::Compare},  // was FUN_0007bca0 (gap); jmp thunk
+    {"NAL_GenericAnim_NewState", 0x0007bcb0, 0, code(&NAL_GenericAnim_NewState), 0, Result::Eax, Status::Compare},  // was FUN_0007bcb0 (gap)
     {"NAL_GenericAnim_IsFormat10301", 0x0007bd70, 0, code(&NAL_GenericAnim_IsFormat10301), 0, Result::Eax, Status::Compare},  // was FUN_0007bd70 (gap)
+    {"NAL_GenericAnim_NewTrack_Thunk", 0x0007bd80, 0, code(&NAL_GenericAnim_NewTrack), 4, Result::Eax, Status::Compare},  // was FUN_0007bd80 (gap); jmp thunk
+    {"NAL_Int1_TypeId", 0x0007be00, 0, code(&NAL_Int1_TypeId), 0, Result::Eax, Status::Compare},  // was FUN_0007be00 (gap); codec slot (unreached)
+    {"NAL_Float1_TypeId", 0x0007be20, 0, code(&NAL_Float1_TypeId), 0, Result::Eax, Status::Compare},  // was FUN_0007be20 (gap); codec slot (unreached)
+    {"NAL_Float4_TypeId", 0x0007be50, 0, code(&NAL_Float4_TypeId), 0, Result::Eax, Status::Compare},  // was FUN_0007be50 (gap); codec slot (unreached)
+    {"NAL_IKSpin_TypeId", 0x0007bea0, 0, code(&NAL_IKSpin_TypeId), 0, Result::Eax, Status::Compare},  // was FUN_0007bea0 (gap); codec slot (unreached)
+    {"NAL_IKSpin_ValueSize", 0x0007beb0, 0, code(&NAL_IKSpin_ValueSize), 0, Result::Eax, Status::Compare},  // was FUN_0007beb0 (gap); codec slot (unreached)
+    {"NAL_Int1_Fixup", 0x0007c110, 0, code(&NAL_Int1_Fixup), 12, Result::Eax, Status::Compare},  // was FUN_0007c110 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_BeginBlock", 0x0007c130, 0, code(&NAL_SignalCounter_BeginBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007c130 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_DecodeFrames", 0x0007c1d0, 0, code(&NAL_SignalCounter_DecodeFrames), 28, Result::Eax, Status::Compare},  // was FUN_0007c1d0 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_Evaluate", 0x0007c3e0, 0, code(&NAL_SignalCounter_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_0007c3e0 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_ApplyStatic", 0x0007c4a0, 0, code(&NAL_SignalCounter_ApplyStatic), 16, Result::Eax, Status::Compare},  // was FUN_0007c4a0 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_SkipStatic_thunk", 0x0007c540, 0, code(&NAL_SignalCounter_SkipStatic_thunk), 24, Result::None, Status::Compare},  // was FUN_0007c540 (gap); codec slot (unreached)
+    {"NAL_Int1_InitState", 0x0007c5c0, 0, code(&NAL_Int1_InitState), 8, Result::Eax, Status::Compare},  // was FUN_0007c5c0 (gap); codec slot (unreached)
+    {"NAL_Int1_FreeState", 0x0007c5d0, 0, code(&NAL_Int1_FreeState), 8, Result::Eax, Status::Compare},  // was FUN_0007c5d0 (gap); codec slot (unreached)
+    {"NAL_RLE8Int1_DecodeBlock", 0x0007c700, 0, code(&NAL_RLE8Int1_DecodeBlock), 20, Result::Eax, Status::Compare},  // was FUN_0007c700 (gap); codec slot (unreached)
+    {"NAL_RLE8Int1_Evaluate", 0x0007c810, 0, code(&NAL_RLE8Int1_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_0007c810 (gap); codec slot (unreached)
+    {"NAL_Int1_CopyState_thunk", 0x0007c8c0, 0, code(&NAL_Int1_CopyState_thunk), 12, Result::Eax, Status::Compare},  // was FUN_0007c8c0 (gap); codec slot (unreached)
+    {"NAL_Int1_SkipCachedFrame", 0x0007c920, 0, code(&NAL_Int1_SkipCachedFrame), 8, Result::Eax, Status::Compare},  // was FUN_0007c920 (gap); codec slot (unreached)
+    {"NAL_EntropyFloat1_BeginBlock", 0x0007c970, 0, code(&NAL_EntropyFloat1_BeginBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007c970 (gap); codec slot (unreached)
+    {"NAL_EntropyFloat1_SkipBlock", 0x0007d020, 0, code(&NAL_EntropyFloat1_SkipBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007d020 (gap); codec slot (unreached)
+    {"NAL_Float1_Fixup", 0x0007d260, 0, code(&NAL_Float1_Fixup), 12, Result::Eax, Status::Compare},  // was FUN_0007d260 (gap); codec slot (unreached)
+    {"NAL_Packed8Float1_BeginBlock", 0x0007d290, 0, code(&NAL_Packed8Float1_BeginBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007d290 (gap); codec slot (unreached)
+    {"NAL_Packed8Float1_DecodeFrames", 0x0007d330, 0, code(&NAL_Packed8Float1_DecodeFrames), 28, Result::Eax, Status::Compare},  // was FUN_0007d330 (gap); codec slot (unreached)
+    {"NAL_Packed8Float1_Evaluate", 0x0007d500, 0, code(&NAL_Packed8Float1_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_0007d500 (gap); codec slot (unreached)
+    {"NAL_Packed8Float1_SkipStatic4", 0x0007d5e0, 0, code(&NAL_Packed8Float1_SkipStatic4), 16, Result::Eax, Status::Compare},  // was FUN_0007d5e0 (gap); codec slot (unreached)
+    {"NAL_Packed8Float1_SkipStatic_thunk", 0x0007d620, 0, code(&NAL_Packed8Float1_SkipStatic_thunk), 24, Result::Eax, Status::Compare},  // was FUN_0007d620 (gap); codec slot (unreached)
+    {"NAL_Float1_InitState", 0x0007d690, 0, code(&NAL_Float1_InitState), 8, Result::Eax, Status::Compare},  // was FUN_0007d690 (gap); codec slot (unreached)
+    {"NAL_Float1_FreeState", 0x0007d6b0, 0, code(&NAL_Float1_FreeState), 8, Result::Eax, Status::Compare},  // was FUN_0007d6b0 (gap); codec slot (unreached)
+    {"NAL_Float1_CopyState_thunk", 0x0007d6e0, 0, code(&NAL_Float1_CopyState_thunk), 12, Result::Eax, Status::Compare},  // was FUN_0007d6e0 (gap); codec slot (unreached)
+    {"NAL_ChannelClass_NoStatic", 0x0007daa0, 0, code(&NAL_ChannelClass_NoStatic), 16, Result::None, Status::Compare},  // was FUN_0007daa0 (gap); codec slot (unreached)
+    {"NAL_Cursor_Skip12", 0x0007e190, 0, code(&NAL_Cursor_Skip12), 4, Result::Eax, Status::Compare},  // was FUN_0007e190 (gap); codec slot (unreached)
+    {"NAL_Packed8EntropyFloat3_SkipBlock", 0x0007e7f0, 0, code(&NAL_Packed8EntropyFloat3_SkipBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007e7f0 (gap); codec slot (unreached)
+    {"NAL_Packed16EntropyFloat3_SkipBlock", 0x0007f250, 0, code(&NAL_Packed16EntropyFloat3_SkipBlock), 16, Result::Eax, Status::Compare},  // was FUN_0007f250 (gap); codec slot (unreached)
+    {"NAL_Float4_Fixup", 0x0007f520, 0, code(&NAL_Float4_Fixup), 12, Result::Eax, Status::Compare},  // was FUN_0007f520 (gap); codec slot (unreached)
+    {"NAL_Float4_DecodeFrames", 0x0007f5e0, 0, code(&NAL_Float4_DecodeFrames), 28, Result::Eax, Status::Compare},  // was FUN_0007f5e0 (gap); codec slot (unreached)
+    {"NAL_Float4_DecodeBlock", 0x0007f6a0, 0, code(&NAL_Float4_DecodeBlock), 20, Result::Eax, Status::Compare},  // was FUN_0007f6a0 (gap); codec slot (unreached)
+    {"NAL_Float4_Evaluate", 0x0007f7e0, 0, code(&NAL_Float4_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_0007f7e0 (gap); codec slot (unreached)
+    {"NAL_Float4_InitState", 0x0007f8d0, 0, code(&NAL_Float4_InitState), 8, Result::Eax, Status::Compare},  // was FUN_0007f8d0 (gap); codec slot (unreached)
+    {"NAL_Float4_FreeState", 0x0007f8f0, 0, code(&NAL_Float4_FreeState), 8, Result::Eax, Status::Compare},  // was FUN_0007f8f0 (gap); codec slot (unreached)
+    {"NAL_Float4_CopyChannels_thunk", 0x0007f920, 0, code(&NAL_Float4_CopyChannels_thunk), 12, Result::None, Status::Compare},  // was FUN_0007f920 (gap); codec slot (unreached)
+    {"NAL_EntropyFloat4_Evaluate", 0x0007fef0, 0, code(&NAL_EntropyFloat4_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_0007fef0 (gap); codec slot (unreached)
+    {"NAL_Float3_SkipFixedBlock_thunk", 0x00080c30, 0, code(&NAL_Float3_SkipFixedBlock_thunk), 24, Result::None, Status::Compare},  // was FUN_00080c30 (gap); codec slot (unreached)
+    {"NAL_Packed8EntropyFloat4_SkipCachedFrame", 0x00080d00, 0, code(&NAL_Packed8EntropyFloat4_SkipCachedFrame), 8, Result::Eax, Status::Compare},  // was FUN_00080d00 (gap); codec slot (unreached)
+    {"NAL_PackedEntropy12_SkipStatic4", 0x000818e0, 0, code(&NAL_PackedEntropy12_SkipStatic4), 16, Result::Eax, Status::Compare},  // was FUN_000818e0 (gap); codec slot (unreached)
+    {"NAL_PositionOrientation_BeginBlock", 0x00082310, 0, code(&NAL_PositionOrientation_BeginBlock), 16, Result::Eax, Status::Compare},  // was FUN_00082310 (gap); codec slot (unreached)
+    {"NAL_ChannelClass_NopSlot11", 0x00082650, 0, code(&NAL_ChannelClass_NopSlot11), 24, Result::None, Status::Compare},  // was FUN_00082650 (gap); codec slot (unreached)
+    {"NAL_EntropyPosOri_SkipStatic4", 0x00082850, 0, code(&NAL_EntropyPosOri_SkipStatic4), 16, Result::Eax, Status::Compare},  // was FUN_00082850 (gap); codec slot (unreached)
+    {"NAL_Float2_SkipFixedBlock_thunk", 0x000828a0, 0, code(&NAL_Float2_SkipFixedBlock_thunk), 24, Result::None, Status::Compare},  // was FUN_000828a0 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_BeginBlock", 0x000829f0, 0, code(&NAL_TrajPosOri_BeginBlock), 16, Result::Eax, Status::Compare},  // was FUN_000829f0 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_DecodeFrames", 0x00082a90, 0, code(&NAL_TrajPosOri_DecodeFrames), 28, Result::Eax, Status::Compare},  // was FUN_00082a90 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_DecodeBlock", 0x00082b60, 0, code(&NAL_TrajPosOri_DecodeBlock), 20, Result::Eax, Status::Compare},  // was FUN_00082b60 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_Evaluate", 0x00082cc0, 0, code(&NAL_TrajPosOri_Evaluate), 20, Result::Eax, Status::Compare},  // was FUN_00082cc0 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_ApplyStatic", 0x00082dc0, 0, code(&NAL_TrajPosOri_ApplyStatic), 16, Result::Eax, Status::Compare},  // was FUN_00082dc0 (gap); codec slot (unreached)
+    {"NAL_TrajPosOri_ApplyWraps_thunk", 0x00082eb0, 0, code(&NAL_TrajPosOri_ApplyWraps_thunk), 24, Result::Eax, Status::Compare},  // was FUN_00082eb0 (gap); codec slot (unreached)
+    {"NAL_Cursor_Skip20", 0x00083490, 0, code(&NAL_Cursor_Skip20), 4, Result::Eax, Status::Compare},  // was FUN_00083490 (gap); codec slot (unreached)
+    {"NAL_Cursor_Skip1", 0x000834a0, 0, code(&NAL_Cursor_Skip1), 4, Result::Eax, Status::Compare},  // was FUN_000834a0 (gap); codec slot (unreached)
+    {"NAL_Packed16EntropyIKSpin_ApplyWraps_thunk", 0x00083ab0, 0, code(&NAL_Packed16EntropyIKSpin_ApplyWraps_thunk), 24, Result::Eax, Status::Compare},  // was FUN_00083ab0 (gap); codec slot (unreached)
+    {"NAL_Packed16EntropyIKSpin_CopyState_thunk", 0x00083b90, 0, code(&NAL_Packed16EntropyIKSpin_CopyState_thunk), 12, Result::Eax, Status::Compare},  // was FUN_00083b90 (gap); codec slot (unreached)
     {"NAL_SkipListFindAt4", 0x00083d10, 0, code(&NAL_SkipListFindAt4), 4, Result::Eax, Status::Compare},  // was FUN_00083d10 (gap)
     {"NAL_Slot46At4", 0x00083ee0, 0, code(&NAL_Slot46At4), 4, Result::Eax, Status::Compare},  // was FUN_00083ee0 (gap)
     {"NAL_RemoveKey8At4", 0x00083ef0, 0, code(&NAL_RemoveKey8At4), 4, Result::Al, Status::Compare},  // was FUN_00083ef0 (gap)
     {"NAL_EmptyVFunc", 0x00086ce0, 0, code(&NAL_EmptyVFunc), 0, Result::None, Status::Compare},  // was FUN_00086ce0 (gap)
+    {"NAL_SignalCounter_Blend", 0x0008b5e0, 0, code(&NAL_SignalCounter_Blend), 20, Result::None, Status::Compare},  // was FUN_0008b5e0 (gap); codec slot (unreached)
+    {"NAL_SignalCounter_BlendWeighted", 0x0008b650, 0, code(&NAL_SignalCounter_BlendWeighted), 20, Result::None, Status::Compare},  // was FUN_0008b650 (gap); codec slot (unreached)
+    {"NAL_RLE8Int1_Blend", 0x0008b740, 0, code(&NAL_RLE8Int1_Blend), 20, Result::None, Status::Compare},  // was FUN_0008b740 (gap); codec slot (unreached)
+    {"NAL_RLE8Int1_BlendWeighted", 0x0008b7b0, 0, code(&NAL_RLE8Int1_BlendWeighted), 20, Result::None, Status::Compare},  // was FUN_0008b7b0 (gap); codec slot (unreached)
+    {"NAL_Float1_Blend", 0x0008b830, 0, code(&NAL_Float1_Blend), 20, Result::None, Status::Compare},  // was FUN_0008b830 (gap); codec slot (unreached)
+    {"NAL_Float1_BlendWeighted", 0x0008b950, 0, code(&NAL_Float1_BlendWeighted), 20, Result::None, Status::Compare},  // was FUN_0008b950 (gap); codec slot (unreached)
+    {"NAL_Packed16EntropyIKSpin_BlendWeighted", 0x0008d250, 0, code(&NAL_Packed16EntropyIKSpin_BlendWeighted_entry), 20, Result::Eax, Status::Compare},  // was FUN_0008d250 (gap); codec slot (unreached)
+    {"AnimManager2ce8_Load", 0x0008d930, 0, code(&EmptyVFunc_ReturnZero4), 4, Result::Eax, Status::Compare},  // was FUN_0008d930; shared body
+    {"AnimManager2ce8_Release", 0x0008d940, 0, code(&EmptyVFunc_ReturnOne12), 12, Result::Eax, Status::Compare},  // was FUN_0008d940; shared body
+    {"AnimManager_Load", 0x0008da80, 0, code(&AnimManager_Load), 4, Result::Eax, Status::Compare},  // was FUN_0008da80 (gap)
+    {"AnimManager2d34_Load", 0x0008de50, 0, code(&AnimManager2d34_Load), 4, Result::Eax, Status::Compare},  // was FUN_0008de50 (gap)
+    {"AnimManager2d34_Release", 0x0008e010, 0, code(&AnimManager2d34_Release), 12, Result::Eax, Status::Compare},  // was FUN_0008e010
+    {"NalManagerKey8_Load", 0x0008e190, 0, code(&NalManagerKey8_Load), 4, Result::Eax, Status::Compare},  // was FUN_0008e190 (gap)
     {"NAL_StreamedAnim_IsState5", 0x0008e470, 0, code(&NAL_StreamedAnim_IsState5), 0, Result::Eax, Status::Compare},  // was FUN_0008e470 (gap)
     {"Sys_GetStackBounds", 0x00093a10, 0, code(&Sys_GetStackBounds_entry), 0, Result::None, Status::Compare},
+    {"FxOp1d5_GetType", 0x0009e480, 0, code(&FxOp1d5_GetType), 0, Result::Eax, Status::Compare},  // was FUN_0009e480 (gap); FxOp vtable 0x007c70a0 slot 2
     {"apsTypeTag_SrcA", 0x000a4880, 0, code(&apsTypeTag_SrcA), 0, Result::Eax, Status::Compare},  // was FUN_000a4880 (gap)
     {"apsTypeTag_Brst", 0x000a4890, 0, code(&apsTypeTag_Brst), 0, Result::Eax, Status::Compare},  // was FUN_000a4890 (gap)
     {"apsTypeTag_RSpn", 0x000a48a0, 0, code(&apsTypeTag_RSpn), 0, Result::Eax, Status::Compare},  // was FUN_000a48a0 (gap)
@@ -1157,10 +1273,14 @@ const Function kFunctions[] = {
     {"Scr_StartThreadFunctor1", 0x0011a910, 0, code(&Scr_StartThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_BeginThreadFunctor1", 0x0011b4d0, 0, code(&Scr_BeginThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_WaitTillScriptString", 0x0011b830, 0, code(&Scr_WaitTillScriptString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
+    {"LevelParams_InitDefaults", 0x0011d040, 0, code(&LevelParams_InitDefaults), 0, Result::Eax, Status::Compare},  // was FUN_0011d040
+    {"ScrTwoMaps_Ctor", 0x0011d2d0, 0, code(&ScrTwoMaps_Ctor), 0, Result::Eax, Status::Compare},  // was FUN_0011d2d0
     {"Scr_SuspendWaitTime", 0x0011d950, 0, code(&Scr_SuspendWaitTime), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_SuspendWaitFrames", 0x0011d990, 0, code(&Scr_SuspendWaitFrames), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_SuspendWaitTill", 0x0011d9d0, 0, code(&Scr_SuspendWaitTill), 0, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_AtolThunk", 0x0011da60, 0, code(&Scr_AtolThunk), 4, Result::Eax, Status::Compare},  // was FUN_0011da60 (gap)
+    {"Scr_IntEqualsText", 0x0011da70, 0, code(&Scr_IntEqualsText), 8, Result::Eax, Status::Compare},  // was FUN_0011da70 (gap)
+    {"Scr_FloatEqualsText", 0x0011da90, 0, code(&Scr_FloatEqualsText), 8, Result::Eax, Status::Compare},  // was FUN_0011da90 (gap)
     {"ScrCall_GScr_GetEntScriptObject", 0x0011db20, 0, code(&ScrCall_GScr_GetEntScriptObject), 4, Result::Eax, Status::Replaced},  // import-slot thunk
     {"Scr_WaitExact", 0x0011e4b0, 0, code(&Scr_WaitExact), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"Scr_Wait", 0x0011e4f0, 0, code(&Scr_Wait), 4, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
@@ -1179,6 +1299,7 @@ const Function kFunctions[] = {
     {"BroScr_EmptyFunc_81", 0x00121790, 0, code(&BroScr_EmptyFunc_81), 0, Result::None, Status::Compare},  // was FUN_00121790 (gap)
     {"BroScr_EmptyFunc_82", 0x00123660, 0, code(&BroScr_EmptyFunc_82), 0, Result::None, Status::Compare},  // was FUN_00123660 (gap)
     {"BroScr_EmptyFunc_77_Thunk", 0x00124aa0, 0, code(&BroScr_EmptyFunc_77_Thunk), 0, Result::None, Status::Compare},  // was FUN_00124aa0 (gap)
+    {"BroScr_ReturnFalse_Thunk", 0x00124bc0, 0, code(&BroScr_ReturnFalse), 0, Result::Eax, Status::Compare},  // levels jump here; jmp thunk
     {"Record54_Copy", 0x0017ad50, 0, code(&Record54_Copy), 4, Result::Eax, Status::Compare},
     {"Scr_StartThread_ent_ent_hash_ent_hash", 0x0017ada0, 0, code(&Scr_StartThread_ent_ent_hash_ent_hash_entry), 40, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_StartThread_ent_f_f_b", 0x0017ae10, 0, code(&Scr_StartThread_ent_f_f_b_entry), 36, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
@@ -1384,12 +1505,14 @@ const Function kFunctions[] = {
     {"_alloc_osfhnd", 0x001f8ef1, 0, code(&title_alloc_osfhnd), 0, Result::Eax, Status::Compare},
     {"_sopen", 0x001f9303, 0, code(&title_sopen), 16, Result::Eax, Status::Compare},
     {"Actor_CompareSightEntries", 0x001fa990, 0, code(&Actor_CompareSightEntries), 8, Result::Eax, Status::Compare},  // was FUN_001fa990 (gap)
+    {"Ent_ControllerNop", 0x001fbe90, 0, code(&Ent_ControllerNop), 8, Result::None, Status::Compare},  // was FUN_001fbe90 (gap)
     {"Sys_ReadLaunchInfo", 0x002221b0, 0, code(&Sys_ReadLaunchInfo), 4, Result::Eax, Status::Compare},
     {"LiveMgr_PadInput", 0x002227f0, 0, code(&LiveMgr_PadInput), 8, Result::Al, Status::Compare},  // was FUN_002227f0 (gap)
     {"Phys_EmptyCallback", 0x00225370, 0, code(&Phys_EmptyCallback), 0, Result::None, Status::Compare},  // was FUN_00225370 (gap)
     {"Phys_RagdollStepCallback", 0x00233c30, 0, code(&Phys_RagdollStepCallback), 0, Result::None, Status::Replaced},  // was FUN_00233c30 (gap); call in the first 5 bytes, then a tail jump: not compared
     {"nglPolyVertexWriter_Nop4", 0x00236550, 0, code(&nglPolyVertexWriter_Nop4), 4, Result::None, Status::Compare},  // was FUN_00236550 (gap)
     {"ResourceManager_ClearSlot", 0x002368b0, 0, code(&ResourceManager_ClearSlot), 4, Result::None, Status::Compare},  // was FUN_002368b0 (gap)
+    {"Cmd_ProfileShaders_f", 0x00248d90, 0, code(&nglProfileShaders), 0, Result::None, Status::Compare},  // was FUN_00248d90 (gap); jmp thunk
     {"FxParticleComponent_Nop4", 0x002930b0, 0, code(&FxParticleComponent_Nop4), 4, Result::None, Status::Compare},  // was FUN_002930b0 (gap)
     {"FxComponentB_ClearSlot", 0x00293530, 0, code(&FxComponentB_ClearSlot), 4, Result::None, Status::Compare},  // was FUN_00293530 (gap)
     {"SCR_UpdateLoadingIconForced", 0x00299780, 0, code(&SCR_UpdateLoadingIconForced), 0, Result::None, Status::Compare},  // was FUN_00299780 (gap)
@@ -3142,6 +3265,7 @@ const Function kFunctions[] = {
     {"File_ShutdownDevices", 0x000c9910, 0, code(&File_ShutdownDevices), 0, Result::None, Status::Replaced},
     {"EmptyVFunc_Ret4", 0x002a8190, 0, code(&EmptyVFunc_Ret4), 4, Result::None, Status::Compare},  // was FUN_002a8190 (gap)
     {"nglVertexWriter_ClearSlot", 0x002a8cf0, 0, code(&nglVertexWriter_ClearSlot), 4, Result::None, Status::Compare},  // was FUN_002a8cf0 (gap)
+    {"PathNodeField_SetReadOnly", 0x002aa000, 0, code(&PathNodeField_SetReadOnly), 8, Result::None, Status::Compare},  // was FUN_002aa000 (gap)
     {"IN_MeleeUp", 0x002b4710, 0, code(&IN_MeleeUp), 0, Result::None, Status::Compare},  // was FUN_002b4710 (gap)
     {"IN_MeleeDown", 0x002b4720, 0, code(&IN_MeleeDown), 0, Result::None, Status::Compare},  // was FUN_002b4720 (gap)
     {"Cmd_RelaunchTitle_f", 0x002cfa40, 0, code(&Cmd_RelaunchTitle_f), 0, Result::None, Status::Replaced},
@@ -8783,6 +8907,7 @@ const Function kFunctions[] = {
     {"GScr_Set95f4b4", 0x002f4ea0, 0, code(&GScr_Set95f4b4), 4, Result::None, Status::Replaced},
     {"ScrField_GetByte", 0x002f4eb0, 0, code(&ScrField_GetByte), 12, Result::Eax, Status::Replaced},
     {"ScrField_SetByte", 0x002f4ed0, 0, code(&ScrField_SetByte), 12, Result::Eax, Status::Replaced},
+    {"Sys_DebugBreak_Thunk", 0x002f4ef0, 0, code(&Sys_DebugBreak), 0, Result::None, Status::Compare},  // was a second Sys_DebugBreak (gap); jmp thunk
     {"BroFunc_Find", 0x002f4f30, 0, code(&BroFunc_Find_entry), 4, Result::Eax, Status::Replaced},
     {"BroFunc_Register", 0x002f4f90, 0, code(&BroFunc_Register), 8, Result::None, Status::Replaced},
     {"BroFunc_Clear", 0x002f4ff0, 0, code(&BroFunc_Clear), 0, Result::None, Status::Replaced},

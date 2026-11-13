@@ -328,6 +328,7 @@ uint32_t XB_CDECL FxOpdd_GetType();
 uint32_t XB_CDECL FxOp1dd_GetType();
 uint32_t XB_CDECL FxOp9d5_GetType();
 uint32_t XB_CDECL FxOpGrid_GetType();
+uint32_t XB_CDECL FxOp1d5_GetType();  // 0x0009e480
 
 // 0x0009cd30 / 0x0009e240: FxOp31 / FxOp1d5 AddToList (callee pops 0x18): like the others, the
 // first only when the op has a mesh (+0xc; else 2), with a light set (+0x84, default 0x00902e40)

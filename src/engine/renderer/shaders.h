@@ -190,6 +190,9 @@ void XB_THISCALL cdSky_AddToList(const NglShaderClass* self, NglMeshDrawNode* no
                                  const NglMeshSection* section, const uint8_t* material);
 
 NglHashedName* XB_THISCALL nglDebugShader_GetName(const NglShaderClass* self, NglHashedName* out);
+// 0x0007b7a0 (callee pops 12): a 0x18-byte node (vtable 0x007c19ec) on the translucent list by view depth.
+void XB_THISCALL nglDebugShader_AddToList(const NglShaderClass* self, NglMeshDrawNode* node,
+                                          const NglMeshSection* section, const uint8_t* material);
 
 // Register's shader tables: nglVertexShader_Init(&shaders[i], declaration, programs[i]) /
 // nglPixelShader_Init(&shaders[i], programs[i]) over a table of the class.
@@ -456,6 +459,7 @@ uint32_t** XB_THISCALL cdGlass_NewVertexIter(const void* mesh, uint32_t** out); 
 uint32_t** XB_THISCALL cdSimpleAlpha_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004a960
 uint32_t** XB_THISCALL cdPropeller_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004b0e0
 uint32_t** XB_THISCALL cdDecal_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004b8a0
+uint32_t* XB_THISCALL cdDecal_NewMaterial(const void* self, uint32_t data);  // 0x0004b900
 uint32_t** XB_THISCALL cdChar_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004bfe0
 uint32_t** XB_THISCALL cdPrelit_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004c750
 uint32_t** XB_THISCALL cdAirplaneMetal_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004d0e0

@@ -29,6 +29,7 @@
 #include "g_spawn.h"
 #include "fe.h"
 #include "title_xapi.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -2138,7 +2139,7 @@ void XB_CDECL CodNote_FreeForZone(uint32_t zone) {
 
 namespace {
 
-void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
+void debug_break() { own_function<void XB_CDECL()>(&Sys_DebugBreak)(); }  // Sys_DebugBreak
 
 void z_free(uint32_t block) { own_function<void XB_CDECL(uint32_t)>(&Z_Free)(block); }
 

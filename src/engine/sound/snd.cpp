@@ -25,6 +25,7 @@
 #include "fx_cmd.h"
 #include "qcommon_fs.h"
 #include "title_xapi.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -146,7 +147,7 @@ uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias2(uint32_t alias, uint32_t, uint8_
     // 0x002bd3b0: a free reference of the table (ECX), its index or -1.
     const int32_t index = own_function<int32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint8_t*)>(&S_AllocChannelHandle)(0, 0, table);
     if (index < 0) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         *out = 0;
         return out;
     }
@@ -1722,7 +1723,7 @@ uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias(uint32_t alias, uint32_t, uint8_t
                                                uint32_t a7, uint32_t a8, uint32_t a9) {
     const int32_t index = S_AllocChannelHandle(0, 0, table);
     if (index < 0) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         *out = 0;
         return out;
     }
@@ -1746,7 +1747,7 @@ uint32_t* XB_REGS1 XB_STDCALL S_PlayLocalSoundByHash(uint8_t* table, uint32_t* o
     }
     const int32_t alias = S_FindSoundByHash(name);
     const int32_t index = S_AllocChannelHandle(0, 0, table);
-    if (index < 0) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (index < 0) own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     if (index < 0 || alias == -1) {
         *out = 0;
         return out;
@@ -1895,7 +1896,7 @@ void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t
         S_OpenWaveBank(dir, bank, title_global<uint32_t>(0x0095f5dc), manager, no_wait);
         if (emitter_word<uint32_t>(bank, 0x3c + title_global<uint32_t>(0x0095f5dc) * 4)) return;
     }
-    if (!emitter_word<uint32_t>(bank, 0x50)) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (!emitter_word<uint32_t>(bank, 0x50)) own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
 }
 
 // --- Hardware voices: buffers and streams of our sound device ---

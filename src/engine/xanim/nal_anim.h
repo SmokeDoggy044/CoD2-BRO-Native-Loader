@@ -260,5 +260,13 @@ void XB_THISCALL NAL_GenericAnim_LayoutState(uint8_t* clip);
 // buffer +0x38 freed unless flag 4 of +4, flag 8 cleared / the skeleton's slot 3, buffer +0x50 freed. Returns 0.
 int32_t XB_THISCALL AnimManager_Release(void* manager, uint8_t* file, int32_t mode, uint32_t unused);
 int32_t XB_THISCALL NalManagerKey8_Release(void* manager, uint8_t* skeleton, int32_t mode, uint32_t unused);
+// Manager slot 7 (Load, unreached): the file "<folder><name>.<ext>" (0x00903e80 / 0x00903d80) read, fixed up and added
+// (slot 3); null when reading or the fix-up fails. 0x0008da80 "xbanim" (references +0x44 = 1, buffer +0x38), 0x0008de50
+// "xbsanim" (grouped; buffer +0x40), 0x0008e190 "xbskel" (class vtable from the type name, slots 4 and 2, buffer +0x50).
+uint8_t* XB_THISCALL AnimManager_Load(void* manager, const uint32_t* key);
+uint8_t* XB_THISCALL AnimManager2d34_Load(void* manager, const uint32_t* key);
+uint8_t* XB_THISCALL NalManagerKey8_Load(void* manager, const uint32_t* key);
+// 0x0008e010: AnimManager_Release for the grouped files (references +0x4c; clips released; buffer +0x40).
+int32_t XB_THISCALL AnimManager2d34_Release(void* manager, uint8_t* file, int32_t mode, uint32_t unused);
 
 }  // namespace game

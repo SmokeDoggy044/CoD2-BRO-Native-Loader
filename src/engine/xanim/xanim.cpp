@@ -15,6 +15,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -868,7 +869,7 @@ uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree) {
     uint16_t& head = title_global<uint16_t>(0x00965cfc);
     const uint16_t id = head;
     if (!id) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         return 0;
     }
     ++u32_ref(tree, 0x14);

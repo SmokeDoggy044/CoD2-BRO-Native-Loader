@@ -18,6 +18,7 @@
 #include "title_xapi.h"
 #include "title_heap.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -4584,7 +4585,7 @@ void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog
 }
 
 uint8_t* XB_CDECL Map_EmptyKey(int32_t size) {
-    if (size > 0x20) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (size > 0x20) own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     uint8_t& ready = title_global<uint8_t>(0x0090228c);
     if (!ready) {
         for (uint32_t offset = 0; offset < 0x20; offset += 4) title_global<uint32_t>(0x0090226c + offset) = 0;
@@ -6606,6 +6607,12 @@ uint32_t XB_THISCALL nglMeshFileManager_Release(uint8_t* manager, uint8_t* file,
     if (!file[0x130]) nglFreeFileBuffer(reinterpret_cast<uint32_t*>(file + 0x124));
     own_function<void XB_CDECL(void*)>(&Mem_AlignedFree)(file);
     return 0;
+}
+
+uint8_t* XB_THISCALL nglResourceBase_DeletingDtor(uint8_t* self, uint32_t flags) {
+    *reinterpret_cast<uint32_t*>(self) = 0x007be008;
+    if (flags & 1) Mem_AlignedFree(self);
+    return self;
 }
 
 }  // namespace game

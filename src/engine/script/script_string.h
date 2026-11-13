@@ -75,6 +75,10 @@ void XB_THISCALL ScriptString_SetChar(ScriptString* self, uint32_t index, char c
 bool XB_CDECL ScriptString_Equals(const ScriptString* self, const char* text);
 // 0x0011dac0 (called from level code): ScriptString_Equals on a string passed by value (its argument slot).
 bool XB_CDECL ScriptString_EqualsValue(uint32_t rep, const char* text);
+// 0x0011da70 / 0x0011da90 (levels take their addresses): value == _atol(text) (AL; EAX's upper bytes atol's) /
+// value == atof(text) (EAX 1 or 0).
+uint32_t XB_CDECL Scr_IntEqualsText(int32_t value, const char* text);
+uint32_t XB_CDECL Scr_FloatEqualsText(float value, const char* text);
 
 // 0x0011d820: whether both hold the same text. False when either is the empty
 // string (null rep), even both.

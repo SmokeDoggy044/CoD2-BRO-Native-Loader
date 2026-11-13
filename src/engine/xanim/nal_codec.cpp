@@ -3294,4 +3294,727 @@ uint32_t XB_STDCALL NAL_CodNote_SkipBlock5(const uint32_t* context, uint32_t, ui
     return skip_sized_blocks(context);
 }
 
+
+// ---- Unreached codec slots (host_unreached, 2026-11-12): the rarely used classes' remaining methods ----
+
+namespace {
+
+uint32_t count_of(const uint32_t* context) { return channel_count(context_group(context)); }
+
+uint8_t** advance_each(const uint8_t* group, uint8_t** cursor, uint32_t size) {
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += size;
+    return cursor;
+}
+
+// The entropy classes' static data skipped (stream B aligned + 4, stream A aligned + `size` per channel).
+uint32_t entropy_skip_static(const uint32_t* context, uint32_t size) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) *stream_a += size;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stream_a));
+}
+
+// The Evaluate pattern: per channel with an offset the value at the cursor (active) or the default;
+// `advance` for each active channel.
+template <typename Copy, typename Advance>
+void evaluate_channels(const uint32_t* context, const int32_t* offsets, Copy copy, Advance advance) {
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) {
+            copy(offset, active);
+            if (!active) continue;
+        } else if (!active) {
+            continue;
+        }
+        advance();
+    }
+}
+
+}  // namespace
+
+uint32_t XB_CDECL NAL_Int1_TypeId() { return 0x00909821; }
+uint32_t XB_CDECL NAL_Float1_TypeId() { return 0x00909823; }
+uint32_t XB_CDECL NAL_Float4_TypeId() { return 0x00909825; }
+uint32_t XB_CDECL NAL_IKSpin_TypeId() { return 0x00909822; }
+uint32_t XB_CDECL NAL_IKSpin_ValueSize() { return 0x50; }
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip12(uint8_t** cursor) {
+    *cursor += 0xc;
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip20(uint8_t** cursor) {
+    *cursor += 0x14;
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip1(uint8_t** cursor) {
+    ++*cursor;
+    return cursor;
+}
+
+void XB_STDCALL NAL_ChannelClass_NoStatic(uint32_t, uint32_t, uint32_t, uint32_t) {}
+
+// -- Fixup / InitState / FreeState --
+
+uint32_t XB_STDCALL NAL_Int1_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    int32_t i = 0;
+    for (; i < static_cast<int32_t>(channel_count(group)); ++i) ++*cursor;
+    return static_cast<uint32_t>(i);
+}
+
+uint8_t** XB_STDCALL NAL_Int1_InitState(const uint8_t* group, uint8_t** cursor) {
+    *cursor += channel_count(group);
+    return cursor;
+}
+
+uint32_t XB_STDCALL NAL_Int1_FreeState(const uint8_t* group, uint8_t** cursor) {
+    int32_t i = 0;
+    for (; i < static_cast<int32_t>(channel_count(group)); ++i) ++*cursor;
+    return static_cast<uint32_t>(i);
+}
+
+uint8_t** XB_STDCALL NAL_Float1_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    *cursor = align4(*cursor);
+    return advance_each(group, cursor, 4);
+}
+
+uint32_t XB_STDCALL NAL_Float1_InitState(const uint8_t* group, uint8_t** cursor) {
+    uint8_t* end = align4(*cursor);
+    *cursor = end;
+    end += channel_count(group) * 4;
+    *cursor = end;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end));
+}
+
+uint8_t** XB_STDCALL NAL_Float1_FreeState(const uint8_t* group, uint8_t** cursor) {
+    *cursor = align4(*cursor);
+    return advance_each(group, cursor, 4);
+}
+
+uint8_t** XB_STDCALL NAL_Float4_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    *cursor = align4(*cursor);
+    return advance_each(group, cursor, 0x10);
+}
+
+uint32_t XB_STDCALL NAL_Float4_InitState(const uint8_t* group, uint8_t** cursor) {
+    uint8_t* end = align4(*cursor);
+    *cursor = end;
+    end += channel_count(group) * 0x10;
+    *cursor = end;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end));
+}
+
+uint8_t** XB_STDCALL NAL_Float4_FreeState(const uint8_t* group, uint8_t** cursor) {
+    *cursor = align4(*cursor);
+    return advance_each(group, cursor, 0x10);
+}
+
+// -- Thiscall wrappers (vtable slots) of the cdecl methods --
+
+namespace {
+
+using ThreeWordsVoid = void XB_CDECL(uint32_t, uint32_t, uint32_t);
+using SixWordsVoid = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+}  // namespace
+
+void XB_THISCALL NAL_SignalCounter_SkipStatic_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                    uint32_t a5, uint32_t a6) {
+    own_function<SixWordsVoid>(&NAL_SignalCounter_SkipStatic)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_Int1_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_Int1_CopyState)(group, dst, src);
+}
+
+uint32_t XB_THISCALL NAL_Packed8Float1_SkipStatic_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                        uint32_t a5, uint32_t a6) {
+    return own_function<SixWords>(&NAL_Packed8Float1_SkipStatic)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_Float1_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_Float1_CopyState)(group, dst, src);
+}
+
+void XB_THISCALL NAL_Float4_CopyChannels_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    own_function<ThreeWordsVoid>(&NAL_Float4_CopyChannels)(group, dst, src);
+}
+
+void XB_THISCALL NAL_Float3_SkipFixedBlock_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                 uint32_t a5, uint32_t a6) {
+    own_function<SixWordsVoid>(&NAL_Float3_SkipFixedBlock)(a1, a2, a3, a4, a5, a6);
+}
+
+void XB_THISCALL NAL_ChannelClass_NopSlot11(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t) {
+    // The original passes its six words on to NullCallback (0x0001b9a0), which does nothing.
+}
+
+void XB_THISCALL NAL_Float2_SkipFixedBlock_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                 uint32_t a5, uint32_t a6) {
+    own_function<SixWordsVoid>(&NAL_Float2_SkipFixedBlock)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_TrajPosOri_ApplyWraps_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                                     uint32_t a5, uint32_t a6) {
+    return own_function<SixWords>(&NAL_TrajPosOri_ApplyWraps)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_Packed16EntropyIKSpin_ApplyWraps_thunk(const void*, uint32_t a1, uint32_t a2, uint32_t a3,
+                                                                uint32_t a4, uint32_t a5, uint32_t a6) {
+    return own_function<SixWords>(&NAL_Packed16EntropyIKSpin_ApplyWraps)(a1, a2, a3, a4, a5, a6);
+}
+
+uint32_t XB_THISCALL NAL_Packed16EntropyIKSpin_CopyState_thunk(const void*, uint32_t group, uint32_t dst, uint32_t src) {
+    return own_function<CopyState>(&NAL_Packed16EntropyIKSpin_CopyState)(group, dst, src);
+}
+
+// -- Static data (slot 10) --
+
+uint32_t XB_STDCALL NAL_SignalCounter_ApplyStatic(const uint32_t* context, uint8_t* pose, uint32_t, const int32_t* offsets) {
+    uint8_t** stream_b = context_stream(context, 3);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        if (offset >= 0 && channel_active(context, i)) pose[offset] = **stream_b;
+        if (channel_active(context, i)) ++*stream_b;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed8Float1_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
+    return NAL_Packed8Float1_SkipStatic(context);
+}
+
+uint32_t XB_STDCALL NAL_PackedEntropy12_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
+    return entropy_skip_static(context, 0xc);
+}
+
+uint32_t XB_STDCALL NAL_EntropyPosOri_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
+    return entropy_skip_static(context, 8);
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_ApplyStatic(const uint32_t* context, uint8_t* pose, bool skip, const int32_t* offsets) {
+    uint8_t** stream_b = context_stream(context, 3);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        if (offset >= 0 && channel_active(context, i) && !skip) std::memcpy(pose + offset, *stream_b, 0x20);
+        if (channel_active(context, i)) *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+// -- Int1 classes (RLE8Int1, SignalCounter): one byte per channel --
+
+uint32_t XB_STDCALL NAL_SignalCounter_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t) {
+    uint32_t* stream_b = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(context[3]));
+    *readers = align4(*readers);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align4(*stream);
+        const uint32_t length = *reinterpret_cast<const uint32_t*>(*stream);
+        *stream += 4;
+        if (RleReader* reader = reinterpret_cast<RleReader*>(*readers)) {
+            reader->ptr = *stream;
+            reader->run = 0;
+        }
+        *stream += length;
+        *readers += 8;
+        ++*stream_b;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_SignalCounter_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride) {
+    uint32_t* stream_b = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(context[3]));
+    *readers = align4(*readers);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        NAL_RleReader_ReadBytes(reinterpret_cast<RleReader*>(*readers), *dst, stride, count);
+        *readers += 8;
+        ++*dst;
+        ++*stream_b;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_RLE8Int1_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, uint32_t count,
+                                             int32_t stride) {
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align4(*stream);
+        const uint32_t length = *reinterpret_cast<const uint32_t*>(*stream);
+        *stream += 4;
+        RleReader reader;
+        reader.ptr = *stream;
+        reader.run = 0;
+        reader.value = 0;  // the original leaves it unset; ReadBytes writes it before reading
+        NAL_RleReader_ReadBytes(&reader, *dst, stride, count);
+        *stream += length;
+        ++*dst;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_RLE8Int1_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                          const int32_t* offsets) {
+    evaluate_channels(
+        context, offsets, [&](int32_t offset, bool active) { pose[offset] = active ? **cursor : defaults[offset]; },
+        [&] { ++*cursor; });
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_SignalCounter_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets) {
+    uint32_t* stream_b = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(context[3]));
+    evaluate_channels(
+        context, offsets, [&](int32_t offset, bool active) { pose[offset] = active ? **cursor : defaults[offset]; },
+        [&] {
+            ++*cursor;
+            ++*stream_b;
+        });
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Int1_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i)
+        if (channel_active(context, i)) ++*cursor;
+    return context[1];
+}
+
+void XB_STDCALL NAL_SignalCounter_Blend(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b, float t) {
+    // a below one half, else b (NaN: b), as a * c + b * d with c + d = 1 in bytes.
+    const bool take_b = !platform_greater(title_global<float>(0x0083eb24), t);
+    for (int32_t i = 0; i < count; ++i) dst[i] = take_b ? b[i] : a[i];
+}
+
+void XB_STDCALL NAL_SignalCounter_BlendWeighted(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b,
+                                                const float** weights) {
+    const float half = title_global<float>(0x0083eb24);
+    for (int32_t i = 0; i < count; ++i) {
+        const float w = **weights;
+        ++*weights;
+        dst[i] = platform_greater(half, w) ? a[i] : b[i];
+    }
+}
+
+void XB_STDCALL NAL_RLE8Int1_Blend(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b, float t) {
+    const float u = title_global<float>(0x0083eb20) - t;  // 1.0
+    platform_keep(u);
+    const float half = title_global<float>(0x0083eb24);
+    for (int32_t i = 0; i < count; ++i) dst[i] = static_cast<uint8_t>(platform_x87_int_lerp_ftol(a[i], u, b[i], t, half));
+}
+
+void XB_STDCALL NAL_RLE8Int1_BlendWeighted(int32_t count, uint8_t* dst, const uint8_t* a, const uint8_t* b,
+                                           const float** weights) {
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    for (int32_t i = 0; i < count; ++i) {
+        const float w = **weights;
+        ++*weights;
+        dst[i] = static_cast<uint8_t>(platform_x87_int_blend_ftol(a[i], b[i], w, one, half));
+    }
+}
+
+// -- Float1 classes (EntropyFloat1, Packed8Float1) --
+
+void XB_STDCALL NAL_Float1_Blend(int32_t count, float* dst, const float* a, const float* b, float t) {
+    // dst = b * t + u * a; the unrolled copies' second to fourth values compute a * u + b * t (NaN payloads).
+    const float u = title_global<float>(0x0083eb20) - t;
+    platform_keep(u);
+    const auto value = [&](int32_t k, bool first) {
+        if (first) {
+            float sum = mul_first(b[k], t);
+            sum += mul_first(u, a[k]);
+            dst[k] = sum;
+        } else {
+            float sum = mul_first(a[k], u);
+            sum += mul_first(b[k], t);
+            dst[k] = sum;
+        }
+    };
+    int32_t i = 0;
+    if (count >= 4) {
+        const int32_t done = static_cast<int32_t>(((static_cast<uint32_t>(count - 4) >> 2) + 1) * 4);
+        for (; i < done; ++i) value(i, (i & 3) == 0);
+    }
+    for (; i < count; ++i) value(i, true);
+}
+
+void XB_STDCALL NAL_Float1_BlendWeighted(int32_t count, float* dst, const float* a, const float* b,
+                                         const float** weights) {
+    // dst = (1 - w) * a + w * b with w from **weights; the unrolled copies' second to fourth values take b * w.
+    const float one = title_global<float>(0x0083eb20);
+    const auto value = [&](int32_t k, bool first) {
+        const float w = **weights;
+        const float p = first ? mul_first(w, b[k]) : mul_first(b[k], w);
+        float sum = mul_first(one - w, a[k]);
+        sum += p;
+        dst[k] = sum;
+        ++*weights;
+    };
+    int32_t i = 0;
+    if (count >= 4) {
+        const int32_t done = static_cast<int32_t>(((static_cast<uint32_t>(count - 4) >> 2) + 1) * 4);
+        for (; i < done; ++i) value(i, (i & 3) == 0);
+    }
+    for (; i < count; ++i) value(i, true);
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat1_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            // One component stream: a length byte (read before the pointer moves past it) and its bits.
+            uint8_t* const at = *stream;
+            const uint8_t length = *at;
+            *stream = at + 1;
+            if (EntropyReader* reader = reinterpret_cast<EntropyReader*>(*readers)) {
+                reader->ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream));
+                reader->bit = 0;
+                reader->mode = 0xff;
+                reader->zeros = 0;
+            }
+            *stream += length;
+            *readers += 0x10;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat1_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align4(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            *stream += **stream + 1;
+            *cursor += 4;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed8Float1_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t bytes) {
+    uint8_t** stream_a = context_stream(context, 2);
+    *readers = align4(*readers);
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            *stream = align4(*stream);
+            if (uint8_t** reader = reinterpret_cast<uint8_t**>(*readers)) *reader = *stream;
+            *stream += bytes;
+            *readers += 4;
+        }
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed8Float1_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, int32_t count, int32_t stride) {
+    uint8_t** stream_a = context_stream(context, 2);
+    *readers = align4(*readers);
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            uint8_t* out = *dst;
+            uint8_t** reader = reinterpret_cast<uint8_t**>(*readers);
+            for (int32_t f = count; f > 0; --f) {
+                *out = **reader;
+                ++*reader;
+                out += stride;
+            }
+            *readers += 4;
+            ++*dst;
+        }
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed8Float1_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets) {
+    // The byte at the cursor dequantized with the channel's {bias, scale} record (stream A).
+    uint8_t** stream_a = context_stream(context, 2);
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) {
+            if (active) {
+                const float* record = reinterpret_cast<const float*>(*stream_a);
+                float value = static_cast<float>(static_cast<int8_t>(**cursor));
+                value *= record[1];
+                value += record[0];
+                std::memcpy(pose + offset, &value, 4);
+            } else {
+                std::memcpy(pose + offset, defaults + offset, 4);
+            }
+        }
+        if (active) ++*cursor;
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+// -- Packed entropy Float3 classes --
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            for (int32_t c = 0; c < 3; ++c) *stream += **stream + 1;
+            *cursor += 3;
+        }
+        *stream_a += 0xc;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 1) & ~uintptr_t{1});
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (channel_active(context, i)) {
+            for (int32_t c = 0; c < 3; ++c) *stream += **stream + 1;
+            *cursor += 6;
+        }
+        *stream_a += 0xc;
+    }
+    return context[1];
+}
+
+// -- Float4 classes --
+
+uint32_t XB_STDCALL NAL_Float4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t, uint32_t,
+                                            int32_t count, int32_t stride) {
+    *readers = align4(*readers);
+    *dst = align4(*dst);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        uint8_t* out = *dst;
+        uint8_t** reader = reinterpret_cast<uint8_t**>(*readers);
+        for (int32_t f = count; f > 0; --f) {
+            std::memcpy(out, *reader, 0x10);
+            *reader += 0x10;
+            out += stride;
+        }
+        *readers += 4;
+        *dst += 0x10;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Float4_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, int32_t frames,
+                                           int32_t stride) {
+    *dst = align4(*dst);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align4(*stream);
+        uint8_t* out = *dst;
+        for (int32_t f = frames; f > 0; --f) {
+            std::memcpy(out, *stream, 0x10);
+            *stream += 0x10;
+            out += stride;
+        }
+        *dst += 0x10;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Float4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                        const int32_t* offsets) {
+    *cursor = align4(*cursor);
+    evaluate_channels(
+        context, offsets,
+        [&](int32_t offset, bool active) { std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0x10); },
+        [&] { *cursor += 0x10; });
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align4(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0x10);
+        if (active) *cursor += 0x10;
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i)
+        if (channel_active(context, i)) *cursor += 4;
+    return context[1];
+}
+
+// -- Position/orientation classes --
+
+uint32_t XB_STDCALL NAL_PositionOrientation_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream,
+                                                       int32_t frames) {
+    *readers = align4(*readers);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align16(*stream);
+        if (uint8_t** reader = reinterpret_cast<uint8_t**>(*readers)) *reader = *stream;
+        *stream += frames * 0x20;
+        *readers += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames) {
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align16(*stream);
+        if (uint8_t** reader = reinterpret_cast<uint8_t**>(*readers)) *reader = *stream;
+        *stream += frames * 0x20;
+        *readers += 4;
+        *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                uint32_t, int32_t count, int32_t stride) {
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *dst = align16(*dst);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        uint8_t* out = *dst;
+        uint8_t** reader = reinterpret_cast<uint8_t**>(*readers);
+        for (int32_t f = count; f > 0; --f) {
+            std::memcpy(out, *reader, 0x20);
+            *reader += 0x20;
+            out += stride;
+        }
+        *readers += 4;
+        *dst += 0x20;
+        *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_DecodeBlock(const uint32_t* context, uint8_t** dst, uint8_t** stream, int32_t frames,
+                                               int32_t stride) {
+    uint8_t** stream_b = context_stream(context, 3);
+    *dst = align16(*dst);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(count_of(context)); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align16(*stream);
+        uint8_t* out = *dst;
+        for (int32_t f = frames; f > 0; --f) {
+            std::memcpy(out, *stream, 0x20);
+            *stream += 0x20;
+            out += stride;
+        }
+        *dst += 0x20;
+        *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                            const int32_t* offsets) {
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align16(*cursor);
+    *stream_b = align16(*stream_b);
+    evaluate_channels(
+        context, offsets,
+        [&](int32_t offset, bool active) { std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0x20); },
+        [&] {
+            *cursor += 0x20;
+            *stream_b += 0x20;
+        });
+    return context[1];
+}
+
+// -- Packed16EntropyIKSpin weighted blend --
+
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_BlendWeighted_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_BlendWeighted) "addl $36, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $0x14")
+
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_BlendWeighted(uint32_t entry, int32_t count, uint8_t* out, const uint8_t* a,
+                                                          const uint8_t* b, const float** weights, uint32_t, uint32_t,
+                                                          uint32_t) {
+    // out[i] = Lerp(a[i], b[i], w, 1 - w) with w from **weights, each Lerp at the original's ESP (four pushes,
+    // then push ecx = the 1 - w slot and two arguments); the count in its own argument slot, w over the weights
+    // argument slot.
+    if (count <= 0) return static_cast<uint32_t>(count);
+    uint32_t* slot = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(entry + 4));
+    *slot = static_cast<uint32_t>(count);
+    const uint32_t top = entry - 0x10;
+    uint32_t o = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+    uint32_t x = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a));
+    uint32_t y = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b));
+    uint32_t left;
+    do {
+        const float* w = *weights;
+        const float t = *w;
+        std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(entry + 0x14)), &t, 4);
+        *weights = w + 1;
+        const float u = title_global<float>(0x0083eb20) - t;
+        uint32_t t_bits, u_bits;
+        std::memcpy(&t_bits, &t, 4);
+        std::memcpy(&u_bits, &u, 4);
+        const uint32_t args[] = {o, t_bits, u_bits};
+        const TitleRegs regs{y, y, x, 0, o, x};
+        title_call_at_regs(top, own_address(&NAL_Packed16EntropyIKSpin_Lerp_entry), &regs, 3, args);  // NAL_Packed16EntropyIKSpin_Lerp
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(top - 0x10)) = 0x0008d2a4;
+        o += 0x50;
+        x += 0x50;
+        y += 0x50;
+        left = *slot - 1;
+        *slot = left;
+    } while (left);
+    return left;
+}
+
 }  // namespace game

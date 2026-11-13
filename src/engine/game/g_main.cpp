@@ -30,6 +30,7 @@
 #include "ui_menu.h"
 #include "bro_scr_brofunc.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -1168,7 +1169,7 @@ void XB_CDECL G_FreeLevelEntities() {
     for (uint32_t* it = first; it != last; ++it) {
         if (*it) own_function<FreeEntity>(&G_FreeEntity)(*it, 0);  // G_FreeEntity
     }
-    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     const uint32_t* const end = first + title_global<uint32_t>(0x0097d36c);
     for (uint32_t* it = first; it != end; ++it) {
         uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*it));
@@ -1403,7 +1404,7 @@ void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t a
     auto ent_at = [](uint32_t word) { return reinterpret_cast<uint8_t*>(uintptr_t{word}); };
     uint8_t* const letterbox = Cvar_Get(text(0x00835390), text(0x0082e098), 0);  // letterbox_enabled "0"
     if (word_at(letterbox, 0x20)) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         return;
     }
     if (!name || !*name) return;
@@ -1518,7 +1519,7 @@ void XB_CDECL G_LoadLevelScriptModule(uint32_t entry) {
     const uint32_t name = *reinterpret_cast<uint32_t*>(context + 4);
     const uint32_t module = G_FindLevelScriptModule(reinterpret_cast<const char*>(uintptr_t{name}));
     if (!module) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak (tail jump)
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak (tail jump)
         return;
     }
     auto stack = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };

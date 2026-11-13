@@ -2056,4 +2056,80 @@ int32_t XB_THISCALL NalManagerKey8_Release(void* manager, uint8_t* skeleton, int
     return 0;
 }
 
+
+// ---- Manager Load slots (vtable slot 7): files read by name (unreached: the level packs hold them all) ----
+
+namespace {
+
+// "<folder 0x00903e80 or 0x00903d80><name>.<extension>" read into `buffer` (16-byte aligned).
+bool read_named_file(uint32_t* buffer, uint32_t folder, const uint32_t* key, uint32_t extension) {
+    char path[0x100];
+    title_snprintf(path, sizeof path, reinterpret_cast<const char*>(uintptr_t{0x007c3750}),  // "%s%s.%s"
+                   reinterpret_cast<const char*>(uintptr_t{folder}), reinterpret_cast<const char*>(key + 1),
+                   reinterpret_cast<const char*>(uintptr_t{extension}));
+    return nglReadFile(path, buffer, 0x10, 0) != 0;
+}
+
+void manager_add(void* manager, void* object) {
+    title_function<void XB_THISCALL(void*, void*)>((*reinterpret_cast<uint32_t* const*>(manager))[3])(manager, object);
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL AnimManager_Load(void* manager, const uint32_t* key) {
+    uint32_t buffer[3];
+    if (!read_named_file(buffer, 0x00903e80, key, 0x007c3758)) return nullptr;  // "xbanim"
+    uint8_t* file = reinterpret_cast<uint8_t*>(uintptr_t{buffer[0]});
+    std::memcpy(file + 0x38, buffer, 12);
+    *reinterpret_cast<uint32_t*>(file + 0x44) = 1;  // references
+    std::memcpy(file + 0x10, key, 0x20);
+    *reinterpret_cast<uint32_t*>(file + 4) &= ~4u;
+    if (!static_cast<uint8_t>(NAL_AnimFile_Fixup(file))) {
+        nglFreeFileBuffer(buffer);
+        return nullptr;
+    }
+    manager_add(manager, file);
+    return file;
+}
+
+uint8_t* XB_THISCALL AnimManager2d34_Load(void* manager, const uint32_t* key) {
+    uint32_t buffer[3];
+    if (!read_named_file(buffer, 0x00903e80, key, 0x007c3760)) return nullptr;  // "xbsanim"
+    uint8_t* file = reinterpret_cast<uint8_t*>(uintptr_t{buffer[0]});
+    std::memcpy(file + 0x10, key, 0x20);
+    std::memcpy(file + 0x40, buffer, 12);
+    *reinterpret_cast<uint32_t*>(file + 4) &= ~4u;
+    if (!static_cast<uint8_t>(NAL_GroupedAnimFile_Fixup(file))) {
+        nglFreeFileBuffer(buffer);
+        return nullptr;
+    }
+    manager_add(manager, file);
+    return file;
+}
+
+int32_t XB_THISCALL AnimManager2d34_Release(void* manager, uint8_t* file, int32_t mode, uint32_t) {
+    if (!file) return 0;
+    if (mode == 0) {
+        int32_t& references = *reinterpret_cast<int32_t*>(file + 0x4c);
+        if (--references > 0) return references;
+    }
+    unlink(manager, file);
+    NAL_GroupedAnimFile_ForEachClip(file);
+    if (!(file[4] & 4)) nglFreeFileBuffer(reinterpret_cast<uint32_t*>(file + 0x40));
+    return 0;
+}
+
+uint8_t* XB_THISCALL NalManagerKey8_Load(void* manager, const uint32_t* key) {
+    uint32_t buffer[3];
+    if (!read_named_file(buffer, 0x00903d80, key, 0x007c39e0)) return nullptr;  // "xbskel"
+    uint8_t* skeleton = reinterpret_cast<uint8_t*>(uintptr_t{buffer[0]});
+    *reinterpret_cast<uint32_t*>(skeleton) = class_vtable(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(skeleton)), 0x2c);
+    object_call(skeleton, 4);
+    object_call(skeleton, 2);
+    *reinterpret_cast<uint32_t*>(skeleton + 0x50) = 0;
+    std::memcpy(skeleton + 0x50, buffer, 12);
+    manager_add(manager, skeleton);
+    return skeleton;
+}
+
 }  // namespace game

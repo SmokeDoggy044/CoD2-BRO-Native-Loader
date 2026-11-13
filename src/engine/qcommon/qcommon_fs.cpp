@@ -50,6 +50,7 @@
 #include "title_stdio.h"
 #include "title_eh.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -7391,7 +7392,7 @@ void XB_CDECL Com_Init(uint8_t* launch) {
             zone = pk_ptr(pk_ptr(zones, 0x14), index * 4);
         }
     }
-    if (!zone) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (!zone) own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
     if (zone) {
         const uint32_t frame = title_global<uint32_t>(0x008d9d38) + 1;
         pk<float>(zone, 0x34) = 0.0f;

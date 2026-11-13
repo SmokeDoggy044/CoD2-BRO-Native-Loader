@@ -1498,5 +1498,19 @@ void XB_CDECL nglVBlankCountFrames();
 // records (next +0xc: removed from their owner +4) and the +0x140 records (next +0x10, manager 0x00902a88), its
 // file buffer (+0x124, unless +0x130) and the file itself freed. Returns 0.
 uint32_t XB_THISCALL nglMeshFileManager_Release(uint8_t* manager, uint8_t* file, uint32_t force, uint32_t unused);
+// Manager slots 7/8 for resources read from their own files (ngl_file_load.cpp, unreached): 0x0006b520 a texture
+// "<0x009025f8><name>" + .ifl (unless 0x00902704) / .dds / .ddsmp / .tga (ngl_defaultTexture when none loads);
+// 0x00068280 / 0x0007a590 a mesh file .xbmesh / .xbmorph (0x00902980); 0x00079100 a palette .ddsp; 0x00065830 a
+// font .fdf. 0x0007ab90: nglMeshFileManager_Release with the morph sections' buffers; 0x00079220: the palette's.
+NglTexture* XB_THISCALL nglTextureManager_Load(void* manager, const uint32_t* key);
+uint8_t* XB_THISCALL nglMeshFileManager_Load(void* manager, const uint32_t* key);
+uint8_t* XB_THISCALL nglMeshFileCache_Load(void* manager, const uint32_t* key);
+uint32_t XB_THISCALL nglMeshFileCache_Release(void* manager, uint8_t* file, uint32_t force, uint32_t unused);
+uint8_t* XB_THISCALL nglPaletteManager_Load(void* manager, const uint32_t* key);
+int32_t XB_THISCALL nglPaletteManager_Release(void* manager, uint8_t* palette, int32_t mode, uint32_t unused);
+NglFont* XB_THISCALL nglFontManager_Load(void* manager, const uint32_t* key);
+// 0x0006a060: deleting destructor of the resource base class (vtable 0x007be008, pure slots): the base vtable,
+// Mem_AlignedFree when flags bit 0.
+uint8_t* XB_THISCALL nglResourceBase_DeletingDtor(uint8_t* self, uint32_t flags);
 
 }  // namespace game

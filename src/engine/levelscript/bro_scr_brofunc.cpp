@@ -3,6 +3,7 @@
 #include "qcommon.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -30,7 +31,7 @@ void XB_CDECL BroFunc_Register(const char* name, uint32_t function) {
     uint32_t i = 0;
     while (title_global<uint32_t>(kBroFuncs + i * 8) != 0) {
         if (++i >= kCount) {
-            title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak (tail jump)
+            own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak (tail jump)
             return;
         }
     }

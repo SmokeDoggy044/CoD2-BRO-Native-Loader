@@ -32,6 +32,7 @@
 #include "phys.h"
 #include "pmove.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -1933,7 +1934,7 @@ uint8_t* XB_REGS1 XB_CDECL EntityState_Clear(uint8_t* state) {
 
 void XB_CDECL G_FreeEntity(uint8_t* ent) {
     if (ent == title_global<uint8_t*>(0x0095f52c)) {
-        title_function<void XB_CDECL(uint8_t*)>(0x00042460)(ent);  // Sys_DebugBreak (tail jump)
+        own_function<void XB_CDECL(uint8_t*)>(&Sys_DebugBreak)(ent);  // Sys_DebugBreak (tail jump)
         return;
     }
     if (title_global<uint8_t>(0x008d50d4)) {
@@ -2150,7 +2151,7 @@ void XB_CDECL G_FreeAllCodNotes() {
 }
 
 void XB_CDECL G_FreeCodNote(uint8_t* note) {
-    const auto debug_break = title_function<void XB_CDECL(uint8_t*)>(0x00042460);  // Sys_DebugBreak (tail jump)
+    const auto debug_break = own_function<void XB_CDECL(uint8_t*)>(&Sys_DebugBreak);  // Sys_DebugBreak (tail jump)
     uint8_t* current = title_global<uint8_t*>(0x008dda50);
     uint8_t* next = reinterpret_cast<uint8_t*>(uintptr_t{word_at(current, 0)});
     bool found = false;

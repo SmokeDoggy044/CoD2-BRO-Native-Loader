@@ -485,6 +485,12 @@ NglHashedName* XB_THISCALL nglDebugShader_GetName(const NglShaderClass*, NglHash
     return hashed_name(out, "Debug");
 }
 
+void XB_THISCALL nglDebugShader_AddToList(const NglShaderClass*, NglMeshDrawNode* node,
+                                          const NglMeshSection* section, const uint8_t* material) {
+    NglMeshNode* item = make_node(0x007c19ec, node, section, material);
+    add_translucent(item, nglNode_ViewDepth(item));
+}
+
 void XB_CDECL cdGlass_InitVertexShaders(uint32_t declaration) {
     init_vertex_shaders(0x00901fd8, 0x0089a6dc, 4, declaration);
 }
@@ -2329,6 +2335,15 @@ uint32_t** XB_THISCALL cdGlass_NewVertexIter(const void* mesh, uint32_t** out) {
 uint32_t** XB_THISCALL cdSimpleAlpha_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4cc0); }
 uint32_t** XB_THISCALL cdPropeller_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4f9c); }
 uint32_t** XB_THISCALL cdDecal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5268); }
+
+// 0x0004b900: a new material object of the same class (vtable 0x007b5254) wrapping `data`. Mem_AlignedAlloc's
+// failure still stores `data` (at address 4), as the original.
+uint32_t* XB_THISCALL cdDecal_NewMaterial(const void*, uint32_t data) {
+    uint32_t* object = static_cast<uint32_t*>(Mem_AlignedAlloc(8, 4, 0));
+    if (object) object[0] = 0x007b5254;
+    object[1] = data;
+    return object;
+}
 uint32_t** XB_THISCALL cdChar_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5530); }
 uint32_t** XB_THISCALL cdPrelit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b580c); }
 uint32_t** XB_THISCALL cdAirplaneMetal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5ae0); }

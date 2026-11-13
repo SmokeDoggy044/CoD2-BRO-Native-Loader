@@ -19,6 +19,7 @@
 #include "title_data.h"
 #include "tr_main.h"
 #include "gap_methods.h"
+#include "unr_methods.h"
 
 namespace game {
 
@@ -1059,7 +1060,7 @@ uint8_t* XB_CDECL PhysRagdoll_TakeBody(uint8_t* ragdoll, int32_t id) {
         }
     }
     if (!capsule) {
-        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak
         return nullptr;  // the original then writes through the null capsule
     }
     at<int32_t>(capsule, 0x128) = id;
@@ -2302,7 +2303,7 @@ uint32_t lt_mask(const Lanes& a, const Lanes& b) {
     return mask;
 }
 
-void sys_debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }
+void sys_debug_break() { own_function<void XB_CDECL()>(&Sys_DebugBreak)(); }
 
 }  // namespace
 
