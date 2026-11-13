@@ -139,6 +139,7 @@ public:
     void hold(VoiceImpl& v, const Packet& packet, uint32_t status, uint32_t played);
     void finish_held(const Held& h);
     void release_held();
+    void describe_packet_owner(uint32_t key);
 
 private:
     // The output, or none in a test process: there voices only keep their state.
@@ -161,7 +162,8 @@ private:
     void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status);
 };
 
-Engine& g = *new Engine;  // used by the mixer thread until exit: never destroyed
+Engine& g = *new Engine;
+  // used by the mixer thread until exit: never destroyed
 
 void to_al(const float in[3], float out[3]) {
     out[0] = in[0];
@@ -588,6 +590,21 @@ void Engine::finish_held(const Held& h) {
     packet_done(*h.voice, h.packet, h.status);
 }
 
+// Diagnostics for a packet the replay waited for in vain: which voice still holds it, and that voice's state.
+void Engine::describe_packet_owner(uint32_t key) {
+    Guard lock(mutex, TestLock::State);
+    for (size_t i = 0; i < voices.size(); ++i) {
+        const int index = voices[i]->voice.packet_index(from_xbox_ptr<uint32_t>(key));
+        if (index < 0) continue;
+        char text[256];
+        voices[i]->voice.describe(text, sizeof(text));
+        LOG_WARN("replay", "  packet %08x is #%d in voice %zu's queue: %s; output %s", key, index, i, text,
+                 out() ? (out()->paused() ? "paused" : "running") : "none");
+        return;
+    }
+    LOG_WARN("replay", "  packet %08x is in no voice's queue", key);
+}
+
 void Engine::release_held() {
     uint32_t count = 0;
     if (xbox::replay::recorded('k', count)) {
@@ -597,10 +614,19 @@ void Engine::release_held() {
             std::unique_lock lock(held_mutex);
             const auto match = [&] { return std::find_if(held.begin(), held.end(), [&](const Held& h) { return h.key() == key; }); };
             auto it = match();
+            // After a few packets that never came (the run took another path), no more waiting: the replay goes on
+            // at full speed to show how far it differs.
+            static int missed = 0;
+            const auto wait = std::chrono::seconds(missed < 3 ? 10 : 0);
             if (it == held.end() &&
-                !held_signal.wait_for(lock, std::chrono::seconds(10), [&] { return (it = match()) != held.end(); })) {
-                LOG_WARN("replay", "frame %u: the recording finished packet %08x here; the mixer did not within 10 s",
-                         xbox::replay::frame_number(), key);
+                !held_signal.wait_for(lock, wait, [&] { return (it = match()) != held.end(); })) {
+                lock.unlock();
+                if (++missed <= 3) {
+                    LOG_WARN("replay", "frame %u: the recording finished packet %08x here; the mixer did not within "
+                             "10 s", xbox::replay::frame_number(), key);
+                    describe_packet_owner(key);
+                    if (missed == 3) LOG_WARN("replay", "no more waits for the mixer's packets");
+                }
                 continue;
             }
             const Held h = *it;

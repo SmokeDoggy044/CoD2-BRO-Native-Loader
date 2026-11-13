@@ -38,6 +38,7 @@
 #include "ngl.h"
 #include "pmove.h"
 #include "release_map.h"
+#include "replay.h"
 #include "sound_engine.h"
 #include "symbols.h"
 #include "xbe.h"
@@ -1557,8 +1558,17 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         render::show_notice({"PC settings", "Press ` (the key below Esc) at any time: field of view and more."}, 6);
     }
     input::PointerState pointer = input::take_pointer();
-    float x = 0, y = 0;
-    if (!pointer.inside || !render::window_to_screen(pointer.x, pointer.y, x, y)) return;
+    // Record/replay: the pointer in the title's screen coordinates. Converting the window position depends on the
+    // window's size and on the pillarbox (decided from the frame's draws, skipped by --replay-no-draw), so a replay
+    // takes the recorded result ('L'; recordings from before 11-12 have none and convert live).
+    struct ScreenPointer {
+        float x = 0, y = 0;
+        uint32_t on_screen = 0;
+    } at;
+    at.on_screen = pointer.inside && render::window_to_screen(pointer.x, pointer.y, at.x, at.y);
+    xbox::replay::bytes('L', &at, sizeof(at));
+    if (!at.on_screen) return;
+    const float x = at.x, y = at.y;
     // A click that could not select its item yet (the screen was locked) waits a little.
     static int held_clicks = 0;
     static uint32_t held_since = 0;

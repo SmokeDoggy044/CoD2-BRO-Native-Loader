@@ -81,6 +81,7 @@ public:
     void set_environment(const Environment& environment);
     // Stops all output until resumed (the voices do not advance).
     void set_paused(bool paused);
+    bool paused() const { return paused_; }
 
     bool is_loopback() const { return loopback_; }
     // Loopback only: mixes `frames` stereo 16-bit frames.

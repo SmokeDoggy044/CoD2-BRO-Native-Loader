@@ -63,6 +63,11 @@ public:
     // fewer than asked means the voice ended (it is no longer playing).
     size_t render(int16_t* out, size_t frames);
 
+    // Record/replay diagnostics: where the packet with this status word is in the queue (-1: not queued), and the
+    // voice's state as text.
+    int packet_index(const uint32_t* status) const;
+    void describe(char* out, size_t size) const;
+
     // The comparison harness's fork (sound_engine.h, hold_for_fork): the voice locked, so that
     // the copy sees it between changes.
     void hold() const { mutex_.lock(); }

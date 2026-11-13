@@ -3,6 +3,7 @@
 #include "test_mode.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 namespace audio {
@@ -146,6 +147,21 @@ bool Voice::looping() const {
 bool Voice::starved() const {
     Guard lock(mutex_, TestLock::Voice);
     return starved_;
+}
+
+int Voice::packet_index(const uint32_t* status) const {
+    Guard lock(mutex_, TestLock::Voice);
+    for (size_t i = 0; i < packets_.size(); ++i)
+        if (packets_[i].status == status) return static_cast<int>(i);
+    return -1;
+}
+
+void Voice::describe(char* out, size_t size) const {
+    Guard lock(mutex_, TestLock::Voice);
+    std::snprintf(out, size, "%s, playing %d paused %d ending %d starved %d looping %d, %zu packets queued, %u bytes "
+                  "of the first played, format %u Hz %u ch block %u",
+                  kind_ == Kind::Stream ? "stream" : "buffer", playing_, paused_, ending_, starved_, looping_,
+                  packets_.size(), packet_offset_, format_.rate, format_.channels, format_.block_align);
 }
 
 // --- Rendering ------------------------------------------------------------------------
