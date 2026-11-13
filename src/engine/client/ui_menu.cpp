@@ -2655,4 +2655,63 @@ int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index) {
     }
 }
 
+namespace {
+
+// Button down (+0x80: pad, bit) of menus that also reset an idle timer (`timer_at` = the timer 0x008ddaa8 holds):
+// with flag 7 a direction (4 / 8 / 0x10 / 0x20) becomes the held one (+0x32) with the 0.3 s repeat delay (+0x1c).
+void button_down_with_timer(uint8_t* menu, uint32_t timer_at, uint32_t bit) {
+    field<uint32_t>(menu, timer_at) = title_global<uint32_t>(0x008ddaa8);
+    if (!menu_flag(menu, 7)) return;
+    if (bit != 4 && bit != 8 && bit != 0x10 && bit != 0x20) return;
+    menu[0x32] = uint8_t(bit);
+    field<uint32_t>(menu, 0x1c) = title_global<uint32_t>(0x0083066c);  // 0.3
+}
+
+}  // namespace
+
+void XB_THISCALL SinglePlayerMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    button_down_with_timer(menu, 0x40, bit);
+}
+
+void XB_THISCALL MainMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    if (field<uint32_t>(menu, 0x38)) button_down_with_timer(menu, 0x40, bit);
+}
+
+void XB_THISCALL TitleMenu_OnButtonDown(uint8_t* menu, uint32_t, uint32_t bit) {
+    button_down_with_timer(menu, 0x38, bit);
+}
+
+// UIMenu_Update, the auto-close timer (+0x54, counting down while >= 0; its callback +0x48 when it passes 0), then
+// vtable +0xa0 (3 with a front end, else 4).
+void XB_THISCALL UIDialog_Update(uint8_t* dialog, float dt) {
+    UIMenu_Update(dialog, dt);
+    const float timer = field<float>(dialog, 0x54);
+    if (timer >= 0.0f) {
+        const float left = timer - dt;
+        field<float>(dialog, 0x54) = left;
+        if (0.0f > left) {
+            if (const uint32_t callback = field<uint32_t>(dialog, 0x48)) title_function<void XB_CDECL()>(callback)();
+        }
+    }
+    call(dialog, 0xa0, title_global<uint8_t*>(0x0095f8f8) ? 3u : 4u);
+}
+
+// +0x28 (bit, pad): the waiting screen's flag cleared (front end: screen +0x3c +0x35, else the in-game screens'
+// +0x1c +0x34); unless bit 2, UIScreenMgr_OnButtonDown, then bits 4 / 8 press the active dialog's (+0x1c) button 0
+// / 1 (flag 2 of +0x44 allows it; flags 0 / 1 set, the button's +0x78 = 1.0).
+void XB_THISCALL DialogMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad) {
+    if (uint8_t* const front_end = title_global<uint8_t*>(0x0095f8f8))
+        field<uint8_t*>(field<uint8_t*>(front_end, 4), 0x3c)[0x35] = 0;
+    else
+        field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0x1c)[0x34] = 0;
+    if (bit == 2) return;
+    UIScreenMgr_OnButtonDown(mgr, bit, pad);
+    if (bit != 4 && bit != 8) return;
+    uint8_t* const dialog = field<uint8_t*>(mgr, 0x1c);
+    const uint8_t flags = dialog[0x44];
+    if (!(flags & 4)) return;
+    dialog[0x44] = static_cast<uint8_t>(flags | (bit == 4 ? 1 : 2));
+    call(field<uint8_t*>(dialog, bit == 4 ? 0 : 4), 0x78, 0x3f800000);
+}
+
 }  // namespace game

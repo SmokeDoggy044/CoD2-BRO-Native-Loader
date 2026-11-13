@@ -168,4 +168,7 @@ void XB_REGS1 XB_STDCALL AdvancedOptionsMenu_SetSliderBar(uint8_t* bar, uint8_t*
 extern "C" PLATFORM_HIDDEN void XB_CDECL OptionsMenu_SetCheckmarks(uint8_t* menu, int32_t selected);
 extern "C" void OptionsMenu_SetCheckmarks_entry(void);
 
+// 0x0031ec90 (+0x28): the panel, the help bar (+0x38, +0x3c), UIMenu_Draw, then the background movie.
+void XB_THISCALL OptionsMenu_Draw(uint8_t* menu);
+
 }  // namespace game

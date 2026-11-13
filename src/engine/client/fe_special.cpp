@@ -735,4 +735,99 @@ PLATFORM_ASM_ENTRY(SpecialConceptMenu_OnBack_entry,
                    "movl $0x12, 4(%esp)\n"
                    "jmp *0xc(%eax)")
 
+
+namespace {
+
+void draw_object(uint8_t* object) {
+    if (object) call(object, 0x3c);
+}
+
+void add_quad(uint8_t* menu, uint32_t offset) { nglListAddQuad(reinterpret_cast<const NglQuad*>(menu + offset)); }
+
+}  // namespace
+
+// Full screen (+0x40): the full-screen quad (+0xb4) and the help bar only.
+void XB_THISCALL SpecialConceptMenu_Draw(uint8_t* menu) {
+    if (!menu[0x40]) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        add_quad(menu, 0x50);
+        UIMenu_Draw(menu);
+        return;
+    }
+    add_quad(menu, 0xb4);
+    draw_object(field<uint8_t*>(menu, 0x38));
+}
+
+void XB_THISCALL SpecialMaterialsMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        add_quad(menu, 0x68);
+        UIMenu_Draw(menu);
+    }
+    Movie_DrawFrame();
+}
+
+SPECIAL_PLAIN_ENTRY(SpecialMaterialsMenu_RestoreSelection)
+
+// Movie_Stop(0), 0x0095f91a and +0x48 cleared, the texts +0x4c / +0x50 "" (+0x78), the pictures +0x54 / +0x58
+// hidden (+0x7c 0), FE_BonusMovieLabel (menu in ESI), FE_BonusCEMainLoadImage (EAX), UIMenu_RestoreSelection, then
+// the saved row (+0x40) selected with sound (+0x88).
+void XB_CDECL SpecialMaterialsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t,
+                                                    uint32_t entry_esp) {
+    const Calls c = after_push_esi(menu, ebx, edi, entry_esp);
+    const uint32_t zero[1] = {0};
+    c.run(own_address(&Movie_Stop), 1, zero);
+    title_global<uint8_t>(0x0095f91a) = 0;
+    field<uint32_t>(menu, 0x48) = 0;
+    c.method(field<uint8_t*>(menu, 0x4c), 0x78, 0x0082dfeb);
+    c.method(field<uint8_t*>(menu, 0x50), 0x78, 0x0082dfeb);
+    c.method(field<uint8_t*>(menu, 0x54), 0x7c, 0);
+    c.method(field<uint8_t*>(menu, 0x58), 0x7c, 0);
+    c.run(own_address(&FE_BonusMovieLabel_entry));
+    c.run_eax(own_address(&FE_BonusCEMainLoadImage_entry), address_of(menu));
+    c.run(own_address(&UIMenu_RestoreSelection));
+    c.method(menu, 0x88, field<uint32_t>(menu, 0x40), 1);
+}
+
+// 0x0031af10 (+0x38): the chosen chapter into the front end's screen +0x34 (+0x48, +0x4c cleared), then the front
+// end's screen 13 (tail jump). Not compared.
+UI_FRONT_END_TAIL_ARG(ChapterMenu_HandleSelect_entry, ChapterMenu_HandleSelect, 0xd)
+
+void XB_CDECL ChapterMenu_HandleSelect(uint32_t index) {
+    title_global<uint8_t>(0x0095f91a) = 0;
+    Movie_Stop(0);
+    const auto chapter_screen = [] {
+        return field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x34);
+    };
+    field<uint32_t>(chapter_screen(), 0x48) = index;
+    chapter_screen()[0x4c] = 0;
+}
+
+// Deactivated (+0x44): the background movie stops unless it is kept (0x0095f91a).
+void XB_THISCALL ChapterMenu_OnDeactivate(uint8_t*, uint8_t*) {
+    if (!title_global<uint8_t>(0x0095f91a)) Movie_Stop(0);
+}
+
+void XB_THISCALL DifficultyMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        draw_object(field<uint8_t*>(menu, 0x38));
+        UIMenu_Draw(menu);
+        call(field<uint8_t*>(menu, 0x3c), 0x44);
+        call(field<uint8_t*>(menu, 0x40), 0x44);
+    }
+    Movie_DrawFrame();
+}
+
+void XB_THISCALL SinglePlayerMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x38)) Panel_Draw(panel);
+        UIMenu_Draw(menu);
+        draw_object(field<uint8_t*>(menu, 0x34));
+    }
+    Movie_DrawFrame();
+}
+
 }  // namespace game

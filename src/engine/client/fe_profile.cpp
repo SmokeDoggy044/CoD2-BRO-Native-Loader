@@ -1486,4 +1486,43 @@ uint8_t* XB_REGS3 XB_CDECL Profile_CopySettings(uint8_t* dst, uint32_t, const ui
     return dst;
 }
 
+
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+namespace {
+
+// A title object's vtable slot `offset` (thiscall, no arguments / one word).
+void vcall0(uint8_t* object, uint32_t offset) {
+    title_function<void XB_THISCALL(uint8_t*)>(field<uint32_t>(field<uint8_t*>(object, 0), offset))(object);
+}
+
+}  // namespace
+
+// Only while the page (+0x44) is 1: the panel +0x3c, the help bar +0x40 (+0x3c), UIMenu_Draw.
+void XB_THISCALL AutosaveMenu_Draw(uint8_t* menu) {
+    if (title_global<uint8_t>(0x0095f91e) || field<int32_t>(menu, 0x44) != 1) return;
+    if (uint8_t* const panel = field<uint8_t*>(menu, 0x3c)) Panel_Draw(panel);
+    if (uint8_t* const bar = field<uint8_t*>(menu, 0x40)) vcall0(bar, 0x3c);
+    UIMenu_Draw(menu);
+}
+
+// The menu part while +0x48 is 1, then always the picture +0x58 (+0x44), the background movie and, with an in-game
+// screen active, the loading icon.
+void XB_THISCALL ProfileMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e) && field<int32_t>(menu, 0x48) == 1) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x3c)) Panel_Draw(panel);
+        if (uint8_t* const bar = field<uint8_t*>(menu, 0x40)) vcall0(bar, 0x3c);
+        UIMenu_Draw(menu);
+    }
+    vcall0(field<uint8_t*>(menu, 0x58), 0x44);
+    Movie_DrawFrame();
+    uint8_t* const screens = title_global<uint8_t*>(0x0095f900);
+    if (screens && field<int32_t>(screens, 0xc) >= 0) SCR_UpdateLoadingIcon(0);
+}
+
+// Deactivated (+0x44): the background movie stops unless it is kept (0x0095f91a).
+void XB_THISCALL CreateProfileMenu_OnDeactivate(uint8_t*, uint8_t*) {
+    if (!title_global<uint8_t>(0x0095f91a)) Movie_Stop(0);
+}
+
 }  // namespace game

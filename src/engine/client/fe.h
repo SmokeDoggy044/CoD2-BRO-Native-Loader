@@ -627,4 +627,9 @@ void XB_THISCALL UIPicture_GetBaseCorners(uint8_t* picture, uint32_t* xs, uint32
 void XB_THISCALL UIPicture_TranslateQuads(uint8_t* picture, float dx, float dy);
 void XB_THISCALL UIPicture_SetAllQuadColors(uint8_t* picture, uint32_t color);
 
+// UIText +0x70 (0x00320510, ret 8), +0x10c (0x003205c0, ret 8); UITextBase +0x94 (0x003210f0, ret 0xc).
+void XB_THISCALL UIText_MoveLines(uint8_t* text, float dx, float dy);
+void XB_THISCALL UIText_Rescale(uint8_t* text, float sx, uint32_t sy);
+void XB_THISCALL UITextBase_SetColorAndEffect(uint8_t* text, uint32_t color, uint32_t a, float b);
+
 }  // namespace game

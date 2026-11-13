@@ -220,4 +220,9 @@ extern "C" void ProfileMenu_ShowDeleteSuccessDialog_entry(void);
 // copied from src to dst (FE_ProfileSelect). Returns dst.
 uint8_t* XB_REGS3 XB_CDECL Profile_CopySettings(uint8_t* dst, uint32_t unused_edx, const uint8_t* src);
 
+// Unreached slots: 0x0031b0e0 / 0x0031b1b0 (draw +0x28), 0x0031b680 (+0x44, ret 4).
+void XB_THISCALL AutosaveMenu_Draw(uint8_t* menu);
+void XB_THISCALL ProfileMenu_Draw(uint8_t* menu);
+void XB_THISCALL CreateProfileMenu_OnDeactivate(uint8_t* menu, uint8_t* next);
+
 }  // namespace game

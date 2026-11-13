@@ -4522,4 +4522,53 @@ void XB_THISCALL UIPicture_SetAllQuadColors(uint8_t* picture, uint32_t color) {
     }
 }
 
+// Every line's position (+0x04 / +0x08 of each 0x20-byte line) moved by (dx, dy); +0x0c rewritten as it was.
+void XB_THISCALL UIText_MoveLines(uint8_t* text, float dx, float dy) {
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i) {
+        uint8_t* const line = field<uint8_t*>(text, 0x80) + uint32_t(i) * 0x20;
+        const uint32_t keep = field<uint32_t>(line, 0xc);
+        field<float>(line, 4) = field<float>(line, 4) + dx;
+        field<float>(line, 8) = field<float>(line, 8) + dy;
+        field<uint32_t>(line, 0xc) = keep;
+    }
+}
+
+// New scales (+0x38 = sx, +0x3c = sy, +0x40 = 0): every line's glyph offsets (int16 at +2 of each 4-byte entry,
+// +0x18 entries / +0x1c count) scaled by sx / old sx (1 when the old one was 0, truncated), then UIText_LayoutLines.
+void XB_THISCALL UIText_Rescale(uint8_t* text, float sx, uint32_t sy) {
+    const float old = field<float>(text, 0x38);
+    const float ratio = old == 0.0f ? 1.0f : sx / old;
+    field<float>(text, 0x38) = sx;
+    field<uint32_t>(text, 0x3c) = sy;
+    field<float>(text, 0x40) = 0.0f;
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i) {
+        uint8_t* const line = field<uint8_t*>(text, 0x80) + uint32_t(i) * 0x20;
+        for (int32_t k = 0; k < field<int32_t>(line, 0x1c); ++k) {
+            int16_t& offset = field<int16_t>(field<uint8_t*>(line, 0x18), uint32_t(k) * 4 + 2);
+            offset = static_cast<int16_t>(static_cast<int32_t>(static_cast<float>(offset) * ratio));
+        }
+    }
+    UIText_LayoutLines(text);
+}
+
+// +0x50 = colour, flags 0 and 3 of +0x5c set; the effect block +0x14 (0x10 bytes, Z_Malloc'd on first use: a, 0, 0,
+// b) gets a and b.
+void XB_THISCALL UITextBase_SetColorAndEffect(uint8_t* text, uint32_t color, uint32_t a, float b) {
+    field<uint32_t>(text, 0x50) = color;
+    text[0x5c] = static_cast<uint8_t>(text[0x5c] | 9);
+    if (uint8_t* const effect = field<uint8_t*>(text, 0x14)) {
+        field<uint32_t>(effect, 0) = a;
+        field<float>(field<uint8_t*>(text, 0x14), 0xc) = b;
+        return;
+    }
+    uint8_t* const effect = static_cast<uint8_t*>(z_malloc(0x10));
+    if (effect) {
+        field<float>(effect, 0xc) = b;
+        field<uint32_t>(effect, 0) = a;
+        field<float>(effect, 4) = 0.0f;
+        field<float>(effect, 8) = 0.0f;
+    }
+    field<uint8_t*>(text, 0x14) = effect;
+}
+
 }  // namespace game

@@ -170,4 +170,7 @@ extern "C" void LoadScreen_SetProgress_entry(void);
 // the help bar FEMENU_OP_HELPBAR_SHORT, the HUD off (0x008d9d48 = 0).
 void XB_THISCALL MissionSuccessFailMenu_RestoreSelection(uint8_t* menu);
 
+// 0x0031f480 (+0x40): see fe_menus.cpp.
+void XB_THISCALL PauseMenu_RestoreSelection(uint8_t* menu);
+
 }  // namespace game

@@ -853,4 +853,15 @@ void XB_THISCALL ScreenMenu_Back(uint8_t* menu, uint32_t) {
     call(title_global<uint8_t*>(0x0095f8f8), 0xc, 3);  // the front end: Options
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+void XB_THISCALL OptionsMenu_Draw(uint8_t* menu) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
+        if (uint8_t* const bar = field<uint8_t*>(menu, 0x38)) call(bar, 0x3c);
+        UIMenu_Draw(menu);
+    }
+    Movie_DrawFrame();
+}
+
 }  // namespace game

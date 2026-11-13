@@ -439,6 +439,14 @@ void XB_CDECL StaticInit_FontNames_95f7e8();
                              "movl (%ecx), %eax\n"                                                          \
                              "jmp *0xc(%eax)\n"                                                             \
                              "1: ret $4")
+// The same through the front end (0x0095f8f8) instead of the owner: the cdecl C part `work(argument)` (the handler's
+// stack word) runs first, then the front end's SetActiveScreen(screen) as a tail jump.
+#define UI_FRONT_END_TAIL_ARG(name, work, screen)                                    \
+    PLATFORM_ASM_ENTRY(name, "pushl 4(%esp)\n" PLATFORM_ASM_CALL(work) "addl $4, %esp\n" \
+                             "movl 0x0095f8f8, %ecx\n"                                 \
+                             "movl (%ecx), %eax\n"                                     \
+                             "movl $" #screen ", 4(%esp)\n"                            \
+                             "jmp *0xc(%eax)")
 // 0x0030ef00 (vtable +0x08): appends a screen (+0x04[+0x14++]).
 void XB_THISCALL UIScreenMgr_AddScreen(uint8_t* mgr, uint8_t* screen);
 // UIDialog (vtable 0x00829d48): +0x34 button count, +0x44 back callback (thiscall, the dialog), +0x58 buttons side by
@@ -485,5 +493,15 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL MainMenu_OnBack(uint8_t* menu);
 extern "C" void MainMenu_OnBack_entry(void);            // 0x00313ab0
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index);
 extern "C" void MainMenu_HandleSelect_entry(void);      // 0x00313b10
+
+// Button down (+0x80: pad, bit) with an idle timer reset (0x008ddaa8 into +0x40 / +0x38): 0x0031ed00, 0x0031edc0
+// (only with +0x38), 0x0031f8b0; then as UIMenu_OnButtonDown.
+void XB_THISCALL SinglePlayerMenu_OnButtonDown(uint8_t* menu, uint32_t pad, uint32_t bit);
+void XB_THISCALL MainMenu_OnButtonDown(uint8_t* menu, uint32_t pad, uint32_t bit);
+void XB_THISCALL TitleMenu_OnButtonDown(uint8_t* menu, uint32_t pad, uint32_t bit);
+// 0x0031f630 (+0x30): see ui_menu.cpp.
+void XB_THISCALL UIDialog_Update(uint8_t* dialog, float dt);
+// 0x0031f7f0 (+0x28, ret 8): see ui_menu.cpp.
+void XB_THISCALL DialogMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad);
 
 }  // namespace game

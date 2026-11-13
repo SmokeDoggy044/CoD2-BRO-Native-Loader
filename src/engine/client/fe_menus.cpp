@@ -987,4 +987,16 @@ void XB_THISCALL MissionSuccessFailMenu_RestoreSelection(uint8_t* menu) {
     title_global<uint32_t>(0x008d9d48) = 0;  // the HUD off
 }
 
+// --- Unreached slots (host_unreached 2026-11-12) ---
+
+// 0x0031f480 (+0x40): UIMenu_RestoreSelection, the pad's pending start press (button 14 of 0x008dcf18) taken, then
+// g_liveMgr +0x4474 set. The call is the first instruction: not compared.
+void XB_THISCALL PauseMenu_RestoreSelection(uint8_t* menu) {
+    UIMenu_RestoreSelection(menu);
+    const int32_t pad = title_global<int32_t>(0x008dcf18);
+    IN_PadCreate();
+    IN_PadConsumePressed(pad, 0xe);
+    title_global<uint8_t*>(0x0095f6fc)[0x4474] = 1;  // g_liveMgr
+}
+
 }  // namespace game
