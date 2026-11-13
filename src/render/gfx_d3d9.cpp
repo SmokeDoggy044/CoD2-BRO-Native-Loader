@@ -1028,7 +1028,13 @@ private:
         device_->SetRenderState(D3DRS_SRCBLEND, blend_factor(b.src));
         device_->SetRenderState(D3DRS_DESTBLEND, blend_factor(b.dst));
         device_->SetRenderState(D3DRS_BLENDOP, blend_op(b.op));
-        device_->SetRenderState(D3DRS_BLENDFACTOR, b.constant);
+        // D3D9 has no constant-alpha factor: its BLENDFACTOR is the whole colour. With a constant-alpha factor
+        // the colour's rgb become its alpha (ngl blend modes 5-7 set only alpha: the shell-shock blur and the
+        // glow pass, both lost on D3D9 before 2026-11-13). Both kinds in one blend do not occur.
+        auto constant_alpha = [](Blend f) { return f == Blend::ConstantAlpha || f == Blend::InvConstantAlpha; };
+        const uint32_t factor = constant_alpha(b.src) || constant_alpha(b.dst) ? (b.constant >> 24) * 0x01010101u
+                                                                               : b.constant;
+        device_->SetRenderState(D3DRS_BLENDFACTOR, factor);
         device_->SetRenderState(D3DRS_COLORWRITEENABLE, b.write_mask & kColorAll);
         device_->SetRenderState(D3DRS_ALPHATESTENABLE, b.alpha_test);
         device_->SetRenderState(D3DRS_ALPHAFUNC, compare_func(b.alpha_func));
