@@ -1323,7 +1323,14 @@ uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp) {
     const uint32_t refdef[1] = {0x00972b90};
     title_call_at_regs(entry_esp, title_global<uint32_t>(0x00928524), &regs, 1, refdef);
     title_call_at_regs(entry_esp, own_address(&CG_DrawShellShockBlur), &regs, 0, nullptr);  // CG_DrawShellShockBlur
-    return title_global<uint32_t>(0x008d9d48) ? own_address(&CG_Draw2D) : 0;  // CG_Draw2D
+    if (!title_global<uint32_t>(0x008d9d48)) return 0;
+    const ClientPcHooks& hooks = client_pc_hooks();
+    if (!hooks.draw_2d_begin) return own_address(&CG_Draw2D);  // CG_Draw2D
+    // PC (wide pictures): CG_Draw2D between the hooks, one word deeper than the tail jump would run it.
+    hooks.draw_2d_begin();
+    title_call_at_regs(entry_esp, own_address(&CG_Draw2D), &regs, 0, nullptr);
+    if (hooks.draw_2d_end) hooks.draw_2d_end();
+    return 0;
 }
 
 void XB_CDECL CG_ParseServerinfo() {
@@ -3354,7 +3361,17 @@ uint32_t XB_CDECL CG_DrawObjectives() {
     } else {
         color = &title_global<float>(0x0082eb9c);
     }
+    // PC: the panel (a 4:3 layout) in a child scene of its own, like the pause screen's.
+    const auto objectives_scene = client_pc_hooks().objectives_scene;
+    NglScene* const scene = objectives_scene && title_global<uint32_t>(0x0090259c) ? nglPushScene(0) : nullptr;
+    if (scene) {
+        nglSetClearFlags(0);
+        nglSetSceneDepthTest(0);
+        nglSetSceneDepthEnable(0);
+        objectives_scene(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scene)));
+    }
     CG_DrawObjectiveList(color, alpha);
+    if (scene) nglPopScene();
     return 1;
 }
 

@@ -403,6 +403,13 @@ float abs_bits(float value) {
     return value;
 }
 
+// PC (ClientPcHooks::bar_fill_fix): the tank health bar's fill width in widescreen narrowed like the bar itself
+// (UIPicture_ScaleXForAspect's 0.75); the original fills the 4:3 width from the narrowed left edge, past the
+// frame's right end (the soldier's bar is right: HudCompHealth's layout already narrows its width). 1 otherwise.
+float bar_width_aspect() {
+    return client_pc_hooks().bar_fill_fix && title_global<uint32_t>(0x00948f64) ? gf(0x0083eb58) : 1.0f;
+}
+
 float bits_float(uint32_t bits) {
     float value;
     std::memcpy(&value, &bits, 4);
@@ -1192,11 +1199,23 @@ PLATFORM_ASM_ENTRY(HudManager_SetWidescreen_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(HudManager_SetWidescreen) "addl $8, %esp\n"
                    "ret $4")
 
+namespace {
+
+// Each component's anchor (by manager slot +4..+0x40): 50 at the left, 590 at the right, 320 centred (the slot
+// +0x3c, the attached component, has none: it takes the centre where a scene needs one).
+constexpr uint32_t kCentres[16] = {0x42480000, 0x42480000, 0x44138000, 0x44138000, 0x44138000, 0x43a00000,
+                                   0x42480000, 0x44138000, 0x43a00000, 0x44138000, 0x44138000, 0x44138000,
+                                   0x43a00000, 0x42480000, 0,          0x43a00000};
+
+}  // namespace
+
+float hud_component_anchor(uint32_t offset) {
+    const uint32_t bits = offset >= 4 && offset <= 0x40 ? kCentres[offset / 4 - 1] : 0;
+    return bits ? bits_float(bits) : 320.0f;
+}
+
 void XB_CDECL HudManager_SetWidescreen(uint8_t* self, uint32_t widescreen) {
-    // Each component's vtable +0x18 (widescreen, centre x): 50 at the left, 590 at the right, 320 centred.
-    static const uint32_t kCentres[16] = {0x42480000, 0x42480000, 0x44138000, 0x44138000, 0x44138000, 0x43a00000,
-                                          0x42480000, 0x44138000, 0x43a00000, 0x44138000, 0x44138000, 0x44138000,
-                                          0x43a00000, 0x42480000, 0,          0x43a00000};
+    // Each component's vtable +0x18 (widescreen, centre x).
     for (uint32_t slot = 1; slot <= 16; ++slot) {
         if (slot == 15) continue;  // the attached component (+0x3c)
         uint8_t* const component = object_at(self, slot * 4);
@@ -1456,7 +1475,7 @@ void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t) {
     const float x1 = field<float>(q, 0x48);
     const float y0 = field<float>(q, 0x44);
     const float y1 = field<float>(q, 0x80);
-    const float right = (field<float>(q, 0x24) - field<float>(q, 0)) * field<float>(bar, 0x34) * used + x0;
+    const float right = (field<float>(q, 0x24) - field<float>(q, 0)) * field<float>(bar, 0x34) * used * bar_width_aspect() + x0;
     const float u1 = field<float>(q, 0x5c);
     const float epsilon = gf(0x0083eb4c);
     const bool vertical = x1 >= u1 ? epsilon > x1 - u1 : epsilon > u1 - x1;
@@ -2079,22 +2098,37 @@ void XB_THISCALL HudManager_Draw(uint8_t* self) {
     if (!title_global<uint32_t>(0x008d9d48)) return;  // the HUD on
     nglPushScene(0);
     nglSetClearFlags(3);
+    // PC (edge-anchored HUD): each component in a child scene of its own, reported with its anchor.
+    const auto component_scene = client_pc_hooks().hud_component_scene;
+    const auto draw = [self, component_scene](uint32_t offset) {
+        if (!component_scene) {
+            call(object_at(self, offset), 0xc);
+            return;
+        }
+        NglScene* const scene = nglPushScene(0);
+        if (scene) {
+            nglSetClearFlags(0);
+            component_scene(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scene)), hud_component_anchor(offset));
+        }
+        call(object_at(self, offset), 0xc);
+        if (scene) nglPopScene();
+    };
     static const uint32_t kComponents[9] = {4, 8, 0xc, 0x10, 0x14, 0x18, 0x30, 0x38, 0x34};
     for (uint32_t offset : kComponents) {
         uint8_t* const component = object_at(self, offset);
-        if (component && shown(component)) call(object_at(self, offset), 0xc);
+        if (component && shown(component)) draw(offset);
     }
     // the layout's extra slots
-    if (field<int32_t>(self, 0x5c) == 1) call(object_at(self, 0x24), 0xc);
+    if (field<int32_t>(self, 0x5c) == 1) draw(0x24);
     if (field<int32_t>(self, 0x5c) == 2) {
-        call(object_at(self, 0x1c), 0xc);
-        call(object_at(self, 0x20), 0xc);
+        draw(0x1c);
+        draw(0x20);
     }
     if (field<int32_t>(self, 0x5c) == 3) {
-        if (object_at(self, 0x28)) call(object_at(self, 0x28), 0xc);
-        if (object_at(self, 0x2c)) call(object_at(self, 0x2c), 0xc);
+        if (object_at(self, 0x28)) draw(0x28);
+        if (object_at(self, 0x2c)) draw(0x2c);
     }
-    if (object_at(self, 0x40)) call(object_at(self, 0x40), 0xc);  // the attached component
+    if (object_at(self, 0x40)) draw(0x40);  // the attached component
     nglPopScene();
 }
 

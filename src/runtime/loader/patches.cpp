@@ -828,7 +828,15 @@ void XB_CDECL objectives_end() {
     if (g_objectives_scene) call_title(g_objectives.scene_pop);
 }
 
+void XB_CDECL objectives_scene(uint32_t scene) {
+    g_objectives_scenes = {0, 0, scene, title<uint32_t>(g_menus.engine_frame)};
+}
+
 void install_objectives_hook() {
+    if (client_c(0x00281f30)) {  // CG_DrawObjectives runs as C: it makes the scene and reports it
+        game::client_pc_hooks().objectives_scene = &objectives_scene;
+        return;
+    }
     auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.call});
     if (site[0] != 0xE8 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=
                                reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.draw})) {
@@ -962,6 +970,30 @@ void XB_CDECL hud_render_end() {
     g_hud_scenes[N].end = title<uint32_t>(g_menus.frame_allocator);
 }
 
+// HudManager_Draw's child scenes this frame, with their anchors (x of 640).
+struct HudComponentScene {
+    uint32_t scene;
+    float anchor;
+};
+std::array<HudComponentScene, 24> g_hud_component_scenes;
+size_t g_hud_component_count = 0;
+uint32_t g_hud_component_frame = UINT32_MAX;
+
+void XB_CDECL hud_component_scene(uint32_t scene, float anchor) {
+    const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
+    if (frame != g_hud_component_frame) g_hud_component_frame = frame, g_hud_component_count = 0;
+    if (g_hud_component_count < g_hud_component_scenes.size())
+        g_hud_component_scenes[g_hud_component_count++] = {scene, anchor};
+}
+
+// The anchor of a HUD component's scene this frame; negative if it is none.
+float hud_component_anchor(uint32_t scene, uint32_t frame) {
+    if (frame != g_hud_component_frame) return -1.0f;
+    for (size_t i = 0; i < g_hud_component_count; ++i)
+        if (g_hud_component_scenes[i].scene == scene) return g_hud_component_scenes[i].anchor;
+    return -1.0f;
+}
+
 bool is_hud_scene(uint32_t scene, uint32_t frame) {
     for (const MenuScenes& h : g_hud_scenes)
         if (h.frame == frame && (scene == h.scene || (scene >= h.begin && scene < h.end))) return true;
@@ -973,6 +1005,13 @@ bool is_hud_scene(uint32_t scene, uint32_t frame) {
 bool install_draw_2d_hook(const AspectSites& sites) {
     static bool installed = false;
     if (installed) return true;
+    if (client_c(0x00286bc0) && client_c(sites.draw_2d)) {  // CG_DrawActive and CG_Draw2D run as C: hooks
+        game::ClientPcHooks& hooks = game::client_pc_hooks();
+        hooks.draw_2d_begin = &hud_render_begin<0>;
+        hooks.draw_2d_end = &hud_render_end<0>;
+        installed = true;
+        return true;
+    }
     auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{sites.draw_2d_jump});
     int32_t relative = 0;
     std::memcpy(&relative, jump + 1, 4);
@@ -995,6 +1034,15 @@ bool install_draw_2d_hook(const AspectSites& sites) {
 bool install_hud_scenes(const AspectSites& sites) {
     if (!install_draw_2d_hook(sites)) return false;
     if (!sites.hud_draw_slot) return true;
+    if (client_c(0x003154b0)) {  // UIRoot_DrawHud runs as C: hooks around its HUD manager draw
+        game::ClientPcHooks& hooks = game::client_pc_hooks();
+        hooks.hud_draw_begin = &hud_render_begin<1>;
+        hooks.hud_draw_end = &hud_render_end<1>;
+        // HudManager_Draw as C (our own exe; plain runs keep its original, then the HUD narrows as a whole):
+        // each component toward its own edge.
+        hooks.hud_component_scene = &hud_component_scene;
+        return true;
+    }
     // The HUD manager's draw (vtable 0x0082a5d8 slot 0x14, thiscall, no arguments; the
     // in-game UI calls it from FUN_003154b0 before CG_Draw2D) puts the compass, health
     // and the like into a scene of its own.
@@ -1039,7 +1087,9 @@ void install_display_aspect(const AspectSites& sites, float aspect) {
         const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_scene_aspect));
         for (uint32_t load : sites.loads) std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{load}) + 4, &address, 4);
     }
-    LOG_WARN("patches", "experimental: %.3f:1 picture (the view widens, the HUD stays 16:9 in the middle)", aspect);
+    LOG_WARN("patches", "experimental: %.3f:1 picture (the view widens; the HUD %s)", aspect,
+             client_c(0x003154b0) ? "goes to the edges where its manager runs as C, else stays 16:9 in the middle"
+                                  : "stays 16:9 in the middle");
 }
 
 // --- Frame rate -------------------------------------------------------------------
@@ -1153,10 +1203,21 @@ float g_cull[2] = {1.0f, 16.0f / 9.0f};  // the title reads them (32-bit address
 float g_gun_fov_y = 0.0f;                 // the title reads it while the gun's own fov is on
 bool g_gun_fov_ok = false;                // the gun scene's fov load is where expected
 bool g_gun_fov_on = false;                // ... and reads g_gun_fov_y
+bool g_fixed_fov_c = false;               // cgame C widens weapon fovs through widened_fixed_fov
+
+float XB_CDECL widened_fixed_fov(float fov);  // below
 
 void install_field_of_view(const FovSites* sites, const AspectSites& aspect_sites, float degrees) {
-    if (!sites || !install_draw_2d_hook(aspect_sites)) return;
-    for (int i = 0; i < 2; ++i) {
+    if (!sites) return;
+    if (client_c(0x002843e0) && client_c(0x0027a7b0)) {  // CG_CalcFov and CG_GetViewFov run as C: hooks
+        game::ClientPcHooks& hooks = game::client_pc_hooks();
+        hooks.cull_ratio = &g_cull[1];
+        hooks.fixed_fov = &widened_fixed_fov;
+        g_fixed_fov_c = true;
+    } else if (!install_draw_2d_hook(aspect_sites)) {
+        return;
+    }
+    for (int i = 0; i < 2 && !g_fixed_fov_c; ++i) {
         const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{sites->cull_loads[i]});
         uint32_t operand = 0;
         std::memcpy(&operand, code + 4, 4);
@@ -1166,7 +1227,7 @@ void install_field_of_view(const FovSites* sites, const AspectSites& aspect_site
             return;
         }
     }
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 2 && !g_fixed_fov_c; ++i) {
         const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_cull[i]));
         std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{sites->cull_loads[i]}) + 4, &address, 4);
     }
@@ -1219,8 +1280,14 @@ float widen_fov(float fov, float wanted) {
                      std::tan(kGameFov * kHalfRadians)) / kHalfRadians;
 }
 
+// CG_GetViewFov as C asks for the widened fov directly (no def is written).
+float XB_CDECL widened_fixed_fov(float fov) {
+    const float wanted = g_fov_wanted.load();
+    return wanted > 0 && wanted != kGameFov ? widen_fov(fov, wanted) : fov;
+}
+
 void scale_fixed_fov() {
-    if (!g_fov) return;
+    if (!g_fov || g_fixed_fov_c) return;
     const float wanted = g_fov_wanted.load();
     if (wanted <= 0) return;
     const uint32_t def = call_title(g_fov->current_weapon_def);
@@ -1676,13 +1743,20 @@ render::UiNarrowing in_game_menu_draw() {
     const float menu = 4.0f / 3.0f / g_display_aspect;
     const float hud = std::min(1.0f, 16.0f / 9.0f / g_display_aspect);  // 16:9 layout into the picture
     if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return {0.5f, menu};
+    // The edge-anchored HUD (HudManager_Draw as C): each component's 16:9 layout narrowed toward the
+    // edge it belongs to, keeping its 16:9 distance from that edge (fixed point: the edge itself).
+    const bool edges = g_hud_component_frame == frame && g_hud_component_count > 0;
     if (o.frame == frame && o.scene != 0 && scene == o.scene) {
         // 4:3 around the HUD's left anchor within the 16:9 layout (k1), that layout
-        // around the centre (k2): one narrowing by k1 k2 around the point both keep.
-        const float k1 = 0.75f, k2 = hud, a = kObjectivesAnchor;
-        return {(0.5f * (1.0f - k2) + k2 * a * (1.0f - k1)) / (1.0f - k1 * k2), k1 * k2};
+        // around the centre or the left edge (k2): one narrowing by k1 k2 around the point both keep.
+        const float k1 = 0.75f, k2 = hud, a = kObjectivesAnchor, outer = edges ? 0.0f : 0.5f;
+        return {(outer * (1.0f - k2) + k2 * a * (1.0f - k1)) / (1.0f - k1 * k2), k1 * k2};
     }
-    if (hud < 1.0f && is_hud_scene(scene, frame)) return {0.5f, hud};
+    if (hud < 1.0f) {
+        const float anchor = hud_component_anchor(scene, frame);
+        if (anchor >= 0) return {anchor < 160.0f ? 0.0f : anchor > 480.0f ? 1.0f : 0.5f, hud};
+        if (is_hud_scene(scene, frame)) return {0.5f, hud};
+    }
     return {};
 }
 
@@ -2249,6 +2323,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         install_field_of_view(campaign ? &fov : nullptr, aspect, config.field_of_view);
         install_menu_render_hooks();
         install_menu_pointer();
+        // The tank health bar's fill in widescreen (the original's runs past the frame): cgame C only.
+        if (client_c(0x00318840)) game::client_pc_hooks().bar_fill_fix = true;
         g_button_prompts = config.button_prompts;
     } else {
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;

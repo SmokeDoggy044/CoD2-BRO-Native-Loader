@@ -155,6 +155,9 @@ void XB_THISCALL HudManager_Update(uint8_t* self, uint32_t dt);
 // 0x00311800 (manager in ESI; stdcall widescreen flag): every component's vtable +0x18 with its centre x.
 extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_SetWidescreen(uint8_t* self, uint32_t widescreen);
 extern "C" void HudManager_SetWidescreen_entry(void);
+// The anchor x (of 640) of the component at manager offset +4..+0x40 (HudManager_SetWidescreen's centres; 320
+// for the attached component).
+float hud_component_anchor(uint32_t offset);
 // 0x0032ced0 (element in ESI, hash in EAX): the text +0x3c set from the localized string with that hash.
 extern "C" PLATFORM_HIDDEN void XB_CDECL HudText_SetStringByHash(uint8_t* self, uint32_t hash, uint32_t entry_esp,
                                                                uint32_t ebx, uint32_t edi);

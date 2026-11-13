@@ -2165,7 +2165,12 @@ void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
     if (root[0x4f]) return;
     push_ui_scene();
     uint8_t* const active_dialogs = field<uint8_t*>(root, 0x30);
-    if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) call(field<uint8_t*>(root, 0x20), 0x14);
+    if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) {
+        const ClientPcHooks& hooks = client_pc_hooks();
+        if (hooks.hud_draw_begin) hooks.hud_draw_begin();
+        call(field<uint8_t*>(root, 0x20), 0x14);  // HudManager_Draw
+        if (hooks.hud_draw_end) hooks.hud_draw_end();
+    }
     nglPopScene();
     uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
     if (has_active(dialogs)) render_menu(dialogs, false);

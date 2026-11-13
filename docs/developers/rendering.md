@@ -77,24 +77,44 @@ Checked: missions 1-2, pause menu and its Options, objectives (mission 4, agains
 
 `--aspect W:H` wider than 16:9 (launcher: 21:9, 32:9, the screen's shape), campaign
 only (multiplayer has no HUD manager and stays 16:9). The 3D view takes the picture's
-aspect: R_RenderView and nglSetDefaultSceneParams load it with `movss xmm0,[0x0083f254]`
-(16/9), pointed at our value instead; the vertical field of view stays (Hor+). Culling
-needs nothing: in widescreen CG_CalcFov sets fov_x to 2 atan(16/9) = 121 degrees, wider
-than a 32:9 view at the game's fov.
+aspect: R_RenderView and nglSetDefaultSceneParams read it through
+`RendererPcHooks::wide_aspect` instead of the 16/9 constant at 0x0083f254; the vertical
+field of view stays (Hor+). CG_CalcFov's widescreen culling fov_x (2 atan(16/9) = 121
+degrees) grows through `ClientPcHooks::cull_ratio` when a wide picture at a high fov
+needs more.
 
-The HUD stays a 16:9 layout narrowed into the middle, which in Hor+ is exactly the
-16:9 picture, so 3D-anchored HUD items stay on their targets. Every NGL scene is a
-perspective one (`+0x300` = 1, 2D included), so 2D scenes are told apart by who
-makes them, like the menus': the HUD manager's draw (vtable 0x0082a5d8 slot 0x14 =
-0x00311940, called from the in-game UI's FUN_003154b0; compass, health) and CG_Draw2D
-(CG_DrawActive's tail jump at 0x00286c0c; RE_StretchPic adds quads to the current
-scene: crosshair, centre prints). The renderer's narrowing takes an anchor and a factor
-per draw (`UiNarrowing`): menus 4:3 around the centre, the objectives panel 4:3 around
-x = 50 of 640 inside the 16:9 layout, the HUD 16:9; only into the back buffer.
+Every NGL scene is a perspective one (`+0x300` = 1, 2D included), so 2D scenes are told
+apart by who makes them. Our C reports them through `ClientPcHooks` (src/engine/client/cl.h),
+the loader's `in_game_menu_draw` turns them into a narrowing per draw (`UiNarrowing`:
+fixed point and factor, only into the back buffer; draws spanning the full width stay):
 
-Checked: mission 2 at 21:9 (HUD, objectives, pause menu), mission 1 cutscene; 16:9
-unchanged. Not checked: scopes and binoculars (side bars drawn as quads would only
-cover the 16:9 part), death/mission failed screens, missions 3+, 32:9 in play.
+- In-game menus (UIRoot_Draw*'s render calls): 4:3 around the centre.
+- The HUD (0.3b, our own exe - HudManager_Draw as C): each component draws into a child
+  scene of its own, tagged with its anchor (50, 320 or 590 of 640,
+  `hud_component_anchor`). Its 16:9 layout is narrowed by (16/9)/aspect toward its own
+  edge - fixed point 0, 1 or the centre - so it keeps its 16:9 distance from that edge:
+  an edge-anchored HUD. Plain loader runs (HudManager_Draw original) narrow the whole HUD
+  scene into the middle 16:9 instead.
+- The objectives panel (CG_DrawObjectives as C makes a child scene): 4:3 around x = 50
+  of 640 inside the 16:9 layout, that layout toward the left edge (the centre without
+  the edge-anchored HUD).
+- CG_Draw2D (crosshair, centre prints, "Objectives updated", hints): only on wide
+  pictures CG_DrawActive calls it between `draw_2d_begin/end` instead of its tail jump
+  (one stack word deeper, so 16:9 runs keep the original path); narrowed into the
+  middle 16:9, where 3D-anchored items stay on their targets.
+
+Checked 2026-11-13 (our exe): mission 2 at 21:9 with --fov 100 (HUD at the edges,
+compass round, objectives at the left edge, pause menu); 16:9 objectives narrowed again.
+Not checked: scopes and binoculars (side bars drawn as quads would only cover the 16:9
+part), death/mission failed screens, missions 3+, 32:9 in play. Left: CG_Draw2D's
+left-side texts ("Objectives updated") stay in the middle 16:9 on wide pictures.
+
+### Tank health bar (0.3b)
+
+The original's widescreen tank health bar (HudCompTankHealth_Update) fills the 4:3 width
+from the narrowed bar's left edge, so the fill runs past the frame (x 595 against 591 of
+640 at full health, on the Xbox too). `ClientPcHooks::bar_fill_fix` narrows the fill
+width by the same 0.75. The soldier's bar (HudCompHealth) is right as it is.
 
 ## Upscalers (assessment 2026-10-18, not started)
 
@@ -127,12 +147,14 @@ Field of view (campaign; `--fov DEG`, 50-120): cg_fov (default 70, degrees acros
 Hor+ in widescreen), set with Cvar_SetValue at the frame end. Three more places:
 - Weapon defs with a fov of their own (`+0x848`: tanks 55, mounted guns), which
   CG_GetViewFov returns instead of cg_fov, are widened by the same factor in
-  tan(fov / 2) while cgame draws (CG_Draw2D hook), keeping the original.
-- The gun's scene in R_RenderView takes the view's fov_y (`mov ecx,[ebx+0x128]` at
-  0x002475de); off the default it reads a value narrowed back by that factor at the
-  hip and the view's own when zoomed, so the gun looks as at 70 (at 120 the front hand
-  showed under the rifle). One frame late; the original load is back at 70.
-- The widescreen culling fov_x (2 atan(16/9), constants loaded at 0x00284727/0x00284735)
-  grows when a wide picture at a high fov needs more.
+  tan(fov / 2): CG_GetViewFov as C returns `ClientPcHooks::fixed_fov(fov)` (the plain
+  loader's original code: the def is rewritten while cgame draws, keeping the original).
+- The gun's scene in R_RenderView takes the view's fov_y; off the default it reads a
+  value narrowed back by that factor at the hip and the view's own when zoomed
+  (`RendererPcHooks::gun_fov_y`), so the gun looks as at 70 (at 120 the front hand
+  showed under the rifle). One frame late; the original value is back at 70.
+- The widescreen culling fov_x (2 atan(16/9)) grows when a wide picture at a high fov
+  needs more (`ClientPcHooks::cull_ratio`; used only when wider than 16/9, so the
+  default keeps the original's exact value).
 
 Checked: mission 2 (tank) and mission 4 (rifle, hip and sights) at 50-120, user-tested.

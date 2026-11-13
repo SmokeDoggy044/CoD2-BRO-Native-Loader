@@ -27,6 +27,30 @@ struct ClientPcHooks {
     // CL_Frame's SCR_UpdateScreen call goes here instead when set (a title-callable address that keeps the
     // registers and ends in SCR_UpdateScreen): the loader's --level/--exec/--force thunk. 0 = SCR_UpdateScreen.
     uint32_t screen_update_call = 0;
+
+    // Widescreen and field of view (0.3b, docs/developers/rendering.md "Widescreen").
+    // Set: CG_DrawActive calls CG_Draw2D itself between these instead of its tail jump (pictures wider than 16:9:
+    // the crosshair and centre prints are narrowed into the middle).
+    void (XB_CDECL* draw_2d_begin)() = nullptr;
+    void (XB_CDECL* draw_2d_end)() = nullptr;
+    // Around UIRoot_DrawHud's HUD manager draw (compass, health, ammo).
+    void (XB_CDECL* hud_draw_begin)() = nullptr;
+    void (XB_CDECL* hud_draw_end)() = nullptr;
+    // Set: HudManager_Draw puts each component into a child scene of its own and reports it with the
+    // component's anchor (x of 640: 50 left, 320 centre, 590 right) - an edge-anchored HUD on wide pictures.
+    void (XB_CDECL* hud_component_scene)(uint32_t scene, float anchor) = nullptr;
+    // Set: CG_DrawObjectives draws the objectives panel into a child scene of its own and reports it (the
+    // panel is a 4:3 layout; narrowed around the HUD's left anchor).
+    void (XB_CDECL* objectives_scene)(uint32_t scene) = nullptr;
+    // Set: CG_GetViewFov returns this of a weapon def's own fov (+0x848: tanks, mounted guns) - widened with
+    // the player's field of view.
+    float (XB_CDECL* fixed_fov)(float fov) = nullptr;
+    // Set: CG_CalcFov's widescreen culling fov_x is 2 atan(*cull_ratio) instead of 2 atan(16/9) (a wide picture
+    // at a high field of view needs more).
+    const float* cull_ratio = nullptr;
+    // Set: in widescreen the tank health bar fills the narrowed bar's width, not the 4:3 width (the original's
+    // fill runs past the frame's right end).
+    bool bar_fill_fix = false;
 };
 ClientPcHooks& client_pc_hooks();
 

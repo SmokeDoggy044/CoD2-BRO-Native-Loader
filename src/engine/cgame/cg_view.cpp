@@ -4,6 +4,7 @@
 
 #include "cg_ents.h"
 #include "cgame.h"
+#include "cl.h"
 #include "dobj.h"
 #include "g_utils.h"
 #include "lanes.h"
@@ -942,7 +943,10 @@ float XB_CDECL CG_GetViewFov() {
             if (zoomed > zero) return zoomed;
         }
         const float fixed = *reinterpret_cast<const float*>(def + 0x848);
-        if (fixed > zero) return fixed;
+        if (fixed > zero) {
+            const auto widen = client_pc_hooks().fixed_fov;  // PC: widened with the player's field of view
+            return widen ? widen(fixed) : fixed;
+        }
     }
     return fov;
 }
@@ -1255,6 +1259,11 @@ uint32_t XB_CDECL CG_CalcFov() {
     if (title_global<uint32_t>(0x00948f64)) {
         a = g(0x0083eef8);
         b = g(0x0083ebb8);
+        const float* ratio = client_pc_hooks().cull_ratio;  // PC: 1 : ratio (wide pictures, high fovs)
+        if (ratio && *ratio * a > b) {
+            a = 1.0f;
+            b = *ratio;
+        }
     } else {
         a = static_cast<float>(platform_x87_ld(g(0x0083ec9c)) /
                                platform_x87_tan_ext(platform_x87_ld(fov_y) * platform_x87_ld(to_half_radians)));
