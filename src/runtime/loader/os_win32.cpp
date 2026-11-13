@@ -207,7 +207,7 @@ void show_error(const std::string& title, const std::string& text) {
 
 }  // namespace loader::os
 
-namespace {
+namespace loader::os {
 
 [[noreturn]] void run_main(int (*program_main)(int, char**)) {
     // The stub is a GUI program: started from a console (cmd, PowerShell) without
@@ -228,7 +228,4 @@ namespace {
     std::exit(program_main(count, argv.data()));
 }
 
-}  // namespace
-
-extern "C" __declspec(dllexport) void cod_bro_loader_main() { run_main(loader_main); }
-extern "C" __declspec(dllexport) void cod_bro_host_main() { run_main(host_main); }
+}  // namespace loader::os

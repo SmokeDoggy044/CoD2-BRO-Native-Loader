@@ -42,6 +42,11 @@ std::vector<uint8_t> read_launch_data(int id);
 // stderr and the log file have it. Any thread, also while crashing.
 void show_error(const std::string& title, const std::string& text);
 
+#ifdef _WIN32
+// The core DLLs' entries (entry_*_win32.cpp): command line as UTF-8, console, std::exit with program_main's result.
+[[noreturn]] void run_main(int (*program_main)(int, char**));
+#endif
+
 }  // namespace loader::os
 
 // The loader's main (main.cpp), called by the platform's entry point.

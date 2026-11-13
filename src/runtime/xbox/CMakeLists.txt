@@ -12,6 +12,7 @@ target_link_libraries(xbox_host PUBLIC platform)
 
 # xbox: the kernel itself (the loader only).
 add_library(xbox STATIC
+    kernel_memory_exports.cpp
     crypto.cpp
     dispatcher.cpp
     filesystem.cpp

@@ -23,15 +23,25 @@ set(loader_sources
 )
 
 if(WIN32)
-    # The loader proper is a DLL; cod_bro_loader.exe is a stub linked at the XBE's
+    # The program proper is a DLL; cod_bro_loader.exe is a stub linked at the XBE's
     # base address that keeps the Xbox address ranges free and loads it (win32_stub.c).
     # The stub is a GUI program, so starting it from the launcher opens no console;
     # from a console, the loader attaches to it (os_win32.cpp).
-    add_library(cod_bro_loader_core SHARED ${loader_sources} main.cpp host_main.cpp compare_win32.cpp crash_win32.cpp text_trap_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
+    # Two DLLs share the runtime library: cod_bro_loader_core.dll (main.cpp + the kernel) and
+    # cod_bro_core.dll (our own engine, host_main.cpp, xbox_host only - no kernel).
+    add_library(cod_bro_runtime STATIC ${loader_sources} compare_win32.cpp crash_win32.cpp text_trap_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
+    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform shell32 user32 winmm)
+    set(loader_core cod_bro_runtime)
+
+    add_library(cod_bro_loader_core SHARED main.cpp entry_loader_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
     cod_bro_windows_resources(cod_bro_loader_core "Call of Duty 2: Big Red One native loader - core" LIBRARY)
-    target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render text xbox platform shell32 user32 winmm)
-    set(loader_core cod_bro_loader_core)
+    target_link_libraries(cod_bro_loader_core PRIVATE cod_bro_runtime xbox)
+
+    add_library(cod_bro_core SHARED host_main.cpp entry_host_win32.cpp)
+    set_target_properties(cod_bro_core PROPERTIES PREFIX "")
+    cod_bro_windows_resources(cod_bro_core "Call of Duty 2: Big Red One - own engine core" LIBRARY)
+    target_link_libraries(cod_bro_core PRIVATE cod_bro_runtime)  # no kernel (xbox_host only)
 
     add_executable(cod_bro_loader win32_stub.c)
     target_compile_options(cod_bro_loader PRIVATE -O2 -ffreestanding -fno-stack-protector
@@ -45,16 +55,17 @@ if(WIN32)
     cod_bro_windows_resources(cod_bro_loader "Call of Duty 2: Big Red One native loader" PROGRAM)
     add_dependencies(cod_bro_loader cod_bro_loader_core)
 
-    # cod_bro.exe: our own engine (host_main.cpp), the same kind of stub with the core's other entry.
+    # cod_bro.exe: our own engine, the same kind of stub with cod_bro_core.dll's entry.
     add_executable(cod_bro win32_stub.c)
-    target_compile_definitions(cod_bro PRIVATE COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main")
+    target_compile_definitions(cod_bro PRIVATE COD_BRO_LOADER_CORE_DLL="cod_bro_core.dll"
+                               COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main")
     target_compile_options(cod_bro PRIVATE -O2 -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables)
     target_link_options(cod_bro PRIVATE -nostdlib -nostartfiles -Wl,-e,_stub_entry
                         -Wl,--image-base=0x10000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section
                         -Wl,--large-address-aware -Wl,--disable-nxcompat -mwindows)
     target_link_libraries(cod_bro PRIVATE kernel32 user32)
     cod_bro_windows_resources(cod_bro "Call of Duty 2: Big Red One - own engine" PROGRAM)
-    add_dependencies(cod_bro cod_bro_loader_core)
+    add_dependencies(cod_bro cod_bro_core)
 else()
     # The loader's code as a library: cod_bro_loader (main.cpp) and our own engine cod_bro (host_main.cpp) share it.
     add_library(cod_bro_runtime STATIC ${loader_sources} compare_linux.cpp crash_posix.cpp text_trap_linux.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)

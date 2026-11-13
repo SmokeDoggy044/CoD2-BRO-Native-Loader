@@ -11,6 +11,7 @@
 // budget of physical_bytes, so allocations fail where they would on the console.
 
 #include "kernel_memory.h"
+#include "kernel_memory_impl.h"
 
 #include <algorithm>
 #include <cstring>
@@ -220,9 +221,15 @@ void release_reservation(std::map<uint32_t, Reservation>::iterator it) {
     g_memory.reservations.erase(it);
 }
 
+}  // namespace
+
+// The kernel exports' implementations (kernel_memory_impl.h); the stdcall exports themselves are
+// kernel_memory_exports.cpp (kernel library only - cod_bro links none of them).
+namespace memory_impl {
+
 // --- Exports: virtual memory -------------------------------------------------------------
 
-uint32_t XB_STDCALL NtAllocateVirtualMemory(XbPtr* base_address, uint32_t zero_bits, uint32_t* region_size,
+uint32_t NtAllocateVirtualMemory(XbPtr* base_address, uint32_t zero_bits, uint32_t* region_size,
                                             uint32_t allocation_type, uint32_t protect) {
     (void)zero_bits;
     Protection protection;
@@ -281,7 +288,7 @@ uint32_t XB_STDCALL NtAllocateVirtualMemory(XbPtr* base_address, uint32_t zero_b
     return kStatusSuccess;
 }
 
-uint32_t XB_STDCALL NtFreeVirtualMemory(XbPtr* base_address, uint32_t* region_size, uint32_t free_type) {
+uint32_t NtFreeVirtualMemory(XbPtr* base_address, uint32_t* region_size, uint32_t free_type) {
     if (free_type != kMemDecommit && free_type != kMemRelease) return kStatusInvalidParameter;
     const uint32_t address = *base_address;
     std::lock_guard lock(g_memory.mutex);
@@ -316,7 +323,7 @@ uint32_t XB_STDCALL NtFreeVirtualMemory(XbPtr* base_address, uint32_t* region_si
     return kStatusSuccess;
 }
 
-uint32_t XB_STDCALL NtQueryVirtualMemory(XbPtr base_address, XbMemoryBasicInformation* info) {
+uint32_t NtQueryVirtualMemory(XbPtr base_address, XbMemoryBasicInformation* info) {
     std::lock_guard lock(g_memory.mutex);
     const uint32_t address = round_down(base_address, kPage);
     if (!in_virtual_range(address, address + kPage)) {
@@ -349,7 +356,7 @@ uint32_t XB_STDCALL NtQueryVirtualMemory(XbPtr base_address, XbMemoryBasicInform
     return kStatusSuccess;
 }
 
-XbPtr XB_STDCALL MmCreateKernelStack(uint32_t number_of_bytes, uint32_t debugger_thread) {
+XbPtr MmCreateKernelStack(uint32_t number_of_bytes, uint32_t debugger_thread) {
     (void)debugger_thread;
     const uint32_t size = round_up(number_of_bytes, kPage);
     std::lock_guard lock(g_memory.mutex);
@@ -365,7 +372,7 @@ XbPtr XB_STDCALL MmCreateKernelStack(uint32_t number_of_bytes, uint32_t debugger
     return base + kPage + size;  // the stack base is its top
 }
 
-void XB_STDCALL MmDeleteKernelStack(XbPtr stack_base, XbPtr stack_limit) {
+void MmDeleteKernelStack(XbPtr stack_base, XbPtr stack_limit) {
     (void)stack_base;
     std::lock_guard lock(g_memory.mutex);
     const auto it = find_reservation(stack_limit);
@@ -374,6 +381,10 @@ void XB_STDCALL MmDeleteKernelStack(XbPtr stack_base, XbPtr stack_limit) {
     else
         LOG_WARN("memory", "MmDeleteKernelStack(%08x, %08x): not a kernel stack", stack_base, stack_limit);
 }
+
+}  // namespace memory_impl
+
+namespace {
 
 // --- Contiguous memory (g_memory.mutex held) ---------------------------------------------
 
@@ -394,9 +405,13 @@ std::map<uint32_t, uint32_t>::iterator find_contiguous(uint32_t address) {
     return page < it->first + it->second ? it : g_memory.contiguous.end();
 }
 
+}  // namespace
+
+namespace memory_impl {
+
 // --- Exports: contiguous memory --------------------------------------------------------------
 
-XbPtr XB_STDCALL MmAllocateContiguousMemoryEx(uint32_t number_of_bytes, uint32_t lowest_acceptable_address,
+XbPtr MmAllocateContiguousMemoryEx(uint32_t number_of_bytes, uint32_t lowest_acceptable_address,
                                               uint32_t highest_acceptable_address, uint32_t alignment,
                                               uint32_t protect) {
     Protection protection;
@@ -441,11 +456,11 @@ XbPtr XB_STDCALL MmAllocateContiguousMemoryEx(uint32_t number_of_bytes, uint32_t
     return address;
 }
 
-XbPtr XB_STDCALL MmAllocateContiguousMemory(uint32_t number_of_bytes) {
+XbPtr MmAllocateContiguousMemory(uint32_t number_of_bytes) {
     return MmAllocateContiguousMemoryEx(number_of_bytes, 0, 0xFFFFFFFF, 0, kPageReadWrite);
 }
 
-void XB_STDCALL MmFreeContiguousMemory(XbPtr base_address) {
+void MmFreeContiguousMemory(XbPtr base_address) {
     std::lock_guard lock(g_memory.mutex);
     const auto it = find_contiguous(base_address);
     if (it == g_memory.contiguous.end() || g_memory.config.contiguous_base + it->first * kPage != base_address) {
@@ -459,12 +474,12 @@ void XB_STDCALL MmFreeContiguousMemory(XbPtr base_address) {
     KTRACE("MmFreeContiguousMemory(%08x)", base_address);
 }
 
-void XB_STDCALL MmPersistContiguousMemory(XbPtr base_address, uint32_t number_of_bytes, uint32_t persist) {
+void MmPersistContiguousMemory(XbPtr base_address, uint32_t number_of_bytes, uint32_t persist) {
     // Persistence across a reboot into another title; nothing to do here.
     KTRACE("MmPersistContiguousMemory(%08x, %x, %u)", base_address, number_of_bytes, persist & 0xFF);
 }
 
-uint32_t XB_STDCALL MmQueryAllocationSize(XbPtr base_address) {
+uint32_t MmQueryAllocationSize(XbPtr base_address) {
     std::lock_guard lock(g_memory.mutex);
     if (const auto it = find_contiguous(base_address); it != g_memory.contiguous.end()) return it->second * kPage;
     if (in_virtual_range(base_address, base_address + 1))
@@ -472,14 +487,14 @@ uint32_t XB_STDCALL MmQueryAllocationSize(XbPtr base_address) {
     return 0;
 }
 
-XbPtr XB_STDCALL MmGetPhysicalAddress(XbPtr base_address) {
+XbPtr MmGetPhysicalAddress(XbPtr base_address) {
     if (is_contiguous(base_address)) return base_address - g_memory.config.contiguous_base;
     LOG_WARN("memory", "MmGetPhysicalAddress(%08x): not contiguous memory", base_address);
     return 0;
 }
 
 // Protection of one page of contiguous or virtual memory, or 0 if not allocated.
-uint32_t XB_STDCALL MmQueryAddressProtect(XbPtr address) {
+uint32_t MmQueryAddressProtect(XbPtr address) {
     std::lock_guard lock(g_memory.mutex);
     if (find_contiguous(address) != g_memory.contiguous.end())
         return g_memory.contiguous_protect[(address - g_memory.config.contiguous_base) / kPage];
@@ -488,7 +503,7 @@ uint32_t XB_STDCALL MmQueryAddressProtect(XbPtr address) {
     return 0;
 }
 
-void XB_STDCALL MmSetAddressProtect(XbPtr base_address, uint32_t number_of_bytes, uint32_t protect) {
+void MmSetAddressProtect(XbPtr base_address, uint32_t number_of_bytes, uint32_t protect) {
     // Only cache attributes (e.g. PAGE_WRITECOMBINE alone, as D3D titles pass for GPU
     // buffers): the access stays as it is.
     const bool modifiers_only = (protect & 0xFF) == 0 && (protect & kPageModifiers) != 0;
@@ -519,7 +534,7 @@ void XB_STDCALL MmSetAddressProtect(XbPtr base_address, uint32_t number_of_bytes
     }
 }
 
-uint32_t XB_STDCALL MmQueryStatistics(XbMmStatistics* statistics) {
+uint32_t MmQueryStatistics(XbMmStatistics* statistics) {
     if (!statistics || statistics->length != sizeof(XbMmStatistics)) return kStatusInvalidParameter;
     std::lock_guard lock(g_memory.mutex);
     const MemoryState& m = g_memory;
@@ -534,24 +549,7 @@ uint32_t XB_STDCALL MmQueryStatistics(XbMmStatistics* statistics) {
     return kStatusSuccess;
 }
 
-const KernelImpl kMemoryImpls[] = {
-    KIMPL(MmAllocateContiguousMemory),
-    KIMPL(MmAllocateContiguousMemoryEx),
-    KIMPL(MmCreateKernelStack),
-    KIMPL(MmDeleteKernelStack),
-    KIMPL(MmFreeContiguousMemory),
-    KIMPL(MmGetPhysicalAddress),
-    KIMPL(MmPersistContiguousMemory),
-    KIMPL(MmQueryAddressProtect),
-    KIMPL(MmQueryAllocationSize),
-    KIMPL(MmQueryStatistics),
-    KIMPL(MmSetAddressProtect),
-    KIMPL(NtAllocateVirtualMemory),
-    KIMPL(NtFreeVirtualMemory),
-    KIMPL(NtQueryVirtualMemory),
-};
-
-}  // namespace
+}  // namespace memory_impl
 
 bool memory_init(const MemoryConfig& config) {
     std::lock_guard lock(g_memory.mutex);
@@ -589,38 +587,39 @@ bool charge_image_pages(int32_t pages) {
     return false;
 }
 
-std::span<const KernelImpl> memory_kernel_impls() { return kMemoryImpls; }
-
 XbPtr allocate_contiguous(uint32_t bytes, uint32_t alignment) {
-    return MmAllocateContiguousMemoryEx(bytes, 0, 0xFFFFFFFF, alignment, kPageReadWrite | 0x400);
+    return memory_impl::MmAllocateContiguousMemoryEx(bytes, 0, 0xFFFFFFFF, alignment, kPageReadWrite | 0x400);
 }
 
-void free_contiguous(XbPtr address) { MmFreeContiguousMemory(address); }
+void free_contiguous(XbPtr address) { memory_impl::MmFreeContiguousMemory(address); }
 
 // --- Our own C's platform layer (game::TitleHost): the same allocator and budget as the exports -----------------
 
 XbPtr title_allocate_contiguous(uint32_t bytes, uint32_t lowest, uint32_t highest, uint32_t alignment,
                                 uint32_t protect) {
-    return MmAllocateContiguousMemoryEx(bytes, lowest, highest, alignment, protect);
+    return memory_impl::MmAllocateContiguousMemoryEx(bytes, lowest, highest, alignment, protect);
 }
 
-void title_free_contiguous(XbPtr address) { MmFreeContiguousMemory(address); }
+void title_free_contiguous(XbPtr address) { memory_impl::MmFreeContiguousMemory(address); }
 
-void title_protect(XbPtr address, uint32_t bytes, uint32_t protect) { MmSetAddressProtect(address, bytes, protect); }
+void title_protect(XbPtr address, uint32_t bytes, uint32_t protect) {
+    memory_impl::MmSetAddressProtect(address, bytes, protect);
+}
 
-uint32_t title_protection(XbPtr address) { return MmQueryAddressProtect(address); }
+uint32_t title_protection(XbPtr address) { return memory_impl::MmQueryAddressProtect(address); }
 
 TitleMemoryStatistics title_memory_statistics() {
     XbMmStatistics statistics{};
     statistics.length = sizeof(statistics);
-    MmQueryStatistics(&statistics);
+    memory_impl::MmQueryStatistics(&statistics);
     return {statistics.total_physical_pages, statistics.available_pages, statistics.virtual_memory_bytes_reserved};
 }
 
 XbPtr title_reserve(uint32_t bytes) {
     XbPtr base = 0;
     uint32_t region = bytes;
-    if (static_cast<int32_t>(NtAllocateVirtualMemory(&base, 0, &region, 0x3000, kPageReadWrite)) < 0) return 0;
+    const auto status = memory_impl::NtAllocateVirtualMemory(&base, 0, &region, 0x3000, kPageReadWrite);
+    if (static_cast<int32_t>(status) < 0) return 0;
     return base;
 }
 
