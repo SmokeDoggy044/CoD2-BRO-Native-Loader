@@ -98,7 +98,11 @@ fixed point and factor, only into the back buffer; draws spanning the full width
 - The objectives panel (CG_DrawObjectives as C makes a child scene): 4:3 around x = 50
   of 640 inside the 16:9 layout, that layout toward the left edge (the centre without
   the edge-anchored HUD).
-- CG_Draw2D (crosshair, centre prints, "Objectives updated", hints): only on wide
+- CG_Draw2D's side texts go with their edge like the HUD components (`draw_side_anchored` in cgame.cpp: a
+  child scene reported through `hud_component_scene`): the timed message ("Objectives updated", x 30),
+  "Quad Speed" (x 500), the checkpoint notice (x 50), and script HUD elements whose box centre lies in
+  the layout's left or right third.
+- The rest of CG_Draw2D (crosshair, centre prints, hints): only on wide
   pictures CG_DrawActive calls it between `draw_2d_begin/end` instead of its tail jump
   (one stack word deeper, so 16:9 runs keep the original path); narrowed into the
   middle 16:9, where 3D-anchored items stay on their targets.
@@ -118,8 +122,7 @@ integers), which at a render scale s left s/2 surface pixels of scene showing (1
 Checked 2026-11-13 (our exe): Omaha at 21:9 (user: bars, binoculars), mission 2 at 21:9 with --fov 100 (HUD at the edges,
 compass round, objectives at the left edge, pause menu); 16:9 objectives narrowed again.
 Not checked: scopes and binoculars (side bars drawn as quads would only cover the 16:9
-part), death/mission failed screens, missions 3+, 32:9 in play. Left: CG_Draw2D's
-left-side texts ("Objectives updated") stay in the middle 16:9 on wide pictures.
+part), death/mission failed screens, missions 3+, 32:9 in play. 
 
 ### Tank health bar (0.3b)
 

@@ -3250,10 +3250,43 @@ PLATFORM_ASM_ENTRY(CG_DrawHudElem_entry,
                    "pushl %ecx\n" PLATFORM_ASM_CALL(CG_DrawHudElem) "addl $4, %esp\n"
                    "ret")
 
+namespace {
+
+void draw_hud_elem(const uint8_t* elem, uint8_t* layout);  // CG_DrawHudElem's drawing, below
+
+// PC (edge-anchored HUD on pictures wider than 16:9): 2D drawn by `draw` into a child scene of its own, reported
+// with an anchor (x of 640) like a HUD component, when it sits in the left or right third of the layout
+// (centre_x); anywhere else, or without the hook, drawn as it is.
+template <typename Draw>
+void draw_side_anchored(float centre_x, Draw draw) {
+    const auto component_scene = client_pc_hooks().hud_component_scene;
+    const float anchor = centre_x < 640.0f / 3.0f ? 50.0f : centre_x > 1280.0f / 3.0f ? 590.0f : 0.0f;
+    NglScene* const scene =
+        component_scene && anchor > 0.0f && title_global<uint32_t>(0x0090259c) ? nglPushScene(0) : nullptr;
+    if (scene) {
+        nglSetClearFlags(0);
+        nglSetSceneDepthTest(0);
+        nglSetSceneDepthEnable(0);
+        component_scene(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(scene)), anchor);
+    }
+    draw();
+    if (scene) nglPopScene();
+}
+
+}  // namespace
+
 void XB_CDECL CG_DrawHudElem(const uint8_t* elem) {
     alignas(16) uint8_t layout[0x40] = {};
     char buffer[0x2000];
     CG_DrawHudElemText(layout, elem, buffer, 0x2000);
+    // PC: a script element in a side third of the layout goes with that edge (its box: x +4, width +0xc).
+    draw_side_anchored(*reinterpret_cast<const float*>(layout + 4) + *reinterpret_cast<const float*>(layout + 0xc) * 0.5f,
+                       [&] { draw_hud_elem(elem, layout); });
+}
+
+namespace {
+
+void draw_hud_elem(const uint8_t* elem, uint8_t* layout) {
     const char* label = *reinterpret_cast<const char* const*>(layout + 0x10);
     float& x = *reinterpret_cast<float*>(layout);
     if (*label) {
@@ -3281,6 +3314,8 @@ void XB_CDECL CG_DrawHudElem(const uint8_t* elem) {
     if (*reinterpret_cast<const float*>(elem + 0x6c) == g(0x0083ebb4) && !*reinterpret_cast<const int32_t*>(paused + 0x20))
         own_function<void XB_CDECL(uint32_t)>(&SCR_UpdateLoadingIcon)(0);
 }
+
+}  // namespace
 
 int32_t XB_REGS2 XB_CDECL Loc_CountChars(uint32_t, const char* text) {
     if (!text || !*text) return 0;
@@ -3590,11 +3625,11 @@ void XB_CDECL CG_DrawCheckpointReached() {
         const float color[4] = {0.0f, one, 0.0f, t / g(0x0083ec9c)};
         message_time = t - g(0x008ddaa0);
         const uint8_t* string = title_global<const uint8_t*>(0x00975810);
-        draw_text(30.0f, 314.0f, color, string ? reinterpret_cast<const char*>(string + 6) : nullptr);
+        draw_side_anchored(30.0f, [&] { draw_text(30.0f, 314.0f, color, string ? reinterpret_cast<const char*>(string + 6) : nullptr); });
     }
     if (title_global<int32_t>(0x0095bd54) > 0xbe) {
         const float white[4] = {one, one, one, one};
-        draw_text(500.0f, 64.0f, white, &title_global<char>(0x00839ab8));
+        draw_side_anchored(560.0f, [&] { draw_text(500.0f, 64.0f, white, &title_global<char>(0x00839ab8)); });
     }
     uint8_t* game = title_global<uint8_t*>(0x0095f4e0);
     float& checkpoint = *reinterpret_cast<float*>(game + 0x34c);
@@ -3614,7 +3649,7 @@ void XB_CDECL CG_DrawCheckpointReached() {
             text = *reinterpret_cast<const char* const*>(entry + 8);
             if (!text) text = &title_global<char>(0x008379b4);
         }
-        draw_text(50.0f, 64.0f, color, text);
+        draw_side_anchored(50.0f, [&] { draw_text(50.0f, 64.0f, color, text); });
     }
 }
 
