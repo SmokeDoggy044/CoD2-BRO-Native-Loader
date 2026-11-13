@@ -13,6 +13,8 @@ struct TitleShader {
     uint32_t variant;  // vertex programs: the declaration giving packed normals it is made for, or 0
     const unsigned char* d3d9;  // vs_3_0 / ps_3_0
     uint32_t d3d9_bytes;
+    const unsigned char* spirv;  // the same tokens as SPIR-V (vkd3d), layout fixed by vk/spirv_layout.h
+    uint32_t spirv_bytes;
 };
 
 extern const TitleShader kTitleShaders[];

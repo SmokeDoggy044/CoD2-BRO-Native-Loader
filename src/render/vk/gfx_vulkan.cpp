@@ -6,11 +6,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "d3d_internal.h"
 #include "log.h"
+#include "spirv_layout.h"
 #include "title_shaders.h"
 
 namespace render::vk {
@@ -38,6 +40,7 @@ public:
     ~Device() override {
         vk_.wait_idle();
         for (auto& [id, target] : targets_) vk_.destroy_image(target.image);
+        for (auto& [id, shader] : shaders_) vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
     }
 
     // --- GfxDevice ---
@@ -70,17 +73,46 @@ public:
     void unmap_buffer(BufferId) override {}
     void destroy_buffer(BufferId buffer) override { buffers_.erase(buffer); }
 
-    ShaderId create_shader(ShaderStage, const ShaderCode&) override { return next_id_++; }
+    // The SPIR-V with our fixed layout (spirv_layout.h) as a shader module; no SPIR-V (hand-made test
+    // tokens) = none.
+    ShaderId create_shader(ShaderStage stage, const ShaderCode& code) override {
+        std::string error;
+        const std::vector<uint32_t> words =
+            spirv_fixed_layout(code.d3d9, code.d3d9_bytes, code.spirv, code.spirv_bytes, &error);
+        if (words.empty()) {
+            LOG_ERROR("render", "gfx: %s shader without usable SPIR-V: %s",
+                      stage == ShaderStage::Vertex ? "vertex" : "pixel", error.c_str());
+            return 0;
+        }
+        VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        info.codeSize = words.size() * 4;
+        info.pCode = words.data();
+        VkShaderModule module = VK_NULL_HANDLE;
+        if (VkResult r = vkCreateShaderModule(vk_.device(), &info, nullptr, &module); r != VK_SUCCESS) {
+            LOG_ERROR("render", "gfx: vkCreateShaderModule failed (%d)", int(r));
+            return 0;
+        }
+        const ShaderId id = next_id_++;
+        shaders_[id] = {stage, module};
+        return id;
+    }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
             if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
-                return next_id_++;
+                return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes,
+                                             kTitleShaders[i].spirv, kTitleShaders[i].spirv_bytes});
         LOG_ERROR("render", "gfx: no title %s shader %08x (variant %08x)", kind == 'v' ? "vertex" : "pixel", key,
                   variant);
         return 0;
     }
-    void destroy_shader(ShaderId) override {}
+    // Pipelines keep no reference to their modules: a module can go at once.
+    void destroy_shader(ShaderId shader) override {
+        auto it = shaders_.find(shader);
+        if (it == shaders_.end()) return;
+        vkDestroyShaderModule(vk_.device(), it->second.module, nullptr);
+        shaders_.erase(it);
+    }
     LayoutId create_layout(const VertexLayout&) override { return next_id_++; }
 
     TargetId create_target(const TargetDesc& desc) override {
@@ -289,6 +321,11 @@ private:
     std::unordered_map<TargetId, Target> targets_;
     std::unordered_map<TextureId, Texture> textures_;
     std::unordered_map<BufferId, std::vector<uint8_t>> buffers_;
+    struct Shader {
+        ShaderStage stage;
+        VkShaderModule module;
+    };
+    std::unordered_map<ShaderId, Shader> shaders_;
     TargetId back_buffer_ = 0, depth_buffer_ = 0;
     TargetId color_ = 0, depth_ = 0;
     Viewport viewport_;

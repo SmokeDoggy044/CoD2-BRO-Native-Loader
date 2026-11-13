@@ -91,6 +91,19 @@ target_link_libraries(title_shader_test PRIVATE render xbox)
 add_test(NAME title_shader_test COMMAND title_shader_test)
 set_tests_properties(title_shader_test PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
 
+# The title and post shaders' SPIR-V with the Vulkan back end's fixed layout (vk/spirv_layout.h), then
+# through spirv-val when it is installed (Fedora: spirv-tools).
+add_executable(vk_shader_layout_test vk_shader_layout_test.cpp)
+target_include_directories(vk_shader_layout_test PRIVATE ${PROJECT_SOURCE_DIR}/src/render/vk)
+target_link_libraries(vk_shader_layout_test PRIVATE render xbox)
+add_test(NAME vk_shader_layout_test COMMAND vk_shader_layout_test)
+find_program(SPIRV_VAL spirv-val)
+if(SPIRV_VAL AND NOT WIN32)
+    add_test(NAME vk_shader_layout_spirv_val
+             COMMAND ${CMAKE_COMMAND} -DTEST=$<TARGET_FILE:vk_shader_layout_test> -DSPIRV_VAL=${SPIRV_VAL}
+                     -DDIR=${CMAKE_CURRENT_BINARY_DIR}/vk_shader_layout -P ${PROJECT_SOURCE_DIR}/cmake/spirv_val_dir.cmake)
+endif()
+
 # The NAL entropy mode decoders against the title's own code (runs default.xbe's bytes;
 # skipped without the game files).
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

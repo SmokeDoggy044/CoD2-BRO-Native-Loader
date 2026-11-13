@@ -12,6 +12,7 @@ add_library(render STATIC
     vk/gfx_vulkan.cpp
     vk/vk_context.cpp
     vk/vk_mem_alloc.cpp
+    vk/spirv_layout.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders.cpp
     d3d9_draw.cpp
     d3d9_overlay.cpp
@@ -74,9 +75,11 @@ foreach(hlsl ${title_shader_sources})
         set(profile ps_3_0)
     endif()
     set(binary ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.d3dbc)
-    add_custom_command(OUTPUT ${binary}
+    # Beside it the same tokens as SPIR-V for Vulkan (vk/spirv_layout.h fixes the layout at run time).
+    add_custom_command(OUTPUT ${binary} ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.spv
                        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
                        COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
+                       COMMAND ${VKD3D_COMPILER} -x d3dbc -b spirv-binary -o ${CMAKE_CURRENT_BINARY_DIR}/shaders/${name}.spv ${binary}
                        DEPENDS ${hlsl} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/nv2a.hlsli
                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/shaders  # for #include
                        VERBATIM)
@@ -112,9 +115,11 @@ foreach(hlsl ${post_shader_sources})
         set(profile ps_3_0)
     endif()
     set(binary ${CMAKE_CURRENT_BINARY_DIR}/post/${name}.d3dbc)
-    add_custom_command(OUTPUT ${binary}
+    # Beside it the same tokens as SPIR-V for Vulkan (vk/spirv_layout.h fixes the layout at run time).
+    add_custom_command(OUTPUT ${binary} ${CMAKE_CURRENT_BINARY_DIR}/post/${name}.spv
                        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/post
                        COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
+                       COMMAND ${VKD3D_COMPILER} -x d3dbc -b spirv-binary -o ${CMAKE_CURRENT_BINARY_DIR}/post/${name}.spv ${binary}
                        DEPENDS ${hlsl}
                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/post
                        VERBATIM)

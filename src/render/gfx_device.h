@@ -110,6 +110,8 @@ enum class ShaderStage : uint8_t { Vertex, Pixel };
 struct ShaderCode {
     const void* d3d9 = nullptr;  // vs_3_0 / ps_3_0 tokens
     uint32_t d3d9_bytes = 0;
+    const void* spirv = nullptr;  // Vulkan: vkd3d's SPIR-V of the same tokens (both are needed there)
+    uint32_t spirv_bytes = 0;
 };
 
 enum class AttributeType : uint8_t {

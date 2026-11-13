@@ -10,6 +10,8 @@ struct NamedShader {
     const char* name;            // the file's name: post_vs, fxaa, sharpen
     const unsigned char* d3d9;   // vs_3_0 / ps_3_0
     uint32_t d3d9_bytes;
+    const unsigned char* spirv;  // the same as SPIR-V (see title_shaders.h)
+    uint32_t spirv_bytes;
 };
 
 const NamedShader* post_shader(const char* name);  // null if there is none

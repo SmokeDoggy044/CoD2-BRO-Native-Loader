@@ -1,0 +1,22 @@
+# Runs TEST with DIR (it writes NAME.spv files there), then SPIRV_VAL on each (Vulkan 1.3 rules):
+# cmake -DTEST=exe -DSPIRV_VAL=spirv-val -DDIR=dir -P spirv_val_dir.cmake
+file(REMOVE_RECURSE ${DIR})
+execute_process(COMMAND ${TEST} ${DIR} RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+    message(FATAL_ERROR "${TEST} failed")
+endif()
+file(GLOB modules ${DIR}/*.spv)
+list(LENGTH modules count)
+set(failed 0)
+foreach(module ${modules})
+    execute_process(COMMAND ${SPIRV_VAL} --target-env vulkan1.3 ${module} RESULT_VARIABLE result
+                    OUTPUT_VARIABLE out ERROR_VARIABLE out)
+    if(NOT result EQUAL 0)
+        message("${module}: ${out}")
+        math(EXPR failed "${failed} + 1")
+    endif()
+endforeach()
+if(count EQUAL 0 OR failed GREATER 0)
+    message(FATAL_ERROR "spirv-val: ${failed} of ${count} modules failed")
+endif()
+message("spirv-val: all ${count} modules valid")

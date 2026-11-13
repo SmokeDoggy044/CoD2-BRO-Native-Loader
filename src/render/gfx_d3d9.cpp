@@ -447,7 +447,8 @@ public:
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
             if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
-                return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes});
+                return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes,
+                                             kTitleShaders[i].spirv, kTitleShaders[i].spirv_bytes});
         LOG_ERROR("render", "gfx: no title %s shader %08x (variant %08x)", kind == 'v' ? "vertex" : "pixel", key, variant);
         return 0;
     }
