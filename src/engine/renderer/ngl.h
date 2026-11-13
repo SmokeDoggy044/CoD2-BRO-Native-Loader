@@ -49,6 +49,8 @@ struct RendererPcHooks {
     // `key`: the title data that names it: the program itself, or for the shaders assembled at
     // boot the address of their source text.
     void (*shader_loaded)(uint32_t slot, char kind, uint32_t key, uint32_t program, uint32_t declaration) = nullptr;
+    // Set: R_DrawFogPass (the glow levels can turn on) allocates its textures but draws nothing.
+    bool skip_glow_pass = false;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

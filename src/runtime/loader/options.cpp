@@ -182,6 +182,8 @@ void print_usage(const char* program) {
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --mounted-gun-fix on|off  stops the slow down-left drift of the view on mounted guns\n"
         "                   and vehicles without input (default on; off = as on the Xbox)\n"
+        "  --glow on|off    the glow some levels turn on (mission 4's desert): a blurred copy of the\n"
+        "                   picture added over it (default off, as all releases showed it; on = drawn)\n"
         "  --fps display|30|N  frame rate: the display's (default; the display paces each frame),\n"
         "                   30 as on the Xbox, or at most N (31-1000; e.g. 60, or 144 on a 144 Hz\n"
         "                   display without waiting for it); movies always play at 30\n"
@@ -372,6 +374,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.mounted_gun_fix = value == "on";
+        } else if (arg == "--glow") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--glow needs on or off\n");
+                return std::nullopt;
+            }
+            options.glow = value == "on";
         } else if (arg == "--language") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             static constexpr std::pair<std::string_view, uint32_t> kLanguages[] = {

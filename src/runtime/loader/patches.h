@@ -76,6 +76,10 @@ struct TitlePatchConfig {
     // truncating them (the original lifts a negative angle by one unit per command: the view drifts down-left on a
     // mounted gun without input). Needs pc_features and CL_FinishMove as C.
     bool mounted_gun_fix = true;
+    // The glow pass levels can turn on (R_DrawFogPass: a blurred copy of the picture added over it). Off: not
+    // drawn - the D3D9 back end never showed it (D3D9 has no constant-alpha blend factor), and its blur carries
+    // a dark band at the left and top edges. Needs pc_features and R_DrawFogPass as C.
+    bool glow = false;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,

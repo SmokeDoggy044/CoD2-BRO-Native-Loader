@@ -2397,6 +2397,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         if (client_c(0x00318840)) game::client_pc_hooks().bar_fill_fix = true;
         // CL_FinishMove's view angle packing rounds instead of truncating: no mounted-gun drift.
         if (config.mounted_gun_fix && client_c(0x002abb30)) game::client_pc_hooks().round_view_angles = true;
+        // The levels' glow pass not drawn (TitlePatchConfig::glow).
+        game::renderer_pc_hooks().skip_glow_pass = !config.glow;
         g_button_prompts = config.button_prompts;
     } else {
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;

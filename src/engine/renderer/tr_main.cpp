@@ -3335,6 +3335,7 @@ void XB_CDECL R_DrawFogPass() {
     NglTexture** fog = &title_global<NglTexture*>(0x00901e7c);
     fog[0] = title_global<NglTexture*>(0x00902e64);
     fog[1] = title_global<NglTexture*>(0x00902e68);
+    if (renderer_pc_hooks().skip_glow_pass) return;  // the textures as the original (heap), no drawing
     const float size = platform_x87_unsigned_to_float(fog[0]->width);
     using SetState = void XB_STDCALL(uint32_t);
     uint32_t& fill_mode = title_global<uint32_t>(0x00902fb0);
