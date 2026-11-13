@@ -5,6 +5,7 @@
 # still run (union of both, OUT/spots.txt), and - with BASELINE_OUT - whether the dumps are byte-identical
 # to the baseline's and which spots went away / are new.
 # Runs are serialized across worktrees with flock on cod_bro/wt/compare.lock.
+# MISSIONS="m4 m2": replay only those (quick per-batch check; the full set runs after merges).
 # HOST=1: --host instead (no original engine code from the start, no kernel; any original code that runs = crash).
 set -u
 loader=$(readlink -f "$1"); out=$(readlink -m "$2"); base=${3:+$(readlink -m "$3")}
@@ -12,6 +13,7 @@ rec=/mnt/ms1/Projects/Decomps/Xbox/cod_bro/decomp/recordings
 lock=/mnt/ms1/Projects/Decomps/Xbox/cod_bro/wt/compare.lock
 rm -rf "$out"; mkdir -p "$out"
 run() {  # name level recording frame seconds
+    [ -n "${MISSIONS:-}" ] && [[ " $MISSIONS " != *" $1 "* ]] && return 0
     local d=$out/$1; mkdir -p "$d/dump"; cp -a "$rec/$1/$3.saves" "$d/data"
     local mode=(--own-main --text-clear "$d/clear.txt"); [ -n "${HOST:-}" ] && mode=(--host)
     flock "$lock" timeout -s INT -k 15 "$5" "$loader" "${mode[@]}" --data "$d/data" \
@@ -33,6 +35,7 @@ cat "$out"/m*/clear.txt 2>/dev/null | awk '{print $1}' | sort -u > "$out/spots.t
 echo "spots still run: $(wc -l < "$out/spots.txt")"
 if [ -n "$base" ]; then
     for m in m4 m2 m0 m1 m3 m5 m6 m7; do
+        [ -n "${MISSIONS:-}" ] && [[ " $MISSIONS " != *" $m "* ]] && continue
         [ -d "$base/$m/dump" ] || { echo "$m: no baseline dump"; continue; }
         if diff -rq "$base/$m/dump" "$out/$m/dump" > /dev/null; then echo "$m dump: identical to baseline"
         else echo "$m dump: DIFFERS from baseline ($(diff -rq "$base/$m/dump" "$out/$m/dump" | wc -l) files)"; fi
