@@ -7,6 +7,12 @@ target_include_directories(texture_formats PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PR
 # Xbox Direct3D 8 on a D3D9 back end (portable).
 add_library(render STATIC
     backend_d3d9.cpp
+    game_window.cpp
+    vk/backend_vulkan.cpp
+    vk/gfx_vulkan.cpp
+    vk/vk_context.cpp
+    vk/vk_mem_alloc.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders.cpp
     d3d9_draw.cpp
     d3d9_overlay.cpp
     d3d9_shader.cpp
@@ -24,7 +30,33 @@ add_library(render STATIC
     d3d9_post.cpp
     graphics_settings.cpp
 )
-target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vk)
+
+# Vulkan's create-info structs are initialized as {sType} by design.
+if(NOT MSVC)
+    set_source_files_properties(vk/backend_vulkan.cpp vk/gfx_vulkan.cpp vk/vk_context.cpp
+                                PROPERTIES COMPILE_OPTIONS -Wno-missing-field-initializers)
+endif()
+
+# Our own Vulkan shaders (vk/shaders/*.vert, *.frag; GLSL) -> SPIR-V with glslang, embedded (vk/vk_shaders.h).
+file(GLOB vk_shader_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/vk/shaders/*.vert
+     ${CMAKE_CURRENT_SOURCE_DIR}/vk/shaders/*.frag)
+set(vk_shader_binaries "")
+foreach(glsl ${vk_shader_sources})
+    get_filename_component(name ${glsl} NAME)
+    set(binary ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders/${name}.spv)
+    add_custom_command(OUTPUT ${binary}
+                       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders
+                       COMMAND ${GLSLANG_VALIDATOR} --quiet -V --target-env vulkan1.3 -o ${binary} ${glsl}
+                       DEPENDS ${glsl}
+                       VERBATIM)
+    list(APPEND vk_shader_binaries ${binary})
+endforeach()
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders.cpp
+                   COMMAND ${CMAKE_COMMAND} -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/vk_shaders.cpp
+                           "-DINPUTS=${vk_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_spirv.cmake
+                   DEPENDS ${vk_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_spirv.cmake
+                   VERBATIM)
 
 # The title's shaders as HLSL of our own (shaders/*.hlsl, tools/shader_hlsl.py), compiled with
 # vkd3d-shader (Fedora: vkd3d-compiler) and embedded (title_shaders.h).
@@ -55,7 +87,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
                            "-DINPUTS=${title_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    DEPENDS ${title_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    VERBATIM)
-target_link_libraries(render PUBLIC xbox_host platform imgui_dx9 texture_formats)
+target_link_libraries(render PUBLIC xbox_host platform imgui_dx9 texture_formats PRIVATE imgui_vulkan volk vma)
 
 # D3D9 from DXVK (dxvk-native) on Linux. Fedora: dxvk-native-devel, plus its .i686
 # package for the loader. On Windows nothing is linked: the back end loads DXVK's

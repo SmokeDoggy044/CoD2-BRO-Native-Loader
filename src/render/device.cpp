@@ -194,7 +194,11 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
         g.backend->set_frame_buffers(backend_config.back_buffer, backend_config.depth_stencil);
     } else {
         platform::HostFloatEnv float_env;
-        g.backend = create_d3d9_backend(backend_config);
+        if (backend_config.api == BackendConfig::Api::Vulkan) {
+            g.backend = create_vulkan_backend(backend_config);
+            if (!g.backend) LOG_WARN("render", "Vulkan is not available; drawing with Direct3D 9");
+        }
+        if (!g.backend) g.backend = create_d3d9_backend(backend_config);
         if (!g.backend) {
             if (g.config.device_failed) g.config.device_failed();
             return false;

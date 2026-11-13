@@ -13,9 +13,7 @@ namespace render {
 
 namespace {
 
-constexpr uint32_t kSurfaceWidth = 640, kSurfaceHeight = 128;  // the most text drawn at once
-constexpr int kChar = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
-constexpr int kPadding = 4, kLineHeight = kChar + 3;
+constexpr uint32_t kSurfaceWidth = TextImage::kWidth, kSurfaceHeight = TextImage::kHeight;
 
 struct Vertex {
     float x, y, z, rhw, u, v;
@@ -25,49 +23,18 @@ constexpr DWORD kFvf = D3DFVF_XYZRHW | D3DFVF_TEX1;
 }  // namespace
 
 D3D9Overlay::D3D9Overlay(IDirect3DDevice9* device) : device_(device) {
-    surface_ = SDL_CreateSurface(kSurfaceWidth, kSurfaceHeight, SDL_PIXELFORMAT_ARGB8888);
-    if (surface_) renderer_ = SDL_CreateSoftwareRenderer(surface_);
-    if (!renderer_) LOG_WARN("render", "overlay text: %s", SDL_GetError());
     device_->CreateStateBlock(D3DSBT_ALL, &saved_);
 }
 
 D3D9Overlay::~D3D9Overlay() {
     if (saved_) saved_->Release();
     if (texture_) texture_->Release();
-    if (renderer_) SDL_DestroyRenderer(renderer_);
-    if (surface_) SDL_DestroySurface(surface_);
 }
 
 // Renders the lines into the texture (only when they changed); returns the box size.
 bool D3D9Overlay::render_text(const std::vector<std::string>& lines, uint32_t& width, uint32_t& height) {
-    if (!renderer_) return false;
-    if (lines == last_lines_ && texture_) {
-        width = last_width_;
-        height = last_height_;
-        return true;
-    }
-    size_t longest = 0;
-    for (const std::string& line : lines) longest = std::max(longest, line.size());
-    width = std::min<uint32_t>(kSurfaceWidth, static_cast<uint32_t>(longest * kChar + 2 * kPadding));
-    height = std::min<uint32_t>(kSurfaceHeight, static_cast<uint32_t>(lines.size() * kLineHeight + 2 * kPadding - 3));
-
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_NONE);
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 0);
-    SDL_RenderClear(renderer_);
-    const SDL_FRect box{0, 0, static_cast<float>(width), static_cast<float>(height)};
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 180);
-    SDL_RenderFillRect(renderer_, &box);
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    for (size_t i = 0; i < lines.size(); ++i) {
-        // First line yellow (a heading), the rest white.
-        if (i == 0)
-            SDL_SetRenderDrawColor(renderer_, 255, 220, 64, 255);
-        else
-            SDL_SetRenderDrawColor(renderer_, 255, 255, 255, 255);
-        SDL_RenderDebugText(renderer_, kPadding, static_cast<float>(kPadding + i * kLineHeight), lines[i].c_str());
-    }
-    SDL_RenderPresent(renderer_);
-
+    if (!text_.ok()) return false;
+    if (!text_.render(lines, width, height) && texture_) return true;  // unchanged
     if (!texture_) {
         if (FAILED(device_->CreateTexture(kSurfaceWidth, kSurfaceHeight, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
                                           &texture_, nullptr)))
@@ -79,11 +46,8 @@ bool D3D9Overlay::render_text(const std::vector<std::string>& lines, uint32_t& w
     if (FAILED(texture_->LockRect(0, &locked, nullptr, 0))) return false;
     for (uint32_t y = 0; y < kSurfaceHeight; ++y)
         std::memcpy(static_cast<uint8_t*>(locked.pBits) + y * locked.Pitch,
-                    static_cast<const uint8_t*>(surface_->pixels) + y * surface_->pitch, kSurfaceWidth * 4);
+                    static_cast<const uint8_t*>(text_.pixels()) + y * text_.pitch(), kSurfaceWidth * 4);
     texture_->UnlockRect(0);
-    last_lines_ = lines;
-    last_width_ = width;
-    last_height_ = height;
     return true;
 }
 

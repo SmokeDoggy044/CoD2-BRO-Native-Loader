@@ -96,6 +96,11 @@ struct BackendConfig {
     // system's when it cannot create a device. Linux always uses DXVK.
     enum class D3D9 { Auto, Dxvk, System };
     D3D9 d3d9 = D3D9::Auto;
+    // The graphics API (own engine 0.5): Vulkan falls back to D3D9 when it has no device.
+    enum class Api { D3D9, Vulkan };
+    Api api = Api::D3D9;
+    // Vulkan: the Khronos validation layer (development; also COD_BRO_VK_VALIDATION=1).
+    bool vulkan_validation = false;
     // PC brightness on top of the title's gamma ramp (CoD2: BRO has no setting of its
     // own): each value v becomes 255 * (ramp(v) / 255)^(1 / brightness), so black and
     // white stay and the midtones move. 1 = as on the Xbox.
@@ -223,5 +228,6 @@ public:
 
 // Null if the window or device cannot be created (logged).
 std::unique_ptr<Backend> create_d3d9_backend(const BackendConfig& config);
+std::unique_ptr<Backend> create_vulkan_backend(const BackendConfig& config);
 
 }  // namespace render

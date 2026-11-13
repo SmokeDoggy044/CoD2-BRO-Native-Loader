@@ -45,6 +45,8 @@ struct Options {
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
+    render::BackendConfig::Api renderer = render::BackendConfig::Api::D3D9;
+    bool vulkan_validation = false;
     float brightness = 1.0f;
     bool sharp_text = true;
     loader::TitlePatchConfig::ButtonPrompts button_prompts = loader::TitlePatchConfig::ButtonPrompts::Auto;

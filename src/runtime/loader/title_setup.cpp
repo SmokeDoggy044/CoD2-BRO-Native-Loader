@@ -178,6 +178,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
                                           options.pc_patches.value_or(!options.compare) &&
                                           options.replay.mode != xbox::replay::Mode::Replay;
     d3d_config.backend.d3d9 = options.d3d9;
+    d3d_config.backend.api = options.renderer;
+    d3d_config.backend.vulkan_validation = options.vulkan_validation;
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =
         options.sharp_text && text::prepare_sharp_text(assets, platform::executable_dir() / "fonts") > 0;

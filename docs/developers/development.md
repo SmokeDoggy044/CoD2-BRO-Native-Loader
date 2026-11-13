@@ -42,7 +42,7 @@ kernel exports).
 
 Fedora packages for the 32-bit native loader build:
 
-    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler
+    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler glslang
 
 Then:
 

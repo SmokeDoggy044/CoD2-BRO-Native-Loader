@@ -134,6 +134,9 @@ void print_usage(const char* program) {
         "  --button-prompts auto|keyboard|controller  the game's button pictures as keys and\n"
         "                   mouse buttons while the keyboard/mouse is used (auto, default),\n"
         "                   always, or the original controller buttons\n"
+        "  --renderer d3d9|vulkan  the graphics API (default d3d9; vulkan: own engine 0.5, in progress,\n"
+        "                   falls back to d3d9 without a Vulkan 1.3 device)\n"
+        "  --vk-validation  Vulkan: the Khronos validation layer's messages in the log (development)\n"
         "  --d3d9 WHICH     Windows: auto (default: DXVK on Vulkan, else the system's), dxvk or\n"
         "                   system (Linux always uses DXVK)\n"
         "  --screenshots N DIR  save every Nth frame as DIR/frame_<n>.bmp (debugging)\n"
@@ -447,6 +450,18 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 std::fprintf(stderr, "--brightness needs a number (0.5-2.0)\n");
                 return std::nullopt;
             }
+        } else if (arg == "--renderer") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value == "d3d9")
+                options.renderer = render::BackendConfig::Api::D3D9;
+            else if (value == "vulkan")
+                options.renderer = render::BackendConfig::Api::Vulkan;
+            else {
+                std::fprintf(stderr, "--renderer needs d3d9 or vulkan\n");
+                return std::nullopt;
+            }
+        } else if (arg == "--vk-validation") {
+            options.vulkan_validation = true;
         } else if (arg == "--d3d9") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value == "auto")

@@ -19,13 +19,13 @@
 #include "backend.h"
 #include "imgui.h"
 #include "imgui_impl_dx9.h"
-#include "imgui_impl_sdl3.h"
 #include "d3d9_api.h"
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
 #include "d3d9_post.h"
 #include "enhanced_graphics.h"
 #include "d3d9_shader.h"
+#include "game_window.h"
 #include "gfx_d3d9.h"
 #include "log.h"
 #include "paths.h"
@@ -59,40 +59,10 @@ void set_env(const char* name, const std::string& value, bool overwrite) {
 #endif
 }
 
-// BGRX rows -> bottom-up 24-bit BMP.
-bool write_bmp(const char* path, const uint8_t* pixels, int32_t pitch, uint32_t width, uint32_t height) {
-    std::FILE* file = std::fopen(path, "wb");
-    if (!file) return false;
-    const uint32_t row = (width * 3 + 3) & ~3u;
-    const uint32_t image = row * height;
-    uint8_t header[54] = {'B', 'M'};
-    auto put32 = [&](int offset, uint32_t v) { std::memcpy(header + offset, &v, 4); };
-    put32(2, 54 + image);
-    put32(10, 54);
-    put32(14, 40);
-    put32(18, width);
-    put32(22, height);
-    header[26] = 1;
-    header[28] = 24;
-    put32(34, image);
-    std::fwrite(header, 1, sizeof(header), file);
-    std::vector<uint8_t> line(row, 0);
-    for (uint32_t y = height; y-- > 0;) {
-        const uint8_t* src = pixels + static_cast<int64_t>(y) * pitch;
-        for (uint32_t x = 0; x < width; ++x) std::memcpy(&line[x * 3], src + x * 4, 3);
-        std::fwrite(line.data(), 1, row, file);
-    }
-    return std::fclose(file) == 0;
-}
-
 class D3D9Backend final : public Backend {
 public:
     ~D3D9Backend() override {
-        if (menu_ready_) {
-            ImGui_ImplDX9_Shutdown();
-            ImGui_ImplSDL3_Shutdown();
-            ImGui::DestroyContext();
-        }
+        window_.close_menu();  // its renderer needs the device
         overlay_.reset();
         notice_.reset();
         gfx_.reset();
@@ -105,57 +75,23 @@ public:
         release(upload_);
         release(device_);
         release(d3d_);
-        if (window_) SDL_DestroyWindow(window_);
-        if (sdl_started_) SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 
     bool init(const BackendConfig& config) {
-        if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
-            LOG_ERROR("render", "SDL video: %s", SDL_GetError());
-            return false;
-        }
-        sdl_started_ = true;
-        const uint32_t scale = config.window_scale ? config.window_scale : 1;
-        const uint32_t window_height = config.height * scale;
-        const uint32_t window_width =
-            config.display_aspect > 0 ? static_cast<uint32_t>(std::lround(window_height * config.display_aspect))
-                                      : config.width * scale;
 #ifdef _WIN32
         // DXVK on Windows draws into the HWND itself. SDL_WINDOW_VULKAN would make the
         // window depend on a Vulkan driver, which the system's D3D9 does not need.
-        constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_RESIZABLE;
+        constexpr SDL_WindowFlags kWindowFlags = 0;
 #else
-        constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+        constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_VULKAN;
 #endif
-        window_ = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(window_width),
-                                   static_cast<int>(window_height),
-                                   kWindowFlags | (config.hidden_window ? SDL_WINDOW_HIDDEN : 0));
-        if (!window_) {
-            LOG_ERROR("render", "window: %s", SDL_GetError());
-            return false;
-        }
-        if (config.fullscreen) {
-            SDL_SetWindowFullscreen(window_, true);  // borderless, at the desktop's mode
-            SDL_SyncWindow(window_);
-        }
+        if (!window_.open(config, kWindowFlags)) return false;
         int pixel_width = 0, pixel_height = 0;
-        SDL_GetWindowSizeInPixels(window_, &pixel_width, &pixel_height);
+        window_.pixel_size(pixel_width, pixel_height);
         // The swap chain is as large as the largest display, and the window shows its
         // top-left corner (Present's source rectangle): the window can change size or go
         // fullscreen without a device Reset, which would lose every render target.
-        swap_width_ = static_cast<uint32_t>(std::max(pixel_width, 1));
-        swap_height_ = static_cast<uint32_t>(std::max(pixel_height, 1));
-        int display_count = 0;
-        if (SDL_DisplayID* displays = SDL_GetDisplays(&display_count)) {
-            for (int i = 0; i < display_count; ++i) {
-                if (const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(displays[i])) {
-                    const float density = mode->pixel_density > 0 ? mode->pixel_density : 1.0f;
-                    swap_width_ = std::max(swap_width_, static_cast<uint32_t>(std::lround(mode->w * density)));
-                    swap_height_ = std::max(swap_height_, static_cast<uint32_t>(std::lround(mode->h * density)));
-                }
-            }
-            SDL_free(displays);
-        }
+        window_.largest_display(swap_width_, swap_height_);
 #ifndef _WIN32
         // dxvk-native supports several window systems; ours is SDL3.
         set_env("DXVK_WSI_DRIVER", "SDL3", false);
@@ -188,7 +124,7 @@ public:
         pp.BackBufferFormat = D3DFMT_X8R8G8B8;
         pp.BackBufferCount = 1;
         pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-        pp.hDeviceWindow = window_handle(window_);
+        pp.hDeviceWindow = window_handle(window_.sdl());
         pp.Windowed = TRUE;
         pp.EnableAutoDepthStencil = FALSE;
         pp.PresentationInterval = config.wait_for_display ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
@@ -207,13 +143,6 @@ public:
 #endif
         width_ = config.width;
         height_ = config.height;
-        brightness_ = config.brightness > 0 ? config.brightness : 1.0f;
-        {  // the identity ramp until the title sets one (brightness applies from the start)
-            std::lock_guard lock(gamma_mutex_);
-            for (uint32_t i = 0; i < 256; ++i)
-                for (auto& channel : gamma_pending_) channel[i] = static_cast<uint8_t>(i);
-            gamma_changed_ = true;
-        }
         aspect_ = config.display_aspect > 0 ? config.display_aspect : static_cast<float>(width_) / height_;
         pillarbox_ = config.pillarbox_flat_frames && config.display_aspect > 0;
         back_buffer_data_ = config.back_buffer.data;
@@ -225,9 +154,7 @@ public:
         post_ = std::make_unique<D3D9Post>(device_);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
         notice_ = std::make_unique<D3D9Overlay>(device_);
-        pc_menu_ = config.pc_menu;
-        pc_menu_shown_ = config.pc_menu_shown;
-        menu_font_ = config.menu_font;
+        window_.set_menu_renderer([this] { return ImGui_ImplDX9_Init(device_); }, [] { ImGui_ImplDX9_Shutdown(); });
         LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u",
                  config.width, config.height, static_cast<double>(draw_config.render_scale_x()),
                  static_cast<double>(draw_config.render_scale), pixel_width, pixel_height,
@@ -385,7 +312,7 @@ public:
     // between black bars, with the overlay on top.
     void show(const std::vector<std::string>& overlay) {
         int window_width = 0, window_height = 0;
-        SDL_GetWindowSizeInPixels(window_, &window_width, &window_height);
+        window_.pixel_size(window_width, window_height);
         const LONG area_width = std::clamp<LONG>(window_width, 1, static_cast<LONG>(swap_width_));
         const LONG area_height = std::clamp<LONG>(window_height, 1, static_cast<LONG>(swap_height_));
         const RECT area{0, 0, area_width, area_height};
@@ -397,18 +324,9 @@ public:
             constexpr uint32_t kPillarboxAfter = 8;
             pillarboxed_ = pillarbox_ && draw_->frame_is_flat() && draw_->flat_frames_before() >= kPillarboxAfter;
             const double aspect = pillarboxed_ ? static_cast<double>(width_) / height_ : aspect_;
-            LONG width = area_width, height = std::lround(area_width / aspect);
-            if (height > area_height) {
-                height = area_height;
-                width = std::lround(area_height * aspect);
-            }
-            const LONG left = (area_width - width) / 2, top = (area_height - height) / 2;
-            const RECT dest{left, top, left + width, top + height};
-            {
-                std::lock_guard lock(picture_mutex_);
-                picture_ = dest;
-            }
-            if (width != area_width || height != area_height)
+            const WindowRect placed = window_.place_picture({0, 0, area_width, area_height}, aspect);
+            const RECT dest{placed.left, placed.top, placed.right, placed.bottom};
+            if (placed.width() != area_width || placed.height() != area_height)
                 device_->ColorFill(swap_chain, &area, D3DCOLOR_XRGB(0, 0, 0));
             if (!draw_with_gamma(swap_chain, dest))
                 device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
@@ -417,7 +335,7 @@ public:
             const int scale = std::max(1, static_cast<int>(area_height) / 320);
             notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(area_height) * 7 / 10,
                           scale, static_cast<int>(area_width));
-            if (menu_open_) draw_menu(swap_chain);
+            if (window_.menu_open()) draw_menu(swap_chain);
             swap_chain->Release();
         }
         device_->Present(&area, nullptr, nullptr, nullptr);
@@ -438,66 +356,13 @@ public:
 
     GfxDevice* gfx_device() override { return gfx_.get(); }
 
-    double refresh_rate() override {
-        const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
-        if (!mode) return 0;
-        if (mode->refresh_rate_numerator && mode->refresh_rate_denominator)
-            return static_cast<double>(mode->refresh_rate_numerator) / mode->refresh_rate_denominator;
-        return mode->refresh_rate;
-    }
+    double refresh_rate() override { return window_.refresh_rate(); }
 
     void set_overlay(std::vector<std::string> lines) override { overlay_lines_ = std::move(lines); }
     void set_notice(std::vector<std::string> lines) override { notice_lines_ = std::move(lines); }
 
     std::optional<std::string> prompt(const std::vector<std::string>& heading) override {
-        constexpr size_t kMaxText = 200, kLineChars = 76;
-        const bool captured = SDL_GetWindowRelativeMouseMode(window_);
-        SDL_SetWindowRelativeMouseMode(window_, false);
-        SDL_StartTextInput(window_);
-        std::string text;
-        std::optional<std::string> result;
-        bool done = false;
-        while (!done) {
-            SDL_Event event;
-            bool have = SDL_WaitEventTimeout(&event, 100);
-            while (have && !done) {
-                switch (event.type) {
-                    case SDL_EVENT_QUIT:
-                    case SDL_EVENT_WINDOW_CLOSE_REQUESTED: closed_ = done = true; break;
-                    case SDL_EVENT_TEXT_INPUT:
-                        if (text.size() < kMaxText) text += event.text.text;
-                        break;
-                    case SDL_EVENT_KEY_DOWN:
-                        if (event.key.key == SDLK_BACKSPACE) {
-                            while (!text.empty() && (text.back() & 0xC0) == 0x80) text.pop_back();  // UTF-8
-                            if (!text.empty()) text.pop_back();
-                        } else if (event.key.key == SDLK_RETURN || event.key.key == SDLK_KP_ENTER) {
-                            result = text;
-                            done = true;
-                        } else if (event.key.key == SDLK_ESCAPE) {
-                            done = true;
-                        }
-                        break;
-                    default: break;
-                }
-                have = SDL_PollEvent(&event);
-            }
-            std::vector<std::string> lines = heading;
-            const std::string field = "> " + text + "_";
-            for (size_t i = 0; i < field.size(); i += kLineChars) lines.push_back(field.substr(i, kLineChars));
-            lines.push_back("Return: save   Escape: skip");
-            show(lines);
-        }
-        SDL_StopTextInput(window_);
-        // Let go of Return/Escape before the title reads the keyboard again.
-        for (int i = 0; i < 100; ++i) {
-            SDL_PumpEvents();
-            const bool* keys = SDL_GetKeyboardState(nullptr);
-            if (!keys[SDL_SCANCODE_RETURN] && !keys[SDL_SCANCODE_ESCAPE] && !keys[SDL_SCANCODE_KP_ENTER]) break;
-            SDL_Delay(10);
-        }
-        if (captured && !closed_) SDL_SetWindowRelativeMouseMode(window_, true);
-        return result;
+        return window_.prompt(heading, [this](const std::vector<std::string>& lines) { show(lines); });
     }
 
     void draw(const DrawInput& input) override {
@@ -514,106 +379,25 @@ public:
         return draw_->has_cached_vertices(key, content);
     }
 
-    bool pump_events() override {
-        if (closed_) return false;
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return false;
-            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && pc_menu_ &&
-                (event.key.scancode == SDL_SCANCODE_GRAVE || (menu_open_ && event.key.scancode == SDL_SCANCODE_ESCAPE))) {
-                set_menu_open(!menu_open_);
-                continue;
-            }
-            if (menu_open_) ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12 && !event.key.repeat)
-                mark_requested_ = true;
-            if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
-                highlight_toggled_ = true;
-            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && (event.key.mod & SDL_KMOD_ALT) &&
-                (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)) {
-                const bool fullscreen = !(SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN);
-                SDL_SetWindowFullscreen(window_, fullscreen);
-                LOG_INFO("render", "%s (Alt+Enter)", fullscreen ? "fullscreen" : "windowed");
-            }
-        }
-        return true;
-    }
+    bool pump_events() override { return window_.pump_events(); }
 
-    bool take_mark_request() override { return std::exchange(mark_requested_, false); }
-    bool take_highlight_toggle() override { return std::exchange(highlight_toggled_, false); }
+    bool take_mark_request() override { return window_.take_mark_request(); }
+    bool take_highlight_toggle() override { return window_.take_highlight_toggle(); }
     void set_highlight(bool on) override { draw_->set_highlight(on); }
     uint32_t unsupported_draws() override { return draw_->unsupported_draws(); }
     void dump_next_frame() override { draw_->dump_next_frame(); }
 
-    void set_gamma_ramp(const uint8_t (&ramp)[3][256]) override {
-        std::lock_guard lock(gamma_mutex_);
-        std::memcpy(gamma_pending_, ramp, sizeof(gamma_pending_));
-        gamma_changed_ = true;
-    }
+    void set_gamma_ramp(const uint8_t (&ramp)[3][256]) override { window_.set_gamma_ramp(ramp); }
 
     bool window_to_screen(float x, float y, float& screen_x, float& screen_y) override {
-        RECT picture;
-        {
-            std::lock_guard lock(picture_mutex_);
-            picture = picture_;
-        }
-        const float height = static_cast<float>(picture.bottom - picture.top);
-        if (height <= 0.0f) return false;
-        const float scale = static_cast<float>(height_) / height;
-        screen_x = static_cast<float>(width_) / 2 + (x - static_cast<float>(picture.left + picture.right) / 2) * scale;
-        screen_y = (y - static_cast<float>(picture.top)) * scale;
-        return true;
+        return window_.window_to_screen(x, y, screen_x, screen_y);
     }
 
 private:
-    // The PC menu (BackendConfig::pc_menu). Dear ImGui is set up the first time it opens.
-    bool init_menu() {
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        io.IniFilename = nullptr;
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-        ImGui::StyleColorsDark();
-        int window_width = 0, window_height = 0;
-        SDL_GetWindowSize(window_, &window_width, &window_height);
-        const float size = std::clamp(static_cast<float>(window_height) / 34.0f, 15.0f, 48.0f);
-        if (menu_font_.empty() || !io.Fonts->AddFontFromFileTTF(menu_font_.c_str(), size)) {
-            ImFontConfig font;
-            font.SizePixels = std::round(size);
-            io.Fonts->AddFontDefault(&font);
-        }
-        ImGui::GetStyle().ScaleAllSizes(size / 16.0f);
-        // InitForD3D asserts outside Windows (DXVK is D3D9 there too); both only set up SDL input.
-        if (!ImGui_ImplSDL3_InitForOther(window_) || !ImGui_ImplDX9_Init(device_)) {
-            LOG_ERROR("render", "the PC menu cannot start (Dear ImGui)");
-            ImGui::DestroyContext();
-            pc_menu_ = nullptr;
-            return false;
-        }
-        menu_ready_ = true;
-        return true;
-    }
-
-    void set_menu_open(bool open) {
-        if (open == menu_open_ || (open && !menu_ready_ && !init_menu())) return;
-        menu_open_ = open;
-        if (pc_menu_shown_) pc_menu_shown_(open);  // the game's input first, so it does not take the mouse
-        if (open) {
-            menu_recapture_ = SDL_GetWindowRelativeMouseMode(window_);
-            SDL_SetWindowRelativeMouseMode(window_, false);
-        } else if (menu_recapture_) {
-            SDL_SetWindowRelativeMouseMode(window_, true);
-        }
-        LOG_INFO("render", "PC menu %s", open ? "opened" : "closed");
-    }
-
     // Draws the menu on `target` (the swap chain's back buffer), at the window's size.
     void draw_menu(IDirect3DSurface9* target) {
         ImGui_ImplDX9_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
-        const bool keep = pc_menu_();
-        ImGui::Render();
+        window_.menu_frame();
         IDirect3DSurface9 *old_target = nullptr, *old_depth = nullptr;
         device_->GetRenderTarget(0, &old_target);
         device_->GetDepthStencilSurface(&old_depth);
@@ -626,26 +410,16 @@ private:
         device_->SetDepthStencilSurface(old_depth);
         release(old_target);
         release(old_depth);
-        if (!keep) set_menu_open(false);
     }
 
     // Copies the title's back buffer to `dest` through the gamma ramp. False (the
     // caller copies it plainly) while the ramp is the identity or the pass fails.
     bool draw_with_gamma(IDirect3DSurface9* swap_chain, const RECT& dest) {
-        {
-            std::lock_guard lock(gamma_mutex_);
-            if (gamma_changed_) {
-                gamma_changed_ = false;
-                if (brightness_ != 1.0f)
-                    for (auto& channel : gamma_pending_)
-                        for (uint8_t& value : channel)
-                            value = static_cast<uint8_t>(std::lround(
-                                255.0 * std::pow(value / 255.0, 1.0 / static_cast<double>(brightness_))));
-                gamma_identity_ = true;
-                for (uint32_t i = 0; i < 256; ++i)
-                    for (const auto& channel : gamma_pending_) gamma_identity_ = gamma_identity_ && channel[i] == i;
-                if (!gamma_identity_ && !upload_gamma_table()) gamma_identity_ = true;
-            }
+        uint32_t table[256];
+        bool identity = true;
+        if (window_.take_gamma_table(table, identity)) {
+            gamma_identity_ = identity;
+            if (!gamma_identity_ && !upload_gamma_table(table)) gamma_identity_ = true;
         }
         IDirect3DTexture9* source = draw_->target_texture(back_buffer_data_);
         if (gamma_identity_ || !source) return false;
@@ -713,23 +487,18 @@ private:
         return ok;
     }
 
-    // gamma_pending_ -> gamma_table_ (under gamma_mutex_).
-    bool upload_gamma_table() {
+    bool upload_gamma_table(const uint32_t (&table)[256]) {
         if (!gamma_table_ &&
             FAILED(device_->CreateTexture(256, 1, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &gamma_table_, nullptr)))
             return false;
         D3DLOCKED_RECT locked{};
         if (FAILED(gamma_table_->LockRect(0, &locked, nullptr, 0))) return false;
-        auto* texels = static_cast<uint32_t*>(locked.pBits);
-        for (uint32_t i = 0; i < 256; ++i)
-            texels[i] = 0xFF000000u | uint32_t{gamma_pending_[0][i]} << 16 | uint32_t{gamma_pending_[1][i]} << 8 |
-                        gamma_pending_[2][i];
+        std::memcpy(locked.pBits, table, sizeof(table));
         gamma_table_->UnlockRect(0);
         return true;
     }
 
-    bool sdl_started_ = false;
-    SDL_Window* window_ = nullptr;
+    GameWindow window_;
     IDirect3D9* d3d_ = nullptr;
     IDirect3DDevice9* device_ = nullptr;
     IDirect3DSurface9* staging_ = nullptr;  // CPU-written back buffer upload
@@ -743,26 +512,11 @@ private:
     uint32_t back_buffer_data_ = 0;
     bool pillarbox_ = false;    // BackendConfig::pillarbox_flat_frames
     bool pillarboxed_ = false;  // the frame shown last was
-    std::mutex picture_mutex_;
-    RECT picture_{};  // where the last frame was shown in the window; guarded by picture_mutex_
-    bool mark_requested_ = false;
-    bool highlight_toggled_ = false;
-    bool closed_ = false;
-    bool (*pc_menu_)() = nullptr;               // BackendConfig::pc_menu
-    void (*pc_menu_shown_)(bool) = nullptr;      // BackendConfig::pc_menu_shown
-    std::string menu_font_;
-    bool menu_ready_ = false;      // Dear ImGui is set up
-    bool menu_open_ = false;
-    bool menu_recapture_ = false;  // the mouse was captured when the menu opened
     std::unique_ptr<D3D9Overlay> overlay_;
     std::vector<std::string> overlay_lines_;
     std::unique_ptr<D3D9Overlay> notice_;  // its own, so neither redraws its text every frame
     std::vector<std::string> notice_lines_;
-    std::mutex gamma_mutex_;
-    uint8_t gamma_pending_[3][256] = {};  // guarded by gamma_mutex_
-    bool gamma_changed_ = false;          // guarded by gamma_mutex_
     bool gamma_identity_ = true;
-    float brightness_ = 1.0f;  // BackendConfig::brightness
     IDirect3DTexture9* gamma_table_ = nullptr;
     IDirect3DPixelShader9* gamma_shader_ = nullptr;
     IDirect3DStateBlock9* gamma_state_ = nullptr;

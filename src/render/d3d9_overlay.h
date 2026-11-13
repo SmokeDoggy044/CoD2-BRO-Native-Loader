@@ -9,9 +9,8 @@
 #include <vector>
 
 #include "d3d9_api.h"
+#include "game_window.h"
 
-struct SDL_Surface;
-struct SDL_Renderer;
 
 namespace render {
 
@@ -37,10 +36,7 @@ private:
     IDirect3DStateBlock9* saved_ = nullptr;
     IDirect3DTexture9* texture_ = nullptr;
     uint32_t texture_width_ = 0, texture_height_ = 0;
-    SDL_Surface* surface_ = nullptr;
-    SDL_Renderer* renderer_ = nullptr;
-    std::vector<std::string> last_lines_;
-    uint32_t last_width_ = 0, last_height_ = 0;
+    TextImage text_;
 };
 
 }  // namespace render
