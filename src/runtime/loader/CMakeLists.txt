@@ -7,6 +7,8 @@ set(loader_sources
     host_image.cpp
     kernel_thunks.cpp
     main.cpp
+    options.cpp
+    title_setup.cpp
     patches.cpp
     pc_menu.cpp
     profiler.cpp
