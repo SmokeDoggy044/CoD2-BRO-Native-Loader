@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "gfx_state.h"
@@ -324,6 +325,24 @@ render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
 
 // The texture standing for a title texture header (D3DTexture) and its palette header (P8, else
 // 0) now; 0 if there is none. Memory a render target uses samples the target.
+// COD_BRO_TEXTURE_LOG=FILE (developer, phase 1a): each texture content the title draws, once - the runtime hash
+// texture packs are keyed by, with its layout (tools/texture_bridge.py maps them to the dump's files).
+void log_texture(uint64_t content, uint32_t format, const render::TextureLayout& layout, uint32_t size, bool palette) {
+    static FILE* file = [] {
+        const char* path = std::getenv("COD_BRO_TEXTURE_LOG");
+        FILE* f = path && *path ? std::fopen(path, "w") : nullptr;
+        if (f) std::fprintf(f, "content,format,kind,width,height,levels,size,linear,palette\n");
+        return f;
+    }();
+    if (!file) return;
+    static std::unordered_set<uint64_t> logged;
+    if (!logged.insert(content).second) return;
+    std::fprintf(file, "%016llx,%08x,%d,%u,%u,%u,%u,%d,%d\n", static_cast<unsigned long long>(content), format,
+                 static_cast<int>(layout.kind), layout.width, layout.height, layout.levels, size, layout.linear ? 1 : 0,
+                 palette ? 1 : 0, layout.cube ? 1 : 0);
+    std::fflush(file);
+}
+
 render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palette_header) {
     const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(header));
     const uint32_t data = words[1], format = words[3], size_field = words[4];
@@ -360,6 +379,7 @@ render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palett
     if (!full_check) return t.shown;
     uint64_t content = render::hash_bytes(memory, size);
     if (palette) content = render::hash_bytes(palette, 256 * 4, content);
+    log_texture(content, format, layout, size, palette != nullptr);
     // Replacements are for swizzled pictures without a palette (fonts, button prompts).
     const render::TextureId replacement =
         layout.linear || palette ? 0 : o.device->replacement_texture(content, layout.levels > 1);
