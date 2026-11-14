@@ -309,12 +309,20 @@ const SettingUi kUi[] = {
      "Standard Edition disc is English only, a European disc has its own languages (and may have no English). The "
      "log lists the disc's languages.",
      "English|German|French|Spanish|Italian"},
+    // Renderer first: the launcher's Graphics tab starts with it
+    {"renderer", "Renderer", "Renderer",
+     "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
+     "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",
+     "Vulkan|Direct3D 9"},
+    {"d3d9", nullptr, "Direct3D 9 through",
+     "Automatic uses Vulkan through the included DXVK and falls back to the Direct3D 9 that comes with Windows when "
+     "Vulkan is not available. Choose one yourself if the picture or the speed is wrong with the other.",
+     "Automatic|Vulkan (DXVK)|Direct3D 9 (Windows)", nullptr, "renderer=d3d9"},
     // Display
     {"aspect", "Window", "Aspect ratio", nullptr},
     {"fullscreen", nullptr, "Fullscreen", "Alt+Enter switches between window and fullscreen while playing."},
     {"scale", nullptr, "Window size", nullptr, nullptr, "x%d", "fullscreen=false"},
     {"render-scale", "Picture", "Render scale", nullptr},
-    {"anisotropy", nullptr, "Texture filtering", nullptr},
     {"fps", nullptr, "Frame rate", nullptr},
     {"brightness", nullptr, "Brightness",
      "1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night missions); black and white "
@@ -335,8 +343,9 @@ const SettingUi kUi[] = {
     {"fxaa", nullptr, "Anti-aliasing (FXAA)", "Smooths jagged edges in the 3D picture. Menus and the HUD are left as "
      "they are.", nullptr, nullptr, "graphics=enhanced"},
     {"anisotropic", nullptr, "Anisotropic filtering",
-     "Sharp textures on the ground and walls seen at a slant, at the Texture filtering level (launcher: Graphics).",
+     "Sharp textures on the ground and walls seen at a slant, at the level below (the level: launcher only).",
      nullptr, nullptr, "graphics=enhanced"},
+    {"anisotropy", nullptr, "Filtering level", nullptr, nullptr, nullptr, "anisotropic"},
     {"sharpen", nullptr, "Sharpening",
      "Contrast-adaptive sharpening of the 3D picture: more detail without halos at hard edges.", nullptr, nullptr,
      "graphics=enhanced"},
@@ -350,14 +359,6 @@ const SettingUi kUi[] = {
      "graphics=enhanced"},
     {"lod-bias", nullptr, "Detail bias", "0 = the game's choice (the default); lower is sharper.", nullptr, "%.2f",
      "texture-detail"},
-    {"renderer", "Renderer", "Renderer",
-     "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
-     "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",
-     "Vulkan|Direct3D 9"},
-    {"d3d9", nullptr, "Direct3D 9 through",
-     "Automatic uses Vulkan through the included DXVK and falls back to the Direct3D 9 that comes with Windows when "
-     "Vulkan is not available. Choose one yourself if the picture or the speed is wrong with the other.",
-     "Automatic|Vulkan (DXVK)|Direct3D 9 (Windows)", nullptr, "renderer=d3d9"},
     // Sound
     {"speakers", "Output", "Speakers",
      "Automatic: what your output device has, with 3D sound for headphones when the game's own settings ask for "

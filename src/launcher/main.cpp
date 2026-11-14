@@ -252,7 +252,8 @@ private:
     }
 
     // The Display and Graphics settings the table's standard widgets do not fit.
-    bool picture_widget(const platform::SettingDef& def, platform::Settings& values, bool& changed) {
+    bool picture_widget(const platform::SettingDef& def, const platform::SettingUi& ui, platform::Settings& values,
+                        bool& changed) {
         const std::string_view key = def.key;
         const std::string aspect = ui::setting_value(values, "aspect");
         const float ratio = aspect == "4:3" ? 4.0f / 3.0f : std::max(aspect_ratio(aspect), 16.0f / 9.0f);
@@ -326,8 +327,7 @@ private:
             static constexpr int kAnisotropy[] = {1, 2, 4, 8, 16};
             int index = 0;
             while (index < 4 && kAnisotropy[index] < std::atoi(ui::setting_value(values, "anisotropy").c_str())) ++index;
-            if (ImGui::Combo("Texture filtering", &index, "Original\0" "Anisotropic x2\0" "Anisotropic x4\0"
-                             "Anisotropic x8\0" "Anisotropic x16\0")) {
+            if (ImGui::Combo(ui.label, &index, "x1 (none)\0" "x2\0" "x4\0" "x8\0" "x16\0")) {
                 ui::put_setting(values, "anisotropy", std::to_string(kAnisotropy[index]));
                 changed = true;
             }
@@ -359,8 +359,8 @@ private:
 
     void graphics() {
         ui::DrawOptions options;
-        options.custom = [&](const platform::SettingDef& def, const platform::SettingUi&, platform::Settings& values,
-                             bool& changed) { return picture_widget(def, values, changed); };
+        options.custom = [&](const platform::SettingDef& def, const platform::SettingUi& ui, platform::Settings& values,
+                             bool& changed) { return picture_widget(def, ui, values, changed); };
         ui::draw_settings({platform::SettingGroup::Display, platform::SettingGroup::Graphics}, settings_, options);
     }
 
