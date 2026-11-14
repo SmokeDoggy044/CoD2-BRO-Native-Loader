@@ -179,6 +179,12 @@ void configure_title_services(const Options& options, const fs::path& assets, co
                                           options.replay.mode != xbox::replay::Mode::Replay;
     d3d_config.backend.d3d9 = options.d3d9;
     d3d_config.backend.api = options.renderer;
+    // Multiplayer still draws on the Xbox D3D path (its renderer is the original code, not our C through
+    // GfxDevice), which only the Direct3D 9 back end has: Vulkan would show the background and nothing else.
+    if (title.id != loader::TitleId::Campaign && options.renderer == render::BackendConfig::Api::Vulkan) {
+        d3d_config.backend.api = render::BackendConfig::Api::D3D9;
+        LOG_INFO("render", "multiplayer: Direct3D 9 (its renderer is not ours yet; Vulkan draws only ours)");
+    }
     d3d_config.backend.vulkan_validation = options.vulkan_validation;
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =
