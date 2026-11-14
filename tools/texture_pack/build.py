@@ -12,8 +12,9 @@ WORK holds every stage's output, so each stage resumes where it stopped and late
   WORK/<name>-<version>.zip with --zip (the mod folder, for distribution apart from the code repos)
 
 Selection: unique dump textures (manifest.csv, by content), filtered by --source (regex on the pack path, e.g.
-'^sp/prologue/' for the pilot) and/or --bridge (only textures a texture_bridge.py run saw drawn). Skipped, but
-listed in select.csv: lightmaps, font pages, textures under --min-size texels on a side (ramps, lookups, 1x1s) and
+'^sp/prologue/' for the pilot) and/or --bridge (only textures a texture_bridge.py run saw drawn). --classes picks world
+(3D surfaces, default) and/or ui (menus, HUD, button prompts: build them into their own WORK with a model for flat
+art - PBRify smears them). Skipped, but listed in select.csv: the other class, lightmaps, font pages, textures under --min-size texels on a side (ramps, lookups, 1x1s) and
 curation 'skip' rows (a curation action overrides the automatic skips).
 
 Encoding: a colour fix first (the upscale's low frequencies matched to the original: the model brightens),
@@ -53,7 +54,7 @@ PBR_MODELS = [XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_NormalV3.pth",
               XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_RoughnessV2.pth"]
 DDS_HEADER = 128
 SELECT_FIELDS = ["key", "content_sha1", "asset_path", "source", "format", "width", "height", "alpha", "wrap_x",
-                 "wrap_y", "action", "masks", "skip"]
+                 "wrap_y", "class", "action", "masks", "skip"]
 
 
 def read_payload(unpacked, row):
@@ -101,6 +102,15 @@ LIGHTMAP = re.compile(r"[\\/]lightmaps[\\/]", re.I)
 FONT = re.compile(r"[\\/][^\\/]*(font|garamond|arialblack)[^\\/]*\.dds$", re.I)
 
 
+UI = re.compile(r"[\\/](shell|hud)[\\/]|[\\/]textures[\\/]global[\\/]", re.I)
+
+
+def texture_class(asset_path):
+    """world = surfaces in the 3D scene (PBRify fits: user 11-14, all passed); ui = menus, HUD, button prompts
+    (flat art and lettering the texture model smears: a pack of its own with another workflow)."""
+    return "ui" if UI.search(asset_path) else "world"
+
+
 def auto_skip(asset_path):
     """Not surface pictures: baked lighting (the model shifts it by up to 12 levels) and font pages (sharp text
     replaces them already). A curation row with an action overrides this."""
@@ -144,10 +154,12 @@ def select(args):
     with ProcessPoolExecutor(args.jobs) as pool:
         for s in pool.map(analyse, pngs, chunksize=8):
             c = curation.get(s["asset_path"]) or curation.get(s["content_sha1"]) or {}
+            s["class"] = texture_class(s["asset_path"])
             s["action"] = c.get("action") or "upscale"
             s["masks"] = c.get("masks", "")
             s["skip"] = ("curation" if s["action"] == "skip" else "" if c.get("action") else
-                         auto_skip(s["asset_path"]) or ("small" if min(s["width"], s["height"]) < args.min_size else ""))
+                         auto_skip(s["asset_path"]) or
+                         (s["class"] if s["class"] not in args.classes.split(",") else "") or ("small" if min(s["width"], s["height"]) < args.min_size else ""))
             out.append(s)
     with open(args.work / "select.csv", "w", newline="") as f:
         w = csv.DictWriter(f, SELECT_FIELDS)
@@ -360,6 +372,7 @@ def main():
     p.add_argument("--source", default="", help="regex on the dump pack path")
     p.add_argument("--bridge", type=Path, nargs="*", default=[])
     p.add_argument("--limit", type=int, default=0)
+    p.add_argument("--classes", default="world", help="texture classes to build: world, ui (comma-separated)")
     p.add_argument("--min-size", type=int, default=16)
     p.add_argument("--max-size", type=int, default=4096)
     p.add_argument("--curation", type=Path)
