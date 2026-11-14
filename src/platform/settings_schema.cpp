@@ -256,7 +256,8 @@ const SettingDef kSettings[] = {
     {"replay-speed", "N", T::Float, G::Developer, kCli, 0.001, 64, nullptr, "1",
      "with --replay: play N times faster (vertical blank and sound; no sound output)"},
     {"replay-no-draw", "", T::Flag, G::Developer, kCli, 0, 0, nullptr, "false",
-     "with --replay: no draws or clears on the GPU (game logic only, faster checks)"},
+     "with --replay: no draws or clears on the GPU (game logic only, faster checks); with --replay-shots only the "
+     "frames just before each picture are drawn"},
     {"replay-dump", "N[-M[:S]] DIR", T::Custom, G::Developer, kCli, 0, 0, nullptr, "",
      "with --record/--replay: game state of frame N (or every [S-th] frame N..M) to DIR (tools/replay_diff.py)"},
     {"replay-shots", "N,N.. DIR", T::Custom, G::Developer, kCli, 0, 0, nullptr, "",

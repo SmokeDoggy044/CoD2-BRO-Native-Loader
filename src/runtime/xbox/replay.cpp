@@ -458,6 +458,12 @@ std::string screenshot_path() {
 
 uint32_t frame_number() { return g_frame; }
 
+uint32_t frames_to_next_shot() {
+    const auto& frames = g_config.shot_frames;
+    const auto next = std::lower_bound(frames.begin(), frames.end(), g_frame);
+    return next == frames.end() ? UINT32_MAX : *next - g_frame;
+}
+
 void frame() {
     if (g_config.mode == Mode::Off) return;
     if (!t_bound) {

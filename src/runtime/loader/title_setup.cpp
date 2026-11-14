@@ -77,6 +77,9 @@
 
 namespace loader {
 
+// --replay-no-draw with --replay-shots: frames drawn before each picture (2 s: texture caches, fades, motion blur).
+constexpr uint32_t kDrawFramesBeforeShot = 120;
+
 uint32_t current_kthread() {
     const loader::ThreadEnv* env = loader::current_thread_env();
     return env ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(env->kthread)) : 0;
@@ -228,7 +231,17 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     } else if (options.replay.mode != xbox::replay::Mode::Off) {
         d3d_config.frame_presented = &xbox::replay::frame;
         if (options.replay.mode == xbox::replay::Mode::Replay) d3d_config.vblank_speed = options.replay_speed;
-        if (options.replay.mode == xbox::replay::Mode::Replay && options.replay_no_draw) render::g_skip_gpu_draws = true;
+        if (options.replay.mode == xbox::replay::Mode::Replay && options.replay_no_draw) {
+            render::g_skip_gpu_draws = true;
+            if (!options.replay.shot_frames.empty()) {
+                // Pictures wanted: draw only the frames just before each (caches and fades settle), the rest no-draw.
+                render::g_skip_keeps_uploads = true;
+                d3d_config.frame_presented = [] {
+                    xbox::replay::frame();
+                    render::g_skip_gpu_draws = xbox::replay::frames_to_next_shot() > kDrawFramesBeforeShot;
+                };
+            }
+        }
         if (!options.replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
     if (options.diag_dir) {

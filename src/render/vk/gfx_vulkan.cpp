@@ -278,7 +278,7 @@ public:
     bool update_texture(TextureId id, uint32_t level, uint32_t face, const void* data, uint32_t pitch,
                         uint32_t slice_pitch) override {
         auto it = textures_.find(id);
-        if (it == textures_.end() || !it->second.image || !data || g_skip_gpu_draws) return it != textures_.end();
+        if (it == textures_.end() || !it->second.image || !data || (g_skip_gpu_draws && !g_skip_keeps_uploads)) return it != textures_.end();
         Texture& t = it->second;
         const uint32_t width = std::max(1u, t.image.width >> level);
         const uint32_t height = std::max(1u, t.image.height >> level);
@@ -354,7 +354,7 @@ public:
         Buffer& b = it->second;
         b.mapped = false;
         if (b.desc.usage == BufferUsage::Static) {
-            if (!g_skip_gpu_draws) vk_.upload_buffer(b.statik.buffer, b.map_offset, b.pending.data(), b.map_bytes);
+            if (!g_skip_gpu_draws || g_skip_keeps_uploads) vk_.upload_buffer(b.statik.buffer, b.map_offset, b.pending.data(), b.map_bytes);
             b.pending.clear();
             b.pending.shrink_to_fit();
         } else {

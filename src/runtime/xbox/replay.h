@@ -91,4 +91,7 @@ uint32_t frame_number();
 // After frame(): where to save this frame's picture (Config::shot_frames), empty if not wanted.
 std::string screenshot_path();
 
+// Frames from the current one to the next Config::shot_frames entry (0 = this one), UINT32_MAX when none is left.
+uint32_t frames_to_next_shot();
+
 }  // namespace xbox::replay

@@ -27,6 +27,9 @@ namespace render {
 // --replay-no-draw: draws and clears are not sent to the GPU (resources, state and our renderer C still run), so a
 // replay checks the game without the draw-call cost. Set once at startup.
 inline bool g_skip_gpu_draws = false;
+// While g_skip_gpu_draws: still upload textures and buffers, so drawing can resume later with complete contents
+// (--replay-no-draw with --replay-shots draws only the frames before each picture).
+inline bool g_skip_keeps_uploads = false;
 
 class GfxDevice;
 
