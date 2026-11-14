@@ -70,7 +70,9 @@ public:
     uint32_t queue_family() const { return queue_family_; }
     VkSurfaceKHR surface() const { return surface_; }
     VmaAllocator allocator() const { return allocator_; }
-    VkFormat depth_format() const { return depth_format_; }  // D24S8, or D32S8 where there is none
+    VkFormat depth_format() const { return depth_format_; }
+    // Graphics pipeline libraries with blend, polygon mode and vertex input set per draw (see create()).
+    bool pipeline_libraries() const { return pipeline_libraries_; }  // D24S8, or D32S8 where there is none
     const VkPhysicalDeviceLimits& limits() const { return limits_; }
     const VkPhysicalDeviceFeatures& features() const { return features_; }  // the enabled ones
     // Changes whenever the upload space starts over (a new frame, or a flush): staged bytes from an older
@@ -175,6 +177,7 @@ private:
     VkPhysicalDeviceLimits limits_{};
     VkPhysicalDeviceFeatures features_{};
     uint64_t staging_epoch_ = 1;
+    bool pipeline_libraries_ = false;
 };
 
 // VkResult -> its name, for logs.

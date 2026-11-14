@@ -189,13 +189,58 @@ bool Context::create(SDL_Window* window, bool validation) {
     queue.queueFamilyIndex = queue_family_;
     queue.queueCount = 1;
     queue.pQueuePriorities = &priority;
-    const char* device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
+    std::vector<const char*> device_extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
+
+    // Pipeline libraries (shaders compiled once each, pipelines linked per draw) need the blend state and the
+    // vertex input set per draw: all four extensions and their features, else whole pipelines as before.
+    VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT library{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT};
+    VkPhysicalDeviceExtendedDynamicState3FeaturesEXT dynamic3{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT};
+    VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT vertex_input{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT};
+    {
+        const char* off = std::getenv("COD_BRO_VK_NO_LIBRARIES");
+        const bool extensions = has_device_extension(physical_, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME) &&
+                                has_device_extension(physical_, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME) &&
+                                has_device_extension(physical_, VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME) &&
+                                has_device_extension(physical_, VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
+        if (extensions && !(off && *off == '1')) {
+            library.pNext = &dynamic3;
+            dynamic3.pNext = &vertex_input;
+            VkPhysicalDeviceFeatures2 query{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+            query.pNext = &library;
+            vkGetPhysicalDeviceFeatures2(physical_, &query);
+            pipeline_libraries_ = library.graphicsPipelineLibrary && dynamic3.extendedDynamicState3ColorBlendEnable &&
+                                  dynamic3.extendedDynamicState3ColorBlendEquation &&
+                                  dynamic3.extendedDynamicState3ColorWriteMask &&
+                                  dynamic3.extendedDynamicState3PolygonMode && vertex_input.vertexInputDynamicState;
+        }
+        if (pipeline_libraries_) {
+            const VkBool32 polygon_mode = dynamic3.extendedDynamicState3PolygonMode;
+            dynamic3 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT};
+            dynamic3.extendedDynamicState3ColorBlendEnable = VK_TRUE;
+            dynamic3.extendedDynamicState3ColorBlendEquation = VK_TRUE;
+            dynamic3.extendedDynamicState3ColorWriteMask = VK_TRUE;
+            dynamic3.extendedDynamicState3PolygonMode = polygon_mode;
+            library.pNext = &dynamic3;
+            dynamic3.pNext = &vertex_input;
+            vertex_input.pNext = nullptr;
+            features13.pNext = &library;
+            for (const char* name :
+                 {VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME,
+                  VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME})
+                device_extensions.push_back(name);
+        }
+        LOG_INFO("render", "Vulkan: %s", pipeline_libraries_ ? "pipeline libraries (shaders compiled once each)"
+                                                             : "whole pipelines (pipeline libraries off or not supported)");
+    }
     VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_info.pNext = &features;
     device_info.queueCreateInfoCount = 1;
     device_info.pQueueCreateInfos = &queue;
-    device_info.enabledExtensionCount = static_cast<uint32_t>(std::size(device_extensions));
-    device_info.ppEnabledExtensionNames = device_extensions;
+    device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
+    device_info.ppEnabledExtensionNames = device_extensions.data();
     if (VkResult r = vkCreateDevice(physical_, &device_info, nullptr, &device_); r != VK_SUCCESS) {
         LOG_ERROR("render", "Vulkan: no device (%s)", result_name(r));
         return false;

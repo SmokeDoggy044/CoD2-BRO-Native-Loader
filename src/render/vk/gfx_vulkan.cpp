@@ -7,6 +7,8 @@
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <atomic>
+#include <thread>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -210,6 +212,7 @@ public:
                           : 1;
         pipeline_cache_path_ = config.pipeline_cache_path;
         create_draw_objects();
+        if (vk_.pipeline_libraries()) start_prebuild();
         // A new back buffer is black, not undefined.
         clear(kGfxClearColor | kGfxClearDepth | kGfxClearStencil, 0xFF000000u, 1.0f, 0);
     }
@@ -219,7 +222,13 @@ public:
         for (auto& [id, target] : targets_) vk_.destroy_image(target.image);
         for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
         for (auto& [id, buffer] : buffers_) release_buffer(buffer);
-        for (auto& [id, shader] : shaders_) vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
+        join_prebuild();
+        for (auto& [id, shader] : shaders_) release_shader(shader);
+        for (auto& [code, shader] : prebuilt_) {
+            if (shader.library) vk_.defer_destroy(shader.library);
+            vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
+        }
+        for (auto& [key, library] : stage_libraries_) vk_.defer_destroy(library);
         for (auto& [id, target] : targets_) vk_.destroy_image(target.copy);
         for (auto& [key, kept] : kept_) vk_.defer_destroy(kept.buffer.buffer, kept.buffer.allocation);
         for (auto& [key, pipeline] : pipelines_) vk_.defer_destroy(pipeline);
@@ -364,6 +373,13 @@ public:
     // The SPIR-V with our fixed layout (spirv_layout.h) as a shader module; no SPIR-V (hand-made test
     // tokens) = none.
     ShaderId create_shader(ShaderStage stage, const ShaderCode& code) override {
+        join_prebuild();
+        if (auto found = prebuilt_.find(code.spirv); found != prebuilt_.end() && found->second.stage == stage) {
+            const ShaderId id = next_id_++;
+            shaders_[id] = found->second;
+            shaders_[id].shared = true;
+            return id;
+        }
         std::string error;
         const std::vector<uint32_t> words =
             spirv_fixed_layout(code.d3d9, code.d3d9_bytes, code.spirv, code.spirv_bytes, &error);
@@ -381,7 +397,8 @@ public:
             return 0;
         }
         const ShaderId id = next_id_++;
-        shaders_[id] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0};
+        shaders_[id] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0,
+                        vk_.pipeline_libraries() ? shader_library(stage, module) : VK_NULL_HANDLE};
         return id;
     }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
@@ -398,7 +415,7 @@ public:
     void destroy_shader(ShaderId shader) override {
         auto it = shaders_.find(shader);
         if (it == shaders_.end()) return;
-        vkDestroyShaderModule(vk_.device(), it->second.module, nullptr);
+        release_shader(it->second);
         shaders_.erase(it);
         // Pipelines made with it go too (a new shader may get the same id's module handle).
         for (auto p = pipelines_.begin(); p != pipelines_.end();) {
@@ -583,7 +600,7 @@ public:
         const VkBuf* kept = kept_vertices(cache_key, vertices, bytes);
         Staged vertex_staged, index_staged;
         for (int attempt = 0; attempt < 2; ++attempt) {
-            if (!prepare(primitive, has_range ? range : nullptr, true)) return;
+            if (!prepare(primitive, has_range ? range : nullptr, true, stride)) return;
             const uint64_t epoch = vk_.staging_epoch();
             if (!kept) {
                 vertex_staged = vk_.stage(bytes, 4);
@@ -602,7 +619,8 @@ public:
         const VkBuffer buffer = kept ? kept->buffer : vertex_staged.buffer;
         const VkDeviceSize offset = kept ? 0 : vertex_staged.offset;
         const VkDeviceSize stride64 = stride;
-        vkCmdBindVertexBuffers2(vk_.cmd(), 0, 1, &buffer, &offset, nullptr, &stride64);
+        vkCmdBindVertexBuffers2(vk_.cmd(), 0, 1, &buffer, &offset, nullptr,
+                                vk_.pipeline_libraries() ? nullptr : &stride64);
         if (primitive == Primitive::Quads) {
             draw_quads(0, vertex_count);
             return;
@@ -755,7 +773,9 @@ private:
     struct Shader {
         ShaderStage stage;
         VkShaderModule module;
-        uint32_t inputs;  // vertex shaders: the input locations read
+        uint32_t inputs;                     // vertex shaders: the input locations read
+        VkPipeline library = VK_NULL_HANDLE;  // pipeline libraries: the compiled stage
+        bool shared = false;                 // module and library belong to prebuilt_
     };
     struct PipelineKey {
         uint32_t vs, ps, layout, topology, blend_enable, src, dst, op, write_mask, fill, color_format, depth_format,
@@ -1216,10 +1236,255 @@ private:
 
     // --- Pipelines ---
 
+    // --- Pipeline libraries (Context::pipeline_libraries) ---
+    // Each shader is compiled once into a library (vertex shader = pre-rasterization state, pixel shader = fragment
+    // shader state); the vertex input (per primitive class) and fragment output (per target formats) libraries are
+    // small. A draw's pipeline links the four without link-time optimization, which is fast; blend, write mask,
+    // polygon mode and vertex input are set per draw (dynamic_draw_state).
+
+    static const VkDynamicState* library_dynamic_states(uint32_t& count) {
+        static const VkDynamicState states[] = {
+            VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+            VK_DYNAMIC_STATE_DEPTH_BIAS, VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK, VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE, VK_DYNAMIC_STATE_CULL_MODE, VK_DYNAMIC_STATE_FRONT_FACE,
+            VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
+            VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP,
+            VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE, VK_DYNAMIC_STATE_STENCIL_OP, VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE,
+            VK_DYNAMIC_STATE_VERTEX_INPUT_EXT, VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT,
+            VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT, VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT,
+            VK_DYNAMIC_STATE_POLYGON_MODE_EXT,
+        };
+        count = static_cast<uint32_t>(std::size(states));
+        return states;
+    }
+
+    // One library: `part` = which state; `module` for the shader parts; `topology` for the vertex input part;
+    // the formats for the fragment output part.
+    VkPipeline create_library(VkGraphicsPipelineLibraryFlagsEXT part, VkShaderModule module,
+                              VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                              VkFormat color_format = VK_FORMAT_UNDEFINED, VkFormat depth_format = VK_FORMAT_UNDEFINED) {
+        VkGraphicsPipelineLibraryCreateInfoEXT library{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT};
+        library.flags = part;
+        VkPipelineRenderingCreateInfo rendering{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+        library.pNext = &rendering;
+        if (part == VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT) {
+            rendering.colorAttachmentCount = 1;
+            rendering.pColorAttachmentFormats = &color_format;
+            rendering.depthAttachmentFormat = rendering.stencilAttachmentFormat = depth_format;
+        }
+        VkPipelineVertexInputStateCreateInfo vertex{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+        VkPipelineInputAssemblyStateCreateInfo assembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+        assembly.topology = topology;
+        VkPipelineViewportStateCreateInfo viewport{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+        viewport.viewportCount = viewport.scissorCount = 1;
+        VkPipelineRasterizationStateCreateInfo raster{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+        raster.polygonMode = VK_POLYGON_MODE_FILL;
+        raster.lineWidth = 1.0f;
+        VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        VkPipelineDepthStencilStateCreateInfo depth{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+        VkPipelineColorBlendAttachmentState attachment{};
+        attachment.colorWriteMask = kColorAll;
+        VkPipelineColorBlendStateCreateInfo blend{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+        blend.attachmentCount = 1;
+        blend.pAttachments = &attachment;
+        VkPipelineDynamicStateCreateInfo dynamic{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+        dynamic.pDynamicStates = library_dynamic_states(dynamic.dynamicStateCount);
+        VkPipelineShaderStageCreateInfo stage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+        stage.module = module;
+        stage.pName = "main";
+
+        VkGraphicsPipelineCreateInfo info{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+        info.pNext = &library;
+        info.flags = VK_PIPELINE_CREATE_LIBRARY_BIT_KHR;
+        info.pDynamicState = &dynamic;
+        switch (part) {
+        case VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT:
+            info.pVertexInputState = &vertex;
+            info.pInputAssemblyState = &assembly;
+            break;
+        case VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT:
+            stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+            info.stageCount = 1;
+            info.pStages = &stage;
+            info.pViewportState = &viewport;
+            info.pRasterizationState = &raster;
+            info.layout = pipeline_layout_;
+            break;
+        case VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT:
+            stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            info.stageCount = 1;
+            info.pStages = &stage;
+            info.pMultisampleState = &multisample;
+            info.pDepthStencilState = &depth;
+            info.layout = pipeline_layout_;
+            break;
+        default:  // fragment output
+            info.pMultisampleState = &multisample;
+            info.pColorBlendState = &blend;
+            break;
+        }
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
+            r != VK_SUCCESS) {
+            LOG_ERROR("render", "gfx: Vulkan pipeline library: %s", result_name(r));
+            return VK_NULL_HANDLE;
+        }
+        return pipeline;
+    }
+
+    VkPipeline shader_library(ShaderStage stage, VkShaderModule module) {
+        return create_library(stage == ShaderStage::Vertex ? VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT
+                                                           : VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT,
+                              module);
+    }
+
+    void release_shader(Shader& shader) {
+        if (shader.shared) return;
+        if (shader.library) vk_.defer_destroy(shader.library);
+        vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
+    }
+
+    // Every title shader compiled on worker threads from the device's creation on (while the logos and movies
+    // play); create_shader waits for them.
+    void start_prebuild() {
+        prebuild_results_.assign(kTitleShaderCount, Shader{});
+        prebuild_start_ = std::chrono::steady_clock::now();
+        const unsigned threads = std::max(1u, std::min(8u, std::thread::hardware_concurrency()));
+        auto next = std::make_shared<std::atomic<unsigned>>(0);
+        for (unsigned t = 0; t < threads; ++t)
+            prebuild_threads_.emplace_back([this, next] {
+                for (unsigned i = (*next)++; i < kTitleShaderCount; i = (*next)++) {
+                    const TitleShader& title = kTitleShaders[i];
+                    std::string error;
+                    const std::vector<uint32_t> words =
+                        spirv_fixed_layout(title.d3d9, title.d3d9_bytes, title.spirv, title.spirv_bytes, &error);
+                    if (words.empty()) continue;
+                    VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+                    info.codeSize = words.size() * 4;
+                    info.pCode = words.data();
+                    VkShaderModule module = VK_NULL_HANDLE;
+                    if (vkCreateShaderModule(vk_.device(), &info, nullptr, &module) != VK_SUCCESS) continue;
+                    const ShaderStage stage = title.stage == 'v' ? ShaderStage::Vertex : ShaderStage::Pixel;
+                    prebuild_results_[i] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0,
+                                            shader_library(stage, module)};
+                }
+            });
+    }
+
+    void join_prebuild() {
+        if (prebuild_threads_.empty()) return;
+        for (std::thread& t : prebuild_threads_) t.join();
+        const double ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - prebuild_start_).count();
+        uint32_t built = 0;
+        for (unsigned i = 0; i < kTitleShaderCount; ++i) {
+            Shader& shader = prebuild_results_[i];
+            if (!shader.module) continue;
+            if (!prebuilt_.emplace(kTitleShaders[i].spirv, shader).second) {  // the same code twice
+                if (shader.library) vk_.defer_destroy(shader.library);
+                vkDestroyShaderModule(vk_.device(), shader.module, nullptr);
+                continue;
+            }
+            ++built;
+        }
+        LOG_INFO("render", "Vulkan: %u title shaders compiled in %.0f ms (%zu threads)", built, ms,
+                 prebuild_threads_.size());
+        prebuild_threads_.clear();
+        prebuild_results_.clear();
+        ++pipelines_new_;  // save the cache with them
+    }
+
+    VkPipeline stage_library(VkGraphicsPipelineLibraryFlagsEXT part, uint32_t a, uint32_t b = 0) {
+        const uint64_t key = static_cast<uint64_t>(part) << 56 ^ static_cast<uint64_t>(a) << 28 ^ b;
+        auto found = stage_libraries_.find(key);
+        if (found != stage_libraries_.end()) return found->second;
+        const VkPipeline library =
+            part == VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT
+                ? create_library(part, VK_NULL_HANDLE, static_cast<VkPrimitiveTopology>(a))
+                : create_library(part, VK_NULL_HANDLE, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, static_cast<VkFormat>(a),
+                                 static_cast<VkFormat>(b));
+        stage_libraries_[key] = library;
+        return library;
+    }
+
+    VkPipeline link_pipeline(const PipelineKey& key, const Shader& vs, const Shader& ps) {
+        const VkPipeline libraries[4] = {
+            stage_library(VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT, key.topology),
+            vs.library, ps.library,
+            stage_library(VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT, key.color_format,
+                          key.depth_format)};
+        for (VkPipeline library : libraries)
+            if (!library) return pipelines_[key] = VK_NULL_HANDLE;
+        VkPipelineLibraryCreateInfoKHR linked{VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR};
+        linked.libraryCount = 4;
+        linked.pLibraries = libraries;
+        VkGraphicsPipelineCreateInfo info{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+        info.pNext = &linked;
+        info.layout = pipeline_layout_;
+        VkPipeline pipeline = VK_NULL_HANDLE;
+        const auto start = std::chrono::steady_clock::now();
+        if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
+            r != VK_SUCCESS) {
+            LOG_ERROR("render", "gfx: Vulkan pipeline link: %s", result_name(r));
+            pipeline = VK_NULL_HANDLE;
+        }
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        ++pipelines_new_;
+        pipelines_ms_ += ms;
+        pipelines_slowest_ms_ = std::max(pipelines_slowest_ms_, ms);
+        if (ms >= 50.0) LOG_INFO("render", "Vulkan: linking a pipeline took %.0f ms", ms);
+        return pipelines_[key] = pipeline;
+    }
+
+    // What whole pipelines keep in their key, set per draw: vertex input (bindings with their strides, the layout's
+    // attributes, (0, 0, 0, 1) for the rest), blending, write mask and polygon mode.
+    void dynamic_draw_state(VkCommandBuffer cmd, uint32_t bindings_used, const VkDeviceSize* strides, const Shader& vs,
+                            const std::vector<VertexAttribute>& attributes, VkBlendFactor src, VkBlendFactor dst,
+                            VkBlendOp op, bool blend, uint32_t write_mask, VkPolygonMode fill) {
+        VkVertexInputBindingDescription2EXT bindings[kGfxVertexStreams + 1];
+        VkVertexInputAttributeDescription2EXT inputs[kGfxVertexInputs];
+        uint32_t binding_count = 0, input_count = 0, given = 0;
+        for (uint32_t s = 0; s <= kGfxVertexStreams; ++s)
+            if (bindings_used & (1u << s)) {
+                VkVertexInputBindingDescription2EXT& d = bindings[binding_count++];
+                d = {VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT};
+                d.binding = s;
+                d.stride = static_cast<uint32_t>(strides[s]);
+                d.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+                d.divisor = 1;
+            }
+        auto add = [&](uint32_t location, uint32_t binding, VkFormat format, uint32_t offset) {
+            VkVertexInputAttributeDescription2EXT& d = inputs[input_count++];
+            d = {VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT};
+            d.location = location;
+            d.binding = binding;
+            d.format = format;
+            d.offset = offset;
+        };
+        for (const VertexAttribute& a : attributes) {
+            if (given & (1u << a.input)) continue;
+            given |= 1u << a.input;
+            add(a.input, a.stream, attribute_format(a.type), a.offset);
+        }
+        for (uint32_t i = 0; i < kGfxVertexInputs; ++i)
+            if ((vs.inputs & (1u << i)) && !(given & (1u << i)))
+                add(i, kDefaultBinding, VK_FORMAT_R32G32B32A32_SFLOAT, 0);
+        vkCmdSetVertexInputEXT(cmd, binding_count, bindings, input_count, inputs);
+        const VkBool32 enable = blend;
+        vkCmdSetColorBlendEnableEXT(cmd, 0, 1, &enable);
+        const VkColorBlendEquationEXT equation{src, dst, op, src, dst, op};
+        vkCmdSetColorBlendEquationEXT(cmd, 0, 1, &equation);
+        const VkColorComponentFlags mask = write_mask;
+        vkCmdSetColorWriteMaskEXT(cmd, 0, 1, &mask);
+        vkCmdSetPolygonModeEXT(cmd, fill);
+    }
+
     VkPipeline pipeline_for(const PipelineKey& key, const Shader& vs, const Shader& ps,
                             const std::vector<VertexAttribute>& attributes) {
         auto found = pipelines_.find(key);
         if (found != pipelines_.end()) return found->second;
+        if (vk_.pipeline_libraries()) return link_pipeline(key, vs, ps);
         VkVertexInputBindingDescription bindings[kGfxVertexStreams + 1];
         VkVertexInputAttributeDescription inputs[kGfxVertexInputs];
         uint32_t binding_count = 0, input_count = 0, given = 0;
@@ -1314,7 +1579,7 @@ private:
     // Everything but stream 0 of draw_user and the index buffers, for a draw now; false if it cannot draw.
     // Records the pipeline, descriptors, dynamic state and vertex buffers into the current rendering (begun
     // here).
-    bool prepare(Primitive primitive, const float* range = nullptr, bool user = false) {
+    bool prepare(Primitive primitive, const float* range = nullptr, bool user = false, uint32_t user_stride = 0) {
         begin_draw();
         auto vs = shaders_.find(vertex_shader_);
         auto ps = shaders_.find(pixel_shader_);
@@ -1409,6 +1674,11 @@ private:
         }
         if (vs->second.inputs & ~given) key.bindings |= 1u << kDefaultBinding;
         if (user) key.bindings |= 1u;  // draw_user binds stream 0
+        const uint32_t bindings_used = key.bindings;
+        if (vk_.pipeline_libraries()) {
+            // Set per draw instead (dynamic_draw_state): the pipeline is the shaders, primitive class and formats.
+            key.layout = key.blend_enable = key.src = key.dst = key.op = key.write_mask = key.fill = key.bindings = 0;
+        }
         const VkPipeline pipeline = pipeline_for(key, vs->second, ps->second, attributes);
         if (!pipeline) return false;
         if (raster_.flat_shading) {
@@ -1486,9 +1756,22 @@ private:
             strides[s] = stream.stride;
             if (key.bindings & (1u << s)) first = std::min(first, s), last = s;
         }
+        if (vk_.pipeline_libraries()) {
+            if (user) strides[0] = user_stride;
+            for (uint32_t s = 0; s <= kGfxVertexStreams; ++s)
+                if (bindings_used & (1u << s)) first = std::min(first, s), last = std::max(last, s);
+            dynamic_draw_state(cmd, bindings_used, strides, vs->second, attributes,
+                               b.enable ? blend_factor(dest_alpha(b.src)) : VK_BLEND_FACTOR_ONE,
+                               b.enable ? blend_factor(dest_alpha(b.dst)) : VK_BLEND_FACTOR_ZERO,
+                               b.enable ? blend_op(b.op) : VK_BLEND_OP_ADD, b.enable, b.write_mask & kColorAll,
+                               raster_.fill == Fill::Wireframe && vk_.features().fillModeNonSolid ? VK_POLYGON_MODE_LINE
+                               : raster_.fill == Fill::Point && vk_.features().fillModeNonSolid
+                                   ? VK_POLYGON_MODE_POINT
+                                   : VK_POLYGON_MODE_FILL);
+        }
         if (first != UINT32_MAX)
             vkCmdBindVertexBuffers2(cmd, first, last - first + 1, vbs + first, offsets + first, nullptr,
-                                    strides + first);
+                                    vk_.pipeline_libraries() ? nullptr : strides + first);
         return true;
     }
 
@@ -1505,6 +1788,11 @@ private:
     Stream streams_[kGfxVertexStreams];
     BufferId index_buffer_ = 0;
     std::unordered_map<ShaderId, Shader> shaders_;
+    std::unordered_map<const void*, Shader> prebuilt_;   // pipeline libraries: every title shader, by its SPIR-V
+    std::vector<std::thread> prebuild_threads_;
+    std::vector<Shader> prebuild_results_;
+    std::chrono::steady_clock::time_point prebuild_start_;
+    std::unordered_map<uint64_t, VkPipeline> stage_libraries_;  // vertex input / fragment output libraries
     std::vector<std::vector<VertexAttribute>> layouts_;  // LayoutId - 1
     std::unordered_map<PipelineKey, VkPipeline, WordHash> pipelines_;
     std::unordered_map<SamplerKey, VkSampler, WordHash> samplers_;
