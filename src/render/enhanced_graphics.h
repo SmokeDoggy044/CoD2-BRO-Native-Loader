@@ -6,8 +6,9 @@
 // graphics has none of them: the picture as on the Xbox (at the PC's resolution). Header only:
 // the loader and the launcher use it without linking the render library.
 //
-// Text form: "fxaa=1 sharpen=1 sharpness=0.4 ..."; switches left out stay on, amounts left out
-// stay at their defaults (neutral: 0); unknown keys and bad values are ignored.
+// Text form: "fxaa=1 sharpen=1 sharpness=0.4 ..."; switches left out keep their defaults (on, but
+// smooth_models off), amounts left out stay at their defaults (neutral: 0); unknown keys and bad values are
+// ignored.
 
 #include <algorithm>
 #include <cstdio>
@@ -23,7 +24,7 @@ struct GraphicsFeatures {
     bool sharpen = true;         // contrast-adaptive sharpening, by `sharpness`
     bool vibrance = true;        // stronger colours where they are weak, by `vibrance_amount`
     bool texture_detail = true;  // sharper textures in the distance, by `lod_bias`
-    bool smooth_models = true;   // rounder characters, guns and props (mesh_smooth.h)
+    bool smooth_models = false;  // rounder characters, guns and props (mesh_smooth.h); off: parked 11-14
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)

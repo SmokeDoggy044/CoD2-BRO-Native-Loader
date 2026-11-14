@@ -125,7 +125,7 @@ const SettingDef kSettings[] = {
      "enhanced: stronger colours where they are weak, by --vibrance-amount", "graphics-features", "vibrance"},
     {"vibrance-amount", "X", T::Float, G::Graphics, kLiveIni, -1, 1, nullptr, "0",
      "enhanced: -1 (greyer) .. 1 (0: the game's colours)", "graphics-features", "vibrance_amount"},
-    {"smooth-models", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+    {"smooth-models", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "enhanced: rounder characters, guns and props (their triangles curved and cut finer)", "graphics-features",
      "smooth_models"},
     {"texture-detail", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
